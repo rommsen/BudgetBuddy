@@ -1,6 +1,6 @@
 // scripts/budget-page.test.mjs
 //
-// Wächter für `budgeting-k7wmd` und `budgeting-g8s3w`: die Budget-Seite (#/budget) zeigt Monat,
+// Wächter für `budgeting-k7wmd`, `budgeting-g8s3w` und `budgeting-h3k9d`: die Budget-Seite (#/budget) zeigt Monat,
 // Zu verteilen und die Kategorien nach Gruppe, eine Zeile wählt die Kategorie für den Inspektor.
 // Gemessen am echten, per Vite gestarteten Fable-Client gegen gemockte BudgetApi-Antworten: am Handy
 // (390 px) Zeilen ohne horizontales Scrollen, am PC (1440 px) eine Tabelle neben dem Panel,
@@ -219,12 +219,12 @@ const targetTexts = (page) =>
       .map((row) => row.querySelector('[data-testid="budget-target"]')?.innerText.replace(/\s*\n\s*(·\s*)?/g, " · ") ?? null)
   );
 
-test("Handy: dritte Zeile mit Target oder fehlt, mit fehlt, erfüllt und pausiert, ohne horizontales Scrollen", async () => {
+test("Handy: dritte Zeile mit Target, fehlt oder pausiert, ohne horizontales Scrollen", async () => {
   const { page, context } = await openPage(390, 844, { fixture: targetFixture });
   await page.locator('[data-testid="budget-target"]:visible').first().waitFor();
   assert.deepEqual(await targetTexts(page), [
     "Target 1.600,00 €/Monat · fehlt 1.600,00 €",
-    "Target 1.600,00 €/Monat · erfüllt",
+    "Target 1.600,00 €/Monat",
     "Target 1.600,00 €/Monat · pausiert",
     null,
     "Target 121.600,00 € alle 11 Monate · fehlt 121.600,00 €",
@@ -262,7 +262,7 @@ test("PC: Spalte Target direkt hinter Kategorie zeigt denselben Inhalt, Gruppenz
   assert.equal(headers.length, 5);
   assert.deepEqual(await targetTexts(page), [
     "1.600,00 €/Monat",
-    "1.600,00 €/Monat · erfüllt",
+    "1.600,00 €/Monat",
     "1.600,00 €/Monat · pausiert",
     null,
     "121.600,00 € alle 11 Monate",
@@ -417,11 +417,11 @@ const filterFixture = (month) => ({
   ],
 });
 
-test("Filter: Rot zeigt nur rote Zeilen, eine Zeile mit Rot und Gelb zeigt beides, die Zahlen bleiben", async () => {
+test("Filter: Überzogen zeigt nur Zeilen im Minus, eine Zeile mit Rot und Gelb zeigt beides, die Zahlen bleiben", async () => {
   const { context, page } = await openPage(1440, 900, { fixture: filterFixture });
   try {
     const chips = page.locator('[data-testid="budget-filter"]').getByRole("button");
-    assert.deepEqual(await chips.allInnerTexts(), ["Alle", "Fehlt (2)", "Rot (1)"]);
+    assert.deepEqual(await chips.allInnerTexts(), ["Alle", "Fehlt (2)", "Überzogen (1)"]);
     await chips.nth(2).click();
     await page.getByText("Macbook").waitFor({ state: "hidden" });
     assert.equal(await visibleRows(page).count(), 1);
@@ -436,7 +436,7 @@ test("Filter: Rot zeigt nur rote Zeilen, eine Zeile mit Rot und Gelb zeigt beide
 
     await searchInput(page).fill("xyz");
     await page.getByText("Keine Kategorie passt zu „xyz“").waitFor();
-    assert.deepEqual(await chips.allInnerTexts(), ["Alle", "Fehlt (2)", "Rot (1)"], "die Suche ändert die Zahlen nicht");
+    assert.deepEqual(await chips.allInnerTexts(), ["Alle", "Fehlt (2)", "Überzogen (1)"], "die Suche ändert die Zahlen nicht");
     await searchInput(page).fill("");
     await chips.nth(1).click();
     await visibleRows(page).filter({ hasText: "Kleidung" }).waitFor();
@@ -492,7 +492,7 @@ test("Sheet am Handy: 500 px hoch in allen vier Tabs, 48 px Tabs", async () => {
   }
 });
 
-test("Sheet: ‹ › wechselt ohne Schließen, Kopf und Tabs bleiben beim Scrollen stehen, mit kleinerem --vvh schrumpft es", async () => {
+test("Sheet: ˄ ˅ wechselt ohne Schließen, Kopf und Tabs bleiben beim Scrollen stehen, mit kleinerem --vvh schrumpft es", async () => {
   const { context, page } = await openPage(390, 844, { fixture: longFixture });
   try {
     await pickRow(page, "Kategorie 2");
@@ -531,7 +531,7 @@ test("Sheet: ‹ › wechselt ohne Schließen, Kopf und Tabs bleiben beim Scroll
   }
 });
 
-test("Tastatur am PC: Pfeile wechseln die Kategorie und die Liste scrollt mit, im Suchfeld passiert nichts", async () => {
+test("Tastatur am PC: Pfeile wechseln die Kategorie und die Liste scrollt mit", async () => {
   const { context, page } = await openPage(1440, 700, { fixture: longFixture });
   try {
     const panel = page.locator('[data-testid="budget-inspector"]');
@@ -550,18 +550,12 @@ test("Tastatur am PC: Pfeile wechseln die Kategorie und die Liste scrollt mit, i
 
     await page.keyboard.press("ArrowUp");
     await panel.getByRole("heading", { name: "Kategorie 29", exact: true }).waitFor();
-
-    await searchInput(page).focus();
-    await page.keyboard.press("ArrowDown");
-    await page.evaluate(() => new Promise(requestAnimationFrame));
-    await page.evaluate(() => new Promise(requestAnimationFrame));
-    assert.match(await page.locator("tr[aria-current='true']").innerText(), /Kategorie 29/, "die Auswahl bleibt");
   } finally {
     await context.close();
   }
 });
 
-test("Trefferflächen am Handy: Monatspfeile, Filter und ‹ › messen 48 px, bei 320 px kein seitliches Scrollen", async () => {
+test("Trefferflächen am Handy: Monatspfeile, Filter und ˄ ˅ messen 48 px, bei 320 px kein seitliches Scrollen", async () => {
   const { context, page } = await openPage(320, 700, { fixture: longFixture });
   try {
     const targets = [
@@ -772,6 +766,18 @@ test("Blättern am PC: Liste, Inspektor und Tabs bleiben stehen, die Liste behä
     assert.ok(await page.locator('[data-testid="budget-to-be-budgeted"]').isVisible(), "Zu verteilen bleibt");
     assert.ok(await searchInput(page).isVisible(), "die Suche bleibt");
     await page.waitForFunction(() => Number(getComputedStyle(document.querySelector('[data-testid="budget-list-area"]')).opacity) < 1);
+    // Am PC stehen Suche und Chips im Kopf, außerhalb der Liste. Gemessen wird der Weg bis zum Dokument.
+    await page.waitForFunction(
+      () =>
+        ["budget-category-search", "budget-filter"].every((id) => {
+          let opacity = 1;
+          for (let el = document.querySelector(`[data-testid="${id}"]`); el; el = el.parentElement) opacity *= Number(getComputedStyle(el).opacity);
+          return opacity < 1;
+        }),
+      undefined,
+      { timeout: 3000 }
+    );
+    assert.ok(await searchInput(page).isEnabled(), "die Suche bleibt bedienbar");
 
     release();
     await page.waitForFunction(() => document.querySelector('[data-testid="budget-list-area"]').getAttribute("aria-busy") === "false");
@@ -834,7 +840,7 @@ test("Wiederholen nach dem ersten Rahmen-Fehler lädt Rahmen und Monat", async (
 test("Filter ohne Treffer: Keine Kategorie in dieser Ansicht", async () => {
   const { context, page } = await openPage(1440, 900, { fixture: longFixture });
   try {
-    await page.locator('[data-testid="budget-filter"]').getByRole("button", { name: "Rot (0)" }).click();
+    await page.locator('[data-testid="budget-filter"]').getByRole("button", { name: "Überzogen (0)" }).click();
     await page.getByText("Keine Kategorie in dieser Ansicht.").waitFor();
     assert.equal(await visibleRows(page).count(), 0);
   } finally {
@@ -884,7 +890,7 @@ test("Handy: nach dem Scrollen bleiben die Chips unter der Leiste, die Suche scr
   }
 });
 
-test("PC: nach dem Scrollen haften Suche und Chips unter der Leiste, der Spaltenkopf darunter, auch bei großer Schrift", async () => {
+test("PC: nach dem Scrollen haftet der Kopf mit Suche und Chips, der Spaltenkopf direkt darunter, auch bei großer Schrift", async () => {
   for (const rootFont of [null, "20px"]) {
     const { context, page } = await openPage(1440, 900, { fixture: longFixture });
     try {
@@ -896,11 +902,12 @@ test("PC: nach dem Scrollen haften Suche und Chips unter der Leiste, der Spalten
       const head = await page.locator("table thead th").first().boundingBox();
       const panel = await page.locator('aside[data-testid="budget-inspector"]').boundingBox();
       const facts = JSON.stringify({ rootFont, at, head, panel });
-      assert.ok(at.chips.top >= at.bar.bottom - 0.5, `die Chips liegen unter der Leiste (${facts})`);
-      assert.ok(at.search.top >= at.bar.bottom - 0.5, `die Suche haftet mit (${facts})`);
+      assert.ok(at.bar.top >= at.navBottom - 0.5, `der Kopf liegt unter der Navigation (${facts})`);
+      assert.ok(at.chips.top >= at.bar.top - 0.5 && at.chips.bottom <= at.bar.bottom + 0.5, `die Chips liegen im Kopf (${facts})`);
+      assert.ok(at.search.top >= at.bar.top - 0.5 && at.search.bottom <= at.bar.bottom + 0.5, `die Suche liegt im Kopf (${facts})`);
       assert.ok(at.chipsOnTop, `nichts verdeckt die Chips (${facts})`);
-      assert.ok(head.y >= at.chips.bottom - 0.5, `der Spaltenkopf liegt unter den Chips (${facts})`);
-      assert.ok(head.y < at.chips.bottom + 24, `der Spaltenkopf haftet direkt darunter (${facts})`);
+      assert.ok(head.y >= at.bar.bottom - 0.5, `der Spaltenkopf liegt unter dem Kopf (${facts})`);
+      assert.ok(head.y < at.bar.bottom + 24, `der Spaltenkopf haftet direkt darunter (${facts})`);
       assert.ok(panel.y >= at.bar.bottom - 0.5, `Leiste und Panel überlappen nicht (${facts})`);
     } finally {
       await context.close();
@@ -1016,8 +1023,15 @@ test("Barrierefreiheit: Handy-Zeile mit aria-current, Monat und Suche mit Namen,
     await page.waitForFunction(() => document.activeElement.textContent === "Buchungen" && document.activeElement.getAttribute("aria-selected") === "true");
     await page.keyboard.press("ArrowLeft");
     await page.keyboard.press("ArrowLeft");
+    await page.waitForFunction(() => document.activeElement.textContent === "Geld" && document.activeElement.tabIndex === 0);
+    assert.equal(await tabpanel.getAttribute("aria-labelledby"), await tabs.first().getAttribute("id"), "links am Rand bleibt es stehen");
+
+    for (let i = 0; i < 4; i += 1) await page.keyboard.press("ArrowRight");
     await page.waitForFunction(() => document.activeElement.textContent === "Target" && document.activeElement.tabIndex === 0);
-    assert.equal(await tabpanel.getAttribute("aria-labelledby"), await tabs.nth(3).getAttribute("id"));
+    await page.keyboard.press("ArrowRight");
+    await page.evaluate(() => new Promise(requestAnimationFrame));
+    await page.evaluate(() => new Promise(requestAnimationFrame));
+    assert.equal(await tabpanel.getAttribute("aria-labelledby"), await tabs.nth(3).getAttribute("id"), "rechts am Rand bleibt es stehen");
   } finally {
     await context.close();
   }
@@ -1043,6 +1057,422 @@ test("Navigation: die Budget-Seite ist über die Tab-Leiste am Handy erreichbar"
     await tab.click();
     await page.locator('[data-testid="budget-to-be-budgeted"]').waitFor();
     assert.match(page.url(), /#\/budget$/);
+  } finally {
+    await context.close();
+  }
+});
+
+// ---------------- budgeting-h3k9d: dichter, Tastatur seitenweit, Überzogen, ˄ ˅ ----------------
+
+/// Die Teile des Kopfs: Monat, Suche, Filter, Zu verteilen, Targets anwenden.
+const headParts = (page) =>
+  page.evaluate(() => {
+    const box = (el) => {
+      const { top, bottom, left, right } = el.getBoundingClientRect();
+      return { top, bottom, left, right };
+    };
+    const button = [...document.querySelectorAll("button")].find((el) => el.textContent === "Targets anwenden");
+    return {
+      bar: box(document.querySelector('[data-testid="budget-month-switcher"]')),
+      month: box(document.querySelector('[data-testid="budget-month-name"]')),
+      search: box(document.querySelector('[data-testid="budget-category-search"]')),
+      filter: box(document.querySelector('[data-testid="budget-filter"]')),
+      assign: box(document.querySelector('[data-testid="budget-to-be-budgeted"]')),
+      targets: box(button),
+    };
+  });
+
+/// Zwei Teile stehen in derselben Zeile, wenn ihre Höhen sich überlappen.
+const sharesLine = (a, b) => a.top < b.bottom && b.top < a.bottom;
+
+const noSideScroll = (page) => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
+
+test("PC: 1440 × 900 zeigt mindestens 16 Kategorien, die erste Zeile im oberen Viertel, jede höchstens 40 px", async () => {
+  const { context, page } = await openPage(1440, 900, { fixture: longFixture });
+  try {
+    const measured = await page.evaluate(() => {
+      const rows = [...document.querySelectorAll("tr[data-testid='budget-category-row']")].map((el) => el.getBoundingClientRect());
+      return {
+        inView: rows.filter((r) => r.top >= 0 && r.bottom <= window.innerHeight).length,
+        firstTop: rows[0].top,
+        tallest: Math.max(...rows.map((r) => r.height)),
+        groupHead: document.querySelector("tbody td[colspan='5']").getBoundingClientRect().height,
+      };
+    });
+    const facts = JSON.stringify(measured);
+    assert.ok(measured.inView >= 16, `mindestens 16 Kategorien im Blick (${facts})`);
+    assert.ok(measured.firstTop <= 900 * 0.25, `die erste Zeile beginnt in den oberen 25 % (${facts})`);
+    assert.ok(measured.tallest <= 40, `eine Zeile misst höchstens 40 px (${facts})`);
+    assert.ok(measured.groupHead <= 32, `ein Gruppenkopf misst höchstens 32 px (${facts})`);
+  } finally {
+    await context.close();
+  }
+});
+
+/// Ein Name, der auch bei 1440 px nicht neben `fehlt` passt.
+const longNameFixture = (month) => {
+  const base = targetFixture(month);
+  const long = "Eine Kategorie mit einem wirklich sehr langen Namen, der neben dem Betrag keinen Platz mehr findet und kürzen muss";
+  base.Groups[0].Categories[0] = { ...base.Groups[0].Categories[0], Name: long };
+  return base;
+};
+
+test("PC: Zeilen mit Target, fehlt, pausiert und langem Namen bleiben einzeilig", async () => {
+  const { context, page } = await openPage(1440, 900, { fixture: longNameFixture });
+  try {
+    await page.locator('[data-testid="budget-target"]:visible').first().waitFor();
+    const facts = await page.evaluate(() =>
+      [...document.querySelectorAll("tr[data-testid='budget-category-row']")].map((row) => ({
+        height: row.getBoundingClientRect().height,
+        target: row.querySelector('[data-testid="budget-target"]')?.getBoundingClientRect().height ?? 0,
+        missingBeside:
+          !row.querySelector('[data-testid="budget-missing"]') ||
+          row.querySelector('[data-testid="budget-missing"]').getBoundingClientRect().left >
+            row.querySelector('[data-testid="budget-category-name"]').getBoundingClientRect().left,
+      }))
+    );
+    assert.ok(facts.every((f) => f.height <= 40), `höchstens 40 px (${JSON.stringify(facts)})`);
+    assert.ok(facts.every((f) => f.target <= 24), `Target mit Rhythmus in einer Zeile (${JSON.stringify(facts)})`);
+    assert.ok(facts.every((f) => f.missingBeside), `fehlt steht neben dem Namen (${JSON.stringify(facts)})`);
+  } finally {
+    await context.close();
+  }
+});
+
+test("Kopf: ab 1024 px eine Zeile in der verlangten Reihenfolge, bei 768 px zwei Zeilen", async () => {
+  for (const width of [1024, 1440]) {
+    const { context, page } = await openPage(width, 800, { fixture: targetFixture });
+    try {
+      const at = await headParts(page);
+      const facts = JSON.stringify({ width, at });
+      for (const part of ["search", "filter", "assign", "targets"]) {
+        assert.ok(sharesLine(at.month, at[part]), `${part} steht in der Zeile des Monats (${facts})`);
+      }
+      assert.ok(
+        at.month.right <= at.search.left && at.search.right <= at.filter.left && at.filter.right <= at.assign.left && at.assign.right <= at.targets.left,
+        `Reihenfolge Monat, Suche, Filter, Zu verteilen, Targets anwenden (${facts})`
+      );
+      assert.ok(at.search.right - at.search.left >= 120, `die Suche bleibt benutzbar (${facts})`);
+    } finally {
+      await context.close();
+    }
+  }
+  const { context, page } = await openPage(768, 800, { fixture: targetFixture });
+  try {
+    const at = await headParts(page);
+    const facts = JSON.stringify(at);
+    const lines = new Set(Object.entries(at).filter(([k]) => k !== "bar").map(([, b]) => Math.round((b.top + b.bottom) / 8)));
+    assert.ok(lines.size >= 2, `mehr als eine Zeile (${facts})`);
+    assert.ok(at.bar.bottom - at.bar.top <= 130, `höchstens zwei Zeilen (${facts})`);
+    assert.ok(await noSideScroll(page), "kein seitliches Scrollen");
+  } finally {
+    await context.close();
+  }
+});
+
+test("Kein seitliches Scrollen von 320 bis 1920 px, die Tabelle bleibt in ihrer Karte", async () => {
+  for (const width of [320, 390, 1024, 1280, 1440, 1920]) {
+    const { context, page } = await openPage(width, 800, { fixture: targetFixture });
+    try {
+      await page.locator('[data-testid="budget-target"]:visible').first().waitFor();
+      assert.ok(await noSideScroll(page), `${width}: kein seitliches Scrollen`);
+      if (width >= 768) {
+        const measured = await page.evaluate(() => {
+          const table = document.querySelector("table");
+          const card = table.closest(".overflow-clip").getBoundingClientRect();
+          return { table: table.getBoundingClientRect().right, card: card.right };
+        });
+        assert.ok(measured.table <= measured.card + 0.5, `${width}: Tabelle in der Karte (${JSON.stringify(measured)})`);
+      }
+    } finally {
+      await context.close();
+    }
+  }
+});
+
+test("Volle Breite: bei 1920 px ist die Liste breiter als bei 1280 px, das Panel bleibt 340 px, der Seitenrand bleibt", async () => {
+  const widths = {};
+  for (const width of [1280, 1920]) {
+    const { context, page } = await openPage(width, 900, { fixture: longFixture });
+    try {
+      const list = await page.locator("table").locator("xpath=ancestor::div[contains(@class,'overflow-clip')]").boundingBox();
+      const panel = await page.locator('aside[data-testid="budget-inspector"]').boundingBox();
+      widths[width] = { list: list.width, panel: panel.width, left: list.x, right: width - panel.x - panel.width };
+    } finally {
+      await context.close();
+    }
+  }
+  const facts = JSON.stringify(widths);
+  assert.ok(widths[1920].list >= widths[1280].list + 600, `der ganze Zuwachs geht an die Liste (${facts})`);
+  assert.equal(widths[1920].panel, 340, `Panel bei 1920 px (${facts})`);
+  assert.equal(widths[1280].panel, 340, `Panel bei 1280 px (${facts})`);
+  assert.equal(widths[1920].left, 24, `der übliche Seitenrand links (${facts})`);
+  assert.equal(widths[1920].right, 24, `der übliche Seitenrand rechts (${facts})`);
+});
+
+const selectedRowText = (page) => page.locator("tr[aria-current='true']").innerText();
+const activeTab = (panel) => panel.getByRole("tab", { selected: true }).innerText();
+/// Zwei Bilder Zeit: eine Taste, die etwas auslöste, hätte bis dahin gerendert.
+const twoFrames = async (page) => {
+  await page.evaluate(() => new Promise(requestAnimationFrame));
+  await page.evaluate(() => new Promise(requestAnimationFrame));
+};
+
+test("Tastatur seitenweit: nach einem Klick auf einen Filter wählt Runter die erste sichtbare, Hoch die letzte Zeile", async () => {
+  const { context, page } = await openPage(1440, 900, { fixture: filterFixture });
+  try {
+    const panel = page.locator('aside[data-testid="budget-inspector"]');
+    await page.locator('[data-testid="budget-filter"]').getByRole("button", { name: /^Fehlt/ }).click();
+    await page.getByText("Macbook").waitFor({ state: "hidden" });
+    await page.keyboard.press("ArrowDown");
+    await panel.getByRole("heading", { name: "Essen", exact: true }).waitFor();
+    await page.keyboard.press("ArrowDown");
+    await panel.getByRole("heading", { name: "Kleidung", exact: true }).waitFor();
+    await page.keyboard.press("ArrowDown");
+    await twoFrames(page);
+    assert.match(await selectedRowText(page), /Kleidung/, "am Rand bleibt die Auswahl stehen");
+
+    // Ohne fokussiertes Element (Klick auf eine Zeile fokussiert im `tr` nichts) gelten die Tasten auch.
+    await page.evaluate(() => document.activeElement.blur());
+    await page.keyboard.press("ArrowUp");
+    await panel.getByRole("heading", { name: "Essen", exact: true }).waitFor();
+  } finally {
+    await context.close();
+  }
+
+  const fresh = await openPage(1440, 900, { fixture: filterFixture });
+  try {
+    await fresh.page.locator('[data-testid="budget-filter"]').getByRole("button", { name: /^Überzogen/ }).click();
+    await fresh.page.getByText("Macbook").waitFor({ state: "hidden" });
+    await fresh.page.keyboard.press("ArrowUp");
+    await fresh.page.locator('aside[data-testid="budget-inspector"]').getByRole("heading", { name: "Essen", exact: true }).waitFor();
+  } finally {
+    await fresh.context.close();
+  }
+});
+
+test("Tastatur im Suchfeld: Hoch und Runter wechseln, der Text bleibt, Links und Rechts bewegen den Cursor", async () => {
+  const { context, page } = await openPage(1440, 900, { fixture: filterFixture });
+  try {
+    const panel = page.locator('aside[data-testid="budget-inspector"]');
+    await searchInput(page).click();
+    await page.keyboard.type("e");
+    await visibleRows(page).filter({ hasText: "Essen" }).waitFor();
+    const shown = await visibleRows(page).count();
+    await page.keyboard.press("ArrowDown");
+    await panel.getByRole("heading", { name: "Essen", exact: true }).waitFor();
+    assert.equal(await searchInput(page).inputValue(), "e", "der Text bleibt");
+    assert.equal(await page.evaluate(() => document.activeElement.getAttribute("aria-label")), "Kategorie suchen", "der Fokus bleibt");
+    assert.equal(await visibleRows(page).count(), shown);
+
+    const caret = () => searchInput(page).evaluate((el) => el.selectionStart);
+    assert.equal(await caret(), 1);
+    await page.keyboard.press("ArrowLeft");
+    await twoFrames(page);
+    assert.equal(await caret(), 0, "der Cursor geht nach links");
+    assert.equal(await activeTab(panel), "Geld", "der Tab bleibt");
+    await page.keyboard.press("ArrowRight");
+    await twoFrames(page);
+    assert.equal(await caret(), 1, "der Cursor geht nach rechts");
+    assert.equal(await activeTab(panel), "Geld", "der Tab bleibt");
+  } finally {
+    await context.close();
+  }
+});
+
+/// Nach jeder einzelnen Taste geprüft: Hin und Zurück höben sich sonst auf.
+const stayOnEssen = async (page, panel, label) => {
+  for (const key of ["ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft"]) {
+    await page.keyboard.press(key);
+    await twoFrames(page);
+    assert.match(await selectedRowText(page), /Essen/, `${label}, ${key}: die Zeile bleibt`);
+    assert.equal(await activeTab(panel), "Geld", `${label}, ${key}: der Tab bleibt`);
+  }
+};
+
+test("Tastatur: bei offenem Dialog passiert auf der Seite nichts, die Felder darin behalten ihre Tasten", async () => {
+  const { context, page } = await openPage(1440, 900, { fixture: filterFixture });
+  try {
+    const panel = page.locator('aside[data-testid="budget-inspector"]');
+    await pickRow(page, "Essen");
+    await panel.getByRole("heading", { name: "Essen", exact: true }).waitFor();
+
+    const nothingHappens = (label) => stayOnEssen(page, panel, label);
+
+    await page.locator('[data-testid="detail-move"]').getByRole("button").click();
+    // Fokus auf einem Knopf im Dialog: ein Eingabefeld sperrte die Tasten schon über `TextField`.
+    await page.locator('[data-testid="move-toggle"]').getByRole("button").focus();
+    await nothingHappens("Verschieben");
+    await page.locator('[data-testid="move-amount"] input').click();
+    await nothingHappens("Betragsfeld");
+
+    const pickerOpener = page.locator('[data-testid="move-counterpart"]').getByRole("button");
+    await pickerOpener.click();
+    await page.getByPlaceholder(/suchen/i).filter({ visible: true }).last().waitFor();
+    await nothingHappens("Picker");
+  } finally {
+    await context.close();
+  }
+
+  const second = await openPage(1440, 900, { fixture: filterFixture });
+  try {
+    const { page } = second;
+    const panel = page.locator('aside[data-testid="budget-inspector"]');
+    await pickRow(page, "Essen");
+    await panel.getByRole("heading", { name: "Essen", exact: true }).waitFor();
+    await page.getByRole("button", { name: "Targets anwenden" }).click();
+    await page.getByRole("heading", { name: /Targets anwenden/ }).waitFor();
+    await stayOnEssen(page, panel, "Targets anwenden");
+  } finally {
+    await second.context.close();
+  }
+});
+
+test("Tastatur: Rechts wechselt genau einen Tab, auch mit Fokus auf einem Tab, ohne Auswahl tut es nichts", async () => {
+  const { context, page } = await openPage(1440, 900, { fixture: filterFixture });
+  try {
+    const panel = page.locator('aside[data-testid="budget-inspector"]');
+    await page.keyboard.press("ArrowRight");
+    await twoFrames(page);
+    assert.match(await panel.innerText(), /Kategorie wählen/, "ohne Auswahl nichts");
+
+    await pickRow(page, "Essen");
+    await tabsOf(panel).first().waitFor();
+    await page.keyboard.press("ArrowRight");
+    await panel.getByRole("tab", { name: "Buchungen", selected: true }).waitFor();
+
+    await panel.getByRole("tab", { name: "Buchungen" }).focus();
+    await page.keyboard.press("ArrowRight");
+    await twoFrames(page);
+    assert.equal(await activeTab(panel), "Historie", "ein Druck, ein Tab");
+    assert.equal(await page.evaluate(() => document.activeElement.textContent), "Historie", "der Fokus geht mit");
+
+    // Mit Alt springt der Browser zurück: die Seite darf die Taste nicht nehmen.
+    await page.keyboard.press("Alt+ArrowLeft");
+    await twoFrames(page);
+    assert.equal(await activeTab(panel), "Historie", "Alt und Pfeil gehören dem Browser");
+  } finally {
+    await context.close();
+  }
+});
+
+test("Unter 1024 px wirken die seitenweiten Tasten nicht", async () => {
+  const { context, page } = await openPage(768, 900, { fixture: filterFixture });
+  try {
+    await page.keyboard.press("ArrowDown");
+    await twoFrames(page);
+    assert.equal(await page.locator(".bottom-sheet.fixed-height.active").count(), 0, "kein Sheet öffnet sich");
+  } finally {
+    await context.close();
+  }
+});
+
+test("erfüllt fehlt in der Liste und steht im Tab Target, pausiert bleibt", async () => {
+  for (const [width, height] of [[390, 844], [1440, 900]]) {
+    const { context, page } = await openPage(width, height, { fixture: targetFixture });
+    try {
+      await page.locator('[data-testid="budget-target"]:visible').first().waitFor();
+      const list = (await visibleRows(page).allInnerTexts()).join(" ");
+      assert.doesNotMatch(list, /erfüllt/, `${width}: nicht in der Liste`);
+      assert.match(list, /pausiert/, `${width}: pausiert bleibt`);
+      assert.match(list, /fehlt/, `${width}: fehlt bleibt`);
+
+      await pickRow(page, "Kleidung");
+      const tab = page.locator('[data-testid="inspector-tabs"]').filter({ visible: true }).getByRole("tab", { name: "Target" });
+      await tab.click();
+      await page.locator('[data-testid="target-status"]').filter({ hasText: "erfüllt" }).waitFor();
+    } finally {
+      await context.close();
+    }
+  }
+});
+
+test("Sprache: der Filter heißt Überzogen, das Wort Rot kommt auf der Seite nicht vor", async () => {
+  const { context, page } = await openPage(1440, 900, { fixture: filterFixture });
+  try {
+    await page.locator('[data-testid="budget-filter"]').getByRole("button", { name: "Überzogen (1)" }).waitFor();
+    const text = await page.locator('[data-testid="budget-page"]').innerText();
+    assert.doesNotMatch(text, /\bRot\b/i);
+  } finally {
+    await context.close();
+  }
+});
+
+test("Sheet: ˄ ˅ stehen rechts neben Schließen, je 48 px, keine ‹ ›-Zeile, am Rand bleibt der Platz frei", async () => {
+  for (const [width, height] of [[320, 700], [390, 844], [768, 900]]) {
+    const { context, page } = await openPage(width, height, { fixture: longFixture });
+    try {
+      await pickRow(page, "Kategorie 2");
+      await sheet(page).getByRole("heading", { name: "Kategorie 2", exact: true }).waitFor();
+      await sheet(page).evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
+
+      const previous = page.getByRole("button", { name: "Vorherige Kategorie" });
+      const next = page.getByRole("button", { name: "Nächste Kategorie" });
+      const close = sheet(page).locator(".sheet-close");
+      const [p, n, c, title] = await Promise.all([previous.boundingBox(), next.boundingBox(), close.boundingBox(), sheet(page).locator("h3").boundingBox()]);
+      const facts = JSON.stringify({ width, p, n, c, title });
+      for (const box of [p, n]) assert.ok(box.width >= 48 && box.height >= 48, `48 px (${facts})`);
+      assert.ok(title.x + title.width <= p.x && p.x + p.width <= n.x && n.x + n.width <= c.x, `Titel, ˄, ˅, Schließen von links nach rechts (${facts})`);
+      assert.equal(Math.round(p.y), Math.round(c.y), `auf einer Höhe (${facts})`);
+
+      const text = await sheet(page).innerText();
+      assert.doesNotMatch(text, /[‹›]/, "keine ‹ ›-Zeile im Sheet");
+      assert.match(text, /Alltag · Oktober 2026/, "Gruppe und Monat stehen als Text unter dem Titel");
+      assert.equal(await sheet(page).getByRole("button", { name: /Oktober 2026/ }).count(), 0, "der Monat ist kein Knopf");
+
+      await previous.click();
+      await sheet(page).getByRole("heading", { name: "Kategorie 1", exact: true }).waitFor();
+      assert.equal(await previous.count(), 0, "am Rand fehlt der Pfeil");
+      const titleAtEdge = await sheet(page).locator("h3").boundingBox();
+      assert.equal(titleAtEdge.width, title.width, `sein Platz bleibt frei (${facts})`);
+    } finally {
+      await context.close();
+    }
+  }
+});
+
+test("Sheet: ein langer Name kürzt im Kopf, die Knöpfe bleiben im Bild", async () => {
+  const { context, page } = await openPage(320, 700);
+  try {
+    await pickRow(page, "Eine Kategorie mit einem sehr langen Namen, der am Handy abgeschnitten werden muss k7wmd");
+    const close = sheet(page).locator(".sheet-close");
+    await close.waitFor();
+    await sheet(page).evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
+    const measured = await sheet(page).evaluate((el) => ({
+      overflow: el.scrollWidth > el.clientWidth,
+      headHeight: el.querySelector(".sheet-header").getBoundingClientRect().height,
+      closeRight: el.querySelector(".sheet-close").getBoundingClientRect().right,
+    }));
+    assert.equal(measured.overflow, false, "nichts läuft seitlich aus dem Sheet");
+    assert.ok(measured.closeRight <= 320, `Schließen liegt im Bild (${JSON.stringify(measured)})`);
+    assert.ok(measured.headHeight <= 80, `der Kopf wächst nicht mit dem Namen (${JSON.stringify(measured)})`);
+  } finally {
+    await context.close();
+  }
+});
+
+test("Handy: Targets anwenden steht in der Zeile der Suche, im vergangenen Monat bleibt der Platz frei", async () => {
+  const { context, page } = await openPage(390, 844, { fixture: longFixture });
+  try {
+    const before = await headParts(page);
+    const facts = JSON.stringify(before);
+    assert.ok(sharesLine(before.search, before.targets), `Suche und Targets anwenden in einer Zeile (${facts})`);
+    assert.ok(sharesLine(before.month, before.assign), `Monat und Zu verteilen in einer Zeile (${facts})`);
+    // Fehler-Toasts der nicht gemockten Routen liegen über den Pfeilen, Playwright scrollte dann für den Klick.
+    await page.addStyleTag({ content: ".toast-layer { display: none; }" });
+    const firstRow = () => visibleRows(page).first().evaluate((el) => el.getBoundingClientRect().top);
+    // Die Seite fährt beim Betreten ein (`animate-page-enter`), mitten darin gemessen sähe es nach Sprung aus.
+    await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
+    const rowBefore = await firstRow();
+
+    await previousArrow(page).click();
+    await monthName(page).getByText("September 2026").waitFor();
+    await page.locator('[data-testid="budget-list-area"][aria-busy="false"]').waitFor();
+    // Der Knopf blendet per Übergang aus, `visibility` wechselt erst an dessen Ende.
+    await page.getByRole("button", { name: "Targets anwenden" }).waitFor({ state: "hidden" });
+    assert.equal(await firstRow(), rowBefore, "die Seite springt nicht");
+    const after = await headParts(page);
+    assert.equal(after.search.right, before.search.right, "die Suche behält ihre Breite");
   } finally {
     await context.close();
   }

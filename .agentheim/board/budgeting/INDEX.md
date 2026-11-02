@@ -12,8 +12,8 @@ Catalog of this bounded context's tasks by status.
 <!-- task-counts:start -->
 - **Backlog:** 7
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 13
+- **Doing:** 0
+- **Done:** 14
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ Catalog of this bounded context's tasks by status.
 
 ### Doing
 <!-- doing-list:start -->
-- **budgeting-h3k9d** — "Budget-Seite dichter: Kopf in einer Zeile, volle Breite, einzeilige Zeilen, Tastatur seitenweit, Filter Überzogen, Kategorie-Pfeile im Sheet" (feature) — `doing/budgeting-h3k9d-budget-seite-dichter-und-tastatur.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **budgeting-h3k9d** — "Budget-Seite dichter: Kopf in einer Zeile, volle Breite, einzeilige Zeilen, Tastatur seitenweit, Filter Überzogen, Kategorie-Pfeile im Sheet" (feature) — `done/budgeting-h3k9d-budget-seite-dichter-und-tastatur.md`
 - **budgeting-p4n6r** — "Review-Korrekturen zur neuen Budget-Seite: Monatswechsel ohne Sprung, Pink raus, Trefferflächen, sticky Filter, Testlücken" (bug) — `done/budgeting-p4n6r-review-korrekturen-budget-seite.md`
 - **budgeting-g8s3w** — "Budget-Seite neu: Liste und Inspektor mit vier Tabs, freie Monate, Kategorie-Reihenfolge, Filter und Gelb für fehlt" (feature) — `done/budgeting-g8s3w-grundgeruest-liste-und-inspektor.md`
 - **budgeting-v4ht9** — "ADRs zur Budget-Seite: Targets über BB, Pause nur in BB, freie Monate, Farbrollen mit Gelb und neutralen Knöpfen" (decision) — `done/budgeting-v4ht9-entscheidungen-budget-seite.md`

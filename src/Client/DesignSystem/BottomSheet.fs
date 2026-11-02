@@ -30,6 +30,8 @@ type private BottomSheetInternalProps = {
     Elevated: bool
     /// Feste Höhe (`.fixed-height`), damit das Sheet beim Wechsel des Inhalts nicht springt.
     FixedHeight: bool
+    /// Knöpfe im Kopf, links neben Schließen.
+    HeaderActions: ReactElement list
     /// Fester Bereich zwischen Kopf und scrollendem Inhalt.
     Pinned: ReactElement list
 }
@@ -186,12 +188,17 @@ let private BottomSheetInternal (input: BottomSheetInternalProps) =
                                         ]
                                         match props.Subtitle with
                                         | Some sub ->
-                                            Html.div [
+                                            Html.p [
                                                 prop.text sub
                                             ]
                                         | None -> ()
                                     ]
                                 ]
+                                if not (List.isEmpty input.HeaderActions) then
+                                    Html.div [
+                                        prop.className "sheet-header-actions"
+                                        prop.children input.HeaderActions
+                                    ]
                                 Html.button [
                                     prop.className "sheet-close"
                                     prop.ariaLabel "Schließen"
@@ -230,10 +237,12 @@ let private BottomSheetInternal (input: BottomSheetInternalProps) =
 /// Renders a bottom sheet with overlay, drag handle, header and scrollable body.
 /// The sheet and overlay are always in the DOM; visibility is toggled via the `.active` CSS class.
 let view (props: BottomSheetProps) (children: ReactElement list) : ReactElement =
-    BottomSheetInternal { Props = props; Children = children; Elevated = false; FixedHeight = false; Pinned = [] }
+    BottomSheetInternal { Props = props; Children = children; Elevated = false; FixedHeight = false; HeaderActions = []; Pinned = [] }
 
 type private InspectorContent = {
     Title: string
+    Subtitle: string option
+    HeaderActions: ReactElement list
     Pinned: ReactElement list
     Children: ReactElement list
 }
@@ -243,11 +252,11 @@ type private InspectorContent = {
 let private ExitDurationMs = 500
 
 [<ReactComponent>]
-let private InspectorSheet (props: BottomSheetProps, pinned: ReactElement list, children: ReactElement list) =
+let private InspectorSheet (props: BottomSheetProps, headerActions: ReactElement list, pinned: ReactElement list, children: ReactElement list) =
     let held = React.useRef<InspectorContent option> None
     let released, setReleased = React.useState 0
     if props.IsOpen then
-        held.current <- Some { Title = props.Title; Pinned = pinned; Children = children }
+        held.current <- Some { Title = props.Title; Subtitle = props.Subtitle; HeaderActions = headerActions; Pinned = pinned; Children = children }
     React.useEffect (
         (fun () ->
             if props.IsOpen then
@@ -263,24 +272,32 @@ let private InspectorSheet (props: BottomSheetProps, pinned: ReactElement list, 
         [| box props.IsOpen |]
     )
     let shown =
-        held.current |> Option.defaultValue { Title = props.Title; Pinned = []; Children = [] }
+        held.current
+        |> Option.defaultValue { Title = props.Title; Subtitle = props.Subtitle; HeaderActions = []; Pinned = []; Children = [] }
     BottomSheetInternal
-        { Props = { props with Title = shown.Title }
+        { Props = { props with Title = shown.Title; Subtitle = shown.Subtitle }
           Children = shown.Children
           Elevated = false
           FixedHeight = true
+          HeaderActions = shown.HeaderActions
           Pinned = shown.Pinned }
 
-/// Das Sheet für den Inspektor (budgeting-g8s3w): feste Höhe, `pinned` steht fest zwischen Kopf und
+/// Das Sheet für den Inspektor (budgeting-g8s3w): feste Höhe, `headerActions` stehen im Kopf links
+/// neben Schließen, Titel und Unterzeile kürzen statt umzubrechen, `pinned` steht fest zwischen Kopf und
 /// Inhalt, nur `children` scrollt. Mit offener Tastatur wird es kleiner (ADR 0005). Bleibt immer
 /// gerendert, `IsOpen` fährt es ein und aus, der Inhalt hält sich dabei selbst.
-let inspector (props: BottomSheetProps) (pinned: ReactElement list) (children: ReactElement list) : ReactElement =
-    InspectorSheet (props, pinned, children)
+let inspector
+    (props: BottomSheetProps)
+    (headerActions: ReactElement list)
+    (pinned: ReactElement list)
+    (children: ReactElement list)
+    : ReactElement =
+    InspectorSheet (props, headerActions, pinned, children)
 
 /// Wie `view`, aber auf der erhöhten Ebene (`layer-2`): das Sheet öffnet über einem anderen
 /// Sheet, zum Beispiel der Kategorie-Picker über dem Buchungs-Detail.
 let viewLayered (props: BottomSheetProps) (children: ReactElement list) : ReactElement =
-    BottomSheetInternal { Props = props; Children = children; Elevated = true; FixedHeight = false; Pinned = [] }
+    BottomSheetInternal { Props = props; Children = children; Elevated = true; FixedHeight = false; HeaderActions = []; Pinned = [] }
 
 // ---------------------------------------------------------------------------
 // Category Picker (specialised bottom sheet)

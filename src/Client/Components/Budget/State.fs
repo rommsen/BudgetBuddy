@@ -121,6 +121,7 @@ let private updatePage (msg: Msg) (model: Model) : Model * Cmd<Msg> =
         | model', false -> model', Cmd.none
     | SelectCategory categoryId -> withEntries (selectCategory categoryId model)
     | StepCategory direction -> withEntries (stepSelection direction model)
+    | PageKeyPressed action -> withEntries (applyPageKey action model)
     | SelectInspectorTab tab -> withEntries { model with Tab = tab }
     | CloseInspector
     | ReturnAbandoned -> { model with Selected = None }, Cmd.none

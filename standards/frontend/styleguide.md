@@ -103,18 +103,18 @@ zusammenstehen, Rot am Verfügbar-Betrag im Minus, `fehlt` in Gelb. Die Ausnahme
 | Zeilenhöhe | 44px | zweizeilig, `padding:11px 16px` |
 | Kontostand | `text-primary` (aktiv) oder `text-secondary`; negativ Red | gleich |
 
-Zwei Ausnahmen von Handy zweizeilig und PC einzeilig, beide nur für die Budget-Seite und nur an
-Zeilen mit Target:
+Zwei Ausnahmen, beide nur für die Budget-Seite:
 
 - **Dritte Zeile am Handy:** Die Kategorie-Zeile trägt das Target als dritte Zeile. Sie hat dieselbe
-  Klasse wie die zweite (`ListRoles.mobileLine2`) und fehlt, wenn es kein Target gibt. Das Target
-  steht in `truncate min-w-0`, der Status (fehlt, erfüllt, pausiert) in `shrink-0 whitespace-nowrap`:
-  wird es eng, kürzt das Target und nie der Status. Target, erfüllt und pausiert stehen in
+  Klasse wie die zweite (`ListRoles.mobileLine2`) und fehlt, wenn es weder Target noch `fehlt` gibt.
+  Das Target steht in `truncate min-w-0`, der Status (fehlt, pausiert) in `shrink-0 whitespace-nowrap`:
+  wird es eng, kürzt das Target und nie der Status. Target und pausiert stehen in
   `ListRoles.secondary`, `fehlt` in `ListRoles.missing`. Die Beträge der zweiten Zeile tragen
-  `tabular-nums`.
-- **Zweizeilige Zelle am PC:** Die Spalte Target zeigt oben Betrag und Rhythmus, darunter den Status
-  in `ListRoles.secondary`. Der Betrag steht in Mono, der Rhythmus als eigener Span in Inter. Die
-  Zeilenhöhe von 44px ist dann eine Mindesthöhe, die übrigen Zellen bleiben einzeilig.
+  `tabular-nums`. "erfüllt" steht nicht in der Liste, nur im Tab Target.
+- **Dichte Zeile am PC:** Die Zeile misst 40 px (`ListRoles.denseRowHeight`), der Gruppenkopf höchstens
+  32 px. Die Spalte Target bleibt einzeilig: Betrag in Mono, Rhythmus als eigener Span in Inter,
+  dahinter pausiert in `ListRoles.secondary`. Der Name kürzt zuerst. Erst wenn ihm neben `fehlt`
+  weniger als 80 px blieben, rückt `fehlt` in eine zweite Zeile, die Zeile wird dann höher.
 
 #### Auswahl (Picker, `searchableSelect`)
 
@@ -270,7 +270,7 @@ steht nur **wann welche / wann nicht**.
 | **Tokens** | Quelle aller Klassen-Konstanten (§3) — überall referenzieren | Niemals umgehen: rohe Tailwind-/Hex-Klassen sind Drift |
 | **Form** | Submit-Buttons mit Required-Field-Gating: `submitButton(WithIcon/Secondary)` deaktivieren bei fehlenden Pflichtfeldern | Reine Felder → `Input`; freie Buttons → `Button` |
 | **BottomSheet** | **Mobile** Auswahl-/Picker-Flows (keyboard-aware): `view`, `inspector` (immer gerendert, fährt über `IsOpen` ein und aus und hält dabei seinen Inhalt, feste Höhe 500 px, fester Bereich zwischen Kopf und Inhalt, der ab 55 % Höhe in sich scrollt, wird mit Tastatur kleiner), `categoryPicker`, `categoryPickerLayered`, `chipButton`, `sectionTitle` | Desktop-Dialog → `Modal`; einfaches Dropdown → `Input.select` |
-| **Tabs** | Gleich breite Segmente mit `role=tablist`, aktiv in Teal, am Handy 48 px Trefferfläche, Pfeiltasten und roving `tabindex`: `bar`, dazu `panel` für `role=tabpanel` | Filter über einer Liste → `ChipBar` |
+| **Tabs** | Gleich breite Segmente mit `role=tablist`, aktiv in Teal, am Handy 48 px Trefferfläche, Pfeiltasten (am Rand bleiben sie stehen) und roving `tabindex`: `bar`, dazu `panel` für `role=tabpanel` | Filter über einer Liste → `ChipBar` |
 | **Swipe** | Wischbare Listenzeilen mit enthüllter Aktion (mobile) | Statische Zeilen → Card/`Table`; Desktop-Hover-Aktionen → `Button.iconButton` |
 | **Viewport** | Infrastruktur für mobile Sheets (visualViewport→CSS-Vars, Scroll-Lock, Click-Swallow, Haptik) — von `BottomSheet` genutzt | Direkt nur, wenn du ein **neues** Sheet/Overlay baust (dann die Muster aus §7 erben) |
 
@@ -380,11 +380,15 @@ darunter neu verankert. Filterwechsel braucht kein Hochscrollen. Beleg:
 `infrastructure/done/2026-06-11-mobile-polish-sticky-filter-skeleton-springs`;
 Positionierung in `styles.css`. Sticky-Tabellenköpfe analog über `Table` (`Sticky=true`).
 
-Die Budget-Seite stapelt drei feste Zeilen: Monatsleiste, Filter, Spaltenkopf. Am PC haften Suche
-und Chips zusammen, am Handy nur die Chips, damit die festen Zeilen wenig Höhe nehmen. Die Höhen sind
-gemessen (`ResizeObserver`, `--budget-month-bar-height`, `--budget-filter-bar-height`), weil die
-Leisten umbrechen. Ein Halter mit `overflow-hidden` nimmt dem Spaltenkopf das Haften: dort
-`overflow-clip`.
+Der Kopf der Budget-Seite ist am PC eine sticky Zeile: Monat, Suche, Filter, Zu verteilen,
+`Targets anwenden`, ab 1024 px in einer Zeile, darunter bis 768 px in zweien. Der Spaltenkopf haftet
+darunter. Der Titel entfällt, die Navigation nennt die Seite, die `h1` bleibt für den Screenreader
+(`PageHeader.screenReaderTitle`). Die Seite läuft über die volle Breite mit dem üblichen Seitenrand,
+der Zuwachs geht an die Spalte Kategorie, das Panel bleibt 340 px. Am Handy haften nur Monat mit Zu
+verteilen und die Chips, die Suche scrollt mit, `Targets anwenden` steht in ihrer Zeile. Im
+vergangenen Monat bleibt der Knopf `invisible`, die Seite springt nicht. Die Höhe des Kopfs ist
+gemessen (`ResizeObserver`, `--budget-month-bar-height`), weil er umbricht. Ein Halter mit
+`overflow-hidden` nimmt dem Spaltenkopf das Haften: dort `overflow-clip`.
 
 ---
 

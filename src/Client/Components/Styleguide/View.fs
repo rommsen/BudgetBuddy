@@ -523,7 +523,7 @@ let private calmListSection =
                         Table.calmSortableHeaderCell "Payee ohne Sortierung" None Table.Unsorted ignore
                     ])
                 ]
-                note "Ausnahmen der Budget-Seite an Zeilen mit Target: am Handy eine dritte Zeile, in der das Target kürzt und nie der Status; am PC eine zweizeilige Zelle mit Betrag in Mono und Rhythmus in Inter."
+                note "Ausnahmen der Budget-Seite: am Handy eine dritte Zeile, in der das Target kürzt und nie der Status; am PC die dichte Zeile mit 40 px (denseRowHeight), Betrag in Mono und Rhythmus in Inter in einer Zeile."
                 Html.div [
                     prop.className $"{Tokens.ListRoles.mobileRowPadding} border-b border-border-subtle max-w-sm"
                     prop.children [
@@ -960,14 +960,16 @@ let private BottomSheetDemo () =
             ]
         ]
         subTitle "Feste Höhe (BottomSheet.inspector)"
-        note "500 px hoch, wird mit offener Tastatur kleiner. Der feste Bereich bleibt stehen, nur der Inhalt scrollt."
+        note "500 px hoch, wird mit offener Tastatur kleiner. Der feste Bereich bleibt stehen, nur der Inhalt scrollt. Im Kopf stehen sheetArrow neben Schließen, je 48 px, am Rand hält sheetArrowGap den Platz. Titel und Unterzeile kürzen."
         row [ Button.secondary "Sheet mit fester Höhe" (fun () -> setInspectorOpen true) ]
         BottomSheet.inspector
             { IsOpen = inspectorOpen
               OnClose = fun () -> setInspectorOpen false
               Title = "Lebensmittel"
-              Subtitle = None
+              Subtitle = Some "Alltag · Oktober 2026"
               Footer = None }
+            [ Button.sheetArrowGap ()
+              Button.sheetArrow "styleguide-sheet-next" "Nächste Kategorie" (Icons.chevronDown Icons.SM Icons.Default) ignore ]
             [ Html.p [ prop.className "text-sm text-text-secondary pb-2"; prop.text "Fester Bereich" ] ]
             [ Html.p [ prop.className "text-sm text-text-muted"; prop.text "Scrollender Inhalt" ] ]
         BottomSheet.view

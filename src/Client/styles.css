@@ -1113,7 +1113,6 @@ nav a:focus-visible {
    darunter frei. */
 .ledger-filter-bar,
 .budget-month-bar,
-.budget-filter-bar,
 .budget-filter-chips {
   position: sticky;
   top: calc(56px + env(safe-area-inset-top, 0px));
@@ -1129,18 +1128,13 @@ nav a:focus-visible {
   }
 }
 
-/* Die festen Zeilen der Budget-Seite stapeln sich unter der Navbar: Monatsleiste (Bug D3), dann die
-   Filter, dann der Spaltenkopf. Beide Höhen misst `MeasuredBar` in `Budget/View.fs`, die Leisten
-   brechen um und wachsen mit der Schrift. Am Handy haften nur die Chips, damit die festen Zeilen wenig
-   Höhe nehmen. `display: contents` nimmt die Reihe aus dem Layout: sonst wäre sie der Halter der
-   Chips, und die liefen mit ihr aus dem Bild. */
+/* Die festen Zeilen der Budget-Seite stapeln sich unter der Navbar. Am PC ist es der Kopf, dann der
+   Spaltenkopf, am Handy Monatsleiste und Chips: dort scrollt die Suche mit, damit die festen Zeilen
+   wenig Höhe nehmen. Die Höhe des Kopfs misst `MeasuredBar` in `Budget/View.fs`, er bricht um und
+   wächst mit der Schrift. */
 .budget-page {
   --budget-nav-height: calc(56px + env(safe-area-inset-top, 0px));
   --budget-bar-bottom: calc(var(--budget-nav-height) + var(--budget-month-bar-height, 0px));
-  --budget-filter-bottom: calc(var(--budget-bar-bottom) + var(--budget-filter-bar-height, 0px));
-}
-.budget-filter-bar {
-  display: contents;
 }
 .budget-filter-chips {
   top: var(--budget-bar-bottom);
@@ -1148,19 +1142,14 @@ nav a:focus-visible {
   padding-block: 4px;
 }
 .budget-row-anchor {
-  scroll-margin-top: calc(var(--budget-filter-bottom) + 3rem);
+  scroll-margin-top: calc(var(--budget-bar-bottom) + 3rem);
 }
 .budget-page .table-sticky-thead thead {
-  top: var(--budget-filter-bottom);
+  top: var(--budget-bar-bottom);
 }
 @media (min-width: 768px) {
   .budget-page {
     --budget-nav-height: 64px;
-  }
-  .budget-filter-bar {
-    display: flex;
-    top: var(--budget-bar-bottom);
-    z-index: 15;
   }
   .budget-filter-chips {
     position: static;
@@ -1773,6 +1762,21 @@ nav a:focus-visible {
 }
 .sheet-close svg { position: relative; }
 .sheet-close:active::before { background: var(--sf-bg-hover); transform: scale(0.92); }
+.sheet-header-actions {
+  display: flex;
+  flex-shrink: 0;
+  margin-right: -12px;
+}
+.bottom-sheet.fixed-height .sheet-header > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+.bottom-sheet.fixed-height .sheet-header h3,
+.bottom-sheet.fixed-height .sheet-header p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .sheet-header h3 {
   font-family: var(--font-display);
   font-size: 17px;

@@ -22,13 +22,16 @@ let private tabClassName (isActive: bool) : string =
 let private tabId (idPrefix: string) (index: int) = $"{idPrefix}-tab-{index}"
 let private panelId (idPrefix: string) = $"{idPrefix}-panel"
 
-/// Pfeiltasten wechseln den Tab und nehmen den Fokus mit, Home und End springen an die Ränder.
+/// Pfeiltasten wechseln den Tab und nehmen den Fokus mit, am Rand bleiben sie stehen. Home und End
+/// springen an die Ränder.
+/// Mit Zusatztaste gehört der Pfeil dem Browser (Alt und Links: zurück).
 let private onTabKey (tabs: Tab list) (index: int) (e: Browser.Types.KeyboardEvent) : unit =
     let last = tabs.Length - 1
     let target =
         match e.key with
-        | "ArrowRight" -> Some (if index = last then 0 else index + 1)
-        | "ArrowLeft" -> Some (if index = 0 then last else index - 1)
+        | _ when e.altKey || e.ctrlKey || e.metaKey || e.shiftKey -> None
+        | "ArrowRight" -> Some (min last (index + 1))
+        | "ArrowLeft" -> Some (max 0 (index - 1))
         | "Home" -> Some 0
         | "End" -> Some last
         | _ -> None

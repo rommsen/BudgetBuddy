@@ -299,6 +299,25 @@ let stepArrowGap () : ReactElement =
         prop.className $"inline-block {TouchTargets.minSize} md:min-h-[36px] md:min-w-[36px]"
     ]
 
+/// Ein Pfeil im Kopf eines Sheets (`˄ ˅`): 48 px auf jeder Breite, ein Sheet gibt es nur auf
+/// Touch-Geräten. Der negative Rand hält den Kopf so hoch wie `.sheet-close`.
+let sheetArrow (testId: string) (ariaLabel: string) (icon: ReactElement) (onClick: unit -> unit) =
+    Html.button [
+        prop.type' "button"
+        prop.custom ("data-testid", testId)
+        prop.ariaLabel ariaLabel
+        prop.className $"inline-flex items-center justify-center {TouchTargets.minSize} -my-2 rounded-md {Colors.textSecondary} cursor-pointer touch-manipulation hover:text-text-primary"
+        prop.onClick (fun _ -> onClick ())
+        prop.children [ icon ]
+    ]
+
+/// Der Platz eines fehlenden `sheetArrow`.
+let sheetArrowGap () : ReactElement =
+    Html.span [
+        prop.custom ("aria-hidden", true)
+        prop.className $"inline-block {TouchTargets.minSize} -my-2"
+    ]
+
 /// Der Name einer Stelle als Knopf zurück nach Hause, etwa der Monat. `away` heißt: gerade woanders,
 /// dann ist er teal (ADR 0075: Navigation). Die feste Breite hält die Pfeile daneben an ihrem Platz.
 let homeLabel (testId: string) (ariaLabel: string) (away: bool) (text: string) (onClick: unit -> unit) =

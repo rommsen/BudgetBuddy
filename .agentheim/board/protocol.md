@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-02 20:10 -- Task verified and completed: budgeting-h3k9d - "Budget-Seite dichter: Kopf in einer Zeile, volle Breite, einzeilige Zeilen, Tastatur seitenweit, Filter Überzogen, Kategorie-Pfeile im Sheet"
+
+**Type:** Work / Task completion
+**Task:** budgeting-h3k9d - "Budget-Seite dichter: Kopf in einer Zeile, volle Breite, einzeilige Zeilen, Tastatur seitenweit, Filter Überzogen, Kategorie-Pfeile im Sheet"
+**Summary:** Budget-Seite dichter: Kopf in einer Zeile, volle Breite, einzeilige Zeilen, Tastatur seitenweit, Filter Überzogen, Kategorie-Pfeile im Sheet
+**Duration:** 2h
+**Verification:** PASS (iteration 2, Verifier meldete FAIL wegen Flacker ledger-read-retry, Gate vom Conductor wiederholt)
+**Files changed:** 16
+**Tests added:** 26
+**ADRs written:** none
+
+---
+
+## 2026-11-02 19:36 -- Verification failed: budgeting-h3k9d - Budget-Seite dichter
+
+**Type:** Work / Verification failure
+**Task:** budgeting-h3k9d - Budget-Seite dichter
+**Iteration:** 1 of 3
+**Reasons:** Suche und Chips beim Monatswechsel am PC nicht gedimmt, Wächter misst sie nicht
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-02 18:02 -- Batch started: [budgeting-h3k9d]
 
 **Type:** Work / Batch start

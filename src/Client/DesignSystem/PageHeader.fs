@@ -53,6 +53,10 @@ let containerClass (style: TitleStyle) : string =
     | Calm -> "flex flex-row justify-between items-center gap-3 mb-4 animate-fade-in"
     | _ -> "flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 animate-fade-in"
 
+/// Der Titel nur für den Screenreader: die Seite braucht eine `h1`, die Navigation nennt sie schon.
+let screenReaderTitle (title: string) =
+    Html.h1 [ prop.className "sr-only"; prop.text title ]
+
 /// Full page header with configurable props
 let view (props: Props) =
     let titleClass = titleClass props.TitleStyle

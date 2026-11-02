@@ -226,15 +226,17 @@ let keyBindingTests =
             for tag in [ "INPUT"; "TEXTAREA"; "SELECT" ] do
                 Expect.isNone (keyCommandFor tag false false false "Escape") $"Esc im Feld {tag}"
 
-        testCase "nur die Kassenbuch-Ansicht hört auf Tasten am Dokument, kein anderes Kürzel kollidiert" <| fun () ->
+        // Beide Seiten stehen nie zugleich im DOM, ihre Tasten kollidieren nicht.
+        testCase "nur Kassenbuch und Budget-Seite hören auf Tasten am Dokument, kein anderes Kürzel kollidiert" <| fun () ->
             let clientDir = Path.Combine(repoRoot, "src", "Client")
             let listeners =
                 Directory.GetFiles(clientDir, "*.fs", SearchOption.AllDirectories)
                 |> Array.filter (fun f ->
                     let text = File.ReadAllText f
                     text.Contains "addEventListener (\"keydown\"" || text.Contains "addEventListener(\"keydown\"")
-                |> Array.map Path.GetFileName
-            Expect.equal listeners [| "View.fs" |] "einziger Dokument-Handler"
+                |> Array.map (fun f -> Path.GetRelativePath(clientDir, f).Replace('\\', '/'))
+                |> Array.sort
+            Expect.equal listeners [| "Components/Budget/View.fs"; "Components/Ledger/View.fs" |] "die einzigen Dokument-Handler"
             let view = readRepo [ "src"; "Client"; "Components"; "Ledger"; "View.fs" ]
             Expect.stringContains view "KeyboardNavigation model.FocusedRow dispatch" "in der Seite eingebunden"
     ]

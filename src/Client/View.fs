@@ -61,7 +61,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
     // Seite setzt ihre Ränder selbst.
     let pageShell =
         match model.CurrentPage with
-        | Ledger | LedgerEntry _ | Rules | SyncFlow -> Navigation.pageContentFull
+        | Ledger | LedgerEntry _ | Rules | Budget | SyncFlow -> Navigation.pageContentFull
         | _ -> Navigation.pageContent
 
     React.router [

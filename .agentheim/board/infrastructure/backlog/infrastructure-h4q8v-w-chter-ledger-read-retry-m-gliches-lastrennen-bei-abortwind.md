@@ -25,3 +25,5 @@ Ursache klären. Trifft die Vermutung zu, hängt der Wächter nicht mehr von der
 ## Acceptance criteria
 - [ ] Die Ursache ist belegt, zum Beispiel durch Reproduktion unter CPU-Last, oder die Vermutung ist widerlegt.
 - [ ] Der Wächter besteht unter Last wiederholt und wird rot, wenn die Wiederholung im Produktionscode fehlt.
+## Beobachtung
+Zweites Auftreten am 2026-11-02 im Verifier-Lauf von budgeting-h3k9d: `getAllRules (/rules) übersteht einen Abbruch`, 5-s-Timer in `scripts/ledger-read-retry.test.mjs:252`, einzeln dreimal grün. Das Gate meldet damit ab und zu rot, ohne dass der Code es ist. Vor den nächsten großen Tasks klären.

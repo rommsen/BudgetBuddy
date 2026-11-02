@@ -154,6 +154,8 @@ module ListRoles =
     let columnHeader = "font-mono text-[10px] font-semibold tracking-[0.12em] uppercase text-text-muted h-[42px]"
     /// Zeilenhöhe der ruhigen Tabelle (44px)
     let rowHeight = "h-11"
+    /// Die dichte Zeile der Budget-Liste: 40px, die Linie unter der Zeile zählt mit
+    let denseRowHeight = "h-[39px] [&>td]:py-1"
     /// Zweizeilige Handy-Zeile: Innenabstand 11px/16px
     let mobileRowPadding = "px-4 py-[11px]"
     /// Zeile 1 der zweizeiligen Handy-Zeile: Payee links, Betrag rechts, feste Höhe

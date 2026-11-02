@@ -72,7 +72,7 @@ type OpenMoveRetry = {
 type CategoryFilter =
     | AllCategories
     | MissingOnly
-    | RedOnly
+    | OverdrawnOnly
 
 /// Die Tabs des Inspektors.
 type InspectorTab =
@@ -81,10 +81,32 @@ type InspectorTab =
     | HistoryTab
     | TargetTab
 
+/// Die Tabs in ihrer Reihenfolge, dieselbe für Leiste und Pfeiltasten.
+let inspectorTabs =
+    [ "Geld", MoneyTab
+      "Buchungen", EntriesTab
+      "Historie", HistoryTab
+      "Target", TargetTab ]
+
 /// Richtung beim Wechsel der Kategorie ohne Schließen.
 type Direction =
     | Previous
     | Next
+
+/// Wo der Fokus steht, wenn eine Pfeiltaste fällt. `TextField` sperrt beide Richtungen,
+/// `SearchField` nur Links und Rechts.
+type KeyFocus =
+    | TextField
+    | SearchField
+    | OtherFocus
+
+/// Was eine Pfeiltaste auf der Budget-Seite auslöst.
+type PageKeyAction =
+    | StepRow of Direction
+    | FirstRow
+    | LastRow
+    | StepTab of Direction
+    | LeaveKey
 
 /// Die gewählte Kategorie, der einzige Auswahl-Zustand. Hält nur die Id: Zugewiesen, Aktivität und
 /// Verfügbar kommen aus `Model.Month`, also live aus YNAB. Aus dem Kassenbuch kommt allein die Liste.
@@ -156,7 +178,7 @@ type Msg =
     | CategorySearchChanged of string
     /// Das ✕ im Suchfeld.
     | ClearCategorySearch
-    /// Alle, Fehlt oder Rot.
+    /// Alle, Fehlt oder Überzogen.
     | SelectFilter of CategoryFilter
     /// Knopf "Verschieben" im Tab Geld.
     | OpenMove of System.Guid
@@ -178,8 +200,10 @@ type Msg =
     | MoveRetried of applicationId: string * Result<ApplyReport, string>
     /// Tipp auf eine Zeile.
     | SelectCategory of System.Guid
-    /// Pfeiltaste am PC, `‹ ›` im Sheet.
+    /// `˄ ˅` im Sheet.
     | StepCategory of Direction
+    /// Pfeiltaste am PC, seitenweit.
+    | PageKeyPressed of PageKeyAction
     /// Das Sheet schließen.
     | CloseInspector
     | SelectInspectorTab of InspectorTab
@@ -434,6 +458,10 @@ let targetStatusText (category: BudgetCategory) : string option =
     | false, Some under when under.Amount = 0m -> Some "erfüllt"
     | false, _ -> None
 
+/// Der Zusatz in der Liste: nur pausiert. "erfüllt" sagt dort nichts und steht im Tab Target.
+let listStatusText (category: BudgetCategory) : string option =
+    if category.Snoozed then Some "pausiert" else None
+
 /// "fehlt 12,30 €", in Gelb (ADR 0075). `None`, wenn nichts fehlt.
 let missingText (category: BudgetCategory) : string option =
     missingAmount category |> Option.map (fun amount -> $"fehlt {moneyText amount}")
@@ -465,7 +493,7 @@ let private matchesFilter (filter: CategoryFilter) (c: BudgetCategory) : bool =
     match filter with
     | AllCategories -> true
     | MissingOnly -> (missingAmount c).IsSome
-    | RedOnly -> c.Available.Amount < 0m
+    | OverdrawnOnly -> c.Available.Amount < 0m
 
 /// Die Zeilen der Liste: Filter und Suche gelten zusammen, Gruppen ohne Treffer fallen weg.
 /// Einmal je Render berechnen.
@@ -477,7 +505,8 @@ let shownGroups (filter: CategoryFilter) (search: string) (groups: BudgetGroup l
         | hits -> Some { group with Categories = hits })
     |> filterGroups search
 
-/// Zahlen hinter den Filtern: der ganze Monat, unabhängig von der Suche.
+/// Zahlen hinter den Filtern: immer der ganze Monat, unabhängig von der Suche (von Roman bestätigt,
+/// nicht ändern). Überzogen ist eine Teilmenge von Fehlt: `missingAmount` zählt jedes Minus mit.
 let filterCount (filter: CategoryFilter) (groups: BudgetGroup list) : int =
     groups |> List.sumBy (fun g -> g.Categories |> List.filter (matchesFilter filter) |> List.length)
 
@@ -882,6 +911,52 @@ let stepSelection (direction: Direction) (model: Model) : Model =
         | Some id -> selectCategory id model
         | None -> model
     | _ -> model
+
+/// Die Regel der Pfeiltasten ab 1024 px, rein, damit spätere Eingabefelder sie nur erweitern
+/// (`TextField`, Zugewiesen in budgeting-c5w2n). Hoch und Runter gelten auch im Suchfeld, Links und
+/// Rechts gehören dort dem Cursor. Ohne Auswahl gibt es keinen Tab zu wechseln.
+let pageKeyAction (hasSelection: bool) (key: string) (focus: KeyFocus) : PageKeyAction =
+    match focus, key with
+    | TextField, _ -> LeaveKey
+    | _, "ArrowDown" -> if hasSelection then StepRow Next else FirstRow
+    | _, "ArrowUp" -> if hasSelection then StepRow Previous else LastRow
+    | OtherFocus, "ArrowRight" when hasSelection -> StepTab Next
+    | OtherFocus, "ArrowLeft" when hasSelection -> StepTab Previous
+    | _ -> LeaveKey
+
+/// `pageKeyAction` im Zustand der Seite: offene Dialoge (Verschieben, Targets anwenden, darin der
+/// Picker) bekommen die Tasten nicht, sie gehören dann dem Dialog.
+let pageKeyActionFor (model: Model) (key: string) (focus: KeyFocus) : PageKeyAction =
+    match model.Targets, model.Move with
+    | TargetsClosed, None -> pageKeyAction model.Selected.IsSome key focus
+    | _ -> LeaveKey
+
+/// Der Nachbar-Tab, an den Rändern bleibt er stehen.
+let private neighbourTab (direction: Direction) (tab: InspectorTab) : InspectorTab =
+    let order = inspectorTabs |> List.map snd
+    let index = order |> List.findIndex ((=) tab)
+    let target =
+        match direction with
+        | Next -> index + 1
+        | Previous -> index - 1
+    order |> List.tryItem target |> Option.defaultValue tab
+
+let private selectRow (pick: System.Guid list -> System.Guid option) (model: Model) : Model =
+    match model.Month with
+    | Success month ->
+        match pick (groupIds (shownGroups model.Filter model.CategorySearch month.Groups)) with
+        | Some id -> selectCategory id model
+        | None -> model
+    | _ -> model
+
+/// `PageKeyPressed`: führt die Regel aus. Gewechselt wird zwischen den sichtbaren Zeilen.
+let applyPageKey (action: PageKeyAction) (model: Model) : Model =
+    match action with
+    | StepRow direction -> stepSelection direction model
+    | FirstRow -> selectRow List.tryHead model
+    | LastRow -> selectRow List.tryLast model
+    | StepTab direction -> { model with Tab = neighbourTab direction model.Tab }
+    | LeaveKey -> model
 
 /// Sind die Buchungen fällig? Nur im Tab Buchungen, bei geladenem Monat und `NotAsked`, nicht während
 /// eines Monatswechsels. Das liest nur das Kassenbuch und kostet kein YNAB-Limit.

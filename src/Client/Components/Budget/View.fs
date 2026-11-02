@@ -111,26 +111,36 @@ let private monthStepper (frame: BudgetFrame) (month: string) (dispatch: Msg -> 
         ]
     ]
 
-/// Die sticky Leiste: Monat links, Zu verteilen rechts. Bricht bei 320 px um, statt seitlich zu laufen.
+/// Zu verteilen, solange der Monat steht. `ml-auto` rückt es in einer eigenen Zeile nach rechts.
 /// Der Name zeigt beim Blättern sofort das Ziel, Zu verteilen bleibt bis zur Antwort beim alten Monat.
-let private monthBar (model: Model) (dispatch: Msg -> unit) =
-    MeasuredBar (
-        "--budget-month-bar-height",
-        [ prop.custom ("data-testid", "budget-month-switcher")
-          prop.className "budget-month-bar flex flex-wrap items-center gap-x-3 py-2 -mx-1 px-1"
-          prop.children [
-              match model.Frame, shownMonth model with
-              | Success frame, Some month -> monthStepper frame month dispatch
-              | _ -> ()
-              match model.Month with
-              | Success month ->
-                  Html.div [
-                      prop.className $"ml-auto {monthChangeClass model}"
-                      prop.children [ toBeBudgeted month.ToBeBudgeted ]
-                  ]
-              | _ -> ()
-          ] ]
-    )
+let private assignFigure (model: Model) =
+    match model.Month with
+    | Success month ->
+        Html.div [
+            prop.className $"ml-auto {monthChangeClass model}"
+            prop.children [ toBeBudgeted month.ToBeBudgeted ]
+        ]
+    | _ -> Html.none
+
+/// Unsichtbar statt weg: sonst änderte der Kopf beim Blättern seine Breite und die Liste sprang.
+let private targetsButton (model: Model) (dispatch: Msg -> unit) =
+    match model.Month with
+    | Success _ ->
+        let allowed = displayedMonthKind model |> Option.exists targetsAllowed
+        Html.div [
+            prop.className (if allowed then "shrink-0" else "shrink-0 invisible")
+            prop.children [ Button.secondary "Targets anwenden" (fun () -> dispatch OpenTargets) ]
+        ]
+    | _ -> Html.none
+
+let private headStepper (model: Model) (dispatch: Msg -> unit) =
+    match model.Frame, shownMonth model with
+    | Success frame, Some month -> monthStepper frame month dispatch
+    | _ -> Html.none
+
+/// Der Kopf der Seite als sticky Leiste.
+let private headBar (attributes: IReactProperty list) =
+    MeasuredBar ("--budget-month-bar-height", prop.custom ("data-testid", "budget-month-switcher") :: attributes)
 
 // ============================================
 // Kategorien: Handy (Zeilen) und PC (Tabelle)
@@ -162,7 +172,7 @@ let private mobileStatusLine (c: BudgetCategory) =
                         prop.text $"Target {targetText target}"
                     ]
                 | None -> ()
-                match targetStatusText c with
+                match listStatusText c with
                 | Some status ->
                     Html.span [
                         prop.className $"{ListRoles.secondary} shrink-0 whitespace-nowrap"
@@ -219,27 +229,22 @@ let private mobileGroup (selectedId: System.Guid option) (dispatch: Msg -> unit)
         ]
     ]
 
-/// Target am PC: Betrag in Mono, Rhythmus in Inter, darunter pausiert oder erfüllt.
+/// Target am PC in einer Zeile: Betrag in Mono, Rhythmus in Inter, dahinter pausiert.
 let private targetCell (c: BudgetCategory) =
     match c.Target with
     | None -> Html.none
     | Some target ->
-        Html.div [
+        Html.span [
             prop.custom ("data-testid", "budget-target")
-            prop.className "flex flex-col items-end"
+            prop.className "whitespace-nowrap"
             prop.children [
+                plainAmount target.Goal
                 Html.span [
-                    prop.className "whitespace-nowrap"
-                    prop.children [
-                        plainAmount target.Goal
-                        Html.span [
-                            prop.className $"font-sans {ListRoles.primarySize} {Colors.textSecondary}"
-                            prop.text (rhythmText target.Rhythm)
-                        ]
-                    ]
+                    prop.className $"font-sans {ListRoles.primarySize} {Colors.textSecondary}"
+                    prop.text (rhythmText target.Rhythm)
                 ]
-                match targetStatusText c with
-                | Some status -> Html.span [ prop.className $"{ListRoles.secondary} whitespace-nowrap"; prop.text status ]
+                match listStatusText c with
+                | Some status -> Html.span [ prop.className ListRoles.secondary; prop.text $" · {status}" ]
                 | None -> ()
             ]
         ]
@@ -252,18 +257,24 @@ let private desktopRow (selectedId: System.Guid option) (dispatch: Msg -> unit) 
         prop.custom ("data-testid", "budget-category-row")
         if isSelected then prop.custom ("aria-current", "true")
         // `budget-row-anchor`: die sticky Leisten verdecken sonst die Zeile, die per Pfeiltaste ins Bild rückt.
-        prop.className $"{ListRoles.rowHeight} border-b border-border-subtle cursor-pointer budget-row-anchor {rowColor}"
+        prop.className $"{ListRoles.denseRowHeight} border-b border-border-subtle cursor-pointer budget-row-anchor {rowColor}"
         prop.onClick (fun _ -> dispatch (SelectCategory c.Id))
         prop.children [
             // max-w-0 und w-full: der Name nimmt den Restplatz und kürzt, statt die Tabelle aus
             // der Karte zu drücken (sonst fehlt Verfügbar neben dem Panel).
             Table.cell { Table.defaultCellProps with ClassName = Some "w-full max-w-0" } [
                 Html.div [
-                    // Wird es eng, rückt fehlt unter den Namen: beide bleiben lesbar.
+                    // Der Name gibt zuerst nach und kürzt. Erst unter 80 px Rest rückt fehlt in eine
+                    // zweite Zeile: dann bleiben beide lesbar, die Zeile wird höher.
                     prop.className "flex flex-wrap items-baseline gap-x-2 min-w-0"
                     prop.children [
-                        Button.listName "budget-category-name" $"{c.Name} wählen" false c.Name (fun () ->
-                            dispatch (SelectCategory c.Id))
+                        Html.div [
+                            prop.className "flex grow basis-20 min-w-0"
+                            prop.children [
+                                Button.listName "budget-category-name" $"{c.Name} wählen" false c.Name (fun () ->
+                                    dispatch (SelectCategory c.Id))
+                            ]
+                        ]
                         match missingText c with
                         | Some text -> missingBadge "budget-missing" text
                         | None -> ()
@@ -298,7 +309,7 @@ let private desktopTable (selectedId: System.Guid option) (dispatch: Msg -> unit
                     prop.children [
                         Html.td [
                             prop.colSpan 5
-                            prop.className $"{ListRoles.cellPaddingX} pt-4 pb-1 {ListRoles.groupHeader}"
+                            prop.className $"{ListRoles.cellPaddingX} pt-2 pb-1 {ListRoles.groupHeader}"
                             prop.text group.Name
                         ]
                     ]
@@ -311,7 +322,7 @@ let private desktopTable (selectedId: System.Guid option) (dispatch: Msg -> unit
 let private categorySearchField (search: string) (dispatch: Msg -> unit) =
     Html.div [
         prop.custom ("data-testid", "budget-category-search")
-        prop.className "relative flex-1 min-w-0"
+        prop.className "relative flex-1 min-w-0 md:min-w-32"
         prop.children [
             Input.text
                 { Input.textInputDefaults with
@@ -334,7 +345,7 @@ let private categorySearchField (search: string) (dispatch: Msg -> unit) =
         ]
     ]
 
-/// Alle, Fehlt, Rot neben der Suche. Die Zahlen zählen den ganzen Monat, unabhängig von der Suche.
+/// Alle, Fehlt, Überzogen neben der Suche. Die Zahlen zählen den ganzen Monat, unabhängig von der Suche.
 let private filterChips (model: Model) (month: BudgetMonth) (dispatch: Msg -> unit) =
     let chip label filter =
         ChipBar.chip
@@ -344,18 +355,51 @@ let private filterChips (model: Model) (month: BudgetMonth) (dispatch: Msg -> un
               OnRemove = None }
     Html.div [
         prop.custom ("data-testid", "budget-filter")
-        prop.className "budget-filter-chips flex items-center gap-2"
+        prop.className "budget-filter-chips flex shrink-0 items-center gap-2"
         prop.children [
             chip "Alle" AllCategories
             chip $"Fehlt ({filterCount MissingOnly month.Groups})" MissingOnly
-            chip $"Rot ({filterCount RedOnly month.Groups})" RedOnly
+            chip $"Überzogen ({filterCount OverdrawnOnly month.Groups})" OverdrawnOnly
         ]
     ]
+
+/// Wo der Fokus steht, für `pageKeyAction`. Das Suchfeld erkennt sie an seiner Hülle.
+let private keyFocus (target: obj) : KeyFocus =
+    let tag: string = target?tagName
+    if tag = "INPUT" || tag = "TEXTAREA" || tag = "SELECT" then
+        if isNull (target?closest ("[data-testid='budget-category-search']")) then TextField else SearchField
+    else
+        OtherFocus
+
+/// Die Pfeiltasten der Seite ab 1024 px. Der Handler hängt am Dokument: nach einem Klick auf eine
+/// Tabellenzeile steht der Fokus auf `body` und erreicht kein Element der Seite. `defaultPrevented`
+/// heißt, `Tabs` hat die Taste schon genommen, so wechselt ein Druck genau einen Tab. Mit
+/// Zusatztaste gehört der Pfeil dem Browser (Alt und Links: zurück) oder dem Feld (Umschalt: markieren).
+[<ReactComponent>]
+let private PageKeys (model: Model, dispatch: Msg -> unit) =
+    let latest = React.useRef (model, dispatch)
+    latest.current <- (model, dispatch)
+    React.useEffect (
+        (fun () ->
+            let onKey (event: Browser.Types.Event) =
+                let e = event :?> Browser.Types.KeyboardEvent
+                if not (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) then
+                    let current, send = latest.current
+                    match pageKeyActionFor current e.key (keyFocus e.target) with
+                    | LeaveKey -> ()
+                    | action ->
+                        e.preventDefault ()
+                        send (PageKeyPressed action)
+            Browser.Dom.document.addEventListener ("keydown", onKey)
+            React.createDisposable (fun () -> Browser.Dom.document.removeEventListener ("keydown", onKey))),
+        [||]
+    )
+    Html.none
 
 /// Die gewählte Zeile rückt ins Bild, wenn sich die Auswahl ändert, nicht bei jedem Render: wer mit
 /// dem Mausrad scrollt, soll nicht zurückspringen.
 [<ReactComponent>]
-let private DesktopCategoryList (selectedId: System.Guid option, withKeyboard: bool, dispatch: Msg -> unit, content: ReactElement) =
+let private DesktopCategoryList (selectedId: System.Guid option, focusable: bool, content: ReactElement) =
     let listRef = React.useElementRef ()
     React.useEffect (
         (fun () ->
@@ -371,19 +415,9 @@ let private DesktopCategoryList (selectedId: System.Guid option, withKeyboard: b
         prop.ref listRef
         // `overflow-clip` statt `overflow-hidden`: sonst haftet der Spaltenkopf an dieser Karte statt an der Seite.
         prop.className "hidden md:block rounded-xl border border-border-subtle bg-surface-card overflow-clip"
-        if withKeyboard then
-            // Tasten in Inspektor oder Suchfeld erreichen die Liste nicht, beide liegen außerhalb.
+        if focusable then
             prop.tabIndex 0
             prop.ariaLabel "Kategorien"
-            prop.onKeyDown (fun e ->
-                match e.key with
-                | "ArrowDown" ->
-                    e.preventDefault ()
-                    dispatch (StepCategory Next)
-                | "ArrowUp" ->
-                    e.preventDefault ()
-                    dispatch (StepCategory Previous)
-                | _ -> ())
         prop.children [ content ]
     ]
 
@@ -410,7 +444,6 @@ let private categories (model: Model) (month: BudgetMonth) (shown: BudgetGroup l
             DesktopCategoryList (
                 selectedId,
                 Viewport.isInspectorPanelViewport (),
-                dispatch,
                 desktopTable selectedId dispatch shown
             )
         ]
@@ -971,12 +1004,6 @@ let private targetTab (category: BudgetCategory) =
         ]
     ]
 
-let private inspectorTabs =
-    [ "Geld", MoneyTab
-      "Buchungen", EntriesTab
-      "Historie", HistoryTab
-      "Target", TargetTab ]
-
 /// Der Inhalt des gewählten Tabs, in Panel und Sheet derselbe.
 let private inspectorContent (model: Model) (selected: SelectedCategory) (category: BudgetCategory) (dispatch: Msg -> unit) =
     let activeIndex = inspectorTabs |> List.findIndex (fun (_, tab) -> tab = model.Tab)
@@ -1007,20 +1034,15 @@ let private inspectorTabBar (model: Model) (dispatch: Msg -> unit) =
                IsActive = (model.Tab = value)
                OnClick = fun () -> dispatch (SelectInspectorTab value) }))
 
-/// `‹ ›` im Sheet: wechselt die Kategorie ohne Schließen, am Rand fehlt der Pfeil.
-let private sheetStepper (model: Model) (shown: BudgetGroup list) (subtitle: string) (dispatch: Msg -> unit) =
-    let arrow testId label arrowText direction =
+/// `˄ ˅` im Kopf des Sheets, neben Schließen: wechselt die Kategorie ohne Schließen. Am Rand fehlt
+/// der Pfeil, sein Platz bleibt frei.
+let private sheetStepper (model: Model) (shown: BudgetGroup list) (dispatch: Msg -> unit) =
+    let arrow testId label icon direction =
         match neighbourCategory direction shown model with
-        | Some _ -> Button.stepArrow testId label arrowText (fun () -> dispatch (StepCategory direction))
-        | None -> Button.stepArrowGap ()
-    Html.div [
-        prop.className "flex items-center justify-between gap-2"
-        prop.children [
-            arrow "inspector-previous" "Vorherige Kategorie" "‹" Previous
-            Html.span [ prop.className $"{ListRoles.secondary} truncate min-w-0"; prop.text subtitle ]
-            arrow "inspector-next" "Nächste Kategorie" "›" Next
-        ]
-    ]
+        | Some _ -> Button.sheetArrow testId label icon (fun () -> dispatch (StepCategory direction))
+        | None -> Button.sheetArrowGap ()
+    [ arrow "inspector-previous" "Vorherige Kategorie" (Icons.chevronUp Icons.SM Icons.Default) Previous
+      arrow "inspector-next" "Nächste Kategorie" (Icons.chevronDown Icons.SM Icons.Default) Next ]
 
 /// Offene Verschiebungen im festen Bereich des Sheets. Es deckt die Seite ab, der Hinweis dort wäre
 /// nach Ablauf des Toasts nicht mehr bedienbar.
@@ -1044,18 +1066,18 @@ let private sheetCategory (model: Model) =
 /// Das Sheet unter 1024 px. Immer gerendert, damit es ein- und ausfährt. Beim Ausfahren hält
 /// `BottomSheet.inspector` den letzten Inhalt.
 let private inspectorSheet (model: Model) (shown: BudgetGroup list) (dispatch: Msg -> unit) =
-    let props title isOpen : BottomSheet.BottomSheetProps =
+    let props title subtitle isOpen : BottomSheet.BottomSheetProps =
         { IsOpen = isOpen
           OnClose = fun () -> dispatch CloseInspector
           Title = title
-          Subtitle = None
+          Subtitle = subtitle
           Footer = None }
     match sheetCategory model with
     | Some (selected, month, (category, groupName)) ->
         BottomSheet.inspector
-            (props category.Name true)
+            (props category.Name (Some $"{groupName} · {monthLabel month.Month}") true)
+            (sheetStepper model shown dispatch)
             [ sheetRetries model.OpenRetries dispatch
-              sheetStepper model shown $"{groupName} · {monthLabel month.Month}" dispatch
               inspectorTabBar model dispatch ]
             // `-mx-5` hebt den Rand von `.sheet-body` auf, die Zeilen tragen ihn selbst.
             [ Html.div [
@@ -1063,7 +1085,7 @@ let private inspectorSheet (model: Model) (shown: BudgetGroup list) (dispatch: M
                   prop.className "-mx-5"
                   prop.children [ inspectorContent model selected category dispatch ]
               ] ]
-    | None -> BottomSheet.inspector (props "" false) [] []
+    | None -> BottomSheet.inspector (props "" None false) [] [] []
 
 /// Das Panel ab 1024 px. Der Hinweis steht ohne Auswahl da, die Höhe bleibt gleich. Beim Blättern
 /// bleibt der Inhalt stehen. Lädt der Monat bei bestehender Auswahl, steht ein Skeleton da. Scheitert
@@ -1106,7 +1128,47 @@ let private inspectorPanel (model: Model) (dispatch: Msg -> unit) =
 // Seite
 // ============================================
 
-let private listArea (model: Model) (shown: BudgetGroup list) (dispatch: Msg -> unit) =
+/// Ab 768 px steht alles im Kopf: ab 1024 px in einer Zeile, darunter bricht er in zwei um.
+let private wideHead (model: Model) (dispatch: Msg -> unit) =
+    headBar [
+        prop.className "budget-month-bar flex flex-wrap items-center gap-x-3 gap-y-1 py-1 -mx-1 px-1"
+        prop.children [
+            headStepper model dispatch
+            match model.Month with
+            | Success month ->
+                // Suche und Chips stehen außerhalb der Liste und dimmen beim Monatswechsel selbst mit.
+                // `min-w-fit`: die Gruppe bricht als Ganzes um, statt sich zu quetschen.
+                Html.div [
+                    prop.className $"flex flex-1 min-w-fit items-center gap-3 {monthChangeClass model}"
+                    prop.children [
+                        categorySearchField model.CategorySearch dispatch
+                        filterChips model month dispatch
+                    ]
+                ]
+            | _ -> ()
+            assignFigure model
+            targetsButton model dispatch
+        ]
+    ]
+
+/// Am Handy haften nur Monat mit Zu verteilen und die Chips, damit die festen Zeilen wenig Höhe nehmen.
+let private phoneHead (model: Model) (dispatch: Msg -> unit) =
+    headBar [
+        prop.className "budget-month-bar flex flex-wrap items-center gap-x-3 py-2 -mx-1 px-1"
+        prop.children [ headStepper model dispatch; assignFigure model ]
+    ]
+
+/// Die Zeile unter dem Kopf am Handy, sie scrollt mit. Die Chips liegen in der Liste: dort haften sie.
+let private phoneSearch (model: Model) (dispatch: Msg -> unit) =
+    Html.div [
+        prop.className "flex items-center gap-2"
+        prop.children [
+            categorySearchField model.CategorySearch dispatch
+            targetsButton model dispatch
+        ]
+    ]
+
+let private listArea (model: Model) (shown: BudgetGroup list) (wide: bool) (dispatch: Msg -> unit) =
     Html.div [
         prop.custom ("data-testid", "budget-list-area")
         prop.custom ("aria-busy", monthChanging model)
@@ -1117,59 +1179,50 @@ let private listArea (model: Model) (shown: BudgetGroup list) (dispatch: Msg -> 
             | Loading -> Loading.centered "Lade Budget ..."
             | Failure message -> ErrorDisplay.card message (Some (fun () -> dispatch Load))
             | Success month ->
-                // PC: Suche und Chips haften zusammen. Handy: `display: contents`, nur die Chips haften.
-                MeasuredBar (
-                    "--budget-filter-bar-height",
-                    [ prop.className "budget-filter-bar md:flex-row md:items-center gap-2 py-1"
-                      prop.children [
-                          categorySearchField model.CategorySearch dispatch
-                          filterChips model month dispatch
-                      ] ]
-                )
+                if not wide then
+                    phoneSearch model dispatch
+                    filterChips model month dispatch
                 categories model month shown dispatch
         ]
     ]
 
 let view (model: Model) (dispatch: Msg -> unit) =
     let isPanel = Viewport.isInspectorPanelViewport ()
+    // ADR 0043: zur Renderzeit genau ein Kopf, ein Suchfeld kann nicht doppelt stehen.
+    let wide = Viewport.isDesktopViewport ()
     // Einmal je Render: Liste, Pfeile und Zahlen nutzen dieselben Zeilen.
     let shown =
         match model.Month with
         | Success month -> shownGroups model.Filter model.CategorySearch month.Groups
         | _ -> []
 
-    Html.div [
-        prop.custom ("data-testid", "budget-page")
-        prop.className "budget-page flex flex-col gap-4"
-        prop.children [
-            PageHeader.calm "Budget" None (
-                // Unsichtbar statt weg: sonst änderte der Kopf beim Blättern seine Höhe und die Liste sprang.
-                match model.Month, displayedMonthKind model |> Option.exists targetsAllowed with
-                | Success _, allowed ->
-                    [ Html.div [
-                          prop.className (if allowed then "" else "invisible")
-                          prop.children [ Button.secondary "Targets anwenden" (fun () -> dispatch OpenTargets) ]
-                      ] ]
-                | _ -> []
-            )
-            targetsDialog model dispatch
-            moveDialog model dispatch
-            monthBar model dispatch
-            // Steht das Sheet offen, trägt es den Hinweis. Genau eine Stelle, nie beide. Der Platz bleibt
-            // auch leer belegt: fiele er weg, rückten die Geschwister auf, React baute Liste und Sheet
-            // neu auf, und das Sheet führe nicht mehr ein.
-            moveRetries (if isPanel || (sheetCategory model).IsNone then model.OpenRetries else []) dispatch
-            // ADR 0043: zur Renderzeit genau eine Hülle um denselben Inhalt.
-            if isPanel then
-                Html.div [
-                    prop.className "grid grid-cols-[minmax(0,1fr)_340px] gap-4 items-start"
-                    prop.children [
-                        listArea model shown dispatch
-                        inspectorPanel model dispatch
+    // Die Seite setzt ihre Ränder selbst, sie läuft über die volle Breite (`pageContentFull`).
+    Primitives.Container.full [
+        Html.div [
+            prop.custom ("data-testid", "budget-page")
+            prop.className "budget-page flex flex-col gap-4 md:gap-2"
+            prop.children [
+                PageHeader.screenReaderTitle "Budget"
+                targetsDialog model dispatch
+                moveDialog model dispatch
+                if wide then wideHead model dispatch else phoneHead model dispatch
+                // Steht das Sheet offen, trägt es den Hinweis. Genau eine Stelle, nie beide. Der Platz bleibt
+                // auch leer belegt: fiele er weg, rückten die Geschwister auf, React baute Liste und Sheet
+                // neu auf, und das Sheet führe nicht mehr ein.
+                moveRetries (if isPanel || (sheetCategory model).IsNone then model.OpenRetries else []) dispatch
+                // ADR 0043: zur Renderzeit genau eine Hülle um denselben Inhalt.
+                if isPanel then
+                    Html.div [
+                        prop.className "grid grid-cols-[minmax(0,1fr)_340px] gap-4 items-start"
+                        prop.children [
+                            PageKeys (model, dispatch)
+                            listArea model shown wide dispatch
+                            inspectorPanel model dispatch
+                        ]
                     ]
-                ]
-            else
-                listArea model shown dispatch
-                inspectorSheet model shown dispatch
+                else
+                    listArea model shown wide dispatch
+                    inspectorSheet model shown dispatch
+            ]
         ]
     ]

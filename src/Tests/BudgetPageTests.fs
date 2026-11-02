@@ -489,7 +489,7 @@ let private selectionTests =
             Expect.isNone model.Selected "keine Auswahl"
         }
         test "Fällt die gewählte Kategorie aus dem Filter, bleibt sie gewählt" {
-            let model, _, _ = Components.Budget.State.update (SelectFilter RedOnly) opened
+            let model, _, _ = Components.Budget.State.update (SelectFilter OverdrawnOnly) opened
             Expect.equal model.Selected opened.Selected "bleibt"
             let searched, _, _ = Components.Budget.State.update (CategorySearchChanged "xyz") opened
             Expect.equal searched.Selected opened.Selected "bleibt auch bei der Suche"
@@ -542,6 +542,84 @@ let private stepTests =
         }
     ]
 
+let private pageKeyTests =
+    let press key focus (model: Model) =
+        let pressed, _, _ =
+            Components.Budget.State.update (PageKeyPressed (pageKeyActionFor model key focus)) model
+        pressed
+    let filtered filter =
+        { init () with Month = Success { detailMonth with Groups = filterGroupsFixture }; Filter = filter }
+    let idOf name =
+        filterGroupsFixture |> List.collect (fun g -> g.Categories) |> List.find (fun c -> c.Name = name) |> fun c -> c.Id
+    testList "Pfeiltasten am PC" [
+        test "Hoch und Runter wechseln die Zeile, auch im Suchfeld" {
+            for focus in [ SearchField; OtherFocus ] do
+                Expect.equal (pageKeyAction true "ArrowDown" focus) (StepRow Next) "Runter"
+                Expect.equal (pageKeyAction true "ArrowUp" focus) (StepRow Previous) "Hoch"
+        }
+        test "Links und Rechts wechseln den Tab, im Suchfeld gehören sie dem Cursor" {
+            Expect.equal (pageKeyAction true "ArrowRight" OtherFocus) (StepTab Next) "Rechts"
+            Expect.equal (pageKeyAction true "ArrowLeft" OtherFocus) (StepTab Previous) "Links"
+            Expect.equal (pageKeyAction true "ArrowRight" SearchField) LeaveKey "Rechts im Suchfeld"
+            Expect.equal (pageKeyAction true "ArrowLeft" SearchField) LeaveKey "Links im Suchfeld"
+        }
+        test "Ohne Auswahl wählt Runter die erste und Hoch die letzte Zeile, Links und Rechts tun nichts" {
+            for focus in [ SearchField; OtherFocus ] do
+                Expect.equal (pageKeyAction false "ArrowDown" focus) FirstRow "Runter"
+                Expect.equal (pageKeyAction false "ArrowUp" focus) LastRow "Hoch"
+            Expect.equal (pageKeyAction false "ArrowRight" OtherFocus) LeaveKey "Rechts"
+            Expect.equal (pageKeyAction false "ArrowLeft" OtherFocus) LeaveKey "Links"
+        }
+        test "Ein Textfeld sperrt alle vier Richtungen" {
+            for hasSelection in [ true; false ] do
+                for key in [ "ArrowUp"; "ArrowDown"; "ArrowLeft"; "ArrowRight" ] do
+                    Expect.equal (pageKeyAction hasSelection key TextField) LeaveKey key
+        }
+        test "Andere Tasten lässt die Seite in Ruhe" {
+            Expect.equal (pageKeyAction true "Enter" OtherFocus) LeaveKey "Enter"
+        }
+        test "Bei offenem Dialog bekommt die Seite die Tasten nicht" {
+            let withTargets = { opened with Targets = PreviewLoading }
+            let withMove = openMove categoryId opened
+            Expect.isSome withMove.Move "Vorbedingung"
+            for model in [ withTargets; withMove ] do
+                for key in [ "ArrowUp"; "ArrowDown"; "ArrowLeft"; "ArrowRight" ] do
+                    Expect.equal (pageKeyActionFor model key OtherFocus) LeaveKey key
+        }
+        test "Ohne Dialog gilt die Regel mit der Auswahl aus dem Modell" {
+            Expect.equal (pageKeyActionFor opened "ArrowDown" OtherFocus) (StepRow Next) "mit Auswahl"
+            Expect.equal (pageKeyActionFor (init ()) "ArrowDown" OtherFocus) FirstRow "ohne Auswahl"
+        }
+        test "Mit aktivem Filter und ohne Auswahl wählt Runter die erste sichtbare Zeile" {
+            // Wohnen steht vorn: ohne Filter wäre Strom die erste Zeile.
+            let reversed = { detailMonth with Groups = List.rev filterGroupsFixture }
+            let model = press "ArrowDown" OtherFocus { filtered MissingOnly with Month = Success reversed }
+            Expect.equal (selectedOf model).CategoryId (idOf "Essen") "die erste Zeile mit Fehlbetrag"
+        }
+        test "Mit aktivem Filter und ohne Auswahl wählt Hoch die letzte sichtbare Zeile" {
+            let model = press "ArrowUp" OtherFocus (filtered OverdrawnOnly)
+            Expect.equal (selectedOf model).CategoryId (idOf "Essen") "die einzige überzogene"
+            let all = press "ArrowUp" OtherFocus (filtered AllCategories)
+            Expect.equal (selectedOf all).CategoryId (idOf "Strom") "die letzte der ganzen Liste"
+        }
+        test "Ohne sichtbare Zeile wählt die Taste nichts" {
+            let model = press "ArrowDown" OtherFocus { filtered AllCategories with CategorySearch = "xyz" }
+            Expect.isNone model.Selected "keine Zeile"
+        }
+        test "Tab Geld, dann Rechts, Rechts, Links ergibt Buchungen, Target bleibt am Rand stehen" {
+            let right = press "ArrowRight" OtherFocus
+            let left = press "ArrowLeft" OtherFocus
+            // Buchungen schon geladen: sonst holte der Tab sie, und der Proxy wirft unter .NET.
+            let start = { opened with Selected = Some { selectedOf opened with Entries = Success [] } }
+            let onEntriesTab = start |> right |> right |> left
+            Expect.equal onEntriesTab.Tab EntriesTab "Buchungen"
+            let atEnd = start |> right |> right |> right
+            Expect.equal atEnd.Tab TargetTab "Target"
+            Expect.equal (right atEnd).Tab TargetTab "bleibt stehen"
+            Expect.equal (left opened).Tab MoneyTab "Geld bleibt am linken Rand stehen"
+        }
+    ]
+
 let private entriesDueTests =
     testList "Buchungen im Inspektor" [
         test "Fällig nur im Tab Buchungen, bei geladenem Monat und NotAsked" {
@@ -578,19 +656,19 @@ let private listFilterTests =
     testList "Filter über der Liste" [
         test "Fehlt plus Suche: nur Zeilen, die beides erfüllen, Gruppen ohne Treffer fallen weg" {
             Expect.equal (names (shownGroups MissingOnly "kin" filterGroupsFixture)) [ "Alltag", [ "Kino" ] ] "beides"
-            Expect.equal (names (shownGroups RedOnly "" filterGroupsFixture)) [ "Alltag", [ "Essen" ] ] "rot"
+            Expect.equal (names (shownGroups OverdrawnOnly "" filterGroupsFixture)) [ "Alltag", [ "Essen" ] ] "rot"
         }
         test "Ein Treffer im Gruppennamen hebt den Filter nicht auf" {
-            Expect.equal (names (shownGroups RedOnly "alltag" filterGroupsFixture)) [ "Alltag", [ "Essen" ] ] "Filter gilt weiter"
+            Expect.equal (names (shownGroups OverdrawnOnly "alltag" filterGroupsFixture)) [ "Alltag", [ "Essen" ] ] "Filter gilt weiter"
         }
         test "Die Zahlen bleiben die des ganzen Monats" {
             Expect.equal (filterCount MissingOnly filterGroupsFixture) 2 "fehlt"
-            Expect.equal (filterCount RedOnly filterGroupsFixture) 1 "rot"
+            Expect.equal (filterCount OverdrawnOnly filterGroupsFixture) 1 "rot"
         }
         test "Der Filter bleibt beim Monatswechsel, Betreten setzt ihn zurück" {
-            let red = { framed with Filter = RedOnly }
+            let red = { framed with Filter = OverdrawnOnly }
             let switched, _ = select "2026-09-01" red
-            Expect.equal switched.Filter RedOnly "bleibt"
+            Expect.equal switched.Filter OverdrawnOnly "bleibt"
             let entered, _ = enterPage red
             Expect.equal entered.Filter AllCategories "Alle"
         }
@@ -662,17 +740,17 @@ let private returnTests =
             Expect.isTrue (returnPending model) "wartet"
         }
         test "Zurück stehen Auswahl, Tab, Filter und Suche wieder, kein Rahmen wird gelesen" {
-            let left = leaveForEntry { onEntriesLoaded with Filter = RedOnly; CategorySearch = "leb" }
+            let left = leaveForEntry { onEntriesLoaded with Filter = OverdrawnOnly; CategorySearch = "leb" }
             let model, how = enterPage left
             Expect.equal how ReturnedFromLedger "kein Rahmen"
             Expect.equal (selectedOf model).CategoryId categoryId "wieder gewählt"
             Expect.equal model.Tab EntriesTab "Tab"
-            Expect.equal model.Filter RedOnly "kein Reset"
+            Expect.equal model.Filter OverdrawnOnly "kein Reset"
             Expect.equal model.CategorySearch "leb" "kein Reset"
             Expect.isFalse (returnPending model) "angekommen"
         }
         test "Ein gewöhnliches Betreten der Seite beginnt von vorn" {
-            let model, how = enterPage { onEntriesLoaded with Filter = RedOnly }
+            let model, how = enterPage { onEntriesLoaded with Filter = OverdrawnOnly }
             Expect.isNone model.Selected "keine Auswahl"
             Expect.equal model.Tab MoneyTab "Tab Geld"
             Expect.equal how FreshEntry "Rahmen wird gelesen"
@@ -845,6 +923,7 @@ let tests =
         searchStateTests
         selectionTests
         stepTests
+        pageKeyTests
         entriesDueTests
         listFilterTests
         monthOrderTests

@@ -13,7 +13,8 @@ DS-Komponenten, nicht aus dem Prototyp.
 Eine Seite mit zwei Ebenen. Die **Liste** zeigt, wie es insgesamt steht und wo man hin muss. Der
 **Inspektor** enthält alles zu einer Kategorie: am PC rechts mit fester Höhe, am Handy als
 BottomSheet mit fester Höhe. Eine Zeile anklicken wählt die Kategorie, alle Aktionen liegen im
-Inspektor. Pfeiltasten am PC und `‹ ›` im Sheet wechseln die Kategorie, ohne zu schließen.
+Inspektor. Pfeiltasten am PC und `˄ ˅` im Sheet wechseln die Kategorie, ohne zu schließen. Links
+und Rechts wechseln am PC die Tabs.
 
 | Tab | Inhalt |
 |---|---|
@@ -22,14 +23,14 @@ Inspektor. Pfeiltasten am PC und `‹ ›` im Sheet wechseln die Kategorie, ohne
 | **Historie** | Verfügbar-Aufbau, Bewegungen, Ausgaben der letzten 6 Monate |
 | **Target** | Prüfung, Target anlegen, ändern, entfernen, pausieren |
 
-Der Seitenkopf trägt Monat, Knopf Historie und Zu verteilen.
+Der Seitenkopf trägt Monat, Suche, Filter, Zu verteilen, Targets anwenden und Knopf Historie.
 
 ## Die vier Abläufe
 
 1. **Monatserster:** Eine Leiste über der Liste zeigt im aktuellen Monat vier Felder in dieser
-   Reihenfolge: **Targets prüfen, Targets anwenden, rot decken, verteilen**. Prüfen steht vorn,
-   weil ein geändertes Target den Fehlbetrag ändert. Rot steht hinter Anwenden, weil Targets rote
-   Kategorien meist schon ausgleichen. Die Leiste ist kein Modus: Prüfen und Rot filtern die
+   Reihenfolge: **Targets prüfen, Targets anwenden, Überzogene decken, verteilen**. Prüfen steht
+   vorn, weil ein geändertes Target den Fehlbetrag ändert. Überzogene stehen hinter Anwenden, weil
+   Targets sie meist schon ausgleichen. Die Leiste ist kein Modus: Prüfen und Überzogene filtern die
    Liste, Anwenden öffnet die Vorschau mit abwählbaren Zeilen. Verteilen ist vorerst nur eine
    Anzeige. Sie verschwindet, wenn die ersten drei Felder erledigt sind, und lässt sich ausblenden.
 2. **Monatsmitte:** Zeile wählen, im Tab Geld handeln, weiter zur nächsten.
@@ -116,5 +117,5 @@ Suche über Kategorie und Gruppe, ausgeblendete Kategorien fehlen.
 
 ## Backlog, nicht Teil dieses Baus
 
-Mehrfachauswahl mit Summen, Gruppe auffüllen, "Alle auffüllen" im Filter Rot, Entwurf,
+Mehrfachauswahl mit Summen, Gruppe auffüllen, "Alle auffüllen" im Filter Überzogen, Entwurf,
 Verteilregeln (Deckel, Rest nach Gewichten, Auffüllen), Reihenfolge in BB bearbeiten, Undo.
