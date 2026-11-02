@@ -5,6 +5,60 @@ Newest entries on top.
 
 ---
 
+## 2026-11-02 12:20 -- Modeling / Captured: budgeting-m3x7f - "Monatserster: Leiste mit Targets prüfen, Targets anwenden, rot decken und verteilen, Vorschau mit abwählbaren Zeilen"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Task 5 von 5 des Gesamtkonzepts, Leiste am Monatsersten.
+
+---
+
+## 2026-11-02 12:20 -- Modeling / Captured: budgeting-t6p8z - "Tab Target: Targets in BB anlegen, ändern und entfernen, je Monat pausieren und die Frage Passt das Target noch? mit gespeichertem So lassen"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Task 4 von 5 des Gesamtkonzepts, Tab Target.
+
+---
+
+## 2026-11-02 12:20 -- Modeling / Captured: budgeting-c5w2n - "Tab Geld: rechnendes Zuweisen, Fehlbetrag-Knopf, Handy-Schritte, Geld holen und abgeben mit Vorschlägen, Speichern beim Verlassen"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Task 2 von 5 des Gesamtkonzepts, Tab Geld.
+
+---
+
+## 2026-11-02 12:20 -- Modeling / Captured: budgeting-g8s3w - "Budget-Seite neu: Liste und Inspektor mit vier Tabs, freie Monate, Kategorie-Reihenfolge, Filter und Gelb für fehlt"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Task 1 von 5 des Gesamtkonzepts, Liste und Inspektor.
+
+---
+
+## 2026-11-02 12:20 -- Modeling / Captured: budgeting-v4ht9 - "ADRs zur Budget-Seite: Targets über BB, Pause nur in BB, freie Monate, Farbrollen mit Gelb und neutralen Knöpfen"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** ADRs zu Targets über BB, Pause, freien Monaten und Farbrollen.
+
+---
+
+## 2026-11-02 12:20 -- Modeling / Captured: budgeting-q7m2c - "Spike: Liefert YNAB die Anzeigereihenfolge der Kategorien, wie weit reichen Monate, und erhält eine Target-Änderung Tag und Rhythmus?"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** todo
+**Summary:** Probe zu Reihenfolge, Monatsgrenzen und Target-Schreiben, Grundlage der Bau-Tasks.
+
+---
+
 ## 2026-11-01 21:39 -- Review-Findings zu p747v, v8n3k und bftq0 behoben
 
 **Type:** Work / Review-Fixes

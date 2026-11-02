@@ -1,0 +1,32 @@
+---
+id: budgeting-m3x7f
+title: "Monatserster: Leiste mit Targets prüfen, Targets anwenden, rot decken und verteilen, Vorschau mit abwählbaren Zeilen"
+status: backlog
+type: feature
+context: budgeting
+created: 2026-11-02
+completed:
+depends_on: [design-system-001, budgeting-t6p8z]
+blocks: []
+tags: [budget, monatserster, targets]
+related_adrs: [0065]
+related_research: [ynab-api-targets-zuweisung-2026-10-25]
+prior_art: [budgeting-h2zfn]
+---
+
+## Why
+Task 5 von 5 des Gesamtkonzepts. Der Monatserste ist Romans wichtigster Ablauf. Die Leiste führt durch ihn, ohne ihn in einem Modus festzuhalten.
+
+## What
+Regeln: `docs/ux/budget/konzept.md`, Abschnitt Die vier Abläufe.
+- Leiste im aktuellen Monat, Raster aus vier Feldern. Prüfen und Rot filtern, Anwenden öffnet die Vorschau, Verteilen ist Anzeige.
+- Vorschau bekommt abwählbare Zeilen, Stand-Prüfung und Bericht bleiben.
+- Leiste endet, wenn die ersten drei Felder erledigt sind. Ausblenden gilt für den Monat.
+
+## Acceptance criteria
+Werden in der taktischen Modellierung geschärft.
+- [ ] Reihenfolge und Erledigt-Zustände je Feld, Filter und Prüf-Filter mit leerer Ansicht.
+- [ ] Abgewählte Zeilen werden nicht geschrieben, Summe und Zu verteilen danach folgen der Auswahl.
+- [ ] Ausblenden überlebt das Neuladen im selben Monat, nicht den Monatswechsel.
+- [ ] Browser-Wächter: Happy Path am Handy von der Leiste bis zum Bericht.
+- [ ] `./verify.sh` zeigt `VERIFY: PASS`.

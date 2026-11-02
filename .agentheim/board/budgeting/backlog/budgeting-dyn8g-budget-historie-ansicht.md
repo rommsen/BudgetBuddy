@@ -6,8 +6,8 @@ type: feature
 context: budgeting
 created: 2026-10-29
 completed:
-depends_on: [design-system-001, budgeting-afd8h, budgeting-m1bce]
-blocks: []
+depends_on: [design-system-001, budgeting-afd8h, budgeting-m1bce, budgeting-c5w2n]
+blocks: [budgeting-t6p8z]
 tags: [budget, historie]
 related_adrs: [0065, 0069]
 related_research: []
@@ -47,3 +47,5 @@ Verfeinert am 2026-10-29. **Entscheidungen (Roman, 2026-10-29):**
 - Kompakte Zeilen, Targets anwenden als eine aufklappbare Zeile.
 
 "Wer" aus der Vision entfällt vorerst: nur Roman budgetiert (README, Actors). Die Herkunft steht für "wie".
+
+**Gesamtkonzept (2026-11-02), Task 3 von 5, geht den Regeln oben vor:** Das Kategorie-Detail gibt es dann als Inspektor (budgeting-g8s3w). Der Abschnitt "Bewegungen" wird zum Tab Historie mit dem Aufbau von Verfügbar (Vortrag, Zugewiesen, Aktivität), den Bewegungen und einem Balken der Ausgaben der letzten 6 Monate aus dem Kassenbuch. Der Knopf Historie im Seitenkopf öffnet die allgemeine Ansicht. Die Regeln stehen in `docs/ux/budget/konzept.md`. Die Akzeptanzkriterien werden in der taktischen Modellierung darauf gezogen.

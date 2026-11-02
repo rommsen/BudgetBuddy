@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Gesamt-Prototyp</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#08081a}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;touch-action:manipulation}
+.mono{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums}
+.lab{font:600 10px 'JetBrains Mono',monospace;letter-spacing:.14em;color:#a3a3bd;text-transform:uppercase}
+.fld{height:44px;box-sizing:border-box;width:100%;background:#16162e;color:#e8e8f0;border:1px solid #2a2a4a;border-radius:8px;padding:0 10px;font-size:14px}
+.m .fld{font-size:16px}
+.pill{min-height:36px;padding:0 12px;border-radius:9999px;border:1px solid #2a2a4a;color:#a3a3bd;font-size:13px;white-space:nowrap}
+.row{display:grid;grid-template-columns:minmax(120px,1fr) 150px 90px 90px 90px;width:100%;box-sizing:border-box;min-height:44px;align-items:center;padding:0 16px;border-bottom:1px solid #1c1c38;text-align:left}
+.row:hover{background:#1e1e3c}
+.stp{height:44px;border:1px solid #2a2a4a;border-radius:12px;font:500 14px 'JetBrains Mono',monospace}
+.ln{display:flex;justify-content:space-between;gap:12px;font-size:13px;align-items:center;min-height:28px}
+.cta{height:44px;border-radius:12px;font-size:14px;font-weight:600;text-align:center;background:#ff6b2c;color:#08081a}
+.sec{height:44px;border-radius:12px;font-size:14px;text-align:center;border:1px solid #2a2a4a;color:#e8e8f0}
+.sec:hover{background:#1e1e3c}
+</style>
+</helmet>
+<div style="min-height:960px;background:#08081a;color:#e8e8f0;font-family:Inter,sans-serif;display:flex;flex-direction:column;gap:10px;padding:10px;box-sizing:border-box">
+  <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:6px 10px;background:#0d0d20;border:1px dashed #2a2a4a;border-radius:12px;font-size:12px;color:#a3a3bd">
+    <span class="lab">Prototyp</span>
+    <button class="pill" style="{{dayA}}" onClick="{{toErster}}">2. November</button>
+    <button class="pill" style="{{dayB}}" onClick="{{toMitte}}">17. November</button>
+    <button class="pill" style="{{devA}}" onClick="{{toPc}}">PC</button>
+    <button class="pill" style="{{devB}}" onClick="{{toHandy}}">Handy</button>
+    <button class="pill" onClick="{{reset}}">Neu starten</button>
+  </div>
+  <div class="{{appClass}}" style="{{appStyle}}">
+    <div style="display:flex;gap:12px;align-items:center;justify-content:space-between;padding:12px 16px">
+      <div style="display:flex;align-items:center;gap:8px;min-width:0"><div style="display:flex;align-items:center"><button aria-label="Voriger Monat" onClick="{{prevMonth}}" style="width:36px;height:44px;font-size:18px">‹</button><button aria-label="Zum aktuellen Monat" onClick="{{toToday}}" style="font:600 16px 'Space Grotesk',sans-serif;white-space:nowrap;min-height:44px;{{monthStyle}}">{{monthLabel}}</button><button aria-label="Nächster Monat" onClick="{{nextMonth}}" style="width:36px;height:44px;font-size:18px">›</button></div><button class="pill" style="{{histBtn}}" onClick="{{toggleHist}}">{{histLabel}}</button></div>
+      <div style="text-align:right"><div class="lab">Zu verteilen</div><div class="mono" style="font-size:24px;font-weight:600;color:{{tbColor}}">{{tb}}</div></div>
+    </div>
+    <sc-if value="{{showBudget}}" hint-placeholder-val="{{true}}">
+      <div style="{{budgetStyle}}">
+        <sc-if value="{{showBar}}" hint-placeholder-val="{{true}}">
+          <div style="margin:0 16px 10px;background:#111128;border:1px solid #1c1c38;border-radius:12px;padding:6px 10px 10px;display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:13px;font-weight:600">Monatserster</span><button onClick="{{hideBar}}" style="font-size:12px;color:#a3a3bd;min-height:36px">Ausblenden</button></div>
+            <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px">
+              <sc-for list="{{chips}}" as="c" hint-placeholder-count="4"><button onClick="{{c.pick}}" style="min-height:52px;border-radius:10px;border:1px solid #2a2a4a;padding:4px 2px;text-align:center;{{c.style}}"><span class="mono" style="display:block;font-size:13px;font-weight:600">{{c.val}}</span><span style="display:block;font-size:11px;color:#a3a3bd">{{c.lab}}</span></button></sc-for>
+            </div>
+          </div>
+        </sc-if>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 10px;align-items:center">
+          <input aria-label="Kategorie suchen" placeholder="Kategorie suchen" value="{{search}}" onChange="{{typeSearch}}" style="height:36px;flex:1 1 160px;max-width:260px;box-sizing:border-box;background:#16162e;border:1px solid #2a2a4a;border-radius:8px;color:#e8e8f0;padding:0 12px;font:16px Inter,sans-serif;{{searchExtra}}">
+          <sc-for list="{{filters}}" as="f" hint-placeholder-count="3"><button class="pill" style="{{f.style}}" onClick="{{f.pick}}">{{f.label}}</button></sc-for>
+        </div>
+        <div style="{{mainStyle}}">
+          <div tabIndex="0" aria-label="Kategorien" onKeyDown="{{listKey}}" style="{{listStyle}}">
+            <sc-if value="{{isPc}}" hint-placeholder-val="{{true}}">
+              <div class="row lab" style="min-height:42px;border-bottom-color:#2a2a4a"><span>Kategorie</span><span style="text-align:right">Target</span><span style="text-align:right">Zugewiesen</span><span style="text-align:right">Aktivität</span><span style="text-align:right">Verfügbar</span></div>
+            </sc-if>
+            <sc-for list="{{groups}}" as="g" hint-placeholder-count="3">
+              <div class="mono" style="font-size:10px;font-weight:600;letter-spacing:.16em;color:#a3a3bd;padding:12px 16px 4px;text-transform:uppercase">{{g.name}}</div>
+              <sc-for list="{{g.rows}}" as="r" hint-placeholder-count="3">
+                <sc-if value="{{isPc}}" hint-placeholder-val="{{true}}">
+                  <button class="row" onClick="{{r.pick}}" style="{{r.style}}">
+                    <span style="font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{r.n}} <span style="font-size:11px;font-weight:400;color:#cdb27a">{{r.miss}}</span></span>
+                    <span style="font-size:12px;color:#a3a3bd;text-align:right">{{r.t}}</span>
+                    <span class="mono" style="font-size:13px;color:#a3a3bd;text-align:right">{{r.a}}</span>
+                    <span class="mono" style="font-size:13px;color:#a3a3bd;text-align:right">{{r.c}}</span>
+                    <span class="mono" style="font-size:14px;font-weight:500;text-align:right;color:{{r.vc}}">{{r.v}}</span>
+                  </button>
+                </sc-if>
+                <sc-if value="{{isMobile}}" hint-placeholder-val="{{false}}">
+                  <button onClick="{{r.pick}}" style="display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;box-sizing:border-box;padding:11px 16px;min-height:56px;border-bottom:1px solid #1c1c38;text-align:left;{{r.style}}">
+                    <span><span style="display:block;font-size:15px;font-weight:500">{{r.n}}</span><span style="display:block;font-size:12px;color:{{r.subColor}}">{{r.sub}}</span></span>
+                    <span class="mono" style="font-size:15px;font-weight:500;color:{{r.vc}}">{{r.v}}</span>
+                  </button>
+                </sc-if>
+              </sc-for>
+            </sc-for>
+            <sc-if value="{{noRows}}" hint-placeholder-val="{{false}}"><div style="padding:20px 16px;font-size:14px;color:#a3a3bd">Keine Kategorie in dieser Ansicht.</div></sc-if>
+          </div>
+          <sc-if value="{{hasCur}}" hint-placeholder-val="{{true}}">
+            <div style="{{inspStyle}}">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+                <div style="min-width:0;font-size:17px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{cur.n}}</div>
+                <div style="display:flex;align-items:center;gap:2px;flex-shrink:0"><sc-if value="{{isMobile}}" hint-placeholder-val="{{false}}"><button aria-label="Vorige Kategorie" onClick="{{prevCat}}" style="width:40px;height:44px;font-size:18px">‹</button><button aria-label="Nächste Kategorie" onClick="{{nextCat}}" style="width:40px;height:44px;font-size:18px">›</button><button aria-label="Schließen" onClick="{{closeSheet}}" style="width:40px;height:44px;color:#a3a3bd">✕</button></sc-if></div>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-top:-8px"><span style="font-size:12px;color:#a3a3bd;min-width:0">{{cur.t}}</span><span class="mono" style="font-size:17px;font-weight:600;flex-shrink:0;color:{{cur.vc}}">{{cur.v}}</span></div>
+              <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;background:#16162e;border-radius:12px;padding:4px">
+                <sc-for list="{{tabs}}" as="t" hint-placeholder-count="4"><button onClick="{{t.pick}}" style="height:38px;border-radius:8px;font-size:13px;{{t.style}}">{{t.label}}</button></sc-for>
+              </div>
+              <div style="flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:12px">
+              <sc-if value="{{isGeld}}" hint-placeholder-val="{{true}}">
+                <div style="display:flex;flex-direction:column;gap:10px">
+                  <div><label class="lab">Zugewiesen</label><input aria-label="Zugewiesen" class="fld mono" style="text-align:right;margin-top:4px" value="{{draft}}" onFocus="{{selectAll}}" onChange="{{typeDraft}}" onBlur="{{commit}}" onKeyDown="{{draftKey}}">
+                    <sc-if value="{{showHint}}" hint-placeholder-val="{{false}}"><div class="mono" style="margin-top:6px;text-align:right"><div style="font-size:14px;font-weight:600;color:{{afterColor}}">{{after}}</div><div style="font-size:12px;color:{{hintColor}};margin-top:2px">{{hint}}</div></div></sc-if>
+                  </div>
+                  <sc-if value="{{isMobile}}" hint-placeholder-val="{{false}}">
+                    <div style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px"><sc-for list="{{steps}}" as="s" hint-placeholder-count="6"><button class="stp" onClick="{{s.pick}}">{{s.label}}</button></sc-for></div>
+                  </sc-if>
+                  <sc-if value="{{hasMiss}}" hint-placeholder-val="{{false}}"><button onClick="{{assignMiss}}" disabled="{{cantAssign}}" class="cta" style="{{assignStyle}}">{{assignLabel}}</button></sc-if>
+                  <sc-if value="{{canPause}}" hint-placeholder-val="{{false}}"><button onClick="{{togglePause}}" style="min-height:36px;font-size:13px;color:#a3a3bd">{{pauseLabel}}</button></sc-if>
+                  <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;background:#16162e;border-radius:12px;padding:4px">
+                    <button onClick="{{setIn}}" style="height:36px;border-radius:8px;font-size:13px;{{inStyle}}">Geld holen</button>
+                    <button onClick="{{setOut}}" style="height:36px;border-radius:8px;font-size:13px;{{outStyle}}">Geld abgeben</button>
+                  </div>
+                  <sc-if value="{{isIn}}" hint-placeholder-val="{{false}}">
+                    <div style="display:grid;gap:2px"><sc-for list="{{sugg}}" as="h" hint-placeholder-count="3"><button onClick="{{h.pick}}" style="min-height:36px;padding:0 8px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;font-size:13px;{{h.style}}"><span>{{h.n}}</span><span class="mono" style="color:#a3a3bd">{{h.v}}</span></button></sc-for></div>
+                  </sc-if>
+                  <div style="display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:8px">
+                    <select aria-label="Kategorie" class="fld" value="{{target}}" onChange="{{pickTarget}}"><sc-for list="{{opts}}" as="o" hint-placeholder-count="6"><option value="{{o.id}}">{{o.n}}</option></sc-for></select>
+                    <input aria-label="Betrag" class="fld mono" placeholder="Betrag" style="text-align:right" value="{{amount}}" onChange="{{typeAmount}}">
+                  </div>
+                  <button class="sec" onClick="{{doMove}}">{{moveLabel}}</button>
+                </div>
+              </sc-if>
+              <sc-if value="{{isTx}}" hint-placeholder-val="{{false}}">
+                <div style="display:grid;gap:4px">
+                  <sc-for list="{{cur.tx}}" as="x" hint-placeholder-count="3"><div class="ln"><span>{{x.p}}</span><span class="mono">{{x.b}}</span></div></sc-for>
+                  <div class="ln" style="border-top:1px solid #2a2a4a;font-weight:600"><span>Aktivität</span><span class="mono">{{cur.c}}</span></div>
+                  <button style="min-height:44px;color:#00d4aa;font-size:13px;text-align:left">Im Kassenbuch öffnen</button>
+                </div>
+              </sc-if>
+              <sc-if value="{{isHist}}" hint-placeholder-val="{{false}}">
+                <div style="display:flex;flex-direction:column;gap:12px">
+                  <div>
+                    <div class="lab" style="margin-bottom:4px">So kommt Verfügbar zustande</div>
+                    <div class="ln"><span>Vortrag</span><span class="mono">{{cur.carry}}</span></div>
+                    <div class="ln"><span>Zugewiesen</span><span class="mono">{{cur.a}}</span></div>
+                    <div class="ln"><span>Aktivität</span><span class="mono">{{cur.c}}</span></div>
+                    <div class="ln" style="border-top:1px solid #2a2a4a;font-weight:600"><span>Verfügbar</span><span class="mono">{{cur.v}}</span></div>
+                  </div>
+                  <div>
+                    <div class="lab" style="margin-bottom:4px">Bewegungen</div>
+                    <sc-if value="{{cur.noMoves}}" hint-placeholder-val="{{false}}"><div style="font-size:13px;color:#a3a3bd">Noch keine.</div></sc-if>
+                    <sc-for list="{{cur.moves}}" as="m" hint-placeholder-count="2"><div class="ln"><span>{{m.time}} {{m.text}}</span><span class="mono">{{m.amt}}</span></div></sc-for>
+                  </div>
+                  <div>
+                    <div class="lab" style="margin-bottom:6px">Ausgaben, 6 Monate</div>
+                    <div role="img" aria-label="Ausgaben der letzten sechs Monate" style="display:flex;gap:6px;align-items:flex-end;height:64px;border-bottom:1px solid #2a2a4a">
+                      <sc-for list="{{cur.bars}}" as="b" hint-placeholder-count="6"><div style="flex:1;height:{{b.h}};background:{{b.col}};border-radius:3px 3px 0 0"></div></sc-for>
+                    </div>
+                  </div>
+                </div>
+              </sc-if>
+              <sc-if value="{{isTarget}}" hint-placeholder-val="{{false}}">
+                <div style="display:flex;flex-direction:column;gap:10px">
+                  <sc-if value="{{cur.hasCheck}}" hint-placeholder-val="{{false}}">
+                    <div style="background:#16162e;border-radius:12px;padding:12px;display:grid;gap:6px;font-size:13px">
+                      <div style="color:#cdb27a;font-size:11px">Passt das Target noch?</div>
+                      <div>{{cur.checkText}}</div>
+                      <div style="display:flex;gap:16px"><button onClick="{{applyCheck}}" style="color:#e8e8f0;font-weight:500;min-height:36px">{{cur.checkLabel}}</button><button onClick="{{dropCheck}}" style="color:#a3a3bd;min-height:36px">So lassen</button></div>
+                    </div>
+                  </sc-if>
+                  <div><label class="lab">Art</label><select aria-label="Art" class="fld" style="margin-top:4px" value="{{tType}}" onChange="{{pickType}}"><option value="monat">Jeden Monat ein fester Betrag</option><option value="woche">Pro Woche ein Betrag</option><option value="datum">Bis zu einem Datum ansparen</option><option value="auffuellen">Auffüllen bis</option></select></div>
+                  <div><label class="lab">Betrag</label><input aria-label="Target-Betrag" class="fld mono" style="text-align:right;margin-top:4px" value="{{tAmount}}" onChange="{{typeT}}"></div>
+                  <sc-if value="{{isDatum}}" hint-placeholder-val="{{false}}"><div><label class="lab">Bis zum</label><input aria-label="Datum" class="fld mono" placeholder="TT.MM.JJJJ" style="text-align:right;margin-top:4px" value="{{tDate}}" onChange="{{typeDate}}"><div style="font-size:12px;text-align:right;margin-top:4px;color:{{tNeedColor}}">{{tNeed}}</div></div></sc-if>
+                  <button class="sec" onClick="{{saveT}}">{{saveLabel}}</button>
+                  <sc-if value="{{canPause}}" hint-placeholder-val="{{false}}"><button onClick="{{togglePause}}" style="min-height:36px;font-size:13px;color:#a3a3bd">{{pauseLabel}}</button></sc-if>
+                  <sc-if value="{{cur.hasTarget}}" hint-placeholder-val="{{true}}"><button onClick="{{removeT}}" style="min-height:36px;font-size:13px;color:#a3a3bd">Target entfernen</button></sc-if>
+                </div>
+              </sc-if>
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{noCurPc}}" hint-placeholder-val="{{true}}">
+            <div style="flex:1 1 340px;min-width:300px;height:640px;box-sizing:border-box;border:1px dashed #2a2a4a;border-radius:16px;padding:16px;color:#a3a3bd;font-size:14px">Kategorie wählen, um zuzuweisen, Buchungen, Historie oder das Target zu sehen.</div>
+          </sc-if>
+        </div>
+      </div>
+    </sc-if>
+    <sc-if value="{{showHistory}}" hint-placeholder-val="{{false}}">
+      <div style="{{histWrap}}">
+        <div style="display:flex;flex-wrap:wrap;gap:6px;{{histPills}}"><sc-for list="{{hFilters}}" as="f" hint-placeholder-count="4"><button class="pill" style="{{f.style}}" onClick="{{f.pick}}">{{f.label}}</button></sc-for></div>
+        <div style="{{histCard}}">
+          <sc-for list="{{hRows}}" as="h" hint-placeholder-count="4">
+            <div style="display:grid;grid-template-columns:60px minmax(0,1fr) auto;gap:10px;min-height:44px;align-items:center;border-bottom:1px solid #1c1c38;font-size:14px"><span class="mono" style="font-size:12px;color:#a3a3bd">{{h.time}}</span><span><span style="display:block">{{h.text}}</span><span style="display:block;font-size:12px;color:#a3a3bd">{{h.art}}</span></span><span class="mono">{{h.amt}}</span></div>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+    <sc-if value="{{preview}}" hint-placeholder-val="{{false}}">
+      <div style="position:absolute;inset:0;background:rgba(8,8,26,.8);display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;z-index:5">
+        <div style="width:100%;max-width:440px;background:#1a1a36;border:1px solid #2a2a4a;border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:10px;box-sizing:border-box;max-height:100%;overflow-y:auto">
+          <div style="font-size:16px;font-weight:600">Targets anwenden</div>
+          <sc-for list="{{pRows}}" as="p" hint-placeholder-count="4">
+            <label style="display:flex;align-items:center;gap:10px;min-height:40px;font-size:14px;border-bottom:1px solid #2a2a4a"><input type="checkbox" checked="{{p.on}}" onChange="{{p.toggle}}"><span style="flex:1">{{p.n}}</span><span class="mono">{{p.amt}}</span></label>
+          </sc-for>
+          <div class="ln" style="font-weight:600"><span>Summe</span><span class="mono">{{pSum}}</span></div>
+          <div class="ln" style="color:#a3a3bd"><span>Zu verteilen danach</span><span class="mono">{{pAfter}}</span></div>
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px"><button class="sec" style="border-color:#2a2a4a;color:#e8e8f0" onClick="{{closePreview}}">Abbrechen</button><button class="cta" onClick="{{applyTargets}}">Anwenden</button></div>
+        </div>
+      </div>
+    </sc-if>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":960}}'>
+const fmt = (n) => n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const round = (n) => Math.round(n * 100) / 100;
+const num = (s) => parseFloat(String(s).replace(/\./g, '').replace(',', '.'));
+const calc = (raw, base) => {
+  const t = String(raw).replace(/\s/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(/,/g, '.').replace(/x/gi, '*').replace(/:/g, '/');
+  if (!/^[+\-*/]?\d*\.?\d+([+\-*/]\d*\.?\d+)*$/.test(t)) return NaN;
+  const parts = t.match(/[+\-*/]|\d*\.?\d+/g);
+  const seq = /^[+\-*/]/.test(t) ? [String(base)].concat(parts) : parts;
+  const sum = [Number(seq[0])], ops = [];
+  for (let i = 1; i < seq.length; i += 2) {
+    const op = seq[i], n = Number(seq[i + 1]);
+    if (op === '*') sum[sum.length - 1] *= n;
+    else if (op === '/') { if (n === 0) return NaN; sum[sum.length - 1] /= n; }
+    else { ops.push(op); sum.push(n); }
+  }
+  return round(sum.reduce((acc, n, i) => i === 0 ? n : ops[i - 1] === '+' ? acc + n : acc - n, 0));
+};
+// g, Name, Art, Target, Bedarf, Vortrag, Zugewiesen/Aktivität am 2., Zugewiesen/Aktivität am 17., Prüfwert
+const D = [
+  ['Laufend','Lebensmittel','monat',900,900,0,0,-24.1,900,-612.4,940],
+  ['Laufend','Essen auswärts','monat',120,120,15.1,0,0,120,-120,0],
+  ['Laufend','Drogerie','monat',80,80,-12.3,0,0,92.3,-92.3,0],
+  ['Laufend','Kleidung','',0,0,143,0,0,0,0,0],
+  ['Wohnen','Strom','monat',95,95,0,0,0,95,-95,0],
+  ['Wohnen','Internet','monat',40,40,0,0,0,40,-39.99,0],
+  ['Sparen','Gebäudeversicherung','datum',750,125,375,0,0,62.5,0,812],
+  ['Sparen','Urlaub','monat',200,200,1040,0,0,200,0,0],
+  ['Sparen','Geschenke','',0,0,48,0,0,0,-29.9,0]
+];
+const TX = [['Wocheneinkauf','-74,10'],['Markt','-36,00']];
+const TX1 = [['Pizzeria','-62,90'],['Eisdiele','-14,00'],['Bistro','-28,00']];
+const TEXT = { monat: ' / Monat', woche: ' / Woche', auffuellen: ' auffüllen bis' };
+const tText = (i) => !i.tt ? '' : i.tt === 'datum' ? fmt(i.ta) + ' bis ' + i.td : fmt(i.ta) + TEXT[i.tt];
+const avail = (i) => round(i.carry + i.a + i.c);
+const validDate = (d) => /^\d{2}\.\d{2}\.\d{4}$/.test(d || '');
+const monthly = (ta, carry, td) => {
+  if (!validDate(td)) return 0;
+  const months = Math.max(1, (Number(td.slice(6)) - 2026) * 12 + Number(td.slice(3, 5)) - 11);
+  return round(Math.max(ta - carry, 0) / months);
+};
+const missOf = (i) => round(Math.max(-avail(i), i.p ? 0 : i.need - i.a, 0));
+const tLabel = (i) => tText(i) + (i.p ? ' · pausiert' : '');
+const free = (i) => round(avail(i) - (i.p ? 0 : Math.max(i.need - i.a, 0)));
+const MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+const monthName = (mo, short) => { const t = 2026 * 12 + 10 + mo; const m = t % 12; return (short ? MONTHS[m].slice(0, 3) : MONTHS[m]) + ' ' + Math.floor(t / 12); };
+const init = (day, mobile, mo = 0) => {
+  const erster = day === 'erster';
+  const items = D.map((d, id) => ({ id, g: d[0], n: d[1], tt: d[2], ta: d[3], need: d[4], carry: d[5],
+    a: erster ? d[6] : d[8], c: erster ? d[7] : d[9], check: d[10], td: id === 6 ? '01.03.2027' : '' }));
+  items[1].c = erster ? 0 : -104.9;
+  if (mo !== 0) items.forEach((i) => { i.check = 0; i.a = mo < 0 ? i.need : 0; i.c = mo < 0 ? -round(i.need * (1 + (mo % 3) * 0.03)) : 0; });
+  const log = erster
+    ? [{ time: '28.10.', art: 'Verschiebung', text: 'Geschenke → Drogerie', amt: 15, ids: [8, 2] }]
+    : [{ time: '02.11.', art: 'Targets', text: '7 Kategorien angewendet', amt: 1509.8, ids: [0, 1, 2, 4, 5, 6, 7] }, { time: '09.11.', art: 'Verschiebung', text: 'Kleidung → Urlaub', amt: 25, ids: [3, 7] }];
+  return { day, mobile, items, log, tb: mo !== 0 ? 0 : (erster ? 1650 : 72.5), mo, sel: null, tab: 'geld', draft: '', dir: 'out', target: 8, amount: '', filter: 'alle', search: '', barHidden: !erster || mo !== 0, preview: false, excl: {}, view: 'budget', hf: 'alle', tType: 'monat', tAmount: '', tDate: '' };
+};
+const detectMobile = () => { try { return window.innerWidth < 700; } catch (e) { return false; } };
+class Component extends DCLogic {
+  state = init('erster', detectMobile());
+  time = () => this.state.day === 'erster' ? '02.11.' : '17.11.';
+  selectState = (i, tab) => {
+    const red = avail(i) < 0;
+    return { sel: i.id, tab, draft: fmt(i.a), dir: red ? 'in' : 'out', target: red ? (i.id === 3 ? 7 : 3) : (i.id === 8 ? 7 : 8), amount: red ? fmt(-avail(i)) : '', tType: i.tt || 'monat', tAmount: i.tt ? fmt(i.ta) : '', tDate: i.td || '' };
+  };
+  pick = (i) => this.setState(this.selectState(i, this.state.filter === 'pruefen' ? 'target' : this.state.tab));
+  refresh = (items, extra) => {
+    const s = this.state;
+    const cur = s.sel === null ? null : items[s.sel];
+    this.setState({ items, draft: cur ? fmt(cur.a) : '', ...extra });
+  };
+  addLog = (art, text, amt, ids) => [{ time: this.time(), art, text, amt, ids }].concat(this.state.log);
+  commit = () => {
+    const { items, sel, draft, tb } = this.state;
+    if (sel === null) return;
+    const val = calc(draft, items[sel].a);
+    if (isNaN(val)) return;
+    const d = round(val - items[sel].a);
+    if (d === 0) { this.setState({ draft: fmt(val) }); return; }
+    this.refresh(items.map((i) => i.id === sel ? { ...i, a: val } : i), { draft: fmt(val), tb: round(tb - d), log: this.addLog('Zuweisung', items[sel].n, d, [sel]) });
+  };
+  shift = (from, to, amt) => {
+    const s = this.state;
+    const name = (id) => id === -1 ? 'Zu verteilen' : s.items[id].n;
+    const items = s.items.map((i) => i.id === from ? { ...i, a: round(i.a - amt) } : i.id === to ? { ...i, a: round(i.a + amt) } : i);
+    const fromTb = from === -1;
+    const log = this.addLog(fromTb ? 'Zuweisung' : 'Verschiebung', fromTb ? name(to) : name(from) + ' → ' + name(to), amt, [from, to].filter((x) => x >= 0));
+    this.refresh(items, { tb: round(s.tb - (fromTb ? amt : 0) + (to === -1 ? amt : 0)), amount: '', log });
+  };
+  setTarget = (id, tt, ta, text, td) => {
+    const s = this.state;
+    const items = s.items.map((i) => { if (i.id !== id) return i;
+      const need = !tt ? 0 : tt === 'monat' ? ta : tt === 'woche' ? round(ta * 4) : tt === 'datum' ? monthly(ta, i.carry, td) : round(Math.max(ta - i.carry, 0));
+      return { ...i, tt, ta, need, check: 0, td: td || '' }; });
+    this.setState({ items, log: this.addLog('Target', text, ta, [id]) });
+  };
+  renderVals() {
+    const s = this.state;
+    const color = (v) => v < 0 ? '#ff3b5c' : v === 0 ? '#a3a3bd' : '#e8e8f0';
+    const on = 'color:#00d4aa;border-color:#00d4aa';
+    const seg = (x) => x ? 'background:#1e1e3c;color:#00d4aa' : 'color:#a3a3bd';
+    const mobile = s.mobile;
+    const name = (id) => id === -1 ? 'Zu verteilen' : s.items[id].n;
+    const reds = s.items.filter((i) => avail(i) < 0);
+    const fehlt = s.items.filter((i) => missOf(i) > 0);
+    const checks = s.items.filter((i) => i.check);
+    const tItems = s.items.filter((i) => i.need - i.a > 0 && !i.p);
+    const tSum = round(tItems.reduce((n, i) => n + i.need - i.a, 0));
+    const goFilter = (filter, tab) => { const list = s.items.filter((i) => filter === 'rot' ? avail(i) < 0 : i.check); this.setState({ filter, ...(list[0] && !mobile ? this.selectState(list[0], tab) : { tab }) }); };
+    const chips = [
+      { val: checks.length ? String(checks.length) : '✓', lab: 'Targets prüfen', done: !checks.length, active: s.filter === 'pruefen', pick: () => goFilter('pruefen', 'target') },
+      { val: tSum > 0 ? fmt(tSum) : '✓', lab: 'Targets anwenden', done: tSum <= 0, active: s.preview, pick: () => this.setState({ preview: true, excl: {} }) },
+      { val: reds.length ? String(reds.length) : '✓', lab: 'rot decken', done: !reds.length, active: s.filter === 'rot', pick: () => goFilter('rot', 'geld') },
+      { val: s.tb > 0 ? fmt(s.tb) : '✓', lab: 'verteilen', done: s.tb <= 0, active: false, pick: () => this.setState({ filter: 'alle' }) }
+    ].map((c) => ({ ...c, style: c.active ? 'border-color:#00d4aa' : c.done ? 'border-color:#1c1c38;color:#a3a3bd' : '' }));
+    const filters = [['alle', 'Alle'], ['fehlt', 'Fehlt (' + fehlt.length + ')'], ['rot', 'Rot (' + reds.length + ')']].concat(s.filter === 'pruefen' ? [['pruefen', 'Targets prüfen (' + checks.length + ')']] : []).map(([id, label]) => ({ label, style: s.filter === id ? on : '', pick: () => this.setState({ filter: id }) }));
+    const q = s.search.toLowerCase();
+    const shown = s.items.filter((i) => (s.filter === 'alle' || (s.filter === 'fehlt' && missOf(i) > 0) || (s.filter === 'rot' && avail(i) < 0) || (s.filter === 'pruefen' && i.check)) && i.n.toLowerCase().includes(q));
+    const groups = ['Laufend', 'Wohnen', 'Sparen'].map((g) => ({ name: g, rows: shown.filter((i) => i.g === g).map((i) => { const m = missOf(i); return {
+      n: i.n, miss: m > 0 ? 'fehlt ' + fmt(m) : '', t: tLabel(i) || 'Kein Target', a: fmt(i.a), c: fmt(i.c), v: fmt(avail(i)), vc: color(avail(i)),
+      sub: m > 0 ? 'fehlt ' + fmt(m) : (tLabel(i) || 'Kein Target'), subColor: m > 0 ? '#cdb27a' : '#a3a3bd',
+      style: s.sel === i.id ? 'background:#1e1e3c' : '', pick: () => this.pick(i) }; }) })).filter((g) => g.rows.length);
+    const c = s.sel === null ? null : s.items[s.sel];
+    const val = c ? calc(s.draft, c.a) : NaN;
+    const after = c && !isNaN(val) ? round(avail(c) + val - c.a) : 0;
+    const miss = c ? missOf(c) : 0;
+    const factors = [0.92, 0.97, 0.94, 1.05, 1.08];
+    const hist = c ? (c.id === 6 ? [0, 0, 0, 0, 812] : factors.map((f) => (c.need || 60) * f)).concat([-c.c]) : [];
+    const max = Math.max(1, ...hist);
+    const moves = c ? s.log.filter((l) => l.ids.includes(c.id)).map((l) => ({ time: l.time, text: l.text, amt: fmt(l.amt) })) : [];
+    const cur = c ? { n: c.n, t: tLabel(c) || 'Kein Target', v: fmt(avail(c)), vc: color(avail(c)), a: fmt(c.a), c: fmt(c.c), carry: fmt(c.carry),
+      tx: (c.id === 1 ? TX1 : TX).map((x) => ({ p: x[0], b: x[1] })), moves, noMoves: !moves.length,
+      bars: hist.map((v, i) => ({ h: Math.max(2, Math.round(v / max * 100)) + '%', col: i === 5 ? '#00d4aa' : '#2a2a4a' })),
+      hasCheck: !!c.check, checkText: c.check ? (c.id === 6 ? 'Target ' + fmt(c.ta) + ', letzte Abbuchung ' + fmt(c.check) : 'Target ' + fmt(c.ta) + ', letzte 3 Monate im Schnitt ' + fmt(c.check)) : '', checkLabel: 'Auf ' + fmt(c.check) + ' setzen', hasTarget: !!c.tt } : { tx: [], moves: [], bars: [] };
+    const tabs = [['geld', 'Geld'], ['tx', 'Buchungen'], ['hist', 'Historie'], ['target', c && c.check ? 'Target •' : 'Target']].map(([id, label]) => ({ label, style: seg(s.tab === id), pick: () => { this.commit(); this.setState({ tab: id }); } }));
+    const sugg = c ? s.items.filter((i) => i.id !== c.id && free(i) > 0).sort((x, y) => free(y) - free(x)).slice(0, 2).map((i) => ({ id: i.id, n: i.n, v: fmt(free(i)) + ' frei' })).concat([{ id: -1, n: 'Zu verteilen', v: fmt(s.tb) }]).map((h) => ({ ...h, style: seg(s.target === h.id), pick: () => this.setState({ target: h.id }) })) : [];
+    const pRows = tItems.map((i) => ({ n: i.n, amt: fmt(i.need - i.a), on: !s.excl[i.id], toggle: () => this.setState({ excl: { ...s.excl, [i.id]: !s.excl[i.id] } }) }));
+    const pSum = round(tItems.filter((i) => !s.excl[i.id]).reduce((n, i) => n + i.need - i.a, 0));
+    const hRows = s.log.filter((l) => s.hf === 'alle' || l.art === s.hf || (s.hf === 'Targets' && l.art === 'Target')).map((l) => ({ time: l.time, text: l.text, art: l.art, amt: fmt(l.amt) }));
+    const hFilters = [['alle', 'Alle'], ['Zuweisung', 'Zuweisen'], ['Verschiebung', 'Verschoben'], ['Targets', 'Targets']].map(([id, label]) => ({ label, style: s.hf === id ? on : '', pick: () => this.setState({ hf: id }) }));
+    const pc = !mobile;
+    const switchDay = (day) => this.setState(init(day, s.mobile));
+    return {
+      dayA: s.day === 'erster' ? on : '', dayB: s.day === 'mitte' ? on : '', devA: pc ? on : '', devB: mobile ? on : '',
+      toErster: () => switchDay('erster'), toMitte: () => switchDay('mitte'),
+      toPc: () => this.setState({ mobile: false }), toHandy: () => this.setState({ mobile: true, sel: null }), reset: () => switchDay(s.day),
+      monthLabel: monthName(s.mo, mobile), monthStyle: s.mo !== 0 ? 'color:#00d4aa' : '',
+      prevMonth: () => { this.commit(); this.setState(init(s.day, s.mobile, s.mo - 1)); }, nextMonth: () => { this.commit(); this.setState(init(s.day, s.mobile, s.mo + 1)); },
+      toToday: () => { if (s.mo !== 0) this.setState(init(s.day, s.mobile, 0)); },
+      appClass: mobile ? 'm' : '',
+      appStyle: 'position:relative;background:#08081a;box-sizing:border-box;display:flex;flex-direction:column;' + (mobile ? 'width:100%;max-width:390px;height:844px;margin:0 auto;border:1px solid #2a2a4a;border-radius:24px;overflow:hidden' : 'width:100%;flex:1'),
+      budgetStyle: 'display:flex;flex-direction:column;flex:1;min-height:0',
+      mainStyle: mobile ? 'flex:1;min-height:0;display:flex;flex-direction:column' : 'display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;padding:0 16px 16px',
+      listStyle: mobile ? 'flex:1;min-height:0;overflow-y:auto;outline:none' : 'flex:999 1 620px;min-width:0;background:#111128;border:1px solid #1c1c38;border-radius:16px;overflow-x:auto;outline:none;padding-bottom:6px',
+      inspStyle: (mobile ? 'position:absolute;left:0;right:0;bottom:0;border-radius:24px 24px 0 0;border-top:1px solid #2a2a4a;height:500px;z-index:4;' : 'flex:1 1 340px;min-width:300px;border:1px solid #2a2a4a;border-radius:16px;height:640px;') + 'background:#1a1a36;padding:16px;box-sizing:border-box;display:flex;flex-direction:column;gap:12px',
+      isPc: pc, isMobile: mobile, showBudget: s.view === 'budget', showHistory: s.view === 'history',
+      toggleHist: () => this.setState({ view: s.view === 'budget' ? 'history' : 'budget' }), histLabel: s.view === 'budget' ? 'Historie' : 'Zurück',
+      histWrap: mobile ? 'display:flex;flex-direction:column;gap:10px;flex:1;min-height:0;overflow-y:auto' : 'padding:0 16px 16px;display:flex;flex-direction:column;gap:10px',
+      histPills: mobile ? 'padding:0 16px' : '',
+      histCard: mobile ? 'border-top:1px solid #1c1c38;padding:0 16px' : 'background:#111128;border:1px solid #1c1c38;border-radius:16px;padding:6px 16px', histBtn: s.view === 'history' ? on : '',
+      tb: fmt(s.tb), tbColor: s.tb < 0 ? '#ff3b5c' : s.tb === 0 ? '#a3a3bd' : '#00ff88',
+      showBar: !s.barHidden && !(reds.length === 0 && tSum <= 0 && checks.length === 0), chips, hideBar: () => this.setState({ barHidden: true, filter: 'alle' }),
+      searchExtra: mobile ? 'flex:1 1 100%;max-width:none' : 'font-size:14px', search: s.search, typeSearch: (e) => this.setState({ search: e.target.value }), filters, groups,
+      listKey: (e) => { if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return; e.preventDefault(); const ids = shown.map((i) => i.id); const p = ids.indexOf(s.sel); const n = ids[Math.max(0, Math.min(ids.length - 1, p + (e.key === 'ArrowDown' ? 1 : -1)))]; if (n !== undefined) this.pick(s.items[n]); },
+      hasCur: !!c, cur, closeSheet: () => { this.commit(); this.setState({ sel: null }); }, tabs,
+      noRows: !groups.length, noCurPc: pc && !c,
+      prevCat: () => { this.commit(); const ids = shown.map((i) => i.id); const n = ids[Math.max(0, ids.indexOf(s.sel) - 1)]; if (n !== undefined) this.pick(s.items[n]); },
+      nextCat: () => { this.commit(); const ids = shown.map((i) => i.id); const n = ids[Math.min(ids.length - 1, ids.indexOf(s.sel) + 1)]; if (n !== undefined) this.pick(s.items[n]); },
+      isGeld: s.tab === 'geld', isTx: s.tab === 'tx', isHist: s.tab === 'hist', isTarget: s.tab === 'target',
+      draft: s.draft, typeDraft: (e) => this.setState({ draft: e.target.value }), commit: this.commit,
+      selectAll: (e) => e.target.select(), draftKey: (e) => { if (e.key === 'Enter') this.commit(); if (e.key === 'Escape' && c) this.setState({ draft: fmt(c.a) }); },
+      showHint: !!c && s.draft !== fmt(c.a), after: isNaN(val) ? '' : 'Verfügbar danach ' + fmt(after), afterColor: after < 0 ? '#ff3b5c' : after === 0 ? '#00ff88' : '#e8e8f0',
+      hint: isNaN(val) ? 'Keine gültige Rechnung' : c ? '= ' + fmt(val) + ', Zu verteilen danach ' + fmt(round(s.tb - (val - c.a))) : '', hintColor: isNaN(val) ? '#ff3b5c' : '#a3a3bd',
+      steps: [-50, -20, -10, 10, 20, 50].map((d) => ({ label: (d > 0 ? '+' : '-') + Math.abs(d), pick: () => { if (!c) return; const n = calc(this.state.draft, c.a); if (!isNaN(n)) this.setState({ draft: fmt(round(n + d)) }); } })),
+      canPause: !!c && !!c.tt && (c.p || c.need - c.a > 0), pauseLabel: c && c.p ? 'Target wieder aktivieren' : 'Target diesen Monat pausieren',
+      togglePause: () => { if (!c) return; this.setState({ items: s.items.map((i) => i.id === c.id ? { ...i, p: !i.p } : i), log: this.addLog('Target', c.n + (c.p ? ': Target aktiv' : ': Target pausiert'), c.ta, [c.id]) }); },
+      hasMiss: miss > 0, cantAssign: s.tb < miss, assignLabel: s.tb < miss ? 'Nur noch ' + fmt(Math.max(s.tb, 0)) + ' zu verteilen' : fmt(miss) + ' zuweisen',
+      assignStyle: s.tb < miss ? 'background:none;border:1px solid #2a2a4a;color:#a3a3bd;cursor:default' : '',
+      assignMiss: () => { if (c && s.tb >= miss) this.shift(-1, c.id, miss); },
+      isIn: s.dir === 'in', inStyle: seg(s.dir === 'in'), outStyle: seg(s.dir === 'out'),
+      setIn: () => this.setState({ dir: 'in', target: sugg[0] ? sugg[0].id : -1, amount: c && avail(c) < 0 ? fmt(-avail(c)) : s.amount }),
+      setOut: () => this.setState({ dir: 'out', target: c && c.id === 8 ? 7 : 8 }),
+      sugg, target: s.target, amount: s.amount, typeAmount: (e) => this.setState({ amount: e.target.value }), pickTarget: (e) => this.setState({ target: Number(e.target.value) }),
+      opts: c ? [{ id: -1, n: 'Zu verteilen' }].concat(s.items.filter((i) => i.id !== c.id).map((i) => ({ id: i.id, n: i.n }))) : [],
+      moveLabel: (s.dir === 'in' ? 'Holen aus ' : 'Abgeben an ') + name(s.target),
+      doMove: () => { const a = calc(s.amount, 0); if (isNaN(a) || a <= 0 || !c) return; if (s.dir === 'in') this.shift(s.target, c.id, a); else this.shift(c.id, s.target, a); },
+      isDatum: s.tType === 'datum', tDate: s.tDate, typeDate: (e) => this.setState({ tDate: e.target.value }),
+      tNeed: !validDate(s.tDate) ? 'Datum als TT.MM.JJJJ' : isNaN(num(s.tAmount)) || !c ? '' : 'Ergibt ' + fmt(monthly(num(s.tAmount), c.carry, s.tDate)) + ' pro Monat',
+      tNeedColor: validDate(s.tDate) ? '#a3a3bd' : '#ff3b5c',
+      tType: s.tType, tAmount: s.tAmount, pickType: (e) => this.setState({ tType: e.target.value }), typeT: (e) => this.setState({ tAmount: e.target.value }),
+      saveLabel: c && c.tt ? 'Target ändern' : 'Target anlegen',
+      saveT: () => { const a = num(s.tAmount); if (isNaN(a) || !c || (s.tType === 'datum' && !validDate(s.tDate))) return; this.setTarget(c.id, s.tType, a, c.n + ': Target ' + fmt(a), s.tType === 'datum' ? s.tDate : ''); },
+      removeT: () => { if (c) { this.setTarget(c.id, '', 0, c.n + ': Target entfernt'); this.setState({ tAmount: '' }); } },
+      applyCheck: () => { if (c) { this.setTarget(c.id, c.tt, c.check, c.n + ': Target ' + fmt(c.ta) + ' → ' + fmt(c.check), c.td); this.setState({ tAmount: fmt(c.check) }); } },
+      dropCheck: () => { if (c) this.setState({ items: s.items.map((i) => i.id === c.id ? { ...i, check: 0 } : i) }); },
+      preview: s.preview, pRows, pSum: fmt(pSum), pAfter: fmt(round(s.tb - pSum)), closePreview: () => this.setState({ preview: false }),
+      applyTargets: () => { const ids = tItems.filter((i) => !s.excl[i.id]).map((i) => i.id); const items = s.items.map((i) => ids.includes(i.id) ? { ...i, a: i.need } : i); this.refresh(items, { tb: round(s.tb - pSum), preview: false, log: this.addLog('Targets', ids.length + ' Kategorien angewendet', pSum, ids) }); },
+      showHistoryRows: hRows.length > 0, hRows, hFilters
+    };
+  }
+}
+</script>
+</body>
+</html>
