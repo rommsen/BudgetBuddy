@@ -244,3 +244,28 @@ let planMove (month: BudgetMonth) (request: MoveRequest) : Result<MovePlan, stri
               Lines = lines }
     else
         Error (String.concat " " (List.distinct errors))
+
+/// Plant das Setzen eines Zugewiesen (ADR 0078): der gelesene Wert ist der alte, der eingegebene gilt.
+/// Steht der Monat schon auf dem Wert, gibt es nichts zu tun (`None`). Ein negatives neues Zugewiesen
+/// ist gültig. Abgelehnt werden eine im Monat fehlende Kategorie und Beträge neben dem
+/// 10-Milliunits-Raster, alle Gründe gesammelt. Rein, ohne I/O.
+let planAssign (month: BudgetMonth) (request: AssignRequest) : Result<MovePlan option, string> =
+    let category =
+        month.Groups
+        |> List.collect (fun g -> g.Categories)
+        |> List.tryFind (fun c -> c.Id = request.CategoryId)
+    let errors =
+        [ if category.IsNone then $"Die Kategorie {request.CategoryId} fehlt im Monat {month.Month}."
+          if not (isOnTenMilliunits request.Assigned) then "Der Betrag muss auf den Cent genau sein." ]
+    match category with
+    | Some c when List.isEmpty errors ->
+        if c.Assigned.Amount = request.Assigned.Amount then
+            Ok None
+        else
+            let line =
+                { CategoryId = c.Id
+                  CategoryName = c.Name
+                  OldAssigned = c.Assigned
+                  NewAssigned = { c.Assigned with Amount = request.Assigned.Amount } }
+            Ok (Some { Origin = MoneyAssigned; Lines = [ line ] })
+    | _ -> Error (String.concat " " errors)

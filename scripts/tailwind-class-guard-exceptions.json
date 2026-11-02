@@ -14,6 +14,11 @@
     ]
   },
   {
+    "token": "{monthChangeClass model}",
+    "reason": "Definiert in Components/Budget/MonthView.fs, nach dem Aufteilen der Budget-View (budgeting-c5w2n) in Dateien daneben genutzt. Der Wächter löst Bindungen nur je Datei auf. Der Wert sind die Literale opacity-60 und transition-opacity.",
+    "locations": ["src/Client/Components/Budget/InspectorView.fs", "src/Client/Components/Budget/View.fs"]
+  },
+  {
     "token": "{animation}",
     "reason": "Loading.fs' staggeredList nimmt die Animationsklasse als Funktionsparameter (animation: string) vom Aufrufer entgegen: ein echter Durchreiche-Wert, keine endliche, aus dem Text ableitbare Menge.",
     "locations": ["src/Client/DesignSystem/Loading.fs"]

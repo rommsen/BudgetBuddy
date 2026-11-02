@@ -1,7 +1,7 @@
 ---
 id: budgeting-c5w2n
 title: "Tab Geld: Umschalter Zuweisen, Holen, Abgeben, rechnendes Feld mit Speichern beim Verlassen, Fehlbetrag-Knopf, Handy-Schritte, Holen und Abgeben nach Variante D"
-status: doing
+status: done
 type: feature
 context: budgeting
 created: 2026-11-02
@@ -266,3 +266,283 @@ FAIL. `./verify.sh` war grün, innerhalb der Seite ist die Regel dicht.
 
 - Stiller Klick auf dem Toast "Erneut senden": `ToastActionClicked` schließt den Toast, `startMove` tut bei laufender Schlange nichts und meldet nichts.
 - Umgehung über den Seitenwechsel: `PageEntered` läuft während eines Aufrufs durch, `enterPage` setzt `TabMoney = None`, damit fällt `moveRunning` auf falsch, obwohl der Aufruf läuft.
+
+## Outcome
+
+Der Tab Geld steht. `./verify.sh`: `VERIFY: PASS` (dotnet 3425 grün, 10 opt-in übersprungen, node 471 grün). `npm run check:readme-delta -- --bc budgeting` Exit 0. Offen sind nur die `[human-eye]`-Punkte für Roman: Farben der Vorschau und des Knopfs, Schrumpfen ohne Sprung, Aufbau gegen Variante D und E. Screenshots gibt es keine. Kein Live-Aufruf gegen YNAB, `RUN_INTEGRATION_TESTS` nicht gesetzt.
+
+**Wichtige Stellen:**
+- Rechnen: `src/Client/Components/Budget/AmountMath.fs` (`evaluateAmount`, `formatSignedAmount`).
+- Zustand: `Components/Budget/Moves.fs` (`syncMoneyTab`, `saveEntry`, `leaveInspector`, `enqueueAssign`, `startNextAssign`, `missingAction`, `confirmMissing`, `transferEnds`, `transferWarning`, `confirmTransfer`, `inputActive`), `Components/Budget/State.fs` (`transition` ohne Sammelzweig, `leavesInspector`, `update` als Einstieg mit `flushAssign`).
+- View: `Components/Budget/MovesView.fs`, `InspectorView.fs`.
+- Server: `planAssign` in `Server/Budgeting/Domain.fs`, `assignMoney` und `recordAndSend` in `CommandHandlers.fs`, `queryRecentCategories` in `Persistence.fs`, `validateAssignRequest`, `Api.assignMoneyWith`. `freeAmount` in `Shared/Budgeting.fs`.
+- Design-System: `Segmented.fs`, `Button.amountStep`, `Button.sideRow`, `Button.sideRowFixed`, `Money.afterAmount`, `CategoryPicker.popoverInPanelRevealed`, `Input.TextInputProps` mit `ReadOnly`, `OnFocus`, `OnBlur`, `OnKeyDown`. Styleguide §5 und `/styleguide` Sektion 23b.
+
+**Aufteilen.** `Types.fs` und `View.fs` sind geteilt in `Month.fs`, `Targets.fs`, `Moves.fs`, `Inspector.fs` und `MonthView.fs`, `TargetsView.fs`, `MovesView.fs`, `InspectorView.fs`, `View.fs` als Seite. `Update` ist ein einziges `match`. Belegt waren `dotnet build`, 3339 .NET-Tests und `budget-page.test.mjs` 45 von 45 grün. Ein eigenes `VERIFY: PASS` für diesen Schritt allein gibt es nicht, die Task verlangte es, ein Worker kann aber keinen Zwischen-Commit setzen. Der Klassen-Wächter löst Bindungen nur je Datei auf, deshalb ein Eintrag für `{monthChangeClass model}` in `scripts/tailwind-class-guard-exceptions.json`. Der Strukturtest in `TargetsApplyClientTests.fs` liest jetzt alle `*View.fs`.
+
+**Test zuerst, ehrlich:**
+- Server, `freeAmount` und `evaluateAmount`: Test zuerst, mit Stummeln rot gesehen (28 von 30 Server-Tests, 8 von 10 Rechnen-Tests, 2 Frei-Tests).
+- Client-Zustand, View und Browser-Wächter: nicht Test zuerst. Ich habe den Zustand am Stück gebaut, weil `Model.Move` und der Dialog auf einmal fallen mussten, und danach die Tests geschrieben. Das weicht von Vorgabe 3 ab. Rot ist dort nur nachträglich per Gegenprobe belegt, und nur für die Tabelle unten.
+
+**Gegenprobe, je Mutante einzeln gesetzt, rot gesehen, zurückgenommen:**
+| Mutante | Rot |
+|---|---|
+| `planAssign` ohne Gleichheit | 2, "Gleicher Wert ergibt keine Zeile" |
+| Grenze einseitig | "Über 1.000.000,00 ... auf beiden Seiten" |
+| Abfrage `origin <> @origin` | 4, "Herkunft Targets anwenden und Zuweisen zählen nicht" |
+| Schlange ersetzt nie | "Eine wartende ... wird ersetzt" |
+| ersetzt auch die laufende | dieselbe |
+| `SelectMonth` verlässt nicht | 3, "Jeder Weg ergibt genau eine Zuweisung" |
+| `SelectInspectorTab` verlässt nicht | 3, dieselbe |
+| Sperre bei laufendem Aufruf weg | "Solange ein Aufruf läuft ..." |
+| Schreiben ohne neue Generation | "Der gespeicherte Wert steht sofort im Monat ..." |
+| `canSend` ohne Schlange | "Holen, Abgeben und der Fehlbetrag-Knopf sind gesperrt ..." |
+| `canSend` ohne Monatswechsel | 2 |
+| `Exact` über `formatAmountForInput` | "Bei negativem Zugewiesen behält das Feld das Vorzeichen ..." |
+| Startmodus immer Zuweisen | 5 |
+| Schlüssel ohne Monat | 2 |
+| Holen dreht Quelle und Ziel | 6 |
+| Warnung nach Verfügbar statt Frei | "Die Warnung nennt den freien Betrag ..." |
+| Mal rechnet plus | 3 |
+| Rest ohne Kappung bei 0 | "Reicht Zu verteilen nicht ..." |
+| Browser: `focusLeft` immer wahr | "Der Wechsel in ein anderes Programm ..." |
+| Browser: `popoverInPanel` ohne Einrücken ins Bild | "Panel 1280 × 800", 861 gegen 779 |
+| Browser: `PageLeft` nicht gesendet | "Der Rücksprung per Browser ..." |
+| Browser: Knopf ohne `preventDefault` | "Handy: ein Tipp auf Schritt ..." |
+| Browser: Name `truncate` | "Lange Kategorienamen", beide Breiten. Überlebte zuerst, der Wächter maß nur die Hülle. Geschärft, dann rot |
+
+**Über den Wortlaut hinaus und Abweichungen:**
+- `inputActive` liegt in `Moves.fs`, nicht in `Types.fs`: es braucht `entryValue` nicht, aber der Rest der Regeln steht dort. `src/Client/State.fs` hängt es an.
+- Alle Lese-Cmds der Seite liegen hinter einem Lambda. So läuft `update` unter .NET auf jedem Weg, die Cmds werden dort nie ausgeführt. Die Tabellentests gehen deshalb durch das echte `update` und nicht nur durch Einzelfunktionen.
+- Die Vorbelegung gilt nur in Holen. Eine rote Kategorie zeigt in Abgeben ein leeres Betragsfeld.
+- Ungültiger Text ist rot über die Textfarbe, ohne `Input.Error`: dessen `animate-shake` zuckte sonst bei jedem Zwischenstand wie `+` oder `5+`.
+- Ein Knopf ohne Gegenseite oder Betrag heißt schlicht "Holen" oder "Abgeben".
+- Eine Fehlerantwort auf den Fehlbetrag-Knopf steht im Tab in jedem Modus (`transfer-error`).
+- Zwischen 768 und 1023 px gilt das Sheet: Schritte da, Picker als `sheetLayered`.
+- `popoverInPanel` war im Panel abgeschnitten, deshalb neu `popoverInPanelRevealed`.
+- Die Wächter für `--vvh` setzen jetzt `page.setViewportSize`: `Viewport` schreibt den Wert nach rund 300 ms zurück, das fiel erst mit dem Übergang der Höhe auf. Eine echte Tastatur ändert den Viewport und ist davon nicht betroffen.
+- Die Sperre nach dem Picker in `move-money.test.mjs` wartet nicht mehr 400 ms: ein Klick ohne Wirkung nimmt sie weg.
+- `scripts/export-design-system.mjs` führt die neue Karte `components-segmented`.
+
+**Bekannte Grenzen:**
+- Ein Zugewiesen von YNAB neben dem Cent bleibt per Schritt neben dem Cent, der Server lehnt mit Toast ab.
+- Die Rechnung einer Eingabe gilt zum Stand beim ersten Tippen. Ein Reload ändert ihn nicht.
+- Eine Warteschlange lebt im Client, ein Neuladen der App sperrt der PWA-Hinweis nur über `isInputActive`.
+- Der Wächter für das andere Programm löst `focusout` von Hand aus, ein echter Fensterwechsel ist so nicht gemessen.
+
+## Outcome (Ergänzung Iteration 2)
+
+`./verify.sh`: `VERIFY: PASS` (dotnet 3439 grün, node 471 grün). Kein Live-Aufruf gegen YNAB. Sprache unverändert, deshalb kein neues README-Delta; es gilt das aus Iteration 1.
+
+**Sperre (ADR 0078 Punkt 5).** Die Sperre sitzt an einer Stelle: `update` in `State.fs` tut bei `inspectorBusy` nichts, wenn die Nachricht den Inspektor verlässt oder das Feld ändert (`touchesAssignField`: tippen, Schritt, Verlassen, Esc). `assignFieldReadOnly` in `Moves.fs` setzt zusätzlich `readOnly` an der View. Test zuerst: alle 6 neuen Tests waren vor dem Fix rot, die 5 aus der Tastentabelle mit Stummeln ebenso.
+
+**Über den Auftrag hinaus.** Die Sperre allein reichte nicht. Nach `MoveAnswered` stand der Monat bis zur Antwort des Neu-Lesens noch auf 900, ein Schritt +10 in dieser Lücke schickte wieder 910. Deshalb trägt `applyMoveAnswered` die geschriebenen Zeilen des Berichts sofort in den Monat ein (`withReport`, `withAssigned`, gemeinsam mit `writeThrough`). Gescheiterte Zeilen und Berichte eines anderen Monats zählen nicht.
+
+**Vorhandene Eingabe beim Verlassen während des Aufrufs.** Über die View kann keine bestehen, der Fehlbetrag-Knopf verwirft sie laut Kriterium, und in Holen und Abgeben gibt es das Feld nicht. Auf Nachrichtenebene gibt es den Fall doch (`typed` vor `ConfirmTransfer`): Sie bleibt stehen, geht nicht in die Schlange und wird nach der Antwort beim Verlassen gespeichert. Getestet.
+
+**Rahmen.** Beide Tests gehen durch `update` mit `AssignAnswered` und `AssignCallLost`. Gezählt wird die Zahl der angestoßenen Aufrufe (`commands`), ausführen lassen sie sich unter .NET nicht. Der Test sieht also 2 statt 1, nicht das Ziel des zweiten Aufrufs.
+
+**Tasten.** `assignKeyAction` und `amountKeyAction` in `Moves.fs` bilden die Taste auf `FieldKeyAction` ab. Die View (`fieldKeys`) führt nur aus und nimmt den Fokus. `stopPropagation` und `blur` selbst sind nicht unter .NET geprüft, `blur` nach Enter deckt der vorhandene Browser-Wächter "PC, Panel" ab. Keine neuen Playwright-Tests.
+
+**Live-Stellen von `assignMoneyWith` (Regel 3):**
+| Stelle | Beleg | Gegenbeweis |
+|---|---|---|
+| `Api.fs:1899`, Endpoint `assignMoney` | `TargetsApplyTests.fs` "Jeder Endpunkt reicht Token und Budget in dieser Reihenfolge an den Port" | Token und Budget vertauscht: rot |
+| `Api.fs:1913`, `liveBudgetApi` übergibt `setting` | neu "Der Live-Anschluss liest Zuweisen-Token und Budget aus den Settings" | Settings leer: rot. Vor dem neuen Test überlebte dieser Mutant |
+| `Api.fs:1913`, `livePort` (lesen und PATCH) | nur `YnabIntegrationTests.fs` hinter `RUN_INTEGRATION_TESTS`, und dort nur `getBudgetFrame` | kein Gegenbeweis im normalen Lauf |
+| `Api.fs:1917`, `budgetApi` mit `getSetting` | Negativtabelle ruft `budgetApi` auf, Pfad ohne Token | Settings leer: **überlebt**, die Testdatenbank hat kein Token und ein Token führte ins Netz |
+| `Api.fs:1974`, `Remoting.fromValue` | `RemotingPipelineTests.fs` schickt `getBudgetMonth` durch den Host | nicht mutiert |
+
+Die Lücken bei `livePort` und `:1917` teilt `assignMoney` mit allen Budget-Endpoints. Ein Lauf mit gesetztem Schalter hat in dieser Task nicht stattgefunden, ein echtes `assignMoney` gegen YNAB ist also unbelegt.
+
+**Gegenprobe, je Mutante einzeln gesetzt, rot gesehen, zurückgenommen. Die Aussage gilt nur für diese Liste:**
+| Mutante | Rot |
+|---|---|
+| Feld ohne Sperre | 3, "Tippen, Schritt, Enter und Esc ändern nichts ...", "Stand 900 ...", "Eine vorhandene Eingabe ..." |
+| Schritt nicht gesperrt | 2, "Tippen, Schritt ...", "Stand 900 ..." |
+| Verlassen nicht gesperrt | "Eine vorhandene Eingabe ..." |
+| `readOnly` ohne Aufruf | "Das Feld ist schreibgeschützt ..." |
+| Bericht nicht eingetragen | 2, "Nach der Antwort rechnet das Feld vom neuen Stand ...", "Eine gescheiterte Zeile ..." |
+| auch gescheiterte Zeilen eingetragen | "Eine gescheiterte Zeile ..." |
+| Bericht ohne Monatsprüfung | "Eine gescheiterte Zeile ..." |
+| `due` immer falsch | "Eine Zuweisung im letzten Monat ..." |
+| `AssignAnswered` ohne `frameRefreshCmd` | "Eine Zuweisung im letzten Monat ..." |
+| `AssignCallLost` ohne `frameRefreshCmd` | "Ein abgebrochener Aufruf ..." |
+| Enter und Esc im Feld vertauscht | 3, "Tasten in den Feldern" |
+| Enter im Betragsfeld sendet | 2, darunter "Enter im Betragsfeld sendet nichts" |
+| Esc im Betragsfeld ohne Rücksetzen | 2 |
+| Rücksetzen nimmt die Gegenseite | 2 |
+| `Api.fs:1899` Token und Budget vertauscht | "Jeder Endpunkt reicht ..." |
+| `Api.fs:1913` Settings leer | "Der Live-Anschluss ...", siehe oben |
+| `Api.fs:1917` Settings leer | **Überlebender**, siehe oben |
+
+**Bekannte Grenzen, zusätzlich zu Iteration 1:**
+- Nach `MoveCallLost` ist der Ausgang unbekannt, bis zum Neu-Lesen rechnet das Feld vom alten Stand. Die Lücke ist dieselbe wie oben, nur ohne Bericht zum Eintragen.
+- "Erneut senden" läuft ohne diese Sperre und ohne `withReport`. Während `RetryRunning` ist das Feld bedienbar.
+
+## Outcome (Ergänzung Iteration 3)
+
+`./verify.sh`: `VERIFY: PASS` (dotnet 3450 grün, node 471 grün). Kein Live-Aufruf gegen YNAB. Sprache unverändert, kein neues README-Delta.
+
+**Korrektur zu Iteration 2.** Die Begründung zu `Api.fs:1917`, ein Token führte ins Netz, war falsch: `withYnabPort` endet ohne `ynab_default_budget_id` vor dem Port. Der Beleg läuft jetzt über `apiWirings`.
+
+**Erneut senden.** `inspectorBusy` kennt `RetryRunning`, auch ohne gewählte Kategorie, und `canSend` stützt sich darauf (Parameter `tab` entfällt). `startMoveRetry` startet nicht bei laufendem Aufruf oder nicht leerer Schlange. `applyMoveRetried` trägt den Bericht per `withReport` ein. `inputActive` zählt den Lauf mit.
+
+**Unklarer Ausgang.** `awaitMonth` setzt `Month = Loading` und eine neue Generation, kein neuer Merker, dasselbe Muster wie `closeTargets`. Es gilt für `MoveCallLost` und `MoveRetried (Error _)`, also auch für die Antwort des Neu-Lesens nach Erneut senden. Ohne `Success` gibt es weder Feld noch Knopf, eine ältere Monatsantwort zählt nicht. Das Neu-Lesen beendet die Sperre. Scheitert es, steht die Fehlerkarte mit Wiederholen, und danach ist das Feld frei. Läuft schon ein Monatswechsel, bleibt die gedimmte Liste stehen, er sperrt selbst.
+
+**Preis dieser Wahl.** Auf diesen seltenen Wegen weicht die Liste kurz "Lade Budget ..." und das Inspektor-Sheet fährt aus, bis die Antwort da ist; Auswahl und Modus bleiben. Gescheitertes Neu-Lesen zeigt die Karte statt der alten Zahlen, weil die Stände nicht mehr gelten. Sichtprüfung fehlt.
+
+**Weitere Wege geprüft:**
+| Weg | Ergebnis |
+|---|---|
+| `MoveAnswered` Bericht | `withReport`, seit Iteration 2 |
+| `MoveAnswered (Error _)` | nichts geschrieben, keine Lücke |
+| `MoveCallLost`, `MoveRetried (Error _)` | `awaitMonth`, neu |
+| `MoveRetried` Bericht | `withReport`, neu |
+| `ConfirmTargets`, `RetryFailed` | starteten mit wartender Zuweisung, warten jetzt auf die leere Schlange, neu |
+| Targets, Dialog offen bis Schließen | Der Dialog deckt das Feld ab, `closeTargets` setzt `Loading`. Auf Nachrichtenebene nicht gesperrt, über die View nicht erreichbar |
+| `AssignCallLost`, `AssignAnswered (Error _)` | keine Bewegung. Zuweisen ist absolut, das Feld darf bis zum Neu-Lesen vom gezeigten Wert rechnen, denn der ist der gemeinte (ADR 0078) |
+
+**Live-Stellen, aktualisiert (Regel 3):**
+| Stelle | Beleg | Gegenbeweis |
+|---|---|---|
+| `Api.fs:1899`, Endpoint `assignMoney` | "Jeder Endpunkt reicht Token und Budget ..." | Vertauscht: rot (Iteration 2) |
+| `livePort` (`getMonth`, `setAssigned`) | `apiWirings` | Mutant im echten `Api.fs` rot, Einträge in der Gegenbeweis-Tabelle |
+| `Api.fs:1913`, `liveBudgetApi` | `apiWirings`, ganze Bindung mit `setting`, `livePort`, `liveFramePort`, Uhr, Zone; dazu der Verhaltenstest aus Iteration 2 | leere Settings im echten `Api.fs` rot, je ein Ersatz je Argument im Gegenbeweis |
+| `Api.fs:1917`, `budgetApi` | `apiWirings` | leere Settings im echten `Api.fs` rot, Iteration 2 überlebte |
+| `Api.fs:1974`, `Remoting.fromValue` | `apiWirings` | anderer Server im Gegenbeweis |
+
+Das ist ein Beleg des Anschlusses per Quelltext. `setAssigned` selbst ist gegen YNAB in dieser Task nicht gelaufen, `RUN_INTEGRATION_TESTS` war nicht gesetzt.
+
+**Änderungen außerhalb des Auftrags:**
+- `retryMoveCmd` liegt hinter einem Lambda (`State.fs`), sonst warf `RetryMove` unter .NET beim Zugriff auf den Proxy. Ohne das liefen die neuen Tests nicht durch `update`.
+- `scripts/move-money.test.mjs`, "Überholt das Neu-Lesen ...": kein neuer Test, nur die Reihenfolge getauscht, erst Monatswechsel, dann Erneut senden. Die alte Folge ist gesperrt, seit ein laufendes Erneut senden den Inspektor hält. Der Wächter beißt weiter: Mutante `Reloaded` ohne `withEntries` ist rot.
+
+**Test zuerst.** 9 Tests vor dem Fix rot gesehen. Grün schon vorher: "nach dem Neu-Lesen zählt der gelesene Stand" (Intakt-Szenario). Der Test zum Monatswechsel kam nach, weil dessen Mutante zunächst überlebte.
+
+**Gegenprobe, je Mutante einzeln gesetzt, rot gesehen, zurückgenommen. Die Aussage gilt nur für diese Liste:**
+| Mutante | Rot |
+|---|---|
+| `inspectorBusy` ohne `RetryRunning` | 2, "Fehlbetrag scheitert bei 900 ...", "Erneut senden sperrt auch ohne ..." |
+| `inputActive` ohne laufenden Aufruf | "Erneut senden sperrt auch ohne ..." |
+| `canSend` ohne `inspectorBusy` | 4 |
+| `startMoveRetry` ohne Schlange | "Erneut senden startet nicht ..." |
+| `startMoveRetry` ohne Sperre | dieselbe |
+| `applyMoveRetried` ohne `withReport` | "Nach Erneut senden rechnet das Feld ..." |
+| `MoveCallLost` ohne `awaitMonth` | 3, "Aufruf abgebrochen: ..." |
+| `MoveRetried (Error _)` ohne `awaitMonth` | "Scheitert Erneut senden, bleibt das Feld gesperrt ..." |
+| `awaitMonth` ohne neue Generation | "Aufruf abgebrochen: Formular zurückgesetzt ..." |
+| `awaitMonth` räumt auch beim Monatswechsel | "Scheitert Erneut senden während eines Monatswechsels ...". Überlebte zuerst, Test ergänzt, dann rot |
+| `confirmTargets` ohne Schlange | "Solange Zuweisungen in der Schlange stehen ..." |
+| `retryFailed` ohne Schlange | dieselbe |
+| `livePort` ohne `setAssigned` | "die Endpoints hängen an der echten Verbindung ..." |
+| `liveBudgetApi` mit leeren Settings | dieselbe |
+| `budgetApi` mit leeren Settings | dieselbe |
+| Browser: `Reloaded` ohne `withEntries` | "Überholt das Neu-Lesen ..." |
+
+**Bekannte Grenzen, ersetzt die Liste aus Iteration 2:**
+- Während Erneut senden läuft, tun Monat, Kategorie, Tab und Schließen nichts, auch ohne offene Kategorie. Das ist die Folge von `inspectorBusy` mit `RetryRunning`.
+- Ein Klick auf "Erneut senden" bei offener Eingabe speichert per Blur, die Schlange ist dann nicht leer, und der Klick tut nichts. Der Knopf zeigt das nicht, ein zweiter Klick nach dem Speichern wirkt.
+- Dasselbe gilt für "Übernehmen" bei wartender Zuweisung.
+- `stopPropagation` und `blur` sind nicht unter .NET geprüft (Iteration 2).
+
+## Outcome (Ergänzung Iteration 4)
+
+`./verify.sh`: `VERIFY: PASS` (dotnet 3455 grün, node 471 grün). Kein Live-Aufruf gegen YNAB. Sprache unverändert, kein neues README-Delta.
+
+**Die Regel.** `update` leitet jede startende Nachricht über eine Stelle: `startsMove` nennt die Nachrichten, `startMove` wendet die Regel an, `assignSettled` in `Moves.fs` entscheidet. Dazu gehören `RetryMove`, `ConfirmTargets`, `RetryFailed` und, nach Prüfung, `ConfirmTransfer`. Der Fehlbetrag-Knopf bleibt draußen, er verwirft die Eingabe laut Kriterium. Die getrennten Bedingungen in `startMoveRetry`, `confirmTargets` und `retryFailed` aus Iteration 3 sind entfernt.
+
+**Verhalten:**
+| Lage beim Tipp | Ergebnis |
+|---|---|
+| Bewegung läuft | nichts |
+| Zuweisen ruht | Bewegung startet |
+| offene Eingabe, geändert | wie Verlassen: Sie geht in die Schlange und die Bewegung startet nicht. Der Knopf ist gesperrt und nach dem Leerlauf wieder frei. Der Tipp wird nicht nachgeholt, der Mensch sieht die neue Lage und tippt noch einmal |
+| offene Eingabe, ungültig | fällt mit Warn-Toast weg, die Bewegung startet nicht |
+| offene Eingabe ohne Änderung (`+0`) | fällt weg, die Bewegung startet im selben Tipp. Sonst wäre das ein stiller Klick, denn es ändert sich nichts |
+| Schlange läuft, ohne Eingabe | Knopf gesperrt, die Nachricht tut nichts |
+
+**Sichtbarkeit.** "Übernehmen", "Fehlgeschlagene erneut senden" und "Erneut senden" sind über `canStartMove` gesperrt, solange die Schlange oder eine Bewegung läuft. Eine offene Eingabe sperrt nicht. `moveRetries` bekommt dafür `model`. Die `IsDisabled`-Verdrahtung selbst hat keinen Test, geprüft ist nur `canStartMove`, keine neuen Playwright-Tests wie beauftragt.
+
+**Fund der Aufzählung.** Nach Targets anwenden gilt der gezeigte Stand bis zum Schließen nicht. `inspectorBusy` umfasst jetzt `moveRunning` und die Berichte `ApplyDone` und `ApplyFailed`. Das in Iteration 3 als "über die View nicht erreichbar" stehen gelassene Loch ist damit auch auf Nachrichtenebene zu.
+
+**Tests.** Eine Tabelle `moveWays` über alle vier Wege mit fünf Prüfungen, dazu die Aufzählung. Sie läuft durch das echte `update` gegen ein kleines YNAB-Modell: alle Reihenfolgen aus Schritt, Tippen, Verlassen, Start, Antwort, Abbruch, Schließen, Zuweisung fertig und Neu-Lesen bis Tiefe 6, je Weg, dazu Tiefe 5 ab offener Eingabe. Geprüft wird bei jedem Schritt: Beim Start sind Schlange und Eingabe leer, danach liegt kein Wert von vor der Bewegung in der Schlange. Ein Zähler belegt, dass Zuweisungen nach der Bewegung überhaupt erreicht werden.
+
+Grenzen der Aufzählung: Sie kennt nur relative Eingaben, `950` ist gewollt absolut. Ein abgebrochener Aufruf gilt als angekommen. Der Fall "nicht angekommen" steht als Einzeltest aus Iteration 3.
+
+**Test zuerst.** Vor dem Fix rot: 5 von 6 neuen Tests, davon 2 als Fehler, weil `retryCmd` unter .NET den Proxy anfasste, und die Aufzählung mit der Meldung "Eingabe beim Start: Schritt, ..., Start". Der sechste lief vor dem Fix grün.
+
+**Änderungen an Bestehendem:**
+- `retryCmd` liegt hinter einem Lambda, wie `retryMoveCmd` in Iteration 3.
+- Test "Solange Zuweisungen in der Schlange stehen ..." entfernt, die Tabelle deckt ihn über `update` ab.
+- Test "Eine vorhandene Eingabe ...": Über `update` entsteht dieser Zustand nicht mehr, er ist per `confirmTransfer` von Hand gebaut. Der Fall bleibt als Absicherung für `startMove` und das Verlassen.
+- Strukturtest in `TargetsApplyClientTests.fs`: Literal `Button.primary "Übernehmen"` zu `Text = "Übernehmen"`, der Knopf braucht `IsDisabled`.
+- `canSend` verliert nichts: Der Fehlbetrag-Knopf sperrt weiter darüber.
+
+**Gegenprobe, je Mutante einzeln gesetzt, rot gesehen, zurückgenommen. Die Aussage gilt nur für diese Liste:**
+| Mutante | Rot |
+|---|---|
+| Regel weg, Start ohne `startMove` | 5 |
+| `startsMove` ohne `RetryMove` | 5 |
+| `startsMove` ohne `ConfirmTargets` | 4 |
+| `startsMove` ohne `RetryFailed` | 4 |
+| `startsMove` ohne `ConfirmTransfer` | 3, darunter die Aufzählung |
+| speichert auch bei laufender Bewegung | "Eine vorhandene Eingabe ..." |
+| startet trotz Warnung | "Eine ungültige Eingabe ..." |
+| startet im selben Update | 4, darunter die Aufzählung |
+| startet ohne Speichern | 3 |
+| `assignSettled` ohne Eingabe | 3, darunter die Aufzählung. Überlebte zuerst, weil `startMove` immer verließ. Umgebaut, dann rot |
+| `canStartMove` ohne Schlange | 4, darunter die Aufzählung |
+| `canStartMove` ohne laufende Bewegung | "Ohne Eingabe und mit leerer Schlange ...". Überlebte zuerst, Prüfung ergänzt, dann rot |
+| `moveRunning` ohne `Applying` | 4 |
+| `moveRunning` ohne erneutes Senden der Targets | 4 |
+| `inspectorBusy` ohne `ApplyDone` | die Aufzählung |
+| `inspectorBusy` ohne `ApplyFailed` | die Aufzählung |
+
+**Bekannte Grenzen, ersetzt die Liste aus Iteration 3:**
+- Während Erneut senden und solange ein Targets-Bericht offen steht, tun Monat, Kategorie, Tab und Schließen des Inspektors nichts.
+- Auf den Wegen mit unklarem Ausgang weicht die Liste kurz "Lade Budget ...", Sichtprüfung fehlt (Iteration 3).
+- Eine ältere Vorschau im offenen Targets-Dialog passt nach dem Speichern nicht mehr. Dann antwortet der Server beim nächsten Tipp mit der geänderten Vorschau, wie bisher.
+- `stopPropagation` und `blur` sind nicht unter .NET geprüft (Iteration 2).
+
+## Outcome (Ergänzung Iteration 5)
+
+`./verify.sh`: `VERIFY: PASS` (dotnet 3462 grün, node 471 grün). Kein Live-Aufruf gegen YNAB. Sprache unverändert, kein neues README-Delta.
+
+**Stiller Klick.** `startMove` meldet "Läuft noch. Gleich noch einmal versuchen." (`moveBlockedText`, Warn-Toast):
+| Lage beim Tipp | Toast |
+|---|---|
+| Bewegung läuft | ja |
+| Schlange läuft, ohne Eingabe | ja |
+| Schlange läuft, Eingabe ohne Änderung fällt weg | ja |
+| offene Eingabe gerade gespeichert | nein, der Knopf zeigt es |
+| ungültige Eingabe | die Warnung dazu, sonst keiner |
+
+Der Weg über den Toast "Erneut senden" ist durch das Wurzel-`update` getestet: `toastActionMsg` führt zu `RetryMove`, die Antwort ist genau `ShowToast`. Den `ToastActionClicked`-Schritt selbst führt der Test aus, sein Cmd nicht, denn der enthält den Zeitgeber; die Übersetzung geht über `toastActionMsg` direkt.
+
+**Seitenwechsel.** Kein Merker nötig, aber `TabMoney` zu behalten reichte nicht: `syncMoneyTab` hätte ihn bei `Selected = None` gleich wieder geräumt. `enterPage` behandelt eine laufende Bewegung deshalb wie die Rückkehr aus dem Kassenbuch: Auswahl, Tab, Filter, Suche und Monat bleiben, der Monat wird neu gelesen. Das Feld bleibt gesperrt, die Antwort findet den Tab vor. Ohne laufenden Aufruf beginnt die Seite wie bisher neu.
+
+**Über den Auftrag hinaus.** Eine Absage (`Error`) ohne Toast steht nur im Tab. Kam sie, während die Seite verlassen war, hätte `enterPage` sie mit dem Tab gelöscht. Der Tab bleibt deshalb auch bei `Rejected`. Folge: Ein abgelehntes Formular steht nach Seitenwechsel und Rückkehr wieder da.
+
+Der Test "Kommt die Absage erst nach dem Seitenwechsel, nennt ein Toast den Grund" ist ersetzt durch zwei Tests für beide Reihenfolgen, Grund im Tab. Der Toast-Zweig bleibt für einen weggefallenen Tab, eigener Test.
+
+**Aufzählung.** Neu sind die Ereignisse Seite weg, Seite da und Wählen sowie der Fehlbetrag als fünfter Weg. Sie fand den Fund selbst: "Fehlbetrag: 910 nach Start, Seite da, Neu-Lesen, Wählen, Schritt, Verlassen". Grenzen wie in Iteration 4.
+
+**Test zuerst.** Vor dem Fix rot: 5 Tests (Toast-Tabelle, Eingabe ohne Änderung, Seitenwechsel, Aufzählung, Toast-Weg). Grün schon vorher als Intakt-Szenarien: "Wird die offene Eingabe gerade gespeichert ...", "Ohne laufenden Aufruf beginnt die Seite beim Betreten neu". Der Absage-Test auf der anderen Seite entstand nach dem ersten grünen Lauf, sein Rot belegt die Mutante "trotz Absage".
+
+**Gegenprobe, je Mutante einzeln gesetzt, voller .NET-Lauf rot gesehen, zurückgenommen. Die Aussage gilt nur für diese Liste:**
+| Mutante | Rot |
+|---|---|
+| Tab geräumt trotz Lauf | 3, darunter die Aufzählung |
+| Tab geräumt trotz Absage | "Kommt die Absage auf der anderen Seite ..." |
+| Tab bleibt, Seite beginnt trotzdem neu | 4, darunter die Aufzählung |
+| Tab bleibt immer | "Der Tab überlebt das Betreten der Seite nicht" |
+| kein Toast bei laufender Bewegung | "Läuft die Schlange oder eine Bewegung ..." |
+| kein Toast bei laufender Schlange | 3, darunter der Toast-Weg |
+| Toast auch beim Speichern | "Wird die offene Eingabe gerade gespeichert ..." |
+| Toast verdrängt die Warnung | "Eine ungültige Eingabe ..." |
+
+**Bekannte Grenzen, zusätzlich zur Liste aus Iteration 4:**
+- Beim Betreten während eines Aufrufs steht kurz "Lade Budget ...", der Monat wird neu gelesen.
+- Ein alter Toast "Erneut senden" für eine schon erledigte Verschiebung schließt sich ohne Meldung: Es gibt nichts mehr zu senden.
+- Fällt die gewählte Kategorie während eines Aufrufs beim Neu-Lesen weg, geht der Tab und `moveRunning` wird falsch, bevor die Antwort da ist. Das Feld dieser Kategorie gibt es dann nicht mehr, ein Wert für eine andere Kategorie ist nicht betroffen. Nicht in der Aufzählung.

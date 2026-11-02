@@ -607,6 +607,295 @@ let private boundaryTests =
             Expect.equal (ynabErrorText (YnabError.InvalidResponse "404")) "YNAB hat abgelehnt: 404" "Antwort"
     ]
 
+// budgeting-c5w2n, ADR 0078: das Feld Zugewiesen setzt den fertigen Wert absolut.
+let private assign (id: Guid) (assigned: int64) : AssignRequest =
+    { CategoryId = id; Assigned = eur assigned }
+
+let private assignPlanTests =
+    let a = budgetCategory "Lebensmittel" 100000L
+    let month = monthWith [ a ]
+    testList "planAssign" [
+        test "Gleicher Wert ergibt keine Zeile" {
+            Expect.equal (Domain.planAssign month (assign a.Id 100000L)) (Ok None) "nichts zu tun"
+        }
+        test "Sonst eine Zeile mit gelesenem Alt-Wert und Herkunft Zuweisen" {
+            match Domain.planAssign month (assign a.Id 120000L) with
+            | Ok (Some plan) ->
+                Expect.equal plan.Origin Domain.MoneyAssigned "Herkunft"
+                Expect.equal (plan.Lines |> List.map (fun l -> l.CategoryId, l.OldAssigned, l.NewAssigned))
+                    [ a.Id, eur 100000L, eur 120000L ] "eine Zeile"
+            | other -> failtest $"Plan erwartet: {other}"
+        }
+        test "Ein negatives neues Zugewiesen ist gültig" {
+            match Domain.planAssign month (assign a.Id -20000L) with
+            | Ok (Some plan) -> Expect.equal plan.Lines.Head.NewAssigned (eur -20000L) "negativ"
+            | other -> failtest $"Plan erwartet: {other}"
+        }
+        test "Fehlt die Kategorie im Monat und liegt der Betrag neben dem Raster, stehen beide Gründe da" {
+            let missing = Guid.NewGuid()
+            match Domain.planAssign month (assign missing 12345L) with
+            | Error e ->
+                Expect.stringContains e (string missing) "Kategorie"
+                Expect.stringContains e "Cent" "Raster"
+            | Ok plan -> failtest $"Ablehnung erwartet: {plan}"
+        }
+        test "Ein Betrag neben dem Raster wird abgelehnt, YNAB würde runden" {
+            match Domain.planAssign month (assign a.Id 12345L) with
+            | Error e -> Expect.stringContains e "Cent" "Grund"
+            | Ok plan -> failtest $"Ablehnung erwartet: {plan}"
+        }
+    ]
+
+let private assignOk (f: FakeYnab) req : ApplyReport =
+    match run (assignMoney f.Port now monthKey req) with
+    | Ok (Ok report) -> report
+    | other -> failtest $"Bericht erwartet: {other}"
+
+let private assignFlowTests =
+    let testCase name body =
+        testCase name (fun () ->
+            Budgeting.Persistence.initializeBudgetingSchema ()
+            body ())
+
+    testSequenced
+    <| testList "Zuweisen: Abläufe" [
+        testCase "Monat frisch lesen, Bewegung vor dem PATCH festhalten, genau ein PATCH mit dem absoluten Wert" <| fun () ->
+            let f, a, b = fake ()
+            let seen = ResizeArray<int>()
+            f.OnWrite <- fun _ -> seen.Add(movementRows [ a; b ])
+            let report = assignOk f (assign a 120000L)
+            Expect.equal f.Reads 1 "einmal gelesen"
+            Expect.equal (List.ofSeq seen) [ 1 ] "vor dem PATCH festgehalten"
+            Expect.equal (List.ofSeq f.Attempts) [ a, 120000L ] "absolut"
+            Expect.equal (outcomes report) [ Written ] "Ergebnis angehängt"
+            Expect.equal (movementsOf report).Head.Movement.Origin Domain.MoneyAssigned "Herkunft"
+            Expect.isNone report.ActualToBeBudgeted "liest Zu verteilen nicht neu"
+
+        testCase "Steht YNAB anders als der Client sah, gilt der Wert und die Bewegung nennt YNABs Stand als alt" <| fun () ->
+            let f, a, _ = fake ()
+            f.Assigned[a] <- 80000L
+            let report = assignOk f (assign a 120000L)
+            Expect.equal (List.ofSeq f.Attempts) [ a, 120000L ] "der Wert gilt"
+            Expect.equal report.Lines.Head.OldAssigned (eur 80000L) "YNABs Stand"
+
+        testCase "Steht YNAB schon auf dem Wert, entsteht nichts: keine Bewegung, kein PATCH, Bericht ohne Zeilen" <| fun () ->
+            let f, a, b = fake ()
+            let report = assignOk f (assign a 100000L)
+            Expect.isEmpty report.Lines "keine Zeile"
+            Expect.equal report.Month monthKey "Monat im Bericht"
+            Expect.isEmpty f.Attempts "kein PATCH"
+            Expect.equal (movementRows [ a; b ]) 0 "keine Bewegung"
+
+        testCase "Monat nicht lesbar: außen Error, nichts festgehalten" <| fun () ->
+            let f, a, b = fake ()
+            f.FailRead <- true
+            match run (assignMoney f.Port now monthKey (assign a 120000L)) with
+            | Error (YnabError.NetworkError _) -> ()
+            | other -> failtest $"Lesefehler erwartet: {other}"
+            Expect.equal (movementRows [ a; b ]) 0 "keine Bewegung"
+
+        testCase "Monat nicht offen (404): der Fehler kommt zurück, nichts gesendet" <| fun () ->
+            let f, a, b = fake ()
+            let port : YnabPort =
+                { f.Port with FetchMonth = fun key -> async { return Error (YnabError.MonthNotOpen key) } }
+            match run (assignMoney port now monthKey (assign a 120000L)) with
+            | Error (YnabError.MonthNotOpen _) -> ()
+            | other -> failtest $"404 erwartet: {other}"
+            Expect.isEmpty f.Attempts "nichts gesendet"
+            Expect.equal (movementRows [ a; b ]) 0 "keine Bewegung"
+
+        testCase "Abgelehnt: innen Error, nichts festgehalten, nichts gesendet" <| fun () ->
+            let f, a, b = fake ()
+            match run (assignMoney f.Port now monthKey (assign (Guid.NewGuid()) 120000L)) with
+            | Ok (Error message) -> Expect.stringContains message "fehlt" "Grund"
+            | other -> failtest $"Ablehnung erwartet: {other}"
+            Expect.isEmpty f.Attempts "kein PATCH"
+            Expect.equal (movementRows [ a; b ]) 0 "keine Bewegung"
+
+        testCase "Scheitert der PATCH, steht die Zeile fehlgeschlagen im Bericht, mit Grund" <| fun () ->
+            let f, a, _ = fake ()
+            f.Failures[a] <- networkDown
+            let report = assignOk f (assign a 120000L)
+            Expect.equal (outcomes report) [ Failed "Netzwerkfehler: Netz weg" ] "Grund"
+
+        testCase "429 beim PATCH: fehlgeschlagen mit Wartezeit, erneut sendbar" <| fun () ->
+            let f, a, _ = fake ()
+            f.Failures[a] <- YnabError.RateLimitExceeded 60
+            let report = assignOk f (assign a 120000L)
+            Expect.equal (outcomes report) [ Failed "Rate-Limit (HTTP 429), erneut in 60 Sekunden" ] "Grund"
+            f.Failures.Remove a |> ignore
+            Expect.equal (outcomes (retryOk f report)) [ Written ] "danach geht es"
+
+        testCase "Die Sperre je Monat hält eine zweite Zuweisung und eine Verschiebung an" <| fun () ->
+            let f, a, b = fake ()
+            let key = $"sperre-{Guid.NewGuid()}"
+            let holder = new System.Threading.SemaphoreSlim(0, 1)
+            let release = new System.Threading.SemaphoreSlim(0, 1)
+            let held =
+                MonthGuard.exclusive key (async {
+                    holder.Release() |> ignore
+                    do! release.WaitAsync() |> Async.AwaitTask
+                })
+                |> Async.StartAsTask
+            holder.Wait()
+            let assigning = assignMoney f.Port now key (assign a 120000L) |> Async.StartAsTask
+            let moving = moveMoney f.Port now key (request (CategorySide a) (CategorySide b) 30000L) |> Async.StartAsTask
+            Threading.Thread.Sleep 50
+            Expect.equal f.Reads 0 "gelesen wird erst unter der Sperre"
+            Expect.isEmpty f.Attempts "beide warten"
+            release.Release() |> ignore
+            held.Wait()
+            assigning.Wait()
+            moving.Wait()
+            Expect.equal f.Reads 2 "danach liest jeder einmal"
+            Expect.equal f.Attempts.Count 3 "eine Zuweisung, zwei Zeilen Verschiebung"
+
+        testCase "Erneutes Senden einer fehlgeschlagenen Zuweisung: gesendet" <| fun () ->
+            let f, a, _ = fake ()
+            f.Failures[a] <- networkDown
+            let report = assignOk f (assign a 120000L)
+            f.Failures.Remove a |> ignore
+            Expect.equal (outcomes (retryOk f report)) [ Written ] "geschrieben"
+            Expect.equal f.Assigned[a] 120000L "Stand"
+
+        testCase "Erneutes Senden: YNAB steht schon am Ziel, die Zeile gilt als geschrieben" <| fun () ->
+            let f, a, _ = fake ()
+            f.LostAnswers[a] <- networkDown
+            let report = assignOk f (assign a 120000L)
+            f.LostAnswers.Remove a |> ignore
+            let attempts = f.Attempts.Count
+            Expect.equal (outcomes (retryOk f report)) [ Written ] "geschrieben"
+            Expect.equal f.Attempts.Count attempts "kein zweiter PATCH"
+
+        testCase "Erneutes Senden: steht YNAB anders, gewinnt YNAB" <| fun () ->
+            let f, a, _ = fake ()
+            f.Failures[a] <- networkDown
+            let report = assignOk f (assign a 120000L)
+            f.Failures.Remove a |> ignore
+            f.Assigned[a] <- 77000L
+            Expect.equal (outcomes (retryOk f report)) [ ChangedInYnab ] "in YNAB geändert"
+            Expect.equal f.Assigned[a] 77000L "nichts überschrieben"
+    ]
+
+let private assignBoundaryTests =
+    let assignWith (f: FakeYnab) (monthKeyText: string) req =
+        Server.Api.assignMoneyWith (Some "t") (Some "b") (fun _ _ -> f.Port) now monthKeyText req |> run
+    let rejected (f: FakeYnab) (ids: Guid list) monthKeyText req : string =
+        match assignWith f monthKeyText req with
+        | Ok report -> failtest $"Ablehnung erwartet: {report}"
+        | Error message ->
+            Expect.isEmpty f.Attempts "kein PATCH"
+            Expect.equal f.Reads 0 "YNAB wird nicht gelesen"
+            Expect.equal (movementRows ids) 0 "keine Bewegung festgehalten"
+            message
+    let testCase name body =
+        testCase name (fun () ->
+            Budgeting.Persistence.initializeBudgetingSchema ()
+            body ())
+
+    testSequenced
+    <| testList "Zuweisen: API-Grenze" [
+        testCase "Der Monat des Auftrags gilt, ein Lese- und ein Schreibaufruf" <| fun () ->
+            let f, a, _ = fake ()
+            match assignWith f "2031-02-01" (assign a 120000L) with
+            | Ok report -> Expect.equal report.Month "2031-02-01" "Bericht"
+            | Error e -> failtest e
+            Expect.equal (List.ofSeq f.Attempts) [ a, 120000L ] "PATCH"
+
+        testCase "Ungültige Monate werden abgelehnt" <| fun () ->
+            for key in [ "current"; "2026-11-02"; "" ] do
+                let f, a, b = fake ()
+                Expect.stringContains (rejected f [ a; b ] key (assign a 120000L)) "Ungültiger Monat" key
+
+        testCase "Eine leere Kategorie wird abgelehnt" <| fun () ->
+            let f, a, b = fake ()
+            Expect.stringContains (rejected f [ a; b ] monthKey (assign Guid.Empty 120000L)) "Kategorie" "Grund"
+
+        testCase "Über 1.000.000,00 im Betrag ist Schluss, auf beiden Seiten und am Rand von decimal" <| fun () ->
+            for amount in [ 1000000.01m; -1000000.01m; Decimal.MaxValue; Decimal.MinValue ] do
+                let f, a, b = fake ()
+                let req = { assign a 0L with Assigned = { Amount = amount; Currency = "EUR" } }
+                Expect.stringContains (rejected f [ a; b ] monthKey req) "höchstens" $"{amount}"
+
+        testCase "Genau auf der Grenze geht es" <| fun () ->
+            for amount in [ 1000000m; -1000000m ] do
+                let f, a, _ = fake ()
+                Expect.isOk (assignWith f monthKey { assign a 0L with Assigned = { Amount = amount; Currency = "EUR" } }) $"{amount}"
+
+        testCase "Alle Fehler kommen zusammen" <| fun () ->
+            let f, a, b = fake ()
+            let bad = { CategoryId = Guid.Empty; Assigned = { Amount = 2000000m; Currency = "USD" } }
+            let message = rejected f [ a; b ] "kein-monat" bad
+            for part in [ "Ungültiger Monat"; "USD"; "Kategorie"; "höchstens" ] do
+                Expect.stringContains message part "gesammelt"
+
+        testCase "Ein Lesefehler kommt deutsch zurück" <| fun () ->
+            let f, a, _ = fake ()
+            f.FailRead <- true
+            Expect.equal (assignWith f monthKey (assign a 120000L)) (Error "Netzwerkfehler: Lesen scheitert") "Text"
+
+        testCase "Ohne Token und ohne Budget kommt ein deutscher Hinweis" <| fun () ->
+            let f, a, _ = fake ()
+            let req = assign a 120000L
+            let noToken = Server.Api.assignMoneyWith None (Some "b") (fun _ _ -> f.Port) now monthKey req |> run
+            let noBudget = Server.Api.assignMoneyWith (Some "t") None (fun _ _ -> f.Port) now monthKey req |> run
+            Expect.equal noToken (Error "Kein YNAB-Token eingerichtet (Settings)") "Token"
+            Expect.equal noBudget (Error "Kein Standard-Budget konfiguriert (Settings)") "Budget"
+    ]
+
+// Eigene Verbindung: die gemeinsame Testdatenbank ist nie leer (Doktrin Punkt 15).
+let private recentTests =
+    let withTable (body: Microsoft.Data.Sqlite.SqliteConnection -> unit) =
+        use conn = new Microsoft.Data.Sqlite.SqliteConnection("Data Source=:memory:")
+        conn.Open()
+        Dapper.SqlMapper.Execute(conn, "CREATE TABLE budget_movements (category_id TEXT NOT NULL, origin TEXT NOT NULL)") |> ignore
+        body conn
+    let insert (conn: Microsoft.Data.Sqlite.SqliteConnection) (origin: Domain.MovementOrigin) (id: Guid) =
+        Dapper.SqlMapper.Execute(
+            conn,
+            "INSERT INTO budget_movements (category_id, origin) VALUES (@id, @origin)",
+            {| id = string id; origin = Domain.originText origin |})
+        |> ignore
+    let query conn = Budgeting.Persistence.queryRecentCategories conn Domain.MoneyMoved 10
+    testList "Zuletzt verwendet" [
+        test "Leere Tabelle: leere Liste" {
+            withTable (fun conn -> Expect.isEmpty (query conn) "leer")
+        }
+        test "Neueste zuerst, ohne Dubletten" {
+            withTable (fun conn ->
+                let a, b, c = Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()
+                for id in [ a; b; c; a ] do insert conn Domain.MoneyMoved id
+                Expect.equal (query conn) [ a; c; b ] "a ist die jüngste")
+        }
+        test "Herkunft Targets anwenden und Zuweisen zählen nicht" {
+            withTable (fun conn ->
+                let a, b, c = Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()
+                insert conn Domain.MoneyMoved a
+                insert conn Domain.TargetsApplied b
+                insert conn Domain.MoneyAssigned c
+                Expect.equal (query conn) [ a ] "nur Verschieben")
+        }
+        test "Höchstens zehn" {
+            withTable (fun conn ->
+                let ids = List.init 12 (fun _ -> Guid.NewGuid())
+                for id in ids do insert conn Domain.MoneyMoved id
+                Expect.equal (query conn) (ids |> List.rev |> List.truncate 10) "die zehn jüngsten")
+        }
+        testCase "Der Weg über die Abfrage liest die Bewegungen aus jedem Monat und kein YNAB" <| fun () ->
+            Budgeting.Persistence.initializeBudgetingSchema ()
+            let f, a, b = fake ()
+            let other = run (moveMoney f.Port now "2031-05-01" (request (CategorySide a) (CategorySide b) 30000L))
+            Expect.isOk other "verschoben"
+            let reads = f.Reads
+            let recent = run (QueryHandlers.recentMoveCategories ())
+            Expect.equal (recent |> List.truncate 2) [ b; a ] "neueste zuerst, auch aus einem anderen Monat"
+            Expect.equal f.Reads reads "keine YNAB-Anfrage"
+    ]
+
 [<Tests>]
 let tests =
     testList "Verschieben (budgeting-afd8h)" [ planTests; flowTests; originTests; boundaryTests ]
+
+[<Tests>]
+let assignTests =
+    testList "Zuweisen (budgeting-c5w2n)" [ assignPlanTests; assignFlowTests; assignBoundaryTests; recentTests ]

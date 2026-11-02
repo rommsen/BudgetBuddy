@@ -650,7 +650,14 @@ let private apiWirings =
       @"\bgetAccountTransactions\s+token\s+\(YnabBudgetId\s+budgetId\)\s+\(YnabAccountId\s+accountIdGuid\)\s+\(liveBerlinDay\s*\(\)\)\s+days\b"
       @"\bToday\s*=\s*liveBerlinDay\b"
       @"\bprepareForImport\s+liveBerlinZone\.Value\s+DateTime\.UtcNow\s+ynabAccountId\s+transferPayees\s+false\s+toImport\b"
-      @"\bprepareForImport\s+liveBerlinZone\.Value\s+DateTime\.UtcNow\s+ynabAccountId\s+transferPayees\s+true\s+transactionsToForce\b" ]
+      @"\bprepareForImport\s+liveBerlinZone\.Value\s+DateTime\.UtcNow\s+ynabAccountId\s+transferPayees\s+true\s+transactionsToForce\b"
+      // Budget-Seite (budgeting-c5w2n): Die `*With`-Wege sind mit Fake-Ports getestet, die Ports des
+      // Servers erreichen nur die Integrationstests hinter dem Schalter.
+      @"\bFetchMonth\s*=\s*fun\s+monthKey\s*->\s*YnabClient\.getMonth\s+token\s+budgetId\s+monthKey\b"
+      @"\bSetAssigned\s*=\s*fun\s+monthKey\s+categoryId\s+milliunits\s*->\s*YnabClient\.setAssigned\s+token\s+budgetId\s+monthKey\s+categoryId\s+milliunits\b"
+      @"\bliveBudgetApi\s*\(setting:[^)]*\)\s*\(berlinZone:[^)]*\)\s*:\s*BudgetApi\s*=\s*budgetApiWith\s+setting\s+livePort\s+liveFramePort\s+\(fun\s*\(\)\s*->\s*DateTime\.UtcNow\)\s+berlinZone\s*(?:\n\s*\n|\z)"
+      @"\bbudgetApi\s*\(berlinZone:[^)]*\)\s*:\s*BudgetApi\s*=\s*liveBudgetApi\s+Persistence\.Settings\.getSetting\s+berlinZone\s*(?:\n\s*\n|\z)"
+      @"\bRemoting\.fromValue\s+\(budgetApi\s+berlinZone\)" ]
 
 /// Die Muster aus `apiWirings`, die im Quelltext fehlen.
 let findMissingApiWirings (api: string) : string list =
@@ -727,7 +734,11 @@ let hostedServiceGuardTests =
                   "YnabClient.getAccountTransactions token (YnabBudgetId budgetId) (YnabAccountId accountIdGuid) (liveBerlinDay ()) days\n"
                   "Today = liveBerlinDay\n"
                   "prepareForImport liveBerlinZone.Value DateTime.UtcNow ynabAccountId transferPayees false toImport\n"
-                  "prepareForImport liveBerlinZone.Value DateTime.UtcNow ynabAccountId transferPayees true transactionsToForce\n" ]
+                  "prepareForImport liveBerlinZone.Value DateTime.UtcNow ynabAccountId transferPayees true transactionsToForce\n"
+                  "{ FetchMonth = fun monthKey -> YnabClient.getMonth token budgetId monthKey\n  SetAssigned = fun monthKey categoryId milliunits -> YnabClient.setAssigned token budgetId monthKey categoryId milliunits }\n"
+                  "let liveBudgetApi (setting: string -> Async<string option>) (berlinZone: TimeZoneInfo) : BudgetApi =\n    budgetApiWith setting livePort liveFramePort (fun () -> DateTime.UtcNow) berlinZone\n\n"
+                  "let budgetApi (berlinZone: TimeZoneInfo) : BudgetApi =\n    liveBudgetApi Persistence.Settings.getSetting berlinZone\n\n"
+                  "|> Remoting.fromValue (budgetApi berlinZone)\n" ]
                 |> String.concat "\n"
             let replaced (original: string) (replacement: string) = real.Replace(original, replacement)
             Expect.isEmpty (findMissingApiWirings real) "richtig"
@@ -750,7 +761,16 @@ let hostedServiceGuardTests =
                   "(YnabAccountId accountIdGuid) (liveBerlinDay ()) days", "(YnabAccountId accountIdGuid) DateTime.Today days", "YNAB-Abgleich auf dem Prozess-Tag"
                   "Today = liveBerlinDay", "Today = fun () -> DateTime.Today", "Bank-Import auf dem Prozess-Tag"
                   "prepareForImport liveBerlinZone.Value DateTime.UtcNow ynabAccountId transferPayees false", "prepareForImport TimeZoneInfo.Utc DateTime.UtcNow ynabAccountId transferPayees false", "Import in UTC"
-                  "prepareForImport liveBerlinZone.Value DateTime.UtcNow ynabAccountId transferPayees true", "prepareForImport TimeZoneInfo.Utc DateTime.UtcNow ynabAccountId transferPayees true", "erzwungener Import in UTC" ] do
+                  "prepareForImport liveBerlinZone.Value DateTime.UtcNow ynabAccountId transferPayees true", "prepareForImport TimeZoneInfo.Utc DateTime.UtcNow ynabAccountId transferPayees true", "erzwungener Import in UTC"
+                  "YnabClient.getMonth token budgetId monthKey", "async.Return (Error fehler)", "Monat ohne YNAB"
+                  "YnabClient.setAssigned token budgetId monthKey categoryId milliunits", "async.Return (Ok ())", "Zuweisen ohne YNAB"
+                  "budgetApiWith setting livePort", "budgetApiWith (fun _ -> async.Return None) livePort", "Budget-Seite ohne Settings"
+                  "setting livePort liveFramePort", "setting emptyPort liveFramePort", "anderer YNAB-Port"
+                  "setting livePort liveFramePort", "setting livePort emptyFramePort", "anderer Rahmen-Port"
+                  "(fun () -> DateTime.UtcNow) berlinZone", "(fun () -> DateTime.MinValue) berlinZone", "feste Uhr"
+                  "(fun () -> DateTime.UtcNow) berlinZone", "(fun () -> DateTime.UtcNow) TimeZoneInfo.Utc", "Budget-Seite in UTC"
+                  "liveBudgetApi Persistence.Settings.getSetting", "liveBudgetApi (fun _ -> async.Return None)", "leere Settings"
+                  "Remoting.fromValue (budgetApi berlinZone)", "Remoting.fromValue fakeBudgetApi", "anderer Server" ] do
                 Expect.isNonEmpty (findMissingApiWirings (replaced original replacement)) label
             Expect.isNonEmpty (findMissingApiWirings $"// {real}") "nur im Kommentar"
 

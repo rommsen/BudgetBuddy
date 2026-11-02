@@ -2,7 +2,7 @@ module Tests.TargetsApplyClientTests
 
 // budgeting-h2zfn: Zustandsübergänge des Dialogs "Targets anwenden" auf der Budget-Seite.
 // Der Aufruf an den Server (Fable.Remoting-Proxy) ist unter .NET nicht testbar; die
-// Übergänge liegen deshalb als reine Funktionen in `Components.Budget.Types`.
+// Übergänge liegen deshalb als reine Funktionen in `Components.Budget`.
 
 open System
 open Expecto
@@ -10,6 +10,10 @@ open Shared.Domain
 open Shared.Budgeting
 open Types
 open Components.Budget.Types
+open Components.Budget.Month
+open Components.Budget.Targets
+open Components.Budget.Moves
+open Components.Budget.Inspector
 
 let private eur (amount: decimal) : Money = { Amount = amount; Currency = "EUR" }
 
@@ -183,13 +187,15 @@ let private viewSourceTests =
     // und rohe HTML-Knöpfe wären ein Verstoß.
     let source =
         let rec up (dir: string) =
-            let candidate = IO.Path.Combine(dir, "src", "Client", "Components", "Budget", "View.fs")
-            if IO.File.Exists candidate then candidate
+            let candidate = IO.Path.Combine(dir, "src", "Client", "Components", "Budget")
+            if IO.Directory.Exists candidate then candidate
             else up (IO.Path.GetDirectoryName dir)
-        IO.File.ReadAllText(up AppContext.BaseDirectory)
+        IO.Directory.GetFiles(up AppContext.BaseDirectory, "*View.fs")
+        |> Array.map IO.File.ReadAllText
+        |> String.concat "\n"
     testList "Ansicht des Dialogs (h2zfn)" [
         test "Der Dialog benutzt Modal, Button, Money, Badge und ErrorDisplay" {
-            for literal in [ "Modal.view"; "Button.primary \"Übernehmen\""; "Button.ghost \"Abbrechen\""; "Money.view"; "Badge.neutral"; "ErrorDisplay.notice"; "Fehlgeschlagene erneut senden" ] do
+            for literal in [ "Modal.view"; "Text = \"Übernehmen\""; "Button.ghost \"Abbrechen\""; "Money.view"; "Badge.neutral"; "ErrorDisplay.notice"; "Fehlgeschlagene erneut senden" ] do
                 Expect.stringContains source literal $"{literal} fehlt"
         }
         test "Die Ansicht enthält keine Hex-Farben und keine rohen Knöpfe" {

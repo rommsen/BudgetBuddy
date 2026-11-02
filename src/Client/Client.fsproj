@@ -29,6 +29,7 @@
     <Compile Include="DesignSystem/Form.fs" />
     <Compile Include="DesignSystem/ChipBar.fs" />
     <Compile Include="DesignSystem/Tabs.fs" />
+    <Compile Include="DesignSystem/Segmented.fs" />
     <Compile Include="DesignSystem/MultiSelect.fs" />
     <Compile Include="DesignSystem/FilterPopover.fs" />
     <Compile Include="DesignSystem/Detail.fs" />
@@ -72,8 +73,17 @@
     <Compile Include="Components/Ledger/Types.fs" />
     <Compile Include="Components/Ledger/State.fs" />
     <Compile Include="Components/Ledger/View.fs" />
+    <Compile Include="Components/Budget/AmountMath.fs" />
     <Compile Include="Components/Budget/Types.fs" />
+    <Compile Include="Components/Budget/Month.fs" />
+    <Compile Include="Components/Budget/Targets.fs" />
+    <Compile Include="Components/Budget/Moves.fs" />
+    <Compile Include="Components/Budget/Inspector.fs" />
     <Compile Include="Components/Budget/State.fs" />
+    <Compile Include="Components/Budget/MonthView.fs" />
+    <Compile Include="Components/Budget/TargetsView.fs" />
+    <Compile Include="Components/Budget/MovesView.fs" />
+    <Compile Include="Components/Budget/InspectorView.fs" />
     <Compile Include="Components/Budget/View.fs" />
 
     <!-- Component: Styleguide (living component gallery — presentational) -->

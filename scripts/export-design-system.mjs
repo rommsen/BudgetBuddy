@@ -84,6 +84,7 @@ export const COMPONENT_CARDS = [
   { id: "components-swipe", group: "Components" },
   { id: "components-chipbar", group: "Components" },
   { id: "components-tabs", group: "Components" },
+  { id: "components-segmented", group: "Components" },
   { id: "components-filterpopover", group: "Components" },
   { id: "components-categorymultiselect", group: "Components" },
   { id: "components-loading", group: "Feedback" },

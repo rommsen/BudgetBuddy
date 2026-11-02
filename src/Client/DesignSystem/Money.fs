@@ -237,6 +237,17 @@ let available (amount: decimal) (currency: string) =
         prop.text (formatAmountText false true amount currency)
     ]
 
+/// "Verfügbar danach": fett, rot unter 0, grün bei genau 0, sonst neutral.
+let afterAmount (amount: decimal) (currency: string) =
+    let color =
+        if amount < 0m then "text-neon-red"
+        elif amount = 0m then Colors.neonGreen
+        else Colors.textPrimary
+    Html.span [
+        prop.className $"font-mono font-semibold tabular-nums whitespace-nowrap {ListRoles.primarySize} {color}"
+        prop.text (formatAmountText false true amount currency)
+    ]
+
 /// Money display from domain Money type with glow control
 let moneyWithGlow (m: Money) showGlow =
     fromMoney m (if showGlow then GlowPositive else NoGlow)

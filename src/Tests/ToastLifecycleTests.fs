@@ -126,6 +126,30 @@ let toastLifecycleTests =
             Expect.equal again after "zweiter Klick ändert nichts"
             Expect.isEmpty cmd2 "zweiter Klick löst nichts mehr aus"
 
+        // budgeting-c5w2n, Verifier-Fund Iteration 4: Der Klick schloss den Toast und nichts geschah.
+        testCase "Erneut senden über den Toast bei laufender Schlange meldet die Sperre" <| fun () ->
+            let write : Components.Budget.Types.AssignWrite =
+                { CategoryId = idB; Month = "2026-11-01"; Assigned = { Amount = 1m; Currency = "EUR" }
+                  State = Components.Budget.Types.WriteRunning }
+            let retry : Components.Budget.Types.OpenMoveRetry =
+                { ApplicationId = "app-1"; Headline = "Nicht zugewiesen"; MonthLabel = "November 2026"; Summary = "s"; Reason = "r"
+                  State = Components.Budget.Types.RetryReady }
+            let toast = { mkToast idA with Action = Some { Label = "Erneut senden"; Kind = RetryBudgetMove "app-1" } }
+            let budget = { Components.Budget.State.init () with AssignQueue = [ write ]; OpenRetries = [ retry ] }
+            let ledger, _ = Components.Ledger.State.init ()
+            let settings, _ = Components.Settings.State.init ()
+            let syncFlow, _ = Components.SyncFlow.State.init ()
+            let rules, _ = Components.Rules.State.init ()
+            let model : State.Model =
+                { CurrentPage = Budget; Toasts = [ toast ]; Pwa = Pwa.initialState; Settings = settings; SyncFlow = syncFlow
+                  Rules = rules; Ledger = ledger; Budget = budget; QuickAdd = None; QuickAddTemplates = NotAsked }
+            let clicked, _ = State.update (State.ToastActionClicked idA) model
+            let after, cmd = State.update (State.toastActionMsg (RetryBudgetMove "app-1")) clicked
+            let mutable sent = []
+            cmd |> List.iter (fun sub -> sub (fun msg -> sent <- msg :: sent))
+            Expect.equal after.Budget.OpenRetries [ retry ] "bleibt sendbar"
+            Expect.equal sent [ State.ShowToast (Components.Budget.Moves.moveBlockedText, ToastWarning) ] "der Toast nennt es"
+
         testCase "Toast.fs rendert die Aktion als Schaltfläche, die OnAction auslöst" <| fun () ->
             let source = System.IO.File.ReadAllText(System.IO.Path.Combine(Quelltext.root, "src", "Client", "DesignSystem", "Toast.fs"))
             Expect.stringContains source "match props.Action with" "Aktion wird gerendert"

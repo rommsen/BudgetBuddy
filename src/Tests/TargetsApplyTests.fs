@@ -667,11 +667,21 @@ let private wiringTests =
                   "previewTargets", fun api -> api.previewTargets "2026-12-01" |> run |> ignore
                   "applyTargets", fun api -> api.applyTargets "2026-12-01" shown |> run |> ignore
                   "retryFailedTargets", fun api -> api.retryFailedTargets (string (Guid.NewGuid())) |> run |> ignore
-                  "moveMoney", fun api -> api.moveMoney "2026-12-01" move |> run |> ignore ]
+                  "moveMoney", fun api -> api.moveMoney "2026-12-01" move |> run |> ignore
+                  "assignMoney", fun api ->
+                    api.assignMoney "2026-12-01" { CategoryId = Guid.NewGuid(); Assigned = eur 1000L } |> run |> ignore ]
             for name, call in calls do
                 let api, seen, _ = apiFor f
                 call api
                 Expect.equal (List.ofSeq seen |> List.distinct) [ "das-token", "das-budget" ] name
+        // Der Live-Anschluss von `assignMoney`. Ohne Budget endet der Weg vor dem Netz, die Meldung
+        // zeigt: Das Token kam aus den übergebenen Settings.
+        testCase "Der Live-Anschluss liest Zuweisen-Token und Budget aus den Settings" <| fun () ->
+            let setting key = async { return (if key = "ynab_token" then Some "das-token" else None) }
+            let berlin = TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin"
+            let api = Server.Api.liveBudgetApi setting berlin
+            let result = api.assignMoney "2026-12-01" { CategoryId = Guid.NewGuid(); Assigned = eur 1000L } |> run
+            Expect.equal result (Error "Kein Standard-Budget konfiguriert (Settings)") "bis zum Budget gekommen"
     ]
 
 [<Tests>]

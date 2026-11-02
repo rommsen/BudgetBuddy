@@ -1,11 +1,10 @@
 // scripts/move-money.test.mjs
 //
-// Wächter für `budgeting-afd8h`: das Sheet "Verschieben" auf der Budget-Seite. Gemessen am echten,
-// per Vite gestarteten Fable-Client gegen eine gemockte BudgetApi: Handy-Fluss von der Zeile über
-// den Tab Geld bis zu den neuen Beträgen, Trefferfläche, Dialog am PC mit dem Picker als Popover,
-// Lesefehler lässt das Sheet offen, "Erneut senden" am Toast. Dazu `budgeting-nfrds`: Reload nach
-// "Erneut senden", abgebrochener Aufruf, "Erneut senden" ohne Toast, Popover schließt per Auslöser,
-// Sheet springt nach Seitenwechsel nicht wieder auf, Betrag für Screenreader.
+// Wächter für `budgeting-afd8h` und `budgeting-c5w2n`: Holen und Abgeben im Tab Geld. Gemessen am
+// echten, per Vite gestarteten Fable-Client gegen eine gemockte BudgetApi: Handy-Fluss von der Zeile
+// bis zu den neuen Beträgen, Picker am Handy und im Panel, Lesefehler lässt die Eingaben stehen,
+// "Erneut senden" am Toast. Dazu `budgeting-nfrds`: Reload nach "Erneut senden", abgebrochener
+// Aufruf, "Erneut senden" ohne Toast, Popover schließt per Auslöser.
 //
 // Ausführen: node --test scripts/move-money.test.mjs
 // (Teil von `npm run test:scripts`.)
@@ -77,6 +76,7 @@ async function openPage(width, height, handlers) {
     calls.monthKeys.push(key);
     json(route, { Ok: monthFixture(state.food, state.trip, key) });
   });
+  await page.route("**/api/BudgetApi/getRecentMoveCategories", (route) => json(route, { Ok: [] }));
   await page.route("**/api/BudgetApi/moveMoney", (route) => {
     calls.move.push(route.request().postData());
     const answer = handlers.move(state);
@@ -96,16 +96,22 @@ async function openPage(width, height, handlers) {
 const visibleRow = (page, name) =>
   page.locator('[data-testid="budget-category-row"]:visible').filter({ hasText: name });
 
-/// Zeile wählen, im Tab Geld "Verschieben" drücken.
-const openMoveFor = async (page, name) => {
+/// Zeile wählen, im Tab Geld den Modus wählen. Abgeben hat die Gegenseite in `nach`.
+const openMoveFor = async (page, name, mode = "Abgeben") => {
   await visibleRow(page, name).click();
-  await page.locator('[data-testid="detail-move"] button').click();
-  await page.locator('[data-testid="move-dialog"]').waitFor();
+  await page.locator('[data-testid="money-mode"]').filter({ hasText: mode }).first().click();
+  await page.locator('[data-testid="transfer-amount"] input').waitFor();
 };
 
-// Das Picker-Sheet schluckt nach der Wahl 350 ms lang den nächsten Klick (ADR 0005); ein Mensch
-// tippt später, der Test wartet die Sperre ab.
-const afterPicker = (page) => page.waitForTimeout(400);
+// Das Picker-Sheet schluckt nach der Wahl den nächsten Klick (ADR 0005). Ein Klick auf eine Stelle
+// ohne Wirkung nimmt die Sperre weg, statt ihre Dauer abzuwarten.
+const afterPicker = (page) => page.locator('.bottom-sheet.active [data-testid="detail-activity"]').click();
+
+/// Die Form ist zurückgesetzt: die Antwort ist da.
+const formReset = (page) =>
+  page.waitForFunction(() => document.querySelector('[data-testid="transfer-amount"] input')?.value === "");
+
+const amountOf20 = (page) => page.locator('[data-testid="transfer-amount"] input').fill("20");
 
 const text = async (locator) => (await locator.innerText()).replace(/\s+/g, " ");
 
@@ -120,7 +126,7 @@ after(async () => {
   await stopServer(frontend, frontendPort);
 });
 
-test("Handy: Zeile wählen, Verschieben, Gegenseite suchen, Betrag ändern, Verschieben; die Zeilen zeigen die neuen Beträge", async () => {
+test("Handy: Zeile wählen, Abgeben, Gegenseite suchen, Betrag tippen, abgeben; die Zeilen zeigen die neuen Beträge", async () => {
   const handlers = {
     move: (state) => {
       state.food -= 20;
@@ -132,12 +138,11 @@ test("Handy: Zeile wählen, Verschieben, Gegenseite suchen, Betrag ändern, Vers
   const { context, page, calls } = await openPage(390, 844, handlers);
   try {
     await openMoveFor(page, "Lebensmittel afd8h");
-    assert.match(await text(page.locator('[data-testid="move-headline"]')), /Von Lebensmittel afd8h nach/);
-    assert.equal(await page.locator('[data-testid="move-amount"] input').inputValue(), "80,00");
-    const submit = page.locator('[data-testid="move-submit"] button');
+    assert.equal(await page.locator('[data-testid="transfer-amount"] input').inputValue(), "");
+    const submit = page.locator('[data-testid="transfer-submit"] button');
     assert.ok(await submit.isDisabled(), "ohne Gegenseite gesperrt");
 
-    await page.locator('[data-testid="move-counterpart"] button').click();
+    await page.locator('[data-testid="transfer-to"]').click();
     const firstOption = page.locator('.bottom-sheet.layer-2 [role="option"]').first();
     await firstOption.waitFor();
     assert.match(await text(firstOption), /Zu verteilen.*35,45 €/, "Zu verteilen steht ganz oben, mit Betrag");
@@ -147,22 +152,24 @@ test("Handy: Zeile wählen, Verschieben, Gegenseite suchen, Betrag ändern, Vers
     await page.locator('.bottom-sheet.layer-2 input').fill("urlaub");
     await page.locator('.bottom-sheet.layer-2 [role="option"]').filter({ hasText: "Urlaub afd8h" }).click();
 
-    await page.locator('[data-testid="move-amount"] input').fill("20");
-    const after = await page.locator('[data-testid="move-after-line"]').allInnerTexts();
-    assert.match(after[0].replace(/\s+/g, " "), /Lebensmittel afd8h 60,00 €/);
-    assert.match(after[1].replace(/\s+/g, " "), /Urlaub afd8h -10,00 €/);
-    const negative = page.locator('[data-testid="move-after-line"]').nth(1).locator("span").nth(1);
+    await page.locator('[data-testid="transfer-amount"] input').fill("20");
+    assert.match(await text(page.locator('[data-testid="transfer-from"]')), /von Lebensmittel afd8h 60,00 €/);
+    assert.match(await text(page.locator('[data-testid="transfer-to"]')), /nach Urlaub afd8h -10,00 €/);
+    const negative = page.locator('[data-testid="transfer-to"] span.font-mono');
     assert.match(await negative.getAttribute("class"), /text-neon-red/, "negatives Ergebnis ist rot");
+    assert.equal(await text(submit), "20,00 € an Urlaub afd8h abgeben");
 
     await afterPicker(page);
     await submit.click();
-    await page.locator('[data-testid="move-dialog"]').waitFor({ state: "detached" });
+    await formReset(page);
     await page.getByText("20,00 € von Lebensmittel afd8h nach Urlaub afd8h").first().waitFor();
     await visibleRow(page, "Lebensmittel afd8h").locator('[data-testid="budget-available"]', { hasText: "60,00 €" }).waitFor();
     assert.match(await text(visibleRow(page, "Urlaub afd8h")), /-10,00 €/);
     assert.equal(calls.move.length, 1);
     assert.ok(calls.move[0].includes(guid(1)) && calls.move[0].includes(guid(2)), "Quelle und Ziel im Auftrag");
     assert.ok(calls.move[0].includes("2026-11-01"), "der Client schickt den gezeigten Monat");
+    assert.ok(await page.locator(".bottom-sheet.fixed-height.active").isVisible(), "der Inspektor bleibt offen");
+    assert.equal(await page.locator('[data-testid="money-mode"][aria-pressed="true"]').innerText(), "Abgeben", "der Modus bleibt");
   } finally {
     await context.close();
   }
@@ -175,13 +182,13 @@ test("Im Vormonat geht der Auftrag mit dem gezeigten Monat hinaus", async () => 
     await page.locator('[data-testid="budget-month-previous"]').click();
     await page.locator('[data-testid="budget-month-name"]').getByText("Oktober 2026").waitFor();
     await openMoveFor(page, "Lebensmittel afd8h");
-    await page.locator('[data-testid="move-counterpart"] button').click();
+    await amountOf20(page);
+    await page.locator('[data-testid="transfer-to"]').click();
     await page.locator('.bottom-sheet.layer-2 [role="option"]').filter({ hasText: "Urlaub afd8h" }).click();
-    await page.locator('[data-testid="move-amount"] input').fill("20");
     await afterPicker(page);
     const reload = page.waitForResponse("**/api/BudgetApi/getBudgetMonth");
-    await page.locator('[data-testid="move-submit"] button').click();
-    await page.locator('[data-testid="move-dialog"]').waitFor({ state: "detached" });
+    await page.locator('[data-testid="transfer-submit"] button').click();
+    await formReset(page);
     assert.equal(calls.move.length, 1);
     assert.ok(calls.move[0].includes("2026-10-01"), "der Vormonat steht im Auftrag");
     assert.ok(!calls.move[0].includes("2026-11-01"), "nicht der laufende Monat");
@@ -192,21 +199,23 @@ test("Im Vormonat geht der Auftrag mit dem gezeigten Monat hinaus", async () => 
   }
 });
 
-test("Handy: scheitert das Lesen des Monats, bleibt das Sheet offen und nennt den Grund", async () => {
+test("Handy: eine rote Kategorie startet auf Holen; scheitert das Lesen, bleiben die Eingaben und der Tab nennt den Grund", async () => {
   const { context, page } = await openPage(390, 844, {
     move: () => ({ Error: "YNAB antwortet nicht afd8h" }),
     retry: () => ({ Error: "nicht erwartet" }),
   });
   try {
-    await openMoveFor(page, "Urlaub afd8h");
-    assert.match(await text(page.locator('[data-testid="move-headline"]')), /Urlaub afd8h decken aus/);
-    assert.equal(await page.locator('[data-testid="move-amount"] input').inputValue(), "30,00");
-    await page.locator('[data-testid="move-counterpart"] button').click();
+    await visibleRow(page, "Urlaub afd8h").click();
+    assert.equal(await page.locator('[data-testid="money-mode"][aria-pressed="true"]').innerText(), "Holen");
+    const amount = page.locator('[data-testid="transfer-amount"] input');
+    assert.equal(await amount.inputValue(), "30,00");
+    await page.locator('[data-testid="transfer-from"]').click();
     await page.locator('[data-testid="category-picker-to-be-budgeted"]').click();
     await afterPicker(page);
-    await page.locator('[data-testid="move-submit"] button').click();
-    await page.locator('[data-testid="move-error"]').getByText("YNAB antwortet nicht afd8h").waitFor();
-    assert.ok(await page.locator('[data-testid="move-dialog"]').isVisible(), "Sheet bleibt offen");
+    assert.equal(await text(page.locator('[data-testid="transfer-submit"] button')), "30,00 € aus Zu verteilen holen");
+    await page.locator('[data-testid="transfer-submit"] button').click();
+    await page.locator('[data-testid="transfer-error"]').getByText("YNAB antwortet nicht afd8h").waitFor();
+    assert.equal(await amount.inputValue(), "30,00", "Eingabe bleibt");
   } finally {
     await context.close();
   }
@@ -219,10 +228,11 @@ test("Fehlgeschlagener PATCH: der Toast bietet Erneut senden an, der Klick sende
   });
   try {
     await openMoveFor(page, "Lebensmittel afd8h");
-    await page.locator('[data-testid="move-counterpart"] button').click();
+    await amountOf20(page);
+    await page.locator('[data-testid="transfer-to"]').click();
     await page.locator('.bottom-sheet.layer-2 [role="option"]').filter({ hasText: "Urlaub afd8h" }).click();
     await afterPicker(page);
-    await page.locator('[data-testid="move-submit"] button').click();
+    await page.locator('[data-testid="transfer-submit"] button').click();
     await page.getByText(/Nicht vollständig verschoben: Rate-Limit/).first().waitFor();
     await page.locator('button:has-text("Erneut senden"):not([data-testid="move-retry"] button)').click();
     await page.locator('[data-testid="move-retry"]').waitFor({ state: "detached" });
@@ -235,10 +245,11 @@ test("Fehlgeschlagener PATCH: der Toast bietet Erneut senden an, der Klick sende
 
 const failMove = async (page) => {
   await openMoveFor(page, "Lebensmittel afd8h");
-  await page.locator('[data-testid="move-counterpart"] button').click();
+  await amountOf20(page);
+  await page.locator('[data-testid="transfer-to"]').click();
   await page.locator('.bottom-sheet.layer-2 [role="option"]').filter({ hasText: "Urlaub afd8h" }).click();
   await afterPicker(page);
-  await page.locator('[data-testid="move-submit"] button').click();
+  await page.locator('[data-testid="transfer-submit"] button').click();
   await page.locator('[data-testid="move-retry"]').waitFor();
   assert.match(await text(page.locator('[data-testid="move-retry"]')), /Nicht vollständig verschoben \(November 2026\)/, "der Hinweis nennt seinen Monat");
 };
@@ -278,10 +289,11 @@ test("Überholt das Neu-Lesen nach Erneut senden einen Monatswechsel, kommen die
       }
       return route.fallback();
     });
-    await page.locator('.bottom-sheet.active [data-testid="move-retry"] button').click();
+    // Erst der Wechsel: Solange "Erneut senden" läuft, bleibt der Monat stehen (ADR 0078 Punkt 5).
     // Per Skript geklickt: das Sheet liegt über der Leiste.
     await page.locator('[data-testid="budget-month-previous"]').evaluate((el) => el.click());
     await page.waitForFunction(() => document.querySelector('[data-testid="budget-month-name"]').textContent === "Oktober 2026");
+    await page.locator('.bottom-sheet.active [data-testid="move-retry"] button').click();
     releaseRetry();
     await page.locator(".bottom-sheet.active").getByText("Oktober 2026").waitFor();
     await page.waitForFunction(() => document.querySelector('.bottom-sheet.active [data-testid="detail-empty"]'));
@@ -308,10 +320,11 @@ test("Fenster wächst: nach der Verschiebung im letzten Monat liest die Seite de
       })
     );
     await openMoveFor(page, "Lebensmittel afd8h");
-    await page.locator('[data-testid="move-counterpart"] button').click();
+    await amountOf20(page);
+    await page.locator('[data-testid="transfer-to"]').click();
     await page.locator('.bottom-sheet.layer-2 [role="option"]').filter({ hasText: "Urlaub afd8h" }).click();
     await afterPicker(page);
-    await page.locator('[data-testid="move-submit"] button').click();
+    await page.locator('[data-testid="transfer-submit"] button').click();
     await next.waitFor({ state: "attached" });
   } finally {
     await context.close();
@@ -373,9 +386,10 @@ test("PC: der Hinweis Erneut senden steht auf der Seite, das Panel bleibt danebe
   });
   try {
     await openMoveFor(page, "Lebensmittel afd8h");
-    await page.locator('[data-testid="move-counterpart"] button').click();
+    await amountOf20(page);
+    await page.locator('[data-testid="transfer-to"]').click();
     await page.locator('[role="option"]').filter({ hasText: "Urlaub afd8h" }).click();
-    await page.locator('[data-testid="move-submit"] button').click();
+    await page.locator('[data-testid="transfer-submit"] button').click();
     const hint = page.locator('[data-testid="move-retry"]');
     await hint.waitFor();
     assert.equal(await page.locator('[data-testid="budget-page"] [data-testid="move-retry"]').count(), 1, "auf der Seite");
@@ -385,20 +399,21 @@ test("PC: der Hinweis Erneut senden steht auf der Seite, das Panel bleibt danebe
   }
 });
 
-test("Bricht der Aufruf ab, schließt das Sheet, nennt die Unklarheit und liest den Monat neu", async () => {
+test("Bricht der Aufruf ab, wird die Form zurückgesetzt, ein Toast nennt die Unklarheit und der Monat wird neu gelesen", async () => {
   const { context, page, calls } = await openPage(390, 844, {
     move: () => "abort",
     retry: () => ({ Error: "nicht erwartet" }),
   });
   try {
     await openMoveFor(page, "Lebensmittel afd8h");
-    await page.locator('[data-testid="move-counterpart"] button').click();
+    await amountOf20(page);
+    await page.locator('[data-testid="transfer-to"]').click();
     await page.locator('.bottom-sheet.layer-2 [role="option"]').filter({ hasText: "Urlaub afd8h" }).click();
     await afterPicker(page);
     const before = calls.month;
-    await page.locator('[data-testid="move-submit"] button').click();
+    await page.locator('[data-testid="transfer-submit"] button').click();
     await page.getByText(/Ob verschoben wurde, ist unklar/).first().waitFor();
-    await page.locator('[data-testid="move-dialog"]').waitFor({ state: "detached" });
+    await formReset(page);
     await page.locator('[data-testid="budget-category-row"]:visible').first().waitFor();
     for (let i = 0; i < 100 && calls.month <= before; i++) await page.evaluate(() => new Promise(requestAnimationFrame));
     assert.ok(calls.month > before, "Monat neu gelesen");
@@ -408,42 +423,51 @@ test("Bricht der Aufruf ab, schließt das Sheet, nennt die Unklarheit und liest 
   }
 });
 
-test("Ein offenes Sheet springt nach dem Seitenwechsel nicht wieder auf", async () => {
+test("Der Tab beginnt nach dem Seitenwechsel neu", async () => {
   const { context, page } = await openPage(390, 844, {
     move: () => ({ Error: "nicht erwartet" }),
     retry: () => ({ Error: "nicht erwartet" }),
   });
   try {
     await openMoveFor(page, "Lebensmittel afd8h");
+    await amountOf20(page);
     await page.evaluate(() => { location.hash = "#/ledger"; });
     await page.locator('[data-testid="budget-page"]').waitFor({ state: "detached" });
     await page.evaluate(() => { location.hash = "#/budget"; });
     await page.locator('[data-testid="budget-to-be-budgeted"]').waitFor();
-    assert.equal(await page.locator('[data-testid="move-dialog"]').count(), 0, "Sheet bleibt zu");
+    await visibleRow(page, "Lebensmittel afd8h").click();
+    assert.equal(await page.locator('[data-testid="money-mode"][aria-pressed="true"]').innerText(), "Zuweisen");
   } finally {
     await context.close();
   }
 });
 
-test("PC: der Auslöser schließt das offene Popover, es steht bei 1280×720 ohne Überstand im Dialog", async () => {
-  const { context, page } = await openPage(1280, 720, {
+test("Panel 1280 × 800: der Auslöser schließt das offene Popover, es ist ganz sichtbar und wird vom Panel nicht abgeschnitten", async () => {
+  const { context, page } = await openPage(1280, 800, {
     move: () => ({ Error: "nicht erwartet" }),
     retry: () => ({ Error: "nicht erwartet" }),
   });
   try {
     await openMoveFor(page, "Lebensmittel afd8h");
-    const trigger = page.locator('[data-testid="move-counterpart"] button');
+    assert.equal(await page.locator(".bottom-sheet.active").count(), 0, "kein Sheet am PC");
+    const trigger = page.locator('[data-testid="transfer-to"]');
     await trigger.click();
     const hint = page.locator('[data-testid="category-picker-footer-hint"]');
     await hint.waitFor();
-    const dialog = await page.locator(".max-w-lg").boundingBox();
+    await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+    const panel = await page.locator('aside[data-testid="budget-inspector"]').boundingBox();
     const popover = await page.locator(".rounded-2xl.bg-surface-elevated.shadow-2xl").last().boundingBox();
-    assert.ok(dialog && popover, "beide da");
-    assert.ok(popover.x >= dialog.x && popover.x + popover.width <= dialog.x + dialog.width, "seitlich im Dialog");
+    assert.ok(panel && popover, "beide da");
+    assert.ok(popover.x >= panel.x && popover.x + popover.width <= panel.x + panel.width, "seitlich im Panel");
+    assert.ok(popover.y >= panel.y && popover.y + popover.height <= panel.y + panel.height, `in der Höhe im Panel (${popover.y + popover.height} gegen ${panel.y + panel.height})`);
+    const footerInView = await hint.evaluate((el) => {
+      const box = el.getBoundingClientRect();
+      const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+      return el === hit || el.contains(hit);
+    });
+    assert.ok(footerInView, "der Fuß des Popovers ist nicht verdeckt");
     // Bug budgeting-nfrds: der Mausdruck zählte als Klick außerhalb und schloss das Popover, der
-    // Klick öffnete es wieder. Ohne Sucheintrag verdeckt das eine Layout-Verschiebung: das volle
-    // Popover scrollt den Dialog, beim Schließen springt der Auslöser unter dem Zeiger weg, der
-    // Klick trifft ihn nicht. Der Filter kürzt das Popover, der Auslöser bleibt liegen.
+    // Klick öffnete es wieder. Der Filter kürzt das Popover, der Auslöser bleibt liegen.
     await page.keyboard.type("zzzz");
     await page.locator('[data-testid="category-picker-to-be-budgeted"]').waitFor({ state: "detached" });
     await trigger.click();
@@ -454,23 +478,19 @@ test("PC: der Auslöser schließt das offene Popover, es steht bei 1280×720 ohn
   }
 });
 
-test("PC: Verschieben öffnet den Dialog, der Picker hängt als Popover daran und wird nicht abgeschnitten", async () => {
+test("PC: die Wahl im Popover setzt die Gegenseite und schließt es", async () => {
   const { context, page } = await openPage(1440, 900, {
     move: () => ({ Error: "nicht erwartet" }),
     retry: () => ({ Error: "nicht erwartet" }),
   });
   try {
     await openMoveFor(page, "Lebensmittel afd8h");
-    assert.equal(await page.locator(".bottom-sheet.active").count(), 0, "kein Sheet am PC");
-    await page.locator('[data-testid="move-counterpart"] button').click();
-    const top = page.locator('[data-testid="category-picker-to-be-budgeted"]');
-    await top.waitFor();
+    await page.locator('[data-testid="transfer-to"]').click();
+    await page.locator('[data-testid="category-picker-to-be-budgeted"]').waitFor();
     const options = page.locator('[role="option"]');
     assert.equal(await options.count(), 3, "Zu verteilen und zwei Kategorien, X fehlt");
-    const last = await options.last().boundingBox();
-    assert.ok(last && last.y + last.height <= 900, "die Liste liegt im Bild");
     await options.last().click();
-    assert.match(await text(page.locator('[data-testid="move-headline"]')), /Von Lebensmittel afd8h nach Kleidung afd8h/);
+    assert.match(await text(page.locator('[data-testid="transfer-to"]')), /nach Kleidung afd8h/);
     assert.equal(await page.locator('[role="option"]').count(), 0, "Popover ist zu");
   } finally {
     await context.close();

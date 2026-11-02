@@ -1682,6 +1682,7 @@ nav a:focus-visible {
   transform: translateY(0);
   transition: transform var(--sf-duration-slow) var(--sf-ease-out-quint),
               top var(--sf-duration-base) var(--sf-ease-out-cubic),
+              height var(--sf-duration-base) var(--sf-ease-out-cubic),
               max-height var(--sf-duration-base) var(--sf-ease-out-cubic);
   /* Keyboard open → near-full visual viewport; keyboard closed → 75% sheet */
   max-height: min(calc(var(--vvh, 100dvh) - 12px), 75vh);
@@ -1697,6 +1698,7 @@ nav a:focus-visible {
   .bottom-sheet {
     transition: transform 450ms var(--sf-spring-out),
                 top var(--sf-duration-base) var(--sf-ease-out-cubic),
+                height var(--sf-duration-base) var(--sf-ease-out-cubic),
                 max-height var(--sf-duration-base) var(--sf-ease-out-cubic);
   }
 }

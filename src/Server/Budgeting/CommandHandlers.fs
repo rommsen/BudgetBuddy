@@ -202,6 +202,33 @@ let private sendInOrder
                     do! appendResult m.Id now (Failed (ynabErrorText e))
     }
 
+/// Hält den Plan fest (eine Transaktion, gemeinsame `ApplicationId`) und sendet nacheinander. Der
+/// Bericht liest Zu verteilen nicht neu, die Seite lädt den Monat ohnehin.
+let private recordAndSend
+    (port: YnabPort)
+    (now: DateTime)
+    (monthKey: string)
+    (plan: MovePlan)
+    : Async<Result<ApplyReport, YnabError>> =
+    async {
+        let applicationId = Guid.NewGuid()
+        let movements =
+            plan.Lines
+            |> List.map (fun l ->
+                { Id = Guid.NewGuid()
+                  ApplicationId = applicationId
+                  OccurredAt = now
+                  Origin = plan.Origin
+                  Month = monthKey
+                  CategoryId = l.CategoryId
+                  CategoryName = l.CategoryName
+                  OldAssigned = toMilliunits l.OldAssigned
+                  NewAssigned = toMilliunits l.NewAssigned })
+        do! appendMovements movements
+        do! sendInOrder port now monthKey movements
+        return! reportWith applicationId monthKey None
+    }
+
 /// Verschieben oder Zuweisen. Unter der Monats-Sperre: den Monat frisch lesen und relativ dazu
 /// planen, die Bewegungen festhalten (eine Transaktion, gemeinsame `ApplicationId`), dann
 /// nacheinander senden. Außen `Error`: der Monat war nicht lesbar. Innen `Error`: der Auftrag ist
@@ -220,22 +247,34 @@ let moveMoney
             match planMove (toBudgetMonth raw) request with
             | Error message -> return Ok (Error message)
             | Ok plan ->
-                let applicationId = Guid.NewGuid()
-                let movements =
-                    plan.Lines
-                    |> List.map (fun l ->
-                        { Id = Guid.NewGuid()
-                          ApplicationId = applicationId
-                          OccurredAt = now
-                          Origin = plan.Origin
-                          Month = monthKey
-                          CategoryId = l.CategoryId
-                          CategoryName = l.CategoryName
-                          OldAssigned = toMilliunits l.OldAssigned
-                          NewAssigned = toMilliunits l.NewAssigned })
-                do! appendMovements movements
-                do! sendInOrder port now monthKey movements
-                let! report = reportWith applicationId monthKey None
+                let! report = recordAndSend port now monthKey plan
+                return report |> Result.map Ok
+    })
+
+/// Zuweisen (ADR 0078): setzt das Zugewiesen absolut. Wie `moveMoney` unter der Monats-Sperre und
+/// mit denselben Fehlerwegen. Der gelesene Wert ist der alte, ein Vergleich mit dem gezeigten Stand
+/// findet nicht statt. Steht YNAB schon auf dem Wert, entsteht nichts: der Bericht hat keine Zeilen.
+let assignMoney
+    (port: YnabPort)
+    (now: DateTime)
+    (monthKey: string)
+    (request: AssignRequest)
+    : Async<Result<Result<ApplyReport, string>, YnabError>> =
+    MonthGuard.exclusive monthKey (async {
+        match! port.FetchMonth monthKey with
+        | Error e -> return Error e
+        | Ok raw ->
+            match planAssign (toBudgetMonth raw) request with
+            | Error message -> return Ok (Error message)
+            | Ok None ->
+                let unchanged =
+                    { ApplicationId = string (Guid.NewGuid())
+                      Month = monthKey
+                      Lines = []
+                      ActualToBeBudgeted = None }
+                return Ok (Ok unchanged)
+            | Ok (Some plan) ->
+                let! report = recordAndSend port now monthKey plan
                 return report |> Result.map Ok
     })
 

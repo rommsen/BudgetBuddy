@@ -125,6 +125,7 @@
     <Compile Include="LedgerKeyboardTests.fs" />
     <Compile Include="MoneyFormatTests.fs" />
     <Compile Include="BudgetPageTests.fs" />
+    <Compile Include="AmountMathTests.fs" />
     <Compile Include="TargetsApplyClientTests.fs" />
     <Compile Include="MoveMoneyClientTests.fs" />
     <Compile Include="StatsAccentTests.fs" />

@@ -2,13 +2,17 @@ module Tests.BudgetPageTests
 
 // budgeting-k7wmd: Zustandsübergänge der Budget-Seite, Routing und Navigation. Der Aufruf an
 // den Server (Fable.Remoting-Proxy) ist unter .NET nicht testbar; die Übergänge liegen deshalb
-// als reine Funktionen in `Components.Budget.Types`.
+// als reine Funktionen in `Components.Budget`.
 
 open Expecto
 open Shared.Domain
 open Shared.Budgeting
 open Types
 open Components.Budget.Types
+open Components.Budget.Month
+open Components.Budget.Targets
+open Components.Budget.Moves
+open Components.Budget.Inspector
 
 let private eur (amount: decimal) : Money = { Amount = amount; Currency = "EUR" }
 
@@ -74,10 +78,9 @@ let private selectTests =
             let m, _ = select "2026-09-01" { framed with Month = Failure "kaputt" }
             Expect.equal m.Month Loading "kein alter Monat zum Stehenlassen"
         }
-        test "Während des Wechsels gehen weder Targets noch Verschieben in den alten Monat" {
+        test "Während des Wechsels gehen Targets nicht in den alten Monat" {
             let m, _ = select "2026-11-01" { framed with Month = Success detailMonthForGuard }
             Expect.isFalse (snd (openTargets m)) "Targets"
-            Expect.isNone (openMove guardCategory.Id m).Move "Verschieben"
         }
         test "Der laufende Monat wird zu keiner Wahl" {
             let elsewhere = { framed with ChosenMonth = Some "2026-09-01" }
@@ -445,9 +448,7 @@ let private selectionTests =
         test "Ohne geladenen Monat wählt nichts" {
             Expect.isNone (selectCategory categoryId (init ())).Selected "keine Auswahl"
         }
-        test "Bei offenem Verschieben oder laufender Vorschau ändert die Wahl nichts" {
-            let moving = { withMonth with Move = Some (openMoveForm detailCategoryFixture) }
-            Expect.isNone (selectCategory categoryId moving).Selected "Verschieben"
+        test "Bei laufender Vorschau ändert die Wahl nichts" {
             let previewing = { withMonth with Targets = PreviewLoading }
             Expect.isNone (selectCategory categoryId previewing).Selected "Vorschau"
         }
@@ -580,11 +581,8 @@ let private pageKeyTests =
         }
         test "Bei offenem Dialog bekommt die Seite die Tasten nicht" {
             let withTargets = { opened with Targets = PreviewLoading }
-            let withMove = openMove categoryId opened
-            Expect.isSome withMove.Move "Vorbedingung"
-            for model in [ withTargets; withMove ] do
-                for key in [ "ArrowUp"; "ArrowDown"; "ArrowLeft"; "ArrowRight" ] do
-                    Expect.equal (pageKeyActionFor model key OtherFocus) LeaveKey key
+            for key in [ "ArrowUp"; "ArrowDown"; "ArrowLeft"; "ArrowRight" ] do
+                Expect.equal (pageKeyActionFor withTargets key OtherFocus) LeaveKey key
         }
         test "Ohne Dialog gilt die Regel mit der Auswahl aus dem Modell" {
             Expect.equal (pageKeyActionFor opened "ArrowDown" OtherFocus) (StepRow Next) "mit Auswahl"

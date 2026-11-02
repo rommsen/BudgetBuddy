@@ -149,6 +149,13 @@ let missingAmount (c: BudgetCategory) : Money option =
     let amount = if underfunded > negative then underfunded else negative
     if amount > 0m then Some { c.Available with Amount = amount } else None
 
+/// Frei: Verfügbar minus offener Fehlbetrag (budgeting-c5w2n). Ein pausiertes Target sperrt nichts,
+/// ohne Target ist alles Verfügbare frei. Grundlage der Warnung beim Holen und Abgeben.
+let freeAmount (c: BudgetCategory) : Money =
+    match c.Underfunded with
+    | Some under when not c.Snoozed -> { c.Available with Amount = c.Available.Amount - under.Amount }
+    | _ -> c.Available
+
 // ============================================
 // Targets anwenden (budgeting-h2zfn)
 // ============================================
@@ -263,4 +270,12 @@ type MoveRequest = {
     Target: MoveSide
     /// Positiv, in Euro.
     Amount: Money
+}
+
+/// Das Feld Zugewiesen (budgeting-c5w2n, ADR 0078): der fertige Wert, absolut. Der Auftrag trägt
+/// keinen erwarteten alten Stand, der eingegebene Wert gilt.
+type AssignRequest = {
+    CategoryId: Guid
+    /// Das neue Zugewiesen in Euro, negativ ist gültig.
+    Assigned: Money
 }

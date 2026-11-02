@@ -341,6 +341,13 @@ let private rows : Row list = [
       Run = fun () ->
           let negative = { emptyMove with Amount = { emptyMove.Amount with Amount = -Decimal.MaxValue } }
           budget.moveMoney "2026-11-01" negative |> run |> expectError "Verschieben" }
+    { Endpoint = "BudgetApi.assignMoney"; Case = "leere Kategorie und Betrag am Rand von decimal: Fehler statt Ausnahme"
+      Run = fun () ->
+          let request : Shared.Budgeting.AssignRequest =
+              { CategoryId = Guid.Empty; Assigned = { Amount = Decimal.MinValue; Currency = "EUR" } }
+          budget.assignMoney "2026-11-01" request |> run |> expectError "Zuweisen" }
+    { Endpoint = "BudgetApi.getRecentMoveCategories"; Case = "ohne Einrichtung eine Liste, keine Ausnahme"
+      Run = fun () -> Expect.isOk (budget.getRecentMoveCategories () |> run) "liest nur die Datenbank" }
     { Endpoint = "BudgetApi.retryFailedTargets"; Case = "keine gültige Anwendungs-Id: Fehler"
       Run = fun () -> budget.retryFailedTargets "keine-guid" |> run |> expectError "Wiederholen" }
 ]

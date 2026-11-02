@@ -1803,6 +1803,25 @@ let moveMoneyWith
             return result |> Result.bind id
     }
 
+/// Der Weg von Zuweisen ohne Settings und Netz (ADR 0078).
+let assignMoneyWith
+    (tokenOpt: string option)
+    (budgetOpt: string option)
+    (portFor: string -> YnabBudgetId -> Server.Budgeting.CommandHandlers.YnabPort)
+    (now: DateTime)
+    (monthKeyText: string)
+    (request: Shared.Budgeting.AssignRequest)
+    : Async<Result<Shared.Budgeting.ApplyReport, string>> =
+    async {
+        match Validation.validateAssignRequest monthKeyText request with
+        | Error errors -> return Error (String.concat " " errors)
+        | Ok () ->
+            let! result =
+                withYnabPort tokenOpt budgetOpt portFor (fun port ->
+                    Server.Budgeting.CommandHandlers.assignMoney port now monthKeyText request)
+            return result |> Result.bind id
+    }
+
 /// Der YNAB-Port der Server-Abläufe: echter Client für Lesen und Zuweisen.
 let private livePort (token: string) (budgetId: YnabBudgetId) : Server.Budgeting.CommandHandlers.YnabPort =
     { FetchMonth = fun monthKey -> YnabClient.getMonth token budgetId monthKey
@@ -1873,6 +1892,19 @@ let budgetApiWith
       moveMoney = fun monthKeyText request -> async {
         let! tokenOpt, budgetOpt = ynabSettings ()
         return! moveMoneyWith tokenOpt budgetOpt portFor (utcNow ()) monthKeyText request
+      }
+
+      assignMoney = fun monthKeyText request -> async {
+        let! tokenOpt, budgetOpt = ynabSettings ()
+        return! assignMoneyWith tokenOpt budgetOpt portFor (utcNow ()) monthKeyText request
+      }
+
+      getRecentMoveCategories = fun () -> async {
+        try
+            let! recent = Server.Budgeting.QueryHandlers.recentMoveCategories ()
+            return Ok recent
+        with ex ->
+            return Error ex.Message
       } }
 
 /// Die Budget-Seite mit den echten YNAB-Ports. Die Settings kommen als Parameter, damit der

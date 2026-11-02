@@ -216,6 +216,13 @@ let inputActiveTests =
           ImportedCount = 0
           SkippedCount = 0 }
     testList "State.isInputActive" [
+        active "Zuweisungen in der Schlange der Budget-Seite" (fun m ->
+            let write : Components.Budget.Types.AssignWrite =
+                { CategoryId = Guid.NewGuid()
+                  Month = "2026-11-01"
+                  Assigned = { Amount = 1m; Currency = "EUR" }
+                  State = Components.Budget.Types.WriteWaiting }
+            { m with Budget = { m.Budget with AssignQueue = [ write ] } })
         testCase "frisch initialisiertes Modell: keine Eingabe" <| fun () ->
             Expect.isFalse (State.isInputActive (baseModel ())) "ruhig"
         testCase "nur MirrorRunning und geladene Daten: keine Eingabe" <| fun () ->

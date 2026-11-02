@@ -36,20 +36,57 @@ type Submission =
     /// Nichts geschrieben (Monat nicht lesbar, Auftrag abgelehnt), mit Grund.
     | Rejected of string
 
-/// Das Sheet "Verschieben" zu einer Kategorie X (budgeting-afd8h). Es hält nur X' Id: Beträge
-/// kommen aus `Model.Month`, damit eine neu gelesene Liste auch ein offenes Sheet erreicht.
-type MoveForm = {
-    /// X, die Kategorie, zu der das Sheet geöffnet wurde.
+/// Die drei Ansichten des Tabs Geld (budgeting-c5w2n).
+type MoneyMode =
+    | AssignMode
+    | TakeMode
+    | GiveMode
+
+/// Getippt oder per Schritt entstanden. `Exact` schützt negative Werte davor, als Rechnung zu gelten.
+type AssignText =
+    | Typed of string
+    | Exact of decimal
+
+/// Die Zuweisen-Eingabe. Hält Kategorie und Monat selbst: Sie wird oft erst gespeichert, wenn beide
+/// wechseln. Nicht zu verwechseln mit einem Entwurf, das ist eine Reihe von Verschiebungen.
+type AssignEntry = {
     CategoryId: System.Guid
-    /// Ist X die Quelle? Sonst das Ziel.
-    IsSource: bool
-    /// Die Gegenseite; `None`, solange keine gewählt ist.
+    Month: string
+    /// Der Stand, zu dem die Rechnung gilt.
+    BaseAssigned: decimal
+    Text: AssignText
+}
+
+/// Holen und Abgeben. X kommt aus `MoneyTabState`, die Richtung aus `Mode`, Beträge aus `Model.Month`.
+type TransferForm = {
+    /// Die Gegenseite; `None`, solange keine gewählt ist. Sie ist nie vorbelegt.
     Counterpart: MoveSide option
     /// Eingabe im Betragsfeld; `None`, solange nichts getippt wurde: dann gilt die Vorbelegung
     /// aus dem aktuellen Monat.
     AmountInput: string option
     PickerOpen: bool
     Submission: Submission
+}
+
+/// Entwurfszustand des Tabs Geld, Schlüssel Kategorie und Monat (`syncMoneyTab`).
+type MoneyTabState = {
+    CategoryId: System.Guid
+    Month: string
+    Mode: MoneyMode
+    Entry: AssignEntry option
+    Transfer: TransferForm
+}
+
+type AssignWriteState =
+    | WriteWaiting
+    | WriteRunning
+
+/// Eine gespeicherte Zuweisung in der Schlange (ADR 0078 Punkt 5).
+type AssignWrite = {
+    CategoryId: System.Guid
+    Month: string
+    Assigned: Money
+    State: AssignWriteState
 }
 
 /// Läuft "Erneut senden" für eine Verschiebung gerade?
@@ -61,6 +98,8 @@ type MoveRetryState =
 /// ist, bis nichts mehr offen ist.
 type OpenMoveRetry = {
     ApplicationId: string
+    /// "Nicht vollständig verschoben" oder "Nicht zugewiesen".
+    Headline: string
     /// Der Monat der Verschiebung, etwa "Oktober 2026": der Hinweis steht auch in anderen Monaten da.
     MonthLabel: string
     Summary: string
@@ -132,8 +171,12 @@ type Model = {
     CategorySearch: string
     /// Filter über der Liste. Bleibt beim Monatswechsel stehen.
     Filter: CategoryFilter
-    /// Das offene "Verschieben", am Handy als Sheet, am PC als Dialog.
-    Move: MoveForm option
+    /// Der Tab Geld der gewählten Kategorie.
+    TabMoney: MoneyTabState option
+    /// Gespeicherte Zuweisungen: es läuft höchstens eine, die erste (ADR 0078 Punkt 5).
+    AssignQueue: AssignWrite list
+    /// "Zuletzt verwendet" im Picker der Gegenseite.
+    RecentCounterparts: RemoteData<System.Guid list>
     /// Verschiebungen, die noch erneut gesendet werden können.
     OpenRetries: OpenMoveRetry list
     /// Die gewählte Kategorie. Filter und Suche wirken nur auf die Liste, sie bleibt gewählt.
@@ -180,17 +223,31 @@ type Msg =
     | ClearCategorySearch
     /// Alle, Fehlt oder Überzogen.
     | SelectFilter of CategoryFilter
-    /// Knopf "Verschieben" im Tab Geld.
-    | OpenMove of System.Guid
-    | CloseMove
-    /// Der Umschalter: Quelle und Ziel tauschen, der Betrag bleibt.
-    | ToggleMoveDirection
-    | MoveAmountChanged of string
-    | OpenMovePicker
-    | CloseMovePicker
-    | PickMoveCounterpart of MoveSide
-    /// "Verschieben".
-    | ConfirmMove
+    /// Der Umschalter Zuweisen, Holen, Abgeben.
+    | SwitchMoneyMode of MoneyMode
+    /// Eingabe im Feld Zugewiesen.
+    | AssignTextChanged of string
+    /// Ein Schritt am Handy, -50 bis +50.
+    | AssignStepped of decimal
+    /// Enter oder Fokus weg im Feld Zugewiesen.
+    | AssignFieldLeft
+    /// Esc im Feld Zugewiesen.
+    | AssignDiscarded
+    /// Der Fehlbetrag-Knopf.
+    | CoverMissing
+    /// Antwort auf eine Zuweisung aus der Schlange. `Error` heißt: nichts geschrieben.
+    | AssignAnswered of AssignWrite * Result<ApplyReport, string>
+    /// Der Aufruf selbst brach ab: ob zugewiesen wurde, ist unbekannt.
+    | AssignCallLost of string
+    | TransferAmountChanged of string
+    /// Esc im Betragsfeld: zurück zur Vorbelegung.
+    | TransferAmountReset
+    | OpenPicker
+    | ClosePicker
+    | PickCounterpart of MoveSide
+    | RecentCounterpartsLoaded of Result<System.Guid list, string>
+    /// Der Knopf in Holen und Abgeben.
+    | ConfirmTransfer
     /// Antwort des Servers. `Error` heißt: nichts geschrieben.
     | MoveAnswered of Result<ApplyReport, string>
     /// Der Aufruf selbst brach ab: ob etwas geschrieben wurde, ist unbekannt.
@@ -209,6 +266,8 @@ type Msg =
     | SelectInspectorTab of InspectorTab
     /// Die Route der Buchung wurde nicht per Zurück verlassen: die Auswahl wartet nicht mehr.
     | ReturnAbandoned
+    /// Die Budget-Seite wird verlassen: eine offene Zuweisen-Eingabe ginge sonst verloren.
+    | PageLeft
     /// Die Buchungen (neu) holen: "Wiederholen".
     | LoadCategoryEntries
     | CategoryEntriesLoaded of generation: int * Result<CategoryMonthEntry list, string>
@@ -230,799 +289,11 @@ let init () : Model =
       Targets = TargetsClosed
       CategorySearch = ""
       Filter = AllCategories
-      Move = None
+      TabMoney = None
+      AssignQueue = []
+      RecentCounterparts = NotAsked
       OpenRetries = []
       Selected = None
       Tab = MoneyTab
       EntriesGeneration = 0
       MonthGeneration = 0 }
-
-let private categoriesOf (month: BudgetMonth) : BudgetCategory list =
-    month.Groups |> List.collect (fun g -> g.Categories)
-
-/// Kategorie X des Sheets im Monat.
-let moveCategory (month: BudgetMonth) (form: MoveForm) : BudgetCategory option =
-    categoriesOf month |> List.tryFind (fun c -> c.Id = form.CategoryId)
-
-/// Eine neue Abfrage des Monats beginnt: ältere Antworten zählen ab jetzt nicht mehr.
-let requestMonth (model: Model) : Model =
-    { model with MonthGeneration = model.MonthGeneration + 1 }
-
-/// Der gezeigte Monat: der gewählte, sonst der laufende aus dem Rahmen.
-let shownMonth (model: Model) : string option =
-    match model.ChosenMonth, model.Frame with
-    | Some month, _ -> Some month
-    | None, Success frame -> Some frame.CurrentMonth
-    | None, _ -> None
-
-/// Die Monatsart des gezeigten Monats; `None` ohne Rahmen.
-let shownMonthKind (model: Model) : MonthKind option =
-    match model.Frame, shownMonth model with
-    | Success frame, Some month -> Some (monthKind frame.CurrentMonth month)
-    | _ -> None
-
-/// Läuft ein Monatswechsel? `Month` zeigt noch den alten Monat, `shownMonth` schon den neuen. Das
-/// folgt aus beiden Feldern, ein eigener Merker könnte auseinanderlaufen.
-let monthChanging (model: Model) : bool =
-    match model.Month, shownMonth model with
-    | Success month, Some shown -> month.Month <> shown
-    | _ -> false
-
-/// Die Monatsart des Monats, den die Seite gerade darstellt. Während eines Wechsels ist das noch der
-/// alte: der Knopf "Targets anwenden" springt nicht vor der Antwort.
-let displayedMonthKind (model: Model) : MonthKind option =
-    match model.Frame, model.Month with
-    | Success frame, Success month -> Some (monthKind frame.CurrentMonth month.Month)
-    | _ -> None
-
-/// Der Monat davor im Fenster. Per Vergleich: trägt auch für einen Monat außerhalb des Fensters.
-let previousMonth (months: string list) (month: string) : string option =
-    months |> List.filter (fun m -> compare m month < 0) |> List.tryLast
-
-/// Der Monat danach im Fenster, per Vergleich wie `previousMonth`.
-let nextMonth (months: string list) (month: string) : string option =
-    months |> List.tryFind (fun m -> compare m month > 0)
-
-/// Die Monatsgruppen in Romans Reihenfolge. Liste, Picker und Pfeile sehen dieselben `Groups`.
-let private ordered (model: Model) (month: BudgetMonth) : BudgetMonth =
-    match model.Frame with
-    | Success frame -> { month with Groups = orderGroups frame.CategoryOrder month.Groups }
-    | _ -> month
-
-/// Die Buchungen gelten nicht mehr: `entriesDue` holt sie, sobald sie zu sehen sind. Die neue
-/// Generation verwirft eine noch laufende Antwort zum alten Monat.
-let private resetEntries (model: Model) : Model =
-    { model with
-        Selected = model.Selected |> Option.map (fun s -> { s with Entries = NotAsked })
-        EntriesGeneration = model.EntriesGeneration + 1 }
-
-/// Der Monat wechselt: neue Generation, eine laufende Antwort zählt nicht mehr. Fertige Buchungen
-/// bleiben bis zur Antwort des Monats zu sehen, laufende werden wieder ungefragt.
-let private invalidateEntries (model: Model) : Model =
-    { model with
-        Selected =
-            model.Selected
-            |> Option.map (fun s ->
-                match s.Entries with
-                | Loading -> { s with Entries = NotAsked }
-                | _ -> s)
-        EntriesGeneration = model.EntriesGeneration + 1 }
-
-/// Ist `month` ein anderer Monat als der bisher gezeigte? Dann gelten die Buchungen nicht mehr.
-let private entriesOutdated (model: Model) (month: BudgetMonth) : bool =
-    match model.Month with
-    | Success previous -> previous.Month <> month.Month
-    | _ -> true
-
-/// Antwort einnehmen. Eine Antwort einer älteren Abfrage wird verworfen, damit ein langsamer
-/// Aufruf den gerade gezeigten Monat nicht überschreibt. Fehlt X im neuen Stand, schließt ein
-/// offenes Sheet, außer während des Aufrufs. Fehlt die gewählte Kategorie, endet die Auswahl.
-/// Kommt ein anderer Monat, sind die Buchungen wieder fällig.
-let applyLoaded (generation: int) (result: Result<BudgetMonth, string>) (model: Model) : Model =
-    if generation <> model.MonthGeneration then
-        model
-    else
-        match result with
-        | Ok month ->
-            let month = ordered model month
-            let move =
-                model.Move
-                |> Option.filter (fun form -> form.Submission = Sending || (moveCategory month form).IsSome)
-            let selected =
-                model.Selected
-                |> Option.filter (fun s -> categoriesOf month |> List.exists (fun c -> c.Id = s.CategoryId))
-            let settled = { model with Month = Success month; Move = move; Selected = selected }
-            if entriesOutdated model month then resetEntries settled else settled
-        | Error message -> { model with Month = Failure message }
-
-/// Das stille Neu-Lesen nach einer Verschiebung. Scheitert es, bleibt die Liste stehen und ein
-/// Hinweis nennt den Grund: die Seite verliert nicht ihren Stand, weil ein Nachladen ausfiel. Das
-/// gilt nicht während eines Monatswechsels: dann fehlt der neue Monat, und die Fehlerkarte mit
-/// Wiederholen steht da.
-let applyReloaded
-    (generation: int)
-    (result: Result<BudgetMonth, string>)
-    (model: Model)
-    : Model * ExternalMsg =
-    match model.Month, result with
-    | Success _, Error message when generation = model.MonthGeneration && not (monthChanging model) ->
-        model, ShowToast ($"Beträge nicht neu gelesen, sie können veraltet sein: {message}", ToastWarning)
-    | _ -> applyLoaded generation result model, NoOp
-
-/// Monat wählen. Derselbe Monat noch einmal ändert nichts (`false`); ein anderer lädt (`true` heißt:
-/// der Aufrufer muss laden). Ein geladener Monat bleibt bis zur Antwort stehen, sonst steht `Loading`.
-/// Id und Tab bleiben. Der laufende Monat wird zu `ChosenMonth = None`.
-let select (month: string) (model: Model) : Model * bool =
-    match model.Frame with
-    | Success frame when shownMonth model <> Some month || model.Month = NotAsked ->
-        let chosen = if month = frame.CurrentMonth then None else Some month
-        let month' =
-            match model.Month with
-            | Success _ -> model.Month
-            | _ -> Loading
-        requestMonth (invalidateEntries { model with ChosenMonth = chosen; Month = month' }), true
-    | _ -> model, false
-
-/// Rahmen und Monat holen beginnt. Ein vorhandener Rahmen bleibt stehen, der Monat kommt nach der
-/// Antwort auf den Rahmen. Eine noch laufende Monatsantwort zählt ab jetzt nicht mehr.
-let beginLoad (model: Model) : Model =
-    requestMonth
-        { model with
-            Month = Loading
-            Frame =
-                match model.Frame with
-                | Success _ -> model.Frame
-                | _ -> Loading }
-
-/// Antwort auf den Rahmen. Der Monat folgt (`true`), außer der erste Rahmen scheiterte: dann gibt
-/// es keinen Monat zu zeigen, die Seite zeigt den Fehler mit Wiederholen. Gibt es schon einen
-/// Rahmen, bleibt er stehen und ein Toast nennt den Grund.
-let applyFrameLoaded (result: Result<BudgetFrame, string>) (model: Model) : Model * ExternalMsg * bool =
-    match result, model.Frame with
-    | Ok frame, _ -> requestMonth { model with Frame = Success frame; Month = Loading }, NoOp, true
-    | Error message, Success _ ->
-        requestMonth { model with Month = Loading },
-        ShowToast ($"Monate nicht neu gelesen, sie können veraltet sein: {message}", ToastWarning),
-        true
-    | Error message, _ -> { model with Frame = Failure message; Month = Failure message }, NoOp, false
-
-/// Das stille Nachlesen. Scheitert es, bleibt das alte Fenster ohne Meldung, der nächste
-/// Seitenaufruf heilt es. Ändert es den gezeigten Monat (Monatswechsel während die Seite offen ist),
-/// liest der Aufrufer ihn neu (`true`), wie nach `applyFrameLoaded`. Die Liste bleibt bis dahin stehen.
-let applyFrameRefreshed (result: Result<BudgetFrame, string>) (model: Model) : Model * bool =
-    match result with
-    | Ok frame ->
-        let refreshed = { model with Frame = Success frame }
-        if shownMonth refreshed <> shownMonth model then
-            requestMonth (invalidateEntries refreshed), true
-        else
-            refreshed, false
-    | Error _ -> model, false
-
-/// Kann der Bericht das Fenster geöffnet haben?
-let frameDueAfterReport (report: ApplyReport) (model: Model) : bool =
-    match model.Frame with
-    | Success frame -> windowMayHaveGrown frame.Months report
-    | _ -> false
-
-/// Der Ausgang ist unbekannt (Aufruf abgebrochen): es reicht, dass der gezeigte Monat der letzte ist.
-let frameDueAfterLostCall (model: Model) : bool =
-    match model.Frame, shownMonth model with
-    | Success frame, Some month -> isLastMonth frame.Months month
-    | _ -> false
-
-/// Nach "Erneut senden": mit Bericht wie nach `frameDueAfterReport`. Scheiterte der Aufruf, kann der
-/// Lauf YNAB trotzdem erreicht haben, der Ausgang ist unbekannt.
-let frameDueAfterRetry (result: Result<ApplyReport, string>) (model: Model) : bool =
-    match result with
-    | Ok report -> frameDueAfterReport report model
-    | Error _ -> frameDueAfterLostCall model
-
-let private monthNames =
-    [| "Januar"; "Februar"; "März"; "April"; "Mai"; "Juni"
-       "Juli"; "August"; "September"; "Oktober"; "November"; "Dezember" |]
-
-/// "2026-10-01" als "Oktober 2026". Ein unlesbarer Wert bleibt, wie er ist.
-let monthLabel (month: string) : string =
-    match month.Split '-' with
-    | [| year; mm; _ |] ->
-        match System.Int32.TryParse mm with
-        | true, m when m >= 1 && m <= 12 -> $"{monthNames.[m - 1]} {year}"
-        | _ -> month
-    | _ -> month
-
-/// Ein Betrag als Text: "1.600,00 €".
-let moneyText (m: Money) = Money.formatAmountText false true m.Amount m.Currency
-
-/// Der Rhythmus hinter dem Betrag: "/Monat", " alle 3 Monate", ohne Rhythmus nichts (budgeting-kjsht).
-let rhythmText (rhythm: TargetRhythm) : string =
-    match rhythm with
-    | Weeks 1 -> "/Woche"
-    | Months 1 -> "/Monat"
-    | Years 1 -> "/Jahr"
-    | Weeks n -> $" alle {n} Wochen"
-    | Months n -> $" alle {n} Monate"
-    | Years n -> $" alle {n} Jahre"
-    | NoRhythm -> ""
-
-/// Betrag und Rhythmus eines Targets: "1.600,00 €/Monat", "120,00 € alle 3 Monate".
-let targetText (target: Target) : string =
-    moneyText target.Goal + rhythmText target.Rhythm
-
-/// Der Zusatz zum Target: pausiert oder erfüllt. Pausiert geht vor, weil der Fehlbetrag dann nicht
-/// zählt. Ein offener Fehlbetrag erscheint als `missingText`. Liefert YNAB keinen Fehlbetrag, gibt
-/// es keinen Zusatz.
-let targetStatusText (category: BudgetCategory) : string option =
-    match category.Snoozed, category.Underfunded with
-    | true, _ -> Some "pausiert"
-    | false, Some under when under.Amount = 0m -> Some "erfüllt"
-    | false, _ -> None
-
-/// Der Zusatz in der Liste: nur pausiert. "erfüllt" sagt dort nichts und steht im Tab Target.
-let listStatusText (category: BudgetCategory) : string option =
-    if category.Snoozed then Some "pausiert" else None
-
-/// "fehlt 12,30 €", in Gelb (ADR 0075). `None`, wenn nichts fehlt.
-let missingText (category: BudgetCategory) : string option =
-    missingAmount category |> Option.map (fun amount -> $"fehlt {moneyText amount}")
-
-/// Die Zeile unter dem neuen Betrag in der Vorschau.
-let previewDetailText (line: TargetLine) : string =
-    let amounts = $"Zugewiesen {moneyText line.OldAssigned}, Fehlbetrag {moneyText line.Underfunded}"
-    match line.Target with
-    | Some target -> $"Target {targetText target}, {amounts}"
-    | None -> amounts
-
-/// Die Kategorien eines Monats als flache Zählung, für die Leer-Anzeige.
-let categoryCount (month: BudgetMonth) : int =
-    month.Groups |> List.sumBy (fun g -> g.Categories.Length)
-
-/// Kategorie-Suche (budgeting-rxxb4). Ein Treffer im Gruppennamen zeigt die ganze Gruppe,
-/// sonst bleiben die passenden Kategorien; Gruppen ohne Treffer fallen weg.
-let filterGroups (search: string) (groups: BudgetGroup list) : BudgetGroup list =
-    groups
-    |> List.choose (fun group ->
-        if CategoryPicker.matchesText search group.Name then
-            Some group
-        else
-            match group.Categories |> List.filter (fun c -> CategoryPicker.matchesText search c.Name) with
-            | [] -> None
-            | hits -> Some { group with Categories = hits })
-
-let private matchesFilter (filter: CategoryFilter) (c: BudgetCategory) : bool =
-    match filter with
-    | AllCategories -> true
-    | MissingOnly -> (missingAmount c).IsSome
-    | OverdrawnOnly -> c.Available.Amount < 0m
-
-/// Die Zeilen der Liste: Filter und Suche gelten zusammen, Gruppen ohne Treffer fallen weg.
-/// Einmal je Render berechnen.
-let shownGroups (filter: CategoryFilter) (search: string) (groups: BudgetGroup list) : BudgetGroup list =
-    groups
-    |> List.choose (fun group ->
-        match group.Categories |> List.filter (matchesFilter filter) with
-        | [] -> None
-        | hits -> Some { group with Categories = hits })
-    |> filterGroups search
-
-/// Zahlen hinter den Filtern: immer der ganze Monat, unabhängig von der Suche (von Roman bestätigt,
-/// nicht ändern). Überzogen ist eine Teilmenge von Fehlt: `missingAmount` zählt jedes Minus mit.
-let filterCount (filter: CategoryFilter) (groups: BudgetGroup list) : int =
-    groups |> List.sumBy (fun g -> g.Categories |> List.filter (matchesFilter filter) |> List.length)
-
-/// Die Zeilen der Vorschau in Romans Reihenfolge, nur für die Anzeige. `TargetPreview.Lines` bleibt
-/// unangetastet: `previewsMatch` vergleicht reihenfolgetreu und meldete sonst `PreviewChanged`.
-let orderedPreviewLines (order: System.Guid list) (lines: TargetLine list) : TargetLine list =
-    let ranks = order |> List.mapi (fun index id -> id, index) |> Map.ofList
-    lines
-    |> List.sortBy (fun l ->
-        match ranks |> Map.tryFind l.CategoryId with
-        | Some rank -> 0, rank, ""
-        | None -> 1, 0, l.CategoryName)
-
-/// Die Reihenfolge des Rahmens, für die Vorschau; ohne Rahmen leer.
-let categoryOrder (model: Model) : System.Guid list =
-    match model.Frame with
-    | Success frame -> frame.CategoryOrder
-    | _ -> []
-
-// ============================================
-// Targets anwenden (budgeting-h2zfn)
-// ============================================
-
-/// Dialog öffnen oder nach gescheiterter Vorschau "Wiederholen". Nur bei geladenem Monat und nur,
-/// wenn der Dialog zu ist oder an der Vorschau scheiterte; `true` heißt: der Aufrufer muss die
-/// Vorschau holen.
-let openTargets (model: Model) : Model * bool =
-    match model.Month, model.Targets with
-    | Success _, (TargetsClosed | PreviewFailed _)
-        when shownMonthKind model |> Option.exists targetsAllowed && not (monthChanging model) ->
-        { model with Targets = PreviewLoading }, true
-    | _ -> model, false
-
-/// Antwort der Vorschau einnehmen. Eine Antwort zu einem anderen Monat oder zu einem
-/// inzwischen geschlossenen Dialog wird verworfen.
-let applyPreviewLoaded (month: string) (result: Result<TargetPreview, string>) (model: Model) : Model =
-    if shownMonth model <> Some month || model.Targets <> PreviewLoading then
-        model
-    else
-        match result with
-        | Ok preview -> { model with Targets = PreviewReady (preview, false) }
-        | Error message -> { model with Targets = PreviewFailed message }
-
-/// "Übernehmen". Gibt die Vorschau zurück, die an den Server geht. Ohne Zeilen gibt es nichts
-/// zu übernehmen; ein zweiter Klick während des Laufs tut nichts. Ein negatives Zu verteilen
-/// danach sperrt nichts.
-let confirmTargets (model: Model) : Model * TargetPreview option =
-    match model.Targets with
-    | PreviewReady (preview, _) when not (List.isEmpty preview.Lines) ->
-        { model with Targets = Applying preview }, Some preview
-    | _ -> model, None
-
-/// Antwort auf "Übernehmen". Hat sich YNABs Stand geändert, steht die neue Vorschau mit dem
-/// Hinweis da (nichts wurde geschrieben).
-let applyApplied (result: Result<ApplyResult, string>) (model: Model) : Model =
-    match model.Targets with
-    | Applying preview ->
-        match result with
-        | Ok (Applied report) -> { model with Targets = ApplyDone (preview, report, false, None) }
-        | Ok (PreviewChanged fresh) -> { model with Targets = PreviewReady (fresh, true) }
-        | Error message -> { model with Targets = ApplyFailed (preview, message) }
-    | _ -> model
-
-/// "Fehlgeschlagene erneut senden". Gibt die Anwendung zurück, die der Server erneut senden
-/// soll; ohne fehlgeschlagene Zeile oder während eines Laufs `None`.
-let retryFailed (model: Model) : Model * string option =
-    match model.Targets with
-    | ApplyDone (preview, report, false, _) when failedCount report > 0 ->
-        { model with Targets = ApplyDone (preview, report, true, None) }, Some report.ApplicationId
-    | _ -> model, None
-
-let applyRetried (result: Result<ApplyReport, string>) (model: Model) : Model =
-    match model.Targets with
-    | ApplyDone (preview, report, true, _) ->
-        match result with
-        | Ok report' -> { model with Targets = ApplyDone (preview, report', false, None) }
-        | Error message -> { model with Targets = ApplyDone (preview, report, false, Some message) }
-    | _ -> model
-
-/// Dialog schließen. Während Übernehmen oder erneutem Senden läuft, bleibt er offen. Nach
-/// einer Anwendung (auch nach einem gescheiterten Aufruf) muss die Seite den Monat neu
-/// laden (`true`), weil YNABs Stand sich geändert haben kann.
-let closeTargets (model: Model) : Model * bool =
-    match model.Targets with
-    | Applying _
-    | ApplyDone (_, _, true, _) -> model, false
-    | ApplyDone _
-    | ApplyFailed _ -> requestMonth { model with Targets = TargetsClosed }, true
-    | _ -> { model with Targets = TargetsClosed }, false
-
-/// Wie sich Zu verteilen nach dem Lauf zur Vorschau verhält.
-type ActualCheck =
-    | SameAsPreview
-    /// YNAB meldet einen anderen Betrag als die Vorschau.
-    | DiffersFromPreview of actual: Shared.Domain.Money
-    /// Das erneute Lesen nach dem Lauf scheiterte.
-    | ActualUnknown
-
-let actualCheck (preview: TargetPreview) (report: ApplyReport) : ActualCheck =
-    match report.ActualToBeBudgeted with
-    | None -> ActualUnknown
-    | Some actual when actual = preview.ToBeBudgetedAfter -> SameAsPreview
-    | Some actual -> DiffersFromPreview actual
-
-// ============================================
-// Verschieben (budgeting-afd8h, ADR 0069)
-// ============================================
-
-/// Der Zustand beim Öffnen. Verfügbar negativ: X wird gedeckt, ist also das Ziel. Sonst ist X die
-/// Quelle.
-let openMoveForm (category: BudgetCategory) : MoveForm =
-    { CategoryId = category.Id
-      IsSource = category.Available.Amount >= 0m
-      Counterpart = None
-      AmountInput = None
-      PickerOpen = false
-      Submission = Editing }
-
-/// Der Umschalter dreht Quelle und Ziel, der Betrag bleibt.
-let toggleDirection (form: MoveForm) : MoveForm =
-    { form with IsSource = not form.IsSource }
-
-/// Der Text im Betragsfeld: die Eingabe, sonst die Vorbelegung aus dem aktuellen Monat (Verfügbar
-/// beziehungsweise bei negativem Verfügbar der Fehlbetrag).
-let moveAmountText (month: BudgetMonth) (form: MoveForm) : string =
-    match form.AmountInput, moveCategory month form with
-    | Some text, _ -> text
-    | None, Some category -> formatAmountForInput category.Available.Amount
-    | None, None -> ""
-
-/// Der Betrag der Eingabe; leer, unlesbar und 0 sind keiner.
-let moveAmount (month: BudgetMonth) (form: MoveForm) : decimal option =
-    parseAmountInput (moveAmountText month form) |> Option.filter (fun amount -> amount > 0m)
-
-/// Darf "Verschieben" gedrückt werden?
-let canMove (month: BudgetMonth) (form: MoveForm) : bool =
-    form.Submission <> Sending
-    && form.Counterpart.IsSome
-    && (moveCategory month form).IsSome
-    && (moveAmount month form).IsSome
-
-/// Der Auftrag an den Server; `None`, solange etwas fehlt.
-let moveRequest (month: BudgetMonth) (form: MoveForm) : MoveRequest option =
-    match form.Counterpart, moveAmount month form, moveCategory month form with
-    | Some counterpart, Some amount, Some category ->
-        let x = CategorySide form.CategoryId
-        let source, target = if form.IsSource then x, counterpart else counterpart, x
-        Some { Source = source; Target = target; Amount = { Amount = amount; Currency = category.Available.Currency } }
-    | _ -> None
-
-/// Name der Gegenseite.
-let counterpartName (month: BudgetMonth) (side: MoveSide) : string =
-    match side with
-    | ToBeBudgetedSide -> CategoryPicker.toBeBudgetedLabel
-    | CategorySide id ->
-        categoriesOf month
-        |> List.tryFind (fun c -> c.Id = id)
-        |> Option.map (fun c -> c.Name)
-        |> Option.defaultValue ""
-
-/// Eine Zeile "Verfügbar danach".
-type MoveAfterLine = { Label: string; After: Money }
-
-/// "Verfügbar danach" für X und, sobald gewählt, die Gegenseite, aus dem aktuellen Monat. Ohne
-/// gültigen Betrag bleiben die heutigen Werte stehen. Ein negatives Ergebnis ist gültig.
-let moveAfter (month: BudgetMonth) (form: MoveForm) : MoveAfterLine list =
-    let amount = moveAmount month form |> Option.defaultValue 0m
-    let change = if form.IsSource then -amount else amount
-    let shifted (m: Money) (delta: decimal) = { m with Amount = m.Amount + delta }
-    let counterpart =
-        match form.Counterpart with
-        | None -> None
-        | Some ToBeBudgetedSide -> Some month.ToBeBudgeted
-        | Some (CategorySide id) ->
-            categoriesOf month |> List.tryFind (fun c -> c.Id = id) |> Option.map (fun c -> c.Available)
-    [ match moveCategory month form with
-      | Some category -> { Label = category.Name; After = shifted category.Available change }
-      | None -> ()
-      match form.Counterpart, counterpart with
-      | Some side, Some available -> { Label = counterpartName month side; After = shifted available -change }
-      | _ -> () ]
-
-/// Die Kategorien des Pickers: alle sichtbaren des Monats ohne X, mit `Available` aus dem Monat.
-/// Die Kategorie-Suche der Seite gilt hier nicht.
-let pickerCategories (month: BudgetMonth) (x: System.Guid) : YnabCategory list =
-    month.Groups
-    |> List.collect (fun g ->
-        g.Categories
-        |> List.filter (fun c -> c.Id <> x)
-        |> List.map (fun c ->
-            { Id = YnabCategoryId c.Id
-              Name = c.Name
-              GroupName = g.Name
-              Available = Some c.Available
-              Hidden = false }))
-
-/// Aus der Wahl im Picker wird die Gegenseite. Ohne Kategorie und Konto gibt es dort nicht.
-let counterpartOf (choice: CategoryPicker.PickerChoice) : MoveSide option =
-    match choice with
-    | CategoryPicker.ChoseToBeBudgeted -> Some ToBeBudgetedSide
-    | CategoryPicker.ChoseCategory (Some (YnabCategoryId id)) -> Some (CategorySide id)
-    | _ -> None
-
-/// Die Überschrift im Sheet.
-let moveHeadline (month: BudgetMonth) (form: MoveForm) : string =
-    let name = moveCategory month form |> Option.map (fun c -> c.Name) |> Option.defaultValue ""
-    let other = form.Counterpart |> Option.map (counterpartName month) |> Option.defaultValue "…"
-    if form.IsSource then $"Von {name} nach {other}"
-    else $"{name} decken aus {other}"
-
-/// Sheet öffnen, nur bei geladenem Monat, bekannter Kategorie und ohne offenen Dialog. Während eines
-/// Monatswechsels nicht: der Auftrag ginge in den alten Monat.
-let openMove (categoryId: System.Guid) (model: Model) : Model =
-    match model.Month, model.Targets, model.Move with
-    | Success month, TargetsClosed, None when not (monthChanging model) ->
-        match categoriesOf month |> List.tryFind (fun c -> c.Id = categoryId) with
-        | Some category -> { model with Move = Some (openMoveForm category) }
-        | None -> model
-    | _ -> model
-
-/// Sheet schließen. Während des Aufrufs bleibt es offen.
-let closeMove (model: Model) : Model =
-    match model.Move with
-    | Some form when form.Submission = Sending -> model
-    | _ -> { model with Move = None }
-
-/// Ändert das offene Formular, außer während des Aufrufs.
-let updateForm (change: MoveForm -> MoveForm) (model: Model) : Model =
-    match model.Move with
-    | Some form when form.Submission <> Sending -> { model with Move = Some (change form) }
-    | _ -> model
-
-/// "Verschieben". Gibt den Auftrag zurück; ist der Knopf gesperrt oder läuft schon ein Aufruf,
-/// geschieht nichts. Sonst ginge beim Doppeltipp das Geld zweimal, denn der Server rechnet relativ.
-/// Mit dem Auftrag kommt der Monat, den die Seite zeigt: dorthin schreibt der Server.
-let confirmMove (model: Model) : Model * (string * MoveRequest) option =
-    match model.Move, model.Month with
-    | Some form, Success month when canMove month form ->
-        { model with Move = Some { form with Submission = Sending } },
-        moveRequest month form |> Option.map (fun request -> month.Month, request)
-    | _ -> model, None
-
-/// "20,00 € von Lebensmittel nach Urlaub", aus dem Bericht des Servers. Die Zeilen stehen in
-/// Sendereihenfolge, eine einzelne Zeile hat Zu verteilen auf der anderen Seite.
-let moveSummaryText (report: ApplyReport) : string =
-    let amountOf (l: ApplyLineResult) =
-        let amount = abs (l.NewAssigned.Amount - l.OldAssigned.Amount)
-        Money.formatAmountText false true amount l.NewAssigned.Currency
-    match report.Lines with
-    | [ source; target ] -> $"{amountOf source} von {source.CategoryName} nach {target.CategoryName}"
-    | [ line ] when line.NewAssigned.Amount < line.OldAssigned.Amount ->
-        $"{amountOf line} von {line.CategoryName} nach {CategoryPicker.toBeBudgetedLabel}"
-    | [ line ] -> $"{amountOf line} von {CategoryPicker.toBeBudgetedLabel} nach {line.CategoryName}"
-    | _ -> "Verschoben"
-
-/// Beschriftung der Toast-Aktion.
-let retryMoveLabel = "Erneut senden"
-
-/// Der Toast zu einem Bericht: eine fehlgeschlagene Zeile bietet "Erneut senden" an.
-let moveToast (report: ApplyReport) : ExternalMsg =
-    let failure =
-        report.Lines
-        |> List.tryPick (fun l ->
-            match l.Outcome with
-            | Failed reason -> Some reason
-            | _ -> None)
-    match failure with
-    | Some reason ->
-        ShowToastWithAction (
-            $"Nicht vollständig verschoben: {reason}",
-            ToastError,
-            { Label = retryMoveLabel; Kind = RetryBudgetMove report.ApplicationId }
-        )
-    | None when report.Lines |> List.exists (fun l -> l.Outcome = ChangedInYnab) ->
-        ShowToast ("In YNAB geändert, nichts überschrieben", ToastWarning)
-    | None -> ShowToast (moveSummaryText report, ToastSuccess)
-
-/// Merkt sich eine Verschiebung mit fehlgeschlagener Zeile; ist nichts mehr offen, verschwindet
-/// sie. Der Hinweis auf der Seite hängt daran, der Toast läuft nach fünf Sekunden ab.
-let noteMoveReport (month: string) (report: ApplyReport) (model: Model) : Model =
-    let others = model.OpenRetries |> List.filter (fun r -> r.ApplicationId <> report.ApplicationId)
-    let reason =
-        report.Lines
-        |> List.tryPick (fun l ->
-            match l.Outcome with
-            | Failed reason -> Some reason
-            | _ -> None)
-    match reason with
-    | Some reason ->
-        let entry =
-            { ApplicationId = report.ApplicationId
-              MonthLabel = monthLabel month
-              Summary = moveSummaryText report
-              Reason = reason
-              State = RetryReady }
-        { model with OpenRetries = others @ [ entry ] }
-    | None -> { model with OpenRetries = others }
-
-/// Antwort auf "Verschieben". `Error` heißt: nichts geschrieben, das Sheet bleibt offen und nennt
-/// den Grund. Ist es inzwischen zu (Seitenwechsel), nennt ein Toast den Grund. Mit Bericht schließt
-/// es, der Monat wird neu gelesen (`true`).
-let applyMoveAnswered (result: Result<ApplyReport, string>) (model: Model) : Model * ExternalMsg * bool =
-    match result, model.Move with
-    | Ok report, _ -> requestMonth (noteMoveReport report.Month report { model with Move = None }), moveToast report, true
-    | Error message, Some form -> { model with Move = Some { form with Submission = Rejected message } }, NoOp, false
-    | Error message, None -> model, ShowToast ($"Nicht verschoben: {message}", ToastError), false
-
-/// Der Aufruf brach ab. Weil der Server relativ rechnet, wäre ein zweiter Versuch im offenen Sheet
-/// gefährlich: es schließt, und der Monat wird neu gelesen.
-let applyMoveCallLost (message: string) (model: Model) : Model * ExternalMsg =
-    requestMonth { model with Move = None }, ShowToast ($"Ob verschoben wurde, ist unklar: {message}", ToastError)
-
-/// "Erneut senden". `true` heißt: der Aufrufer muss senden. Läuft es schon oder ist die Verschiebung
-/// nicht mehr offen, geschieht nichts.
-let startMoveRetry (applicationId: string) (model: Model) : Model * bool =
-    match model.OpenRetries |> List.tryFind (fun r -> r.ApplicationId = applicationId) with
-    | Some { State = RetryReady } ->
-        { model with
-            OpenRetries =
-                model.OpenRetries
-                |> List.map (fun r -> if r.ApplicationId = applicationId then { r with State = RetryRunning } else r) },
-        true
-    | _ -> model, false
-
-/// Antwort auf "Erneut senden". Scheitert der Aufruf, bleibt die Verschiebung offen und sendbar,
-/// ein Toast nennt den Grund. In beiden Fällen liest der Aufrufer den Monat neu, denn der Lauf kann
-/// YNAB erreicht haben.
-let applyMoveRetried (applicationId: string) (result: Result<ApplyReport, string>) (model: Model) : Model * ExternalMsg =
-    match result with
-    | Ok report -> requestMonth (noteMoveReport report.Month report model), moveToast report
-    | Error message ->
-        let reopened =
-            model.OpenRetries
-            |> List.map (fun r -> if r.ApplicationId = applicationId then { r with State = RetryReady } else r)
-        requestMonth { model with OpenRetries = reopened }, ShowToast ($"Erneut senden gescheitert: {message}", ToastError)
-
-// ============================================
-// Auswahl und Inspektor (budgeting-g8s3w)
-// ============================================
-
-/// Die gewählte Kategorie und ihr Gruppenname im Monat.
-let selectedCategory (month: BudgetMonth) (selected: SelectedCategory) : (BudgetCategory * string) option =
-    month.Groups
-    |> List.tryPick (fun g ->
-        g.Categories
-        |> List.tryFind (fun c -> c.Id = selected.CategoryId)
-        |> Option.map (fun c -> c, g.Name))
-
-/// Summe der Liste, in der Währung der Kategorie (die Liste darf leer sein).
-let entriesTotal (activity: Money) (entries: CategoryMonthEntry list) : Money =
-    { activity with Amount = entries |> List.sumBy (fun e -> e.Amount.Amount) }
-
-/// Der Hinweis unter der Summe, wenn sie von YNABs Aktivität abweicht, ohne Bewertung.
-let deviationHint (total: Money) (activity: Money) : string option =
-    if total.Amount = activity.Amount then
-        None
-    else
-        Some $"Kassenbuch: {moneyText total}, YNAB: {moneyText activity}"
-
-/// Kategorie wählen. Dieselbe Id ändert nichts, eine andere setzt die Buchungen zurück. Laufen
-/// Vorschau oder Sheet "Verschieben", geschieht nichts.
-let selectCategory (categoryId: System.Guid) (model: Model) : Model =
-    match model.Month, model.Targets, model.Move with
-    | Success month, TargetsClosed, None
-        when model.Selected |> Option.forall (fun s -> s.CategoryId <> categoryId)
-             && categoriesOf month |> List.exists (fun c -> c.Id = categoryId) ->
-        { model with
-            Selected = Some { CategoryId = categoryId; Entries = NotAsked; ReturnPending = false }
-            EntriesGeneration = model.EntriesGeneration + 1 }
-    | _ -> model
-
-/// Die nächste sichtbare Zeile ab der Position von `current` in der vollen Reihenfolge. Am Rand
-/// `None`. So läuft auch eine Kategorie, die aus dem Filter gefallen ist, von ihrem Platz aus weiter.
-let stepCategory
-    (direction: Direction)
-    (all: System.Guid list)
-    (visible: System.Guid list)
-    (current: System.Guid)
-    : System.Guid option =
-    let candidates =
-        match direction with
-        | Next -> all |> List.skipWhile (fun id -> id <> current) |> List.filter (fun id -> id <> current)
-        | Previous -> all |> List.takeWhile (fun id -> id <> current) |> List.rev
-    candidates |> List.tryFind (fun id -> List.contains id visible)
-
-let private groupIds (groups: BudgetGroup list) : System.Guid list =
-    groups |> List.collect (fun g -> g.Categories |> List.map (fun c -> c.Id))
-
-/// Die Nachbar-Kategorie der Auswahl in dieser Richtung; `None` am Rand. Der Knopf fehlt dann.
-let neighbourCategory (direction: Direction) (shown: BudgetGroup list) (model: Model) : System.Guid option =
-    match model.Selected, model.Month with
-    | Some selected, Success month ->
-        stepCategory direction (groupIds month.Groups) (groupIds shown) selected.CategoryId
-    | _ -> None
-
-/// `StepCategory`: wechselt zur Nachbar-Kategorie.
-let stepSelection (direction: Direction) (model: Model) : Model =
-    match model.Month with
-    | Success month ->
-        let shown = shownGroups model.Filter model.CategorySearch month.Groups
-        match neighbourCategory direction shown model with
-        | Some id -> selectCategory id model
-        | None -> model
-    | _ -> model
-
-/// Die Regel der Pfeiltasten ab 1024 px, rein, damit spätere Eingabefelder sie nur erweitern
-/// (`TextField`, Zugewiesen in budgeting-c5w2n). Hoch und Runter gelten auch im Suchfeld, Links und
-/// Rechts gehören dort dem Cursor. Ohne Auswahl gibt es keinen Tab zu wechseln.
-let pageKeyAction (hasSelection: bool) (key: string) (focus: KeyFocus) : PageKeyAction =
-    match focus, key with
-    | TextField, _ -> LeaveKey
-    | _, "ArrowDown" -> if hasSelection then StepRow Next else FirstRow
-    | _, "ArrowUp" -> if hasSelection then StepRow Previous else LastRow
-    | OtherFocus, "ArrowRight" when hasSelection -> StepTab Next
-    | OtherFocus, "ArrowLeft" when hasSelection -> StepTab Previous
-    | _ -> LeaveKey
-
-/// `pageKeyAction` im Zustand der Seite: offene Dialoge (Verschieben, Targets anwenden, darin der
-/// Picker) bekommen die Tasten nicht, sie gehören dann dem Dialog.
-let pageKeyActionFor (model: Model) (key: string) (focus: KeyFocus) : PageKeyAction =
-    match model.Targets, model.Move with
-    | TargetsClosed, None -> pageKeyAction model.Selected.IsSome key focus
-    | _ -> LeaveKey
-
-/// Der Nachbar-Tab, an den Rändern bleibt er stehen.
-let private neighbourTab (direction: Direction) (tab: InspectorTab) : InspectorTab =
-    let order = inspectorTabs |> List.map snd
-    let index = order |> List.findIndex ((=) tab)
-    let target =
-        match direction with
-        | Next -> index + 1
-        | Previous -> index - 1
-    order |> List.tryItem target |> Option.defaultValue tab
-
-let private selectRow (pick: System.Guid list -> System.Guid option) (model: Model) : Model =
-    match model.Month with
-    | Success month ->
-        match pick (groupIds (shownGroups model.Filter model.CategorySearch month.Groups)) with
-        | Some id -> selectCategory id model
-        | None -> model
-    | _ -> model
-
-/// `PageKeyPressed`: führt die Regel aus. Gewechselt wird zwischen den sichtbaren Zeilen.
-let applyPageKey (action: PageKeyAction) (model: Model) : Model =
-    match action with
-    | StepRow direction -> stepSelection direction model
-    | FirstRow -> selectRow List.tryHead model
-    | LastRow -> selectRow List.tryLast model
-    | StepTab direction -> { model with Tab = neighbourTab direction model.Tab }
-    | LeaveKey -> model
-
-/// Sind die Buchungen fällig? Nur im Tab Buchungen, bei geladenem Monat und `NotAsked`, nicht während
-/// eines Monatswechsels. Das liest nur das Kassenbuch und kostet kein YNAB-Limit.
-let entriesDue (model: Model) : (System.Guid * string) option =
-    match model.Tab, model.Selected, model.Month with
-    | EntriesTab, Some { CategoryId = id; Entries = NotAsked }, Success month when not (monthChanging model) ->
-        Some (id, month.Month)
-    | _ -> None
-
-/// Setzt die Buchungen auf `Loading`, wenn sie fällig sind. Gibt die Abfrage für den Aufrufer zurück.
-let requestEntries (model: Model) : Model * (System.Guid * string * int) option =
-    match entriesDue model with
-    | Some (id, month) ->
-        let generation = model.EntriesGeneration + 1
-        { model with
-            Selected = model.Selected |> Option.map (fun s -> { s with Entries = Loading })
-            EntriesGeneration = generation },
-        Some (id, month, generation)
-    | None -> model, None
-
-/// "Wiederholen" in der Liste der Buchungen.
-let reloadCategoryEntries (model: Model) : Model =
-    resetEntries model
-
-/// Antwort der Liste. Eine Antwort einer älteren Abfrage oder ohne Auswahl fällt weg.
-let applyCategoryEntries (generation: int) (result: Result<CategoryMonthEntry list, string>) (model: Model) : Model =
-    match model.Selected with
-    | Some selected when generation = model.EntriesGeneration ->
-        let entries =
-            match result with
-            | Ok entries -> Success entries
-            | Error message -> Failure message
-        { model with Selected = Some { selected with Entries = entries } }
-    | _ -> model
-
-/// Tipp auf eine Buchung: die Auswahl bleibt stehen und wartet auf die Rückkehr.
-let leaveForEntry (model: Model) : Model =
-    { model with Selected = model.Selected |> Option.map (fun s -> { s with ReturnPending = true }) }
-
-let returnPending (model: Model) : bool =
-    model.Selected |> Option.exists (fun s -> s.ReturnPending)
-
-/// Wie die Seite betreten wurde.
-type PageEntry =
-    /// Neuer Seitenaufruf: Rahmen und Monat lesen.
-    | FreshEntry
-    /// Rückkehr aus dem Kassenbuch: nur Monat und Buchungen, kein YNAB-Aufruf für den Rahmen.
-    | ReturnedFromLedger
-
-/// Die Seite wird betreten. Ein Sheet überlebt den Seitenwechsel nicht. Wartet die Auswahl auf die
-/// Rückkehr aus dem Kassenbuch, stehen Auswahl, Tab, Filter und Suche wieder da und die Liste kommt
-/// neu, weil die Buchung dort geändert worden sein kann. Sonst beginnt die Seite von vorn, beim
-/// laufenden Monat.
-let enterPage (model: Model) : Model * PageEntry =
-    let entered = { model with Move = None }
-    if returnPending model then
-        let returned =
-            resetEntries
-                { entered with
-                    Selected = entered.Selected |> Option.map (fun s -> { s with ReturnPending = false }) }
-        returned, ReturnedFromLedger
-    else
-        { entered with
-            ChosenMonth = None
-            CategorySearch = ""
-            Filter = AllCategories
-            Selected = None
-            Tab = MoneyTab },
-        FreshEntry

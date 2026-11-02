@@ -58,6 +58,11 @@ type TextInputProps = {
     /// Name für den Screenreader, wenn kein sichtbares Label dasteht.
     AriaLabel: string option
     ClassName: string option
+    /// Nimmt keine Eingabe an, behält aber den Fokus (anders als `Disabled`).
+    ReadOnly: bool
+    OnFocus: (Browser.Types.FocusEvent -> unit) option
+    OnBlur: (Browser.Types.FocusEvent -> unit) option
+    OnKeyDown: (Browser.Types.KeyboardEvent -> unit) option
 }
 
 let textInputDefaults = {
@@ -71,6 +76,10 @@ let textInputDefaults = {
     InputMode = None
     AriaLabel = None
     ClassName = None
+    ReadOnly = false
+    OnFocus = None
+    OnBlur = None
+    OnKeyDown = None
 }
 
 /// Setzt `text` das Inline-`fontSize 16` (iOS-Zoom-Schutz)? Nur Medium und Large. Small
@@ -95,6 +104,16 @@ let text (props: TextInputProps) =
         prop.onChange props.OnChange
         prop.placeholder props.Placeholder
         prop.disabled props.Disabled
+        if props.ReadOnly then prop.readOnly true
+        match props.OnFocus with
+        | Some handler -> prop.onFocus handler
+        | None -> ()
+        match props.OnBlur with
+        | Some handler -> prop.onBlur handler
+        | None -> ()
+        match props.OnKeyDown with
+        | Some handler -> prop.onKeyDown handler
+        | None -> ()
         match props.InputMode with
         | Some mode -> prop.custom ("inputMode", mode)
         | None -> ()

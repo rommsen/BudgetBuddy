@@ -537,6 +537,17 @@ let private missingTests =
         test "Beides 0 fehlt nichts" {
             Expect.equal (missing (category 0m (Some 0m) false)) None "nichts"
         }
+        test "Frei ist Verfügbar minus Fehlbetrag" {
+            Expect.equal (freeAmount (category 100m (Some 30m) false)).Amount 70m "offenes Target"
+        }
+        test "Frei darf negativ sein" {
+            Expect.equal (freeAmount (category 10m (Some 30m) false)).Amount -20m "mehr offen als da"
+        }
+        test "Ohne Target, pausiert und ohne Fehlbetrag ist alles Verfügbare frei" {
+            Expect.equal (freeAmount (category 100m None false)).Amount 100m "ohne Target"
+            Expect.equal (freeAmount (category 100m (Some 30m) true)).Amount 100m "pausiert"
+            Expect.equal (freeAmount (category 100m (Some 0m) false)).Amount 100m "erfüllt"
+        }
     ]
 
 let private windowTests =

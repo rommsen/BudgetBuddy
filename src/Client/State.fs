@@ -297,6 +297,10 @@ let urlChangedCmd (ledger: Components.Ledger.Types.Model) (current: Page) (page:
     | LedgerEntry _, LedgerEntry _ -> pageLoadCmd page
     | LedgerEntry _, Ledger -> leave Components.Ledger.Types.LedgerList
     | LedgerEntry _, _ -> Cmd.batch [ leave Components.Ledger.Types.OtherPage; pageLoadCmd page ]
+    // Ohne den Abschied ginge eine offene Zuweisen-Eingabe beim Rücksprung per Browser verloren:
+    // das Abbauen eines Felds löst in React keinen Blur aus.
+    | Budget, target when target <> Budget ->
+        Cmd.batch [ Cmd.map BudgetMsg (Cmd.ofMsg Components.Budget.Types.PageLeft); pageLoadCmd page ]
     | _ -> pageLoadCmd page
 
 // ============================================
@@ -383,6 +387,7 @@ let isInputActive (model: Model) : bool =
             | _ -> false
         sessionRunning || sync.IsTanConfirming || sync.SplitEdit.IsSome || sync.InlineRuleForm.IsSome
     ledgerActive || rulesActive || settingsActive || quickAddActive || syncActive
+    || Components.Budget.Moves.inputActive model.Budget
 
 /// Der Hinweis "Neue Version, neu laden": ein Info-Toast mit Aktion, der nicht nach 5 s
 /// verschwindet (kein Auto-Dismiss-Befehl). Er geht nur durch Schließen oder Klick.
@@ -755,7 +760,7 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                     (routeOpen model.Ledger)
                     (routeOpen ledgerModel')
                     closedByUser
-                    (Components.Budget.Types.returnPending model.Budget)
+                    (Components.Budget.Inspector.returnPending model.Budget)
                     (Components.Ledger.Types.routeEntryLoadFailed model.Ledger.PendingRouteEntry ledgerMsg)
             with
             | StayOnRoute ->

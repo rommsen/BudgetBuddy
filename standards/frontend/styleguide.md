@@ -240,7 +240,7 @@ nutzt die zweite Variante über `CategoryPicker.popoverInDialog`.
 
 ---
 
-## 5. Komponenten-Inventar (21 DS-Komponenten)
+## 5. Komponenten-Inventar (22 DS-Komponenten)
 
 Alle Komponenten liegen unter
 [`src/Client/DesignSystem/`](../../src/Client/DesignSystem/). Konkrete API/Props stehen dort in den
@@ -252,14 +252,14 @@ steht nur **wann welche / wann nicht**.
 
 | Komponente | Wann nutzen | Wann **nicht** |
 |------------|-------------|----------------|
-| **Button** | Jede klickbare Aktion: `primary` (Orange-CTA), `secondary` (neutral mit grauem Rand, ADR 0075), `ghost`, `danger`, `hero`/`heroTeal` (große CTAs), `*Loading`, `*WithIcon`, `group`, in Listen `selectableListRow` (Zeile, die etwas wählt, gewählt mit `aria-current` und Teal), `stepArrow`/`stepArrowGap` (`‹ ›`, der Platz bleibt am Rand frei), `homeLabel` (Name, der nach Hause führt und teal ist, wenn man woanders steht), `listName` (Name einer Zeile als Knopf, sieht aus wie der Name, am Handy 48 px Trefferfläche ohne höhere Zeile) und `listRow` (ganze zweizeilige Listenzeile als Knopf) | Navigation zwischen Seiten → `Navigation`; Link nach extern → eigener Anker mit `Icons.externalLink` |
+| **Button** | Jede klickbare Aktion (dazu `amountStep` für Schritte neben einem Feld, hält den Fokus; `sideRow` und `sideRowFixed` für die Zeilen `von` und `nach`): `primary` (Orange-CTA), `secondary` (neutral mit grauem Rand, ADR 0075), `ghost`, `danger`, `hero`/`heroTeal` (große CTAs), `*Loading`, `*WithIcon`, `group`, in Listen `selectableListRow` (Zeile, die etwas wählt, gewählt mit `aria-current` und Teal), `stepArrow`/`stepArrowGap` (`‹ ›`, der Platz bleibt am Rand frei), `homeLabel` (Name, der nach Hause führt und teal ist, wenn man woanders steht), `listName` (Name einer Zeile als Knopf, sieht aus wie der Name, am Handy 48 px Trefferfläche ohne höhere Zeile) und `listRow` (ganze zweizeilige Listenzeile als Knopf) | Navigation zwischen Seiten → `Navigation`; Link nach extern → eigener Anker mit `Icons.externalLink` |
 | **Card** | Inhaltsblöcke: `standard`, `glass`, `glow` (featured), `withAccent`, `emptyState`, plus `header`/`body`/`footer` | Volle Seiten-Layouts → `Primitives`; modale Inhalte → `Modal` |
 | **Badge** | Kompakter Status/Label: semantisch (`success`/`warning`/`error`/`info`, `notice` in Gelb für die Budget-Seite, ADR 0075), Domänen-Status (`imported`, `pendingReview`, `autoCategorized`, `uncategorized`), `count` | Klickbare Filter → `Button.ghost`/Pills; lange Texte |
 | **Input** | Alle Formularelemente: `text`/`password`/`email`/`number`, `textarea`, `select`/`selectSimple`, `checkbox`, `toggle`, `searchableSelect`, plus `group`/`groupWithError`/`formSection` | Reine Anzeige; mobiles Kategorie-/Konto-Auswählen → `BottomSheet` (§7) |
 | **Modal** | Zentrierte Dialoge auf **Desktop**: `simple`, `custom`, `fullScreen`, `confirm`/`confirmDanger`, `alert`, `loading` | Mobile Auswahl-Flows → `BottomSheet` (keyboard-fest); persistente Inhalte |
 | **Toast** | Flüchtiges Feedback nach Aktion: `success`/`error`/`warning'`/`info'`, `renderList` | Blockierende Fehler → `ErrorDisplay`/`Modal`; persistenter Status → `Badge` |
 | **Stats** | KPI-/Kennzahl-Kacheln: `withIcon`, `withTrend`, `transactionCount`, `syncCount`, `grid*`, `withAccent` (Akzentfarbe wählen, inkl. `NoAccent` für gar keinen Streifen, z. B. Kontostände-Karten) | Vollständige Tabellen → `Table`; einzelner Betrag im Fließtext → `Money` |
-| **Money** | **Jede** Geldanzeige — setzt Vorzeichen-Farbe + Glow automatisch: `available` (Auswahl, §2), `simple`, `large`, `hero`, `noSign`, `fromMoney`, `accountBalance` (Kontostand ohne führendes Plus, für Kontostände-Leiste und -Liste), `accountListRow` (klickbare Kontozeile: Name links, farbcodierter Betrag rechts, aktiver Zustand mit Teal-Akzentlinie) | Nicht-monetäre Zahlen → `Presets.monoNumber` |
+| **Money** | **Jede** Geldanzeige — setzt Vorzeichen-Farbe + Glow automatisch: `available` (Auswahl, §2), `afterAmount` (Verfügbar danach: fett, rot unter 0, grün bei genau 0), `simple`, `large`, `hero`, `noSign`, `fromMoney`, `accountBalance` (Kontostand ohne führendes Plus, für Kontostände-Leiste und -Liste), `accountListRow` (klickbare Kontozeile: Name links, farbcodierter Betrag rechts, aktiver Zustand mit Teal-Akzentlinie) | Nicht-monetäre Zahlen → `Presets.monoNumber` |
 | **Table** | Dichte tabellarische Daten (Desktop), inkl. `headerCell`/sortierbar/`sticky` | Mobile Listen mit Zeilen-Aktionen → Card-Liste + `Swipe`; einfache Key-Value-Paare → `Card` |
 | **Loading** | Ladezustände: `spinner`, `centered`, `neonPulse`, Skeletons (`txListSkeleton`, `tableSkeleton`, `statsGridSkeleton`, `cardSkeleton`) | Inhalt da → echten Inhalt zeigen; Fehler → `ErrorDisplay` |
 | **ErrorDisplay** | Fehlerdarstellung: `inline'` (Feldfehler), `cardCompact`/`card`, `hero` (große Operation), `fullPage`, `forRemoteData`, `warning`, `notice` (Gelb, für die Budget-Seite statt `warning`, ADR 0075) | Kurzes Erfolgs-/Info-Feedback → `Toast`; Pflichtfeld-Hinweis → `Input.group*` |
@@ -271,6 +271,7 @@ steht nur **wann welche / wann nicht**.
 | **Form** | Submit-Buttons mit Required-Field-Gating: `submitButton(WithIcon/Secondary)` deaktivieren bei fehlenden Pflichtfeldern | Reine Felder → `Input`; freie Buttons → `Button` |
 | **BottomSheet** | **Mobile** Auswahl-/Picker-Flows (keyboard-aware): `view`, `inspector` (immer gerendert, fährt über `IsOpen` ein und aus und hält dabei seinen Inhalt, feste Höhe 500 px, fester Bereich zwischen Kopf und Inhalt, der ab 55 % Höhe in sich scrollt, wird mit Tastatur kleiner), `categoryPicker`, `categoryPickerLayered`, `chipButton`, `sectionTitle` | Desktop-Dialog → `Modal`; einfaches Dropdown → `Input.select` |
 | **Tabs** | Gleich breite Segmente mit `role=tablist`, aktiv in Teal, am Handy 48 px Trefferfläche, Pfeiltasten (am Rand bleiben sie stehen) und roving `tabindex`: `bar`, dazu `panel` für `role=tabpanel` | Filter über einer Liste → `ChipBar` |
+| **Segmented** | Umschalter zwischen Ansichten derselben Sache: Knöpfe mit `aria-pressed`, aktiv in Teal (ADR 0075), 48 px, erster Nutzer ist der Tab Geld | Bereiche mit eigenem Panel → `Tabs`; zwei Tab-Leisten übereinander stören sich bei den Pfeiltasten |
 | **Swipe** | Wischbare Listenzeilen mit enthüllter Aktion (mobile) | Statische Zeilen → Card/`Table`; Desktop-Hover-Aktionen → `Button.iconButton` |
 | **Viewport** | Infrastruktur für mobile Sheets (visualViewport→CSS-Vars, Scroll-Lock, Click-Swallow, Haptik) — von `BottomSheet` genutzt | Direkt nur, wenn du ein **neues** Sheet/Overlay baust (dann die Muster aus §7 erben) |
 
@@ -421,7 +422,7 @@ Die UI spricht **Deutsch, direkt, knapp, ohne Füllwörter** — wie Roman selbs
   Token-Wächter in `npm run test:scripts`.
 
 - [`src/Client/DesignSystem/Tokens.fs`](../../src/Client/DesignSystem/Tokens.fs) — Farb-/Glow-/Spacing-/Preset-Tokens.
-- [`src/Client/DesignSystem/`](../../src/Client/DesignSystem/) — die 21 Komponenten.
+- [`src/Client/DesignSystem/`](../../src/Client/DesignSystem/) — die 22 Komponenten.
 - [`src/Client/styles.css`](../../src/Client/styles.css) / [`index.html`](../../src/Client/index.html) — Spring-Easing, `prefers-reduced-motion`, visualViewport-Anker, Viewport-Meta.
 - Route `/styleguide`: die echten DS-Komponenten als Live-Beispiele, die API steht in deren Doc-Kommentaren.
 - `.claude/rules/design-tokens.md` — die harte Token-only-Regel + Grep-Checks.

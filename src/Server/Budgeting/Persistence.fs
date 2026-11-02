@@ -148,6 +148,23 @@ let appendResult (movementId: Guid) (at: DateTime) (outcome: LineOutcome) : Asyn
         |> ignore
     }
 
+/// Die Kategorien der jüngsten Bewegungen einer Herkunft, neueste zuerst, ohne Dubletten.
+let queryRecentCategories (conn: SqliteConnection) (origin: MovementOrigin) (limit: int) : Guid list =
+    conn.Query<string>(
+        "SELECT category_id FROM budget_movements WHERE origin = @origin \
+         GROUP BY category_id ORDER BY MAX(rowid) DESC LIMIT @limit",
+        {| origin = originText origin; limit = limit |}
+    )
+    |> Seq.map Guid.Parse
+    |> Seq.toList
+
+/// "Zuletzt verwendet" im Picker: nur Verschiebungen zwischen zwei Kategorien.
+let loadRecentMoveCategories (limit: int) : Async<Guid list> =
+    async {
+        use conn = Core.getConnection ()
+        return queryRecentCategories conn MoneyMoved limit
+    }
+
 /// Alle Bewegungen einer Anwendung (in der Reihenfolge des Festhaltens) mit ihrem jüngsten
 /// Ergebnis. `Error` nennt eine Zeile mit unbekannter Herkunft.
 let loadApplication (applicationId: Guid) : Async<Result<MovementState list, string>> =

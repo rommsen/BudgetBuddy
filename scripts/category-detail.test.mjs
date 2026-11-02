@@ -204,30 +204,12 @@ test("Kategoriewechsel im Tab Buchungen: am PC per Zeile, im Sheet per Pfeil, je
   }
 });
 
-test("Handy: 'Verschieben' im Tab Geld öffnet das Sheet dieser Kategorie, danach steht der Inspektor im selben Tab", async () => {
-  const { context, page } = await openPage(390, 844);
-  try {
-    await row(page, "Lebensmittel m1bce").click();
-    await page.locator('[data-testid="detail-move"] button').click();
-    await page.locator('[data-testid="move-dialog"]').waitFor();
-    assert.match(await text(page.locator('[data-testid="move-headline"]')), /Lebensmittel m1bce/);
-    await page.locator(".bottom-sheet.active .sheet-close").click();
-    await page.locator('[data-testid="inspector-money"]').waitFor();
-    assert.equal(
-      await page.locator('[data-testid="inspector-tabs"]').getByRole("tab", { selected: true }).innerText(),
-      "Geld"
-    );
-  } finally {
-    await context.close();
-  }
-});
-
 test("PC: der Inspektor steht als Panel, der Sprung geht zum Panel im Kassenbuch und zurück", async () => {
   const { context, page } = await openPage(1440, 900);
   try {
     await row(page, "Lebensmittel m1bce").click();
     // Fixture: Zugewiesen 100, Aktivität -50, Verfügbar 50. Jeder Betrag steht unter seinem Titel.
-    assert.match(await text(page.locator('[data-testid="detail-assigned"]')), /^Zugewiesen 100,00/i);
+    assert.equal(await page.locator('[data-testid="assign-field"] input').inputValue(), "100,00");
     assert.match(await text(page.locator('[data-testid="detail-activity"]')), /^Aktivität -50,00/i);
     assert.match(await text(page.locator('[data-testid="detail-available"]')), /^Verfügbar 50,00/i);
     await openTab(page, "Buchungen");

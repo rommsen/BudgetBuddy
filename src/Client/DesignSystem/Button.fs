@@ -318,6 +318,41 @@ let sheetArrowGap () : ReactElement =
         prop.className $"inline-block {TouchTargets.minSize} -my-2"
     ]
 
+/// Ein Schritt am Handy ("+20"). Hält den Fokus im Feld daneben (ADR 0005 Punkt 2), gewirkt wird
+/// auf dem `click`. Am Handy 48 px, sechs passen in 360 px Breite.
+let amountStep (testId: string) (text: string) (onClick: unit -> unit) =
+    Html.button [
+        prop.type' "button"
+        prop.custom ("data-testid", testId)
+        prop.className $"inline-flex items-center justify-center {TouchTargets.minHeight} md:h-9 min-w-0 rounded-lg border {Borders.default'} bg-surface-elevated font-mono text-sm tabular-nums {Colors.textPrimary} cursor-pointer touch-manipulation hover:bg-surface-hover"
+        prop.onMouseDown (fun e -> e.preventDefault ())
+        prop.onClick (fun _ -> onClick ())
+        prop.text text
+    ]
+
+/// Die Klassen einer Zeile `von` oder `nach`, wählbar oder fest: Text und Betrag brechen um.
+let private sideRowClass =
+    $"flex w-full items-center justify-between gap-3 {TouchTargets.minHeight} rounded-lg border {Borders.default'} bg-surface-card px-3 py-2 text-left"
+
+/// Eine wählbare Zeile `von` oder `nach`: öffnet die Auswahl der Gegenseite.
+let sideRow (testId: string) (ariaLabel: string) (onClick: unit -> unit) (children: ReactElement list) =
+    Html.button [
+        prop.type' "button"
+        prop.custom ("data-testid", testId)
+        prop.ariaLabel ariaLabel
+        prop.className $"{sideRowClass} cursor-pointer touch-manipulation hover:bg-surface-hover"
+        prop.onClick (fun _ -> onClick ())
+        prop.children children
+    ]
+
+/// Dieselbe Zeile fest, ohne Auswahl.
+let sideRowFixed (testId: string) (children: ReactElement list) =
+    Html.div [
+        prop.custom ("data-testid", testId)
+        prop.className sideRowClass
+        prop.children children
+    ]
+
 /// Der Name einer Stelle als Knopf zurück nach Hause, etwa der Monat. `away` heißt: gerade woanders,
 /// dann ist er teal (ADR 0075: Navigation). Die feste Breite hält die Pfeile daneben an ihrem Platz.
 let homeLabel (testId: string) (ariaLabel: string) (away: bool) (text: string) (onClick: unit -> unit) =

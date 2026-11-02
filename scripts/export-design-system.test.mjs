@@ -171,6 +171,7 @@ const KNOWN_COMPONENT_CARD_IDS = [
   "components-swipe",
   "components-chipbar",
   "components-tabs",
+  "components-segmented",
   "components-filterpopover",
   "components-categorymultiselect",
   "components-loading",

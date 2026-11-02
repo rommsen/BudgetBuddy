@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-03 00:56 -- Task verified and completed: budgeting-c5w2n - "Tab Geld: Umschalter Zuweisen, Holen, Abgeben, rechnendes Feld mit Speichern beim Verlassen, Fehlbetrag-Knopf, Handy-Schritte, Holen und Abgeben nach Variante D"
+
+**Type:** Work / Task completion
+**Task:** budgeting-c5w2n - "Tab Geld: Umschalter Zuweisen, Holen, Abgeben, rechnendes Feld mit Speichern beim Verlassen, Fehlbetrag-Knopf, Handy-Schritte, Holen und Abgeben nach Variante D"
+**Summary:** Tab Geld mit Zuweisen, Holen, Abgeben
+**Duration:** 2h13m
+**Verification:** PASS (iteration 5)
+**Files changed:** 50
+**Tests added:** 131
+**ADRs written:** none
+
+---
+
 ## 2026-11-02 21:43 -- Batch started: [budgeting-c5w2n]
 
 **Type:** Work / Batch start

@@ -529,4 +529,13 @@ type BudgetApi = {
     /// Auftrag abgelehnt). Fehlgeschlagene Zeilen stehen im Bericht und gehen über
     /// `retryFailedTargets` erneut hinaus.
     moveMoney: string -> Shared.Budgeting.MoveRequest -> Async<Result<Shared.Budgeting.ApplyReport, string>>
+
+    /// Das Feld Zugewiesen (budgeting-c5w2n, ADR 0078): setzt das Zugewiesen einer Kategorie im Monat
+    /// absolut. Steht YNAB schon auf dem Wert, hat der Bericht keine Zeilen. Error heißt: nichts
+    /// geschrieben. Eine fehlgeschlagene Zeile geht über `retryFailedTargets` erneut hinaus.
+    assignMoney: string -> Shared.Budgeting.AssignRequest -> Async<Result<Shared.Budgeting.ApplyReport, string>>
+
+    /// "Zuletzt verwendet" im Picker der Gegenseite: Kategorien aus den Bewegungen mit Herkunft
+    /// Verschieben, neueste zuerst, höchstens zehn. Liest nur die Datenbank, kein YNAB.
+    getRecentMoveCategories: unit -> Async<Result<System.Guid list, string>>
 }

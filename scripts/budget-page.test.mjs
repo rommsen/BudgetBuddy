@@ -126,6 +126,9 @@ async function openPage(width, height, { fail = false, requestedKeys = [], fixtu
   await mockFrame(page, frameFor(fixture, months), () => {
     frames.count += 1;
   });
+  await page.route("**/api/BudgetApi/getRecentMoveCategories", (route) =>
+    route.fulfill({ contentType: "application/json", body: JSON.stringify({ Ok: [] }) })
+  );
   await page.route("**/api/BudgetApi/getBudgetMonth", (route) => {
     const [key] = JSON.parse(route.request().postData() ?? "[]");
     requestedKeys.push(key);
@@ -524,7 +527,8 @@ test("Sheet: ˄ ˅ wechselt ohne Schließen, Kopf und Tabs bleiben beim Scrollen
     assert.equal(scrolled.after.head, scrolled.before.head, "der Kopf steht fest");
     assert.equal(scrolled.after.tabs, scrolled.before.tabs, "die Tabs stehen fest");
 
-    await page.evaluate(() => document.documentElement.style.setProperty("--vvh", "412px"));
+    // Wie die Tastatur: der sichtbare Bereich wird kleiner, `Viewport` schreibt daraus `--vvh`.
+    await page.setViewportSize({ width: 390, height: 412 });
     await page.waitForFunction(() => document.querySelector(".bottom-sheet.fixed-height").getBoundingClientRect().height === 400);
   } finally {
     await context.close();
@@ -1299,15 +1303,12 @@ test("Tastatur: bei offenem Dialog passiert auf der Seite nichts, die Felder dar
 
     const nothingHappens = (label) => stayOnEssen(page, panel, label);
 
-    await page.locator('[data-testid="detail-move"]').getByRole("button").click();
-    // Fokus auf einem Knopf im Dialog: ein Eingabefeld sperrte die Tasten schon über `TextField`.
-    await page.locator('[data-testid="move-toggle"]').getByRole("button").focus();
-    await nothingHappens("Verschieben");
-    await page.locator('[data-testid="move-amount"] input').click();
+    // Fokus auf dem Umschalter wechselt die Tabs: das prüft der Tab-Wächter. Hier zählen die Felder.
+    await page.locator('[data-testid="money-mode"]').filter({ hasText: "Abgeben" }).click();
+    await page.locator('[data-testid="transfer-amount"] input').click();
     await nothingHappens("Betragsfeld");
 
-    const pickerOpener = page.locator('[data-testid="move-counterpart"]').getByRole("button");
-    await pickerOpener.click();
+    await page.locator('[data-testid="transfer-to"]').click();
     await page.getByPlaceholder(/suchen/i).filter({ visible: true }).last().waitFor();
     await nothingHappens("Picker");
   } finally {

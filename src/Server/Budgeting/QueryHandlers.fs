@@ -15,6 +15,15 @@ let budgetMonth (port: CommandHandlers.YnabPort) (monthKey: string) : Async<Ynab
         | Ok month -> return Ok (toBudgetMonth month)
     }
 
+/// Wie viele Kategorien "Zuletzt verwendet" liest. Mehr als der Picker zeigt: X und ausgeblendete
+/// Kategorien fallen dort noch heraus.
+[<Literal>]
+let RecentMoveLimit = 10
+
+/// "Zuletzt verwendet": lokal, kostet kein YNAB-Limit.
+let recentMoveCategories () : Async<Guid list> =
+    Budgeting.Persistence.loadRecentMoveCategories RecentMoveLimit
+
 /// Die beiden Lese-Quellen des Rahmens.
 type BudgetFramePort = {
     FetchMonths: unit -> Async<YnabResult<string list>>

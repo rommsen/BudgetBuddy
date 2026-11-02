@@ -241,6 +241,21 @@ let validateMoveRequest (monthKey: string) (request: Shared.Budgeting.MoveReques
 
     if errors.IsEmpty then Ok () else Error errors
 
+/// Prüft den Auftrag Zuweisen vor allem anderen (ADR 0078). Sammelt alle Fehler.
+let validateAssignRequest (monthKey: string) (request: Shared.Budgeting.AssignRequest) : Result<unit, string list> =
+    let errors =
+        [ match validateMonthKey monthKey with
+          | Error message -> message
+          | Ok _ -> ()
+          if request.CategoryId = System.Guid.Empty then
+              "Die Kategorie fehlt."
+          if request.Assigned.Currency <> "EUR" then
+              $"Zugewiesen wird nur in EUR, nicht in '{request.Assigned.Currency}'."
+          if abs request.Assigned.Amount > MaxMoveAmount then
+              "Der Betrag ist zu groß, höchstens 1.000.000,00 € gehen." ]
+
+    if errors.IsEmpty then Ok () else Error errors
+
 // ============================================
 // Bot-Schnittstelle (ledger-b0b7q, ADR 0066)
 // ============================================

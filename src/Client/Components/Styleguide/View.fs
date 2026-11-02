@@ -1482,6 +1482,42 @@ let private TabsDemo () =
         ]
     ]
 
+/// Segmented und die Bausteine des Tabs Geld (budgeting-c5w2n). Hält den Modus selbst, wie `TabsDemo`.
+[<ReactComponent>]
+let private SegmentedDemo () =
+    let active, setActive = React.useState "Zuweisen"
+    let amount, setAmount = React.useState 20m
+    let segment label : Segmented.Segment =
+        { Label = label; IsActive = (active = label); OnClick = fun () -> setActive label }
+    section "23b. Segmented, Schritte und Zeilen von und nach" [
+        note "Umschalter mit aria-pressed, aktiv in Teal. Schritte halten den Fokus im Feld daneben. styleguide.md §5."
+        Html.div [
+            prop.custom ("data-ds-card", "components-segmented")
+            prop.custom ("data-ds-card-name", "Segmented")
+            prop.custom ("data-ds-card-subtitle", "Modi, Schritte, Zeilen von und nach")
+            prop.className "flex flex-col gap-3 max-w-sm"
+            prop.children [
+                Segmented.view "demo-segmented" "Beispiel" [ segment "Zuweisen"; segment "Holen"; segment "Abgeben" ]
+                Html.div [
+                    prop.className "grid grid-cols-6 gap-1"
+                    prop.children [
+                        for label, delta in [ "-50", -50m; "-20", -20m; "-10", -10m; "+10", 10m; "+20", 20m; "+50", 50m ] do
+                            Button.amountStep "demo-step" label (fun () -> setAmount (amount + delta))
+                    ]
+                ]
+                Money.afterAmount amount "EUR"
+                Button.sideRow "demo-side" "von: Gegenseite wählen" ignore [
+                    Html.span [ prop.text "von Kleidung" ]
+                    Money.available 30m "EUR"
+                ]
+                Button.sideRowFixed "demo-side-fixed" [
+                    Html.span [ prop.text "nach Urlaub" ]
+                    Money.available -10m "EUR"
+                ]
+            ]
+        ]
+    ]
+
 /// ChipBar: aktive und inaktive Chips, mit und ohne "×", "Alle Filter löschen".
 let private chipBarSection =
     section "23. ChipBar" [
@@ -1985,6 +2021,7 @@ let view () =
                         voiceSection
                         chipBarSection
                         TabsDemo ()
+                        SegmentedDemo ()
                         FilterPopoverDemo()
                         FilterPopoverMenuDemo()
                         DetailDemo()

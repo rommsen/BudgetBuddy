@@ -738,6 +738,13 @@ let popoverInDialog (isOpen: bool) (props: CategoryPickerProps) : ReactElement =
 let popoverInPanel (isOpen: bool) (props: CategoryPickerProps) : ReactElement =
     popoverWithWidth FilterPopover.panelWidthClass isOpen props
 
+/// Wie `popoverInPanel`, aber für einen Auslöser im Scrollbereich des Panels: das Popover rückt beim
+/// Öffnen ins Bild, statt am Rand des Panels abgeschnitten zu werden.
+let popoverInPanelRevealed (isOpen: bool) (props: CategoryPickerProps) : ReactElement =
+    FilterPopover.viewRevealed
+        { IsOpen = isOpen; OnClose = props.OnClose; WidthClassName = FilterPopover.panelWidthClass }
+        (popoverChildren props)
+
 let private sheetWith (elevated: bool) (markCurrent: bool) (isOpen: bool) (subtitle: string option) (props: CategoryPickerProps) : ReactElement =
     // Das Sheet schließt gleich: ein später synthetischer Klick soll nicht die Liste dahinter
     // treffen (ADR 0005, Click-Commit).
