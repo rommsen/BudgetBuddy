@@ -1,7 +1,7 @@
 ---
 id: budgeting-q7m2c
 title: "Spike: Liefert YNAB die Anzeigereihenfolge der Kategorien, wie weit reichen Monate, und erhält eine Target-Änderung Tag und Rhythmus?"
-status: todo
+status: doing
 type: spike
 context: budgeting
 created: 2026-11-02

@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-02 12:21 -- Batch started: [budgeting-q7m2c]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-q7m2c - "Spike: Liefert YNAB die Anzeigereihenfolge der Kategorien, wie weit reichen Monate, und erhält eine Target-Änderung Tag und Rhythmus?"
+**Parallel:** scoped — builder named budgeting-q7m2c; infrastructure-jsys4 not dispatched (wartet auf Roman)
+
+---
+
 ## 2026-11-02 12:20 -- Modeling / Captured: budgeting-m3x7f - "Monatserster: Leiste mit Targets prüfen, Targets anwenden, rot decken und verteilen, Vorschau mit abwählbaren Zeilen"
 
 **Type:** Modeling / Capture
