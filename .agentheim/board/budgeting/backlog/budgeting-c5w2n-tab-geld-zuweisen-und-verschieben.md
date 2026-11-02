@@ -22,7 +22,7 @@ Regeln: `docs/ux/budget/konzept.md`, Abschnitte Zuweisen sowie Geld holen und ab
 - Befehl Zuweisen mit Herkunft "Zuweisen" (ADR 0069) über die vorhandene Sperre je Monat, sendet genau einen PATCH beim Verlassen.
 - Rechnen als reine Client-Funktion mit `decimal`, die API erhält den fertigen Betrag.
 - Knopf "12,30 zuweisen" aus `fehlt`.
-- Umschalter Geld holen und abgeben nutzt die Gegenseite des bestehenden Verschiebens, Vorschläge nach freiem Betrag, `CategoryPicker`.
+- Umschalter Geld holen und abgeben nutzt die Gegenseite des bestehenden Verschiebens. Aufbau nach Variante D der Zeichenfläche, Seite "Geld bewegen": großer Betrag, `von` und `nach` untereinander, Knopf nennt die Handlung, `CategoryPicker` mit "Zuletzt genutzt". Offen in der Modellierung: wie Zugewiesen und Holen/Abgeben im Tab Geld zusammen Platz finden.
 - Der bisherige Verschieben-Dialog entfällt, Offene Verschiebung bleibt.
 
 ## Acceptance criteria
@@ -30,7 +30,7 @@ Werden in der taktischen Modellierung geschärft.
 - [ ] Rechenfunktion: `+20`, `-20`, `*2`, `/2`, `900+40`, Punkt vor Strich, Division durch 0, deutsche Beträge, Unsinn.
 - [ ] Mehrere Handy-Schritte ergeben einen Schreibvorgang und eine Budget-Bewegung, gespeichert bei Tab-, Kategorie- und Monatswechsel und beim Schließen.
 - [ ] Verlassen ohne Änderung schreibt nichts, Esc verwirft.
-- [ ] Holen und Abgeben, Warnung bei Überziehen der Quelle, Teilfehler bleiben als Offene Verschiebung sichtbar.
+- [ ] Holen und Abgeben, Warnung bei Überziehen der Quelle, lange Kategorienamen werden nicht abgeschnitten, Teilfehler bleiben als Offene Verschiebung sichtbar.
 - [ ] Knopf `fehlt` respektiert pausierte Targets und zu wenig Zu verteilen.
 - [ ] Browser-Wächter: Sheet mit offener Tastatur, Schritte behalten den Fokus (ADR 0005), Trefferflächen 48 px.
 - [ ] `./verify.sh` zeigt `VERIFY: PASS`.
