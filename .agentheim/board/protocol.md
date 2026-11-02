@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-02 12:52 -- Batch started: [budgeting-g8s3w]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-g8s3w - "Budget-Seite neu: Liste und Inspektor mit vier Tabs, freie Monate, Kategorie-Reihenfolge, Filter und Gelb für fehlt"
+**Parallel:** scoped — builder named budgeting-g8s3w; infrastructure-jsys4 not dispatched (wartet auf Roman)
+
+---
+
 ## 2026-11-02 12:52 -- Modeling / Promoted: budgeting-g8s3w - "Budget-Seite neu: Liste und Inspektor mit vier Tabs, freie Monate, Kategorie-Reihenfolge, Filter und Gelb für fehlt"
 
 **Type:** Modeling / Promote

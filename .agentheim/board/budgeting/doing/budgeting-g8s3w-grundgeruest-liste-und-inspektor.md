@@ -1,7 +1,7 @@
 ---
 id: budgeting-g8s3w
 title: "Budget-Seite neu: Liste und Inspektor mit vier Tabs, freie Monate, Kategorie-Reihenfolge, Filter und Gelb für fehlt"
-status: todo
+status: doing
 type: feature
 context: budgeting
 created: 2026-11-02
