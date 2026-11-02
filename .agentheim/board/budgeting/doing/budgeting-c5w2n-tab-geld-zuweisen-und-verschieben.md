@@ -1,7 +1,7 @@
 ---
 id: budgeting-c5w2n
 title: "Tab Geld: Umschalter Zuweisen, Holen, Abgeben, rechnendes Feld mit Speichern beim Verlassen, Fehlbetrag-Knopf, Handy-Schritte, Holen und Abgeben nach Variante D"
-status: todo
+status: doing
 type: feature
 context: budgeting
 created: 2026-11-02

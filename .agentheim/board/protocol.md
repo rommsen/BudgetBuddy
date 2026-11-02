@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-02 21:43 -- Batch started: [budgeting-c5w2n]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-c5w2n - "Tab Geld: Umschalter Zuweisen, Holen, Abgeben, rechnendes Feld mit Speichern beim Verlassen, Fehlbetrag-Knopf, Handy-Schritte, Holen und Abgeben nach Variante D"
+**Parallel:** scoped: Roman nannte Task 2 als nächsten Schritt
+
+---
+
 ## 2026-11-02 21:43 -- Modeling / Promoted: budgeting-c5w2n - "Tab Geld: Umschalter Zuweisen, Holen, Abgeben, rechnendes Feld mit Speichern beim Verlassen, Fehlbetrag-Knopf, Handy-Schritte, Holen und Abgeben nach Variante D"
 
 **Type:** Modeling / Promote
