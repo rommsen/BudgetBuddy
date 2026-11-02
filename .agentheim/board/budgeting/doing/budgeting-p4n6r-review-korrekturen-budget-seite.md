@@ -1,7 +1,7 @@
 ---
 id: budgeting-p4n6r
 title: "Review-Korrekturen zur neuen Budget-Seite: Monatswechsel ohne Sprung, Pink raus, Trefferflächen, sticky Filter, Testlücken"
-status: todo
+status: doing
 type: bug
 context: budgeting
 created: 2026-11-02

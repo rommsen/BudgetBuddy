@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-02 14:29 -- Batch started: [budgeting-p4n6r]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-p4n6r - "Review-Korrekturen zur neuen Budget-Seite: Monatswechsel ohne Sprung, Pink raus, Trefferflächen, sticky Filter, Testlücken"
+**Parallel:** scoped — Review-Korrekturen zu budgeting-g8s3w
+
+---
+
 ## 2026-11-02 14:29 -- Modeling / Promoted: budgeting-p4n6r - "Review-Korrekturen zur neuen Budget-Seite: Monatswechsel ohne Sprung, Pink raus, Trefferflächen, sticky Filter, Testlücken"
 
 **Type:** Modeling / Promote
