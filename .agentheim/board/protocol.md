@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-02 12:52 -- Modeling / Promoted: budgeting-g8s3w - "Budget-Seite neu: Liste und Inspektor mit vier Tabs, freie Monate, Kategorie-Reihenfolge, Filter und Gelb für fehlt"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-02 12:39 -- Work session ended
 
 **Type:** Work / Session end

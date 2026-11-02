@@ -10,14 +10,15 @@ Catalog of this bounded context's tasks by status.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 6
-- **Todo:** 0
+- **Backlog:** 5
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 11
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **budgeting-g8s3w** — "Budget-Seite neu: Liste und Inspektor mit vier Tabs, freie Monate, Kategorie-Reihenfolge, Filter und Gelb für fehlt" (feature) — `todo/budgeting-g8s3w-grundgeruest-liste-und-inspektor.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -56,7 +57,6 @@ prior-art matcher additionally checks `done-archive/` when present.
 - **budgeting-m3x7f** — "Monatserster: Leiste mit Targets prüfen, Targets anwenden, rot decken und verteilen, Vorschau mit abwählbaren Zeilen" (feature) — `backlog/budgeting-m3x7f-monatserster-leiste.md`
 - **budgeting-t6p8z** — "Tab Target: Targets in BB anlegen, ändern und entfernen, je Monat pausieren und die Frage Passt das Target noch? mit gespeichertem So lassen" (feature) — `backlog/budgeting-t6p8z-tab-target-aendern-pausieren-pruefen.md`
 - **budgeting-c5w2n** — "Tab Geld: rechnendes Zuweisen, Fehlbetrag-Knopf, Handy-Schritte, Geld holen und abgeben mit Vorschlägen, Speichern beim Verlassen" (feature) — `backlog/budgeting-c5w2n-tab-geld-zuweisen-und-verschieben.md`
-- **budgeting-g8s3w** — "Budget-Seite neu: Liste und Inspektor mit vier Tabs, freie Monate, Kategorie-Reihenfolge, Filter und Gelb für fehlt" (feature) — `backlog/budgeting-g8s3w-grundgeruest-liste-und-inspektor.md`
 - **budgeting-dyn8g** — "Budget-Historie als Ansicht, allgemein und pro Kategorie, nach Art filterbar" (feature) — `backlog/budgeting-dyn8g-budget-historie-ansicht.md`
 - **budgeting-bk6tq** — "Spike: Ausgaben am Monatswechsel. Wann kommen Buchungen bei Comdirect und ING an (vorgemerkt, gebucht, welches Datum), und was heißt das für Auffüllen auf einen festen Betrag am Monatsersten?" (spike) — `backlog/budgeting-bk6tq-vortrag-ab-dem-ersten-tag.md`
 <!-- backlog-list:end -->
