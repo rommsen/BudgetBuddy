@@ -6,7 +6,7 @@ type: feature
 context: budgeting
 created: 2026-11-02
 completed:
-depends_on: [design-system-001, budgeting-g8s3w, budgeting-p4n6r]
+depends_on: [design-system-001, budgeting-g8s3w, budgeting-p4n6r, budgeting-h3k9d]
 blocks: [budgeting-dyn8g]
 tags: [budget, zuweisen, verschieben]
 related_adrs: [0005, 0055, 0069, 0070]
