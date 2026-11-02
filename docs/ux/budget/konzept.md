@@ -57,7 +57,10 @@ Der Seitenkopf trägt Monat, Suche, Filter, Zu verteilen, Targets anwenden und K
 
 ### Geld holen und abgeben
 
-- Ein Umschalter statt eigener Decken-Pfad. Rote Kategorien starten auf Holen mit vorbelegtem Betrag.
+- Der Tab Geld hat oben einen Umschalter mit drei Modi: **Zuweisen, Holen, Abgeben** (Variante E auf der
+  Zeichenfläche, Seite "Geld bewegen"). Das ersetzt einen eigenen Decken-Pfad, das Sheet bleibt gleich hoch.
+  Standard ist Zuweisen, rote Kategorien starten auf Holen mit vorbelegtem Betrag. "Target pausieren" steht
+  im Modus Zuweisen.
 - Aufbau wie Variante D auf der Zeichenfläche (Seite "Geld bewegen"): großer Betrag, darunter `von`
   und `nach` untereinander in voller Breite, je mit dem Stand danach. Der orange Knopf nennt die
   Handlung ("20,00 € aus Kleidung holen", "20,00 € an Kleidung abgeben").
