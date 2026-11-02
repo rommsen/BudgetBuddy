@@ -1,7 +1,7 @@
 ---
 id: budgeting-h3k9d
 title: "Budget-Seite dichter: Kopf in einer Zeile, volle Breite, einzeilige Zeilen, Tastatur seitenweit, Filter Überzogen, Kategorie-Pfeile im Sheet"
-status: todo
+status: doing
 type: feature
 context: budgeting
 created: 2026-11-02

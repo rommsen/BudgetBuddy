@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-02 18:02 -- Batch started: [budgeting-h3k9d]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-h3k9d - "Budget-Seite dichter: Kopf in einer Zeile, volle Breite, einzeilige Zeilen, Tastatur seitenweit, Filter Überzogen, Kategorie-Pfeile im Sheet"
+**Parallel:** scoped — Romans erster Blick
+
+---
+
 ## 2026-11-02 18:02 -- Modeling / Promoted: budgeting-h3k9d - "Budget-Seite dichter: Kopf in einer Zeile, volle Breite, einzeilige Zeilen, Tastatur seitenweit, Filter Überzogen, Kategorie-Pfeile im Sheet"
 
 **Type:** Modeling / Promote
