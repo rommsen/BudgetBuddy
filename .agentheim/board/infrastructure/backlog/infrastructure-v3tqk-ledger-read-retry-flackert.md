@@ -24,3 +24,6 @@ Die Ursache klären und den Test auf eine Bedingung warten lassen statt auf eine
 - [ ] Die Ursache steht im Outcome, mit Beleg.
 - [ ] Der Test bleibt in zehn vollen `npm run test:scripts`-Läufen grün.
 - [ ] `./verify.sh` zeigt `VERIFY: PASS`.
+
+## Notes
+Dublette von infrastructure-h4q8v. Die Ursache ist dort belegt, Lösung dort. Diese Task entfällt, sobald Roman sie verwirft.

@@ -5,6 +5,23 @@ Newest entries on top.
 
 ---
 
+## 2026-11-02 21:11 -- Modeling / Promoted: infrastructure-h4q8v - "Wächter ledger-read-retry: mögliches Lastrennen bei abortWindowMs 200"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-02 21:11 -- Modeling / Refined: infrastructure-h4q8v, infrastructure-t5m2b, infrastructure-v3tqk - Wackeltest ledger-read-retry und Wächter-Durchsicht
+
+**Type:** Modeling / Refine
+**BC:** infrastructure
+**Status after:** infrastructure-h4q8v todo, infrastructure-t5m2b backlog, infrastructure-v3tqk backlog
+**Summary:** Ursache des Flackerns belegt: zwei Date.now()-Lesungen im Test bei Fenster 0 kippen über eine Millisekundengrenze, der erste Aufruf wird dann beantwortet statt abgebrochen. Vermutung abortWindowMs 200 widerlegt. Roman entscheidet: Tabelle löschen, das F#-Inventar in RetryTests.fs deckt die Aufrufstellen (Mutante belegt). t5m2b wartet auf budgeting-m3x7f und verlangt Mutantenbelege und Laufzeiten. v3tqk ist Dublette.
+
+---
+
 ## 2026-11-02 20:10 -- Work session ended
 
 **Type:** Work / Session end
