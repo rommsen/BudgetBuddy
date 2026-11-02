@@ -259,3 +259,10 @@ FAIL. `./verify.sh` war grün, die beiden früheren Noten sind behoben, `apiWiri
 - Stiller Klick: `ConfirmTargets`, `RetryFailed`, `RetryMove` tun bei nicht leerer Schlange nichts, die Knöpfe bleiben aktiv.
 
 Vierte Iteration über die Grenze von drei hinaus, entschieden vom Conductor, weil der Owner selbständiges Arbeiten verlangt hat und nichts gemergt ist. Im Bericht an Roman ausgewiesen.
+
+## Verifier-Note Iteration 4
+
+FAIL. `./verify.sh` war grün, innerhalb der Seite ist die Regel dicht.
+
+- Stiller Klick auf dem Toast "Erneut senden": `ToastActionClicked` schließt den Toast, `startMove` tut bei laufender Schlange nichts und meldet nichts.
+- Umgehung über den Seitenwechsel: `PageEntered` läuft während eines Aufrufs durch, `enterPage` setzt `TabMoney = None`, damit fällt `moveRunning` auf falsch, obwohl der Aufruf läuft.
