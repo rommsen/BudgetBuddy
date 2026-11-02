@@ -33,3 +33,6 @@ Werden in der taktischen Modellierung geschärft.
 
 ## Hinweise aus dem Review von budgeting-g8s3w
 `PreviewReady` und `ApplyDone` (`Types.fs:22`, `:29`) für die abwählbaren Zeilen zu Records machen. `confirmTargets` schickt heute die ganze Vorschau.
+
+## Hinweis aus Romans Durchsicht
+Das Feld heißt "Überzogene decken" statt "rot decken", der Filter "Überzogen" statt "Rot" (budgeting-h3k9d).

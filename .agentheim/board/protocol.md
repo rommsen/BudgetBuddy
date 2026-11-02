@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-02 18:02 -- Modeling / Promoted: budgeting-h3k9d - "Budget-Seite dichter: Kopf in einer Zeile, volle Breite, einzeilige Zeilen, Tastatur seitenweit, Filter Überzogen, Kategorie-Pfeile im Sheet"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-02 17:17 -- Work session ended
 
 **Type:** Work / Session end
