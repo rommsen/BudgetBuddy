@@ -1,7 +1,7 @@
 ---
 id: budgeting-q7m2c
 title: "Spike: Liefert YNAB die Anzeigereihenfolge der Kategorien, wie weit reichen Monate, und erhält eine Target-Änderung Tag und Rhythmus?"
-status: doing
+status: done
 type: spike
 context: budgeting
 created: 2026-11-02
@@ -40,3 +40,19 @@ Lesend gegen Romans Budget, schreibend nur gegen das Budget Test. Kein Produktio
 
 ## Notes
 Ausführung über echte Schlüssel nur außerhalb des normalen Testlaufs; ein normaler Testlauf ruft nie echte APIs auf.
+
+## Outcome
+
+Spike abgeschlossen. Bericht: `.agentheim/knowledge/research/ynab-reihenfolge-monate-target-schreiben-2026-11-02.md`
+(Entwurf in `.worktrees/.results/budgeting-q7m2c-report.md`, der Conductor verschiebt ihn). Romans
+Budget wurde nur gelesen, geschrieben wurde nur im Budget Test.
+
+1. **Reihenfolge:** `GET /months/{month}` ist ungeordnet (126 von 128 sichtbaren Positionen weichen von `GET /categories` ab, Gruppen nicht zusammenhängend) und wechselt von Monat zu Monat. Der Kommentar an `toBudgetMonth` trifft also nicht zu. `GET /categories` ist über Aufrufe stabil, weder alphabetisch noch nach Id und wirkt von Hand sortiert; die Spec kennt kein Sortierfeld. Empfehlung: nach `/categories` ordnen und über die Kategorie-Id mit den Monatswerten zusammenführen. **Offen:** Roman bestätigt die Anzeige an der lokalen Datei `.worktrees/.results/budgeting-q7m2c-reihenfolge.txt`, die nie committet wird.
+2. **Monatsgrenzen:** Nach hinten gilt `first_month`. Nach vorn endet das Fenster einen Monat hinter der letzten Zuweisung und hängt nicht am Kalender; `GET /months` zeigt es genau. Jenseits davon geben GET und PATCH 404. Eine Zuweisung ungleich 0 im letzten Monat öffnet den nächsten, das Zurücksetzen auf 0 schließt ihn nicht wieder. `PATCH` auf den Vormonat und den letzten Monat geht; Monate älter als der Vormonat sind nicht belegt, weil Test erst 2026-10 beginnt. Empfehlung: über die Liste aus `GET /months` blättern.
+3. **Target schreiben:** Nur `goal_target` senden erhält Tag, Rhythmus, Datum und `goal_needs_whole_amount`. `goal_frequency` ersetzt das Target: Das Datum geht immer verloren (auch bei gleicher Art), der Tag beim Wechsel der Art. `goal_day` ist nicht schreibbar. Jährlich mit Datum geht in zwei Aufrufen. Empfehlung: nur geänderte Felder senden und beim Wechsel der Art warnen.
+
+**Nicht belegt:** "Bleibt erhalten" für NEED monatlich mit `goal_day` (42 Targets in Romans Budget), alle 3 Monate mit Datum (4) und MF (18), weil sich diese Formen über die API nicht herstellen lassen. Vor dem ersten Target-Schreiben in Romans Budget sollte Roman ein Monats-Target mit Tag im Budget Test von Hand anlegen, damit ein `PATCH` nur mit `goal_target` das belegt. Die Wirkung von `goal_creation_month` auf Vormonate ist ungeprüft.
+
+**Budget Test danach:** Zuweisungen auf 0, die Probe-Targets entfernt. Geändert geblieben: Transportation ohne `goal_day` (vorher 6, nicht wiederherstellbar), `goal_creation_month` bei Transportation und Vacation auf 2026-11, Monatsfenster bis 2027-02 (vorher 2026-12).
+
+Die README-Bullets sind als Append ins Abschnitt "Open questions" gemeldet; die Prüfung mit `scripts/readme-delta-check.mjs` lief für das Delta mit Exit 0. Nach dieser Prüfung wurde der Wortlaut des dritten Bullets zu `goal_frequency` korrigiert, die Struktur blieb gleich.

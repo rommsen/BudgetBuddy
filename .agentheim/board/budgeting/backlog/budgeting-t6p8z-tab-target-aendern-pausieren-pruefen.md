@@ -24,6 +24,9 @@ Regeln: `docs/ux/budget/konzept.md`, Abschnitt Targets.
 - Prüfung aus dem Kassenbuch, Vergleichsregel je Target-Art, Schwelle und gespeichertes "So lassen" in der taktischen Modellierung festlegen, anhand echter Daten.
 - Tab zeigt `Target •`, wenn die Prüfung offen ist. Vergangene Monate erlauben kein Ändern und Pausieren.
 
+## Notes
+Aus budgeting-q7m2c (Research `ynab-reihenfolge-monate-target-schreiben-2026-11-02`): Beim Ändern nur geänderte Felder senden, beim Betrag nur `goal_target`. `goal_frequency` ersetzt das Target, das Datum geht dabei immer verloren, der Tag beim Wechsel der Art, deshalb warnen. "Jährlich mit Datum" braucht zwei Aufrufe. **Vor dem ersten Schreiben in Romans Budget:** Roman legt im Budget Test von Hand ein Monats-Target mit Tag an, ein `PATCH` nur mit `goal_target` belegt dann, dass der Tag bleibt (42 Targets haben diese Form). Unbelegt bleiben außerdem alle 3 Monate mit Datum (4) und MF (18).
+
 ## Acceptance criteria
 Werden in der taktischen Modellierung geschärft.
 - [ ] Pause wirkt in Fehlbetrag, Vorschau und Targets anwenden, endet mit dem Monat, und eine YNAB-Pause wird weiter beachtet.

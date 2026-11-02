@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-02 12:30 -- Task verified and completed: budgeting-q7m2c - "Spike: Liefert YNAB die Anzeigereihenfolge der Kategorien, wie weit reichen Monate, und erhält eine Target-Änderung Tag und Rhythmus?"
+
+**Type:** Work / Task completion
+**Task:** budgeting-q7m2c - "Spike: Liefert YNAB die Anzeigereihenfolge der Kategorien, wie weit reichen Monate, und erhält eine Target-Änderung Tag und Rhythmus?"
+**Summary:** Die Monatsantwort ist ungeordnet und GET /categories die Quelle der Reihenfolge, das Monatsfenster folgt GET /months, und nur goal_target zu senden erhält Tag, Rhythmus und Datum.
+**Duration:** 8m
+**Verification:** PASS (iteration 1)
+**Files changed:** 0
+**Tests added:** 0
+**ADRs written:** none
+
+---
+
 ## 2026-11-02 12:21 -- Batch started: [budgeting-q7m2c]
 
 **Type:** Work / Batch start
