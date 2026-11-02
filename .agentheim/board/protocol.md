@@ -5,6 +5,24 @@ Newest entries on top.
 
 ---
 
+## 2026-11-02 21:43 -- Modeling / Promoted: budgeting-c5w2n - "Tab Geld: Umschalter Zuweisen, Holen, Abgeben, rechnendes Feld mit Speichern beim Verlassen, Fehlbetrag-Knopf, Handy-Schritte, Holen und Abgeben nach Variante D"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-02 21:43 -- Modeling / Refined: budgeting-c5w2n - Tab Geld
+
+**Type:** Modeling / Refine
+**BC:** budgeting
+**Status after:** todo
+**Summary:** Variante E gewählt (Umschalter Zuweisen, Holen, Abgeben). Kriterien je Heimat-Ebene, innere Form mit TabMoney, leaveInspector und Schreibschlange, Aufteilen als erster Schritt. Keine Vorbelegung der Gegenseite, Pausieren-Knopf wandert nach budgeting-t6p8z, Wortlaut Zuletzt verwendet.
+**ADRs written:** 0078
+
+---
+
 ## 2026-11-02 21:29 -- Modeling / Sichtprüfung: budgeting-h3k9d - Budget-Seite
 
 **Type:** Modeling / Refine

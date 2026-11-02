@@ -10,14 +10,15 @@ Catalog of this bounded context's tasks by status.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 7
-- **Todo:** 0
+- **Backlog:** 6
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 14
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **budgeting-c5w2n** — "Tab Geld: Umschalter Zuweisen, Holen, Abgeben, rechnendes Feld mit Speichern beim Verlassen, Fehlbetrag-Knopf, Handy-Schritte, Holen und Abgeben nach Variante D" (feature) — `todo/budgeting-c5w2n-tab-geld-zuweisen-und-verschieben.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -60,7 +61,6 @@ prior-art matcher additionally checks `done-archive/` when present.
 - **budgeting-r7t3k** — "Budget-Seite: Rückkehr aus dem Kassenbuch und Schließen von Targets ohne Sprung" (bug) — `backlog/budgeting-r7t3k-budget-seite-r-ckkehr-aus-dem-kassenbuch-und-schlie-en-von-t.md`
 - **budgeting-m3x7f** — "Monatserster: Leiste mit Targets prüfen, Targets anwenden, rot decken und verteilen, Vorschau mit abwählbaren Zeilen" (feature) — `backlog/budgeting-m3x7f-monatserster-leiste.md`
 - **budgeting-t6p8z** — "Tab Target: Targets in BB anlegen, ändern und entfernen, je Monat pausieren und die Frage Passt das Target noch? mit gespeichertem So lassen" (feature) — `backlog/budgeting-t6p8z-tab-target-aendern-pausieren-pruefen.md`
-- **budgeting-c5w2n** — "Tab Geld: rechnendes Zuweisen, Fehlbetrag-Knopf, Handy-Schritte, Geld holen und abgeben mit Vorschlägen, Speichern beim Verlassen" (feature) — `backlog/budgeting-c5w2n-tab-geld-zuweisen-und-verschieben.md`
 - **budgeting-dyn8g** — "Budget-Historie als Ansicht, allgemein und pro Kategorie, nach Art filterbar" (feature) — `backlog/budgeting-dyn8g-budget-historie-ansicht.md`
 - **budgeting-bk6tq** — "Spike: Ausgaben am Monatswechsel. Wann kommen Buchungen bei Comdirect und ING an (vorgemerkt, gebucht, welches Datum), und was heißt das für Auffüllen auf einen festen Betrag am Monatsersten?" (spike) — `backlog/budgeting-bk6tq-vortrag-ab-dem-ersten-tag.md`
 <!-- backlog-list:end -->

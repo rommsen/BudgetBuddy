@@ -29,6 +29,7 @@ Aus budgeting-q7m2c (Research `ynab-reihenfolge-monate-target-schreiben-2026-11-
 
 ## Acceptance criteria
 Werden in der taktischen Modellierung geschärft.
+- [ ] Der Knopf "Target pausieren" steht im Tab Geld im Modus Zuweisen, auf dem in budgeting-c5w2n frei gelassenen Platz.
 - [ ] Pause wirkt in Fehlbetrag, Vorschau und Targets anwenden, endet mit dem Monat, und eine YNAB-Pause wird weiter beachtet.
 - [ ] "So lassen" überlebt das Neuladen und meldet sich erst bei spürbar anderem Vergleichswert.
 - [ ] Target-Änderung, die YNAB ablehnt, wird konkret gemeldet.

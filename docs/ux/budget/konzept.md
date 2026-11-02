@@ -65,7 +65,8 @@ Der Seitenkopf trägt Monat, Suche, Filter, Zu verteilen, Targets anwenden und K
   und `nach` untereinander in voller Breite, je mit dem Stand danach. Der orange Knopf nennt die
   Handlung ("20,00 € aus Kleidung holen", "20,00 € an Kleidung abgeben").
 - Die Gegenseite wählt man im vorhandenen `CategoryPicker` (am PC Popover, am Handy `sheetLayered`),
-  oben mit "Zuletzt genutzt" aus den Budget-Bewegungen. Im Tab selbst stehen keine Vorschläge.
+  oben mit "Zuletzt verwendet" aus den Budget-Bewegungen. Im Tab selbst stehen keine Vorschläge,
+  die Gegenseite ist nie vorbelegt.
   **Frei** ist Verfügbar minus offener Fehlbetrag, pausierte Targets sperren nichts.
 - Das Betragsfeld rechnet wie Zugewiesen.
 - Über den freien Betrag hinaus holen geht, die Quelle wird rot, es gibt eine Warnung und keine Sperre.
