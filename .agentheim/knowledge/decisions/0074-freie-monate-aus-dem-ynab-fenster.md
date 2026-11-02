@@ -45,15 +45,14 @@ Dieselbe Probe zeigt: `GET /months/{month}` ist ungeordnet und je Monat anders g
    | Targets anwenden | nein | ja | ja |
    | Target ändern, pausieren | nein | ja | ja |
 
-6. **Reihenfolge der Kategorien aus `GET /categories`, falls Roman die Anzeige bestätigt.** Gruppen
-   und Kategorien stehen in dieser Reihenfolge, die Monatswerte kommen weiter aus
-   `GET /months/{month}`, zusammengeführt über die Kategorie-Id. Die Bestätigung steht beim
-   Schreiben dieses ADR noch aus. Widerspricht Roman, wird die Reihenfolge einmalig in BB erfasst.
+6. **Reihenfolge der Kategorien aus `GET /categories`.** Roman hat am 2026-11-02 bestätigt, dass sie
+   seiner YNAB-Anzeige entspricht. Gruppen und Kategorien stehen in dieser Reihenfolge, die
+   Monatswerte kommen weiter aus `GET /months/{month}`, zusammengeführt über die Kategorie-Id.
 
 ## Consequences
 ### Positive
 - BB kann jeden Monat zeigen, den YNAB offen hat, und braucht keine Annahme über den Kalender.
-- Bestätigt Roman die Anzeige, zeigt die Seite seine Reihenfolge ohne eigene Erfassung in BB.
+- Die Seite zeigt Romans Reihenfolge ohne eigene Erfassung in BB.
 - Der falsche Kommentar in `toBudgetMonth` fällt weg.
 
 ### Negative

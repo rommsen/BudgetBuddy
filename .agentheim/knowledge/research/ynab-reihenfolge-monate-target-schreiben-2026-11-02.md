@@ -56,7 +56,7 @@ Damit ist der Befund aus der Oberfläche erklärt: `toBudgetMonth` übernimmt di
 Gruppen stehen mittendrin statt am Ende (Position 5 und 13 von 14), und die Kategorien stehen
 nicht alphabetisch. Im Budget Test folgt die Antwort der Vorlage: Bills, Needs, Wants, innerhalb
 von Bills Rent, Phone, Utilities. Beides passt zu einer gepflegten Anzeigereihenfolge. Einen
-Beweis liefert die API nicht: **Roman bestätigt die Anzeige von Hand an der lokalen Datei.**
+Beweis liefert die API nicht, **Roman hat die Anzeige am 2026-11-02 von Hand bestätigt.**
 
 Monatsantwort und `/categories` tragen dieselbe Menge an Ids, die Zuordnung ist also verlustfrei.
 
