@@ -5,6 +5,22 @@ Newest entries on top.
 
 ---
 
+## 2026-11-03 20:48 -- Modeling / Promoted: budgeting-r7t3k - "Budget-Seite: Rückkehr aus dem Kassenbuch und Schließen von Targets ohne Sprung"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-03 20:48 -- Modeling / Promoted: budgeting-dyn8g - "Tab Historie je Kategorie: Aufbau von Verfügbar, Bewegungen des Monats und Ausgaben der letzten 6 Monate aus dem Kassenbuch"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-03 20:48 -- Modeling / Refined: budgeting-r7t3k - Rückkehr aus dem Kassenbuch und Schließen von Targets ohne Sprung
 
 **Type:** Modeling / Refine

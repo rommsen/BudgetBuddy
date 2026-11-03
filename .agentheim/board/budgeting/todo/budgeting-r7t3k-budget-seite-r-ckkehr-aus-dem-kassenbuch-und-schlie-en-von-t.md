@@ -1,7 +1,7 @@
 ---
 id: budgeting-r7t3k
 title: "Budget-Seite: Rückkehr aus dem Kassenbuch und Schließen von Targets ohne Sprung"
-status: backlog
+status: todo
 type: bug
 context: budgeting
 created: 2026-11-02
