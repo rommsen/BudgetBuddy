@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 15
-- **Todo:** 1
+- **Backlog:** 14
+- **Todo:** 2
 - **Doing:** 0
 - **Done:** 39
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **infrastructure-b3t9k** — "Browser-Tests nach Begründung statt fester Obergrenze: Kennung im Testnamen, Flows in fester Liste, je Flow höchstens ein Happy Path, die Zahl wird nur gemeldet" (chore) — `todo/infrastructure-b3t9k-browser-tests-nach-begruendung.md`
 - **infrastructure-jsys4** — "Web-Push-Kanal mit Abo in den Einstellungen, zuerst auf echten Geräten bewiesen" (feature) — `todo/infrastructure-jsys4-web-push-kanal.md`
 <!-- todo-list:end -->
 
@@ -34,7 +35,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **infrastructure-b3t9k** — "Browser-Tests nach Begründung statt fester Obergrenze: jeder Test trägt eine Kennung, je Nutzerfluss höchstens ein Happy Path" (chore) — `backlog/infrastructure-b3t9k-browser-tests-nach-begruendung.md`
 - **infrastructure-v8m2d** — "Dev-Server: Vite stürzt ab, wenn dotnet parallel das Client-Projekt baut" (bug) — `backlog/infrastructure-v8m2d-dev-server-vite-st-rzt-ab-wenn-dotnet-parallel-das-client-pr.md`
 - **infrastructure-f3k7x** — "Feliz 2.9 auf 3.x heben, damit React 19 nicht für jede Kinderliste die Key-Warnung meldet" (chore) — `backlog/infrastructure-f3k7x-feliz-2-9-auf-3-x-heben-damit-react-19-nicht-f-r-jede-kinder.md`
 - **infrastructure-r6c3v** — "Testbau sieht neue öffentliche Client-Werte nicht: veraltete Referenz-Assembly" (bug) — `backlog/infrastructure-r6c3v-testbau-sieht-neue-ffentliche-client-werte-nicht-veraltete-r.md`

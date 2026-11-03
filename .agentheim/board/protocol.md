@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-03 20:51 -- Modeling / Promoted: infrastructure-b3t9k - "Browser-Tests nach Begründung statt fester Obergrenze: Kennung im Testnamen, Flows in fester Liste, je Flow höchstens ein Happy Path, die Zahl wird nur gemeldet"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-03 20:51 -- Modeling / Refined: infrastructure-b3t9k - Browser-Tests nach Begründung
 
 **Type:** Modeling / Refine
