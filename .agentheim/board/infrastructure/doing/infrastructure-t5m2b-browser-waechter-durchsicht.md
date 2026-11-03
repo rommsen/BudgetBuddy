@@ -58,3 +58,11 @@ Client-`update` unter .NET geht nur für Nachrichten, deren Cmd nicht `Client.Ap
 Vorgehen in dieser Reihenfolge: erst die Doktrin und den Wächter mit der heutigen Zahl als Obergrenze, dann Datei für Datei von groß nach klein, zuletzt die Obergrenze absenken. Nach jeder großen Datei grün belegen.
 
 Auffällig: `budget-page` 45, `screenshot-route` 32, `export-design-system` 19, `ledger-filter-bar` 19, `rules-page-mobile` 18. Prüfe, ob `static-serve` und `export-design-system` wirklich einen Browser brauchen.
+
+## Verifier-Note Iteration 1
+
+FAIL. `./verify.sh` war grün (dotnet 3510, node 280), der Produktionscode ändert nur seine Form, zehn Stichproben gelöschter Tests haben Ersatz.
+
+- Wächter umgehbar: `it(`, `describe` mit `it`, einzeilige Schleife, `forEach`, umbenannter Import zählen 0. Eine Schleife mit `test(` am Zeilenanfang zählt 1. `t.test(` zählt keine Untertests.
+- Verlorene Absicherung: Die Rückfrage "Bank trennen" klappt nach 3 s zurück. `Debounce.delayed 3000 AbortBankDisconnect` (`src/Client/Components/Settings/State.fs:374`) durch `Cmd.none` ersetzen macht keinen Test rot.
+- Hinweis: In `budget-page` stecken noch Logik-Tests ("der Pfeil fehlt", "Tabelle mit Spaltenköpfen", "Zu verteilen negativ ohne Warnhinweis").
