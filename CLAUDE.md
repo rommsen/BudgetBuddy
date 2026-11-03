@@ -57,6 +57,10 @@ raus. Vision: `.agentheim/knowledge/vision.md`.
   `src/Server` (Giraffe, Fable.Remoting, SQLite über Dapper), Tests mit Expecto in `src/Tests`.
 - Pfadbezogene Regeln liegen in `.claude/rules/`, die Test-Doktrin in `.claude/rules/test-doctrine.md`
   (Bugfix nur mit Regressionstest, der vor dem Fix rot ist).
+- Browser-Tests tragen eine Kennung im Namen (`[layout]`, `[fokus]`, `[tastatur]`, `[scroll]`,
+  `[fable]`, `[flow:<name>]`), je Flow höchstens einer; Flows stehen in `FLOWS` in
+  `scripts/browser-usage.mjs`. Keine feste Obergrenze, das Gate meldet die Zahl je Kennung
+  (Doktrin Punkt 5).
 - UI-Gate ist `standards/frontend/styleguide.md`; die Route `/styleguide` zeigt die echten
   DS-Komponenten aus `src/Client/DesignSystem/`. Werte dort nachschlagen, nie erfinden.
 

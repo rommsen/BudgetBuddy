@@ -89,7 +89,7 @@ async function open(startAnswer, lost) {
   return { ctx, page, calls };
 }
 
-test("die Zeile zum Stand der Bank nimmt beim Laden schon ihre Höhe ein", async () => {
+test("[layout] die Zeile zum Stand der Bank nimmt beim Laden schon ihre Höhe ein", async () => {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await ctx.newPage();
   page.setDefaultTimeout(15000);
@@ -112,7 +112,7 @@ test("die Zeile zum Stand der Bank nimmt beim Laden schon ihre Höhe ein", async
   await ctx.close();
 });
 
-test("ohne Bankverbindung: erst der TAN-Schritt, dann die Prüfung", async () => {
+test("[flow:sync-starten] ohne Bankverbindung: erst der TAN-Schritt, dann die Prüfung", async () => {
   const { ctx, page, calls } = await open(["TanRequired", "AwaitingTan"]);
   const confirm = page.getByRole("button", { name: "Ich habe bestätigt" });
   await confirm.waitFor();
@@ -125,7 +125,7 @@ test("ohne Bankverbindung: erst der TAN-Schritt, dann die Prüfung", async () =>
   await ctx.close();
 });
 
-test("verlorene Antwort, das erste Neulesen bricht ab: der nächste Versuch findet den TAN-Schritt", async () => {
+test("[fable] verlorene Antwort, das erste Neulesen bricht ab: der nächste Versuch findet den TAN-Schritt", async () => {
   const { ctx, page, calls } = await open(null, { server: session("AwaitingTan"), reads: ["abort", session("AwaitingTan")] });
   await page.getByRole("button", { name: "Ich habe bestätigt" }).waitFor();
   assert.equal(calls.start, 1, "kein zweiter Start");

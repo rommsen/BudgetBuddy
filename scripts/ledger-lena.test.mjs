@@ -171,7 +171,7 @@ async function openDetail(page, payee) {
   await page.waitForFunction((p) => document.querySelector('[data-testid="detail-title"]')?.textContent === p, payee);
 }
 
-test("PC: Lena fragen setzt das Kennzeichen, der Knopf wechselt, der Toast bietet Rückgängig", async () => {
+test("[flow:lena-fragen] PC: Lena fragen setzt das Kennzeichen, der Knopf wechselt, der Toast bietet Rückgängig", async () => {
   resetState();
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await open(context);

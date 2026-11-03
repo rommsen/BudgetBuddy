@@ -146,7 +146,7 @@ after(async () => {
 // Welche Beträge in welcher Zeile stehen und dass ein negatives Zu verteilen kein Fehler ist, prüft
 // BudgetPageTests ("Unter Zugewiesen, Aktivität und Verfügbar …", "Ein negatives Zu verteilen …").
 // Hier bleiben die Anfrage über den echten Proxy, das Format im Fable-Kompilat und das Layout.
-test("Handy: der laufende Monat wird angefragt, Beträge deutsch formatiert, Gruppen mit Zeilen, kein horizontales Scrollen", async () => {
+test("[fable] Handy: der laufende Monat wird angefragt, Beträge deutsch formatiert, Gruppen mit Zeilen, kein horizontales Scrollen", async () => {
   const { context, page, requestedKeys } = await openPage(390, 844);
   try {
     assert.deepEqual(requestedKeys, [CURRENT], "der laufende Monat ist die Vorgabe");
@@ -189,7 +189,7 @@ const targetTexts = (page) =>
   );
 
 // Bug F3: `truncate` auf der ganzen Zeile schnitt zuerst "fehlt …" ab, also genau die Aussage.
-test("Handy: dritte Zeile mit Target, fehlt oder pausiert, nichts abgeschnitten, bei 320 px bleibt der Status ganz sichtbar", async () => {
+test("[layout] Handy: dritte Zeile mit Target, fehlt oder pausiert, nichts abgeschnitten, bei 320 px bleibt der Status ganz sichtbar", async () => {
   const { page, context } = await openPage(390, 844, { fixture: targetFixture });
   await page.locator('[data-testid="budget-target"]:visible').first().waitFor();
   assert.deepEqual(await targetTexts(page), [
@@ -219,7 +219,7 @@ test("Handy: dritte Zeile mit Target, fehlt oder pausiert, nichts abgeschnitten,
   await narrow.context.close();
 });
 
-test("PC: Spalte Target direkt hinter Kategorie zeigt denselben Inhalt, Gruppenzeile spannt alle Spalten", async () => {
+test("[layout] PC: Spalte Target direkt hinter Kategorie zeigt denselben Inhalt, Gruppenzeile spannt alle Spalten", async () => {
   const { page, context } = await openPage(1440, 900, { fixture: targetFixture });
   await page.locator('[data-testid="budget-target"]:visible').first().waitFor();
   const headers = await page.locator("table thead th").allInnerTexts();
@@ -260,7 +260,7 @@ const nextArrow = (page) => page.locator('[data-testid="budget-month-next"]');
 
 // Welcher Pfeil am Rand fehlt, wann der Name zurückführt und dass Blättern den Rahmen nicht neu liest,
 // prüft BudgetPageTests ("Am Rand fehlt der Pfeil …", "Blättern liest nur den Monat …").
-test("Monate: am Rand bleibt der Platz des Pfeils frei, der Name springt nicht, ist teal und führt per Klick zurück", async () => {
+test("[layout] Monate: am Rand bleibt der Platz des Pfeils frei, der Name springt nicht, ist teal und führt per Klick zurück", async () => {
   const { context, page } = await openPage(1440, 900);
   try {
     const atStart = await monthName(page).boundingBox();
@@ -298,7 +298,7 @@ const filterFixture = (month) => ({
   ],
 });
 
-test("Filter: fehlt steht in Gelb, Verfügbar im Minus in Rot", async () => {
+test("[layout] Filter: fehlt steht in Gelb, Verfügbar im Minus in Rot", async () => {
   const { context, page } = await openPage(1440, 900, { fixture: filterFixture });
   try {
     await page.locator('[data-testid="budget-filter"]').getByRole("button").nth(2).click();
@@ -318,7 +318,7 @@ const tabsOf = (scope) => scope.locator('[data-testid="inspector-tabs"]').getByR
 
 const pickRow = (page, name) => visibleRows(page).filter({ has: page.getByText(name, { exact: true }) }).click();
 
-test("Inspektor am PC: gleiche Höhe in allen vier Tabs, die gewählte Zeile ist markiert", async () => {
+test("[layout] Inspektor am PC: gleiche Höhe in allen vier Tabs, die gewählte Zeile ist markiert", async () => {
   const { context, page } = await openPage(1440, 900, { fixture: filterFixture });
   try {
     const panel = page.locator('[data-testid="budget-inspector"]');
@@ -343,7 +343,7 @@ test("Inspektor am PC: gleiche Höhe in allen vier Tabs, die gewählte Zeile ist
 
 const sheet = (page) => page.locator(".bottom-sheet.fixed-height");
 
-test("Sheet: 500 px hoch in allen Tabs mit 48 px Tabs, ˄ ˅ wechselt ohne Schließen, Kopf und Tabs bleiben beim Scrollen stehen, mit kleinerem --vvh schrumpft es", async () => {
+test("[layout] Sheet: 500 px hoch in allen Tabs mit 48 px Tabs, ˄ ˅ wechselt ohne Schließen, Kopf und Tabs bleiben beim Scrollen stehen, mit kleinerem --vvh schrumpft es", async () => {
   const { context, page } = await openPage(390, 844, { fixture: longFixture });
   try {
     await pickRow(page, "Kategorie 2");
@@ -388,7 +388,7 @@ test("Sheet: 500 px hoch in allen Tabs mit 48 px Tabs, ˄ ˅ wechselt ohne Schli
   }
 });
 
-test("Tastatur am PC: Pfeile wechseln die Kategorie und die Liste scrollt mit", async () => {
+test("[tastatur] Tastatur am PC: Pfeile wechseln die Kategorie und die Liste scrollt mit", async () => {
   const { context, page } = await openPage(1440, 700, { fixture: longFixture });
   try {
     const panel = page.locator('[data-testid="budget-inspector"]');
@@ -412,7 +412,7 @@ test("Tastatur am PC: Pfeile wechseln die Kategorie und die Liste scrollt mit", 
   }
 });
 
-test("Trefferflächen am Handy: Monatspfeile, Filter und ˄ ˅ messen 48 px, bei 320 px kein seitliches Scrollen", async () => {
+test("[layout] Trefferflächen am Handy: Monatspfeile, Filter und ˄ ˅ messen 48 px, bei 320 px kein seitliches Scrollen", async () => {
   const { context, page } = await openPage(320, 700, { fixture: longFixture });
   try {
     const targets = [
@@ -489,7 +489,7 @@ const settledScroll = (page) =>
   );
 
 // Bug 2: `select` setzte `Loading`, Liste, Filter, Zu verteilen und Panel verschwanden bis zur Antwort.
-test("Blättern am PC: Liste, Inspektor und Tabs bleiben stehen, die Liste behält Fokus und Scrollposition, kein Spinner", async () => {
+test("[scroll] Blättern am PC: Liste, Inspektor und Tabs bleiben stehen, die Liste behält Fokus und Scrollposition, kein Spinner", async () => {
   const { context, page } = await openPage(1440, 700, { fixture: longFixture });
   try {
     const panel = page.locator('[data-testid="budget-inspector"]');
@@ -571,7 +571,7 @@ const scrollToEnd = async (page) => {
 };
 
 // Bug D3: die Leiste ist sticky, ihr Wrapper aber genau so hoch, also lief sie nicht mit.
-test("Handy: nach dem Scrollen bleibt die Monatsleiste unter der Navbar, die Chips haften darunter, die Suche scrollt mit", async (t) => {
+test("[layout] Handy: nach dem Scrollen bleibt die Monatsleiste unter der Navbar, die Chips haften darunter, die Suche scrollt mit", async (t) => {
   for (const [width, height] of [[390, 844], [320, 700]]) {
     const { context, page } = await openPage(width, height, { fixture: longFixture });
     try {
@@ -591,7 +591,7 @@ test("Handy: nach dem Scrollen bleibt die Monatsleiste unter der Navbar, die Chi
   }
 });
 
-test("PC: nach dem Scrollen haftet der Kopf mit Suche und Chips, der Spaltenkopf direkt darunter, auch bei großer Schrift", async () => {
+test("[layout] PC: nach dem Scrollen haftet der Kopf mit Suche und Chips, der Spaltenkopf direkt darunter, auch bei großer Schrift", async () => {
   for (const rootFont of [null, "20px"]) {
     const { context, page } = await openPage(1440, 900, { fixture: longFixture });
     try {
@@ -616,7 +616,7 @@ test("PC: nach dem Scrollen haftet der Kopf mit Suche und Chips, der Spaltenkopf
   }
 });
 
-test("Panel: 30 Buchungen bei 700 px Höhe scrollen im Tab, das Panel bleibt in der Sichthöhe", async () => {
+test("[scroll] Panel: 30 Buchungen bei 700 px Höhe scrollen im Tab, das Panel bleibt in der Sichthöhe", async () => {
   const { context, page } = await openPage(1440, 700, { fixture: longFixture });
   try {
     const lines = Array.from({ length: 30 }, (_, i) => ({
@@ -648,7 +648,7 @@ test("Panel: 30 Buchungen bei 700 px Höhe scrollen im Tab, das Panel bleibt in 
   }
 });
 
-test("Sheet: Schließen fährt es sichtbar aus, der Inhalt hält sich dabei, danach ist die Auswahl weg", async () => {
+test("[layout] Sheet: Schließen fährt es sichtbar aus, der Inhalt hält sich dabei, danach ist die Auswahl weg", async () => {
   const { context, page } = await openPage(390, 844, { fixture: filterFixture });
   try {
     assert.equal(await sheet(page).count(), 1, "das Sheet steht schon vor dem Öffnen im DOM");
@@ -678,7 +678,7 @@ test("Sheet: Schließen fährt es sichtbar aus, der Inhalt hält sich dabei, dan
   }
 });
 
-test("Sheet: viele offene Verschiebungen scrollen im festen Bereich, der Inhalt behält Platz", async () => {
+test("[scroll] Sheet: viele offene Verschiebungen scrollen im festen Bereich, der Inhalt behält Platz", async () => {
   const { context, page } = await openPage(390, 844, { fixture: filterFixture });
   try {
     await pickRow(page, "Essen");
@@ -699,7 +699,7 @@ test("Sheet: viele offene Verschiebungen scrollen im festen Bereich, der Inhalt 
   }
 });
 
-test("Barrierefreiheit: Handy-Zeile mit aria-current, Monat und Suche mit Namen, Tabs mit Panel und Pfeiltasten", async () => {
+test("[tastatur] Barrierefreiheit: Handy-Zeile mit aria-current, Monat und Suche mit Namen, Tabs mit Panel und Pfeiltasten", async () => {
   const { context, page } = await openPage(390, 844, { fixture: filterFixture });
   try {
     assert.equal(await searchInput(page).getAttribute("aria-label"), "Kategorie suchen");
@@ -738,7 +738,7 @@ test("Barrierefreiheit: Handy-Zeile mit aria-current, Monat und Suche mit Namen,
   }
 });
 
-test("Navigation: die Budget-Seite ist über die Tab-Leiste am Handy erreichbar", async () => {
+test("[flow:budget-oeffnen] Navigation: die Budget-Seite ist über die Tab-Leiste am Handy erreichbar", async () => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
   page.setDefaultTimeout(30000);
@@ -798,7 +798,7 @@ const denseFixture = (month) => {
   return base;
 };
 
-test("PC: 1440 × 900 zeigt mindestens 16 Kategorien, die erste Zeile im oberen Viertel, jede höchstens 40 px und einzeilig", async () => {
+test("[layout] PC: 1440 × 900 zeigt mindestens 16 Kategorien, die erste Zeile im oberen Viertel, jede höchstens 40 px und einzeilig", async () => {
   const { context, page } = await openPage(1440, 900, { fixture: denseFixture });
   try {
     await page.locator('[data-testid="budget-target"]:visible').first().waitFor();
@@ -829,7 +829,7 @@ test("PC: 1440 × 900 zeigt mindestens 16 Kategorien, die erste Zeile im oberen 
   }
 });
 
-test("Kopf: ab 1024 px eine Zeile in der verlangten Reihenfolge, bei 768 px zwei Zeilen", async () => {
+test("[layout] Kopf: ab 1024 px eine Zeile in der verlangten Reihenfolge, bei 768 px zwei Zeilen", async () => {
   for (const width of [1024, 1440]) {
     const { context, page } = await openPage(width, 800, { fixture: targetFixture });
     try {
@@ -860,7 +860,7 @@ test("Kopf: ab 1024 px eine Zeile in der verlangten Reihenfolge, bei 768 px zwei
   }
 });
 
-test("Breiten von 320 bis 1920 px: kein seitliches Scrollen, die Tabelle bleibt in ihrer Karte, Panel ab 1024 px, darunter das Sheet", async () => {
+test("[layout] Breiten von 320 bis 1920 px: kein seitliches Scrollen, die Tabelle bleibt in ihrer Karte, Panel ab 1024 px, darunter das Sheet", async () => {
   for (const width of [320, 390, 768, 1024, 1280, 1440, 1920]) {
     const { context, page } = await openPage(width, 800, { fixture: targetFixture });
     try {
@@ -891,7 +891,7 @@ test("Breiten von 320 bis 1920 px: kein seitliches Scrollen, die Tabelle bleibt 
   }
 });
 
-test("Volle Breite: bei 1920 px ist die Liste breiter als bei 1280 px, das Panel bleibt 340 px, der Seitenrand bleibt", async () => {
+test("[layout] Volle Breite: bei 1920 px ist die Liste breiter als bei 1280 px, das Panel bleibt 340 px, der Seitenrand bleibt", async () => {
   const widths = {};
   for (const width of [1280, 1920]) {
     const { context, page } = await openPage(width, 900, { fixture: longFixture });
@@ -919,7 +919,7 @@ const twoFrames = async (page) => {
   await page.evaluate(() => new Promise(requestAnimationFrame));
 };
 
-test("Tastatur seitenweit: nach einem Klick auf einen Filter wählt Runter die erste sichtbare, Hoch die letzte Zeile", async () => {
+test("[tastatur] Tastatur seitenweit: nach einem Klick auf einen Filter wählt Runter die erste sichtbare, Hoch die letzte Zeile", async () => {
   const { context, page } = await openPage(1440, 900, { fixture: filterFixture });
   try {
     const panel = page.locator('aside[data-testid="budget-inspector"]');
@@ -978,7 +978,7 @@ test("Tastatur seitenweit: nach einem Klick auf einen Filter wählt Runter die e
 
 // Der Tastendruck im echten DOM: der Fokus bleibt im Suchfeld, der Cursor steht still, der Tab wechselt.
 // Die Regel selbst prüft `pageKeyAction` unter .NET.
-test("Tastatur in Feldern: im Suchfeld wechseln Hoch und Runter die Kategorie, Links und Rechts den Tab", async () => {
+test("[tastatur] Tastatur in Feldern: im Suchfeld wechseln Hoch und Runter die Kategorie, Links und Rechts den Tab", async () => {
   const { context, page } = await openPage(1440, 900, { fixture: filterFixture });
   try {
     const panel = page.locator('aside[data-testid="budget-inspector"]');
@@ -1026,7 +1026,7 @@ const stayOnEssen = async (page, panel, label) => {
   }
 };
 
-test("Tastatur: bei offenem Dialog passiert auf der Seite nichts, die Felder darin behalten ihre Tasten", async () => {
+test("[tastatur] Tastatur: bei offenem Dialog passiert auf der Seite nichts, die Felder darin behalten ihre Tasten", async () => {
   const { context, page } = await openPage(1440, 900, { fixture: filterFixture });
   try {
     const panel = page.locator('aside[data-testid="budget-inspector"]');
@@ -1061,7 +1061,7 @@ test("Tastatur: bei offenem Dialog passiert auf der Seite nichts, die Felder dar
   }
 });
 
-test("Sheet: ˄ ˅ stehen rechts neben Schließen, je 48 px, keine ‹ ›-Zeile, am Rand bleibt der Platz frei", async () => {
+test("[layout] Sheet: ˄ ˅ stehen rechts neben Schließen, je 48 px, keine ‹ ›-Zeile, am Rand bleibt der Platz frei", async () => {
   for (const [width, height] of [[320, 700], [390, 844], [768, 900]]) {
     const { context, page } = await openPage(width, height, { fixture: longFixture });
     try {
@@ -1094,7 +1094,7 @@ test("Sheet: ˄ ˅ stehen rechts neben Schließen, je 48 px, keine ‹ ›-Zeile
   }
 });
 
-test("Sheet: ein langer Name kürzt im Kopf, die Knöpfe bleiben im Bild", async () => {
+test("[layout] Sheet: ein langer Name kürzt im Kopf, die Knöpfe bleiben im Bild", async () => {
   const { context, page } = await openPage(320, 700);
   try {
     await pickRow(page, "Eine Kategorie mit einem sehr langen Namen, der am Handy abgeschnitten werden muss k7wmd");
@@ -1114,7 +1114,7 @@ test("Sheet: ein langer Name kürzt im Kopf, die Knöpfe bleiben im Bild", async
   }
 });
 
-test("Handy: Targets anwenden steht in der Zeile der Suche, im vergangenen Monat bleibt der Platz frei", async () => {
+test("[layout] Handy: Targets anwenden steht in der Zeile der Suche, im vergangenen Monat bleibt der Platz frei", async () => {
   const { context, page } = await openPage(390, 844, { fixture: longFixture });
   try {
     const before = await headParts(page);

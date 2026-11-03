@@ -138,7 +138,7 @@ after(async () => {
   await stopServer(frontend, frontendPort);
 });
 
-test("Geprüft an der Zeile: Trefferfläche, Aufruf, Wechsel auf Ungeprüft ohne Historie, gelöschte Zeile ohne Schaltfläche (PC und Handy)", async () => {
+test("[flow:buchung-pruefen] Geprüft an der Zeile: Trefferfläche, Aufruf, Wechsel auf Ungeprüft ohne Historie, gelöschte Zeile ohne Schaltfläche (PC und Handy)", async () => {
   for (const [label, viewport, isDesktop] of [
     ["PC 1440x900", { width: 1440, height: 900 }, true],
     ["Handy 390x844", { width: 390, height: 844 }, false],

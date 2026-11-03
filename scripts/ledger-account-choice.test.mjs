@@ -60,7 +60,7 @@ after(async () => {
   await stopServer(frontend, frontendPort);
 });
 
-test("Handy: Titel zeigt den Kontonamen, Sheet listet alle Konten, Tipp wechselt und schließt", async () => {
+test("[flow:konto-wechseln] Handy: Titel zeigt den Kontonamen, Sheet listet alle Konten, Tipp wechselt und schließt", async () => {
   const { context, page } = await openPage(390, 844);
   const title = page.getByTestId("ledger-account-switcher");
   await title.waitFor();

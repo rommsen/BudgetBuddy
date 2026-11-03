@@ -102,7 +102,7 @@ async function snapshot() {
   });
 }
 
-test("Klick auf Betrag sortiert aufsteigend, ohne Tagesköpfe; zweiter Klick kehrt um; Datum bringt sie zurück", async () => {
+test("[flow:kassenbuch-sortieren] Klick auf Betrag sortiert aufsteigend, ohne Tagesköpfe; zweiter Klick kehrt um; Datum bringt sie zurück", async () => {
   await page.waitForSelector("table tbody tr");
   await page.waitForFunction(() => document.querySelectorAll("table tbody tr td[colspan]").length > 0);
   const before = await snapshot();

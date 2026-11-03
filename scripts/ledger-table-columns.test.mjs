@@ -100,7 +100,7 @@ function assertNoOverlap(label, result) {
   }
 }
 
-test("Gesamtsicht und ein Konto: kein Spaltenkopf überlappt und keine Spalte unter ihrer Mindestbreite (800, 1024, 1280, 1440)", async () => {
+test("[layout] Gesamtsicht und ein Konto: kein Spaltenkopf überlappt und keine Spalte unter ihrer Mindestbreite (800, 1024, 1280, 1440)", async () => {
   const table = [];
   for (const mode of ["Gesamtsicht", "Ein Konto"]) {
     await page.setViewportSize({ width: 1440, height: 900 });

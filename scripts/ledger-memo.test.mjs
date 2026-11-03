@@ -138,7 +138,7 @@ async function openDetail(page, payee) {
   await page.waitForFunction((p) => document.querySelector('[data-testid="detail-title"]')?.textContent === p, payee);
 }
 
-test("PC: Memo hinzufügen setzt das Memo, Detail und Liste zeigen es, der Toast bietet Rückgängig", async () => {
+test("[flow:memo-setzen] PC: Memo hinzufügen setzt das Memo, Detail und Liste zeigen es, der Toast bietet Rückgängig", async () => {
   resetState();
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await open(context);

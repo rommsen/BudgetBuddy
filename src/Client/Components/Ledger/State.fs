@@ -433,6 +433,19 @@ let totalsRefreshAnswer (model: Model) : Result<LedgerEntryPage, string> -> Msg 
     let generation = model.EntriesGeneration
     fun result -> TotalsRefreshed (generation, result)
 
+/// Die Antwort einer Seiten-Abfrage, gebunden an die Liste beim Start der Abfrage. Erfolg und
+/// Scheitern tragen dieselbe Generation: eine verspätete Wiederholung der alten Abfrage ersetzt so
+/// die neuere Liste nicht (infrastructure-r3tw7).
+let entriesPageAnswer (model: Model) (page: int) : Result<LedgerEntryPage, string> -> Msg =
+    let generation = model.EntriesGeneration
+    fun result -> EntriesPageLoaded (generation, page, result)
+
+/// Die Antwort der Payee-Vorschläge, gebunden an die Liste beim Start der Abfrage. Trüge das
+/// Scheitern eine andere Generation, gälte es als alt und das offene Popover fragte ohne Ende neu.
+let payeeSuggestionsAnswer (model: Model) : Result<LedgerPayeeSuggestion list, string> -> Msg =
+    let generation = model.EntriesGeneration
+    fun result -> PayeeSuggestionsLoaded (generation, result)
+
 /// Ersetzt die Buchung in der geladenen Liste und im offenen Detail.
 let private replaceEntry (updated: LedgerEntryView) (model: Model) : Model =
     let entries =
@@ -1032,12 +1045,13 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         | Some filter ->
             let accountId = match filter with AllAccounts -> None | OneAccount id -> Some id
             let query = buildPageQuery model accountId page
+            let answer = entriesPageAnswer model page
             let cmd =
                 Cmd.OfAsync.either
                     (Retry.reading Api.ledger.getLedgerEntriesPage)
                     query
-                    (fun result -> EntriesPageLoaded (model.EntriesGeneration, page, Ok result))
-                    (fun ex -> EntriesPageLoaded (model.EntriesGeneration, page, Error ex.Message))
+                    (Ok >> answer)
+                    (fun ex -> answer (Error ex.Message))
             model, cmd, NoOp
 
     // Die Antwort auf eine Liste, die es nicht mehr gibt (Filter oder Sortierung haben gewechselt,
@@ -1406,12 +1420,13 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 AmountMin = model.Filters.AmountMin
                 AmountMax = model.Filters.AmountMax
             }
+            let answer = payeeSuggestionsAnswer model
             let cmd =
                 Cmd.OfAsync.either
                     (Retry.reading Api.ledger.getLedgerPayeeSuggestions)
                     query
-                    (fun suggestions -> PayeeSuggestionsLoaded (model.EntriesGeneration, Ok suggestions))
-                    (fun ex -> PayeeSuggestionsLoaded (model.EntriesGeneration, Error ex.Message))
+                    (Ok >> answer)
+                    (fun ex -> answer (Error ex.Message))
             { model with PayeeSuggestions = Loading }, cmd, NoOp
 
     // Die Vorschläge einer Liste, die es nicht mehr gibt. Wartet das Popover nur noch auf diese

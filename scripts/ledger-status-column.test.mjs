@@ -124,7 +124,7 @@ after(async () => {
 // AC1/AC2: Konten-Spalte haftet und scrollt bei Überlänge in sich
 // ============================================
 
-test("Die Konten-Spalte haftet unter der Navbar und scrollt bei zu vielen Konten in sich, ohne sich selbst zu bewegen (AC1, AC2)", async () => {
+test("[layout] Die Konten-Spalte haftet unter der Navbar und scrollt bei zu vielen Konten in sich, ohne sich selbst zu bewegen (AC1, AC2)", async () => {
   // Vor dem Scrollen steht die Spalte in ihrer natürlichen Flussposition, unterhalb
   // von Navbar UND Seitenkopf ("Kassenbuch" + Button), deutlich weiter unten als
   // 64px. Genau DAS ist der gemeldete Befund, sobald die Seite ein Stück scrollt:
@@ -290,7 +290,7 @@ async function measureRowHeights(baselinePayee, payee) {
 // Zwei Kennzeichen in einer Zelle: dasselbe Maß für jede Kombination. Der Wortlaut je Kombination
 // liegt unter .NET (`LedgerViewTests.fs`, `LedgerNotInYnabClientTests.fs`), hier zählen Umbruch,
 // Überlauf und der Hover-Text, der am gekürzten Kennzeichen hängt.
-test("Zwei Kennzeichen in der Statuszelle: kein Umbruch, kein Überlauf, keine höhere Zeile, volle Bedeutung im Hover-Text (AC5)", async () => {
+test("[layout] Zwei Kennzeichen in der Statuszelle: kein Umbruch, kein Überlauf, keine höhere Zeile, volle Bedeutung im Hover-Text (AC5)", async () => {
   for (const [payee, fullMeaning] of [
     [SIX_CASE_PAYEES.needsReviewAskLena, "Rückfrage Lena"],
     [SIX_CASE_PAYEES.needsReviewDeleted, "in YNAB gelöscht"],
@@ -321,7 +321,7 @@ test("Zwei Kennzeichen in der Statuszelle: kein Umbruch, kein Überlauf, keine h
 // AC6: Spaltenraster, Status auf 128px, die 80px gehen an Payee/Memo
 // ============================================
 
-test("Spaltenraster: Kästchen 44px, Status 128px, Payee und Kategorie ab Mindestbreite, Memo Rest (AC6, ledger-n4vte, ledger-r1d2f, ledger-qh9qx)", async () => {
+test("[layout] Spaltenraster: Kästchen 44px, Status 128px, Payee und Kategorie ab Mindestbreite, Memo Rest (AC6, ledger-n4vte, ledger-r1d2f, ledger-qh9qx)", async () => {
   // Iteration 3 (Verifier-Befund Iteration 2): dieselbe Wartebedingung wie in
   // `before()` UNMITTELBAR vor dieser Messung nochmal, nicht nur einmal am
   // Anfang der Datei. AC6 ist der neunte und letzte Test, nach dem Seiten- und

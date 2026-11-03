@@ -159,7 +159,7 @@ const panel = (p) => p.locator('[data-testid="ledger-detail-panel"]');
 const categoryRow = (scope) => scope.locator('[data-testid="detail-category"]');
 const arrow = (scope) => scope.locator('[data-testid="detail-category-arrow"]');
 
-test("PC (1440): Pfeil öffnet den Picker im Panel, Auswahl ändert, Karte und Toast erscheinen, Rückgängig stellt zurück", async () => {
+test("[flow:kategorie-aendern] PC (1440): Pfeil öffnet den Picker im Panel, Auswahl ändert, Karte und Toast erscheinen, Rückgängig stellt zurück", async () => {
   resetState();
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await open(context);
@@ -213,7 +213,7 @@ test("PC (1440): Pfeil öffnet den Picker im Panel, Auswahl ändert, Karte und T
   await context.close();
 });
 
-test("Handy (390x844): Der Picker öffnet als zweites Sheet über dem Detail, die Karte steht unter dem Kategorie-Feld", async () => {
+test("[layout] Handy (390x844): Der Picker öffnet als zweites Sheet über dem Detail, die Karte steht unter dem Kategorie-Feld", async () => {
   resetState();
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   const page = await open(context);

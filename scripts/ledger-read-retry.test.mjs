@@ -10,9 +10,10 @@
 // Zweiter Bug, aus dem ersten Anlauf derselben Task: Die Wiederholung verlängert das Fenster, in
 // dem eine Antwort unterwegs ist, auf bis zu 1,6 Sekunden. Ohne Generationszähler ersetzte die
 // verspätete Antwort der alten Abfrage die neuere Liste, ihr Scheitern zeigte die Fehlerseite.
-// Die Fälle je Antwort stehen auf Client-`update`-Ebene (`src/Tests/LedgerPageTests.fs`,
-// "Verspätete Antworten"). Hier steht, was nur der echte Client belegt: der Ablauf mit Status 0
-// und dass jede Abfrage ihre Generation wirklich mitgibt.
+// Die Fälle je Antwort und dass jede Abfrage ihre Generation mitgibt (`entriesPageAnswer`,
+// `payeeSuggestionsAnswer`) stehen auf Client-`update`-Ebene (`src/Tests/LedgerPageTests.fs`,
+// "Verspätete Antworten", infrastructure-b3t9k). Hier steht, was nur der echte Client belegt: der
+// Ablauf mit Status 0.
 //
 // Im Browser läuft hier nur der Ladeweg von getLedgerEntriesPage. Die Verdrahtung je Aufrufstelle
 // sichert das Inventar in `src/Tests/RetryTests.fs`.
@@ -28,7 +29,6 @@ import {
   buildBalancesFixture,
   buildEntryFixture,
 } from "./ledger-status-column.mjs";
-import { mockFilterBarApi } from "./ledger-filter-bar.mjs";
 
 const ERROR_TITLE = "Buchungen konnten nicht geladen werden";
 const PAYEE = "Wiederholungszeile";
@@ -87,7 +87,7 @@ after(async () => {
   await stopServer(frontend, frontendPort);
 });
 
-test("Abgebrochene Verbindung (Status 0): ein Abbruch wird still wiederholt, nach drei erscheint die Fehlerseite und ihr Knopf lädt", async () => {
+test("[fable] Abgebrochene Verbindung (Status 0): ein Abbruch wird still wiederholt, nach drei erscheint die Fehlerseite und ihr Knopf lädt", async () => {
   const once = await openLedger((n) => n === 1);
   try {
     await visibleText(once.page, PAYEE).waitFor();
@@ -107,134 +107,6 @@ test("Abgebrochene Verbindung (Status 0): ein Abbruch wird still wiederholt, nac
     await page.getByRole("button", { name: "Erneut versuchen" }).filter({ visible: true }).first().click();
     await visibleText(page, PAYEE).waitFor();
     assert.equal(await page.getByText(ERROR_TITLE).count(), 0, "Fehlerseite ist weg");
-  } finally {
-    await context.close();
-  }
-});
-
-// --- Verspätete Antwort: Klick auf "Betrag", die Anfrage bricht ab, sofort danach Klick aufs Konto. ---
-
-const entriesPageOf = (entry) => ({
-  Entries: [entry],
-  TotalCount: 1,
-  TotalAmount: { Amount: -10, Currency: "EUR" },
-  DeletedCount: 0,
-  NeedsReviewCount: 0,
-  AskLenaCount: 0,
-});
-
-/// Öffnet das Kassenbuch auf "Alle Konten". Die Zeile nennt die Abfrage, die sie geliefert hat.
-async function openWithLateAnswer() {
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  const page = await context.newPage();
-  page.setDefaultTimeout(30000);
-  const accounts = buildAccountsFixture(2);
-  const late = { aborts: 0, attempts: 0, last: null };
-
-  await page.route("**/api/**", (route) =>
-    route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"not mocked in this test"}' })
-  );
-  await page.route("**/api/LedgerApi/getLedgerAccounts", (route) => json(route, accounts));
-  await page.route("**/api/LedgerApi/getLedgerAccountBalances", (route) =>
-    json(route, buildBalancesFixture(accounts.Accounts))
-  );
-  await page.route("**/api/LedgerApi/getLedgerEntriesPage", async (route) => {
-    const [query] = route.request().postDataJSON();
-    const allAccounts = !query.AccountId;
-    const entry = buildEntryFixture(accounts.DefaultAccountId, 1, { Payee: `Zeile-${allAccounts ? "alle" : "konto"}` });
-    if (!allAccounts || late.aborts === 0) return json(route, entriesPageOf(entry));
-    late.attempts += 1;
-    const abort = late.attempts <= late.aborts;
-    await (abort ? route.abort("connectionreset") : json(route, entriesPageOf(entry)));
-    if (late.attempts === 3 || !abort) late.finish();
-  });
-
-  await page.goto(`http://127.0.0.1:${frontendPort}/#/ledger`, { waitUntil: "load" });
-  await waitForPageLoaded(page, "/ledger");
-  await page.locator(".ledger-account-strip").getByText("Alle Konten").filter({ visible: true }).first().click();
-  await visibleText(page, "Zeile-alle").waitFor();
-  return { page, context, late };
-}
-
-/// Drei Bilder abwarten: die letzte Antwort der alten Abfrage ist dann im Modell und im DOM.
-const framesRendered = (page) =>
-  page.evaluate(async () => {
-    for (let i = 0; i < 3; i += 1) await new Promise((resolve) => requestAnimationFrame(resolve));
-  });
-
-/// Wartet auf `promise`, scheitert aber nach `ms` mit einer lesbaren Meldung statt ewig zu hängen.
-const withDeadline = (promise, ms, what) => {
-  let timer;
-  const deadline = new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`${what} kam nicht innerhalb von ${ms} ms`)), ms);
-  });
-  return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
-};
-
-async function clickSortThenAccount(aborts) {
-  const { page, context, late } = await openWithLateAnswer();
-  const finished = new Promise((resolve) => { late.finish = resolve; });
-  late.aborts = aborts;
-  await page.locator("table thead th").filter({ hasText: /^Betrag$/i }).locator("button").click();
-  await page.locator(".ledger-account-strip").getByText("Testkonto 1").filter({ visible: true }).first().click();
-  await visibleText(page, "Zeile-konto").waitFor();
-  // Mit Frist: ohne sie hing ein Gesamtlauf drei Stunden, wenn die dritte Antwort ausblieb (infrastructure-t5m2b).
-  await withDeadline(finished, 10000, "die letzte Antwort der alten Abfrage");
-  await framesRendered(page);
-  return { page, context };
-}
-
-test("Eine späte erfolgreiche Wiederholung der alten Abfrage ersetzt die neuere Liste nicht", async () => {
-  const { page, context } = await clickSortThenAccount(2);
-  try {
-    assert.equal(await page.getByText("Zeile-alle").filter({ visible: true }).count(), 0, "keine Zeile der alten Abfrage");
-    assert.ok(await visibleText(page, "Zeile-konto").isVisible(), "die neuere Liste steht");
-  } finally {
-    await context.close();
-  }
-});
-
-const openPayeeChip = (page) => page.getByRole("button", { name: /^Payee/ }).filter({ visible: true }).first().click();
-
-// Beide Ausgänge der Abfrage geben ihre Generation mit: sonst gälte die Antwort als alt, und das
-// offene Popover fragte ohne Ende neu.
-async function openPayeePopover(answerSuggestions) {
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  const page = await context.newPage();
-  page.setDefaultTimeout(15000);
-  const accounts = buildAccountsFixture(2);
-  const calls = { suggestions: 0 };
-  await page.route("**/api/**", (route) =>
-    route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"not mocked in this test"}' })
-  );
-  await mockFilterBarApi(page, { accountsFixture: accounts, balancesFixture: buildBalancesFixture(accounts.Accounts) });
-  await page.route("**/api/LedgerApi/mirrorYnabBudget", () => {});
-  await page.route("**/api/LedgerApi/getLedgerPayeeSuggestions", (route) => {
-    calls.suggestions += 1;
-    return answerSuggestions(route);
-  });
-  await page.goto(`http://127.0.0.1:${frontendPort}/#/ledger`, { waitUntil: "load" });
-  await waitForPageLoaded(page, "/ledger");
-  await openPayeeChip(page);
-  return { page, context, calls };
-}
-
-test("Vorschläge: ein Fehler beendet das Laden ohne neue Abfrage, das nächste Öffnen zeigt die Antwort", async () => {
-  let answers = 0;
-  const { page, context, calls } = await openPayeePopover((route) => {
-    answers += 1;
-    return answers === 1
-      ? route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"kaputt"}' })
-      : json(route, [{ Payee: "Vorschlag Lotte", Count: 3 }]);
-  });
-  try {
-    await page.getByText("Vorschläge werden geladen").waitFor({ state: "hidden" });
-    await framesRendered(page);
-    assert.equal(calls.suggestions, 1, "genau eine Abfrage");
-
-    await page.keyboard.press("Escape");
-    await openPayeeChip(page);
-    await visibleText(page, "Vorschlag Lotte").waitFor();
   } finally {
     await context.close();
   }

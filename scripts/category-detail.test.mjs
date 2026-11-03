@@ -118,7 +118,7 @@ after(async () => {
   if (frontend) await stopServer(frontend);
 });
 
-test("Handy: Zeile tippen, Tab Buchungen, Buchung tippen, Kassenbuch-Detail ist offen, zurück steht der Tab wieder", async () => {
+test("[flow:budget-zur-buchung] Handy: Zeile tippen, Tab Buchungen, Buchung tippen, Kassenbuch-Detail ist offen, zurück steht der Tab wieder", async () => {
   const { context, page, calls } = await openPage(390, 844);
   try {
     await openDetail(page);
@@ -153,8 +153,11 @@ test("Handy: Zeile tippen, Tab Buchungen, Buchung tippen, Kassenbuch-Detail ist 
   }
 });
 
-test("PC: der Inspektor steht als Panel, der Sprung geht zum Panel im Kassenbuch und zurück", async () => {
-  const { context, page } = await openPage(1440, 900);
+// Der Kontowechsel auf der Route stand vorher in einem eigenen Test mit demselben Sprung
+// (infrastructure-b3t9k): der Schritt in die Liste lädt nicht neu, Browser-Zurück öffnet die
+// Buchung nicht erneut.
+test("[layout] PC: der Inspektor steht als Panel, der Sprung geht zum Panel im Kassenbuch und zurück, ein Kontowechsel dort lädt nicht neu und Browser-Zurück öffnet die Buchung nicht erneut", async () => {
+  const { context, page, calls } = await openPage(1440, 900);
   try {
     await row(page, "Lebensmittel m1bce").click();
     // Fixture: Zugewiesen 100, Aktivität -50, Verfügbar 50. Jeder Betrag steht unter seinem Titel.
@@ -171,12 +174,22 @@ test("PC: der Inspektor steht als Panel, der Sprung geht zum Panel im Kassenbuch
     await page.getByLabel("Detail Sprung m1bce").waitFor();
     await page.keyboard.press("Escape");
     await expectBackInDetail(page);
+
+    await page.locator('[data-testid="detail-entry"]').first().click();
+    await page.waitForURL(/#\/ledger\/entry\//);
+    await page.getByLabel("Detail Sprung m1bce").waitFor();
+    const accountLoads = calls.accounts;
+    await page.locator(".ledger-account-strip").getByText("Alle Konten").filter({ visible: true }).first().click();
+    await page.waitForURL(/#\/ledger$/);
+    assert.equal(calls.accounts, accountLoads, "der Schritt in die Liste lädt die Seite nicht neu");
+    await page.goBack();
+    await page.waitForURL(/#\/budget$/);
   } finally {
     await context.close();
   }
 });
 
-test("Handy: der Rand im Sheet ist einfach, ein großer Betrag überlappt bei 360 px nicht", async () => {
+test("[layout] Handy: der Rand im Sheet ist einfach, ein großer Betrag überlappt bei 360 px nicht", async () => {
   const lines = [{ ...detailLines[0], Payee: "Ein sehr langer Empfängername, der abgeschnitten wird", Amount: eur(-11234.56) }];
   const { context, page } = await openPage(360, 740, { lines });
   try {
@@ -201,28 +214,6 @@ test("Handy: der Rand im Sheet ist einfach, ein großer Betrag überlappt bei 36
     assert.ok(measured.payeeRight <= measured.amountLeft, "Empfänger und Betrag überlappen nicht");
     assert.ok(measured.amountRight <= measured.width - 16, "der Betrag bleibt im Rand");
     assert.match(await text(row), /-11\.234,56/);
-  } finally {
-    await context.close();
-  }
-});
-
-const jumpToPanel = async (page) => {
-  await openDetail(page);
-  await page.locator('[data-testid="detail-entry"]').first().click();
-  await page.waitForURL(/#\/ledger\/entry\//);
-  await page.getByLabel("Detail Sprung m1bce").waitFor();
-};
-
-test("Kontowechsel auf der Route: die Liste lädt nicht neu, Browser-Zurück öffnet die Buchung nicht erneut", async () => {
-  const { context, page, calls } = await openPage(1440, 900);
-  try {
-    await jumpToPanel(page);
-    const accountLoads = calls.accounts;
-    await page.locator(".ledger-account-strip").getByText("Alle Konten").filter({ visible: true }).first().click();
-    await page.waitForURL(/#\/ledger$/);
-    assert.equal(calls.accounts, accountLoads, "der Schritt in die Liste lädt die Seite nicht neu");
-    await page.goBack();
-    await page.waitForURL(/#\/budget$/);
   } finally {
     await context.close();
   }

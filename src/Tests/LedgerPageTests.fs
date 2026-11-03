@@ -3296,8 +3296,9 @@ let private isTransferTests =
 // Verhindert die Regression aus dem ersten Anlauf von infrastructure-r3tw7: `Retry.reading`
 // verlängert das Fenster, in dem eine Antwort unterwegs ist, auf bis zu 1,6 Sekunden. Eine
 // verspätete Wiederholung der alten Abfrage ersetzte die neuere Liste, ihr endgültiges
-// Scheitern zeigte über der fertigen Liste die Fehlerseite. Der Browser-Fall steht in
-// `scripts/ledger-read-retry.test.mjs`.
+// Scheitern zeigte über der fertigen Liste die Fehlerseite. Den Ablauf mit echtem Status 0 prüft
+// `scripts/ledger-read-retry.test.mjs`; dass jede Abfrage ihre Generation mitgibt, prüfen hier
+// `entriesPageAnswer` und `payeeSuggestionsAnswer` (infrastructure-b3t9k, vorher im Browser).
 let private staleAnswerTests =
     let update msg model =
         let updated, _, _ = Components.Ledger.State.update msg model
@@ -3326,6 +3327,29 @@ let private staleAnswerTests =
     let withDetail (model: Model) = { model with DetailFor = Some (entryView 1 -1m false) }
 
     testList "Verspätete Antworten" [
+
+        testCase "Eine Seiten-Abfrage bindet Erfolg und Scheitern an ihre Liste: die späte Wiederholung der alten Abfrage ersetzt die neuere Liste nicht" <| fun () ->
+            let start = loaded ()
+            let oldAnswer = Components.Ledger.State.entriesPageAnswer start 0
+            let after = update (oldAnswer (Ok oldPage)) (rebuilt start)
+            Expect.equal after.Entries Loading "die alte Antwort kommt nicht an, die neue Liste lädt weiter"
+            let failed = update (oldAnswer (Error "Http error (0)")) (rebuilt start)
+            Expect.equal failed.Entries Loading "ihr Scheitern zeigt keine Fehlerseite"
+            let current = rebuilt start
+            let shown = update (Components.Ledger.State.entriesPageAnswer current 0 (Ok newPage)) current
+            Expect.hasLength (idsOf shown) 2 "die Antwort der aktuellen Liste kommt durch"
+
+        testCase "Die Payee-Vorschläge binden auch ihr Scheitern an ihre Liste: ein Fehler beendet das Laden ohne neue Abfrage, das nächste Öffnen fragt neu" <| fun () ->
+            let waiting = { rebuilt (loaded ()) with PayeeSuggestions = Loading; OpenPopover = Some PayeeChip }
+            let answer = Components.Ledger.State.payeeSuggestionsAnswer waiting
+            let failed, cmd, _ = Components.Ledger.State.update (answer (Error "kaputt")) waiting
+            Expect.equal failed.PayeeSuggestions (Failure "kaputt") "das Laden endet mit dem Fehler"
+            Expect.isEmpty (dispatched cmd) "keine neue Abfrage"
+            let closed = update CloseFilterPopover failed
+            let _, reopen, _ = Components.Ledger.State.update (OpenFilterPopover PayeeChip) closed
+            Expect.equal (dispatched reopen) [ LoadPayeeSuggestions ] "das nächste Öffnen fragt neu"
+            let shown = update (Components.Ledger.State.payeeSuggestionsAnswer waiting (Ok [ { Payee = "Vorschlag Lotte"; Count = 3 } ])) waiting
+            Expect.equal shown.PayeeSuggestions (Success [ { Payee = "Vorschlag Lotte"; Count = 3 } ]) "die Antwort steht"
 
         testCase "Die Ok-Antwort einer alten Liste zu Seite 0 ersetzt nichts, die aktuelle Antwort kommt durch" <| fun () ->
             let before, (after, _, _) = staleAfterRebuild (fun g -> EntriesPageLoaded (g, 0, Ok oldPage))

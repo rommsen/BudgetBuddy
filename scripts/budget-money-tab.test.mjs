@@ -124,7 +124,7 @@ after(async () => {
   await stopServer(frontend, frontendPort);
 });
 
-test("Beim Fokus ist der Inhalt des Felds markiert", async () => {
+test("[fokus] Beim Fokus ist der Inhalt des Felds markiert", async () => {
   const { context, page } = await openPage(1440, 900);
   try {
     await row(page, "Lebensmittel c5w2n").click();
@@ -140,7 +140,7 @@ test("Beim Fokus ist der Inhalt des Felds markiert", async () => {
   }
 });
 
-test("Das Feld rechnet im echten Client wie unter .NET", async () => {
+test("[fable] Das Feld rechnet im echten Client wie unter .NET", async () => {
   const { context, page } = await openPage(1440, 900);
   try {
     await row(page, "Lebensmittel c5w2n").click();
@@ -155,7 +155,7 @@ test("Das Feld rechnet im echten Client wie unter .NET", async () => {
   }
 });
 
-test("Der Wechsel in ein anderes Programm speichert nicht: das Feld bleibt das aktive Element", async () => {
+test("[fokus] Der Wechsel in ein anderes Programm speichert nicht: das Feld bleibt das aktive Element", async () => {
   const { context, page, calls } = await openPage(1440, 900);
   try {
     await row(page, "Lebensmittel c5w2n").click();
@@ -174,7 +174,7 @@ test("Der Wechsel in ein anderes Programm speichert nicht: das Feld bleibt das a
   }
 });
 
-test("Handy: das Sheet ist in allen drei Modi 500 px hoch, Zuweisen zeigt Feld, sechs Schritte und Knopf ohne Scrollen", async () => {
+test("[layout] Handy: das Sheet ist in allen drei Modi 500 px hoch, Zuweisen zeigt Feld, sechs Schritte und Knopf ohne Scrollen", async () => {
   const { context, page } = await openPage(390, 844);
   try {
     await row(page, "Rot c5w2n").click();
@@ -194,7 +194,7 @@ test("Handy: das Sheet ist in allen drei Modi 500 px hoch, Zuweisen zeigt Feld, 
   }
 });
 
-test("Handy, Hauptablauf: Zeile wählen, +20 tippen, weiter mit dem Pfeil; die Zuweisung trägt Monat und Wert der Eingabe", async () => {
+test("[flow:geld-zuweisen] Handy, Hauptablauf: Zeile wählen, +20 tippen, weiter mit dem Pfeil; die Zuweisung trägt Monat und Wert der Eingabe", async () => {
   const { context, page, calls } = await openPage(390, 844);
   try {
     await row(page, "Lebensmittel c5w2n").click();
@@ -208,7 +208,7 @@ test("Handy, Hauptablauf: Zeile wählen, +20 tippen, weiter mit dem Pfeil; die Z
   }
 });
 
-test("Handy mit offener Tastatur: das Sheet schrumpft, Feld und Verfügbar danach liegen im sichtbaren Bereich", async () => {
+test("[layout] Handy mit offener Tastatur: das Sheet schrumpft, Feld und Verfügbar danach liegen im sichtbaren Bereich", async () => {
   const { context, page } = await openPage(390, 844);
   try {
     await row(page, "Lebensmittel c5w2n").click();
@@ -223,7 +223,7 @@ test("Handy mit offener Tastatur: das Sheet schrumpft, Feld und Verfügbar danac
   }
 });
 
-test("Handy: ein Tipp auf Schritt oder Fehlbetrag-Knopf lässt den Fokus im Feld, alles misst 48 px, die Schritte passen in 360 px", async () => {
+test("[fokus] Handy: ein Tipp auf Schritt oder Fehlbetrag-Knopf lässt den Fokus im Feld, alles misst 48 px, die Schritte passen in 360 px", async () => {
   const { context, page, calls } = await openPage(360, 800);
   try {
     await row(page, "Rot c5w2n").click();
@@ -260,7 +260,7 @@ test("Handy: ein Tipp auf Schritt oder Fehlbetrag-Knopf lässt den Fokus im Feld
   }
 });
 
-test("PC, Panel: Feld tippen, Enter, Pfeil runter wählt die nächste Zeile, keine Schritte", async () => {
+test("[tastatur] PC, Panel: Feld tippen, Enter, Pfeil runter wählt die nächste Zeile, keine Schritte", async () => {
   const { context, page, calls } = await openPage(1280, 800);
   try {
     await row(page, "Lebensmittel c5w2n").click();
@@ -290,7 +290,7 @@ test("PC, Panel: Feld tippen, Enter, Pfeil runter wählt die nächste Zeile, kei
   }
 });
 
-test("Lange Kategorienamen stehen in von, nach und im Knopf vollständig, am Handy und im Panel", async () => {
+test("[layout] Lange Kategorienamen stehen in von, nach und im Knopf vollständig, am Handy und im Panel", async () => {
   for (const [width, height] of [[390, 844], [1280, 800]]) {
     const { context, page } = await openPage(width, height);
     try {
@@ -316,7 +316,7 @@ test("Lange Kategorienamen stehen in von, nach und im Knopf vollständig, am Han
   }
 });
 
-test("Handy: der Picker geht über dem Inspektor auf, zeigt Zuletzt verwendet, schließt ohne Ghost-Click, das Sheet bleibt offen", async () => {
+test("[layout] Handy: der Picker geht über dem Inspektor auf, zeigt Zuletzt verwendet, schließt ohne Ghost-Click, das Sheet bleibt offen", async () => {
   const { context, page, calls } = await openPage(390, 844);
   try {
     await row(page, "Lebensmittel c5w2n").click();
@@ -336,7 +336,7 @@ test("Handy: der Picker geht über dem Inspektor auf, zeigt Zuletzt verwendet, s
   }
 });
 
-test("Handy: der Hinweis einer offenen Verschiebung steht im festen Bereich des Sheets, in jedem Tab sichtbar", async () => {
+test("[layout] Handy: der Hinweis einer offenen Verschiebung steht im festen Bereich des Sheets, in jedem Tab sichtbar", async () => {
   const { context, page } = await openPage(390, 844);
   try {
     const failed = {

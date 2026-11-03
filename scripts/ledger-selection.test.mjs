@@ -126,7 +126,7 @@ after(async () => {
   await stopServer(frontend, frontendPort);
 });
 
-test("Handy 390x844: langes Drücken, Tippen, Alle und Auswahl aufheben", async () => {
+test("[flow:mehrfachauswahl] Handy 390x844: langes Drücken, Tippen, Alle und Auswahl aufheben", async () => {
   const { page, context } = await openLedger({ width: 390, height: 844 }, true);
   try {
     const rowButton = (n) =>
@@ -241,7 +241,7 @@ test("Handy 390x844: langes Drücken, Tippen, Alle und Auswahl aufheben", async 
   }
 });
 
-test("PC 1440x900: Kästchen, Shift-Spanne mit Anker, Kopfzeilen-Kästchen und Leiste", async () => {
+test("[tastatur] PC 1440x900: Kästchen, Shift-Spanne mit Anker, Kopfzeilen-Kästchen und Leiste", async () => {
   const { page, context } = await openLedger({ width: 1440, height: 900 }, false);
   try {
     const box = (n) =>
@@ -320,7 +320,7 @@ const countIn = async (page) => {
   return match ? Number(match[1]) : 0;
 };
 
-test("PC 1440x900: Leertaste wählt genau einmal, schließt das Panel, Prüf-Schaltfläche ruht, Esc-Kette (ledger-w4vte)", async () => {
+test("[tastatur] PC 1440x900: Leertaste wählt genau einmal, schließt das Panel, Prüf-Schaltfläche ruht, Esc-Kette (ledger-w4vte)", async () => {
   const { page, context } = await openLedger({ width: 1440, height: 900 }, false);
   try {
     const box = (n) =>
@@ -402,7 +402,7 @@ const rect = (locator) => locator.evaluate((el) => {
   return { top: r.top, bottom: r.bottom, left: r.left, right: r.right };
 });
 
-test("PC 1440x900: Kategorie setzen öffnet das Popover ganz im Bild über der Leiste, Esc schließt nur den Picker (ledger-w29y6)", async () => {
+test("[layout] PC 1440x900: Kategorie setzen öffnet das Popover ganz im Bild über der Leiste, Esc schließt nur den Picker (ledger-w29y6)", async () => {
   const { page, context } = await openLedger({ width: 1440, height: 900 }, false, categorySetup);
   try {
     const box = (n) =>

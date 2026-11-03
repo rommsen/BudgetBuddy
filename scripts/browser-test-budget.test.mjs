@@ -4,10 +4,12 @@
 // Ebene und die Quelle des Flackerns. Logik gehört unter .NET (Client-`update`, reine Funktionen), im
 // Browser bleibt, was nur dort messbar ist.
 //
-// Die Obergrenze der Browser-Tests prüft run-guards.mjs zur Laufzeit (`MAX_BROWSER_TESTS` in
-// browser-usage.mjs): gezählt wird jeder gelaufene Test einer Datei, die einen Browser oder ein
-// Frontend gestartet hat, gleich in welcher Form er geschrieben ist. Diese Datei belegt die Zählung
-// mit Gegenbeweisen je Form und prüft statisch das Verbot fester Wartezeiten.
+// Die Kennungen der Browser-Tests prüft run-guards.mjs zur Laufzeit (infrastructure-b3t9k): jeder
+// gelaufene Blatt-Test einer Datei, die einen Browser oder ein Frontend gestartet hat, trägt am Anfang
+// seines Namens genau eine Kennung aus `TAGS`, ein `[flow:<name>]` nennt einen Flow aus `FLOWS`, und
+// je Flow läuft höchstens ein Test (browser-usage.mjs). Eine feste Obergrenze gibt es nicht, die Zahl
+// je Kennung wird gemeldet. Diese Datei belegt die Regel mit Gegenbeweisen je Testform und prüft
+// statisch das Verbot fester Wartezeiten.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -16,8 +18,8 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
-import { runCounted, countingEnv } from "./run-guards.mjs";
-import { leafTestsPerFile, browserTestCount, budgetViolation, usageOwner, isBrowserCommand, OWNER_ENV } from "./browser-usage.mjs";
+import { runCounted, countingEnv, gateExitCode } from "./run-guards.mjs";
+import { leafTests, browserLeaves, testTag, tagViolations, tagSummary, summaryLine, FLOWS, usageOwner, isBrowserCommand, OWNER_ENV } from "./browser-usage.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SELF = path.basename(fileURLToPath(import.meta.url));
@@ -46,18 +48,97 @@ test("Gegenbeweis: eine feste Wartezeit in einer echten Testdatei wird gezählt"
   assert.equal(fixedWaits([...realSources(), extra]), MAX_FIXED_WAITS + 1);
 });
 
-test("Blatt-Tests: Untertests zählen statt ihres Elterntests, Suiten zählen nicht", () => {
-  const line = (file, nesting, kind = "test") => JSON.stringify({ file: `/x/${file}`, nesting, kind });
-  const counts = leafTestsPerFile([
-    line("a.test.mjs", 1), line("a.test.mjs", 1), line("a.test.mjs", 0, "suite"),
-    line("b.test.mjs", 1), line("a.test.mjs", 0), line("b.test.mjs", 0),
+const line = (file, nesting, name, kind = "test") => JSON.stringify({ file: `/x/${file}`, nesting, name, kind });
+
+test("Blatt-Tests: Untertests stehen statt ihres Elterntests, Suiten nicht", () => {
+  const leaves = leafTests([
+    line("a.test.mjs", 1, "[layout] u1"), line("a.test.mjs", 1, "[fokus] u2"), line("a.test.mjs", 0, "suite", "suite"),
+    line("b.test.mjs", 1, "[scroll] b1"), line("a.test.mjs", 0, "[fable] neben der Suite"), line("b.test.mjs", 0, "eltern"),
   ]);
-  assert.equal(counts.get("/x/a.test.mjs"), 3);
-  assert.equal(counts.get("/x/b.test.mjs"), 1);
-  const result = browserTestCount(counts, new Set(["/x/a.test.mjs"]));
-  assert.equal(result.total, 3);
-  assert.equal(budgetViolation(result, 3), null);
-  assert.match(budgetViolation(result, 2), /3 Browser-Tests, erlaubt sind 2/);
+  assert.deepEqual(leaves, [
+    { file: "/x/a.test.mjs", name: "[layout] u1" },
+    { file: "/x/a.test.mjs", name: "[fokus] u2" },
+    { file: "/x/b.test.mjs", name: "[scroll] b1" },
+    { file: "/x/a.test.mjs", name: "[fable] neben der Suite" },
+  ]);
+  assert.deepEqual(browserLeaves(leaves, new Set(["/x/a.test.mjs"])).map((l) => l.name), ["[layout] u1", "[fokus] u2", "[fable] neben der Suite"]);
+});
+
+test("Kennung: jede der sechs Kennungen wird am Anfang des Namens erkannt", () => {
+  assert.deepEqual(testTag("[layout] Breiten von 320 bis 1920 px"), { tag: "layout" });
+  assert.deepEqual(testTag("[fokus] Der Fokus bleibt im Feld"), { tag: "fokus" });
+  assert.deepEqual(testTag("[tastatur] Pfeile wechseln die Zeile"), { tag: "tastatur" });
+  assert.deepEqual(testTag("[scroll] Die Liste scrollt mit"), { tag: "scroll" });
+  assert.deepEqual(testTag("[fable] Beträge stehen deutsch"), { tag: "fable" });
+  assert.deepEqual(testTag("[flow:geld-zuweisen] Zeile wählen, Betrag tippen"), { tag: "flow", flow: "geld-zuweisen" });
+});
+
+test("Kennung: ohne Kennung, unbekannt, nicht am Anfang, Flow ohne Namen oder zwei Kennungen ist ungültig", () => {
+  for (const name of [
+    "Breiten von 320 bis 1920 px",
+    "[optik] Farben stimmen",
+    "Breiten [layout] von 320 px",
+    " [layout] mit Leerzeichen davor",
+    "[flow:] ohne Namen",
+    "[flow] ohne Doppelpunkt",
+    "[layout]ohne Abstand",
+    "[layout] [fokus] zwei Kennungen",
+    "[Layout] groß geschrieben",
+    undefined,
+  ])
+    assert.equal(testTag(name), null, String(name));
+});
+
+const leaf = (file, name) => ({ file: `/x/${file}`, name });
+
+test("Prüfung: ein Test ohne Kennung ist rot und nennt Datei und Testname", () => {
+  const violations = tagViolations([leaf("a.test.mjs", "[layout] gut"), leaf("a.test.mjs", "Breiten ohne Kennung")], { x: "." });
+  assert.equal(violations.length, 1);
+  assert.match(violations[0], /a\.test\.mjs: "Breiten ohne Kennung" hat keine gültige Kennung/);
+});
+
+test("Prüfung: ein Flow außerhalb der Liste ist rot", () => {
+  const violations = tagViolations([leaf("a.test.mjs", "[flow:unbekannt] Ablauf")], { bekannt: "." });
+  assert.equal(violations.length, 1);
+  assert.match(violations[0], /Flow "unbekannt" steht nicht in FLOWS/);
+});
+
+test("Prüfung: zwei Tests für denselben Flow sind rot, auch in verschiedenen Dateien, mit beiden Namen", () => {
+  const violations = tagViolations([leaf("a.test.mjs", "[flow:x] Handy"), leaf("b.test.mjs", "[flow:x] PC")], { x: "." });
+  assert.equal(violations.length, 1);
+  assert.match(violations[0], /Flow "x" hat 2 Tests/);
+  assert.match(violations[0], /a\.test\.mjs: "\[flow:x\] Handy"/);
+  assert.match(violations[0], /b\.test\.mjs: "\[flow:x\] PC"/);
+});
+
+test("Prüfung: nur gültige Kennungen und je Flow ein Test sind grün", () => {
+  const leaves = [leaf("a.test.mjs", "[layout] a"), leaf("a.test.mjs", "[fable] b"), leaf("b.test.mjs", "[flow:x] c"), leaf("b.test.mjs", "[flow:y] d")];
+  assert.deepEqual(tagViolations(leaves, { x: ".", y: "." }), []);
+});
+
+test("Prüfung: Tests in Dateien ohne Browser-Marke brauchen keine Kennung", () => {
+  const leaves = leafTests([line("a.test.mjs", 0, "ohne Kennung")]);
+  assert.equal(tagViolations(browserLeaves(leaves, new Set(["/x/a.test.mjs"]))).length, 1, "mit Marke rot");
+  assert.deepEqual(tagViolations(browserLeaves(leaves, new Set())), [], "dieselbe Datei ohne Marke grün");
+});
+
+test("Zusammenfassung: [layout], [layout], [flow:a] ergibt layout 2, flow 1, Summe 3", () => {
+  const summary = tagSummary([leaf("a.test.mjs", "[layout] eins"), leaf("a.test.mjs", "[layout] zwei"), leaf("a.test.mjs", "[flow:a] drei")]);
+  assert.deepEqual(summary, { counts: { layout: 2, flow: 1 }, total: 3 });
+  assert.equal(summaryLine(summary), "Browser-Tests je Kennung: layout 2, flow 1, Summe 3");
+});
+
+test("Das Gate wird rot bei einem Verstoß, auch wenn alle Tests grün sind, und bleibt rot bei rotem Test", () => {
+  assert.equal(gateExitCode(0, []), 0);
+  assert.equal(gateExitCode(0, ["Verstoß"]), 1);
+  assert.equal(gateExitCode(1, []), 1);
+});
+
+test("Jeder Flow der Liste trägt einen gültigen Namen und einen Satz", () => {
+  for (const [flow, sentence] of Object.entries(FLOWS)) {
+    assert.deepEqual(testTag(`[flow:${flow}] x`), { tag: "flow", flow }, flow);
+    assert.match(sentence, /^\S.*\.$/, flow);
+  }
 });
 
 test("Als Browserstart gilt die ausführbare Datei eines Browsers, nicht ein Werkzeug", () => {
@@ -80,14 +161,16 @@ test("Ein Werkzeug, das der Test startet, wird der Testdatei zugerechnet", () =>
 // Gegenbeweis je Form, die eine Zählung über den Quelltext übersah. Jede Datei startet über ein
 // Hilfsmodul mit umbenanntem Import wirklich einen Browser; eine Datei ohne Browser zählt nicht.
 const FORMS = {
-  "it.test.mjs": ['import { it } from "node:test";', 'it("eins", () => {});', 'it("zwei", () => {});'],
-  "describe.test.mjs": ['import { describe, it } from "node:test";', 'describe("s", () => { it("eins", () => {}); it("zwei", () => {}); });'],
-  "schleife.test.mjs": ['import { test } from "node:test";', 'for (const n of [1, 2, 3]) test(`n${n}`, () => {});'],
-  "foreach.test.mjs": ['import { test } from "node:test";', '[1, 2].forEach((n) => test(`n${n}`, () => {}));'],
-  "untertest.test.mjs": ['import { test } from "node:test";', 'test("eltern", async (t) => { await t.test("a", () => {}); await t.test("b", () => {}); });'],
-  "umbenannt.test.mjs": ['import { test as pruefe } from "node:test";', 'pruefe("eins", () => {});'],
+  "it.test.mjs": ['import { it } from "node:test";', 'it("[layout] eins", () => {});', 'it("[fokus] zwei", () => {});'],
+  "describe.test.mjs": ['import { describe, it } from "node:test";', 'describe("s", () => { it("[tastatur] eins", () => {}); it("[scroll] zwei", () => {}); });'],
+  "schleife.test.mjs": ['import { test } from "node:test";', 'for (const n of [1, 2, 3]) test(`[layout] n${n}`, () => {});'],
+  "foreach.test.mjs": ['import { test } from "node:test";', '[1, 2].forEach((n) => test(`[fable] n${n}`, () => {}));'],
+  "untertest.test.mjs": ['import { test } from "node:test";', 'test("eltern", async (t) => { await t.test("[layout] a", () => {}); await t.test("[flow:probe] b", () => {}); });'],
+  "umbenannt.test.mjs": ['import { test as pruefe } from "node:test";', 'pruefe("[layout] eins", () => {});'],
 };
 const EXPECTED = 2 + 2 + 3 + 2 + 2 + 1 + 1 + 1 + 1;
+const EXPECTED_COUNTS = { layout: 9, fokus: 1, tastatur: 1, scroll: 1, fable: 2, flow: 1 };
+const PROBE_FLOWS = { probe: "Ein Flow nur für diesen Gegenbeweis." };
 
 /// Starts über andere Pakete: jede Kopie von `playwright-core` hat ihr eigenes `chromium`-Objekt.
 const OTHER_PACKAGES = {
@@ -95,7 +178,7 @@ const OTHER_PACKAGES = {
   "playwright-test.test.mjs": "@playwright/test",
 };
 
-test("Gegenbeweis: jede Testform in einer Browser-Datei zählt zur Laufzeit, eine Datei ohne Browser nicht", async () => {
+test("Gegenbeweis: jede Testform in einer Browser-Datei wird zur Laufzeit geprüft und gezählt, eine Datei ohne Browser nicht, ein falscher Name macht das Gate rot", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bb-browser-budget-"));
   try {
     const playwright = path.join(here, "..", "node_modules", "playwright", "index.mjs");
@@ -117,7 +200,7 @@ test("Gegenbeweis: jede Testform in einer Browser-Datei zählt zur Laufzeit, ein
           `import { chromium } from ${JSON.stringify(entry)};`,
           "const b = await chromium.launch();",
           "await b.close();",
-          'test("eins", () => {});',
+          'test("[layout] eins", () => {});',
           "",
         ].join("\n")
       );
@@ -135,7 +218,7 @@ test("Gegenbeweis: jede Testform in einer Browser-Datei zählt zur Laufzeit, ein
         `process.env.BB_GUARD_DIST = ${JSON.stringify(path.join(dir, "dist"))};`,
         "const port = await getFreePort();",
         "await stopServer(await startFrontend(port, undefined), port);",
-        'test("eins", () => {});',
+        'test("[layout] eins", () => {});',
         "",
       ].join("\n")
     );
@@ -143,14 +226,23 @@ test("Gegenbeweis: jede Testform in einer Browser-Datei zählt zur Laufzeit, ein
     fs.writeFileSync(path.join(dir, "ohne.test.mjs"), 'import { test } from "node:test";\nfor (let i = 0; i < 5; i += 1) test(`t${i}`, () => {});\n');
     files.push(path.join(dir, "ohne.test.mjs"));
 
-    const atLimit = await runCounted(files, process.env, { max: EXPECTED, stdio: "ignore" });
-    assert.equal(atLimit.code, 0, "die Beispieldateien laufen grün");
-    assert.equal(atLimit.result.total, EXPECTED, `gezählt: ${JSON.stringify(atLimit.result)}`);
-    assert.equal(atLimit.result.files.length, Object.keys(FORMS).length + Object.keys(OTHER_PACKAGES).length + 1, "jede Browser- und Frontend-Datei, nicht ohne.test.mjs");
-    assert.equal(atLimit.violation, null);
+    const valid = await runCounted(files, process.env, { flows: PROBE_FLOWS, stdio: "ignore" });
+    assert.equal(valid.code, 0, "die Beispieldateien laufen grün");
+    assert.equal(valid.summary.total, EXPECTED, `gezählt: ${JSON.stringify(valid.summary)}`);
+    assert.deepEqual(valid.summary.counts, EXPECTED_COUNTS, "je Kennung, ohne.test.mjs zählt nicht");
+    assert.deepEqual(valid.violations, [], "gültige Kennungen, ohne.test.mjs braucht keine");
+    assert.equal(valid.gateCode, 0);
 
-    const over = await runCounted(files, process.env, { max: EXPECTED - 1, stdio: "ignore" });
-    assert.match(over.violation, new RegExp(`${EXPECTED} Browser-Tests, erlaubt sind ${EXPECTED - 1}`));
+    fs.writeFileSync(
+      path.join(dir, "falsch.test.mjs"),
+      ['import { test } from "node:test";', 'import { oeffne } from "./hilfe.mjs";', "await oeffne();", 'test("Breiten ohne Kennung", () => {});', 'test("[flow:probe] zweiter Happy Path", () => {});', ""].join("\n")
+    );
+    const wrong = await runCounted([path.join(dir, "untertest.test.mjs"), path.join(dir, "falsch.test.mjs")], process.env, { flows: PROBE_FLOWS, stdio: "ignore" });
+    assert.equal(wrong.code, 0, "die Tests selbst sind grün");
+    assert.equal(wrong.gateCode, 1, "das Gate ist rot");
+    assert.equal(wrong.violations.length, 2, JSON.stringify(wrong.violations));
+    assert.match(wrong.violations[0], /falsch\.test\.mjs: "Breiten ohne Kennung" hat keine gültige Kennung/);
+    assert.match(wrong.violations[1], /Flow "probe" hat 2 Tests/);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

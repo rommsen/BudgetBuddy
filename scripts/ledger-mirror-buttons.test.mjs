@@ -68,7 +68,7 @@ async function visibleMirrorButtons(page) {
   );
 }
 
-test("Handy und PC: genau ein sichtbarer Spiegel-Knopf, am Handy das Symbol, am PC der Textknopf", async () => {
+test("[layout] Handy und PC: genau ein sichtbarer Spiegel-Knopf, am Handy das Symbol, am PC der Textknopf", async () => {
   for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
     const { context, page } = await openLedger(viewport);
     try {

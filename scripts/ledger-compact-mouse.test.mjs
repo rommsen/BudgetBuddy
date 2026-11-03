@@ -111,7 +111,7 @@ after(async () => {
   await stopServer(frontend, frontendPort);
 });
 
-test("Maus 900 px: Kästchen ohne Hover, Umschalt-Klick, Tasten, Markierung, Hover-Schaltfläche, Sheet", async () => {
+test("[layout] Maus 900 px: Kästchen ohne Hover, Umschalt-Klick, Tasten, Markierung, Hover-Schaltfläche, Sheet", async () => {
   const { page, context, calls, entries } = await openLedger({ viewport: { width: 900, height: 800 } });
   try {
     assert.equal(await page.locator("table").filter({ visible: true }).count(), 0, "bei dieser Breite steht die Kompaktliste");
@@ -184,7 +184,7 @@ test("Maus 900 px: Kästchen ohne Hover, Umschalt-Klick, Tasten, Markierung, Hov
   }
 });
 
-test("Maus 900 px: nach einem Klick auf die Zeile wählt die Leertaste die markierte Zeile", async () => {
+test("[tastatur] Maus 900 px: nach einem Klick auf die Zeile wählt die Leertaste die markierte Zeile", async () => {
   const { page, context } = await openLedger({ viewport: { width: 900, height: 800 } });
   try {
     await page.getByText(label(2), { exact: true }).first().click();

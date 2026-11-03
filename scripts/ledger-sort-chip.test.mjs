@@ -77,7 +77,7 @@ after(async () => {
 
 const chip = (page) => page.locator(".ledger-filter-bar button").filter({ hasText: /^(Datum|Betrag|Payee|Kategorie|Konto) [↑↓]$/ });
 
-test("Handy: Chip am Ende der Leiste, Sheet mit zehn Optionen, Betrag aufsteigend sortiert flach", async () => {
+test("[layout] Handy: Chip am Ende der Leiste, Sheet mit zehn Optionen, Betrag aufsteigend sortiert flach", async () => {
   const page = mobile.page;
   await page.waitForFunction(() => document.querySelectorAll(".ledger-filter-bar button").length > 0);
   await chip(page).waitFor();

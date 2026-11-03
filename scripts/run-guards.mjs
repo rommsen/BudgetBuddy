@@ -12,13 +12,14 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  MAX_BROWSER_TESTS,
   USAGE_DIR_ENV,
   OWNER_ENV,
   markedFiles,
-  leafTestsPerFile,
-  browserTestCount,
-  budgetViolation,
+  leafTests,
+  browserLeaves,
+  tagViolations,
+  tagSummary,
+  summaryLine,
 } from "./browser-usage.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -55,8 +56,9 @@ export function countingEnv(env, usageDir) {
   return counted;
 }
 
-/// Lässt `node --test` laufen und zählt die Browser-Tests. Gibt Exit-Code und Zählung zurück.
-export async function runCounted(files, env, { max = MAX_BROWSER_TESTS, stdio = "inherit" } = {}) {
+/// Lässt `node --test` laufen, prüft die Kennungen der Browser-Tests und zählt sie je Kennung. Gibt
+/// Exit-Code, Zusammenfassung und Verstöße zurück.
+export async function runCounted(files, env, { flows, stdio = "inherit" } = {}) {
   const work = fs.mkdtempSync(path.join(os.tmpdir(), "bb-browser-usage-"));
   const usageDir = path.join(work, "marks");
   const countFile = path.join(work, "tests.jsonl");
@@ -64,23 +66,27 @@ export async function runCounted(files, env, { max = MAX_BROWSER_TESTS, stdio = 
   try {
     const code = await runNodeTest(files, countingEnv(env, usageDir), { countFile, stdio });
     const lines = fs.existsSync(countFile) ? fs.readFileSync(countFile, "utf8").split("\n") : [];
-    const result = browserTestCount(leafTestsPerFile(lines), markedFiles(usageDir));
-    const violation = budgetViolation(result, max);
-    return { code, result, violation };
+    const leaves = browserLeaves(leafTests(lines), markedFiles(usageDir));
+    const summary = tagSummary(leaves);
+    const violations = tagViolations(leaves, flows);
+    return { code, summary, violations, gateCode: gateExitCode(code, violations) };
   } finally {
     fs.rmSync(work, { recursive: true, force: true });
   }
 }
 
-/// Der Lauf im Gate: rot, wenn ein Test rot ist oder die Browser-Tests die Obergrenze überschreiten.
+/// Exit-Code des Gates: rot, wenn ein Test rot ist oder ein Browser-Test gegen die Kennungsregel
+/// verstößt (Doktrin Punkt 5). Die Zahl der Browser-Tests macht das Gate nicht rot.
+export function gateExitCode(code, violations) {
+  return code || (violations.length > 0 ? 1 : 0);
+}
+
+/// Der Lauf im Gate: meldet die Zahl je Kennung und jeden Verstoß.
 async function runGate(files, env) {
-  const { code, result, violation } = await runCounted(files, env);
-  console.log(`Browser-Tests (zur Laufzeit gezählt): ${result.total} von höchstens ${MAX_BROWSER_TESTS}`);
-  if (violation) {
-    console.error(`Browser-Wächter rot: ${violation}`);
-    return code || 1;
-  }
-  return code;
+  const { summary, violations, gateCode } = await runCounted(files, env);
+  console.log(summaryLine(summary));
+  for (const violation of violations) console.error(`Browser-Wächter rot: ${violation}`);
+  return gateCode;
 }
 
 export function resolveTestFiles(args, dir = here) {

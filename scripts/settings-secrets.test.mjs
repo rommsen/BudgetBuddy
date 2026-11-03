@@ -36,7 +36,7 @@ after(async () => {
   await stopServer(frontend);
 });
 
-test("Speichern schickt den neuen Benutzernamen und lässt die übrigen Zugangsdaten leer", async () => {
+test("[flow:zugangsdaten-speichern] Speichern schickt den neuen Benutzernamen und lässt die übrigen Zugangsdaten leer", async () => {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   page.setDefaultTimeout(30000);
   const saved = [];
@@ -75,7 +75,7 @@ test("Speichern schickt den neuen Benutzernamen und lässt die übrigen Zugangsd
 });
 
 // banking-import-bftq0: Das Badge zeigt den Stand, "Bank trennen" fragt einmal nach, ein Fehler bleibt stehen.
-test("Bank trennen am Handy: Abbrechen steht vorn, erst scheitert das Löschen sichtbar, der zweite Versuch trennt", async () => {
+test("[flow:bank-trennen] Bank trennen am Handy: Abbrechen steht vorn, erst scheitert das Löschen sichtbar, der zweite Versuch trennt", async () => {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   page.setDefaultTimeout(30000);
   let status = "BankConnected";

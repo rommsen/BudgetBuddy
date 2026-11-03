@@ -84,7 +84,7 @@ async function tapChip(page, name) {
   return { form, line2 };
 }
 
-test('Handy: "Bar" tippen und "→ Bar" wählen, eine Kategorie daneben, Speichern schickt den Übertrag', async () => {
+test('[flow:import-uebertrag] Handy: "Bar" tippen und "→ Bar" wählen, eine Kategorie daneben, Speichern schickt den Übertrag', async () => {
   const { ctx, page, calls } = await openReady({ width: 390, height: 844 });
   const { form, line2: target } = await tapChip(page, "Aufteilen");
   assert.equal(await page.locator(".split-transfer-btn").count(), 0, "kein Sync-Knopf");

@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-03 21:47 -- Task verified and completed: infrastructure-b3t9k - "Browser-Tests nach Begründung statt fester Obergrenze: Kennung im Testnamen, Flows in fester Liste, je Flow höchstens ein Happy Path, die Zahl wird nur gemeldet"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-b3t9k - "Browser-Tests nach Begründung statt fester Obergrenze: Kennung im Testnamen, Flows in fester Liste, je Flow höchstens ein Happy Path, die Zahl wird nur gemeldet"
+**Summary:** Browser-Tests nach Kennung statt fester Obergrenze
+**Duration:** 50m
+**Verification:** PASS (iteration 1)
+**Files changed:** 45
+**Tests added:** 12
+**ADRs written:** none
+
+---
+
+## 2026-11-03 21:32 -- Verification failed: budgeting-dyn8g - Tab Historie je Kategorie
+
+**Type:** Work / Verification failure
+**Task:** budgeting-dyn8g - Tab Historie je Kategorie
+**Iteration:** 1 of 3
+**Reasons:** dotnet build rot nach Merge von main: State.fs:170 ruft das umbenannte withEntries auf (semantischer Konflikt mit budgeting-r7t3k, kein Textkonflikt)
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-03 21:23 -- Task verified and completed: budgeting-r7t3k - "Budget-Seite: Rückkehr aus dem Kassenbuch und Schließen von Targets ohne Sprung"
 
 **Type:** Work / Task completion

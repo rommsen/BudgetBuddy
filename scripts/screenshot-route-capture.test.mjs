@@ -62,7 +62,7 @@ async function countRedPixels(page, pngPath) {
 // `fullPage: true` den Fehler aus ledger-p9k3w hier wirklich zeigt (sonst
 // wäre die zweite Zusicherung nicht falsifizierend). Erst danach prüft der
 // Test die echte Funktion captureAtDocumentHeight gegen dieselbe Seite.
-test("captureAtDocumentHeight nimmt die volle Dokumenthöhe auf und hält die .bottom-sheet-Leiste außerhalb des Bilds (ADR 0005, ledger-p9k3w)", async () => {
+test("[layout] captureAtDocumentHeight nimmt die volle Dokumenthöhe auf und hält die .bottom-sheet-Leiste außerhalb des Bilds (ADR 0005, ledger-p9k3w)", async () => {
   const browser = await chromium.launch();
   const tmpDir = await mkdtemp(path.join(os.tmpdir(), "bb-screenshot-route-test-"));
   const fullPagePath = path.join(tmpDir, "fullpage.png");

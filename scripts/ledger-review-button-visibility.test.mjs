@@ -70,7 +70,7 @@ const opacityReaches = (payee, value) =>
     [payee, value]
   );
 
-test("Prüf-Schaltfläche: unsichtbar mit Breite, bei Zeilen-Hover und Tastaturfokus sichtbar, neutral, mit title", async () => {
+test("[layout] Prüf-Schaltfläche: unsichtbar mit Breite, bei Zeilen-Hover und Tastaturfokus sichtbar, neutral, mit title", async () => {
   const payee = SIX_CASE_PAYEES.needsReview;
   const row = rowByPayee(payee);
   const button = row.locator("td").last().locator("button");

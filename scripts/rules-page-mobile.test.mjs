@@ -116,7 +116,42 @@ after(async () => {
   await stopServer(frontend, frontendPort);
 });
 
-test("Handy: die Prioritätspfeile sind mindestens 48 mal 48 px, ein Tipp verschiebt die Regel und öffnet den Dialog nicht", async () => {
+/// Jeder sichtbare Knopf ohne Text trägt ein aria-label (Bug categorization-f955d).
+async function expectIconButtonsLabelled(page, width) {
+  const iconButtons = await page.evaluate(() =>
+    [...document.querySelectorAll("button")]
+      .filter((el) => el.offsetParent !== null && el.textContent.trim() === "")
+      .map((el) => ({ label: el.getAttribute("aria-label"), html: el.outerHTML.slice(0, 120) }))
+  );
+  assert.ok(iconButtons.length >= 3, `${width} px: Icon-Knöpfe gefunden: ${iconButtons.length}`);
+  assert.deepEqual(iconButtons.filter((button) => !button.label), [], `${width} px`);
+}
+
+/// Die Texte im offenen Regel-Dialog sind deutsch, je Mustertyp. Am Ende steht wieder "Contains".
+async function expectGermanDialogTexts(page) {
+  const renderedTexts = () =>
+    dialog(page).evaluate((el) => [
+      el.innerText,
+      ...[...el.querySelectorAll("input")].map((input) => input.placeholder),
+      ...[...el.querySelectorAll("option")].map((option) => option.textContent),
+    ]);
+  const seen = [];
+  for (const patternType of ["Exact", "Regex", "Contains"]) {
+    await dialog(page).locator("select").first().selectOption(patternType);
+    seen.push(...(await renderedTexts()));
+  }
+  const all = seen.join("\n");
+  assert.ok(!all.includes("Override payee"), "englischer Platzhalter");
+  assert.ok(!all.includes("z.B."), 'schmale Schreibweise "z.B."');
+  assert.ok(!all.includes("..."), "drei Punkte statt Auslassungszeichen");
+  for (const placeholder of ["z. B. amazon", "z. B. AMAZON MARKETPLACE", "z. B. AMAZON\\.DE", "z. B. Amazon Einkäufe", "Beispieltext eingeben…", "Empfänger in YNAB ersetzen"]) {
+    assert.ok(seen.includes(placeholder), `Platzhalter fehlt: ${placeholder}`);
+  }
+  assert.equal(await dialog(page).getByRole("button", { name: "Testen", exact: true }).count(), 1, 'Knopf "Testen"');
+  assert.equal(await dialog(page).getByRole("button", { name: "Test", exact: true }).count(), 0, 'Knopf "Test"');
+}
+
+test("[layout] Handy: die Prioritätspfeile sind mindestens 48 mal 48 px, ein Tipp verschiebt die Regel und öffnet den Dialog nicht", async () => {
   const { context, page, calls } = await openPage(390, 844);
   try {
     const row = visibleRow(page, "Regel eins");
@@ -146,7 +181,7 @@ test("Handy: die Prioritätspfeile sind mindestens 48 mal 48 px, ein Tipp versch
   }
 });
 
-test("Handy: der Overflow-Knopf ist mindestens 48 px groß, das Menü liegt im Sheet, Export trifft die Zeile dahinter nicht", async () => {
+test("[layout] Handy: der Overflow-Knopf ist mindestens 48 px groß, das Menü liegt im Sheet, Export trifft die Zeile dahinter nicht", async () => {
   const { context, page, calls } = await openPage(390, 844);
   try {
     assert.equal(await menuButton(page).getAttribute("aria-label"), "Weitere Aktionen");
@@ -189,7 +224,7 @@ test("Handy: der Overflow-Knopf ist mindestens 48 px groß, das Menü liegt im S
   }
 });
 
-test("PC: Enter öffnet das Menü mit sichtbarem Fokus-Ring, Tab erreicht jeden Eintrag, Enter löst aus, Esc und Klick außerhalb schließen", async () => {
+test("[tastatur] PC: Enter öffnet das Menü mit sichtbarem Fokus-Ring, Tab erreicht jeden Eintrag, Enter löst aus, Esc und Klick außerhalb schließen", async () => {
   const { context, page, calls } = await openPage(1440, 900);
   try {
     assert.equal(await openSheets(page).count(), 0, "kein Sheet am PC");
@@ -256,7 +291,7 @@ test("PC: Enter öffnet das Menü mit sichtbarem Fokus-Ring, Tab erreicht jeden 
   }
 });
 
-test("PC: Enter und Leertaste auf einem Prioritätspfeil verschieben die Regel und öffnen den Dialog nicht", async () => {
+test("[tastatur] PC: Enter und Leertaste auf einem Prioritätspfeil verschieben die Regel und öffnen den Dialog nicht", async () => {
   const { context, page, calls } = await openPage(1440, 900);
   try {
     await visibleRow(page, "Regel eins").getByRole("button", { name: "Priorität senken" }).focus();
@@ -274,13 +309,16 @@ test("PC: Enter und Leertaste auf einem Prioritätspfeil verschieben die Regel u
   }
 });
 
-test("Handy: der Regel-Dialog ist ein BottomSheet, die Kategorie kommt aus dem Picker mit Suche, Anlegen speichert die Werte", async () => {
+// Die Dialogtexte prüft der Happy Path mit, am gerenderten Dialog statt am Quelltext (Entscheidung
+// des Owners, `categorization-f955d`; infrastructure-b3t9k aus einem eigenen Test hierher gezogen).
+test("[flow:regel-anlegen] Handy: der Regel-Dialog ist ein BottomSheet mit deutschen Texten je Mustertyp, die Kategorie kommt aus dem Picker mit Suche, Anlegen speichert die Werte", async () => {
   const { context, page, calls } = await openPage(390, 844);
   try {
     await page.getByRole("button", { name: "Neue Regel" }).locator("visible=true").click();
     await dialog(page).waitFor();
     assert.equal(await page.locator('.bottom-sheet.active [data-testid="rule-dialog"]').count(), 1, "Dialog liegt im Sheet");
     assert.equal(await page.locator(".fixed.inset-0.z-50").count(), 0, "kein zentriertes Modal");
+    await expectGermanDialogTexts(page);
 
     await dialog(page).locator("input").first().fill("Bäcker");
     await dialog(page).getByPlaceholder("z. B. amazon", { exact: true }).fill("baeckerei");
@@ -309,7 +347,7 @@ test("Handy: der Regel-Dialog ist ein BottomSheet, die Kategorie kommt aus dem P
   }
 });
 
-test("PC: der Regel-Dialog bleibt ein Modal, der Picker hängt als Popover im Bild, Ändern speichert die neue Kategorie", async () => {
+test("[layout] PC: der Regel-Dialog bleibt ein Modal, der Picker hängt als Popover im Bild, Ändern speichert die neue Kategorie", async () => {
   const { context, page, calls } = await openPage(1440, 900);
   try {
     await visibleRow(page, "Regel eins").getByText("Regel eins").click();
@@ -342,7 +380,7 @@ test("PC: der Regel-Dialog bleibt ein Modal, der Picker hängt als Popover im Bi
 // Bug categorization-f955d: das Menü im Sheet schloss ohne Schutz vor dem Ghost-Click. Der
 // Schutz darf aber auch den programmatischen Klick auf das Datei-Input nicht schlucken, sonst
 // geht am Handy die Dateiauswahl nie auf.
-test("Handy: das Menü bleibt nach dem Tipp offen, Importieren aus dem Sheet öffnet die Dateiauswahl", async () => {
+test("[flow:regeln-importieren] Handy: das Menü bleibt nach dem Tipp offen, Importieren aus dem Sheet öffnet die Dateiauswahl", async () => {
   const { context, page, calls } = await openPage(390, 844);
   try {
     const chooserOpened = page.waitForEvent("filechooser");
@@ -362,12 +400,14 @@ test("Handy: das Menü bleibt nach dem Tipp offen, Importieren aus dem Sheet öf
 });
 
 // Bug categorization-f955d: die Zeile reagierte nur auf Enter, und ein Screenreader erfuhr nicht,
-// dass sie bedienbar ist.
-test("Enter und Leertaste auf der Regelzeile öffnen den Dialog zum Bearbeiten, am PC und am Handy", async () => {
+// dass sie bedienbar ist. Icon-Knöpfe trugen nur `title`: je Breite trägt jeder sichtbare
+// Icon-Knopf ein aria-label (infrastructure-b3t9k aus einem eigenen Test hierher gezogen).
+test("[tastatur] Enter und Leertaste auf der Regelzeile öffnen den Dialog zum Bearbeiten, jeder Icon-Knopf trägt ein aria-label, am PC und am Handy", async () => {
   for (const [width, height] of [[1440, 900], [390, 844]]) {
     for (const key of ["Enter", "Space"]) {
       const { context, page } = await openPage(width, height);
       try {
+        if (key === "Enter") await expectIconButtonsLabelled(page, width);
         const row = visibleRow(page, "Regel eins");
         assert.equal(await row.getAttribute("role"), "button");
         await row.focus();
@@ -381,29 +421,11 @@ test("Enter und Leertaste auf der Regelzeile öffnen den Dialog zum Bearbeiten, 
   }
 });
 
-// Bug categorization-f955d: Icon-Knöpfe trugen nur `title`.
-test("Jeder Icon-Knopf der Regelseite trägt ein aria-label, am PC und am Handy", async () => {
-  for (const [width, height] of [[1440, 900], [390, 844]]) {
-    const { context, page } = await openPage(width, height);
-    try {
-      const iconButtons = await page.evaluate(() =>
-        [...document.querySelectorAll("button")]
-          .filter((el) => el.offsetParent !== null && el.textContent.trim() === "")
-          .map((el) => ({ label: el.getAttribute("aria-label"), html: el.outerHTML.slice(0, 120) }))
-      );
-      assert.ok(iconButtons.length >= 3, `${width} px: Icon-Knöpfe gefunden: ${iconButtons.length}`);
-      assert.deepEqual(iconButtons.filter((button) => !button.label), [], `${width} px`);
-    } finally {
-      await context.close();
-    }
-  }
-});
-
 // Bug budgeting-nfrds, dieselbe Konstruktion: der Mausdruck zählte als Klick außerhalb und
 // schloss das Popover, der Klick öffnete es wieder. Das volle Popover scrollt den Dialog, dann
 // trifft der Klick den weggesprungenen Auslöser nicht und der Fehler bleibt verdeckt. Der Filter
 // kürzt das Popover, der Auslöser bleibt liegen.
-test("PC: der Auslöser schließt das offene Kategorie-Popover im Dialog", async () => {
+test("[layout] PC: der Auslöser schließt das offene Kategorie-Popover im Dialog", async () => {
   const { context, page } = await openPage(1440, 900);
   try {
     await page.getByRole("button", { name: "Neue Regel" }).locator("visible=true").click();
@@ -422,37 +444,3 @@ test("PC: der Auslöser schließt das offene Kategorie-Popover im Dialog", async
   }
 });
 
-// Ersetzt die frühere Quelltext-Prüfung (Entscheidung des Owners, `categorization-f955d`): geprüft
-// wird, was im gerenderten Dialog steht.
-test("Dialogtexte: deutsch, z. B. mit Abstand, Auslassungszeichen und Knopf Testen, je Mustertyp", async () => {
-  const { context, page } = await openPage(1440, 900);
-  try {
-    await page.getByRole("button", { name: "Neue Regel" }).locator("visible=true").click();
-    await dialog(page).waitFor();
-
-    const renderedTexts = () =>
-      dialog(page).evaluate((el) => [
-        el.innerText,
-        ...[...el.querySelectorAll("input")].map((input) => input.placeholder),
-        ...[...el.querySelectorAll("option")].map((option) => option.textContent),
-      ]);
-
-    const seen = [];
-    for (const patternType of ["Contains", "Exact", "Regex"]) {
-      await dialog(page).locator("select").first().selectOption(patternType);
-      seen.push(...(await renderedTexts()));
-    }
-
-    const all = seen.join("\n");
-    assert.ok(!all.includes("Override payee"), "englischer Platzhalter");
-    assert.ok(!all.includes("z.B."), 'schmale Schreibweise "z.B."');
-    assert.ok(!all.includes("..."), "drei Punkte statt Auslassungszeichen");
-    for (const placeholder of ["z. B. amazon", "z. B. AMAZON MARKETPLACE", "z. B. AMAZON\\.DE", "z. B. Amazon Einkäufe", "Beispieltext eingeben…", "Empfänger in YNAB ersetzen"]) {
-      assert.ok(seen.includes(placeholder), `Platzhalter fehlt: ${placeholder}`);
-    }
-    assert.equal(await dialog(page).getByRole("button", { name: "Testen", exact: true }).count(), 1, 'Knopf "Testen"');
-    assert.equal(await dialog(page).getByRole("button", { name: "Test", exact: true }).count(), 0, 'Knopf "Test"');
-  } finally {
-    await context.close();
-  }
-});

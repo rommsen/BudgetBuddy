@@ -102,7 +102,7 @@ after(async () => {
   await stopServer(frontend, frontendPort);
 });
 
-test("Handy (390x844): Barabhebung im Editor-Sheet, gleich hoch wie Zeile hinzufügen, der Tipp setzt den Übertrag aufs Bar-Konto", async () => {
+test("[flow:barabhebung-aufteilen] Handy (390x844): Barabhebung im Editor-Sheet, gleich hoch wie Zeile hinzufügen, der Tipp setzt den Übertrag aufs Bar-Konto", async () => {
   state.saveCalls.length = 0;
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   const page = await open(context, CASH_ID);

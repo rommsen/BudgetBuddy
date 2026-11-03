@@ -122,7 +122,7 @@ after(async () => {
   await stopServer(frontend, frontendPort);
 });
 
-test("Handy: Summe und Zu verteilen danach sichtbar, Übernehmen ohne Scrollen erreichbar, auch bei langer Liste", async () => {
+test("[layout] Handy: Summe und Zu verteilen danach sichtbar, Übernehmen ohne Scrollen erreichbar, auch bei langer Liste", async () => {
   const preview = previewFixture(40);
   const { context, page, calls } = await openPage(390, 844, { preview, apply: () => ({ Error: "nicht erwartet" }), retry: () => ({ Error: "x" }) });
   try {
@@ -148,7 +148,7 @@ test("Handy: Summe und Zu verteilen danach sichtbar, Übernehmen ohne Scrollen e
 });
 
 // budgeting-kjsht: die Zeile ist am Handy länger als die Breite, sie muss umbrechen und darf nicht abgeschnitten werden.
-test("Handy: eine Vorschau-Zeile zeigt Target, Zugewiesen und Fehlbetrag vollständig", async () => {
+test("[layout] Handy: eine Vorschau-Zeile zeigt Target, Zugewiesen und Fehlbetrag vollständig", async () => {
   const preview = previewFixture(1);
   const { context, page } = await openPage(390, 844, { preview, apply: () => ({ Error: "nicht erwartet" }), retry: () => ({ Error: "x" }) });
   try {
@@ -162,7 +162,7 @@ test("Handy: eine Vorschau-Zeile zeigt Target, Zugewiesen und Fehlbetrag vollst�
   }
 });
 
-test("Hinweise im Dialog stehen in Gelb, auf der Budget-Seite gibt es kein Pink (ADR 0075)", async () => {
+test("[layout] Hinweise im Dialog stehen in Gelb, auf der Budget-Seite gibt es kein Pink (ADR 0075)", async () => {
   const preview = previewFixture(2);
   const answers = [
     { Ok: { PreviewChanged: preview } },
@@ -202,7 +202,7 @@ test("Hinweise im Dialog stehen in Gelb, auf der Budget-Seite gibt es kein Pink 
   }
 });
 
-test("Übernehmen schickt die gezeigte Vorschau, zeigt X von N, erneutes Senden holt den Rest", async () => {
+test("[flow:targets-anwenden] Übernehmen schickt die gezeigte Vorschau, zeigt X von N, erneutes Senden holt den Rest", async () => {
   const preview = previewFixture(3);
   const failed = reportFixture(preview, ["Written", { Failed: "Rate-Limit" }, { Failed: "Rate-Limit" }], eur(4980));
   const healed = reportFixture(preview, ["Written", "Written", "Written"], eur(4970));

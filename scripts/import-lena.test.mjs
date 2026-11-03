@@ -94,7 +94,7 @@ async function open(vp) {
   return { ctx, page };
 }
 
-test("Handy: Lena fragen an der Importzeile setzt das Kennzeichen nur dort, Zurücknehmen und Import laufen, die Zeile bleibt einzeilig", async () => {
+test("[flow:import-lena-fragen] Handy: Lena fragen an der Importzeile setzt das Kennzeichen nur dort, Zurücknehmen und Import laufen, die Zeile bleibt einzeilig", async () => {
   reset("purple");
   const { ctx, page } = await open({ width: 390, height: 844 });
   const row = (payee) => page.locator(".tx-row", { hasText: payee });

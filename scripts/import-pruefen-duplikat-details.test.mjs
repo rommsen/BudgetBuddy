@@ -59,7 +59,7 @@ after(async () => {
   await stopServer(frontend, port);
 });
 
-test('PC: Verdacht zeigt die Prüfung sofort mit Datum und Betrag aus dem Fable-Kompilat, sonst steht sie hinter "Details"', async () => {
+test('[fable] PC: Verdacht zeigt die Prüfung sofort mit Datum und Betrag aus dem Fable-Kompilat, sonst steht sie hinter "Details"', async () => {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
   const page = await ctx.newPage();
   page.setDefaultTimeout(15000);

@@ -124,7 +124,7 @@ after(async () => {
   await stopServer(frontend, frontendPort);
 });
 
-test("Handy: Zeile wählen, Abgeben, Gegenseite suchen, Betrag tippen, abgeben; die Zeilen zeigen die neuen Beträge", async () => {
+test("[flow:geld-verschieben] Handy: Zeile wählen, Abgeben, Gegenseite suchen, Betrag tippen, abgeben; die Zeilen zeigen die neuen Beträge", async () => {
   const handlers = {
     move: (state) => {
       state.food -= 20;
@@ -173,7 +173,7 @@ test("Handy: Zeile wählen, Abgeben, Gegenseite suchen, Betrag tippen, abgeben; 
   }
 });
 
-test("Fehlgeschlagener PATCH: der Toast bietet Erneut senden an, der Klick sendet dieselbe Anwendung", async () => {
+test("[flow:verschiebung-erneut-senden] Fehlgeschlagener PATCH: der Toast bietet Erneut senden an, der Klick sendet dieselbe Anwendung", async () => {
   const { context, page, calls } = await openPage(390, 844, {
     move: () => ({ Ok: report({ Failed: "Rate-Limit" }) }),
     retry: () => ({ Ok: report("Written") }),
@@ -195,7 +195,7 @@ test("Fehlgeschlagener PATCH: der Toast bietet Erneut senden an, der Klick sende
   }
 });
 
-test("Panel 1280 × 800: der Auslöser schließt das offene Popover, es ist ganz sichtbar und wird vom Panel nicht abgeschnitten", async () => {
+test("[layout] Panel 1280 × 800: der Auslöser schließt das offene Popover, es ist ganz sichtbar und wird vom Panel nicht abgeschnitten", async () => {
   const { context, page } = await openPage(1280, 800, {
     move: () => ({ Error: "nicht erwartet" }),
     retry: () => ({ Error: "nicht erwartet" }),

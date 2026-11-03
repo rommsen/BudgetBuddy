@@ -161,7 +161,7 @@ async function tapUntil(target, done) {
   }
 }
 
-test("PC: Aufteilen mit Übertrag über den Picker im Panel: Tastatur, Lage des Popovers, Vorzeichen und Rückgängig", async () => {
+test("[flow:aufteilen] PC: Aufteilen mit Übertrag über den Picker im Panel: Tastatur, Lage des Popovers, Vorzeichen und Rückgängig", async () => {
   resetState();
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await open(context);
@@ -205,7 +205,7 @@ test("PC: Aufteilen mit Übertrag über den Picker im Panel: Tastatur, Lage des 
   await context.close();
 });
 
-test("Handy (390x844): Aufteilen im selben Sheet, Speichern klebt unten, kein Abbrechen, Auswahl als zweites Sheet", async () => {
+test("[layout] Handy (390x844): Aufteilen im selben Sheet, Speichern klebt unten, kein Abbrechen, Auswahl als zweites Sheet", async () => {
   resetState();
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   const page = await open(context);

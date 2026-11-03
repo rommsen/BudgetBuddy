@@ -88,7 +88,7 @@ async function measure(page, scopeSelector) {
   }, scopeSelector);
 }
 
-test("Handy (390 px): Zeile hinzufügen und Barabhebung messen mindestens 48 px, am PC (1440 px) bleiben sie unter 44 px", async () => {
+test("[layout] Handy (390 px): Zeile hinzufügen und Barabhebung messen mindestens 48 px, am PC (1440 px) bleiben sie unter 44 px", async () => {
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   try {
     const page = await open(phone);

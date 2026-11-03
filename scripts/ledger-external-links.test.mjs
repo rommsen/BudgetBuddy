@@ -79,7 +79,7 @@ after(async () => {
 
 const row = (p, text) => p.locator("table tbody tr", { hasText: text }).first();
 
-test("PC: das Seitenpanel zeigt den Bestell-Link unter dem Memo, öffnet in neuem Tab, die Liste zeigt keinen Link", async () => {
+test("[flow:bestell-link-oeffnen] PC: das Seitenpanel zeigt den Bestell-Link unter dem Memo, öffnet in neuem Tab, die Liste zeigt keinen Link", async () => {
   await row(page, "AMAZON PAYMENTS").waitFor();
   assert.equal(await page.locator('table a[href*="amazon"]').count(), 0, "die Liste trägt keinen Link");
   await row(page, "AMAZON PAYMENTS").locator("td").nth(2).click();
@@ -99,7 +99,7 @@ test("PC: das Seitenpanel zeigt den Bestell-Link unter dem Memo, öffnet in neue
   assert.ok(order.links > order.memo, "die Link-Zeile steht unter dem Memo");
 });
 
-test("Handy (390): das Sheet zeigt den PayPal-Link mit mindestens 44 px Trefferfläche", async () => {
+test("[layout] Handy (390): das Sheet zeigt den PayPal-Link mit mindestens 44 px Trefferfläche", async () => {
   await mobilePage.getByText("PayPal Shop").first().tap();
   const sheet = mobilePage.locator(".bottom-sheet.active");
   await sheet.waitFor();

@@ -37,7 +37,7 @@ async function openGallery(contextOptions) {
 const section = (page) => page.locator("section", { hasText: "26. Kategorie-Picker (Einfachauswahl)" });
 const options = (scope) => scope.locator('[role="option"]');
 
-test("PC: Popover mit Suche, Ohne Kategorie, Vorgeschlagen, Beträgen rechts und Stand-Zeile", async () => {
+test("[layout] PC: Popover mit Suche, Ohne Kategorie, Vorgeschlagen, Beträgen rechts und Stand-Zeile", async () => {
   const page = await openGallery({ viewport: { width: 1440, height: 900 } });
   await page.locator('[data-ds-demo="category-picker-popover-trigger"] button').click();
   const sec = section(page);
@@ -74,7 +74,7 @@ test("PC: Popover mit Suche, Ohne Kategorie, Vorgeschlagen, Beträgen rechts und
 const selectCount = async (sec) =>
   Number(await sec.locator('[data-ds-demo="category-picker-select-count"]').textContent());
 
-test("PC: ein Mausklick wählt genau einmal und schließt; Pfeile, Enter und Esc", async () => {
+test("[tastatur] PC: ein Mausklick wählt genau einmal und schließt; Pfeile, Enter und Esc", async () => {
   const page = await openGallery({ viewport: { width: 1440, height: 900 } });
   const sec = section(page);
   const trigger = page.locator('[data-ds-demo="category-picker-popover-trigger"] button');
@@ -104,7 +104,7 @@ test("PC: ein Mausklick wählt genau einmal und schließt; Pfeile, Enter und Esc
   await page.close();
 });
 
-test("Handy (390): Sheet mit denselben Zeilen, 16 px Suchschrift, Betragsslots bündig", async () => {
+test("[layout] Handy (390): Sheet mit denselben Zeilen, 16 px Suchschrift, Betragsslots bündig", async () => {
   const page = await openGallery({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   await page.locator('[data-ds-demo="category-picker-sheet-trigger"] button').evaluate((el) => el.click());
   const sheet = page.locator(".bottom-sheet.active");
@@ -141,7 +141,7 @@ test("Handy (390): Sheet mit denselben Zeilen, 16 px Suchschrift, Betragsslots b
 // ledger-dmw83: Befund vom 2026-10-24: ein Ladefehler sah aus wie "es gibt keine Kategorien" und
 // es gab keinen Weg, es erneut zu versuchen. Die Zustände selbst liegen in CategoryPickerTests.fs.
 
-test("PC: Zustand fehlgeschlagen zeigt Fehlertext und Erneut versuchen, der Knopf ruft OnRetry", async () => {
+test("[flow:kategorien-neu-laden] PC: Zustand fehlgeschlagen zeigt Fehlertext und Erneut versuchen, der Knopf ruft OnRetry", async () => {
   const page = await openGallery({ viewport: { width: 1440, height: 900 } });
   await page.locator('[data-ds-demo="category-picker-failed-trigger"] button').click();
   const box = page.locator('[data-ds-demo="category-picker-failed"]');

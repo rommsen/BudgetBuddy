@@ -82,7 +82,7 @@ async function openForm(answer) {
   return { context, page, patterns };
 }
 
-test("Öffnen prüft das vorbelegte Muster, eine Tippfolge löst genau eine Anfrage aus", async () => {
+test("[flow:regel-aus-import] Öffnen prüft das vorbelegte Muster, eine Tippfolge löst genau eine Anfrage aus", async () => {
   const { context, page, patterns } = await openForm((r) => r.fulfill(json({ Ok: true })));
   try {
     await page.getByText("Passt auf diese Transaktion").waitFor();

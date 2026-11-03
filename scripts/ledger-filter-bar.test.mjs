@@ -90,7 +90,7 @@ beforeEach(async () => {
   await mobileSheet().waitFor({ state: "detached" });
 });
 
-test("PC: Kategorien im Popover wählen, Übernehmen filtert Liste und Summe, × nimmt den Filter zurück", async () => {
+test("[flow:kassenbuch-filtern] PC: Kategorien im Popover wählen, Übernehmen filtert Liste und Summe, × nimmt den Filter zurück", async () => {
   await categoryChip().click();
   await popover().getByText("Lebensmittel", { exact: true }).last().waitFor();
   assert.ok((await popover().innerText()).includes("120,50"), "Available steht neben der Kategorie");
@@ -116,7 +116,7 @@ test("PC: Kategorien im Popover wählen, Übernehmen filtert Liste und Summe, ×
 });
 
 // Datum und ISO-Text laufen hier durch das Fable-Kompilat, unter .NET rechnet eine andere Laufzeit.
-test("PC: Zeitraum mit Schnellwahl, ungültigem Datum und Eingabe geht als ISO-Datum an den Server und kommt deutsch zurück", async () => {
+test("[fable] PC: Zeitraum mit Schnellwahl, ungültigem Datum und Eingabe geht als ISO-Datum an den Server und kommt deutsch zurück", async () => {
   const queries = [];
   const spy = (route) => {
     queries.push(route.request().postDataJSON()[0]);
@@ -156,7 +156,7 @@ test("PC: Zeitraum mit Schnellwahl, ungültigem Datum und Eingabe geht als ISO-D
   }
 });
 
-test("Input.Small misst am Handy 16px und am PC 14px, auch in Datumsfeld und Kategorie-Suche, Medium 16px, Large 18px (btwhg, m7z9q, iOS-Zoom)", async () => {
+test("[layout] Input.Small misst am Handy 16px und am PC 14px, auch in Datumsfeld und Kategorie-Suche, Medium 16px, Large 18px (btwhg, m7z9q, iOS-Zoom)", async () => {
   // Misst die Kaskade von `.input-field` gegen die Klassen aus `Input.sizeToClass`:
   // `.input-field` stand ohne Layer in styles.css und überstimmte `text-base` von Small.
   // Medium trägt zusätzlich das Inline-fontSize 16 (`Input.usesInlineFontSize`).
@@ -205,7 +205,7 @@ test("Input.Small misst am Handy 16px und am PC 14px, auch in Datumsfeld und Kat
   await mobilePage.locator(".overlay.active").click({ position: { x: 5, y: 5 } });
 });
 
-test("Der Kalender-Knopf wirft keinen Konsolenfehler und lässt das Textfeld bedienbar (m7z9q)", async () => {
+test("[fokus] Der Kalender-Knopf wirft keinen Konsolenfehler und lässt das Textfeld bedienbar (m7z9q)", async () => {
   const errors = [];
   const onConsole = (m) => { if (m.type() === "error") errors.push(m.text()); };
   const onPageError = (e) => errors.push(String(e));
@@ -226,7 +226,7 @@ test("Der Kalender-Knopf wirft keinen Konsolenfehler und lässt das Textfeld bed
   await page.keyboard.press("Escape");
 });
 
-test("Am Handy öffnet der Chip ein BottomSheet, Tippen außerhalb filtert nicht, zwei Kategorien filtern, der aktive Chip rückt vor Zu prüfen", async () => {
+test("[layout] Am Handy öffnet der Chip ein BottomSheet, Tippen außerhalb filtert nicht, zwei Kategorien filtern, der aktive Chip rückt vor Zu prüfen", async () => {
   await mobileCategoryChip().click();
   await mobileSheet().getByText("Lebensmittel", { exact: true }).waitFor();
   assert.equal(await mobilePage.locator(".shadow-2xl").count(), 0, "kein Popover am Handy");
@@ -298,7 +298,7 @@ async function assertStickyWithoutCollision(target, label, expectedTop) {
   assert.ok(at.theadTop - at.barBottom <= 2, `${label}: höchstens 2 px Abstand (${JSON.stringify(at)})`);
 }
 
-test("Die Leiste haftet unter der Navbar und der Tabellenkopf direkt darunter: 1440 px, umbrechend, mit und nach dem Spiegel-Lauf", async () => {
+test("[layout] Die Leiste haftet unter der Navbar und der Tabellenkopf direkt darunter: 1440 px, umbrechend, mit und nach dem Spiegel-Lauf", async () => {
   const wide = await openLedger({ width: 1440, height: 900 }, { resolveEntries: manyEntries });
   try {
     await scrollIntoStickyState(wide.page);

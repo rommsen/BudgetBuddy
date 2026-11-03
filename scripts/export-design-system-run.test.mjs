@@ -39,7 +39,7 @@ async function chromiumLaunchError() {
 }
 
 test(
-  "Vollauf: exportiert das gesamte Bundle in ein temporäres Verzeichnis; dist/design-system im Repo bleibt unberührt",
+  "[flow:design-system-export] Vollauf: exportiert das gesamte Bundle in ein temporäres Verzeichnis; dist/design-system im Repo bleibt unberührt",
   { timeout: 300_000 },
   async (t) => {
     const launchError = await chromiumLaunchError();

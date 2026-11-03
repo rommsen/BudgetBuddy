@@ -71,7 +71,7 @@ async function openLedger(viewport) {
 
 // Die Karte selbst ist View: ihr Text kommt aus `allReviewedText` (.NET), dass sie ohne "Jetzt
 // spiegeln" steht, nur hier.
-test("PC: nach dem letzten Prüfen unter Zu prüfen steht Alles geprüft ohne Jetzt spiegeln", async () => {
+test("[flow:pruefliste-abarbeiten] PC: nach dem letzten Prüfen unter Zu prüfen steht Alles geprüft ohne Jetzt spiegeln", async () => {
   const { page, context } = await openLedger({ width: 1440, height: 900 });
   try {
     await page.getByRole("button", { name: /^Zu prüfen/ }).first().click();
@@ -87,7 +87,7 @@ test("PC: nach dem letzten Prüfen unter Zu prüfen steht Alles geprüft ohne Je
   }
 });
 
-test("PC: der Kategorie-Filter merkt Zuletzt verwendet im localStorage, auch nach Neuladen", async () => {
+test("[flow:zuletzt-verwendet-merken] PC: der Kategorie-Filter merkt Zuletzt verwendet im localStorage, auch nach Neuladen", async () => {
   const { page, context } = await openLedger({ width: 1440, height: 900 });
   try {
     const popover = page.locator(".shadow-2xl");

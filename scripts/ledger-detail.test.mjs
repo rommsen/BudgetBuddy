@@ -96,7 +96,7 @@ const panel = (p) => p.locator('[data-testid="ledger-detail-panel"]');
 const sheet = (p) => p.locator(".bottom-sheet.active");
 const title = (p) => p.locator('[data-testid="detail-title"]');
 
-test("PC (1440): Klick auf die Payee-Zelle öffnet das Panel, kein Menü; Liste bleibt, Memo fehlt, Zeile markiert", async () => {
+test("[flow:buchung-oeffnen] PC (1440): Klick auf die Payee-Zelle öffnet das Panel, kein Menü; Liste bleibt, Memo fehlt, Zeile markiert", async () => {
   await row(page, PAYEE).waitFor();
   await row(page, PAYEE).locator("td").nth(2).click();
   await panel(page).waitFor();
@@ -120,7 +120,7 @@ test("PC (1440): Klick auf die Payee-Zelle öffnet das Panel, kein Menü; Liste 
   assert.ok(Math.abs(payeeRight - categoryRight) < 1, `Filter-Knöpfe bündig rechts (${payeeRight} gegen ${categoryRight})`);
 });
 
-test("Handy (390x844): Tipp öffnet das Sheet mit Filter-Knöpfen an den Feldern, kein Block oben", async () => {
+test("[layout] Handy (390x844): Tipp öffnet das Sheet mit Filter-Knöpfen an den Feldern, kein Block oben", async () => {
   await mobilePage.getByText("Deutsche Bahn").first().tap();
   await sheet(mobilePage).waitFor();
   assert.equal(await mobilePage.locator('[data-testid="row-filter-actions"]').count(), 0, "kein Aktionsblock");

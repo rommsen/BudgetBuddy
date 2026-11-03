@@ -149,7 +149,7 @@ const visibleBar = (page) => page.locator(".selection-bar").filter({ visible: tr
 const box = (page, payee) =>
   page.getByRole("checkbox", { name: `${payee} auswählen` }).filter({ visible: true });
 
-test("PC: Lena fragen für zwei Buchungen, ein Aufruf, ein Toast mit Rückgängig für beide", async () => {
+test("[flow:lena-fragen-mehrere] PC: Lena fragen für zwei Buchungen, ein Aufruf, ein Toast mit Rückgängig für beide", async () => {
   resetState();
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await open(context);
@@ -196,7 +196,7 @@ test("PC: Lena fragen für zwei Buchungen, ein Aufruf, ein Toast mit Rückgängi
   }
 });
 
-test("Handy 390x844: dritte Reihe mit beiden Aktionen, der Grund als Zeile, nichts läuft über", async () => {
+test("[layout] Handy 390x844: dritte Reihe mit beiden Aktionen, der Grund als Zeile, nichts läuft über", async () => {
   resetState();
   state.lenaColor = null;
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
