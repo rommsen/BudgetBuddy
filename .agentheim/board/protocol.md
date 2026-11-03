@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-03 11:55 -- Modeling / Captured: infrastructure-v8m2d - "Dev-Server: Vite stürzt ab, wenn dotnet parallel das Client-Projekt baut"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Vite stürzt ab, wenn dotnet parallel das Client-Projekt baut.
+
+---
+
 ## 2026-11-03 10:40 -- Modeling / Captured: infrastructure-f3k7x - "Feliz 2.9 auf 3.x heben, damit React 19 nicht für jede Kinderliste die Key-Warnung meldet"
 
 **Type:** Modeling / Capture
