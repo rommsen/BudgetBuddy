@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-03 01:10 -- Modeling / Promoted: infrastructure-t5m2b - "Browser-Tests auf das reduzieren, was nur der Browser prüfen kann, Logik wandert in MVU-Tests"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-03 00:56 -- Task verified and completed: budgeting-c5w2n - "Tab Geld: Umschalter Zuweisen, Holen, Abgeben, rechnendes Feld mit Speichern beim Verlassen, Fehlbetrag-Knopf, Handy-Schritte, Holen und Abgeben nach Variante D"
 
 **Type:** Work / Task completion

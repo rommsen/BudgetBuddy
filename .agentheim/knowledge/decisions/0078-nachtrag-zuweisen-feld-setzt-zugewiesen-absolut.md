@@ -25,6 +25,8 @@ Das Gesamtkonzept bringt ein Feld Zugewiesen, das rechnet und beim Verlassen spe
 4. **Relativ bleibt, was ein Betrag ist.** Holen, Abgeben und der Fehlbetrag-Knopf "12,30 zuweisen" laufen weiter über `moveMoney`, auch mit Zu verteilen als Gegenseite. Wer 12,30 € zuweist, meint 12,30 €.
 5. **Der Client sendet Zuweisungen nacheinander.** Es läuft höchstens eine, weitere warten in der Reihenfolge des Speicherns, eine wartende für dieselbe Kategorie und denselben Monat wird ersetzt. Eine Verschiebung startet erst, wenn nichts mehr wartet. Sonst überschriebe eine verspätete absolute Zuweisung eine Verschiebung.
 
+Ergänzung aus dem Review von budgeting-c5w2n: Für dieselbe Kategorie und denselben Monat bleibt nur die jüngste gescheiterte Zuweisung sendbar. Eine neu gespeicherte Zuweisung ersetzt den offenen Eintrag, damit "Erneut senden" keinen späteren Wert verdrängt. Nach einer Bewegung gilt der Monat bis zur Antwort des Neu-Lesens als veraltet, der Fehlbetrag-Knopf ist so lange gesperrt, damit ein zweiter Tipp nicht doppelt bucht.
+
 ## Consequences
 ### Positive
 - Der gezeigte Wert ist der gesendete. Ein abgebrochener Aufruf lässt sich durch erneute Eingabe ohne Doppelwirkung wiederholen.
