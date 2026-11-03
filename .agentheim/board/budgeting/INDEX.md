@@ -11,18 +11,18 @@ Catalog of this bounded context's tasks by status.
 
 <!-- task-counts:start -->
 - **Backlog:** 6
-- **Todo:** 1
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 1
 - **Done:** 17
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **budgeting-x4k7p** — "Review-Korrekturen zum Tab Historie und zum stillen Neu-Lesen: Historie lädt still nach, Stand-Badges nach Styleguide, Monatsbalken als DS-Baustein, fehlende Verdrahtungstests" (refactor) — `todo/budgeting-x4k7p-review-korrekturen-zum-tab-historie-und-zum-stillen-neu-lese.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **budgeting-x4k7p** — "Review-Korrekturen zum Tab Historie und zum stillen Neu-Lesen: Historie lädt still nach, Stand-Badges nach Styleguide, Monatsbalken als DS-Baustein, fehlende Verdrahtungstests" (refactor) — `doing/budgeting-x4k7p-review-korrekturen-zum-tab-historie-und-zum-stillen-neu-lese.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

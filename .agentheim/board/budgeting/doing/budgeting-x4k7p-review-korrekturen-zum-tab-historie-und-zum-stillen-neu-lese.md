@@ -1,7 +1,7 @@
 ---
 id: budgeting-x4k7p
 title: "Review-Korrekturen zum Tab Historie und zum stillen Neu-Lesen: Historie lädt still nach, Stand-Badges nach Styleguide, Monatsbalken als DS-Baustein, fehlende Verdrahtungstests"
-status: todo
+status: doing
 type: refactor
 context: budgeting
 created: 2026-11-03

@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-03 22:09 -- Batch started: [budgeting-x4k7p]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-x4k7p - "Review-Korrekturen zum Tab Historie und zum stillen Neu-Lesen: Historie lädt still nach, Stand-Badges nach Styleguide, Monatsbalken als DS-Baustein, fehlende Verdrahtungstests"
+**Parallel:** no (1 worker; Review-Korrekturen der Sitzung, von Roman beauftragt; infrastructure-jsys4 bleibt in todo, Schritt 1 braucht Romans Handy)
+
+---
+
 ## 2026-11-03 22:08 -- Capture / Captured: infrastructure-n2w8q - "Browser-Test-Doktrin nachschärfen: gemischte Tests, Kennung für Verlauf und Routing, Spielarten als eigene Flows, Einzeiler-Verdrahtung im update"
 
 **Type:** Capture
