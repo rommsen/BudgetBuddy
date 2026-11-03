@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-03 10:40 -- Modeling / Captured: infrastructure-f3k7x - "Feliz 2.9 auf 3.x heben, damit React 19 nicht für jede Kinderliste die Key-Warnung meldet"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** React 19 warnt für jede Kinderliste, weil Feliz 2.9 prop.children durch Children.toArray schickt. Feliz 3 übergibt Kinder als Argumente.
+
+---
+
 ## 2026-11-03 09:16 -- Work session ended
 
 **Type:** Work / Session end

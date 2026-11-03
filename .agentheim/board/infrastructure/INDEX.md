@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 12
+- **Backlog:** 13
 - **Todo:** 1
 - **Doing:** 0
 - **Done:** 39
@@ -34,6 +34,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **infrastructure-f3k7x** — "Feliz 2.9 auf 3.x heben, damit React 19 nicht für jede Kinderliste die Key-Warnung meldet" (chore) — `backlog/infrastructure-f3k7x-feliz-2-9-auf-3-x-heben-damit-react-19-nicht-f-r-jede-kinder.md`
 - **infrastructure-r6c3v** — "Testbau sieht neue öffentliche Client-Werte nicht: veraltete Referenz-Assembly" (bug) — `backlog/infrastructure-r6c3v-testbau-sieht-neue-ffentliche-client-werte-nicht-veraltete-r.md`
 - **infrastructure-q7r4m** — "Strukturtests auf View-Verdrahtung in CategoryPickerTests und RulesListTests nach Doktrin Punkt 7 ablösen" (chore) — `backlog/infrastructure-q7r4m-strukturtests-auf-view-verdrahtung-in-categorypickertests-un.md`
 - **infrastructure-v3tqk** — "Wächter ledger-read-retry flackert bei getLedgerPayeeSuggestions unter Last" (bug) — `backlog/infrastructure-v3tqk-ledger-read-retry-flackert.md`
