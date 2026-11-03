@@ -1,7 +1,7 @@
 ---
 id: infrastructure-b3t9k
 title: "Browser-Tests nach Begründung statt fester Obergrenze: Kennung im Testnamen, Flows in fester Liste, je Flow höchstens ein Happy Path, die Zahl wird nur gemeldet"
-status: todo
+status: doing
 type: chore
 context: infrastructure
 created: 2026-11-03

@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-03 20:55 -- Batch started: [infrastructure-b3t9k, budgeting-r7t3k, budgeting-dyn8g]
+
+**Type:** Work / Batch start
+**Tasks:** infrastructure-b3t9k - "Browser-Tests nach Begründung statt fester Obergrenze: Kennung im Testnamen, Flows in fester Liste, je Flow höchstens ein Happy Path, die Zahl wird nur gemeldet", budgeting-r7t3k - "Budget-Seite: Rückkehr aus dem Kassenbuch und Schließen von Targets ohne Sprung", budgeting-dyn8g - "Tab Historie je Kategorie: Aufbau von Verfügbar, Bewegungen des Monats und Ausgaben der letzten 6 Monate aus dem Kassenbuch"
+**Parallel:** yes (3 workers; infrastructure-jsys4 held to next wave: cap 3, und sein Schritt 1 ist ein Geräte-Beweis auf Romans Handy; r7t3k und dyn8g teilen Budget-Client-Dateien, Merge nacheinander, r7t3k zuerst)
+**Planning advisory:** whats-next 2026-11-03 12:00 (current): dyn8g als Task 3 von 5, r7t3k nebenbei
+
+---
+
 ## 2026-11-03 20:51 -- Modeling / Promoted: infrastructure-b3t9k - "Browser-Tests nach Begründung statt fester Obergrenze: Kennung im Testnamen, Flows in fester Liste, je Flow höchstens ein Happy Path, die Zahl wird nur gemeldet"
 
 **Type:** Modeling / Promote

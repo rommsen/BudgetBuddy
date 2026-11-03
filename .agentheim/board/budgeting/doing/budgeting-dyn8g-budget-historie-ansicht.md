@@ -1,7 +1,7 @@
 ---
 id: budgeting-dyn8g
 title: "Tab Historie je Kategorie: Aufbau von Verfügbar, Bewegungen des Monats und Ausgaben der letzten 6 Monate aus dem Kassenbuch"
-status: todo
+status: doing
 type: feature
 context: budgeting
 created: 2026-10-29
