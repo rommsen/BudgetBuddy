@@ -1,10 +1,9 @@
 // scripts/ledger-review-state.test.mjs
 //
-// Gerenderter Beleg für `ledger-v9rq3` (Liste im Prüf-Zustand): Summenzeile bei "Zu prüfen"
-// am PC (mit Filter im Klartext) und am Handy (nur Trefferzahl), Leerzustand "Alles geprüft"
-// ohne "Jetzt spiegeln" nach dem letzten Prüfen, "Zuletzt verwendet" im Kategorie-Filter
-// (auch nach Neuladen) und "Übernehmen" erst mit Änderung. Echter Fable-Client gegen
-// gemockte Ledger-Antworten mit erfundenen Werten.
+// Gerenderter Beleg für `ledger-v9rq3`: "Zuletzt verwendet" im Kategorie-Filter übersteht ein
+// Neuladen (localStorage gibt es nur im Browser), "Übernehmen" erst mit Änderung, die Karte "Alles
+// geprüft" steht ohne "Jetzt spiegeln". Summenzeile, Klartext und den Text der Karte prüft `src/Tests/LedgerReviewStateTests.fs` (infrastructure-t5m2b).
+// Echter Fable-Client gegen gemockte Ledger-Antworten mit erfundenen Werten.
 //
 // Ausführen: node --test scripts/ledger-review-state.test.mjs
 
@@ -70,17 +69,12 @@ async function openLedger(viewport) {
   return { page, context };
 }
 
-const summary = (page) => page.getByTestId("ledger-summary-text");
-
-test("PC: Zu prüfen zeigt die Summenzeile mit dem Filter im Klartext, nach dem letzten Prüfen steht Alles geprüft", async () => {
+// Die Karte selbst ist View: ihr Text kommt aus `allReviewedText` (.NET), dass sie ohne "Jetzt
+// spiegeln" steht, nur hier.
+test("PC: nach dem letzten Prüfen unter Zu prüfen steht Alles geprüft ohne Jetzt spiegeln", async () => {
   const { page, context } = await openLedger({ width: 1440, height: 900 });
   try {
-    assert.equal(await summary(page).count(), 0, "ohne Filter keine Summenzeile");
     await page.getByRole("button", { name: /^Zu prüfen/ }).first().click();
-    await summary(page).waitFor();
-    const text = await summary(page).innerText();
-    assert.match(text, /^1 Buchung · .*zu prüfen$/, `Klartext, war: ${text}`);
-
     await page.locator("tr", { hasText: "Prüfzustand v9rq3" }).getByRole("button", { name: "Geprüft", exact: true }).click();
     await page.getByText("Alles geprüft", { exact: true }).waitFor();
     // Der Kopf des Kassenbuchs hat eigene Spiegel-Knöpfe; geprüft wird nur die Karte des Leerzustands.
@@ -93,18 +87,7 @@ test("PC: Zu prüfen zeigt die Summenzeile mit dem Filter im Klartext, nach dem 
   }
 });
 
-test("Handy: Zu prüfen zeigt die Summenzeile nur mit der Trefferzahl", async () => {
-  const { page, context } = await openLedger({ width: 390, height: 844 });
-  try {
-    await page.getByRole("button", { name: /^Zu prüfen/ }).first().click();
-    await summary(page).waitFor();
-    assert.equal((await summary(page).innerText()).trim(), "1 Buchung");
-  } finally {
-    await context.close();
-  }
-});
-
-test("PC: Kategorie-Filter sperrt Übernehmen bis zur Änderung und merkt Zuletzt verwendet auch nach Neuladen", async () => {
+test("PC: der Kategorie-Filter merkt Zuletzt verwendet im localStorage, auch nach Neuladen", async () => {
   const { page, context } = await openLedger({ width: 1440, height: 900 });
   try {
     const popover = page.locator(".shadow-2xl");

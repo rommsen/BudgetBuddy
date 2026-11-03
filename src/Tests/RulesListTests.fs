@@ -205,6 +205,14 @@ let private tests =
             }
         ]
         testList "Löschen im Dialog" [
+            // infrastructure-t5m2b, Iteration 2: der Rückfall lief bisher in keinem Test ab.
+            test "die Rückfrage Löschen fällt nach der Wartezeit von selbst zurück" {
+                let model, _ = Components.Rules.State.init ()
+                let ruleId = RuleId (System.Guid.NewGuid())
+                let confirming, cmd, _ = Components.Rules.State.update (ConfirmDeleteRule ruleId) model
+                Expect.equal confirming.ConfirmingDeleteRuleId (Some ruleId) "scharf"
+                Tests.CmdTiming.expectAfter Components.Rules.State.ruleDeleteConfirmMs CancelConfirmDelete cmd
+            }
             test "ConfirmDeleteRule merkt die Regel, RuleDeleted schließt den Dialog" {
                 let model, _ = Components.Rules.State.init ()
                 let rule = makeRule true

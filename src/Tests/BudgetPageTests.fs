@@ -13,6 +13,7 @@ open Components.Budget.Month
 open Components.Budget.Targets
 open Components.Budget.Moves
 open Components.Budget.Inspector
+open Components.Budget.InspectorView
 
 let private eur (amount: decimal) : Money = { Amount = amount; Currency = "EUR" }
 
@@ -907,9 +908,105 @@ let private targetStatusTests =
         }
     ]
 
+// infrastructure-t5m2b: aus dem Browser gezogen. Was die Seite zeigt, entscheiden reine Funktionen,
+// die Fehlerwege laufen durch das echte `update`.
+let private pageViewTests =
+    let target = targetOf 1600m (Months 1)
+    let update msg model =
+        let model', _, _ = Components.Budget.State.update msg model
+        model'
+    let commands msg model =
+        let _, cmd, _ = Components.Budget.State.update msg model
+        List.length cmd
+    let missingAndOverdrawn : BudgetGroup list =
+        [ { Name = "Alltag"
+            Categories =
+              [ { cat 1 "Essen" with Available = eur -30m; Underfunded = Some (eur 1600m); Target = Some target }
+                { cat 2 "Kleidung" with Underfunded = Some (eur 50m); Target = Some target }
+                cat 3 "Macbook" ] } ]
+    testList "Was die Seite zeigt" [
+        test "Ohne Treffer nennt der Hinweis den Suchtext, ohne Suche die Ansicht" {
+            Expect.equal (emptyListHint "") "Keine Kategorie in dieser Ansicht." "Filter"
+            Expect.equal (emptyListHint "   ") "Keine Kategorie in dieser Ansicht." "nur Leerzeichen"
+            Expect.equal (emptyListHint "  xyz ") "Keine Kategorie passt zu „xyz“" "Suche, gekürzt"
+        }
+        test "Die Chips heißen Alle, Fehlt und Überzogen und zählen den ganzen Monat" {
+            let labels = [ AllCategories; MissingOnly; OverdrawnOnly ] |> List.map (fun f -> filterChipLabel f missingAndOverdrawn)
+            Expect.equal labels [ "Alle"; "Fehlt (2)"; "Überzogen (1)" ] "Beschriftung"
+        }
+        test "In der Liste steht pausiert, erfüllt steht nur im Tab Target" {
+            let fulfilled = targetCategory target (Some 0m) false
+            Expect.equal (listStatusText fulfilled) None "Liste"
+            Expect.equal (targetStatusText fulfilled) (Some "erfüllt") "Tab"
+            Expect.equal (listStatusText (targetCategory target (Some 0m) true)) (Some "pausiert") "pausiert"
+        }
+        test "Der Tab Target zeigt den Fehlbetrag, außer bei einem pausierten Target" {
+            Expect.equal (targetUnderfunded (targetCategory target (Some 12m) false)) (Some (eur 12m)) "offen"
+            Expect.equal (targetUnderfunded (targetCategory target (Some 12m) true)) None "pausiert"
+        }
+        test "Das Panel zeigt ohne Auswahl den Hinweis, beim Laden das Skeleton, nach einem Fehler nichts" {
+            Expect.equal (emptyPanel withMonth) PanelHint "ohne Auswahl"
+            let changing = update (SelectMonth "2026-09-01") opened
+            let failed = update (Loaded (changing.MonthGeneration, Error "Monat kaputt")) changing
+            Expect.equal failed.Month (Failure "Monat kaputt") "Fehlerkarte"
+            Expect.isSome failed.Selected "die Auswahl bleibt"
+            Expect.equal (emptyPanel failed) PanelBlank "es kommt kein Inhalt nach"
+            Expect.equal (emptyPanel { failed with Month = Loading }) PanelLoading "Wiederholen lädt"
+        }
+        test "Im Tab Buchungen stößt der Wechsel der Kategorie genau eine Abfrage an, die Auswahl allein keine" {
+            let other = { detailCategoryFixture with Id = entryId; Name = "Urlaub" }
+            let month = { detailMonth with Groups = [ { Name = "Alltag"; Categories = [ detailCategoryFixture; other ] } ] }
+            let start = { framed with Month = Success month }
+            Expect.equal (commands (SelectCategory categoryId) start) 0 "Tab Geld fragt nicht"
+            let onTab = { selectCategory categoryId start with Tab = EntriesTab }
+            Expect.equal (commands (SelectCategory entryId) onTab) 1 "neue Kategorie, neue Abfrage"
+            Expect.equal (commands (SelectInspectorTab EntriesTab) (selectCategory categoryId start)) 1 "der Tab fragt"
+        }
+        test "Scheitert das Blättern, bleibt der gewählte Monat stehen, die Pfeile haben ihr Ziel" {
+            let changing = update (SelectMonth "2026-09-01") framed
+            let failed = update (Loaded (changing.MonthGeneration, Error "Monat nicht offen")) changing
+            Expect.equal failed.Month (Failure "Monat nicht offen") "Fehlerkarte"
+            Expect.equal (shownMonth failed) (Some "2026-09-01") "Monat bleibt"
+            Expect.equal (nextMonth frameK7wmd.Months "2026-09-01") (Some "2026-10-01") "der Pfeil bleibt"
+        }
+        // Iteration 2: aus "Monate: … der Pfeil fehlt" (budget-page) gezogen.
+        test "Am Rand fehlt der Pfeil, außerhalb des laufenden Monats führt der Name zurück" {
+            Expect.equal (monthStepperFor frameK7wmd "2026-09-01") { Previous = None; Next = Some "2026-10-01"; Elsewhere = true } "vorn"
+            Expect.equal (monthStepperFor frameK7wmd "2026-10-01") { Previous = Some "2026-09-01"; Next = Some "2026-11-01"; Elsewhere = false } "laufend"
+            Expect.equal (monthStepperFor frameK7wmd "2026-11-01") { Previous = Some "2026-10-01"; Next = None; Elsewhere = true } "hinten"
+        }
+        test "Blättern liest nur den Monat, nicht den Rahmen, Targets anwenden steht nicht im vergangenen Monat" {
+            Expect.equal (commands (SelectMonth "2026-09-01") framed) 1 "genau ein Aufruf: der Monat"
+            let shownAfter key =
+                let changing = update (SelectMonth key) framed
+                update (Loaded (changing.MonthGeneration, Ok { monthK7wmd with Month = key })) changing
+            Expect.isTrue (targetsButtonVisible framed) "laufender Monat"
+            Expect.isFalse (targetsButtonVisible (shownAfter "2026-09-01")) "vergangener Monat"
+            Expect.isTrue (targetsButtonVisible (shownAfter "2026-11-01")) "kommender Monat"
+        }
+        // Iteration 2: aus "PC: Tabelle mit Spaltenköpfen" und "Handy: Zu verteilen negativ …" gezogen.
+        test "Unter Zugewiesen, Aktivität und Verfügbar stehen die Beträge der Kategorie, am Handy Zugewiesen und Aktivität als Zeile" {
+            let essen = { cat 1 "Essen" with Assigned = eur 1600m; Activity = eur -921.1m; Available = eur 1120.09m }
+            let shown = amountColumns |> List.map (fun column -> column.Header, (column.Value essen).Amount, column.IsAvailable)
+            Expect.equal shown [ "Zugewiesen", 1600m, false; "Aktivität", -921.1m, false; "Verfügbar", 1120.09m, true ] "Spalten"
+            Expect.equal (mobileFiguresText essen) "Zugewiesen 1.600,00 € · Aktivität -921,10 €" "Handy"
+        }
+        test "Wiederholen liest den Rahmen neu und zeigt das Laden, die Antwort zeigt den Monat" {
+            let failed = update (FrameLoaded (Error "Rahmen kaputt")) (beginLoad (init ()))
+            Expect.equal failed.Month (Failure "Rahmen kaputt") "Fehlerkarte"
+            Expect.equal (commands Load failed) 1 "ein Aufruf"
+            let retried = update Load failed
+            Expect.equal retried.Month Loading "lädt"
+            let framedAgain = update (FrameLoaded (Ok frameK7wmd)) retried
+            Expect.equal framedAgain.Frame (Success frameK7wmd) "Rahmen"
+            Expect.equal (commands (FrameLoaded (Ok frameK7wmd)) retried) 1 "der Monat wird geholt"
+        }
+    ]
+
 [<Tests>]
 let tests =
     testList "Budget-Seite (k7wmd)" [
+        pageViewTests
         targetTextTests
         targetStatusTests
         selectTests

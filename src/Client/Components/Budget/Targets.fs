@@ -88,3 +88,7 @@ let actualCheck (preview: TargetPreview) (report: ApplyReport) : ActualCheck =
     | None -> ActualUnknown
     | Some actual when actual = preview.ToBeBudgetedAfter -> SameAsPreview
     | Some actual -> DiffersFromPreview actual
+
+/// Die Zeilen des Berichts. Geschriebene stehen nach den Problemfällen, damit Fehlgeschlagene oben sichtbar sind.
+let reportLines (report: ApplyReport) : ApplyLineResult list =
+    report.Lines |> List.sortBy (fun l -> match l.Outcome with Written -> 1 | _ -> 0)

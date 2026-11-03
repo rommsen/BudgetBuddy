@@ -68,6 +68,15 @@ let tests =
                 "ING Extra · zu prüfen · Café Lotte · Memo: Kuchen · Betrag 5 bis 10,5"
                 "Reihenfolge Konto, Chip, Payee, Memo, Betrag"
 
+        // Aus scripts/ledger-review-state.test.mjs gezogen (infrastructure-t5m2b).
+        testCase "Summenzeile: am PC Trefferzahl mit Klartext, am Handy nur die Trefferzahl" <| fun () ->
+            Expect.equal (summaryLineText true 1 (fun () -> "alle Konten, zu prüfen")) "1 Buchung · alle Konten, zu prüfen" "PC"
+            Expect.equal (summaryLineText false 1 (fun () -> failwith "am Handy nicht gebraucht")) "1 Buchung" "Handy"
+
+        testCase "Alles geprüft nennt das Konto oder alle Konten" <| fun () ->
+            Expect.equal (allReviewedText "alle Konten") "In allen Konten steht nichts mehr zu prüfen." "alle"
+            Expect.equal (allReviewedText "Giro") "In Giro steht nichts mehr zu prüfen." "ein Konto"
+
         testCase "Klartext: freier Zeitraum" <| fun () ->
             let f = { noFilters with DateRange = Some { Quick = None; From = Some (DateTime(2026, 3, 1)); To = Some (DateTime(2026, 3, 31)) } }
             Expect.equal (filterPlainText "alle Konten" false [] f) "alle Konten · 01.03.2026 bis 31.03.2026" "von bis"

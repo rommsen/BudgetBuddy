@@ -17,13 +17,9 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import os from "node:os";
 import { readFileSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-// Playwright wird hier bewusst NICHT auf Modulebene importiert
-// (design-system-q2bmv): nur die browsergebundenen Tests weiter unten laden
-// es per dynamischem Import, genau dann, wenn ein Browser gebraucht wird. So
-// verlieren die restlichen, browserfreien Tests dieser Datei nicht mit,
-// falls Playwright auf einer Maschine fehlt.
+// Diese Datei startet weder Browser noch Server (infrastructure-t5m2b). Die eine Aufnahme im echten
+// Browser steht in scripts/screenshot-route-capture.test.mjs.
 import {
   DEFAULT_OUT_DIR,
   KNOWN_ROUTES,
@@ -38,7 +34,7 @@ import {
   assertDataDirIsolated,
   startBackend,
   computeCaptureViewport,
-  captureAtDocumentHeight,
+  frontendServerKind,
 } from "./screenshot-route.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -218,55 +214,6 @@ test("assertDataDirIsolated: lässt ein echtes Temp-Verzeichnis unbeanstandet", 
   );
 });
 
-// Regressionstest für design-system-yxrxb: waitForPageLoaded wartete früher auf das
-// Verschwinden von ".proto-spinner"/".animate-pulse", was an der /styleguide-Route
-// scheiterte, weil deren Spinner/Skeletons Demo-Inhalte sind und nie verschwinden
-// (s. Kommentar bei waitForPageLoaded in screenshot-route.mjs). Ersetzt durch das
-// App-eigene Bereitschaftssignal `data-app-ready` (State.isPageReady, View.fs). Dieser
-// Test liest die tatsächliche Quelldatei, nicht eine Kopie der Behauptung, damit ein
-// künftiges Wiedereinführen der Klassen-Heuristik hier laut auffällt.
-test("screenshot-route.mjs prüft nicht mehr auf .proto-spinner/.animate-pulse, sondern auf data-app-ready", () => {
-  // Prüft die tatsächliche DOM-Abfrage, nicht jede Erwähnung der Klassennamen: der
-  // Kommentar bei waitForPageLoaded erklärt die frühere Heuristik bewusst weiter
-  // (Begründung des gewählten Wegs, AC5), ohne sie wieder auszuführen.
-  const scriptPath = path.join(__dirname, "screenshot-route.mjs");
-  const source = readFileSync(scriptPath, "utf8");
-  assert.doesNotMatch(
-    source,
-    /querySelectorAll\(["'`]\.(proto-spinner|animate-pulse)["'`]\)/,
-    "die Klassen-Heuristik darf nicht mehr tatsächlich abgefragt werden"
-  );
-  assert.match(source, /data-app-ready/, "das App-eigene Bereitschaftssignal muss abgefragt werden");
-});
-
-// Mechanisierte Durchsetzung der zweiten Regel aus infra-jh7g9/ADR 0034: der
-// Backend-Port ist seit dieser Aufgabe konfigurierbar (Program.fs respektiert
-// ASPNETCORE_URLS), das allein reicht aber nicht: startFrontend() und
-// vite.config.js müssen denselben Port über BACKEND_PORT konsistent
-// weiterreichen bzw. lesen, sonst redet das Frontend mit dem falschen
-// Backend-Port, obwohl der Server selbst korrekt auf einem anderen Port
-// läuft. Beide Tests lesen die tatsächliche Quelldatei (wie der
-// data-app-ready-Test oben), kein funktionaler Lauf: ein echter
-// Vite-Prozess-Start wäre für diesen schmalen Zweck unverhältnismäßig teuer.
-// Dokumentierte Grenze: ein Scan über Quelltext kann eine korrekt benannte,
-// aber falsch verdrahtete Variable nicht erkennen (z. B. BACKEND_PORT wird
-// gesetzt, aber nie gelesen); das deckt vite.config.js-Test unten separat ab,
-// indem er speziell auf process.env.BACKEND_PORT im Proxy-Ziel prüft, nicht
-// nur auf irgendeine Erwähnung des Namens.
-test("startFrontend gibt BACKEND_PORT an den Vite-Kindprozess weiter (infra-jh7g9)", () => {
-  const scriptPath = path.join(__dirname, "screenshot-route.mjs");
-  const source = readFileSync(scriptPath, "utf8");
-  const startFrontendIdx = source.indexOf("async function startFrontend");
-  assert.notEqual(startFrontendIdx, -1, "startFrontend nicht gefunden (Funktion umbenannt oder verschoben?)");
-  const nextFunctionIdx = source.indexOf("\nasync function", startFrontendIdx + 1);
-  const body = source.slice(startFrontendIdx, nextFunctionIdx === -1 ? source.length : nextFunctionIdx);
-  assert.match(
-    body,
-    /BACKEND_PORT:\s*String\(backendPort\)/,
-    "startFrontend muss BACKEND_PORT an den Vite-Kindprozess übergeben, sonst proxyt Vite gegen den falschen Backend-Port (siehe ADR 0034)"
-  );
-});
-
 test("vite.config.js liest BACKEND_PORT aus der Umgebung fürs Proxy-Ziel (infra-jh7g9)", () => {
   const viteConfigPath = path.join(__dirname, "..", "vite.config.js");
   const source = readFileSync(viteConfigPath, "utf8");
@@ -320,236 +267,10 @@ test("computeCaptureViewport: exakt passender Inhalt behält die angeforderte H�
   });
 });
 
-// AC6 (design-system-q2bmv): die Aufnahme-Mechanik lebt jetzt in der eigenen,
-// exportierten Funktion captureAtDocumentHeight, nicht mehr inline in
-// captureScreenshot. Die Quelltext-Zusicherung gegen `fullPage: true` zielt
-// deshalb ab jetzt auf den Rumpf von captureAtDocumentHeight; ein separater
-// Test darunter stellt sicher, dass captureScreenshot diese Funktion
-// tatsächlich ruft statt selbst wieder fullPage zu setzen.
-test("captureAtDocumentHeight verwendet computeCaptureViewport und nimmt ohne fullPage auf (ledger-p9k3w)", () => {
-  // Regressionstest gegen die Quelldatei (wie der data-app-ready-Test oben):
-  // captureAtDocumentHeight selbst braucht einen echten Playwright-Kontext
-  // gegen eine geladene Seite und ist hier nicht sinnvoll aufzurufen (s.
-  // Kopfkommentar dieser Datei). Die eigentliche Rechenregel prüfen die drei
-  // Tests oben an der reinen Funktion computeCaptureViewport; die
-  // Browser-Tests weiter unten rufen captureAtDocumentHeight tatsächlich auf
-  // und prüfen das entstandene PNG. Dieser Test schließt die Lücke
-  // dazwischen: er stellt sicher, dass captureAtDocumentHeight die geprüfte
-  // Rechenregel tatsächlich verwendet, statt unbedingt mit `fullPage: true`
-  // aufzunehmen.
-  const scriptPath = path.join(__dirname, "screenshot-route.mjs");
-  const source = readFileSync(scriptPath, "utf8");
-  const startIdx = source.indexOf("export async function captureAtDocumentHeight");
-  assert.notEqual(startIdx, -1, "captureAtDocumentHeight nicht gefunden (Funktion umbenannt oder verschoben?)");
-  const nextFunctionIdx = source.indexOf("\nasync function", startIdx + 1);
-  const body = source.slice(startIdx, nextFunctionIdx === -1 ? source.length : nextFunctionIdx);
-  assert.doesNotMatch(body, /fullPage:\s*true/, "captureAtDocumentHeight darf nicht mehr mit fullPage: true aufnehmen");
-  assert.match(body, /computeCaptureViewport\(/, "captureAtDocumentHeight muss computeCaptureViewport verwenden");
-  assert.match(body, /setViewportSize\(/, "captureAtDocumentHeight muss den Viewport vor der Aufnahme setzen");
-  assert.match(body, /fullPage:\s*false/, "captureAtDocumentHeight muss ohne fullPage aufnehmen (Viewport ist bereits passend)");
-});
-
-test("captureScreenshot ruft captureAtDocumentHeight statt selbst fullPage zu setzen (design-system-q2bmv)", () => {
-  const scriptPath = path.join(__dirname, "screenshot-route.mjs");
-  const source = readFileSync(scriptPath, "utf8");
-  const startIdx = source.indexOf("async function captureScreenshot");
-  assert.notEqual(startIdx, -1, "captureScreenshot nicht gefunden (Funktion umbenannt oder verschoben?)");
-  const nextFunctionIdx = source.indexOf("\nasync function", startIdx + 1);
-  const body = source.slice(startIdx, nextFunctionIdx === -1 ? source.length : nextFunctionIdx);
-  assert.doesNotMatch(body, /fullPage/, "captureScreenshot darf selbst kein fullPage mehr setzen, das gehört jetzt zu captureAtDocumentHeight");
-  assert.match(body, /captureAtDocumentHeight\(/, "captureScreenshot muss die echte Aufnahme-Funktion verwenden, kein Nachbau");
-});
-
-/// Liest Breite/Höhe direkt aus den IHDR-Bytes eines PNG-Puffers (big-endian
-/// uint32 ab Byte 16 bzw. 20, PNG-Spezifikation). Kein neues Abhängigkeit
-/// nötig (kein image-size/sharp im Projekt): der Signatur- und
-/// IHDR-Chunk-Aufbau ist fest und einfach genug, um ihn hier direkt zu lesen,
-/// statt den Bildinhalt nur per Augenschein zu beurteilen (Testvorgabe AC2:
-/// "maschinell belegt").
-function pngDimensions(buffer) {
-  return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
-}
-
-/// Zählt Pixel exakt rgb(255,0,0) in einem PNG (design-system-q2bmv, AC3
-/// dieser Aufgabe: die Pixelprüfung kommt ohne neue Abhängigkeit aus). Das
-/// PNG wird als Data-URL auf ein `<canvas>` innerhalb des bereits geöffneten
-/// Browsers gezeichnet und per `getImageData` gelesen, statt eine
-/// PNG-Decoding-Bibliothek einzuführen: dasselbe Motiv wie bei
-/// pngDimensions oben, nur für Pixelinhalt statt nur für die Maße.
-async function countRedPixels(page, pngPath) {
-  const dataUrl = `data:image/png;base64,${readFileSync(pngPath).toString("base64")}`;
-  return page.evaluate(async (url) => {
-    const img = new Image();
-    const loaded = new Promise((resolve, reject) => {
-      img.onload = resolve;
-      img.onerror = reject;
-    });
-    img.src = url;
-    await loaded;
-    const canvas = document.createElement("canvas");
-    canvas.width = img.width;
-    canvas.height = img.height;
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(img, 0, 0);
-    const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-    let redCount = 0;
-    for (let i = 0; i < data.length; i += 4) {
-      if (data[i] === 255 && data[i + 1] === 0 && data[i + 2] === 0) {
-        redCount++;
-      }
-    }
-    return redCount;
-  }, dataUrl);
-}
-
-// Die drei folgenden Tests prüfen den echten Browser-Mechanismus hinter dem
-// Fix (captureAtDocumentHeight, also setViewportSize + page.screenshot mit
-// fullPage:false) gegen eine selbst erzeugte, lokale Seite: ohne App, ohne
-// Backend, ohne Datenbankkopie (kein DATA_DIR-Zugriff, ADR 0030 bleibt
-// unberührt). Alle drei rufen die echte, aus screenshot-route.mjs
-// importierte Funktion auf, kein Nachbau (design-system-q2bmv, AC5/AC6).
-test("captureAtDocumentHeight: das Bild einer langen Seite hat exakt die Dokumenthöhe (AC4, echter Browser)", async () => {
-  const { chromium } = await import("playwright");
-  const browser = await chromium.launch();
-  const tmpDir = await mkdtemp(path.join(os.tmpdir(), "bb-screenshot-route-test-"));
-  const outPath = path.join(tmpDir, "tall.png");
-  let documentHeight;
-  try {
-    const baseViewport = { width: 390, height: 600 };
-    const context = await browser.newContext({ viewport: baseViewport });
-    const page = await context.newPage();
-    try {
-      // Deutlich höher als der Viewport, damit fullPage:true diese Seite
-      // früher hätte vergrößern müssen.
-      await page.setContent(
-        '<html><body style="margin:0"><div style="height:2200px;background:#000"></div></body></html>'
-      );
-      documentHeight = await page.evaluate(() => document.documentElement.scrollHeight);
-      assert.ok(documentHeight > baseViewport.height, "Testaufbau: Inhalt muss höher als der Viewport sein");
-      await captureAtDocumentHeight(page, baseViewport, outPath);
-    } finally {
-      await context.close();
-    }
-    const dims = pngDimensions(readFileSync(outPath));
-    assert.equal(dims.width, baseViewport.width);
-    assert.equal(dims.height, documentHeight, "Bildhöhe muss der gemessenen Dokumenthöhe entsprechen (AC4)");
-    assert.ok(dims.height > baseViewport.height, "Bildhöhe muss über die ursprüngliche Viewport-Höhe hinausgewachsen sein");
-  } finally {
-    await browser.close();
-    await rm(tmpDir, { recursive: true, force: true });
-  }
-});
-
-test("captureAtDocumentHeight: das Bild einer kurzen Seite behält die ursprünglichen Abmessungen (AC3, echter Browser)", async () => {
-  const { chromium } = await import("playwright");
-  const browser = await chromium.launch();
-  const tmpDir = await mkdtemp(path.join(os.tmpdir(), "bb-screenshot-route-test-"));
-  const outPath = path.join(tmpDir, "short.png");
-  try {
-    const baseViewport = { width: 1440, height: 900 };
-    const context = await browser.newContext({ viewport: baseViewport });
-    const page = await context.newPage();
-    try {
-      // Deutlich niedriger als der Viewport: keine scrollbare Seite.
-      await page.setContent(
-        '<html><body style="margin:0"><div style="height:100px;background:#000"></div></body></html>'
-      );
-      // document.documentElement.scrollHeight ist nie kleiner als der
-      // Viewport (das <html>-Element füllt ihn per UA-Vorgabe aus, auch bei
-      // kürzerem Inhalt): genau der Fall, den AC3 abdeckt. Kein Scrollen, die
-      // Rechenregel darf hier nicht künstlich schrumpfen.
-      const documentHeight = await page.evaluate(() => document.documentElement.scrollHeight);
-      assert.ok(documentHeight <= baseViewport.height, "Testaufbau: Inhalt darf den Viewport nicht überragen");
-      await captureAtDocumentHeight(page, baseViewport, outPath);
-    } finally {
-      await context.close();
-    }
-    const dims = pngDimensions(readFileSync(outPath));
-    assert.equal(dims.width, baseViewport.width);
-    assert.equal(dims.height, baseViewport.height, "Bildhöhe muss die bisherige Viewport-Höhe behalten (AC3)");
-  } finally {
-    await browser.close();
-    await rm(tmpDir, { recursive: true, force: true });
-  }
-});
-
-// AC1/AC2/AC3 (design-system-q2bmv), der eigentliche Kern dieser Aufgabe:
-// baut per page.setContent eine Seite mit demselben Aufbau wie ADR 0005
-// (`.bottom-sheet` in src/Client/styles.css:1556, `top: calc(var(--vv-top,
-// 0px) + var(--vvh, 100dvh))`) und stellt zuerst per Gegenprobe sicher, dass
-// `fullPage: true` den Fehler aus ledger-p9k3w hier wirklich zeigt (sonst
-// wäre die zweite Zusicherung nicht falsifizierend). Erst danach prüft der
-// Test die echte Funktion captureAtDocumentHeight gegen dieselbe Seite.
-test("captureAtDocumentHeight hält die .bottom-sheet-Leiste außerhalb des Bilds, wo fullPage:true sie hineinrutschen ließe (ADR 0005, ledger-p9k3w)", async () => {
-  const { chromium } = await import("playwright");
-  const browser = await chromium.launch();
-  const tmpDir = await mkdtemp(path.join(os.tmpdir(), "bb-screenshot-route-test-"));
-  const fullPagePath = path.join(tmpDir, "fullpage.png");
-  const fixedPath = path.join(tmpDir, "fixed.png");
-  try {
-    const baseViewport = { width: 390, height: 600 };
-    const context = await browser.newContext({ viewport: baseViewport });
-    const page = await context.newPage();
-    let documentHeight;
-    try {
-      // Dieselbe Positionierungsregel wie .bottom-sheet: im inaktiven
-      // Zustand knapp unterhalb des sichtbaren Bereichs positioniert.
-      await page.setContent(
-        '<html><body style="margin:0">' +
-          '<div style="height:2200px;background:#000"></div>' +
-          '<div style="position:fixed;top:calc(var(--vv-top, 0px) + var(--vvh, 100dvh));' +
-          'left:0;right:0;height:80px;background:rgb(255,0,0)"></div>' +
-          "</body></html>"
-      );
-      documentHeight = await page.evaluate(() => document.documentElement.scrollHeight);
-
-      // Gegenprobe (AC1): ohne den Fix muss die Leiste im Bild landen, sonst
-      // ist der Fehler mit diesem Aufbau nicht nachgestellt.
-      await page.screenshot({ path: fullPagePath, fullPage: true });
-      const fullPageRedCount = await countRedPixels(page, fullPagePath);
-      assert.ok(
-        fullPageRedCount > 0,
-        "Gegenprobe: fullPage:true muss mindestens ein Pixel rgb(255,0,0) zeigen, sonst ist der Fehler hier nicht nachgestellt"
-      );
-
-      // Die echte Funktion (kein Nachbau, AC2): hält die Leiste draußen.
-      await captureAtDocumentHeight(page, baseViewport, fixedPath);
-      const fixedRedCount = await countRedPixels(page, fixedPath);
-      assert.equal(
-        fixedRedCount,
-        0,
-        "captureAtDocumentHeight darf kein einziges Pixel rgb(255,0,0) ins Bild lassen"
-      );
-    } finally {
-      await context.close();
-    }
-    const dims = pngDimensions(readFileSync(fixedPath));
-    assert.equal(dims.height, documentHeight, "Bildhöhe muss der gemessenen Dokumenthöhe entsprechen");
-  } finally {
-    await browser.close();
-    await rm(tmpDir, { recursive: true, force: true });
-  }
-});
-
-// AC7 (design-system-q2bmv): stellt sicher, dass diese Datei Playwright
-// nicht mehr am Modulkopf lädt, sondern erst innerhalb der Tests, die einen
-// Browser tatsächlich brauchen. Liest die eigene Quelldatei (wie der
-// data-app-ready-Test oben screenshot-route.mjs liest), statt nur zu
-// behaupten, dass der Import entfernt wurde.
-test("screenshot-route.test.mjs lädt Playwright nicht mehr am Modulkopf, sondern erst wenn ein Browser gebraucht wird", () => {
-  const selfPath = fileURLToPath(import.meta.url);
-  const source = readFileSync(selfPath, "utf8");
-  const firstTestIdx = source.indexOf('test("');
-  assert.notEqual(firstTestIdx, -1, "kein test(-Aufruf gefunden, Testdatei umgebaut?");
-  const header = source.slice(0, firstTestIdx);
-  assert.doesNotMatch(
-    header,
-    /import\s*\{\s*chromium\s*\}\s*from\s*["']playwright["']/,
-    "playwright darf nicht mehr am Modulkopf importiert werden, sonst verlieren auch die browserfreien Tests ihre Fähigkeit, ohne installiertes Playwright zu laufen"
-  );
-  assert.match(
-    source,
-    /await import\(\s*["']playwright["']\s*\)/,
-    'die browsergebundenen Tests müssen Playwright per await import("playwright") lazy laden'
-  );
+// infrastructure-eq27s: die Wächter laufen gegen einen statischen Build statt je Datei gegen Vite.
+test("frontendServerKind: mit BB_GUARD_DIST und ohne Backend statisch, sonst Vite", () => {
+  assert.equal(frontendServerKind({ BB_GUARD_DIST: "/tmp/dist" }, undefined), "static");
+  assert.equal(frontendServerKind({ BB_GUARD_DIST: "/tmp/dist" }, 5081), "vite", "mit Backend braucht es den Proxy");
+  assert.equal(frontendServerKind({}, undefined), "vite");
+  assert.equal(frontendServerKind({ BB_GUARD_DIST: "" }, undefined), "vite", "leer zählt wie nicht gesetzt");
 });

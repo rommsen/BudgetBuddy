@@ -370,6 +370,18 @@ let categoryLabelQualified (entry: LedgerEntryView) : string =
     | Some name -> qualify entry.CategoryGroupName name
     | None -> categoryLabel entry
 
+/// Die zwei Formen einer Listenzeile: die Zeile der PC-Tabelle und die Zeile am Handy.
+type ListRowForm =
+    | TableRow
+    | PhoneRow
+
+/// Die Kategorie in der Liste (ADR 0039): die PC-Tabelle qualifiziert ("Gruppe: Name"), die Handy-Zeile
+/// zeigt den Blattnamen. infrastructure-t5m2b: aus beiden Views gezogen, damit die Wahl unter .NET prüfbar ist.
+let listCategoryLabel (form: ListRowForm) (entry: LedgerEntryView) : string =
+    match form with
+    | TableRow -> categoryLabelQualified entry
+    | PhoneRow -> categoryLabel entry
+
 /// Der Payee-Text einer Buchung: der Payee, sonst der Platzhaltertext für eine
 /// fehlende Angabe (siehe Rückfallzeile unten). Reine Funktion, analog zu
 /// `categoryLabel` geteilt zwischen Handy-Zeile (`entryRow`) und PC-Tabelle
@@ -611,7 +623,7 @@ let private entryRow
                     | None -> ()
                     Html.span [
                         prop.className $"{categoryClassName entry} truncate shrink-0 max-w-3/5"
-                        prop.text (categoryLabel entry)
+                        prop.text (listCategoryLabel PhoneRow entry)
                     ]
                     match entry.Memo |> Option.filter (String.IsNullOrWhiteSpace >> not) with
                     | Some memo ->
@@ -757,7 +769,7 @@ let private truncatedRoleCell (role: Table.CellRole) (child: ReactElement) =
 let private categoryCell (entry: LedgerEntryView) =
     truncatedRoleCell
         Table.Secondary
-        (Html.span [ prop.className (categoryClassName entry); prop.text (categoryLabelQualified entry) ])
+        (Html.span [ prop.className (categoryClassName entry); prop.text (listCategoryLabel TableRow entry) ])
 
 /// Der Betrag als eigene Zelle: rechtsbündig über `Table.amountCell` (Listenvariante,
 /// ADR 0049); gedämpft und durchgestrichen für eine in YNAB gelöschte Buchung.
@@ -2443,6 +2455,10 @@ let accountScopeText (accounts: LedgerAccountView list) (selected: AccountFilter
         accounts |> List.tryFind (fun a -> a.Id = id) |> Option.map (fun a -> a.Name) |> Option.defaultValue "alle Konten"
     | _ -> "alle Konten"
 
+/// Text der Karte "Alles geprüft" nach dem letzten Prüfen (ledger-v9rq3).
+let allReviewedText (scope: string) : string =
+    if scope = "alle Konten" then "In allen Konten steht nichts mehr zu prüfen." else $"In {scope} steht nichts mehr zu prüfen."
+
 let private entryList
     (dispatch: Msg -> unit)
     (accounts: LedgerAccountView list)
@@ -2482,7 +2498,7 @@ let private entryList
         Card.emptyState
             (Icons.check Icons.XL Icons.Default)
             "Alles geprüft"
-            (if scope = "alle Konten" then "In allen Konten steht nichts mehr zu prüfen." else $"In {scope} steht nichts mehr zu prüfen.")
+            (allReviewedText scope)
             None
 
     | Success [] when emptyListKind model.OnlyNeedsReview model.Filters = EmptyListKind.AllCategorized ->
@@ -2944,6 +2960,10 @@ let summaryCountText (count: int) : string =
     let noun = if count = 1 then "Buchung" else "Buchungen"
     $"{Money.formatCount count} {noun}"
 
+/// Text der Summenzeile: am PC Trefferzahl und Filter im Klartext, am Handy nur die Trefferzahl.
+let summaryLineText (desktop: bool) (count: int) (plainText: unit -> string) : string =
+    if desktop then $"{summaryCountText count} · {plainText ()}" else summaryCountText count
+
 /// Die Summenzeile über der Liste (AC: erscheint genau dann, wenn mindestens ein
 /// Filter aktiv ist; Trefferzahl und Summe über den ganzen Treffer, nicht die Seite
 /// (beide kommen unverändert vom Server, `model.TotalCount`/`model.TotalAmount`).
@@ -2970,16 +2990,12 @@ let private summaryRow (accounts: LedgerAccountView list) (categories: YnabCateg
                         prop.className Tokens.ListRoles.secondary
                         prop.custom ("data-testid", "ledger-summary-text")
                         prop.text (
-                            if Viewport.isDesktopViewport () then
-                                let plain =
-                                    filterPlainText
-                                        (accountScopeText accounts model.SelectedFilter)
-                                        model.OnlyNeedsReview
-                                        (selectedCategoryNames categories model.Filters.CategoryIds)
-                                        model.Filters
-                                $"{summaryCountText model.TotalCount} · {plain}"
-                            else
-                                summaryCountText model.TotalCount
+                            summaryLineText (Viewport.isDesktopViewport ()) model.TotalCount (fun () ->
+                                filterPlainText
+                                    (accountScopeText accounts model.SelectedFilter)
+                                    model.OnlyNeedsReview
+                                    (selectedCategoryNames categories model.Filters.CategoryIds)
+                                    model.Filters)
                         )
                     ]
                     Money.listAmount model.TotalAmount.Amount model.TotalAmount.Currency

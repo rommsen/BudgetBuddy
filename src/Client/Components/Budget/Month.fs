@@ -269,6 +269,10 @@ let listStatusText (category: BudgetCategory) : string option =
 let missingText (category: BudgetCategory) : string option =
     missingAmount category |> Option.map (fun amount -> $"fehlt {moneyText amount}")
 
+/// Der Fehlbetrag im Tab Target. Bei einem pausierten Target zählt er nicht.
+let targetUnderfunded (category: BudgetCategory) : Money option =
+    if category.Snoozed then None else category.Underfunded
+
 /// Die Zeile unter dem neuen Betrag in der Vorschau.
 let previewDetailText (line: TargetLine) : string =
     let amounts = $"Zugewiesen {moneyText line.OldAssigned}, Fehlbetrag {moneyText line.Underfunded}"
@@ -328,3 +332,48 @@ let categoryOrder (model: Model) : System.Guid list =
     match model.Frame with
     | Success frame -> frame.CategoryOrder
     | _ -> []
+
+/// Der Hinweis, wenn Filter und Suche keine Zeile übrig lassen.
+let emptyListHint (search: string) : string =
+    match search.Trim() with
+    | "" -> "Keine Kategorie in dieser Ansicht."
+    | trimmed -> $"Keine Kategorie passt zu „{trimmed}“"
+
+/// Die Beschriftung eines Filter-Chips. Die Zahl gilt für den ganzen Monat, unabhängig von der Suche.
+let filterChipLabel (filter: CategoryFilter) (groups: BudgetGroup list) : string =
+    match filter with
+    | AllCategories -> "Alle"
+    | MissingOnly -> $"Fehlt ({filterCount MissingOnly groups})"
+    | OverdrawnOnly -> $"Überzogen ({filterCount OverdrawnOnly groups})"
+
+/// Was `‹ Monat ›` zeigt: das Ziel jedes Pfeils (am Rand keins) und ob ein anderer als der laufende
+/// Monat gezeigt wird (dann ist der Name teal und führt zurück).
+type MonthStepper =
+    { Previous: string option
+      Next: string option
+      Elsewhere: bool }
+
+let monthStepperFor (frame: BudgetFrame) (month: string) : MonthStepper =
+    { Previous = previousMonth frame.Months month
+      Next = nextMonth frame.Months month
+      Elsewhere = month <> frame.CurrentMonth }
+
+/// Targets anwenden steht nur im laufenden oder einem kommenden Monat, im vergangenen bleibt sein Platz frei.
+let targetsButtonVisible (model: Model) : bool =
+    displayedMonthKind model |> Option.exists targetsAllowed
+
+/// Die Betragsspalten der PC-Tabelle hinter Kategorie und Target: Kopf und Wert je Kategorie.
+/// `IsAvailable` markiert die Spalte mit der Farblogik für Verfügbar.
+type AmountColumn =
+    { Header: string
+      Value: BudgetCategory -> Money
+      IsAvailable: bool }
+
+let amountColumns : AmountColumn list =
+    [ { Header = "Zugewiesen"; Value = (fun c -> c.Assigned); IsAvailable = false }
+      { Header = "Aktivität"; Value = (fun c -> c.Activity); IsAvailable = false }
+      { Header = "Verfügbar"; Value = (fun c -> c.Available); IsAvailable = true } ]
+
+/// Die zweite Zeile am Handy: Zugewiesen und Aktivität.
+let mobileFiguresText (c: BudgetCategory) : string =
+    $"Zugewiesen {moneyText c.Assigned} · Aktivität {moneyText c.Activity}"

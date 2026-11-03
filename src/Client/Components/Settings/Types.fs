@@ -166,6 +166,19 @@ let canDisconnectBank (model: Model) : bool =
 let isTanPending (model: Model) : bool =
     model.ComdirectAuthPending || model.BankStatus = Success BankChallengePending
 
+/// Während des Trennens sind Bearbeiten und Verbindung testen gesperrt.
+let comdirectActionsLocked (model: Model) : bool =
+    RemoteData.isLoading model.BankDisconnect
+
+/// Der Abschnitt "Verbindung testen" im Formular. Bei offener TAN steht der Wartezustand schon über
+/// dem Formular, ein zweiter TAN-Block entfiele sonst nicht.
+let connectionTestVisible (model: Model) : bool =
+    let hasCredentials =
+        match model.Settings with
+        | Success s -> s.Comdirect.IsSome
+        | _ -> false
+    hasCredentials && not (isTanPending model)
+
 /// Was das Comdirect-Formular an den Server schickt. Rein, testbar ohne Proxy.
 let comdirectCredentialsFromForm (model: Model) : ComdirectSettings =
     { ClientId = model.ComdirectClientIdInput

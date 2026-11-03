@@ -12,7 +12,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
-import { getFreePort, startFrontend, stopServer, waitForPageLoaded } from "./screenshot-route.mjs";
+import { getFreePort, startFrontend, stopServer, waitForPageLoaded, pollUntil } from "./screenshot-route.mjs";
 import {
   buildAccountsFixture,
   buildBalancesFixture,
@@ -191,110 +191,9 @@ test("PC: Lena fragen setzt das Kennzeichen, der Knopf wechselt, der Toast biete
   await toast.waitFor();
 
   await page.getByRole("button", { name: "Rückgängig" }).click();
-  await page.waitForTimeout(300);
+  await pollUntil(() => state.restoreCalls.length > 0);
   assert.equal(state.restoreCalls.length, 1, "restoreFlag aufgerufen");
   assert.deepEqual(state.restoreCalls[0][0], idOf(1));
   await context.close();
 });
 
-test("PC: ohne gesetzte Farbe ist Lena fragen gesperrt und nennt den Grund", async () => {
-  resetState();
-  state.lenaColor = null;
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  const page = await open(context);
-  await openDetail(page, "Rewe Lena");
-  assert.equal(await flagAction(panel(page)).getAttribute("aria-disabled"), "true");
-  assert.ok(
-    (await panel(page).locator('[data-testid="detail-flag-lock-hint"]').textContent()).includes(
-      "In den Settings die Flag-Farbe für Lena wählen"
-    )
-  );
-  await flagAction(panel(page)).click({ force: true });
-  await page.waitForTimeout(200);
-  assert.equal(state.setCalls.length, 0, "kein Aufruf");
-  await context.close();
-});
-
-test("PC: Flag nicht in YNAB zeigt Grund und Erneut senden", async () => {
-  resetState();
-  state.flagOf = { 1: "AskLena" };
-  state.failureOf = { 1: "Keine Verbindung zu YNAB" };
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  const page = await open(context);
-  await openDetail(page, "Rewe Lena");
-  const notice = panel(page).getByText("Flag nicht in YNAB");
-  await notice.waitFor();
-  assert.ok(await panel(page).getByText("Keine Verbindung zu YNAB").isVisible());
-  state.failureOf = {};
-  await panel(page).getByRole("button", { name: "Erneut senden" }).click();
-  await page.waitForTimeout(300);
-  assert.deepEqual(state.retryCalls, [[idOf(1)]]);
-  await context.close();
-});
-
-test("PC: Chip Rückfrage Lena (n) filtert, die zurückgenommene Zeile bleibt ausgegraut stehen", async () => {
-  resetState();
-  state.flagOf = { 1: "AskLena", 2: "AskLena" };
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  const page = await open(context);
-  const chip = page.getByRole("button", { name: /Rückfrage Lena \(2\)/ });
-  await chip.waitFor();
-  await chip.click();
-  await page.waitForFunction(() => document.querySelectorAll("table tbody tr").length === 2 || true);
-  await page.waitForTimeout(500);
-  assert.equal(await page.locator("table tbody tr", { hasText: "Kiosk Lena" }).count(), 0, "Zeile ohne Flag fehlt in der gefilterten Liste");
-  assert.ok(state.pageQueries.some((q) => q.OnlyAskLena === true), "Seitenanfrage mit OnlyAskLena");
-
-  await openDetail(page, "Rewe Lena");
-  assert.equal((await flagAction(panel(page)).textContent()).trim(), "Rückfrage zurücknehmen");
-  await flagAction(panel(page)).click();
-  const note = page.locator('table [data-testid="filtered-out-note"]');
-  await note.waitFor();
-  assert.equal((await note.textContent()).trim(), "passt nicht mehr zum Filter");
-  assert.equal(await page.locator("table tbody tr").count() >= 2, true, "Zeile bleibt in der Liste");
-  await context.close();
-});
-
-test("Settings: die Flag-Farbe für Lena wird mit Vorschlag vorbelegt und gespeichert", async () => {
-  resetState();
-  state.lenaColor = null;
-  state.suggestion = "blue";
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  const page = await context.newPage();
-  page.setDefaultTimeout(30000);
-  await page.route("**/api/**", (route) =>
-    route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"not mocked in this test"}' })
-  );
-  await page.route("**/api/SettingsApi/getSettings", (route) =>
-    route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({ Comdirect: null, Ynab: null, Sync: { DaysToFetch: 30 } }),
-    })
-  );
-  await page.route("**/api/SettingsApi/getLenaFlagSettings", (route) =>
-    route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({ SavedColor: state.lenaColor, SuggestedColor: state.suggestion }),
-    })
-  );
-  await page.route("**/api/SettingsApi/saveLenaFlagColor", (route) => {
-    const [color] = route.request().postDataJSON();
-    state.savedColors.push(color);
-    route.fulfill({ contentType: "application/json", body: JSON.stringify({ Ok: null }) });
-  });
-  await page.goto(`http://127.0.0.1:${frontendPort}/#/settings`, { waitUntil: "load" });
-  const card = page.locator('[data-testid="settings-lena-card"]');
-  await card.waitFor();
-  assert.ok((await card.textContent()).includes("Nicht gewählt"));
-  assert.ok((await card.textContent()).includes("Vorschlag aus dem Spiegel: Blau"));
-  await card.getByRole("button", { name: "Bearbeiten" }).click();
-  const select = page.locator('[data-testid="settings-lena-form"] select');
-  assert.equal(await select.inputValue(), "blue", "Vorschlag vorbelegt");
-  const options = await select.locator("option").allTextContents();
-  assert.deepEqual(options, ["Nicht gewählt", "Rot", "Orange", "Gelb", "Grün", "Blau", "Violett"]);
-  await select.selectOption("purple");
-  await page.getByRole("button", { name: "Einstellungen speichern" }).click();
-  await page.waitForTimeout(300);
-  assert.deepEqual(state.savedColors, ["purple"]);
-  await context.close();
-});

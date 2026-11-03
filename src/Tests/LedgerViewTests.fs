@@ -175,6 +175,18 @@ let private categoryLabelTests =
             Expect.equal (categoryLabel entry) "2 Split-Zeilen" "Split-Zeilenanzahl statt Kategoriename"
         }
 
+        // infrastructure-t5m2b, Iteration 2: vorher nur im Browser (ledger-category-qualified).
+        test "Die PC-Tabelle zeigt 'Gruppe: Name', die Handy-Zeile den Blattnamen, ohne Gruppe beide den Namen" {
+            let entry =
+                { entryView (accountId 1) (DateTime(2026, 9, 12)) "REWE" with
+                    CategoryName = Some "Lebensmittel"
+                    CategoryGroupName = Some "Alltag" }
+            Expect.equal (listCategoryLabel TableRow entry) "Alltag: Lebensmittel" "PC"
+            Expect.equal (listCategoryLabel PhoneRow entry) "Lebensmittel" "Handy"
+            let noGroup = { entry with CategoryName = Some "Bahn"; CategoryGroupName = None }
+            Expect.equal (listCategoryLabel TableRow noGroup) "Bahn" "PC ohne Gruppe"
+        }
+
         test "Ohne Kategorie und ohne Splits steht 'ohne Kategorie'" {
             let entry = { entryView (accountId 1) (DateTime(2026, 9, 12)) "Amazon Marketplace" with CategoryName = None }
             Expect.equal (categoryLabel entry) "ohne Kategorie" "Platzhaltertext"
@@ -474,13 +486,15 @@ let private sharedHelpersAndNoColorLiteralsTests =
             // Seit ledger-h6ptn (ADR 0039) unterscheiden sich die beiden Ansichten
             // bewusst: die Handy-Zeile bleibt beim Blattnamen, die PC-Tabelle
             // qualifiziert voll. Der Unterschied ist über zwei benannte Funktionen
-            // ausgedrückt, nicht über einen Zweig in einer gemeinsamen Funktion.
-            Expect.stringContains entryRowBody "categoryLabel entry"
-                "entryRow muss categoryLabel entry aufrufen (Blattname)."
+            // ausgedrückt, nicht über einen Zweig in einer gemeinsamen Funktion. Seit
+            // infrastructure-t5m2b wählt `listCategoryLabel` je Zeilenform zwischen ihnen
+            // (Verhalten in "Die PC-Tabelle zeigt 'Gruppe: Name' …"), die Views nennen ihre Form.
+            Expect.stringContains entryRowBody "listCategoryLabel PhoneRow entry"
+                "entryRow muss die Handy-Form wählen (Blattname)."
             Expect.isFalse (entryRowBody.Contains "categoryLabelQualified")
                 "entryRow zeigt bewusst nur den Blattnamen, keine Qualifizierung."
-            Expect.stringContains (sliceFunctionBody view "let private categoryCell") "categoryLabelQualified entry"
-                "Die Kategoriezelle der PC-Tabelle muss categoryLabelQualified entry aufrufen (volle Qualifizierung)."
+            Expect.stringContains (sliceFunctionBody view "let private categoryCell") "listCategoryLabel TableRow entry"
+                "Die Kategoriezelle der PC-Tabelle muss die Tabellen-Form wählen (volle Qualifizierung)."
         }
 
         /// Regression für ledger-qns4j, AC3: die Statusspalte der PC-Tabelle trug

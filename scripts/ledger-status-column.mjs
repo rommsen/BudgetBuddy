@@ -114,6 +114,7 @@ export const SIX_CASE_PAYEES = {
   deletedOnly: "Fixture DeletedOnly",
   markedOnly: "Fixture MarkedOnly",
   needsReviewMarked: "Fixture NeedsReview Marked",
+  needsReviewNotInYnab: "Fixture NeedsReview NotInYnab",
 };
 
 export function buildEntriesFixture(accountId, fillerCount = 40) {
@@ -125,7 +126,8 @@ export function buildEntriesFixture(accountId, fillerCount = 40) {
     buildEntryFixture(accountId, 5, { Payee: SIX_CASE_PAYEES.deletedOnly, DeletedInYnab: true }),
     buildEntryFixture(accountId, 6, { Payee: SIX_CASE_PAYEES.markedOnly, Flag: "Marked" }),
     buildEntryFixture(accountId, 7, { Payee: SIX_CASE_PAYEES.needsReviewMarked, NeedsReview: true, Flag: "Marked" }),
-    ...Array.from({ length: fillerCount }, (_, i) => buildEntryFixture(accountId, 8 + i, { Payee: `Blindgänger ${8 + i}` })),
+    buildEntryFixture(accountId, 8, { Payee: SIX_CASE_PAYEES.needsReviewNotInYnab, NeedsReview: true, LinkedToYnab: false }),
+    ...Array.from({ length: fillerCount }, (_, i) => buildEntryFixture(accountId, 9 + i, { Payee: `Blindgänger ${9 + i}` })),
   ];
   const needsReviewCount = entries.filter((e) => e.NeedsReview).length;
   const deletedCount = entries.filter((e) => e.DeletedInYnab).length;

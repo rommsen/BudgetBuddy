@@ -213,130 +213,6 @@ test("PC (1440): Pfeil öffnet den Picker im Panel, Auswahl ändert, Karte und T
   await context.close();
 });
 
-test("PC: Esc schließt zuerst den Picker, dann das Detail; ein zweiter Klick auf den Pfeil schließt den Picker", async () => {
-  resetState();
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  const page = await open(context);
-  await row(page, "REWE Mitte").locator("td").nth(2).click();
-  await panel(page).waitFor();
-  await arrow(panel(page)).click();
-  await panel(page).locator('[role="listbox"]').waitFor();
-  await page.keyboard.press("Escape");
-  await panel(page).locator('[role="listbox"]').waitFor({ state: "detached" });
-  assert.equal(await panel(page).count(), 1, "das Detail bleibt");
-  // Ein Klick auf die Zeile (nicht nur auf den Pfeil) öffnet, ein zweiter schließt.
-  await categoryRow(panel(page)).locator("span").first().click();
-  await panel(page).locator('[role="listbox"]').waitFor();
-  await arrow(panel(page)).click();
-  await panel(page).locator('[role="listbox"]').waitFor({ state: "detached" });
-  await arrow(panel(page)).click();
-  await panel(page).locator('[role="listbox"]').waitFor();
-  await page.keyboard.press("Escape");
-  await page.keyboard.press("Escape");
-  await panel(page).waitFor({ state: "detached" });
-  await context.close();
-});
-
-test("PC: Gesperrte Fälle (Übertrag ohne Kategorie, gelöscht) zeigen den Pfeil gedämpft mit Hinweistext und öffnen nichts", async () => {
-  resetState();
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  const page = await open(context);
-  const cases = [
-    ["Girokonto Übertrag", /Übertrag zwischen Budget-Konten, YNAB lässt hier keine Kategorie zu/],
-    ["Café Lotte", /In YNAB gelöscht/],
-  ];
-  for (const [payee, hint] of cases) {
-    await row(page, payee).locator("td").nth(2).click();
-    await page.waitForFunction((p) => document.querySelector('[data-testid="detail-title"]')?.textContent === p, payee);
-    const button = arrow(panel(page));
-    assert.equal(await button.getAttribute("aria-disabled"), "true", `${payee}: gesperrt`);
-    assert.match(await button.getAttribute("title"), hint, `${payee}: Hinweistext`);
-    await button.click({ force: true });
-    await categoryRow(panel(page)).click({ position: { x: 20, y: 10 } });
-    assert.equal(await panel(page).locator('[role="listbox"]').count(), 0, `${payee}: Picker bleibt zu`);
-  }
-  assert.equal(state.suggestionCalls.length, 0, "keine Abfrage für gesperrte Fälle");
-  await context.close();
-});
-
-test("PC: Schlägt der Versand fehl, steht die Hinweisleiste mit Grund und Erneut senden; nach dem Neuladen noch da", async () => {
-  resetState();
-  state.writeBack = { CategorySendFailed: "YNAB nicht erreichbar" };
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  const page = await open(context);
-  await row(page, "Deutsche Bahn").locator("td").nth(2).click();
-  await panel(page).waitFor();
-  await arrow(panel(page)).click();
-  await panel(page).locator('[role="listbox"]').locator('[role="option"]', { hasText: "Nebenkosten" }).last().click();
-  state.failureOf[2] = "YNAB nicht erreichbar";
-  const notice = panel(page).locator('[data-testid="detail-notice"]');
-  await notice.waitFor();
-  assert.match(await notice.textContent(), /Kategorie nicht in YNAB/);
-  assert.match(await notice.textContent(), /YNAB nicht erreichbar/);
-  await notice.getByRole("button", { name: "Erneut senden" }).click();
-  await notice.waitFor({ state: "detached" });
-  assert.equal(state.retryCalls.length, 1, "retryCategorizationWriteBack lief");
-
-  // Nach einem Neuladen der Seite steht der offene Fehlschlag weiter an der Buchung.
-  state.failureOf[2] = "YNAB nicht erreichbar";
-  await page.reload({ waitUntil: "load" });
-  await waitForPageLoaded(page, "/ledger");
-  await row(page, "Deutsche Bahn").locator("td").nth(2).click();
-  await page.locator('[data-testid="detail-notice"]', { hasText: "Kategorie nicht in YNAB" }).waitFor();
-  await context.close();
-});
-
-test("PC: Fällt die Zeile aus dem Kategorie-Filter, bleibt sie ausgegraut mit Vermerk stehen; Trefferzahl geht sofort mit", async () => {
-  resetState();
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  const page = await open(context);
-  await row(page, "REWE Mitte").locator("td").nth(2).click();
-  await panel(page).waitFor();
-  await panel(page).locator('[data-testid="detail-category"] [data-testid="detail-filter"]').click();
-  await page.waitForFunction(() => document.querySelectorAll("table tbody tr").length <= 3);
-  const before = state.queries.length;
-  await arrow(panel(page)).click();
-  await panel(page).locator('[role="listbox"]').locator('[role="option"]', { hasText: "Nebenkosten" }).last().click();
-  const note = page.locator('tr[data-testid="filtered-out-note"]');
-  await note.waitFor();
-  assert.match(await note.textContent(), /passt nicht mehr zum Filter/);
-  const opacity = await row(page, "REWE Mitte").evaluate((el) => getComputedStyle(el).opacity);
-  assert.ok(Number(opacity) < 1, `die Zeile ist gedämpft (${opacity})`);
-  assert.equal(state.queries.length, before, "kein Neuladen der Liste");
-  assert.match(await page.locator("body").innerText(), /\b0 Buchungen\b/, "Trefferzahl sofort gesunken");
-  // Die ausgegraute Zeile ist von "alle auswählen" ausgenommen.
-  await page.getByRole("checkbox", { name: "Alle Buchungen des Treffers auswählen" }).filter({ visible: true }).click();
-  const checked = await row(page, "REWE Mitte").locator('[role="checkbox"]').first().getAttribute("aria-checked");
-  assert.notEqual(checked, "true", "ausgegraut: nicht gewählt");
-  await context.close();
-});
-
-test("PC: Bei Sortierung nach Kategorie erscheint die Leiste Neu laden, Neu laden lädt ab Seite 1", async () => {
-  resetState();
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  const page = await open(context);
-  await page.locator("table thead th", { hasText: "Kategorie" }).first().getByText("Kategorie").click();
-  for (let i = 0; i < 50 && !state.queries.some((q) => q.Sort.Field === "SortByCategory"); i += 1) await new Promise((r) => setTimeout(r, 40));
-  assert.ok(state.queries.some((q) => q.Sort.Field === "SortByCategory"), "die Sortierung nach Kategorie ist aktiv");
-  await row(page, "REWE Mitte").locator("td").nth(2).click();
-  await panel(page).waitFor();
-  assert.equal(await page.locator('[data-testid="order-stale-bar"]').count(), 0, "vorher keine Leiste");
-  await arrow(panel(page)).click();
-  await panel(page).locator('[role="listbox"]').locator('[role="option"]', { hasText: "Nebenkosten" }).last().click();
-  const bar = page.locator('[data-testid="order-stale-bar"]');
-  await bar.waitFor();
-  assert.match(await bar.textContent(), /Reihenfolge oder Treffer haben sich geändert\./);
-  const before = state.queries.length;
-  await bar.getByRole("button", { name: "Neu laden" }).click();
-  await bar.waitFor({ state: "detached" });
-  await pollUntil(() => state.queries.length > before);
-  const last = state.queries[state.queries.length - 1];
-  assert.ok(state.queries.length > before, "Neu laden fragt den Server");
-  assert.equal(last.Page, 0, "ab Seite 1");
-  assert.equal(last.Sort.Field, "SortByCategory");
-  await context.close();
-});
-
 test("Handy (390x844): Der Picker öffnet als zweites Sheet über dem Detail, die Karte steht unter dem Kategorie-Feld", async () => {
   resetState();
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
@@ -384,11 +260,12 @@ test("Handy (390x844): Der Picker öffnet als zweites Sheet über dem Detail, di
     return hit === el || el.contains(hit);
   });
   assert.ok(topmost, "Rückgängig im Toast liegt über dem Detail-Sheet");
-  // Das Picker-Sheet schluckt nach der Wahl 350 ms lang den nächsten Klick (ADR 0005);
-  // ein Mensch tippt später, der Test wartet die Sperre ab.
-  await page.waitForTimeout(400);
-  await undo.tap();
-  for (let i = 0; i < 50 && state.setCalls.length < 2; i += 1) await new Promise((r) => setTimeout(r, 40));
+  // Das Picker-Sheet schluckt nach der Wahl bis zu 350 ms lang genau einen Klick (ADR 0005):
+  // ein geschluckter Tipp ändert nichts, also bis zur Wirkung wiederholen.
+  for (let attempt = 0; attempt < 5 && state.setCalls.length < 2; attempt += 1) {
+    await undo.tap();
+    await pollUntil(() => state.setCalls.length >= 2, 500);
+  }
   assert.deepEqual(state.setCalls[1]?.choice, { YnabCategoryId: CAT.lebensmittel.id }, "Rückgängig im Toast sendet am Handy die alte Kategorie");
   await context.close();
 });

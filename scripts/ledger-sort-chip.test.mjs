@@ -3,8 +3,8 @@
 // Wächter für `ledger-skpcx` (ADR 0051): am Handy (390x844) steht am Ende der Filterleiste
 // ein Sortier-Chip, der ein BottomSheet "Sortieren" öffnet. Ein Tipp auf "Größte Ausgabe
 // zuerst" sortiert die Liste flach nach Betrag aufsteigend (Datum in Zeile 2), das Sheet
-// schließt und der Chip zeigt "Betrag ↑". In der Gesamtsicht stehen zehn Optionen. Am PC
-// (1440px, Tabelle) gibt es den Chip nicht. Gemessen am echten, per Vite gestarteten
+// schließt und der Chip zeigt "Betrag ↑". In der Gesamtsicht stehen zehn Optionen. Optionen je
+// Kontosicht prüft `LedgerSortSheetTests`, das Fehlen am PC `ledger-sort-headers` (infrastructure-t5m2b). Gemessen am echten, per Vite gestarteten
 // Fable-Client gegen gemockte Ledger-Antworten (Muster wie `ledger-sort-headers.test.mjs`).
 //
 // Ausführen: node --test scripts/ledger-sort-chip.test.mjs
@@ -25,7 +25,6 @@ let frontend;
 let frontendPort;
 let browser;
 let mobile;
-let desktop;
 const sortsSeen = [];
 
 function sortedEntries(entries, sort) {
@@ -69,7 +68,6 @@ before(async () => {
   frontend = await startFrontend(frontendPort, undefined);
   browser = await chromium.launch();
   mobile = await openPage(390, 844);
-  desktop = await openPage(1440, 900);
 });
 
 after(async () => {
@@ -117,23 +115,4 @@ test("Handy: Chip am Ende der Leiste, Sheet mit zehn Optionen, Betrag aufsteigen
   assert.equal(rows.tables, 0, "Handy-Liste, keine Tabelle");
   assert.ok(rows.count > 0, "Zeilen stehen");
   assert.ok(rows.dates.every((d) => /\d/.test(d)), `Datum steht in Zeile 2: ${JSON.stringify(rows.dates.slice(0, 3))}`);
-});
-
-test("Handy: bei einem einzelnen Konto fehlen die Konto-Optionen", async () => {
-  const page = mobile.page;
-  const accounts = mobile.accountsFixture.Accounts;
-  await page.locator(".ledger-account-strip").getByText(accounts[0].Name).filter({ visible: true }).first().click();
-  await chip(page).waitFor();
-  await chip(page).click();
-  const sheet = page.locator(".bottom-sheet.active");
-  await sheet.waitFor();
-  assert.equal(await sheet.locator("button.category-item").count(), 8, "acht Optionen ohne Konto");
-  await sheet.locator("button[aria-label='Schließen'], .sheet-close").first().click();
-  await page.waitForFunction(() => document.querySelectorAll(".bottom-sheet.active").length === 0);
-});
-
-test("PC: bei der Tabelle gibt es keinen Sortier-Chip", async () => {
-  const page = desktop.page;
-  await page.waitForSelector("table tbody tr");
-  assert.equal(await chip(page).count(), 0, "Köpfe sortieren, der Chip fehlt");
 });

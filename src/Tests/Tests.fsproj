@@ -57,6 +57,7 @@
     <Compile Include="SyncSessionManagerTests.fs" />
     <Compile Include="RoutingTests.fs" />
     <Compile Include="CorsTests.fs" />
+    <Compile Include="CmdTiming.fs" />
     <Compile Include="SyncFlowViewTests.fs" />
     <Compile Include="SyncFlowStateTests.fs" />
     <Compile Include="ImportAskLenaClientTests.fs" />
@@ -136,6 +137,7 @@
     <Compile Include="RulesListTests.fs" />
     <Compile Include="RuleCommandHandlerTests.fs" />
     <Compile Include="SettingsSecretsTests.fs" />
+    <Compile Include="ClientCommandTests.fs" />
     <Compile Include="Main.fs" />
   </ItemGroup>
 

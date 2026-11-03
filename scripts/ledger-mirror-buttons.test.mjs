@@ -68,25 +68,20 @@ async function visibleMirrorButtons(page) {
   );
 }
 
-test("Handy 390x844: genau ein Spiegel-Knopf, der Symbol-Knopf", async () => {
-  const { context, page } = await openLedger({ width: 390, height: 844 });
-  try {
-    const visible = await visibleMirrorButtons(page);
-    assert.equal(visible.length, 1, `erwartet genau einen sichtbaren Spiegel-Knopf, sichtbar: ${JSON.stringify(visible)}`);
-    assert.equal(visible[0].title, "Jetzt spiegeln");
-    assert.equal(visible[0].text, "");
-  } finally {
-    await context.close();
-  }
-});
-
-test("PC 1440x900: genau ein Spiegel-Knopf, der Textknopf", async () => {
-  const { context, page } = await openLedger({ width: 1440, height: 900 });
-  try {
-    const visible = await visibleMirrorButtons(page);
-    assert.equal(visible.length, 1, `erwartet genau einen sichtbaren Spiegel-Knopf, sichtbar: ${JSON.stringify(visible)}`);
-    assert.match(visible[0].text, /^(Jetzt spiegeln|Spiegel läuft…)$/);
-  } finally {
-    await context.close();
+test("Handy und PC: genau ein sichtbarer Spiegel-Knopf, am Handy das Symbol, am PC der Textknopf", async () => {
+  for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
+    const { context, page } = await openLedger(viewport);
+    try {
+      const visible = await visibleMirrorButtons(page);
+      assert.equal(visible.length, 1, `${viewport.width}: genau ein sichtbarer Spiegel-Knopf, sichtbar: ${JSON.stringify(visible)}`);
+      if (viewport.width < 768) {
+        assert.equal(visible[0].title, "Jetzt spiegeln");
+        assert.equal(visible[0].text, "");
+      } else {
+        assert.match(visible[0].text, /^(Jetzt spiegeln|Spiegel läuft…)$/);
+      }
+    } finally {
+      await context.close();
+    }
   }
 });

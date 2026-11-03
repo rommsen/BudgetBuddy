@@ -290,8 +290,8 @@ test("PC, Panel: Feld tippen, Enter, Pfeil runter wählt die nächste Zeile, kei
   }
 });
 
-for (const [label, width, height] of [["390 px", 390, 844], ["Panel", 1280, 800]]) {
-  test(`Lange Kategorienamen stehen in von, nach und im Knopf vollständig (${label})`, async () => {
+test("Lange Kategorienamen stehen in von, nach und im Knopf vollständig, am Handy und im Panel", async () => {
+  for (const [width, height] of [[390, 844], [1280, 800]]) {
     const { context, page } = await openPage(width, height);
     try {
       await row(page, "Lebensmittel c5w2n").click();
@@ -301,20 +301,20 @@ for (const [label, width, height] of [["390 px", 390, 844], ["Panel", 1280, 800]
       await page.locator('[role="option"]:visible').filter({ hasText: LONG }).last().click();
       await page.locator('[data-testid="transfer-to"]').getByText(LONG).waitFor();
       for (const selector of ['[data-testid="transfer-to"]', '[data-testid="transfer-submit"] button']) {
-        assert.ok(await page.locator(selector).evaluate(nothingCut), `${selector} kürzt nichts`);
-        assert.ok((await page.locator(selector).innerText()).includes(LONG), `${selector} zeigt den Namen ganz`);
+        assert.ok(await page.locator(selector).evaluate(nothingCut), `${width}: ${selector} kürzt nichts`);
+        assert.ok((await page.locator(selector).innerText()).includes(LONG), `${width}: ${selector} zeigt den Namen ganz`);
       }
       // Das Sheet des Pickers schluckt den nächsten Klick (ADR 0005), am PC gibt es die Sperre nicht.
       await page.locator('[data-testid="detail-activity"]').first().click();
       await mode(page, "Holen").click();
       const from = page.locator('[data-testid="transfer-from"]');
       await from.getByText(LONG).waitFor();
-      assert.ok(await from.evaluate(nothingCut), "von kürzt nichts");
+      assert.ok(await from.evaluate(nothingCut), `${width}: von kürzt nichts`);
     } finally {
       await context.close();
     }
-  });
-}
+  }
+});
 
 test("Handy: der Picker geht über dem Inspektor auf, zeigt Zuletzt verwendet, schließt ohne Ghost-Click, das Sheet bleibt offen", async () => {
   const { context, page, calls } = await openPage(390, 844);
@@ -336,7 +336,7 @@ test("Handy: der Picker geht über dem Inspektor auf, zeigt Zuletzt verwendet, s
   }
 });
 
-test("Handy: der Hinweis einer Offenen Verschiebung steht im festen Bereich des Sheets", async () => {
+test("Handy: der Hinweis einer offenen Verschiebung steht im festen Bereich des Sheets, in jedem Tab sichtbar", async () => {
   const { context, page } = await openPage(390, 844);
   try {
     const failed = {
@@ -353,6 +353,10 @@ test("Handy: der Hinweis einer Offenen Verschiebung steht im festen Bereich des 
     await page.locator('[data-testid="assign-missing"] button').click();
     const hint = page.locator('.bottom-sheet.fixed-height.active .sheet-pinned [data-testid="move-retry"]');
     await hint.waitFor();
+    for (const tab of await page.locator(".bottom-sheet.fixed-height.active").getByRole("tab").all()) {
+      await tab.click();
+      assert.ok(await hint.isVisible(), "der Hinweis steht in jedem Tab");
+    }
   } finally {
     await context.close();
   }

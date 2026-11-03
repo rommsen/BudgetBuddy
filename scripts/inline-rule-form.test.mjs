@@ -5,6 +5,11 @@
 // `src/Tests/SyncFlowStateTests.fs`. Hier steht, was nur der Browser zeigt: der Timer feuert
 // wirklich einmal je Tippfolge, und jede Rückmeldung kommt in der Ansicht an.
 //
+// infrastructure-t5m2b: übrig bleibt der Timer im echten Browser. Die Rückmeldungen (passt nicht,
+// ungültig, Netzfehler) prüfen `SyncFlowStateTests.fs` ("Muster-Test im Regelformular") und
+// `ClientCommandTests.fs` ("Mustertest an der Importzeile"), die Wiederholung eines Abbruchs das
+// Inventar in `RetryTests.fs`.
+//
 // Ausführen: npm run test:scripts -- scripts/inline-rule-form.test.mjs
 
 import { test, before, after } from "node:test";
@@ -77,10 +82,8 @@ async function openForm(answer) {
   return { context, page, patterns };
 }
 
-const matches = (r) => r.fulfill(json({ Ok: true }));
-
 test("Öffnen prüft das vorbelegte Muster, eine Tippfolge löst genau eine Anfrage aus", async () => {
-  const { context, page, patterns } = await openForm(matches);
+  const { context, page, patterns } = await openForm((r) => r.fulfill(json({ Ok: true })));
   try {
     await page.getByText("Passt auf diese Transaktion").waitFor();
     assert.deepEqual(patterns, ["Testmarkt"]);
@@ -89,52 +92,6 @@ test("Öffnen prüft das vorbelegte Muster, eine Tippfolge löst genau eine Anfr
     await page.locator(".pattern-input").pressSequentially("rewe", { delay: 20 });
     await page.getByText("Passt auf diese Transaktion").waitFor();
     assert.deepEqual(patterns, ["Testmarkt", "rewe"]);
-  } finally {
-    await context.close();
-  }
-});
-
-test("Kein Treffer zeigt passt nicht", async () => {
-  const { context, page } = await openForm((r) => r.fulfill(json({ Ok: false })));
-  try {
-    await page.getByText("Passt nicht auf diese Transaktion").waitFor();
-  } finally {
-    await context.close();
-  }
-});
-
-// Bug categorization-f955d: ein Netzfehler erschien als "passt nicht".
-test("Netzfehler zeigt eine eigene Meldung und nicht passt nicht", async () => {
-  const { context, page } = await openForm((r) => r.abort());
-  try {
-    await page.getByText("Muster konnte nicht geprüft werden").waitFor();
-    assert.equal(await page.getByText("Passt nicht auf diese Transaktion").count(), 0);
-  } finally {
-    await context.close();
-  }
-});
-
-// ynab-sync-k3vq8: der Mustertest liest nur, ein einzelner Abbruch heilt sich wie jeder Lesevorgang im Import.
-test("Ein einzelner Abbruch des Mustertests wird wiederholt", async () => {
-  let attempts = 0;
-  const { context, page } = await openForm((r) => {
-    attempts += 1;
-    return attempts === 1 ? r.abort("connectionreset") : r.fulfill(json({ Ok: true }));
-  });
-  try {
-    await page.getByText("Passt auf diese Transaktion").waitFor();
-    assert.equal(await page.getByText("Muster konnte nicht geprüft werden").count(), 0);
-  } finally {
-    await context.close();
-  }
-});
-
-// Bug categorization-f955d: ein ungültiges Muster zeigte gar keine Rückmeldung.
-test("Ungültiges Muster zeigt eine eigene Meldung und nicht passt nicht", async () => {
-  const { context, page } = await openForm((r) => r.fulfill(json({ Error: { InvalidPattern: ["(", "Klammer fehlt"] } })));
-  try {
-    await page.getByText("Ungültiges Muster").waitFor();
-    assert.equal(await page.getByText("Passt nicht auf diese Transaktion").count(), 0);
   } finally {
     await context.close();
   }

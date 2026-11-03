@@ -171,6 +171,15 @@ let private retryTests =
         }
     ]
 
+// infrastructure-t5m2b: aus dem Browser gezogen.
+let private reportLineTests =
+    testList "Bericht (h2zfn)" [
+        test "Probleme stehen vor den geschriebenen Zeilen, sonst bleibt die Folge" {
+            let report = reportOf [ Written; Failed "a"; Written; ChangedInYnab ] None
+            Expect.equal (reportLines report |> List.map (fun l -> l.CategoryName)) [ "K1"; "K3"; "K0"; "K2" ] "Folge"
+        }
+    ]
+
 let private actualTests =
     testList "Zu verteilen nach dem Lauf (h2zfn)" [
         test "Gleich der Vorschau, abweichend oder unbekannt" {
@@ -202,4 +211,4 @@ let private viewSourceTests =
 
 [<Tests>]
 let tests =
-    testList "Targets anwenden, Client (budgeting-h2zfn)" [ openTests; confirmTests; retryTests; actualTests; viewSourceTests ]
+    testList "Targets anwenden, Client (budgeting-h2zfn)" [ openTests; confirmTests; retryTests; actualTests; reportLineTests; viewSourceTests ]

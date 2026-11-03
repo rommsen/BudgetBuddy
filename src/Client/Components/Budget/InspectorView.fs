@@ -135,9 +135,9 @@ let private targetTab (category: BudgetCategory) =
                 match targetStatusText category with
                 | Some status -> detailFigure "target-status" "Status" (Html.span [ prop.className ListRoles.secondary; prop.text status ])
                 | None -> ()
-                match category.Underfunded with
-                | Some under when not category.Snoozed -> detailFigure "target-underfunded" "Fehlbetrag" (detailAmount under)
-                | _ -> ()
+                match targetUnderfunded category with
+                | Some under -> detailFigure "target-underfunded" "Fehlbetrag" (detailAmount under)
+                | None -> ()
         ]
     ]
 
@@ -199,6 +199,23 @@ let sheetCategory (model: Model) =
         selectedCategory month selected |> Option.map (fun found -> selected, month, found)
     | _ -> None
 
+/// Offene Verschiebungen auf der Seite. Steht das Sheet offen, trägt es den Hinweis: genau eine Stelle.
+let pageRetries (isPanel: bool) (model: Model) : OpenMoveRetry list =
+    if isPanel || (sheetCategory model).IsNone then model.OpenRetries else []
+
+/// Was das Panel ohne gezeigte Kategorie trägt.
+type EmptyPanel =
+    | PanelLoading
+    /// Das Laden ist gescheitert: es kommt kein Inhalt nach.
+    | PanelBlank
+    | PanelHint
+
+let emptyPanel (model: Model) : EmptyPanel =
+    match model.Selected, model.Month with
+    | Some _, Loading -> PanelLoading
+    | Some _, _ -> PanelBlank
+    | None, _ -> PanelHint
+
 /// Das Sheet unter 1024 px. Immer gerendert, damit es ein- und ausfährt. Beim Ausfahren hält
 /// `BottomSheet.inspector` den letzten Inhalt.
 let inspectorSheet (model: Model) (shown: BudgetGroup list) (dispatch: Msg -> unit) =
@@ -245,12 +262,14 @@ let inspectorPanel (model: Model) (dispatch: Msg -> unit) =
                     prop.className "flex-1 min-h-0 overflow-y-auto"
                     prop.children [ inspectorContent model month selected category dispatch ]
                 ]
-            | None when model.Selected.IsSome && model.Month = Loading -> Loading.txListSkeleton 3
-            | None when model.Selected.IsSome -> ()
             | None ->
-                Html.p [
-                    prop.className $"{ListRoles.muted} p-4 m-auto text-center"
-                    prop.text "Kategorie wählen"
-                ]
+                match emptyPanel model with
+                | PanelLoading -> Loading.txListSkeleton 3
+                | PanelBlank -> ()
+                | PanelHint ->
+                    Html.p [
+                        prop.className $"{ListRoles.muted} p-4 m-auto text-center"
+                        prop.text "Kategorie wählen"
+                    ]
         ]
     ]

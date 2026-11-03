@@ -36,7 +36,6 @@ before(async () => {
   await page.goto(`http://127.0.0.1:${frontendPort}/#/ledger`, { waitUntil: "load" });
   await waitForPageLoaded(page, "/ledger");
   await page.locator("table tbody tr").first().waitFor();
-  await page.waitForTimeout(1500);
 });
 
 after(async () => {
@@ -59,28 +58,37 @@ const measure = (payee) =>
     return { opacity: Number(cs.opacity), width: r.width, color: svg ? getComputedStyle(svg).color : cs.color, title: el.title };
   }, payee);
 
-test("Prüf-Schaltfläche: unsichtbar mit Breite, bei Zeilen-Hover sichtbar, neutral, mit title", async () => {
-  const row = rowByPayee(SIX_CASE_PAYEES.needsReview);
+/// Wartet, bis die Prüf-Schaltfläche der Zeile die Deckkraft `value` erreicht hat (Übergang zu Ende).
+const opacityReaches = (payee, value) =>
+  page.waitForFunction(
+    ([payee, value]) => {
+      const tr = [...document.querySelectorAll("table tbody tr")].find((r) =>
+        [...r.querySelectorAll("td")].some((td) => td.textContent === payee));
+      const el = tr?.querySelector("td:last-child button");
+      return el && Number(getComputedStyle(el).opacity) === value;
+    },
+    [payee, value]
+  );
+
+test("Prüf-Schaltfläche: unsichtbar mit Breite, bei Zeilen-Hover und Tastaturfokus sichtbar, neutral, mit title", async () => {
+  const payee = SIX_CASE_PAYEES.needsReview;
+  const row = rowByPayee(payee);
   const button = row.locator("td").last().locator("button");
   await page.mouse.move(2, 2);
-  await page.waitForTimeout(300);
-  const idle = await measure(SIX_CASE_PAYEES.needsReview);
-  assert.equal(idle.opacity, 0, "ohne Hover unsichtbar");
+  await opacityReaches(payee, 0);
+  const idle = await measure(payee);
   assert.ok(idle.width >= 27, `behält ihre Breite (war ${idle.width})`);
+
   await row.hover();
-  await page.waitForTimeout(400);
-  const hovered = await measure(SIX_CASE_PAYEES.needsReview);
-  assert.equal(hovered.opacity, 1, "bei Zeilen-Hover sichtbar");
+  await opacityReaches(payee, 1);
+  const hovered = await measure(payee);
   assert.equal(hovered.title, "Als geprüft markieren");
   // neutral: Teal hätte einen großen Abstand zwischen Rot und Grün/Blau
   const [r, g, b] = hovered.color.match(/\d+(\.\d+)?/g).map(Number);
   assert.ok(Math.max(r, g, b) - Math.min(r, g, b) < 60, `neutrale Farbe erwartet, war ${hovered.color}`);
-});
 
-test("Prüf-Schaltfläche: Tastaturfokus macht sie sichtbar", async () => {
   await page.mouse.move(2, 2);
-  const button = rowByPayee(SIX_CASE_PAYEES.needsReview).locator("td").last().locator("button");
+  await opacityReaches(payee, 0);
   await button.focus();
-  await page.waitForTimeout(400);
-  assert.equal((await measure(SIX_CASE_PAYEES.needsReview)).opacity, 1, "bei Fokus sichtbar");
+  await opacityReaches(payee, 1);
 });

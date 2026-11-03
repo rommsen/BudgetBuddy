@@ -58,19 +58,34 @@ test("PC: Popover mit Suche, Ohne Kategorie, Vorgeschlagen, Beträgen rechts und
   assert.equal(new Set(rights).size, 1, `Betragsslots rechtsbündig: ${rights}`);
   // Aktuelle Kategorie trägt aria-selected.
   assert.equal(await sec.locator('[role="option"][aria-selected="true"]').count() >= 1, true);
+  // Versteckt aufklappen: eine Kategorie ohne Available hat keinen Betragsslot.
+  await sec.getByRole("button", { name: "Versteckt (1)" }).click();
+  const hiddenRow = options(sec).filter({ hasText: "Altes Sparziel" });
+  await hiddenRow.waitFor();
+  assert.equal(await hiddenRow.locator(".w-24").count(), 0, "kein Betragsslot");
+  // Die Variante ohne Beschriftung hat keine Stand-Zeile.
+  await sec.locator('[data-ds-demo="category-picker-plain-trigger"] button').click();
+  const plain = sec.locator('[data-ds-demo="category-picker-plain"]');
+  await plain.locator('[role="listbox"]').waitFor();
+  assert.equal(await plain.getByText(/^Stand /).count(), 0, "ohne Beschriftung keine Stand-Zeile");
   await page.close();
 });
 
-test("PC: Klick übernimmt sofort und schließt; Pfeile, Enter und Esc", async () => {
+const selectCount = async (sec) =>
+  Number(await sec.locator('[data-ds-demo="category-picker-select-count"]').textContent());
+
+test("PC: ein Mausklick wählt genau einmal und schließt; Pfeile, Enter und Esc", async () => {
   const page = await openGallery({ viewport: { width: 1440, height: 900 } });
   const sec = section(page);
   const trigger = page.locator('[data-ds-demo="category-picker-popover-trigger"] button');
   const listbox = sec.locator('[role="listbox"]');
+  assert.equal(await selectCount(sec), 0);
   await trigger.click();
   await listbox.waitFor();
   await options(sec).filter({ hasText: "Versicherung" }).last().click();
   assert.equal(await listbox.count(), 0, "Popover geschlossen");
   assert.match(await sec.textContent(), /Versicherung/, "Auswahl übernommen");
+  assert.equal(await selectCount(sec), 1, "ein OnSelect");
 
   // Pfeil runter, Enter wählt die markierte Zeile (die erste ist "Ohne Kategorie").
   await trigger.click();
@@ -79,104 +94,13 @@ test("PC: Klick übernimmt sofort und schließt; Pfeile, Enter und Esc", async (
   await page.keyboard.press("Enter");
   assert.equal(await listbox.count(), 0, "Enter wählt und schließt");
   await sec.getByText("Ohne Kategorie", { exact: true }).waitFor();
+  assert.equal(await selectCount(sec), 2, "Ohne Kategorie: ein OnSelect");
 
   // Esc schließt nur den Picker.
   await trigger.click();
   await listbox.waitFor();
   await page.keyboard.press("Escape");
   assert.equal(await listbox.count(), 0, "Esc schließt");
-  await page.close();
-});
-
-const selectCount = async (sec) =>
-  Number(await sec.locator('[data-ds-demo="category-picker-select-count"]').textContent());
-
-test("PC: Betrag trägt die Farbklasse nach Vorzeichen (positiv, negativ, null)", async () => {
-  const page = await openGallery({ viewport: { width: 1440, height: 900 } });
-  const sec = section(page);
-  await sec.locator('[data-ds-demo="category-picker-popover-trigger"] button').click();
-  await sec.locator('[role="listbox"]').waitFor();
-  const amountClass = (name) =>
-    options(sec)
-      .filter({ has: page.locator("span.truncate", { hasText: new RegExp(`^${name}$`) }) })
-      .last()
-      .locator(".w-24 span")
-      .getAttribute("class");
-  assert.match(await amountClass("Lebensmittel"), /text-text-primary/, "positiv");
-  assert.match(await amountClass("Freizeit"), /text-neon-red/, "negativ");
-  assert.match(await amountClass("Sonstiges"), /text-text-muted/, "null");
-  await page.close();
-});
-
-test("PC: Versteckt aufklappen, Kategorie ohne Available hat einen leeren Betragsslot", async () => {
-  const page = await openGallery({ viewport: { width: 1440, height: 900 } });
-  const sec = section(page);
-  await sec.locator('[data-ds-demo="category-picker-popover-trigger"] button').click();
-  await sec.locator('[role="listbox"]').waitFor();
-  assert.equal(await options(sec).filter({ hasText: "Altes Sparziel" }).count(), 0, "zunächst eingeklappt");
-  await sec.getByRole("button", { name: "Versteckt (1)" }).click();
-  const hiddenRow = options(sec).filter({ hasText: "Altes Sparziel" });
-  await hiddenRow.waitFor();
-  assert.equal(await hiddenRow.locator(".w-24").count(), 0, "kein Betragsslot");
-  assert.equal(await hiddenRow.locator("span.font-mono").count(), 0, "kein Betrag");
-  // Gegenprobe: eine Zeile mit Available hat den Slot.
-  assert.equal(await options(sec).filter({ hasText: "Miete" }).last().locator(".w-24").count(), 1);
-  await page.close();
-});
-
-test("PC: Mausklick wählt genau einmal, auch auf Ohne Kategorie", async () => {
-  const page = await openGallery({ viewport: { width: 1440, height: 900 } });
-  const sec = section(page);
-  const trigger = sec.locator('[data-ds-demo="category-picker-popover-trigger"] button');
-  const listbox = sec.locator('[role="listbox"]');
-  assert.equal(await selectCount(sec), 0);
-
-  await trigger.click();
-  await listbox.waitFor();
-  await options(sec).filter({ hasText: "Miete" }).last().click();
-  await listbox.waitFor({ state: "detached" });
-  assert.equal(await selectCount(sec), 1, "Kategorie: ein OnSelect");
-
-  await trigger.click();
-  await listbox.waitFor();
-  await options(sec).filter({ hasText: "Ohne Kategorie" }).first().click();
-  await listbox.waitFor({ state: "detached" });
-  assert.equal(await selectCount(sec), 2, "Ohne Kategorie: ein OnSelect");
-  assert.match(await sec.textContent(), /Ohne Kategorie/, "Ergebnis steht als Badge");
-
-  // Danach ist Ohne Kategorie die aktuelle Zeile.
-  await trigger.click();
-  await listbox.waitFor();
-  assert.equal(await options(sec).first().getAttribute("aria-selected"), "true");
-  await page.close();
-});
-
-test("PC: Variante ohne Beschriftung hat keine Stand-Zeile, die mit Beschriftung hat sie", async () => {
-  const page = await openGallery({ viewport: { width: 1440, height: 900 } });
-  const sec = section(page);
-  await sec.locator('[data-ds-demo="category-picker-plain-trigger"] button').click();
-  const plain = sec.locator('[data-ds-demo="category-picker-plain"]');
-  await plain.locator('[role="listbox"]').waitFor();
-  assert.equal(await plain.getByText(/^Stand /).count(), 0, "ohne Beschriftung keine Stand-Zeile");
-  await sec.locator('[data-ds-demo="category-picker-plain-trigger"] button').click();
-  await sec.locator('[data-ds-demo="category-picker-popover-trigger"] button').click();
-  const withStand = sec.locator('[data-ds-demo="category-picker-with-stand"]');
-  await withStand.locator('[role="listbox"]').waitFor();
-  assert.equal(await withStand.getByText("Stand 14:02").count(), 1, "mit Beschriftung eine Stand-Zeile");
-  await page.close();
-});
-
-test("PC: Suche filtert nach Name und Gruppe und blendet Vorgeschlagen aus", async () => {
-  const page = await openGallery({ viewport: { width: 1440, height: 900 } });
-  await page.locator('[data-ds-demo="category-picker-popover-trigger"] button').click();
-  const sec = section(page);
-  await sec.locator('[role="listbox"]').waitFor();
-  const before = await options(sec).count();
-  await page.keyboard.type("MIETE");
-  const after = await options(sec).count();
-  assert.ok(after >= 1 && after < before, `gefiltert: ${before} auf ${after}`);
-  assert.equal(await sec.getByText("Vorgeschlagen", { exact: true }).count(), 0, "Vorgeschlagen entfällt bei Suche");
-  assert.equal(await sec.getByText("Alle Kategorien", { exact: true }).count(), 0, "Kopf entfällt bei Suche");
   await page.close();
 });
 
@@ -210,38 +134,12 @@ test("Handy (390): Sheet mit denselben Zeilen, 16 px Suchschrift, Betragsslots b
   // 44 px Trefferfläche; 0,5 px Toleranz für Subpixel-Rundung der Höhe.
   assert.ok(geometry.minRow >= 43.5, `Trefferfläche ${geometry.minRow}`);
   await sheet.locator('[role="option"]').filter({ hasText: "Miete" }).first().tap();
-  await page.waitForTimeout(500);
-  assert.equal(await page.locator(".bottom-sheet.active").count(), 0, "Sheet geschlossen");
+  await page.locator(".bottom-sheet.active").waitFor({ state: "detached" });
   await page.close();
 });
 
-test("Karte Budget nach dem Wechsel: Label, alter Wert durchgestrichen, neuer Wert", async () => {
-  const page = await openGallery({ viewport: { width: 1440, height: 900 } });
-  const card = page.locator('[role="status"]', { hasText: "Budget nach dem Wechsel" });
-  await card.waitFor();
-  assert.equal(await card.locator(".line-through").count(), 2, "zwei durchgestrichene alte Werte");
-  assert.match(await card.textContent(), /Alltag: Haushalt.*412,10 €.*494,00 €/);
-  assert.equal(await card.evaluate((el) => getComputedStyle(el.querySelector(".line-through")).textDecorationLine), "line-through");
-  await page.close();
-});
-
-// ledger-dmw83: Lade- und Fehlerzustand. Befund vom 2026-10-24: Waren die Kategorien nicht
-// geladen, zeigte der Picker nur "Ohne Kategorie"; ein Ladefehler sah aus wie "es gibt keine
-// Kategorien" und es gab keinen Weg, es erneut zu versuchen.
-
-test("PC: Zustand lädt zeigt Spinner und Hinweis statt der Liste, auch ohne Ohne Kategorie", async () => {
-  const page = await openGallery({ viewport: { width: 1440, height: 900 } });
-  await page.locator('[data-ds-demo="category-picker-loading-trigger"] button').click();
-  const box = page.locator('[data-ds-demo="category-picker-loading"]');
-  const status = box.locator('[role="status"]');
-  await status.waitFor();
-  assert.match(await status.textContent(), /Kategorien werden geladen/);
-  assert.equal(await status.locator(".proto-spinner").count(), 1, "Spinner aus dem Design-System");
-  assert.equal(await box.locator('[role="option"]').count(), 0, "keine Zeilen");
-  assert.equal(await box.getByText("Ohne Kategorie").count(), 0, "kein Ohne Kategorie");
-  assert.equal(await box.locator('input ~ * button, [role="listbox"] button').count(), 0, "kein Knopf im Inhalt");
-  await page.close();
-});
+// ledger-dmw83: Befund vom 2026-10-24: ein Ladefehler sah aus wie "es gibt keine Kategorien" und
+// es gab keinen Weg, es erneut zu versuchen. Die Zustände selbst liegen in CategoryPickerTests.fs.
 
 test("PC: Zustand fehlgeschlagen zeigt Fehlertext und Erneut versuchen, der Knopf ruft OnRetry", async () => {
   const page = await openGallery({ viewport: { width: 1440, height: 900 } });
@@ -259,15 +157,3 @@ test("PC: Zustand fehlgeschlagen zeigt Fehlertext und Erneut versuchen, der Knop
   await page.close();
 });
 
-test("Styleguide zeigt die Variante mit Zu verteilen als erstem Eintrag (budgeting-afd8h)", async () => {
-  const page = await openGallery({ viewport: { width: 1280, height: 800 } });
-  try {
-    await page.locator('[data-ds-demo="category-picker-to-be-budgeted-trigger"] button').click();
-    const first = page.locator('[data-ds-demo="category-picker-to-be-budgeted"] [role="option"]').first();
-    await first.waitFor();
-    assert.match(await first.innerText(), /Zu verteilen/);
-    assert.equal(await first.getAttribute("data-testid"), "category-picker-to-be-budgeted");
-  } finally {
-    await page.context().close();
-  }
-});

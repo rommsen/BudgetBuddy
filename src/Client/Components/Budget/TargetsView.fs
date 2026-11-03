@@ -151,9 +151,6 @@ let private outcomeLine (l: ApplyLineResult) =
 
 let private doneBody (preview: TargetPreview) (report: ApplyReport) (retryError: string option) =
     let total = report.Lines.Length
-    // Geschriebene stehen nach den Problemfällen, damit Fehlgeschlagene oben sichtbar sind.
-    let ordered =
-        report.Lines |> List.sortBy (fun l -> match l.Outcome with Written -> 1 | _ -> 0)
     Modal.bodyNoPadding [
         Html.div [
             prop.className "p-4 flex flex-col gap-2"
@@ -199,7 +196,7 @@ let private doneBody (preview: TargetPreview) (report: ApplyReport) (retryError:
                 | None -> ()
             ]
         ]
-        Html.div [ prop.children (ordered |> List.map outcomeLine) ]
+        Html.div [ prop.children (reportLines report |> List.map outcomeLine) ]
     ]
 
 let targetsDialog (model: Model) (dispatch: Msg -> unit) =

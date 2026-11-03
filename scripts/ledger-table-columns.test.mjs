@@ -4,7 +4,8 @@
 // Fenstern Spalten stufenweise aus (Memo, dann Konto, dann kompakte Liste), statt
 // Payee, Kategorie und Memo auf null zu drücken. Gemessen wird am echten, per Vite
 // gestarteten Fable-Client gegen gemockte Ledger-Antworten (Muster wie
-// `ledger-status-column.test.mjs`, nie die echte Entwicklungsdatenbank).
+// `ledger-status-column.test.mjs`, nie die echte Entwicklungsdatenbank). Stufen und das Kontokürzel
+// in der Payee-Zelle prüft `src/Tests/LedgerVisibleColumnsTests.fs` (infrastructure-t5m2b).
 //
 // Ausführen: node --test scripts/ledger-table-columns.test.mjs
 // (Teil von `npm run test:scripts`.)
@@ -99,32 +100,17 @@ function assertNoOverlap(label, result) {
   }
 }
 
-for (const mode of ["Gesamtsicht", "Ein Konto"]) {
-  test(`${mode}: kein Spaltenkopf überlappt und keine Spalte unter ihrer Mindestbreite (800, 1024, 1280, 1440)`, async () => {
+test("Gesamtsicht und ein Konto: kein Spaltenkopf überlappt und keine Spalte unter ihrer Mindestbreite (800, 1024, 1280, 1440)", async () => {
+  const table = [];
+  for (const mode of ["Gesamtsicht", "Ein Konto"]) {
     await page.setViewportSize({ width: 1440, height: 900 });
     const card = page.locator(".ledger-account-strip").getByText(mode === "Gesamtsicht" ? "Alle Konten" : "Testkonto 1").filter({ visible: true }).first();
     await card.click();
-    const table = [];
     for (const width of WIDTHS) {
       const r = await measure(width);
       table.push({ mode, width, tables: r.tableCount, heads: r.headers.map((h) => h.text).join("/"), widths: r.headers.map((h) => Math.round(h.width)).join("/") });
       assertNoOverlap(`${mode} ${width}px`, r);
     }
-    console.log(JSON.stringify(table, null, 1));
-  });
-}
-
-test("Gesamtsicht ohne Konto-Spalte: Kontokürzel steht in der Payee-Zelle", async () => {
-  await page.locator(".ledger-account-strip").getByText("Alle Konten").filter({ visible: true }).first().click();
-  // Eine Breite, bei der die Konto-Spalte fehlt: schrittweise schmaler, bis "KONTO" fehlt.
-  let found = null;
-  for (let width = 1440; width >= 800; width -= 20) {
-    const r = await measure(width);
-    if (r.tableCount > 0 && !r.headers.some((h) => h.text.toUpperCase() === "KONTO")) {
-      found = { width, r };
-      break;
-    }
   }
-  assert.ok(found, "Es gibt eine Breite zwischen 800 und 1440, bei der die Tabelle ohne Konto-Spalte steht");
-  assert.match(found.r.payeeCellText, /\S+\s*Transfer|\S+Transfer/, `Kürzel vor dem Payee: ${found.r.payeeCellText}`);
+  console.log(JSON.stringify(table, null, 1));
 });

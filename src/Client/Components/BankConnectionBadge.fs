@@ -33,6 +33,15 @@ let nextSyncHint (status: BankConnectionStatus) : string =
 /// Für einen Stand, den der Client nicht lesen konnte: das ist eine eigene Aussage, keine leere Stelle.
 let unreadableHint = "Stand der Bankverbindung nicht lesbar"
 
+/// Der Hinweis zum Stand neben dem Badge: der nächste Sync, "nicht lesbar" bei einem Lesefehler,
+/// nichts solange der Stand lädt.
+let hintFor (status: Types.RemoteData<BankConnectionStatus>) : string option =
+    match status with
+    | Types.Success current -> Some (nextSyncHint current)
+    | Types.Failure _ -> Some unreadableHint
+    | Types.NotAsked
+    | Types.Loading -> None
+
 let unreadable () : ReactElement = Badge.neutral "Stand unbekannt"
 
 let view (status: BankConnectionStatus) : ReactElement =

@@ -65,6 +65,7 @@ import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
+import { markBrowserUsage } from "./browser-usage.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
@@ -332,8 +333,16 @@ export async function startBackend(dataDir, port, sourceDataDir = resolveSourceD
 /// statt Vite startet ein kleiner statischer Node-Server (static-serve.mjs)
 /// das einmal gebaute Bundle (infrastructure-eq27s). Rückgabe und
 /// stopServer() bleiben gleich (ein detached Kindprozess).
+/// Welcher Server das Frontend ausliefert: der statische Build für die Wächter (BB_GUARD_DIST, ohne
+/// Backend), sonst Vite mit Proxy aufs Backend.
+export function frontendServerKind(env, backendPort) {
+  return env.BB_GUARD_DIST && backendPort === undefined ? "static" : "vite";
+}
+
 export async function startFrontend(port, backendPort) {
-  if (process.env.BB_GUARD_DIST && backendPort === undefined) {
+  // Ein gestartetes Frontend zählt als Browser-Test (infrastructure-t5m2b, browser-usage.mjs).
+  markBrowserUsage("frontend");
+  if (frontendServerKind(process.env, backendPort) === "static") {
     return startStaticFrontend(process.env.BB_GUARD_DIST, port);
   }
   const child = spawn(
@@ -387,7 +396,7 @@ export async function pollUntil(cond, timeoutMs = 5000) {
   }
 }
 
-async function startStaticFrontend(distDir, port) {
+export async function startStaticFrontend(distDir, port) {
   const child = spawn(
     process.execPath,
     [path.join(ROOT, "scripts", "static-serve.mjs"), distDir, String(port)],

@@ -414,7 +414,7 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
         | _ -> false
 
     let isEditing = model.EditingSection = Some ComdirectSection
-    let isDisconnecting = RemoteData.isLoading model.BankDisconnect
+    let isDisconnecting = comdirectActionsLocked model
 
     Card.standard [
         // Gesetzte Zugangsdaten sind noch keine Bankverbindung, den Stand zeigt das Badge darunter.
@@ -527,13 +527,8 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
                     Html.div [
                         prop.className "space-y-4 pt-4 border-t border-border-subtle"
                         prop.children [
-                            let hasCredentials =
-                                match model.Settings with
-                                | Success s -> s.Comdirect.IsSome
-                                | _ -> false
-
                             // Bei offener TAN steht der Wartezustand schon über dem Formular.
-                            if hasCredentials && not (isTanPending model) then
+                            if connectionTestVisible model then
                                 match model.ComdirectConnectionValid with
                                 | Loading ->
                                     Loading.inlineWithText "Verbindung wird getestet..."

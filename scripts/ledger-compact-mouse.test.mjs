@@ -91,7 +91,6 @@ async function openLedger(contextOptions) {
   await page.goto(`http://127.0.0.1:${frontendPort}/#/ledger`, { waitUntil: "load" });
   await waitForPageLoaded(page, "/ledger");
   await page.getByText(label(1), { exact: false }).first().waitFor();
-  await page.waitForTimeout(500);
   return { page, context, calls, entries: all };
 }
 
@@ -112,8 +111,8 @@ after(async () => {
   await stopServer(frontend, frontendPort);
 });
 
-test("Maus 900 px: Kästchen, Umschalt-Klick, PC-Leiste statt Hinweis", async () => {
-  const { page, context } = await openLedger({ viewport: { width: 900, height: 800 } });
+test("Maus 900 px: Kästchen ohne Hover, Umschalt-Klick, Tasten, Markierung, Hover-Schaltfläche, Sheet", async () => {
+  const { page, context, calls, entries } = await openLedger({ viewport: { width: 900, height: 800 } });
   try {
     assert.equal(await page.locator("table").filter({ visible: true }).count(), 0, "bei dieser Breite steht die Kompaktliste");
     assert.equal(await page.evaluate(() => matchMedia("(pointer: fine)").matches), true, "die Maus meldet pointer: fine");
@@ -134,16 +133,11 @@ test("Maus 900 px: Kästchen, Umschalt-Klick, PC-Leiste statt Hinweis", async ()
     }
     assert.equal(await box(page, 6).getAttribute("aria-checked"), "false", "Zeile 6 nicht gewählt");
     assert.equal(await page.locator(".bottom-sheet.active").count(), 0, "kein Detail geöffnet");
-  } finally {
-    await context.close();
-  }
-});
+    await page.keyboard.press("Escape");
+    assert.equal(await visibleBar(page).count(), 0, "Esc hebt die Auswahl auf");
 
-test("Maus 900 px: Tasten, Markierung, Hover-Schaltfläche, Sheet", async () => {
-  const { page, context, calls, entries } = await openLedger({ viewport: { width: 900, height: 800 } });
-  try {
-    assert.equal(await page.locator("table").filter({ visible: true }).count(), 0, "Kompaktliste");
-
+    // Das Kästchen hält nach dem Klick den Fokus, die Tasten gelten dann ihm.
+    await page.evaluate(() => document.activeElement.blur());
     await page.keyboard.press("ArrowDown");
     const marked = page.locator("[data-keyboard-focus='true']");
     await marked.waitFor();
@@ -156,7 +150,10 @@ test("Maus 900 px: Tasten, Markierung, Hover-Schaltfläche, Sheet", async () => 
     const other = rowOf(page, 3).getByRole("button", { name: "Geprüft", exact: true });
     assert.equal(await opacityOf(other), 0, "ohne Hover unsichtbar");
     await rowOf(page, 3).hover();
-    await page.waitForTimeout(300);
+    await other.evaluate((el) => new Promise((resolve) => {
+      const done = () => (Number(getComputedStyle(el).opacity) === 1 ? resolve() : requestAnimationFrame(done));
+      done();
+    }));
     assert.equal(await opacityOf(other), 1, "bei Hover sichtbar");
     await page.mouse.move(0, 0);
 
@@ -215,48 +212,3 @@ test("Maus 900 px: nach einem Klick auf die Zeile wählt die Leertaste die marki
     await context.close();
   }
 });
-
-/// Langes Drücken mit Touch-Zeigerereignissen (Playwright kennt keine Haltegeste).
-async function longPress(locator) {
-  const b = await locator.boundingBox();
-  const x = b.x + b.width / 2;
-  const y = b.y + b.height / 2;
-  const init = { pointerType: "touch", pointerId: 7, isPrimary: true, bubbles: true, clientX: x, clientY: y };
-  await locator.dispatchEvent("pointerdown", init);
-  await locator.page().waitForTimeout(700);
-  await locator.dispatchEvent("pointerup", init);
-  await locator.dispatchEvent("click", { bubbles: true, clientX: x, clientY: y });
-}
-
-for (const [name, viewport] of [
-  ["Touch 390 px", { width: 390, height: 844 }],
-  ["Touch Tablet 820 px", { width: 820, height: 1100 }],
-]) {
-  test(`${name}: langes Drücken wie bisher, davor kein Kästchen und kein Hinweis`, async (t) => {
-    const { page, context } = await openLedger({ viewport, hasTouch: true, isMobile: true });
-    try {
-      const coarse = await page.evaluate(() => matchMedia("(pointer: coarse)").matches);
-      if (!coarse) {
-        // Die Emulation meldet pointer: fine; der Fall bleibt durch den Expecto-Test gedeckt.
-        t.diagnostic(`${name}: pointer: coarse nicht gemeldet, Touch-Fall nur im Expecto-Test gedeckt`);
-        return;
-      }
-      if ((await page.locator("table").filter({ visible: true }).count()) > 0) {
-        t.diagnostic(`${name}: bei dieser Breite steht die Tabelle, Kompaktliste nicht prüfbar`);
-        return;
-      }
-      assert.equal(await page.getByRole("checkbox").filter({ visible: true }).count(), 0, "vor dem Modus kein Kästchen");
-      assert.equal(await hint(page).count(), 0, "kein Fußzeilen-Hinweis");
-      const row = page.locator("button", { hasText: label(1) }).filter({ visible: true }).first();
-      assert.ok(
-        await page.getByRole("button", { name: "Geprüft", exact: true }).filter({ visible: true }).first().isVisible(),
-        "Prüf-Schaltfläche sichtbar"
-      );
-      await longPress(row);
-      await visibleBar(page).waitFor();
-      assert.match(await visibleBar(page).innerText(), /1 ausgewählt/, "langes Drücken startet die Auswahl");
-    } finally {
-      await context.close();
-    }
-  });
-}

@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-03 09:15 -- Task verified and completed: infrastructure-t5m2b - "Browser-Tests auf das reduzieren, was nur der Browser prüfen kann, Logik wandert in MVU-Tests"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-t5m2b - "Browser-Tests auf das reduzieren, was nur der Browser prüfen kann, Logik wandert in MVU-Tests"
+**Summary:** Browser-Tests von 360 auf 116 reduziert, Logik in MVU-Tests
+**Duration:** 6h40m
+**Verification:** PASS (iteration 3)
+**Files changed:** 80
+**Tests added:** 0
+**ADRs written:** none
+
+---
+
 ## 2026-11-03 02:13 -- Batch started: [infrastructure-t5m2b]
 
 **Type:** Work / Batch start

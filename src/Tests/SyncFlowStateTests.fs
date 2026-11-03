@@ -131,6 +131,12 @@ let syncFlowStateTests =
             Expect.equal (markSessionLoading model).CurrentSession (Success (Some session)) "der Fortschritt flackert nicht"
         }
 
+        // infrastructure-t5m2b, Iteration 2: die Pause selbst lief bisher nur im Browser ab (sync-start).
+        test "arbeitet der Server nach verlorener Antwort noch, kommt der nächste Takt nach der Pause" {
+            let _, cmd, _ = update (CurrentSessionLoaded (Some (sessionWith FetchingTransactions))) (interrupted ())
+            Tests.CmdTiming.expectAfter interruptedStartPollMs (InterruptedStartReadDue (interruptedStartReadLimit - 1)) cmd
+        }
+
         test "der Takt nach der Pause liest nur neu und startet nichts" {
             let session = sessionWith FetchingTransactions
             let waiting, _, _ = update (CurrentSessionLoaded (Some session)) (interrupted ())
@@ -491,6 +497,19 @@ let importAccountsTests =
 
 let private awaitingTan = sessionWith AwaitingTan
 
+/// Das Wurzelmodell ohne `State.init` (das die Browser-URL liest), Muster aus `AppReadinessTests`.
+let private rootModel (page: Page) : State.Model =
+    { CurrentPage = page
+      Toasts = []
+      Pwa = Pwa.initialState
+      Settings = fst (Components.Settings.State.init ())
+      SyncFlow = freshModel ()
+      Rules = fst (Components.Rules.State.init ())
+      Ledger = fst (Components.Ledger.State.init ())
+      Budget = Components.Budget.State.init ()
+      QuickAdd = None
+      QuickAddTemplates = NotAsked }
+
 let private failureToast (exiting: bool) : Toast =
     { Id = System.Guid.NewGuid(); Message = "Fehler"; Type = ToastError; Exiting = exiting; Action = None }
 
@@ -506,6 +525,28 @@ let loadFailureToastTests =
         }
         test "ein anderer Text erscheint neben dem sichtbaren Toast" {
             Expect.isTrue (State.shouldShowLoadFailure QuickAdd "Anderer Fehler" [ failureToast false ]) "beide sichtbar"
+        }
+        // ynab-sync-k3vq8, aus scripts/import-split-target.test.mjs gezogen (infrastructure-t5m2b): die
+        // Kategorien laden auf jeder Seite, ihr Fehler-Toast lag über Kassenbuch, Regeln und Settings.
+        test "scheitern die Kategorien, meldet nur der Import und Quick-Add einen Toast" {
+            let failed = State.SyncFlowMsg (CategoriesLoaded (Error (YnabError.NetworkError "weg")))
+            let toasts page =
+                let _, cmd = State.update failed (rootModel page)
+                dispatched cmd |> List.choose (function State.ShowToast (text, _) -> Some text | _ -> None)
+            for page in [ Ledger; Rules; Settings; Budget ] do
+                Expect.isEmpty (toasts page) $"{page}: kein Toast"
+            for page in [ SyncFlow; QuickAdd ] do
+                Expect.equal (toasts page) [ "Kategorien konnten nicht geladen werden: Netzwerkfehler: weg" ] $"{page}: ein Toast"
+        }
+        test "steht der gleiche Toast noch, stapelt ein weiterer Fehler keinen zweiten" {
+            let message = "Kategorien konnten nicht geladen werden: Netzwerkfehler: weg"
+            let visible = { failureToast false with Message = message }
+            let model = { rootModel SyncFlow with Toasts = [ visible ] }
+            let _, cmd = State.update (State.SyncFlowMsg (CategoriesLoaded (Error (YnabError.NetworkError "weg")))) model
+            Expect.isEmpty (dispatched cmd |> List.filter (function State.ShowToast _ -> true | _ -> false)) "kein zweiter Toast"
+        }
+        test "das Betreten von Quick-Add lädt die Kategorien neu" {
+            Expect.contains (dispatched (State.pageLoadCmd QuickAdd)) (State.SyncFlowMsg LoadCategories) "Kategorien"
         }
     ]
 
@@ -648,5 +689,28 @@ let staleAnswerTests =
             let answered = step (QuickAddAccountLoaded (newer.QuickAddReadVersion, Ok (Some cashAccountId))) newer
             let model = step (QuickAddAccountLoaded (older.QuickAddReadVersion, Ok (Some otherAccountId))) answered
             Expect.equal model.QuickAddAccountId (Some cashAccountId) "neuere Id gilt"
+        }
+    ]
+
+// infrastructure-t5m2b, Iteration 2: Zeitgeber, die bisher in keinem Test abliefen.
+[<Tests>]
+let timerTests =
+    let reviewing =
+        { freshModel () with
+            CurrentSession = Success (Some (sessionWith ReviewingTransactions))
+            SyncTransactions = Success [ reviewTx ] }
+    let txId = reviewTx.Transaction.Id
+    let category = Some (YnabCategoryId (System.Guid.Parse "00000000-0000-4000-8000-0000000000c1"))
+    testList "Zeitgeber im Import und bei Toasts" [
+        test "Kategorie und Payee einer Importzeile gehen erst nach der Verzögerung hinaus, mit der Version der Eingabe" {
+            let _, categoryCmd, _ = update (CategorizeTransaction (txId, category)) reviewing
+            Tests.CmdTiming.expectAfter Client.Debounce.DefaultDelayMs (CommitCategoryChange (txId, category, 1)) categoryCmd
+            let _, payeeCmd, _ = update (SetPayeeOverride (txId, Some "Markt Süd")) reviewing
+            Tests.CmdTiming.expectAfter Client.Debounce.DefaultDelayMs (CommitPayeeChange (txId, Some "Markt Süd", 1)) payeeCmd
+        }
+        test "ein Toast blendet sich nach seiner Zeit von selbst aus" {
+            let model, cmd = State.update (State.ShowToast ("Gespeichert", ToastSuccess)) (rootModel SyncFlow)
+            let toast = List.head model.Toasts
+            Tests.CmdTiming.expectAfter State.autoDismissAfterMs (State.StartDismissToast toast.Id) cmd
         }
     ]

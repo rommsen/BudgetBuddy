@@ -7,6 +7,11 @@
 // per Tastatur, der Ghost-Click nach dem Menü im Sheet, der echte Dateiinhalt beim Import, die
 // Namen der Icon-Knöpfe und die Texte im gerenderten Dialog.
 //
+// infrastructure-t5m2b: hier bleibt, was nur der Browser misst (Trefferflächen, Tastatur und Fokus
+// im echten DOM, Ghost-Click, Dateiauswahl, gerenderte Texte) und je Fluss ein Happy Path. Die
+// Reihenfolge nach einem Pfeil prüft `RulesReorderTests.fs`, Menü und Formular `RulesListTests.fs`,
+// die Rückmeldung des Mustertests samt Netzfehler `RulesListTests.fs` ("Muster testen im Regel-Dialog").
+//
 // Ausführen: npm run test:scripts -- scripts/rules-page-mobile.test.mjs
 
 import { test, before, after } from "node:test";
@@ -141,7 +146,7 @@ test("Handy: die Prioritätspfeile sind mindestens 48 mal 48 px, ein Tipp versch
   }
 });
 
-test("Handy: der Overflow-Knopf ist mindestens 48 px groß, das Menü liegt im Sheet und löst Export aus", async () => {
+test("Handy: der Overflow-Knopf ist mindestens 48 px groß, das Menü liegt im Sheet, Export trifft die Zeile dahinter nicht", async () => {
   const { context, page, calls } = await openPage(390, 844);
   try {
     assert.equal(await menuButton(page).getAttribute("aria-label"), "Weitere Aktionen");
@@ -162,25 +167,44 @@ test("Handy: der Overflow-Knopf ist mindestens 48 px groß, das Menü liegt im S
     await page.keyboard.press("Escape");
     await openSheets(page).first().waitFor({ state: "detached" });
 
+    // Bug categorization-f955d: ein später synthetischer Klick nach dem Eintrag traf die Zeile hinter
+    // dem Sheet und öffnete den Dialog. Beide Klicks laufen im selben Tick, damit das Fenster von
+    // 350 ms nicht von der Testlast abhängt.
     await menuButton(page).click();
-    await Promise.all([
-      page.waitForResponse("**/api/RulesApi/exportRules"),
-      menuItems(page).filter({ hasText: "Regeln exportieren" }).click(),
-    ]);
+    await menuItems(page).first().waitFor();
+    const exported = page.waitForResponse("**/api/RulesApi/exportRules");
+    await page.evaluate(() => {
+      const item = [...document.querySelectorAll('[role="menuitem"]')].find((el) => el.textContent === "Regeln exportieren");
+      const row = [...document.querySelectorAll('[data-testid="rule-row"]')].find((el) => el.offsetParent !== null);
+      item.click();
+      row.click();
+    });
+    await exported;
     await page.waitForFunction(() => document.querySelectorAll(".bottom-sheet.active").length === 0);
+    await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
     assert.equal(calls.exportRules, 1);
+    assert.equal(await dialog(page).count(), 0, "der späte Klick öffnet den Dialog nicht");
   } finally {
     await context.close();
   }
 });
 
-test("PC: Enter öffnet das Menü, Tab erreicht jeden Eintrag, Enter löst aus, Esc und Klick außerhalb schließen", async () => {
+test("PC: Enter öffnet das Menü mit sichtbarem Fokus-Ring, Tab erreicht jeden Eintrag, Enter löst aus, Esc und Klick außerhalb schließen", async () => {
   const { context, page, calls } = await openPage(1440, 900);
   try {
     assert.equal(await openSheets(page).count(), 0, "kein Sheet am PC");
+    // Das Abfangen der Dateiauswahl steht vorn: direkt vor der Taste kam Chromes Bestätigung unter
+    // Last erst nach dem keyDown, `filechooser` blieb dann aus.
+    const chooserOpened = page.waitForEvent("filechooser");
     await menuButton(page).focus();
+    assert.equal(await menuItems(page).count(), 0, "das Menü geht nicht allein über den Fokus auf");
     await page.keyboard.press("Enter");
     await menuItems(page).first().waitFor();
+    const outline = await page.evaluate(() => {
+      const style = getComputedStyle(document.activeElement);
+      return { role: document.activeElement.getAttribute("role"), style: style.outlineStyle, width: style.outlineWidth };
+    });
+    assert.deepEqual(outline, { role: "menuitem", style: "solid", width: "2px" }, "der Fokus-Ring ist sichtbar");
     const panel = await menuItems(page).last().boundingBox();
     assert.ok(panel && panel.x + panel.width <= 1440, "das Menü bleibt im Bild");
 
@@ -215,19 +239,36 @@ test("PC: Enter öffnet das Menü, Tab erreicht jeden Eintrag, Enter löst aus, 
     await Promise.all([page.waitForResponse("**/api/RulesApi/exportRules"), page.keyboard.press("Enter")]);
     await menuItems(page).first().waitFor({ state: "detached" });
     assert.equal(calls.exportRules, 1);
+
+    // Importieren: noch ein Tab weiter, der Dateiinhalt geht unverändert an die API.
+    await menuButton(page).focus();
+    await page.keyboard.press("Enter");
+    await menuItems(page).first().waitFor();
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Enter");
+    const chooser = await chooserOpened;
+    await chooser.setFiles({ name: "regeln.json", mimeType: "application/json", buffer: Buffer.from(importFile) });
+    await page.getByText(/Imported 2 rule/).first().waitFor();
+    assert.deepEqual(calls.importRules.map((body) => JSON.parse(body)), [[importFile]]);
   } finally {
     await context.close();
   }
 });
 
-test("PC: Enter auf einem Prioritätspfeil verschiebt die Regel und öffnet den Dialog nicht", async () => {
+test("PC: Enter und Leertaste auf einem Prioritätspfeil verschieben die Regel und öffnen den Dialog nicht", async () => {
   const { context, page, calls } = await openPage(1440, 900);
   try {
     await visibleRow(page, "Regel eins").getByRole("button", { name: "Priorität senken" }).focus();
     await Promise.all([page.waitForResponse("**/api/RulesApi/reorderRules"), page.keyboard.press("Enter")]);
     await page.waitForFunction(() => document.querySelector('[data-testid="rule-row"]')?.textContent.includes("Regel zwei"));
     assert.equal(calls.reorder.length, 1);
-    assert.equal(await dialog(page).count(), 0);
+    assert.equal(await dialog(page).count(), 0, "Enter öffnet den Dialog nicht");
+
+    await visibleRow(page, "Regel eins").getByRole("button", { name: "Priorität erhöhen" }).focus();
+    await Promise.all([page.waitForResponse("**/api/RulesApi/reorderRules"), page.keyboard.press("Space")]);
+    assert.equal(calls.reorder.length, 2);
+    assert.equal(await dialog(page).count(), 0, "die Leertaste öffnet den Dialog nicht");
   } finally {
     await context.close();
   }
@@ -250,9 +291,13 @@ test("Handy: der Regel-Dialog ist ein BottomSheet, die Kategorie kommt aus dem P
     await page.locator(".bottom-sheet.layer-2.active").waitFor({ state: "detached" });
     assert.match(await page.locator('[data-testid="rule-category"]').innerText(), /Alltag: Kategorie 7/);
 
-    // Das Picker-Sheet schluckt nach der Wahl 350 ms lang den nächsten Klick (ADR 0005).
-    await page.waitForTimeout(400);
-    await page.getByRole("button", { name: "Regel erstellen" }).click();
+    // Das Picker-Sheet schluckt nach der Wahl 350 ms lang den nächsten Klick (ADR 0005): erneut
+    // tippen, bis die Anfrage hinausgeht, höchstens 20 Mal.
+    const create = page.getByRole("button", { name: "Regel erstellen" });
+    for (let attempt = 0; attempt < 20 && calls.create.length === 0; attempt += 1) {
+      await create.click();
+      await page.waitForResponse("**/api/RulesApi/createRule", { timeout: 200 }).catch(() => {});
+    }
     await page.locator(".bottom-sheet.active").waitFor({ state: "detached" });
     assert.equal(calls.create.length, 1);
     const [created] = calls.create[0];
@@ -294,37 +339,18 @@ test("PC: der Regel-Dialog bleibt ein Modal, der Picker hängt als Popover im Bi
   }
 });
 
-test("PC: Enter öffnet die Dateiauswahl, der Dateiinhalt geht unverändert an die API", async () => {
-  const { context, page, calls } = await openPage(1440, 900);
-  try {
-    // Das Abfangen schaltet `waitForEvent` an, ohne auf Chromes Bestätigung zu warten. Direkt vor
-    // der Taste kam die Bestätigung unter Last erst nach dem keyDown: der Klick erreichte das
-    // Input, aber `filechooser` blieb aus. Deshalb liegen die Schritte bis zum Menü dazwischen.
-    const chooserOpened = page.waitForEvent("filechooser");
-    await menuButton(page).focus();
-    await page.keyboard.press("Enter");
-    await menuItems(page).first().waitFor();
-    await page.keyboard.press("Tab");
-    await page.keyboard.press("Tab");
-    await page.keyboard.press("Enter");
-    const chooser = await chooserOpened;
-    await chooser.setFiles({ name: "regeln.json", mimeType: "application/json", buffer: Buffer.from(importFile) });
-    await page.getByText(/Imported 2 rule/).first().waitFor();
-    assert.deepEqual(calls.importRules.map((body) => JSON.parse(body)), [[importFile]]);
-  } finally {
-    await context.close();
-  }
-});
-
 // Bug categorization-f955d: das Menü im Sheet schloss ohne Schutz vor dem Ghost-Click. Der
 // Schutz darf aber auch den programmatischen Klick auf das Datei-Input nicht schlucken, sonst
 // geht am Handy die Dateiauswahl nie auf.
-test("Handy: Importieren aus dem Sheet öffnet die Dateiauswahl", async () => {
+test("Handy: das Menü bleibt nach dem Tipp offen, Importieren aus dem Sheet öffnet die Dateiauswahl", async () => {
   const { context, page, calls } = await openPage(390, 844);
   try {
     const chooserOpened = page.waitForEvent("filechooser");
     await menuButton(page).tap();
     await menuItems(page).first().waitFor();
+    // Der Ghost-Click des Tipps fällt in `tap()`, zwei Bilder später steht das Menü noch.
+    await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+    assert.equal(await menuItems(page).count(), 3, "das Menü bleibt nach dem Tipp offen");
     await menuItems(page).filter({ hasText: "Regeln importieren" }).tap();
     const chooser = await chooserOpened;
     await chooser.setFiles({ name: "regeln.json", mimeType: "application/json", buffer: Buffer.from(importFile) });
@@ -335,46 +361,11 @@ test("Handy: Importieren aus dem Sheet öffnet die Dateiauswahl", async () => {
   }
 });
 
-test("Handy: das Menü im Sheet bleibt nach dem Tipp offen", async () => {
-  const { context, page } = await openPage(390, 844);
-  try {
-    await menuButton(page).tap();
-    await openSheets(page).first().waitFor();
-    // Länger als das Fenster des Ghost-Click-Schutzes (350 ms).
-    await page.evaluate(() => new Promise((done) => setTimeout(done, 400)));
-    assert.equal(await menuItems(page).count(), 3, "das Menü ist noch offen");
-  } finally {
-    await context.close();
-  }
-});
-
-// Bug categorization-f955d: ein später synthetischer Klick nach dem Eintrag traf die Zeile hinter
-// dem Sheet und öffnete den Dialog. Der Klick läuft im selben Tick, damit das Fenster von 350 ms
-// nicht von der Testlast abhängt.
-test("Handy: nach einem Eintrag im Sheet trifft ein später Klick die Zeile dahinter nicht", async () => {
-  const { context, page } = await openPage(390, 844);
-  try {
-    await menuButton(page).click();
-    await menuItems(page).first().waitFor();
-    await page.evaluate(() => {
-      const item = [...document.querySelectorAll('[role="menuitem"]')].find((el) => el.textContent === "Regeln exportieren");
-      const row = [...document.querySelectorAll('[data-testid="rule-row"]')].find((el) => el.offsetParent !== null);
-      item.click();
-      row.click();
-    });
-    await openSheets(page).first().waitFor({ state: "detached" });
-    await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
-    assert.equal(await dialog(page).count(), 0, "der Dialog bleibt zu");
-  } finally {
-    await context.close();
-  }
-});
-
 // Bug categorization-f955d: die Zeile reagierte nur auf Enter, und ein Screenreader erfuhr nicht,
 // dass sie bedienbar ist.
-for (const [name, width, height] of [["PC", 1440, 900], ["Handy", 390, 844]]) {
-  for (const [keyName, key] of [["Enter", "Enter"], ["Leertaste", "Space"]]) {
-    test(`${name}: ${keyName} auf der Regelzeile öffnet den Dialog zum Bearbeiten`, async () => {
+test("Enter und Leertaste auf der Regelzeile öffnen den Dialog zum Bearbeiten, am PC und am Handy", async () => {
+  for (const [width, height] of [[1440, 900], [390, 844]]) {
+    for (const key of ["Enter", "Space"]) {
       const { context, page } = await openPage(width, height);
       try {
         const row = visibleRow(page, "Regel eins");
@@ -382,28 +373,17 @@ for (const [name, width, height] of [["PC", 1440, 900], ["Handy", 390, 844]]) {
         await row.focus();
         await page.keyboard.press(key);
         await dialog(page).waitFor();
-        assert.equal(await dialog(page).locator("input").first().inputValue(), "Regel eins");
+        assert.equal(await dialog(page).locator("input").first().inputValue(), "Regel eins", `${width} px, ${key}`);
       } finally {
         await context.close();
       }
-    });
-  }
-}
-
-test("PC: Leertaste auf einem Prioritätspfeil verschiebt die Regel und öffnet den Dialog nicht", async () => {
-  const { context, page } = await openPage(1440, 900);
-  try {
-    await visibleRow(page, "Regel eins").getByRole("button", { name: "Priorität senken" }).focus();
-    await Promise.all([page.waitForResponse("**/api/RulesApi/reorderRules"), page.keyboard.press("Space")]);
-    assert.equal(await dialog(page).count(), 0);
-  } finally {
-    await context.close();
+    }
   }
 });
 
 // Bug categorization-f955d: Icon-Knöpfe trugen nur `title`.
-for (const [name, width, height] of [["PC", 1440, 900], ["Handy", 390, 844]]) {
-  test(`${name}: jeder Icon-Knopf der Regelseite trägt ein aria-label`, async () => {
+test("Jeder Icon-Knopf der Regelseite trägt ein aria-label, am PC und am Handy", async () => {
+  for (const [width, height] of [[1440, 900], [390, 844]]) {
     const { context, page } = await openPage(width, height);
     try {
       const iconButtons = await page.evaluate(() =>
@@ -411,37 +391,11 @@ for (const [name, width, height] of [["PC", 1440, 900], ["Handy", 390, 844]]) {
           .filter((el) => el.offsetParent !== null && el.textContent.trim() === "")
           .map((el) => ({ label: el.getAttribute("aria-label"), html: el.outerHTML.slice(0, 120) }))
       );
-      assert.ok(iconButtons.length >= 3, `Icon-Knöpfe gefunden: ${iconButtons.length}`);
-      assert.deepEqual(iconButtons.filter((button) => !button.label), []);
+      assert.ok(iconButtons.length >= 3, `${width} px: Icon-Knöpfe gefunden: ${iconButtons.length}`);
+      assert.deepEqual(iconButtons.filter((button) => !button.label), [], `${width} px`);
     } finally {
       await context.close();
     }
-  });
-}
-
-test("PC: der Fokus-Ring im Regelmenü ist bei Tastaturbedienung sichtbar", async () => {
-  const { context, page } = await openPage(1440, 900);
-  try {
-    await menuButton(page).focus();
-    await page.keyboard.press("Enter");
-    await menuItems(page).first().waitFor();
-    const outline = await page.evaluate(() => {
-      const style = getComputedStyle(document.activeElement);
-      return { role: document.activeElement.getAttribute("role"), style: style.outlineStyle, width: style.outlineWidth };
-    });
-    assert.deepEqual(outline, { role: "menuitem", style: "solid", width: "2px" });
-  } finally {
-    await context.close();
-  }
-});
-
-test("PC: das Menü geht nicht allein über den Fokus auf", async () => {
-  const { context, page } = await openPage(1440, 900);
-  try {
-    await menuButton(page).focus();
-    assert.equal(await menuItems(page).count(), 0);
-  } finally {
-    await context.close();
   }
 });
 
@@ -498,30 +452,6 @@ test("Dialogtexte: deutsch, z. B. mit Abstand, Auslassungszeichen und Knopf Test
     }
     assert.equal(await dialog(page).getByRole("button", { name: "Testen", exact: true }).count(), 1, 'Knopf "Testen"');
     assert.equal(await dialog(page).getByRole("button", { name: "Test", exact: true }).count(), 0, 'Knopf "Test"');
-  } finally {
-    await context.close();
-  }
-});
-
-// Bug categorization-f955d: ein Netzfehler beim Muster-Test erschien als ungültiges Muster.
-test("Dialog: Muster testen trennt Netzfehler und ungültiges Muster", async () => {
-  const { context, page } = await openPage(1440, 900);
-  try {
-    await page.getByRole("button", { name: "Neue Regel" }).locator("visible=true").click();
-    await dialog(page).waitFor();
-    await dialog(page).getByPlaceholder("z. B. amazon", { exact: true }).fill("(");
-    await dialog(page).getByPlaceholder("Beispieltext eingeben…").fill("REWE");
-
-    await page.route("**/api/RulesApi/testRule", (r) => r.abort());
-    await dialog(page).getByRole("button", { name: "Testen", exact: true }).click();
-    await dialog(page).getByText("Muster konnte nicht geprüft werden").waitFor();
-
-    await page.unroute("**/api/RulesApi/testRule");
-    await page.route("**/api/RulesApi/testRule", (r) =>
-      r.fulfill({ contentType: "application/json", body: JSON.stringify({ Error: { InvalidPattern: ["(", "Klammer fehlt"] } }) })
-    );
-    await dialog(page).getByRole("button", { name: "Testen", exact: true }).click();
-    await dialog(page).getByText("Ungültiges Muster").waitFor();
   } finally {
     await context.close();
   }

@@ -4,8 +4,7 @@
 // Import prüfen. Echter Vite-Client gegen gemockte Sync-API-Antworten (erfundene Werte,
 // nie die echte Entwicklungsdatenbank, nie YNAB). Geprüft wird am echten, von der App
 // gerenderten Element: die Aktion in der aufgeklappten Zeile, das Kennzeichen "Rückfrage
-// Lena" nur an der gewählten Zeile, "Rückfrage zurücknehmen", die gesperrte Aktion ohne
-// Flag-Farbe samt Grund, und dass der Befehl `setAskLena` nur für die gewählte Zeile
+// Lena" nur an der gewählten Zeile, "Rückfrage zurücknehmen", und dass der Befehl `setAskLena` nur für die gewählte Zeile
 // abgeschickt wird. Dass der Create-Body für genau diese Zeile `flag_color` trägt, belegen
 // die .NET-Tests (`ImportAskLenaTests.fs`): der Push läuft serverseitig und ist vom Browser
 // aus nicht abzufangen.
@@ -85,11 +84,6 @@ after(async () => {
   await stopServer(frontend, port);
 });
 
-const viewports = [
-  ["pc-1440x900", { width: 1440, height: 900 }],
-  ["handy-390x844", { width: 390, height: 844 }],
-];
-
 async function open(vp) {
   const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 1 });
   const page = await ctx.newPage();
@@ -100,63 +94,41 @@ async function open(vp) {
   return { ctx, page };
 }
 
-for (const [name, vp] of viewports) {
-  test(`Lena fragen an der Importzeile: Kennzeichen nur an der gewählten Zeile (${name})`, async () => {
-    reset("purple");
-    const { ctx, page } = await open(vp);
-    const row = (payee) => page.locator(".tx-row", { hasText: payee });
+test("Handy: Lena fragen an der Importzeile setzt das Kennzeichen nur dort, Zurücknehmen und Import laufen, die Zeile bleibt einzeilig", async () => {
+  reset("purple");
+  const { ctx, page } = await open({ width: 390, height: 844 });
+  const row = (payee) => page.locator(".tx-row", { hasText: payee });
 
-    assert.equal(await page.getByText("Rückfrage Lena").count(), 0, "ohne Rückfrage kein Kennzeichen");
+  assert.equal(await page.getByText("Rückfrage Lena").count(), 0, "ohne Rückfrage kein Kennzeichen");
 
-    // Zeile ohne Kategorie aufklappen und fragen.
-    await row("Ohne Kategorie Markt").click();
-    const open2 = page.locator(".tx-row.expanded", { hasText: "Ohne Kategorie Markt" });
-    await open2.getByRole("button", { name: "Lena fragen" }).click();
-    await open2.getByText("Rückfrage Lena").first().waitFor();
+  // Zeile ohne Kategorie aufklappen und fragen.
+  await row("Ohne Kategorie Markt").click();
+  const open2 = page.locator(".tx-row.expanded", { hasText: "Ohne Kategorie Markt" });
+  await open2.getByRole("button", { name: "Lena fragen" }).click();
+  await open2.getByText("Rückfrage Lena").first().waitFor();
 
-    assert.deepEqual(state.setCalls, [{ txId: "d9e51-2", ask: true }], "der Befehl geht nur für diese Zeile raus");
-    assert.equal(await row("Kategorisiert GmbH").getByText("Rückfrage Lena").count(), 0, "andere Zeile ohne Kennzeichen");
-    assert.equal(await open2.getByRole("button", { name: "Rückfrage zurücknehmen" }).count(), 1, "Aktion wechselt");
+  assert.deepEqual(state.setCalls, [{ txId: "d9e51-2", ask: true }], "der Befehl geht nur für diese Zeile raus");
+  assert.equal(await row("Kategorisiert GmbH").getByText("Rückfrage Lena").count(), 0, "andere Zeile ohne Kennzeichen");
+  assert.equal(await open2.getByRole("button", { name: "Rückfrage zurücknehmen" }).count(), 1, "Aktion wechselt");
 
-    // Zurücknehmen.
-    await open2.getByRole("button", { name: "Rückfrage zurücknehmen" }).click();
-    await page.waitForFunction(() => ![...document.querySelectorAll(".tx-row")].some((r) => r.innerText.includes("Rückfrage Lena")));
-    assert.deepEqual(state.setCalls.at(-1), { txId: "d9e51-2", ask: false });
+  // Zurücknehmen.
+  await open2.getByRole("button", { name: "Rückfrage zurücknehmen" }).click();
+  await page.waitForFunction(() => ![...document.querySelectorAll(".tx-row")].some((r) => r.innerText.includes("Rückfrage Lena")));
+  assert.deepEqual(state.setCalls.at(-1), { txId: "d9e51-2", ask: false });
 
-    // Wieder fragen und importieren: der Import wird angestoßen, die Rückfrage bleibt an der Zeile.
-    await open2.getByRole("button", { name: "Lena fragen" }).click();
-    await open2.getByText("Rückfrage Lena").first().waitFor();
-    await page.locator(".action-bar-buttons").getByRole("button", { name: "Importieren" }).click();
-    await page.waitForTimeout(300);
-    assert.equal(state.importCalls, 1, "Import angestoßen");
-
-    // Die Zeile bleibt eine einzeilige Kopfzeile: das Kennzeichen sprengt die Zeile nicht.
-    const overflow = await page.evaluate(() => {
-      const r = [...document.querySelectorAll(".tx-row")].find((x) => x.innerText.includes("Ohne Kategorie Markt"));
-      return r.scrollWidth - r.clientWidth;
-    });
-    assert.ok(overflow <= 0, `Zeile läuft waagerecht über: ${overflow}`);
-
-    if (process.env.SHOTS_DIR) {
-      await page.screenshot({ path: `${process.env.SHOTS_DIR}/${name}-import-lena.png` });
-    }
-    await ctx.close();
+  // Wieder fragen und importieren: der Import wird angestoßen, die Rückfrage bleibt an der Zeile.
+  await open2.getByRole("button", { name: "Lena fragen" }).click();
+  await open2.getByText("Rückfrage Lena").first().waitFor();
+  // Die Zeile bleibt eine einzeilige Kopfzeile: das Kennzeichen sprengt die Zeile nicht.
+  const overflow = await page.evaluate(() => {
+    const r = [...document.querySelectorAll(".tx-row")].find((x) => x.innerText.includes("Ohne Kategorie Markt"));
+    return r.scrollWidth - r.clientWidth;
   });
+  assert.ok(overflow <= 0, `Zeile läuft waagerecht über: ${overflow}`);
 
-  test(`Lena fragen ohne Flag-Farbe ist gesperrt und nennt den Grund (${name})`, async () => {
-    reset(null);
-    const { ctx, page } = await open(vp);
-    await page.locator(".tx-row", { hasText: "Ohne Kategorie Markt" }).click();
-    const open2 = page.locator(".tx-row.expanded", { hasText: "Ohne Kategorie Markt" });
-    const button = open2.getByRole("button", { name: "Lena fragen" });
-    await button.waitFor();
-    assert.equal(await button.isDisabled(), true, "gesperrt");
-    await open2.getByText("In den Settings die Flag-Farbe für Lena wählen").first().waitFor();
-    assert.equal(state.setCalls.length, 0, "kein Befehl abgeschickt");
-    if (process.env.SHOTS_DIR) {
-      await page.waitForTimeout(600);
-      await page.screenshot({ path: `${process.env.SHOTS_DIR}/${name}-import-lena-gesperrt.png` });
-    }
-    await ctx.close();
-  });
-}
+  const imported = page.waitForResponse("**/api/SyncApi/importToYnab");
+  await page.locator(".action-bar-buttons").getByRole("button", { name: "Importieren" }).click();
+  await imported;
+  assert.equal(state.importCalls, 1, "Import angestoßen");
+  await ctx.close();
+});

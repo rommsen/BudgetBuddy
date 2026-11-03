@@ -109,7 +109,6 @@ async function openLedger(viewport) {
 
   await page.goto(`http://127.0.0.1:${frontendPort}/#/ledger`, { waitUntil: "load" });
   await waitForPageLoaded(page, "/ledger");
-  await page.waitForTimeout(500);
   return { page, context, calls, entries };
 }
 
@@ -139,99 +138,33 @@ after(async () => {
   await stopServer(frontend, frontendPort);
 });
 
-for (const [label, viewport, isDesktop] of [
-  ["PC 1440x900", { width: 1440, height: 900 }, true],
-  ["Handy 390x844", { width: 390, height: 844 }, false],
-]) {
-  test(`${label}: zu prüfende Zeile zeigt Geprüft, geprüfte Zeile Ungeprüft, Fehlschlag den Hinweis mit Erneut senden`, async () => {
-    const { page, context } = await openLedger(viewport);
+test("Geprüft an der Zeile: Trefferfläche, Aufruf, Wechsel auf Ungeprüft ohne Historie, gelöschte Zeile ohne Schaltfläche (PC und Handy)", async () => {
+  for (const [label, viewport, isDesktop] of [
+    ["PC 1440x900", { width: 1440, height: 900 }, true],
+    ["Handy 390x844", { width: 390, height: 844 }, false],
+  ]) {
+    const { page, context, calls, entries } = await openLedger(viewport);
     try {
-      const toReview = rowOf(page, isDesktop, PAYEES.toReview);
-      const reviewed = rowOf(page, isDesktop, PAYEES.reviewed);
-      const failed = rowOf(page, isDesktop, PAYEES.failed);
-
-      assert.equal(await toReview.getByRole("button", { name: "Geprüft", exact: true }).count(), 1, "zu prüfen: Geprüft");
-      assert.equal(await reviewed.getByRole("button", { name: "Ungeprüft", exact: true }).count(), 1, "geprüft: Ungeprüft");
-
-      // Der Hinweis steht an der Zeile (Handy: darunter im selben Container, PC: eigene Zeile darunter).
-      const hint = page.getByText("Prüfvermerk nicht in YNAB", { exact: true }).filter({ visible: true });
-      assert.equal(await hint.count(), 1, "genau ein Hinweis für genau einen Fehlschlag");
-      assert.ok(
-        (await page.getByText(FAILURE_REASON).filter({ visible: true }).count()) === 1,
-        "der Grund steht neben dem Hinweis"
-      );
-      assert.equal(
-        await page.getByRole("button", { name: "Erneut senden" }).filter({ visible: true }).count(),
-        1,
-        "Erneut senden"
-      );
-      assert.equal(await failed.count(), 1, "die Fehlschlag-Zeile ist da");
-
-      // Die Schaltfläche ist eine eigene Aktion, kein Teil der Zeile: sie öffnet die Historie nicht.
-      const buttonBox = await toReview.getByRole("button", { name: "Geprüft", exact: true }).boundingBox();
-      assert.ok(buttonBox, "Schaltfläche hat eine Fläche");
+      const button = rowOf(page, isDesktop, PAYEES.toReview).getByRole("button", { name: "Geprüft", exact: true });
+      await button.waitFor();
+      const box = await button.boundingBox();
       const minSide = isDesktop ? 24 : 40;
-      assert.ok(
-        buttonBox.width >= minSide && buttonBox.height >= minSide,
-        `Trefferfläche mindestens ${minSide}px, war ${buttonBox.width}x${buttonBox.height}`
-      );
+      assert.ok(box.width >= minSide && box.height >= minSide, `${label}: Trefferfläche ${box.width}x${box.height}`);
 
+      // Verhindert die Rückkehr des Fehlers, bei dem am Handy auch gelöschte Buchungen die
+      // Schaltfläche bekamen und ein Klick in der Ablehnung des Servers endete.
+      const deleted = rowOf(page, isDesktop, PAYEES.deleted);
+      assert.equal(await deleted.count(), 1, `${label}: die gelöschte Zeile ist sichtbar`);
+      assert.equal(await deleted.getByRole("button", { name: /^(Geprüft|Ungeprüft)$/ }).count(), 0, `${label}: gelöscht ohne Schaltfläche`);
+
+      await button.click();
+      await rowOf(page, isDesktop, PAYEES.toReview).getByRole("button", { name: "Ungeprüft", exact: true }).waitFor();
+      const call = calls.find((c) => c.endpoint === "setReviewMark");
+      assert.deepEqual(JSON.parse(call.body), [entries.Entries[0].Id, "Reviewed"], `${label}: Id und Ziel`);
+      assert.equal(await page.locator("dialog, [role=dialog]").filter({ visible: true }).count(), 0, `${label}: keine Historie`);
       await screenshotIfRequested(page, `${isDesktop ? "pc-1440x900" : "handy-390x844"}-review-mark`);
     } finally {
       await context.close();
     }
-  });
-
-  test(`${label}: Klick auf Geprüft ruft setReviewMark mit Reviewed auf und die Zeile wechselt auf Ungeprüft`, async () => {
-    const { page, context, calls, entries } = await openLedger(viewport);
-    try {
-      const toReview = rowOf(page, isDesktop, PAYEES.toReview);
-      await toReview.getByRole("button", { name: "Geprüft", exact: true }).click();
-      await rowOf(page, isDesktop, PAYEES.toReview)
-        .getByRole("button", { name: "Ungeprüft", exact: true })
-        .waitFor();
-
-      const call = calls.find((c) => c.endpoint === "setReviewMark");
-      assert.ok(call, "setReviewMark wurde aufgerufen");
-      assert.deepEqual(JSON.parse(call.body), [entries.Entries[0].Id, "Reviewed"], "Eintrags-Id und Ziel Reviewed");
-      assert.equal(
-        await page.locator("dialog, [role=dialog]").filter({ visible: true }).count(),
-        0,
-        "der Klick öffnet nicht die Historie"
-      );
-    } finally {
-      await context.close();
-    }
-  });
-
-  test(`${label}: Erneut senden ruft retryReviewMarkWriteBack auf und der Hinweis verschwindet`, async () => {
-    const { page, context, calls, entries } = await openLedger(viewport);
-    try {
-      await page.getByRole("button", { name: "Erneut senden" }).filter({ visible: true }).click();
-      await page.getByText("Prüfvermerk nicht in YNAB", { exact: true }).filter({ visible: true }).waitFor({ state: "detached" });
-
-      const call = calls.find((c) => c.endpoint === "retryReviewMarkWriteBack");
-      assert.ok(call, "retryReviewMarkWriteBack wurde aufgerufen");
-      assert.deepEqual(JSON.parse(call.body), [entries.Entries[2].Id], "Eintrags-Id");
-    } finally {
-      await context.close();
-    }
-  });
-
-  test(`${label}: in YNAB gelöschte Zeile hat keine Prüfvermerk-Schaltfläche`, async () => {
-    // Verhindert die Rückkehr des Fehlers, bei dem am Handy auch gelöschte Buchungen
-    // die Schaltfläche bekamen und ein Klick in der Ablehnung des Servers endete.
-    const { page, context } = await openLedger(viewport);
-    try {
-      const deleted = rowOf(page, isDesktop, PAYEES.deleted);
-      assert.equal(await deleted.count(), 1, "die gelöschte Zeile ist sichtbar");
-      assert.equal(
-        await deleted.getByRole("button", { name: /^(Geprüft|Ungeprüft)$/ }).count(),
-        0,
-        "keine Schaltfläche Geprüft oder Ungeprüft"
-      );
-    } finally {
-      await context.close();
-    }
-  });
-}
+  }
+});

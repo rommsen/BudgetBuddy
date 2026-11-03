@@ -302,15 +302,14 @@ let private bankStatusRow (status: Types.RemoteData<BankConnectionStatus>) =
             prop.children children
         ]
     let hint (text: string) = Html.p [ prop.className "text-sm text-text-secondary"; prop.text text ]
-    match status with
-    | Types.Success current ->
-        row [
-            hint (Components.BankConnectionBadge.nextSyncHint current)
-            Components.BankConnectionBadge.view current
-        ]
-    | Types.Failure _ -> row [ hint Components.BankConnectionBadge.unreadableHint ]
-    | Types.NotAsked
-    | Types.Loading -> row []
+    row [
+        match Components.BankConnectionBadge.hintFor status with
+        | Some text -> hint text
+        | None -> ()
+        match status with
+        | Types.Success current -> Components.BankConnectionBadge.view current
+        | _ -> ()
+    ]
 
 let startSyncView (bankStatus: Types.RemoteData<BankConnectionStatus>) (dispatch: Msg -> unit) =
     Html.div [

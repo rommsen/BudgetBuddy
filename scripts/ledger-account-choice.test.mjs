@@ -60,29 +60,6 @@ after(async () => {
   await stopServer(frontend, frontendPort);
 });
 
-test("PC: gewähltes Konto überlebt ein komplettes Neuladen", async () => {
-  const { context, page } = await openPage(1440, 900);
-  const row = (name) => page.locator(".ledger-account-strip button").filter({ hasText: name }).filter({ visible: true }).first();
-  await row(second().Name).click();
-  await page.waitForFunction(
-    (key) => window.localStorage.getItem(key) !== null,
-    "ledger.selectedAccountFilter"
-  );
-  assert.equal(await stored(page), `account:${second().Id}`);
-  await page.reload({ waitUntil: "load" });
-  await waitForPageLoaded(page, "/ledger");
-  await page.waitForFunction(
-    (name) => {
-      const btn = [...document.querySelectorAll(".ledger-account-strip button")].find(
-        (b) => b.textContent.includes(name) && b.offsetParent !== null
-      );
-      return btn && btn.className.includes("border-l-neon-teal");
-    },
-    second().Name
-  );
-  await context.close();
-});
-
 test("Handy: Titel zeigt den Kontonamen, Sheet listet alle Konten, Tipp wechselt und schließt", async () => {
   const { context, page } = await openPage(390, 844);
   const title = page.getByTestId("ledger-account-switcher");

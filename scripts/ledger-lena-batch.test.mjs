@@ -5,7 +5,8 @@
 // gegen gemockte Ledger-Antworten (erfundene Werte, nie die Entwicklungsdatenbank): die beiden
 // Aktionen mit der Zahl der Auswahl (PC einreihig, Handy dritte Reihe), sekundär statt Orange,
 // der Sammelaufruf mit den gewählten Ids, der Toast mit einem Rückgängig für alle, und die
-// gesperrte Aktion ohne Flag-Farbe mit dem Grund.
+// gesperrte Aktion ohne Flag-Farbe mit dem Grund am Handy. Sperre und Grund selbst prüft
+// `LedgerLenaFlagBatchClientTests` (infrastructure-t5m2b).
 //
 // Ausführen: node --test scripts/ledger-lena-batch.test.mjs
 // (Teil von `npm run test:scripts`.)
@@ -195,25 +196,6 @@ test("PC: Lena fragen für zwei Buchungen, ein Aufruf, ein Toast mit Rückgängi
   }
 });
 
-test("PC: ohne gesetzte Farbe ist Lena fragen gesperrt mit Grund im Tooltip, Zurücknehmen bleibt frei", async () => {
-  resetState();
-  state.lenaColor = null;
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  const page = await open(context);
-  try {
-    await box(page, PAYEES[0]).click();
-    const bar = visibleBar(page);
-    await bar.waitFor();
-    const ask = bar.getByRole("button", { name: "Lena fragen (1)", exact: true });
-    assert.equal(await ask.isDisabled(), true, "gesperrt");
-    assert.equal(await ask.getAttribute("title"), "In den Settings die Flag-Farbe für Lena wählen", "Grund als Tooltip");
-    assert.equal(await bar.getByRole("button", { name: "Rückfrage zurücknehmen (1)", exact: true }).isDisabled(), false);
-    assert.equal(state.setCalls.length, 0, "kein Aufruf");
-  } finally {
-    await context.close();
-  }
-});
-
 test("Handy 390x844: dritte Reihe mit beiden Aktionen, der Grund als Zeile, nichts läuft über", async () => {
   resetState();
   state.lenaColor = null;
@@ -225,7 +207,8 @@ test("Handy 390x844: dritte Reihe mit beiden Aktionen, der Grund als Zeile, nich
     const b = await row.boundingBox();
     const init = { pointerType: "touch", pointerId: 7, isPrimary: true, bubbles: true, clientX: b.x + b.width / 2, clientY: b.y + b.height / 2 };
     await row.dispatchEvent("pointerdown", init);
-    await page.waitForTimeout(700);
+    // Gehalten, bis die Auswahl-Leiste erscheint (wie `longPress` in ledger-selection.test.mjs).
+    await visibleBar(page).waitFor();
     await row.dispatchEvent("pointerup", init);
     await row.dispatchEvent("click", { bubbles: true, clientX: init.clientX, clientY: init.clientY });
     const bar = visibleBar(page);

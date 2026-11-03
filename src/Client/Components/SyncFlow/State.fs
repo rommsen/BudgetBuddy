@@ -84,7 +84,7 @@ let private matchesRule (rule: Rule) (tx: BankTransaction) : bool =
         with _ -> false
 
 /// Pause zwischen zwei Lesevorgängen, solange der Server nach verlorener Antwort noch abruft.
-let private interruptedStartPollMs = 3000
+let interruptedStartPollMs = 3000
 
 /// Frist für das Nachlesen: 40 Pausen sind 2 Minuten. Ein normaler Abruf endet weit davor.
 let interruptedStartReadLimit = 40
@@ -244,6 +244,20 @@ let private settleInlineRuleTest (model: Model) (version: int) (test: RemoteData
     | Some form when version = model.InlineRuleTestVersion ->
         { model with InlineRuleForm = Some { form with InlineRuleTest = test } }
     | _ -> model
+
+/// Der Mustertest an der Importzeile. `call` ist der lesende Remoting-Aufruf mit Wiederholung, unter
+/// .NET ein Ersatz: was nach den Wiederholungen scheitert, ist ein Netzfehler zum Stand `version`
+/// und kein "passt nicht" (Bug categorization-f955d).
+let inlineRuleTestCmd
+    (call: string * PatternType * TargetField * string -> Async<Result<bool, RulesError>>)
+    (version: int)
+    (form: InlineRuleFormState)
+    : Cmd<Msg> =
+    Cmd.OfAsync.either
+        call
+        (form.Pattern, form.PatternType, form.TargetField, form.TransactionText)
+        (fun result -> InlineRuleTested (version, result))
+        (fun _ -> InlineRuleTestLost version)
 
 let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
@@ -1288,13 +1302,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     | InlineRuleTestDue version ->
         match model.InlineRuleForm with
         | Some form when version = model.InlineRuleTestVersion ->
-            let cmd =
-                Cmd.OfAsync.either
-                    (Retry.reading Api.rules.testRule)
-                    (form.Pattern, form.PatternType, form.TargetField, form.TransactionText)
-                    (fun result -> InlineRuleTested (version, result))
-                    (fun _ -> InlineRuleTestLost version)
-            model, cmd, NoOp
+            model, inlineRuleTestCmd (fun args -> (Retry.reading Api.rules.testRule) args) version form, NoOp
         | _ -> model, Cmd.none, NoOp
 
     | InlineRuleTested (version, result) ->

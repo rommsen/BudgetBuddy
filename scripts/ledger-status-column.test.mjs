@@ -124,7 +124,7 @@ after(async () => {
 // AC1/AC2: Konten-Spalte haftet und scrollt bei Überlänge in sich
 // ============================================
 
-test("Die Konten-Spalte bleibt beim Scrollen der Seite unter der Navbar stehen (AC1)", async () => {
+test("Die Konten-Spalte haftet unter der Navbar und scrollt bei zu vielen Konten in sich, ohne sich selbst zu bewegen (AC1, AC2)", async () => {
   // Vor dem Scrollen steht die Spalte in ihrer natürlichen Flussposition, unterhalb
   // von Navbar UND Seitenkopf ("Kassenbuch" + Button), deutlich weiter unten als
   // 64px. Genau DAS ist der gemeldete Befund, sobald die Seite ein Stück scrollt:
@@ -149,9 +149,7 @@ test("Die Konten-Spalte bleibt beim Scrollen der Seite unter der Navbar stehen (
   );
 
   await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
-});
 
-test("Eine Kontoliste mit mehr Konten, als in den Viewport passen, ist innerhalb der Spalte höher als ihr sichtbarer Bereich (AC2)", async () => {
   const { scrollHeight, clientHeight } = await page
     .locator(".ledger-account-strip")
     .evaluate((el) => ({ scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }));
@@ -159,9 +157,7 @@ test("Eine Kontoliste mit mehr Konten, als in den Viewport passen, ist innerhalb
     scrollHeight > clientHeight + 20,
     `Mit ${ACCOUNT_COUNT} Konten muss der Inhalt sichtbar höher sein als der sichtbare Bereich (scrollHeight=${scrollHeight}, clientHeight=${clientHeight}), sonst ist AC2 mit dieser Fixture nicht geprüft.`
   );
-});
 
-test("Die Kontoliste scrollt tatsächlich in sich, während die Spalte selbst stehen bleibt (AC2)", async () => {
   // Alles in EINEM page.evaluate-Aufruf (statt mehrerer Roundtrips): so liegen
   // "vorher" und "nachher" exakt im selben Frame, ohne dass zwischen den Messungen
   // echte Zeit vergeht, in der sich am Layout etwas ändern könnte.
@@ -291,147 +287,34 @@ async function measureRowHeights(baselinePayee, payee) {
   );
 }
 
-test("Die PC-Tabelle zeigt an keiner Stelle den Herkunfts-Text 'YNAB-Spiegel' (AC3)", async () => {
-  const tbodyText = await page.locator("table tbody").innerText();
-  assert.ok(
-    !tbodyText.includes("YNAB-Spiegel"),
-    "Die Statusspalte darf die Herkunft nicht mehr zeigen (die einzige Herkunft in dieser Fixture ist MirroredFromYnab -> 'YNAB-Spiegel')."
-  );
-});
+// Zwei Kennzeichen in einer Zelle: dasselbe Maß für jede Kombination. Der Wortlaut je Kombination
+// liegt unter .NET (`LedgerViewTests.fs`, `LedgerNotInYnabClientTests.fs`), hier zählen Umbruch,
+// Überlauf und der Hover-Text, der am gekürzten Kennzeichen hängt.
+test("Zwei Kennzeichen in der Statuszelle: kein Umbruch, kein Überlauf, keine höhere Zeile, volle Bedeutung im Hover-Text (AC5)", async () => {
+  for (const [payee, fullMeaning] of [
+    [SIX_CASE_PAYEES.needsReviewAskLena, "Rückfrage Lena"],
+    [SIX_CASE_PAYEES.needsReviewDeleted, "in YNAB gelöscht"],
+    [SIX_CASE_PAYEES.needsReviewMarked, "Markiert"],
+    [SIX_CASE_PAYEES.needsReviewNotInYnab, null],
+  ]) {
+    const { baselineHeight, rowHeight } = await measureRowHeights(SIX_CASE_PAYEES.baseline, payee);
+    assert.ok(Math.abs(rowHeight - baselineHeight) <= 1, `${payee}: Zeile ${rowHeight}px, Vergleich ${baselineHeight}px`);
 
-test("Nur Buchungen mit NeedsReview zeigen das Wort 'zu prüfen' in ihrer Zeile (AC4, ADR 0049: kleines Wort statt Badge)", async () => {
-  const withoutReview = await tableRowByPayee(SIX_CASE_PAYEES.baseline);
-  const withReview = await tableRowByPayee(SIX_CASE_PAYEES.needsReview);
-  assert.ok(!(await withoutReview.innerText()).includes("zu prüfen"), "Eine geprüfte Buchung darf kein Kennzeichen tragen");
-  assert.ok((await withReview.innerText()).includes("zu prüfen"), "Eine ungeprüfte Buchung muss 'zu prüfen' tragen");
-});
-
-// ============================================
-// AC5: zwei Kennzeichen nebeneinander, ohne Umbruch, ohne höhere Zeile
-// ============================================
-
-test("NeedsReview + Flag 'Rückfrage Lena' stehen nebeneinander, ohne die Zeile zu erhöhen, im gekürzten Wortlaut 'Lena?' mit voller Bedeutung für assistive Technologie (AC5)", async () => {
-  const { baselineHeight, rowHeight } = await measureRowHeights(SIX_CASE_PAYEES.baseline, SIX_CASE_PAYEES.needsReviewAskLena);
-
-  const row = await tableRowByPayee(SIX_CASE_PAYEES.needsReviewAskLena);
-  const rowText = await row.innerText();
-  assert.ok(rowText.includes("zu prüfen"), "Muss das Wort 'zu prüfen' zeigen");
-  assert.ok(rowText.includes("Lena?"), "Muss den GEKÜRZTEN Flag-Wortlaut zeigen, nicht 'Rückfrage Lena'");
-  assert.ok(!rowText.includes("Rückfrage Lena"), "Der volle Wortlaut darf in der PC-Statusspalte nicht mehr stehen (Überlauf-Risiko)");
-
-  assert.ok(
-    Math.abs(rowHeight - baselineHeight) <= 1,
-    `Zwei Kennzeichen dürfen die Zeile nicht höher machen (Baseline ${baselineHeight}px, diese Zeile ${rowHeight}px)`
-  );
-
-  const statusCell = row.locator("td").last();
-  const { scrollHeight, clientHeight, scrollWidth, clientWidth } = await statusCell.evaluate((el) => ({
-    scrollHeight: el.scrollHeight,
-    clientHeight: el.clientHeight,
-    scrollWidth: el.scrollWidth,
-    clientWidth: el.clientWidth,
-  }));
-  assert.ok(scrollHeight <= clientHeight + 1, "Die Statuszelle darf nicht in eine zweite Zeile umbrechen (kein vertikaler Überlauf)");
-  assert.ok(scrollWidth <= clientWidth + 1, "Die Statuszelle darf nicht waagerecht überlaufen");
-
-  // Verifier-Befund Iteration 2: der gekürzte Wortlaut "Lena?" muss die volle
-  // Bedeutung "Rückfrage Lena" als Hover-Hinweis (title) und für assistive
-  // Technologie (aria-label) tragen (`withAccessibleName` in View.fs).
-  const wrapper = statusCell.locator("[title], [aria-label]").first();
-  assert.equal(
-    await wrapper.getAttribute("title"),
-    "Rückfrage Lena",
-    "title des gekürzten Flag-Kennzeichens muss die volle Bedeutung 'Rückfrage Lena' tragen"
-  );
-  assert.equal(
-    await wrapper.getAttribute("aria-label"),
-    "Rückfrage Lena",
-    "aria-label des gekürzten Flag-Kennzeichens muss die volle Bedeutung 'Rückfrage Lena' tragen"
-  );
-});
-
-test("NeedsReview + 'in YNAB gelöscht' stehen nebeneinander, ohne die Zeile zu erhöhen, mit voller Bedeutung für assistive Technologie (AC5, Stand-in für 'nicht in YNAB verknüpft', siehe OUTCOME)", async () => {
-  const { baselineHeight, rowHeight } = await measureRowHeights(SIX_CASE_PAYEES.baseline, SIX_CASE_PAYEES.needsReviewDeleted);
-
-  const row = await tableRowByPayee(SIX_CASE_PAYEES.needsReviewDeleted);
-  const rowText = await row.innerText();
-  assert.ok(rowText.includes("zu prüfen"), "Muss das Wort 'zu prüfen' zeigen");
-
-  const statusCell = row.locator("td").last();
-  const badgeCount = await statusCell.locator(".rounded-full").count();
-  assert.equal(badgeCount, 1, "Das Ausnahme-Symbol ist das einzige Badge; 'zu prüfen' ist ein Wort (ADR 0049)");
-
-  assert.ok(
-    Math.abs(rowHeight - baselineHeight) <= 1,
-    `Zwei Kennzeichen dürfen die Zeile nicht höher machen (Baseline ${baselineHeight}px, diese Zeile ${rowHeight}px)`
-  );
-
-  const { scrollHeight, clientHeight, scrollWidth, clientWidth } = await statusCell.evaluate((el) => ({
-    scrollHeight: el.scrollHeight,
-    clientHeight: el.clientHeight,
-    scrollWidth: el.scrollWidth,
-    clientWidth: el.clientWidth,
-  }));
-  assert.ok(scrollHeight <= clientHeight + 1, "Die Statuszelle darf nicht in eine zweite Zeile umbrechen");
-  assert.ok(scrollWidth <= clientWidth + 1, "Die Statuszelle darf nicht waagerecht überlaufen");
-
-  const deletedIcon = statusCell.locator("[title], [aria-label]").last();
-  assert.equal(
-    await deletedIcon.getAttribute("title"),
-    "in YNAB gelöscht",
-    "title des Ausnahme-Symbols muss die volle Bedeutung 'in YNAB gelöscht' tragen"
-  );
-  assert.equal(
-    await deletedIcon.getAttribute("aria-label"),
-    "in YNAB gelöscht",
-    "aria-label des Ausnahme-Symbols muss die volle Bedeutung 'in YNAB gelöscht' tragen"
-  );
-});
-
-test("NeedsReview + Flag 'Markiert' stehen nebeneinander, ohne Umbruch, ohne höhere Zeile, als Symbol mit voller Bedeutung für assistive Technologie (AC5, Iteration 3)", async () => {
-  // Genau die Kombination, die der Verifier von Iteration 2 als noch überlaufend
-  // nachgerechnet hat (scrollWidth 131 > clientWidth 128 mit dem vollen Text
-  // "Markiert"): jetzt ein Symbol wie `deletedStatusIcon`, mit deutlich mehr
-  // Reserve als eine weitere Kürzung des Wortlauts.
-  const { baselineHeight, rowHeight } = await measureRowHeights(SIX_CASE_PAYEES.baseline, SIX_CASE_PAYEES.needsReviewMarked);
-
-  const row = await tableRowByPayee(SIX_CASE_PAYEES.needsReviewMarked);
-  const rowText = await row.innerText();
-  assert.ok(rowText.includes("zu prüfen"), "Muss das Wort 'zu prüfen' zeigen");
-  assert.ok(!rowText.includes("Markiert"), "Der volle Text 'Markiert' darf in der PC-Statusspalte nicht mehr stehen (Überlauf-Risiko)");
-
-  const statusCell = row.locator("td").last();
-  const badgeCount = await statusCell.locator(".rounded-full").count();
-  assert.equal(badgeCount, 1, "Das Markiert-Symbol ist das einzige Badge; 'zu prüfen' ist ein Wort (ADR 0049)");
-
-  assert.ok(
-    Math.abs(rowHeight - baselineHeight) <= 1,
-    `Zwei Kennzeichen dürfen die Zeile nicht höher machen (Baseline ${baselineHeight}px, diese Zeile ${rowHeight}px)`
-  );
-
-  const { scrollHeight, clientHeight, scrollWidth, clientWidth } = await statusCell.evaluate((el) => ({
-    scrollHeight: el.scrollHeight,
-    clientHeight: el.clientHeight,
-    scrollWidth: el.scrollWidth,
-    clientWidth: el.clientWidth,
-  }));
-  assert.ok(scrollHeight <= clientHeight + 1, "Die Statuszelle darf nicht in eine zweite Zeile umbrechen");
-  assert.ok(
-    scrollWidth <= clientWidth + 1,
-    `Die Statuszelle darf nicht waagerecht überlaufen (scrollWidth=${scrollWidth}, clientWidth=${clientWidth}, der von Iteration 2 gemeldete Befund war 131 > 128)`
-  );
-
-  const markedIcon = statusCell.locator("[title]:not(button), [aria-label]:not(button)").last();
-  assert.equal(
-    await markedIcon.getAttribute("title"),
-    "Markiert",
-    "title des Markiert-Symbols muss die volle Bedeutung 'Markiert' tragen"
-  );
-  assert.equal(
-    await markedIcon.getAttribute("aria-label"),
-    "Markiert",
-    "aria-label des Markiert-Symbols muss die volle Bedeutung 'Markiert' tragen"
-  );
+    const row = await tableRowByPayee(payee);
+    const statusCell = row.locator("td").last();
+    const { scrollHeight, clientHeight, scrollWidth, clientWidth } = await statusCell.evaluate((el) => ({
+      scrollHeight: el.scrollHeight,
+      clientHeight: el.clientHeight,
+      scrollWidth: el.scrollWidth,
+      clientWidth: el.clientWidth,
+    }));
+    assert.ok(scrollHeight <= clientHeight + 1, `${payee}: kein Umbruch`);
+    assert.ok(scrollWidth <= clientWidth + 1, `${payee}: kein Überlauf (${scrollWidth} gegen ${clientWidth})`);
+    if (fullMeaning) {
+      const carrier = statusCell.locator(`[title="${fullMeaning}"]:not(button)`).first();
+      assert.equal(await carrier.getAttribute("aria-label"), fullMeaning, `${payee}: aria-label`);
+    }
+  }
 });
 
 // ============================================

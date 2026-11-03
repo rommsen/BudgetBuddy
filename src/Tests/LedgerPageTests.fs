@@ -1106,6 +1106,16 @@ let reducerTests =
         // Filterleiste: Memo- und Betrags-Suchfeld mit Verzögerung (ledger-j8xq4)
         // ============================================
 
+        // infrastructure-t5m2b, Iteration 2: die Verzögerung selbst lief bisher in keinem Test ab.
+        test "Memo- und Betragsfeld committen erst nach der Verzögerung, mit der Version der Eingabe" {
+            let _, memoCmd, _ = Components.Ledger.State.update (SetMemoDraft "Kuchen") (freshModel ())
+            Tests.CmdTiming.expectAfter Client.Debounce.DefaultDelayMs (CommitMemoFilter ("Kuchen", 1)) memoCmd
+            let _, minCmd, _ = Components.Ledger.State.update (SetAmountMinDraft "5") (freshModel ())
+            Tests.CmdTiming.expectAfter Client.Debounce.DefaultDelayMs (CommitAmountFilter (Some 5m, None, 1)) minCmd
+            let _, maxCmd, _ = Components.Ledger.State.update (SetAmountMaxDraft "9") (freshModel ())
+            Tests.CmdTiming.expectAfter Client.Debounce.DefaultDelayMs (CommitAmountFilter (None, Some 9m, 1)) maxCmd
+        }
+
         test "Eine Memo-Eingabe erhöht die Version; ein verspätetes Commit einer älteren Version wird verworfen" {
             let typing, _, _ = Components.Ledger.State.update (SetMemoDraft "Kuchen") (freshModel ())
             Expect.equal typing.MemoDraft "Kuchen" "Der getippte Text steht im Entwurf"

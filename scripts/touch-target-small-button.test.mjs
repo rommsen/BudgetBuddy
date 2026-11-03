@@ -88,30 +88,34 @@ async function measure(page, scopeSelector) {
   }, scopeSelector);
 }
 
-test("Handy (390 px): Zeile hinzufügen und Barabhebung sind mindestens 48 px hoch", async () => {
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
-  const page = await open(context);
-  await page.getByText("Bauhaus").first().tap();
-  const sheet = page.locator(".bottom-sheet.active").first();
-  await sheet.waitFor();
-  await sheet.locator('[data-testid="detail-split-action"]').tap();
-  await sheet.locator('[data-testid="split-summary"]').waitFor();
-  const m = await measure(page, ".bottom-sheet.active");
-  assert.ok(m.add.height >= 48 - 0.5, `Zeile hinzufügen ${m.add.height} px hoch`);
-  assert.ok(m.cashback.height >= 48 - 0.5, `Barabhebung ${m.cashback.height} px hoch`);
-  await context.close();
-});
+test("Handy (390 px): Zeile hinzufügen und Barabhebung messen mindestens 48 px, am PC (1440 px) bleiben sie unter 44 px", async () => {
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  try {
+    const page = await open(phone);
+    await page.getByText("Bauhaus").first().tap();
+    const sheet = page.locator(".bottom-sheet.active").first();
+    await sheet.waitFor();
+    await sheet.locator('[data-testid="detail-split-action"]').tap();
+    await sheet.locator('[data-testid="split-summary"]').waitFor();
+    const m = await measure(page, ".bottom-sheet.active");
+    assert.ok(m.add.height >= 48 - 0.5, `Handy: Zeile hinzufügen ${m.add.height} px hoch`);
+    assert.ok(m.cashback.height >= 48 - 0.5, `Handy: Barabhebung ${m.cashback.height} px hoch`);
+  } finally {
+    await phone.close();
+  }
 
-test("Desktop (1440 px): dieselben Knöpfe wachsen nicht auf 48 px", async () => {
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  const page = await open(context);
-  await page.locator("table tbody tr", { hasText: "Bauhaus" }).first().locator("td").nth(2).click();
-  const panel = page.locator('[data-testid="ledger-detail-panel"]');
-  await panel.waitFor();
-  await panel.locator('[data-testid="detail-split-action"]').click();
-  await panel.locator('[data-testid="split-summary"]').waitFor();
-  const m = await measure(page, '[data-testid="ledger-detail-panel"]');
-  assert.ok(m.add.height < 44, `Zeile hinzufügen ${m.add.height} px hoch, bleibt unter 44 px`);
-  assert.ok(m.cashback.height < 44, `Barabhebung ${m.cashback.height} px hoch, bleibt unter 44 px`);
-  await context.close();
+  const pc = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  try {
+    const page = await open(pc);
+    await page.locator("table tbody tr", { hasText: "Bauhaus" }).first().locator("td").nth(2).click();
+    const panel = page.locator('[data-testid="ledger-detail-panel"]');
+    await panel.waitFor();
+    await panel.locator('[data-testid="detail-split-action"]').click();
+    await panel.locator('[data-testid="split-summary"]').waitFor();
+    const m = await measure(page, '[data-testid="ledger-detail-panel"]');
+    assert.ok(m.add.height < 44, `PC: Zeile hinzufügen ${m.add.height} px hoch, bleibt unter 44 px`);
+    assert.ok(m.cashback.height < 44, `PC: Barabhebung ${m.cashback.height} px hoch, bleibt unter 44 px`);
+  } finally {
+    await pc.close();
+  }
 });

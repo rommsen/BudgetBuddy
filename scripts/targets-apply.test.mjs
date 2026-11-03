@@ -162,53 +162,6 @@ test("Handy: eine Vorschau-Zeile zeigt Target, Zugewiesen und Fehlbetrag vollst�
   }
 });
 
-test("Negatives Zu verteilen danach erscheint ohne Warnung, Übernehmen bleibt aktiv", async () => {
-  const preview = previewFixture(3, 10);
-  const { context, page } = await openPage(1440, 900, { preview, apply: () => ({ Error: "x" }), retry: () => ({ Error: "x" }) });
-  try {
-    await open(page);
-    assert.match(await text(page.locator('[data-testid="targets-after"]')), /-20,00 €/);
-    assert.equal(await page.getByRole("alert").count(), 0, "keine Warnung");
-    assert.ok(await page.getByRole("button", { name: "Übernehmen" }).isEnabled(), "Übernehmen aktiv");
-  } finally {
-    await context.close();
-  }
-});
-
-test("Abbrechen schließt den Dialog, ohne zu schreiben", async () => {
-  const preview = previewFixture(2);
-  const { context, page, calls } = await openPage(390, 844, { preview, apply: () => ({ Error: "x" }), retry: () => ({ Error: "x" }) });
-  try {
-    await open(page);
-    await page.getByRole("button", { name: "Abbrechen" }).click();
-    await page.locator('[data-testid="targets-summary"]').waitFor({ state: "detached" });
-    assert.equal(calls.apply.length, 0);
-    assert.equal(calls.month, 1, "kein Neuladen nach Abbrechen");
-  } finally {
-    await context.close();
-  }
-});
-
-test("Die Vorschau steht in Romans Reihenfolge, gesendet wird die Folge des Servers", async () => {
-  const preview = previewFixture(3);
-  const { context, page, calls } = await openPage(1440, 900, {
-    preview,
-    order: [guid(3), guid(1), guid(2)],
-    apply: () => ({ Ok: { Applied: reportFixture(preview, ["Written", "Written", "Written"], eur(4970)) } }),
-    retry: () => ({ Error: "ungenutzt" }),
-  });
-  try {
-    await open(page);
-    const names = await page.locator('[data-testid="targets-line"]').allInnerTexts();
-    assert.deepEqual(names.map((n) => n.match(/Kategorie \d/)[0]), ["Kategorie 3", "Kategorie 1", "Kategorie 2"]);
-    await page.getByRole("button", { name: "Übernehmen" }).click();
-    await page.locator('[data-testid="targets-count"]').waitFor();
-    assert.deepEqual(calls.apply[0][1].Lines.map((l) => l.CategoryId), preview.Lines.map((l) => l.CategoryId));
-  } finally {
-    await context.close();
-  }
-});
-
 test("Hinweise im Dialog stehen in Gelb, auf der Budget-Seite gibt es kein Pink (ADR 0075)", async () => {
   const preview = previewFixture(2);
   const answers = [
@@ -277,32 +230,13 @@ test("Übernehmen schickt die gezeigte Vorschau, zeigt X von N, erneutes Senden 
     assert.equal(await page.getByRole("button", { name: "Fehlgeschlagene erneut senden" }).count(), 0, "nichts mehr zu senden");
     assert.equal(await page.locator('[data-testid="targets-differs"]').count(), 0, "kein Unterschied mehr");
 
+    const reread = page.waitForResponse("**/api/BudgetApi/getBudgetMonth");
     await page.getByRole("button", { name: "Schließen" }).click();
     await page.locator('[data-testid="targets-count"]').waitFor({ state: "detached" });
-    for (let i = 0; i < 50 && calls.month < 2; i++) await page.waitForTimeout(100);
+    await reread;
     assert.equal(calls.month, 2, "nach der Anwendung wird der Monat neu gelesen");
   } finally {
     await context.close();
   }
 });
 
-test("Hat sich YNABs Stand geändert, steht die neue Vorschau mit Hinweis da und es wurde nichts geschrieben", async () => {
-  const preview = previewFixture(2);
-  const fresh = previewFixture(1);
-  const { context, page, calls } = await openPage(390, 844, {
-    preview,
-    apply: () => ({ Ok: { PreviewChanged: fresh } }),
-    retry: () => ({ Error: "x" }),
-  });
-  try {
-    await open(page);
-    await page.getByRole("button", { name: "Übernehmen" }).click();
-    await page.locator('[data-testid="targets-changed"]').waitFor();
-    assert.match(await text(page.locator('[data-testid="targets-changed"]')), /Stand hat sich geändert/);
-    assert.equal(await page.locator('[data-testid="targets-line"]').count(), 1, "neue Vorschau");
-    assert.ok(await page.getByRole("button", { name: "Übernehmen" }).isEnabled());
-    assert.equal(calls.apply.length, 1);
-  } finally {
-    await context.close();
-  }
-});

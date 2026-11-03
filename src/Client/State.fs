@@ -92,7 +92,7 @@ type Msg =
 
 /// Auto-dismiss delay before a toast starts its soft exit, in ms.
 [<Literal>]
-let private autoDismissAfterMs = 5000
+let autoDismissAfterMs = 5000
 
 /// Schedule a message after a delay. Used for both the auto-dismiss trigger and
 /// the post-exit-animation removal. `Cmd.OfAsync.perform` is acceptable here: the

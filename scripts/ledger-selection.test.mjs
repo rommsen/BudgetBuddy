@@ -17,13 +17,13 @@ import assert from "node:assert/strict";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { chromium } from "playwright";
-import { getFreePort, startFrontend, stopServer, waitForPageLoaded, pollUntil } from "./screenshot-route.mjs";
+import { getFreePort, startFrontend, stopServer, waitForPageLoaded } from "./screenshot-route.mjs";
 import {
   buildAccountsFixture,
   buildBalancesFixture,
   buildEntryFixture,
 } from "./ledger-status-column.mjs";
-import { CATEGORY_IDS, buildCategoriesFixture, buildSettingsFixture } from "./ledger-filter-bar.mjs";
+import { buildCategoriesFixture, buildSettingsFixture } from "./ledger-filter-bar.mjs";
 
 const TOTAL = 34;
 const PAGE = 12;
@@ -90,7 +90,7 @@ async function openLedger(viewport, hasTouch, setup) {
 
   await page.goto(`http://127.0.0.1:${frontendPort}/#/ledger`, { waitUntil: "load" });
   await waitForPageLoaded(page, "/ledger");
-  await page.waitForTimeout(500);
+  await page.getByText("Auswahlzeile 01").filter({ visible: true }).first().waitFor();
   return { page, context };
 }
 
@@ -108,7 +108,7 @@ async function longPress(locator) {
   const y = box.y + box.height / 2;
   const init = { pointerType: "touch", pointerId: 7, isPrimary: true, bubbles: true, clientX: x, clientY: y };
   await locator.dispatchEvent("pointerdown", init);
-  await locator.page().waitForTimeout(700);
+  await visibleBar(locator.page()).waitFor();
   await locator.dispatchEvent("pointerup", init);
   await locator.dispatchEvent("click", { bubbles: true, clientX: x, clientY: y });
 }
@@ -222,11 +222,11 @@ test("Handy 390x844: langes Drücken, Tippen, Alle und Auswahl aufheben", async 
     assert.match(await visibleBar(page).innerText(), /0 ausgewählt/, "geleert");
 
     // Die Leiste verdeckt das Listenende nicht dauerhaft: am Ende lässt sich die letzte Zeile über die Leiste scrollen.
-    for (let i = 0; i < 6; i++) {
-      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-      await page.waitForTimeout(600);
-    }
-    assert.equal(await page.locator("button", { hasText: "Auswahlzeile" }).filter({ visible: true }).count(), TOTAL, "alle Seiten sind nachgeladen");
+    await page.waitForFunction((total) => {
+      window.scrollTo({ top: document.body.scrollHeight, behavior: "instant" });
+      const rows = [...document.querySelectorAll("button")].filter((el) => el.offsetParent !== null && el.textContent.includes("Auswahlzeile"));
+      return rows.length === total && window.scrollY + window.innerHeight >= document.body.scrollHeight - 1;
+    }, TOTAL);
     const barTop = (await visibleBar(page).boundingBox()).y;
     const lastRows = await page.locator("button", { hasText: "Auswahlzeile" }).filter({ visible: true }).all();
     const lastBox = await lastRows[lastRows.length - 1].boundingBox();
@@ -372,7 +372,7 @@ test("PC 1440x900: Leertaste wählt genau einmal, schließt das Panel, Prüf-Sch
       if (request.url().includes("setReviewMark")) reviewCalls++;
     });
     await page.keyboard.press("g");
-    await page.waitForTimeout(300);
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     assert.equal(reviewCalls, 0, "G schreibt bei laufender Auswahl nichts");
 
     // Esc hebt die Auswahl auf (kein Popover, kein Detail offen).
@@ -387,32 +387,14 @@ test("PC 1440x900: Leertaste wählt genau einmal, schließt das Panel, Prüf-Sch
 // Kategorie setzen für die Auswahl (ledger-w29y6)
 // ============================================
 
-const CATEGORY_NAME = { [CATEGORY_IDS.bahn]: "Bahn", [CATEGORY_IDS.lebensmittel]: "Lebensmittel" };
-
-/// Mocks für Settings, Kategorien und den Sammel-Befehl. Der Befehl zählt seine Aufrufe, meldet
-/// die ersten zwei gewählten Buchungen als geändert (vorher ohne Kategorie, also `Previous: null`)
-/// und die übrigen als Split übersprungen; `delayMs` hält die Antwort zurück (Sperre prüfbar).
-function categoryBatchSetup(calls, delayMs = 0) {
-  return async (page) => {
-    await page.route("**/api/SettingsApi/getSettings", (route) =>
-      route.fulfill({ contentType: "application/json", body: JSON.stringify(buildSettingsFixture()) })
-    );
-    await page.route("**/api/YnabApi/getCategories", (route) =>
-      route.fulfill({ contentType: "application/json", body: JSON.stringify({ Ok: buildCategoriesFixture() }) })
-    );
-    await page.route("**/api/LedgerApi/setEntryCategoryBatch", async (route) => {
-      const [selection, target] = route.request().postDataJSON();
-      calls.push({ selection, target });
-      if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
-      const ids = selection.BatchPicked;
-      const changed = ids.slice(0, 2).map((id) => ({ EntryId: id, Previous: null, WriteBack: "CategorySent" }));
-      const skipped = ids.slice(2).map(() => "SkipSplit");
-      route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({ Ok: { Changed: changed, UnchangedCount: 0, Skipped: skipped } }),
-      });
-    });
-  };
+/// Settings und Kategorien, damit der Picker Zeilen hat.
+async function categorySetup(page) {
+  await page.route("**/api/SettingsApi/getSettings", (route) =>
+    route.fulfill({ contentType: "application/json", body: JSON.stringify(buildSettingsFixture()) })
+  );
+  await page.route("**/api/YnabApi/getCategories", (route) =>
+    route.fulfill({ contentType: "application/json", body: JSON.stringify({ Ok: buildCategoriesFixture() }) })
+  );
 }
 
 const rect = (locator) => locator.evaluate((el) => {
@@ -420,9 +402,8 @@ const rect = (locator) => locator.evaluate((el) => {
   return { top: r.top, bottom: r.bottom, left: r.left, right: r.right };
 });
 
-test("PC 1440x900: Kategorie setzen öffnet das Popover über der Leiste ohne Haken, Esc schließt nur den Picker, Toast und Rücknahme (ledger-w29y6)", async () => {
-  const calls = [];
-  const { page, context } = await openLedger({ width: 1440, height: 900 }, false, categoryBatchSetup(calls, 600));
+test("PC 1440x900: Kategorie setzen öffnet das Popover ganz im Bild über der Leiste, Esc schließt nur den Picker (ledger-w29y6)", async () => {
+  const { page, context } = await openLedger({ width: 1440, height: 900 }, false, categorySetup);
   try {
     const box = (n) =>
       page.getByRole("checkbox", { name: `Auswahlzeile ${String(n).padStart(2, "0")} auswählen` }).filter({ visible: true });
@@ -450,59 +431,6 @@ test("PC 1440x900: Kategorie setzen öffnet das Popover über der Leiste ohne Ha
     await page.keyboard.press("Escape");
     await listbox.waitFor({ state: "detached" });
     assert.equal(await countIn(page), 3, "die Auswahl bleibt nach Esc");
-
-    // Wahl der Kategorie: ein Aufruf mit den gewählten Ids; beide Aktionen sind gesperrt, bis er antwortet.
-    await categoryButton.click();
-    await listbox.waitFor();
-    await listbox.getByText("Bahn", { exact: true }).click();
-    await page.waitForFunction(() => document.querySelectorAll(".selection-bar button:disabled").length >= 2);
-    assert.equal(await bar.getByRole("button", { name: "Geprüft", exact: true }).isDisabled(), true, "Geprüft gesperrt");
-    await pollUntil(() => calls.length > 0);
-    assert.equal(calls.length, 1, "genau ein Sammel-Aufruf");
-    assert.equal(calls[0].selection.BatchPicked.length, 3, "mit den drei gewählten Ids");
-    assert.deepEqual(calls[0].target, { YnabCategoryId: CATEGORY_IDS.bahn }, "Ziel-Kategorie");
-
-    // Der Toast nennt Zahl und übersprungene Buchungen; die Auswahl ist beendet.
-    const toast = page.getByText("2 Buchungen nach Bahn verschoben, 1 übersprungen (Split)", { exact: true });
-    await toast.waitFor();
-    assert.equal(await visibleBar(page).count(), 0, "Auswahl und Leiste enden");
-    await screenshotIfRequested(page, "pc-1440x900-kategorie-setzen-toast");
-
-    // Rückgängig: ein Sammel-Befehl für die Gruppe ohne vorherige Kategorie, Toast ohne Aktion.
-    await page.locator('[data-toast-action="true"]', { hasText: "Rückgängig" }).click();
-    await page.getByText("Kategorie bei 2 Buchungen zurückgesetzt", { exact: true }).waitFor();
-    assert.equal(calls.length, 2, "ein Sammel-Aufruf für die eine Gruppe");
-    assert.equal(calls[1].target, null, "zurück zu ohne Kategorie");
-    assert.equal(calls[1].selection.BatchPicked.length, 2, "mit genau den geänderten Buchungen");
-    assert.equal(await page.locator('[data-toast-action="true"]', { hasText: "Rückgängig" }).count(), 0, "der Rücknahme-Toast hat keine Aktion");
-  } finally {
-    await context.close();
-  }
-});
-
-test("Handy 390x844: Kategorie setzen öffnet das Sheet mit Zahl und Summe, ohne Haken (ledger-w29y6)", async () => {
-  const calls = [];
-  const { page, context } = await openLedger({ width: 390, height: 844 }, true, categoryBatchSetup(calls));
-  try {
-    const rowButton = (n) =>
-      page.locator("button", { hasText: `Auswahlzeile ${String(n).padStart(2, "0")}` }).filter({ visible: true }).first();
-    await longPress(rowButton(1));
-    await rowButton(2).click();
-    const bar = visibleBar(page);
-    await bar.waitFor();
-    await bar.getByRole("button", { name: "Kategorie setzen", exact: true }).click();
-    const list = page.locator('[role="listbox"]').filter({ visible: true });
-    await list.waitFor();
-    // Die Unterzeile des Sheets nennt Zahl und Summe der Auswahl, nicht Payee und Betrag.
-    const subtitle = page.getByText(/^2 Buchungen · -20,00/).filter({ visible: true });
-    assert.equal(await subtitle.count(), 1, "Unterzeile nennt Zahl und Summe");
-    assert.equal(await list.locator('[aria-selected="true"]').count(), 0, "kein Haken");
-    assert.equal(await list.count(), 1, "nur eine Liste, kein zweiter Picker");
-    await screenshotIfRequested(page, "handy-390x844-kategorie-setzen-sheet");
-    await list.getByText("Lebensmittel", { exact: true }).click();
-    await page.getByText("2 Buchungen nach Lebensmittel verschoben", { exact: true }).waitFor();
-    assert.equal(calls.length, 1, "ein Sammel-Aufruf");
-    assert.equal(await visibleBar(page).count(), 0, "Auswahl-Modus endet");
   } finally {
     await context.close();
   }

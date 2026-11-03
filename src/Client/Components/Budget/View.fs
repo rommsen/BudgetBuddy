@@ -143,7 +143,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                 // Steht das Sheet offen, trägt es den Hinweis. Genau eine Stelle, nie beide. Der Platz bleibt
                 // auch leer belegt: fiele er weg, rückten die Geschwister auf, React baute Liste und Sheet
                 // neu auf, und das Sheet führe nicht mehr ein.
-                moveRetries model (if isPanel || (sheetCategory model).IsNone then model.OpenRetries else []) dispatch
+                moveRetries model (pageRetries isPanel model) dispatch
                 // ADR 0043: zur Renderzeit genau eine Hülle um denselben Inhalt.
                 if isPanel then
                     Html.div [

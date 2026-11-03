@@ -2,7 +2,8 @@
 //
 // Wächter für `ledger-bn913` (ADR 0051): ein Klick auf einen sortierbaren Spaltenkopf der
 // PC-Tabelle lädt die Liste mit der passenden Sortierung neu. Ohne Datumssortierung fallen
-// die Tagesköpfe weg, der Kopf trägt `aria-sort`, Enter löst aus. Gemessen am echten, per
+// die Tagesköpfe weg, der Kopf trägt `aria-sort`, der Sortier-Chip fehlt. Welche Köpfe
+// sortierbar sind, prüft `LedgerSortClientTests` (infrastructure-t5m2b). Gemessen am echten, per
 // Vite gestarteten Fable-Client gegen gemockte Ledger-Antworten (Muster wie
 // `ledger-table-columns.test.mjs`). Der Mock sortiert die Fixture nach der gesendeten
 // Sortierung, damit die Reihenfolge in der Tabelle den Weg über die Anfrage prüft.
@@ -13,7 +14,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
-import { getFreePort, startFrontend, stopServer, waitForPageLoaded } from "./screenshot-route.mjs";
+import { getFreePort, startFrontend, stopServer, waitForPageLoaded, pollUntil } from "./screenshot-route.mjs";
 import {
   buildAccountsFixture,
   buildBalancesFixture,
@@ -80,16 +81,10 @@ const head = (name) => page.locator("table thead th").filter({ hasText: new RegE
 /// Wartet, bis der Client die Anfrage mit dieser Sortierung gesendet hat und die Zeilen
 /// der Antwort stehen (während des Ladens zeigt die Seite keine Tabelle).
 async function waitForSort(field, direction) {
-  const deadline = Date.now() + 20000;
-  while (Date.now() < deadline) {
-    const last = sortsSeen.at(-1);
-    if (last && last.Field === field && last.Direction === direction) {
-      await page.waitForSelector("table tbody tr");
-      return;
-    }
-    await page.waitForTimeout(50);
-  }
-  assert.fail(`keine Anfrage mit ${field} ${direction}, zuletzt ${JSON.stringify(sortsSeen.at(-1))}`);
+  const matches = () => sortsSeen.at(-1)?.Field === field && sortsSeen.at(-1)?.Direction === direction;
+  await pollUntil(matches, 20000);
+  assert.ok(matches(), `keine Anfrage mit ${field} ${direction}, zuletzt ${JSON.stringify(sortsSeen.at(-1))}`);
+  await page.waitForSelector("table tbody tr");
 }
 
 /// Beträge der Datenzeilen und Zahl der Tageskopf-Zeilen, atomar gemessen.
@@ -112,6 +107,9 @@ test("Klick auf Betrag sortiert aufsteigend, ohne Tagesköpfe; zweiter Klick keh
   await page.waitForFunction(() => document.querySelectorAll("table tbody tr td[colspan]").length > 0);
   const before = await snapshot();
   assert.ok(before.groups > 0, "Standard: Tagesköpfe stehen");
+  // Am PC sortieren die Köpfe, der Sortier-Chip der Handy-Liste fehlt (aus ledger-sort-chip gezogen).
+  const sortChip = page.locator(".ledger-filter-bar button").filter({ hasText: /^(Datum|Betrag|Payee|Kategorie|Konto) [↑↓]$/ });
+  assert.equal(await sortChip.count(), 0, "Köpfe sortieren, der Chip fehlt");
 
   await head("Betrag").locator("button").click();
   await waitForSort("SortByAmount", "SortAsc");
@@ -131,17 +129,4 @@ test("Klick auf Betrag sortiert aufsteigend, ohne Tagesköpfe; zweiter Klick keh
   await waitForSort("SortByDate", "SortDesc");
   await page.waitForFunction(() => document.querySelectorAll("table tbody tr td[colspan]").length > 0);
   assert.equal(await head("Datum").getAttribute("aria-sort"), "descending");
-});
-
-test("Tastatur: Fokus auf den Kopf, Enter löst die Sortierung aus; Memo und Status sind keine Schaltflächen", async () => {
-  await head("Payee").locator("button").focus();
-  const focused = await page.evaluate(() => document.activeElement?.closest("th")?.textContent?.trim());
-  assert.match(focused, /payee/i);
-  const countBefore = sortsSeen.length;
-  await page.keyboard.press("Enter");
-  assert.ok(countBefore > 0);
-  await waitForSort("SortByPayee", "SortAsc");
-  await page.waitForFunction(() => document.querySelector("table thead th[aria-sort='ascending']") !== null);
-  assert.equal(await head("Status").locator("button").count(), 0);
-  assert.equal(await head("Status").getAttribute("aria-sort"), null);
 });

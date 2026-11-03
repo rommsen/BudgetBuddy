@@ -149,6 +149,11 @@ let tests =
                     "getLedgerAccountBalances"; "getLedgerEntriesPage"; "getLedgerEntriesPage"
                     "getEntryHistory"; "getLedgerPayeeSuggestions"; "getPayeeCategorySuggestions"
                     "getBudgetAccounts"; "getSettings"; "getLedgerEntry"; "getLedgerEntry" ]
+                  // infrastructure-t5m2b: der Import kam dazu, als seine Browser-Wächter je Abbruch
+                  // (getSettings, getTransactions, getCategories, getPayees, getBudgetAccounts) fielen.
+                  "Components/SyncFlow/State.fs",
+                  [ "getCurrentSession"; "getTransactions"; "getLenaFlagSettings"; "getSettings"; "getSettings"
+                    "getSettings"; "getCategories"; "getBudgetAccounts"; "getPayees"; "testRule" ]
                   "Components/Budget/State.fs",
                   [ "getBudgetFrame"; "getBudgetFrame"; "getBudgetMonth"; "previewTargets"; "getCategoryMonthEntries"; "getRecentMoveCategories" ] ]
             for file, expected in inventory do

@@ -7,6 +7,10 @@ open Components.Rules.Types
 open Types
 open Shared.Domain
 
+
+/// Nach so vielen Millisekunden fällt die Rückfrage "Löschen" einer Regel von selbst zurück.
+let ruleDeleteConfirmMs = 3000
+
 let init () : Model * Cmd<Msg> =
     let model = {
         Rules = NotAsked
@@ -31,6 +35,18 @@ let closeRuleDialog (model: Model) : Model =
         Form = RuleFormState.empty
         ConfirmingDeleteRuleId = None
     }
+
+/// Der Mustertest im Dialog. `call` ist der Remoting-Aufruf, unter .NET ein Ersatz: jede Ausnahme ist
+/// ein Netzfehler und kein Urteil über das Muster (Bug categorization-f955d).
+let testPatternCmd
+    (call: string * PatternType * TargetField * string -> Async<Result<bool, RulesError>>)
+    (form: RuleFormState)
+    : Cmd<Msg> =
+    Cmd.OfAsync.either
+        call
+        (form.Pattern, form.PatternType, form.TargetField, form.TestInput)
+        RulePatternTested
+        (fun _ -> RulePatternTestLost)
 
 let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
@@ -84,7 +100,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         // Show confirm button and start 3 second timeout
         let timeoutCmd =
             Cmd.OfAsync.perform
-                (fun () -> async { do! Async.Sleep 3000 })
+                (fun () -> async { do! Async.Sleep ruleDeleteConfirmMs })
                 ()
                 (fun () -> CancelConfirmDelete)
         { model with ConfirmingDeleteRuleId = Some ruleId }, timeoutCmd, NoOp
@@ -229,13 +245,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         if String.IsNullOrWhiteSpace(model.Form.Pattern) || String.IsNullOrWhiteSpace(model.Form.TestInput) then
             model, Cmd.none, ShowToast ("Please enter both a pattern and test input", ToastWarning)
         else
-            let cmd =
-                Cmd.OfAsync.either
-                    Api.rules.testRule
-                    (model.Form.Pattern, model.Form.PatternType, model.Form.TargetField, model.Form.TestInput)
-                    RulePatternTested
-                    (fun _ -> RulePatternTestLost)
-            model, cmd, NoOp
+            model, testPatternCmd (fun args -> Api.rules.testRule args) model.Form, NoOp
 
     | RulePatternTested (Ok matches) ->
         let resultText = if matches then "✅ Muster passt" else "❌ Muster passt nicht"

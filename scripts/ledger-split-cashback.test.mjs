@@ -1,11 +1,10 @@
 // scripts/ledger-split-cashback.test.mjs
 //
 // Wächter für `ledger-s8t3s` (ADR 0004, ADR 0006): der Knopf "Barabhebung" im Split-Editor des
-// Kassenbuchs. Gemessen am echten, per Vite gestarteten Fable-Client gegen gemockte Ledger-Antworten
-// (Muster wie `ledger-split-editor.test.mjs`, nie die echte Entwicklungsdatenbank): frisch geöffnet
-// ergibt der Knopf die Kategorie der Buchung plus einen Übertrag aufs Quick-Add-Konto, die Beträge
-// bleiben leer, der Ausgleich geht über "Rest", gespeichert wird über `setEntrySplits`. Ohne
-// Quick-Add-Konto bleibt das Ziel leer und der Ziel-Picker geht auf.
+// Kassenbuchs. Gemessen am echten, per Vite gestarteten Fable-Client gegen gemockte Ledger-Antworten:
+// am Handy steht der Knopf im Editor-Sheet so hoch wie "Zeile hinzufügen", der Tipp setzt den
+// Übertrag aufs Quick-Add-Konto. Belegung, Rest, Speichern und den Fall ohne Quick-Add-Konto prüft
+// `src/Tests/LedgerSplitEditorClientTests.fs` (infrastructure-t5m2b).
 //
 // Ausführen: node --test scripts/ledger-split-cashback.test.mjs
 // (Teil von `npm run test:scripts`.)
@@ -103,87 +102,21 @@ after(async () => {
   await stopServer(frontend, frontendPort);
 });
 
-const panel = (p) => p.locator('[data-testid="ledger-detail-panel"]');
-
-async function openEditorAtPc(page) {
-  await page.locator("table tbody tr", { hasText: "Bauhaus s8t3s" }).first().locator("td").nth(2).click();
-  await panel(page).waitFor();
-  await panel(page).locator('[data-testid="detail-split-action"]').click();
-  await panel(page).locator('[data-testid="split-summary"]').waitFor();
-}
-
-// Der Abruf des Quick-Add-Kontos und der Konten läuft beim Öffnen; der Knopf löst das Ziel erst
-// beim Klick auf, deshalb wird hier auf beide Antworten gewartet (Ziel-Picker zeigt die Liste).
-async function settle(page) {
-  await page.waitForTimeout(400);
-}
-
-test("PC: Barabhebung frisch geöffnet: Kategorie plus Übertrag aufs Quick-Add-Konto, Beträge leer, Ausgleich über Rest", async () => {
-  state.saveCalls.length = 0;
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  const page = await open(context, CASH_ID);
-  await openEditorAtPc(page);
-  await settle(page);
-  const button = panel(page).getByRole("button", { name: "Barabhebung", exact: true });
-  assert.equal(await button.count(), 1, "Knopf Barabhebung da");
-  assert.equal(await button.isDisabled(), false);
-  await button.click();
-  assert.match(await panel(page).locator('[data-testid="split-target-0"]').textContent(), /Lebensmittel/, "bisherige Kategorie");
-  assert.match(await panel(page).locator('[data-testid="split-target-1"]').textContent(), /→ Bargeld s8t3s/, "Übertrag aufs Bar-Konto");
-  assert.equal(await panel(page).locator('[data-testid="split-amount-0"]').inputValue(), "", "Betrag 0 leer");
-  assert.equal(await panel(page).locator('[data-testid="split-amount-1"]').inputValue(), "", "Betrag 1 leer");
-  assert.equal(await panel(page).locator('[data-testid^="split-line-"]').count(), 2, "keine dritte Zeile");
-
-  await panel(page).locator('[data-testid="split-amount-1"]').fill("50");
-  await panel(page).locator('[data-testid="split-line-0"]').getByRole("button", { name: "Rest", exact: true }).click();
-  assert.equal(await panel(page).locator('[data-testid="split-amount-0"]').inputValue(), "31,90");
-  await panel(page).getByRole("button", { name: "Speichern", exact: true }).click();
-  await page.getByText("Aufgeteilt in 2 Zeilen", { exact: true }).waitFor();
-  const lines = state.saveCalls[0].lines;
-  assert.deepEqual(lines.map((l) => l.Amount.Amount), [-31.9, -50]);
-  assert.ok(lines[1].Target.ToTransfer, "zweite Zeile ist ein Übertrag");
-  assert.deepEqual(lines[1].Target.ToTransfer[0], CASH_ID, "aufs Quick-Add-Konto");
-  await context.close();
-});
-
-test("PC: Barabhebung belegt die erste Zeile ohne Ziel, eine weitere Betätigung hängt eine neue Zeile an", async () => {
-  state.saveCalls.length = 0;
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  const page = await open(context, CASH_ID);
-  await openEditorAtPc(page);
-  await settle(page);
-  const button = panel(page).getByRole("button", { name: "Barabhebung", exact: true });
-  await button.click();
-  await button.click();
-  assert.equal(await panel(page).locator('[data-testid^="split-line-"]').count(), 3, "zweiter Klick: neue Zeile");
-  assert.match(await panel(page).locator('[data-testid="split-target-0"]').textContent(), /Lebensmittel/, "Zeile 0 unverändert");
-  assert.match(await panel(page).locator('[data-testid="split-target-1"]').textContent(), /→ Bargeld s8t3s/, "Zeile 1 unverändert");
-  assert.match(await panel(page).locator('[data-testid="split-target-2"]').textContent(), /→ Bargeld s8t3s/, "neue Übertrag-Zeile");
-  await context.close();
-});
-
-test("PC: Ohne Quick-Add-Konto bleibt das Ziel leer und der Ziel-Picker geht auf", async () => {
-  state.saveCalls.length = 0;
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  const page = await open(context, null);
-  await openEditorAtPc(page);
-  await settle(page);
-  await panel(page).getByRole("button", { name: "Barabhebung", exact: true }).click();
-  assert.match(await panel(page).locator('[data-testid="split-target-1"]').textContent(), /wählen/, "Ziel leer");
-  await panel(page).locator('[data-testid="category-picker-accounts"]').waitFor();
-  await context.close();
-});
-
-test("Handy (390x844): Barabhebung im Editor-Sheet, gleich hoch wie Zeile hinzufügen", async () => {
+test("Handy (390x844): Barabhebung im Editor-Sheet, gleich hoch wie Zeile hinzufügen, der Tipp setzt den Übertrag aufs Bar-Konto", async () => {
   state.saveCalls.length = 0;
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   const page = await open(context, CASH_ID);
   await page.getByText("Bauhaus s8t3s").first().tap();
   const sheet = page.locator(".bottom-sheet.active").first();
   await sheet.waitFor();
+  // Das Öffnen des Editors holt Quick-Add-Konto und Konten; der Knopf löst das Ziel erst beim Tipp auf.
+  const loaded = Promise.all([
+    page.waitForResponse("**/api/SettingsApi/getSettings"),
+    page.waitForResponse("**/api/LedgerApi/getBudgetAccounts"),
+  ]);
   await sheet.locator('[data-testid="detail-split-action"]').tap();
   await sheet.locator('[data-testid="split-summary"]').waitFor();
-  await settle(page);
+  await loaded;
   const button = sheet.getByRole("button", { name: "Barabhebung", exact: true });
   await button.scrollIntoViewIfNeeded();
   const box = await button.boundingBox();

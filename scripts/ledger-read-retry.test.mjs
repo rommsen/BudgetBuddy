@@ -87,18 +87,16 @@ after(async () => {
   await stopServer(frontend, frontendPort);
 });
 
-test("Ein abgebrochener erster Abruf der Buchungsliste zeigt die Liste ohne Fehlerseite", async () => {
-  const { page, context, calls } = await openLedger((n) => n === 1);
+test("Abgebrochene Verbindung (Status 0): ein Abbruch wird still wiederholt, nach drei erscheint die Fehlerseite und ihr Knopf lädt", async () => {
+  const once = await openLedger((n) => n === 1);
   try {
-    await visibleText(page, PAYEE).waitFor();
-    assert.equal(await page.getByText(ERROR_TITLE).count(), 0, "keine Fehlerseite");
-    assert.equal(calls.entries, 2, "ein Abbruch, eine Wiederholung");
+    await visibleText(once.page, PAYEE).waitFor();
+    assert.equal(await once.page.getByText(ERROR_TITLE).count(), 0, "keine Fehlerseite");
+    assert.equal(once.calls.entries, 2, "ein Abbruch, eine Wiederholung");
   } finally {
-    await context.close();
+    await once.context.close();
   }
-});
 
-test("Scheitern alle drei Versuche, erscheint die Fehlerseite, und ihr Knopf lädt die Liste", async () => {
   let online = false;
   const { page, context, calls } = await openLedger(() => !online);
   try {
@@ -164,6 +162,15 @@ const framesRendered = (page) =>
     for (let i = 0; i < 3; i += 1) await new Promise((resolve) => requestAnimationFrame(resolve));
   });
 
+/// Wartet auf `promise`, scheitert aber nach `ms` mit einer lesbaren Meldung statt ewig zu hängen.
+const withDeadline = (promise, ms, what) => {
+  let timer;
+  const deadline = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${what} kam nicht innerhalb von ${ms} ms`)), ms);
+  });
+  return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
+};
+
 async function clickSortThenAccount(aborts) {
   const { page, context, late } = await openWithLateAnswer();
   const finished = new Promise((resolve) => { late.finish = resolve; });
@@ -171,7 +178,8 @@ async function clickSortThenAccount(aborts) {
   await page.locator("table thead th").filter({ hasText: /^Betrag$/i }).locator("button").click();
   await page.locator(".ledger-account-strip").getByText("Testkonto 1").filter({ visible: true }).first().click();
   await visibleText(page, "Zeile-konto").waitFor();
-  await finished;
+  // Mit Frist: ohne sie hing ein Gesamtlauf drei Stunden, wenn die dritte Antwort ausblieb (infrastructure-t5m2b).
+  await withDeadline(finished, 10000, "die letzte Antwort der alten Abfrage");
   await framesRendered(page);
   return { page, context };
 }
@@ -180,16 +188,6 @@ test("Eine späte erfolgreiche Wiederholung der alten Abfrage ersetzt die neuere
   const { page, context } = await clickSortThenAccount(2);
   try {
     assert.equal(await page.getByText("Zeile-alle").filter({ visible: true }).count(), 0, "keine Zeile der alten Abfrage");
-    assert.ok(await visibleText(page, "Zeile-konto").isVisible(), "die neuere Liste steht");
-  } finally {
-    await context.close();
-  }
-});
-
-test("Das späte Scheitern der alten Abfrage zeigt über der neueren Liste keine Fehlerseite", async () => {
-  const { page, context } = await clickSortThenAccount(3);
-  try {
-    assert.equal(await page.getByText(ERROR_TITLE).count(), 0, "keine Fehlerseite");
     assert.ok(await visibleText(page, "Zeile-konto").isVisible(), "die neuere Liste steht");
   } finally {
     await context.close();
@@ -221,23 +219,22 @@ async function openPayeePopover(answerSuggestions) {
   return { page, context, calls };
 }
 
-test("Der Payee-Filter zeigt die geladenen Vorschläge", async () => {
-  const { page, context } = await openPayeePopover((route) => json(route, [{ Payee: "Vorschlag Lotte", Count: 3 }]));
-  try {
-    await visibleText(page, "Vorschlag Lotte").waitFor();
-  } finally {
-    await context.close();
-  }
-});
-
-test("Ein Fehler der Vorschläge beendet das Laden ohne neue Abfrage", async () => {
-  const { page, context, calls } = await openPayeePopover((route) =>
-    route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"kaputt"}' })
-  );
+test("Vorschläge: ein Fehler beendet das Laden ohne neue Abfrage, das nächste Öffnen zeigt die Antwort", async () => {
+  let answers = 0;
+  const { page, context, calls } = await openPayeePopover((route) => {
+    answers += 1;
+    return answers === 1
+      ? route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"kaputt"}' })
+      : json(route, [{ Payee: "Vorschlag Lotte", Count: 3 }]);
+  });
   try {
     await page.getByText("Vorschläge werden geladen").waitFor({ state: "hidden" });
     await framesRendered(page);
     assert.equal(calls.suggestions, 1, "genau eine Abfrage");
+
+    await page.keyboard.press("Escape");
+    await openPayeeChip(page);
+    await visibleText(page, "Vorschlag Lotte").waitFor();
   } finally {
     await context.close();
   }

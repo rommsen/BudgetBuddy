@@ -153,57 +153,6 @@ test("Handy: Zeile tippen, Tab Buchungen, Buchung tippen, Kassenbuch-Detail ist 
   }
 });
 
-test("Handy: Schließen im Kassenbuch-Detail führt ebenfalls zurück ins Kategorie-Detail", async () => {
-  const { context, page } = await openPage(390, 844);
-  try {
-    await openDetail(page);
-    await page.locator('[data-testid="detail-entry"]').first().click();
-    const sheet = page.locator(".bottom-sheet.active").filter({ hasText: "Sprung m1bce" });
-    await sheet.waitFor();
-    await sheet.locator(".sheet-close").click();
-    await expectBackInDetail(page);
-  } finally {
-    await context.close();
-  }
-});
-
-test("Buchungen kommen erst im Tab: die Auswahl allein fragt das Kassenbuch nicht", async () => {
-  const { context, page, calls } = await openPage(390, 844);
-  try {
-    await row(page, "Lebensmittel m1bce").click();
-    await page.locator('[data-testid="inspector-money"]').waitFor();
-    assert.equal(calls.lists.length, 0, "noch keine Abfrage");
-    await openTab(page, "Buchungen");
-    await page.locator('[data-testid="detail-entry"]').first().waitFor();
-    assert.equal(calls.lists.length, 1, "genau eine Abfrage");
-  } finally {
-    await context.close();
-  }
-});
-
-test("Kategoriewechsel im Tab Buchungen: am PC per Zeile, im Sheet per Pfeil, je eine neue Abfrage", async () => {
-  const pc = await openPage(1440, 900);
-  try {
-    await openDetail(pc.page);
-    await row(pc.page, "Urlaub m1bce").click();
-    await pc.page.waitForFunction(() => document.querySelector("aside h2")?.textContent.startsWith("Urlaub"));
-    await pc.page.locator('[data-testid="detail-entry"]').first().waitFor();
-    assert.deepEqual(pc.calls.lists.map((l) => l.CategoryId), [CATEGORY, guid(2)]);
-  } finally {
-    await pc.context.close();
-  }
-  const phone = await openPage(390, 844);
-  try {
-    await openDetail(phone.page);
-    await phone.page.locator('[data-testid="inspector-next"]').click();
-    await phone.page.locator(".bottom-sheet.active").getByRole("heading", { name: "Urlaub m1bce" }).waitFor();
-    await phone.page.locator('[data-testid="detail-entry"]').first().waitFor();
-    assert.deepEqual(phone.calls.lists.map((l) => l.CategoryId), [CATEGORY, guid(2)]);
-  } finally {
-    await phone.context.close();
-  }
-});
-
 test("PC: der Inspektor steht als Panel, der Sprung geht zum Panel im Kassenbuch und zurück", async () => {
   const { context, page } = await openPage(1440, 900);
   try {
@@ -264,19 +213,6 @@ const jumpToPanel = async (page) => {
   await page.getByLabel("Detail Sprung m1bce").waitFor();
 };
 
-test("Tab-Leiste nach dem Sprung: das Budget zeigt das Detail nicht wieder", async () => {
-  const { context, page } = await openPage(1440, 900);
-  try {
-    await jumpToPanel(page);
-    await page.locator("nav").getByText("Budget", { exact: true }).filter({ visible: true }).click();
-    await page.waitForURL(/#\/budget$/);
-    await page.locator('[data-testid="budget-to-be-budgeted"]').waitFor();
-    assert.equal(await page.locator('[data-testid="category-detail"]').count(), 0);
-  } finally {
-    await context.close();
-  }
-});
-
 test("Kontowechsel auf der Route: die Liste lädt nicht neu, Browser-Zurück öffnet die Buchung nicht erneut", async () => {
   const { context, page, calls } = await openPage(1440, 900);
   try {
@@ -292,54 +228,3 @@ test("Kontowechsel auf der Route: die Liste lädt nicht neu, Browser-Zurück öf
   }
 });
 
-test("PC: wechselt das Panel die Buchung, zieht die URL nach, ohne die Seite neu zu laden", async () => {
-  const { context, page, calls } = await openPage(1440, 900);
-  try {
-    await jumpToPanel(page);
-    const accountLoads = calls.accounts;
-    const shown = buildEntryFixture(accounts.DefaultAccountId, 1, { LinkedToYnab: true });
-    await page.locator("table tbody tr", { hasText: shown.Payee }).first().click();
-    await page.getByLabel(`Detail ${shown.Payee}`).waitFor();
-    await page.waitForURL(new RegExp(`#/ledger/entry/${shown.Id}$`));
-    assert.equal(calls.accounts, accountLoads, "keine Schleife, kein Neuladen");
-    await page.getByLabel(`Detail ${shown.Payee}`).waitFor();
-  } finally {
-    await context.close();
-  }
-});
-
-test("Unbekannte Buchung nach dem Sprung: zurück im Kategorie-Detail", async () => {
-  const { context, page } = await openPage(390, 844, { entry: () => null });
-  try {
-    await openDetail(page);
-    await page.locator('[data-testid="detail-entry"]').first().click();
-    await expectBackInDetail(page);
-  } finally {
-    await context.close();
-  }
-});
-
-test("Unbekannte Buchung per Direktaufruf: die Route führt in die Liste", async () => {
-  const { context, page } = await openPage(390, 844, { entry: () => null });
-  try {
-    await page.goto(`http://127.0.0.1:${frontendPort}/#/ledger/entry/${jumpedEntry.Id}`);
-    await page.reload();
-    await page.waitForURL(/#\/ledger$/);
-  } finally {
-    await context.close();
-  }
-});
-
-test("Direktaufruf der Route öffnet die Buchung, Schließen bleibt im Kassenbuch", async () => {
-  const { context, page } = await openPage(390, 844);
-  try {
-    await page.goto(`http://127.0.0.1:${frontendPort}/#/ledger/entry/${jumpedEntry.Id}`);
-    await page.reload();
-    const sheet = page.locator(".bottom-sheet.active").filter({ hasText: "Sprung m1bce" });
-    await sheet.waitFor();
-    await sheet.locator(".sheet-close").click();
-    await page.waitForURL(/#\/ledger$/);
-  } finally {
-    await context.close();
-  }
-});

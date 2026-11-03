@@ -1,10 +1,8 @@
 // scripts/move-money.test.mjs
 //
-// Wächter für `budgeting-afd8h` und `budgeting-c5w2n`: Holen und Abgeben im Tab Geld. Gemessen am
-// echten, per Vite gestarteten Fable-Client gegen eine gemockte BudgetApi: Handy-Fluss von der Zeile
-// bis zu den neuen Beträgen, Picker am Handy und im Panel, Lesefehler lässt die Eingaben stehen,
-// "Erneut senden" am Toast. Dazu `budgeting-nfrds`: Reload nach "Erneut senden", abgebrochener
-// Aufruf, "Erneut senden" ohne Toast, Popover schließt per Auslöser.
+// Wächter für `budgeting-afd8h`, `budgeting-c5w2n` und `budgeting-nfrds`: Holen und Abgeben im Tab
+// Geld. Der Handy-Fluss von der Zeile bis zu den neuen Beträgen, "Erneut senden" am Toast und das
+// Popover im Panel. Die Regeln liegen in `src/Tests/MoveMoneyClientTests.fs`.
 //
 // Ausführen: node --test scripts/move-money.test.mjs
 // (Teil von `npm run test:scripts`.)
@@ -175,30 +173,6 @@ test("Handy: Zeile wählen, Abgeben, Gegenseite suchen, Betrag tippen, abgeben; 
   }
 });
 
-test("Im Vormonat geht der Auftrag mit dem gezeigten Monat hinaus", async () => {
-  const handlers = { move: () => ({ Ok: report("Written") }), retry: () => ({ Error: "nicht erwartet" }) };
-  const { context, page, calls } = await openPage(390, 844, handlers);
-  try {
-    await page.locator('[data-testid="budget-month-previous"]').click();
-    await page.locator('[data-testid="budget-month-name"]').getByText("Oktober 2026").waitFor();
-    await openMoveFor(page, "Lebensmittel afd8h");
-    await amountOf20(page);
-    await page.locator('[data-testid="transfer-to"]').click();
-    await page.locator('.bottom-sheet.layer-2 [role="option"]').filter({ hasText: "Urlaub afd8h" }).click();
-    await afterPicker(page);
-    const reload = page.waitForResponse("**/api/BudgetApi/getBudgetMonth");
-    await page.locator('[data-testid="transfer-submit"] button').click();
-    await formReset(page);
-    assert.equal(calls.move.length, 1);
-    assert.ok(calls.move[0].includes("2026-10-01"), "der Vormonat steht im Auftrag");
-    assert.ok(!calls.move[0].includes("2026-11-01"), "nicht der laufende Monat");
-    await reload;
-    assert.deepEqual(calls.monthKeys, ["2026-11-01", "2026-10-01", "2026-10-01"], "Neu-Lesen bleibt im gezeigten Monat");
-  } finally {
-    await context.close();
-  }
-});
-
 test("Fehlgeschlagener PATCH: der Toast bietet Erneut senden an, der Klick sendet dieselbe Anwendung", async () => {
   const { context, page, calls } = await openPage(390, 844, {
     move: () => ({ Ok: report({ Failed: "Rate-Limit" }) }),
@@ -216,167 +190,6 @@ test("Fehlgeschlagener PATCH: der Toast bietet Erneut senden an, der Klick sende
     await page.locator('[data-testid="move-retry"]').waitFor({ state: "detached" });
     await page.getByText("20,00 € von Lebensmittel afd8h nach Urlaub afd8h").first().waitFor();
     assert.deepEqual(calls.retry, [["11111111-1111-1111-1111-111111111111"]]);
-  } finally {
-    await context.close();
-  }
-});
-
-const failMove = async (page) => {
-  await openMoveFor(page, "Lebensmittel afd8h");
-  await amountOf20(page);
-  await page.locator('[data-testid="transfer-to"]').click();
-  await page.locator('.bottom-sheet.layer-2 [role="option"]').filter({ hasText: "Urlaub afd8h" }).click();
-  await afterPicker(page);
-  await page.locator('[data-testid="transfer-submit"] button').click();
-  await page.locator('[data-testid="move-retry"]').waitFor();
-  assert.match(await text(page.locator('[data-testid="move-retry"]')), /Nicht vollständig verschoben \(November 2026\)/, "der Hinweis nennt seinen Monat");
-};
-
-// Bug 1 aus budgeting-p4n6r: Überholte die Antwort auf "Erneut senden" den Monatswechsel, kam der Monat
-// über `Reloaded`, die Buchungen wurden nicht geholt und das Skeleton blieb stehen.
-test("Überholt das Neu-Lesen nach Erneut senden einen Monatswechsel, kommen die Buchungen des neuen Monats", async () => {
-  const { context, page } = await openPage(390, 844, {
-    move: () => ({ Ok: report({ Failed: "Rate-Limit" }) }),
-    retry: () => ({ Error: "weg" }),
-  });
-  try {
-    await failMove(page);
-    const lists = [];
-    await page.route("**/api/LedgerApi/getCategoryMonthEntries", (route) => {
-      lists.push(route.request().postDataJSON()[0].Month);
-      return route.fulfill({ contentType: "application/json", body: JSON.stringify({ Ok: [] }) });
-    });
-    await page.locator('.bottom-sheet.active [data-testid="inspector-tabs"]').getByRole("tab", { name: "Buchungen" }).click();
-    await page.locator('[data-testid="detail-empty"]').waitFor();
-
-    let releaseRetry;
-    const retryGate = new Promise((resolve) => {
-      releaseRetry = resolve;
-    });
-    await page.route("**/api/BudgetApi/retryFailedTargets", async (route) => {
-      await retryGate;
-      await route.fulfill({ contentType: "application/json", body: JSON.stringify({ Error: "weg" }) });
-    });
-    // Die Antwort auf den Wechsel bleibt aus, nur das Neu-Lesen nach "Erneut senden" kommt durch.
-    const heldMonths = [];
-    await page.route("**/api/BudgetApi/getBudgetMonth", (route) => {
-      const [key] = JSON.parse(route.request().postData() ?? "[]");
-      if (key === "2026-10-01" && heldMonths.length === 0) {
-        heldMonths.push(route);
-        return undefined;
-      }
-      return route.fallback();
-    });
-    // Erst der Wechsel: Solange "Erneut senden" läuft, bleibt der Monat stehen (ADR 0078 Punkt 5).
-    // Per Skript geklickt: das Sheet liegt über der Leiste.
-    await page.locator('[data-testid="budget-month-previous"]').evaluate((el) => el.click());
-    await page.waitForFunction(() => document.querySelector('[data-testid="budget-month-name"]').textContent === "Oktober 2026");
-    await page.locator('.bottom-sheet.active [data-testid="move-retry"] button').click();
-    releaseRetry();
-    await page.locator(".bottom-sheet.active").getByText("Oktober 2026").waitFor();
-    await page.waitForFunction(() => document.querySelector('.bottom-sheet.active [data-testid="detail-empty"]'));
-    assert.ok(lists.includes("2026-10-01"), `die Buchungen des neuen Monats sind geholt (${lists})`);
-    assert.equal(heldMonths.length, 1, "die Antwort auf den Wechsel blieb aus");
-  } finally {
-    await context.close();
-  }
-});
-
-// Punkt 21: ADR 0076 Punkt 6 im Browser. Der Bericht öffnet einen neuen Monat, der Pfeil erscheint.
-test("Fenster wächst: nach der Verschiebung im letzten Monat liest die Seite den Rahmen nach, der Pfeil erscheint", async () => {
-  const { context, page } = await openPage(390, 844, {
-    move: () => ({ Ok: report("Written") }),
-    retry: () => ({ Error: "ungenutzt" }),
-  });
-  try {
-    const next = page.locator('[data-testid="budget-month-next"]');
-    assert.equal(await next.count(), 0, "November ist der letzte Monat");
-    await page.route("**/api/BudgetApi/getBudgetFrame", (route) =>
-      route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({ Ok: { CurrentMonth: "2026-11-01", Months: ["2026-10-01", "2026-11-01", "2026-12-01"], CategoryOrder: [guid(1), guid(2), guid(3)] } }),
-      })
-    );
-    await openMoveFor(page, "Lebensmittel afd8h");
-    await amountOf20(page);
-    await page.locator('[data-testid="transfer-to"]').click();
-    await page.locator('.bottom-sheet.layer-2 [role="option"]').filter({ hasText: "Urlaub afd8h" }).click();
-    await afterPicker(page);
-    await page.locator('[data-testid="transfer-submit"] button').click();
-    await next.waitFor({ state: "attached" });
-  } finally {
-    await context.close();
-  }
-});
-
-test("Handy: Erneut senden bleibt im offenen Inspektor bedienbar, in jedem Tab, nachdem der Toast weg ist", async () => {
-  const { context, page, calls } = await openPage(390, 844, {
-    move: () => ({ Ok: report({ Failed: "Rate-Limit" }) }),
-    retry: () => ({ Ok: report("Written") }),
-  });
-  try {
-    await failMove(page);
-    const toast = page.getByRole("button", { name: "Erneut senden" });
-    await page.waitForFunction(
-      () => ![...document.querySelectorAll("button")].filter((b) => b.textContent.includes("Erneut senden")).some((b) => !b.closest('[data-testid="move-retry"]')),
-      undefined,
-      { timeout: 15000 }
-    );
-    assert.equal(await toast.count(), 1, "nur noch der Knopf im Sheet");
-    const sheet = page.locator(".bottom-sheet.fixed-height.active");
-    await sheet.getByRole("heading", { name: "Lebensmittel afd8h" }).waitFor();
-    for (const tab of await sheet.getByRole("tab").all()) {
-      await tab.click();
-      assert.ok(await sheet.locator('[data-testid="move-retry"]').isVisible(), "der Hinweis steht in jedem Tab");
-    }
-    await toast.click();
-    await page.locator('[data-testid="move-retry"]').waitFor({ state: "detached" });
-    assert.deepEqual(calls.retry, [["11111111-1111-1111-1111-111111111111"]]);
-    await sheet.getByRole("heading", { name: "Lebensmittel afd8h" }).waitFor();
-  } finally {
-    await context.close();
-  }
-});
-
-test("PC: der Hinweis Erneut senden steht auf der Seite, das Panel bleibt daneben", async () => {
-  const { context, page } = await openPage(1440, 900, {
-    move: () => ({ Ok: report({ Failed: "Rate-Limit" }) }),
-    retry: () => ({ Ok: report("Written") }),
-  });
-  try {
-    await openMoveFor(page, "Lebensmittel afd8h");
-    await amountOf20(page);
-    await page.locator('[data-testid="transfer-to"]').click();
-    await page.locator('[role="option"]').filter({ hasText: "Urlaub afd8h" }).click();
-    await page.locator('[data-testid="transfer-submit"] button').click();
-    const hint = page.locator('[data-testid="move-retry"]');
-    await hint.waitFor();
-    assert.equal(await page.locator('[data-testid="budget-page"] [data-testid="move-retry"]').count(), 1, "auf der Seite");
-    assert.ok(await page.locator('aside[data-testid="budget-inspector"]').getByRole("heading", { name: "Lebensmittel afd8h" }).isVisible());
-  } finally {
-    await context.close();
-  }
-});
-
-test("Bricht der Aufruf ab, wird die Form zurückgesetzt, ein Toast nennt die Unklarheit und der Monat wird neu gelesen", async () => {
-  const { context, page, calls } = await openPage(390, 844, {
-    move: () => "abort",
-    retry: () => ({ Error: "nicht erwartet" }),
-  });
-  try {
-    await openMoveFor(page, "Lebensmittel afd8h");
-    await amountOf20(page);
-    await page.locator('[data-testid="transfer-to"]').click();
-    await page.locator('.bottom-sheet.layer-2 [role="option"]').filter({ hasText: "Urlaub afd8h" }).click();
-    await afterPicker(page);
-    const before = calls.month;
-    await page.locator('[data-testid="transfer-submit"] button').click();
-    await page.getByText(/Ob verschoben wurde, ist unklar/).first().waitFor();
-    await formReset(page);
-    await page.locator('[data-testid="budget-category-row"]:visible').first().waitFor();
-    for (let i = 0; i < 100 && calls.month <= before; i++) await page.evaluate(() => new Promise(requestAnimationFrame));
-    assert.ok(calls.month > before, "Monat neu gelesen");
-    assert.equal(calls.move.length, 1, "kein zweiter Versuch");
   } finally {
     await context.close();
   }
@@ -418,21 +231,3 @@ test("Panel 1280 × 800: der Auslöser schließt das offene Popover, es ist ganz
   }
 });
 
-test("PC: die Wahl im Popover setzt die Gegenseite und schließt es", async () => {
-  const { context, page } = await openPage(1440, 900, {
-    move: () => ({ Error: "nicht erwartet" }),
-    retry: () => ({ Error: "nicht erwartet" }),
-  });
-  try {
-    await openMoveFor(page, "Lebensmittel afd8h");
-    await page.locator('[data-testid="transfer-to"]').click();
-    await page.locator('[data-testid="category-picker-to-be-budgeted"]').waitFor();
-    const options = page.locator('[role="option"]');
-    assert.equal(await options.count(), 3, "Zu verteilen und zwei Kategorien, X fehlt");
-    await options.last().click();
-    assert.match(await text(page.locator('[data-testid="transfer-to"]')), /nach Kleidung afd8h/);
-    assert.equal(await page.locator('[role="option"]').count(), 0, "Popover ist zu");
-  } finally {
-    await context.close();
-  }
-});

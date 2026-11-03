@@ -4,7 +4,8 @@
 // (Amazon-Bestellung, PayPal-Aktivitäten) als eigene Feldzeile unter dem Memo, im Seitenpanel am
 // PC wie im Sheet am Handy. Die Kassenbuch-Liste zeigt keinen Link. Gemessen wird am echten, per
 // Vite gestarteten Fable-Client gegen gemockte Ledger-Antworten (Muster wie
-// `ledger-detail.test.mjs`).
+// `ledger-detail.test.mjs`). Dass eine Buchung ohne Links keine Zeile bekommt, prüft
+// `LedgerDetailTests` (infrastructure-t5m2b).
 //
 // Ausführen: node --test scripts/ledger-external-links.test.mjs
 // (Teil von `npm run test:scripts`.)
@@ -96,12 +97,6 @@ test("PC: das Seitenpanel zeigt den Bestell-Link unter dem Memo, öffnet in neue
     return { memo: y("detail-memo"), links: y("detail-external-links") };
   });
   assert.ok(order.links > order.memo, "die Link-Zeile steht unter dem Memo");
-});
-
-test("PC: eine Buchung ohne Treffer zeigt keine Link-Zeile", async () => {
-  await row(page, "REWE Mitte").locator("td").nth(2).click();
-  await page.locator('[data-testid="detail-title"]', { hasText: "REWE Mitte" }).waitFor();
-  assert.equal(await page.locator('[data-testid="detail-external-links"]').count(), 0);
 });
 
 test("Handy (390): das Sheet zeigt den PayPal-Link mit mindestens 44 px Trefferfläche", async () => {

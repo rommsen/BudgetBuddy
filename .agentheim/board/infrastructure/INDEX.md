@@ -10,10 +10,10 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 10
+- **Backlog:** 12
 - **Todo:** 1
-- **Doing:** 1
-- **Done:** 38
+- **Doing:** 0
+- **Done:** 39
 <!-- task-counts:end -->
 
 ### Todo
@@ -23,17 +23,19 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **infrastructure-t5m2b** — "Browser-Tests auf das reduzieren, was nur der Browser prüfen kann, Logik wandert in MVU-Tests" (chore) — `doing/infrastructure-t5m2b-browser-waechter-durchsicht.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **infrastructure-t5m2b** — "Browser-Tests auf das reduzieren, was nur der Browser prüfen kann, Logik wandert in MVU-Tests" (chore) — `done/infrastructure-t5m2b-browser-waechter-durchsicht.md`
 - **infrastructure-h4q8v** — "Wächter ledger-read-retry: mögliches Lastrennen bei abortWindowMs 200" (bug) — `done/infrastructure-h4q8v-w-chter-ledger-read-retry-m-gliches-lastrennen-bei-abortwind.md`
 - **infrastructure-p747v** — "Serverzeit: Quick Add, Import und YNAB-Abfragen rechnen mit dem Berliner Kalendertag statt mit DateTime.Today" (bug) — `done/infrastructure-p747v-kalendertag-berlin-statt-serverzeit.md`
 <!-- done-list:end -->
 
 ### Backlog
 <!-- backlog-list:start -->
+- **infrastructure-r6c3v** — "Testbau sieht neue öffentliche Client-Werte nicht: veraltete Referenz-Assembly" (bug) — `backlog/infrastructure-r6c3v-testbau-sieht-neue-ffentliche-client-werte-nicht-veraltete-r.md`
+- **infrastructure-q7r4m** — "Strukturtests auf View-Verdrahtung in CategoryPickerTests und RulesListTests nach Doktrin Punkt 7 ablösen" (chore) — `backlog/infrastructure-q7r4m-strukturtests-auf-view-verdrahtung-in-categorypickertests-un.md`
 - **infrastructure-v3tqk** — "Wächter ledger-read-retry flackert bei getLedgerPayeeSuggestions unter Last" (bug) — `backlog/infrastructure-v3tqk-ledger-read-retry-flackert.md`
 - **infrastructure-w7d2c** — "YnabClient.createTransactions hat keinen Aufrufer mehr und fliegt raus" (chore) — `backlog/infrastructure-w7d2c-ynabclient-createtransactions-hat-keinen-aufrufer-mehr-und-f.md`
 - **infrastructure-p9kd4** — "Kassenbuch: Nachladen mit eingefrorener Query kann eine Zeile überspringen, wenn währenddessen eine Zeile aus der Liste fällt" (bug) — `backlog/infrastructure-p9kd4-kassenbuch-nachladen-mit-eingefrorener-query-kann-eine-zeile.md`

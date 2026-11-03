@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { runWithDist, resolveTestFiles } from "./run-guards.mjs";
+import { runWithDist, resolveTestFiles, nodeTestArgs, TEST_TIMEOUT_MS } from "./run-guards.mjs";
 
 const makeDir = () => fs.mkdtempSync(path.join(os.tmpdir(), "bb-run-guards-test-"));
 
@@ -48,4 +48,11 @@ test("reicht Dateiargumente durch, sonst alle *.test.mjs unter scripts/", () => 
   const all = resolveTestFiles([]);
   assert.ok(all.includes(path.join("scripts", "run-guards.test.mjs")));
   assert.ok(all.every((f) => f.endsWith(".test.mjs")));
+});
+
+test("jeder Test hat eine Zeitgrenze, ein hängender Test hält das Gate nicht an", () => {
+  const args = nodeTestArgs(["scripts/x.test.mjs"]);
+  assert.ok(args.includes(`--test-timeout=${TEST_TIMEOUT_MS}`));
+  assert.ok(TEST_TIMEOUT_MS > 0 && TEST_TIMEOUT_MS <= 300000);
+  assert.equal(args.at(-1), "scripts/x.test.mjs");
 });

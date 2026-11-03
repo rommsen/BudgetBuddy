@@ -267,6 +267,12 @@ let changeTests =
                 Expect.isTrue (card.Lines |> List.forall (fun l -> l.OldText.IsNone && l.NewText.IsNone)) "nur die Namen"
             | None -> failtest "die Karte zeigt die Namen"
 
+        // infrastructure-t5m2b, Iteration 2: der Zeitgeber selbst lief bisher in keinem Test ab.
+        testCase "Der Zeitgeber der Karte meldet nach ihrer Dauer den Ablauf mit ihrer Version" <| fun () ->
+            let model, cmd, _ =
+                Components.Ledger.State.update (EntryCategorySet (idOf 1, Some (catId 3), Ok (changed (Some lebensmittel) CategorySent))) (defaultModel ())
+            Tests.CmdTiming.expectAfter categoryCardDurationMs (CategoryCardExpired model.CategoryCard.Value.Version) cmd
+
         testCase "Die Karte läuft ab, aber nur die mit ihrer Version" <| fun () ->
             let model, _, _ =
                 update (EntryCategorySet (idOf 1, Some (catId 3), Ok (changed (Some lebensmittel) CategorySent))) (defaultModel ())

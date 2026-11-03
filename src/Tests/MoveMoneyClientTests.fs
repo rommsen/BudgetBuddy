@@ -13,6 +13,7 @@ open Components.Budget.Month
 open Components.Budget.Targets
 open Components.Budget.Moves
 open Components.Budget.Inspector
+open Components.Budget.InspectorView
 
 let private eur (amount: decimal) : Money = { Amount = amount; Currency = "EUR" }
 
@@ -1282,6 +1283,13 @@ let private retryTests =
             Expect.equal
                 (model.OpenRetries |> List.map (fun r -> r.ApplicationId, r.Reason, r.State))
                 [ "app-1", "Rate-Limit", RetryReady ] "offen"
+        }
+        // infrastructure-t5m2b: aus dem Browser gezogen, genau eine Stelle trägt den Hinweis.
+        test "Der Hinweis steht am PC auf der Seite, am Handy bei offenem Sheet nur dort, ohne Auswahl auf der Seite" {
+            let open' = { afterFailure with Selected = onFood.Selected; TabMoney = onFood.TabMoney }
+            Expect.equal (pageRetries true open' |> List.length) 1 "PC, Panel daneben"
+            Expect.isEmpty (pageRetries false open') "offenes Sheet"
+            Expect.equal (pageRetries false afterFailure |> List.length) 1 "Sheet zu"
         }
         test "Der offene Hinweis nennt den Monat der Verschiebung" {
             let model = noteMoveReport "2026-10-01" failing loaded

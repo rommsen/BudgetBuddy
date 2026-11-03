@@ -93,17 +93,18 @@ let monthStepper (frame: BudgetFrame) (month: string) (dispatch: Msg -> unit) =
         match target with
         | Some m -> Button.stepArrow testId label arrowText (fun () -> dispatch (SelectMonth m))
         | None -> Button.stepArrowGap ()
+    let stepper = monthStepperFor frame month
     Html.div [
         prop.className "flex items-center"
         prop.children [
-            arrow "budget-month-previous" "Vorheriger Monat" "‹" (previousMonth frame.Months month)
+            arrow "budget-month-previous" "Vorheriger Monat" "‹" stepper.Previous
             Button.homeLabel
                 "budget-month-name"
                 $"{monthLabel month}, zum laufenden Monat"
-                (month <> frame.CurrentMonth)
+                stepper.Elsewhere
                 (monthLabel month)
                 (fun () -> dispatch (SelectMonth frame.CurrentMonth))
-            arrow "budget-month-next" "Nächster Monat" "›" (nextMonth frame.Months month)
+            arrow "budget-month-next" "Nächster Monat" "›" stepper.Next
         ]
     ]
 
@@ -122,7 +123,7 @@ let assignFigure (model: Model) =
 let targetsButton (model: Model) (dispatch: Msg -> unit) =
     match model.Month with
     | Success _ ->
-        let allowed = displayedMonthKind model |> Option.exists targetsAllowed
+        let allowed = targetsButtonVisible model
         Html.div [
             prop.className (if allowed then "shrink-0" else "shrink-0 invisible")
             prop.children [ Button.secondary "Targets anwenden" (fun () -> dispatch OpenTargets) ]
@@ -217,7 +218,7 @@ let private mobileGroup (selectedId: System.Guid option) (dispatch: Msg -> unit)
                           prop.children [
                               Html.span [
                                   prop.className $"{ListRoles.muted} truncate tabular-nums"
-                                  prop.text $"Zugewiesen {moneyText c.Assigned} · Aktivität {moneyText c.Activity}"
+                                  prop.text (mobileFiguresText c)
                               ]
                           ]
                       ]
@@ -278,14 +279,16 @@ let private desktopRow (selectedId: System.Guid option) (dispatch: Msg -> unit) 
                 ]
             ]
             Table.cell { Table.defaultCellProps with Align = Some "right" } [ targetCell c ]
-            Table.cell { Table.defaultCellProps with Align = Some "right" } [ plainAmount c.Assigned ]
-            Table.cell { Table.defaultCellProps with Align = Some "right" } [ plainAmount c.Activity ]
-            Table.cell { Table.defaultCellProps with Align = Some "right" } [
-                Html.span [
-                    prop.custom ("data-testid", "budget-available")
-                    prop.children [ availableAmount c.Available ]
+            for column in amountColumns do
+                Table.cell { Table.defaultCellProps with Align = Some "right" } [
+                    if column.IsAvailable then
+                        Html.span [
+                            prop.custom ("data-testid", "budget-available")
+                            prop.children [ availableAmount (column.Value c) ]
+                        ]
+                    else
+                        plainAmount (column.Value c)
                 ]
-            ]
         ]
     ]
 
@@ -294,9 +297,8 @@ let private desktopTable (selectedId: System.Guid option) (dispatch: Msg -> unit
         Table.thead [
             Table.calmHeaderCell "Kategorie" None
             Table.calmHeaderCell "Target" (Some "right")
-            Table.calmHeaderCell "Zugewiesen" (Some "right")
-            Table.calmHeaderCell "Aktivität" (Some "right")
-            Table.calmHeaderCell "Verfügbar" (Some "right")
+            for column in amountColumns do
+                Table.calmHeaderCell column.Header (Some "right")
         ]
         Table.tbody [
             for group in groups do
@@ -304,7 +306,7 @@ let private desktopTable (selectedId: System.Guid option) (dispatch: Msg -> unit
                     prop.key $"group-{group.Name}"
                     prop.children [
                         Html.td [
-                            prop.colSpan 5
+                            prop.colSpan (2 + List.length amountColumns)
                             prop.className $"{ListRoles.cellPaddingX} pt-2 pb-1 {ListRoles.groupHeader}"
                             prop.text group.Name
                         ]
@@ -343,9 +345,9 @@ let categorySearchField (search: string) (dispatch: Msg -> unit) =
 
 /// Alle, Fehlt, Überzogen neben der Suche. Die Zahlen zählen den ganzen Monat, unabhängig von der Suche.
 let filterChips (model: Model) (month: BudgetMonth) (dispatch: Msg -> unit) =
-    let chip label filter =
+    let chip filter =
         ChipBar.chip
-            { Label = label
+            { Label = filterChipLabel filter month.Groups
               IsActive = (model.Filter = filter)
               OnClick = fun () -> dispatch (SelectFilter filter)
               OnRemove = None }
@@ -353,9 +355,9 @@ let filterChips (model: Model) (month: BudgetMonth) (dispatch: Msg -> unit) =
         prop.custom ("data-testid", "budget-filter")
         prop.className "budget-filter-chips flex shrink-0 items-center gap-2"
         prop.children [
-            chip "Alle" AllCategories
-            chip $"Fehlt ({filterCount MissingOnly month.Groups})" MissingOnly
-            chip $"Überzogen ({filterCount OverdrawnOnly month.Groups})" OverdrawnOnly
+            chip AllCategories
+            chip MissingOnly
+            chip OverdrawnOnly
         ]
     ]
 
@@ -389,14 +391,10 @@ let categories (model: Model) (month: BudgetMonth) (shown: BudgetGroup list) (di
     if categoryCount month = 0 then
         Card.emptyState (Icons.banknotes Icons.XL Icons.Default) "Keine Kategorien" "YNAB liefert für diesen Monat keine sichtbaren Kategorien." None
     elif List.isEmpty shown then
-        let search = model.CategorySearch.Trim()
         Html.p [
             prop.custom ("data-testid", "budget-search-empty")
             prop.className $"{ListRoles.muted} px-4 py-8 text-center"
-            prop.text (
-                if search = "" then "Keine Kategorie in dieser Ansicht."
-                else $"Keine Kategorie passt zu „{search}“"
-            )
+            prop.text (emptyListHint model.CategorySearch)
         ]
     else
         React.fragment [

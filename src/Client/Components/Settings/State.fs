@@ -16,6 +16,9 @@ let private settingsErrorToString (error: SettingsError) : string =
     | SettingsError.EncryptionFailed msg -> $"Encryption failed: {msg}"
     | SettingsError.DatabaseError (op, msg) -> $"Database error during {op}: {msg}"
 
+/// Nach so vielen Millisekunden fällt die Rückfrage "Bank trennen" von selbst zurück.
+let bankDisconnectConfirmMs = 3000
+
 let init () : Model * Cmd<Msg> =
     let model = {
         Settings = NotAsked
@@ -38,6 +41,15 @@ let init () : Model * Cmd<Msg> =
         EditingSection = None
     }
     model, Cmd.batch [ Cmd.ofMsg LoadSettings; Cmd.ofMsg LoadLenaFlagSettings ]
+
+/// "Bank trennen" schreibt und wird nie wiederholt. `call` ist der Remoting-Aufruf, unter .NET ein
+/// Ersatz. Geht die Antwort verloren, steht ein fester Hinweis statt des technischen Fehlers.
+let disconnectBankCmd (call: unit -> Async<Result<unit, SyncError>>) : Cmd<Msg> =
+    Cmd.OfAsync.either
+        call
+        ()
+        BankDisconnectFinished
+        (fun _ -> Error (SyncError.DatabaseError ("disconnect_bank", "Antwort auf das Trennen fehlt. Stand prüfen oder wiederholen.")) |> BankDisconnectFinished)
 
 let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
@@ -362,7 +374,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
 
     // Die Rückfrage fällt nach drei Sekunden zurück, wie das Löschen einer Regel.
     | RequestBankDisconnect ->
-        { model with ConfirmingBankDisconnect = true }, Debounce.delayed 3000 AbortBankDisconnect, NoOp
+        { model with ConfirmingBankDisconnect = true }, Debounce.delayed bankDisconnectConfirmMs AbortBankDisconnect, NoOp
 
     | AbortBankDisconnect ->
         { model with ConfirmingBankDisconnect = false }, Cmd.none, NoOp
@@ -371,13 +383,9 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         model, Cmd.none, NoOp
 
     | ConfirmBankDisconnect ->
-        let cmd =
-            Cmd.OfAsync.either
-                Api.sync.disconnectBank
-                ()
-                BankDisconnectFinished
-                (fun _ -> Error (SyncError.DatabaseError ("disconnect_bank", "Antwort auf das Trennen fehlt. Stand prüfen oder wiederholen.")) |> BankDisconnectFinished)
-        { model with ConfirmingBankDisconnect = false; BankDisconnect = Loading }, cmd, NoOp
+        { model with ConfirmingBankDisconnect = false; BankDisconnect = Loading },
+        disconnectBankCmd (fun () -> Api.sync.disconnectBank ()),
+        NoOp
 
     | BankDisconnectFinished (Ok ()) ->
         { model with

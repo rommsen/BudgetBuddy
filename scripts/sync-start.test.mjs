@@ -7,6 +7,12 @@
 // "Ich habe bestätigt" führt in die Prüfung. `initiateComdirectAuth` gibt es nicht mehr: der
 // Catch-all antwortet darauf mit 500, und der Test merkt sich jeden solchen Aufruf.
 //
+// infrastructure-t5m2b: hier bleiben die Höhe der Statuszeile (Layout), der TAN-Fluss als Happy Path
+// und eine verlorene Antwort mit abgebrochenem Neulesen (Status 0 gibt es nur im Fable-Kompilat).
+// Die Texte zum Stand prüft `ClientCommandTests.fs` ("Hinweis zur Bankverbindung"), die übrigen
+// Ausgänge nach verlorener Antwort und ReviewReady ohne TAN `SyncFlowStateTests.fs`, dass die
+// TAN-Bestätigung nie wiederholt wird, das Inventar in `RetryTests.fs`.
+//
 // Ausführen: node --test scripts/sync-start.test.mjs
 // (Teil von `npm run test:scripts`.)
 
@@ -41,7 +47,7 @@ after(async () => {
   await stopServer(frontend, port);
 });
 
-async function open(startAnswer, lost, { confirmAborts = false } = {}) {
+async function open(startAnswer, lost) {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
   const page = await ctx.newPage();
   page.setDefaultTimeout(15000);
@@ -75,7 +81,6 @@ async function open(startAnswer, lost, { confirmAborts = false } = {}) {
   });
   await page.route("**/api/SyncApi/confirmTan", (r) => {
     calls.confirm += 1;
-    if (confirmAborts) return r.abort("connectionreset");
     current = session("ReviewingTransactions");
     return r.fulfill(json({ Ok: [] }));
   });
@@ -83,19 +88,6 @@ async function open(startAnswer, lost, { confirmAborts = false } = {}) {
   await page.getByRole("button", { name: "Sync starten" }).click();
   return { ctx, page, calls };
 }
-
-test("die Startansicht nennt den Stand der Bankverbindung", async () => {
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
-  const page = await ctx.newPage();
-  page.setDefaultTimeout(15000);
-  await page.route("**/api/**", (r) => r.fulfill({ status: 500, body: "x" }));
-  await page.route("**/api/SyncApi/getCurrentSession", (r) => r.fulfill(json(null)));
-  await page.route("**/api/SyncApi/getBankConnectionStatus", (r) => r.fulfill(json("BankDisconnected")));
-  await page.goto(`http://localhost:${port}/#/`);
-  await page.getByText("Nächster Sync braucht eine TAN").waitFor();
-  await page.getByText("Nicht verbunden", { exact: true }).waitFor();
-  await ctx.close();
-});
 
 test("die Zeile zum Stand der Bank nimmt beim Laden schon ihre Höhe ein", async () => {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
@@ -120,28 +112,6 @@ test("die Zeile zum Stand der Bank nimmt beim Laden schon ihre Höhe ein", async
   await ctx.close();
 });
 
-test("Stand nicht lesbar: die Startansicht sagt das, der Sync bleibt möglich", async () => {
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
-  const page = await ctx.newPage();
-  page.setDefaultTimeout(15000);
-  await page.route("**/api/**", (r) => r.fulfill({ status: 500, body: "x" }));
-  await page.route("**/api/SyncApi/getCurrentSession", (r) => r.fulfill(json(null)));
-  await page.goto(`http://localhost:${port}/#/`);
-  await page.getByText("Stand der Bankverbindung nicht lesbar").waitFor();
-  await page.getByRole("button", { name: "Sync starten" }).waitFor();
-  await ctx.close();
-});
-
-test("aktive Bankverbindung: die Prüfung erscheint ohne TAN-Schritt", async () => {
-  const { ctx, page, calls } = await open(["ReviewReady", "ReviewingTransactions"]);
-  await page.locator(".tx-row", { hasText: "Erfundener Markt" }).waitFor();
-  assert.equal(await page.getByRole("button", { name: "Ich habe bestätigt" }).count(), 0, "kein TAN-Schritt");
-  assert.equal(calls.start, 1, "ein Start");
-  assert.equal(calls.confirm, 0, "keine TAN-Bestätigung");
-  assert.ok(!calls.unknown.some((p) => p.includes("initiateComdirectAuth")), "kein alter Auth-Aufruf");
-  await ctx.close();
-});
-
 test("ohne Bankverbindung: erst der TAN-Schritt, dann die Prüfung", async () => {
   const { ctx, page, calls } = await open(["TanRequired", "AwaitingTan"]);
   const confirm = page.getByRole("button", { name: "Ich habe bestätigt" });
@@ -152,39 +122,6 @@ test("ohne Bankverbindung: erst der TAN-Schritt, dann die Prüfung", async () =>
   await page.locator(".tx-row", { hasText: "Erfundener Markt" }).waitFor();
   assert.equal(calls.confirm, 1, "eine Bestätigung");
   assert.ok(!calls.unknown.some((p) => p.includes("initiateComdirectAuth")), "kein alter Auth-Aufruf");
-  await ctx.close();
-});
-
-// ynab-sync-k3vq8: `confirmTan` schreibt. Ein abgebrochener Aufruf kann beim Server angekommen sein,
-// eine Wiederholung liefe am Abbruch vorbei und entstünde ohne Romans Klick (ADR 0071).
-test("Bricht die TAN-Bestätigung ab, bleibt es bei genau einem Versuch", async () => {
-  const { ctx, page, calls } = await open(["TanRequired", "AwaitingTan"], undefined, { confirmAborts: true });
-  await page.getByRole("button", { name: "Ich habe bestätigt" }).click();
-  await page.locator(".animate-toast-in").filter({ hasText: "TAN confirmation timed out" }).waitFor();
-  assert.equal(calls.confirm, 1, "genau ein Versuch");
-  await ctx.close();
-});
-
-test("verlorene Antwort, der Server wartet auf die TAN: der TAN-Schritt erscheint ohne zweiten Start", async () => {
-  const { ctx, page, calls } = await open(null, { server: session("AwaitingTan") });
-  await page.getByRole("button", { name: "Ich habe bestätigt" }).waitFor();
-  assert.equal(calls.start, 1, "kein zweiter Start");
-  assert.equal(await page.getByText("Synchronisierung fehlgeschlagen").count(), 0, "kein Fehler");
-  await ctx.close();
-});
-
-test("verlorene Antwort, der Server hat keine Sitzung: der Fehler bleibt sichtbar", async () => {
-  const { ctx, page, calls } = await open(null, { server: null });
-  await page.getByText("Synchronisierung fehlgeschlagen").waitFor();
-  assert.equal(calls.start, 1, "kein automatischer Neustart");
-  await ctx.close();
-});
-
-test("verlorene Antwort, der Server ruft noch ab: die Prüfung erscheint ohne zweiten Start", async () => {
-  const fetching = session("FetchingTransactions");
-  const { ctx, page, calls } = await open(null, { server: fetching, reads: [fetching, session("ReviewingTransactions")] });
-  await page.locator(".tx-row", { hasText: "Erfundener Markt" }).waitFor();
-  assert.equal(calls.start, 1, "nur gelesen, kein zweiter Start");
   await ctx.close();
 });
 

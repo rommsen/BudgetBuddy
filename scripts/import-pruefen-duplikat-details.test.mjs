@@ -5,12 +5,9 @@
 // "Details". Echter Vite-Client gegen gemockte Sync-API-Antworten (erfundene Werte).
 //
 // Ausführen: node --test scripts/import-pruefen-duplikat-details.test.mjs
-// Mit SHOTS_DIR=<Ordner> schreibt der Lauf zusätzlich die Nachher-Bilder dorthin.
 
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import path from "node:path";
-import fs from "node:fs";
 import { chromium } from "playwright";
 import { getFreePort, startFrontend, stopServer } from "./screenshot-route.mjs";
 
@@ -62,53 +59,32 @@ after(async () => {
   await stopServer(frontend, port);
 });
 
-const viewports = [
-  ["pc-1440x900", { width: 1440, height: 900 }],
-  ["handy-390x844", { width: 390, height: 844 }],
-];
+test('PC: Verdacht zeigt die Prüfung sofort mit Datum und Betrag aus dem Fable-Kompilat, sonst steht sie hinter "Details"', async () => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
+  const page = await ctx.newPage();
+  page.setDefaultTimeout(15000);
+  await mock(page);
+  await page.goto(`http://localhost:${port}/#/`);
+  await page.waitForSelector(".tx-row");
 
-for (const [name, vp] of viewports) {
-  test(`Duplikat-Details: Verdacht sofort, sonst hinter "Details" (${name})`, async () => {
-    const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 1 });
-    const page = await ctx.newPage();
-    page.setDefaultTimeout(15000);
-    await mock(page);
-    await page.goto(`http://localhost:${port}/#/`);
-    await page.waitForSelector(".tx-row");
+  const rowOf = (payee) => page.locator(".tx-row", { hasText: payee });
 
-    const rowOf = (payee) => page.locator(".tx-row", { hasText: payee });
+  // Verdachtszeile: aufgeklappt steht die Prüfung ohne weiteren Klick da.
+  await rowOf("Verdacht Markt").click();
+  const verdacht = page.locator(".tx-row.expanded", { hasText: "Verdacht Markt" });
+  await verdacht.getByText("Duplikat-Prüfung").waitFor();
+  assert.equal(await verdacht.getByRole("button", { name: "Details" }).count(), 0);
+  assert.match(await verdacht.innerText(), /Gefunden: Rewe am 07\.10\.2026 über 12,34 €/);
+  assert.doesNotMatch(await verdacht.innerText(), /Similar transaction/);
 
-    // Verdachtszeile: aufgeklappt steht die Prüfung ohne weiteren Klick da.
-    await rowOf("Verdacht Markt").click();
-    const verdacht = page.locator(".tx-row.expanded", { hasText: "Verdacht Markt" });
-    await verdacht.getByText("Duplikat-Prüfung").waitFor();
-    assert.equal(await verdacht.getByRole("button", { name: "Details" }).count(), 0);
-    assert.match(await verdacht.innerText(), /Gefunden: Rewe am 07\.10\.2026 über 12,34 €/);
-    assert.doesNotMatch(await verdacht.innerText(), /Similar transaction/);
+  // Unauffällige Zeile: "Details", die Prüfung erst nach Klick.
+  await rowOf("Unauffällig GmbH").click();
+  const ruhig = page.locator(".tx-row.expanded", { hasText: "Unauffällig GmbH" });
+  await ruhig.getByRole("button", { name: "Details" }).waitFor();
+  assert.equal(await ruhig.getByText("Duplikat-Prüfung").count(), 0);
+  await ruhig.getByRole("button", { name: "Details" }).click();
+  await ruhig.getByText("Duplikat-Prüfung").waitFor();
+  assert.match(await ruhig.innerText(), /Nicht in YNAB/);
 
-    // Unauffällige Zeile: "Details", die Prüfung erst nach Klick.
-    await rowOf("Unauffällig GmbH").click();
-    const ruhig = page.locator(".tx-row.expanded", { hasText: "Unauffällig GmbH" });
-    await ruhig.getByRole("button", { name: "Details" }).waitFor();
-    assert.equal(await ruhig.getByText("Duplikat-Prüfung").count(), 0);
-    await ruhig.getByRole("button", { name: "Details" }).click();
-    await ruhig.getByText("Duplikat-Prüfung").waitFor();
-    assert.match(await ruhig.innerText(), /Nicht in YNAB/);
-
-    if (process.env.SHOTS_DIR) {
-      fs.mkdirSync(process.env.SHOTS_DIR, { recursive: true });
-      await page.waitForTimeout(500);
-      await page.screenshot({ path: path.join(process.env.SHOTS_DIR, `${name}-import-pruefen-duplikat-details.png`) });
-      // Zweites Bild: die Verdachtszeile mit Hinweis-Zeile und sofort sichtbarer Prüfung im Blick.
-      await verdacht.scrollIntoViewIfNeeded();
-      await page.evaluate(() => {
-        const row = [...document.querySelectorAll(".tx-row.expanded")].find((r) => r.innerText.includes("Verdacht Markt"));
-        row.scrollIntoView({ block: "start" });
-        window.scrollBy(0, -80);
-      });
-      await page.waitForTimeout(400);
-      await page.screenshot({ path: path.join(process.env.SHOTS_DIR, `${name}-import-pruefen-duplikat-verdacht.png`) });
-    }
-    await ctx.close();
-  });
-}
+  await ctx.close();
+});
