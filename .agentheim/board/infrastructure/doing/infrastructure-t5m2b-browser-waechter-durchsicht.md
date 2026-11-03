@@ -1,7 +1,7 @@
 ---
 id: infrastructure-t5m2b
 title: "Browser-Tests auf das reduzieren, was nur der Browser prüfen kann, Logik wandert in MVU-Tests"
-status: todo
+status: doing
 type: chore
 context: infrastructure
 created: 2026-11-02

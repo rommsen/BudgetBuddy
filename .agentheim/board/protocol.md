@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-03 02:13 -- Batch started: [infrastructure-t5m2b]
+
+**Type:** Work / Batch start
+**Tasks:** infrastructure-t5m2b - "Browser-Tests auf das reduzieren, was nur der Browser prüfen kann, Logik wandert in MVU-Tests"
+**Parallel:** no (1 worker)
+
+---
+
 ## 2026-11-03 01:10 -- Modeling / Promoted: infrastructure-t5m2b - "Browser-Tests auf das reduzieren, was nur der Browser prüfen kann, Logik wandert in MVU-Tests"
 
 **Type:** Modeling / Promote

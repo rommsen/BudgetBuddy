@@ -11,19 +11,19 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 10
-- **Todo:** 2
-- **Doing:** 0
+- **Todo:** 1
+- **Doing:** 1
 - **Done:** 38
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **infrastructure-t5m2b** — "Browser-Tests auf das reduzieren, was nur der Browser prüfen kann, Logik wandert in MVU-Tests" (chore) — `todo/infrastructure-t5m2b-browser-waechter-durchsicht.md`
 - **infrastructure-jsys4** — "Web-Push-Kanal mit Abo in den Einstellungen, zuerst auf echten Geräten bewiesen" (feature) — `todo/infrastructure-jsys4-web-push-kanal.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **infrastructure-t5m2b** — "Browser-Tests auf das reduzieren, was nur der Browser prüfen kann, Logik wandert in MVU-Tests" (chore) — `doing/infrastructure-t5m2b-browser-waechter-durchsicht.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
