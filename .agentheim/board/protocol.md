@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-03 20:51 -- Modeling / Refined: infrastructure-b3t9k - Browser-Tests nach Begründung
+
+**Type:** Modeling / Refine
+**BC:** infrastructure
+**Status after:** todo
+**Summary:** Kennung als Präfix im Testnamen (layout, fokus, tastatur, scroll, fable, flow:<name>), Flows in fester Liste in browser-usage.mjs, je Flow höchstens ein Test. MAX_BROWSER_TESTS entfällt, das Gate meldet die Zahl je Kennung. Bestand wird in derselben Task gekennzeichnet.
+
+---
+
 ## 2026-11-03 20:48 -- Modeling / Promoted: budgeting-r7t3k - "Budget-Seite: Rückkehr aus dem Kassenbuch und Schließen von Targets ohne Sprung"
 
 **Type:** Modeling / Promote
