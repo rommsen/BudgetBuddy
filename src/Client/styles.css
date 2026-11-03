@@ -708,6 +708,13 @@ nav a:focus-visible {
 .input-field::placeholder {
   color: var(--text-muted);
 }
+/* Ohne Layer wie `.input-field`: Die Tailwind-Klassen `text-neon-red` und `font-mono` kämen nicht durch. */
+.input-field.input-invalid {
+  color: var(--color-neon-red);
+}
+.input-field.input-amount {
+  font-family: var(--font-mono);
+}
 .input-field:disabled {
   opacity: 0.5;
   cursor: not-allowed;

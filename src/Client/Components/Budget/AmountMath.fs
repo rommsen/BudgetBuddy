@@ -6,7 +6,7 @@
 /// dafür nicht: es lehnt Vorzeichen ab und kennt keine Tausenderpunkte.
 module Components.Budget.AmountMath
 
-/// Größter Betrag eines Ergebnisses, wie `MaxMoveAmount` auf dem Server.
+/// Größter Betrag eines Ergebnisses, wie `MaxBudgetAmount` auf dem Server.
 let private maxAmount = 1000000m
 
 type private Token =

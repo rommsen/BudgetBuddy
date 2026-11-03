@@ -46,48 +46,88 @@ let syncMoneyTab (model: Model) : Model =
         | _, None -> { model with TabMoney = None }
     | Some _, _ -> model
 
-/// Ging beim Abgleich eine Eingabe verloren? Beim Verlassen ist sie schon gespeichert oder gemeldet,
-/// übrig bleibt der Fall, dass die Kategorie beim Neu-Lesen wegfiel.
+/// Ging beim Abgleich eine Eingabe verloren? Beim Verlassen und beim Weiterrücken des Monats ist sie
+/// schon gespeichert oder gemeldet, übrig bleibt der Fall, dass die Kategorie beim Neu-Lesen wegfiel.
 let entryDropped (before: Model) (after: Model) : bool =
     let entry (model: Model) = model.TabMoney |> Option.bind (fun tab -> tab.Entry)
     (entry before).IsSome && (entry after).IsNone
 
 /// Läuft gerade eine Bewegung, aus dem Tab, über "Erneut senden" oder über Targets anwenden?
 let moveRunning (model: Model) : bool =
-    (model.TabMoney |> Option.exists (fun tab -> tab.Transfer.Submission = Sending))
+    model.MoveInFlight <> NoMoveCall
     || (model.OpenRetries |> List.exists (fun r -> r.State = RetryRunning))
     || (match model.Targets with
         | Applying _
         | ApplyDone (_, _, true, _) -> true
         | _ -> false)
 
-/// Darf ein Knopf eine Bewegung starten? Eine offene Eingabe sperrt ihn nicht, der Tipp speichert sie.
-let canStartMove (model: Model) : bool =
-    not (moveRunning model) && List.isEmpty model.AssignQueue
+/// Warum gerade keine Bewegung startet.
+type MoveBlock =
+    /// Eine Bewegung läuft.
+    | CallRunning
+    /// Der Bericht von Targets anwenden steht im Dialog: Der gezeigte Stand gilt erst beim Schließen wieder.
+    | ReportOpen
+    /// Zuweisungen sind unterwegs. Eine Zuweisung ist absolut, käme sie nach der Bewegung, nähme sie
+    /// die Bewegung zurück (ADR 0078 Punkt 5).
+    | AssignQueued
+    /// `Month` zeigt noch den alten Monat, ein Auftrag ginge dorthin.
+    | MonthChanging
 
-/// Ruht Zuweisen? Nur dann startet eine Bewegung: Eine Zuweisung ist absolut, käme sie danach,
-/// nähme sie die Bewegung zurück (ADR 0078 Punkt 5).
-let assignSettled (model: Model) : bool =
-    canStartMove model && model.TabMoney |> Option.forall (fun tab -> tab.Entry.IsNone)
+/// Die eine Startregel für Bewegungen. Alle Knöpfe und `update` lesen sie.
+type MoveGate =
+    | Free
+    /// Eine offene Eingabe wird zuerst gespeichert, die Bewegung startet erst beim nächsten Tipp.
+    | SaveFirst
+    | Blocked of MoveBlock
+
+/// Der erste Grund zählt. Eine offene Eingabe wird auch unter einem offenen Bericht zuerst gespeichert,
+/// nur vor dem Monatswechsel gibt sie nach: In einen wechselnden Monat geht nichts hinaus.
+let moveGate (model: Model) : MoveGate =
+    if moveRunning model then
+        Blocked CallRunning
+    elif not (List.isEmpty model.AssignQueue) then
+        Blocked AssignQueued
+    elif monthChanging model then
+        Blocked MonthChanging
+    elif model.TabMoney |> Option.exists (fun tab -> tab.Entry.IsSome) then
+        SaveFirst
+    else
+        match model.Targets with
+        | ApplyDone _
+        | ApplyFailed _ -> Blocked ReportOpen
+        | _ -> Free
+
+/// Dürfen "Erneut senden" und der Dialog Targets starten? Sie schreiben nicht aus dem Tab: Weder der
+/// Monatswechsel noch ihr eigener Bericht hält sie auf, eine offene Eingabe speichert der Tipp.
+let canStartMove (model: Model) : bool =
+    match moveGate model with
+    | Blocked CallRunning
+    | Blocked AssignQueued -> false
+    | _ -> true
+
+/// Darf der Tab einen Auftrag senden?
+let canSend (model: Model) : bool =
+    match moveGate model with
+    | Free
+    | SaveFirst -> true
+    | Blocked _ -> false
 
 /// Der Warn-Toast, wenn ein Tipp eine Bewegung nicht starten kann.
-let moveBlockedText = "Läuft noch. Gleich noch einmal versuchen."
+let moveBlockedText = "Eine Verschiebung läuft noch. Gleich noch einmal versuchen."
 
-/// Läuft eine Bewegung oder steht ihr Bericht im Dialog? Dann wird der Inspektor nicht verlassen und
-/// das Feld Zugewiesen wartet. Nach Targets anwenden gilt der gezeigte Stand erst beim Schließen wieder.
+/// Bleibt der Inspektor stehen? Das Feld Zugewiesen und alle Wege hinaus warten dann.
 let inspectorBusy (model: Model) : bool =
-    moveRunning model
-    || (match model.Targets with
-        | ApplyDone _
-        | ApplyFailed _ -> true
-        | _ -> false)
+    match moveGate model with
+    | Blocked CallRunning
+    | Blocked ReportOpen -> true
+    | _ -> false
 
 let private withTab (change: MoneyTabState -> MoneyTabState) (model: Model) : Model =
     { model with TabMoney = model.TabMoney |> Option.map change }
 
 /// Wechselt den Modus. Die Form von Holen und Abgeben bleibt dabei stehen.
 let switchMode (mode: MoneyMode) (model: Model) : Model =
-    withTab (fun tab -> { tab with Mode = mode; Transfer = { tab.Transfer with PickerOpen = false } }) model
+    withTab (fun tab -> { tab with Mode = mode; Transfer = { tab.Transfer with PickerOpen = false; Submission = Editing } }) model
 
 let pickerOpen (model: Model) : bool =
     model.TabMoney |> Option.exists (fun tab -> tab.Transfer.PickerOpen)
@@ -180,8 +220,9 @@ let stepAssign (delta: decimal) (model: Model) : Model =
             | Some current -> entryValue current |> Option.map (fun value -> Exact (value + delta)))
         model
 
-/// Nimmt das Feld gerade keine Eingabe an? Während eines Monatswechsels und solange ein Aufruf aus
-/// dem Tab läuft: Eine Zuweisung ist absolut und überschriebe ihn (ADR 0078 Punkt 5).
+/// Nimmt das Feld gerade keine Eingabe an? Während eines Monatswechsels und solange der Inspektor
+/// stehen bleibt: Eine Zuweisung ist absolut und überschriebe die Bewegung (ADR 0078 Punkt 5). Eine
+/// laufende Schlange sperrt das Feld nicht.
 let assignFieldReadOnly (model: Model) : bool =
     monthChanging model || inspectorBusy model
 
@@ -199,26 +240,10 @@ let enqueueAssign (write: AssignWrite) (queue: AssignWrite list) : AssignWrite l
     else
         queue @ [ write ]
 
-/// Trägt ein neues Zugewiesen in den Monat ein und schreibt Verfügbar und Zu verteilen fort.
-let private withAssigned (categoryId: System.Guid) (assigned: Money) (model: Model) : Model =
+/// `withAssigned` im Modell.
+let private assignedInModel (categoryId: System.Guid) (assigned: Money) (model: Model) : Model =
     match model.Month with
-    | Success month ->
-        match findCategory month categoryId with
-        | Some found ->
-            let delta = assigned.Amount - found.Assigned.Amount
-            let written (c: BudgetCategory) =
-                if c.Id = categoryId then
-                    { c with
-                        Assigned = { c.Assigned with Amount = assigned.Amount }
-                        Available = { c.Available with Amount = c.Available.Amount + delta } }
-                else
-                    c
-            let updated =
-                { month with
-                    ToBeBudgeted = { month.ToBeBudgeted with Amount = month.ToBeBudgeted.Amount - delta }
-                    Groups = month.Groups |> List.map (fun g -> { g with Categories = g.Categories |> List.map written }) }
-            { model with Month = Success updated }
-        | None -> model
+    | Success month -> { model with Month = Success (withAssigned categoryId assigned month) }
     | _ -> model
 
 /// Schreibt den gespeicherten Wert in den Monat: die Zahl steht sofort da. Die neue Generation
@@ -227,7 +252,7 @@ let private writeThrough (write: AssignWrite) (model: Model) : Model =
     match model.Month with
     | Success month when month.Month = write.Month && not (monthChanging model) ->
         if (findCategory month write.CategoryId).IsSome then
-            requestMonth (withAssigned write.CategoryId write.Assigned model)
+            requestMonth (assignedInModel write.CategoryId write.Assigned model)
         else
             model
     | _ -> model
@@ -239,7 +264,7 @@ let private withReport (report: ApplyReport) (model: Model) : Model =
     | Success month when month.Month = report.Month ->
         report.Lines
         |> List.filter (fun l -> l.Outcome = Written)
-        |> List.fold (fun current l -> withAssigned l.CategoryId l.NewAssigned current) model
+        |> List.fold (fun current l -> assignedInModel l.CategoryId l.NewAssigned current) model
     | _ -> model
 
 /// Feld verlassen: gültig und geändert geht in die Schlange und steht im Monat, gleich fällt die
@@ -261,7 +286,11 @@ let saveEntry (model: Model) : Model =
                   Month = entry.Month
                   Assigned = { Amount = value; Currency = currency }
                   State = WriteWaiting }
-            { discardEntry model with AssignQueue = enqueueAssign write model.AssignQueue }
+            // Eine neuere Zuweisung ersetzt den Hinweis: Erneut senden nähme sie sonst zurück.
+            let target = Some (entry.CategoryId, entry.Month)
+            { discardEntry model with
+                AssignQueue = enqueueAssign write model.AssignQueue
+                OpenRetries = model.OpenRetries |> List.filter (fun r -> r.AssignTarget <> target) }
             |> writeThrough write
 
 /// Was eine Taste in den Feldern des Tabs bewirkt. Die View nimmt nur noch den Fokus.
@@ -288,13 +317,31 @@ let amountKeyAction (key: string) : FieldKeyAction =
 /// Der Warn-Toast, wenn beim Verlassen eine ungültige Eingabe wegfällt.
 let invalidEntryText = "Zugewiesen nicht gespeichert: keine gültige Rechnung"
 
-/// Inspektor verlassen, vor der Änderung: wie `saveEntry`, nur fällt eine ungültige Eingabe weg, mit
-/// Warn-Toast. Holen und Abgeben bleiben unberührt, ihre Form stirbt mit dem Schlüssel.
-let leaveInspector (model: Model) : Model * ExternalMsg =
+/// Was aus der Eingabe wurde.
+type LeaveOutcome =
+    | NothingOpen
+    | Unchanged
+    | Queued
+    | DroppedInvalid
+
+/// Inspektor verlassen, vor der Änderung: wie `saveEntry`, nur fällt eine ungültige Eingabe weg. Holen
+/// und Abgeben bleiben unberührt, ihre Form stirbt mit dem Schlüssel.
+let leaveInspector (model: Model) : Model * LeaveOutcome =
     match model.TabMoney |> Option.bind (fun tab -> tab.Entry) with
-    | Some entry when (entryValue entry).IsNone ->
-        discardEntry model, ShowToast (invalidEntryText, ToastWarning)
-    | _ -> saveEntry model, NoOp
+    | None -> model, NothingOpen
+    | Some entry ->
+        match entryValue entry with
+        | None -> discardEntry model, DroppedInvalid
+        | Some value when value = entry.BaseAssigned -> discardEntry model, Unchanged
+        | Some _ -> saveEntry model, Queued
+
+/// Was das Verlassen meldet.
+let leaveToast (outcome: LeaveOutcome) : ExternalMsg =
+    match outcome with
+    | DroppedInvalid -> ShowToast (invalidEntryText, ToastWarning)
+    | NothingOpen
+    | Unchanged
+    | Queued -> NoOp
 
 /// Startet den Kopf der Schlange, wenn keiner läuft. Gibt die Zuweisung für den Aufrufer zurück.
 let startNextAssign (model: Model) : Model * AssignWrite option =
@@ -353,17 +400,33 @@ let moveToast (report: ApplyReport) : ExternalMsg =
         ShowToast ("In YNAB geändert, nichts überschrieben", ToastWarning)
     | None -> ShowToast (moveSummaryText report, ToastSuccess)
 
-/// Zuweisen im Feld zeigt keinen Erfolgs-Toast: die Zahl in der Liste ist die Antwort.
-let assignToast (report: ApplyReport) : ExternalMsg =
+/// Zuweisen im Feld zeigt keinen Erfolgs-Toast: die Zahl in der Liste ist die Antwort. Ist der Bericht
+/// nicht mehr offen, weil eine neuere Zuweisung wartet, gibt es nichts erneut zu senden.
+let private assignToast (report: ApplyReport) (model: Model) : ExternalMsg =
+    let stillOpen = model.OpenRetries |> List.exists (fun r -> r.ApplicationId = report.ApplicationId)
     match failureReason report with
-    | Some reason -> failureToast report reason
+    | Some reason when stillOpen -> failureToast report reason
+    | Some reason -> ShowToast ($"{failureHeadline report}: {reason}", ToastError)
     | None -> NoOp
+
+/// Kategorie und Monat einer Zuweisung: Eine Zeile heißt, es ging ums Zuweisen.
+let private assignTarget (report: ApplyReport) : (System.Guid * string) option =
+    match report.Lines with
+    | [ line ] -> Some (line.CategoryId, report.Month)
+    | _ -> None
 
 /// Merkt sich einen Bericht mit fehlgeschlagener Zeile; ist nichts mehr offen, verschwindet er.
 /// Der Hinweis auf der Seite hängt daran, der Toast läuft nach fünf Sekunden ab.
 let noteMoveReport (month: string) (report: ApplyReport) (model: Model) : Model =
-    let others = model.OpenRetries |> List.filter (fun r -> r.ApplicationId <> report.ApplicationId)
+    let target = assignTarget report
+    let others =
+        model.OpenRetries
+        |> List.filter (fun r ->
+            r.ApplicationId <> report.ApplicationId && (target.IsNone || r.AssignTarget <> target))
+    let superseded =
+        model.AssignQueue |> List.exists (fun w -> Some (w.CategoryId, w.Month) = target)
     match failureReason report with
+    | Some _ when superseded -> { model with OpenRetries = others }
     | Some reason ->
         let entry =
             { ApplicationId = report.ApplicationId
@@ -371,7 +434,8 @@ let noteMoveReport (month: string) (report: ApplyReport) (model: Model) : Model 
               MonthLabel = monthLabel month
               Summary = moveSummaryText report
               Reason = reason
-              State = RetryReady }
+              State = RetryReady
+              AssignTarget = target }
         { model with OpenRetries = others @ [ entry ] }
     | None -> { model with OpenRetries = others }
 
@@ -381,16 +445,18 @@ let applyAssignAnswered (result: Result<ApplyReport, string>) (model: Model) : M
     let rest = dropRunning model
     let noted, external =
         match result with
-        | Ok report -> noteMoveReport report.Month report rest, assignToast report
+        | Ok report ->
+            let noted = noteMoveReport report.Month report rest
+            noted, assignToast report noted
         | Error message -> rest, ShowToast ($"Nicht zugewiesen: {message}", ToastError)
-    if List.isEmpty noted.AssignQueue then requestMonth noted, external, true
+    if List.isEmpty noted.AssignQueue then awaitFreshMonth noted, external, true
     else noted, external, false
 
 /// Der Aufruf brach ab. Der Wert lässt sich neu tippen, weil Zuweisen absolut ist.
 let applyAssignCallLost (message: string) (model: Model) : Model * ExternalMsg * bool =
     let rest = dropRunning model
-    let external = ShowToast ($"Ob zugewiesen wurde, ist unklar: {message}", ToastError)
-    if List.isEmpty rest.AssignQueue then requestMonth rest, external, true
+    let external = ShowToast ($"Ob zugewiesen wurde, ist unklar: {message}. Der Stand wird gleich neu gelesen.", ToastError)
+    if List.isEmpty rest.AssignQueue then awaitFreshMonth rest, external, true
     else rest, external, false
 
 // ============================================
@@ -419,24 +485,31 @@ let missingActionText (action: MissingAction) : string =
     | AssignMissing amount -> $"{plain amount} zuweisen"
     | OnlyLeft rest -> $"Nur noch {plain rest} zu verteilen"
 
-/// Darf der Tab jetzt einen Auftrag senden? Eine Verschiebung startet erst, wenn nichts mehr wartet
-/// (ADR 0078 Punkt 5), und nie in einen Monat, der gerade wechselt.
-let canSend (model: Model) : bool =
-    not (inspectorBusy model)
-    && List.isEmpty model.AssignQueue
-    && not (monthChanging model)
+/// Darf der Fehlbetrag-Knopf senden? Sein Betrag steht im Monat. Solange der veraltet ist, buchte ein
+/// zweiter Tipp denselben Fehlbetrag noch einmal.
+let canCover (model: Model) : bool =
+    canSend model && model.Freshness = MonthRead
 
-/// Der Knopf: eine offene Eingabe fällt weg, genau ein Auftrag geht hinaus. Wie `confirmTransfer`
-/// nach dem ersten Tipp gesperrt.
+/// Der Warn-Toast, wenn der Fehlbetrag-Knopf eine offene Eingabe verwirft.
+let coverDroppedEntryText = "Eingabe verworfen: der Fehlbetrag wurde zugewiesen"
+
+/// Verwirft der Knopf etwas, das geschrieben worden wäre? Eine ungültige Rechnung zählt mit.
+let coverDropsEntry (model: Model) : bool =
+    model.TabMoney
+    |> Option.bind (fun tab -> tab.Entry)
+    |> Option.exists (fun entry -> entryValue entry <> Some entry.BaseAssigned)
+
+/// Der Knopf: eine offene Eingabe fällt weg, genau ein Auftrag geht hinaus. Die Sperre prüft der
+/// Aufrufer (`canCover`).
 let confirmMissing (model: Model) : Model * (string * MoveRequest) option =
     match model.TabMoney, model.Month with
-    | Some tab, Success month when canSend model ->
+    | Some tab, Success month ->
         match findCategory month tab.CategoryId |> Option.map (missingAction month) with
         | Some (AssignMissing amount) ->
             let request = { Source = ToBeBudgetedSide; Target = CategorySide tab.CategoryId; Amount = amount }
             { model with
-                TabMoney =
-                    Some { tab with Entry = None; Transfer = { tab.Transfer with Submission = Sending } } },
+                MoveInFlight = MoveCallRunning
+                TabMoney = Some { tab with Entry = None; Transfer = { tab.Transfer with Submission = Editing } } },
             Some (month.Month, request)
         | _ -> model, None
     | _ -> model, None
@@ -458,10 +531,19 @@ let transferAmountText (month: BudgetMonth) (tab: MoneyTabState) : string =
     | None, Some amount -> formatSignedAmount amount
     | None, None -> ""
 
-/// Der Betrag. Das Feld rechnet, der Stand ist die Vorbelegung, sonst 0. Nur über 0 ist einer.
+/// Der Stand, zu dem das Betragsfeld rechnet: die Vorbelegung, sonst 0.
+let private transferStand (month: BudgetMonth) (tab: MoneyTabState) : decimal =
+    transferPrefill month tab |> Option.defaultValue 0m
+
+/// Der Betrag. Das Feld rechnet. Nur über 0 ist einer.
 let transferAmount (month: BudgetMonth) (tab: MoneyTabState) : decimal option =
-    let stand = transferPrefill month tab |> Option.defaultValue 0m
-    evaluateAmount stand (transferAmountText month tab) |> Option.filter (fun amount -> amount > 0m)
+    evaluateAmount (transferStand month tab) (transferAmountText month tab) |> Option.filter (fun amount -> amount > 0m)
+
+/// Steht im Betragsfeld etwas, das keine Rechnung ist? Leer zählt nicht, 0 und Negatives sind Rechnungen.
+let transferAmountInvalid (month: BudgetMonth) (tab: MoneyTabState) : bool =
+    match tab.Transfer.AmountInput with
+    | Some text when text.Trim () <> "" -> (evaluateAmount (transferStand month tab) text).IsNone
+    | _ -> false
 
 /// Name der Gegenseite.
 let counterpartName (month: BudgetMonth) (side: MoveSide) : string =
@@ -571,49 +653,50 @@ let counterpartOf (choice: CategoryPicker.PickerChoice) : MoveSide option =
     | CategoryPicker.ChoseCategory (Some (YnabCategoryId id)) -> Some (CategorySide id)
     | _ -> None
 
-/// Ändert die Form, außer während des Aufrufs.
+/// Ändert die Form, außer während des Aufrufs. Eine Absage gilt der alten Form und fällt weg.
 let updateTransfer (change: TransferForm -> TransferForm) (model: Model) : Model =
     if inspectorBusy model then model
-    else withTab (fun tab -> { tab with Transfer = change tab.Transfer }) model
+    else withTab (fun tab -> { tab with Transfer = { change tab.Transfer with Submission = Editing } }) model
 
-/// Der Knopf. Gibt den Auftrag zurück; ist er gesperrt oder läuft schon ein Aufruf, geschieht nichts.
-/// Sonst ginge beim Doppeltipp das Geld zweimal, denn der Server rechnet relativ. Mit dem Auftrag
-/// kommt der Monat, den die Seite zeigt: dorthin schreibt der Server.
+/// Der Knopf. Gibt den Auftrag zurück, die Sperre prüft der Aufrufer (`canSend`): Beim Doppeltipp ginge
+/// das Geld sonst zweimal, denn der Server rechnet relativ. Mit dem Auftrag kommt der Monat, den die
+/// Seite zeigt: dorthin schreibt der Server.
 let confirmTransfer (model: Model) : Model * (string * MoveRequest) option =
     match model.TabMoney, model.Month with
-    | Some tab, Success month when canTransfer model month tab ->
-        { model with TabMoney = Some { tab with Transfer = { tab.Transfer with Submission = Sending } } },
-        transferRequest month tab |> Option.map (fun request -> month.Month, request)
+    | Some tab, Success month ->
+        match transferRequest month tab with
+        | Some request ->
+            { model with
+                MoveInFlight = MoveCallRunning
+                TabMoney = Some { tab with Transfer = { tab.Transfer with Submission = Editing } } },
+            Some (month.Month, request)
+        | None -> model, None
     | _ -> model, None
 
 let private resetTransfer (model: Model) : Model =
     withTab (fun tab -> { tab with Transfer = emptyTransfer }) model
 
-/// Antwort auf einen Auftrag aus dem Tab. `Error` heißt: nichts geschrieben, die Eingaben bleiben
-/// und der Tab nennt den Grund. Ist er inzwischen weg (Seitenwechsel), nennt ein Toast den Grund.
+/// Antwort auf einen Auftrag aus dem Tab. `Error`: nichts geschrieben, die Eingaben bleiben und der Tab
+/// nennt den Grund. Ist er weg (neu betreten, Kategorie weggefallen), nennt ein Toast den Grund.
 /// Mit Bericht ist die Form zurückgesetzt, der Modus bleibt, der Monat wird neu gelesen (`true`).
 let applyMoveAnswered (result: Result<ApplyReport, string>) (model: Model) : Model * ExternalMsg * bool =
+    let finished = { model with MoveInFlight = NoMoveCall }
     match result, model.TabMoney with
     | Ok report, _ ->
-        requestMonth (noteMoveReport report.Month report (resetTransfer (withReport report model))),
+        awaitFreshMonth (noteMoveReport report.Month report (resetTransfer (withReport report finished))),
         moveToast report,
         true
     | Error message, Some _ ->
-        withTab (fun tab -> { tab with Transfer = { tab.Transfer with Submission = Rejected message } }) model,
+        let rejection = if model.MoveInFlight = MoveCallRunningAway then RejectedAway message else Rejected message
+        withTab (fun tab -> { tab with Transfer = { tab.Transfer with Submission = rejection } }) finished,
         NoOp,
         false
-    | Error message, None -> model, ShowToast ($"Nicht verschoben: {message}", ToastError), false
-
-/// Der Ausgang einer Bewegung ist unklar, der alte Stand ist keine Rechengrundlage mehr. Bis das
-/// Neu-Lesen antwortet, steht `Loading` wie nach `closeTargets`: Es gibt kein Feld und keinen Knopf.
-/// Scheitert es, steht die Fehlerkarte mit Wiederholen. Ein Monatswechsel sperrt schon selbst.
-let private awaitMonth (model: Model) : Model =
-    requestMonth (if monthChanging model then model else { model with Month = Loading })
+    | Error message, None -> finished, ShowToast ($"Nicht verschoben: {message}", ToastError), false
 
 /// Der Aufruf brach ab. Weil der Server relativ rechnet, wäre ein zweiter Versuch im Formular
 /// gefährlich: es wird zurückgesetzt, und der Monat wird neu gelesen.
 let applyMoveCallLost (message: string) (model: Model) : Model * ExternalMsg =
-    awaitMonth (resetTransfer model), ShowToast ($"Ob verschoben wurde, ist unklar: {message}", ToastError)
+    awaitMonth (resetTransfer { model with MoveInFlight = NoMoveCall }), ShowToast ($"Ob verschoben wurde, ist unklar: {message}. Der Stand wird gleich neu gelesen.", ToastError)
 
 /// "Erneut senden". `true` heißt: der Aufrufer muss senden. Läuft es schon oder ist die Verschiebung
 /// nicht mehr offen, geschieht nichts.
@@ -632,7 +715,7 @@ let startMoveRetry (applicationId: string) (model: Model) : Model * bool =
 /// YNAB erreicht haben.
 let applyMoveRetried (applicationId: string) (result: Result<ApplyReport, string>) (model: Model) : Model * ExternalMsg =
     match result with
-    | Ok report -> requestMonth (noteMoveReport report.Month report (withReport report model)), moveToast report
+    | Ok report -> awaitFreshMonth (noteMoveReport report.Month report (withReport report model)), moveToast report
     | Error message ->
         let reopened =
             model.OpenRetries

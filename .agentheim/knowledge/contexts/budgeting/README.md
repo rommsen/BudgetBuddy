@@ -74,6 +74,8 @@ YNAB unverzichtbar.
 - **Betragsrechnung** (budgeting-c5w2n): Regeln des Felds, `+20` relativ zum Stand, `900+40` ersetzt ihn, Punkt vor Strich, auf den Cent.
 - **Frei** (budgeting-c5w2n): Verfügbar minus offener Fehlbetrag, pausierte Targets sperren nichts. Grundlage der Warnung beim Überziehen.
 - **Zuletzt verwendet** (budgeting-c5w2n): Kategorien aus den Bewegungen mit Herkunft Verschieben, neueste zuerst.
+- **Veralteter Monat** (budgeting-c5w2n, Review): nach einer Bewegung oder Zuweisung gilt der Monat als veraltet, bis ein Neu-Lesen gelingt, denn den Fehlbetrag rechnet YNAB. Es gibt kein Laden und keine gedimmte Liste, nur der Fehlbetrag-Knopf ist gesperrt, sonst buchte ein zweiter Tipp denselben Fehlbetrag noch einmal. Der Knopf verwirft eine offene Eingabe und meldet das per Warn-Toast.
+- **Ersetzte Zuweisung** (budgeting-c5w2n, Review): eine neu gespeicherte Zuweisung für dieselbe Kategorie und denselben Monat ersetzt die Offene Verschiebung mit einer Zeile, der Hinweis zeigt nur den jüngsten Wert. Wer den alten Stand tippt, erzeugt keine Zuweisung und der Hinweis bleibt. Bis eine Zuweisung bestätigt ist, trägt jede Monatsantwort ihren Wert darüber.
 
 ## Aggregates
 - **Anwendung** (budgeting-h2zfn): Monat und Zeilen (Bewegung je Kategorie). Invarianten: nur Kategorien mit Fehlbetrag größer 0 und nicht pausiert, Beträge auf 10 Milliunits (YNAB rundet sonst still), neu gleich alt plus Fehlbetrag. Die Bewegungen werden vor dem ersten Push festgehalten und danach nie geändert; Ergebnisse werden nur angehängt.

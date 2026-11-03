@@ -546,3 +546,77 @@ Der Test "Kommt die Absage erst nach dem Seitenwechsel, nennt ein Toast den Grun
 - Beim Betreten während eines Aufrufs steht kurz "Lade Budget ...", der Monat wird neu gelesen.
 - Ein alter Toast "Erneut senden" für eine schon erledigte Verschiebung schließt sich ohne Meldung: Es gibt nichts mehr zu senden.
 - Fällt die gewählte Kategorie während eines Aufrufs beim Neu-Lesen weg, geht der Tab und `moveRunning` wird falsch, bevor die Antwort da ist. Das Feld dieser Kategorie gibt es dann nicht mehr, ein Wert für eine andere Kategorie ist nicht betroffen. Nicht in der Aufzählung.
+
+
+## Outcome (Review-Funde zu d0a794d)
+
+`./verify.sh` im Worktree `.worktrees/review-c5w2n`: `VERIFY: PASS` (dotnet 3483 grün, 10 opt-in übersprungen, node 466 grün). Delta: `npm run check:readme-delta -- --bc budgeting` Exit 0. Ungeprüft: Teil C wurde nicht im Browser angesehen. Abgesichert sind dort nur Gate, Wächter und die Tests zu C2, keine Screenshots. Die Sichtprüfung liegt bei Roman.
+
+**Abweichungen vom Auftrag, bitte lesen:**
+- **C14 nicht umgesetzt, der Befund ist falsch.** `noticeFor PickerFailed` ersetzt die ganze Kategorienliste. Mit `RecentCounterparts = Failure` wäre der Picker unbedienbar, nur weil "Zuletzt verwendet" fehlt. Das widerspricht auch dem Kriterium "ohne Abschnitt, ohne Fehlermeldung". `LoadState` und `OnRetry` bleiben, wie sie waren.
+- **A9, Vertragssatz: nur eingeschränkt.** `Shared/Api.fs` nennt jetzt die Ausnahme "Bericht nach dem Senden nicht lesbar". Der Client behandelt ein solches `Error` weiter als abgelehnt und lässt die Form stehen. Der Weg setzt eine unlesbare, gerade selbst geschriebene Zeile voraus (`loadStates`), einen Test dafür gibt es nicht.
+- **B1: Die Prädikate sind nicht alle fort.** `moveRunning`, `canStartMove`, `canSend`, `canCover`, `inspectorBusy` und `assignFieldReadOnly` bleiben als dünne Lesungen; die ersten beiden Gruppen sind der Rohstoff und die Knopfsicht, `assignSettled` ist weg. `assignFieldReadOnly` prüft `monthChanging` zusätzlich, weil eine laufende Schlange im Gate vor dem Monatswechsel steht. Die `confirm*`-Funktionen haben keine Sperre mehr, sie steht in `transition`.
+- **B2: Ein fünfter Fall `MsgRoute.Left`** für `ReturnAbandoned` und `PageLeft`. Sie speichern wie `Leaves`, lassen sich aber nicht sperren, die Seite ist schon weg (A6, und `PageLeft` muss für A5 durch).
+- **E6, `keepsTab`:** Für den laufenden Aufruf entfällt die Regel. Geht Roman während eines Aufrufs weg und kommt zurück, beginnt die Seite neu, eine spätere Absage nennt ein Toast. Der alte Test "Kommt die Absage nach der Rückkehr, steht der Grund im Tab" prüft deshalb jetzt den Toast. `keepsTab` bleibt nur für `RejectedAway`.
+- **A5:** Eine eigene Bedingung in der View war unnötig. `switchMode` nimmt die Absage weg, im Modus Zuweisen kann also nur die des Fehlbetrag-Knopfs stehen. Sie fällt beim Moduswechsel oder beim nächsten Tipp auf den Knopf weg, nicht beim Tippen ins Feld.
+- **E1, Reichweite:** Der Hinweis wird schon beim Speichern ersetzt, nicht erst beim Scheitern; sonst bliebe er nach einem Erfolg stehen. Das gilt auch für den Hinweis eines gescheiterten Fehlbetrag-Knopfs (eine Zeile). Umgekehrt ersetzt ein neuer Fehlbetrag-Bericht einen offenen Zuweisen-Hinweis. Scheitert eine Zuweisung, während eine neuere wartet, nennt der Toast den Grund ohne "Erneut senden".
+- **A8:** Der Toast kommt nur, wenn etwas verloren geht und der Auftrag wirklich hinausgeht. Bei `+0` oder gesperrtem Knopf kommt keiner.
+- **D3:** Nach dem Löschen von `:349` hat Holen keinen eigenen Happy Path im Browser mehr, das Kriterium der Task nannte je einen für Holen und Abgeben. Abgeben hat ihn weiter.
+- **`Input.Large`** misst jetzt 18 px (E5). Der Wächter `ledger-filter-bar.test.mjs` erwartete 16 px und ist nachgezogen, der Betrag prüft `>= 16`.
+- **Sammelzweig:** Die Fälle `Blocked ReportOpen` und `Blocked MonthChanging` starten Dialog und Hinweis ohne Speichern. Eine offene Eingabe unter einem Monatswechsel ist über `update` nicht erreichbar, weil `SelectMonth` und das Nachlesen vorher speichern und das Feld dann schreibgeschützt ist.
+
+**Neu im Modell:** `MoveCall` (`Model.MoveInFlight`, E6), `MonthFreshness` (`Model.Freshness`, E2), `OpenMoveRetry.AssignTarget` (E1), `Submission.RejectedAway`; `Sending` ist weg. Die Überlagerung der Schlange steht in `Month.withQueue` und läuft in `applyLoaded`. Regeln: `Moves.moveGate`, `State.routeOf`, `Moves.leaveInspector` mit `LeaveOutcome`.
+
+**Test zuerst.** Alle A-Tests laufen durch das echte `update`, Ausnahme sind die reinen Server-Tests aus A9. Vor dem ersten Fix waren 16 von 140 rot, jeweils aus fachlichem Grund. A9 war danach einzeln rot (`SQLite Error 1: geheim` kam durch; die erfundene Id ebenso). Die Vorbereitung vor dem Rot war nur die Konstante `coverDroppedEntryText` und `recentMoveCategoriesWith` mit dem alten Verhalten. "ReturnAbandoned speichert die Eingabe" und die intakt-Szenarien waren von Anfang an grün, die Mutanten unten belegen sie.
+
+Drei alte Tests mussten nach den Fixes geändert werden, weil sie das alte Verhalten prüften: Erneut-senden-Weg jetzt mit zwei Zeilen (sonst greift E1), "Erneut senden startet nicht" (Vorbedingung Neu-Lesen wegen E2, andere Kategorie wegen E1), `settledTests` wählt nach der Rückkehr neu.
+
+**Gegenprobe, je Mutante einzeln gesetzt, Lauf, zurückgenommen (Skript). Die Liste gilt nur für diese Mutanten.**
+
+| Fund | Mutante | Rot | Erster roter Test |
+|---|---|---|---|
+| A1 | `canCover` ohne Frische | 3 | Fehlbetrag 100, Knopf, Antwort da |
+| A1 | Antwort beendet Veraltet nie | 3 | Erneut senden startet nicht |
+| A1 | Zuweisen markiert nicht veraltet | 1 | Nach dem Speichern und bei leerer Schlange |
+| A2 | Aufruf zählt nur mit Tab | 1 | Fehlbetrag läuft, Seite weg und zurück |
+| A3 | Speichern lässt den Hinweis stehen | 1 | Zwei gescheiterte Zuweisungen 200 und 250 |
+| A3 | ältere Absage trotz wartender | 1 | Beide unterwegs |
+| A3 | Bericht ersetzt gleiche Kategorie nicht | 1 | Scheitert der Fehlbetrag-Knopf nach einer gescheiterten Zuweisung. Überlebte zuerst, Test ergänzt |
+| A4 | Nachlesen speichert nicht | 2 | Rückt das Nachlesen den Monat weiter |
+| A4 | Nachlesen speichert immer | 1 | Ändert das Nachlesen den Monat nicht |
+| A5 | Form lässt die Absage stehen | 1 | Jede Änderung der Form |
+| A5 | Modus lässt die Absage stehen | 1 | Jede Änderung der Form |
+| A5 | Knopf lässt die Absage stehen | 1 | Ein erneuter Tipp auf den Fehlbetrag-Knopf |
+| A5 | Abwesenheit nicht gemerkt | 1 | Eine Absage, die kam, während die Seite verlassen war |
+| A5 | ungelesen bleibt ungelesen | 1 | dieselbe |
+| A5 | gelesene Absage hält die Seite fest | 2 | dieselbe |
+| A6 | Sperre schluckt `Left` | 2 | dieselbe |
+| A6 | `Left` speichert nicht | 2 | Jeder Weg ergibt genau eine Zuweisung |
+| A7 | Antwort ohne Schlange | 2 | Auch eine wartende Zuweisung bleibt stehen |
+| A7 | Schlange ohne Monatsprüfung | 1 | dieselbe |
+| A8 | keine Meldung | 1 | Der Fehlbetrag-Knopf verwirft eine offene Eingabe |
+| A8 | meldet auch ohne Änderung | 1 | Ohne Änderung im Feld |
+| A9 | roher Ausnahmetext | 1 | Scheitert das Lesen |
+| A9 | erfundene Id | 1 | Steht YNAB schon auf dem Wert |
+| B | `ConfirmTransfer` ohne Sperre | 1 | Während eines Monatswechsels ist der Knopf gesperrt |
+| B | `CoverMissing` ohne Sperre | 7 | Während eines Monatswechsels nimmt das Feld keine Eingabe an |
+| B | Gate ohne Monatswechsel | 2 | dieselbe |
+| B | Gate ohne Schlange | 4 | Holen, Abgeben und der Fehlbetrag-Knopf sind gesperrt |
+| B | `Queued` startet trotzdem | 1 | Offene Eingabe: der Start speichert sie |
+| D1 | Bericht trägt den Stand nicht ein | 4 | Eine gescheiterte Zeile ändert den Stand nicht |
+| D1 | Abbruch lässt den alten Monat stehen | 4 | Aufruf abgebrochen: das Feld nimmt nichts an |
+| D1 | Feld während der Bewegung frei | 2 | Fehlbetrag scheitert bei 900 |
+| D2 | `PageLeft` fehlt | 1 | Verlässt man die Seite |
+| C2 | Leer gilt als ungültig | 1 | Das Betragsfeld meldet nur, was keine Rechnung ist |
+
+Die erste A-Reihe lief vor Teil B, die Mutanten A2 und ab A5 "gelesene Absage" sowie B, D und C2 nach Teil B. Die übrigen A-Mutanten wurden nach Teil B nicht wiederholt. Die Tests dazu blieben unverändert grün. Die Tabelle nennt nur den ersten roten Test: Dass die neue Aufzählung selbst rot wurde, ist je Mutante nicht einzeln belegt.
+
+**D1:** `events`, `check` und `walk` sind getrennt, mit eigenem Merker `Pending` und Orakel über `Stand` und Kategorie. Neu: Neu-Lesen ohne Kategorie, `CloseInspector`, Esc, Modus, andere Kategorie. Tiefe 6, Targets-Wege 7, besuchte Zustände werden abgeschnitten. Gemessen je Weg 492 bis 574 Zuweisungen, Targets 84; Mindestzahlen 400 und 60. Der Testlauf der Client-Gruppe dauert rund 0,8 s.
+
+**D2:** `readOnly` während `monthChanging` und `PageLeft` über `State.urlChangedCmd` mit Fang-Dispatch und Gegenprobe. **D3, D4:** wie im Auftrag; Task-Ids aus den Testlisten entfernt, deshalb heißen die Gruppen jetzt `Tab Geld, Client`, `Betragsrechnung`, `Verschieben`, `Zuweisen`.
+
+**Teil C:** C1 bis C13 umgesetzt, neu `TouchTargets.sheetMinHeight` und `alwaysMinHeight`, `Button.amountStep` und `sideRow` haben je einen Parameter mehr. **Teil B5:** Alle genannten Stellen geprüft. `Domain.fs:252` (Doc von `planAssign`) stimmte schon und blieb unverändert, der Hinweis zu Zuweisen steht an `MoveLine` und `MovePlan`.
+
+Während der Arbeit brach ein Schritt von mir ab, weil ein leeres `cat` auf stdin wartete; ohne Folgen für den Code.
+
+Hinweis Kriterium Happy Path: Holen hat keinen eigenen Browser-Test mehr, entschieden mit der neuen Doktrin des Owners.

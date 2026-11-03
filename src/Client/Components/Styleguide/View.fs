@@ -1490,7 +1490,7 @@ let private SegmentedDemo () =
     let segment label : Segmented.Segment =
         { Label = label; IsActive = (active = label); OnClick = fun () -> setActive label }
     section "23b. Segmented, Schritte und Zeilen von und nach" [
-        note "Umschalter mit aria-pressed, aktiv in Teal. Schritte halten den Fokus im Feld daneben. styleguide.md §5."
+        note "Umschalter mit aria-pressed, aktiv in Teal. Schritte halten den Fokus im Feld daneben. Die wählbare Zeile öffnet am Handy sheetLayered, im Panel CategoryPicker.popoverInPanelRevealed. styleguide.md §5."
         Html.div [
             prop.custom ("data-ds-card", "components-segmented")
             prop.custom ("data-ds-card-name", "Segmented")
@@ -1502,11 +1502,11 @@ let private SegmentedDemo () =
                     prop.className "grid grid-cols-6 gap-1"
                     prop.children [
                         for label, delta in [ "-50", -50m; "-20", -20m; "-10", -10m; "+10", 10m; "+20", 20m; "+50", 50m ] do
-                            Button.amountStep "demo-step" label (fun () -> setAmount (amount + delta))
+                            Button.amountStep "demo-step" label label (fun () -> setAmount (amount + delta))
                     ]
                 ]
                 Money.afterAmount amount "EUR"
-                Button.sideRow "demo-side" "von: Gegenseite wählen" ignore [
+                Button.sideRow "demo-side" "von: Kategorie wählen" false ignore [
                     Html.span [ prop.text "von Kleidung" ]
                     Money.available 30m "EUR"
                 ]

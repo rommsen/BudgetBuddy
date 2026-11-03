@@ -1,6 +1,6 @@
 /// Die Abläufe von "Targets anwenden" (Context `budgeting`, budgeting-h2zfn, ADR 0065):
-/// Vorschau, Übernehmen und Fehlgeschlagene erneut senden, dazu "Verschieben"
-/// (budgeting-afd8h, ADR 0069). YNAB kommt als Port herein,
+/// Vorschau, Übernehmen und Fehlgeschlagene erneut senden, dazu "Verschieben" (ADR 0069) und
+/// "Zuweisen" (ADR 0078). YNAB kommt als Port herein,
 /// damit Tests einen Fake-Client einsetzen (der Server spricht YNAB in Tests nie live an).
 module Server.Budgeting.CommandHandlers
 
@@ -229,7 +229,7 @@ let private recordAndSend
         return! reportWith applicationId monthKey None
     }
 
-/// Verschieben oder Zuweisen. Unter der Monats-Sperre: den Monat frisch lesen und relativ dazu
+/// Verschieben oder Zuweisen von Zu verteilen. Unter der Monats-Sperre: den Monat frisch lesen und relativ dazu
 /// planen, die Bewegungen festhalten (eine Transaktion, gemeinsame `ApplicationId`), dann
 /// nacheinander senden. Außen `Error`: der Monat war nicht lesbar. Innen `Error`: der Auftrag ist
 /// abgelehnt. In beiden Fällen ist nichts geschrieben. Der Bericht liest Zu verteilen nicht neu,
@@ -253,7 +253,8 @@ let moveMoney
 
 /// Zuweisen (ADR 0078): setzt das Zugewiesen absolut. Wie `moveMoney` unter der Monats-Sperre und
 /// mit denselben Fehlerwegen. Der gelesene Wert ist der alte, ein Vergleich mit dem gezeigten Stand
-/// findet nicht statt. Steht YNAB schon auf dem Wert, entsteht nichts: der Bericht hat keine Zeilen.
+/// findet nicht statt. Steht YNAB schon auf dem Wert, entsteht nichts: Der Bericht hat keine Zeilen,
+/// und `Guid.Empty` sagt, dass es keine Anwendung gibt, die man erneut senden könnte.
 let assignMoney
     (port: YnabPort)
     (now: DateTime)
@@ -268,7 +269,7 @@ let assignMoney
             | Error message -> return Ok (Error message)
             | Ok None ->
                 let unchanged =
-                    { ApplicationId = string (Guid.NewGuid())
+                    { ApplicationId = string Guid.Empty
                       Month = monthKey
                       Lines = []
                       ActualToBeBudgeted = None }

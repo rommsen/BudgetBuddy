@@ -219,10 +219,10 @@ let validateCategoryMonthQuery (query: Shared.Domain.CategoryMonthQuery) : Resul
     | Some firstDay when errors.IsEmpty -> Ok firstDay
     | _ -> Error errors
 
-/// Obergrenze einer Verschiebung. Liegt weit über jedem echten Betrag und weit unter dem, was
+/// Obergrenze eines Betrags in Verschieben und Zuweisen. Liegt weit über jedem echten Betrag und weit unter dem, was
 /// beim Rechnen in Milliunits überliefe.
 [<Literal>]
-let MaxMoveAmount = 1000000m
+let MaxBudgetAmount = 1000000m
 
 /// Prüft Monat und Auftrag an der Grenze, bevor YNAB gelesen oder etwas festgehalten wird. Alle
 /// Fehler werden gesammelt. Der Betrag wird beidseitig begrenzt: `planMove` rechnet mit ihm, bevor
@@ -236,7 +236,7 @@ let validateMoveRequest (monthKey: string) (request: Shared.Budgeting.MoveReques
               $"Verschoben wird nur in EUR, nicht in '{request.Amount.Currency}'."
           if request.Amount.Amount <= 0m then
               "Der Betrag muss größer als 0 sein."
-          elif request.Amount.Amount > MaxMoveAmount then
+          elif request.Amount.Amount > MaxBudgetAmount then
               "Der Betrag ist zu groß, höchstens 1.000.000,00 € gehen." ]
 
     if errors.IsEmpty then Ok () else Error errors
@@ -251,7 +251,7 @@ let validateAssignRequest (monthKey: string) (request: Shared.Budgeting.AssignRe
               "Die Kategorie fehlt."
           if request.Assigned.Currency <> "EUR" then
               $"Zugewiesen wird nur in EUR, nicht in '{request.Assigned.Currency}'."
-          if abs request.Assigned.Amount > MaxMoveAmount then
+          if abs request.Assigned.Amount > MaxBudgetAmount then
               "Der Betrag ist zu groß, höchstens 1.000.000,00 € gehen." ]
 
     if errors.IsEmpty then Ok () else Error errors

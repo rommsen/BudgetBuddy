@@ -269,10 +269,10 @@ test("Die Datumsfelder haben am Handy 16px, am PC 14px Schrift (iOS-Zoom, m7z9q)
   await mobilePage.locator(".overlay.active").click({ position: { x: 5, y: 5 } });
 });
 
-test("Input.Small misst am Handy 16px und am PC 14px, Medium und Large bleiben bei 16px (btwhg)", async () => {
+test("Input.Small misst am Handy 16px und am PC 14px, Medium bleibt bei 16px, Large misst 18px (btwhg)", async () => {
   // Misst die Kaskade von `.input-field` gegen die Klassen aus `Input.sizeToClass`:
   // `.input-field` stand ohne Layer in styles.css und überstimmte `text-base` von Small.
-  // Medium und Large tragen zusätzlich das Inline-fontSize 16 (`Input.usesInlineFontSize`).
+  // Medium trägt zusätzlich das Inline-fontSize 16 (`Input.usesInlineFontSize`).
   const measure = (p) =>
     p.evaluate(() => {
       const make = (classes, inline) => {
@@ -287,11 +287,11 @@ test("Input.Small misst am Handy 16px und am PC 14px, Medium und Large bleiben b
       return {
         small: make("text-base md:text-sm px-3 py-2 min-h-[36px]", false),
         medium: make("text-base px-4 py-3 min-h-[48px] md:min-h-[44px]", true),
-        large: make("text-lg px-4 py-3.5 min-h-[52px]", true),
+        large: make("text-lg px-4 py-3.5 min-h-[52px]", false),
       };
     });
-  assert.deepEqual(await measure(page), { small: "14px", medium: "16px", large: "16px" }, "PC 1440x900");
-  assert.deepEqual(await measure(mobilePage), { small: "16px", medium: "16px", large: "16px" }, "Handy 390x844");
+  assert.deepEqual(await measure(page), { small: "14px", medium: "16px", large: "18px" }, "PC 1440x900");
+  assert.deepEqual(await measure(mobilePage), { small: "16px", medium: "16px", large: "18px" }, "Handy 390x844");
 
   // Ein echtes Input.Small-Feld: die Kategorie-Suche im Popover am PC.
   await categoryChip().click();

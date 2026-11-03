@@ -1899,13 +1899,7 @@ let budgetApiWith
         return! assignMoneyWith tokenOpt budgetOpt portFor (utcNow ()) monthKeyText request
       }
 
-      getRecentMoveCategories = fun () -> async {
-        try
-            let! recent = Server.Budgeting.QueryHandlers.recentMoveCategories ()
-            return Ok recent
-        with ex ->
-            return Error ex.Message
-      } }
+      getRecentMoveCategories = fun () -> Server.Budgeting.QueryHandlers.recentMoveCategories () }
 
 /// Die Budget-Seite mit den echten YNAB-Ports. Die Settings kommen als Parameter, damit der
 /// Integrationstest den Live-Anschluss ohne Eintrag in der Datenbank prüfen kann.

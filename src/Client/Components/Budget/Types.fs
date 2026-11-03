@@ -1,7 +1,7 @@
 /// Modell und Nachrichten der Budget-Seite (budgeting-k7wmd, Liste und Inspektor budgeting-g8s3w).
 ///
-/// Die Seite liest den Monat live aus YNAB und merkt sich nichts außer dem, was gerade
-/// angezeigt wird. Der Rahmen (`BudgetFrame`) liegt je Seitenaufruf im Modell: laufender Monat,
+/// Die Seite liest den Monat live aus YNAB und hält daneben nur, was gerade unterwegs ist (Schlange,
+/// laufender Aufruf, offene Verschiebungen). Der Rahmen (`BudgetFrame`) liegt je Seitenaufruf im Modell: laufender Monat,
 /// Monatsfenster und Kategorie-Reihenfolge. Eine Zeile wählt die Kategorie, alles zu ihr steht im
 /// Inspektor. Ob Panel oder Sheet, entscheidet allein das Rendern.
 module Components.Budget.Types
@@ -28,13 +28,29 @@ type TargetsState =
     /// `retryError` wenn dieser Aufruf scheiterte.
     | ApplyDone of preview: TargetPreview * report: ApplyReport * retrying: bool * retryError: string option
 
-/// Wo der Auftrag im Sheet steht.
+/// Wo der Auftrag im Tab steht. Ob er läuft, sagt `Model.MoveInFlight`.
 type Submission =
     | Editing
-    /// Der Aufruf läuft: der Knopf ist gesperrt und zeigt den Ladezustand.
-    | Sending
-    /// Nichts geschrieben (Monat nicht lesbar, Auftrag abgelehnt), mit Grund.
+    /// Nichts geschrieben (Monat nicht lesbar, Auftrag abgelehnt), mit Grund. Jede Änderung der Form
+    /// und jeder Moduswechsel nimmt die Absage weg.
     | Rejected of string
+    /// Dieselbe Absage, nur kam sie, während die Seite verlassen war: Sie hält den Tab beim
+    /// Wiederkommen einmal fest, damit Roman sie lesen kann.
+    | RejectedAway of string
+
+/// Ein Aufruf aus dem Tab. Liegt auf `Model`, denn er überlebt Kategorie, Monat und Seite: am Tab
+/// hing er nur, solange der Tab lebte.
+type MoveCall =
+    | NoMoveCall
+    | MoveCallRunning
+    /// Läuft, und die Seite ist verlassen.
+    | MoveCallRunningAway
+
+/// Gilt der Monat im Modell als gelesen? Nach einer Bewegung stimmt der Fehlbetrag nicht mehr, bis ein
+/// Neu-Lesen gelingt: YNAB rechnet ihn, das Fortschreiben kann es nicht (`withAssigned`).
+type MonthFreshness =
+    | MonthRead
+    | MonthStale
 
 /// Die drei Ansichten des Tabs Geld (budgeting-c5w2n).
 type MoneyMode =
@@ -105,6 +121,9 @@ type OpenMoveRetry = {
     Summary: string
     Reason: string
     State: MoveRetryState
+    /// Kategorie und Monat, wenn eine Zeile zugewiesen werden sollte: Eine neuere Zuweisung ersetzt
+    /// den Eintrag. Eine Verschiebung hat keinen.
+    AssignTarget: (System.Guid * string) option
 }
 
 /// Filter über der Liste neben der Suche.
@@ -175,6 +194,10 @@ type Model = {
     TabMoney: MoneyTabState option
     /// Gespeicherte Zuweisungen: es läuft höchstens eine, die erste (ADR 0078 Punkt 5).
     AssignQueue: AssignWrite list
+    /// Der laufende Aufruf aus dem Tab.
+    MoveInFlight: MoveCall
+    /// Sperrt den Fehlbetrag-Knopf, sonst nichts.
+    Freshness: MonthFreshness
     /// "Zuletzt verwendet" im Picker der Gegenseite.
     RecentCounterparts: RemoteData<System.Guid list>
     /// Verschiebungen, die noch erneut gesendet werden können.
@@ -191,7 +214,7 @@ type Model = {
 }
 
 type Msg =
-    /// Die Seite wird betreten: Rahmen und Monat holen, nach der Rückkehr aus dem Kassenbuch nur den Monat.
+    /// Die Seite wird betreten: Rahmen und Monat holen, bei erhaltener Seite nur den Monat (`KeptPage`).
     | PageEntered
     /// Rahmen und Monat (neu) holen: "Wiederholen".
     | Load
@@ -201,9 +224,9 @@ type Msg =
     | FrameRefreshed of Result<BudgetFrame, string>
     /// `‹ ›` oder der Monatsname.
     | SelectMonth of month: string
-    /// Antwort des Servers, mit der Abfrage, zu der sie gehört.
+    /// Antwort auf eine Abfrage des Monats, mit ihrer Generation.
     | Loaded of generation: int * Result<BudgetMonth, string>
-    /// Antwort des stillen Neu-Lesens nach einer Verschiebung.
+    /// Antwort des stillen Neu-Lesens nach einer Bewegung oder Zuweisung.
     | Reloaded of generation: int * Result<BudgetMonth, string>
     /// Knopf "Targets anwenden": Vorschau öffnen.
     | OpenTargets
@@ -235,8 +258,8 @@ type Msg =
     | AssignDiscarded
     /// Der Fehlbetrag-Knopf.
     | CoverMissing
-    /// Antwort auf eine Zuweisung aus der Schlange. `Error` heißt: nichts geschrieben.
-    | AssignAnswered of AssignWrite * Result<ApplyReport, string>
+    /// Antwort auf die laufende Zuweisung der Schlange. `Error` heißt: nichts geschrieben.
+    | AssignAnswered of Result<ApplyReport, string>
     /// Der Aufruf selbst brach ab: ob zugewiesen wurde, ist unbekannt.
     | AssignCallLost of string
     | TransferAmountChanged of string
@@ -291,6 +314,8 @@ let init () : Model =
       Filter = AllCategories
       TabMoney = None
       AssignQueue = []
+      MoveInFlight = NoMoveCall
+      Freshness = MonthRead
       RecentCounterparts = NotAsked
       OpenRetries = []
       Selected = None

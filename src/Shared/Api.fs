@@ -497,8 +497,8 @@ type LedgerApi = {
 // ============================================
 
 /// Die Budget-Seite (Context `budgeting`): liest den Monat live aus YNAB. Nur "Targets
-/// anwenden" (`applyTargets`, `retryFailedTargets`) und "Verschieben" (`moveMoney`) schreiben,
-/// nach YNAB und in die Budget-Bewegungen.
+/// anwenden" (`applyTargets`, `retryFailedTargets`), "Verschieben" (`moveMoney`) und "Zuweisen"
+/// (`assignMoney`) schreiben, nach YNAB und in die Budget-Bewegungen.
 type BudgetApi = {
     /// Holt den Rahmen der Seite: laufender Monat, Monatsfenster und Kategorie-Reihenfolge
     /// (ADR 0074). Error mit lesbarer Meldung bei fehlendem Token oder Budget und bei YNAB-Fehlern.
@@ -525,14 +525,15 @@ type BudgetApi = {
 
     /// Geld verschieben oder zuweisen (budgeting-afd8h, ADR 0069) im Monat, den die Seite zeigt
     /// (`BudgetMonth.Month`, "YYYY-MM-01"): der Server liest den Monat frisch, hält die Bewegungen fest und
-    /// schreibt nacheinander nach YNAB. Error heißt: nichts geschrieben (Monat nicht lesbar oder
-    /// Auftrag abgelehnt). Fehlgeschlagene Zeilen stehen im Bericht und gehen über
+    /// schreibt nacheinander nach YNAB. Error heißt: Monat nicht lesbar oder Auftrag abgelehnt, nichts
+    /// geschrieben. Einzige Ausnahme: Der Bericht ist nach dem Senden nicht lesbar, dann bleibt der
+    /// Ausgang offen und die Bewegungen stehen im Protokoll. Fehlgeschlagene Zeilen stehen im Bericht und gehen über
     /// `retryFailedTargets` erneut hinaus.
     moveMoney: string -> Shared.Budgeting.MoveRequest -> Async<Result<Shared.Budgeting.ApplyReport, string>>
 
     /// Das Feld Zugewiesen (budgeting-c5w2n, ADR 0078): setzt das Zugewiesen einer Kategorie im Monat
-    /// absolut. Steht YNAB schon auf dem Wert, hat der Bericht keine Zeilen. Error heißt: nichts
-    /// geschrieben. Eine fehlgeschlagene Zeile geht über `retryFailedTargets` erneut hinaus.
+    /// absolut. Steht YNAB schon auf dem Wert, hat der Bericht keine Zeilen. Error heißt wie bei
+    /// `moveMoney`: nichts geschrieben, außer der Bericht ist nach dem Senden nicht lesbar. Eine fehlgeschlagene Zeile geht über `retryFailedTargets` erneut hinaus.
     assignMoney: string -> Shared.Budgeting.AssignRequest -> Async<Result<Shared.Budgeting.ApplyReport, string>>
 
     /// "Zuletzt verwendet" im Picker der Gegenseite: Kategorien aus den Bewegungen mit Herkunft

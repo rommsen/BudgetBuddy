@@ -173,11 +173,11 @@ let decideRetry (baseline: Money) (target: Money) (live: Money) : RetryDecision 
     else YnabWins
 
 // ============================================
-// Geld verschieben (budgeting-afd8h, ADR 0069)
+// Geld verschieben und zuweisen (ADR 0069, ADR 0078)
 // ============================================
 
 
-/// Eine Kategorie einer Verschiebung: neu = alt ∓ Betrag.
+/// Eine Kategorie eines Auftrags: bei Verschieben neu = alt ∓ Betrag, bei Zuweisen der gesetzte Wert.
 type MoveLine = {
     CategoryId: Guid
     CategoryName: string
@@ -186,6 +186,7 @@ type MoveLine = {
 }
 
 /// Was aus einem Auftrag wird. `Lines` stehen in Sendereihenfolge: erst die Quelle, dann das Ziel.
+/// Zuweisen hat genau eine Zeile.
 type MovePlan = {
     Origin: MovementOrigin
     Lines: MoveLine list

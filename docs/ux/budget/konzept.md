@@ -83,6 +83,12 @@ Der Seitenkopf trägt Monat, Suche, Filter, Zu verteilen, Targets anwenden und K
   sonst fragt BB jeden Monat dasselbe.
 - Nur "Targets prüfen" heißt prüfen, es gibt kein allgemeines Prüfen.
 
+### Fehlbetrag-Knopf
+
+Der Knopf verwirft eine offene Eingabe im Feld Zugewiesen und meldet das per Warn-Toast. Nach einer
+Bewegung ist er gesperrt, bis der Monat neu gelesen ist, sonst buchte ein zweiter Tipp denselben
+Fehlbetrag noch einmal. Liste und Feld bleiben dabei bedienbar.
+
 ### Monate
 
 Freies Blättern mit `‹ Monat ›`, der Monatsname führt zum aktuellen Monat zurück und wird teal,
@@ -102,8 +108,8 @@ Die Grenzen nach vorn und hinten kommen aus YNAB. Am Rand fehlt der Pfeil. Laut 
 
 - **Orange:** die eine Hauptaktion. **Teal:** Ausgewähltes und Navigation.
 - Normale Knöpfe sind neutral mit grauem Rand, das ist `Button.secondary` (ADR 0077).
-- **Rot:** nur Beträge im Minus. **Gelb** (dezent, Prototyp `#cdb27a`): offen, aber kein Fehler,
-  also `fehlt` und "Passt das Target noch?". Gelb ist ein neuer Token. Eine Zeile darf Rot und Gelb
+- **Rot:** nur Beträge im Minus. Wer über den freien Betrag holt, sieht nur den gelben Hinweis.
+  **Gelb** (dezent, Prototyp `#cdb27a`): offen, aber kein Fehler, also `fehlt` und "Passt das Target noch?". Gelb ist ein neuer Token. Eine Zeile darf Rot und Gelb
   zugleich tragen, das ist eine Ausnahme von "ein Akzent pro Zeile" für die Budget-Seite.
 - Auf der Budget-Seite gibt es kein Pink mehr. Das Kassenbuch behält Pink für "zu prüfen".
 

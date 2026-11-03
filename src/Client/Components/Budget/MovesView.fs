@@ -15,7 +15,7 @@ open Client.DesignSystem
 open Client.DesignSystem.Tokens
 open Components.Budget.MonthView
 
-/// Der Fokus steht beim Tippen auf den Schritten und dem Fehlbetrag-Knopf still (ADR 0005 Punkt 2).
+/// Der Fehlbetrag-Knopf nimmt dem Feld den Fokus nicht (ADR 0005 Punkt 2). Die Schritte tragen das selbst.
 let private keepsFocus (children: ReactElement list) =
     Html.div [
         prop.onMouseDown (fun e -> e.preventDefault ())
@@ -52,6 +52,13 @@ let moneySwitch (tab: MoneyTabState) (dispatch: Msg -> unit) =
           OnClick = fun () -> dispatch (SwitchMoneyMode mode) }
     Segmented.view "money-mode" "Modus" [ segment "Zuweisen" AssignMode; segment "Holen" TakeMode; segment "Abgeben" GiveMode ]
 
+/// Ein Betragsfeld. `.input-field` setzt Farbe und Schrift ohne Layer, deshalb eigene Regeln (`styles.css`).
+let private amountFieldClass (invalid: bool) : string =
+    if invalid then "w-full input-amount input-invalid tabular-nums" else "w-full input-amount tabular-nums"
+
+let private invalidHint =
+    Html.span [ prop.className $"{ListRoles.primarySize} {Colors.neonRed}"; prop.text "Keine gültige Rechnung" ]
+
 let private assignField (model: Model) (category: BudgetCategory) (tab: MoneyTabState) (dispatch: Msg -> unit) =
     Input.groupSimple "Zugewiesen" (
         Html.div [
@@ -66,11 +73,8 @@ let private assignField (model: Model) (category: BudgetCategory) (tab: MoneyTab
                         OnFocus = Some selectAll
                         OnBlur = Some (fun e -> if focusLeft e then dispatch AssignFieldLeft)
                         OnKeyDown = Some (fieldKeys assignKeyAction dispatch)
-                        ClassName =
-                            Some (
-                                if assignFieldInvalid tab then "w-full font-mono tabular-nums text-neon-red"
-                                else "w-full font-mono tabular-nums"
-                            ) }
+                        AriaLabel = Some "Zugewiesen"
+                        ClassName = Some (amountFieldClass (assignFieldInvalid tab)) }
             ]
         ]
     )
@@ -83,8 +87,7 @@ let private previewSlot (month: BudgetMonth) (category: BudgetCategory) (tab: Mo
         prop.children [
             match assignPreview month category tab with
             | NoPreview -> ()
-            | InvalidCalculation ->
-                Html.span [ prop.className ListRoles.secondary; prop.text "Keine gültige Rechnung" ]
+            | InvalidCalculation -> invalidHint
             | AssignAfter (available, assigned, toBeBudgeted) ->
                 Html.div [
                     prop.className ListRoles.mobileLine1
@@ -96,9 +99,15 @@ let private previewSlot (month: BudgetMonth) (category: BudgetCategory) (tab: Mo
                         ]
                     ]
                 ]
-                Html.span [
-                    prop.className ListRoles.muted
-                    prop.text $"Ergebnis {moneyText assigned} · Zu verteilen danach {moneyText toBeBudgeted}"
+                Html.div [
+                    prop.className "flex flex-wrap items-baseline gap-x-1"
+                    prop.children [
+                        Html.span [
+                            prop.className ListRoles.muted
+                            prop.text $"Ergebnis {moneyText assigned} · Zu verteilen danach"
+                        ]
+                        availableAmount toBeBudgeted
+                    ]
                 ]
         ]
     ]
@@ -109,20 +118,14 @@ let private assignSteps (dispatch: Msg -> unit) =
         prop.className "grid grid-cols-6 gap-1"
         prop.children [
             for label, delta in [ "-50", -50m; "-20", -20m; "-10", -10m; "+10", 10m; "+20", 20m; "+50", 50m ] do
-                Button.amountStep "assign-step" label (fun () -> dispatch (AssignStepped delta))
+                let spoken = if delta < 0m then $"{int -delta} abziehen" else $"{int delta} dazu"
+                Button.amountStep "assign-step" spoken label (fun () -> dispatch (AssignStepped delta))
         ]
     ]
 
 let private missingButton (model: Model) (month: BudgetMonth) (category: BudgetCategory) (tab: MoneyTabState) (dispatch: Msg -> unit) =
     let action = missingAction month category
-    match action with
-    | NothingMissing -> Html.none
-    | AssignMissing _
-    | OnlyLeft _ ->
-        let enabled =
-            match action with
-            | AssignMissing _ -> canSend model
-            | _ -> false
+    let button variant enabled =
         Html.div [
             prop.custom ("data-testid", "assign-missing")
             prop.children [
@@ -130,17 +133,18 @@ let private missingButton (model: Model) (month: BudgetMonth) (category: BudgetC
                     Button.view
                         { Button.defaultProps with
                             Text = missingActionText action
-                            Variant =
-                                match action with
-                                | AssignMissing _ -> Button.Primary
-                                | _ -> Button.Secondary
+                            Variant = variant
                             IsDisabled = not enabled
-                            IsLoading = (tab.Transfer.Submission = Sending)
-                            ClassName = Some $"w-full {TouchTargets.minHeight}"
+                            IsLoading = (model.MoveInFlight <> NoMoveCall)
+                            ClassName = Some $"w-full {TouchTargets.sheetMinHeight}"
                             OnClick = fun () -> dispatch CoverMissing }
                 ]
             ]
         ]
+    match action with
+    | NothingMissing -> Html.none
+    | AssignMissing _ -> button Button.Primary (canCover model)
+    | OnlyLeft _ -> button Button.Secondary false
 
 let private assignMode (model: Model) (month: BudgetMonth) (category: BudgetCategory) (tab: MoneyTabState) (dispatch: Msg -> unit) =
     React.fragment [
@@ -170,6 +174,8 @@ let private sideContent (label: string) (side: TransferEnd option) (placeholder:
 let private fixedSide (testId: string) (label: string) (side: TransferEnd option) =
     Button.sideRowFixed testId (sideContent label side "")
 
+let private choosePrompt = "Kategorie wählen"
+
 /// Die wählbare Seite. Am Handy geht der Picker über dem Inspektor auf, im Panel als Popover.
 let private counterpartSide
     (model: Model)
@@ -194,6 +200,7 @@ let private counterpartSide
           OnRetry = ignore
           OnSelect = fun choice -> counterpartOf choice |> Option.iter (PickCounterpart >> dispatch)
           OnClose = fun () -> dispatch ClosePicker }
+    let sideName = side |> Option.map (fun s -> s.Label) |> Option.defaultValue choosePrompt
     Html.div [
         prop.className "relative"
         prop.children [
@@ -202,9 +209,9 @@ let private counterpartSide
                 // gleich wieder. So bleibt der Auslöser ein Umschalter.
                 prop.onMouseDown (fun e -> e.stopPropagation ())
                 prop.children [
-                    Button.sideRow testId $"{label}: Gegenseite wählen"
+                    Button.sideRow testId $"{label}: {sideName}" tab.Transfer.PickerOpen
                         (fun () -> dispatch (if tab.Transfer.PickerOpen then ClosePicker else OpenPicker))
-                        (sideContent label side "Gegenseite wählen")
+                        (sideContent label side choosePrompt)
                 ]
             ]
             // ADR 0043: zur Renderzeit genau eine Hülle.
@@ -231,10 +238,13 @@ let private transferMode (model: Model) (month: BudgetMonth) (tab: MoneyTabState
                             Size = Input.Large
                             OnFocus = Some selectAll
                             OnKeyDown = Some (fieldKeys amountKeyAction dispatch)
-                            ClassName = Some "w-full font-mono tabular-nums" }
+                            ReadOnly = assignFieldReadOnly model
+                            AriaLabel = Some "Betrag"
+                            ClassName = Some (amountFieldClass (transferAmountInvalid month tab)) }
                 ]
             ]
         )
+        if transferAmountInvalid month tab then invalidHint
         if tab.Mode = GiveMode then
             fixedSide "transfer-from" "von" source
             counterpartSide model month tab "transfer-to" "nach" target dispatch
@@ -254,9 +264,9 @@ let private transferMode (model: Model) (month: BudgetMonth) (tab: MoneyTabState
                 Button.view
                     { Button.defaultProps with
                         Text = transferButtonText month tab
-                        IsLoading = (tab.Transfer.Submission = Sending)
+                        IsLoading = (model.MoveInFlight <> NoMoveCall)
                         IsDisabled = not (canTransfer model month tab)
-                        ClassName = Some $"w-full whitespace-normal break-words {TouchTargets.minHeight}"
+                        ClassName = Some $"w-full whitespace-normal break-words {TouchTargets.sheetMinHeight}"
                         OnClick = fun () -> dispatch ConfirmTransfer }
             ]
         ]
@@ -270,13 +280,13 @@ let moneyMode (model: Model) (month: BudgetMonth) (category: BudgetCategory) (ta
         | TakeMode
         | GiveMode -> transferMode model month tab dispatch
         match tab.Transfer.Submission with
-        | Rejected message ->
+        | Rejected message
+        | RejectedAway message ->
             Html.div [
                 prop.custom ("data-testid", "transfer-error")
                 prop.children [ ErrorDisplay.cardCompact message None ]
             ]
-        | Editing
-        | Sending -> ()
+        | Editing -> ()
     ]
 
 

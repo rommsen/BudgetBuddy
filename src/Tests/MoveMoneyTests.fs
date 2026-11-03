@@ -682,6 +682,7 @@ let private assignFlowTests =
             let f, a, b = fake ()
             let report = assignOk f (assign a 100000L)
             Expect.isEmpty report.Lines "keine Zeile"
+            Expect.equal report.ApplicationId (string Guid.Empty) "keine Anwendung, also keine Id"
             Expect.equal report.Month monthKey "Monat im Bericht"
             Expect.isEmpty f.Attempts "kein PATCH"
             Expect.equal (movementRows [ a; b ]) 0 "keine Bewegung"
@@ -887,15 +888,19 @@ let private recentTests =
             let other = run (moveMoney f.Port now "2031-05-01" (request (CategorySide a) (CategorySide b) 30000L))
             Expect.isOk other "verschoben"
             let reads = f.Reads
-            let recent = run (QueryHandlers.recentMoveCategories ())
+            let recent = run (QueryHandlers.recentMoveCategories ()) |> Result.defaultValue []
             Expect.equal (recent |> List.truncate 2) [ b; a ] "neueste zuerst, auch aus einem anderen Monat"
             Expect.equal f.Reads reads "keine YNAB-Anfrage"
+        // Der rohe Ausnahmetext ging an den Client, er kann Pfade und SQL enthalten.
+        testCase "Scheitert das Lesen, kommt ein deutscher Grund ohne Ausnahmetext" <| fun () ->
+            let result = run (QueryHandlers.recentMoveCategoriesWith (fun _ -> async { return failwith "SQLite Error 1: geheim" }))
+            Expect.equal result (Error "Zuletzt verwendete Kategorien nicht lesbar") "Grund"
     ]
 
 [<Tests>]
 let tests =
-    testList "Verschieben (budgeting-afd8h)" [ planTests; flowTests; originTests; boundaryTests ]
+    testList "Verschieben" [ planTests; flowTests; originTests; boundaryTests ]
 
 [<Tests>]
 let assignTests =
-    testList "Zuweisen (budgeting-c5w2n)" [ assignPlanTests; assignFlowTests; assignBoundaryTests; recentTests ]
+    testList "Zuweisen" [ assignPlanTests; assignFlowTests; assignBoundaryTests; recentTests ]

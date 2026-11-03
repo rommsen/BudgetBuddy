@@ -46,7 +46,7 @@ let private update msg model =
     let model', _, external = Components.Budget.State.update msg model
     model', external
 
-/// Führt Nachrichten nacheinander aus und gibt das Modell und die letzte Meldung zurück.
+/// Führt Nachrichten nacheinander aus und gibt das Modell zurück.
 let private run (msgs: Msg list) (model: Model) : Model =
     msgs |> List.fold (fun current msg -> fst (update msg current)) model
 
@@ -191,11 +191,6 @@ let private leaveTests =
             for msgs in unchanged do
                 Expect.isEmpty (run msgs onFood).AssignQueue $"{msgs}"
         }
-        test "Esc verwirft: das Feld zeigt den Stand, der folgende Blur schreibt nichts" {
-            let model = run [ typed "+20"; AssignDiscarded; AssignFieldLeft ] onFood
-            Expect.equal (field food model) "900,00" "Stand"
-            Expect.isEmpty model.AssignQueue "nichts"
-        }
         test "Der gespeicherte Wert steht sofort im Monat, die Generation steigt, eine ältere Antwort überschreibt ihn nicht" {
             let model = run [ AssignFieldLeft ] edited
             let food' = categoryIn model food
@@ -219,6 +214,7 @@ let private leaveTests =
             let changing = fst (select "2026-12-01" onFood)
             Expect.isTrue (monthChanging changing) "Vorbedingung"
             Expect.equal (run [ typed "+5"; AssignStepped 10m ] changing) changing "keine Eingabe"
+            Expect.isTrue (assignFieldReadOnly changing) "readOnly, der Fokus bleibt"
             let red = { loaded with Month = Success month } |> selected trip
             let redChanging = fst (select "2026-12-01" red)
             Expect.equal (update CoverMissing redChanging |> fst) redChanging "kein Fehlbetrag"
@@ -229,7 +225,7 @@ let private queueTests =
     let saved (c: BudgetCategory) text (model: Model) = run [ SelectCategory c.Id; typed text; AssignFieldLeft ] model
     let write (c: BudgetCategory) amount state : AssignWrite =
         { CategoryId = c.Id; Month = monthKey; Assigned = eur amount; State = state }
-    let answer (model: Model) = update (AssignAnswered (model.AssignQueue.Head, Ok { ApplicationId = "a"; Month = monthKey; Lines = []; ActualToBeBudgeted = None })) model
+    let answer (model: Model) = update (AssignAnswered (Ok { ApplicationId = "a"; Month = monthKey; Lines = []; ActualToBeBudgeted = None })) model
     testList "Schlange" [
         test "Es läuft eine, weitere warten in Reihenfolge" {
             let model = onFood |> saved food "+1" |> saved trip "1" |> saved clothes "1"
@@ -253,22 +249,22 @@ let private queueTests =
         test "Holen, Abgeben und der Fehlbetrag-Knopf sind gesperrt, solange die Schlange nicht leer ist" {
             let waiting = { takeReady with AssignQueue = [ write food 1m WriteRunning ] }
             Expect.isFalse (canTransfer waiting month (tabOf waiting)) "Knopf"
-            Expect.isNone (snd (confirmTransfer waiting)) "Holen"
+            Expect.equal (commands ConfirmTransfer waiting) 0 "Holen"
             let red = { selected trip loaded with AssignQueue = [ write food 1m WriteRunning ] }
-            Expect.isNone (snd (confirmMissing red)) "Fehlbetrag"
+            Expect.equal (commands CoverMissing { red with TabMoney = red.TabMoney |> Option.map (fun t -> { t with Mode = AssignMode }) }) 0 "Fehlbetrag"
         }
         test "Error: der Toast nennt den Grund, die Schlange läuft weiter, der Monat wird neu gelesen" {
             let model = onFood |> saved food "+1" |> saved trip "1"
-            let next, external = update (AssignAnswered (model.AssignQueue.Head, Error "Monat nicht offen")) model
+            let next, external = update (AssignAnswered (Error "Monat nicht offen")) model
             Expect.equal external (ShowToast ("Nicht zugewiesen: Monat nicht offen", ToastError)) "Grund"
             Expect.equal (next.AssignQueue |> List.map (fun w -> w.State)) [ WriteRunning ] "weiter"
-            let last, _ = update (AssignAnswered (next.AssignQueue.Head, Error "x")) next
+            let last, _ = update (AssignAnswered (Error "x")) next
             Expect.equal last.MonthGeneration (next.MonthGeneration + 1) "neu gelesen"
         }
         test "Aufruf abgebrochen: Toast Ob zugewiesen wurde ist unklar, Monat neu lesen" {
             let model = onFood |> saved food "+1"
             let next, external = update (AssignCallLost "Timeout") model
-            Expect.equal external (ShowToast ("Ob zugewiesen wurde, ist unklar: Timeout", ToastError)) "ehrlich"
+            Expect.equal external (ShowToast ("Ob zugewiesen wurde, ist unklar: Timeout. Der Stand wird gleich neu gelesen.", ToastError)) "ehrlich"
             Expect.isEmpty next.AssignQueue "leer"
             Expect.equal next.MonthGeneration (model.MonthGeneration + 1) "neu gelesen"
         }
@@ -276,16 +272,16 @@ let private queueTests =
             let model = onFood |> saved food "+1"
             Expect.equal (snd (answer model)) NoOp "ohne Zeilen"
             let written = report [ "Lebensmittel", 900m, 901m, Written ]
-            Expect.equal (snd (update (AssignAnswered (model.AssignQueue.Head, Ok written)) model)) NoOp "Erfolg"
+            Expect.equal (snd (update (AssignAnswered (Ok written)) model)) NoOp "Erfolg"
         }
         test "Eine Zuweisung im letzten Monat zieht den Rahmen still nach" {
             // Der Cmd läuft unter .NET nicht, gezählt wird: Neu-Lesen des Monats, dazu der Rahmen.
             let model = onFood |> saved food "+1"
             let last = { (report [ "Lebensmittel", 900m, 901m, Written ]) with Month = "2026-12-01" }
             let inner = report [ "Lebensmittel", 900m, 901m, Written ]
-            Expect.equal (commands (AssignAnswered (model.AssignQueue.Head, Ok last)) model) 2 "letzter Monat"
-            Expect.equal (commands (AssignAnswered (model.AssignQueue.Head, Ok inner)) model) 1 "Monat davor"
-            Expect.equal (commands (AssignAnswered (model.AssignQueue.Head, Error "x")) model) 1 "nichts geschrieben"
+            Expect.equal (commands (AssignAnswered (Ok last)) model) 2 "letzter Monat"
+            Expect.equal (commands (AssignAnswered (Ok inner)) model) 1 "Monat davor"
+            Expect.equal (commands (AssignAnswered (Error "x")) model) 1 "nichts geschrieben"
         }
         test "Ein abgebrochener Aufruf zieht den Rahmen nach, wenn der gezeigte Monat der letzte ist" {
             let model = onFood |> saved food "+1"
@@ -385,13 +381,13 @@ let private unclearTests =
         test "Erneut senden sperrt auch ohne gewählte Kategorie, Holen und Fehlbetrag warten" {
             let closed = run [ CloseInspector; RetryMove "app-2" ] failedCover
             Expect.isTrue (inspectorBusy closed) "ohne Tab"
-            Expect.isNone (snd (confirmMissing retrying)) "Fehlbetrag"
+            Expect.equal (commands CoverMissing retrying) 0 "Fehlbetrag"
             Expect.isTrue (inputActive retrying) "ein Neuladen zerstörte den Lauf"
         }
         test "Erneut senden startet nicht, solange die Schlange läuft oder ein Aufruf aus dem Tab" {
-            let queued = run [ typed "+1"; AssignFieldLeft; RetryMove "app-2" ] failedCover
+            let queued = run [ SelectCategory food.Id; typed "+1"; AssignFieldLeft; RetryMove "app-2" ] failedCover
             Expect.equal (queued.OpenRetries |> List.map (fun r -> r.State)) [ RetryReady ] "Schlange"
-            let sending = run [ CoverMissing; RetryMove "app-2" ] failedCover
+            let sending = run [ Reloaded (failedCover.MonthGeneration, Ok rentMonth); CoverMissing; RetryMove "app-2" ] failedCover
             Expect.equal (sending.OpenRetries |> List.map (fun r -> r.State)) [ RetryReady ] "Aufruf"
         }
         test "Nach Erneut senden rechnet das Feld vom neuen Stand, auch wenn das Neu-Lesen noch läuft" {
@@ -413,7 +409,7 @@ let private unclearTests =
         test "Aufruf abgebrochen: das Feld nimmt nichts an, bis das Neu-Lesen da ist" {
             Expect.isEmpty (run (typed "+5" :: stepped) lost).AssignQueue "gesperrt"
             Expect.isNone (tabOf (run (typed "+5" :: stepped) lost)).Entry "keine Eingabe"
-            Expect.isNone (snd (confirmMissing lost)) "kein zweiter Knopf"
+            Expect.equal (commands CoverMissing lost) 0 "kein zweiter Knopf"
         }
         test "Aufruf abgebrochen: eine ältere Monatsantwort gibt das Feld nicht frei" {
             let old = Reloaded (lost.MonthGeneration - 1, Ok rentMonth)
@@ -458,8 +454,9 @@ let private moveWays : MoveWay list =
     let preview : TargetPreview =
         { Month = monthKey; Lines = [ targetLine ]; Skipped = []; Total = eur 12.3m; ToBeBudgeted = eur 100m; ToBeBudgetedAfter = eur 87.7m }
     let failedReport = { reportFrom 900m with Lines = [ line rent 900m 912.3m (Failed "weg") ] }
+    // Zwei Zeilen: Eine Verschiebung bleibt offen, wenn dieselbe Kategorie neu zugewiesen wird (E1).
     [ { Name = "Erneut senden"
-        Base = run [ CoverMissing; answered [ line rent 900m 912.3m (Failed "weg") ] ] onRent
+        Base = run [ CoverMissing; answered [ line food 900m 900m Written; line rent 900m 912.3m (Failed "weg") ] ] onRent
         Arm = id
         Start = RetryMove "app-2"
         Landed = fun stand -> MoveRetried ("app-2", Ok (reportFrom stand))
@@ -487,7 +484,8 @@ let private moveWays : MoveWay list =
 let private monthWith (stand: decimal) : BudgetMonth =
     monthOf (100m - (stand - 900m)) [ food; trip; { rent with Assigned = eur stand; Available = eur (stand - 912.3m) } ]
 
-/// Der Fehlbetrag-Knopf startet auch, verwirft aber die Eingabe statt sie zu speichern.
+/// Der Fehlbetrag-Knopf startet auch, verwirft aber die Eingabe statt sie zu speichern. Die Targets-Wege
+/// stehen eine Stufe tiefer.
 let private coverWay : MoveWay =
     { Name = "Fehlbetrag"
       Base = onRent
@@ -497,8 +495,101 @@ let private coverWay : MoveWay =
         MoveAnswered (Ok { ApplicationId = "app-2"; Month = monthKey; Lines = [ line rent stand (stand + 12.3m) Written ]; ActualToBeBudgeted = None })
       Lost = MoveCallLost "weg" }
 
-let private assignDone (model: Model) : Msg =
-    AssignAnswered (model.AssignQueue.Head, Ok { ApplicationId = "a"; Month = monthKey; Lines = []; ActualToBeBudgeted = None })
+let private assignDone (_: Model) : Msg =
+    AssignAnswered (Ok { ApplicationId = "a"; Month = monthKey; Lines = []; ActualToBeBudgeted = None })
+
+/// Je Weg die Tiefe der Aufzählung und wie viele Zuweisungen sie mindestens erreichen muss.
+let private moveWalks : (MoveWay * int * int) list =
+    [ coverWay, 6, 400
+      moveWays[0], 6, 400
+      moveWays[1], 7, 60
+      moveWays[2], 7, 60
+      moveWays[3], 6, 400 ]
+
+/// Was in YNAB steht, wie die Aufzählung es kennt.
+type private Stand = { Rent: decimal; Food: decimal }
+
+/// Wo die Aufzählung steht: Stand in YNAB und ob eine Bewegung auf ihre Antwort wartet. Der Merker ist
+/// eigen: Der Test soll nicht dem Prädikat glauben, das er prüft.
+type private WalkState = { Stand: Stand; Pending: bool }
+
+/// Der Monat, wie YNAB ihn liefert.
+let private monthAt (stand: Stand) : BudgetMonth =
+    let rentNow = { rent with Assigned = eur stand.Rent; Available = eur (stand.Rent - 912.3m) }
+    monthOf (100m - (stand.Rent - 900m) - (stand.Food - 900m)) [ { food with Assigned = eur stand.Food }; trip; rentNow ]
+
+/// Alle Ereignisse, die in diesem Zustand kommen können, mit dem Stand danach.
+let private events (way: MoveWay) (model: Model) (state: WalkState) : (string * Msg * Stand) list =
+    let stand = state.Stand
+    let landed = { stand with Rent = stand.Rent + 12.3m }
+    let withoutRent = monthOf 100m [ { food with Assigned = eur stand.Food }; trip ]
+    [ "Schritt", AssignStepped 10m, stand
+      "Tippen", typed "+5", stand
+      "Verlassen", AssignFieldLeft, stand
+      "Esc", AssignDiscarded, stand
+      "Start", way.Start, stand
+      "Seite weg", PageLeft, stand
+      "Seite da", PageEntered, stand
+      "Wählen", SelectCategory rent.Id, stand
+      "Andere Kategorie", SelectCategory food.Id, stand
+      "Schließen", CloseInspector, stand
+      "Modus Zuweisen", SwitchMoneyMode AssignMode, stand
+      "Modus Holen", SwitchMoneyMode TakeMode, stand
+      "Neu-Lesen", Reloaded (model.MonthGeneration, Ok (monthAt stand)), stand
+      "Neu-Lesen ohne Kategorie", Reloaded (model.MonthGeneration, Ok withoutRent), stand
+      if model.Targets <> TargetsClosed then
+          "Dialog zu", CloseTargets, stand
+      if state.Pending then
+          "Antwort", way.Landed stand.Rent, landed
+          // Ein abgebrochener Aufruf gilt als angekommen.
+          "Abbruch", way.Lost, landed
+      match model.AssignQueue with
+      | head :: _ ->
+          let written =
+              if head.CategoryId = rent.Id then { stand with Rent = head.Assigned.Amount }
+              else { stand with Food = head.Assigned.Amount }
+          "Zuweisung fertig", assignDone model, written
+      | [] -> () ]
+
+/// Prüft einen Schritt und gibt zurück, wie viele neue Zuweisungen nach der Bewegung er brachte.
+let private check (way: MoveWay) (path: string list) (before: Model) (after: Model) (state: WalkState) (started: bool) : int =
+    let shown = String.concat ", " (List.rev path)
+    if started then
+        Expect.isEmpty after.AssignQueue $"{way.Name}: Schlange beim Start: {shown}"
+        Expect.isTrue (after.TabMoney |> Option.forall (fun tab -> tab.Entry.IsNone)) $"{way.Name}: Eingabe beim Start: {shown}"
+    let isNew (w: AssignWrite) =
+        not (before.AssignQueue |> List.exists (fun o -> o.CategoryId = w.CategoryId && o.Assigned = w.Assigned))
+    let fresh = after.AssignQueue |> List.filter isNew
+    for write in fresh do
+        Expect.isFalse state.Pending $"{way.Name}: {write.Assigned.Amount} während der Bewegung: {shown}"
+        // Schritte und Eingaben sind relativ, in Fünfern: Alles andere rechnet von einem alten Stand.
+        let stand = if write.CategoryId = rent.Id then state.Stand.Rent else state.Stand.Food
+        Expect.equal ((write.Assigned.Amount - stand) % 5m) 0m $"{way.Name}: {write.Assigned.Amount} bei Stand {stand}: {shown}"
+    fresh.Length
+
+/// Geht alle Folgen bis `depth` ab und zählt die Zuweisungen nach einer Bewegung. Ein Zustand, der
+/// schon mit gleicher oder größerer Resttiefe besucht wurde, bringt nichts Neues.
+let private walk (way: MoveWay) (depth: int) : int =
+    let visited = Collections.Generic.Dictionary<Model * WalkState * bool, int> HashIdentity.Structural
+    let mutable writes = 0
+    let rec go (left: int) (path: string list) (model: Model) (state: WalkState) (moved: bool) =
+        for name, msg, stand' in events way model state do
+            let after, cmd, _ = Components.Budget.State.update msg model
+            let started = name = "Start" && not state.Pending && not cmd.IsEmpty && List.isEmpty after.AssignQueue
+            let answered = name = "Antwort" || name = "Abbruch"
+            let state' = { Stand = stand'; Pending = started || (state.Pending && not answered) }
+            let moved' = moved || started
+            let path' = name :: path
+            let fresh = check way path' model after state started
+            if moved' then writes <- writes + fresh
+            let key = after, state', moved'
+            let seen, deepest = visited.TryGetValue key
+            if left > 1 && not (seen && deepest >= left - 1) then
+                visited[key] <- left - 1
+                go (left - 1) path' after state' moved'
+    let start = way.Arm way.Base
+    go depth [] start { Stand = { Rent = 900m; Food = 900m }; Pending = false } false
+    writes
 
 let private settledTests =
     // budgeting-c5w2n, Verifier-Fund Iteration 3: Am Handy setzt ein Schritt eine Eingabe ohne Blur. Eine
@@ -577,54 +668,216 @@ let private settledTests =
             let model, external = update (coverWay.Landed 900m) covered
             Expect.isFalse (moveRunning model) "beendet"
             Expect.equal external (moveToast { ApplicationId = "app-2"; Month = monthKey; Lines = [ line rent 900m 912.3m Written ]; ActualToBeBudgeted = None }) "Toast"
-            let free = run (Reloaded (model.MonthGeneration, Ok (monthWith 912.3m)) :: [ AssignStepped 10m; AssignFieldLeft ]) model
+            let free = run [ Reloaded (model.MonthGeneration, Ok (monthWith 912.3m)); SelectCategory rent.Id; SwitchMoneyMode AssignMode; AssignStepped 10m; AssignFieldLeft ] model
             Expect.equal (queued free) [ rent.Id, monthKey, 922.3m ] "auf dem neuen Stand"
+        }
+        // A2: Der Merker des Aufrufs hing am Tab. Fiel die Kategorie beim Neu-Lesen weg, sprang `moveRunning`
+        // auf falsch, das Feld war frei, und 910 hätte die 12,30 zurückgenommen.
+        test "Fällt die Kategorie während des Aufrufs weg, sperrt der Aufruf weiter" {
+            let covering = run [ CoverMissing ] onRent
+            let gone = run [ Reloaded (covering.MonthGeneration, Ok (monthOf 100m [ food ])) ] covering
+            Expect.isNone gone.TabMoney "Vorbedingung: der Tab ist weg"
+            let back = run [ Reloaded (gone.MonthGeneration, Ok rentMonth); SelectCategory rent.Id; AssignStepped 10m; AssignFieldLeft ] gone
+            Expect.isEmpty back.AssignQueue "nichts geschrieben"
+            Expect.isFalse (moveRunning (run [ answered [ line rent 900m 912.3m Written ] ] back)) "die Antwort beendet ihn"
         }
         test "Ohne laufenden Aufruf beginnt die Seite beim Betreten neu" {
             let model = run [ PageEntered ] onRent
             Expect.isNone model.Selected "Auswahl weg"
             Expect.isNone model.TabMoney "Tab weg"
         }
-        test "Für jede Reihenfolge liegt nie eine Zuweisung auf einem Wert von vor der Bewegung im Versand" {
-            // Aufzählung bis Tiefe 6, auch über den Seitenwechsel. Die Bewegung hebt den Stand um 12,30, Schritte und Eingaben sind
-            // relativ und ganzzahlig: Ein Wert ohne ,30 in der Schlange rechnet vom Stand davor. Absolute
-            // Eingaben wie `950` fehlen, sie sind gewollt. Ein abgebrochener Aufruf gilt als angekommen.
-            coverWay :: moveWays
-            |> List.iter (fun way ->
-                let mutable writesAfterMove = 0
-                let rec explore (depth: int) (path: string list) (model: Model) (stand: decimal) (started: bool) =
-                    let next (name: string) (msg: Msg) (stand': decimal) =
-                        let after = fst (update msg model)
-                        let path' = name :: path
-                        let shown = String.concat ", " (List.rev path')
-                        let startedNow = moveRunning after && not (moveRunning model) && not started
-                        if startedNow then
-                            Expect.isEmpty after.AssignQueue $"{way.Name}: Schlange beim Start: {shown}"
-                            Expect.isTrue (after.TabMoney |> Option.forall (fun tab -> tab.Entry.IsNone)) $"{way.Name}: Eingabe beim Start: {shown}"
-                        let started' = started || startedNow
-                        if started' then
-                            for write in after.AssignQueue do
-                                writesAfterMove <- writesAfterMove + 1
-                                Expect.notEqual (write.Assigned.Amount % 5m) 0m $"{way.Name}: {write.Assigned.Amount} nach {shown}"
-                        if depth > 1 then explore (depth - 1) path' after stand' started'
-                    next "Schritt" (AssignStepped 10m) stand
-                    next "Tippen" (typed "+5") stand
-                    next "Verlassen" AssignFieldLeft stand
-                    next "Start" way.Start stand
-                    next "Seite weg" PageLeft stand
-                    next "Seite da" PageEntered stand
-                    next "Wählen" (SelectCategory rent.Id) stand
-                    next "Neu-Lesen" (Reloaded (model.MonthGeneration, Ok (monthWith stand))) stand
-                    if model.Targets <> TargetsClosed then next "Schließen" CloseTargets stand
-                    if moveRunning model then
-                        next "Antwort" (way.Landed stand) (stand + 12.3m)
-                        next "Abbruch" way.Lost (stand + 12.3m)
-                    match model.AssignQueue with
-                    | head :: _ -> next "Zuweisung fertig" (assignDone model) head.Assigned.Amount
-                    | [] -> ()
-                explore 6 [] (armedWith [] way) 900m false
-                explore 5 [] (armedWith [ AssignStepped 10m ] way) 900m false
-                Expect.isGreaterThan writesAfterMove 0 $"{way.Name}: die Aufzählung erreicht Zuweisungen nach der Bewegung")
+        test "Keine Reihenfolge schreibt einen Wert, der von einem Stand vor der Bewegung rechnet" {
+            // Aufzählung über alle Ereignisfolgen, auch über Seitenwechsel und eine fehlende Kategorie. Die
+            // Targets-Wege brauchen eine Stufe mehr, ihr Bericht muss erst geschlossen und der Monat gelesen sein.
+            for way, depth, minimum in moveWalks do
+                let writes = walk way depth
+                Expect.isGreaterThanOrEqual writes minimum $"{way.Name}: so viele Zuweisungen nach der Bewegung"
+        }
+    ]
+
+/// Die Review-Funde zu budgeting-c5w2n, je Fund ein kaputt- und ein intakt-Szenario.
+let private reviewTests =
+    /// Verfügbar 0, Fehlbetrag 100, 500 zu verteilen. Der Fehlbetrag kommt von YNAB.
+    let gap = { category "Reparatur" 200m 0m with Underfunded = Some (eur 100m); Target = Some { Goal = eur 300m; Rhythm = Months 1 } }
+    let gapMonth = monthOf 500m [ gap; food ]
+    let onGap = run [ SelectCategory gap.Id ] { loaded with Month = Success gapMonth }
+    let gapReport = { ApplicationId = "gap"; Month = monthKey; Lines = [ line gap 200m 300m Written ]; ActualToBeBudgeted = None }
+    let gapFilled = monthOf 400m [ { gap with Assigned = eur 300m; Available = eur 100m; Underfunded = Some (eur 0m) }; food ]
+    let failedAssign (c: BudgetCategory) (appId: string) (oldA: decimal) (newA: decimal) : ApplyReport =
+        { ApplicationId = appId; Month = monthKey; Lines = [ line c oldA newA (Failed "Rate-Limit") ]; ActualToBeBudgeted = None }
+    let rejected = run [ ConfirmTransfer; MoveAnswered (Error "abgelehnt") ] takeReady
+    let submission (model: Model) = (tabOf model).Transfer.Submission
+    testList "Review-Funde" [
+        // A1, Doppelbuchung: `withAssigned` lässt `Underfunded` stehen, der Knopf bot nach dem Erfolg den
+        // alten Betrag an, ein zweiter Tipp sendete `moveMoney` noch einmal und buchte doppelt.
+        test "Fehlbetrag 100, Knopf, Antwort da: ein zweiter Tipp sendet nichts, bis das Neu-Lesen da ist" {
+            let covered = run [ CoverMissing; MoveAnswered (Ok gapReport) ] onGap
+            Expect.equal (commands CoverMissing covered) 0 "veraltet"
+            let free = run [ Reloaded (covered.MonthGeneration, Ok gapMonth) ] covered
+            Expect.equal (commands CoverMissing free) 1 "gelesen: wirkt wieder"
+        }
+        test "Nach dem Speichern und bei leerer Schlange ist der Fehlbetrag veraltet, bis das Neu-Lesen da ist" {
+            let saved = run [ typed "+50"; AssignFieldLeft ] onGap
+            let idle = run [ AssignAnswered (Ok gapReport) ] saved
+            Expect.isEmpty idle.AssignQueue "Vorbedingung"
+            Expect.equal (commands CoverMissing idle) 0 "veraltet"
+            let lost = run [ typed "+50"; AssignFieldLeft; AssignCallLost "Timeout" ] onGap
+            Expect.equal (commands CoverMissing lost) 0 "unklar"
+        }
+        test "Scheitert das Neu-Lesen, bleibt der Knopf gesperrt, bis eines gelingt" {
+            let covered = run [ CoverMissing; MoveAnswered (Ok gapReport) ] onGap
+            let failed = run [ Reloaded (covered.MonthGeneration, Error "weg") ] covered
+            Expect.equal (commands CoverMissing failed) 0 "gesperrt"
+            let older = run [ Reloaded (failed.MonthGeneration - 1, Ok gapMonth) ] failed
+            Expect.equal (commands CoverMissing older) 0 "eine ältere Antwort gibt nicht frei"
+            let read = run [ Reloaded (failed.MonthGeneration, Ok gapMonth) ] failed
+            Expect.equal (commands CoverMissing read) 1 "frei"
+        }
+        test "Veraltet heißt nur Fehlbetrag: Holen, Feld und Liste bleiben" {
+            let covered = run [ CoverMissing; MoveAnswered (Ok gapReport) ] onGap
+            Expect.isFalse (assignFieldReadOnly covered) "Feld"
+            Expect.equal (categoryIn covered gap).Assigned (eur 300m) "Liste"
+            let ready = run [ SwitchMoneyMode TakeMode; TransferAmountChanged "5"; PickCounterpart ToBeBudgetedSide ] covered
+            Expect.isTrue (canTransfer ready (monthOfModel ready) (tabOf ready)) "Holen"
+        }
+        // A3: ein zweiter Eintrag nähme beim Erneut senden die jüngere Zuweisung zurück.
+        test "Zwei gescheiterte Zuweisungen 200 und 250 bei Stand 100: nur 250 ist offen" {
+            let low = category "Bahn" 100m 100m
+            let start = run [ SelectCategory low.Id ] { loaded with Month = Success (monthOf 500m [ low ]) }
+            let first = run [ typed "200"; AssignFieldLeft ] start
+            let failedFirst = run [ AssignAnswered (Ok (failedAssign low "a" 100m 200m)) ] first
+            let reread = run [ Reloaded (failedFirst.MonthGeneration, Ok (monthOf 500m [ low ])) ] failedFirst
+            let second = run [ typed "250"; AssignFieldLeft ] reread
+            Expect.isEmpty second.OpenRetries "der alte Hinweis fällt beim Speichern weg"
+            let failedSecond = run [ AssignAnswered (Ok (failedAssign low "b" 100m 250m)) ] second
+            Expect.equal (failedSecond.OpenRetries |> List.map (fun r -> r.ApplicationId)) [ "b" ] "nur der jüngste"
+        }
+        test "Beide unterwegs: die ältere Absage hinterlässt keinen Hinweis" {
+            let low = category "Bahn" 100m 100m
+            let start = run [ SelectCategory low.Id ] { loaded with Month = Success (monthOf 500m [ low ]) }
+            let both = run [ typed "200"; AssignFieldLeft; typed "250"; AssignFieldLeft ] start
+            let older = run [ AssignAnswered (Ok (failedAssign low "a" 100m 200m)) ] both
+            Expect.isEmpty older.OpenRetries "eine neuere wartet"
+        }
+        test "Den alten Stand tippen schreibt nichts, der Hinweis bleibt, andere Kategorien bleiben" {
+            let low = category "Bahn" 100m 100m
+            let start = run [ SelectCategory low.Id ] { loaded with Month = Success (monthOf 500m [ low; food ]) }
+            let first = run [ typed "200"; AssignFieldLeft ] start
+            let failed = run [ AssignAnswered (Ok (failedAssign low "a" 100m 200m)) ] first
+            let reread = run [ Reloaded (failed.MonthGeneration, Ok (monthOf 500m [ low; food ])) ] failed
+            let same = run [ typed "100"; AssignFieldLeft ] reread
+            Expect.isEmpty same.AssignQueue "keine Zuweisung"
+            Expect.equal (same.OpenRetries |> List.map (fun r -> r.ApplicationId)) [ "a" ] "der Hinweis bleibt"
+            let other = run [ SelectCategory food.Id; typed "+1"; AssignFieldLeft ] reread
+            Expect.equal (other.OpenRetries |> List.map (fun r -> r.ApplicationId)) [ "a" ] "andere Kategorie"
+        }
+        test "Scheitert der Fehlbetrag-Knopf nach einer gescheiterten Zuweisung, bleibt nur der jüngste Hinweis" {
+            let first = run [ typed "950"; AssignFieldLeft ] onRent
+            let failed = run [ AssignAnswered (Ok (failedAssign rent "a" 900m 950m)) ] first
+            let reread = run [ Reloaded (failed.MonthGeneration, Ok rentMonth) ] failed
+            let cover (outcome: LineOutcome) =
+                MoveAnswered (Ok { ApplicationId = "b"; Month = monthKey; Lines = [ line rent 900m 912.3m outcome ]; ActualToBeBudgeted = None })
+            let again = run [ CoverMissing; cover (Failed "weg") ] reread
+            Expect.equal (again.OpenRetries |> List.map (fun r -> r.ApplicationId)) [ "b" ] "ersetzt"
+            Expect.isEmpty (run [ CoverMissing; cover Written ] reread).OpenRetries "erledigt"
+        }
+        test "Eine Verschiebung bleibt offen, auch wenn eine ihrer Kategorien neu zugewiesen wird" {
+            let failedMove = report [ "Lebensmittel", 900m, 880m, Written; "Urlaub", 0m, 20m, Failed "Rate-Limit" ]
+            let model = noteMoveReport monthKey failedMove onFood
+            Expect.equal (run [ typed "+1"; AssignFieldLeft ] model).OpenRetries.Length 1 "bleibt"
+        }
+        // A4: der Monat rückte am Monatsersten weiter, die Eingabe fiel weg, und der Toast behauptete,
+        // die Kategorie gebe es nicht mehr.
+        test "Rückt das Nachlesen den Monat weiter, wird die offene Eingabe in den alten Monat gespeichert" {
+            let edited = run [ typed "+20" ] onFood
+            let model, external = update (FrameRefreshed (Ok { frame with CurrentMonth = "2026-12-01" })) edited
+            Expect.equal (queued model) [ food.Id, monthKey, 920m ] "gespeichert"
+            Expect.equal external NoOp "kein falscher Grund"
+            Expect.isNone (tabOf model).Entry "die Eingabe ist weg"
+        }
+        test "Rückt das Nachlesen den Monat weiter, nennt der Toast die ungültige Eingabe" {
+            let _, external = update (FrameRefreshed (Ok { frame with CurrentMonth = "2026-12-01" })) (run [ typed "abc" ] onFood)
+            Expect.equal external (ShowToast (invalidEntryText, ToastWarning)) "der echte Grund"
+        }
+        test "Ändert das Nachlesen den Monat nicht, bleibt die Eingabe offen" {
+            let edited = run [ typed "+20" ] onFood
+            let model = run [ FrameRefreshed (Ok frame) ] edited
+            Expect.isEmpty model.AssignQueue "nichts gespeichert"
+            Expect.isSome (tabOf model).Entry "steht"
+        }
+        // A5: `Rejected` hatte keinen Ausgang, die Karte blieb stehen, auch im Modus Zuweisen und
+        // über jeden Seitenwechsel: `keepsTab` hielt die Seite an einer längst gelesenen Absage fest.
+        test "Jede Änderung der Form und jeder Moduswechsel nimmt die Absage weg" {
+            Expect.equal (submission rejected) (Rejected "abgelehnt") "Vorbedingung"
+            for msg in [ TransferAmountChanged "21"; TransferAmountReset; PickCounterpart ToBeBudgetedSide; SwitchMoneyMode AssignMode; SwitchMoneyMode GiveMode ] do
+                Expect.equal (submission (run [ msg ] rejected)) Editing $"{msg}"
+        }
+        test "Ein erneuter Tipp auf den Fehlbetrag-Knopf nimmt die Absage weg" {
+            let refused = run [ CoverMissing; MoveAnswered (Error "abgelehnt") ] onRent
+            Expect.equal (submission refused) (Rejected "abgelehnt") "Vorbedingung"
+            Expect.equal (submission (run [ CoverMissing ] refused)) Editing "der Knopf läuft wieder"
+        }
+        test "Eine gelesene Absage hält die Seite beim Wiederkommen nicht fest" {
+            let model = run [ PageLeft; PageEntered ] rejected
+            Expect.isNone model.TabMoney "weg"
+            Expect.isNone model.Selected "die Seite beginnt neu"
+        }
+        test "Eine Absage, die kam, während die Seite verlassen war, steht beim Wiederkommen einmal da" {
+            let once = run [ ConfirmTransfer; PageLeft; MoveAnswered (Error "abgelehnt"); PageEntered ] takeReady
+            Expect.equal (submission once) (Rejected "abgelehnt") "im Tab"
+            Expect.isSome once.Selected "zu sehen"
+            Expect.isNone (run [ PageLeft; PageEntered ] once).TabMoney "beim nächsten Mal nicht mehr"
+        }
+        // A6: `ReturnAbandoned` fiel unter die Sperre, die Auswahl wartete für immer auf die Rückkehr.
+        test "ReturnAbandoned speichert die Eingabe" {
+            let model = run [ typed "+20"; ReturnAbandoned ] onFood
+            Expect.equal (queued model) [ food.Id, monthKey, 920m ] "gespeichert"
+            Expect.isNone model.Selected "die Auswahl wartet nicht mehr"
+        }
+        test "ReturnAbandoned wirkt auch, solange ein Aufruf läuft" {
+            let model = run [ CoverMissing; OpenEntryInLedger (Guid.NewGuid()); ReturnAbandoned ] onRent
+            Expect.isNone model.Selected "wartet nicht mehr"
+        }
+        // A7: `applyLoaded` kannte die Schlange nicht. Die Antwort brachte 900 zurück, während das PATCH
+        // für 920 lief, und +10 wurde 910 statt 930.
+        test "Eine Monatsantwort während des Schreibens trägt die Schlange darüber" {
+            let saved = run [ typed "+20"; AssignFieldLeft ] onFood
+            let back = run [ PageLeft; PageEntered; FrameLoaded (Ok frame) ] saved
+            let read = run [ Loaded (back.MonthGeneration, Ok month); SelectCategory food.Id ] back
+            Expect.equal (categoryIn read food).Assigned (eur 920m) "Zugewiesen"
+            Expect.equal (categoryIn read food).Available (eur 100m) "Verfügbar"
+            Expect.equal (monthOfModel read).ToBeBudgeted (eur 80m) "Zu verteilen"
+            let added = run [ typed "+10"; AssignFieldLeft ] read
+            Expect.equal (queued added) [ food.Id, monthKey, 920m; food.Id, monthKey, 930m ] "930, nicht 910"
+        }
+        test "Auch eine wartende Zuweisung bleibt stehen, eine Antwort für einen anderen Monat bleibt unberührt" {
+            let saved = run [ typed "+20"; AssignFieldLeft; typed "+10"; AssignFieldLeft ] onFood
+            let read = run [ Loaded (saved.MonthGeneration, Ok month) ] saved
+            Expect.equal (categoryIn read food).Assigned (eur 930m) "die letzte zählt"
+            let other = { read with ChosenMonth = Some "2026-12-01" }
+            let december = { month with Month = "2026-12-01" }
+            Expect.equal (categoryIn (run [ Loaded (other.MonthGeneration, Ok december) ] other) food).Assigned (eur 900m) "anderer Monat"
+        }
+        test "Nach der Bestätigung zählt wieder allein die Antwort" {
+            let saved = run [ typed "+20"; AssignFieldLeft ] onFood
+            let confirmed = run [ AssignAnswered (Ok { gapReport with Lines = [] }) ] saved
+            let read = run [ Reloaded (confirmed.MonthGeneration, Ok month) ] confirmed
+            Expect.equal (categoryIn read food).Assigned (eur 900m) "der gelesene Stand"
+        }
+        // A8: die Eingabe fiel still weg, Roman erfuhr nicht, dass sein +5 nie gespeichert wurde.
+        test "Der Fehlbetrag-Knopf verwirft eine offene Eingabe und meldet das" {
+            let model, external = update CoverMissing (run [ typed "+5" ] onRent)
+            Expect.isNone (tabOf model).Entry "verworfen"
+            Expect.isEmpty model.AssignQueue "nicht gespeichert"
+            Expect.equal external (ShowToast (coverDroppedEntryText, ToastWarning)) "gemeldet"
+        }
+        test "Ohne Änderung im Feld und ohne gesendeten Auftrag gibt es keine Meldung" {
+            Expect.equal (snd (update CoverMissing (run [ typed "+0" ] onRent))) NoOp "nichts verloren"
+            Expect.equal (snd (update CoverMissing onRent)) NoOp "ohne Eingabe"
+            let poor = run [ SelectCategory rent.Id; SwitchMoneyMode AssignMode; typed "+5" ] { loaded with Month = Success (monthOf 1m [ rent ]) }
+            let model, external = update CoverMissing poor
+            Expect.equal external NoOp "kein Auftrag"
+            Expect.isSome (tabOf model).Entry "die Eingabe steht noch"
         }
     ]
 
@@ -671,17 +924,17 @@ let private missingTests =
         test "Reicht Zu verteilen nicht, steht der Rest da, ohne Auftrag" {
             let c = { minus with Available = eur -80m }
             Expect.equal (missingActionText (actionOf 60.2m c)) "Nur noch 60,20 zu verteilen" "Text"
-            Expect.isNone (snd (confirmMissing (onCategory 60.2m c))) "kein Auftrag"
+            Expect.equal (commands CoverMissing (onCategory 60.2m c)) 0 "kein Auftrag"
             Expect.equal (actionOf 80m c) (AssignMissing (eur 80m)) "genau gleich wirkt"
             Expect.equal (missingActionText (actionOf -5m c)) "Nur noch 0,00 zu verteilen" "negativ"
         }
         test "Offene Eingabe plus Knopf: die Eingabe fällt weg, zwei Tipps ergeben einen Auftrag" {
             let model = run [ SwitchMoneyMode AssignMode; typed "+5" ] (onCategory 100m minus)
-            let sent, first = confirmMissing model
-            Expect.isSome first "ein Auftrag"
+            Expect.equal (commands CoverMissing model) 1 "ein Auftrag"
+            let sent = run [ CoverMissing ] model
             Expect.isNone (tabOf sent).Entry "Eingabe weg"
             Expect.isEmpty sent.AssignQueue "kein Zuweisen"
-            Expect.isNone (snd (confirmMissing sent)) "kein zweiter"
+            Expect.equal (commands CoverMissing sent) 0 "kein zweiter"
         }
     ]
 
@@ -750,19 +1003,28 @@ let private transferTests =
             Expect.equal (transferButtonText month (tabOf (run [ PickCounterpart ToBeBudgetedSide ] takeReady))) "20,00 € aus Zu verteilen holen" "Zu verteilen"
         }
         test "Gesperrt ohne Gegenseite, ohne gültigen Betrag, bei 0 oder negativ, während eines Aufrufs" {
-            Expect.isFalse (canTransfer (run [ SwitchMoneyMode TakeMode; TransferAmountChanged "5" ] onFood) month (tabOf (run [ SwitchMoneyMode TakeMode; TransferAmountChanged "5" ] onFood))) "ohne Gegenseite"
+            let noSide = run [ SwitchMoneyMode TakeMode; TransferAmountChanged "5" ] onFood
+            Expect.isFalse (canTransfer noSide month (tabOf noSide)) "ohne Gegenseite"
             for text in [ ""; "abc"; "0"; "0,00"; "0-5" ] do
                 let model = run [ TransferAmountChanged text ] takeReady
                 Expect.isFalse (canTransfer model month (tabOf model)) text
-                Expect.isNone (snd (confirmTransfer model)) text
+                Expect.equal (commands ConfirmTransfer model) 0 text
             let busy = sending ()
             Expect.isFalse (canTransfer busy month (tabOf busy)) "Aufruf"
+        }
+        test "Das Betragsfeld meldet nur, was keine Rechnung ist" {
+            let invalid text = transferAmountInvalid month (tabOf (run [ TransferAmountChanged text ] takeReady))
+            for text in [ "abc"; "5+"; "/0" ] do
+                Expect.isTrue (invalid text) text
+            for text in [ ""; "  "; "0"; "0-5"; "20" ] do
+                Expect.isFalse (invalid text) text
+            Expect.isFalse (transferAmountInvalid month (tabOf takeReady |> fun t -> { t with Transfer = { t.Transfer with AmountInput = None } })) "unberührt"
         }
         test "Keine Gegenseite ist vorbelegt" {
             Expect.isNone (tabOf (selected trip loaded)).Transfer.Counterpart "rot"
         }
         test "Das Betragsfeld rechnet, der Stand ist die Vorbelegung, sonst 0" {
-            let red = run [ TransferAmountChanged "*2" ] (selected { trip with Id = trip.Id } loaded)
+            let red = run [ TransferAmountChanged "*2" ] (selected trip loaded)
             Expect.equal (transferAmount month (tabOf red)) (Some 61m) "vorbelegt"
             let plain = run [ SwitchMoneyMode TakeMode; TransferAmountChanged "+5" ] onFood
             Expect.equal (transferAmount month (tabOf plain)) (Some 5m) "sonst 0"
@@ -806,7 +1068,7 @@ let private transferTests =
             let busy = sending ()
             let model, external = applyMoveCallLost "Timeout" busy
             Expect.isNone (tabOf model).Transfer.AmountInput "zurückgesetzt"
-            Expect.equal external (ShowToast ("Ob verschoben wurde, ist unklar: Timeout", ToastError)) "ehrlich"
+            Expect.equal external (ShowToast ("Ob verschoben wurde, ist unklar: Timeout. Der Stand wird gleich neu gelesen.", ToastError)) "ehrlich"
             Expect.equal model.MonthGeneration (busy.MonthGeneration + 1) "neu lesen"
         }
         test "Solange ein Aufruf läuft, wird der Inspektor nicht verlassen" {
@@ -818,18 +1080,13 @@ let private transferTests =
         }
         test "Ein Doppeltipp ergibt einen Auftrag" {
             let busy = sending ()
-            Expect.isNone (snd (confirmTransfer busy)) "kein zweiter"
+            Expect.equal (commands ConfirmTransfer busy) 0 "kein zweiter"
             Expect.equal (fst (update ConfirmTransfer busy)) busy "update tut nichts"
-        }
-        test "Esc setzt den Betrag auf die Vorbelegung zurück, die Gegenseite bleibt" {
-            let model = run [ TransferAmountReset ] takeReady
-            Expect.isNone (tabOf model).Transfer.AmountInput "Vorbelegung"
-            Expect.isSome (tabOf model).Transfer.Counterpart "Gegenseite"
         }
         test "Während eines Monatswechsels ist der Knopf gesperrt, kein Auftrag geht in den alten Monat" {
             let changing = fst (select "2026-12-01" takeReady)
             Expect.isFalse (canTransfer changing month (tabOf changing)) "gesperrt"
-            Expect.isNone (snd (confirmTransfer changing)) "kein Auftrag"
+            Expect.equal (commands ConfirmTransfer changing) 0 "kein Auftrag"
         }
         test "Der Auftrag trägt BudgetMonth.Month, in jeder Monatsart" {
             for key in [ "2026-10-01"; monthKey; "2026-12-01" ] do
@@ -893,7 +1150,7 @@ let private keyTests =
             for key in [ "ArrowUp"; "ArrowDown"; "ArrowLeft"; "ArrowRight" ] do
                 Expect.equal (pageKeyActionFor onFood key TextField) LeaveKey key
         }
-        test "Auf dem Umschalter wechseln Links und Rechts die Tabs" {
+        test "Ohne Fokus in einem Feld wechseln Links und Rechts die Tabs" {
             Expect.equal (pageKeyActionFor onFood "ArrowRight" OtherFocus) (StepTab Next) "rechts"
             Expect.equal (pageKeyActionFor onFood "ArrowLeft" OtherFocus) (StepTab Previous) "links"
         }
@@ -913,7 +1170,7 @@ let private openRetryTests =
         test "Eine fehlgeschlagene Zuweisung erscheint als Nicht zugewiesen, mit Erneut senden" {
             let model = run [ typed "+20"; AssignFieldLeft ] onFood
             let failed = report [ "Lebensmittel", 900m, 920m, Failed "Rate-Limit" ]
-            let next, external = update (AssignAnswered (model.AssignQueue.Head, Ok failed)) model
+            let next, external = update (AssignAnswered (Ok failed)) model
             Expect.equal (next.OpenRetries |> List.map (fun r -> r.Headline)) [ "Nicht zugewiesen" ] "Hinweis"
             match external with
             | ShowToastWithAction (text, ToastError, action) ->
@@ -935,20 +1192,29 @@ let private openRetryTests =
 
 let private pageChangeTests =
     testList "Seitenwechsel" [
+        // Ohne `PageLeft` ginge eine offene Eingabe beim Rücksprung per Browser verloren.
+        test "Verlässt man die Seite, erfährt es die Budget-Seite, sonst nicht" {
+            let ledger, _ = Components.Ledger.State.init ()
+            let leaves (current: Page) (target: Page) =
+                let seen = ResizeArray<State.Msg> ()
+                for sub in State.urlChangedCmd ledger current target do
+                    sub seen.Add
+                seen |> Seq.exists (function
+                    | State.BudgetMsg PageLeft -> true
+                    | _ -> false)
+            Expect.isTrue (leaves Page.Budget Page.Settings) "weg"
+            Expect.isFalse (leaves Page.Budget Page.Budget) "bleibt"
+            Expect.isFalse (leaves Page.Settings Page.Budget) "kommt"
+        }
         // budgeting-nfrds: das Formular blieb im Modell und sprang beim Zurückkehren wieder auf.
         test "Der Tab überlebt das Betreten der Seite nicht" {
             let model, _ = enterPage takeReady
             Expect.isNone model.TabMoney "weg"
         }
-        test "Kommt die Absage nach der Rückkehr, steht der Grund im Tab" {
-            let model = run [ PageEntered; MoveAnswered (Error "abgelehnt") ] (sending ())
-            Expect.equal (tabOf model).Transfer.Submission (Rejected "abgelehnt") "im Tab"
-            Expect.isSome model.Selected "der Tab ist zu sehen"
-        }
-        test "Kommt die Absage auf der anderen Seite, steht der Grund nach der Rückkehr im Tab" {
-            let model = run [ MoveAnswered (Error "abgelehnt"); PageEntered ] (sending ())
-            Expect.equal (tabOf model).Transfer.Submission (Rejected "abgelehnt") "im Tab"
-            Expect.isSome model.Selected "der Tab ist zu sehen"
+        test "Kommt die Absage nach der Rückkehr, nennt ein Toast den Grund: die Form ist fort" {
+            let model, external = update (MoveAnswered (Error "abgelehnt")) (run [ PageLeft; PageEntered ] (sending ()))
+            Expect.isNone model.TabMoney "weg"
+            Expect.equal external (ShowToast ("Nicht verschoben: abgelehnt", ToastError)) "sichtbar"
         }
         test "Ist der Tab weg, weil die Kategorie wegfiel, nennt ein Toast die Absage" {
             let _, external, _ = applyMoveAnswered (Error "abgelehnt") { sending () with TabMoney = None }
@@ -1093,15 +1359,11 @@ let private fieldKeyTests =
             Expect.equal (transferAmountText (monthOfModel model) (tabOf model)) "30,50" "Vorbelegung"
             Expect.equal (tabOf model).Transfer.Counterpart (Some (CategorySide food.Id)) "Gegenseite"
         }
-        test "Enter im Betragsfeld sendet nichts" {
-            let model = press amountKeyAction "Enter" takeReady
-            Expect.equal model takeReady "unverändert"
-        }
     ]
 
 [<Tests>]
 let tests =
     testList
-        "Tab Geld, Client (budgeting-c5w2n)"
-        [ fieldTests; leaveTests; queueTests; busyTests; unclearTests; settledTests; activeTests; missingTests; modeTests; transferTests; pickerTests
+        "Tab Geld, Client"
+        [ fieldTests; leaveTests; queueTests; busyTests; unclearTests; settledTests; reviewTests; activeTests; missingTests; modeTests; transferTests; pickerTests
           keyTests; fieldKeyTests; openRetryTests; pageChangeTests; summaryTests; reloadTests; retryTests ]

@@ -103,7 +103,7 @@ let private tests =
                 // `md:text-sm`, ein Small-Feld blieb am PC bei 16px.
                 Expect.isFalse (Input.usesInlineFontSize Input.Small) "Small"
                 Expect.isTrue (Input.usesInlineFontSize Input.Medium) "Medium"
-                Expect.isTrue (Input.usesInlineFontSize Input.Large) "Large"
+                Expect.isFalse (Input.usesInlineFontSize Input.Large) "Large"
             }
             test "Sheet-Suchfeld: 16px, ab md 14px, höchstens ein Fokusrand" {
                 let css = readRepo [ "src"; "Client"; "styles.css" ]

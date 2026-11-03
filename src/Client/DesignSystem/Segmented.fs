@@ -14,7 +14,7 @@ type Segment = {
 
 let private segmentClass (isActive: bool) : string =
     let baseClasses =
-        "inline-flex items-center justify-center min-h-[48px] px-2 rounded-md text-sm font-semibold cursor-pointer touch-manipulation transition-colors"
+        $"inline-flex items-center justify-center {TouchTargets.alwaysMinHeight} px-2 rounded-md text-sm font-semibold cursor-pointer touch-manipulation transition-colors"
     if isActive then $"{baseClasses} {Backgrounds.tealSubtle} {Colors.neonTeal}"
     else $"{baseClasses} {Colors.textSecondary} hover:text-text-primary"
 

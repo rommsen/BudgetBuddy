@@ -72,7 +72,7 @@ let closeTargets (model: Model) : Model * bool =
     | Applying _
     | ApplyDone (_, _, true, _) -> model, false
     | ApplyDone _
-    | ApplyFailed _ -> requestMonth { model with Targets = TargetsClosed }, true
+    | ApplyFailed _ -> awaitMonth { model with Targets = TargetsClosed }, true
     | _ -> { model with Targets = TargetsClosed }, false
 
 /// Wie sich Zu verteilen nach dem Lauf zur Vorschau verhält.

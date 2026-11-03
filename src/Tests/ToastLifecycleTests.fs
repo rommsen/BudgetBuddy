@@ -133,7 +133,7 @@ let toastLifecycleTests =
                   State = Components.Budget.Types.WriteRunning }
             let retry : Components.Budget.Types.OpenMoveRetry =
                 { ApplicationId = "app-1"; Headline = "Nicht zugewiesen"; MonthLabel = "November 2026"; Summary = "s"; Reason = "r"
-                  State = Components.Budget.Types.RetryReady }
+                  State = Components.Budget.Types.RetryReady; AssignTarget = None }
             let toast = { mkToast idA with Action = Some { Label = "Erneut senden"; Kind = RetryBudgetMove "app-1" } }
             let budget = { Components.Budget.State.init () with AssignQueue = [ write ]; OpenRetries = [ retry ] }
             let ledger, _ = Components.Ledger.State.init ()

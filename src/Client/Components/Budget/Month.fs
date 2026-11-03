@@ -34,6 +34,16 @@ let monthChanging (model: Model) : bool =
     | Success month, Some shown -> month.Month <> shown
     | _ -> false
 
+/// Der Monat ist bis zur Antwort einer neuen Abfrage veraltet (`MonthFreshness`).
+let awaitFreshMonth (model: Model) : Model =
+    requestMonth { model with Freshness = MonthStale }
+
+/// Der alte Stand ist keine Rechengrundlage mehr. Bis zur Antwort steht `Loading`: Es gibt kein Feld
+/// und keinen Knopf. Scheitert sie, steht die Fehlerkarte mit Wiederholen. Ein Monatswechsel sperrt
+/// schon selbst, die alte Liste bleibt stehen.
+let awaitMonth (model: Model) : Model =
+    awaitFreshMonth (if monthChanging model then model else { model with Month = Loading })
+
 /// Die Monatsart des Monats, den die Seite gerade darstellt. Während eines Wechsels ist das noch der
 /// alte: der Knopf "Targets anwenden" springt nicht vor der Antwort.
 let displayedMonthKind (model: Model) : MonthKind option =
@@ -80,6 +90,31 @@ let private entriesOutdated (model: Model) (month: BudgetMonth) : bool =
     | Success previous -> previous.Month <> month.Month
     | _ -> true
 
+/// Trägt ein neues Zugewiesen in den Monat ein und schreibt Verfügbar und Zu verteilen fort. Der Wert
+/// ist absolut: Steht er schon da, ändert sich nichts.
+let withAssigned (categoryId: System.Guid) (assigned: Money) (month: BudgetMonth) : BudgetMonth =
+    match categoriesOf month |> List.tryFind (fun c -> c.Id = categoryId) with
+    | Some found ->
+        let delta = assigned.Amount - found.Assigned.Amount
+        let written (c: BudgetCategory) =
+            if c.Id = categoryId then
+                { c with
+                    Assigned = { c.Assigned with Amount = assigned.Amount }
+                    Available = { c.Available with Amount = c.Available.Amount + delta } }
+            else
+                c
+        { month with
+            ToBeBudgeted = { month.ToBeBudgeted with Amount = month.ToBeBudgeted.Amount - delta }
+            Groups = month.Groups |> List.map (fun g -> { g with Categories = g.Categories |> List.map written }) }
+    | None -> month
+
+/// Die Antwort kann vor dem PATCH gelesen sein: Was in der Schlange steht, gilt, bis es bestätigt ist.
+/// Sonst rechnete das Feld vom Stand davor und nähme die Zuweisung zurück.
+let private withQueue (queue: AssignWrite list) (month: BudgetMonth) : BudgetMonth =
+    queue
+    |> List.filter (fun w -> w.Month = month.Month)
+    |> List.fold (fun current w -> withAssigned w.CategoryId w.Assigned current) month
+
 /// Antwort einnehmen. Eine Antwort einer älteren Abfrage wird verworfen, damit ein langsamer
 /// Aufruf den gerade gezeigten Monat nicht überschreibt. Fehlt die gewählte Kategorie, endet die Auswahl.
 /// Kommt ein anderer Monat, sind die Buchungen wieder fällig.
@@ -89,11 +124,11 @@ let applyLoaded (generation: int) (result: Result<BudgetMonth, string>) (model: 
     else
         match result with
         | Ok month ->
-            let month = ordered model month
+            let month = ordered model month |> withQueue model.AssignQueue
             let selected =
                 model.Selected
                 |> Option.filter (fun s -> categoriesOf month |> List.exists (fun c -> c.Id = s.CategoryId))
-            let settled = { model with Month = Success month; Selected = selected }
+            let settled = { model with Month = Success month; Selected = selected; Freshness = MonthRead }
             if entriesOutdated model month then resetEntries settled else settled
         | Error message -> { model with Month = Failure message }
 
@@ -147,6 +182,12 @@ let applyFrameLoaded (result: Result<BudgetFrame, string>) (model: Model) : Mode
         ShowToast ($"Monate nicht neu gelesen, sie können veraltet sein: {message}", ToastWarning),
         true
     | Error message, _ -> { model with Frame = Failure message; Month = Failure message }, NoOp, false
+
+/// Rückt dieser Rahmen den gezeigten Monat weiter?
+let frameMovesMonth (result: Result<BudgetFrame, string>) (model: Model) : bool =
+    match result with
+    | Ok frame -> shownMonth { model with Frame = Success frame } <> shownMonth model
+    | Error _ -> false
 
 /// Das stille Nachlesen. Scheitert es, bleibt das alte Fenster ohne Meldung, der nächste
 /// Seitenaufruf heilt es. Ändert es den gezeigten Monat (Monatswechsel während die Seite offen ist),

@@ -240,7 +240,7 @@ let available (amount: decimal) (currency: string) =
 /// "Verfügbar danach": fett, rot unter 0, grün bei genau 0, sonst neutral.
 let afterAmount (amount: decimal) (currency: string) =
     let color =
-        if amount < 0m then "text-neon-red"
+        if amount < 0m then Colors.neonRed
         elif amount = 0m then Colors.neonGreen
         else Colors.textPrimary
     Html.span [

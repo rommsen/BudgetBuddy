@@ -155,7 +155,9 @@ durchgestrichen und gedämpft, Pfeil, neuer Wert), eine leere Liste rendert nich
 in `/styleguide` unter „26. Kategorie-Picker (Einfachauswahl)“.
 Im Buchungs-Detail öffnet `Detail.pickerArrow` (Pfeil rechts an der Kategorie-Zeile, `Detail.fieldRowWith`
 macht die ganze Zeile klickbar) den Picker: am PC `CategoryPicker.popoverInPanel` (Breite des
-420-px-Panels abzüglich Rand), am Handy `sheetLayered`. Der Pfeil ist bei gesperrten Buchungen
+420-px-Panels abzüglich Rand), am Handy `sheetLayered`. Sitzt der Auslöser im Scrollbereich des
+Panels (Tab Geld), nimmt man `CategoryPicker.popoverInPanelRevealed`: es rückt beim Öffnen ins Bild und
+nimmt die volle Breite des schon eingerückten Inhalts. Der Pfeil ist bei gesperrten Buchungen
 gedämpft (`opacity-40`), ohne Wirkung und nennt den Grund im Tooltip. Beide Zeilen stehen in
 `/styleguide` bei „Detail: Felder“.
 Für die Auswahl-Leiste (Aktion „Kategorie setzen“, ledger-w29y6) gibt es zwei Varianten ohne

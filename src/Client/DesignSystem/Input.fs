@@ -82,13 +82,13 @@ let textInputDefaults = {
     OnKeyDown = None
 }
 
-/// Setzt `text` das Inline-`fontSize 16` (iOS-Zoom-Schutz)? Nur Medium und Large. Small
-/// trägt `text-base md:text-sm` über Klassen; ein Inline-Style würde die Tailwind-Größe
-/// ab `md` überstimmen.
+/// Setzt `text` das Inline-`fontSize 16` (iOS-Zoom-Schutz)? Nur Medium. Small trägt
+/// `text-base md:text-sm` über Klassen, Large `text-lg`, beides ab 16 px; ein Inline-Style würde
+/// die Tailwind-Größe überstimmen.
 let usesInlineFontSize (size: InputSize) : bool =
     match size with
-    | Small -> false
-    | Medium | Large -> true
+    | Small | Large -> false
+    | Medium -> true
 
 /// Text input field
 let text (props: TextInputProps) =
@@ -96,10 +96,12 @@ let text (props: TextInputProps) =
     let stateClass = stateToClass props.State
     let extraClass = props.ClassName |> Option.defaultValue ""
     let disabledClass = if props.Disabled then "opacity-50 cursor-not-allowed" else ""
+    // Schreibgeschützt behält den Fokus, sieht aber nicht bedienbar aus.
+    let readOnlyClass = if props.ReadOnly then "opacity-60 cursor-default" else ""
 
     Html.input [
         prop.type' props.Type
-        prop.className $"{baseInputClass} {sizeClass} {stateClass} {disabledClass} {extraClass}"
+        prop.className $"{baseInputClass} {sizeClass} {stateClass} {disabledClass} {readOnlyClass} {extraClass}"
         prop.value props.Value
         prop.onChange props.OnChange
         prop.placeholder props.Placeholder
@@ -120,7 +122,7 @@ let text (props: TextInputProps) =
         match props.AriaLabel with
         | Some label -> prop.ariaLabel label
         | None -> ()
-        // Prevent iOS zoom on focus (Small regelt das über `text-base md:text-sm`)
+        // Prevent iOS zoom on focus (Small und Large regeln das über ihre Klassen)
         if usesInlineFontSize props.Size then
             prop.style [ style.fontSize 16 ]
     ]

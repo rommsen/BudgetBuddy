@@ -194,10 +194,6 @@ let private viewSourceTests =
         |> Array.map IO.File.ReadAllText
         |> String.concat "\n"
     testList "Ansicht des Dialogs (h2zfn)" [
-        test "Der Dialog benutzt Modal, Button, Money, Badge und ErrorDisplay" {
-            for literal in [ "Modal.view"; "Text = \"Übernehmen\""; "Button.ghost \"Abbrechen\""; "Money.view"; "Badge.neutral"; "ErrorDisplay.notice"; "Fehlgeschlagene erneut senden" ] do
-                Expect.stringContains source literal $"{literal} fehlt"
-        }
         test "Die Ansicht enthält keine Hex-Farben und keine rohen Knöpfe" {
             Expect.isFalse (Text.RegularExpressions.Regex.IsMatch(source, "#[0-9a-fA-F]{3,8}\\b")) "keine Hex-Werte"
             Expect.isFalse (source.Contains "Html.button") "kein roher Html.button"

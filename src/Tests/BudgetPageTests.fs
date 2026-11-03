@@ -639,7 +639,7 @@ let private entriesDueTests =
         }
         test "Eine späte Antwort einer älteren Abfrage wird verworfen" {
             let model, _ = requestEntries onEntries
-            let reloaded = reloadCategoryEntries model
+            let reloaded = resetEntries model
             let answered = applyCategoryEntries model.EntriesGeneration (Ok [ line -1m ]) reloaded
             Expect.equal answered reloaded "ältere Antwort zählt nicht"
         }
@@ -740,7 +740,7 @@ let private returnTests =
         test "Zurück stehen Auswahl, Tab, Filter und Suche wieder, kein Rahmen wird gelesen" {
             let left = leaveForEntry { onEntriesLoaded with Filter = OverdrawnOnly; CategorySearch = "leb" }
             let model, how = enterPage left
-            Expect.equal how ReturnedFromLedger "kein Rahmen"
+            Expect.equal how KeptPage "kein Rahmen"
             Expect.equal (selectedOf model).CategoryId categoryId "wieder gewählt"
             Expect.equal model.Tab EntriesTab "Tab"
             Expect.equal model.Filter OverdrawnOnly "kein Reset"
@@ -761,7 +761,7 @@ let private returnTests =
             Expect.isNone entered.ChosenMonth "laufender Monat"
             let returned, how = enterPage (leaveForEntry elsewhere)
             Expect.equal returned.ChosenMonth (Some "2026-09-01") "bleibt"
-            Expect.equal how ReturnedFromLedger "Rückkehr"
+            Expect.equal how KeptPage "Rückkehr"
         }
         // F2: Nach einem Umweg über die Tab-Leiste ging das Detail wieder auf.
         test "Ist die Rückkehr hinfällig, bleibt die Auswahl beim nächsten Betreten leer" {

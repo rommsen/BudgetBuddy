@@ -13,7 +13,7 @@ let private cases (name: string) (baseValue: decimal) (table: (string * decimal)
 
 [<Tests>]
 let tests =
-    testList "Betragsrechnung (budgeting-c5w2n)" [
+    testList "Betragsrechnung" [
         cases "Ein Operator vorn rechnet relativ zum Stand, eine Zahl vorn ersetzt ihn" 900m
             [ "+20", 920m; "-20", 880m; "*2", 1800m; "x2", 1800m; "X2", 1800m; "/2", 450m; ":2", 450m
               "900+40", 940m; "940", 940m ]
@@ -38,9 +38,6 @@ let tests =
         }
         cases "Das Ergebnis liegt auf dem Cent, kaufmännisch gerundet" 0m
             [ "100/3", 33.33m; "0,05/2", 0.03m; "0,1+0,2", 0.30m; "0-0,05/2", -0.03m ]
-        test "Rechnet exakt: 0,1+0,2 ist genau 0,30" {
-            Expect.isTrue (evaluateAmount 0m "0,1+0,2" = Some 0.3m) "kein Rundungsrest"
-        }
         cases "Ein negatives Ergebnis ist gültig" 900m [ "0-20", -20m; "-1000", -100m ]
         test "Der Formatierer behält das Vorzeichen und liest sich zurück" {
             Expect.equal (formatSignedAmount -50m) "-50,00" "negativ"

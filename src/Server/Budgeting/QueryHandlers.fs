@@ -20,9 +20,19 @@ let budgetMonth (port: CommandHandlers.YnabPort) (monthKey: string) : Async<Ynab
 [<Literal>]
 let RecentMoveLimit = 10
 
+/// "Zuletzt verwendet" ohne Datenbank: `load` liest die Bewegungen.
+let recentMoveCategoriesWith (load: int -> Async<Guid list>) : Async<Result<Guid list, string>> =
+    async {
+        try
+            let! recent = load RecentMoveLimit
+            return Ok recent
+        with _ ->
+            return Error "Zuletzt verwendete Kategorien nicht lesbar"
+    }
+
 /// "Zuletzt verwendet": lokal, kostet kein YNAB-Limit.
-let recentMoveCategories () : Async<Guid list> =
-    Budgeting.Persistence.loadRecentMoveCategories RecentMoveLimit
+let recentMoveCategories () : Async<Result<Guid list, string>> =
+    recentMoveCategoriesWith Budgeting.Persistence.loadRecentMoveCategories
 
 /// Die beiden Lese-Quellen des Rahmens.
 type BudgetFramePort = {

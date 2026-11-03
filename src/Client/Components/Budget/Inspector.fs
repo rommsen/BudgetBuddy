@@ -74,9 +74,9 @@ let stepSelection (direction: Direction) (model: Model) : Model =
         | None -> model
     | _ -> model
 
-/// Die Regel der Pfeiltasten ab 1024 px, rein, damit spätere Eingabefelder sie nur erweitern
-/// (`TextField`: Zugewiesen und Betrag). Hoch und Runter gelten auch im Suchfeld, Links und
-/// Rechts gehören dort dem Cursor. Ohne Auswahl gibt es keinen Tab zu wechseln.
+/// Die Regel der Pfeiltasten ab 1024 px. In `TextField` (Zugewiesen und Betrag) gehören sie dem
+/// Cursor. Hoch und Runter gelten auch im Suchfeld, Links und Rechts gehören dort dem Cursor. Ohne
+/// Auswahl gibt es keinen Tab zu wechseln.
 let pageKeyAction (hasSelection: bool) (key: string) (focus: KeyFocus) : PageKeyAction =
     match focus, key with
     | TextField, _ -> LeaveKey
@@ -139,10 +139,6 @@ let requestEntries (model: Model) : Model * (System.Guid * string * int) option 
         Some (id, month, generation)
     | None -> model, None
 
-/// "Wiederholen" in der Liste der Buchungen.
-let reloadCategoryEntries (model: Model) : Model =
-    resetEntries model
-
 /// Antwort der Liste. Eine Antwort einer älteren Abfrage oder ohne Auswahl fällt weg.
 let applyCategoryEntries (generation: int) (result: Result<CategoryMonthEntry list, string>) (model: Model) : Model =
     match model.Selected with
@@ -165,29 +161,35 @@ let returnPending (model: Model) : bool =
 type PageEntry =
     /// Neuer Seitenaufruf: Rahmen und Monat lesen.
     | FreshEntry
-    /// Rückkehr aus dem Kassenbuch: nur Monat und Buchungen, kein YNAB-Aufruf für den Rahmen.
-    | ReturnedFromLedger
+    /// Die Seite bleibt, wie sie war (Rückkehr aus dem Kassenbuch, ungelesene Absage): nur Monat und
+    /// Buchungen, kein YNAB-Aufruf für den Rahmen.
+    | KeptPage
 
-/// Die Seite wird betreten. Der Tab Geld überlebt den Seitenwechsel nicht, außer eine Bewegung läuft
-/// oder ihre Absage steht noch ungelesen dort: Er trägt dann den Aufruf, dessen Antwort ihn vorfinden
-/// muss, und bis dahin bleibt das Feld gesperrt (ADR 0078 Punkt 5). In diesen Fällen und bei der
-/// Rückkehr aus dem Kassenbuch stehen Auswahl, Tab, Filter und Suche wieder da und die Liste kommt neu.
-/// Sonst beginnt die Seite von vorn, beim laufenden Monat.
+/// Roman kehrt zurück: Ein Aufruf läuft weiter unter seinen Augen, eine ungelesene Absage gilt ab jetzt
+/// als gelesen. `true`: es gab eine, sie hält den Tab fest.
+let private backOnPage (model: Model) : Model * bool =
+    let watched =
+        match model.MoveInFlight with
+        | MoveCallRunningAway -> { model with MoveInFlight = MoveCallRunning }
+        | _ -> model
+    match watched.TabMoney with
+    | Some ({ Transfer = { Submission = RejectedAway message } } as tab) ->
+        { watched with TabMoney = Some { tab with Transfer = { tab.Transfer with Submission = Rejected message } } }, true
+    | _ -> watched, false
+
+/// Die Seite wird betreten. Der Tab Geld überlebt den Seitenwechsel nicht, außer eine Absage kam,
+/// während die Seite verlassen war: Dann und bei der Rückkehr aus dem Kassenbuch stehen Auswahl, Tab,
+/// Filter und Suche wieder da und die Liste kommt neu. Sonst beginnt die Seite von vorn, beim
+/// laufenden Monat. Ein laufender Aufruf hält nichts fest, er liegt auf `Model`.
 let enterPage (model: Model) : Model * PageEntry =
-    let rejected =
-        model.TabMoney
-        |> Option.exists (fun tab ->
-            match tab.Transfer.Submission with
-            | Rejected _ -> true
-            | _ -> false)
-    let keepsTab = moveRunning model || rejected
-    let entered = if keepsTab then model else { model with TabMoney = None }
+    let back, keepsTab = backOnPage model
+    let entered = if keepsTab then back else { back with TabMoney = None }
     if returnPending model || keepsTab then
         let returned =
             resetEntries
                 { entered with
                     Selected = entered.Selected |> Option.map (fun s -> { s with ReturnPending = false }) }
-        returned, ReturnedFromLedger
+        returned, KeptPage
     else
         { entered with
             ChosenMonth = None

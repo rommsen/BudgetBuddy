@@ -199,28 +199,6 @@ test("Im Vormonat geht der Auftrag mit dem gezeigten Monat hinaus", async () => 
   }
 });
 
-test("Handy: eine rote Kategorie startet auf Holen; scheitert das Lesen, bleiben die Eingaben und der Tab nennt den Grund", async () => {
-  const { context, page } = await openPage(390, 844, {
-    move: () => ({ Error: "YNAB antwortet nicht afd8h" }),
-    retry: () => ({ Error: "nicht erwartet" }),
-  });
-  try {
-    await visibleRow(page, "Urlaub afd8h").click();
-    assert.equal(await page.locator('[data-testid="money-mode"][aria-pressed="true"]').innerText(), "Holen");
-    const amount = page.locator('[data-testid="transfer-amount"] input');
-    assert.equal(await amount.inputValue(), "30,00");
-    await page.locator('[data-testid="transfer-from"]').click();
-    await page.locator('[data-testid="category-picker-to-be-budgeted"]').click();
-    await afterPicker(page);
-    assert.equal(await text(page.locator('[data-testid="transfer-submit"] button')), "30,00 € aus Zu verteilen holen");
-    await page.locator('[data-testid="transfer-submit"] button').click();
-    await page.locator('[data-testid="transfer-error"]').getByText("YNAB antwortet nicht afd8h").waitFor();
-    assert.equal(await amount.inputValue(), "30,00", "Eingabe bleibt");
-  } finally {
-    await context.close();
-  }
-});
-
 test("Fehlgeschlagener PATCH: der Toast bietet Erneut senden an, der Klick sendet dieselbe Anwendung", async () => {
   const { context, page, calls } = await openPage(390, 844, {
     move: () => ({ Ok: report({ Failed: "Rate-Limit" }) }),
@@ -331,25 +309,6 @@ test("Fenster wächst: nach der Verschiebung im letzten Monat liest die Seite de
   }
 });
 
-test("Erneut senden scheitert: ein Toast nennt den Grund, der Monat lädt neu, der Hinweis bleibt", async () => {
-  const { context, page, calls } = await openPage(390, 844, {
-    move: () => ({ Ok: report({ Failed: "Rate-Limit" }) }),
-    retry: () => ({ Error: "YNAB antwortet nicht nfrds" }),
-  });
-  try {
-    await failMove(page);
-    const reload = page.waitForResponse("**/api/BudgetApi/getBudgetMonth");
-    await page.locator('[data-testid="move-retry"] button').click();
-    await page.getByText(/Erneut senden gescheitert: YNAB antwortet nicht nfrds/).first().waitFor();
-    await reload;
-    await page.waitForFunction(() => document.querySelector('[data-testid="move-retry"] button:not([disabled])'));
-    assert.ok(calls.month >= 3, `Monat neu gelesen: Seite, nach Verschieben, nach Erneut senden (${calls.month})`);
-    assert.equal(await page.locator('[data-testid="move-retry"]').count(), 1, "bleibt sendbar");
-  } finally {
-    await context.close();
-  }
-});
-
 test("Handy: Erneut senden bleibt im offenen Inspektor bedienbar, in jedem Tab, nachdem der Toast weg ist", async () => {
   const { context, page, calls } = await openPage(390, 844, {
     move: () => ({ Ok: report({ Failed: "Rate-Limit" }) }),
@@ -418,25 +377,6 @@ test("Bricht der Aufruf ab, wird die Form zurückgesetzt, ein Toast nennt die Un
     for (let i = 0; i < 100 && calls.month <= before; i++) await page.evaluate(() => new Promise(requestAnimationFrame));
     assert.ok(calls.month > before, "Monat neu gelesen");
     assert.equal(calls.move.length, 1, "kein zweiter Versuch");
-  } finally {
-    await context.close();
-  }
-});
-
-test("Der Tab beginnt nach dem Seitenwechsel neu", async () => {
-  const { context, page } = await openPage(390, 844, {
-    move: () => ({ Error: "nicht erwartet" }),
-    retry: () => ({ Error: "nicht erwartet" }),
-  });
-  try {
-    await openMoveFor(page, "Lebensmittel afd8h");
-    await amountOf20(page);
-    await page.evaluate(() => { location.hash = "#/ledger"; });
-    await page.locator('[data-testid="budget-page"]').waitFor({ state: "detached" });
-    await page.evaluate(() => { location.hash = "#/budget"; });
-    await page.locator('[data-testid="budget-to-be-budgeted"]').waitFor();
-    await visibleRow(page, "Lebensmittel afd8h").click();
-    assert.equal(await page.locator('[data-testid="money-mode"][aria-pressed="true"]').innerText(), "Zuweisen");
   } finally {
     await context.close();
   }

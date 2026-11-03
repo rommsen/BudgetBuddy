@@ -192,7 +192,7 @@ let private sheetRetries (model: Model) (dispatch: Msg -> unit) =
             prop.children [ moveRetries model model.OpenRetries dispatch ]
         ]
 
-/// Die Kategorie, die das Sheet zeigt.
+/// Die gewählte Kategorie im geladenen Monat, für Sheet und Panel.
 let sheetCategory (model: Model) =
     match model.Selected, model.Month with
     | Some selected, Success month ->
@@ -227,16 +227,11 @@ let inspectorSheet (model: Model) (shown: BudgetGroup list) (dispatch: Msg -> un
 /// bleibt der Inhalt stehen. Lädt der Monat bei bestehender Auswahl, steht ein Skeleton da. Scheitert
 /// das Laden, bleibt das Panel neben der Fehlerkarte leer: es kommt kein Inhalt nach.
 let inspectorPanel (model: Model) (dispatch: Msg -> unit) =
-    let chosen =
-        match model.Selected, model.Month with
-        | Some selected, Success month ->
-            selectedCategory month selected |> Option.map (fun found -> selected, month, found)
-        | _ -> None
     Html.aside [
         prop.custom ("data-testid", "budget-inspector")
         prop.className $"budget-inspector-panel flex flex-col rounded-xl border border-border-subtle bg-surface-card overflow-hidden {monthChangeClass model}"
         prop.children [
-            match chosen with
+            match sheetCategory model with
             | Some (selected, month, (category, groupName)) ->
                 Html.div [
                     prop.className "flex flex-col gap-1 p-4 shrink-0"

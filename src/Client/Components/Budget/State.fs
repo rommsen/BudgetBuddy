@@ -1,7 +1,6 @@
-/// Der Reduzierer der Budget-Seite (budgeting-k7wmd, Targets anwenden budgeting-h2zfn, Verschieben
-/// budgeting-afd8h, Liste und Inspektor budgeting-g8s3w). Die Übergänge selbst sind reine Funktionen
-/// in `Components.Budget.Month` und den Nachbarmodulen (`select`, `applyLoaded`); hier hängen nur die Seiteneffekte
-/// (Aufruf an den Server) daran.
+/// Der Reduzierer der Budget-Seite. Die Übergänge sind reine Funktionen in `Month`, `Targets`, `Moves`
+/// und `Inspector`; hier hängen die Seiteneffekte daran, und `update` ordnet jede Nachricht ein
+/// (`routeOf`), bevor sie wirkt.
 module Components.Budget.State
 
 open Elmish
@@ -93,7 +92,7 @@ let private assignCmd (write: AssignWrite) : Cmd<Msg> =
     Cmd.OfAsync.either
         (fun () -> Api.budget.assignMoney write.Month { CategoryId = write.CategoryId; Assigned = write.Assigned })
         ()
-        (fun result -> AssignAnswered (write, result))
+        AssignAnswered
         (fun ex -> AssignCallLost ex.Message)
 
 let private recentCmd () : Cmd<Msg> =
@@ -109,10 +108,20 @@ let private flushAssign (model: Model) : Model * Cmd<Msg> =
     | model', Some write -> model', assignCmd write
     | model', None -> model', Cmd.none
 
-/// Nach einer Verschiebung: Monat neu lesen, ohne `Loading`. Die Liste bleibt stehen, die Zeilen
-/// springen nicht nach oben, und die neuen Beträge erscheinen, sobald sie da sind. Scheitert es,
+/// Nach einer Bewegung oder Zuweisung: Monat neu lesen, ohne `Loading`. Die Liste bleibt stehen, die
+/// Zeilen springen nicht nach oben, und die neuen Beträge erscheinen, sobald sie da sind. Scheitert es,
 /// bleibt die Liste auch stehen (`applyReloaded`).
 let private reloadCmd (model: Model) : Cmd<Msg> = monthCmd model Reloaded
+
+/// Die Antwort auf eine Schreibung: der Monat, wenn sie die letzte war, und der Rahmen, wenn das
+/// Fenster gewachsen sein kann.
+let private afterAnswer (reload: bool) (frameDue: bool) (model: Model) : Cmd<Msg> =
+    Cmd.batch [ (if reload then reloadCmd model else Cmd.none); frameRefreshCmd frameDue ]
+
+let private frameDueAfterAnswer (result: Result<ApplyReport, string>) (model: Model) : bool =
+    match result with
+    | Ok report -> frameDueAfterReport report model
+    | Error _ -> false
 
 let private categoryEntriesCmd (categoryId: System.Guid) (month: string) (generation: int) : Cmd<Msg> =
     Cmd.OfAsync.either
@@ -131,20 +140,21 @@ let private withEntries (model: Model) : Model * Cmd<Msg> =
 let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     let quiet (model': Model, cmd: Cmd<Msg>) = model', cmd, NoOp
     match msg with
-    // Ein offenes Sheet überlebt den Seitenwechsel nicht: es spränge sonst beim Betreten wieder auf.
     | PageEntered ->
         match enterPage model with
         | model', FreshEntry -> beginLoad model', frameCmd (), NoOp
-        | model', ReturnedFromLedger ->
-            let loading = requestMonth { model' with Month = Loading }
+        | model', KeptPage ->
+            let loading = awaitMonth model'
             loading, loadCmd loading, NoOp
     | Load -> beginLoad model, frameCmd (), NoOp
     | FrameLoaded result ->
         let model', external, loadMonth = applyFrameLoaded result model
         model', (if loadMonth then loadCmd model' else Cmd.none), external
     | FrameRefreshed result ->
-        match applyFrameRefreshed result model with
-        | model', true -> model', loadCmd model', NoOp
+        // Der Monat rückt weiter: Die Eingabe gilt dem alten und wird wie beim Verlassen gesichert.
+        let left, outcome = if frameMovesMonth result model then leaveInspector model else model, NothingOpen
+        match applyFrameRefreshed result left with
+        | model', true -> model', loadCmd model', leaveToast outcome
         | model', false -> model', Cmd.none, NoOp
     | SelectMonth month ->
         match select month model with
@@ -156,28 +166,30 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
     | SelectInspectorTab tab -> quiet (withEntries { model with Tab = tab })
     | CloseInspector
     | ReturnAbandoned -> { model with Selected = None }, Cmd.none, NoOp
-    | PageLeft -> model, Cmd.none, NoOp
+    | PageLeft ->
+        let away =
+            match model.MoveInFlight with
+            | MoveCallRunning -> MoveCallRunningAway
+            | call -> call
+        { model with MoveInFlight = away }, Cmd.none, NoOp
     | SwitchMoneyMode mode -> switchMode mode model, Cmd.none, NoOp
     | AssignTextChanged text -> typeAssign text model, Cmd.none, NoOp
     | AssignStepped delta -> stepAssign delta model, Cmd.none, NoOp
     | AssignFieldLeft -> saveEntry model, Cmd.none, NoOp
     | AssignDiscarded -> discardEntry model, Cmd.none, NoOp
     | CoverMissing ->
-        match confirmMissing model with
-        | model', Some (monthKey, request) -> model', moveCmd monthKey request, NoOp
+        match (if canCover model then confirmMissing model else model, None) with
+        | model', Some (monthKey, request) ->
+            let external =
+                if coverDropsEntry model then ShowToast (coverDroppedEntryText, ToastWarning) else NoOp
+            model', moveCmd monthKey request, external
         | model', None -> model', Cmd.none, NoOp
-    | AssignAnswered (_, result) ->
+    | AssignAnswered result ->
         let model', external, reload = applyAssignAnswered result model
-        let due =
-            match result with
-            | Ok report -> frameDueAfterReport report model
-            | Error _ -> false
-        model', Cmd.batch [ (if reload then reloadCmd model' else Cmd.none); frameRefreshCmd due ], external
+        model', afterAnswer reload (frameDueAfterAnswer result model) model', external
     | AssignCallLost message ->
         let model', external, reload = applyAssignCallLost message model
-        model',
-        Cmd.batch [ (if reload then reloadCmd model' else Cmd.none); frameRefreshCmd (frameDueAfterLostCall model) ],
-        external
+        model', afterAnswer reload (frameDueAfterLostCall model) model', external
     | TransferAmountChanged text -> updateTransfer (fun f -> { f with AmountInput = Some text }) model, Cmd.none, NoOp
     | TransferAmountReset -> updateTransfer (fun f -> { f with AmountInput = None }) model, Cmd.none, NoOp
     | OpenPicker ->
@@ -190,10 +202,10 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         updateTransfer (fun f -> { f with Counterpart = Some side; PickerOpen = false }) model, Cmd.none, NoOp
     | RecentCounterpartsLoaded result -> applyRecentCounterparts result model, Cmd.none, NoOp
     | ConfirmTransfer ->
-        match confirmTransfer model with
+        match (if canSend model then confirmTransfer model else model, None) with
         | model', Some (monthKey, request) -> model', moveCmd monthKey request, NoOp
         | model', None -> model', Cmd.none, NoOp
-    | LoadCategoryEntries -> quiet (withEntries (reloadCategoryEntries model))
+    | LoadCategoryEntries -> quiet (withEntries (resetEntries model))
     | CategoryEntriesLoaded (generation, result) -> applyCategoryEntries generation result model, Cmd.none, NoOp
     | CategorySearchChanged search -> { model with CategorySearch = search }, Cmd.none, NoOp
     | ClearCategorySearch -> { model with CategorySearch = "" }, Cmd.none, NoOp
@@ -223,105 +235,138 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         applyRetried result model, frameRefreshCmd (frameDueAfterRetry result model), NoOp
     | CloseTargets ->
         match closeTargets model with
-        | model', true ->
-            let reloading = { model' with Month = Loading }
-            reloading, loadCmd reloading, NoOp
+        | model', true -> model', loadCmd model', NoOp
         | model', false -> model', Cmd.none, NoOp
     | OpenEntryInLedger entryId -> leaveForEntry model, Cmd.none, JumpToEntry entryId
     | MoveAnswered result ->
         let model', external, reload = applyMoveAnswered result model
-        let due =
-            match result with
-            | Ok report -> frameDueAfterReport report model
-            | Error _ -> false
-        model', Cmd.batch [ (if reload then reloadCmd model' else Cmd.none); frameRefreshCmd due ], external
+        model', afterAnswer reload (frameDueAfterAnswer result model) model', external
     | MoveCallLost message ->
         let model', external = applyMoveCallLost message model
-        model', Cmd.batch [ reloadCmd model'; frameRefreshCmd (frameDueAfterLostCall model) ], external
+        model', afterAnswer true (frameDueAfterLostCall model) model', external
     | RetryMove applicationId ->
         match startMoveRetry applicationId model with
         | model', true -> model', retryMoveCmd applicationId, NoOp
         | model', false -> model', Cmd.none, NoOp
     | MoveRetried (applicationId, result) ->
         let model', external = applyMoveRetried applicationId result model
-        model', Cmd.batch [ reloadCmd model'; frameRefreshCmd (frameDueAfterRetry result model) ], external
+        model', afterAnswer true (frameDueAfterRetry result model) model', external
     // Gewinnt `Reloaded` den Lauf gegen `Loaded`, ist nur hier die Stelle, die Buchungen zu holen.
     | Reloaded (generation, result) ->
         let model', external = applyReloaded generation result model
         let withRequest, cmd = withEntries model'
         withRequest, cmd, external
 
-/// Verlässt die Nachricht den Inspektor? Dann wird vorher gespeichert (`leaveInspector`).
-let private leavesInspector (msg: Msg) (model: Model) : bool =
-    match msg with
-    | SelectMonth _
-    | SelectCategory _
-    | StepCategory _
-    | SelectInspectorTab _
-    | CloseInspector
-    | ReturnAbandoned
-    | PageLeft -> true
-    | PageKeyPressed action -> action <> LeaveKey
-    | SwitchMoneyMode mode -> model.TabMoney |> Option.exists (fun tab -> tab.Mode <> mode)
-    | _ -> false
+/// Wie `update` eine Nachricht behandelt.
+[<RequireQualifiedAccess>]
+type MsgRoute =
+    /// Startet eine Bewegung, wenn Zuweisen ruht (`startMove`). Der Fehlbetrag-Knopf gehört nicht dazu:
+    /// Er verwirft die offene Eingabe, statt sie zu speichern.
+    | StartsMove
+    /// Verlässt den Inspektor: speichert vorher, wartet aber auf einen laufenden Aufruf.
+    | Leaves
+    /// Der Inspektor ist schon verlassen: speichert vorher, lässt sich aber nicht aufhalten.
+    | Left
+    /// Ändert das Feld Zugewiesen: wartet auf einen laufenden Aufruf.
+    | TouchesField
+    | Free
 
-/// Ändert die Nachricht das Feld Zugewiesen? Dann wartet sie, bis der Aufruf aus dem Tab zurück ist.
-let private touchesAssignField (msg: Msg) : bool =
-    match msg with
-    | AssignTextChanged _
-    | AssignStepped _
-    | AssignFieldLeft
-    | AssignDiscarded -> true
-    | _ -> false
-
-/// Startet die Nachricht eine Bewegung? Der Fehlbetrag-Knopf gehört nicht dazu: Er verwirft die
-/// offene Eingabe und sperrt über `canSend`.
-let private startsMove (msg: Msg) : bool =
+/// Ohne Sammelzweig: Eine neue Nachricht ordnet der Compiler hier ein.
+let private routeOf (msg: Msg) (model: Model) : MsgRoute =
     match msg with
     | RetryMove _
     | ConfirmTargets
     | RetryFailed
-    | ConfirmTransfer -> true
-    | _ -> false
+    | ConfirmTransfer -> MsgRoute.StartsMove
+    | SelectMonth _
+    | SelectCategory _
+    | StepCategory _
+    | SelectInspectorTab _
+    | CloseInspector -> MsgRoute.Leaves
+    | ReturnAbandoned
+    | PageLeft -> MsgRoute.Left
+    | PageKeyPressed LeaveKey -> MsgRoute.Free
+    | PageKeyPressed _ -> MsgRoute.Leaves
+    | SwitchMoneyMode mode ->
+        if model.TabMoney |> Option.exists (fun tab -> tab.Mode <> mode) then MsgRoute.Leaves else MsgRoute.Free
+    | AssignTextChanged _
+    | AssignStepped _
+    | AssignFieldLeft
+    | AssignDiscarded -> MsgRoute.TouchesField
+    | PageEntered
+    | Load
+    | FrameLoaded _
+    | FrameRefreshed _
+    | Loaded _
+    | Reloaded _
+    | OpenTargets
+    | PreviewLoaded _
+    | TargetsApplied _
+    | TargetsRetried _
+    | CloseTargets
+    | CategorySearchChanged _
+    | ClearCategorySearch
+    | SelectFilter _
+    | CoverMissing
+    | AssignAnswered _
+    | AssignCallLost _
+    | TransferAmountChanged _
+    | TransferAmountReset
+    | OpenPicker
+    | ClosePicker
+    | PickCounterpart _
+    | RecentCounterpartsLoaded _
+    | MoveAnswered _
+    | MoveCallLost _
+    | MoveRetried _
+    | LoadCategoryEntries
+    | CategoryEntriesLoaded _
+    | OpenEntryInLedger _ -> MsgRoute.Free
 
-/// Eine Bewegung startet nur, wenn Zuweisen ruht (`assignSettled`). Sonst ist der Tipp ein Verlassen:
-/// Eine offene Eingabe geht in die Schlange und die Bewegung startet nicht, auch nicht von selbst
-/// danach. Wer sie will, sieht die neue Lage und tippt noch einmal. Fiel die Eingabe ohne Änderung
-/// weg, hat sich nichts geändert, und die Bewegung startet. Bleibt der Tipp ohne sichtbare Wirkung,
-/// nennt ein Toast die Sperre: Der Weg über den Toast "Erneut senden" hat keinen gesperrten Knopf.
+/// Speichert die offene Eingabe, dann wirkt die Nachricht. Der Toast zur Eingabe geht vor.
+let private leaveThen (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
+    let left, outcome = leaveInspector model
+    let moved, cmd, external = transition msg left
+    moved, cmd, (match leaveToast outcome with NoOp -> external | toast -> toast)
+
+/// Eine Bewegung startet nur, wenn Zuweisen ruht. Sonst ist der Tipp ein Verlassen: Die Eingabe geht in
+/// die Schlange und die Bewegung startet nicht, auch nicht von selbst danach. Wer sie will, sieht die
+/// neue Lage und tippt noch einmal. Fiel die Eingabe ohne Änderung weg und ruht Zuweisen, startet sie.
+/// Bleibt der Tipp ohne sichtbare Wirkung, nennt ein Toast die Sperre: Der Weg über den Toast
+/// "Erneut senden" hat keinen gesperrten Knopf.
 let private startMove (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     let blocked = ShowToast (moveBlockedText, ToastWarning)
-    if moveRunning model then
-        model, Cmd.none, blocked
-    else
-        let left, external = if assignSettled model then model, NoOp else leaveInspector model
-        if assignSettled left && external = NoOp then
-            transition msg left
-        elif external = NoOp && left.AssignQueue = model.AssignQueue then
-            left, Cmd.none, blocked
-        else
-            left, Cmd.none, external
+    match moveGate model with
+    | Blocked CallRunning -> model, Cmd.none, blocked
+    | Blocked AssignQueued
+    | SaveFirst ->
+        match leaveInspector model with
+        | left, Queued -> left, Cmd.none, NoOp
+        | left, DroppedInvalid -> left, Cmd.none, leaveToast DroppedInvalid
+        | left, (NothingOpen | Unchanged) ->
+            if List.isEmpty left.AssignQueue then transition msg left else left, Cmd.none, blocked
+    | Blocked ReportOpen
+    | Blocked MonthChanging
+    | Free -> transition msg model
 
 /// Der Warn-Toast, wenn die gewählte Kategorie beim Neu-Lesen wegfiel.
 let private droppedEntryToast =
     ShowToast ("Zugewiesen nicht gespeichert: die Kategorie gibt es nicht mehr", ToastWarning)
 
-/// Der Einstieg. Eine Bewegung startet über `startMove`. Solange ein Aufruf aus dem Tab läuft, tun alle Wege aus dem Inspektor und das Feld
-/// Zugewiesen nichts (ADR 0078 Punkt 5). Vor einem Verlassen wird gespeichert. Nach jeder Nachricht
-/// folgt der Tab dem Schlüssel und die Schlange läuft weiter.
+/// Der Einstieg. Jede Nachricht geht ihren Weg (`routeOf`), danach folgt der Tab dem Schlüssel und die
+/// Schlange läuft weiter.
 let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
-    let leaving = leavesInspector msg model
+    let busy = inspectorBusy model
     let model', cmd, external =
-        if startsMove msg then
-            startMove msg model
-        elif inspectorBusy model && (leaving || touchesAssignField msg) then
-            model, Cmd.none, NoOp
-        elif leaving then
-            let left, leaveExternal = leaveInspector model
-            let moved, cmd, moveExternal = transition msg left
-            moved, cmd, (if leaveExternal = NoOp then moveExternal else leaveExternal)
-        else
-            transition msg model
+        match routeOf msg model with
+        | MsgRoute.StartsMove -> startMove msg model
+        | MsgRoute.Left when busy -> transition msg model
+        | MsgRoute.Leaves
+        | MsgRoute.TouchesField when busy -> model, Cmd.none, NoOp
+        | MsgRoute.Leaves
+        | MsgRoute.Left -> leaveThen msg model
+        | MsgRoute.TouchesField
+        | MsgRoute.Free -> transition msg model
     let synced = syncMoneyTab model'
     let external' = if entryDropped model' synced && external = NoOp then droppedEntryToast else external
     let flushed, sendCmd = flushAssign synced

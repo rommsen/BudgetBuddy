@@ -316,6 +316,10 @@ module ZIndex =
 /// Minimum touch target size for mobile (48px)
 module TouchTargets =
     let minHeight = "min-h-[48px] md:min-h-0"
+    /// Im Sheet, das bis 1023 px gilt: 48 px bis dorthin, darüber im Panel frei.
+    let sheetMinHeight = "min-h-[48px] lg:min-h-0"
+    /// 48 px auf jeder Breite.
+    let alwaysMinHeight = "min-h-[48px]"
     let minSize = "min-h-[48px] min-w-[48px]"
 
 // ============================================
