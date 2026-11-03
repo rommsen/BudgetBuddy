@@ -54,3 +54,7 @@ Diese Tests müssen bestehen und werden bei Änderungen am Bereich mitgezogen:
 ## Stil
 
 19. Testnamen auf Deutsch mit echten Umlauten, als fachlicher Satz. Task-Ids in Kommentare, nicht in den Namen. Eine Datei, ein Aufbau (`testCase` oder `test`-CE).
+
+## Zustandsregeln
+
+20. Regeln über mehrere Nachrichten (Sperren während eines Aufrufs, Schlangen, Speichern beim Verlassen) werden als Aufzählung aller Reihenfolgen durch das echte `update` getestet, mit einem Orakel, das nicht vom getesteten Code abhängt, und nicht Weg für Weg. Vorbild: `moveWays` in `src/Tests/MoveMoneyClientTests.fs`.
