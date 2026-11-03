@@ -586,6 +586,18 @@ let private pageKeyTests =
             for key in [ "ArrowUp"; "ArrowDown"; "ArrowLeft"; "ArrowRight" ] do
                 Expect.equal (pageKeyActionFor withTargets key OtherFocus) LeaveKey key
         }
+        test "Ein Zeichen ohne Feldfokus geht in die Suche, Leertaste, Steuertasten und Felder nicht" {
+            for key in [ "a"; "Ö"; "7"; "-" ] do
+                Expect.isTrue (typesIntoSearch opened key OtherFocus) key
+            Expect.isTrue (typesIntoSearch (init ()) "a" OtherFocus) "auch ohne Auswahl"
+            for key in [ " "; "Enter"; "Escape"; "Tab"; "ArrowDown"; "Backspace"; "F5" ] do
+                Expect.isFalse (typesIntoSearch opened key OtherFocus) key
+            Expect.isFalse (typesIntoSearch opened "a" SearchField) "schon in der Suche"
+            Expect.isFalse (typesIntoSearch opened "a" TextField) "Zugewiesen und Betrag behalten ihre Zeichen"
+        }
+        test "Bei offenem Dialog geht kein Zeichen in die Suche" {
+            Expect.isFalse (typesIntoSearch { opened with Targets = PreviewLoading } "a" OtherFocus) "Targets anwenden"
+        }
         test "Ohne Dialog gilt die Regel mit der Auswahl aus dem Modell" {
             Expect.equal (pageKeyActionFor opened "ArrowDown" OtherFocus) (StepRow Next) "mit Auswahl"
             Expect.equal (pageKeyActionFor (init ()) "ArrowDown" OtherFocus) FirstRow "ohne Auswahl"

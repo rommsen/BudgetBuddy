@@ -34,10 +34,12 @@ let private keyFocus (target: obj) : KeyFocus =
     else
         OtherFocus
 
-/// Die Pfeiltasten der Seite ab 1024 px. Der Handler hängt am Dokument: nach einem Klick auf eine
+/// Die Tasten der Seite ab 1024 px. Der Handler hängt am Dokument: nach einem Klick auf eine
 /// Tabellenzeile steht der Fokus auf `body` und erreicht kein Element der Seite. `defaultPrevented`
 /// heißt, `Tabs` hat die Taste schon genommen, so wechselt ein Druck genau einen Tab. Mit
 /// Zusatztaste gehört der Pfeil dem Browser (Alt und Links: zurück) oder dem Feld (Umschalt: markieren).
+/// Ein Zeichen ohne Feldfokus setzt den Fokus in die Suche; der Browser schreibt es dann dorthin,
+/// Umschalt ist dabei erlaubt (Großbuchstaben).
 [<ReactComponent>]
 let private PageKeys (model: Model, dispatch: Msg -> unit) =
     let latest = React.useRef (model, dispatch)
@@ -46,13 +48,18 @@ let private PageKeys (model: Model, dispatch: Msg -> unit) =
         (fun () ->
             let onKey (event: Browser.Types.Event) =
                 let e = event :?> Browser.Types.KeyboardEvent
-                if not (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) then
+                if not (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) then
                     let current, send = latest.current
-                    match pageKeyActionFor current e.key (keyFocus e.target) with
-                    | LeaveKey -> ()
-                    | action ->
-                        e.preventDefault ()
-                        send (PageKeyPressed action)
+                    let focus = keyFocus e.target
+                    if typesIntoSearch current e.key focus then
+                        let search: obj = Browser.Dom.document.querySelector "[data-testid='budget-category-search'] input"
+                        if not (isNull search) then search?focus ()
+                    elif not e.shiftKey then
+                        match pageKeyActionFor current e.key focus with
+                        | LeaveKey -> ()
+                        | action ->
+                            e.preventDefault ()
+                            send (PageKeyPressed action)
             Browser.Dom.document.addEventListener ("keydown", onKey)
             React.createDisposable (fun () -> Browser.Dom.document.removeEventListener ("keydown", onKey))),
         [||]

@@ -1003,6 +1003,14 @@ test("Tastatur in Feldern: im Suchfeld wechseln Hoch und Runter die Kategorie, L
     await twoFrames(page);
     assert.equal(await activeTab(panel), "Geld", "Links wechselt zurück");
     assert.equal(await caret(), 1, "der Cursor steht still");
+
+    // Tippen ohne Klick in die Suche: das Zeichen landet im echten DOM im Feld. Ob eine Taste
+    // dorthin gehört, prüft `typesIntoSearch` unter .NET.
+    await page.evaluate(() => document.activeElement.blur());
+    await page.keyboard.type("S");
+    await twoFrames(page);
+    assert.equal(await page.evaluate(() => document.activeElement.getAttribute("aria-label")), "Kategorie suchen", "das Zeichen holt den Fokus in die Suche");
+    assert.equal(await searchInput(page).inputValue(), "eS", "das Zeichen steht am Ende der Suche");
   } finally {
     await context.close();
   }

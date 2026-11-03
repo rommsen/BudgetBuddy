@@ -94,6 +94,16 @@ let pageKeyActionFor (model: Model) (key: string) (focus: KeyFocus) : PageKeyAct
     | TargetsClosed when not (pickerOpen model) -> pageKeyAction model.Selected.IsSome key focus
     | _ -> LeaveKey
 
+/// Tippen ohne Klick in die Suche: ein druckbares Zeichen, während kein Eingabefeld den Fokus hat,
+/// geht in die Suche. Die Leertaste nicht, sie gehört dem Knopf mit Fokus und dem Scrollen. Bei
+/// offenem Dialog oder Picker gehören die Tasten dort hin.
+let typesIntoSearch (model: Model) (key: string) (focus: KeyFocus) : bool =
+    focus = OtherFocus
+    && key.Length = 1
+    && key <> " "
+    && model.Targets = TargetsClosed
+    && not (pickerOpen model)
+
 /// Der Nachbar-Tab, an den Rändern bleibt er stehen.
 let private neighbourTab (direction: Direction) (tab: InspectorTab) : InspectorTab =
     let order = inspectorTabs |> List.map snd
