@@ -24,9 +24,6 @@ let private isRateLimit (error: YnabError) =
     | YnabError.RateLimitExceeded _ -> true
     | _ -> false
 
-let private euro (milliunits: int64) : Money =
-    { Amount = decimal milliunits / 1000m; Currency = "EUR" }
-
 // ============================================
 // Schreib-Sperre je Monat
 // ============================================
@@ -89,8 +86,8 @@ let private reportWith (applicationId: Guid) (monthKey: string) (actual: Money o
                     |> List.map (fun s ->
                         { CategoryId = s.Movement.CategoryId
                           CategoryName = s.Movement.CategoryName
-                          OldAssigned = euro s.Movement.OldAssigned
-                          NewAssigned = euro s.Movement.NewAssigned
+                          OldAssigned = euroOfMilliunits s.Movement.OldAssigned
+                          NewAssigned = euroOfMilliunits s.Movement.NewAssigned
                           Outcome = s.Latest |> Option.defaultValue (Failed "nicht gesendet") })
                   ActualToBeBudgeted = actual })
     }
@@ -323,7 +320,7 @@ let retryFailed
                                 live.Categories |> List.map (fun c -> c.Id, c.Assigned) |> Map.ofList
                             let decisionFor (m: Movement) =
                                 Map.tryFind m.CategoryId liveAssigned
-                                |> Option.map (decideRetry (euro m.OldAssigned) (euro m.NewAssigned))
+                                |> Option.map (decideRetry (euroOfMilliunits m.OldAssigned) (euroOfMilliunits m.NewAssigned))
                             let inOrder = sendsInOrder first.Movement.Origin
                             // Ist das Ziel verloren, wäre ein Senden der Quelle das Geld in Zu verteilen.
                             let sourceBlocked =

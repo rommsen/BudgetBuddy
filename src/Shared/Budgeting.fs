@@ -165,6 +165,10 @@ let freeAmount (c: BudgetCategory) : Money =
 let toMilliunits (money: Money) : int64 =
     int64 (Math.Round(money.Amount * 1000m, MidpointRounding.AwayFromZero))
 
+/// Ein Betrag in Euro aus Milliunits, die Gegenrichtung zu `toMilliunits` (gespeicherte Bewegungen).
+let euroOfMilliunits (milliunits: int64) : Money =
+    { Amount = decimal milliunits / 1000m; Currency = "EUR" }
+
 /// YNAB nimmt Zuweisungen nur auf 10 Milliunits genau an (12345 wurde 12350). Ein Betrag
 /// dazwischen wäre eine stille Rundung und wird deshalb abgelehnt. Rechnet ohne Multiplikation,
 /// damit ein zu großer Betrag nicht überläuft (budgeting-nfrds).
@@ -328,7 +332,10 @@ type CategoryHistory = {
     Spending: MonthSpending list
 }
 
-/// Der Stand einer Bewegung in der Historie: ihr jüngstes Ergebnis oder noch offen.
+/// Der Stand einer Bewegung in der Historie: ihr jüngstes Ergebnis oder noch offen. Neben
+/// `LineOutcome option` steht er, weil die Historie einen Fall mehr kennt als ein Ergebnis: "noch
+/// offen" ist kein Ergebnis, sondern sein Fehlen. Die Ansicht matcht so über einen Typ mit benannten
+/// Fällen, statt `None` an jeder Stelle als "offen" zu deuten.
 type HistoryStatus =
     | HistoryWritten
     | HistoryFailed of reason: string
@@ -412,6 +419,10 @@ let availableBuildup (c: BudgetCategory) : AvailableBuildup =
       Activity = c.Activity
       Available = c.Available }
 
+/// Wie viele Monate die Ausgaben im Tab Historie zeigen.
+[<Literal>]
+let SpendingMonthCount = 6
+
 /// Ein Balken der Ausgaben der letzten 6 Monate.
 type SpendingBar = {
     /// "YYYY-MM-01".
@@ -421,8 +432,8 @@ type SpendingBar = {
     Spending: Money
     /// Höhe in Prozent des größten Balkens, 0 bis 100. Ein Monat ohne Ausgaben hat 0.
     Percent: int
-    /// Der laufende Monat: Er ist noch nicht vorbei.
-    Incomplete: bool
+    /// Wie der Monat zum laufenden steht. Der laufende ist noch nicht vorbei.
+    Kind: MonthKind
 }
 
 /// Die Balken aus den Monatssummen. `currentMonth` ist der laufende Monat ("YYYY-MM-01").
@@ -438,4 +449,4 @@ let spendingBars (currentMonth: string) (spending: MonthSpending list) : Spendin
         { Month = s.Month
           Spending = { s.Activity with Amount = amount }
           Percent = percent
-          Incomplete = monthKind currentMonth s.Month = CurrentMonth })
+          Kind = monthKind currentMonth s.Month })

@@ -196,6 +196,14 @@ let errorSmall text =
 let infoSmall text =
     view { defaultProps with Text = text; Variant = Info; Size = Small }
 
+/// Klein und gelb: offen, kein Fehler, für die Budget-Seite ohne Pink (ADR 0075).
+let noticeSmall text =
+    view { defaultProps with Text = text; Variant = Notice; Size = Small }
+
+/// Klein und neutral: ein Stand ohne Wertung.
+let neutralSmall text =
+    view { defaultProps with Text = text; Variant = Neutral; Size = Small }
+
 // ============================================
 // With Icon
 // ============================================

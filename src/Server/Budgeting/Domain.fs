@@ -6,10 +6,14 @@ open System
 open Shared.Domain
 open Shared.Budgeting
 
+/// Der Monatserste als "YYYY-MM-01". Tag und Uhrzeit spielen keine Rolle.
+let monthKeyOf (day: DateTime) : string =
+    day.ToString("yyyy-MM-01", Globalization.CultureInfo.InvariantCulture)
+
 /// Der laufende Monat als "YYYY-MM-01". `today` ist ein Kalendertag ohne Uhrzeit, in Berlin zu
 /// bestimmen (`Server.Api.berlinToday`).
 let currentMonthKey (today: DateOnly) : string =
-    today.ToString("yyyy-MM-01", Globalization.CultureInfo.InvariantCulture)
+    monthKeyOf (today.ToDateTime TimeOnly.MinValue)
 
 /// Der Rahmen der Budget-Seite. Die Antwort von `GET /months` trägt keine verlässliche Folge,
 /// deshalb wird aufsteigend sortiert.
@@ -267,10 +271,6 @@ let planAssign (month: BudgetMonth) (request: AssignRequest) : Result<MovePlan o
 // Historie je Kategorie (budgeting-dyn8g)
 // ============================================
 
-/// Wie viele Monate die Ausgaben im Tab Historie zeigen.
-[<Literal>]
-let SpendingMonthCount = 6
-
 /// Die Monatsersten der Ausgaben-Balken: die 6 Monate bis einschließlich `shown`, aufsteigend. Vor
 /// dem Januar des Jahres 1 gibt es keinen Monat, dort werden es weniger.
 let spendingMonths (shown: DateTime) : DateTime list =
@@ -280,9 +280,14 @@ let spendingMonths (shown: DateTime) : DateTime list =
           if i >= 12 then
               DateTime(i / 12, i % 12 + 1, 1) ]
 
-/// Der Monatserste als "YYYY-MM-01".
-let monthKeyOf (firstDay: DateTime) : string =
-    firstDay.ToString("yyyy-MM-01", Globalization.CultureInfo.InvariantCulture)
+/// Welche Bewegungen die Historie liest (budgeting-dyn8g). `None` heißt: ohne diese Einschränkung.
+/// budgeting-h7q4v liest so alle Kategorien und filtert nach Herkunft.
+type MovementFilter = {
+    CategoryId: Guid option
+    /// "YYYY-MM-01".
+    Month: string option
+    Origin: MovementOrigin option
+}
 
 /// Die Monatssummen zu den Monaten der Balken. Ein Monat ohne Summe steht mit 0 da.
 let spendingOf (months: DateTime list) (sums: (DateTime * Money) list) : MonthSpending list =

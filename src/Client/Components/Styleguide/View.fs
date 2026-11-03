@@ -352,6 +352,12 @@ let private badgeSection =
                 row [
                     Badge.neutral "Neutral"
                 ]
+                note "Klein, für den Stand in einer Listenzeile (Tab Historie). Auf der Budget-Seite Gelb statt Pink (ADR 0075)."
+                row [
+                    Badge.errorSmall "fehlgeschlagen"
+                    Badge.noticeSmall "in YNAB geändert"
+                    Badge.neutralSmall "noch offen"
+                ]
                 note "Stand der Bankverbindung (BankConnectionBadge), in Einstellungen und SyncFlow."
                 row [
                     Components.BankConnectionBadge.view BankConnected
@@ -422,6 +428,32 @@ let private statsSection =
                     prop.children [
                         Stats.withAccent "Kontostand" "1.250,40 €" Stats.NoAccent
                         caption "withAccent NoAccent (kein Akzentstreifen, ledger-w9skm/ADR 0035)"
+                    ]
+                ]
+                subTitle "Monatsbalken"
+                note "Stats.monthBars: je Monat ein Balken mit Monat und Betrag, ohne waagrechtes Scrollen. Der laufende Monat ist neutral gestrichelt und trägt \"läuft\", Teal bleibt für Ausgewähltes (ADR 0075). Ein Monat ohne Wert zeigt einen flachen Balken, ein negativer Wert steht in Rot. Für Screenreader eine Liste, je Balken ein Label."
+                Html.div [
+                    prop.className "max-w-sm space-y-4"
+                    prop.children [
+                        Stats.monthBars "Ausgaben der letzten 6 Monate" [
+                            let bar key month amount percent : Stats.MonthBar =
+                                { Key = key
+                                  Label = $"{month}: {amount} €"
+                                  MonthText = month
+                                  AmountText = amount
+                                  Percent = percent
+                                  Running = false
+                                  Negative = false }
+                            bar "2026-05-01" "Mai" "320" 64
+                            bar "2026-06-01" "Jun" "0" 0
+                            bar "2026-07-01" "Jul" "500" 100
+                            { bar "2026-08-01" "Aug" "-20" 0 with Negative = true; Label = "Aug: -20 €, Erstattungen überwiegen" }
+                            bar "2026-09-01" "Sep" "410" 82
+                            { bar "2026-10-01" "Okt" "150" 30 with Running = true; Label = "Okt: 150 €, läuft noch" }
+                        ]
+                        caption "Stats.monthBars: laufender Monat, Null und negativer Wert"
+                        Stats.monthBarsPlaceholder 6
+                        caption "Stats.monthBarsPlaceholder: beim Laden, gleich hoch"
                     ]
                 ]
             ]

@@ -137,17 +137,22 @@ let private availableBuildupView (category: BudgetCategory) =
         ]
     ]
 
+/// Der Stand einer Bewegung: "geschrieben" schlicht, alle Badges klein (ADR 0075: Gelb statt Pink auf
+/// der Budget-Seite).
 let private historyStatusView (status: HistoryStatus) =
     let text = historyStatusText status
     match status with
     | HistoryWritten -> Html.span [ prop.className ListRoles.muted; prop.text text ]
     | HistoryFailed _ -> Badge.errorSmall text
-    | HistoryChangedInYnab -> Badge.warningSmall text
-    | HistoryOpen -> Badge.neutral text
+    | HistoryChangedInYnab -> Badge.noticeSmall text
+    | HistoryOpen -> Badge.neutralSmall text
 
+/// Eine Bewegung. In der zweiten Zeile bleiben Datum und Badge ganz, ein langer Fehlgrund kürzt mit
+/// Ellipse und steht ganz im `title`.
 let private historyLineView (line: HistoryLine) =
     let time = historyTimeText line.OccurredAt
     Html.div [
+        prop.key (string line.MovementId)
         prop.custom ("data-testid", "history-movement")
         prop.className ListRoles.mobileRowPadding
         prop.children [
@@ -161,8 +166,21 @@ let private historyLineView (line: HistoryLine) =
             Html.div [
                 prop.className ListRoles.mobileLine2
                 prop.children [
-                    Html.span [ prop.className ListRoles.date; prop.text time ]
-                    Html.span [ prop.className "min-w-0 truncate"; prop.children [ historyStatusView line.Status ] ]
+                    Html.span [
+                        prop.custom ("data-testid", "history-time")
+                        prop.className $"{ListRoles.date} shrink-0 whitespace-nowrap"
+                        prop.text time
+                    ]
+                    Html.span [ prop.className "shrink-0"; prop.children [ historyStatusView line.Status ] ]
+                    match historyFailureReason line.Status with
+                    | Some reason ->
+                        Html.span [
+                            prop.custom ("data-testid", "history-failure-reason")
+                            prop.className $"{ListRoles.secondary} truncate min-w-0"
+                            prop.title reason
+                            prop.text reason
+                        ]
+                    | None -> ()
                 ]
             ]
         ]
@@ -189,52 +207,39 @@ let private historyMovements (history: CategoryHistory) =
         ]
     ]
 
-/// Ein Balken der Ausgaben: Höhe, darunter Monat und Betrag. Der laufende Monat ist gestrichelt und
-/// trägt "läuft", er ist noch nicht vorbei.
-let private spendingBarView (bar: SpendingBar) =
-    let label =
-        let state = if bar.Incomplete then ", läuft noch" else ""
-        $"{monthLabel bar.Month}: {moneyText bar.Spending}{state}"
-    let barClass =
-        if bar.Incomplete then "w-full rounded-t border border-dashed border-neon-teal/50 bg-neon-teal/10"
-        else "w-full rounded-t bg-text-muted/30"
-    let amountClass =
-        if bar.Spending.Amount < 0m then "font-mono text-xs text-neon-red"
-        else "font-mono text-xs text-text-secondary"
+/// Ein Balken der Ausgaben als DS-Baustein. Der laufende Monat ist gestrichelt und trägt "läuft", er
+/// ist noch nicht vorbei.
+let private spendingMonthBar (bar: SpendingBar) : Stats.MonthBar =
+    let running = bar.Kind = CurrentMonth
+    let state = if running then ", läuft noch" else ""
+    { Key = bar.Month
+      Label = $"{monthLabel bar.Month}: {moneyText bar.Spending}{state}"
+      MonthText = shortMonthLabel bar.Month
+      AmountText = barAmountText bar.Spending
+      Percent = bar.Percent
+      Running = running
+      Negative = bar.Spending.Amount < 0m }
+
+[<Literal>]
+let private SpendingTitle = "Ausgaben der letzten 6 Monate"
+
+/// Der Abschnitt der Ausgaben: Überschrift und darunter die Balken oder ihr Platzhalter.
+let private spendingSection (bars: ReactElement) =
     Html.div [
-        prop.custom ("data-testid", "history-bar")
-        prop.ariaLabel label
-        prop.className "flex flex-1 min-w-0 flex-col items-center gap-1"
+        prop.custom ("data-testid", "history-spending")
+        prop.className "flex flex-col gap-2 px-4"
         prop.children [
-            Html.div [
-                prop.className "flex h-16 w-full items-end"
-                prop.children [
-                    Html.div [ prop.className barClass; prop.style [ style.height (length.percent (max bar.Percent 2)) ] ]
-                ]
-            ]
-            Html.span [ prop.className ListRoles.date; prop.text (shortMonthLabel bar.Month) ]
-            Html.span [ prop.className amountClass; prop.text (barAmountText bar.Spending) ]
-            if bar.Incomplete then Html.span [ prop.className ListRoles.muted; prop.text "läuft" ]
+            Html.span [ prop.className ListRoles.groupHeader; prop.text SpendingTitle ]
+            bars
         ]
     ]
 
 /// Ausgaben der letzten 6 Monate aus dem Kassenbuch, ohne waagrechtes Scrollen.
 let private spendingView (currentMonth: string) (history: CategoryHistory) =
-    Html.div [
-        prop.custom ("data-testid", "history-spending")
-        prop.className "flex flex-col gap-2 px-4"
-        prop.children [
-            Html.span [ prop.className ListRoles.groupHeader; prop.text "Ausgaben der letzten 6 Monate" ]
-            Html.div [
-                prop.role "img"
-                prop.ariaLabel "Ausgaben der letzten 6 Monate"
-                prop.className "flex gap-1.5"
-                prop.children (spendingBars currentMonth history.Spending |> List.map spendingBarView)
-            ]
-        ]
-    ]
+    spendingSection (Stats.monthBars SpendingTitle (spendingBars currentMonth history.Spending |> List.map spendingMonthBar))
 
 /// Tab Historie: Aufbau von Verfügbar sofort aus dem Monat, Bewegungen und Ausgaben aus der Abfrage.
+/// Beim Laden hält ein Platzhalter die Höhe der Balken.
 let private historyTab (model: Model) (category: BudgetCategory) (selected: SelectedCategory) (dispatch: Msg -> unit) =
     Html.div [
         prop.custom ("data-testid", "inspector-history")
@@ -243,7 +248,9 @@ let private historyTab (model: Model) (category: BudgetCategory) (selected: Sele
             Html.div [ prop.className "px-4"; prop.children [ availableBuildupView category ] ]
             match selected.History with
             | NotAsked
-            | Loading -> Loading.txListSkeleton 3
+            | Loading ->
+                Loading.txListSkeleton 3
+                spendingSection (Stats.monthBarsPlaceholder SpendingMonthCount)
             | Failure message ->
                 Html.div [
                     prop.className "px-4"

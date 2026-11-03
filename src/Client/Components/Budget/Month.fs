@@ -51,6 +51,14 @@ type MonthReread =
     /// Bis zur Antwort steht `Loading`, sie kommt über `Loaded`, ein Fehler zeigt die Fehlerkarte.
     | FullReread
 
+/// Die Antwort einer Abfrage des Monats, gebunden an ihre Generation beim Start. `QuietReread`
+/// antwortet über `Reloaded`, `FullReread` über `Loaded`; Erfolg und Scheitern gehen denselben Weg.
+let rereadAnswer (reread: MonthReread) (model: Model) : Result<BudgetMonth, string> -> Msg =
+    let generation = model.MonthGeneration
+    match reread with
+    | QuietReread -> fun result -> Reloaded (generation, result)
+    | FullReread -> fun result -> Loaded (generation, result)
+
 /// Den Monat neu lesen, ohne dass Liste und Inspektor verschwinden: Ein geladener Monat bleibt stehen
 /// wie nach einer Verschiebung. War er nicht geladen oder läuft ein Wechsel, gilt `awaitMonth`.
 let rereadMonth (model: Model) : Model * MonthReread =
@@ -85,40 +93,48 @@ let private unloaded (data: RemoteData<'T>) : RemoteData<'T> =
     | Loading -> NotAsked
     | other -> other
 
-/// Ein neuer Stand der Tab-Daten (Buchungen und Historie, eine Generation für beide): Antworten zu
-/// älteren Abfragen zählen nicht mehr. Was lief, ist wieder ungefragt und kommt, sobald sein Tab zu
-/// sehen ist (`tabDataDue`), sonst hinge es in `Loading`.
-let private nextTabGeneration (model: Model) : Model =
-    { model with
-        Selected = model.Selected |> Option.map (fun s -> { s with Entries = unloaded s.Entries; History = unloaded s.History })
-        TabGeneration = model.TabGeneration + 1 }
-
-/// Die Tab-Daten gelten nicht mehr (anderer Monat, Rückkehr aus dem Kassenbuch): beide sind wieder
-/// fällig, sobald ihr Tab zu sehen ist.
+/// Die Tab-Daten gelten nicht mehr (andere Kategorie, anderer Monat, Rückkehr aus dem Kassenbuch):
+/// Antworten zu älteren Abfragen zählen nicht mehr, beide Tabs sind wieder fällig, sobald ihr Tab zu
+/// sehen ist (`tabDataDue`).
 let resetTabData (model: Model) : Model =
-    let next = nextTabGeneration model
-    { next with Selected = next.Selected |> Option.map (fun s -> { s with Entries = NotAsked; History = NotAsked }) }
+    { model with
+        Selected = model.Selected |> Option.map (fun s -> { s with Entries = NotAsked; History = NotAsked })
+        EntriesGeneration = model.EntriesGeneration + 1
+        HistoryGeneration = model.HistoryGeneration + 1 }
 
 /// Nur die Daten eines Tabs gelten nicht mehr: "Wiederholen" oder die Historie nach einer Bewegung.
-/// Tabs ohne nachgeladene Daten ändern nichts.
+/// Die Daten des anderen Tabs und seine laufende Abfrage bleiben. Tabs ohne nachgeladene Daten ändern
+/// nichts.
 let resetTab (tab: InspectorTab) (model: Model) : Model =
-    let reset (s: SelectedCategory) =
-        match tab with
-        | EntriesTab -> { s with Entries = NotAsked }
-        | HistoryTab -> { s with History = NotAsked }
-        | MoneyTab
-        | TargetTab -> s
-    match tab with
-    | EntriesTab
-    | HistoryTab ->
-        let next = nextTabGeneration model
+    let withSelected (reset: SelectedCategory -> SelectedCategory) (next: Model) =
         { next with Selected = next.Selected |> Option.map reset }
+    match tab with
+    | EntriesTab ->
+        withSelected (fun s -> { s with Entries = NotAsked }) { model with EntriesGeneration = model.EntriesGeneration + 1 }
+    | HistoryTab ->
+        withSelected (fun s -> { s with History = NotAsked }) { model with HistoryGeneration = model.HistoryGeneration + 1 }
     | MoneyTab
     | TargetTab -> model
 
-/// Der Monat wechselt: neuer Stand, eine laufende Antwort zählt nicht mehr. Fertige Tab-Daten bleiben
-/// bis zur Antwort des Monats zu sehen.
-let private invalidateTabData (model: Model) : Model = nextTabGeneration model
+/// Der Monat wechselt. Eine laufende Abfrage wird wieder ungefragt, ihre Antwort zählt nicht mehr, und
+/// sie kommt, sobald ihr Tab zu sehen ist (`tabDataDue`), sonst hinge sie in `Loading`. Fertige
+/// Tab-Daten bleiben bis zur Antwort des Monats zu sehen, und mit ihnen ihre Generation: Das stille
+/// Nachladen der Historie gilt dem Monat, der noch zu sehen ist, und zählt weiter. Bringt die Antwort
+/// einen anderen Monat, setzt `applyLoaded` die Tab-Daten zurück; kommt derselbe wieder (A, B, A),
+/// ersetzt die stille Antwort den alten Stand.
+let private invalidateTabData (model: Model) : Model =
+    let running (data: RemoteData<'T>) =
+        match data with
+        | Loading -> true
+        | NotAsked
+        | Success _
+        | Failure _ -> false
+    let next (isRunning: SelectedCategory -> bool) (generation: int) =
+        if model.Selected |> Option.exists isRunning then generation + 1 else generation
+    { model with
+        Selected = model.Selected |> Option.map (fun s -> { s with Entries = unloaded s.Entries; History = unloaded s.History })
+        EntriesGeneration = next (fun s -> running s.Entries) model.EntriesGeneration
+        HistoryGeneration = next (fun s -> running s.History) model.HistoryGeneration }
 
 /// Ist `month` ein anderer Monat als der bisher gezeigte? Dann gelten die Tab-Daten nicht mehr.
 let private entriesOutdated (model: Model) (month: BudgetMonth) : bool =

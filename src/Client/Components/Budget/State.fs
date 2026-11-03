@@ -36,18 +36,18 @@ let private frameRefreshCmd (due: bool) : Cmd<Msg> =
     else
         Cmd.none
 
-let private monthCmd (model: Model) (answer: int * Result<BudgetMonth, string> -> Msg) : Cmd<Msg> =
-    let generation = model.MonthGeneration
+let private monthCmd (reread: MonthReread) (model: Model) : Cmd<Msg> =
+    let answer = rereadAnswer reread model
     match shownMonth model with
     | Some month ->
         Cmd.OfAsync.either
             (fun key -> Retry.reading Api.budget.getBudgetMonth key)
             month
-            (fun result -> answer (generation, result))
-            (fun ex -> answer (generation, Error ex.Message))
+            answer
+            (fun ex -> answer (Error ex.Message))
     | None -> Cmd.none
 
-let private loadCmd (model: Model) : Cmd<Msg> = monthCmd model Loaded
+let private loadCmd (model: Model) : Cmd<Msg> = monthCmd FullReread model
 
 let private previewCmd (month: string) : Cmd<Msg> =
     Cmd.OfAsync.either
@@ -111,13 +111,10 @@ let private flushAssign (model: Model) : Model * Cmd<Msg> =
 /// Nach einer Bewegung oder Zuweisung: Monat neu lesen, ohne `Loading`. Die Liste bleibt stehen, die
 /// Zeilen springen nicht nach oben, und die neuen Beträge erscheinen, sobald sie da sind. Scheitert es,
 /// bleibt die Liste auch stehen (`applyReloaded`).
-let private reloadCmd (model: Model) : Cmd<Msg> = monthCmd model Reloaded
+let private reloadCmd (model: Model) : Cmd<Msg> = monthCmd QuietReread model
 
-/// Liest den Monat so, wie `rereadMonth` es verlangt.
-let private rereadCmd (reread: MonthReread) (model: Model) : Cmd<Msg> =
-    match reread with
-    | QuietReread -> reloadCmd model
-    | FullReread -> loadCmd model
+/// Liest den Monat so, wie `rereadMonth` es verlangt (`rereadAnswer`).
+let private rereadCmd (reread: MonthReread) (model: Model) : Cmd<Msg> = monthCmd reread model
 
 /// Die Antwort auf eine Schreibung: der Monat, wenn sie die letzte war, und der Rahmen, wenn das
 /// Fenster gewachsen sein kann.
@@ -129,34 +126,46 @@ let private frameDueAfterAnswer (result: Result<ApplyReport, string>) (model: Mo
     | Ok report -> frameDueAfterReport report model
     | Error _ -> false
 
-let private categoryEntriesCmd (categoryId: System.Guid) (month: string) (generation: int) : Cmd<Msg> =
-    Cmd.OfAsync.either
-        (fun query -> Retry.reading Api.ledger.getCategoryMonthEntries query)
-        { CategoryId = categoryId; Month = month }
-        (fun result -> CategoryEntriesLoaded (generation, result))
-        (fun ex -> CategoryEntriesLoaded (generation, Error ex.Message))
-
-let private categoryHistoryCmd (categoryId: System.Guid) (month: string) (generation: int) : Cmd<Msg> =
-    Cmd.OfAsync.either
-        (fun query -> Retry.reading Api.budget.getCategoryHistory query)
-        { CategoryId = categoryId; Month = month }
-        (fun result -> CategoryHistoryLoaded (generation, result))
-        (fun ex -> CategoryHistoryLoaded (generation, Error ex.Message))
+/// Die Abfrage der Tab-Daten. Die Antwort trägt die Generation der Anfrage (`entriesRequestAnswer`,
+/// `historyRequestAnswer`).
+let private tabDataCmd (request: TabRequest) : Cmd<Msg> =
+    let query : CategoryMonthQuery = { CategoryId = request.CategoryId; Month = request.Month }
+    match request.Tab with
+    | HistoryTab ->
+        let answer = historyRequestAnswer request
+        Cmd.OfAsync.either
+            (fun q -> Retry.reading Api.budget.getCategoryHistory q)
+            query
+            answer
+            (fun ex -> answer (Error ex.Message))
+    | EntriesTab
+    | MoneyTab
+    | TargetTab ->
+        let answer = entriesRequestAnswer request
+        Cmd.OfAsync.either
+            (fun q -> Retry.reading Api.ledger.getCategoryMonthEntries q)
+            query
+            answer
+            (fun ex -> answer (Error ex.Message))
 
 /// Holt die Daten des sichtbaren Tabs, wenn der Übergang sie fällig gemacht hat (`tabDataDue`).
 let private withTabData (model: Model) : Model * Cmd<Msg> =
     match requestTabData model with
-    | model', Some request ->
-        match request.Tab with
-        | HistoryTab -> model', categoryHistoryCmd request.CategoryId request.Month request.Generation
-        | _ -> model', categoryEntriesCmd request.CategoryId request.Month request.Generation
+    | model', Some request -> model', tabDataCmd request
     | model', None -> model', Cmd.none
 
 /// Nach einer Bewegung (Zuweisen, Holen, Abgeben, Targets anwenden, erneut senden): Die Historie ist
-/// wieder fällig und kommt neu, wenn ihr Tab zu sehen ist.
+/// wieder fällig (`historyAfterMovement`). Steht sie im sichtbaren Tab, kommt sie still neu, sonst,
+/// sobald ihr Tab zu sehen ist. Laufende Buchungen bleiben.
 let private afterMovement (model: Model, cmd: Cmd<Msg>, external: ExternalMsg) : Model * Cmd<Msg> * ExternalMsg =
-    let fetched, fetch = withTabData (resetTab HistoryTab model)
-    fetched, Cmd.batch [ cmd; fetch ], external
+    let reread, quiet = historyAfterMovement model
+    let fetched, fetch = withTabData reread
+    fetched, Cmd.batch [ cmd; (quiet |> Option.map tabDataCmd |> Option.defaultValue Cmd.none); fetch ], external
+
+/// `afterMovement` nur, wenn die Antwort den Monat neu liest: In der Zuweisungs-Schlange ist das die
+/// letzte Antwort, eine abgelehnte Verschiebung ändert nichts.
+let private afterMovementWhen (reload: bool) (model: Model, cmd: Cmd<Msg>, external: ExternalMsg) : Model * Cmd<Msg> * ExternalMsg =
+    if reload then afterMovement (model, cmd, external) else model, cmd, external
 
 /// Ein einziges `match` ohne Sammelzweig: eine neue Nachricht ohne Zweig meldet der Compiler.
 let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
@@ -209,10 +218,10 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         | model', None -> model', Cmd.none, NoOp
     | AssignAnswered result ->
         let model', external, reload = applyAssignAnswered result model
-        afterMovement (model', afterAnswer reload (frameDueAfterAnswer result model) model', external)
+        afterMovementWhen reload (model', afterAnswer reload (frameDueAfterAnswer result model) model', external)
     | AssignCallLost message ->
         let model', external, reload = applyAssignCallLost message model
-        afterMovement (model', afterAnswer reload (frameDueAfterLostCall model) model', external)
+        afterMovementWhen reload (model', afterAnswer reload (frameDueAfterLostCall model) model', external)
     | TransferAmountChanged text -> updateTransfer (fun f -> { f with AmountInput = Some text }) model, Cmd.none, NoOp
     | TransferAmountReset -> updateTransfer (fun f -> { f with AmountInput = None }) model, Cmd.none, NoOp
     | OpenPicker ->
@@ -232,6 +241,9 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
     | CategoryEntriesLoaded (generation, result) -> applyCategoryEntries generation result model, Cmd.none, NoOp
     | LoadCategoryHistory -> quiet (withTabData (resetTab HistoryTab model))
     | CategoryHistoryLoaded (generation, result) -> applyCategoryHistory generation result model, Cmd.none, NoOp
+    | CategoryHistoryReloaded (generation, result) ->
+        let model', external = applyCategoryHistoryReloaded generation result model
+        model', Cmd.none, external
     | CategorySearchChanged search -> { model with CategorySearch = search }, Cmd.none, NoOp
     | ClearCategorySearch -> { model with CategorySearch = "" }, Cmd.none, NoOp
     | SelectFilter filter -> { model with Filter = filter }, Cmd.none, NoOp
@@ -246,12 +258,13 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         | model', Some preview -> model', applyCmd preview, NoOp
         | model', None -> model', Cmd.none, NoOp
     | TargetsApplied result ->
-        let due =
-            match result with
-            | Ok (Applied report) -> frameDueAfterReport report model
-            | Ok (PreviewChanged _) -> false
-            | Error _ -> frameDueAfterLostCall model
-        afterMovement (applyApplied result model, frameRefreshCmd due, NoOp)
+        let applied = applyApplied result model
+        // Nur ein angewendeter Lauf bewegt Geld. Ein Probelauf ändert nichts, und nach einem Fehler
+        // fragt der Dialog erneut senden an; die Historie bleibt, wie sie ist.
+        match result with
+        | Ok (Applied report) -> afterMovement (applied, frameRefreshCmd (frameDueAfterReport report model), NoOp)
+        | Ok (PreviewChanged _) -> applied, Cmd.none, NoOp
+        | Error _ -> applied, frameRefreshCmd (frameDueAfterLostCall model), NoOp
     | RetryFailed ->
         match retryFailed model with
         | model', Some applicationId -> model', retryCmd applicationId, NoOp
@@ -265,7 +278,7 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
     | OpenEntryInLedger entryId -> leaveForEntry model, Cmd.none, JumpToEntry entryId
     | MoveAnswered result ->
         let model', external, reload = applyMoveAnswered result model
-        afterMovement (model', afterAnswer reload (frameDueAfterAnswer result model) model', external)
+        afterMovementWhen reload (model', afterAnswer reload (frameDueAfterAnswer result model) model', external)
     | MoveCallLost message ->
         let model', external = applyMoveCallLost message model
         afterMovement (model', afterAnswer true (frameDueAfterLostCall model) model', external)
@@ -348,6 +361,7 @@ let private routeOf (msg: Msg) (model: Model) : MsgRoute =
     | CategoryEntriesLoaded _
     | LoadCategoryHistory
     | CategoryHistoryLoaded _
+    | CategoryHistoryReloaded _
     | OpenEntryInLedger _ -> MsgRoute.Free
 
 /// Speichert die offene Eingabe, dann wirkt die Nachricht. Der Toast zur Eingabe geht vor.

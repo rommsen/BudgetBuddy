@@ -207,15 +207,6 @@ let loadApplication (applicationId: Guid) : Async<Result<MovementState list, str
                 (Ok [])
     }
 
-/// Welche Bewegungen die Historie liest (budgeting-dyn8g). `None` heißt: ohne diese Einschränkung.
-/// budgeting-h7q4v liest so alle Kategorien und filtert nach Herkunft.
-type MovementFilter = {
-    CategoryId: Guid option
-    /// "YYYY-MM-01".
-    Month: string option
-    Origin: MovementOrigin option
-}
-
 [<CLIMutable>]
 type private HistoryRow = {
     id: string
@@ -231,9 +222,6 @@ type private HistoryRow = {
     reason: string
     counterpart_name: string
 }
-
-let private euro (milliunits: int64) : Shared.Domain.Money =
-    { Amount = decimal milliunits / 1000m; Currency = "EUR" }
 
 /// Die Bewegungen zum Filter, neueste zuerst, je mit dem jüngsten Ergebnis und bei einer
 /// Verschiebung mit der Kategorie der Gegenseite (dieselbe Gruppen-Id, andere Bewegung).
@@ -272,8 +260,8 @@ let queryMovements (conn: SqliteConnection) (filter: MovementFilter) : Result<Hi
               Month = r.month
               CategoryId = Guid.Parse r.category_id
               CategoryName = r.category_name
-              OldAssigned = euro r.old_assigned
-              NewAssigned = euro r.new_assigned
+              OldAssigned = euroOfMilliunits r.old_assigned
+              NewAssigned = euroOfMilliunits r.new_assigned
               Counterpart = Option.ofObj r.counterpart_name
               Latest = statusFromText r.status r.reason })
     List.foldBack

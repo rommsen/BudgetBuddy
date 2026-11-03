@@ -471,7 +471,7 @@ let private selectionTests =
         test "Monatswechsel bei laufender Abfrage: ihre Antwort fällt weg, die Buchungen kommen trotzdem" {
             let asked, _ = requestTabData onEntries
             let model, _ = select "2026-09-01" asked
-            let late = applyCategoryEntries asked.TabGeneration (Ok [ line -1m ]) model
+            let late = applyCategoryEntries asked.EntriesGeneration (Ok [ line -1m ]) model
             Expect.equal (entriesOf late) NotAsked "die Antwort zum alten Monat zählt nicht"
             let back, _ = select "2026-10-01" late
             let answered = applyLoaded back.MonthGeneration (Ok detailMonth) back
@@ -643,24 +643,24 @@ let private tabDataDueTests =
         }
         test "Die Antwort zur laufenden Abfrage füllt die Liste" {
             let model, _ = requestTabData onEntries
-            let answered = applyCategoryEntries model.TabGeneration (Ok [ line -30m ]) model
+            let answered = applyCategoryEntries model.EntriesGeneration (Ok [ line -30m ]) model
             Expect.equal (entriesOf answered) (Success [ line -30m ]) "Liste"
         }
         test "Ein Fehler der Abfrage steht im Tab" {
             let model, _ = requestTabData onEntries
-            let answered = applyCategoryEntries model.TabGeneration (Error "kaputt") model
+            let answered = applyCategoryEntries model.EntriesGeneration (Error "kaputt") model
             Expect.equal (entriesOf answered) (Failure "kaputt") "Fehler"
         }
         test "Eine späte Antwort einer älteren Abfrage wird verworfen" {
             let model, _ = requestTabData onEntries
             let reloaded = resetTab EntriesTab model
-            let answered = applyCategoryEntries model.TabGeneration (Ok [ line -1m ]) reloaded
+            let answered = applyCategoryEntries model.EntriesGeneration (Ok [ line -1m ]) reloaded
             Expect.equal answered reloaded "ältere Antwort zählt nicht"
         }
         test "Eine späte Antwort ohne Auswahl wird verworfen" {
             let model, _ = requestTabData onEntries
             let closed = { model with Selected = None }
-            Expect.equal (applyCategoryEntries model.TabGeneration (Ok []) closed) closed "bleibt zu"
+            Expect.equal (applyCategoryEntries model.EntriesGeneration (Ok []) closed) closed "bleibt zu"
         }
     ]
 

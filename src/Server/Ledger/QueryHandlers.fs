@@ -726,8 +726,8 @@ let getCategoryMonthlyActivity (categoryId: YnabCategoryId) (firstDays: DateTime
         match firstDays with
         | [] -> return []
         | _ ->
-            let first = List.head firstDays
-            let last = List.last firstDays
+            let first = List.min firstDays
+            let last = List.max firstDays
             let lastDay = DateTime(last.Year, last.Month, DateTime.DaysInMonth(last.Year, last.Month))
             let! entries = Ledger.Persistence.loadCategoryEntries categoryId first lastDay
             return monthlyActivity categoryId entries

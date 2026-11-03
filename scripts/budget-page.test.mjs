@@ -1140,3 +1140,66 @@ test("[layout] Handy: Targets anwenden steht in der Zeile der Suche, im vergange
     await context.close();
   }
 });
+
+// budgeting-x4k7p D2: Im Tab Historie stand der Fehlgrund im Badge, das Datum brach am Handy um.
+test("[layout] Tab Historie am Handy: langer Fehlgrund kürzt mit Ellipse, Datum bleibt einzeilig", async () => {
+  const { context, page } = await openPage(320, 700);
+  const reason = "YNAB rate limit exceeded, die Zuweisung wurde nicht geschrieben und kann erneut gesendet werden";
+  const essen = category(1, "Essen k7wmd", 0, 0, 0).Id;
+  const history = {
+    Movements: [
+      {
+        MovementId: "00000000-0000-0000-0000-00000000d201",
+        ApplicationId: "00000000-0000-0000-0000-00000000d202",
+        OccurredAt: "2026-10-03T09:30:00.0000000Z",
+        Origin: "MoneyAssigned",
+        Month: CURRENT,
+        CategoryId: essen,
+        CategoryName: "Essen k7wmd",
+        OldAssigned: eur(1550),
+        NewAssigned: eur(1600),
+        Counterpart: null,
+        Latest: { Failed: reason },
+      },
+    ],
+    Spending: ["2026-05-01", "2026-06-01", "2026-07-01", "2026-08-01", "2026-09-01", CURRENT].map((month, i) => ({
+      Month: month,
+      Activity: eur(-1234.5 * (i + 1)),
+    })),
+  };
+  await page.route("**/api/BudgetApi/getCategoryHistory", (route) =>
+    route.fulfill({ contentType: "application/json", body: JSON.stringify({ Ok: history }) })
+  );
+  try {
+    await pickRow(page, "Essen k7wmd");
+    await tabsOf(sheet(page)).filter({ hasText: "Historie" }).click();
+    const reasonText = sheet(page).locator('[data-testid="history-failure-reason"]');
+    await reasonText.waitFor();
+    assert.equal(await reasonText.getAttribute("title"), reason, "der ganze Grund steht im title");
+    const measured = await sheet(page).evaluate((el) => {
+      const box = (selector) => el.querySelector(selector).getBoundingClientRect();
+      const reasonEl = el.querySelector('[data-testid="history-failure-reason"]');
+      const time = el.querySelector('[data-testid="history-time"]');
+      return {
+        sheetOverflow: el.scrollWidth > el.clientWidth,
+        reasonCut: reasonEl.scrollWidth > reasonEl.clientWidth,
+        ellipsis: getComputedStyle(reasonEl).textOverflow,
+        timeHeight: box('[data-testid="history-time"]').height,
+        timeLineHeight: parseFloat(getComputedStyle(time).lineHeight),
+        timeRight: box('[data-testid="history-time"]').right,
+        reasonLeft: box('[data-testid="history-failure-reason"]').left,
+        reasonRight: box('[data-testid="history-failure-reason"]').right,
+        rowRight: box('[data-testid="history-movement"]').right,
+      };
+    });
+    const facts = JSON.stringify(measured);
+    assert.equal(measured.sheetOverflow, false, `nichts läuft seitlich aus dem Sheet (${facts})`);
+    assert.equal(measured.reasonCut, true, `der Grund ist gekürzt (${facts})`);
+    assert.equal(measured.ellipsis, "ellipsis", `mit Ellipse (${facts})`);
+    assert.ok(measured.timeHeight <= measured.timeLineHeight + 1, `das Datum bleibt einzeilig (${facts})`);
+    assert.ok(measured.timeRight <= measured.reasonLeft, `das Datum steht vor dem Grund (${facts})`);
+    assert.ok(measured.reasonRight <= measured.rowRight, `der Grund bleibt in der Zeile (${facts})`);
+  } finally {
+    await context.close();
+  }
+});

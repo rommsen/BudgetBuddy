@@ -327,3 +327,109 @@ let categoryStat label count =
 /// Rules count stat
 let rulesCount count =
     withIcon "Active Rules" (string count) (Icons.rules MD Default)
+
+// ============================================
+// Monatsbalken (budgeting-x4k7p)
+// ============================================
+
+/// Ein Balken der Monatsbalken. Die Texte kommen fertig formatiert, der Baustein rechnet nichts.
+type MonthBar = {
+    /// Eindeutig in der Reihe, etwa der Monatserste "2026-10-01".
+    Key: string
+    /// Was der Screenreader je Balken vorliest: Monat, voller Betrag und Stand.
+    Label: string
+    /// Der kurze Monatsname unter dem Balken ("Okt").
+    MonthText: string
+    /// Der Betrag unter dem Balken.
+    AmountText: string
+    /// Höhe in Prozent des größten Balkens, 0 bis 100.
+    Percent: int
+    /// Der laufende Monat: neutral gestrichelt, darunter "läuft". Teal bleibt für Ausgewähltes (ADR 0075).
+    Running: bool
+    /// Ein negativer Wert: der Betrag steht in Rot.
+    Negative: bool
+}
+
+let private monthBarsListClass = "flex gap-1.5"
+let private monthBarItemClass = "flex flex-1 min-w-0 flex-col items-center gap-1"
+let private monthBarAreaClass = "flex h-16 w-full items-end"
+/// Der laufende Monat ist neutral gestrichelt, die vergangenen sind gefüllt.
+let private monthBarFillClass (running: bool) =
+    if running then "w-full rounded-t border border-dashed border-border-default bg-text-muted/10"
+    else "w-full rounded-t bg-text-muted/30"
+let private monthBarPlaceholderClass = "h-16 w-full rounded-t bg-surface-elevated animate-pulse"
+let private monthBarMonthClass = "h-4 font-mono text-xs font-normal text-text-muted whitespace-nowrap"
+/// Der Betrag, ein negativer in Rot.
+let private monthBarAmountClass (negative: bool) =
+    if negative then "h-4 font-mono text-xs tabular-nums whitespace-nowrap text-neon-red"
+    else "h-4 font-mono text-xs tabular-nums whitespace-nowrap text-text-secondary"
+/// Die Zeile für "läuft" steht in jeder Spalte, damit die Reihe gleich hoch bleibt, mit und ohne
+/// laufenden Monat und im Platzhalter.
+let private monthBarStateClass = "h-4 text-xs text-text-muted whitespace-nowrap"
+
+/// Der Text unter dem laufenden Monat.
+[<Literal>]
+let RunningMonthText = "läuft"
+
+let private monthBarItem (bar: MonthBar) =
+    Html.li [
+        prop.key bar.Key
+        prop.custom ("data-testid", "month-bar")
+        prop.role "listitem"
+        prop.ariaLabel bar.Label
+        prop.className monthBarItemClass
+        prop.children [
+            Html.div [
+                prop.ariaHidden true
+                prop.className monthBarAreaClass
+                prop.children [
+                    Html.div [
+                        prop.className (monthBarFillClass bar.Running)
+                        prop.style [ style.height (length.percent (max bar.Percent 2)) ]
+                    ]
+                ]
+            ]
+            Html.span [ prop.ariaHidden true; prop.className monthBarMonthClass; prop.text bar.MonthText ]
+            Html.span [
+                prop.ariaHidden true
+                prop.className (monthBarAmountClass bar.Negative)
+                prop.text bar.AmountText
+            ]
+            Html.span [
+                prop.ariaHidden true
+                prop.className monthBarStateClass
+                prop.text (if bar.Running then RunningMonthText else "")
+            ]
+        ]
+    ]
+
+/// Monatsbalken ohne waagrechtes Scrollen: je Monat ein Balken, darunter Monat und Betrag. Für den
+/// Screenreader eine Liste, je Balken ein Eintrag mit `Label`; die sichtbaren Texte sind verborgen.
+let monthBars (label: string) (bars: MonthBar list) =
+    Html.ul [
+        prop.role "list"
+        prop.ariaLabel label
+        prop.className monthBarsListClass
+        prop.children (bars |> List.map monthBarItem)
+    ]
+
+/// Der Platzhalter beim Laden, so hoch wie `monthBars`: nichts springt, wenn die Balken kommen.
+let monthBarsPlaceholder (count: int) =
+    Html.div [
+        prop.ariaHidden true
+        prop.custom ("data-testid", "month-bars-placeholder")
+        prop.className monthBarsListClass
+        prop.children [
+            for i in 1..count do
+                Html.div [
+                    prop.key i
+                    prop.className monthBarItemClass
+                    prop.children [
+                        Html.div [ prop.className monthBarPlaceholderClass ]
+                        Html.span [ prop.className monthBarMonthClass ]
+                        Html.span [ prop.className (monthBarAmountClass false) ]
+                        Html.span [ prop.className monthBarStateClass ]
+                    ]
+                ]
+        ]
+    ]

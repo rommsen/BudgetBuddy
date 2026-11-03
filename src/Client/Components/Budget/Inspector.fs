@@ -35,9 +35,8 @@ let selectCategory (categoryId: System.Guid) (model: Model) : Model =
     | Success month, TargetsClosed
         when model.Selected |> Option.forall (fun s -> s.CategoryId <> categoryId)
              && categoriesOf month |> List.exists (fun c -> c.Id = categoryId) ->
-        { model with
-            Selected = Some { CategoryId = categoryId; Entries = NotAsked; History = NotAsked; ReturnPending = false }
-            TabGeneration = model.TabGeneration + 1 }
+        resetTabData
+            { model with Selected = Some { CategoryId = categoryId; Entries = NotAsked; History = NotAsked; ReturnPending = false } }
     | _ -> model
 
 /// Die nächste sichtbare Zeile ab der Position von `current` in der vollen Reihenfolge. Am Rand
@@ -131,12 +130,22 @@ let applyPageKey (action: PageKeyAction) (model: Model) : Model =
     | StepTab direction -> { model with Tab = neighbourTab direction model.Tab }
     | LeaveKey -> model
 
+/// Wie Tab-Daten geholt werden.
+type TabFetch =
+    /// Bis zur Antwort steht `Loading`, ein Fehler steht im Tab.
+    | ShownFetch
+    /// Die geladenen Daten bleiben stehen, bis die Antwort sie ersetzt; ein Fehler wird zum Warn-Toast
+    /// (die Historie nach einer Bewegung, wie `QuietReread` beim Monat).
+    | QuietFetch
+
 /// Eine Abfrage von Tab-Daten: welcher Tab, für welche Kategorie und welchen Monat, zu welchem Stand.
 type TabRequest = {
     Tab: InspectorTab
     CategoryId: System.Guid
     Month: string
+    /// Die Generation des Tabs beim Start (`EntriesGeneration` oder `HistoryGeneration`).
     Generation: int
+    Fetch: TabFetch
 }
 
 /// Sind Daten des sichtbaren Tabs fällig? Buchungen und Historie, je bei geladenem Monat und `NotAsked`,
@@ -150,6 +159,14 @@ let tabDataDue (model: Model) : (InspectorTab * System.Guid * string) option =
         | _ -> None
     | _ -> None
 
+/// Die Generation eines Tabs mit nachgeladenen Daten.
+let private generationOf (tab: InspectorTab) (model: Model) : int =
+    match tab with
+    | HistoryTab -> model.HistoryGeneration
+    | EntriesTab
+    | MoneyTab
+    | TargetTab -> model.EntriesGeneration
+
 /// Setzt die fälligen Tab-Daten auf `Loading`. Gibt die Abfrage für den Aufrufer zurück. Der Stand
 /// bleibt: Er wechselt erst, wenn Kategorie oder Monat wechseln oder Daten neu fällig werden.
 let requestTabData (model: Model) : Model * TabRequest option =
@@ -160,17 +177,46 @@ let requestTabData (model: Model) : Model * TabRequest option =
             | HistoryTab -> { s with History = Loading }
             | _ -> { s with Entries = Loading }
         { model with Selected = model.Selected |> Option.map loading },
-        Some { Tab = tab; CategoryId = id; Month = month; Generation = model.TabGeneration }
+        Some { Tab = tab; CategoryId = id; Month = month; Generation = generationOf tab model; Fetch = ShownFetch }
     | None -> model, None
 
-/// Eine Antwort zählt nur zum aktuellen Stand und bei bestehender Auswahl.
+/// Nach einer Bewegung ist die Historie neu fällig. Steht sie geladen im sichtbaren Tab, bleibt sie
+/// stehen und kommt still neu (`QuietFetch`): der Tab springt nicht auf das Skelett. Sonst ist sie
+/// wieder ungefragt und kommt, sobald ihr Tab zu sehen ist. Die Buchungen bleiben in jedem Fall.
+let historyAfterMovement (model: Model) : Model * TabRequest option =
+    match model.Selected, model.Month with
+    | Some ({ History = Success _ } as selected), Success month when model.Tab = HistoryTab && not (monthChanging model) ->
+        let next = { model with HistoryGeneration = model.HistoryGeneration + 1 }
+        next,
+        Some
+            { Tab = HistoryTab
+              CategoryId = selected.CategoryId
+              Month = month.Month
+              Generation = next.HistoryGeneration
+              Fetch = QuietFetch }
+    | _ -> resetTab HistoryTab model, None
+
+/// Die Antwort einer Abfrage der Buchungen, gebunden an die Generation der Anfrage. Erfolg und
+/// Scheitern gehen denselben Weg.
+let entriesRequestAnswer (request: TabRequest) : Result<CategoryMonthEntry list, string> -> Msg =
+    fun result -> CategoryEntriesLoaded (request.Generation, result)
+
+/// Die Antwort einer Abfrage der Historie, wie `entriesRequestAnswer`. Die stille Abfrage antwortet über
+/// `CategoryHistoryReloaded`.
+let historyRequestAnswer (request: TabRequest) : Result<CategoryHistory, string> -> Msg =
+    match request.Fetch with
+    | ShownFetch -> fun result -> CategoryHistoryLoaded (request.Generation, result)
+    | QuietFetch -> fun result -> CategoryHistoryReloaded (request.Generation, result)
+
+/// Eine Antwort zählt nur zum aktuellen Stand ihres Tabs und bei bestehender Auswahl.
 let private applyTabAnswer
+    (current: int)
     (generation: int)
     (fill: SelectedCategory -> SelectedCategory)
     (model: Model)
     : Model =
     match model.Selected with
-    | Some selected when generation = model.TabGeneration -> { model with Selected = Some (fill selected) }
+    | Some selected when generation = current -> { model with Selected = Some (fill selected) }
     | _ -> model
 
 let private remote (result: Result<'T, string>) : RemoteData<'T> =
@@ -180,20 +226,40 @@ let private remote (result: Result<'T, string>) : RemoteData<'T> =
 
 /// Antwort der Liste. Eine Antwort einer älteren Abfrage oder ohne Auswahl fällt weg.
 let applyCategoryEntries (generation: int) (result: Result<CategoryMonthEntry list, string>) (model: Model) : Model =
-    applyTabAnswer generation (fun s -> { s with Entries = remote result }) model
+    applyTabAnswer model.EntriesGeneration generation (fun s -> { s with Entries = remote result }) model
 
 /// Antwort der Historie, wie `applyCategoryEntries`.
 let applyCategoryHistory (generation: int) (result: Result<CategoryHistory, string>) (model: Model) : Model =
-    applyTabAnswer generation (fun s -> { s with History = remote result }) model
+    applyTabAnswer model.HistoryGeneration generation (fun s -> { s with History = remote result }) model
+
+/// Antwort des stillen Nachladens der Historie. Scheitert es, bleibt der alte Stand und ein Hinweis
+/// nennt den Grund, wie `applyReloaded` beim Monat. Stand keine Historie mehr da, gilt `applyCategoryHistory`.
+let applyCategoryHistoryReloaded
+    (generation: int)
+    (result: Result<CategoryHistory, string>)
+    (model: Model)
+    : Model * ExternalMsg =
+    match model.Selected, result with
+    | Some { History = Success _ }, Error message when generation = model.HistoryGeneration ->
+        model, ShowToast ($"Historie nicht neu gelesen, sie kann veraltet sein: {message}", ToastWarning)
+    | _ -> applyCategoryHistory generation result model, NoOp
 
 /// Der Stand einer Bewegung im Tab Historie.
 let historyStatusText (status: HistoryStatus) : string =
     match status with
     | HistoryWritten -> "geschrieben"
-    | HistoryFailed reason when System.String.IsNullOrWhiteSpace reason -> "fehlgeschlagen"
-    | HistoryFailed reason -> $"fehlgeschlagen: {reason}"
+    | HistoryFailed _ -> "fehlgeschlagen"
     | HistoryChangedInYnab -> "in YNAB geändert"
     | HistoryOpen -> "noch offen"
+
+/// Der Grund einer fehlgeschlagenen Bewegung, neben dem Badge als eigener Text. Ohne Grund nichts.
+let historyFailureReason (status: HistoryStatus) : string option =
+    match status with
+    | HistoryFailed reason when not (System.String.IsNullOrWhiteSpace reason) -> Some reason
+    | HistoryFailed _
+    | HistoryWritten
+    | HistoryChangedInYnab
+    | HistoryOpen -> None
 
 /// Der Betrag unter einem Balken in ganzen Euro ohne Währung ("1.235"): sechs Balken passen so am Handy
 /// nebeneinander. Der volle Betrag steht im Label des Balkens.

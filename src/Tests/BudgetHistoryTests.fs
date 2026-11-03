@@ -93,6 +93,16 @@ let berlinTimeTests =
             for hour in 0 .. 3 .. 24 * 366 do
                 let instant = DateTime(2027, 1, 1, 0, 30, 0, DateTimeKind.Utc).AddHours(float hour)
                 Expect.equal (berlinTime instant) (TimeZoneInfo.ConvertTimeFromUtc(instant, zone)) $"{instant:o}"
+
+        // budgeting-x4k7p Q4: Ein als lokal markierter Zeitpunkt wird vorher nach UTC gerechnet.
+        // `test.runsettings` setzt TZ=Europe/Berlin, die lokale Uhr weicht also von UTC ab.
+        testCase "Ein als lokal markierter Zeitpunkt ergibt dieselbe Berliner Uhrzeit wie sein UTC-Wert" <| fun () ->
+            let instant = DateTime(2026, 10, 3, 9, 30, 0, DateTimeKind.Utc)
+            let local = instant.ToLocalTime()
+            Expect.equal local.Kind DateTimeKind.Local "lokal markiert"
+            Expect.notEqual local.Hour instant.Hour "die lokale Uhr weicht von UTC ab (TZ=Europe/Berlin)"
+            Expect.equal (berlinTime local) (berlinTime instant) "dieselbe Uhrzeit"
+            Expect.equal (historyTimeText local) "03.10. 11:30" "Text"
     ]
 
 let private category assigned activity available : BudgetCategory =
@@ -126,16 +136,22 @@ let barTests =
     let sums = List.zip months [ -100m; 0m; -50m; 20m; -25m; -10m ] |> List.map (fun (m, a) -> spending m a)
 
     testList "Historie: Balken der Ausgaben" [
-        testCase "Der laufende Monat ist unvollständig markiert, vergangene nicht" <| fun () ->
+        testCase "Der laufende Monat trägt seine Monatsart, vergangene sind vergangen" <| fun () ->
             let bars = spendingBars "2026-10-01" sums
-            Expect.equal (bars |> List.map (fun b -> b.Incomplete)) [ false; false; false; false; false; true ] "nur Oktober"
+            Expect.equal
+                (bars |> List.map (fun b -> b.Kind))
+                [ PastMonth; PastMonth; PastMonth; PastMonth; PastMonth; CurrentMonth ]
+                "nur Oktober läuft"
 
-        testCase "Ein gezeigter künftiger Monat ist nicht unvollständig, der laufende darin schon" <| fun () ->
+        testCase "Ist ein künftiger Monat gezeigt, läuft der laufende darin, die späteren kommen erst" <| fun () ->
             let bars = spendingBars "2026-08-01" sums
-            Expect.equal (bars |> List.map (fun b -> b.Incomplete)) [ false; false; false; true; false; false ] "nur August"
+            Expect.equal
+                (bars |> List.map (fun b -> b.Kind))
+                [ PastMonth; PastMonth; PastMonth; CurrentMonth; FutureMonth; FutureMonth ]
+                "nur August läuft"
 
-        testCase "Ganz in der Vergangenheit ist kein Balken unvollständig" <| fun () ->
-            Expect.isFalse (spendingBars "2027-01-01" sums |> List.exists (fun b -> b.Incomplete)) "keiner"
+        testCase "Ganz in der Vergangenheit läuft kein Balken" <| fun () ->
+            Expect.isTrue (spendingBars "2027-01-01" sums |> List.forall (fun b -> b.Kind = PastMonth)) "alle vergangen"
 
         testCase "Ausgaben sind die Aktivität mit umgekehrtem Vorzeichen, die Höhe bezieht sich auf den größten" <| fun () ->
             let bars = spendingBars "2026-10-01" sums
@@ -255,7 +271,7 @@ let queryTests =
             let second = stored (Guid.NewGuid()) MoneyAssigned "2026-08-01" (Guid.NewGuid()) "D" at 0L 2000L
             let other = stored (Guid.NewGuid()) TargetsApplied "2026-10-01" (Guid.NewGuid()) "E" at 0L 3000L
             Budgeting.Persistence.appendMovements [ first; second; other ] |> run
-            let filter : Budgeting.Persistence.MovementFilter = { CategoryId = None; Month = None; Origin = Some MoneyAssigned }
+            let filter : Server.Budgeting.Domain.MovementFilter = { CategoryId = None; Month = None; Origin = Some MoneyAssigned }
             match Server.Budgeting.QueryHandlers.movements Server.Budgeting.QueryHandlers.liveHistoryPort filter |> run with
             | Error message -> failtest message
             | Ok found ->

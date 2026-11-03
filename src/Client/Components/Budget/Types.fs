@@ -209,9 +209,12 @@ type Model = {
     Selected: SelectedCategory option
     /// Der Tab des Inspektors. Bleibt bei Kategorie- und Monatswechsel stehen.
     Tab: InspectorTab
-    /// Zählt die Stände der Tab-Daten (Buchungen und Historie) zu Kategorie und Monat: eine späte
-    /// Antwort zu einem älteren Stand ersetzt nichts. Eine für beide Tabs.
-    TabGeneration: int
+    /// Zählt die Stände der Buchungen zu Kategorie und Monat: eine späte Antwort zu einem älteren
+    /// Stand ersetzt nichts. Jeder Tab hat seine eigene, damit die Historie nach einer Bewegung neu
+    /// kommt, ohne laufende Buchungen zu verwerfen (budgeting-x4k7p).
+    EntriesGeneration: int
+    /// Zählt die Stände der Historie, wie `EntriesGeneration`.
+    HistoryGeneration: int
     /// Zählt die Abfragen des Monats: eine späte Antwort ersetzt keinen neueren Stand, auch nicht
     /// bei gleicher Monatswahl (zwei Reloads nach schnellen Verschiebungen, Wechsel A, B, A).
     MonthGeneration: int
@@ -301,6 +304,9 @@ type Msg =
     /// Die Historie (neu) holen: "Wiederholen".
     | LoadCategoryHistory
     | CategoryHistoryLoaded of generation: int * Result<CategoryHistory, string>
+    /// Antwort des stillen Nachladens der Historie nach einer Bewegung: die geladene Historie blieb
+    /// stehen, ein Fehler wird zum Warn-Toast.
+    | CategoryHistoryReloaded of generation: int * Result<CategoryHistory, string>
     /// Tipp auf eine Buchung im Tab Buchungen: ins Kassenbuch springen.
     | OpenEntryInLedger of System.Guid
 
@@ -327,5 +333,6 @@ let init () : Model =
       OpenRetries = []
       Selected = None
       Tab = MoneyTab
-      TabGeneration = 0
+      EntriesGeneration = 0
+      HistoryGeneration = 0
       MonthGeneration = 0 }
