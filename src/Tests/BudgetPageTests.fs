@@ -777,6 +777,43 @@ let private returnTests =
             Expect.equal returned.ChosenMonth (Some "2026-09-01") "bleibt"
             Expect.equal how KeptPage "Rückkehr"
         }
+        // budgeting-r7t3k: Die Rückkehr setzte `Month = Loading`. Liste und Inspektor verschwanden kurz,
+        // Fokus und Scrollposition gingen verloren.
+        test "Zurück aus dem Kassenbuch bleibt der Monat stehen, er wird still neu gelesen und die Buchungen kommen neu" {
+            let left = leaveForEntry onEntriesLoaded
+            let model, cmd, _ = Components.Budget.State.update PageEntered left
+            Expect.equal model.Month (Success detailMonth) "der alte Stand bleibt"
+            Expect.equal model.Freshness MonthStale "bis zur Antwort veraltet"
+            Expect.isGreaterThan model.MonthGeneration left.MonthGeneration "eine neue Abfrage"
+            Expect.equal (rereadMonth (fst (enterPage left)) |> snd) QuietReread "still, über Reloaded"
+            Expect.equal (entriesOf model) Loading "die Buchungen werden geholt"
+            Expect.equal (List.length cmd) 2 "Monat und Buchungen"
+        }
+        test "Scheitert das stille Neu-Lesen nach der Rückkehr, bleibt die Liste und ein Warn-Toast nennt den Grund" {
+            let returned, _, _ = Components.Budget.State.update PageEntered (leaveForEntry onEntriesLoaded)
+            let failed, _, external = Components.Budget.State.update (Reloaded (returned.MonthGeneration, Error "Timeout")) returned
+            Expect.equal failed.Month (Success detailMonth) "die Liste bleibt"
+            match external with
+            | ShowToast (text, ToastWarning) -> Expect.stringContains text "Timeout" "der Grund"
+            | other -> failtest $"Warn-Toast erwartet, kam {other}"
+        }
+        test "Ist der Monat nicht geladen, lädt die Rückkehr wie bisher mit Fehlerkarte und Wiederholen" {
+            let left = leaveForEntry { onEntriesLoaded with Month = Failure "kaputt" }
+            let model, cmd, _ = Components.Budget.State.update PageEntered left
+            Expect.equal model.Month Loading "Laden"
+            Expect.equal (List.length cmd) 1 "der Monat wird geholt"
+            Expect.equal (rereadMonth (fst (enterPage left)) |> snd) FullReread "über Loaded"
+            let failed, _, _ = Components.Budget.State.update (Loaded (model.MonthGeneration, Error "weg")) model
+            Expect.equal failed.Month (Failure "weg") "Fehlerkarte mit Wiederholen"
+        }
+        test "Ein neuer Seitenaufruf beginnt beim laufenden Monat ohne Auswahl im Tab Geld" {
+            let elsewhere = { onEntriesLoaded with ChosenMonth = Some "2026-09-01" }
+            let model, _, _ = Components.Budget.State.update PageEntered elsewhere
+            Expect.isNone model.ChosenMonth "laufender Monat"
+            Expect.isNone model.Selected "keine Auswahl"
+            Expect.equal model.Tab MoneyTab "Tab Geld"
+            Expect.equal model.Month Loading "Rahmen und Monat werden gelesen"
+        }
         // F2: Nach einem Umweg über die Tab-Leiste ging das Detail wieder auf.
         test "Ist die Rückkehr hinfällig, bleibt die Auswahl beim nächsten Betreten leer" {
             let left = leaveForEntry onEntriesLoaded

@@ -44,6 +44,20 @@ let awaitFreshMonth (model: Model) : Model =
 let awaitMonth (model: Model) : Model =
     awaitFreshMonth (if monthChanging model then model else { model with Month = Loading })
 
+/// Wie der Monat neu gelesen wird.
+type MonthReread =
+    /// Der geladene Monat bleibt stehen, die Antwort kommt über `Reloaded` (`applyReloaded`).
+    | QuietReread
+    /// Bis zur Antwort steht `Loading`, sie kommt über `Loaded`, ein Fehler zeigt die Fehlerkarte.
+    | FullReread
+
+/// Den Monat neu lesen, ohne dass Liste und Inspektor verschwinden: Ein geladener Monat bleibt stehen
+/// wie nach einer Verschiebung. War er nicht geladen oder läuft ein Wechsel, gilt `awaitMonth`.
+let rereadMonth (model: Model) : Model * MonthReread =
+    match model.Month with
+    | Success _ when not (monthChanging model) -> awaitFreshMonth model, QuietReread
+    | _ -> awaitMonth model, FullReread
+
 /// Die Monatsart des Monats, den die Seite gerade darstellt. Während eines Wechsels ist das noch der
 /// alte: der Knopf "Targets anwenden" springt nicht vor der Antwort.
 let displayedMonthKind (model: Model) : MonthKind option =
@@ -107,6 +121,19 @@ let withAssigned (categoryId: System.Guid) (assigned: Money) (month: BudgetMonth
             ToBeBudgeted = { month.ToBeBudgeted with Amount = month.ToBeBudgeted.Amount - delta }
             Groups = month.Groups |> List.map (fun g -> { g with Categories = g.Categories |> List.map written }) }
     | None -> month
+
+/// Trägt die geschriebenen Zeilen eines Berichts ein (Verschiebung, Zuweisung, Targets-Lauf). Bis das
+/// Neu-Lesen antwortet, rechnet das Feld sonst vom alten Stand und seine absolute Zuweisung nähme den
+/// Bericht zurück (ADR 0078 Punkt 5).
+let withReport (report: ApplyReport) (model: Model) : Model =
+    match model.Month with
+    | Success month when month.Month = report.Month ->
+        let written =
+            report.Lines
+            |> List.filter (fun l -> l.Outcome = Written)
+            |> List.fold (fun current l -> withAssigned l.CategoryId l.NewAssigned current) month
+        { model with Month = Success written }
+    | _ -> model
 
 /// Die Antwort kann vor dem PATCH gelesen sein: Was in der Schlange steht, gilt, bis es bestätigt ist.
 /// Sonst rechnete das Feld vom Stand davor und nähme die Zuweisung zurück.

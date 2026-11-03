@@ -66,14 +66,20 @@ let applyRetried (result: Result<ApplyReport, string>) (model: Model) : Model =
 
 /// Dialog schließen. Während Übernehmen oder erneutem Senden läuft, bleibt er offen. Nach
 /// einer Anwendung (auch nach einem gescheiterten Aufruf) muss die Seite den Monat neu
-/// laden (`true`), weil YNABs Stand sich geändert haben kann.
-let closeTargets (model: Model) : Model * bool =
+/// lesen (`Some`), weil YNABs Stand sich geändert haben kann. Nach einem Bericht bleibt die Liste
+/// stehen, mit den geschriebenen Zeilen eingetragen, und der Monat wird still gelesen. Ist der Ausgang
+/// unklar (gescheiterter Lauf oder gescheitertes erneutes Senden), ist der alte Stand keine
+/// Rechengrundlage: `awaitMonth`.
+let closeTargets (model: Model) : Model * MonthReread option =
     match model.Targets with
     | Applying _
-    | ApplyDone (_, _, true, _) -> model, false
-    | ApplyDone _
-    | ApplyFailed _ -> awaitMonth { model with Targets = TargetsClosed }, true
-    | _ -> { model with Targets = TargetsClosed }, false
+    | ApplyDone (_, _, true, _) -> model, None
+    | ApplyDone (_, report, _, None) ->
+        let closed, reread = rereadMonth (withReport report { model with Targets = TargetsClosed })
+        closed, Some reread
+    | ApplyDone (_, _, _, Some _)
+    | ApplyFailed _ -> awaitMonth { model with Targets = TargetsClosed }, Some FullReread
+    | _ -> { model with Targets = TargetsClosed }, None
 
 /// Wie sich Zu verteilen nach dem Lauf zur Vorschau verhält.
 type ActualCheck =

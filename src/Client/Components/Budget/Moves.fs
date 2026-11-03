@@ -257,16 +257,6 @@ let private writeThrough (write: AssignWrite) (model: Model) : Model =
             model
     | _ -> model
 
-/// Trägt die geschriebenen Zeilen eines Berichts ein. Bis das Neu-Lesen antwortet, rechnet das Feld
-/// sonst vom alten Stand und seine absolute Zuweisung nähme die Verschiebung zurück (ADR 0078 Punkt 5).
-let private withReport (report: ApplyReport) (model: Model) : Model =
-    match model.Month with
-    | Success month when month.Month = report.Month ->
-        report.Lines
-        |> List.filter (fun l -> l.Outcome = Written)
-        |> List.fold (fun current l -> assignedInModel l.CategoryId l.NewAssigned current) model
-    | _ -> model
-
 /// Feld verlassen: gültig und geändert geht in die Schlange und steht im Monat, gleich fällt die
 /// Eingabe weg, ungültig bleibt sie rot stehen.
 let saveEntry (model: Model) : Model =

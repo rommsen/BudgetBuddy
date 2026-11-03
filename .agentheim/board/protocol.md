@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-03 21:23 -- Task verified and completed: budgeting-r7t3k - "Budget-Seite: Rückkehr aus dem Kassenbuch und Schließen von Targets ohne Sprung"
+
+**Type:** Work / Task completion
+**Task:** budgeting-r7t3k - "Budget-Seite: Rückkehr aus dem Kassenbuch und Schließen von Targets ohne Sprung"
+**Summary:** Rückkehr aus dem Kassenbuch und Schließen von Targets ohne Sprung
+**Duration:** 27m
+**Verification:** PASS (iteration 1)
+**Files changed:** 6
+**Tests added:** 8
+**ADRs written:** none
+
+---
+
 ## 2026-11-03 20:55 -- Batch started: [infrastructure-b3t9k, budgeting-r7t3k, budgeting-dyn8g]
 
 **Type:** Work / Batch start

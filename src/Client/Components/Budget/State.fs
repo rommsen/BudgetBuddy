@@ -113,6 +113,12 @@ let private flushAssign (model: Model) : Model * Cmd<Msg> =
 /// bleibt die Liste auch stehen (`applyReloaded`).
 let private reloadCmd (model: Model) : Cmd<Msg> = monthCmd model Reloaded
 
+/// Liest den Monat so, wie `rereadMonth` es verlangt.
+let private rereadCmd (reread: MonthReread) (model: Model) : Cmd<Msg> =
+    match reread with
+    | QuietReread -> reloadCmd model
+    | FullReread -> loadCmd model
+
 /// Die Antwort auf eine Schreibung: der Monat, wenn sie die letzte war, und der Rahmen, wenn das
 /// Fenster gewachsen sein kann.
 let private afterAnswer (reload: bool) (frameDue: bool) (model: Model) : Cmd<Msg> =
@@ -144,8 +150,9 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         match enterPage model with
         | model', FreshEntry -> beginLoad model', frameCmd (), NoOp
         | model', KeptPage ->
-            let loading = awaitMonth model'
-            loading, loadCmd loading, NoOp
+            let rereading, reread = rereadMonth model'
+            let withRequest, entriesCmd = withEntries rereading
+            withRequest, Cmd.batch [ rereadCmd reread withRequest; entriesCmd ], NoOp
     | Load -> beginLoad model, frameCmd (), NoOp
     | FrameLoaded result ->
         let model', external, loadMonth = applyFrameLoaded result model
@@ -235,8 +242,8 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         applyRetried result model, frameRefreshCmd (frameDueAfterRetry result model), NoOp
     | CloseTargets ->
         match closeTargets model with
-        | model', true -> model', loadCmd model', NoOp
-        | model', false -> model', Cmd.none, NoOp
+        | model', Some reread -> model', rereadCmd reread model', NoOp
+        | model', None -> model', Cmd.none, NoOp
     | OpenEntryInLedger entryId -> leaveForEntry model, Cmd.none, JumpToEntry entryId
     | MoveAnswered result ->
         let model', external, reload = applyMoveAnswered result model

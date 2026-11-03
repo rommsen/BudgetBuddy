@@ -155,19 +155,75 @@ let private retryTests =
         test "Schließen nach einer Anwendung lädt den Monat neu, davor nicht" {
             let report = reportOf [ Written ] None
             let _, reload = closeTargets { loaded with Targets = ApplyDone (preview, report, false, None) }
-            Expect.isTrue reload "nach Anwendung neu laden"
+            Expect.isSome reload "nach Anwendung neu laden"
             let _, reloadFailed = closeTargets { loaded with Targets = ApplyFailed (preview, "x") }
-            Expect.isTrue reloadFailed "auch nach unklarem Ausgang"
+            Expect.isSome reloadFailed "auch nach unklarem Ausgang"
             let m, reloadPreview = closeTargets { loaded with Targets = PreviewReady (preview, false) }
             Expect.equal m.Targets TargetsClosed "geschlossen"
-            Expect.isFalse reloadPreview "Abbrechen schreibt nichts, kein Neuladen"
+            Expect.isNone reloadPreview "Abbrechen schreibt nichts, kein Neuladen"
         }
         test "Während des Schreibens lässt sich der Dialog nicht schließen" {
             let applying = { loaded with Targets = Applying preview }
-            Expect.equal (closeTargets applying) (applying, false) "Applying bleibt"
+            Expect.equal (closeTargets applying) (applying, None) "Applying bleibt"
             let report = reportOf [ Failed "x" ] None
             let retrying = { loaded with Targets = ApplyDone (preview, report, true, None) }
-            Expect.equal (closeTargets retrying) (retrying, false) "erneutes Senden bleibt"
+            Expect.equal (closeTargets retrying) (retrying, None) "erneutes Senden bleibt"
+        }
+        // budgeting-r7t3k: Schließen nach einem Lauf setzte `Month = Loading`. Liste und Inspektor
+        // verschwanden kurz, Fokus und Scrollposition gingen verloren.
+        test "Schließen nach einem Lauf lässt den Monat stehen und liest ihn still neu, die Antwort setzt die neuen Beträge" {
+            let report = reportOf [ Written ] None
+            let applied = { loaded with Targets = ApplyDone (preview, report, false, None) }
+            let closed, cmd, _ = Components.Budget.State.update CloseTargets applied
+            Expect.equal closed.Targets TargetsClosed "Dialog zu"
+            Expect.equal closed.Month (Success month) "der alte Stand bleibt"
+            Expect.equal closed.Freshness MonthStale "bis zur Antwort veraltet"
+            Expect.isGreaterThan closed.MonthGeneration applied.MonthGeneration "eine neue Abfrage"
+            Expect.equal (List.length cmd) 1 "das Neu-Lesen ist unterwegs"
+            Expect.equal (rereadMonth applied |> snd) QuietReread "still, über Reloaded"
+            let fresh = { month with ToBeBudgeted = eur 50m }
+            let answered, _, external = Components.Budget.State.update (Reloaded (closed.MonthGeneration, Ok fresh)) closed
+            Expect.equal answered.Month (Success fresh) "neue Beträge"
+            Expect.equal answered.Freshness MonthRead "gelesen"
+            Expect.equal external NoOp "kein Hinweis"
+        }
+        // budgeting-r7t3k: Die Liste bleibt jetzt stehen. Ohne die geschriebenen Zeilen rechnete ein
+        // Schritt im Feld bis zur Antwort vom Stand vor dem Lauf und nähme ihn zurück.
+        test "Schließen nach einem Lauf trägt die geschriebenen Zeilen ein, die fehlgeschlagenen nicht" {
+            let essen = Guid.Parse "00000000-0000-0000-0000-0000000a7001"
+            let kino = Guid.Parse "00000000-0000-0000-0000-0000000a7002"
+            let category id : BudgetCategory =
+                { Id = id; Name = "K"; Assigned = eur 0m; Activity = eur 0m; Available = eur 0m
+                  Underfunded = None; Target = None; Snoozed = false }
+            let withCategories = { month with Groups = [ { Name = "Alltag"; Categories = [ category essen; category kino ] } ] }
+            let report =
+                { reportOf [] None with
+                    Lines =
+                      [ { CategoryId = essen; CategoryName = "Essen"; OldAssigned = eur 0m; NewAssigned = eur 30m; Outcome = Written }
+                        { CategoryId = kino; CategoryName = "Kino"; OldAssigned = eur 0m; NewAssigned = eur 20m; Outcome = Failed "x" } ] }
+            let applied = { loaded with Month = Success withCategories; Targets = ApplyDone (preview, report, false, None) }
+            let closed, _ = closeTargets applied
+            let assigned id =
+                match closed.Month with
+                | Success m -> categoriesOf m |> List.find (fun c -> c.Id = id) |> fun c -> c.Assigned.Amount
+                | other -> failtest $"Monat erwartet, kam {other}"
+            Expect.equal (assigned essen) 30m "geschrieben"
+            Expect.equal (assigned kino) 0m "fehlgeschlagen"
+        }
+        test "Ist der Ausgang des Laufs unklar, lädt Schließen den Monat wie bisher" {
+            let closed, reread = closeTargets { loaded with Targets = ApplyFailed (preview, "weg") }
+            Expect.equal closed.Month Loading "kein alter Stand als Rechengrundlage"
+            Expect.equal reread (Some FullReread) "über Loaded mit Fehlerkarte"
+            let lostRetry = { loaded with Targets = ApplyDone (preview, reportOf [ Failed "x" ] None, false, Some "weg") }
+            let closedAfterRetry, rereadAfterRetry = closeTargets lostRetry
+            Expect.equal closedAfterRetry.Month Loading "erneutes Senden mit unklarem Ausgang"
+            Expect.equal rereadAfterRetry (Some FullReread) "über Loaded"
+        }
+        test "Läuft der Lauf noch, bleibt der Dialog beim Schließen offen und nichts wird gelesen" {
+            let applying = { loaded with Targets = Applying preview }
+            let model, cmd, _ = Components.Budget.State.update CloseTargets applying
+            Expect.equal model applying "unverändert"
+            Expect.isEmpty cmd "kein Aufruf"
         }
     ]
 

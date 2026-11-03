@@ -1,7 +1,7 @@
 ---
 id: budgeting-r7t3k
 title: "Budget-Seite: Rückkehr aus dem Kassenbuch und Schließen von Targets ohne Sprung"
-status: doing
+status: done
 type: bug
 context: budgeting
 created: 2026-11-02
@@ -39,3 +39,20 @@ Alle Szenarien als Client-`update`-Tests unter .NET (Doktrin Punkt 1 und 5: ob L
 
 ## Notes
 Verfeinert am 2026-11-03. Die Browser-Kriterien der Erfassung sind in Client-`update`-Tests übersetzt; Scrollposition ist Browser-Verhalten und bleibt bis infrastructure-b3t9k beim Blick von Roman.
+
+## Outcome
+
+Beide Wege lassen einen geladenen Monat stehen und lesen ihn still neu. `./verify.sh` zeigt `VERIFY: PASS` (dotnet 3531 grün, 10 opt-in übersprungen, node 281 grün). `npm run check:readme-delta -- --bc budgeting` Exit 0.
+
+**Wichtige Stellen:**
+- `rereadMonth` und `MonthReread` (`QuietReread`, `FullReread`) in `src/Client/Components/Budget/Month.fs`: ein geladener Monat ohne laufenden Wechsel bleibt `Success` und wird veraltet (`awaitFreshMonth`), sonst gilt `awaitMonth` wie bisher. `rereadCmd` in `State.fs` schickt die Antwort über `Reloaded` oder `Loaded`.
+- `PageEntered` mit `KeptPage` (`State.fs`): still neu lesen, dann `withEntries`, die Buchungen der Kategorie kommen sofort neu.
+- `closeTargets` in `Targets.fs` gibt jetzt `MonthReread option` statt `bool` zurück.
+
+**Über den Wortlaut hinaus (vom Wächter `moveWays` erzwungen):** Bleibt die Liste nach Targets anwenden stehen, rechnete ein Schritt im Feld Zugewiesen bis zur Antwort vom Stand vor dem Lauf und nähme ihn zurück (ADR 0078 Punkt 5). Deshalb:
+- `withReport` liegt jetzt öffentlich in `Month.fs` (vorher privat in `Moves.fs`) und trägt beim Schließen die geschriebenen Zeilen des Berichts ein.
+- Ist der Ausgang unklar, bleibt der alte Ladeweg mit `Loading`: `ApplyFailed` und `ApplyDone` mit Fehlermeldung nach gescheitertem erneutem Senden. Das entspricht `MoveCallLost`.
+
+**Tests:** `src/Tests/BudgetPageTests.fs` (Sprung ins Kassenbuch und zurück: still neu lesen mit Buchungen, Warn-Toast beim Scheitern, Ladeweg bei `Failure`, neuer Seitenaufruf), `src/Tests/TargetsApplyClientTests.fs` (Schließen nach Lauf still mit neuen Beträgen, Bericht eingetragen, unklarer Ausgang lädt, `Applying` bleibt offen). Die beiden kaputt-Tests waren vor dem Fix rot ("der alte Stand bleibt", `Month` war `Loading`). Die Tests prüfen den Weg der Antwort über `rereadMonth`, das Cmd selbst läuft unter .NET nicht.
+
+**Offen für Roman [human-eye]:** Scrollposition und Fokus der Liste nach der Rückkehr aus dem Kassenbuch im Browser ansehen.
