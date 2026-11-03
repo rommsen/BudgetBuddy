@@ -1,54 +1,72 @@
 ---
 id: budgeting-dyn8g
-title: "Budget-Historie: eigene Ansicht #/budget/history mit Filter nach Art und Abschnitt Bewegungen im Kategorie-Detail, kompakte Zeilen, Targets-Anwendung aufklappbar"
+title: "Tab Historie je Kategorie: Aufbau von Verfügbar, Bewegungen des Monats und Ausgaben der letzten 6 Monate aus dem Kassenbuch"
 status: backlog
 type: feature
 context: budgeting
 created: 2026-10-29
 completed:
-depends_on: [design-system-001, budgeting-afd8h, budgeting-m1bce, budgeting-c5w2n]
-blocks: [budgeting-t6p8z]
-tags: [budget, historie]
-related_adrs: [0065, 0069]
+depends_on: [design-system-001, budgeting-afd8h, budgeting-m1bce, budgeting-c5w2n, budgeting-g8s3w]
+blocks: [budgeting-t6p8z, budgeting-h7q4v]
+tags: [budget, historie, inspektor]
+related_adrs: [0065, 0069, 0049]
 related_research: []
-prior_art: [budgeting-h2zfn]
+prior_art: [budgeting-h2zfn, budgeting-m1bce]
 ---
 
 ## Why
-Vision, Budget Stufe 2: sehen, wann wie viel zugewiesen, verschoben oder per Targets verteilt wurde. Die Daten liegen seit budgeting-h2zfn in budget_movements und budget_movement_results; mit budgeting-afd8h kommen Verschieben und Zuweisen dazu (ADR 0069). Eine Ansicht fehlt.
+Task 3 von 5 des Gesamtkonzepts (`docs/ux/budget/konzept.md`), Ablauf "Was ist passiert". Vision, Budget Stufe 2: sehen, wann wie viel zugewiesen, verschoben oder per Targets verteilt wurde, und woher Verfügbar kommt. Die Bewegungen liegen seit budgeting-h2zfn und budgeting-afd8h in `budget_movements` und `budget_movement_results` (ADR 0069). Der Tab Historie im Inspektor zeigt heute nur "Die Historie dieser Kategorie folgt." (`InspectorView.fs`).
+
+Die allgemeine Ansicht für alle Kategorien ist abgetrennt (budgeting-h7q4v).
 
 ## What
-**Allgemeine Ansicht** `#/budget/history`, erreichbar über einen Link auf der Budget-Seite. Neueste zuerst, alle Monate. Ein Filter nach Art: Alle, Targets anwenden, Verschieben, Zuweisen.
+**Tab Historie** im Inspektor, für die gewählte Kategorie und den gezeigten Monat, in jedem Monat (vergangen, aktuell, künftig). Drei Abschnitte von oben nach unten:
 
-Eine **Zeile je Durchlauf** (gleiche Gruppen-Id):
-- **Verschieben:** Zeitpunkt, "20,00 € Lebensmittel → Urlaub", Monat, Stand.
-- **Zuweisen:** Zeitpunkt, "+20,00 € Urlaub" bzw. "−20,00 € Urlaub" (zurück nach Zu verteilen), Monat, Stand.
-- **Targets anwenden:** Zeitpunkt, "Targets anwenden, 37 Kategorien, 1.234,00 €", Monat, Stand; aufklappbar zu den Einzelzeilen (Kategorie, +Betrag, Stand).
-- **Stand** ist das jüngste Ergebnis je Bewegung: geschrieben, fehlgeschlagen (mit Grund), in YNAB geändert, noch offen. Ein Durchlauf mit mindestens einer fehlgeschlagenen Bewegung ist als solcher markiert.
+1. **Aufbau von Verfügbar:** Vortrag, Zugewiesen, Aktivität, Verfügbar. Vortrag = Verfügbar − Zugewiesen − Aktivität aus dem geladenen Monat (reine Funktion, keine Anfrage).
+2. **Bewegungen** dieser Kategorie im Monat, neueste zuerst, aus Sicht der Kategorie:
+   - Verschieben: "−20,00 € nach Urlaub" bzw. "+20,00 € von Lebensmittel" (Gegenseite aus derselben Gruppen-Id).
+   - Zuweisen: "+20,00 € zugewiesen" bzw. "−20,00 € zurück nach Zu verteilen".
+   - Targets anwenden: "+50,00 € Targets anwenden".
+   - Je Zeile Zeitpunkt (Berliner Zeit) und Stand: geschrieben, fehlgeschlagen (mit Grund), in YNAB geändert, noch offen. Stand ist das jüngste Ergebnis der Bewegung.
+   - Ohne Bewegungen ein Leerzustand. Unter der Liste ein Satz: Was direkt in YNAB zugewiesen wurde, steht hier nicht (ADR 0065, Negative).
+3. **Ausgaben der letzten 6 Monate** als Balken: die 6 Monate bis einschließlich des gezeigten Monats, Wert ist die Netto-Aktivität der Kategorie aus dem Kassenbuch (Erstattungen mindern, gelöschte Buchungen zählen nicht, Splits mit ihrem Anteil, wie `getCategoryMonthEntries`). Der laufende Monat ist als unvollständig erkennbar. Jeder Balken trägt Monat und Betrag. Optik aus Styleguide und DS, Rot nur für Beträge im Minus (ADR 0049).
 
-**Pro Kategorie:** im Kategorie-Detail (budgeting-m1bce) ein Abschnitt "Bewegungen" mit den Bewegungen dieser Kategorie im gewählten Monat, dieselbe Zeilenform aus Sicht der Kategorie ("−20,00 € nach Urlaub", "+50,00 € Targets anwenden"). Ein Link "Alle Bewegungen" führt zur allgemeinen Ansicht.
+**Server:** eine Abfrage für Kategorie und Monat liefert die Bewegungen mit Gruppen-Gegenseite und jüngstem Ergebnis sowie die 6 Monatssummen aus dem Kassenbuch. Lesend, keine YNAB-Anfrage. Die Bewegungs-Abfrage und die Zeilen-Funktion so schneiden, dass budgeting-h7q4v sie für alle Kategorien und mit Filter nach Herkunft wiederverwendet (optionale Filter Kategorie, Monat, Herkunft).
 
-Lesend; keine YNAB-Anfrage. Zuweisungen direkt in YNAB erscheinen nicht (ADR 0065, Negative); die Ansicht sagt das in einem Satz unter der Liste.
+**Laden im Client:** Das Lade-Muster der Buchungen (`requestEntries`, `EntriesGeneration`, `resetEntries`, `invalidateEntries`) wird auf Tab-Daten mit Schlüssel `(CategoryId, Monat)` verallgemeinert, eine Generation für beide Tabs (Hinweis aus dem Review von budgeting-g8s3w, `Types.fs`, `Inspector.fs`, `Month.fs`). Nach einer Bewegung (Zuweisen, Holen, Abgeben, Targets anwenden) ist die Historie wieder fällig, sonst wäre sie veraltet.
 
 ## Acceptance criteria
-- [ ] Server-Abfrage: Durchläufe mit ihren Bewegungen und dem jüngsten Ergebnis je Bewegung, neueste zuerst, optional nach Herkunft und nach Kategorie/Monat gefiltert. Integrationstest mit In-Memory-SQLite über alle drei Herkünfte und mehrere Ergebnisse je Bewegung.
-- [ ] Reine Funktion Bewegungen → Anzeige-Zeilen (Gruppierung, Betrag = neu − alt, Text je Art, Durchlauf-Stand): Unit-Tests je Art, inklusive Targets-Durchlauf mit einer fehlgeschlagenen Zeile.
-- [ ] `#/budget/history` wird geparst und erzeugt (Unit-Test), Link von der Budget-Seite.
-- [ ] Filter nach Art zeigt nur Durchläufe dieser Herkunft.
-- [ ] Targets-Durchlauf ist aufklappbar und zeigt die Einzelzeilen.
-- [ ] Kategorie-Detail zeigt den Abschnitt "Bewegungen" für Kategorie und Monat; "Alle Bewegungen" führt zur Ansicht.
-- [ ] Browser-Wächter (Handy-Breite): Historie öffnen, Filter "Verschieben", eine Zeile ist sichtbar (Fixture mit einer Verschiebung).
-- [ ] README budgeting: "Eine Historie-Ansicht gibt es noch nicht" ersetzt durch die Beschreibung der Ansicht.
-- [ ] `dotnet build`, `dotnet test` und `npm run test:scripts` grün.
+**Server**
+- [ ] (Handler, In-Memory-SQLite) GIVEN Bewegungen aller drei Herkünfte in zwei Kategorien und zwei Monaten, eine davon mit zwei Ergebnissen WHEN Abfrage für Kategorie A und Monat M THEN nur die Bewegungen von A in M, neueste zuerst, je mit dem jüngsten Ergebnis, Verschiebungen mit der Gegenseite.
+- [ ] (Handler) GIVEN optionaler Filter nach Herkunft WHEN Abfrage ohne Kategorie und Monat THEN alle Bewegungen dieser Herkunft (Grundlage für budgeting-h7q4v).
+- [ ] (Handler) GIVEN Buchungen der Kategorie über 7 Monate, darunter eine Erstattung, eine gelöschte Buchung und ein Split WHEN Ausgaben für den gezeigten Monat THEN genau 6 Monatssummen bis einschließlich des gezeigten Monats, netto, ohne die gelöschte, mit dem Split-Anteil; Monate ohne Buchung sind 0.
+- [ ] Neuer Endpoint: Aufruf in `RemotingPipelineTests.fs` (falls neues Interface) und eine Zeile in `RemotingEndpointNegativeTests.fs` (ungültiger Monat, unbekannte Kategorie). Fehler werden in `Validation.fs` gesammelt gemeldet.
+
+**Reine Funktionen**
+- [ ] (Domain) Bewegung → Zeile aus Sicht der Kategorie: je Herkunft und Richtung der Text aus "What", Betrag = neu − alt, Stand je Ergebnisart inklusive "noch offen" ohne Ergebnis.
+- [ ] (Domain) Aufbau von Verfügbar: Vortrag = Verfügbar − Zugewiesen − Aktivität, auch bei negativem Verfügbar und negativem Zugewiesen.
+- [ ] (Domain) Balkenwerte: laufender Monat als unvollständig markiert, vergangene und künftige gezeigte Monate nicht.
+
+**Client-`update`**
+- [ ] GIVEN Kategorie gewählt WHEN Tab Historie gewählt THEN die Historie wird für `(CategoryId, Monat)` angefragt; eine Antwort mit alter Generation (Kategorie- oder Monatswechsel dazwischen) wird verworfen.
+- [ ] GIVEN Historie geladen WHEN Zuweisen, Holen, Abgeben oder Targets anwenden bestätigt ist THEN die Historie ist wieder fällig und wird beim sichtbaren Tab neu geholt.
+- [ ] GIVEN Tab Buchungen WHEN Wechsel auf Tab Historie und zurück THEN keine doppelte Anfrage für schon geladene Buchungen (das verallgemeinerte Muster ändert das Verhalten der Buchungen nicht; bestehende Tests zu Buchungen bleiben grün).
+
+**Sonstiges**
+- [ ] Kein neuer Browser-Test (Regel zu Browser-Tests klärt infrastructure-b3t9k). Die Anzahl bleibt bei `MAX_BROWSER_TESTS`.
+- [ ] Der Tab Historie ist am Handy im 500-px-Sheet lesbar, der Balken passt ohne waagrechtes Scrollen. [human-eye]
+- [ ] README budgeting beschreibt den Tab Historie (Ubiquitous language: Aufbau von Verfügbar, Ausgaben der letzten 6 Monate).
+- [ ] `./verify.sh` zeigt `VERIFY: PASS`.
 
 ## Notes
-Verfeinert am 2026-10-29. **Entscheidungen (Roman, 2026-10-29):**
-- Eigene Ansicht plus Abschnitt im Kategorie-Detail.
-- Kompakte Zeilen, Targets anwenden als eine aufklappbare Zeile.
+Verfeinert am 2026-10-29, neu geschnitten am 2026-11-03.
 
-"Wer" aus der Vision entfällt vorerst: nur Roman budgetiert (README, Actors). Die Herkunft steht für "wie".
+**Entscheidungen (Roman, 2026-11-03):**
+- dyn8g wird geteilt: diese Task ist der Tab Historie je Kategorie, die allgemeine Ansicht `#/budget/history` ist budgeting-h7q4v.
+- Balken: 6 Monate bis einschließlich des gezeigten Monats, netto aus dem Kassenbuch, laufender Monat als unvollständig erkennbar.
 
-**Gesamtkonzept (2026-11-02), Task 3 von 5, geht den Regeln oben vor:** Das Kategorie-Detail gibt es dann als Inspektor (budgeting-g8s3w). Der Abschnitt "Bewegungen" wird zum Tab Historie mit dem Aufbau von Verfügbar (Vortrag, Zugewiesen, Aktivität), den Bewegungen und einem Balken der Ausgaben der letzten 6 Monate aus dem Kassenbuch. Der Knopf Historie im Seitenkopf öffnet die allgemeine Ansicht. Die Regeln stehen in `docs/ux/budget/konzept.md`. Die Akzeptanzkriterien werden in der taktischen Modellierung darauf gezogen.
+**Entscheidungen (Roman, 2026-10-29), weiter gültig:** kompakte Zeilen; "Wer" entfällt vorerst, nur Roman budgetiert, die Herkunft steht für "wie".
 
-## Hinweise aus dem Review von budgeting-g8s3w
-Das Lade-Muster gilt nur für Buchungen (`Types.fs:255`, `:791`, `:842`). Auf `tabDataDue` mit Schlüssel `(CategoryId, Monat)` verallgemeinern, sonst braucht die Historie dieselben drei Reset-Stellen und eine eigene Generation. `Reloaded` invalidiert nichts, die Historie wäre nach einer Verschiebung veraltet.
+Die Aktivität im Aufbau von Verfügbar bleibt YNABs Wert wie in der Liste (ADR 0065). Die Balken kommen dagegen aus dem Kassenbuch, das ist gewollt: budgeting-t6p8z ("Passt das Target noch?") rechnet mit denselben Kassenbuch-Summen. Weichen Balken des gezeigten Monats und Aktivität voneinander ab, ist das ein Hinweis auf fehlende Spiegelung, kein Fehler dieser Task.
+
+Bausteine: `queryRecentCategories` und `loadApplication` in `src/Server/Budgeting/Persistence.fs` (Join auf das jüngste Ergebnis), `LedgerApi.getCategoryMonthEntries` als Vorbild für die Kassenbuch-Summen, `budgetApiWith` für die Verdrahtung mit Ports.

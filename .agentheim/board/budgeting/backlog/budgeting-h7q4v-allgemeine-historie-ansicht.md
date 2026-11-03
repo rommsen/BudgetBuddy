@@ -1,0 +1,41 @@
+---
+id: budgeting-h7q4v
+title: "Allgemeine Budget-Historie #/budget/history: alle Bewegungen, neueste zuerst, Filter nach Art, Targets-Durchlauf aufklappbar, Knopf Historie im Seitenkopf"
+status: backlog
+type: feature
+context: budgeting
+created: 2026-11-03
+completed:
+depends_on: [design-system-001, budgeting-dyn8g, infrastructure-b3t9k]
+blocks: []
+tags: [budget, historie]
+related_adrs: [0065, 0069]
+related_research: []
+prior_art: [budgeting-h2zfn]
+---
+
+## Why
+Abgetrennt aus budgeting-dyn8g (Roman, 2026-11-03). Gesamtkonzept, Ablauf "Was ist passiert": Knopf Historie für alle, filterbar nach Art. Der Tab Historie zeigt nur eine Kategorie und einen Monat.
+
+## What
+Eigene Ansicht `#/budget/history`, geöffnet über den Knopf Historie im Seitenkopf der Budget-Seite. Neueste zuerst, alle Monate. Filter nach Art: Alle, Targets anwenden, Verschieben, Zuweisen.
+
+Eine **Zeile je Durchlauf** (gleiche Gruppen-Id):
+- Verschieben: Zeitpunkt, "20,00 € Lebensmittel → Urlaub", Monat, Stand.
+- Zuweisen: Zeitpunkt, "+20,00 € Urlaub" bzw. "−20,00 € Urlaub" (zurück nach Zu verteilen), Monat, Stand.
+- Targets anwenden: Zeitpunkt, "Targets anwenden, 37 Kategorien, 1.234,00 €", Monat, Stand; aufklappbar zu den Einzelzeilen (Kategorie, +Betrag, Stand).
+- Ein Durchlauf mit mindestens einer fehlgeschlagenen Bewegung ist als solcher markiert.
+
+Nutzt die Bewegungs-Abfrage und die Zeilenbausteine aus budgeting-dyn8g. Lesend, keine YNAB-Anfrage. Der Satz zu direkt in YNAB Zugewiesenem steht auch hier unter der Liste.
+
+## Acceptance criteria
+- [ ] (Domain) Bewegungen → Durchlauf-Zeilen: Gruppierung nach Gruppen-Id, Text je Art, Summe und Kategorienzahl bei Targets anwenden, Durchlauf-Stand "fehlgeschlagen", sobald eine Bewegung fehlschlug. Unit-Tests je Art, inklusive Targets-Durchlauf mit einer fehlgeschlagenen Zeile.
+- [ ] (Domain) `#/budget/history` wird geparst und erzeugt.
+- [ ] (Client-`update`) Filter nach Art zeigt nur Durchläufe dieser Herkunft; Aufklappen eines Targets-Durchlaufs zeigt seine Einzelzeilen, ein zweiter Tipp klappt zu.
+- [ ] (Client-`update`) Knopf Historie im Seitenkopf führt zu `#/budget/history`, Zurück führt zur Budget-Seite mit erhaltenem Monat.
+- [ ] Browser-Tests nach der Regel aus infrastructure-b3t9k (neuer Nutzerfluss Historie).
+- [ ] README budgeting: die allgemeine Historie-Ansicht ist beschrieben.
+- [ ] `./verify.sh` zeigt `VERIFY: PASS`.
+
+## Notes
+Entscheidungen (Roman, 2026-10-29) aus budgeting-dyn8g: eigene Ansicht, kompakte Zeilen, Targets anwenden als eine aufklappbare Zeile. Hängt an infrastructure-b3t9k, weil der Browser-Happy-Path für den neuen Nutzerfluss erst mit der neuen Regel für Browser-Tests entschieden wird.

@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 14
+- **Backlog:** 15
 - **Todo:** 1
 - **Doing:** 0
 - **Done:** 39
@@ -34,6 +34,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **infrastructure-b3t9k** — "Browser-Tests nach Begründung statt fester Obergrenze: jeder Test trägt eine Kennung, je Nutzerfluss höchstens ein Happy Path" (chore) — `backlog/infrastructure-b3t9k-browser-tests-nach-begruendung.md`
 - **infrastructure-v8m2d** — "Dev-Server: Vite stürzt ab, wenn dotnet parallel das Client-Projekt baut" (bug) — `backlog/infrastructure-v8m2d-dev-server-vite-st-rzt-ab-wenn-dotnet-parallel-das-client-pr.md`
 - **infrastructure-f3k7x** — "Feliz 2.9 auf 3.x heben, damit React 19 nicht für jede Kinderliste die Key-Warnung meldet" (chore) — `backlog/infrastructure-f3k7x-feliz-2-9-auf-3-x-heben-damit-react-19-nicht-f-r-jede-kinder.md`
 - **infrastructure-r6c3v** — "Testbau sieht neue öffentliche Client-Werte nicht: veraltete Referenz-Assembly" (bug) — `backlog/infrastructure-r6c3v-testbau-sieht-neue-ffentliche-client-werte-nicht-veraltete-r.md`

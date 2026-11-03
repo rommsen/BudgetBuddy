@@ -5,6 +5,43 @@ Newest entries on top.
 
 ---
 
+## 2026-11-03 20:48 -- Modeling / Refined: budgeting-r7t3k - Rückkehr aus dem Kassenbuch und Schließen von Targets ohne Sprung
+
+**Type:** Modeling / Refine
+**BC:** budgeting
+**Status after:** todo
+**Summary:** Kaputt- und Intakt-Szenarien als Client-update-Tests statt Browser-Kriterien, stilles Neu-Lesen über den Reloaded-Weg.
+
+---
+
+## 2026-11-03 20:48 -- Modeling / Refined: budgeting-dyn8g - Tab Historie je Kategorie
+
+**Type:** Modeling / Refine
+**BC:** budgeting
+**Status after:** todo
+**Summary:** Auf das Gesamtkonzept gezogen: Tab Historie im Inspektor mit Aufbau von Verfügbar, Bewegungen und Ausgaben der letzten 6 Monate (netto aus dem Kassenbuch, bis einschließlich gezeigtem Monat). Lade-Muster tabDataDue verallgemeinert. Kein neuer Browser-Test.
+**Split into:** budgeting-h7q4v (allgemeine Ansicht), dazu infrastructure-b3t9k (Regel für Browser-Tests)
+
+---
+
+## 2026-11-03 20:48 -- Modeling / Captured: infrastructure-b3t9k - "Browser-Tests nach Begründung statt fester Obergrenze: jeder Test trägt eine Kennung, je Nutzerfluss höchstens ein Happy Path"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Browser-Tests nach Begründung mit Kennung statt fester Obergrenze 116.
+
+---
+
+## 2026-11-03 20:48 -- Modeling / Captured: budgeting-h7q4v - "Allgemeine Budget-Historie #/budget/history: alle Bewegungen, neueste zuerst, Filter nach Art, Targets-Durchlauf aufklappbar, Knopf Historie im Seitenkopf"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Allgemeine Historie-Ansicht, abgetrennt aus budgeting-dyn8g.
+
+---
+
 ## 2026-11-03 11:55 -- Modeling / Captured: infrastructure-v8m2d - "Dev-Server: Vite stürzt ab, wenn dotnet parallel das Client-Projekt baut"
 
 **Type:** Modeling / Capture
