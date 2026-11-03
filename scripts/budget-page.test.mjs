@@ -976,7 +976,9 @@ test("Tastatur seitenweit: nach einem Klick auf einen Filter wählt Runter die e
   }
 });
 
-test("Tastatur in Feldern: im Suchfeld wechseln Hoch und Runter, Links und Rechts bewegen den Cursor", async () => {
+// Der Tastendruck im echten DOM: der Fokus bleibt im Suchfeld, der Cursor steht still, der Tab wechselt.
+// Die Regel selbst prüft `pageKeyAction` unter .NET.
+test("Tastatur in Feldern: im Suchfeld wechseln Hoch und Runter die Kategorie, Links und Rechts den Tab", async () => {
   const { context, page } = await openPage(1440, 900, { fixture: filterFixture });
   try {
     const panel = page.locator('aside[data-testid="budget-inspector"]');
@@ -992,14 +994,15 @@ test("Tastatur in Feldern: im Suchfeld wechseln Hoch und Runter, Links und Recht
 
     const caret = () => searchInput(page).evaluate((el) => el.selectionStart);
     assert.equal(await caret(), 1);
-    await page.keyboard.press("ArrowLeft");
-    await twoFrames(page);
-    assert.equal(await caret(), 0, "der Cursor geht nach links");
-    assert.equal(await activeTab(panel), "Geld", "der Tab bleibt");
     await page.keyboard.press("ArrowRight");
     await twoFrames(page);
-    assert.equal(await caret(), 1, "der Cursor geht nach rechts");
-    assert.equal(await activeTab(panel), "Geld", "der Tab bleibt");
+    assert.equal(await activeTab(panel), "Buchungen", "Rechts wechselt den Tab");
+    assert.equal(await caret(), 1, "der Cursor steht still");
+    assert.equal(await page.evaluate(() => document.activeElement.getAttribute("aria-label")), "Kategorie suchen", "der Fokus bleibt in der Suche");
+    await page.keyboard.press("ArrowLeft");
+    await twoFrames(page);
+    assert.equal(await activeTab(panel), "Geld", "Links wechselt zurück");
+    assert.equal(await caret(), 1, "der Cursor steht still");
   } finally {
     await context.close();
   }

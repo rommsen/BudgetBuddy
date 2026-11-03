@@ -151,8 +151,8 @@ type Direction =
     | Previous
     | Next
 
-/// Wo der Fokus steht, wenn eine Pfeiltaste fällt. `TextField` sperrt beide Richtungen,
-/// `SearchField` nur Links und Rechts.
+/// Wo der Fokus steht, wenn eine Pfeiltaste fällt. `TextField` sperrt alle Richtungen,
+/// `SearchField` Links und Rechts nur ohne Auswahl.
 type KeyFocus =
     | TextField
     | SearchField

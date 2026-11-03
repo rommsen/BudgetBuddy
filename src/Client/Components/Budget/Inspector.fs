@@ -75,15 +75,16 @@ let stepSelection (direction: Direction) (model: Model) : Model =
     | _ -> model
 
 /// Die Regel der Pfeiltasten ab 1024 px. In `TextField` (Zugewiesen und Betrag) gehören sie dem
-/// Cursor. Hoch und Runter gelten auch im Suchfeld, Links und Rechts gehören dort dem Cursor. Ohne
-/// Auswahl gibt es keinen Tab zu wechseln.
+/// Cursor. Im Suchfeld gelten alle vier Richtungen, damit man aus der Suche heraus Kategorie und Tab
+/// wechseln kann, ohne zur Maus zu greifen; ohne Auswahl bleiben Links und Rechts beim Cursor, denn
+/// dann gibt es keinen Tab zu wechseln.
 let pageKeyAction (hasSelection: bool) (key: string) (focus: KeyFocus) : PageKeyAction =
     match focus, key with
     | TextField, _ -> LeaveKey
     | _, "ArrowDown" -> if hasSelection then StepRow Next else FirstRow
     | _, "ArrowUp" -> if hasSelection then StepRow Previous else LastRow
-    | OtherFocus, "ArrowRight" when hasSelection -> StepTab Next
-    | OtherFocus, "ArrowLeft" when hasSelection -> StepTab Previous
+    | _, "ArrowRight" when hasSelection -> StepTab Next
+    | _, "ArrowLeft" when hasSelection -> StepTab Previous
     | _ -> LeaveKey
 
 /// `pageKeyAction` im Zustand der Seite: Targets anwenden und der offene Picker der Gegenseite

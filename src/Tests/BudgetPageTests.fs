@@ -559,18 +559,19 @@ let private pageKeyTests =
                 Expect.equal (pageKeyAction true "ArrowDown" focus) (StepRow Next) "Runter"
                 Expect.equal (pageKeyAction true "ArrowUp" focus) (StepRow Previous) "Hoch"
         }
-        test "Links und Rechts wechseln den Tab, im Suchfeld gehören sie dem Cursor" {
-            Expect.equal (pageKeyAction true "ArrowRight" OtherFocus) (StepTab Next) "Rechts"
-            Expect.equal (pageKeyAction true "ArrowLeft" OtherFocus) (StepTab Previous) "Links"
-            Expect.equal (pageKeyAction true "ArrowRight" SearchField) LeaveKey "Rechts im Suchfeld"
-            Expect.equal (pageKeyAction true "ArrowLeft" SearchField) LeaveKey "Links im Suchfeld"
+        // Bug (Roman, 2026-11-03): Wer aus der Suche mit Hoch und Runter eine Kategorie wählte, behielt
+        // den Fokus im Suchfeld, und Links und Rechts bewegten nur den Cursor statt den Tab zu wechseln.
+        test "Links und Rechts wechseln den Tab, auch im Suchfeld" {
+            for focus in [ SearchField; OtherFocus ] do
+                Expect.equal (pageKeyAction true "ArrowRight" focus) (StepTab Next) "Rechts"
+                Expect.equal (pageKeyAction true "ArrowLeft" focus) (StepTab Previous) "Links"
         }
         test "Ohne Auswahl wählt Runter die erste und Hoch die letzte Zeile, Links und Rechts tun nichts" {
             for focus in [ SearchField; OtherFocus ] do
                 Expect.equal (pageKeyAction false "ArrowDown" focus) FirstRow "Runter"
                 Expect.equal (pageKeyAction false "ArrowUp" focus) LastRow "Hoch"
-            Expect.equal (pageKeyAction false "ArrowRight" OtherFocus) LeaveKey "Rechts"
-            Expect.equal (pageKeyAction false "ArrowLeft" OtherFocus) LeaveKey "Links"
+                Expect.equal (pageKeyAction false "ArrowRight" focus) LeaveKey "Rechts"
+                Expect.equal (pageKeyAction false "ArrowLeft" focus) LeaveKey "Links"
         }
         test "Ein Textfeld sperrt alle vier Richtungen" {
             for hasSelection in [ true; false ] do
