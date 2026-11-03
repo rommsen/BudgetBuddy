@@ -66,3 +66,10 @@ FAIL. `./verify.sh` war grün (dotnet 3510, node 280), der Produktionscode ände
 - Wächter umgehbar: `it(`, `describe` mit `it`, einzeilige Schleife, `forEach`, umbenannter Import zählen 0. Eine Schleife mit `test(` am Zeilenanfang zählt 1. `t.test(` zählt keine Untertests.
 - Verlorene Absicherung: Die Rückfrage "Bank trennen" klappt nach 3 s zurück. `Debounce.delayed 3000 AbortBankDisconnect` (`src/Client/Components/Settings/State.fs:374`) durch `Cmd.none` ersetzen macht keinen Test rot.
 - Hinweis: In `budget-page` stecken noch Logik-Tests ("der Pfeil fehlt", "Tabelle mit Spaltenköpfen", "Zu verteilen negativ ohne Warnhinweis").
+
+## Verifier-Note Iteration 2
+
+FAIL. `./verify.sh` grün (dotnet 3521, node 278), Bank trennen und die gezogenen Logik-Tests sind belegt.
+
+- Wächter: `scripts/browser-usage-hook.mjs` umhüllt nur `playwright`. Ein Start über `playwright-core` zählt 0.
+- Hinweis: Ein Kindprozess ohne `NODE_OPTIONS` und `BB_BROWSER_USAGE_OWNER` wird nicht gezählt, ein Satz in Doktrin Punkt 5 genügt.
