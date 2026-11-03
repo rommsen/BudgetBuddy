@@ -79,26 +79,48 @@ let private ordered (model: Model) (month: BudgetMonth) : BudgetMonth =
     | Success frame -> { month with Groups = orderGroups frame.CategoryOrder month.Groups }
     | _ -> month
 
-/// Die Buchungen gelten nicht mehr: `entriesDue` holt sie, sobald sie zu sehen sind. Die neue
-/// Generation verwirft eine noch laufende Antwort zum alten Monat.
-let resetEntries (model: Model) : Model =
-    { model with
-        Selected = model.Selected |> Option.map (fun s -> { s with Entries = NotAsked })
-        EntriesGeneration = model.EntriesGeneration + 1 }
+/// Eine laufende Abfrage wird wieder ungefragt, Fertiges bleibt stehen.
+let private unloaded (data: RemoteData<'T>) : RemoteData<'T> =
+    match data with
+    | Loading -> NotAsked
+    | other -> other
 
-/// Der Monat wechselt: neue Generation, eine laufende Antwort zählt nicht mehr. Fertige Buchungen
-/// bleiben bis zur Antwort des Monats zu sehen, laufende werden wieder ungefragt.
-let private invalidateEntries (model: Model) : Model =
+/// Ein neuer Stand der Tab-Daten (Buchungen und Historie, eine Generation für beide): Antworten zu
+/// älteren Abfragen zählen nicht mehr. Was lief, ist wieder ungefragt und kommt, sobald sein Tab zu
+/// sehen ist (`tabDataDue`), sonst hinge es in `Loading`.
+let private nextTabGeneration (model: Model) : Model =
     { model with
-        Selected =
-            model.Selected
-            |> Option.map (fun s ->
-                match s.Entries with
-                | Loading -> { s with Entries = NotAsked }
-                | _ -> s)
-        EntriesGeneration = model.EntriesGeneration + 1 }
+        Selected = model.Selected |> Option.map (fun s -> { s with Entries = unloaded s.Entries; History = unloaded s.History })
+        TabGeneration = model.TabGeneration + 1 }
 
-/// Ist `month` ein anderer Monat als der bisher gezeigte? Dann gelten die Buchungen nicht mehr.
+/// Die Tab-Daten gelten nicht mehr (anderer Monat, Rückkehr aus dem Kassenbuch): beide sind wieder
+/// fällig, sobald ihr Tab zu sehen ist.
+let resetTabData (model: Model) : Model =
+    let next = nextTabGeneration model
+    { next with Selected = next.Selected |> Option.map (fun s -> { s with Entries = NotAsked; History = NotAsked }) }
+
+/// Nur die Daten eines Tabs gelten nicht mehr: "Wiederholen" oder die Historie nach einer Bewegung.
+/// Tabs ohne nachgeladene Daten ändern nichts.
+let resetTab (tab: InspectorTab) (model: Model) : Model =
+    let reset (s: SelectedCategory) =
+        match tab with
+        | EntriesTab -> { s with Entries = NotAsked }
+        | HistoryTab -> { s with History = NotAsked }
+        | MoneyTab
+        | TargetTab -> s
+    match tab with
+    | EntriesTab
+    | HistoryTab ->
+        let next = nextTabGeneration model
+        { next with Selected = next.Selected |> Option.map reset }
+    | MoneyTab
+    | TargetTab -> model
+
+/// Der Monat wechselt: neuer Stand, eine laufende Antwort zählt nicht mehr. Fertige Tab-Daten bleiben
+/// bis zur Antwort des Monats zu sehen.
+let private invalidateTabData (model: Model) : Model = nextTabGeneration model
+
+/// Ist `month` ein anderer Monat als der bisher gezeigte? Dann gelten die Tab-Daten nicht mehr.
 let private entriesOutdated (model: Model) (month: BudgetMonth) : bool =
     match model.Month with
     | Success previous -> previous.Month <> month.Month
@@ -144,7 +166,7 @@ let private withQueue (queue: AssignWrite list) (month: BudgetMonth) : BudgetMon
 
 /// Antwort einnehmen. Eine Antwort einer älteren Abfrage wird verworfen, damit ein langsamer
 /// Aufruf den gerade gezeigten Monat nicht überschreibt. Fehlt die gewählte Kategorie, endet die Auswahl.
-/// Kommt ein anderer Monat, sind die Buchungen wieder fällig.
+/// Kommt ein anderer Monat, sind Buchungen und Historie wieder fällig.
 let applyLoaded (generation: int) (result: Result<BudgetMonth, string>) (model: Model) : Model =
     if generation <> model.MonthGeneration then
         model
@@ -156,7 +178,7 @@ let applyLoaded (generation: int) (result: Result<BudgetMonth, string>) (model: 
                 model.Selected
                 |> Option.filter (fun s -> categoriesOf month |> List.exists (fun c -> c.Id = s.CategoryId))
             let settled = { model with Month = Success month; Selected = selected; Freshness = MonthRead }
-            if entriesOutdated model month then resetEntries settled else settled
+            if entriesOutdated model month then resetTabData settled else settled
         | Error message -> { model with Month = Failure message }
 
 /// Das stille Neu-Lesen nach einer Verschiebung oder Zuweisung. Scheitert es, bleibt die Liste stehen und ein
@@ -184,7 +206,7 @@ let select (month: string) (model: Model) : Model * bool =
             match model.Month with
             | Success _ -> model.Month
             | _ -> Loading
-        requestMonth (invalidateEntries { model with ChosenMonth = chosen; Month = month' }), true
+        requestMonth (invalidateTabData { model with ChosenMonth = chosen; Month = month' }), true
     | _ -> model, false
 
 /// Rahmen und Monat holen beginnt. Ein vorhandener Rahmen bleibt stehen, der Monat kommt nach der
@@ -224,7 +246,7 @@ let applyFrameRefreshed (result: Result<BudgetFrame, string>) (model: Model) : M
     | Ok frame ->
         let refreshed = { model with Frame = Success frame }
         if shownMonth refreshed <> shownMonth model then
-            requestMonth (invalidateEntries refreshed), true
+            requestMonth (invalidateTabData refreshed), true
         else
             refreshed, false
     | Error _ -> model, false
@@ -258,6 +280,18 @@ let monthLabel (month: string) : string =
     | [| year; mm; _ |] ->
         match System.Int32.TryParse mm with
         | true, m when m >= 1 && m <= 12 -> $"{monthNames.[m - 1]} {year}"
+        | _ -> month
+    | _ -> month
+
+let private shortMonthNames =
+    [| "Jan"; "Feb"; "Mär"; "Apr"; "Mai"; "Jun"; "Jul"; "Aug"; "Sep"; "Okt"; "Nov"; "Dez" |]
+
+/// "2026-10-01" als "Okt", für die Balken der Ausgaben. Ein unlesbarer Wert bleibt, wie er ist.
+let shortMonthLabel (month: string) : string =
+    match month.Split '-' with
+    | [| _; mm; _ |] ->
+        match System.Int32.TryParse mm with
+        | true, m when m >= 1 && m <= 12 -> shortMonthNames.[m - 1]
         | _ -> month
     | _ -> month
 

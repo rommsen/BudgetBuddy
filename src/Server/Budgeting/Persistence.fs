@@ -206,3 +206,88 @@ let loadApplication (applicationId: Guid) : Async<Result<MovementState list, str
                 rows
                 (Ok [])
     }
+
+/// Welche Bewegungen die Historie liest (budgeting-dyn8g). `None` heißt: ohne diese Einschränkung.
+/// budgeting-h7q4v liest so alle Kategorien und filtert nach Herkunft.
+type MovementFilter = {
+    CategoryId: Guid option
+    /// "YYYY-MM-01".
+    Month: string option
+    Origin: MovementOrigin option
+}
+
+[<CLIMutable>]
+type private HistoryRow = {
+    id: string
+    application_id: string
+    occurred_at: string
+    origin: string
+    month: string
+    category_id: string
+    category_name: string
+    old_assigned: int64
+    new_assigned: int64
+    status: string
+    reason: string
+    counterpart_name: string
+}
+
+let private euro (milliunits: int64) : Shared.Domain.Money =
+    { Amount = decimal milliunits / 1000m; Currency = "EUR" }
+
+/// Die Bewegungen zum Filter, neueste zuerst, je mit dem jüngsten Ergebnis und bei einer
+/// Verschiebung mit der Kategorie der Gegenseite (dieselbe Gruppen-Id, andere Bewegung).
+/// `Error` nennt eine Zeile mit unbekannter Herkunft.
+let queryMovements (conn: SqliteConnection) (filter: MovementFilter) : Result<HistoryMovement list, string> =
+    let orNull (value: 'a option) (text: 'a -> string) : string =
+        match value with
+        | Some v -> text v
+        | None -> null
+    let rows =
+        conn.Query<HistoryRow>(
+            "SELECT m.id, m.application_id, m.occurred_at, m.origin, m.month, m.category_id, m.category_name, \
+                    m.old_assigned, m.new_assigned, r.status, r.reason, c.category_name AS counterpart_name \
+             FROM budget_movements m \
+             LEFT JOIN budget_movement_results r \
+               ON r.sequence = (SELECT MAX(sequence) FROM budget_movement_results WHERE movement_id = m.id) \
+             LEFT JOIN budget_movements c \
+               ON m.origin = @moved AND c.application_id = m.application_id AND c.id <> m.id \
+             WHERE (@category_id IS NULL OR m.category_id = @category_id) \
+               AND (@month IS NULL OR m.month = @month) \
+               AND (@origin IS NULL OR m.origin = @origin) \
+             ORDER BY m.occurred_at DESC, m.rowid DESC",
+            {| moved = originText MoneyMoved
+               category_id = orNull filter.CategoryId string
+               month = orNull filter.Month id
+               origin = orNull filter.Origin originText |}
+        )
+        |> Seq.toList
+    let toMovement (r: HistoryRow) : Result<HistoryMovement, string> =
+        originOfText r.origin
+        |> Result.map (fun origin ->
+            { MovementId = Guid.Parse r.id
+              ApplicationId = Guid.Parse r.application_id
+              OccurredAt = dateFromText r.occurred_at
+              Origin = origin
+              Month = r.month
+              CategoryId = Guid.Parse r.category_id
+              CategoryName = r.category_name
+              OldAssigned = euro r.old_assigned
+              NewAssigned = euro r.new_assigned
+              Counterpart = Option.ofObj r.counterpart_name
+              Latest = statusFromText r.status r.reason })
+    List.foldBack
+        (fun row movements ->
+            match toMovement row, movements with
+            | Ok movement, Ok rest -> Ok (movement :: rest)
+            | Error e, _
+            | _, Error e -> Error e)
+        rows
+        (Ok [])
+
+/// Die Historie liest nur die Datenbank, kein YNAB.
+let loadMovements (filter: MovementFilter) : Async<Result<HistoryMovement list, string>> =
+    async {
+        use conn = Core.getConnection ()
+        return queryMovements conn filter
+    }

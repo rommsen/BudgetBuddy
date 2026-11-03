@@ -539,4 +539,10 @@ type BudgetApi = {
     /// "Zuletzt verwendet" im Picker der Gegenseite: Kategorien aus den Bewegungen mit Herkunft
     /// Verschieben, neueste zuerst, höchstens zehn. Liest nur die Datenbank, kein YNAB.
     getRecentMoveCategories: unit -> Async<Result<System.Guid list, string>>
+
+    /// Der Tab Historie (budgeting-dyn8g): die Budget-Bewegungen der Kategorie im Monat ("YYYY-MM-01"),
+    /// neueste zuerst, je mit jüngstem Ergebnis und bei Verschiebungen mit der Gegenseite, dazu die
+    /// Ausgaben der 6 Monate bis einschließlich dieses Monats aus dem Kassenbuch. Liest nur die
+    /// Datenbank, kein YNAB. Ungültiger Monat oder fehlende Kategorie: Error mit allen Gründen.
+    getCategoryHistory: Shared.Domain.CategoryMonthQuery -> Async<Result<Shared.Budgeting.CategoryHistory, string>>
 }

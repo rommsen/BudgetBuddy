@@ -36,8 +36,8 @@ let selectCategory (categoryId: System.Guid) (model: Model) : Model =
         when model.Selected |> Option.forall (fun s -> s.CategoryId <> categoryId)
              && categoriesOf month |> List.exists (fun c -> c.Id = categoryId) ->
         { model with
-            Selected = Some { CategoryId = categoryId; Entries = NotAsked; ReturnPending = false }
-            EntriesGeneration = model.EntriesGeneration + 1 }
+            Selected = Some { CategoryId = categoryId; Entries = NotAsked; History = NotAsked; ReturnPending = false }
+            TabGeneration = model.TabGeneration + 1 }
     | _ -> model
 
 /// Die nächste sichtbare Zeile ab der Position von `current` in der vollen Reihenfolge. Am Rand
@@ -131,35 +131,76 @@ let applyPageKey (action: PageKeyAction) (model: Model) : Model =
     | StepTab direction -> { model with Tab = neighbourTab direction model.Tab }
     | LeaveKey -> model
 
-/// Sind die Buchungen fällig? Nur im Tab Buchungen, bei geladenem Monat und `NotAsked`, nicht während
-/// eines Monatswechsels. Das liest nur das Kassenbuch und kostet kein YNAB-Limit.
-let entriesDue (model: Model) : (System.Guid * string) option =
-    match model.Tab, model.Selected, model.Month with
-    | EntriesTab, Some { CategoryId = id; Entries = NotAsked }, Success month when not (monthChanging model) ->
-        Some (id, month.Month)
+/// Eine Abfrage von Tab-Daten: welcher Tab, für welche Kategorie und welchen Monat, zu welchem Stand.
+type TabRequest = {
+    Tab: InspectorTab
+    CategoryId: System.Guid
+    Month: string
+    Generation: int
+}
+
+/// Sind Daten des sichtbaren Tabs fällig? Buchungen und Historie, je bei geladenem Monat und `NotAsked`,
+/// nicht während eines Monatswechsels. Beide lesen nur die Datenbank und kosten kein YNAB-Limit.
+let tabDataDue (model: Model) : (InspectorTab * System.Guid * string) option =
+    match model.Selected, model.Month with
+    | Some selected, Success month when not (monthChanging model) ->
+        match model.Tab, selected.Entries, selected.History with
+        | EntriesTab, NotAsked, _
+        | HistoryTab, _, NotAsked -> Some (model.Tab, selected.CategoryId, month.Month)
+        | _ -> None
     | _ -> None
 
-/// Setzt die Buchungen auf `Loading`, wenn sie fällig sind. Gibt die Abfrage für den Aufrufer zurück.
-let requestEntries (model: Model) : Model * (System.Guid * string * int) option =
-    match entriesDue model with
-    | Some (id, month) ->
-        let generation = model.EntriesGeneration + 1
-        { model with
-            Selected = model.Selected |> Option.map (fun s -> { s with Entries = Loading })
-            EntriesGeneration = generation },
-        Some (id, month, generation)
+/// Setzt die fälligen Tab-Daten auf `Loading`. Gibt die Abfrage für den Aufrufer zurück. Der Stand
+/// bleibt: Er wechselt erst, wenn Kategorie oder Monat wechseln oder Daten neu fällig werden.
+let requestTabData (model: Model) : Model * TabRequest option =
+    match tabDataDue model with
+    | Some (tab, id, month) ->
+        let loading (s: SelectedCategory) =
+            match tab with
+            | HistoryTab -> { s with History = Loading }
+            | _ -> { s with Entries = Loading }
+        { model with Selected = model.Selected |> Option.map loading },
+        Some { Tab = tab; CategoryId = id; Month = month; Generation = model.TabGeneration }
     | None -> model, None
+
+/// Eine Antwort zählt nur zum aktuellen Stand und bei bestehender Auswahl.
+let private applyTabAnswer
+    (generation: int)
+    (fill: SelectedCategory -> SelectedCategory)
+    (model: Model)
+    : Model =
+    match model.Selected with
+    | Some selected when generation = model.TabGeneration -> { model with Selected = Some (fill selected) }
+    | _ -> model
+
+let private remote (result: Result<'T, string>) : RemoteData<'T> =
+    match result with
+    | Ok value -> Success value
+    | Error message -> Failure message
 
 /// Antwort der Liste. Eine Antwort einer älteren Abfrage oder ohne Auswahl fällt weg.
 let applyCategoryEntries (generation: int) (result: Result<CategoryMonthEntry list, string>) (model: Model) : Model =
-    match model.Selected with
-    | Some selected when generation = model.EntriesGeneration ->
-        let entries =
-            match result with
-            | Ok entries -> Success entries
-            | Error message -> Failure message
-        { model with Selected = Some { selected with Entries = entries } }
-    | _ -> model
+    applyTabAnswer generation (fun s -> { s with Entries = remote result }) model
+
+/// Antwort der Historie, wie `applyCategoryEntries`.
+let applyCategoryHistory (generation: int) (result: Result<CategoryHistory, string>) (model: Model) : Model =
+    applyTabAnswer generation (fun s -> { s with History = remote result }) model
+
+/// Der Stand einer Bewegung im Tab Historie.
+let historyStatusText (status: HistoryStatus) : string =
+    match status with
+    | HistoryWritten -> "geschrieben"
+    | HistoryFailed reason when System.String.IsNullOrWhiteSpace reason -> "fehlgeschlagen"
+    | HistoryFailed reason -> $"fehlgeschlagen: {reason}"
+    | HistoryChangedInYnab -> "in YNAB geändert"
+    | HistoryOpen -> "noch offen"
+
+/// Der Betrag unter einem Balken in ganzen Euro ohne Währung ("1.235"): sechs Balken passen so am Handy
+/// nebeneinander. Der volle Betrag steht im Label des Balkens.
+let barAmountText (m: Money) : string =
+    let rounded = System.Math.Round(m.Amount, 0, System.MidpointRounding.AwayFromZero)
+    let text = Money.formatAmountText false false rounded m.Currency
+    text.Substring(0, text.Length - 3)
 
 /// Tipp auf eine Buchung: die Auswahl bleibt stehen und wartet auf die Rückkehr.
 let leaveForEntry (model: Model) : Model =
@@ -197,7 +238,7 @@ let enterPage (model: Model) : Model * PageEntry =
     let entered = if keepsTab then back else { back with TabMoney = None }
     if returnPending model || keepsTab then
         let returned =
-            resetEntries
+            resetTabData
                 { entered with
                     Selected = entered.Selected |> Option.map (fun s -> { s with ReturnPending = false }) }
         returned, KeptPage

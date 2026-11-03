@@ -53,7 +53,7 @@ let private planTests =
     testList "planMove" [
         test "Zwischen zwei Kategorien entstehen zwei Zeilen, Quelle zuerst, neu = alt ∓ Betrag" {
             let plan = planOk month (request (CategorySide a.Id) (CategorySide b.Id) 30000L)
-            Expect.equal plan.Origin Domain.MoneyMoved "Herkunft"
+            Expect.equal plan.Origin MoneyMoved "Herkunft"
             Expect.equal (plan.Lines |> List.map (fun l -> l.CategoryId, l.OldAssigned, l.NewAssigned))
                 [ a.Id, eur 100000L, eur 70000L; b.Id, eur 20000L, eur 50000L ] "Beträge und Reihenfolge"
         }
@@ -64,12 +64,12 @@ let private planTests =
         }
         test "Aus Zu verteilen entsteht eine Zeile mit Herkunft Zuweisen" {
             let plan = planOk month (request ToBeBudgetedSide (CategorySide b.Id) 30000L)
-            Expect.equal plan.Origin Domain.MoneyAssigned "Herkunft"
+            Expect.equal plan.Origin MoneyAssigned "Herkunft"
             Expect.equal (plan.Lines |> List.map (fun l -> l.CategoryId, l.NewAssigned)) [ b.Id, eur 50000L ] "Ziel steigt"
         }
         test "Zurück nach Zu verteilen senkt die Kategorie" {
             let plan = planOk month (request (CategorySide a.Id) ToBeBudgetedSide 30000L)
-            Expect.equal plan.Origin Domain.MoneyAssigned "Herkunft"
+            Expect.equal plan.Origin MoneyAssigned "Herkunft"
             Expect.equal (plan.Lines |> List.map (fun l -> l.CategoryId, l.NewAssigned)) [ a.Id, eur 70000L ] "Quelle sinkt"
         }
         test "Ein negatives neues Zugewiesen ist gültig: die Kategorie lebt vom Vortrag" {
@@ -213,7 +213,7 @@ let private recordedMove (a: Guid) (b: Guid) (source: LineOutcome option) (targe
         { Id = Guid.NewGuid()
           ApplicationId = applicationId
           OccurredAt = now
-          Origin = Domain.MoneyMoved
+          Origin = MoneyMoved
           Month = monthKey
           CategoryId = category
           CategoryName = name
@@ -252,7 +252,7 @@ let private flowTests =
             let report = moveOk f (request (CategorySide a) (CategorySide b) 30000L)
             Expect.equal (List.ofSeq seen) [ 2; 2 ] "vor jedem PATCH sind beide Bewegungen da"
             let states = movementsOf report
-            Expect.equal (states |> List.map (fun s -> s.Movement.Origin)) [ Domain.MoneyMoved; Domain.MoneyMoved ] "Herkunft"
+            Expect.equal (states |> List.map (fun s -> s.Movement.Origin)) [ MoneyMoved; MoneyMoved ] "Herkunft"
             Expect.equal (states |> List.map (fun s -> s.Movement.CategoryId)) [ a; b ] "Quelle vor Ziel"
             Expect.equal (states |> List.map (fun s -> string s.Movement.ApplicationId) |> List.distinct) [ report.ApplicationId ] "eine Gruppe"
             Expect.equal (outcomes report) [ Written; Written ] "geschrieben"
@@ -260,7 +260,7 @@ let private flowTests =
         testCase "Zuweisen hält eine Bewegung mit Herkunft Zuweisen fest" <| fun () ->
             let f, a, b = fake ()
             let report = moveOk f (request ToBeBudgetedSide (CategorySide b) 30000L)
-            Expect.equal (movementsOf report |> List.map (fun s -> s.Movement.Origin)) [ Domain.MoneyAssigned ] "Herkunft"
+            Expect.equal (movementsOf report |> List.map (fun s -> s.Movement.Origin)) [ MoneyAssigned ] "Herkunft"
             Expect.equal (List.ofSeq f.Attempts) [ b, 50000L ] "ein PATCH"
             Expect.equal f.Assigned[a] 100000L "die andere Kategorie bleibt"
 
@@ -457,12 +457,12 @@ let private flowTests =
 let private originTests =
     testList "Herkunft" [
         test "Jede Herkunft übersteht den Weg über die Datenbank" {
-            for origin in [ Domain.TargetsApplied; Domain.MoneyMoved; Domain.MoneyAssigned ] do
+            for origin in [ TargetsApplied; MoneyMoved; MoneyAssigned ] do
                 Expect.equal (Domain.originOfText (Domain.originText origin)) (Ok origin) "Rundlauf"
         }
         test "Die Wörter in der Datenbank bleiben, wie sie sind" {
             Expect.equal
-                ([ Domain.TargetsApplied; Domain.MoneyMoved; Domain.MoneyAssigned ] |> List.map Domain.originText)
+                ([ TargetsApplied; MoneyMoved; MoneyAssigned ] |> List.map Domain.originText)
                 [ "Targets anwenden"; "Verschieben"; "Zuweisen" ] "bestehende Zeilen bleiben lesbar"
         }
         test "Eine unbekannte Herkunft wird gemeldet, ohne Ausnahme und ohne Standardwert" {
@@ -472,7 +472,7 @@ let private originTests =
         }
         test "Nur die Verschiebung hängt ihre Zeilen aneinander" {
             Expect.equal
-                ([ Domain.TargetsApplied; Domain.MoneyMoved; Domain.MoneyAssigned ] |> List.map Domain.sendsInOrder)
+                ([ TargetsApplied; MoneyMoved; MoneyAssigned ] |> List.map Domain.sendsInOrder)
                 [ false; true; false ] "Reihenfolge"
         }
     ]
@@ -621,7 +621,7 @@ let private assignPlanTests =
         test "Sonst eine Zeile mit gelesenem Alt-Wert und Herkunft Zuweisen" {
             match Domain.planAssign month (assign a.Id 120000L) with
             | Ok (Some plan) ->
-                Expect.equal plan.Origin Domain.MoneyAssigned "Herkunft"
+                Expect.equal plan.Origin MoneyAssigned "Herkunft"
                 Expect.equal (plan.Lines |> List.map (fun l -> l.CategoryId, l.OldAssigned, l.NewAssigned))
                     [ a.Id, eur 100000L, eur 120000L ] "eine Zeile"
             | other -> failtest $"Plan erwartet: {other}"
@@ -668,7 +668,7 @@ let private assignFlowTests =
             Expect.equal (List.ofSeq seen) [ 1 ] "vor dem PATCH festgehalten"
             Expect.equal (List.ofSeq f.Attempts) [ a, 120000L ] "absolut"
             Expect.equal (outcomes report) [ Written ] "Ergebnis angehängt"
-            Expect.equal (movementsOf report).Head.Movement.Origin Domain.MoneyAssigned "Herkunft"
+            Expect.equal (movementsOf report).Head.Movement.Origin MoneyAssigned "Herkunft"
             Expect.isNone report.ActualToBeBudgeted "liest Zu verteilen nicht neu"
 
         testCase "Steht YNAB anders als der Client sah, gilt der Wert und die Bewegung nennt YNABs Stand als alt" <| fun () ->
@@ -851,13 +851,13 @@ let private recentTests =
         conn.Open()
         Dapper.SqlMapper.Execute(conn, "CREATE TABLE budget_movements (category_id TEXT NOT NULL, origin TEXT NOT NULL)") |> ignore
         body conn
-    let insert (conn: Microsoft.Data.Sqlite.SqliteConnection) (origin: Domain.MovementOrigin) (id: Guid) =
+    let insert (conn: Microsoft.Data.Sqlite.SqliteConnection) (origin: MovementOrigin) (id: Guid) =
         Dapper.SqlMapper.Execute(
             conn,
             "INSERT INTO budget_movements (category_id, origin) VALUES (@id, @origin)",
             {| id = string id; origin = Domain.originText origin |})
         |> ignore
-    let query conn = Budgeting.Persistence.queryRecentCategories conn Domain.MoneyMoved 10
+    let query conn = Budgeting.Persistence.queryRecentCategories conn MoneyMoved 10
     testList "Zuletzt verwendet" [
         test "Leere Tabelle: leere Liste" {
             withTable (fun conn -> Expect.isEmpty (query conn) "leer")
@@ -865,21 +865,21 @@ let private recentTests =
         test "Neueste zuerst, ohne Dubletten" {
             withTable (fun conn ->
                 let a, b, c = Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()
-                for id in [ a; b; c; a ] do insert conn Domain.MoneyMoved id
+                for id in [ a; b; c; a ] do insert conn MoneyMoved id
                 Expect.equal (query conn) [ a; c; b ] "a ist die jüngste")
         }
         test "Herkunft Targets anwenden und Zuweisen zählen nicht" {
             withTable (fun conn ->
                 let a, b, c = Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()
-                insert conn Domain.MoneyMoved a
-                insert conn Domain.TargetsApplied b
-                insert conn Domain.MoneyAssigned c
+                insert conn MoneyMoved a
+                insert conn TargetsApplied b
+                insert conn MoneyAssigned c
                 Expect.equal (query conn) [ a ] "nur Verschieben")
         }
         test "Höchstens zehn" {
             withTable (fun conn ->
                 let ids = List.init 12 (fun _ -> Guid.NewGuid())
-                for id in ids do insert conn Domain.MoneyMoved id
+                for id in ids do insert conn MoneyMoved id
                 Expect.equal (query conn) (ids |> List.rev |> List.truncate 10) "die zehn jüngsten")
         }
         testCase "Der Weg über die Abfrage liest die Bewegungen aus jedem Monat und kein YNAB" <| fun () ->

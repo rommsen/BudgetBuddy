@@ -434,7 +434,7 @@ let private onEntries = { opened with Tab = EntriesTab }
 let private selectionTests =
     testList "Auswahl und Inspektor" [
         test "Eine Zeile wählt die Kategorie, die Buchungen sind noch nicht gefragt" {
-            Expect.equal opened.Selected (Some { CategoryId = categoryId; Entries = NotAsked; ReturnPending = false }) "gewählt"
+            Expect.equal opened.Selected (Some { CategoryId = categoryId; Entries = NotAsked; History = NotAsked; ReturnPending = false }) "gewählt"
         }
         test "Dieselbe Kategorie noch einmal ändert nichts" {
             let loaded = { opened with Selected = Some { selectedOf opened with Entries = Success [ line -1m ] } }
@@ -463,19 +463,19 @@ let private selectionTests =
             Expect.equal (selectedOf model).CategoryId categoryId "Id"
             Expect.equal model.Tab EntriesTab "Tab"
             Expect.equal (entriesOf model) (Success [ line -1m ]) "bleiben stehen"
-            Expect.isNone (entriesDue model) "nicht fällig, solange der neue Monat fehlt"
+            Expect.isNone (tabDataDue model) "nicht fällig, solange der neue Monat fehlt"
             let answered = applyLoaded model.MonthGeneration (Ok { detailMonth with Month = "2026-09-01" }) model
             Expect.equal (entriesOf answered) NotAsked "kommen neu"
-            Expect.equal (entriesDue answered) (Some (categoryId, "2026-09-01")) "für den neuen Monat"
+            Expect.equal (tabDataDue answered) (Some (EntriesTab, categoryId, "2026-09-01")) "für den neuen Monat"
         }
         test "Monatswechsel bei laufender Abfrage: ihre Antwort fällt weg, die Buchungen kommen trotzdem" {
-            let asked, _ = requestEntries onEntries
+            let asked, _ = requestTabData onEntries
             let model, _ = select "2026-09-01" asked
-            let late = applyCategoryEntries asked.EntriesGeneration (Ok [ line -1m ]) model
+            let late = applyCategoryEntries asked.TabGeneration (Ok [ line -1m ]) model
             Expect.equal (entriesOf late) NotAsked "die Antwort zum alten Monat zählt nicht"
             let back, _ = select "2026-10-01" late
             let answered = applyLoaded back.MonthGeneration (Ok detailMonth) back
-            Expect.equal (entriesDue answered) (Some (categoryId, "2026-10-01")) "A, B, A: nicht hängen geblieben"
+            Expect.equal (tabDataDue answered) (Some (EntriesTab, categoryId, "2026-10-01")) "A, B, A: nicht hängen geblieben"
         }
         // Bug 1 aus budgeting-p4n6r: Überholt die Antwort auf "Erneut senden" den Monatswechsel, kommt
         // der Monat über `Reloaded`, die Antwort auf den Wechsel selbst fällt weg.
@@ -484,7 +484,7 @@ let private selectionTests =
             let changing, _ = select "2026-09-01" shownEntries
             let retried, _ = applyMoveRetried "a" (Error "weg") changing
             let reloaded, _ = applyReloaded retried.MonthGeneration (Ok { detailMonth with Month = "2026-09-01" }) retried
-            Expect.equal (entriesDue reloaded) (Some (categoryId, "2026-09-01")) "fällig"
+            Expect.equal (tabDataDue reloaded) (Some (EntriesTab, categoryId, "2026-09-01")) "fällig"
         }
         test "Fehlt die Kategorie im neuen Monat, endet die Auswahl" {
             let model = applyLoaded 0 (Ok { detailMonth with Groups = [] }) opened
@@ -519,7 +519,7 @@ let private stepTests =
             { init () with
                 Month = Success month
                 Filter = filter
-                Selected = Some { CategoryId = id name; Entries = NotAsked; ReturnPending = false } }
+                Selected = Some { CategoryId = id name; Entries = NotAsked; History = NotAsked; ReturnPending = false } }
         at, id
     testList "Kategorie wechseln" [
         test "Mit aktivem Filter überspringt der Schritt ausgefilterte Zeilen, am Rand bleibt er stehen" {
@@ -632,35 +632,35 @@ let private pageKeyTests =
         }
     ]
 
-let private entriesDueTests =
+let private tabDataDueTests =
     testList "Buchungen im Inspektor" [
         test "Fällig nur im Tab Buchungen, bei geladenem Monat und NotAsked" {
-            Expect.equal (entriesDue onEntries) (Some (categoryId, "2026-10-01")) "fällig"
-            Expect.isNone (entriesDue opened) "anderer Tab"
-            Expect.isNone (entriesDue { onEntries with Month = Loading }) "Monat lädt"
-            let requested, _ = requestEntries onEntries
-            Expect.isNone (entriesDue requested) "läuft schon"
+            Expect.equal (tabDataDue onEntries) (Some (EntriesTab, categoryId, "2026-10-01")) "fällig"
+            Expect.isNone (tabDataDue opened) "anderer Tab"
+            Expect.isNone (tabDataDue { onEntries with Month = Loading }) "Monat lädt"
+            let requested, _ = requestTabData onEntries
+            Expect.isNone (tabDataDue requested) "läuft schon"
         }
         test "Die Antwort zur laufenden Abfrage füllt die Liste" {
-            let model, _ = requestEntries onEntries
-            let answered = applyCategoryEntries model.EntriesGeneration (Ok [ line -30m ]) model
+            let model, _ = requestTabData onEntries
+            let answered = applyCategoryEntries model.TabGeneration (Ok [ line -30m ]) model
             Expect.equal (entriesOf answered) (Success [ line -30m ]) "Liste"
         }
         test "Ein Fehler der Abfrage steht im Tab" {
-            let model, _ = requestEntries onEntries
-            let answered = applyCategoryEntries model.EntriesGeneration (Error "kaputt") model
+            let model, _ = requestTabData onEntries
+            let answered = applyCategoryEntries model.TabGeneration (Error "kaputt") model
             Expect.equal (entriesOf answered) (Failure "kaputt") "Fehler"
         }
         test "Eine späte Antwort einer älteren Abfrage wird verworfen" {
-            let model, _ = requestEntries onEntries
-            let reloaded = resetEntries model
-            let answered = applyCategoryEntries model.EntriesGeneration (Ok [ line -1m ]) reloaded
+            let model, _ = requestTabData onEntries
+            let reloaded = resetTab EntriesTab model
+            let answered = applyCategoryEntries model.TabGeneration (Ok [ line -1m ]) reloaded
             Expect.equal answered reloaded "ältere Antwort zählt nicht"
         }
         test "Eine späte Antwort ohne Auswahl wird verworfen" {
-            let model, _ = requestEntries onEntries
+            let model, _ = requestTabData onEntries
             let closed = { model with Selected = None }
-            Expect.equal (applyCategoryEntries model.EntriesGeneration (Ok []) closed) closed "bleibt zu"
+            Expect.equal (applyCategoryEntries model.TabGeneration (Ok []) closed) closed "bleibt zu"
         }
     ]
 
@@ -1069,7 +1069,7 @@ let tests =
         selectionTests
         stepTests
         pageKeyTests
-        entriesDueTests
+        tabDataDueTests
         listFilterTests
         monthOrderTests
         totalTests

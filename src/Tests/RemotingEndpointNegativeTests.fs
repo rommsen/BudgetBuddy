@@ -348,6 +348,14 @@ let private rows : Row list = [
           budget.assignMoney "2026-11-01" request |> run |> expectError "Zuweisen" }
     { Endpoint = "BudgetApi.getRecentMoveCategories"; Case = "ohne Einrichtung eine Liste, keine Ausnahme"
       Run = fun () -> Expect.isOk (budget.getRecentMoveCategories () |> run) "liest nur die Datenbank" }
+    { Endpoint = "BudgetApi.getCategoryHistory"; Case = "ungültiger Monat: Fehler, unbekannte Kategorie: leere Historie"
+      Run = fun () ->
+        budget.getCategoryHistory { CategoryId = Guid.NewGuid(); Month = "kein-monat" } |> run |> expectError "Historie"
+        match budget.getCategoryHistory { CategoryId = Guid.NewGuid(); Month = "2026-10-01" } |> run with
+        | Ok history ->
+            Expect.isEmpty history.Movements "keine Bewegungen"
+            Expect.isTrue (history.Spending |> List.forall (fun s -> s.Activity.Amount = 0m)) "keine Ausgaben"
+        | Error message -> failtestf "leere Historie erwartet: %s" message }
     { Endpoint = "BudgetApi.retryFailedTargets"; Case = "keine gültige Anwendungs-Id: Fehler"
       Run = fun () -> budget.retryFailedTargets "keine-guid" |> run |> expectError "Wiederholen" }
 ]

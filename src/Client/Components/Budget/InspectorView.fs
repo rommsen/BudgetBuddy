@@ -107,6 +107,156 @@ let private detailEntries (category: BudgetCategory) (selected: SelectedCategory
             detailTotal category.Activity entries
         ]
 
+/// Eine Zeile im Aufbau von Verfügbar: Name links, Betrag rechts.
+let private buildupLine (testId: string) (label: string) (amount: ReactElement) (isTotal: bool) =
+    let lineClass =
+        if isTotal then $"{ListRoles.mobileLine1} border-t border-border-subtle pt-2 mt-1"
+        else ListRoles.mobileLine1
+    let labelClass = if isTotal then ListRoles.primary else ListRoles.secondary
+    Html.div [
+        prop.custom ("data-testid", testId)
+        prop.className lineClass
+        prop.children [
+            Html.span [ prop.className labelClass; prop.text label ]
+            amount
+        ]
+    ]
+
+/// Aufbau von Verfügbar: Vortrag, Zugewiesen, Aktivität, Verfügbar. Rot nur ein Verfügbar im Minus.
+let private availableBuildupView (category: BudgetCategory) =
+    let buildup = availableBuildup category
+    Html.div [
+        prop.custom ("data-testid", "history-buildup")
+        prop.className "flex flex-col gap-1"
+        prop.children [
+            Html.span [ prop.className ListRoles.groupHeader; prop.text "Aufbau von Verfügbar" ]
+            buildupLine "history-carry-over" "Vortrag" (detailAmount buildup.CarryOver) false
+            buildupLine "history-assigned" "Zugewiesen" (detailAmount buildup.Assigned) false
+            buildupLine "history-activity" "Aktivität" (detailAmount buildup.Activity) false
+            buildupLine "history-available" "Verfügbar" (availableAmount buildup.Available) true
+        ]
+    ]
+
+let private historyStatusView (status: HistoryStatus) =
+    let text = historyStatusText status
+    match status with
+    | HistoryWritten -> Html.span [ prop.className ListRoles.muted; prop.text text ]
+    | HistoryFailed _ -> Badge.errorSmall text
+    | HistoryChangedInYnab -> Badge.warningSmall text
+    | HistoryOpen -> Badge.neutral text
+
+let private historyLineView (line: HistoryLine) =
+    let time = historyTimeText line.OccurredAt
+    Html.div [
+        prop.custom ("data-testid", "history-movement")
+        prop.className ListRoles.mobileRowPadding
+        prop.children [
+            Html.div [
+                prop.className ListRoles.mobileLine1
+                prop.children [
+                    Html.span [ prop.className $"{ListRoles.primary} truncate min-w-0"; prop.text line.Text ]
+                    Money.listAmount line.Change.Amount line.Change.Currency
+                ]
+            ]
+            Html.div [
+                prop.className ListRoles.mobileLine2
+                prop.children [
+                    Html.span [ prop.className ListRoles.date; prop.text time ]
+                    Html.span [ prop.className "min-w-0 truncate"; prop.children [ historyStatusView line.Status ] ]
+                ]
+            ]
+        ]
+    ]
+
+/// Bewegungen der Kategorie im Monat, neueste zuerst, und der Hinweis auf YNAB (ADR 0065, Negative).
+let private historyMovements (history: CategoryHistory) =
+    Html.div [
+        prop.className "flex flex-col"
+        prop.children [
+            Html.span [ prop.className $"{ListRoles.groupHeader} px-4"; prop.text "Bewegungen" ]
+            if List.isEmpty history.Movements then
+                Html.p [
+                    prop.custom ("data-testid", "history-empty")
+                    prop.className $"{ListRoles.muted} px-4 py-4"
+                    prop.text "Keine Bewegungen in diesem Monat"
+                ]
+            else
+                Html.div [ prop.children (history.Movements |> List.map (historyLine >> historyLineView)) ]
+            Html.p [
+                prop.className $"{ListRoles.muted} px-4 pt-1"
+                prop.text "Was direkt in YNAB zugewiesen wurde, steht hier nicht."
+            ]
+        ]
+    ]
+
+/// Ein Balken der Ausgaben: Höhe, darunter Monat und Betrag. Der laufende Monat ist gestrichelt und
+/// trägt "läuft", er ist noch nicht vorbei.
+let private spendingBarView (bar: SpendingBar) =
+    let label =
+        let state = if bar.Incomplete then ", läuft noch" else ""
+        $"{monthLabel bar.Month}: {moneyText bar.Spending}{state}"
+    let barClass =
+        if bar.Incomplete then "w-full rounded-t border border-dashed border-neon-teal/50 bg-neon-teal/10"
+        else "w-full rounded-t bg-text-muted/30"
+    let amountClass =
+        if bar.Spending.Amount < 0m then "font-mono text-xs text-neon-red"
+        else "font-mono text-xs text-text-secondary"
+    Html.div [
+        prop.custom ("data-testid", "history-bar")
+        prop.ariaLabel label
+        prop.className "flex flex-1 min-w-0 flex-col items-center gap-1"
+        prop.children [
+            Html.div [
+                prop.className "flex h-16 w-full items-end"
+                prop.children [
+                    Html.div [ prop.className barClass; prop.style [ style.height (length.percent (max bar.Percent 2)) ] ]
+                ]
+            ]
+            Html.span [ prop.className ListRoles.date; prop.text (shortMonthLabel bar.Month) ]
+            Html.span [ prop.className amountClass; prop.text (barAmountText bar.Spending) ]
+            if bar.Incomplete then Html.span [ prop.className ListRoles.muted; prop.text "läuft" ]
+        ]
+    ]
+
+/// Ausgaben der letzten 6 Monate aus dem Kassenbuch, ohne waagrechtes Scrollen.
+let private spendingView (currentMonth: string) (history: CategoryHistory) =
+    Html.div [
+        prop.custom ("data-testid", "history-spending")
+        prop.className "flex flex-col gap-2 px-4"
+        prop.children [
+            Html.span [ prop.className ListRoles.groupHeader; prop.text "Ausgaben der letzten 6 Monate" ]
+            Html.div [
+                prop.role "img"
+                prop.ariaLabel "Ausgaben der letzten 6 Monate"
+                prop.className "flex gap-1.5"
+                prop.children (spendingBars currentMonth history.Spending |> List.map spendingBarView)
+            ]
+        ]
+    ]
+
+/// Tab Historie: Aufbau von Verfügbar sofort aus dem Monat, Bewegungen und Ausgaben aus der Abfrage.
+let private historyTab (model: Model) (category: BudgetCategory) (selected: SelectedCategory) (dispatch: Msg -> unit) =
+    Html.div [
+        prop.custom ("data-testid", "inspector-history")
+        prop.className "flex flex-col gap-4 py-4"
+        prop.children [
+            Html.div [ prop.className "px-4"; prop.children [ availableBuildupView category ] ]
+            match selected.History with
+            | NotAsked
+            | Loading -> Loading.txListSkeleton 3
+            | Failure message ->
+                Html.div [
+                    prop.className "px-4"
+                    prop.children [ ErrorDisplay.card message (Some (fun () -> dispatch LoadCategoryHistory)) ]
+                ]
+            | Success history ->
+                historyMovements history
+                match model.Frame with
+                | Success frame -> spendingView frame.CurrentMonth history
+                | _ -> ()
+        ]
+    ]
+
 /// Tab Geld: Umschalter oben, darunter die Kennzahlen, dann der Modus.
 let private moneyTab (model: Model) (month: BudgetMonth) (category: BudgetCategory) (dispatch: Msg -> unit) =
     Html.div [
@@ -152,12 +302,7 @@ let private inspectorContent (model: Model) (month: BudgetMonth) (selected: Sele
                 prop.custom ("data-testid", "category-detail")
                 prop.children [ detailEntries category selected dispatch ]
             ]
-        | HistoryTab ->
-            Html.p [
-                prop.custom ("data-testid", "inspector-history")
-                prop.className $"{ListRoles.muted} p-4"
-                prop.text "Die Historie dieser Kategorie folgt."
-            ]
+        | HistoryTab -> historyTab model category selected dispatch
         | TargetTab -> targetTab category
     ]
 

@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-03 22:01 -- Task verified and completed: budgeting-dyn8g - "Tab Historie je Kategorie: Aufbau von Verfügbar, Bewegungen des Monats und Ausgaben der letzten 6 Monate aus dem Kassenbuch"
+
+**Type:** Work / Task completion
+**Task:** budgeting-dyn8g - "Tab Historie je Kategorie: Aufbau von Verfügbar, Bewegungen des Monats und Ausgaben der letzten 6 Monate aus dem Kassenbuch"
+**Summary:** Tab Historie je Kategorie im Inspektor
+**Duration:** 1h20m
+**Verification:** PASS (iteration 2)
+**Files changed:** 21
+**Tests added:** 37
+**ADRs written:** none
+
+---
+
 ## 2026-11-03 21:47 -- Task verified and completed: infrastructure-b3t9k - "Browser-Tests nach Begründung statt fester Obergrenze: Kennung im Testnamen, Flows in fester Liste, je Flow höchstens ein Happy Path, die Zahl wird nur gemeldet"
 
 **Type:** Work / Task completion

@@ -279,3 +279,163 @@ type AssignRequest = {
     /// Das neue Zugewiesen in Euro, negativ ist gültig.
     Assigned: Money
 }
+
+// ============================================
+// Historie je Kategorie (budgeting-dyn8g)
+// ============================================
+
+/// Woher eine Budget-Bewegung stammt (ADR 0065, ADR 0069). Die Historie zeigt und filtert danach.
+type MovementOrigin =
+    | TargetsApplied
+    /// Zwischen zwei Kategorien.
+    | MoneyMoved
+    /// Eine Seite ist Zu verteilen.
+    | MoneyAssigned
+
+/// Eine festgehaltene Budget-Bewegung, wie die Historie sie liest.
+type HistoryMovement = {
+    MovementId: Guid
+    /// Die Gruppen-Id des Durchlaufs (`application_id`, ADR 0069 Punkt 1).
+    ApplicationId: Guid
+    /// Zeitpunkt des Festhaltens, UTC.
+    OccurredAt: DateTime
+    Origin: MovementOrigin
+    /// "YYYY-MM-01".
+    Month: string
+    CategoryId: Guid
+    CategoryName: string
+    OldAssigned: Money
+    NewAssigned: Money
+    /// Bei einer Verschiebung die Kategorie auf der anderen Seite (dieselbe Gruppen-Id), sonst `None`.
+    Counterpart: string option
+    /// Das jüngste Ergebnis. `None`: es ist noch keins angehängt.
+    Latest: LineOutcome option
+}
+
+/// Die Netto-Aktivität einer Kategorie in einem Monat aus dem Kassenbuch (Erstattungen mindern,
+/// gelöschte Buchungen zählen nicht, Splits mit ihrem Anteil). Ausgaben sind negativ wie bei YNAB.
+type MonthSpending = {
+    /// "YYYY-MM-01".
+    Month: string
+    Activity: Money
+}
+
+/// Antwort der Historie für Kategorie und Monat.
+type CategoryHistory = {
+    /// Die Bewegungen der Kategorie im Monat, neueste zuerst.
+    Movements: HistoryMovement list
+    /// Die 6 Monate bis einschließlich des gezeigten, aufsteigend. Monate ohne Buchung stehen mit 0 da.
+    Spending: MonthSpending list
+}
+
+/// Der Stand einer Bewegung in der Historie: ihr jüngstes Ergebnis oder noch offen.
+type HistoryStatus =
+    | HistoryWritten
+    | HistoryFailed of reason: string
+    | HistoryChangedInYnab
+    /// Kein Ergebnis angehängt: der Lauf brach vor dieser Zeile ab oder läuft noch.
+    | HistoryOpen
+
+/// Eine Zeile im Tab Historie, aus Sicht der Kategorie der Bewegung.
+type HistoryLine = {
+    MovementId: Guid
+    OccurredAt: DateTime
+    /// Was sich am Zugewiesen der Kategorie geändert hat: neu minus alt.
+    Change: Money
+    /// Der Text hinter dem Betrag: "nach Urlaub", "von Lebensmittel", "zugewiesen",
+    /// "zurück nach Zu verteilen", "Targets anwenden".
+    Text: string
+    Status: HistoryStatus
+}
+
+let private historyStatus (latest: LineOutcome option) : HistoryStatus =
+    match latest with
+    | Some Written -> HistoryWritten
+    | Some (Failed reason) -> HistoryFailed reason
+    | Some ChangedInYnab -> HistoryChangedInYnab
+    | None -> HistoryOpen
+
+/// Bewegung zu Zeile. Die Richtung folgt aus dem Vorzeichen von neu minus alt: Bei einer Verschiebung
+/// geht Geld nach der Gegenseite oder kommt von ihr, bei Zuweisen kommt es aus Zu verteilen oder geht
+/// dorthin zurück.
+let historyLine (m: HistoryMovement) : HistoryLine =
+    let change = { m.NewAssigned with Amount = m.NewAssigned.Amount - m.OldAssigned.Amount }
+    let incoming = change.Amount >= 0m
+    let text =
+        match m.Origin, m.Counterpart with
+        | TargetsApplied, _ -> "Targets anwenden"
+        | MoneyAssigned, _ -> if incoming then "zugewiesen" else "zurück nach Zu verteilen"
+        | MoneyMoved, Some other -> if incoming then $"von {other}" else $"nach {other}"
+        | MoneyMoved, None -> "verschoben"
+    { MovementId = m.MovementId
+      OccurredAt = m.OccurredAt
+      Change = change
+      Text = text
+      Status = historyStatus m.Latest }
+
+let private lastSundayUtc (year: int) (month: int) : DateTime =
+    let last = DateTime(year, month, DateTime.DaysInMonth(year, month), 0, 0, 0, DateTimeKind.Utc)
+    last.AddDays(-(float (int last.DayOfWeek)))
+
+/// Ein UTC-Zeitpunkt als Berliner Wanduhrzeit, unabhängig von der Zeitzone des Rechners oder
+/// Browsers. Fable kennt `TimeZoneInfo` nicht, deshalb stehen die EU-Regeln hier: Sommerzeit (UTC+2)
+/// vom letzten Sonntag im März bis zum letzten Sonntag im Oktober, jeweils 01:00 UTC, sonst UTC+1.
+let berlinTime (instant: DateTime) : DateTime =
+    let utc = if instant.Kind = DateTimeKind.Local then instant.ToUniversalTime() else instant
+    let at (d: DateTime) = DateTime(d.Year, d.Month, d.Day, d.Hour, d.Minute, d.Second, DateTimeKind.Utc)
+    let moment = at utc
+    let summerStart = (lastSundayUtc utc.Year 3).AddHours 1.0
+    let summerEnd = (lastSundayUtc utc.Year 10).AddHours 1.0
+    let offset = if moment >= summerStart && moment < summerEnd then 2.0 else 1.0
+    let local = moment.AddHours offset
+    DateTime(local.Year, local.Month, local.Day, local.Hour, local.Minute, local.Second, DateTimeKind.Unspecified)
+
+/// Der Zeitpunkt einer Zeile in Berliner Zeit: "03.10. 11:30".
+let historyTimeText (instant: DateTime) : string =
+    let t = berlinTime instant
+    let two (n: int) = (string n).PadLeft(2, '0')
+    $"{two t.Day}.{two t.Month}. {two t.Hour}:{two t.Minute}"
+
+/// Der Aufbau von Verfügbar: Vortrag aus dem Vormonat, dazu Zugewiesen und Aktivität.
+type AvailableBuildup = {
+    CarryOver: Money
+    Assigned: Money
+    Activity: Money
+    Available: Money
+}
+
+/// Rechnet den Vortrag aus dem geladenen Monat zurück: Verfügbar minus Zugewiesen minus Aktivität.
+/// Keine Anfrage, YNABs Werte bleiben, wie sie sind (ADR 0065).
+let availableBuildup (c: BudgetCategory) : AvailableBuildup =
+    { CarryOver = { c.Available with Amount = c.Available.Amount - c.Assigned.Amount - c.Activity.Amount }
+      Assigned = c.Assigned
+      Activity = c.Activity
+      Available = c.Available }
+
+/// Ein Balken der Ausgaben der letzten 6 Monate.
+type SpendingBar = {
+    /// "YYYY-MM-01".
+    Month: string
+    /// Ausgaben, also die Netto-Aktivität mit umgekehrtem Vorzeichen. Überwiegen Erstattungen, ist der
+    /// Wert negativ.
+    Spending: Money
+    /// Höhe in Prozent des größten Balkens, 0 bis 100. Ein Monat ohne Ausgaben hat 0.
+    Percent: int
+    /// Der laufende Monat: Er ist noch nicht vorbei.
+    Incomplete: bool
+}
+
+/// Die Balken aus den Monatssummen. `currentMonth` ist der laufende Monat ("YYYY-MM-01").
+let spendingBars (currentMonth: string) (spending: MonthSpending list) : SpendingBar list =
+    let spent (s: MonthSpending) = -s.Activity.Amount
+    let highest = spending |> List.map spent |> List.fold max 0m
+    spending
+    |> List.map (fun s ->
+        let amount = spent s
+        let percent =
+            if highest <= 0m || amount <= 0m then 0
+            else int (Math.Round(amount / highest * 100m, MidpointRounding.AwayFromZero))
+        { Month = s.Month
+          Spending = { s.Activity with Amount = amount }
+          Percent = percent
+          Incomplete = monthKind currentMonth s.Month = CurrentMonth })

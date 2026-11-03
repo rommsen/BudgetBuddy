@@ -136,11 +136,27 @@ let private categoryEntriesCmd (categoryId: System.Guid) (month: string) (genera
         (fun result -> CategoryEntriesLoaded (generation, result))
         (fun ex -> CategoryEntriesLoaded (generation, Error ex.Message))
 
-/// Holt die Buchungen, wenn der Übergang sie fällig gemacht hat (`entriesDue`).
-let private withEntries (model: Model) : Model * Cmd<Msg> =
-    match requestEntries model with
-    | model', Some (categoryId, month, generation) -> model', categoryEntriesCmd categoryId month generation
+let private categoryHistoryCmd (categoryId: System.Guid) (month: string) (generation: int) : Cmd<Msg> =
+    Cmd.OfAsync.either
+        (fun query -> Retry.reading Api.budget.getCategoryHistory query)
+        { CategoryId = categoryId; Month = month }
+        (fun result -> CategoryHistoryLoaded (generation, result))
+        (fun ex -> CategoryHistoryLoaded (generation, Error ex.Message))
+
+/// Holt die Daten des sichtbaren Tabs, wenn der Übergang sie fällig gemacht hat (`tabDataDue`).
+let private withTabData (model: Model) : Model * Cmd<Msg> =
+    match requestTabData model with
+    | model', Some request ->
+        match request.Tab with
+        | HistoryTab -> model', categoryHistoryCmd request.CategoryId request.Month request.Generation
+        | _ -> model', categoryEntriesCmd request.CategoryId request.Month request.Generation
     | model', None -> model', Cmd.none
+
+/// Nach einer Bewegung (Zuweisen, Holen, Abgeben, Targets anwenden, erneut senden): Die Historie ist
+/// wieder fällig und kommt neu, wenn ihr Tab zu sehen ist.
+let private afterMovement (model: Model, cmd: Cmd<Msg>, external: ExternalMsg) : Model * Cmd<Msg> * ExternalMsg =
+    let fetched, fetch = withTabData (resetTab HistoryTab model)
+    fetched, Cmd.batch [ cmd; fetch ], external
 
 /// Ein einziges `match` ohne Sammelzweig: eine neue Nachricht ohne Zweig meldet der Compiler.
 let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
@@ -151,8 +167,8 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         | model', FreshEntry -> beginLoad model', frameCmd (), NoOp
         | model', KeptPage ->
             let rereading, reread = rereadMonth model'
-            let withRequest, entriesCmd = withEntries rereading
-            withRequest, Cmd.batch [ rereadCmd reread withRequest; entriesCmd ], NoOp
+            let withRequest, tabDataCmd = withTabData rereading
+            withRequest, Cmd.batch [ rereadCmd reread withRequest; tabDataCmd ], NoOp
     | Load -> beginLoad model, frameCmd (), NoOp
     | FrameLoaded result ->
         let model', external, loadMonth = applyFrameLoaded result model
@@ -167,10 +183,10 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         match select month model with
         | model', true -> model', loadCmd model', NoOp
         | model', false -> model', Cmd.none, NoOp
-    | SelectCategory categoryId -> quiet (withEntries (selectCategory categoryId model))
-    | StepCategory direction -> quiet (withEntries (stepSelection direction model))
-    | PageKeyPressed action -> quiet (withEntries (applyPageKey action model))
-    | SelectInspectorTab tab -> quiet (withEntries { model with Tab = tab })
+    | SelectCategory categoryId -> quiet (withTabData (selectCategory categoryId model))
+    | StepCategory direction -> quiet (withTabData (stepSelection direction model))
+    | PageKeyPressed action -> quiet (withTabData (applyPageKey action model))
+    | SelectInspectorTab tab -> quiet (withTabData { model with Tab = tab })
     | CloseInspector
     | ReturnAbandoned -> { model with Selected = None }, Cmd.none, NoOp
     | PageLeft ->
@@ -193,10 +209,10 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         | model', None -> model', Cmd.none, NoOp
     | AssignAnswered result ->
         let model', external, reload = applyAssignAnswered result model
-        model', afterAnswer reload (frameDueAfterAnswer result model) model', external
+        afterMovement (model', afterAnswer reload (frameDueAfterAnswer result model) model', external)
     | AssignCallLost message ->
         let model', external, reload = applyAssignCallLost message model
-        model', afterAnswer reload (frameDueAfterLostCall model) model', external
+        afterMovement (model', afterAnswer reload (frameDueAfterLostCall model) model', external)
     | TransferAmountChanged text -> updateTransfer (fun f -> { f with AmountInput = Some text }) model, Cmd.none, NoOp
     | TransferAmountReset -> updateTransfer (fun f -> { f with AmountInput = None }) model, Cmd.none, NoOp
     | OpenPicker ->
@@ -212,12 +228,14 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         match (if canSend model then confirmTransfer model else model, None) with
         | model', Some (monthKey, request) -> model', moveCmd monthKey request, NoOp
         | model', None -> model', Cmd.none, NoOp
-    | LoadCategoryEntries -> quiet (withEntries (resetEntries model))
+    | LoadCategoryEntries -> quiet (withTabData (resetTab EntriesTab model))
     | CategoryEntriesLoaded (generation, result) -> applyCategoryEntries generation result model, Cmd.none, NoOp
+    | LoadCategoryHistory -> quiet (withTabData (resetTab HistoryTab model))
+    | CategoryHistoryLoaded (generation, result) -> applyCategoryHistory generation result model, Cmd.none, NoOp
     | CategorySearchChanged search -> { model with CategorySearch = search }, Cmd.none, NoOp
     | ClearCategorySearch -> { model with CategorySearch = "" }, Cmd.none, NoOp
     | SelectFilter filter -> { model with Filter = filter }, Cmd.none, NoOp
-    | Loaded (generation, result) -> quiet (withEntries (applyLoaded generation result model))
+    | Loaded (generation, result) -> quiet (withTabData (applyLoaded generation result model))
     | OpenTargets ->
         match openTargets model, shownMonth model with
         | (model', true), Some month -> model', previewCmd month, NoOp
@@ -233,13 +251,13 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
             | Ok (Applied report) -> frameDueAfterReport report model
             | Ok (PreviewChanged _) -> false
             | Error _ -> frameDueAfterLostCall model
-        applyApplied result model, frameRefreshCmd due, NoOp
+        afterMovement (applyApplied result model, frameRefreshCmd due, NoOp)
     | RetryFailed ->
         match retryFailed model with
         | model', Some applicationId -> model', retryCmd applicationId, NoOp
         | model', None -> model', Cmd.none, NoOp
     | TargetsRetried result ->
-        applyRetried result model, frameRefreshCmd (frameDueAfterRetry result model), NoOp
+        afterMovement (applyRetried result model, frameRefreshCmd (frameDueAfterRetry result model), NoOp)
     | CloseTargets ->
         match closeTargets model with
         | model', Some reread -> model', rereadCmd reread model', NoOp
@@ -247,21 +265,21 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
     | OpenEntryInLedger entryId -> leaveForEntry model, Cmd.none, JumpToEntry entryId
     | MoveAnswered result ->
         let model', external, reload = applyMoveAnswered result model
-        model', afterAnswer reload (frameDueAfterAnswer result model) model', external
+        afterMovement (model', afterAnswer reload (frameDueAfterAnswer result model) model', external)
     | MoveCallLost message ->
         let model', external = applyMoveCallLost message model
-        model', afterAnswer true (frameDueAfterLostCall model) model', external
+        afterMovement (model', afterAnswer true (frameDueAfterLostCall model) model', external)
     | RetryMove applicationId ->
         match startMoveRetry applicationId model with
         | model', true -> model', retryMoveCmd applicationId, NoOp
         | model', false -> model', Cmd.none, NoOp
     | MoveRetried (applicationId, result) ->
         let model', external = applyMoveRetried applicationId result model
-        model', afterAnswer true (frameDueAfterRetry result model) model', external
-    // Gewinnt `Reloaded` den Lauf gegen `Loaded`, ist nur hier die Stelle, die Buchungen zu holen.
+        afterMovement (model', afterAnswer true (frameDueAfterRetry result model) model', external)
+    // Gewinnt `Reloaded` den Lauf gegen `Loaded`, ist nur hier die Stelle, die Tab-Daten zu holen.
     | Reloaded (generation, result) ->
         let model', external = applyReloaded generation result model
-        let withRequest, cmd = withEntries model'
+        let withRequest, cmd = withTabData model'
         withRequest, cmd, external
 
 /// Wie `update` eine Nachricht behandelt.
@@ -328,6 +346,8 @@ let private routeOf (msg: Msg) (model: Model) : MsgRoute =
     | MoveRetried _
     | LoadCategoryEntries
     | CategoryEntriesLoaded _
+    | LoadCategoryHistory
+    | CategoryHistoryLoaded _
     | OpenEntryInLedger _ -> MsgRoute.Free
 
 /// Speichert die offene Eingabe, dann wirkt die Nachricht. Der Toast zur Eingabe geht vor.

@@ -699,3 +699,36 @@ let getLenaFlagSettings () : Async<LenaFlagSettings> =
         let valid (color: string option) = color |> Option.filter (fun c -> List.contains c ynabFlagColors)
         return { SavedColor = valid stored; SuggestedColor = valid suggested }
     }
+
+/// Die Netto-Aktivität einer Kategorie je Monat aus den Buchungen (budgeting-dyn8g): Summe der
+/// Anteile wie im Kategorie-Detail, Erstattungen mindern. Nur Monate mit einem Anteil stehen drin,
+/// Schlüssel ist der Monatserste.
+let monthlyActivity (categoryId: YnabCategoryId) (entries: Entry list) : (DateTime * Money) list =
+    entries
+    |> List.choose (fun entry ->
+        categoryShare categoryId entry
+        |> Option.map (fun share ->
+            let amount =
+                match share with
+                | WholeEntry amount
+                | SplitShare amount -> amount
+            DateTime(entry.Date.Year, entry.Date.Month, 1), amount))
+    |> List.groupBy fst
+    |> List.map (fun (month, shares) ->
+        let amounts = shares |> List.map snd
+        month, { (List.head amounts) with Amount = amounts |> List.sumBy (fun a -> a.Amount) })
+    |> List.sortBy fst
+
+/// Die Netto-Aktivität einer Kategorie in den Monaten ab `firstDays` (aufsteigend), in einer Abfrage
+/// vom ersten bis zum letzten Tag des letzten Monats. Gelöschte Buchungen fehlen schon beim Laden.
+let getCategoryMonthlyActivity (categoryId: YnabCategoryId) (firstDays: DateTime list) : Async<(DateTime * Money) list> =
+    async {
+        match firstDays with
+        | [] -> return []
+        | _ ->
+            let first = List.head firstDays
+            let last = List.last firstDays
+            let lastDay = DateTime(last.Year, last.Month, DateTime.DaysInMonth(last.Year, last.Month))
+            let! entries = Ledger.Persistence.loadCategoryEntries categoryId first lastDay
+            return monthlyActivity categoryId entries
+    }

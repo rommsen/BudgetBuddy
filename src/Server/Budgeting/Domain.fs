@@ -119,14 +119,6 @@ let previewsMatch (shown: TargetPreview) (fresh: TargetPreview) : bool =
         p.Lines |> List.map (fun l -> l.CategoryId, l.OldAssigned, l.NewAssigned)
     shown.Month = fresh.Month && shown.ToBeBudgeted = fresh.ToBeBudgeted && key shown = key fresh
 
-/// Woher eine Budget-Bewegung stammt (ADR 0065, ADR 0069).
-type MovementOrigin =
-    | TargetsApplied
-    /// Zwischen zwei Kategorien.
-    | MoneyMoved
-    /// Eine Seite ist Zu verteilen.
-    | MoneyAssigned
-
 /// Der Text in `budget_movements.origin`. Geschrieben stehen diese Wörter in der Datenbank.
 let originText (origin: MovementOrigin) : string =
     match origin with
@@ -270,3 +262,32 @@ let planAssign (month: BudgetMonth) (request: AssignRequest) : Result<MovePlan o
                   NewAssigned = { c.Assigned with Amount = request.Assigned.Amount } }
             Ok (Some { Origin = MoneyAssigned; Lines = [ line ] })
     | _ -> Error (String.concat " " errors)
+
+// ============================================
+// Historie je Kategorie (budgeting-dyn8g)
+// ============================================
+
+/// Wie viele Monate die Ausgaben im Tab Historie zeigen.
+[<Literal>]
+let SpendingMonthCount = 6
+
+/// Die Monatsersten der Ausgaben-Balken: die 6 Monate bis einschließlich `shown`, aufsteigend. Vor
+/// dem Januar des Jahres 1 gibt es keinen Monat, dort werden es weniger.
+let spendingMonths (shown: DateTime) : DateTime list =
+    let index = shown.Year * 12 + shown.Month - 1
+    [ for back in SpendingMonthCount - 1 .. -1 .. 0 do
+          let i = index - back
+          if i >= 12 then
+              DateTime(i / 12, i % 12 + 1, 1) ]
+
+/// Der Monatserste als "YYYY-MM-01".
+let monthKeyOf (firstDay: DateTime) : string =
+    firstDay.ToString("yyyy-MM-01", Globalization.CultureInfo.InvariantCulture)
+
+/// Die Monatssummen zu den Monaten der Balken. Ein Monat ohne Summe steht mit 0 da.
+let spendingOf (months: DateTime list) (sums: (DateTime * Money) list) : MonthSpending list =
+    let byMonth = Map.ofList sums
+    months
+    |> List.map (fun m ->
+        { Month = monthKeyOf m
+          Activity = byMonth |> Map.tryFind m |> Option.defaultValue { Amount = 0m; Currency = "EUR" } })

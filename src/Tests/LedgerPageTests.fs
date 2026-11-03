@@ -1395,7 +1395,7 @@ let private routeTests =
         let budget =
             if returnPending then
                 { root.Budget with
-                    Selected = Some { Components.Budget.Types.SelectedCategory.CategoryId = Guid.NewGuid(); Entries = NotAsked; ReturnPending = true } }
+                    Selected = Some { Components.Budget.Types.SelectedCategory.CategoryId = Guid.NewGuid(); Entries = NotAsked; History = NotAsked; ReturnPending = true } }
             else
                 root.Budget
         { root with Budget = budget; Ledger = { root.Ledger with DetailFor = Some shown; DetailForm = DetailPanel } }

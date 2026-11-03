@@ -1822,6 +1822,19 @@ let assignMoneyWith
             return result |> Result.bind id
     }
 
+/// Der Tab Historie ohne feste Lese-Quellen (budgeting-dyn8g). Die Grenze prüft wie beim
+/// Kategorie-Detail und meldet alle Fehler zugleich; eine unbekannte Kategorie ist kein Fehler, sie hat
+/// keine Bewegungen und keine Ausgaben.
+let categoryHistoryWith
+    (port: Server.Budgeting.QueryHandlers.HistoryPort)
+    (query: CategoryMonthQuery)
+    : Async<Result<Shared.Budgeting.CategoryHistory, string>> =
+    async {
+        match Validation.validateCategoryMonthQuery query with
+        | Error errors -> return Error (String.concat " " errors)
+        | Ok firstDay -> return! Server.Budgeting.QueryHandlers.categoryHistory port query.CategoryId firstDay
+    }
+
 /// Der YNAB-Port der Server-Abläufe: echter Client für Lesen und Zuweisen.
 let private livePort (token: string) (budgetId: YnabBudgetId) : Server.Budgeting.CommandHandlers.YnabPort =
     { FetchMonth = fun monthKey -> YnabClient.getMonth token budgetId monthKey
@@ -1899,7 +1912,9 @@ let budgetApiWith
         return! assignMoneyWith tokenOpt budgetOpt portFor (utcNow ()) monthKeyText request
       }
 
-      getRecentMoveCategories = fun () -> Server.Budgeting.QueryHandlers.recentMoveCategories () }
+      getRecentMoveCategories = fun () -> Server.Budgeting.QueryHandlers.recentMoveCategories ()
+
+      getCategoryHistory = categoryHistoryWith Server.Budgeting.QueryHandlers.liveHistoryPort }
 
 /// Die Budget-Seite mit den echten YNAB-Ports. Die Settings kommen als Parameter, damit der
 /// Integrationstest den Live-Anschluss ohne Eintrag in der Datenbank prüfen kann.

@@ -167,10 +167,13 @@ type PageKeyAction =
     | LeaveKey
 
 /// Die gewählte Kategorie, der einzige Auswahl-Zustand. Hält nur die Id: Zugewiesen, Aktivität und
-/// Verfügbar kommen aus `Model.Month`, also live aus YNAB. Aus dem Kassenbuch kommt allein die Liste.
+/// Verfügbar kommen aus `Model.Month`, also live aus YNAB. Aus der Datenbank kommen die Tab-Daten
+/// (Buchungen, Historie), je für Kategorie und gezeigten Monat.
 type SelectedCategory = {
     CategoryId: System.Guid
     Entries: RemoteData<CategoryMonthEntry list>
+    /// Der Tab Historie (budgeting-dyn8g): Bewegungen und Ausgaben der letzten 6 Monate.
+    History: RemoteData<CategoryHistory>
     /// Tipp auf eine Buchung: die Seite ist verlassen, die Auswahl wartet auf die Rückkehr.
     ReturnPending: bool
 }
@@ -206,8 +209,9 @@ type Model = {
     Selected: SelectedCategory option
     /// Der Tab des Inspektors. Bleibt bei Kategorie- und Monatswechsel stehen.
     Tab: InspectorTab
-    /// Zählt die Abfragen der Buchungen: eine späte Antwort ersetzt keine neuere Liste.
-    EntriesGeneration: int
+    /// Zählt die Stände der Tab-Daten (Buchungen und Historie) zu Kategorie und Monat: eine späte
+    /// Antwort zu einem älteren Stand ersetzt nichts. Eine für beide Tabs.
+    TabGeneration: int
     /// Zählt die Abfragen des Monats: eine späte Antwort ersetzt keinen neueren Stand, auch nicht
     /// bei gleicher Monatswahl (zwei Reloads nach schnellen Verschiebungen, Wechsel A, B, A).
     MonthGeneration: int
@@ -294,6 +298,9 @@ type Msg =
     /// Die Buchungen (neu) holen: "Wiederholen".
     | LoadCategoryEntries
     | CategoryEntriesLoaded of generation: int * Result<CategoryMonthEntry list, string>
+    /// Die Historie (neu) holen: "Wiederholen".
+    | LoadCategoryHistory
+    | CategoryHistoryLoaded of generation: int * Result<CategoryHistory, string>
     /// Tipp auf eine Buchung im Tab Buchungen: ins Kassenbuch springen.
     | OpenEntryInLedger of System.Guid
 
@@ -320,5 +327,5 @@ let init () : Model =
       OpenRetries = []
       Selected = None
       Tab = MoneyTab
-      EntriesGeneration = 0
+      TabGeneration = 0
       MonthGeneration = 0 }
