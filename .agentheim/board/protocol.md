@@ -5,6 +5,32 @@ Newest entries on top.
 
 ---
 
+## 2026-11-03 22:08 -- Capture / Captured: infrastructure-n2w8q - "Browser-Test-Doktrin nachschärfen: gemischte Tests, Kennung für Verlauf und Routing, Spielarten als eigene Flows, Einzeiler-Verdrahtung im update"
+
+**Type:** Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Doktrin-Fragen zu Browser-Tests aus dem QA-Review
+
+---
+
+## 2026-11-03 22:08 -- Capture / Captured: budgeting-v6m3z - "Tab Historie: Farbe für Monate mit negativen Ausgaben und Teal-Betrag neben dem Stand entscheiden"
+
+**Type:** Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Farbfragen zum Tab Historie aus dem Design-Review
+
+---
+
+## 2026-11-03 22:08 -- Modeling / Promoted: budgeting-x4k7p - "Review-Korrekturen zum Tab Historie und zum stillen Neu-Lesen: Historie lädt still nach, Stand-Badges nach Styleguide, Monatsbalken als DS-Baustein, fehlende Verdrahtungstests"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-03 22:01 -- Task verified and completed: budgeting-dyn8g - "Tab Historie je Kategorie: Aufbau von Verfügbar, Bewegungen des Monats und Ausgaben der letzten 6 Monate aus dem Kassenbuch"
 
 **Type:** Work / Task completion

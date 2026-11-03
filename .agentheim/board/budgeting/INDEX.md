@@ -10,14 +10,15 @@ Catalog of this bounded context's tasks by status.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 5
-- **Todo:** 0
+- **Backlog:** 6
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 17
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **budgeting-x4k7p** — "Review-Korrekturen zum Tab Historie und zum stillen Neu-Lesen: Historie lädt still nach, Stand-Badges nach Styleguide, Monatsbalken als DS-Baustein, fehlende Verdrahtungstests" (refactor) — `todo/budgeting-x4k7p-review-korrekturen-zum-tab-historie-und-zum-stillen-neu-lese.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -59,6 +60,7 @@ prior-art matcher additionally checks `done-archive/` when present.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **budgeting-v6m3z** — "Tab Historie: Farbe für Monate mit negativen Ausgaben und Teal-Betrag neben dem Stand entscheiden" (decision) — `backlog/budgeting-v6m3z-tab-historie-farbe-f-r-monate-mit-negativen-ausgaben-und-tea.md`
 - **budgeting-h7q4v** — "Allgemeine Budget-Historie #/budget/history: alle Bewegungen, neueste zuerst, Filter nach Art, Targets-Durchlauf aufklappbar, Knopf Historie im Seitenkopf" (feature) — `backlog/budgeting-h7q4v-allgemeine-historie-ansicht.md`
 - **budgeting-w2f6c** — "Budget-Seite: Listenbeträge gegen ADR 0049" (bug) — `backlog/budgeting-w2f6c-budget-seite-listenbetr-ge-gegen-adr-0049.md`
 - **budgeting-m3x7f** — "Monatserster: Leiste mit Targets prüfen, Targets anwenden, rot decken und verteilen, Vorschau mit abwählbaren Zeilen" (feature) — `backlog/budgeting-m3x7f-monatserster-leiste.md`
