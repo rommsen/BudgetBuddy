@@ -6,7 +6,7 @@ type: feature
 context: budgeting
 created: 2026-11-03
 completed:
-depends_on: [design-system-001, budgeting-dyn8g, infrastructure-b3t9k]
+depends_on: [design-system-001, budgeting-dyn8g, infrastructure-b3t9k, budgeting-v6m3z]
 blocks: []
 tags: [budget, historie]
 related_adrs: [0065, 0069]

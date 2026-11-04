@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 12:22 -- Modeling / Refined: budgeting-v6m3z - Tab Historie ruhig und ablesbar
+
+**Type:** Modeling / Refine
+**BC:** budgeting
+**Status after:** todo
+**Summary:** Roman hat beide Farbfragen entschieden (Erstattungsüberschuss neutral mit Plus, Bewegungsbeträge neutral mit Vorzeichen, ruhige Liste nach ADR 0049) und die Wertzeile über den Ausgaben-Balken für Maus, Tipp und Tastatur dazugenommen. Typ decision zu feature, budgeting-h7q4v hängt jetzt an budgeting-v6m3z.
+
+---
+
 ## 2026-11-04 12:07 -- Batch started: [design-system-w7c2h]
 
 **Type:** Work / Batch start
