@@ -180,6 +180,36 @@ test("[fokus] Handy: die Rückfrage zu Target entfernen fokussiert Abbrechen, da
   }
 });
 
+// budgeting-f4k9n (M1): bei offener Warnung schloss das erste getippte Zeichen sie, der Fokus sprang auf
+// "Target speichern", die Tastatur ging zu und weitere Zeichen gingen verloren.
+test("[fokus] Handy: bei offener Warnung bleibt der Fokus beim Tippen im Betragsfeld, ein mehrstelliger Betrag kommt ganz an", async () => {
+  const { context, page, calls } = await openPage(390, 844);
+  try {
+    await openTargetTab(page);
+    await sheet(page).getByRole("button", { name: "Woche" }).click();
+    await sheet(page).getByRole("button", { name: "Target speichern" }).click();
+    const dialog = sheet(page).getByRole("alertdialog", { name: "Rhythmus wechseln?" });
+    await dialog.waitFor();
+    const amount = sheet(page).locator('[data-testid="target-amount"] input');
+    await amount.click();
+    await amount.selectText();
+    await page.keyboard.type("75", { delay: 50 });
+    await dialog.waitFor({ state: "detached" });
+    // Die Rückgabe käme per setTimeout 0 nach dem Render: zwei Frames abwarten.
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    await page.keyboard.type("5", { delay: 50 });
+    assert.equal(
+      await page.evaluate(() => document.activeElement?.closest('[data-testid="target-amount"]') !== null),
+      true,
+      "der Fokus liegt im Betragsfeld"
+    );
+    assert.equal(await amount.inputValue(), "755", "alle Zeichen sind im Feld");
+    assert.equal(calls.change.length, 0, "nichts gesendet");
+  } finally {
+    await context.close();
+  }
+});
+
 // budgeting-g2ty9 (X6): im 340-px-Panel schnitt das Datumsfeld neben dem Betrag den Platzhalter ab.
 test("[layout] PC: im Panel steht der Platzhalter des Datumsfelds beim Anlegen ganz im Feld", async () => {
   const { context, page } = await openPage(1440, 900, null);

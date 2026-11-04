@@ -1075,7 +1075,7 @@ let private BottomSheetDemo () =
             ]
         ]
         subTitle "Rückfrage im Sheet (BottomSheet.confirmDanger)"
-        note "Vor einer zerstörenden Aktion am Handy, das Gegenstück zu Modal.confirmDanger. Steht als Block im Sheet, role alertdialog mit aria-labelledby, ohne aria-modal (im Fluss des Sheets, keine Fokusfalle). Beim Öffnen hat Abbrechen den Fokus, Escape bricht ab. Nach dem Schließen geht der Fokus auf den Knopf, der die Rückfrage geöffnet hat (ReturnFocus): nach Abbrechen ist er wieder bedienbar, nach dem Bestätigen dreht er mit dem laufenden Aufruf. Höchstens eine Rückfrage zugleich. Beispiel: Target entfernen."
+        note "Vor einer zerstörenden Aktion am Handy, das Gegenstück zu Modal.confirmDanger. Steht als Block im Sheet, role alertdialog mit aria-labelledby, ohne aria-modal (im Fluss des Sheets, keine Fokusfalle). Beim Öffnen hat Abbrechen den Fokus, Escape bricht ab. Nach dem Schließen geht der Fokus auf den Knopf, der die Rückfrage geöffnet hat (ReturnFocus): nach Abbrechen ist er wieder bedienbar, nach dem Bestätigen dreht er mit dem laufenden Aufruf. Das nur, wenn der Fokus beim Schließen noch in der Rückfrage lag oder auf body gefallen ist; schließt sie, weil im Feld darüber getippt wurde, bleibt der Fokus im Feld. Höchstens eine Rückfrage zugleich. Beispiel: Target entfernen."
         Html.div [
             prop.custom ("data-ds-card-name", "BottomSheet.confirmDanger")
             prop.className "max-w-sm"

@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 19:06 -- Task verified and completed: budgeting-f4k9n - "Muss-Befunde zu budgeting-g2ty9: ReturnFocus nimmt beim Tippen den Fokus, Walk der Rückfragen ohne getippten Betrag"
+
+**Type:** Work / Task completion
+**Task:** budgeting-f4k9n - "Muss-Befunde zu budgeting-g2ty9: ReturnFocus nimmt beim Tippen den Fokus, Walk der Rückfragen ohne getippten Betrag"
+**Summary:** Muss-Befunde zu g2ty9: Rückfrage gibt den Fokus nur zurück, wenn er in ihr lag oder auf body fiel, der Walk der Rückfragen kennt Betrag und prüft canSaveTarget
+**Duration:** 35 min
+**Verification:** PASS (iteration 1)
+**Files changed:** 5
+**Tests added:** 1
+**ADRs written:** none
+
+---
+
 ## 2026-11-04 18:33 -- Modeling / Captured: budgeting-h9c3w - "Gesammelte Sollte- und Kann-Befunde der Reviews zu budgeting-c6vn4 und budgeting-g2ty9"
 
 **Type:** Modeling / Capture

@@ -585,7 +585,9 @@ type private ConfirmBlockProps = {
 /// `aria-labelledby` auf den Titel und `aria-describedby` auf den Text, ohne `aria-modal`: sie steht im
 /// Fluss des Sheets, nicht darüber, und fängt den Fokus nicht (Styleguide §5). Beim Öffnen hat "Abbrechen"
 /// den Fokus, ein versehentliches Enter löst nichts aus. Escape bricht ab wie "Abbrechen". Nach dem
-/// Schließen geht der Fokus auf `ReturnFocus`, sonst läge er auf `body` (budgeting-g2ty9, F3).
+/// Schließen geht der Fokus auf `ReturnFocus`, sonst läge er auf `body` (budgeting-g2ty9, F3). Das nur, wenn
+/// er beim Aushängen noch in der Rückfrage lag oder auf `body` gefallen ist: wer im Feld darüber tippt und
+/// sie damit schließt, behält den Fokus im Feld (budgeting-f4k9n, M1).
 [<ReactComponent>]
 let private ConfirmBlock (input: ConfirmBlockProps) =
     let props = input.Props
@@ -597,15 +599,25 @@ let private ConfirmBlock (input: ConfirmBlockProps) =
     let returnFocus = props.ReturnFocus
     React.useEffect (
         (fun () ->
-            match container.current with
+            // Beim Aushängen ist die Ref schon geleert: das Element hier festhalten.
+            let mounted = container.current
+            match mounted with
             | Some el ->
                 match el.querySelector "[data-confirm-cancel] button" with
                 | null -> ()
                 | cancel -> (cancel :?> Browser.Types.HTMLElement).focus ()
             | None -> ()
             React.createDisposable (fun () ->
+                // Zurück nur, wenn der Fokus beim Aushängen noch in der Rückfrage lag oder mit ihr auf `body`
+                // gefallen ist (Abbrechen, Escape, Bestätigen). Schließt sie, weil im Betrags- oder Datumsfeld
+                // getippt wurde, bleibt der Fokus dort (budgeting-f4k9n, M1).
+                let active = Browser.Dom.document.activeElement
+                let focusLost =
+                    isNull active
+                    || obj.ReferenceEquals (active, Browser.Dom.document.body)
+                    || mounted |> Option.exists (fun el -> el.contains active)
                 match returnFocus with
-                | Some selector ->
+                | Some selector when focusLost ->
                     // Erst nach dem Render, der den auslösenden Knopf wieder zeigt.
                     Browser.Dom.window.setTimeout (
                         (fun () ->
@@ -615,7 +627,7 @@ let private ConfirmBlock (input: ConfirmBlockProps) =
                         0
                     )
                     |> ignore
-                | None -> ())),
+                | _ -> ())),
         [||]
     )
     let border = if input.Danger then "border-neon-red/20" else Tokens.Borders.default'

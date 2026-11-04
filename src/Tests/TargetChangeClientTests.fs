@@ -609,6 +609,8 @@ let private reviewTests =
 type private AskWalk = {
     /// Wöchentlich ist gewählt, ein Speichern verlöre den Tag.
     Chosen: bool
+    /// Ein Betrag ist getippt, der vom geladenen abweicht: ohne Wechsel sendet Speichern direkt.
+    Typed: bool
     WarnOpen: bool
     RemoveOpen: bool
     TargetPending: bool
@@ -621,14 +623,17 @@ type private AskWalk = {
 // öffnete zusätzlich die Bestätigung des Entfernens.
 let private askWalkTests =
     let events (w: AskWalk) =
-        [ "Rhythmus"; "Speichern"; "Wechseln"; "Abbrechen Wechsel"; "Entfernen"; "Bestätigen Entfernen"; "Abbrechen Entfernen"; "Pausieren"
+        [ "Rhythmus"; "Betrag"; "Speichern"; "Wechseln"; "Abbrechen Wechsel"; "Entfernen"; "Bestätigen Entfernen"; "Abbrechen Entfernen"; "Pausieren"
           if w.TargetPending then "Antwort"
           if w.PausePending then "Pause-Antwort" ]
     let oracle (name: string) (w: AskWalk) : AskWalk * bool =
         let noAsk = not w.WarnOpen && not w.RemoveOpen
         match name with
         | "Rhythmus" when not w.TargetPending -> { w with Chosen = true; WarnOpen = false }, false
+        // Tippen schließt die Warnung, die Bestätigung des Entfernens bleibt (budgeting-f4k9n, M2).
+        | "Betrag" when not w.TargetPending -> { w with Typed = true; WarnOpen = false }, false
         | "Speichern" when not w.TargetPending && noAsk && w.Chosen -> { w with WarnOpen = true }, false
+        | "Speichern" when not w.TargetPending && noAsk && w.Typed -> { w with TargetPending = true }, true
         | "Wechseln" when not w.TargetPending && w.WarnOpen -> { w with WarnOpen = false; TargetPending = true }, true
         | "Abbrechen Wechsel" -> { w with WarnOpen = false }, false
         | "Entfernen" when not w.TargetPending && noAsk -> { w with RemoveOpen = true }, false
@@ -642,6 +647,7 @@ let private askWalkTests =
         let run msg = let m, cmd, _ = update msg model in m, cmd
         match name with
         | "Rhythmus" -> run (TargetRhythmChanged Weekly)
+        | "Betrag" -> run (TargetAmountChanged "60")
         | "Speichern" -> run SaveTarget
         | "Wechseln" -> run ConfirmTargetChange
         | "Abbrechen Wechsel" -> run CancelTargetChange
@@ -660,10 +666,14 @@ let private askWalkTests =
                 Expect.equal (not (List.isEmpty cmd)) sent $"{route}: gesendet"
                 let form = formOf model'
                 Expect.equal (form.ConfirmingChange, form.ConfirmingRemove) (expected.WarnOpen, expected.RemoveOpen) $"{route}: Rückfragen offen"
+                // Speichern geht nur mit einer Eingabe, ohne offene Rückfrage und ohne laufenden Aufruf.
+                let saveable =
+                    not expected.TargetPending && not expected.WarnOpen && not expected.RemoveOpen && (expected.Typed || expected.Chosen)
+                Expect.equal (canSaveTarget model' (categoryOf model' tripId)) saveable $"{route}: Speichern geht"
                 walkFrom (depth - 1) (name :: path) expected model'
     testList "Tab Target: Reihenfolgen der Rückfragen" [
         test "In jeder Reihenfolge steht höchstens eine Rückfrage offen, Speichern, Entfernen und Pausieren warten auf sie" {
-            walkFrom 5 [] { Chosen = false; WarnOpen = false; RemoveOpen = false; TargetPending = false; PausePending = false; Paused = false } onTrip
+            walkFrom 5 [] { Chosen = false; Typed = false; WarnOpen = false; RemoveOpen = false; TargetPending = false; PausePending = false; Paused = false } onTrip
         }
     ]
 

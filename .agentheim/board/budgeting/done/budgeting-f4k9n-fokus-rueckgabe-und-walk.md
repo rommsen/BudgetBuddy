@@ -1,7 +1,7 @@
 ---
 id: budgeting-f4k9n
 title: "Muss-Befunde zu budgeting-g2ty9: ReturnFocus nimmt beim Tippen den Fokus, Walk der Rückfragen ohne getippten Betrag"
-status: doing
+status: done
 type: bug
 context: budgeting
 created: 2026-11-04
@@ -42,3 +42,18 @@ Gewünscht: Ereignis "Betrag" (`TargetAmountChanged "60"`) im Walk, Orakel setzt
 
 ## Notes
 Nicht im Umfang: die Sollte-Befunde (Pause-Sperre nur im Tab Target, Entfernen-Bestätigung beim Neulesen, Meldungstexte, Fokus nach erfolgreichem Entfernen). Die stehen im Sammel-Eintrag.
+
+## Outcome
+
+M1 und M2 sind umgesetzt. `./verify.sh` im Worktree: `VERIFY: PASS` (dotnet 3776 grün, 11 opt-in übersprungen, node 300 grün, beide Builds und beide Wächter grün). Kein Live-Aufruf.
+
+**M1 (Fokus):** `ConfirmBlock` in `src/Client/DesignSystem/BottomSheet.fs` hält das eigene Element beim Einhängen fest (beim Aushängen ist die Ref schon geleert) und prüft in der Aufräumfunktion `document.activeElement`. Zurück auf `ReturnFocus` geht der Fokus nur, wenn er noch in der Rückfrage lag oder auf `body` gefallen ist (Abbrechen, Escape, Bestätigen). Schließt die Warnung, weil im Betrags- oder Datumsfeld getippt wurde, oder durch stilles Neulesen oder Kategoriewechsel, bleibt der Fokus, wo er ist. Doc-Kommentar, `/styleguide` Abschnitt 18 (`src/Client/Components/Styleguide/View.fs`) und `standards/frontend/styleguide.md` §5 nennen die Bedingung.
+Neuer Test `[fokus] Handy: bei offener Warnung bleibt der Fokus beim Tippen im Betragsfeld, ein mehrstelliger Betrag kommt ganz an` in `scripts/target-change.test.mjs` (Woche, Target speichern, ins Betragsfeld "75" tippen, zwei Frames warten, "5" tippen; Fokus im Feld, Wert "755", nichts gesendet). Vor dem Fix rot ("der Fokus liegt im Betragsfeld": false). Der bestehende `[fokus]`-Test zu Abbrechen, Escape und Bestätigen bleibt grün.
+
+**M2 (Walk):** `askWalkTests` in `src/Tests/TargetChangeClientTests.fs`: `AskWalk.Typed`, Ereignis "Betrag" (`TargetAmountChanged "60"`), Orakel setzt `Typed = true` und schließt die Warnung, `RemoveOpen` bleibt. "Speichern" sendet laut Orakel bei getipptem Betrag ohne Wechsel, ohne offene Rückfrage und ohne laufenden Aufruf. Je Schritt prüft der Walk `canSaveTarget` gegen das Orakel (kein laufender Aufruf, keine Rückfrage offen, Betrag getippt oder Woche gewählt).
+Mutanten, beide rot:
+- A: `startTargetSave` prüft `form.ConfirmingChange` statt `confirmOpen form` (Wächter und innere Prüfung): rot, "Rhythmus, Rhythmus, Rhythmus, Entfernen, Speichern: Rückfragen offen". Nur die innere Prüfung getauscht: rot, "..., Entfernen, Speichern: gesendet".
+- B: `canSaveTarget` mit `not form.ConfirmingChange`: rot, "Rhythmus, Rhythmus, Rhythmus, Rhythmus, Entfernen: Speichern geht".
+Anmerkung: Mutante A fällt auch über den Pfad mit "Rhythmus" auf, weil Woche gewählt dieselbe Abweichung erzeugt; die Prüfung mit `canSaveTarget` ist neu und fängt Mutante B.
+
+Sinnvolle Reviews: `qa-milestone-reviewer` (geänderte Tests), `frontend-architecture` und `design-quality` (`src/Client/**`, Styleguide-Text).

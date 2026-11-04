@@ -12,8 +12,8 @@ Catalog of this bounded context's tasks by status.
 <!-- task-counts:start -->
 - **Backlog:** 9
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 27
+- **Doing:** 0
+- **Done:** 28
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ Catalog of this bounded context's tasks by status.
 
 ### Doing
 <!-- doing-list:start -->
-- **budgeting-f4k9n** — "Muss-Befunde zu budgeting-g2ty9: ReturnFocus nimmt beim Tippen den Fokus, Walk der Rückfragen ohne getippten Betrag" (bug) — `doing/budgeting-f4k9n-fokus-rueckgabe-und-walk.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **budgeting-f4k9n** — "Muss-Befunde zu budgeting-g2ty9: ReturnFocus nimmt beim Tippen den Fokus, Walk der Rückfragen ohne getippten Betrag" (bug) — `done/budgeting-f4k9n-fokus-rueckgabe-und-walk.md`
 - **budgeting-g2ty9** — "Review-Korrekturen im Target-Formular: Spinner am auslösenden Knopf, Fokus nach Abbrechen und Speichern bleibt, Datumsfeld nur lesend wie der Betrag, dazu die Befunde der Reviews zu Target anlegen" (refactor) — `done/budgeting-g2ty9-review-korrekturen-target-formular.md`
 - **budgeting-s5n2w** — "Spike: Lässt sich über die YNAB-API ein einmaliges Sparziel bis zu einem Datum anlegen und ändern?" (spike) — `done/budgeting-s5n2w-spike-sparziel-bis-datum.md`
 - **budgeting-c6vn4** — "Review-Korrekturen zur allgemeinen Historie und zu den Pause-Korrekturen: Suchfeld am Handy wieder breit, Ladeantwort mit Generation, Filter haftet, aufklappbare Zeile mit Chevron, Betrag rechts, BB-Lesefehler nicht als YNAB-Fehler, fehlende Tests" (refactor) — `done/budgeting-c6vn4-review-korrekturen-allgemeine-historie-und-pause.md`
