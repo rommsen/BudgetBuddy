@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 13:53 -- Modeling / Promoted: budgeting-k8wq3 - "Target ändern und entfernen im Tab Target: Betrag und Datum, nur geänderte Felder nach YNAB, Abgleich mit dem gezeigten Stand, konkrete Meldung bei Ablehnung, Aufzeichnung als Target-Änderung in der Historie"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-04 13:53 -- Task verified and completed: budgeting-t6p8z - "Target pausieren: Pause je Kategorie und Monat in BB, wirkt in Fehlt, Frei, Vorschau und Targets anwenden, endet mit dem Monat, Knopf im Tab Geld"
 
 **Type:** Work / Task completion

@@ -1,7 +1,7 @@
 ---
 id: budgeting-k8wq3
 title: "Target ändern und entfernen im Tab Target: Betrag und Datum, nur geänderte Felder nach YNAB, Abgleich mit dem gezeigten Stand, konkrete Meldung bei Ablehnung, Aufzeichnung als Target-Änderung in der Historie"
-status: backlog
+status: todo
 type: feature
 context: budgeting
 created: 2026-11-04
