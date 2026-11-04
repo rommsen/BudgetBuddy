@@ -47,6 +47,17 @@ let private tests =
             }
         ]
 
+        // budgeting-v6m3z: Ein Monat mit Erstattungsüberschuss ist kein Problem, Rot heißt auf der
+        // Budget-Seite "im Minus" (ADR 0075). Der Balkenbetrag kennt deshalb nur eine Farbe.
+        testList "Stats.monthBarAmountClass" [
+            test "Erstattungsüberschuss: text-secondary, kein Rot" {
+                let cls = Stats.monthBarAmountClass
+                Expect.isTrue (has Colors.textSecondary cls) cls
+                Expect.isFalse (cls.Contains "red") cls
+                Expect.isFalse (cls.Contains "neon-") cls
+            }
+        ]
+
         testList "Money.accountBalanceClass" [
             test "positiver Saldo ist nicht mehr grün" {
                 for isActive in [ true; false ] do

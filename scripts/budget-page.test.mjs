@@ -97,8 +97,8 @@ const mockFrame = (page, frame, onCall = () => {}) =>
     return route.fulfill({ contentType: "application/json", body: JSON.stringify({ Ok: frame }) });
   });
 
-async function openPage(width, height, { fail = false, requestedKeys = [], fixture = monthFixture, months = WINDOW } = {}) {
-  const context = await browser.newContext({ viewport: { width, height } });
+async function openPage(width, height, { fail = false, requestedKeys = [], fixture = monthFixture, months = WINDOW, hasTouch = false } = {}) {
+  const context = await browser.newContext({ viewport: { width, height }, hasTouch });
   const page = await context.newPage();
   page.setDefaultTimeout(30000);
   let failNext = fail;
@@ -1285,6 +1285,121 @@ test("[layout] Tab Historie am Handy: langer Fehlgrund kürzt mit Ellipse, Datum
     assert.ok(measured.timeHeight <= measured.timeLineHeight + 1, `das Datum bleibt einzeilig (${facts})`);
     assert.ok(measured.timeRight <= measured.reasonLeft, `das Datum steht vor dem Grund (${facts})`);
     assert.ok(measured.reasonRight <= measured.rowRight, `der Grund bleibt in der Zeile (${facts})`);
+  } finally {
+    await context.close();
+  }
+});
+
+// budgeting-v6m3z: Über den Ausgaben-Balken steht eine Wertzeile mit Monat und genauem Betrag des gewählten
+// Balkens. Welcher Text dort steht, prüft BudgetHistoryClientTests ("Die Wertzeile je Balken …"); hier nur,
+// was der Browser entscheidet: Fokus per Tipp und Tab-Taste, Maße am Handy.
+const SPENDING_MONTHS = ["2026-05-01", "2026-06-01", "2026-07-01", "2026-08-01", "2026-09-01", CURRENT];
+
+async function openSpending(width, { hasTouch = false } = {}) {
+  const opened = await openPage(width, 844, { hasTouch });
+  const { page } = opened;
+  const history = {
+    Entries: [],
+    Spending: SPENDING_MONTHS.map((month, i) => ({ Month: month, Activity: eur(i === 3 ? 85 : -1234.56 * (i + 1)) })),
+  };
+  await page.route("**/api/BudgetApi/getCategoryHistory", (route) =>
+    route.fulfill({ contentType: "application/json", body: JSON.stringify({ Ok: history }) })
+  );
+  await pickRow(page, "Essen k7wmd");
+  await tabsOf(sheet(page)).filter({ hasText: "Historie" }).click();
+  await sheet(page).locator('[data-testid="month-bar"]').first().waitFor();
+  return opened;
+}
+
+/// Die Texte der sichtbaren Werte in der Wertzeile, ohne Auswahl keiner.
+const shownValues = (page) =>
+  sheet(page).evaluate((el) =>
+    [...el.querySelectorAll('[data-testid="month-bar-value"]')]
+      .filter((v) => getComputedStyle(v).visibility === "visible")
+      .map((v) => v.textContent)
+  );
+
+test("[fokus] Ausgaben-Balken: Tipp und Tab-Taste setzen den Fokus, die Wertzeile zeigt den gewählten Balken, ein Tipp daneben leert sie", async () => {
+  const { context, page } = await openSpending(390, { hasTouch: true });
+  try {
+    const bars = sheet(page).locator('[data-testid="month-bar"]');
+    assert.deepEqual(await shownValues(page), [], "ohne Auswahl leer");
+
+    await bars.nth(1).tap();
+    assert.equal(await bars.nth(1).evaluate((el) => el === document.activeElement), true, "der Tipp setzt den Fokus");
+    assert.deepEqual(await shownValues(page), ["Juni 2026 · 2.469,12 €"], "Wert des angetippten Balkens");
+
+    await bars.nth(3).tap();
+    assert.deepEqual(await shownValues(page), ["August 2026 · +85,00 €"], "ein anderer Balken wechselt den Wert");
+
+    await sheet(page).locator('[data-testid="history-spending"]').getByText("Ausgaben der letzten 6 Monate").tap();
+    assert.equal(await bars.nth(3).evaluate((el) => el === document.activeElement), false, "der Tipp daneben nimmt den Fokus");
+    assert.deepEqual(await shownValues(page), [], "Fokus weg, die Zeile ist leer");
+  } finally {
+    await context.close();
+  }
+
+  // Tastatur ohne Maus über den Balken: die Maus steht auf der Überschrift, Tab geht von dort weiter.
+  const keyboard = await openSpending(390);
+  try {
+    const kpage = keyboard.page;
+    const bars = sheet(kpage).locator('[data-testid="month-bar"]');
+    const heading = sheet(kpage).locator('[data-testid="history-spending"]').getByText("Ausgaben der letzten 6 Monate");
+    await heading.click();
+    await kpage.keyboard.press("Tab");
+    assert.equal(await bars.nth(0).evaluate((el) => el === document.activeElement), true, "Tab erreicht den ersten Balken");
+    assert.deepEqual(await shownValues(kpage), ["Mai 2026 · 1.234,56 €"], "Wert des fokussierten Balkens");
+    await kpage.keyboard.press("Tab");
+    assert.deepEqual(await shownValues(kpage), ["Juni 2026 · 2.469,12 €"], "Tab wechselt den Wert");
+    assert.equal(
+      await bars.nth(1).evaluate((el) => getComputedStyle(el).outlineStyle),
+      "none",
+      "kein eigener Fokus-Ring, die Wahl zeigt den Fokus"
+    );
+    await heading.click();
+    assert.deepEqual(await shownValues(kpage), [], "Fokus weg, die Zeile ist leer");
+  } finally {
+    await keyboard.context.close();
+  }
+});
+
+test("[layout] Ausgaben-Balken am Handy: die Wertzeile hält ihre Höhe und bleibt beim ersten und letzten Balken im Sheet", async () => {
+  const { context, page } = await openSpending(390, { hasTouch: true });
+  try {
+    const bars = sheet(page).locator('[data-testid="month-bar"]');
+    const measure = () =>
+      sheet(page).evaluate((el) => {
+        const rect = (node) => node.getBoundingClientRect();
+        const value = [...el.querySelectorAll('[data-testid="month-bar-value"]')].find(
+          (v) => getComputedStyle(v).visibility === "visible"
+        );
+        const sheetRect = rect(el);
+        const row = rect(el.querySelector('[data-testid="month-bar-value-row"]'));
+        return {
+          bars: rect(el.querySelector('[data-testid="month-bars"]')).height,
+          row: row.height,
+          rowTop: row.top,
+          rowBottom: row.bottom,
+          sheetLeft: sheetRect.left,
+          sheetRight: sheetRect.right,
+          value: value ? { left: rect(value).left, right: rect(value).right, top: rect(value).top, bottom: rect(value).bottom } : null,
+          overflow: el.scrollWidth > el.clientWidth,
+        };
+      });
+    const empty = await measure();
+    assert.equal(empty.value, null, "ohne Auswahl kein Wert");
+    assert.ok(empty.row >= 16, `die leere Zeile hält ihre Höhe (${JSON.stringify(empty)})`);
+    for (const index of [0, 5]) {
+      await bars.nth(index).tap();
+      const chosen = await measure();
+      const facts = JSON.stringify({ index, empty, chosen });
+      assert.notEqual(chosen.value, null, `Wert sichtbar (${facts})`);
+      assert.equal(chosen.bars, empty.bars, `die Balken springen nicht (${facts})`);
+      assert.equal(chosen.row, empty.row, `die Zeile bleibt gleich hoch (${facts})`);
+      assert.ok(chosen.value.top >= chosen.rowTop - 0.5 && chosen.value.bottom <= chosen.rowBottom + 0.5, `der Wert steht in der Wertzeile (${facts})`);
+      assert.ok(chosen.value.left >= chosen.sheetLeft && chosen.value.right <= chosen.sheetRight, `der Wert bleibt im Sheet (${facts})`);
+      assert.equal(chosen.overflow, false, `nichts läuft seitlich aus dem Sheet (${facts})`);
+    }
   } finally {
     await context.close();
   }

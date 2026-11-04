@@ -161,7 +161,7 @@ let private historyLineView (line: HistoryLine) =
                 prop.children [
                     Html.span [ prop.className $"{ListRoles.primary} truncate min-w-0"; prop.text line.Text ]
                     match line.Change with
-                    | Some change -> Money.listAmount change.Amount change.Currency
+                    | Some change -> Money.signedListAmount change.Amount change.Currency
                     | None -> ()
                 ]
             ]
@@ -209,19 +209,6 @@ let private historyMovements (history: CategoryHistory) =
             ]
         ]
     ]
-
-/// Ein Balken der Ausgaben als DS-Baustein. Der laufende Monat ist gestrichelt und trägt "läuft", er
-/// ist noch nicht vorbei.
-let private spendingMonthBar (bar: SpendingBar) : Stats.MonthBar =
-    let running = bar.Kind = CurrentMonth
-    let state = if running then ", läuft noch" else ""
-    { Key = bar.Month
-      Label = $"{monthLabel bar.Month}: {moneyText bar.Spending}{state}"
-      MonthText = shortMonthLabel bar.Month
-      AmountText = barAmountText bar.Spending
-      Percent = bar.Percent
-      Running = running
-      Negative = bar.Spending.Amount < 0m }
 
 [<Literal>]
 let private SpendingTitle = "Ausgaben der letzten 6 Monate"

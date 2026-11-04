@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 14:30 -- Task verified and completed: budgeting-v6m3z - "Tab Historie ruhig und ablesbar: Monat mit Erstattungsüberschuss neutral mit Plus, Bewegungsbeträge neutral mit Vorzeichen, Wertzeile über den Ausgaben-Balken bei Maus, Tipp und Tastatur"
+
+**Type:** Work / Task completion
+**Task:** budgeting-v6m3z - "Tab Historie ruhig und ablesbar: Monat mit Erstattungsüberschuss neutral mit Plus, Bewegungsbeträge neutral mit Vorzeichen, Wertzeile über den Ausgaben-Balken bei Maus, Tipp und Tastatur"
+**Summary:** Tab Historie ruhig und ablesbar: Erstattungsüberschuss neutral mit Plus, Bewegungsbeträge neutral mit Vorzeichen, Wertzeile über den Ausgaben-Balken
+**Duration:** 49m
+**Verification:** PASS (iteration 1)
+**Files changed:** 10
+**Tests added:** 5
+**ADRs written:** none
+
+---
+
 ## 2026-11-04 13:53 -- Batch started: [budgeting-k8wq3, budgeting-v6m3z]
 
 **Type:** Work / Batch start

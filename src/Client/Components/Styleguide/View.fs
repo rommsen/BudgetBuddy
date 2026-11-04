@@ -431,27 +431,31 @@ let private statsSection =
                     ]
                 ]
                 subTitle "Monatsbalken"
-                note "Stats.monthBars: je Monat ein Balken mit Monat und Betrag, ohne waagrechtes Scrollen. Der laufende Monat ist neutral gestrichelt und trägt \"läuft\", Teal bleibt für Ausgewähltes (ADR 0075). Ein Monat ohne Wert zeigt einen flachen Balken, ein negativer Wert steht in Rot. Für Screenreader eine Liste, je Balken ein Label."
+                note "Stats.monthBars: je Monat ein Balken mit Monat und Betrag, ohne waagrechtes Scrollen. Der laufende Monat ist neutral gestrichelt und trägt \"läuft\", Teal bleibt für Ausgewähltes (ADR 0075). Ein Monat ohne Wert zeigt einen flachen Balken. Überwiegen Erstattungen, steht der Betrag neutral mit Plus da, Rot heißt auf der Budget-Seite \"im Minus\". Darüber die Wertzeile: Maus, Tipp oder Tab-Taste wählen einen Balken, die Zeile zeigt Monat und genauen Betrag und der Balken wird etwas heller, ohne Fokus-Ring. Ohne Auswahl bleibt die Zeile leer und hält ihre Höhe. Für Screenreader eine Liste, je Balken ein Label mit demselben Text."
                 Html.div [
                     prop.className "max-w-sm space-y-4"
                     prop.children [
-                        Stats.monthBars "Ausgaben der letzten 6 Monate" [
-                            let bar key month amount percent : Stats.MonthBar =
-                                { Key = key
-                                  Label = $"{month}: {amount} €"
-                                  MonthText = month
-                                  AmountText = amount
-                                  Percent = percent
-                                  Running = false
-                                  Negative = false }
-                            bar "2026-05-01" "Mai" "320" 64
-                            bar "2026-06-01" "Jun" "0" 0
-                            bar "2026-07-01" "Jul" "500" 100
-                            { bar "2026-08-01" "Aug" "-20" 0 with Negative = true; Label = "Aug: -20 €, Erstattungen überwiegen" }
-                            bar "2026-09-01" "Sep" "410" 82
-                            { bar "2026-10-01" "Okt" "150" 30 with Running = true; Label = "Okt: 150 €, läuft noch" }
+                        let bar key month amount percent label : Stats.MonthBar =
+                            { Key = key
+                              Label = label
+                              MonthText = month
+                              AmountText = amount
+                              Percent = percent
+                              Running = false }
+                        let bars =
+                            [ bar "2026-05-01" "Mai" "320" 64 "Mai 2026 · 320,40 €"
+                              bar "2026-06-01" "Jun" "0" 0 "Juni 2026 · 0,00 €"
+                              bar "2026-07-01" "Jul" "500" 100 "Juli 2026 · 499,90 €"
+                              bar "2026-08-01" "Aug" "+20" 0 "August 2026 · +20,40 €"
+                              bar "2026-09-01" "Sep" "410" 82 "September 2026 · 410,15 €"
+                              { bar "2026-10-01" "Okt" "150" 30 "Oktober 2026 · 150,00 € · läuft noch" with Running = true } ]
+                        Stats.monthBars "Ausgaben der letzten 6 Monate" bars
+                        caption "Stats.monthBars: laufender Monat, Null und Erstattungsüberschuss mit Plus. Maus darüber, Tipp oder Tab-Taste füllt die Wertzeile"
+                        Html.div [
+                            prop.custom ("data-testid", "styleguide-month-bars-chosen")
+                            prop.children [ Stats.monthBarsChosen "Ausgaben der letzten 6 Monate, Juli gewählt" "2026-07-01" bars ]
                         ]
-                        caption "Stats.monthBars: laufender Monat, Null und negativer Wert"
+                        caption "Stats.monthBarsChosen: Juli gewählt, die Wertzeile zeigt Monat und genauen Betrag"
                         Stats.monthBarsPlaceholder 6
                         caption "Stats.monthBarsPlaceholder: beim Laden, gleich hoch"
                     ]

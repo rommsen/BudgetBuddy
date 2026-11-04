@@ -83,7 +83,8 @@ Navigation (ADR 0075)"*).
 
 ### Ruhige Listen (ADR 0049)
 
-Gilt für Listen und Tabellen mit wiederkehrenden Zeilen (Kassenbuch, Import, Regeln).
+Gilt für Listen und Tabellen mit wiederkehrenden Zeilen (Kassenbuch, Import, Regeln, die Bewegungslisten
+der Budget-Historie).
 Vorbilder sind das Kassenbuch und der Abschnitt 8a in `/styleguide`. In jeder Zeile ist Farbe ein Signal, keine
 Dekoration: höchstens ein farbiger Akzent pro Zeile, und der meldet einen Zustand.
 
@@ -102,6 +103,16 @@ zusammenstehen, Rot am Verfügbar-Betrag im Minus, `fehlt` in Gelb. Die Ausnahme
 | Spaltenkopf | Mono 600 10px, `letter-spacing:.12em`, `text-muted`, Höhe 42px | entfällt |
 | Zeilenhöhe | 44px | zweizeilig, `padding:11px 16px` |
 | Kontostand | `text-primary` (aktiv) oder `text-secondary`; negativ Red | gleich |
+
+**Bewegungslisten der Budget-Historie** (Tab Historie im Inspektor, allgemeine Historie): Der Betrag
+steht neutral in `text-primary` mit Vorzeichen ("+20,00 €", "-20,00 €", `Money.signedListAmount`),
+auch positiv ohne Teal. Das Stand-Badge ist der einzige Farbakzent der Zeile.
+
+**Monatsbalken** (`Stats.monthBars`): Der Betrag unter dem Balken steht immer in `text-secondary`. Überwiegen in
+einem Monat die Erstattungen, steht er mit Plus da ("+85") und nicht in Rot: Rot heißt auf der Budget-Seite
+"im Minus". Über den Balken liegt eine Wertzeile fester Höhe. Maus, Tipp oder Tab-Taste wählen einen Balken,
+die Zeile zeigt dann Monat und genauen Betrag über die ganze Breite (läuft nie über den Rand), der Balken
+wird etwas heller. Kein Fokus-Ring, die Wahl zeigt den Fokus. Ohne Auswahl bleibt die Zeile leer.
 
 Zwei Ausnahmen, beide nur für die Budget-Seite:
 

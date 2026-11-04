@@ -262,11 +262,34 @@ let historyFailureReason (status: HistoryStatus) : string option =
     | HistoryOpen -> None
 
 /// Der Betrag unter einem Balken in ganzen Euro ohne Währung ("1.235"): sechs Balken passen so am Handy
-/// nebeneinander. Der volle Betrag steht im Label des Balkens.
+/// nebeneinander. Der volle Betrag steht im Label des Balkens. Überwiegen Erstattungen, ist die Ausgabe
+/// negativ und steht mit Plus da ("+85"): es kam mehr zurück, als ausgegeben wurde (budgeting-v6m3z).
 let barAmountText (m: Money) : string =
     let rounded = System.Math.Round(m.Amount, 0, System.MidpointRounding.AwayFromZero)
-    let text = Money.formatAmountText false false rounded m.Currency
-    text.Substring(0, text.Length - 3)
+    let text = Money.formatAmountText false false (abs rounded) m.Currency
+    let whole = text.Substring(0, text.Length - 3)
+    if rounded < 0m then $"+{whole}" else whole
+
+/// Der genaue Betrag eines Monats in der Wertzeile, ein Erstattungsüberschuss mit Plus ("+85,00 €").
+let private spendingText (m: Money) : string =
+    if m.Amount < 0m then $"+{moneyText { m with Amount = -m.Amount }}" else moneyText m
+
+/// Ein Balken der Ausgaben als DS-Baustein. Das Label steht in der Wertzeile über den Balken und wird
+/// vorgelesen: Monat, genauer Betrag und beim laufenden Monat "läuft noch".
+let spendingMonthBar (bar: SpendingBar) : Stats.MonthBar =
+    let running = bar.Kind = CurrentMonth
+    let state = if running then " · läuft noch" else ""
+    { Key = bar.Month
+      Label = $"{monthLabel bar.Month} · {spendingText bar.Spending}{state}"
+      MonthText = shortMonthLabel bar.Month
+      AmountText = barAmountText bar.Spending
+      Percent = bar.Percent
+      Running = running }
+
+/// Der Betrag einer Bewegung im Tab Historie mit Vorzeichen ("+20,00 €", "-20,00 €"), so wie
+/// `Money.signedListAmount` ihn zeigt. Die Bewegungsliste ist eine ruhige Liste (ADR 0049): der Betrag
+/// neutral, das Stand-Badge ist der einzige Farbakzent der Zeile.
+let historyChangeText (change: Money) : string = Money.signedListAmountText change.Amount change.Currency
 
 /// Tipp auf eine Buchung: die Auswahl bleibt stehen und wartet auf die Rückkehr.
 let leaveForEntry (model: Model) : Model =

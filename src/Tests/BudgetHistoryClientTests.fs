@@ -278,10 +278,56 @@ let textTests =
                 [ None; Some "Rate-Limit"; None; None; None ]
                 "Grund"
         }
-        test "Der Betrag am Balken in ganzen Euro, mit Tausenderpunkt" {
+        test "Der Betrag am Balken in ganzen Euro, mit Tausenderpunkt, ein Erstattungsüberschuss mit Plus" {
             Expect.equal (barAmountText (eur 1234.5m)) "1.235" "gerundet"
-            Expect.equal (barAmountText (eur -20.4m)) "-20" "negativ"
+            Expect.equal (barAmountText (eur -85m)) "+85" "Erstattungsüberschuss"
+            Expect.equal (barAmountText (eur -20.4m)) "+20" "Erstattungsüberschuss, gerundet"
+            Expect.equal (barAmountText (eur -0.4m)) "0" "gerundet null, ohne Vorzeichen"
             Expect.equal (barAmountText (eur 0m)) "0" "null"
+        }
+        // budgeting-v6m3z: Die Wertzeile über den Balken zeigt das Label des gewählten Balkens.
+        test "Die Wertzeile je Balken: Monat und genauer Betrag, laufender Monat mit Zusatz, Erstattungsüberschuss mit Plus" {
+            let bar month spending percent : SpendingBar =
+                { Month = month; Spending = eur spending; Percent = percent; Kind = monthKind "2026-10-01" month }
+            let past = spendingMonthBar (bar "2026-08-01" 1234.56m 100)
+            Expect.equal past.Label "August 2026 · 1.234,56 €" "vergangener Monat"
+            Expect.isFalse past.Running "vergangen"
+            let running = spendingMonthBar (bar "2026-10-01" 150m 12)
+            Expect.equal running.Label "Oktober 2026 · 150,00 € · läuft noch" "laufender Monat"
+            Expect.isTrue running.Running "läuft"
+            let refund = spendingMonthBar (bar "2026-09-01" -85m 0)
+            Expect.equal refund.Label "September 2026 · +85,00 €" "Erstattungsüberschuss"
+            Expect.equal refund.AmountText "+85" "Betrag unter dem Balken"
+            Expect.equal past.AmountText "1.235" "gerundet unter dem Balken"
+        }
+        // budgeting-v6m3z (ADR 0049): die Bewegungsliste ist eine ruhige Liste, Beträge neutral mit Vorzeichen.
+        test "Der Betrag einer Bewegungszeile: mit Vorzeichen, neutral in text-primary, kein Teal, bei jeder Herkunft" {
+            let movement origin oldAssigned newAssigned : HistoryEntry =
+                Movement
+                    { MovementId = Guid.NewGuid()
+                      ApplicationId = Guid.NewGuid()
+                      OccurredAt = DateTime(2026, 10, 3, 9, 30, 0, DateTimeKind.Utc)
+                      Origin = origin
+                      Month = "2026-10-01"
+                      CategoryId = categoryA
+                      CategoryName = "Lebensmittel"
+                      OldAssigned = eur oldAssigned
+                      NewAssigned = eur newAssigned
+                      Counterpart = (if origin = MovementOrigin.MoneyMoved then Some "Urlaub" else None)
+                      Latest = None }
+            let hasClass (needle: string) (cls: string) = cls.Split(' ') |> Array.contains needle
+            for origin in [ MovementOrigin.MoneyMoved; MovementOrigin.MoneyAssigned; MovementOrigin.TargetsApplied ] do
+                let change entry = (historyEntryLine entry).Change |> Option.get
+                let up = change (movement origin 30m 50m)
+                let down = change (movement origin 50m 30m)
+                Expect.equal (historyChangeText up) "+20,00 €" $"{origin}: positiv mit Plus"
+                Expect.equal (historyChangeText down) "-20,00 €" $"{origin}: negativ mit Minus"
+            let cls = Client.DesignSystem.Money.signedListAmountClass
+            Expect.isTrue (hasClass Client.DesignSystem.Tokens.Colors.textPrimary cls) $"text-primary ({cls})"
+            Expect.isFalse (cls.Contains "teal") $"kein Teal ({cls})"
+            Expect.isFalse (cls.Contains "neon-") $"keine Leuchtfarbe ({cls})"
+            for c in [ "font-mono"; "font-medium"; "tabular-nums" ] do
+                Expect.isTrue (hasClass c cls) $"{c} wie Money.listAmount ({cls})"
         }
     ]
 

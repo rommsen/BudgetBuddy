@@ -361,6 +361,18 @@ let listAmount (amount: decimal) (currency: string) =
         prop.text (formatAmountText (amount > 0m) true amount currency)
     ]
 
+/// Klassen einer Bewegung in einer ruhigen Liste (Historie der Budget-Seite, budgeting-v6m3z): wie
+/// `listAmountClass`, aber immer neutral in `text-primary`. Das Vorzeichen sagt die Richtung, kein Teal.
+let signedListAmountClass =
+    $"font-mono font-medium tabular-nums whitespace-nowrap {ListRoles.primarySize} {Colors.textPrimary}"
+
+/// Der Text einer Bewegung mit Vorzeichen ("+20,00 €", "-20,00 €").
+let signedListAmountText (amount: decimal) (currency: string) : string = formatAmountText true true amount currency
+
+/// Eine Bewegung mit Vorzeichen in einer ruhigen Liste, neutral (ADR 0049).
+let signedListAmount (amount: decimal) (currency: string) =
+    Html.span [ prop.className signedListAmountClass; prop.text (signedListAmountText amount currency) ]
+
 // ============================================
 // Transaction Amount Display
 // ============================================

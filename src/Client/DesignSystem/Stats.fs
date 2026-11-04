@@ -336,7 +336,8 @@ let rulesCount count =
 type MonthBar = {
     /// Eindeutig in der Reihe, etwa der Monatserste "2026-10-01".
     Key: string
-    /// Was der Screenreader je Balken vorliest: Monat, voller Betrag und Stand.
+    /// Monat, genauer Betrag und Stand ("Oktober 2026 · 1.234,56 €"). Steht in der Wertzeile, sobald der
+    /// Balken gewählt ist, und ist das, was der Screenreader je Balken vorliest.
     Label: string
     /// Der kurze Monatsname unter dem Balken ("Okt").
     MonthText: string
@@ -346,39 +347,56 @@ type MonthBar = {
     Percent: int
     /// Der laufende Monat: neutral gestrichelt, darunter "läuft". Teal bleibt für Ausgewähltes (ADR 0075).
     Running: bool
-    /// Ein negativer Wert: der Betrag steht in Rot.
-    Negative: bool
 }
 
+let private monthBarsClass = "month-bars relative flex flex-col gap-1"
 let private monthBarsListClass = "flex gap-1.5"
-let private monthBarItemClass = "flex flex-1 min-w-0 flex-col items-center gap-1"
+/// Jeder Balken ist fokussierbar, Maus, Tipp und Tab-Taste wählen ihn. Die Wahl zeigen Wertzeile und
+/// hellerer Balken, ohne eigenen Fokus-Ring (styles.css, design-system-w7c2h).
+/// Ein vorgewählter Balken (`monthBarsChosen`) gilt als gewählt, solange kein anderer Maus oder Fokus hat.
+let private monthBarItemClass (chosen: bool) =
+    if chosen then "month-bar month-bar-chosen flex flex-1 min-w-0 flex-col items-center gap-1"
+    else "month-bar flex flex-1 min-w-0 flex-col items-center gap-1"
+let private monthBarPlaceholderItemClass = "flex flex-1 min-w-0 flex-col items-center gap-1"
 let private monthBarAreaClass = "flex h-16 w-full items-end"
 /// Der laufende Monat ist neutral gestrichelt, die vergangenen sind gefüllt.
 let private monthBarFillClass (running: bool) =
-    if running then "w-full rounded-t border border-dashed border-border-default bg-text-muted/10"
-    else "w-full rounded-t bg-text-muted/30"
+    if running then "month-bar-fill-running w-full rounded-t border border-dashed border-border-default bg-text-muted/10"
+    else "month-bar-fill w-full rounded-t bg-text-muted/30"
 let private monthBarPlaceholderClass = "h-16 w-full rounded-t bg-surface-elevated animate-pulse"
 let private monthBarMonthClass = "h-4 font-mono text-xs font-normal text-text-muted whitespace-nowrap"
-/// Der Betrag, ein negativer in Rot.
-let private monthBarAmountClass (negative: bool) =
-    if negative then "h-4 font-mono text-xs tabular-nums whitespace-nowrap text-neon-red"
-    else "h-4 font-mono text-xs tabular-nums whitespace-nowrap text-text-secondary"
+/// Der Betrag unter dem Balken, immer neutral. Auch ein Monat mit Erstattungsüberschuss ist kein Problem,
+/// er steht mit Plus da und nicht in Rot (budgeting-v6m3z, ADR 0075).
+let monthBarAmountClass = "h-4 font-mono text-xs tabular-nums whitespace-nowrap text-text-secondary"
 /// Die Zeile für "läuft" steht in jeder Spalte, damit die Reihe gleich hoch bleibt, mit und ohne
 /// laufenden Monat und im Platzhalter.
 let private monthBarStateClass = "h-4 text-xs text-text-muted whitespace-nowrap"
+/// Die Wertzeile über den Balken hält ihre Höhe, auch ohne Auswahl: nichts springt.
+let private monthBarValueRowClass = "h-4"
+/// Der Wert eines Balkens liegt über der ganzen Breite der Wertzeile und läuft so nie über den Rand.
+/// Sichtbar nur am gewählten Balken (styles.css).
+let private monthBarValueClass =
+    "month-bar-value absolute inset-x-0 top-0 h-4 truncate text-center text-xs tabular-nums text-text-secondary whitespace-nowrap"
 
 /// Der Text unter dem laufenden Monat.
 [<Literal>]
 let RunningMonthText = "läuft"
 
-let private monthBarItem (bar: MonthBar) =
+let private monthBarItem (chosen: string option) (bar: MonthBar) =
     Html.li [
         prop.key bar.Key
         prop.custom ("data-testid", "month-bar")
         prop.role "listitem"
+        prop.tabIndex 0
         prop.ariaLabel bar.Label
-        prop.className monthBarItemClass
+        prop.className (monthBarItemClass (chosen = Some bar.Key))
         prop.children [
+            Html.span [
+                prop.ariaHidden true
+                prop.custom ("data-testid", "month-bar-value")
+                prop.className monthBarValueClass
+                prop.text bar.Label
+            ]
             Html.div [
                 prop.ariaHidden true
                 prop.className monthBarAreaClass
@@ -390,11 +408,7 @@ let private monthBarItem (bar: MonthBar) =
                 ]
             ]
             Html.span [ prop.ariaHidden true; prop.className monthBarMonthClass; prop.text bar.MonthText ]
-            Html.span [
-                prop.ariaHidden true
-                prop.className (monthBarAmountClass bar.Negative)
-                prop.text bar.AmountText
-            ]
+            Html.span [ prop.ariaHidden true; prop.className monthBarAmountClass; prop.text bar.AmountText ]
             Html.span [
                 prop.ariaHidden true
                 prop.className monthBarStateClass
@@ -403,33 +417,60 @@ let private monthBarItem (bar: MonthBar) =
         ]
     ]
 
-/// Monatsbalken ohne waagrechtes Scrollen: je Monat ein Balken, darunter Monat und Betrag. Für den
-/// Screenreader eine Liste, je Balken ein Eintrag mit `Label`; die sichtbaren Texte sind verborgen.
-let monthBars (label: string) (bars: MonthBar list) =
-    Html.ul [
-        prop.role "list"
-        prop.ariaLabel label
-        prop.className monthBarsListClass
-        prop.children (bars |> List.map monthBarItem)
+/// Monatsbalken ohne waagrechtes Scrollen: je Monat ein Balken, darunter Monat und Betrag, darüber eine
+/// Wertzeile. Steht die Maus über einem Balken, hat er den Fokus oder wurde er angetippt, zeigt die
+/// Wertzeile sein `Label`; ein Tipp daneben nimmt den Fokus weg und leert sie. Allein über CSS, ohne
+/// Zustand im Model. Für den Screenreader eine Liste, je Balken ein Eintrag mit `Label`; die sichtbaren
+/// Texte sind verborgen.
+let private monthBarsView (chosen: string option) (label: string) (bars: MonthBar list) =
+    Html.div [
+        prop.custom ("data-testid", "month-bars")
+        prop.className monthBarsClass
+        prop.children [
+            Html.div [
+                prop.ariaHidden true
+                prop.custom ("data-testid", "month-bar-value-row")
+                prop.className monthBarValueRowClass
+            ]
+            Html.ul [
+                prop.role "list"
+                prop.ariaLabel label
+                prop.className monthBarsListClass
+                prop.children (bars |> List.map (monthBarItem chosen))
+            ]
+        ]
     ]
+
+let monthBars (label: string) (bars: MonthBar list) = monthBarsView None label bars
+
+/// Wie `monthBars`, der Balken mit `chosenKey` steht schon gewählt da, bis Maus oder Fokus einen
+/// anderen wählen. Für den Styleguide, der die Wertzeile ohne Zutun zeigt.
+let monthBarsChosen (label: string) (chosenKey: string) (bars: MonthBar list) =
+    monthBarsView (Some chosenKey) label bars
 
 /// Der Platzhalter beim Laden, so hoch wie `monthBars`: nichts springt, wenn die Balken kommen.
 let monthBarsPlaceholder (count: int) =
     Html.div [
         prop.ariaHidden true
         prop.custom ("data-testid", "month-bars-placeholder")
-        prop.className monthBarsListClass
+        prop.className monthBarsClass
         prop.children [
-            for i in 1..count do
-                Html.div [
-                    prop.key i
-                    prop.className monthBarItemClass
-                    prop.children [
-                        Html.div [ prop.className monthBarPlaceholderClass ]
-                        Html.span [ prop.className monthBarMonthClass ]
-                        Html.span [ prop.className (monthBarAmountClass false) ]
-                        Html.span [ prop.className monthBarStateClass ]
-                    ]
+            Html.div [ prop.className monthBarValueRowClass ]
+            Html.div [
+                prop.className monthBarsListClass
+                prop.children [
+                    for i in 1..count do
+                        Html.div [
+                            prop.key i
+                            prop.className monthBarPlaceholderItemClass
+                            prop.children [
+                                Html.div [ prop.className monthBarPlaceholderClass ]
+                                Html.span [ prop.className monthBarMonthClass ]
+                                Html.span [ prop.className monthBarAmountClass ]
+                                Html.span [ prop.className monthBarStateClass ]
+                            ]
+                        ]
                 ]
+            ]
         ]
     ]

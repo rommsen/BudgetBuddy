@@ -12,8 +12,8 @@ Catalog of this bounded context's tasks by status.
 <!-- task-counts:start -->
 - **Backlog:** 6
 - **Todo:** 0
-- **Doing:** 2
-- **Done:** 19
+- **Doing:** 1
+- **Done:** 20
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,12 +22,12 @@ Catalog of this bounded context's tasks by status.
 
 ### Doing
 <!-- doing-list:start -->
-- **budgeting-v6m3z** — "Tab Historie ruhig und ablesbar: Monat mit Erstattungsüberschuss neutral mit Plus, Bewegungsbeträge neutral mit Vorzeichen, Wertzeile über den Ausgaben-Balken bei Maus, Tipp und Tastatur" (feature) — `doing/budgeting-v6m3z-tab-historie-farbe-f-r-monate-mit-negativen-ausgaben-und-tea.md`
 - **budgeting-k8wq3** — "Target ändern und entfernen im Tab Target: Betrag und Datum, nur geänderte Felder nach YNAB, Abgleich mit dem gezeigten Stand, konkrete Meldung bei Ablehnung, Aufzeichnung als Target-Änderung in der Historie" (feature) — `doing/budgeting-k8wq3-target-aendern-entfernen.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **budgeting-v6m3z** — "Tab Historie ruhig und ablesbar: Monat mit Erstattungsüberschuss neutral mit Plus, Bewegungsbeträge neutral mit Vorzeichen, Wertzeile über den Ausgaben-Balken bei Maus, Tipp und Tastatur" (feature) — `done/budgeting-v6m3z-tab-historie-farbe-f-r-monate-mit-negativen-ausgaben-und-tea.md`
 - **budgeting-t6p8z** — "Target pausieren: Pause je Kategorie und Monat in BB, wirkt in Fehlt, Frei, Vorschau und Targets anwenden, endet mit dem Monat, Knopf im Tab Geld" (feature) — `done/budgeting-t6p8z-tab-target-aendern-pausieren-pruefen.md`
 - **budgeting-x4k7p** — "Review-Korrekturen zum Tab Historie und zum stillen Neu-Lesen: Historie lädt still nach, Stand-Badges nach Styleguide, Monatsbalken als DS-Baustein, fehlende Verdrahtungstests" (refactor) — `done/budgeting-x4k7p-review-korrekturen-zum-tab-historie-und-zum-stillen-neu-lese.md`
 - **budgeting-dyn8g** — "Tab Historie je Kategorie: Aufbau von Verfügbar, Bewegungen des Monats und Ausgaben der letzten 6 Monate aus dem Kassenbuch" (feature) — `done/budgeting-dyn8g-budget-historie-ansicht.md`
