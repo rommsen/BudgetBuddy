@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 4
+- **Backlog:** 5
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 42
@@ -60,6 +60,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **design-system-w7c2h** — "Fokus ohne Kasten: Tabs zeigen den Tastatur-Fokus als helle Fläche, Filter-Chips als Ring direkt auf dem Rand" (bug) — `backlog/design-system-w7c2h-fokus-ohne-kasten-tabs-zeigen-den-tastatur-fokus-als-helle-f.md`
 - **design-system-p8kvn** — "Badge.neutral und setting-description liegen bei 12 px knapp unter 4,5:1 Kontrast" (bug) — `backlog/design-system-p8kvn-kontrast-text-secondary.md`
 - **design-system-fpem2** — "Wächter: .NET-Tests prüfen keine Tailwind-Größen per Klassenstring" (chore) — `backlog/design-system-fpem2-waechter-keine-tailwind-groessen-in-tests.md`
 - **design-system-taytp** — "Kategorie-Picker vereinheitlichen" (refactor) — `backlog/design-system-taytp-kategorie-picker-vereinheitlichen.md`

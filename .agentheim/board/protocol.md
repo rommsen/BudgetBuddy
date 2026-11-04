@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 12:07 -- Modeling / Captured: design-system-w7c2h - "Fokus ohne Kasten: Tabs zeigen den Tastatur-Fokus als helle Fläche, Filter-Chips als Ring direkt auf dem Rand"
+
+**Type:** Modeling / Capture
+**BC:** design-system
+**Filed to:** backlog
+**Summary:** Fokus an Tabs als helle Fläche, an Chips als Ring direkt auf dem Rand (Entscheidung Roman)
+
+---
+
 ## 2026-11-04 11:48 -- Work session ended
 
 **Type:** Work / Session end
