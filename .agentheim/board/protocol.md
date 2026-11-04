@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 15:29 -- Batch started: [budgeting-xp46a]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-xp46a - "Target anlegen und Art wechseln im Tab Target: NEED monatlich, wöchentlich oder jährlich, optional mit Datum in zwei Aufrufen, Warnung vor dem Verlust von Tag und Datum"
+**Parallel:** yes (läuft neben der Iteration 2 von budgeting-h7q4v)
+
+---
+
 ## 2026-11-04 15:29 -- Modeling / Promoted: budgeting-xp46a - "Target anlegen und Art wechseln im Tab Target: NEED monatlich, wöchentlich oder jährlich, optional mit Datum in zwei Aufrufen, Warnung vor dem Verlust von Tag und Datum"
 
 **Type:** Modeling / Promote

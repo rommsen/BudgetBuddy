@@ -11,18 +11,18 @@ Catalog of this bounded context's tasks by status.
 
 <!-- task-counts:start -->
 - **Backlog:** 4
-- **Todo:** 1
-- **Doing:** 1
+- **Todo:** 0
+- **Doing:** 2
 - **Done:** 22
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **budgeting-xp46a** — "Target anlegen und Art wechseln im Tab Target: NEED monatlich, wöchentlich oder jährlich, optional mit Datum in zwei Aufrufen, Warnung vor dem Verlust von Tag und Datum" (feature) — `todo/budgeting-xp46a-target-anlegen-art-wechseln.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **budgeting-xp46a** — "Target anlegen und Art wechseln im Tab Target: NEED monatlich, wöchentlich oder jährlich, optional mit Datum in zwei Aufrufen, Warnung vor dem Verlust von Tag und Datum" (feature) — `doing/budgeting-xp46a-target-anlegen-art-wechseln.md`
 - **budgeting-h7q4v** — "Allgemeine Budget-Historie #/budget/history: alle Bewegungen, neueste zuerst, Filter nach Art, Targets-Durchlauf aufklappbar, Knopf Historie im Seitenkopf" (feature) — `doing/budgeting-h7q4v-allgemeine-historie-ansicht.md`
 <!-- doing-list:end -->
 
