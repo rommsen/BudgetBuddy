@@ -12,8 +12,8 @@ Catalog of this bounded context's tasks by status.
 <!-- task-counts:start -->
 - **Backlog:** 10
 - **Todo:** 0
-- **Doing:** 3
-- **Done:** 28
+- **Doing:** 2
+- **Done:** 29
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,13 +22,13 @@ Catalog of this bounded context's tasks by status.
 
 ### Doing
 <!-- doing-list:start -->
-- **budgeting-e6p4r** — "Benannte Regressionstests: Pause-Antwort während eines Monatswechsels, Zurück aus der allgemeinen Historie" (chore) — `doing/budgeting-e6p4r-regressionstests-pause-und-historie.md`
 - **budgeting-b5n8q** — "BB-eigene Ablehnungen nicht als \"YNAB hat abgelehnt\", Targets-Durchlauf mit n von n Fehlschlägen als gescheitert" (bug) — `doing/budgeting-b5n8q-bb-meldungen-und-lauf-gescheitert.md`
 - **budgeting-a3k7m** — "Budget-Kopf bei 1024 px in einer Zeile, Historie am Handy ohne abgeschnittene Kategorien und Beträge" (bug) — `doing/budgeting-a3k7m-kopf-1024-und-historie-handy.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **budgeting-e6p4r** — "Benannte Regressionstests: Pause-Antwort während eines Monatswechsels, Zurück aus der allgemeinen Historie" (chore) — `done/budgeting-e6p4r-regressionstests-pause-und-historie.md`
 - **budgeting-f4k9n** — "Muss-Befunde zu budgeting-g2ty9: ReturnFocus nimmt beim Tippen den Fokus, Walk der Rückfragen ohne getippten Betrag" (bug) — `done/budgeting-f4k9n-fokus-rueckgabe-und-walk.md`
 - **budgeting-g2ty9** — "Review-Korrekturen im Target-Formular: Spinner am auslösenden Knopf, Fokus nach Abbrechen und Speichern bleibt, Datumsfeld nur lesend wie der Betrag, dazu die Befunde der Reviews zu Target anlegen" (refactor) — `done/budgeting-g2ty9-review-korrekturen-target-formular.md`
 - **budgeting-s5n2w** — "Spike: Lässt sich über die YNAB-API ein einmaliges Sparziel bis zu einem Datum anlegen und ändern?" (spike) — `done/budgeting-s5n2w-spike-sparziel-bis-datum.md`

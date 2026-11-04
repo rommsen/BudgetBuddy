@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 19:42 -- Task verified and completed: budgeting-e6p4r - "Benannte Regressionstests: Pause-Antwort während eines Monatswechsels, Zurück aus der allgemeinen Historie"
+
+**Type:** Work / Task completion
+**Task:** budgeting-e6p4r - "Benannte Regressionstests: Pause-Antwort während eines Monatswechsels, Zurück aus der allgemeinen Historie"
+**Summary:** Benannte Regressionstests: Pause-Antwort und Abbruch während eines Wechsels zurück in den Monat lesen neu, Zurück aus der allgemeinen Historie im vollständigen Ablauf mit Intakt-Fall
+**Duration:** 37 min
+**Verification:** PASS (iteration 1)
+**Files changed:** 2
+**Tests added:** 2
+**ADRs written:** none
+
+---
+
 ## 2026-11-04 19:20 -- Batch started: [budgeting-a3k7m, budgeting-b5n8q, budgeting-e6p4r]
 
 **Type:** Work / Batch start

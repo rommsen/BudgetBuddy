@@ -182,9 +182,20 @@ let tests =
         }
         // budgeting-c6vn4 (A9): über den Knopf geöffnet geht Zurück einen Schritt im Browser-Verlauf zurück,
         // statt einen neuen Eintrag anzulegen. Per Link geöffnet, führt es zur Budget-Seite.
+        // budgeting-e6p4r: der echte Ablauf zwischen Knopf und Zurück (Verlassen, Betreten, Antwort) darf den
+        // Merker nicht verlieren. Wurde die Historie dazwischen woandershin verlassen, führt Zurück zur Budget-Seite.
         test "Zurück geht nach dem Knopf Historie einen Schritt zurück, per Link geöffnet zur Budget-Seite" {
-            let _, _, viaButton = Components.Budget.State.update LeaveGeneralHistory (page |> step OpenGeneralHistory)
+            let shown =
+                page
+                |> step OpenGeneralHistory
+                |> step PageLeft
+                |> step GeneralHistoryEntered
+                |> answer (Ok movements)
+            let _, _, viaButton = Components.Budget.State.update LeaveGeneralHistory shown
             Expect.equal viaButton StepBackToBudgetPage "ein Schritt zurück"
+            let abandoned = page |> step OpenGeneralHistory |> step GeneralHistoryAbandoned |> step GeneralHistoryEntered
+            let _, _, afterAbandon = Components.Budget.State.update LeaveGeneralHistory abandoned
+            Expect.equal afterAbandon ShowBudgetPage "nach dem Verlassen woandershin wie per Link"
             let _, _, viaLink = Components.Budget.State.update LeaveGeneralHistory page
             Expect.equal viaLink ShowBudgetPage "neuer Eintrag"
             let _, cmd = State.update (State.BudgetMsg LeaveGeneralHistory) (rootModel Page.BudgetHistory page)

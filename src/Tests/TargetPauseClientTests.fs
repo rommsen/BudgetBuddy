@@ -166,6 +166,33 @@ let private flowTests =
             let answered = changing |> step (TargetPauseAnswered (paused, current, Ok (Some PausedInBb)))
             Expect.equal answered.MonthGeneration changing.MonthGeneration "kein zweites Lesen"
         }
+        // budgeting-e6p4r, Regressionstest zu budgeting-c6vn4 (Q1), Bug: eine Pause-Antwort während eines
+        // Wechsels zurück in den Monat der Pause las nicht neu. Das Lesen des Wechsels konnte vor dem Speichern
+        // begonnen haben, seine Antwort kannte die Pause nicht, sie verschwand bis zum nächsten Lesen. Bisher
+        // nur im Walk bei Tiefe 6 sichtbar.
+        test "GIVEN Pause läuft, Wechsel in den nächsten Monat und zurück WHEN die Pause-Antwort kommt THEN wird der Monat noch einmal gelesen" {
+            let running = onTrip |> step (SetTargetPause PauseTarget)
+            let away = running |> step (SelectMonth next)
+            let away = away |> step (Loaded (away.MonthGeneration, Ok (monthWith next None)))
+            let back = away |> step (SelectMonth current)
+            Expect.isTrue (monthChanging back) "Vorbedingung: der Wechsel zurück läuft"
+            let answered, cmd = update (TargetPauseAnswered (paused, current, Ok (Some PausedInBb))) back
+            Expect.isGreaterThan answered.MonthGeneration back.MonthGeneration "neu gelesen"
+            Expect.isNonEmpty cmd "der Monat wird gelesen"
+        }
+        // budgeting-e6p4r, Regressionstest zu budgeting-c6vn4 (Q1), derselbe Bug beim Abbruch: ob die Pause
+        // gespeichert ist, ist offen, das Lesen des Wechsels zurück kann vor dem Speichern begonnen haben.
+        test "GIVEN Pause läuft, Wechsel in den nächsten Monat und zurück WHEN der Aufruf abbricht THEN wird der Monat noch einmal gelesen und der Toast sagt es" {
+            let running = onTrip |> step (SetTargetPause PauseTarget)
+            let away = running |> step (SelectMonth next)
+            let away = away |> step (Loaded (away.MonthGeneration, Ok (monthWith next None)))
+            let back = away |> step (SelectMonth current)
+            Expect.isTrue (monthChanging back) "Vorbedingung: der Wechsel zurück läuft"
+            let lost, cmd, external = Components.Budget.State.update (TargetPauseCallLost (paused, current, "Netz weg")) back
+            Expect.isGreaterThan lost.MonthGeneration back.MonthGeneration "neu gelesen"
+            Expect.isNonEmpty cmd "der Monat wird gelesen"
+            Expect.equal external (ShowToast (pauseCallLostText true "Netz weg", ToastError)) "Toast verspricht das Neu-Lesen"
+        }
         // budgeting-r3wq8: ein abgebrochener Aufruf ist keine Ablehnung. Ob die Pause steht, ist offen:
         // Meldung im Tab, der Monat wird still neu gelesen, die Pause bleibt, wie sie war.
         test "GIVEN Pause läuft WHEN der Aufruf abbricht THEN Meldung im Tab, der Monat wird still neu gelesen" {
