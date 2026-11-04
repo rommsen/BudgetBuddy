@@ -1,7 +1,7 @@
 ---
 id: budgeting-r3wq8
 title: "Review-Korrekturen zu Target pausieren, Tab Historie und Target ändern: Eingabe beim Speichern bleibt, Pause-Aufrufe lesen bei Abbruch neu, ein Name je Pause-Ereignis, Absicht statt Bool, Fokus und Rollen der Balken, fehlende Tests"
-status: todo
+status: doing
 type: refactor
 context: budgeting
 created: 2026-11-04

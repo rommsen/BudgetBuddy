@@ -1,7 +1,7 @@
 ---
 id: budgeting-h7q4v
 title: "Allgemeine Budget-Historie #/budget/history: alle Bewegungen, neueste zuerst, Filter nach Art, Targets-Durchlauf aufklappbar, Knopf Historie im Seitenkopf"
-status: todo
+status: doing
 type: feature
 context: budgeting
 created: 2026-11-03

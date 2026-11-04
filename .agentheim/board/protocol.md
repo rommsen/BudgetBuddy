@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 14:41 -- Batch started: [budgeting-r3wq8, budgeting-h7q4v]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-r3wq8 - "Review-Korrekturen zu Target pausieren, Tab Historie und Target ändern: Eingabe beim Speichern bleibt, Pause-Aufrufe lesen bei Abbruch neu, ein Name je Pause-Ereignis, Absicht statt Bool, Fokus und Rollen der Balken, fehlende Tests", budgeting-h7q4v - "Allgemeine Budget-Historie #/budget/history: alle Bewegungen, neueste zuerst, Filter nach Art, Targets-Durchlauf aufklappbar, Knopf Historie im Seitenkopf"
+**Parallel:** yes (2 workers; r3wq8 fasst die Historienzeilen nicht an, h7q4v übernimmt sie; xp46a wartet auf r3wq8)
+
+---
+
 ## 2026-11-04 14:38 -- Modeling / Captured: budgeting-r3wq8 - "Review-Korrekturen zu Target pausieren, Tab Historie und Target ändern: Eingabe beim Speichern bleibt, Pause-Aufrufe lesen bei Abbruch neu, ein Name je Pause-Ereignis, Absicht statt Bool, Fokus und Rollen der Balken, fehlende Tests"
 
 **Type:** Modeling / Capture
