@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 16:32 -- Batch started: [budgeting-c6vn4]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-c6vn4 - "Review-Korrekturen zur allgemeinen Historie und zu den Pause-Korrekturen: Suchfeld am Handy wieder breit, Ladeantwort mit Generation, Filter haftet, aufklappbare Zeile mit Chevron, Betrag rechts, BB-Lesefehler nicht als YNAB-Fehler, fehlende Tests"
+**Parallel:** no (1 worker; Reviews zu xp46a laufen parallel, nur lesend)
+
+---
+
 ## 2026-11-04 16:31 -- Task verified and completed: budgeting-xp46a - "Target anlegen und Art wechseln im Tab Target: NEED monatlich, wöchentlich oder jährlich, optional mit Datum in zwei Aufrufen, Warnung vor dem Verlust von Tag und Datum"
 
 **Type:** Work / Task completion

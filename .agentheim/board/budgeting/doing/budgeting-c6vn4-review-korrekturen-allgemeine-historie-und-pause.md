@@ -1,7 +1,7 @@
 ---
 id: budgeting-c6vn4
 title: "Review-Korrekturen zur allgemeinen Historie und zu den Pause-Korrekturen: Suchfeld am Handy wieder breit, Ladeantwort mit Generation, Filter haftet, aufklappbare Zeile mit Chevron, Betrag rechts, BB-Lesefehler nicht als YNAB-Fehler, fehlende Tests"
-status: todo
+status: doing
 type: refactor
 context: budgeting
 created: 2026-11-04
