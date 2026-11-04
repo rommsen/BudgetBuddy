@@ -1,7 +1,7 @@
 ---
 id: budgeting-m4v8t
 title: "pauseNeedsReread: im erreichbaren Zustand gedeckte Bedingungen streichen oder benennen"
-status: backlog
+status: doing
 type: chore
 context: budgeting
 created: 2026-11-04

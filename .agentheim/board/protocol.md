@@ -5,6 +5,22 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 21:59 -- Batch started: [budgeting-m4v8t]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-m4v8t - "pauseNeedsReread: im erreichbaren Zustand gedeckte Bedingungen streichen oder benennen"
+**Parallel:** no (1 worker)
+
+---
+
+## 2026-11-04 21:59 -- Modeling / Promoted: budgeting-m4v8t - "pauseNeedsReread: im erreichbaren Zustand gedeckte Bedingungen streichen oder benennen"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-04 21:59 -- Task verified and completed: budgeting-n7h3x - "Laufende Pause oder laufendes Target-Speichern einer anderen Kategorie sperrt den gleichen Knopf ohne sichtbaren Grund"
 
 **Type:** Work / Task completion
