@@ -11,18 +11,18 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 4
-- **Todo:** 1
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 1
 - **Done:** 41
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **design-system-k4f9t** — "Fokus-Ring folgt der Form: Filter-Chips mit runder Kontur statt eckigem Rahmen, Tabs mit Ring nach innen statt abgeschnitten im Inspektor" (bug) — `todo/design-system-k4f9t-fokus-ring-folgt-der-form-filter-chips-mit-runder-kontur-sta.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **design-system-k4f9t** — "Fokus-Ring folgt der Form: Filter-Chips mit runder Kontur statt eckigem Rahmen, Tabs mit Ring nach innen statt abgeschnitten im Inspektor" (bug) — `doing/design-system-k4f9t-fokus-ring-folgt-der-form-filter-chips-mit-runder-kontur-sta.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)

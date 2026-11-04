@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 11:08 -- Batch started: [design-system-k4f9t]
+
+**Type:** Work / Batch start
+**Tasks:** design-system-k4f9t - "Fokus-Ring folgt der Form: Filter-Chips mit runder Kontur statt eckigem Rahmen, Tabs mit Ring nach innen statt abgeschnitten im Inspektor"
+**Parallel:** scoped — Roman nannte design-system-k4f9t; 1 anderer bereiter Task (infrastructure-jsys4) nicht dispatcht
+
+---
+
 ## 2026-11-04 11:08 -- Modeling / Promoted: design-system-k4f9t - "Fokus-Ring folgt der Form: Filter-Chips mit runder Kontur statt eckigem Rahmen, Tabs mit Ring nach innen statt abgeschnitten im Inspektor"
 
 **Type:** Modeling / Promote
