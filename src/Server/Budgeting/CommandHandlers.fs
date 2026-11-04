@@ -363,15 +363,20 @@ let setTargetPause
 [<Literal>]
 let TargetStepHeldBack = "Schritt 1 fehlgeschlagen"
 
-/// Hält "geschrieben" nach einem `Ok` von YNAB fest, als Best-Effort: YNAB hat die Änderung schon
-/// übernommen, ein Fehler beim Anhängen darf das nicht als Fehlschlag melden. Er wird geloggt, die Zeile
-/// steht dann ohne dieses Ergebnis in der Historie (budgeting-r3wq8).
-let private recordWrittenBestEffort (changeId: Guid) (step: int) (now: DateTime) : Async<unit> =
+/// Hängt das Ergebnis eines Schritts als Best-Effort an: YNAB hat einen Schritt dieser Änderung schon
+/// übernommen, ein Fehler beim Anhängen darf das nicht als Fehlschlag melden (budgeting-r3wq8). Gilt für
+/// "geschrieben" nach einem `Ok` und für jedes Ergebnis nach einem geschriebenen Schritt (budgeting-g2ty9,
+/// X9). Der Fehler wird mit Schritt geloggt, die Zeile steht dann ohne dieses Ergebnis in der Historie.
+let private recordBestEffort (changeId: Guid) (step: int) (now: DateTime) (outcome: LineOutcome) : Async<unit> =
     async {
         try
-            do! appendTargetChangeStepResult changeId step now Written
+            do! appendTargetChangeStepResult changeId step now outcome
         with ex ->
-            eprintfn "Ergebnis der Target-Änderung %O nicht festgehalten (YNAB hat geschrieben): %s" changeId ex.Message
+            eprintfn
+                "Ergebnis von Schritt %d der Target-Änderung %O nicht festgehalten (YNAB hat geschrieben): %s"
+                step
+                changeId
+                ex.Message
     }
 
 /// Die festzuhaltende Zeile einer Target-Änderung, vom gezeigten Target aus. Alle Patches zusammen ergeben
@@ -423,13 +428,20 @@ type private StepsOutcome =
     | AllWritten of Target option
     /// Schritt 1 scheiterte, mit YNABs Grund.
     | FirstFailed of reason: string
-    /// Schritt 1 geschrieben (Stand danach), ein späterer nicht, mit Grund.
-    | LaterNotWritten of after: Target option * reason: string
+    /// Schritt 1 geschrieben (Stand danach), ein späterer nicht: YNAB lehnte ihn ab, mit Grund. Trägt den
+    /// nicht geschriebenen Patch, aus ihm kommt das Datum der Meldung.
+    | LaterNotWritten of after: Target option * patch: TargetPatch * reason: string
+    /// Schritt 1 geschrieben, YNABs Antwort zeigt aber einen anderen Rhythmus: der spätere Patch ging nicht
+    /// hinaus (`continueAfter`).
+    | LaterHeldBack of after: Target option * patch: TargetPatch * reason: string
 
 /// Sendet die festgehaltenen Schritte der Reihe nach (ADR 0080 Punkt 4), je Schritt ein Ergebnis. Ein
 /// Schritt nach dem ersten geht nur hinaus, wenn der vorige geschrieben ist und YNABs Antwort zu ihm passt
-/// (`continueAfter`). Sonst wird er ungesendet als fehlgeschlagen festgehalten.
+/// (`continueAfter`). Sonst wird er ungesendet als fehlgeschlagen festgehalten. Ab einem geschriebenen
+/// Schritt ist jedes Ergebnis Best-Effort (`recordBestEffort`): das Teilergebnis kommt auch zurück, wenn das
+/// Anhängen scheitert (budgeting-g2ty9, X9).
 let private sendSteps (port: YnabPort) (now: DateTime) (categoryId: Guid) (changeId: Guid) (patches: TargetPatch list) : Async<StepsOutcome> =
+    let numbered (first: int) (rest: TargetPatch list) = rest |> List.mapi (fun i _ -> first + i)
     let rec go (step: int) (previous: (TargetPatch * Target option) option) (remaining: TargetPatch list) =
         async {
             match remaining, previous with
@@ -442,26 +454,39 @@ let private sendSteps (port: YnabPort) (now: DateTime) (categoryId: Guid) (chang
                         before.Frequency |> Option.map (unexpectedRhythmText after)
                     | _ -> None
                 match heldBack, previous with
-                | Some reason, Some (_, after) ->
-                    do! appendTargetChangeStepResult changeId step now (Failed reason)
-                    for later, _ in rest |> List.mapi (fun i p -> step + 1 + i, p) do
-                        do! appendTargetChangeStepResult changeId later now (Failed reason)
-                    return LaterNotWritten (after, reason)
+                | Some reason, Some (_, afterPrevious) ->
+                    for s in step :: numbered (step + 1) rest do
+                        do! recordBestEffort changeId s now (Failed reason)
+                    return LaterHeldBack (afterPrevious, patch, reason)
                 | _ ->
                     match! port.SetTarget categoryId patch with
                     | Ok after ->
-                        do! recordWrittenBestEffort changeId step now
+                        do! recordBestEffort changeId step now Written
                         return! go (step + 1) (Some (patch, after)) rest
                     | Error e ->
                         let reason = ynabErrorText e
-                        do! appendTargetChangeStepResult changeId step now (Failed reason)
-                        for later, _ in rest |> List.mapi (fun i p -> step + 1 + i, p) do
-                            do! appendTargetChangeStepResult changeId later now (Failed TargetStepHeldBack)
                         match previous with
-                        | None -> return FirstFailed reason
-                        | Some (_, before) -> return LaterNotWritten (before, reason)
+                        | None ->
+                            // Noch nichts geschrieben: ein Fehler beim Anhängen geht als Ausnahme hinaus.
+                            do! appendTargetChangeStepResult changeId step now (Failed reason)
+                            for later in numbered (step + 1) rest do
+                                do! appendTargetChangeStepResult changeId later now (Failed TargetStepHeldBack)
+                            return FirstFailed reason
+                        | Some (_, afterPrevious) ->
+                            do! recordBestEffort changeId step now (Failed reason)
+                            for later in numbered (step + 1) rest do
+                                do! recordBestEffort changeId later now (Failed TargetStepHeldBack)
+                            return LaterNotWritten (afterPrevious, patch, reason)
         }
     go 1 None patches
+
+/// Das Datum eines zurückgehaltenen oder abgelehnten Patches für die Meldung. Ein späterer Schritt trägt
+/// immer ein Datum (`planTargetWrite`); fehlt es doch, steht "ohne Datum".
+let private patchDateText (patch: TargetPatch) : string =
+    match patch.TargetDate with
+    | SetTo date -> date
+    | Keep
+    | Clear -> "ohne Datum"
 
 /// Target anlegen, ändern, die Art wechseln oder entfernen (ADR 0080, budgeting-xp46a). Außerhalb des
 /// laufenden Monats und wenn die Planung gegen den gezeigten Stand scheitert (Anlegen ohne Rhythmus) wird
@@ -508,10 +533,12 @@ let changeTarget
                             match! sendSteps port now category.Id change.Id patches with
                             | AllWritten after -> return Ok (Ok (TargetWritten after))
                             | FirstFailed reason -> return Ok (Error reason)
-                            | LaterNotWritten (after, reason) ->
-                                let date = change.NewDate |> Option.defaultValue ""
-                                let created = request.Shown.IsNone
-                                return Ok (Ok (TargetPartlyWritten (after, targetDateNotSetText created date reason)))
+                            | LaterNotWritten (after, patch, reason) ->
+                                let message = targetDateNotSetText kind (patchDateText patch) reason
+                                return Ok (Ok (TargetPartlyWritten (after, message)))
+                            | LaterHeldBack (after, patch, reason) ->
+                                let message = targetRhythmUnexpectedText kind (patchDateText patch) reason
+                                return Ok (Ok (TargetPartlyWritten (after, message)))
             })
 
 // ============================================

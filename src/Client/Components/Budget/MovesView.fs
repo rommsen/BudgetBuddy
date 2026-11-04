@@ -44,6 +44,7 @@ let moneySwitch (tab: MoneyTabState) (dispatch: Msg -> unit) =
     let segment label mode : Segmented.Segment =
         { Label = label
           IsActive = (tab.Mode = mode)
+          Disabled = false
           OnClick = fun () -> dispatch (SwitchMoneyMode mode) }
     Segmented.view "money-mode" "Modus" [ segment "Zuweisen" AssignMode; segment "Holen" TakeMode; segment "Abgeben" GiveMode ]
 
@@ -63,6 +64,8 @@ let private assignField (model: Model) (category: BudgetCategory) (tab: MoneyTab
                         OnBlur = Some (fun e -> if focusLeft e then dispatch AssignFieldLeft)
                         OnKeyDown = Some (fieldKeys assignKeyAction dispatch)
                         AriaLabel = Some "Zugewiesen"
+                        DescribedBy = (if assignFieldInvalid tab then Some "assign-amount-hint" else None)
+                        AriaInvalid = assignFieldInvalid tab
                         ClassName = Some (amountFieldClass (assignFieldInvalid tab)) }
             ]
         ]
@@ -76,7 +79,7 @@ let private previewSlot (month: BudgetMonth) (category: BudgetCategory) (tab: Mo
         prop.children [
             match assignPreview month category tab with
             | NoPreview -> ()
-            | InvalidCalculation -> invalidHint AmountMath.InvalidCalculationText
+            | InvalidCalculation -> invalidHint "assign-amount-hint" AmountMath.InvalidCalculationText
             | AssignAfter (available, assigned, toBeBudgeted) ->
                 Html.div [
                     prop.className ListRoles.mobileLine1
@@ -229,11 +232,13 @@ let private transferMode (model: Model) (month: BudgetMonth) (tab: MoneyTabState
                             OnKeyDown = Some (fieldKeys amountKeyAction dispatch)
                             ReadOnly = assignFieldReadOnly model
                             AriaLabel = Some "Betrag"
+                            DescribedBy = (if transferAmountInvalid month tab then Some "transfer-amount-hint" else None)
+                            AriaInvalid = transferAmountInvalid month tab
                             ClassName = Some (amountFieldClass (transferAmountInvalid month tab)) }
                 ]
             ]
         )
-        if transferAmountInvalid month tab then invalidHint AmountMath.InvalidCalculationText
+        if transferAmountInvalid month tab then invalidHint "transfer-amount-hint" AmountMath.InvalidCalculationText
         if tab.Mode = GiveMode then
             fixedSide "transfer-from" "von" source
             counterpartSide model month tab "transfer-to" "nach" target dispatch

@@ -251,11 +251,14 @@ let historyStatusText (status: HistoryStatus) : string =
     | HistoryFailed _ -> "fehlgeschlagen"
     | HistoryChangedInYnab -> "in YNAB geändert"
     | HistoryOpen -> "noch offen"
+    | HistoryPartlyWritten _ -> "teilweise geschrieben"
 
 /// Der Grund einer fehlgeschlagenen Bewegung, neben dem Badge als eigener Text. Ohne Grund nichts.
 let historyFailureReason (status: HistoryStatus) : string option =
     match status with
-    | HistoryFailed reason when not (System.String.IsNullOrWhiteSpace reason) -> Some reason
+    | HistoryFailed reason
+    | HistoryPartlyWritten reason when not (System.String.IsNullOrWhiteSpace reason) -> Some reason
+    | HistoryPartlyWritten _
     | HistoryFailed _
     | HistoryWritten
     | HistoryChangedInYnab

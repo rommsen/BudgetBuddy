@@ -116,7 +116,8 @@ let private historyTextTests =
           GoalAfter = snd goals |> Option.map eur
           DateBefore = fst dates
           DateAfter = snd dates
-          Latest = Some Written }
+          Latest = Some Written
+          DateStep = None }
     testList "Target ändern: Texte der Historie" [
         test "Betrag, Datum gesetzt, Datum entfernt und Entfernen haben ihren Text, ohne Betrag in der Spalte" {
             let line c = historyEntryLine (TargetChanged c)
@@ -135,6 +136,31 @@ let private historyTextTests =
             Expect.equal (line (Some Written)) (Some HistoryWritten) "geschrieben"
             Expect.equal (line (Some (Failed "kaputt"))) (Some (HistoryFailed "kaputt")) "fehlgeschlagen"
             Expect.equal (line None) (Some HistoryOpen) "offen"
+        }
+        // budgeting-g2ty9 (X7): eine Änderung in zwei Schritten hat einen Stand aus beiden.
+        test "Anlegen mit Datum: Schritt 1 geschrieben und Schritt 2 fehlgeschlagen ist teilweise geschrieben, ohne Ergebnis von Schritt 2 noch offen" {
+            let dated = { change (TargetCreated Yearly) (None, Some 600m) (None, Some "2027-06-01") with Latest = Some Written }
+            let line c = historyEntryLine (TargetChanged c)
+            let partly = line { dated with DateStep = Some (Failed "kaputt") }
+            Expect.equal
+                (partly.Text, partly.Status)
+                ("Target angelegt, 600,00 € jährlich, Datum 01.06.2027 nicht gesetzt", Some (HistoryPartlyWritten "kaputt"))
+                "teilweise"
+            Expect.equal (line { dated with DateStep = Some Written }).Status (Some HistoryWritten) "beide geschrieben"
+            Expect.equal (line dated).Status (Some HistoryOpen) "Schritt 2 ohne Ergebnis"
+            Expect.equal
+                (line { dated with Latest = Some (Failed "kaputt"); DateStep = Some (Failed "Schritt 1 fehlgeschlagen") }).Status
+                (Some (HistoryFailed "kaputt"))
+                "Schritt 1 fehlgeschlagen"
+            let undated = { dated with DateAfter = None }
+            Expect.equal (line undated).Status (Some HistoryWritten) "ohne Datum ein Schritt"
+            let kindChanged =
+                { change (TargetKindChanged Yearly) (Some 50m, Some 600m) (Some "2027-06-01", Some "2027-06-01") with
+                    DateStep = Some (Failed "kaputt") }
+            Expect.equal
+                (line kindChanged).Text
+                "Rhythmus jährlich, Target 50,00 € → 600,00 €, Datum 01.06.2027 nicht gesetzt"
+                "Wechsel mit gleichem Datum nennt das fehlende Datum"
         }
     ]
 
@@ -492,8 +518,8 @@ let private flowTests =
             Budgeting.Persistence.appendMovements [ movement ] |> run
             Budgeting.Persistence.appendPauseEvent pause |> run
             Budgeting.Persistence.appendTargetChanges [ c2; c4; targetChange 5 "2026-12-01" ] |> run
-            Budgeting.Persistence.appendTargetChangeResult c2.Id now (Failed "Rate-Limit") |> run
-            Budgeting.Persistence.appendTargetChangeResult c2.Id now Written |> run
+            Budgeting.Persistence.appendTargetChangeStepResult c2.Id 1 now (Failed "Rate-Limit") |> run
+            Budgeting.Persistence.appendTargetChangeStepResult c2.Id 1 now Written |> run
             let port = { QueryHandlers.liveHistoryPort with LoadMonthlyActivity = fun _ _ -> async { return [] } }
             match QueryHandlers.categoryHistory port k (DateTime(2026, 11, 1)) |> run with
             | Ok history ->
@@ -528,17 +554,34 @@ let private persistenceTests =
                 { Id = Guid.NewGuid(); OccurredAt = now; Month = current; CategoryId = k; CategoryName = "A"; Kind = TargetRemoved
                   OldGoalTarget = Some 1000L; NewGoalTarget = None; OldDate = Some "2027-01-01"; NewDate = None }
             Budgeting.Persistence.appendTargetChanges [ c ] |> run
-            Budgeting.Persistence.appendTargetChangeResult c.Id now Written |> run
+            Budgeting.Persistence.appendTargetChangeStepResult c.Id 1 now Written |> run
             Expect.isSome (tryExec $"UPDATE target_changes SET change_kind = 'Geändert' WHERE category_id = '{k}'") "UPDATE Änderung"
             Expect.isSome (tryExec $"DELETE FROM target_changes WHERE category_id = '{k}'") "DELETE Änderung"
             Expect.isSome (tryExec $"UPDATE target_change_results SET status = 'failed' WHERE change_id = '{c.Id}'") "UPDATE Ergebnis"
             Expect.isSome (tryExec $"DELETE FROM target_change_results WHERE change_id = '{c.Id}'") "DELETE Ergebnis"
             match Budgeting.Persistence.loadTargetChanges k current |> run with
-            | [ read ] ->
+            | Ok [ read ] ->
                 Expect.equal
                     (read.ChangeKind, read.GoalBefore, read.GoalAfter, read.DateBefore, read.DateAfter, read.Latest)
                     (TargetRemoved, Some (eur 1m), None, Some "2027-01-01", None, Some Written)
                     "nullbare Werte gelesen"
+            | other -> failtest $"eine Zeile erwartet: {other}"
+
+        // budgeting-g2ty9 (X7): die Historie las nur das jüngste Ergebnis über alle Schritte, ein gescheitertes
+        // Datum in Schritt 2 ließ die ganze Änderung fehlgeschlagen aussehen.
+        testCase "Ergebnisse werden je Schritt gelesen, ein Ergebnis ohne Schritt zählt als Schritt 1" <| fun () ->
+            Budgeting.Persistence.initializeBudgetingSchema ()
+            let k = Guid.NewGuid()
+            let c : Budgeting.Persistence.TargetChange =
+                { Id = Guid.NewGuid(); OccurredAt = now; Month = current; CategoryId = k; CategoryName = "A"; Kind = TargetCreated Yearly
+                  OldGoalTarget = None; NewGoalTarget = Some 600000L; OldDate = None; NewDate = Some "2027-06-01" }
+            Budgeting.Persistence.appendTargetChanges [ c ] |> run
+            Expect.isNone
+                (tryExec $"INSERT INTO target_change_results (change_id, occurred_at, status) VALUES ('{c.Id}', '2026-11-04T09:00:00.0000000Z', 'written')")
+                "Ergebnis ohne Schritt wie aus budgeting-k8wq3"
+            Budgeting.Persistence.appendTargetChangeStepResult c.Id 2 now (Failed "kaputt") |> run
+            match Budgeting.Persistence.loadTargetChanges k current |> run with
+            | Ok [ read ] -> Expect.equal (read.Latest, read.DateStep) (Some Written, Some (Failed "kaputt")) "je Schritt"
             | other -> failtest $"eine Zeile erwartet: {other}"
 
         testCase "Eine unbekannte Art beim Lesen wird gemeldet, nicht auf einen Standard gelegt" <| fun () ->
@@ -547,7 +590,10 @@ let private persistenceTests =
             Expect.isNone
                 (tryExec $"INSERT INTO target_changes (id, occurred_at, month, category_id, category_name, change_kind) VALUES ('{Guid.NewGuid()}', '2026-11-04T09:00:00.0000000Z', '{current}', '{k}', 'X', 'Quatsch')")
                 "eingefügt"
-            Expect.throws (fun () -> Budgeting.Persistence.loadTargetChanges k current |> run |> ignore) "unbekannte Art"
+            Expect.equal
+                (Budgeting.Persistence.loadTargetChanges k current |> run)
+                (Error Budgeting.Persistence.TargetChangesUnreadableText)
+                "unbekannte Art"
     ]
 
 // ============================================
@@ -587,6 +633,16 @@ let private boundaryTests =
             Expect.stringContains (one { Amount = 1m; Currency = "USD" } None |> String.concat "") "EUR" "Währung"
             Expect.isEmpty (one (eur 0m) (Some "2027-02-28")) "0 und ein echtes Datum gehen"
             Expect.isEmpty (one (eur 1000000m) None) "1.000.000,00 € gehen genau noch"
+        }
+        // budgeting-g2ty9 (X8): beides fiel bisher erst im Ablauf auf (Rhythmus) oder gar nicht (0 €).
+        test "Anlegen ohne Rhythmus und Anlegen mit 0 € werden an der Grenze mitgesammelt" {
+            let create goal rhythm : TargetChangeRequest =
+                { CategoryId = Guid.NewGuid(); Shown = None; Wanted = Some { NewGoal = goal; NewDate = None; NewRhythm = rhythm } }
+            Expect.equal (errorsOf current (create (eur 0m) KeepRhythm)) [ TargetRhythmMissingText; TargetCreateZeroText ] "beide"
+            Expect.equal (errorsOf current (create (eur 50m) KeepRhythm)) [ TargetRhythmMissingText ] "ohne Rhythmus"
+            Expect.equal (errorsOf current (create (eur 0m) (SetRhythm Monthly))) [ TargetCreateZeroText ] "0 €"
+            Expect.equal (errorsOf "2026-12-01" (create (eur -1m) KeepRhythm)).Length 3 "mit Monat und negativem Betrag gesammelt"
+            Expect.isEmpty (errorsOf current (create (eur 50m) (SetRhythm Monthly))) "50 € monatlich geht"
         }
         test "Der Live-Anschluss liest Token und Budget für Target ändern aus den Settings" {
             // Ohne Budget endet der Weg vor dem Netz: die Meldung zeigt, dass das Token ankam.
@@ -792,8 +848,11 @@ let private createFlowTests =
             let expected = "YNAB hat abgelehnt: goal_target is invalid"
             Expect.equal (change f current (request k None (Some (created Yearly 600m (Some "2027-06-01"))))) (Ok (Error expected)) "Meldung"
             Expect.equal f.Patches.Count 1 "nur Schritt 1 hinaus"
-            Expect.equal (stepRows k) [ $"1|failed|{expected}"; $"2|failed|{TargetStepHeldBack}" ] "beide fehlgeschlagen"
-            Expect.equal TargetStepHeldBack "Schritt 1 fehlgeschlagen" "Grund wie beim Ziel einer Verschiebung"
+            Expect.equal (stepRows k) [ $"1|failed|{expected}"; "2|failed|Schritt 1 fehlgeschlagen" ] "beide fehlgeschlagen, wie beim Ziel einer Verschiebung"
+            Expect.equal
+                (historyOf k)
+                [ "Target angelegt, 600,00 € jährlich, Datum 01.06.2027", Some (HistoryFailed expected) ]
+                "Historie: fehlgeschlagen mit YNABs Grund"
 
         testCase "GIVEN Schritt 2 scheitert THEN Schritt 1 geschrieben, Antwort mit dem Stand ohne Datum und Datum nicht gesetzt, ein folgender Aufruf sendet nur goal_target_date" <| fun () ->
             let f, k = fakeWith None
@@ -803,6 +862,11 @@ let private createFlowTests =
             let expected = $"Target angelegt, Datum 01.06.2027 nicht gesetzt: {rejected}"
             Expect.equal (change f current (request k None (Some wish))) (Ok (Ok (TargetPartlyWritten (Some yearly600, expected)))) "Teilergebnis"
             Expect.equal (stepRows k) [ "1|written|"; $"2|failed|{rejected}" ] "Schritt 2 fehlgeschlagen"
+            // budgeting-g2ty9 (X7): vorher stand die Änderung ganz als fehlgeschlagen in der Historie.
+            Expect.equal
+                (historyOf k)
+                [ "Target angelegt, 600,00 € jährlich, Datum 01.06.2027 nicht gesetzt", Some (HistoryPartlyWritten rejected) ]
+                "Historie: Teilergebnis mit eigenem Stand"
             f.Failure <- None
             let before = f.Patches.Count
             Expect.equal
@@ -818,11 +882,45 @@ let private createFlowTests =
             let after = { yearly600 with Rhythm = Months 1 }
             Expect.equal
                 (change f current (request k (Some fifty) (Some (created Yearly 600m (Some "2027-06-01")))))
-                (Ok (Ok (TargetPartlyWritten (Some after, $"Target geändert, Datum 01.06.2027 nicht gesetzt: {reason}"))))
-                "gemeldet"
+                (Ok (Ok (TargetPartlyWritten (Some after, $"Target in YNAB mit anderem Rhythmus geändert, Datum 01.06.2027 nicht gesetzt: {reason}"))))
+                "gemeldet mit eigenem Text (budgeting-g2ty9, X9)"
             Expect.equal (f.Patches |> List.ofSeq) [ k, withRhythm Yearly 600000L Keep ] "Schritt 2 nicht gesendet"
             Expect.equal (stepRows k) [ "1|written|"; $"2|failed|{reason}" ] "Schritt 2 zurückgehalten"
             Expect.equal (changeRows k) [ $"{current}|Art gewechselt|50000|600000|written|"; $"{current}|Art gewechselt|50000|600000|failed|{reason}" ] "eine Änderung"
+
+        // budgeting-g2ty9 (X9), Bug: nach geschriebenem Schritt 1 ging ein Fehler beim Anhängen des Ergebnisses
+        // von Schritt 2 als Ausnahme durch Remoting, obwohl YNAB das Target schon angelegt hatte. Ein Trigger nur
+        // für Schritt 2 dieser Kategorie lässt das Anhängen scheitern.
+        testCase "GIVEN Schritt 1 geschrieben, das Ergebnis von Schritt 2 lässt sich nicht anhängen THEN kommt das Teilergebnis trotzdem zurück" <| fun () ->
+            let blockStep2 (k: Guid) (body: unit -> unit) =
+                let trigger = $"fail_step2_{k:N}"
+                use conn = global.Persistence.getConnection ()
+                Dapper.SqlMapper.Execute(
+                    conn,
+                    $"CREATE TRIGGER {trigger} BEFORE INSERT ON target_change_results \
+                      WHEN NEW.step = 2 AND NEW.change_id IN (SELECT id FROM target_changes WHERE category_id = '{k}') \
+                      BEGIN SELECT RAISE(ABORT, 'kaputt'); END;")
+                |> ignore
+                try body () finally Dapper.SqlMapper.Execute(conn, $"DROP TRIGGER {trigger}") |> ignore
+            let wish = created Yearly 600m (Some "2027-06-01")
+            // YNAB lehnt das Datum ab.
+            let f, k = fakeWith None
+            f.Failure <- Some (YnabError.InvalidResponse "goal_target_date is invalid")
+            f.FailOnlyCall <- Some 2
+            blockStep2 k (fun () ->
+                Expect.equal
+                    (change f current (request k None (Some wish)))
+                    (Ok (Ok (TargetPartlyWritten (Some yearly600, $"Target angelegt, Datum 01.06.2027 nicht gesetzt: {rejected}"))))
+                    "abgelehnt: Teilergebnis")
+            Expect.equal (stepRows k) [ "1|written|" ] "Schritt 2 ohne Ergebnis"
+            // YNABs Antwort zeigt einen anderen Rhythmus, Schritt 2 bleibt zurück.
+            let f, k = fakeWith None
+            f.AnswerRhythm <- Some (Months 1)
+            blockStep2 k (fun () ->
+                match change f current (request k None (Some wish)) with
+                | Ok (Ok (TargetPartlyWritten (_, message))) ->
+                    Expect.stringContains message "Target in YNAB mit anderem Rhythmus angelegt, Datum 01.06.2027 nicht gesetzt" "zurückgehalten"
+                | other -> failtest $"Teilergebnis erwartet: {other}")
 
         testCase "GIVEN in YNAB inzwischen ein Target, gezeigt war keins THEN nichts gesendet, TargetChangedInYnab" <| fun () ->
             let f, k = fakeWith (Some fifty)
@@ -864,11 +962,13 @@ let private createPersistenceTests =
         }
     ]
 
+// budgeting-k8wq3
 [<Tests>]
 let tests =
-    testList "Target ändern und entfernen (budgeting-k8wq3)" [ planTests; historyTextTests; ynabTests; flowTests; persistenceTests; boundaryTests ]
+    testList "Target ändern und entfernen" [ planTests; historyTextTests; ynabTests; flowTests; persistenceTests; boundaryTests ]
 
+// budgeting-xp46a, Korrekturen aus budgeting-g2ty9
 [<Tests>]
 let createTests =
-    testList "Target anlegen und Art wechseln (budgeting-xp46a)" [
+    testList "Target anlegen und Art wechseln" [
         createPlanTests; lossTests; createEncoderTests; createFlowTests; createPersistenceTests ]

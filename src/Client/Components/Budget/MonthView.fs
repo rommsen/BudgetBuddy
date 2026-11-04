@@ -31,9 +31,10 @@ let keepsFocus (children: ReactElement list) =
 let amountFieldClass (invalid: bool) : string =
     if invalid then "w-full input-amount input-invalid tabular-nums" else "w-full input-amount tabular-nums"
 
-/// Der Hinweis unter einem Betragsfeld mit ungültiger Eingabe.
-let invalidHint (text: string) =
-    Html.span [ prop.className $"{ListRoles.primarySize} {Colors.neonRed}"; prop.text text ]
+/// Der Hinweis unter einem Betragsfeld mit ungültiger Eingabe. Das Feld verweist per `aria-describedby` auf
+/// `id` (budgeting-g2ty9, F5).
+let invalidHint (id: string) (text: string) =
+    Html.span [ prop.id id; prop.className $"{ListRoles.primarySize} {Colors.neonRed}"; prop.text text ]
 
 /// Ein Betrag in Listenschrift, neutral eingefärbt: Zugewiesen, Aktivität, Target und der neue
 /// Betrag der Vorschau sind keine Warnsignale, nur Verfügbar färbt ein Minus (`Money.available`).

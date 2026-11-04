@@ -29,21 +29,41 @@ let private refillFact (target: Target) =
     | Some text -> figure "target-refill" "Art" text
     | None -> Html.none
 
+/// Der Satz, warum der Tab nur Text zeigt (`targetMonthHint`).
+let private monthHint (hint: string option) =
+    match hint with
+    | Some text ->
+        Html.p [
+            prop.custom ("data-testid", "target-edit-month")
+            prop.className ListRoles.muted
+            prop.text text
+        ]
+    | None -> Html.none
+
 /// Vergangener oder künftiger Monat: Target, Rhythmus und Datum nur als Text, kein Formular. Darunter der
-/// Satz, warum (budgeting-r3wq8).
-let readOnlyTarget (target: Target) =
+/// Satz, warum (budgeting-r3wq8), nicht während eines Monatswechsels aus dem laufenden (budgeting-g2ty9, F5).
+let readOnlyTarget (model: Model) (category: BudgetCategory) (target: Target) =
     React.fragment [
         figure "target-goal" "Target" (targetText target)
         match target.Date with
         | Some date -> figure "target-date-text" "Datum" (dateText date)
         | None -> ()
         refillFact target
-        Html.p [
-            prop.custom ("data-testid", "target-edit-month")
-            prop.className ListRoles.muted
-            prop.text TargetEditMonthText
-        ]
+        monthHint (targetMonthHint model category)
     ]
+
+/// Ohne Target außerhalb des laufenden Monats: "Kein Target" und der Satz, warum hier nicht angelegt wird
+/// (budgeting-g2ty9, X5).
+let noTarget (model: Model) (category: BudgetCategory) =
+    React.fragment [
+        Html.p [ prop.className ListRoles.muted; prop.text "Kein Target" ]
+        monthHint (targetMonthHint model category)
+    ]
+
+/// Wohin der Fokus nach einer Rückfrage im Sheet geht (budgeting-g2ty9, F3): auf den Knopf, der sie
+/// geöffnet hat. Er steht nach dem Schließen wieder an ihrer Stelle, nach dem Bestätigen dreht er.
+let private removeButtonSelector = "[data-testid='target-remove'] button"
+let private saveButtonSelector = "[data-testid='target-save'] button"
 
 /// Die Bestätigung für "Target entfernen": am PC `Modal.confirmDanger`, am Handy im Sheet
 /// `BottomSheet.confirmDanger` mit denselben Texten.
@@ -67,7 +87,8 @@ let private removeConfirm (isPanel: bool) (form: TargetForm) (dispatch: Msg -> u
                       Message = message
                       ConfirmText = "Entfernen"
                       OnConfirm = fun () -> dispatch ConfirmRemoveTarget
-                      OnCancel = fun () -> dispatch CancelRemoveTarget }
+                      OnCancel = fun () -> dispatch CancelRemoveTarget
+                      ReturnFocus = Some removeButtonSelector }
             ]
         ]
     else
@@ -79,7 +100,7 @@ let private changeConfirm (isPanel: bool) (shown: Target option) (form: TargetFo
     match shown with
     | None -> Html.none
     | Some target ->
-        let title = "Rhythmus wechseln?"
+        let title = targetChangeTitle target form
         let message = targetChangeWarningText target form
         if isPanel then
             Modal.confirm
@@ -98,19 +119,23 @@ let private changeConfirm (isPanel: bool) (shown: Target option) (form: TargetFo
                           Message = message
                           ConfirmText = "Wechseln"
                           OnConfirm = fun () -> dispatch ConfirmTargetChange
-                          OnCancel = fun () -> dispatch CancelTargetChange }
+                          OnCancel = fun () -> dispatch CancelTargetChange
+                          ReturnFocus = Some saveButtonSelector }
                 ]
             ]
         else
             Html.none
 
 /// Der Rhythmus als `Segmented`: Monat, Woche, Jahr (budgeting-xp46a). Hat das Target einen Rhythmus, den BB
-/// nicht herstellen kann, ist kein Segment aktiv und der Rhythmus steht darüber als Text.
-let private rhythmChoice (shown: Target option) (form: TargetForm) (dispatch: Msg -> unit) =
+/// nicht herstellen kann, ist kein Segment aktiv und der Rhythmus steht darüber als Text. Solange das
+/// Speichern läuft, ist er gesperrt wie Betrag und Datum (budgeting-g2ty9, X3).
+let private rhythmChoice (model: Model) (shown: Target option) (form: TargetForm) (dispatch: Msg -> unit) =
     let active = targetRhythmValue shown form
+    let locked = targetFieldsLocked model
     let segment (label: string) (frequency: TargetFrequency) : Segmented.Segment =
         { Label = label
           IsActive = (active = Some frequency)
+          Disabled = locked
           OnClick = fun () -> dispatch (TargetRhythmChanged frequency) }
     Input.groupSimple "Rhythmus" (
         Html.div [
@@ -119,9 +144,9 @@ let private rhythmChoice (shown: Target option) (form: TargetForm) (dispatch: Ms
             prop.children [
                 match shown, active with
                 | Some target, None ->
-                    match rhythmText target.Rhythm with
-                    | "" -> ()
-                    | rhythm -> figure "target-rhythm" "Bisher" (rhythm.TrimStart('/', ' '))
+                    match target.Rhythm with
+                    | NoRhythm -> ()
+                    | rhythm -> figure "target-rhythm" "Bisher" (rhythmWordText rhythm)
                 | _ -> ()
                 Segmented.view
                     "target-rhythm-segment"
@@ -145,10 +170,15 @@ let private amountField (model: Model) (target: Target option) (form: TargetForm
                         InputMode = Some "decimal"
                         AriaLabel = Some "Target"
                         ReadOnly = targetFieldsLocked model
+                        DescribedBy = (if hint.IsSome then Some "target-amount-hint-text" else None)
+                        AriaInvalid = hint.IsSome
                         ClassName = Some (amountFieldClass hint.IsSome) }
                 match hint with
                 | Some text ->
-                    Html.div [ prop.custom ("data-testid", "target-amount-hint"); prop.children [ invalidHint text ] ]
+                    Html.div [
+                        prop.custom ("data-testid", "target-amount-hint")
+                        prop.children [ invalidHint "target-amount-hint-text" text ]
+                    ]
                 | None -> ()
             ]
         ]
@@ -169,7 +199,7 @@ let editableTarget
     (dispatch: Msg -> unit)
     =
     let isPanel = Viewport.isInspectorPanelViewport ()
-    let saving = targetSavingFor model category.Id
+    let save = saveButtonState model category
     React.fragment [
         match form.Notice with
         | Some TargetChangedNotice ->
@@ -178,10 +208,13 @@ let editableTarget
                 prop.children [ ErrorDisplay.notice (targetNoticeText TargetChangedNotice) ]
             ]
         | Some (TargetRejectedNotice _)
+        | Some (TargetPartlyNotice _)
         | None -> ()
-        rhythmChoice shown form dispatch
+        rhythmChoice model shown form dispatch
         Html.div [
-            prop.className "grid grid-cols-2 gap-3"
+            // Im 340-px-Panel am PC steht das Datum in eigener Zeile, sonst schnitte das Feld den Platzhalter
+            // ab (budgeting-g2ty9, X6).
+            prop.className (if isPanel then "grid grid-cols-1 gap-3" else "grid grid-cols-2 gap-3")
             prop.children [
                 amountField model shown form dispatch
                 Input.groupSimple "Datum" (
@@ -192,7 +225,8 @@ let editableTarget
                                 { Value = targetDateValue shown form
                                   OnChange = TargetDateChanged >> dispatch
                                   Invalid = targetDateInvalid form
-                                  Disabled = targetFieldsLocked model
+                                  Disabled = false
+                                  ReadOnly = targetFieldsLocked model
                                   Label = "Datum des Targets" }
                         ]
                     ]
@@ -215,8 +249,8 @@ let editableTarget
                         { Button.defaultProps with
                             Text = (if shown.IsSome then "Target speichern" else "Target anlegen")
                             Variant = Button.Primary
-                            IsLoading = saving
-                            IsDisabled = not (canSaveTarget model category)
+                            IsBusy = save.Busy
+                            IsDisabled = save.Disabled
                             ClassName = Some $"w-full {TouchTargets.sheetMinHeight}"
                             OnClick = fun () -> dispatch SaveTarget }
                     match form.Notice with
@@ -225,6 +259,12 @@ let editableTarget
                             prop.custom ("data-testid", "target-error")
                             prop.children [ ErrorDisplay.cardCompact (targetNoticeText notice) None ]
                         ]
+                    | Some (TargetPartlyNotice _ as notice) ->
+                        // Gelb, kein Fehler: das Target steht, nur das Datum fehlt (budgeting-g2ty9, X4).
+                        Html.div [
+                            prop.custom ("data-testid", "target-partly")
+                            prop.children [ ErrorDisplay.notice (targetNoticeText notice) ]
+                        ]
                     | Some TargetChangedNotice
                     | None -> ()
                 ]
@@ -232,6 +272,7 @@ let editableTarget
         if isPanel then changeConfirm isPanel shown form dispatch
         pause
         if shown.IsSome && (not form.ConfirmingRemove || isPanel) then
+            let remove = removeButtonState model form
             Html.div [
                 prop.custom ("data-testid", "target-remove")
                 prop.children [
@@ -239,7 +280,8 @@ let editableTarget
                         { Button.defaultProps with
                             Text = "Target entfernen"
                             Variant = Button.Danger
-                            IsDisabled = removeTargetLocked model form
+                            IsBusy = remove.Busy
+                            IsDisabled = remove.Disabled
                             ClassName = Some $"w-full {TouchTargets.sheetMinHeight}"
                             OnClick = fun () -> dispatch AskRemoveTarget }
                 ]

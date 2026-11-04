@@ -244,15 +244,7 @@ let unexpectedRhythmText (after: Target option) (frequency: TargetFrequency) : s
     let seen =
         match after with
         | None -> "kein Target"
-        | Some t ->
-            match t.Rhythm with
-            | Weeks 1 -> "wöchentlich"
-            | Months 1 -> "monatlich"
-            | Years 1 -> "jährlich"
-            | Weeks n -> $"alle {n} Wochen"
-            | Months n -> $"alle {n} Monate"
-            | Years n -> $"alle {n} Jahre"
-            | NoRhythm -> "ohne Rhythmus"
+        | Some t -> rhythmWordText t.Rhythm
     $"YNAB zeigt nach Schritt 1 {seen} statt {frequencyText frequency}"
 
 /// Ein Patch ohne gesetztes Feld. BB sendet ihn nie, der Ablauf lehnt ihn vor dem Senden ab.

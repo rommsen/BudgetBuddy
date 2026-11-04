@@ -284,7 +284,9 @@ let private isIsoDate (text: string) : bool =
 /// Prüft den Auftrag Target ändern oder entfernen (budgeting-k8wq3, ADR 0080) vor allem anderen, auch ohne
 /// Einrichtung, und sammelt alle Fehler: ungültiger, vergangener oder künftiger Monat (`current` ist der
 /// laufende), leere Kategorie, und am Wunsch Betrag negativ, nicht auf den Cent, über der Obergrenze,
-/// nicht in EUR und ein Datum, das nicht "YYYY-MM-DD" ist. Rhythmus und Anlegen prüft der Ablauf.
+/// nicht in EUR und ein Datum, das nicht "YYYY-MM-DD" ist. Beim Anlegen (`Shown = None`) zusätzlich ein
+/// fehlender Rhythmus und 0 € (budgeting-g2ty9, X8); `planTargetWrite` prüft den Rhythmus als zweite
+/// Sicherung.
 let validateTargetChange
     (current: string)
     (monthKey: string)
@@ -302,7 +304,7 @@ let validateTargetChange
           | None -> ()
           | Some draft ->
               let goal = draft.NewGoal
-              if goal.Currency <> "EUR" then
+              if goal.Currency <> Shared.Budgeting.TargetCurrency then
                   $"Ein Target gilt nur in EUR, nicht in '{goal.Currency}'."
               if goal.Amount < 0m then
                   "Der Betrag des Targets darf nicht negativ sein."
@@ -313,7 +315,12 @@ let validateTargetChange
               match draft.NewDate with
               | Some date when not (isIsoDate date) ->
                   $"Ungültiges Datum: '{date}'. Erwartet wird JJJJ-MM-TT."
-              | _ -> () ]
+              | _ -> ()
+              if request.Shown.IsNone then
+                  if draft.NewRhythm = Shared.Budgeting.KeepRhythm then
+                      Shared.Budgeting.TargetRhythmMissingText
+                  if goal.Amount = 0m then
+                      Shared.Budgeting.TargetCreateZeroText ]
 
     if errors.IsEmpty then Ok () else Error errors
 

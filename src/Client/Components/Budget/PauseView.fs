@@ -35,7 +35,7 @@ let private pauseButton
                 Text = b.Label
                 Variant = Button.Secondary
                 IsBusy = own
-                IsDisabled = pauseBusy model && not own
+                IsDisabled = (pauseBusy model && not own) || pauseHeldByConfirm model category.Id
                 ClassName = Some $"w-full {TouchTargets.sheetMinHeight}"
                 OnClick = fun () -> dispatch (SetTargetPause b.Intent) }
     Html.div [

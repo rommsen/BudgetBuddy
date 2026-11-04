@@ -69,6 +69,11 @@ type ConfirmDangerProps = {
     ConfirmText: string
     OnConfirm: unit -> unit
     OnCancel: unit -> unit
+    /// Wohin der Fokus nach dem Schließen geht, als CSS-Selektor (budgeting-g2ty9, F3): der Knopf, der die
+    /// Rückfrage geöffnet hat, an ihrer Stelle wieder gezeigt. Nach "Abbrechen" ist er wieder bedienbar, nach
+    /// dem Bestätigen trägt er den laufenden Aufruf (`IsBusy`, fokussierbar). `None`: der Fokus bleibt, wo
+    /// der Browser ihn lässt.
+    ReturnFocus: string option
 }
 
 // ---------------------------------------------------------------------------
@@ -577,15 +582,19 @@ type private ConfirmBlockProps = {
 }
 
 /// Die Rückfrage als Block im Sheet: Titel, Text, "Abbrechen" und der Knopf. `role "alertdialog"` mit
-/// `aria-labelledby` auf den Titel und `aria-describedby` auf den Text. Beim Öffnen hat "Abbrechen" den
-/// Fokus, ein versehentliches Enter löst nichts aus.
+/// `aria-labelledby` auf den Titel und `aria-describedby` auf den Text, ohne `aria-modal`: sie steht im
+/// Fluss des Sheets, nicht darüber, und fängt den Fokus nicht (Styleguide §5). Beim Öffnen hat "Abbrechen"
+/// den Fokus, ein versehentliches Enter löst nichts aus. Escape bricht ab wie "Abbrechen". Nach dem
+/// Schließen geht der Fokus auf `ReturnFocus`, sonst läge er auf `body` (budgeting-g2ty9, F3).
 [<ReactComponent>]
 let private ConfirmBlock (input: ConfirmBlockProps) =
     let props = input.Props
     let container = React.useRef<Browser.Types.HTMLElement option> None
-    let id = React.useRef (string (System.Guid.NewGuid()))
-    let titleId = $"confirm-title-{id.current}"
-    let messageId = $"confirm-message-{id.current}"
+    // Die Id entsteht einmal je Rückfrage, nicht je Render.
+    let id = React.useMemo ((fun () -> string (System.Guid.NewGuid())), [||])
+    let titleId = $"confirm-title-{id}"
+    let messageId = $"confirm-message-{id}"
+    let returnFocus = props.ReturnFocus
     React.useEffect (
         (fun () ->
             match container.current with
@@ -593,16 +602,34 @@ let private ConfirmBlock (input: ConfirmBlockProps) =
                 match el.querySelector "[data-confirm-cancel] button" with
                 | null -> ()
                 | cancel -> (cancel :?> Browser.Types.HTMLElement).focus ()
-            | None -> ()),
+            | None -> ()
+            React.createDisposable (fun () ->
+                match returnFocus with
+                | Some selector ->
+                    // Erst nach dem Render, der den auslösenden Knopf wieder zeigt.
+                    Browser.Dom.window.setTimeout (
+                        (fun () ->
+                            match Browser.Dom.document.querySelector selector with
+                            | null -> ()
+                            | target -> (target :?> Browser.Types.HTMLElement).focus ()),
+                        0
+                    )
+                    |> ignore
+                | None -> ())),
         [||]
     )
     let border = if input.Danger then "border-neon-red/20" else Tokens.Borders.default'
     Html.div [
         prop.ref container
+        prop.onKeyDown (fun e ->
+            if e.key = "Escape" then
+                e.preventDefault ()
+                e.stopPropagation ()
+                props.OnCancel ())
         prop.role "alertdialog"
         prop.ariaLabelledBy titleId
         prop.ariaDescribedBy messageId
-        prop.custom ("data-testid", (if input.Danger then "confirm-danger" else "confirm"))
+        prop.custom ("data-testid", (if input.Danger then "confirm-danger" else "confirm-sheet"))
         prop.className $"flex flex-col gap-2 rounded-xl border {border} bg-surface-card p-4"
         prop.children [
             Html.h3 [ prop.id titleId; prop.className Tokens.ListRoles.primary; prop.text props.Title ]

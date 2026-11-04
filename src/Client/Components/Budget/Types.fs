@@ -144,6 +144,9 @@ type TargetNotice =
     | TargetChangedNotice
     /// Der Server oder YNAB lehnte ab, mit der konkreten Meldung. Die Eingabe bleibt stehen.
     | TargetRejectedNotice of message: string
+    /// Schritt 1 geschrieben, das Datum nicht (budgeting-g2ty9, X4): ein gelber Hinweis, kein Fehler. Die
+    /// Eingabe mit dem Datum bleibt, Speichern setzt es erneut.
+    | TargetPartlyNotice of message: string
 
 /// Das Formular im Tab Target (budgeting-k8wq3, ADR 0080). Hält Kategorie und Monat: es gilt nur, solange
 /// beide gezeigt werden und der Monat der laufende ist (`syncTargetForm`). Ein Wechsel verwirft die Eingabe.
@@ -164,11 +167,19 @@ type TargetForm = {
     ConfirmingChange: bool
 }
 
+/// Was der laufende Aufruf im Tab Target tut (budgeting-g2ty9, F1): der Spinner steht nur am Knopf, der
+/// ihn ausgelöst hat.
+type TargetAction =
+    /// "Target speichern", "Target anlegen" oder "Wechseln" in der Warnung.
+    | SavingTarget
+    /// "Entfernen" in der Bestätigung von "Target entfernen".
+    | RemovingTarget
+
 /// Der Aufruf Target ändern oder entfernen. Trägt Kategorie und Monat: die Antwort wirkt nur auf sie.
 /// Er sperrt weder Auswahl noch Monatswechsel.
 type TargetCall =
     | TargetIdle
-    | TargetSaving of categoryId: System.Guid * month: string
+    | TargetSaving of categoryId: System.Guid * month: string * action: TargetAction
 
 /// Der Filter nach Art in der allgemeinen Historie (budgeting-h7q4v).
 type RunFilter =

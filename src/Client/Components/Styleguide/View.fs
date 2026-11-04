@@ -356,10 +356,11 @@ let private badgeSection =
                 row [
                     Badge.neutral "Neutral"
                 ]
-                note "Klein, für den Stand in einer Listenzeile (Tab Historie). Auf der Budget-Seite Gelb statt Pink (ADR 0075)."
+                note "Klein, für den Stand in einer Listenzeile (Tab Historie). Auf der Budget-Seite Gelb statt Pink (ADR 0075). Teilweise geschrieben: eine Target-Änderung, deren Datum in Schritt 2 nicht gesetzt ist."
                 row [
                     Badge.errorSmall "fehlgeschlagen"
                     Badge.noticeSmall "in YNAB geändert"
+                    Badge.noticeSmall "teilweise geschrieben"
                     Badge.neutralSmall "noch offen"
                 ]
                 note "Stand der Bankverbindung (BankConnectionBadge), in Einstellungen und SyncFlow."
@@ -747,10 +748,12 @@ let private calmListSection =
                         Html.div [
                             prop.className "space-y-2"
                             prop.children [
-                                DateField.view { Value = None; OnChange = ignore; Invalid = false; Disabled = false; Label = "Leer" }
-                                DateField.view { Value = Some (System.DateTime(2026, 10, 7)); OnChange = ignore; Invalid = false; Disabled = false; Label = "Gefüllt" }
-                                DateField.view { Value = None; OnChange = ignore; Invalid = true; Disabled = false; Label = "Fehler" }
-                                caption "Datumsfeld: leer, gefüllt, Fehler (Hinweis, Übernehmen gesperrt)"
+                                DateField.view { Value = None; OnChange = ignore; Invalid = false; Disabled = false; ReadOnly = false; Label = "Leer" }
+                                DateField.view { Value = Some (System.DateTime(2026, 10, 7)); OnChange = ignore; Invalid = false; Disabled = false; ReadOnly = false; Label = "Gefüllt" }
+                                DateField.view { Value = None; OnChange = ignore; Invalid = true; Disabled = false; ReadOnly = false; Label = "Fehler" }
+                                DateField.view { Value = Some (System.DateTime(2027, 6, 1)); OnChange = ignore; Invalid = false; Disabled = false; ReadOnly = true; Label = "Nur lesend" }
+                                DateField.view { Value = None; OnChange = ignore; Invalid = false; Disabled = true; ReadOnly = false; Label = "Gesperrt" }
+                                caption "Datumsfeld: leer, gefüllt, Fehler (Hinweis, Übernehmen gesperrt), nur lesend (readOnly und aria-disabled, Fokus bleibt, etwa während ein Speichern läuft), gesperrt (disabled, gedämpft, kein Hover)"
                             ]
                         ]
                         caption "Picker-Bausteine: Name 14/15px 500, Betrag neutral (Rot nur negativ), Übernehmen ohne Glow"
@@ -1072,7 +1075,7 @@ let private BottomSheetDemo () =
             ]
         ]
         subTitle "Rückfrage im Sheet (BottomSheet.confirmDanger)"
-        note "Vor einer zerstörenden Aktion am Handy, das Gegenstück zu Modal.confirmDanger. Steht als Block im Sheet, role alertdialog mit aria-labelledby. Beim Öffnen hat Abbrechen den Fokus. Beispiel: Target entfernen."
+        note "Vor einer zerstörenden Aktion am Handy, das Gegenstück zu Modal.confirmDanger. Steht als Block im Sheet, role alertdialog mit aria-labelledby, ohne aria-modal (im Fluss des Sheets, keine Fokusfalle). Beim Öffnen hat Abbrechen den Fokus, Escape bricht ab. Nach dem Schließen geht der Fokus auf den Knopf, der die Rückfrage geöffnet hat (ReturnFocus): nach Abbrechen ist er wieder bedienbar, nach dem Bestätigen dreht er mit dem laufenden Aufruf. Höchstens eine Rückfrage zugleich. Beispiel: Target entfernen."
         Html.div [
             prop.custom ("data-ds-card-name", "BottomSheet.confirmDanger")
             prop.className "max-w-sm"
@@ -1083,7 +1086,8 @@ let private BottomSheetDemo () =
                           Message = "Das Target wird in YNAB entfernt. Der Fehlbetrag entfällt."
                           ConfirmText = "Entfernen"
                           OnConfirm = fun () -> setConfirmOpen false
-                          OnCancel = fun () -> setConfirmOpen false }
+                          OnCancel = fun () -> setConfirmOpen false
+                          ReturnFocus = Some "[data-ds-card-name='BottomSheet.confirmDanger'] button" }
                 else
                     Button.danger "Target entfernen" (fun () -> setConfirmOpen true)
             ]
@@ -1100,7 +1104,8 @@ let private BottomSheetDemo () =
                           Message = "Der Tag des Targets geht verloren. Ein Wochentag lässt sich danach in BB nicht setzen."
                           ConfirmText = "Wechseln"
                           OnConfirm = fun () -> setChangeOpen false
-                          OnCancel = fun () -> setChangeOpen false }
+                          OnCancel = fun () -> setChangeOpen false
+                          ReturnFocus = Some "[data-ds-card-name='BottomSheet.confirm'] button" }
                 else
                     Button.primary "Target speichern" (fun () -> setChangeOpen true)
             ]
@@ -1634,7 +1639,7 @@ let private SegmentedDemo () =
     let active, setActive = React.useState "Zuweisen"
     let amount, setAmount = React.useState 20m
     let segment label : Segmented.Segment =
-        { Label = label; IsActive = (active = label); OnClick = fun () -> setActive label }
+        { Label = label; IsActive = (active = label); Disabled = false; OnClick = fun () -> setActive label }
     section "23b. Segmented, Schritte und Zeilen von und nach" [
         note "Umschalter mit aria-pressed, aktiv in Teal. Schritte halten den Fokus im Feld daneben. Die wählbare Zeile öffnet am Handy sheetLayered, im Panel CategoryPicker.popoverInPanelRevealed. styleguide.md §5."
         Html.div [
@@ -1644,6 +1649,12 @@ let private SegmentedDemo () =
             prop.className "flex flex-col gap-3 max-w-sm"
             prop.children [
                 Segmented.view "demo-segmented" "Beispiel" [ segment "Zuweisen"; segment "Holen"; segment "Abgeben" ]
+                Segmented.view
+                    "demo-segmented-disabled"
+                    "Beispiel gesperrt"
+                    [ for label in [ "Monat"; "Woche"; "Jahr" ] do
+                          ({ Label = label; IsActive = (label = "Monat"); Disabled = true; OnClick = ignore } : Segmented.Segment) ]
+                caption "Gesperrt: disabled, gedämpft, kein Hover (Rhythmus im Tab Target, solange das Speichern läuft)"
                 Html.div [
                     prop.className "grid grid-cols-6 gap-1"
                     prop.children [

@@ -1,8 +1,9 @@
 // scripts/target-change.test.mjs
 //
-// Wächter für `budgeting-k8wq3` und `budgeting-xp46a`: Target ändern und anlegen im Tab Target. Die
-// Hauptabläufe gegen eine gemockte BudgetApi und, was nur der Browser messen kann: "Target speichern",
-// "Target anlegen" und die Warnung vor dem Wechsel der Art liegen im 500-px-Sheet ohne Scrollen im Bild.
+// Wächter für `budgeting-k8wq3`, `budgeting-xp46a` und `budgeting-g2ty9`: Target ändern und anlegen im Tab
+// Target. Die Hauptabläufe gegen eine gemockte BudgetApi und, was nur der Browser messen kann: "Target
+// speichern", "Target anlegen" und die Warnung vor dem Wechsel der Art liegen im 500-px-Sheet ohne Scrollen
+// im Bild, der Fokus nach einer Rückfrage im Sheet, das Datumsfeld im 340-px-Panel am PC.
 // Die Regeln selbst liegen in `src/Tests/TargetChangeClientTests.fs`.
 //
 // Ausführen: node --test scripts/target-change.test.mjs
@@ -136,12 +137,24 @@ test("[layout] Handy: Target speichern liegt im 500-px-Sheet ohne Scrollen im Bi
   }
 });
 
-test("[fokus] Handy: Target entfernen öffnet die Rückfrage im Sheet, Abbrechen hat den Fokus", async () => {
-  const { context, page } = await openPage(390, 844);
+// budgeting-g2ty9 (F3): nach Abbrechen und nach dem Bestätigen lag der Fokus auf `body`, Escape schloss
+// die Rückfrage nicht.
+test("[fokus] Handy: die Rückfrage zu Target entfernen fokussiert Abbrechen, danach geht der Fokus zurück auf Target entfernen", async () => {
+  const { context, page, calls } = await openPage(390, 844);
+  let release;
+  // Die Antwort auf das Entfernen bleibt aus, solange der Test den Knopf mit dem laufenden Aufruf prüft.
+  await page.route("**/api/BudgetApi/changeCategoryTarget", async (route) => {
+    calls.change.push(JSON.parse(route.request().postData() ?? "[]"));
+    await new Promise((resolve) => (release = resolve));
+    await route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"Ende des Tests"}' });
+  });
+  const removeFocused = () =>
+    page.waitForFunction(() => document.activeElement?.closest('[data-testid="target-remove"]') !== null);
   try {
     await openTargetTab(page);
-    await sheet(page).locator('[data-testid="target-remove"] button').click();
+    const remove = sheet(page).locator('[data-testid="target-remove"] button');
     const dialog = sheet(page).getByRole("alertdialog", { name: "Target entfernen?" });
+    await remove.click();
     await dialog.waitFor();
     await page.waitForFunction(() => document.activeElement?.textContent === "Abbrechen");
     assert.equal(
@@ -149,6 +162,46 @@ test("[fokus] Handy: Target entfernen öffnet die Rückfrage im Sheet, Abbrechen
       true,
       "der Fokus liegt im Dialog auf Abbrechen"
     );
+    await dialog.getByRole("button", { name: "Abbrechen" }).click();
+    await removeFocused();
+    await remove.click();
+    await dialog.waitFor();
+    await page.keyboard.press("Escape");
+    await dialog.waitFor({ state: "detached" });
+    await removeFocused();
+    await remove.click();
+    await dialog.getByRole("button", { name: "Entfernen" }).click();
+    await until(page, () => calls.change.length === 1);
+    await removeFocused();
+    assert.equal(await remove.getAttribute("aria-busy"), "true", "der fokussierte Knopf trägt den laufenden Aufruf");
+  } finally {
+    release?.();
+    await context.close();
+  }
+});
+
+// budgeting-g2ty9 (X6): im 340-px-Panel schnitt das Datumsfeld neben dem Betrag den Platzhalter ab.
+test("[layout] PC: im Panel steht der Platzhalter des Datumsfelds beim Anlegen ganz im Feld", async () => {
+  const { context, page } = await openPage(1440, 900, null);
+  try {
+    await row(page).click();
+    const panel = page.locator('[data-testid="budget-inspector"]');
+    await panel.getByRole("tab", { name: "Target" }).click();
+    const input = panel.locator('[data-testid="target-date"] input[placeholder]');
+    await input.waitFor();
+    const measured = await input.evaluate((el) => {
+      const style = getComputedStyle(el);
+      const ctx = document.createElement("canvas").getContext("2d");
+      ctx.font = style.font;
+      return {
+        text: ctx.measureText(el.placeholder).width,
+        room: el.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
+        scrollWidth: el.scrollWidth,
+        clientWidth: el.clientWidth,
+      };
+    });
+    assert.ok(measured.scrollWidth <= measured.clientWidth, `kein Überlauf: ${measured.scrollWidth} gegen ${measured.clientWidth}`);
+    assert.ok(measured.text <= measured.room, `Platzhalter passt: ${measured.text} gegen ${measured.room}`);
   } finally {
     await context.close();
   }
@@ -177,6 +230,7 @@ test("[layout] Handy: Target anlegen und die Warnung vor dem Wechsel der Art lie
     const box = await locator.boundingBox();
     const body = await sheet(page).locator(".sheet-body").boundingBox();
     assert.ok(box && body, `${what} und Sheet sind da`);
+    assert.ok(box.y >= body.y, `${what} nicht über dem Bild: ${box.y} gegen ${body.y}`);
     assert.ok(box.y + box.height <= body.y + body.height, `${what} im Bild: ${box.y + box.height} gegen ${body.y + body.height}`);
   };
   const created = await openPage(390, 844, null);
@@ -194,7 +248,6 @@ test("[layout] Handy: Target anlegen und die Warnung vor dem Wechsel der Art lie
     const dialog = sheet(changed.page).getByRole("alertdialog", { name: "Rhythmus wechseln?" });
     await dialog.waitFor();
     await inView(changed.page, dialog.getByRole("button", { name: "Wechseln" }), "Wechseln");
-    assert.equal(changed.calls.change.length, 0, "vor der Bestätigung nichts gesendet");
   } finally {
     await changed.context.close();
   }

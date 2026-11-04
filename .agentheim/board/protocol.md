@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 18:28 -- Task verified and completed: budgeting-g2ty9 - "Review-Korrekturen im Target-Formular: Spinner am auslösenden Knopf, Fokus nach Abbrechen und Speichern bleibt, Datumsfeld nur lesend wie der Betrag, dazu die Befunde der Reviews zu Target anlegen"
+
+**Type:** Work / Task completion
+**Task:** budgeting-g2ty9 - "Review-Korrekturen im Target-Formular: Spinner am auslösenden Knopf, Fokus nach Abbrechen und Speichern bleibt, Datumsfeld nur lesend wie der Betrag, dazu die Befunde der Reviews zu Target anlegen"
+**Summary:** Review-Korrekturen im Target-Formular: höchstens eine Rückfrage im Tab, Spinner und Fokus am auslösenden Knopf, Datum und Rhythmus beim Speichern gesperrt, Teilergebnis als gelber Hinweis und je Schritt in der Historie, Anlege-Regeln an der API-Grenze
+**Duration:** 50 min
+**Verification:** PASS (iteration 1)
+**Files changed:** 29
+**Tests added:** 15
+**ADRs written:** none
+
+---
+
 ## 2026-11-04 18:07 -- Task verified and completed: budgeting-s5n2w - "Spike: Lässt sich über die YNAB-API ein einmaliges Sparziel bis zu einem Datum anlegen und ändern?"
 
 **Type:** Work / Task completion

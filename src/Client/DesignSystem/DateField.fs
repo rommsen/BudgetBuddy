@@ -106,8 +106,11 @@ type DateFieldProps = {
     OnChange: DateEntry -> unit
     /// Meldet der Aufrufer die Eingabe als ungültig? Steuert den Fehlerzustand.
     Invalid: bool
-    /// Gesperrt: Textfeld und Kalender-Knopf nehmen keine Eingabe an.
+    /// Gesperrt: Textfeld und Kalender-Knopf nehmen keine Eingabe an (`disabled`, gedämpft).
     Disabled: bool
+    /// Nur lesend, wie `Input.ReadOnly` (budgeting-g2ty9, F4): das Textfeld ist `readOnly`, der Kalender-Knopf
+    /// `aria-disabled` und öffnet nichts. Beide behalten den Fokus, etwa während ein Speichern läuft.
+    ReadOnly: bool
     /// Beschriftung für Screenreader und Kalender-Knopf
     Label: string
 }
@@ -120,6 +123,16 @@ let private openNativePicker (el: Browser.Types.HTMLInputElement) : unit =
     with _ ->
         el.focus ()
         el.click ()
+
+/// Die Klassen des Kalender-Knopfs. Gesperrt und nur lesend sieht er gedämpft aus wie das Textfeld daneben
+/// (`Input`: `opacity-50 cursor-not-allowed` gesperrt, `opacity-60 cursor-default` nur lesend), Hover gibt es
+/// nur, wenn er etwas tut (budgeting-g2ty9, F4).
+let calendarButtonClass (disabled: bool) (readOnly: bool) : string =
+    let baseClasses =
+        $"shrink-0 inline-flex items-center justify-center rounded-lg min-w-[36px] min-h-[36px] {Backgrounds.dark} {Borders.default'} border transition-colors"
+    if disabled then $"{baseClasses} opacity-50 cursor-not-allowed"
+    elif readOnly then $"{baseClasses} opacity-60 cursor-default"
+    else $"{baseClasses} hover:border-neon-teal"
 
 [<ReactComponent>]
 let view (props: DateFieldProps) =
@@ -163,18 +176,20 @@ let view (props: DateFieldProps) =
                                             Size = Input.Small
                                             State = state
                                             Disabled = props.Disabled
+                                            ReadOnly = props.ReadOnly
                                             ClassName = Some "w-full" }
                         ]
                     ]
                     Html.button [
                         prop.type' "button"
                         prop.disabled props.Disabled
+                        if props.ReadOnly then prop.ariaDisabled true
                         prop.ariaLabel $"{props.Label}: Kalender öffnen"
-                        prop.className $"shrink-0 inline-flex items-center justify-center rounded-lg min-w-[36px] min-h-[36px] {Backgrounds.dark} {Borders.default'} border hover:border-neon-teal transition-colors"
+                        prop.className (calendarButtonClass props.Disabled props.ReadOnly)
                         prop.onClick (fun _ ->
                             match nativeRef.current with
-                            | Some el -> openNativePicker el
-                            | None -> ())
+                            | Some el when not props.ReadOnly -> openNativePicker el
+                            | _ -> ())
                         prop.children [ Icons.calendar Icons.SM Icons.Default ]
                     ]
                 ]
@@ -187,7 +202,7 @@ let view (props: DateFieldProps) =
                 prop.custom ("aria-hidden", "true")
                 prop.className "absolute right-0 top-0 h-9 w-9 opacity-0 pointer-events-none"
                 prop.value (isoForValue props.Value)
-                prop.onChange handleNative
+                prop.onChange (fun (iso: string) -> if not props.ReadOnly then handleNative iso)
             ]
             if props.Invalid then
                 Html.div [

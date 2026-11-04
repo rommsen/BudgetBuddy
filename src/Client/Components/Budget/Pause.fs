@@ -65,6 +65,14 @@ let pauseBusy (model: Model) : bool =
     | PauseIdle
     | PauseRejected _ -> false
 
+/// Steht im Tab Target eine Rückfrage zur Kategorie offen (Warnung vor dem Wechsel der Art, Bestätigung von
+/// "Target entfernen")? Dann ist der Pause-Knopf gesperrt: höchstens eine Sache im Tab wartet auf eine
+/// Antwort (budgeting-g2ty9, X1).
+let pauseHeldByConfirm (model: Model) (categoryId: System.Guid) : bool =
+    model.Tab = TargetTab
+    && model.TargetForm
+       |> Option.exists (fun f -> f.CategoryId = categoryId && (f.ConfirmingChange || f.ConfirmingRemove))
+
 /// Die Meldung zur Kategorie im dargestellten Monat, wenn der letzte Aufruf scheiterte.
 let pauseError (model: Model) (categoryId: System.Guid) : string option =
     match model.PauseCall, displayedMonth model with
@@ -72,14 +80,15 @@ let pauseError (model: Model) (categoryId: System.Guid) : string option =
     | _ -> None
 
 /// Der Tipp auf den Knopf. Gesendet wird nur, was `pauseControlFor` gerade anbietet, nie während ein
-/// Aufruf läuft und nie in einen wechselnden Monat. Ergebnis: Monat und Auftrag für den Aufruf.
+/// Aufruf läuft, nie bei offener Rückfrage im Tab Target (`pauseHeldByConfirm`) und nie in einen wechselnden
+/// Monat. Ergebnis: Monat und Auftrag für den Aufruf.
 let startPause (intent: PauseIntent) (model: Model) : Model * (string * TargetPauseRequest) option =
     match model.Selected, model.Month with
     | Some selected, Success month when not (pauseBusy model) && not (monthChanging model) ->
         match categoriesOf month |> List.tryFind (fun c -> c.Id = selected.CategoryId) with
         | Some category ->
             match pauseControlFor model category with
-            | PauseOffered (Some button, _) when button.Intent = intent ->
+            | PauseOffered (Some button, _) when button.Intent = intent && not (pauseHeldByConfirm model category.Id) ->
                 { model with PauseCall = PauseRunning (category.Id, month.Month, model.MonthGeneration) },
                 Some (month.Month, { CategoryId = category.Id; Intent = intent })
             | _ -> model, None

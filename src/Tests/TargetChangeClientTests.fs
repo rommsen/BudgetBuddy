@@ -167,7 +167,7 @@ let private flowTests =
             | _, None -> failtest "Auftrag erwartet"
             let running, cmd, _ = update SaveTarget typed
             Expect.isNonEmpty cmd "gesendet"
-            Expect.equal running.TargetCall (TargetSaving (tripId, current)) "läuft"
+            Expect.equal running.TargetCall (TargetSaving (tripId, current, SavingTarget)) "läuft"
             Expect.isFalse (sends SaveTarget running) "zweiter Tipp"
             Expect.isFalse (sends ConfirmRemoveTarget (running |> step AskRemoveTarget)) "auch kein Entfernen"
         }
@@ -384,7 +384,7 @@ let private changeTests =
             Expect.isFalse (canSaveTarget warned (trip 50m)) "Speichern gesperrt, solange sie offen ist"
             let confirmed, cmd, _ = update ConfirmTargetChange warned
             Expect.isNonEmpty cmd "Bestätigen sendet"
-            Expect.equal confirmed.TargetCall (TargetSaving (tripId, current)) "Aufruf läuft"
+            Expect.equal confirmed.TargetCall (TargetSaving (tripId, current, SavingTarget)) "Aufruf läuft"
             Expect.isFalse (formOf confirmed).ConfirmingChange "Warnung zu"
         }
         test "GIVEN Warnung offen WHEN Abbrechen THEN nichts gesendet, die Eingabe bleibt" {
@@ -421,7 +421,7 @@ let private changeTests =
             Expect.equal
                 (targetChangeWarningText dated (form Weekly))
                 ("Der Tag des Targets geht verloren. Das Datum 01.06.2027 geht verloren. "
-                 + "Der Rhythmus „alle 3 Monate“ geht verloren. BB kann ihn nicht wieder herstellen, der Wechsel ist endgültig. "
+                 + "Der Rhythmus „alle 3 Monate“ geht verloren. BB kann ihn nicht wiederherstellen, der Wechsel ist endgültig. "
                  + "Ein Wochentag lässt sich danach in BB nicht setzen.")
                 "wöchentlich"
             Expect.equal
@@ -443,7 +443,12 @@ let private changeTests =
             Expect.equal external NoOp "im Tab, kein Toast"
             Expect.equal (categoryOf answered holidayId).Target (Some after) "neuer gezeigter Stand"
             let form = formOf answered
-            Expect.equal form.Notice (Some (TargetRejectedNotice message)) "Meldung"
+            // budgeting-g2ty9 (X4): ein gelber Hinweis mit Handlungssatz, keine Fehlerkarte.
+            Expect.equal form.Notice (Some (TargetPartlyNotice message)) "Hinweis"
+            Expect.equal
+                (targetNoticeText (TargetPartlyNotice message))
+                "Target angelegt, Datum 01.06.2027 nicht gesetzt: kaputt Speichern setzt das Datum erneut."
+                "mit Handlungssatz"
             Expect.equal (targetDateValue (Some after) form) (Some (DateTime(2027, 6, 1))) "Datum bleibt"
             Expect.isTrue (canSaveTarget answered (categoryOf answered holidayId)) "Speichern aktiv"
             Expect.equal
@@ -464,27 +469,35 @@ type private WarnWalk = {
     Month: string
     /// Wöchentlich ist im Formular gewählt.
     Chosen: bool
+    /// Betrag oder Datum sind getippt: ohne Wechsel sendet Speichern direkt.
+    Typed: bool
     WarnOpen: bool
     Pending: bool
 }
 
 let private warnWalkTests =
     let events (w: WarnWalk) =
-        [ "Rhythmus"; "Speichern"; "Bestätigen"; "Abbrechen"; "Monat"; if w.Pending then "Antwort" ]
+        [ "Rhythmus"; "Betrag"; "Datum"; "Speichern"; "Bestätigen"; "Abbrechen"; "Monat"; if w.Pending then "Antwort" ]
     let oracle (name: string) (w: WarnWalk) : WarnWalk * bool =
         let editable = w.Month = current
         match name with
         | "Rhythmus" when editable && not w.Pending -> { w with Chosen = true; WarnOpen = false }, false
+        // Tippen in Betrag und Datum schließt die Warnung, sie galt der alten Eingabe (budgeting-g2ty9, X10).
+        | "Betrag"
+        | "Datum" when editable && not w.Pending -> { w with Typed = true; WarnOpen = false }, false
         | "Speichern" when editable && not w.Pending && w.Chosen && not w.WarnOpen -> { w with WarnOpen = true }, false
+        | "Speichern" when editable && not w.Pending && w.Typed && not w.WarnOpen -> { w with Pending = true }, true
         | "Bestätigen" when editable && not w.Pending && w.WarnOpen -> { w with WarnOpen = false; Pending = true }, true
         | "Abbrechen" -> { w with WarnOpen = false }, false
-        | "Monat" -> { w with Month = (if w.Month = current then next else current); Chosen = false; WarnOpen = false }, false
+        | "Monat" -> { w with Month = (if w.Month = current then next else current); Chosen = false; Typed = false; WarnOpen = false }, false
         | "Antwort" -> { w with Pending = false }, false
         | _ -> w, false
     let apply (name: string) (w: WarnWalk) (model: Model) : Model * Cmd<Msg> =
         let run msg = let m, cmd, _ = update msg model in m, cmd
         match name with
         | "Rhythmus" -> run (TargetRhythmChanged Weekly)
+        | "Betrag" -> run (TargetAmountChanged "70")
+        | "Datum" -> run (TargetDateChanged (DateField.ValidDate (DateTime(2027, 6, 1))))
         | "Speichern" -> run SaveTarget
         | "Bestätigen" -> run ConfirmTargetChange
         | "Abbrechen" -> run CancelTargetChange
@@ -505,14 +518,161 @@ let private warnWalkTests =
                 walkFrom (depth - 1) (name :: path) expected model'
     testList "Tab Target: Reihenfolgen der Warnung" [
         test "In jeder Reihenfolge sendet nur Bestätigen bei offener Warnung, Abbrechen, Tippen und Monatswechsel schließen sie" {
-            walkFrom 5 [] { Month = current; Chosen = false; WarnOpen = false; Pending = false } onTrip
+            walkFrom 5 [] { Month = current; Chosen = false; Typed = false; WarnOpen = false; Pending = false } onTrip
         }
     ]
 
+// ============================================
+// Korrekturen aus den Reviews (budgeting-g2ty9)
+// ============================================
+
+let private reviewTests =
+    testList "Tab Target: Knöpfe, Hinweise und Rückfragen" [
+        // F1, F2: beim Entfernen drehte der Spinner an "Target speichern", und "Target speichern" setzte beim
+        // eigenen Aufruf `disabled`, der Fokus ging verloren.
+        test "Beim Speichern dreht nur Target speichern, beim Entfernen nur Target entfernen, der drehende Knopf ist nicht gesperrt" {
+            let saving = onTrip |> step (TargetAmountChanged "60") |> step SaveTarget
+            Expect.equal (saveButtonState saving (categoryOf saving tripId)) { Busy = true; Disabled = false } "Speichern dreht"
+            Expect.equal (removeButtonState saving (formOf saving)) { Busy = false; Disabled = true } "Entfernen gesperrt"
+            let removing = onTrip |> step AskRemoveTarget |> step ConfirmRemoveTarget
+            Expect.equal removing.TargetCall (TargetSaving (tripId, current, RemovingTarget)) "Entfernen läuft"
+            Expect.equal (removeButtonState removing (formOf removing)) { Busy = true; Disabled = false } "Entfernen dreht"
+            Expect.equal (saveButtonState removing (categoryOf removing tripId)) { Busy = false; Disabled = true } "Speichern gesperrt"
+            let switching = onTrip |> step (TargetRhythmChanged Weekly) |> step SaveTarget |> step ConfirmTargetChange
+            Expect.equal (saveButtonState switching (categoryOf switching tripId)) { Busy = true; Disabled = false } "Wechseln dreht am Speichern-Knopf"
+            Expect.equal (saveButtonState onTrip (trip 50m)) { Busy = false; Disabled = true } "ohne Änderung gesperrt"
+            Expect.equal (removeButtonState onTrip (formOf onTrip)) { Busy = false; Disabled = false } "Entfernen frei"
+        }
+        // X3: der Rhythmus wirkte beim Speichern bedienbar.
+        test "Solange das Speichern läuft, ist der Rhythmus gesperrt wie Betrag und Datum, eine Wahl ändert nichts" {
+            let saving = onTrip |> step (TargetAmountChanged "60") |> step SaveTarget
+            Expect.isTrue (targetFieldsLocked saving) "gesperrt"
+            Expect.equal (formOf (saving |> step (TargetRhythmChanged Yearly))).RhythmInput None "keine Wahl angenommen"
+        }
+        // X2: ein stilles Neulesen bei offener Warnung ließ "Wechseln" wirkungslos und Speichern gesperrt.
+        test "GIVEN Warnung offen WHEN ein stilles Neulesen zeigt ein Target ohne Verluste THEN schließt die Warnung, Speichern geht" {
+            let warned = onTrip |> step (TargetRhythmChanged Weekly) |> step SaveTarget
+            Expect.isTrue (formOf warned).ConfirmingChange "Warnung offen"
+            let withoutDay =
+                { monthWith current 50m with
+                    Groups = [ { Name = "Alltag"; Categories = [ { trip 50m with Target = Some { targetOf 50m with Day = None } }; holiday ] } ] }
+            let reread = warned |> step (Reloaded (warned.MonthGeneration, Ok withoutDay))
+            Expect.isFalse (formOf reread).ConfirmingChange "Warnung zu"
+            Expect.isTrue (sends SaveTarget reread) "Speichern sendet ohne Warnung"
+            let weekly =
+                { monthWith current 50m with
+                    Groups = [ { Name = "Alltag"; Categories = [ { trip 50m with Target = Some { targetOf 50m with Rhythm = Weeks 1 } }; holiday ] } ] }
+            let unchanged = warned |> step (Reloaded (warned.MonthGeneration, Ok weekly))
+            Expect.isFalse (formOf unchanged).ConfirmingChange "kein Wechsel mehr: Warnung zu"
+            let still = warned |> step (Reloaded (warned.MonthGeneration, Ok (monthWith current 50m)))
+            Expect.isTrue (formOf still).ConfirmingChange "gleicher Stand: Warnung bleibt"
+        }
+        // X5, F5
+        test "Außerhalb des laufenden Monats nennt der Tab den Grund, mit Target ändern, ohne anlegen, nicht während eines Wechsels" {
+            for month in [ past; next ] do
+                let model = pageIn month
+                Expect.equal (targetMonthHint model (categoryOf model tripId)) (Some TargetEditMonthText) $"{month} mit Target"
+                let without = onHolidayWithout month
+                Expect.equal (targetMonthHint without (categoryOf without holidayId)) (Some TargetCreateMonthText) $"{month} ohne Target"
+            Expect.equal (targetMonthHint onTrip (trip 50m)) None "laufender Monat"
+            let changing = onTrip |> step (SelectMonth next)
+            Expect.equal (targetMonthHint changing (categoryOf changing tripId)) None "Wechsel aus dem laufenden Monat"
+            Expect.equal (targetTabMode changing (categoryOf changing tripId)) (TargetReadOnly (targetOf 50m)) "dabei nur Text"
+        }
+        test "Der Titel der Warnung heißt Art wechseln, wenn die Art verloren geht, sonst Rhythmus wechseln" {
+            let form = { formOf onTrip with RhythmInput = Some Yearly }
+            Expect.equal (targetChangeTitle { targetOf 50m with Kind = MonthlyFunding } form) "Art wechseln?" "MF"
+            Expect.equal (targetChangeTitle (targetOf 50m) form) "Rhythmus wechseln?" "NEED"
+        }
+        // X8: wie die API-Grenze.
+        test "Anlegen mit 0 € ist gesperrt und nennt den Grund unter dem Betrag" {
+            let zero = onHolidayWithout current |> step (TargetAmountChanged "0")
+            Expect.isFalse (canSaveTarget zero (categoryOf zero holidayId)) "gesperrt"
+            Expect.equal (targetAmountHint None (formOf zero)) (Some TargetCreateZeroText) "Hinweis"
+            Expect.equal (targetAmountHint (Some (targetOf 50m)) (formOf (onTrip |> step (TargetAmountChanged "0")))) None "Ändern auf 0 € geht"
+        }
+        // X10
+        test "Der aktive Rhythmus: herstellbar nur NEED mit Abstand 1, sonst keiner" {
+            let form = formOf onTrip
+            let need rhythm = Some { targetOf 50m with Rhythm = rhythm }
+            Expect.equal (targetRhythmValue (need (Weeks 1)) form) (Some Weekly) "wöchentliches NEED"
+            Expect.equal (targetRhythmValue (need (Years 1)) form) (Some Yearly) "jährliches NEED"
+            for rhythm in [ Months 3; Years 2; NoRhythm ] do
+                Expect.equal (targetRhythmValue (need rhythm) form) None $"{rhythm}"
+            for kind in [ MonthlyFunding; TargetBalance ] do
+                Expect.equal (targetRhythmValue (Some { targetOf 50m with Kind = kind }) form) None $"{kind}"
+            Expect.equal (targetRhythmValue (need (Months 3)) { form with RhythmInput = Some Weekly }) (Some Weekly) "die Wahl gilt"
+        }
+    ]
+
+/// Was die Aufzählung der Rückfragen weiß, unabhängig vom getesteten Code (budgeting-g2ty9, X1).
+type private AskWalk = {
+    /// Wöchentlich ist gewählt, ein Speichern verlöre den Tag.
+    Chosen: bool
+    WarnOpen: bool
+    RemoveOpen: bool
+    TargetPending: bool
+    PausePending: bool
+    Paused: bool
+}
+
+// X1, Bug: am Handy konnten zwei Rückfragen zugleich offen sein. Stand die Warnung vor dem Wechsel an der
+// Stelle des Speichern-Knopfs, blieben "Target entfernen" und "Target pausieren" bedienbar, ein Tipp
+// öffnete zusätzlich die Bestätigung des Entfernens.
+let private askWalkTests =
+    let events (w: AskWalk) =
+        [ "Rhythmus"; "Speichern"; "Wechseln"; "Abbrechen Wechsel"; "Entfernen"; "Bestätigen Entfernen"; "Abbrechen Entfernen"; "Pausieren"
+          if w.TargetPending then "Antwort"
+          if w.PausePending then "Pause-Antwort" ]
+    let oracle (name: string) (w: AskWalk) : AskWalk * bool =
+        let noAsk = not w.WarnOpen && not w.RemoveOpen
+        match name with
+        | "Rhythmus" when not w.TargetPending -> { w with Chosen = true; WarnOpen = false }, false
+        | "Speichern" when not w.TargetPending && noAsk && w.Chosen -> { w with WarnOpen = true }, false
+        | "Wechseln" when not w.TargetPending && w.WarnOpen -> { w with WarnOpen = false; TargetPending = true }, true
+        | "Abbrechen Wechsel" -> { w with WarnOpen = false }, false
+        | "Entfernen" when not w.TargetPending && noAsk -> { w with RemoveOpen = true }, false
+        | "Bestätigen Entfernen" when not w.TargetPending && w.RemoveOpen -> { w with RemoveOpen = false; TargetPending = true }, true
+        | "Abbrechen Entfernen" -> { w with RemoveOpen = false }, false
+        | "Pausieren" when not w.PausePending && noAsk -> { w with PausePending = true }, true
+        | "Antwort" -> { w with TargetPending = false }, false
+        | "Pause-Antwort" -> { w with PausePending = false; Paused = not w.Paused }, false
+        | _ -> w, false
+    let apply (name: string) (w: AskWalk) (model: Model) : Model * Cmd<Msg> =
+        let run msg = let m, cmd, _ = update msg model in m, cmd
+        match name with
+        | "Rhythmus" -> run (TargetRhythmChanged Weekly)
+        | "Speichern" -> run SaveTarget
+        | "Wechseln" -> run ConfirmTargetChange
+        | "Abbrechen Wechsel" -> run CancelTargetChange
+        | "Entfernen" -> run AskRemoveTarget
+        | "Bestätigen Entfernen" -> run ConfirmRemoveTarget
+        | "Abbrechen Entfernen" -> run CancelRemoveTarget
+        | "Pausieren" -> run (SetTargetPause (if w.Paused then LiftPause else PauseTarget))
+        | "Antwort" -> run (TargetChangeAnswered (tripId, current, Error "kaputt"))
+        | _ -> run (TargetPauseAnswered (tripId, current, Ok (if w.Paused then None else Some PausedInBb)))
+    let rec walkFrom depth path (w: AskWalk) (model: Model) =
+        if depth > 0 then
+            for name in events w do
+                let route = List.rev (name :: path) |> String.concat ", "
+                let expected, sent = oracle name w
+                let model', cmd = apply name w model
+                Expect.equal (not (List.isEmpty cmd)) sent $"{route}: gesendet"
+                let form = formOf model'
+                Expect.equal (form.ConfirmingChange, form.ConfirmingRemove) (expected.WarnOpen, expected.RemoveOpen) $"{route}: Rückfragen offen"
+                walkFrom (depth - 1) (name :: path) expected model'
+    testList "Tab Target: Reihenfolgen der Rückfragen" [
+        test "In jeder Reihenfolge steht höchstens eine Rückfrage offen, Speichern, Entfernen und Pausieren warten auf sie" {
+            walkFrom 5 [] { Chosen = false; WarnOpen = false; RemoveOpen = false; TargetPending = false; PausePending = false; Paused = false } onTrip
+        }
+    ]
+
+// budgeting-k8wq3
 [<Tests>]
 let tests =
-    testList "Target ändern im Client (budgeting-k8wq3)" [ visibilityTests; flowTests; walkTests ]
+    testList "Target ändern im Client" [ visibilityTests; flowTests; walkTests ]
 
+// budgeting-xp46a, Korrekturen aus budgeting-g2ty9
 [<Tests>]
 let createAndChangeTests =
-    testList "Target anlegen und Art wechseln im Client (budgeting-xp46a)" [ createTests; changeTests; warnWalkTests ]
+    testList "Target anlegen und Art wechseln im Client" [ createTests; changeTests; warnWalkTests; reviewTests; askWalkTests ]

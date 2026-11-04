@@ -10,10 +10,10 @@ Catalog of this bounded context's tasks by status.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 7
+- **Backlog:** 8
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 26
+- **Doing:** 0
+- **Done:** 27
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ Catalog of this bounded context's tasks by status.
 
 ### Doing
 <!-- doing-list:start -->
-- **budgeting-g2ty9** — "Review-Korrekturen im Target-Formular: Spinner am auslösenden Knopf, Fokus nach Abbrechen und Speichern bleibt, Datumsfeld nur lesend wie der Betrag, dazu die Befunde der Reviews zu Target anlegen" (refactor) — `doing/budgeting-g2ty9-review-korrekturen-target-formular.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **budgeting-g2ty9** — "Review-Korrekturen im Target-Formular: Spinner am auslösenden Knopf, Fokus nach Abbrechen und Speichern bleibt, Datumsfeld nur lesend wie der Betrag, dazu die Befunde der Reviews zu Target anlegen" (refactor) — `done/budgeting-g2ty9-review-korrekturen-target-formular.md`
 - **budgeting-s5n2w** — "Spike: Lässt sich über die YNAB-API ein einmaliges Sparziel bis zu einem Datum anlegen und ändern?" (spike) — `done/budgeting-s5n2w-spike-sparziel-bis-datum.md`
 - **budgeting-c6vn4** — "Review-Korrekturen zur allgemeinen Historie und zu den Pause-Korrekturen: Suchfeld am Handy wieder breit, Ladeantwort mit Generation, Filter haftet, aufklappbare Zeile mit Chevron, Betrag rechts, BB-Lesefehler nicht als YNAB-Fehler, fehlende Tests" (refactor) — `done/budgeting-c6vn4-review-korrekturen-allgemeine-historie-und-pause.md`
 - **budgeting-xp46a** — "Target anlegen und Art wechseln im Tab Target: NEED monatlich, wöchentlich oder jährlich, optional mit Datum in zwei Aufrufen, Warnung vor dem Verlust von Tag und Datum" (feature) — `done/budgeting-xp46a-target-anlegen-art-wechseln.md`
@@ -69,6 +69,7 @@ prior-art matcher additionally checks `done-archive/` when present.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **budgeting-r7h2q** — "[layout]-Test Historie-Knopf 48 px am Handy rundet nicht: 47,99999 px ließ ihn einmal rot werden" (chore) — `backlog/budgeting-r7h2q-layout-test-historie-knopf-48-px-am-handy-rundet-nicht-47-99.md`
 - **budgeting-d7r4k** — "Target-Datum je Rhythmus: kein Datum bei der Woche, beim Monat als \"ab\", beim Jahr als \"fällig am\"" (feature) — `backlog/budgeting-d7r4k-target-datum-je-rhythmus.md`
 - **budgeting-q8m2v** — "Allgemeine Historie begrenzen oder nach Monat laden" (feature) — `backlog/budgeting-q8m2v-allgemeine-historie-begrenzen-oder-nach-monat-laden.md`
 - **budgeting-w3p7n** — "Allgemeine Historie: Pausen und Target-Änderungen als eigene Arten?" (feature) — `backlog/budgeting-w3p7n-allgemeine-historie-pausen-und-target-nderungen-als-eigene-a.md`

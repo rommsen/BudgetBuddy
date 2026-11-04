@@ -74,17 +74,21 @@ let private statusFromText (status: string) (reason: string) : LineOutcome optio
 
 /// Ergänzt die Spalten aus budgeting-xp46a an einer Datenbank aus budgeting-k8wq3: den Rhythmus beim
 /// Anlegen und beim Wechsel der Art (`target_changes.new_frequency`) und den Schritt je Ergebnis
-/// (`target_change_results.step`, bei alten Zeilen leer, gemeint ist Schritt 1). SQLite kennt kein
-/// "ADD COLUMN IF NOT EXISTS", eine schon vorhandene Spalte ist kein Fehler. Nimmt die Verbindung als
-/// Parameter, damit ein Test sie an einer eigenen Datenbank prüft.
+/// (`target_change_results.step`, bei alten Zeilen leer, gemeint ist Schritt 1). Eine neue Datenbank hat
+/// sie schon aus `CREATE TABLE`. SQLite kennt kein "ADD COLUMN IF NOT EXISTS": ob die Spalte fehlt, sagt
+/// `pragma_table_info` (budgeting-g2ty9, X11). Nimmt die Verbindung als Parameter, damit ein Test sie an
+/// einer eigenen Datenbank prüft.
 let migrateTargetChangeColumns (conn: SqliteConnection) =
-    for sql in
-        [ "ALTER TABLE target_changes ADD COLUMN new_frequency TEXT"
-          "ALTER TABLE target_change_results ADD COLUMN step INTEGER" ] do
-        try
-            conn.Execute(sql) |> ignore
-        with :? SqliteException as ex when ex.Message.Contains "duplicate column name" ->
-            ()
+    for table, column, alter in
+        [ "target_changes", "new_frequency", "ALTER TABLE target_changes ADD COLUMN new_frequency TEXT"
+          "target_change_results", "step", "ALTER TABLE target_change_results ADD COLUMN step INTEGER" ] do
+        let present =
+            conn.ExecuteScalar<int64>(
+                "SELECT COUNT(*) FROM pragma_table_info(@table) WHERE name = @column",
+                {| table = table; column = column |}
+            )
+        if present = 0L then
+            conn.Execute(alter) |> ignore
 
 /// Legt die Tabellen an (`CREATE ... IF NOT EXISTS`, wiederholbar). Die Trigger machen alle
 /// Tabellen append-only, auch `target_pause_events` (budgeting-t6p8z, ADR 0079) und die Target-Änderungen
@@ -144,7 +148,8 @@ let initializeBudgetingSchema () =
             old_goal_target INTEGER,
             new_goal_target INTEGER,
             old_date TEXT,
-            new_date TEXT
+            new_date TEXT,
+            new_frequency TEXT
         );
         CREATE INDEX IF NOT EXISTS idx_target_changes_category ON target_changes (category_id, month);
         CREATE TABLE IF NOT EXISTS target_change_results (
@@ -152,7 +157,8 @@ let initializeBudgetingSchema () =
             change_id TEXT NOT NULL,
             occurred_at TEXT NOT NULL,
             status TEXT NOT NULL,
-            reason TEXT
+            reason TEXT,
+            step INTEGER
         );
         CREATE INDEX IF NOT EXISTS idx_target_change_results_change ON target_change_results (change_id);
         CREATE TRIGGER IF NOT EXISTS target_changes_no_update BEFORE UPDATE ON target_changes
@@ -530,10 +536,6 @@ let appendTargetChangeStepResult (changeId: Guid) (step: int) (at: DateTime) (ou
         |> ignore
     }
 
-/// Das Ergebnis einer Änderung mit einem Schritt.
-let appendTargetChangeResult (changeId: Guid) (at: DateTime) (outcome: LineOutcome) : Async<unit> =
-    appendTargetChangeStepResult changeId 1 at outcome
-
 [<CLIMutable>]
 type private TargetChangeRow = {
     id: string
@@ -549,42 +551,64 @@ type private TargetChangeRow = {
     new_frequency: string option
     status: string
     reason: string
+    date_status: string
+    date_reason: string
 }
 
-/// Die Target-Änderungen einer Kategorie im Monat für die Historie, neueste zuerst, je mit dem jüngsten
-/// Ergebnis. Eine unbekannte Art wird gemeldet (`failwith`), nicht auf einen Standard gelegt.
-let queryTargetChanges (conn: SqliteConnection) (categoryId: Guid) (month: string) : HistoryTargetChange list =
+/// Die Target-Änderungen einer Kategorie im Monat für die Historie, neueste zuerst nach `rowid` wie die
+/// Pausen, je mit dem jüngsten Ergebnis von Schritt 1 und von Schritt 2 (budgeting-g2ty9, X7). Ein Ergebnis
+/// ohne Schritt stammt aus budgeting-k8wq3 und zählt als Schritt 1. Eine unbekannte Art wird gemeldet,
+/// nicht auf einen Standard gelegt.
+let queryTargetChanges (conn: SqliteConnection) (categoryId: Guid) (month: string) : Result<HistoryTargetChange list, string> =
     conn.Query<TargetChangeRow>(
         "SELECT c.id, c.occurred_at, c.month, c.category_id, c.category_name, c.change_kind, \
-                c.old_goal_target, c.new_goal_target, c.old_date, c.new_date, c.new_frequency, r.status, r.reason \
+                c.old_goal_target, c.new_goal_target, c.old_date, c.new_date, c.new_frequency, \
+                r1.status, r1.reason, r2.status AS date_status, r2.reason AS date_reason \
          FROM target_changes c \
-         LEFT JOIN target_change_results r \
-           ON r.sequence = (SELECT MAX(sequence) FROM target_change_results WHERE change_id = c.id) \
+         LEFT JOIN target_change_results r1 \
+           ON r1.sequence = (SELECT MAX(sequence) FROM target_change_results \
+                             WHERE change_id = c.id AND COALESCE(step, 1) = 1) \
+         LEFT JOIN target_change_results r2 \
+           ON r2.sequence = (SELECT MAX(sequence) FROM target_change_results \
+                             WHERE change_id = c.id AND step = 2) \
          WHERE c.category_id = @category_id AND c.month = @month \
-         ORDER BY c.occurred_at DESC, c.rowid DESC",
+         ORDER BY c.rowid DESC",
         {| category_id = string categoryId; month = month |}
     )
-    |> Seq.map (fun r ->
-        let kind =
-            match targetChangeKindOfText r.change_kind r.new_frequency with
-            | Ok k -> k
-            | Error message -> failwith message
-        { ChangeId = Guid.Parse r.id
-          OccurredAt = dateFromText r.occurred_at
-          Month = r.month
-          CategoryId = Guid.Parse r.category_id
-          CategoryName = r.category_name
-          ChangeKind = kind
-          GoalBefore = r.old_goal_target |> Option.map euroOfMilliunits
-          GoalAfter = r.new_goal_target |> Option.map euroOfMilliunits
-          DateBefore = r.old_date
-          DateAfter = r.new_date
-          Latest = statusFromText r.status r.reason })
     |> Seq.toList
+    |> List.map (fun r ->
+        targetChangeKindOfText r.change_kind r.new_frequency
+        |> Result.map (fun kind ->
+            { ChangeId = Guid.Parse r.id
+              OccurredAt = dateFromText r.occurred_at
+              Month = r.month
+              CategoryId = Guid.Parse r.category_id
+              CategoryName = r.category_name
+              ChangeKind = kind
+              GoalBefore = r.old_goal_target |> Option.map euroOfMilliunits
+              GoalAfter = r.new_goal_target |> Option.map euroOfMilliunits
+              DateBefore = r.old_date
+              DateAfter = r.new_date
+              Latest = statusFromText r.status r.reason
+              DateStep = statusFromText r.date_status r.date_reason }))
+    |> collectRows
 
-/// Die Target-Änderungen für die Historie. Liest nur die Datenbank, kein YNAB.
-let loadTargetChanges (categoryId: Guid) (month: string) : Async<HistoryTargetChange list> =
+/// Die Meldung, wenn die Target-Änderungen für die Historie nicht lesbar sind.
+[<Literal>]
+let TargetChangesUnreadableText = "Target-Änderungen nicht lesbar"
+
+/// Die Target-Änderungen für die Historie. Liest nur die Datenbank, kein YNAB. Ein Lesefehler oder eine
+/// unbekannte Art kommt als `Error` mit Text, die Ursache bleibt im Server-Log (wie `loadPauseEvents`).
+let loadTargetChanges (categoryId: Guid) (month: string) : Async<Result<HistoryTargetChange list, string>> =
     async {
-        use conn = Core.getConnection ()
-        return queryTargetChanges conn categoryId month
+        try
+            use conn = Core.getConnection ()
+            match queryTargetChanges conn categoryId month with
+            | Ok changes -> return Ok changes
+            | Error message ->
+                logReadFailure "Target-Änderungen lesen" message
+                return Error TargetChangesUnreadableText
+        with ex ->
+            logReadFailure "Target-Änderungen lesen" ex.Message
+            return Error TargetChangesUnreadableText
     }

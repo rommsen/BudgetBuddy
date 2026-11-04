@@ -406,6 +406,10 @@ type RhythmChoice =
     | KeepRhythm
     | SetRhythm of TargetFrequency
 
+/// Die Währung eines Targets: BB kennt nur Euro, die API-Grenze lehnt jede andere ab (budgeting-g2ty9, X11).
+[<Literal>]
+let TargetCurrency = "EUR"
+
 /// Das gewünschte Target, wie das Formular es schickt.
 type TargetDraft = {
     /// Der Betrag in Euro, 0 oder mehr.
@@ -442,12 +446,27 @@ let TargetEditMonthText = "Target ändern geht nur im laufenden Monat."
 [<Literal>]
 let TargetRhythmMissingText = "Für ein neues Target fehlt der Rhythmus: monatlich, wöchentlich oder jährlich."
 
-/// "monatlich", "wöchentlich", "jährlich".
-let frequencyText (frequency: TargetFrequency) : string =
-    match frequency with
-    | Weekly -> "wöchentlich"
-    | Monthly -> "monatlich"
-    | Yearly -> "jährlich"
+/// Die Ablehnung, wenn ohne Target in einem anderen Monat als dem laufenden angelegt werden soll, und der
+/// Satz unter "Kein Target" dort (budgeting-g2ty9, X5).
+[<Literal>]
+let TargetCreateMonthText = "Target anlegen geht nur im laufenden Monat."
+
+/// Die Ablehnung eines neuen Targets mit 0 € (budgeting-g2ty9, X8): YNAB legte sonst ein Target ohne
+/// Fehlbetrag an.
+[<Literal>]
+let TargetCreateZeroText = "Ein neues Target braucht einen Betrag über 0 €."
+
+/// Der Rhythmus als Wort: "monatlich", "alle 3 Monate", "ohne Rhythmus" (budgeting-g2ty9, X11). Ein Text
+/// für Server und Client.
+let rhythmWordText (rhythm: TargetRhythm) : string =
+    match rhythm with
+    | Weeks 1 -> "wöchentlich"
+    | Months 1 -> "monatlich"
+    | Years 1 -> "jährlich"
+    | Weeks n -> $"alle {n} Wochen"
+    | Months n -> $"alle {n} Monate"
+    | Years n -> $"alle {n} Jahre"
+    | NoRhythm -> "ohne Rhythmus"
 
 /// Der Rhythmus, den YNAB nach `goal_frequency` liefert: jeweils mit Abstand 1.
 let rhythmOfFrequency (frequency: TargetFrequency) : TargetRhythm =
@@ -455,6 +474,9 @@ let rhythmOfFrequency (frequency: TargetFrequency) : TargetRhythm =
     | Weekly -> Weeks 1
     | Monthly -> Months 1
     | Yearly -> Years 1
+
+/// "monatlich", "wöchentlich", "jährlich".
+let frequencyText (frequency: TargetFrequency) : string = rhythmWordText (rhythmOfFrequency frequency)
 
 /// Ist der Wunsch ein echter Wechsel der Art (ADR 0072 Punkt 4)? Ja, wenn `SetRhythm f` vom gelesenen
 /// Rhythmus abweicht oder die heutige Art kein NEED ist. Gleicher Rhythmus bei NEED ist kein Wechsel, dann
@@ -509,12 +531,6 @@ let dateText (iso: string) : string =
     match iso.Split '-' with
     | [| year; month; day |] when year.Length = 4 && month.Length = 2 && day.Length = 2 -> $"{day}.{month}.{year}"
     | _ -> iso
-
-/// Die Meldung, wenn Schritt 2 nicht geschrieben ist: "Target angelegt, Datum 01.06.2027 nicht gesetzt:
-/// <Grund>". `created` unterscheidet Anlegen von einem Wechsel der Art.
-let targetDateNotSetText (created: bool) (date: string) (reason: string) : string =
-    let what = if created then "Target angelegt" else "Target geändert"
-    $"{what}, Datum {dateText date} nicht gesetzt: {reason}"
 
 // ============================================
 // Historie je Kategorie (budgeting-dyn8g)
@@ -578,8 +594,27 @@ type TargetChangeKind =
     /// Die Art gewechselt (`goal_frequency`), auf NEED mit diesem Rhythmus.
     | TargetKindChanged of TargetFrequency
 
-/// Eine festgehaltene Target-Änderung aus `target_changes`, mit ihrem jüngsten Ergebnis (ADR 0080
-/// Punkt 2). Keine Budget-Bewegung: das Zugewiesen bleibt.
+/// "angelegt" beim Anlegen, sonst "geändert".
+let private changedWord (kind: TargetChangeKind) : string =
+    match kind with
+    | TargetCreated _ -> "angelegt"
+    | TargetEdited
+    | TargetRemoved
+    | TargetKindChanged _ -> "geändert"
+
+/// Die Meldung, wenn Schritt 2 nicht geschrieben ist: "Target angelegt, Datum 01.06.2027 nicht gesetzt:
+/// <Grund>", beim Wechsel der Art "Target geändert, …".
+let targetDateNotSetText (kind: TargetChangeKind) (date: string) (reason: string) : string =
+    $"Target {changedWord kind}, Datum {dateText date} nicht gesetzt: {reason}"
+
+/// Die Meldung, wenn YNABs Antwort auf Schritt 1 einen anderen Rhythmus zeigt und Schritt 2 deshalb
+/// zurückgehalten ist (budgeting-g2ty9, X9): "Target in YNAB mit anderem Rhythmus angelegt, Datum
+/// 01.06.2027 nicht gesetzt: <Grund>".
+let targetRhythmUnexpectedText (kind: TargetChangeKind) (date: string) (reason: string) : string =
+    $"Target in YNAB mit anderem Rhythmus {changedWord kind}, Datum {dateText date} nicht gesetzt: {reason}"
+
+/// Eine festgehaltene Target-Änderung aus `target_changes`, mit dem jüngsten Ergebnis je Schritt (ADR 0080
+/// Punkt 2 und 4, budgeting-g2ty9 X7). Keine Budget-Bewegung: das Zugewiesen bleibt.
 type HistoryTargetChange = {
     ChangeId: Guid
     /// Zeitpunkt des Festhaltens, UTC.
@@ -594,8 +629,12 @@ type HistoryTargetChange = {
     /// "YYYY-MM-DD".
     DateBefore: string option
     DateAfter: string option
-    /// Das jüngste Ergebnis. `None`: noch keins angehängt.
+    /// Das jüngste Ergebnis von Schritt 1 (alte Zeilen ohne Schritt zählen als Schritt 1). `None`: noch keins
+    /// angehängt.
     Latest: LineOutcome option
+    /// Das jüngste Ergebnis von Schritt 2, dem Datum nach Anlegen oder Wechsel der Art. `None`: kein
+    /// zweiter Schritt oder noch kein Ergebnis.
+    DateStep: LineOutcome option
 }
 
 /// Ein Eintrag im Tab Historie: eine Budget-Bewegung, ein Pause-Ereignis oder eine Target-Änderung.
@@ -631,6 +670,9 @@ type HistoryStatus =
     | HistoryChangedInYnab
     /// Kein Ergebnis angehängt: der Lauf brach vor dieser Zeile ab oder läuft noch.
     | HistoryOpen
+    /// Nur bei einer Target-Änderung in zwei Schritten (budgeting-g2ty9, X7): Schritt 1 ist geschrieben,
+    /// das Datum in Schritt 2 nicht, mit dessen Grund. Das Target steht ohne Datum in YNAB.
+    | HistoryPartlyWritten of reason: string
 
 /// Eine Zeile im Tab Historie, aus Sicht der Kategorie des Eintrags.
 type HistoryLine = {
@@ -677,24 +719,44 @@ let historyLine (m: HistoryMovement) : HistoryLine =
       Text = text
       Status = Some (historyStatus m.Latest) }
 
+/// Der Stand einer Target-Änderung aus den Ergebnissen ihrer Schritte (budgeting-g2ty9, X7). Ist Schritt 1
+/// geschrieben, entscheidet Schritt 2: fehlgeschlagen heißt teilweise geschrieben, ohne Ergebnis bei
+/// einem erwarteten Datum noch offen. Sonst gilt Schritt 1 wie bei einer Bewegung.
+let targetChangeStatus (c: HistoryTargetChange) : HistoryStatus =
+    // Zwei Schritte hat nur ein Anlegen oder Wechsel der Art mit Datum (`planTargetWrite`).
+    let twoSteps =
+        match c.ChangeKind, c.DateAfter with
+        | (TargetCreated _ | TargetKindChanged _), Some _ -> true
+        | _ -> false
+    match c.Latest, c.DateStep with
+    | Some Written, Some (Failed reason) -> HistoryPartlyWritten reason
+    | Some Written, Some ChangedInYnab -> HistoryChangedInYnab
+    | Some Written, None when twoSteps -> HistoryOpen
+    | latest, _ -> historyStatus latest
+
 /// Der Text einer Target-Änderung: "Target 50,00 € → 60,00 €", "Datum 01.06.2027", "Datum entfernt",
 /// beides mit Komma getrennt, oder "Target entfernt". Angelegt: "Target angelegt, 50,00 € monatlich", ein
 /// Datum mit Komma dahinter. Art gewechselt: "Rhythmus jährlich", Betrag und Datum wie beim Ändern dahinter.
+/// Ist nur Schritt 1 geschrieben, heißt das Datum "Datum 01.06.2027 nicht gesetzt" (budgeting-g2ty9, X7).
 let targetChangeText (c: HistoryTargetChange) : string =
     let amount (m: Money option) = m |> Option.map euroText |> Option.defaultValue "kein Betrag"
+    let dateNotSet =
+        match targetChangeStatus c with
+        | HistoryPartlyWritten _ -> " nicht gesetzt"
+        | _ -> ""
     let changes =
         [ if c.GoalBefore <> c.GoalAfter then
               $"Target {amount c.GoalBefore} → {amount c.GoalAfter}"
-          if c.DateBefore <> c.DateAfter then
+          if c.DateBefore <> c.DateAfter || dateNotSet <> "" then
               match c.DateAfter with
-              | Some date -> $"Datum {dateText date}"
+              | Some date -> $"Datum {dateText date}{dateNotSet}"
               | None -> "Datum entfernt" ]
     match c.ChangeKind with
     | TargetRemoved -> "Target entfernt"
     | TargetCreated frequency ->
         [ $"Target angelegt, {amount c.GoalAfter} {frequencyText frequency}"
           match c.DateAfter with
-          | Some date -> $"Datum {dateText date}"
+          | Some date -> $"Datum {dateText date}{dateNotSet}"
           | None -> () ]
         |> String.concat ", "
     | TargetKindChanged frequency -> $"Rhythmus {frequencyText frequency}" :: changes |> String.concat ", "
@@ -721,7 +783,7 @@ let historyEntryLine (entry: HistoryEntry) : HistoryLine =
           OccurredAt = c.OccurredAt
           Change = None
           Text = targetChangeText c
-          Status = Some (historyStatus c.Latest) }
+          Status = Some (targetChangeStatus c) }
 
 // ============================================
 // Allgemeine Historie (budgeting-h7q4v)

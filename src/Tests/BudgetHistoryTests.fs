@@ -88,7 +88,8 @@ let private targetRemovedAt (time: DateTime) : HistoryTargetChange =
       GoalAfter = None
       DateBefore = None
       DateAfter = None
-      Latest = Some Written }
+      Latest = Some Written
+      DateStep = None }
 
 // budgeting-h7q4v (H4), hierher gezogen in budgeting-c6vn4: das Mischen gehört zur Historie je Kategorie.
 [<Tests>]

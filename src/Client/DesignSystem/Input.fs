@@ -63,6 +63,11 @@ type TextInputProps = {
     OnFocus: (Browser.Types.FocusEvent -> unit) option
     OnBlur: (Browser.Types.FocusEvent -> unit) option
     OnKeyDown: (Browser.Types.KeyboardEvent -> unit) option
+    /// Die Id eines Hinweises unter dem Feld (`aria-describedby`), etwa "Ungültige Rechnung"
+    /// (budgeting-g2ty9, F5).
+    DescribedBy: string option
+    /// Die Eingabe gilt nicht (`aria-invalid`). Die rote Umrandung setzt weiter `State` oder die Klasse.
+    AriaInvalid: bool
 }
 
 let textInputDefaults = {
@@ -80,6 +85,8 @@ let textInputDefaults = {
     OnFocus = None
     OnBlur = None
     OnKeyDown = None
+    DescribedBy = None
+    AriaInvalid = false
 }
 
 /// Setzt `text` das Inline-`fontSize 16` (iOS-Zoom-Schutz)? Nur Medium. Small trägt
@@ -122,6 +129,10 @@ let text (props: TextInputProps) =
         match props.AriaLabel with
         | Some label -> prop.ariaLabel label
         | None -> ()
+        match props.DescribedBy with
+        | Some id -> prop.ariaDescribedBy id
+        | None -> ()
+        if props.AriaInvalid then prop.ariaInvalid true
         // Prevent iOS zoom on focus (Small und Large regeln das über ihre Klassen)
         if usesInlineFontSize props.Size then
             prop.style [ style.fontSize 16 ]

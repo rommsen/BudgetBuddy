@@ -69,7 +69,7 @@ type HistoryPort = {
     /// Kategorie und Monat ("YYYY-MM-01"): die Pause-Ereignisse, neueste zuerst (budgeting-t6p8z).
     LoadPauseEvents: Guid -> string -> Async<Result<HistoryEntry list, string>>
     /// Kategorie und Monat: die Target-Änderungen, neueste zuerst (budgeting-k8wq3).
-    LoadTargetChanges: Guid -> string -> Async<HistoryTargetChange list>
+    LoadTargetChanges: Guid -> string -> Async<Result<HistoryTargetChange list, string>>
 }
 
 /// Die Bewegungen zum Filter. Grundlage der Historie je Kategorie und der allgemeinen (budgeting-h7q4v).
@@ -105,11 +105,10 @@ let categoryHistory (port: HistoryPort) (categoryId: Guid) (firstDay: DateTime) 
             let! changes =
                 async {
                     try
-                        let! changes = port.LoadTargetChanges categoryId monthKey
-                        return Ok changes
+                        return! port.LoadTargetChanges categoryId monthKey
                     with ex ->
                         logReadFailure "Target-Änderungen lesen" ex
-                        return Error "Target-Änderungen nicht lesbar"
+                        return Error Budgeting.Persistence.TargetChangesUnreadableText
                 }
             match pauses, changes with
             | Error message, _

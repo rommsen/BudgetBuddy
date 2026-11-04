@@ -9,14 +9,21 @@ open Client.DesignSystem.Tokens
 type Segment = {
     Label: string
     IsActive: bool
+    /// Gesperrt (budgeting-g2ty9, X3): `disabled`, gedämpft wie ein gesperrtes Feld, kein Hover. Erster
+    /// Nutzer: der Rhythmus im Tab Target, solange das Speichern läuft.
+    Disabled: bool
     OnClick: unit -> unit
 }
 
-let private segmentClass (isActive: bool) : string =
+let segmentClass (isActive: bool) (disabled: bool) : string =
     let baseClasses =
-        $"inline-flex items-center justify-center {TouchTargets.alwaysMinHeight} px-2 rounded-md text-sm font-semibold cursor-pointer touch-manipulation transition-colors"
-    if isActive then $"{baseClasses} {Backgrounds.tealSubtle} {Colors.neonTeal}"
-    else $"{baseClasses} {Colors.textSecondary} hover:text-text-primary"
+        $"inline-flex items-center justify-center {TouchTargets.alwaysMinHeight} px-2 rounded-md text-sm font-semibold touch-manipulation transition-colors"
+    let color =
+        if isActive then $"{Backgrounds.tealSubtle} {Colors.neonTeal}"
+        elif disabled then Colors.textSecondary
+        else $"{Colors.textSecondary} hover:text-text-primary"
+    let cursor = if disabled then "opacity-50 cursor-not-allowed" else "cursor-pointer"
+    $"{baseClasses} {color} {cursor}"
 
 let private segmentButton (testId: string) (segment: Segment) : ReactElement =
     Html.button [
@@ -24,7 +31,8 @@ let private segmentButton (testId: string) (segment: Segment) : ReactElement =
         prop.type' "button"
         prop.custom ("data-testid", testId)
         prop.custom ("aria-pressed", segment.IsActive)
-        prop.className (segmentClass segment.IsActive)
+        prop.disabled segment.Disabled
+        prop.className (segmentClass segment.IsActive segment.Disabled)
         prop.onClick (fun _ -> segment.OnClick ())
         prop.text segment.Label
     ]

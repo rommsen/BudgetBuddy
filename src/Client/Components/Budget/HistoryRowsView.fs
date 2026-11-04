@@ -16,7 +16,9 @@ let historyStatusView (status: HistoryStatus) =
     match status with
     | HistoryWritten -> Html.span [ prop.className ListRoles.muted; prop.text text ]
     | HistoryFailed _ -> Badge.errorSmall text
-    | HistoryChangedInYnab -> Badge.noticeSmall text
+    | HistoryChangedInYnab
+    // Gelb wie "offen, kein Fehler" (ADR 0075): das Target steht, nur das Datum fehlt (budgeting-g2ty9, X7).
+    | HistoryPartlyWritten _ -> Badge.noticeSmall text
     | HistoryOpen -> Badge.neutralSmall text
 
 /// Der Betrag einer Bewegungszeile, wie `historyChangeAmount` ihn liefert.

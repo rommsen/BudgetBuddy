@@ -46,14 +46,6 @@ let private emptyForm (categoryId: System.Guid) (month: string) : TargetForm =
       RhythmInput = None
       ConfirmingChange = false }
 
-/// Hält das Formular am Schlüssel aus Kategorie und Monat. Wechselt einer, ist die Eingabe verworfen und eine
-/// offene Warnung geschlossen; im vergangenen oder künftigen Monat gibt es kein Formular.
-let syncTargetForm (model: Model) : Model =
-    match model.TargetForm, formKey model with
-    | Some form, Some (c, m) when form.CategoryId = c && form.Month = m -> model
-    | _, Some (c, m) -> { model with TargetForm = Some (emptyForm c m) }
-    | _, None -> { model with TargetForm = None }
-
 /// Was der Tab Target für die Kategorie zeigt. Die Bearbeitbarkeit kommt aus `targetEditAllowed`.
 let targetTabMode (model: Model) (category: BudgetCategory) : TargetTabMode =
     match category.Target, model.TargetForm with
@@ -63,6 +55,15 @@ let targetTabMode (model: Model) (category: BudgetCategory) : TargetTabMode =
         | None -> TargetCreatable form
     | None, _ -> NoTargetShown
     | Some target, _ -> TargetReadOnly target
+
+/// Der Satz, warum der Tab nur Text zeigt: in einem vergangenen oder künftigen Monat, mit Target "Target
+/// ändern geht nur im laufenden Monat.", ohne "Target anlegen geht nur im laufenden Monat." (budgeting-g2ty9,
+/// X5). Während eines Monatswechsels aus dem laufenden Monat steht er nicht: dort ginge es (F5).
+let targetMonthHint (model: Model) (category: BudgetCategory) : string option =
+    match displayedMonthKind model with
+    | Some kind when not (targetEditAllowed kind) ->
+        Some (if category.Target.IsSome then TargetEditMonthText else TargetCreateMonthText)
+    | _ -> None
 
 /// Der Stand, auf dem eine Rechnung im Betragsfeld aufsetzt: der Betrag des Targets, ohne Target 0.
 let private baseAmount (shown: Target option) : decimal =
@@ -104,7 +105,8 @@ let targetRhythmValue (shown: Target option) (form: TargetForm) : TargetFrequenc
     | None, None -> Some Monthly
 
 /// Der Hinweis unter dem Betragsfeld, wenn die Eingabe nicht gilt (budgeting-r3wq8): negativ oder keine
-/// gültige Rechnung. `None`, wenn sie gilt.
+/// gültige Rechnung, beim Anlegen auch 0 € wie an der API-Grenze (budgeting-g2ty9, X8). `None`, wenn sie
+/// gilt.
 let targetAmountHint (shown: Target option) (form: TargetForm) : string option =
     match form.AmountInput with
     | None -> None
@@ -112,6 +114,7 @@ let targetAmountHint (shown: Target option) (form: TargetForm) : string option =
         match AmountMath.evaluateAmount (baseAmount shown) text with
         | None -> Some AmountMath.InvalidCalculationText
         | Some value when value < 0m -> Some "Target darf nicht negativ sein"
+        | Some 0m when shown.IsNone -> Some TargetCreateZeroText
         | Some _ -> None
 
 /// Ist die Eingabe im Datumsfeld ungültig?
@@ -140,9 +143,9 @@ let targetFormState (shown: Target option) (form: TargetForm) : TargetFormState 
     | None ->
         match form.AmountInput, targetAmountOf None form, date with
         | None, _, Some _ -> FormUnchanged
-        | Some _, Some amount, Some date ->
+        | Some _, Some amount, Some date when amount > 0m ->
             let rhythm = targetRhythmValue None form |> Option.defaultValue Monthly
-            FormChanged { NewGoal = { Amount = amount; Currency = "EUR" }; NewDate = date; NewRhythm = SetRhythm rhythm }
+            FormChanged { NewGoal = { Amount = amount; Currency = TargetCurrency }; NewDate = date; NewRhythm = SetRhythm rhythm }
         | _ -> FormInvalid
     | Some target ->
         match targetAmountOf shown form, date with
@@ -162,11 +165,12 @@ let targetBusy (model: Model) : bool =
     | TargetSaving _ -> true
     | TargetIdle -> false
 
-/// Läuft der Aufruf für diese Kategorie im dargestellten Monat? Dann dreht der Knopf.
-let targetSavingFor (model: Model) (categoryId: System.Guid) : bool =
+/// Was der Aufruf für diese Kategorie im dargestellten Monat tut, wenn er läuft. Dann dreht der Knopf, der
+/// ihn ausgelöst hat (budgeting-g2ty9, F1).
+let targetActionFor (model: Model) (categoryId: System.Guid) : TargetAction option =
     match model.TargetCall, displayedMonth model with
-    | TargetSaving (c, m), Some shown -> c = categoryId && m = shown
-    | _ -> false
+    | TargetSaving (c, m, action), Some shown when c = categoryId && m = shown -> Some action
+    | _ -> None
 
 /// Das gezeigte Target und das Formular, wenn der Tab bearbeitbar ist (ändern oder anlegen).
 let private editableForm (mode: TargetTabMode) : (Target option * TargetForm) option =
@@ -176,11 +180,16 @@ let private editableForm (mode: TargetTabMode) : (Target option * TargetForm) op
     | NoTargetShown
     | TargetReadOnly _ -> None
 
+/// Steht im Formular eine Rückfrage offen, die Warnung vor dem Wechsel oder die Bestätigung von "Target
+/// entfernen"? Dann gibt es keine zweite, und Speichern, Entfernen und Pausieren warten (budgeting-g2ty9, X1).
+let confirmOpen (form: TargetForm) : bool =
+    form.ConfirmingChange || form.ConfirmingRemove
+
 /// Geht "Target speichern" oder "Target anlegen"? Nur bei Abweichung vom geladenen Stand, wenn kein Aufruf
-/// läuft und keine Warnung offen ist.
+/// läuft und keine Rückfrage offen ist.
 let canSaveTarget (model: Model) (category: BudgetCategory) : bool =
     match editableForm (targetTabMode model category) with
-    | Some (shown, form) when not (targetBusy model) && not form.ConfirmingChange ->
+    | Some (shown, form) when not (targetBusy model) && not (confirmOpen form) ->
         match targetFormState shown form with
         | FormChanged _ -> true
         | FormInvalid
@@ -201,7 +210,7 @@ let private updateForm (change: TargetForm -> TargetForm) (model: Model) : Model
 /// Sind Betrags- und Datumsfeld gesperrt? Solange das eigene Speichern läuft: die Antwort setzt das
 /// Formular zurück, eine nachgetippte Eingabe ginge sonst still verloren (budgeting-r3wq8).
 let targetFieldsLocked (model: Model) : bool =
-    model.TargetForm |> Option.exists (fun f -> targetSavingFor model f.CategoryId)
+    model.TargetForm |> Option.exists (fun f -> (targetActionFor model f.CategoryId).IsSome)
 
 let private typeInForm (change: TargetForm -> TargetForm) (model: Model) : Model =
     if targetFieldsLocked model then model else updateForm change model
@@ -219,14 +228,18 @@ let typeTargetDate (entry: DateField.DateEntry) (model: Model) : Model =
 let chooseTargetRhythm (frequency: TargetFrequency) (model: Model) : Model =
     typeInForm (fun f -> { f with RhythmInput = Some frequency; Notice = None; ConfirmingChange = false }) model
 
-let private start (wanted: Target option -> TargetForm -> TargetDraft option option) (model: Model) : Model * (string * TargetChangeRequest) option =
+let private start
+    (action: TargetAction)
+    (wanted: Target option -> TargetForm -> TargetDraft option option)
+    (model: Model)
+    : Model * (string * TargetChangeRequest) option =
     match selectedEditable model with
     | Some (category, shown, form) when not (targetBusy model) ->
         match wanted shown form with
         | Some draft ->
             let request : TargetChangeRequest = { CategoryId = category.Id; Shown = shown; Wanted = draft }
             { model with
-                TargetCall = TargetSaving (category.Id, form.Month)
+                TargetCall = TargetSaving (category.Id, form.Month, action)
                 TargetForm = Some { form with ConfirmingRemove = false; ConfirmingChange = false; Notice = None } },
             Some (form.Month, request)
         | None -> model, None
@@ -239,16 +252,37 @@ let targetFormLosses (shown: Target option) (form: TargetForm) : TargetLoss list
     | Some target, FormChanged draft -> targetChangeLosses target draft
     | _ -> []
 
+/// Das gezeigte Target der Kategorie im dargestellten Monat.
+let private shownTarget (model: Model) (categoryId: System.Guid) : Target option =
+    match model.Month with
+    | Success month -> categoriesOf month |> List.tryFind (fun c -> c.Id = categoryId) |> Option.bind (fun c -> c.Target)
+    | _ -> None
+
+/// Hält das Formular am Schlüssel aus Kategorie und Monat. Wechselt einer, ist die Eingabe verworfen und eine
+/// offene Warnung geschlossen; im vergangenen oder künftigen Monat gibt es kein Formular. Verlöre der Wechsel
+/// nach einem stillen Neulesen nichts mehr (oder ist er keiner mehr), schließt eine offene Warnung: sonst
+/// bliebe "Wechseln" wirkungslos und Speichern gesperrt (budgeting-g2ty9, X2).
+let syncTargetForm (model: Model) : Model =
+    match model.TargetForm, formKey model with
+    | Some form, Some (c, m) when form.CategoryId = c && form.Month = m ->
+        if form.ConfirmingChange && List.isEmpty (targetFormLosses (shownTarget model c) form) then
+            { model with TargetForm = Some { form with ConfirmingChange = false } }
+        else
+            model
+    | _, Some (c, m) -> { model with TargetForm = Some (emptyForm c m) }
+    | _, None -> { model with TargetForm = None }
+
 /// "Target speichern" oder "Target anlegen": ein Aufruf mit dem geladenen Target als `Shown`, nur bei
 /// Abweichung. Verlöre der Wechsel der Art etwas, öffnet erst die Warnung, gesendet wird nichts.
 let startTargetSave (model: Model) : Model * (string * TargetChangeRequest) option =
     match selectedEditable model with
-    | Some (_, shown, form) when not (targetBusy model) && not form.ConfirmingChange && not (List.isEmpty (targetFormLosses shown form)) ->
+    | Some (_, shown, form) when not (targetBusy model) && not (confirmOpen form) && not (List.isEmpty (targetFormLosses shown form)) ->
         updateForm (fun f -> { f with ConfirmingChange = true; Notice = None }) model, None
     | _ ->
         start
+            SavingTarget
             (fun shown form ->
-                if form.ConfirmingChange then None
+                if confirmOpen form then None
                 else
                     match targetFormState shown form with
                     | FormChanged draft -> Some (Some draft)
@@ -259,6 +293,7 @@ let startTargetSave (model: Model) : Model * (string * TargetChangeRequest) opti
 /// Die Warnung bestätigt: der Aufruf mit dem Entwurf, nur solange die Warnung offen ist.
 let confirmTargetChange (model: Model) : Model * (string * TargetChangeRequest) option =
     start
+        SavingTarget
         (fun shown form ->
             match form.ConfirmingChange, targetFormState shown form with
             | true, FormChanged draft -> Some (Some draft)
@@ -269,15 +304,18 @@ let confirmTargetChange (model: Model) : Model * (string * TargetChangeRequest) 
 let cancelTargetChange (model: Model) : Model =
     updateForm (fun f -> { f with ConfirmingChange = false }) model
 
-/// Ist "Target entfernen" gesperrt? Solange ein Aufruf läuft und solange die Bestätigung offen ist
-/// (budgeting-r3wq8): am PC liegt sie als Modal darüber.
+/// Ist "Target entfernen" gesperrt? Solange ein Aufruf läuft und solange eine Rückfrage offen ist
+/// (budgeting-r3wq8): am PC liegt die Bestätigung als Modal darüber, am Handy steht die Warnung vor dem
+/// Wechsel an der Stelle des Speichern-Knopfs (budgeting-g2ty9, X1).
 let removeTargetLocked (model: Model) (form: TargetForm) : bool =
-    targetBusy model || form.ConfirmingRemove
+    targetBusy model || confirmOpen form
 
-/// "Target entfernen": die Bestätigung öffnen. Nur mit Target.
+/// "Target entfernen": die Bestätigung öffnen. Nur mit Target, nie während eines Aufrufs und nie neben einer
+/// offenen Warnung (budgeting-g2ty9, X1).
 let askRemoveTarget (model: Model) : Model =
     match selectedEditable model with
-    | Some (_, Some _, _) -> updateForm (fun f -> { f with ConfirmingRemove = true }) model
+    | Some (_, Some _, form) when not (removeTargetLocked model form) ->
+        updateForm (fun f -> { f with ConfirmingRemove = true }) model
     | _ -> model
 
 let cancelRemoveTarget (model: Model) : Model =
@@ -285,7 +323,22 @@ let cancelRemoveTarget (model: Model) : Model =
 
 /// Entfernen bestätigt: ein Aufruf ohne Wunsch.
 let startTargetRemove (model: Model) : Model * (string * TargetChangeRequest) option =
-    start (fun shown form -> if form.ConfirmingRemove && shown.IsSome then Some None else None) model
+    start RemovingTarget (fun shown form -> if form.ConfirmingRemove && shown.IsSome then Some None else None) model
+
+/// Wie ein Knopf im Tab Target aussieht: `Busy` dreht und behält den Fokus (`Button.IsBusy`), `Disabled`
+/// sperrt (budgeting-g2ty9, F1 und F2).
+type TargetButtonState = { Busy: bool; Disabled: bool }
+
+/// "Target speichern" oder "Target anlegen": dreht nur, wenn sein eigener Aufruf läuft (auch nach
+/// "Wechseln"), sonst gesperrt, wenn Speichern nicht geht.
+let saveButtonState (model: Model) (category: BudgetCategory) : TargetButtonState =
+    let busy = targetActionFor model category.Id = Some SavingTarget
+    { Busy = busy; Disabled = not busy && not (canSaveTarget model category) }
+
+/// "Target entfernen": dreht nur, wenn das Entfernen läuft, sonst gesperrt nach `removeTargetLocked`.
+let removeButtonState (model: Model) (form: TargetForm) : TargetButtonState =
+    let busy = targetActionFor model form.CategoryId = Some RemovingTarget
+    { Busy = busy; Disabled = not busy && removeTargetLocked model form }
 
 /// Setzt das Target der Kategorie im geladenen Monat, wenn er der Monat des Aufrufs ist.
 let withTarget (categoryId: System.Guid) (month: string) (target: Target option) (model: Model) : Model =
@@ -315,7 +368,7 @@ let applyTargetAnswered
     : Model * bool =
     let call =
         match model.TargetCall with
-        | TargetSaving (c, m) when c = categoryId && m = month -> TargetIdle
+        | TargetSaving (c, m, _) when c = categoryId && m = month -> TargetIdle
         | other -> other
     let answered = { model with TargetCall = call }
     let ownForm (f: TargetForm) = f.CategoryId = categoryId && f.Month = month
@@ -332,7 +385,7 @@ let applyTargetAnswered
         // Schritt 1 steht in YNAB: der gezeigte Stand ist der neue, die Eingabe mit dem Datum bleibt. Ein
         // erneutes Speichern plant dann nur das Datum (ADR 0080 Punkt 6).
         withTarget categoryId month target answered
-        |> updateForm (fun f -> if ownForm f then { f with Notice = Some (TargetRejectedNotice message); ConfirmingChange = false } else f),
+        |> updateForm (fun f -> if ownForm f then { f with Notice = Some (TargetPartlyNotice message); ConfirmingChange = false } else f),
         true
     | Error message ->
         updateForm (fun f -> if ownForm f then { f with Notice = Some (TargetRejectedNotice message) } else f) answered,
@@ -342,12 +395,17 @@ let applyTargetAnswered
 let targetRejectedAwayText (message: string) : string =
     $"Target nicht gespeichert: {message}"
 
-/// Der Hinweis über dem Formular.
+/// Der Handlungshinweis zu einem Teilergebnis (budgeting-g2ty9, X4).
+[<Literal>]
+let TargetDateRetryText = "Speichern setzt das Datum erneut."
+
+/// Der Hinweis über dem Formular oder unter dem Speichern-Knopf.
 let targetNoticeText (notice: TargetNotice) : string =
     match notice with
     | TargetChangedNotice ->
         "Target wurde inzwischen in YNAB geändert. Hier steht jetzt der Stand aus YNAB, deine Eingabe ist verworfen."
     | TargetRejectedNotice message -> message
+    | TargetPartlyNotice message -> $"{message} {TargetDateRetryText}"
 
 /// Ein Satz je Verlust für die Warnung vor dem Wechsel der Art.
 let targetLossText (shown: Target) (loss: TargetLoss) : string =
@@ -358,9 +416,10 @@ let targetLossText (shown: Target) (loss: TargetLoss) : string =
         $"Das Datum {date} geht verloren."
     | LosesKind -> "Die bisherige Art des Targets geht verloren, BB legt ein Target „Set aside another“ an."
     | LosesRhythm ->
-        match (rhythmText shown.Rhythm).TrimStart('/', ' ') with
-        | "" -> "Ein Target ohne Rhythmus kann BB nicht wieder herstellen, der Wechsel ist endgültig."
-        | rhythm -> $"Der Rhythmus „{rhythm}“ geht verloren. BB kann ihn nicht wieder herstellen, der Wechsel ist endgültig."
+        match shown.Rhythm with
+        | NoRhythm -> "Ein Target ohne Rhythmus kann BB nicht wiederherstellen, der Wechsel ist endgültig."
+        | rhythm ->
+            $"Der Rhythmus „{rhythmWordText rhythm}“ geht verloren. BB kann ihn nicht wiederherstellen, der Wechsel ist endgültig."
 
 /// Der Text der Warnung: die Sätze zu den Verlusten, beim Wechsel auf wöchentlich der Hinweis zum Wochentag.
 let targetChangeWarningText (shown: Target) (form: TargetForm) : string =
@@ -370,6 +429,11 @@ let targetChangeWarningText (shown: Target) (form: TargetForm) : string =
         | Some Weekly -> [ "Ein Wochentag lässt sich danach in BB nicht setzen." ]
         | _ -> []
     losses @ weekday |> String.concat " "
+
+/// Der Titel der Warnung: "Art wechseln?", wenn die bisherige Art verloren geht, sonst "Rhythmus wechseln?"
+/// (budgeting-g2ty9, X5).
+let targetChangeTitle (shown: Target) (form: TargetForm) : string =
+    if List.contains LosesKind (targetFormLosses (Some shown) form) then "Art wechseln?" else "Rhythmus wechseln?"
 
 /// "Auffüllen bis" (F6), wenn YNAB `goal_needs_whole_amount = false` liefert.
 let refillText (target: Target) : string option =

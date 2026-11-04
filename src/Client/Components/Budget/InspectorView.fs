@@ -272,13 +272,13 @@ let private targetTab (model: Model) (category: BudgetCategory) (dispatch: Msg -
         prop.className "flex flex-col gap-4 p-4"
         prop.children [
             match Components.Budget.TargetEdit.targetTabMode model category with
-            | Components.Budget.TargetEdit.NoTargetShown -> Html.p [ prop.className ListRoles.muted; prop.text "Kein Target" ]
+            | Components.Budget.TargetEdit.NoTargetShown -> Components.Budget.TargetEditView.noTarget model category
             | Components.Budget.TargetEdit.TargetEditable (target, form) ->
                 Components.Budget.TargetEditView.editableTarget model category (Some target) form (targetStatus category) pause dispatch
             | Components.Budget.TargetEdit.TargetCreatable form ->
                 Components.Budget.TargetEditView.editableTarget model category None form Html.none Html.none dispatch
             | Components.Budget.TargetEdit.TargetReadOnly target ->
-                Components.Budget.TargetEditView.readOnlyTarget target
+                Components.Budget.TargetEditView.readOnlyTarget model category target
                 targetStatus category
                 pause
         ]

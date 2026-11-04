@@ -368,7 +368,7 @@ let private rows : Row list = [
                   (fun () -> DateTime(2026, 11, 4, 9, 0, 0, DateTimeKind.Utc))
                   (TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin")
           configured.setTargetPause "2026-11-01" request |> run |> expectError "unbekannte Kategorie" }
-    { Endpoint = "BudgetApi.changeCategoryTarget"; Case = "leere Kategorie, Betrag am Rand von decimal, vergangener und künftiger Monat, fehlende Einrichtung, unbekannte Kategorie: Fehler statt Ausnahme"
+    { Endpoint = "BudgetApi.changeCategoryTarget"; Case = "leere Kategorie, Betrag am Rand von decimal, vergangener und künftiger Monat, Anlegen ohne Rhythmus, fehlende Einrichtung, unbekannte Kategorie: Fehler statt Ausnahme"
       Run = fun () ->
           let shown : Shared.Budgeting.Target =
               { Goal = { Amount = 50m; Currency = "EUR" }; Rhythm = Shared.Budgeting.Months 1; Kind = Shared.Budgeting.Need
@@ -403,6 +403,11 @@ let private rows : Row list = [
               match configured.changeCategoryTarget month { request 60m with CategoryId = Guid.NewGuid() } |> run with
               | Error message -> Expect.stringContains message "nur im laufenden Monat" month
               | Ok _ -> failtest $"{month} hätte abgelehnt werden müssen"
+          // budgeting-g2ty9 (X8): Anlegen ohne Rhythmus lehnt schon die Grenze ab.
+          let createWithout = { request 50m with CategoryId = Guid.NewGuid(); Shown = None }
+          match configured.changeCategoryTarget "2026-11-01" createWithout |> run with
+          | Error message -> Expect.stringContains message Shared.Budgeting.TargetRhythmMissingText "Anlegen ohne Rhythmus"
+          | Ok _ -> failtest "Anlegen ohne Rhythmus hätte abgelehnt werden müssen"
           let valid = { request 60m with CategoryId = Guid.NewGuid() }
           Expect.equal
               ((apiWith None).changeCategoryTarget "2026-11-01" valid |> run)

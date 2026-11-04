@@ -58,5 +58,27 @@ let private busyTests =
         }
     ]
 
+// budgeting-g2ty9 (F4, X3): der gesperrte Kalender-Knopf reagierte weiter auf Hover und sah bedienbar aus,
+// das Segmented kannte keinen gesperrten Zustand.
+let private lockedTests =
+    let hovers (classes: string) = classes.Split(' ') |> Array.exists (fun c -> c.StartsWith "hover:")
+    testList "Gesperrte Knöpfe in Datumsfeld und Segmented" [
+        test "Der Kalender-Knopf ist gesperrt und nur lesend gedämpft und ohne Hover, frei mit Hover" {
+            let calendar = Client.DesignSystem.DateField.calendarButtonClass
+            Expect.isTrue (hovers (calendar false false)) "frei"
+            for disabled, readOnly, cursor in [ true, false, "cursor-not-allowed"; false, true, "cursor-default" ] do
+                let classes = calendar disabled readOnly
+                Expect.isFalse (hovers classes) $"{cursor}: kein Hover"
+                Expect.stringContains classes cursor $"{cursor}: Zeiger"
+        }
+        test "Ein gesperrtes Segment ist gedämpft und ohne Hover, aktiv oder nicht" {
+            let segment = Client.DesignSystem.Segmented.segmentClass
+            Expect.isTrue (hovers (segment false false)) "frei"
+            for active in [ true; false ] do
+                Expect.isFalse (hovers (segment active true)) $"aktiv {active}: kein Hover"
+                Expect.stringContains (segment active true) "cursor-not-allowed" $"aktiv {active}: gesperrt"
+        }
+    ]
+
 [<Tests>]
-let buttonSizeTests = testList "Button" [ tests; busyTests ]
+let buttonSizeTests = testList "Button" [ tests; busyTests; lockedTests ]
