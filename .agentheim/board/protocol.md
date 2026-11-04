@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 12:22 -- Modeling / Promoted: budgeting-v6m3z - "Tab Historie ruhig und ablesbar: Monat mit Erstattungsüberschuss neutral mit Plus, Bewegungsbeträge neutral mit Vorzeichen, Wertzeile über den Ausgaben-Balken bei Maus, Tipp und Tastatur"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-04 12:22 -- Modeling / Refined: budgeting-v6m3z - Tab Historie ruhig und ablesbar
 
 **Type:** Modeling / Refine

@@ -1,7 +1,7 @@
 ---
 id: budgeting-v6m3z
 title: "Tab Historie ruhig und ablesbar: Monat mit Erstattungsüberschuss neutral mit Plus, Bewegungsbeträge neutral mit Vorzeichen, Wertzeile über den Ausgaben-Balken bei Maus, Tipp und Tastatur"
-status: backlog
+status: todo
 type: feature
 context: budgeting
 created: 2026-11-03
