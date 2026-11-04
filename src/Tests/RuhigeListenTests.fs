@@ -55,6 +55,8 @@ let private tests =
             test "Eine Bewegung ist immer text-primary, ohne Teal und ohne Leuchtfarbe, Schrift wie ein Listenbetrag" {
                 let cls = Money.signedListAmountClass
                 Expect.equal cls (Money.listAmountClass 0m) "wie der neutrale Listenbetrag"
+                // budgeting-c6vn4 (Q2): der Name verspricht text-primary, also wird es geprüft.
+                Expect.isTrue (has Colors.textPrimary cls) cls
                 Expect.isFalse (cls.Contains "teal") cls
                 Expect.isFalse (cls.Contains "neon-") cls
             }

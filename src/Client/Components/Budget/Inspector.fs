@@ -261,14 +261,14 @@ let historyFailureReason (status: HistoryStatus) : string option =
     | HistoryChangedInYnab
     | HistoryOpen -> None
 
-/// Der Betrag unter einem Balken in ganzen Euro ohne Währung ("1.235"): sechs Balken passen so am Handy
-/// nebeneinander. Der volle Betrag steht im Label des Balkens. Überwiegen Erstattungen, ist die Ausgabe
-/// negativ und steht mit Plus da ("+85"): es kam mehr zurück, als ausgegeben wurde (budgeting-v6m3z).
 /// Die Vorzeichenregel der Ausgaben: eine negative Ausgabe ist ein Erstattungsüberschuss und steht als
 /// Betrag mit Plus da, eine positive ohne Vorzeichen. `format` bekommt den Betrag ohne Vorzeichen.
 let private spendingWithSign (amount: decimal) (format: decimal -> string) : string =
     if amount < 0m then $"+{format -amount}" else format amount
 
+/// Der Betrag unter einem Balken in ganzen Euro ohne Währung ("1.235"): sechs Balken passen so am Handy
+/// nebeneinander. Der volle Betrag steht im Label des Balkens. Überwiegen Erstattungen, ist die Ausgabe
+/// negativ und steht mit Plus da ("+85"): es kam mehr zurück, als ausgegeben wurde (budgeting-v6m3z).
 let barAmountText (m: Money) : string =
     let rounded = System.Math.Round(m.Amount, 0, System.MidpointRounding.AwayFromZero)
     spendingWithSign rounded (fun amount ->

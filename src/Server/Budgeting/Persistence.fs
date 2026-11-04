@@ -223,6 +223,17 @@ let loadRecentMoveCategories (limit: int) : Async<Guid list> =
         return queryRecentCategories conn MoneyMoved limit
     }
 
+/// Alle Zeilen oder der erste Fehler, in der Reihenfolge der Eingabe.
+let private collectRows (rows: Result<'T, string> list) : Result<'T list, string> =
+    List.foldBack
+        (fun row acc ->
+            match row, acc with
+            | Ok value, Ok values -> Ok (value :: values)
+            | Error message, _ -> Error message
+            | _, Error message -> Error message)
+        rows
+        (Ok [])
+
 /// Alle Bewegungen einer Anwendung (in der Reihenfolge des Festhaltens) mit ihrem jüngsten
 /// Ergebnis. `Error` nennt eine Zeile mit unbekannter Herkunft.
 let loadApplication (applicationId: Guid) : Async<Result<MovementState list, string>> =
@@ -254,15 +265,7 @@ let loadApplication (applicationId: Guid) : Async<Result<MovementState list, str
                       OldAssigned = r.old_assigned
                       NewAssigned = r.new_assigned }
                   Latest = statusFromText r.status r.reason })
-        return
-            List.foldBack
-                (fun row states ->
-                    match toState row, states with
-                    | Ok state, Ok rest -> Ok (state :: rest)
-                    | Error e, _
-                    | _, Error e -> Error e)
-                rows
-                (Ok [])
+        return rows |> List.map toState |> collectRows
     }
 
 [<CLIMutable>]
@@ -322,14 +325,7 @@ let queryMovements (conn: SqliteConnection) (filter: MovementFilter) : Result<Hi
               NewAssigned = euroOfMilliunits r.new_assigned
               Counterpart = Option.ofObj r.counterpart_name
               Latest = statusFromText r.status r.reason })
-    List.foldBack
-        (fun row movements ->
-            match toMovement row, movements with
-            | Ok movement, Ok rest -> Ok (movement :: rest)
-            | Error e, _
-            | _, Error e -> Error e)
-        rows
-        (Ok [])
+    rows |> List.map toMovement |> collectRows
 
 /// Die Historie liest nur die Datenbank, kein YNAB.
 let loadMovements (filter: MovementFilter) : Async<Result<HistoryMovement list, string>> =
@@ -380,17 +376,6 @@ type private PauseEventRow = {
     kind: string
 }
 
-/// Alle Zeilen oder der erste Fehler, in der Reihenfolge der Eingabe.
-let private collectRows (rows: Result<'T, string> list) : Result<'T list, string> =
-    List.foldBack
-        (fun row acc ->
-            match row, acc with
-            | Ok value, Ok values -> Ok (value :: values)
-            | Error message, _ -> Error message
-            | _, Error message -> Error message)
-        rows
-        (Ok [])
-
 /// Die Kategorien, deren Target in BB für den Monat pausiert ist: je Kategorie zählt das jüngste
 /// Ereignis nach `rowid`, wie in der Historie (budgeting-r3wq8). Eine Abfrage für alle Kategorien des
 /// Monats. Ein unbekannter Wert in `kind` wird gemeldet, nicht auf einen Standard gelegt.
@@ -406,11 +391,19 @@ let queryPausedCategories (conn: SqliteConnection) (month: string) : Result<Set<
     |> Seq.toList
     |> List.map (fun r -> pauseKindOfText r.kind |> Result.map (fun kind -> kind, Guid.Parse r.category_id))
     |> collectRows
-    |> Result.map (List.choose (fun (kind, id) -> if kind = Paused then Some id else None) >> Set.ofList)
+    |> Result.map (List.choose (fun (kind, id) -> if kind = PauseKind.Paused then Some id else None) >> Set.ofList)
 
 /// Die Meldung, wenn die Pausen nicht lesbar sind. Die Ursache bleibt im Server-Log.
 [<Literal>]
 let PausesUnreadableText = "Pausen nicht lesbar"
+
+/// Die Meldung, wenn die Pause-Ereignisse für die Historie nicht lesbar sind.
+[<Literal>]
+let PauseEventsUnreadableText = "Pause-Ereignisse nicht lesbar"
+
+/// Die Ursache eines Lesefehlers bleibt im Server-Log, der Aufrufer bekommt nur den Text der Meldung.
+let logReadFailure (what: string) (cause: string) : unit =
+    eprintfn "%s gescheitert: %s" what cause
 
 /// Die BB-Pausen des Monats, für `toBudgetMonth`. Ein Lesefehler oder eine unbekannte Art wird zu
 /// `Error PausesUnreadableText` (budgeting-r3wq8).
@@ -421,10 +414,10 @@ let loadPausedCategories (month: string) : Async<Result<Set<Guid>, string>> =
             match queryPausedCategories conn month with
             | Ok paused -> return Ok paused
             | Error message ->
-                eprintfn "Pausen lesen gescheitert: %s" message
+                logReadFailure "Pausen lesen" message
                 return Error PausesUnreadableText
         with ex ->
-            eprintfn "Pausen lesen gescheitert: %s" ex.Message
+            logReadFailure "Pausen lesen" ex.Message
             return Error PausesUnreadableText
     }
 
@@ -448,7 +441,7 @@ let queryPauseEvents (conn: SqliteConnection) (categoryId: Guid) (month: string)
         pauseKindOfText r.kind
         |> Result.map (fun kind ->
             match kind with
-            | Paused -> TargetPaused pause
+            | PauseKind.Paused -> TargetPaused pause
             | PauseKind.PauseLifted -> HistoryEntry.PauseLifted pause))
     |> collectRows
 
@@ -461,11 +454,11 @@ let loadPauseEvents (categoryId: Guid) (month: string) : Async<Result<HistoryEnt
             match queryPauseEvents conn categoryId month with
             | Ok events -> return Ok events
             | Error message ->
-                eprintfn "Pause-Ereignisse lesen gescheitert: %s" message
-                return Error "Pause-Ereignisse nicht lesbar"
+                logReadFailure "Pause-Ereignisse lesen" message
+                return Error PauseEventsUnreadableText
         with ex ->
-            eprintfn "Pause-Ereignisse lesen gescheitert: %s" ex.Message
-            return Error "Pause-Ereignisse nicht lesbar"
+            logReadFailure "Pause-Ereignisse lesen" ex.Message
+            return Error PauseEventsUnreadableText
     }
 
 // ============================================

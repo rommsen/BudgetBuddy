@@ -70,12 +70,23 @@ let private PageKeys (model: Model, dispatch: Msg -> unit) =
 // Seite
 // ============================================
 
-/// Der Knopf Historie: öffnet die allgemeine Historie `#/budget/history` (budgeting-h7q4v).
+/// Der Knopf Historie: öffnet die allgemeine Historie `#/budget/history` (budgeting-h7q4v). Ein Icon-Knopf
+/// (budgeting-c6vn4, M1): am Handy steht er im Kopf neben Zu verteilen, 48 px, und nimmt der Suche keinen
+/// Platz; am PC hält er den Kopf ab 1024 px in einer Zeile.
 let private historyButton (dispatch: Msg -> unit) =
     Html.div [
         prop.custom ("data-testid", "budget-history-button")
         prop.className "shrink-0"
-        prop.children [ Button.secondary "Historie" (fun () -> dispatch OpenGeneralHistory) ]
+        prop.children [
+            Button.view
+                { Button.defaultProps with
+                    Variant = Button.Ghost
+                    Size = Button.Small
+                    Icon = Some (Icons.clock Icons.SM Icons.Default)
+                    OnClick = fun () -> dispatch OpenGeneralHistory
+                    Title = Some "Historie"
+                    AriaLabel = Some "Historie" }
+        ]
     ]
 
 /// Ab 768 px steht alles im Kopf: ab 1024 px in einer Zeile, darunter bricht er in zwei um.
@@ -106,7 +117,7 @@ let private wideHead (model: Model) (dispatch: Msg -> unit) =
 let private phoneHead (model: Model) (dispatch: Msg -> unit) =
     headBar [
         prop.className "budget-month-bar flex flex-wrap items-center gap-x-3 py-2 -mx-1 px-1"
-        prop.children [ headStepper model dispatch; assignFigure model ]
+        prop.children [ headStepper model dispatch; assignFigure model; historyButton dispatch ]
     ]
 
 /// Die Zeile unter dem Kopf am Handy, sie scrollt mit. Die Chips liegen in der Liste: dort haften sie.
@@ -116,7 +127,6 @@ let private phoneSearch (model: Model) (dispatch: Msg -> unit) =
         prop.children [
             categorySearchField model.CategorySearch dispatch
             targetsButton model dispatch
-            historyButton dispatch
         ]
     ]
 

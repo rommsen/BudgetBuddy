@@ -69,6 +69,42 @@ let lineTests =
             Expect.equal (statusOf None) (Some HistoryOpen) "noch offen"
     ]
 
+let private pauseAt (time: DateTime) : HistoryEntry =
+    TargetPaused
+        { EventId = Guid.NewGuid()
+          OccurredAt = time
+          Month = "2026-10-01"
+          CategoryId = Guid.NewGuid()
+          CategoryName = "Urlaub" }
+
+let private targetRemovedAt (time: DateTime) : HistoryTargetChange =
+    { ChangeId = Guid.NewGuid()
+      OccurredAt = time
+      Month = "2026-10-01"
+      CategoryId = Guid.NewGuid()
+      CategoryName = "Urlaub"
+      ChangeKind = TargetRemoved
+      GoalBefore = Some (eur 50m)
+      GoalAfter = None
+      DateBefore = None
+      DateAfter = None
+      Latest = Some Written }
+
+// budgeting-h7q4v (H4), hierher gezogen in budgeting-c6vn4: das Mischen gehört zur Historie je Kategorie.
+[<Tests>]
+let mergeTests =
+    testList "Historie je Kategorie: Bewegungen, Pausen und Target-Änderungen gemischt" [
+        testCase "Neueste zuerst, bei gleichem Zeitpunkt die Bewegung vor der Pause und die Pause vor der Target-Änderung" <| fun () ->
+            let at (hour: int) = DateTime(2026, 10, 3, hour, 0, 0, DateTimeKind.Utc)
+            let m = { movement MoneyAssigned None 0m 5m None with OccurredAt = at 9 }
+            let p = pauseAt (at 9)
+            let c = targetRemovedAt (at 9)
+            let laterChange = targetRemovedAt (at 12)
+            let earlierPause = pauseAt (at 7)
+            let merged = Server.Budgeting.Domain.mergeHistory [ m ] [ p; earlierPause ] [ laterChange; c ]
+            Expect.equal merged [ TargetChanged laterChange; Movement m; p; TargetChanged c; earlierPause ] "Reihenfolge"
+    ]
+
 [<Tests>]
 let berlinTimeTests =
     let text y mo d h mi = historyTimeText (DateTime(y, mo, d, h, mi, 0, DateTimeKind.Utc))

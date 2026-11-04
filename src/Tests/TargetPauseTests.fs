@@ -117,14 +117,13 @@ let private domainTests =
         }
         test "Ein unbekannter Text der Art wird gemeldet" {
             Expect.isError (Domain.pauseKindOfText "Irgendwas") "kein Standard"
-            for kind in [ Domain.Paused; Domain.PauseLifted ] do
+            for kind in [ Domain.PauseKind.Paused; Domain.PauseKind.PauseLifted ] do
                 Expect.equal (Domain.pauseKindOfText (Domain.pauseKindText kind)) (Ok kind) $"{kind}"
         }
         // budgeting-r3wq8: ein Name je Ereignis. Geschrieben wird "Aufgehoben", der Altwert "Fortgesetzt" aus
         // lokalen Dev-Datenbanken wird weiter als Aufheben gelesen.
-        test "Aufheben heißt in der Spalte Aufgehoben, der Altwert Fortgesetzt wird weiter gelesen" {
-            Expect.equal (Domain.pauseKindText Domain.PauseLifted) "Aufgehoben" "geschrieben"
-            Expect.equal (Domain.pauseKindOfText "Fortgesetzt") (Ok Domain.PauseLifted) "Altwert"
+        test "Der Altwert Fortgesetzt wird weiter als Aufheben gelesen" {
+            Expect.equal (Domain.pauseKindOfText "Fortgesetzt") (Ok Domain.PauseKind.PauseLifted) "Altwert"
         }
         // budgeting-r3wq8: eine BB-Pause ohne Target wirkt nicht und wird nicht gemeldet.
         test "toBudgetMonth meldet eine BB-Pause ohne Target nicht" {
@@ -330,9 +329,9 @@ let private flowTests =
             let event hour kind (month: string) : Budgeting.Persistence.PauseEvent =
                 { Id = Guid.NewGuid(); OccurredAt = at hour; Month = month; CategoryId = k; CategoryName = "Ausflug"; Kind = kind }
             let m1, m3 = movement 1, movement 3
-            let p2, p4 = event 2 Domain.Paused current, event 4 Domain.PauseLifted current
+            let p2, p4 = event 2 Domain.PauseKind.Paused current, event 4 Domain.PauseKind.PauseLifted current
             Budgeting.Persistence.appendMovements [ m1; m3 ] |> run
-            for e in [ p2; p4; event 5 Domain.Paused "2026-12-01" ] do
+            for e in [ p2; p4; event 5 Domain.PauseKind.Paused "2026-12-01" ] do
                 Budgeting.Persistence.appendPauseEvent e |> run
             let port = { QueryHandlers.liveHistoryPort with LoadMonthlyActivity = fun _ _ -> async { return [] } }
             match QueryHandlers.categoryHistory port k (DateTime(2026, 11, 1)) |> run with
@@ -356,7 +355,6 @@ let private flowTests =
             let withTarget = FakeYnab([ k, "Ausflug", 50m, true, false, false ])
             let withoutTarget = FakeYnab([ k, "Ausflug", 0m, false, false, false ])
             Expect.equal (pauseOk withTarget current k PauseTarget) (Some PausedInBb) "pausiert"
-            Expect.equal (categoryIn (monthOk withoutTarget current) k).Pause None "ohne Target wirkt die Pause nicht"
             Expect.equal (pauseOk withoutTarget current k LiftPause) None "aufgehoben ohne Target"
             Expect.equal (eventRows k |> List.map snd) [ "Pausiert"; "Aufgehoben" ] "festgehalten"
             Expect.equal (categoryIn (monthOk withTarget current) k).Pause None "neues Target ohne Pause"
@@ -379,10 +377,11 @@ let private flowTests =
             | other -> failtest $"Lesefehler erwartet: {other}"
             Expect.isEmpty (eventRows k) "keine Zeile"
 
-        // budgeting-r3wq8: eine unbekannte Art in target_pause_events ist ein Lesefehler mit Text, beim Monat
-        // wie bei `loadStates` ein InvalidResponse, in der Historie ein Fehler. Ein eigener Monat, damit die
-        // kaputte Zeile keinen anderen Test trifft.
-        testCase "Pausen nicht lesbar: Monat, Pausieren und Historie melden den Fehler" <| fun () ->
+        // budgeting-r3wq8: eine unbekannte Art in target_pause_events ist ein Lesefehler mit Text, in der
+        // Historie ein Fehler. Ein eigener Monat, damit die kaputte Zeile keinen anderen Test trifft.
+        // budgeting-c6vn4 (P1): verhindert, dass ein BB-eigener Lesefehler als "YNAB hat abgelehnt: ..." beim
+        // Nutzer ankommt. Beim Monat und beim Pausieren ist er ein `LocalReadFailed`.
+        testCase "Pausen nicht lesbar: Monat, Pausieren und Historie melden den Fehler als BB-Lesefehler" <| fun () ->
             let month = "2093-07-01"
             let f, k = fakeWith false
             use conn = global.Persistence.getConnection ()
@@ -391,8 +390,9 @@ let private flowTests =
                 "INSERT INTO target_pause_events (id, occurred_at, month, category_id, category_name, kind) VALUES (@id, '2026-11-04', @month, @k, 'X', 'Quatsch')",
                 {| id = string (Guid.NewGuid()); month = month; k = string k |})
             |> ignore
-            let unreadable = YnabError.InvalidResponse "Pausen nicht lesbar"
+            let unreadable = YnabError.LocalReadFailed "Pausen nicht lesbar"
             Expect.equal (QueryHandlers.budgetMonth f.Port month |> run) (Error unreadable) "Monat"
+            Expect.equal (ynabErrorText unreadable) "BB-Daten nicht lesbar: Pausen nicht lesbar" "Text für den Nutzer"
             Expect.equal (setTargetPause f.Port now current month { CategoryId = k; Intent = PauseTarget } |> run) (Error unreadable) "Pausieren"
             let port = { QueryHandlers.liveHistoryPort with LoadMonthlyActivity = fun _ _ -> async { return [] } }
             Expect.equal (QueryHandlers.categoryHistory port k (DateTime(2093, 7, 1)) |> run) (Error "Pause-Ereignisse nicht lesbar") "Historie"
@@ -415,7 +415,7 @@ let private persistenceTests =
             Budgeting.Persistence.initializeBudgetingSchema ()
             let k = Guid.NewGuid()
             Budgeting.Persistence.appendPauseEvent
-                { Id = Guid.NewGuid(); OccurredAt = now; Month = current; CategoryId = k; CategoryName = "A"; Kind = Domain.Paused }
+                { Id = Guid.NewGuid(); OccurredAt = now; Month = current; CategoryId = k; CategoryName = "A"; Kind = Domain.PauseKind.Paused }
             |> run
             let rejected (sql: string) =
                 match tryExec sql with
@@ -451,8 +451,8 @@ let private persistenceTests =
             let k = Guid.NewGuid()
             let event hour kind : Budgeting.Persistence.PauseEvent =
                 { Id = Guid.NewGuid(); OccurredAt = DateTime(2026, 11, 4, hour, 0, 0, DateTimeKind.Utc); Month = month; CategoryId = k; CategoryName = "A"; Kind = kind }
-            Budgeting.Persistence.appendPauseEvent (event 10 Domain.Paused) |> run
-            Budgeting.Persistence.appendPauseEvent (event 9 Domain.PauseLifted) |> run
+            Budgeting.Persistence.appendPauseEvent (event 10 Domain.PauseKind.Paused) |> run
+            Budgeting.Persistence.appendPauseEvent (event 9 Domain.PauseKind.PauseLifted) |> run
             Expect.equal (Budgeting.Persistence.loadPausedCategories month |> run |> Result.map (Set.contains k)) (Ok false) "Stand: aufgehoben"
             match Budgeting.Persistence.loadPauseEvents k month |> run with
             | Ok (PauseLifted _ :: _) -> ()

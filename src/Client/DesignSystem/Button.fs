@@ -107,7 +107,8 @@ type ButtonState = {
 }
 
 /// Der Zustand aus den Props. `IsBusy` sperrt nur über ARIA, damit der Fokus bleibt; `IsLoading` und
-/// `IsDisabled` setzen `disabled`. Rein, die View ruft es nur auf.
+/// `IsDisabled` setzen `disabled`. `IsBusy` zusammen mit `IsDisabled` ergibt `disabled` ohne Spinner:
+/// gesperrt geht vor beschäftigt. Rein, die View ruft es nur auf.
 let buttonState (props: ButtonProps) : ButtonState =
     let busy = props.IsBusy && not props.IsDisabled
     { Disabled = not busy && (props.IsLoading || props.IsDisabled)
@@ -115,17 +116,27 @@ let buttonState (props: ButtonProps) : ButtonState =
       AriaBusy = busy || props.IsLoading
       ShowsSpinner = busy || props.IsLoading }
 
+/// Die Klassen der Variante. Beschäftigt (`IsBusy`) reagiert der Knopf nicht auf Hover: ein Tipp tut
+/// nichts, er soll nicht danach aussehen (budgeting-c6vn4, P3).
+let variantClassFor (props: ButtonProps) : string =
+    let all = variantToClass props.Variant
+    if (buttonState props).AriaDisabled then
+        all.Split([| ' ' |], System.StringSplitOptions.RemoveEmptyEntries)
+        |> Array.filter (fun c -> not (c.StartsWith "hover:"))
+        |> String.concat " "
+    else all
+
 /// Create a button with the specified props
 let view (props: ButtonProps) =
     let sizeClass = sizeToClass props.Size
     let iconOnly = iconOnlyClass props.Size props.Text
-    let variantClass = variantToClass props.Variant
+    let state = buttonState props
+    let variantClass = variantClassFor props
     let widthClass = if props.FullWidth then "w-full md:w-auto" else ""
     let extraClass = props.ClassName |> Option.defaultValue ""
     let displayClass = if callerSetsDisplay extraClass then "" else "inline-flex"
     let disabledClass = "disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none disabled:hover:shadow-none disabled:hover:translate-y-0"
     let busyClass = "aria-disabled:cursor-wait aria-disabled:active:scale-100"
-    let state = buttonState props
 
     Html.button [
         prop.className $"{displayClass} items-center justify-center gap-1.5 rounded-lg font-semibold transition-all duration-200 {variantClass} {sizeClass} {iconOnly} {widthClass} {disabledClass} {busyClass} {extraClass}"
@@ -304,6 +315,31 @@ let selectableListRow (key: string) (testId: string) (ariaLabel: string) (isSele
         prop.className $"""{listRowClass} {if isSelected then Backgrounds.tealSubtle else "hover:bg-surface-hover"}"""
         prop.onClick (fun _ -> onClick ())
         prop.children children
+    ]
+
+/// Wie `listRow`, die Zeile klappt einen Block darunter auf (budgeting-c6vn4): rechts ein Chevron in
+/// `text-muted`, der sich beim Öffnen dreht (`Transitions.fast`, aus unter `prefers-reduced-motion`),
+/// `aria-expanded` und `aria-controls` auf die Id des Blocks. Der Block steht immer im DOM, zu ist er
+/// `hidden`. Den Namen liest der Screenreader aus dem Inhalt der Zeile. Die Linie unter Zeile und Block
+/// setzt der Aufrufer an die Hülle um beide.
+let disclosureListRow (key: string) (testId: string) (controlsId: string) (isOpen: bool) (onClick: unit -> unit) (children: ReactElement list) =
+    let turned = if isOpen then "rotate-180" else "rotate-0"
+    Html.button [
+        prop.key key
+        prop.type' "button"
+        prop.custom ("data-testid", testId)
+        prop.ariaExpanded isOpen
+        prop.ariaControls controlsId
+        prop.className $"flex w-full items-center gap-2 text-left cursor-pointer touch-manipulation {ListRoles.mobileRowPadding} hover:bg-surface-hover"
+        prop.onClick (fun _ -> onClick ())
+        prop.children [
+            Html.span [ prop.className "flex flex-col flex-1 min-w-0"; prop.children children ]
+            Html.span [
+                prop.custom ("data-testid", "disclosure-chevron")
+                prop.className $"inline-flex shrink-0 {Transitions.fast} motion-reduce:transition-none {turned}"
+                prop.children [ chevronDown SM Muted ]
+            ]
+        ]
     ]
 
 /// Ein Pfeil zum Blättern (`‹ ›`): schlichter Knopf mit 48 px Trefferfläche am Handy.

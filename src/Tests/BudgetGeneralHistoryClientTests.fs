@@ -71,8 +71,12 @@ let private movements : HistoryMovement list =
       movement targetsGroup MovementOrigin.TargetsApplied "Miete" 0m 800m
       movement targetsGroup MovementOrigin.TargetsApplied "Strom" 0m 60m ]
 
+/// Die Antwort auf das jüngste Laden.
+let private answer (result: Result<HistoryMovement list, string>) (model: Model) : Model =
+    model |> step (GeneralHistoryLoaded (model.GeneralHistory.Generation, result))
+
 let private loaded () : Model =
-    page |> step GeneralHistoryEntered |> step (GeneralHistoryLoaded (Ok movements))
+    page |> step GeneralHistoryEntered |> answer (Ok movements)
 
 let private shownOrigins (model: Model) =
     match model.GeneralHistory.Runs with
@@ -110,22 +114,60 @@ let tests =
         test "Betreten lädt die Bewegungen, die Antwort wird zu Durchläufen, ein Fehler zur Fehlerkarte" {
             let entering, cmd, _ = Components.Budget.State.update GeneralHistoryEntered page
             Expect.equal entering.GeneralHistory.Runs Loading "lädt"
-            Expect.equal (List.length cmd) 1 "eine Abfrage"
+            Expect.isFalse (List.isEmpty cmd) "das Laden ist angestoßen"
             Expect.equal (shownOrigins (loaded ())) [ MovementOrigin.MoneyAssigned; MovementOrigin.MoneyMoved; MovementOrigin.TargetsApplied ] "drei Durchläufe"
-            let failed = entering |> step (GeneralHistoryLoaded (Error "kaputt"))
+            let failed = entering |> answer (Error "kaputt")
             Expect.equal failed.GeneralHistory.Runs (Failure "kaputt") "Fehlerkarte"
+        }
+        // budgeting-c6vn4 (A1): verhindert, dass eine späte Antwort eines früheren Ladens (Retry.reading
+        // wiederholt verzögert) eine neuere ersetzt: öffnen, zurück, buchen, wieder öffnen.
+        test "Eine alte Antwort nach einer neueren ersetzt nichts" {
+            let first = page |> step GeneralHistoryEntered
+            let oldGeneration = first.GeneralHistory.Generation
+            let fresh = first |> step GeneralHistoryEntered |> answer (Ok movements)
+            let late = fresh |> step (GeneralHistoryLoaded (oldGeneration, Ok []))
+            Expect.equal late.GeneralHistory.Runs fresh.GeneralHistory.Runs "die neuere Antwort bleibt"
+            let failedLate = fresh |> step (GeneralHistoryLoaded (oldGeneration, Error "alt"))
+            Expect.equal failedLate.GeneralHistory.Runs fresh.GeneralHistory.Runs "ein alter Fehler auch nicht"
+        }
+        // budgeting-c6vn4 (A2): "Wiederholen" setzte früher über `GeneralHistoryEntered` Filter und Aufklappen zurück.
+        test "Wiederholen lädt neu und lässt Filter und Aufklappen stehen" {
+            let chosen =
+                loaded ()
+                |> step (SelectRunFilter (RunsOf MovementOrigin.TargetsApplied))
+                |> step (ToggleRun targetsGroup)
+            let retrying, cmd, _ = Components.Budget.State.update RetryGeneralHistory chosen
+            Expect.equal retrying.GeneralHistory.Runs Loading "lädt"
+            Expect.isFalse (List.isEmpty cmd) "das Laden ist angestoßen"
+            Expect.equal retrying.GeneralHistory.Filter (RunsOf MovementOrigin.TargetsApplied) "Filter bleibt"
+            Expect.isTrue (retrying.GeneralHistory.Expanded.Contains targetsGroup) "aufgeklappt bleibt"
+            let stale = retrying |> step (GeneralHistoryLoaded (chosen.GeneralHistory.Generation, Ok []))
+            Expect.equal stale.GeneralHistory.Runs Loading "die Antwort vor dem Wiederholen zählt nicht"
+        }
+        test "Erneutes Betreten setzt Filter und Aufklappen zurück" {
+            let again =
+                loaded ()
+                |> step (SelectRunFilter (RunsOf MovementOrigin.MoneyMoved))
+                |> step (ToggleRun targetsGroup)
+                |> step GeneralHistoryEntered
+            Expect.equal again.GeneralHistory.Filter AllRuns "Filter von vorn"
+            Expect.isEmpty again.GeneralHistory.Expanded "alles zu"
         }
         test "Der Filter nach Art zeigt nur Durchläufe dieser Herkunft, Alle wieder alle" {
             for origin in [ MovementOrigin.TargetsApplied; MovementOrigin.MoneyMoved; MovementOrigin.MoneyAssigned ] do
                 Expect.equal (shownOrigins (loaded () |> step (SelectRunFilter (RunsOf origin)))) [ origin ] $"{origin}"
             let back = loaded () |> step (SelectRunFilter (RunsOf MovementOrigin.MoneyMoved)) |> step (SelectRunFilter AllRuns)
             Expect.equal (List.length (shownOrigins back)) 3 "Alle"
-            Expect.equal (runFilters |> List.map runFilterLabel) [ "Alle"; "Targets anwenden"; "Verschieben"; "Zuweisen" ] "Chips"
         }
         test "Ein Tipp auf einen Targets-Durchlauf klappt seine Einzelzeilen auf, ein zweiter klappt zu" {
+            let targetsRun (model: Model) =
+                match model.GeneralHistory.Runs with
+                | Success runs -> runs |> List.find (fun r -> r.RunId = targetsGroup)
+                | other -> failtest $"{other}"
             let opened = loaded () |> step (ToggleRun targetsGroup)
-            Expect.isTrue (opened.GeneralHistory.Expanded.Contains targetsGroup) "auf"
-            Expect.isFalse ((opened |> step (ToggleRun targetsGroup)).GeneralHistory.Expanded.Contains targetsGroup) "zu"
+            Expect.isTrue (isRunOpen opened.GeneralHistory (targetsRun opened)) "auf"
+            let closed = opened |> step (ToggleRun targetsGroup)
+            Expect.isFalse (isRunOpen closed.GeneralHistory (targetsRun closed)) "zu"
         }
         test "Nur ein Durchlauf Targets anwenden klappt auf" {
             match (loaded ()).GeneralHistory.Runs with
@@ -138,16 +180,24 @@ let tests =
             Expect.contains (dispatched cmd) (State.NavigateTo BudgetHistory) "zur Historie"
             Expect.isTrue root.Budget.GeneralHistory.ReturnPending "die Seite wartet auf die Rückkehr"
         }
-        test "Zurück führt zur Budget-Seite, Monat und Auswahl bleiben erhalten" {
+        // budgeting-c6vn4 (A9): über den Knopf geöffnet geht Zurück einen Schritt im Browser-Verlauf zurück,
+        // statt einen neuen Eintrag anzulegen. Per Link geöffnet, führt es zur Budget-Seite.
+        test "Zurück geht nach dem Knopf Historie einen Schritt zurück, per Link geöffnet zur Budget-Seite" {
+            let _, _, viaButton = Components.Budget.State.update LeaveGeneralHistory (page |> step OpenGeneralHistory)
+            Expect.equal viaButton StepBackToBudgetPage "ein Schritt zurück"
+            let _, _, viaLink = Components.Budget.State.update LeaveGeneralHistory page
+            Expect.equal viaLink ShowBudgetPage "neuer Eintrag"
             let _, cmd = State.update (State.BudgetMsg LeaveGeneralHistory) (rootModel Page.BudgetHistory page)
             Expect.contains (dispatched cmd) (State.NavigateTo Page.Budget) "zur Budget-Seite"
+        }
+        test "Zurück zur Budget-Seite: Monat und Auswahl bleiben erhalten" {
             let selected = page |> step (SelectCategory categoryA)
             let back =
                 selected
                 |> step OpenGeneralHistory
                 |> step PageLeft
                 |> step GeneralHistoryEntered
-                |> step (GeneralHistoryLoaded (Ok movements))
+                |> answer (Ok movements)
                 |> step PageEntered
             Expect.equal back.ChosenMonth (Some "2026-09-01") "der Monat bleibt"
             Expect.equal back.Month (Success october) "der Monat steht weiter da"
@@ -166,8 +216,34 @@ let tests =
             let later = page |> step OpenGeneralHistory |> step GeneralHistoryAbandoned |> step PageEntered
             Expect.isNone later.ChosenMonth "laufender Monat"
         }
-        test "Die Budget-Seite erfährt, dass sie für die Historie verlassen wird" {
+        // budgeting-c6vn4 (Q4): ohne `GeneralHistoryEntered` bliebe die Seite beim Skelett stehen.
+        test "Der Wechsel von der Budget-Seite zur Historie meldet das Verlassen und lädt die Historie" {
             let ledger, _ = Components.Ledger.State.init ()
-            Expect.contains (dispatched (State.urlChangedCmd ledger Page.Budget Page.BudgetHistory)) (State.BudgetMsg PageLeft) "PageLeft"
+            let messages = dispatched (State.urlChangedCmd ledger Page.Budget Page.BudgetHistory)
+            Expect.contains messages (State.BudgetMsg PageLeft) "PageLeft"
+            Expect.contains messages (State.BudgetMsg GeneralHistoryEntered) "die Historie lädt"
+        }
+        test "Der Leertext nennt ohne Filter, was hier erscheint, mit Filter die Art" {
+            Expect.equal (emptyText AllRuns) "Noch keine Durchläufe. Targets anwenden, Verschieben oder Zuweisen erscheinen hier." "ohne Filter"
+            Expect.equal (emptyText (RunsOf MovementOrigin.MoneyMoved)) "Keine Durchläufe dieser Art" "mit Filter"
+        }
+        test "Der Betrag rechts: Verschieben ohne Vorzeichen, Zuweisen und Targets mit, eine Null ohne" {
+            let run origin amount : HistoryRun =
+                { RunId = Guid.NewGuid(); OccurredAt = DateTime.UtcNow; Origin = origin; Month = "2026-10-01"
+                  Text = ""; Amount = eur amount; Status = RunWritten; Lines = [] }
+            Expect.equal (fst (runAmount (run MovementOrigin.MoneyMoved 20m))) "20,00 €" "Verschieben"
+            Expect.equal (fst (runAmount (run MovementOrigin.MoneyAssigned -20m))) "-20,00 €" "zurück nach Zu verteilen"
+            Expect.equal (fst (runAmount (run MovementOrigin.MoneyAssigned 0m))) "0,00 €" "Zuweisen mit 0"
+            Expect.equal (fst (runAmount (run MovementOrigin.TargetsApplied 860m))) "+860,00 €" "Targets"
+        }
+        test "Ein Teil-Fehlschlag steht im Badge, am Handy kurz, ein Fehlschlag mit Grund wie bei einer Bewegung" {
+            Expect.equal (runBadge (RunPartlyFailed (1, 3))) (PartlyFailedBadge ("1 von 3", "1 von 3 fehlgeschlagen")) "Teil"
+            Expect.equal (runBadge (RunFailed "Rate-Limit")) (StatusBadge (HistoryFailed "Rate-Limit")) "Grund"
+            Expect.equal (runBadge RunOpen) (StatusBadge HistoryOpen) "offen"
+        }
+        test "Der Monat steht am Handy kurz" {
+            Expect.equal (shortMonthYearLabel "2026-11-01") "Nov. 2026" "November"
+            Expect.equal (shortMonthYearLabel "2026-05-01") "Mai 2026" "Mai ohne Punkt"
+            Expect.equal (shortMonthYearLabel "kaputt") "kaputt" "unlesbar bleibt"
         }
     ]

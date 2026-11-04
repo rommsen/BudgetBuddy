@@ -10,10 +10,10 @@ Catalog of this bounded context's tasks by status.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 6
+- **Backlog:** 7
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 24
+- **Doing:** 0
+- **Done:** 25
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ Catalog of this bounded context's tasks by status.
 
 ### Doing
 <!-- doing-list:start -->
-- **budgeting-c6vn4** — "Review-Korrekturen zur allgemeinen Historie und zu den Pause-Korrekturen: Suchfeld am Handy wieder breit, Ladeantwort mit Generation, Filter haftet, aufklappbare Zeile mit Chevron, Betrag rechts, BB-Lesefehler nicht als YNAB-Fehler, fehlende Tests" (refactor) — `doing/budgeting-c6vn4-review-korrekturen-allgemeine-historie-und-pause.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **budgeting-c6vn4** — "Review-Korrekturen zur allgemeinen Historie und zu den Pause-Korrekturen: Suchfeld am Handy wieder breit, Ladeantwort mit Generation, Filter haftet, aufklappbare Zeile mit Chevron, Betrag rechts, BB-Lesefehler nicht als YNAB-Fehler, fehlende Tests" (refactor) — `done/budgeting-c6vn4-review-korrekturen-allgemeine-historie-und-pause.md`
 - **budgeting-xp46a** — "Target anlegen und Art wechseln im Tab Target: NEED monatlich, wöchentlich oder jährlich, optional mit Datum in zwei Aufrufen, Warnung vor dem Verlust von Tag und Datum" (feature) — `done/budgeting-xp46a-target-anlegen-art-wechseln.md`
 - **budgeting-h7q4v** — "Allgemeine Budget-Historie #/budget/history: alle Bewegungen, neueste zuerst, Filter nach Art, Targets-Durchlauf aufklappbar, Knopf Historie im Seitenkopf" (feature) — `done/budgeting-h7q4v-allgemeine-historie-ansicht.md`
 - **budgeting-r3wq8** — "Review-Korrekturen zu Target pausieren, Tab Historie und Target ändern: Eingabe beim Speichern bleibt, Pause-Aufrufe lesen bei Abbruch neu, ein Name je Pause-Ereignis, Absicht statt Bool, Fokus und Rollen der Balken, fehlende Tests" (refactor) — `done/budgeting-r3wq8-review-korrekturen-pause-historie-target-aendern.md`
@@ -67,6 +67,7 @@ prior-art matcher additionally checks `done-archive/` when present.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **budgeting-q8m2v** — "Allgemeine Historie begrenzen oder nach Monat laden" (feature) — `backlog/budgeting-q8m2v-allgemeine-historie-begrenzen-oder-nach-monat-laden.md`
 - **budgeting-g2ty9** — "Review-Korrekturen im Target-Formular: Spinner am auslösenden Knopf, Fokus nach Abbrechen und Speichern bleibt, Datumsfeld nur lesend wie der Betrag, dazu die Befunde der Reviews zu Target anlegen" (refactor) — `backlog/budgeting-g2ty9-review-korrekturen-target-formular.md`
 - **budgeting-w3p7n** — "Allgemeine Historie: Pausen und Target-Änderungen als eigene Arten?" (feature) — `backlog/budgeting-w3p7n-allgemeine-historie-pausen-und-target-nderungen-als-eigene-a.md`
 - **budgeting-p2zr6** — "Passt das Target noch? Prüfung je Kategorie aus dem Kassenbuch, gespeichertes So lassen, Tab-Markierung Target • und Feld an BudgetCategory für den Prüf-Filter" (feature) — `backlog/budgeting-p2zr6-passt-das-target-noch.md`

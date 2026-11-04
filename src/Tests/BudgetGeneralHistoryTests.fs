@@ -1,8 +1,8 @@
 module Tests.BudgetGeneralHistoryTests
 
-// budgeting-h7q4v: die allgemeine Budget-Historie. Reine Regeln (Bewegungen zu Durchlauf-Zeilen, das
-// Mischen der Historie je Kategorie) und die Abfrage aller Bewegungen gegen In-Memory-SQLite über das
-// Record-Feld der API.
+// budgeting-h7q4v: die allgemeine Budget-Historie. Reine Regeln (Bewegungen zu Durchlauf-Zeilen) und die
+// Abfrage aller Bewegungen gegen In-Memory-SQLite über das Record-Feld der API. Das Mischen der Historie
+// je Kategorie steht in `BudgetHistoryTests.fs`.
 
 open System
 
@@ -52,95 +52,79 @@ let private targets (lines: (string * decimal * LineOutcome option) list) : Hist
 [<Tests>]
 let runTests =
     testList "Allgemeine Historie: Bewegungen zu Durchlauf-Zeilen" [
-        test "Zuweisen aus Zu verteilen steht mit Plus, zurück nach Zu verteilen mit Minus, ohne Einzelzeilen" {
+        test "Zuweisen steht mit Art und Kategorie, der Betrag mit Vorzeichen getrennt, ohne Einzelzeilen" {
             let up = single [ movement (Guid.NewGuid()) MoneyAssigned "Urlaub" None 0m 20m (Some Written) ]
-            Expect.equal up.Text "+20,00 € Urlaub" "aus Zu verteilen"
+            Expect.equal (up.Text, up.Amount) ("Zuweisen, Urlaub", eur 20m) "aus Zu verteilen"
             Expect.equal up.Origin MoneyAssigned "Art"
             Expect.isEmpty up.Lines "keine Einzelzeilen"
             let down = single [ movement (Guid.NewGuid()) MoneyAssigned "Urlaub" None 50m 30m (Some Written) ]
-            Expect.equal down.Text "-20,00 € Urlaub" "zurück nach Zu verteilen"
+            Expect.equal down.Amount (eur -20m) "zurück nach Zu verteilen"
         }
-        test "Eine Verschiebung ist eine Zeile mit Betrag, Quelle und Ziel, Monat und Stand" {
+        test "Eine Verschiebung ist eine Zeile mit Quelle und Ziel, dem Betrag ohne Vorzeichen, Monat und Stand" {
             let run = single (move 20m (Some Written) (Some Written))
-            Expect.equal run.Text "20,00 € Lebensmittel → Urlaub" "Text"
+            Expect.equal (run.Text, run.Amount) ("Verschieben, Lebensmittel → Urlaub", eur 20m) "Text und Betrag"
             Expect.equal run.Month "2026-10-01" "Monat"
-            Expect.equal run.Status HistoryWritten "Stand"
+            Expect.equal run.Status RunWritten "Stand"
             Expect.isEmpty run.Lines "keine Einzelzeilen"
         }
         test "Fehlt eine Seite der Verschiebung in der Abfrage, kommt ihr Name aus der Gegenseite" {
             let onlySource = move 20m (Some Written) (Some Written) |> List.filter (fun m -> m.CategoryName = "Lebensmittel")
-            Expect.equal (single onlySource).Text "20,00 € Lebensmittel → Urlaub" "Ziel aus der Gegenseite"
+            Expect.equal (single onlySource).Text "Verschieben, Lebensmittel → Urlaub" "Ziel aus der Gegenseite"
+        }
+        // budgeting-c6vn4 (A7): verhindert den stillen Platzhalter "?" für eine Seite ohne Namen.
+        test "Fehlt eine Seite und kennt die andere keine Gegenseite, heißt sie unbekannte Kategorie" {
+            let lonely = [ movement (Guid.NewGuid()) MoneyMoved "Urlaub" None 10m 30m (Some Written) ]
+            Expect.equal (single lonely).Text "Verschieben, unbekannte Kategorie → Urlaub" "Quelle unbekannt"
         }
         test "Scheitert die Quelle einer Verschiebung, ist der Durchlauf fehlgeschlagen mit ihrem Grund" {
             let run = single (move 20m (Some (Failed "Rate-Limit")) (Some (Failed "Quelle fehlgeschlagen")))
-            Expect.equal run.Status (HistoryFailed "Rate-Limit") "Grund der Quelle"
+            Expect.equal run.Status (RunFailed "Rate-Limit") "Grund der Quelle"
         }
-        test "Targets anwenden: eine Zeile mit Kategorienzahl und Summe, aufklappbar in der Reihenfolge des Durchlaufs" {
+        test "Targets anwenden: eine Zeile mit Kategorienzahl, die Summe als Betrag, aufklappbar in der Reihenfolge des Durchlaufs" {
             let run =
                 single (targets [ "Miete", 800m, Some Written; "Strom", 60m, Some Written; "Urlaub", 374m, Some Written ])
-            Expect.equal run.Text "Targets anwenden, 3 Kategorien, 1.234,00 €" "Text"
-            Expect.equal run.Status HistoryWritten "Stand"
+            Expect.equal (run.Text, run.Amount) ("Targets anwenden, 3 Kategorien", eur 1234m) "Text und Summe"
+            Expect.equal run.Status RunWritten "Stand"
             Expect.equal (run.Lines |> List.map (fun l -> l.CategoryName, l.Change)) [ "Miete", eur 800m; "Strom", eur 60m; "Urlaub", eur 374m ] "Einzelzeilen"
-            Expect.equal (single (targets [ "Miete", 800m, Some Written ])).Text "Targets anwenden, 1 Kategorie, 800,00 €" "Einzahl"
+            Expect.equal (single (targets [ "Miete", 800m, Some Written ])).Text "Targets anwenden, 1 Kategorie" "Einzahl"
         }
-        test "Targets anwenden mit einer fehlgeschlagenen Zeile: der Durchlauf ist fehlgeschlagen, die Zeile trägt ihren Grund" {
+        test "Targets anwenden mit einer fehlgeschlagenen von drei Zeilen: teilweise fehlgeschlagen, die Zeile trägt ihren Grund" {
             let run =
                 single (targets [ "Miete", 800m, Some Written; "Strom", 60m, Some (Failed "Rate-Limit"); "Urlaub", 374m, Some Written ])
-            Expect.equal run.Status (HistoryFailed "1 von 3 fehlgeschlagen") "Durchlauf"
+            Expect.equal run.Status (RunPartlyFailed (1, 3)) "Durchlauf"
             Expect.equal
                 (run.Lines |> List.map (fun l -> l.Status))
                 [ HistoryWritten; HistoryFailed "Rate-Limit"; HistoryWritten ]
                 "Einzelzeilen"
         }
+        // budgeting-c6vn4 (Q3): eine einzige Kategorie nennt ihren Grund, nicht "1 von 1".
+        test "Targets anwenden mit einer einzigen, fehlgeschlagenen Kategorie zeigt deren Grund" {
+            let run = single (targets [ "Strom", 60m, Some (Failed "Rate-Limit") ])
+            Expect.equal run.Status (RunFailed "Rate-Limit") "Grund statt Zahl"
+        }
         test "Ohne Fehlschlag gilt noch offen vor in YNAB geändert vor geschrieben" {
             let statusOf outcomes =
                 (single (targets (outcomes |> List.mapi (fun i o -> $"K{i}", 10m, o)))).Status
-            Expect.equal (statusOf [ Some Written; Some ChangedInYnab; None ]) HistoryOpen "offen"
-            Expect.equal (statusOf [ Some Written; Some ChangedInYnab ]) HistoryChangedInYnab "in YNAB geändert"
-            Expect.equal (statusOf [ Some Written; Some Written ]) HistoryWritten "geschrieben"
+            Expect.equal (statusOf [ Some Written; Some ChangedInYnab; None ]) RunOpen "offen"
+            Expect.equal (statusOf [ Some Written; Some ChangedInYnab ]) RunChangedInYnab "in YNAB geändert"
+            Expect.equal (statusOf [ Some Written; Some Written ]) RunWritten "geschrieben"
         }
-        test "Eine Zeile je Gruppen-Id, neueste zuerst" {
+        // budgeting-c6vn4 (M2): die Eingabe kommt älteste zuerst, damit das Sortieren in `historyRuns` und der
+        // jüngste Zeitpunkt je Durchlauf (`List.max`) wirklich geprüft sind.
+        test "Eine Zeile je Gruppen-Id, neueste zuerst, ein Durchlauf zählt mit seiner jüngsten Bewegung" {
             let assigned = { movement (Guid.NewGuid()) MoneyAssigned "Urlaub" None 0m 5m (Some Written) with OccurredAt = at 11 }
             let moved = move 20m (Some Written) (Some Written) |> List.map (fun m -> { m with OccurredAt = at 10 })
-            let applied = targets [ "Miete", 800m, Some Written; "Strom", 60m, Some Written ]
-            let runs = historyRuns (assigned :: moved @ applied)
-            Expect.equal (runs |> List.map (fun r -> r.Origin)) [ MoneyAssigned; MoneyMoved; TargetsApplied ] "drei Durchläufe"
-            Expect.equal (runs |> List.map (fun r -> r.RunId)) [ assigned.ApplicationId; moved.Head.ApplicationId; applied.Head.ApplicationId ] "Gruppen-Id"
-        }
-    ]
-
-let private pause (time: DateTime) : HistoryEntry =
-    TargetPaused
-        { EventId = Guid.NewGuid()
-          OccurredAt = time
-          Month = "2026-10-01"
-          CategoryId = Guid.NewGuid()
-          CategoryName = "Urlaub" }
-
-let private targetChange (time: DateTime) : HistoryTargetChange =
-    { ChangeId = Guid.NewGuid()
-      OccurredAt = time
-      Month = "2026-10-01"
-      CategoryId = Guid.NewGuid()
-      CategoryName = "Urlaub"
-      ChangeKind = TargetRemoved
-      GoalBefore = Some (eur 50m)
-      GoalAfter = None
-      DateBefore = None
-      DateAfter = None
-      Latest = Some Written }
-
-[<Tests>]
-let mergeTests =
-    testList "Historie je Kategorie: Bewegungen, Pausen und Target-Änderungen gemischt" [
-        test "Neueste zuerst, bei gleichem Zeitpunkt die Bewegung vor der Pause und die Pause vor der Target-Änderung" {
-            let m = { movement (Guid.NewGuid()) MoneyAssigned "Urlaub" None 0m 5m None with OccurredAt = at 9 }
-            let p = pause (at 9)
-            let c = targetChange (at 9)
-            let laterChange = targetChange (at 12)
-            let earlierPause = pause (at 7)
-            let merged = Server.Budgeting.Domain.mergeHistory [ m ] [ p; earlierPause ] [ laterChange; c ]
-            Expect.equal merged [ TargetChanged laterChange; Movement m; p; TargetChanged c; earlierPause ] "Reihenfolge"
+            let applied =
+                match targets [ "Miete", 800m, Some Written; "Strom", 60m, Some Written ] with
+                | [ later; earlier ] -> [ { later with OccurredAt = at 12 }; { earlier with OccurredAt = at 8 } ]
+                | other -> failtest $"zwei Zeilen erwartet, kamen {List.length other}"
+            let runs = historyRuns (applied @ moved @ [ assigned ])
+            Expect.equal (runs |> List.map (fun r -> r.Origin)) [ TargetsApplied; MoneyAssigned; MoneyMoved ] "drei Durchläufe"
+            Expect.equal
+                (runs |> List.map (fun r -> r.RunId))
+                [ applied.Head.ApplicationId; assigned.ApplicationId; moved.Head.ApplicationId ]
+                "Gruppen-Id"
+            Expect.equal runs.Head.OccurredAt (at 12) "jüngste Bewegung des Durchlaufs"
         }
     ]
 
@@ -162,16 +146,15 @@ let private stored (applicationId: Guid) origin (month: string) (name: string) (
 [<Tests>]
 let queryTests =
     // Schema-Initialisierung im Testfall (infra-sdad8), wie in `BudgetHistoryTests.fs`.
-    let test name body =
-        testCase name (fun () ->
-            Persistence.initializeDatabase ()
-            Ledger.Persistence.initializeLedgerSchema ()
-            Budgeting.Persistence.initializeBudgetingSchema ()
-            body ())
+    let initialize = fun () ->
+        Persistence.initializeDatabase ()
+        Ledger.Persistence.initializeLedgerSchema ()
+        Budgeting.Persistence.initializeBudgetingSchema ()
 
     testSequenced
     <| testList "Allgemeine Historie: Abfrage (SQLite)" [
-        test "Die allgemeine Historie liefert die Bewegungen aller Monate, Kategorien und Arten, neueste zuerst, mit Gegenseite und jüngstem Ergebnis" <| fun () ->
+        test "Die allgemeine Historie liefert die Bewegungen aller Monate, Kategorien und Arten, neueste zuerst, mit jüngstem Ergebnis" {
+            initialize ()
             let time hour = DateTime(2026, 9, 14, hour, 0, 0, DateTimeKind.Utc)
             let september = stored (Guid.NewGuid()) MoneyAssigned "2026-09-01" "H7 Urlaub" (time 8) 0L 20000L
             let moveId = Guid.NewGuid()
@@ -189,8 +172,9 @@ let queryTests =
                 let runs = historyRuns own
                 Expect.equal
                     (runs |> List.map (fun r -> r.Text, r.Status))
-                    [ "Targets anwenden, 1 Kategorie, 800,00 €", HistoryOpen
-                      "20,00 € H7 Lebensmittel → H7 Urlaub", HistoryFailed "Rate-Limit"
-                      "+20,00 € H7 Urlaub", HistoryOpen ]
+                    [ "Targets anwenden, 1 Kategorie", RunOpen
+                      "Verschieben, H7 Lebensmittel → H7 Urlaub", RunFailed "Rate-Limit"
+                      "Zuweisen, H7 Urlaub", RunOpen ]
                     "Durchläufe"
+        }
     ]

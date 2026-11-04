@@ -562,6 +562,7 @@ type BudgetApi = {
 
     /// Die allgemeine Historie (budgeting-h7q4v): alle Budget-Bewegungen aller Monate und Kategorien,
     /// neueste zuerst, je mit jüngstem Ergebnis und bei Verschiebungen mit der Gegenseite. Der Client
-    /// fasst sie zu Durchläufen zusammen (`historyRuns`). Liest nur die Datenbank, kein YNAB.
+    /// fasst sie zu Durchläufen zusammen (`historyRuns`). Liest nur die Datenbank, kein YNAB. Die Antwort ist
+    /// heute unbegrenzt: sie trägt jede Bewegung seit Beginn der Aufzeichnung (Folgeaufgabe budgeting-q8m2v).
     getBudgetHistory: unit -> Async<Result<Shared.Budgeting.HistoryMovement list, string>>
 }

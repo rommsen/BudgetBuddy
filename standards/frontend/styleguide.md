@@ -271,7 +271,7 @@ steht nur **wann welche / wann nicht**.
 
 | Komponente | Wann nutzen | Wann **nicht** |
 |------------|-------------|----------------|
-| **Button** | Jede klickbare Aktion (dazu `amountStep` für Schritte neben einem Feld, hält den Fokus; `sideRow` und `sideRowFixed` für die Zeilen `von` und `nach`): `primary` (Orange-CTA), `secondary` (neutral mit grauem Rand, ADR 0075), `ghost`, `danger`, `hero`/`heroTeal` (große CTAs), `*Loading`, `IsBusy` (der eigene Aufruf läuft auf einem Knopf, der den Fokus haben kann: Spinner, `aria-disabled` und `aria-busy`, kein `disabled`, der Fokus bleibt), `*WithIcon`, `group`, in Listen `selectableListRow` (Zeile, die etwas wählt, gewählt mit `aria-current` und Teal), `stepArrow`/`stepArrowGap` (`‹ ›`, der Platz bleibt am Rand frei), `homeLabel` (Name, der nach Hause führt und teal ist, wenn man woanders steht), `listName` (Name einer Zeile als Knopf, sieht aus wie der Name, am Handy 48 px Trefferfläche ohne höhere Zeile) und `listRow` (ganze zweizeilige Listenzeile als Knopf) | Navigation zwischen Seiten → `Navigation`; Link nach extern → eigener Anker mit `Icons.externalLink` |
+| **Button** | Jede klickbare Aktion (dazu `amountStep` für Schritte neben einem Feld, hält den Fokus; `sideRow` und `sideRowFixed` für die Zeilen `von` und `nach`): `primary` (Orange-CTA), `secondary` (neutral mit grauem Rand, ADR 0075), `ghost`, `danger`, `hero`/`heroTeal` (große CTAs), `*Loading`, `IsBusy` (der eigene Aufruf läuft auf einem Knopf, der den Fokus haben kann: Spinner, `aria-disabled` und `aria-busy`, kein `disabled`, der Fokus bleibt), `*WithIcon`, `group`, in Listen `selectableListRow` (Zeile, die etwas wählt, gewählt mit `aria-current` und Teal), `stepArrow`/`stepArrowGap` (`‹ ›`, der Platz bleibt am Rand frei), `homeLabel` (Name, der nach Hause führt und teal ist, wenn man woanders steht), `listName` (Name einer Zeile als Knopf, sieht aus wie der Name, am Handy 48 px Trefferfläche ohne höhere Zeile) `listRow` (ganze zweizeilige Listenzeile als Knopf) und `disclosureListRow` (Zeile, die einen Block darunter aufklappt: Chevron in `text-muted` rechts, dreht sich beim Öffnen, `aria-expanded` und `aria-controls`, der Block bleibt zu `hidden` im DOM) | Navigation zwischen Seiten → `Navigation`; Link nach extern → eigener Anker mit `Icons.externalLink` |
 | **Card** | Inhaltsblöcke: `standard`, `glass`, `glow` (featured), `withAccent`, `emptyState`, plus `header`/`body`/`footer` | Volle Seiten-Layouts → `Primitives`; modale Inhalte → `Modal` |
 | **Badge** | Kompakter Status/Label: semantisch (`success`/`warning`/`error`/`info`, `notice` in Gelb für die Budget-Seite, ADR 0075), Domänen-Status (`imported`, `pendingReview`, `autoCategorized`, `uncategorized`), `count` | Klickbare Filter → `Button.ghost`/Pills; lange Texte |
 | **Input** | Alle Formularelemente: `text`/`password`/`email`/`number`, `textarea`, `select`/`selectSimple`, `checkbox`, `toggle`, `searchableSelect`, plus `group`/`groupWithError`/`formSection` | Reine Anzeige; mobiles Kategorie-/Konto-Auswählen → `BottomSheet` (§7) |
@@ -401,11 +401,15 @@ darunter neu verankert. Filterwechsel braucht kein Hochscrollen. Beleg:
 Positionierung in `styles.css`. Sticky-Tabellenköpfe analog über `Table` (`Sticky=true`).
 
 Der Kopf der Budget-Seite ist am PC eine sticky Zeile: Monat, Suche, Filter, Zu verteilen,
-`Targets anwenden`, ab 1024 px in einer Zeile, darunter bis 768 px in zweien. Der Spaltenkopf haftet
+`Targets anwenden` und der Knopf Historie (Icon-Knopf `Icons.clock`, `aria-label` "Historie"), ab 1024 px
+in einer Zeile, darunter bis 768 px in zweien. Der Spaltenkopf haftet
 darunter. Der Titel entfällt, die Navigation nennt die Seite, die `h1` bleibt für den Screenreader
 (`PageHeader.screenReaderTitle`). Die Seite läuft über die volle Breite mit dem üblichen Seitenrand,
 der Zuwachs geht an die Spalte Kategorie, das Panel bleibt 340 px. Am Handy haften nur Monat mit Zu
-verteilen und die Chips, die Suche scrollt mit, `Targets anwenden` steht in ihrer Zeile. Im
+verteilen und die Chips, die Suche scrollt mit, `Targets anwenden` steht in ihrer Zeile. Der Knopf
+Historie steht am Handy im Kopf neben Zu verteilen (48 px), nicht in der Suchzeile: die Suche teilt ihre
+Zeile nur mit `Targets anwenden`. In der Budget-Historie `#/budget/history` stehen die Filter nach Art
+als `ChipBar.barWithTestId` in einer eigenen, haftenden Zeile unter Zurück und Titel. Im
 vergangenen Monat bleibt der Knopf `invisible`, die Seite springt nicht. Die Höhe des Kopfs ist
 gemessen (`ResizeObserver`, `--budget-month-bar-height`), weil er umbricht. Ein Halter mit
 `overflow-hidden` nimmt dem Spaltenkopf das Haften: dort `overflow-clip`.

@@ -53,6 +53,28 @@ const movements = [
   movement(3, 12, "TargetsApplied", "Miete h7q4v", 0, 800, "Written"),
 ];
 
+/// Genug Durchläufe, dass die Seite scrollt.
+const manyMovements = [
+  ...movements,
+  ...Array.from({ length: 30 }, (_, i) => movement(10 + i, 20 + i, "MoneyAssigned", `Kategorie c6vn4 ${i}`, 0, 10 + i, "Written")),
+];
+
+const json = (route, body) => route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
+
+/// Öffnet `#/budget/history` direkt mit gemockter BudgetApi.
+const openHistory = async (width, height, history) => {
+  const context = await browser.newContext({ viewport: { width, height }, hasTouch: true });
+  const page = await context.newPage();
+  page.setDefaultTimeout(30000);
+  await page.route("**/api/**", (route) =>
+    route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"not mocked in this test"}' })
+  );
+  await page.route("**/api/BudgetApi/getBudgetHistory", (route) => json(route, { Ok: history }));
+  await page.goto(`http://127.0.0.1:${frontendPort}/#/budget/history`, { waitUntil: "load" });
+  await page.locator('[data-testid="general-history-run"]').first().waitFor();
+  return { context, page };
+};
+
 before(async () => {
   frontendPort = await getFreePort();
   frontend = await startFrontend(frontendPort, undefined);
@@ -68,7 +90,6 @@ test("[flow:budget-historie] Handy: Historie öffnen, Targets anwenden filtern, 
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
   const page = await context.newPage();
   page.setDefaultTimeout(30000);
-  const json = (route, body) => route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
   await page.route("**/api/**", (route) =>
     route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"not mocked in this test"}' })
   );
@@ -92,10 +113,14 @@ test("[flow:budget-historie] Handy: Historie öffnen, Targets anwenden filtern, 
     await page.locator('[data-testid="general-history-filter"]').getByRole("button", { name: "Targets anwenden" }).click();
     await page.waitForFunction(() => document.querySelectorAll('[data-testid="general-history-run"]').length === 1);
     const run = runs.first();
-    assert.equal(await run.locator('[data-testid="general-history-text"]').textContent(), "Targets anwenden, 2 Kategorien, 860,00 €");
-    assert.match(await run.textContent(), /fehlgeschlagen/);
+    assert.equal(await run.locator('[data-testid="general-history-text"]').textContent(), "Targets anwenden, 2 Kategorien");
+    assert.equal(await run.locator('[data-testid="general-history-amount"]').textContent(), "+860,00 €");
+    assert.match(await run.textContent(), /1 von 2 fehlgeschlagen/);
 
-    await run.locator('[data-testid="general-history-toggle"]').click();
+    const toggle = run.locator('[data-testid="general-history-toggle"]');
+    assert.equal(await toggle.getAttribute("aria-expanded"), "false", "zu");
+    await toggle.click();
+    assert.equal(await toggle.getAttribute("aria-expanded"), "true", "offen");
     const lines = run.locator('[data-testid="general-history-line"]');
     await lines.first().waitFor();
     assert.equal(await lines.count(), 2, "die Einzelzeilen");
@@ -104,6 +129,59 @@ test("[flow:budget-historie] Handy: Historie öffnen, Targets anwenden filtern, 
     await page.getByRole("button", { name: "Zurück" }).click();
     await page.waitForURL(/#\/budget$/);
     await page.locator('[data-testid="budget-to-be-budgeted"]').first().waitFor();
+  } finally {
+    await context.close();
+  }
+});
+
+// budgeting-c6vn4 (A3, A4, A6): Leiste, Chevron und kurze Angaben am Handy.
+test("[layout] Handy: die Filterleiste haftet unter der Navbar, der Chevron ist gedämpft und dreht sich beim Öffnen, Monat und Teil-Fehlschlag stehen kurz und ganz", async () => {
+  const { context, page } = await openHistory(375, 700, manyMovements);
+  try {
+    const bar = page.locator('[data-testid="general-history-filter"]');
+    const run = page.locator('[data-testid="general-history-run"]').filter({ hasText: "Targets anwenden" });
+    const chevron = run.locator('[data-testid="disclosure-chevron"] svg');
+    const muted = await page.evaluate(() => {
+      const probe = document.createElement("span");
+      probe.style.color = "var(--color-text-muted)";
+      document.body.appendChild(probe);
+      const value = getComputedStyle(probe).color;
+      probe.remove();
+      return value;
+    });
+    assert.equal(await chevron.evaluate((el) => getComputedStyle(el).color), muted, "Chevron in text-muted");
+    // Tailwind 4 dreht über die Eigenschaft `rotate`, nicht über `transform`.
+    const turn = () => run.locator('[data-testid="disclosure-chevron"]').evaluate((el) => getComputedStyle(el).rotate);
+    assert.ok(["none", "0deg"].includes(await turn()), "zu: nicht gedreht");
+    await run.locator('[data-testid="general-history-toggle"]').click();
+    await page.waitForFunction(
+      () => getComputedStyle(document.querySelector('[data-testid="disclosure-chevron"]')).rotate === "180deg"
+    );
+
+    const partly = run.locator('[data-testid="general-history-partly-failed"]');
+    assert.equal((await partly.innerText()).trim(), "1 von 2", "kurz");
+    const line = await partly.evaluate((el) => {
+      const row = el.parentElement;
+      const kids = [...row.children].filter((k) => k.getBoundingClientRect().width > 0);
+      return {
+        row: row.getBoundingClientRect().right,
+        right: Math.max(...kids.map((k) => k.getBoundingClientRect().right)),
+        clipped: kids.some((k) => k.scrollWidth > k.clientWidth + 0.5),
+      };
+    });
+    assert.ok(line.right <= line.row + 0.5 && !line.clipped, `Zeit, Monat und Stand stehen ganz in der Zeile (${JSON.stringify(line)})`);
+    const month = run.locator('[data-testid="general-history-month"]');
+    assert.equal((await month.innerText()).trim(), "Nov. 2026", "Monat kurz");
+
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await page.waitForFunction(() => window.scrollY > 300);
+    const at = await page.evaluate(() => {
+      const nav = [...document.querySelectorAll("header")].find((el) => el.getBoundingClientRect().height > 0);
+      const box = document.querySelector('[data-testid="general-history-filter"]').getBoundingClientRect();
+      return { navBottom: nav ? nav.getBoundingClientRect().bottom : 0, top: box.top, bottom: box.bottom };
+    });
+    assert.ok(at.top >= at.navBottom - 0.5 && at.top <= at.navBottom + 0.5, `die Leiste haftet unter der Navbar (${JSON.stringify(at)})`);
+    assert.equal(await bar.evaluate((el) => getComputedStyle(el).overflowX), "auto", "waagerecht scrollbar");
   } finally {
     await context.close();
   }

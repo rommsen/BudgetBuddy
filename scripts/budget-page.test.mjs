@@ -849,7 +849,7 @@ test("[flow:budget-oeffnen] Navigation: die Budget-Seite ist über die Tab-Leist
 
 // ---------------- budgeting-h3k9d: dichter, Tastatur seitenweit, Überzogen, ˄ ˅ ----------------
 
-/// Die Teile des Kopfs: Monat, Suche, Filter, Zu verteilen, Targets anwenden.
+/// Die Teile des Kopfs: Monat, Suche, Filter, Zu verteilen, Targets anwenden, Historie.
 const headParts = (page) =>
   page.evaluate(() => {
     const box = (el) => {
@@ -864,6 +864,7 @@ const headParts = (page) =>
       filter: box(document.querySelector('[data-testid="budget-filter"]')),
       assign: box(document.querySelector('[data-testid="budget-to-be-budgeted"]')),
       targets: box(button),
+      history: box(document.querySelector('[data-testid="budget-history-button"]')),
     };
   });
 
@@ -913,18 +914,55 @@ test("[layout] PC: 1440 × 900 zeigt mindestens 16 Kategorien, die erste Zeile i
   }
 });
 
+// budgeting-c6vn4 (M1): der Knopf Historie stand in der Suchzeile, die Suche schrumpfte bei 375 px auf etwa
+// 70 px. Vor budgeting-h7q4v teilte sie die Zeile nur mit Targets anwenden: so breit muss sie wieder sein.
+test("[layout] Handy 375 px: die Suche teilt ihre Zeile nur mit Targets anwenden, der Knopf Historie steht im Kopf mit 48 px", async () => {
+  const { context, page } = await openPage(375, 800, { fixture: targetFixture });
+  try {
+    const at = await page.evaluate(() => {
+      const box = (el) => {
+        const { top, bottom, left, right, width, height } = el.getBoundingClientRect();
+        return { top, bottom, left, right, width, height };
+      };
+      const search = document.querySelector('[data-testid="budget-category-search"]');
+      const button = [...document.querySelectorAll("button")].find((el) => el.textContent === "Targets anwenden" && el.getBoundingClientRect().width > 0);
+      const history = [...document.querySelectorAll('[data-testid="budget-history-button"] button')].find((el) => el.getBoundingClientRect().width > 0);
+      return {
+        row: box(search.parentElement),
+        search: box(search),
+        targets: box(button),
+        history: box(history),
+        bar: box(document.querySelector('[data-testid="budget-month-switcher"]')),
+      };
+    });
+    const facts = JSON.stringify(at);
+    const gap = at.targets.left - at.search.right;
+    assert.ok(at.search.width >= at.row.width - at.targets.width - gap - 1, `die Suche nimmt den Rest der Zeile (${facts})`);
+    assert.ok(at.search.width >= 160, `die Suche bleibt benutzbar (${facts})`);
+    assert.ok(at.history.top >= at.bar.top && at.history.bottom <= at.bar.bottom, `Historie steht im Kopf (${facts})`);
+    assert.ok(at.history.width >= 48 && at.history.height >= 48, `Historie hat 48 px Trefferfläche (${facts})`);
+  } finally {
+    await context.close();
+  }
+});
+
 test("[layout] Kopf: ab 1024 px eine Zeile in der verlangten Reihenfolge, bei 768 px zwei Zeilen", async () => {
   for (const width of [1024, 1440]) {
     const { context, page } = await openPage(width, 800, { fixture: targetFixture });
     try {
       const at = await headParts(page);
       const facts = JSON.stringify({ width, at });
-      for (const part of ["search", "filter", "assign", "targets"]) {
+      // budgeting-c6vn4 (M1): mit dem Knopf Historie brach der Kopf bei 1024 px in zwei Zeilen um.
+      for (const part of ["search", "filter", "assign", "targets", "history"]) {
         assert.ok(sharesLine(at.month, at[part]), `${part} steht in der Zeile des Monats (${facts})`);
       }
       assert.ok(
-        at.month.right <= at.search.left && at.search.right <= at.filter.left && at.filter.right <= at.assign.left && at.assign.right <= at.targets.left,
-        `Reihenfolge Monat, Suche, Filter, Zu verteilen, Targets anwenden (${facts})`
+        at.month.right <= at.search.left &&
+          at.search.right <= at.filter.left &&
+          at.filter.right <= at.assign.left &&
+          at.assign.right <= at.targets.left &&
+          at.targets.right <= at.history.left,
+        `Reihenfolge Monat, Suche, Filter, Zu verteilen, Targets anwenden, Historie (${facts})`
       );
       assert.ok(at.search.right - at.search.left >= 120, `die Suche bleibt benutzbar (${facts})`);
     } finally {
@@ -1337,15 +1375,14 @@ test("[fokus] Ausgaben-Balken: Tipp und Tab-Taste setzen den Fokus, die Wertzeil
     await bars.nth(1).tap();
     assert.equal(await bars.nth(1).evaluate((el) => el === document.activeElement), true, "der Tipp setzt den Fokus");
     // budgeting-r3wq8: den Fokus trägt das innere Element mit Rolle und Namen, das `li` bleibt ein reines
-    // Listenelement ohne tabindex.
-    assert.deepEqual(
-      await page.evaluate(() => {
-        const el = document.activeElement;
-        return { role: el.getAttribute("role"), label: el.getAttribute("aria-label"), parent: el.parentElement.tagName, parentTab: el.parentElement.hasAttribute("tabindex") };
-      }),
-      { role: "img", label: "Juni 2026, 2.469,12 €", parent: "LI", parentTab: false },
-      "Fokus am inneren Element"
-    );
+    // Listenelement ohne tabindex. Der Wortlaut des Namens steht im .NET-Test (`monthBarAriaLabel`), hier
+    // nur, dass er da ist und kein "·" trägt (budgeting-c6vn4, Q5).
+    const focused = await page.evaluate(() => {
+      const el = document.activeElement;
+      return { role: el.getAttribute("role"), label: el.getAttribute("aria-label"), parent: el.parentElement.tagName, parentTab: el.parentElement.hasAttribute("tabindex") };
+    });
+    assert.deepEqual({ ...focused, label: undefined }, { role: "img", label: undefined, parent: "LI", parentTab: false }, "Fokus am inneren Element");
+    assert.ok(focused.label && !focused.label.includes("·"), `ein Name ohne "·" (${focused.label})`);
     assert.deepEqual(await shownValues(page), ["Juni 2026 · 2.469,12 €"], "Wert des angetippten Balkens");
 
     await bars.nth(3).tap();

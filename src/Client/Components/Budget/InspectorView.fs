@@ -15,6 +15,7 @@ open Client.DesignSystem
 open Client.DesignSystem.Tokens
 open Components.Budget.MonthView
 open Components.Budget.MovesView
+open Components.Budget.HistoryRowsView
 
 let private detailFigure (testId: string) (label: string) (value: ReactElement) =
     Html.div [
@@ -137,33 +138,6 @@ let private availableBuildupView (category: BudgetCategory) =
         ]
     ]
 
-/// Der Stand einer Bewegung: "geschrieben" schlicht, alle Badges klein (ADR 0075: Gelb statt Pink auf
-/// der Budget-Seite). Auch in der allgemeinen Historie (`HistoryView`).
-let historyStatusView (status: HistoryStatus) =
-    let text = historyStatusText status
-    match status with
-    | HistoryWritten -> Html.span [ prop.className ListRoles.muted; prop.text text ]
-    | HistoryFailed _ -> Badge.errorSmall text
-    | HistoryChangedInYnab -> Badge.noticeSmall text
-    | HistoryOpen -> Badge.neutralSmall text
-
-/// Der Betrag einer Bewegungszeile, wie `historyChangeAmount` ihn liefert.
-let historyChangeView (change: Money) =
-    let text, amountClass = historyChangeAmount change
-    Html.span [ prop.className amountClass; prop.text text ]
-
-/// Der Grund eines Fehlschlags neben dem Badge. Er kürzt mit Ellipse und steht ganz im `title`.
-let historyFailureView (status: HistoryStatus) =
-    match historyFailureReason status with
-    | Some reason ->
-        Html.span [
-            prop.custom ("data-testid", "history-failure-reason")
-            prop.className $"{ListRoles.secondary} truncate min-w-0"
-            prop.title reason
-            prop.text reason
-        ]
-    | None -> Html.none
-
 /// Eine Bewegung. In der zweiten Zeile bleiben Datum und Badge ganz, ein langer Fehlgrund kürzt mit
 /// Ellipse und steht ganz im `title`. Eine Pause hat keinen Stand, nur die Uhrzeit.
 let private historyLineView (line: HistoryLine) =
@@ -198,13 +172,6 @@ let private historyLineView (line: HistoryLine) =
                 ]
             ]
         ]
-    ]
-
-/// Der Satz unter jeder Bewegungsliste (ADR 0065, Negative).
-let ynabAssignedNote () =
-    Html.p [
-        prop.className $"{ListRoles.muted} px-4 pt-1"
-        prop.text "Was direkt in YNAB zugewiesen wurde, steht hier nicht."
     ]
 
 /// Der Verlauf der Kategorie im Monat: Bewegungen, Pause-Ereignisse und Target-Änderungen, neueste

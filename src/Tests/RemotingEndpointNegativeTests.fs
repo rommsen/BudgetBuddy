@@ -384,10 +384,16 @@ let private rows : Row list = [
                 SetTarget = fun _ _ -> async { return failwith "kein Target-Schreiben erwartet" } }
           let frame _ _ : Server.Budgeting.QueryHandlers.BudgetFramePort =
               { FetchMonths = (fun () -> async { return Ok [] }); FetchCategoryOrder = (fun () -> async { return Ok [] }) }
+          // budgeting-c6vn4 (M3): ohne Einrichtung darf kein Port entstehen. Mit demselben leeren Port wie
+          // eingerichtet bliebe der Fall auch ohne `withYnabPort` grün ("nicht sichtbar" statt Einrichtung).
           let apiWith (setting: string option) =
+              let portFor =
+                  match setting with
+                  | Some _ -> fun _ _ -> empty
+                  | None -> fun _ _ -> failwith "ohne Einrichtung kein Port"
               Server.Api.budgetApiWith
                   (fun _ -> async { return setting })
-                  (fun _ _ -> empty)
+                  portFor
                   frame
                   (fun () -> DateTime(2026, 11, 4, 9, 0, 0, DateTimeKind.Utc))
                   (TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin")
@@ -398,7 +404,10 @@ let private rows : Row list = [
               | Error message -> Expect.stringContains message "nur im laufenden Monat" month
               | Ok _ -> failtest $"{month} hätte abgelehnt werden müssen"
           let valid = { request 60m with CategoryId = Guid.NewGuid() }
-          (apiWith None).changeCategoryTarget "2026-11-01" valid |> run |> expectError "fehlende Einrichtung"
+          Expect.equal
+              ((apiWith None).changeCategoryTarget "2026-11-01" valid |> run)
+              (Error "Kein YNAB-Token eingerichtet (Settings)")
+              "fehlende Einrichtung"
           match configured.changeCategoryTarget "2026-11-01" valid |> run with
           | Error message -> Expect.stringContains message "nicht sichtbar" "unbekannte Kategorie"
           | Ok _ -> failtest "unbekannte Kategorie hätte abgelehnt werden müssen" }

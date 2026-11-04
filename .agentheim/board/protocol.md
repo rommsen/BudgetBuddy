@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 17:41 -- Task verified and completed: budgeting-c6vn4 - "Review-Korrekturen zur allgemeinen Historie und zu den Pause-Korrekturen: Suchfeld am Handy wieder breit, Ladeantwort mit Generation, Filter haftet, aufklappbare Zeile mit Chevron, Betrag rechts, BB-Lesefehler nicht als YNAB-Fehler, fehlende Tests"
+
+**Type:** Work / Task completion
+**Task:** budgeting-c6vn4 - "Review-Korrekturen zur allgemeinen Historie und zu den Pause-Korrekturen: Suchfeld am Handy wieder breit, Ladeantwort mit Generation, Filter haftet, aufklappbare Zeile mit Chevron, Betrag rechts, BB-Lesefehler nicht als YNAB-Fehler, fehlende Tests"
+**Summary:** Review-Korrekturen: Suchfeld am Handy wieder breit, Historie als Icon-Knopf, Ladeantwort mit Generation, haftender Filter, aufklappbare Zeile mit Chevron, RunStatus, BB-Lesefehler, Pause-Toasts, fehlende Tests
+**Duration:** 1h10m
+**Verification:** PASS (iteration 1)
+**Files changed:** 38
+**Tests added:** 16
+**ADRs written:** none
+
+---
+
 ## 2026-11-04 16:38 -- Modeling / Refined: budgeting-g2ty9 - Review-Korrekturen im Target-Formular
 
 **Type:** Modeling / Refine

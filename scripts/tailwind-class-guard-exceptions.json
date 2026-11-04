@@ -15,8 +15,13 @@
   },
   {
     "token": "amountClass",
-    "reason": "Die Klassen des Bewegungsbetrags kommen aus der reinen Funktion `Inspector.historyChangeAmount` (budgeting-h7q4v), die View rendert nur ihr Ergebnis. Der Wert ist `Money.signedListAmountClass` aus dem Design-System; der Wächter verfolgt keine Tupel-Bindung.",
-    "locations": ["src/Client/Components/Budget/InspectorView.fs"]
+    "reason": "Die Klassen des Bewegungsbetrags kommen aus der reinen Funktion `Inspector.historyChangeAmount` (budgeting-h7q4v), die View rendert nur ihr Ergebnis. Der Wert ist `Money.signedListAmountClass` aus dem Design-System; der Wächter verfolgt keine Tupel-Bindung. Seit budgeting-c6vn4 in `HistoryRowsView.fs`.",
+    "locations": ["src/Client/Components/Budget/HistoryRowsView.fs"]
+  },
+  {
+    "token": "{amountClass}",
+    "reason": "Der Betrag rechts in einer Zeile der allgemeinen Historie kommt aus der reinen Funktion `History.runAmount` (budgeting-c6vn4) als Tupel aus Text und Klassen. Der Wert ist immer `Money.signedListAmountClass` aus dem Design-System; der Wächter verfolgt keine Tupel-Bindung.",
+    "locations": ["src/Client/Components/Budget/HistoryView.fs"]
   },
   {
     "token": "{monthChangeClass model}",

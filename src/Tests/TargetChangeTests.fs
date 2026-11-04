@@ -476,7 +476,7 @@ let private flowTests =
                   OldAssigned = 0L
                   NewAssigned = 10000L }
             let pause : Budgeting.Persistence.PauseEvent =
-                { Id = Guid.NewGuid(); OccurredAt = at 3; Month = current; CategoryId = k; CategoryName = "Urlaub"; Kind = Domain.Paused }
+                { Id = Guid.NewGuid(); OccurredAt = at 3; Month = current; CategoryId = k; CategoryName = "Urlaub"; Kind = Domain.PauseKind.Paused }
             let targetChange hour (month: string) : Budgeting.Persistence.TargetChange =
                 { Id = Guid.NewGuid()
                   OccurredAt = at hour

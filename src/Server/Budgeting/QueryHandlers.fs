@@ -9,7 +9,7 @@ open Server.Budgeting.Domain
 
 /// Die Ursache eines Lesefehlers bleibt im Server-Log, der Client bekommt nur den Text der Meldung.
 let private logReadFailure (what: string) (ex: exn) : unit =
-    eprintfn "%s gescheitert: %s" what ex.Message
+    Budgeting.Persistence.logReadFailure what ex.Message
 
 /// Liest einen Monat für die Budget-Seite, mit den BB-Pausen des Monats (ADR 0079). Eine Pause gilt nur
 /// für ihren Monat, der Folgemonat liest seine eigenen (ADR 0073 Punkt 3).
@@ -19,7 +19,7 @@ let budgetMonth (port: CommandHandlers.YnabPort) (monthKey: string) : Async<Ynab
         | Error e -> return Error e
         | Ok month ->
             match! Budgeting.Persistence.loadPausedCategories monthKey with
-            | Error message -> return Error (YnabError.InvalidResponse message)
+            | Error message -> return Error (YnabError.LocalReadFailed message)
             | Ok paused -> return Ok (toBudgetMonth paused month)
     }
 
@@ -100,7 +100,7 @@ let categoryHistory (port: HistoryPort) (categoryId: Guid) (firstDay: DateTime) 
                         return! port.LoadPauseEvents categoryId monthKey
                     with ex ->
                         logReadFailure "Pause-Ereignisse lesen" ex
-                        return Error "Pause-Ereignisse nicht lesbar"
+                        return Error Budgeting.Persistence.PauseEventsUnreadableText
                 }
             let! changes =
                 async {

@@ -793,6 +793,7 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Components.Budget.Types.JumpToEntry entryId -> Cmd.ofMsg (NavigateTo (LedgerEntry entryId))
             | Components.Budget.Types.ShowGeneralHistory -> Cmd.ofMsg (NavigateTo BudgetHistory)
             | Components.Budget.Types.ShowBudgetPage -> Cmd.ofMsg (NavigateTo Budget)
+            | Components.Budget.Types.StepBackToBudgetPage -> Cmd.navigateBack ()
 
         { model with Budget = budgetModel' }, Cmd.batch [ Cmd.map BudgetMsg budgetCmd; externalCmd ]
 

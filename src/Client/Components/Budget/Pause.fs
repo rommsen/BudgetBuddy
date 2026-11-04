@@ -120,6 +120,20 @@ let applyPauseAnswered
 let pauseAnswerShown (categoryId: System.Guid) (month: string) (model: Model) : bool =
     model.Selected |> Option.exists (fun s -> s.CategoryId = categoryId) && displayedMonth model = Some month
 
+/// Steht der Pause-Knopf der Kategorie im offenen Tab? Nur dann ist eine Meldung dort zu sehen: im Tab
+/// Target und im Tab Geld im Modus Zuweisen (budgeting-c6vn4, P2; Vorbild `targetAnswerInTab`).
+let pauseAnswerInTab (categoryId: System.Guid) (month: string) (model: Model) : bool =
+    pauseAnswerShown categoryId month model
+    && (match model.Tab with
+        | TargetTab -> true
+        | MoneyTab -> model.TabMoney |> Option.forall (fun tab -> tab.Mode = AssignMode)
+        | EntriesTab
+        | HistoryTab -> false)
+
+/// Der Toast, wenn der Server die Pause ablehnte und die Meldung nicht im offenen Tab steht.
+let pauseRejectedAwayText (message: string) : string =
+    $"Pause nicht gespeichert: {message}"
+
 /// Die Monatsgeneration beim Start des Aufrufs für Kategorie und Monat, solange er läuft.
 let pauseStartGeneration (categoryId: System.Guid) (month: string) (model: Model) : int option =
     match model.PauseCall with
@@ -127,10 +141,11 @@ let pauseStartGeneration (categoryId: System.Guid) (month: string) (model: Model
     | _ -> None
 
 /// Kann ein Lesen des Monats die Pause verpasst haben? Dann kennte seine Antwort sie nicht und nähme sie
-/// zurück: der Monat wird noch einmal gelesen. Das gilt, wenn der Monat gezeigt wird und kein
-/// Monatswechsel läuft, und wenn ein Neu-Lesen läuft (`MonthStale`), seit dem Start eines begann
-/// (Generation) oder der Monat gerade nicht geladen ist (budgeting-r3wq8). `startGeneration` ist die
-/// Generation beim Start des Aufrufs, vor dem Einnehmen der Antwort gelesen (`pauseStartGeneration`).
+/// zurück: der Monat wird noch einmal gelesen. Das gilt, wenn der Monat gewählt ist, und wenn ein
+/// Neu-Lesen läuft (`MonthStale`), seit dem Start eines begann (Generation), der Monat gerade nicht
+/// geladen ist (budgeting-r3wq8) oder ein Wechsel zu ihm läuft: dessen Lesen kann vor dem Speichern
+/// begonnen haben (budgeting-c6vn4, Q1). `startGeneration` ist die Generation beim Start des Aufrufs,
+/// vor dem Einnehmen der Antwort gelesen (`pauseStartGeneration`).
 let pauseNeedsReread (month: string) (startGeneration: int option) (model: Model) : bool =
     let generationMoved = startGeneration |> Option.exists (fun g -> g <> model.MonthGeneration)
     let notLoaded =
@@ -138,18 +153,26 @@ let pauseNeedsReread (month: string) (startGeneration: int option) (model: Model
         | Success _ -> false
         | _ -> true
     shownMonth model = Some month
-    && not (monthChanging model)
-    && (model.Freshness = MonthStale || generationMoved || notLoaded)
+    && (model.Freshness = MonthStale || generationMoved || notLoaded || monthChanging model)
 
 /// Der Aufruf brach ab: ob die Pause gespeichert ist, ist unbekannt. Die Meldung steht im Tab wie eine
-/// Ablehnung, der Aufrufer liest den Monat still neu (Vorbild `applyMoveCallLost`).
-let pauseCallLostText (message: string) : string =
-    $"Ob die Pause gespeichert ist, ist unklar: {message}. Der Stand wird gleich neu gelesen."
+/// Ablehnung, der Aufrufer liest den Monat still neu, wenn er ihn zeigt (Vorbild `applyMoveCallLost`).
+/// Nur dann verspricht der Text das Neu-Lesen (budgeting-c6vn4, P2). Ein Punkt am Ende der Meldung
+/// fällt weg, sonst stünden zwei.
+let pauseCallLostText (rereads: bool) (message: string) : string =
+    let reason = message.TrimEnd('.')
+    if rereads then $"Ob die Pause gespeichert ist, ist unklar: {reason}. Der Stand wird gleich neu gelesen."
+    else $"Ob die Pause gespeichert ist, ist unklar: {reason}."
+
+/// Liest der Abbruch den Monat neu? Wenn der Monat des Aufrufs gewählt ist, auch während eines Wechsels zu
+/// ihm: dessen Lesen kann vor dem Speichern begonnen haben (budgeting-c6vn4, Q1).
+let pauseCallLostRereads (month: string) (model: Model) : bool =
+    shownMonth model = Some month
 
 let applyPauseCallLost (categoryId: System.Guid) (month: string) (message: string) (model: Model) : Model =
     match model.PauseCall with
     | PauseRunning (c, m, _) when c = categoryId && m = month ->
-        { model with PauseCall = PauseRejected (c, m, pauseCallLostText message) }
+        { model with PauseCall = PauseRejected (c, m, pauseCallLostText (pauseCallLostRereads month model) message) }
     | _ -> model
 
 /// Eine Meldung gilt nur, solange ihre Kategorie und ihr Monat gezeigt werden.

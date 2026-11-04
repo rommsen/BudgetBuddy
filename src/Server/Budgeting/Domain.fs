@@ -127,6 +127,7 @@ let planTargetApplication (month: BudgetMonth) : Result<TargetPreview, string> =
 /// Ein Ereignis in `target_pause_events`. Der Stand je Kategorie und Monat ist das jüngste. Ein Name je
 /// Ereignis (budgeting-r3wq8): `PauseLifted` heißt in der Spalte "Aufgehoben" und in der Historie
 /// `HistoryEntry.PauseLifted`.
+[<RequireQualifiedAccess>]
 type PauseKind =
     | Paused
     | PauseLifted
@@ -134,8 +135,8 @@ type PauseKind =
 /// Der Text in `target_pause_events.kind`. Geschrieben wird nur dieser Text.
 let pauseKindText (kind: PauseKind) : string =
     match kind with
-    | Paused -> "Pausiert"
-    | PauseLifted -> "Aufgehoben"
+    | PauseKind.Paused -> "Pausiert"
+    | PauseKind.PauseLifted -> "Aufgehoben"
 
 /// Der frühere Text für `PauseLifted`. Lokale Dev-Datenbanken tragen ihn noch, gelesen wird er weiter,
 /// geschrieben nie mehr.
@@ -144,9 +145,9 @@ let LegacyPauseLiftedText = "Fortgesetzt"
 
 /// Liest die Spalte. Ein unbekannter Text wird gemeldet, nicht auf einen Standard gelegt.
 let pauseKindOfText (text: string) : Result<PauseKind, string> =
-    match [ Paused; PauseLifted ] |> List.tryFind (fun k -> pauseKindText k = text) with
+    match [ PauseKind.Paused; PauseKind.PauseLifted ] |> List.tryFind (fun k -> pauseKindText k = text) with
     | Some kind -> Ok kind
-    | None when text = LegacyPauseLiftedText -> Ok PauseLifted
+    | None when text = LegacyPauseLiftedText -> Ok PauseKind.PauseLifted
     | None -> Error $"Unbekannte Art eines Pause-Ereignisses: {text}"
 
 /// Was aus einem Auftrag Pausieren oder Aufheben wird.
@@ -183,8 +184,8 @@ let planPause (month: BudgetMonth) (pausedInBbRaw: Set<Guid>) (request: TargetPa
         let inBb = pausedInBbRaw.Contains c.Id
         let event, pausedAfter =
             match request.Intent with
-            | PauseTarget -> (if inBb then None else Some Paused), true
-            | LiftPause -> (if inBb then Some PauseLifted else None), false
+            | PauseTarget -> (if inBb then None else Some PauseKind.Paused), true
+            | LiftPause -> (if inBb then Some PauseKind.PauseLifted else None), false
         Ok
             { Category = c
               Event = event

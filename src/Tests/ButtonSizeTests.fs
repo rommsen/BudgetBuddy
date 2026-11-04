@@ -48,6 +48,14 @@ let private busyTests =
                 { Disabled = false; AriaDisabled = false; AriaBusy = false; ShowsSpinner = false }
                 "frei"
         }
+        // budgeting-c6vn4 (P3): ein beschäftigter Knopf sah beim Überfahren aus, als ließe er sich tippen.
+        test "Ein beschäftigter Knopf trägt keine Hover-Klassen, ein freier schon" {
+            let hovers (props: Button.ButtonProps) =
+                (Button.variantClassFor props).Split(' ') |> Array.exists (fun c -> c.StartsWith "hover:")
+            for variant in [ Button.Primary; Button.Secondary; Button.Ghost; Button.Danger ] do
+                Expect.isFalse (hovers { Button.defaultProps with Variant = variant; IsBusy = true }) $"{variant} beschäftigt"
+                Expect.isTrue (hovers { Button.defaultProps with Variant = variant }) $"{variant} frei"
+        }
     ]
 
 [<Tests>]

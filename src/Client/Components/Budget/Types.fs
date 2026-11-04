@@ -185,6 +185,9 @@ type GeneralHistory = {
     Expanded: Set<System.Guid>
     /// Über den Knopf Historie geöffnet: die Rückkehr zur Budget-Seite behält Monat und Auswahl.
     ReturnPending: bool
+    /// Zählt je Betreten und je "Wiederholen" hoch. Eine Antwort mit fremder Generation ist überholt und
+    /// wird verworfen (budgeting-c6vn4, A1; Vorbild `HistoryGeneration`).
+    Generation: int
 }
 
 /// Filter über der Liste neben der Suche.
@@ -371,7 +374,10 @@ type Msg =
     | OpenGeneralHistory
     /// Die Seite `#/budget/history` wird betreten: die Bewegungen holen.
     | GeneralHistoryEntered
-    | GeneralHistoryLoaded of Result<HistoryMovement list, string>
+    /// "Wiederholen" nach einem Fehler: nur neu laden, Filter und Aufklappen bleiben (budgeting-c6vn4, A2).
+    | RetryGeneralHistory
+    /// Die Antwort, mit der Generation beim Start des Ladens.
+    | GeneralHistoryLoaded of generation: int * Result<HistoryMovement list, string>
     | SelectRunFilter of RunFilter
     /// Tipp auf einen Durchlauf Targets anwenden: auf- oder zuklappen.
     | ToggleRun of System.Guid
@@ -427,8 +433,12 @@ type ExternalMsg =
     | JumpToEntry of System.Guid
     /// Zur allgemeinen Historie `#/budget/history`.
     | ShowGeneralHistory
-    /// Zurück zur Budget-Seite.
+    /// Zur Budget-Seite als neuer Eintrag im Browser-Verlauf: die Historie wurde per Link geöffnet.
     | ShowBudgetPage
+    /// Ein Schritt zurück im Browser-Verlauf, wie der Zurück-Knopf des Browsers: die Historie kam über den
+    /// Knopf Historie, die Budget-Seite liegt direkt davor (budgeting-c6vn4, A9; Vorbild die Rückkehr aus
+    /// dem Kassenbuch, `BackToBudget`).
+    | StepBackToBudgetPage
 
 let init () : Model =
     { Frame = NotAsked
@@ -448,7 +458,7 @@ let init () : Model =
       TargetCall = TargetIdle
       Selected = None
       Tab = MoneyTab
-      GeneralHistory = { Runs = NotAsked; Filter = AllRuns; Expanded = Set.empty; ReturnPending = false }
+      GeneralHistory = { Runs = NotAsked; Filter = AllRuns; Expanded = Set.empty; ReturnPending = false; Generation = 0 }
       EntriesGeneration = 0
       HistoryGeneration = 0
       MonthGeneration = 0 }

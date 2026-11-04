@@ -68,7 +68,7 @@ module internal TargetGuard =
 
 /// Liest den Monat aus YNAB und die BB-Pausen des Monats und führt beides zusammen (ADR 0079 Punkt 3).
 /// Unter der Sperre je Monat aufgerufen, sieht es jede Pause, die vorher festgehalten wurde.
-/// Sind die Pausen nicht lesbar, ist das wie bei `loadStates` ein `InvalidResponse` (budgeting-r3wq8).
+/// Sind die Pausen nicht lesbar, ist das wie bei `loadStates` ein `LocalReadFailed` (budgeting-c6vn4, P1).
 /// Neben dem Monat kommen die gespeicherten BB-Pausen mit, auch die ohne Target (`planPause`).
 let private fetchBudgetMonthWithPauses (port: YnabPort) (monthKey: string) : Async<Result<BudgetMonth * Set<Guid>, YnabError>> =
     async {
@@ -76,7 +76,7 @@ let private fetchBudgetMonthWithPauses (port: YnabPort) (monthKey: string) : Asy
         | Error e -> return Error e
         | Ok raw ->
             match! loadPausedCategories monthKey with
-            | Error message -> return Error (YnabError.InvalidResponse message)
+            | Error message -> return Error (YnabError.LocalReadFailed message)
             | Ok paused -> return Ok (toBudgetMonth paused raw, paused)
     }
 
@@ -108,7 +108,7 @@ let preview (port: YnabPort) (monthKey: string) : Async<Result<TargetPreview, Yn
 let private loadStates (applicationId: Guid) : Async<Result<MovementState list, YnabError>> =
     async {
         let! states = loadApplication applicationId
-        return states |> Result.mapError YnabError.InvalidResponse
+        return states |> Result.mapError YnabError.LocalReadFailed
     }
 
 let private reportWith (applicationId: Guid) (monthKey: string) (actual: Money option) : Async<Result<ApplyReport, YnabError>> =

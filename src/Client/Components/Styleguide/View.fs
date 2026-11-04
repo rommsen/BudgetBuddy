@@ -435,7 +435,7 @@ let private statsSection =
                     ]
                 ]
                 subTitle "Monatsbalken"
-                note "Stats.monthBars: je Monat ein Balken mit Monat und Betrag, ohne waagrechtes Scrollen. Der laufende Monat ist neutral gestrichelt und trägt \"läuft\", Teal bleibt für Ausgewähltes (ADR 0075). Ein Monat ohne Wert zeigt einen flachen Balken. Überwiegen Erstattungen, steht der Betrag neutral mit Plus da, Rot heißt auf der Budget-Seite \"im Minus\". Darüber die Wertzeile: Maus, Tipp oder Tab-Taste wählen einen Balken, die Zeile zeigt Monat und genauen Betrag und der Balken wird etwas heller, ohne Fokus-Ring. Ohne Auswahl bleibt die Zeile leer und hält ihre Höhe. Für Screenreader eine Liste, je Balken ein Label mit demselben Text."
+                note "Stats.monthBars: je Monat ein Balken mit Monat und Betrag, ohne waagrechtes Scrollen. Der laufende Monat ist neutral gestrichelt und trägt \"läuft\", Teal bleibt für Ausgewähltes (ADR 0075). Ein Monat ohne Wert zeigt einen flachen Balken. Überwiegen Erstattungen, steht der Betrag neutral mit Plus da, Rot heißt auf der Budget-Seite \"im Minus\". Darüber die Wertzeile: Maus, Tipp oder Tab-Taste wählen einen Balken, die Zeile zeigt Monat und genauen Betrag und der Balken wird etwas heller, ohne Fokus-Ring. Ohne Auswahl bleibt die Zeile leer und hält ihre Höhe. Für Screenreader eine Liste, je Balken ein Label mit demselben Inhalt, getrennt mit Komma statt \"·\". Der gewählte Balken hebt zusätzlich seinen Monatsnamen hervor."
                 Html.div [
                     prop.className "max-w-sm space-y-4"
                     prop.children [
@@ -605,6 +605,76 @@ let private calmListSection =
                         ]
                         Html.span [ prop.className $"{Tokens.ListRoles.secondary} whitespace-nowrap"; prop.text "fehlt 200,00 €" ]
                     ]
+                ]
+                note "Button.disclosureListRow (budgeting-c6vn4): eine Zeile, die Einzelzeilen darunter aufklappt, etwa ein Durchlauf Targets anwenden in der Budget-Historie. Rechts ein Chevron in text-muted, der sich beim Öffnen dreht (aus unter prefers-reduced-motion), aria-expanded und aria-controls auf den Block darunter. Der Betrag steht rechts in Mono. Ein Teil-Fehlschlag steht ganz im roten Badge, am Handy kurz (\"1 von 2\"). Gezeigt: zu, offen und fehlgeschlagen."
+                Html.div [
+                    prop.className "max-w-sm rounded-xl border border-border-subtle bg-surface-card overflow-clip"
+                    prop.children (keyed [
+                        let runRow (key: string) (isOpen: bool) (status: ReactElement) (lines: ReactElement list) =
+                            Html.div [
+                                prop.className "border-b border-border-subtle last:border-b-0"
+                                prop.children [
+                                    Button.disclosureListRow key "styleguide-disclosure-row" $"styleguide-disclosure-{key}" isOpen ignore [
+                                        Html.span [
+                                            prop.className Tokens.ListRoles.mobileLine1
+                                            prop.children [
+                                                Html.span [ prop.className $"{Tokens.ListRoles.primary} truncate min-w-0"; prop.text "Targets anwenden, 2 Kategorien" ]
+                                                Money.signedListAmount 860m "EUR"
+                                            ]
+                                        ]
+                                        Html.span [
+                                            prop.className Tokens.ListRoles.mobileLine2
+                                            prop.children [
+                                                Html.span [ prop.className Tokens.ListRoles.date; prop.text "03.11. 09:30" ]
+                                                Html.span [ prop.className Tokens.ListRoles.secondary; prop.text "Nov. 2026" ]
+                                                status
+                                            ]
+                                        ]
+                                    ]
+                                    Html.div [
+                                        prop.id $"styleguide-disclosure-{key}"
+                                        prop.hidden (not isOpen)
+                                        prop.children lines
+                                    ]
+                                ]
+                            ]
+                        let line (name: string) (amount: decimal) (status: ReactElement) =
+                            Html.div [
+                                prop.key name
+                                prop.className $"{Tokens.ListRoles.mobileRowPadding} border-b border-border-subtle last:border-b-0 bg-surface-elevated"
+                                prop.children [
+                                    Html.div [
+                                        prop.className Tokens.ListRoles.mobileLine1
+                                        prop.children [
+                                            Html.span [ prop.className Tokens.ListRoles.secondary; prop.text name ]
+                                            Money.signedListAmount amount "EUR"
+                                        ]
+                                    ]
+                                    Html.div [ prop.className Tokens.ListRoles.mobileLine2; prop.children [ status ] ]
+                                ]
+                            ]
+                        let written = Html.span [ prop.className Tokens.ListRoles.muted; prop.text "geschrieben" ]
+                        runRow "zu" false written []
+                        runRow "offen" true written [ line "Miete" 800m written; line "Strom" 60m written ]
+                        runRow "fehlgeschlagen" true
+                            (Badge.errorSmall "1 von 2 fehlgeschlagen")
+                            [ line "Miete" 800m written
+                              Html.div [
+                                  prop.key "Strom"
+                                  prop.className $"{Tokens.ListRoles.mobileRowPadding} bg-surface-elevated"
+                                  prop.children [
+                                      Html.div [
+                                          prop.className Tokens.ListRoles.mobileLine1
+                                          prop.children [
+                                              Html.span [ prop.className Tokens.ListRoles.secondary; prop.text "Strom" ]
+                                              Money.signedListAmount 60m "EUR"
+                                          ]
+                                      ]
+                                      Html.div [ prop.className Tokens.ListRoles.mobileLine2; prop.children [ Badge.errorSmall "fehlgeschlagen" ] ]
+                                      Html.p [ prop.className $"{Tokens.ListRoles.secondary} line-clamp-2 mt-0.5"; prop.text "Rate-Limit (HTTP 429), erneut in 60 Sekunden" ]
+                                  ]
+                              ] ]
+                    ])
                 ]
                 Table.view { Table.defaultTableProps with Variant = Table.Hover } [
                     Table.thead (keyed [

@@ -12,11 +12,12 @@ open Components.Budget.Month
 open Components.Budget.History
 open Client.DesignSystem
 open Client.DesignSystem.Tokens
-open Components.Budget.InspectorView
+open Components.Budget.HistoryRowsView
 
-let private rowClass = $"{ListRoles.mobileRowPadding} border-b border-border-subtle"
+/// `last:border-b-0`: die letzte Zeile trägt keine Linie, die Karte hat schon ihren Rand.
+let private rowClass = $"{ListRoles.mobileRowPadding} border-b border-border-subtle last:border-b-0"
 
-/// Zeitpunkt, Monat und Stand eines Durchlaufs.
+/// Zeitpunkt, Monat und Stand eines Durchlaufs. Der Monat steht am Handy kurz ("Nov. 2026").
 let private runMeta (run: HistoryRun) =
     Html.span [
         prop.className ListRoles.mobileLine2
@@ -29,14 +30,30 @@ let private runMeta (run: HistoryRun) =
             Html.span [
                 prop.custom ("data-testid", "general-history-month")
                 prop.className $"{ListRoles.secondary} shrink-0 whitespace-nowrap"
-                prop.text (monthLabel run.Month)
+                prop.children [
+                    Html.span [ prop.className "md:hidden"; prop.text (shortMonthYearLabel run.Month) ]
+                    Html.span [ prop.className "hidden md:inline"; prop.text (monthLabel run.Month) ]
+                ]
             ]
-            Html.span [ prop.className "shrink-0"; prop.children [ historyStatusView run.Status ] ]
-            historyFailureView run.Status
+            match runBadge run.Status with
+            | StatusBadge status ->
+                Html.span [ prop.className "shrink-0"; prop.children [ historyStatusView status ] ]
+                historyFailureView status
+            | PartlyFailedBadge (short, long) ->
+                Html.span [
+                    prop.custom ("data-testid", "general-history-partly-failed")
+                    prop.className "shrink-0"
+                    prop.children [
+                        Html.span [ prop.className "md:hidden"; prop.children [ Badge.errorSmall short ] ]
+                        Html.span [ prop.className "hidden md:inline"; prop.children [ Badge.errorSmall long ] ]
+                    ]
+                ]
         ]
     ]
 
+/// Art, Kategorie oder Richtung und Anzahl links, der Betrag rechts in Mono (budgeting-c6vn4, A5).
 let private runHead (run: HistoryRun) =
+    let amountText, amountClass = runAmount run
     Html.span [
         prop.className ListRoles.mobileLine1
         prop.children [
@@ -45,10 +62,16 @@ let private runHead (run: HistoryRun) =
                 prop.className $"{ListRoles.primary} truncate min-w-0"
                 prop.text run.Text
             ]
+            Html.span [
+                prop.custom ("data-testid", "general-history-amount")
+                prop.className $"{amountClass} shrink-0 whitespace-nowrap"
+                prop.text amountText
+            ]
         ]
     ]
 
-/// Eine Kategorie eines aufgeklappten Durchlaufs: Name, Betrag mit Vorzeichen, Stand.
+/// Eine Kategorie eines aufgeklappten Durchlaufs: Name, Betrag mit Vorzeichen, Stand. Der Grund eines
+/// Fehlschlags bricht auf bis zu zwei Zeilen um.
 let private runLineView (line: HistoryRunLine) =
     Html.div [
         prop.key (string line.MovementId)
@@ -64,30 +87,33 @@ let private runLineView (line: HistoryRunLine) =
             ]
             Html.div [
                 prop.className ListRoles.mobileLine2
-                prop.children [
-                    Html.span [ prop.className "shrink-0"; prop.children [ historyStatusView line.Status ] ]
-                    historyFailureView line.Status
-                ]
+                prop.children [ Html.span [ prop.className "shrink-0"; prop.children [ historyStatusView line.Status ] ] ]
             ]
+            historyFailureWrapped line.Status
         ]
     ]
 
 let private runView (history: GeneralHistory) (dispatch: Msg -> unit) (run: HistoryRun) =
     if expandable run then
-        let isOpen = history.Expanded.Contains run.RunId
-        let action = if isOpen then "zuklappen" else "aufklappen"
+        let isOpen = isRunOpen history run
+        let linesId = $"general-history-lines-{run.RunId}"
         Html.div [
             prop.key (string run.RunId)
             prop.custom ("data-testid", "general-history-run")
+            prop.className "border-b border-border-subtle last:border-b-0"
             prop.children [
-                Button.listRow
+                Button.disclosureListRow
                     (string run.RunId)
                     "general-history-toggle"
-                    $"{run.Text}, {action}"
+                    linesId
+                    isOpen
                     (fun () -> dispatch (ToggleRun run.RunId))
                     [ runHead run; runMeta run ]
-                if isOpen then
-                    Html.div [ prop.children (run.Lines |> List.map runLineView) ]
+                Html.div [
+                    prop.id linesId
+                    prop.hidden (not isOpen)
+                    prop.children (run.Lines |> List.map runLineView)
+                ]
             ]
         ]
     else
@@ -98,25 +124,23 @@ let private runView (history: GeneralHistory) (dispatch: Msg -> unit) (run: Hist
             prop.children [ runHead run; runMeta run ]
         ]
 
+/// Die Filter nach Art: eine haftende Leiste in eigener Zeile, am Handy waagerecht scrollbar
+/// (Styleguide 7.3, budgeting-c6vn4 A3).
 let private filterChips (history: GeneralHistory) (dispatch: Msg -> unit) =
-    Html.div [
-        prop.custom ("data-testid", "general-history-filter")
-        prop.className "flex flex-wrap items-center gap-2"
-        prop.children (
-            runFilters
-            |> List.map (fun filter ->
-                ChipBar.chip
-                    { Label = runFilterLabel filter
-                      IsActive = (history.Filter = filter)
-                      OnClick = fun () -> dispatch (SelectRunFilter filter)
-                      OnRemove = None })
-        )
+    ChipBar.barWithTestId "general-history-filter" [
+        for filter in runFilters do
+            Html.div [
+                prop.key (runFilterLabel filter)
+                prop.className "shrink-0"
+                prop.children [
+                    ChipBar.chip
+                        { Label = runFilterLabel filter
+                          IsActive = (history.Filter = filter)
+                          OnClick = fun () -> dispatch (SelectRunFilter filter)
+                          OnRemove = None }
+                ]
+            ]
     ]
-
-let private emptyText (filter: RunFilter) =
-    match filter with
-    | AllRuns -> "Noch keine Bewegungen festgehalten"
-    | RunsOf _ -> "Keine Durchläufe dieser Art"
 
 let private runList (history: GeneralHistory) (runs: HistoryRun list) (dispatch: Msg -> unit) =
     let shown = shownRuns history.Filter runs
@@ -149,17 +173,17 @@ let view (history: GeneralHistory) (dispatch: Msg -> unit) =
             prop.children [
                 PageHeader.screenReaderTitle "Budget-Historie"
                 Html.div [
-                    prop.className "flex flex-wrap items-center gap-3"
+                    prop.className "flex items-center gap-3"
                     prop.children [
                         Button.secondary "Zurück" (fun () -> dispatch LeaveGeneralHistory)
                         Html.span [ prop.className ListRoles.primary; prop.text "Historie" ]
-                        filterChips history dispatch
                     ]
                 ]
+                filterChips history dispatch
                 match history.Runs with
                 | NotAsked
                 | Loading -> Loading.txListSkeleton 5
-                | Failure message -> ErrorDisplay.card message (Some (fun () -> dispatch GeneralHistoryEntered))
+                | Failure message -> ErrorDisplay.card message (Some (fun () -> dispatch RetryGeneralHistory))
                 | Success runs -> runList history runs dispatch
             ]
         ]

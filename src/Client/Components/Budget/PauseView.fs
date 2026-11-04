@@ -39,6 +39,9 @@ let private pauseButton
                 ClassName = Some $"w-full {TouchTargets.sheetMinHeight}"
                 OnClick = fun () -> dispatch (SetTargetPause b.Intent) }
     Html.div [
+        // Satz und Knopf stehen als Geschwister im Fragment: ein Schlüssel hält den Knopf, wenn der Satz
+        // kommt oder geht (budgeting-c6vn4, P3).
+        prop.key "pause-button"
         prop.custom ("data-testid", "target-pause")
         if invisible then prop.className "invisible"
         prop.children [
@@ -59,6 +62,7 @@ let pauseControlView (placement: PausePlacement) (model: Model) (category: Budge
             match note with
             | Some text ->
                 Html.p [
+                    prop.key "pause-note"
                     prop.custom ("data-testid", "target-pause-ynab")
                     prop.className ListRoles.muted
                     prop.text text
@@ -70,6 +74,7 @@ let pauseControlView (placement: PausePlacement) (model: Model) (category: Budge
         match pauseError model category.Id with
         | Some message ->
             Html.div [
+                prop.key "pause-error"
                 prop.custom ("data-testid", "target-pause-error")
                 prop.children [ ErrorDisplay.cardCompact message None ]
             ]

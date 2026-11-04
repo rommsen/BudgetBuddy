@@ -124,12 +124,13 @@ let private recentCmd () : Cmd<Msg> =
         (fun ex -> RecentCounterpartsLoaded (Error ex.Message))
 
 /// Die allgemeine Historie (budgeting-h7q4v): alle Bewegungen, lesend.
-let private generalHistoryCmd () : Cmd<Msg> =
+/// Die Antwort trägt die Generation beim Start: eine späte Antwort eines früheren Ladens ersetzt nichts.
+let private generalHistoryCmd (generation: int) : Cmd<Msg> =
     Cmd.OfAsync.either
         (fun () -> Retry.reading Api.budget.getBudgetHistory ())
         ()
-        GeneralHistoryLoaded
-        (fun ex -> GeneralHistoryLoaded (Error ex.Message))
+        (fun result -> GeneralHistoryLoaded (generation, result))
+        (fun ex -> GeneralHistoryLoaded (generation, Error ex.Message))
 
 /// Startet den Kopf der Schlange, wenn keiner läuft.
 let private flushAssign (model: Model) : Model * Cmd<Msg> =
@@ -251,11 +252,16 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
             | call -> call
         { model with MoveInFlight = away }, Cmd.none, NoOp
     | OpenGeneralHistory -> openGeneralHistory model, Cmd.none, ShowGeneralHistory
-    | GeneralHistoryEntered -> enterGeneralHistory model, generalHistoryCmd (), NoOp
-    | GeneralHistoryLoaded result -> applyGeneralHistoryLoaded result model, Cmd.none, NoOp
+    | GeneralHistoryEntered ->
+        let entered = enterGeneralHistory model
+        entered, generalHistoryCmd entered.GeneralHistory.Generation, NoOp
+    | RetryGeneralHistory ->
+        let retried = retryGeneralHistory model
+        retried, generalHistoryCmd retried.GeneralHistory.Generation, NoOp
+    | GeneralHistoryLoaded (generation, result) -> applyGeneralHistoryLoaded generation result model, Cmd.none, NoOp
     | SelectRunFilter filter -> selectRunFilter filter model, Cmd.none, NoOp
     | ToggleRun runId -> toggleRun runId model, Cmd.none, NoOp
-    | LeaveGeneralHistory -> model, Cmd.none, ShowBudgetPage
+    | LeaveGeneralHistory -> model, Cmd.none, leaveGeneralHistory model
     | GeneralHistoryAbandoned -> abandonGeneralHistory model, Cmd.none, NoOp
     | SwitchMoneyMode mode -> switchMode mode model, Cmd.none, NoOp
     | AssignTextChanged text -> typeAssign text model, Cmd.none, NoOp
@@ -337,17 +343,22 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         let started = pauseStartGeneration categoryId month model
         let answered = applyPauseAnswered categoryId month result model
         match result with
-        | Error _ -> answered, Cmd.none, NoOp
+        | Error message ->
+            // Steht der Pause-Knopf nicht im offenen Tab, sähe niemand die Meldung: dann als Toast.
+            let external =
+                if pauseAnswerInTab categoryId month model then NoOp
+                else ShowToast (pauseRejectedAwayText message, ToastWarning)
+            answered, Cmd.none, external
         | Ok _ ->
             // Ein Lesen, das die Pause verpasst haben kann, nähme sie zurück: dann noch einmal lesen.
             afterPauseAnswered categoryId month (pauseNeedsReread month started answered) (answered, NoOp)
     | TargetPauseCallLost (categoryId, month, message) ->
-        let shown = pauseAnswerShown categoryId month model
+        let inTab = pauseAnswerInTab categoryId month model
+        let reread = pauseCallLostRereads month model
         let lost = applyPauseCallLost categoryId month message model
-        // Gezeigt steht die Meldung im Tab, sonst als Toast. Der Monat wird still neu gelesen, wenn er
-        // gezeigt wird und kein Wechsel läuft.
-        let external = if shown then NoOp else ShowToast (pauseCallLostText message, ToastError)
-        let reread = shownMonth lost = Some month && not (monthChanging lost)
+        // Steht der Pause-Knopf im offenen Tab, steht die Meldung dort, sonst als Toast. Der Monat wird
+        // still neu gelesen, wenn er gewählt ist (`pauseCallLostRereads`).
+        let external = if inTab then NoOp else ShowToast (pauseCallLostText reread message, ToastError)
         afterPauseAnswered categoryId month reread (lost, external)
     | TargetAmountChanged text -> typeTargetAmount text model, Cmd.none, NoOp
     | TargetDateChanged entry -> typeTargetDate entry model, Cmd.none, NoOp
@@ -442,6 +453,7 @@ let private routeOf (msg: Msg) (model: Model) : MsgRoute =
     | PageEntered
     | OpenGeneralHistory
     | GeneralHistoryEntered
+    | RetryGeneralHistory
     | GeneralHistoryLoaded _
     | SelectRunFilter _
     | ToggleRun _

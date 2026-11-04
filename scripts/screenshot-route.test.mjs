@@ -70,11 +70,10 @@ test("slugifyRoute: Segmente werden zum Dateinamens-Bestandteil, Wurzelroute wir
 /// frühere Fassung nur eine Kopie an eine andere Kopie, ohne Types.fs je zu
 /// lesen, kann diese Fassung nicht mehr unbemerkt auseinanderlaufen.
 ///
-/// Bekannte Grenze dieses Parsers: er erkennt nur Match-Arme der Form
-/// `| ["segment"] -> Page` (einzelnes String-Literal-Segment) plus den
-/// Wurzel-Arm `| [] -> Page`. Ein künftiger Arm mit mehreren Segmenten oder
-/// einer Variable (z. B. `| ["ledger"; txId] -> ...`) würde von diesem
-/// Regex nicht erfasst und müsste den Parser hier mitziehen. Das ist ein
+/// Bekannte Grenze dieses Parsers: er erkennt nur Match-Arme aus lauter
+/// String-Literal-Segmenten (`| ["segment"] -> Page`, `| ["budget"; "history"] -> Page`)
+/// plus den Wurzel-Arm `| [] -> Page`. Ein Arm mit einer Variable
+/// (z. B. `| ["ledger"; txId] -> ...`) ist keine feste Route und wird nicht erfasst. Das ist ein
 /// bewusster, benannter Kompromiss (ein vollständiger F#-Parser wäre für
 /// dieses Skript unverhältnismäßig), kein stiller blinder Fleck: fehlt ein
 /// Segment-Typ, den KNOWN_ROUTES aber kennt, schlägt der Vergleich unten an.
@@ -91,10 +90,13 @@ function extractKnownRoutesFromParseUrl(source) {
   if (/\|\s*\[\s*\]\s*->/.test(block)) {
     routes.add("/");
   }
-  const armPattern = /\|\s*\[\s*"([^"]+)"\s*\]\s*->/g;
+  // Ein Arm aus lauter String-Literalen, auch mehreren (`| ["budget"; "history"] -> ...`, budgeting-c6vn4).
+  // Ein Arm mit einer Variable (`| ["ledger"; "entry"; id] -> ...`) ist keine feste Route und fällt heraus.
+  const armPattern = /\|\s*\[\s*("[^"]+"(?:\s*;\s*"[^"]+")*)\s*\]\s*->/g;
   let match;
   while ((match = armPattern.exec(block)) !== null) {
-    routes.add(`/${match[1]}`);
+    const segments = [...match[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+    routes.add(`/${segments.join("/")}`);
   }
   return routes;
 }

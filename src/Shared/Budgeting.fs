@@ -648,6 +648,10 @@ type HistoryLine = {
     Status: HistoryStatus option
 }
 
+/// Was sich am Zugewiesen einer Bewegung geändert hat: neu minus alt.
+let private changeOf (m: HistoryMovement) : Money =
+    { m.NewAssigned with Amount = m.NewAssigned.Amount - m.OldAssigned.Amount }
+
 let private historyStatus (latest: LineOutcome option) : HistoryStatus =
     match latest with
     | Some Written -> HistoryWritten
@@ -659,7 +663,7 @@ let private historyStatus (latest: LineOutcome option) : HistoryStatus =
 /// geht Geld nach der Gegenseite oder kommt von ihr, bei Zuweisen kommt es aus Zu verteilen oder geht
 /// dorthin zurück.
 let historyLine (m: HistoryMovement) : HistoryLine =
-    let change = { m.NewAssigned with Amount = m.NewAssigned.Amount - m.OldAssigned.Amount }
+    let change = changeOf m
     let incoming = change.Amount >= 0m
     let text =
         match m.Origin, m.Counterpart with
@@ -732,48 +736,62 @@ type HistoryRunLine = {
     Status: HistoryStatus
 }
 
+/// Der Stand eines Durchlaufs (budgeting-c6vn4, A6). Eigener Typ neben `HistoryStatus`, weil ein
+/// Durchlauf einen Fall mehr kennt: einige seiner Kategorien scheiterten, andere nicht. Die Zahl steckt
+/// so nicht im Fehlgrund, die Ansicht formt den Text.
+type RunStatus =
+    | RunWritten
+    | RunOpen
+    | RunChangedInYnab
+    /// Alle Bewegungen gescheitert oder der Durchlauf hat nur eine: der Grund der ersten.
+    | RunFailed of reason: string
+    /// Bei Targets anwenden mit mehreren Kategorien: `failed` von `total` scheiterten, die Gründe stehen
+    /// in den Einzelzeilen.
+    | RunPartlyFailed of failed: int * total: int
+
 /// Ein Durchlauf der allgemeinen Historie: alle Bewegungen mit derselben Gruppen-Id (ADR 0069 Punkt 1),
 /// als eine Zeile.
 type HistoryRun = {
     /// Die Gruppen-Id.
     RunId: Guid
-    /// Zeitpunkt des Festhaltens, UTC. Alle Bewegungen eines Durchlaufs stehen in einer Transaktion.
+    /// Zeitpunkt des Festhaltens, UTC: der jüngste seiner Bewegungen.
     OccurredAt: DateTime
     Origin: MovementOrigin
     /// "YYYY-MM-01".
     Month: string
-    /// "20,00 € Lebensmittel → Urlaub", "+20,00 € Urlaub", "Targets anwenden, 37 Kategorien, 1.234,00 €".
+    /// Art, Kategorie oder Richtung, Anzahl, ohne Betrag (budgeting-c6vn4, A5): "Verschieben,
+    /// Lebensmittel → Urlaub", "Zuweisen, Urlaub", "Targets anwenden, 37 Kategorien".
     Text: string
+    /// Der Betrag rechts in der Zeile. Targets anwenden: die Summe neu minus alt. Zuweisen: neu minus alt.
+    /// Verschieben: der verschobene Betrag, immer positiv (die Richtung steht im Text).
+    Amount: Money
     /// Fehlgeschlagen, sobald eine Bewegung fehlschlug; sonst noch offen, in YNAB geändert oder
     /// geschrieben, in dieser Rangfolge.
-    Status: HistoryStatus
+    Status: RunStatus
     /// Bei Targets anwenden die Kategorien in der Reihenfolge des Durchlaufs, sonst leer.
     Lines: HistoryRunLine list
 }
 
-let private changeOf (m: HistoryMovement) : Money =
-    { m.NewAssigned with Amount = m.NewAssigned.Amount - m.OldAssigned.Amount }
-
-/// "+20,00 €", "-20,00 €", eine Null ohne Vorzeichen.
-let private signedEuroText (money: Money) : string =
-    if money.Amount > 0m then $"+{euroText money}" else euroText money
+/// Name einer Seite einer Verschiebung, die weder in der Abfrage noch als Gegenseite vorkommt.
+[<Literal>]
+let UnknownCategoryText = "unbekannte Kategorie"
 
 /// Der Stand eines Durchlaufs aus den Ständen seiner Bewegungen. Bei Targets anwenden mit mehreren
-/// Kategorien nennt der Grund die Zahl, die Gründe je Kategorie stehen in den Einzelzeilen.
-let private runStatus (origin: MovementOrigin) (statuses: HistoryStatus list) : HistoryStatus =
+/// Kategorien zählt er die Fehlschläge, die Gründe je Kategorie stehen in den Einzelzeilen.
+let private runStatus (origin: MovementOrigin) (statuses: HistoryStatus list) : RunStatus =
     let failed = statuses |> List.choose (function HistoryFailed reason -> Some reason | _ -> None)
     match failed, origin with
     | _ :: _, TargetsApplied when List.length statuses > 1 ->
-        HistoryFailed $"{List.length failed} von {List.length statuses} fehlgeschlagen"
-    | reason :: _, _ -> HistoryFailed reason
+        RunPartlyFailed (List.length failed, List.length statuses)
+    | reason :: _, _ -> RunFailed reason
     | [], _ ->
-        if List.contains HistoryOpen statuses then HistoryOpen
-        elif List.contains HistoryChangedInYnab statuses then HistoryChangedInYnab
-        else HistoryWritten
+        if List.contains HistoryOpen statuses then RunOpen
+        elif List.contains HistoryChangedInYnab statuses then RunChangedInYnab
+        else RunWritten
 
-/// Der Text einer Verschiebung: Betrag, Quelle und Ziel. Fehlt eine Seite in der Abfrage, kommt ihr
-/// Name aus der Gegenseite der anderen.
-let private moveText (movements: HistoryMovement list) : string =
+/// Text und Betrag einer Verschiebung: Quelle und Ziel, der Betrag ohne Vorzeichen. Fehlt eine Seite in
+/// der Abfrage, kommt ihr Name aus der Gegenseite der anderen, sonst heißt sie "unbekannte Kategorie".
+let private moveTextAndAmount (movements: HistoryMovement list) : string * Money =
     let source = movements |> List.tryFind (fun m -> (changeOf m).Amount < 0m)
     let target = movements |> List.tryFind (fun m -> (changeOf m).Amount > 0m)
     let named (side: HistoryMovement option) (other: HistoryMovement option) =
@@ -781,39 +799,41 @@ let private moveText (movements: HistoryMovement list) : string =
         | Some m, _ -> Some m.CategoryName
         | None, Some o -> o.Counterpart
         | None, None -> None
-    match List.tryHead (List.choose id [ source; target ]) with
-    | Some any ->
-        let amount = changeOf any
-        let from = named source target |> Option.defaultValue "?"
-        let towards = named target source |> Option.defaultValue "?"
-        $"{euroText { amount with Amount = abs amount.Amount }} {from} → {towards}"
-    | None -> "Verschieben"
+    let from = named source target |> Option.defaultValue UnknownCategoryText
+    let towards = named target source |> Option.defaultValue UnknownCategoryText
+    let any = List.choose id [ source; target ] |> List.tryHead |> Option.defaultValue (List.head movements)
+    let amount = changeOf any
+    $"Verschieben, {from} → {towards}", { amount with Amount = abs amount.Amount }
 
 let private historyRun (movements: HistoryMovement list) : HistoryRun =
     // Die Abfrage liefert neueste zuerst, innerhalb einer Transaktion die zuletzt eingefügte vorn.
     let inOrder = List.rev movements
     let first = List.head inOrder
     let statuses = inOrder |> List.map (fun m -> historyStatus m.Latest)
-    let text, lines =
+    let text, amount, lines =
         match first.Origin with
         | TargetsApplied ->
             let count = List.length inOrder
             let total = { first.NewAssigned with Amount = inOrder |> List.sumBy (fun m -> (changeOf m).Amount) }
             let categories = if count = 1 then "1 Kategorie" else $"{count} Kategorien"
-            $"Targets anwenden, {categories}, {euroText total}",
+            $"Targets anwenden, {categories}",
+            total,
             inOrder
             |> List.map (fun m ->
                 { MovementId = m.MovementId
                   CategoryName = m.CategoryName
                   Change = changeOf m
                   Status = historyStatus m.Latest })
-        | MoneyAssigned -> $"{signedEuroText (changeOf first)} {first.CategoryName}", []
-        | MoneyMoved -> moveText inOrder, []
+        | MoneyAssigned -> $"Zuweisen, {first.CategoryName}", changeOf first, []
+        | MoneyMoved ->
+            let text, amount = moveTextAndAmount inOrder
+            text, amount, []
     { RunId = first.ApplicationId
       OccurredAt = inOrder |> List.map (fun m -> m.OccurredAt) |> List.max
       Origin = first.Origin
       Month = first.Month
       Text = text
+      Amount = amount
       Status = runStatus first.Origin statuses
       Lines = lines }
 
