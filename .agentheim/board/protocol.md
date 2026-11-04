@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 20:17 -- Modeling / Captured: budgeting-f8w2n - "Target und Pause sperren sich nur je Kategorie mit sichtbarem Grund, Meldung ohne Target nach Schritt 1, Testlücken aus den Reviews zu c2t9w"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Sollte-Befunde der Reviews zu budgeting-c2t9w: Sperren je Kategorie mit Grund, Meldung ohne Target, Testlücken. Letzte Fix-Task der Kette.
+
+---
+
 ## 2026-11-04 20:15 -- Task verified and completed: budgeting-r7h2q - "[layout]-Test Historie-Knopf 48 px am Handy rundet nicht: 47,99999 px ließ ihn einmal rot werden"
 
 **Type:** Work / Task completion

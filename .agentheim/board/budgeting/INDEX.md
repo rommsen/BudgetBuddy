@@ -10,7 +10,7 @@ Catalog of this bounded context's tasks by status.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 8
+- **Backlog:** 9
 - **Todo:** 0
 - **Doing:** 1
 - **Done:** 33
@@ -76,6 +76,7 @@ prior-art matcher additionally checks `done-archive/` when present.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **budgeting-f8w2n** — "Target und Pause sperren sich nur je Kategorie mit sichtbarem Grund, Meldung ohne Target nach Schritt 1, Testlücken aus den Reviews zu c2t9w" (bug) — `backlog/budgeting-f8w2n-sperren-je-kategorie-und-testluecken.md`
 - **budgeting-m4v8t** — "pauseNeedsReread: im erreichbaren Zustand gedeckte Bedingungen streichen oder benennen" (chore) — `backlog/budgeting-m4v8t-pauseneedsreread-im-erreichbaren-zustand-gedeckte-bedingunge.md`
 - **budgeting-h9c3w** — "Gesammelte Sollte- und Kann-Befunde der Reviews zu budgeting-c6vn4 und budgeting-g2ty9" (chore) — `backlog/budgeting-h9c3w-review-befunde-sammlung.md`
 - **budgeting-q8m2v** — "Allgemeine Historie begrenzen oder nach Monat laden" (feature) — `backlog/budgeting-q8m2v-allgemeine-historie-begrenzen-oder-nach-monat-laden.md`
