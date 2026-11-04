@@ -108,11 +108,36 @@ let pauseButtonState (model: Model) (categoryId: System.Guid) : PauseButtonState
 [<Literal>]
 let PauseWaitsForTargetText = "Wartet, bis das Target gespeichert ist."
 
-/// Steht unter dem Pause-Knopf, warum er wartet? Nur, wenn ein Knopf steht und ein Target-Aufruf derselben
-/// Kategorie ihn sperrt: der Spinner steht dann im Tab Target, im Tab Geld sähe man sonst keinen Grund.
+/// Der Name der Kategorie im geladenen Monat, wenn sie dort steht.
+let categoryNameOf (model: Model) (categoryId: System.Guid) : string option =
+    match model.Month with
+    | Success month -> categoriesOf month |> List.tryFind (fun c -> c.Id = categoryId) |> Option.map (fun c -> c.Name)
+    | _ -> None
+
+/// Der Satz unter dem Pause-Knopf, solange die Pause einer anderen Kategorie läuft (budgeting-n7h3x). Ohne
+/// Namen, wenn die Kategorie nicht im gezeigten Monat steht.
+let pauseWaitsForPauseText (categoryName: string option) : string =
+    match categoryName with
+    | Some name -> $"Wartet, bis die Pause bei {name} gespeichert ist."
+    | None -> "Wartet, bis die laufende Pause gespeichert ist."
+
+/// Läuft die Pause einer anderen Kategorie? Dann ihre Kategorie: es läuft nur eine Pause zugleich.
+let private pauseCallElsewhere (model: Model) (categoryId: System.Guid) : System.Guid option =
+    match model.PauseCall with
+    | PauseRunning (c, _, _) when c <> categoryId -> Some c
+    | _ -> None
+
+/// Steht unter dem Pause-Knopf, warum er wartet? Nur, wenn ein Knopf steht. Läuft die Pause einer anderen
+/// Kategorie, nennt der Satz sie (budgeting-n7h3x) und hat Vorrang; sonst steht der Satz, wenn ein
+/// Target-Aufruf derselben Kategorie sperrt: der Spinner steht dann im Tab Target, im Tab Geld sähe man
+/// sonst keinen Grund. Bei der eigenen Pause dreht der Knopf, ein Satz steht nicht.
 let pauseWaitHint (model: Model) (category: BudgetCategory) : string option =
     match pauseControlFor model category with
-    | PauseOffered (Some _, _) when targetCallFor model category.Id -> Some PauseWaitsForTargetText
+    | PauseOffered (Some _, _) ->
+        match pauseCallElsewhere model category.Id with
+        | Some other -> Some (pauseWaitsForPauseText (categoryNameOf model other))
+        | None when targetCallFor model category.Id -> Some PauseWaitsForTargetText
+        | None -> None
     | _ -> None
 
 /// Die Meldung zur Kategorie im dargestellten Monat, wenn der letzte Aufruf scheiterte.

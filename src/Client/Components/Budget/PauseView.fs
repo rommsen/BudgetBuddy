@@ -71,7 +71,8 @@ let pauseControlView (placement: PausePlacement) (model: Model) (category: Budge
             match offered with
             | Some b -> pauseButton placement model category b false dispatch
             | None -> ()
-            // Sperrt ein Target-Aufruf derselben Kategorie den Knopf, steht der Grund darunter (budgeting-f8w2n).
+            // Sperrt ein Target-Aufruf derselben Kategorie oder eine Pause einer anderen den Knopf, steht der
+            // Grund darunter (budgeting-f8w2n, budgeting-n7h3x).
             match pauseWaitHint model category with
             | Some text ->
                 Html.p [

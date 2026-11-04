@@ -237,11 +237,10 @@ let private editableForm (mode: TargetTabMode) : (Target option * TargetForm) op
 let confirmOpen (form: TargetForm) : bool =
     form.ConfirmingChange || form.ConfirmingRemove
 
-/// Ginge Speichern, wenn keine Pause der Kategorie liefe? Abweichung vom geladenen Stand, kein Target-Aufruf
-/// und keine offene Rückfrage.
-let private saveableApartFromPause (model: Model) (category: BudgetCategory) : bool =
+/// Ginge Speichern, wenn kein Aufruf liefe? Abweichung vom geladenen Stand und keine offene Rückfrage.
+let private saveableApartFromCalls (model: Model) (category: BudgetCategory) : bool =
     match editableForm (targetTabMode model category) with
-    | Some (shown, form) when not (targetBusy model) && not (confirmOpen form) ->
+    | Some (shown, form) when not (confirmOpen form) ->
         match targetFormState shown form with
         | FormChanged _ -> true
         | FormInvalid
@@ -251,7 +250,7 @@ let private saveableApartFromPause (model: Model) (category: BudgetCategory) : b
 /// Geht "Target speichern" oder "Target anlegen"? Nur bei Abweichung vom geladenen Stand, wenn kein Aufruf
 /// läuft, auch keine Pause derselben Kategorie (`targetWaits`), und keine Rückfrage offen ist.
 let canSaveTarget (model: Model) (category: BudgetCategory) : bool =
-    saveableApartFromPause model category && not (targetWaits model category.Id)
+    saveableApartFromCalls model category && not (targetWaits model category.Id)
 
 let private selectedEditable (model: Model) : (BudgetCategory * Target option * TargetForm) option =
     match model.Selected, model.Month with
@@ -421,18 +420,31 @@ let removeButtonState (model: Model) (form: TargetForm) : TargetButtonState =
 [<Literal>]
 let TargetWaitsForPauseText = "Wartet, bis die Pause gespeichert ist."
 
-/// Steht unter "Target speichern" oder "Target anlegen", warum es wartet? Nur, wenn ohne die Pause der
-/// Kategorie gespeichert werden könnte.
-let saveWaitHint (model: Model) (category: BudgetCategory) : string option =
-    if Pause.pauseCallFor model category.Id && saveableApartFromPause model category then Some TargetWaitsForPauseText
-    else None
+/// Der Satz unter "Target speichern" und "Target entfernen", solange ein Target-Aufruf einer anderen
+/// Kategorie läuft (budgeting-n7h3x). Ohne Namen, wenn die Kategorie nicht im gezeigten Monat steht.
+let targetWaitsForTargetText (categoryName: string option) : string =
+    match categoryName with
+    | Some name -> $"Wartet, bis das Target bei {name} gespeichert ist."
+    | None -> "Wartet, bis das laufende Target gespeichert ist."
 
-/// Steht unter "Target entfernen", warum es wartet? Nur, wenn ohne die Pause der Kategorie entfernt werden
-/// könnte: kein Target-Aufruf läuft. Eine offene Rückfrage gibt es neben der Pause nicht (`startPause`).
+/// Der Satz zur Sperre im Tab Target. Läuft ein Target-Aufruf einer anderen Kategorie, nennt der Satz sie
+/// und hat Vorrang (budgeting-n7h3x). Läuft einer derselben Kategorie, dreht dort der Knopf, ein Satz
+/// steht nicht. Sonst steht der Satz zur Pause, wenn eine Pause derselben Kategorie läuft (budgeting-f8w2n).
+let private targetWaitHint (model: Model) (categoryId: System.Guid) : string option =
+    match model.TargetCall with
+    | TargetSaving (c, _, _) when c <> categoryId -> Some (targetWaitsForTargetText (Pause.categoryNameOf model c))
+    | TargetSaving _ -> None
+    | TargetIdle -> if Pause.pauseCallFor model categoryId then Some TargetWaitsForPauseText else None
+
+/// Steht unter "Target speichern" oder "Target anlegen", warum es wartet? Nur, wenn ohne die laufenden
+/// Aufrufe gespeichert werden könnte (`saveableApartFromCalls`).
+let saveWaitHint (model: Model) (category: BudgetCategory) : string option =
+    if saveableApartFromCalls model category then targetWaitHint model category.Id else None
+
+/// Steht unter "Target entfernen", warum es wartet? Eine offene Rückfrage gibt es neben einem laufenden
+/// Aufruf nicht (`startPause`, `askRemoveTarget`).
 let removeWaitHint (model: Model) (form: TargetForm) : string option =
-    if Pause.pauseCallFor model form.CategoryId && not (targetBusy model) then
-        Some TargetWaitsForPauseText
-    else None
+    targetWaitHint model form.CategoryId
 
 /// Setzt das Target der Kategorie im geladenen Monat, wenn er der Monat des Aufrufs ist.
 let withTarget (categoryId: System.Guid) (month: string) (target: Target option) (model: Model) : Model =

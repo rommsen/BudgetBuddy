@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 21:59 -- Task verified and completed: budgeting-n7h3x - "Laufende Pause oder laufendes Target-Speichern einer anderen Kategorie sperrt den gleichen Knopf ohne sichtbaren Grund"
+
+**Type:** Work / Task completion
+**Task:** budgeting-n7h3x - "Laufende Pause oder laufendes Target-Speichern einer anderen Kategorie sperrt den gleichen Knopf ohne sichtbaren Grund"
+**Summary:** Sperrt ein gleichartiger Aufruf einer anderen Kategorie, steht der Grund mit dem Namen dieser Kategorie unter dem Knopf, die globale Sperre bleibt
+**Duration:** 35 min
+**Verification:** PASS (iteration 1)
+**Files changed:** 4
+**Tests added:** 4
+**ADRs written:** none
+
+---
+
 ## 2026-11-04 21:39 -- Batch started: [budgeting-n7h3x, ledger-q4m7z]
 
 **Type:** Work / Batch start

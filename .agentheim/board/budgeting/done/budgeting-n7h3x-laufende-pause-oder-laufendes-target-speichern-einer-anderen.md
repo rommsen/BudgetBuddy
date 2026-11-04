@@ -1,7 +1,7 @@
 ---
 id: budgeting-n7h3x
 title: "Laufende Pause oder laufendes Target-Speichern einer anderen Kategorie sperrt den gleichen Knopf ohne sichtbaren Grund"
-status: doing
+status: done
 type: bug
 context: budgeting
 created: 2026-11-04
@@ -37,3 +37,15 @@ Alles als reine Funktionen in `Pause.fs` und `TargetEdit.fs` (Vorbild `pauseWait
 
 ## Notes
 Screenreader außerhalb des Umfangs.
+## Outcome
+
+Die globale Sperre gleichartiger Aufrufe bleibt (`PauseCall` und `TargetCall` je ein Platz). Neu steht der Grund unter dem gesperrten Knopf, wenn ein gleichartiger Aufruf einer anderen Kategorie sperrt.
+
+- `src/Client/Components/Budget/Pause.fs`: neu `categoryNameOf` (Name aus dem geladenen Monat), `pauseWaitsForPauseText` ("Wartet, bis die Pause bei <Kategorie> gespeichert ist.", ohne Namen "Wartet, bis die laufende Pause gespeichert ist.") und `pauseCallElsewhere`. `pauseWaitHint` zeigt den Satz zur Pause einer anderen Kategorie mit Vorrang, sonst wie bisher den Satz zum Target-Aufruf derselben Kategorie.
+- `src/Client/Components/Budget/TargetEdit.fs`: neu `targetWaitsForTargetText` ("Wartet, bis das Target bei <Kategorie> gespeichert ist.", ohne Namen "Wartet, bis das laufende Target gespeichert ist.") und `targetWaitHint` (Target-Aufruf einer anderen Kategorie vor Pause derselben Kategorie, bei Target-Aufruf derselben Kategorie kein Satz). `saveWaitHint` und `removeWaitHint` rufen ihn auf; `saveableApartFromPause` heißt jetzt `saveableApartFromCalls` und prüft nur Abweichung und offene Rückfrage. Für alle Fälle ohne Target-Aufruf einer anderen Kategorie verhalten sich beide Funktionen wie vorher.
+- `src/Client/Components/Budget/PauseView.fs`: nur der Kommentar. Die Views rufen die Funktionen wie bisher auf, testids unverändert.
+- Tests in `src/Tests/TargetChangeClientTests.fs`, `perCategoryTests`: Pause bei Ausflug, Pause-Knopf bei Urlaub zeigt den Satz mit Ausflug (vorher prüfte der Test "kein Satz", jetzt Regressionstest); Speichern bei Ausflug, Speichern und Entfernen bei Urlaub zeigen den Satz mit Ausflug, ohne Eingabe kein Satz unter Speichern; dieselbe Kategorie zeigt keinen Satz; fehlender Name ergibt die Sätze ohne Namen; Vorrang in beiden Richtungen (Pause bei Ausflug und Speichern bei Urlaub: Speichern und Entfernen bei Ausflug nennen das Target bei Urlaub; Speichern bei Ausflug und Pause bei Urlaub: Pause-Knopf bei Ausflug nennt die Pause bei Urlaub). Der Walk der Rückfragen bleibt unverändert grün.
+
+Mutanten, beide rot und exakt zurückgesetzt: `when c <> categoryId` in `pauseCallElsewhere` entfernt (2 rot), Zweig für Target-Aufruf einer anderen Kategorie in `targetWaitHint` abgeschaltet (3 rot).
+
+`./verify.sh` im Worktree: VERIFY: PASS (dotnet 3804 grün, node 300 grün). README budgeting per README_DELTA (Gate `check:readme-delta` Exit 0).

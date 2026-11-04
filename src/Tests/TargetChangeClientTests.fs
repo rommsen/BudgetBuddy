@@ -801,12 +801,46 @@ let private perCategoryTests =
             Expect.isNonEmpty cmd "Urlaub sendet"
             Expect.equal (saved.TargetCall, saved.PauseCall) (TargetSaving (holidayId, current, SavingTarget), pausing.PauseCall) "beide laufen"
         }
-        test "Eine laufende Pause bei Ausflug lässt den Pause-Knopf von Urlaub nicht drehen" {
-            let onHoliday = onTrip |> step (SetTargetPause PauseTarget) |> step (SelectCategory holidayId)
-            Expect.isFalse (Components.Budget.Pause.pauseButtonState onHoliday holidayId).Busy "Urlaub dreht nicht"
-            Expect.isNone (Components.Budget.Pause.pauseWaitHint onHoliday (categoryOf onHoliday holidayId)) "kein Satz zum Target"
+        // budgeting-n7h3x, Bug: eine Pause bei Ausflug sperrte "Target pausieren" bei Urlaub ohne sichtbaren
+        // Grund, der Spinner stand bei Ausflug.
+        test "GIVEN Pause bei Ausflug läuft WHEN Urlaub gezeigt THEN dreht der Pause-Knopf von Urlaub nicht, darunter steht die Pause bei Ausflug" {
+            let pausing = onTrip |> step (SetTargetPause PauseTarget)
+            Expect.isNone (Components.Budget.Pause.pauseWaitHint pausing (categoryOf pausing tripId)) "Ausflug: Spinner, kein Satz"
+            let onHoliday = pausing |> step (SelectCategory holidayId)
+            Expect.equal (Components.Budget.Pause.pauseButtonState onHoliday holidayId) { Busy = false; Disabled = true } "Urlaub gesperrt, dreht nicht"
+            Expect.equal
+                (Components.Budget.Pause.pauseWaitHint onHoliday (categoryOf onHoliday holidayId))
+                (Some "Wartet, bis die Pause bei Ausflug gespeichert ist.")
+                "Urlaub nennt die Pause bei Ausflug"
         }
-        test "Unter Target speichern und Target entfernen steht der Satz nur, wenn allein die Pause sperrt" {
+        // budgeting-n7h3x, Bug: ein Speichern bei Ausflug sperrte Speichern und Entfernen bei Urlaub ohne Grund.
+        test "GIVEN Speichern bei Ausflug läuft WHEN Urlaub gezeigt THEN stehen unter Speichern und Entfernen von Urlaub das Target bei Ausflug" {
+            let saving = onTrip |> step (TargetAmountChanged "60") |> step SaveTarget
+            Expect.isNone (saveWaitHint saving (categoryOf saving tripId)) "Ausflug: Spinner, kein Satz unter Speichern"
+            Expect.isNone (removeWaitHint saving (formOf saving)) "Ausflug: kein Satz unter Entfernen"
+            let onHoliday = saving |> step (SelectCategory holidayId) |> step (TargetAmountChanged "30")
+            let holidayNow = categoryOf onHoliday holidayId
+            Expect.equal (saveButtonState onHoliday holidayNow) { Busy = false; Disabled = true } "Urlaub: Speichern gesperrt"
+            Expect.equal (removeButtonState onHoliday (formOf onHoliday)) { Busy = false; Disabled = true } "Urlaub: Entfernen gesperrt"
+            Expect.equal (saveWaitHint onHoliday holidayNow) (Some "Wartet, bis das Target bei Ausflug gespeichert ist.") "Satz unter Speichern"
+            Expect.equal (removeWaitHint onHoliday (formOf onHoliday)) (Some "Wartet, bis das Target bei Ausflug gespeichert ist.") "Satz unter Entfernen"
+            // Ohne Eingabe ist Speichern ohnehin gesperrt: kein Satz.
+            let untouched = saving |> step (SelectCategory holidayId)
+            Expect.isNone (saveWaitHint untouched (categoryOf untouched holidayId)) "ohne Eingabe kein Satz unter Speichern"
+        }
+        test "Steht die Kategorie des laufenden Aufrufs nicht im gezeigten Monat, steht der Satz ohne Namen" {
+            let elsewhere = Guid.NewGuid()
+            let pausing = { onTrip with PauseCall = PauseRunning (elsewhere, current, onTrip.MonthGeneration) }
+            Expect.equal
+                (Components.Budget.Pause.pauseWaitHint pausing (categoryOf pausing tripId))
+                (Some "Wartet, bis die laufende Pause gespeichert ist.")
+                "Pause ohne Namen"
+            let typed = onTrip |> step (TargetAmountChanged "60")
+            let saving = { typed with TargetCall = TargetSaving (elsewhere, current, SavingTarget) }
+            Expect.equal (saveWaitHint saving (categoryOf saving tripId)) (Some "Wartet, bis das laufende Target gespeichert ist.") "Speichern ohne Namen"
+            Expect.equal (removeWaitHint saving (formOf saving)) (Some "Wartet, bis das laufende Target gespeichert ist.") "Entfernen ohne Namen"
+        }
+        test "Unter Target speichern und Target entfernen steht der Satz zur Pause nur, wenn kein Target-Aufruf mitsperrt" {
             let pausing = onTrip |> step (SetTargetPause PauseTarget)
             Expect.isNone (saveWaitHint pausing (categoryOf pausing tripId)) "ohne Änderung gesperrt, nicht wegen der Pause"
             // Pause bei Ausflug, Speichern bei Urlaub, zurück zu Ausflug: auch der Target-Aufruf sperrt.
@@ -818,8 +852,24 @@ let private perCategoryTests =
                 |> step (SelectCategory tripId)
                 |> step (TargetAmountChanged "60")
             Expect.equal (both.TargetCall, both.PauseCall) (TargetSaving (holidayId, current, SavingTarget), pausing.PauseCall) "beide laufen"
-            Expect.isNone (saveWaitHint both (categoryOf both tripId)) "Speichern: auch der Target-Aufruf sperrt"
-            Expect.isNone (removeWaitHint both (formOf both)) "Entfernen: auch der Target-Aufruf sperrt"
+            // Sperren Pause und Target-Aufruf zugleich, steht nur der Satz zum gleichartigen Aufruf (budgeting-n7h3x).
+            Expect.equal (saveWaitHint both (categoryOf both tripId)) (Some "Wartet, bis das Target bei Urlaub gespeichert ist.") "Speichern: der Target-Aufruf hat Vorrang"
+            Expect.equal (removeWaitHint both (formOf both)) (Some "Wartet, bis das Target bei Urlaub gespeichert ist.") "Entfernen: der Target-Aufruf hat Vorrang"
+        }
+        test "Sperren Target-Aufruf derselben und Pause einer anderen Kategorie den Pause-Knopf, steht nur der Satz zur Pause" {
+            let both =
+                onTrip
+                |> step (TargetAmountChanged "60")
+                |> step SaveTarget
+                |> step (SelectCategory holidayId)
+                |> step (SetTargetPause PauseTarget)
+                |> step (SelectCategory tripId)
+            Expect.equal both.TargetCall (TargetSaving (tripId, current, SavingTarget)) "Speichern läuft"
+            Expect.isTrue (Components.Budget.Pause.pauseCallFor both holidayId) "Pause bei Urlaub läuft"
+            Expect.equal
+                (Components.Budget.Pause.pauseWaitHint both (categoryOf both tripId))
+                (Some "Wartet, bis die Pause bei Urlaub gespeichert ist.")
+                "die Pause hat Vorrang"
         }
     ]
 
