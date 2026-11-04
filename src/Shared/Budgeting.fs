@@ -578,7 +578,9 @@ type HistoryLine = {
     /// "zurück nach Zu verteilen", "Targets anwenden", "Target pausiert", "Pause aufgehoben",
     /// "Target 50,00 € → 60,00 €", "Target entfernt".
     Text: string
-    Status: HistoryStatus
+    /// Der Stand beim Schreiben nach YNAB. `None` bei einer Pause: sie geht nie nach YNAB, die Zeile
+    /// zeigt nur die Uhrzeit (budgeting-h7q4v, H1).
+    Status: HistoryStatus option
 }
 
 let private historyStatus (latest: LineOutcome option) : HistoryStatus =
@@ -604,7 +606,7 @@ let historyLine (m: HistoryMovement) : HistoryLine =
       OccurredAt = m.OccurredAt
       Change = Some change
       Text = text
-      Status = historyStatus m.Latest }
+      Status = Some (historyStatus m.Latest) }
 
 /// Der Text einer Target-Änderung: "Target 50,00 € → 60,00 €", "Datum 01.06.2027", "Datum entfernt",
 /// beides mit Komma getrennt, oder "Target entfernt".
@@ -623,15 +625,15 @@ let targetChangeText (c: HistoryTargetChange) : string =
             | [] -> "Target unverändert"
             | parts -> String.concat ", " parts
 
-/// Eintrag zu Zeile. Eine Pause hat keinen Betrag, und ihr Stand ist immer geschrieben: sie geht nicht
-/// nach YNAB (ADR 0073 Punkt 5).
+/// Eintrag zu Zeile. Eine Pause hat weder Betrag noch Stand: sie geht nie nach YNAB (ADR 0073 Punkt 5).
+/// Eine Target-Änderung behält ihren echten Stand.
 let historyEntryLine (entry: HistoryEntry) : HistoryLine =
     let pauseLine (p: HistoryPause) (text: string) =
         { EntryId = p.EventId
           OccurredAt = p.OccurredAt
           Change = None
           Text = text
-          Status = HistoryWritten }
+          Status = None }
     match entry with
     | Movement m -> historyLine m
     | TargetPaused p -> pauseLine p "Target pausiert"
@@ -641,7 +643,112 @@ let historyEntryLine (entry: HistoryEntry) : HistoryLine =
           OccurredAt = c.OccurredAt
           Change = None
           Text = targetChangeText c
-          Status = historyStatus c.Latest }
+          Status = Some (historyStatus c.Latest) }
+
+// ============================================
+// Allgemeine Historie (budgeting-h7q4v)
+// ============================================
+
+/// Eine Kategorie eines Durchlaufs Targets anwenden, sichtbar nach dem Aufklappen.
+type HistoryRunLine = {
+    MovementId: Guid
+    CategoryName: string
+    /// Neu minus alt.
+    Change: Money
+    Status: HistoryStatus
+}
+
+/// Ein Durchlauf der allgemeinen Historie: alle Bewegungen mit derselben Gruppen-Id (ADR 0069 Punkt 1),
+/// als eine Zeile.
+type HistoryRun = {
+    /// Die Gruppen-Id.
+    RunId: Guid
+    /// Zeitpunkt des Festhaltens, UTC. Alle Bewegungen eines Durchlaufs stehen in einer Transaktion.
+    OccurredAt: DateTime
+    Origin: MovementOrigin
+    /// "YYYY-MM-01".
+    Month: string
+    /// "20,00 € Lebensmittel → Urlaub", "+20,00 € Urlaub", "Targets anwenden, 37 Kategorien, 1.234,00 €".
+    Text: string
+    /// Fehlgeschlagen, sobald eine Bewegung fehlschlug; sonst noch offen, in YNAB geändert oder
+    /// geschrieben, in dieser Rangfolge.
+    Status: HistoryStatus
+    /// Bei Targets anwenden die Kategorien in der Reihenfolge des Durchlaufs, sonst leer.
+    Lines: HistoryRunLine list
+}
+
+let private changeOf (m: HistoryMovement) : Money =
+    { m.NewAssigned with Amount = m.NewAssigned.Amount - m.OldAssigned.Amount }
+
+/// "+20,00 €", "-20,00 €", eine Null ohne Vorzeichen.
+let private signedEuroText (money: Money) : string =
+    if money.Amount > 0m then $"+{euroText money}" else euroText money
+
+/// Der Stand eines Durchlaufs aus den Ständen seiner Bewegungen. Bei Targets anwenden mit mehreren
+/// Kategorien nennt der Grund die Zahl, die Gründe je Kategorie stehen in den Einzelzeilen.
+let private runStatus (origin: MovementOrigin) (statuses: HistoryStatus list) : HistoryStatus =
+    let failed = statuses |> List.choose (function HistoryFailed reason -> Some reason | _ -> None)
+    match failed, origin with
+    | _ :: _, TargetsApplied when List.length statuses > 1 ->
+        HistoryFailed $"{List.length failed} von {List.length statuses} fehlgeschlagen"
+    | reason :: _, _ -> HistoryFailed reason
+    | [], _ ->
+        if List.contains HistoryOpen statuses then HistoryOpen
+        elif List.contains HistoryChangedInYnab statuses then HistoryChangedInYnab
+        else HistoryWritten
+
+/// Der Text einer Verschiebung: Betrag, Quelle und Ziel. Fehlt eine Seite in der Abfrage, kommt ihr
+/// Name aus der Gegenseite der anderen.
+let private moveText (movements: HistoryMovement list) : string =
+    let source = movements |> List.tryFind (fun m -> (changeOf m).Amount < 0m)
+    let target = movements |> List.tryFind (fun m -> (changeOf m).Amount > 0m)
+    let named (side: HistoryMovement option) (other: HistoryMovement option) =
+        match side, other with
+        | Some m, _ -> Some m.CategoryName
+        | None, Some o -> o.Counterpart
+        | None, None -> None
+    match List.tryHead (List.choose id [ source; target ]) with
+    | Some any ->
+        let amount = changeOf any
+        let from = named source target |> Option.defaultValue "?"
+        let towards = named target source |> Option.defaultValue "?"
+        $"{euroText { amount with Amount = abs amount.Amount }} {from} → {towards}"
+    | None -> "Verschieben"
+
+let private historyRun (movements: HistoryMovement list) : HistoryRun =
+    // Die Abfrage liefert neueste zuerst, innerhalb einer Transaktion die zuletzt eingefügte vorn.
+    let inOrder = List.rev movements
+    let first = List.head inOrder
+    let statuses = inOrder |> List.map (fun m -> historyStatus m.Latest)
+    let text, lines =
+        match first.Origin with
+        | TargetsApplied ->
+            let count = List.length inOrder
+            let total = { first.NewAssigned with Amount = inOrder |> List.sumBy (fun m -> (changeOf m).Amount) }
+            let categories = if count = 1 then "1 Kategorie" else $"{count} Kategorien"
+            $"Targets anwenden, {categories}, {euroText total}",
+            inOrder
+            |> List.map (fun m ->
+                { MovementId = m.MovementId
+                  CategoryName = m.CategoryName
+                  Change = changeOf m
+                  Status = historyStatus m.Latest })
+        | MoneyAssigned -> $"{signedEuroText (changeOf first)} {first.CategoryName}", []
+        | MoneyMoved -> moveText inOrder, []
+    { RunId = first.ApplicationId
+      OccurredAt = inOrder |> List.map (fun m -> m.OccurredAt) |> List.max
+      Origin = first.Origin
+      Month = first.Month
+      Text = text
+      Status = runStatus first.Origin statuses
+      Lines = lines }
+
+/// Bewegungen zu Durchlauf-Zeilen: eine Zeile je Gruppen-Id, neueste zuerst.
+let historyRuns (movements: HistoryMovement list) : HistoryRun list =
+    movements
+    |> List.groupBy (fun m -> m.ApplicationId)
+    |> List.map (snd >> historyRun)
+    |> List.sortByDescending (fun r -> r.OccurredAt)
 
 let private lastSundayUtc (year: int) (month: int) : DateTime =
     let last = DateTime(year, month, DateTime.DaysInMonth(year, month), 0, 0, 0, DateTimeKind.Utc)

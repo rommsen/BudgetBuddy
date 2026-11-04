@@ -138,8 +138,8 @@ let private availableBuildupView (category: BudgetCategory) =
     ]
 
 /// Der Stand einer Bewegung: "geschrieben" schlicht, alle Badges klein (ADR 0075: Gelb statt Pink auf
-/// der Budget-Seite).
-let private historyStatusView (status: HistoryStatus) =
+/// der Budget-Seite). Auch in der allgemeinen Historie (`HistoryView`).
+let historyStatusView (status: HistoryStatus) =
     let text = historyStatusText status
     match status with
     | HistoryWritten -> Html.span [ prop.className ListRoles.muted; prop.text text ]
@@ -147,8 +147,25 @@ let private historyStatusView (status: HistoryStatus) =
     | HistoryChangedInYnab -> Badge.noticeSmall text
     | HistoryOpen -> Badge.neutralSmall text
 
+/// Der Betrag einer Bewegungszeile, wie `historyChangeAmount` ihn liefert.
+let historyChangeView (change: Money) =
+    let text, amountClass = historyChangeAmount change
+    Html.span [ prop.className amountClass; prop.text text ]
+
+/// Der Grund eines Fehlschlags neben dem Badge. Er kürzt mit Ellipse und steht ganz im `title`.
+let historyFailureView (status: HistoryStatus) =
+    match historyFailureReason status with
+    | Some reason ->
+        Html.span [
+            prop.custom ("data-testid", "history-failure-reason")
+            prop.className $"{ListRoles.secondary} truncate min-w-0"
+            prop.title reason
+            prop.text reason
+        ]
+    | None -> Html.none
+
 /// Eine Bewegung. In der zweiten Zeile bleiben Datum und Badge ganz, ein langer Fehlgrund kürzt mit
-/// Ellipse und steht ganz im `title`.
+/// Ellipse und steht ganz im `title`. Eine Pause hat keinen Stand, nur die Uhrzeit.
 let private historyLineView (line: HistoryLine) =
     let time = historyTimeText line.OccurredAt
     Html.div [
@@ -161,7 +178,7 @@ let private historyLineView (line: HistoryLine) =
                 prop.children [
                     Html.span [ prop.className $"{ListRoles.primary} truncate min-w-0"; prop.text line.Text ]
                     match line.Change with
-                    | Some change -> Money.signedListAmount change.Amount change.Currency
+                    | Some change -> historyChangeView change
                     | None -> ()
                 ]
             ]
@@ -173,40 +190,39 @@ let private historyLineView (line: HistoryLine) =
                         prop.className $"{ListRoles.date} shrink-0 whitespace-nowrap"
                         prop.text time
                     ]
-                    Html.span [ prop.className "shrink-0"; prop.children [ historyStatusView line.Status ] ]
-                    match historyFailureReason line.Status with
-                    | Some reason ->
-                        Html.span [
-                            prop.custom ("data-testid", "history-failure-reason")
-                            prop.className $"{ListRoles.secondary} truncate min-w-0"
-                            prop.title reason
-                            prop.text reason
-                        ]
+                    match line.Status with
+                    | Some status ->
+                        Html.span [ prop.className "shrink-0"; prop.children [ historyStatusView status ] ]
+                        historyFailureView status
                     | None -> ()
                 ]
             ]
         ]
     ]
 
-/// Bewegungen und Pause-Ereignisse der Kategorie im Monat, neueste zuerst, und der Hinweis auf YNAB
-/// (ADR 0065, Negative).
+/// Der Satz unter jeder Bewegungsliste (ADR 0065, Negative).
+let ynabAssignedNote () =
+    Html.p [
+        prop.className $"{ListRoles.muted} px-4 pt-1"
+        prop.text "Was direkt in YNAB zugewiesen wurde, steht hier nicht."
+    ]
+
+/// Der Verlauf der Kategorie im Monat: Bewegungen, Pause-Ereignisse und Target-Änderungen, neueste
+/// zuerst, und der Hinweis auf YNAB (ADR 0065, Negative). Der Leertext steht nur bei leerer Liste.
 let private historyMovements (history: CategoryHistory) =
     Html.div [
         prop.className "flex flex-col"
         prop.children [
-            Html.span [ prop.className $"{ListRoles.groupHeader} px-4"; prop.text "Bewegungen" ]
+            Html.span [ prop.className $"{ListRoles.groupHeader} px-4"; prop.text "Verlauf" ]
             if List.isEmpty history.Entries then
                 Html.p [
                     prop.custom ("data-testid", "history-empty")
                     prop.className $"{ListRoles.muted} px-4 py-4"
-                    prop.text "Keine Bewegungen in diesem Monat"
+                    prop.text "Nichts festgehalten in diesem Monat"
                 ]
             else
                 Html.div [ prop.children (history.Entries |> List.map (historyEntryLine >> historyLineView)) ]
-            Html.p [
-                prop.className $"{ListRoles.muted} px-4 pt-1"
-                prop.text "Was direkt in YNAB zugewiesen wurde, steht hier nicht."
-            ]
+            ynabAssignedNote ()
         ]
     ]
 

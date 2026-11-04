@@ -19,7 +19,8 @@ let private toNavPage (page: Page) : Navigation.NavPage =
     | QuickAdd -> Navigation.QuickAdd
     | Ledger
     | LedgerEntry _ -> Navigation.Ledger
-    | Budget -> Navigation.Budget
+    | Budget
+    | BudgetHistory -> Navigation.Budget
     // Styleguide has no own nav tab; it's reached from Settings, so the
     // Settings tab stays highlighted while viewing the gallery.
     | Styleguide -> Navigation.Settings
@@ -61,7 +62,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
     // Seite setzt ihre Ränder selbst.
     let pageShell =
         match model.CurrentPage with
-        | Ledger | LedgerEntry _ | Rules | Budget | SyncFlow -> Navigation.pageContentFull
+        | Ledger | LedgerEntry _ | Rules | Budget | BudgetHistory | SyncFlow -> Navigation.pageContentFull
         | _ -> Navigation.pageContent
 
     React.router [
@@ -126,6 +127,10 @@ let view (model: Model) (dispatch: Msg -> unit) =
                             | Budget ->
                                 Components.Budget.View.view
                                     model.Budget
+                                    (BudgetMsg >> dispatch)
+                            | BudgetHistory ->
+                                Components.Budget.HistoryView.view
+                                    model.Budget.GeneralHistory
                                     (BudgetMsg >> dispatch)
                             | Styleguide ->
                                 // Presentational gallery — no model/dispatch needed.

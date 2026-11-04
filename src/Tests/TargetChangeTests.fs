@@ -138,9 +138,9 @@ let private historyTextTests =
         }
         test "Der Stand folgt dem jüngsten Ergebnis wie bei Bewegungen" {
             let line latest = (historyEntryLine (TargetChanged { change TargetRemoved (Some 50m, None) (None, None) with Latest = latest })).Status
-            Expect.equal (line (Some Written)) HistoryWritten "geschrieben"
-            Expect.equal (line (Some (Failed "kaputt"))) (HistoryFailed "kaputt") "fehlgeschlagen"
-            Expect.equal (line None) HistoryOpen "offen"
+            Expect.equal (line (Some Written)) (Some HistoryWritten) "geschrieben"
+            Expect.equal (line (Some (Failed "kaputt"))) (Some (HistoryFailed "kaputt")) "fehlgeschlagen"
+            Expect.equal (line None) (Some HistoryOpen) "offen"
         }
     ]
 
@@ -391,7 +391,7 @@ let private flowTests =
             match QueryHandlers.categoryHistory port k (DateTime(2026, 11, 1)) |> run with
             | Ok history ->
                 let lines = history.Entries |> List.map historyEntryLine
-                Expect.equal (lines |> List.map (fun l -> l.Text, l.Status)) [ "Target entfernt", HistoryWritten ] "Historie"
+                Expect.equal (lines |> List.map (fun l -> l.Text, l.Status)) [ "Target entfernt", Some HistoryWritten ] "Historie"
             | Error e -> failtest e
 
         testCase "Vergangener und künftiger Monat, Rhythmuswechsel und Anlegen: Fehler ohne YNAB-Aufruf und ohne Zeile" <| fun () ->

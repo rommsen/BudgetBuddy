@@ -153,6 +153,8 @@ type Page =
     | LedgerEntry of entryId: System.Guid
     /// Das Budget: Monat, Zu verteilen und Kategorien, live aus YNAB (budgeting-k7wmd).
     | Budget
+    /// Die allgemeine Budget-Historie: alle Durchläufe, neueste zuerst (budgeting-h7q4v).
+    | BudgetHistory
 
 
 /// Zeigt die Seite das Kassenbuch, mit oder ohne offene Buchung?
@@ -188,6 +190,7 @@ module Routing =
         | ["ledger"] -> Ledger
         | ["ledger"; "entry"; id] -> parseEntryRoute id
         | ["budget"] -> Budget
+        | ["budget"; "history"] -> BudgetHistory
         | _ -> SyncFlow  // Fallback to SyncFlow for unknown routes
 
     /// Convert Page to URL segments (for navigation)
@@ -201,6 +204,7 @@ module Routing =
         | Ledger -> ["ledger"]
         | LedgerEntry entryId -> ["ledger"; "entry"; string entryId]
         | Budget -> ["budget"]
+        | BudgetHistory -> ["budget"; "history"]
 
     /// Get current page from URL (for initialization)
     let currentPage () : Page =

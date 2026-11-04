@@ -85,6 +85,7 @@
     <Compile Include="LedgerSplitReadTests.fs" />
     <Compile Include="CategoryMonthEntriesTests.fs" />
     <Compile Include="BudgetHistoryTests.fs" />
+    <Compile Include="BudgetGeneralHistoryTests.fs" />
     <Compile Include="LedgerReviewMarkBatchTests.fs" />
     <Compile Include="LedgerCategoryBatchTests.fs" />
     <Compile Include="LedgerLenaFlagTests.fs" />
@@ -135,6 +136,7 @@
     <Compile Include="MoveMoneyClientTests.fs" />
     <Compile Include="TargetPauseClientTests.fs" />
     <Compile Include="TargetChangeClientTests.fs" />
+    <Compile Include="BudgetGeneralHistoryClientTests.fs" />
     <Compile Include="StatsAccentTests.fs" />
     <Compile Include="DesignSystemStartupTests.fs" />
     <Compile Include="TextGlowTokenTests.fs" />

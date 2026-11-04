@@ -291,10 +291,15 @@ let spendingMonthBar (bar: SpendingBar) : Stats.MonthBar =
       Percent = bar.Percent
       Running = running }
 
-/// Der Betrag einer Bewegung im Tab Historie mit Vorzeichen ("+20,00 €", "-20,00 €"), so wie
-/// `Money.signedListAmount` ihn zeigt. Die Bewegungsliste ist eine ruhige Liste (ADR 0049): der Betrag
-/// neutral, das Stand-Badge ist der einzige Farbakzent der Zeile.
-let historyChangeText (change: Money) : string = Money.signedListAmountText change.Amount change.Currency
+/// Text und Klassen des Betrags einer Bewegungszeile (budgeting-h7q4v, H2): mit Vorzeichen ("+20,00 €",
+/// "-20,00 €"), eine Null ohne ("0,00 €"). Die Bewegungsliste ist eine ruhige Liste (ADR 0049): der
+/// Betrag neutral, das Stand-Badge ist der einzige Farbakzent der Zeile. Die View rendert nur das
+/// Ergebnis.
+let historyChangeAmount (change: Money) : string * string =
+    let text =
+        if change.Amount = 0m then Money.formatAmountText false true change.Amount change.Currency
+        else Money.signedListAmountText change.Amount change.Currency
+    text, Money.signedListAmountClass
 
 /// Tipp auf eine Buchung: die Auswahl bleibt stehen und wartet auf die Rückkehr.
 let leaveForEntry (model: Model) : Model =
@@ -324,17 +329,18 @@ let private backOnPage (model: Model) : Model * bool =
     | _ -> watched, false
 
 /// Die Seite wird betreten. Der Tab Geld überlebt den Seitenwechsel nicht, außer eine Absage kam,
-/// während die Seite verlassen war: Dann und bei der Rückkehr aus dem Kassenbuch stehen Auswahl, Tab,
-/// Filter und Suche wieder da und die Liste kommt neu. Sonst beginnt die Seite von vorn, beim
+/// während die Seite verlassen war: Dann, bei der Rückkehr aus dem Kassenbuch und aus der allgemeinen
+/// Historie stehen Auswahl, Tab, Filter und Suche wieder da und die Liste kommt neu. Sonst beginnt die Seite von vorn, beim
 /// laufenden Monat. Ein laufender Aufruf hält nichts fest, er liegt auf `Model`.
 let enterPage (model: Model) : Model * PageEntry =
     let back, keepsTab = backOnPage model
     let entered = if keepsTab then back else { back with TabMoney = None }
-    if returnPending model || keepsTab then
+    if returnPending model || keepsTab || model.GeneralHistory.ReturnPending then
         let returned =
             resetTabData
                 { entered with
-                    Selected = entered.Selected |> Option.map (fun s -> { s with ReturnPending = false }) }
+                    Selected = entered.Selected |> Option.map (fun s -> { s with ReturnPending = false })
+                    GeneralHistory = { entered.GeneralHistory with ReturnPending = false } }
         returned, KeptPage
     else
         { entered with

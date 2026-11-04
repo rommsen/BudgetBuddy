@@ -14,6 +14,11 @@
     ]
   },
   {
+    "token": "amountClass",
+    "reason": "Die Klassen des Bewegungsbetrags kommen aus der reinen Funktion `Inspector.historyChangeAmount` (budgeting-h7q4v), die View rendert nur ihr Ergebnis. Der Wert ist `Money.signedListAmountClass` aus dem Design-System; der Wächter verfolgt keine Tupel-Bindung.",
+    "locations": ["src/Client/Components/Budget/InspectorView.fs"]
+  },
+  {
     "token": "{monthChangeClass model}",
     "reason": "Definiert in Components/Budget/MonthView.fs, nach dem Aufteilen der Budget-View (budgeting-c5w2n) in Dateien daneben genutzt. Der Wächter löst Bindungen nur je Datei auf. Der Wert sind die Literale opacity-60 und transition-opacity.",
     "locations": ["src/Client/Components/Budget/InspectorView.fs", "src/Client/Components/Budget/View.fs"]

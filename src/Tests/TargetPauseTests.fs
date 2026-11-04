@@ -107,12 +107,13 @@ let private domainTests =
                 Expect.equal (preview.Skipped |> List.map (fun l -> l.CategoryId)) [ paused.Id ] "übersprungen"
             | Error e -> failtest e
         }
-        test "Eine Pause steht in der Historie mit Text, ohne Betrag und als geschrieben" {
+        // budgeting-h7q4v (H1): die Pause trug den Stand "geschrieben", obwohl sie nie nach YNAB geht.
+        test "Eine Pause steht in der Historie mit Text, ohne Betrag und ohne Stand" {
             let id = Guid.NewGuid()
             let paused = historyEntryLine (TargetPaused (pauseEvent id))
-            Expect.equal (paused.EntryId, paused.Text, paused.Change, paused.Status) (id, "Target pausiert", None, HistoryWritten) "pausiert"
+            Expect.equal (paused.EntryId, paused.Text, paused.Change, paused.Status) (id, "Target pausiert", None, None) "pausiert"
             let lifted = historyEntryLine (PauseLifted (pauseEvent id))
-            Expect.equal (lifted.Text, lifted.Change, lifted.Status) ("Pause aufgehoben", None, HistoryWritten) "aufgehoben"
+            Expect.equal (lifted.Text, lifted.Change, lifted.Status) ("Pause aufgehoben", None, None) "aufgehoben"
         }
         test "Ein unbekannter Text der Art wird gemeldet" {
             Expect.isError (Domain.pauseKindOfText "Irgendwas") "kein Standard"

@@ -165,6 +165,23 @@ type TargetCall =
     | TargetIdle
     | TargetSaving of categoryId: System.Guid * month: string
 
+/// Der Filter nach Art in der allgemeinen Historie (budgeting-h7q4v).
+type RunFilter =
+    | AllRuns
+    | RunsOf of MovementOrigin
+
+/// Die allgemeine Historie `#/budget/history`. Liegt auf der Budget-Seite, damit die Rückkehr den
+/// Monat behält.
+type GeneralHistory = {
+    /// Die Durchläufe, einmal je Laden aus den Bewegungen gebildet, neueste zuerst.
+    Runs: RemoteData<HistoryRun list>
+    Filter: RunFilter
+    /// Die aufgeklappten Durchläufe Targets anwenden.
+    Expanded: Set<System.Guid>
+    /// Über den Knopf Historie geöffnet: die Rückkehr zur Budget-Seite behält Monat und Auswahl.
+    ReturnPending: bool
+}
+
 /// Filter über der Liste neben der Suche.
 type CategoryFilter =
     | AllCategories
@@ -254,6 +271,8 @@ type Model = {
     Selected: SelectedCategory option
     /// Der Tab des Inspektors. Bleibt bei Kategorie- und Monatswechsel stehen.
     Tab: InspectorTab
+    /// Die allgemeine Historie (budgeting-h7q4v).
+    GeneralHistory: GeneralHistory
     /// Zählt die Stände der Buchungen zu Kategorie und Monat: eine späte Antwort zu einem älteren
     /// Stand ersetzt nichts. Jeder Tab hat seine eigene, damit die Historie nach einer Bewegung neu
     /// kommt, ohne laufende Buchungen zu verwerfen (budgeting-x4k7p).
@@ -343,6 +362,18 @@ type Msg =
     | ReturnAbandoned
     /// Die Budget-Seite wird verlassen: eine offene Zuweisen-Eingabe ginge sonst verloren.
     | PageLeft
+    /// Der Knopf Historie im Seitenkopf (budgeting-h7q4v).
+    | OpenGeneralHistory
+    /// Die Seite `#/budget/history` wird betreten: die Bewegungen holen.
+    | GeneralHistoryEntered
+    | GeneralHistoryLoaded of Result<HistoryMovement list, string>
+    | SelectRunFilter of RunFilter
+    /// Tipp auf einen Durchlauf Targets anwenden: auf- oder zuklappen.
+    | ToggleRun of System.Guid
+    /// Der Knopf Zurück der Historie.
+    | LeaveGeneralHistory
+    /// Die Historie wurde auf eine andere Seite als die Budget-Seite verlassen: keine Rückkehr.
+    | GeneralHistoryAbandoned
     /// Die Buchungen (neu) holen: "Wiederholen".
     | LoadCategoryEntries
     | CategoryEntriesLoaded of generation: int * Result<CategoryMonthEntry list, string>
@@ -383,6 +414,10 @@ type ExternalMsg =
     | ShowToastWithAction of string * ToastType * ToastAction
     /// Sprung ins Kassenbuch auf diese Buchung.
     | JumpToEntry of System.Guid
+    /// Zur allgemeinen Historie `#/budget/history`.
+    | ShowGeneralHistory
+    /// Zurück zur Budget-Seite.
+    | ShowBudgetPage
 
 let init () : Model =
     { Frame = NotAsked
@@ -402,6 +437,7 @@ let init () : Model =
       TargetCall = TargetIdle
       Selected = None
       Tab = MoneyTab
+      GeneralHistory = { Runs = NotAsked; Filter = AllRuns; Expanded = Set.empty; ReturnPending = false }
       EntriesGeneration = 0
       HistoryGeneration = 0
       MonthGeneration = 0 }

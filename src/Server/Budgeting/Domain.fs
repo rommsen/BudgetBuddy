@@ -431,13 +431,10 @@ let spendingOf (months: DateTime list) (sums: (DateTime * Money) list) : MonthSp
         { Month = monthKeyOf m
           Activity = byMonth |> Map.tryFind m |> Option.defaultValue { Amount = 0m; Currency = "EUR" } })
 
-/// Bewegungen und Pause-Ereignisse einer Kategorie gemischt, neueste zuerst (budgeting-t6p8z). Beide
-/// Listen kommen schon neueste zuerst. Bei gleichem Zeitpunkt steht die Bewegung vorn, die Sortierung
-/// ist stabil.
-let mergeHistoryEntries (movements: HistoryMovement list) (pauses: HistoryEntry list) : HistoryEntry list =
-    (movements |> List.map Movement) @ pauses |> List.sortByDescending historyEntryTime
-
-/// Dazu die Target-Änderungen (budgeting-k8wq3), ebenso neueste zuerst. Bei gleichem Zeitpunkt stehen
-/// Bewegungen und Pausen vorn.
-let mergeHistoryWithTargetChanges (entries: HistoryEntry list) (changes: HistoryTargetChange list) : HistoryEntry list =
-    entries @ (changes |> List.map TargetChanged) |> List.sortByDescending historyEntryTime
+/// Bewegungen, Pause-Ereignisse und Target-Änderungen einer Kategorie gemischt, neueste zuerst
+/// (budgeting-t6p8z, budgeting-k8wq3, zusammengelegt in budgeting-h7q4v). Alle drei Listen kommen schon
+/// neueste zuerst. Ein stabiles Sortieren: bei gleichem Zeitpunkt steht die Bewegung vor der Pause und
+/// die Pause vor der Target-Änderung.
+let mergeHistory (movements: HistoryMovement list) (pauses: HistoryEntry list) (changes: HistoryTargetChange list) : HistoryEntry list =
+    (movements |> List.map Movement) @ pauses @ (changes |> List.map TargetChanged)
+    |> List.sortByDescending historyEntryTime

@@ -13,6 +13,7 @@ open Components.Budget.Moves
 open Components.Budget.Inspector
 open Components.Budget.Pause
 open Components.Budget.TargetEdit
+open Components.Budget.History
 open Types
 open Client
 
@@ -121,6 +122,14 @@ let private recentCmd () : Cmd<Msg> =
         ()
         RecentCounterpartsLoaded
         (fun ex -> RecentCounterpartsLoaded (Error ex.Message))
+
+/// Die allgemeine Historie (budgeting-h7q4v): alle Bewegungen, lesend.
+let private generalHistoryCmd () : Cmd<Msg> =
+    Cmd.OfAsync.either
+        (fun () -> Retry.reading Api.budget.getBudgetHistory ())
+        ()
+        GeneralHistoryLoaded
+        (fun ex -> GeneralHistoryLoaded (Error ex.Message))
 
 /// Startet den Kopf der Schlange, wenn keiner läuft.
 let private flushAssign (model: Model) : Model * Cmd<Msg> =
@@ -241,6 +250,13 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
             | MoveCallRunning -> MoveCallRunningAway
             | call -> call
         { model with MoveInFlight = away }, Cmd.none, NoOp
+    | OpenGeneralHistory -> openGeneralHistory model, Cmd.none, ShowGeneralHistory
+    | GeneralHistoryEntered -> enterGeneralHistory model, generalHistoryCmd (), NoOp
+    | GeneralHistoryLoaded result -> applyGeneralHistoryLoaded result model, Cmd.none, NoOp
+    | SelectRunFilter filter -> selectRunFilter filter model, Cmd.none, NoOp
+    | ToggleRun runId -> toggleRun runId model, Cmd.none, NoOp
+    | LeaveGeneralHistory -> model, Cmd.none, ShowBudgetPage
+    | GeneralHistoryAbandoned -> abandonGeneralHistory model, Cmd.none, NoOp
     | SwitchMoneyMode mode -> switchMode mode model, Cmd.none, NoOp
     | AssignTextChanged text -> typeAssign text model, Cmd.none, NoOp
     | AssignStepped delta -> stepAssign delta model, Cmd.none, NoOp
@@ -416,6 +432,13 @@ let private routeOf (msg: Msg) (model: Model) : MsgRoute =
     | AssignFieldLeft
     | AssignDiscarded -> MsgRoute.TouchesField
     | PageEntered
+    | OpenGeneralHistory
+    | GeneralHistoryEntered
+    | GeneralHistoryLoaded _
+    | SelectRunFilter _
+    | ToggleRun _
+    | LeaveGeneralHistory
+    | GeneralHistoryAbandoned
     | Load
     | FrameLoaded _
     | FrameRefreshed _

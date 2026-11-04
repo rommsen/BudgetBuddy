@@ -1226,7 +1226,7 @@ test("[layout] Handy: Targets anwenden steht in der Zeile der Suche, im vergange
 });
 
 // budgeting-x4k7p D2: Im Tab Historie stand der Fehlgrund im Badge, das Datum brach am Handy um.
-test("[layout] Tab Historie am Handy: langer Fehlgrund kürzt mit Ellipse, Datum bleibt einzeilig", async () => {
+test("[layout] Tab Historie am Handy: langer Fehlgrund kürzt mit Ellipse, Datum bleibt einzeilig, der Betrag steht neutral mit Vorzeichen", async () => {
   const { context, page } = await openPage(320, 700);
   const reason = "YNAB rate limit exceeded, die Zuweisung wurde nicht geschrieben und kann erneut gesendet werden";
   const essen = category(1, "Essen k7wmd", 0, 0, 0).Id;
@@ -1285,6 +1285,15 @@ test("[layout] Tab Historie am Handy: langer Fehlgrund kürzt mit Ellipse, Datum
     assert.ok(measured.timeHeight <= measured.timeLineHeight + 1, `das Datum bleibt einzeilig (${facts})`);
     assert.ok(measured.timeRight <= measured.reasonLeft, `das Datum steht vor dem Grund (${facts})`);
     assert.ok(measured.reasonRight <= measured.rowRight, `der Grund bleibt in der Zeile (${facts})`);
+    // budgeting-h7q4v H2: der Betrag kommt aus historyChangeAmount, positiv neutral in text-primary mit Vorzeichen.
+    // Mit Money.listAmount stünde er ohne Plus in Teal.
+    const amount = sheet(page).locator('[data-testid="history-movement"]').getByText("+50,00 €", { exact: true });
+    assert.equal(await amount.count(), 1, "der Betrag steht mit Vorzeichen");
+    assert.equal(
+      await amount.evaluate((el) => getComputedStyle(el).color),
+      await tokenColor(page, "--color-text-primary"),
+      "der positive Betrag steht neutral in text-primary"
+    );
   } finally {
     await context.close();
   }

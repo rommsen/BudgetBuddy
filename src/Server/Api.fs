@@ -1972,7 +1972,9 @@ let budgetApiWith
 
       getRecentMoveCategories = fun () -> Server.Budgeting.QueryHandlers.recentMoveCategories ()
 
-      getCategoryHistory = categoryHistoryWith Server.Budgeting.QueryHandlers.liveHistoryPort }
+      getCategoryHistory = categoryHistoryWith Server.Budgeting.QueryHandlers.liveHistoryPort
+
+      getBudgetHistory = fun () -> Server.Budgeting.QueryHandlers.budgetHistory Server.Budgeting.QueryHandlers.liveHistoryPort }
 
 /// Die Budget-Seite mit den echten YNAB-Ports. Die Settings kommen als Parameter, damit der
 /// Integrationstest den Live-Anschluss ohne Eintrag in der Datenbank prüfen kann.

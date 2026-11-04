@@ -79,6 +79,7 @@
     <Compile Include="Components/Budget/Targets.fs" />
     <Compile Include="Components/Budget/Moves.fs" />
     <Compile Include="Components/Budget/Inspector.fs" />
+    <Compile Include="Components/Budget/History.fs" />
     <Compile Include="Components/Budget/Pause.fs" />
     <Compile Include="Components/Budget/TargetEdit.fs" />
     <Compile Include="Components/Budget/State.fs" />
@@ -88,6 +89,7 @@
     <Compile Include="Components/Budget/MovesView.fs" />
     <Compile Include="Components/Budget/TargetEditView.fs" />
     <Compile Include="Components/Budget/InspectorView.fs" />
+    <Compile Include="Components/Budget/HistoryView.fs" />
     <Compile Include="Components/Budget/View.fs" />
 
     <!-- Component: Styleguide (living component gallery — presentational) -->

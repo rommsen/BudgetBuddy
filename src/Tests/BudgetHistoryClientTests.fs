@@ -301,7 +301,10 @@ let textTests =
             Expect.equal past.AmountText "1.235" "gerundet unter dem Balken"
         }
         // budgeting-v6m3z (ADR 0049): die Bewegungsliste ist eine ruhige Liste, Beträge neutral mit Vorzeichen.
-        test "Der Betrag einer Bewegungszeile trägt bei jeder Herkunft sein Vorzeichen" {
+        // budgeting-h7q4v (H2): geprüft wird `historyChangeAmount`, das die View rendert; vorher prüfte der
+        // Test eine Textfunktion, die die View nicht nutzte. Die Klasse prüft RuhigeListenTests.fs
+        // (Money.signedListAmountClass).
+        test "Der Betrag einer Bewegungszeile trägt bei jeder Herkunft sein Vorzeichen, die Null keins" {
             let movement origin oldAssigned newAssigned : HistoryEntry =
                 Movement
                     { MovementId = Guid.NewGuid()
@@ -319,8 +322,9 @@ let textTests =
                 let change entry = (historyEntryLine entry).Change |> Option.get
                 let up = change (movement origin 30m 50m)
                 let down = change (movement origin 50m 30m)
-                Expect.equal (historyChangeText up) "+20,00 €" $"{origin}: positiv mit Plus"
-                Expect.equal (historyChangeText down) "-20,00 €" $"{origin}: negativ mit Minus"
+                Expect.equal (fst (historyChangeAmount up)) "+20,00 €" $"{origin}: positiv mit Plus"
+                Expect.equal (fst (historyChangeAmount down)) "-20,00 €" $"{origin}: negativ mit Minus"
+                Expect.equal (fst (historyChangeAmount (change (movement origin 30m 30m)))) "0,00 €" $"{origin}: Null ohne Vorzeichen"
         }
     ]
 

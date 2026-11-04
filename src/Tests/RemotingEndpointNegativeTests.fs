@@ -412,6 +412,8 @@ let private rows : Row list = [
             Expect.isEmpty history.Entries "keine Bewegungen"
             Expect.isTrue (history.Spending |> List.forall (fun s -> s.Activity.Amount = 0m)) "keine Ausgaben"
         | Error message -> failtestf "leere Historie erwartet: %s" message }
+    { Endpoint = "BudgetApi.getBudgetHistory"; Case = "ohne Einrichtung eine Liste, keine Ausnahme, kein YNAB"
+      Run = fun () -> Expect.isOk (budget.getBudgetHistory () |> run) "liest nur die Datenbank" }
     { Endpoint = "BudgetApi.retryFailedTargets"; Case = "keine gültige Anwendungs-Id: Fehler"
       Run = fun () -> budget.retryFailedTargets "keine-guid" |> run |> expectError "Wiederholen" }
 ]

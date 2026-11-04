@@ -70,6 +70,14 @@ let private PageKeys (model: Model, dispatch: Msg -> unit) =
 // Seite
 // ============================================
 
+/// Der Knopf Historie: öffnet die allgemeine Historie `#/budget/history` (budgeting-h7q4v).
+let private historyButton (dispatch: Msg -> unit) =
+    Html.div [
+        prop.custom ("data-testid", "budget-history-button")
+        prop.className "shrink-0"
+        prop.children [ Button.secondary "Historie" (fun () -> dispatch OpenGeneralHistory) ]
+    ]
+
 /// Ab 768 px steht alles im Kopf: ab 1024 px in einer Zeile, darunter bricht er in zwei um.
 let private wideHead (model: Model) (dispatch: Msg -> unit) =
     headBar [
@@ -90,6 +98,7 @@ let private wideHead (model: Model) (dispatch: Msg -> unit) =
             | _ -> ()
             assignFigure model
             targetsButton model dispatch
+            historyButton dispatch
         ]
     ]
 
@@ -107,6 +116,7 @@ let private phoneSearch (model: Model) (dispatch: Msg -> unit) =
         prop.children [
             categorySearchField model.CategorySearch dispatch
             targetsButton model dispatch
+            historyButton dispatch
         ]
     ]
 

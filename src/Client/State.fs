@@ -207,6 +207,9 @@ let rec pageLoadCmd (page: Page) : Cmd<Msg> =
         // Der Monat wird bei jedem Betreten live aus YNAB geholt (budgeting-k7wmd), die
         // Kategorie-Suche beginnt dabei leer (budgeting-rxxb4).
         Cmd.map BudgetMsg (Cmd.ofMsg Components.Budget.Types.PageEntered)
+    | BudgetHistory ->
+        // Die allgemeine Historie liest nur die Datenbank, kein YNAB (budgeting-h7q4v).
+        Cmd.map BudgetMsg (Cmd.ofMsg Components.Budget.Types.GeneralHistoryEntered)
     | QuickAdd ->
         // Open a fresh form and make sure the category picker has data
         // (categories are loaded into SyncFlow at startup; retry in
@@ -301,6 +304,9 @@ let urlChangedCmd (ledger: Components.Ledger.Types.Model) (current: Page) (page:
     // das Abbauen eines Felds löst in React keinen Blur aus.
     | Budget, target when target <> Budget ->
         Cmd.batch [ Cmd.map BudgetMsg (Cmd.ofMsg Components.Budget.Types.PageLeft); pageLoadCmd page ]
+    // Nur zurück zur Budget-Seite behält sie Monat und Auswahl (budgeting-h7q4v).
+    | BudgetHistory, target when target <> Budget ->
+        Cmd.batch [ Cmd.map BudgetMsg (Cmd.ofMsg Components.Budget.Types.GeneralHistoryAbandoned); pageLoadCmd page ]
     | _ -> pageLoadCmd page
 
 // ============================================
@@ -337,6 +343,7 @@ let isPageReady (model: Model) : bool =
     | Ledger -> ledgerReady ()
     | LedgerEntry _ -> ledgerReady () && model.Ledger.PendingRouteEntry.IsNone
     | Budget -> notLoading model.Budget.Month
+    | BudgetHistory -> notLoading model.Budget.GeneralHistory.Runs
 
 /// Die Auswahl-Leiste des Kassenbuchs ersetzt am Handy die Tab-Bar (ledger-r1d2f).
 let hideBottomNav (model: Model) : bool =
@@ -784,6 +791,8 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Components.Budget.Types.ShowToastWithAction (message, toastType, action) ->
                 Cmd.ofMsg (ShowToastWithAction (message, toastType, action))
             | Components.Budget.Types.JumpToEntry entryId -> Cmd.ofMsg (NavigateTo (LedgerEntry entryId))
+            | Components.Budget.Types.ShowGeneralHistory -> Cmd.ofMsg (NavigateTo BudgetHistory)
+            | Components.Budget.Types.ShowBudgetPage -> Cmd.ofMsg (NavigateTo Budget)
 
         { model with Budget = budgetModel' }, Cmd.batch [ Cmd.map BudgetMsg budgetCmd; externalCmd ]
 

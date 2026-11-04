@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 16:03 -- Task verified and completed: budgeting-h7q4v - "Allgemeine Budget-Historie #/budget/history: alle Bewegungen, neueste zuerst, Filter nach Art, Targets-Durchlauf aufklappbar, Knopf Historie im Seitenkopf"
+
+**Type:** Work / Task completion
+**Task:** budgeting-h7q4v - "Allgemeine Budget-Historie #/budget/history: alle Bewegungen, neueste zuerst, Filter nach Art, Targets-Durchlauf aufklappbar, Knopf Historie im Seitenkopf"
+**Summary:** Allgemeine Budget-Historie #/budget/history mit Durchlauf-Zeilen, Filter nach Art und Rückkehr mit erhaltenem Monat, dazu Historienzeilen aus den Reviews
+**Duration:** 3h05m
+**Verification:** PASS (iteration 3)
+**Files changed:** 29
+**Tests added:** 22
+**ADRs written:** none
+
+---
+
 ## 2026-11-04 15:29 -- Batch started: [budgeting-xp46a]
 
 **Type:** Work / Batch start

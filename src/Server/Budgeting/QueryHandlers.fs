@@ -129,9 +129,14 @@ let categoryHistory (port: HistoryPort) (categoryId: Guid) (firstDay: DateTime) 
                 match sums with
                 | Error message -> return Error message
                 | Ok sums ->
-                    let entries = mergeHistoryWithTargetChanges (mergeHistoryEntries found pauses) changes
+                    let entries = mergeHistory found pauses changes
                     return Ok { Entries = entries; Spending = spendingOf months sums }
     }
+
+/// Die allgemeine Historie (budgeting-h7q4v): alle Bewegungen aller Monate und Kategorien, neueste
+/// zuerst. Zu Durchläufen fasst sie der Client zusammen.
+let budgetHistory (port: HistoryPort) : Async<Result<HistoryMovement list, string>> =
+    movements port { CategoryId = None; Month = None; Origin = None }
 
 /// Die echten Lese-Quellen: Budget-Bewegungen und Kassenbuch (Lese-Naht ledger an budgeting).
 let liveHistoryPort : HistoryPort =

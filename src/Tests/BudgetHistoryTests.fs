@@ -63,10 +63,10 @@ let lineTests =
 
         testCase "Der Stand folgt dem jüngsten Ergebnis, ohne Ergebnis noch offen" <| fun () ->
             let statusOf latest = (historyLine (movement TargetsApplied None 0m 10m latest)).Status
-            Expect.equal (statusOf (Some Written)) HistoryWritten "geschrieben"
-            Expect.equal (statusOf (Some (Failed "Rate-Limit"))) (HistoryFailed "Rate-Limit") "fehlgeschlagen mit Grund"
-            Expect.equal (statusOf (Some ChangedInYnab)) HistoryChangedInYnab "in YNAB geändert"
-            Expect.equal (statusOf None) HistoryOpen "noch offen"
+            Expect.equal (statusOf (Some Written)) (Some HistoryWritten) "geschrieben"
+            Expect.equal (statusOf (Some (Failed "Rate-Limit"))) (Some (HistoryFailed "Rate-Limit")) "fehlgeschlagen mit Grund"
+            Expect.equal (statusOf (Some ChangedInYnab)) (Some HistoryChangedInYnab) "in YNAB geändert"
+            Expect.equal (statusOf None) (Some HistoryOpen) "noch offen"
     ]
 
 [<Tests>]
