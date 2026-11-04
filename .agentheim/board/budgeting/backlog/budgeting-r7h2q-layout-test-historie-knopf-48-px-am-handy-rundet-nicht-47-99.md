@@ -24,3 +24,5 @@ Die Prüfung der Trefferfläche vergleicht mit einer Toleranz unter einem Pixel 
 - [ ] Die 48-px-Prüfung im Test verträgt Rundung unter einem Pixel.
 - [ ] Ein Knopf mit 44 px Höhe macht den Test weiter rot (Gegenprobe).
 - [ ] `./verify.sh` zeigt `VERIFY: PASS`.
+## Notes
+Zweites Auftreten 2026-11-04 im Verifier-Lauf zu budgeting-f4k9n: erster `./verify.sh` rot mit 47,99999 px, die Datei allein dreimal gelaufen (einmal rot, zweimal grün), zweiter Gate-Lauf grün. Prüfstelle `scripts/budget-page.test.mjs:943`. Laut CLAUDE.md ("Fehler, der schon einmal vorkam") ein Fall für den `learn`-Skill.
