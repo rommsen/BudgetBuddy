@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 19:48 -- Task verified and completed: budgeting-b5n8q - "BB-eigene Ablehnungen nicht als \"YNAB hat abgelehnt\", Targets-Durchlauf mit n von n Fehlschlägen als gescheitert"
+
+**Type:** Work / Task completion
+**Task:** budgeting-b5n8q - "BB-eigene Ablehnungen nicht als \"YNAB hat abgelehnt\", Targets-Durchlauf mit n von n Fehlschlägen als gescheitert"
+**Summary:** BB-eigene Ablehnungen kommen als RefusedByBb statt als YNAB hat abgelehnt, ein Targets-Durchlauf mit n von n Fehlschlägen gilt als gescheitert
+**Duration:** 40 min
+**Verification:** PASS (iteration 1)
+**Files changed:** 6
+**Tests added:** 3
+**ADRs written:** none
+
+---
+
 ## 2026-11-04 19:42 -- Task verified and completed: budgeting-e6p4r - "Benannte Regressionstests: Pause-Antwort während eines Monatswechsels, Zurück aus der allgemeinen Historie"
 
 **Type:** Work / Task completion

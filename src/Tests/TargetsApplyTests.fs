@@ -325,6 +325,24 @@ let private flowTests =
             Expect.isEmpty f.Attempts "kein schreibender YNAB-Aufruf"
             Expect.equal (movementRows [ a; b; c; d; e ]) 0 "keine Bewegung in der Datenbank"
 
+        // budgeting-b5n8q: BB lehnt die Planung selbst ab, die Meldung schob die Ablehnung YNAB zu.
+        testCase "Lehnt BB die Planung ab, meldet die Vorschau eine Ablehnung durch BB ohne YNAB im Text" <| fun () ->
+            let f = FakeYnab([ Guid.NewGuid(), "Essen k", 0L, 12345L, false ], 100000L)
+            match run (preview f.Port monthKey) with
+            | Error ((YnabError.RefusedByBb message) as e) ->
+                Expect.stringContains message "Essen k" "nennt die Kategorie"
+                Expect.isFalse ((ynabErrorText e).Contains "YNAB") $"Nutzertext ohne YNAB: {ynabErrorText e}"
+            | other -> failtest $"RefusedByBb erwartet: {other}"
+
+        // budgeting-b5n8q: eine unbekannte Anwendung ist BBs eigene Ablehnung, kein "YNAB hat abgelehnt".
+        testCase "Erneut senden mit unbekannter Anwendung meldet, dass BB die Targets-Anwendung nicht findet" <| fun () ->
+            let f, _ = fake 200000L
+            match run (retryFailed f.Port now (Guid.NewGuid())) with
+            | Error ((YnabError.RefusedByBb _) as e) ->
+                Expect.equal (ynabErrorText e) "Targets-Anwendung nicht gefunden" "Nutzertext"
+            | other -> failtest $"RefusedByBb erwartet: {other}"
+            Expect.isEmpty f.Attempts "kein schreibender YNAB-Aufruf"
+
         testCase "Übernehmen mit abweichendem Live-Stand schreibt nichts und liefert die neue Vorschau" <| fun () ->
             let f, (a, b, c, d, e) = fake 200000L
             let shown = previewOf f

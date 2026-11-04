@@ -805,10 +805,11 @@ type RunStatus =
     | RunWritten
     | RunOpen
     | RunChangedInYnab
-    /// Alle Bewegungen gescheitert oder der Durchlauf hat nur eine: der Grund der ersten.
+    /// Gescheitert mit dem Grund der ersten gescheiterten Bewegung. Bei Targets anwenden nur, wenn alle
+    /// Kategorien scheiterten oder es nur eine gibt (budgeting-b5n8q).
     | RunFailed of reason: string
-    /// Bei Targets anwenden mit mehreren Kategorien: `failed` von `total` scheiterten, die Gründe stehen
-    /// in den Einzelzeilen.
+    /// Bei Targets anwenden mit mehreren Kategorien: `failed` von `total` scheiterten, mindestens eine
+    /// nicht. Die Gründe stehen in den Einzelzeilen.
     | RunPartlyFailed of failed: int * total: int
 
 /// Ein Durchlauf der allgemeinen Historie: alle Bewegungen mit derselben Gruppen-Id (ADR 0069 Punkt 1),
@@ -827,8 +828,9 @@ type HistoryRun = {
     /// Der Betrag rechts in der Zeile. Targets anwenden: die Summe neu minus alt. Zuweisen: neu minus alt.
     /// Verschieben: der verschobene Betrag, immer positiv (die Richtung steht im Text).
     Amount: Money
-    /// Fehlgeschlagen, sobald eine Bewegung fehlschlug; sonst noch offen, in YNAB geändert oder
-    /// geschrieben, in dieser Rangfolge.
+    /// Fehlgeschlagen, sobald eine Bewegung fehlschlug: bei Targets anwenden teilweise fehlgeschlagen,
+    /// solange mindestens eine Kategorie nicht scheiterte, sonst gescheitert mit dem ersten Grund. Ohne
+    /// Fehlschlag noch offen, in YNAB geändert oder geschrieben, in dieser Rangfolge.
     Status: RunStatus
     /// Bei Targets anwenden die Kategorien in der Reihenfolge des Durchlaufs, sonst leer.
     Lines: HistoryRunLine list
@@ -839,11 +841,12 @@ type HistoryRun = {
 let UnknownCategoryText = "unbekannte Kategorie"
 
 /// Der Stand eines Durchlaufs aus den Ständen seiner Bewegungen. Bei Targets anwenden mit mehreren
-/// Kategorien zählt er die Fehlschläge, die Gründe je Kategorie stehen in den Einzelzeilen.
+/// Kategorien zählt er die Fehlschläge, die Gründe je Kategorie stehen in den Einzelzeilen. Scheitern
+/// alle, ist er gescheitert mit dem ersten Grund (budgeting-b5n8q).
 let private runStatus (origin: MovementOrigin) (statuses: HistoryStatus list) : RunStatus =
     let failed = statuses |> List.choose (function HistoryFailed reason -> Some reason | _ -> None)
     match failed, origin with
-    | _ :: _, TargetsApplied when List.length statuses > 1 ->
+    | _ :: _, TargetsApplied when List.length failed < List.length statuses ->
         RunPartlyFailed (List.length failed, List.length statuses)
     | reason :: _, _ -> RunFailed reason
     | [], _ ->

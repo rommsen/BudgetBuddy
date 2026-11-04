@@ -97,6 +97,16 @@ let runTests =
                 [ HistoryWritten; HistoryFailed "Rate-Limit"; HistoryWritten ]
                 "Einzelzeilen"
         }
+        // budgeting-b5n8q: scheitern alle Kategorien, hieß der Durchlauf "3 von 3" teilweise fehlgeschlagen.
+        test "Targets anwenden mit drei von drei fehlgeschlagenen Zeilen ist gescheitert mit dem ersten Grund" {
+            let run =
+                single (targets [ "Miete", 800m, Some (Failed "Rate-Limit"); "Strom", 60m, Some (Failed "Netzwerkfehler"); "Urlaub", 374m, Some (Failed "Netzwerkfehler") ])
+            Expect.equal run.Status (RunFailed "Rate-Limit") "Durchlauf"
+            Expect.equal
+                (run.Lines |> List.map (fun l -> l.Status))
+                [ HistoryFailed "Rate-Limit"; HistoryFailed "Netzwerkfehler"; HistoryFailed "Netzwerkfehler" ]
+                "die Gründe je Kategorie bleiben in den Einzelzeilen"
+        }
         // budgeting-c6vn4 (Q3): eine einzige Kategorie nennt ihren Grund, nicht "1 von 1".
         test "Targets anwenden mit einer einzigen, fehlgeschlagenen Kategorie zeigt deren Grund" {
             let run = single (targets [ "Strom", 60m, Some (Failed "Rate-Limit") ])

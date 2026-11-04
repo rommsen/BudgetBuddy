@@ -108,7 +108,7 @@ let planTargetApplication (month: BudgetMonth) : Result<TargetPreview, string> =
 
     match offGrid with
     | Some l ->
-        Error $"Der Betrag für {l.CategoryName} liegt nicht auf 10 Milliunits (0,01 €). YNAB würde ihn runden, deshalb wird nichts angewendet."
+        Error $"Der Betrag für {l.CategoryName} liegt nicht auf 10 Milliunits (0,01 €) und würde beim Schreiben gerundet. BB wendet deshalb nichts an."
     | None ->
         let currency = month.ToBeBudgeted.Currency
         let total = lines |> List.sumBy (fun l -> l.Underfunded.Amount)

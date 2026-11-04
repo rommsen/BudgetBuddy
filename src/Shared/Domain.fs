@@ -649,6 +649,10 @@ type YnabError =
     /// BBs eigene Daten (Pausen, Bewegungen) waren nicht lesbar (budgeting-c6vn4, P1). Kein YNAB-Fehler,
     /// er steht nur hier, weil die Monatswege `YnabError` tragen.
     | LocalReadFailed of message: string
+    /// BB selbst lehnt ab, YNAB hat nicht widersprochen (budgeting-b5n8q): etwa ein Betrag außerhalb des
+    /// 10-Milliunits-Rasters oder eine unbekannte Anwendung. Kein YNAB-Fehler, die Meldung ist schon
+    /// konkret und geht unverändert an den Nutzer.
+    | RefusedByBb of message: string
 
 /// Der YNAB-Fehler als deutscher Satz. Die einzige Übersetzung, Server und Client nutzen sie. Der
 /// Text landet auch im Ereignis-Log und in der Antwort an Bob (`push_error`), deshalb stehen keine
@@ -664,6 +668,7 @@ let ynabErrorText (error: YnabError) : string =
     | CategoryNotFound _ -> "Kategorie in YNAB nicht gefunden"
     | MonthNotOpen _ -> "Monat nicht offen"
     | LocalReadFailed message -> $"BB-Daten nicht lesbar: {message}"
+    | RefusedByBb message -> message
 
 /// Errors during rules operations.
 /// Purpose: Provides clear feedback for rule validation and compilation failures.

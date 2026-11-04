@@ -93,7 +93,8 @@ let private plan (port: YnabPort) (monthKey: string) : Async<Result<TargetPrevie
         | Ok month ->
             match planTargetApplication month with
             | Ok preview -> return Ok preview
-            | Error message -> return Error (YnabError.InvalidResponse message)
+            // BB lehnt ab, nicht YNAB (budgeting-b5n8q).
+            | Error message -> return Error (YnabError.RefusedByBb message)
     }
 
 /// Die Vorschau: liest den Monat und plant. Schreibt weder nach YNAB noch in die Datenbank.
@@ -570,7 +571,7 @@ let retryFailed
     async {
         match! loadStates applicationId with
         | Error e -> return Error e
-        | Ok [] -> return Error (YnabError.InvalidResponse "Unbekannte Anwendung")
+        | Ok [] -> return Error (YnabError.RefusedByBb "Targets-Anwendung nicht gefunden")
         | Ok (first :: _) ->
             let monthKey = first.Movement.Month
             return!
