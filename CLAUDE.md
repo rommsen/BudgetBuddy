@@ -66,7 +66,12 @@ raus. Vision: `.agentheim/knowledge/vision.md`.
 
 ## Dev
 
-- Backend `cd src/Server && dotnet watch run` (Port 5081), Frontend `npm run dev`, beides `npm run dev:all`.
+- Backend `cd src/Server && dotnet watch run` (Port 5081), Frontend `npm run dev` (Port 5181), beides `npm run dev:all`.
+- Lokal starten mit `npm run dev:restart` (`scripts/dev-restart.sh`): beendet, was auf 5081 und 5181 läuft, auch
+  verwaiste `dotnet watch`, und startet `dev:all`; Ctrl+C beendet beides. `--stop` beendet nur, etwa vor `./verify.sh`
+  (ein paralleles `dotnet watch` stört `dotnet build`). `dotnet watch` beendet sich bei Ctrl+C nicht von selbst.
+- Lokal läuft der Server als `Development` (`src/Server/Properties/launchSettings.json`), die Produktion setzt
+  `Production` in `compose.yaml`.
 - Lokale Datenbank unter `DATA_DIR`, ohne Angabe `~/my_apps/budgetbuddy-dev/`.
 - Einzelne Wächter: `npm run test:scripts -- scripts/<datei>.test.mjs`.
 - Screenshot einer Route: `npm run screenshot:route`.
