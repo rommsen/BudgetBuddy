@@ -5,6 +5,84 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 19:20 -- Modeling / Promoted: budgeting-e6p4r - "Benannte Regressionstests: Pause-Antwort während eines Monatswechsels, Zurück aus der allgemeinen Historie"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-04 19:20 -- Modeling / Promoted: budgeting-b5n8q - "BB-eigene Ablehnungen nicht als \"YNAB hat abgelehnt\", Targets-Durchlauf mit n von n Fehlschlägen als gescheitert"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-04 19:20 -- Modeling / Promoted: budgeting-a3k7m - "Budget-Kopf bei 1024 px in einer Zeile, Historie am Handy ohne abgeschnittene Kategorien und Beträge"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-04 19:20 -- Modeling / Refined: budgeting-h9c3w - Review-Befunde
+
+**Type:** Modeling / Refine
+**BC:** budgeting
+**Status after:** backlog
+**Summary:** Aufgeteilt in budgeting-a3k7m, budgeting-b5n8q, budgeting-c2t9w, budgeting-e6p4r. Screenreader-Punkte verworfen (Roman). Rest sind Kann-Befunde.
+
+---
+
+## 2026-11-04 19:20 -- Modeling / Refined: budgeting-d7r4k - Target-Datum je Rhythmus
+
+**Type:** Modeling / Refine
+**BC:** budgeting
+**Status after:** backlog
+**Summary:** Entscheidungen übernommen (Roman hat übertragen): Woche ohne Datum, Monat und Jahr fällig am, Hinweis beim Monat. Nachtrag zu ADR 0072. Hängt an budgeting-c2t9w.
+
+---
+
+## 2026-11-04 19:20 -- Modeling / Captured: budgeting-e6p4r - "Benannte Regressionstests: Pause-Antwort während eines Monatswechsels, Zurück aus der allgemeinen Historie"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Benannte Regressionstests für die Pause beim Monatswechsel und das Zurück aus der Historie.
+
+---
+
+## 2026-11-04 19:20 -- Modeling / Captured: budgeting-c2t9w - "Target-Formular: Tab-Wechsel schließt Rückfragen, Entfernen-Bestätigung schließt nach Neulesen, genaue Meldungen beim Teilergebnis und beim Anlegen außerhalb des Monats"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Target-Formular: Rückfragen beim Tab-Wechsel und Neulesen, genaue Meldungen, Anlegen außerhalb des Monats.
+
+---
+
+## 2026-11-04 19:20 -- Modeling / Captured: budgeting-b5n8q - "BB-eigene Ablehnungen nicht als \"YNAB hat abgelehnt\", Targets-Durchlauf mit n von n Fehlschlägen als gescheitert"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** BB-eigene Ablehnungen nicht als YNAB-Fehler, n von n gescheitert als gescheitert.
+
+---
+
+## 2026-11-04 19:20 -- Modeling / Captured: budgeting-a3k7m - "Budget-Kopf bei 1024 px in einer Zeile, Historie am Handy ohne abgeschnittene Kategorien und Beträge"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Kopf bei 1024 px in einer Zeile, Historie am Handy ohne Abschneiden.
+
+---
+
 ## 2026-11-04 19:07 -- Work session ended
 
 **Type:** Work / Session end

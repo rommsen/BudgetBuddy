@@ -6,11 +6,11 @@ type: feature
 context: budgeting
 created: 2026-11-04
 completed:
-depends_on: []
+depends_on: [budgeting-c2t9w]
 blocks: []
 tags: [budget, target, datum, ux]
 related_adrs: [0072]
-related_research: [ynab-api-targets-zuweisung-2026-10-25, ynab-reihenfolge-monate-target-schreiben-2026-11-02]
+related_research: [ynab-sparziel-bis-datum-2026-11-04, ynab-api-targets-zuweisung-2026-10-25, ynab-reihenfolge-monate-target-schreiben-2026-11-02]
 prior_art: [budgeting-xp46a, budgeting-k8wq3]
 ---
 
@@ -24,17 +24,21 @@ Das Formular im Tab Target zeigt das `DateField` bei allen drei Rhythmen gleich,
 - **Woche** (cadence 2): keine belegte Bedeutung. Maßgeblich ist der Wochentag (`goal_day`), den BB nicht setzen kann.
 
 ## What
-Vorschlag, zu verfeinern:
+Entschieden (Roman hat die Entscheidung am 2026-11-04 übertragen, Nachtrag zu ADR 0072 vom 2026-11-04):
 
-- Woche: kein Datumsfeld beim Anlegen und Wechseln. Ein vorhandenes Datum bleibt lesbar und lässt sich entfernen.
-- Monat: Feld beschriftet als "fällig am", mit Hinweis, dass das Target danach monatlich weiterläuft.
-- Jahr: Feld beschriftet als "fällig am".
-- Anzeige des gelesenen Targets und Historientext ("Datum 01.06.2027") je Rhythmus gleich benennen.
-- Nachtrag zu ADR 0072 Punkt 2.
+- **Woche:** beim Anlegen und beim Wechsel auf wöchentlich kein Datumsfeld (`src/Client/Components/Budget/TargetEditView.fs`, `Input.groupSimple "Datum"`). Ein gelesenes Datum eines wöchentlichen Targets bleibt sichtbar und lässt sich entfernen. Wechselt der Entwurf auf Woche und trägt ein Datum, fällt das Datum aus dem Entwurf (reine Funktion in `TargetEdit.fs`), damit kein `goal_target_date` für ein wöchentliches Target hinausgeht.
+- **Monat und Jahr:** das Feld heißt "fällig am" (Label und `aria-label` des `DateField`). Bei Monat steht unter dem Feld der Satz "Danach läuft das Target jeden Monat weiter." (`ListRoles.secondary`), nur wenn ein Datum gesetzt ist.
+- **Lesende Anzeige** (vergangene und künftige Monate, `figure "target-date-text" "Datum"`): Beschriftung "fällig am" bei Monat und Jahr, sonst "Datum".
+- **Historie:** Texte bleiben ("Datum 01.06.2027"), kein Umbau.
+- "Alle n Monate" und andere nicht herstellbare Rhythmen bleiben, wie sie sind.
 
-## Offene Fragen an Roman
-1. Monat mit Datum: als Sparziel anbieten (es rechnet die Rate bis zum Datum) oder streichen, weil es danach jeden Monat den vollen Betrag verlangt?
-2. Ist "alle 3 Monate ab" für dich eine gebrauchte Form, oder reichen Monat und Jahr?
+## Acceptance criteria
+- [ ] Reine Funktion (Client, unter .NET getestet): bei Rhythmus Woche ist kein Datumsfeld vorgesehen; ein Entwurf, der auf Woche wechselt, verliert sein ungespeichertes Datum; ein gelesenes Datum eines wöchentlichen Targets bleibt entfernbar.
+- [ ] Der Auftrag beim Anlegen wöchentlich trägt nie ein Datum (Client-`update`-Test), auch wenn vorher bei Monat ein Datum getippt war.
+- [ ] Label "fällig am" bei Monat und Jahr, "Datum" sonst, als reine Funktion getestet; der Hinweissatz bei Monat mit Datum ebenso.
+- [ ] `/styleguide` zeigt nichts Neues (keine DS-Änderung nötig); falls doch, Styleguide nachziehen.
+- [ ] README budgeting (Target-Änderung) per README_DELTA: Datum je Rhythmus.
+- [ ] `./verify.sh` zeigt `VERIFY: PASS`.
 
 ## Notes
-Hängt mit budgeting-s5n2w zusammen: ein einmaliges Sparziel bis zu einem Datum wäre die vierte Bedeutung des Datums.
+Hängt an budgeting-c2t9w (gleiche Dateien im Target-Formular). Spike-Ergebnis: `.agentheim/knowledge/research/ynab-sparziel-bis-datum-2026-11-04.md`. Ein Sparziel, das von selbst endet, kommt erst mit BB als führendem System.

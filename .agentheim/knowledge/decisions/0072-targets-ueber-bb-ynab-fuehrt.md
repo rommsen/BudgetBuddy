@@ -68,6 +68,22 @@ Stufe 3.
   dieses ADR nicht fest. Das klärt budgeting-t6p8z.
 - ADR 0065 Punkt 4 gilt weiter: BB rechnet keine Targets, der Fehlbetrag kommt von YNAB.
 
+## Nachtrag 2026-11-04: Datum je Rhythmus (budgeting-d7r4k, Spike budgeting-s5n2w)
+Punkt 2 sagt "jeweils optional mit Datum". YNABs `goal_target_date` ist bei monatlich und jährlich
+eine Fälligkeit: YNAB verteilt den Betrag auf die Monate bis zum Datum (18.000 € bis 2030-01-01
+ergab im November 2026 461,54 € im Monat, bei beiden Rhythmen gleich). Danach läuft das Target nach
+seiner Kadenz weiter. Beim wöchentlichen Target hat das Datum keine belegte Wirkung, dort zählt der
+Wochentag, den BB nicht setzen kann. Ein einmaliges Ziel ohne Wiederholung (cadence 0) entsteht über
+die API nicht.
+
+Entschieden (Roman hat die Entscheidung am 2026-11-04 übertragen):
+- Wöchentlich: BB bietet beim Anlegen und beim Wechsel kein Datum an. Ein gelesenes Datum bleibt
+  sichtbar und lässt sich entfernen.
+- Monatlich und jährlich: das Feld heißt "fällig am". Beim monatlichen steht darunter, dass das
+  Target danach jeden Monat weiterläuft.
+- "Alle n Monate" und andere nicht herstellbare Rhythmen bleiben wie bisher nur lesbar.
+- Ein Sparziel, das von selbst endet, kommt mit BB als führendem System (Stufe 3), nicht über YNAB.
+
 ## Alternatives considered
 - **BB führt die Targets schon jetzt.** Verworfen: BB müsste den Fehlbetrag selbst rechnen,
   und YNAB würde Tag und Rhythmus nicht mitnehmen.

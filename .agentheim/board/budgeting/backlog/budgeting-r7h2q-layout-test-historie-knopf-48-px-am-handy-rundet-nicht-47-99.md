@@ -6,7 +6,7 @@ type: chore
 context: budgeting
 created: 2026-11-04
 completed:
-depends_on: []
+depends_on: [budgeting-a3k7m]
 blocks: []
 tags: [test, browser, flaky]
 related_adrs: []

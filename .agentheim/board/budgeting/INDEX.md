@@ -10,14 +10,17 @@ Catalog of this bounded context's tasks by status.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 9
-- **Todo:** 0
+- **Backlog:** 10
+- **Todo:** 3
 - **Doing:** 0
 - **Done:** 28
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **budgeting-e6p4r** — "Benannte Regressionstests: Pause-Antwort während eines Monatswechsels, Zurück aus der allgemeinen Historie" (chore) — `todo/budgeting-e6p4r-regressionstests-pause-und-historie.md`
+- **budgeting-b5n8q** — "BB-eigene Ablehnungen nicht als \"YNAB hat abgelehnt\", Targets-Durchlauf mit n von n Fehlschlägen als gescheitert" (bug) — `todo/budgeting-b5n8q-bb-meldungen-und-lauf-gescheitert.md`
+- **budgeting-a3k7m** — "Budget-Kopf bei 1024 px in einer Zeile, Historie am Handy ohne abgeschnittene Kategorien und Beträge" (bug) — `todo/budgeting-a3k7m-kopf-1024-und-historie-handy.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -70,6 +73,7 @@ prior-art matcher additionally checks `done-archive/` when present.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **budgeting-c2t9w** — "Target-Formular: Tab-Wechsel schließt Rückfragen, Entfernen-Bestätigung schließt nach Neulesen, genaue Meldungen beim Teilergebnis und beim Anlegen außerhalb des Monats" (bug) — `backlog/budgeting-c2t9w-target-formular-rueckfragen-und-meldungen.md`
 - **budgeting-h9c3w** — "Gesammelte Sollte- und Kann-Befunde der Reviews zu budgeting-c6vn4 und budgeting-g2ty9" (chore) — `backlog/budgeting-h9c3w-review-befunde-sammlung.md`
 - **budgeting-r7h2q** — "[layout]-Test Historie-Knopf 48 px am Handy rundet nicht: 47,99999 px ließ ihn einmal rot werden" (chore) — `backlog/budgeting-r7h2q-layout-test-historie-knopf-48-px-am-handy-rundet-nicht-47-99.md`
 - **budgeting-d7r4k** — "Target-Datum je Rhythmus: kein Datum bei der Woche, beim Monat als \"ab\", beim Jahr als \"fällig am\"" (feature) — `backlog/budgeting-d7r4k-target-datum-je-rhythmus.md`
