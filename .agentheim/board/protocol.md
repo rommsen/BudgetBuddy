@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 12:58 -- Modeling / Promoted: budgeting-t6p8z - "Target pausieren: Pause je Kategorie und Monat in BB, wirkt in Fehlt, Frei, Vorschau und Targets anwenden, endet mit dem Monat, Knopf im Tab Geld"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-04 12:58 -- Modeling / Refined: budgeting-t6p8z - Target pausieren (Tab Target geteilt)
 
 **Type:** Modeling / Refine

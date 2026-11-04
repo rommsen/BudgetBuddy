@@ -1,7 +1,7 @@
 ---
 id: budgeting-t6p8z
 title: "Target pausieren: Pause je Kategorie und Monat in BB, wirkt in Fehlt, Frei, Vorschau und Targets anwenden, endet mit dem Monat, Knopf im Tab Geld"
-status: backlog
+status: todo
 type: feature
 context: budgeting
 created: 2026-11-02

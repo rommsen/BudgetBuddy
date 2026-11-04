@@ -10,14 +10,15 @@ Catalog of this bounded context's tasks by status.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 8
-- **Todo:** 1
+- **Backlog:** 7
+- **Todo:** 2
 - **Doing:** 0
 - **Done:** 18
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **budgeting-t6p8z** — "Target pausieren: Pause je Kategorie und Monat in BB, wirkt in Fehlt, Frei, Vorschau und Targets anwenden, endet mit dem Monat, Knopf im Tab Geld" (feature) — `todo/budgeting-t6p8z-tab-target-aendern-pausieren-pruefen.md`
 - **budgeting-v6m3z** — "Tab Historie ruhig und ablesbar: Monat mit Erstattungsüberschuss neutral mit Plus, Bewegungsbeträge neutral mit Vorzeichen, Wertzeile über den Ausgaben-Balken bei Maus, Tipp und Tastatur" (feature) — `todo/budgeting-v6m3z-tab-historie-farbe-f-r-monate-mit-negativen-ausgaben-und-tea.md`
 <!-- todo-list:end -->
 
@@ -67,7 +68,6 @@ prior-art matcher additionally checks `done-archive/` when present.
 - **budgeting-h7q4v** — "Allgemeine Budget-Historie #/budget/history: alle Bewegungen, neueste zuerst, Filter nach Art, Targets-Durchlauf aufklappbar, Knopf Historie im Seitenkopf" (feature) — `backlog/budgeting-h7q4v-allgemeine-historie-ansicht.md`
 - **budgeting-w2f6c** — "Budget-Seite: Listenbeträge gegen ADR 0049" (bug) — `backlog/budgeting-w2f6c-budget-seite-listenbetr-ge-gegen-adr-0049.md`
 - **budgeting-m3x7f** — "Monatserster: Leiste mit Targets prüfen, Targets anwenden, rot decken und verteilen, Vorschau mit abwählbaren Zeilen" (feature) — `backlog/budgeting-m3x7f-monatserster-leiste.md`
-- **budgeting-t6p8z** — "Tab Target: Targets in BB anlegen, ändern und entfernen, je Monat pausieren und die Frage Passt das Target noch? mit gespeichertem So lassen" (feature) — `backlog/budgeting-t6p8z-tab-target-aendern-pausieren-pruefen.md`
 - **budgeting-bk6tq** — "Spike: Ausgaben am Monatswechsel. Wann kommen Buchungen bei Comdirect und ING an (vorgemerkt, gebucht, welches Datum), und was heißt das für Auffüllen auf einen festen Betrag am Monatsersten?" (spike) — `backlog/budgeting-bk6tq-vortrag-ab-dem-ersten-tag.md`
 <!-- backlog-list:end -->
 
