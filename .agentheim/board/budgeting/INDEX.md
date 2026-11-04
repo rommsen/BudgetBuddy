@@ -10,10 +10,10 @@ Catalog of this bounded context's tasks by status.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 7
+- **Backlog:** 8
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 36
+- **Doing:** 0
+- **Done:** 37
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ Catalog of this bounded context's tasks by status.
 
 ### Doing
 <!-- doing-list:start -->
-- **budgeting-m4v8t** — "pauseNeedsReread: im erreichbaren Zustand gedeckte Bedingungen streichen oder benennen" (chore) — `doing/budgeting-m4v8t-pauseneedsreread-im-erreichbaren-zustand-gedeckte-bedingunge.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **budgeting-m4v8t** — "pauseNeedsReread: im erreichbaren Zustand gedeckte Bedingungen streichen oder benennen" (chore) — `done/budgeting-m4v8t-pauseneedsreread-im-erreichbaren-zustand-gedeckte-bedingunge.md`
 - **budgeting-n7h3x** — "Laufende Pause oder laufendes Target-Speichern einer anderen Kategorie sperrt den gleichen Knopf ohne sichtbaren Grund" (bug) — `done/budgeting-n7h3x-laufende-pause-oder-laufendes-target-speichern-einer-anderen.md`
 - **budgeting-f8w2n** — "Target und Pause sperren sich nur je Kategorie mit sichtbarem Grund, Meldung ohne Target nach Schritt 1, Testlücken aus den Reviews zu c2t9w" (bug) — `done/budgeting-f8w2n-sperren-je-kategorie-und-testluecken.md`
 - **budgeting-d7r4k** — "Target-Datum je Rhythmus: kein Datum bei der Woche, beim Monat und Jahr als \"fällig am\"" (feature) — `done/budgeting-d7r4k-target-datum-je-rhythmus.md`
@@ -72,6 +72,7 @@ prior-art matcher additionally checks `done-archive/` when present.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **budgeting-w5k2r** — "Pause verschwindet, wenn beim Tipp ein Lesen des Monats schon läuft (Wechsel hin und zurück)" (bug) — `backlog/budgeting-w5k2r-pause-verschwindet-wenn-beim-tipp-ein-lesen-des-monats-schon.md`
 - **budgeting-h9c3w** — "Gesammelte Sollte- und Kann-Befunde der Reviews zu budgeting-c6vn4 und budgeting-g2ty9" (chore) — `backlog/budgeting-h9c3w-review-befunde-sammlung.md`
 - **budgeting-q8m2v** — "Allgemeine Historie begrenzen oder nach Monat laden" (feature) — `backlog/budgeting-q8m2v-allgemeine-historie-begrenzen-oder-nach-monat-laden.md`
 - **budgeting-w3p7n** — "Allgemeine Historie: Pausen und Target-Änderungen als eigene Arten?" (feature) — `backlog/budgeting-w3p7n-allgemeine-historie-pausen-und-target-nderungen-als-eigene-a.md`

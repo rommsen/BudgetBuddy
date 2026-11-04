@@ -193,6 +193,31 @@ let private flowTests =
             Expect.isNonEmpty cmd "der Monat wird gelesen"
             Expect.equal external (ShowToast (pauseCallLostText true "Netz weg", ToastError)) "Toast verspricht das Neu-Lesen"
         }
+        // budgeting-m4v8t: trägt `generationMoved` in `pauseNeedsReread`. Hin und zurück vor der ersten
+        // Antwort: kein Wechsel läuft mehr, der Monat gilt als gelesen, nur die Generation zeigt das Lesen.
+        test "GIVEN Pause läuft, Wechsel in den nächsten Monat und zurück vor dessen Antwort WHEN die Pause-Antwort kommt THEN wird der Monat noch einmal gelesen" {
+            let running = onTrip |> step (SetTargetPause PauseTarget)
+            let back = running |> step (SelectMonth next) |> step (SelectMonth current)
+            Expect.isFalse (monthChanging back) "Vorbedingung: kein Wechsel läuft"
+            Expect.equal back.Freshness MonthRead "Vorbedingung: der Monat gilt als gelesen"
+            let answered, cmd = update (TargetPauseAnswered (paused, current, Ok (Some PausedInBb))) back
+            Expect.isGreaterThan answered.MonthGeneration back.MonthGeneration "neu gelesen"
+            Expect.isNonEmpty cmd "der Monat wird gelesen"
+        }
+        // budgeting-m4v8t: trägt `notLoaded` in `pauseNeedsReread`. Das Lesen des Wechsels zurück lief schon
+        // beim Tipp und scheitert danach: die Generation steht, die Antwort fände keinen Monat für die Pause.
+        test "GIVEN Pause läuft, ein schon laufendes Lesen scheitert WHEN die Pause-Antwort kommt THEN wird der Monat noch einmal gelesen" {
+            let back = onTrip |> step (SelectMonth next) |> step (SelectMonth current)
+            let running = back |> step (SetTargetPause PauseTarget)
+            Expect.equal running.PauseCall (PauseRunning (paused, current, back.MonthGeneration)) "Vorbedingung: der Aufruf läuft"
+            let failed = running |> step (Loaded (running.MonthGeneration, Error "YNAB nicht erreichbar"))
+            Expect.isFalse (match failed.Month with Success _ -> true | _ -> false) "Vorbedingung: der Monat ist nicht geladen"
+            Expect.equal failed.MonthGeneration running.MonthGeneration "Vorbedingung: die Generation steht"
+            Expect.equal failed.Freshness MonthRead "Vorbedingung: der Monat gilt als gelesen"
+            let answered, cmd = update (TargetPauseAnswered (paused, current, Ok (Some PausedInBb))) failed
+            Expect.isGreaterThan answered.MonthGeneration failed.MonthGeneration "neu gelesen"
+            Expect.isNonEmpty cmd "der Monat wird gelesen"
+        }
         // budgeting-r3wq8: ein abgebrochener Aufruf ist keine Ablehnung. Ob die Pause steht, ist offen:
         // Meldung im Tab, der Monat wird still neu gelesen, die Pause bleibt, wie sie war.
         test "GIVEN Pause läuft WHEN der Aufruf abbricht THEN Meldung im Tab, der Monat wird still neu gelesen" {

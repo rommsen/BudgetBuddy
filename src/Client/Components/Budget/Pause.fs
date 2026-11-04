@@ -217,11 +217,17 @@ let pauseStartGeneration (categoryId: System.Guid) (month: string) (model: Model
     | _ -> None
 
 /// Kann ein Lesen des Monats die Pause verpasst haben? Dann kennte seine Antwort sie nicht und nähme sie
-/// zurück: der Monat wird noch einmal gelesen. Das gilt, wenn der Monat gewählt ist, und wenn ein
-/// Neu-Lesen läuft (`MonthStale`), seit dem Start eines begann (Generation), der Monat gerade nicht
-/// geladen ist (budgeting-r3wq8) oder ein Wechsel zu ihm läuft: dessen Lesen kann vor dem Speichern
-/// begonnen haben (budgeting-c6vn4, Q1). `startGeneration` ist die Generation beim Start des Aufrufs,
-/// vor dem Einnehmen der Antwort gelesen (`pauseStartGeneration`).
+/// zurück: der Monat wird noch einmal gelesen. Das gilt, wenn der Monat gewählt ist und
+/// - ein Neu-Lesen läuft (`MonthStale`), auch eines, das vor dem Start begann,
+/// - seit dem Start ein Lesen begann (Generation, `requestMonth`), auch ein Wechsel hin und zurück
+///   (budgeting-c6vn4, Q1, budgeting-m4v8t),
+/// - der Monat gerade nicht geladen ist (budgeting-r3wq8): ein schon laufendes Lesen scheiterte, die Pause
+///   fand keinen Monat.
+/// Ein laufender Wechsel zu ihm (`monthChanging`) braucht keine eigene Bedingung (budgeting-m4v8t): beim
+/// Start zeigt die Seite den Monat des Aufrufs, und jeder Weg zu einem Wechsel (`select`,
+/// `applyFrameRefreshed`, `applyFrameLoaded`, `beginLoad`) hebt die Generation. Jede Bedingung hat einen Test
+/// in `TargetPauseClientTests.fs`, der sie gestrichen rot macht. `startGeneration` ist die Generation beim
+/// Start des Aufrufs, vor dem Einnehmen der Antwort gelesen (`pauseStartGeneration`).
 let pauseNeedsReread (month: string) (startGeneration: int option) (model: Model) : bool =
     let generationMoved = startGeneration |> Option.exists (fun g -> g <> model.MonthGeneration)
     let notLoaded =
@@ -229,7 +235,7 @@ let pauseNeedsReread (month: string) (startGeneration: int option) (model: Model
         | Success _ -> false
         | _ -> true
     shownMonth model = Some month
-    && (model.Freshness = MonthStale || generationMoved || notLoaded || monthChanging model)
+    && (model.Freshness = MonthStale || generationMoved || notLoaded)
 
 /// Der Aufruf brach ab: ob die Pause gespeichert ist, ist unbekannt. Die Meldung steht im Tab wie eine
 /// Ablehnung, der Aufrufer liest den Monat still neu, wenn er ihn zeigt (Vorbild `applyMoveCallLost`).

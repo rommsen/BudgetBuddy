@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 22:21 -- Task verified and completed: budgeting-m4v8t - "pauseNeedsReread: im erreichbaren Zustand gedeckte Bedingungen streichen oder benennen"
+
+**Type:** Work / Task completion
+**Task:** budgeting-m4v8t - "pauseNeedsReread: im erreichbaren Zustand gedeckte Bedingungen streichen oder benennen"
+**Summary:** pauseNeedsReread hat drei getragene Teilbedingungen, monthChanging ist gestrichen
+**Duration:** 45m
+**Verification:** PASS (iteration 1)
+**Files changed:** 2
+**Tests added:** 2
+**ADRs written:** none
+
+---
+
 ## 2026-11-04 22:05 -- Task verified and completed: ledger-q4m7z - "Quick-Add: BB-Validierungsfehler nicht als \"YNAB hat abgelehnt\" melden"
 
 **Type:** Work / Task completion
