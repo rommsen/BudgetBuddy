@@ -1,7 +1,7 @@
 ---
 id: design-system-w7c2h
 title: "Fokus ohne Kasten: Tabs zeigen den Tastatur-Fokus als helle Fläche, Filter-Chips als Ring direkt auf dem Rand"
-status: todo
+status: doing
 type: bug
 context: design-system
 created: 2026-11-04

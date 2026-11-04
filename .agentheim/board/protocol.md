@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 12:07 -- Batch started: [design-system-w7c2h]
+
+**Type:** Work / Batch start
+**Tasks:** design-system-w7c2h - "Fokus ohne Kasten: Tabs zeigen den Tastatur-Fokus als helle Fläche, Filter-Chips als Ring direkt auf dem Rand"
+**Parallel:** scoped — Roman nannte design-system-w7c2h (Folge zu k4f9t); infrastructure-jsys4 nicht dispatcht
+
+---
+
 ## 2026-11-04 12:07 -- Modeling / Promoted: design-system-w7c2h - "Fokus ohne Kasten: Tabs zeigen den Tastatur-Fokus als helle Fläche, Filter-Chips als Ring direkt auf dem Rand"
 
 **Type:** Modeling / Promote
