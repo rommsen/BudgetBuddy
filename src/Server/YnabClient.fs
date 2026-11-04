@@ -505,7 +505,9 @@ let private frequencyText (frequency: Shared.Budgeting.TargetFrequency) : string
     | Shared.Budgeting.Yearly -> "yearly"
 
 /// Der Body eines Target-PATCH: `{"category":{...}}` nur mit den gesetzten Feldern (ADR 0072 Punkt 3).
-/// `Keep` fehlt, `Clear` ist `null`. Ein leerer Patch ist ein Fehler, dann geht nichts hinaus.
+/// `Keep` fehlt, `Clear` ist `null`. Ein leerer Patch ist ein Fehler, dann geht nichts hinaus. Ebenso
+/// `goal_frequency` zusammen mit `goal_target_date`: YNAB lehnt das ab, das Datum geht als eigener
+/// Aufruf hinterher (ADR 0072 Punkt 5, budgeting-xp46a).
 let buildTargetBody (patch: Shared.Budgeting.TargetPatch) : Result<string, string> =
     let field (name: string) (value: Shared.Budgeting.FieldPatch<'T>) (encode: 'T -> JsonValue) =
         match value with
@@ -521,6 +523,8 @@ let buildTargetBody (patch: Shared.Budgeting.TargetPatch) : Result<string, strin
         |> List.choose id
     if List.isEmpty fields then
         Error "Leerer Target-Patch: es gibt nichts zu senden."
+    elif patch.Frequency.IsSome && patch.TargetDate <> Shared.Budgeting.Keep then
+        Error "Rhythmus und Datum gehen nicht in einem Target-Patch, das Datum folgt als eigener Aufruf."
     else
         Ok (Encode.object [ "category", Encode.object fields ] |> Encode.toString 0)
 

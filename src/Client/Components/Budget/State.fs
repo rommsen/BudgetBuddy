@@ -351,10 +351,16 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         afterPauseAnswered categoryId month reread (lost, external)
     | TargetAmountChanged text -> typeTargetAmount text model, Cmd.none, NoOp
     | TargetDateChanged entry -> typeTargetDate entry model, Cmd.none, NoOp
+    | TargetRhythmChanged frequency -> chooseTargetRhythm frequency model, Cmd.none, NoOp
     | SaveTarget ->
         match startTargetSave model with
         | model', Some (monthKey, request) -> model', targetChangeCmd monthKey request, NoOp
         | model', None -> model', Cmd.none, NoOp
+    | ConfirmTargetChange ->
+        match confirmTargetChange model with
+        | model', Some (monthKey, request) -> model', targetChangeCmd monthKey request, NoOp
+        | model', None -> model', Cmd.none, NoOp
+    | CancelTargetChange -> cancelTargetChange model, Cmd.none, NoOp
     | AskRemoveTarget -> askRemoveTarget model, Cmd.none, NoOp
     | CancelRemoveTarget -> cancelRemoveTarget model, Cmd.none, NoOp
     | ConfirmRemoveTarget ->
@@ -368,6 +374,8 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
             match result with
             | Error message when not (targetAnswerInTab categoryId month model) ->
                 ShowToast (targetRejectedAwayText message, ToastWarning)
+            | Ok (TargetPartlyWritten (_, message)) when not (targetAnswerInTab categoryId month model) ->
+                ShowToast (message, ToastWarning)
             | _ -> NoOp
         if reread then
             // YNAB rechnet den Fehlbetrag neu: still neu lesen, bis dahin ist der Fehlbetrag-Knopf gesperrt.
@@ -474,6 +482,9 @@ let private routeOf (msg: Msg) (model: Model) : MsgRoute =
     | TargetPauseCallLost _
     | TargetAmountChanged _
     | TargetDateChanged _
+    | TargetRhythmChanged _
+    | ConfirmTargetChange
+    | CancelTargetChange
     | SaveTarget
     | AskRemoveTarget
     | ConfirmRemoveTarget

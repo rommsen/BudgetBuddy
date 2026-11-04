@@ -307,7 +307,9 @@ let private targetTab (model: Model) (category: BudgetCategory) (dispatch: Msg -
             match Components.Budget.TargetEdit.targetTabMode model category with
             | Components.Budget.TargetEdit.NoTargetShown -> Html.p [ prop.className ListRoles.muted; prop.text "Kein Target" ]
             | Components.Budget.TargetEdit.TargetEditable (target, form) ->
-                Components.Budget.TargetEditView.editableTarget model category target form (targetStatus category) pause dispatch
+                Components.Budget.TargetEditView.editableTarget model category (Some target) form (targetStatus category) pause dispatch
+            | Components.Budget.TargetEdit.TargetCreatable form ->
+                Components.Budget.TargetEditView.editableTarget model category None form Html.none Html.none dispatch
             | Components.Budget.TargetEdit.TargetReadOnly target ->
                 Components.Budget.TargetEditView.readOnlyTarget target
                 targetStatus category

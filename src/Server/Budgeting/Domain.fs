@@ -194,34 +194,65 @@ let planPause (month: BudgetMonth) (pausedInBbRaw: Set<Guid>) (request: TargetPa
 // Target ändern und entfernen (budgeting-k8wq3, ADR 0072, ADR 0080)
 // ============================================
 
-/// Lehnt ab, was budgeting-k8wq3 noch nicht kann, bevor YNAB gelesen wird: einen Rhythmuswechsel und
-/// das Anlegen (`Shown = None` mit Wunsch). Rein.
-let targetChangeSupported (request: TargetChangeRequest) : Result<unit, string> =
-    match request.Shown, request.Wanted with
-    | _, Some { NewRhythm = SetRhythm _ } -> Error TargetRhythmLaterText
-    | None, Some _ -> Error TargetCreateLaterText
-    | _ -> Ok ()
-
 /// Die Patches vom gezeigten zum gewünschten Target (ADR 0072 Punkt 3, ADR 0080 Punkt 3): nur Felder, die
-/// abweichen. Betrag ist nur `goal_target`, Datum nur `goal_target_date`, Entfernen `goal_target: null`.
-/// Nie `goal_frequency`, nie `goal_needs_whole_amount`. Ohne Abweichung eine leere Liste. Gilt für jede
-/// Art gleich (ADR 0072 Punkt 2). Rein.
-let planTargetWrite (shown: Target) (wanted: TargetDraft option) : Result<TargetPatch list, string> =
-    match wanted with
-    | None -> Ok [ { GoalTarget = Clear; TargetDate = Keep; Frequency = None } ]
-    | Some { NewRhythm = SetRhythm _ } -> Error TargetRhythmLaterText
-    | Some draft ->
-        let goal =
-            if toMilliunits draft.NewGoal = toMilliunits shown.Goal then Keep
-            else SetTo (toMilliunits draft.NewGoal)
-        let date =
-            match shown.Date, draft.NewDate with
-            | before, after when before = after -> Keep
-            | _, Some date -> SetTo date
-            | _, None -> Clear
-        match goal, date with
-        | Keep, Keep -> Ok []
-        | _ -> Ok [ { GoalTarget = goal; TargetDate = date; Frequency = None } ]
+/// abweichen. Betrag ist nur `goal_target`, Datum nur `goal_target_date`, Entfernen `goal_target: null`. Nie
+/// `goal_needs_whole_amount`. Ohne Abweichung eine leere Liste. Gilt für jede Art gleich (ADR 0072 Punkt 2).
+///
+/// Anlegen (`shown = None`) und ein echter Wechsel der Art (`targetKindChange`, budgeting-xp46a) senden
+/// `goal_target` mit `goal_frequency`. Ein Datum im Entwurf folgt dann als eigener zweiter Patch nur mit
+/// `goal_target_date`: YNAB lehnt beides in einem Aufruf ab, belegt für jährlich (ADR 0072 Punkt 5), zwei
+/// Aufrufe sind für alle Rhythmen gefahrlos. Anlegen ohne Rhythmus ist ein Fehler. Rein.
+let planTargetWrite (shown: Target option) (wanted: TargetDraft option) : Result<TargetPatch list, string> =
+    let replacing (frequency: TargetFrequency) (draft: TargetDraft) =
+        [ { GoalTarget = SetTo (toMilliunits draft.NewGoal); TargetDate = Keep; Frequency = Some frequency }
+          match draft.NewDate with
+          | Some date -> { GoalTarget = Keep; TargetDate = SetTo date; Frequency = None }
+          | None -> () ]
+    match shown, wanted with
+    | None, None -> Ok []
+    | Some _, None -> Ok [ { GoalTarget = Clear; TargetDate = Keep; Frequency = None } ]
+    | None, Some { NewRhythm = KeepRhythm } -> Error TargetRhythmMissingText
+    | None, Some ({ NewRhythm = SetRhythm frequency } as draft) -> Ok (replacing frequency draft)
+    | Some target, Some draft ->
+        match targetKindChange target draft with
+        | Some frequency -> Ok (replacing frequency draft)
+        | None ->
+            let goal =
+                if toMilliunits draft.NewGoal = toMilliunits target.Goal then Keep
+                else SetTo (toMilliunits draft.NewGoal)
+            let date =
+                match target.Date, draft.NewDate with
+                | before, after when before = after -> Keep
+                | _, Some date -> SetTo date
+                | _, None -> Clear
+            match goal, date with
+            | Keep, Keep -> Ok []
+            | _ -> Ok [ { GoalTarget = goal; TargetDate = date; Frequency = None } ]
+
+/// Darf der nächste Schritt hinaus, nach dieser Antwort von YNAB auf den vorigen Patch (ADR 0080 Punkt 4)?
+/// Setzte der vorige `goal_frequency`, nur wenn die Antwort den neuen Rhythmus zeigt: sonst gehörte das
+/// Datum an ein Target, das nicht das gewünschte ist. Ohne `goal_frequency` immer. Rein.
+let continueAfter (after: Target option) (previous: TargetPatch) : bool =
+    match previous.Frequency with
+    | None -> true
+    | Some frequency -> after |> Option.exists (fun t -> t.Kind = Need && t.Rhythm = rhythmOfFrequency frequency)
+
+/// Der Grund, wenn der nächste Schritt nach `continueAfter` nicht hinausgeht, mit dem Rhythmus aus YNABs
+/// Antwort.
+let unexpectedRhythmText (after: Target option) (frequency: TargetFrequency) : string =
+    let seen =
+        match after with
+        | None -> "kein Target"
+        | Some t ->
+            match t.Rhythm with
+            | Weeks 1 -> "wöchentlich"
+            | Months 1 -> "monatlich"
+            | Years 1 -> "jährlich"
+            | Weeks n -> $"alle {n} Wochen"
+            | Months n -> $"alle {n} Monate"
+            | Years n -> $"alle {n} Jahre"
+            | NoRhythm -> "ohne Rhythmus"
+    $"YNAB zeigt nach Schritt 1 {seen} statt {frequencyText frequency}"
 
 /// Ein Patch ohne gesetztes Feld. BB sendet ihn nie, der Ablauf lehnt ihn vor dem Senden ab.
 let targetPatchIsEmpty (patch: TargetPatch) : bool =
@@ -231,23 +262,45 @@ let targetPatchIsEmpty (patch: TargetPatch) : bool =
 [<Literal>]
 let EmptyTargetPatchText = "Am Target ist nichts geändert, es gibt nichts zu senden."
 
-/// Die Art der Target-Änderung aus dem Wunsch: kein Wunsch heißt entfernen.
-let targetChangeKindOf (wanted: TargetDraft option) : TargetChangeKind =
-    match wanted with
-    | None -> TargetRemoved
-    | Some _ -> TargetEdited
+/// Die Art der Target-Änderung aus dem gezeigten Stand und dem ersten Patch: kein Wunsch heißt entfernen,
+/// `goal_frequency` ohne gezeigtes Target anlegen, mit gezeigtem die Art wechseln.
+let targetChangeKindOf (shown: Target option) (wanted: TargetDraft option) (first: TargetPatch) : TargetChangeKind =
+    match wanted, first.Frequency, shown with
+    | None, _, _ -> TargetRemoved
+    | Some _, Some frequency, None -> TargetCreated frequency
+    | Some _, Some frequency, Some _ -> TargetKindChanged frequency
+    | Some _, None, _ -> TargetEdited
 
-/// Der Text in `target_changes.change_kind`.
-let targetChangeKindText (kind: TargetChangeKind) : string =
+/// Der Rhythmus in `target_changes.new_frequency`: "monthly", "weekly", "yearly".
+let frequencyColumnText (frequency: TargetFrequency) : string =
+    match frequency with
+    | Weekly -> "weekly"
+    | Monthly -> "monthly"
+    | Yearly -> "yearly"
+
+/// Die Texte in `target_changes.change_kind` und `new_frequency`.
+let targetChangeKindText (kind: TargetChangeKind) : string * string option =
     match kind with
-    | TargetEdited -> "Geändert"
-    | TargetRemoved -> "Entfernt"
+    | TargetEdited -> "Geändert", None
+    | TargetRemoved -> "Entfernt", None
+    | TargetCreated f -> "Angelegt", Some (frequencyColumnText f)
+    | TargetKindChanged f -> "Art gewechselt", Some (frequencyColumnText f)
 
-/// Liest die Spalte. Ein unbekannter Text wird gemeldet, nicht auf einen Standard gelegt.
-let targetChangeKindOfText (text: string) : Result<TargetChangeKind, string> =
-    match [ TargetEdited; TargetRemoved ] |> List.tryFind (fun k -> targetChangeKindText k = text) with
-    | Some kind -> Ok kind
-    | None -> Error $"Unbekannte Art einer Target-Änderung: {text}"
+/// Liest beide Spalten. Ein unbekannter Text oder ein fehlender Rhythmus wird gemeldet, nicht auf einen
+/// Standard gelegt.
+let targetChangeKindOfText (text: string) (frequency: string option) : Result<TargetChangeKind, string> =
+    let frequencyOf () =
+        match frequency |> Option.bind (fun f -> [ Weekly; Monthly; Yearly ] |> List.tryFind (fun x -> frequencyColumnText x = f)) with
+        | Some f -> Ok f
+        | None ->
+            let seen = frequency |> Option.defaultValue "keiner"
+            Error $"Unbekannter Rhythmus einer Target-Änderung: {seen}"
+    match text with
+    | "Geändert" -> Ok TargetEdited
+    | "Entfernt" -> Ok TargetRemoved
+    | "Angelegt" -> frequencyOf () |> Result.map TargetCreated
+    | "Art gewechselt" -> frequencyOf () |> Result.map TargetKindChanged
+    | _ -> Error $"Unbekannte Art einer Target-Änderung: {text}"
 
 /// Stimmt die frisch geplante Vorschau mit der gezeigten überein? Verglichen werden die Zeilen
 /// (Kategorie, altes und neues Zugewiesen) und Zu verteilen; Namen und Reihenfolge der

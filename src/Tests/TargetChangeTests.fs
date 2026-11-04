@@ -41,7 +41,7 @@ let private patch goal date : TargetPatch = { GoalTarget = goal; TargetDate = da
 let private planTests =
     let need = targetOf Need 50m None
     let plan shown wanted =
-        match Domain.planTargetWrite shown wanted with
+        match Domain.planTargetWrite (Some shown) wanted with
         | Ok patches -> patches
         | Error e -> failtest e
     testList "Target ändern: Planung" [
@@ -69,7 +69,7 @@ let private planTests =
             for p in [ patch (SetTo 1L) Keep; patch Clear Keep; patch Keep Clear; { patch Keep Keep with Frequency = Some Monthly } ] do
                 Expect.isFalse (Domain.targetPatchIsEmpty p) $"{p}"
         }
-        test "Kein Patch trägt goal_frequency" {
+        test "Ohne Rhythmuswahl trägt kein Patch goal_frequency" {
             for wanted in [ None; Some (draft 60m None); Some (draft 50m (Some "2027-01-01")); Some (draft 70m (Some "2027-01-01")) ] do
                 for p in plan need wanted do
                     Expect.equal p.Frequency None $"{wanted}"
@@ -80,29 +80,23 @@ let private planTests =
                 for wanted in wishes do
                     Expect.equal (plan (targetOf kind 50m None) wanted) (plan need wanted) $"{kind} {wanted}"
         }
-        test "Ein Rhythmuswechsel wird abgelehnt" {
-            let wanted = Some { draft 60m None with NewRhythm = SetRhythm Yearly }
-            Expect.equal (Domain.planTargetWrite need wanted) (Error TargetRhythmLaterText) "später"
-        }
-        test "Anlegen und Rhythmuswechsel lehnt die Vorprüfung ab, Ändern und Entfernen nicht" {
-            let request shown wanted : TargetChangeRequest = { CategoryId = Guid.NewGuid(); Shown = shown; Wanted = wanted }
-            Expect.equal (Domain.targetChangeSupported (request None (Some (draft 10m None)))) (Error TargetCreateLaterText) "anlegen"
-            Expect.equal
-                (Domain.targetChangeSupported (request (Some need) (Some { draft 10m None with NewRhythm = SetRhythm Weekly })))
-                (Error TargetRhythmLaterText)
-                "Rhythmus"
-            Expect.isOk (Domain.targetChangeSupported (request (Some need) (Some (draft 10m None)))) "ändern"
-            Expect.isOk (Domain.targetChangeSupported (request (Some need) None)) "entfernen"
-        }
         test "Target ändern geht nur im laufenden Monat" {
             Expect.isTrue (targetEditAllowed CurrentMonth) "laufend"
             Expect.isFalse (targetEditAllowed PastMonth) "vergangen"
             Expect.isFalse (targetEditAllowed FutureMonth) "künftig"
         }
         test "Die Art einer Target-Änderung geht als Text hin und zurück, ein unbekannter wird gemeldet" {
-            for kind in [ TargetEdited; TargetRemoved ] do
-                Expect.equal (Domain.targetChangeKindOfText (Domain.targetChangeKindText kind)) (Ok kind) $"{kind}"
-            Expect.isError (Domain.targetChangeKindOfText "Quatsch") "kein Standard"
+            let kinds =
+                [ TargetEdited; TargetRemoved ]
+                @ [ for f in [ Weekly; Monthly; Yearly ] do
+                        TargetCreated f
+                        TargetKindChanged f ]
+            for kind in kinds do
+                let text, frequency = Domain.targetChangeKindText kind
+                Expect.equal (Domain.targetChangeKindOfText text frequency) (Ok kind) $"{kind}"
+            Expect.isError (Domain.targetChangeKindOfText "Quatsch" None) "kein Standard"
+            Expect.isError (Domain.targetChangeKindOfText "Angelegt" None) "angelegt ohne Rhythmus"
+            Expect.isError (Domain.targetChangeKindOfText "Art gewechselt" (Some "daily")) "unbekannter Rhythmus"
         }
     ]
 
@@ -244,6 +238,10 @@ type private FakeYnab(initial: (Guid * Target option) list) =
     member val Reads = 0 with get, set
     member val Patches = ResizeArray<Guid * TargetPatch>()
     member val Failure : YnabError option = None with get, set
+    /// Nur der n-te Schreibaufruf (ab 1) scheitert mit `Failure` (budgeting-xp46a). `None`: jeder.
+    member val FailOnlyCall : int option = None with get, set
+    /// Die Antwort zeigt diesen Rhythmus statt dem gesendeten (budgeting-xp46a).
+    member val AnswerRhythm : TargetRhythm option = None with get, set
     member val OnWrite : Guid -> unit = ignore with get, set
     member val WriteDelayMs = 0 with get, set
     member _.Target (id: Guid) = targets[id]
@@ -279,14 +277,27 @@ type private FakeYnab(initial: (Guid * Target option) list) =
                     this.Patches.Add((id, p))
                     this.OnWrite id
                     if this.WriteDelayMs > 0 then do! Async.Sleep this.WriteDelayMs
+                    let fails =
+                        match this.FailOnlyCall with
+                        | Some n -> this.Patches.Count = n
+                        | None -> true
                     match this.Failure with
-                    | Some e -> return Error e
-                    | None ->
+                    | Some e when fails -> return Error e
+                    | _ ->
                         let after =
-                            match targets[id], p.GoalTarget with
-                            | _, Clear -> None
-                            | None, _ -> None
-                            | Some t, goal ->
+                            match targets[id], p.GoalTarget, p.Frequency with
+                            | _, Clear, _ -> None
+                            // goal_frequency ersetzt das Target: Tag und Datum weg, Art NEED (ADR 0072 Punkt 4).
+                            | _, SetTo v, Some f ->
+                                Some
+                                    { Goal = euroOfMilliunits v
+                                      Rhythm = this.AnswerRhythm |> Option.defaultValue (rhythmOfFrequency f)
+                                      Kind = Need
+                                      Date = None
+                                      NeedsWholeAmount = Some true
+                                      Day = None }
+                            | None, _, _ -> None
+                            | Some t, goal, _ ->
                                 let goal' = match goal with SetTo v -> euroOfMilliunits v | _ -> t.Goal
                                 let date' = match p.TargetDate with Keep -> t.Date | SetTo d -> Some d | Clear -> None
                                 Some { t with Goal = goal'; Date = date' }
@@ -394,7 +405,7 @@ let private flowTests =
                 Expect.equal (lines |> List.map (fun l -> l.Text, l.Status)) [ "Target entfernt", Some HistoryWritten ] "Historie"
             | Error e -> failtest e
 
-        testCase "Vergangener und künftiger Monat, Rhythmuswechsel und Anlegen: Fehler ohne YNAB-Aufruf und ohne Zeile" <| fun () ->
+        testCase "Vergangener und künftiger Monat und Anlegen ohne Rhythmus: Fehler ohne YNAB-Aufruf und ohne Zeile" <| fun () ->
             let f, k = fakeWith (Some fifty)
             let reason month r =
                 match change f month r with
@@ -402,11 +413,7 @@ let private flowTests =
                 | other -> failtest $"Ablehnung erwartet: {other}"
             Expect.equal (reason "2026-10-01" (request k (Some fifty) (Some (draft 60m None)))) TargetEditMonthText "vergangen"
             Expect.equal (reason "2026-12-01" (request k (Some fifty) (Some (draft 60m None)))) TargetEditMonthText "künftig"
-            Expect.equal
-                (reason current (request k (Some fifty) (Some { draft 60m None with NewRhythm = SetRhythm Monthly })))
-                TargetRhythmLaterText
-                "Rhythmus"
-            Expect.equal (reason current (request k None (Some (draft 60m None)))) TargetCreateLaterText "anlegen"
+            Expect.equal (reason current (request k None (Some (draft 60m None)))) TargetRhythmMissingText "anlegen ohne Rhythmus"
             Expect.equal f.Reads 0 "kein YNAB-Aufruf"
             Expect.isEmpty (changeRows k) "keine Zeile"
 
@@ -608,6 +615,260 @@ let private boundaryTests =
         }
     ]
 
+// ============================================
+// Anlegen und Wechsel der Art (budgeting-xp46a)
+// ============================================
+
+let private created (frequency: TargetFrequency) (goal: decimal) (date: string option) : TargetDraft =
+    { NewGoal = eur goal; NewDate = date; NewRhythm = SetRhythm frequency }
+
+let private withRhythm (frequency: TargetFrequency) goal date : TargetPatch =
+    { GoalTarget = SetTo goal; TargetDate = date; Frequency = Some frequency }
+
+let private createPlanTests =
+    let plan shown wanted =
+        match Domain.planTargetWrite shown wanted with
+        | Ok patches -> patches
+        | Error e -> failtest e
+    let need = targetOf Need 50m None
+    let yearlyDated = { targetOf Need 600m (Some "2027-06-01") with Rhythm = Years 1; Day = None }
+    testList "Target anlegen und Art wechseln: Planung" [
+        test "Anlegen ohne Datum: je Rhythmus ein Patch mit goal_target und goal_frequency" {
+            for f in [ Monthly; Weekly; Yearly ] do
+                Expect.equal (plan None (Some (created f 50m None))) [ withRhythm f 50000L Keep ] $"{f}"
+        }
+        test "Anlegen mit Datum: zwei Patches, der erste ohne Datum, der zweite nur mit Datum, für alle drei Rhythmen" {
+            for f in [ Monthly; Weekly; Yearly ] do
+                Expect.equal
+                    (plan None (Some (created f 50m (Some "2027-06-01"))))
+                    [ withRhythm f 50000L Keep; patch Keep (SetTo "2027-06-01") ]
+                    $"{f}"
+        }
+        test "Anlegen ohne Rhythmus ist ein Fehler, ohne Target und ohne Wunsch gibt es nichts zu tun" {
+            Expect.equal (Domain.planTargetWrite None (Some (draft 50m None))) (Error TargetRhythmMissingText) "ohne Rhythmus"
+            Expect.equal (Domain.planTargetWrite None None) (Ok []) "nichts"
+        }
+        test "Monatlich auf wöchentlich ist ein Patch mit goal_frequency, der Betrag geht mit" {
+            Expect.equal (plan (Some need) (Some (created Weekly 50m None))) [ withRhythm Weekly 50000L Keep ] "Wechsel"
+        }
+        test "Jährlich mit Datum auf jährlich mit neuem Betrag ist nur goal_target, ohne goal_frequency" {
+            Expect.equal
+                (plan (Some yearlyDated) (Some (created Yearly 700m (Some "2027-06-01"))))
+                [ patch (SetTo 700000L) Keep ]
+                "kein Wechsel"
+        }
+        test "TB und MF auf monatlich sind ein Wechsel, auch wenn MF schon monatlich ist" {
+            Expect.equal (plan (Some { need with Kind = TargetBalance; Rhythm = NoRhythm }) (Some (created Monthly 50m None))) [ withRhythm Monthly 50000L Keep ] "TB"
+            Expect.equal (plan (Some { need with Kind = MonthlyFunding }) (Some (created Monthly 50m None))) [ withRhythm Monthly 50000L Keep ] "MF"
+        }
+        test "Ein Wechsel mit Datum im Entwurf ergibt zwei Patches" {
+            Expect.equal
+                (plan (Some need) (Some (created Yearly 600m (Some "2027-06-01"))))
+                [ withRhythm Yearly 600000L Keep; patch Keep (SetTo "2027-06-01") ]
+                "zwei"
+        }
+        test "Nach Schritt 1 ergibt dasselbe Speichern gegen den neuen Stand nur das Datum" {
+            let afterStep1 = { yearlyDated with Date = None; Goal = eur 600m }
+            Expect.equal (plan (Some afterStep1) (Some (created Yearly 600m (Some "2027-06-01")))) [ patch Keep (SetTo "2027-06-01") ] "nur Datum"
+        }
+        test "Schritt 2 geht nur nach einer Antwort mit dem neuen Rhythmus hinaus, ohne goal_frequency immer" {
+            let step1 = withRhythm Yearly 600000L Keep
+            let answer rhythm = Some { need with Rhythm = rhythm; Day = None }
+            Expect.isTrue (Domain.continueAfter (answer (Years 1)) step1) "jährlich"
+            Expect.isFalse (Domain.continueAfter (answer (Months 1)) step1) "monatlich statt jährlich"
+            Expect.isFalse (Domain.continueAfter (Some { need with Kind = TargetBalance; Rhythm = Years 1 }) step1) "nicht NEED"
+            Expect.isFalse (Domain.continueAfter None step1) "kein Target"
+            Expect.isTrue (Domain.continueAfter None (patch (SetTo 1L) Keep)) "ohne goal_frequency"
+            Expect.equal (Domain.unexpectedRhythmText (answer (Months 1)) Yearly) "YNAB zeigt nach Schritt 1 monatlich statt jährlich" "Grund"
+            Expect.equal (Domain.unexpectedRhythmText None Weekly) "YNAB zeigt nach Schritt 1 kein Target statt wöchentlich" "ohne Target"
+        }
+    ]
+
+let private lossTests =
+    let need = { targetOf Need 50m None with Day = None }
+    testList "Target anlegen und Art wechseln: Verluste" [
+        test "Tag gesetzt und Wechsel ergibt LosesDay" {
+            Expect.equal (targetChangeLosses { need with Day = Some 15 } (created Weekly 50m None)) [ LosesDay ] "Tag"
+        }
+        test "Datum gesetzt und Wechsel ohne Datum ergibt LosesDate, auch bei gleichem Rhythmus, wenn goal_frequency hinausgeht" {
+            let dated = { need with Date = Some "2027-06-01" }
+            Expect.equal (targetChangeLosses dated (created Yearly 50m None)) [ LosesDate ] "anderer Rhythmus"
+            Expect.equal (targetChangeLosses { dated with Kind = MonthlyFunding } (created Monthly 50m None)) [ LosesDate; LosesKind ] "gleicher Rhythmus bei MF"
+            Expect.isEmpty (targetChangeLosses dated (created Yearly 50m (Some "2027-07-01"))) "neues Datum im Entwurf"
+        }
+        test "MF ergibt LosesKind, TB auch" {
+            Expect.equal (targetChangeLosses { need with Kind = MonthlyFunding } (created Weekly 50m (Some "2027-06-01"))) [ LosesKind ] "MF"
+            Expect.equal (targetChangeLosses { need with Kind = TargetBalance; Rhythm = NoRhythm } (created Monthly 50m None)) [ LosesKind ] "TB"
+        }
+        test "Alle 3 Monate ergibt LosesRhythm, ein NEED ohne Kadenz auch" {
+            Expect.equal (targetChangeLosses { need with Rhythm = Months 3 } (created Monthly 50m None)) [ LosesRhythm ] "alle 3 Monate"
+            Expect.equal (targetChangeLosses { need with Rhythm = Years 2 } (created Yearly 50m None)) [ LosesRhythm ] "alle 2 Jahre"
+            Expect.equal (targetChangeLosses { need with Rhythm = NoRhythm } (created Monthly 50m None)) [ LosesRhythm ] "ohne Kadenz"
+        }
+        test "Reine Betragsänderung und gleicher Rhythmus ergeben eine leere Liste" {
+            let full = { need with Day = Some 15; Date = Some "2027-06-01" }
+            Expect.isEmpty (targetChangeLosses full (draft 60m None)) "nur Betrag, sogar ohne Datum"
+            Expect.isEmpty (targetChangeLosses full (created Monthly 60m None)) "gleicher Rhythmus"
+        }
+    ]
+
+let private createEncoderTests =
+    let id1 = Guid.Parse "11111111-1111-1111-1111-111111111111"
+    testList "Target anlegen und Art wechseln: YNAB" [
+        test "goal_frequency geht mit goal_target als JSON-Zahl hinaus" {
+            Expect.equal
+                (Server.YnabClient.buildTargetBody (withRhythm Monthly 50000L Keep))
+                (Ok """{"category":{"goal_target":50000,"goal_frequency":"monthly"}}""")
+                "monatlich"
+            for f, text in [ Weekly, "weekly"; Yearly, "yearly" ] do
+                Expect.equal
+                    (Server.YnabClient.buildTargetBody { patch Keep Keep with Frequency = Some f })
+                    (Ok $"""{{"category":{{"goal_frequency":"{text}"}}}}""")
+                    text
+        }
+        test "Ein Body mit goal_frequency und goal_target_date zugleich wird abgelehnt und nicht gesendet" {
+            Expect.isError (Server.YnabClient.buildTargetBody (withRhythm Yearly 50000L (SetTo "2027-06-01"))) "Datum gesetzt"
+            Expect.isError (Server.YnabClient.buildTargetBody (withRhythm Yearly 50000L Clear)) "Datum null"
+            let sent = ref 0
+            let send _ _ = async { sent.Value <- sent.Value + 1; return 200, "{}" }
+            match Server.YnabClient.setCategoryTargetWith send "bud" id1 (withRhythm Yearly 50000L (SetTo "2027-06-01")) |> run with
+            | Error (YnabError.InvalidResponse _) -> ()
+            | other -> failtest $"Ablehnung erwartet: {other}"
+            Expect.equal sent.Value 0 "nichts hinaus"
+        }
+    ]
+
+/// Ergebnisse der Änderungen einer Kategorie je Schritt: "Schritt|Status|Grund".
+let private stepRows (id: Guid) : string list =
+    use conn = global.Persistence.getConnection ()
+    Dapper.SqlMapper.Query<string>(
+        conn,
+        "SELECT IFNULL(r.step, '-') || '|' || r.status || '|' || IFNULL(r.reason, '') \
+         FROM target_change_results r JOIN target_changes c ON r.change_id = c.id \
+         WHERE c.category_id = @id ORDER BY r.sequence",
+        {| id = string id |})
+    |> Seq.toList
+
+let private historyOf (k: Guid) : (string * HistoryStatus option) list =
+    let port = { QueryHandlers.liveHistoryPort with LoadMonthlyActivity = fun _ _ -> async { return [] } }
+    match QueryHandlers.categoryHistory port k (DateTime(2026, 11, 1)) |> run with
+    | Ok history -> history.Entries |> List.map historyEntryLine |> List.map (fun l -> l.Text, l.Status)
+    | Error e -> failtest e
+
+let private createFlowTests =
+    let testCase name body =
+        testCase name (fun () ->
+            Budgeting.Persistence.initializeBudgetingSchema ()
+            body ())
+    let yearly600 = { Goal = eur 600m; Rhythm = Years 1; Kind = Need; Date = None; NeedsWholeAmount = Some true; Day = None }
+    let rejected = "YNAB hat abgelehnt: goal_target_date is invalid"
+    testSequenced
+    <| testList "Target anlegen und Art wechseln: Abläufe" [
+        testCase "GIVEN Kategorie ohne Target WHEN anlegen monatlich 50 € THEN eine Target-Änderung, ein PATCH mit goal_target und goal_frequency monthly, geschrieben" <| fun () ->
+            let f, k = fakeWith None
+            match change f current (request k None (Some (created Monthly 50m None))) with
+            | Ok (Ok (TargetWritten (Some t))) -> Expect.equal (t.Goal, t.Rhythm, t.Kind) (eur 50m, Months 1, Need) "neues Target"
+            | other -> failtest $"geschrieben erwartet: {other}"
+            Expect.equal (f.Patches |> List.ofSeq) [ k, withRhythm Monthly 50000L Keep ] "ein PATCH"
+            Expect.equal (changeRows k) [ $"{current}|Angelegt|-|50000|written|" ] "eine Änderung, geschrieben"
+            Expect.equal (stepRows k) [ "1|written|" ] "Ergebnis zu Schritt 1"
+            Expect.equal (historyOf k) [ "Target angelegt, 50,00 € monatlich", Some HistoryWritten ] "Historie"
+
+        testCase "GIVEN anlegen jährlich mit Datum THEN zwei PATCHes in dieser Reihenfolge, je ein Ergebnis, die Historie zeigt eine Änderung" <| fun () ->
+            let f, k = fakeWith None
+            match change f current (request k None (Some (created Yearly 600m (Some "2027-06-01")))) with
+            | Ok (Ok (TargetWritten (Some t))) -> Expect.equal t { yearly600 with Date = Some "2027-06-01" } "Target mit Datum"
+            | other -> failtest $"geschrieben erwartet: {other}"
+            Expect.equal
+                (f.Patches |> List.ofSeq)
+                [ k, withRhythm Yearly 600000L Keep; k, patch Keep (SetTo "2027-06-01") ]
+                "erst Rhythmus, dann Datum"
+            Expect.equal (stepRows k) [ "1|written|"; "2|written|" ] "je Schritt ein Ergebnis"
+            Expect.equal (historyOf k) [ "Target angelegt, 600,00 € jährlich, Datum 01.06.2027", Some HistoryWritten ] "eine Änderung"
+
+        testCase "GIVEN Schritt 1 scheitert THEN Schritt 2 geht nicht hinaus und ist fehlgeschlagen mit Schritt 1 fehlgeschlagen, die Meldung nennt YNABs Grund" <| fun () ->
+            let f, k = fakeWith None
+            f.Failure <- Some (YnabError.InvalidResponse "goal_target is invalid")
+            let expected = "YNAB hat abgelehnt: goal_target is invalid"
+            Expect.equal (change f current (request k None (Some (created Yearly 600m (Some "2027-06-01"))))) (Ok (Error expected)) "Meldung"
+            Expect.equal f.Patches.Count 1 "nur Schritt 1 hinaus"
+            Expect.equal (stepRows k) [ $"1|failed|{expected}"; $"2|failed|{TargetStepHeldBack}" ] "beide fehlgeschlagen"
+            Expect.equal TargetStepHeldBack "Schritt 1 fehlgeschlagen" "Grund wie beim Ziel einer Verschiebung"
+
+        testCase "GIVEN Schritt 2 scheitert THEN Schritt 1 geschrieben, Antwort mit dem Stand ohne Datum und Datum nicht gesetzt, ein folgender Aufruf sendet nur goal_target_date" <| fun () ->
+            let f, k = fakeWith None
+            f.Failure <- Some (YnabError.InvalidResponse "goal_target_date is invalid")
+            f.FailOnlyCall <- Some 2
+            let wish = created Yearly 600m (Some "2027-06-01")
+            let expected = $"Target angelegt, Datum 01.06.2027 nicht gesetzt: {rejected}"
+            Expect.equal (change f current (request k None (Some wish))) (Ok (Ok (TargetPartlyWritten (Some yearly600, expected)))) "Teilergebnis"
+            Expect.equal (stepRows k) [ "1|written|"; $"2|failed|{rejected}" ] "Schritt 2 fehlgeschlagen"
+            f.Failure <- None
+            let before = f.Patches.Count
+            Expect.equal
+                (change f current (request k (Some yearly600) (Some wish)))
+                (Ok (Ok (TargetWritten (Some { yearly600 with Date = Some "2027-06-01" }))))
+                "Datum nachgetragen"
+            Expect.equal (f.Patches |> Seq.skip before |> List.ofSeq) [ k, patch Keep (SetTo "2027-06-01") ] "nur goal_target_date"
+
+        testCase "GIVEN YNABs Antwort auf Schritt 1 zeigt nicht den erwarteten Rhythmus THEN Schritt 2 geht nicht hinaus, Meldung konkret" <| fun () ->
+            let f, k = fakeWith (Some fifty)
+            f.AnswerRhythm <- Some (Months 1)
+            let reason = "YNAB zeigt nach Schritt 1 monatlich statt jährlich"
+            let after = { yearly600 with Rhythm = Months 1 }
+            Expect.equal
+                (change f current (request k (Some fifty) (Some (created Yearly 600m (Some "2027-06-01")))))
+                (Ok (Ok (TargetPartlyWritten (Some after, $"Target geändert, Datum 01.06.2027 nicht gesetzt: {reason}"))))
+                "gemeldet"
+            Expect.equal (f.Patches |> List.ofSeq) [ k, withRhythm Yearly 600000L Keep ] "Schritt 2 nicht gesendet"
+            Expect.equal (stepRows k) [ "1|written|"; $"2|failed|{reason}" ] "Schritt 2 zurückgehalten"
+            Expect.equal (changeRows k) [ $"{current}|Art gewechselt|50000|600000|written|"; $"{current}|Art gewechselt|50000|600000|failed|{reason}" ] "eine Änderung"
+
+        testCase "GIVEN in YNAB inzwischen ein Target, gezeigt war keins THEN nichts gesendet, TargetChangedInYnab" <| fun () ->
+            let f, k = fakeWith (Some fifty)
+            Expect.equal (change f current (request k None (Some (created Monthly 50m None)))) (Ok (Ok (TargetChangedInYnab (Some fifty)))) "YNAB gewinnt"
+            Expect.isEmpty f.Patches "kein PATCH"
+            Expect.isEmpty (changeRows k) "keine Zeile"
+
+        testCase "GIVEN künftiger oder vergangener Monat WHEN anlegen oder Art wechseln THEN Fehler ohne YNAB-Aufruf, keine Zeile" <| fun () ->
+            let f, k = fakeWith None
+            for month in [ "2026-10-01"; "2026-12-01" ] do
+                for r in [ request k None (Some (created Monthly 50m None)); request k (Some fifty) (Some (created Weekly 50m None)) ] do
+                    Expect.equal (change f month r) (Ok (Error TargetEditMonthText)) $"{month} {r.Shown.IsSome}"
+            Expect.equal f.Reads 0 "kein YNAB-Aufruf"
+            Expect.isEmpty (changeRows k) "keine Zeile"
+
+        testCase "Die Historie nennt einen Wechsel der Art mit Rhythmus und Betrag" <| fun () ->
+            let f, k = fakeWith (Some fifty)
+            Expect.isOk (change f current (request k (Some fifty) (Some (created Weekly 12m None)))) "geschrieben"
+            Expect.equal (historyOf k) [ "Rhythmus wöchentlich, Target 50,00 € → 12,00 €", Some HistoryWritten ] "Text"
+    ]
+
+let private createPersistenceTests =
+    testList "Target anlegen und Art wechseln: Persistenz" [
+        test "Auf einer Datenbank ohne die neuen Spalten ergänzt das Schema sie, ein zweiter Lauf ändert nichts" {
+            // Eigene Verbindung: die Tabellen in der Form aus budgeting-k8wq3, dann die Migration.
+            use conn = new Microsoft.Data.Sqlite.SqliteConnection("Data Source=:memory:")
+            conn.Open()
+            Dapper.SqlMapper.Execute(
+                conn,
+                "CREATE TABLE target_changes (id TEXT PRIMARY KEY, change_kind TEXT NOT NULL); \
+                 CREATE TABLE target_change_results (sequence INTEGER PRIMARY KEY AUTOINCREMENT, change_id TEXT NOT NULL)")
+            |> ignore
+            Budgeting.Persistence.migrateTargetChangeColumns conn
+            Budgeting.Persistence.migrateTargetChangeColumns conn
+            let columns table =
+                Dapper.SqlMapper.Query<string>(conn, $"SELECT name FROM pragma_table_info('{table}')") |> Seq.toList
+            Expect.contains (columns "target_changes") "new_frequency" "Rhythmus"
+            Expect.contains (columns "target_change_results") "step" "Schritt"
+        }
+    ]
+
 [<Tests>]
 let tests =
     testList "Target ändern und entfernen (budgeting-k8wq3)" [ planTests; historyTextTests; ynabTests; flowTests; persistenceTests; boundaryTests ]
+
+[<Tests>]
+let createTests =
+    testList "Target anlegen und Art wechseln (budgeting-xp46a)" [
+        createPlanTests; lossTests; createEncoderTests; createFlowTests; createPersistenceTests ]

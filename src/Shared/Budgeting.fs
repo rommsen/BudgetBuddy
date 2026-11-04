@@ -383,8 +383,8 @@ type FieldPatch<'T> =
     | SetTo of 'T
     | Clear
 
-/// Der Rhythmus, den YNABs `goal_frequency` setzt. Er ersetzt das Target (ADR 0072 Punkt 4) und kommt
-/// erst mit budgeting-xp46a.
+/// Der Rhythmus, den YNABs `goal_frequency` setzt. Er ersetzt das Target (ADR 0072 Punkt 4): BB sendet ihn
+/// nur beim Anlegen und bei einem echten Wechsel der Art (budgeting-xp46a).
 type TargetFrequency =
     | Weekly
     | Monthly
@@ -395,11 +395,13 @@ type TargetFrequency =
 type TargetPatch = {
     GoalTarget: FieldPatch<int64>
     TargetDate: FieldPatch<string>
-    /// In budgeting-k8wq3 immer `None`.
+    /// `goal_frequency`, nur beim Anlegen und beim Wechsel der Art. Nie zusammen mit `TargetDate`
+    /// (`buildTargetBody` lehnt das ab, ADR 0072 Punkt 5).
     Frequency: TargetFrequency option
 }
 
-/// Bleibt der Rhythmus, oder wird er gewechselt? Der Wechsel kommt mit budgeting-xp46a.
+/// Bleibt der Rhythmus, oder wird er gesetzt? Beim Anlegen ist `SetRhythm` Pflicht. Bei einem bestehenden
+/// Target ist `SetRhythm` mit dem gelesenen Rhythmus kein Wechsel (`targetKindChange`).
 type RhythmChoice =
     | KeepRhythm
     | SetRhythm of TargetFrequency
@@ -427,18 +429,71 @@ type TargetChangeResult =
     | TargetWritten of Target option
     /// YNAB stand anders als gezeigt: nichts gesendet, nichts festgehalten. Trägt den frischen Stand.
     | TargetChangedInYnab of Target option
+    /// Schritt 1 geschrieben, Schritt 2 (das Datum) nicht (budgeting-xp46a, ADR 0080 Punkt 6). Trägt den
+    /// Stand nach Schritt 1 und die Meldung, etwa "Target angelegt, Datum 01.06.2027 nicht gesetzt: …".
+    | TargetPartlyWritten of target: Target option * message: string
 
 /// Die Ablehnung außerhalb des laufenden Monats (ADR 0080 Punkt 1, `targetEditAllowed`).
 [<Literal>]
 let TargetEditMonthText = "Target ändern geht nur im laufenden Monat."
 
-/// Die Ablehnung eines Rhythmuswechsels in budgeting-k8wq3.
+/// Die Ablehnung eines neuen Targets ohne Rhythmus: BB legt nur NEED monatlich, wöchentlich oder jährlich an
+/// (ADR 0072 Punkt 2).
 [<Literal>]
-let TargetRhythmLaterText = "Den Rhythmus ändern kommt mit budgeting-xp46a."
+let TargetRhythmMissingText = "Für ein neues Target fehlt der Rhythmus: monatlich, wöchentlich oder jährlich."
 
-/// Die Ablehnung des Anlegens in budgeting-k8wq3.
-[<Literal>]
-let TargetCreateLaterText = "Ein Target anlegen kommt mit budgeting-xp46a."
+/// "monatlich", "wöchentlich", "jährlich".
+let frequencyText (frequency: TargetFrequency) : string =
+    match frequency with
+    | Weekly -> "wöchentlich"
+    | Monthly -> "monatlich"
+    | Yearly -> "jährlich"
+
+/// Der Rhythmus, den YNAB nach `goal_frequency` liefert: jeweils mit Abstand 1.
+let rhythmOfFrequency (frequency: TargetFrequency) : TargetRhythm =
+    match frequency with
+    | Weekly -> Weeks 1
+    | Monthly -> Months 1
+    | Yearly -> Years 1
+
+/// Ist der Wunsch ein echter Wechsel der Art (ADR 0072 Punkt 4)? Ja, wenn `SetRhythm f` vom gelesenen
+/// Rhythmus abweicht oder die heutige Art kein NEED ist. Gleicher Rhythmus bei NEED ist kein Wechsel, dann
+/// geht nie `goal_frequency` hinaus: sonst ginge auch bei "jährlich auf jährlich" das Datum verloren.
+/// Liefert den neuen Rhythmus.
+let targetKindChange (shown: Target) (draft: TargetDraft) : TargetFrequency option =
+    match draft.NewRhythm with
+    | KeepRhythm -> None
+    | SetRhythm f when shown.Kind = Need && shown.Rhythm = rhythmOfFrequency f -> None
+    | SetRhythm f -> Some f
+
+/// Was ein Wechsel der Art am gelesenen Target verliert (budgeting-xp46a).
+type TargetLoss =
+    /// `goal_day` ist gesetzt: der Tag geht verloren, BB kann ihn nicht schreiben.
+    | LosesDay
+    /// `goal_target_date` ist gesetzt und der Entwurf hat kein Datum.
+    | LosesDate
+    /// Die Art ist kein NEED (TB, TBD, MF und andere): BB legt nur NEED an.
+    | LosesKind
+    /// Der Rhythmus ist einer, den BB nicht herstellen kann (alle n Monate, Wochen oder Jahre mit n über 1,
+    /// ein NEED ohne Kadenz). Der Wechsel ist endgültig.
+    | LosesRhythm
+
+/// Was am gelesenen Stand verloren geht, wenn der Entwurf gesendet wird. Leer heißt keine Warnung: auch
+/// jede Änderung ohne Wechsel der Art ist leer, sie sendet kein `goal_frequency`. Rein.
+let targetChangeLosses (shown: Target) (draft: TargetDraft) : TargetLoss list =
+    match targetKindChange shown draft with
+    | None -> []
+    | Some _ ->
+        let rhythmLost =
+            match shown.Rhythm with
+            | Weeks n
+            | Months n
+            | Years n -> n > 1
+            | NoRhythm -> shown.Kind = Need
+        [ if shown.Day.IsSome then LosesDay
+          if shown.Date.IsSome && draft.NewDate.IsNone then LosesDate
+          if shown.Kind <> Need then LosesKind
+          if rhythmLost then LosesRhythm ]
 
 /// Ein Betrag als "1.234,50 €", ohne Kultur und ohne Format-String, gleich unter .NET und Fable.
 let euroText (money: Money) : string =
@@ -454,6 +509,12 @@ let dateText (iso: string) : string =
     match iso.Split '-' with
     | [| year; month; day |] when year.Length = 4 && month.Length = 2 && day.Length = 2 -> $"{day}.{month}.{year}"
     | _ -> iso
+
+/// Die Meldung, wenn Schritt 2 nicht geschrieben ist: "Target angelegt, Datum 01.06.2027 nicht gesetzt:
+/// <Grund>". `created` unterscheidet Anlegen von einem Wechsel der Art.
+let targetDateNotSetText (created: bool) (date: string) (reason: string) : string =
+    let what = if created then "Target angelegt" else "Target geändert"
+    $"{what}, Datum {dateText date} nicht gesetzt: {reason}"
 
 // ============================================
 // Historie je Kategorie (budgeting-dyn8g)
@@ -506,12 +567,16 @@ type HistoryPause = {
     CategoryName: string
 }
 
-/// Was eine Target-Änderung tat (budgeting-k8wq3). Anlegen kommt mit budgeting-xp46a.
+/// Was eine Target-Änderung tat (budgeting-k8wq3, budgeting-xp46a).
 type TargetChangeKind =
     /// Betrag, Datum oder beides geändert.
     | TargetEdited
     /// `goal_target: null`.
     | TargetRemoved
+    /// Neu angelegt, NEED mit diesem Rhythmus.
+    | TargetCreated of TargetFrequency
+    /// Die Art gewechselt (`goal_frequency`), auf NEED mit diesem Rhythmus.
+    | TargetKindChanged of TargetFrequency
 
 /// Eine festgehaltene Target-Änderung aus `target_changes`, mit ihrem jüngsten Ergebnis (ADR 0080
 /// Punkt 2). Keine Budget-Bewegung: das Zugewiesen bleibt.
@@ -609,21 +674,30 @@ let historyLine (m: HistoryMovement) : HistoryLine =
       Status = Some (historyStatus m.Latest) }
 
 /// Der Text einer Target-Änderung: "Target 50,00 € → 60,00 €", "Datum 01.06.2027", "Datum entfernt",
-/// beides mit Komma getrennt, oder "Target entfernt".
+/// beides mit Komma getrennt, oder "Target entfernt". Angelegt: "Target angelegt, 50,00 € monatlich", ein
+/// Datum mit Komma dahinter. Art gewechselt: "Rhythmus jährlich", Betrag und Datum wie beim Ändern dahinter.
 let targetChangeText (c: HistoryTargetChange) : string =
-    match c.ChangeKind with
-    | TargetRemoved -> "Target entfernt"
-    | TargetEdited ->
-        let amount (m: Money option) = m |> Option.map euroText |> Option.defaultValue "kein Betrag"
+    let amount (m: Money option) = m |> Option.map euroText |> Option.defaultValue "kein Betrag"
+    let changes =
         [ if c.GoalBefore <> c.GoalAfter then
               $"Target {amount c.GoalBefore} → {amount c.GoalAfter}"
           if c.DateBefore <> c.DateAfter then
               match c.DateAfter with
               | Some date -> $"Datum {dateText date}"
               | None -> "Datum entfernt" ]
-        |> function
-            | [] -> "Target unverändert"
-            | parts -> String.concat ", " parts
+    match c.ChangeKind with
+    | TargetRemoved -> "Target entfernt"
+    | TargetCreated frequency ->
+        [ $"Target angelegt, {amount c.GoalAfter} {frequencyText frequency}"
+          match c.DateAfter with
+          | Some date -> $"Datum {dateText date}"
+          | None -> () ]
+        |> String.concat ", "
+    | TargetKindChanged frequency -> $"Rhythmus {frequencyText frequency}" :: changes |> String.concat ", "
+    | TargetEdited ->
+        match changes with
+        | [] -> "Target unverändert"
+        | parts -> String.concat ", " parts
 
 /// Eintrag zu Zeile. Eine Pause hat weder Betrag noch Stand: sie geht nie nach YNAB (ADR 0073 Punkt 5).
 /// Eine Target-Änderung behält ihren echten Stand.

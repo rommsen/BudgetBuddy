@@ -974,6 +974,7 @@ let private BottomSheetDemo () =
     let inspectorOpen, setInspectorOpen = React.useState false
     let chosen, setChosen = React.useState ""
     let confirmOpen, setConfirmOpen = React.useState false
+    let changeOpen, setChangeOpen = React.useState false
 
     section "18. BottomSheet (mobiles Picker-Muster)" [
         note "Mobile Auswahl-/Picker-Flows (keyboard-aware, visual-viewport-Anker, Click-Commit). Baust du ein neues Sheet, erbe das Muster — erfinde Anker/Commit nicht neu. ADR 0005, styleguide.md §7.1."
@@ -1015,6 +1016,23 @@ let private BottomSheetDemo () =
                           OnCancel = fun () -> setConfirmOpen false }
                 else
                     Button.danger "Target entfernen" (fun () -> setConfirmOpen true)
+            ]
+        ]
+        subTitle "Rückfrage im Sheet (BottomSheet.confirm)"
+        note "Vor einer Aktion mit Folgen am Handy, das Gegenstück zu Modal.confirm: wie confirmDanger, der Knopf in Orange. Beispiel: der Wechsel der Art eines Targets."
+        Html.div [
+            prop.custom ("data-ds-card-name", "BottomSheet.confirm")
+            prop.className "max-w-sm"
+            prop.children [
+                if changeOpen then
+                    BottomSheet.confirm
+                        { Title = "Rhythmus wechseln?"
+                          Message = "Der Tag des Targets geht verloren. Ein Wochentag lässt sich danach in BB nicht setzen."
+                          ConfirmText = "Wechseln"
+                          OnConfirm = fun () -> setChangeOpen false
+                          OnCancel = fun () -> setChangeOpen false }
+                else
+                    Button.primary "Target speichern" (fun () -> setChangeOpen true)
             ]
         ]
         subTitle "Feste Höhe (BottomSheet.inspector)"

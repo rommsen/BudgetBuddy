@@ -60,12 +60,12 @@ type private CategoryPickerInternalProps = {
     Elevated: bool
 }
 
-/// Eine Rückfrage vor einer zerstörenden Aktion im Sheet (budgeting-r3wq8), das Gegenstück zu
-/// `Modal.confirmDanger` am Handy.
+/// Eine Rückfrage im Sheet (budgeting-r3wq8): `confirmDanger` als Gegenstück zu `Modal.confirmDanger`,
+/// `confirm` als Gegenstück zu `Modal.confirm` (budgeting-xp46a).
 type ConfirmDangerProps = {
     Title: string
     Message: string
-    /// Der rote Knopf, etwa "Entfernen".
+    /// Der bestätigende Knopf, etwa "Entfernen".
     ConfirmText: string
     OnConfirm: unit -> unit
     OnCancel: unit -> unit
@@ -570,11 +570,18 @@ let categoryPickerLayered
 // Rückfrage im Sheet
 // ---------------------------------------------------------------------------
 
-/// Die Rückfrage als Block im Sheet: Titel, Text, "Abbrechen" und der rote Knopf. `role "alertdialog"`
-/// mit `aria-labelledby` auf den Titel und `aria-describedby` auf den Text. Beim Öffnen hat "Abbrechen"
-/// den Fokus, ein versehentliches Enter zerstört nichts.
+type private ConfirmBlockProps = {
+    Props: ConfirmDangerProps
+    /// Roter Knopf (`confirmDanger`) oder Orange (`confirm`).
+    Danger: bool
+}
+
+/// Die Rückfrage als Block im Sheet: Titel, Text, "Abbrechen" und der Knopf. `role "alertdialog"` mit
+/// `aria-labelledby` auf den Titel und `aria-describedby` auf den Text. Beim Öffnen hat "Abbrechen" den
+/// Fokus, ein versehentliches Enter löst nichts aus.
 [<ReactComponent>]
-let confirmDanger (props: ConfirmDangerProps) =
+let private ConfirmBlock (input: ConfirmBlockProps) =
+    let props = input.Props
     let container = React.useRef<Browser.Types.HTMLElement option> None
     let id = React.useRef (string (System.Guid.NewGuid()))
     let titleId = $"confirm-title-{id.current}"
@@ -589,13 +596,14 @@ let confirmDanger (props: ConfirmDangerProps) =
             | None -> ()),
         [||]
     )
+    let border = if input.Danger then "border-neon-red/20" else Tokens.Borders.default'
     Html.div [
         prop.ref container
         prop.role "alertdialog"
         prop.ariaLabelledBy titleId
         prop.ariaDescribedBy messageId
-        prop.custom ("data-testid", "confirm-danger")
-        prop.className "flex flex-col gap-2 rounded-xl border border-neon-red/20 bg-surface-card p-4"
+        prop.custom ("data-testid", (if input.Danger then "confirm-danger" else "confirm"))
+        prop.className $"flex flex-col gap-2 rounded-xl border {border} bg-surface-card p-4"
         prop.children [
             Html.h3 [ prop.id titleId; prop.className Tokens.ListRoles.primary; prop.text props.Title ]
             Html.p [ prop.id messageId; prop.className Tokens.ListRoles.secondary; prop.text props.Message ]
@@ -616,10 +624,18 @@ let confirmDanger (props: ConfirmDangerProps) =
                     Button.view
                         { Button.defaultProps with
                             Text = props.ConfirmText
-                            Variant = Button.Danger
+                            Variant = (if input.Danger then Button.Danger else Button.Primary)
                             ClassName = Some $"w-full {Tokens.TouchTargets.sheetMinHeight}"
                             OnClick = props.OnConfirm }
                 ]
             ]
         ]
     ]
+
+/// Rückfrage vor einer zerstörenden Aktion im Sheet, der Knopf rot (budgeting-r3wq8). Gegenstück zu
+/// `Modal.confirmDanger`.
+let confirmDanger (props: ConfirmDangerProps) = ConfirmBlock { Props = props; Danger = true }
+
+/// Rückfrage vor einer Aktion mit Folgen im Sheet, der Knopf Orange (budgeting-xp46a, erster Nutzer: der
+/// Wechsel der Art eines Targets). Gegenstück zu `Modal.confirm`. Dieselben Felder wie `confirmDanger`.
+let confirm (props: ConfirmDangerProps) = ConfirmBlock { Props = props; Danger = false }

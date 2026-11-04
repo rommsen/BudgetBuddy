@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 16:31 -- Task verified and completed: budgeting-xp46a - "Target anlegen und Art wechseln im Tab Target: NEED monatlich, wöchentlich oder jährlich, optional mit Datum in zwei Aufrufen, Warnung vor dem Verlust von Tag und Datum"
+
+**Type:** Work / Task completion
+**Task:** budgeting-xp46a - "Target anlegen und Art wechseln im Tab Target: NEED monatlich, wöchentlich oder jährlich, optional mit Datum in zwei Aufrufen, Warnung vor dem Verlust von Tag und Datum"
+**Summary:** Target anlegen und Art wechseln im laufenden Monat, Datum in zwei Schritten mit Rhythmus-Prüfung, Warnung vor Verlusten
+**Duration:** 1h35m
+**Verification:** PASS (iteration 2)
+**Files changed:** 18
+**Tests added:** 39
+**ADRs written:** none
+
+---
+
+## 2026-11-04 16:14 -- Verification failed: budgeting-xp46a - Target anlegen und Art wechseln
+
+**Type:** Work / Verification failure
+**Task:** budgeting-xp46a - Target anlegen und Art wechseln
+**Iteration:** 1 of 3
+**Reasons:** Testprojekt kompiliert nach Merge mit main nicht (HistoryLine.Status ist jetzt option, historyOf erwartet den alten Typ)
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-04 16:08 -- Modeling / Captured: budgeting-g2ty9 - "Review-Korrekturen im Target-Formular: Spinner am auslösenden Knopf, Fokus nach Abbrechen und Speichern bleibt, Datumsfeld nur lesend wie der Betrag, dazu die Befunde der Reviews zu Target anlegen"
 
 **Type:** Modeling / Capture

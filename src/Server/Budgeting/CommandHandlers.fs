@@ -358,46 +358,54 @@ let setTargetPause
 // Target ändern und entfernen (budgeting-k8wq3, ADR 0072, ADR 0080)
 // ============================================
 
-/// Grund der übrigen Schritte, wenn ein früherer scheiterte (ADR 0080 Punkt 4).
+/// Grund von Schritt 2, wenn Schritt 1 scheiterte (ADR 0080 Punkt 4, wie das Ziel einer Verschiebung nach
+/// ADR 0069 Punkt 3).
 [<Literal>]
-let TargetStepHeldBack = "Voriger Schritt nicht geschrieben, nicht gesendet"
+let TargetStepHeldBack = "Schritt 1 fehlgeschlagen"
 
 /// Hält "geschrieben" nach einem `Ok` von YNAB fest, als Best-Effort: YNAB hat die Änderung schon
 /// übernommen, ein Fehler beim Anhängen darf das nicht als Fehlschlag melden. Er wird geloggt, die Zeile
-/// steht dann ohne Ergebnis in der Historie (budgeting-r3wq8).
-let private recordWrittenBestEffort (changeId: Guid) (now: DateTime) : Async<unit> =
+/// steht dann ohne dieses Ergebnis in der Historie (budgeting-r3wq8).
+let private recordWrittenBestEffort (changeId: Guid) (step: int) (now: DateTime) : Async<unit> =
     async {
         try
-            do! appendTargetChangeResult changeId now Written
+            do! appendTargetChangeStepResult changeId step now Written
         with ex ->
             eprintfn "Ergebnis der Target-Änderung %O nicht festgehalten (YNAB hat geschrieben): %s" changeId ex.Message
     }
 
-/// Die festzuhaltende Zeile eines Patches, vom gezeigten Target aus.
+/// Die festzuhaltende Zeile einer Target-Änderung, vom gezeigten Target aus. Alle Patches zusammen ergeben
+/// den neuen Stand: `goal_frequency` ersetzt das Target und löscht das Datum (ADR 0072 Punkt 4), ein
+/// folgender Patch setzt es wieder.
 let private targetChangeOf
     (now: DateTime)
     (monthKey: string)
     (category: YnabMonthCategory)
-    (shown: Target)
+    (shown: Target option)
     (kind: TargetChangeKind)
-    (patch: TargetPatch)
+    (patches: TargetPatch list)
     : TargetChange =
-    let oldGoal = Some (toMilliunits shown.Goal)
+    let oldGoal = shown |> Option.map (fun t -> toMilliunits t.Goal)
+    let oldDate = shown |> Option.bind (fun t -> t.Date)
+    let apply (goal: int64 option, date: string option) (patch: TargetPatch) =
+        let date = if patch.Frequency.IsSome then None else date
+        let goal =
+            match patch.GoalTarget with
+            | Keep -> goal
+            | SetTo value -> Some value
+            | Clear -> None
+        let date =
+            match patch.TargetDate with
+            | Keep -> date
+            | SetTo value -> Some value
+            | Clear -> None
+        goal, date
     let newGoal, newDate =
         match kind with
         | TargetRemoved -> None, None
-        | TargetEdited ->
-            let goal =
-                match patch.GoalTarget with
-                | Keep -> oldGoal
-                | SetTo value -> Some value
-                | Clear -> None
-            let date =
-                match patch.TargetDate with
-                | Keep -> shown.Date
-                | SetTo value -> Some value
-                | Clear -> None
-            goal, date
+        | TargetEdited
+        | TargetCreated _
+        | TargetKindChanged _ -> patches |> List.fold apply (oldGoal, oldDate)
     { Id = Guid.NewGuid()
       OccurredAt = now
       Month = monthKey
@@ -406,16 +414,64 @@ let private targetChangeOf
       Kind = kind
       OldGoalTarget = oldGoal
       NewGoalTarget = newGoal
-      OldDate = shown.Date
+      OldDate = oldDate
       NewDate = newDate }
 
-/// Target ändern oder entfernen (ADR 0080). Außerhalb des laufenden Monats, bei einem Rhythmuswechsel und
-/// beim Anlegen wird vor allem anderen abgelehnt, ohne YNAB zu lesen. Sonst unter der Sperre je Kategorie:
-/// den Monat frisch lesen und das Target suchen. Weicht es vom gezeigten ab, gewinnt YNAB: nichts gesendet,
-/// nichts festgehalten (`TargetChangedInYnab`). Steht YNAB schon auf dem Wunsch, ebenso nichts. Sonst die
-/// Schritte in einer Transaktion festhalten, dann der Reihe nach senden, je Schritt ein Ergebnis. Kein
-/// Erneut-Senden: ein Fehlschlag kommt als innerer `Error` mit YNABs Meldung. Außen `Error`: der Monat
-/// war nicht lesbar. `currentMonth` ist der laufende Monat ("YYYY-MM-01").
+/// Wie die Schritte einer Target-Änderung ausgingen.
+type private StepsOutcome =
+    /// Alle geschrieben, mit YNABs Stand danach.
+    | AllWritten of Target option
+    /// Schritt 1 scheiterte, mit YNABs Grund.
+    | FirstFailed of reason: string
+    /// Schritt 1 geschrieben (Stand danach), ein späterer nicht, mit Grund.
+    | LaterNotWritten of after: Target option * reason: string
+
+/// Sendet die festgehaltenen Schritte der Reihe nach (ADR 0080 Punkt 4), je Schritt ein Ergebnis. Ein
+/// Schritt nach dem ersten geht nur hinaus, wenn der vorige geschrieben ist und YNABs Antwort zu ihm passt
+/// (`continueAfter`). Sonst wird er ungesendet als fehlgeschlagen festgehalten.
+let private sendSteps (port: YnabPort) (now: DateTime) (categoryId: Guid) (changeId: Guid) (patches: TargetPatch list) : Async<StepsOutcome> =
+    let rec go (step: int) (previous: (TargetPatch * Target option) option) (remaining: TargetPatch list) =
+        async {
+            match remaining, previous with
+            | [], Some (_, after) -> return AllWritten after
+            | [], None -> return AllWritten None
+            | patch :: rest, _ ->
+                let heldBack =
+                    match previous with
+                    | Some (before, after) when not (continueAfter after before) ->
+                        before.Frequency |> Option.map (unexpectedRhythmText after)
+                    | _ -> None
+                match heldBack, previous with
+                | Some reason, Some (_, after) ->
+                    do! appendTargetChangeStepResult changeId step now (Failed reason)
+                    for later, _ in rest |> List.mapi (fun i p -> step + 1 + i, p) do
+                        do! appendTargetChangeStepResult changeId later now (Failed reason)
+                    return LaterNotWritten (after, reason)
+                | _ ->
+                    match! port.SetTarget categoryId patch with
+                    | Ok after ->
+                        do! recordWrittenBestEffort changeId step now
+                        return! go (step + 1) (Some (patch, after)) rest
+                    | Error e ->
+                        let reason = ynabErrorText e
+                        do! appendTargetChangeStepResult changeId step now (Failed reason)
+                        for later, _ in rest |> List.mapi (fun i p -> step + 1 + i, p) do
+                            do! appendTargetChangeStepResult changeId later now (Failed TargetStepHeldBack)
+                        match previous with
+                        | None -> return FirstFailed reason
+                        | Some (_, before) -> return LaterNotWritten (before, reason)
+        }
+    go 1 None patches
+
+/// Target anlegen, ändern, die Art wechseln oder entfernen (ADR 0080, budgeting-xp46a). Außerhalb des
+/// laufenden Monats und wenn die Planung gegen den gezeigten Stand scheitert (Anlegen ohne Rhythmus) wird
+/// vor allem anderen abgelehnt, ohne YNAB zu lesen. Sonst unter der Sperre je Kategorie: den Monat frisch
+/// lesen und das Target suchen. Weicht es vom gezeigten ab, gewinnt YNAB: nichts gesendet, nichts
+/// festgehalten (`TargetChangedInYnab`). Steht YNAB schon auf dem Wunsch, ebenso nichts. Sonst die Änderung
+/// mit allen Schritten in einer Transaktion festhalten, dann der Reihe nach senden (`sendSteps`). Kein
+/// Erneut-Senden: scheitert Schritt 1, kommt ein innerer `Error` mit YNABs Meldung; scheitert das Datum in
+/// Schritt 2, kommt `TargetPartlyWritten` mit dem Stand nach Schritt 1, ein erneutes Speichern plant dann nur
+/// das Datum. Außen `Error`: der Monat war nicht lesbar. `currentMonth` ist der laufende Monat ("YYYY-MM-01").
 let changeTarget
     (port: YnabPort)
     (now: DateTime)
@@ -426,9 +482,9 @@ let changeTarget
     if not (targetEditAllowed (monthKind currentMonth monthKey)) then
         async { return Ok (Error TargetEditMonthText) }
     else
-        match targetChangeSupported request with
+        match planTargetWrite request.Shown request.Wanted with
         | Error message -> async { return Ok (Error message) }
-        | Ok () ->
+        | Ok patches ->
             TargetGuard.exclusive request.CategoryId (async {
                 match! port.FetchMonth monthKey with
                 | Error e -> return Error e
@@ -439,34 +495,23 @@ let changeTarget
                     | Some category when category.Target <> request.Shown ->
                         return Ok (Ok (TargetChangedInYnab category.Target))
                     | Some category ->
-                        match request.Shown with
-                        | None -> return Ok (Ok (TargetWritten None))
-                        | Some shown ->
-                            match planTargetWrite shown request.Wanted with
-                            | Error message -> return Ok (Error message)
-                            | Ok [] -> return Ok (Ok (TargetWritten category.Target))
-                            | Ok patches when patches |> List.exists targetPatchIsEmpty ->
-                                // BB lehnt einen leeren Patch selbst ab, bevor etwas festgehalten oder
-                                // gesendet wird; sonst käme er als "YNAB hat abgelehnt" zurück.
-                                return Ok (Error EmptyTargetPatchText)
-                            | Ok patches ->
-                                let kind = targetChangeKindOf request.Wanted
-                                let steps = patches |> List.map (fun p -> targetChangeOf now monthKey category shown kind p, p)
-                                do! appendTargetChanges (steps |> List.map fst)
-                                let outcome : Result<Target option, string> ref = ref (Ok category.Target)
-                                for change, patch in steps do
-                                    match outcome.Value with
-                                    | Error _ -> do! appendTargetChangeResult change.Id now (Failed TargetStepHeldBack)
-                                    | Ok _ ->
-                                        match! port.SetTarget category.Id patch with
-                                        | Ok after ->
-                                            do! recordWrittenBestEffort change.Id now
-                                            outcome.Value <- Ok after
-                                        | Error e ->
-                                            let reason = ynabErrorText e
-                                            do! appendTargetChangeResult change.Id now (Failed reason)
-                                            outcome.Value <- Error reason
-                                return Ok (outcome.Value |> Result.map TargetWritten)
+                        match patches with
+                        | [] -> return Ok (Ok (TargetWritten category.Target))
+                        | _ when patches |> List.exists targetPatchIsEmpty ->
+                            // BB lehnt einen leeren Patch selbst ab, bevor etwas festgehalten oder
+                            // gesendet wird; sonst käme er als "YNAB hat abgelehnt" zurück.
+                            return Ok (Error EmptyTargetPatchText)
+                        | first :: _ ->
+                            let kind = targetChangeKindOf request.Shown request.Wanted first
+                            let change = targetChangeOf now monthKey category request.Shown kind patches
+                            do! appendTargetChanges [ change ]
+                            match! sendSteps port now category.Id change.Id patches with
+                            | AllWritten after -> return Ok (Ok (TargetWritten after))
+                            | FirstFailed reason -> return Ok (Error reason)
+                            | LaterNotWritten (after, reason) ->
+                                let date = change.NewDate |> Option.defaultValue ""
+                                let created = request.Shown.IsNone
+                                return Ok (Ok (TargetPartlyWritten (after, targetDateNotSetText created date reason)))
             })
 
 // ============================================

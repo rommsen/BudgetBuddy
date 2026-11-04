@@ -72,6 +72,20 @@ let private statusFromText (status: string) (reason: string) : LineOutcome optio
         | "changed-in-ynab" -> Some ChangedInYnab
         | other -> failwith $"Unbekannter Ergebnis-Status: {other}"
 
+/// Ergänzt die Spalten aus budgeting-xp46a an einer Datenbank aus budgeting-k8wq3: den Rhythmus beim
+/// Anlegen und beim Wechsel der Art (`target_changes.new_frequency`) und den Schritt je Ergebnis
+/// (`target_change_results.step`, bei alten Zeilen leer, gemeint ist Schritt 1). SQLite kennt kein
+/// "ADD COLUMN IF NOT EXISTS", eine schon vorhandene Spalte ist kein Fehler. Nimmt die Verbindung als
+/// Parameter, damit ein Test sie an einer eigenen Datenbank prüft.
+let migrateTargetChangeColumns (conn: SqliteConnection) =
+    for sql in
+        [ "ALTER TABLE target_changes ADD COLUMN new_frequency TEXT"
+          "ALTER TABLE target_change_results ADD COLUMN step INTEGER" ] do
+        try
+            conn.Execute(sql) |> ignore
+        with :? SqliteException as ex when ex.Message.Contains "duplicate column name" ->
+            ()
+
 /// Legt die Tabellen an (`CREATE ... IF NOT EXISTS`, wiederholbar). Die Trigger machen alle
 /// Tabellen append-only, auch `target_pause_events` (budgeting-t6p8z, ADR 0079) und die Target-Änderungen
 /// (budgeting-k8wq3, ADR 0080). Läuft beim Start hinter `Ledger.Persistence.initializeLedgerSchema`.
@@ -152,6 +166,7 @@ let initializeBudgetingSchema () =
         """
     )
     |> ignore
+    migrateTargetChangeColumns conn
 
 /// Hält alle Bewegungen einer Anwendung in einer Transaktion fest. Entweder sind alle
 /// da oder keine; erst danach darf der erste Push nach YNAB gehen (ADR 0050, Punkt 1).
@@ -478,8 +493,8 @@ let private orDbNull (value: 'a option) : obj =
     | Some v -> box v
     | None -> null
 
-/// Hält die Schritte einer Target-Änderung in einer Transaktion fest (ADR 0080 Punkt 4). Erst danach
-/// darf der PATCH hinausgehen.
+/// Hält Target-Änderungen in einer Transaktion fest (ADR 0080 Punkt 4). Erst danach darf der PATCH
+/// hinausgehen. Eine Änderung mit zwei Schritten ist eine Zeile, die Ergebnisse tragen den Schritt.
 let appendTargetChanges (changes: TargetChange list) : Async<unit> =
     async {
         use conn = Core.getConnection ()
@@ -488,15 +503,16 @@ let appendTargetChanges (changes: TargetChange list) : Async<unit> =
         for c in changes do
             conn.Execute(
                 "INSERT INTO target_changes (id, occurred_at, month, category_id, category_name, change_kind, \
-                    old_goal_target, new_goal_target, old_date, new_date) \
+                    old_goal_target, new_goal_target, old_date, new_date, new_frequency) \
                  VALUES (@id, @occurred_at, @month, @category_id, @category_name, @change_kind, \
-                    @old_goal_target, @new_goal_target, @old_date, @new_date)",
+                    @old_goal_target, @new_goal_target, @old_date, @new_date, @new_frequency)",
                 {| id = string c.Id
                    occurred_at = dateToText c.OccurredAt
                    month = c.Month
                    category_id = string c.CategoryId
                    category_name = c.CategoryName
-                   change_kind = targetChangeKindText c.Kind
+                   change_kind = fst (targetChangeKindText c.Kind)
+                   new_frequency = orDbNull (snd (targetChangeKindText c.Kind))
                    old_goal_target = orDbNull c.OldGoalTarget
                    new_goal_target = orDbNull c.NewGoalTarget
                    old_date = orDbNull c.OldDate
@@ -507,17 +523,23 @@ let appendTargetChanges (changes: TargetChange list) : Async<unit> =
         tx.Commit()
     }
 
-/// Hängt ein Ergebnis an eine Target-Änderung an. Frühere Ergebnisse bleiben stehen.
-let appendTargetChangeResult (changeId: Guid) (at: DateTime) (outcome: LineOutcome) : Async<unit> =
+/// Hängt das Ergebnis eines Schritts (1 oder 2) an eine Target-Änderung an. Frühere Ergebnisse bleiben
+/// stehen, der Stand der Änderung ist das jüngste.
+let appendTargetChangeStepResult (changeId: Guid) (step: int) (at: DateTime) (outcome: LineOutcome) : Async<unit> =
     async {
         let status, reason = statusToText outcome
         use conn = Core.getConnection ()
         conn.Execute(
-            "INSERT INTO target_change_results (change_id, occurred_at, status, reason) VALUES (@change_id, @occurred_at, @status, @reason)",
-            {| change_id = string changeId; occurred_at = dateToText at; status = status; reason = reason |}
+            "INSERT INTO target_change_results (change_id, occurred_at, status, reason, step) \
+             VALUES (@change_id, @occurred_at, @status, @reason, @step)",
+            {| change_id = string changeId; occurred_at = dateToText at; status = status; reason = reason; step = step |}
         )
         |> ignore
     }
+
+/// Das Ergebnis einer Änderung mit einem Schritt.
+let appendTargetChangeResult (changeId: Guid) (at: DateTime) (outcome: LineOutcome) : Async<unit> =
+    appendTargetChangeStepResult changeId 1 at outcome
 
 [<CLIMutable>]
 type private TargetChangeRow = {
@@ -531,6 +553,7 @@ type private TargetChangeRow = {
     new_goal_target: int64 option
     old_date: string option
     new_date: string option
+    new_frequency: string option
     status: string
     reason: string
 }
@@ -540,7 +563,7 @@ type private TargetChangeRow = {
 let queryTargetChanges (conn: SqliteConnection) (categoryId: Guid) (month: string) : HistoryTargetChange list =
     conn.Query<TargetChangeRow>(
         "SELECT c.id, c.occurred_at, c.month, c.category_id, c.category_name, c.change_kind, \
-                c.old_goal_target, c.new_goal_target, c.old_date, c.new_date, r.status, r.reason \
+                c.old_goal_target, c.new_goal_target, c.old_date, c.new_date, c.new_frequency, r.status, r.reason \
          FROM target_changes c \
          LEFT JOIN target_change_results r \
            ON r.sequence = (SELECT MAX(sequence) FROM target_change_results WHERE change_id = c.id) \
@@ -550,7 +573,7 @@ let queryTargetChanges (conn: SqliteConnection) (categoryId: Guid) (month: strin
     )
     |> Seq.map (fun r ->
         let kind =
-            match targetChangeKindOfText r.change_kind with
+            match targetChangeKindOfText r.change_kind r.new_frequency with
             | Ok k -> k
             | Error message -> failwith message
         { ChangeId = Guid.Parse r.id

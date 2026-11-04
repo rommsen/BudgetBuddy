@@ -1,8 +1,9 @@
 // scripts/target-change.test.mjs
 //
-// Wächter für `budgeting-k8wq3`: Target ändern im Tab Target. Der Hauptablauf gegen eine gemockte
-// BudgetApi und, was nur der Browser messen kann: "Target speichern" liegt im 500-px-Sheet ohne Scrollen
-// im Bild. Die Regeln selbst liegen in `src/Tests/TargetChangeClientTests.fs`.
+// Wächter für `budgeting-k8wq3` und `budgeting-xp46a`: Target ändern und anlegen im Tab Target. Die
+// Hauptabläufe gegen eine gemockte BudgetApi und, was nur der Browser messen kann: "Target speichern",
+// "Target anlegen" und die Warnung vor dem Wechsel der Art liegen im 500-px-Sheet ohne Scrollen im Bild.
+// Die Regeln selbst liegen in `src/Tests/TargetChangeClientTests.fs`.
 //
 // Ausführen: node --test scripts/target-change.test.mjs
 // (Teil von `npm run test:scripts`.)
@@ -35,18 +36,28 @@ const monthFixture = (key, goal) => ({
     {
       Name: "Rücklagen k8wq3",
       Categories: [
-        { Id: guid(1), Name: "Urlaub k8wq3", Assigned: eur(0), Activity: eur(0), Available: eur(0), Underfunded: eur(goal), Target: target(goal), Pause: null },
+        {
+          Id: guid(1),
+          Name: "Urlaub k8wq3",
+          Assigned: eur(0),
+          Activity: eur(0),
+          Available: eur(0),
+          Underfunded: goal === null ? null : eur(goal),
+          Target: goal === null ? null : target(goal),
+          Pause: null,
+        },
       ],
     },
   ],
 });
 
-async function openPage(width, height) {
+/// `initialGoal = null`: die Kategorie hat kein Target (budgeting-xp46a).
+async function openPage(width, height, initialGoal = 50) {
   const context = await browser.newContext({ viewport: { width, height }, hasTouch: width < 768 });
   const page = await context.newPage();
   page.setDefaultTimeout(30000);
   const calls = { change: [] };
-  let goal = 50;
+  let goal = initialGoal;
   const json = (route, body) => route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
   await page.route("**/api/**", (route) =>
     route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"not mocked in this test"}' })
@@ -61,8 +72,8 @@ async function openPage(width, height) {
   await page.route("**/api/BudgetApi/changeCategoryTarget", (route) => {
     const body = JSON.parse(route.request().postData() ?? "[]");
     calls.change.push(body);
-    goal = 60;
-    json(route, { Ok: { TargetWritten: target(60) } });
+    goal = initialGoal === null ? 50 : 60;
+    json(route, { Ok: { TargetWritten: target(goal) } });
   });
   await page.goto(`http://127.0.0.1:${frontendPort}/#/budget`, { waitUntil: "load" });
   await waitForPageLoaded(page, "/budget");
@@ -140,5 +151,51 @@ test("[fokus] Handy: Target entfernen öffnet die Rückfrage im Sheet, Abbrechen
     );
   } finally {
     await context.close();
+  }
+});
+
+test("[flow:target-anlegen] Handy: für eine Kategorie ohne Target 50 € monatlich anlegen", async () => {
+  const { context, page, calls } = await openPage(390, 844, null);
+  try {
+    await openTargetTab(page);
+    await sheet(page).locator('[data-testid="target-amount"] input').fill("50");
+    await sheet(page).getByRole("button", { name: "Target anlegen" }).click();
+    await until(page, () => calls.change.length === 1);
+    const [[month, request]] = calls.change;
+    assert.equal(month, "2026-11-01");
+    assert.equal(request.Shown, null);
+    assert.equal(String(request.Wanted.NewGoal.Amount), "50");
+    assert.deepEqual(request.Wanted.NewRhythm, { SetRhythm: "Monthly" });
+    await sheet(page).getByRole("button", { name: "Target speichern" }).waitFor();
+  } finally {
+    await context.close();
+  }
+});
+
+test("[layout] Handy: Target anlegen und die Warnung vor dem Wechsel der Art liegen im 500-px-Sheet ohne Scrollen im Bild", async () => {
+  const inView = async (page, locator, what) => {
+    const box = await locator.boundingBox();
+    const body = await sheet(page).locator(".sheet-body").boundingBox();
+    assert.ok(box && body, `${what} und Sheet sind da`);
+    assert.ok(box.y + box.height <= body.y + body.height, `${what} im Bild: ${box.y + box.height} gegen ${body.y + body.height}`);
+  };
+  const created = await openPage(390, 844, null);
+  try {
+    await openTargetTab(created.page);
+    await inView(created.page, sheet(created.page).getByRole("button", { name: "Target anlegen" }), "Target anlegen");
+  } finally {
+    await created.context.close();
+  }
+  const changed = await openPage(390, 844);
+  try {
+    await openTargetTab(changed.page);
+    await sheet(changed.page).getByRole("button", { name: "Woche" }).click();
+    await sheet(changed.page).getByRole("button", { name: "Target speichern" }).click();
+    const dialog = sheet(changed.page).getByRole("alertdialog", { name: "Rhythmus wechseln?" });
+    await dialog.waitFor();
+    await inView(changed.page, dialog.getByRole("button", { name: "Wechseln" }), "Wechseln");
+    assert.equal(changed.calls.change.length, 0, "vor der Bestätigung nichts gesendet");
+  } finally {
+    await changed.context.close();
   }
 });

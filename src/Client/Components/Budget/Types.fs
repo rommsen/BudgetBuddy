@@ -157,6 +157,11 @@ type TargetForm = {
     /// "Target entfernen" wurde getippt, die Bestätigung steht offen.
     ConfirmingRemove: bool
     Notice: TargetNotice option
+    /// Der gewählte Rhythmus im `Segmented` (budgeting-xp46a). `None`, solange nichts gewählt wurde: dann gilt
+    /// der gelesene Rhythmus, beim Anlegen monatlich.
+    RhythmInput: TargetFrequency option
+    /// Ein Wechsel der Art mit Verlusten wurde gespeichert, die Warnung steht offen (budgeting-xp46a).
+    ConfirmingChange: bool
 }
 
 /// Der Aufruf Target ändern oder entfernen. Trägt Kategorie und Monat: die Antwort wirkt nur auf sie.
@@ -396,6 +401,12 @@ type Msg =
     | TargetAmountChanged of string
     /// Eingabe im Datumsfeld des Tabs Target.
     | TargetDateChanged of DateField.DateEntry
+    /// Rhythmus im `Segmented` gewählt (budgeting-xp46a).
+    | TargetRhythmChanged of TargetFrequency
+    /// Die Warnung vor dem Wechsel der Art bestätigt: jetzt senden.
+    | ConfirmTargetChange
+    /// Die Warnung abgebrochen: nichts gesendet, die Eingabe bleibt.
+    | CancelTargetChange
     /// Der Knopf "Target speichern".
     | SaveTarget
     /// Der Knopf "Target entfernen": die Bestätigung öffnen.

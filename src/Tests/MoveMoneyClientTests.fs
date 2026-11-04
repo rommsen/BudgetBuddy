@@ -212,12 +212,14 @@ let private leaveTests =
             | other -> failtest $"Warnung erwartet: {other}"
         }
         test "Während eines Monatswechsels nimmt das Feld keine Eingabe an, Schritte und Knöpfe tun nichts" {
-            let changing = fst (select "2026-12-01" onFood)
+            // Über `update`: seit budgeting-xp46a hat auch eine Kategorie ohne Target im laufenden Monat ein
+            // Target-Formular, das der Monatswechsel erst in `update` verwirft.
+            let changing = run [ SelectMonth "2026-12-01" ] onFood
             Expect.isTrue (monthChanging changing) "Vorbedingung"
             Expect.equal (run [ typed "+5"; AssignStepped 10m ] changing) changing "keine Eingabe"
             Expect.isTrue (assignFieldReadOnly changing) "readOnly, der Fokus bleibt"
             let red = { loaded with Month = Success month } |> selected trip
-            let redChanging = fst (select "2026-12-01" red)
+            let redChanging = run [ SelectMonth "2026-12-01" ] red
             Expect.equal (update CoverMissing redChanging |> fst) redChanging "kein Fehlbetrag"
         }
     ]
