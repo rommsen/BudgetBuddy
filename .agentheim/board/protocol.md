@@ -5,6 +5,39 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 21:39 -- Batch started: [budgeting-n7h3x, ledger-q4m7z]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-n7h3x - "Laufende Pause oder laufendes Target-Speichern einer anderen Kategorie sperrt den gleichen Knopf ohne sichtbaren Grund", ledger-q4m7z - "Quick-Add: BB-Validierungsfehler nicht als \"YNAB hat abgelehnt\" melden"
+**Parallel:** yes (2 workers)
+
+---
+
+## 2026-11-04 21:39 -- Modeling / Promoted: ledger-q4m7z - "Quick-Add: BB-Validierungsfehler nicht als \"YNAB hat abgelehnt\" melden"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-04 21:39 -- Modeling / Promoted: budgeting-n7h3x - "Laufende Pause oder laufendes Target-Speichern einer anderen Kategorie sperrt den gleichen Knopf ohne sichtbaren Grund"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-04 21:39 -- Modeling / Refined: budgeting-n7h3x - gleichartige Aufrufe
+
+**Type:** Modeling / Refine
+**BC:** budgeting
+**Status after:** todo
+**Summary:** Entschieden (Roman hat übertragen): globale Sperre bleibt, Satz mit Namen der Kategorie des laufenden Aufrufs. budgeting-m4v8t hängt an n7h3x (gleiche Datei Pause.fs).
+
+---
+
 ## 2026-11-04 21:07 -- Work session ended
 
 **Type:** Work / Session end

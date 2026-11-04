@@ -10,9 +10,9 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 12
+- **Backlog:** 11
 - **Todo:** 0
-- **Doing:** 0
+- **Doing:** 1
 - **Done:** 100
 <!-- task-counts:end -->
 
@@ -22,6 +22,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
+- **ledger-q4m7z** — "Quick-Add: BB-Validierungsfehler nicht als \"YNAB hat abgelehnt\" melden" (bug) — `doing/ledger-q4m7z-quick-add-bb-validierungsfehler-nicht-als-ynab-hat-abgelehnt.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
@@ -86,7 +87,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **ledger-q4m7z** — "Quick-Add: BB-Validierungsfehler nicht als \"YNAB hat abgelehnt\" melden" (bug) — `backlog/ledger-q4m7z-quick-add-bb-validierungsfehler-nicht-als-ynab-hat-abgelehnt.md`
 - **ledger-yfqxp** — "Ledger-README: Barabhebung nennt noch die Konto-Auswahl statt des Ziel-Pickers" (chore) — `backlog/ledger-yfqxp-ledger-readme-barabhebung-nennt-noch-die-konto-auswahl-statt.md`
 - **ledger-x2aan** — "Bot-Drossel: globaler Zähler vor der Token-Prüfung erlaubt es Fremden, Bob auszusperren" (decision) — `backlog/ledger-x2aan-bot-drossel-vor-anmeldung.md`
 - **ledger-z6c16** — "Bot-Commit, der mit einer Ausnahme endet, bleibt als fehlerhafte Aufgabe gespeichert und liefert bis zum Purge 500" (bug) — `backlog/ledger-z6c16-bot-fehlgeschlagener-commit-haengt.md`

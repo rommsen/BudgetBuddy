@@ -6,7 +6,7 @@ type: chore
 context: budgeting
 created: 2026-11-04
 completed:
-depends_on: []
+depends_on: [budgeting-n7h3x]
 blocks: []
 tags: [budget, pause, test]
 related_adrs: []

@@ -1,7 +1,7 @@
 ---
 id: ledger-q4m7z
 title: "Quick-Add: BB-Validierungsfehler nicht als \"YNAB hat abgelehnt\" melden"
-status: backlog
+status: doing
 type: bug
 context: ledger
 created: 2026-11-04

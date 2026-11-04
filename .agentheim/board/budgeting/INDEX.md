@@ -10,9 +10,9 @@ Catalog of this bounded context's tasks by status.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 9
+- **Backlog:** 8
 - **Todo:** 0
-- **Doing:** 0
+- **Doing:** 1
 - **Done:** 35
 <!-- task-counts:end -->
 
@@ -22,6 +22,7 @@ Catalog of this bounded context's tasks by status.
 
 ### Doing
 <!-- doing-list:start -->
+- **budgeting-n7h3x** — "Laufende Pause oder laufendes Target-Speichern einer anderen Kategorie sperrt den gleichen Knopf ohne sichtbaren Grund" (bug) — `doing/budgeting-n7h3x-laufende-pause-oder-laufendes-target-speichern-einer-anderen.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
@@ -70,7 +71,6 @@ prior-art matcher additionally checks `done-archive/` when present.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **budgeting-n7h3x** — "Laufende Pause oder laufendes Target-Speichern einer anderen Kategorie sperrt den gleichen Knopf ohne sichtbaren Grund" (bug) — `backlog/budgeting-n7h3x-laufende-pause-oder-laufendes-target-speichern-einer-anderen.md`
 - **budgeting-m4v8t** — "pauseNeedsReread: im erreichbaren Zustand gedeckte Bedingungen streichen oder benennen" (chore) — `backlog/budgeting-m4v8t-pauseneedsreread-im-erreichbaren-zustand-gedeckte-bedingunge.md`
 - **budgeting-h9c3w** — "Gesammelte Sollte- und Kann-Befunde der Reviews zu budgeting-c6vn4 und budgeting-g2ty9" (chore) — `backlog/budgeting-h9c3w-review-befunde-sammlung.md`
 - **budgeting-q8m2v** — "Allgemeine Historie begrenzen oder nach Monat laden" (feature) — `backlog/budgeting-q8m2v-allgemeine-historie-begrenzen-oder-nach-monat-laden.md`
