@@ -1,7 +1,7 @@
 ---
 id: budgeting-s5n2w
 title: "Spike: Lässt sich über die YNAB-API ein einmaliges Sparziel bis zu einem Datum anlegen und ändern?"
-status: backlog
+status: done
 type: spike
 context: budgeting
 created: 2026-11-04
@@ -29,9 +29,20 @@ Nur gegen das Budget "Test", abgesichert durch einen Wächter, der jede Schreibu
 **Stop-loss:** Wenn sich mitten im Spike zeigt, dass die Antwort schon bekannt und billig ist, wird sie festgehalten und der Spike endet dort.
 
 ## Acceptance criteria
-- [ ] Bericht unter `.agentheim/knowledge/research/` beantwortet die Fragen mit den beobachteten Antworten, ohne Tokens, Kontodaten oder echte Kategorienamen aus Romans Budget.
-- [ ] Der Bericht empfiehlt in einem Satz, ob BB ein einmaliges Sparziel anlegen kann und mit welchem Aufruf.
-- [ ] Das Budget Test ist nach dem Spike dokumentiert (was geändert blieb).
+- [x] Bericht unter `.agentheim/knowledge/research/` beantwortet die Fragen mit den beobachteten Antworten, ohne Tokens, Kontodaten oder echte Kategorienamen aus Romans Budget.
+- [x] Der Bericht empfiehlt in einem Satz, ob BB ein einmaliges Sparziel anlegen kann und mit welchem Aufruf.
+- [x] Das Budget Test ist nach dem Spike dokumentiert (was geändert blieb).
 
 ## Notes
 Folge je nach Ergebnis: eine Feature-Task "Sparziel anlegen" im Tab Target, oder die Frage aus Stufe 3, ob BB Targets selbst führt. Hängt mit budgeting-d7r4k (Datum je Rhythmus) zusammen.
+
+## Outcome
+Bericht: `.agentheim/knowledge/research/ynab-sparziel-bis-datum-2026-11-04.md`, 33 Aufrufe nur gegen das Budget Test.
+
+- Ein einmaliges Sparziel (cadence 0) entsteht über die API nicht. `goal_target` mit `goal_target_date` ohne `goal_frequency` auf einer Kategorie ohne Target ergibt in einem Aufruf NEED monatlich mit Datum (cadence 1), das jährliche Gegenstück cadence 13.
+- Bis zum Datum rechnet YNAB in beiden Formen die Sparrate: 18.000 € bis 2030-01-01 ergibt im November 2026 461,54 € Fehlbetrag und 39 Monate. Betrag ändern, Datum ändern und Datum entfernen behalten die Form.
+- TB nimmt Betrag und Datum an, bleibt aber TB und rechnet nichts mit dem Datum. TBD entsteht nicht.
+- Nebenbefund: ohne `goal_frequency` gehen Betrag und Datum in einem Aufruf, der 400er aus ADR 0072 Punkt 5 gilt nur zusammen mit `goal_frequency`.
+- Offen und nur mit Romans Auge zu klären: wie YNAB cadence 1 mit Datum benennt, was nach dem Datum passiert, ob ein in YNAB angelegtes Custom-Target ohne Wiederholung als cadence 0 kommt.
+
+Empfehlung: Sparziel in BB als "Jahr mit Datum" oder "Monat mit Datum" anlegen ist möglich und rechnet richtig, endet aber nicht von selbst. Ein echtes einmaliges Ziel braucht ein in YNAB angelegtes Target oder ein von BB geführtes Target (Stufe 3). Budget Test ist zurückgesetzt, nur `goal_creation_month` von Medical expenses blieb auf 2026-11.

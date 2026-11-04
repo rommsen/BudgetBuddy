@@ -10,10 +10,10 @@ Catalog of this bounded context's tasks by status.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 8
+- **Backlog:** 7
 - **Todo:** 0
 - **Doing:** 1
-- **Done:** 25
+- **Done:** 26
 <!-- task-counts:end -->
 
 ### Todo
@@ -27,6 +27,7 @@ Catalog of this bounded context's tasks by status.
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **budgeting-s5n2w** — "Spike: Lässt sich über die YNAB-API ein einmaliges Sparziel bis zu einem Datum anlegen und ändern?" (spike) — `done/budgeting-s5n2w-spike-sparziel-bis-datum.md`
 - **budgeting-c6vn4** — "Review-Korrekturen zur allgemeinen Historie und zu den Pause-Korrekturen: Suchfeld am Handy wieder breit, Ladeantwort mit Generation, Filter haftet, aufklappbare Zeile mit Chevron, Betrag rechts, BB-Lesefehler nicht als YNAB-Fehler, fehlende Tests" (refactor) — `done/budgeting-c6vn4-review-korrekturen-allgemeine-historie-und-pause.md`
 - **budgeting-xp46a** — "Target anlegen und Art wechseln im Tab Target: NEED monatlich, wöchentlich oder jährlich, optional mit Datum in zwei Aufrufen, Warnung vor dem Verlust von Tag und Datum" (feature) — `done/budgeting-xp46a-target-anlegen-art-wechseln.md`
 - **budgeting-h7q4v** — "Allgemeine Budget-Historie #/budget/history: alle Bewegungen, neueste zuerst, Filter nach Art, Targets-Durchlauf aufklappbar, Knopf Historie im Seitenkopf" (feature) — `done/budgeting-h7q4v-allgemeine-historie-ansicht.md`
@@ -68,7 +69,6 @@ prior-art matcher additionally checks `done-archive/` when present.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **budgeting-s5n2w** — "Spike: Lässt sich über die YNAB-API ein einmaliges Sparziel bis zu einem Datum anlegen und ändern?" (spike) — `backlog/budgeting-s5n2w-spike-sparziel-bis-datum.md`
 - **budgeting-d7r4k** — "Target-Datum je Rhythmus: kein Datum bei der Woche, beim Monat als \"ab\", beim Jahr als \"fällig am\"" (feature) — `backlog/budgeting-d7r4k-target-datum-je-rhythmus.md`
 - **budgeting-q8m2v** — "Allgemeine Historie begrenzen oder nach Monat laden" (feature) — `backlog/budgeting-q8m2v-allgemeine-historie-begrenzen-oder-nach-monat-laden.md`
 - **budgeting-w3p7n** — "Allgemeine Historie: Pausen und Target-Änderungen als eigene Arten?" (feature) — `backlog/budgeting-w3p7n-allgemeine-historie-pausen-und-target-nderungen-als-eigene-a.md`

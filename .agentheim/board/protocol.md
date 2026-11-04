@@ -5,6 +5,35 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 18:07 -- Task verified and completed: budgeting-s5n2w - "Spike: Lässt sich über die YNAB-API ein einmaliges Sparziel bis zu einem Datum anlegen und ändern?"
+
+**Type:** Work / Task completion
+**Task:** budgeting-s5n2w - "Spike: Lässt sich über die YNAB-API ein einmaliges Sparziel bis zu einem Datum anlegen und ändern?"
+**Summary:** Spike: einmaliges Sparziel über die API nicht anlegbar, monatlich oder jährlich mit Datum rechnet die Sparrate bis zum Datum richtig.
+**Duration:** 20 min
+**Verification:** SKIP (Spike ohne Produktionscode)
+**Files changed:** 1
+**Tests added:** 0
+**ADRs written:** none
+
+---
+
+## 2026-11-04 18:07 -- Batch started: [budgeting-s5n2w]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-s5n2w - "Spike: Lässt sich über die YNAB-API ein einmaliges Sparziel bis zu einem Datum anlegen und ändern?"
+**Parallel:** no (1 worker)
+
+---
+
+## 2026-11-04 18:07 -- Modeling / Promoted: budgeting-s5n2w - "Spike: Lässt sich über die YNAB-API ein einmaliges Sparziel bis zu einem Datum anlegen und ändern?"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-04 18:06 -- Modeling / Captured: budgeting-s5n2w - "Spike: Lässt sich über die YNAB-API ein einmaliges Sparziel bis zu einem Datum anlegen und ändern?"
 
 **Type:** Modeling / Capture
