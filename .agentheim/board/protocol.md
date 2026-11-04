@@ -5,6 +5,22 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 20:33 -- Batch started: [budgeting-f8w2n]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-f8w2n - "Target und Pause sperren sich nur je Kategorie mit sichtbarem Grund, Meldung ohne Target nach Schritt 1, Testlücken aus den Reviews zu c2t9w"
+**Parallel:** no (1 worker)
+
+---
+
+## 2026-11-04 20:33 -- Modeling / Promoted: budgeting-f8w2n - "Target und Pause sperren sich nur je Kategorie mit sichtbarem Grund, Meldung ohne Target nach Schritt 1, Testlücken aus den Reviews zu c2t9w"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-04 20:33 -- Task verified and completed: budgeting-d7r4k - "Target-Datum je Rhythmus: kein Datum bei der Woche, beim Monat und Jahr als \"fällig am\""
 
 **Type:** Work / Task completion

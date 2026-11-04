@@ -1,7 +1,7 @@
 ---
 id: budgeting-f8w2n
 title: "Target und Pause sperren sich nur je Kategorie mit sichtbarem Grund, Meldung ohne Target nach Schritt 1, Testlücken aus den Reviews zu c2t9w"
-status: backlog
+status: doing
 type: bug
 context: budgeting
 created: 2026-11-04
