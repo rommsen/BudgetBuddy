@@ -95,7 +95,7 @@ type YnabApi = {
 
     /// Creates a single manually entered transaction directly in YNAB (Quick Add).
     /// Purpose: Cash expenses entered on the phone without a bank sync session.
-    /// Uses the configured default budget + Quick Add account; validation errors surface as InvalidResponse.
+    /// Uses the configured default budget + Quick Add account; validation errors surface as RefusedByBb.
     addManualTransaction: ManualTransactionRequest -> Async<YnabResult<unit>>
 
     /// Fetches up to 5 deduplicated Quick-Add templates from the most recent

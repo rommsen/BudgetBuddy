@@ -675,6 +675,33 @@ let prefillTests =
     ]
 
 // ============================================
+// API-Adapter: Server.Api.ynabApi.addManualTransaction
+// ============================================
+
+// ledger-q4m7z: BBs eigene Validierungsfehler kamen als `InvalidResponse` zurück,
+// der Nutzer las "YNAB hat abgelehnt: ...", obwohl YNAB nie gefragt wurde.
+// Die Prüfung läuft vor jedem Lesen der Einstellungen, der Test berührt also weder
+// Datenbank noch YNAB.
+let adapterTests =
+    testList "addManualTransaction (API-Adapter)" [
+        test "Ein ungültiger Quick-Add wird als Ablehnung durch BB gemeldet und nennt alle Fehler" {
+            let request = { validRequest with Amount = 0m; Memo = Some (String('x', 501)) }
+            let expectedErrors =
+                match validateManualTransaction (DateTime.Today) request with
+                | Error errors -> errors
+                | Ok _ -> failtest "Vorbedingung: die Anfrage muss ungültig sein"
+            Expect.equal expectedErrors.Length 2 "Vorbedingung: zwei Fehler"
+            match Server.Api.ynabApi.addManualTransaction request |> Async.RunSynchronously with
+            | Error ((YnabError.RefusedByBb _) as e) ->
+                let text = ynabErrorText e
+                Expect.isFalse (text.Contains "YNAB hat abgelehnt") $"Nutzertext ohne YNAB-Ablehnung: {text}"
+                for error in expectedErrors do
+                    Expect.stringContains text error "nennt jeden Fehler"
+            | other -> failtest $"RefusedByBb erwartet: {other}"
+        }
+    ]
+
+// ============================================
 // All Tests
 // ============================================
 
@@ -691,4 +718,5 @@ let tests =
         parseAmountTests
         buildRequestTests
         reducerTests
+        adapterTests
     ]

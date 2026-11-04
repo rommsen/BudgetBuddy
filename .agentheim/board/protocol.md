@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 22:05 -- Task verified and completed: ledger-q4m7z - "Quick-Add: BB-Validierungsfehler nicht als \"YNAB hat abgelehnt\" melden"
+
+**Type:** Work / Task completion
+**Task:** ledger-q4m7z - "Quick-Add: BB-Validierungsfehler nicht als \"YNAB hat abgelehnt\" melden"
+**Summary:** Quick-Add meldet BB-Validierungsfehler als Ablehnung durch BB, nicht mehr als YNAB hat abgelehnt
+**Duration:** 35m
+**Verification:** PASS (iteration 1)
+**Files changed:** 3
+**Tests added:** 1
+**ADRs written:** none
+
+---
+
 ## 2026-11-04 21:59 -- Batch started: [budgeting-m4v8t]
 
 **Type:** Work / Batch start

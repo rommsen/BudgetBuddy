@@ -433,7 +433,8 @@ let ynabApi : YnabApi = {
     addManualTransaction = fun request -> async {
         match Validation.validateManualTransaction (liveBerlinDay ()) request with
         | Error errors ->
-            return Error (YnabError.InvalidResponse (String.concat ", " errors))
+            // BB lehnt selbst ab, YNAB wurde nicht gefragt (ledger-q4m7z).
+            return Error (YnabError.RefusedByBb (String.concat ", " errors))
         | Ok validRequest ->
             let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
             let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
