@@ -1,7 +1,7 @@
 ---
 id: budgeting-g2ty9
 title: "Review-Korrekturen im Target-Formular: Spinner am auslösenden Knopf, Fokus nach Abbrechen und Speichern bleibt, Datumsfeld nur lesend wie der Betrag, dazu die Befunde der Reviews zu Target anlegen"
-status: backlog
+status: todo
 type: refactor
 context: budgeting
 created: 2026-11-04
