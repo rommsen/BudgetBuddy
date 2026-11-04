@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 11:08 -- Modeling / Captured: design-system-k4f9t - "Fokus-Ring folgt der Form: Filter-Chips mit runder Kontur statt eckigem Rahmen, Tabs mit Ring nach innen statt abgeschnitten im Inspektor"
+
+**Type:** Modeling / Capture
+**BC:** design-system
+**Filed to:** backlog
+**Summary:** Fokus-Ring der Filter-Chips eckig um die Pille, Fokus-Ring der Tabs im Inspektor abgeschnitten
+
+---
+
 ## 2026-11-03 22:53 -- Work session ended
 
 **Type:** Work / Session end
