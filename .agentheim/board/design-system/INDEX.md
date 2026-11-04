@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 5
-- **Todo:** 0
+- **Backlog:** 4
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 41
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **design-system-k4f9t** — "Fokus-Ring folgt der Form: Filter-Chips mit runder Kontur statt eckigem Rahmen, Tabs mit Ring nach innen statt abgeschnitten im Inspektor" (bug) — `todo/design-system-k4f9t-fokus-ring-folgt-der-form-filter-chips-mit-runder-kontur-sta.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -59,7 +60,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **design-system-k4f9t** — "Fokus-Ring folgt der Form: Filter-Chips mit runder Kontur statt eckigem Rahmen, Tabs mit Ring nach innen statt abgeschnitten im Inspektor" (bug) — `backlog/design-system-k4f9t-fokus-ring-folgt-der-form-filter-chips-mit-runder-kontur-sta.md`
 - **design-system-p8kvn** — "Badge.neutral und setting-description liegen bei 12 px knapp unter 4,5:1 Kontrast" (bug) — `backlog/design-system-p8kvn-kontrast-text-secondary.md`
 - **design-system-fpem2** — "Wächter: .NET-Tests prüfen keine Tailwind-Größen per Klassenstring" (chore) — `backlog/design-system-fpem2-waechter-keine-tailwind-groessen-in-tests.md`
 - **design-system-taytp** — "Kategorie-Picker vereinheitlichen" (refactor) — `backlog/design-system-taytp-kategorie-picker-vereinheitlichen.md`

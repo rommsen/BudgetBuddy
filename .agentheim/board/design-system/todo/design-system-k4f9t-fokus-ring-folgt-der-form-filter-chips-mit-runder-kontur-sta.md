@@ -1,7 +1,7 @@
 ---
 id: design-system-k4f9t
 title: "Fokus-Ring folgt der Form: Filter-Chips mit runder Kontur statt eckigem Rahmen, Tabs mit Ring nach innen statt abgeschnitten im Inspektor"
-status: backlog
+status: todo
 type: bug
 context: design-system
 created: 2026-11-04

@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 11:08 -- Modeling / Promoted: design-system-k4f9t - "Fokus-Ring folgt der Form: Filter-Chips mit runder Kontur statt eckigem Rahmen, Tabs mit Ring nach innen statt abgeschnitten im Inspektor"
+
+**Type:** Modeling / Promote
+**BC:** design-system
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-04 11:08 -- Modeling / Captured: design-system-k4f9t - "Fokus-Ring folgt der Form: Filter-Chips mit runder Kontur statt eckigem Rahmen, Tabs mit Ring nach innen statt abgeschnitten im Inspektor"
 
 **Type:** Modeling / Capture
