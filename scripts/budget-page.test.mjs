@@ -341,14 +341,17 @@ test("[layout] Inspektor am PC: gleiche Höhe in allen vier Tabs, die gewählte 
   }
 });
 
-/// Der Fokus-Ring des fokussierten Elements: Rundung, Ringstil und der Kasten, den der Ring
-/// tatsächlich überdeckt (Rahmenkasten um Versatz und Breite erweitert).
+/// Der Fokus-Ring des fokussierten Elements: Rundung, Ringstil, Versatz und der Abstand des Knopfs
+/// zum Rand der Pille (`gap`, je Seite: Abstand zwischen der Außenkante des Knopfs und der
+/// Innenkante des Pillenrands, 0 heißt: der Ring liegt direkt auf dem Rand).
 const focusRing = (page) =>
   page.evaluate(() => {
     const el = document.activeElement;
     const style = getComputedStyle(el);
     const rect = el.getBoundingClientRect();
-    const reach = parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth);
+    const pill = el.parentElement;
+    const pillRect = pill.getBoundingClientRect();
+    const border = parseFloat(getComputedStyle(pill).borderTopWidth);
     return {
       text: el.textContent,
       focusVisible: el.matches(":focus-visible"),
@@ -356,45 +359,67 @@ const focusRing = (page) =>
       height: rect.height,
       outlineStyle: style.outlineStyle,
       outlineOffset: parseFloat(style.outlineOffset),
-      ring: { left: rect.left - reach, top: rect.top - reach, right: rect.right + reach, bottom: rect.bottom + reach },
+      gap: Math.max(
+        rect.left - pillRect.left - border,
+        rect.top - pillRect.top - border,
+        pillRect.bottom - border - rect.bottom
+      ),
     };
   });
 
-// Regression (design-system-k4f9t): der Ring am Chip war eckig, weil die Rundung am äußeren
-// Rahmen saß und der innere Knopf den Fokus bekam; am Tab lag er außen und wurde vom
-// overflow-hidden des Inspektors abgeschnitten.
-test("[layout] Fokus-Ring am PC: per Tastatur liegt er am Tab Geld innen und ganz im Inspektor, am Chip Alle in Pillenform, nach einem Mausklick fehlt er", async () => {
+/// Wie der Tab aussieht: Ring, Fläche, Schatten. Die Schriftfarbe bleibt außen vor, sie blendet
+/// über `transition-colors` ein.
+const tabLook = (tab) =>
+  tab.evaluate((el) => {
+    const style = getComputedStyle(el);
+    return { outline: style.outlineStyle, background: style.backgroundColor, shadow: style.boxShadow };
+  });
+
+// Regression (design-system-k4f9t, design-system-w7c2h): am Tab lag erst ein Ring außen, dann ein
+// Kasten innen, je nach Klickfolge sah der Tab verschieden aus. Am aktiven Chip standen der teal
+// Rand und der Ring mit Abstand als zwei Linien da.
+test("[layout] Fokus am PC: der Tab Geld sieht per Pfeiltaste aus wie per Seiten-Kürzel gewählt, am Chip Überzogen liegt der Ring auf dem Rand der Pille, nach einem Mausklick fehlt er", async () => {
   const { context, page } = await openPage(1440, 900, { fixture: filterFixture });
   try {
     const panel = page.locator('[data-testid="budget-inspector"]');
+    const geld = tabsOf(panel).first();
     await pickRow(page, "Essen");
     await panel.getByRole("heading", { name: "Essen" }).waitFor();
-    await tabsOf(panel).first().click();
-    assert.equal((await focusRing(page)).focusVisible, false, "nach dem Mausklick auf den Tab kein Ring");
 
+    await searchInput(page).click();
+    await page.keyboard.type("e");
+    await page.keyboard.press("ArrowRight");
+    await twoFrames(page);
+    assert.equal(await activeTab(panel), "Buchungen", "Rechts aus der Suche wechselt den Tab");
+    await page.keyboard.press("ArrowLeft");
+    await twoFrames(page);
+    assert.equal(await activeTab(panel), "Geld", "Links aus der Suche wechselt zurück");
+    const viaShortcut = await tabLook(geld);
+
+    await geld.click();
+    assert.equal((await focusRing(page)).focusVisible, false, "nach dem Mausklick auf den Tab kein Ring");
     await page.keyboard.press("ArrowRight");
     await page.waitForFunction(() => document.activeElement.textContent === "Buchungen");
     await page.keyboard.press("ArrowLeft");
     await page.waitForFunction(() => document.activeElement.textContent === "Geld");
-    const tabRing = await focusRing(page);
-    assert.equal(tabRing.focusVisible, true, "Tab: per Tastatur ist der Ring sichtbar");
-    assert.notEqual(tabRing.outlineStyle, "none", "Tab: der Ring wird gezeichnet");
-    assert.ok(tabRing.outlineOffset < 0, `Tab: der Ring liegt innen (outline-offset ${tabRing.outlineOffset} px)`);
-    const box = await panel.boundingBox();
-    assert.ok(
-      tabRing.ring.left >= box.x && tabRing.ring.top >= box.y && tabRing.ring.right <= box.x + box.width && tabRing.ring.bottom <= box.y + box.height,
-      `Tab: der Ring liegt ganz im Panel (${JSON.stringify(tabRing.ring)} in ${JSON.stringify(box)})`
-    );
+    assert.equal(await geld.evaluate((el) => el.matches(":focus-visible")), true, "Tab: der Fokus kommt von der Tastatur");
+    const viaArrow = await tabLook(geld);
+    assert.equal(viaArrow.outline, "none", "Tab: kein Ring, der Strich zeigt Auswahl und Fokus");
+    assert.deepEqual(viaArrow, viaShortcut, "Tab: per Pfeiltaste wie per Seiten-Kürzel, keine eigene Fläche");
 
     const chips = page.locator('[data-testid="budget-filter"]').getByRole("button");
-    await chips.nth(1).click();
+    await chips.nth(2).click();
     assert.equal((await focusRing(page)).focusVisible, false, "nach dem Mausklick auf den Chip kein Ring");
     await page.keyboard.press("Shift+Tab");
+    await page.keyboard.press("Tab");
     const chipRing = await focusRing(page);
-    assert.match(chipRing.text, /^Alle/, "Chip: der Fokus steht auf Alle");
+    assert.match(chipRing.text, /^Überzogen/, "Chip: der Fokus steht auf Überzogen");
+    assert.equal(await chips.nth(2).getAttribute("aria-pressed"), "true", "Chip: Überzogen ist aktiv");
     assert.equal(chipRing.focusVisible, true, "Chip: per Tastatur ist der Ring sichtbar");
     assert.notEqual(chipRing.outlineStyle, "none", "Chip: der Ring wird gezeichnet");
     assert.ok(chipRing.radius >= chipRing.height / 2, `Chip: Rundung wie die Pille (${chipRing.radius} px bei ${chipRing.height} px Höhe)`);
+    assert.equal(chipRing.outlineOffset, 0, "Chip: kein Abstand zwischen Knopf und Ring");
+    assert.ok(chipRing.gap <= 0.5, `Chip: der Ring liegt auf dem Rand der Pille, eine Linie (Abstand ${chipRing.gap} px)`);
   } finally {
     await context.close();
   }

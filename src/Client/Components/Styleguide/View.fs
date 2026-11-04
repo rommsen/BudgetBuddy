@@ -1502,7 +1502,7 @@ let private TabsDemo () =
     let tab label : Tabs.Tab =
         { Label = label; IsActive = (active = label); OnClick = fun () -> setActive label }
     section "23a. Tabs" [
-        note "Bereiche einer Sache in fester Höhe, erster Nutzer ist der Inspektor der Budget-Seite. styleguide.md §5."
+        note "Bereiche einer Sache in fester Höhe, erster Nutzer ist der Inspektor der Budget-Seite. Auswahl und Tastatur-Fokus zeigt derselbe teal Strich, ohne Ring und ohne Fläche: Pfeiltasten wählen sofort. styleguide.md §5."
         Html.div [
             prop.custom ("data-ds-card", "components-tabs")
             prop.custom ("data-ds-card-name", "Tabs")
@@ -1556,7 +1556,8 @@ let private chipBarSection =
         note "Filterleiste des Kassenbuchs: jeder Chip ist ein Rahmen mit zwei Knöpfen \
               (Auswahl öffnen, Filter entfernen mit ×). Aktive Chips in Teal, inaktive \
               gedämpft. \"Alle Filter löschen\" steht am Ende und erscheint nur bei aktivem \
-              Filter. ADR 0043, styleguide.md §7.3."
+              Filter. Der Tastatur-Fokus liegt als Ring direkt auf dem Rand der Pille, \
+              am aktiven Chip als eine dickere teal Linie. ADR 0043, styleguide.md §5 und §7.3."
         Html.div [
             prop.custom ("data-ds-card", "components-chipbar")
             prop.custom ("data-ds-card-name", "ChipBar")

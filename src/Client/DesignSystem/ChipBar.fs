@@ -20,17 +20,26 @@ type ChipProps = {
 }
 
 let private chipContainerClassName (isActive: bool) : string =
-    let baseClasses = "inline-flex items-center gap-1.5 shrink-0 rounded-full whitespace-nowrap px-1"
+    // Ohne eigenen Innenabstand: die Knöpfe füllen die Pille bis an den Rand, so liegt ihr
+    // Fokus-Ring (`.filter-chip`, `styles.css`) auf dem Rand statt mit Abstand daneben
+    // (design-system-w7c2h). Den Abstand zum Text tragen die Knöpfe selbst.
+    let baseClasses = "filter-chip inline-flex items-center gap-1.5 shrink-0 rounded-full whitespace-nowrap"
     if isActive then
         $"{baseClasses} bg-neon-teal/10 border border-neon-teal"
     else
         $"{baseClasses} {Backgrounds.dark} border {Borders.default'}"
 
-let private chipLabelClassName (isActive: bool) : string =
+/// Innenabstand des Labels: außen 14 px bis an den Rand der Pille. Folgt ein "×", bleiben rechts
+/// 10 px, den Rest bis zum Rand trägt das "×" (`pr-3.5`). So bleiben die Maße wie vor
+/// design-system-w7c2h, als die Pille selbst 4 px Innenabstand hatte.
+let private chipLabelPadding (hasRemove: bool) : string =
+    if hasRemove then "pl-3.5 pr-2.5" else "px-3.5"
+
+let private chipLabelClassName (isActive: bool) (hasRemove: bool) : string =
     // Die Mindesthöhe sitzt hier, am Knopf: nur er nimmt den Klick an. `rounded-full` auch hier,
     // nicht nur am Rahmen: der Fokus-Ring (`*:focus-visible`) folgt der Rundung des fokussierten
     // Knopfs, ohne sie stünde ein eckiger Ring um die Pille (design-system-k4f9t).
-    let baseClasses = $"inline-flex items-center rounded-full {TouchTargets.minHeight} px-2.5 md:py-1.5 text-xs font-semibold text-left"
+    let baseClasses = $"inline-flex items-center rounded-full {TouchTargets.minHeight} {chipLabelPadding hasRemove} md:py-1.5 text-xs font-semibold text-left"
     if isActive then $"{baseClasses} {Colors.neonTeal}" else $"{baseClasses} {Colors.textSecondary}"
 
 /// Ein einzelner Chip.
@@ -40,7 +49,7 @@ let chip (props: ChipProps) : ReactElement =
         prop.children [
             Html.button [
                 prop.type' "button"
-                prop.className (chipLabelClassName props.IsActive)
+                prop.className (chipLabelClassName props.IsActive (props.IsActive && props.OnRemove.IsSome))
                 prop.ariaPressed props.IsActive
                 prop.onClick (fun _ -> props.OnClick ())
                 prop.text props.Label
@@ -50,7 +59,7 @@ let chip (props: ChipProps) : ReactElement =
                 Html.button [
                     prop.type' "button"
                     prop.ariaLabel $"{props.Label} entfernen"
-                    prop.className $"inline-flex items-center self-stretch rounded-full pr-2.5 pl-0.5 {Colors.neonTeal} text-xs font-bold"
+                    prop.className $"inline-flex items-center self-stretch rounded-full pr-3.5 pl-0.5 {Colors.neonTeal} text-xs font-bold"
                     prop.onClick (fun e ->
                         e.stopPropagation ()
                         onRemove ())

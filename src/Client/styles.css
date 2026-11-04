@@ -259,10 +259,19 @@ nav a:focus-visible {
   border-radius: 0.5rem;
 }
 
-/* Tab focus (DesignSystem/Tabs.fs): der Ring liegt innen, sonst schneidet ein Container mit
-   overflow-hidden (Inspektor der Budget-Seite) ihn am Rand ab (design-system-k4f9t). */
+/* Tab focus (DesignSystem/Tabs.fs): kein Ring, keine Fläche. Pfeiltasten wählen sofort (roving
+   tabindex), der fokussierte Tab ist also immer der ausgewählte, und der teal Strich zeigt Auswahl
+   und Fokus zugleich. So sieht der Tab per Pfeiltaste aus wie per Klick oder Seiten-Kürzel
+   (design-system-w7c2h, ersetzt den inneren Ring aus design-system-k4f9t). */
 [role="tab"]:focus-visible {
-  outline-offset: -2px;
+  outline: none;
+}
+
+/* Filter-Chip focus (DesignSystem/ChipBar.fs): der Ring liegt ohne Abstand auf dem Rand der Pille,
+   am aktiven Chip wird so der teal Rand eine dickere Linie statt zwei (design-system-w7c2h).
+   Ungelayert, weil die Tailwind-Utilities gegen `*:focus-visible` verlieren. */
+.filter-chip button:focus-visible {
+  outline-offset: 0;
 }
 
 /* Skip to main content link (for screen readers) */

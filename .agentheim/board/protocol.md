@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 12:45 -- Task verified and completed: design-system-w7c2h - "Fokus ohne Kasten: Tabs zeigen den Tastatur-Fokus als helle Fläche, Filter-Chips als Ring direkt auf dem Rand"
+
+**Type:** Work / Task completion
+**Task:** design-system-w7c2h - "Fokus ohne Kasten: Tabs zeigen den Tastatur-Fokus als helle Fläche, Filter-Chips als Ring direkt auf dem Rand"
+**Summary:** Fokus ohne Kasten an Tabs und Filter-Chips
+**Duration:** 39m
+**Verification:** PASS (iteration 2)
+**Files changed:** 5
+**Tests added:** 0
+**ADRs written:** none
+
+---
+
 ## 2026-11-04 12:31 -- Modeling / Refined: budgeting-v6m3z - Tab Historie ruhig und ablesbar
 
 **Type:** Modeling / Refine
