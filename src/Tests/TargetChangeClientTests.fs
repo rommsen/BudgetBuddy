@@ -728,6 +728,93 @@ let private askWalkTests =
         }
     ]
 
+// ============================================
+// Datum je Rhythmus (budgeting-d7r4k, ADR 0072 Nachtrag 2026-11-04)
+// ============================================
+
+let private june = DateField.ValidDate (DateTime(2027, 6, 1))
+
+let private dateTests =
+    testList "Tab Target: Datum je Rhythmus" [
+        test "Bei wöchentlich ist kein Datumsfeld vorgesehen, bei monatlich und jährlich schon" {
+            let model = onHolidayWithout current
+            let form rhythm = { formOf model with RhythmInput = Some rhythm }
+            Expect.isTrue (targetDateShown None (formOf model)) "Anlegen monatlich (Vorgabe)"
+            Expect.isTrue (targetDateShown None (form Yearly)) "Anlegen jährlich"
+            Expect.isFalse (targetDateShown None (form Weekly)) "Anlegen wöchentlich"
+            Expect.isFalse (targetDateShown (Some (targetOf 50m)) (form Weekly)) "Wechsel auf wöchentlich"
+            let datedMonthly = { targetOf 50m with Date = Some "2027-06-01" }
+            Expect.isFalse (targetDateShown (Some datedMonthly) (form Weekly)) "Wechsel von monatlich mit Datum auf wöchentlich"
+        }
+        test "Ein gelesenes Datum eines wöchentlichen Targets bleibt sichtbar und lässt sich entfernen" {
+            let weekly = { targetOf 50m with Rhythm = Weeks 1; Date = Some "2027-06-01" }
+            let model = onTrip |> withTarget tripId current (Some weekly)
+            Expect.isTrue (targetDateShown (Some weekly) (formOf model)) "sichtbar"
+            Expect.isTrue (targetDateShown (Some weekly) { formOf model with RhythmInput = Some Weekly }) "auch mit gewähltem Rhythmus"
+            let removed = model |> step (TargetDateChanged DateField.EmptyDate)
+            Expect.isTrue (targetDateShown (Some weekly) (formOf removed)) "nach dem Leeren weiter sichtbar"
+            Expect.equal
+                (requestOf removed).Wanted
+                (Some { NewGoal = eur 50m; NewDate = None; NewRhythm = KeepRhythm })
+                "entfernt"
+        }
+        test "GIVEN Datum bei monatlich getippt WHEN Wechsel auf wöchentlich THEN das ungespeicherte Datum fällt aus dem Entwurf" {
+            let typed = onTrip |> step (TargetDateChanged june)
+            let weekly = typed |> step (TargetRhythmChanged Weekly)
+            Expect.isNone (formOf weekly).DateInput "Eingabe verworfen"
+            Expect.equal (targetDateValue (Some (targetOf 50m)) (formOf (weekly |> step (TargetRhythmChanged Monthly)))) None "zurück auf monatlich ohne Datum"
+            let datedMonthly = { targetOf 50m with Date = Some "2027-06-01"; Day = None }
+            let readDated = onTrip |> withTarget tripId current (Some datedMonthly) |> step (TargetRhythmChanged Weekly)
+            match targetFormState (Some datedMonthly) (formOf readDated) with
+            | FormChanged draft -> Expect.equal (draft.NewDate, draft.NewRhythm) (None, SetRhythm Weekly) "gelesenes Datum geht nicht mit"
+            | other -> failtest $"Entwurf erwartet: {other}"
+            // Ein Datum, das trotzdem ankommt (etwa ein Tipp vor dem Neuzeichnen), geht nie hinaus.
+            let late = typed |> step (TargetRhythmChanged Weekly) |> step (TargetDateChanged june)
+            match targetFormState (Some (targetOf 50m)) (formOf late) with
+            | FormChanged draft -> Expect.isNone draft.NewDate "kein Datum"
+            | other -> failtest $"Entwurf erwartet: {other}"
+        }
+        test "GIVEN Anlegen mit Datum bei monatlich WHEN wöchentlich angelegt THEN der Auftrag trägt kein Datum" {
+            let typed = onHolidayWithout current |> step (TargetAmountChanged "50") |> step (TargetDateChanged june)
+            Expect.equal (requestOf typed).Wanted (Some { NewGoal = eur 50m; NewDate = Some "2027-06-01"; NewRhythm = SetRhythm Monthly }) "monatlich mit Datum"
+            let weekly = typed |> step (TargetRhythmChanged Weekly)
+            let saved, cmd, _ = update SaveTarget weekly
+            Expect.isNonEmpty cmd "gesendet"
+            Expect.equal saved.TargetCall (TargetSaving (holidayId, current, SavingTarget)) "Aufruf läuft"
+            Expect.equal (requestOf weekly).Wanted (Some { NewGoal = eur 50m; NewDate = None; NewRhythm = SetRhythm Weekly }) "wöchentlich ohne Datum"
+            let lateDate = weekly |> step (TargetDateChanged june)
+            Expect.equal (requestOf lateDate).Wanted (Some { NewGoal = eur 50m; NewDate = None; NewRhythm = SetRhythm Weekly }) "auch ein spätes Datum geht nicht mit"
+        }
+        test "Das Feld heißt Fällig am bei monatlich und jährlich, sonst Datum" {
+            Expect.equal (targetDateLabel (Some Monthly)) "Fällig am" "monatlich"
+            Expect.equal (targetDateLabel (Some Yearly)) "Fällig am" "jährlich"
+            Expect.equal (targetDateLabel (Some Weekly)) "Datum" "wöchentlich"
+            Expect.equal (targetDateLabel None) "Datum" "nicht herstellbarer Rhythmus"
+            Expect.equal (targetDateAriaLabel (Some Monthly)) "Fällig am" "aria monatlich"
+            Expect.equal (targetDateAriaLabel (Some Weekly)) "Datum des Targets" "aria sonst"
+        }
+        test "Die lesende Anzeige heißt Fällig am bei einem monatlichen und jährlichen Target, sonst Datum" {
+            let dated = { targetOf 50m with Date = Some "2027-06-01" }
+            Expect.equal (targetReadDateLabel dated) "Fällig am" "monatlich"
+            Expect.equal (targetReadDateLabel { dated with Rhythm = Years 1 }) "Fällig am" "jährlich"
+            Expect.equal (targetReadDateLabel { dated with Rhythm = Weeks 1 }) "Datum" "wöchentlich"
+            Expect.equal (targetReadDateLabel { dated with Rhythm = Months 3 }) "Datum" "alle 3 Monate bleibt"
+            Expect.equal (targetReadDateLabel { dated with Kind = MonthlyFunding }) "Datum" "andere Art bleibt"
+        }
+        test "Unter dem Feld steht bei monatlich mit Datum, dass das Target danach jeden Monat weiterläuft" {
+            let model = onHolidayWithout current
+            let form = formOf model
+            Expect.isNone (targetDateHint None form) "monatlich ohne Datum"
+            let dated = { form with DateInput = Some june }
+            Expect.equal (targetDateHint None dated) (Some "Danach läuft das Target jeden Monat weiter.") "monatlich mit Datum"
+            Expect.isNone (targetDateHint None { dated with RhythmInput = Some Yearly }) "jährlich"
+            Expect.isNone (targetDateHint None { dated with RhythmInput = Some Weekly }) "wöchentlich"
+            let readDated = { targetOf 50m with Date = Some "2027-06-01" }
+            Expect.isSome (targetDateHint (Some readDated) form) "gelesenes Datum bei monatlich"
+            Expect.isNone (targetDateHint (Some readDated) { form with DateInput = Some DateField.EmptyDate }) "Datum geleert"
+        }
+    ]
+
 // budgeting-k8wq3
 [<Tests>]
 let tests =
@@ -736,4 +823,4 @@ let tests =
 // budgeting-xp46a, Korrekturen aus budgeting-g2ty9
 [<Tests>]
 let createAndChangeTests =
-    testList "Target anlegen und Art wechseln im Client" [ createTests; changeTests; warnWalkTests; reviewTests; askWalkTests ]
+    testList "Target anlegen und Art wechseln im Client" [ createTests; changeTests; warnWalkTests; reviewTests; askWalkTests; dateTests ]

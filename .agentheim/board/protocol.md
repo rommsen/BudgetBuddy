@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 20:33 -- Task verified and completed: budgeting-d7r4k - "Target-Datum je Rhythmus: kein Datum bei der Woche, beim Monat und Jahr als \"fällig am\""
+
+**Type:** Work / Task completion
+**Task:** budgeting-d7r4k - "Target-Datum je Rhythmus: kein Datum bei der Woche, beim Monat und Jahr als \"fällig am\""
+**Summary:** Target-Datum je Rhythmus: wöchentlich ohne Datumsfeld und ohne Datum im Auftrag, monatlich und jährlich als Fällig am, bei monatlich mit Datum der Hinweis, dass das Target weiterläuft
+**Duration:** 40 min
+**Verification:** PASS (iteration 1)
+**Files changed:** 3
+**Tests added:** 7
+**ADRs written:** none
+
+---
+
 ## 2026-11-04 20:17 -- Modeling / Captured: budgeting-f8w2n - "Target und Pause sperren sich nur je Kategorie mit sichtbarem Grund, Meldung ohne Target nach Schritt 1, Testlücken aus den Reviews zu c2t9w"
 
 **Type:** Modeling / Capture

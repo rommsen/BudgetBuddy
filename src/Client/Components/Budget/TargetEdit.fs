@@ -92,7 +92,7 @@ let targetDateValue (shown: Target option) (form: TargetForm) : System.DateTime 
     | None -> shown |> Option.bind (fun t -> t.Date) |> Option.bind (fun iso -> DateField.parseGermanDate (dateText iso))
 
 /// Der Rhythmus, den BB über `goal_frequency` herstellen kann, im gelesenen Target: nur NEED mit Abstand 1.
-let private readFrequency (target: Target) : TargetFrequency option =
+let targetReadFrequency (target: Target) : TargetFrequency option =
     if target.Kind <> Need then None
     else [ Monthly; Weekly; Yearly ] |> List.tryFind (fun f -> rhythmOfFrequency f = target.Rhythm)
 
@@ -101,8 +101,37 @@ let private readFrequency (target: Target) : TargetFrequency option =
 let targetRhythmValue (shown: Target option) (form: TargetForm) : TargetFrequency option =
     match form.RhythmInput, shown with
     | Some f, _ -> Some f
-    | None, Some target -> readFrequency target
+    | None, Some target -> targetReadFrequency target
     | None, None -> Some Monthly
+
+/// Steht das Datumsfeld im Formular (budgeting-d7r4k, ADR 0072 Nachtrag 2026-11-04)? Bei wöchentlich nicht:
+/// dort zählt der Wochentag, ein Datum hat keine belegte Wirkung. Nur ein gelesenes Datum eines
+/// wöchentlichen Targets bleibt sichtbar, damit es sich entfernen lässt.
+let targetDateShown (shown: Target option) (form: TargetForm) : bool =
+    match targetRhythmValue shown form with
+    | Some Weekly -> shown |> Option.exists (fun t -> t.Date.IsSome && targetReadFrequency t = Some Weekly)
+    | Some Monthly
+    | Some Yearly
+    | None -> true
+
+/// Die Beschriftung des Datums: "Fällig am" bei monatlich und jährlich, dort ist das Datum eine Fälligkeit,
+/// sonst "Datum" (budgeting-d7r4k).
+let targetDateLabel (frequency: TargetFrequency option) : string =
+    match frequency with
+    | Some Monthly
+    | Some Yearly -> "Fällig am"
+    | Some Weekly
+    | None -> "Datum"
+
+/// Der Name des Datumsfelds für Screenreader (`aria-label`): "Fällig am" wie die Beschriftung, sonst wie
+/// bisher "Datum des Targets".
+let targetDateAriaLabel (frequency: TargetFrequency option) : string =
+    match targetDateLabel frequency with
+    | "Datum" -> "Datum des Targets"
+    | label -> label
+
+/// Die Beschriftung des Datums in der lesenden Anzeige, nach dem gelesenen Rhythmus.
+let targetReadDateLabel (target: Target) : string = targetDateLabel (targetReadFrequency target)
 
 /// Der Hinweis unter dem Betragsfeld, wenn die Eingabe nicht gilt (budgeting-r3wq8): negativ oder keine
 /// gültige Rechnung, beim Anlegen auch 0 € wie an der API-Grenze (budgeting-g2ty9, X8). `None`, wenn sie
@@ -117,6 +146,13 @@ let targetAmountHint (shown: Target option) (form: TargetForm) : string option =
         | Some 0m when shown.IsNone -> Some TargetCreateZeroText
         | Some _ -> None
 
+/// Der Satz unter dem Datumsfeld bei monatlich mit Datum: YNAB verteilt den Betrag bis zur Fälligkeit, danach
+/// läuft das Target weiter (budgeting-d7r4k, ADR 0072 Nachtrag 2026-11-04).
+let targetDateHint (shown: Target option) (form: TargetForm) : string option =
+    match targetRhythmValue shown form, targetDateValue shown form with
+    | Some Monthly, Some _ -> Some "Danach läuft das Target jeden Monat weiter."
+    | _ -> None
+
 /// Ist die Eingabe im Datumsfeld ungültig?
 let targetDateInvalid (form: TargetForm) : bool =
     match form.DateInput with
@@ -128,6 +164,14 @@ type TargetFormState =
     | FormInvalid
     | FormUnchanged
     | FormChanged of TargetDraft
+
+/// Ein Entwurf, der wöchentlich anlegt oder auf wöchentlich wechselt, trägt kein Datum: sonst ginge
+/// `goal_target_date` für ein wöchentliches Target hinaus (budgeting-d7r4k).
+let private withoutWeeklyDate (draft: TargetDraft) : TargetDraft =
+    match draft.NewRhythm with
+    | SetRhythm Weekly -> { draft with NewDate = None }
+    | SetRhythm _
+    | KeepRhythm -> draft
 
 /// Ohne Target ist das Formular erst geändert, wenn ein Betrag getippt ist; der Rhythmus ist dann immer
 /// gesetzt (`SetRhythm`, Vorgabe monatlich). Mit Target ist ein gewählter Rhythmus gleich dem gelesenen
@@ -145,7 +189,7 @@ let targetFormState (shown: Target option) (form: TargetForm) : TargetFormState 
         | None, _, Some _ -> FormUnchanged
         | Some _, Some amount, Some date when amount > 0m ->
             let rhythm = targetRhythmValue None form |> Option.defaultValue Monthly
-            FormChanged { NewGoal = { Amount = amount; Currency = TargetCurrency }; NewDate = date; NewRhythm = SetRhythm rhythm }
+            FormChanged (withoutWeeklyDate { NewGoal = { Amount = amount; Currency = TargetCurrency }; NewDate = date; NewRhythm = SetRhythm rhythm })
         | _ -> FormInvalid
     | Some target ->
         match targetAmountOf shown form, date with
@@ -155,6 +199,7 @@ let targetFormState (shown: Target option) (form: TargetForm) : TargetFormState 
                   NewDate = date
                   NewRhythm = match form.RhythmInput with Some f -> SetRhythm f | None -> KeepRhythm }
             let draft = if (targetKindChange target draft).IsNone then { draft with NewRhythm = KeepRhythm } else draft
+            let draft = withoutWeeklyDate draft
             if amount = target.Goal.Amount && date = target.Date && draft.NewRhythm = KeepRhythm then FormUnchanged
             else FormChanged draft
         | _ -> FormInvalid
@@ -229,9 +274,6 @@ let typeTargetAmount (text: string) (model: Model) : Model =
 let typeTargetDate (entry: DateField.DateEntry) (model: Model) : Model =
     typeInForm (fun f -> { f with DateInput = Some entry; Notice = None; ConfirmingChange = false }) model
 
-/// Rhythmus im `Segmented` gewählt, wie `typeTargetAmount`.
-let chooseTargetRhythm (frequency: TargetFrequency) (model: Model) : Model =
-    typeInForm (fun f -> { f with RhythmInput = Some frequency; Notice = None; ConfirmingChange = false }) model
 
 let private start
     (action: TargetAction)
@@ -289,6 +331,15 @@ let syncTargetForm (model: Model) : Model =
             model
     | _, Some (c, m) -> { model with TargetForm = Some (emptyForm c m) }
     | _, None -> { model with TargetForm = None }
+
+/// Rhythmus im `Segmented` gewählt, wie `typeTargetAmount`. Verschwindet dabei das Datumsfeld
+/// (`targetDateShown`, wöchentlich), fällt ein getipptes Datum weg (budgeting-d7r4k).
+let chooseTargetRhythm (frequency: TargetFrequency) (model: Model) : Model =
+    typeInForm
+        (fun f ->
+            let chosen = { f with RhythmInput = Some frequency; Notice = None; ConfirmingChange = false }
+            if targetDateShown (shownTarget model f.CategoryId) chosen then chosen else { chosen with DateInput = None })
+        model
 
 /// "Target speichern" oder "Target anlegen": ein Aufruf mit dem geladenen Target als `Shown`, nur bei
 /// Abweichung. Verlöre der Wechsel der Art etwas, öffnet erst die Warnung, gesendet wird nichts.

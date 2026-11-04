@@ -12,8 +12,8 @@ Catalog of this bounded context's tasks by status.
 <!-- task-counts:start -->
 - **Backlog:** 9
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 33
+- **Doing:** 0
+- **Done:** 34
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ Catalog of this bounded context's tasks by status.
 
 ### Doing
 <!-- doing-list:start -->
-- **budgeting-d7r4k** — "Target-Datum je Rhythmus: kein Datum bei der Woche, beim Monat und Jahr als \"fällig am\"" (feature) — `doing/budgeting-d7r4k-target-datum-je-rhythmus.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **budgeting-d7r4k** — "Target-Datum je Rhythmus: kein Datum bei der Woche, beim Monat und Jahr als \"fällig am\"" (feature) — `done/budgeting-d7r4k-target-datum-je-rhythmus.md`
 - **budgeting-r7h2q** — "[layout]-Test Historie-Knopf 48 px am Handy rundet nicht: 47,99999 px ließ ihn einmal rot werden" (chore) — `done/budgeting-r7h2q-layout-test-historie-knopf-48-px-am-handy-rundet-nicht-47-99.md`
 - **budgeting-c2t9w** — "Target-Formular: Tab-Wechsel schließt Rückfragen, Entfernen-Bestätigung schließt nach Neulesen, genaue Meldungen beim Teilergebnis und beim Anlegen außerhalb des Monats" (bug) — `done/budgeting-c2t9w-target-formular-rueckfragen-und-meldungen.md`
 - **budgeting-a3k7m** — "Budget-Kopf bei 1024 px in einer Zeile, Historie am Handy ohne abgeschnittene Kategorien und Beträge" (bug) — `done/budgeting-a3k7m-kopf-1024-und-historie-handy.md`

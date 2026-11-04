@@ -1,7 +1,7 @@
 ---
 id: budgeting-d7r4k
 title: "Target-Datum je Rhythmus: kein Datum bei der Woche, beim Monat und Jahr als \"fällig am\""
-status: doing
+status: done
 type: feature
 context: budgeting
 created: 2026-11-04
@@ -42,3 +42,17 @@ Entschieden (Roman hat die Entscheidung am 2026-11-04 übertragen, Nachtrag zu A
 
 ## Notes
 Hängt an budgeting-c2t9w (gleiche Dateien im Target-Formular). Spike-Ergebnis: `.agentheim/knowledge/research/ynab-sparziel-bis-datum-2026-11-04.md`. Ein Sparziel, das von selbst endet, kommt erst mit BB als führendem System.
+
+## Outcome
+
+Datum je Rhythmus nach dem Nachtrag zu ADR 0072 vom 2026-11-04, alles als reine Funktionen in `src/Client/Components/Budget/TargetEdit.fs`. Die View `src/Client/Components/Budget/TargetEditView.fs` ruft sie nur auf.
+
+- `targetDateShown`: bei wöchentlich steht kein Datumsfeld. Ausnahme ist ein gelesenes wöchentliches NEED-Target mit Datum: dort bleibt das Feld stehen, damit sich das Datum entfernen lässt.
+- `chooseTargetRhythm`: verschwindet das Feld durch die Wahl, fällt ein getipptes Datum (`DateInput`) weg.
+- `withoutWeeklyDate` in `targetFormState`: ein Entwurf mit `SetRhythm Weekly` (Anlegen oder echter Wechsel) trägt immer `NewDate = None`, auch wenn eine Datumseingabe nach dem Wechsel noch ankommt. Beim Wechsel von monatlich mit Datum auf wöchentlich nennt die Warnung dann wie bisher "Das Datum … geht verloren." (`LosesDate`).
+- `targetDateLabel` und `targetDateAriaLabel`: "Fällig am" bei monatlich und jährlich, sonst "Datum" (aria-label bleibt dort "Datum des Targets"). Die Aufgabe nennt "fällig am"; als Feldbeschriftung steht es groß wie die anderen Labels ("Rhythmus", "Betrag"). In der lesenden Anzeige setzt `ListRoles.groupHeader` den Text ohnehin in Versalien.
+- `targetReadDateLabel` (über das jetzt öffentliche `targetReadFrequency`): Beschriftung von `target-date-text` in vergangenen und künftigen Monaten. Alle n Monate und andere Arten als NEED bleiben bei "Datum".
+- `targetDateHint`: "Danach läuft das Target jeden Monat weiter." unter dem Feld (`ListRoles.secondary`, `data-testid="target-date-hint"`), nur bei monatlich mit Datum.
+- Die Historie bleibt unverändert. Keine DS-Änderung, `/styleguide` zeigt nichts Neues.
+
+Tests: neue Liste "Tab Target: Datum je Rhythmus" in `src/Tests/TargetChangeClientTests.fs` mit 7 Tests, darunter ein Client-`update`-Test: wöchentlich anlegen nach einem Datum bei monatlich sendet `NewDate = None`. Ohne den Fix sind zwei davon rot, geprüft. `./verify.sh` zeigt `VERIFY: PASS` (dotnet 3796, node 300), Log unter `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/78d1d4cc-38a9-4142-849d-286626b8b6e6/scratchpad/verify-budgeting-d7r4k.log`.

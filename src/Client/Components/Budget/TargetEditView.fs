@@ -46,7 +46,7 @@ let readOnlyTarget (model: Model) (category: BudgetCategory) (target: Target) =
     React.fragment [
         figure "target-goal" "Target" (targetText target)
         match target.Date with
-        | Some date -> figure "target-date-text" "Datum" (dateText date)
+        | Some date -> figure "target-date-text" (targetReadDateLabel target) (dateText date)
         | None -> ()
         refillFact target
         monthHint (targetMonthHint model category)
@@ -217,20 +217,32 @@ let editableTarget
             prop.className (if isPanel then "grid grid-cols-1 gap-3" else "grid grid-cols-2 gap-3")
             prop.children [
                 amountField model shown form dispatch
-                Input.groupSimple "Datum" (
-                    Html.div [
-                        prop.custom ("data-testid", "target-date")
-                        prop.children [
-                            DateField.view
-                                { Value = targetDateValue shown form
-                                  OnChange = TargetDateChanged >> dispatch
-                                  Invalid = targetDateInvalid form
-                                  Disabled = false
-                                  ReadOnly = targetFieldsLocked model
-                                  Label = "Datum des Targets" }
+                // Bei wöchentlich kein Datum, bei monatlich und jährlich "Fällig am" (budgeting-d7r4k).
+                if targetDateShown shown form then
+                    let label = targetDateLabel (targetRhythmValue shown form)
+                    Input.groupSimple label (
+                        Html.div [
+                            prop.custom ("data-testid", "target-date")
+                            prop.className "flex flex-col gap-1"
+                            prop.children [
+                                DateField.view
+                                    { Value = targetDateValue shown form
+                                      OnChange = TargetDateChanged >> dispatch
+                                      Invalid = targetDateInvalid form
+                                      Disabled = false
+                                      ReadOnly = targetFieldsLocked model
+                                      Label = targetDateAriaLabel (targetRhythmValue shown form) }
+                                match targetDateHint shown form with
+                                | Some text ->
+                                    Html.p [
+                                        prop.custom ("data-testid", "target-date-hint")
+                                        prop.className ListRoles.secondary
+                                        prop.text text
+                                    ]
+                                | None -> ()
+                            ]
                         ]
-                    ]
-                )
+                    )
             ]
         ]
         match shown with
