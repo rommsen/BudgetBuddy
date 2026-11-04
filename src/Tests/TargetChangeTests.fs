@@ -64,6 +64,11 @@ let private planTests =
             Expect.isEmpty (plan dated (Some (draft 50m (Some "2027-06-01")))) "gleich"
             Expect.isEmpty (plan need (Some (draft 50.000m None))) "50,000 ist 50"
         }
+        test "Ein Patch ohne gesetztes Feld ist leer, jeder mit einem Feld nicht" {
+            Expect.isTrue (Domain.targetPatchIsEmpty (patch Keep Keep)) "leer"
+            for p in [ patch (SetTo 1L) Keep; patch Clear Keep; patch Keep Clear; { patch Keep Keep with Frequency = Some Monthly } ] do
+                Expect.isFalse (Domain.targetPatchIsEmpty p) $"{p}"
+        }
         test "Kein Patch trägt goal_frequency" {
             for wanted in [ None; Some (draft 60m None); Some (draft 50m (Some "2027-01-01")); Some (draft 70m (Some "2027-01-01")) ] do
                 for p in plan need wanted do
@@ -159,6 +164,9 @@ let private ynabTests =
             Expect.equal text """{"category":{"goal_target":60000}}""" "exakter Body, Datum fehlt"
             Expect.equal (Decode.fromString (Decode.at [ "category"; "goal_target" ] Decode.int64) text) (Ok 60000L) "als Zahl"
         }
+        test "Die Obergrenze 1.000.000,00 € (1e9 Milliunits) geht als JSON-Zahl hinaus" {
+            Expect.equal (body (patch (SetTo 1000000000L) Keep)) """{"category":{"goal_target":1000000000}}""" "als Zahl"
+        }
         test "Clear ist null, Keep fehlt, das Datum steht als YYYY-MM-DD" {
             Expect.equal (body (patch Clear Keep)) """{"category":{"goal_target":null}}""" "entfernen"
             Expect.equal (body (patch Keep (SetTo "2027-06-01"))) """{"category":{"goal_target_date":"2027-06-01"}}""" "Datum"
@@ -179,6 +187,7 @@ let private ynabTests =
             let send url text = async { seen.Value <- (url, text); return 200, answer }
             let result = Server.YnabClient.setCategoryTargetWith send "bud" id1 (patch (SetTo 60000L) Keep) |> run
             Expect.stringEnds (fst seen.Value) $"/budgets/bud/categories/{id1}" "Pfad ohne Monat"
+            Expect.equal (snd seen.Value) """{"category":{"goal_target":60000}}""" "gesendeter Body"
             match result with
             | Ok (Some t) -> Expect.equal (t.Goal, t.Day, t.Kind) (eur 60m, Some 15, Need) "neuer Stand"
             | other -> failtest $"Target erwartet: {other}"
@@ -338,6 +347,27 @@ let private flowTests =
             Expect.equal (change f current (request k (Some fifty) (Some (draft 60m None)))) (Ok (Error expected)) "Error"
             Expect.equal (changeRows k) [ $"{current}|Geändert|50000|60000|failed|{expected}" ] "Ergebnis"
 
+        // budgeting-r3wq8, Bug: scheiterte das Anhängen des Ergebnisses nach einem Ok von YNAB, ging die
+        // Ausnahme durch Remoting, obwohl YNAB geschrieben hatte. Jetzt Best-Effort: geloggt, das YNAB-Ergebnis
+        // kommt zurück. Ein Trigger nur für diese Kategorie lässt das Anhängen scheitern.
+        testCase "GIVEN YNAB schreibt, das Ergebnis lässt sich nicht anhängen WHEN ändern THEN trotzdem geschrieben, die Zeile bleibt offen" <| fun () ->
+            let f, k = fakeWith (Some fifty)
+            let trigger = $"fail_result_{k:N}"
+            use conn = global.Persistence.getConnection ()
+            Dapper.SqlMapper.Execute(
+                conn,
+                $"CREATE TRIGGER {trigger} BEFORE INSERT ON target_change_results \
+                  WHEN NEW.change_id IN (SELECT id FROM target_changes WHERE category_id = '{k}') \
+                  BEGIN SELECT RAISE(ABORT, 'kaputt'); END;")
+            |> ignore
+            try
+                match change f current (request k (Some fifty) (Some (draft 60m None))) with
+                | Ok (Ok (TargetWritten (Some t))) -> Expect.equal t.Goal (eur 60m) "YNABs Ergebnis"
+                | other -> failtest $"geschrieben erwartet: {other}"
+                Expect.equal (changeRows k) [ $"{current}|Geändert|50000|60000|offen|" ] "festgehalten, ohne Ergebnis"
+            finally
+                Dapper.SqlMapper.Execute(conn, $"DROP TRIGGER {trigger}") |> ignore
+
         testCase "GIVEN YNAB steht inzwischen auf 55 €, gezeigt 50 € WHEN ändern THEN kein PATCH, keine Zeile, TargetChangedInYnab mit 55 €" <| fun () ->
             let f, k = fakeWith (Some (targetOf Need 55m None))
             Expect.equal
@@ -412,7 +442,12 @@ let private flowTests =
                 |> Async.StartAsTask
             holder.Wait()
             let blocked = changeTarget f.Port now current current (request a (Some fifty) (Some (draft 60m None))) |> Async.StartAsTask
-            let free = changeTarget f.Port now current current (request b (Some fifty) (Some (draft 60m None))) |> run
+            // Mit Zeitgrenze: eine globale Sperre macht den Test rot, statt ihn hängen zu lassen.
+            let freeTask = changeTarget f.Port now current current (request b (Some fifty) (Some (draft 60m None))) |> Async.StartAsTask
+            let finished = freeTask.Wait(TimeSpan.FromSeconds 10.0)
+            if not finished then release.Release() |> ignore
+            Expect.isTrue finished "b endet, obwohl a gesperrt ist"
+            let free = freeTask.Result
             Expect.equal free (Ok (Ok (TargetWritten (Some (targetOf Need 60m None))))) "b läuft"
             Expect.isFalse blocked.IsCompleted "a wartet auf seine Sperre"
             Expect.equal (f.Patches |> Seq.map fst |> List.ofSeq) [ b ] "nur b gesendet"
@@ -521,7 +556,10 @@ let private boundaryTests =
         | Ok () -> []
     testList "Target ändern: Grenze" [
         test "Ungültiger, vergangener und künftiger Monat werden abgelehnt" {
-            Expect.equal (errorsOf "kein-monat" (req (eur 1m) None)).Length 1 "ungültig"
+            Expect.equal
+                (errorsOf "kein-monat" (req (eur 1m) None))
+                [ "Ungültiger Monat: 'kein-monat'. Erwartet wird der Monatserste als JJJJ-MM-01." ]
+                "ungültig"
             Expect.equal (errorsOf "2026-10-01" (req (eur 1m) None)) [ TargetEditMonthText ] "vergangen"
             Expect.equal (errorsOf "2026-12-01" (req (eur 1m) None)) [ TargetEditMonthText ] "künftig"
             Expect.isOk (Server.Validation.validateTargetChange current current (req (eur 1m) None)) "laufend"
@@ -541,6 +579,7 @@ let private boundaryTests =
             Expect.stringContains (one (eur 1m) (Some "2027-02-30") |> String.concat "") "Datum" "kein Kalendertag"
             Expect.stringContains (one { Amount = 1m; Currency = "USD" } None |> String.concat "") "EUR" "Währung"
             Expect.isEmpty (one (eur 0m) (Some "2027-02-28")) "0 und ein echtes Datum gehen"
+            Expect.isEmpty (one (eur 1000000m) None) "1.000.000,00 € gehen genau noch"
         }
         test "Der Live-Anschluss liest Token und Budget für Target ändern aus den Settings" {
             // Ohne Budget endet der Weg vor dem Netz: die Meldung zeigt, dass das Token ankam.

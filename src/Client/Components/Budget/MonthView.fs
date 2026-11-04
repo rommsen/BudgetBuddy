@@ -18,6 +18,23 @@ open Client.DesignSystem.Tokens
 // Beträge
 // ============================================
 
+/// Ein Knopf darin nimmt dem Feld den Fokus nicht (ADR 0005 Punkt 2): der Fehlbetrag-Knopf und der
+/// Pause-Knopf im Modus Zuweisen. Die Schritte tragen das selbst.
+let keepsFocus (children: ReactElement list) =
+    Html.div [
+        prop.onMouseDown (fun e -> e.preventDefault ())
+        prop.children children
+    ]
+
+/// Die Klasse eines Betragsfelds, rot umrandet bei ungültiger Eingabe. Zugewiesen, Holen und Abgeben und
+/// das Target teilen sie.
+let amountFieldClass (invalid: bool) : string =
+    if invalid then "w-full input-amount input-invalid tabular-nums" else "w-full input-amount tabular-nums"
+
+/// Der Hinweis unter einem Betragsfeld mit ungültiger Eingabe.
+let invalidHint (text: string) =
+    Html.span [ prop.className $"{ListRoles.primarySize} {Colors.neonRed}"; prop.text text ]
+
 /// Ein Betrag in Listenschrift, neutral eingefärbt: Zugewiesen, Aktivität, Target und der neue
 /// Betrag der Vorschau sind keine Warnsignale, nur Verfügbar färbt ein Minus (`Money.available`).
 let plainAmount (m: Money) =

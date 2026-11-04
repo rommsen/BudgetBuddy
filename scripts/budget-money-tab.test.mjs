@@ -40,7 +40,8 @@ const monthFixture = (key) => ({
       Name: "Alltag c5w2n",
       Categories: [
         category(1, "Lebensmittel c5w2n", 900, 80),
-        category(2, "Rot c5w2n", 0, -12.3),
+        // Mit Target: der Pause-Knopf steht im Modus Zuweisen (budgeting-r3wq8).
+        { ...category(2, "Rot c5w2n", 0, -12.3), Target: { Goal: eur(20), Rhythm: { Months: 1 }, Kind: "Need", Date: null, NeedsWholeAmount: true, Day: null } },
         category(3, LONG, 10, 10),
       ],
     },
@@ -53,7 +54,7 @@ async function openPage(width, height) {
   const context = await browser.newContext({ viewport: { width, height }, hasTouch: width < 768 });
   const page = await context.newPage();
   page.setDefaultTimeout(30000);
-  const calls = { assign: [], move: [], recent: 0 };
+  const calls = { assign: [], move: [], recent: 0, pause: [] };
   const json = (route, body) => route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
   await page.route("**/api/**", (route) =>
     route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"not mocked in this test"}' })
@@ -73,6 +74,10 @@ async function openPage(width, height) {
     const body = JSON.parse(route.request().postData() ?? "[]");
     calls.assign.push(body);
     json(route, { Ok: emptyReport(body[0]) });
+  });
+  await page.route("**/api/BudgetApi/setTargetPause", (route) => {
+    calls.pause.push(JSON.parse(route.request().postData() ?? "[]"));
+    json(route, { Ok: "PausedInBb" });
   });
   await page.route("**/api/BudgetApi/moveMoney", (route) => {
     calls.move.push(JSON.parse(route.request().postData() ?? "[]"));
@@ -223,7 +228,7 @@ test("[layout] Handy mit offener Tastatur: das Sheet schrumpft, Feld und Verfüg
   }
 });
 
-test("[fokus] Handy: ein Tipp auf Schritt oder Fehlbetrag-Knopf lässt den Fokus im Feld, alles misst 48 px, die Schritte passen in 360 px", async () => {
+test("[fokus] Handy: ein Tipp auf Schritt, Fehlbetrag- oder Pause-Knopf lässt den Fokus im Feld, alles misst 48 px, die Schritte passen in 360 px", async () => {
   const { context, page, calls } = await openPage(360, 800);
   try {
     await row(page, "Rot c5w2n").click();
@@ -250,6 +255,10 @@ test("[fokus] Handy: ein Tipp auf Schritt oder Fehlbetrag-Knopf lässt den Fokus
     await page.locator('[data-testid="assign-missing"] button').tap();
     await until(page, () => calls.move.length === 1);
     assert.ok(await isFieldActive(page), "Knopf: der Fokus bleibt");
+
+    await page.locator('[data-testid="target-pause"] button').tap();
+    await until(page, () => calls.pause.length === 1);
+    assert.ok(await isFieldActive(page), "Pause-Knopf: der Fokus bleibt");
 
     await mode(page, "Holen").click();
     const amountSize = await page.locator('[data-testid="transfer-amount"] input').evaluate((el) => getComputedStyle(el).fontSize);

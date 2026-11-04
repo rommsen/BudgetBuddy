@@ -157,12 +157,15 @@ let integrationTests =
                     |> Option.defaultWith (fun () -> failtest "Im Budget Test ein Monats-Target mit Tag von Hand anlegen")
                 let before = category.Target.Value
 
-                /// Der Fehlbetrag der Kategorie im Vormonat; `None`, wenn der Monat nicht offen ist (404).
+                /// Der Fehlbetrag der Kategorie im Vormonat; `None`, wenn der Monat nicht offen ist (404) oder nicht
+                /// lesbar. Die Beobachtung färbt den Test nicht, ein Fehler wird nur gemeldet (budgeting-r3wq8).
                 let previousUnderfunded () =
                     match getMonth token budget previousMonth |> Async.RunSynchronously with
                     | Ok m -> Some (m.Categories |> List.tryFind (fun c -> c.Id = category.Id) |> Option.bind (fun c -> c.Underfunded))
                     | Error (YnabError.MonthNotOpen _) -> None
-                    | Error e -> failtest $"Vormonat nicht lesbar: {e}"
+                    | Error e ->
+                        printfn "Vormonat %s nicht lesbar, die Beobachtung entfällt: %s" previousMonth (ynabErrorText e)
+                        None
 
                 let previousBefore = previousUnderfunded ()
                 let patch : Shared.Budgeting.TargetPatch =
@@ -185,11 +188,15 @@ let integrationTests =
                     | Some old, Some now ->
                         printfn "Vormonat %s: goal_under_funded vorher %A, nachher %A" previousMonth old now
                         printfn "%s" (if old = now then "Vormonat unverändert" else "YNAB rechnet den Vormonat neu")
-                    | _ -> printfn "Vormonat %s nicht offen (404), die Beobachtung entfällt" previousMonth
+                    | _ -> printfn "Vormonat %s nicht offen oder nicht lesbar, die Beobachtung entfällt" previousMonth
                 finally
                     let restore : Shared.Budgeting.TargetPatch =
                         { patch with GoalTarget = Shared.Budgeting.SetTo (Shared.Budgeting.toMilliunits before.Goal) }
-                    setCategoryTarget token budget category.Id restore |> Async.RunSynchronously |> ignore
+                    // Ein gescheitertes Zurücksetzen färbt den Test nicht, es wird gemeldet: das Target im Budget Test
+                    // steht dann von Hand zurückzusetzen.
+                    match setCategoryTarget token budget category.Id restore |> Async.RunSynchronously with
+                    | Ok _ -> ()
+                    | Error e -> printfn "Target nicht zurückgesetzt, bitte im Budget Test von Hand: %s" (ynabErrorText e)
 
         testCase "can fetch budgets with real token" <| fun () ->
             if not (shouldRunIntegrationTests()) then

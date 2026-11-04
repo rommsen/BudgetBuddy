@@ -351,20 +351,25 @@ type MonthBar = {
 
 let private monthBarsClass = "month-bars relative flex flex-col gap-1"
 let private monthBarsListClass = "flex gap-1.5"
-/// Jeder Balken ist fokussierbar, Maus, Tipp und Tab-Taste wählen ihn. Die Wahl zeigen Wertzeile und
-/// hellerer Balken, ohne eigenen Fokus-Ring (styles.css, design-system-w7c2h).
-/// Ein vorgewählter Balken (`monthBarsChosen`) gilt als gewählt, solange kein anderer Maus oder Fokus hat.
+/// Die Spalte eines Balkens, gleich im Baustein und im Platzhalter.
+let private monthBarColumnClass = "flex flex-1 min-w-0 flex-col items-center gap-1"
+/// Das `li` ist ein reines Listenelement. Ein vorgewählter Balken (`monthBarsChosen`) gilt als gewählt,
+/// solange kein anderer Maus oder Fokus hat. `month-bar flex flex-1 min-w-0` ist die Basis.
 let private monthBarItemClass (chosen: bool) =
-    if chosen then "month-bar month-bar-chosen flex flex-1 min-w-0 flex-col items-center gap-1"
-    else "month-bar flex flex-1 min-w-0 flex-col items-center gap-1"
-let private monthBarPlaceholderItemClass = "flex flex-1 min-w-0 flex-col items-center gap-1"
+    let baseClass = "month-bar flex flex-1 min-w-0"
+    if chosen then $"{baseClass} month-bar-chosen" else baseClass
+/// Das innere Element trägt Fokus und Namen (budgeting-r3wq8). Maus, Tipp und Tab-Taste wählen den
+/// Balken. Die Wahl zeigen Wertzeile, Monatsname und hellerer Balken, ohne eigenen Fokus-Ring
+/// (styles.css, design-system-w7c2h).
+let private monthBarTargetClass = $"month-bar-target {monthBarColumnClass}"
+let private monthBarPlaceholderItemClass = monthBarColumnClass
 let private monthBarAreaClass = "flex h-16 w-full items-end"
 /// Der laufende Monat ist neutral gestrichelt, die vergangenen sind gefüllt.
 let private monthBarFillClass (running: bool) =
     if running then "month-bar-fill-running w-full rounded-t border border-dashed border-border-default bg-text-muted/10"
     else "month-bar-fill w-full rounded-t bg-text-muted/30"
 let private monthBarPlaceholderClass = "h-16 w-full rounded-t bg-surface-elevated animate-pulse"
-let private monthBarMonthClass = "h-4 font-mono text-xs font-normal text-text-muted whitespace-nowrap"
+let private monthBarMonthClass = "month-bar-month h-4 font-mono text-xs font-normal text-text-muted whitespace-nowrap"
 /// Der Betrag unter dem Balken, immer neutral. Auch ein Monat mit Erstattungsüberschuss ist kein Problem,
 /// er steht mit Plus da und nicht in Rot (budgeting-v6m3z, ADR 0075).
 let monthBarAmountClass = "h-4 font-mono text-xs tabular-nums whitespace-nowrap text-text-secondary"
@@ -374,9 +379,14 @@ let private monthBarStateClass = "h-4 text-xs text-text-muted whitespace-nowrap"
 /// Die Wertzeile über den Balken hält ihre Höhe, auch ohne Auswahl: nichts springt.
 let private monthBarValueRowClass = "h-4"
 /// Der Wert eines Balkens liegt über der ganzen Breite der Wertzeile und läuft so nie über den Rand.
-/// Sichtbar nur am gewählten Balken (styles.css).
+/// Sichtbar nur am gewählten Balken (styles.css), und nie Ziel eines Tipps.
 let private monthBarValueClass =
-    "month-bar-value absolute inset-x-0 top-0 h-4 truncate text-center text-xs tabular-nums text-text-secondary whitespace-nowrap"
+    "month-bar-value absolute inset-x-0 top-0 h-4 truncate text-center font-mono text-xs tabular-nums text-text-secondary whitespace-nowrap"
+
+/// Was der Screenreader je Balken vorliest: das `Label` mit Komma statt "·" (budgeting-r3wq8). Sichtbar
+/// bleibt "·".
+let monthBarAriaLabel (bar: MonthBar) : string =
+    bar.Label.Replace(" · ", ", ")
 
 /// Der Text unter dem laufenden Monat.
 [<Literal>]
@@ -385,34 +395,39 @@ let RunningMonthText = "läuft"
 let private monthBarItem (chosen: string option) (bar: MonthBar) =
     Html.li [
         prop.key bar.Key
-        prop.custom ("data-testid", "month-bar")
-        prop.role "listitem"
-        prop.tabIndex 0
-        prop.ariaLabel bar.Label
         prop.className (monthBarItemClass (chosen = Some bar.Key))
         prop.children [
-            Html.span [
-                prop.ariaHidden true
-                prop.custom ("data-testid", "month-bar-value")
-                prop.className monthBarValueClass
-                prop.text bar.Label
-            ]
             Html.div [
-                prop.ariaHidden true
-                prop.className monthBarAreaClass
+                prop.custom ("data-testid", "month-bar")
+                prop.role "img"
+                prop.tabIndex 0
+                prop.ariaLabel (monthBarAriaLabel bar)
+                prop.className monthBarTargetClass
                 prop.children [
+                    Html.span [
+                        prop.ariaHidden true
+                        prop.custom ("data-testid", "month-bar-value")
+                        prop.className monthBarValueClass
+                        prop.text bar.Label
+                    ]
                     Html.div [
-                        prop.className (monthBarFillClass bar.Running)
-                        prop.style [ style.height (length.percent (max bar.Percent 2)) ]
+                        prop.ariaHidden true
+                        prop.className monthBarAreaClass
+                        prop.children [
+                            Html.div [
+                                prop.className (monthBarFillClass bar.Running)
+                                prop.style [ style.height (length.percent (max bar.Percent 2)) ]
+                            ]
+                        ]
+                    ]
+                    Html.span [ prop.ariaHidden true; prop.className monthBarMonthClass; prop.text bar.MonthText ]
+                    Html.span [ prop.ariaHidden true; prop.className monthBarAmountClass; prop.text bar.AmountText ]
+                    Html.span [
+                        prop.ariaHidden true
+                        prop.className monthBarStateClass
+                        prop.text (if bar.Running then RunningMonthText else "")
                     ]
                 ]
-            ]
-            Html.span [ prop.ariaHidden true; prop.className monthBarMonthClass; prop.text bar.MonthText ]
-            Html.span [ prop.ariaHidden true; prop.className monthBarAmountClass; prop.text bar.AmountText ]
-            Html.span [
-                prop.ariaHidden true
-                prop.className monthBarStateClass
-                prop.text (if bar.Running then RunningMonthText else "")
             ]
         ]
     ]

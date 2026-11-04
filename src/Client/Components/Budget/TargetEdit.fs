@@ -76,6 +76,17 @@ let targetDateValue (target: Target) (form: TargetForm) : System.DateTime option
     | Some (DateField.InvalidDate _) -> None
     | None -> target.Date |> Option.bind (fun iso -> DateField.parseGermanDate (dateText iso))
 
+/// Der Hinweis unter dem Betragsfeld, wenn die Eingabe nicht gilt (budgeting-r3wq8): negativ oder keine
+/// gültige Rechnung. `None`, wenn sie gilt.
+let targetAmountHint (target: Target) (form: TargetForm) : string option =
+    match form.AmountInput with
+    | None -> None
+    | Some text ->
+        match AmountMath.evaluateAmount target.Goal.Amount text with
+        | None -> Some AmountMath.InvalidCalculationText
+        | Some value when value < 0m -> Some "Target darf nicht negativ sein"
+        | Some _ -> None
+
 /// Ist die Eingabe im Datumsfeld ungültig?
 let targetDateInvalid (form: TargetForm) : bool =
     match form.DateInput with
@@ -138,13 +149,21 @@ let private selectedEditable (model: Model) : (BudgetCategory * Target * TargetF
 let private updateForm (change: TargetForm -> TargetForm) (model: Model) : Model =
     { model with TargetForm = model.TargetForm |> Option.map change }
 
-/// Eingabe im Betragsfeld. Eine Meldung von vorher geht weg.
-let typeTargetAmount (text: string) (model: Model) : Model =
-    updateForm (fun f -> { f with AmountInput = Some text; Notice = None }) model
+/// Sind Betrags- und Datumsfeld gesperrt? Solange das eigene Speichern läuft: die Antwort setzt das
+/// Formular zurück, eine nachgetippte Eingabe ginge sonst still verloren (budgeting-r3wq8).
+let targetFieldsLocked (model: Model) : bool =
+    model.TargetForm |> Option.exists (fun f -> targetSavingFor model f.CategoryId)
 
-/// Eingabe im Datumsfeld.
+let private typeInForm (change: TargetForm -> TargetForm) (model: Model) : Model =
+    if targetFieldsLocked model then model else updateForm change model
+
+/// Eingabe im Betragsfeld. Eine Meldung von vorher geht weg. Während des eigenen Speicherns nichts.
+let typeTargetAmount (text: string) (model: Model) : Model =
+    typeInForm (fun f -> { f with AmountInput = Some text; Notice = None }) model
+
+/// Eingabe im Datumsfeld, wie `typeTargetAmount`.
 let typeTargetDate (entry: DateField.DateEntry) (model: Model) : Model =
-    updateForm (fun f -> { f with DateInput = Some entry; Notice = None }) model
+    typeInForm (fun f -> { f with DateInput = Some entry; Notice = None }) model
 
 let private start (wanted: Target -> TargetForm -> TargetDraft option option) (model: Model) : Model * (string * TargetChangeRequest) option =
     match selectedEditable model with
@@ -168,6 +187,11 @@ let startTargetSave (model: Model) : Model * (string * TargetChangeRequest) opti
             | FormInvalid
             | FormUnchanged -> None)
         model
+
+/// Ist "Target entfernen" gesperrt? Solange ein Aufruf läuft und solange die Bestätigung offen ist
+/// (budgeting-r3wq8): am PC liegt sie als Modal darüber.
+let removeTargetLocked (model: Model) (form: TargetForm) : bool =
+    targetBusy model || form.ConfirmingRemove
 
 /// "Target entfernen": die Bestätigung öffnen.
 let askRemoveTarget (model: Model) : Model =
@@ -194,6 +218,11 @@ let withTarget (categoryId: System.Guid) (month: string) (target: Target option)
 /// Gilt die Antwort der gezeigten Kategorie im dargestellten Monat?
 let targetAnswerShown (categoryId: System.Guid) (month: string) (model: Model) : bool =
     model.Selected |> Option.exists (fun s -> s.CategoryId = categoryId) && displayedMonth model = Some month
+
+/// Sieht man die Antwort im Formular? Nur, wenn sie gezeigt wird und der Tab Target offen ist. Sonst kommt
+/// eine Ablehnung als Toast (budgeting-r3wq8).
+let targetAnswerInTab (categoryId: System.Guid) (month: string) (model: Model) : bool =
+    targetAnswerShown categoryId month model && model.Tab = TargetTab
 
 /// Nimmt die Antwort ein. Sie wirkt nur auf ihre Kategorie und ihren Monat. Ergebnis: das Modell und ob der
 /// Monat neu zu lesen ist. Ein Fehler lässt Target und Eingabe stehen und zeigt die Meldung im Formular.
@@ -229,7 +258,8 @@ let targetRejectedAwayText (message: string) : string =
 /// Der Hinweis über dem Formular.
 let targetNoticeText (notice: TargetNotice) : string =
     match notice with
-    | TargetChangedNotice -> "Target wurde in YNAB geändert"
+    | TargetChangedNotice ->
+        "Target wurde inzwischen in YNAB geändert. Hier steht jetzt der Stand aus YNAB, deine Eingabe ist verworfen."
     | TargetRejectedNotice message -> message
 
 /// "Auffüllen bis" (F6), wenn YNAB `goal_needs_whole_amount = false` liefert.

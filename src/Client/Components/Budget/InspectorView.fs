@@ -269,8 +269,8 @@ let private moneyTab (model: Model) (month: BudgetMonth) (category: BudgetCatego
         ]
     ]
 
-/// Status mit Quelle der Pause, Fehlbetrag und der Pause-Knopf unter dem Target.
-let private targetStatus (model: Model) (category: BudgetCategory) (dispatch: Msg -> unit) =
+/// Status mit Quelle der Pause und Fehlbetrag unter dem Target.
+let private targetStatus (category: BudgetCategory) =
     React.fragment [
         match targetStatusText category with
         | Some status -> detailFigure "target-status" "Status" (Html.span [ prop.className ListRoles.secondary; prop.text status ])
@@ -278,12 +278,12 @@ let private targetStatus (model: Model) (category: BudgetCategory) (dispatch: Ms
         match targetUnderfunded category with
         | Some under -> detailFigure "target-underfunded" "Fehlbetrag" (detailAmount under)
         | None -> ()
-        pauseControlView model category dispatch
     ]
 
 /// Tab Target: im laufenden Monat das Formular (budgeting-k8wq3), sonst das Target als Text, dazu Status mit
 /// Quelle der Pause, Fehlbetrag und derselbe Pause-Knopf wie im Tab Geld.
 let private targetTab (model: Model) (category: BudgetCategory) (dispatch: Msg -> unit) =
+    let pause = Components.Budget.PauseView.pauseControlView Components.Budget.PauseView.PauseInTargetTab model category dispatch
     Html.div [
         prop.custom ("data-testid", "inspector-target")
         prop.className "flex flex-col gap-4 p-4"
@@ -291,11 +291,11 @@ let private targetTab (model: Model) (category: BudgetCategory) (dispatch: Msg -
             match Components.Budget.TargetEdit.targetTabMode model category with
             | Components.Budget.TargetEdit.NoTargetShown -> Html.p [ prop.className ListRoles.muted; prop.text "Kein Target" ]
             | Components.Budget.TargetEdit.TargetEditable (target, form) ->
-                Components.Budget.TargetEditView.editableTarget model category target form dispatch
-                targetStatus model category dispatch
+                Components.Budget.TargetEditView.editableTarget model category target form (targetStatus category) pause dispatch
             | Components.Budget.TargetEdit.TargetReadOnly target ->
                 Components.Budget.TargetEditView.readOnlyTarget target
-                targetStatus model category dispatch
+                targetStatus category
+                pause
         ]
     ]
 

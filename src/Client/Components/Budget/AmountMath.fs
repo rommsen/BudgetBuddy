@@ -6,6 +6,10 @@
 /// dafür nicht: es lehnt Vorzeichen ab und kennt keine Tausenderpunkte.
 module Components.Budget.AmountMath
 
+/// Der Hinweis unter einem Betragsfeld, dessen Eingabe keine gültige Rechnung ist.
+[<Literal>]
+let InvalidCalculationText = "Keine gültige Rechnung"
+
 /// Größter Betrag eines Ergebnisses, wie `MaxBudgetAmount` auf dem Server.
 let private maxAmount = 1000000m
 

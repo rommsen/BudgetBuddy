@@ -70,7 +70,7 @@ let private statusFromText (status: string) (reason: string) : LineOutcome optio
         | "written" -> Some Written
         | "failed" -> Some (Failed (if isNull reason then "" else reason))
         | "changed-in-ynab" -> Some ChangedInYnab
-        | other -> failwith $"Unbekannter Ergebnis-Status der Budget-Bewegung: {other}"
+        | other -> failwith $"Unbekannter Ergebnis-Status: {other}"
 
 /// Legt die Tabellen an (`CREATE ... IF NOT EXISTS`, wiederholbar). Die Trigger machen alle
 /// Tabellen append-only, auch `target_pause_events` (budgeting-t6p8z, ADR 0079) und die Target-Änderungen
@@ -365,15 +365,21 @@ type private PauseEventRow = {
     kind: string
 }
 
-/// Ein unbekannter Wert in `kind` wird gemeldet, nicht auf einen Standard gelegt.
-let private pauseKindOfRow (kind: string) : PauseKind =
-    match pauseKindOfText kind with
-    | Ok k -> k
-    | Error message -> failwith message
+/// Alle Zeilen oder der erste Fehler, in der Reihenfolge der Eingabe.
+let private collectRows (rows: Result<'T, string> list) : Result<'T list, string> =
+    List.foldBack
+        (fun row acc ->
+            match row, acc with
+            | Ok value, Ok values -> Ok (value :: values)
+            | Error message, _ -> Error message
+            | _, Error message -> Error message)
+        rows
+        (Ok [])
 
 /// Die Kategorien, deren Target in BB für den Monat pausiert ist: je Kategorie zählt das jüngste
-/// Ereignis. Eine Abfrage für alle Kategorien des Monats.
-let queryPausedCategories (conn: SqliteConnection) (month: string) : Set<Guid> =
+/// Ereignis nach `rowid`, wie in der Historie (budgeting-r3wq8). Eine Abfrage für alle Kategorien des
+/// Monats. Ein unbekannter Wert in `kind` wird gemeldet, nicht auf einen Standard gelegt.
+let queryPausedCategories (conn: SqliteConnection) (month: string) : Result<Set<Guid>, string> =
     conn.Query<PauseEventRow>(
         "SELECT e.id, e.occurred_at, e.month, e.category_id, e.category_name, e.kind \
          FROM target_pause_events e \
@@ -382,42 +388,69 @@ let queryPausedCategories (conn: SqliteConnection) (month: string) : Set<Guid> =
                           WHERE l.month = e.month AND l.category_id = e.category_id)",
         {| month = month |}
     )
-    |> Seq.filter (fun r -> pauseKindOfRow r.kind = Paused)
-    |> Seq.map (fun r -> Guid.Parse r.category_id)
-    |> Set.ofSeq
+    |> Seq.toList
+    |> List.map (fun r -> pauseKindOfText r.kind |> Result.map (fun kind -> kind, Guid.Parse r.category_id))
+    |> collectRows
+    |> Result.map (List.choose (fun (kind, id) -> if kind = Paused then Some id else None) >> Set.ofList)
 
-/// Die BB-Pausen des Monats, für `toBudgetMonth`.
-let loadPausedCategories (month: string) : Async<Set<Guid>> =
+/// Die Meldung, wenn die Pausen nicht lesbar sind. Die Ursache bleibt im Server-Log.
+[<Literal>]
+let PausesUnreadableText = "Pausen nicht lesbar"
+
+/// Die BB-Pausen des Monats, für `toBudgetMonth`. Ein Lesefehler oder eine unbekannte Art wird zu
+/// `Error PausesUnreadableText` (budgeting-r3wq8).
+let loadPausedCategories (month: string) : Async<Result<Set<Guid>, string>> =
     async {
-        use conn = Core.getConnection ()
-        return queryPausedCategories conn month
+        try
+            use conn = Core.getConnection ()
+            match queryPausedCategories conn month with
+            | Ok paused -> return Ok paused
+            | Error message ->
+                eprintfn "Pausen lesen gescheitert: %s" message
+                return Error PausesUnreadableText
+        with ex ->
+            eprintfn "Pausen lesen gescheitert: %s" ex.Message
+            return Error PausesUnreadableText
     }
 
-/// Die Pause-Ereignisse einer Kategorie im Monat für die Historie, neueste zuerst.
-let queryPauseEvents (conn: SqliteConnection) (categoryId: Guid) (month: string) : HistoryEntry list =
+/// Die Pause-Ereignisse einer Kategorie im Monat für die Historie, neueste zuerst nach `rowid`, wie der
+/// Stand (budgeting-r3wq8). Eine unbekannte Art wird gemeldet.
+let queryPauseEvents (conn: SqliteConnection) (categoryId: Guid) (month: string) : Result<HistoryEntry list, string> =
     conn.Query<PauseEventRow>(
         "SELECT id, occurred_at, month, category_id, category_name, kind FROM target_pause_events \
          WHERE category_id = @category_id AND month = @month \
-         ORDER BY occurred_at DESC, rowid DESC",
+         ORDER BY rowid DESC",
         {| category_id = string categoryId; month = month |}
     )
-    |> Seq.map (fun r ->
+    |> Seq.toList
+    |> List.map (fun r ->
         let pause =
             { EventId = Guid.Parse r.id
               OccurredAt = dateFromText r.occurred_at
               Month = r.month
               CategoryId = Guid.Parse r.category_id
               CategoryName = r.category_name }
-        match pauseKindOfRow r.kind with
-        | Paused -> TargetPaused pause
-        | Resumed -> PauseLifted pause)
-    |> Seq.toList
+        pauseKindOfText r.kind
+        |> Result.map (fun kind ->
+            match kind with
+            | Paused -> TargetPaused pause
+            | PauseKind.PauseLifted -> HistoryEntry.PauseLifted pause))
+    |> collectRows
 
-/// Die Pause-Ereignisse für die Historie. Liest nur die Datenbank, kein YNAB.
-let loadPauseEvents (categoryId: Guid) (month: string) : Async<HistoryEntry list> =
+/// Die Pause-Ereignisse für die Historie. Liest nur die Datenbank, kein YNAB. Ein Lesefehler kommt als
+/// `Error` mit Text.
+let loadPauseEvents (categoryId: Guid) (month: string) : Async<Result<HistoryEntry list, string>> =
     async {
-        use conn = Core.getConnection ()
-        return queryPauseEvents conn categoryId month
+        try
+            use conn = Core.getConnection ()
+            match queryPauseEvents conn categoryId month with
+            | Ok events -> return Ok events
+            | Error message ->
+                eprintfn "Pause-Ereignisse lesen gescheitert: %s" message
+                return Error "Pause-Ereignisse nicht lesbar"
+        with ex ->
+            eprintfn "Pause-Ereignisse lesen gescheitert: %s" ex.Message
+            return Error "Pause-Ereignisse nicht lesbar"
     }
 
 // ============================================

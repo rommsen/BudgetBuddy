@@ -7,11 +7,10 @@ open Types
 open Components.Budget.Types
 open Components.Budget.Month
 
-/// Der Knopf: Beschriftung und der Stand, den ein Tipp verlangt.
+/// Der Knopf: Beschriftung und die Absicht, die ein Tipp sendet.
 type PauseButton = {
     Label: string
-    /// `true` pausiert in BB, `false` hebt die BB-Pause auf.
-    Paused: bool
+    Intent: PauseIntent
 }
 
 /// Was an der Stelle des Pause-Knopfs steht.
@@ -23,8 +22,11 @@ type PauseControl =
     /// Der Knopf, wenn BB etwas tun kann, und der Satz zur YNAB-Pause, wenn sie in YNAB gesetzt ist.
     | PauseOffered of button: PauseButton option * ynabNote: string option
 
-/// Der Satz, wenn die Pause in YNAB gesetzt ist (ADR 0073 Punkt 2).
+/// Der Satz, wenn die Pause nur in YNAB gesetzt ist (ADR 0073 Punkt 2).
 let ynabPauseNote = "Die Pause ist in YNAB gesetzt und lässt sich nur dort aufheben."
+
+/// Der Satz, wenn die Pause in BB und in YNAB steht: der Knopf hebt nur die BB-Pause auf (budgeting-r3wq8).
+let bothPauseNote = "In YNAB ist das Target ebenfalls pausiert, diese Pause lässt sich nur dort aufheben."
 
 /// Sichtbarkeit und Beschriftung des Knopfs. Pausieren geht im laufenden und in künftigen Monaten
 /// (`targetsAllowed`), nur mit Target, auch wenn es erfüllt ist. Aufheben gilt nur der BB-Pause.
@@ -33,12 +35,11 @@ let pauseControl (kind: MonthKind) (category: BudgetCategory) : PauseControl =
     | None -> NoPauseControl
     | Some _ when not (targetsAllowed kind) -> PauseSlotFree
     | Some _ ->
-        let note = if pausedInYnab category.Pause then Some ynabPauseNote else None
-        let button =
-            if pausedInBb category.Pause then Some { Label = "Pause aufheben"; Paused = false }
-            elif pausedInYnab category.Pause then None
-            else Some { Label = "Target pausieren"; Paused = true }
-        PauseOffered (button, note)
+        match category.Pause with
+        | None -> PauseOffered (Some { Label = "Target pausieren"; Intent = PauseTarget }, None)
+        | Some PausedInBb -> PauseOffered (Some { Label = "Pause aufheben"; Intent = LiftPause }, None)
+        | Some PausedInBoth -> PauseOffered (Some { Label = "Pause in BB aufheben"; Intent = LiftPause }, Some bothPauseNote)
+        | Some PausedInYnab -> PauseOffered (None, Some ynabPauseNote)
 
 /// `pauseControl` für den Monat, den die Seite darstellt (während eines Wechsels noch der alte).
 let pauseControlFor (model: Model) (category: BudgetCategory) : PauseControl =
@@ -54,7 +55,7 @@ let private displayedMonth (model: Model) : string option =
 /// Läuft der Aufruf für diese Kategorie im dargestellten Monat? Dann dreht der Knopf.
 let pauseRunningFor (model: Model) (categoryId: System.Guid) : bool =
     match model.PauseCall, displayedMonth model with
-    | PauseRunning (c, m), Some shown -> c = categoryId && m = shown
+    | PauseRunning (c, m, _), Some shown -> c = categoryId && m = shown
     | _ -> false
 
 /// Läuft irgendein Aufruf? Dann sendet ein zweiter Tipp nichts.
@@ -72,15 +73,15 @@ let pauseError (model: Model) (categoryId: System.Guid) : string option =
 
 /// Der Tipp auf den Knopf. Gesendet wird nur, was `pauseControlFor` gerade anbietet, nie während ein
 /// Aufruf läuft und nie in einen wechselnden Monat. Ergebnis: Monat und Auftrag für den Aufruf.
-let startPause (paused: bool) (model: Model) : Model * (string * TargetPauseRequest) option =
+let startPause (intent: PauseIntent) (model: Model) : Model * (string * TargetPauseRequest) option =
     match model.Selected, model.Month with
     | Some selected, Success month when not (pauseBusy model) && not (monthChanging model) ->
         match categoriesOf month |> List.tryFind (fun c -> c.Id = selected.CategoryId) with
         | Some category ->
             match pauseControlFor model category with
-            | PauseOffered (Some button, _) when button.Paused = paused ->
-                { model with PauseCall = PauseRunning (category.Id, month.Month) },
-                Some (month.Month, { CategoryId = category.Id; Paused = paused })
+            | PauseOffered (Some button, _) when button.Intent = intent ->
+                { model with PauseCall = PauseRunning (category.Id, month.Month, model.MonthGeneration) },
+                Some (month.Month, { CategoryId = category.Id; Intent = intent })
             | _ -> model, None
         | None -> model, None
     | _ -> model, None
@@ -105,7 +106,7 @@ let applyPauseAnswered
     : Model =
     let call =
         match model.PauseCall with
-        | PauseRunning (c, m) when c = categoryId && m = month ->
+        | PauseRunning (c, m, _) when c = categoryId && m = month ->
             match result with
             | Ok _ -> PauseIdle
             | Error message -> PauseRejected (c, m, message)
@@ -119,10 +120,37 @@ let applyPauseAnswered
 let pauseAnswerShown (categoryId: System.Guid) (month: string) (model: Model) : bool =
     model.Selected |> Option.exists (fun s -> s.CategoryId = categoryId) && displayedMonth model = Some month
 
-/// Läuft gerade ein Neu-Lesen des Monats, das vor der Pause begonnen haben kann? Dann kennte seine
-/// Antwort die Pause nicht und nähme sie zurück: der Monat wird noch einmal gelesen.
-let pauseNeedsReread (month: string) (model: Model) : bool =
-    model.Freshness = MonthStale && displayedMonth model = Some month
+/// Die Monatsgeneration beim Start des Aufrufs für Kategorie und Monat, solange er läuft.
+let pauseStartGeneration (categoryId: System.Guid) (month: string) (model: Model) : int option =
+    match model.PauseCall with
+    | PauseRunning (c, m, generation) when c = categoryId && m = month -> Some generation
+    | _ -> None
+
+/// Kann ein Lesen des Monats die Pause verpasst haben? Dann kennte seine Antwort sie nicht und nähme sie
+/// zurück: der Monat wird noch einmal gelesen. Das gilt, wenn der Monat gezeigt wird und kein
+/// Monatswechsel läuft, und wenn ein Neu-Lesen läuft (`MonthStale`), seit dem Start eines begann
+/// (Generation) oder der Monat gerade nicht geladen ist (budgeting-r3wq8). `startGeneration` ist die
+/// Generation beim Start des Aufrufs, vor dem Einnehmen der Antwort gelesen (`pauseStartGeneration`).
+let pauseNeedsReread (month: string) (startGeneration: int option) (model: Model) : bool =
+    let generationMoved = startGeneration |> Option.exists (fun g -> g <> model.MonthGeneration)
+    let notLoaded =
+        match model.Month with
+        | Success _ -> false
+        | _ -> true
+    shownMonth model = Some month
+    && not (monthChanging model)
+    && (model.Freshness = MonthStale || generationMoved || notLoaded)
+
+/// Der Aufruf brach ab: ob die Pause gespeichert ist, ist unbekannt. Die Meldung steht im Tab wie eine
+/// Ablehnung, der Aufrufer liest den Monat still neu (Vorbild `applyMoveCallLost`).
+let pauseCallLostText (message: string) : string =
+    $"Ob die Pause gespeichert ist, ist unklar: {message}. Der Stand wird gleich neu gelesen."
+
+let applyPauseCallLost (categoryId: System.Guid) (month: string) (message: string) (model: Model) : Model =
+    match model.PauseCall with
+    | PauseRunning (c, m, _) when c = categoryId && m = month ->
+        { model with PauseCall = PauseRejected (c, m, pauseCallLostText message) }
+    | _ -> model
 
 /// Eine Meldung gilt nur, solange ihre Kategorie und ihr Monat gezeigt werden.
 let syncPause (model: Model) : Model =

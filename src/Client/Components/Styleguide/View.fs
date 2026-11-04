@@ -200,6 +200,10 @@ let private buttonSection =
                     Button.primaryLoading "Speichern…" true ignore
                     Button.secondaryLoading "Test…" true ignore
                 ]
+                note "IsBusy: der eigene Aufruf läuft auf einem Knopf, der den Fokus haben kann. Spinner, aria-disabled und aria-busy, aber kein disabled, der Fokus bleibt. Beispiel: Target pausieren."
+                row [
+                    Button.view { Button.defaultProps with Text = "Target pausieren"; Variant = Button.Secondary; IsBusy = true }
+                ]
                 subTitle "Hero-CTAs"
                 row [
                     Button.hero "Sync starten" ignore
@@ -673,9 +677,9 @@ let private calmListSection =
                         Html.div [
                             prop.className "space-y-2"
                             prop.children [
-                                DateField.view { Value = None; OnChange = ignore; Invalid = false; Label = "Leer" }
-                                DateField.view { Value = Some (System.DateTime(2026, 10, 7)); OnChange = ignore; Invalid = false; Label = "Gefüllt" }
-                                DateField.view { Value = None; OnChange = ignore; Invalid = true; Label = "Fehler" }
+                                DateField.view { Value = None; OnChange = ignore; Invalid = false; Disabled = false; Label = "Leer" }
+                                DateField.view { Value = Some (System.DateTime(2026, 10, 7)); OnChange = ignore; Invalid = false; Disabled = false; Label = "Gefüllt" }
+                                DateField.view { Value = None; OnChange = ignore; Invalid = true; Disabled = false; Label = "Fehler" }
                                 caption "Datumsfeld: leer, gefüllt, Fehler (Hinweis, Übernehmen gesperrt)"
                             ]
                         ]
@@ -969,6 +973,7 @@ let private BottomSheetDemo () =
     let isOpen, setOpen = React.useState false
     let inspectorOpen, setInspectorOpen = React.useState false
     let chosen, setChosen = React.useState ""
+    let confirmOpen, setConfirmOpen = React.useState false
 
     section "18. BottomSheet (mobiles Picker-Muster)" [
         note "Mobile Auswahl-/Picker-Flows (keyboard-aware, visual-viewport-Anker, Click-Commit). Baust du ein neues Sheet, erbe das Muster — erfinde Anker/Commit nicht neu. ADR 0005, styleguide.md §7.1."
@@ -993,6 +998,23 @@ let private BottomSheetDemo () =
                 BottomSheet.sectionTitle "Options-Zeile (Sortieren)"
                 BottomSheet.optionRow "Neueste zuerst" true ignore
                 BottomSheet.optionRow "Älteste zuerst" false ignore
+            ]
+        ]
+        subTitle "Rückfrage im Sheet (BottomSheet.confirmDanger)"
+        note "Vor einer zerstörenden Aktion am Handy, das Gegenstück zu Modal.confirmDanger. Steht als Block im Sheet, role alertdialog mit aria-labelledby. Beim Öffnen hat Abbrechen den Fokus. Beispiel: Target entfernen."
+        Html.div [
+            prop.custom ("data-ds-card-name", "BottomSheet.confirmDanger")
+            prop.className "max-w-sm"
+            prop.children [
+                if confirmOpen then
+                    BottomSheet.confirmDanger
+                        { Title = "Target entfernen?"
+                          Message = "Das Target wird in YNAB entfernt. Der Fehlbetrag entfällt."
+                          ConfirmText = "Entfernen"
+                          OnConfirm = fun () -> setConfirmOpen false
+                          OnCancel = fun () -> setConfirmOpen false }
+                else
+                    Button.danger "Target entfernen" (fun () -> setConfirmOpen true)
             ]
         ]
         subTitle "Feste Höhe (BottomSheet.inspector)"

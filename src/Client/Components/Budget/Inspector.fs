@@ -264,15 +264,20 @@ let historyFailureReason (status: HistoryStatus) : string option =
 /// Der Betrag unter einem Balken in ganzen Euro ohne Währung ("1.235"): sechs Balken passen so am Handy
 /// nebeneinander. Der volle Betrag steht im Label des Balkens. Überwiegen Erstattungen, ist die Ausgabe
 /// negativ und steht mit Plus da ("+85"): es kam mehr zurück, als ausgegeben wurde (budgeting-v6m3z).
+/// Die Vorzeichenregel der Ausgaben: eine negative Ausgabe ist ein Erstattungsüberschuss und steht als
+/// Betrag mit Plus da, eine positive ohne Vorzeichen. `format` bekommt den Betrag ohne Vorzeichen.
+let private spendingWithSign (amount: decimal) (format: decimal -> string) : string =
+    if amount < 0m then $"+{format -amount}" else format amount
+
 let barAmountText (m: Money) : string =
     let rounded = System.Math.Round(m.Amount, 0, System.MidpointRounding.AwayFromZero)
-    let text = Money.formatAmountText false false (abs rounded) m.Currency
-    let whole = text.Substring(0, text.Length - 3)
-    if rounded < 0m then $"+{whole}" else whole
+    spendingWithSign rounded (fun amount ->
+        let text = Money.formatAmountText false false amount m.Currency
+        text.Substring(0, text.Length - 3))
 
 /// Der genaue Betrag eines Monats in der Wertzeile, ein Erstattungsüberschuss mit Plus ("+85,00 €").
 let private spendingText (m: Money) : string =
-    if m.Amount < 0m then $"+{moneyText { m with Amount = -m.Amount }}" else moneyText m
+    spendingWithSign m.Amount (fun amount -> moneyText { m with Amount = amount })
 
 /// Ein Balken der Ausgaben als DS-Baustein. Das Label steht in der Wertzeile über den Balken und wird
 /// vorgelesen: Monat, genauer Betrag und beim laufenden Monat "läuft noch".

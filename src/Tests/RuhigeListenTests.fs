@@ -49,8 +49,28 @@ let private tests =
 
         // budgeting-v6m3z: Ein Monat mit Erstattungsüberschuss ist kein Problem, Rot heißt auf der
         // Budget-Seite "im Minus" (ADR 0075). Der Balkenbetrag kennt deshalb nur eine Farbe.
+        // budgeting-v6m3z, budgeting-r3wq8: der Betrag einer Bewegung ist neutral, das Vorzeichen sagt die
+        // Richtung. Schrift wie `listAmountClass` eines nicht positiven Betrags, ohne Teal.
+        testList "Money.signedListAmountClass" [
+            test "Eine Bewegung ist immer text-primary, ohne Teal und ohne Leuchtfarbe, Schrift wie ein Listenbetrag" {
+                let cls = Money.signedListAmountClass
+                Expect.equal cls (Money.listAmountClass 0m) "wie der neutrale Listenbetrag"
+                Expect.isFalse (cls.Contains "teal") cls
+                Expect.isFalse (cls.Contains "neon-") cls
+            }
+        ]
+
+        // budgeting-r3wq8: der Screenreader liest je Balken das Label mit Komma statt "·".
+        testList "Stats.monthBarAriaLabel" [
+            test "Der Name eines Balkens trennt mit Komma, sichtbar bleibt der Punkt" {
+                let bar : Stats.MonthBar =
+                    { Key = "2026-11-01"; Label = "November 2026 · 12,00 € · läuft noch"; MonthText = "Nov"; AmountText = "12"; Percent = 10; Running = true }
+                Expect.equal (Stats.monthBarAriaLabel bar) "November 2026, 12,00 €, läuft noch" "vorgelesen"
+            }
+        ]
+
         testList "Stats.monthBarAmountClass" [
-            test "Erstattungsüberschuss: text-secondary, kein Rot" {
+            test "Der Balkenbetrag ist immer text-secondary, nie Rot" {
                 let cls = Stats.monthBarAmountClass
                 Expect.isTrue (has Colors.textSecondary cls) cls
                 Expect.isFalse (cls.Contains "red") cls

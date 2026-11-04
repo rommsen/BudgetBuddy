@@ -131,7 +131,9 @@ type OpenMoveRetry = {
 /// wird. Er sperrt weder Auswahl noch Monatswechsel.
 type PauseCall =
     | PauseIdle
-    | PauseRunning of categoryId: System.Guid * month: string
+    /// `generation` ist `MonthGeneration` beim Start: hat sie sich bis zur Antwort geändert, kann ein
+    /// Lesen des Monats die Pause verpasst haben (budgeting-r3wq8).
+    | PauseRunning of categoryId: System.Guid * month: string * generation: int
     /// Der Server lehnte ab oder der Aufruf brach ab, mit Meldung. Gilt, solange Kategorie und Monat
     /// gezeigt werden.
     | PauseRejected of categoryId: System.Guid * month: string * message: string
@@ -352,10 +354,13 @@ type Msg =
     | CategoryHistoryReloaded of generation: int * Result<CategoryHistory, string>
     /// Tipp auf eine Buchung im Tab Buchungen: ins Kassenbuch springen.
     | OpenEntryInLedger of System.Guid
-    /// Der Knopf "Target pausieren" (`true`) oder "Pause aufheben" (`false`).
-    | SetTargetPause of paused: bool
-    /// Antwort auf Pausieren oder Aufheben, mit Kategorie und Monat des Aufrufs.
+    /// Der Knopf "Target pausieren" oder "Pause aufheben".
+    | SetTargetPause of PauseIntent
+    /// Antwort auf Pausieren oder Aufheben, mit Kategorie und Monat des Aufrufs. `Error` ist die echte
+    /// Ablehnung des Servers.
     | TargetPauseAnswered of categoryId: System.Guid * month: string * Result<PauseSource option, string>
+    /// Der Aufruf selbst brach ab: ob die Pause gespeichert ist, ist unbekannt (Vorbild `MoveCallLost`).
+    | TargetPauseCallLost of categoryId: System.Guid * month: string * message: string
     /// Eingabe im Betragsfeld des Tabs Target.
     | TargetAmountChanged of string
     /// Eingabe im Datumsfeld des Tabs Target.

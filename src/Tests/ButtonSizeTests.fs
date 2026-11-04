@@ -24,5 +24,31 @@ let private tests =
         }
     ]
 
+// budgeting-r3wq8: IsBusy sperrt einen Knopf, der den Fokus haben kann, nur über ARIA. Mit `disabled`
+// verlöre er den Fokus, sobald der eigene Aufruf läuft.
+let private busyTests =
+    testList "Button: IsBusy" [
+        test "IsBusy setzt aria-disabled und aria-busy und zeigt den Spinner, ohne disabled" {
+            Expect.equal
+                (Button.buttonState { Button.defaultProps with IsBusy = true })
+                { Disabled = false; AriaDisabled = true; AriaBusy = true; ShowsSpinner = true }
+                "busy"
+        }
+        test "IsLoading und IsDisabled setzen weiter disabled" {
+            Expect.equal
+                (Button.buttonState { Button.defaultProps with IsLoading = true })
+                { Disabled = true; AriaDisabled = false; AriaBusy = true; ShowsSpinner = true }
+                "loading"
+            Expect.equal
+                (Button.buttonState { Button.defaultProps with IsDisabled = true; IsBusy = true })
+                { Disabled = true; AriaDisabled = false; AriaBusy = false; ShowsSpinner = false }
+                "gesperrt geht vor"
+            Expect.equal
+                (Button.buttonState Button.defaultProps)
+                { Disabled = false; AriaDisabled = false; AriaBusy = false; ShowsSpinner = false }
+                "frei"
+        }
+    ]
+
 [<Tests>]
-let buttonSizeTests = tests
+let buttonSizeTests = testList "Button" [ tests; busyTests ]

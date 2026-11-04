@@ -1327,6 +1327,16 @@ test("[fokus] Ausgaben-Balken: Tipp und Tab-Taste setzen den Fokus, die Wertzeil
 
     await bars.nth(1).tap();
     assert.equal(await bars.nth(1).evaluate((el) => el === document.activeElement), true, "der Tipp setzt den Fokus");
+    // budgeting-r3wq8: den Fokus trägt das innere Element mit Rolle und Namen, das `li` bleibt ein reines
+    // Listenelement ohne tabindex.
+    assert.deepEqual(
+      await page.evaluate(() => {
+        const el = document.activeElement;
+        return { role: el.getAttribute("role"), label: el.getAttribute("aria-label"), parent: el.parentElement.tagName, parentTab: el.parentElement.hasAttribute("tabindex") };
+      }),
+      { role: "img", label: "Juni 2026, 2.469,12 €", parent: "LI", parentTab: false },
+      "Fokus am inneren Element"
+    );
     assert.deepEqual(await shownValues(page), ["Juni 2026 · 2.469,12 €"], "Wert des angetippten Balkens");
 
     await bars.nth(3).tap();

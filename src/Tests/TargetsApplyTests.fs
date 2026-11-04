@@ -673,7 +673,7 @@ let private wiringTests =
                   "assignMoney", fun api ->
                     api.assignMoney "2026-12-01" { CategoryId = Guid.NewGuid(); Assigned = eur 1000L } |> run |> ignore
                   "setTargetPause", fun api ->
-                    api.setTargetPause "2026-12-01" { CategoryId = Guid.NewGuid(); Paused = true } |> run |> ignore ]
+                    api.setTargetPause "2026-12-01" { CategoryId = Guid.NewGuid(); Intent = Shared.Budgeting.PauseTarget } |> run |> ignore ]
             for name, call in calls do
                 let api, seen, _ = apiFor f
                 call api

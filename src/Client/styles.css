@@ -274,31 +274,45 @@ nav a:focus-visible {
   outline-offset: 0;
 }
 
-/* Monatsbalken (DesignSystem/Stats.fs, budgeting-v6m3z): gewählt ist der Balken unter der Maus, sonst
-   der mit Fokus (Tab-Taste oder Tipp). Nur der gewählte zeigt seinen Wert in der Wertzeile und ist
-   etwas heller. Ein vorgewählter Balken (`month-bar-chosen`, Styleguide) gilt, solange kein anderer
-   Maus oder Fokus hat. Kein eigener Fokus-Ring, die Wahl zeigt den Fokus (Fokus ohne Kasten,
-   design-system-w7c2h). Ungelayert, weil die Tailwind-Utilities gegen `*:focus-visible` verlieren. */
-.month-bar:focus-visible {
+/* Monatsbalken (DesignSystem/Stats.fs, budgeting-v6m3z, budgeting-r3wq8): gewählt ist der Balken unter
+   der Maus, sonst der mit Fokus (Tab-Taste oder Tipp) auf seinem inneren Element `.month-bar-target`.
+   Ein vorgewählter Balken (`month-bar-chosen`, Styleguide) gilt, solange kein anderer Maus oder Fokus
+   hat. Diese Vorrangregel steht nur im einen `:is(...)` unten, die Wirkung über Variablen: der gewählte
+   zeigt seinen Wert in der Wertzeile, sein Monatsname steht in text-primary (auch flache Balken zeigen
+   so die Wahl) und seine Fläche ist etwas heller. Kein eigener Fokus-Ring, die Wahl zeigt den Fokus
+   (Fokus ohne Kasten, design-system-w7c2h). Ungelayert, weil die Tailwind-Utilities gegen
+   `*:focus-visible` verlieren. */
+.month-bar-target:focus-visible {
   outline: none;
 }
-.month-bar-value {
-  visibility: hidden;
+.month-bar {
+  --month-bar-value-visibility: hidden;
+  --month-bar-month-color: var(--color-text-muted);
+  --month-bar-fill-mix: 30%;
+  --month-bar-fill-running-mix: 10%;
 }
-.month-bar:hover .month-bar-value,
-.month-bars:not(:has(.month-bar:hover)) .month-bar:focus .month-bar-value,
-.month-bars:not(:has(.month-bar:hover, .month-bar:focus)) .month-bar-chosen .month-bar-value {
-  visibility: visible;
+:is(
+    .month-bar:hover,
+    .month-bars:not(:has(.month-bar:hover)) .month-bar:focus-within,
+    .month-bars:not(:has(.month-bar:hover, .month-bar:focus-within)) .month-bar-chosen
+  ) {
+  --month-bar-value-visibility: visible;
+  --month-bar-month-color: var(--color-text-primary);
+  --month-bar-fill-mix: 50%;
+  --month-bar-fill-running-mix: 25%;
 }
-.month-bar:hover .month-bar-fill,
-.month-bars:not(:has(.month-bar:hover)) .month-bar:focus .month-bar-fill,
-.month-bars:not(:has(.month-bar:hover, .month-bar:focus)) .month-bar-chosen .month-bar-fill {
-  background-color: color-mix(in oklab, var(--color-text-muted) 50%, transparent);
+.month-bar .month-bar-value {
+  visibility: var(--month-bar-value-visibility);
+  pointer-events: none;
 }
-.month-bar:hover .month-bar-fill-running,
-.month-bars:not(:has(.month-bar:hover)) .month-bar:focus .month-bar-fill-running,
-.month-bars:not(:has(.month-bar:hover, .month-bar:focus)) .month-bar-chosen .month-bar-fill-running {
-  background-color: color-mix(in oklab, var(--color-text-muted) 25%, transparent);
+.month-bar .month-bar-month {
+  color: var(--month-bar-month-color);
+}
+.month-bar .month-bar-fill {
+  background-color: color-mix(in oklab, var(--color-text-muted) var(--month-bar-fill-mix), transparent);
+}
+.month-bar .month-bar-fill-running {
+  background-color: color-mix(in oklab, var(--color-text-muted) var(--month-bar-fill-running-mix), transparent);
 }
 
 /* Skip to main content link (for screen readers) */

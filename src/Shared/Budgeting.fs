@@ -355,12 +355,17 @@ type AssignRequest = {
     Assigned: Money
 }
 
+/// Was ein Auftrag zur Pause will (budgeting-r3wq8): das Target in BB pausieren oder die BB-Pause
+/// aufheben. Eine Pause aus YNAB bleibt davon unberührt (ADR 0073 Punkt 2).
+type PauseIntent =
+    | PauseTarget
+    | LiftPause
+
 /// Target pausieren oder die Pause aufheben (budgeting-t6p8z, ADR 0079). Der Monat geht als eigener
-/// Parameter mit. `Paused = true` pausiert in BB, `false` hebt die BB-Pause auf. Eine Pause aus YNAB
-/// bleibt davon unberührt (ADR 0073 Punkt 2).
+/// Parameter mit.
 type TargetPauseRequest = {
     CategoryId: Guid
-    Paused: bool
+    Intent: PauseIntent
 }
 
 /// Die Ablehnung im vergangenen Monat (ADR 0073 Punkt 5, `targetsAllowed`). Geprüft an der Grenze und

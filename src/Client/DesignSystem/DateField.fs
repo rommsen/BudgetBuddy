@@ -106,6 +106,8 @@ type DateFieldProps = {
     OnChange: DateEntry -> unit
     /// Meldet der Aufrufer die Eingabe als ungültig? Steuert den Fehlerzustand.
     Invalid: bool
+    /// Gesperrt: Textfeld und Kalender-Knopf nehmen keine Eingabe an.
+    Disabled: bool
     /// Beschriftung für Screenreader und Kalender-Knopf
     Label: string
 }
@@ -160,11 +162,13 @@ let view (props: DateFieldProps) =
                                             Placeholder = "TT.MM.JJJJ"
                                             Size = Input.Small
                                             State = state
+                                            Disabled = props.Disabled
                                             ClassName = Some "w-full" }
                         ]
                     ]
                     Html.button [
                         prop.type' "button"
+                        prop.disabled props.Disabled
                         prop.ariaLabel $"{props.Label}: Kalender öffnen"
                         prop.className $"shrink-0 inline-flex items-center justify-center rounded-lg min-w-[36px] min-h-[36px] {Backgrounds.dark} {Borders.default'} border hover:border-neon-teal transition-colors"
                         prop.onClick (fun _ ->

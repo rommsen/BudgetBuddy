@@ -2644,7 +2644,7 @@ let private dateDraftInput
     (onChange: DateField.DateEntry -> unit)
     =
     fieldLabel label (
-        DateField.view { Value = value; OnChange = onChange; Invalid = invalid; Label = label }
+        DateField.view { Value = value; OnChange = onChange; Invalid = invalid; Disabled = false; Label = label }
     )
 
 /// Die Zeitraum-Auswahl (AC: Schnellwahl trägt Von/Bis sichtbar ein).

@@ -124,3 +124,21 @@ test("[layout] Handy: Target speichern liegt im 500-px-Sheet ohne Scrollen im Bi
     await context.close();
   }
 });
+
+test("[fokus] Handy: Target entfernen öffnet die Rückfrage im Sheet, Abbrechen hat den Fokus", async () => {
+  const { context, page } = await openPage(390, 844);
+  try {
+    await openTargetTab(page);
+    await sheet(page).locator('[data-testid="target-remove"] button').click();
+    const dialog = sheet(page).getByRole("alertdialog", { name: "Target entfernen?" });
+    await dialog.waitFor();
+    await page.waitForFunction(() => document.activeElement?.textContent === "Abbrechen");
+    assert.equal(
+      await page.evaluate(() => document.activeElement.closest('[role="alertdialog"]') !== null),
+      true,
+      "der Fokus liegt im Dialog auf Abbrechen"
+    );
+  } finally {
+    await context.close();
+  }
+});

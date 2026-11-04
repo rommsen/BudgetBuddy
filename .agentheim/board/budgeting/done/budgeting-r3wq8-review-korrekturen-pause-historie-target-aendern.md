@@ -1,7 +1,7 @@
 ---
 id: budgeting-r3wq8
 title: "Review-Korrekturen zu Target pausieren, Tab Historie und Target ändern: Eingabe beim Speichern bleibt, Pause-Aufrufe lesen bei Abbruch neu, ein Name je Pause-Ereignis, Absicht statt Bool, Fokus und Rollen der Balken, fehlende Tests"
-status: doing
+status: done
 type: refactor
 context: budgeting
 created: 2026-11-04
@@ -73,3 +73,49 @@ Die vier Review-Agenten (qa-milestone-reviewer, backend-code-quality, frontend-a
 Review-Berichte vollständig: Scratchpad der Sitzung vom 2026-11-04 (nicht im Repo). Die Punkte oben sind daraus übernommen. Nicht übernommen: Roving-Tabindex für die Balken (bräuchte Zustand im DS-Baustein, Owner-Entscheidung), deutscher Text für Netzfehler seitenweit, englische Texte "Failed to ..." im YnabClient (eigener kleiner Task).
 
 Parallel läuft budgeting-h7q4v. Es übernimmt die Historienzeilen (Stand bei Pause- und Target-Zeilen, Betrag über eine reine Funktion, Überschrift) und fasst `InspectorView.historyLineView` an. Diese Task fasst die Historienzeilen nicht an.
+
+## Outcome
+
+Alle Befunde der Pflichtpunkte und alle "kann"-Punkte sind umgesetzt. `./verify.sh` im Worktree: `VERIFY: PASS` (dotnet 3693 grün, 11 opt-in übersprungen, node 293 grün, beide Builds und beide Wächter grün). Das README-Delta ist mit `npm run check:readme-delta -- --bc budgeting` geprüft (Exit 0). Kein Live-Aufruf, `RUN_INTEGRATION_TESTS` nicht gesetzt. Die Historienzeilen (`historyEntryLine`, `historyLineView`, `historyStatusView`, `historyChangeText`, `mergeHistoryEntries`/`mergeHistoryWithTargetChanges`) sind nicht angefasst, sie gehören budgeting-h7q4v.
+
+**MUSS, Target ändern**
+- M1: `TargetEdit.targetFieldsLocked` sperrt Betrag und Datum, solange das eigene Speichern läuft. `typeTargetAmount`/`typeTargetDate` nehmen dann nichts an, die View setzt `ReadOnly` am Betragsfeld und das neue `DateField.Disabled`. Regressionstest "GIVEN Speichern läuft WHEN getippt wird THEN nehmen die Felder nichts an, danach wieder" (`src/Tests/TargetChangeClientTests.fs`), vor dem Fix rot (Gegenprobe: `typeInForm` ohne Sperre, 1 rot).
+
+**Pause**
+- P1: `Domain.planPause` bekommt die gespeicherten BB-Pausen (`fetchBudgetMonthWithPauses` in `CommandHandlers.fs`) und verlangt ein Target nur beim Pausieren. `toBudgetCategory` meldet eine BB-Pause ohne Target nicht. Regressionstest "GIVEN BB-Pause, Target danach entfernt WHEN aufheben ..." (kaputt-Szenario) und "GIVEN kein Target WHEN pausieren THEN abgelehnt" (intakt) in `src/Tests/TargetPauseTests.fs`; Gegenprobe mit der alten Target-Pflicht: rot.
+- P2: `PauseKind.Resumed` heißt `PauseLifted`, geschrieben wird "Aufgehoben", `pauseKindOfText` liest "Fortgesetzt" weiter als `PauseLifted` (`LegacyPauseLiftedText`). Tests auf Domain- und Persistenzebene. ADR 0079 Punkt 1 nennt noch "Fortgesetzt"; der Stand steht im README, ein Nachtrag am ADR ist nicht nötig.
+- P3: `Shared.Budgeting.PauseIntent` (`PauseTarget | LiftPause`) in `TargetPauseRequest.Intent`, `planPause`, `Msg.SetTargetPause` und `PauseButton.Intent`. Die Negativzeile und `TargetsApplyTests.fs` sind mitgezogen. Kein Playwright-Fixture trägt `TargetPauseRequest`.
+- P4: `queryPausedCategories`/`loadPausedCategories` und `queryPauseEvents`/`loadPauseEvents` liefern `Result`. In `fetchBudgetMonth` und `QueryHandlers.budgetMonth` wird ein Fehler zu `YnabError.InvalidResponse "Pausen nicht lesbar"`, in der Historie zu "Pause-Ereignisse nicht lesbar". Das Zusammenführen in `categoryHistory` steht außerhalb des `try`. Test "Pausen nicht lesbar: Monat, Pausieren und Historie melden den Fehler".
+- P5: Stand und Historie ordnen nach `rowid` (Test mit verstellter Uhr). `Domain.CategoryNotVisibleText` ohne Guid und Monat, auch in `changeTarget`.
+- P6: `PauseRunning` trägt die Monatsgeneration. `Pause.pauseNeedsReread month startGeneration model` liest neu, wenn der Monat gewählt ist, kein Wechsel läuft und `MonthStale` gilt, die Generation sich bewegt hat oder `Month` nicht `Success` ist. Tests: Pause, `MoveCallLost`, Antwort liest neu; Generation bewegt; kein Lesen im Monatswechsel. Gegenprobe mit der alten Bedingung: 3 rot.
+- P7: neue Nachricht `TargetPauseCallLost`. Meldung `pauseCallLostText` im Tab (als Toast, wenn die Kategorie nicht gezeigt wird), der Monat wird still neu gelesen. `Ok (Error ...)` bleibt die echte Ablehnung.
+- P8: bei `PausedInBoth` heißt der Knopf "Pause in BB aufheben" mit `Pause.bothPauseNote`.
+- P9: im Modus Zuweisen liegt der Pause-Knopf in `keepsFocus` (jetzt in `MonthView.fs`, geteilt mit dem Fehlt-Knopf). Neue DS-Variante `Button.IsBusy` über die reine Funktion `Button.buttonState`: `aria-disabled`, `aria-busy`, Spinner, kein `disabled`, ein Tipp tut nichts. Der Pause-Knopf nutzt sie für den eigenen Aufruf. Test in `src/Tests/ButtonSizeTests.fs`; der `[fokus]`-Test in `scripts/budget-money-tab.test.mjs` tippt jetzt auch den Pause-Knopf und prüft, dass der Fokus im Feld bleibt (Fixture: Kategorie 2 mit Target, Route `setTargetPause`). Gezeigt in `/styleguide` Abschnitt 3.
+- P10: `src/Client/Components/Budget/PauseView.fs` (vor `MovesView.fs`) mit `PausePlacement` (`PauseInMoneyTab | PauseInTargetTab`); im Tab Target entfällt `PauseSlotFree`. Kein leeres `class`-Attribut. Helfer `afterPauseAnswered` in `State.fs`.
+
+**Monatsbalken**
+- B1: das `li` ist ein reines Listenelement, ein inneres Element mit `role "img"`, `tabIndex 0` und `aria-label` trägt den Fokus (`Stats.monthBarItem`). `Stats.monthBarAriaLabel` setzt Komma statt "·", sichtbar bleibt "·". Der `[fokus]`-Test in `scripts/budget-page.test.mjs` prüft Rolle, Namen und das `li` ohne tabindex am fokussierten Element.
+- B2: `styles.css`: die Vorrangregel steht in einem `:is(...)`, die Wirkung über Variablen (Wert sichtbar, Monatsname in `--color-text-primary`, hellere Fläche). `.month-bar-value` hat `pointer-events: none`, die Wertzeile `font-mono`.
+- B3: Styleguide: "Bewegungslisten" steht unter den beiden Ausnahmen, "Monatsbalken" als eigener Abschnitt am Ende von §2, die Zeile Stats in §5 nennt `monthBars`, `monthBarsChosen` und `monthBarsPlaceholder`.
+- B4: `Inspector.spendingWithSign` trägt die Vorzeichenregel für `barAmountText` und `spendingText`; die Balken-`li` haben eine Basisklasse.
+
+**Target ändern**
+- T1: `TargetEdit.targetAnswerInTab` prüft zusätzlich `model.Tab = TargetTab`; eine Ablehnung bei anderem Tab kommt als Toast, die Meldung bleibt im Formular.
+- T2: `TargetEdit.targetAmountHint` ("Target darf nicht negativ sein", "Keine gültige Rechnung" aus `AmountMath.InvalidCalculationText`); `amountFieldClass` und `invalidHint` liegen geteilt in `MonthView.fs`.
+- T3/T4: Reihenfolge im Tab Target: gelber YNAB-Hinweis oben, Felder, Rhythmus und Art, Status und Fehlbetrag, "Target speichern" mit der Fehlermeldung darunter, Pause-Knopf, "Target entfernen" am Ende (`TargetEditView.editableTarget` bekommt Status und Pause als Elemente). Nur lesend steht "Target ändern geht nur im laufenden Monat." in `ListRoles.muted`.
+- T5: `BottomSheet.confirmDanger` (`ConfirmDangerProps`): Titel, Text, Abbrechen, roter Knopf, `role "alertdialog"`, `aria-labelledby`, `aria-describedby`, Fokus auf Abbrechen beim Öffnen. Am Handy im Tab Target genutzt, in `/styleguide` Abschnitt 18 und in Styleguide §5 genannt. Am PC sperrt `removeTargetLocked` "Target entfernen", solange die Bestätigung offen ist. Neuer `[fokus]`-Test in `scripts/target-change.test.mjs`.
+- T6: `recordWrittenBestEffort` hält "geschrieben" nach einem Ok von YNAB als Best-Effort fest (geloggt, YNABs Ergebnis kommt zurück). Ein leerer Patch wird vor dem Festhalten mit `Domain.EmptyTargetPatchText` abgelehnt (`targetPatchIsEmpty`). Test mit einem Trigger nur für die eigene Kategorie; Gegenprobe ohne Best-Effort: rot (Ausnahme).
+- T7: `Modal.confirm` sagt "Abbrechen" (ohne Aufrufer, kein Browser-Test betroffen), ein Block `refillFact` statt zweier Kopien, neuer Hinweistext bei `TargetChangedInYnab`, `statusFromText` mit neutralem Fehlertext.
+
+**Tests (27 neu)** und Gegenproben
+- Q1: die Reihenfolgen in `TargetPauseClientTests.fs` trennen "Monat" und "Geladen", Tiefe 6. Gegenprobe: `not (monthChanging model)` in `startPause` gestrichen ergab rot ("Tipp, Monat, Geladen, Monat, Antwort, Tipp: gesendet").
+- Q2: "Monat nicht lesbar: außen Error, keine Zeile" für `setTargetPause`.
+- Q3: `setCategoryTargetWith` prüft den gesendeten Body, 1.000.000,00 € geht durch die Validation, Encoder-Fall 1e9 Milliunits als JSON-Zahl.
+- Q4: `targetFormState` mit Datum: leer löscht (`NewDate = None`), gleiches Datum ist `FormUnchanged`.
+- Q5: Negativzeile `BudgetApi.changeCategoryTarget` mit fehlender Einrichtung und unbekannter Kategorie über `budgetApiWith` mit fester Uhr.
+- Q6: "Zwei Kategorien laufen unabhängig" wartet mit 10 s Zeitgrenze.
+- Q7: Klassenprüfung `Money.signedListAmountClass` in `RuhigeListenTests.fs` gegen `listAmountClass 0m` statt Feldkopie; der Balkentest heißt "Der Balkenbetrag ist immer text-secondary, nie Rot".
+- Q8: konkrete Meldungen statt `stringContains`/`isSome`, eigener Monat statt "2099-01-01", kein `DateTime.UtcNow` in der Negativzeile, `YnabIntegrationTests.fs` meldet gescheitertes Zurücksetzen und Vormonat-Fehler per `printfn`.
+- Gegenproben je Mutante einzeln gesetzt und zurückgenommen: M1 (1 rot), P1 (1 rot), P6 (3 rot), T6 (1 rot), Q1 (rot). Die Aussage gilt nur für diese Mutanten.
+
+**Offen [human-eye]**: Reihenfolge im Tab Target, die Rückfrage im Sheet und der hervorgehobene Monatsname am Balken sind nicht per Screenshot angesehen. Sinnvolle Reviews: `qa-milestone-reviewer`, `backend-code-quality`, `frontend-architecture`, `design-quality`.

@@ -97,14 +97,14 @@ let private assignCmd (write: AssignWrite) : Cmd<Msg> =
         AssignAnswered
         (fun ex -> AssignCallLost ex.Message)
 
-// Schreibt in BB, deshalb nicht über `Retry`. Die Antwort trägt Kategorie und Monat des Aufrufs.
+// Schreibt in BB, deshalb nicht über `Retry`. Die Antwort trägt Kategorie und Monat des Aufrufs. Ein
+// abgebrochener Aufruf ist keine Ablehnung, er hat eine eigene Nachricht (budgeting-r3wq8).
 let private pauseCmd (monthKey: string) (request: TargetPauseRequest) : Cmd<Msg> =
-    let answer result = TargetPauseAnswered (request.CategoryId, monthKey, result)
     Cmd.OfAsync.either
         (fun () -> Api.budget.setTargetPause monthKey request)
         ()
-        answer
-        (fun ex -> answer (Error ex.Message))
+        (fun result -> TargetPauseAnswered (request.CategoryId, monthKey, result))
+        (fun ex -> TargetPauseCallLost (request.CategoryId, monthKey, ex.Message))
 
 // Schreibt nach YNAB, deshalb nicht über `Retry`. Die Antwort trägt Kategorie und Monat des Aufrufs.
 let private targetChangeCmd (monthKey: string) (request: TargetChangeRequest) : Cmd<Msg> =
@@ -181,6 +181,23 @@ let private afterMovement (model: Model, cmd: Cmd<Msg>, external: ExternalMsg) :
     let reread, quiet = historyAfterMovement model
     let fetched, fetch = withTabData reread
     fetched, Cmd.batch [ cmd; (quiet |> Option.map tabDataCmd |> Option.defaultValue Cmd.none); fetch ], external
+
+/// Nach einer Antwort auf Pausieren oder Aufheben (auch einem Abbruch): den Monat neu lesen, wenn
+/// `reread` es verlangt, und die Historie ist wieder fällig, wenn die Antwort der gezeigten Kategorie gilt.
+let private afterPauseAnswered
+    (categoryId: System.Guid)
+    (month: string)
+    (reread: bool)
+    (model: Model, external: ExternalMsg)
+    : Model * Cmd<Msg> * ExternalMsg =
+    let rereading, cmd =
+        if reread then
+            let rereading, how = rereadMonth model
+            rereading, rereadCmd how rereading
+        else
+            model, Cmd.none
+    if pauseAnswerShown categoryId month rereading then afterMovement (rereading, cmd, external)
+    else rereading, cmd, external
 
 /// `afterMovement` nur, wenn die Antwort den Monat neu liest: In der Zuweisungs-Schlange ist das die
 /// letzte Antwort, eine abgelehnte Verschiebung ändert nichts.
@@ -296,24 +313,26 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         | model', Some reread -> model', rereadCmd reread model', NoOp
         | model', None -> model', Cmd.none, NoOp
     | OpenEntryInLedger entryId -> leaveForEntry model, Cmd.none, JumpToEntry entryId
-    | SetTargetPause paused ->
-        match startPause paused model with
+    | SetTargetPause intent ->
+        match startPause intent model with
         | model', Some (monthKey, request) -> model', pauseCmd monthKey request, NoOp
         | model', None -> model', Cmd.none, NoOp
     | TargetPauseAnswered (categoryId, month, result) ->
+        let started = pauseStartGeneration categoryId month model
         let answered = applyPauseAnswered categoryId month result model
         match result with
         | Error _ -> answered, Cmd.none, NoOp
         | Ok _ ->
-            // Ein Neu-Lesen, das vor der Pause begann, nähme sie zurück: dann noch einmal lesen.
-            let reread, cmd =
-                if pauseNeedsReread month answered then
-                    let rereading, how = rereadMonth answered
-                    rereading, rereadCmd how rereading
-                else
-                    answered, Cmd.none
-            if pauseAnswerShown categoryId month reread then afterMovement (reread, cmd, NoOp)
-            else reread, cmd, NoOp
+            // Ein Lesen, das die Pause verpasst haben kann, nähme sie zurück: dann noch einmal lesen.
+            afterPauseAnswered categoryId month (pauseNeedsReread month started answered) (answered, NoOp)
+    | TargetPauseCallLost (categoryId, month, message) ->
+        let shown = pauseAnswerShown categoryId month model
+        let lost = applyPauseCallLost categoryId month message model
+        // Gezeigt steht die Meldung im Tab, sonst als Toast. Der Monat wird still neu gelesen, wenn er
+        // gezeigt wird und kein Wechsel läuft.
+        let external = if shown then NoOp else ShowToast (pauseCallLostText message, ToastError)
+        let reread = shownMonth lost = Some month && not (monthChanging lost)
+        afterPauseAnswered categoryId month reread (lost, external)
     | TargetAmountChanged text -> typeTargetAmount text model, Cmd.none, NoOp
     | TargetDateChanged entry -> typeTargetDate entry model, Cmd.none, NoOp
     | SaveTarget ->
@@ -331,7 +350,8 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         let answered, reread = applyTargetAnswered categoryId month result model
         let external =
             match result with
-            | Error message when not shown -> ShowToast (targetRejectedAwayText message, ToastWarning)
+            | Error message when not (targetAnswerInTab categoryId month model) ->
+                ShowToast (targetRejectedAwayText message, ToastWarning)
             | _ -> NoOp
         if reread then
             // YNAB rechnet den Fehlbetrag neu: still neu lesen, bis dahin ist der Fehlbetrag-Knopf gesperrt.
@@ -428,6 +448,7 @@ let private routeOf (msg: Msg) (model: Model) : MsgRoute =
     | CategoryHistoryReloaded _
     | SetTargetPause _
     | TargetPauseAnswered _
+    | TargetPauseCallLost _
     | TargetAmountChanged _
     | TargetDateChanged _
     | SaveTarget

@@ -12,16 +12,10 @@ open Components.Budget.Targets
 open Components.Budget.Moves
 open Components.Budget.Inspector
 open Components.Budget.Pause
+open Components.Budget.PauseView
 open Client.DesignSystem
 open Client.DesignSystem.Tokens
 open Components.Budget.MonthView
-
-/// Der Fehlbetrag-Knopf nimmt dem Feld den Fokus nicht (ADR 0005 Punkt 2). Die Schritte tragen das selbst.
-let private keepsFocus (children: ReactElement list) =
-    Html.div [
-        prop.onMouseDown (fun e -> e.preventDefault ())
-        prop.children children
-    ]
 
 /// Markiert den Inhalt beim Fokus: das nächste Zeichen ersetzt ihn.
 let private selectAll (e: Browser.Types.FocusEvent) : unit =
@@ -54,12 +48,6 @@ let moneySwitch (tab: MoneyTabState) (dispatch: Msg -> unit) =
     Segmented.view "money-mode" "Modus" [ segment "Zuweisen" AssignMode; segment "Holen" TakeMode; segment "Abgeben" GiveMode ]
 
 /// Ein Betragsfeld. `.input-field` setzt Farbe und Schrift ohne Layer, deshalb eigene Regeln (`styles.css`).
-let private amountFieldClass (invalid: bool) : string =
-    if invalid then "w-full input-amount input-invalid tabular-nums" else "w-full input-amount tabular-nums"
-
-let private invalidHint =
-    Html.span [ prop.className $"{ListRoles.primarySize} {Colors.neonRed}"; prop.text "Keine gültige Rechnung" ]
-
 let private assignField (model: Model) (category: BudgetCategory) (tab: MoneyTabState) (dispatch: Msg -> unit) =
     Input.groupSimple "Zugewiesen" (
         Html.div [
@@ -88,7 +76,7 @@ let private previewSlot (month: BudgetMonth) (category: BudgetCategory) (tab: Mo
         prop.children [
             match assignPreview month category tab with
             | NoPreview -> ()
-            | InvalidCalculation -> invalidHint
+            | InvalidCalculation -> invalidHint AmountMath.InvalidCalculationText
             | AssignAfter (available, assigned, toBeBudgeted) ->
                 Html.div [
                     prop.className ListRoles.mobileLine1
@@ -245,7 +233,7 @@ let private transferMode (model: Model) (month: BudgetMonth) (tab: MoneyTabState
                 ]
             ]
         )
-        if transferAmountInvalid month tab then invalidHint
+        if transferAmountInvalid month tab then invalidHint AmountMath.InvalidCalculationText
         if tab.Mode = GiveMode then
             fixedSide "transfer-from" "von" source
             counterpartSide model month tab "transfer-to" "nach" target dispatch
@@ -273,57 +261,13 @@ let private transferMode (model: Model) (month: BudgetMonth) (tab: MoneyTabState
         ]
     ]
 
-/// Der Knopf "Target pausieren" oder "Pause aufheben", neutral (ADR 0075 Punkt 2), dazu der Satz zur
-/// YNAB-Pause und eine Fehlermeldung. Was erscheint, sagt `pauseControlFor`. Steht im Tab Geld und im
-/// Tab Target.
-let pauseControlView (model: Model) (category: BudgetCategory) (dispatch: Msg -> unit) =
-    let button (b: PauseButton) (invisible: bool) =
-        Html.div [
-            prop.custom ("data-testid", "target-pause")
-            prop.className (if invisible then "invisible" else "")
-            prop.children [
-                Button.view
-                    { Button.defaultProps with
-                        Text = b.Label
-                        Variant = Button.Secondary
-                        IsLoading = pauseRunningFor model category.Id
-                        IsDisabled = pauseBusy model
-                        ClassName = Some $"w-full {TouchTargets.sheetMinHeight}"
-                        OnClick = fun () -> dispatch (SetTargetPause b.Paused) }
-            ]
-        ]
-    React.fragment [
-        match pauseControlFor model category with
-        | NoPauseControl -> ()
-        | PauseSlotFree -> button { Label = "Target pausieren"; Paused = true } true
-        | PauseOffered (offered, note) ->
-            match note with
-            | Some text ->
-                Html.p [
-                    prop.custom ("data-testid", "target-pause-ynab")
-                    prop.className ListRoles.muted
-                    prop.text text
-                ]
-            | None -> ()
-            match offered with
-            | Some b -> button b false
-            | None -> ()
-        match pauseError model category.Id with
-        | Some message ->
-            Html.div [
-                prop.custom ("data-testid", "target-pause-error")
-                prop.children [ ErrorDisplay.cardCompact message None ]
-            ]
-        | None -> ()
-    ]
-
 /// Der Modus unter dem Umschalter. Im Modus Zuweisen steht unten der Pause-Knopf.
 let moneyMode (model: Model) (month: BudgetMonth) (category: BudgetCategory) (tab: MoneyTabState) (dispatch: Msg -> unit) =
     React.fragment [
         match tab.Mode with
         | AssignMode ->
             assignMode model month category tab dispatch
-            pauseControlView model category dispatch
+            PauseView.pauseControlView PauseInMoneyTab model category dispatch
         | TakeMode
         | GiveMode -> transferMode model month tab dispatch
         match tab.Transfer.Submission with

@@ -35,7 +35,8 @@ let private toBudgetCategory (pausedInBb: Set<Guid>) (c: YnabMonthCategory) : Bu
       Available = c.Available
       Underfunded = c.Underfunded
       Target = c.Target
-      Pause = pauseSourceOf c.Snoozed (pausedInBb.Contains c.Id) }
+      // Eine BB-Pause ohne Target wirkt nicht und wird nicht gemeldet (budgeting-r3wq8).
+      Pause = pauseSourceOf c.Snoozed (c.Target.IsSome && pausedInBb.Contains c.Id) }
 
 /// Gruppiert die sichtbaren Kategorien nach Kategoriegruppe. Die Folge ist die der Monatsantwort
 /// und damit ungeordnet (ADR 0074 Punkt 6): `toBudgetMonth` dient den Server-Abläufen, die Seite
@@ -123,21 +124,29 @@ let planTargetApplication (month: BudgetMonth) : Result<TargetPreview, string> =
 // Target pausieren (budgeting-t6p8z, ADR 0073, ADR 0079)
 // ============================================
 
-/// Ein Ereignis in `target_pause_events`. Der Stand je Kategorie und Monat ist das jüngste.
+/// Ein Ereignis in `target_pause_events`. Der Stand je Kategorie und Monat ist das jüngste. Ein Name je
+/// Ereignis (budgeting-r3wq8): `PauseLifted` heißt in der Spalte "Aufgehoben" und in der Historie
+/// `HistoryEntry.PauseLifted`.
 type PauseKind =
     | Paused
-    | Resumed
+    | PauseLifted
 
-/// Der Text in `target_pause_events.kind`.
+/// Der Text in `target_pause_events.kind`. Geschrieben wird nur dieser Text.
 let pauseKindText (kind: PauseKind) : string =
     match kind with
     | Paused -> "Pausiert"
-    | Resumed -> "Fortgesetzt"
+    | PauseLifted -> "Aufgehoben"
+
+/// Der frühere Text für `PauseLifted`. Lokale Dev-Datenbanken tragen ihn noch, gelesen wird er weiter,
+/// geschrieben nie mehr.
+[<Literal>]
+let LegacyPauseLiftedText = "Fortgesetzt"
 
 /// Liest die Spalte. Ein unbekannter Text wird gemeldet, nicht auf einen Standard gelegt.
 let pauseKindOfText (text: string) : Result<PauseKind, string> =
-    match [ Paused; Resumed ] |> List.tryFind (fun k -> pauseKindText k = text) with
+    match [ Paused; PauseLifted ] |> List.tryFind (fun k -> pauseKindText k = text) with
     | Some kind -> Ok kind
+    | None when text = LegacyPauseLiftedText -> Ok PauseLifted
     | None -> Error $"Unbekannte Art eines Pause-Ereignisses: {text}"
 
 /// Was aus einem Auftrag Pausieren oder Aufheben wird.
@@ -150,31 +159,36 @@ type PausePlan = {
     After: PauseSource option
 }
 
-/// Plant Pausieren (`Paused = true`) oder Aufheben (`false`) im übergebenen Monat. Die Monatsart prüft
-/// der Ablauf vorher. Abgelehnt werden eine im Monat nicht sichtbare Kategorie und eine Kategorie ohne
+/// Die Ablehnung, wenn die Kategorie im Monat nicht sichtbar ist. Ohne Guid und Monatsschlüssel, die
+/// Meldung liest ein Mensch (budgeting-r3wq8).
+[<Literal>]
+let CategoryNotVisibleText = "Die Kategorie ist in diesem Monat nicht sichtbar (ausgeblendet oder nicht vorhanden)."
+
+/// Plant Pausieren oder Aufheben im übergebenen Monat. Die Monatsart prüft der Ablauf vorher.
+/// `pausedInBbRaw` sind die gespeicherten BB-Pausen des Monats, auch die ohne Target: `toBudgetMonth`
+/// meldet eine BB-Pause ohne Target nicht, sie wirkt nicht, aufheben lässt sie sich trotzdem
+/// (budgeting-r3wq8). Abgelehnt werden eine im Monat nicht sichtbare Kategorie und Pausieren ohne
 /// Target. Doppeltes Pausieren und Aufheben ohne BB-Pause ergeben kein Ereignis. Aufheben gilt nur der
 /// BB-Pause, eine Pause aus YNAB bleibt (ADR 0073 Punkt 2). Rein, ohne I/O.
-let planPause (month: BudgetMonth) (request: TargetPauseRequest) : Result<PausePlan, string> =
+let planPause (month: BudgetMonth) (pausedInBbRaw: Set<Guid>) (request: TargetPauseRequest) : Result<PausePlan, string> =
     let category =
         month.Groups
         |> List.collect (fun g -> g.Categories)
         |> List.tryFind (fun c -> c.Id = request.CategoryId)
     match category with
-    | None ->
-        Error $"Die Kategorie {request.CategoryId} ist im Monat {month.Month} nicht sichtbar (ausgeblendet oder nicht vorhanden)."
-    | Some c when c.Target.IsNone -> Error $"{c.Name} hat kein Target. Pausieren geht nur mit Target."
+    | None -> Error CategoryNotVisibleText
+    | Some c when request.Intent = PauseTarget && c.Target.IsNone ->
+        Error $"{c.Name} hat kein Target. Pausieren geht nur mit Target."
     | Some c ->
-        let inBb = pausedInBb c.Pause
-        let event =
-            match request.Paused, inBb with
-            | true, false -> Some Paused
-            | false, true -> Some Resumed
-            | true, true
-            | false, false -> None
+        let inBb = pausedInBbRaw.Contains c.Id
+        let event, pausedAfter =
+            match request.Intent with
+            | PauseTarget -> (if inBb then None else Some Paused), true
+            | LiftPause -> (if inBb then Some PauseLifted else None), false
         Ok
             { Category = c
               Event = event
-              After = pauseSourceOf (pausedInYnab c.Pause) request.Paused }
+              After = pauseSourceOf (pausedInYnab c.Pause) pausedAfter }
 
 // ============================================
 // Target ändern und entfernen (budgeting-k8wq3, ADR 0072, ADR 0080)
@@ -208,6 +222,14 @@ let planTargetWrite (shown: Target) (wanted: TargetDraft option) : Result<Target
         match goal, date with
         | Keep, Keep -> Ok []
         | _ -> Ok [ { GoalTarget = goal; TargetDate = date; Frequency = None } ]
+
+/// Ein Patch ohne gesetztes Feld. BB sendet ihn nie, der Ablauf lehnt ihn vor dem Senden ab.
+let targetPatchIsEmpty (patch: TargetPatch) : bool =
+    patch.GoalTarget = Keep && patch.TargetDate = Keep && patch.Frequency.IsNone
+
+/// Die Ablehnung eines leeren Patches, BBs eigener Text.
+[<Literal>]
+let EmptyTargetPatchText = "Am Target ist nichts geändert, es gibt nichts zu senden."
 
 /// Die Art der Target-Änderung aus dem Wunsch: kein Wunsch heißt entfernen.
 let targetChangeKindOf (wanted: TargetDraft option) : TargetChangeKind =

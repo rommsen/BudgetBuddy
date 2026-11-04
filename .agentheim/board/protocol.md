@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 15:29 -- Task verified and completed: budgeting-r3wq8 - "Review-Korrekturen zu Target pausieren, Tab Historie und Target ändern: Eingabe beim Speichern bleibt, Pause-Aufrufe lesen bei Abbruch neu, ein Name je Pause-Ereignis, Absicht statt Bool, Fokus und Rollen der Balken, fehlende Tests"
+
+**Type:** Work / Task completion
+**Task:** budgeting-r3wq8 - "Review-Korrekturen zu Target pausieren, Tab Historie und Target ändern: Eingabe beim Speichern bleibt, Pause-Aufrufe lesen bei Abbruch neu, ein Name je Pause-Ereignis, Absicht statt Bool, Fokus und Rollen der Balken, fehlende Tests"
+**Summary:** Review-Korrekturen: Felder gesperrt beim Speichern, Aufheben ohne Target, PauseLifted/Aufgehoben, PauseIntent, Pause-Abbruch liest neu, Balken-Fokus, BottomSheet.confirmDanger und Button.IsBusy, fehlende Tests
+**Duration:** 53m
+**Verification:** PASS (iteration 1)
+**Files changed:** 39
+**Tests added:** 27
+**ADRs written:** none
+
+---
+
+## 2026-11-04 15:25 -- Verification failed: budgeting-h7q4v - Allgemeine Budget-Historie
+
+**Type:** Work / Verification failure
+**Task:** budgeting-h7q4v - Allgemeine Budget-Historie
+**Iteration:** 1 of 3
+**Reasons:** H2-Gegenprobe fehlt: historyLineView auf Money.listAmount zurückgestellt bleibt grün
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-04 14:41 -- Batch started: [budgeting-r3wq8, budgeting-h7q4v]
 
 **Type:** Work / Batch start

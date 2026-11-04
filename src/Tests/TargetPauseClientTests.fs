@@ -78,20 +78,23 @@ let private controlTests =
                 Expect.equal (pauseControl PastMonth (withPause pause)) PauseSlotFree $"{pause}"
         }
         test "Laufender und künftiger Monat zeigen je Quelle denselben Knopf und Satz" {
-            let pausing = Some { Label = "Target pausieren"; Paused = true }
-            let lifting = Some { Label = "Pause aufheben"; Paused = false }
+            let pausing = Some { Label = "Target pausieren"; Intent = PauseTarget }
+            let lifting = Some { Label = "Pause aufheben"; Intent = LiftPause }
+            // budgeting-r3wq8: bei Pause auf beiden Seiten hebt der Knopf nur die BB-Pause auf und sagt es.
+            let liftingBb = Some { Label = "Pause in BB aufheben"; Intent = LiftPause }
             let cases =
                 [ None, PauseOffered (pausing, None)
                   Some PausedInBb, PauseOffered (lifting, None)
                   Some PausedInYnab, PauseOffered (None, Some ynabPauseNote)
-                  Some PausedInBoth, PauseOffered (lifting, Some ynabPauseNote) ]
+                  Some PausedInBoth,
+                  PauseOffered (liftingBb, Some "In YNAB ist das Target ebenfalls pausiert, diese Pause lässt sich nur dort aufheben.") ]
             for kind in [ CurrentMonth; FutureMonth ] do
                 for pause, expected in cases do
                     Expect.equal (pauseControl kind (withPause pause)) expected $"{kind} {pause}"
         }
         test "Ein erfülltes Target lässt sich auch pausieren" {
             match pauseControl CurrentMonth { trip with Underfunded = Some (eur 0m) } with
-            | PauseOffered (Some button, None) -> Expect.isTrue button.Paused "pausieren"
+            | PauseOffered (Some button, None) -> Expect.equal button.Intent PauseTarget "pausieren"
             | other -> failtest $"Knopf erwartet: {other}"
         }
     ]
@@ -105,9 +108,9 @@ let private flowTests =
         test "GIVEN Fehlbetrag WHEN Pause bestätigt THEN Fehlt leer, Filterzahl sinkt, Fehlbetrag-Knopf weg, Monat nicht neu gelesen" {
             let groups (model: Model) = match model.Month with Success m -> m.Groups | _ -> []
             Expect.equal (filterCount MissingOnly (groups onTrip)) 1 "vorher fehlt Ausflug"
-            let running, cmd = update (SetTargetPause true) onTrip
+            let running, cmd = update (SetTargetPause PauseTarget) onTrip
             Expect.isNonEmpty cmd "der Aufruf geht hinaus"
-            Expect.equal running.PauseCall (PauseRunning (paused, current)) "läuft"
+            Expect.equal running.PauseCall (PauseRunning (paused, current, onTrip.MonthGeneration)) "läuft"
             let answered, _ = update (TargetPauseAnswered (paused, current, Ok (Some PausedInBb))) running
             let shown = categoryOf answered paused
             Expect.equal shown.Pause (Some PausedInBb) "Pause gesetzt"
@@ -123,29 +126,67 @@ let private flowTests =
                 let asked = onTrip |> step (SelectInspectorTab HistoryTab)
                 asked |> step (CategoryHistoryLoaded (asked.HistoryGeneration, Ok { Entries = []; Spending = [] }))
             let inMoney = historyShown |> step (SelectInspectorTab MoneyTab)
-            let answered = inMoney |> step (SetTargetPause true) |> step (TargetPauseAnswered (paused, current, Ok (Some PausedInBb)))
+            let answered = inMoney |> step (SetTargetPause PauseTarget) |> step (TargetPauseAnswered (paused, current, Ok (Some PausedInBb)))
             Expect.equal (answered.Selected |> Option.map (fun s -> s.History)) (Some NotAsked) "wieder fällig"
         }
         test "GIVEN Fehler vom Server THEN Meldung im Tab, Pause unverändert" {
             let answered =
-                onTrip |> step (SetTargetPause true) |> step (TargetPauseAnswered (paused, current, Error "Ausflug hat kein Target."))
+                onTrip |> step (SetTargetPause PauseTarget) |> step (TargetPauseAnswered (paused, current, Error "Ausflug hat kein Target."))
             Expect.equal (categoryOf answered paused).Pause None "unverändert"
             Expect.equal (pauseError answered paused) (Some "Ausflug hat kein Target.") "Meldung"
             Expect.equal (answered |> step (SelectCategory other) |> step (SelectCategory paused) |> fun m -> pauseError m paused) None "gilt nur, solange gezeigt"
         }
         test "Ein Neu-Lesen, das vor der Pause begann, wird nach der Antwort wiederholt" {
             let stale = { onTrip with Freshness = MonthStale }
-            let running = stale |> step (SetTargetPause true)
+            let running = stale |> step (SetTargetPause PauseTarget)
             let answered, cmd = update (TargetPauseAnswered (paused, current, Ok (Some PausedInBb))) running
             Expect.isGreaterThan answered.MonthGeneration running.MonthGeneration "die alte Antwort zählt nicht mehr"
             Expect.isNonEmpty cmd "der Monat wird neu gelesen"
         }
-        test "Aufheben einer BB-Pause schickt Paused = false" {
+        test "Aufheben einer BB-Pause schickt die Absicht LiftPause" {
             let pausedTrip = { onTrip with Month = Success (monthWith current (Some PausedInBoth)) }
-            match startPause false pausedTrip with
-            | _, Some (month, request) -> Expect.equal (month, request) (current, { CategoryId = paused; Paused = false }) "Auftrag"
+            match startPause LiftPause pausedTrip with
+            | _, Some (month, request) -> Expect.equal (month, request) (current, { CategoryId = paused; Intent = LiftPause }) "Auftrag"
             | _, None -> failtest "Auftrag erwartet"
-            Expect.isNone (snd (startPause true pausedTrip)) "Pausieren wird nicht angeboten"
+            Expect.isNone (snd (startPause PauseTarget pausedTrip)) "Pausieren wird nicht angeboten"
+        }
+        // budgeting-r3wq8, Bug: die Pause-Antwort sah ein laufendes Neu-Lesen nur, wenn der Monat geladen
+        // war. Nach `MoveCallLost` steht `Loading`, die Antwort des Neu-Lesens kennte die Pause nicht.
+        test "GIVEN Pause läuft, MoveCallLost WHEN die Pause-Antwort kommt THEN wird der Monat noch einmal gelesen" {
+            let running = onTrip |> step (SetTargetPause PauseTarget)
+            let lost = running |> step (MoveCallLost "weg")
+            let answered, cmd = update (TargetPauseAnswered (paused, current, Ok (Some PausedInBb))) lost
+            Expect.isGreaterThan answered.MonthGeneration lost.MonthGeneration "neu gelesen"
+            Expect.isNonEmpty cmd "der Monat wird gelesen"
+        }
+        test "GIVEN ein Neu-Lesen begann und endete während der Pause WHEN die Antwort kommt THEN wird neu gelesen" {
+            let running = onTrip |> step (SetTargetPause PauseTarget)
+            let rereading = { running with MonthGeneration = running.MonthGeneration + 1 }
+            let answered = rereading |> step (TargetPauseAnswered (paused, current, Ok (Some PausedInBb)))
+            Expect.isGreaterThan answered.MonthGeneration rereading.MonthGeneration "neu gelesen"
+        }
+        test "Während eines Monatswechsels liest die Pause-Antwort nicht neu" {
+            let running = { onTrip with Freshness = MonthStale } |> step (SetTargetPause PauseTarget)
+            let changing = running |> step (SelectMonth next)
+            let answered = changing |> step (TargetPauseAnswered (paused, current, Ok (Some PausedInBb)))
+            Expect.equal answered.MonthGeneration changing.MonthGeneration "kein zweites Lesen"
+        }
+        // budgeting-r3wq8: ein abgebrochener Aufruf ist keine Ablehnung. Ob die Pause steht, ist offen:
+        // Meldung im Tab, der Monat wird still neu gelesen, die Pause bleibt, wie sie war.
+        test "GIVEN Pause läuft WHEN der Aufruf abbricht THEN Meldung im Tab, der Monat wird still neu gelesen" {
+            let running = onTrip |> step (SetTargetPause PauseTarget)
+            let lost, cmd = update (TargetPauseCallLost (paused, current, "Netz weg")) running
+            Expect.equal (pauseError lost paused) (Some (pauseCallLostText "Netz weg")) "Meldung"
+            Expect.equal (categoryOf lost paused).Pause None "unverändert"
+            Expect.isGreaterThan lost.MonthGeneration running.MonthGeneration "neu gelesen"
+            Expect.equal lost.Freshness MonthStale "still, die Liste bleibt"
+            Expect.isTrue (match lost.Month with Success _ -> true | _ -> false) "kein Loading"
+            Expect.isNonEmpty cmd "der Monat wird gelesen"
+        }
+        test "GIVEN eine andere Kategorie ist gezeigt WHEN der Aufruf abbricht THEN ein Toast nennt es" {
+            let away = onTrip |> step (SetTargetPause PauseTarget) |> step (SelectCategory other)
+            let _, _, external = Components.Budget.State.update (TargetPauseCallLost (paused, current, "Netz weg")) away
+            Expect.equal external (ShowToast (pauseCallLostText "Netz weg", ToastError)) "Toast"
         }
     ]
 
@@ -153,10 +194,13 @@ let private flowTests =
 // Reihenfolgen (Doktrin Punkt 20)
 // ============================================
 
-/// Was die Aufzählung über den Zustand weiß, unabhängig vom getesteten Code.
+/// Was die Aufzählung über den Zustand weiß, unabhängig vom getesteten Code. "Monat" und "Geladen" sind
+/// getrennt (budgeting-r3wq8): dazwischen läuft ein Monatswechsel, die Seite zeigt noch den alten Monat.
 type private Walk = {
-    /// Der Monat, der gezeigt und geladen ist.
-    Month: string
+    /// Der Monat, den die Seite zeigt (geladen).
+    Displayed: string
+    /// Der gewählte Monat. Weicht er ab, läuft ein Wechsel.
+    Chosen: string
     /// Die gezeigte Kategorie.
     Shown: Guid
     /// Der laufende Aufruf: sein Monat.
@@ -165,53 +209,50 @@ type private Walk = {
     PausedOnServer: Set<string>
 }
 
-/// Alle Ereignisse, die im Zustand kommen können: Name, Nachrichten, Zustand danach.
-let private events (walk: Walk) : (string * Msg list * Walk) list =
-    let otherMonth = if walk.Month = current then next else current
+/// Alle Ereignisse, die im Zustand kommen können: Name, Nachricht, Zustand danach. Die Antwort des
+/// Monats liest den Stand des Servers beim Eintreffen.
+let private events (walk: Walk) : (string * (Model -> Msg) * Walk) list =
     let otherCategory = if walk.Shown = paused then other else paused
-    [ "Tipp", [ SetTargetPause true ], walk
-      "Kategorie", [ SelectCategory otherCategory ], { walk with Shown = otherCategory }
-      "Monat", [ SelectMonth otherMonth ], { walk with Month = otherMonth }
+    [ "Tipp", (fun _ -> SetTargetPause PauseTarget), walk
+      "Kategorie", (fun _ -> SelectCategory otherCategory), { walk with Shown = otherCategory }
+      if walk.Displayed = walk.Chosen then
+          let otherMonth = if walk.Chosen = current then next else current
+          "Monat", (fun _ -> SelectMonth otherMonth), { walk with Chosen = otherMonth }
+      else
+          let pause = if walk.PausedOnServer.Contains walk.Chosen then Some PausedInBb else None
+          "Geladen", (fun (m: Model) -> Loaded (m.MonthGeneration, Ok (monthWith walk.Chosen pause))), { walk with Displayed = walk.Chosen }
       match walk.Pending with
       | Some month ->
-          "Antwort", [ TargetPauseAnswered (paused, month, Ok (Some PausedInBb)) ],
+          "Antwort", (fun _ -> TargetPauseAnswered (paused, month, Ok (Some PausedInBb))),
           { walk with Pending = None; PausedOnServer = walk.PausedOnServer.Add month }
       | None -> () ]
 
 let private walkTests =
-    let start = { Month = current; Shown = paused; Pending = None; PausedOnServer = Set.empty }
+    let start = { Displayed = current; Chosen = current; Shown = paused; Pending = None; PausedOnServer = Set.empty }
     let rec walkFrom (depth: int) (path: string list) (walk: Walk) (model: Model) : unit =
         if depth > 0 then
-            for name, msgs, after in events walk do
+            for name, msgOf, after in events walk do
                 let route = List.rev (name :: path) |> String.concat ", "
-                // Der Server kennt die Pause erst nach der Antwort: ein Monatswechsel lädt den Monat mit
-                // dem Stand vor dem Schritt, nur die Antwort selbst ändert ihn.
-                let mutable sent = false
-                let mutable model' = model
-                for msg in msgs do
-                    match msg with
-                    | SelectMonth month ->
-                        let moved = step msg model'
-                        let pause = if walk.PausedOnServer.Contains month then Some PausedInBb else None
-                        model' <- step (Loaded (moved.MonthGeneration, Ok (monthWith month pause))) moved
-                    | _ ->
-                        let stepped, cmd = update msg model'
-                        if msg = SetTargetPause true && not (List.isEmpty cmd) then sent <- true
-                        model' <- stepped
+                let model', cmd = update (msgOf model) model
                 let after =
                     if name = "Tipp" then
-                        // Gesendet wird nur, wenn nichts läuft, Ausflug gezeigt wird und dort nicht schon pausiert ist.
-                        let expected = walk.Pending.IsNone && walk.Shown = paused && not (walk.PausedOnServer.Contains walk.Month)
-                        Expect.equal sent expected $"{route}: gesendet"
-                        if expected then { after with Pending = Some walk.Month } else after
+                        // Gesendet wird nur, wenn nichts läuft, kein Monatswechsel läuft, Ausflug gezeigt wird und
+                        // dort nicht schon pausiert ist.
+                        let expected =
+                            walk.Pending.IsNone
+                            && walk.Displayed = walk.Chosen
+                            && walk.Shown = paused
+                            && not (walk.PausedOnServer.Contains walk.Displayed)
+                        Expect.equal (not (List.isEmpty cmd)) expected $"{route}: gesendet"
+                        if expected then { after with Pending = Some walk.Displayed } else after
                     else after
-                let expectedPause = if after.PausedOnServer.Contains after.Month then Some PausedInBb else None
-                Expect.equal (categoryOf model' paused).Pause expectedPause $"{route}: Pause im Monat {after.Month}"
+                let expectedPause = if after.PausedOnServer.Contains after.Displayed then Some PausedInBb else None
+                Expect.equal (categoryOf model' paused).Pause expectedPause $"{route}: Pause im Monat {after.Displayed}"
                 Expect.equal (categoryOf model' other).Pause None $"{route}: Urlaub unberührt"
                 walkFrom (depth - 1) (name :: path) after model'
     testList "Pause: Reihenfolgen" [
-        test "In jeder Reihenfolge wirkt die Antwort nur auf ihre Kategorie und ihren Monat, ein zweiter Tipp sendet nicht" {
-            walkFrom 5 [] start onTrip
+        test "In jeder Reihenfolge wirkt die Antwort nur auf ihre Kategorie und ihren Monat, ein zweiter Tipp und ein Tipp im Wechsel senden nicht" {
+            walkFrom 6 [] start onTrip
         }
     ]
 

@@ -301,7 +301,7 @@ let textTests =
             Expect.equal past.AmountText "1.235" "gerundet unter dem Balken"
         }
         // budgeting-v6m3z (ADR 0049): die Bewegungsliste ist eine ruhige Liste, Beträge neutral mit Vorzeichen.
-        test "Der Betrag einer Bewegungszeile: mit Vorzeichen, neutral in text-primary, kein Teal, bei jeder Herkunft" {
+        test "Der Betrag einer Bewegungszeile trägt bei jeder Herkunft sein Vorzeichen" {
             let movement origin oldAssigned newAssigned : HistoryEntry =
                 Movement
                     { MovementId = Guid.NewGuid()
@@ -315,19 +315,12 @@ let textTests =
                       NewAssigned = eur newAssigned
                       Counterpart = (if origin = MovementOrigin.MoneyMoved then Some "Urlaub" else None)
                       Latest = None }
-            let hasClass (needle: string) (cls: string) = cls.Split(' ') |> Array.contains needle
             for origin in [ MovementOrigin.MoneyMoved; MovementOrigin.MoneyAssigned; MovementOrigin.TargetsApplied ] do
                 let change entry = (historyEntryLine entry).Change |> Option.get
                 let up = change (movement origin 30m 50m)
                 let down = change (movement origin 50m 30m)
                 Expect.equal (historyChangeText up) "+20,00 €" $"{origin}: positiv mit Plus"
                 Expect.equal (historyChangeText down) "-20,00 €" $"{origin}: negativ mit Minus"
-            let cls = Client.DesignSystem.Money.signedListAmountClass
-            Expect.isTrue (hasClass Client.DesignSystem.Tokens.Colors.textPrimary cls) $"text-primary ({cls})"
-            Expect.isFalse (cls.Contains "teal") $"kein Teal ({cls})"
-            Expect.isFalse (cls.Contains "neon-") $"keine Leuchtfarbe ({cls})"
-            for c in [ "font-mono"; "font-medium"; "tabular-nums" ] do
-                Expect.isTrue (hasClass c cls) $"{c} wie Money.listAmount ({cls})"
         }
     ]
 

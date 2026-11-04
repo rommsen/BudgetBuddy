@@ -18,8 +18,9 @@ let budgetMonth (port: CommandHandlers.YnabPort) (monthKey: string) : Async<Ynab
         match! port.FetchMonth monthKey with
         | Error e -> return Error e
         | Ok month ->
-            let! paused = Budgeting.Persistence.loadPausedCategories monthKey
-            return Ok (toBudgetMonth paused month)
+            match! Budgeting.Persistence.loadPausedCategories monthKey with
+            | Error message -> return Error (YnabError.InvalidResponse message)
+            | Ok paused -> return Ok (toBudgetMonth paused month)
     }
 
 /// Wie viele Kategorien "Zuletzt verwendet" liest. Mehr als der Picker zeigt: X und ausgeblendete
@@ -66,7 +67,7 @@ type HistoryPort = {
     /// Kategorie und Monatserste (aufsteigend): die Netto-Aktivität der Monate mit Buchungen.
     LoadMonthlyActivity: Guid -> DateTime list -> Async<(DateTime * Money) list>
     /// Kategorie und Monat ("YYYY-MM-01"): die Pause-Ereignisse, neueste zuerst (budgeting-t6p8z).
-    LoadPauseEvents: Guid -> string -> Async<HistoryEntry list>
+    LoadPauseEvents: Guid -> string -> Async<Result<HistoryEntry list, string>>
     /// Kategorie und Monat: die Target-Änderungen, neueste zuerst (budgeting-k8wq3).
     LoadTargetChanges: Guid -> string -> Async<HistoryTargetChange list>
 }
@@ -96,8 +97,7 @@ let categoryHistory (port: HistoryPort) (categoryId: Guid) (firstDay: DateTime) 
             let! pauses =
                 async {
                     try
-                        let! events = port.LoadPauseEvents categoryId monthKey
-                        return Ok events
+                        return! port.LoadPauseEvents categoryId monthKey
                     with ex ->
                         logReadFailure "Pause-Ereignisse lesen" ex
                         return Error "Pause-Ereignisse nicht lesbar"
@@ -116,13 +116,21 @@ let categoryHistory (port: HistoryPort) (categoryId: Guid) (firstDay: DateTime) 
             | _, Error message -> return Error message
             | Ok pauses, Ok changes ->
                 let months = spendingMonths firstDay
-                try
-                    let! sums = port.LoadMonthlyActivity categoryId months
+                let! sums =
+                    async {
+                        try
+                            let! sums = port.LoadMonthlyActivity categoryId months
+                            return Ok sums
+                        with ex ->
+                            logReadFailure "Ausgaben aus dem Kassenbuch lesen" ex
+                            return Error "Ausgaben aus dem Kassenbuch nicht lesbar"
+                    }
+                // Das Zusammenführen steht außerhalb des `try`: ein Fehler darin ist kein Lesefehler.
+                match sums with
+                | Error message -> return Error message
+                | Ok sums ->
                     let entries = mergeHistoryWithTargetChanges (mergeHistoryEntries found pauses) changes
                     return Ok { Entries = entries; Spending = spendingOf months sums }
-                with ex ->
-                    logReadFailure "Ausgaben aus dem Kassenbuch lesen" ex
-                    return Error "Ausgaben aus dem Kassenbuch nicht lesbar"
     }
 
 /// Die echten Lese-Quellen: Budget-Bewegungen und Kassenbuch (Lese-Naht ledger an budgeting).

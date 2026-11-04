@@ -30,6 +30,9 @@ type ButtonProps = {
     Variant: ButtonVariant
     Size: ButtonSize
     IsLoading: bool
+    /// Der eigene Aufruf läuft, und der Knopf kann den Fokus haben (budgeting-r3wq8): Spinner,
+    /// `aria-disabled` und `aria-busy`, aber kein `disabled`, sonst verlöre er den Fokus. Ein Tipp tut nichts.
+    IsBusy: bool
     IsDisabled: bool
     OnClick: unit -> unit
     FullWidth: bool
@@ -49,6 +52,7 @@ let defaultProps = {
     Variant = Primary
     Size = Medium
     IsLoading = false
+    IsBusy = false
     IsDisabled = false
     OnClick = ignore
     FullWidth = false
@@ -94,6 +98,23 @@ let callerSetsDisplay (extraClass: string) =
         | "hidden" | "block" | "inline-block" | "inline" | "flex" | "inline-flex" | "grid" | "inline-grid" -> true
         | _ -> false)
 
+/// Was ein Knopf im DOM trägt: `disabled`, `aria-disabled`, `aria-busy` und ob der Spinner dreht.
+type ButtonState = {
+    Disabled: bool
+    AriaDisabled: bool
+    AriaBusy: bool
+    ShowsSpinner: bool
+}
+
+/// Der Zustand aus den Props. `IsBusy` sperrt nur über ARIA, damit der Fokus bleibt; `IsLoading` und
+/// `IsDisabled` setzen `disabled`. Rein, die View ruft es nur auf.
+let buttonState (props: ButtonProps) : ButtonState =
+    let busy = props.IsBusy && not props.IsDisabled
+    { Disabled = not busy && (props.IsLoading || props.IsDisabled)
+      AriaDisabled = busy
+      AriaBusy = busy || props.IsLoading
+      ShowsSpinner = busy || props.IsLoading }
+
 /// Create a button with the specified props
 let view (props: ButtonProps) =
     let sizeClass = sizeToClass props.Size
@@ -103,23 +124,27 @@ let view (props: ButtonProps) =
     let extraClass = props.ClassName |> Option.defaultValue ""
     let displayClass = if callerSetsDisplay extraClass then "" else "inline-flex"
     let disabledClass = "disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none disabled:hover:shadow-none disabled:hover:translate-y-0"
+    let busyClass = "aria-disabled:cursor-wait aria-disabled:active:scale-100"
+    let state = buttonState props
 
     Html.button [
-        prop.className $"{displayClass} items-center justify-center gap-1.5 rounded-lg font-semibold transition-all duration-200 {variantClass} {sizeClass} {iconOnly} {widthClass} {disabledClass} {extraClass}"
-        prop.disabled (props.IsLoading || props.IsDisabled)
-        prop.onClick (fun _ -> props.OnClick())
+        prop.className $"{displayClass} items-center justify-center gap-1.5 rounded-lg font-semibold transition-all duration-200 {variantClass} {sizeClass} {iconOnly} {widthClass} {disabledClass} {busyClass} {extraClass}"
+        prop.disabled state.Disabled
+        if state.AriaDisabled then prop.ariaDisabled true
+        if state.AriaBusy then prop.ariaBusy true
+        prop.onClick (fun _ -> if not state.AriaDisabled then props.OnClick())
         if props.Title.IsSome then prop.title props.Title.Value
         if props.AriaLabel.IsSome then prop.ariaLabel props.AriaLabel.Value
         prop.children [
             // Loading spinner
-            if props.IsLoading then
+            if state.ShowsSpinner then
                 Html.span [
                     prop.className "proto-spinner sm"
                 ]
 
             // Icon (left position)
             match props.Icon, props.IconPosition with
-            | Some icon, Left when not props.IsLoading -> icon
+            | Some icon, Left when not state.ShowsSpinner -> icon
             | _ -> ()
 
             // Text
@@ -128,7 +153,7 @@ let view (props: ButtonProps) =
 
             // Icon (right position)
             match props.Icon, props.IconPosition with
-            | Some icon, Right when not props.IsLoading -> icon
+            | Some icon, Right when not state.ShowsSpinner -> icon
             | _ -> ()
         ]
     ]

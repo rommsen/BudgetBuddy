@@ -104,16 +104,6 @@ zusammenstehen, Rot am Verfügbar-Betrag im Minus, `fehlt` in Gelb. Die Ausnahme
 | Zeilenhöhe | 44px | zweizeilig, `padding:11px 16px` |
 | Kontostand | `text-primary` (aktiv) oder `text-secondary`; negativ Red | gleich |
 
-**Bewegungslisten der Budget-Historie** (Tab Historie im Inspektor, allgemeine Historie): Der Betrag
-steht neutral in `text-primary` mit Vorzeichen ("+20,00 €", "-20,00 €", `Money.signedListAmount`),
-auch positiv ohne Teal. Das Stand-Badge ist der einzige Farbakzent der Zeile.
-
-**Monatsbalken** (`Stats.monthBars`): Der Betrag unter dem Balken steht immer in `text-secondary`. Überwiegen in
-einem Monat die Erstattungen, steht er mit Plus da ("+85") und nicht in Rot: Rot heißt auf der Budget-Seite
-"im Minus". Über den Balken liegt eine Wertzeile fester Höhe. Maus, Tipp oder Tab-Taste wählen einen Balken,
-die Zeile zeigt dann Monat und genauen Betrag über die ganze Breite (läuft nie über den Rand), der Balken
-wird etwas heller. Kein Fokus-Ring, die Wahl zeigt den Fokus. Ohne Auswahl bleibt die Zeile leer.
-
 Zwei Ausnahmen, beide nur für die Budget-Seite:
 
 - **Dritte Zeile am Handy:** Die Kategorie-Zeile trägt das Target als dritte Zeile. Sie hat dieselbe
@@ -126,6 +116,10 @@ Zwei Ausnahmen, beide nur für die Budget-Seite:
   32 px. Die Spalte Target bleibt einzeilig: Betrag in Mono, Rhythmus als eigener Span in Inter,
   dahinter pausiert in `ListRoles.secondary`. Der Name kürzt zuerst. Erst wenn ihm neben `fehlt`
   weniger als 80 px blieben, rückt `fehlt` in eine zweite Zeile, die Zeile wird dann höher.
+
+**Bewegungslisten der Budget-Historie** (Tab Historie im Inspektor, allgemeine Historie): Der Betrag
+steht neutral in `text-primary` mit Vorzeichen ("+20,00 €", "-20,00 €", `Money.signedListAmount`),
+auch positiv ohne Teal. Das Stand-Badge ist der einzige Farbakzent der Zeile.
 
 #### Auswahl (Picker, `searchableSelect`)
 
@@ -200,6 +194,18 @@ Ungültige Eingabe zeigt den Fehlerzustand mit dem Hinweis „Datum als TT.MM.JJ
 > nur mit Eintrag samt Grund in `scripts/token-guard-exceptions.json`. Feature-Code hat keine
 > Ausnahme: fehlt ein Wert, kommt er zuerst als Token ins Design-System.
 
+### Monatsbalken
+
+`Stats.monthBars` (Tab Historie): Der Betrag unter dem Balken steht immer in `text-secondary`. Überwiegen in
+einem Monat die Erstattungen, steht er mit Plus da ("+85") und nicht in Rot: Rot heißt auf der Budget-Seite
+"im Minus". Über den Balken liegt eine Wertzeile fester Höhe in `font-mono`. Maus, Tipp oder Tab-Taste wählen
+einen Balken, die Zeile zeigt dann Monat und genauen Betrag über die ganze Breite (läuft nie über den Rand,
+nimmt keinen Tipp an), der Balken wird etwas heller und sein Monatsname steht in `text-primary`, damit auch
+ein flacher Balken die Wahl zeigt. Kein Fokus-Ring, die Wahl zeigt den Fokus. Ohne Auswahl bleibt die Zeile
+leer. Das `li` ist ein reines Listenelement, den Fokus trägt ein inneres Element mit `role "img"` und
+`aria-label`; vorgelesen wird das Label mit Komma statt "·". Die Vorrangregel (Maus vor Fokus vor
+Vorwahl) steht in `styles.css` an einer Stelle.
+
 ---
 
 ## 3. Token-Layer — Tokens statt hartkodierter Klassen
@@ -265,13 +271,13 @@ steht nur **wann welche / wann nicht**.
 
 | Komponente | Wann nutzen | Wann **nicht** |
 |------------|-------------|----------------|
-| **Button** | Jede klickbare Aktion (dazu `amountStep` für Schritte neben einem Feld, hält den Fokus; `sideRow` und `sideRowFixed` für die Zeilen `von` und `nach`): `primary` (Orange-CTA), `secondary` (neutral mit grauem Rand, ADR 0075), `ghost`, `danger`, `hero`/`heroTeal` (große CTAs), `*Loading`, `*WithIcon`, `group`, in Listen `selectableListRow` (Zeile, die etwas wählt, gewählt mit `aria-current` und Teal), `stepArrow`/`stepArrowGap` (`‹ ›`, der Platz bleibt am Rand frei), `homeLabel` (Name, der nach Hause führt und teal ist, wenn man woanders steht), `listName` (Name einer Zeile als Knopf, sieht aus wie der Name, am Handy 48 px Trefferfläche ohne höhere Zeile) und `listRow` (ganze zweizeilige Listenzeile als Knopf) | Navigation zwischen Seiten → `Navigation`; Link nach extern → eigener Anker mit `Icons.externalLink` |
+| **Button** | Jede klickbare Aktion (dazu `amountStep` für Schritte neben einem Feld, hält den Fokus; `sideRow` und `sideRowFixed` für die Zeilen `von` und `nach`): `primary` (Orange-CTA), `secondary` (neutral mit grauem Rand, ADR 0075), `ghost`, `danger`, `hero`/`heroTeal` (große CTAs), `*Loading`, `IsBusy` (der eigene Aufruf läuft auf einem Knopf, der den Fokus haben kann: Spinner, `aria-disabled` und `aria-busy`, kein `disabled`, der Fokus bleibt), `*WithIcon`, `group`, in Listen `selectableListRow` (Zeile, die etwas wählt, gewählt mit `aria-current` und Teal), `stepArrow`/`stepArrowGap` (`‹ ›`, der Platz bleibt am Rand frei), `homeLabel` (Name, der nach Hause führt und teal ist, wenn man woanders steht), `listName` (Name einer Zeile als Knopf, sieht aus wie der Name, am Handy 48 px Trefferfläche ohne höhere Zeile) und `listRow` (ganze zweizeilige Listenzeile als Knopf) | Navigation zwischen Seiten → `Navigation`; Link nach extern → eigener Anker mit `Icons.externalLink` |
 | **Card** | Inhaltsblöcke: `standard`, `glass`, `glow` (featured), `withAccent`, `emptyState`, plus `header`/`body`/`footer` | Volle Seiten-Layouts → `Primitives`; modale Inhalte → `Modal` |
 | **Badge** | Kompakter Status/Label: semantisch (`success`/`warning`/`error`/`info`, `notice` in Gelb für die Budget-Seite, ADR 0075), Domänen-Status (`imported`, `pendingReview`, `autoCategorized`, `uncategorized`), `count` | Klickbare Filter → `Button.ghost`/Pills; lange Texte |
 | **Input** | Alle Formularelemente: `text`/`password`/`email`/`number`, `textarea`, `select`/`selectSimple`, `checkbox`, `toggle`, `searchableSelect`, plus `group`/`groupWithError`/`formSection` | Reine Anzeige; mobiles Kategorie-/Konto-Auswählen → `BottomSheet` (§7) |
-| **Modal** | Zentrierte Dialoge auf **Desktop**: `simple`, `custom`, `fullScreen`, `confirm`/`confirmDanger`, `alert`, `loading` | Mobile Auswahl-Flows → `BottomSheet` (keyboard-fest); persistente Inhalte |
+| **Modal** | Zentrierte Dialoge auf **Desktop**: `simple`, `custom`, `fullScreen`, `confirm`/`confirmDanger` (beide mit "Abbrechen"), `alert`, `loading` | Mobile Auswahl-Flows → `BottomSheet` (keyboard-fest); persistente Inhalte |
 | **Toast** | Flüchtiges Feedback nach Aktion: `success`/`error`/`warning'`/`info'`, `renderList` | Blockierende Fehler → `ErrorDisplay`/`Modal`; persistenter Status → `Badge` |
-| **Stats** | KPI-/Kennzahl-Kacheln: `withIcon`, `withTrend`, `transactionCount`, `syncCount`, `grid*`, `withAccent` (Akzentfarbe wählen, inkl. `NoAccent` für gar keinen Streifen, z. B. Kontostände-Karten) | Vollständige Tabellen → `Table`; einzelner Betrag im Fließtext → `Money` |
+| **Stats** | KPI-/Kennzahl-Kacheln: `withIcon`, `withTrend`, `transactionCount`, `syncCount`, `grid*`, `withAccent` (Akzentfarbe wählen, inkl. `NoAccent` für gar keinen Streifen, z. B. Kontostände-Karten); Monatsbalken `monthBars`, `monthBarsChosen` (vorgewählter Balken, nur im Styleguide) und `monthBarsPlaceholder` (beim Laden, gleich hoch), Regeln in §2 Monatsbalken | Vollständige Tabellen → `Table`; einzelner Betrag im Fließtext → `Money` |
 | **Money** | **Jede** Geldanzeige — setzt Vorzeichen-Farbe + Glow automatisch: `available` (Auswahl, §2), `afterAmount` (Verfügbar danach: fett, rot unter 0, grün bei genau 0), `simple`, `large`, `hero`, `noSign`, `fromMoney`, `accountBalance` (Kontostand ohne führendes Plus, für Kontostände-Leiste und -Liste), `accountListRow` (klickbare Kontozeile: Name links, farbcodierter Betrag rechts, aktiver Zustand mit Teal-Akzentlinie) | Nicht-monetäre Zahlen → `Presets.monoNumber` |
 | **Table** | Dichte tabellarische Daten (Desktop), inkl. `headerCell`/sortierbar/`sticky` | Mobile Listen mit Zeilen-Aktionen → Card-Liste + `Swipe`; einfache Key-Value-Paare → `Card` |
 | **Loading** | Ladezustände: `spinner`, `centered`, `neonPulse`, Skeletons (`txListSkeleton`, `tableSkeleton`, `statsGridSkeleton`, `cardSkeleton`) | Inhalt da → echten Inhalt zeigen; Fehler → `ErrorDisplay` |
@@ -282,7 +288,7 @@ steht nur **wann welche / wann nicht**.
 | **Primitives** | Layout-Bausteine: `Container`, `Stack`/`HStack`, `Grid`, `Spacer`, responsive Sichtbarkeit (`mobileOnly`/`desktopOnly`) | Visuell gestylte Blöcke → `Card`; Token-Klassen reichen für Spacing |
 | **Tokens** | Quelle aller Klassen-Konstanten (§3) — überall referenzieren | Niemals umgehen: rohe Tailwind-/Hex-Klassen sind Drift |
 | **Form** | Submit-Buttons mit Required-Field-Gating: `submitButton(WithIcon/Secondary)` deaktivieren bei fehlenden Pflichtfeldern | Reine Felder → `Input`; freie Buttons → `Button` |
-| **BottomSheet** | **Mobile** Auswahl-/Picker-Flows (keyboard-aware): `view`, `inspector` (immer gerendert, fährt über `IsOpen` ein und aus und hält dabei seinen Inhalt, feste Höhe 500 px, fester Bereich zwischen Kopf und Inhalt, der ab 55 % Höhe in sich scrollt, wird mit Tastatur kleiner), `categoryPicker`, `categoryPickerLayered`, `chipButton`, `sectionTitle` | Desktop-Dialog → `Modal`; einfaches Dropdown → `Input.select` |
+| **BottomSheet** | **Mobile** Auswahl-/Picker-Flows (keyboard-aware): `view`, `inspector` (immer gerendert, fährt über `IsOpen` ein und aus und hält dabei seinen Inhalt, feste Höhe 500 px, fester Bereich zwischen Kopf und Inhalt, der ab 55 % Höhe in sich scrollt, wird mit Tastatur kleiner), `categoryPicker`, `categoryPickerLayered`, `chipButton`, `sectionTitle`, `confirmDanger` (Rückfrage vor einer zerstörenden Aktion als Block im Sheet, Gegenstück zu `Modal.confirmDanger`: Titel, Text, "Abbrechen" und der rote Knopf, `role "alertdialog"` mit `aria-labelledby`, beim Öffnen hat "Abbrechen" den Fokus) | Desktop-Dialog → `Modal`; einfaches Dropdown → `Input.select` |
 | **Tabs** | Gleich breite Segmente mit `role=tablist`, aktiv in Teal, am Handy 48 px Trefferfläche, Pfeiltasten (am Rand bleiben sie stehen) und roving `tabindex`: `bar`, dazu `panel` für `role=tabpanel`. Fokus: Tabs zeigen Auswahl und Tastatur-Fokus mit demselben teal Strich, ohne Ring und ohne Fläche, Filter-Chips (`ChipBar`) zeigen den Fokus als Ring direkt auf dem Rand der Pille, ohne Abstand (beides ungelayert in `styles.css`) | Filter über einer Liste → `ChipBar` |
 | **Segmented** | Umschalter zwischen Ansichten derselben Sache: Knöpfe mit `aria-pressed`, aktiv in Teal (ADR 0075), 48 px, erster Nutzer ist der Tab Geld | Bereiche mit eigenem Panel → `Tabs`; zwei Tab-Leisten übereinander stören sich bei den Pfeiltasten |
 | **Swipe** | Wischbare Listenzeilen mit enthüllter Aktion (mobile) | Statische Zeilen → Card/`Table`; Desktop-Hover-Aktionen → `Button.iconButton` |

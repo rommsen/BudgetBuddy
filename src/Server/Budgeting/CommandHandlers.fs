@@ -68,13 +68,22 @@ module internal TargetGuard =
 
 /// Liest den Monat aus YNAB und die BB-Pausen des Monats und führt beides zusammen (ADR 0079 Punkt 3).
 /// Unter der Sperre je Monat aufgerufen, sieht es jede Pause, die vorher festgehalten wurde.
-let private fetchBudgetMonth (port: YnabPort) (monthKey: string) : Async<Result<BudgetMonth, YnabError>> =
+/// Sind die Pausen nicht lesbar, ist das wie bei `loadStates` ein `InvalidResponse` (budgeting-r3wq8).
+/// Neben dem Monat kommen die gespeicherten BB-Pausen mit, auch die ohne Target (`planPause`).
+let private fetchBudgetMonthWithPauses (port: YnabPort) (monthKey: string) : Async<Result<BudgetMonth * Set<Guid>, YnabError>> =
     async {
         match! port.FetchMonth monthKey with
         | Error e -> return Error e
         | Ok raw ->
-            let! paused = loadPausedCategories monthKey
-            return Ok (toBudgetMonth paused raw)
+            match! loadPausedCategories monthKey with
+            | Error message -> return Error (YnabError.InvalidResponse message)
+            | Ok paused -> return Ok (toBudgetMonth paused raw, paused)
+    }
+
+let private fetchBudgetMonth (port: YnabPort) (monthKey: string) : Async<Result<BudgetMonth, YnabError>> =
+    async {
+        let! fetched = fetchBudgetMonthWithPauses port monthKey
+        return fetched |> Result.map fst
     }
 
 let private plan (port: YnabPort) (monthKey: string) : Async<Result<TargetPreview, YnabError>> =
@@ -325,10 +334,10 @@ let setTargetPause
         async { return Ok (Error PausePastMonthText) }
     else
         MonthGuard.exclusive monthKey (async {
-            match! fetchBudgetMonth port monthKey with
+            match! fetchBudgetMonthWithPauses port monthKey with
             | Error e -> return Error e
-            | Ok month ->
-                match planPause month request with
+            | Ok (month, pausedInBbRaw) ->
+                match planPause month pausedInBbRaw request with
                 | Error message -> return Ok (Error message)
                 | Ok plan ->
                     match plan.Event with
@@ -352,6 +361,17 @@ let setTargetPause
 /// Grund der übrigen Schritte, wenn ein früherer scheiterte (ADR 0080 Punkt 4).
 [<Literal>]
 let TargetStepHeldBack = "Voriger Schritt nicht geschrieben, nicht gesendet"
+
+/// Hält "geschrieben" nach einem `Ok` von YNAB fest, als Best-Effort: YNAB hat die Änderung schon
+/// übernommen, ein Fehler beim Anhängen darf das nicht als Fehlschlag melden. Er wird geloggt, die Zeile
+/// steht dann ohne Ergebnis in der Historie (budgeting-r3wq8).
+let private recordWrittenBestEffort (changeId: Guid) (now: DateTime) : Async<unit> =
+    async {
+        try
+            do! appendTargetChangeResult changeId now Written
+        with ex ->
+            eprintfn "Ergebnis der Target-Änderung %O nicht festgehalten (YNAB hat geschrieben): %s" changeId ex.Message
+    }
 
 /// Die festzuhaltende Zeile eines Patches, vom gezeigten Target aus.
 let private targetChangeOf
@@ -415,8 +435,7 @@ let changeTarget
                 | Ok raw ->
                     match raw.Categories |> List.tryFind (fun c -> c.Id = request.CategoryId && isVisible c) with
                     | None ->
-                        return
-                            Ok (Error $"Die Kategorie {request.CategoryId} ist im Monat {monthKey} nicht sichtbar (ausgeblendet oder nicht vorhanden).")
+                        return Ok (Error CategoryNotVisibleText)
                     | Some category when category.Target <> request.Shown ->
                         return Ok (Ok (TargetChangedInYnab category.Target))
                     | Some category ->
@@ -426,6 +445,10 @@ let changeTarget
                             match planTargetWrite shown request.Wanted with
                             | Error message -> return Ok (Error message)
                             | Ok [] -> return Ok (Ok (TargetWritten category.Target))
+                            | Ok patches when patches |> List.exists targetPatchIsEmpty ->
+                                // BB lehnt einen leeren Patch selbst ab, bevor etwas festgehalten oder
+                                // gesendet wird; sonst käme er als "YNAB hat abgelehnt" zurück.
+                                return Ok (Error EmptyTargetPatchText)
                             | Ok patches ->
                                 let kind = targetChangeKindOf request.Wanted
                                 let steps = patches |> List.map (fun p -> targetChangeOf now monthKey category shown kind p, p)
@@ -437,7 +460,7 @@ let changeTarget
                                     | Ok _ ->
                                         match! port.SetTarget category.Id patch with
                                         | Ok after ->
-                                            do! appendTargetChangeResult change.Id now Written
+                                            do! recordWrittenBestEffort change.Id now
                                             outcome.Value <- Ok after
                                         | Error e ->
                                             let reason = ynabErrorText e

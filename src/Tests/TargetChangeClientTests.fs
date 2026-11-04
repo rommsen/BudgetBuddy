@@ -108,6 +108,23 @@ let private visibilityTests =
             | other -> failtest $"Formular erwartet: {other}"
             Expect.equal (targetTabMode onTrip { holiday with Target = None }) NoTargetShown "ohne Target"
         }
+        test "Unter dem Betragsfeld steht ein Hinweis bei negativem Betrag und ungültiger Rechnung" {
+            let hint text = targetAmountHint (targetOf 50m) (formOf (onTrip |> step (TargetAmountChanged text)))
+            Expect.equal (hint "-60") (Some "Target darf nicht negativ sein") "negativ"
+            Expect.equal (hint "50-60") (Some "Target darf nicht negativ sein") "Rechnung negativ"
+            Expect.equal (hint "abc") (Some "Keine gültige Rechnung") "ungültig"
+            Expect.equal (hint "60") None "gültig"
+            Expect.equal (targetAmountHint (targetOf 50m) (formOf onTrip)) None "ohne Eingabe"
+        }
+        test "Mit Datum: ein leeres Datum löscht es, dasselbe Datum ist keine Änderung" {
+            let dated = { targetOf 50m with Date = Some "2027-06-01" }
+            let form entry = { formOf onTrip with DateInput = Some entry }
+            Expect.equal
+                (targetFormState dated (form DateField.EmptyDate))
+                (FormChanged { NewGoal = eur 50m; NewDate = None; NewRhythm = KeepRhythm })
+                "leer löscht"
+            Expect.equal (targetFormState dated (form (DateField.ValidDate (DateTime(2027, 6, 1))))) FormUnchanged "gleiches Datum"
+        }
         test "Ohne Abweichung ist Speichern gesperrt, eine ungültige Eingabe auch" {
             let trip' model = categoryOf model tripId
             Expect.isFalse (canSaveTarget onTrip (trip' onTrip)) "nichts geändert"
@@ -182,7 +199,10 @@ let private flowTests =
             let answered = running |> step (TargetChangeAnswered (tripId, current, Ok (TargetChangedInYnab (Some (targetOf 55m)))))
             Expect.equal (categoryOf answered tripId).Target (Some (targetOf 55m)) "frischer Stand"
             Expect.equal ((formOf answered).AmountInput, (formOf answered).Notice) (None, Some TargetChangedNotice) "Hinweis"
-            Expect.equal (targetNoticeText TargetChangedNotice) "Target wurde in YNAB geändert" "Text"
+            Expect.equal
+                (targetNoticeText TargetChangedNotice)
+                "Target wurde inzwischen in YNAB geändert. Hier steht jetzt der Stand aus YNAB, deine Eingabe ist verworfen."
+                "Text"
         }
         test "Ein Fehler zeigt die Meldung, die Eingabe bleibt, ein zweites Speichern geht" {
             let running = onTrip |> step (TargetAmountChanged "60") |> step SaveTarget
@@ -191,6 +211,36 @@ let private flowTests =
             Expect.equal (categoryOf answered tripId).Target (Some (targetOf 50m)) "Target unverändert"
             Expect.equal external NoOp "kein Toast, die Meldung steht im Tab"
             Expect.isTrue (sends SaveTarget answered) "erneut speichern"
+        }
+        // budgeting-r3wq8, Bug: während des Speicherns ließen sich Betrag und Datum weiter bearbeiten. Die
+        // Antwort setzte das Formular zurück, die nachgetippte Eingabe war still weg.
+        test "GIVEN Speichern läuft WHEN getippt wird THEN nehmen die Felder nichts an, danach wieder" {
+            let running = onTrip |> step (TargetAmountChanged "60") |> step SaveTarget
+            Expect.isTrue (targetFieldsLocked running) "gesperrt"
+            let typed = running |> step (TargetAmountChanged "70") |> step (TargetDateChanged (DateField.ValidDate (DateTime(2027, 6, 1))))
+            Expect.equal ((formOf typed).AmountInput, (formOf typed).DateInput) (Some "60", None) "keine Eingabe angenommen"
+            let answered = typed |> step (TargetChangeAnswered (tripId, current, Ok (TargetWritten (Some (targetOf 60m)))))
+            Expect.isFalse (targetFieldsLocked answered) "wieder frei"
+            Expect.equal (formOf (answered |> step (TargetAmountChanged "70"))).AmountInput (Some "70") "Eingabe geht wieder"
+        }
+        test "Läuft das Speichern einer anderen Kategorie, ist das Formular der gezeigten frei" {
+            let away = onTrip |> step (TargetAmountChanged "60") |> step SaveTarget |> step (SelectCategory holidayId)
+            Expect.isFalse (targetFieldsLocked away) "frei"
+            Expect.equal (formOf (away |> step (TargetAmountChanged "30"))).AmountInput (Some "30") "Eingabe"
+        }
+        test "Ein Fehler, während der Tab Historie offen ist, kommt als Toast, die Meldung bleibt im Formular" {
+            let running = onTrip |> step (TargetAmountChanged "60") |> step SaveTarget |> step (SelectInspectorTab HistoryTab)
+            let answered, _, external = update (TargetChangeAnswered (tripId, current, Error "kaputt")) running
+            Expect.equal external (ShowToast (targetRejectedAwayText "kaputt", ToastWarning)) "Toast"
+            Expect.equal (formOf answered).Notice (Some (TargetRejectedNotice "kaputt")) "Meldung im Formular"
+        }
+        test "Target entfernen ist gesperrt, solange die Bestätigung offen ist" {
+            let asked = onTrip |> step AskRemoveTarget
+            Expect.isTrue (removeTargetLocked asked (formOf asked)) "offen"
+            let cancelled = asked |> step CancelRemoveTarget
+            Expect.isFalse (removeTargetLocked cancelled (formOf cancelled)) "abgebrochen"
+            let saving = onTrip |> step (TargetAmountChanged "60") |> step SaveTarget
+            Expect.isTrue (removeTargetLocked saving (formOf saving)) "Aufruf läuft"
         }
         test "Ein Fehler, während eine andere Kategorie gezeigt wird, kommt als Toast" {
             let running = onTrip |> step (TargetAmountChanged "60") |> step SaveTarget |> step (SelectCategory holidayId)

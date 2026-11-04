@@ -60,6 +60,17 @@ type private CategoryPickerInternalProps = {
     Elevated: bool
 }
 
+/// Eine Rückfrage vor einer zerstörenden Aktion im Sheet (budgeting-r3wq8), das Gegenstück zu
+/// `Modal.confirmDanger` am Handy.
+type ConfirmDangerProps = {
+    Title: string
+    Message: string
+    /// Der rote Knopf, etwa "Entfernen".
+    ConfirmText: string
+    OnConfirm: unit -> unit
+    OnCancel: unit -> unit
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -554,3 +565,61 @@ let categoryPickerLayered
         OnClose = onClose
         Elevated = true
     }
+
+// ---------------------------------------------------------------------------
+// Rückfrage im Sheet
+// ---------------------------------------------------------------------------
+
+/// Die Rückfrage als Block im Sheet: Titel, Text, "Abbrechen" und der rote Knopf. `role "alertdialog"`
+/// mit `aria-labelledby` auf den Titel und `aria-describedby` auf den Text. Beim Öffnen hat "Abbrechen"
+/// den Fokus, ein versehentliches Enter zerstört nichts.
+[<ReactComponent>]
+let confirmDanger (props: ConfirmDangerProps) =
+    let container = React.useRef<Browser.Types.HTMLElement option> None
+    let id = React.useRef (string (System.Guid.NewGuid()))
+    let titleId = $"confirm-title-{id.current}"
+    let messageId = $"confirm-message-{id.current}"
+    React.useEffect (
+        (fun () ->
+            match container.current with
+            | Some el ->
+                match el.querySelector "[data-confirm-cancel] button" with
+                | null -> ()
+                | cancel -> (cancel :?> Browser.Types.HTMLElement).focus ()
+            | None -> ()),
+        [||]
+    )
+    Html.div [
+        prop.ref container
+        prop.role "alertdialog"
+        prop.ariaLabelledBy titleId
+        prop.ariaDescribedBy messageId
+        prop.custom ("data-testid", "confirm-danger")
+        prop.className "flex flex-col gap-2 rounded-xl border border-neon-red/20 bg-surface-card p-4"
+        prop.children [
+            Html.h3 [ prop.id titleId; prop.className Tokens.ListRoles.primary; prop.text props.Title ]
+            Html.p [ prop.id messageId; prop.className Tokens.ListRoles.secondary; prop.text props.Message ]
+            Html.div [
+                prop.className "grid grid-cols-2 gap-2"
+                prop.children [
+                    Html.div [
+                        prop.custom ("data-confirm-cancel", "true")
+                        prop.children [
+                            Button.view
+                                { Button.defaultProps with
+                                    Text = "Abbrechen"
+                                    Variant = Button.Secondary
+                                    ClassName = Some $"w-full {Tokens.TouchTargets.sheetMinHeight}"
+                                    OnClick = props.OnCancel }
+                        ]
+                    ]
+                    Button.view
+                        { Button.defaultProps with
+                            Text = props.ConfirmText
+                            Variant = Button.Danger
+                            ClassName = Some $"w-full {Tokens.TouchTargets.sheetMinHeight}"
+                            OnClick = props.OnConfirm }
+                ]
+            ]
+        ]
+    ]
