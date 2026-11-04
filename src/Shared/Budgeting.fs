@@ -602,16 +602,69 @@ let private changedWord (kind: TargetChangeKind) : string =
     | TargetRemoved
     | TargetKindChanged _ -> "geändert"
 
-/// Die Meldung, wenn Schritt 2 nicht geschrieben ist: "Target angelegt, Datum 01.06.2027 nicht gesetzt:
-/// <Grund>", beim Wechsel der Art "Target geändert, …".
-let targetDateNotSetText (kind: TargetChangeKind) (date: string) (reason: string) : string =
-    $"Target {changedWord kind}, Datum {dateText date} nicht gesetzt: {reason}"
+/// Warum BB Schritt 2 zurückhielt: YNABs Antwort auf Schritt 1 zeigt nicht das gewünschte NEED-Target
+/// (`continueAfter`, budgeting-c2t9w).
+type TargetHeldBackCause =
+    /// Kein Target in YNABs Antwort.
+    | NoTargetAfterFirst
+    /// Ein Target einer anderen Art als NEED.
+    | OtherKindAfterFirst of TargetKind
+    /// NEED, aber mit einem anderen Rhythmus als gewünscht.
+    | OtherRhythmAfterFirst of seen: TargetRhythm * wanted: TargetFrequency
 
-/// Die Meldung, wenn YNABs Antwort auf Schritt 1 einen anderen Rhythmus zeigt und Schritt 2 deshalb
-/// zurückgehalten ist (budgeting-g2ty9, X9): "Target in YNAB mit anderem Rhythmus angelegt, Datum
-/// 01.06.2027 nicht gesetzt: <Grund>".
-let targetRhythmUnexpectedText (kind: TargetChangeKind) (date: string) (reason: string) : string =
-    $"Target in YNAB mit anderem Rhythmus {changedWord kind}, Datum {dateText date} nicht gesetzt: {reason}"
+/// Warum das Datum aus Schritt 2 nicht gesetzt ist.
+type TargetDateMissed =
+    /// Schritt 2 ging hinaus und wurde abgelehnt, mit dem Grund (von YNAB oder BB).
+    | DateRefused of reason: string
+    /// BB hielt Schritt 2 zurück.
+    | DateHeldBack of TargetHeldBackCause
+
+/// YNABs Kürzel der Art aus `goal_type`: "NEED", "MF", "TB".
+let goalTypeText (kind: TargetKind) : string =
+    match kind with
+    | Need -> "NEED"
+    | TargetBalance -> "TB"
+    | TargetBalanceByDate -> "TBD"
+    | MonthlyFunding -> "MF"
+    | Debt -> "DEBT"
+    | OtherKind goalType -> goalType
+
+/// Der Grund zu einem zurückgehaltenen Schritt 2, ohne Punkt am Ende: so steht er auch am Schritt in der
+/// Historie. Je Fall ein eigener Satz, der nennt, was YNAB zeigt (budgeting-c2t9w).
+let targetHeldBackReasonText (cause: TargetHeldBackCause) : string =
+    match cause with
+    | NoTargetAfterFirst -> "YNAB zeigt nach Schritt 1 kein Target"
+    | OtherKindAfterFirst kind -> $"YNAB zeigt nach Schritt 1 die Art {goalTypeText kind} statt NEED"
+    | OtherRhythmAfterFirst (seen, wanted) ->
+        $"YNAB zeigt nach Schritt 1 {rhythmWordText seen} statt {frequencyText wanted}"
+
+/// Der Handlungssatz, wenn YNAB das Datum abgelehnt hat: ein erneutes Speichern plant dann nur das Datum
+/// (ADR 0080 Punkt 6, budgeting-g2ty9 X4).
+[<Literal>]
+let TargetDateRetryText = "Speichern setzt das Datum erneut."
+
+/// Ein Punkt ans Ende, wenn der Text nicht schon mit einem Satzzeichen endet.
+let private withStop (text: string) : string =
+    let trimmed = text.TrimEnd()
+    if trimmed.EndsWith "." || trimmed.EndsWith "!" || trimmed.EndsWith "?" then trimmed else trimmed + "."
+
+/// Die ganze Meldung zu einem Teilergebnis, Schritt 1 geschrieben, das Datum nicht (budgeting-c2t9w). Hat
+/// YNAB das Datum abgelehnt: "Target angelegt, Datum 01.06.2027 nicht gesetzt: <Grund>. Speichern setzt das
+/// Datum erneut." Hat BB Schritt 2 zurückgehalten, nennt der Satz, was YNAB zeigt, ohne Satz zum erneuten
+/// Speichern: dort plante es wieder einen Wechsel. Beim Wechsel der Art "Target geändert, …". Der Client
+/// zeigt den Satz unverändert.
+let targetPartlyText (kind: TargetChangeKind) (date: string) (missed: TargetDateMissed) : string =
+    let head = $"Target {changedWord kind}, Datum {dateText date} nicht gesetzt"
+    match missed with
+    | DateRefused reason -> $"{head}: {withStop reason} {TargetDateRetryText}"
+    | DateHeldBack cause -> $"{head}: {withStop (targetHeldBackReasonText cause)}"
+
+/// Die Ablehnung außerhalb des laufenden Monats: beim Anlegen (kein Target gezeigt, ein Wunsch) "Target
+/// anlegen geht nur im laufenden Monat.", sonst "Target ändern geht nur im laufenden Monat." (budgeting-c2t9w).
+let targetMonthRefusalText (request: TargetChangeRequest) : string =
+    match request.Shown, request.Wanted with
+    | None, Some _ -> TargetCreateMonthText
+    | _ -> TargetEditMonthText
 
 /// Eine festgehaltene Target-Änderung aus `target_changes`, mit dem jüngsten Ergebnis je Schritt (ADR 0080
 /// Punkt 2 und 4, budgeting-g2ty9 X7). Keine Budget-Bewegung: das Zugewiesen bleibt.

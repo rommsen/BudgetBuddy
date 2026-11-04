@@ -616,6 +616,10 @@ let private boundaryTests =
             Expect.equal (errorsOf "2026-10-01" (req (eur 1m) None)) [ TargetEditMonthText ] "vergangen"
             Expect.equal (errorsOf "2026-12-01" (req (eur 1m) None)) [ TargetEditMonthText ] "künftig"
             Expect.isOk (Server.Validation.validateTargetChange current current (req (eur 1m) None)) "laufend"
+            // budgeting-c2t9w, Bug: Anlegen im Vormonat meldete den Satz zum Ändern.
+            let create = { req (eur 1m) None with Shown = None; Wanted = Some { NewGoal = eur 1m; NewDate = None; NewRhythm = SetRhythm Monthly } }
+            Expect.equal (errorsOf "2026-10-01" create) [ TargetCreateMonthText ] "anlegen im Vormonat"
+            Expect.equal (errorsOf "2026-10-01" { req (eur 1m) None with Wanted = None }) [ TargetEditMonthText ] "entfernen im Vormonat"
             Expect.isOk (Server.Validation.validateTargetChange current current { req (eur 1m) None with Wanted = None }) "entfernen"
         }
         test "Alle Fehler werden gesammelt" {
@@ -735,8 +739,58 @@ let private createPlanTests =
             Expect.isFalse (Domain.continueAfter (Some { need with Kind = TargetBalance; Rhythm = Years 1 }) step1) "nicht NEED"
             Expect.isFalse (Domain.continueAfter None step1) "kein Target"
             Expect.isTrue (Domain.continueAfter None (patch (SetTo 1L) Keep)) "ohne goal_frequency"
-            Expect.equal (Domain.unexpectedRhythmText (answer (Months 1)) Yearly) "YNAB zeigt nach Schritt 1 monatlich statt jährlich" "Grund"
-            Expect.equal (Domain.unexpectedRhythmText None Weekly) "YNAB zeigt nach Schritt 1 kein Target statt wöchentlich" "ohne Target"
+        }
+        // budgeting-c2t9w, Bug: der Grund hieß immer "anderer Rhythmus", auch bei MF statt NEED ("monatlich
+        // statt monatlich") und ohne Target.
+        test "Der Grund für einen zurückgehaltenen Schritt 2 unterscheidet kein Target, eine andere Art und einen anderen Rhythmus" {
+            Expect.equal (Domain.heldBackCause None Weekly) NoTargetAfterFirst "kein Target"
+            Expect.equal (Domain.heldBackCause (Some { need with Kind = MonthlyFunding; Rhythm = Months 1 }) Monthly) (OtherKindAfterFirst MonthlyFunding) "MF statt NEED"
+            Expect.equal (Domain.heldBackCause (Some { need with Rhythm = Months 1 }) Yearly) (OtherRhythmAfterFirst (Months 1, Yearly)) "anderer Rhythmus"
+        }
+    ]
+
+// budgeting-c2t9w, Bug: der Client hängte "Speichern setzt das Datum erneut." ohne Satzzeichen an, auch wenn BB
+// Schritt 2 selbst zurückgehalten hatte, und der zurückgehaltene Fall hieß immer "anderer Rhythmus".
+let private partlyTextTests =
+    let date = "2027-06-01"
+    testList "Target anlegen und Art wechseln: Meldung beim Teilergebnis" [
+        test "Datum abgelehnt mit Grund ohne Punkt: der Satz bekommt einen Punkt und den Handlungssatz" {
+            Expect.equal
+                (targetPartlyText (TargetCreated Yearly) date (DateRefused "YNAB hat abgelehnt: kaputt"))
+                "Target angelegt, Datum 01.06.2027 nicht gesetzt: YNAB hat abgelehnt: kaputt. Speichern setzt das Datum erneut."
+                "angelegt"
+        }
+        test "Datum abgelehnt mit Grund mit Punkt: kein doppelter Punkt" {
+            Expect.equal
+                (targetPartlyText (TargetKindChanged Yearly) date (DateRefused "Das Datum liegt in der Vergangenheit."))
+                "Target geändert, Datum 01.06.2027 nicht gesetzt: Das Datum liegt in der Vergangenheit. Speichern setzt das Datum erneut."
+                "geändert"
+        }
+        test "Zurückgehalten ohne Target in YNABs Antwort: eigener Satz ohne Handlungssatz" {
+            Expect.equal
+                (targetPartlyText (TargetCreated Yearly) date (DateHeldBack NoTargetAfterFirst))
+                "Target angelegt, Datum 01.06.2027 nicht gesetzt: YNAB zeigt nach Schritt 1 kein Target."
+                "kein Target"
+        }
+        test "Zurückgehalten mit anderer Art: der Satz nennt die Art" {
+            Expect.equal
+                (targetPartlyText (TargetKindChanged Monthly) date (DateHeldBack (OtherKindAfterFirst MonthlyFunding)))
+                "Target geändert, Datum 01.06.2027 nicht gesetzt: YNAB zeigt nach Schritt 1 die Art MF statt NEED."
+                "MF"
+        }
+        test "Zurückgehalten mit anderem Rhythmus: der Satz nennt beide Rhythmen" {
+            Expect.equal
+                (targetPartlyText (TargetKindChanged Yearly) date (DateHeldBack (OtherRhythmAfterFirst (Months 1, Yearly))))
+                "Target geändert, Datum 01.06.2027 nicht gesetzt: YNAB zeigt nach Schritt 1 monatlich statt jährlich."
+                "Rhythmus"
+        }
+        test "Außerhalb des laufenden Monats: beim Anlegen der Satz zum Anlegen, sonst der zum Ändern" {
+            let shown = Some (targetOf Need 50m None)
+            let wanted = Some (created Monthly 50m None)
+            let refusal s w = targetMonthRefusalText { CategoryId = Guid.NewGuid(); Shown = s; Wanted = w }
+            Expect.equal (refusal None wanted) TargetCreateMonthText "anlegen"
+            Expect.equal (refusal shown wanted) TargetEditMonthText "ändern"
+            Expect.equal (refusal shown None) TargetEditMonthText "entfernen"
         }
     ]
 
@@ -859,7 +913,7 @@ let private createFlowTests =
             f.Failure <- Some (YnabError.InvalidResponse "goal_target_date is invalid")
             f.FailOnlyCall <- Some 2
             let wish = created Yearly 600m (Some "2027-06-01")
-            let expected = $"Target angelegt, Datum 01.06.2027 nicht gesetzt: {rejected}"
+            let expected = $"Target angelegt, Datum 01.06.2027 nicht gesetzt: {rejected}. Speichern setzt das Datum erneut."
             Expect.equal (change f current (request k None (Some wish))) (Ok (Ok (TargetPartlyWritten (Some yearly600, expected)))) "Teilergebnis"
             Expect.equal (stepRows k) [ "1|written|"; $"2|failed|{rejected}" ] "Schritt 2 fehlgeschlagen"
             // budgeting-g2ty9 (X7): vorher stand die Änderung ganz als fehlgeschlagen in der Historie.
@@ -882,7 +936,7 @@ let private createFlowTests =
             let after = { yearly600 with Rhythm = Months 1 }
             Expect.equal
                 (change f current (request k (Some fifty) (Some (created Yearly 600m (Some "2027-06-01")))))
-                (Ok (Ok (TargetPartlyWritten (Some after, $"Target in YNAB mit anderem Rhythmus geändert, Datum 01.06.2027 nicht gesetzt: {reason}"))))
+                (Ok (Ok (TargetPartlyWritten (Some after, $"Target geändert, Datum 01.06.2027 nicht gesetzt: {reason}."))))
                 "gemeldet mit eigenem Text (budgeting-g2ty9, X9)"
             Expect.equal (f.Patches |> List.ofSeq) [ k, withRhythm Yearly 600000L Keep ] "Schritt 2 nicht gesendet"
             Expect.equal (stepRows k) [ "1|written|"; $"2|failed|{reason}" ] "Schritt 2 zurückgehalten"
@@ -910,7 +964,7 @@ let private createFlowTests =
             blockStep2 k (fun () ->
                 Expect.equal
                     (change f current (request k None (Some wish)))
-                    (Ok (Ok (TargetPartlyWritten (Some yearly600, $"Target angelegt, Datum 01.06.2027 nicht gesetzt: {rejected}"))))
+                    (Ok (Ok (TargetPartlyWritten (Some yearly600, $"Target angelegt, Datum 01.06.2027 nicht gesetzt: {rejected}. Speichern setzt das Datum erneut."))))
                     "abgelehnt: Teilergebnis")
             Expect.equal (stepRows k) [ "1|written|" ] "Schritt 2 ohne Ergebnis"
             // YNABs Antwort zeigt einen anderen Rhythmus, Schritt 2 bleibt zurück.
@@ -919,7 +973,7 @@ let private createFlowTests =
             blockStep2 k (fun () ->
                 match change f current (request k None (Some wish)) with
                 | Ok (Ok (TargetPartlyWritten (_, message))) ->
-                    Expect.stringContains message "Target in YNAB mit anderem Rhythmus angelegt, Datum 01.06.2027 nicht gesetzt" "zurückgehalten"
+                    Expect.equal message "Target angelegt, Datum 01.06.2027 nicht gesetzt: YNAB zeigt nach Schritt 1 monatlich statt jährlich." "zurückgehalten"
                 | other -> failtest $"Teilergebnis erwartet: {other}")
 
         testCase "GIVEN in YNAB inzwischen ein Target, gezeigt war keins THEN nichts gesendet, TargetChangedInYnab" <| fun () ->
@@ -931,8 +985,9 @@ let private createFlowTests =
         testCase "GIVEN künftiger oder vergangener Monat WHEN anlegen oder Art wechseln THEN Fehler ohne YNAB-Aufruf, keine Zeile" <| fun () ->
             let f, k = fakeWith None
             for month in [ "2026-10-01"; "2026-12-01" ] do
-                for r in [ request k None (Some (created Monthly 50m None)); request k (Some fifty) (Some (created Weekly 50m None)) ] do
-                    Expect.equal (change f month r) (Ok (Error TargetEditMonthText)) $"{month} {r.Shown.IsSome}"
+                // budgeting-c2t9w: Anlegen meldete "Target ändern geht nur im laufenden Monat.".
+                Expect.equal (change f month (request k None (Some (created Monthly 50m None)))) (Ok (Error TargetCreateMonthText)) $"{month} anlegen"
+                Expect.equal (change f month (request k (Some fifty) (Some (created Weekly 50m None)))) (Ok (Error TargetEditMonthText)) $"{month} Art wechseln"
             Expect.equal f.Reads 0 "kein YNAB-Aufruf"
             Expect.isEmpty (changeRows k) "keine Zeile"
 
@@ -971,4 +1026,4 @@ let tests =
 [<Tests>]
 let createTests =
     testList "Target anlegen und Art wechseln" [
-        createPlanTests; lossTests; createEncoderTests; createFlowTests; createPersistenceTests ]
+        createPlanTests; partlyTextTests; lossTests; createEncoderTests; createFlowTests; createPersistenceTests ]

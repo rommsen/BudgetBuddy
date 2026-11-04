@@ -238,14 +238,13 @@ let continueAfter (after: Target option) (previous: TargetPatch) : bool =
     | None -> true
     | Some frequency -> after |> Option.exists (fun t -> t.Kind = Need && t.Rhythm = rhythmOfFrequency frequency)
 
-/// Der Grund, wenn der nächste Schritt nach `continueAfter` nicht hinausgeht, mit dem Rhythmus aus YNABs
-/// Antwort.
-let unexpectedRhythmText (after: Target option) (frequency: TargetFrequency) : string =
-    let seen =
-        match after with
-        | None -> "kein Target"
-        | Some t -> rhythmWordText t.Rhythm
-    $"YNAB zeigt nach Schritt 1 {seen} statt {frequencyText frequency}"
+/// Warum der nächste Schritt nach `continueAfter` nicht hinausgeht, aus YNABs Antwort und dem gewünschten
+/// Rhythmus: kein Target, keine NEED-Art oder ein anderer Rhythmus (budgeting-c2t9w).
+let heldBackCause (after: Target option) (frequency: TargetFrequency) : TargetHeldBackCause =
+    match after with
+    | None -> NoTargetAfterFirst
+    | Some t when t.Kind <> Need -> OtherKindAfterFirst t.Kind
+    | Some t -> OtherRhythmAfterFirst (t.Rhythm, frequency)
 
 /// Ein Patch ohne gesetztes Feld. BB sendet ihn nie, der Ablauf lehnt ihn vor dem Senden ab.
 let targetPatchIsEmpty (patch: TargetPatch) : bool =

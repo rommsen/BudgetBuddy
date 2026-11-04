@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 20:14 -- Task verified and completed: budgeting-c2t9w - "Target-Formular: Tab-Wechsel schließt Rückfragen, Entfernen-Bestätigung schließt nach Neulesen, genaue Meldungen beim Teilergebnis und beim Anlegen außerhalb des Monats"
+
+**Type:** Work / Task completion
+**Task:** budgeting-c2t9w - "Target-Formular: Tab-Wechsel schließt Rückfragen, Entfernen-Bestätigung schließt nach Neulesen, genaue Meldungen beim Teilergebnis und beim Anlegen außerhalb des Monats"
+**Summary:** Target-Formular: Tabwechsel und Neulesen schließen Rückfragen, Target-Aufruf und Pause laufen nie gleichzeitig, der Server baut die Meldung beim Teilergebnis mit drei Gründen fürs Zurückhalten, Anlegen außerhalb des Monats meldet den Satz zum Anlegen
+**Duration:** 50 min
+**Verification:** PASS (iteration 1)
+**Files changed:** 10
+**Tests added:** 8
+**ADRs written:** none
+
+---
+
 ## 2026-11-04 19:51 -- Batch started: [budgeting-r7h2q]
 
 **Type:** Work / Batch start

@@ -283,8 +283,8 @@ let private isIsoDate (text: string) : bool =
 
 /// Prüft den Auftrag Target ändern oder entfernen (budgeting-k8wq3, ADR 0080) vor allem anderen, auch ohne
 /// Einrichtung, und sammelt alle Fehler: ungültiger, vergangener oder künftiger Monat (`current` ist der
-/// laufende), leere Kategorie, und am Wunsch Betrag negativ, nicht auf den Cent, über der Obergrenze,
-/// nicht in EUR und ein Datum, das nicht "YYYY-MM-DD" ist. Beim Anlegen (`Shown = None`) zusätzlich ein
+/// laufende; beim Anlegen mit eigenem Satz, `targetMonthRefusalText`), leere Kategorie, und am Wunsch
+/// Betrag negativ, nicht auf den Cent, über der Obergrenze, nicht in EUR und ein Datum, das nicht "YYYY-MM-DD" ist. Beim Anlegen (`Shown = None`) zusätzlich ein
 /// fehlender Rhythmus und 0 € (budgeting-g2ty9, X8); `planTargetWrite` prüft den Rhythmus als zweite
 /// Sicherung.
 let validateTargetChange
@@ -297,7 +297,7 @@ let validateTargetChange
           | Error message -> message
           | Ok month ->
               if not (Shared.Budgeting.targetEditAllowed (Shared.Budgeting.monthKind current month)) then
-                  Shared.Budgeting.TargetEditMonthText
+                  Shared.Budgeting.targetMonthRefusalText request
           if request.CategoryId = Guid.Empty then
               "Die Kategorie fehlt."
           match request.Wanted with

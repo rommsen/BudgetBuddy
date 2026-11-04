@@ -432,9 +432,9 @@ type private StepsOutcome =
     /// Schritt 1 geschrieben (Stand danach), ein späterer nicht: YNAB lehnte ihn ab, mit Grund. Trägt den
     /// nicht geschriebenen Patch, aus ihm kommt das Datum der Meldung.
     | LaterNotWritten of after: Target option * patch: TargetPatch * reason: string
-    /// Schritt 1 geschrieben, YNABs Antwort zeigt aber einen anderen Rhythmus: der spätere Patch ging nicht
-    /// hinaus (`continueAfter`).
-    | LaterHeldBack of after: Target option * patch: TargetPatch * reason: string
+    /// Schritt 1 geschrieben, YNABs Antwort passt aber nicht zum Wunsch: der spätere Patch ging nicht
+    /// hinaus (`continueAfter`), mit dem Grund (`heldBackCause`).
+    | LaterHeldBack of after: Target option * patch: TargetPatch * cause: TargetHeldBackCause
 
 /// Sendet die festgehaltenen Schritte der Reihe nach (ADR 0080 Punkt 4), je Schritt ein Ergebnis. Ein
 /// Schritt nach dem ersten geht nur hinaus, wenn der vorige geschrieben ist und YNABs Antwort zu ihm passt
@@ -452,13 +452,14 @@ let private sendSteps (port: YnabPort) (now: DateTime) (categoryId: Guid) (chang
                 let heldBack =
                     match previous with
                     | Some (before, after) when not (continueAfter after before) ->
-                        before.Frequency |> Option.map (unexpectedRhythmText after)
+                        before.Frequency |> Option.map (heldBackCause after)
                     | _ -> None
                 match heldBack, previous with
-                | Some reason, Some (_, afterPrevious) ->
+                | Some cause, Some (_, afterPrevious) ->
+                    let reason = targetHeldBackReasonText cause
                     for s in step :: numbered (step + 1) rest do
                         do! recordBestEffort changeId s now (Failed reason)
-                    return LaterHeldBack (afterPrevious, patch, reason)
+                    return LaterHeldBack (afterPrevious, patch, cause)
                 | _ ->
                     match! port.SetTarget categoryId patch with
                     | Ok after ->
@@ -506,7 +507,7 @@ let changeTarget
     (request: TargetChangeRequest)
     : Async<Result<Result<TargetChangeResult, string>, YnabError>> =
     if not (targetEditAllowed (monthKind currentMonth monthKey)) then
-        async { return Ok (Error TargetEditMonthText) }
+        async { return Ok (Error (targetMonthRefusalText request)) }
     else
         match planTargetWrite request.Shown request.Wanted with
         | Error message -> async { return Ok (Error message) }
@@ -535,10 +536,10 @@ let changeTarget
                             | AllWritten after -> return Ok (Ok (TargetWritten after))
                             | FirstFailed reason -> return Ok (Error reason)
                             | LaterNotWritten (after, patch, reason) ->
-                                let message = targetDateNotSetText kind (patchDateText patch) reason
+                                let message = targetPartlyText kind (patchDateText patch) (DateRefused reason)
                                 return Ok (Ok (TargetPartlyWritten (after, message)))
-                            | LaterHeldBack (after, patch, reason) ->
-                                let message = targetRhythmUnexpectedText kind (patchDateText patch) reason
+                            | LaterHeldBack (after, patch, cause) ->
+                                let message = targetPartlyText kind (patchDateText patch) (DateHeldBack cause)
                                 return Ok (Ok (TargetPartlyWritten (after, message)))
             })
 

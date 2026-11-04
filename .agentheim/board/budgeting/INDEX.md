@@ -12,8 +12,8 @@ Catalog of this bounded context's tasks by status.
 <!-- task-counts:start -->
 - **Backlog:** 9
 - **Todo:** 0
-- **Doing:** 2
-- **Done:** 31
+- **Doing:** 1
+- **Done:** 32
 <!-- task-counts:end -->
 
 ### Todo
@@ -23,11 +23,11 @@ Catalog of this bounded context's tasks by status.
 ### Doing
 <!-- doing-list:start -->
 - **budgeting-r7h2q** — "[layout]-Test Historie-Knopf 48 px am Handy rundet nicht: 47,99999 px ließ ihn einmal rot werden" (chore) — `doing/budgeting-r7h2q-layout-test-historie-knopf-48-px-am-handy-rundet-nicht-47-99.md`
-- **budgeting-c2t9w** — "Target-Formular: Tab-Wechsel schließt Rückfragen, Entfernen-Bestätigung schließt nach Neulesen, genaue Meldungen beim Teilergebnis und beim Anlegen außerhalb des Monats" (bug) — `doing/budgeting-c2t9w-target-formular-rueckfragen-und-meldungen.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **budgeting-c2t9w** — "Target-Formular: Tab-Wechsel schließt Rückfragen, Entfernen-Bestätigung schließt nach Neulesen, genaue Meldungen beim Teilergebnis und beim Anlegen außerhalb des Monats" (bug) — `done/budgeting-c2t9w-target-formular-rueckfragen-und-meldungen.md`
 - **budgeting-a3k7m** — "Budget-Kopf bei 1024 px in einer Zeile, Historie am Handy ohne abgeschnittene Kategorien und Beträge" (bug) — `done/budgeting-a3k7m-kopf-1024-und-historie-handy.md`
 - **budgeting-b5n8q** — "BB-eigene Ablehnungen nicht als \"YNAB hat abgelehnt\", Targets-Durchlauf mit n von n Fehlschlägen als gescheitert" (bug) — `done/budgeting-b5n8q-bb-meldungen-und-lauf-gescheitert.md`
 - **budgeting-e6p4r** — "Benannte Regressionstests: Pause-Antwort während eines Monatswechsels, Zurück aus der allgemeinen Historie" (chore) — `done/budgeting-e6p4r-regressionstests-pause-und-historie.md`

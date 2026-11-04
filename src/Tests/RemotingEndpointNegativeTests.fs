@@ -368,7 +368,7 @@ let private rows : Row list = [
                   (fun () -> DateTime(2026, 11, 4, 9, 0, 0, DateTimeKind.Utc))
                   (TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin")
           configured.setTargetPause "2026-11-01" request |> run |> expectError "unbekannte Kategorie" }
-    { Endpoint = "BudgetApi.changeCategoryTarget"; Case = "leere Kategorie, Betrag am Rand von decimal, vergangener und künftiger Monat, Anlegen ohne Rhythmus, fehlende Einrichtung, unbekannte Kategorie: Fehler statt Ausnahme"
+    { Endpoint = "BudgetApi.changeCategoryTarget"; Case = "leere Kategorie, Betrag am Rand von decimal, vergangener und künftiger Monat, Anlegen im Vormonat, Anlegen ohne Rhythmus, fehlende Einrichtung, unbekannte Kategorie: Fehler statt Ausnahme"
       Run = fun () ->
           let shown : Shared.Budgeting.Target =
               { Goal = { Amount = 50m; Currency = "EUR" }; Rhythm = Shared.Budgeting.Months 1; Kind = Shared.Budgeting.Need
@@ -401,8 +401,17 @@ let private rows : Row list = [
           configured.changeCategoryTarget "2026-11-01" (request Decimal.MaxValue) |> run |> expectError "leere Kategorie, Rand von decimal"
           for month in [ "2026-10-01"; "2026-12-01" ] do
               match configured.changeCategoryTarget month { request 60m with CategoryId = Guid.NewGuid() } |> run with
-              | Error message -> Expect.stringContains message "nur im laufenden Monat" month
+              | Error message -> Expect.stringContains message Shared.Budgeting.TargetEditMonthText month
               | Ok _ -> failtest $"{month} hätte abgelehnt werden müssen"
+          // budgeting-c2t9w: Anlegen im Vormonat nennt das Anlegen, nicht das Ändern.
+          let createInPast =
+              { request 60m with
+                  CategoryId = Guid.NewGuid()
+                  Shown = None
+                  Wanted = Some { NewGoal = { Amount = 60m; Currency = "EUR" }; NewDate = None; NewRhythm = Shared.Budgeting.SetRhythm Shared.Budgeting.Monthly } }
+          match configured.changeCategoryTarget "2026-10-01" createInPast |> run with
+          | Error message -> Expect.stringContains message Shared.Budgeting.TargetCreateMonthText "Anlegen im Vormonat"
+          | Ok _ -> failtest "Anlegen im Vormonat hätte abgelehnt werden müssen"
           // budgeting-g2ty9 (X8): Anlegen ohne Rhythmus lehnt schon die Grenze ab.
           let createWithout = { request 50m with CategoryId = Guid.NewGuid(); Shown = None }
           match configured.changeCategoryTarget "2026-11-01" createWithout |> run with

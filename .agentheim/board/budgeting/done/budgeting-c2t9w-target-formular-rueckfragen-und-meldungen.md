@@ -1,7 +1,7 @@
 ---
 id: budgeting-c2t9w
 title: "Target-Formular: Tab-Wechsel schließt Rückfragen, Entfernen-Bestätigung schließt nach Neulesen, genaue Meldungen beim Teilergebnis und beim Anlegen außerhalb des Monats"
-status: doing
+status: done
 type: bug
 context: budgeting
 created: 2026-11-04
@@ -50,3 +50,22 @@ Der Walk der Rückfragen (`askWalkTests`, `src/Tests/TargetChangeClientTests.fs`
 
 ## Notes
 Nicht parallel zu anderen Arbeiten in `TargetEdit*.fs`, `Pause*.fs`, `changeTarget`. Ob Schritt 1 nach unerwartetem Rhythmus erneut gehen darf, bleibt offen (mit BB als Quelle vermutlich hinfällig).
+
+## Outcome
+
+Alle fünf Punkte umgesetzt, `./verify.sh` im Worktree: `VERIFY: PASS` (dotnet 3789 grün, node 300 grün). Der bekannte wackelige `[layout]`-Test lief beim ersten Mal grün.
+
+1. **Tabwechsel und gleichzeitige Aufrufe.** `syncTargetForm` (`src/Client/Components/Budget/TargetEdit.fs`) schließt außerhalb des Tabs Target beide Rückfragen, die Eingabe bleibt. Das greift für `SelectInspectorTab` und für den Tabwechsel per Taste (`StepTab`). Im Tab Target wartet jetzt alles, solange ein Target-Aufruf oder eine Pause läuft (`targetWaits`: `start`, `startTargetSave`, `canSaveTarget`, `removeTargetLocked`). Umgekehrt startet `startPause` nicht, solange ein Target-Aufruf läuft (`pauseLocked` in `Pause.fs`). Ohne diese Sperre hätte Pausieren neben einem laufenden Speichern gesendet, und die Bedingung "in keiner Reihenfolge gleichzeitig" wäre verletzt. Im Tab Geld geht Pausieren bei geschlossener Rückfrage.
+2. **Entfernen-Bestätigung nach Neulesen.** `syncTargetForm` setzt `ConfirmingRemove` zurück, wenn kein Target mehr gezeigt wird.
+3. **Meldung beim Teilergebnis.** Neu in `src/Shared/Budgeting.fs`: `targetPartlyText` mit `TargetDateMissed` (`DateRefused`, `DateHeldBack`), `TargetHeldBackCause` (`NoTargetAfterFirst`, `OtherKindAfterFirst`, `OtherRhythmAfterFirst`), `targetHeldBackReasonText`, `goalTypeText` und `TargetDateRetryText`. `Domain.heldBackCause` ersetzt `unexpectedRhythmText`, und `sendSteps` hält den Grund mit diesem Text am Schritt fest. `targetDateNotSetText` und `targetRhythmUnexpectedText` sind entfernt. Der Client zeigt `TargetPartlyNotice` unverändert. Der Vertrag `TargetPartlyWritten of Target option * message` bleibt, also keine Fixture-Änderung.
+4. **Anlegen außerhalb des laufenden Monats.** `targetMonthRefusalText` (Shared) wird in `validateTargetChange` und im Monatswächter von `changeTarget` genutzt.
+5. **Knopfzustände.** `Pause.pauseButtonState` und `pauseLocked` sind reine Funktionen, `PauseView` ruft nur `pauseButtonState` auf.
+
+Tests:
+- Regressionstests, vor dem Fix rot:
+  - Der erweiterte Walk `askWalkTests` in `src/Tests/TargetChangeClientTests.fs` mit den neuen Ereignissen "Tab Geld" und "Tab Target". Mit dem alten `SelectInspectorTab` rot bei "Rhythmus, Rhythmus, Rhythmus, Speichern, Tab Geld: Rückfragen offen". Ohne die Sperre gegen den Pause-Aufruf rot bei "...Pausieren: Speichern geht".
+  - "GIVEN Bestätigung des Entfernens offen WHEN ein stilles Neulesen zeigt kein Target THEN schließt sie, Target anlegen geht" in `src/Tests/TargetChangeClientTests.fs`. Per Mutation rot, wenn der Fix entfernt wird.
+- Der Walk prüft je Schritt außerdem `removeButtonState(...).Disabled`, `pauseButtonState(...).Disabled` und dass nie `targetBusy` und `pauseBusy` zugleich gelten, alles gegen das Orakel.
+- `partlyTextTests` in `src/Tests/TargetChangeTests.fs`: sechs reine Tests (abgelehnt ohne Punkt, abgelehnt mit Punkt, zurückgehalten ohne Target, mit anderer Art, mit anderem Rhythmus, `targetMonthRefusalText`), dazu der Test zu `heldBackCause`.
+- Angepasste Erwartungen in den Handler-Tests, ein Validation-Fall (Anlegen im Vormonat ergibt `TargetCreateMonthText`, Entfernen weiter `TargetEditMonthText`) und eine Ergänzung der Negativzeile `BudgetApi.changeCategoryTarget` in `src/Tests/RemotingEndpointNegativeTests.fs`.
+- Der Client-Test zum Teilergebnis prüft am `update`, dass die Meldung unverändert ankommt, auch zurückgehalten ohne Handlungssatz.

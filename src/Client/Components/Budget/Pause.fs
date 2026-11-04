@@ -73,22 +73,43 @@ let pauseHeldByConfirm (model: Model) (categoryId: System.Guid) : bool =
     && model.TargetForm
        |> Option.exists (fun f -> f.CategoryId = categoryId && (f.ConfirmingChange || f.ConfirmingRemove))
 
+/// Läuft ein Aufruf im Tab Target (Speichern, Wechseln, Entfernen)? Dann wartet die Pause: höchstens ein
+/// Aufruf läuft, sonst gingen beide mit altem Stand hinaus (budgeting-c2t9w).
+let private targetCallRunning (model: Model) : bool =
+    match model.TargetCall with
+    | TargetSaving _ -> true
+    | TargetIdle -> false
+
+/// Ist der Pause-Knopf der Kategorie gesperrt? Solange irgendein Pause- oder Target-Aufruf läuft und solange
+/// im Tab Target eine Rückfrage offen ist (`pauseHeldByConfirm`). `startPause` sendet dann nichts.
+let pauseLocked (model: Model) (categoryId: System.Guid) : bool =
+    pauseBusy model || targetCallRunning model || pauseHeldByConfirm model categoryId
+
+/// Wie der Pause-Knopf aussieht: `Busy` dreht und behält den Fokus (`Button.IsBusy`), `Disabled` sperrt
+/// (Vorbild `saveButtonState` in `TargetEdit`, budgeting-c2t9w).
+type PauseButtonState = { Busy: bool; Disabled: bool }
+
+/// Dreht, wenn der eigene Aufruf läuft, sonst gesperrt nach `pauseLocked`.
+let pauseButtonState (model: Model) (categoryId: System.Guid) : PauseButtonState =
+    let busy = pauseRunningFor model categoryId
+    { Busy = busy; Disabled = not busy && pauseLocked model categoryId }
+
 /// Die Meldung zur Kategorie im dargestellten Monat, wenn der letzte Aufruf scheiterte.
 let pauseError (model: Model) (categoryId: System.Guid) : string option =
     match model.PauseCall, displayedMonth model with
     | PauseRejected (c, m, message), Some shown when c = categoryId && m = shown -> Some message
     | _ -> None
 
-/// Der Tipp auf den Knopf. Gesendet wird nur, was `pauseControlFor` gerade anbietet, nie während ein
-/// Aufruf läuft, nie bei offener Rückfrage im Tab Target (`pauseHeldByConfirm`) und nie in einen wechselnden
-/// Monat. Ergebnis: Monat und Auftrag für den Aufruf.
+/// Der Tipp auf den Knopf. Gesendet wird nur, was `pauseControlFor` gerade anbietet, nie solange der Knopf
+/// gesperrt ist (`pauseLocked`: ein Aufruf läuft oder im Tab Target ist eine Rückfrage offen) und nie in
+/// einen wechselnden Monat. Ergebnis: Monat und Auftrag für den Aufruf.
 let startPause (intent: PauseIntent) (model: Model) : Model * (string * TargetPauseRequest) option =
     match model.Selected, model.Month with
-    | Some selected, Success month when not (pauseBusy model) && not (monthChanging model) ->
+    | Some selected, Success month when not (monthChanging model) ->
         match categoriesOf month |> List.tryFind (fun c -> c.Id = selected.CategoryId) with
         | Some category ->
             match pauseControlFor model category with
-            | PauseOffered (Some button, _) when button.Intent = intent && not (pauseHeldByConfirm model category.Id) ->
+            | PauseOffered (Some button, _) when button.Intent = intent && not (pauseLocked model category.Id) ->
                 { model with PauseCall = PauseRunning (category.Id, month.Month, model.MonthGeneration) },
                 Some (month.Month, { CategoryId = category.Id; Intent = intent })
             | _ -> model, None

@@ -438,17 +438,19 @@ let private changeTests =
                 |> step (TargetDateChanged (DateField.ValidDate (DateTime(2027, 6, 1))))
                 |> step SaveTarget
             let after = { Goal = eur 600m; Rhythm = Years 1; Kind = Need; Date = None; NeedsWholeAmount = Some true; Day = None }
-            let message = "Target angelegt, Datum 01.06.2027 nicht gesetzt: kaputt"
+            let message = "Target angelegt, Datum 01.06.2027 nicht gesetzt: kaputt. Speichern setzt das Datum erneut."
             let answered, _, external = update (TargetChangeAnswered (holidayId, current, Ok (TargetPartlyWritten (Some after, message)))) typed
             Expect.equal external NoOp "im Tab, kein Toast"
             Expect.equal (categoryOf answered holidayId).Target (Some after) "neuer gezeigter Stand"
             let form = formOf answered
-            // budgeting-g2ty9 (X4): ein gelber Hinweis mit Handlungssatz, keine Fehlerkarte.
+            // budgeting-g2ty9 (X4): ein gelber Hinweis, keine Fehlerkarte. budgeting-c2t9w, Bug: der Client hängte
+            // den Handlungssatz ohne Satzzeichen an, auch wenn BB Schritt 2 zurückgehalten hatte. Den ganzen Satz
+            // baut der Server, der Client zeigt ihn unverändert.
             Expect.equal form.Notice (Some (TargetPartlyNotice message)) "Hinweis"
-            Expect.equal
-                (targetNoticeText (TargetPartlyNotice message))
-                "Target angelegt, Datum 01.06.2027 nicht gesetzt: kaputt Speichern setzt das Datum erneut."
-                "mit Handlungssatz"
+            Expect.equal (targetNoticeText (TargetPartlyNotice message)) message "unverändert"
+            let heldBack = "Target angelegt, Datum 01.06.2027 nicht gesetzt: YNAB zeigt nach Schritt 1 kein Target."
+            let held = typed |> step (TargetChangeAnswered (holidayId, current, Ok (TargetPartlyWritten (None, heldBack))))
+            Expect.equal ((formOf held).Notice |> Option.map targetNoticeText) (Some heldBack) "zurückgehalten: ohne Handlungssatz"
             Expect.equal (targetDateValue (Some after) form) (Some (DateTime(2027, 6, 1))) "Datum bleibt"
             Expect.isTrue (canSaveTarget answered (categoryOf answered holidayId)) "Speichern aktiv"
             Expect.equal
@@ -567,6 +569,22 @@ let private reviewTests =
             let still = warned |> step (Reloaded (warned.MonthGeneration, Ok (monthWith current 50m)))
             Expect.isTrue (formOf still).ConfirmingChange "gleicher Stand: Warnung bleibt"
         }
+        // budgeting-c2t9w, Bug: zeigte ein stilles Neulesen die Kategorie ohne Target, blieb "Target entfernen?"
+        // offen, "Entfernen" tat nichts, "Target anlegen" und Pause waren gesperrt bis "Abbrechen".
+        test "GIVEN Bestätigung des Entfernens offen WHEN ein stilles Neulesen zeigt kein Target THEN schließt sie, Target anlegen geht" {
+            let asked = onTrip |> step AskRemoveTarget
+            Expect.isTrue (formOf asked).ConfirmingRemove "Bestätigung offen"
+            let without =
+                { monthWith current 50m with
+                    Groups = [ { Name = "Alltag"; Categories = [ { trip 50m with Target = None }; holiday ] } ] }
+            let reread = asked |> step (Reloaded (asked.MonthGeneration, Ok without))
+            Expect.isFalse (formOf reread).ConfirmingRemove "Bestätigung zu"
+            let typed = reread |> step (TargetAmountChanged "40")
+            Expect.equal (saveButtonState typed (categoryOf typed tripId)) { Busy = false; Disabled = false } "Target anlegen bedienbar"
+            Expect.isTrue (sends SaveTarget typed) "Target anlegen sendet"
+            let still = asked |> step (Reloaded (asked.MonthGeneration, Ok (monthWith current 50m)))
+            Expect.isTrue (formOf still).ConfirmingRemove "mit Target: Bestätigung bleibt"
+        }
         // X5, F5
         test "Außerhalb des laufenden Monats nennt der Tab den Grund, mit Target ändern, ohne anlegen, nicht während eines Wechsels" {
             for month in [ past; next ] do
@@ -605,7 +623,7 @@ let private reviewTests =
         }
     ]
 
-/// Was die Aufzählung der Rückfragen weiß, unabhängig vom getesteten Code (budgeting-g2ty9, X1).
+/// Was die Aufzählung der Rückfragen weiß, unabhängig vom getesteten Code (budgeting-g2ty9, X1; budgeting-c2t9w).
 type private AskWalk = {
     /// Wöchentlich ist gewählt, ein Speichern verlöre den Tag.
     Chosen: bool
@@ -614,33 +632,48 @@ type private AskWalk = {
     WarnOpen: bool
     RemoveOpen: bool
     TargetPending: bool
+    /// Der laufende Target-Aufruf ist das Entfernen: dann dreht "Target entfernen".
+    RemovePending: bool
     PausePending: bool
     Paused: bool
+    /// Der Tab Target ist offen, sonst der Tab Geld.
+    InTargetTab: bool
 }
 
 // X1, Bug: am Handy konnten zwei Rückfragen zugleich offen sein. Stand die Warnung vor dem Wechsel an der
 // Stelle des Speichern-Knopfs, blieben "Target entfernen" und "Target pausieren" bedienbar, ein Tipp
 // öffnete zusätzlich die Bestätigung des Entfernens.
+// budgeting-c2t9w, Bug: Rückfrage im Tab Target öffnen, auf Tab Geld wechseln, "Target pausieren" lief.
+// Zurück im Tab Target stand die Rückfrage noch offen, "Wechseln" oder "Entfernen" sendete neben der
+// laufenden Pause mit altem `Shown`. Ebenso ging Pausieren, während ein Target-Aufruf lief.
 let private askWalkTests =
     let events (w: AskWalk) =
-        [ "Rhythmus"; "Betrag"; "Speichern"; "Wechseln"; "Abbrechen Wechsel"; "Entfernen"; "Bestätigen Entfernen"; "Abbrechen Entfernen"; "Pausieren"
+        [ if w.InTargetTab then
+              yield! [ "Rhythmus"; "Betrag"; "Speichern"; "Wechseln"; "Abbrechen Wechsel"; "Entfernen"; "Bestätigen Entfernen"; "Abbrechen Entfernen"; "Pausieren"; "Tab Geld" ]
+          else
+              yield! [ "Pausieren"; "Tab Target" ]
           if w.TargetPending then "Antwort"
           if w.PausePending then "Pause-Antwort" ]
     let oracle (name: string) (w: AskWalk) : AskWalk * bool =
         let noAsk = not w.WarnOpen && not w.RemoveOpen
+        // Höchstens ein Aufruf läuft: solange einer läuft, sendet nichts und öffnet sich keine Rückfrage.
+        let idle = not w.TargetPending && not w.PausePending
         match name with
         | "Rhythmus" when not w.TargetPending -> { w with Chosen = true; WarnOpen = false }, false
         // Tippen schließt die Warnung, die Bestätigung des Entfernens bleibt (budgeting-f4k9n, M2).
         | "Betrag" when not w.TargetPending -> { w with Typed = true; WarnOpen = false }, false
-        | "Speichern" when not w.TargetPending && noAsk && w.Chosen -> { w with WarnOpen = true }, false
-        | "Speichern" when not w.TargetPending && noAsk && w.Typed -> { w with TargetPending = true }, true
-        | "Wechseln" when not w.TargetPending && w.WarnOpen -> { w with WarnOpen = false; TargetPending = true }, true
+        | "Speichern" when idle && noAsk && w.Chosen -> { w with WarnOpen = true }, false
+        | "Speichern" when idle && noAsk && w.Typed -> { w with TargetPending = true }, true
+        | "Wechseln" when idle && w.WarnOpen -> { w with WarnOpen = false; TargetPending = true }, true
         | "Abbrechen Wechsel" -> { w with WarnOpen = false }, false
-        | "Entfernen" when not w.TargetPending && noAsk -> { w with RemoveOpen = true }, false
-        | "Bestätigen Entfernen" when not w.TargetPending && w.RemoveOpen -> { w with RemoveOpen = false; TargetPending = true }, true
+        | "Entfernen" when idle && noAsk -> { w with RemoveOpen = true }, false
+        | "Bestätigen Entfernen" when idle && w.RemoveOpen -> { w with RemoveOpen = false; TargetPending = true; RemovePending = true }, true
         | "Abbrechen Entfernen" -> { w with RemoveOpen = false }, false
-        | "Pausieren" when not w.PausePending && noAsk -> { w with PausePending = true }, true
-        | "Antwort" -> { w with TargetPending = false }, false
+        | "Pausieren" when idle && noAsk -> { w with PausePending = true }, true
+        // Weg vom Tab Target schließen die Rückfragen, die Eingabe bleibt.
+        | "Tab Geld" -> { w with InTargetTab = false; WarnOpen = false; RemoveOpen = false }, false
+        | "Tab Target" -> { w with InTargetTab = true }, false
+        | "Antwort" -> { w with TargetPending = false; RemovePending = false }, false
         | "Pause-Antwort" -> { w with PausePending = false; Paused = not w.Paused }, false
         | _ -> w, false
     let apply (name: string) (w: AskWalk) (model: Model) : Model * Cmd<Msg> =
@@ -655,6 +688,8 @@ let private askWalkTests =
         | "Bestätigen Entfernen" -> run ConfirmRemoveTarget
         | "Abbrechen Entfernen" -> run CancelRemoveTarget
         | "Pausieren" -> run (SetTargetPause (if w.Paused then LiftPause else PauseTarget))
+        | "Tab Geld" -> run (SelectInspectorTab MoneyTab)
+        | "Tab Target" -> run (SelectInspectorTab TargetTab)
         | "Antwort" -> run (TargetChangeAnswered (tripId, current, Error "kaputt"))
         | _ -> run (TargetPauseAnswered (tripId, current, Ok (if w.Paused then None else Some PausedInBb)))
     let rec walkFrom depth path (w: AskWalk) (model: Model) =
@@ -664,16 +699,32 @@ let private askWalkTests =
                 let expected, sent = oracle name w
                 let model', cmd = apply name w model
                 Expect.equal (not (List.isEmpty cmd)) sent $"{route}: gesendet"
+                Expect.isFalse (targetBusy model' && Components.Budget.Pause.pauseBusy model') $"{route}: Target und Pause zugleich"
                 let form = formOf model'
                 Expect.equal (form.ConfirmingChange, form.ConfirmingRemove) (expected.WarnOpen, expected.RemoveOpen) $"{route}: Rückfragen offen"
+                let busy = expected.TargetPending || expected.PausePending
+                let asking = expected.WarnOpen || expected.RemoveOpen
                 // Speichern geht nur mit einer Eingabe, ohne offene Rückfrage und ohne laufenden Aufruf.
-                let saveable =
-                    not expected.TargetPending && not expected.WarnOpen && not expected.RemoveOpen && (expected.Typed || expected.Chosen)
+                let saveable = not busy && not asking && (expected.Typed || expected.Chosen)
                 Expect.equal (canSaveTarget model' (categoryOf model' tripId)) saveable $"{route}: Speichern geht"
+                // Der drehende Knopf ist nie gesperrt, jeder andere bei laufendem Aufruf und offener Rückfrage.
+                Expect.equal
+                    (removeButtonState model' form).Disabled
+                    (not expected.RemovePending && (busy || asking))
+                    $"{route}: Target entfernen gesperrt"
+                Expect.equal
+                    (Components.Budget.Pause.pauseButtonState model' tripId).Disabled
+                    (not expected.PausePending && (busy || asking))
+                    $"{route}: Target pausieren gesperrt"
                 walkFrom (depth - 1) (name :: path) expected model'
     testList "Tab Target: Reihenfolgen der Rückfragen" [
-        test "In jeder Reihenfolge steht höchstens eine Rückfrage offen, Speichern, Entfernen und Pausieren warten auf sie" {
-            walkFrom 5 [] { Chosen = false; Typed = false; WarnOpen = false; RemoveOpen = false; TargetPending = false; PausePending = false; Paused = false } onTrip
+        test "In jeder Reihenfolge steht höchstens eine Rückfrage offen und läuft höchstens ein Aufruf, ein Tabwechsel schließt die Rückfragen" {
+            walkFrom
+                5
+                []
+                { Chosen = false; Typed = false; WarnOpen = false; RemoveOpen = false; TargetPending = false
+                  RemovePending = false; PausePending = false; Paused = false; InTargetTab = true }
+                onTrip
         }
     ]
 

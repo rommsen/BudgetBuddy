@@ -165,6 +165,11 @@ let targetBusy (model: Model) : bool =
     | TargetSaving _ -> true
     | TargetIdle -> false
 
+/// Wartet der Tab Target? Solange ein Target-Aufruf oder eine Pause läuft (`Pause.pauseBusy`): höchstens ein
+/// Aufruf läuft, und keine Rückfrage öffnet sich daneben (budgeting-c2t9w).
+let private targetWaits (model: Model) : bool =
+    targetBusy model || Pause.pauseBusy model
+
 /// Was der Aufruf für diese Kategorie im dargestellten Monat tut, wenn er läuft. Dann dreht der Knopf, der
 /// ihn ausgelöst hat (budgeting-g2ty9, F1).
 let targetActionFor (model: Model) (categoryId: System.Guid) : TargetAction option =
@@ -186,10 +191,10 @@ let confirmOpen (form: TargetForm) : bool =
     form.ConfirmingChange || form.ConfirmingRemove
 
 /// Geht "Target speichern" oder "Target anlegen"? Nur bei Abweichung vom geladenen Stand, wenn kein Aufruf
-/// läuft und keine Rückfrage offen ist.
+/// läuft, auch keine Pause (`targetWaits`), und keine Rückfrage offen ist.
 let canSaveTarget (model: Model) (category: BudgetCategory) : bool =
     match editableForm (targetTabMode model category) with
-    | Some (shown, form) when not (targetBusy model) && not (confirmOpen form) ->
+    | Some (shown, form) when not (targetWaits model) && not (confirmOpen form) ->
         match targetFormState shown form with
         | FormChanged _ -> true
         | FormInvalid
@@ -234,7 +239,7 @@ let private start
     (model: Model)
     : Model * (string * TargetChangeRequest) option =
     match selectedEditable model with
-    | Some (category, shown, form) when not (targetBusy model) ->
+    | Some (category, shown, form) when not (targetWaits model) ->
         match wanted shown form with
         | Some draft ->
             let request : TargetChangeRequest = { CategoryId = category.Id; Shown = shown; Wanted = draft }
@@ -261,12 +266,25 @@ let private shownTarget (model: Model) (categoryId: System.Guid) : Target option
 /// Hält das Formular am Schlüssel aus Kategorie und Monat. Wechselt einer, ist die Eingabe verworfen und eine
 /// offene Warnung geschlossen; im vergangenen oder künftigen Monat gibt es kein Formular. Verlöre der Wechsel
 /// nach einem stillen Neulesen nichts mehr (oder ist er keiner mehr), schließt eine offene Warnung: sonst
-/// bliebe "Wechseln" wirkungslos und Speichern gesperrt (budgeting-g2ty9, X2).
+/// bliebe "Wechseln" wirkungslos und Speichern gesperrt (budgeting-g2ty9, X2). Zeigt ein Neulesen kein
+/// Target mehr, schließt die Bestätigung des Entfernens: sonst bliebe "Entfernen" wirkungslos und "Target
+/// anlegen" gesperrt (budgeting-c2t9w). Außerhalb des Tabs Target ist keine Rückfrage offen, die Eingabe
+/// bleibt: sonst liefe im Tab Geld eine Pause, und zurück im Tab Target ginge "Wechseln" oder "Entfernen"
+/// mit altem Stand hinaus (budgeting-c2t9w).
 let syncTargetForm (model: Model) : Model =
     match model.TargetForm, formKey model with
     | Some form, Some (c, m) when form.CategoryId = c && form.Month = m ->
-        if form.ConfirmingChange && List.isEmpty (targetFormLosses (shownTarget model c) form) then
-            { model with TargetForm = Some { form with ConfirmingChange = false } }
+        let shown = shownTarget model c
+        let away = model.Tab <> TargetTab
+        let warnStale = form.ConfirmingChange && (away || List.isEmpty (targetFormLosses shown form))
+        let removeStale = form.ConfirmingRemove && (away || shown.IsNone)
+        if warnStale || removeStale then
+            { model with
+                TargetForm =
+                    Some
+                        { form with
+                            ConfirmingChange = form.ConfirmingChange && not warnStale
+                            ConfirmingRemove = form.ConfirmingRemove && not removeStale } }
         else
             model
     | _, Some (c, m) -> { model with TargetForm = Some (emptyForm c m) }
@@ -276,7 +294,7 @@ let syncTargetForm (model: Model) : Model =
 /// Abweichung. Verlöre der Wechsel der Art etwas, öffnet erst die Warnung, gesendet wird nichts.
 let startTargetSave (model: Model) : Model * (string * TargetChangeRequest) option =
     match selectedEditable model with
-    | Some (_, shown, form) when not (targetBusy model) && not (confirmOpen form) && not (List.isEmpty (targetFormLosses shown form)) ->
+    | Some (_, shown, form) when not (targetWaits model) && not (confirmOpen form) && not (List.isEmpty (targetFormLosses shown form)) ->
         updateForm (fun f -> { f with ConfirmingChange = true; Notice = None }) model, None
     | _ ->
         start
@@ -304,14 +322,14 @@ let confirmTargetChange (model: Model) : Model * (string * TargetChangeRequest) 
 let cancelTargetChange (model: Model) : Model =
     updateForm (fun f -> { f with ConfirmingChange = false }) model
 
-/// Ist "Target entfernen" gesperrt? Solange ein Aufruf läuft und solange eine Rückfrage offen ist
-/// (budgeting-r3wq8): am PC liegt die Bestätigung als Modal darüber, am Handy steht die Warnung vor dem
-/// Wechsel an der Stelle des Speichern-Knopfs (budgeting-g2ty9, X1).
+/// Ist "Target entfernen" gesperrt? Solange ein Aufruf läuft, auch eine Pause (budgeting-c2t9w), und solange
+/// eine Rückfrage offen ist (budgeting-r3wq8): am PC liegt die Bestätigung als Modal darüber, am Handy steht
+/// die Warnung vor dem Wechsel an der Stelle des Speichern-Knopfs (budgeting-g2ty9, X1).
 let removeTargetLocked (model: Model) (form: TargetForm) : bool =
-    targetBusy model || confirmOpen form
+    targetWaits model || confirmOpen form
 
-/// "Target entfernen": die Bestätigung öffnen. Nur mit Target, nie während eines Aufrufs und nie neben einer
-/// offenen Warnung (budgeting-g2ty9, X1).
+/// "Target entfernen": die Bestätigung öffnen. Nur mit Target, nie während eines Aufrufs (auch einer Pause)
+/// und nie neben einer offenen Warnung (budgeting-g2ty9, X1).
 let askRemoveTarget (model: Model) : Model =
     match selectedEditable model with
     | Some (_, Some _, form) when not (removeTargetLocked model form) ->
@@ -383,7 +401,8 @@ let applyTargetAnswered
         withTarget categoryId month target answered |> resetForm (Some TargetChangedNotice), true
     | Ok (TargetPartlyWritten (target, message)) ->
         // Schritt 1 steht in YNAB: der gezeigte Stand ist der neue, die Eingabe mit dem Datum bleibt. Ein
-        // erneutes Speichern plant dann nur das Datum (ADR 0080 Punkt 6).
+        // erneutes Speichern plant dann nur das Datum (ADR 0080 Punkt 6). Den ganzen Satz baut der Server
+        // (`targetPartlyText`), der Client zeigt ihn unverändert (budgeting-c2t9w).
         withTarget categoryId month target answered
         |> updateForm (fun f -> if ownForm f then { f with Notice = Some (TargetPartlyNotice message); ConfirmingChange = false } else f),
         true
@@ -395,17 +414,13 @@ let applyTargetAnswered
 let targetRejectedAwayText (message: string) : string =
     $"Target nicht gespeichert: {message}"
 
-/// Der Handlungshinweis zu einem Teilergebnis (budgeting-g2ty9, X4).
-[<Literal>]
-let TargetDateRetryText = "Speichern setzt das Datum erneut."
-
 /// Der Hinweis über dem Formular oder unter dem Speichern-Knopf.
 let targetNoticeText (notice: TargetNotice) : string =
     match notice with
     | TargetChangedNotice ->
         "Target wurde inzwischen in YNAB geändert. Hier steht jetzt der Stand aus YNAB, deine Eingabe ist verworfen."
     | TargetRejectedNotice message -> message
-    | TargetPartlyNotice message -> $"{message} {TargetDateRetryText}"
+    | TargetPartlyNotice message -> message
 
 /// Ein Satz je Verlust für die Warnung vor dem Wechsel der Art.
 let targetLossText (shown: Target) (loss: TargetLoss) : string =

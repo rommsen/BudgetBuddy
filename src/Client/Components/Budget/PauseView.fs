@@ -28,14 +28,14 @@ let private pauseButton
     (invisible: bool)
     (dispatch: Msg -> unit)
     =
-    let own = pauseRunningFor model category.Id
+    let state = pauseButtonState model category.Id
     let button =
         Button.view
             { Button.defaultProps with
                 Text = b.Label
                 Variant = Button.Secondary
-                IsBusy = own
-                IsDisabled = (pauseBusy model && not own) || pauseHeldByConfirm model category.Id
+                IsBusy = state.Busy
+                IsDisabled = state.Disabled
                 ClassName = Some $"w-full {TouchTargets.sheetMinHeight}"
                 OnClick = fun () -> dispatch (SetTargetPause b.Intent) }
     Html.div [
