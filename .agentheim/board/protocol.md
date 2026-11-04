@@ -5,6 +5,24 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 16:08 -- Modeling / Captured: budgeting-g2ty9 - "Review-Korrekturen im Target-Formular: Spinner am auslösenden Knopf, Fokus nach Abbrechen und Speichern bleibt, Datumsfeld nur lesend wie der Betrag, dazu die Befunde der Reviews zu Target anlegen"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Review-Befunde zu r3wq8 und h7q4v (Roman: selbstständig beheben).
+
+---
+
+## 2026-11-04 16:08 -- Modeling / Captured: budgeting-c6vn4 - "Review-Korrekturen zur allgemeinen Historie und zu den Pause-Korrekturen: Suchfeld am Handy wieder breit, Ladeantwort mit Generation, Filter haftet, aufklappbare Zeile mit Chevron, Betrag rechts, BB-Lesefehler nicht als YNAB-Fehler, fehlende Tests"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** todo
+**Summary:** Review-Befunde zu r3wq8 und h7q4v (Roman: selbstständig beheben).
+
+---
+
 ## 2026-11-04 16:03 -- Task verified and completed: budgeting-h7q4v - "Allgemeine Budget-Historie #/budget/history: alle Bewegungen, neueste zuerst, Filter nach Art, Targets-Durchlauf aufklappbar, Knopf Historie im Seitenkopf"
 
 **Type:** Work / Task completion

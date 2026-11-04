@@ -10,14 +10,15 @@ Catalog of this bounded context's tasks by status.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 5
-- **Todo:** 0
+- **Backlog:** 6
+- **Todo:** 1
 - **Doing:** 1
 - **Done:** 23
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **budgeting-c6vn4** — "Review-Korrekturen zur allgemeinen Historie und zu den Pause-Korrekturen: Suchfeld am Handy wieder breit, Ladeantwort mit Generation, Filter haftet, aufklappbare Zeile mit Chevron, Betrag rechts, BB-Lesefehler nicht als YNAB-Fehler, fehlende Tests" (refactor) — `todo/budgeting-c6vn4-review-korrekturen-allgemeine-historie-und-pause.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -66,6 +67,7 @@ prior-art matcher additionally checks `done-archive/` when present.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **budgeting-g2ty9** — "Review-Korrekturen im Target-Formular: Spinner am auslösenden Knopf, Fokus nach Abbrechen und Speichern bleibt, Datumsfeld nur lesend wie der Betrag, dazu die Befunde der Reviews zu Target anlegen" (refactor) — `backlog/budgeting-g2ty9-review-korrekturen-target-formular.md`
 - **budgeting-w3p7n** — "Allgemeine Historie: Pausen und Target-Änderungen als eigene Arten?" (feature) — `backlog/budgeting-w3p7n-allgemeine-historie-pausen-und-target-nderungen-als-eigene-a.md`
 - **budgeting-p2zr6** — "Passt das Target noch? Prüfung je Kategorie aus dem Kassenbuch, gespeichertes So lassen, Tab-Markierung Target • und Feld an BudgetCategory für den Prüf-Filter" (feature) — `backlog/budgeting-p2zr6-passt-das-target-noch.md`
 - **budgeting-w2f6c** — "Budget-Seite: Listenbeträge gegen ADR 0049" (bug) — `backlog/budgeting-w2f6c-budget-seite-listenbetr-ge-gegen-adr-0049.md`
