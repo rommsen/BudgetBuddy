@@ -5,6 +5,27 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 19:07 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** 6h08m (Batch-Start t6p8z 12:59 bis 19:07)
+**Completed:** 10 (first-try PASS: 7, re-dispatched: 2, skipped: 1)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Lost-result re-dispatches:** 0
+**Lost-result escalations:** 0
+**Dispatches:** budgeting-t6p8z: 1, budgeting-v6m3z: 1, budgeting-k8wq3: 1, budgeting-r3wq8: 1, budgeting-h7q4v: 3, budgeting-xp46a: 2, budgeting-c6vn4: 1, budgeting-g2ty9: 1, budgeting-f4k9n: 1, budgeting-s5n2w: 0 (Spike vom Conductor selbst gegen das Budget Test, Verifier SKIP)
+**Commits:** 31
+**Vision-conformance:** none — batch aligns with vision
+**Batch mix:** 90% product-facing / 10% harness / 0% bookkeeping (10 tasks)
+**Carry-over:** none — working tree clean
+**Reviews:** von Roman freigegeben selbst gestartet (Abweichung von CLAUDE.md Override C). Nach t6p8z, v6m3z, k8wq3, xp46a, c6vn4 und g2ty9 liefen die passenden Reviews; Befunde behoben über r3wq8, c6vn4, g2ty9 und f4k9n. Ab c6vn4 nur noch Muss-Befunde behoben, Sollte und Kann gesammelt in budgeting-h9c3w. Für f4k9n keine Reviews mehr gestartet; vorgeschlagen: qa-milestone-reviewer, frontend-architecture, design-quality.
+**Bestandsreview:** im Protokoll steht noch kein "Bestandsreview: budgeting", erledigt sind weit mehr als zehn Tasks des BC; /architecture-review budgeting vorgeschlagen.
+**Neu im Backlog:** budgeting-d7r4k, budgeting-r7h2q, budgeting-h9c3w
+
+---
+
 ## 2026-11-04 19:06 -- Task verified and completed: budgeting-f4k9n - "Muss-Befunde zu budgeting-g2ty9: ReturnFocus nimmt beim Tippen den Fokus, Walk der Rückfragen ohne getippten Betrag"
 
 **Type:** Work / Task completion
