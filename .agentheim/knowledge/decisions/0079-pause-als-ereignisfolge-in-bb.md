@@ -43,3 +43,6 @@ ADR 0073 legt die Pause je Kategorie und Monat in BB und lässt offen, wie sie g
 ## References
 - ADR 0065, 0073, 0074
 - docs/ux/budget/konzept.md, Abschnitt Targets
+
+## Nachtrag 2026-11-04 (budgeting-r3wq8)
+Das Aufheben heißt in Code und Spalte einheitlich `PauseLifted` mit dem Text "Aufgehoben". Der in Punkt 1 genannte Text "Fortgesetzt" ist ein Altwert: er wird beim Lesen weiter als Aufheben erkannt (lokale Dev-Datenbanken), geschrieben wird er nicht mehr. Eine BB-Pause lässt sich auch ohne Target aufheben; ohne Target wirkt sie nicht.

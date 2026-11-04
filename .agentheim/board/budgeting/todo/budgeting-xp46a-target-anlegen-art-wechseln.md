@@ -1,7 +1,7 @@
 ---
 id: budgeting-xp46a
 title: "Target anlegen und Art wechseln im Tab Target: NEED monatlich, wöchentlich oder jährlich, optional mit Datum in zwei Aufrufen, Warnung vor dem Verlust von Tag und Datum"
-status: backlog
+status: todo
 type: feature
 context: budgeting
 created: 2026-11-04

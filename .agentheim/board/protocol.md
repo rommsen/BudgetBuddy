@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 15:29 -- Modeling / Promoted: budgeting-xp46a - "Target anlegen und Art wechseln im Tab Target: NEED monatlich, wöchentlich oder jährlich, optional mit Datum in zwei Aufrufen, Warnung vor dem Verlust von Tag und Datum"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-04 15:29 -- Task verified and completed: budgeting-r3wq8 - "Review-Korrekturen zu Target pausieren, Tab Historie und Target ändern: Eingabe beim Speichern bleibt, Pause-Aufrufe lesen bei Abbruch neu, ein Name je Pause-Ereignis, Absicht statt Bool, Fokus und Rollen der Balken, fehlende Tests"
 
 **Type:** Work / Task completion
