@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 12:59 -- Batch started: [budgeting-t6p8z]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-t6p8z - "Target pausieren: Pause je Kategorie und Monat in BB, wirkt in Fehlt, Frei, Vorschau und Targets anwenden, endet mit dem Monat, Knopf im Tab Geld"
+**Parallel:** no (1 worker, budgeting-v6m3z wartet auf budgeting-t6p8z)
+
+---
+
 ## 2026-11-04 12:58 -- Modeling / Promoted: budgeting-t6p8z - "Target pausieren: Pause je Kategorie und Monat in BB, wirkt in Fehlt, Frei, Vorschau und Targets anwenden, endet mit dem Monat, Knopf im Tab Geld"
 
 **Type:** Modeling / Promote
