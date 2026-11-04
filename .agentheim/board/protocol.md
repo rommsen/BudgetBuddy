@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 12:07 -- Modeling / Promoted: design-system-w7c2h - "Fokus ohne Kasten: Tabs zeigen den Tastatur-Fokus als helle Fläche, Filter-Chips als Ring direkt auf dem Rand"
+
+**Type:** Modeling / Promote
+**BC:** design-system
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-04 12:07 -- Modeling / Captured: design-system-w7c2h - "Fokus ohne Kasten: Tabs zeigen den Tastatur-Fokus als helle Fläche, Filter-Chips als Ring direkt auf dem Rand"
 
 **Type:** Modeling / Capture
