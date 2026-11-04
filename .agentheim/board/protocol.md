@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 17:41 -- Batch started: [budgeting-g2ty9]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-g2ty9 - "Review-Korrekturen im Target-Formular: Spinner am auslösenden Knopf, Fokus nach Abbrechen und Speichern bleibt, Datumsfeld nur lesend wie der Betrag, dazu die Befunde der Reviews zu Target anlegen"
+**Parallel:** no (1 worker; Reviews zu c6vn4 laufen parallel, nur lesend)
+
+---
+
 ## 2026-11-04 17:41 -- Modeling / Promoted: budgeting-g2ty9 - "Review-Korrekturen im Target-Formular: Spinner am auslösenden Knopf, Fokus nach Abbrechen und Speichern bleibt, Datumsfeld nur lesend wie der Betrag, dazu die Befunde der Reviews zu Target anlegen"
 
 **Type:** Modeling / Promote
