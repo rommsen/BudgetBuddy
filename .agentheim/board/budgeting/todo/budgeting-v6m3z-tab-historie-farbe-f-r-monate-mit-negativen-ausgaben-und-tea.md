@@ -6,7 +6,7 @@ type: feature
 context: budgeting
 created: 2026-11-03
 completed:
-depends_on: [budgeting-x4k7p, design-system-w7c2h]
+depends_on: [budgeting-x4k7p, design-system-w7c2h, budgeting-t6p8z]
 blocks: [budgeting-h7q4v]
 tags: [budget, historie, design, entscheidung]
 related_adrs: [0049, 0075]

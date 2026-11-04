@@ -99,7 +99,8 @@ wenn man woanders ist.
 | Ansehen, Buchungen, Historie | ja | ja | ja |
 | Zuweisen, Geld holen und abgeben | ja | ja | ja |
 | Targets anwenden | nein | ja | ja |
-| Target ändern, pausieren | nein | ja | ja |
+| Target ändern, anlegen, entfernen | nein | ja | nein |
+| Target pausieren | nein | ja | ja |
 
 Die Grenzen nach vorn und hinten kommen aus YNAB. Am Rand fehlt der Pfeil. Laut Probe vom
 2026-10-26 lieferte YNAB für zwei Monate voraus 404, die Probe `budgeting-q7m2c` klärt das verbindlich.

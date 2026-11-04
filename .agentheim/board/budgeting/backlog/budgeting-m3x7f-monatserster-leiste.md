@@ -6,7 +6,7 @@ type: feature
 context: budgeting
 created: 2026-11-02
 completed:
-depends_on: [design-system-001, budgeting-t6p8z]
+depends_on: [design-system-001, budgeting-t6p8z, budgeting-p2zr6]
 blocks: []
 tags: [budget, monatserster, targets]
 related_adrs: [0065]

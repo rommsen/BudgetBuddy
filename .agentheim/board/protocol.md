@@ -5,6 +5,44 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 12:58 -- Modeling / Refined: budgeting-t6p8z - Target pausieren (Tab Target geteilt)
+
+**Type:** Modeling / Refine
+**BC:** budgeting
+**Status after:** todo
+**Summary:** Task 4 des Gesamtkonzepts geteilt. t6p8z ist jetzt Teil A (Pause in BB). Romans Entscheidungen F1 bis F7: Pause aufheben, nur mit Target, Pausen und Target-Änderungen in der Historie, Ändern nur im laufenden Monat, Integrationstest statt Schalter (prüft auch den Vormonat), kein Refill-Umschalter, Speichern per Knopf. Reihenfolge: v6m3z hängt an t6p8z, m3x7f an p2zr6. ADR 0074 Punkt 5, Konzept und README Monatsart nachgezogen.
+**Split into:** budgeting-k8wq3, budgeting-xp46a, budgeting-p2zr6
+**ADRs written:** 0079, 0080
+
+---
+
+## 2026-11-04 12:58 -- Modeling / Captured: budgeting-p2zr6 - "Passt das Target noch? Prüfung je Kategorie aus dem Kassenbuch, gespeichertes So lassen, Tab-Markierung Target • und Feld an BudgetCategory für den Prüf-Filter"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Aus budgeting-t6p8z abgeteilt (Verfeinerung 2026-11-04, Entscheidungen Roman F1 bis F7).
+
+---
+
+## 2026-11-04 12:58 -- Modeling / Captured: budgeting-xp46a - "Target anlegen und Art wechseln im Tab Target: NEED monatlich, wöchentlich oder jährlich, optional mit Datum in zwei Aufrufen, Warnung vor dem Verlust von Tag und Datum"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Aus budgeting-t6p8z abgeteilt (Verfeinerung 2026-11-04, Entscheidungen Roman F1 bis F7).
+
+---
+
+## 2026-11-04 12:58 -- Modeling / Captured: budgeting-k8wq3 - "Target ändern und entfernen im Tab Target: Betrag und Datum, nur geänderte Felder nach YNAB, Abgleich mit dem gezeigten Stand, konkrete Meldung bei Ablehnung, Aufzeichnung als Target-Änderung in der Historie"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Aus budgeting-t6p8z abgeteilt (Verfeinerung 2026-11-04, Entscheidungen Roman F1 bis F7).
+
+---
+
 ## 2026-11-04 12:45 -- Work session ended
 
 **Type:** Work / Session end

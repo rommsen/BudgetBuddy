@@ -45,6 +45,9 @@ Dieselbe Probe zeigt: `GET /months/{month}` ist ungeordnet und je Monat anders g
    | Targets anwenden | nein | ja | ja |
    | Target ändern, pausieren | nein | ja | ja |
 
+   Nachtrag 2026-11-04 (ADR 0080, Entscheidung des Owners): Target ändern, anlegen und
+   entfernen geht nur im aktuellen Monat. Pausieren bleibt im aktuellen und in künftigen Monaten.
+
 6. **Reihenfolge der Kategorien aus `GET /categories`.** Roman hat am 2026-11-02 bestätigt, dass sie
    seiner YNAB-Anzeige entspricht. Gruppen und Kategorien stehen in dieser Reihenfolge, die
    Monatswerte kommen weiter aus `GET /months/{month}`, zusammengeführt über die Kategorie-Id.
