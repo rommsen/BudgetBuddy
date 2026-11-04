@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 16:38 -- Modeling / Refined: budgeting-g2ty9 - Review-Korrekturen im Target-Formular
+
+**Type:** Modeling / Refine
+**BC:** budgeting
+**Status after:** backlog
+**Summary:** Befunde der vier Reviews zu budgeting-xp46a ergänzt (X1 bis X11, darunter Muss: zwei Rückfragen gleichzeitig am Handy). Wird nach budgeting-c6vn4 befördert.
+
+---
+
 ## 2026-11-04 16:32 -- Batch started: [budgeting-c6vn4]
 
 **Type:** Work / Batch start
