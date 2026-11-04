@@ -5,6 +5,22 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 19:48 -- Batch started: [budgeting-c2t9w]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-c2t9w - "Target-Formular: Tab-Wechsel schließt Rückfragen, Entfernen-Bestätigung schließt nach Neulesen, genaue Meldungen beim Teilergebnis und beim Anlegen außerhalb des Monats"
+**Parallel:** no (1 worker)
+
+---
+
+## 2026-11-04 19:48 -- Modeling / Promoted: budgeting-c2t9w - "Target-Formular: Tab-Wechsel schließt Rückfragen, Entfernen-Bestätigung schließt nach Neulesen, genaue Meldungen beim Teilergebnis und beim Anlegen außerhalb des Monats"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-04 19:48 -- Task verified and completed: budgeting-b5n8q - "BB-eigene Ablehnungen nicht als \"YNAB hat abgelehnt\", Targets-Durchlauf mit n von n Fehlschlägen als gescheitert"
 
 **Type:** Work / Task completion

@@ -1,7 +1,7 @@
 ---
 id: budgeting-c2t9w
 title: "Target-Formular: Tab-Wechsel schließt Rückfragen, Entfernen-Bestätigung schließt nach Neulesen, genaue Meldungen beim Teilergebnis und beim Anlegen außerhalb des Monats"
-status: backlog
+status: doing
 type: bug
 context: budgeting
 created: 2026-11-04
