@@ -1,7 +1,7 @@
 ---
 id: budgeting-a3k7m
 title: "Budget-Kopf bei 1024 px in einer Zeile, Historie am Handy ohne abgeschnittene Kategorien und Beträge"
-status: todo
+status: doing
 type: bug
 context: budgeting
 created: 2026-11-04

@@ -1,7 +1,7 @@
 ---
 id: budgeting-b5n8q
 title: "BB-eigene Ablehnungen nicht als \"YNAB hat abgelehnt\", Targets-Durchlauf mit n von n Fehlschlägen als gescheitert"
-status: todo
+status: doing
 type: bug
 context: budgeting
 created: 2026-11-04

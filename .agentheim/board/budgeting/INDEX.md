@@ -11,20 +11,20 @@ Catalog of this bounded context's tasks by status.
 
 <!-- task-counts:start -->
 - **Backlog:** 10
-- **Todo:** 3
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 3
 - **Done:** 28
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **budgeting-e6p4r** — "Benannte Regressionstests: Pause-Antwort während eines Monatswechsels, Zurück aus der allgemeinen Historie" (chore) — `todo/budgeting-e6p4r-regressionstests-pause-und-historie.md`
-- **budgeting-b5n8q** — "BB-eigene Ablehnungen nicht als \"YNAB hat abgelehnt\", Targets-Durchlauf mit n von n Fehlschlägen als gescheitert" (bug) — `todo/budgeting-b5n8q-bb-meldungen-und-lauf-gescheitert.md`
-- **budgeting-a3k7m** — "Budget-Kopf bei 1024 px in einer Zeile, Historie am Handy ohne abgeschnittene Kategorien und Beträge" (bug) — `todo/budgeting-a3k7m-kopf-1024-und-historie-handy.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **budgeting-e6p4r** — "Benannte Regressionstests: Pause-Antwort während eines Monatswechsels, Zurück aus der allgemeinen Historie" (chore) — `doing/budgeting-e6p4r-regressionstests-pause-und-historie.md`
+- **budgeting-b5n8q** — "BB-eigene Ablehnungen nicht als \"YNAB hat abgelehnt\", Targets-Durchlauf mit n von n Fehlschlägen als gescheitert" (bug) — `doing/budgeting-b5n8q-bb-meldungen-und-lauf-gescheitert.md`
+- **budgeting-a3k7m** — "Budget-Kopf bei 1024 px in einer Zeile, Historie am Handy ohne abgeschnittene Kategorien und Beträge" (bug) — `doing/budgeting-a3k7m-kopf-1024-und-historie-handy.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

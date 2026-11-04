@@ -1,7 +1,7 @@
 ---
 id: budgeting-e6p4r
 title: "Benannte Regressionstests: Pause-Antwort während eines Monatswechsels, Zurück aus der allgemeinen Historie"
-status: todo
+status: doing
 type: chore
 context: budgeting
 created: 2026-11-04

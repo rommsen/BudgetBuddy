@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 19:20 -- Batch started: [budgeting-a3k7m, budgeting-b5n8q, budgeting-e6p4r]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-a3k7m - "Budget-Kopf bei 1024 px in einer Zeile, Historie am Handy ohne abgeschnittene Kategorien und Beträge", budgeting-b5n8q - "BB-eigene Ablehnungen nicht als \"YNAB hat abgelehnt\", Targets-Durchlauf mit n von n Fehlschlägen als gescheitert", budgeting-e6p4r - "Benannte Regressionstests: Pause-Antwort während eines Monatswechsels, Zurück aus der allgemeinen Historie"
+**Parallel:** yes (3 workers)
+
+---
+
 ## 2026-11-04 19:20 -- Modeling / Promoted: budgeting-e6p4r - "Benannte Regressionstests: Pause-Antwort während eines Monatswechsels, Zurück aus der allgemeinen Historie"
 
 **Type:** Modeling / Promote
