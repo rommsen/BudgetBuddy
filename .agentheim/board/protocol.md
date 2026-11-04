@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 18:33 -- Modeling / Captured: budgeting-h9c3w - "Gesammelte Sollte- und Kann-Befunde der Reviews zu budgeting-c6vn4 und budgeting-g2ty9"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Sollte- und Kann-Befunde der Reviews zu budgeting-c6vn4 und budgeting-g2ty9 gesammelt, fünf mit hoher Priorität, ein Widerspruch zur Pause-Sperre für Roman.
+
+---
+
 ## 2026-11-04 18:32 -- Batch started: [budgeting-f4k9n]
 
 **Type:** Work / Batch start
