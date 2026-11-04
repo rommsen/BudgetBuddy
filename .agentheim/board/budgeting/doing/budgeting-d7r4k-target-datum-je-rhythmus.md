@@ -1,7 +1,7 @@
 ---
 id: budgeting-d7r4k
 title: "Target-Datum je Rhythmus: kein Datum bei der Woche, beim Monat und Jahr als \"fällig am\""
-status: backlog
+status: doing
 type: feature
 context: budgeting
 created: 2026-11-04

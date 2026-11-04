@@ -5,6 +5,22 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 20:14 -- Batch started: [budgeting-d7r4k]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-d7r4k - "Target-Datum je Rhythmus: kein Datum bei der Woche, beim Monat und Jahr als \"fällig am\""
+**Parallel:** no (1 worker)
+
+---
+
+## 2026-11-04 20:14 -- Modeling / Promoted: budgeting-d7r4k - "Target-Datum je Rhythmus: kein Datum bei der Woche, beim Monat und Jahr als \"fällig am\""
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-04 20:14 -- Task verified and completed: budgeting-c2t9w - "Target-Formular: Tab-Wechsel schließt Rückfragen, Entfernen-Bestätigung schließt nach Neulesen, genaue Meldungen beim Teilergebnis und beim Anlegen außerhalb des Monats"
 
 **Type:** Work / Task completion
