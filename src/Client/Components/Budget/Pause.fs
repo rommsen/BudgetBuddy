@@ -65,6 +65,14 @@ let pauseBusy (model: Model) : bool =
     | PauseIdle
     | PauseRejected _ -> false
 
+/// Läuft eine Pause dieser Kategorie, in welchem Monat auch immer? Dann warten Speichern und Entfernen im
+/// Tab Target derselben Kategorie (budgeting-f8w2n, ADR 0080 Punkt 5).
+let pauseCallFor (model: Model) (categoryId: System.Guid) : bool =
+    match model.PauseCall with
+    | PauseRunning (c, _, _) -> c = categoryId
+    | PauseIdle
+    | PauseRejected _ -> false
+
 /// Steht im Tab Target eine Rückfrage zur Kategorie offen (Warnung vor dem Wechsel der Art, Bestätigung von
 /// "Target entfernen")? Dann ist der Pause-Knopf gesperrt: höchstens eine Sache im Tab wartet auf eine
 /// Antwort (budgeting-g2ty9, X1).
@@ -73,17 +81,19 @@ let pauseHeldByConfirm (model: Model) (categoryId: System.Guid) : bool =
     && model.TargetForm
        |> Option.exists (fun f -> f.CategoryId = categoryId && (f.ConfirmingChange || f.ConfirmingRemove))
 
-/// Läuft ein Aufruf im Tab Target (Speichern, Wechseln, Entfernen)? Dann wartet die Pause: höchstens ein
-/// Aufruf läuft, sonst gingen beide mit altem Stand hinaus (budgeting-c2t9w).
-let private targetCallRunning (model: Model) : bool =
+/// Läuft ein Aufruf im Tab Target (Speichern, Wechseln, Entfernen) für diese Kategorie? Dann wartet ihre
+/// Pause: je Kategorie läuft höchstens ein Aufruf, sonst gingen beide mit altem Stand hinaus
+/// (budgeting-c2t9w). Ein Aufruf einer anderen Kategorie sperrt nicht (budgeting-f8w2n).
+let private targetCallFor (model: Model) (categoryId: System.Guid) : bool =
     match model.TargetCall with
-    | TargetSaving _ -> true
+    | TargetSaving (c, _, _) -> c = categoryId
     | TargetIdle -> false
 
-/// Ist der Pause-Knopf der Kategorie gesperrt? Solange irgendein Pause- oder Target-Aufruf läuft und solange
-/// im Tab Target eine Rückfrage offen ist (`pauseHeldByConfirm`). `startPause` sendet dann nichts.
+/// Ist der Pause-Knopf der Kategorie gesperrt? Solange irgendein Pause-Aufruf läuft (es gibt nur einen),
+/// solange ein Target-Aufruf derselben Kategorie läuft und solange im Tab Target eine Rückfrage offen ist
+/// (`pauseHeldByConfirm`). `startPause` sendet dann nichts.
 let pauseLocked (model: Model) (categoryId: System.Guid) : bool =
-    pauseBusy model || targetCallRunning model || pauseHeldByConfirm model categoryId
+    pauseBusy model || targetCallFor model categoryId || pauseHeldByConfirm model categoryId
 
 /// Wie der Pause-Knopf aussieht: `Busy` dreht und behält den Fokus (`Button.IsBusy`), `Disabled` sperrt
 /// (Vorbild `saveButtonState` in `TargetEdit`, budgeting-c2t9w).
@@ -93,6 +103,17 @@ type PauseButtonState = { Busy: bool; Disabled: bool }
 let pauseButtonState (model: Model) (categoryId: System.Guid) : PauseButtonState =
     let busy = pauseRunningFor model categoryId
     { Busy = busy; Disabled = not busy && pauseLocked model categoryId }
+
+/// Der Satz unter dem Pause-Knopf, solange ein Target-Aufruf derselben Kategorie ihn sperrt (budgeting-f8w2n).
+[<Literal>]
+let PauseWaitsForTargetText = "Wartet, bis das Target gespeichert ist."
+
+/// Steht unter dem Pause-Knopf, warum er wartet? Nur, wenn ein Knopf steht und ein Target-Aufruf derselben
+/// Kategorie ihn sperrt: der Spinner steht dann im Tab Target, im Tab Geld sähe man sonst keinen Grund.
+let pauseWaitHint (model: Model) (category: BudgetCategory) : string option =
+    match pauseControlFor model category with
+    | PauseOffered (Some _, _) when targetCallFor model category.Id -> Some PauseWaitsForTargetText
+    | _ -> None
 
 /// Die Meldung zur Kategorie im dargestellten Monat, wenn der letzte Aufruf scheiterte.
 let pauseError (model: Model) (categoryId: System.Guid) : string option =

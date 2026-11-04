@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 21:00 -- Task verified and completed: budgeting-f8w2n - "Target und Pause sperren sich nur je Kategorie mit sichtbarem Grund, Meldung ohne Target nach Schritt 1, Testlücken aus den Reviews zu c2t9w"
+
+**Type:** Work / Task completion
+**Task:** budgeting-f8w2n - "Target und Pause sperren sich nur je Kategorie mit sichtbarem Grund, Meldung ohne Target nach Schritt 1, Testlücken aus den Reviews zu c2t9w"
+**Summary:** Target und Pause sperren sich nur in derselben Kategorie mit Satz unter dem wartenden Knopf, Meldung ohne Target nach Schritt 1 ohne Erfolgskopf, Testlücken aus den Reviews zu c2t9w geschlossen
+**Duration:** 55 min
+**Verification:** PASS (iteration 1)
+**Files changed:** 7
+**Tests added:** 5
+**ADRs written:** none
+
+---
+
 ## 2026-11-04 20:33 -- Batch started: [budgeting-f8w2n]
 
 **Type:** Work / Batch start

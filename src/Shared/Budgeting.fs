@@ -651,12 +651,15 @@ let private withStop (text: string) : string =
 /// Die ganze Meldung zu einem Teilergebnis, Schritt 1 geschrieben, das Datum nicht (budgeting-c2t9w). Hat
 /// YNAB das Datum abgelehnt: "Target angelegt, Datum 01.06.2027 nicht gesetzt: <Grund>. Speichern setzt das
 /// Datum erneut." Hat BB Schritt 2 zurückgehalten, nennt der Satz, was YNAB zeigt, ohne Satz zum erneuten
-/// Speichern: dort plante es wieder einen Wechsel. Beim Wechsel der Art "Target geändert, …". Der Client
-/// zeigt den Satz unverändert.
+/// Speichern: dort plante es wieder einen Wechsel. Beim Wechsel der Art "Target geändert, …". Zeigt YNAB
+/// nach Schritt 1 kein Target, meldet der Satz keinen Erfolg: "Schritt 1 an YNAB gesendet, YNAB zeigt danach
+/// kein Target. Datum 01.06.2027 nicht gesetzt." (budgeting-f8w2n). Der Client zeigt den Satz unverändert.
 let targetPartlyText (kind: TargetChangeKind) (date: string) (missed: TargetDateMissed) : string =
     let head = $"Target {changedWord kind}, Datum {dateText date} nicht gesetzt"
     match missed with
     | DateRefused reason -> $"{head}: {withStop reason} {TargetDateRetryText}"
+    | DateHeldBack NoTargetAfterFirst ->
+        $"Schritt 1 an YNAB gesendet, YNAB zeigt danach kein Target. Datum {dateText date} nicht gesetzt."
     | DateHeldBack cause -> $"{head}: {withStop (targetHeldBackReasonText cause)}"
 
 /// Die Ablehnung außerhalb des laufenden Monats: beim Anlegen (kein Target gezeigt, ein Wunsch) "Target

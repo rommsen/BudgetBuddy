@@ -251,6 +251,11 @@ let private ynabTests =
             for goalType, kind in [ "NEED", Need; "TB", TargetBalance; "MF", MonthlyFunding; "DEBT", Debt ] do
                 Expect.equal (Server.YnabClient.Decoders.targetKind goalType) kind goalType
         }
+        // budgeting-f8w2n: `goalTypeText` ist die Umkehrung von `targetKind`, auch für unbekannte Kürzel.
+        test "Jedes Kürzel aus goal_type kommt über targetKind und goalTypeText unverändert zurück" {
+            for code in [ "NEED"; "TB"; "TBD"; "MF"; "DEBT"; "XYZ" ] do
+                Expect.equal (goalTypeText (Server.YnabClient.Decoders.targetKind code)) code code
+        }
     ]
 
 // ============================================
@@ -766,11 +771,12 @@ let private partlyTextTests =
                 "Target geändert, Datum 01.06.2027 nicht gesetzt: Das Datum liegt in der Vergangenheit. Speichern setzt das Datum erneut."
                 "geändert"
         }
-        test "Zurückgehalten ohne Target in YNABs Antwort: eigener Satz ohne Handlungssatz" {
-            Expect.equal
-                (targetPartlyText (TargetCreated Yearly) date (DateHeldBack NoTargetAfterFirst))
-                "Target angelegt, Datum 01.06.2027 nicht gesetzt: YNAB zeigt nach Schritt 1 kein Target."
-                "kein Target"
+        // budgeting-f8w2n, Bug: der Kopf meldete "Target angelegt", obwohl YNAB danach kein Target zeigt.
+        test "Zurückgehalten ohne Target in YNABs Antwort: der Satz nennt Schritt 1 statt angelegt oder geändert" {
+            for kind in [ TargetCreated Yearly; TargetKindChanged Yearly ] do
+                let text = targetPartlyText kind date (DateHeldBack NoTargetAfterFirst)
+                Expect.equal text "Schritt 1 an YNAB gesendet, YNAB zeigt danach kein Target. Datum 01.06.2027 nicht gesetzt." $"{kind}"
+                Expect.isFalse (text.Contains "angelegt" || text.Contains "geändert") $"{kind}: kein Erfolgskopf"
         }
         test "Zurückgehalten mit anderer Art: der Satz nennt die Art" {
             Expect.equal

@@ -448,7 +448,7 @@ let private changeTests =
             // baut der Server, der Client zeigt ihn unverändert.
             Expect.equal form.Notice (Some (TargetPartlyNotice message)) "Hinweis"
             Expect.equal (targetNoticeText (TargetPartlyNotice message)) message "unverändert"
-            let heldBack = "Target angelegt, Datum 01.06.2027 nicht gesetzt: YNAB zeigt nach Schritt 1 kein Target."
+            let heldBack = targetPartlyText (TargetCreated Yearly) "2027-06-01" (DateHeldBack NoTargetAfterFirst)
             let held = typed |> step (TargetChangeAnswered (holidayId, current, Ok (TargetPartlyWritten (None, heldBack))))
             Expect.equal ((formOf held).Notice |> Option.map targetNoticeText) (Some heldBack) "zurückgehalten: ohne Handlungssatz"
             Expect.equal (targetDateValue (Some after) form) (Some (DateTime(2027, 6, 1))) "Datum bleibt"
@@ -636,8 +636,8 @@ type private AskWalk = {
     RemovePending: bool
     PausePending: bool
     Paused: bool
-    /// Der Tab Target ist offen, sonst der Tab Geld.
-    InTargetTab: bool
+    /// Der offene Tab: Target, Geld oder Historie (budgeting-f8w2n).
+    Tab: InspectorTab
 }
 
 // X1, Bug: am Handy konnten zwei Rückfragen zugleich offen sein. Stand die Warnung vor dem Wechsel an der
@@ -646,12 +646,16 @@ type private AskWalk = {
 // budgeting-c2t9w, Bug: Rückfrage im Tab Target öffnen, auf Tab Geld wechseln, "Target pausieren" lief.
 // Zurück im Tab Target stand die Rückfrage noch offen, "Wechseln" oder "Entfernen" sendete neben der
 // laufenden Pause mit altem `Shown`. Ebenso ging Pausieren, während ein Target-Aufruf lief.
+// budgeting-f8w2n: auch die Pfeiltaste in den Tab Historie schließt die Rückfragen; die Knöpfe drehen genau
+// beim eigenen Aufruf, und die Sätze zur Sperre stehen genau dann, wenn der Aufruf der Kategorie sperrt.
 let private askWalkTests =
     let events (w: AskWalk) =
-        [ if w.InTargetTab then
-              yield! [ "Rhythmus"; "Betrag"; "Speichern"; "Wechseln"; "Abbrechen Wechsel"; "Entfernen"; "Bestätigen Entfernen"; "Abbrechen Entfernen"; "Pausieren"; "Tab Geld" ]
-          else
-              yield! [ "Pausieren"; "Tab Target" ]
+        [ match w.Tab with
+          | TargetTab ->
+              yield! [ "Rhythmus"; "Betrag"; "Speichern"; "Wechseln"; "Abbrechen Wechsel"; "Entfernen"; "Bestätigen Entfernen"; "Abbrechen Entfernen"; "Pausieren"; "Tab Geld"; "Tab Verlauf" ]
+          | MoneyTab -> yield! [ "Pausieren"; "Tab Target" ]
+          | EntriesTab
+          | HistoryTab -> "Tab Target"
           if w.TargetPending then "Antwort"
           if w.PausePending then "Pause-Antwort" ]
     let oracle (name: string) (w: AskWalk) : AskWalk * bool =
@@ -671,8 +675,9 @@ let private askWalkTests =
         | "Abbrechen Entfernen" -> { w with RemoveOpen = false }, false
         | "Pausieren" when idle && noAsk -> { w with PausePending = true }, true
         // Weg vom Tab Target schließen die Rückfragen, die Eingabe bleibt.
-        | "Tab Geld" -> { w with InTargetTab = false; WarnOpen = false; RemoveOpen = false }, false
-        | "Tab Target" -> { w with InTargetTab = true }, false
+        | "Tab Geld" -> { w with Tab = MoneyTab; WarnOpen = false; RemoveOpen = false }, false
+        | "Tab Verlauf" -> { w with Tab = HistoryTab; WarnOpen = false; RemoveOpen = false }, false
+        | "Tab Target" -> { w with Tab = TargetTab }, false
         | "Antwort" -> { w with TargetPending = false; RemovePending = false }, false
         | "Pause-Antwort" -> { w with PausePending = false; Paused = not w.Paused }, false
         | _ -> w, false
@@ -689,6 +694,7 @@ let private askWalkTests =
         | "Abbrechen Entfernen" -> run CancelRemoveTarget
         | "Pausieren" -> run (SetTargetPause (if w.Paused then LiftPause else PauseTarget))
         | "Tab Geld" -> run (SelectInspectorTab MoneyTab)
+        | "Tab Verlauf" -> run (PageKeyPressed (StepTab Previous))
         | "Tab Target" -> run (SelectInspectorTab TargetTab)
         | "Antwort" -> run (TargetChangeAnswered (tripId, current, Error "kaputt"))
         | _ -> run (TargetPauseAnswered (tripId, current, Ok (if w.Paused then None else Some PausedInBb)))
@@ -698,7 +704,10 @@ let private askWalkTests =
                 let route = List.rev (name :: path) |> String.concat ", "
                 let expected, sent = oracle name w
                 let model', cmd = apply name w model
-                Expect.equal (not (List.isEmpty cmd)) sent $"{route}: gesendet"
+                // Im Tab Historie liest der Client die Historie: dort zählt kein Befehl als gesendeter Aufruf.
+                let reads = w.Tab = HistoryTab || expected.Tab = HistoryTab
+                if not reads || sent then
+                    Expect.equal (not (List.isEmpty cmd)) sent $"{route}: gesendet"
                 Expect.isFalse (targetBusy model' && Components.Budget.Pause.pauseBusy model') $"{route}: Target und Pause zugleich"
                 let form = formOf model'
                 Expect.equal (form.ConfirmingChange, form.ConfirmingRemove) (expected.WarnOpen, expected.RemoveOpen) $"{route}: Rückfragen offen"
@@ -716,6 +725,27 @@ let private askWalkTests =
                     (Components.Budget.Pause.pauseButtonState model' tripId).Disabled
                     (not expected.PausePending && (busy || asking))
                     $"{route}: Target pausieren gesperrt"
+                Expect.equal (Components.Budget.Pause.pauseButtonState model' tripId).Busy expected.PausePending $"{route}: Target pausieren dreht"
+                Expect.equal (removeButtonState model' form).Busy expected.RemovePending $"{route}: Target entfernen dreht"
+                let category = categoryOf model' tripId
+                Expect.equal
+                    (saveButtonState model' category).Busy
+                    (expected.TargetPending && not expected.RemovePending)
+                    $"{route}: Target speichern dreht"
+                // Die Sätze zur Sperre: nur, wenn der Aufruf der Kategorie den Knopf sperrt.
+                Expect.equal
+                    (Components.Budget.Pause.pauseWaitHint model' category)
+                    (if expected.TargetPending then Some Components.Budget.Pause.PauseWaitsForTargetText else None)
+                    $"{route}: Satz unter Target pausieren"
+                let byPause = expected.PausePending && not asking
+                Expect.equal
+                    (saveWaitHint model' category)
+                    (if byPause && (expected.Typed || expected.Chosen) then Some TargetWaitsForPauseText else None)
+                    $"{route}: Satz unter Target speichern"
+                Expect.equal
+                    (removeWaitHint model' form)
+                    (if byPause then Some TargetWaitsForPauseText else None)
+                    $"{route}: Satz unter Target entfernen"
                 walkFrom (depth - 1) (name :: path) expected model'
     testList "Tab Target: Reihenfolgen der Rückfragen" [
         test "In jeder Reihenfolge steht höchstens eine Rückfrage offen und läuft höchstens ein Aufruf, ein Tabwechsel schließt die Rückfragen" {
@@ -723,8 +753,73 @@ let private askWalkTests =
                 5
                 []
                 { Chosen = false; Typed = false; WarnOpen = false; RemoveOpen = false; TargetPending = false
-                  RemovePending = false; PausePending = false; Paused = false; InTargetTab = true }
+                  RemovePending = false; PausePending = false; Paused = false; Tab = TargetTab }
                 onTrip
+        }
+    ]
+
+// ============================================
+// Sperre je Kategorie (budgeting-f8w2n, ADR 0080 Punkt 5)
+// ============================================
+
+// budgeting-f8w2n, Bug: ein Speichern bei Ausflug sperrte "Target pausieren" bei Urlaub, eine Pause bei
+// Ausflug sperrte Speichern und Entfernen bei Urlaub, ohne sichtbaren Grund im Tab.
+let private perCategoryTests =
+    testList "Tab Target: Sperre je Kategorie" [
+        test "GIVEN Speichern bei Ausflug läuft WHEN Urlaub gezeigt THEN Target pausieren bei Urlaub geht, bei Ausflug wartet es mit Satz" {
+            let saving = onTrip |> step (TargetAmountChanged "60") |> step SaveTarget
+            Expect.equal saving.TargetCall (TargetSaving (tripId, current, SavingTarget)) "Speichern läuft"
+            Expect.equal (Components.Budget.Pause.pauseButtonState saving tripId) { Busy = false; Disabled = true } "Ausflug gesperrt"
+            Expect.equal
+                (Components.Budget.Pause.pauseWaitHint saving (categoryOf saving tripId))
+                (Some "Wartet, bis das Target gespeichert ist.")
+                "Ausflug nennt den Grund"
+            Expect.isFalse (sends (SetTargetPause PauseTarget) saving) "Ausflug sendet nicht"
+            let onHoliday = saving |> step (SelectCategory holidayId)
+            Expect.equal (Components.Budget.Pause.pauseButtonState onHoliday holidayId) { Busy = false; Disabled = false } "Urlaub frei"
+            Expect.isNone (Components.Budget.Pause.pauseWaitHint onHoliday (categoryOf onHoliday holidayId)) "Urlaub ohne Satz"
+            let paused, cmd, _ = update (SetTargetPause PauseTarget) onHoliday
+            Expect.isNonEmpty cmd "Urlaub sendet"
+            Expect.equal (paused.TargetCall, paused.PauseCall) (saving.TargetCall, PauseRunning (holidayId, current, onHoliday.MonthGeneration)) "beide laufen"
+        }
+        test "GIVEN Pause bei Ausflug läuft WHEN Urlaub gezeigt THEN Speichern und Entfernen bei Urlaub gehen, bei Ausflug warten sie mit Satz" {
+            let pausing = onTrip |> step (TargetAmountChanged "60") |> step (SetTargetPause PauseTarget)
+            Expect.equal pausing.PauseCall (PauseRunning (tripId, current, onTrip.MonthGeneration)) "Pause läuft"
+            Expect.isFalse (canSaveTarget pausing (categoryOf pausing tripId)) "Ausflug: Speichern gesperrt"
+            Expect.equal (removeButtonState pausing (formOf pausing)) { Busy = false; Disabled = true } "Ausflug: Entfernen gesperrt"
+            Expect.equal (saveWaitHint pausing (categoryOf pausing tripId)) (Some "Wartet, bis die Pause gespeichert ist.") "Satz unter Speichern"
+            Expect.equal (removeWaitHint pausing (formOf pausing)) (Some "Wartet, bis die Pause gespeichert ist.") "Satz unter Entfernen"
+            Expect.isFalse (sends SaveTarget pausing) "Ausflug sendet nicht"
+            let onHoliday = pausing |> step (SelectCategory holidayId) |> step (TargetAmountChanged "30")
+            let holidayNow = categoryOf onHoliday holidayId
+            Expect.equal (saveButtonState onHoliday holidayNow) { Busy = false; Disabled = false } "Urlaub: Speichern frei"
+            Expect.equal (removeButtonState onHoliday (formOf onHoliday)) { Busy = false; Disabled = false } "Urlaub: Entfernen frei"
+            Expect.isNone (saveWaitHint onHoliday holidayNow) "Urlaub: kein Satz unter Speichern"
+            Expect.isNone (removeWaitHint onHoliday (formOf onHoliday)) "Urlaub: kein Satz unter Entfernen"
+            Expect.isTrue (formOf (onHoliday |> step AskRemoveTarget)).ConfirmingRemove "Urlaub: Entfernen fragt nach"
+            let saved, cmd, _ = update SaveTarget onHoliday
+            Expect.isNonEmpty cmd "Urlaub sendet"
+            Expect.equal (saved.TargetCall, saved.PauseCall) (TargetSaving (holidayId, current, SavingTarget), pausing.PauseCall) "beide laufen"
+        }
+        test "Eine laufende Pause bei Ausflug lässt den Pause-Knopf von Urlaub nicht drehen" {
+            let onHoliday = onTrip |> step (SetTargetPause PauseTarget) |> step (SelectCategory holidayId)
+            Expect.isFalse (Components.Budget.Pause.pauseButtonState onHoliday holidayId).Busy "Urlaub dreht nicht"
+            Expect.isNone (Components.Budget.Pause.pauseWaitHint onHoliday (categoryOf onHoliday holidayId)) "kein Satz zum Target"
+        }
+        test "Unter Target speichern und Target entfernen steht der Satz nur, wenn allein die Pause sperrt" {
+            let pausing = onTrip |> step (SetTargetPause PauseTarget)
+            Expect.isNone (saveWaitHint pausing (categoryOf pausing tripId)) "ohne Änderung gesperrt, nicht wegen der Pause"
+            // Pause bei Ausflug, Speichern bei Urlaub, zurück zu Ausflug: auch der Target-Aufruf sperrt.
+            let both =
+                pausing
+                |> step (SelectCategory holidayId)
+                |> step (TargetAmountChanged "30")
+                |> step SaveTarget
+                |> step (SelectCategory tripId)
+                |> step (TargetAmountChanged "60")
+            Expect.equal (both.TargetCall, both.PauseCall) (TargetSaving (holidayId, current, SavingTarget), pausing.PauseCall) "beide laufen"
+            Expect.isNone (saveWaitHint both (categoryOf both tripId)) "Speichern: auch der Target-Aufruf sperrt"
+            Expect.isNone (removeWaitHint both (formOf both)) "Entfernen: auch der Target-Aufruf sperrt"
         }
     ]
 
@@ -823,4 +918,4 @@ let tests =
 // budgeting-xp46a, Korrekturen aus budgeting-g2ty9
 [<Tests>]
 let createAndChangeTests =
-    testList "Target anlegen und Art wechseln im Client" [ createTests; changeTests; warnWalkTests; reviewTests; askWalkTests; dateTests ]
+    testList "Target anlegen und Art wechseln im Client" [ createTests; changeTests; warnWalkTests; reviewTests; askWalkTests; perCategoryTests; dateTests ]

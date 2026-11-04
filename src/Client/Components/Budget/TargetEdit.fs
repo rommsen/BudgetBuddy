@@ -210,10 +210,12 @@ let targetBusy (model: Model) : bool =
     | TargetSaving _ -> true
     | TargetIdle -> false
 
-/// Wartet der Tab Target? Solange ein Target-Aufruf oder eine Pause läuft (`Pause.pauseBusy`): höchstens ein
-/// Aufruf läuft, und keine Rückfrage öffnet sich daneben (budgeting-c2t9w).
-let private targetWaits (model: Model) : bool =
-    targetBusy model || Pause.pauseBusy model
+/// Wartet der Tab Target für die Kategorie? Solange irgendein Target-Aufruf läuft (es gibt nur einen) und
+/// solange eine Pause derselben Kategorie läuft (`Pause.pauseCallFor`): je Kategorie läuft höchstens ein
+/// Aufruf, und keine Rückfrage öffnet sich daneben (budgeting-c2t9w). Eine Pause einer anderen Kategorie
+/// sperrt nicht (budgeting-f8w2n).
+let private targetWaits (model: Model) (categoryId: System.Guid) : bool =
+    targetBusy model || Pause.pauseCallFor model categoryId
 
 /// Was der Aufruf für diese Kategorie im dargestellten Monat tut, wenn er läuft. Dann dreht der Knopf, der
 /// ihn ausgelöst hat (budgeting-g2ty9, F1).
@@ -235,16 +237,21 @@ let private editableForm (mode: TargetTabMode) : (Target option * TargetForm) op
 let confirmOpen (form: TargetForm) : bool =
     form.ConfirmingChange || form.ConfirmingRemove
 
-/// Geht "Target speichern" oder "Target anlegen"? Nur bei Abweichung vom geladenen Stand, wenn kein Aufruf
-/// läuft, auch keine Pause (`targetWaits`), und keine Rückfrage offen ist.
-let canSaveTarget (model: Model) (category: BudgetCategory) : bool =
+/// Ginge Speichern, wenn keine Pause der Kategorie liefe? Abweichung vom geladenen Stand, kein Target-Aufruf
+/// und keine offene Rückfrage.
+let private saveableApartFromPause (model: Model) (category: BudgetCategory) : bool =
     match editableForm (targetTabMode model category) with
-    | Some (shown, form) when not (targetWaits model) && not (confirmOpen form) ->
+    | Some (shown, form) when not (targetBusy model) && not (confirmOpen form) ->
         match targetFormState shown form with
         | FormChanged _ -> true
         | FormInvalid
         | FormUnchanged -> false
     | _ -> false
+
+/// Geht "Target speichern" oder "Target anlegen"? Nur bei Abweichung vom geladenen Stand, wenn kein Aufruf
+/// läuft, auch keine Pause derselben Kategorie (`targetWaits`), und keine Rückfrage offen ist.
+let canSaveTarget (model: Model) (category: BudgetCategory) : bool =
+    saveableApartFromPause model category && not (targetWaits model category.Id)
 
 let private selectedEditable (model: Model) : (BudgetCategory * Target option * TargetForm) option =
     match model.Selected, model.Month with
@@ -274,14 +281,13 @@ let typeTargetAmount (text: string) (model: Model) : Model =
 let typeTargetDate (entry: DateField.DateEntry) (model: Model) : Model =
     typeInForm (fun f -> { f with DateInput = Some entry; Notice = None; ConfirmingChange = false }) model
 
-
 let private start
     (action: TargetAction)
     (wanted: Target option -> TargetForm -> TargetDraft option option)
     (model: Model)
     : Model * (string * TargetChangeRequest) option =
     match selectedEditable model with
-    | Some (category, shown, form) when not (targetWaits model) ->
+    | Some (category, shown, form) when not (targetWaits model category.Id) ->
         match wanted shown form with
         | Some draft ->
             let request : TargetChangeRequest = { CategoryId = category.Id; Shown = shown; Wanted = draft }
@@ -345,7 +351,7 @@ let chooseTargetRhythm (frequency: TargetFrequency) (model: Model) : Model =
 /// Abweichung. Verlöre der Wechsel der Art etwas, öffnet erst die Warnung, gesendet wird nichts.
 let startTargetSave (model: Model) : Model * (string * TargetChangeRequest) option =
     match selectedEditable model with
-    | Some (_, shown, form) when not (targetWaits model) && not (confirmOpen form) && not (List.isEmpty (targetFormLosses shown form)) ->
+    | Some (category, shown, form) when not (targetWaits model category.Id) && not (confirmOpen form) && not (List.isEmpty (targetFormLosses shown form)) ->
         updateForm (fun f -> { f with ConfirmingChange = true; Notice = None }) model, None
     | _ ->
         start
@@ -373,14 +379,15 @@ let confirmTargetChange (model: Model) : Model * (string * TargetChangeRequest) 
 let cancelTargetChange (model: Model) : Model =
     updateForm (fun f -> { f with ConfirmingChange = false }) model
 
-/// Ist "Target entfernen" gesperrt? Solange ein Aufruf läuft, auch eine Pause (budgeting-c2t9w), und solange
-/// eine Rückfrage offen ist (budgeting-r3wq8): am PC liegt die Bestätigung als Modal darüber, am Handy steht
-/// die Warnung vor dem Wechsel an der Stelle des Speichern-Knopfs (budgeting-g2ty9, X1).
+/// Ist "Target entfernen" gesperrt? Solange ein Aufruf läuft, auch eine Pause derselben Kategorie
+/// (budgeting-c2t9w, budgeting-f8w2n), und solange eine Rückfrage offen ist (budgeting-r3wq8): am PC liegt
+/// die Bestätigung als Modal darüber, am Handy steht die Warnung vor dem Wechsel an der Stelle des
+/// Speichern-Knopfs (budgeting-g2ty9, X1).
 let removeTargetLocked (model: Model) (form: TargetForm) : bool =
-    targetWaits model || confirmOpen form
+    targetWaits model form.CategoryId || confirmOpen form
 
-/// "Target entfernen": die Bestätigung öffnen. Nur mit Target, nie während eines Aufrufs (auch einer Pause)
-/// und nie neben einer offenen Warnung (budgeting-g2ty9, X1).
+/// "Target entfernen": die Bestätigung öffnen. Nur mit Target, nie während eines Aufrufs (auch einer Pause
+/// derselben Kategorie) und nie neben einer offenen Warnung (budgeting-g2ty9, X1).
 let askRemoveTarget (model: Model) : Model =
     match selectedEditable model with
     | Some (_, Some _, form) when not (removeTargetLocked model form) ->
@@ -408,6 +415,24 @@ let saveButtonState (model: Model) (category: BudgetCategory) : TargetButtonStat
 let removeButtonState (model: Model) (form: TargetForm) : TargetButtonState =
     let busy = targetActionFor model form.CategoryId = Some RemovingTarget
     { Busy = busy; Disabled = not busy && removeTargetLocked model form }
+
+/// Der Satz unter "Target speichern" und "Target entfernen", solange eine Pause derselben Kategorie sie
+/// sperrt (budgeting-f8w2n).
+[<Literal>]
+let TargetWaitsForPauseText = "Wartet, bis die Pause gespeichert ist."
+
+/// Steht unter "Target speichern" oder "Target anlegen", warum es wartet? Nur, wenn ohne die Pause der
+/// Kategorie gespeichert werden könnte.
+let saveWaitHint (model: Model) (category: BudgetCategory) : string option =
+    if Pause.pauseCallFor model category.Id && saveableApartFromPause model category then Some TargetWaitsForPauseText
+    else None
+
+/// Steht unter "Target entfernen", warum es wartet? Nur, wenn ohne die Pause der Kategorie entfernt werden
+/// könnte: kein Target-Aufruf läuft. Eine offene Rückfrage gibt es neben der Pause nicht (`startPause`).
+let removeWaitHint (model: Model) (form: TargetForm) : string option =
+    if Pause.pauseCallFor model form.CategoryId && not (targetBusy model) then
+        Some TargetWaitsForPauseText
+    else None
 
 /// Setzt das Target der Kategorie im geladenen Monat, wenn er der Monat des Aufrufs ist.
 let withTarget (categoryId: System.Guid) (month: string) (target: Target option) (model: Model) : Model =

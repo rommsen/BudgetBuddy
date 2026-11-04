@@ -184,6 +184,17 @@ let private amountField (model: Model) (target: Target option) (form: TargetForm
         ]
     )
 
+/// Der Satz unter einem Knopf, den eine Pause derselben Kategorie sperrt (budgeting-f8w2n).
+let private waitHint (testId: string) (text: string option) : ReactElement =
+    match text with
+    | Some text ->
+        Html.p [
+            prop.custom ("data-testid", testId)
+            prop.className ListRoles.secondary
+            prop.text text
+        ]
+    | None -> Html.none
+
 /// Laufender Monat (budgeting-k8wq3, Reihenfolge budgeting-r3wq8): der gelbe Hinweis zu YNAB oben, dann
 /// der Rhythmus als `Segmented` (budgeting-xp46a), Betrag und Datum, die Art, Status und Fehlbetrag
 /// (`status`), "Target speichern" mit der Fehlermeldung darunter, der Pause-Knopf (`pause`) und "Target
@@ -265,6 +276,7 @@ let editableTarget
                             IsDisabled = save.Disabled
                             ClassName = Some $"w-full {TouchTargets.sheetMinHeight}"
                             OnClick = fun () -> dispatch SaveTarget }
+                    waitHint "target-save-wait" (saveWaitHint model category)
                     match form.Notice with
                     | Some (TargetRejectedNotice _ as notice) ->
                         Html.div [
@@ -287,6 +299,7 @@ let editableTarget
             let remove = removeButtonState model form
             Html.div [
                 prop.custom ("data-testid", "target-remove")
+                prop.className "flex flex-col gap-2"
                 prop.children [
                     Button.view
                         { Button.defaultProps with
@@ -296,6 +309,7 @@ let editableTarget
                             IsDisabled = remove.Disabled
                             ClassName = Some $"w-full {TouchTargets.sheetMinHeight}"
                             OnClick = fun () -> dispatch AskRemoveTarget }
+                    waitHint "target-remove-wait" (removeWaitHint model form)
                 ]
             ]
         removeConfirm isPanel form dispatch
