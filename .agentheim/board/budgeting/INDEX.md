@@ -10,7 +10,7 @@ Catalog of this bounded context's tasks by status.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 6
+- **Backlog:** 8
 - **Todo:** 0
 - **Doing:** 1
 - **Done:** 25
@@ -68,6 +68,8 @@ prior-art matcher additionally checks `done-archive/` when present.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **budgeting-s5n2w** — "Spike: Lässt sich über die YNAB-API ein einmaliges Sparziel bis zu einem Datum anlegen und ändern?" (spike) — `backlog/budgeting-s5n2w-spike-sparziel-bis-datum.md`
+- **budgeting-d7r4k** — "Target-Datum je Rhythmus: kein Datum bei der Woche, beim Monat als \"ab\", beim Jahr als \"fällig am\"" (feature) — `backlog/budgeting-d7r4k-target-datum-je-rhythmus.md`
 - **budgeting-q8m2v** — "Allgemeine Historie begrenzen oder nach Monat laden" (feature) — `backlog/budgeting-q8m2v-allgemeine-historie-begrenzen-oder-nach-monat-laden.md`
 - **budgeting-w3p7n** — "Allgemeine Historie: Pausen und Target-Änderungen als eigene Arten?" (feature) — `backlog/budgeting-w3p7n-allgemeine-historie-pausen-und-target-nderungen-als-eigene-a.md`
 - **budgeting-p2zr6** — "Passt das Target noch? Prüfung je Kategorie aus dem Kassenbuch, gespeichertes So lassen, Tab-Markierung Target • und Feld an BudgetCategory für den Prüf-Filter" (feature) — `backlog/budgeting-p2zr6-passt-das-target-noch.md`

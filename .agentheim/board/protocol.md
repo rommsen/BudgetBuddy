@@ -5,6 +5,24 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 18:06 -- Modeling / Captured: budgeting-s5n2w - "Spike: Lässt sich über die YNAB-API ein einmaliges Sparziel bis zu einem Datum anlegen und ändern?"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Spike gegen das Budget Test, ob ein einmaliges Sparziel bis zu einem Datum über die API entsteht.
+
+---
+
+## 2026-11-04 18:06 -- Modeling / Captured: budgeting-d7r4k - "Target-Datum je Rhythmus: kein Datum bei der Woche, beim Monat als \"ab\", beim Jahr als \"fällig am\""
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Datum im Tab Target je Rhythmus deuten: keins bei der Woche, beim Monat als ab, beim Jahr als fällig am.
+
+---
+
 ## 2026-11-04 17:41 -- Batch started: [budgeting-g2ty9]
 
 **Type:** Work / Batch start
