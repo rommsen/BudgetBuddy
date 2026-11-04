@@ -6,7 +6,7 @@ type: feature
 context: budgeting
 created: 2026-11-03
 completed:
-depends_on: [budgeting-x4k7p]
+depends_on: [budgeting-x4k7p, design-system-w7c2h]
 blocks: [budgeting-h7q4v]
 tags: [budget, historie, design, entscheidung]
 related_adrs: [0049, 0075]
@@ -26,7 +26,7 @@ design-quality hat am 2026-11-03 zwei Punkte im Tab Historie gefunden, die eine 
 **Wertzeile über den Ausgaben-Balken**
 
 3. Über den Balken von `Stats.monthBars` steht eine feste Wertzeile. Steht die Maus über einem Balken, hat ein Balken den Tastaturfokus oder wurde er am Handy angetippt, zeigt die Zeile Monat und genauen Betrag dieses Balkens, beim laufenden Monat mit dem Zusatz, dass er noch läuft (Inhalt wie das heutige `aria-label` aus `spendingMonthBar`, etwa "Oktober 2026 · 1.234,56 €"). Der gewählte Balken ist leicht hervorgehoben. Ohne Auswahl ist die Zeile leer, ihre Höhe bleibt reserviert, damit nichts springt. Die Zeile läuft nie über den Rand des Sheets.
-4. Jeder Balken ist fokussierbar. Der Tipp am Handy setzt den Fokus, ein Tipp daneben nimmt ihn wieder weg. Vorschlag zur Umsetzung: allein über CSS (`:hover`, `:focus-within`, etwa eine absolut positionierte Wertzeile je Balken oder `has-[…]` am Container), ohne Zustand im Elmish-Model. Braucht es doch Zustand, gehört er in den DS-Baustein und nicht in den Inspektor.
+4. Jeder Balken ist fokussierbar. Der Tipp am Handy setzt den Fokus, ein Tipp daneben nimmt ihn wieder weg. Vorschlag zur Umsetzung: allein über CSS (`:hover`, `:focus-within`, etwa eine absolut positionierte Wertzeile je Balken oder `has-[…]` am Container), ohne Zustand im Elmish-Model. Braucht es doch Zustand, gehört er in den DS-Baustein und nicht in den Inspektor. Der Fokus am Balken folgt der Fokus-Regel aus design-system-w7c2h (Fokus ohne Kasten), keine eigene Fokus-Optik.
 5. Der Abschnitt "Monatsbalken" in `/styleguide` zeigt die Wertzeile.
 
 ## Acceptance criteria

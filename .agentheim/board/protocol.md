@@ -5,6 +5,26 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 12:31 -- Modeling / Refined: budgeting-v6m3z - Tab Historie ruhig und ablesbar
+
+**Type:** Modeling / Refine
+**BC:** budgeting
+**Status after:** todo
+**Summary:** Hängt jetzt an design-system-w7c2h (läuft noch): der Fokus am Balken folgt dessen Fokus-Regel, keine eigene Fokus-Optik.
+
+---
+
+## 2026-11-04 12:29 -- Verification failed: design-system-w7c2h - Fokus ohne Kasten
+
+**Type:** Work / Verification failure
+**Task:** design-system-w7c2h - Fokus ohne Kasten
+**Iteration:** 1 of 3
+**Reasons:** Verschobene Polsterung in ChipBar macht aktive Chips mit Entfernen-Knopf 4 px breiter (Kassenbuch-Filterleiste), Outcome behauptet gleiche Breite
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-04 12:22 -- Modeling / Promoted: budgeting-v6m3z - "Tab Historie ruhig und ablesbar: Monat mit Erstattungsüberschuss neutral mit Plus, Bewegungsbeträge neutral mit Vorzeichen, Wertzeile über den Ausgaben-Balken bei Maus, Tipp und Tastatur"
 
 **Type:** Modeling / Promote
