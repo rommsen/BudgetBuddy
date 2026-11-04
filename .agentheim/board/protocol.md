@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 13:53 -- Batch started: [budgeting-k8wq3, budgeting-v6m3z]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-k8wq3 - "Target ändern und entfernen im Tab Target: Betrag und Datum, nur geänderte Felder nach YNAB, Abgleich mit dem gezeigten Stand, konkrete Meldung bei Ablehnung, Aufzeichnung als Target-Änderung in der Historie", budgeting-v6m3z - "Tab Historie ruhig und ablesbar: Monat mit Erstattungsüberschuss neutral mit Plus, Bewegungsbeträge neutral mit Vorzeichen, Wertzeile über den Ausgaben-Balken bei Maus, Tipp und Tastatur"
+**Parallel:** yes (2 workers; Merge-Reihenfolge: zuerst der, der zuerst PASS hat, beide fassen InspectorView.fs an)
+
+---
+
 ## 2026-11-04 13:53 -- Modeling / Promoted: budgeting-k8wq3 - "Target ändern und entfernen im Tab Target: Betrag und Datum, nur geänderte Felder nach YNAB, Abgleich mit dem gezeigten Stand, konkrete Meldung bei Ablehnung, Aufzeichnung als Target-Änderung in der Historie"
 
 **Type:** Modeling / Promote
