@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 20:15 -- Task verified and completed: budgeting-r7h2q - "[layout]-Test Historie-Knopf 48 px am Handy rundet nicht: 47,99999 px ließ ihn einmal rot werden"
+
+**Type:** Work / Task completion
+**Task:** budgeting-r7h2q - "[layout]-Test Historie-Knopf 48 px am Handy rundet nicht: 47,99999 px ließ ihn einmal rot werden"
+**Summary:** 48-px-Prüfung des Knopfs Historie im Handy-Layout-Test rundet mit Math.round, 47,99999 px grün, 44 px rot
+**Duration:** 30 min
+**Verification:** PASS (iteration 1)
+**Files changed:** 1
+**Tests added:** 0
+**ADRs written:** none
+
+---
+
 ## 2026-11-04 20:14 -- Batch started: [budgeting-d7r4k]
 
 **Type:** Work / Batch start

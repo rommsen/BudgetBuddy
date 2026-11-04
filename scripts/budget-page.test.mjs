@@ -940,7 +940,9 @@ test("[layout] Handy 375 px: die Suche teilt ihre Zeile nur mit Targets anwenden
     assert.ok(at.search.width >= at.row.width - at.targets.width - gap - 1, `die Suche nimmt den Rest der Zeile (${facts})`);
     assert.ok(at.search.width >= 160, `die Suche bleibt benutzbar (${facts})`);
     assert.ok(at.history.top >= at.bar.top && at.history.bottom <= at.bar.bottom, `Historie steht im Kopf (${facts})`);
-    assert.ok(at.history.width >= 48 && at.history.height >= 48, `Historie hat 48 px Trefferfläche (${facts})`);
+    // budgeting-r7h2q: bei gebrochener Lage misst der Knopf mal 47,99999 px. Gerundet wie die anderen
+    // [layout]-Tests, ein Knopf mit 44 px bleibt rot.
+    assert.ok(Math.round(at.history.width) >= 48 && Math.round(at.history.height) >= 48, `Historie hat 48 px Trefferfläche (${facts})`);
   } finally {
     await context.close();
   }
