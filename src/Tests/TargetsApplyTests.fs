@@ -27,7 +27,7 @@ let private category name (assigned: int64) (under: int64 option) (snoozed: bool
       Available = eur assigned
       Underfunded = under |> Option.map eur
       Target = None
-      Snoozed = snoozed }
+      Pause = (if snoozed then Some PausedInYnab else None) }
 
 let private monthOf (tbb: int64) (cats: BudgetCategory list) : BudgetMonth =
     { Month = "2026-11-01"
@@ -669,7 +669,9 @@ let private wiringTests =
                   "retryFailedTargets", fun api -> api.retryFailedTargets (string (Guid.NewGuid())) |> run |> ignore
                   "moveMoney", fun api -> api.moveMoney "2026-12-01" move |> run |> ignore
                   "assignMoney", fun api ->
-                    api.assignMoney "2026-12-01" { CategoryId = Guid.NewGuid(); Assigned = eur 1000L } |> run |> ignore ]
+                    api.assignMoney "2026-12-01" { CategoryId = Guid.NewGuid(); Assigned = eur 1000L } |> run |> ignore
+                  "setTargetPause", fun api ->
+                    api.setTargetPause "2026-12-01" { CategoryId = Guid.NewGuid(); Paused = true } |> run |> ignore ]
             for name, call in calls do
                 let api, seen, _ = apiFor f
                 call api

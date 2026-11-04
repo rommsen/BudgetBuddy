@@ -38,7 +38,7 @@ let private guardCategory : BudgetCategory =
       Available = eur 1m
       Underfunded = None
       Target = None
-      Snoozed = false }
+      Pause = None }
 
 let private detailMonthForGuard : BudgetMonth =
     { monthK7wmd with Groups = [ { Name = "Alltag"; Categories = [ guardCategory ] } ] }
@@ -273,7 +273,7 @@ let private labelTests =
         test "Kategorien werden über alle Gruppen gezählt" {
             let cat n : BudgetCategory =
                 { Id = System.Guid.NewGuid(); Name = n; Assigned = eur 0m; Activity = eur 0m
-                  Available = eur 0m; Underfunded = None; Target = None; Snoozed = false }
+                  Available = eur 0m; Underfunded = None; Target = None; Pause = None }
             let month =
                 { monthK7wmd with
                     Groups = [ { Name = "A"; Categories = [ cat "a"; cat "b" ] }; { Name = "B"; Categories = [ cat "c" ] } ] }
@@ -324,7 +324,7 @@ let private cat (n: int) (name: string) : BudgetCategory =
       Available = rxxb4Money
       Underfunded = None
       Target = None
-      Snoozed = false }
+      Pause = None }
 
 let private groupsRxxb4 : BudgetGroup list =
     [ { Name = "Alltag"; Categories = [ cat 1 "Lebensmittel"; cat 2 "Kino" ] }
@@ -408,7 +408,7 @@ let private detailCategoryFixture : BudgetCategory =
       Available = eur 70m
       Underfunded = None
       Target = None
-      Snoozed = false }
+      Pause = None }
 
 let private detailMonth : BudgetMonth =
     { Month = "2026-10-01"
@@ -899,7 +899,7 @@ let private targetCategory (target: Target) (under: decimal option) (snoozed: bo
     { detailCategoryFixture with
         Target = Some target
         Underfunded = under |> Option.map eur
-        Snoozed = snoozed }
+        Pause = (if snoozed then Some PausedInYnab else None) }
 
 let private targetTextTests =
     testList "Rhythmus-Text (kjsht)" [
@@ -929,11 +929,20 @@ let private targetStatusTests =
         }
         test "Pausiert geht vor, auch mit Fehlbetrag" {
             let c = targetCategory target (Some 1600m) true
-            Expect.equal (targetStatusText c) (Some "pausiert") "Zusatz"
+            Expect.equal (targetStatusText c) (Some "pausiert in YNAB") "Zusatz"
             Expect.equal (missingText c) None "der Fehlbetrag zählt nicht"
         }
         test "Pausiert gilt auch ohne Fehlbetrag von YNAB" {
-            Expect.equal (targetStatusText (targetCategory target None true)) (Some "pausiert") "Zusatz"
+            Expect.equal (targetStatusText (targetCategory target None true)) (Some "pausiert in YNAB") "Zusatz"
+        }
+        // budgeting-t6p8z: der Tab Target nennt die Quelle, die Liste nicht.
+        test "Der Tab Target nennt die Quelle der Pause, die Liste schreibt nur pausiert" {
+            let paused source = { targetCategory target (Some 1600m) false with Pause = Some source }
+            Expect.equal (targetStatusText (paused PausedInBb)) (Some "pausiert in BB") "in BB"
+            Expect.equal (targetStatusText (paused PausedInBoth)) (Some "pausiert in BB und YNAB") "beide"
+            for source in [ PausedInBb; PausedInYnab; PausedInBoth ] do
+                Expect.equal (listStatusText (paused source)) (Some "pausiert") $"Liste bei {source}"
+                Expect.isNone (targetUnderfunded (paused source)) $"kein Fehlbetrag im Tab bei {source}"
         }
         test "Ohne Fehlbetrag von YNAB gibt es keinen Zusatz" {
             Expect.equal (targetStatusText (targetCategory target None false)) None "kein Zusatz"

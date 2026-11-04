@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 13:53 -- Task verified and completed: budgeting-t6p8z - "Target pausieren: Pause je Kategorie und Monat in BB, wirkt in Fehlt, Frei, Vorschau und Targets anwenden, endet mit dem Monat, Knopf im Tab Geld"
+
+**Type:** Work / Task completion
+**Task:** budgeting-t6p8z - "Target pausieren: Pause je Kategorie und Monat in BB, wirkt in Fehlt, Frei, Vorschau und Targets anwenden, endet mit dem Monat, Knopf im Tab Geld"
+**Summary:** Target pausieren und Pause aufheben in BB, Pause als Ereignisfolge, wirksam in Fehlt, Frei, Vorschau und Targets anwenden
+**Duration:** 53m
+**Verification:** PASS (iteration 1)
+**Files changed:** 32
+**Tests added:** 35
+**ADRs written:** none
+
+---
+
 ## 2026-11-04 12:59 -- Batch started: [budgeting-t6p8z]
 
 **Type:** Work / Batch start

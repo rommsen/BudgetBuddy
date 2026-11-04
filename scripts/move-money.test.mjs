@@ -27,7 +27,7 @@ const category = (n, name, available) => ({
   Available: eur(available),
   Underfunded: null,
   Target: null,
-  Snoozed: false,
+  Pause: null,
 });
 
 const monthFixture = (food, trip, month = "2026-11-01") => ({

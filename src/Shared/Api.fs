@@ -536,12 +536,19 @@ type BudgetApi = {
     /// `moveMoney`: nichts geschrieben, außer der Bericht ist nach dem Senden nicht lesbar. Eine fehlgeschlagene Zeile geht über `retryFailedTargets` erneut hinaus.
     assignMoney: string -> Shared.Budgeting.AssignRequest -> Async<Result<Shared.Budgeting.ApplyReport, string>>
 
+    /// Target pausieren oder die Pause aufheben (budgeting-t6p8z, ADR 0073, ADR 0079) im Monat
+    /// ("YYYY-MM-01"). Schreibt nur in BB, nichts nach YNAB. Unter der Sperre je Monat: liest den Monat
+    /// frisch aus YNAB und prüft, dass er nicht vergangen ist, die Kategorie im Monat sichtbar ist und ein
+    /// Target hat. Doppeltes Pausieren oder Aufheben schreibt nichts. Aufheben gilt nur der Pause in BB.
+    /// Ok trägt die Pause der Kategorie danach, Error eine lesbare Meldung, dann ist nichts geschrieben.
+    setTargetPause: string -> Shared.Budgeting.TargetPauseRequest -> Async<Result<Shared.Budgeting.PauseSource option, string>>
+
     /// "Zuletzt verwendet" im Picker der Gegenseite: Kategorien aus den Bewegungen mit Herkunft
     /// Verschieben, neueste zuerst, höchstens zehn. Liest nur die Datenbank, kein YNAB.
     getRecentMoveCategories: unit -> Async<Result<System.Guid list, string>>
 
-    /// Der Tab Historie (budgeting-dyn8g): die Budget-Bewegungen der Kategorie im Monat ("YYYY-MM-01"),
-    /// neueste zuerst, je mit jüngstem Ergebnis und bei Verschiebungen mit der Gegenseite, dazu die
+    /// Der Tab Historie (budgeting-dyn8g): die Budget-Bewegungen und Pause-Ereignisse (budgeting-t6p8z)
+    /// der Kategorie im Monat ("YYYY-MM-01"), neueste zuerst, je mit jüngstem Ergebnis und bei Verschiebungen mit der Gegenseite, dazu die
     /// Ausgaben der 6 Monate bis einschließlich dieses Monats aus dem Kassenbuch. Liest nur die
     /// Datenbank, kein YNAB. Ungültiger Monat oder fehlende Kategorie: Error mit allen Gründen.
     getCategoryHistory: Shared.Domain.CategoryMonthQuery -> Async<Result<Shared.Budgeting.CategoryHistory, string>>

@@ -25,7 +25,7 @@ let private category name (assigned: decimal) (available: decimal) : BudgetCateg
       Available = eur available
       Underfunded = None
       Target = None
-      Snoozed = false }
+      Pause = None }
 
 let private food = category "Lebensmittel" 900m 80m
 let private trip = category "Urlaub" 0m -30.5m
@@ -917,7 +917,7 @@ let private missingTests =
             Expect.equal (missingActionText (actionOf 100m c)) "20,00 zuweisen" "Fehlbetrag"
         }
         test "Pausiertes Target: der Fehlbetrag zählt nicht" {
-            let paused = { minus with Available = eur 10m; Underfunded = Some (eur 20m); Snoozed = true }
+            let paused = { minus with Available = eur 10m; Underfunded = Some (eur 20m); Pause = Some PausedInYnab }
             Expect.equal (actionOf 100m paused) NothingMissing "kein Knopf"
             Expect.equal (missingActionText (actionOf 100m { paused with Available = eur -5m })) "5,00 zuweisen" "nur das Minus"
             Expect.equal (actionOf 100m { minus with Available = eur 10m }) NothingMissing "nichts fehlt"

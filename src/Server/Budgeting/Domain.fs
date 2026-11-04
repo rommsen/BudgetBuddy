@@ -27,7 +27,7 @@ let toBudgetFrame (today: DateOnly) (months: string list) (order: Guid list) : B
 let isVisible (category: YnabMonthCategory) : bool =
     not category.Hidden && not category.Deleted && not category.Internal
 
-let private toBudgetCategory (c: YnabMonthCategory) : BudgetCategory =
+let private toBudgetCategory (pausedInBb: Set<Guid>) (c: YnabMonthCategory) : BudgetCategory =
     { Id = c.Id
       Name = c.Name.Trim()
       Assigned = c.Assigned
@@ -35,12 +35,16 @@ let private toBudgetCategory (c: YnabMonthCategory) : BudgetCategory =
       Available = c.Available
       Underfunded = c.Underfunded
       Target = c.Target
-      Snoozed = c.Snoozed }
+      Pause = pauseSourceOf c.Snoozed (pausedInBb.Contains c.Id) }
 
 /// Gruppiert die sichtbaren Kategorien nach Kategoriegruppe. Die Folge ist die der Monatsantwort
 /// und damit ungeordnet (ADR 0074 Punkt 6): `toBudgetMonth` dient den Server-Abläufen, die Seite
 /// ordnet mit `orderGroups`. Eine Gruppe ohne sichtbare Kategorie erscheint nicht.
-let toBudgetMonth (month: YnabMonth) : BudgetMonth =
+///
+/// `pausedInBb` sind die Kategorien, deren Target in BB für diesen Monat pausiert ist. Hier und nur
+/// hier kommen YNAB-Monat und BB-Pause zusammen (ADR 0079 Punkt 3). Eine Id, die im Monat fehlt,
+/// ändert nichts.
+let toBudgetMonth (pausedInBb: Set<Guid>) (month: YnabMonth) : BudgetMonth =
     let groups =
         month.Categories
         |> List.filter isVisible
@@ -49,7 +53,7 @@ let toBudgetMonth (month: YnabMonth) : BudgetMonth =
                 let name = c.GroupName.Trim()
                 let order' = if Map.containsKey name byGroup then order else name :: order
                 let existing = byGroup |> Map.tryFind name |> Option.defaultValue []
-                order', Map.add name (toBudgetCategory c :: existing) byGroup)
+                order', Map.add name (toBudgetCategory pausedInBb c :: existing) byGroup)
             ([], Map.empty)
         |> fun (order, byGroup) ->
             order
@@ -79,7 +83,7 @@ let planTargetApplication (month: BudgetMonth) : Result<TargetPreview, string> =
             (fun (lines, skipped) (groupName, c) ->
                 match c.Underfunded with
                 | Some under when under.Amount > 0m ->
-                    if c.Snoozed then
+                    if isPaused c then
                         lines,
                         { CategoryId = c.Id; CategoryName = c.Name; Underfunded = under } :: skipped
                     else
@@ -114,6 +118,63 @@ let planTargetApplication (month: BudgetMonth) : Result<TargetPreview, string> =
               Total = { Amount = total; Currency = currency }
               ToBeBudgeted = month.ToBeBudgeted
               ToBeBudgetedAfter = { Amount = month.ToBeBudgeted.Amount - total; Currency = currency } }
+
+// ============================================
+// Target pausieren (budgeting-t6p8z, ADR 0073, ADR 0079)
+// ============================================
+
+/// Ein Ereignis in `target_pause_events`. Der Stand je Kategorie und Monat ist das jüngste.
+type PauseKind =
+    | Paused
+    | Resumed
+
+/// Der Text in `target_pause_events.kind`.
+let pauseKindText (kind: PauseKind) : string =
+    match kind with
+    | Paused -> "Pausiert"
+    | Resumed -> "Fortgesetzt"
+
+/// Liest die Spalte. Ein unbekannter Text wird gemeldet, nicht auf einen Standard gelegt.
+let pauseKindOfText (text: string) : Result<PauseKind, string> =
+    match [ Paused; Resumed ] |> List.tryFind (fun k -> pauseKindText k = text) with
+    | Some kind -> Ok kind
+    | None -> Error $"Unbekannte Art eines Pause-Ereignisses: {text}"
+
+/// Was aus einem Auftrag Pausieren oder Aufheben wird.
+type PausePlan = {
+    /// Die Kategorie, wie der frisch gelesene Monat sie zeigt.
+    Category: BudgetCategory
+    /// Das festzuhaltende Ereignis. `None`: der Stand ist schon so, es entsteht keine Zeile.
+    Event: PauseKind option
+    /// Die Pause der Kategorie danach.
+    After: PauseSource option
+}
+
+/// Plant Pausieren (`Paused = true`) oder Aufheben (`false`) im übergebenen Monat. Die Monatsart prüft
+/// der Ablauf vorher. Abgelehnt werden eine im Monat nicht sichtbare Kategorie und eine Kategorie ohne
+/// Target. Doppeltes Pausieren und Aufheben ohne BB-Pause ergeben kein Ereignis. Aufheben gilt nur der
+/// BB-Pause, eine Pause aus YNAB bleibt (ADR 0073 Punkt 2). Rein, ohne I/O.
+let planPause (month: BudgetMonth) (request: TargetPauseRequest) : Result<PausePlan, string> =
+    let category =
+        month.Groups
+        |> List.collect (fun g -> g.Categories)
+        |> List.tryFind (fun c -> c.Id = request.CategoryId)
+    match category with
+    | None ->
+        Error $"Die Kategorie {request.CategoryId} ist im Monat {month.Month} nicht sichtbar (ausgeblendet oder nicht vorhanden)."
+    | Some c when c.Target.IsNone -> Error $"{c.Name} hat kein Target. Pausieren geht nur mit Target."
+    | Some c ->
+        let inBb = pausedInBb c.Pause
+        let event =
+            match request.Paused, inBb with
+            | true, false -> Some Paused
+            | false, true -> Some Resumed
+            | true, true
+            | false, false -> None
+        Ok
+            { Category = c
+              Event = event
+              After = pauseSourceOf (pausedInYnab c.Pause) request.Paused }
 
 /// Stimmt die frisch geplante Vorschau mit der gezeigten überein? Verglichen werden die Zeilen
 /// (Kategorie, altes und neues Zugewiesen) und Zu verteilen; Namen und Reihenfolge der
@@ -296,3 +357,9 @@ let spendingOf (months: DateTime list) (sums: (DateTime * Money) list) : MonthSp
     |> List.map (fun m ->
         { Month = monthKeyOf m
           Activity = byMonth |> Map.tryFind m |> Option.defaultValue { Amount = 0m; Currency = "EUR" } })
+
+/// Bewegungen und Pause-Ereignisse einer Kategorie gemischt, neueste zuerst (budgeting-t6p8z). Beide
+/// Listen kommen schon neueste zuerst. Bei gleichem Zeitpunkt steht die Bewegung vorn, die Sortierung
+/// ist stabil.
+let mergeHistoryEntries (movements: HistoryMovement list) (pauses: HistoryEntry list) : HistoryEntry list =
+    (movements |> List.map Movement) @ pauses |> List.sortByDescending historyEntryTime

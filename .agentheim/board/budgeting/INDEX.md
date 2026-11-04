@@ -12,8 +12,8 @@ Catalog of this bounded context's tasks by status.
 <!-- task-counts:start -->
 - **Backlog:** 7
 - **Todo:** 1
-- **Doing:** 1
-- **Done:** 18
+- **Doing:** 0
+- **Done:** 19
 <!-- task-counts:end -->
 
 ### Todo
@@ -23,11 +23,11 @@ Catalog of this bounded context's tasks by status.
 
 ### Doing
 <!-- doing-list:start -->
-- **budgeting-t6p8z** — "Target pausieren: Pause je Kategorie und Monat in BB, wirkt in Fehlt, Frei, Vorschau und Targets anwenden, endet mit dem Monat, Knopf im Tab Geld" (feature) — `doing/budgeting-t6p8z-tab-target-aendern-pausieren-pruefen.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **budgeting-t6p8z** — "Target pausieren: Pause je Kategorie und Monat in BB, wirkt in Fehlt, Frei, Vorschau und Targets anwenden, endet mit dem Monat, Knopf im Tab Geld" (feature) — `done/budgeting-t6p8z-tab-target-aendern-pausieren-pruefen.md`
 - **budgeting-x4k7p** — "Review-Korrekturen zum Tab Historie und zum stillen Neu-Lesen: Historie lädt still nach, Stand-Badges nach Styleguide, Monatsbalken als DS-Baustein, fehlende Verdrahtungstests" (refactor) — `done/budgeting-x4k7p-review-korrekturen-zum-tab-historie-und-zum-stillen-neu-lese.md`
 - **budgeting-dyn8g** — "Tab Historie je Kategorie: Aufbau von Verfügbar, Bewegungen des Monats und Ausgaben der letzten 6 Monate aus dem Kassenbuch" (feature) — `done/budgeting-dyn8g-budget-historie-ansicht.md`
 - **budgeting-r7t3k** — "Budget-Seite: Rückkehr aus dem Kassenbuch und Schließen von Targets ohne Sprung" (bug) — `done/budgeting-r7t3k-budget-seite-r-ckkehr-aus-dem-kassenbuch-und-schlie-en-von-t.md`

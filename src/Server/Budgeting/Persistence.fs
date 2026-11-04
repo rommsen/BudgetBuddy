@@ -72,8 +72,8 @@ let private statusFromText (status: string) (reason: string) : LineOutcome optio
         | "changed-in-ynab" -> Some ChangedInYnab
         | other -> failwith $"Unbekannter Ergebnis-Status der Budget-Bewegung: {other}"
 
-/// Legt die Tabellen an (`CREATE ... IF NOT EXISTS`, wiederholbar). Die Trigger machen beide
-/// Tabellen append-only. Läuft beim Start hinter `Ledger.Persistence.initializeLedgerSchema`.
+/// Legt die Tabellen an (`CREATE ... IF NOT EXISTS`, wiederholbar). Die Trigger machen alle
+/// Tabellen append-only, auch `target_pause_events` (budgeting-t6p8z, ADR 0079). Läuft beim Start hinter `Ledger.Persistence.initializeLedgerSchema`.
 let initializeBudgetingSchema () =
     use conn = Core.getConnection ()
     conn.Execute(
@@ -106,6 +106,19 @@ let initializeBudgetingSchema () =
         BEGIN SELECT RAISE(ABORT, 'budget_movement_results ist append-only'); END;
         CREATE TRIGGER IF NOT EXISTS budget_movement_results_no_delete BEFORE DELETE ON budget_movement_results
         BEGIN SELECT RAISE(ABORT, 'budget_movement_results ist append-only'); END;
+        CREATE TABLE IF NOT EXISTS target_pause_events (
+            id TEXT PRIMARY KEY,
+            occurred_at TEXT NOT NULL,
+            month TEXT NOT NULL,
+            category_id TEXT NOT NULL,
+            category_name TEXT NOT NULL,
+            kind TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_target_pause_events_month ON target_pause_events (month, category_id);
+        CREATE TRIGGER IF NOT EXISTS target_pause_events_no_update BEFORE UPDATE ON target_pause_events
+        BEGIN SELECT RAISE(ABORT, 'target_pause_events ist append-only'); END;
+        CREATE TRIGGER IF NOT EXISTS target_pause_events_no_delete BEFORE DELETE ON target_pause_events
+        BEGIN SELECT RAISE(ABORT, 'target_pause_events ist append-only'); END;
         """
     )
     |> ignore
@@ -278,4 +291,101 @@ let loadMovements (filter: MovementFilter) : Async<Result<HistoryMovement list, 
     async {
         use conn = Core.getConnection ()
         return queryMovements conn filter
+    }
+
+// ============================================
+// Target pausieren (budgeting-t6p8z, ADR 0079)
+// ============================================
+
+/// Ein festgehaltenes Pause-Ereignis. Der Stand je (Monat, Kategorie) ist das jüngste.
+type PauseEvent = {
+    Id: Guid
+    OccurredAt: DateTime
+    /// "YYYY-MM-01".
+    Month: string
+    CategoryId: Guid
+    CategoryName: string
+    Kind: PauseKind
+}
+
+/// Hängt ein Pause-Ereignis an. Frühere bleiben stehen.
+let appendPauseEvent (event: PauseEvent) : Async<unit> =
+    async {
+        use conn = Core.getConnection ()
+        conn.Execute(
+            "INSERT INTO target_pause_events (id, occurred_at, month, category_id, category_name, kind) \
+             VALUES (@id, @occurred_at, @month, @category_id, @category_name, @kind)",
+            {| id = string event.Id
+               occurred_at = dateToText event.OccurredAt
+               month = event.Month
+               category_id = string event.CategoryId
+               category_name = event.CategoryName
+               kind = pauseKindText event.Kind |}
+        )
+        |> ignore
+    }
+
+[<CLIMutable>]
+type private PauseEventRow = {
+    id: string
+    occurred_at: string
+    month: string
+    category_id: string
+    category_name: string
+    kind: string
+}
+
+/// Ein unbekannter Wert in `kind` wird gemeldet, nicht auf einen Standard gelegt.
+let private pauseKindOfRow (kind: string) : PauseKind =
+    match pauseKindOfText kind with
+    | Ok k -> k
+    | Error message -> failwith message
+
+/// Die Kategorien, deren Target in BB für den Monat pausiert ist: je Kategorie zählt das jüngste
+/// Ereignis. Eine Abfrage für alle Kategorien des Monats.
+let queryPausedCategories (conn: SqliteConnection) (month: string) : Set<Guid> =
+    conn.Query<PauseEventRow>(
+        "SELECT e.id, e.occurred_at, e.month, e.category_id, e.category_name, e.kind \
+         FROM target_pause_events e \
+         WHERE e.month = @month \
+           AND e.rowid = (SELECT MAX(rowid) FROM target_pause_events l \
+                          WHERE l.month = e.month AND l.category_id = e.category_id)",
+        {| month = month |}
+    )
+    |> Seq.filter (fun r -> pauseKindOfRow r.kind = Paused)
+    |> Seq.map (fun r -> Guid.Parse r.category_id)
+    |> Set.ofSeq
+
+/// Die BB-Pausen des Monats, für `toBudgetMonth`.
+let loadPausedCategories (month: string) : Async<Set<Guid>> =
+    async {
+        use conn = Core.getConnection ()
+        return queryPausedCategories conn month
+    }
+
+/// Die Pause-Ereignisse einer Kategorie im Monat für die Historie, neueste zuerst.
+let queryPauseEvents (conn: SqliteConnection) (categoryId: Guid) (month: string) : HistoryEntry list =
+    conn.Query<PauseEventRow>(
+        "SELECT id, occurred_at, month, category_id, category_name, kind FROM target_pause_events \
+         WHERE category_id = @category_id AND month = @month \
+         ORDER BY occurred_at DESC, rowid DESC",
+        {| category_id = string categoryId; month = month |}
+    )
+    |> Seq.map (fun r ->
+        let pause =
+            { EventId = Guid.Parse r.id
+              OccurredAt = dateFromText r.occurred_at
+              Month = r.month
+              CategoryId = Guid.Parse r.category_id
+              CategoryName = r.category_name }
+        match pauseKindOfRow r.kind with
+        | Paused -> TargetPaused pause
+        | Resumed -> PauseLifted pause)
+    |> Seq.toList
+
+/// Die Pause-Ereignisse für die Historie. Liest nur die Datenbank, kein YNAB.
+let loadPauseEvents (categoryId: Guid) (month: string) : Async<HistoryEntry list> =
+    async {
+        use conn = Core.getConnection ()
+        return queryPauseEvents conn categoryId month
     }

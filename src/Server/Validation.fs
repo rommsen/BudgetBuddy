@@ -256,6 +256,25 @@ let validateAssignRequest (monthKey: string) (request: Shared.Budgeting.AssignRe
 
     if errors.IsEmpty then Ok () else Error errors
 
+/// Prüft den Auftrag Target pausieren oder aufheben (budgeting-t6p8z) vor allem anderen, auch ohne
+/// Einrichtung: ungültiger oder vergangener Monat (`current` ist der laufende) und leere Kategorie, alle
+/// Fehler zugleich. Ob die Kategorie sichtbar ist und ein Target hat, prüft der Ablauf.
+let validateTargetPauseRequest
+    (current: string)
+    (monthKey: string)
+    (request: Shared.Budgeting.TargetPauseRequest)
+    : Result<unit, string list> =
+    let errors =
+        [ match validateMonthKey monthKey with
+          | Error message -> message
+          | Ok month ->
+              if not (Shared.Budgeting.targetsAllowed (Shared.Budgeting.monthKind current month)) then
+                  Shared.Budgeting.PausePastMonthText
+          if request.CategoryId = System.Guid.Empty then
+              "Die Kategorie fehlt." ]
+
+    if errors.IsEmpty then Ok () else Error errors
+
 // ============================================
 // Bot-Schnittstelle (ledger-b0b7q, ADR 0066)
 // ============================================

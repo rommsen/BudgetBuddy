@@ -29,7 +29,7 @@ const category = (n, name, assigned, available) => ({
   Available: eur(available),
   Underfunded: null,
   Target: null,
-  Snoozed: false,
+  Pause: null,
 });
 
 const monthFixture = (key) => ({

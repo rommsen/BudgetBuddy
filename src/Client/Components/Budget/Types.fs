@@ -126,6 +126,16 @@ type OpenMoveRetry = {
     AssignTarget: (System.Guid * string) option
 }
 
+/// Der Aufruf Target pausieren oder Pause aufheben (budgeting-t6p8z). Trägt Kategorie und Monat: die
+/// Antwort wirkt nur auf sie, auch wenn inzwischen eine andere Kategorie oder ein anderer Monat gezeigt
+/// wird. Er sperrt weder Auswahl noch Monatswechsel.
+type PauseCall =
+    | PauseIdle
+    | PauseRunning of categoryId: System.Guid * month: string
+    /// Der Server lehnte ab oder der Aufruf brach ab, mit Meldung. Gilt, solange Kategorie und Monat
+    /// gezeigt werden.
+    | PauseRejected of categoryId: System.Guid * month: string * message: string
+
 /// Filter über der Liste neben der Suche.
 type CategoryFilter =
     | AllCategories
@@ -205,6 +215,8 @@ type Model = {
     RecentCounterparts: RemoteData<System.Guid list>
     /// Verschiebungen, die noch erneut gesendet werden können.
     OpenRetries: OpenMoveRetry list
+    /// Target pausieren oder Pause aufheben.
+    PauseCall: PauseCall
     /// Die gewählte Kategorie. Filter und Suche wirken nur auf die Liste, sie bleibt gewählt.
     Selected: SelectedCategory option
     /// Der Tab des Inspektors. Bleibt bei Kategorie- und Monatswechsel stehen.
@@ -309,6 +321,10 @@ type Msg =
     | CategoryHistoryReloaded of generation: int * Result<CategoryHistory, string>
     /// Tipp auf eine Buchung im Tab Buchungen: ins Kassenbuch springen.
     | OpenEntryInLedger of System.Guid
+    /// Der Knopf "Target pausieren" (`true`) oder "Pause aufheben" (`false`).
+    | SetTargetPause of paused: bool
+    /// Antwort auf Pausieren oder Aufheben, mit Kategorie und Monat des Aufrufs.
+    | TargetPauseAnswered of categoryId: System.Guid * month: string * Result<PauseSource option, string>
 
 /// Was die Seite an die App meldet (wie im Kassenbuch).
 type ExternalMsg =
@@ -331,6 +347,7 @@ let init () : Model =
       Freshness = MonthRead
       RecentCounterparts = NotAsked
       OpenRetries = []
+      PauseCall = PauseIdle
       Selected = None
       Tab = MoneyTab
       EntriesGeneration = 0

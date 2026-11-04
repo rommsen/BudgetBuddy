@@ -1822,6 +1822,29 @@ let assignMoneyWith
             return result |> Result.bind id
     }
 
+/// Der Weg von Target pausieren und Pause aufheben ohne Settings und Netz (budgeting-t6p8z, ADR 0079).
+/// Geprüft wird vor allem anderen, ein vergangener Monat liest YNAB nicht. `today` ist der Kalendertag in
+/// Berlin für die Monatsart, `now` stempelt das Ereignis (UTC).
+let setTargetPauseWith
+    (tokenOpt: string option)
+    (budgetOpt: string option)
+    (portFor: string -> YnabBudgetId -> Server.Budgeting.CommandHandlers.YnabPort)
+    (today: DateOnly)
+    (now: DateTime)
+    (monthKeyText: string)
+    (request: Shared.Budgeting.TargetPauseRequest)
+    : Async<Result<Shared.Budgeting.PauseSource option, string>> =
+    async {
+        let current = Server.Budgeting.Domain.currentMonthKey today
+        match Validation.validateTargetPauseRequest current monthKeyText request with
+        | Error errors -> return Error (String.concat " " errors)
+        | Ok () ->
+            let! result =
+                withYnabPort tokenOpt budgetOpt portFor (fun port ->
+                    Server.Budgeting.CommandHandlers.setTargetPause port now current monthKeyText request)
+            return result |> Result.bind id
+    }
+
 /// Der Tab Historie ohne feste Lese-Quellen (budgeting-dyn8g). Die Grenze prüft wie beim
 /// Kategorie-Detail und meldet alle Fehler zugleich; eine unbekannte Kategorie ist kein Fehler, sie hat
 /// keine Bewegungen und keine Ausgaben.
@@ -1855,7 +1878,8 @@ let private liveFramePort (token: string) (budgetId: YnabBudgetId) : Server.Budg
             } }
 
 /// Die Budget-Seite ohne Settings, Netz und Uhr: liest den Monat live aus YNAB. Nur "Targets
-/// anwenden" und "Verschieben" schreiben (nach YNAB und in die Budget-Bewegungen). "Verschieben"
+/// anwenden" und "Verschieben" schreiben (nach YNAB und in die Budget-Bewegungen), "Target pausieren"
+/// schreibt nur in BB. "Verschieben"
 /// braucht keinen Berliner Tag: der Monat kommt vom Client, die Uhr stempelt nur die Bewegung.
 let budgetApiWith
     (setting: string -> Async<string option>)
@@ -1910,6 +1934,11 @@ let budgetApiWith
       assignMoney = fun monthKeyText request -> async {
         let! tokenOpt, budgetOpt = ynabSettings ()
         return! assignMoneyWith tokenOpt budgetOpt portFor (utcNow ()) monthKeyText request
+      }
+
+      setTargetPause = fun monthKeyText request -> async {
+        let! tokenOpt, budgetOpt = ynabSettings ()
+        return! setTargetPauseWith tokenOpt budgetOpt portFor (today ()) (utcNow ()) monthKeyText request
       }
 
       getRecentMoveCategories = fun () -> Server.Budgeting.QueryHandlers.recentMoveCategories ()

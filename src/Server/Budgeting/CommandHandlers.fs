@@ -1,6 +1,6 @@
 /// Die Abläufe von "Targets anwenden" (Context `budgeting`, budgeting-h2zfn, ADR 0065):
 /// Vorschau, Übernehmen und Fehlgeschlagene erneut senden, dazu "Verschieben" (ADR 0069) und
-/// "Zuweisen" (ADR 0078). YNAB kommt als Port herein,
+/// "Zuweisen" (ADR 0078) und "Target pausieren" (ADR 0079). YNAB kommt als Port herein,
 /// damit Tests einen Fake-Client einsetzen (der Server spricht YNAB in Tests nie live an).
 module Server.Budgeting.CommandHandlers
 
@@ -48,12 +48,23 @@ module internal MonthGuard =
 // Vorschau
 // ============================================
 
-let private plan (port: YnabPort) (monthKey: string) : Async<Result<TargetPreview, YnabError>> =
+/// Liest den Monat aus YNAB und die BB-Pausen des Monats und führt beides zusammen (ADR 0079 Punkt 3).
+/// Unter der Sperre je Monat aufgerufen, sieht es jede Pause, die vorher festgehalten wurde.
+let private fetchBudgetMonth (port: YnabPort) (monthKey: string) : Async<Result<BudgetMonth, YnabError>> =
     async {
         match! port.FetchMonth monthKey with
         | Error e -> return Error e
         | Ok raw ->
-            match planTargetApplication (toBudgetMonth raw) with
+            let! paused = loadPausedCategories monthKey
+            return Ok (toBudgetMonth paused raw)
+    }
+
+let private plan (port: YnabPort) (monthKey: string) : Async<Result<TargetPreview, YnabError>> =
+    async {
+        match! fetchBudgetMonth port monthKey with
+        | Error e -> return Error e
+        | Ok month ->
+            match planTargetApplication month with
             | Ok preview -> return Ok preview
             | Error message -> return Error (YnabError.InvalidResponse message)
     }
@@ -238,10 +249,10 @@ let moveMoney
     (request: MoveRequest)
     : Async<Result<Result<ApplyReport, string>, YnabError>> =
     MonthGuard.exclusive monthKey (async {
-        match! port.FetchMonth monthKey with
+        match! fetchBudgetMonth port monthKey with
         | Error e -> return Error e
-        | Ok raw ->
-            match planMove (toBudgetMonth raw) request with
+        | Ok month ->
+            match planMove month request with
             | Error message -> return Ok (Error message)
             | Ok plan ->
                 let! report = recordAndSend port now monthKey plan
@@ -259,10 +270,10 @@ let assignMoney
     (request: AssignRequest)
     : Async<Result<Result<ApplyReport, string>, YnabError>> =
     MonthGuard.exclusive monthKey (async {
-        match! port.FetchMonth monthKey with
+        match! fetchBudgetMonth port monthKey with
         | Error e -> return Error e
-        | Ok raw ->
-            match planAssign (toBudgetMonth raw) request with
+        | Ok month ->
+            match planAssign month request with
             | Error message -> return Ok (Error message)
             | Ok None ->
                 let unchanged =
@@ -275,6 +286,46 @@ let assignMoney
                 let! report = recordAndSend port now monthKey plan
                 return report |> Result.map Ok
     })
+
+// ============================================
+// Target pausieren (budgeting-t6p8z, ADR 0073, ADR 0079)
+// ============================================
+
+/// Target pausieren oder die Pause aufheben. Ein vergangener Monat wird vor allem anderen abgelehnt, ohne
+/// YNAB zu lesen. Sonst unter der Sperre je Monat wie Targets anwenden: den Monat frisch lesen, planen
+/// (`planPause`) und höchstens ein Ereignis anhängen. Nach YNAB geht nichts (ADR 0073 Punkt 5), der Port
+/// wird nur gelesen. Außen `Error`: der Monat war nicht lesbar. Innen `Error`: abgelehnt. In beiden
+/// Fällen ist nichts geschrieben. `currentMonth` ist der laufende Monat ("YYYY-MM-01").
+let setTargetPause
+    (port: YnabPort)
+    (now: DateTime)
+    (currentMonth: string)
+    (monthKey: string)
+    (request: TargetPauseRequest)
+    : Async<Result<Result<PauseSource option, string>, YnabError>> =
+    if not (targetsAllowed (monthKind currentMonth monthKey)) then
+        async { return Ok (Error PausePastMonthText) }
+    else
+        MonthGuard.exclusive monthKey (async {
+            match! fetchBudgetMonth port monthKey with
+            | Error e -> return Error e
+            | Ok month ->
+                match planPause month request with
+                | Error message -> return Ok (Error message)
+                | Ok plan ->
+                    match plan.Event with
+                    | Some event ->
+                        do!
+                            appendPauseEvent
+                                { Id = Guid.NewGuid()
+                                  OccurredAt = now
+                                  Month = monthKey
+                                  CategoryId = plan.Category.Id
+                                  CategoryName = plan.Category.Name
+                                  Kind = event }
+                    | None -> ()
+                    return Ok (Ok plan.After)
+        })
 
 // ============================================
 // Fehlgeschlagene erneut senden

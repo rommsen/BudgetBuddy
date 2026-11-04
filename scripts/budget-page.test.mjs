@@ -26,7 +26,7 @@ const category = (n, name, assigned, activity, available) => ({
   Available: eur(available),
   Underfunded: null,
   Target: null,
-  Snoozed: false,
+  Pause: null,
 });
 
 const monthFixture = (month, toBeBudgeted) => ({
@@ -50,7 +50,7 @@ const withTarget = (base, target, underfunded, snoozed = false) => ({
   ...base,
   Target: target,
   Underfunded: eur(underfunded),
-  Snoozed: snoozed,
+  Pause: snoozed ? "PausedInYnab" : null,
 });
 const monthly = { Goal: eur(1600), Rhythm: { Months: 1 } };
 const targetFixture = (month) => ({
@@ -1231,8 +1231,9 @@ test("[layout] Tab Historie am Handy: langer Fehlgrund kürzt mit Ellipse, Datum
   const reason = "YNAB rate limit exceeded, die Zuweisung wurde nicht geschrieben und kann erneut gesendet werden";
   const essen = category(1, "Essen k7wmd", 0, 0, 0).Id;
   const history = {
-    Movements: [
+    Entries: [
       {
+        Movement: {
         MovementId: "00000000-0000-0000-0000-00000000d201",
         ApplicationId: "00000000-0000-0000-0000-00000000d202",
         OccurredAt: "2026-10-03T09:30:00.0000000Z",
@@ -1244,6 +1245,7 @@ test("[layout] Tab Historie am Handy: langer Fehlgrund kürzt mit Ellipse, Datum
         NewAssigned: eur(1600),
         Counterpart: null,
         Latest: { Failed: reason },
+        },
       },
     ],
     Spending: ["2026-05-01", "2026-06-01", "2026-07-01", "2026-08-01", "2026-09-01", CURRENT].map((month, i) => ({

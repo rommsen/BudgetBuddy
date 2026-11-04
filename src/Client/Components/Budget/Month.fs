@@ -329,18 +329,20 @@ let rhythmText (rhythm: TargetRhythm) : string =
 let targetText (target: Target) : string =
     moneyText target.Goal + rhythmText target.Rhythm
 
-/// Der Zusatz zum Target: pausiert oder erfüllt. Pausiert geht vor, weil der Fehlbetrag dann nicht
-/// zählt. Ein offener Fehlbetrag erscheint als `missingText`. Liefert YNAB keinen Fehlbetrag, gibt
-/// es keinen Zusatz.
+/// Der Zusatz zum Target im Tab Target: pausiert mit Quelle oder erfüllt. Pausiert geht vor, weil der
+/// Fehlbetrag dann nicht zählt. Ein offener Fehlbetrag erscheint als `missingText`. Liefert YNAB keinen
+/// Fehlbetrag, gibt es keinen Zusatz.
 let targetStatusText (category: BudgetCategory) : string option =
-    match category.Snoozed, category.Underfunded with
-    | true, _ -> Some "pausiert"
-    | false, Some under when under.Amount = 0m -> Some "erfüllt"
-    | false, _ -> None
+    match category.Pause, category.Underfunded with
+    | Some PausedInBb, _ -> Some "pausiert in BB"
+    | Some PausedInYnab, _ -> Some "pausiert in YNAB"
+    | Some PausedInBoth, _ -> Some "pausiert in BB und YNAB"
+    | None, Some under when under.Amount = 0m -> Some "erfüllt"
+    | None, _ -> None
 
-/// Der Zusatz in der Liste: nur pausiert. "erfüllt" sagt dort nichts und steht im Tab Target.
+/// Der Zusatz in der Liste: nur pausiert, ohne Quelle. "erfüllt" sagt dort nichts und steht im Tab Target.
 let listStatusText (category: BudgetCategory) : string option =
-    if category.Snoozed then Some "pausiert" else None
+    if isPaused category then Some "pausiert" else None
 
 /// "fehlt 12,30 €", in Gelb (ADR 0075). `None`, wenn nichts fehlt.
 let missingText (category: BudgetCategory) : string option =
@@ -348,7 +350,7 @@ let missingText (category: BudgetCategory) : string option =
 
 /// Der Fehlbetrag im Tab Target. Bei einem pausierten Target zählt er nicht.
 let targetUnderfunded (category: BudgetCategory) : Money option =
-    if category.Snoozed then None else category.Underfunded
+    if isPaused category then None else category.Underfunded
 
 /// Die Zeile unter dem neuen Betrag in der Vorschau.
 let previewDetailText (line: TargetLine) : string =

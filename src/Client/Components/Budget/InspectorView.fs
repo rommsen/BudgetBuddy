@@ -152,7 +152,7 @@ let private historyStatusView (status: HistoryStatus) =
 let private historyLineView (line: HistoryLine) =
     let time = historyTimeText line.OccurredAt
     Html.div [
-        prop.key (string line.MovementId)
+        prop.key (string line.EntryId)
         prop.custom ("data-testid", "history-movement")
         prop.className ListRoles.mobileRowPadding
         prop.children [
@@ -160,7 +160,9 @@ let private historyLineView (line: HistoryLine) =
                 prop.className ListRoles.mobileLine1
                 prop.children [
                     Html.span [ prop.className $"{ListRoles.primary} truncate min-w-0"; prop.text line.Text ]
-                    Money.listAmount line.Change.Amount line.Change.Currency
+                    match line.Change with
+                    | Some change -> Money.listAmount change.Amount change.Currency
+                    | None -> ()
                 ]
             ]
             Html.div [
@@ -186,20 +188,21 @@ let private historyLineView (line: HistoryLine) =
         ]
     ]
 
-/// Bewegungen der Kategorie im Monat, neueste zuerst, und der Hinweis auf YNAB (ADR 0065, Negative).
+/// Bewegungen und Pause-Ereignisse der Kategorie im Monat, neueste zuerst, und der Hinweis auf YNAB
+/// (ADR 0065, Negative).
 let private historyMovements (history: CategoryHistory) =
     Html.div [
         prop.className "flex flex-col"
         prop.children [
             Html.span [ prop.className $"{ListRoles.groupHeader} px-4"; prop.text "Bewegungen" ]
-            if List.isEmpty history.Movements then
+            if List.isEmpty history.Entries then
                 Html.p [
                     prop.custom ("data-testid", "history-empty")
                     prop.className $"{ListRoles.muted} px-4 py-4"
                     prop.text "Keine Bewegungen in diesem Monat"
                 ]
             else
-                Html.div [ prop.children (history.Movements |> List.map (historyLine >> historyLineView)) ]
+                Html.div [ prop.children (history.Entries |> List.map (historyEntryLine >> historyLineView)) ]
             Html.p [
                 prop.className $"{ListRoles.muted} px-4 pt-1"
                 prop.text "Was direkt in YNAB zugewiesen wurde, steht hier nicht."
@@ -279,8 +282,8 @@ let private moneyTab (model: Model) (month: BudgetMonth) (category: BudgetCatego
         ]
     ]
 
-/// Tab Target, nur lesend: Pflege kommt in budgeting-t6p8z.
-let private targetTab (category: BudgetCategory) =
+/// Tab Target: Target, Status mit Quelle der Pause, Fehlbetrag und derselbe Pause-Knopf wie im Tab Geld.
+let private targetTab (model: Model) (category: BudgetCategory) (dispatch: Msg -> unit) =
     Html.div [
         prop.custom ("data-testid", "inspector-target")
         prop.className "flex flex-col gap-4 p-4"
@@ -295,6 +298,7 @@ let private targetTab (category: BudgetCategory) =
                 match targetUnderfunded category with
                 | Some under -> detailFigure "target-underfunded" "Fehlbetrag" (detailAmount under)
                 | None -> ()
+                pauseControlView model category dispatch
         ]
     ]
 
@@ -310,7 +314,7 @@ let private inspectorContent (model: Model) (month: BudgetMonth) (selected: Sele
                 prop.children [ detailEntries category selected dispatch ]
             ]
         | HistoryTab -> historyTab model category selected dispatch
-        | TargetTab -> targetTab category
+        | TargetTab -> targetTab model category dispatch
     ]
 
 let private inspectorTabBar (model: Model) (dispatch: Msg -> unit) =

@@ -26,7 +26,7 @@ let private budgetCategory (id: Guid) (name: string) : BudgetCategory =
       Available = eur 70m
       Underfunded = None
       Target = None
-      Snoozed = false }
+      Pause = None }
 
 let private october : BudgetMonth =
     { Month = "2026-10-01"
@@ -52,7 +52,7 @@ let private selected (model: Model) = model.Selected |> Option.get
 let private historyOf (model: Model) = (selected model).History
 let private entriesOf (model: Model) = (selected model).Entries
 
-let private emptyHistory : CategoryHistory = { Movements = []; Spending = [] }
+let private emptyHistory : CategoryHistory = { Entries = []; Spending = [] }
 
 let private loadedHistory : CategoryHistory =
     { emptyHistory with Spending = [ { Month = "2026-10-01"; Activity = eur -30m } ] }
@@ -353,7 +353,7 @@ let private categoryCode (id: Guid) : decimal = if id = categoryA then 1000m els
 
 /// Die Historie, wie der Server sie zu Kategorie, Monat und Stand liefert.
 let private historyAt (category: Guid) (month: string) (version: int) : CategoryHistory =
-    { Movements = []; Spending = [ { Month = month; Activity = eur (categoryCode category + decimal version) } ] }
+    { Entries = []; Spending = [ { Month = month; Activity = eur (categoryCode category + decimal version) } ] }
 
 /// Kategorie, Monat und Stand einer gelieferten Historie.
 let private historyKey (history: CategoryHistory) : Guid * string * int =

@@ -79,6 +79,7 @@
     <Compile Include="Components/Budget/Targets.fs" />
     <Compile Include="Components/Budget/Moves.fs" />
     <Compile Include="Components/Budget/Inspector.fs" />
+    <Compile Include="Components/Budget/Pause.fs" />
     <Compile Include="Components/Budget/State.fs" />
     <Compile Include="Components/Budget/MonthView.fs" />
     <Compile Include="Components/Budget/TargetsView.fs" />

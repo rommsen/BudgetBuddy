@@ -38,27 +38,27 @@ let lineTests =
     testList "Historie: Bewegung als Zeile aus Sicht der Kategorie" [
         testCase "Verschieben weg: Betrag negativ, nach der Gegenseite" <| fun () ->
             let line = historyLine (movement MoneyMoved (Some "Urlaub") 100m 80m (Some Written))
-            Expect.equal line.Change (eur -20m) "neu minus alt"
+            Expect.equal line.Change (Some (eur -20m)) "neu minus alt"
             Expect.equal line.Text "nach Urlaub" "Gegenseite"
 
         testCase "Verschieben her: Betrag positiv, von der Gegenseite" <| fun () ->
             let line = historyLine (movement MoneyMoved (Some "Lebensmittel") 10m 30m (Some Written))
-            Expect.equal line.Change (eur 20m) "neu minus alt"
+            Expect.equal line.Change (Some (eur 20m)) "neu minus alt"
             Expect.equal line.Text "von Lebensmittel" "Gegenseite"
 
         testCase "Zuweisen aus Zu verteilen: zugewiesen" <| fun () ->
             let line = historyLine (movement MoneyAssigned None 0m 20m (Some Written))
-            Expect.equal line.Change (eur 20m) "Betrag"
+            Expect.equal line.Change (Some (eur 20m)) "Betrag"
             Expect.equal line.Text "zugewiesen" "Richtung"
 
         testCase "Zuweisen zurück: zurück nach Zu verteilen" <| fun () ->
             let line = historyLine (movement MoneyAssigned None 50m 30m (Some Written))
-            Expect.equal line.Change (eur -20m) "Betrag"
+            Expect.equal line.Change (Some (eur -20m)) "Betrag"
             Expect.equal line.Text "zurück nach Zu verteilen" "Richtung"
 
         testCase "Targets anwenden: Herkunft als Text" <| fun () ->
             let line = historyLine (movement TargetsApplied None 25m 75m (Some Written))
-            Expect.equal line.Change (eur 50m) "Betrag"
+            Expect.equal line.Change (Some (eur 50m)) "Betrag"
             Expect.equal line.Text "Targets anwenden" "Herkunft"
 
         testCase "Der Stand folgt dem jüngsten Ergebnis, ohne Ergebnis noch offen" <| fun () ->
@@ -113,7 +113,7 @@ let private category assigned activity available : BudgetCategory =
       Available = eur available
       Underfunded = None
       Target = None
-      Snoozed = false }
+      Pause = None }
 
 [<Tests>]
 let buildupTests =
@@ -258,7 +258,7 @@ let queryTests =
             Budgeting.Persistence.appendResult targets.Id (at 12) Written |> run
             Budgeting.Persistence.appendResult moveOut.Id (at 9) ChangedInYnab |> run
 
-            let found = (history a "2026-10-01").Movements
+            let found = (history a "2026-10-01").Entries |> List.choose (function Movement m -> Some m | _ -> None)
             Expect.equal (found |> List.map (fun m -> m.MovementId)) [ assigned.Id; moveOut.Id; targets.Id ] "nur A im Oktober, neueste zuerst"
             Expect.equal (found |> List.map (fun m -> m.Latest)) [ None; Some ChangedInYnab; Some Written ] "jüngstes Ergebnis"
             Expect.equal (found |> List.map (fun m -> m.Counterpart)) [ None; Some "B"; None ] "Gegenseite nur bei der Verschiebung"

@@ -156,7 +156,7 @@ let private groupingTests =
                     category "A" "a1" false false false
                     category "B" "b2" false false false
                 ]
-            let result = Domain.toBudgetMonth month
+            let result = Domain.toBudgetMonth Set.empty month
             Expect.equal (result.Groups |> List.map (fun g -> g.Name)) [ "B"; "A" ] "Gruppen in Reihenfolge des ersten Auftretens"
             Expect.equal (result.Groups.[0].Categories |> List.map (fun c -> c.Name)) [ "b1"; "b2" ] "Kategorien in Reihenfolge"
         }
@@ -168,7 +168,7 @@ let private groupingTests =
                     category "A" "gelöscht" false true false
                     category "A" "Inflow" false false true
                 ]
-            let names = (Domain.toBudgetMonth month).Groups |> List.collect (fun g -> g.Categories |> List.map (fun c -> c.Name))
+            let names = (Domain.toBudgetMonth Set.empty month).Groups |> List.collect (fun g -> g.Categories |> List.map (fun c -> c.Name))
             Expect.equal names [ "sichtbar" ] "nur die sichtbare"
         }
         test "Eine Gruppe ohne sichtbare Kategorie erscheint nicht" {
@@ -177,29 +177,29 @@ let private groupingTests =
                     category "Leer" "versteckt" true false false
                     category "Voll" "da" false false false
                 ]
-            Expect.equal ((Domain.toBudgetMonth month).Groups |> List.map (fun g -> g.Name)) [ "Voll" ] "leere Gruppe fehlt"
+            Expect.equal ((Domain.toBudgetMonth Set.empty month).Groups |> List.map (fun g -> g.Name)) [ "Voll" ] "leere Gruppe fehlt"
         }
         // budgeting-kjsht
         test "Das Target gelangt in die angezeigte Kategorie" {
             let target : Target = { Goal = eur 50000L; Rhythm = Weeks 1 }
             let month = monthOf [ { category "Alltag" "Essen" false false false with Target = Some target } ]
-            let shown = (Domain.toBudgetMonth month).Groups.Head.Categories.Head
+            let shown = (Domain.toBudgetMonth Set.empty month).Groups.Head.Categories.Head
             Expect.equal shown.Target (Some target) "Target"
         }
         test "Ein Monat ohne Kategorien hat keine Gruppen und behält Zu verteilen" {
-            let result = Domain.toBudgetMonth { monthOf [] with ToBeBudgeted = eur -5000L }
+            let result = Domain.toBudgetMonth Set.empty { monthOf [] with ToBeBudgeted = eur -5000L }
             Expect.isEmpty result.Groups "keine Gruppen"
             Expect.equal result.ToBeBudgeted.Amount -5m "Zu verteilen bleibt"
         }
         test "Der echte Beispielmonat ergibt zwei Gruppen mit je ihren Kategorien" {
-            let result = Domain.toBudgetMonth decoded
+            let result = Domain.toBudgetMonth Set.empty decoded
             Expect.equal (result.Groups |> List.map (fun g -> g.Name, g.Categories.Length)) [ "Alltag", 2; "Rücklagen", 1 ] "Gruppen"
             Expect.equal result.Groups.[0].Categories.[1].Underfunded (Some (eur 25500L)) "Fehlbetrag bleibt erhalten"
-            Expect.isTrue result.Groups.[0].Categories.[1].Snoozed "Pausiert bleibt erhalten"
+            Expect.equal result.Groups.[0].Categories.[1].Pause (Some PausedInYnab) "Pausiert in YNAB bleibt erhalten"
         }
         test "Gruppennamen werden gekürzt (YNAB liefert Leerzeichen am Ende)" {
             let month = monthOf [ category "Medien + Software " "m" false false false ]
-            Expect.equal (Domain.toBudgetMonth month).Groups.[0].Name "Medien + Software" "gekürzt"
+            Expect.equal (Domain.toBudgetMonth Set.empty month).Groups.[0].Name "Medien + Software" "gekürzt"
         }
     ]
 
@@ -477,7 +477,7 @@ let private euro amount : Shared.Domain.Money = { Amount = amount; Currency = "E
 
 let private budgetCategory (id: Guid) (name: string) : BudgetCategory =
     { Id = id; Name = name; Assigned = euro 0m; Activity = euro 0m; Available = euro 0m
-      Underfunded = None; Target = None; Snoozed = false }
+      Underfunded = None; Target = None; Pause = None }
 
 let private orderTests =
     let ids = List.init 5 (fun _ -> Guid.NewGuid())
@@ -520,7 +520,7 @@ let private missingTests =
             Available = euro available
             Underfunded = under |> Option.map euro
             Target = under |> Option.map (fun _ -> target)
-            Snoozed = snoozed }
+            Pause = (if snoozed then Some PausedInYnab else None) }
     let missing c = missingAmount c |> Option.map (fun m -> m.Amount)
     testList "Fehlt" [
         test "Negatives Verfügbar ohne Target fehlt" {

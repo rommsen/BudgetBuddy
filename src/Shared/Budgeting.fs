@@ -22,7 +22,7 @@ let monthKind (current: string) (month: string) : MonthKind =
     else FutureMonth
 
 /// Geht "Targets anwenden" in dieser Monatsart? In vergangenen Monaten nicht (ADR 0074 Punkt 5).
-/// Gilt an der API-Grenze und für den Knopf.
+/// Gilt an der API-Grenze und für den Knopf, ebenso für Target pausieren (ADR 0073 Punkt 5).
 let targetsAllowed (kind: MonthKind) : bool =
     match kind with
     | PastMonth -> false
@@ -62,7 +62,8 @@ type YnabMonthCategory = {
     Underfunded: Money option
     /// Das Target: `None`, wenn YNAB keins liefert.
     Target: Target option
-    /// Pausiert (YNAB `goal_snoozed_at` gesetzt): der Fehlbetrag zählt in diesem Monat nicht.
+    /// Pausiert in YNAB (`goal_snoozed_at` gesetzt), der rohe YNAB-Wert. Die Pause in BB kommt erst
+    /// in `toBudgetMonth` dazu (`BudgetCategory.Pause`, ADR 0079).
     Snoozed: bool
     Hidden: bool
     Deleted: bool
@@ -79,9 +80,41 @@ type YnabMonth = {
     Categories: YnabMonthCategory list
 }
 
+/// Wo die Pause eines Targets im Monat gesetzt ist (ADR 0073 Punkt 2, ADR 0079). In YNAB heißt:
+/// `goal_snoozed_at` ist gesetzt, die Pause lässt sich nur dort aufheben. In BB heißt: das jüngste
+/// Ereignis in `target_pause_events` für Kategorie und Monat ist "Pausiert".
+type PauseSource =
+    | PausedInYnab
+    | PausedInBb
+    | PausedInBoth
+
+/// Die Quelle aus beiden Seiten. `None`, wenn keine Seite pausiert.
+let pauseSourceOf (inYnab: bool) (inBb: bool) : PauseSource option =
+    match inYnab, inBb with
+    | true, true -> Some PausedInBoth
+    | true, false -> Some PausedInYnab
+    | false, true -> Some PausedInBb
+    | false, false -> None
+
+/// Steht die Pause (auch) in BB? Nur diese lässt sich in BB aufheben.
+let pausedInBb (pause: PauseSource option) : bool =
+    match pause with
+    | Some PausedInBb
+    | Some PausedInBoth -> true
+    | Some PausedInYnab
+    | None -> false
+
+/// Steht die Pause (auch) in YNAB?
+let pausedInYnab (pause: PauseSource option) : bool =
+    match pause with
+    | Some PausedInYnab
+    | Some PausedInBoth -> true
+    | Some PausedInBb
+    | None -> false
+
 /// Eine angezeigte Kategorie. Felder wie `YnabMonthCategory`, ohne die Filter-Flags.
-/// `Underfunded` (Fehlbetrag) und `Snoozed` (Pausiert) braucht "Targets anwenden"
-/// (budgeting-h2zfn); die Seite zeigt sie zusammen mit dem Target an (budgeting-kjsht).
+/// `Underfunded` (Fehlbetrag) und `Pause` braucht "Targets anwenden" (budgeting-h2zfn); die Seite
+/// zeigt sie zusammen mit dem Target an (budgeting-kjsht).
 type BudgetCategory = {
     Id: Guid
     Name: string
@@ -90,8 +123,15 @@ type BudgetCategory = {
     Available: Money
     Underfunded: Money option
     Target: Target option
-    Snoozed: bool
+    /// Die Pause des Targets in diesem Monat mit ihrer Quelle (ADR 0079). Fachregeln fragen nur
+    /// `isPaused`, die Quelle braucht die Oberfläche für Aufheben und den Hinweis zur YNAB-Pause.
+    Pause: PauseSource option
 }
+
+/// Ist das Target der Kategorie in diesem Monat pausiert, in BB, in YNAB oder auf beiden Seiten?
+/// Die einzige Frage der Fachregeln (Fehlt, Frei, Targets anwenden).
+let isPaused (c: BudgetCategory) : bool =
+    c.Pause.IsSome
 
 /// Eine Kategoriegruppe mit ihren sichtbaren Kategorien. Vom Server in der ungeordneten Folge der
 /// Monatsantwort, die Seite ordnet sie mit `orderGroups`.
@@ -138,13 +178,13 @@ let orderGroups (order: Guid list) (groups: BudgetGroup list) : BudgetGroup list
         sortKey (group.Categories |> List.tryHead |> Option.bind rankOf) group.Name)
 
 /// Fehlt: BBs Antwort je Kategorie, auch ohne Target. Das Größere aus negativem Verfügbar und
-/// Fehlbetrag, `None` ohne Betrag über 0. Bei einem pausierten Target zählt der Fehlbetrag nicht,
-/// negatives Verfügbar bleibt (ADR 0073 Punkt 4).
+/// Fehlbetrag, `None` ohne Betrag über 0. Bei einem pausierten Target (in BB, in YNAB oder beidem)
+/// zählt der Fehlbetrag nicht, negatives Verfügbar bleibt (ADR 0073 Punkt 4).
 let missingAmount (c: BudgetCategory) : Money option =
     let negative = if c.Available.Amount < 0m then -c.Available.Amount else 0m
     let underfunded =
         match c.Underfunded with
-        | Some under when not c.Snoozed -> under.Amount
+        | Some under when not (isPaused c) -> under.Amount
         | _ -> 0m
     let amount = if underfunded > negative then underfunded else negative
     if amount > 0m then Some { c.Available with Amount = amount } else None
@@ -153,7 +193,7 @@ let missingAmount (c: BudgetCategory) : Money option =
 /// ohne Target ist alles Verfügbare frei. Grundlage der Warnung beim Holen und Abgeben.
 let freeAmount (c: BudgetCategory) : Money =
     match c.Underfunded with
-    | Some under when not c.Snoozed -> { c.Available with Amount = c.Available.Amount - under.Amount }
+    | Some under when not (isPaused c) -> { c.Available with Amount = c.Available.Amount - under.Amount }
     | _ -> c.Available
 
 // ============================================
@@ -284,6 +324,19 @@ type AssignRequest = {
     Assigned: Money
 }
 
+/// Target pausieren oder die Pause aufheben (budgeting-t6p8z, ADR 0079). Der Monat geht als eigener
+/// Parameter mit. `Paused = true` pausiert in BB, `false` hebt die BB-Pause auf. Eine Pause aus YNAB
+/// bleibt davon unberührt (ADR 0073 Punkt 2).
+type TargetPauseRequest = {
+    CategoryId: Guid
+    Paused: bool
+}
+
+/// Die Ablehnung im vergangenen Monat (ADR 0073 Punkt 5, `targetsAllowed`). Geprüft an der Grenze und
+/// im Ablauf, bevor YNAB gelesen wird.
+[<Literal>]
+let PausePastMonthText = "Target pausieren geht in vergangenen Monaten nicht."
+
 // ============================================
 // Historie je Kategorie (budgeting-dyn8g)
 // ============================================
@@ -324,10 +377,34 @@ type MonthSpending = {
     Activity: Money
 }
 
+/// Ein Pause-Ereignis aus `target_pause_events` (budgeting-t6p8z). Es geht nicht nach YNAB.
+type HistoryPause = {
+    EventId: Guid
+    /// Zeitpunkt des Festhaltens, UTC.
+    OccurredAt: DateTime
+    /// "YYYY-MM-01".
+    Month: string
+    CategoryId: Guid
+    CategoryName: string
+}
+
+/// Ein Eintrag im Tab Historie: eine Budget-Bewegung oder ein Pause-Ereignis.
+type HistoryEntry =
+    | Movement of HistoryMovement
+    | TargetPaused of HistoryPause
+    | PauseLifted of HistoryPause
+
+/// Der Zeitpunkt eines Eintrags, nach dem die Historie ordnet.
+let historyEntryTime (entry: HistoryEntry) : DateTime =
+    match entry with
+    | Movement m -> m.OccurredAt
+    | TargetPaused p
+    | PauseLifted p -> p.OccurredAt
+
 /// Antwort der Historie für Kategorie und Monat.
 type CategoryHistory = {
-    /// Die Bewegungen der Kategorie im Monat, neueste zuerst.
-    Movements: HistoryMovement list
+    /// Bewegungen und Pause-Ereignisse der Kategorie im Monat, neueste zuerst.
+    Entries: HistoryEntry list
     /// Die 6 Monate bis einschließlich des gezeigten, aufsteigend. Monate ohne Buchung stehen mit 0 da.
     Spending: MonthSpending list
 }
@@ -343,14 +420,15 @@ type HistoryStatus =
     /// Kein Ergebnis angehängt: der Lauf brach vor dieser Zeile ab oder läuft noch.
     | HistoryOpen
 
-/// Eine Zeile im Tab Historie, aus Sicht der Kategorie der Bewegung.
+/// Eine Zeile im Tab Historie, aus Sicht der Kategorie des Eintrags.
 type HistoryLine = {
-    MovementId: Guid
+    /// Die Id der Bewegung oder des Pause-Ereignisses.
+    EntryId: Guid
     OccurredAt: DateTime
-    /// Was sich am Zugewiesen der Kategorie geändert hat: neu minus alt.
-    Change: Money
+    /// Was sich am Zugewiesen der Kategorie geändert hat: neu minus alt. Eine Pause hat keinen Betrag.
+    Change: Money option
     /// Der Text hinter dem Betrag: "nach Urlaub", "von Lebensmittel", "zugewiesen",
-    /// "zurück nach Zu verteilen", "Targets anwenden".
+    /// "zurück nach Zu verteilen", "Targets anwenden", "Target pausiert", "Pause aufgehoben".
     Text: string
     Status: HistoryStatus
 }
@@ -374,11 +452,25 @@ let historyLine (m: HistoryMovement) : HistoryLine =
         | MoneyAssigned, _ -> if incoming then "zugewiesen" else "zurück nach Zu verteilen"
         | MoneyMoved, Some other -> if incoming then $"von {other}" else $"nach {other}"
         | MoneyMoved, None -> "verschoben"
-    { MovementId = m.MovementId
+    { EntryId = m.MovementId
       OccurredAt = m.OccurredAt
-      Change = change
+      Change = Some change
       Text = text
       Status = historyStatus m.Latest }
+
+/// Eintrag zu Zeile. Eine Pause hat keinen Betrag, und ihr Stand ist immer geschrieben: sie geht nicht
+/// nach YNAB (ADR 0073 Punkt 5).
+let historyEntryLine (entry: HistoryEntry) : HistoryLine =
+    let pauseLine (p: HistoryPause) (text: string) =
+        { EntryId = p.EventId
+          OccurredAt = p.OccurredAt
+          Change = None
+          Text = text
+          Status = HistoryWritten }
+    match entry with
+    | Movement m -> historyLine m
+    | TargetPaused p -> pauseLine p "Target pausiert"
+    | PauseLifted p -> pauseLine p "Pause aufgehoben"
 
 let private lastSundayUtc (year: int) (month: int) : DateTime =
     let last = DateTime(year, month, DateTime.DaysInMonth(year, month), 0, 0, 0, DateTimeKind.Utc)

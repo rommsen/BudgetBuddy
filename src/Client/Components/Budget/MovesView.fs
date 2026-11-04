@@ -11,6 +11,7 @@ open Components.Budget.Month
 open Components.Budget.Targets
 open Components.Budget.Moves
 open Components.Budget.Inspector
+open Components.Budget.Pause
 open Client.DesignSystem
 open Client.DesignSystem.Tokens
 open Components.Budget.MonthView
@@ -272,11 +273,57 @@ let private transferMode (model: Model) (month: BudgetMonth) (tab: MoneyTabState
         ]
     ]
 
-/// Der Modus unter dem Umschalter: Der Platz für "Target pausieren" im Modus Zuweisen bleibt frei.
+/// Der Knopf "Target pausieren" oder "Pause aufheben", neutral (ADR 0075 Punkt 2), dazu der Satz zur
+/// YNAB-Pause und eine Fehlermeldung. Was erscheint, sagt `pauseControlFor`. Steht im Tab Geld und im
+/// Tab Target.
+let pauseControlView (model: Model) (category: BudgetCategory) (dispatch: Msg -> unit) =
+    let button (b: PauseButton) (invisible: bool) =
+        Html.div [
+            prop.custom ("data-testid", "target-pause")
+            prop.className (if invisible then "invisible" else "")
+            prop.children [
+                Button.view
+                    { Button.defaultProps with
+                        Text = b.Label
+                        Variant = Button.Secondary
+                        IsLoading = pauseRunningFor model category.Id
+                        IsDisabled = pauseBusy model
+                        ClassName = Some $"w-full {TouchTargets.sheetMinHeight}"
+                        OnClick = fun () -> dispatch (SetTargetPause b.Paused) }
+            ]
+        ]
+    React.fragment [
+        match pauseControlFor model category with
+        | NoPauseControl -> ()
+        | PauseSlotFree -> button { Label = "Target pausieren"; Paused = true } true
+        | PauseOffered (offered, note) ->
+            match note with
+            | Some text ->
+                Html.p [
+                    prop.custom ("data-testid", "target-pause-ynab")
+                    prop.className ListRoles.muted
+                    prop.text text
+                ]
+            | None -> ()
+            match offered with
+            | Some b -> button b false
+            | None -> ()
+        match pauseError model category.Id with
+        | Some message ->
+            Html.div [
+                prop.custom ("data-testid", "target-pause-error")
+                prop.children [ ErrorDisplay.cardCompact message None ]
+            ]
+        | None -> ()
+    ]
+
+/// Der Modus unter dem Umschalter. Im Modus Zuweisen steht unten der Pause-Knopf.
 let moneyMode (model: Model) (month: BudgetMonth) (category: BudgetCategory) (tab: MoneyTabState) (dispatch: Msg -> unit) =
     React.fragment [
         match tab.Mode with
-        | AssignMode -> assignMode model month category tab dispatch
+        | AssignMode ->
+            assignMode model month category tab dispatch
+            pauseControlView model category dispatch
         | TakeMode
         | GiveMode -> transferMode model month tab dispatch
         match tab.Transfer.Submission with

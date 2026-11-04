@@ -11,6 +11,7 @@ open Components.Budget.Month
 open Components.Budget.Targets
 open Components.Budget.Moves
 open Components.Budget.Inspector
+open Components.Budget.Pause
 open Types
 open Client
 
@@ -94,6 +95,15 @@ let private assignCmd (write: AssignWrite) : Cmd<Msg> =
         ()
         AssignAnswered
         (fun ex -> AssignCallLost ex.Message)
+
+// Schreibt in BB, deshalb nicht über `Retry`. Die Antwort trägt Kategorie und Monat des Aufrufs.
+let private pauseCmd (monthKey: string) (request: TargetPauseRequest) : Cmd<Msg> =
+    let answer result = TargetPauseAnswered (request.CategoryId, monthKey, result)
+    Cmd.OfAsync.either
+        (fun () -> Api.budget.setTargetPause monthKey request)
+        ()
+        answer
+        (fun ex -> answer (Error ex.Message))
 
 let private recentCmd () : Cmd<Msg> =
     Cmd.OfAsync.either
@@ -276,6 +286,24 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         | model', Some reread -> model', rereadCmd reread model', NoOp
         | model', None -> model', Cmd.none, NoOp
     | OpenEntryInLedger entryId -> leaveForEntry model, Cmd.none, JumpToEntry entryId
+    | SetTargetPause paused ->
+        match startPause paused model with
+        | model', Some (monthKey, request) -> model', pauseCmd monthKey request, NoOp
+        | model', None -> model', Cmd.none, NoOp
+    | TargetPauseAnswered (categoryId, month, result) ->
+        let answered = applyPauseAnswered categoryId month result model
+        match result with
+        | Error _ -> answered, Cmd.none, NoOp
+        | Ok _ ->
+            // Ein Neu-Lesen, das vor der Pause begann, nähme sie zurück: dann noch einmal lesen.
+            let reread, cmd =
+                if pauseNeedsReread month answered then
+                    let rereading, how = rereadMonth answered
+                    rereading, rereadCmd how rereading
+                else
+                    answered, Cmd.none
+            if pauseAnswerShown categoryId month reread then afterMovement (reread, cmd, NoOp)
+            else reread, cmd, NoOp
     | MoveAnswered result ->
         let model', external, reload = applyMoveAnswered result model
         afterMovementWhen reload (model', afterAnswer reload (frameDueAfterAnswer result model) model', external)
@@ -362,6 +390,8 @@ let private routeOf (msg: Msg) (model: Model) : MsgRoute =
     | LoadCategoryHistory
     | CategoryHistoryLoaded _
     | CategoryHistoryReloaded _
+    | SetTargetPause _
+    | TargetPauseAnswered _
     | OpenEntryInLedger _ -> MsgRoute.Free
 
 /// Speichert die offene Eingabe, dann wirkt die Nachricht. Der Toast zur Eingabe geht vor.
@@ -408,7 +438,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         | MsgRoute.Left -> leaveThen msg model
         | MsgRoute.TouchesField
         | MsgRoute.Free -> transition msg model
-    let synced = syncMoneyTab model'
+    let synced = syncMoneyTab (syncPause model')
     let external' = if entryDropped model' synced && external = NoOp then droppedEntryToast else external
     let flushed, sendCmd = flushAssign synced
     flushed, Cmd.batch [ cmd; sendCmd ], external'

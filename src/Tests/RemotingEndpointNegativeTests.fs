@@ -346,6 +346,27 @@ let private rows : Row list = [
           let request : Shared.Budgeting.AssignRequest =
               { CategoryId = Guid.Empty; Assigned = { Amount = Decimal.MinValue; Currency = "EUR" } }
           budget.assignMoney "2026-11-01" request |> run |> expectError "Zuweisen" }
+    { Endpoint = "BudgetApi.setTargetPause"; Case = "ungültiger und vergangener Monat ohne Einrichtung, unbekannte Kategorie: Fehler statt Ausnahme"
+      Run = fun () ->
+          let request : Shared.Budgeting.TargetPauseRequest = { CategoryId = Guid.NewGuid(); Paused = true }
+          budget.setTargetPause "kein-monat" request |> run |> expectError "ungültiger Monat"
+          match budget.setTargetPause "2020-01-01" request |> run with
+          | Error message -> Expect.stringContains message "vergangenen Monaten" "Grund"
+          | Ok _ -> failtest "Pausieren hätte abgelehnt werden müssen"
+          // Mit Einrichtung, ein Fake-YNAB ohne Kategorien: kein Netz, die Kategorie ist unbekannt.
+          let empty : Server.Budgeting.CommandHandlers.YnabPort =
+              { FetchMonth = fun month -> async { return Ok { Month = month; ToBeBudgeted = { Amount = 0m; Currency = "EUR" }; Categories = [] } }
+                SetAssigned = fun _ _ _ -> async { return failwith "Pausieren schreibt nicht nach YNAB" } }
+          let frame _ _ : Server.Budgeting.QueryHandlers.BudgetFramePort =
+              { FetchMonths = (fun () -> async { return Ok [] }); FetchCategoryOrder = (fun () -> async { return Ok [] }) }
+          let configured =
+              Server.Api.budgetApiWith
+                  (fun _ -> async { return Some "eingerichtet" })
+                  (fun _ _ -> empty)
+                  frame
+                  (fun () -> DateTime(2026, 11, 4, 9, 0, 0, DateTimeKind.Utc))
+                  (TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin")
+          configured.setTargetPause "2026-11-01" request |> run |> expectError "unbekannte Kategorie" }
     { Endpoint = "BudgetApi.getRecentMoveCategories"; Case = "ohne Einrichtung eine Liste, keine Ausnahme"
       Run = fun () -> Expect.isOk (budget.getRecentMoveCategories () |> run) "liest nur die Datenbank" }
     { Endpoint = "BudgetApi.getCategoryHistory"; Case = "ungültiger Monat: Fehler, unbekannte Kategorie: leere Historie"
@@ -353,7 +374,7 @@ let private rows : Row list = [
         budget.getCategoryHistory { CategoryId = Guid.NewGuid(); Month = "kein-monat" } |> run |> expectError "Historie"
         match budget.getCategoryHistory { CategoryId = Guid.NewGuid(); Month = "2026-10-01" } |> run with
         | Ok history ->
-            Expect.isEmpty history.Movements "keine Bewegungen"
+            Expect.isEmpty history.Entries "keine Bewegungen"
             Expect.isTrue (history.Spending |> List.forall (fun s -> s.Activity.Amount = 0m)) "keine Ausgaben"
         | Error message -> failtestf "leere Historie erwartet: %s" message }
     { Endpoint = "BudgetApi.retryFailedTargets"; Case = "keine gültige Anwendungs-Id: Fehler"
