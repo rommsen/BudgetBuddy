@@ -92,7 +92,9 @@ let private historyButton (dispatch: Msg -> unit) =
 /// Ab 768 px steht alles im Kopf: ab 1024 px in einer Zeile, darunter bricht er in zwei um.
 let private wideHead (model: Model) (dispatch: Msg -> unit) =
     headBar [
-        prop.className "budget-month-bar flex flex-wrap items-center gap-x-3 gap-y-1 py-1 -mx-1 px-1"
+        // Bis 1280 px der kleinere Abstand: mit der schmaleren Suche passt der Kopf so bei 1024 px in eine
+        // Zeile, auch mit fünfstelligem Zu verteilen und zweistelligen Zählern (budgeting-a3k7m).
+        prop.className "budget-month-bar flex flex-wrap items-center gap-x-2 xl:gap-x-3 gap-y-1 py-1 -mx-1 px-1"
         prop.children [
             headStepper model dispatch
             match model.Month with

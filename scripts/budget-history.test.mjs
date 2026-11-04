@@ -54,7 +54,13 @@ const movements = [
 ];
 
 /// Genug Durchläufe, dass die Seite scrollt.
+/// Eine Verschiebung mit langer Quelle (budgeting-a3k7m): am Handy stand nur "Verschieben, Essen/Einkaufen → ...".
+const longMove = [
+  movement(4, 13, "MoneyMoved", "Essen/Einkaufen", 1500, 265.44, "Written", "Urlaub"),
+  movement(5, 13, "MoneyMoved", "Urlaub", 0, 1234.56, "Written", "Essen/Einkaufen"),
+];
 const manyMovements = [
+  ...longMove,
   ...movements,
   ...Array.from({ length: 30 }, (_, i) => movement(10 + i, 20 + i, "MoneyAssigned", `Kategorie c6vn4 ${i}`, 0, 10 + i, "Written")),
 ];
@@ -135,9 +141,32 @@ test("[flow:budget-historie] Handy: Historie öffnen, Targets anwenden filtern, 
 });
 
 // budgeting-c6vn4 (A3, A4, A6): Leiste, Chevron und kurze Angaben am Handy.
-test("[layout] Handy: die Filterleiste haftet unter der Navbar, der Chevron ist gedämpft und dreht sich beim Öffnen, Monat und Teil-Fehlschlag stehen kurz und ganz", async () => {
+// budgeting-a3k7m: der Kopf eines Durchlaufs kürzte mit Ellipse, Ziel und Betrag fehlten.
+test("[layout] Handy: die Filterleiste haftet unter der Navbar, der Chevron ist gedämpft und dreht sich beim Öffnen, Monat und Teil-Fehlschlag stehen kurz und ganz, der Kopf einer Verschiebung bricht um statt abzuschneiden", async () => {
   const { context, page } = await openHistory(375, 700, manyMovements);
   try {
+    const move = page.locator('[data-testid="general-history-run"]').filter({ hasText: "Verschieben" });
+    const head = await move.evaluate((el) => {
+      const text = el.querySelector('[data-testid="general-history-text"]');
+      const amount = el.querySelector('[data-testid="general-history-amount"]');
+      const lineHeight = parseFloat(getComputedStyle(text).lineHeight);
+      return {
+        text: text.textContent,
+        amount: amount.textContent,
+        textClipped: text.scrollWidth > text.clientWidth || text.scrollHeight > text.clientHeight,
+        lines: Math.round(text.getBoundingClientRect().height / lineHeight),
+        amountClipped: amount.scrollWidth > amount.clientWidth,
+        amountRight: amount.getBoundingClientRect().right,
+        rowRight: el.getBoundingClientRect().right,
+      };
+    });
+    const headFacts = JSON.stringify(head);
+    assert.equal(head.text, "Verschieben, Essen/Einkaufen → Urlaub", "Quelle und Ziel im Text");
+    assert.ok(!head.textClipped, `Quelle und Ziel stehen ganz da, ohne Ellipse (${headFacts})`);
+    assert.ok(head.lines <= 2, `höchstens zwei Zeilen (${headFacts})`);
+    assert.equal(head.amount, "1.234,56 €", "der Betrag");
+    assert.ok(!head.amountClipped && head.amountRight <= head.rowRight, `der Betrag steht ungekürzt rechts (${headFacts})`);
+
     const bar = page.locator('[data-testid="general-history-filter"]');
     const run = page.locator('[data-testid="general-history-run"]').filter({ hasText: "Targets anwenden" });
     const chevron = run.locator('[data-testid="disclosure-chevron"] svg');

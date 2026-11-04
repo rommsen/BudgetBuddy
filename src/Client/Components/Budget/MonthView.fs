@@ -338,7 +338,9 @@ let private desktopTable (selectedId: System.Guid option) (dispatch: Msg -> unit
 let categorySearchField (search: string) (dispatch: Msg -> unit) =
     Html.div [
         prop.custom ("data-testid", "budget-category-search")
-        prop.className "relative flex-1 min-w-0 md:min-w-32 md:w-32"
+        // Zwischen 768 und 1280 px schmaler (budgeting-a3k7m): sonst bricht der Kopf bei 1024 px mit echten
+        // Zahlen um und der Knopf Historie steht allein in Zeile 2.
+        prop.className "relative flex-1 min-w-0 md:min-w-28 md:w-28 xl:min-w-32 xl:w-32"
         prop.children [
             Input.text
                 { Input.textInputDefaults with

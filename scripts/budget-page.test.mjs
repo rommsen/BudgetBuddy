@@ -85,10 +85,10 @@ const CURRENT = "2026-10-01";
 const WINDOW = ["2026-09-01", CURRENT, "2026-11-01"];
 
 /// Der Rahmen zu einer Fixture: `CategoryOrder` nicht leer, sonst sortierte die Seite nach Name.
-const frameFor = (fixture, months = WINDOW) => ({
-  CurrentMonth: CURRENT,
+const frameFor = (fixture, months = WINDOW, current = CURRENT) => ({
+  CurrentMonth: current,
   Months: months,
-  CategoryOrder: fixture(CURRENT, 0).Groups.flatMap((g) => g.Categories.map((c) => c.Id)),
+  CategoryOrder: fixture(current, 0).Groups.flatMap((g) => g.Categories.map((c) => c.Id)),
 });
 
 const mockFrame = (page, frame, onCall = () => {}) =>
@@ -97,7 +97,7 @@ const mockFrame = (page, frame, onCall = () => {}) =>
     return route.fulfill({ contentType: "application/json", body: JSON.stringify({ Ok: frame }) });
   });
 
-async function openPage(width, height, { fail = false, requestedKeys = [], fixture = monthFixture, months = WINDOW, hasTouch = false } = {}) {
+async function openPage(width, height, { fail = false, requestedKeys = [], fixture = monthFixture, months = WINDOW, current = CURRENT, hasTouch = false } = {}) {
   const context = await browser.newContext({ viewport: { width, height }, hasTouch });
   const page = await context.newPage();
   page.setDefaultTimeout(30000);
@@ -109,7 +109,7 @@ async function openPage(width, height, { fail = false, requestedKeys = [], fixtu
   await page.route("**/api/LedgerApi/getCategoryMonthEntries", (route) =>
     route.fulfill({ contentType: "application/json", body: JSON.stringify({ Ok: [] }) })
   );
-  await mockFrame(page, frameFor(fixture, months), () => {
+  await mockFrame(page, frameFor(fixture, months, current), () => {
     frames.count += 1;
   });
   await page.route("**/api/BudgetApi/getRecentMoveCategories", (route) =>
@@ -946,10 +946,34 @@ test("[layout] Handy 375 px: die Suche teilt ihre Zeile nur mit Targets anwenden
   }
 });
 
+/// Kopf mit Werten wie im echten Budget (budgeting-a3k7m): Zu verteilen fünfstellig mit Nachkommastellen,
+/// beide Zähler zweistellig, der längste Monatsname. Mit den kurzen Werten von `targetFixture` war der Test
+/// grün, während der Kopf mit echten Daten bei 1024 px umbrach.
+const realisticHeadFixture = (month) => ({
+  Month: month,
+  ToBeBudgeted: eur(12345.67),
+  Groups: [
+    {
+      Name: "Alltag",
+      Categories: [
+        ...Array.from({ length: 12 }, (_, i) => withTarget(category(i + 1, `Fehlt ${i + 1}`, 0, 0, 0), monthly, 1600)),
+        ...Array.from({ length: 11 }, (_, i) => category(i + 20, `Überzogen ${i + 1}`, 0, -50, -50)),
+      ],
+    },
+  ],
+});
+
 test("[layout] Kopf: ab 1024 px eine Zeile in der verlangten Reihenfolge, bei 768 px zwei Zeilen", async () => {
   for (const width of [1024, 1440]) {
-    const { context, page } = await openPage(width, 800, { fixture: targetFixture });
+    const { context, page } = await openPage(width, 800, { fixture: realisticHeadFixture, current: "2026-09-01", months: ["2026-08-01", "2026-09-01", "2026-10-01"] });
     try {
+      await monthName(page).getByText("September 2026").waitFor();
+      const shown = await page.evaluate(() => ({
+        filter: document.querySelector('[data-testid="budget-filter"]').textContent,
+        assign: document.querySelector('[data-testid="budget-to-be-budgeted"]').textContent,
+      }));
+      assert.ok(/Fehlt \(\d\d\)/.test(shown.filter) && /Überzogen \(\d\d\)/.test(shown.filter), `zweistellige Zähler (${JSON.stringify(shown)})`);
+      assert.ok(shown.assign.includes("12.345,67"), `Zu verteilen fünfstellig (${JSON.stringify(shown)})`);
       const at = await headParts(page);
       const facts = JSON.stringify({ width, at });
       // budgeting-c6vn4 (M1): mit dem Knopf Historie brach der Kopf bei 1024 px in zwei Zeilen um.

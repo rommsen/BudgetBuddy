@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 19:51 -- Task verified and completed: budgeting-a3k7m - "Budget-Kopf bei 1024 px in einer Zeile, Historie am Handy ohne abgeschnittene Kategorien und Beträge"
+
+**Type:** Work / Task completion
+**Task:** budgeting-a3k7m - "Budget-Kopf bei 1024 px in einer Zeile, Historie am Handy ohne abgeschnittene Kategorien und Beträge"
+**Summary:** Budget-Kopf bei 1024 px in einer Zeile (Suche md:w-28, Abstand gap-x-2 bis xl), Kopf eines Durchlaufs in der Historie am Handy bricht auf zwei Zeilen um statt abzuschneiden
+**Duration:** 45 min
+**Verification:** PASS (iteration 1)
+**Files changed:** 5
+**Tests added:** 2
+**ADRs written:** none
+
+---
+
 ## 2026-11-04 19:48 -- Batch started: [budgeting-c2t9w]
 
 **Type:** Work / Batch start

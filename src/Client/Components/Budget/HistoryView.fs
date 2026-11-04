@@ -51,15 +51,17 @@ let private runMeta (run: HistoryRun) =
         ]
     ]
 
-/// Art, Kategorie oder Richtung und Anzahl links, der Betrag rechts in Mono (budgeting-c6vn4, A5).
+/// Art, Kategorie oder Richtung und Anzahl links, der Betrag rechts in Mono (budgeting-c6vn4, A5). Am Handy
+/// bricht der Text auf höchstens zwei Zeilen um, statt Ziel oder Anzahl abzuschneiden (budgeting-a3k7m); der
+/// Betrag steht dann neben der ersten Zeile. Am PC bleibt es eine Zeile mit `truncate`.
 let private runHead (run: HistoryRun) =
     let amountText, amountClass = runAmount run
     Html.span [
-        prop.className ListRoles.mobileLine1
+        prop.className "flex justify-between gap-3 max-md:items-start max-md:min-h-5 md:items-center md:h-5"
         prop.children [
             Html.span [
                 prop.custom ("data-testid", "general-history-text")
-                prop.className $"{ListRoles.primary} truncate min-w-0"
+                prop.className $"{ListRoles.primary} min-w-0 max-md:line-clamp-2 md:truncate"
                 prop.text run.Text
             ]
             Html.span [
