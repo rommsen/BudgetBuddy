@@ -1,7 +1,7 @@
 ---
 id: budgeting-r7h2q
 title: "[layout]-Test Historie-Knopf 48 px am Handy rundet nicht: 47,99999 px ließ ihn einmal rot werden"
-status: backlog
+status: doing
 type: chore
 context: budgeting
 created: 2026-11-04

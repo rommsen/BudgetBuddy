@@ -5,6 +5,22 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 19:51 -- Batch started: [budgeting-r7h2q]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-r7h2q - "[layout]-Test Historie-Knopf 48 px am Handy rundet nicht: 47,99999 px ließ ihn einmal rot werden"
+**Parallel:** no (1 worker)
+
+---
+
+## 2026-11-04 19:51 -- Modeling / Promoted: budgeting-r7h2q - "[layout]-Test Historie-Knopf 48 px am Handy rundet nicht: 47,99999 px ließ ihn einmal rot werden"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-04 19:51 -- Task verified and completed: budgeting-a3k7m - "Budget-Kopf bei 1024 px in einer Zeile, Historie am Handy ohne abgeschnittene Kategorien und Beträge"
 
 **Type:** Work / Task completion
