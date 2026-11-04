@@ -27,8 +27,10 @@ let private chipContainerClassName (isActive: bool) : string =
         $"{baseClasses} {Backgrounds.dark} border {Borders.default'}"
 
 let private chipLabelClassName (isActive: bool) : string =
-    // Die Mindesthöhe sitzt hier, am Knopf: nur er nimmt den Klick an.
-    let baseClasses = $"inline-flex items-center {TouchTargets.minHeight} px-2.5 md:py-1.5 text-xs font-semibold text-left"
+    // Die Mindesthöhe sitzt hier, am Knopf: nur er nimmt den Klick an. `rounded-full` auch hier,
+    // nicht nur am Rahmen: der Fokus-Ring (`*:focus-visible`) folgt der Rundung des fokussierten
+    // Knopfs, ohne sie stünde ein eckiger Ring um die Pille (design-system-k4f9t).
+    let baseClasses = $"inline-flex items-center rounded-full {TouchTargets.minHeight} px-2.5 md:py-1.5 text-xs font-semibold text-left"
     if isActive then $"{baseClasses} {Colors.neonTeal}" else $"{baseClasses} {Colors.textSecondary}"
 
 /// Ein einzelner Chip.
@@ -48,7 +50,7 @@ let chip (props: ChipProps) : ReactElement =
                 Html.button [
                     prop.type' "button"
                     prop.ariaLabel $"{props.Label} entfernen"
-                    prop.className $"inline-flex items-center self-stretch pr-2.5 pl-0.5 {Colors.neonTeal} text-xs font-bold"
+                    prop.className $"inline-flex items-center self-stretch rounded-full pr-2.5 pl-0.5 {Colors.neonTeal} text-xs font-bold"
                     prop.onClick (fun e ->
                         e.stopPropagation ()
                         onRemove ())

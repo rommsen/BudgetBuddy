@@ -1,7 +1,7 @@
 ---
 id: design-system-k4f9t
 title: "Fokus-Ring folgt der Form: Filter-Chips mit runder Kontur statt eckigem Rahmen, Tabs mit Ring nach innen statt abgeschnitten im Inspektor"
-status: doing
+status: done
 type: bug
 context: design-system
 created: 2026-11-04
@@ -38,3 +38,18 @@ Roman (2026-11-04, Screenshots): Mit Tab durch die Filter-Chips der Budget-Seite
 Erfasst, verfeinert und promotet am 2026-11-04 in einem Zug, Inhalt von Roman freigegeben (Diagnose im Gespräch: Ursache 1 eckiger Button im runden Container, Ursache 2 Offset außen plus overflow-hidden; Punkt 3 bewusst so gelassen).
 
 Werte aus Styleguide und `styles.css` nachschlagen, keine neuen Farben. Der Fix gehört in die DS-Komponenten bzw. in `styles.css`, nicht in die Feature-Views.
+
+## Builder note (2026-11-04)
+
+Roman: die beiden `[layout]`-Regressionstests (Chip-Ring rund, Tab-Ring innen) zu einem Browser-Test zusammenlegen. Beide Aussagen bleiben, der Test muss weiter vor dem Fix rot sein.
+
+## Outcome
+
+Der Fokus-Ring folgt der Form der Komponente. Beide Fehler stecken im Design-System, die Feature-Views sind unverändert.
+
+- **Filter-Chips** (`src/Client/DesignSystem/ChipBar.fs`): Der Label-Knopf und der Entfernen-Knopf "×" tragen jetzt selbst `rounded-full`, bisher saß die Rundung nur am äußeren Rahmen. Der globale Ring `*:focus-visible` folgt der Rundung des fokussierten Knopfs und ist dadurch rund. Jeder Knopf bekommt seinen eigenen runden Ring, so bleibt beim aktiven Chip sichtbar, ob das Label oder das "×" den Fokus hat. Das gilt für die Budget-Filter, die Kassenbuch-Filterleiste, MultiSelect und `/styleguide`, weil alle `ChipBar.chip` nutzen.
+- **Tabs** (`src/Client/styles.css`): neue Regel `[role="tab"]:focus-visible { outline-offset: -2px; }`, nach dem Vorbild von `nav a:focus-visible`. Der Ring liegt damit ganz innerhalb des Tabs und wird vom `overflow-hidden` des Inspektors nicht mehr abgeschnitten. Farbe und Breite kommen weiter aus der globalen Regel. Die Regel steht in `styles.css`, weil eine Tailwind-Klasse (`@layer utilities`) gegen die ungelayerte globale Regel verlieren würde.
+- **Unverändert:** Wechseln Links und Rechts aus dem Suchfeld den Tab, erscheint kein Ring, weil der Fokus im Suchfeld bleibt.
+- **Regressionstest** in `scripts/budget-page.test.mjs`: ein Test `[layout] Fokus-Ring am PC: per Tastatur liegt er am Tab Geld innen und ganz im Inspektor, am Chip Alle in Pillenform, nach einem Mausklick fehlt er` (Iteration 2 auf Wunsch von Roman: die zwei Tests aus Iteration 1 zusammengelegt, ein Browser-Start, eine Seite). Er prüft zuerst den Tab (Mausklick ohne Ring, dann Rechts und Links: Ring sichtbar, outline-offset negativ, Ringkasten im Panel), danach den Chip (Mausklick auf Fehlt ohne Ring, Shift+Tab auf Alle: Ring sichtbar, Rundung mindestens halbe Höhe). Vor dem Fix waren beide Aussagen rot.
+- **Gegenprobe, einzeln:** ohne `rounded-full` an den Chip-Knöpfen rot mit "Chip: Rundung wie die Pille (0 px bei 28 px Höhe)"; ohne die Regel `[role="tab"]:focus-visible` rot mit "Tab: der Ring liegt innen (outline-offset 2 px)". Beide Fixes danach wiederhergestellt, Test grün. Der bestehende `[tastatur]`-Test zu Links und Rechts aus dem Suchfeld bleibt grün.
+- `./verify.sh`: `VERIFY: PASS`. Offen bleibt der Blick auf PC und Handy: wirkt der Ring am Chip rund und am Tab sauber innen? [human-eye]

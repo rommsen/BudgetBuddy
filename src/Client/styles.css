@@ -259,6 +259,12 @@ nav a:focus-visible {
   border-radius: 0.5rem;
 }
 
+/* Tab focus (DesignSystem/Tabs.fs): der Ring liegt innen, sonst schneidet ein Container mit
+   overflow-hidden (Inspektor der Budget-Seite) ihn am Rand ab (design-system-k4f9t). */
+[role="tab"]:focus-visible {
+  outline-offset: -2px;
+}
+
 /* Skip to main content link (for screen readers) */
 .skip-to-content {
   position: absolute;

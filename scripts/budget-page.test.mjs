@@ -341,6 +341,65 @@ test("[layout] Inspektor am PC: gleiche Höhe in allen vier Tabs, die gewählte 
   }
 });
 
+/// Der Fokus-Ring des fokussierten Elements: Rundung, Ringstil und der Kasten, den der Ring
+/// tatsächlich überdeckt (Rahmenkasten um Versatz und Breite erweitert).
+const focusRing = (page) =>
+  page.evaluate(() => {
+    const el = document.activeElement;
+    const style = getComputedStyle(el);
+    const rect = el.getBoundingClientRect();
+    const reach = parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth);
+    return {
+      text: el.textContent,
+      focusVisible: el.matches(":focus-visible"),
+      radius: parseFloat(style.borderTopLeftRadius),
+      height: rect.height,
+      outlineStyle: style.outlineStyle,
+      outlineOffset: parseFloat(style.outlineOffset),
+      ring: { left: rect.left - reach, top: rect.top - reach, right: rect.right + reach, bottom: rect.bottom + reach },
+    };
+  });
+
+// Regression (design-system-k4f9t): der Ring am Chip war eckig, weil die Rundung am äußeren
+// Rahmen saß und der innere Knopf den Fokus bekam; am Tab lag er außen und wurde vom
+// overflow-hidden des Inspektors abgeschnitten.
+test("[layout] Fokus-Ring am PC: per Tastatur liegt er am Tab Geld innen und ganz im Inspektor, am Chip Alle in Pillenform, nach einem Mausklick fehlt er", async () => {
+  const { context, page } = await openPage(1440, 900, { fixture: filterFixture });
+  try {
+    const panel = page.locator('[data-testid="budget-inspector"]');
+    await pickRow(page, "Essen");
+    await panel.getByRole("heading", { name: "Essen" }).waitFor();
+    await tabsOf(panel).first().click();
+    assert.equal((await focusRing(page)).focusVisible, false, "nach dem Mausklick auf den Tab kein Ring");
+
+    await page.keyboard.press("ArrowRight");
+    await page.waitForFunction(() => document.activeElement.textContent === "Buchungen");
+    await page.keyboard.press("ArrowLeft");
+    await page.waitForFunction(() => document.activeElement.textContent === "Geld");
+    const tabRing = await focusRing(page);
+    assert.equal(tabRing.focusVisible, true, "Tab: per Tastatur ist der Ring sichtbar");
+    assert.notEqual(tabRing.outlineStyle, "none", "Tab: der Ring wird gezeichnet");
+    assert.ok(tabRing.outlineOffset < 0, `Tab: der Ring liegt innen (outline-offset ${tabRing.outlineOffset} px)`);
+    const box = await panel.boundingBox();
+    assert.ok(
+      tabRing.ring.left >= box.x && tabRing.ring.top >= box.y && tabRing.ring.right <= box.x + box.width && tabRing.ring.bottom <= box.y + box.height,
+      `Tab: der Ring liegt ganz im Panel (${JSON.stringify(tabRing.ring)} in ${JSON.stringify(box)})`
+    );
+
+    const chips = page.locator('[data-testid="budget-filter"]').getByRole("button");
+    await chips.nth(1).click();
+    assert.equal((await focusRing(page)).focusVisible, false, "nach dem Mausklick auf den Chip kein Ring");
+    await page.keyboard.press("Shift+Tab");
+    const chipRing = await focusRing(page);
+    assert.match(chipRing.text, /^Alle/, "Chip: der Fokus steht auf Alle");
+    assert.equal(chipRing.focusVisible, true, "Chip: per Tastatur ist der Ring sichtbar");
+    assert.notEqual(chipRing.outlineStyle, "none", "Chip: der Ring wird gezeichnet");
+    assert.ok(chipRing.radius >= chipRing.height / 2, `Chip: Rundung wie die Pille (${chipRing.radius} px bei ${chipRing.height} px Höhe)`);
+  } finally {
+    await context.close();
+  }
+});
+
 const sheet = (page) => page.locator(".bottom-sheet.fixed-height");
 
 test("[layout] Sheet: 500 px hoch in allen Tabs mit 48 px Tabs, ˄ ˅ wechselt ohne Schließen, Kopf und Tabs bleiben beim Scrollen stehen, mit kleinerem --vvh schrumpft es", async () => {
