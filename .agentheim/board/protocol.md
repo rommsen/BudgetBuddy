@@ -5,6 +5,31 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 18:32 -- Batch started: [budgeting-f4k9n]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-f4k9n - "Muss-Befunde zu budgeting-g2ty9: ReturnFocus nimmt beim Tippen den Fokus, Walk der Rückfragen ohne getippten Betrag"
+**Parallel:** no (1 worker)
+
+---
+
+## 2026-11-04 18:32 -- Modeling / Promoted: budgeting-f4k9n - "Muss-Befunde zu budgeting-g2ty9: ReturnFocus nimmt beim Tippen den Fokus, Walk der Rückfragen ohne getippten Betrag"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-04 18:32 -- Modeling / Captured: budgeting-f4k9n - "Muss-Befunde zu budgeting-g2ty9: ReturnFocus nimmt beim Tippen den Fokus, Walk der Rückfragen ohne getippten Betrag"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Muss-Befunde der Reviews zu budgeting-g2ty9: Fokus-Rückgabe und Walk der Rückfragen.
+
+---
+
 ## 2026-11-04 18:28 -- Task verified and completed: budgeting-g2ty9 - "Review-Korrekturen im Target-Formular: Spinner am auslösenden Knopf, Fokus nach Abbrechen und Speichern bleibt, Datumsfeld nur lesend wie der Betrag, dazu die Befunde der Reviews zu Target anlegen"
 
 **Type:** Work / Task completion

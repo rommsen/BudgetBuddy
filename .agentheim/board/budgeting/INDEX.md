@@ -12,7 +12,7 @@ Catalog of this bounded context's tasks by status.
 <!-- task-counts:start -->
 - **Backlog:** 8
 - **Todo:** 0
-- **Doing:** 0
+- **Doing:** 1
 - **Done:** 27
 <!-- task-counts:end -->
 
@@ -22,6 +22,7 @@ Catalog of this bounded context's tasks by status.
 
 ### Doing
 <!-- doing-list:start -->
+- **budgeting-f4k9n** — "Muss-Befunde zu budgeting-g2ty9: ReturnFocus nimmt beim Tippen den Fokus, Walk der Rückfragen ohne getippten Betrag" (bug) — `doing/budgeting-f4k9n-fokus-rueckgabe-und-walk.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
