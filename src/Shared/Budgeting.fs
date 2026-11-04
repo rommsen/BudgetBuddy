@@ -29,6 +29,14 @@ let targetsAllowed (kind: MonthKind) : bool =
     | CurrentMonth
     | FutureMonth -> true
 
+/// Geht Target ändern, entfernen und anlegen in dieser Monatsart? Nur im laufenden Monat (ADR 0080
+/// Punkt 1): ein Target gilt ab dem Monat, in dem man es ändert. Pausieren bleibt `targetsAllowed`.
+let targetEditAllowed (kind: MonthKind) : bool =
+    match kind with
+    | CurrentMonth -> true
+    | PastMonth
+    | FutureMonth -> false
+
 /// In welchem Abstand ein Target wiederkehrt, in YNABs Kadenz gelesen (budgeting-kjsht).
 /// Die Zahl ist der Abstand: `Months 1` ist monatlich, `Months 3` alle 3 Monate.
 type TargetRhythm =
@@ -38,11 +46,34 @@ type TargetRhythm =
     /// Keine Kadenz: nur der Betrag wird gezeigt.
     | NoRhythm
 
+/// Die Art eines Targets aus YNABs `goal_type` (budgeting-k8wq3). BB erfindet keine eigene Art
+/// (ADR 0072 Punkt 2), ein unbekannter Wert bleibt als `OtherKind` lesbar.
+type TargetKind =
+    /// `NEED`: Monats-, Wochen- oder Jahres-Target ("Set aside another" oder "Refill up to").
+    | Need
+    /// `TB`: Guthaben erreichen.
+    | TargetBalance
+    /// `TBD`: Guthaben bis zu einem Datum.
+    | TargetBalanceByDate
+    /// `MF`: monatlich ansparen (ältere Form).
+    | MonthlyFunding
+    /// `DEBT`: Schulden tilgen.
+    | Debt
+    | OtherKind of goalType: string
+
 /// Das Target einer Kategorie, wie YNAB es liefert (`goal_target` und Kadenz). BB zeigt es nur
 /// an und rechnet nicht damit (ADR 0065): was fehlt, sagt der Fehlbetrag von YNAB.
 type Target = {
     Goal: Money
     Rhythm: TargetRhythm
+    /// Die Art aus `goal_type` (budgeting-k8wq3).
+    Kind: TargetKind
+    /// Das Datum aus `goal_target_date` als "YYYY-MM-DD", wie der Monatsschlüssel ein String.
+    Date: string option
+    /// `goal_needs_whole_amount`, nur gelesen: `Some false` heißt "Auffüllen bis" (F6).
+    NeedsWholeAmount: bool option
+    /// `goal_day`, nur gelesen. BB kann den Tag nicht schreiben (ADR 0072).
+    Day: int option
 }
 
 /// Eine Kategorie so, wie YNABs Monats-Endpunkt sie liefert (vor dem Gruppieren).
@@ -338,6 +369,88 @@ type TargetPauseRequest = {
 let PausePastMonthText = "Target pausieren geht in vergangenen Monaten nicht."
 
 // ============================================
+// Target ändern und entfernen (budgeting-k8wq3, ADR 0072, ADR 0080)
+// ============================================
+
+/// Ein Feld im PATCH eines Targets: `Keep` lässt es weg, `SetTo` setzt es, `Clear` sendet `null`.
+type FieldPatch<'T> =
+    | Keep
+    | SetTo of 'T
+    | Clear
+
+/// Der Rhythmus, den YNABs `goal_frequency` setzt. Er ersetzt das Target (ADR 0072 Punkt 4) und kommt
+/// erst mit budgeting-xp46a.
+type TargetFrequency =
+    | Weekly
+    | Monthly
+    | Yearly
+
+/// Ein PATCH auf `/budgets/{id}/categories/{id}`: nur die gesetzten Felder gehen hinaus (ADR 0072
+/// Punkt 3). `GoalTarget` in Milliunits, `TargetDate` als "YYYY-MM-DD".
+type TargetPatch = {
+    GoalTarget: FieldPatch<int64>
+    TargetDate: FieldPatch<string>
+    /// In budgeting-k8wq3 immer `None`.
+    Frequency: TargetFrequency option
+}
+
+/// Bleibt der Rhythmus, oder wird er gewechselt? Der Wechsel kommt mit budgeting-xp46a.
+type RhythmChoice =
+    | KeepRhythm
+    | SetRhythm of TargetFrequency
+
+/// Das gewünschte Target, wie das Formular es schickt.
+type TargetDraft = {
+    /// Der Betrag in Euro, 0 oder mehr.
+    NewGoal: Money
+    /// "YYYY-MM-DD", `None` heißt ohne Datum.
+    NewDate: string option
+    NewRhythm: RhythmChoice
+}
+
+/// Der Auftrag Target ändern oder entfernen. `Shown` ist das Target, das der Client gezeigt hat,
+/// `Wanted = None` heißt entfernen. Der Monat geht als eigener Parameter mit.
+type TargetChangeRequest = {
+    CategoryId: Guid
+    Shown: Target option
+    Wanted: TargetDraft option
+}
+
+/// Antwort auf Target ändern. Ein Fehler kommt als `Error` mit konkreter Meldung.
+type TargetChangeResult =
+    /// Geschrieben, oder YNAB stand schon auf dem Wunsch. Trägt das Target danach (`None`: entfernt).
+    | TargetWritten of Target option
+    /// YNAB stand anders als gezeigt: nichts gesendet, nichts festgehalten. Trägt den frischen Stand.
+    | TargetChangedInYnab of Target option
+
+/// Die Ablehnung außerhalb des laufenden Monats (ADR 0080 Punkt 1, `targetEditAllowed`).
+[<Literal>]
+let TargetEditMonthText = "Target ändern geht nur im laufenden Monat."
+
+/// Die Ablehnung eines Rhythmuswechsels in budgeting-k8wq3.
+[<Literal>]
+let TargetRhythmLaterText = "Den Rhythmus ändern kommt mit budgeting-xp46a."
+
+/// Die Ablehnung des Anlegens in budgeting-k8wq3.
+[<Literal>]
+let TargetCreateLaterText = "Ein Target anlegen kommt mit budgeting-xp46a."
+
+/// Ein Betrag als "1.234,50 €", ohne Kultur und ohne Format-String, gleich unter .NET und Fable.
+let euroText (money: Money) : string =
+    let cents = int64 (Math.Round(abs money.Amount * 100m, MidpointRounding.AwayFromZero))
+    let rec group (digits: string) =
+        if digits.Length <= 3 then digits else group digits.[.. digits.Length - 4] + "." + digits.[digits.Length - 3 ..]
+    let sign = if money.Amount < 0m && cents > 0L then "-" else ""
+    let rest = (string (cents % 100L)).PadLeft(2, '0')
+    $"{sign}{group (string (cents / 100L))},{rest} €"
+
+/// "2027-06-01" als "01.06.2027". Ein anderer Text bleibt, wie er ist.
+let dateText (iso: string) : string =
+    match iso.Split '-' with
+    | [| year; month; day |] when year.Length = 4 && month.Length = 2 && day.Length = 2 -> $"{day}.{month}.{year}"
+    | _ -> iso
+
+// ============================================
 // Historie je Kategorie (budgeting-dyn8g)
 // ============================================
 
@@ -388,11 +501,39 @@ type HistoryPause = {
     CategoryName: string
 }
 
-/// Ein Eintrag im Tab Historie: eine Budget-Bewegung oder ein Pause-Ereignis.
+/// Was eine Target-Änderung tat (budgeting-k8wq3). Anlegen kommt mit budgeting-xp46a.
+type TargetChangeKind =
+    /// Betrag, Datum oder beides geändert.
+    | TargetEdited
+    /// `goal_target: null`.
+    | TargetRemoved
+
+/// Eine festgehaltene Target-Änderung aus `target_changes`, mit ihrem jüngsten Ergebnis (ADR 0080
+/// Punkt 2). Keine Budget-Bewegung: das Zugewiesen bleibt.
+type HistoryTargetChange = {
+    ChangeId: Guid
+    /// Zeitpunkt des Festhaltens, UTC.
+    OccurredAt: DateTime
+    /// Der Monat der Änderung, immer der laufende, "YYYY-MM-01".
+    Month: string
+    CategoryId: Guid
+    CategoryName: string
+    ChangeKind: TargetChangeKind
+    GoalBefore: Money option
+    GoalAfter: Money option
+    /// "YYYY-MM-DD".
+    DateBefore: string option
+    DateAfter: string option
+    /// Das jüngste Ergebnis. `None`: noch keins angehängt.
+    Latest: LineOutcome option
+}
+
+/// Ein Eintrag im Tab Historie: eine Budget-Bewegung, ein Pause-Ereignis oder eine Target-Änderung.
 type HistoryEntry =
     | Movement of HistoryMovement
     | TargetPaused of HistoryPause
     | PauseLifted of HistoryPause
+    | TargetChanged of HistoryTargetChange
 
 /// Der Zeitpunkt eines Eintrags, nach dem die Historie ordnet.
 let historyEntryTime (entry: HistoryEntry) : DateTime =
@@ -400,6 +541,7 @@ let historyEntryTime (entry: HistoryEntry) : DateTime =
     | Movement m -> m.OccurredAt
     | TargetPaused p
     | PauseLifted p -> p.OccurredAt
+    | TargetChanged c -> c.OccurredAt
 
 /// Antwort der Historie für Kategorie und Monat.
 type CategoryHistory = {
@@ -428,7 +570,8 @@ type HistoryLine = {
     /// Was sich am Zugewiesen der Kategorie geändert hat: neu minus alt. Eine Pause hat keinen Betrag.
     Change: Money option
     /// Der Text hinter dem Betrag: "nach Urlaub", "von Lebensmittel", "zugewiesen",
-    /// "zurück nach Zu verteilen", "Targets anwenden", "Target pausiert", "Pause aufgehoben".
+    /// "zurück nach Zu verteilen", "Targets anwenden", "Target pausiert", "Pause aufgehoben",
+    /// "Target 50,00 € → 60,00 €", "Target entfernt".
     Text: string
     Status: HistoryStatus
 }
@@ -458,6 +601,23 @@ let historyLine (m: HistoryMovement) : HistoryLine =
       Text = text
       Status = historyStatus m.Latest }
 
+/// Der Text einer Target-Änderung: "Target 50,00 € → 60,00 €", "Datum 01.06.2027", "Datum entfernt",
+/// beides mit Komma getrennt, oder "Target entfernt".
+let targetChangeText (c: HistoryTargetChange) : string =
+    match c.ChangeKind with
+    | TargetRemoved -> "Target entfernt"
+    | TargetEdited ->
+        let amount (m: Money option) = m |> Option.map euroText |> Option.defaultValue "kein Betrag"
+        [ if c.GoalBefore <> c.GoalAfter then
+              $"Target {amount c.GoalBefore} → {amount c.GoalAfter}"
+          if c.DateBefore <> c.DateAfter then
+              match c.DateAfter with
+              | Some date -> $"Datum {dateText date}"
+              | None -> "Datum entfernt" ]
+        |> function
+            | [] -> "Target unverändert"
+            | parts -> String.concat ", " parts
+
 /// Eintrag zu Zeile. Eine Pause hat keinen Betrag, und ihr Stand ist immer geschrieben: sie geht nicht
 /// nach YNAB (ADR 0073 Punkt 5).
 let historyEntryLine (entry: HistoryEntry) : HistoryLine =
@@ -471,6 +631,12 @@ let historyEntryLine (entry: HistoryEntry) : HistoryLine =
     | Movement m -> historyLine m
     | TargetPaused p -> pauseLine p "Target pausiert"
     | PauseLifted p -> pauseLine p "Pause aufgehoben"
+    | TargetChanged c ->
+        { EntryId = c.ChangeId
+          OccurredAt = c.OccurredAt
+          Change = None
+          Text = targetChangeText c
+          Status = historyStatus c.Latest }
 
 let private lastSundayUtc (year: int) (month: int) : DateTime =
     let last = DateTime(year, month, DateTime.DaysInMonth(year, month), 0, 0, 0, DateTimeKind.Utc)

@@ -80,10 +80,12 @@
     <Compile Include="Components/Budget/Moves.fs" />
     <Compile Include="Components/Budget/Inspector.fs" />
     <Compile Include="Components/Budget/Pause.fs" />
+    <Compile Include="Components/Budget/TargetEdit.fs" />
     <Compile Include="Components/Budget/State.fs" />
     <Compile Include="Components/Budget/MonthView.fs" />
     <Compile Include="Components/Budget/TargetsView.fs" />
     <Compile Include="Components/Budget/MovesView.fs" />
+    <Compile Include="Components/Budget/TargetEditView.fs" />
     <Compile Include="Components/Budget/InspectorView.fs" />
     <Compile Include="Components/Budget/View.fs" />
 

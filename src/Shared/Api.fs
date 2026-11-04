@@ -543,6 +543,13 @@ type BudgetApi = {
     /// Ok trägt die Pause der Kategorie danach, Error eine lesbare Meldung, dann ist nichts geschrieben.
     setTargetPause: string -> Shared.Budgeting.TargetPauseRequest -> Async<Result<Shared.Budgeting.PauseSource option, string>>
 
+    /// Target ändern oder entfernen (budgeting-k8wq3, ADR 0072, ADR 0080) im Monat ("YYYY-MM-01"), nur im
+    /// laufenden. Unter der Sperre je Kategorie: liest den Monat frisch aus YNAB. Weicht das Target vom
+    /// gezeigten ab, wird nichts gesendet (`TargetChangedInYnab`). Sonst wird die Target-Änderung
+    /// festgehalten und nur das geänderte Feld nach YNAB gesendet. Error mit konkreter Meldung, auch
+    /// wenn YNAB ablehnt.
+    changeCategoryTarget: string -> Shared.Budgeting.TargetChangeRequest -> Async<Result<Shared.Budgeting.TargetChangeResult, string>>
+
     /// "Zuletzt verwendet" im Picker der Gegenseite: Kategorien aus den Bewegungen mit Herkunft
     /// Verschieben, neueste zuerst, höchstens zehn. Liest nur die Datenbank, kein YNAB.
     getRecentMoveCategories: unit -> Async<Result<System.Guid list, string>>

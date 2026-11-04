@@ -51,6 +51,7 @@
     <Compile Include="TargetsApplyTests.fs" />
     <Compile Include="MoveMoneyTests.fs" />
     <Compile Include="TargetPauseTests.fs" />
+    <Compile Include="TargetChangeTests.fs" />
     <Compile Include="SplitTransactionTests.fs" />
     <Compile Include="SplitPushTests.fs" />
     <Compile Include="ImportAskLenaTests.fs" />
@@ -133,6 +134,7 @@
     <Compile Include="TargetsApplyClientTests.fs" />
     <Compile Include="MoveMoneyClientTests.fs" />
     <Compile Include="TargetPauseClientTests.fs" />
+    <Compile Include="TargetChangeClientTests.fs" />
     <Compile Include="StatsAccentTests.fs" />
     <Compile Include="DesignSystemStartupTests.fs" />
     <Compile Include="TextGlowTokenTests.fs" />

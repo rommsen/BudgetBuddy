@@ -96,6 +96,7 @@ export const FLOWS = {
   "geld-verschieben": "Am Handy Geld von einer Kategorie an eine andere abgeben.",
   "verschiebung-erneut-senden": "Eine gescheiterte Verschiebung über den Toast erneut senden.",
   "targets-anwenden": "Die Targets eines Monats als Vorschau prüfen und übernehmen.",
+  "target-aendern": "Am Handy im Tab Target den Betrag eines Targets ändern und speichern.",
   "budget-zur-buchung": "Aus einer Kategorie im Budget in eine Buchung im Kassenbuch springen und zurück.",
   "kategorien-neu-laden": "Nach einem Ladefehler im Kategorie-Picker die Kategorien erneut laden.",
   "buchung-oeffnen": "Im Kassenbuch eine Buchung im Detail öffnen.",

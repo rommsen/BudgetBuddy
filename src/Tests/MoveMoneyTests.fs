@@ -166,7 +166,8 @@ type private FakeYnab(categories: (Guid * string * int64) list) =
                     | _ ->
                         assigned[id] <- milliunits
                         return Ok ()
-                } }
+                }
+          SetTarget = fun _ _ -> async { return failwith "schreibt kein Target" } }
 
 let private monthKey = "2026-11-01"
 let private now = DateTime(2026, 10, 30, 9, 0, 0, DateTimeKind.Utc)

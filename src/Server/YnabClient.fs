@@ -77,16 +77,35 @@ module Decoders =
         | c when c >= 3 && c <= 12 -> Shared.Budgeting.Months (c - 1)
         | _ -> Shared.Budgeting.NoRhythm
 
-    /// Das Target aus den `goal_*`-Feldern: ohne `goal_type` oder `goal_target` keins.
-    /// Fehlende Kadenz-Felder zählen wie Kadenz 0.
-    let private monthTarget (get: Decode.IGetters) : Shared.Budgeting.Target option =
+    /// Die Art aus `goal_type` (budgeting-k8wq3). Ein unbekannter Wert bleibt lesbar.
+    let targetKind (goalType: string) : Shared.Budgeting.TargetKind =
+        match goalType with
+        | "NEED" -> Shared.Budgeting.Need
+        | "TB" -> Shared.Budgeting.TargetBalance
+        | "TBD" -> Shared.Budgeting.TargetBalanceByDate
+        | "MF" -> Shared.Budgeting.MonthlyFunding
+        | "DEBT" -> Shared.Budgeting.Debt
+        | other -> Shared.Budgeting.OtherKind other
+
+    /// Das Target aus den `goal_*`-Feldern einer Kategorie: ohne `goal_type` oder `goal_target` keins.
+    /// Fehlende Kadenz-Felder zählen wie Kadenz 0. Monats- und Kategorie-Antwort teilen ihn
+    /// (budgeting-k8wq3): beide tragen dieselben Felder.
+    let goalTarget (get: Decode.IGetters) : Shared.Budgeting.Target option =
         let number name = get.Optional.Field name Decode.int |> Option.defaultValue 0
         match get.Optional.Field "goal_type" Decode.string, get.Optional.Field "goal_target" Decode.int64 with
         | Some goalType, Some amount ->
             Some
                 { Goal = milliunitsMoney amount
-                  Rhythm = targetRhythm goalType (number "goal_cadence") (number "goal_cadence_frequency") }
+                  Rhythm = targetRhythm goalType (number "goal_cadence") (number "goal_cadence_frequency")
+                  Kind = targetKind goalType
+                  Date = get.Optional.Field "goal_target_date" Decode.string
+                  NeedsWholeAmount = get.Optional.Field "goal_needs_whole_amount" Decode.bool
+                  Day = get.Optional.Field "goal_day" Decode.int }
         | _ -> None
+
+    /// Das Target aus der Antwort von `PATCH /budgets/{id}/categories/{id}` (`data.category`).
+    let categoryTargetDecoder : Decoder<Shared.Budgeting.Target option> =
+        Decode.field "data" (Decode.field "category" (Decode.object goalTarget))
 
     /// Eine Kategorie aus `GET /budgets/{id}/months/{month}` (budgeting-k7wmd).
     /// `goal_under_funded` ist `null` ohne Target (dann `None`), sonst der Fehlbetrag;
@@ -104,7 +123,7 @@ module Decoders =
                Available = get.Required.Field "balance" Decode.int64 |> milliunitsMoney
                Underfunded =
                    get.Optional.Field "goal_under_funded" Decode.int64 |> Option.map milliunitsMoney
-               Target = monthTarget get
+               Target = goalTarget get
                Snoozed =
                    get.Optional.Field "goal_snoozed_at" Decode.string |> Option.isSome
                Hidden = flag "hidden"
@@ -429,6 +448,19 @@ let interpretAssignResponse (monthKey: string) (status: int) (bodyText: string) 
     | 429 -> Error (YnabError.RateLimitExceeded 60)
     | other -> Error (YnabError.NetworkError $"HTTP {other}: {bodyText}")
 
+/// Der PATCH-Sender mit Token, geteilt von Zuweisen und Target schreiben.
+let private patchSender (token: string) (url: string) (body: string) : Async<int * string> =
+    async {
+        use client = new System.Net.Http.HttpClient()
+        use content = new System.Net.Http.StringContent(body, System.Text.Encoding.UTF8, "application/json")
+        use request = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Patch, url)
+        request.Headers.Authorization <- System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token)
+        request.Content <- content
+        let! response = client.SendAsync(request) |> Async.AwaitTask
+        let! bodyText = response.Content.ReadAsStringAsync() |> Async.AwaitTask
+        return int response.StatusCode, bodyText
+    }
+
 /// Naht für Tests: `send` bekommt Pfad und Body und liefert Statuscode und Antworttext. Eine
 /// Ausnahme (Netzfehler) wird zu `NetworkError`.
 let setAssignedWith
@@ -455,18 +487,90 @@ let setAssigned
     (categoryId: Guid)
     (milliunits: int64)
     : Async<YnabResult<unit>> =
-    let send (url: string) (body: string) =
-        async {
-            use client = new System.Net.Http.HttpClient()
-            use content = new System.Net.Http.StringContent(body, System.Text.Encoding.UTF8, "application/json")
-            use request = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Patch, url)
-            request.Headers.Authorization <- System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token)
-            request.Content <- content
-            let! response = client.SendAsync(request) |> Async.AwaitTask
-            let! bodyText = response.Content.ReadAsStringAsync() |> Async.AwaitTask
-            return int response.StatusCode, bodyText
-        }
-    setAssignedWith send budgetId monthKey categoryId milliunits
+    setAssignedWith (patchSender token) budgetId monthKey categoryId milliunits
+
+// ============================================
+// Target schreiben (budgeting-k8wq3, ADR 0072)
+// ============================================
+
+/// Der Pfad zum Target einer Kategorie: `/budgets/{id}/categories/{id}`. Er hat keinen Monat, das
+/// Target gilt für die Kategorie.
+let categoryUrl (budgetId: string) (categoryId: Guid) : string =
+    $"{baseUrl}/budgets/{budgetId}/categories/{categoryId}"
+
+let private frequencyText (frequency: Shared.Budgeting.TargetFrequency) : string =
+    match frequency with
+    | Shared.Budgeting.Weekly -> "weekly"
+    | Shared.Budgeting.Monthly -> "monthly"
+    | Shared.Budgeting.Yearly -> "yearly"
+
+/// Der Body eines Target-PATCH: `{"category":{...}}` nur mit den gesetzten Feldern (ADR 0072 Punkt 3).
+/// `Keep` fehlt, `Clear` ist `null`. Ein leerer Patch ist ein Fehler, dann geht nichts hinaus.
+let buildTargetBody (patch: Shared.Budgeting.TargetPatch) : Result<string, string> =
+    let field (name: string) (value: Shared.Budgeting.FieldPatch<'T>) (encode: 'T -> JsonValue) =
+        match value with
+        | Shared.Budgeting.Keep -> None
+        | Shared.Budgeting.SetTo v -> Some (name, encode v)
+        | Shared.Budgeting.Clear -> Some (name, Encode.nil)
+    let fields =
+        [ // Thoth schreibt int64 als String; YNAB verwirft dann still (wie beim Zuweisen). Also eine
+          // JSON-Zahl über int, Checked.int wirft über rund 2,1 Mio. Euro.
+          field "goal_target" patch.GoalTarget (fun milliunits -> Encode.int (Checked.int milliunits))
+          field "goal_target_date" patch.TargetDate Encode.string
+          patch.Frequency |> Option.map (fun f -> "goal_frequency", Encode.string (frequencyText f)) ]
+        |> List.choose id
+    if List.isEmpty fields then
+        Error "Leerer Target-Patch: es gibt nichts zu senden."
+    else
+        Ok (Encode.object [ "category", Encode.object fields ] |> Encode.toString 0)
+
+/// YNABs Fehlertext aus `{"error":{"detail":...}}`, sonst der ganze Body.
+let private errorDetail (bodyText: string) : string =
+    let detail = Decode.field "error" (Decode.field "detail" Decode.string)
+    match Decode.fromString detail bodyText with
+    | Ok text when not (String.IsNullOrWhiteSpace text) -> text
+    | _ -> bodyText
+
+/// Ordnet die Antwort von `PATCH /budgets/{id}/categories/{id}` zu. 200 liefert das Target danach,
+/// 400 YNABs `error.detail`, 404 heißt Kategorie nicht gefunden (der Pfad hat keinen Monat).
+let interpretTargetResponse (categoryId: Guid) (status: int) (bodyText: string) : YnabResult<Shared.Budgeting.Target option> =
+    match status with
+    | 200 ->
+        match Decode.fromString Decoders.categoryTargetDecoder bodyText with
+        | Ok target -> Ok target
+        | Error err -> Error (unreadableResponse "category" err)
+    | 400 -> Error (YnabError.InvalidResponse (errorDetail bodyText))
+    | 401 -> Error (YnabError.Unauthorized "Invalid YNAB Personal Access Token")
+    | 404 -> Error (YnabError.CategoryNotFound (string categoryId))
+    | 429 -> Error (YnabError.RateLimitExceeded 60)
+    | other -> Error (YnabError.NetworkError $"HTTP {other}: {errorDetail bodyText}")
+
+/// Naht für Tests wie `setAssignedWith`. Ein leerer Patch sendet nichts.
+let setCategoryTargetWith
+    (send: string -> string -> Async<int * string>)
+    (budgetId: string)
+    (categoryId: Guid)
+    (patch: Shared.Budgeting.TargetPatch)
+    : Async<YnabResult<Shared.Budgeting.Target option>> =
+    async {
+        match buildTargetBody patch with
+        | Error message -> return Error (YnabError.InvalidResponse message)
+        | Ok body ->
+            try
+                let! status, bodyText = send (categoryUrl budgetId categoryId) body
+                return interpretTargetResponse categoryId status bodyText
+            with ex ->
+                return Error (YnabError.NetworkError $"Failed to set category target: {ex.Message}")
+    }
+
+/// Schreibt das Target einer Kategorie (ein PATCH, nur die gesetzten Felder).
+let setCategoryTarget
+    (token: string)
+    (YnabBudgetId budgetId: YnabBudgetId)
+    (categoryId: Guid)
+    (patch: Shared.Budgeting.TargetPatch)
+    : Async<YnabResult<Shared.Budgeting.Target option>> =
+    setCategoryTargetWith (patchSender token) budgetId categoryId patch
 
 /// Die Kategorien aus `GET /budgets/{id}/categories`, flach mit Gruppennamen.
 let interpretCategoriesResponse (budgetId: string) (status: int) (bodyText: string) : YnabResult<YnabCategory list> =

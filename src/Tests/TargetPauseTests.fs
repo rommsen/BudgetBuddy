@@ -17,7 +17,7 @@ open Server.Budgeting.CommandHandlers
 
 let private eur (amount: decimal) : Money = { Amount = amount; Currency = "EUR" }
 
-let private target : Target = { Goal = eur 100m; Rhythm = Months 1 }
+let private target : Target = { Goal = eur 100m; Rhythm = Months 1; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None }
 
 let private run x = Async.RunSynchronously x
 
@@ -152,7 +152,8 @@ type private FakeYnab(categories: (Guid * string * decimal * bool * bool * bool)
                 async {
                     this.Writes.Add((id, milliunits))
                     return Ok ()
-                } }
+                }
+          SetTarget = fun _ _ -> async { return failwith "schreibt kein Target" } }
 
 let private current = "2026-11-01"
 let private now = DateTime(2026, 11, 4, 9, 0, 0, DateTimeKind.Utc)
@@ -324,7 +325,8 @@ let private flowTests =
                     |> List.map (function
                         | Movement m -> "Bewegung", m.MovementId
                         | TargetPaused p -> "pausiert", p.EventId
-                        | PauseLifted p -> "aufgehoben", p.EventId)
+                        | PauseLifted p -> "aufgehoben", p.EventId
+                        | TargetChanged c -> "Target", c.ChangeId)
                 Expect.equal ids [ "aufgehoben", p4.Id; "Bewegung", m3.Id; "pausiert", p2.Id; "Bewegung", m1.Id ] "gemischt, neueste zuerst"
             | Error e -> failtest e
     ]

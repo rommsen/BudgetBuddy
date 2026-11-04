@@ -13,10 +13,12 @@ open Server.Budgeting.Domain
 open Budgeting.Persistence
 
 /// Was die Abläufe von YNAB brauchen. `FetchMonth` liest den Monat roh (`YnabMonth`),
-/// `SetAssigned month categoryId milliunits` setzt das Zugewiesen absolut (ein PATCH).
+/// `SetAssigned month categoryId milliunits` setzt das Zugewiesen absolut (ein PATCH),
+/// `SetTarget categoryId patch` schreibt das Target der Kategorie und liefert es danach (budgeting-k8wq3).
 type YnabPort = {
     FetchMonth: string -> Async<YnabResult<YnabMonth>>
     SetAssigned: string -> Guid -> int64 -> Async<YnabResult<unit>>
+    SetTarget: Guid -> TargetPatch -> Async<YnabResult<Target option>>
 }
 
 let private isRateLimit (error: YnabError) =
@@ -37,6 +39,22 @@ module internal MonthGuard =
     let exclusive (month: string) (work: Async<'a>) : Async<'a> =
         async {
             let gate = gates.GetOrAdd(month, fun _ -> new SemaphoreSlim(1, 1))
+            do! gate.WaitAsync() |> Async.AwaitTask
+            try
+                return! work
+            finally
+                gate.Release() |> ignore
+        }
+
+/// Zwei Target-Änderungen derselben Kategorie laufen nicht ineinander (ADR 0080 Punkt 5): die zweite
+/// wartet und sieht danach den Stand der ersten. Das Target gilt für alle Monate, deshalb ist der
+/// Schlüssel die Kategorie, nicht der Monat. `internal`, damit ein Test die Sperre halten kann.
+module internal TargetGuard =
+    let private gates = ConcurrentDictionary<Guid, SemaphoreSlim>()
+
+    let exclusive (categoryId: Guid) (work: Async<'a>) : Async<'a> =
+        async {
+            let gate = gates.GetOrAdd(categoryId, fun _ -> new SemaphoreSlim(1, 1))
             do! gate.WaitAsync() |> Async.AwaitTask
             try
                 return! work
@@ -326,6 +344,107 @@ let setTargetPause
                     | None -> ()
                     return Ok (Ok plan.After)
         })
+
+// ============================================
+// Target ändern und entfernen (budgeting-k8wq3, ADR 0072, ADR 0080)
+// ============================================
+
+/// Grund der übrigen Schritte, wenn ein früherer scheiterte (ADR 0080 Punkt 4).
+[<Literal>]
+let TargetStepHeldBack = "Voriger Schritt nicht geschrieben, nicht gesendet"
+
+/// Die festzuhaltende Zeile eines Patches, vom gezeigten Target aus.
+let private targetChangeOf
+    (now: DateTime)
+    (monthKey: string)
+    (category: YnabMonthCategory)
+    (shown: Target)
+    (kind: TargetChangeKind)
+    (patch: TargetPatch)
+    : TargetChange =
+    let oldGoal = Some (toMilliunits shown.Goal)
+    let newGoal, newDate =
+        match kind with
+        | TargetRemoved -> None, None
+        | TargetEdited ->
+            let goal =
+                match patch.GoalTarget with
+                | Keep -> oldGoal
+                | SetTo value -> Some value
+                | Clear -> None
+            let date =
+                match patch.TargetDate with
+                | Keep -> shown.Date
+                | SetTo value -> Some value
+                | Clear -> None
+            goal, date
+    { Id = Guid.NewGuid()
+      OccurredAt = now
+      Month = monthKey
+      CategoryId = category.Id
+      CategoryName = category.Name.Trim()
+      Kind = kind
+      OldGoalTarget = oldGoal
+      NewGoalTarget = newGoal
+      OldDate = shown.Date
+      NewDate = newDate }
+
+/// Target ändern oder entfernen (ADR 0080). Außerhalb des laufenden Monats, bei einem Rhythmuswechsel und
+/// beim Anlegen wird vor allem anderen abgelehnt, ohne YNAB zu lesen. Sonst unter der Sperre je Kategorie:
+/// den Monat frisch lesen und das Target suchen. Weicht es vom gezeigten ab, gewinnt YNAB: nichts gesendet,
+/// nichts festgehalten (`TargetChangedInYnab`). Steht YNAB schon auf dem Wunsch, ebenso nichts. Sonst die
+/// Schritte in einer Transaktion festhalten, dann der Reihe nach senden, je Schritt ein Ergebnis. Kein
+/// Erneut-Senden: ein Fehlschlag kommt als innerer `Error` mit YNABs Meldung. Außen `Error`: der Monat
+/// war nicht lesbar. `currentMonth` ist der laufende Monat ("YYYY-MM-01").
+let changeTarget
+    (port: YnabPort)
+    (now: DateTime)
+    (currentMonth: string)
+    (monthKey: string)
+    (request: TargetChangeRequest)
+    : Async<Result<Result<TargetChangeResult, string>, YnabError>> =
+    if not (targetEditAllowed (monthKind currentMonth monthKey)) then
+        async { return Ok (Error TargetEditMonthText) }
+    else
+        match targetChangeSupported request with
+        | Error message -> async { return Ok (Error message) }
+        | Ok () ->
+            TargetGuard.exclusive request.CategoryId (async {
+                match! port.FetchMonth monthKey with
+                | Error e -> return Error e
+                | Ok raw ->
+                    match raw.Categories |> List.tryFind (fun c -> c.Id = request.CategoryId && isVisible c) with
+                    | None ->
+                        return
+                            Ok (Error $"Die Kategorie {request.CategoryId} ist im Monat {monthKey} nicht sichtbar (ausgeblendet oder nicht vorhanden).")
+                    | Some category when category.Target <> request.Shown ->
+                        return Ok (Ok (TargetChangedInYnab category.Target))
+                    | Some category ->
+                        match request.Shown with
+                        | None -> return Ok (Ok (TargetWritten None))
+                        | Some shown ->
+                            match planTargetWrite shown request.Wanted with
+                            | Error message -> return Ok (Error message)
+                            | Ok [] -> return Ok (Ok (TargetWritten category.Target))
+                            | Ok patches ->
+                                let kind = targetChangeKindOf request.Wanted
+                                let steps = patches |> List.map (fun p -> targetChangeOf now monthKey category shown kind p, p)
+                                do! appendTargetChanges (steps |> List.map fst)
+                                let outcome : Result<Target option, string> ref = ref (Ok category.Target)
+                                for change, patch in steps do
+                                    match outcome.Value with
+                                    | Error _ -> do! appendTargetChangeResult change.Id now (Failed TargetStepHeldBack)
+                                    | Ok _ ->
+                                        match! port.SetTarget category.Id patch with
+                                        | Ok after ->
+                                            do! appendTargetChangeResult change.Id now Written
+                                            outcome.Value <- Ok after
+                                        | Error e ->
+                                            let reason = ynabErrorText e
+                                            do! appendTargetChangeResult change.Id now (Failed reason)
+                                            outcome.Value <- Error reason
+                                return Ok (outcome.Value |> Result.map TargetWritten)
+            })
 
 // ============================================
 // Fehlgeschlagene erneut senden

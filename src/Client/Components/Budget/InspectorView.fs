@@ -269,23 +269,33 @@ let private moneyTab (model: Model) (month: BudgetMonth) (category: BudgetCatego
         ]
     ]
 
-/// Tab Target: Target, Status mit Quelle der Pause, Fehlbetrag und derselbe Pause-Knopf wie im Tab Geld.
+/// Status mit Quelle der Pause, Fehlbetrag und der Pause-Knopf unter dem Target.
+let private targetStatus (model: Model) (category: BudgetCategory) (dispatch: Msg -> unit) =
+    React.fragment [
+        match targetStatusText category with
+        | Some status -> detailFigure "target-status" "Status" (Html.span [ prop.className ListRoles.secondary; prop.text status ])
+        | None -> ()
+        match targetUnderfunded category with
+        | Some under -> detailFigure "target-underfunded" "Fehlbetrag" (detailAmount under)
+        | None -> ()
+        pauseControlView model category dispatch
+    ]
+
+/// Tab Target: im laufenden Monat das Formular (budgeting-k8wq3), sonst das Target als Text, dazu Status mit
+/// Quelle der Pause, Fehlbetrag und derselbe Pause-Knopf wie im Tab Geld.
 let private targetTab (model: Model) (category: BudgetCategory) (dispatch: Msg -> unit) =
     Html.div [
         prop.custom ("data-testid", "inspector-target")
         prop.className "flex flex-col gap-4 p-4"
         prop.children [
-            match category.Target with
-            | None -> Html.p [ prop.className ListRoles.muted; prop.text "Kein Target" ]
-            | Some target ->
-                detailFigure "target-goal" "Target" (Html.span [ prop.className ListRoles.primary; prop.text (targetText target) ])
-                match targetStatusText category with
-                | Some status -> detailFigure "target-status" "Status" (Html.span [ prop.className ListRoles.secondary; prop.text status ])
-                | None -> ()
-                match targetUnderfunded category with
-                | Some under -> detailFigure "target-underfunded" "Fehlbetrag" (detailAmount under)
-                | None -> ()
-                pauseControlView model category dispatch
+            match Components.Budget.TargetEdit.targetTabMode model category with
+            | Components.Budget.TargetEdit.NoTargetShown -> Html.p [ prop.className ListRoles.muted; prop.text "Kein Target" ]
+            | Components.Budget.TargetEdit.TargetEditable (target, form) ->
+                Components.Budget.TargetEditView.editableTarget model category target form dispatch
+                targetStatus model category dispatch
+            | Components.Budget.TargetEdit.TargetReadOnly target ->
+                Components.Budget.TargetEditView.readOnlyTarget target
+                targetStatus model category dispatch
         ]
     ]
 

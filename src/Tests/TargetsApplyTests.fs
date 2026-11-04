@@ -99,14 +99,14 @@ let private planTests =
         }
         // budgeting-kjsht
         test "Das Target der Kategorie steht in der Zeile der Vorschau" {
-            let target : Target = { Goal = eur 1600000L; Rhythm = Months 1 }
+            let target : Target = { Goal = eur 1600000L; Rhythm = Months 1; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None }
             let p = planOk (monthOf 50000L [ { category "A" 0L (Some 10000L) false with Target = Some target } ])
             Expect.equal p.Lines.Head.Target (Some target) "Target übernommen"
         }
         test "Ein geändertes Target allein löst kein Stand hat sich geändert aus" {
             let a = category "A" 0L (Some 10000L) false
-            let before = planOk (monthOf 50000L [ { a with Target = Some { Goal = eur 10000L; Rhythm = Months 1 } } ])
-            let after = planOk (monthOf 50000L [ { a with Target = Some { Goal = eur 99000L; Rhythm = Weeks 1 } } ])
+            let before = planOk (monthOf 50000L [ { a with Target = Some { Goal = eur 10000L; Rhythm = Months 1; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None } } ])
+            let after = planOk (monthOf 50000L [ { a with Target = Some { Goal = eur 99000L; Rhythm = Weeks 1; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None } } ])
             Expect.notEqual before.Lines.Head.Target after.Lines.Head.Target "Target weicht ab"
             Expect.isTrue (Domain.previewsMatch before after) "Vorschau gilt weiter"
         }
@@ -168,7 +168,8 @@ let private ynabTests =
 
 let private fakePortWith (result: YnabResult<unit>) : YnabPort =
     { FetchMonth = fun _ -> async { return Error (YnabError.RateLimitExceeded 60) }
-      SetAssigned = fun _ _ _ -> async { return result } }
+      SetAssigned = fun _ _ _ -> async { return result }
+      SetTarget = fun _ _ -> async { return failwith "schreibt kein Target" } }
 
 let private apiTests =
     let run port = async { return! Server.Budgeting.CommandHandlers.preview port "2026-11-01" }
@@ -263,7 +264,8 @@ type private FakeYnab(initial: (Guid * string * int64 * int64 * bool) list, tbb0
                     | _ ->
                         assigned[id] <- milliunits
                         return Ok ()
-                } }
+                }
+          SetTarget = fun _ _ -> async { return failwith "schreibt kein Target" } }
 
 /// Frische Ids je Test, damit gemeinsame Tabellen sich nicht in die Quere kommen.
 /// Reihenfolge der Zeilen: A (0 auf 50), B (20 auf 70), E (0 auf 10); C ist pausiert, D erfüllt.

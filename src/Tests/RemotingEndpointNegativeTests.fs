@@ -356,7 +356,8 @@ let private rows : Row list = [
           // Mit Einrichtung, ein Fake-YNAB ohne Kategorien: kein Netz, die Kategorie ist unbekannt.
           let empty : Server.Budgeting.CommandHandlers.YnabPort =
               { FetchMonth = fun month -> async { return Ok { Month = month; ToBeBudgeted = { Amount = 0m; Currency = "EUR" }; Categories = [] } }
-                SetAssigned = fun _ _ _ -> async { return failwith "Pausieren schreibt nicht nach YNAB" } }
+                SetAssigned = fun _ _ _ -> async { return failwith "Pausieren schreibt nicht nach YNAB" }
+                SetTarget = fun _ _ -> async { return failwith "kein Target-Schreiben erwartet" } }
           let frame _ _ : Server.Budgeting.QueryHandlers.BudgetFramePort =
               { FetchMonths = (fun () -> async { return Ok [] }); FetchCategoryOrder = (fun () -> async { return Ok [] }) }
           let configured =
@@ -367,6 +368,22 @@ let private rows : Row list = [
                   (fun () -> DateTime(2026, 11, 4, 9, 0, 0, DateTimeKind.Utc))
                   (TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin")
           configured.setTargetPause "2026-11-01" request |> run |> expectError "unbekannte Kategorie" }
+    { Endpoint = "BudgetApi.changeCategoryTarget"; Case = "leere Kategorie, Betrag am Rand von decimal, vergangener und künftiger Monat: Fehler statt Ausnahme"
+      Run = fun () ->
+          let shown : Shared.Budgeting.Target =
+              { Goal = { Amount = 50m; Currency = "EUR" }; Rhythm = Shared.Budgeting.Months 1; Kind = Shared.Budgeting.Need
+                Date = None; NeedsWholeAmount = None; Day = None }
+          let request (goal: decimal) : Shared.Budgeting.TargetChangeRequest =
+              { CategoryId = Guid.Empty
+                Shown = Some shown
+                Wanted = Some { NewGoal = { Amount = goal; Currency = "EUR" }; NewDate = None; NewRhythm = Shared.Budgeting.KeepRhythm } }
+          let zone = TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin"
+          let berlinMonth = Server.Budgeting.Domain.currentMonthKey (Server.Api.berlinToday zone DateTime.UtcNow)
+          budget.changeCategoryTarget berlinMonth (request Decimal.MaxValue) |> run |> expectError "leere Kategorie, Rand von decimal"
+          for month in [ "2020-01-01"; "2099-01-01" ] do
+              match budget.changeCategoryTarget month { request 60m with CategoryId = Guid.NewGuid() } |> run with
+              | Error message -> Expect.stringContains message "nur im laufenden Monat" month
+              | Ok _ -> failtest $"{month} hätte abgelehnt werden müssen" }
     { Endpoint = "BudgetApi.getRecentMoveCategories"; Case = "ohne Einrichtung eine Liste, keine Ausnahme"
       Run = fun () -> Expect.isOk (budget.getRecentMoveCategories () |> run) "liest nur die Datenbank" }
     { Endpoint = "BudgetApi.getCategoryHistory"; Case = "ungültiger Monat: Fehler, unbekannte Kategorie: leere Historie"

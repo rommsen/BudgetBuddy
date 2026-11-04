@@ -67,6 +67,8 @@ type HistoryPort = {
     LoadMonthlyActivity: Guid -> DateTime list -> Async<(DateTime * Money) list>
     /// Kategorie und Monat ("YYYY-MM-01"): die Pause-Ereignisse, neueste zuerst (budgeting-t6p8z).
     LoadPauseEvents: Guid -> string -> Async<HistoryEntry list>
+    /// Kategorie und Monat: die Target-Änderungen, neueste zuerst (budgeting-k8wq3).
+    LoadTargetChanges: Guid -> string -> Async<HistoryTargetChange list>
 }
 
 /// Die Bewegungen zum Filter. Grundlage der Historie je Kategorie und der allgemeinen (budgeting-h7q4v).
@@ -79,7 +81,8 @@ let movements (port: HistoryPort) (filter: MovementFilter) : Async<Result<Histor
             return Error "Budget-Bewegungen nicht lesbar"
     }
 
-/// Der Tab Historie für Kategorie und Monat (Monatserster): die Bewegungen und Pause-Ereignisse der
+/// Der Tab Historie für Kategorie und Monat (Monatserster): die Bewegungen, Pause-Ereignisse und
+/// Target-Änderungen der
 /// Kategorie im Monat, gemischt und neueste zuerst, und die Ausgaben der 6 Monate bis einschließlich
 /// dieses Monats.
 let categoryHistory (port: HistoryPort) (categoryId: Guid) (firstDay: DateTime) : Async<Result<CategoryHistory, string>> =
@@ -99,13 +102,23 @@ let categoryHistory (port: HistoryPort) (categoryId: Guid) (firstDay: DateTime) 
                         logReadFailure "Pause-Ereignisse lesen" ex
                         return Error "Pause-Ereignisse nicht lesbar"
                 }
-            match pauses with
-            | Error message -> return Error message
-            | Ok pauses ->
+            let! changes =
+                async {
+                    try
+                        let! changes = port.LoadTargetChanges categoryId monthKey
+                        return Ok changes
+                    with ex ->
+                        logReadFailure "Target-Änderungen lesen" ex
+                        return Error "Target-Änderungen nicht lesbar"
+                }
+            match pauses, changes with
+            | Error message, _
+            | _, Error message -> return Error message
+            | Ok pauses, Ok changes ->
                 let months = spendingMonths firstDay
                 try
                     let! sums = port.LoadMonthlyActivity categoryId months
-                    let entries = mergeHistoryEntries found pauses
+                    let entries = mergeHistoryWithTargetChanges (mergeHistoryEntries found pauses) changes
                     return Ok { Entries = entries; Spending = spendingOf months sums }
                 with ex ->
                     logReadFailure "Ausgaben aus dem Kassenbuch lesen" ex
@@ -116,5 +129,6 @@ let categoryHistory (port: HistoryPort) (categoryId: Guid) (firstDay: DateTime) 
 let liveHistoryPort : HistoryPort =
     { LoadMovements = Budgeting.Persistence.loadMovements
       LoadPauseEvents = Budgeting.Persistence.loadPauseEvents
+      LoadTargetChanges = Budgeting.Persistence.loadTargetChanges
       LoadMonthlyActivity =
         fun categoryId months -> Ledger.QueryHandlers.getCategoryMonthlyActivity (YnabCategoryId categoryId) months }

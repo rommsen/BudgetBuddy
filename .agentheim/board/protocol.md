@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 14:33 -- Task verified and completed: budgeting-k8wq3 - "Target ändern und entfernen im Tab Target: Betrag und Datum, nur geänderte Felder nach YNAB, Abgleich mit dem gezeigten Stand, konkrete Meldung bei Ablehnung, Aufzeichnung als Target-Änderung in der Historie"
+
+**Type:** Work / Task completion
+**Task:** budgeting-k8wq3 - "Target ändern und entfernen im Tab Target: Betrag und Datum, nur geänderte Felder nach YNAB, Abgleich mit dem gezeigten Stand, konkrete Meldung bei Ablehnung, Aufzeichnung als Target-Änderung in der Historie"
+**Summary:** Target ändern und entfernen im laufenden Monat, nur geänderte Felder nach YNAB, Target-Änderung in der Historie
+**Duration:** 62m
+**Verification:** PASS (iteration 1)
+**Files changed:** 34
+**Tests added:** 51
+**ADRs written:** none
+
+---
+
 ## 2026-11-04 14:30 -- Modeling / Promoted: budgeting-h7q4v - "Allgemeine Budget-Historie #/budget/history: alle Bewegungen, neueste zuerst, Filter nach Art, Targets-Durchlauf aufklappbar, Knopf Historie im Seitenkopf"
 
 **Type:** Modeling / Promote

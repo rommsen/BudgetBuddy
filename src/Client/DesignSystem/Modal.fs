@@ -332,7 +332,7 @@ let confirmDanger
             ]
         ]
         footer [
-            Button.ghost "Cancel" onCancel
+            Button.ghost "Abbrechen" onCancel
             Button.danger confirmText onConfirm
         ]
     ]

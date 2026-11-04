@@ -28,7 +28,7 @@ const monthFixture = () => ({
     {
       Name: "Alltag h2zfn",
       Categories: [
-        { Id: guid(1), Name: "Essen h2zfn", Assigned: eur(0), Activity: eur(0), Available: eur(0), Underfunded: eur(300), Target: { Goal: eur(300), Rhythm: { Months: 1 } }, Pause: null },
+        { Id: guid(1), Name: "Essen h2zfn", Assigned: eur(0), Activity: eur(0), Available: eur(0), Underfunded: eur(300), Target: { Goal: eur(300), Rhythm: { Months: 1 }, Kind: "Need", Date: null, NeedsWholeAmount: true, Day: null }, Pause: null },
       ],
     },
   ],
@@ -41,7 +41,7 @@ const line = (n, name, oldA, under) => ({
   OldAssigned: eur(oldA),
   Underfunded: eur(under),
   NewAssigned: eur(oldA + under),
-  Target: { Goal: eur(1600), Rhythm: { Months: 1 } },
+  Target: { Goal: eur(1600), Rhythm: { Months: 1 }, Kind: "Need", Date: null, NeedsWholeAmount: true, Day: null },
 });
 
 const previewFixture = (count, toBeBudgeted = 5000) => {

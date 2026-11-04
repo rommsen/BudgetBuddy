@@ -893,7 +893,7 @@ let private returnTests =
 
 // ---------------- Targets sichtbar (budgeting-kjsht) ----------------
 
-let private targetOf (amount: decimal) rhythm : Target = { Goal = eur amount; Rhythm = rhythm }
+let private targetOf (amount: decimal) rhythm : Target = { Goal = eur amount; Rhythm = rhythm; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None }
 
 let private targetCategory (target: Target) (under: decimal option) (snoozed: bool) : BudgetCategory =
     { detailCategoryFixture with

@@ -73,7 +73,8 @@ let private statusFromText (status: string) (reason: string) : LineOutcome optio
         | other -> failwith $"Unbekannter Ergebnis-Status der Budget-Bewegung: {other}"
 
 /// Legt die Tabellen an (`CREATE ... IF NOT EXISTS`, wiederholbar). Die Trigger machen alle
-/// Tabellen append-only, auch `target_pause_events` (budgeting-t6p8z, ADR 0079). Läuft beim Start hinter `Ledger.Persistence.initializeLedgerSchema`.
+/// Tabellen append-only, auch `target_pause_events` (budgeting-t6p8z, ADR 0079) und die Target-Änderungen
+/// (budgeting-k8wq3, ADR 0080). Läuft beim Start hinter `Ledger.Persistence.initializeLedgerSchema`.
 let initializeBudgetingSchema () =
     use conn = Core.getConnection ()
     conn.Execute(
@@ -119,6 +120,35 @@ let initializeBudgetingSchema () =
         BEGIN SELECT RAISE(ABORT, 'target_pause_events ist append-only'); END;
         CREATE TRIGGER IF NOT EXISTS target_pause_events_no_delete BEFORE DELETE ON target_pause_events
         BEGIN SELECT RAISE(ABORT, 'target_pause_events ist append-only'); END;
+        CREATE TABLE IF NOT EXISTS target_changes (
+            id TEXT PRIMARY KEY,
+            occurred_at TEXT NOT NULL,
+            month TEXT NOT NULL,
+            category_id TEXT NOT NULL,
+            category_name TEXT NOT NULL,
+            change_kind TEXT NOT NULL,
+            old_goal_target INTEGER,
+            new_goal_target INTEGER,
+            old_date TEXT,
+            new_date TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_target_changes_category ON target_changes (category_id, month);
+        CREATE TABLE IF NOT EXISTS target_change_results (
+            sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+            change_id TEXT NOT NULL,
+            occurred_at TEXT NOT NULL,
+            status TEXT NOT NULL,
+            reason TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_target_change_results_change ON target_change_results (change_id);
+        CREATE TRIGGER IF NOT EXISTS target_changes_no_update BEFORE UPDATE ON target_changes
+        BEGIN SELECT RAISE(ABORT, 'target_changes ist unveränderlich'); END;
+        CREATE TRIGGER IF NOT EXISTS target_changes_no_delete BEFORE DELETE ON target_changes
+        BEGIN SELECT RAISE(ABORT, 'target_changes ist unveränderlich'); END;
+        CREATE TRIGGER IF NOT EXISTS target_change_results_no_update BEFORE UPDATE ON target_change_results
+        BEGIN SELECT RAISE(ABORT, 'target_change_results ist append-only'); END;
+        CREATE TRIGGER IF NOT EXISTS target_change_results_no_delete BEFORE DELETE ON target_change_results
+        BEGIN SELECT RAISE(ABORT, 'target_change_results ist append-only'); END;
         """
     )
     |> ignore
@@ -388,4 +418,124 @@ let loadPauseEvents (categoryId: Guid) (month: string) : Async<HistoryEntry list
     async {
         use conn = Core.getConnection ()
         return queryPauseEvents conn categoryId month
+    }
+
+// ============================================
+// Target ändern und entfernen (budgeting-k8wq3, ADR 0080)
+// ============================================
+
+/// Eine festgehaltene Target-Änderung. Beträge in Milliunits, Datum "YYYY-MM-DD". `None`, wo kein
+/// Target oder kein Datum steht.
+type TargetChange = {
+    Id: Guid
+    OccurredAt: DateTime
+    /// Der laufende Monat, "YYYY-MM-01".
+    Month: string
+    CategoryId: Guid
+    CategoryName: string
+    Kind: TargetChangeKind
+    OldGoalTarget: int64 option
+    NewGoalTarget: int64 option
+    OldDate: string option
+    NewDate: string option
+}
+
+let private orDbNull (value: 'a option) : obj =
+    match value with
+    | Some v -> box v
+    | None -> null
+
+/// Hält die Schritte einer Target-Änderung in einer Transaktion fest (ADR 0080 Punkt 4). Erst danach
+/// darf der PATCH hinausgehen.
+let appendTargetChanges (changes: TargetChange list) : Async<unit> =
+    async {
+        use conn = Core.getConnection ()
+        conn.Open()
+        use tx = conn.BeginTransaction()
+        for c in changes do
+            conn.Execute(
+                "INSERT INTO target_changes (id, occurred_at, month, category_id, category_name, change_kind, \
+                    old_goal_target, new_goal_target, old_date, new_date) \
+                 VALUES (@id, @occurred_at, @month, @category_id, @category_name, @change_kind, \
+                    @old_goal_target, @new_goal_target, @old_date, @new_date)",
+                {| id = string c.Id
+                   occurred_at = dateToText c.OccurredAt
+                   month = c.Month
+                   category_id = string c.CategoryId
+                   category_name = c.CategoryName
+                   change_kind = targetChangeKindText c.Kind
+                   old_goal_target = orDbNull c.OldGoalTarget
+                   new_goal_target = orDbNull c.NewGoalTarget
+                   old_date = orDbNull c.OldDate
+                   new_date = orDbNull c.NewDate |},
+                tx
+            )
+            |> ignore
+        tx.Commit()
+    }
+
+/// Hängt ein Ergebnis an eine Target-Änderung an. Frühere Ergebnisse bleiben stehen.
+let appendTargetChangeResult (changeId: Guid) (at: DateTime) (outcome: LineOutcome) : Async<unit> =
+    async {
+        let status, reason = statusToText outcome
+        use conn = Core.getConnection ()
+        conn.Execute(
+            "INSERT INTO target_change_results (change_id, occurred_at, status, reason) VALUES (@change_id, @occurred_at, @status, @reason)",
+            {| change_id = string changeId; occurred_at = dateToText at; status = status; reason = reason |}
+        )
+        |> ignore
+    }
+
+[<CLIMutable>]
+type private TargetChangeRow = {
+    id: string
+    occurred_at: string
+    month: string
+    category_id: string
+    category_name: string
+    change_kind: string
+    old_goal_target: int64 option
+    new_goal_target: int64 option
+    old_date: string option
+    new_date: string option
+    status: string
+    reason: string
+}
+
+/// Die Target-Änderungen einer Kategorie im Monat für die Historie, neueste zuerst, je mit dem jüngsten
+/// Ergebnis. Eine unbekannte Art wird gemeldet (`failwith`), nicht auf einen Standard gelegt.
+let queryTargetChanges (conn: SqliteConnection) (categoryId: Guid) (month: string) : HistoryTargetChange list =
+    conn.Query<TargetChangeRow>(
+        "SELECT c.id, c.occurred_at, c.month, c.category_id, c.category_name, c.change_kind, \
+                c.old_goal_target, c.new_goal_target, c.old_date, c.new_date, r.status, r.reason \
+         FROM target_changes c \
+         LEFT JOIN target_change_results r \
+           ON r.sequence = (SELECT MAX(sequence) FROM target_change_results WHERE change_id = c.id) \
+         WHERE c.category_id = @category_id AND c.month = @month \
+         ORDER BY c.occurred_at DESC, c.rowid DESC",
+        {| category_id = string categoryId; month = month |}
+    )
+    |> Seq.map (fun r ->
+        let kind =
+            match targetChangeKindOfText r.change_kind with
+            | Ok k -> k
+            | Error message -> failwith message
+        { ChangeId = Guid.Parse r.id
+          OccurredAt = dateFromText r.occurred_at
+          Month = r.month
+          CategoryId = Guid.Parse r.category_id
+          CategoryName = r.category_name
+          ChangeKind = kind
+          GoalBefore = r.old_goal_target |> Option.map euroOfMilliunits
+          GoalAfter = r.new_goal_target |> Option.map euroOfMilliunits
+          DateBefore = r.old_date
+          DateAfter = r.new_date
+          Latest = statusFromText r.status r.reason })
+    |> Seq.toList
+
+/// Die Target-Änderungen für die Historie. Liest nur die Datenbank, kein YNAB.
+let loadTargetChanges (categoryId: Guid) (month: string) : Async<HistoryTargetChange list> =
+    async {
+        use conn = Core.getConnection ()
+        return queryTargetChanges conn categoryId month
     }

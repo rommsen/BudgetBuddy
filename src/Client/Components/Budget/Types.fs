@@ -136,6 +136,33 @@ type PauseCall =
     /// gezeigt werden.
     | PauseRejected of categoryId: System.Guid * month: string * message: string
 
+/// Was über dem Formular im Tab Target steht, nachdem eine Antwort kam (budgeting-k8wq3).
+type TargetNotice =
+    /// YNAB stand anders als gezeigt: das Formular zeigt den frischen Stand, die Eingabe ist verworfen.
+    | TargetChangedNotice
+    /// Der Server oder YNAB lehnte ab, mit der konkreten Meldung. Die Eingabe bleibt stehen.
+    | TargetRejectedNotice of message: string
+
+/// Das Formular im Tab Target (budgeting-k8wq3, ADR 0080). Hält Kategorie und Monat: es gilt nur, solange
+/// beide gezeigt werden und der Monat der laufende ist (`syncTargetForm`). Ein Wechsel verwirft die Eingabe.
+type TargetForm = {
+    CategoryId: System.Guid
+    Month: string
+    /// Eingabe im Betragsfeld. `None`, solange nichts getippt wurde: dann gilt das geladene Target.
+    AmountInput: string option
+    /// Eingabe im Datumsfeld. `None`, solange nichts geändert wurde: dann gilt das Datum des Targets.
+    DateInput: DateField.DateEntry option
+    /// "Target entfernen" wurde getippt, die Bestätigung steht offen.
+    ConfirmingRemove: bool
+    Notice: TargetNotice option
+}
+
+/// Der Aufruf Target ändern oder entfernen. Trägt Kategorie und Monat: die Antwort wirkt nur auf sie.
+/// Er sperrt weder Auswahl noch Monatswechsel.
+type TargetCall =
+    | TargetIdle
+    | TargetSaving of categoryId: System.Guid * month: string
+
 /// Filter über der Liste neben der Suche.
 type CategoryFilter =
     | AllCategories
@@ -217,6 +244,10 @@ type Model = {
     OpenRetries: OpenMoveRetry list
     /// Target pausieren oder Pause aufheben.
     PauseCall: PauseCall
+    /// Das Formular im Tab Target, nur im laufenden Monat und mit Target (budgeting-k8wq3).
+    TargetForm: TargetForm option
+    /// Target ändern oder entfernen.
+    TargetCall: TargetCall
     /// Die gewählte Kategorie. Filter und Suche wirken nur auf die Liste, sie bleibt gewählt.
     Selected: SelectedCategory option
     /// Der Tab des Inspektors. Bleibt bei Kategorie- und Monatswechsel stehen.
@@ -325,6 +356,20 @@ type Msg =
     | SetTargetPause of paused: bool
     /// Antwort auf Pausieren oder Aufheben, mit Kategorie und Monat des Aufrufs.
     | TargetPauseAnswered of categoryId: System.Guid * month: string * Result<PauseSource option, string>
+    /// Eingabe im Betragsfeld des Tabs Target.
+    | TargetAmountChanged of string
+    /// Eingabe im Datumsfeld des Tabs Target.
+    | TargetDateChanged of DateField.DateEntry
+    /// Der Knopf "Target speichern".
+    | SaveTarget
+    /// Der Knopf "Target entfernen": die Bestätigung öffnen.
+    | AskRemoveTarget
+    /// Entfernen bestätigt.
+    | ConfirmRemoveTarget
+    /// Entfernen abgebrochen.
+    | CancelRemoveTarget
+    /// Antwort auf Ändern oder Entfernen, mit Kategorie und Monat des Aufrufs.
+    | TargetChangeAnswered of categoryId: System.Guid * month: string * Result<TargetChangeResult, string>
 
 /// Was die Seite an die App meldet (wie im Kassenbuch).
 type ExternalMsg =
@@ -348,6 +393,8 @@ let init () : Model =
       RecentCounterparts = NotAsked
       OpenRetries = []
       PauseCall = PauseIdle
+      TargetForm = None
+      TargetCall = TargetIdle
       Selected = None
       Tab = MoneyTab
       EntriesGeneration = 0

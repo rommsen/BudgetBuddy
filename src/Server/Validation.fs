@@ -275,6 +275,48 @@ let validateTargetPauseRequest
 
     if errors.IsEmpty then Ok () else Error errors
 
+/// Ist der Text ein echtes Datum "YYYY-MM-DD"?
+let private isIsoDate (text: string) : bool =
+    match DateTime.TryParseExact(text, "yyyy-MM-dd", Globalization.CultureInfo.InvariantCulture, Globalization.DateTimeStyles.None) with
+    | true, _ -> true
+    | _ -> false
+
+/// Prüft den Auftrag Target ändern oder entfernen (budgeting-k8wq3, ADR 0080) vor allem anderen, auch ohne
+/// Einrichtung, und sammelt alle Fehler: ungültiger, vergangener oder künftiger Monat (`current` ist der
+/// laufende), leere Kategorie, und am Wunsch Betrag negativ, nicht auf den Cent, über der Obergrenze,
+/// nicht in EUR und ein Datum, das nicht "YYYY-MM-DD" ist. Rhythmus und Anlegen prüft der Ablauf.
+let validateTargetChange
+    (current: string)
+    (monthKey: string)
+    (request: Shared.Budgeting.TargetChangeRequest)
+    : Result<unit, string list> =
+    let errors =
+        [ match validateMonthKey monthKey with
+          | Error message -> message
+          | Ok month ->
+              if not (Shared.Budgeting.targetEditAllowed (Shared.Budgeting.monthKind current month)) then
+                  Shared.Budgeting.TargetEditMonthText
+          if request.CategoryId = Guid.Empty then
+              "Die Kategorie fehlt."
+          match request.Wanted with
+          | None -> ()
+          | Some draft ->
+              let goal = draft.NewGoal
+              if goal.Currency <> "EUR" then
+                  $"Ein Target gilt nur in EUR, nicht in '{goal.Currency}'."
+              if goal.Amount < 0m then
+                  "Der Betrag des Targets darf nicht negativ sein."
+              elif goal.Amount > MaxBudgetAmount then
+                  "Der Betrag ist zu groß, höchstens 1.000.000,00 € gehen."
+              elif not (Shared.Budgeting.isOnTenMilliunits goal) then
+                  "Der Betrag des Targets geht nur auf den Cent genau."
+              match draft.NewDate with
+              | Some date when not (isIsoDate date) ->
+                  $"Ungültiges Datum: '{date}'. Erwartet wird JJJJ-MM-TT."
+              | _ -> () ]
+
+    if errors.IsEmpty then Ok () else Error errors
+
 // ============================================
 // Bot-Schnittstelle (ledger-b0b7q, ADR 0066)
 // ============================================

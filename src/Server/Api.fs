@@ -1845,6 +1845,29 @@ let setTargetPauseWith
             return result |> Result.bind id
     }
 
+/// Der Weg von Target ändern und entfernen ohne Settings und Netz (budgeting-k8wq3, ADR 0080). Geprüft
+/// wird vor allem anderen: ein vergangener oder künftiger Monat liest YNAB nicht. `today` ist der
+/// Kalendertag in Berlin für die Monatsart, `now` stempelt die Target-Änderung (UTC).
+let changeCategoryTargetWith
+    (tokenOpt: string option)
+    (budgetOpt: string option)
+    (portFor: string -> YnabBudgetId -> Server.Budgeting.CommandHandlers.YnabPort)
+    (today: DateOnly)
+    (now: DateTime)
+    (monthKeyText: string)
+    (request: Shared.Budgeting.TargetChangeRequest)
+    : Async<Result<Shared.Budgeting.TargetChangeResult, string>> =
+    async {
+        let current = Server.Budgeting.Domain.currentMonthKey today
+        match Validation.validateTargetChange current monthKeyText request with
+        | Error errors -> return Error (String.concat " " errors)
+        | Ok () ->
+            let! result =
+                withYnabPort tokenOpt budgetOpt portFor (fun port ->
+                    Server.Budgeting.CommandHandlers.changeTarget port now current monthKeyText request)
+            return result |> Result.bind id
+    }
+
 /// Der Tab Historie ohne feste Lese-Quellen (budgeting-dyn8g). Die Grenze prüft wie beim
 /// Kategorie-Detail und meldet alle Fehler zugleich; eine unbekannte Kategorie ist kein Fehler, sie hat
 /// keine Bewegungen und keine Ausgaben.
@@ -1858,10 +1881,11 @@ let categoryHistoryWith
         | Ok firstDay -> return! Server.Budgeting.QueryHandlers.categoryHistory port query.CategoryId firstDay
     }
 
-/// Der YNAB-Port der Server-Abläufe: echter Client für Lesen und Zuweisen.
+/// Der YNAB-Port der Server-Abläufe: echter Client für Lesen, Zuweisen und Target schreiben.
 let private livePort (token: string) (budgetId: YnabBudgetId) : Server.Budgeting.CommandHandlers.YnabPort =
     { FetchMonth = fun monthKey -> YnabClient.getMonth token budgetId monthKey
-      SetAssigned = fun monthKey categoryId milliunits -> YnabClient.setAssigned token budgetId monthKey categoryId milliunits }
+      SetAssigned = fun monthKey categoryId milliunits -> YnabClient.setAssigned token budgetId monthKey categoryId milliunits
+      SetTarget = fun categoryId patch -> YnabClient.setCategoryTarget token budgetId categoryId patch }
 
 /// Die Lese-Quellen des Rahmens (budgeting-g8s3w): echter Client für Monatsfenster und Reihenfolge.
 let private liveFramePort (token: string) (budgetId: YnabBudgetId) : Server.Budgeting.QueryHandlers.BudgetFramePort =
@@ -1939,6 +1963,11 @@ let budgetApiWith
       setTargetPause = fun monthKeyText request -> async {
         let! tokenOpt, budgetOpt = ynabSettings ()
         return! setTargetPauseWith tokenOpt budgetOpt portFor (today ()) (utcNow ()) monthKeyText request
+      }
+
+      changeCategoryTarget = fun monthKeyText request -> async {
+        let! tokenOpt, budgetOpt = ynabSettings ()
+        return! changeCategoryTargetWith tokenOpt budgetOpt portFor (today ()) (utcNow ()) monthKeyText request
       }
 
       getRecentMoveCategories = fun () -> Server.Budgeting.QueryHandlers.recentMoveCategories ()

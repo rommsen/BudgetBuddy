@@ -35,6 +35,8 @@ type OptionHandler<'T>() =
 do
     SqlMapper.AddTypeHandler(OptionHandler<string>())
     SqlMapper.AddTypeHandler(OptionHandler<DateTime>())
+    // `target_changes` trägt nullbare Milliunits (budgeting-k8wq3).
+    SqlMapper.AddTypeHandler(OptionHandler<int64>())
 
 // ============================================
 // Configuration (Lazy-loaded for test isolation)

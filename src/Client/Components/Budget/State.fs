@@ -12,6 +12,7 @@ open Components.Budget.Targets
 open Components.Budget.Moves
 open Components.Budget.Inspector
 open Components.Budget.Pause
+open Components.Budget.TargetEdit
 open Types
 open Client
 
@@ -101,6 +102,15 @@ let private pauseCmd (monthKey: string) (request: TargetPauseRequest) : Cmd<Msg>
     let answer result = TargetPauseAnswered (request.CategoryId, monthKey, result)
     Cmd.OfAsync.either
         (fun () -> Api.budget.setTargetPause monthKey request)
+        ()
+        answer
+        (fun ex -> answer (Error ex.Message))
+
+// Schreibt nach YNAB, deshalb nicht über `Retry`. Die Antwort trägt Kategorie und Monat des Aufrufs.
+let private targetChangeCmd (monthKey: string) (request: TargetChangeRequest) : Cmd<Msg> =
+    let answer result = TargetChangeAnswered (request.CategoryId, monthKey, result)
+    Cmd.OfAsync.either
+        (fun () -> Api.budget.changeCategoryTarget monthKey request)
         ()
         answer
         (fun ex -> answer (Error ex.Message))
@@ -304,6 +314,32 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
                     answered, Cmd.none
             if pauseAnswerShown categoryId month reread then afterMovement (reread, cmd, NoOp)
             else reread, cmd, NoOp
+    | TargetAmountChanged text -> typeTargetAmount text model, Cmd.none, NoOp
+    | TargetDateChanged entry -> typeTargetDate entry model, Cmd.none, NoOp
+    | SaveTarget ->
+        match startTargetSave model with
+        | model', Some (monthKey, request) -> model', targetChangeCmd monthKey request, NoOp
+        | model', None -> model', Cmd.none, NoOp
+    | AskRemoveTarget -> askRemoveTarget model, Cmd.none, NoOp
+    | CancelRemoveTarget -> cancelRemoveTarget model, Cmd.none, NoOp
+    | ConfirmRemoveTarget ->
+        match startTargetRemove model with
+        | model', Some (monthKey, request) -> model', targetChangeCmd monthKey request, NoOp
+        | model', None -> model', Cmd.none, NoOp
+    | TargetChangeAnswered (categoryId, month, result) ->
+        let shown = targetAnswerShown categoryId month model
+        let answered, reread = applyTargetAnswered categoryId month result model
+        let external =
+            match result with
+            | Error message when not shown -> ShowToast (targetRejectedAwayText message, ToastWarning)
+            | _ -> NoOp
+        if reread then
+            // YNAB rechnet den Fehlbetrag neu: still neu lesen, bis dahin ist der Fehlbetrag-Knopf gesperrt.
+            let rereading, how = rereadMonth answered
+            let cmd = rereadCmd how rereading
+            if shown then afterMovement (rereading, cmd, external) else rereading, cmd, external
+        else
+            answered, Cmd.none, external
     | MoveAnswered result ->
         let model', external, reload = applyMoveAnswered result model
         afterMovementWhen reload (model', afterAnswer reload (frameDueAfterAnswer result model) model', external)
@@ -392,6 +428,13 @@ let private routeOf (msg: Msg) (model: Model) : MsgRoute =
     | CategoryHistoryReloaded _
     | SetTargetPause _
     | TargetPauseAnswered _
+    | TargetAmountChanged _
+    | TargetDateChanged _
+    | SaveTarget
+    | AskRemoveTarget
+    | ConfirmRemoveTarget
+    | CancelRemoveTarget
+    | TargetChangeAnswered _
     | OpenEntryInLedger _ -> MsgRoute.Free
 
 /// Speichert die offene Eingabe, dann wirkt die Nachricht. Der Toast zur Eingabe geht vor.
@@ -438,7 +481,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         | MsgRoute.Left -> leaveThen msg model
         | MsgRoute.TouchesField
         | MsgRoute.Free -> transition msg model
-    let synced = syncMoneyTab (syncPause model')
+    let synced = syncTargetForm (syncMoneyTab (syncPause model'))
     let external' = if entryDropped model' synced && external = NoOp then droppedEntryToast else external
     let flushed, sendCmd = flushAssign synced
     flushed, Cmd.batch [ cmd; sendCmd ], external'

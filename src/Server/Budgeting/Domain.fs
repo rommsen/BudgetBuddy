@@ -176,6 +176,57 @@ let planPause (month: BudgetMonth) (request: TargetPauseRequest) : Result<PauseP
               Event = event
               After = pauseSourceOf (pausedInYnab c.Pause) request.Paused }
 
+// ============================================
+// Target ändern und entfernen (budgeting-k8wq3, ADR 0072, ADR 0080)
+// ============================================
+
+/// Lehnt ab, was budgeting-k8wq3 noch nicht kann, bevor YNAB gelesen wird: einen Rhythmuswechsel und
+/// das Anlegen (`Shown = None` mit Wunsch). Rein.
+let targetChangeSupported (request: TargetChangeRequest) : Result<unit, string> =
+    match request.Shown, request.Wanted with
+    | _, Some { NewRhythm = SetRhythm _ } -> Error TargetRhythmLaterText
+    | None, Some _ -> Error TargetCreateLaterText
+    | _ -> Ok ()
+
+/// Die Patches vom gezeigten zum gewünschten Target (ADR 0072 Punkt 3, ADR 0080 Punkt 3): nur Felder, die
+/// abweichen. Betrag ist nur `goal_target`, Datum nur `goal_target_date`, Entfernen `goal_target: null`.
+/// Nie `goal_frequency`, nie `goal_needs_whole_amount`. Ohne Abweichung eine leere Liste. Gilt für jede
+/// Art gleich (ADR 0072 Punkt 2). Rein.
+let planTargetWrite (shown: Target) (wanted: TargetDraft option) : Result<TargetPatch list, string> =
+    match wanted with
+    | None -> Ok [ { GoalTarget = Clear; TargetDate = Keep; Frequency = None } ]
+    | Some { NewRhythm = SetRhythm _ } -> Error TargetRhythmLaterText
+    | Some draft ->
+        let goal =
+            if toMilliunits draft.NewGoal = toMilliunits shown.Goal then Keep
+            else SetTo (toMilliunits draft.NewGoal)
+        let date =
+            match shown.Date, draft.NewDate with
+            | before, after when before = after -> Keep
+            | _, Some date -> SetTo date
+            | _, None -> Clear
+        match goal, date with
+        | Keep, Keep -> Ok []
+        | _ -> Ok [ { GoalTarget = goal; TargetDate = date; Frequency = None } ]
+
+/// Die Art der Target-Änderung aus dem Wunsch: kein Wunsch heißt entfernen.
+let targetChangeKindOf (wanted: TargetDraft option) : TargetChangeKind =
+    match wanted with
+    | None -> TargetRemoved
+    | Some _ -> TargetEdited
+
+/// Der Text in `target_changes.change_kind`.
+let targetChangeKindText (kind: TargetChangeKind) : string =
+    match kind with
+    | TargetEdited -> "Geändert"
+    | TargetRemoved -> "Entfernt"
+
+/// Liest die Spalte. Ein unbekannter Text wird gemeldet, nicht auf einen Standard gelegt.
+let targetChangeKindOfText (text: string) : Result<TargetChangeKind, string> =
+    match [ TargetEdited; TargetRemoved ] |> List.tryFind (fun k -> targetChangeKindText k = text) with
+    | Some kind -> Ok kind
+    | None -> Error $"Unbekannte Art einer Target-Änderung: {text}"
+
 /// Stimmt die frisch geplante Vorschau mit der gezeigten überein? Verglichen werden die Zeilen
 /// (Kategorie, altes und neues Zugewiesen) und Zu verteilen; Namen und Reihenfolge der
 /// pausierten Zeilen zählen nicht.
@@ -363,3 +414,8 @@ let spendingOf (months: DateTime list) (sums: (DateTime * Money) list) : MonthSp
 /// ist stabil.
 let mergeHistoryEntries (movements: HistoryMovement list) (pauses: HistoryEntry list) : HistoryEntry list =
     (movements |> List.map Movement) @ pauses |> List.sortByDescending historyEntryTime
+
+/// Dazu die Target-Änderungen (budgeting-k8wq3), ebenso neueste zuerst. Bei gleichem Zeitpunkt stehen
+/// Bewegungen und Pausen vorn.
+let mergeHistoryWithTargetChanges (entries: HistoryEntry list) (changes: HistoryTargetChange list) : HistoryEntry list =
+    entries @ (changes |> List.map TargetChanged) |> List.sortByDescending historyEntryTime
