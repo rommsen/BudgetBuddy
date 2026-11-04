@@ -39,3 +39,11 @@ Nutzt die Bewegungs-Abfrage und die Zeilenbausteine aus budgeting-dyn8g. Lesend,
 
 ## Notes
 Entscheidungen (Roman, 2026-10-29) aus budgeting-dyn8g: eigene Ansicht, kompakte Zeilen, Targets anwenden als eine aufklappbare Zeile. Hängt an infrastructure-b3t9k, weil der Browser-Happy-Path für den neuen Nutzerfluss erst mit der neuen Regel für Browser-Tests entschieden wird.
+
+## Hinweise aus den Reviews vom 2026-11-04 (mit erledigen)
+Die Reviews zu budgeting-t6p8z, budgeting-v6m3z und budgeting-k8wq3 haben Befunde zu den Historienzeilen, die diese Task ohnehin umbaut. Sie gehören hierher, nicht nach budgeting-r3wq8 (das parallel läuft und die Zeilen nicht anfasst):
+- H1: Pause-Zeilen und Target-Änderungs-Zeilen tragen heute den Stand "geschrieben", obwohl eine Pause nie nach YNAB geht (`historyEntryLine` in `src/Shared/Budgeting.fs`, `historyStatusView` in `InspectorView.fs`). Pause-Zeilen zeigen keinen Stand, nur die Uhrzeit (etwa `Status: HistoryStatus option` oder ein Fall, der nichts rendert). Target-Änderungen behalten ihren echten Stand (geschrieben, fehlgeschlagen).
+- H2: `historyLineView` ruft `Money.signedListAmount` direkt, der Test prüft `Inspector.historyChangeText`, das die View nicht benutzt. Eine reine Funktion liefert Text und Klasse des Betrags (etwa `historyChangeAmount: Money -> string * string`), die View rendert nur ihr Ergebnis, der Test in `BudgetHistoryClientTests.fs` prüft sie, `historyChangeText` fällt weg. Gegenprobe: View auf `Money.listAmount` zurückstellen muss rot werden. Eine Null-Bewegung zeigt kein Vorzeichen.
+- H3: Die Überschrift "Bewegungen" im Tab Historie deckt Pausen und Target-Änderungen nicht mehr ab, etwa "Verlauf". Der Leertext gilt nur, wenn die Liste wirklich leer ist.
+- H4 (kann): `mergeHistoryEntries` und `mergeHistoryWithTargetChanges` sortieren doppelt; eine Funktion `mergeHistory movements pauses changes` mit einem stabilen Sortieren (Gleichstand: Bewegung vor Pause, mit Test).
+- Die allgemeine Historie zeigt auch Pausen und Target-Änderungen als eigene Arten im Filter, falls sinnvoll; sonst im Outcome begründen, warum nur die drei Bewegungsarten.

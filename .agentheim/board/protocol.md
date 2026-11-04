@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-04 14:38 -- Modeling / Captured: budgeting-r3wq8 - "Review-Korrekturen zu Target pausieren, Tab Historie und Target ändern: Eingabe beim Speichern bleibt, Pause-Aufrufe lesen bei Abbruch neu, ein Name je Pause-Ereignis, Absicht statt Bool, Fokus und Rollen der Balken, fehlende Tests"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** todo
+**Summary:** Review-Befunde zu t6p8z, v6m3z und k8wq3 (Roman: selbstständig beheben).
+
+---
+
 ## 2026-11-04 14:33 -- Task verified and completed: budgeting-k8wq3 - "Target ändern und entfernen im Tab Target: Betrag und Datum, nur geänderte Felder nach YNAB, Abgleich mit dem gezeigten Stand, konkrete Meldung bei Ablehnung, Aufzeichnung als Target-Änderung in der Historie"
 
 **Type:** Work / Task completion

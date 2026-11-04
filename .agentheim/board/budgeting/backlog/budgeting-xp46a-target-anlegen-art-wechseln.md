@@ -6,7 +6,7 @@ type: feature
 context: budgeting
 created: 2026-11-04
 completed:
-depends_on: [design-system-001, budgeting-k8wq3]
+depends_on: [design-system-001, budgeting-k8wq3, budgeting-r3wq8]
 blocks: []
 tags: [budget, target, ynab-write]
 related_adrs: [0072, 0074, 0080]
