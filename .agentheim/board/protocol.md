@@ -17,7 +17,7 @@ Newest entries on top.
 
 **Type:** Modeling / Refine
 **BC:** budgeting
-**Status after:** todo (qm5x9, dgrp7, dkjc5)
+**Status after:** qm5x9 todo; dgrp7 und dkjc5 verfeinert im backlog, Promote erst nach erledigter Abhängigkeit (Gate verlangt done)
 **Summary:** qm5x9 präzisiert (Vorabprüfung unter der Sperre vor YNAB, tryProcessedCommandOn, Antworten je Befehl aus dem Stream, CommandId in TargetPreview, Target ändern erst mit eh8xe). dgrp7 neu geschnitten: Faltung mit bestätigtem Stand und höchstens einer offenen Rückschreibung, Echo-Regel, Lesen über observeMonth mit einem YNAB-Aufruf, Befehle auf das Soll, Anwenden lehnt bei offener Rückschreibung ab. dgrp7 hängt an qm5x9. Entscheidungen von Roman: Target-Id mit eh8xe, Soll mit Markierung, Anwenden ablehnen, Umschalten mit dem Deploy, Raster nur für gesendete Werte, dgrp7 und dkjc5 nur zusammen deployen, 1 Monat je Minute.
 **Split into:** budgeting-dkjc5 (Hintergrund-Übernahme)
 **ADRs written:** Nachtrag zu ADR 0084
