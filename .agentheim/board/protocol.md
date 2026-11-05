@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 09:21 -- Modeling / Promoted: budgeting-p2zr6 - "Targets prüfen, Regel und Daten: reine Einordnungsfunktion in Shared.Budgeting und Endpoint getTargetCheck mit einer Kassenbuch-Abfrage für alle Kategorien und der letzten Target-Änderung je Kategorie"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-05 09:21 -- Modeling / Refined: budgeting-p2zr6 - Targets prüfen
 
 **Type:** Modeling / Refine
