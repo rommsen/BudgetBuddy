@@ -168,6 +168,12 @@ let validate (request: AppendRequest) : string list =
                     yield "Actor-Art ist leer"
                 if isNull event.Payload then
                     yield $"Payload von '{event.EventType}' fehlt"
+                // Die Tabelle ist append-only: ein Zeitpunkt ohne UTC ließe sich nie mehr korrigieren
+                // und sortierte als Text anders als die übrigen (ADR 0083 Abschnitt 1).
+                if event.OccurredAt.Kind <> DateTimeKind.Utc then
+                    yield $"Zeitpunkt von '{event.EventType}' ist nicht UTC"
+                if event.SchemaVersion < 1 then
+                    yield $"Schema-Version von '{event.EventType}' ist kleiner als 1"
     ]
 
 /// Ein Anhängen mit Formfehlern; es wurde nichts geschrieben.
@@ -255,66 +261,65 @@ let appendOn
     | Some firstPosition -> CommandAlreadyProcessed firstPosition
     | None ->
         let commandIdText = request.CommandId |> Option.map (fun g -> g.ToString("D"))
-        let mutable versions : Map<string, int64> = Map.empty
+        // Letzte vergebene Version je Stream in diesem Anhängen; nur der erste Zugriff liest die Tabelle.
+        let versions = Collections.Generic.Dictionary<string, int64>()
+        let eventIds = ResizeArray<string>()
 
-        let eventIds =
-            [
-                for stream in request.Streams do
-                    let streamId = streamIdOf request.Context stream.Aggregate stream.Id
+        for stream in request.Streams do
+            let streamId = streamIdOf request.Context stream.Aggregate stream.Id
 
-                    for event in stream.Events do
-                        let version =
-                            match Map.tryFind streamId versions with
-                            | Some v -> v + 1L
-                            | None ->
-                                conn.ExecuteScalar<int64>(
-                                    "SELECT COALESCE(MAX(stream_version), 0) FROM events WHERE stream_id = @stream_id",
-                                    {| stream_id = streamId |},
-                                    tx
-                                )
-                                + 1L
-
-                        versions <- Map.add streamId version versions
-                        let eventId = Guid.NewGuid().ToString("D")
-
-                        conn.Execute(
-                            """INSERT INTO events
-                                 (event_id, context, stream_id, stream_version, occurred_at, actor_kind,
-                                  actor_ref, event_type, schema_version, payload, command_id)
-                               VALUES
-                                 (@event_id, @context, @stream_id, @stream_version, @occurred_at, @actor_kind,
-                                  @actor_ref, @event_type, @schema_version, @payload, @command_id)""",
-                            {|
-                                event_id = eventId
-                                context = request.Context
-                                stream_id = streamId
-                                stream_version = version
-                                occurred_at = dateToText event.OccurredAt
-                                actor_kind = event.ActorKind
-                                actor_ref = orNull event.ActorRef
-                                event_type = event.EventType
-                                schema_version = event.SchemaVersion
-                                payload = event.Payload
-                                command_id = orNull commandIdText
-                            |},
+            for event in stream.Events do
+                let version =
+                    match versions.TryGetValue streamId with
+                    | true, v -> v + 1L
+                    | false, _ ->
+                        conn.ExecuteScalar<int64>(
+                            "SELECT COALESCE(MAX(stream_version), 0) FROM events WHERE stream_id = @stream_id",
+                            {| stream_id = streamId |},
                             tx
                         )
-                        |> ignore
+                        + 1L
 
-                        yield eventId
-            ]
+                versions[streamId] <- version
+                let eventId = Guid.NewGuid().ToString("D")
+
+                conn.Execute(
+                    """INSERT INTO events
+                         (event_id, context, stream_id, stream_version, occurred_at, actor_kind,
+                          actor_ref, event_type, schema_version, payload, command_id)
+                       VALUES
+                         (@event_id, @context, @stream_id, @stream_version, @occurred_at, @actor_kind,
+                          @actor_ref, @event_type, @schema_version, @payload, @command_id)""",
+                    {|
+                        event_id = eventId
+                        context = request.Context
+                        stream_id = streamId
+                        stream_version = version
+                        occurred_at = dateToText event.OccurredAt
+                        actor_kind = event.ActorKind
+                        actor_ref = orNull event.ActorRef
+                        event_type = event.EventType
+                        schema_version = event.SchemaVersion
+                        payload = event.Payload
+                        command_id = orNull commandIdText
+                    |},
+                    tx
+                )
+                |> ignore
+
+                eventIds.Add eventId
 
         // Einmal zurückgelesen statt aus den Eingaben gebaut: so sieht der Aufrufer genau das,
         // was gespeichert ist, samt der von SQLite vergebenen position.
         let recorded =
-            if List.isEmpty eventIds then
+            if eventIds.Count = 0 then
                 []
             else
                 conn.Query<StoredEventRow>(
                     """SELECT position, event_id, context, stream_id, stream_version, occurred_at, actor_kind,
                               actor_ref, event_type, schema_version, payload, command_id
                        FROM events WHERE event_id IN @event_ids ORDER BY position""",
-                    {| event_ids = Array.ofList eventIds |},
+                    {| event_ids = eventIds.ToArray() |},
                     tx
                 )
                 |> Seq.map rowToRecorded
@@ -344,14 +349,10 @@ let append (request: AppendRequest) (applyReadModels: ApplyReadModels) : Async<A
         conn.Open()
         use tx = conn.BeginTransaction()
 
-        try
-            let result = appendOn conn tx request applyReadModels
-            tx.Commit()
-            return result
-        with ex ->
-            tx.Rollback()
-            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex).Throw()
-            return Unchecked.defaultof<_>
+        // Ohne Commit rollt das Dispose von `tx` zurück, auch bei einer Ausnahme.
+        let result = appendOn conn tx request applyReadModels
+        tx.Commit()
+        return result
     }
 
 // ============================================

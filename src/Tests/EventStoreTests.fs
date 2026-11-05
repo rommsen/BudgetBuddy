@@ -142,19 +142,13 @@ let tests =
                 Expect.stringContains ex.Message "events ist append-only" sql
             Expect.equal (loadStream context "entry" id |> run) recorded "Ereignis unverändert"
 
-        testCase "ein Anhängen mit zwei Streams ist eine Transaktion: scheitert der zweite, steht auch vom ersten nichts im Log" <| fun () ->
+        testCase "ein Anhängen mit zwei Streams speichert beide" <| fun () ->
             setup ()
             let context = freshContext ()
             let ok = stream "entry" (GuidId (Guid.NewGuid())) [ event "EntryObserved" 1 ]
             let both = stream "entry" (GuidId (Guid.NewGuid())) [ event "EntryObserved" 2 ]
             let recorded = append (request context None [ ok; both ]) noReadModels |> run |> appended
             Expect.equal (recorded |> List.map _.StreamId |> List.distinct |> List.length) 2 "beide Streams gespeichert"
-
-            let context2 = freshContext ()
-            let commandId = Guid.NewGuid()
-            expectRejected (request context2 (Some commandId) [ ok; stream "entry" (GuidId (Guid.NewGuid())) [ event "entry_observed" 1 ] ])
-            Expect.isEmpty (loadContext context2 |> run) "vom ersten Stream steht nichts im Log"
-            Expect.equal (processedCommandRows commandId) 0L "keine Zeile in processed_commands"
 
         testCase "ein ungültiger event_type wird abgewiesen, ohne ein Ereignis oder eine Befehlszeile zu schreiben" <| fun () ->
             setup ()
@@ -233,7 +227,7 @@ let tests =
             Expect.equal r.EventType "RuleApplied" "EventType"
             Expect.notEqual p.EventId r.EventId "eigene event_id je Ereignis"
 
-        testCase "scheitert die Read-Model-Funktion, steht weder ein Ereignis noch eine Befehlszeile in der Datenbank" <| fun () ->
+        testCase "scheitert die Read-Model-Funktion, steht aus keinem der beiden Streams ein Ereignis und keine Befehlszeile in der Datenbank" <| fun () ->
             setup ()
             let context = freshContext ()
             let commandId = Guid.NewGuid()
@@ -243,9 +237,17 @@ let tests =
                     seen <- events |> List.map _.EventType
                     failwith "Read Model kaputt"
             Expect.throws
-                (fun () -> append (request context (Some commandId) [ stream "entry" (GuidId (Guid.NewGuid())) [ event "A" 1; event "B" 2 ] ]) failing |> run |> ignore)
+                (fun () ->
+                    append
+                        (request context (Some commandId) [
+                            stream "entry" (GuidId (Guid.NewGuid())) [ event "A" 1; event "B" 2 ]
+                            stream "month" (TextId "2026-11") [ event "C" 3 ] ])
+                        failing
+                    |> run
+                    |> ignore)
                 "Fehler der Read-Model-Funktion kommt beim Aufrufer an"
-            Expect.equal seen [ "A"; "B" ] "die Read-Model-Funktion sah die Ereignisse dieses Anhängens"
+            // Beide Streams waren geschrieben, als die Read-Model-Funktion lief: der Rollback nimmt beide zurück.
+            Expect.equal seen [ "A"; "B"; "C" ] "die Read-Model-Funktion sah die Ereignisse beider Streams"
             Expect.isEmpty (loadContext context |> run) "kein Ereignis nach Rollback"
             Expect.equal (processedCommandRows commandId) 0L "keine Befehlszeile nach Rollback"
 
@@ -307,8 +309,49 @@ let tests =
             Expect.equal result (Appended []) "nichts angehängt"
             Expect.equal (processedCommandRows commandId) 0L "keine Befehlszeile"
 
+        testCase "validate sammelt jeden Formfehler, ohne beim ersten abzubrechen" <| fun () ->
+            let good = event "EntryObserved" 1
+            let errorsOf (streams: StreamAppend list) = validate (request "ledger" None streams) |> List.length
+            for bad in [ TextId ""; TextId "Abc"; TextId "a b" ] do
+                Expect.equal (errorsOf [ stream "entry" bad [ good ] ]) 1 $"Text-Id {bad} abgewiesen"
+            Expect.equal (errorsOf [ stream "entry" (TextId "2026-11") [ { good with ActorKind = "" } ] ]) 1 "leere Actor-Art"
+            Expect.equal (errorsOf [ stream "entry" (TextId "2026-11") [ { good with Payload = null } ] ]) 1 "fehlender Payload"
+            Expect.equal (errorsOf [ stream "entry" (TextId "2026-11") [ { good with SchemaVersion = 0 } ] ]) 1 "Schema-Version 0"
+            Expect.equal
+                (errorsOf [ stream "entry" (TextId "2026-11") [ { good with OccurredAt = DateTime(2026, 11, 5, 10, 0, 0, DateTimeKind.Local) } ] ])
+                1
+                "Zeitpunkt ohne UTC"
+            Expect.equal
+                (validate (request "Ledger" None [ stream "entry" (TextId "2026-11") [ { good with EventType = "entryObserved" } ] ]) |> List.length)
+                2
+                "Kontext und Ereignistyp falsch: zwei Meldungen"
+
+        testCase "ein Zeitpunkt ohne UTC wird abgewiesen, ohne zu schreiben" <| fun () ->
+            // Die Tabelle ist append-only: ein falscher Zeitpunkt ließe sich nie mehr korrigieren.
+            setup ()
+            let context = freshContext ()
+            let local = { event "EntryObserved" 1 with OccurredAt = DateTime(2026, 11, 5, 10, 0, 0, DateTimeKind.Local) }
+            expectRejected (request context None [ stream "entry" (GuidId (Guid.NewGuid())) [ local ] ])
+            Expect.isEmpty (loadContext context |> run) "kein Ereignis"
+
+        testCase "appendOn committet nicht selbst: rollt der Aufrufer zurück, steht nichts im Log" <| fun () ->
+            // Die Startmigration des Kassenbuchs (ledger-k9tm2) hängt in ihrer eigenen Transaktion an.
+            setup ()
+            let context = freshContext ()
+            do
+                use conn = global.Persistence.getConnection ()
+                conn.Open()
+                use tx = conn.BeginTransaction()
+                appendOn conn tx (request context None [ stream "entry" (GuidId (Guid.NewGuid())) [ event "EntryObserved" 1 ] ]) noReadModels
+                |> appended
+                |> ignore
+                tx.Rollback()
+            Expect.isEmpty (loadContext context |> run) "nichts im Log nach Rollback des Aufrufers"
+
         testCase "BeginTransaction() öffnet mit BEGIN IMMEDIATE: eine zweite Connection liest, schreibt aber erst nach dem Ende" <| fun () ->
-            // Belegt ADR 0083 Abschnitt 5 gegen eine Datei-Datenbank. In der Cache=Shared-
+            // Belegt ADR 0083 Abschnitt 5 gegen eine Datei-Datenbank. Der Test hält das Verhalten von
+            // Microsoft.Data.Sqlite fest (gepinnt 10.0.14), nicht das von `EventStore.append`: er wird rot,
+            // wenn ein Versionssprung den Transaktionsbeginn ändert. In der Cache=Shared-
             // In-Memory-DB der übrigen Tests sperrt SQLite je Tabelle, dort wäre der Befund ein
             // anderer. Pooling=False, damit die Datei danach gelöscht werden kann.
             let path = Path.Combine(Path.GetTempPath(), $"bb-eventstore-{Guid.NewGuid():N}.db")
