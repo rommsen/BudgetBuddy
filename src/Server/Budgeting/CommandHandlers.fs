@@ -166,10 +166,10 @@ let private reportOf
 [<Literal>]
 let ForeignCommandText = "Befehls-Id gehört zu einem anderen Auftrag."
 
-/// Das Ereignis, mit dem die Befehls-Id festgehalten ist, oder `None`.
-let private findCommand (commandId: Guid) : Async<EventStore.RecordedEvent option> =
+/// Das Ereignis, mit dem die Befehls-Id festgehalten ist, oder `None`. Liest über `connect`.
+let private findCommand (connect: unit -> SqliteConnection) (commandId: Guid) : Async<EventStore.RecordedEvent option> =
     async {
-        use conn = global.Persistence.getConnection ()
+        use conn = connect ()
         return EventStore.tryProcessedCommandOn conn commandId
     }
 
@@ -216,7 +216,7 @@ let private onceFor
         match commandId with
         | None -> return! fresh
         | Some id ->
-            match! findCommand id with
+            match! findCommand global.Persistence.getConnection id with
             | Some recorded -> return! answer recorded
             | None -> return! fresh
     }
@@ -229,7 +229,7 @@ let private answerAgain
     (answer: EventStore.RecordedEvent -> Async<'r>)
     : Async<'r> =
     async {
-        match! findCommand commandId with
+        match! findCommand global.Persistence.getConnection commandId with
         | Some recorded -> return! answer recorded
         | None -> return failwith $"Befehls-Id {commandId} als festgehalten gemeldet, ihr Ereignis fehlt"
     }
