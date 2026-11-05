@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 13:34 -- Task verified and completed: infrastructure-e4vq7 - "Gemeinsame Ereignistabelle `events`: Schema, append-only-Trigger, `UNIQUE(stream_id, stream_version)`, Befehls-Id, generisches Anhängen und Laden; Tests belegen Konflikt bei gleicher Stream-Version, Rollback und das Verhalten von `BeginTransaction`"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-e4vq7 - "Gemeinsame Ereignistabelle `events`: Schema, append-only-Trigger, `UNIQUE(stream_id, stream_version)`, Befehls-Id, generisches Anhängen und Laden; Tests belegen Konflikt bei gleicher Stream-Version, Rollback und das Verhalten von `BeginTransaction`"
+**Summary:** Gemeinsame Ereignistabelle events mit EventStore-Modul, append-only-Triggern, Befehls-Id und Beleg für BEGIN IMMEDIATE
+**Duration:** 18m
+**Verification:** PASS (iteration 1)
+**Files changed:** 7
+**Tests added:** 16
+**ADRs written:** none
+
+---
+
 ## 2026-11-05 13:16 -- Batch started: [infrastructure-e4vq7, budgeting-v7kfw]
 
 **Type:** Work / Batch start

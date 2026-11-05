@@ -47,6 +47,7 @@
     <Compile Include="RulesEngineTests.fs" />
     <Compile Include="DuplicateDetectionTests.fs" />
     <Compile Include="OrderIdMatcherTests.fs" />
+    <Compile Include="EventStoreTests.fs" />
     <Compile Include="BudgetingTests.fs" />
     <Compile Include="TargetsApplyTests.fs" />
     <Compile Include="MoveMoneyTests.fs" />

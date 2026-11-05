@@ -56,3 +56,4 @@ budgeting-zkbbd warten darauf.
   (ADR 0083, Pflichtsatz).
 - Wandern neue Felder nach `src/Shared`, im selben Schritt `scripts/ledger-detail.test.mjs`
   nachziehen.
+- Aus infrastructure-e4vq7 (Conductor, 2026-11-05): `EventStore.initializeSchema ()` läuft bisher nur in `Program.fs`, in `src/Tests/EventStoreTests.fs` und in den beiden Tests, die den Serverstart nachbauen (`RemotingPipelineTests`, `RemotingEndpointNegativeTests`). Beim Umzug in jedes Testmodul aufnehmen, das `initializeLedgerSchema` aufruft. Für die Startmigration gibt es `EventStore.appendOn conn tx` (offene Transaktion, kein Commit).

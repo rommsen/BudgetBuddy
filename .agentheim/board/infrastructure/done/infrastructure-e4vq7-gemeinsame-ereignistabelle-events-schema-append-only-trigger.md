@@ -1,7 +1,7 @@
 ---
 id: infrastructure-e4vq7
 title: "Gemeinsame Ereignistabelle `events`: Schema, append-only-Trigger, `UNIQUE(stream_id, stream_version)`, Befehls-Id, generisches Anhängen und Laden; Tests belegen Konflikt bei gleicher Stream-Version, Rollback und das Verhalten von `BeginTransaction`"
-status: doing
+status: done
 type: feature
 context: infrastructure
 created: 2026-11-05
@@ -116,3 +116,18 @@ es die Tabelle und einen generischen Weg zum Anhängen und Laden geben.
   späteren Transaktion als ihre Entscheidung und tragen keine `command_id`. Das generische
   Anhängen muss Ereignisse ohne Befehls-Id zulassen und schreibt dann keine Zeile in
   `processed_commands`.
+
+## Outcome
+
+Neues Modul `src/Server/EventStore.fs` (im `Server.fsproj` direkt nach `Persistence.fs`) mit dem Schema aus ADR 0083 Abschnitt 1 und 3 (Tabelle `events`, beide Indizes, Trigger `events_no_update` und `events_no_delete`, Tabelle `processed_commands`), angelegt über `EventStore.initializeSchema ()` in `src/Server/Program.fs` direkt nach `Persistence.initializeDatabase()` und damit vor `initializeLedgerSchema`. Die beiden Tests, die den Serverstart nachbauen (`src/Tests/RemotingPipelineTests.fs`, `src/Tests/RemotingEndpointNegativeTests.fs`), rufen es ebenfalls auf. Die übrigen Testmodule, die `initializeLedgerSchema` aufrufen, brauchen die Tabelle noch nicht, weil kein Kontext umgestellt ist; ledger-k9tm2 muss das beim Umzug nachziehen.
+
+Typen nach der Schnittstelle im Task: `NewEvent`, `StreamAppend` (mit `Id: AggregateId = GuidId of Guid | TextId of string`), `AppendRequest`, `RecordedEvent`, `AppendResult = Appended | CommandAlreadyProcessed of firstPosition`, dazu `ApplyReadModels` und `noReadModels`. `append` und `appendOn` (offene Connection und Transaktion, ohne Commit) wie beschrieben; Formfehler werfen `InvalidAppend` mit allen gesammelten Meldungen, bevor etwas geschrieben wird. Die gespeicherten Ereignisse werden nach dem Einfügen mit einer Abfrage (`event_id IN @event_ids`) zurückgelesen, damit der Aufrufer genau das sieht, was in der Tabelle steht. Ein Befehl ohne Ereignis schreibt keine Befehlszeile und ruft die Read-Model-Funktion nicht. `OccurredAt` wird im Format `o` gespeichert und mit `RoundtripKind` gelesen; UTC wird erwartet, aber nicht erzwungen. Dapper-Zeilentyp `StoredEventRow` mit `[<CLIMutable>]`, Optionsfelder nur `string option` (Handler vorhanden), Guids als Text.
+
+Tests in `src/Tests/EventStoreTests.fs` (16 Fälle, eigener Kontextname je Fall): UNIQUE-Konflikt per SQL, Versionen 1 und 2, lückenlose Versionen und steigende `position`, Stream-Name, zwei Streams in einer Transaktion, ungültiger Kontext und Aggregat, ungültiger `event_type` (`entryRecategorized`, `Entry_Recategorized`, leer, mit Leerzeichen, mit Ziffer vorn) ohne Ereignis und ohne Befehlszeile, Laden je Kontext und je Stream, Rundlauf von `RecordedEvent` mit und ohne `ActorRef`/`CommandId`, Rollback bei scheiternder Read-Model-Funktion, Read-Model-Funktion sieht die Ereignisse in der Transaktion, Wiederholung derselben Befehls-Id, keine Befehlszeile ohne Befehls-Id und ohne Ereignis, Transaktionsbeginn.
+
+Befund Transaktionsbeginn (Datei-Datenbank unter `Path.GetTempPath()`, danach gelöscht): Das parameterlose `BeginTransaction()` von Microsoft.Data.Sqlite 10.0.14 öffnet mit `BEGIN IMMEDIATE`. Eine zweite Connection liest während der Transaktion, ihr Schreiben scheitert nach dem Timeout mit `SQLITE_BUSY` (Code 5). Gegenprobe: `BeginTransaction(true)` schiebt auf, die zweite Connection schreibt durch. Das deckt sich mit ADR 0083 Abschnitt 5, ein korrigierender Nachtrag ist nicht nötig.
+
+`./verify.sh`: VERIFY: PASS (dotnet 3896 grün, node 310 grün).
+
+### Für den Conductor
+Optionaler bestätigender Nachtrag zu ADR 0083 Abschnitt 5: "Nachtrag 2026-11-05 (infrastructure-e4vq7): Belegt. `BeginTransaction()` öffnet mit `BEGIN IMMEDIATE`, eine zweite Connection liest und scheitert beim Schreiben nach dem Timeout mit `SQLITE_BUSY`; `BeginTransaction(true)` schiebt auf. Test: `src/Tests/EventStoreTests.fs`."

@@ -16,6 +16,7 @@
   <ItemGroup>
     <Compile Include="ServerConfig.fs" />
     <Compile Include="Persistence.fs" />
+    <Compile Include="EventStore.fs" />
     <Compile Include="Ledger/Events.fs" />
     <!-- Der Spiegel-Contract (ADR 0014) liegt bewusst zwischen Events und Domain:
          `Ledger.Domain.observe` konsumiert ihn, er selbst leiht sich nur die beiden

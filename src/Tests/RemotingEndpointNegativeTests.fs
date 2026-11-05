@@ -47,6 +47,7 @@ let private expectNothingChanged (result: Result<'C list, string>) =
 
 let private setup () =
     Persistence.initializeDatabase ()
+    EventStore.initializeSchema ()
     Ledger.Persistence.initializeLedgerSchema ()
     Budgeting.Persistence.initializeBudgetingSchema ()
     // Schutz gegen Netzaufrufe: mit Token oder Zugangsdaten würden einige Fälle YNAB

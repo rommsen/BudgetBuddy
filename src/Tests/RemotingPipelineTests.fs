@@ -58,6 +58,7 @@ let private pipelineCalls : Map<string, HttpMethod * string * string option> =
 
 let private withTestHost (body: HttpClient -> unit) =
     Persistence.initializeDatabase ()
+    EventStore.initializeSchema ()
     Ledger.Persistence.initializeLedgerSchema ()
     Budgeting.Persistence.initializeBudgetingSchema ()
     let builder = WebApplication.CreateBuilder()

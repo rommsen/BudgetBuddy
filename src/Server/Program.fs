@@ -59,6 +59,7 @@ let main args =
 
     // Initialize database (creates tables if they don't exist)
     Persistence.initializeDatabase()
+    EventStore.initializeSchema()
     Ledger.Persistence.initializeLedgerSchema()
     Budgeting.Persistence.initializeBudgetingSchema()
     printfn "✅ Database initialized"

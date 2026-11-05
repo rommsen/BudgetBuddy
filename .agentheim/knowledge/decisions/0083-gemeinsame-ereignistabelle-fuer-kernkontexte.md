@@ -6,7 +6,7 @@ status: accepted
 date: 2026-11-05
 supersedes: []
 superseded_by: []
-related_tasks: [infrastructure-c7f53, budgeting-zkbbd]
+related_tasks: [infrastructure-c7f53, budgeting-zkbbd, infrastructure-e4vq7]
 related_adrs: [0008, 0012, 0013, 0021, 0065, 0068, 0079, 0080]
 related_research: []
 ---
@@ -189,6 +189,11 @@ mit `BEGIN IMMEDIATE` öffnet. Den Beleg liefert der Test in infrastructure-e4vq
   belegen: Konflikt bei gleicher Stream-Version, Rollback und der tatsächliche
   Transaktionsbeginn. Weicht er ab, gilt das Netz aus dem vorigen Punkt allein, und dieses ADR
   bekommt einen Nachtrag.
+
+**Nachtrag 2026-11-05 (infrastructure-e4vq7):** Belegt. `BeginTransaction()` öffnet unter
+10.0.14 mit `BEGIN IMMEDIATE`. Eine zweite Connection liest während der Transaktion und scheitert
+beim Schreiben nach dem Timeout mit `SQLITE_BUSY`. `BeginTransaction(true)` schiebt auf. Test in
+`src/Tests/EventStoreTests.fs` gegen eine Datei-Datenbank im Temp-Verzeichnis.
 
 ### 6. Übergang des Kassenbuchs
 
