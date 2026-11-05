@@ -5,6 +5,18 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 17:25 -- Review-Lauf: ledger-k9tm2
+
+**Type:** Review / Review-Lauf
+**Bereich:** df03afd..6586d52 (ledger-k9tm2)
+**Agents:** backend-code-quality, qa-milestone-reviewer
+**Funde:** behoben 10, verworfen 2, Rückfrage 0, Ticket 0
+**Commits:** 5c10af9, 8f40fef, dazu 38f1922 (Skill: Bereich über Commit statt Uhrzeit)
+**Verworfen:** Gegenprobe der Probe für die übrigen Wahrheitswerte nachrüsten (Probe hat ihren Zweck erfüllt, fällt mit dem Rückbau der Migration); Lena-Testvorbereitung auf eigene Buchungen beschränken (Wettlauf bestand schon mit dem alten DELETE, kein Flackern beobachtet).
+**Verifikation:** VERIFY: PASS (dotnet 3930 grün, node 310 grün); Gegenprobe ohne Transaktion macht den neuen Schreibfehler-Test rot.
+
+---
+
 ## 2026-11-05 16:46 -- Work session ended
 
 **Type:** Work / Session end
