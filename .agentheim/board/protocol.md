@@ -5,6 +5,22 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 07:14 -- Modeling / Promoted: infrastructure-shsvf - "Gate übersetzt den Client einmal: test:scripts und der Design-System-Export nutzen das Bundle aus npm run build"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-05 07:14 -- Modeling / Promoted: infrastructure-d1dwb - "Gate startet Expecto direkt über die Tests.dll statt über dotnet test: 14 statt 168 Sekunden"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-05 07:14 -- Modeling / Refined: infrastructure-shsvf - Gate übersetzt den Client einmal
 
 **Type:** Modeling / Refine

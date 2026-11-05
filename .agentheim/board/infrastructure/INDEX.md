@@ -10,14 +10,16 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 21
-- **Todo:** 1
+- **Backlog:** 19
+- **Todo:** 3
 - **Doing:** 0
 - **Done:** 40
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **infrastructure-shsvf** — "Gate übersetzt den Client einmal: test:scripts und der Design-System-Export nutzen das Bundle aus npm run build" (chore) — `todo/infrastructure-shsvf-fable-einmal-bauen-im-gate.md`
+- **infrastructure-d1dwb** — "Gate startet Expecto direkt über die Tests.dll statt über dotnet test: 14 statt 168 Sekunden" (chore) — `todo/infrastructure-d1dwb-expecto-direkt-im-gate.md`
 - **infrastructure-jsys4** — "Web-Push-Kanal mit Abo in den Einstellungen, zuerst auf echten Geräten bewiesen" (feature) — `todo/infrastructure-jsys4-web-push-kanal.md`
 <!-- todo-list:end -->
 
@@ -39,8 +41,6 @@ research touching this BC, and concept synthesis pages.
 - **infrastructure-hwfkn** — "Prüfen, ob die Sperre um test:scripts noch nötig ist: ihr Grund, der 5-Sekunden-Start von vite preview, ist seit r5k2w behoben" (spike) — `backlog/infrastructure-hwfkn-gate-sperre-pruefen.md`
 - **infrastructure-hh19s** — "Parallelität von test:scripts neu messen: 4 Dateien gleichzeitig auf einem Rechner mit 10 Kernen" (chore) — `backlog/infrastructure-hh19s-waechter-parallelitaet-messen.md`
 - **infrastructure-pgpb6** — "Gate läuft nach dem dotnet build in zwei parallelen Strängen: Expecto neben npm build, Wächtern und test:scripts" (chore) — `backlog/infrastructure-pgpb6-gate-zwei-straenge-parallel.md`
-- **infrastructure-shsvf** — "Gate übersetzt den Client einmal: test:scripts und der Design-System-Export nutzen das Bundle aus npm run build" (chore) — `backlog/infrastructure-shsvf-fable-einmal-bauen-im-gate.md`
-- **infrastructure-d1dwb** — "Gate startet Expecto direkt über die Tests.dll statt über dotnet test: 14 statt 168 Sekunden" (chore) — `backlog/infrastructure-d1dwb-expecto-direkt-im-gate.md`
 - **infrastructure-n2w8q** — "Browser-Test-Doktrin nachschärfen: gemischte Tests, Kennung für Verlauf und Routing, Spielarten als eigene Flows, Einzeiler-Verdrahtung im update" (decision) — `backlog/infrastructure-n2w8q-browser-test-doktrin-nachsch-rfen-gemischte-tests-kennung-f.md`
 - **infrastructure-v8m2d** — "Dev-Server: Vite stürzt ab, wenn dotnet parallel das Client-Projekt baut" (bug) — `backlog/infrastructure-v8m2d-dev-server-vite-st-rzt-ab-wenn-dotnet-parallel-das-client-pr.md`
 - **infrastructure-f3k7x** — "Feliz 2.9 auf 3.x heben, damit React 19 nicht für jede Kinderliste die Key-Warnung meldet" (chore) — `backlog/infrastructure-f3k7x-feliz-2-9-auf-3-x-heben-damit-react-19-nicht-f-r-jede-kinder.md`
