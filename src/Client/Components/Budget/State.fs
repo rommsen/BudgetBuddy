@@ -61,13 +61,21 @@ let private previewCmd (month: string) : Cmd<Msg> =
 
 // Budget-Entscheidungen tragen eine Befehls-Id je Absicht (ADR 0084 Punkt 8) und laufen über
 // `Retry.command`: nach Status 0 höchstens ein zweiter Versuch mit derselben Id, den der Server als
-// Wiederholung erkennt. Scheitert auch er, bleibt der Weg über die Fehlernachricht.
-let private applyCmd (preview: Shared.Budgeting.TargetPreview) : Cmd<Msg> =
+// Wiederholung erkennt. Scheitert auch er, bleibt der Weg über die Fehlernachricht. Die `*CmdWith`
+// bekommen den Remoting-Aufruf als Parameter, damit ein .NET-Test sie mit einem Fake ablaufen lassen
+// kann; die Produktionsvariante reicht `Api.budget` in einem Lambda durch.
+let applyCmdWith
+    (call: string -> TargetPreview -> Async<Result<ApplyResult, string>>)
+    (preview: TargetPreview)
+    : Cmd<Msg> =
     Cmd.OfAsync.either
-        (fun () -> Retry.command (fun id -> Api.budget.applyTargets preview.Month { preview with CommandId = Some id }))
+        (fun () -> Retry.command (fun id -> call preview.Month { preview with CommandId = Some id }))
         ()
         TargetsApplied
         (fun ex -> TargetsApplied (Error ex.Message))
+
+let private applyCmd (preview: TargetPreview) : Cmd<Msg> =
+    applyCmdWith (fun month preview -> Api.budget.applyTargets month preview) preview
 
 let private retryCmd (applicationId: string) : Cmd<Msg> =
     Cmd.OfAsync.either
@@ -78,12 +86,19 @@ let private retryCmd (applicationId: string) : Cmd<Msg> =
 
 // Wie `applyCmd` mit Befehls-Id; der Server rechnet relativ, erst die Id verhindert, dass ein zweiter
 // Versuch doppelt verschiebt.
-let private moveCmd (monthKey: string) (request: MoveRequest) : Cmd<Msg> =
+let moveCmdWith
+    (call: string -> MoveRequest -> Async<Result<ApplyReport, string>>)
+    (monthKey: string)
+    (request: MoveRequest)
+    : Cmd<Msg> =
     Cmd.OfAsync.either
-        (fun () -> Retry.command (fun id -> Api.budget.moveMoney monthKey { request with CommandId = Some id }))
+        (fun () -> Retry.command (fun id -> call monthKey { request with CommandId = Some id }))
         ()
         MoveAnswered
         (fun ex -> MoveCallLost ex.Message)
+
+let private moveCmd (monthKey: string) (request: MoveRequest) : Cmd<Msg> =
+    moveCmdWith (fun month request -> Api.budget.moveMoney month request) monthKey request
 
 let private retryMoveCmd (applicationId: string) : Cmd<Msg> =
     Cmd.OfAsync.either
@@ -94,24 +109,37 @@ let private retryMoveCmd (applicationId: string) : Cmd<Msg> =
 
 // ADR 0078: absolut. Jeder Eintrag der Schlange ist eine eigene Absicht mit eigener Befehls-Id, so setzt
 // ein verspäteter zweiter Versuch keinen späteren Wert zurück. Der Ausgang geht an die Schlange.
-let private assignCmd (write: AssignWrite) : Cmd<Msg> =
+let assignCmdWith
+    (call: string -> AssignRequest -> Async<Result<ApplyReport, string>>)
+    (write: AssignWrite)
+    : Cmd<Msg> =
     Cmd.OfAsync.either
         (fun () ->
             Retry.command (fun id ->
-                Api.budget.assignMoney write.Month { CategoryId = write.CategoryId; Assigned = write.Assigned; CommandId = Some id }))
+                call write.Month { CategoryId = write.CategoryId; Assigned = write.Assigned; CommandId = Some id }))
         ()
         AssignAnswered
         (fun ex -> AssignCallLost ex.Message)
 
+let private assignCmd (write: AssignWrite) : Cmd<Msg> =
+    assignCmdWith (fun month request -> Api.budget.assignMoney month request) write
+
 // Schreibt in BB, mit Befehls-Id wie `applyCmd`. Die Antwort trägt Kategorie und Monat des Aufrufs. Ein
 // Aufruf, der auch im zweiten Versuch abbricht, ist keine Ablehnung, er hat eine eigene Nachricht
 // (budgeting-r3wq8).
-let private pauseCmd (monthKey: string) (request: TargetPauseRequest) : Cmd<Msg> =
+let pauseCmdWith
+    (call: string -> TargetPauseRequest -> Async<Result<PauseSource option, string>>)
+    (monthKey: string)
+    (request: TargetPauseRequest)
+    : Cmd<Msg> =
     Cmd.OfAsync.either
-        (fun () -> Retry.command (fun id -> Api.budget.setTargetPause monthKey { request with CommandId = Some id }))
+        (fun () -> Retry.command (fun id -> call monthKey { request with CommandId = Some id }))
         ()
         (fun result -> TargetPauseAnswered (request.CategoryId, monthKey, result))
         (fun ex -> TargetPauseCallLost (request.CategoryId, monthKey, ex.Message))
+
+let private pauseCmd (monthKey: string) (request: TargetPauseRequest) : Cmd<Msg> =
+    pauseCmdWith (fun month request -> Api.budget.setTargetPause month request) monthKey request
 
 // Schreibt nach YNAB und hat noch keine Befehls-Id (die kommt mit budgeting-eh8xe), deshalb nicht über
 // `Retry`. Die Antwort trägt Kategorie und Monat des Aufrufs.
