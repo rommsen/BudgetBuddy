@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 12:20 -- Modeling / Promoted: budgeting-zkbbd - "BB führt das Budget, YNAB wird Spiegel: Zuweisen, Verschieben und Targets entstehen als Ereignisse in BB, nach YNAB geht nur Zugewiesen je Monat und Kategorie"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-05 12:20 -- Modeling / Refined: budgeting-zkbbd - BB führt das Budget, YNAB wird Spiegel
 
 **Type:** Modeling / Refine
