@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 19
+- **Backlog:** 21
 - **Todo:** 0
 - **Doing:** 1
 - **Done:** 42
@@ -37,6 +37,8 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **infrastructure-jc1y1** — "Die 61 [layout]-Tests aufräumen: Designwert-Assertions löschen, Invarianten dem Sweep überlassen, Verhaltens-Assertions in passende Tests oder nach .NET verschieben" (chore) — `backlog/infrastructure-jc1y1-layouttests-aufraeumen.md`
+- **infrastructure-nx14s** — "Layout-Invarianten als ein generischer Sweep über alle Routen und Breiten statt als Designwerte je Komponente, mit Doktrin-Regel für Layout-Regressionen" (chore) — `backlog/infrastructure-nx14s-layout-invarianten-sweep.md`
 - **infrastructure-hwfkn** — "Spike: Kernbudget für gleichzeitige Gate-Läufe messen. Parallelität je Lauf, Sperre um test:scripts und Zahl gleichzeitiger Worktrees zusammen entscheiden" (spike) — `backlog/infrastructure-hwfkn-gate-sperre-pruefen.md`
 - **infrastructure-jsys4** — "Web-Push-Kanal mit Abo in den Einstellungen, zuerst auf echten Geräten bewiesen" (feature) — `backlog/infrastructure-jsys4-web-push-kanal.md`
 - **infrastructure-ztgge** — "Gezielter Testlauf während der Arbeit, volles Gate vor dem Abschluss: verify.sh --changed wählt Schritte nach geänderten Pfaden" (chore) — `backlog/infrastructure-ztgge-gezielter-testlauf-und-volles-gate.md`

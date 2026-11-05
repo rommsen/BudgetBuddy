@@ -5,6 +5,24 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 11:51 -- Modeling / Captured: infrastructure-jc1y1 - "Die 61 [layout]-Tests aufräumen: Designwert-Assertions löschen, Invarianten dem Sweep überlassen, Verhaltens-Assertions in passende Tests oder nach .NET verschieben"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Die 61 [layout]-Tests nach der Einordnung im Anhang aufräumen: Designwert-Assertions löschen, Invarianten dem Sweep aus nx14s überlassen, Verhalten auf die billigste Ebene verschieben. Roman hat entschieden: löschen statt nachziehen.
+
+---
+
+## 2026-11-05 11:51 -- Modeling / Captured: infrastructure-nx14s - "Layout-Invarianten als ein generischer Sweep über alle Routen und Breiten statt als Designwerte je Komponente, mit Doktrin-Regel für Layout-Regressionen"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Generischer Sweep über alle Routen und Breiten prüft die Layout-Invarianten (kein seitliches Scrollen, 48 px Trefferflächen, 16 px Eingabeschrift, nichts abgeschnitten oder verdeckt); Doktrin-Regel: Layout-Regressionen leben im Sweep, Designwerte werden nicht im Browser getestet.
+
+---
+
 ## 2026-11-05 11:46 -- Batch started: [infrastructure-c7f53]
 
 **Type:** Work / Batch start
