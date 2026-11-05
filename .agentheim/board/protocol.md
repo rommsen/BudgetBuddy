@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 11:45 -- Modeling / Demoted: infrastructure-hwfkn, infrastructure-jsys4
+
+**Type:** Modeling / Demote (von Hand, kein CLI-Verb)
+**BC:** infrastructure
+**From → To:** todo → backlog
+**Summary:** Auf Romans Wunsch zurückgelegt, damit der nächste Work-Lauf nur infrastructure-c7f53 aufnimmt. Inhalt der Tasks unverändert, nur status und Ordner.
+
+---
+
 ## 2026-11-05 11:42 -- Modeling / Promoted: infrastructure-c7f53 - "Event Sourcing für die Kernkontexte ledger und budgeting mit gemeinsamem Ereignis-Umschlag; Reports als Read Models darauf, alles andere bleibt Zustand"
 
 **Type:** Modeling / Promote

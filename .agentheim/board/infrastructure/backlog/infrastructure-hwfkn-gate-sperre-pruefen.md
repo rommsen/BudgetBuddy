@@ -1,7 +1,7 @@
 ---
 id: infrastructure-hwfkn
 title: "Spike: Kernbudget für gleichzeitige Gate-Läufe messen. Parallelität je Lauf, Sperre um test:scripts und Zahl gleichzeitiger Worktrees zusammen entscheiden"
-status: todo
+status: backlog
 type: spike
 context: infrastructure
 created: 2026-11-05
