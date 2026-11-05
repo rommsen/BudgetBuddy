@@ -782,7 +782,9 @@ let private recordMissingYnabLinkEventsGate = obj ()
 /// `EntryLinkedToYnab` an (Actor `YnabMirror`, `occurred_at` = `now`, nächste laufende
 /// Nummer der Buchung). Er schreibt nur das Ereignis: Zeile und Zustand stehen schon,
 /// die Projektion scheiterte am `UNIQUE` der Link-Tabelle. Ein Laden des ganzen Logs,
-/// kein Laden je Buchung; alles in einer Transaktion. Fehlt nichts, schreibt er nichts.
+/// kein Laden je Buchung; alles in einer Transaktion. Wirft ein Schritt, rollt das
+/// Dispose der nicht bestätigten Transaktion alles zurück (wie bei `rebuildSplitIndexes`),
+/// deshalb kein `try/with`. Fehlt nichts, schreibt er nichts.
 /// Liefert die Zahl der nachgetragenen Ereignisse. ledger-k9tm2 baut ihn zurück.
 let internal recordMissingYnabLinkEvents (conn: SqliteConnection) (now: DateTime) : int =
     if conn.State <> System.Data.ConnectionState.Open then
