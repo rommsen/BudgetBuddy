@@ -173,13 +173,37 @@ let private findCommand (commandId: Guid) : Async<EventStore.RecordedEvent optio
         return EventStore.tryProcessedCommandOn conn commandId
     }
 
+/// Die Kategorien eines Entscheidungs- oder Pause-Ereignisses, bei einer Verschiebung erst die Quelle, dann das Ziel.
+let private categoriesOf (event: BudgetEvent) : Guid list =
+    match event with
+    | BudgetEvent.AssignmentChangedInBb change -> [ change.Line.CategoryId ]
+    | BudgetEvent.MoneyMoved move -> [ move.From.CategoryId; move.To.CategoryId ]
+    | BudgetEvent.TargetsApplied application -> application.Lines |> List.map (fun l -> l.CategoryId)
+    | BudgetEvent.TargetPaused pause
+    | BudgetEvent.TargetPauseLifted pause -> [ pause.CategoryId ]
+    | _ -> []
+
 /// Gehört das festgehaltene Ereignis zum Auftrag: Kontext `budgeting`, Monats-Stream des Auftrags, einer der
-/// erwarteten Typen?
-let private belongsTo (monthKey: string) (expectedTypes: string list) (recorded: EventStore.RecordedEvent) : bool =
+/// erwarteten Typen und, wenn `expectedCategories` sie nennt, dieselben Kategorien in derselben Reihenfolge?
+/// Targets anwenden nennt keine, sein Auftrag ist der ganze Monat.
+let private belongsTo
+    (monthKey: string)
+    (expectedTypes: string list)
+    (expectedCategories: Guid list option)
+    (recorded: EventStore.RecordedEvent)
+    : bool =
     let monthStream = monthIdOf monthKey |> Result.toOption |> Option.map (MonthStream >> streamIdOf)
+    let sameCategories () =
+        match expectedCategories with
+        | None -> true
+        | Some expected ->
+            match decodePayload recorded.EventType recorded.SchemaVersion recorded.Payload with
+            | Ok event -> categoriesOf event = expected
+            | Error message -> failwith $"Ereignis {recorded.EventId} der Befehls-Id nicht lesbar: {message}"
     recorded.Context = Context
     && Some recorded.StreamId = monthStream
     && List.contains recorded.EventType expectedTypes
+    && sameCategories ()
 
 /// Unter der Sperre vor allem anderen: Ist die Befehls-Id festgehalten, kommt die Antwort aus `answer`, ohne
 /// YNAB zu lesen und ohne etwas anzuhängen. Sonst läuft `fresh`.
@@ -221,15 +245,24 @@ let private moveEventTypes (request: MoveRequest) : string list =
     | _, ToBeBudgetedSide -> [ EventTypes.decisionOf MoneyAssigned ]
     | _ -> [ EventTypes.decisionOf MoneyMoved ]
 
+/// Die Kategorie-Seiten eines Verschiebens, erst die Quelle, dann das Ziel.
+let private moveCategories (request: MoveRequest) : Guid list =
+    [ request.Source; request.Target ]
+    |> List.choose (fun side ->
+        match side with
+        | CategorySide id -> Some id
+        | ToBeBudgetedSide -> None)
+
 /// Die Antwort auf eine Wiederholung von Verschieben und Zuweisen: der Bericht der festgehaltenen
 /// Entscheidung, ohne Zu verteilen.
 let private decisionAnswer
     (monthKey: string)
     (expectedTypes: string list)
+    (expectedCategories: Guid list)
     (recorded: EventStore.RecordedEvent)
     : Async<Result<Result<ApplyReport, string>, YnabError>> =
     async {
-        if belongsTo monthKey expectedTypes recorded then
+        if belongsTo monthKey expectedTypes (Some expectedCategories) recorded then
             let! report = reportWith global.Persistence.getConnection recorded.EventId monthKey None
             return report |> Result.map Ok
         else
@@ -275,7 +308,7 @@ let apply
     // Eine Wiederholung trägt Zu verteilen nicht: die erste Antwort las es neu, hier wird YNAB nicht gelesen.
     let answer (recorded: EventStore.RecordedEvent) =
         async {
-            if belongsTo monthKey [ EventTypes.decisionOf TargetsApplied ] recorded then
+            if belongsTo monthKey [ EventTypes.decisionOf TargetsApplied ] None recorded then
                 let! report = reportWith global.Persistence.getConnection recorded.EventId monthKey None
                 return report |> Result.map Applied
             else
@@ -380,7 +413,7 @@ let moveMoney
     (monthKey: string)
     (request: MoveRequest)
     : Async<Result<Result<ApplyReport, string>, YnabError>> =
-    let answer = decisionAnswer monthKey (moveEventTypes request)
+    let answer = decisionAnswer monthKey (moveEventTypes request) (moveCategories request)
     MonthGuard.exclusive monthKey (onceFor request.CommandId answer (async {
         match! fetchBudgetMonth port monthKey with
         | Error e -> return Error e
@@ -400,7 +433,7 @@ let assignMoney
     (monthKey: string)
     (request: AssignRequest)
     : Async<Result<Result<ApplyReport, string>, YnabError>> =
-    let answer = decisionAnswer monthKey [ EventTypes.decisionOf MoneyAssigned ]
+    let answer = decisionAnswer monthKey [ EventTypes.decisionOf MoneyAssigned ] [ request.CategoryId ]
     MonthGuard.exclusive monthKey (onceFor request.CommandId answer (async {
         match! fetchBudgetMonth port monthKey with
         | Error e -> return Error e
@@ -445,7 +478,7 @@ let setTargetPauseWith
             | LiftPause -> EventTypes.pauseLifted, None
         let answer (recorded: EventStore.RecordedEvent) =
             async {
-                if belongsTo monthKey [ expected ] recorded then return Ok (Ok answered)
+                if belongsTo monthKey [ expected ] (Some [ request.CategoryId ]) recorded then return Ok (Ok answered)
                 else return Ok (Error ForeignCommandText)
             }
         MonthGuard.exclusive monthKey (onceFor request.CommandId answer (async {

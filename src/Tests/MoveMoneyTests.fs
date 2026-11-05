@@ -1048,6 +1048,35 @@ let private commandTests =
             Expect.equal f.Reads 0 "kein FetchMonth"
             Expect.isEmpty f.Attempts "kein SetAssigned"
 
+        // Bug: die Prüfung verglich nur Kontext, Monat und Typ. Dieselbe Id als Zuweisen auf eine andere Kategorie
+        // lieferte still den Bericht der ersten Kategorie, die zweite blieb unverändert.
+        testCase "Die Id eines Zuweisens auf eine Kategorie als Zuweisen auf eine andere gesendet wird abgelehnt, ohne Ereignis und ohne YNAB" <| fun () ->
+            let f, a, b = fake ()
+            let x = Guid.NewGuid()
+            assignIdOk f x (assign a 120000L) |> ignore
+            let events = BudgetEventsFixture.eventsMentioning [ a; b ]
+            forget f
+            match assignWithId f x (assign b 30000L) with
+            | Ok (Error message) -> Expect.equal message ForeignCommandText "innen abgelehnt"
+            | other -> failtest $"Ablehnung erwartet: {other}"
+            Expect.equal (BudgetEventsFixture.eventsMentioning [ a; b ]) events "kein Ereignis"
+            Expect.equal f.Reads 0 "kein FetchMonth"
+            Expect.isEmpty f.Attempts "kein SetAssigned"
+
+        // Bug wie oben: dieselbe Id als Verschieben in die Gegenrichtung lieferte still den Bericht der ersten Richtung.
+        testCase "Die Id eines Verschiebens als Verschieben zwischen anderen Kategorie-Seiten gesendet wird abgelehnt, ohne Ereignis und ohne YNAB" <| fun () ->
+            let f, a, b = fake ()
+            let x = Guid.NewGuid()
+            moveOk f { request (CategorySide a) (CategorySide b) 30000L with CommandId = Some x } |> ignore
+            let events = BudgetEventsFixture.eventsMentioning [ a; b ]
+            forget f
+            match run (moveMoney f.Port now monthKey { request (CategorySide b) (CategorySide a) 10000L with CommandId = Some x }) with
+            | Ok (Error message) -> Expect.equal message ForeignCommandText "innen abgelehnt"
+            | other -> failtest $"Ablehnung erwartet: {other}"
+            Expect.equal (BudgetEventsFixture.eventsMentioning [ a; b ]) events "kein Ereignis"
+            Expect.equal f.Reads 0 "kein FetchMonth"
+            Expect.isEmpty f.Attempts "kein SetAssigned"
+
         testCase "Die Entscheidung trägt die Befehls-Id, ihre Ergebnis-Ereignisse tragen keine" <| fun () ->
             let f, a, b = fake ()
             let x = Guid.NewGuid()

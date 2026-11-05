@@ -526,6 +526,18 @@ let private commandTests =
             Expect.equal (pauseWithId f x k LiftPause) (Ok (Error ForeignCommandText)) "innen abgelehnt"
             Expect.equal f.Reads 0 "YNAB nicht gelesen"
             Expect.equal (eventRows k) [ current, "Pausiert" ] "nichts angehängt"
+
+        // Bug: die Prüfung verglich nur Kontext, Monat und Typ. Dieselbe Id als Pausieren einer anderen Kategorie
+        // meldete `Some PausedInBb` für eine nie pausierte Kategorie.
+        testCase "Die Id eines Pausierens als Pausieren einer anderen Kategorie gesendet wird abgelehnt, ohne Ereignis" <| fun () ->
+            let k, other = Guid.NewGuid(), Guid.NewGuid()
+            let f = FakeYnab([ k, "Ausflug", 50m, true, false, false; other, "Reisen", 50m, true, false, false ])
+            let x = Guid.NewGuid()
+            pauseWithId f x k PauseTarget |> ignore
+            f.Reads <- 0
+            Expect.equal (pauseWithId f x other PauseTarget) (Ok (Error ForeignCommandText)) "innen abgelehnt"
+            Expect.equal f.Reads 0 "YNAB nicht gelesen"
+            Expect.isEmpty (eventRows other) "nichts angehängt"
     ]
 
 [<Tests>]
