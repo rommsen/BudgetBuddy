@@ -1,7 +1,7 @@
 ---
 id: budgeting-dgrp7
 title: "BB führt das Zugewiesen: Übernahme beim Lesen und vor jedem Befehl, Soll-Faltung mit bestätigtem Stand, observeMonth mit Echo-Regel, Befehle auf das Soll"
-status: backlog
+status: todo
 type: feature
 context: budgeting
 created: 2026-11-05

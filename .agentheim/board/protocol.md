@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 21:03 -- Modeling / Promoted: budgeting-dgrp7 - "BB führt das Zugewiesen: Übernahme beim Lesen und vor jedem Befehl, Soll-Faltung mit bestätigtem Stand, observeMonth mit Echo-Regel, Befehle auf das Soll"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-05 20:59 -- Task verified and completed: budgeting-qm5x9 - "Befehls-Id für Budget-Entscheidungen aus der UI: optionales CommandId-Feld, Prüfung gegen processed_commands unter der Sperre vor YNAB, Antwort aus dem Stream, Client wiederholt einmal"
 
 **Type:** Work / Task completion
