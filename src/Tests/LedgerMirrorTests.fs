@@ -1943,4 +1943,32 @@ let missingYnabLinkEventTests =
                 (eventsOf conn b |> List.map (fun r -> r.Sequence))
                 [ 1; 2; 3 ]
                 "je Buchung fortlaufende Nummern"
+
+        // Belegt die Verdrahtung: `initializeLedgerSchema` (Serverstart, Program.fs) ruft den
+        // Startschritt auf der Standard-Verbindung auf. Läuft parallel zu anderen Aufrufen von
+        // `initializeLedgerSchema` auf der geteilten DB; Sperre und Transaktion halten es bei
+        // genau einem Ereignis.
+        testCase "der Start über initializeLedgerSchema trägt das fehlende EntryLinkedToYnab nach" <| fun () ->
+            initializeLedgerSchema ()
+            let suffix = Guid.NewGuid().ToString("N")
+            let entryId = newEntryId ()
+
+            appendAndApply (observe (context entryId) None (observation $"start-alt-{suffix}"))
+            |> Async.RunSynchronously
+
+            do
+                use conn = global.Persistence.getConnection ()
+                conn.Open()
+                legacyLink conn entryId $"start-neu-{suffix}"
+
+            initializeLedgerSchema ()
+
+            let linked =
+                loadEventsForEntry entryId
+                |> Async.RunSynchronously
+                |> List.filter (fun r ->
+                    r.Event.Body = EntryLinkedToYnab { YnabTransactionId = $"start-neu-{suffix}" })
+
+            Expect.hasLength linked 1 "genau ein nachgetragenes Ereignis"
+            Expect.equal linked.Head.Event.Actor YnabMirror "Actor des Spiegels"
     ]
