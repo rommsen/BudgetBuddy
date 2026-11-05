@@ -1,7 +1,7 @@
 ---
 id: ledger-r6wn3
 title: "Spiegel verknüpft eine über die ImportId gefundene Buchung mit `EntryLinkedToYnab` statt über `linkEntry` ohne Ereignis; alte Verknüpfungen ohne Ereignis bekommen einmalig ihr Ereignis nachgetragen"
-status: todo
+status: doing
 type: bug
 context: ledger
 created: 2026-11-05

@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 14:49 -- Batch started: [ledger-r6wn3]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-r6wn3 - "Spiegel verknüpft eine über die ImportId gefundene Buchung mit `EntryLinkedToYnab` statt über `linkEntry` ohne Ereignis; alte Verknüpfungen ohne Ereignis bekommen einmalig ihr Ereignis nachgetragen"
+**Parallel:** scoped — builder named ledger-r6wn3; 0 other ready tasks not dispatched
+
+---
+
 ## 2026-11-05 14:42 -- Modeling / Promoted: ledger-r6wn3 - "Spiegel verknüpft eine über die ImportId gefundene Buchung mit `EntryLinkedToYnab` statt über `linkEntry` ohne Ereignis; alte Verknüpfungen ohne Ereignis bekommen einmalig ihr Ereignis nachgetragen"
 
 **Type:** Modeling / Promote
