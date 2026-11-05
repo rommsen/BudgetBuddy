@@ -11,7 +11,7 @@ open Budgeting.Persistence
 let recordedOrFail (result: Recorded<'T>) : 'T =
     match result with
     | Recorded value -> value
-    | CommandAlreadyProcessed position -> failwith $"Befehls-Id schon festgehalten an Position {position}"
+    | CommandAlreadyProcessed (_, position) -> failwith $"Befehls-Id schon festgehalten an Position {position}"
 
 /// Hält die Zeilen je Gruppen-Id (Reihenfolge der Eingabe) als ein Entscheidungsereignis fest und liefert
 /// die gespeicherten Zeilen in der Reihenfolge der Eingabe. Zeitpunkt, Monat und Herkunft kommen aus der

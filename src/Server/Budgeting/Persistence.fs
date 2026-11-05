@@ -532,8 +532,9 @@ let loadLastTargetChanges () : Async<Result<Map<Guid, TargetChangeMark>, string>
 /// Ausgang des Festhaltens einer Entscheidung mit Befehls-Id (ADR 0084 Punkt 8).
 type Recorded<'T> =
     | Recorded of 'T
-    /// Die Befehls-Id stand schon in `processed_commands`; es ist nichts entstanden.
-    | CommandAlreadyProcessed of firstPosition: int64
+    /// Die Befehls-Id stand schon in `processed_commands`; es ist nichts entstanden. Trägt die Id, damit der
+    /// Aufrufer die festgehaltene Antwort ohne Umweg über ein `Guid option` sucht.
+    | CommandAlreadyProcessed of commandId: Guid * firstPosition: int64
 
 /// Hängt Ereignisse an einen Stream an, eine Transaktion (ADR 0083 Punkt 3). Die Zeitpunkte müssen UTC
 /// sein. Mit Befehls-Id prüft der Event Store in derselben Transaktion `processed_commands`.
@@ -558,7 +559,10 @@ let private appendCommandOn
     | EventStore.Appended recorded ->
         tx.Commit()
         Recorded recorded
-    | EventStore.CommandAlreadyProcessed firstPosition -> CommandAlreadyProcessed firstPosition
+    | EventStore.CommandAlreadyProcessed firstPosition ->
+        match commandId with
+        | Some id -> CommandAlreadyProcessed (id, firstPosition)
+        | None -> failwith "Der Event Store meldet eine Befehls-Id als festgehalten, das Anhängen trug keine"
 
 /// Hängt Ereignisse ohne Befehls-Id an, etwa die Ergebnis-Ereignisse einer Rückschreibung (ADR 0084
 /// Punkt 8). Liefert die gespeicherten Ereignisse samt `event_id`.
@@ -636,7 +640,7 @@ let internal recordDecisionOn
                   Event = event }
         )
     | Recorded other -> failwith $"Ein Entscheidungsereignis erwartet, {other.Length} gespeichert"
-    | CommandAlreadyProcessed firstPosition -> CommandAlreadyProcessed firstPosition
+    | CommandAlreadyProcessed (id, firstPosition) -> CommandAlreadyProcessed (id, firstPosition)
 
 /// `recordDecisionOn` auf der Datenbank der Anwendung.
 let recordDecision
@@ -688,7 +692,7 @@ let internal recordPauseOn
         | PauseKind.PauseLifted -> BudgetEvent.TargetPauseLifted pause
     match appendCommandOn conn commandId stream [ at, event ] with
     | Recorded recorded -> Recorded (List.exactlyOne recorded).EventId
-    | CommandAlreadyProcessed firstPosition -> CommandAlreadyProcessed firstPosition
+    | CommandAlreadyProcessed (id, firstPosition) -> CommandAlreadyProcessed (id, firstPosition)
 
 /// `recordPauseOn` auf der Datenbank der Anwendung.
 let recordPause

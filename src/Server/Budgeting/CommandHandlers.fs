@@ -222,19 +222,16 @@ let private onceFor
     }
 
 /// Das Anhängen meldete die Befehls-Id trotz Vorabprüfung als festgehalten (Netz der Transaktion, etwa
-/// dieselbe Id in zwei Monaten): die Antwort auf demselben Weg aus dem Stream.
+/// dieselbe Id in zwei Monaten): die Antwort auf demselben Weg aus dem Stream. Fehlt ihr Ereignis, sind
+/// `processed_commands` und `events` uneins.
 let private answerAgain
-    (commandId: Guid option)
+    (commandId: Guid)
     (answer: EventStore.RecordedEvent -> Async<'r>)
     : Async<'r> =
     async {
-        let! found =
-            match commandId with
-            | Some id -> findCommand id
-            | None -> async { return None }
-        match found with
+        match! findCommand commandId with
         | Some recorded -> return! answer recorded
-        | None -> return failwith "Befehls-Id als festgehalten gemeldet, ihr Ereignis fehlt"
+        | None -> return failwith $"Befehls-Id {commandId} als festgehalten gemeldet, ihr Ereignis fehlt"
     }
 
 /// Die Typen des Entscheidungsereignisses, das ein Verschieben festhält: mit Zu verteilen als einer Seite ein
@@ -334,7 +331,7 @@ let apply
                       CategoryName = s.CategoryName
                       Underfunded = toMilliunits s.Underfunded })
             match! recordDecision shown.CommandId now fresh.Month TargetsApplied lines skipped with
-            | CommandAlreadyProcessed _ -> return! answerAgain shown.CommandId answer
+            | CommandAlreadyProcessed (id, _) -> return! answerAgain id answer
             | Recorded movements ->
                 do! sendAll port now fresh.Month movements
                 let applicationId = (List.head movements).ApplicationId
@@ -395,7 +392,7 @@ let private recordAndSend
                   OldAssigned = toMilliunits l.OldAssigned
                   NewAssigned = toMilliunits l.NewAssigned })
         match! recordDecision commandId now monthKey plan.Origin lines [] with
-        | CommandAlreadyProcessed _ -> return! answerAgain commandId answer
+        | CommandAlreadyProcessed (id, _) -> return! answerAgain id answer
         | Recorded movements ->
             do! sendInOrder port now monthKey movements
             let! report = reportWith global.Persistence.getConnection (List.head movements).ApplicationId monthKey None
@@ -491,7 +488,7 @@ let setTargetPauseWith
                     match plan.Event with
                     | Some event ->
                         match! recordPause request.CommandId now monthKey plan.Category.Id plan.Category.Name event with
-                        | CommandAlreadyProcessed _ -> return! answerAgain request.CommandId answer
+                        | CommandAlreadyProcessed (id, _) -> return! answerAgain id answer
                         | Recorded _ -> return Ok (Ok plan.After)
                     | None -> return Ok (Ok plan.After)
         }))
