@@ -48,7 +48,10 @@ Ein ADR im `budgeting`, das den Wechsel der Führung festlegt.
 2. **Ereignis-Vokabular.** Entscheidungen (zugewiesen, verschoben, Target gesetzt/geändert/entfernt,
    pausiert/fortgesetzt) und Beobachtungen aus YNAB. Beobachtungen sind gröber als
    Entscheidungen: Der YNAB-Monat zeigt nur Zugewiesen je Kategorie, eine Verschiebung erscheint
-   als zwei unabhängige Änderungen. Die Namen sollen das nicht verdecken.
+   als zwei unabhängige Änderungen. Die Namen sollen das nicht verdecken. Typnamen englisch nach
+   der Sprachregel aus infrastructure-c7f53 Punkt 5 (etwa `AssignmentChanged`, `MoneyMoved`,
+   `TargetPaused`); die heutigen deutschen Namen der README (TargetsAngewendet, TargetPausiert,
+   TargetGeändert) werden darauf abgebildet und die README entsprechend umgestellt.
 3. **Erkennen von YNAB-Änderungen.** Wann BB den Monat mit seinem Stand vergleicht (heute wird
    bei jedem Öffnen live gelesen) und ob das Lesen eine Beobachtung schreiben darf.
 4. **Migration.** `budget_movements` (+ `budget_movement_results`), `target_pause_events`,

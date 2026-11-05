@@ -90,6 +90,15 @@ Kategorisierungsregeln Zustand. Targets sind Entscheidungen über Geld und keine
 Verworfen: "Ereignisse, wenn BB den Zustand führt und Historie gebraucht wird". Unschärfer und
 passt nicht auf YNAB-Beobachtungen.
 
+### 5. Sprache der Ereignisse (entschieden: Roman, 2026-11-05)
+`event_type` englisch, PascalCase, Vergangenheitsform (`EntryRecategorized`). Payload-Felder
+englisch in camelCase (`categoryId`), gespeicherte Codes englisch (`changed-in-ynab`). Die README
+eines Kontexts nennt die Typnamen und erklärt sie auf Deutsch. Das entspricht dem heutigen
+Kassenbuch (`Ledger/Events.fs:335` ff., 514 ff.) und CLAUDE.md ("Identifier Englisch"). Hintergrund:
+Die `budgeting`-README benennt ihre Aufzeichnungen heute deutsch (TargetsAngewendet,
+TargetPausiert); ein `event_type` bleibt für immer gespeichert, die Sprache muss vor dem ersten
+Budget-Ereignis feststehen.
+
 ### Zustand bleibt
 Kategorisierungsregeln (`rules`), `settings`, `sync_sessions`, `sync_transactions`,
 `ledger_accounts`, `ledger_categories`.
@@ -114,6 +123,7 @@ Kategorisierungsregeln (`rules`), `settings`, `sync_sessions`, `sync_transaction
       Abbruchprüfung, einmalige Ausnahme vom Nicht-Anfassen, kein `recorded_at`, kein Zurückdatieren,
       Abfolge vor dem ersten Budget-Ereignis.
 - [ ] Das ADR legt Stream-Namen und die Lösung für die Befehls-Id fest.
+- [ ] Das ADR enthält die Sprachregel aus Punkt 5.
 - [ ] Das ADR nennt die verworfenen Varianten (Tabelle je Kontext mit Zähler, Regelsatz "BB
       führt") mit Grund.
 - [ ] ADR 0013 bekommt einen Nachtrag mit Verweis auf das neue ADR, kein `superseded_by` (Punkte 1
