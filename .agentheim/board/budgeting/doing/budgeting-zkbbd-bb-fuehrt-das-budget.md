@@ -1,7 +1,7 @@
 ---
 id: budgeting-zkbbd
 title: "BB führt das Budget, YNAB wird Spiegel: Zuweisen, Verschieben und Targets entstehen als Ereignisse in BB, nach YNAB geht nur Zugewiesen je Monat und Kategorie"
-status: todo
+status: doing
 type: decision
 context: budgeting
 created: 2026-11-05

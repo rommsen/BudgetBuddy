@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 12:21 -- Batch started: [budgeting-zkbbd]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-zkbbd - "BB führt das Budget, YNAB wird Spiegel: Zuweisen, Verschieben und Targets entstehen als Ereignisse in BB, nach YNAB geht nur Zugewiesen je Monat und Kategorie"
+**Parallel:** no (1 worker), einziger bereiter Task
+
+---
+
 ## 2026-11-05 12:20 -- Modeling / Promoted: budgeting-zkbbd - "BB führt das Budget, YNAB wird Spiegel: Zuweisen, Verschieben und Targets entstehen als Ereignisse in BB, nach YNAB geht nur Zugewiesen je Monat und Kategorie"
 
 **Type:** Modeling / Promote
