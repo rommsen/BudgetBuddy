@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 17:29 -- Modeling / Refined: budgeting-hyn77 - Budget-Ereignisse nach events
+
+**Type:** Modeling / Refine
+**BC:** budgeting
+**Status after:** todo
+**Summary:** Nur die Typen, die jetzt geschrieben oder migriert werden (Übernahme- und Regeltypen kommen mit dgrp7 und eh8xe); Zeilen tragen lineId und Kategorienamen; Gruppen-Id ist die event_id der Entscheidung, migrierte Entscheidungen, Pausen und Target-Änderungen behalten ihre alte Id als event_id, damit Client-Ids und erneut senden unverändert bleiben; Target-Schritt-Ergebnisse als eigene YnabGoalStep*-Ereignisse im Target-Stream; Altbestand changed-in-ynab wird SupersededInYnab, neue ungesendete Schließungen Withdrawn, Leser zeigen beide wie heute; Kopie mit unverändertem occurred_at-Text, Abbruchregeln, Probe und Lehren aus ledger-k9tm2 (Guid-Format D, Schreibfehler-Test mit Gegenprobe, UTC-Pflicht). Produktionsstand per Kopie geprüft (nur Bewegungen befüllt, Gleichstand Entscheidung und Ergebnis kommt vor), Kopie gelöscht.
+**ADRs written:** keine
+
+---
+
 ## 2026-11-05 17:25 -- Review-Lauf: ledger-k9tm2
 
 **Type:** Review / Review-Lauf
