@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 20:32 -- Modeling / Promoted: budgeting-qm5x9 - "Befehls-Id für Budget-Entscheidungen aus der UI: optionales CommandId-Feld, Prüfung gegen processed_commands unter der Sperre vor YNAB, Antwort aus dem Stream, Client wiederholt einmal"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-05 20:29 -- Modeling / Refined: budgeting-qm5x9, budgeting-dgrp7 - Befehls-Id und BB führt das Zugewiesen
 
 **Type:** Modeling / Refine

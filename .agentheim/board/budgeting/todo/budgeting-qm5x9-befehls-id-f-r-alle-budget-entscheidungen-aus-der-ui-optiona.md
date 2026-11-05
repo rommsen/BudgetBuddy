@@ -1,7 +1,7 @@
 ---
 id: budgeting-qm5x9
 title: "Befehls-Id für Budget-Entscheidungen aus der UI: optionales CommandId-Feld, Prüfung gegen processed_commands unter der Sperre vor YNAB, Antwort aus dem Stream, Client wiederholt einmal"
-status: backlog
+status: todo
 type: feature
 context: budgeting
 created: 2026-11-05
