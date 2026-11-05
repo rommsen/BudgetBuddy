@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 12:20 -- Modeling / Refined: budgeting-zkbbd - BB führt das Budget, YNAB wird Spiegel
+
+**Type:** Modeling / Refine
+**BC:** budgeting
+**Status after:** todo
+**Summary:** Roman entschied: YNAB-Goals einfrieren mit Rückweg-Aktion, Übernahme laufender und künftiger Monate sofort und älterer im Hintergrund, Target-Arten 1:1, q4v8n und m3x7f nach dem Wechsel, Fehlbetrag-Parallelrechnung sofort und unabhängig. Stream-Schnitt je Monat und je Target, Vokabular, Echo-Regel, Migration, Idempotenz und sechs Folge-Tasks aus tactical-modeler und architect ergänzt.
+**ADRs written:** keine (schreibt der Worker)
+
+---
+
 ## 2026-11-05 12:09 -- Work session ended
 
 **Type:** Work / Session end
