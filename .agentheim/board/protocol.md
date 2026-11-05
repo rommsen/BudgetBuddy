@@ -5,6 +5,32 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 21:39 -- Modeling / Refined: infrastructure-w7d2c - YnabClient.createTransactions entfernen
+
+**Type:** Modeling / Refine
+**BC:** infrastructure
+**Status after:** todo
+**Summary:** Umfang um die zwei nachgebauten Tests in YnabClientTests.fs erweitert, die createTransactions-Logik im Test nachbilden; sie fliegen raus oder werden durch Tests gegen prepareTransactions ersetzt.
+
+---
+
+## 2026-11-05 21:39 -- Modeling / Refined: ledger-z71ka - Bot-Commit: entry_id nach Push-Fehler und wiederholbarer Commit nach Ausnahme
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** todo
+**Summary:** ledger-z6c16 in ledger-z71ka zusammengelegt (z6c16 entfernt). Der Commit legt die EntryId vor dem Buchen fest, addCashExpense meldet sie auch bei gescheitertem Push. Entscheidung des Owners: Nach einer Ausnahme sieht ein zweiter Commit derselben Vorschau im Kassenbuch nach und bucht sonst erneut, unter bookingGate und Tagesgrenze. Owner-Ja für promote und work liegt vor.
+
+---
+
+## 2026-11-05 21:39 -- Modeling / Dismissed: ledger-z6c16
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- ledger-z6c16 - "Bot-Commit, der mit einer Ausnahme endet, bleibt als fehlerhafte Aufgabe gespeichert und liefert bis zum Purge 500" (ledger)
+
+---
+
 ## 2026-11-05 21:27 -- Review-Lauf: budgeting-qm5x9
 
 **Type:** Review / Review-Lauf
