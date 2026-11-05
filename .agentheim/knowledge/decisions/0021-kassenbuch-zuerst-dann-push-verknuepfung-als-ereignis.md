@@ -6,7 +6,7 @@ status: accepted
 date: 2026-09-11
 supersedes: []
 superseded_by: []
-related_tasks: [ledger-cscw1, categorization-gdrx8, ledger-qvt84, ledger-tdnpk]
+related_tasks: [ledger-cscw1, categorization-gdrx8, ledger-qvt84, ledger-tdnpk, ledger-r6wn3]
 related_adrs: [0004, 0013, 0015]
 related_research: []
 ---
@@ -97,3 +97,13 @@ dass die Buchung ihre BB-Herkunft verliert.
 ## Nachtrag (2026-10-19, ledger-rynk5)
 
 Scheitert der Push, hält das Ereignis `EntryPushToYnabFailed` Grund und Zeit fest; `EntryLinkedToYnab` löst es auf (Punkt 2 bleibt: kein Rollback).
+
+## Nachtrag (2026-11-05, ledger-r6wn3)
+
+Findet der Spiegel eine Buchung über ihre ImportId, hängt er `EntryLinkedToYnab` an (Actor
+`YnabMirror`). Bis dahin schrieb `linkEntry` die YNAB-Verknüpfung ohne Ereignis. Für diese alten
+Zeilen trägt ein einmaliger Startschritt je Verknüpfung ein `EntryLinkedToYnab` nach, mit dem
+Zeitpunkt des Startschritts als `occurred_at`. Das Ereignis hält also fest, wann BB die
+Verknüpfung ins Log aufgenommen hat, nicht wann der Spiegel sie gefunden hat; dieser Zeitpunkt
+ist nicht mehr bekannt. Gespeicherte Ereignisse bleiben unverändert (ADR 0013 Punkt 7), es kommen
+nur neue dazu.

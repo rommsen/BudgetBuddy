@@ -6,7 +6,7 @@ status: accepted
 date: 2026-11-05
 supersedes: []
 superseded_by: []
-related_tasks: [infrastructure-c7f53, budgeting-zkbbd, infrastructure-e4vq7]
+related_tasks: [infrastructure-c7f53, budgeting-zkbbd, infrastructure-e4vq7, ledger-k9tm2]
 related_adrs: [0008, 0012, 0013, 0021, 0065, 0068, 0079, 0080]
 related_research: []
 ---
@@ -222,6 +222,11 @@ beim Schreiben nach dem Timeout mit `SQLITE_BUSY`. `BeginTransaction(true)` schi
   Das ADR zu budgeting-zkbbd kann vorher entstehen, seine Umsetzung wartet.
 - Vor dem Deploy läuft die Migration einmal gegen eine Kopie der Produktions-Datenbank
   (außerhalb des Repos).
+
+**Nachtrag 2026-11-05 (Verfeinerung ledger-k9tm2):** Umzustellen ist auch `loadEntryOrigins`
+(liest das erste Ereignis je Buchung). Die Kopie läuft per SQL mit den Textspalten unverändert
+und nicht über `EventStore.validate`, damit ein alter Zeitpunkt ohne Zonenangabe den Start nicht
+blockiert. Vorher läuft ledger-r6wn3, damit Replay auch `ledger_entry_links` vollständig herstellt.
 
 ### 7. Regel für neue Fähigkeiten
 

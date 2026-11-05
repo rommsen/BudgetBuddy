@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 14:42 -- Modeling / Refined: ledger-r6wn3 und ledger-k9tm2 - Verknüpfung als Ereignis, Kassenbuch nach events
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** todo
+**Summary:** r6wn3: linkEntry hat genau einen Aufrufer (resolveEntry, Treffer über ImportId); Fix über das vorhandene Ereignis EntryLinkedToYnab, alte Verknüpfungen ohne Ereignis bekommen einmalig ein nachgetragenes Ereignis (Nachtrag ADR 0021). k9tm2: hängt jetzt an r6wn3 (Entscheidung Roman), Kopie per SQL mit unverändertem Text statt über validate, loadEntryOrigins ergänzt, Schema-Aufruf von events in initializeLedgerSchema, Probe als Opt-in-Test gegen eine per ssh geholte Kopie der Produktions-DB (Entscheidung Roman), Kriterium Replay gleich Zustand jetzt inklusive Links.
+**ADRs written:** Nachträge zu 0021 und 0083
+
+---
+
 ## 2026-11-05 13:40 -- Work session ended
 
 **Type:** Work / Session end
