@@ -5,6 +5,60 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 07:13 -- Modeling / Captured: infrastructure-ztgge - "Gezielter Testlauf während der Arbeit, volles Gate vor dem Abschluss: verify.sh --changed wählt Schritte nach geänderten Pfaden"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** verify.sh --changed für die Arbeitsschleife, volles Gate bleibt für Verifier; Pfadregeln und Garantie offen.
+
+---
+
+## 2026-11-05 07:13 -- Modeling / Captured: infrastructure-hwfkn - "Prüfen, ob die Sperre um test:scripts noch nötig ist: ihr Grund, der 5-Sekunden-Start von vite preview, ist seit r5k2w behoben"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Spike: ist die Sperre um test:scripts nach r5k2w noch nötig, gemessen mit drei parallelen Gate-Läufen.
+
+---
+
+## 2026-11-05 07:13 -- Modeling / Captured: infrastructure-hh19s - "Parallelität von test:scripts neu messen: 4 Dateien gleichzeitig auf einem Rechner mit 10 Kernen"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** TEST_CONCURRENCY von test:scripts mit 4, 6 und 8 neu messen.
+
+---
+
+## 2026-11-05 07:13 -- Modeling / Captured: infrastructure-pgpb6 - "Gate läuft nach dem dotnet build in zwei parallelen Strängen: Expecto neben npm build, Wächtern und test:scripts"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Expecto parallel zum Client-Strang des Gates laufen lassen; erst nach d1dwb und shsvf messen, ob es sich lohnt.
+
+---
+
+## 2026-11-05 07:13 -- Modeling / Captured: infrastructure-shsvf - "Gate übersetzt den Client einmal: test:scripts und der Design-System-Export nutzen das Bundle aus npm run build"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** test:scripts und der Design-System-Export nutzen das Bundle aus npm run build, statt den Client zweimal neu zu übersetzen.
+
+---
+
+## 2026-11-05 07:13 -- Modeling / Captured: infrastructure-d1dwb - "Gate startet Expecto direkt über die Tests.dll statt über dotnet test: 14 statt 168 Sekunden"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Gate-Schritt 2 startet Expecto direkt über die Tests.dll mit JUnit-Bericht statt dotnet test (gemessen 14 statt 168 s).
+
+---
+
 ## 2026-11-04 22:28 -- Work session ended
 
 **Type:** Work / Session end
