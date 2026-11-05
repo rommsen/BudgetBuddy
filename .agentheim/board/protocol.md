@@ -5,6 +5,18 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 18:40 -- Review-Lauf: budgeting-hyn77
+
+**Type:** Review / Review-Lauf
+**Bereich:** e3797c1..cb7f738 (budgeting-hyn77)
+**Agents:** backend-code-quality, qa-milestone-reviewer
+**Funde:** behoben 10, verworfen 0, Rückfrage 0, Ticket 0
+**Commits:** 3381791, 8411e07, c756faf, ed47c4b, 390fea4 (Fix-Agent im Worktree, je Thema ein Commit, per Fast-Forward übernommen)
+**Verworfen:** keine. Hinweis: der Rückbau-Wächter für die alten Tabellennamen stand als Akzeptanzkriterium in der Task, widerspricht aber Test-Doktrin Punkt 7 und ist entfernt; das Verhalten belegen die Migrations- und Starttests.
+**Verifikation:** VERIFY: PASS (dotnet 3978 grün, node 310 grün); Gegenproben je Thema rot.
+
+---
+
 ## 2026-11-05 18:12 -- Work session ended
 
 **Type:** Work / Session end
