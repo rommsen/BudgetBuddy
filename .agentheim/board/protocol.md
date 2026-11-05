@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 16:19 -- Batch started: [ledger-k9tm2]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-k9tm2 - "Kassenbuch-Ereignisse nach `events` überführen: Kopie in rowid-Reihenfolge mit Abbruchprüfung, `appendAndApply` und Ladepfade umstellen, `ledger_entry_events` danach entfernen"
+**Parallel:** scoped — builder named ledger-k9tm2; 0 other ready tasks not dispatched
+
+---
+
 ## 2026-11-05 16:19 -- Modeling / Promoted: ledger-k9tm2 - "Kassenbuch-Ereignisse nach `events` überführen: Kopie in rowid-Reihenfolge mit Abbruchprüfung, `appendAndApply` und Ladepfade umstellen, `ledger_entry_events` danach entfernen"
 
 **Type:** Modeling / Promote

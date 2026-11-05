@@ -1,7 +1,7 @@
 ---
 id: ledger-k9tm2
 title: "Kassenbuch-Ereignisse nach `events` überführen: Kopie in rowid-Reihenfolge mit Abbruchprüfung, `appendAndApply` und Ladepfade umstellen, `ledger_entry_events` danach entfernen"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-11-05
