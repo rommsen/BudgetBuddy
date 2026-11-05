@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 18
-- **Todo:** 2
+- **Backlog:** 17
+- **Todo:** 3
 - **Doing:** 0
 - **Done:** 42
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **infrastructure-c7f53** — "Event Sourcing für die Kernkontexte ledger und budgeting mit gemeinsamem Ereignis-Umschlag; Reports als Read Models darauf, alles andere bleibt Zustand" (decision) — `todo/infrastructure-c7f53-event-sourcing-fuer-kernkontexte.md`
 - **infrastructure-hwfkn** — "Spike: Kernbudget für gleichzeitige Gate-Läufe messen. Parallelität je Lauf, Sperre um test:scripts und Zahl gleichzeitiger Worktrees zusammen entscheiden" (spike) — `todo/infrastructure-hwfkn-gate-sperre-pruefen.md`
 - **infrastructure-jsys4** — "Web-Push-Kanal mit Abo in den Einstellungen, zuerst auf echten Geräten bewiesen" (feature) — `todo/infrastructure-jsys4-web-push-kanal.md`
 <!-- todo-list:end -->
@@ -38,7 +39,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **infrastructure-c7f53** — "Event Sourcing für die Kernkontexte ledger und budgeting mit gemeinsamem Ereignis-Umschlag; Reports als Read Models darauf, alles andere bleibt Zustand" (decision) — `backlog/infrastructure-c7f53-event-sourcing-fuer-kernkontexte.md`
 - **infrastructure-ztgge** — "Gezielter Testlauf während der Arbeit, volles Gate vor dem Abschluss: verify.sh --changed wählt Schritte nach geänderten Pfaden" (chore) — `backlog/infrastructure-ztgge-gezielter-testlauf-und-volles-gate.md`
 - **infrastructure-pgpb6** — "Gate läuft nach dem dotnet build in zwei parallelen Strängen: Expecto neben npm build, Wächtern und test:scripts" (chore) — `backlog/infrastructure-pgpb6-gate-zwei-straenge-parallel.md`
 - **infrastructure-n2w8q** — "Browser-Test-Doktrin nachschärfen: gemischte Tests, Kennung für Verlauf und Routing, Spielarten als eigene Flows, Einzeiler-Verdrahtung im update" (decision) — `backlog/infrastructure-n2w8q-browser-test-doktrin-nachsch-rfen-gemischte-tests-kennung-f.md`

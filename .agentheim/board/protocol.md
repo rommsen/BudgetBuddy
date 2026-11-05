@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 11:42 -- Modeling / Promoted: infrastructure-c7f53 - "Event Sourcing für die Kernkontexte ledger und budgeting mit gemeinsamem Ereignis-Umschlag; Reports als Read Models darauf, alles andere bleibt Zustand"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-05 11:42 -- Modeling / Refined: infrastructure-c7f53 - Event Sourcing für die Kernkontexte
 
 **Type:** Modeling / Refine
