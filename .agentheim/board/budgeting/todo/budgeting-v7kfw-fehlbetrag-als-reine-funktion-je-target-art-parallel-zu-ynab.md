@@ -1,7 +1,7 @@
 ---
 id: budgeting-v7kfw
 title: "Fehlbetrag als reine Funktion je Target-Art, parallel zu YNABs goal_under_funded gerechnet, mit Abweichungsliste, ohne Verhaltensänderung"
-status: backlog
+status: todo
 type: feature
 context: budgeting
 created: 2026-11-05

@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 13:14 -- Modeling / Promoted: budgeting-v7kfw - "Fehlbetrag als reine Funktion je Target-Art, parallel zu YNABs goal_under_funded gerechnet, mit Abweichungsliste, ohne Verhaltensänderung"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-05 13:14 -- Modeling / Refined: budgeting-v7kfw - Fehlbetrag als reine Funktion, Parallelrechnung gegen YNAB
 
 **Type:** Modeling / Refine
