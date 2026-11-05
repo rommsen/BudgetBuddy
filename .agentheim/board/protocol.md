@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 08:21 -- Modeling / Refined: infrastructure-hwfkn - Spike Kernbudget für gleichzeitige Gate-Läufe
+
+**Type:** Modeling / Refine
+**BC:** infrastructure
+**Status after:** todo
+**Summary:** hh19s (Parallelität je Lauf) und hwfkn (Sperre um test:scripts) teilen dieselben 10 Kerne und sind zu einem Spike zusammengelegt. Messmatrix über N gleichzeitige Läufe, Sperre ja/nein und c; Messgröße ist die Zeit, bis alle fertig sind. Ergebnis: Entscheidung zwischen fester Parallelität mit oder ohne Sperre oder einem Zähler nach aktiven Läufen, plus Folgeaufgabe. Gemessen ohne git-Worktrees, Gate-Logik im Repo bleibt unverändert.
+**Split into:** keine; ersetzt das verworfene infrastructure-hh19s
+
+---
+
 ## 2026-11-05 08:20 -- Modeling / Dismissed: infrastructure-hh19s
 
 **Type:** Modeling / Dismiss
