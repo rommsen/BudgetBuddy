@@ -80,3 +80,19 @@ wann was zugewiesen hat.
 ## References
 - ADR 0013, 0050, 0055, 0063
 - research/ynab-api-targets-zuweisung-2026-10-25.md
+
+## Nachtrag 2026-11-05 (ADR 0084)
+
+ADR 0084 macht BB im Budget führend. Bis zur Umsetzung der Folge-Tasks gilt dieses ADR weiter.
+
+- **Punkt 1:** Zugewiesen kommt nach budgeting-dgrp7 aus BBs Faltung (Soll je Monat und
+  Kategorie). Aktivität, Verfügbar und Zu verteilen liest BB weiter live aus YNAB. Den
+  Fehlbetrag rechnet BB nach budgeting-eh8xe selbst.
+- **Punkt 4:** Der Betrag je Kategorie ist nach budgeting-eh8xe altes Zugewiesen plus BBs
+  Fehlbetrag (reine Funktion aus budgeting-v7kfw), nicht mehr `goal_under_funded`. Pausen kommen
+  nur noch aus BB. Das Raster von 10 Milliunits gilt auf allen Wegen, auch bei Übernahme und
+  Migration.
+- **Punkt 6:** Übernehmen vergleicht weiter unter der Sperre je Monat gegen die gezeigte
+  Vorschau. Vorher beobachtet der Befehl YNAB (`observeMonth`, Echo-Regel aus ADR 0084 Punkt 3),
+  und die Vorschau rechnet mit dem Soll aus BB.
+- Die Tabellen aus Punkt 2 gehen mit budgeting-hyn77 in `events` auf und werden entfernt.

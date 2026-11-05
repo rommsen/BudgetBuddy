@@ -6,7 +6,7 @@ type: feature
 context: budgeting
 created: 2026-11-02
 completed:
-depends_on: [design-system-001, budgeting-t6p8z, budgeting-q4v8n]
+depends_on: [design-system-001, budgeting-t6p8z, budgeting-q4v8n, budgeting-eh8xe]
 blocks: []
 tags: [budget, monatserster, targets]
 related_adrs: [0065, 0082]
@@ -42,3 +42,8 @@ Das Feld heißt "Überzogene decken" statt "rot decken", der Filter "Überzogen"
 Roman hat entschieden: "Targets prüfen" ist eine eigene Seite (ADR 0082), kein Prüf-Filter der Budget-Liste. Das alte Kriterium "Prüf-Filter mit leerer Ansicht" und der Fall `CheckOnly` in `CategoryFilter` entfallen. Das Feld ist ein Weg zur Seite aus budgeting-q4v8n, daher hängt diese Task an ihr statt an budgeting-p2zr6.
 
 Offen, klärt diese Task: wann das Feld "Targets prüfen" als erledigt gilt und ob es eine Zahl zeigt. Eine Zahl bräuchte auf der Budget-Seite `getTargetCheck` und `targetCheckGroups` aus budgeting-p2zr6, ein Erledigt-Zustand ohne Gedächtnis (ADR 0082 Punkt 2) etwa "heute im laufenden Monat geöffnet".
+
+## Hinweis aus budgeting-zkbbd (2026-11-05)
+- Nach dem Wechsel, auf den neuen Schreibweg (ADR 0084 Punkt 7, entschieden von Roman am
+  2026-11-05): Dieser Task wird erst nach budgeting-eh8xe gebaut und schreibt Targets als
+  Ereignisse in BB; der Zwei-Schritt-Weg nach YNAB entfällt.

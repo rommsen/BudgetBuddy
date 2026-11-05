@@ -47,3 +47,10 @@ ADR 0073 legt die Pause je Kategorie und Monat in BB und lässt offen, wie sie g
 ## Nachtrag 2026-11-04 (budgeting-r3wq8)
 Das Aufheben heißt in Code und Spalte einheitlich `PauseLifted` mit dem Text "Aufgehoben". Der in Punkt 1 genannte Text "Fortgesetzt" ist ein Altwert: er wird beim Lesen weiter als Aufheben erkannt (lokale Dev-Datenbanken), geschrieben wird er nicht mehr. Eine BB-Pause lässt sich auch ohne Target aufheben; ohne Target wirkt sie nicht.
 Rollback: Ein Stand vor diesem Nachtrag kennt den Text "Aufgehoben" nicht und bricht beim Lesen ab. Nach dem ersten Aufheben in der Produktion ist ein Rollback hinter diesen Stand deshalb nicht mehr möglich, ohne die Lese-Regel mitzunehmen.
+
+## Nachtrag 2026-11-05 (ADR 0084)
+
+- **Punkt 2:** Mit budgeting-eh8xe entfallen `PausedInYnab` und `PausedInBoth`. Eine Pause gibt
+  es nur noch in BB (`TargetPaused`, `TargetPauseLifted` im Stream `budgeting:month:<YYYY-MM>`);
+  eine Pause in YNAB wirkt in BB nicht mehr.
+- Die Tabelle aus Punkt 1 geht mit budgeting-hyn77 in `events` auf und wird entfernt.

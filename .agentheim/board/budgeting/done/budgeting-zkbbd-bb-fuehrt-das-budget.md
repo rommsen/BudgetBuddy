@@ -1,7 +1,7 @@
 ---
 id: budgeting-zkbbd
 title: "BB führt das Budget, YNAB wird Spiegel: Zuweisen, Verschieben und Targets entstehen als Ereignisse in BB, nach YNAB geht nur Zugewiesen je Monat und Kategorie"
-status: doing
+status: done
 type: decision
 context: budgeting
 created: 2026-11-05
@@ -9,7 +9,7 @@ completed:
 depends_on: [infrastructure-c7f53]
 blocks: []
 tags: [event-sourcing, targets, ynab-spiegel, fuehrung]
-related_adrs: [0012, 0065, 0072, 0074, 0079, 0080, 0082, 0083]
+related_adrs: [0012, 0065, 0072, 0074, 0079, 0080, 0082, 0083, 0084]
 related_research: []
 prior_art: [budgeting-h2zfn, budgeting-afd8h, budgeting-c5w2n, budgeting-k8wq3, budgeting-t6p8z]
 ---
@@ -236,3 +236,152 @@ schreibt sie aus und begründet sie, er entscheidet sie nicht neu. Grundlage: AD
 - Offen für später, nicht Teil dieses ADRs: Wartezeit beim Lesen eines Monats hinter einem
   laufenden Befehl desselben Monats (bis zu drei YNAB-Anfragen). Fällt sie im Alltag auf, Vergleich
   über die zuletzt gesehene Position prüfen.
+
+## Outcome
+
+ADR 0084 (provisorisch `0084-bb-fuehrt-das-budget-ynab-wird-spiegel.md`, `scope: budgeting`) hält
+den Wechsel der Führung im Budget fest: Grundsatz und die Punkte 1 bis 8 mit den verworfenen
+Varianten, die Abbildungstabelle der deutschen Namen auf die englischen Typen und die
+Echo-Tabelle. Die budgeting-README nennt die neue Führung (Actors, YNAB) und stellt die Key events
+auf die englischen Typen um (README_DELTA, lokal mit `npm run check:readme-delta` geprüft, Exit 0).
+Sechs Folge-Tasks liegen im Backlog:
+
+| Kurz | Id | hängt an |
+|---|---|---|
+| T4 | budgeting-v7kfw | nichts |
+| T1 | budgeting-hyn77 | ledger-k9tm2 |
+| T2 | budgeting-qm5x9 | budgeting-hyn77 |
+| T3 | budgeting-dgrp7 | budgeting-hyn77 |
+| T5 | budgeting-eh8xe | budgeting-hyn77, budgeting-v7kfw |
+| T6 | budgeting-e2z7v | budgeting-eh8xe |
+
+Kein Quellcode geändert. Die im Task genannten Codestellen sind geprüft und stimmen. Eine
+Korrektur: Der Endpoint heißt `retryFailedTargets`, nicht `retryFailed` (`src/Shared/Api.fs:524`).
+
+### Hinweise zu den Entscheidungen
+
+- **Monats-Id:** Das ADR legt `YYYY-MM` für Stream-Namen und Payloads fest. Die
+  Remoting-Schnittstelle tauscht den Monat weiter als "YYYY-MM-01" aus. "Überall gleich" ist
+  damit als "im Ereignismodell überall gleich" ausgelegt. Soll auch Remoting umstellen, braucht
+  das einen eigenen Task.
+- **Prüfung der Befehls-Id unter `MonthGuard`:** Target ändern läuft unter `TargetGuard`. Das ADR
+  schreibt "unter der Sperre (`MonthGuard`)"; T2 vermerkt, dass Target ändern unter `TargetGuard`
+  prüft. Ebenso gilt "jeder Befehl beobachtet zuerst" für Befehle auf einem Monat.
+- **Neue Target-Änderungen zwischen T1 und T5:** Der Zwei-Schritt-Weg bleibt bis T5. T1 schreibt
+  bis dahin den Altbestand-Typ (etwa `YnabGoalChangedFromBb`) auch für neue Änderungen. Das ist
+  aus dem Task abgeleitet, nicht ausdrücklich entschieden.
+- **Fehlbetrag negativ ist 0:** im ADR und in T4 ergänzt, wie heute bei `goal_under_funded`.
+- **T5 und T3:** BBs Fehlbetrag braucht Zugewiesen aus der Soll-Faltung von T3. Die vorgegebenen
+  Abhängigkeiten (T5 an T1 und T4) sind übernommen; T5 vermerkt in Notes, dass T3 in
+  `depends_on` gehören könnte.
+- **Altbestand "Ziel ungesendet geschlossen":** heute als `changed-in-ynab` gespeichert
+  (`CommandHandlers.fs:559`). Ob die Migration es von einem echten "in YNAB geändert"
+  unterscheiden kann, prüft T1.
+- **ADR 0082 Punkt 7:** Der Nachtrag unten sagt, dass `TargetTakenOverFromYnab` nicht als
+  Änderung zählt. Das ist abgeleitet (sonst begänne die Zählung für alle Kategorien am Tag der
+  Übernahme neu) und sollte Roman bestätigen.
+- **README, offene Frage "Wer führt die Targets":** Der Bullet hat keinen fetten Kopf und ist per
+  `replace` nicht erreichbar. Vorschlag für die Konsolidierung: als gelöst markieren mit Verweis
+  auf ADR 0084.
+
+### Für den Conductor
+
+**(a) Nachträge zu ADRs** (je am Dateiende anhängen):
+
+Datei `.agentheim/knowledge/decisions/0065-budget-zustand-live-aus-ynab-budget-bewegungen-in-bb.md`:
+
+```markdown
+## Nachtrag 2026-11-05 (ADR 0084)
+
+ADR 0084 macht BB im Budget führend. Bis zur Umsetzung der Folge-Tasks gilt dieses ADR weiter.
+
+- **Punkt 1:** Zugewiesen kommt nach budgeting-dgrp7 aus BBs Faltung (Soll je Monat und
+  Kategorie). Aktivität, Verfügbar und Zu verteilen liest BB weiter live aus YNAB. Den
+  Fehlbetrag rechnet BB nach budgeting-eh8xe selbst.
+- **Punkt 4:** Der Betrag je Kategorie ist nach budgeting-eh8xe altes Zugewiesen plus BBs
+  Fehlbetrag (reine Funktion aus budgeting-v7kfw), nicht mehr `goal_under_funded`. Pausen kommen
+  nur noch aus BB. Das Raster von 10 Milliunits gilt auf allen Wegen, auch bei Übernahme und
+  Migration.
+- **Punkt 6:** Übernehmen vergleicht weiter unter der Sperre je Monat gegen die gezeigte
+  Vorschau. Vorher beobachtet der Befehl YNAB (`observeMonth`, Echo-Regel aus ADR 0084 Punkt 3),
+  und die Vorschau rechnet mit dem Soll aus BB.
+- Die Tabellen aus Punkt 2 gehen mit budgeting-hyn77 in `events` auf und werden entfernt.
+```
+
+Datei `.agentheim/knowledge/decisions/0079-pause-als-ereignisfolge-in-bb.md`:
+
+```markdown
+## Nachtrag 2026-11-05 (ADR 0084)
+
+- **Punkt 2:** Mit budgeting-eh8xe entfallen `PausedInYnab` und `PausedInBoth`. Eine Pause gibt
+  es nur noch in BB (`TargetPaused`, `TargetPauseLifted` im Stream `budgeting:month:<YYYY-MM>`);
+  eine Pause in YNAB wirkt in BB nicht mehr.
+- Die Tabelle aus Punkt 1 geht mit budgeting-hyn77 in `events` auf und wird entfernt.
+```
+
+Datei `.agentheim/knowledge/decisions/0080-target-aenderungen-nur-im-laufenden-monat.md`:
+
+```markdown
+## Nachtrag 2026-11-05 (ADR 0084)
+
+Nach ADR 0084 führt BB die Targets, die Goals in YNAB sind eingefroren. Mit budgeting-eh8xe gilt:
+
+- **Punkt 3:** Geplant wird weiter gegen den gezeigten Stand, verglichen wird gegen BBs Faltung
+  des Streams `budgeting:target:<categoryId>` statt gegen YNAB. `planTargetWrite` entfällt, es
+  gibt keine Patches mehr.
+- **Punkt 4:** Eine Änderung ist ein Ereignis (`TargetSet` mit vollständiger Regel oder
+  `TargetRemoved`). Nach YNAB geht nichts, die Zwei-Schritt-Logik entfällt.
+- **Punkt 5:** `TargetGuard` bleibt und reiht die Ereignisse im Target-Stream einer Kategorie.
+- **Punkt 6:** Ohne Senden gibt es keinen Teilfehler; die Regeln zu Schritt 1 und 2 entfallen.
+  Erneutes Speichern plant weiter gegen den gezeigten Stand.
+- Punkt 1 gilt weiter (`effectiveFrom` ist der laufende Monat). Die Tabellen aus Punkt 2 gehen
+  mit budgeting-hyn77 in `events` auf, alte Zeilen als Altbestand-Typ.
+```
+
+Datei `.agentheim/knowledge/decisions/0082-targets-pruefen-als-eigene-seite-mit-pruefregel.md`:
+
+```markdown
+## Nachtrag 2026-11-05 (ADR 0084)
+
+- **Punkt 7:** Die letzte Target-Änderung kommt nach budgeting-hyn77 aus `events` (Altbestand-Typ
+  mit geschriebenem Schritt 1), nach budgeting-eh8xe aus dem jüngsten `TargetSet` oder
+  `TargetRemoved` im Stream `budgeting:target:<categoryId>`. Eine Änderung direkt in YNAB gibt
+  es nach dem Einfrieren der Goals nicht mehr. `TargetTakenOverFromYnab` zählt nicht als
+  Änderung: Die Übernahme hält einen bestehenden Stand fest, sonst begänne die Zählung für alle
+  Kategorien am Tag der Übernahme neu.
+```
+
+**(b) budgeting-q4v8n und budgeting-m3x7f:**
+
+Dateien `.agentheim/board/budgeting/backlog/budgeting-q4v8n-seite-targets-pruefen.md` und
+`.agentheim/board/budgeting/backlog/budgeting-m3x7f-monatserster-leiste.md`: in beiden die Id
+`budgeting-eh8xe` zu `depends_on` hinzufügen und den Text anhängen (bei budgeting-q4v8n in `## Notes`; budgeting-m3x7f hat keine `## Notes`, dort als neuer Abschnitt `## Hinweis aus budgeting-zkbbd (2026-11-05)` am Dateiende):
+
+```markdown
+- Nach dem Wechsel, auf den neuen Schreibweg (ADR 0084 Punkt 7, entschieden von Roman am
+  2026-11-05): Dieser Task wird erst nach budgeting-eh8xe gebaut und schreibt Targets als
+  Ereignisse in BB, nicht über den Zwei-Schritt-Weg nach YNAB.
+```
+
+**(c) budgeting-bk6tq:**
+
+Datei `.agentheim/board/budgeting/backlog/budgeting-bk6tq-vortrag-ab-dem-ersten-tag.md`, in
+`## Notes` anhängen (ohne Änderung an `depends_on`):
+
+```markdown
+- Unabhängig vom Wechsel der Führung (ADR 0084), der Spike kann jederzeit laufen. Seine
+  Folge-Tasks (etwa Auffüllen über den Monatswechsel als neue Target-Art mit eigenem
+  Ereignistyp) kommen erst nach budgeting-v7kfw und budgeting-eh8xe.
+```
+
+**(d) infrastructure-e4vq7:**
+
+Datei `.agentheim/board/infrastructure/backlog/infrastructure-e4vq7-gemeinsame-ereignistabelle-events-schema-append-only-trigger.md`,
+in `## Notes` anhängen:
+
+```markdown
+- Ergebnis-Ereignisse (Rückschreib-Ergebnisse im Budget, ADR 0084 Punkt 8) entstehen in einer
+  späteren Transaktion als ihre Entscheidung und tragen keine `command_id`. Das generische
+  Anhängen muss Ereignisse ohne Befehls-Id zulassen und schreibt dann keine Zeile in
+  `processed_commands`.
+```

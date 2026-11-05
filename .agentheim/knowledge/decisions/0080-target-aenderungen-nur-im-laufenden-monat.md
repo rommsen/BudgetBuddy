@@ -49,3 +49,18 @@ ADR 0072 legt fest, welche Felder BB beim Ändern eines Targets sendet. Offen bl
 ## References
 - ADR 0065, 0069, 0072, 0074 (Nachtrag zu Punkt 5)
 - research/ynab-reihenfolge-monate-target-schreiben-2026-11-02.md, Abschnitt 3
+
+## Nachtrag 2026-11-05 (ADR 0084)
+
+Nach ADR 0084 führt BB die Targets, die Goals in YNAB sind eingefroren. Mit budgeting-eh8xe gilt:
+
+- **Punkt 3:** Geplant wird weiter gegen den gezeigten Stand, verglichen wird gegen BBs Faltung
+  des Streams `budgeting:target:<categoryId>` statt gegen YNAB. `planTargetWrite` entfällt, es
+  gibt keine Patches mehr.
+- **Punkt 4:** Eine Änderung ist ein Ereignis (`TargetSet` mit vollständiger Regel oder
+  `TargetRemoved`). Nach YNAB geht nichts, die Zwei-Schritt-Logik entfällt.
+- **Punkt 5:** `TargetGuard` bleibt und reiht die Ereignisse im Target-Stream einer Kategorie.
+- **Punkt 6:** Ohne Senden gibt es keinen Teilfehler; die Regeln zu Schritt 1 und 2 entfallen.
+  Erneutes Speichern plant weiter gegen den gezeigten Stand.
+- Punkt 1 gilt weiter (`effectiveFrom` ist der laufende Monat). Die Tabellen aus Punkt 2 gehen
+  mit budgeting-hyn77 in `events` auf, alte Zeilen als Altbestand-Typ.

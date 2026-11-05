@@ -65,3 +65,7 @@ es die Tabelle und einen generischen Weg zum Anhängen und Laden geben.
 - Keine SQLite-Spezialitäten in Queries (ADR 0013 Punkt 8): kein `json_extract`.
 - Dapper: neuer Row-Typ braucht `[<CLIMutable>]`, Optionsfelder einen registrierten
   `OptionHandler<'T>` (CLAUDE.md, Laufzeitfallen).
+- Ergebnis-Ereignisse (Rückschreib-Ergebnisse im Budget, ADR 0084 Punkt 8) entstehen in einer
+  späteren Transaktion als ihre Entscheidung und tragen keine `command_id`. Das generische
+  Anhängen muss Ereignisse ohne Befehls-Id zulassen und schreibt dann keine Zeile in
+  `processed_commands`.

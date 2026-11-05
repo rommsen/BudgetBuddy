@@ -48,3 +48,6 @@ Umgeschnitten am 2026-10-29. Ursprünglich "Vortrag stimmt ab dem ersten Tag: Ak
 Roman will das Thema grundsätzlich durchdenken, bevor gebaut wird. Bleibt deshalb vorerst in `backlog/`; vor dem Promote kurz mit Roman über den Rahmen sprechen.
 
 Für Code-Arbeiter: `DuplicateDetection.fs` vergleicht `BookingDate` mit dem YNAB-Datum; jede Datumsänderung im Import muss dort mitgedacht werden.
+- Unabhängig vom Wechsel der Führung (ADR 0084), der Spike kann jederzeit laufen. Seine
+  Folge-Tasks (etwa Auffüllen über den Monatswechsel als neue Target-Art mit eigenem
+  Ereignistyp) kommen erst nach budgeting-v7kfw und budgeting-eh8xe.

@@ -6,7 +6,7 @@ type: feature
 context: budgeting
 created: 2026-11-05
 completed:
-depends_on: [design-system-001, budgeting-p2zr6, budgeting-r7k2m, budgeting-h7q4v, budgeting-gv74q]
+depends_on: [design-system-001, budgeting-p2zr6, budgeting-r7k2m, budgeting-h7q4v, budgeting-gv74q, budgeting-eh8xe]
 blocks: [budgeting-m3x7f]
 tags: [budget, target, pruefen, client]
 related_adrs: [0072, 0075, 0080, 0082]
@@ -92,3 +92,6 @@ Hinweise aus den Reviews nach budgeting-r7k2m und budgeting-p2zr6 (2026-11-05), 
 - **Feste ids und Selektoren** (`TargetFormView.fs:58-59, 173, 180`): `ReturnFocus` sucht `[data-testid='target-save'] button` bzw. `target-remove` im ganzen Dokument, `aria-describedby` hängt an der festen id `target-amount-hint-text`. Auf `#/budget/target-check` den Inspektor nicht mitrendern oder ein Präfix als Prop nachziehen.
 - **Vorbelegtes Formular**: ein Konstruktor wie `prefilledTargetForm categoryId month amount frequency` im Kern hält das Format (`AmountMath.formatSignedAmount`) an einer Stelle.
 - **Panelbreite**: `IsPanel` steuert Rückfrageform und einspaltiges Raster (`TargetFormView.fs:24, 222`). Der Styleguide nennt 420 px (`standards/frontend/styleguide.md:162`) und 340 px (Zeile 412); vor dem Festlegen der Panelbreite klären. Den Eintrag zu `BottomSheet.confirm` in Abschnitt 5 um die neue Seite ergänzen.
+- Nach dem Wechsel, auf den neuen Schreibweg (ADR 0084 Punkt 7, entschieden von Roman am
+  2026-11-05): Dieser Task wird erst nach budgeting-eh8xe gebaut und schreibt Targets als
+  Ereignisse in BB; der Zwei-Schritt-Weg nach YNAB entfällt.

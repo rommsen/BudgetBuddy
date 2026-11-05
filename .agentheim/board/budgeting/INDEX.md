@@ -10,10 +10,10 @@ Catalog of this bounded context's tasks by status.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 8
+- **Backlog:** 14
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 41
+- **Doing:** 0
+- **Done:** 42
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ Catalog of this bounded context's tasks by status.
 
 ### Doing
 <!-- doing-list:start -->
-- **budgeting-zkbbd** — "BB führt das Budget, YNAB wird Spiegel: Zuweisen, Verschieben und Targets entstehen als Ereignisse in BB, nach YNAB geht nur Zugewiesen je Monat und Kategorie" (decision) — `doing/budgeting-zkbbd-bb-fuehrt-das-budget.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **budgeting-zkbbd** — "BB führt das Budget, YNAB wird Spiegel: Zuweisen, Verschieben und Targets entstehen als Ereignisse in BB, nach YNAB geht nur Zugewiesen je Monat und Kategorie" (decision) — `done/budgeting-zkbbd-bb-fuehrt-das-budget.md`
 - **budgeting-gv74q** — "Targets prüfen nachbessern: Testlücken aus dem QA-Review schließen, TargetChangeMark als DU statt Bool, Prüfung ohne Lesen der Pausen" (refactor) — `done/budgeting-gv74q-targets-pruefen-nachbessern.md`
 - **budgeting-p8nd0** — "Target-Formular aufräumen: Wrapper, die nur Tests aufrufen, streichen und die Tab-Tests auf Kern und Sperrlage umstellen" (refactor) — `done/budgeting-p8nd0-target-formular-aufraeumen.md`
 - **budgeting-p2zr6** — "Targets prüfen, Regel und Daten: reine Einordnungsfunktion in Shared.Budgeting und Endpoint getTargetCheck mit einer Kassenbuch-Abfrage für alle Kategorien und der letzten Target-Änderung je Kategorie" (feature) — `done/budgeting-p2zr6-passt-das-target-noch.md`
@@ -77,6 +77,12 @@ prior-art matcher additionally checks `done-archive/` when present.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **budgeting-e2z7v** — "Rückweg-Aktion \"Targets nach YNAB zurückschreiben\": BBs Targets bewusst als Goals nach YNAB schreiben, soweit darstellbar, und listen, was YNAB nicht darstellen kann" (feature) — `backlog/budgeting-e2z7v-r-ckweg-aktion-targets-nach-ynab-zur-ckschreiben-bbs-targets.md`
+- **budgeting-eh8xe** — "Targets als BB-Regeln: einmalige Übernahme aus YNAB 1:1, Fehlbetrag aus BB, Rückbau des Goal-Schreibwegs und der YNAB-Pause, Wochentag in BB setzbar" (feature) — `backlog/budgeting-eh8xe-targets-als-bb-regeln-einmalige-bernahme-aus-ynab-1-1-fehlbe.md`
+- **budgeting-dgrp7** — "Budget aus YNAB übernehmen (sofort und im Hintergrund), Soll je Monat und Kategorie aus BB falten, YNAB-Änderungen über observeMonth mit Echo-Regel erkennen" (feature) — `backlog/budgeting-dgrp7-budget-aus-ynab-bernehmen-sofort-und-im-hintergrund-soll-je.md`
+- **budgeting-qm5x9** — "Befehls-Id für alle Budget-Entscheidungen aus der UI: optionales CommandId-Feld, Prüfung gegen processed_commands unter der Sperre, Antwort aus dem Stream, Client wiederholt einmal" (feature) — `backlog/budgeting-qm5x9-befehls-id-f-r-alle-budget-entscheidungen-aus-der-ui-optiona.md`
+- **budgeting-hyn77** — "Budget-Ereignistypen mit Codec und Startmigration der fünf Budget-Tabellen nach events, Schreibwege und Leser umgestellt, Verhalten unverändert" (feature) — `backlog/budgeting-hyn77-budget-ereignistypen-mit-codec-und-startmigration-der-f-nf-b.md`
+- **budgeting-v7kfw** — "Fehlbetrag als reine Funktion je Target-Art, parallel zu YNABs goal_under_funded gerechnet, mit Abweichungsliste, ohne Verhaltensänderung" (feature) — `backlog/budgeting-v7kfw-fehlbetrag-als-reine-funktion-je-target-art-parallel-zu-ynab.md`
 - **budgeting-q4v8n** — "Seite Targets prüfen #/budget/target-check: Knopf im Kopf der Budget-Seite, Gruppen mit Balken, Vorschlag übernehmen und Anpassen … im Panel oder BottomSheet" (feature) — `backlog/budgeting-q4v8n-seite-targets-pruefen.md`
 - **budgeting-w5k2r** — "Pause verschwindet, wenn beim Tipp ein Lesen des Monats schon läuft (Wechsel hin und zurück)" (bug) — `backlog/budgeting-w5k2r-pause-verschwindet-wenn-beim-tipp-ein-lesen-des-monats-schon.md`
 - **budgeting-h9c3w** — "Gesammelte Sollte- und Kann-Befunde der Reviews zu budgeting-c6vn4 und budgeting-g2ty9" (chore) — `backlog/budgeting-h9c3w-review-befunde-sammlung.md`

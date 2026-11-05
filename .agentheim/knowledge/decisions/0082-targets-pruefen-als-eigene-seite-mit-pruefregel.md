@@ -67,3 +67,12 @@ Das Gesamtkonzept sah "Passt das Target noch?" als Hinweis in Gelb an der Katego
 ## References
 - ADR 0065, 0072 (Punkt 3, Nachtrag 2026-11-05), 0075 (Punkt 1), 0080
 - docs/ux/budget/konzept.md, Abschnitte "Die vier Abläufe" und "Targets"
+
+## Nachtrag 2026-11-05 (ADR 0084)
+
+- **Punkt 7:** Die letzte Target-Änderung kommt nach budgeting-hyn77 aus `events` (Altbestand-Typ
+  mit geschriebenem Schritt 1), nach budgeting-eh8xe aus dem jüngsten `TargetSet` oder
+  `TargetRemoved` im Stream `budgeting:target:<categoryId>`. Eine Änderung direkt in YNAB gibt
+  es nach dem Einfrieren der Goals nicht mehr. `TargetTakenOverFromYnab` zählt nicht als
+  Änderung: Die Übernahme hält einen bestehenden Stand fest, sonst begänne die Zählung für alle
+  Kategorien am Tag der Übernahme neu.

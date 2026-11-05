@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 12:34 -- Task verified and completed: budgeting-zkbbd - "BB führt das Budget, YNAB wird Spiegel: Zuweisen, Verschieben und Targets entstehen als Ereignisse in BB, nach YNAB geht nur Zugewiesen je Monat und Kategorie"
+
+**Type:** Work / Task completion
+**Task:** budgeting-zkbbd - "BB führt das Budget, YNAB wird Spiegel: Zuweisen, Verschieben und Targets entstehen als Ereignisse in BB, nach YNAB geht nur Zugewiesen je Monat und Kategorie"
+**Summary:** ADR 0084: BB führt das Budget, YNAB wird Spiegel, Goals eingefroren mit Rückweg-Aktion, sechs Folge-Tasks
+**Duration:** 21m
+**Verification:** PASS (iteration 1)
+**Files changed:** 0
+**Tests added:** 0
+**ADRs written:** 0084
+
+---
+
 ## 2026-11-05 12:21 -- Batch started: [budgeting-zkbbd]
 
 **Type:** Work / Batch start
