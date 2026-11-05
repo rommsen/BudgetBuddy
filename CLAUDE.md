@@ -102,10 +102,11 @@ beheben, nicht umgehen.
 
 ### Override (C): Reviews nach einem work-Lauf vorschlagen
 
-Am Ende jedes `/agentheim:work`-Laufs die passenden Review-Agents vorschlagen und im
-Session-End-Eintrag nennen, nicht automatisch starten: `qa-milestone-reviewer` bei geänderten
-Tests, `backend-code-quality` bei `src/Server/**`, `frontend-architecture` bei `src/Client/**`,
-`design-quality` bei sichtbaren UI-Änderungen. Liegen seit dem letzten `Bestandsreview: <bc>` im
+Am Ende jedes `/agentheim:work`-Laufs `/review-agents` vorschlagen, mit den Agents, die er wählen
+würde, und beides im Session-End-Eintrag nennen, nicht automatisch starten: `qa-milestone-reviewer`
+bei geänderten Tests, `backend-code-quality` bei `src/Server/**`, `frontend-architecture` bei
+`src/Client/**`, `design-quality` bei sichtbaren UI-Änderungen. Der Skill
+(`.claude/skills/review-agents/SKILL.md`) lässt sie laufen und behebt die Funde selbst. Liegen seit dem letzten `Bestandsreview: <bc>` im
 Protokoll zehn oder mehr erledigte Tasks des BC, zusätzlich `/architecture-review <bc>` vorschlagen.
 
 ## Lernen
