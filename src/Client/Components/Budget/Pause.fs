@@ -96,7 +96,7 @@ let pauseLocked (model: Model) (categoryId: System.Guid) : bool =
     pauseBusy model || targetCallFor model categoryId || pauseHeldByConfirm model categoryId
 
 /// Wie der Pause-Knopf aussieht: `Busy` dreht und behält den Fokus (`Button.IsBusy`), `Disabled` sperrt
-/// (Vorbild `saveButtonState` in `TargetEdit`, budgeting-c2t9w).
+/// (Vorbild `formSaveButton` im Kern `TargetFormCore`, budgeting-c2t9w).
 type PauseButtonState = { Busy: bool; Disabled: bool }
 
 /// Dreht, wenn der eigene Aufruf läuft, sonst gesperrt nach `pauseLocked`.

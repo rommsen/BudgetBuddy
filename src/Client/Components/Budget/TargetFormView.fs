@@ -8,7 +8,6 @@ open Feliz
 open Shared.Domain
 open Shared.Budgeting
 open Components.Budget.TargetFormCore
-open Components.Budget.Month
 open Components.Budget.MonthView
 open Client.DesignSystem
 open Client.DesignSystem.Tokens

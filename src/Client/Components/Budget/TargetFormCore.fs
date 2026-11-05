@@ -8,7 +8,7 @@ open Shared.Domain
 open Shared.Budgeting
 open Client.DesignSystem
 
-/// Was über dem Formular im Tab Target steht, nachdem eine Antwort kam (budgeting-k8wq3).
+/// Was über dem Formular steht, nachdem eine Antwort kam (budgeting-k8wq3).
 type TargetNotice =
     /// YNAB stand anders als gezeigt: das Formular zeigt den frischen Stand, die Eingabe ist verworfen.
     | TargetChangedNotice
@@ -18,8 +18,8 @@ type TargetNotice =
     /// Eingabe mit dem Datum bleibt, Speichern setzt es erneut.
     | TargetPartlyNotice of message: string
 
-/// Das Formular im Tab Target (budgeting-k8wq3, ADR 0080). Hält Kategorie und Monat: es gilt nur, solange
-/// beide gezeigt werden und der Monat der laufende ist (`syncTargetForm`). Ein Wechsel verwirft die Eingabe.
+/// Das Formular (budgeting-k8wq3, ADR 0080). Hält Kategorie und Monat: es gilt nur, solange beide gezeigt
+/// werden und der Monat der laufende ist (im Tab Target `syncTargetForm`). Ein Wechsel verwirft die Eingabe.
 type TargetForm = {
     CategoryId: System.Guid
     Month: string
@@ -37,7 +37,7 @@ type TargetForm = {
     ConfirmingChange: bool
 }
 
-/// Was der laufende Aufruf im Tab Target tut (budgeting-g2ty9, F1): der Spinner steht nur am Knopf, der
+/// Was der laufende Aufruf des Formulars tut (budgeting-g2ty9, F1): der Spinner steht nur am Knopf, der
 /// ihn ausgelöst hat.
 type TargetAction =
     /// "Target speichern", "Target anlegen" oder "Wechseln" in der Warnung.
@@ -371,7 +371,7 @@ let formSaveWaitHint (shown: Target option) (locks: TargetFormLocks) (form: Targ
     if formSaveableApartFromCalls shown form then locks.WaitHint else None
 
 /// Steht unter "Target entfernen", warum es wartet? Eine offene Rückfrage gibt es neben einem laufenden
-/// Aufruf nicht (`startPause`, `formAskRemove`).
+/// Aufruf nicht (`formAskRemove`, im Tab Target auch `startPause`).
 let formRemoveWaitHint (locks: TargetFormLocks) : string option = locks.WaitHint
 
 /// Der Satz unter "Target speichern" und "Target entfernen", solange eine Pause derselben Kategorie sie

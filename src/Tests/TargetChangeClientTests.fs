@@ -88,6 +88,19 @@ let private formOf (model: Model) : TargetForm =
     | Some form -> form
     | None -> failtest "Formular erwartet"
 
+/// Gezeigtes Target, Sperrlage und Formular der Kategorie, wie die View sie an den Kern gibt (`targetTabMode`,
+/// `targetFormLocks`). Speichern und seine Sätze prüfen die Tests am Kern (budgeting-p8nd0).
+let private tabForm (model: Model) (category: BudgetCategory) : Target option * TargetFormLocks * TargetForm =
+    let locks = targetFormLocks model category.Id
+    match targetTabMode model category with
+    | TargetEditable (target, form) -> Some target, locks, form
+    | TargetCreatable form -> None, locks, form
+    | other -> failtest $"Formular erwartet: {other}"
+
+/// Die Sperrlage der Kategorie des Formulars (`targetFormLocks`), für Felder und Entfernen am Kern.
+let private locksOf (model: Model) : TargetFormLocks =
+    targetFormLocks model (formOf model).CategoryId
+
 // ============================================
 // Sichtbarkeit und Sperre
 // ============================================
@@ -129,16 +142,16 @@ let private visibilityTests =
         }
         test "Ohne Abweichung ist Speichern gesperrt, eine ungültige Eingabe auch" {
             let trip' model = categoryOf model tripId
-            Expect.isFalse (canSaveTarget onTrip (trip' onTrip)) "nichts geändert"
+            Expect.isFalse (tabForm onTrip (trip' onTrip) |||> formCanSave) "nichts geändert"
             let same = onTrip |> step (TargetAmountChanged "50,00")
-            Expect.isFalse (canSaveTarget same (trip' same)) "derselbe Betrag"
+            Expect.isFalse (tabForm same (trip' same) |||> formCanSave) "derselbe Betrag"
             for text in [ "abc"; "-60" ] do
                 let bad = onTrip |> step (TargetAmountChanged text)
-                Expect.isFalse (canSaveTarget bad (trip' bad)) text
+                Expect.isFalse (tabForm bad (trip' bad) |||> formCanSave) text
             let badDate = onTrip |> step (TargetDateChanged (DateField.InvalidDate "31.02."))
-            Expect.isFalse (canSaveTarget badDate (trip' badDate)) "Datum ungültig"
+            Expect.isFalse (tabForm badDate (trip' badDate) |||> formCanSave) "Datum ungültig"
             let changed = onTrip |> step (TargetAmountChanged "+10")
-            Expect.isTrue (canSaveTarget changed (trip' changed)) "Rechnung wie Zugewiesen: 60 €"
+            Expect.isTrue (tabForm changed (trip' changed) |||> formCanSave) "Rechnung wie Zugewiesen: 60 €"
         }
     ]
 
@@ -218,16 +231,16 @@ let private flowTests =
         // Antwort setzte das Formular zurück, die nachgetippte Eingabe war still weg.
         test "GIVEN Speichern läuft WHEN getippt wird THEN nehmen die Felder nichts an, danach wieder" {
             let running = onTrip |> step (TargetAmountChanged "60") |> step SaveTarget
-            Expect.isTrue (targetFieldsLocked running) "gesperrt"
+            Expect.isTrue (formFieldsLocked (locksOf running)) "gesperrt"
             let typed = running |> step (TargetAmountChanged "70") |> step (TargetDateChanged (DateField.ValidDate (DateTime(2027, 6, 1))))
             Expect.equal ((formOf typed).AmountInput, (formOf typed).DateInput) (Some "60", None) "keine Eingabe angenommen"
             let answered = typed |> step (TargetChangeAnswered (tripId, current, Ok (TargetWritten (Some (targetOf 60m)))))
-            Expect.isFalse (targetFieldsLocked answered) "wieder frei"
+            Expect.isFalse (formFieldsLocked (locksOf answered)) "wieder frei"
             Expect.equal (formOf (answered |> step (TargetAmountChanged "70"))).AmountInput (Some "70") "Eingabe geht wieder"
         }
         test "Läuft das Speichern einer anderen Kategorie, ist das Formular der gezeigten frei" {
             let away = onTrip |> step (TargetAmountChanged "60") |> step SaveTarget |> step (SelectCategory holidayId)
-            Expect.isFalse (targetFieldsLocked away) "frei"
+            Expect.isFalse (formFieldsLocked (locksOf away)) "frei"
             Expect.equal (formOf (away |> step (TargetAmountChanged "30"))).AmountInput (Some "30") "Eingabe"
         }
         test "Ein Fehler, während der Tab Historie offen ist, kommt als Toast, die Meldung bleibt im Formular" {
@@ -238,11 +251,11 @@ let private flowTests =
         }
         test "Target entfernen ist gesperrt, solange die Bestätigung offen ist" {
             let asked = onTrip |> step AskRemoveTarget
-            Expect.isTrue (removeTargetLocked asked (formOf asked)) "offen"
+            Expect.isTrue (formRemoveLocked (locksOf asked) (formOf asked)) "offen"
             let cancelled = asked |> step CancelRemoveTarget
-            Expect.isFalse (removeTargetLocked cancelled (formOf cancelled)) "abgebrochen"
+            Expect.isFalse (formRemoveLocked (locksOf cancelled) (formOf cancelled)) "abgebrochen"
             let saving = onTrip |> step (TargetAmountChanged "60") |> step SaveTarget
-            Expect.isTrue (removeTargetLocked saving (formOf saving)) "Aufruf läuft"
+            Expect.isTrue (formRemoveLocked (locksOf saving) (formOf saving)) "Aufruf läuft"
         }
         test "Ein Fehler, während eine andere Kategorie gezeigt wird, kommt als Toast" {
             let running = onTrip |> step (TargetAmountChanged "60") |> step SaveTarget |> step (SelectCategory holidayId)
@@ -356,9 +369,9 @@ let private createTests =
         }
         test "Anlegen geht erst mit Betrag, gesendet wird kein gezeigtes Target und der gewählte Rhythmus" {
             let model = onHolidayWithout current
-            Expect.isFalse (canSaveTarget model (categoryOf model holidayId)) "ohne Betrag"
+            Expect.isFalse (tabForm model (categoryOf model holidayId) |||> formCanSave) "ohne Betrag"
             let typed = model |> step (TargetAmountChanged "50")
-            Expect.isTrue (canSaveTarget typed (categoryOf typed holidayId)) "mit Betrag"
+            Expect.isTrue (tabForm typed (categoryOf typed holidayId) |||> formCanSave) "mit Betrag"
             Expect.equal
                 (requestOf typed)
                 { CategoryId = holidayId; Shown = None; Wanted = Some { NewGoal = eur 50m; NewDate = None; NewRhythm = SetRhythm Monthly } }
@@ -375,14 +388,14 @@ let private createTests =
 let private changeTests =
     testList "Tab Target: Wechsel der Art" [
         test "Den gelesenen Rhythmus wählen ist keine Änderung" {
-            Expect.isFalse (canSaveTarget (onTrip |> step (TargetRhythmChanged Monthly)) (trip 50m)) "monatlich bleibt"
+            Expect.isFalse ((tabForm (onTrip |> step (TargetRhythmChanged Monthly)) (trip 50m) |||> formCanSave)) "monatlich bleibt"
         }
         test "GIVEN Wechsel mit Verlusten WHEN Speichern THEN erst die Warnung, gesendet wird nur nach Bestätigung" {
             let chosen = onTrip |> step (TargetRhythmChanged Weekly)
             let warned, cmd, _ = update SaveTarget chosen
             Expect.isEmpty cmd "Speichern sendet nicht"
             Expect.isTrue (formOf warned).ConfirmingChange "Warnung offen"
-            Expect.isFalse (canSaveTarget warned (trip 50m)) "Speichern gesperrt, solange sie offen ist"
+            Expect.isFalse (tabForm warned (trip 50m) |||> formCanSave) "Speichern gesperrt, solange sie offen ist"
             let confirmed, cmd, _ = update ConfirmTargetChange warned
             Expect.isNonEmpty cmd "Bestätigen sendet"
             Expect.equal confirmed.TargetCall (TargetSaving (tripId, current, SavingTarget)) "Aufruf läuft"
@@ -453,7 +466,7 @@ let private changeTests =
             let held = typed |> step (TargetChangeAnswered (holidayId, current, Ok (TargetPartlyWritten (None, heldBack))))
             Expect.equal ((formOf held).Notice |> Option.map targetNoticeText) (Some heldBack) "zurückgehalten: ohne Handlungssatz"
             Expect.equal (targetDateValue (Some after) form) (Some (DateTime(2027, 6, 1))) "Datum bleibt"
-            Expect.isTrue (canSaveTarget answered (categoryOf answered holidayId)) "Speichern aktiv"
+            Expect.isTrue (tabForm answered (categoryOf answered holidayId) |||> formCanSave) "Speichern aktiv"
             Expect.equal
                 (requestOf answered)
                 { CategoryId = holidayId; Shown = Some after; Wanted = Some { NewGoal = eur 600m; NewDate = Some "2027-06-01"; NewRhythm = KeepRhythm } }
@@ -535,21 +548,21 @@ let private reviewTests =
         // eigenen Aufruf `disabled`, der Fokus ging verloren.
         test "Beim Speichern dreht nur Target speichern, beim Entfernen nur Target entfernen, der drehende Knopf ist nicht gesperrt" {
             let saving = onTrip |> step (TargetAmountChanged "60") |> step SaveTarget
-            Expect.equal (saveButtonState saving (categoryOf saving tripId)) { Busy = true; Disabled = false } "Speichern dreht"
-            Expect.equal (removeButtonState saving (formOf saving)) { Busy = false; Disabled = true } "Entfernen gesperrt"
+            Expect.equal (tabForm saving (categoryOf saving tripId) |||> formSaveButton) { Busy = true; Disabled = false } "Speichern dreht"
+            Expect.equal (formRemoveButton (locksOf saving) (formOf saving)) { Busy = false; Disabled = true } "Entfernen gesperrt"
             let removing = onTrip |> step AskRemoveTarget |> step ConfirmRemoveTarget
             Expect.equal removing.TargetCall (TargetSaving (tripId, current, RemovingTarget)) "Entfernen läuft"
-            Expect.equal (removeButtonState removing (formOf removing)) { Busy = true; Disabled = false } "Entfernen dreht"
-            Expect.equal (saveButtonState removing (categoryOf removing tripId)) { Busy = false; Disabled = true } "Speichern gesperrt"
+            Expect.equal (formRemoveButton (locksOf removing) (formOf removing)) { Busy = true; Disabled = false } "Entfernen dreht"
+            Expect.equal (tabForm removing (categoryOf removing tripId) |||> formSaveButton) { Busy = false; Disabled = true } "Speichern gesperrt"
             let switching = onTrip |> step (TargetRhythmChanged Weekly) |> step SaveTarget |> step ConfirmTargetChange
-            Expect.equal (saveButtonState switching (categoryOf switching tripId)) { Busy = true; Disabled = false } "Wechseln dreht am Speichern-Knopf"
-            Expect.equal (saveButtonState onTrip (trip 50m)) { Busy = false; Disabled = true } "ohne Änderung gesperrt"
-            Expect.equal (removeButtonState onTrip (formOf onTrip)) { Busy = false; Disabled = false } "Entfernen frei"
+            Expect.equal (tabForm switching (categoryOf switching tripId) |||> formSaveButton) { Busy = true; Disabled = false } "Wechseln dreht am Speichern-Knopf"
+            Expect.equal (tabForm onTrip (trip 50m) |||> formSaveButton) { Busy = false; Disabled = true } "ohne Änderung gesperrt"
+            Expect.equal (formRemoveButton (locksOf onTrip) (formOf onTrip)) { Busy = false; Disabled = false } "Entfernen frei"
         }
         // X3: der Rhythmus wirkte beim Speichern bedienbar.
         test "Solange das Speichern läuft, ist der Rhythmus gesperrt wie Betrag und Datum, eine Wahl ändert nichts" {
             let saving = onTrip |> step (TargetAmountChanged "60") |> step SaveTarget
-            Expect.isTrue (targetFieldsLocked saving) "gesperrt"
+            Expect.isTrue (formFieldsLocked (locksOf saving)) "gesperrt"
             Expect.equal (formOf (saving |> step (TargetRhythmChanged Yearly))).RhythmInput None "keine Wahl angenommen"
         }
         // X2: ein stilles Neulesen bei offener Warnung ließ "Wechseln" wirkungslos und Speichern gesperrt.
@@ -581,7 +594,7 @@ let private reviewTests =
             let reread = asked |> step (Reloaded (asked.MonthGeneration, Ok without))
             Expect.isFalse (formOf reread).ConfirmingRemove "Bestätigung zu"
             let typed = reread |> step (TargetAmountChanged "40")
-            Expect.equal (saveButtonState typed (categoryOf typed tripId)) { Busy = false; Disabled = false } "Target anlegen bedienbar"
+            Expect.equal (tabForm typed (categoryOf typed tripId) |||> formSaveButton) { Busy = false; Disabled = false } "Target anlegen bedienbar"
             Expect.isTrue (sends SaveTarget typed) "Target anlegen sendet"
             let still = asked |> step (Reloaded (asked.MonthGeneration, Ok (monthWith current 50m)))
             Expect.isTrue (formOf still).ConfirmingRemove "mit Target: Bestätigung bleibt"
@@ -606,7 +619,7 @@ let private reviewTests =
         // X8: wie die API-Grenze.
         test "Anlegen mit 0 € ist gesperrt und nennt den Grund unter dem Betrag" {
             let zero = onHolidayWithout current |> step (TargetAmountChanged "0")
-            Expect.isFalse (canSaveTarget zero (categoryOf zero holidayId)) "gesperrt"
+            Expect.isFalse (tabForm zero (categoryOf zero holidayId) |||> formCanSave) "gesperrt"
             Expect.equal (targetAmountHint None (formOf zero)) (Some TargetCreateZeroText) "Hinweis"
             Expect.equal (targetAmountHint (Some (targetOf 50m)) (formOf (onTrip |> step (TargetAmountChanged "0")))) None "Ändern auf 0 € geht"
         }
@@ -709,17 +722,17 @@ let private askWalkTests =
                 let reads = w.Tab = HistoryTab || expected.Tab = HistoryTab
                 if not reads || sent then
                     Expect.equal (not (List.isEmpty cmd)) sent $"{route}: gesendet"
-                Expect.isFalse (targetBusy model' && Components.Budget.Pause.pauseBusy model') $"{route}: Target und Pause zugleich"
+                Expect.isFalse ((match model'.TargetCall with TargetSaving _ -> true | TargetIdle -> false) && Components.Budget.Pause.pauseBusy model') $"{route}: Target und Pause zugleich"
                 let form = formOf model'
                 Expect.equal (form.ConfirmingChange, form.ConfirmingRemove) (expected.WarnOpen, expected.RemoveOpen) $"{route}: Rückfragen offen"
                 let busy = expected.TargetPending || expected.PausePending
                 let asking = expected.WarnOpen || expected.RemoveOpen
                 // Speichern geht nur mit einer Eingabe, ohne offene Rückfrage und ohne laufenden Aufruf.
                 let saveable = not busy && not asking && (expected.Typed || expected.Chosen)
-                Expect.equal (canSaveTarget model' (categoryOf model' tripId)) saveable $"{route}: Speichern geht"
+                Expect.equal (tabForm model' (categoryOf model' tripId) |||> formCanSave) saveable $"{route}: Speichern geht"
                 // Der drehende Knopf ist nie gesperrt, jeder andere bei laufendem Aufruf und offener Rückfrage.
                 Expect.equal
-                    (removeButtonState model' form).Disabled
+                    (formRemoveButton (locksOf model') form).Disabled
                     (not expected.RemovePending && (busy || asking))
                     $"{route}: Target entfernen gesperrt"
                 Expect.equal
@@ -727,10 +740,10 @@ let private askWalkTests =
                     (not expected.PausePending && (busy || asking))
                     $"{route}: Target pausieren gesperrt"
                 Expect.equal (Components.Budget.Pause.pauseButtonState model' tripId).Busy expected.PausePending $"{route}: Target pausieren dreht"
-                Expect.equal (removeButtonState model' form).Busy expected.RemovePending $"{route}: Target entfernen dreht"
+                Expect.equal (formRemoveButton (locksOf model') form).Busy expected.RemovePending $"{route}: Target entfernen dreht"
                 let category = categoryOf model' tripId
                 Expect.equal
-                    (saveButtonState model' category).Busy
+                    (tabForm model' category |||> formSaveButton).Busy
                     (expected.TargetPending && not expected.RemovePending)
                     $"{route}: Target speichern dreht"
                 // Die Sätze zur Sperre: nur, wenn der Aufruf der Kategorie den Knopf sperrt.
@@ -740,11 +753,11 @@ let private askWalkTests =
                     $"{route}: Satz unter Target pausieren"
                 let byPause = expected.PausePending && not asking
                 Expect.equal
-                    (saveWaitHint model' category)
+                    (tabForm model' category |||> formSaveWaitHint)
                     (if byPause && (expected.Typed || expected.Chosen) then Some TargetWaitsForPauseText else None)
                     $"{route}: Satz unter Target speichern"
                 Expect.equal
-                    (removeWaitHint model' form)
+                    (formRemoveWaitHint (locksOf model'))
                     (if byPause then Some TargetWaitsForPauseText else None)
                     $"{route}: Satz unter Target entfernen"
                 walkFrom (depth - 1) (name :: path) expected model'
@@ -786,17 +799,17 @@ let private perCategoryTests =
         test "GIVEN Pause bei Ausflug läuft WHEN Urlaub gezeigt THEN Speichern und Entfernen bei Urlaub gehen, bei Ausflug warten sie mit Satz" {
             let pausing = onTrip |> step (TargetAmountChanged "60") |> step (SetTargetPause PauseTarget)
             Expect.equal pausing.PauseCall (PauseRunning (tripId, current, onTrip.MonthGeneration)) "Pause läuft"
-            Expect.isFalse (canSaveTarget pausing (categoryOf pausing tripId)) "Ausflug: Speichern gesperrt"
-            Expect.equal (removeButtonState pausing (formOf pausing)) { Busy = false; Disabled = true } "Ausflug: Entfernen gesperrt"
-            Expect.equal (saveWaitHint pausing (categoryOf pausing tripId)) (Some "Wartet, bis die Pause gespeichert ist.") "Satz unter Speichern"
-            Expect.equal (removeWaitHint pausing (formOf pausing)) (Some "Wartet, bis die Pause gespeichert ist.") "Satz unter Entfernen"
+            Expect.isFalse (tabForm pausing (categoryOf pausing tripId) |||> formCanSave) "Ausflug: Speichern gesperrt"
+            Expect.equal (formRemoveButton (locksOf pausing) (formOf pausing)) { Busy = false; Disabled = true } "Ausflug: Entfernen gesperrt"
+            Expect.equal (tabForm pausing (categoryOf pausing tripId) |||> formSaveWaitHint) (Some "Wartet, bis die Pause gespeichert ist.") "Satz unter Speichern"
+            Expect.equal (formRemoveWaitHint (locksOf pausing)) (Some "Wartet, bis die Pause gespeichert ist.") "Satz unter Entfernen"
             Expect.isFalse (sends SaveTarget pausing) "Ausflug sendet nicht"
             let onHoliday = pausing |> step (SelectCategory holidayId) |> step (TargetAmountChanged "30")
             let holidayNow = categoryOf onHoliday holidayId
-            Expect.equal (saveButtonState onHoliday holidayNow) { Busy = false; Disabled = false } "Urlaub: Speichern frei"
-            Expect.equal (removeButtonState onHoliday (formOf onHoliday)) { Busy = false; Disabled = false } "Urlaub: Entfernen frei"
-            Expect.isNone (saveWaitHint onHoliday holidayNow) "Urlaub: kein Satz unter Speichern"
-            Expect.isNone (removeWaitHint onHoliday (formOf onHoliday)) "Urlaub: kein Satz unter Entfernen"
+            Expect.equal (tabForm onHoliday holidayNow |||> formSaveButton) { Busy = false; Disabled = false } "Urlaub: Speichern frei"
+            Expect.equal (formRemoveButton (locksOf onHoliday) (formOf onHoliday)) { Busy = false; Disabled = false } "Urlaub: Entfernen frei"
+            Expect.isNone (tabForm onHoliday holidayNow |||> formSaveWaitHint) "Urlaub: kein Satz unter Speichern"
+            Expect.isNone (formRemoveWaitHint (locksOf onHoliday)) "Urlaub: kein Satz unter Entfernen"
             Expect.isTrue (formOf (onHoliday |> step AskRemoveTarget)).ConfirmingRemove "Urlaub: Entfernen fragt nach"
             let saved, cmd, _ = update SaveTarget onHoliday
             Expect.isNonEmpty cmd "Urlaub sendet"
@@ -817,17 +830,17 @@ let private perCategoryTests =
         // budgeting-n7h3x, Bug: ein Speichern bei Ausflug sperrte Speichern und Entfernen bei Urlaub ohne Grund.
         test "GIVEN Speichern bei Ausflug läuft WHEN Urlaub gezeigt THEN stehen unter Speichern und Entfernen von Urlaub das Target bei Ausflug" {
             let saving = onTrip |> step (TargetAmountChanged "60") |> step SaveTarget
-            Expect.isNone (saveWaitHint saving (categoryOf saving tripId)) "Ausflug: Spinner, kein Satz unter Speichern"
-            Expect.isNone (removeWaitHint saving (formOf saving)) "Ausflug: kein Satz unter Entfernen"
+            Expect.isNone (tabForm saving (categoryOf saving tripId) |||> formSaveWaitHint) "Ausflug: Spinner, kein Satz unter Speichern"
+            Expect.isNone (formRemoveWaitHint (locksOf saving)) "Ausflug: kein Satz unter Entfernen"
             let onHoliday = saving |> step (SelectCategory holidayId) |> step (TargetAmountChanged "30")
             let holidayNow = categoryOf onHoliday holidayId
-            Expect.equal (saveButtonState onHoliday holidayNow) { Busy = false; Disabled = true } "Urlaub: Speichern gesperrt"
-            Expect.equal (removeButtonState onHoliday (formOf onHoliday)) { Busy = false; Disabled = true } "Urlaub: Entfernen gesperrt"
-            Expect.equal (saveWaitHint onHoliday holidayNow) (Some "Wartet, bis das Target bei Ausflug gespeichert ist.") "Satz unter Speichern"
-            Expect.equal (removeWaitHint onHoliday (formOf onHoliday)) (Some "Wartet, bis das Target bei Ausflug gespeichert ist.") "Satz unter Entfernen"
+            Expect.equal (tabForm onHoliday holidayNow |||> formSaveButton) { Busy = false; Disabled = true } "Urlaub: Speichern gesperrt"
+            Expect.equal (formRemoveButton (locksOf onHoliday) (formOf onHoliday)) { Busy = false; Disabled = true } "Urlaub: Entfernen gesperrt"
+            Expect.equal (tabForm onHoliday holidayNow |||> formSaveWaitHint) (Some "Wartet, bis das Target bei Ausflug gespeichert ist.") "Satz unter Speichern"
+            Expect.equal (formRemoveWaitHint (locksOf onHoliday)) (Some "Wartet, bis das Target bei Ausflug gespeichert ist.") "Satz unter Entfernen"
             // Ohne Eingabe ist Speichern ohnehin gesperrt: kein Satz.
             let untouched = saving |> step (SelectCategory holidayId)
-            Expect.isNone (saveWaitHint untouched (categoryOf untouched holidayId)) "ohne Eingabe kein Satz unter Speichern"
+            Expect.isNone (tabForm untouched (categoryOf untouched holidayId) |||> formSaveWaitHint) "ohne Eingabe kein Satz unter Speichern"
         }
         test "Steht die Kategorie des laufenden Aufrufs nicht im gezeigten Monat, steht der Satz ohne Namen" {
             let elsewhere = Guid.NewGuid()
@@ -838,12 +851,12 @@ let private perCategoryTests =
                 "Pause ohne Namen"
             let typed = onTrip |> step (TargetAmountChanged "60")
             let saving = { typed with TargetCall = TargetSaving (elsewhere, current, SavingTarget) }
-            Expect.equal (saveWaitHint saving (categoryOf saving tripId)) (Some "Wartet, bis das laufende Target gespeichert ist.") "Speichern ohne Namen"
-            Expect.equal (removeWaitHint saving (formOf saving)) (Some "Wartet, bis das laufende Target gespeichert ist.") "Entfernen ohne Namen"
+            Expect.equal (tabForm saving (categoryOf saving tripId) |||> formSaveWaitHint) (Some "Wartet, bis das laufende Target gespeichert ist.") "Speichern ohne Namen"
+            Expect.equal (formRemoveWaitHint (locksOf saving)) (Some "Wartet, bis das laufende Target gespeichert ist.") "Entfernen ohne Namen"
         }
         test "Unter Target speichern und Target entfernen steht der Satz zur Pause nur, wenn kein Target-Aufruf mitsperrt" {
             let pausing = onTrip |> step (SetTargetPause PauseTarget)
-            Expect.isNone (saveWaitHint pausing (categoryOf pausing tripId)) "ohne Änderung gesperrt, nicht wegen der Pause"
+            Expect.isNone (tabForm pausing (categoryOf pausing tripId) |||> formSaveWaitHint) "ohne Änderung gesperrt, nicht wegen der Pause"
             // Pause bei Ausflug, Speichern bei Urlaub, zurück zu Ausflug: auch der Target-Aufruf sperrt.
             let both =
                 pausing
@@ -854,8 +867,8 @@ let private perCategoryTests =
                 |> step (TargetAmountChanged "60")
             Expect.equal (both.TargetCall, both.PauseCall) (TargetSaving (holidayId, current, SavingTarget), pausing.PauseCall) "beide laufen"
             // Sperren Pause und Target-Aufruf zugleich, steht nur der Satz zum gleichartigen Aufruf (budgeting-n7h3x).
-            Expect.equal (saveWaitHint both (categoryOf both tripId)) (Some "Wartet, bis das Target bei Urlaub gespeichert ist.") "Speichern: der Target-Aufruf hat Vorrang"
-            Expect.equal (removeWaitHint both (formOf both)) (Some "Wartet, bis das Target bei Urlaub gespeichert ist.") "Entfernen: der Target-Aufruf hat Vorrang"
+            Expect.equal (tabForm both (categoryOf both tripId) |||> formSaveWaitHint) (Some "Wartet, bis das Target bei Urlaub gespeichert ist.") "Speichern: der Target-Aufruf hat Vorrang"
+            Expect.equal (formRemoveWaitHint (locksOf both)) (Some "Wartet, bis das Target bei Urlaub gespeichert ist.") "Entfernen: der Target-Aufruf hat Vorrang"
         }
         test "Sperren Target-Aufruf derselben und Pause einer anderen Kategorie den Pause-Knopf, steht nur der Satz zur Pause" {
             let both =

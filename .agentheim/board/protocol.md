@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 10:44 -- Task verified and completed: budgeting-p8nd0 - "Target-Formular aufräumen: Wrapper, die nur Tests aufrufen, streichen und die Tab-Tests auf Kern und Sperrlage umstellen"
+
+**Type:** Work / Task completion
+**Task:** budgeting-p8nd0 - "Target-Formular aufräumen: Wrapper, die nur Tests aufrufen, streichen und die Tab-Tests auf Kern und Sperrlage umstellen"
+**Summary:** Wrapper im Target-Formular gestrichen, Tab-Tests laufen über targetFormLocks und den Kern
+**Duration:** 30m
+**Verification:** PASS (iteration 1)
+**Files changed:** 5
+**Tests added:** 0
+**ADRs written:** none
+
+---
+
 ## 2026-11-05 10:22 -- Batch started: [budgeting-gv74q, ledger-cy1j8, budgeting-p8nd0]
 
 **Type:** Work / Batch start

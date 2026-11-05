@@ -57,7 +57,7 @@ let targetMonthHint (model: Model) (category: BudgetCategory) : string option =
     | _ -> None
 
 /// Läuft irgendein Aufruf? Dann sendet ein zweiter Tipp nichts.
-let targetBusy (model: Model) : bool =
+let private targetBusy (model: Model) : bool =
     match model.TargetCall with
     | TargetSaving _ -> true
     | TargetIdle -> false
@@ -99,13 +99,6 @@ let private editableForm (mode: TargetTabMode) : (Target option * TargetForm) op
     | NoTargetShown
     | TargetReadOnly _ -> None
 
-/// Geht "Target speichern" oder "Target anlegen"? Nur bei Abweichung vom geladenen Stand, wenn kein Aufruf
-/// läuft, auch keine Pause derselben Kategorie (`targetWaits`), und keine Rückfrage offen ist.
-let canSaveTarget (model: Model) (category: BudgetCategory) : bool =
-    match editableForm (targetTabMode model category) with
-    | Some (shown, form) -> formCanSave shown (targetFormLocks model category.Id) form
-    | None -> false
-
 let private selectedEditable (model: Model) : (BudgetCategory * Target option * TargetForm) option =
     match model.Selected, model.Month with
     | Some selected, Success month ->
@@ -116,10 +109,6 @@ let private selectedEditable (model: Model) : (BudgetCategory * Target option * 
 
 let private updateForm (change: TargetForm -> TargetForm) (model: Model) : Model =
     { model with TargetForm = model.TargetForm |> Option.map change }
-
-/// Sind Betrags- und Datumsfeld gesperrt? Solange das eigene Speichern läuft (`formFieldsLocked`).
-let targetFieldsLocked (model: Model) : bool =
-    model.TargetForm |> Option.exists (fun f -> formFieldsLocked (targetFormLocks model f.CategoryId))
 
 /// Das gezeigte Target der Kategorie im dargestellten Monat.
 let private shownTarget (model: Model) (categoryId: System.Guid) : Target option =
@@ -185,7 +174,7 @@ let syncTargetForm (model: Model) : Model =
 
 /// Rhythmus im `Segmented` gewählt (`formChooseRhythm`).
 let chooseTargetRhythm (frequency: TargetFrequency) (model: Model) : Model =
-    updateForm (fun f -> formChooseRhythm frequency (shownTarget model f.CategoryId) (targetFormLocks model f.CategoryId) f) model
+    changeForm (fun locks f -> formChooseRhythm frequency (shownTarget model f.CategoryId) locks f) model
 
 /// "Target speichern" oder "Target anlegen" (`formPlanSave`).
 let startTargetSave (model: Model) : Model * (string * TargetChangeRequest) option =
@@ -199,11 +188,6 @@ let confirmTargetChange (model: Model) : Model * (string * TargetChangeRequest) 
 let cancelTargetChange (model: Model) : Model =
     updateForm formCancelChange model
 
-/// Ist "Target entfernen" gesperrt? Solange ein Aufruf läuft, auch eine Pause derselben Kategorie
-/// (budgeting-c2t9w, budgeting-f8w2n), und solange eine Rückfrage offen ist (`formRemoveLocked`).
-let removeTargetLocked (model: Model) (form: TargetForm) : bool =
-    formRemoveLocked (targetFormLocks model form.CategoryId) form
-
 /// "Target entfernen": die Bestätigung öffnen (`formAskRemove`).
 let askRemoveTarget (model: Model) : Model =
     match selectedEditable model with
@@ -216,29 +200,6 @@ let cancelRemoveTarget (model: Model) : Model =
 /// Entfernen bestätigt: ein Aufruf ohne Wunsch (`formConfirmRemove`).
 let startTargetRemove (model: Model) : Model * (string * TargetChangeRequest) option =
     start formConfirmRemove model
-
-/// "Target speichern" oder "Target anlegen" im Tab (`formSaveButton`).
-let saveButtonState (model: Model) (category: BudgetCategory) : TargetButtonState =
-    let locks = targetFormLocks model category.Id
-    match editableForm (targetTabMode model category) with
-    | Some (shown, form) -> formSaveButton shown locks form
-    | None ->
-        let busy = locks.Running = Some SavingTarget
-        { Busy = busy; Disabled = not busy }
-
-/// "Target entfernen" im Tab (`formRemoveButton`).
-let removeButtonState (model: Model) (form: TargetForm) : TargetButtonState =
-    formRemoveButton (targetFormLocks model form.CategoryId) form
-
-/// Steht unter "Target speichern" oder "Target anlegen", warum es wartet (`formSaveWaitHint`)?
-let saveWaitHint (model: Model) (category: BudgetCategory) : string option =
-    match editableForm (targetTabMode model category) with
-    | Some (shown, form) -> formSaveWaitHint shown (targetFormLocks model category.Id) form
-    | None -> None
-
-/// Steht unter "Target entfernen", warum es wartet (`formRemoveWaitHint`)?
-let removeWaitHint (model: Model) (form: TargetForm) : string option =
-    formRemoveWaitHint (targetFormLocks model form.CategoryId)
 
 /// Setzt das Target der Kategorie im geladenen Monat, wenn er der Monat des Aufrufs ist.
 let withTarget (categoryId: System.Guid) (month: string) (target: Target option) (model: Model) : Model =
