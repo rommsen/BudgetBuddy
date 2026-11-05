@@ -329,6 +329,13 @@ let typeConversionTests =
                 Expect.isNonEmpty retrieved "Should have at least one transaction"
                 let first = List.head retrieved
                 Expect.equal first.ReviewSteps [ ruleStep; userStep ] "Review steps should survive save/reload, oldest first"
+                // DateTime-Gleichheit vergleicht nur Ticks. Der Zeitpunkt eines Prüfschritts wird
+                // beim Import-Commit zu `OccurredAt` eines Kassenbuch-Ereignisses, und `events`
+                // verlangt UTC (ledger-k9tm2): die Art muss den Rundlauf überstehen.
+                Expect.equal
+                    (first.ReviewSteps |> List.map (fun s -> s.At.Kind))
+                    [ DateTimeKind.Utc; DateTimeKind.Utc ]
+                    "Review step times stay UTC after save/reload"
 
             testCase "a review step carrying splits roundtrips the split target" <| fun () ->
                 let sessionId = SyncSessionId (Guid.NewGuid())

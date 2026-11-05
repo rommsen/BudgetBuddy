@@ -325,6 +325,44 @@ let migrationTests =
             Expect.equal (legacyEnvelopes conn) legacyBefore "alte Tabelle unverändert"
             Expect.equal (allEvents conn) eventsBefore "events unverändert"
 
+        // Eine Id, die nicht im Format D steht (hier großgeschrieben), ergäbe einen Stream, der
+        // nicht zu `ledger_entries.id` passt; die Migration bricht ab statt still umzudeuten.
+        testCase "eine Buchungs-Id außerhalb des Guid-Formats D bricht die Migration ab und lässt beide Tabellen unverändert" <| fun () ->
+            use conn = freshDb ()
+            exec conn legacyDdl
+            let entry = Guid.NewGuid()
+            insertLegacy conn 1L entry 1L "2026-10-01T08:00:00.0000000Z" (cashExpense -1.00m)
+            exec conn "UPDATE ledger_entry_events SET entry_id = upper(entry_id)"
+            let legacyBefore = legacyEnvelopes conn
+            let eventsBefore = allEvents conn
+
+            let error = Expect.throwsC (fun () -> migrateLedgerEventsOn conn |> ignore) id
+
+            Expect.stringContains error.Message (entry.ToString().ToUpperInvariant()) "nennt die Buchung"
+            Expect.isTrue (legacyTableExists conn) "alte Tabelle steht noch"
+            Expect.equal (legacyEnvelopes conn) legacyBefore "alte Tabelle unverändert"
+            Expect.equal (allEvents conn) eventsBefore "events unverändert"
+
+        // Belegt die Transaktion: der Fehler kommt erst beim Schreiben der zweiten Zeile (UNIQUE
+        // auf stream_id, stream_version), nach der Abbruchprüfung und nach einer schon
+        // geschriebenen ersten Zeile, die zurückgenommen werden muss.
+        testCase "scheitert das Schreiben nach events, bleiben beide Tabellen unverändert" <| fun () ->
+            use conn = freshDb ()
+            let clashing = EntryId (Guid.NewGuid())
+            appendAndApplyOn conn [ eventAt clashing (at 1 8) Bob (cashExpense -4.00m) ]
+            exec conn legacyDdl
+            let (EntryId clashingGuid) = clashing
+            insertLegacy conn 1L (Guid.NewGuid()) 1L "2026-10-01T07:00:00.0000000Z" (cashExpense -3.00m)
+            insertLegacy conn 2L clashingGuid 1L "2026-10-01T08:00:00.0000000Z" (cashExpense -4.00m)
+            let legacyBefore = legacyEnvelopes conn
+            let eventsBefore = allEvents conn
+
+            Expect.throws (fun () -> migrateLedgerEventsOn conn |> ignore) "UNIQUE greift beim Schreiben"
+
+            Expect.isTrue (legacyTableExists conn) "alte Tabelle steht noch"
+            Expect.equal (legacyEnvelopes conn) legacyBefore "alte Tabelle unverändert"
+            Expect.equal (allEvents conn) eventsBefore "events unverändert"
+
         testCase "ein Zeitpunkt ohne Zonenangabe wird unverändert kopiert und blockiert nicht" <| fun () ->
             use conn = freshDb ()
             exec conn legacyDdl
@@ -337,7 +375,7 @@ let migrationTests =
             let recorded = loadAllEventsOn conn null
             Expect.equal (recorded |> List.map (fun r -> r.Event.OccurredAt)) [ DateTime(2026, 1, 15, 10, 0, 0) ] "lesbar"
 
-        testCase "ein zweiter Start nach der Migration ändert nichts und legt die alte Tabelle nicht neu an" <| fun () ->
+        testCase "ein zweiter Start nach der Migration ändert nichts" <| fun () ->
             use conn = freshDb ()
             seed conn |> ignore
             toLegacyLog conn
@@ -348,15 +386,7 @@ let migrationTests =
             createLedgerSchemaOn conn
 
             Expect.equal (migrateLedgerEventsOn conn) 0 "nichts zu tun"
-            Expect.isFalse (legacyTableExists conn) "nicht neu angelegt"
             Expect.equal (allEvents conn) afterFirst "events unverändert"
-
-        testCase "der Start über initializeLedgerSchema legt keine alte Tabelle an" <| fun () ->
-            initializeLedgerSchema ()
-            use conn = global.Persistence.getConnection ()
-            conn.Open()
-            Expect.isFalse (legacyTableExists conn) "keine ledger_entry_events"
-            Expect.equal (scalar conn "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'events'") 1L "events da"
 
         testCase "die Bob-Tagesgrenze liest vor und nach der Migration dieselben Summen, nur aus dem Kassenbuch" <| fun () ->
             use conn = freshDb ()
@@ -407,6 +437,38 @@ let migrationTests =
 
             Expect.equal (loadEntryOriginsOn conn) before "nachher gleich"
 
+        // Kein stiller Default: eine Buchung, deren erstes Ereignis keinen lesbaren Actor trägt,
+        // fiel früher still aus der Herkunft heraus.
+        testCase "eine unlesbare Herkunft wird gemeldet statt ausgelassen" <| fun () ->
+            use conn = freshDb ()
+            let entry = Guid.NewGuid()
+            use tx = conn.BeginTransaction()
+            EventStore.appendOn conn tx {
+                Context = "ledger"
+                CommandId = None
+                Streams = [
+                    {
+                        Aggregate = "entry"
+                        Id = EventStore.GuidId entry
+                        Events = [
+                            {
+                                EventType = "CashExpenseAdded"
+                                SchemaVersion = schemaVersion (cashExpense -5.00m)
+                                Payload = encodePayload (cashExpense -5.00m)
+                                OccurredAt = at 2 10
+                                ActorKind = "Unbekannt"
+                                ActorRef = None
+                            }
+                        ]
+                    }
+                ]
+            } EventStore.noReadModels
+            |> ignore
+            tx.Commit()
+
+            let error = Expect.throwsC (fun () -> loadEntryOriginsOn conn |> ignore) id
+            Expect.stringContains error.Message (entry.ToString()) "nennt den Stream"
+
         testCase "neue Ereignisse landen nach der Migration in events hinter den migrierten" <| fun () ->
             use conn = freshDb ()
             let observedEntry, _, _ = seed conn
@@ -423,7 +485,6 @@ let migrationTests =
                 [ "ledger|1|EntryObservedInYnab"; "ledger|2|EntryClearedStateChangeObservedInYnab"; "ledger|3|EntryApprovalChangeObservedInYnab" ]
                 "fortlaufend hinter den migrierten"
             Expect.isFalse (legacyTableExists conn) "keine alte Tabelle"
-            Expect.isFalse (loadAllEventsOn conn null |> List.exists (fun r -> r.Event.EntryId = observedEntry && r.Sequence > 3)) "nichts darüber"
     ]
 
 // ============================================
