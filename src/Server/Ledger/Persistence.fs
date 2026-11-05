@@ -654,104 +654,186 @@ let private writeSplitIndexes (conn: SqliteConnection) (tx: SqliteTransaction) (
         )
         |> ignore
 
-/// Haengt Ereignisse an das Log und schreibt den daraus abgeleiteten Zustand fort:
-/// beides auf **einer** Connection in **einer** Transaktion (ADR 0013, Punkt 5).
-/// Schlaegt irgendein Schritt fehl, steht danach weder ein Ereignis im Log noch eine
-/// Aenderung im Zustand. Die laufende Nummer je Buchung vergibt diese Funktion.
-let appendAndApply (events: LedgerEvent list) : Async<unit> =
-    async {
-        if List.isEmpty events then
-            return ()
-        else
-            use conn = Core.getConnection ()
+/// Schreibt eine Ereigniszeile ins Log, auf der übergebenen Connection und Transaktion.
+/// Die laufende Nummer bestimmt der Aufrufer.
+let private insertEventRow (conn: SqliteConnection) (tx: SqliteTransaction) (sequence: int) (event: LedgerEvent) =
+    let (EntryId entryGuid) = event.EntryId
+    let actorKind, actorRuleId = actorToColumns event.Actor
+
+    conn.Execute(
+        """INSERT INTO ledger_entry_events
+             (entry_id, sequence, occurred_at, actor_kind, actor_rule_id,
+              event_type, schema_version, payload)
+           VALUES
+             (@entry_id, @sequence, @occurred_at, @actor_kind, @actor_rule_id,
+              @event_type, @schema_version, @payload)""",
+        {|
+            entry_id = entryGuid.ToString()
+            sequence = sequence
+            occurred_at = dateToText event.OccurredAt
+            actor_kind = actorKind
+            actor_rule_id = orNull actorRuleId
+            event_type = eventTypeName event.Body
+            schema_version = schemaVersion event.Body
+            payload = encodePayload event.Body
+        |},
+        tx
+    )
+    |> ignore
+
+/// Kern von `appendAndApply` auf einer übergebenen, offenen Connection, damit Tests ihn
+/// gegen eine eigene, isolierte Verbindung fahren können (wie `createLedgerSchemaOn`).
+/// Eine Transaktion; wirft ein Schritt, steht danach nichts davon in der Datenbank.
+let internal appendAndApplyOn (conn: SqliteConnection) (events: LedgerEvent list) : unit =
+    if not (List.isEmpty events) then
+        if conn.State <> System.Data.ConnectionState.Open then
             conn.Open()
-            use tx = conn.BeginTransaction()
 
-            try
-                // Zustand je betroffener Buchung nur einmal laden; mehrere Ereignisse in
-                // einem Aufruf falten aufeinander auf.
-                let mutable states : Map<Guid, Entry option> = Map.empty
-                let mutable sequences : Map<Guid, int> = Map.empty
+        use tx = conn.BeginTransaction()
 
-                for event in events do
-                    let (EntryId entryGuid) = event.EntryId
-                    let entryIdText = entryGuid.ToString()
+        try
+            // Zustand je betroffener Buchung nur einmal laden; mehrere Ereignisse in
+            // einem Aufruf falten aufeinander auf.
+            let mutable states : Map<Guid, Entry option> = Map.empty
+            let mutable sequences : Map<Guid, int> = Map.empty
 
-                    let currentState =
-                        match Map.tryFind entryGuid states with
-                        | Some s -> s
-                        | None ->
-                            let row =
-                                conn.QueryFirstOrDefault<EntryRow>(
-                                    "SELECT * FROM ledger_entries WHERE id = @id",
-                                    {| id = entryIdText |},
-                                    tx
-                                )
-                            if isNull (box row) then None else Some (rowToEntry row)
+            for event in events do
+                let (EntryId entryGuid) = event.EntryId
+                let entryIdText = entryGuid.ToString()
 
-                    let nextSequence =
-                        match Map.tryFind entryGuid sequences with
-                        | Some s -> s + 1
-                        | None ->
-                            let maxSeq =
-                                conn.ExecuteScalar<int64>(
-                                    "SELECT COALESCE(MAX(sequence), 0) FROM ledger_entry_events WHERE entry_id = @id",
-                                    {| id = entryIdText |},
-                                    tx
-                                )
-                            int maxSeq + 1
+                let currentState =
+                    match Map.tryFind entryGuid states with
+                    | Some s -> s
+                    | None ->
+                        let row =
+                            conn.QueryFirstOrDefault<EntryRow>(
+                                "SELECT * FROM ledger_entries WHERE id = @id",
+                                {| id = entryIdText |},
+                                tx
+                            )
+                        if isNull (box row) then None else Some (rowToEntry row)
 
-                    let actorKind, actorRuleId = actorToColumns event.Actor
+                let nextSequence =
+                    match Map.tryFind entryGuid sequences with
+                    | Some s -> s + 1
+                    | None ->
+                        let maxSeq =
+                            conn.ExecuteScalar<int64>(
+                                "SELECT COALESCE(MAX(sequence), 0) FROM ledger_entry_events WHERE entry_id = @id",
+                                {| id = entryIdText |},
+                                tx
+                            )
+                        int maxSeq + 1
 
+                insertEventRow conn tx nextSequence event
+
+                for link in linksFrom event do
                     conn.Execute(
-                        """INSERT INTO ledger_entry_events
-                             (entry_id, sequence, occurred_at, actor_kind, actor_rule_id,
-                              event_type, schema_version, payload)
-                           VALUES
-                             (@entry_id, @sequence, @occurred_at, @actor_kind, @actor_rule_id,
-                              @event_type, @schema_version, @payload)""",
+                        "INSERT INTO ledger_entry_links (entry_id, system, value) VALUES (@entry_id, @system, @value)",
                         {|
                             entry_id = entryIdText
-                            sequence = nextSequence
-                            occurred_at = dateToText event.OccurredAt
-                            actor_kind = actorKind
-                            actor_rule_id = orNull actorRuleId
-                            event_type = eventTypeName event.Body
-                            schema_version = schemaVersion event.Body
-                            payload = encodePayload event.Body
+                            system = linkSystemToString link.System
+                            value = link.Value
                         |},
                         tx
                     )
                     |> ignore
 
-                    for link in linksFrom event do
-                        conn.Execute(
-                            "INSERT INTO ledger_entry_links (entry_id, system, value) VALUES (@entry_id, @system, @value)",
-                            {|
-                                entry_id = entryIdText
-                                system = linkSystemToString link.System
-                                value = link.Value
-                            |},
-                            tx
-                        )
-                        |> ignore
+                // Der Zustand ist abgeleitet: dieselbe reine Funktion, die auch das
+                // Replay benutzt. Wirft sie, rollt die Transaktion das Ereignis zurück.
+                let newState = apply currentState event
+                conn.Execute(upsertEntrySql, entryParams newState, tx) |> ignore
+                writeSplitIndexes conn tx newState
 
-                    // Der Zustand ist abgeleitet: dieselbe reine Funktion, die auch das
-                    // Replay benutzt. Wirft sie, rollt die Transaktion das Ereignis zurueck.
-                    let newState = apply currentState event
-                    conn.Execute(upsertEntrySql, entryParams newState, tx) |> ignore
-                    writeSplitIndexes conn tx newState
+                states <- Map.add entryGuid (Some newState) states
+                sequences <- Map.add entryGuid nextSequence sequences
 
-                    states <- Map.add entryGuid (Some newState) states
-                    sequences <- Map.add entryGuid nextSequence sequences
+            tx.Commit()
+        with ex ->
+            // Ein Fehler an irgendeiner Stelle nimmt alles zurück: kein Ereignis im
+            // Log ohne den passenden Zustand und umgekehrt (ADR 0013, Punkt 5).
+            tx.Rollback()
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex).Throw()
 
-                tx.Commit()
-            with ex ->
-                // Ein Fehler an irgendeiner Stelle nimmt alles zurueck: kein Ereignis im
-                // Log ohne den passenden Zustand und umgekehrt (ADR 0013, Punkt 5).
-                tx.Rollback()
-                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex).Throw()
+/// Hängt Ereignisse an das Log und schreibt den daraus abgeleiteten Zustand fort:
+/// beides auf **einer** Connection in **einer** Transaktion (ADR 0013, Punkt 5).
+/// Schlägt irgendein Schritt fehl, steht danach weder ein Ereignis im Log noch eine
+/// Änderung im Zustand. Die laufende Nummer je Buchung vergibt diese Funktion.
+let appendAndApply (events: LedgerEvent list) : Async<unit> =
+    async {
+        if not (List.isEmpty events) then
+            use conn = Core.getConnection ()
+            appendAndApplyOn conn events
     }
+
+/// Das gesamte Log auf der übergebenen Connection, nach Buchung und laufender Nummer.
+let internal loadAllEventsOn (conn: SqliteConnection) (tx: SqliteTransaction) : RecordedLedgerEvent list =
+    conn.Query<EventRow>("SELECT * FROM ledger_entry_events ORDER BY entry_id, sequence", transaction = tx)
+    |> Seq.map rowToRecordedEvent
+    |> Seq.toList
+
+// Reiht gleichzeitige Läufe des Nachtrags im Prozess ein, siehe recordMissingYnabLinkEvents.
+let private recordMissingYnabLinkEventsGate = obj ()
+
+/// Einmaliger Startschritt (ledger-r6wn3, ADR 0021 Nachtrag): bis ledger-r6wn3 schrieb
+/// der Spiegel die YNAB-Id einer über die ImportId gefundenen Buchung per `linkEntry`
+/// direkt in `ledger_entry_links`, ohne Ereignis. Für jede `ynab`-Zeile, die kein
+/// gespeichertes Ereignis über `linksFrom` stiftet, hängt dieser Schritt ein
+/// `EntryLinkedToYnab` an (Actor `YnabMirror`, `occurred_at` = `now`, nächste laufende
+/// Nummer der Buchung). Er schreibt nur das Ereignis: Zeile und Zustand stehen schon,
+/// die Projektion scheiterte am `UNIQUE` der Link-Tabelle. Ein Laden des ganzen Logs,
+/// kein Laden je Buchung; alles in einer Transaktion. Fehlt nichts, schreibt er nichts.
+/// Liefert die Zahl der nachgetragenen Ereignisse. ledger-k9tm2 baut ihn zurück.
+let internal recordMissingYnabLinkEvents (conn: SqliteConnection) (now: DateTime) : int =
+    if conn.State <> System.Data.ConnectionState.Open then
+        conn.Open()
+
+    lock recordMissingYnabLinkEventsGate (fun () ->
+        use tx = conn.BeginTransaction()
+        let ynab = linkSystemToString YnabSystem
+        let recorded = loadAllEventsOn conn tx
+
+        let fromEvents =
+            recorded
+            |> Seq.collect (fun r -> linksFrom r.Event)
+            |> Seq.filter (fun l -> l.System = YnabSystem)
+            |> Seq.map (fun l ->
+                let (EntryId id) = l.EntryId
+                id, l.Value)
+            |> Set.ofSeq
+
+        let mutable lastSequence =
+            recorded
+            |> List.fold
+                (fun acc r ->
+                    let (EntryId id) = r.Event.EntryId
+                    Map.add id r.Sequence acc)
+                Map.empty
+
+        let missing =
+            conn.Query<LinkRow>(
+                "SELECT entry_id, system, value FROM ledger_entry_links WHERE system = @system ORDER BY entry_id, value",
+                {| system = ynab |},
+                tx
+            )
+            |> Seq.map (fun row -> Guid.Parse row.entry_id, row.value)
+            |> Seq.filter (fun key -> not (Set.contains key fromEvents))
+            |> Seq.toList
+
+        for entryGuid, ynabTransactionId in missing do
+            let sequence = (Map.tryFind entryGuid lastSequence |> Option.defaultValue 0) + 1
+
+            insertEventRow conn tx sequence {
+                EntryId = EntryId entryGuid
+                OccurredAt = now
+                Actor = YnabMirror
+                Body = EntryLinkedToYnab { YnabTransactionId = ynabTransactionId }
+            }
+
+            lastSequence <- Map.add entryGuid sequence lastSequence
+
+        tx.Commit()
+        List.length missing)
 
 // Reiht gleichzeitige Neuaufbauten im Prozess ein (ledger-cy1j8), siehe rebuildSplitIndexes.
 let private rebuildSplitIndexesGate = obj ()
@@ -816,28 +898,16 @@ let rebuildSplitIndexes (conn: SqliteConnection) : int =
         tx.Commit()
         written)
 
-/// Legt die Kassenbuch-Tabellen auf der Standard-Verbindung an und baut anschließend
-/// die abgeleitete Split-Kategorie-Indextabelle neu auf (ADR 0038, Decision Punkt 6):
-/// der Aufruf folgt dem Muster von `Persistence.initializeDatabase`.
+/// Legt die Kassenbuch-Tabellen auf der Standard-Verbindung an, trägt fehlende
+/// `EntryLinkedToYnab` nach (ledger-r6wn3) und baut anschließend die abgeleitete
+/// Split-Kategorie-Indextabelle neu auf (ADR 0038, Decision Punkt 6): der Aufruf folgt
+/// dem Muster von `Persistence.initializeDatabase`.
 let initializeLedgerSchema () =
     let conn = Core.getConnection ()
     createLedgerSchemaOn conn
+    // Uhr des Aufrufers (Prozessstart), UTC, siehe recordMissingYnabLinkEvents.
+    recordMissingYnabLinkEvents conn DateTime.UtcNow |> ignore
     rebuildSplitIndexes conn |> ignore
-
-/// Verknuepft eine Fremd-Id mit einer Buchung (ADR 0015). Ein Wert ist je System
-/// eindeutig; ein zweiter Versuch auf dieselbe Fremd-Id schlaegt fehl.
-let linkEntry (entryId: EntryId) (system: LinkSystem) (value: string) : Async<unit> =
-    async {
-        let (EntryId id) = entryId
-        use conn = Core.getConnection ()
-        do!
-            conn.ExecuteAsync(
-                "INSERT INTO ledger_entry_links (entry_id, system, value) VALUES (@entry_id, @system, @value)",
-                {| entry_id = id.ToString(); system = linkSystemToString system; value = value |}
-            )
-            |> Async.AwaitTask
-            |> Async.Ignore
-    }
 
 // ============================================
 // Lesepfad

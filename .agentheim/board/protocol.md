@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 15:02 -- Task verified and completed: ledger-r6wn3 - "Spiegel verknüpft eine über die ImportId gefundene Buchung mit `EntryLinkedToYnab` statt über `linkEntry` ohne Ereignis; alte Verknüpfungen ohne Ereignis bekommen einmalig ihr Ereignis nachgetragen"
+
+**Type:** Work / Task completion
+**Task:** ledger-r6wn3 - "Spiegel verknüpft eine über die ImportId gefundene Buchung mit `EntryLinkedToYnab` statt über `linkEntry` ohne Ereignis; alte Verknüpfungen ohne Ereignis bekommen einmalig ihr Ereignis nachgetragen"
+**Summary:** Spiegel verknüpft ImportId-Treffer über EntryLinkedToYnab statt linkEntry, Startschritt trägt fehlende Ereignisse für alte YNAB-Verknüpfungen nach
+**Duration:** 13m
+**Verification:** PASS (iteration 1)
+**Files changed:** 4
+**Tests added:** 6
+**ADRs written:** none
+
+---
+
 ## 2026-11-05 14:49 -- Batch started: [ledger-r6wn3]
 
 **Type:** Work / Batch start

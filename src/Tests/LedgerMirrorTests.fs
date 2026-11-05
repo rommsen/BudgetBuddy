@@ -69,6 +69,10 @@ let private stateFrom (entryId: EntryId) (obs: YnabObservation) : Entry =
     | [ first ] -> apply None first
     | events -> failtestf "Erstbeobachtung sollte genau ein Ereignis liefern, waren %d" events.Length
 
+/// Die Ereignistypen einer Buchung in gespeicherter Reihenfolge.
+let private eventTypesOf (entryId: EntryId) : string list =
+    loadEventsForEntry entryId |> Async.RunSynchronously |> List.map (fun r -> r.EventType)
+
 // ============================================
 // observe: Snapshot gegen Zustand (rein)
 // ============================================
@@ -1047,7 +1051,15 @@ let mirrorRunTests =
             Run.run 4 budgetId (Run.fetchers 1L [ erst ]) |> Run.expectOk |> ignore
             let entryId = findEntryByLink YnabSystem "zweitversand-1" |> Async.RunSynchronously |> Option.get
 
-            Ledger.Persistence.linkEntry entryId YnabSystem "zweitversand-1-zweitversand" |> Async.RunSynchronously
+            appendAndApply [
+                {
+                    EntryId = entryId
+                    OccurredAt = Run.at 4
+                    Actor = YnabMirror
+                    Body = EntryLinkedToYnab { YnabTransactionId = "zweitversand-1-zweitversand" }
+                }
+            ]
+            |> Async.RunSynchronously
 
             let mitSelbstbezugUeberZweitverknuepfung =
                 { erst with TransferYnabTransactionId = Some "zweitversand-1-zweitversand" }
@@ -1112,6 +1124,62 @@ let mirrorRunTests =
                 (findEntryByLink YnabSystem "importid-neu" |> Async.RunSynchronously)
                 (Some entryId)
                 "die neue YNAB-Id wurde derselben Buchung nachgetragen"
+
+        testCase "Treffer über die ImportId hängt EntryLinkedToYnab an, Replay stiftet die Verknüpfung" <| fun () ->
+            // Regression ledger-r6wn3: der Spiegel schrieb die YNAB-Id einer über die
+            // ImportId gefundenen Buchung per `linkEntry` direkt in `ledger_entry_links`,
+            // ohne Ereignis. Diese Verknüpfung ließ sich aus dem Log nicht herstellen.
+            let budgetId = Run.budget "importid-ereignis"
+            let ynabAcc = YnabAccountId (Guid.NewGuid())
+            let importId = $"BB:{Guid.NewGuid():N}"
+            let alteId = $"importid-ereignis-alt-{Guid.NewGuid():N}"
+            let neueId = $"importid-ereignis-neu-{Guid.NewGuid():N}"
+
+            let ersteObs = { observation alteId with AccountId = ynabAcc; ImportId = Some importId }
+            Run.run 4 budgetId (Run.fetchers 1L [ ersteObs ]) |> Run.expectOk |> ignore
+            let entryId = findEntryByLink YnabSystem alteId |> Async.RunSynchronously |> Option.get
+
+            Run.run 5 budgetId (Run.fetchers 2L [ { ersteObs with YnabTransactionId = neueId } ])
+            |> Run.expectOk
+            |> ignore
+
+            let recorded = loadEventsForEntry entryId |> Async.RunSynchronously
+            let linked =
+                recorded
+                |> List.filter (fun r -> r.EventType = "EntryLinkedToYnab")
+
+            match linked with
+            | [ r ] ->
+                Expect.equal r.Event.Body (EntryLinkedToYnab { YnabTransactionId = neueId }) "YNAB-Id im Ereignis"
+                Expect.equal r.Event.Actor YnabMirror "Actor des Spiegels"
+                Expect.equal r.Event.OccurredAt (Run.at 5) "Zeitpunkt des Laufs"
+            | other -> failtest $"erwartet genau ein EntryLinkedToYnab, war {other}"
+
+            let replayedLinks =
+                recorded
+                |> List.collect (fun r -> linksFrom r.Event)
+                |> List.filter (fun l -> l.System = YnabSystem)
+                |> List.map (fun l -> l.Value)
+                |> Set.ofList
+
+            Expect.equal replayedLinks (Set.ofList [ alteId; neueId ]) "linksFrom über das Log trägt beide YNAB-Ids"
+
+        testCase "Treffer über die YNAB-Id hängt kein EntryLinkedToYnab an, neue Buchung verknüpft über EntryObservedInYnab" <| fun () ->
+            // Intakt-Szenario zu ledger-r6wn3.
+            let budgetId = Run.budget "ynabid-ohne-verknuepfungsereignis"
+            let ynabAcc = YnabAccountId (Guid.NewGuid())
+            let ynabId = $"ynabid-intakt-{Guid.NewGuid():N}"
+            let obs = { observation ynabId with AccountId = ynabAcc; ImportId = Some $"BB:{Guid.NewGuid():N}" }
+
+            Run.run 4 budgetId (Run.fetchers 1L [ obs ]) |> Run.expectOk |> ignore
+            let entryId = findEntryByLink YnabSystem ynabId |> Async.RunSynchronously |> Option.get
+            Expect.equal (eventTypesOf entryId) [ "EntryObservedInYnab" ] "neue Buchung nur über EntryObservedInYnab"
+
+            Run.run 5 budgetId (Run.fetchers 2L [ { obs with Memo = Some "geändert" } ]) |> Run.expectOk |> ignore
+
+            Expect.isFalse
+                (eventTypesOf entryId |> List.contains "EntryLinkedToYnab")
+                "Treffer über die YNAB-Id stiftet keine weitere Verknüpfung"
 
         testCase "Rate-Limit bricht den Lauf ab und steht im Lauf-Status" <| fun () ->
             let budgetId = Run.budget "ratelimit"
@@ -1748,4 +1816,131 @@ let splitTransferRunTests =
             Expect.stringContains text "100" "der Betrag der Zeile steht im Satz"
             Expect.isFalse (text.Contains "EntrySplitTransferCounterpartObservedInYnab") "kein Typname"
         }
+    ]
+
+// ============================================
+// Startschritt: fehlende EntryLinkedToYnab nachtragen (ledger-r6wn3, ADR 0021 Nachtrag)
+// ============================================
+
+[<Tests>]
+let missingYnabLinkEventTests =
+    let stepAt = DateTime(2026, 11, 5, 8, 0, 0, DateTimeKind.Utc)
+
+    /// Eigene, isolierte Datenbank mit dem echten Kassenbuch-Schema.
+    let freshDb () =
+        let conn = new Microsoft.Data.Sqlite.SqliteConnection("Data Source=:memory:")
+        conn.Open()
+        createLedgerSchemaOn conn
+        conn
+
+    let exec (conn: Microsoft.Data.Sqlite.SqliteConnection) (sql: string) =
+        use cmd = new Microsoft.Data.Sqlite.SqliteCommand(sql, conn)
+        cmd.ExecuteNonQuery() |> ignore
+
+    /// Alle Zeilen einer Tabelle als Text, in fester Reihenfolge: für den Vorher-Nachher-Vergleich.
+    let dump (conn: Microsoft.Data.Sqlite.SqliteConnection) (sql: string) : string list =
+        use cmd = new Microsoft.Data.Sqlite.SqliteCommand(sql, conn)
+        use reader = cmd.ExecuteReader()
+        [
+            while reader.Read() do
+                yield
+                    [ for i in 0 .. reader.FieldCount - 1 -> if reader.IsDBNull i then "NULL" else string (reader.GetValue i) ]
+                    |> String.concat "|"
+        ]
+
+    let linksTable conn = dump conn "SELECT entry_id, system, value FROM ledger_entry_links ORDER BY entry_id, system, value"
+    let entriesTable conn = dump conn "SELECT * FROM ledger_entries ORDER BY id"
+    let eventsOf conn (EntryId id) =
+        loadAllEventsOn conn null |> List.filter (fun r -> r.Event.EntryId = EntryId id)
+
+    /// Eine Buchung, die der Spiegel neu angelegt hat (stiftet ihre YNAB-Id per Ereignis).
+    let observed conn (ynabId: string) : EntryId =
+        let entryId = newEntryId ()
+        appendAndApplyOn conn (observe (context entryId) None { observation ynabId with ImportId = Some $"BB:{ynabId}" })
+        entryId
+
+    /// Eine YNAB-Verknüpfung, wie `linkEntry` sie bis ledger-r6wn3 schrieb: nur die Zeile.
+    let legacyLink conn (EntryId id) (ynabId: string) =
+        exec conn $"INSERT INTO ledger_entry_links (entry_id, system, value) VALUES ('{id}', 'ynab', '{ynabId}')"
+
+    testList "Ledger Startschritt: fehlende EntryLinkedToYnab" [
+
+        testCase "eine Verknüpfung ohne stiftendes Ereignis bekommt genau ein EntryLinkedToYnab am Ende ihres Logs" <| fun () ->
+            use conn = freshDb ()
+            let entryId = observed conn "alt-1"
+            legacyLink conn entryId "neu-1"
+            let linksBefore = linksTable conn
+            let entriesBefore = entriesTable conn
+
+            let written = recordMissingYnabLinkEvents conn stepAt
+
+            Expect.equal written 1 "ein Ereignis nachgetragen"
+            let recorded = eventsOf conn entryId
+            Expect.equal (recorded |> List.map (fun r -> r.Sequence)) [ 1; 2 ] "nächste laufende Nummer"
+            let last = List.last recorded
+            Expect.equal last.Event.Body (EntryLinkedToYnab { YnabTransactionId = "neu-1" }) "YNAB-Id aus der Zeile"
+            Expect.equal last.Event.Actor YnabMirror "Actor des Spiegels"
+            Expect.equal last.Event.OccurredAt stepAt "Zeitpunkt des Startschritts"
+            Expect.equal (linksTable conn) linksBefore "ledger_entry_links unverändert"
+            Expect.equal (entriesTable conn) entriesBefore "ledger_entries unverändert"
+
+        testCase "ein zweiter Lauf hängt nichts an" <| fun () ->
+            use conn = freshDb ()
+            let entryId = observed conn "alt-2"
+            legacyLink conn entryId "neu-2"
+            recordMissingYnabLinkEvents conn stepAt |> ignore
+
+            Expect.equal (recordMissingYnabLinkEvents conn (stepAt.AddDays 1.0)) 0 "nichts mehr zu tun"
+            Expect.hasLength (eventsOf conn entryId) 2 "kein weiteres Ereignis"
+
+        testCase "eine Verknüpfung aus einem Ereignis bekommt kein zusätzliches Ereignis" <| fun () ->
+            use conn = freshDb ()
+            let observedOnly = observed conn "nur-beobachtet"
+            let linkedByEvent = observed conn "mit-ereignis-alt"
+            appendAndApplyOn conn [
+                {
+                    EntryId = linkedByEvent
+                    OccurredAt = stepAt.AddDays -1.0
+                    Actor = YnabMirror
+                    Body = EntryLinkedToYnab { YnabTransactionId = "mit-ereignis-neu" }
+                }
+            ]
+
+            Expect.equal (recordMissingYnabLinkEvents conn stepAt) 0 "nichts nachzutragen"
+            Expect.hasLength (eventsOf conn observedOnly) 1 "Erstbeobachtung allein"
+            Expect.hasLength (eventsOf conn linkedByEvent) 2 "Erstbeobachtung und Verknüpfung"
+
+        testCase "nach dem Startschritt stimmen die YNAB-Verknüpfungen aus dem Log mit der Tabelle überein" <| fun () ->
+            use conn = freshDb ()
+            observed conn "gemischt-a" |> ignore
+            let b = observed conn "gemischt-b-alt"
+            legacyLink conn b "gemischt-b-neu"
+            legacyLink conn b "gemischt-b-dritt"
+            let c = observed conn "gemischt-c-alt"
+            appendAndApplyOn conn [
+                {
+                    EntryId = c
+                    OccurredAt = stepAt.AddDays -1.0
+                    Actor = YnabMirror
+                    Body = EntryLinkedToYnab { YnabTransactionId = "gemischt-c-neu" }
+                }
+            ]
+
+            let ynabLinksFromLog () =
+                loadAllEventsOn conn null
+                |> List.collect (fun r -> linksFrom r.Event)
+                |> List.filter (fun l -> l.System = YnabSystem)
+                |> List.map (fun l -> let (EntryId id) = l.EntryId in $"{id}|ynab|{l.Value}")
+                |> List.sort
+
+            let ynabLinksInTable () = linksTable conn |> List.filter (fun row -> row.Contains "|ynab|") |> List.sort
+
+            Expect.notEqual (ynabLinksFromLog ()) (ynabLinksInTable ()) "vorher fehlen zwei Verknüpfungen im Log"
+
+            Expect.equal (recordMissingYnabLinkEvents conn stepAt) 2 "zwei Ereignisse nachgetragen"
+            Expect.equal (ynabLinksFromLog ()) (ynabLinksInTable ()) "Log und Tabelle stimmen überein"
+            Expect.equal
+                (eventsOf conn b |> List.map (fun r -> r.Sequence))
+                [ 1; 2; 3 ]
+                "je Buchung fortlaufende Nummern"
     ]

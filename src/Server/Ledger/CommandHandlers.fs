@@ -189,9 +189,10 @@ let private refreshCategories
 
 /// Sucht die Buchung zu einer Beobachtung: erst ueber die YNAB-Id, dann ueber die
 /// ImportId, sonst ist sie neu (ADR 0015, Match-Reihenfolge). Wurde ueber die ImportId
-/// gematcht, traegt der Lauf die YNAB-Id als Verknuepfung nach, damit der naechste Lauf
-/// direkt beim ersten Schritt trifft.
-let private resolveEntry (obs: YnabObservation) : Async<EntryId * bool> =
+/// gematcht, hängt der Lauf `EntryLinkedToYnab` an (Actor `YnabMirror`, ADR 0021
+/// Nachtrag ledger-r6wn3); die Verknüpfung entsteht über `linksFrom` beim Anhängen, damit
+/// der nächste Lauf direkt beim ersten Schritt trifft und Replay sie herstellt.
+let private resolveEntry (now: DateTime) (obs: YnabObservation) : Async<EntryId * bool> =
     async {
         match! Ledger.Persistence.findEntryByLink YnabSystem obs.YnabTransactionId with
         | Some entryId -> return entryId, true
@@ -203,7 +204,15 @@ let private resolveEntry (obs: YnabObservation) : Async<EntryId * bool> =
 
             match byImportId with
             | Some entryId ->
-                do! Ledger.Persistence.linkEntry entryId YnabSystem obs.YnabTransactionId
+                do!
+                    Ledger.Persistence.appendAndApply [
+                        {
+                            EntryId = entryId
+                            OccurredAt = now
+                            Actor = YnabMirror
+                            Body = EntryLinkedToYnab { YnabTransactionId = obs.YnabTransactionId }
+                        }
+                    ]
                 return entryId, true
             | None -> return newEntryId (), false
     }
@@ -437,7 +446,7 @@ let runMirror
                                     Some
                                         $"Buchung {obs.YnabTransactionId} zeigt auf das YNAB-Konto {accountId}, das der Konten-Abruf nicht kennt"
                             | Some ledgerAccountId ->
-                                let! entryId, known = resolveEntry obs
+                                let! entryId, known = resolveEntry now obs
 
                                 let! existing =
                                     if known then Ledger.Persistence.loadEntry entryId

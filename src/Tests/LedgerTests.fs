@@ -1591,13 +1591,16 @@ let ledgerPersistenceTests =
             let second = newEntryId ()
             let value = $"kollision-{entryIdText first}"
 
-            linkEntry first YnabSystem value |> Async.RunSynchronously
+            appendAndApply [ observedEvent first (observedPayload value None) ] |> Async.RunSynchronously
             Expect.throws
-                (fun () -> linkEntry second YnabSystem value |> Async.RunSynchronously)
+                (fun () ->
+                    appendAndApply [ observedEvent second (observedPayload value None) ]
+                    |> Async.RunSynchronously)
                 "derselbe Wert im selben System darf nicht zwei Buchungen gehoeren"
 
             // Dasselbe Textmuster in einem anderen System ist eine andere Fremd-Id.
-            linkEntry second ImportIdSystem value |> Async.RunSynchronously
+            appendAndApply [ observedEvent second (observedPayload $"ynab-{entryIdText second}" (Some value)) ]
+            |> Async.RunSynchronously
             Expect.equal (findEntryByLink YnabSystem value |> Async.RunSynchronously) (Some first) "YNAB-Id zeigt auf die erste Buchung"
             Expect.equal (findEntryByLink ImportIdSystem value |> Async.RunSynchronously) (Some second) "ImportId zeigt auf die zweite Buchung"
 
