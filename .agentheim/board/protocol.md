@@ -5,6 +5,27 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 15:06 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** 18m
+**Completed:** 1 (first-try PASS: 1, re-dispatched: 0, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Lost-result re-dispatches:** 0
+**Lost-result escalations:** 0
+**Dispatches:** ledger-r6wn3: 1
+**Commits:** 3
+**Vision-conformance:** none — batch aligns with vision
+**Batch mix:** 100% product-facing / 0% harness / 0% bookkeeping (1 task)
+**Carry-over:** none — working tree clean
+**Verifikation:** ./verify.sh auf main nach dem Commit: VERIFY: PASS (dotnet 3921 grün, node 310 grün).
+**Review-Vorschlag (Override C):** backend-code-quality (src/Server/Ledger), qa-milestone-reviewer (geänderte und neue Tests in LedgerMirrorTests, LedgerTests).
+**Nächster Schritt:** Push und Deploy, damit der Startschritt in Prod die fehlenden EntryLinkedToYnab nachträgt; danach ledger-k9tm2 promoten.
+
+---
+
 ## 2026-11-05 15:02 -- Task verified and completed: ledger-r6wn3 - "Spiegel verknüpft eine über die ImportId gefundene Buchung mit `EntryLinkedToYnab` statt über `linkEntry` ohne Ereignis; alte Verknüpfungen ohne Ereignis bekommen einmalig ihr Ereignis nachgetragen"
 
 **Type:** Work / Task completion
