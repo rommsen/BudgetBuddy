@@ -1,7 +1,7 @@
 ---
 id: budgeting-r7k2m
 title: "Target-Formular aus dem Tab Target herauslösen, damit die Seite Targets prüfen es im Panel nutzen kann, ohne Verhaltensänderung im Tab"
-status: backlog
+status: todo
 type: refactor
 context: budgeting
 created: 2026-11-05

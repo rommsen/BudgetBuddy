@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 09:21 -- Modeling / Promoted: budgeting-r7k2m - "Target-Formular aus dem Tab Target herauslösen, damit die Seite Targets prüfen es im Panel nutzen kann, ohne Verhaltensänderung im Tab"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-05 09:21 -- Modeling / Promoted: budgeting-p2zr6 - "Targets prüfen, Regel und Daten: reine Einordnungsfunktion in Shared.Budgeting und Endpoint getTargetCheck mit einer Kassenbuch-Abfrage für alle Kategorien und der letzten Target-Änderung je Kategorie"
 
 **Type:** Modeling / Promote
