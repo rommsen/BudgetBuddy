@@ -77,7 +77,10 @@ let private accountKindFromText =
 // Kassenbuch-Streams in `events` (ADR 0083)
 // ============================================
 
-/// Kontextname des Kassenbuchs in `events`.
+/// Kontextname des Kassenbuchs in `events`. Das Kassenbuch hat dort nur das Aggregat
+/// `entry` (Konten und Kategorien sind Zustand, ADR 0083), deshalb filtern die Ladepfade nur
+/// auf den Kontext. Ein zweites Kassenbuch-Aggregat braucht zusätzlich einen Filter auf den
+/// Stream-Präfix, sonst wirft `entryGuidOfStream` bei seinen Streams.
 let private ledgerContext = "ledger"
 
 /// Aggregat einer Buchung im Stream-Namen `ledger:entry:<entryId>`.
@@ -494,32 +497,47 @@ type private CategoryRow = {
     updated_at: string
 }
 
-/// Ein gespeichertes Kassenbuch-Ereignis aus `events`: Umschlag dekodiert, Payload über den
-/// Decoder des Kassenbuchs. `Sequence` ist die `stream_version`.
-let private toRecordedLedgerEvent (recorded: EventStore.RecordedEvent) : RecordedLedgerEvent =
-    let entryGuid = entryGuidOfStream recorded.StreamId
-
+/// Baut ein Kassenbuch-Ereignis aus seinen gespeicherten Spalten: Actor und Payload über die
+/// Decoder des Kassenbuchs. Unlesbares wird gemeldet. Gemeinsam für `events` und die Probe
+/// über das alte Log.
+let private recordedLedgerEventOf
+    (entryGuid: Guid)
+    (sequence: int)
+    (occurredAt: DateTime)
+    (actorKind: string)
+    (actorRef: string option)
+    (eventType: string)
+    (schemaVersion: int)
+    (payload: string)
+    : RecordedLedgerEvent =
     let actor =
-        match actorFromColumns recorded.ActorKind recorded.ActorRef with
+        match actorFromColumns actorKind actorRef with
         | Ok a -> a
         | Error e -> failwith e
 
     let body =
-        match decodePayload recorded.EventType recorded.SchemaVersion recorded.Payload with
+        match decodePayload eventType schemaVersion payload with
         | Ok b -> b
-        | Error e -> failwith $"Ereignis {entryGuid}/{recorded.StreamVersion} nicht lesbar: {e}"
+        | Error e -> failwith $"Ereignis {entryGuid}/{sequence} nicht lesbar: {e}"
 
     {
-        Sequence = int recorded.StreamVersion
-        EventType = recorded.EventType
-        SchemaVersion = recorded.SchemaVersion
-        Event = {
-            EntryId = EntryId entryGuid
-            OccurredAt = recorded.OccurredAt
-            Actor = actor
-            Body = body
-        }
+        Sequence = sequence
+        EventType = eventType
+        SchemaVersion = schemaVersion
+        Event = { EntryId = EntryId entryGuid; OccurredAt = occurredAt; Actor = actor; Body = body }
     }
+
+/// Ein gespeichertes Kassenbuch-Ereignis aus `events`. `Sequence` ist die `stream_version`.
+let private toRecordedLedgerEvent (recorded: EventStore.RecordedEvent) : RecordedLedgerEvent =
+    recordedLedgerEventOf
+        (entryGuidOfStream recorded.StreamId)
+        (int recorded.StreamVersion)
+        recorded.OccurredAt
+        recorded.ActorKind
+        recorded.ActorRef
+        recorded.EventType
+        recorded.SchemaVersion
+        recorded.Payload
 
 let private rowToRecordedEvent (row: StoredEventRow) : RecordedLedgerEvent =
     toRecordedLedgerEvent (EventStore.toRecordedEvent row)
@@ -973,7 +991,7 @@ let rebuildSplitIndexes (conn: SqliteConnection) : int =
 /// von `Persistence.initializeDatabase`.
 let initializeLedgerSchema () =
     EventStore.initializeSchema ()
-    let conn = Core.getConnection ()
+    use conn = Core.getConnection ()
     createLedgerSchemaOn conn
     rebuildSplitIndexes conn |> ignore
 
@@ -1767,10 +1785,10 @@ let internal loadEntryOriginsOn (conn: SqliteConnection) : Map<Guid, Actor> =
         "SELECT stream_id, actor_kind, actor_ref FROM events WHERE context = @context AND stream_version = 1",
         {| context = ledgerContext |}
     )
-    |> Seq.choose (fun row ->
+    |> Seq.map (fun row ->
         match actorFromColumns row.actor_kind (toOption row.actor_ref) with
-        | Ok actor -> Some (entryGuidOfStream row.stream_id, actor)
-        | Error _ -> None)
+        | Ok actor -> entryGuidOfStream row.stream_id, actor
+        | Error e -> failwith $"Herkunft von {row.stream_id} nicht lesbar: {e}")
     |> Map.ofSeq
 
 /// Wie `loadEntryOriginsOn`, auf der Standard-Verbindung.
@@ -1915,23 +1933,15 @@ let internal probeLedgerEventMigrationOn (conn: SqliteConnection) : LedgerEventM
     let legacyRecorded =
         legacy
         |> List.map (fun row ->
-            {
-                Sequence = int row.sequence
-                EventType = row.event_type
-                SchemaVersion = int row.schema_version
-                Event = {
-                    EntryId = EntryId (Guid.Parse row.entry_id)
-                    OccurredAt = dateFromText row.occurred_at
-                    Actor =
-                        match actorFromColumns row.actor_kind (toOption row.actor_rule_id) with
-                        | Ok a -> a
-                        | Error e -> failwith e
-                    Body =
-                        match decodePayload row.event_type (int row.schema_version) row.payload with
-                        | Ok b -> b
-                        | Error e -> failwith $"Ereignis {row.entry_id}/{row.sequence} nicht lesbar: {e}"
-                }
-            })
+            recordedLedgerEventOf
+                (Guid.Parse row.entry_id)
+                (int row.sequence)
+                (dateFromText row.occurred_at)
+                row.actor_kind
+                (toOption row.actor_rule_id)
+                row.event_type
+                (int row.schema_version)
+                row.payload)
 
     let replayBefore = replayRecorded legacyRecorded
 
