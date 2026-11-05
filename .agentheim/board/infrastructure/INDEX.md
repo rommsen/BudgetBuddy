@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 21
-- **Todo:** 0
+- **Backlog:** 20
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 44
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **infrastructure-w7d2c** — "YnabClient.createTransactions hat keinen Aufrufer mehr und fliegt raus" (chore) — `todo/infrastructure-w7d2c-ynabclient-createtransactions-hat-keinen-aufrufer-mehr-und-f.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -50,7 +51,6 @@ research touching this BC, and concept synthesis pages.
 - **infrastructure-r6c3v** — "Testbau sieht neue öffentliche Client-Werte nicht: veraltete Referenz-Assembly" (bug) — `backlog/infrastructure-r6c3v-testbau-sieht-neue-ffentliche-client-werte-nicht-veraltete-r.md`
 - **infrastructure-q7r4m** — "Strukturtests auf View-Verdrahtung in CategoryPickerTests und RulesListTests nach Doktrin Punkt 7 ablösen" (chore) — `backlog/infrastructure-q7r4m-strukturtests-auf-view-verdrahtung-in-categorypickertests-un.md`
 - **infrastructure-v3tqk** — "Wächter ledger-read-retry flackert bei getLedgerPayeeSuggestions unter Last" (bug) — `backlog/infrastructure-v3tqk-ledger-read-retry-flackert.md`
-- **infrastructure-w7d2c** — "YnabClient.createTransactions hat keinen Aufrufer mehr und fliegt raus" (chore) — `backlog/infrastructure-w7d2c-ynabclient-createtransactions-hat-keinen-aufrufer-mehr-und-f.md`
 - **infrastructure-p9kd4** — "Kassenbuch: Nachladen mit eingefrorener Query kann eine Zeile überspringen, wenn währenddessen eine Zeile aus der Liste fällt" (bug) — `backlog/infrastructure-p9kd4-kassenbuch-nachladen-mit-eingefrorener-query-kann-eine-zeile.md`
 - **infrastructure-w4mzc** — "Einstellungen: ein nicht entschlüsselbarer Wert sieht in loadAppSettingsFrom weiter wie nichts gesetzt aus" (bug) — `backlog/infrastructure-w4mzc-einstellungen-ein-nicht-entschl-sselbarer-wert-sieht-in-load.md`
 - **infrastructure-t7qkh** — "Einstellungen: Entwürfe bleiben beim Bereichswechsel stehen, Abbrechen setzt Konto-ID und Sync-Tage nicht zurück" (bug) — `backlog/infrastructure-t7qkh-einstellungen-entw-rfe-bleiben-beim-bereichswechsel-stehen-a.md`

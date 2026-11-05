@@ -5,6 +5,22 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 21:39 -- Modeling / Promoted: infrastructure-w7d2c - "YnabClient.createTransactions hat keinen Aufrufer mehr und fliegt raus"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-05 21:39 -- Modeling / Promoted: ledger-z71ka - "Bot-Commit: entry_id auch nach gescheitertem Push, und ein abgebrochener Commit ist wiederholbar, ohne doppelt zu buchen"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-05 21:39 -- Modeling / Refined: infrastructure-w7d2c - YnabClient.createTransactions entfernen
 
 **Type:** Modeling / Refine

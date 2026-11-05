@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 10
-- **Todo:** 0
+- **Backlog:** 9
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 104
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **ledger-z71ka** — "Bot-Commit: entry_id auch nach gescheitertem Push, und ein abgebrochener Commit ist wiederholbar, ohne doppelt zu buchen" (bug) — `todo/ledger-z71ka-bot-commit-entry-id-nach-push-fehler.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -36,7 +37,6 @@ research touching this BC, and concept synthesis pages.
 <!-- backlog-list:start -->
 - **ledger-yfqxp** — "Ledger-README: Barabhebung nennt noch die Konto-Auswahl statt des Ziel-Pickers" (chore) — `backlog/ledger-yfqxp-ledger-readme-barabhebung-nennt-noch-die-konto-auswahl-statt.md`
 - **ledger-x2aan** — "Bot-Drossel: globaler Zähler vor der Token-Prüfung erlaubt es Fremden, Bob auszusperren" (decision) — `backlog/ledger-x2aan-bot-drossel-vor-anmeldung.md`
-- **ledger-z71ka** — "Bot-Commit meldet nach gescheitertem YNAB-Push entry_id null, obwohl die Buchung im Kassenbuch steht" (bug) — `backlog/ledger-z71ka-bot-commit-entry-id-nach-push-fehler.md`
 - **ledger-mj3a9** — "BOT_MAX_AMOUNT_EUR: ungültiger Wert fällt auf das Maximum zurück statt auf einen sicheren Wert" (bug) — `backlog/ledger-mj3a9-bot-betragsdeckel-faellt-sicher.md`
 - **ledger-vqvq6** — "Playwright-Wächter ledger-split-cashback wartet auf die Settings-Antwort statt fest 400 ms" (chore) — `backlog/ledger-vqvq6-split-cashback-waechter-ohne-festes-warten.md`
 - **ledger-g47hp** — "Benachrichtigung für Lena bei neuer Rückfrage" (feature) — `backlog/ledger-g47hp-benachrichtigung-fuer-lena.md`
