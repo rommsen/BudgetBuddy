@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 13
-- **Todo:** 0
+- **Backlog:** 12
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 102
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **ledger-r6wn3** — "Spiegel verknüpft eine über die ImportId gefundene Buchung mit `EntryLinkedToYnab` statt über `linkEntry` ohne Ereignis; alte Verknüpfungen ohne Ereignis bekommen einmalig ihr Ereignis nachgetragen" (bug) — `todo/ledger-r6wn3-linkentry-schreibt-ledger-entry-links-ohne-ereignis-gegen-ad.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -32,7 +33,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **ledger-r6wn3** — "`linkEntry` schreibt `ledger_entry_links` ohne Ereignis: gegen ADR 0013 und 0021 prüfen" (bug) — `backlog/ledger-r6wn3-linkentry-schreibt-ledger-entry-links-ohne-ereignis-gegen-ad.md`
 - **ledger-k9tm2** — "Kassenbuch-Ereignisse nach `events` überführen: Kopie in rowid-Reihenfolge mit Abbruchprüfung, `appendAndApply` und Ladepfade umstellen, `ledger_entry_events` danach entfernen" (feature) — `backlog/ledger-k9tm2-kassenbuch-ereignisse-nach-events-berf-hren-kopie-in-rowid-r.md`
 - **ledger-yfqxp** — "Ledger-README: Barabhebung nennt noch die Konto-Auswahl statt des Ziel-Pickers" (chore) — `backlog/ledger-yfqxp-ledger-readme-barabhebung-nennt-noch-die-konto-auswahl-statt.md`
 - **ledger-x2aan** — "Bot-Drossel: globaler Zähler vor der Token-Prüfung erlaubt es Fremden, Bob auszusperren" (decision) — `backlog/ledger-x2aan-bot-drossel-vor-anmeldung.md`

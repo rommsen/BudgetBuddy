@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 14:42 -- Modeling / Promoted: ledger-r6wn3 - "Spiegel verknüpft eine über die ImportId gefundene Buchung mit `EntryLinkedToYnab` statt über `linkEntry` ohne Ereignis; alte Verknüpfungen ohne Ereignis bekommen einmalig ihr Ereignis nachgetragen"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-05 14:42 -- Modeling / Refined: ledger-r6wn3 und ledger-k9tm2 - Verknüpfung als Ereignis, Kassenbuch nach events
 
 **Type:** Modeling / Refine
