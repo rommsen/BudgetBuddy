@@ -65,10 +65,16 @@ Ein ADR im `budgeting`, das den Wechsel der Führung festlegt.
    der Schreibweg ändert sich. Offene Backlog-Tasks prüfen, ob sie vor oder nach dem Wechsel
    gebaut werden: budgeting-q4v8n (Seite Targets prüfen, "übernehmen" schickt
    `changeCategoryTarget`), budgeting-m3x7f (Monatserster), budgeting-bk6tq (Spike Monatswechsel).
+8. **Idempotenz der Befehle aus der UI.** Bricht eine Anfrage ab (Status 0, siehe
+   infrastructure-g4wy8), weiß der Client nicht, ob BB sie festgehalten hat. Zuweisen ist
+   absolut und verträgt eine Wiederholung, ein Ereignis "Betrag von A nach B verschoben" würde
+   doppelt gebucht. Das Kassenbuch dedupliziert über fremde Ids (Comdirect-Reference, ImportId),
+   Budget-Befehle haben keine. Vorschlag: eine Befehls-Id vom Client, die BB je Ereignis festhält
+   und bei Wiederholung erkennt.
 
 ## Acceptance criteria
 - [ ] Ein ADR mit Scope `budgeting` hält die schon entschiedenen Punkte und die Antworten auf 1 bis
-      7 fest.
+      8 fest.
 - [ ] ADR 0065, 0079 und 0080 bekommen einen Verweis auf das neue ADR an den Stellen, die es ändert.
 - [ ] Die `budgeting`-README nennt die neue Führung (BB entscheidet, YNAB Spiegel, Rechnung
       vorerst bei YNAB).
@@ -82,3 +88,10 @@ Ein ADR im `budgeting`, das den Wechsel der Führung festlegt.
   nach YNAB und halten Budget-Bewegungen fest. Der Wechsel betrifft vor allem, wer Quelle der
   Wahrheit ist und wie YNAB-Änderungen behandelt werden.
 - Wartet auf infrastructure-c7f53 (Umschlag und Reihenfolge).
+- Voraussetzungen geprüft am 2026-11-05: Die Produktions-Datenbank ist im täglichen
+  Off-site-Backup (Stack wird angehalten, Restore-Test bestanden), das ist kein Blocker mehr.
+  Sinnvoll vor dem Wechsel, aber kein Blocker: infrastructure-g4wy8 (Verbindungsabbrüche) und
+  infrastructure-aaryk (alter Client gegen neuen Server). Erst nach diesem ADR bauen oder
+  neu einordnen: budgeting-q4v8n, budgeting-m3x7f, budgeting-w3p7n, budgeting-q8m2v,
+  budgeting-h9c3w. Keine Voraussetzung: ING-Import und vollständiges Kassenbuch, weil YNAB
+  vorerst weiter rechnet.
