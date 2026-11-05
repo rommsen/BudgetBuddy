@@ -5,6 +5,35 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 09:21 -- Modeling / Refined: budgeting-p2zr6 - Targets prüfen
+
+**Type:** Modeling / Refine
+**BC:** budgeting
+**Status after:** backlog
+**Summary:** Mit Roman an echten Daten neu gefasst: Targets prüfen ist eine eigene Seite ohne Gedächtnis, Gruppen mehr, weniger, nie, kein Target, passt; übernehmen in der Zeile, Anpassen im Panel. Skizze freigegeben (https://claude.ai/artifact/Twwr9mKz6vFU9YK2waFNn3). Nachgezogen: Periode des Rhythmus, damit jährliche Targets mit einer Zahlung nicht als nie ausgegeben gelten. m3x7f hängt jetzt an q4v8n, konzept.md angepasst.
+**Split into:** budgeting-p2zr6 (Regel und Endpoint), budgeting-r7k2m (Target-Formular herauslösen), budgeting-q4v8n (Seite)
+**ADRs written:** 0082 (Nachtrag in 0075)
+
+---
+
+## 2026-11-05 09:21 -- Modeling / Captured: budgeting-q4v8n - "Seite Targets prüfen #/budget/target-check: Knopf im Kopf der Budget-Seite, Gruppen mit Balken, Vorschlag übernehmen und Anpassen … im Panel oder BottomSheet"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Aus der Verfeinerung von p2zr6: Seite Targets prüfen mit Gruppen, übernehmen in der Zeile und Anpassen im Panel oder Bottom Sheet, nach der freigegebenen Skizze.
+
+---
+
+## 2026-11-05 09:21 -- Modeling / Captured: budgeting-r7k2m - "Target-Formular aus dem Tab Target herauslösen, damit die Seite Targets prüfen es im Panel nutzen kann, ohne Verhaltensänderung im Tab"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Aus der Verfeinerung von p2zr6: das Target-Formular aus dem Tab Target herauslösen, ohne Verhaltensänderung, damit die Seite Targets prüfen es nutzen kann.
+
+---
+
 ## 2026-11-05 08:21 -- Modeling / Promoted: infrastructure-hwfkn - "Spike: Kernbudget für gleichzeitige Gate-Läufe messen. Parallelität je Lauf, Sperre um test:scripts und Zahl gleichzeitiger Worktrees zusammen entscheiden"
 
 **Type:** Modeling / Promote

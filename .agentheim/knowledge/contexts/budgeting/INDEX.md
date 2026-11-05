@@ -10,6 +10,7 @@ Catalog of ADRs, research, and concept synthesis pages scoped to this bounded co
 ## ADRs scoped to this BC
 
 <!-- adr-local:start -->
+- **ADR 0082** — Targets prüfen ist eine eigene Seite ohne Gedächtnis, Einordnung nach Monatswert, Ø der gezählten Monate und Periode des Rhythmus; löst ADR 0075 Punkt 1 für Passt das Target noch? ab — `decisions/0082-targets-pruefen-als-eigene-seite-mit-pruefregel.md`
 - **ADR 0079** — Die Pause eines Targets ist eine Ereignisfolge in BB, die Kategorie trägt ihre Quelle, zusammengeführt beim Bau des Monats — `decisions/0079-pause-als-ereignisfolge-in-bb.md`
 - **ADR 0080** — Target-Änderungen nur im laufenden Monat, in eigenen Tabellen festgehalten, gegen den gezeigten Stand geplant, unter einer Sperre je Kategorie geschrieben; Nachtrag zu 0074 Punkt 5 — `decisions/0080-target-aenderungen-nur-im-laufenden-monat.md`
 - **ADR 0078** — Nachtrag zu 0069: Das Feld Zugewiesen setzt den fertigen Wert absolut (`assignMoney`), Verschiebungen und der Fehlbetrag-Knopf bleiben relativ. — `decisions/0078-nachtrag-zuweisen-feld-setzt-zugewiesen-absolut.md`

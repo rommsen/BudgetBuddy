@@ -21,21 +21,22 @@ und Rechts wechseln am PC die Tabs.
 | **Geld** | Zugewiesen, "12,30 zuweisen", Target pausieren, Geld holen oder abgeben |
 | **Buchungen** | Buchungen des Monats mit Sprung ins Kassenbuch |
 | **Historie** | Verfügbar-Aufbau, Bewegungen, Ausgaben der letzten 6 Monate |
-| **Target** | Prüfung, Target anlegen, ändern, entfernen, pausieren |
+| **Target** | Target anlegen, ändern, entfernen, pausieren |
 
-Der Seitenkopf trägt Monat, Suche, Filter, Zu verteilen, Targets anwenden und Knopf Historie.
+Der Seitenkopf trägt Monat, Suche, Filter, Zu verteilen, Targets anwenden, die Knöpfe Targets prüfen und Historie.
 
 ## Die vier Abläufe
 
 1. **Monatserster:** Eine Leiste über der Liste zeigt im aktuellen Monat vier Felder in dieser
    Reihenfolge: **Targets prüfen, Targets anwenden, Überzogene decken, verteilen**. Prüfen steht
    vorn, weil ein geändertes Target den Fehlbetrag ändert. Überzogene stehen hinter Anwenden, weil
-   Targets sie meist schon ausgleichen. Die Leiste ist kein Modus: Prüfen und Überzogene filtern die
-   Liste, Anwenden öffnet die Vorschau mit abwählbaren Zeilen. Verteilen ist vorerst nur eine
-   Anzeige. Sie verschwindet, wenn die ersten drei Felder erledigt sind, und lässt sich ausblenden.
+   Targets sie meist schon ausgleichen. Die Leiste ist kein Modus: Targets prüfen führt auf die
+   Seite Targets prüfen, Überzogene filtert die Liste, Anwenden öffnet die Vorschau mit abwählbaren
+   Zeilen. Verteilen ist vorerst nur eine Anzeige. Sie verschwindet, wenn die ersten drei Felder
+   erledigt sind, und lässt sich ausblenden.
 2. **Monatsmitte:** Zeile wählen, im Tab Geld handeln, weiter zur nächsten.
 3. **Was ist passiert:** Tab Historie je Kategorie, Knopf Historie für alle, filterbar nach Art.
-4. **Targets pflegen:** nur im Tab Target.
+4. **Targets pflegen:** im Tab Target, und gesammelt auf der Seite Targets prüfen.
 
 ## Regeln
 
@@ -78,9 +79,19 @@ Der Seitenkopf trägt Monat, Suche, Filter, Zu verteilen, Targets anwenden und K
 - **Pausieren** gilt je Kategorie und Monat. YNAB lässt `goal_snoozed_at` nicht schreiben, deshalb
   liegt die Pause in BB. Sie gilt, wenn sie auf einer der beiden Seiten steht. Eine BB-Pause sieht
   man in YNAB nicht. Sie endet mit dem Monat.
-- **"Passt das Target noch?"** wird aus dem Kassenbuch berechnet und steht bei der Kategorie, an
-  jedem Tag, der Tab zeigt dann `Target •`. Die Leiste zählt nur mit. "So lassen" wird gespeichert,
-  sonst fragt BB jeden Monat dasselbe.
+- **"Passt das Target noch?"** beantwortet die eigene Seite **Targets prüfen** (`#/budget/target-check`,
+  ADR 0082). Man ruft sie gelegentlich über einen Knopf im Seitenkopf auf, wie Historie. Sie gilt
+  immer für den laufenden Monat. An der Kategorie steht kein Hinweis, der Tab Target bleibt `Target`,
+  es gibt kein "So lassen": jeder Aufruf rechnet neu aus dem Kassenbuch.
+- Die Seite zeigt alle sichtbaren Kategorien in fünf Gruppen: "Gibst du mehr aus?", "Gibst du weniger
+  aus?", "Gibst du nie aus?", "Kein Target" und "Passt" (eingeklappt). Verglichen wird das Target als
+  Monatswert mit dem Durchschnitt der Ausgaben der vollen Monate, höchstens 12, ab der letzten
+  Änderung in BB. Sparziele werden nicht geprüft.
+- Eine Zeile zeigt Target als Monatswert, Ø, die Zahl der Monate über dem Target und die Monate als
+  Balken. **"50,00 €/Woche übernehmen"** schreibt den Vorschlag (Ø auf 5 € aufgerundet, im Rhythmus des
+  Targets) zu YNAB, ohne Target legt es ein monatliches an; danach steht die Zeile bei "Passt" mit
+  "neu gesetzt am …". **"Anpassen …"** öffnet das Target-Formular, am PC als Panel, am Handy als
+  BottomSheet, vorbelegt mit dem Vorschlag.
 - Nur "Targets prüfen" heißt prüfen, es gibt kein allgemeines Prüfen.
 
 ### Fehlbetrag-Knopf
@@ -110,7 +121,7 @@ Die Grenzen nach vorn und hinten kommen aus YNAB. Am Rand fehlt der Pfeil. Laut 
 - **Orange:** die eine Hauptaktion. **Teal:** Ausgewähltes und Navigation.
 - Normale Knöpfe sind neutral mit grauem Rand, das ist `Button.secondary` (ADR 0077).
 - **Rot:** nur Beträge im Minus. Wer über den freien Betrag holt, sieht nur den gelben Hinweis.
-  **Gelb** (dezent, Prototyp `#cdb27a`): offen, aber kein Fehler, also `fehlt` und "Passt das Target noch?". Gelb ist ein neuer Token. Eine Zeile darf Rot und Gelb
+  **Gelb** (dezent, Prototyp `#cdb27a`): offen, aber kein Fehler, also `fehlt`. Gelb ist ein neuer Token. Eine Zeile darf Rot und Gelb
   zugleich tragen, das ist eine Ausnahme von "ein Akzent pro Zeile" für die Budget-Seite.
 - Auf der Budget-Seite gibt es kein Pink mehr. Das Kassenbuch behält Pink für "zu prüfen".
 

@@ -39,6 +39,10 @@ Dieses ADR ergänzt ADR 0049.
 5. **Auf der Budget-Seite gibt es kein Pink.** Das Kassenbuch behält Pink für "zu prüfen"
    (ADR 0049 Punkt 7).
 
+   Nachtrag 2026-11-05 (ADR 0082, Entscheidung des Owners): "Passt das Target noch?" steht nicht
+   mehr an der Kategorie, sondern auf der eigenen Seite Targets prüfen. Gelb heißt auf der
+   Budget-Seite damit nur noch `fehlt`.
+
 ## Consequences
 ### Positive
 - Klickbares und Ausgewähltes sind unterscheidbar.
@@ -62,7 +66,7 @@ Dieses ADR ergänzt ADR 0049.
 - **Nur eine Farbe je Budget-Zeile.** Verworfen: Einer der beiden Zustände wäre unsichtbar.
 
 ## References
-- ADR 0049
+- ADR 0049, ADR 0082 (Nachtrag zu Punkt 1)
 - docs/ux/budget/konzept.md, Abschnitt Farben
 - standards/frontend/styleguide.md, Abschnitt 2
 - Commit eaccedd (Text-Tokens)
