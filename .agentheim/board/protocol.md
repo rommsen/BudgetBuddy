@@ -5,6 +5,28 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 10:58 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** 1h20m
+**Completed:** 3 (first-try PASS: 3, re-dispatched: 0, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Lost-result re-dispatches:** 0
+**Lost-result escalations:** 0
+**Dispatches:** budgeting-gv74q: 1, ledger-cy1j8: 1, budgeting-p8nd0: 1
+**Commits:** 5
+**Vision-conformance:** none — batch aligns with vision
+**Batch mix:** 100% product-facing / 0% harness / 0% bookkeeping (3 tasks)
+**Carry-over:** none — working tree clean
+**Gate auf main:** ./verify.sh über alle drei Tasks zusammen vor dem letzten Commit: VERIFY: PASS (dotnet 3860, node 310).
+**Entscheidung Owner:** AC13 in LedgerPageTests.fs gelöscht statt umbenannt (während des Laufs an den Worker von gv74q gegeben).
+**Auffällig:** capture verlangt opts.source; ohne sie zählte promote die Backlog-Zahl ohne vorheriges Hochzählen herunter, von Hand korrigiert. Ein [layout]-Test in scripts/move-money.test.mjs:198 einmal unter Last rot, im zweiten Lauf grün.
+**Review-Vorschlag (Override C):** qa-milestone-reviewer (geänderte Tests), backend-code-quality (src/Server), frontend-architecture (src/Client).
+
+---
+
 ## 2026-11-05 10:58 -- Task verified and completed: budgeting-gv74q - "Targets prüfen nachbessern: Testlücken aus dem QA-Review schließen, TargetChangeMark als DU statt Bool, Prüfung ohne Lesen der Pausen"
 
 **Type:** Work / Task completion
