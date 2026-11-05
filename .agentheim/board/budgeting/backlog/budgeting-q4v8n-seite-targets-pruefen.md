@@ -6,7 +6,7 @@ type: feature
 context: budgeting
 created: 2026-11-05
 completed:
-depends_on: [design-system-001, budgeting-p2zr6, budgeting-r7k2m, budgeting-h7q4v]
+depends_on: [design-system-001, budgeting-p2zr6, budgeting-r7k2m, budgeting-h7q4v, budgeting-gv74q]
 blocks: [budgeting-m3x7f]
 tags: [budget, target, pruefen, client]
 related_adrs: [0072, 0075, 0080, 0082]
@@ -80,8 +80,15 @@ Sonst:
 ## Notes
 Skizze, von Roman am 2026-11-05 als Vorlage freigegeben: https://claude.ai/artifact/Twwr9mKz6vFU9YK2waFNn3 (PC mit Panel, Handy mit Bottom Sheet, erfundene Zahlen). Abweichungen der Task von der Skizze sind gewollt: "übernehmen" ist neutral statt gefüllt (ADR 0075, neutrale Knöpfe), wöchentliche Vorschläge runden auf volle Euro statt auf 5 € (ADR 0082 Punkt 9), "Anpassen …" gibt es auch bei "Passt".
 
-Abhängigkeiten: design-system-001 (Styleguide-Gate) und budgeting-h7q4v liegen in done. budgeting-p2zr6 (Regel, Endpoint) und budgeting-r7k2m (Formular herausgelöst) sind backlog und müssen vorher fertig sein.
+Abhängigkeiten: design-system-001 (Styleguide-Gate), budgeting-h7q4v, budgeting-p2zr6 (Regel, Endpoint) und budgeting-r7k2m (Formular herausgelöst) liegen in done. budgeting-gv74q ändert `TargetChangeMark` (DU statt Bool) und muss vorher fertig sein.
 
 Der Weg von der Leiste am Monatsersten zu dieser Seite entsteht in budgeting-m3x7f, das deshalb auf diese Task wartet.
 
 Nach dem Lauf vorschlagen: `frontend-architecture`, `design-quality`, `qa-milestone-reviewer`.
+
+Hinweise aus den Reviews nach budgeting-r7k2m und budgeting-p2zr6 (2026-11-05), beim Verfeinern entscheiden:
+- **Sperrlage je Monat** (`TargetEdit.fs:74-77, 89-92`): `targetFormLocks` holt `Running` über `targetActionFor` mit `displayedMonth model`. Zeigt die Budget-Seite einen anderen Monat als `TargetCheckData.Month`, dreht im Panel der Knopf beim eigenen Aufruf nicht, die Felder bleiben bedienbar, `targetWaitHint` liefert `None`. Vorschlag: `targetFormLocksFor model categoryId month`, `targetFormLocks` ruft sie mit `displayedMonth`.
+- **Antwort an beide Formulare** (`TargetEdit.fs:275-276`): `applyTargetAnswered` wendet `formTakeAnswer` auf `model.TargetForm` an, sobald Kategorie und Monat passen. Teilt das Panel `TargetCall`, nimmt auch das Tab-Formular die Antwort ein. Entscheiden: Herkunft in `TargetSaving` mitführen oder ausdrücklich beide einnehmen lassen und testen. Ein Helfer `formOwns categoryId month form` im Kern verhindert, dass die Prüfung vergessen wird.
+- **Feste ids und Selektoren** (`TargetFormView.fs:58-59, 173, 180`): `ReturnFocus` sucht `[data-testid='target-save'] button` bzw. `target-remove` im ganzen Dokument, `aria-describedby` hängt an der festen id `target-amount-hint-text`. Auf `#/budget/target-check` den Inspektor nicht mitrendern oder ein Präfix als Prop nachziehen.
+- **Vorbelegtes Formular**: ein Konstruktor wie `prefilledTargetForm categoryId month amount frequency` im Kern hält das Format (`AmountMath.formatSignedAmount`) an einer Stelle.
+- **Panelbreite**: `IsPanel` steuert Rückfrageform und einspaltiges Raster (`TargetFormView.fs:24, 222`). Der Styleguide nennt 420 px (`standards/frontend/styleguide.md:162`) und 340 px (Zeile 412); vor dem Festlegen der Panelbreite klären. Den Eintrag zu `BottomSheet.confirm` in Abschnitt 5 um die neue Seite ergänzen.

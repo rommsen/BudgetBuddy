@@ -5,6 +5,39 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 10:21 -- Modeling / Captured: budgeting-gv74q, ledger-cy1j8, budgeting-p8nd0 aus den Reviews nach p2zr6 und r7k2m
+
+**Type:** Modeling / Capture
+**BC:** budgeting, ledger
+**Filed to:** todo (von Roman freigegeben, direkt promoted)
+**Summary:** Aus vier Reviews (qa-milestone-reviewer, backend-code-quality, frontend-architecture, design-quality) vom 2026-11-05: gv74q Testlücken und TargetChangeMark als DU, Prüfung ohne Pausen; cy1j8 Rennen in rebuildSplitIndexes; p8nd0 Wrapper im Target-Formular streichen. Hinweise für die Seite in budgeting-q4v8n Notes, q4v8n hängt jetzt an gv74q.
+
+---
+
+## 2026-11-05 10:21 -- Modeling / Promoted: budgeting-p8nd0 - "Target-Formular aufräumen: Wrapper, die nur Tests aufrufen, streichen und die Tab-Tests auf Kern und Sperrlage umstellen"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-05 10:21 -- Modeling / Promoted: ledger-cy1j8 - "Bug: rebuildSplitIndexes löscht und füllt die Split-Indextabellen ohne Transaktion, parallele initializeLedgerSchema-Aufrufe werfen einen UNIQUE-Fehler"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-05 10:21 -- Modeling / Promoted: budgeting-gv74q - "Targets prüfen nachbessern: Testlücken aus dem QA-Review schließen, TargetChangeMark als DU statt Bool, Prüfung ohne Lesen der Pausen"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-05 09:57 -- Work session ended
 
 **Type:** Work / Session end
