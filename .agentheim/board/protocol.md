@@ -5,6 +5,28 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 16:46 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** 27m
+**Completed:** 1 (first-try PASS: 1, re-dispatched: 0, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Lost-result re-dispatches:** 0
+**Lost-result escalations:** 0
+**Dispatches:** ledger-k9tm2: 1
+**Commits:** 3
+**Vision-conformance:** none — batch aligns with vision
+**Batch mix:** 100% product-facing / 0% harness / 0% bookkeeping (1 task)
+**Carry-over:** none — working tree clean
+**Verifikation:** ./verify.sh auf main nach dem Commit: VERIFY: PASS (dotnet 3928 grün, node 310 grün). Probe gegen eine Kopie der Produktion vor dem Deploy: alle Punkte grün, Kopie gelöscht.
+**Conductor auf main:** Nachtrag zu ADR 0083 Abschnitt 6 (Umsetzung, UTC-Pflicht für neue Ereignisse); Probe-Ergebnis im Outcome.
+**Review-Vorschlag (Override C):** /review-agents mit backend-code-quality (src/Server) und qa-milestone-reviewer (neue und geänderte Tests). /architecture-review ledger vorgeschlagen (Schwelle weit überschritten).
+**Offen:** Deploy von ledger-k9tm2 (Startmigration, Rollback nur über Backup).
+
+---
+
 ## 2026-11-05 16:42 -- Task verified and completed: ledger-k9tm2 - "Kassenbuch-Ereignisse nach `events` überführen: Kopie in rowid-Reihenfolge mit Abbruchprüfung, `appendAndApply` und Ladepfade umstellen, `ledger_entry_events` danach entfernen"
 
 **Type:** Work / Task completion
