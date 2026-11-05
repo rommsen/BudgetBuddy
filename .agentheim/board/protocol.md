@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 21:27 -- Review-Lauf: budgeting-qm5x9
+
+**Type:** Review / Review-Lauf
+**Bereich:** 4fd0e4d..6cd25bd (budgeting-qm5x9)
+**Agents:** backend-code-quality, frontend-architecture, qa-milestone-reviewer
+**Funde:** behoben 15, verworfen 1, Rückfrage 0, Ticket 0
+**Commits:** 955cafb, 73a6803, 57c1994, 4fbf549, b195035, 0635854, 2fc8a17, 846dac8, 046c868 (zwei Fix-Agenten in getrennten Worktrees, Server per Fast-Forward, Client per Cherry-Pick übernommen)
+**Verworfen:** Befehls-Id nach endgültigem Abbruch im Client verworfen (frontend-architecture): ein Erneut-Senden abgebrochener Aufrufe gibt es nicht, außerhalb der Task.
+**Bug gefunden:** belongsTo prüfte die Kategorie nicht; eine wiederverwendete Id bestätigte still einen fremden Auftrag. Behoben mit drei Regressionstests, vor dem Fix rot.
+**Verifikation:** VERIFY: PASS (dotnet 4012 grün, node 310 grün); Gegenproben je neuem Test rot.
+
+---
+
 ## 2026-11-05 21:03 -- Work session ended
 
 **Type:** Work / Session end
