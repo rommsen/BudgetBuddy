@@ -5,6 +5,27 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 12:09 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** 36m
+**Completed:** 1 (first-try PASS: 0, re-dispatched: 1, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Lost-result re-dispatches:** 0
+**Lost-result escalations:** 0
+**Dispatches:** infrastructure-c7f53: 2
+**Commits:** 2
+**Vision-conformance:** none — batch aligns with vision
+**Batch mix:** 100% product-facing / 0% harness / 0% bookkeeping (1 task)
+**Carry-over:** none — working tree clean
+**Gate:** ./verify.sh im Worktree: VERIFY: PASS (dotnet 3860, node 310).
+**Auffällig:** Iteration 1 FAIL wegen veralteter Versionsangabe (ADR 0008 nennt noch Microsoft.Data.Sqlite 9.0.13, gepinnt ist 10.0.14) und fehlendem Marker für die Sprachregel. Nachtrag ADR 0013 und Notiz in budgeting-zkbbd vom Conductor auf main geschrieben.
+**Review-Vorschlag (Override C):** keiner, nur CLAUDE.md und Doku geändert.
+
+---
+
 ## 2026-11-05 12:09 -- Task verified and completed: infrastructure-c7f53 - "Event Sourcing für die Kernkontexte ledger und budgeting mit gemeinsamem Ereignis-Umschlag; Reports als Read Models darauf, alles andere bleibt Zustand"
 
 **Type:** Work / Task completion
