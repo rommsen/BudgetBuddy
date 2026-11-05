@@ -765,6 +765,18 @@ let private commandTests =
             Expect.isEmpty f.Attempts "kein SetAssigned"
             Expect.equal (report.Lines |> List.map (fun l -> l.CategoryId, l.NewAssigned)) [ a, eur 50000L ] "die festgehaltene Entscheidung"
             Expect.isNone report.ActualToBeBudgeted "Zu verteilen nicht neu gelesen"
+
+        // Die Anschlussstelle: `Api.applyTargetsWith` prüft die Befehls-Id über `validateTargetsApply`.
+        testCase "Übernehmen über die API mit leerer Befehls-Id wird abgelehnt, ohne YNAB zu lesen" <| fun () ->
+            let f, _ = fake 200000L
+            let shown = { previewOf f with CommandId = Some Guid.Empty }
+            f.Reads <- 0
+            let result =
+                Server.Api.applyTargetsWith (Some "t") (Some "b") (fun _ _ -> f.Port) (DateOnly(2026, 11, 1)) now monthKey shown
+                |> run
+            Expect.equal result (Error Server.Validation.EmptyCommandIdText) "Grund"
+            Expect.equal f.Reads 0 "kein FetchMonth"
+            Expect.isEmpty f.Attempts "kein SetAssigned"
     ]
 
 [<Tests>]
