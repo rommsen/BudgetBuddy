@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 08:21 -- Modeling / Promoted: infrastructure-hwfkn - "Spike: Kernbudget für gleichzeitige Gate-Läufe messen. Parallelität je Lauf, Sperre um test:scripts und Zahl gleichzeitiger Worktrees zusammen entscheiden"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-05 08:21 -- Modeling / Refined: infrastructure-hwfkn - Spike Kernbudget für gleichzeitige Gate-Läufe
 
 **Type:** Modeling / Refine
