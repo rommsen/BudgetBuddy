@@ -184,7 +184,7 @@ let private removedKind = fst (Server.Budgeting.Domain.targetChangeKindText Targ
 [<Tests>]
 let lastChangeTests =
     testList "Targets prüfen: letzte Target-Änderung je Kategorie" [
-        test "Von zwei geschriebenen gilt die jüngere, eine jüngere mit fehlgeschlagenem Schritt 1 zählt nicht" {
+        testCase "Von zwei geschriebenen gilt die jüngere, eine jüngere mit fehlgeschlagenem Schritt 1 zählt nicht" <| fun () ->
             use conn = openChangesDb ()
             let k = Guid.NewGuid()
             result conn (change conn k "2026-06-10T08:00:00.0000000Z" edited) (Some 1) "written"
@@ -194,11 +194,10 @@ let lastChangeTests =
             result conn failed (Some 1) "failed"
             Expect.equal
                 (Budgeting.Persistence.queryLastTargetChanges conn |> Result.map (Map.tryFind k))
-                (Ok (Some { Day = "2026-07-10"; Removed = false }))
+                (Ok (Some (TargetSetOn "2026-07-10")))
                 "die jüngere geschriebene, ein Ergebnis ohne Schritt zählt als Schritt 1"
-        }
 
-        test "Eine geschriebene mit fehlgeschlagenem Schritt 2 zählt, Entfernt kommt als Entfernen" {
+        testCase "Eine geschriebene mit fehlgeschlagenem Schritt 2 zählt, Entfernt kommt als Entfernen" <| fun () ->
             use conn = openChangesDb ()
             let partly, removed = Guid.NewGuid(), Guid.NewGuid()
             let createdText, frequency = Server.Budgeting.Domain.targetChangeKindText (TargetCreated Monthly)
@@ -210,25 +209,46 @@ let lastChangeTests =
             match Budgeting.Persistence.queryLastTargetChanges conn with
             | Error message -> failtest message
             | Ok marks ->
-                Expect.equal (marks |> Map.tryFind partly) (Some { Day = "2026-07-10"; Removed = false }) "Schritt 2 zählt nicht"
-                Expect.equal (marks |> Map.tryFind removed) (Some { Day = "2026-07-11"; Removed = true }) "Entfernen"
-        }
+                Expect.equal (marks |> Map.tryFind partly) (Some (TargetSetOn "2026-07-10")) "Schritt 2 zählt nicht"
+                Expect.equal (marks |> Map.tryFind removed) (Some (TargetRemovedOn "2026-07-11")) "Entfernen"
 
-        test "occurred_at 2026-07-31T22:30Z ist in Berlin der 01.08.2026" {
+        testCase "occurred_at 2026-07-31T22:30Z ist in Berlin der 01.08.2026" <| fun () ->
             use conn = openChangesDb ()
             let k = Guid.NewGuid()
             result conn (change conn k "2026-07-31T22:30:00.0000000Z" edited) (Some 1) "written"
             Expect.equal
                 (Budgeting.Persistence.queryLastTargetChanges conn |> Result.map (Map.tryFind k))
-                (Ok (Some { Day = "2026-08-01"; Removed = false }))
+                (Ok (Some (TargetSetOn "2026-08-01")))
                 "Berliner Kalendertag"
-        }
 
-        test "Eine unbekannte Art wird gemeldet, nicht auf einen Standard gelegt" {
+        testCase "Eine unbekannte Art wird gemeldet, nicht auf einen Standard gelegt" <| fun () ->
             use conn = openChangesDb ()
             result conn (change conn (Guid.NewGuid()) "2026-07-10T08:00:00.0000000Z" "Quatsch") (Some 1) "written"
             Expect.isError (Budgeting.Persistence.queryLastTargetChanges conn) "unbekannte Art"
-        }
+
+        testCase "Bei gleichem occurred_at gilt die später eingefügte Zeile (rowid)" <| fun () ->
+            use conn = openChangesDb ()
+            let removedLast, editedLast = Guid.NewGuid(), Guid.NewGuid()
+            let at = "2026-07-10T08:00:00.0000000Z"
+            result conn (change conn removedLast at edited) (Some 1) "written"
+            result conn (change conn removedLast at removedKind) (Some 1) "written"
+            result conn (change conn editedLast at removedKind) (Some 1) "written"
+            result conn (change conn editedLast at edited) (Some 1) "written"
+            match Budgeting.Persistence.queryLastTargetChanges conn with
+            | Error message -> failtest message
+            | Ok marks ->
+                Expect.equal (marks |> Map.tryFind removedLast) (Some (TargetRemovedOn "2026-07-10")) "Entfernen zuletzt eingefügt"
+                Expect.equal (marks |> Map.tryFind editedLast) (Some (TargetSetOn "2026-07-10")) "Ändern zuletzt eingefügt"
+
+        testCase "loadLastTargetChangesWith meldet eine unbekannte Art mit TargetChangesUnreadableText" <| fun () ->
+            let connect () =
+                let conn = openChangesDb ()
+                result conn (change conn (Guid.NewGuid()) "2026-07-10T08:00:00.0000000Z" "Quatsch") (Some 1) "written"
+                conn
+            Expect.equal
+                (Budgeting.Persistence.loadLastTargetChangesWith connect |> run)
+                (Error Budgeting.Persistence.TargetChangesUnreadableText)
+                "Text statt Ursache"
     ]
 
 // ============================================
@@ -255,8 +275,8 @@ let private probe (categories: YnabMonthCategory list) : Probe =
 
 [<Tests>]
 let handlerTests =
-    // Ohne Kassenbuch-Schema: der Handler fragt das Kassenbuch nur über den Port, die Pausen des Monats
-    // liest er aus `target_pause_events`.
+    // Ohne Kassenbuch-Schema: der Handler fragt das Kassenbuch nur über den Port. Das Budgeting-Schema
+    // braucht der Test zu den Pausen.
     let testCase name body =
         testCase name (fun () ->
             Persistence.initializeDatabase ()
@@ -285,7 +305,7 @@ let handlerTests =
 
         testCase "Die letzte Änderung hängt an ihrer Kategorie" <| fun () ->
             let category = ynabCategory "Lebensmittel"
-            let mark = { Day = "2026-08-01"; Removed = true }
+            let mark = TargetRemovedOn "2026-08-01"
             let p = probe [ category; ynabCategory "Urlaub" ]
             let port = { p.Port with LoadLastTargetChanges = fun () -> async { return Ok (Map.ofList [ category.Id, mark ]) } }
             match Server.Budgeting.QueryHandlers.targetCheck port today |> run with
@@ -296,12 +316,31 @@ let handlerTests =
                     [ "Lebensmittel", Some mark; "Urlaub", None ]
                     "je Kategorie"
 
+        testCase "Die BB-Pausen liest der Handler nicht: eine unlesbare Pause des Monats ändert nichts" <| fun () ->
+            // Ein eigener Monat weit in der Zukunft: die unbekannte Art bleibt in der geteilten DB stehen.
+            let monthKey = "2093-04-01"
+            use conn = global.Persistence.getConnection ()
+            Dapper.SqlMapper.Execute(
+                conn,
+                "INSERT INTO target_pause_events (id, occurred_at, month, category_id, category_name, kind) \
+                 VALUES (@id, '2093-04-02T09:00:00.0000000Z', @month, @k, 'X', 'Quatsch')",
+                {| id = string (Guid.NewGuid()); month = monthKey; k = string (Guid.NewGuid()) |})
+            |> ignore
+            let p = probe [ ynabCategory "Lebensmittel" ]
+            Expect.equal
+                (Server.Budgeting.QueryHandlers.budgetMonthOf p.Port.FetchMonth monthKey |> run |> Result.isError)
+                true
+                "Gegenprobe: mit Pausen scheitert der Monat"
+            match Server.Budgeting.QueryHandlers.targetCheck p.Port (DateOnly(2093, 4, 15)) |> run with
+            | Error message -> failtest message
+            | Ok data -> Expect.equal (data.Categories |> List.map (fun c -> c.Name)) [ "Lebensmittel" ] "geprüft wie sonst"
+
         testCase "Lesefehler im Kassenbuch, in target_changes und bei YNAB kommen als Error mit Text" <| fun () ->
             let p = probe [ ynabCategory "Lebensmittel" ]
             let check port = Server.Budgeting.QueryHandlers.targetCheck port today |> run
             Expect.equal
                 (check { p.Port with LoadMonthlyActivity = fun _ _ -> async { return failwith "Datenbank weg" } })
-                (Error "Ausgaben aus dem Kassenbuch nicht lesbar")
+                (Error Server.Budgeting.QueryHandlers.SpendingUnreadableText)
                 "Kassenbuch"
             Expect.equal
                 (check { p.Port with LoadLastTargetChanges = fun () -> async { return failwith "Datenbank weg" } })
@@ -324,6 +363,20 @@ let endpointTests =
             initialize ()
             let category = ynabCategory "Kategorie E P2zr6"
             booked (catRef category.Id category.Name) (utc 2026 10 3) -12m
+            // Eine in BB geschriebene Änderung über den echten Persistenzweg (Schritt 1 geschrieben).
+            let written : Budgeting.Persistence.TargetChange =
+                { Id = Guid.NewGuid()
+                  OccurredAt = DateTime(2026, 8, 10, 8, 0, 0, DateTimeKind.Utc)
+                  Month = "2026-08-01"
+                  CategoryId = category.Id
+                  CategoryName = category.Name
+                  Kind = TargetEdited
+                  OldGoalTarget = Some 50000L
+                  NewGoalTarget = Some 60000L
+                  OldDate = None
+                  NewDate = None }
+            Budgeting.Persistence.appendTargetChanges [ written ] |> run
+            Budgeting.Persistence.appendTargetChangeStepResult written.Id 1 written.OccurredAt Written |> run
             let fetched = ResizeArray<string>()
             let ynab : Server.Budgeting.CommandHandlers.YnabPort =
                 { FetchMonth = fun month -> async { fetched.Add month; return Ok (monthWith [ category ] month) }
@@ -342,6 +395,7 @@ let endpointTests =
             | Ok data ->
                 Expect.equal (data.Month, data.Today) ("2026-11-01", "2026-11-01") "Berliner Tag"
                 Expect.equal (List.ofSeq fetched) [ "2026-11-01" ] "ein YNAB-Lesen des laufenden Monats"
-                let spending = (data.Categories |> List.exactlyOne).Spending
-                Expect.equal (List.last spending) { Month = "2026-10-01"; Activity = eur -12m } "Ausgaben aus dem Kassenbuch"
+                let only = data.Categories |> List.exactlyOne
+                Expect.equal (List.last only.Spending) { Month = "2026-10-01"; Activity = eur -12m } "Ausgaben aus dem Kassenbuch"
+                Expect.equal only.LastChange (Some (TargetSetOn "2026-08-10")) "letzte Änderung aus target_changes"
     ]

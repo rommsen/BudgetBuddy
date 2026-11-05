@@ -1040,12 +1040,17 @@ let spendingBars (currentMonth: string) (spending: MonthSpending list) : Spendin
 // Targets prüfen (budgeting-p2zr6, ADR 0082)
 // ============================================
 
-/// Die letzte in BB geschriebene Target-Änderung einer Kategorie (ADR 0082 Punkt 7): der Berliner
-/// Kalendertag "YYYY-MM-DD" und ob sie das Target entfernt hat.
-type TargetChangeMark = {
-    Day: string
-    Removed: bool
-}
+/// Die letzte in BB geschriebene Target-Änderung einer Kategorie (ADR 0082 Punkt 7) mit ihrem Berliner
+/// Kalendertag "YYYY-MM-DD": gesetzt oder geändert, oder entfernt.
+type TargetChangeMark =
+    | TargetSetOn of day: string
+    | TargetRemovedOn of day: string
+
+/// Der Berliner Kalendertag einer letzten Änderung.
+let changeMarkDay (mark: TargetChangeMark) : string =
+    match mark with
+    | TargetSetOn day
+    | TargetRemovedOn day -> day
 
 /// Eine sichtbare Kategorie des laufenden Monats mit ihren Rohdaten für die Target-Prüfung.
 type TargetCheckSource = {
@@ -1207,7 +1212,7 @@ let suggestTarget (target: Target option) (average: Money) : TargetSuggestion op
 /// laufende Monat folgt daraus und zählt nie. Rein, gleich unter .NET und Fable.
 let targetCheckRow (today: string) (source: TargetCheckSource) : TargetCheckRow =
     let current = monthOfDay today
-    let changeMonth = source.LastChange |> Option.map (fun mark -> monthOfDay mark.Day)
+    let changeMonth = source.LastChange |> Option.map (changeMarkDay >> monthOfDay)
     let counted =
         source.Spending
         |> List.filter (fun s ->
@@ -1238,7 +1243,8 @@ let targetCheckRow (today: string) (source: TargetCheckSource) : TargetCheckRow 
     let tooFew =
         let needed = if period > 3 then period else 3
         match source.LastChange with
-        | Some mark when n < needed -> Some (if mark.Removed then RecentlyRemoved mark.Day else RecentlySet mark.Day)
+        | Some (TargetSetOn day) when n < needed -> Some (RecentlySet day)
+        | Some (TargetRemovedOn day) when n < needed -> Some (RecentlyRemoved day)
         | _ -> None
     let avg = average |> Option.map (fun a -> a.Amount) |> Option.defaultValue 0m
     let group, note =
@@ -1299,11 +1305,12 @@ let targetCheckGroups (today: string) (data: TargetCheckData) : (CheckGroup * Ta
 /// Nach einem Schreiben (ADR 0082 Punkt 10): das Target aus der Antwort und `Today` als letzte Änderung,
 /// `None` heißt entfernt. Andere Kategorien bleiben, wie sie sind.
 let withWrittenTarget (categoryId: Guid) (target: Target option) (data: TargetCheckData) : TargetCheckData =
+    let mark =
+        match target with
+        | Some _ -> TargetSetOn data.Today
+        | None -> TargetRemovedOn data.Today
     { data with
         Categories =
             data.Categories
             |> List.map (fun c ->
-                if c.CategoryId = categoryId then
-                    { c with Target = target; LastChange = Some { Day = data.Today; Removed = target.IsNone } }
-                else
-                    c) }
+                if c.CategoryId = categoryId then { c with Target = target; LastChange = Some mark } else c) }

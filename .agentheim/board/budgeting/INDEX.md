@@ -12,8 +12,8 @@ Catalog of this bounded context's tasks by status.
 <!-- task-counts:start -->
 - **Backlog:** 8
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 40
+- **Doing:** 0
+- **Done:** 41
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ Catalog of this bounded context's tasks by status.
 
 ### Doing
 <!-- doing-list:start -->
-- **budgeting-gv74q** — "Targets prüfen nachbessern: Testlücken aus dem QA-Review schließen, TargetChangeMark als DU statt Bool, Prüfung ohne Lesen der Pausen" (refactor) — `doing/budgeting-gv74q-targets-pruefen-nachbessern.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **budgeting-gv74q** — "Targets prüfen nachbessern: Testlücken aus dem QA-Review schließen, TargetChangeMark als DU statt Bool, Prüfung ohne Lesen der Pausen" (refactor) — `done/budgeting-gv74q-targets-pruefen-nachbessern.md`
 - **budgeting-p8nd0** — "Target-Formular aufräumen: Wrapper, die nur Tests aufrufen, streichen und die Tab-Tests auf Kern und Sperrlage umstellen" (refactor) — `done/budgeting-p8nd0-target-formular-aufraeumen.md`
 - **budgeting-p2zr6** — "Targets prüfen, Regel und Daten: reine Einordnungsfunktion in Shared.Budgeting und Endpoint getTargetCheck mit einer Kassenbuch-Abfrage für alle Kategorien und der letzten Target-Änderung je Kategorie" (feature) — `done/budgeting-p2zr6-passt-das-target-noch.md`
 - **budgeting-r7k2m** — "Target-Formular aus dem Tab Target herauslösen, damit die Seite Targets prüfen es im Panel nutzen kann, ohne Verhaltensänderung im Tab" (refactor) — `done/budgeting-r7k2m-target-formular-herausloesen.md`

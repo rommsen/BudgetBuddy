@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 10:58 -- Task verified and completed: budgeting-gv74q - "Targets prüfen nachbessern: Testlücken aus dem QA-Review schließen, TargetChangeMark als DU statt Bool, Prüfung ohne Lesen der Pausen"
+
+**Type:** Work / Task completion
+**Task:** budgeting-gv74q - "Targets prüfen nachbessern: Testlücken aus dem QA-Review schließen, TargetChangeMark als DU statt Bool, Prüfung ohne Lesen der Pausen"
+**Summary:** Target-Prüfung nachgebessert: TargetChangeMark als DU, Prüfung ohne Pausen, Testlücken aus dem QA-Review geschlossen, AC13 gelöscht
+**Duration:** 58m
+**Verification:** PASS (iteration 1)
+**Files changed:** 6
+**Tests added:** 5
+**ADRs written:** none
+
+---
+
 ## 2026-11-05 10:50 -- Task verified and completed: ledger-cy1j8 - "Bug: rebuildSplitIndexes löscht und füllt die Split-Indextabellen ohne Transaktion, parallele initializeLedgerSchema-Aufrufe werfen einen UNIQUE-Fehler"
 
 **Type:** Work / Task completion

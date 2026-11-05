@@ -86,6 +86,10 @@ let movements (port: HistoryPort) (filter: MovementFilter) : Async<Result<Histor
             return Error "Budget-Bewegungen nicht lesbar"
     }
 
+/// Die Meldung bei einem Lesefehler der Kassenbuch-Ausgaben (Tab Historie und Targets prüfen).
+[<Literal>]
+let SpendingUnreadableText = "Ausgaben aus dem Kassenbuch nicht lesbar"
+
 /// Der Tab Historie für Kategorie und Monat (Monatserster): die Bewegungen, Pause-Ereignisse und
 /// Target-Änderungen der
 /// Kategorie im Monat, gemischt und neueste zuerst, und die Ausgaben der 6 Monate bis einschließlich
@@ -126,7 +130,7 @@ let categoryHistory (port: HistoryPort) (categoryId: Guid) (firstDay: DateTime) 
                             return Ok sums
                         with ex ->
                             logReadFailure "Ausgaben aus dem Kassenbuch lesen" ex
-                            return Error "Ausgaben aus dem Kassenbuch nicht lesbar"
+                            return Error SpendingUnreadableText
                     }
                 // Das Zusammenführen steht außerhalb des `try`: ein Fehler darin ist kein Lesefehler.
                 match sums with
@@ -163,19 +167,17 @@ type TargetCheckPort = {
     LoadLastTargetChanges: unit -> Async<Result<Map<Guid, TargetChangeMark>, string>>
 }
 
-/// Die Meldung, wenn die Ausgaben aus dem Kassenbuch nicht lesbar sind (wie im Tab Historie).
-[<Literal>]
-let SpendingUnreadableText = "Ausgaben aus dem Kassenbuch nicht lesbar"
-
 /// Die Rohdaten von Targets prüfen für den laufenden Monat (`today`, Berliner Kalendertag): die sichtbaren
 /// Kategorien aus YNAB (dieselbe Filterung wie die Budget-Seite), die 12 vollen Monate vor dem laufenden aus
 /// einer Kassenbuch-Abfrage und die letzte Änderung je Kategorie. Jeder Lesefehler kommt als `Error` mit Text.
+/// Die BB-Pausen liest es nicht: eine pausierte Kategorie wird geprüft wie jede andere (ADR 0082 Punkt 3).
 let targetCheck (port: TargetCheckPort) (today: DateOnly) : Async<Result<TargetCheckData, string>> =
     async {
         let monthKey = currentMonthKey today
-        match! budgetMonthOf port.FetchMonth monthKey with
+        match! port.FetchMonth monthKey with
         | Error e -> return Error (ynabErrorText e)
-        | Ok month ->
+        | Ok raw ->
+            let month = toBudgetMonth Set.empty raw
             let categories =
                 month.Groups |> List.collect (fun g -> g.Categories |> List.map (fun c -> g.Name, c))
             let months = targetCheckMonths (today.ToDateTime TimeOnly.MinValue)

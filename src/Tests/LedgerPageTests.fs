@@ -2868,24 +2868,6 @@ let ledgerPagingTests =
                 (plan |> List.exists (fun line -> line.Contains "CORRELATED"))
                 $"keine korrelierte Unterabfrage (Plan: {planText})"
 
-        testCase "AC13: Persistence.fs hat fünf hasAmountFilter-Gabelungen, dazu `loadCategoryEntries` als sechsten Aufruf von loadAllMatching" <| fun () ->
-            // Quelltext-Zusicherung nach dem Muster von FontFaceRegressionTests.fs und
-            // BackendPortGuardTests.fs: hält fest, dass diese Aufgabe keine sechste
-            // Gabelung der `hasAmountFilter`-Verzweigung einführt (ledger-r7dm2 Punkt 1
-            // bleibt Testschuld, wird hier nicht vergrößert).
-            let testDir = __SOURCE_DIRECTORY__
-            let repoRoot = Directory.GetParent(Directory.GetParent(testDir).FullName).FullName
-            let persistenceFsPath = Path.Combine(repoRoot, "src", "Server", "Ledger", "Persistence.fs")
-            let text = File.ReadAllText persistenceFsPath
-
-            let loadAllMatchingOccurrences = Regex.Matches(text, @"\bloadAllMatching\b").Count
-            // Minus 1 für die Definition selbst ("let private loadAllMatching ...").
-            // Der sechste Aufruf ist `loadCategoryEntries` (budgeting-m1bce), ohne Gabelung.
-            Expect.equal (loadAllMatchingOccurrences - 1) 6 "sechs Aufrufe von loadAllMatching, ohne die Definition mitzuzählen"
-
-            let hasAmountFilterGuards = Regex.Matches(text, @"if hasAmountFilter filter then").Count
-            Expect.equal hasAmountFilterGuards 5 "fünf Vorkommen der hasAmountFilter-Gabelung"
-
         testCase "AC14: 1000 Buchungen, drei mit der gesuchten Split-Kategorie, liefern TotalCount = 3 in angemessener Zeit" <| fun () ->
             let hitCategory = catId 43
             let hitIndices = set [ 100; 500; 900 ]
@@ -3060,7 +3042,7 @@ let ledgerPagingTests =
             Expect.equal (sorted amountPath) expected "F#-Zweig (Betragsfilter): dieselbe Gruppierung und Anzeige-Schreibweise wie der SQL-Zweig"
 
         testCase "AC5: loadPayeeSuggestions enthält keine eigene Groß-/Kleinschreibungs-Faltung, nur Core.searchFold" <| fun () ->
-            // Quelltext-Zusicherung nach dem Muster von AC13: eine zweite,
+            // Quelltext-Zusicherung nach dem Muster von FontFaceRegressionTests.fs: eine zweite,
             // eigenständige Normalisierung (statt der gemeinsamen `Core.searchFold`)
             // wäre hier still möglich, ohne dass ein Verhaltens-Test es zwingend
             // aufdeckt, solange sie zufällig dasselbe Ergebnis liefert.

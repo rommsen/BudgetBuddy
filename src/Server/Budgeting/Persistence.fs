@@ -647,16 +647,17 @@ let queryLastTargetChanges (conn: SqliteConnection) : Result<Map<Guid, TargetCha
         |> List.map (fun (categoryId, rows) ->
             let _, at, _, kind = rows |> List.maxBy (fun (_, at, order, _) -> at, order)
             let day = (berlinTime at).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
-            categoryId, { Day = day; Removed = (kind = TargetRemoved) })
+            let mark = if kind = TargetRemoved then TargetRemovedOn day else TargetSetOn day
+            categoryId, mark)
         |> Map.ofList)
 
-/// Die letzten Target-Änderungen aller Kategorien für Targets prüfen. Liest nur die Datenbank. Ein
-/// Lesefehler oder eine unbekannte Art kommt als `Error` mit `TargetChangesUnreadableText`, die Ursache
-/// bleibt im Server-Log.
-let loadLastTargetChanges () : Async<Result<Map<Guid, TargetChangeMark>, string>> =
+/// Die letzten Target-Änderungen aller Kategorien für Targets prüfen über die Verbindung aus `connect`.
+/// Liest nur die Datenbank. Ein Lesefehler oder eine unbekannte Art kommt als `Error` mit
+/// `TargetChangesUnreadableText`, die Ursache bleibt im Server-Log.
+let loadLastTargetChangesWith (connect: unit -> SqliteConnection) : Async<Result<Map<Guid, TargetChangeMark>, string>> =
     async {
         try
-            use conn = Core.getConnection ()
+            use conn = connect ()
             match queryLastTargetChanges conn with
             | Ok marks -> return Ok marks
             | Error message ->
@@ -666,3 +667,7 @@ let loadLastTargetChanges () : Async<Result<Map<Guid, TargetChangeMark>, string>
             logReadFailure "Letzte Target-Änderungen lesen" ex.Message
             return Error TargetChangesUnreadableText
     }
+
+/// `loadLastTargetChangesWith` auf der Datenbank der Anwendung.
+let loadLastTargetChanges () : Async<Result<Map<Guid, TargetChangeMark>, string>> =
+    loadLastTargetChangesWith Core.getConnection

@@ -5,6 +5,7 @@ module Tests.TargetCheckTests
 
 open System
 open Expecto
+open FsCheck
 open Shared.Domain
 open Shared.Budgeting
 
@@ -37,7 +38,7 @@ let private source (name: string) (t: Target option) (amounts: decimal list) (ch
       Spending = spendingOf amounts
       LastChange = change }
 
-let private changedOn (day: string) = Some { Day = day; Removed = false }
+let private changedOn (day: string) = Some (TargetSetOn day)
 
 let private rowOf t amounts change = targetCheckRow Today (source "Kategorie" t amounts change)
 
@@ -134,9 +135,15 @@ let countedMonthTests =
         }
 
         test "Entfernen vor weniger als 3 vollen Monaten: Passt mit entfernt am …" {
-            let row = rowOf None (every 12 500m) (Some { Day = "2026-09-10"; Removed = true })
+            let row = rowOf None (every 12 500m) (Some (TargetRemovedOn "2026-09-10"))
             Expect.equal (row.Group, row.Note) (Fits, Some (RecentlyRemoved "2026-09-10")) "zu wenige Monate"
             Expect.equal (fitsNoteText (RecentlyRemoved "2026-09-10")) "entfernt am 10.09.2026" "Text"
+        }
+
+        test "Entfernen am 15.07. bei laufendem November: 3 gezählte Monate, Kein Target ohne Zusatz" {
+            let row = rowOf None (every 12 40m) (Some (TargetRemovedOn "2026-07-15"))
+            Expect.equal (row.CountedMonths |> List.map (fun m -> m.Month)) [ "2026-08-01"; "2026-09-01"; "2026-10-01" ] "3 Monate"
+            Expect.equal (row.Group, row.Note) (WithoutTarget, None) "genug Monate seit dem Entfernen"
         }
 
         test "Periode P: jährlich mit 7 gezählten Monaten steht bei Passt, alle 3 Monate mit 3 wird eingeordnet" {
@@ -306,28 +313,44 @@ let suggestionTests =
         }
     ]
 
-/// Die Rhythmen der Eigenschaft: monatlich bis alle 12 Monate, jährlich bis alle 3 Jahre, wöchentlich bis
-/// alle 4 Wochen, MF.
-let private rhythms : Target list =
-    [ for n in 1 .. 12 -> target Need (Months n) 100m
-      for n in 1 .. 3 -> target Need (Years n) 100m
-      for n in 1 .. 4 -> target Need (Weeks n) 100m
-      yield target MonthlyFunding (Months 1) 100m ]
+/// Die Rhythmen der Eigenschaft: monatlich bis alle 12 Monate, jährlich, wöchentlich bis alle 4 Wochen, MF.
+/// Alle 2 und 3 Jahre fehlen: P > 12 steht immer bei "nicht geprüft", die Eigenschaft wäre dort leer.
+let private rhythms : (TargetKind * TargetRhythm) list =
+    [ for n in 1 .. 12 -> Need, Months n
+      yield Need, Years 1
+      for n in 1 .. 4 -> Need, Weeks n
+      yield MonthlyFunding, Months 1 ]
+
+/// Ein Target in einem der Rhythmen mit 1 € bis 20.000 € und 12 Monate Ausgaben in Cent. Die Obergrenze je
+/// Monat ist 20 €, 200 €, 2.000 € oder 10.000 €, die Untergrenze ein Zwanzigstel davon negativ (Erstattung).
+/// So kommen kleine und große Ø vor, und der weite Bereich des Targets macht "mehr" und "weniger" erreichbar.
+let private targetAndSpending : Gen<Target * decimal list> =
+    gen {
+        let! kind, rhythm = Gen.elements rhythms
+        let! goalCents = Gen.choose (100, 2_000_000)
+        let! top = Gen.elements [ 2_000; 20_000; 200_000; 1_000_000 ]
+        let! cents = Gen.listOfLength 12 (Gen.choose (-top / 20, top))
+        return target kind rhythm (decimal goalCents / 100m), cents |> List.map (fun c -> decimal c / 100m)
+    }
 
 [<Tests>]
 let invariantTests =
     testList "Targets prüfen: Invariant ADR 0082 Punkt 9" [
-        testProperty "Mit dem zurückgerechneten Vorschlag als Target liegt eine Kategorie weder in mehr noch in weniger" <|
-            fun (pick: int) (cents: int list) ->
-                let shown = rhythms.[abs (pick % List.length rhythms)]
-                // Ausgaben bis 10.000 € je Monat, Erstattungen eingeschlossen.
-                let amounts = (cents @ List.replicate 12 0) |> List.truncate 12 |> List.map (fun c -> decimal (c % 1000000) / 100m)
+        // 1000 Fälle: ein wöchentlicher Rhythmus mit kleinem Ø, an dem eine grobe Rundung auffällt, ist selten.
+        testPropertyWithConfig
+            { FsCheckConfig.defaultConfig with maxTest = 1000 }
+            "Mit dem zurückgerechneten Vorschlag als Target liegt eine Kategorie weder in mehr noch in weniger" <|
+            Prop.forAll (Arb.fromGen targetAndSpending) (fun (shown, amounts) ->
                 let before = rowOf (Some shown) amounts None
-                match before.Average |> Option.bind (suggestTarget (Some shown)) with
-                | None -> true
-                | Some suggestion ->
-                    let after = rowOf (Some { shown with Goal = suggestion.InRhythm }) amounts None
-                    after.Group <> SpendsMore && after.Group <> SpendsLess
+                let holds =
+                    match before.Average |> Option.bind (suggestTarget (Some shown)) with
+                    | None -> true
+                    | Some suggestion ->
+                        let after = rowOf (Some { shown with Goal = suggestion.InRhythm }) amounts None
+                        after.Group <> SpendsMore && after.Group <> SpendsLess
+                holds
+                |> Prop.classify (before.Group = SpendsMore) "vorher mehr"
+                |> Prop.classify (before.Group = SpendsLess) "vorher weniger")
     ]
 
 [<Tests>]
@@ -357,23 +380,28 @@ let afterWriteTests =
 let groupTests =
     testList "Targets prüfen: Gruppen" [
         test "Reihenfolge nach ADR 0082 Punkt 3, leere Gruppen fehlen, Sortierung in der Gruppe" {
+            // Die Namen laufen gegen den Abstand: "Z groß" steht alphabetisch hinter "A klein", aber davor.
+            // "M gleich" hat denselben Abstand wie "Z groß" und steht nach Name davor.
             let categories =
                 [ source "Passt B" (Some (monthly 100m)) (every 12 100m) None
-                  source "Kein Target klein" None (every 12 20m) None
-                  source "Mehr klein" (Some (monthly 100m)) (every 12 150m) None
+                  source "A Kein Target klein" None (every 12 20m) None
+                  source "A Mehr klein" (Some (monthly 100m)) (every 12 150m) None
                   source "Passt A" None [] None
-                  source "Weniger groß" (Some (monthly 500m)) (every 12 100m) None
-                  source "Mehr groß" (Some (monthly 100m)) (every 12 400m) None
-                  source "Kein Target groß" None (every 12 200m) None
-                  source "Weniger klein" (Some (monthly 100m)) (every 12 50m) None ]
+                  source "Z Weniger groß" (Some (monthly 500m)) (every 12 100m) None
+                  source "Z Mehr groß" (Some (monthly 100m)) (every 12 400m) None
+                  source "M Mehr gleich" (Some (monthly 200m)) (every 12 500m) None
+                  source "Z Kein Target groß" None (every 12 200m) None
+                  source "M Kein Target gleich" None (every 12 200m) None
+                  source "A Weniger klein" (Some (monthly 100m)) (every 12 50m) None
+                  source "M Weniger gleich" (Some (monthly 450m)) (every 12 50m) None ]
             let groups = targetCheckGroups Today { Month = "2026-11-01"; Today = Today; Categories = categories }
             Expect.equal
                 (groups |> List.map (fun (g, rows) -> g, rows |> List.map (fun r -> r.Name)))
-                [ SpendsMore, [ "Mehr groß"; "Mehr klein" ]
-                  SpendsLess, [ "Weniger groß"; "Weniger klein" ]
-                  WithoutTarget, [ "Kein Target groß"; "Kein Target klein" ]
+                [ SpendsMore, [ "M Mehr gleich"; "Z Mehr groß"; "A Mehr klein" ]
+                  SpendsLess, [ "M Weniger gleich"; "Z Weniger groß"; "A Weniger klein" ]
+                  WithoutTarget, [ "M Kein Target gleich"; "Z Kein Target groß"; "A Kein Target klein" ]
                   Fits, [ "Passt A"; "Passt B" ] ]
-                "ohne nie, je Gruppe nach Abstand oder Name"
+                "ohne nie, je Gruppe nach Abstand, bei gleichem Abstand nach Name"
             Expect.equal
                 (checkGroupOrder |> List.map checkGroupText)
                 [ "Gibst du mehr aus?"; "Gibst du weniger aus?"; "Gibst du nie aus?"; "Kein Target"; "Passt" ]
