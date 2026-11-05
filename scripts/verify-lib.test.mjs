@@ -1,8 +1,9 @@
 // scripts/verify-lib.test.mjs
 //
 // Tests für die Hilfsfunktionen von verify.sh (infrastructure-dvy29): Namen roter
-// und übersprungener Tests aus der Ausgabe von `node --test` und aus der trx-Datei
-// von `dotnet test`, sowie das Lock um `npm run test:scripts`, das zwei
+// und übersprungener Tests aus der Ausgabe von `node --test` und aus dem
+// JUnit-Bericht von Expecto (`Tests.dll --junit-summary`, infrastructure-d1dwb),
+// der Expecto-Aufruf in verify.sh, sowie das Lock um `npm run test:scripts`, das zwei
 // gleichzeitige verify.sh-Läufe in verschiedenen Worktrees serialisiert.
 //
 //   node --test scripts/verify-lib.test.mjs
@@ -126,31 +127,56 @@ test("vl_node_skipped_tests: nennt übersprungene Tests samt Grund", () => {
   }
 });
 
-const TRX = `<?xml version="1.0" encoding="utf-8"?>
-<TestRun xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
-  <Results>
-    <UnitTestResult testName="Domain.categorize matches rule" outcome="Passed" />
-    <UnitTestResult testName="Ledger.split sums to total" outcome="Failed">
-      <Output><ErrorInfo><Message>
-Expected 100 but was 90
-zweite Zeile</Message></ErrorInfo></Output>
-    </UnitTestResult>
-    <UnitTestResult testName="Import &amp; Sync.dedup keeps first" outcome="Failed" />
-    <UnitTestResult testName="YNAB Integration Tests (requires .env).validates token correctly" outcome="NotExecuted" />
-    <UnitTestResult testName="Persistence.roundtrip" outcome="NotExecuted" />
-  </Results>
-</TestRun>
-`;
+// Nachbau eines echten Berichts von `Tests.dll --junit-summary` (Expecto 10.2.1):
+// eine Zeile mit BOM, ohne Zähl-Attribute. Die Form von <failure> (Expect) und
+// <error> (Ausnahme) stammt aus einem absichtlich roten Probelauf, die
+// Farbcodes (&#x1B;[..m) schreibt Expecto selbst in die Meldung.
+const JUNIT =
+  "﻿" +
+  `<?xml version="1.0" encoding="utf-8"?><testsuites><testsuite name="Tests">` +
+  `<testcase name="[Domain; categorize matches rule]" time="0.001" />` +
+  `<testcase name="[Ledger; split sums to total]" time="0.013"><failure message="&#xA;Summe stimmt.&#xA;&#x1B;[32mexpected&#x1B;[36m: &#x1B;[32m100&#x1B;[36m&#xA;&#x1B;[31m  actual&#x1B;[36m: &#x1B;[31m90&#xA;   at Tests.Ledger.split" /></testcase>` +
+  `<testcase name="[Import &amp; Sync; dedup &lt;erste&gt; bleibt]" time="0.004"><error message="Bumm&#xA;zweite Zeile"><![CDATA[System.Exception: Bumm
+zweite Zeile
+   at Tests.Import.dedup]]></error></testcase>` +
+  `<testcase name="[YNAB Integration Tests (requires .env); validates token correctly]" time="0.002"><skipped message="RUN_INTEGRATION_TESTS not set to 'true' - skipping integration test" /></testcase>` +
+  `<testcase name="[Persistence; roundtrip]" time="0.002"><skipped message="ignoriert" /></testcase>` +
+  `<testcase name="[Domain; zweiter grüner]" time="0.001" />` +
+  `</testsuite></testsuites>`;
 
-test("vl_trx_tests: liefert die Namen roter Tests aus der trx-Datei, Entities aufgelöst", () => {
+test("vl_junit_count: zählt Total, Passed, Failed und Skipped aus den testcase-Elementen", () => {
   const d = tmpDir();
   try {
-    const trx = writeTmp(d, "t.trx", TRX);
-    assert.deepEqual(lib(`vl_trx_tests "${trx}" Failed`).out.trim().split("\n"), [
+    const xml = writeTmp(d, "expecto.xml", JUNIT);
+    assert.equal(lib(`vl_junit_count "${xml}" Total`).out, "6");
+    assert.equal(lib(`vl_junit_count "${xml}" Passed`).out, "2");
+    assert.equal(lib(`vl_junit_count "${xml}" Failed`).out, "2");
+    assert.equal(lib(`vl_junit_count "${xml}" Skipped`).out, "2");
+  } finally {
+    fs.rmSync(d, { recursive: true, force: true });
+  }
+});
+
+test("vl_junit_count: fehlender, leerer oder fremder Bericht ergibt leer statt 0", () => {
+  const d = tmpDir();
+  try {
+    assert.equal(lib(`vl_junit_count "${path.join(d, "fehlt.xml")}" Total`).out, "");
+    assert.equal(lib(`vl_junit_count "${writeTmp(d, "leer.xml", "")}" Total`).out, "");
+    assert.equal(lib(`vl_junit_count "${writeTmp(d, "fremd.xml", "Build abgebrochen\n")}" Failed`).out, "");
+  } finally {
+    fs.rmSync(d, { recursive: true, force: true });
+  }
+});
+
+test("vl_junit_tests: nennt rote und übersprungene Tests ohne Klammern, Ebenen mit Punkt, Entities aufgelöst", () => {
+  const d = tmpDir();
+  try {
+    const xml = writeTmp(d, "expecto.xml", JUNIT);
+    assert.deepEqual(lib(`vl_junit_tests "${xml}" failed`).out.trim().split("\n"), [
       "Ledger.split sums to total",
-      "Import & Sync.dedup keeps first",
+      "Import & Sync.dedup <erste> bleibt",
     ]);
-    assert.deepEqual(lib(`vl_trx_tests "${trx}" NotExecuted`).out.trim().split("\n"), [
+    assert.deepEqual(lib(`vl_junit_tests "${xml}" skipped`).out.trim().split("\n"), [
       "YNAB Integration Tests (requires .env).validates token correctly",
       "Persistence.roundtrip",
     ]);
@@ -159,12 +185,25 @@ test("vl_trx_tests: liefert die Namen roter Tests aus der trx-Datei, Entities au
   }
 });
 
-test("vl_trx_first_message: erste nichtleere Zeile der Fehlermeldung des n-ten roten Tests", () => {
+test("vl_junit_tests: grüner Bericht liefert keine roten Namen", () => {
   const d = tmpDir();
   try {
-    const trx = writeTmp(d, "t.trx", TRX);
-    assert.equal(lib(`vl_trx_first_message "${trx}" 1`).out.trim(), "Expected 100 but was 90");
-    assert.equal(lib(`vl_trx_first_message "${trx}" 2`).out.trim(), "");
+    const green = JUNIT.replace(/<testcase name="\[(Ledger|Import)[\s\S]*?<\/testcase>/g, "");
+    const xml = writeTmp(d, "expecto.xml", green);
+    assert.equal(lib(`vl_junit_tests "${xml}" failed`).out, "");
+    assert.equal(lib(`vl_junit_count "${xml}" Failed`).out, "0");
+  } finally {
+    fs.rmSync(d, { recursive: true, force: true });
+  }
+});
+
+test("vl_junit_first_message: erste nichtleere Zeile der Meldung des n-ten roten Tests, ohne Farbcodes", () => {
+  const d = tmpDir();
+  try {
+    const xml = writeTmp(d, "expecto.xml", JUNIT);
+    assert.equal(lib(`vl_junit_first_message "${xml}" 1`).out, "Summe stimmt.");
+    assert.equal(lib(`vl_junit_first_message "${xml}" 2`).out, "Bumm");
+    assert.equal(lib(`vl_junit_first_message "${xml}" 3`).out, "");
   } finally {
     fs.rmSync(d, { recursive: true, force: true });
   }
@@ -176,23 +215,37 @@ test("vl_is_optional_skip: nur die opt-in-Integrationstests gegen echte APIs dü
   assert.notEqual(lib(`vl_is_optional_skip "Persistence.roundtrip"`).code, 0);
 });
 
-test("vl_dotnet_count: liest Passed, Failed, Skipped und Total aus der englischen Zusammenfassung", () => {
-  const d = tmpDir();
-  try {
-    const log = writeTmp(
-      d,
-      "dotnet.log",
-      "Passed!  - Failed:     0, Passed:  2502, Skipped:     6, Total:  2508, Duration: 6 s - Tests.dll (net10.0)\n"
-    );
-    assert.equal(lib(`vl_dotnet_count "${log}" Passed`).out, "2502");
-    assert.equal(lib(`vl_dotnet_count "${log}" Failed`).out, "0");
-    assert.equal(lib(`vl_dotnet_count "${log}" Skipped`).out, "6");
-    assert.equal(lib(`vl_dotnet_count "${log}" Total`).out, "2508");
-    const de = writeTmp(d, "de.log", "Bestanden!  : 0 Fehler, 2502 erfolgreich\n");
-    assert.equal(lib(`vl_dotnet_count "${de}" Passed`).out, "");
-  } finally {
-    fs.rmSync(d, { recursive: true, force: true });
+// ── Expecto-Aufruf in verify.sh ─────────────────────────────────────────
+//
+// Unter dem Direktaufruf der Tests.dll greift test.runsettings nicht (ADR 0030).
+// verify.sh setzt deshalb USE_MEMORY_DB und TZ selbst; ohne TZ wäre der
+// Kalendertag-Regressionstest aus ynab-r9k4t blind. Dieser Wächter liest den
+// Aufruf aus verify.sh und prüft die Umgebung.
+
+/// Befehlszeile(n) des Expecto-Aufrufs (mit "\"-Fortsetzungen zusammengezogen)
+/// und was daran fehlt. Leere Liste: alles da.
+function expectoCallProblems(script) {
+  const joined = script.replace(/\\\n\s*/g, " ");
+  const calls = joined.split("\n").filter((l) => !l.trim().startsWith("#") && /\bdotnet\s+("?\$\{?TESTS_DLL\}?"?|\S*Tests\.dll)/.test(l));
+  if (calls.length === 0) return ["kein Aufruf der Tests.dll"];
+  const problems = [];
+  for (const c of calls) {
+    for (const need of ["USE_MEMORY_DB=true", "TZ=Europe/Berlin", "--junit-summary", "--fail-on-focused-tests"]) {
+      if (!c.includes(need)) problems.push(`${need} fehlt in: ${c.trim()}`);
+    }
   }
+  const dotnetTest = joined.split("\n").filter((l) => !l.trim().startsWith("#") && /\bdotnet\s+test\b/.test(l));
+  for (const l of dotnetTest) problems.push(`dotnet test im Gate: ${l.trim()}`);
+  return problems;
+}
+
+test("verify.sh: der Expecto-Aufruf setzt USE_MEMORY_DB=true und TZ=Europe/Berlin, kein dotnet test im Gate", () => {
+  const script = fs.readFileSync(path.join(here, "..", "verify.sh"), "utf8");
+  assert.deepEqual(expectoCallProblems(script), []);
+  // Gegenbeweis: fehlt eine der beiden Variablen oder kommt dotnet test zurück, meldet der Wächter es.
+  assert.notDeepEqual(expectoCallProblems(script.replace(/USE_MEMORY_DB=true /g, "")), []);
+  assert.notDeepEqual(expectoCallProblems(script.replace(/TZ=Europe\/Berlin /g, "")), []);
+  assert.notDeepEqual(expectoCallProblems(script + "\ndotnet test src/Tests/Tests.fsproj\n"), []);
 });
 
 // ── Lock ────────────────────────────────────────────────────────────────

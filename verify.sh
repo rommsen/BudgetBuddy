@@ -3,7 +3,7 @@
 #
 # Läuft immer alle sechs Schritte, auch wenn ein früher Schritt rot ist:
 #   1. dotnet build            (BudgetBuddy.sln)
-#   2. dotnet test             (Expecto, src/Tests)
+#   2. Expecto über die Tests.dll (src/Tests, JUnit-Bericht, nur nach grünem Build)
 #   3. npm run build           (vite build, Fable; das Bundle dist/public nutzt Schritt 6 mit)
 #   4. npm run guard:classes   (Tailwind-Klassen-Wächter)
 #   5. npm run guard:tokens    (Token-Wächter)
@@ -83,55 +83,72 @@ else
     fail_step "dotnet build" "Build fehlgeschlagen"
 fi
 
-# ── 2. dotnet test ──────────────────────────────────────────────────────
-# DOTNET_CLI_UI_LANGUAGE=en: sonst lokalisiert dotnet test die Zusammenfassung
-# und die Zähler sind nicht lesbar. Die trx-Datei liefert die Testnamen.
-TRX="$LOG_DIR/dotnet.trx"
-run_step 2 "dotnet test" env DOTNET_CLI_UI_LANGUAGE=en dotnet test src/Tests/Tests.fsproj --nologo \
-    --results-directory "$LOG_DIR" --logger "trx;LogFileName=dotnet.trx"
-DOTNET_EXIT=$?
-D_TOTAL="$(vl_dotnet_count "$LOG_DIR/2.log" Total)"
-D_PASSED="$(vl_dotnet_count "$LOG_DIR/2.log" Passed)"
-D_FAILED="$(vl_dotnet_count "$LOG_DIR/2.log" Failed)"
-D_SKIPPED="$(vl_dotnet_count "$LOG_DIR/2.log" Skipped)"
-echo "  Total ${D_TOTAL:-?}, Passed ${D_PASSED:-?}, Failed ${D_FAILED:-?}, Skipped ${D_SKIPPED:-?}"
-
-i=0
-while IFS= read -r name; do
-    [ -n "$name" ] || continue
-    i=$((i + 1))
-    RED_TESTS+=("dotnet: $name")
-    echo "${RED}    ✗ $name${NC}"
-    msg="$(vl_trx_first_message "$TRX" "$i")"
-    [ -n "$msg" ] && echo "        $msg"
-done < <(vl_trx_tests "$TRX" Failed)
-
-OPTIONAL_SKIPS=0
-MANDATORY_SKIPS=0
-while IFS= read -r name; do
-    [ -n "$name" ] || continue
-    if vl_is_optional_skip "$name"; then
-        OPTIONAL_SKIPS=$((OPTIONAL_SKIPS + 1))
-    else
-        MANDATORY_SKIPS=$((MANDATORY_SKIPS + 1))
-        RED_TESTS+=("dotnet (übersprungen): $name")
-        echo "${RED}    ﹣ übersprungen: $name${NC}"
-    fi
-done < <(vl_trx_tests "$TRX" NotExecuted)
-
-if [ -z "$D_TOTAL" ] || [ -z "$D_PASSED" ] || [ -z "$D_FAILED" ] || [ -z "$D_SKIPPED" ]; then
-    show_tail "$LOG_DIR/2.log"
-    fail_step "dotnet test" "Zusammenfassung nicht lesbar, ein unlesbares Ergebnis ist kein bestandenes"
-elif [ "$D_TOTAL" -eq 0 ]; then
-    fail_step "dotnet test" "0 Tests gelaufen"
-elif [ "$DOTNET_EXIT" -ne 0 ] || [ "$D_FAILED" -ne 0 ]; then
-    [ "$D_FAILED" -eq 0 ] && show_tail "$LOG_DIR/2.log"
-    fail_step "dotnet test" "$D_FAILED rot (Exit $DOTNET_EXIT)"
-elif [ "$MANDATORY_SKIPS" -ne 0 ] || [ "$((D_SKIPPED - OPTIONAL_SKIPS))" -ne 0 ]; then
-    fail_step "dotnet test" "$((D_SKIPPED - OPTIONAL_SKIPS)) Pflichttests übersprungen"
+# ── 2. Expecto über die Tests.dll ───────────────────────────────────────
+# Direktaufruf statt `dotnet test` (infrastructure-d1dwb): 14 statt 168
+# Sekunden, die Differenz kostete der VSTest-Adapter. Schritt 1 hat die
+# Tests.dll gebaut; ist er rot, wäre die DLL veraltet oder fehlt, dann läuft
+# Schritt 2 nicht und ist rot.
+# test.runsettings greift hier nicht: USE_MEMORY_DB und TZ stehen deshalb im
+# Aufruf (ADR 0030, TZ für den Kalendertag-Regressionstest aus ynab-r9k4t).
+# Main.fs setzt USE_MEMORY_DB zusätzlich, TestDatabaseGuardTests prüft :memory:.
+# --fail-on-focused-tests: ein vergessenes ftestCase schaltet sonst still alle
+# anderen Tests ab. Wächter für den Aufruf: scripts/verify-lib.test.mjs.
+JUNIT="$LOG_DIR/expecto.xml"
+TESTS_DLL="src/Tests/bin/Debug/net10.0/Tests.dll"
+if [[ " ${FAILED_STEPS[*]} " == *" dotnet build "* ]]; then
+    echo ""
+    echo "${YELLOW}[2/6]${NC} Expecto (Tests.dll)"
+    fail_step "Expecto" "nicht gelaufen, Build rot"
 else
-    ok_step "dotnet test: $D_PASSED grün, $OPTIONAL_SKIPS opt-in-Integrationstests übersprungen (requires .env)"
-    SUMMARY+=("dotnet $D_PASSED grün")
+    run_step 2 "Expecto (Tests.dll)" env USE_MEMORY_DB=true TZ=Europe/Berlin dotnet "$TESTS_DLL" \
+        --junit-summary "$JUNIT" --fail-on-focused-tests
+    DOTNET_EXIT=$?
+    D_TOTAL="$(vl_junit_count "$JUNIT" Total)"
+    D_PASSED="$(vl_junit_count "$JUNIT" Passed)"
+    D_FAILED="$(vl_junit_count "$JUNIT" Failed)"
+    D_SKIPPED="$(vl_junit_count "$JUNIT" Skipped)"
+    echo "  Total ${D_TOTAL:-?}, Passed ${D_PASSED:-?}, Failed ${D_FAILED:-?}, Skipped ${D_SKIPPED:-?}"
+
+    i=0
+    while IFS= read -r name; do
+        [ -n "$name" ] || continue
+        i=$((i + 1))
+        RED_TESTS+=("dotnet: $name")
+        echo "${RED}    ✗ $name${NC}"
+        msg="$(vl_junit_first_message "$JUNIT" "$i")"
+        [ -n "$msg" ] && echo "        $msg"
+    done < <(vl_junit_tests "$JUNIT" failed)
+
+    OPTIONAL_SKIPS=0
+    MANDATORY_SKIPS=0
+    while IFS= read -r name; do
+        [ -n "$name" ] || continue
+        if vl_is_optional_skip "$name"; then
+            OPTIONAL_SKIPS=$((OPTIONAL_SKIPS + 1))
+        else
+            MANDATORY_SKIPS=$((MANDATORY_SKIPS + 1))
+            RED_TESTS+=("dotnet (übersprungen): $name")
+            echo "${RED}    ﹣ übersprungen: $name${NC}"
+        fi
+    done < <(vl_junit_tests "$JUNIT" skipped)
+
+    if grep -q "focused tests were found" "$LOG_DIR/2.log"; then
+        show_tail "$LOG_DIR/2.log"
+        fail_step "Expecto" "fokussierte Tests gefunden (ftestCase, ftestList), Exit $DOTNET_EXIT"
+    elif [ -z "$D_TOTAL" ] || [ -z "$D_PASSED" ] || [ -z "$D_FAILED" ] || [ -z "$D_SKIPPED" ]; then
+        show_tail "$LOG_DIR/2.log"
+        fail_step "Expecto" "JUnit-Bericht nicht lesbar, ein unlesbares Ergebnis ist kein bestandenes"
+    elif [ "$D_TOTAL" -eq 0 ]; then
+        fail_step "Expecto" "0 Tests gelaufen"
+    elif [ "$DOTNET_EXIT" -ne 0 ] || [ "$D_FAILED" -ne 0 ]; then
+        [ "$D_FAILED" -eq 0 ] && show_tail "$LOG_DIR/2.log"
+        fail_step "Expecto" "$D_FAILED rot (Exit $DOTNET_EXIT)"
+    elif [ "$MANDATORY_SKIPS" -ne 0 ] || [ "$((D_SKIPPED - OPTIONAL_SKIPS))" -ne 0 ]; then
+        fail_step "Expecto" "$((D_SKIPPED - OPTIONAL_SKIPS)) Pflichttests übersprungen"
+    else
+        ok_step "Expecto: $D_PASSED grün, $OPTIONAL_SKIPS opt-in-Integrationstests übersprungen (requires .env)"
+        SUMMARY+=("dotnet $D_PASSED grün")
+    fi
 fi
 
 # ── 3. npm run build ────────────────────────────────────────────────────

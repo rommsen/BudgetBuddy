@@ -103,3 +103,7 @@ sofort grün.
 - **Datenbank-Datei vollständig bereinigen**: nicht umgesetzt — vom
   Sandbox-Berechtigungsfilter blockiert und ohnehin eine Entscheidung, die Roman
   selbst treffen sollte, nicht ein Worker-Agent ohne Rückfrage.
+
+## Nachtrag (2026-11-05, ADR 0081)
+
+Das Gate (`./verify.sh`) startet Expecto seit infrastructure-d1dwb direkt über die `Tests.dll`, nicht mehr über `dotnet test`. `test.runsettings` greift dort nicht. Den Schutz tragen `main` in `src/Tests/Main.fs`, `TestDatabaseGuardTests` und `USE_MEMORY_DB=true TZ=Europe/Berlin` im Aufruf selbst, festgehalten durch einen Wächter in `scripts/verify-lib.test.mjs`. Für `dotnet test` in IDE und Einzelaufrufen gilt diese ADR unverändert.

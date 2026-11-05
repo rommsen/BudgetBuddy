@@ -9,7 +9,7 @@ paths:
 
 # Test-Doktrin
 
-Gate: `./verify.sh` (dotnet build, dotnet test, npm run build, guard:classes, guard:tokens, test:scripts). Fertig ist, was dort `VERIFY: PASS` zeigt. Übersprungene Pflichttests zählen als rot; erlaubt sind nur die Listen "(requires .env)".
+Gate: `./verify.sh` (dotnet build, Expecto über die Tests.dll, npm run build, guard:classes, guard:tokens, test:scripts). Fertig ist, was dort `VERIFY: PASS` zeigt. Übersprungene Pflichttests zählen als rot; erlaubt sind nur die Listen "(requires .env)".
 
 Mechanisch geprüft von: `src/Tests/RemotingPipelineTests.fs`, `src/Tests/RemotingEndpointNegativeTests.fs`, `src/Tests/NetworkCallGuardTests.fs`, `src/Tests/TestDatabaseGuardTests.fs`, `src/Tests/ModuleLevelDbInitGuardTests.fs`, `src/Tests/StructureGuardTests.fs`, `scripts/claude-harness-check.test.mjs`, `scripts/browser-test-budget.test.mjs` mit `scripts/run-guards.mjs`.
 

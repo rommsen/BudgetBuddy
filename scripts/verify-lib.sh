@@ -43,33 +43,27 @@ vl_node_skipped_tests() {
     ' "$1" 2>/dev/null
 }
 
-# Zahl hinter "<Label>: N" in der Zusammenfassung von `dotnet test`
-# (DOTNET_CLI_UI_LANGUAGE=en). Leer, wenn nicht gefunden.
-vl_dotnet_count() {
-    grep -oE "$2: +[0-9]+" "$1" 2>/dev/null | tail -1 | grep -oE '[0-9]+' | tr -d '\n'
+# JUnit-Bericht von Expecto (`Tests.dll --junit-summary`, infrastructure-d1dwb).
+# Der Bericht ist eine einzige XML-Zeile, grep pro Zeile reicht nicht; gelesen
+# wird er von scripts/junit-summary.mjs.
+VL_JUNIT_READER="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/junit-summary.mjs"
+
+# vl_junit_count <bericht> <Total|Passed|Failed|Skipped>: Zahl der testcase-
+# Elemente. Leer, wenn der Bericht fehlt oder unlesbar ist: kein Nullwert.
+vl_junit_count() {
+    node "$VL_JUNIT_READER" count "$1" "$2" 2>/dev/null
 }
 
-# Testnamen mit dem gegebenen outcome (Failed, NotExecuted, Passed) aus der trx-Datei.
-vl_trx_tests() {
-    local trx="$1" xp count i
-    xp="//*[local-name()='UnitTestResult'][@outcome='$2']"
-    [ -s "$trx" ] || return 0
-    count=$(xmllint --xpath "count($xp)" "$trx" 2>/dev/null)
-    count=${count%%.*}
-    [ -n "$count" ] || return 0
-    i=1
-    while [ "$i" -le "$count" ]; do
-        # $(...) entfernt den Zeilenumbruch, den neuere xmllint-Versionen anhängen.
-        printf '%s\n' "$(xmllint --xpath "string(($xp)[$i]/@testName)" "$trx" 2>/dev/null)"
-        i=$((i + 1))
-    done
+# vl_junit_tests <bericht> <failed|skipped>: Testnamen, eine Zeile je Test,
+# ohne eckige Klammern, Ebenen mit "." getrennt, Entities aufgelöst.
+vl_junit_tests() {
+    node "$VL_JUNIT_READER" tests "$1" "$2" 2>/dev/null
 }
 
-# Erste nichtleere Zeile der Fehlermeldung des n-ten roten Tests (1-basiert).
-vl_trx_first_message() {
-    local xp="//*[local-name()='UnitTestResult'][@outcome='Failed']"
-    xmllint --xpath "string(($xp)[$2]/*[local-name()='Output']/*[local-name()='ErrorInfo']/*[local-name()='Message'])" "$1" 2>/dev/null \
-        | grep -v '^[[:space:]]*$' | head -1
+# vl_junit_first_message <bericht> <n>: erste nichtleere Zeile der Meldung des
+# n-ten roten Tests (1-basiert), ohne Farbcodes.
+vl_junit_first_message() {
+    node "$VL_JUNIT_READER" message "$1" "$2" 2>/dev/null
 }
 
 # Übersprungene dotnet-Tests, die erlaubt sind: nur die opt-in-Integrationstests

@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 08:11 -- Task verified and completed: infrastructure-d1dwb - "Gate startet Expecto direkt über die Tests.dll statt über dotnet test: 14 statt 168 Sekunden"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-d1dwb - "Gate startet Expecto direkt über die Tests.dll statt über dotnet test: 14 statt 168 Sekunden"
+**Summary:** Gate startet Expecto direkt über die Tests.dll mit JUnit-Bericht statt über dotnet test, 14 statt 168 s
+**Duration:** 67m
+**Verification:** PASS (iteration 1, nach Merge-Konflikt erneut PASS)
+**Files changed:** 6
+**Tests added:** 6
+**ADRs written:** 0081
+
+---
+
 ## 2026-11-05 07:57 -- Task verified and completed: infrastructure-shsvf - "Gate übersetzt den Client einmal: test:scripts und der Design-System-Export nutzen das Bundle aus npm run build"
 
 **Type:** Work / Task completion

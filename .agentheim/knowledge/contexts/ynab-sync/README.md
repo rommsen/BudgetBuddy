@@ -132,7 +132,7 @@ Spiegel-*Ergebnis* und die Abweichung gehören dem `ledger`.
 
 ## Test command
 
-`./verify.sh` im Repo-Wurzelverzeichnis. Läuft dotnet build, dotnet test, npm run build, guard:classes, guard:tokens und test:scripts; grün nur bei der Schlusszeile `VERIFY: PASS` und Exit 0. Bei `VERIFY: FAIL` stehen die roten Schritte und die Namen der roten Tests am Ende der Ausgabe.
+`./verify.sh` im Repo-Wurzelverzeichnis. Läuft dotnet build, Expecto über die Tests.dll, npm run build, guard:classes, guard:tokens und test:scripts; grün nur bei der Schlusszeile `VERIFY: PASS` und Exit 0. Bei `VERIFY: FAIL` stehen die roten Schritte und die Namen der roten Tests am Ende der Ausgabe.
 
 ## Open questions
 - **Spiegel-Mechanik** — *gelöst (ADR 0014, ynab-czk34; umgesetzt in ledger-m8r2v):*

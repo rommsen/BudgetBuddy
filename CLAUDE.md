@@ -78,8 +78,9 @@ raus. Vision: `.agentheim/knowledge/vision.md`.
 
 ## Gate
 
-`./verify.sh` ist das Gate: dotnet build, dotnet test, npm run build, beide Wächter
-(`guard:classes`, `guard:tokens`) und `npm run test:scripts`. Fertig ist eine Änderung erst bei
+`./verify.sh` ist das Gate: dotnet build, Expecto über die Tests.dll (Direktaufruf mit
+JUnit-Bericht, kein `dotnet test`), npm run build, beide Wächter (`guard:classes`,
+`guard:tokens`) und `npm run test:scripts`. Fertig ist eine Änderung erst bei
 `VERIFY: PASS`. Übersprungene Pflichttests zählen als rot. Schlägt ein Schritt fehl: Ursache
 beheben, nicht umgehen.
 
