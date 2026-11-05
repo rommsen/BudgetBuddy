@@ -157,6 +157,30 @@ let internal loadBudgetEventsOn (conn: SqliteConnection) (scope: EventScope) : R
     |> List.map toRecordedBudgetEvent
     |> collectRows
 
+/// Die Ursache eines Lesefehlers bleibt im Server-Log, der Aufrufer bekommt nur den Text der Meldung.
+let logReadFailure (what: string) (cause: string) : unit =
+    eprintfn "%s gescheitert: %s" what cause
+
+/// Liest über `connect`; ein `Error` oder eine Ausnahme wird geloggt und zu `unreadable`.
+let private readWith
+    (connect: unit -> SqliteConnection)
+    (what: string)
+    (unreadable: string)
+    (query: SqliteConnection -> Result<'T, string>)
+    : Async<Result<'T, string>> =
+    async {
+        try
+            use conn = connect ()
+            match query conn with
+            | Ok value -> return Ok value
+            | Error message ->
+                logReadFailure what message
+                return Error unreadable
+        with ex ->
+            logReadFailure what ex.Message
+            return Error unreadable
+    }
+
 /// Der Monats-Stream zu "YYYY-MM-01", `None` bei einem Monat in anderer Form.
 let private monthStreamOf (monthKey: string) : string option =
     monthIdOf monthKey |> Result.toOption |> Option.map (MonthStream >> streamIdOf)
@@ -306,15 +330,18 @@ let queryRecentCategories (conn: SqliteConnection) (origin: MovementOrigin) (lim
         |> List.distinct
         |> List.truncate limit)
 
-/// "Zuletzt verwendet" im Picker: nur Verschiebungen zwischen zwei Kategorien. Ein nicht lesbares
-/// Ereignis wirft, `QueryHandlers.recentMoveCategoriesWith` meldet es.
-let loadRecentMoveCategories (limit: int) : Async<Guid list> =
-    async {
-        use conn = Core.getConnection ()
-        match queryRecentCategories conn MoneyMoved limit with
-        | Ok ids -> return ids
-        | Error message -> return failwith message
-    }
+/// Die Meldung, wenn "Zuletzt verwendet" nicht lesbar ist. Die Ursache bleibt im Server-Log.
+[<Literal>]
+let RecentCategoriesUnreadableText = "Zuletzt verwendete Kategorien nicht lesbar"
+
+/// "Zuletzt verwendet" im Picker über `connect`: nur Verschiebungen zwischen zwei Kategorien. Ein
+/// Lesefehler wird zu `Error RecentCategoriesUnreadableText`.
+let loadRecentMoveCategoriesWith (connect: unit -> SqliteConnection) (limit: int) : Async<Result<Guid list, string>> =
+    readWith connect "Zuletzt verwendet lesen" RecentCategoriesUnreadableText (fun conn -> queryRecentCategories conn MoneyMoved limit)
+
+/// `loadRecentMoveCategoriesWith` auf der Datenbank der Anwendung.
+let loadRecentMoveCategories (limit: int) : Async<Result<Guid list, string>> =
+    loadRecentMoveCategoriesWith Core.getConnection limit
 
 // ============================================
 // Target pausieren (budgeting-t6p8z, ADR 0079)
@@ -348,30 +375,6 @@ let PausesUnreadableText = "Pausen nicht lesbar"
 /// Die Meldung, wenn die Pause-Ereignisse für die Historie nicht lesbar sind.
 [<Literal>]
 let PauseEventsUnreadableText = "Pause-Ereignisse nicht lesbar"
-
-/// Die Ursache eines Lesefehlers bleibt im Server-Log, der Aufrufer bekommt nur den Text der Meldung.
-let logReadFailure (what: string) (cause: string) : unit =
-    eprintfn "%s gescheitert: %s" what cause
-
-/// Liest über `connect`; ein `Error` oder eine Ausnahme wird geloggt und zu `unreadable`.
-let private readWith
-    (connect: unit -> SqliteConnection)
-    (what: string)
-    (unreadable: string)
-    (query: SqliteConnection -> Result<'T, string>)
-    : Async<Result<'T, string>> =
-    async {
-        try
-            use conn = connect ()
-            match query conn with
-            | Ok value -> return Ok value
-            | Error message ->
-                logReadFailure what message
-                return Error unreadable
-        with ex ->
-            logReadFailure what ex.Message
-            return Error unreadable
-    }
 
 /// Die BB-Pausen des Monats über `connect`. Ein Lesefehler wird zu `Error PausesUnreadableText`.
 let loadPausedCategoriesWith (connect: unit -> SqliteConnection) (month: string) : Async<Result<Set<Guid>, string>> =

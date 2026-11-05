@@ -912,7 +912,16 @@ let private recentTests =
             Expect.equal f.Reads reads "keine YNAB-Anfrage"
         // Der rohe Ausnahmetext ging an den Client, er kann Pfade und SQL enthalten.
         testCase "Scheitert das Lesen, kommt ein deutscher Grund ohne Ausnahmetext" <| fun () ->
-            let result = run (QueryHandlers.recentMoveCategoriesWith (fun _ -> async { return failwith "SQLite Error 1: geheim" }))
+            let connect () : Microsoft.Data.Sqlite.SqliteConnection = failwith "SQLite Error 1: geheim"
+            let result = run (QueryHandlers.recentMoveCategoriesWith (Budgeting.Persistence.loadRecentMoveCategoriesWith connect))
+            Expect.equal result (Error "Zuletzt verwendete Kategorien nicht lesbar") "Grund"
+        // budgeting-hyn77: ein nicht lesbares Ereignis kommt als Error mit Text, nicht als Ausnahme. Eigene
+        // Datenbank, damit das kaputte Ereignis keinen anderen Test trifft.
+        testCase "Ein nicht lesbares Verschieben-Ereignis kommt als deutscher Grund ohne Ursache" <| fun () ->
+            let anchor, connect = BudgetEventsFixture.isolatedDb ()
+            use _ = anchor
+            BudgetEventsFixture.appendUnreadable anchor (Budgeting.Events.MonthStream "2093-05") "MoneyMoved"
+            let result = run (QueryHandlers.recentMoveCategoriesWith (Budgeting.Persistence.loadRecentMoveCategoriesWith connect))
             Expect.equal result (Error "Zuletzt verwendete Kategorien nicht lesbar") "Grund"
     ]
 
