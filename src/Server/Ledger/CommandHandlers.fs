@@ -187,15 +187,21 @@ let private refreshCategories
             printfn "Kategorie-Spiegel übersprungen (bestes Bemühen, ADR 0039 Punkt 4): %s" ex.Message
     }
 
-/// Sucht die Buchung zu einer Beobachtung: erst ueber die YNAB-Id, dann ueber die
-/// ImportId, sonst ist sie neu (ADR 0015, Match-Reihenfolge). Wurde ueber die ImportId
-/// gematcht, hängt der Lauf `EntryLinkedToYnab` an (Actor `YnabMirror`, ADR 0021
-/// Nachtrag ledger-r6wn3); die Verknüpfung entsteht über `linksFrom` beim Anhängen, damit
-/// der nächste Lauf direkt beim ersten Schritt trifft und Replay sie herstellt.
-let private resolveEntry (now: DateTime) (obs: YnabObservation) : Async<EntryId * bool> =
+/// Wie der Spiegel die Buchung zu einer Beobachtung gefunden hat (ADR 0015, Match-Reihenfolge).
+type private EntryMatch =
+    /// Über die YNAB-Id: die Verknüpfung besteht schon.
+    | MatchedByYnabId of EntryId
+    /// Über die ImportId: der Lauf hängt `EntryLinkedToYnab` an (ADR 0021 Nachtrag, ledger-r6wn3).
+    | MatchedByImportId of EntryId
+    /// Kein Treffer: eine neue Buchung mit frischer Id.
+    | NewEntry of EntryId
+
+/// Sucht die Buchung zu einer Beobachtung: erst über die YNAB-Id, dann über die
+/// ImportId, sonst ist sie neu. Liest nur, das Anhängen übernimmt `runMirror`.
+let private resolveEntry (obs: YnabObservation) : Async<EntryMatch> =
     async {
         match! Ledger.Persistence.findEntryByLink YnabSystem obs.YnabTransactionId with
-        | Some entryId -> return entryId, true
+        | Some entryId -> return MatchedByYnabId entryId
         | None ->
             let! byImportId =
                 match obs.ImportId with
@@ -203,18 +209,8 @@ let private resolveEntry (now: DateTime) (obs: YnabObservation) : Async<EntryId 
                 | None -> async.Return None
 
             match byImportId with
-            | Some entryId ->
-                do!
-                    Ledger.Persistence.appendAndApply [
-                        {
-                            EntryId = entryId
-                            OccurredAt = now
-                            Actor = YnabMirror
-                            Body = EntryLinkedToYnab { YnabTransactionId = obs.YnabTransactionId }
-                        }
-                    ]
-                return entryId, true
-            | None -> return newEntryId (), false
+            | Some entryId -> return MatchedByImportId entryId
+            | None -> return NewEntry (newEntryId ())
     }
 
 /// Verknuepft die Gegenbuchung eines Uebertrags, nachdem die Beobachtung selbst
@@ -446,7 +442,27 @@ let runMirror
                                     Some
                                         $"Buchung {obs.YnabTransactionId} zeigt auf das YNAB-Konto {accountId}, das der Konten-Abruf nicht kennt"
                             | Some ledgerAccountId ->
-                                let! entryId, known = resolveEntry now obs
+                                let! entryMatch = resolveEntry obs
+
+                                // Treffer über die ImportId: die YNAB-Verknüpfung geht als
+                                // `EntryLinkedToYnab` mit den Ereignissen der Beobachtung in
+                                // einem Anhängen ins Log, damit Replay sie herstellt
+                                // (ADR 0021 Nachtrag, ledger-r6wn3).
+                                let entryId, known, linkEvents =
+                                    match entryMatch with
+                                    | MatchedByYnabId id -> id, true, []
+                                    | MatchedByImportId id ->
+                                        id,
+                                        true,
+                                        [
+                                            {
+                                                EntryId = id
+                                                OccurredAt = now
+                                                Actor = YnabMirror
+                                                Body = EntryLinkedToYnab { YnabTransactionId = obs.YnabTransactionId }
+                                            }
+                                        ]
+                                    | NewEntry id -> id, false, []
 
                                 let! existing =
                                     if known then Ledger.Persistence.loadEntry entryId
@@ -464,7 +480,7 @@ let runMirror
                                             existing
                                             obs
 
-                                do! Ledger.Persistence.appendAndApply events
+                                do! Ledger.Persistence.appendAndApply (linkEvents @ events)
 
                                 // Uebertrags-Verknuepfung (ADR 0015): erst nachdem die
                                 // Beobachtung selbst steht, sonst findet der Lookup die
