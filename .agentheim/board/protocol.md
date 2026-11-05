@@ -5,6 +5,27 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 13:40 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** 26m
+**Completed:** 2 (first-try PASS: 2, re-dispatched: 0, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Lost-result re-dispatches:** 0
+**Lost-result escalations:** 0
+**Dispatches:** infrastructure-e4vq7: 1, budgeting-v7kfw: 1
+**Commits:** 4
+**Vision-conformance:** none — batch aligns with vision
+**Batch mix:** 100% product-facing / 0% harness / 0% bookkeeping (2 tasks)
+**Carry-over:** none — working tree clean
+**Verifikation:** beide Tasks einzeln PASS, danach ./verify.sh auf dem kombinierten Stand von main vor dem zweiten Commit: VERIFY: PASS (dotnet 3912 grün, node 310 grün).
+**Conductor auf main:** Nachtrag zu ADR 0083 Abschnitt 5 (BEGIN IMMEDIATE belegt); Notiz an ledger-k9tm2 (EventStore.initializeSchema in jedes Testmodul mit initializeLedgerSchema, appendOn für die Startmigration).
+**Review-Vorschlag (Override C):** backend-code-quality (src/Server), qa-milestone-reviewer (neue Tests). Bestandsreview: weiterhin kein Eintrag für budgeting, /architecture-review budgeting vorgeschlagen.
+
+---
+
 ## 2026-11-05 13:40 -- Task verified and completed: budgeting-v7kfw - "Fehlbetrag als reine Funktion je Target-Art, parallel zu YNABs goal_under_funded gerechnet, mit Abweichungsliste, ohne Verhaltensänderung"
 
 **Type:** Work / Task completion
