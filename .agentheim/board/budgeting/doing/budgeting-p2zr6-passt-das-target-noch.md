@@ -1,7 +1,7 @@
 ---
 id: budgeting-p2zr6
 title: "Targets prüfen, Regel und Daten: reine Einordnungsfunktion in Shared.Budgeting und Endpoint getTargetCheck mit einer Kassenbuch-Abfrage für alle Kategorien und der letzten Target-Änderung je Kategorie"
-status: todo
+status: doing
 type: feature
 context: budgeting
 created: 2026-11-04
