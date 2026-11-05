@@ -246,8 +246,24 @@ let private moveCategories (request: MoveRequest) : Guid list =
         | CategorySide id -> Some id
         | ToBeBudgetedSide -> None)
 
+/// Der Bericht der festgehaltenen Entscheidung, oder `None`, wenn sie nicht zum Auftrag gehört (`belongsTo`).
+/// Eine Wiederholung trägt Zu verteilen nicht: die erste Antwort las es neu, hier wird YNAB nicht gelesen.
+let private storedReport
+    (monthKey: string)
+    (expectedTypes: string list)
+    (expectedCategories: Guid list option)
+    (recorded: EventStore.RecordedEvent)
+    : Async<Result<ApplyReport, YnabError> option> =
+    async {
+        if belongsTo monthKey expectedTypes expectedCategories recorded then
+            let! report = reportWith global.Persistence.getConnection recorded.EventId monthKey None
+            return Some report
+        else
+            return None
+    }
+
 /// Die Antwort auf eine Wiederholung von Verschieben und Zuweisen: der Bericht der festgehaltenen
-/// Entscheidung, ohne Zu verteilen.
+/// Entscheidung, eine fremde Id als innerer `Error`.
 let private decisionAnswer
     (monthKey: string)
     (expectedTypes: string list)
@@ -255,11 +271,9 @@ let private decisionAnswer
     (recorded: EventStore.RecordedEvent)
     : Async<Result<Result<ApplyReport, string>, YnabError>> =
     async {
-        if belongsTo monthKey expectedTypes (Some expectedCategories) recorded then
-            let! report = reportWith global.Persistence.getConnection recorded.EventId monthKey None
-            return report |> Result.map Ok
-        else
-            return Ok (Error ForeignCommandText)
+        match! storedReport monthKey expectedTypes (Some expectedCategories) recorded with
+        | Some report -> return report |> Result.map Ok
+        | None -> return Ok (Error ForeignCommandText)
     }
 
 /// Sendet die Zeilen nacheinander. Ein Fehler schließt die Zeile als fehlgeschlagen ab, die
@@ -298,14 +312,13 @@ let apply
     (monthKey: string)
     (shown: TargetPreview)
     : Async<Result<ApplyResult, YnabError>> =
-    // Eine Wiederholung trägt Zu verteilen nicht: die erste Antwort las es neu, hier wird YNAB nicht gelesen.
+    // Eine fremde Id kommt hier außen als `RefusedByBb`: `ApplyResult` hat keinen Fall für eine Ablehnung, BB
+    // lehnt in diesem Ablauf wie bei `plan` über den äußeren Fehler ab.
     let answer (recorded: EventStore.RecordedEvent) =
         async {
-            if belongsTo monthKey [ EventTypes.decisionOf TargetsApplied ] None recorded then
-                let! report = reportWith global.Persistence.getConnection recorded.EventId monthKey None
-                return report |> Result.map Applied
-            else
-                return Error (YnabError.RefusedByBb ForeignCommandText)
+            match! storedReport monthKey [ EventTypes.decisionOf TargetsApplied ] None recorded with
+            | Some report -> return report |> Result.map Applied
+            | None -> return Error (YnabError.RefusedByBb ForeignCommandText)
         }
     MonthGuard.exclusive monthKey (onceFor shown.CommandId answer (async {
         match! plan port monthKey with
