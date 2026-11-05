@@ -17,6 +17,8 @@ raus. Vision: `.agentheim/knowledge/vision.md`.
 - **Lena fragen**: setzt in YNAB ein Flag mit der Farbe aus den Settings (`lena_flag_color`, ADR 0056).
 - **Bob**: externer Agent, legt über REST unter `/bot/` Barbuchungen auf dem Quick-Add-Konto an,
   zweistufig `preview` und `commit` (ADR 0066). Actor `Bob`, kein Lesezugriff aufs Kassenbuch.
+- **Ereignis oder Zustand**: Geht es um Geld (was passiert ist oder was entschieden wurde), sind es
+  Ereignisse in der gemeinsamen Tabelle `events`, alles andere ist Zustand (ADR 0083).
 - Bounded Contexts und Sprache: `.agentheim/knowledge/context-map.md`, `contexts/<bc>/README.md`.
 
 ## Security-Fallen

@@ -104,3 +104,7 @@ Ein ADR im `budgeting`, das den Wechsel der Führung festlegt.
   neu einordnen: budgeting-q4v8n, budgeting-m3x7f, budgeting-w3p7n, budgeting-q8m2v,
   budgeting-h9c3w. Keine Voraussetzung: ING-Import und vollständiges Kassenbuch, weil YNAB
   vorerst weiter rechnet.
+- Umschlag, Stream-Namen, Befehls-Id und Sprachregel stehen in ADR 0083 (infrastructure-c7f53).
+  Die Umsetzungs-Tasks dieses ADRs hängen an ledger-k9tm2 (Kassenbuch-Ereignisse nach `events`
+  überführen) und bekommen es in `depends_on`. Kein Budget-Ereignis wird in `events`
+  geschrieben, bevor ledger-k9tm2 erledigt ist.

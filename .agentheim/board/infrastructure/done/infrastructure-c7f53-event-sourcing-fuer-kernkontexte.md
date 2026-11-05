@@ -1,7 +1,7 @@
 ---
 id: infrastructure-c7f53
 title: "Event Sourcing für die Kernkontexte ledger und budgeting mit gemeinsamem Ereignis-Umschlag; Reports als Read Models darauf, alles andere bleibt Zustand"
-status: doing
+status: done
 type: decision
 context: infrastructure
 created: 2026-11-05
@@ -9,7 +9,7 @@ completed:
 depends_on: []
 blocks: [budgeting-zkbbd]
 tags: [event-sourcing, architektur, read-models]
-related_adrs: [0008, 0012, 0013, 0021, 0065, 0079]
+related_adrs: [0008, 0012, 0013, 0021, 0065, 0079, 0083]
 related_research: []
 prior_art: []
 ---
@@ -165,3 +165,72 @@ Kategorisierungsregeln (`rules`), `settings`, `sync_sessions`, `sync_transaction
   `scripts/budget-history.test.mjs` nachziehen.
 - **Echo im Budget (für zkbbd):** Ohne Echo-Regel wie im Kassenbuch (`...WrittenBackToYnab`, Actor
   `YnabMirror`) erzeugt BBs eigene Schreibung nach YNAB Beobachtungen.
+
+## Verifier note (iteration 1)
+
+**REASONS:**
+- ADR 0083 Abschnitt 5 nennt `Microsoft.Data.Sqlite` 9.0.13 als gepinnte Version. Gepinnt ist seit infrastructure-r72gd 10.0.14 (`src/Server/Server.fsproj:66`, `src/Tests/Tests.fsproj:166`); ADR 0008 ist dort veraltet. Dieselbe falsche Version steht in den Notes von infrastructure-e4vq7.
+- Abschnitt 5 schreibt die Aussage zu stark der Doku zu: Die XML-Doku von 10.0.14 (`~/.nuget/packages/microsoft.data.sqlite.core/10.0.14/lib/net8.0/Microsoft.Data.Sqlite.xml:2451-2459`) sagt beim parameterlosen `BeginTransaction()` nichts zu deferred oder immediate, nur die Überladung `BeginTransaction(Boolean deferred)` dokumentiert "true to defer". BEGIN IMMEDIATE als Standard ist ein Schluss daraus; als Schluss kennzeichnen und den Beleg dem Test in e4vq7 überlassen.
+- Konvention ohne Durchsetzung oder Marker (ADR 0059): Abschnitt 9 "Sprache der Ereignisse" setzt eine Regel für künftige Arbeit (`event_type` englisch, PascalCase, Vergangenheitsform; Payload camelCase). Der Marker "prose-only, unenforced" deckt nur den CLAUDE.md-Satz.
+
+**SUGGESTED_FIX:** In ADR 0083 Abschnitt 5 und in den Notes von e4vq7 die Version auf 10.0.14 ändern und die Aussage zum Standard-Transaktionsbeginn als Schluss aus der Doku der deferred-Überladung formulieren. Für die Sprachregel entweder in e4vq7 ein Akzeptanzkriterium ergänzen, dass das generische Anhängen einen `event_type`, der nicht der Regel folgt, abweist, oder im ADR und im Outcome ausdrücklich "prose-only, unenforced" festhalten.
+
+**ITERATION_HINT:** likely-fixable
+
+## Outcome
+
+ADR 0083 (provisorisch, `0083-gemeinsame-ereignistabelle-fuer-kernkontexte.md`, `scope: global`)
+hält die Entscheidungen fest: gemeinsame Tabelle `events` mit Schema, `UNIQUE(stream_id,
+stream_version)`, append-only-Triggern und dem Pflichtsatz zur Reihenfolge; Stream-Namen
+`<context>:<aggregat>:<id>` (Kassenbuch `ledger:entry:<entryId>`), Actor als `actor_kind` plus
+freie `actor_ref`; Befehls-Id über eine eigene Tabelle `processed_commands` (Primärschlüssel
+`command_id`), weil ein Befehl mehrere Ereignisse in mehreren Streams erzeugen kann;
+Read-Model-Kriterium (a) bis (c) mit der Liste der heutigen Read-Model-Tabellen; Übergang des
+Kassenbuchs (Kopie in rowid-Reihenfolge mit Abbruchprüfung, einmalige Ausnahme von ADR 0013
+Punkt 7, kein `recorded_at`, kein Zurückdatieren, vor dem ersten Budget-Ereignis); Regel
+"Geld ist Ereignis, alles andere Zustand"; Liste "Zustand bleibt"; Sprachregel; verworfene
+Varianten mit Grund.
+
+Transaktionsbeginn: Gepinnt ist `Microsoft.Data.Sqlite` 10.0.14; ADR 0008 nennt noch 9.0.13 und
+ist dort veraltet. Die XML-Doku von 10.0.14 dokumentiert nur bei `BeginTransaction(deferred)`,
+dass `true` aufschiebt. Dass der parameterlose Aufruf mit `BEGIN IMMEDIATE` öffnet, steht im ADR
+als Schluss daraus. Den Beleg liefert ein Test in infrastructure-e4vq7.
+
+Sprachregel (ADR 0083 Abschnitt 9): Die Form von `event_type` (`^[A-Z][A-Za-z0-9]*$`) wird vom
+generischen Anhängen in infrastructure-e4vq7 erzwungen, dort steht ein Akzeptanzkriterium mit
+Test. Die Vergangenheitsform bleibt ein Review-Punkt. Payload-Felder in camelCase, englische
+Codes und die README-Pflicht sind prose-only, unenforced.
+
+`CLAUDE.md`, Abschnitt Domäne: neuer Punkt "Ereignis oder Zustand" mit der Kurzform der Regel
+und Verweis auf ADR 0083. Prose-only, nicht erzwungen. `./verify.sh`: VERIFY: PASS.
+
+Folge-Tasks: infrastructure-e4vq7 (Tabelle `events`), ledger-k9tm2 (Kassenbuch nach `events`,
+hängt an infrastructure-e4vq7), ledger-r6wn3 (`linkEntry` prüfen).
+
+### Für den Conductor
+
+Vergibt `finalizeAdrNumbering` eine andere Nummer als 0083, sind die Verweise auf "ADR 0083" in
+CLAUDE.md, im README-Delta, in den Folge-Tasks und in den beiden Texten unten mitzuziehen.
+
+(a) Ans Ende von `.agentheim/knowledge/decisions/0013-append-only-event-log-with-synchronous-state.md`
+anhängen (Frontmatter unverändert, kein `superseded_by`):
+
+```markdown
+## Nachtrag (2026-11-05): gemeinsame Tabelle `events`
+
+ADR 0083 legt eine gemeinsame Ereignistabelle `events` für alle Kontexte mit Event Sourcing
+fest. Das Kassenbuch-Log zieht aus `ledger_entry_events` dorthin um (Stream
+`ledger:entry:<entryId>`, `stream_version` = bisherige `sequence`). Die Punkte 1 bis 9 dieses
+ADRs gelten weiter, es wechselt nur die Tabelle. Die einmalige Kopie in die neue Tabelle ist
+die ausdrückliche Ausnahme von Punkt 7; Typ, Version und Payload bleiben dabei unverändert.
+```
+
+(b) In `.agentheim/board/budgeting/backlog/budgeting-zkbbd-bb-fuehrt-das-budget.md`, Abschnitt
+`## Notes`, als neuen Punkt anhängen:
+
+```markdown
+- Umschlag, Stream-Namen, Befehls-Id und Sprachregel stehen in ADR 0083 (infrastructure-c7f53).
+  Die Umsetzungs-Tasks dieses ADRs hängen an ledger-k9tm2 (Kassenbuch-Ereignisse nach `events`
+  überführen) und bekommen es in `depends_on`. Kein Budget-Ereignis wird in `events`
+  geschrieben, bevor ledger-k9tm2 erledigt ist.
+```

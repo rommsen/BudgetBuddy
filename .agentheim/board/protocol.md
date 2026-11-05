@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 12:09 -- Task verified and completed: infrastructure-c7f53 - "Event Sourcing für die Kernkontexte ledger und budgeting mit gemeinsamem Ereignis-Umschlag; Reports als Read Models darauf, alles andere bleibt Zustand"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-c7f53 - "Event Sourcing für die Kernkontexte ledger und budgeting mit gemeinsamem Ereignis-Umschlag; Reports als Read Models darauf, alles andere bleibt Zustand"
+**Summary:** ADR 0083: gemeinsame Ereignistabelle events für ledger und budgeting, Geld ist Ereignis, alles andere Zustand
+**Duration:** 23m
+**Verification:** PASS (iteration 2)
+**Files changed:** 1
+**Tests added:** 0
+**ADRs written:** 0083
+
+---
+
+## 2026-11-05 12:04 -- Verification failed: infrastructure-c7f53 - Event Sourcing für die Kernkontexte
+
+**Type:** Work / Verification failure
+**Task:** infrastructure-c7f53 - Event Sourcing für die Kernkontexte
+**Iteration:** 1 of 3
+**Reasons:** falsche Version Microsoft.Data.Sqlite (9.0.13 statt 10.0.14) in ADR 0083 und e4vq7, BEGIN IMMEDIATE als Schluss statt Dokuaussage kennzeichnen, Sprachregel ohne Durchsetzung oder prose-only-Marker
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-05 11:51 -- Modeling / Captured: infrastructure-jc1y1 - "Die 61 [layout]-Tests aufräumen: Designwert-Assertions löschen, Invarianten dem Sweep überlassen, Verhaltens-Assertions in passende Tests oder nach .NET verschieben"
 
 **Type:** Modeling / Capture

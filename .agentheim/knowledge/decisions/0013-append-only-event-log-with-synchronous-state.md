@@ -150,3 +150,11 @@ Event-Store-Framework. Ein Log, ein Zustandsmodell, eine Transaktion.
   Feature-Gegenwert für Single-User-Betrieb im Homelab, zusätzlicher Container, Backups
   und Datenmigration ohne Not. Neu bewerten bei zweitem Prozess auf denselben Daten,
   gewünschten Ad-hoc-Analysen auf Events, oder messbar langsamer Erstbefüllung.
+
+## Nachtrag (2026-11-05): gemeinsame Tabelle `events`
+
+ADR 0083 legt eine gemeinsame Ereignistabelle `events` für alle Kontexte mit Event Sourcing
+fest. Das Kassenbuch-Log zieht aus `ledger_entry_events` dorthin um (Stream
+`ledger:entry:<entryId>`, `stream_version` = bisherige `sequence`). Die Punkte 1 bis 9 dieses
+ADRs gelten weiter, es wechselt nur die Tabelle. Die einmalige Kopie in die neue Tabelle ist
+die ausdrückliche Ausnahme von Punkt 7; Typ, Version und Payload bleiben dabei unverändert.
