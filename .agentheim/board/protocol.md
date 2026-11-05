@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 20:59 -- Task verified and completed: budgeting-qm5x9 - "Befehls-Id für Budget-Entscheidungen aus der UI: optionales CommandId-Feld, Prüfung gegen processed_commands unter der Sperre vor YNAB, Antwort aus dem Stream, Client wiederholt einmal"
+
+**Type:** Work / Task completion
+**Task:** budgeting-qm5x9 - "Befehls-Id für Budget-Entscheidungen aus der UI: optionales CommandId-Feld, Prüfung gegen processed_commands unter der Sperre vor YNAB, Antwort aus dem Stream, Client wiederholt einmal"
+**Summary:** Befehls-Id für Verschieben, Zuweisen, Targets anwenden und Pausieren, Prüfung unter der Monatssperre vor YNAB, Antwort aus dem Stream, Client wiederholt einmal
+**Duration:** 34m
+**Verification:** PASS (iteration 1)
+**Files changed:** 30
+**Tests added:** 21
+**ADRs written:** none
+
+---
+
 ## 2026-11-05 20:37 -- Batch started: [budgeting-qm5x9]
 
 **Type:** Work / Batch start

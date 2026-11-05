@@ -478,20 +478,20 @@ let migrationTests =
             recordTargetChangeStepResultOn written f.Y c2 1 (at (time 7 30)) Written
             recordTargetChangeStepResultOn written f.Y c2 2 (at (time 7 30)) (Failed "kaputt")
             let applied =
-                recordDecisionOn written (at (time 8 0)) october TargetsApplied [ planned f.X "Miete" 0L 800000L; planned f.Y "Strom" 0L 60000L ] []
+                recordDecisionOn written None (at (time 8 0)) october TargetsApplied [ planned f.X "Miete" 0L 800000L; planned f.Y "Strom" 0L 60000L ] [] |> BudgetEventsFixture.recordedOrFail
             recordWriteBackOn written applied[0] (at (time 8 0)) WrittenBack
             recordWriteBackOn written applied[1] (at (time 8 0)) (WriteBackFailed "Rate-Limit")
-            recordPauseOn written (at (time 8 30)) october f.X "Miete" Server.Budgeting.Domain.PauseKind.Paused |> ignore
-            recordPauseOn written (at (time 9 0)) october f.X "Miete" Server.Budgeting.Domain.PauseKind.PauseLifted |> ignore
+            recordPauseOn written None (at (time 8 30)) october f.X "Miete" Server.Budgeting.Domain.PauseKind.Paused |> ignore
+            recordPauseOn written None (at (time 9 0)) october f.X "Miete" Server.Budgeting.Domain.PauseKind.PauseLifted |> ignore
             recordWriteBackOn written applied[1] (at (time 9 30)) WrittenBack
             let moved =
-                recordDecisionOn written (at (time 10 0)) october MoneyMoved [ planned f.X "Miete" 800000L 700000L; planned f.Z "Urlaub" 0L 100000L ] []
+                recordDecisionOn written None (at (time 10 0)) october MoneyMoved [ planned f.X "Miete" 800000L 700000L; planned f.Z "Urlaub" 0L 100000L ] [] |> BudgetEventsFixture.recordedOrFail
             recordWriteBackOn written moved[0] (at (time 10 0)) WrittenBack
             recordWriteBackOn written moved[1] (at (time 10 5)) SupersededInYnab
-            recordPauseOn written (at (time 10 30)) october f.Z "Urlaub" Server.Budgeting.Domain.PauseKind.Paused |> ignore
-            let assigned = recordDecisionOn written (at (time 11 0)) october MoneyAssigned [ planned f.Y "Strom" 60000L 70000L ] []
-            recordPauseOn written (at (time 11 30)) october f.Z "Urlaub" Server.Budgeting.Domain.PauseKind.PauseLifted |> ignore
-            let other = recordDecisionOn written (at (time 12 0)) "2026-11-01" MoneyAssigned [ planned f.X "Miete" 0L 5000L ] []
+            recordPauseOn written None (at (time 10 30)) october f.Z "Urlaub" Server.Budgeting.Domain.PauseKind.Paused |> ignore
+            let assigned = recordDecisionOn written None (at (time 11 0)) october MoneyAssigned [ planned f.Y "Strom" 60000L 70000L ] [] |> BudgetEventsFixture.recordedOrFail
+            recordPauseOn written None (at (time 11 30)) october f.Z "Urlaub" Server.Budgeting.Domain.PauseKind.PauseLifted |> ignore
+            let other = recordDecisionOn written None (at (time 12 0)) "2026-11-01" MoneyAssigned [ planned f.X "Miete" 0L 5000L ] [] |> BudgetEventsFixture.recordedOrFail
 
             let anyId (m: HistoryMovement) = { m with MovementId = Guid.Empty; ApplicationId = Guid.Empty }
             let anyEntry (e: HistoryEntry) =
@@ -639,7 +639,7 @@ let decisionTests =
                 { CategoryId = k; CategoryName = "A"; OldAssigned = 0L; NewAssigned = assigned }
             Expect.throwsT<ArgumentException>
                 (fun () ->
-                    recordDecisionOn conn (DateTime(2026, 10, 3, 8, 0, 0, DateTimeKind.Utc)) "2026-10-01" TargetsApplied [ line 1000L; line 2000L ] []
+                    recordDecisionOn conn None (DateTime(2026, 10, 3, 8, 0, 0, DateTimeKind.Utc)) "2026-10-01" TargetsApplied [ line 1000L; line 2000L ] [] |> BudgetEventsFixture.recordedOrFail
                     |> ignore)
                 "doppelte Kategorie"
             Expect.equal (loadBudgetEventsOn conn WholeContext) (Ok []) "keine Budget-Ereignisse"
@@ -684,7 +684,7 @@ let boundaryTests =
             use conn = new SqliteConnection("Data Source=:memory:")
             conn.Open()
             EventStore.createSchemaOn conn
-            recordPauseOn conn (DateTime(2026, 10, 3, 8, 0, 0, DateTimeKind.Utc)) "2026-10-01" (Guid.NewGuid()) "A" Server.Budgeting.Domain.PauseKind.Paused |> ignore
+            recordPauseOn conn None (DateTime(2026, 10, 3, 8, 0, 0, DateTimeKind.Utc)) "2026-10-01" (Guid.NewGuid()) "A" Server.Budgeting.Domain.PauseKind.Paused |> ignore
             BudgetEventsFixture.appendUnknown conn (MonthStream "2026-10")
             match loadBudgetEventsOn conn WholeContext with
             | Error message -> Expect.stringContains message "TargetQuatschGemacht" "nennt den Typ"
@@ -767,7 +767,7 @@ let retryTests =
             | Error e -> failtest $"Bericht erwartet: {e}"
             Expect.equal (List.ofSeq sent) [ x, 50000L ] "das Ziel der migrierten Zeile"
             let fresh =
-                recordDecisionOn anchor now month MoneyAssigned [ ({ CategoryId = y; CategoryName = "K"; OldAssigned = 10000L; NewAssigned = 20000L } : PlannedLine) ] []
+                recordDecisionOn anchor None now month MoneyAssigned [ ({ CategoryId = y; CategoryName = "K"; OldAssigned = 10000L; NewAssigned = 20000L } : PlannedLine) ] [] |> BudgetEventsFixture.recordedOrFail
             match fresh with
             | [ line ] ->
                 recordWriteBackOn anchor line now (WriteBackFailed "Netzwerkfehler: weg")

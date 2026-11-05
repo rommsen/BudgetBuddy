@@ -179,7 +179,7 @@ let private fakeWith (snoozed: bool) =
     FakeYnab([ k, "Ausflug", 50m, true, snoozed, false ]), k
 
 let private pause (f: FakeYnab) (month: string) (id: Guid) (intent: PauseIntent) =
-    setTargetPause f.Port now current month { CategoryId = id; Intent = intent } |> run
+    setTargetPause f.Port now current month { CategoryId = id; Intent = intent; CommandId = None } |> run
 
 let private pauseOk f month id intent : PauseSource option =
     match pause f month id intent with
@@ -308,7 +308,7 @@ let private flowTests =
                 })
                 |> Async.StartAsTask
             holder.Wait()
-            let pausing = setTargetPause f.Port now current month { CategoryId = k; Intent = PauseTarget } |> Async.StartAsTask
+            let pausing = setTargetPause f.Port now current month { CategoryId = k; Intent = PauseTarget; CommandId = None } |> Async.StartAsTask
             Threading.Thread.Sleep 50
             Expect.equal f.Reads 0 "gelesen wird erst unter der Sperre"
             Expect.isEmpty (eventRows k) "noch kein Ereignis"
@@ -332,7 +332,7 @@ let private flowTests =
                   OldAssigned = 0L
                   NewAssigned = 10000L }
             let event hour kind (month: string) : Guid =
-                Budgeting.Persistence.recordPause (at hour) month k "Ausflug" kind |> run
+                Budgeting.Persistence.recordPause None (at hour) month k "Ausflug" kind |> run |> BudgetEventsFixture.recordedOrFail
             let m1, m3 =
                 match BudgetEventsFixture.recordGroups [ movement 1; movement 3 ] with
                 | [ a; b ] -> a, b
@@ -379,7 +379,7 @@ let private flowTests =
             let f, k = fakeWith false
             let port : YnabPort =
                 { f.Port with FetchMonth = fun _ -> async { return Error (YnabError.NetworkError "weg") } }
-            match setTargetPause port now current current { CategoryId = k; Intent = PauseTarget } |> run with
+            match setTargetPause port now current current { CategoryId = k; Intent = PauseTarget; CommandId = None } |> run with
             | Error (YnabError.NetworkError "weg") -> ()
             | other -> failtest $"Lesefehler erwartet: {other}"
             Expect.isEmpty (eventRows k) "keine Zeile"
@@ -399,7 +399,7 @@ let private flowTests =
             Expect.equal (QueryHandlers.budgetMonthOfWith loadPaused f.Port.FetchMonth month |> run) (Error unreadable) "Monat"
             Expect.equal (ynabErrorText unreadable) "BB-Daten nicht lesbar: Pausen nicht lesbar" "Text für den Nutzer"
             Expect.equal
-                (setTargetPauseWith loadPaused f.Port now current month { CategoryId = k; Intent = PauseTarget } |> run)
+                (setTargetPauseWith loadPaused f.Port now current month { CategoryId = k; Intent = PauseTarget; CommandId = None } |> run)
                 (Error unreadable)
                 "Pausieren"
             let port =
@@ -419,7 +419,7 @@ let private persistenceTests =
         testCase "Das Schema läuft zweimal, eine festgehaltene Pause bleibt" <| fun () ->
             Budgeting.Persistence.initializeBudgetingSchema ()
             let k = Guid.NewGuid()
-            Budgeting.Persistence.recordPause now current k "A" Domain.PauseKind.Paused |> run |> ignore
+            Budgeting.Persistence.recordPause None now current k "A" Domain.PauseKind.Paused |> run |> ignore
             Budgeting.Persistence.initializeBudgetingSchema ()
             Expect.equal (Budgeting.Persistence.loadPausedCategories current |> run |> Result.map (Set.contains k)) (Ok true) "pausiert"
 
@@ -427,7 +427,7 @@ let private persistenceTests =
         testCase "Ein unbekannter Ereignistyp beim Lesen wird gemeldet, nicht übersprungen" <| fun () ->
             let anchor, connect = BudgetEventsFixture.isolatedDb ()
             use _ = anchor
-            Budgeting.Persistence.recordPauseOn anchor now current (Guid.NewGuid()) "A" Domain.PauseKind.Paused |> ignore
+            Budgeting.Persistence.recordPauseOn anchor None now current (Guid.NewGuid()) "A" Domain.PauseKind.Paused |> ignore
             BudgetEventsFixture.appendUnknown anchor (Budgeting.Events.MonthStream "2026-11")
             Expect.equal (Budgeting.Persistence.loadPausedCategoriesWith connect current |> run) (Error "Pausen nicht lesbar") "unbekannter Typ"
 
@@ -438,7 +438,7 @@ let private persistenceTests =
             let month = "2092-03-01"
             let k = Guid.NewGuid()
             let event hour kind =
-                Budgeting.Persistence.recordPause (DateTime(2026, 11, 4, hour, 0, 0, DateTimeKind.Utc)) month k "A" kind |> run |> ignore
+                Budgeting.Persistence.recordPause None (DateTime(2026, 11, 4, hour, 0, 0, DateTimeKind.Utc)) month k "A" kind |> run |> ignore
             event 10 Domain.PauseKind.Paused
             event 9 Domain.PauseKind.PauseLifted
             Expect.equal (Budgeting.Persistence.loadPausedCategories month |> run |> Result.map (Set.contains k)) (Ok false) "Stand: aufgehoben"
@@ -452,7 +452,7 @@ let private persistenceTests =
 // ============================================
 
 let private boundaryTests =
-    let request id = { CategoryId = id; Intent = PauseTarget }
+    let request id = { CategoryId = id; Intent = PauseTarget; CommandId = None }
     testList "Pause: Grenze" [
         test "Ungültiger Monat und leere Kategorie werden zusammen gemeldet" {
             match Server.Validation.validateTargetPauseRequest current "kein-monat" (request Guid.Empty) with
@@ -494,6 +494,40 @@ let private boundaryTests =
         }
     ]
 
+
+// budgeting-qm5x9, ADR 0084 Punkt 8: Pausieren mit Befehls-Id. Eine verspätete Wiederholung hebt kein späteres
+// Aufheben auf.
+let private commandTests =
+    let testCase name body =
+        testCase name (fun () ->
+            Budgeting.Persistence.initializeBudgetingSchema ()
+            body ())
+    let pauseWithId (f: FakeYnab) (id: Guid) (k: Guid) (intent: PauseIntent) =
+        setTargetPause f.Port now current current { CategoryId = k; Intent = intent; CommandId = Some id } |> run
+
+    testSequenced
+    <| testList "Pause: Befehls-Id" [
+        testCase "GIVEN Pausieren mit X und danach Aufheben mit Y WHEN X verspätet wiederkommt THEN hängt nichts an, YNAB wird nicht gelesen und die Pause bleibt aufgehoben" <| fun () ->
+            let f, k = fakeWith false
+            let x = Guid.NewGuid()
+            Expect.equal (pauseWithId f x k PauseTarget) (Ok (Ok (Some PausedInBb))) "pausiert"
+            Expect.equal (pauseWithId f (Guid.NewGuid()) k LiftPause) (Ok (Ok None)) "aufgehoben"
+            f.Reads <- 0
+            Expect.equal (pauseWithId f x k PauseTarget) (Ok (Ok (Some PausedInBb))) "Antwort aus dem Ereignis"
+            Expect.equal f.Reads 0 "YNAB nicht gelesen"
+            Expect.equal (eventRows k) [ current, "Pausiert"; current, "Aufgehoben" ] "nichts angehängt"
+            Expect.equal (categoryIn (monthOk f current) k).Pause None "die Pause bleibt aufgehoben"
+
+        testCase "Die Id eines Pausierens beim Aufheben wird abgelehnt, ohne Ereignis" <| fun () ->
+            let f, k = fakeWith false
+            let x = Guid.NewGuid()
+            pauseWithId f x k PauseTarget |> ignore
+            f.Reads <- 0
+            Expect.equal (pauseWithId f x k LiftPause) (Ok (Error ForeignCommandText)) "innen abgelehnt"
+            Expect.equal f.Reads 0 "YNAB nicht gelesen"
+            Expect.equal (eventRows k) [ current, "Pausiert" ] "nichts angehängt"
+    ]
+
 [<Tests>]
 let tests =
-    testList "Target pausieren (budgeting-t6p8z)" [ domainTests; flowTests; persistenceTests; boundaryTests ]
+    testList "Target pausieren (budgeting-t6p8z)" [ domainTests; flowTests; persistenceTests; boundaryTests; commandTests ]

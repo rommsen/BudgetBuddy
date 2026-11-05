@@ -289,6 +289,19 @@ let tests =
             Expect.isFalse readModelCalled "keine Read-Model-Fortschreibung bei Wiederholung"
             Expect.equal (loadContext context |> run) first "kein weiteres Ereignis"
 
+        // budgeting-qm5x9: Die Antwort auf eine Wiederholung baut der Aufrufer aus diesem Ereignis.
+        testCase "Eine festgehaltene Befehls-Id führt zu ihrem ersten Ereignis, eine unbekannte zu nichts" <| fun () ->
+            setup ()
+            let context = freshContext ()
+            let commandId = Guid.NewGuid()
+            let first =
+                append (request context (Some commandId) [ stream "entry" (GuidId (Guid.NewGuid())) [ event "A" 1; event "B" 2 ] ]) noReadModels
+                |> run
+                |> appended
+            use conn = global.Persistence.getConnection ()
+            Expect.equal (tryProcessedCommandOn conn commandId) (Some first.Head) "das erste Ereignis des Befehls"
+            Expect.isNone (tryProcessedCommandOn conn (Guid.NewGuid())) "unbekannte Id"
+
         testCase "Ereignisse ohne Befehls-Id hinterlassen keine Zeile in processed_commands" <| fun () ->
             setup ()
             let context = freshContext ()

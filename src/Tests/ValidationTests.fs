@@ -526,9 +526,58 @@ let splitErrorTextTests =
 // All Tests
 // ============================================
 
+// budgeting-qm5x9, ADR 0084 Punkt 8: Eine leere Befehls-Id wird je Auftrag abgelehnt, gesammelt mit den übrigen
+// Fehlern desselben Auftrags.
+let commandIdTests =
+    let empty = Some Guid.Empty
+    let errorsOf (result: Result<'a, string list>) =
+        match result with
+        | Error errors -> errors
+        | Ok _ -> failtest "Fehler erwartet"
+    let expectBoth (errors: string list) (other: string) =
+        Expect.contains errors EmptyCommandIdText "leere Befehls-Id"
+        Expect.exists errors (fun e -> e.Contains other) $"und der übrige Fehler: {errors}"
+    testList "Befehls-Id an der Grenze" [
+        test "Verschieben mit leerer Id und ungültigem Monat meldet beides" {
+            let request : Shared.Budgeting.MoveRequest =
+                { Source = Shared.Budgeting.ToBeBudgetedSide
+                  Target = Shared.Budgeting.CategorySide (Guid.NewGuid())
+                  Amount = { Amount = 10m; Currency = "EUR" }
+                  CommandId = empty }
+            expectBoth (errorsOf (validateMoveRequest "kein-monat" request)) "Monat"
+        }
+        test "Zuweisen mit leerer Id und leerer Kategorie meldet beides" {
+            let request : Shared.Budgeting.AssignRequest =
+                { CategoryId = Guid.Empty; Assigned = { Amount = 10m; Currency = "EUR" }; CommandId = empty }
+            expectBoth (errorsOf (validateAssignRequest "2026-11-01" request)) "Kategorie"
+        }
+        test "Pausieren mit leerer Id und leerer Kategorie meldet beides" {
+            let request : Shared.Budgeting.TargetPauseRequest =
+                { CategoryId = Guid.Empty; Intent = Shared.Budgeting.PauseTarget; CommandId = empty }
+            expectBoth (errorsOf (validateTargetPauseRequest "2026-11-01" "2026-11-01" request)) "Kategorie"
+        }
+        test "Übernehmen mit leerer Id im vergangenen Monat meldet beides" {
+            let preview : Shared.Budgeting.TargetPreview =
+                { Month = "2026-10-01"
+                  Lines = []
+                  Skipped = []
+                  Total = { Amount = 0m; Currency = "EUR" }
+                  ToBeBudgeted = { Amount = 0m; Currency = "EUR" }
+                  ToBeBudgetedAfter = { Amount = 0m; Currency = "EUR" }
+                  CommandId = empty }
+            expectBoth (errorsOf (validateTargetsApply "2026-11-01" "2026-10-01" preview)) "vergangenen"
+        }
+        test "Eine echte Id geht durch" {
+            let request : Shared.Budgeting.AssignRequest =
+                { CategoryId = Guid.NewGuid(); Assigned = { Amount = 10m; Currency = "EUR" }; CommandId = Some (Guid.NewGuid()) }
+            Expect.equal (validateAssignRequest "2026-11-01" request) (Ok ()) "gültig"
+        }
+    ]
+
 [<Tests>]
 let tests =
     testList "Validation Tests" [
+        commandIdTests
         reusableValidatorTests
         settingsValidationTests
         rulesValidationTests

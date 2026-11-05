@@ -496,7 +496,7 @@ let confirmMissing (model: Model) : Model * (string * MoveRequest) option =
     | Some tab, Success month ->
         match findCategory month tab.CategoryId |> Option.map (missingAction month) with
         | Some (AssignMissing amount) ->
-            let request = { Source = ToBeBudgetedSide; Target = CategorySide tab.CategoryId; Amount = amount }
+            let request = { Source = ToBeBudgetedSide; Target = CategorySide tab.CategoryId; Amount = amount; CommandId = None }
             { model with
                 MoveInFlight = MoveCallRunning
                 TabMoney = Some { tab with Entry = None; Transfer = { tab.Transfer with Submission = Editing } } },
@@ -574,7 +574,7 @@ let transferEnds (month: BudgetMonth) (tab: MoneyTabState) : TransferEnd option 
 let transferRequest (month: BudgetMonth) (tab: MoneyTabState) : MoveRequest option =
     match sides tab, transferAmount month tab with
     | (Some source, Some target), Some amount ->
-        Some { Source = source; Target = target; Amount = { month.ToBeBudgeted with Amount = amount } }
+        Some { Source = source; Target = target; Amount = { month.ToBeBudgeted with Amount = amount }; CommandId = None }
     | _ -> None
 
 /// Darf der Knopf gedrückt werden?

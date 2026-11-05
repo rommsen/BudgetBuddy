@@ -157,7 +157,7 @@ let startPause (intent: PauseIntent) (model: Model) : Model * (string * TargetPa
             match pauseControlFor model category with
             | PauseOffered (Some button, _) when button.Intent = intent && not (pauseLocked model category.Id) ->
                 { model with PauseCall = PauseRunning (category.Id, month.Month, model.MonthGeneration) },
-                Some (month.Month, { CategoryId = category.Id; Intent = intent })
+                Some (month.Month, { CategoryId = category.Id; Intent = intent; CommandId = None })
             | _ -> model, None
         | None -> model, None
     | _ -> model, None

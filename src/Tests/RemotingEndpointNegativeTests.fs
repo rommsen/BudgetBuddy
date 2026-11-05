@@ -91,7 +91,8 @@ let private emptyPageQuery (accountId: Guid) : LedgerEntryPageQuery =
 let private emptyMove : Shared.Budgeting.MoveRequest =
     { Source = Shared.Budgeting.ToBeBudgetedSide
       Target = Shared.Budgeting.ToBeBudgetedSide
-      Amount = { Amount = 0m; Currency = "EUR" } }
+      Amount = { Amount = 0m; Currency = "EUR" }
+      CommandId = None }
 
 let private emptyPreview : Shared.Budgeting.TargetPreview =
     { Month = "kein-monat"
@@ -99,7 +100,8 @@ let private emptyPreview : Shared.Budgeting.TargetPreview =
       Skipped = []
       Total = { Amount = 0m; Currency = "EUR" }
       ToBeBudgeted = { Amount = 0m; Currency = "EUR" }
-      ToBeBudgetedAfter = { Amount = 0m; Currency = "EUR" } }
+      ToBeBudgetedAfter = { Amount = 0m; Currency = "EUR" }
+      CommandId = None }
 
 let private reviewState = { IsApproved = true; ClearedState = ReviewCleared }
 
@@ -345,11 +347,11 @@ let private rows : Row list = [
     { Endpoint = "BudgetApi.assignMoney"; Case = "leere Kategorie und Betrag am Rand von decimal: Fehler statt Ausnahme"
       Run = fun () ->
           let request : Shared.Budgeting.AssignRequest =
-              { CategoryId = Guid.Empty; Assigned = { Amount = Decimal.MinValue; Currency = "EUR" } }
+              { CategoryId = Guid.Empty; Assigned = { Amount = Decimal.MinValue; Currency = "EUR" }; CommandId = None }
           budget.assignMoney "2026-11-01" request |> run |> expectError "Zuweisen" }
     { Endpoint = "BudgetApi.setTargetPause"; Case = "ungültiger und vergangener Monat ohne Einrichtung, unbekannte Kategorie: Fehler statt Ausnahme"
       Run = fun () ->
-          let request : Shared.Budgeting.TargetPauseRequest = { CategoryId = Guid.NewGuid(); Intent = Shared.Budgeting.PauseTarget }
+          let request : Shared.Budgeting.TargetPauseRequest = { CategoryId = Guid.NewGuid(); Intent = Shared.Budgeting.PauseTarget; CommandId = None }
           budget.setTargetPause "kein-monat" request |> run |> expectError "ungültiger Monat"
           match budget.setTargetPause "2020-01-01" request |> run with
           | Error message -> Expect.stringContains message "vergangenen Monaten" "Grund"

@@ -175,6 +175,10 @@ module EventTypes =
     /// Die drei Entscheidungen (Zuweisen, Verschieben, Targets anwenden).
     let decisions : string list = [ MoneyAssigned; MoneyMoved; TargetsApplied ] |> List.map decisionOf
 
+    /// Target pausieren und die Pause aufheben.
+    let paused : string = eventTypeName (BudgetEvent.TargetPaused none)
+    let pauseLifted : string = eventTypeName (BudgetEvent.TargetPauseLifted none)
+
     /// Die vier Ergebnisse einer Rückschreibung.
     let writeBacks : string list =
         [ BudgetEvent.AssignmentWrittenBackToYnab none

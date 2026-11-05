@@ -107,6 +107,23 @@ let pipelineTests =
                         with _ -> false
                     Expect.isTrue parsed $"{name}: Rumpf ist kein JSON: {body}")
 
+        // budgeting-qm5x9, ADR 0084 Punkt 8: Ein alter Client schickt die Aufträge ohne `CommandId`. Fable.Remoting
+        // liest das fehlende Optionsfeld als `None`, der Auftrag erreicht den Handler und endet an der
+        // fehlenden Einrichtung, nicht beim Deserialisieren.
+        testCase "Zuweisen und Übernehmen ohne Befehls-Id im JSON erreichen den Handler" <| fun () ->
+            withTestHost (fun client ->
+                // Mit Token erreichten die Aufrufe YNAB; der Fall läuft nur ohne.
+                Expect.isNone (Persistence.Settings.getSetting "ynab_token" |> Async.RunSynchronously) "kein Token in der Test-Datenbank"
+                let money = "{\"Amount\":\"10\",\"Currency\":\"EUR\"}"
+                let assign =
+                    $"[\"2099-01-01\",{{\"CategoryId\":\"{Guid.NewGuid()}\",\"Assigned\":{money}}}]"
+                let preview =
+                    $"[\"2099-01-01\",{{\"Month\":\"2099-01-01\",\"Lines\":[],\"Skipped\":[],\"Total\":{money},\"ToBeBudgeted\":{money},\"ToBeBudgetedAfter\":{money}}}]"
+                for name, body in [ "assignMoney", assign; "applyTargets", preview ] do
+                    let status, answer = send client (HttpMethod.Post, $"/api/BudgetApi/{name}", Some body)
+                    Expect.equal status 200 $"{name}: Status, Antwort {answer}"
+                    Expect.stringContains answer "Kein YNAB-Token eingerichtet" $"{name}: fachliche Meldung")
+
         testCase "der Bot-Handler in Api.webApp beantwortet /bot ohne Token mit 401" <| fun () ->
             // Gegenprobe: der Bot-Handler sitzt wirklich in derselben Pipeline.
             withTestHost (fun client ->

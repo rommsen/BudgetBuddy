@@ -54,6 +54,8 @@ const previewFixture = (count, toBeBudgeted = 5000) => {
     Total: eur(total),
     ToBeBudgeted: eur(toBeBudgeted),
     ToBeBudgetedAfter: eur(toBeBudgeted - total),
+    // Die Vorschau ist kein Befehl; die Befehls-Id setzt der Client beim Übernehmen (ADR 0084 Punkt 8).
+    CommandId: null,
   };
 };
 
@@ -218,6 +220,7 @@ test("[flow:targets-anwenden] Übernehmen schickt die gezeigte Vorschau, zeigt X
     assert.equal(calls.apply.length, 1);
     assert.equal(calls.apply[0][0], "2026-11-01");
     assert.deepEqual(calls.apply[0][1].Lines.map((l) => l.CategoryId), preview.Lines.map((l) => l.CategoryId), "die gezeigte Vorschau geht mit");
+    assert.match(calls.apply[0][1].CommandId ?? "", /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/, "das Übernehmen trägt eine Befehls-Id");
     assert.match(await text(page.locator('[data-testid="targets-count"]')), /1 von 3 übernommen/);
     assert.match(await text(page.locator('[data-testid="targets-actual"]')), /4\.980,00 €/);
     const lines = await page.locator('[data-testid="targets-result-line"]').allInnerTexts();

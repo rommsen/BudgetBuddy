@@ -193,3 +193,44 @@ let tests =
             Expect.equal unprotected 0 "kein Aufruf ohne Retry.reading"
         }
     ]
+
+// budgeting-qm5x9, ADR 0084 Punkt 8: Budget-Entscheidungen tragen eine Befehls-Id und dürfen nach Status 0
+// einmal wiederholt werden. Die Pause ist injiziert, die Tests warten nicht.
+let private proxyError (status: int) : exn =
+    ProxyRequestException({ StatusCode = status; ResponseBody = "" }, "x", "") :> exn
+
+/// Scheitert bei jedem Aufruf mit `error` und zählt die Aufrufe samt Argument.
+let private failingWith (error: exn) =
+    let seen = ResizeArray<System.Guid>()
+    let call (id: System.Guid) : Async<int> = async {
+        seen.Add id
+        return raise error
+    }
+    seen, call
+
+let private noSleep (_: int) = async { return () }
+
+[<Tests>]
+let writingTests =
+    testList "Schreibende Aufrufe mit Befehls-Id" [
+        test "Nach Status 0 wiederholt Retry.writing genau einmal" {
+            let seen, call = failingWith (proxyError 0)
+            Expect.throws (fun () -> Retry.writingWith noSleep call (System.Guid.NewGuid()) |> Async.RunSynchronously |> ignore) "der zweite Fehler kommt durch"
+            Expect.equal seen.Count 2 "zwei Versuche"
+        }
+        test "Nach einem anderen Fehler wiederholt Retry.writing nie" {
+            for error in [ proxyError 500; exn "anders" ] do
+                let seen, call = failingWith error
+                Expect.throws (fun () -> Retry.writingWith noSleep call (System.Guid.NewGuid()) |> Async.RunSynchronously |> ignore) "wirft sofort"
+                Expect.equal seen.Count 1 $"ein Versuch bei {error.Message}"
+        }
+        test "Beide Versuche einer Absicht tragen dieselbe Id, zwei Absichten zwei Ids aus der Quelle" {
+            let ids = [ System.Guid.NewGuid(); System.Guid.NewGuid() ]
+            let source = System.Collections.Generic.Queue<System.Guid>(ids)
+            let newId () = source.Dequeue()
+            let seen, call = failingWith (proxyError 0)
+            for _ in 1..2 do
+                try Retry.commandWith noSleep newId call |> Async.RunSynchronously |> ignore with _ -> ()
+            Expect.equal (List.ofSeq seen) [ ids[0]; ids[0]; ids[1]; ids[1] ] "je Absicht eine Id, zweimal verwendet"
+        }
+    ]

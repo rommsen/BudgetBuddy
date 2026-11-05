@@ -146,7 +146,7 @@ let private flowTests =
         test "Aufheben einer BB-Pause schickt die Absicht LiftPause" {
             let pausedTrip = { onTrip with Month = Success (monthWith current (Some PausedInBoth)) }
             match startPause LiftPause pausedTrip with
-            | _, Some (month, request) -> Expect.equal (month, request) (current, { CategoryId = paused; Intent = LiftPause }) "Auftrag"
+            | _, Some (month, request) -> Expect.equal (month, request) (current, { CategoryId = paused; Intent = LiftPause; CommandId = None }) "Auftrag"
             | _, None -> failtest "Auftrag erwartet"
             Expect.isNone (snd (startPause PauseTarget pausedTrip)) "Pausieren wird nicht angeboten"
         }

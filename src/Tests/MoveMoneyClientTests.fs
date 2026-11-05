@@ -455,7 +455,7 @@ let private moveWays : MoveWay list =
           NewAssigned = eur 912.3m
           Target = None }
     let preview : TargetPreview =
-        { Month = monthKey; Lines = [ targetLine ]; Skipped = []; Total = eur 12.3m; ToBeBudgeted = eur 100m; ToBeBudgetedAfter = eur 87.7m }
+        { Month = monthKey; Lines = [ targetLine ]; Skipped = []; Total = eur 12.3m; ToBeBudgeted = eur 100m; ToBeBudgetedAfter = eur 87.7m; CommandId = None }
     let failedReport = { reportFrom 900m with Lines = [ line rent 900m 912.3m (Failed "weg") ] }
     // Zwei Zeilen: Eine Verschiebung bleibt offen, wenn dieselbe Kategorie neu zugewiesen wird (E1).
     [ { Name = "Erneut senden"
@@ -911,7 +911,7 @@ let private missingTests =
             match snd (confirmMissing (onCategory 100m minus)) with
             | Some (key, request) ->
                 Expect.equal key monthKey "Monat"
-                Expect.equal request { Source = ToBeBudgetedSide; Target = CategorySide minus.Id; Amount = eur 12.3m } "Auftrag"
+                Expect.equal request { Source = ToBeBudgetedSide; Target = CategorySide minus.Id; Amount = eur 12.3m; CommandId = None } "Auftrag"
             | None -> failtest "Auftrag erwartet"
         }
         test "Das Größere von Minus und Fehlbetrag zählt" {

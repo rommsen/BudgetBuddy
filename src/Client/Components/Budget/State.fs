@@ -59,11 +59,12 @@ let private previewCmd (month: string) : Cmd<Msg> =
         (fun result -> PreviewLoaded (month, result))
         (fun ex -> PreviewLoaded (month, Error ex.Message))
 
-// Schreibende Aufrufe laufen nie über `Retry`: ein abgebrochener Aufruf kann beim Server
-// angekommen sein.
+// Budget-Entscheidungen tragen eine Befehls-Id je Absicht (ADR 0084 Punkt 8) und laufen über
+// `Retry.command`: nach Status 0 höchstens ein zweiter Versuch mit derselben Id, den der Server als
+// Wiederholung erkennt. Scheitert auch er, bleibt der Weg über die Fehlernachricht.
 let private applyCmd (preview: Shared.Budgeting.TargetPreview) : Cmd<Msg> =
     Cmd.OfAsync.either
-        (fun () -> Api.budget.applyTargets preview.Month preview)
+        (fun () -> Retry.command (fun id -> Api.budget.applyTargets preview.Month { preview with CommandId = Some id }))
         ()
         TargetsApplied
         (fun ex -> TargetsApplied (Error ex.Message))
@@ -75,10 +76,11 @@ let private retryCmd (applicationId: string) : Cmd<Msg> =
         TargetsRetried
         (fun ex -> TargetsRetried (Error ex.Message))
 
-// Wie `applyCmd` nie über `Retry`; der Server rechnet relativ, ein zweiter Lauf verschöbe doppelt.
+// Wie `applyCmd` mit Befehls-Id; der Server rechnet relativ, erst die Id verhindert, dass ein zweiter
+// Versuch doppelt verschiebt.
 let private moveCmd (monthKey: string) (request: MoveRequest) : Cmd<Msg> =
     Cmd.OfAsync.either
-        (fun () -> Api.budget.moveMoney monthKey request)
+        (fun () -> Retry.command (fun id -> Api.budget.moveMoney monthKey { request with CommandId = Some id }))
         ()
         MoveAnswered
         (fun ex -> MoveCallLost ex.Message)
@@ -90,19 +92,23 @@ let private retryMoveCmd (applicationId: string) : Cmd<Msg> =
         (fun result -> MoveRetried (applicationId, result))
         (fun ex -> MoveRetried (applicationId, Error ex.Message))
 
-// ADR 0078: absolut, aber trotzdem nie über `Retry`. Der Ausgang geht an die Schlange.
+// ADR 0078: absolut. Jeder Eintrag der Schlange ist eine eigene Absicht mit eigener Befehls-Id, so setzt
+// ein verspäteter zweiter Versuch keinen späteren Wert zurück. Der Ausgang geht an die Schlange.
 let private assignCmd (write: AssignWrite) : Cmd<Msg> =
     Cmd.OfAsync.either
-        (fun () -> Api.budget.assignMoney write.Month { CategoryId = write.CategoryId; Assigned = write.Assigned })
+        (fun () ->
+            Retry.command (fun id ->
+                Api.budget.assignMoney write.Month { CategoryId = write.CategoryId; Assigned = write.Assigned; CommandId = Some id }))
         ()
         AssignAnswered
         (fun ex -> AssignCallLost ex.Message)
 
-// Schreibt in BB, deshalb nicht über `Retry`. Die Antwort trägt Kategorie und Monat des Aufrufs. Ein
-// abgebrochener Aufruf ist keine Ablehnung, er hat eine eigene Nachricht (budgeting-r3wq8).
+// Schreibt in BB, mit Befehls-Id wie `applyCmd`. Die Antwort trägt Kategorie und Monat des Aufrufs. Ein
+// Aufruf, der auch im zweiten Versuch abbricht, ist keine Ablehnung, er hat eine eigene Nachricht
+// (budgeting-r3wq8).
 let private pauseCmd (monthKey: string) (request: TargetPauseRequest) : Cmd<Msg> =
     Cmd.OfAsync.either
-        (fun () -> Api.budget.setTargetPause monthKey request)
+        (fun () -> Retry.command (fun id -> Api.budget.setTargetPause monthKey { request with CommandId = Some id }))
         ()
         (fun result -> TargetPauseAnswered (request.CategoryId, monthKey, result))
         (fun ex -> TargetPauseCallLost (request.CategoryId, monthKey, ex.Message))

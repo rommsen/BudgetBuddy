@@ -714,7 +714,7 @@ let private monthOrderTests =
             let serverOrder = [ lineOf other.Id "Zweite"; lineOf detailCategoryFixture.Id "Erste" ]
             let preview : TargetPreview =
                 { Month = "2026-10-01"; Lines = serverOrder; Skipped = []
-                  Total = eur 2m; ToBeBudgeted = eur 2m; ToBeBudgetedAfter = eur 0m }
+                  Total = eur 2m; ToBeBudgeted = eur 2m; ToBeBudgetedAfter = eur 0m; CommandId = None }
             let shown = orderedPreviewLines frame.CategoryOrder preview.Lines
             Expect.equal (shown |> List.map (fun l -> l.CategoryName)) [ "Erste"; "Zweite" ] "Anzeige"
             let ready = { model with Targets = PreviewReady (preview, false) }

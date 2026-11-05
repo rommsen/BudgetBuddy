@@ -1,7 +1,7 @@
 ---
 id: budgeting-qm5x9
 title: "Befehls-Id für Budget-Entscheidungen aus der UI: optionales CommandId-Feld, Prüfung gegen processed_commands unter der Sperre vor YNAB, Antwort aus dem Stream, Client wiederholt einmal"
-status: doing
+status: done
 type: feature
 context: budgeting
 created: 2026-11-05
@@ -123,3 +123,16 @@ Gate:
   nichts geschrieben), und aus `YnabGoalChangedFromBb` lässt sich kein vollständiges `Target` für
   die Antwort bauen; mit eh8xe trägt `TargetSet` die ganze Regel.
 - Sinnvoll vorher, kein Blocker: infrastructure-aaryk (alter Client gegen neuen Server).
+
+## Outcome
+
+Budget-Entscheidungen aus der UI tragen eine Befehls-Id (ADR 0084 Punkt 8, Nachtrag zur Verfeinerung von qm5x9 und dgrp7).
+
+- Vertrag (`src/Shared/Budgeting.fs`): `CommandId: Guid option` in `MoveRequest`, `AssignRequest`, `TargetPauseRequest` und `TargetPreview`. `preview` liefert `None` (`Domain.planTargetApplication`), `previewsMatch` bleibt unverändert. `TargetChangeRequest` und `retryFailedTargets` haben kein Feld.
+- Grenze (`src/Server/Validation.fs`): `Some Guid.Empty` wird mit `EmptyCommandIdText` ("Befehls-Id ist leer.") abgelehnt, gesammelt mit den übrigen Fehlern. Für Übernehmen neu `validateTargetsApply` (Monat und Id zusammen), aufgerufen in `Api.applyTargetsWith`.
+- EventStore (`src/Server/EventStore.fs`): `tryProcessedCommandOn conn commandId` liest `processed_commands` und das Ereignis an `first_position` in einer Abfrage.
+- Persistence (`src/Server/Budgeting/Persistence.fs`): neuer Typ `Recorded<'T>` (`Recorded` oder `CommandAlreadyProcessed`). `recordDecisionOn`, `recordDecision`, `recordPauseOn` und `recordPause` nehmen `commandId` und geben `CommandAlreadyProcessed` weiter. `appendOn` und damit die Ergebnis-Ereignisse schreiben weiter ohne Id. `Events.EventTypes` hat dazu `paused` und `pauseLifted`.
+- Handler (`src/Server/Budgeting/CommandHandlers.fs`): `onceFor` prüft die Id unter `MonthGuard` vor dem Lesen des Monats. Bei bekannter Id antworten `moveMoney` und `assignMoney` über `reportWith` mit der `event_id` der Entscheidung, `apply` mit `Applied` und `ActualToBeBudgeted = None`, `setTargetPauseWith` aus dem Ereignistyp. Passt das Ereignis nicht (Kontext, Monats-Stream, Typ; bei Verschieben mit Zu verteilen als Seite `AssignmentChangedInBb`), kommt `ForeignCommandText` als innerer Fehler, bei Targets anwenden als `RefusedByBb`. Meldet das Anhängen trotz Vorabprüfung `CommandAlreadyProcessed`, baut `answerAgain` die Antwort auf demselben Weg.
+- Client (`src/Client/Retry.fs`, `src/Client/Components/Budget/State.fs`): `Retry.writing`/`writingWith` (eine Wiederholung nach Status 0, Pause 400 ms) und `Retry.command`/`commandWith` mit injizierter Id-Quelle. `applyCmd`, `moveCmd`, `assignCmd` und `pauseCmd` laufen darüber, je Cmd-Ausführung eine Id. Die reinen Funktionen (`transferRequest`, `startPause`) liefern weiter `CommandId = None`, die Id setzt erst der Cmd.
+
+Tests: Handler-Ebene mit In-Memory-SQLite in `src/Tests/MoveMoneyTests.fs` (Liste "Befehls-Id: Verschieben und Zuweisen", auch der Fall, dass die Id während des Lesens an der Vorabprüfung vorbeirennt), `src/Tests/TargetsApplyTests.fs` und `src/Tests/TargetPauseTests.fs`; EventStore-Ebene in `src/Tests/EventStoreTests.fs`; Validation in `src/Tests/ValidationTests.fs`; Pipeline mit JSON ohne `CommandId` für `assignMoney` und `applyTargets` in `src/Tests/RemotingPipelineTests.fs`; Client unter .NET in `src/Tests/RetryTests.fs`. Hilfen `eventsMentioning`, `processedCommandRows` und `recordedOrFail` in `src/Tests/BudgetEventsFixture.fs`. Bestehende Tests sind nur um das neue Feld in Literalen und um die neue Signatur der Persistence-Aufrufe ergänzt. Browser-Fixtures: `scripts/targets-apply.test.mjs` (Vorschau mit `CommandId: null`, Übernehmen trägt eine Guid) und `scripts/budget-money-tab.test.mjs` (Zuweisen-Auftrag mit Guid); `scripts/move-money.test.mjs` bildet weder Requests noch `TargetPreview` als Record nach und blieb unverändert. `./verify.sh`: VERIFY: PASS (dotnet 3999, node 310).

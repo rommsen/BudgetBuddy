@@ -34,7 +34,7 @@ let private monthWith (cats: BudgetCategory list) : BudgetMonth =
       Groups = [ { Name = "Alltag"; Categories = cats } ] }
 
 let private request source target (amount: int64) : MoveRequest =
-    { Source = source; Target = target; Amount = eur amount }
+    { Source = source; Target = target; Amount = eur amount; CommandId = None }
 
 let private planOk month req =
     match Domain.planMove month req with
@@ -119,6 +119,8 @@ type private FakeYnab(categories: (Guid * string * int64) list) =
     member val Reads = 0 with get, set
     member val FailRead = false with get, set
     member val OnWrite : Guid -> unit = ignore with get, set
+    /// Läuft bei jedem Lesen des Monats, vor der Antwort.
+    member val OnRead : unit -> unit = ignore with get, set
     member val WriteDelayMs = 0 with get, set
     /// Kategorien, die der Monat nicht mehr liefert (in YNAB gelöscht).
     member val Gone = HashSet<Guid>()
@@ -128,6 +130,7 @@ type private FakeYnab(categories: (Guid * string * int64) list) =
             fun monthKey ->
                 async {
                     this.Reads <- this.Reads + 1
+                    this.OnRead ()
                     if this.FailRead then
                         return Error (YnabError.NetworkError "Lesen scheitert")
                     else
@@ -645,7 +648,7 @@ let private boundaryTests =
 
 // budgeting-c5w2n, ADR 0078: das Feld Zugewiesen setzt den fertigen Wert absolut.
 let private assign (id: Guid) (assigned: int64) : AssignRequest =
-    { CategoryId = id; Assigned = eur assigned }
+    { CategoryId = id; Assigned = eur assigned; CommandId = None }
 
 let private assignPlanTests =
     let a = budgetCategory "Lebensmittel" 100000L
@@ -862,7 +865,7 @@ let private assignBoundaryTests =
 
         testCase "Alle Fehler kommen zusammen" <| fun () ->
             let f, a, b = fake ()
-            let bad = { CategoryId = Guid.Empty; Assigned = { Amount = 2000000m; Currency = "USD" } }
+            let bad = { CategoryId = Guid.Empty; Assigned = { Amount = 2000000m; Currency = "USD" }; CommandId = None }
             let message = rejected f [ a; b ] "kein-monat" bad
             for part in [ "Ungültiger Monat"; "USD"; "Kategorie"; "höchstens" ] do
                 Expect.stringContains message part "gesammelt"
@@ -899,7 +902,7 @@ let private recentTests =
                   CategoryName = "K"
                   OldAssigned = 10000L
                   NewAssigned = (if i = 0 && origin = MoneyMoved then 0L else 20000L) })
-        Budgeting.Persistence.recordDecisionOn conn (DateTime(2026, 11, 1, 0, 0, 0, DateTimeKind.Utc).AddHours(float hour.Value)) monthKey origin lines []
+        Budgeting.Persistence.recordDecisionOn conn None (DateTime(2026, 11, 1, 0, 0, 0, DateTimeKind.Utc).AddHours(float hour.Value)) monthKey origin lines []
         |> ignore
     let query conn =
         match Budgeting.Persistence.queryRecentCategories conn MoneyMoved 10 with
@@ -954,10 +957,127 @@ let private recentTests =
             Expect.equal result (Error "Zuletzt verwendete Kategorien nicht lesbar") "Grund"
     ]
 
+
+// budgeting-qm5x9, ADR 0084 Punkt 8: Verschieben und Zuweisen mit Befehls-Id. Eine Wiederholung liest YNAB
+// nicht, hängt nichts an und antwortet aus dem Stream.
+let private commandTests =
+    let testCase name body =
+        testCase name (fun () ->
+            Budgeting.Persistence.initializeBudgetingSchema ()
+            body ())
+    let withId (id: Guid) (req: AssignRequest) = { req with CommandId = Some id }
+    let assignWithId (f: FakeYnab) (id: Guid) (req: AssignRequest) = run (assignMoney f.Port now monthKey (withId id req))
+    let assignIdOk f id req =
+        match assignWithId f id req with
+        | Ok (Ok report) -> report
+        | other -> failtest $"Bericht erwartet: {other}"
+    let forget (f: FakeYnab) =
+        f.Reads <- 0
+        f.Attempts.Clear()
+
+    testSequenced
+    <| testList "Befehls-Id: Verschieben und Zuweisen" [
+        testCase "GIVEN ein Zuweisen mit Id ist festgehalten WHEN es mit derselben Id wiederkommt THEN liest der Server YNAB nicht, schreibt nichts und antwortet wie beim ersten Mal" <| fun () ->
+            let f, a, b = fake ()
+            let x = Guid.NewGuid()
+            let first = assignIdOk f x (assign a 120000L)
+            let events = BudgetEventsFixture.eventsMentioning [ a; b ]
+            forget f
+            let again = assignIdOk f x (assign a 120000L)
+            Expect.equal (BudgetEventsFixture.eventsMentioning [ a; b ]) events "kein Ereignis"
+            Expect.equal f.Reads 0 "kein FetchMonth"
+            Expect.isEmpty f.Attempts "kein SetAssigned"
+            Expect.equal again.ApplicationId first.ApplicationId "dieselbe Anwendung"
+            Expect.equal again.Lines first.Lines "dieselben Zeilen"
+
+        testCase "GIVEN ein Verschieben mit Id ist festgehalten WHEN es mit derselben Id wiederkommt THEN verschiebt der Server nicht noch einmal" <| fun () ->
+            let f, a, b = fake ()
+            let req = { request (CategorySide a) (CategorySide b) 30000L with CommandId = Some (Guid.NewGuid()) }
+            let first = moveOk f req
+            let events = BudgetEventsFixture.eventsMentioning [ a; b ]
+            forget f
+            let again = moveOk f req
+            Expect.equal (BudgetEventsFixture.eventsMentioning [ a; b ]) events "kein Ereignis"
+            Expect.equal f.Reads 0 "kein FetchMonth"
+            Expect.isEmpty f.Attempts "kein SetAssigned"
+            Expect.equal (f.Assigned[a], f.Assigned[b]) (70000L, 50000L) "einmal verschoben"
+            Expect.equal again.ApplicationId first.ApplicationId "dieselbe Anwendung"
+            Expect.equal again.Lines first.Lines "dieselben Zeilen"
+            Expect.isNone again.ActualToBeBudgeted "kein Zu verteilen"
+
+        testCase "Ein Verschieben aus Zu verteilen mit Id wird als Zuweisen erkannt und nicht wiederholt" <| fun () ->
+            let f, _, b = fake ()
+            let req = { request ToBeBudgetedSide (CategorySide b) 30000L with CommandId = Some (Guid.NewGuid()) }
+            let first = moveOk f req
+            forget f
+            let again = moveOk f req
+            Expect.isEmpty f.Attempts "kein SetAssigned"
+            Expect.equal again.ApplicationId first.ApplicationId "dieselbe Anwendung"
+
+        testCase "GIVEN Zuweisen X auf 50 € und danach Y auf 60 € WHEN X verspätet wiederkommt THEN geht kein PATCH hinaus und YNAB bleibt auf 60 €" <| fun () ->
+            let f, a, _ = fake ()
+            let x = Guid.NewGuid()
+            assignIdOk f x (assign a 50000L) |> ignore
+            assignIdOk f (Guid.NewGuid()) (assign a 60000L) |> ignore
+            forget f
+            assignIdOk f x (assign a 50000L) |> ignore
+            Expect.isEmpty f.Attempts "kein PATCH"
+            Expect.equal f.Assigned[a] 60000L "der spätere Wert bleibt"
+
+        testCase "Ein Zuweisen ohne Ereignis hält seine Id nicht fest, die Wiederholung wird neu ausgewertet und schreibt" <| fun () ->
+            let f, a, _ = fake ()
+            let x = Guid.NewGuid()
+            let unchanged = assignIdOk f x (assign a 100000L)
+            Expect.isEmpty unchanged.Lines "YNAB stand schon auf dem Wert"
+            Expect.equal (BudgetEventsFixture.processedCommandRows x) 0L "keine Befehlszeile"
+            f.Assigned[a] <- 80000L
+            let again = assignIdOk f x (assign a 100000L)
+            Expect.equal (List.ofSeq f.Attempts) [ a, 100000L ] "neu ausgewertet und geschrieben"
+            Expect.equal (outcomes again) [ Written ] "geschrieben"
+
+        testCase "Die Id eines Verschiebens als Zuweisen gesendet wird abgelehnt, ohne Ereignis und ohne YNAB" <| fun () ->
+            let f, a, b = fake ()
+            let x = Guid.NewGuid()
+            moveOk f { request (CategorySide a) (CategorySide b) 30000L with CommandId = Some x } |> ignore
+            let events = BudgetEventsFixture.eventsMentioning [ a; b ]
+            forget f
+            match assignWithId f x (assign a 10000L) with
+            | Ok (Error message) -> Expect.equal message ForeignCommandText "innen abgelehnt"
+            | other -> failtest $"Ablehnung erwartet: {other}"
+            Expect.equal (BudgetEventsFixture.eventsMentioning [ a; b ]) events "kein Ereignis"
+            Expect.equal f.Reads 0 "kein FetchMonth"
+            Expect.isEmpty f.Attempts "kein SetAssigned"
+
+        testCase "Die Entscheidung trägt die Befehls-Id, ihre Ergebnis-Ereignisse tragen keine" <| fun () ->
+            let f, a, b = fake ()
+            let x = Guid.NewGuid()
+            f.Failures[b] <- networkDown
+            moveOk f { request (CategorySide a) (CategorySide b) 30000L with CommandId = Some x } |> ignore
+            Expect.equal
+                (BudgetEventsFixture.eventsMentioning [ a; b ])
+                [ "MoneyMoved", Some (x.ToString "D")
+                  "AssignmentWrittenBackToYnab", None
+                  "AssignmentWriteBackFailed", None ]
+                "Entscheidung mit Id, Ergebnisse ohne"
+
+        testCase "Rennt die Id an der Vorabprüfung vorbei, antwortet der Server aus dem Stream und sendet nichts" <| fun () ->
+            let f, a, _ = fake ()
+            let x = Guid.NewGuid()
+            let line : Budgeting.Persistence.PlannedLine =
+                { CategoryId = a; CategoryName = "Lebensmittel"; OldAssigned = 100000L; NewAssigned = 90000L }
+            // Während des Lesens hält ein zweiter Weg dieselbe Id fest, wie es das Netz der Transaktion abfängt.
+            f.OnRead <- fun () ->
+                f.OnRead <- ignore
+                Budgeting.Persistence.recordDecision (Some x) now monthKey MoneyAssigned [ line ] [] |> run |> ignore
+            let report = assignIdOk f x (assign a 120000L)
+            Expect.isEmpty f.Attempts "kein PATCH"
+            Expect.equal (report.Lines |> List.map (fun l -> l.CategoryId, l.NewAssigned)) [ a, eur 90000L ] "die festgehaltene Entscheidung"
+    ]
+
 [<Tests>]
 let tests =
     testList "Verschieben" [ planTests; flowTests; originTests; boundaryTests ]
 
 [<Tests>]
 let assignTests =
-    testList "Zuweisen" [ assignPlanTests; assignFlowTests; assignBoundaryTests; recentTests ]
+    testList "Zuweisen" [ assignPlanTests; assignFlowTests; assignBoundaryTests; recentTests; commandTests ]

@@ -206,6 +206,29 @@ let validateTargetsMonth (current: string) (key: string) : Result<string, string
         else
             Error "Targets anwenden geht in vergangenen Monaten nicht.")
 
+/// Die Ablehnung einer leeren Befehls-Id (ADR 0084 Punkt 8). Eine Id, die keine Guid ist, scheitert schon
+/// beim Deserialisieren.
+[<Literal>]
+let EmptyCommandIdText = "Befehls-Id ist leer."
+
+let private commandIdErrors (commandId: Guid option) : string list =
+    match commandId with
+    | Some id when id = Guid.Empty -> [ EmptyCommandIdText ]
+    | _ -> []
+
+/// Prüft das Übernehmen von "Targets anwenden": den Monat wie `validateTargetsMonth` und die Befehls-Id der
+/// gezeigten Vorschau, alle Fehler zugleich.
+let validateTargetsApply (current: string) (key: string) (shown: Shared.Budgeting.TargetPreview) : Result<string, string list> =
+    let month = validateTargetsMonth current key
+    let errors =
+        [ match month with
+          | Error message -> message
+          | Ok _ -> ()
+          yield! commandIdErrors shown.CommandId ]
+    match month with
+    | Ok firstDay when errors.IsEmpty -> Ok firstDay
+    | _ -> Error errors
+
 /// Der Monat als Monatserster; eine Anfrage ohne Kategorie ist keine (budgeting-m1bce). Alle Fehler
 /// zugleich, wie an der übrigen API-Grenze.
 let validateCategoryMonthQuery (query: Shared.Domain.CategoryMonthQuery) : Result<DateTime, string list> =
@@ -237,7 +260,8 @@ let validateMoveRequest (monthKey: string) (request: Shared.Budgeting.MoveReques
           if request.Amount.Amount <= 0m then
               "Der Betrag muss größer als 0 sein."
           elif request.Amount.Amount > MaxBudgetAmount then
-              "Der Betrag ist zu groß, höchstens 1.000.000,00 € gehen." ]
+              "Der Betrag ist zu groß, höchstens 1.000.000,00 € gehen."
+          yield! commandIdErrors request.CommandId ]
 
     if errors.IsEmpty then Ok () else Error errors
 
@@ -252,7 +276,8 @@ let validateAssignRequest (monthKey: string) (request: Shared.Budgeting.AssignRe
           if request.Assigned.Currency <> "EUR" then
               $"Zugewiesen wird nur in EUR, nicht in '{request.Assigned.Currency}'."
           if abs request.Assigned.Amount > MaxBudgetAmount then
-              "Der Betrag ist zu groß, höchstens 1.000.000,00 € gehen." ]
+              "Der Betrag ist zu groß, höchstens 1.000.000,00 € gehen."
+          yield! commandIdErrors request.CommandId ]
 
     if errors.IsEmpty then Ok () else Error errors
 
@@ -271,7 +296,8 @@ let validateTargetPauseRequest
               if not (Shared.Budgeting.targetsAllowed (Shared.Budgeting.monthKind current month)) then
                   Shared.Budgeting.PausePastMonthText
           if request.CategoryId = System.Guid.Empty then
-              "Die Kategorie fehlt." ]
+              "Die Kategorie fehlt."
+          yield! commandIdErrors request.CommandId ]
 
     if errors.IsEmpty then Ok () else Error errors
 

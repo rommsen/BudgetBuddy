@@ -1762,7 +1762,8 @@ let previewTargetsWith
             return! withYnabPort tokenOpt budgetOpt portFor (fun port -> Server.Budgeting.CommandHandlers.preview port key)
     }
 
-/// "Übernehmen" von "Targets anwenden" ohne Settings und Netz, Prüfung wie `previewTargetsWith`.
+/// "Übernehmen" von "Targets anwenden" ohne Settings und Netz, Prüfung wie `previewTargetsWith` und dazu die
+/// Befehls-Id der Vorschau.
 /// `today` ist der Kalendertag in Berlin für die Monatsart, `now` stempelt die Bewegung (UTC).
 let applyTargetsWith
     (tokenOpt: string option)
@@ -1774,8 +1775,9 @@ let applyTargetsWith
     (shown: Shared.Budgeting.TargetPreview)
     : Async<Result<Shared.Budgeting.ApplyResult, string>> =
     async {
-        match targetsMonthKey today monthKeyText with
-        | Error message -> return Error message
+        let current = Server.Budgeting.Domain.currentMonthKey today
+        match Validation.validateTargetsApply current monthKeyText shown with
+        | Error errors -> return Error (String.concat " " errors)
         | Ok key ->
             return!
                 withYnabPort tokenOpt budgetOpt portFor (fun port ->

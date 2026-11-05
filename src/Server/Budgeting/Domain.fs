@@ -118,7 +118,9 @@ let planTargetApplication (month: BudgetMonth) : Result<TargetPreview, string> =
               Skipped = skipped
               Total = { Amount = total; Currency = currency }
               ToBeBudgeted = month.ToBeBudgeted
-              ToBeBudgetedAfter = { Amount = month.ToBeBudgeted.Amount - total; Currency = currency } }
+              ToBeBudgetedAfter = { Amount = month.ToBeBudgeted.Amount - total; Currency = currency }
+              // Die Vorschau ist kein Befehl, die Id setzt der Client beim Übernehmen.
+              CommandId = None }
 
 // ============================================
 // Target pausieren (budgeting-t6p8z, ADR 0073, ADR 0079)

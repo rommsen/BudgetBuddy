@@ -529,15 +529,26 @@ let loadLastTargetChanges () : Async<Result<Map<Guid, TargetChangeMark>, string>
 // Schreiben
 // ============================================
 
+/// Ausgang des Festhaltens einer Entscheidung mit Befehls-Id (ADR 0084 Punkt 8).
+type Recorded<'T> =
+    | Recorded of 'T
+    /// Die Befehls-Id stand schon in `processed_commands`; es ist nichts entstanden.
+    | CommandAlreadyProcessed of firstPosition: int64
+
 /// Hängt Ereignisse an einen Stream an, eine Transaktion (ADR 0083 Punkt 3). Die Zeitpunkte müssen UTC
-/// sein. Liefert die gespeicherten Ereignisse samt `event_id`.
-let internal appendOn (conn: SqliteConnection) (stream: BudgetStream) (events: (DateTime * BudgetEvent) list) : EventStore.RecordedEvent list =
+/// sein. Mit Befehls-Id prüft der Event Store in derselben Transaktion `processed_commands`.
+let private appendCommandOn
+    (conn: SqliteConnection)
+    (commandId: Guid option)
+    (stream: BudgetStream)
+    (events: (DateTime * BudgetEvent) list)
+    : Recorded<EventStore.RecordedEvent list> =
     if conn.State <> Data.ConnectionState.Open then
         conn.Open()
     let aggregate, id = streamParts stream
     let request : EventStore.AppendRequest =
         { Context = Context
-          CommandId = None
+          CommandId = commandId
           Streams =
             [ { Aggregate = aggregate
                 Id = id
@@ -546,14 +557,15 @@ let internal appendOn (conn: SqliteConnection) (stream: BudgetStream) (events: (
     match EventStore.appendOn conn tx request EventStore.noReadModels with
     | EventStore.Appended recorded ->
         tx.Commit()
-        recorded
-    | EventStore.CommandAlreadyProcessed _ -> failwith "Budget-Ereignisse tragen keine Befehls-Id"
+        Recorded recorded
+    | EventStore.CommandAlreadyProcessed firstPosition -> CommandAlreadyProcessed firstPosition
 
-let private appendNow (stream: BudgetStream) (events: (DateTime * BudgetEvent) list) : Async<EventStore.RecordedEvent list> =
-    async {
-        use conn = Core.getConnection ()
-        return appendOn conn stream events
-    }
+/// Hängt Ereignisse ohne Befehls-Id an, etwa die Ergebnis-Ereignisse einer Rückschreibung (ADR 0084
+/// Punkt 8). Liefert die gespeicherten Ereignisse samt `event_id`.
+let internal appendOn (conn: SqliteConnection) (stream: BudgetStream) (events: (DateTime * BudgetEvent) list) : EventStore.RecordedEvent list =
+    match appendCommandOn conn None stream events with
+    | Recorded recorded -> recorded
+    | CommandAlreadyProcessed _ -> failwith "Ein Anhängen ohne Befehls-Id kann nicht schon festgehalten sein"
 
 let private monthStreamOrFail (monthKey: string) : string * BudgetStream =
     match monthIdOf monthKey with
@@ -600,38 +612,44 @@ let internal decisionEvent
     | _ -> invalidArg "lines" $"{originText origin}: {lines.Length} Zeilen passen nicht zur Herkunft"
 
 /// Hält eine Entscheidung als ein Ereignis im Monats-Stream fest (ADR 0084 Punkt 4). Erst danach darf der
-/// erste PATCH nach YNAB gehen (ADR 0050). Liefert die Zeilen, ihre Gruppen-Id ist die `event_id`.
+/// erste PATCH nach YNAB gehen (ADR 0050). Liefert die Zeilen, ihre Gruppen-Id ist die `event_id`. Das
+/// Ereignis trägt die Befehls-Id; ist sie schon festgehalten, entsteht nichts.
 let internal recordDecisionOn
     (conn: SqliteConnection)
+    (commandId: Guid option)
     (at: DateTime)
     (monthKey: string)
     (origin: MovementOrigin)
     (lines: PlannedLine list)
     (skippedPaused: SkippedPausedLine list)
-    : Movement list =
+    : Recorded<Movement list> =
     let monthId, stream = monthStreamOrFail monthKey
     let event = decisionEvent monthId origin lines skippedPaused
-    match appendOn conn stream [ at, event ] with
-    | [ recorded ] ->
-        movementsOf
-            { EventId = recorded.EventId
-              StreamId = recorded.StreamId
-              StreamVersion = recorded.StreamVersion
-              OccurredAt = at
-              Event = event }
-    | other -> failwith $"Ein Entscheidungsereignis erwartet, {other.Length} gespeichert"
+    match appendCommandOn conn commandId stream [ at, event ] with
+    | Recorded [ recorded ] ->
+        Recorded (
+            movementsOf
+                { EventId = recorded.EventId
+                  StreamId = recorded.StreamId
+                  StreamVersion = recorded.StreamVersion
+                  OccurredAt = at
+                  Event = event }
+        )
+    | Recorded other -> failwith $"Ein Entscheidungsereignis erwartet, {other.Length} gespeichert"
+    | CommandAlreadyProcessed firstPosition -> CommandAlreadyProcessed firstPosition
 
 /// `recordDecisionOn` auf der Datenbank der Anwendung.
 let recordDecision
+    (commandId: Guid option)
     (at: DateTime)
     (monthKey: string)
     (origin: MovementOrigin)
     (lines: PlannedLine list)
     (skippedPaused: SkippedPausedLine list)
-    : Async<Movement list> =
+    : Async<Recorded<Movement list>> =
     async {
         use conn = Core.getConnection ()
-        return recordDecisionOn conn at monthKey origin lines skippedPaused
+        return recordDecisionOn conn commandId at monthKey origin lines skippedPaused
     }
 
 /// Hängt den Ausgang einer Zeile als Ergebnis-Ereignis an den Monats-Stream ihrer Entscheidung.
@@ -651,28 +669,39 @@ let recordWriteBackWith (connect: unit -> SqliteConnection) (m: Movement) (at: D
 let recordWriteBack (m: Movement) (at: DateTime) (outcome: WriteBackOutcome) : Async<unit> =
     recordWriteBackWith Core.getConnection m at outcome
 
-/// Hält ein Pause-Ereignis im Monats-Stream fest. Liefert seine `event_id`.
+/// Hält ein Pause-Ereignis im Monats-Stream fest. Liefert seine `event_id`. Das Ereignis trägt die
+/// Befehls-Id; ist sie schon festgehalten, entsteht nichts.
 let internal recordPauseOn
     (conn: SqliteConnection)
+    (commandId: Guid option)
     (at: DateTime)
     (monthKey: string)
     (categoryId: Guid)
     (categoryName: string)
     (kind: PauseKind)
-    : Guid =
+    : Recorded<Guid> =
     let monthId, stream = monthStreamOrFail monthKey
     let pause = { Month = monthId; CategoryId = categoryId; CategoryName = categoryName }
     let event =
         match kind with
         | PauseKind.Paused -> BudgetEvent.TargetPaused pause
         | PauseKind.PauseLifted -> BudgetEvent.TargetPauseLifted pause
-    (appendOn conn stream [ at, event ] |> List.exactlyOne).EventId
+    match appendCommandOn conn commandId stream [ at, event ] with
+    | Recorded recorded -> Recorded (List.exactlyOne recorded).EventId
+    | CommandAlreadyProcessed firstPosition -> CommandAlreadyProcessed firstPosition
 
 /// `recordPauseOn` auf der Datenbank der Anwendung.
-let recordPause (at: DateTime) (monthKey: string) (categoryId: Guid) (categoryName: string) (kind: PauseKind) : Async<Guid> =
+let recordPause
+    (commandId: Guid option)
+    (at: DateTime)
+    (monthKey: string)
+    (categoryId: Guid)
+    (categoryName: string)
+    (kind: PauseKind)
+    : Async<Recorded<Guid>> =
     async {
         use conn = Core.getConnection ()
-        return recordPauseOn conn at monthKey categoryId categoryName kind
+        return recordPauseOn conn commandId at monthKey categoryId categoryName kind
     }
 
 /// Hält eine Target-Änderung im Target-Stream der Kategorie fest (ADR 0080 Punkt 4). Erst danach darf der

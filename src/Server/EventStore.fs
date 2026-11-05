@@ -378,6 +378,19 @@ let loadStream (context: string) (aggregate: string) (id: AggregateId) : Async<R
             |> List.ofSeq
     }
 
+/// Das Ereignis, mit dem eine Befehls-Id festgehalten ist (`first_position` in `processed_commands`), in
+/// einer Abfrage. `None`, wenn die Id unbekannt ist. Der Aufrufer prüft Kontext, Stream und Typ.
+let tryProcessedCommandOn (conn: SqliteConnection) (commandId: Guid) : RecordedEvent option =
+    conn.Query<StoredEventRow>(
+        """SELECT e.position, e.event_id, e.context, e.stream_id, e.stream_version, e.occurred_at, e.actor_kind,
+                  e.actor_ref, e.event_type, e.schema_version, e.payload, e.command_id
+           FROM processed_commands p JOIN events e ON e.position = p.first_position
+           WHERE p.command_id = @command_id""",
+        {| command_id = commandId.ToString("D") |}
+    )
+    |> Seq.tryHead
+    |> Option.map toRecordedEvent
+
 /// Alle Ereignisse eines Kontexts nach `position`, also in der Reihenfolge des Festhaltens.
 /// Fachliche Reports sortieren nach Datum oder `occurred_at` (ADR 0083 Abschnitt 1).
 let loadContext (context: string) : Async<RecordedEvent list> =

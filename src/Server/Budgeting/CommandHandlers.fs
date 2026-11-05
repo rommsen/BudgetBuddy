@@ -158,6 +158,84 @@ let private reportOf
         return! reportWith connect applicationId monthKey actual
     }
 
+// ============================================
+// Befehls-Id (ADR 0084 Punkt 8, budgeting-qm5x9)
+// ============================================
+
+/// Die Ablehnung, wenn eine Befehls-Id schon zu einem anderen Auftrag festgehalten ist.
+[<Literal>]
+let ForeignCommandText = "Befehls-Id gehört zu einem anderen Auftrag."
+
+/// Das Ereignis, mit dem die Befehls-Id festgehalten ist, oder `None`.
+let private findCommand (commandId: Guid) : Async<EventStore.RecordedEvent option> =
+    async {
+        use conn = global.Persistence.getConnection ()
+        return EventStore.tryProcessedCommandOn conn commandId
+    }
+
+/// Gehört das festgehaltene Ereignis zum Auftrag: Kontext `budgeting`, Monats-Stream des Auftrags, einer der
+/// erwarteten Typen?
+let private belongsTo (monthKey: string) (expectedTypes: string list) (recorded: EventStore.RecordedEvent) : bool =
+    let monthStream = monthIdOf monthKey |> Result.toOption |> Option.map (MonthStream >> streamIdOf)
+    recorded.Context = Context
+    && Some recorded.StreamId = monthStream
+    && List.contains recorded.EventType expectedTypes
+
+/// Unter der Sperre vor allem anderen: Ist die Befehls-Id festgehalten, kommt die Antwort aus `answer`, ohne
+/// YNAB zu lesen und ohne etwas anzuhängen. Sonst läuft `fresh`.
+let private onceFor
+    (commandId: Guid option)
+    (answer: EventStore.RecordedEvent -> Async<'r>)
+    (fresh: Async<'r>)
+    : Async<'r> =
+    async {
+        match commandId with
+        | None -> return! fresh
+        | Some id ->
+            match! findCommand id with
+            | Some recorded -> return! answer recorded
+            | None -> return! fresh
+    }
+
+/// Das Anhängen meldete die Befehls-Id trotz Vorabprüfung als festgehalten (Netz der Transaktion, etwa
+/// dieselbe Id in zwei Monaten): die Antwort auf demselben Weg aus dem Stream.
+let private answerAgain
+    (commandId: Guid option)
+    (answer: EventStore.RecordedEvent -> Async<'r>)
+    : Async<'r> =
+    async {
+        let! found =
+            match commandId with
+            | Some id -> findCommand id
+            | None -> async { return None }
+        match found with
+        | Some recorded -> return! answer recorded
+        | None -> return failwith "Befehls-Id als festgehalten gemeldet, ihr Ereignis fehlt"
+    }
+
+/// Die Typen des Entscheidungsereignisses, das ein Verschieben festhält: mit Zu verteilen als einer Seite ein
+/// Zuweisen, sonst eine Verschiebung.
+let private moveEventTypes (request: MoveRequest) : string list =
+    match request.Source, request.Target with
+    | ToBeBudgetedSide, _
+    | _, ToBeBudgetedSide -> [ EventTypes.decisionOf MoneyAssigned ]
+    | _ -> [ EventTypes.decisionOf MoneyMoved ]
+
+/// Die Antwort auf eine Wiederholung von Verschieben und Zuweisen: der Bericht der festgehaltenen
+/// Entscheidung, ohne Zu verteilen.
+let private decisionAnswer
+    (monthKey: string)
+    (expectedTypes: string list)
+    (recorded: EventStore.RecordedEvent)
+    : Async<Result<Result<ApplyReport, string>, YnabError>> =
+    async {
+        if belongsTo monthKey expectedTypes recorded then
+            let! report = reportWith global.Persistence.getConnection recorded.EventId monthKey None
+            return report |> Result.map Ok
+        else
+            return Ok (Error ForeignCommandText)
+    }
+
 /// Sendet die Zeilen nacheinander. Ein Fehler schließt die Zeile als fehlgeschlagen ab, die
 /// übrigen werden trotzdem gesendet. Bei 429 bricht der Lauf ab: der Rest wird als
 /// fehlgeschlagen mit Grund "Rate-Limit" festgehalten, schon Geschriebenes bleibt unberührt.
@@ -194,7 +272,16 @@ let apply
     (monthKey: string)
     (shown: TargetPreview)
     : Async<Result<ApplyResult, YnabError>> =
-    MonthGuard.exclusive monthKey (async {
+    // Eine Wiederholung trägt Zu verteilen nicht: die erste Antwort las es neu, hier wird YNAB nicht gelesen.
+    let answer (recorded: EventStore.RecordedEvent) =
+        async {
+            if belongsTo monthKey [ EventTypes.decisionOf TargetsApplied ] recorded then
+                let! report = reportWith global.Persistence.getConnection recorded.EventId monthKey None
+                return report |> Result.map Applied
+            else
+                return Error (YnabError.RefusedByBb ForeignCommandText)
+        }
+    MonthGuard.exclusive monthKey (onceFor shown.CommandId answer (async {
         match! plan port monthKey with
         | Error e -> return Error e
         | Ok fresh when not (previewsMatch shown fresh) -> return Ok (PreviewChanged fresh)
@@ -213,12 +300,14 @@ let apply
                     { CategoryId = s.CategoryId
                       CategoryName = s.CategoryName
                       Underfunded = toMilliunits s.Underfunded })
-            let! movements = recordDecision now fresh.Month TargetsApplied lines skipped
-            do! sendAll port now fresh.Month movements
-            let applicationId = (List.head movements).ApplicationId
-            let! report = reportOf global.Persistence.getConnection port applicationId fresh.Month
-            return report |> Result.map Applied
-    })
+            match! recordDecision shown.CommandId now fresh.Month TargetsApplied lines skipped with
+            | CommandAlreadyProcessed _ -> return! answerAgain shown.CommandId answer
+            | Recorded movements ->
+                do! sendAll port now fresh.Month movements
+                let applicationId = (List.head movements).ApplicationId
+                let! report = reportOf global.Persistence.getConnection port applicationId fresh.Month
+                return report |> Result.map Applied
+    }))
 
 // ============================================
 // Verschieben (budgeting-afd8h, ADR 0069)
@@ -260,8 +349,10 @@ let private recordAndSend
     (port: YnabPort)
     (now: DateTime)
     (monthKey: string)
+    (commandId: Guid option)
+    (answer: EventStore.RecordedEvent -> Async<Result<Result<ApplyReport, string>, YnabError>>)
     (plan: MovePlan)
-    : Async<Result<ApplyReport, YnabError>> =
+    : Async<Result<Result<ApplyReport, string>, YnabError>> =
     async {
         let lines =
             plan.Lines
@@ -270,9 +361,12 @@ let private recordAndSend
                   CategoryName = l.CategoryName
                   OldAssigned = toMilliunits l.OldAssigned
                   NewAssigned = toMilliunits l.NewAssigned })
-        let! movements = recordDecision now monthKey plan.Origin lines []
-        do! sendInOrder port now monthKey movements
-        return! reportWith global.Persistence.getConnection (List.head movements).ApplicationId monthKey None
+        match! recordDecision commandId now monthKey plan.Origin lines [] with
+        | CommandAlreadyProcessed _ -> return! answerAgain commandId answer
+        | Recorded movements ->
+            do! sendInOrder port now monthKey movements
+            let! report = reportWith global.Persistence.getConnection (List.head movements).ApplicationId monthKey None
+            return report |> Result.map Ok
     }
 
 /// Verschieben oder Zuweisen von Zu verteilen. Unter der Monats-Sperre: den Monat frisch lesen und relativ dazu
@@ -286,16 +380,15 @@ let moveMoney
     (monthKey: string)
     (request: MoveRequest)
     : Async<Result<Result<ApplyReport, string>, YnabError>> =
-    MonthGuard.exclusive monthKey (async {
+    let answer = decisionAnswer monthKey (moveEventTypes request)
+    MonthGuard.exclusive monthKey (onceFor request.CommandId answer (async {
         match! fetchBudgetMonth port monthKey with
         | Error e -> return Error e
         | Ok month ->
             match planMove month request with
             | Error message -> return Ok (Error message)
-            | Ok plan ->
-                let! report = recordAndSend port now monthKey plan
-                return report |> Result.map Ok
-    })
+            | Ok plan -> return! recordAndSend port now monthKey request.CommandId answer plan
+    }))
 
 /// Zuweisen (ADR 0078): setzt das Zugewiesen absolut. Wie `moveMoney` unter der Monats-Sperre und
 /// mit denselben Fehlerwegen. Der gelesene Wert ist der alte, ein Vergleich mit dem gezeigten Stand
@@ -307,7 +400,8 @@ let assignMoney
     (monthKey: string)
     (request: AssignRequest)
     : Async<Result<Result<ApplyReport, string>, YnabError>> =
-    MonthGuard.exclusive monthKey (async {
+    let answer = decisionAnswer monthKey [ EventTypes.decisionOf MoneyAssigned ]
+    MonthGuard.exclusive monthKey (onceFor request.CommandId answer (async {
         match! fetchBudgetMonth port monthKey with
         | Error e -> return Error e
         | Ok month ->
@@ -320,10 +414,8 @@ let assignMoney
                       Lines = []
                       ActualToBeBudgeted = None }
                 return Ok (Ok unchanged)
-            | Ok (Some plan) ->
-                let! report = recordAndSend port now monthKey plan
-                return report |> Result.map Ok
-    })
+            | Ok (Some plan) -> return! recordAndSend port now monthKey request.CommandId answer plan
+    }))
 
 // ============================================
 // Target pausieren (budgeting-t6p8z, ADR 0073, ADR 0079)
@@ -345,7 +437,18 @@ let setTargetPauseWith
     if not (targetsAllowed (monthKind currentMonth monthKey)) then
         async { return Ok (Error PausePastMonthText) }
     else
-        MonthGuard.exclusive monthKey (async {
+        // Eine Wiederholung antwortet aus dem Ereignis. Der YNAB-Anteil der Pause fehlt darin, der Client liest
+        // den Monat danach ohnehin neu.
+        let expected, answered =
+            match request.Intent with
+            | PauseTarget -> EventTypes.paused, Some PausedInBb
+            | LiftPause -> EventTypes.pauseLifted, None
+        let answer (recorded: EventStore.RecordedEvent) =
+            async {
+                if belongsTo monthKey [ expected ] recorded then return Ok (Ok answered)
+                else return Ok (Error ForeignCommandText)
+            }
+        MonthGuard.exclusive monthKey (onceFor request.CommandId answer (async {
             match! fetchBudgetMonthWithPauses loadPaused port monthKey with
             | Error e -> return Error e
             | Ok (month, pausedInBbRaw) ->
@@ -354,11 +457,11 @@ let setTargetPauseWith
                 | Ok plan ->
                     match plan.Event with
                     | Some event ->
-                        let! _ = recordPause now monthKey plan.Category.Id plan.Category.Name event
-                        ()
-                    | None -> ()
-                    return Ok (Ok plan.After)
-        })
+                        match! recordPause request.CommandId now monthKey plan.Category.Id plan.Category.Name event with
+                        | CommandAlreadyProcessed _ -> return! answerAgain request.CommandId answer
+                        | Recorded _ -> return Ok (Ok plan.After)
+                    | None -> return Ok (Ok plan.After)
+        }))
 
 /// `setTargetPauseWith` mit den Pausen aus der Datenbank der Anwendung.
 let setTargetPause (port: YnabPort) (now: DateTime) (currentMonth: string) (monthKey: string) (request: TargetPauseRequest) =

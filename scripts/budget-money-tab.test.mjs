@@ -207,7 +207,10 @@ test("[flow:geld-zuweisen] Handy, Hauptablauf: Zeile wählen, +20 tippen, weiter
     await page.locator('[data-testid="inspector-next"]').click();
     await page.locator(".bottom-sheet.fixed-height.active").getByRole("heading", { name: "Rot c5w2n" }).waitFor();
     await until(page, () => calls.assign.length === 1);
-    assert.deepEqual(calls.assign, [["2026-11-01", { CategoryId: guid(1), Assigned: { Amount: "920", Currency: "EUR" } }]]);
+    // Die Befehls-Id zieht der Client je Absicht (ADR 0084 Punkt 8), sie ist eine Guid und sonst beliebig.
+    const [[month, { CommandId, ...request }]] = calls.assign;
+    assert.match(CommandId ?? "", /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/, "Befehls-Id");
+    assert.deepEqual([month, request], ["2026-11-01", { CategoryId: guid(1), Assigned: { Amount: "920", Currency: "EUR" } }]);
   } finally {
     await context.close();
   }

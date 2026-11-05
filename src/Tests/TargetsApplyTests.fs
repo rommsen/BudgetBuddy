@@ -219,12 +219,14 @@ type private FakeYnab(initial: (Guid * string * int64 * int64 * bool) list, tbb0
     member val WriteDelayMs = 0 with get, set
     /// Zu verteilen weicht nach jedem Schreiben um diesen Betrag ab (Milliunits).
     member val Drift = 0L with get, set
+    member val Reads = 0 with get, set
     member _.Assigned = assigned
     member _.MaxConcurrent = maxConcurrent.Value
     member _.Port : YnabPort =
         { FetchMonth =
             fun monthKey ->
                 async {
+                    this.Reads <- this.Reads + 1
                     if this.ReadsFailAfterWrite && this.Attempts.Count > 0 then
                         return Error (YnabError.NetworkError "Lesen scheitert")
                     else
@@ -679,7 +681,7 @@ let private wiringTests =
         testCase "Jeder Endpunkt reicht Token und Budget in dieser Reihenfolge an den Port" <| fun () ->
             let f, _ = fake 500000L
             let shown = previewOf f
-            let move : MoveRequest = { Source = ToBeBudgetedSide; Target = CategorySide (Guid.NewGuid()); Amount = eur 1000L }
+            let move : MoveRequest = { Source = ToBeBudgetedSide; Target = CategorySide (Guid.NewGuid()); Amount = eur 1000L; CommandId = None }
             let calls : (string * (Shared.Api.BudgetApi -> unit)) list =
                 [ "getBudgetFrame", fun api -> api.getBudgetFrame () |> run |> ignore
                   "getBudgetMonth", fun api -> api.getBudgetMonth "2026-12-01" |> run |> ignore
@@ -688,9 +690,9 @@ let private wiringTests =
                   "retryFailedTargets", fun api -> api.retryFailedTargets (string (Guid.NewGuid())) |> run |> ignore
                   "moveMoney", fun api -> api.moveMoney "2026-12-01" move |> run |> ignore
                   "assignMoney", fun api ->
-                    api.assignMoney "2026-12-01" { CategoryId = Guid.NewGuid(); Assigned = eur 1000L } |> run |> ignore
+                    api.assignMoney "2026-12-01" { CategoryId = Guid.NewGuid(); Assigned = eur 1000L; CommandId = None } |> run |> ignore
                   "setTargetPause", fun api ->
-                    api.setTargetPause "2026-12-01" { CategoryId = Guid.NewGuid(); Intent = Shared.Budgeting.PauseTarget } |> run |> ignore ]
+                    api.setTargetPause "2026-12-01" { CategoryId = Guid.NewGuid(); Intent = Shared.Budgeting.PauseTarget; CommandId = None } |> run |> ignore ]
             for name, call in calls do
                 let api, seen, _ = apiFor f
                 call api
@@ -701,10 +703,37 @@ let private wiringTests =
             let setting key = async { return (if key = "ynab_token" then Some "das-token" else None) }
             let berlin = TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin"
             let api = Server.Api.liveBudgetApi setting berlin
-            let result = api.assignMoney "2026-12-01" { CategoryId = Guid.NewGuid(); Assigned = eur 1000L } |> run
+            let result = api.assignMoney "2026-12-01" { CategoryId = Guid.NewGuid(); Assigned = eur 1000L; CommandId = None } |> run
             Expect.equal result (Error "Kein Standard-Budget konfiguriert (Settings)") "bis zum Budget gekommen"
+    ]
+
+
+// budgeting-qm5x9, ADR 0084 Punkt 8: Übernehmen mit Befehls-Id in der gezeigten Vorschau.
+let private commandTests =
+    let testCase name body =
+        testCase name (fun () ->
+            Budgeting.Persistence.initializeBudgetingSchema ()
+            body ())
+
+    testSequenced
+    <| testList "Targets anwenden: Befehls-Id" [
+        testCase "GIVEN ein Übernehmen mit Id ist festgehalten WHEN es mit derselben Id wiederkommt THEN liest der Server YNAB nicht, schreibt nichts und antwortet mit denselben Zeilen ohne Zu verteilen" <| fun () ->
+            let f, (a, b, c, d, e) = fake 200000L
+            let shown = { previewOf f with CommandId = Some (Guid.NewGuid()) }
+            let first = applyOk f shown
+            let ids = [ a; b; c; d; e ]
+            let events = BudgetEventsFixture.eventsMentioning ids
+            f.Reads <- 0
+            f.Attempts.Clear()
+            let again = applyOk f shown
+            Expect.equal (BudgetEventsFixture.eventsMentioning ids) events "kein Ereignis"
+            Expect.equal f.Reads 0 "kein FetchMonth"
+            Expect.isEmpty f.Attempts "kein SetAssigned"
+            Expect.equal again.ApplicationId first.ApplicationId "dieselbe Anwendung"
+            Expect.equal again.Lines first.Lines "dieselben Zeilen"
+            Expect.isNone again.ActualToBeBudgeted "Zu verteilen nicht neu gelesen"
     ]
 
 [<Tests>]
 let tests =
-    testList "Targets anwenden (budgeting-h2zfn)" [ planTests; ynabTests; apiTests; flowTests; persistenceTests; lastMonthTests; wiringTests ]
+    testList "Targets anwenden (budgeting-h2zfn)" [ planTests; ynabTests; apiTests; flowTests; persistenceTests; lastMonthTests; wiringTests; commandTests ]

@@ -7,6 +7,12 @@ open Shared.Budgeting
 open Budgeting.Events
 open Budgeting.Persistence
 
+/// Das Festgehaltene; eine schon festgehaltene Befehls-Id ist hier ein Fehler des Testaufbaus.
+let recordedOrFail (result: Recorded<'T>) : 'T =
+    match result with
+    | Recorded value -> value
+    | CommandAlreadyProcessed position -> failwith $"Befehls-Id schon festgehalten an Position {position}"
+
 /// Hält die Zeilen je Gruppen-Id (Reihenfolge der Eingabe) als ein Entscheidungsereignis fest und liefert
 /// die gespeicherten Zeilen in der Reihenfolge der Eingabe. Zeitpunkt, Monat und Herkunft kommen aus der
 /// ersten Zeile einer Gruppe.
@@ -23,7 +29,7 @@ let recordGroups (movements: Movement list) : Movement list =
                       CategoryName = m.CategoryName
                       OldAssigned = m.OldAssigned
                       NewAssigned = m.NewAssigned })
-            let recorded = recordDecision first.OccurredAt first.Month first.Origin lines [] |> Async.RunSynchronously
+            let recorded = recordDecision None first.OccurredAt first.Month first.Origin lines [] |> Async.RunSynchronously |> recordedOrFail
             List.zip group recorded)
         |> Map.ofList
     movements |> List.map (fun m -> Map.find m stored)
@@ -76,3 +82,31 @@ let appendUnreadable (conn: Microsoft.Data.Sqlite.SqliteConnection) (stream: Bud
 /// Hängt ein Ereignis eines unbekannten Typs an einen Budget-Stream.
 let appendUnknown (conn: Microsoft.Data.Sqlite.SqliteConnection) (stream: BudgetStream) : unit =
     appendUnreadable conn stream "TargetQuatschGemacht"
+
+[<CLIMutable>]
+type MentionRow = { position: int64; event_type: string; command_id: string }
+
+/// Typ und Befehls-Id aller Budget-Ereignisse, deren Payload eine der Kategorien nennt, in der Reihenfolge
+/// des Festhaltens (budgeting-qm5x9). Die Kategorien sind je Test frisch, andere Tests stören die Zählung nicht.
+let eventsMentioning (categoryIds: System.Guid list) : (string * string option) list =
+    use conn = global.Persistence.getConnection ()
+    categoryIds
+    |> List.collect (fun id ->
+        Dapper.SqlMapper.Query<MentionRow>(
+            conn,
+            "SELECT position, event_type, COALESCE(command_id, '') AS command_id FROM events WHERE context = 'budgeting' AND payload LIKE @pattern",
+            {| pattern = $"%%{id}%%" |}
+        )
+        |> List.ofSeq)
+    |> List.distinctBy (fun r -> r.position)
+    |> List.sortBy (fun r -> r.position)
+    |> List.map (fun r -> r.event_type, (if r.command_id = "" then None else Some r.command_id))
+
+/// Die Zeilen in `processed_commands` zu einer Befehls-Id.
+let processedCommandRows (commandId: System.Guid) : int64 =
+    use conn = global.Persistence.getConnection ()
+    Dapper.SqlMapper.ExecuteScalar<int64>(
+        conn,
+        "SELECT COUNT(*) FROM processed_commands WHERE command_id = @id",
+        {| id = commandId.ToString "D" |}
+    )

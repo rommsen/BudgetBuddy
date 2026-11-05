@@ -277,6 +277,9 @@ type TargetPreview = {
     ToBeBudgeted: Money
     /// Zu verteilen nach dem Anwenden (Zu verteilen minus Summe), darf negativ sein.
     ToBeBudgetedAfter: Money
+    /// Die Befehls-Id des Übernehmens (ADR 0084 Punkt 8). Die Vorschau liefert `None`, der Client setzt
+    /// sie je Absicht. `previewsMatch` vergleicht sie nicht. Ein alter Client lässt das Feld weg.
+    CommandId: Guid option
 }
 
 /// Stand einer Zeile einer Anwendung (das jüngste Ergebnis).
@@ -345,6 +348,9 @@ type MoveRequest = {
     Target: MoveSide
     /// Positiv, in Euro.
     Amount: Money
+    /// Die Befehls-Id der Absicht (ADR 0084 Punkt 8): eine Wiederholung mit derselben Id verschiebt nicht
+    /// noch einmal. `None` bei einem alten Client.
+    CommandId: Guid option
 }
 
 /// Das Feld Zugewiesen (budgeting-c5w2n, ADR 0078): der fertige Wert, absolut. Der Auftrag trägt
@@ -353,6 +359,9 @@ type AssignRequest = {
     CategoryId: Guid
     /// Das neue Zugewiesen in Euro, negativ ist gültig.
     Assigned: Money
+    /// Die Befehls-Id der Absicht (ADR 0084 Punkt 8): eine verspätete Wiederholung setzt keinen
+    /// späteren Wert zurück. `None` bei einem alten Client.
+    CommandId: Guid option
 }
 
 /// Was ein Auftrag zur Pause will (budgeting-r3wq8): das Target in BB pausieren oder die BB-Pause
@@ -366,6 +375,9 @@ type PauseIntent =
 type TargetPauseRequest = {
     CategoryId: Guid
     Intent: PauseIntent
+    /// Die Befehls-Id der Absicht (ADR 0084 Punkt 8): eine Wiederholung hebt kein späteres Aufheben auf.
+    /// `None` bei einem alten Client.
+    CommandId: Guid option
 }
 
 /// Die Ablehnung im vergangenen Monat (ADR 0073 Punkt 5, `targetsAllowed`). Geprüft an der Grenze und
