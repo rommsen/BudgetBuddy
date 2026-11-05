@@ -320,6 +320,14 @@ type MovePlan = {
     Lines: MoveLine list
 }
 
+/// Die Herkunft eines Verschiebens: zwischen zwei Kategorien eine Verschiebung, mit Zu verteilen auf einer
+/// Seite ein Zuweisen. Die eine Regel für Planung und Befehls-Id.
+let moveOriginOf (request: MoveRequest) : MovementOrigin =
+    match request.Source, request.Target with
+    | CategorySide _, CategorySide _ -> MoneyMoved
+    | ToBeBudgetedSide, _
+    | _, ToBeBudgetedSide -> MoneyAssigned
+
 /// Plant eine Verschiebung relativ zum übergebenen Monat. Zwischen zwei Kategorien entstehen zwei
 /// Zeilen, mit Zu verteilen auf einer Seite eine, denn Zu verteilen ergibt sich aus den
 /// Zuweisungen. Ein negatives neues Zugewiesen ist gültig (die Kategorie lebt vom Vortrag), eine
@@ -369,7 +377,7 @@ let planMove (month: BudgetMonth) (request: MoveRequest) : Result<MovePlan, stri
 
     if List.isEmpty errors then
         Ok
-            { Origin = if lines.Length = 2 then MoneyMoved else MoneyAssigned
+            { Origin = moveOriginOf request
               Lines = lines }
     else
         Error (String.concat " " (List.distinct errors))

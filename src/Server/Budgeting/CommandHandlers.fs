@@ -234,13 +234,9 @@ let private answerAgain
         | None -> return failwith $"Befehls-Id {commandId} als festgehalten gemeldet, ihr Ereignis fehlt"
     }
 
-/// Die Typen des Entscheidungsereignisses, das ein Verschieben festhält: mit Zu verteilen als einer Seite ein
-/// Zuweisen, sonst eine Verschiebung.
+/// Die Typen des Entscheidungsereignisses, das ein Verschieben festhält, nach seiner Herkunft (`moveOriginOf`).
 let private moveEventTypes (request: MoveRequest) : string list =
-    match request.Source, request.Target with
-    | ToBeBudgetedSide, _
-    | _, ToBeBudgetedSide -> [ EventTypes.decisionOf MoneyAssigned ]
-    | _ -> [ EventTypes.decisionOf MoneyMoved ]
+    [ EventTypes.decisionOf (moveOriginOf request) ]
 
 /// Die Kategorie-Seiten eines Verschiebens, erst die Quelle, dann das Ziel.
 let private moveCategories (request: MoveRequest) : Guid list =
