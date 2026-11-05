@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 09:50 -- Task verified and completed: budgeting-r7k2m - "Target-Formular aus dem Tab Target herauslösen, damit die Seite Targets prüfen es im Panel nutzen kann, ohne Verhaltensänderung im Tab"
+
+**Type:** Work / Task completion
+**Task:** budgeting-r7k2m - "Target-Formular aus dem Tab Target herauslösen, damit die Seite Targets prüfen es im Panel nutzen kann, ohne Verhaltensänderung im Tab"
+**Summary:** Target-Formular in Kern TargetFormCore und View TargetFormView herausgelöst, Tab Target unverändert
+**Duration:** 33m
+**Verification:** PASS (iteration 1)
+**Files changed:** 9
+**Tests added:** 2
+**ADRs written:** none
+
+---
+
 ## 2026-11-05 09:24 -- Batch started: [budgeting-p2zr6, budgeting-r7k2m]
 
 **Type:** Work / Batch start

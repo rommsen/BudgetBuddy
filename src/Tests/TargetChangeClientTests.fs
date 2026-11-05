@@ -14,6 +14,7 @@ open Client.DesignSystem
 open Components.Budget.Types
 open Components.Budget.Month
 open Components.Budget.Moves
+open Components.Budget.TargetFormCore
 open Components.Budget.TargetEdit
 
 let private eur (amount: decimal) : Money = { Amount = amount; Currency = "EUR" }

@@ -10,6 +10,7 @@ open Shared.Domain
 open Shared.Budgeting
 open Types
 open Client.DesignSystem
+open Components.Budget.TargetFormCore
 
 /// Stand des Dialogs "Targets anwenden" (budgeting-h2zfn).
 type TargetsState =
@@ -137,43 +138,6 @@ type PauseCall =
     /// Der Server lehnte ab oder der Aufruf brach ab, mit Meldung. Gilt, solange Kategorie und Monat
     /// gezeigt werden.
     | PauseRejected of categoryId: System.Guid * month: string * message: string
-
-/// Was über dem Formular im Tab Target steht, nachdem eine Antwort kam (budgeting-k8wq3).
-type TargetNotice =
-    /// YNAB stand anders als gezeigt: das Formular zeigt den frischen Stand, die Eingabe ist verworfen.
-    | TargetChangedNotice
-    /// Der Server oder YNAB lehnte ab, mit der konkreten Meldung. Die Eingabe bleibt stehen.
-    | TargetRejectedNotice of message: string
-    /// Schritt 1 geschrieben, das Datum nicht (budgeting-g2ty9, X4): ein gelber Hinweis, kein Fehler. Die
-    /// Eingabe mit dem Datum bleibt, Speichern setzt es erneut.
-    | TargetPartlyNotice of message: string
-
-/// Das Formular im Tab Target (budgeting-k8wq3, ADR 0080). Hält Kategorie und Monat: es gilt nur, solange
-/// beide gezeigt werden und der Monat der laufende ist (`syncTargetForm`). Ein Wechsel verwirft die Eingabe.
-type TargetForm = {
-    CategoryId: System.Guid
-    Month: string
-    /// Eingabe im Betragsfeld. `None`, solange nichts getippt wurde: dann gilt das geladene Target.
-    AmountInput: string option
-    /// Eingabe im Datumsfeld. `None`, solange nichts geändert wurde: dann gilt das Datum des Targets.
-    DateInput: DateField.DateEntry option
-    /// "Target entfernen" wurde getippt, die Bestätigung steht offen.
-    ConfirmingRemove: bool
-    Notice: TargetNotice option
-    /// Der gewählte Rhythmus im `Segmented` (budgeting-xp46a). `None`, solange nichts gewählt wurde: dann gilt
-    /// der gelesene Rhythmus, beim Anlegen monatlich.
-    RhythmInput: TargetFrequency option
-    /// Ein Wechsel der Art mit Verlusten wurde gespeichert, die Warnung steht offen (budgeting-xp46a).
-    ConfirmingChange: bool
-}
-
-/// Was der laufende Aufruf im Tab Target tut (budgeting-g2ty9, F1): der Spinner steht nur am Knopf, der
-/// ihn ausgelöst hat.
-type TargetAction =
-    /// "Target speichern", "Target anlegen" oder "Wechseln" in der Warnung.
-    | SavingTarget
-    /// "Entfernen" in der Bestätigung von "Target entfernen".
-    | RemovingTarget
 
 /// Der Aufruf Target ändern oder entfernen. Trägt Kategorie und Monat: die Antwort wirkt nur auf sie.
 /// Er sperrt weder Auswahl noch Monatswechsel.

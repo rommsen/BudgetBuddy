@@ -12,8 +12,8 @@ Catalog of this bounded context's tasks by status.
 <!-- task-counts:start -->
 - **Backlog:** 8
 - **Todo:** 0
-- **Doing:** 2
-- **Done:** 37
+- **Doing:** 1
+- **Done:** 38
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,12 +22,12 @@ Catalog of this bounded context's tasks by status.
 
 ### Doing
 <!-- doing-list:start -->
-- **budgeting-r7k2m** — "Target-Formular aus dem Tab Target herauslösen, damit die Seite Targets prüfen es im Panel nutzen kann, ohne Verhaltensänderung im Tab" (refactor) — `doing/budgeting-r7k2m-target-formular-herausloesen.md`
 - **budgeting-p2zr6** — "Targets prüfen, Regel und Daten: reine Einordnungsfunktion in Shared.Budgeting und Endpoint getTargetCheck mit einer Kassenbuch-Abfrage für alle Kategorien und der letzten Target-Änderung je Kategorie" (feature) — `doing/budgeting-p2zr6-passt-das-target-noch.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **budgeting-r7k2m** — "Target-Formular aus dem Tab Target herauslösen, damit die Seite Targets prüfen es im Panel nutzen kann, ohne Verhaltensänderung im Tab" (refactor) — `done/budgeting-r7k2m-target-formular-herausloesen.md`
 - **budgeting-m4v8t** — "pauseNeedsReread: im erreichbaren Zustand gedeckte Bedingungen streichen oder benennen" (chore) — `done/budgeting-m4v8t-pauseneedsreread-im-erreichbaren-zustand-gedeckte-bedingunge.md`
 - **budgeting-n7h3x** — "Laufende Pause oder laufendes Target-Speichern einer anderen Kategorie sperrt den gleichen Knopf ohne sichtbaren Grund" (bug) — `done/budgeting-n7h3x-laufende-pause-oder-laufendes-target-speichern-einer-anderen.md`
 - **budgeting-f8w2n** — "Target und Pause sperren sich nur je Kategorie mit sichtbarem Grund, Meldung ohne Target nach Schritt 1, Testlücken aus den Reviews zu c2t9w" (bug) — `done/budgeting-f8w2n-sperren-je-kategorie-und-testluecken.md`
