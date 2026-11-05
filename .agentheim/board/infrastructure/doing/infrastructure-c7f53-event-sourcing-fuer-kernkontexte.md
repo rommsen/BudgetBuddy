@@ -1,7 +1,7 @@
 ---
 id: infrastructure-c7f53
 title: "Event Sourcing für die Kernkontexte ledger und budgeting mit gemeinsamem Ereignis-Umschlag; Reports als Read Models darauf, alles andere bleibt Zustand"
-status: todo
+status: doing
 type: decision
 context: infrastructure
 created: 2026-11-05

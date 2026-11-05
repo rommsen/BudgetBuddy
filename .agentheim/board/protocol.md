@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 11:46 -- Batch started: [infrastructure-c7f53]
+
+**Type:** Work / Batch start
+**Tasks:** infrastructure-c7f53 - "Event Sourcing für die Kernkontexte ledger und budgeting mit gemeinsamem Ereignis-Umschlag; Reports als Read Models darauf, alles andere bleibt Zustand"
+**Parallel:** no (1 worker), einziger bereiter Task
+
+---
+
 ## 2026-11-05 11:45 -- Modeling / Demoted: infrastructure-hwfkn, infrastructure-jsys4
 
 **Type:** Modeling / Demote (von Hand, kein CLI-Verb)
