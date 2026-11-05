@@ -84,6 +84,15 @@ Entschieden (Roman hat die Entscheidung am 2026-11-04 übertragen):
 - "Alle n Monate" und andere nicht herstellbare Rhythmen bleiben wie bisher nur lesbar.
 - Ein Sparziel, das von selbst endet, kommt mit BB als führendem System (Stufe 3), nicht über YNAB.
 
+## Nachtrag 2026-11-05: Probe zu Punkt 6 bestanden
+Roman hat im Budget Test von Hand ein monatliches Target mit Tag angelegt (am 6. jedes Monats,
+Kategorie Phone & Internet). Der Integrationstest "Ein Monats-Target mit Tag behält Tag, Kadenz
+und Datum, wenn nur goal_target gesendet wird (Budget Test)" in `src/Tests/YnabIntegrationTests.fs`
+lief am 2026-11-05 gegen YNAB grün: Nach einem `PATCH` nur mit `goal_target` (Betrag plus 1 €)
+waren Tag, Kadenz, `goal_needs_whole_amount` und Datum unverändert. Der alte Betrag wurde danach
+wieder gesetzt. Die Vorbedingung aus Punkt 6 ist damit erfüllt. Die Beobachtung zum Vormonat
+sagt nichts: `goal_under_funded` für Oktober war vorher und nachher leer.
+
 ## Alternatives considered
 - **BB führt die Targets schon jetzt.** Verworfen: BB müsste den Fehlbetrag selbst rechnen,
   und YNAB würde Tag und Rhythmus nicht mitnehmen.
