@@ -179,6 +179,20 @@ Die Ergebnis-Ereignisse (`AssignmentWrittenBackToYnab`, `AssignmentWriteBackFail
   des Repos. Abnahme: Vorher-nachher-Vergleich von "Zuletzt verwendet", den Historien, den Pausen
   und der letzten Target-Änderung.
 
+**Nachtrag 2026-11-05 (budgeting-hyn77, umgesetzt):**
+- Gruppen-Id: Migrierte Entscheidungen, Pausen und Target-Änderungen behalten ihre alte Id als
+  `event_id`. Die `applicationId` steht deshalb nicht im Payload (abweichend von Punkt 2), alte
+  Verweise bleiben über die `event_id` lesbar. Zeilen tragen `lineId` und den Kategorienamen.
+- Weitere Abbruchregeln: eine Anwendung mit mehreren Zeitpunkten, eine Kategorie doppelt in einer
+  Anwendung, Zuweisen mit mehr als einer Zeile, Verschieben ohne genau eine sinkende Quelle, ein
+  Monat nicht in der Form `YYYY-MM-01`. Die alten Schreibwege konnten keine davon verletzen.
+- Bei gleichem `occurred_at` und gleichem Rang ordnet eine feste Tabellenfolge vor der `rowid`.
+- Die Rasterprüfung aus Punkt 3 läuft in der Migration nicht: Migrierte Ereignisse sind Historie
+  und gehen nicht in die Faltung.
+- Altbestand `changed-in-ynab` wird `AssignmentWriteBackSupersededInYnab`; neue ungesendete
+  Schließungen beim erneuten Senden schreiben `AssignmentWriteBackWithdrawn`.
+- Die Probe gegen eine Kopie der Produktion vor dem Deploy war in allen Punkten grün.
+
 ### 5. Übernahme
 
 Entschieden von Roman am 2026-11-05.

@@ -113,7 +113,7 @@ type YnabMonth = {
 
 /// Wo die Pause eines Targets im Monat gesetzt ist (ADR 0073 Punkt 2, ADR 0079). In YNAB heißt:
 /// `goal_snoozed_at` ist gesetzt, die Pause lässt sich nur dort aufheben. In BB heißt: das jüngste
-/// Ereignis in `target_pause_events` für Kategorie und Monat ist "Pausiert".
+/// Pause-Ereignis für Kategorie und Monat ist `TargetPaused`.
 type PauseSource =
     | PausedInYnab
     | PausedInBb
@@ -572,7 +572,7 @@ type MonthSpending = {
     Activity: Money
 }
 
-/// Ein Pause-Ereignis aus `target_pause_events` (budgeting-t6p8z). Es geht nicht nach YNAB.
+/// Ein Pause-Ereignis (budgeting-t6p8z). Es geht nicht nach YNAB.
 type HistoryPause = {
     EventId: Guid
     /// Zeitpunkt des Festhaltens, UTC.
@@ -669,7 +669,7 @@ let targetMonthRefusalText (request: TargetChangeRequest) : string =
     | None, Some _ -> TargetCreateMonthText
     | _ -> TargetEditMonthText
 
-/// Eine festgehaltene Target-Änderung aus `target_changes`, mit dem jüngsten Ergebnis je Schritt (ADR 0080
+/// Eine festgehaltene Target-Änderung (`YnabGoalChangedFromBb`), mit dem jüngsten Ergebnis je Schritt (ADR 0080
 /// Punkt 2 und 4, budgeting-g2ty9 X7). Keine Budget-Bewegung: das Zugewiesen bleibt.
 type HistoryTargetChange = {
     ChangeId: Guid

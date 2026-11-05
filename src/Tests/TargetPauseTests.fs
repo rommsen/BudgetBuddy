@@ -186,17 +186,22 @@ let private pauseOk f month id intent : PauseSource option =
     | Ok (Ok result) -> result
     | other -> failtest $"Ok erwartet: {other}"
 
+/// Die Pause-Ereignisse der Kategorie aus `events` (budgeting-hyn77): Monat "YYYY-MM-01" und die Art als
+/// deutscher Text, in der Reihenfolge des Festhaltens.
 let private eventRows (id: Guid) : (string * string) list =
     use conn = global.Persistence.getConnection ()
-    Dapper.SqlMapper.Query<string>(
-        conn,
-        "SELECT month || '|' || kind FROM target_pause_events WHERE category_id = @id ORDER BY rowid",
-        {| id = string id |})
-    |> Seq.map (fun row ->
-        match row.Split '|' with
-        | [| month; kind |] -> month, kind
-        | _ -> failtest $"Zeile {row}")
-    |> Seq.toList
+    match Budgeting.Persistence.loadBudgetEventsOn conn None with
+    | Error message -> failtest message
+    | Ok events ->
+        events
+        |> List.sortBy (fun e -> e.OccurredAt, e.StreamVersion)
+        |> List.choose (fun e ->
+            match e.Event with
+            | Budgeting.Events.BudgetEvent.TargetPaused p when p.CategoryId = id ->
+                Some (Budgeting.Events.monthKeyOfId p.Month, Domain.pauseKindText Domain.PauseKind.Paused)
+            | Budgeting.Events.BudgetEvent.TargetPauseLifted p when p.CategoryId = id ->
+                Some (Budgeting.Events.monthKeyOfId p.Month, Domain.pauseKindText Domain.PauseKind.PauseLifted)
+            | _ -> None)
 
 let private monthOk (f: FakeYnab) (month: string) : BudgetMonth =
     match QueryHandlers.budgetMonth f.Port month |> run with
@@ -326,13 +331,15 @@ let private flowTests =
                   CategoryName = "Ausflug"
                   OldAssigned = 0L
                   NewAssigned = 10000L }
-            let event hour kind (month: string) : Budgeting.Persistence.PauseEvent =
-                { Id = Guid.NewGuid(); OccurredAt = at hour; Month = month; CategoryId = k; CategoryName = "Ausflug"; Kind = kind }
-            let m1, m3 = movement 1, movement 3
-            let p2, p4 = event 2 Domain.PauseKind.Paused current, event 4 Domain.PauseKind.PauseLifted current
-            Budgeting.Persistence.appendMovements [ m1; m3 ] |> run
-            for e in [ p2; p4; event 5 Domain.PauseKind.Paused "2026-12-01" ] do
-                Budgeting.Persistence.appendPauseEvent e |> run
+            let event hour kind (month: string) : Guid =
+                Budgeting.Persistence.recordPause (at hour) month k "Ausflug" kind |> run
+            let m1, m3 =
+                match BudgetEventsFixture.recordGroups [ movement 1; movement 3 ] with
+                | [ a; b ] -> a, b
+                | other -> failtest $"zwei Zeilen erwartet, kamen {List.length other}"
+            let p2 = event 2 Domain.PauseKind.Paused current
+            let p4 = event 4 Domain.PauseKind.PauseLifted current
+            event 5 Domain.PauseKind.Paused "2026-12-01" |> ignore
             let port = { QueryHandlers.liveHistoryPort with LoadMonthlyActivity = fun _ _ -> async { return [] } }
             match QueryHandlers.categoryHistory port k (DateTime(2026, 11, 1)) |> run with
             | Ok history ->
@@ -343,7 +350,7 @@ let private flowTests =
                         | TargetPaused p -> "pausiert", p.EventId
                         | PauseLifted p -> "aufgehoben", p.EventId
                         | TargetChanged c -> "Target", c.ChangeId)
-                Expect.equal ids [ "aufgehoben", p4.Id; "Bewegung", m3.Id; "pausiert", p2.Id; "Bewegung", m1.Id ] "gemischt, neueste zuerst"
+                Expect.equal ids [ "aufgehoben", p4; "Bewegung", m3.Id; "pausiert", p2; "Bewegung", m1.Id ] "gemischt, neueste zuerst"
             | Error e -> failtest e
 
         // budgeting-r3wq8, Bug: Aufheben verlangte ein Target. Wurde das Target nach dem Pausieren entfernt,
@@ -377,24 +384,28 @@ let private flowTests =
             | other -> failtest $"Lesefehler erwartet: {other}"
             Expect.isEmpty (eventRows k) "keine Zeile"
 
-        // budgeting-r3wq8: eine unbekannte Art in target_pause_events ist ein Lesefehler mit Text, in der
-        // Historie ein Fehler. Ein eigener Monat, damit die kaputte Zeile keinen anderen Test trifft.
+        // budgeting-r3wq8: ein nicht lesbares Pause-Ereignis ist ein Lesefehler mit Text, in der Historie ein
+        // Fehler. Eine eigene Datenbank, damit das kaputte Ereignis keinen anderen Test trifft (budgeting-hyn77).
         // budgeting-c6vn4 (P1): verhindert, dass ein BB-eigener Lesefehler als "YNAB hat abgelehnt: ..." beim
         // Nutzer ankommt. Beim Monat und beim Pausieren ist er ein `LocalReadFailed`.
         testCase "Pausen nicht lesbar: Monat, Pausieren und Historie melden den Fehler als BB-Lesefehler" <| fun () ->
             let month = "2093-07-01"
             let f, k = fakeWith false
-            use conn = global.Persistence.getConnection ()
-            Dapper.SqlMapper.Execute(
-                conn,
-                "INSERT INTO target_pause_events (id, occurred_at, month, category_id, category_name, kind) VALUES (@id, '2026-11-04', @month, @k, 'X', 'Quatsch')",
-                {| id = string (Guid.NewGuid()); month = month; k = string k |})
-            |> ignore
+            let anchor, connect = BudgetEventsFixture.isolatedDb ()
+            use _ = anchor
+            BudgetEventsFixture.appendUnknown anchor (Budgeting.Events.MonthStream "2093-07")
+            let loadPaused = Budgeting.Persistence.loadPausedCategoriesWith connect
             let unreadable = YnabError.LocalReadFailed "Pausen nicht lesbar"
-            Expect.equal (QueryHandlers.budgetMonth f.Port month |> run) (Error unreadable) "Monat"
+            Expect.equal (QueryHandlers.budgetMonthOfWith loadPaused f.Port.FetchMonth month |> run) (Error unreadable) "Monat"
             Expect.equal (ynabErrorText unreadable) "BB-Daten nicht lesbar: Pausen nicht lesbar" "Text für den Nutzer"
-            Expect.equal (setTargetPause f.Port now current month { CategoryId = k; Intent = PauseTarget } |> run) (Error unreadable) "Pausieren"
-            let port = { QueryHandlers.liveHistoryPort with LoadMonthlyActivity = fun _ _ -> async { return [] } }
+            Expect.equal
+                (setTargetPauseWith loadPaused f.Port now current month { CategoryId = k; Intent = PauseTarget } |> run)
+                (Error unreadable)
+                "Pausieren"
+            let port =
+                { QueryHandlers.liveHistoryPort with
+                    LoadMonthlyActivity = fun _ _ -> async { return [] }
+                    LoadPauseEvents = Budgeting.Persistence.loadPauseEventsWith connect }
             Expect.equal (QueryHandlers.categoryHistory port k (DateTime(2093, 7, 1)) |> run) (Error "Pause-Ereignisse nicht lesbar") "Historie"
     ]
 
@@ -403,56 +414,33 @@ let private persistenceTests =
         testCase name (fun () ->
             Budgeting.Persistence.initializeBudgetingSchema ()
             body ())
-    let tryExec (sql: string) =
-        use conn = global.Persistence.getConnection ()
-        try
-            Dapper.SqlMapper.Execute(conn, sql) |> ignore
-            None
-        with ex -> Some ex.Message
     testSequenced
     <| testList "Pause: Persistenz" [
-        testCase "Pause-Ereignisse sind append-only, das Schema läuft zweimal" <| fun () ->
+        testCase "Das Schema läuft zweimal, eine festgehaltene Pause bleibt" <| fun () ->
             Budgeting.Persistence.initializeBudgetingSchema ()
             let k = Guid.NewGuid()
-            Budgeting.Persistence.appendPauseEvent
-                { Id = Guid.NewGuid(); OccurredAt = now; Month = current; CategoryId = k; CategoryName = "A"; Kind = Domain.PauseKind.Paused }
-            |> run
-            let rejected (sql: string) =
-                match tryExec sql with
-                | Some message -> Expect.stringContains message "target_pause_events ist append-only" "vom Trigger abgewiesen"
-                | None -> failtest $"abgewiesen erwartet: {sql}"
-            rejected $"UPDATE target_pause_events SET kind = 'Aufgehoben' WHERE category_id = '{k}'"
-            rejected $"DELETE FROM target_pause_events WHERE category_id = '{k}'"
-            Expect.equal (Budgeting.Persistence.loadPausedCategories current |> run |> Result.map (Set.contains k)) (Ok true) "unverändert pausiert"
+            Budgeting.Persistence.recordPause now current k "A" Domain.PauseKind.Paused |> run |> ignore
+            Budgeting.Persistence.initializeBudgetingSchema ()
+            Expect.equal (Budgeting.Persistence.loadPausedCategories current |> run |> Result.map (Set.contains k)) (Ok true) "pausiert"
 
-        testCase "Eine unbekannte Art beim Lesen wird gemeldet, nicht auf einen Standard gelegt" <| fun () ->
-            let month = $"unbekannt-{Guid.NewGuid()}"
-            Expect.isNone
-                (tryExec $"INSERT INTO target_pause_events (id, occurred_at, month, category_id, category_name, kind) VALUES ('{Guid.NewGuid()}', '2026-11-04', '{month}', '{Guid.NewGuid()}', 'X', 'Quatsch')")
-                "eingefügt"
-            Expect.equal (Budgeting.Persistence.loadPausedCategories month |> run) (Error "Pausen nicht lesbar") "unbekannte Art"
+        // budgeting-hyn77: ein unbekannter Ereignistyp im Monats-Stream wird gemeldet, nicht übersprungen.
+        testCase "Ein unbekannter Ereignistyp beim Lesen wird gemeldet, nicht übersprungen" <| fun () ->
+            let anchor, connect = BudgetEventsFixture.isolatedDb ()
+            use _ = anchor
+            Budgeting.Persistence.recordPauseOn anchor now current (Guid.NewGuid()) "A" Domain.PauseKind.Paused |> ignore
+            BudgetEventsFixture.appendUnknown anchor (Budgeting.Events.MonthStream "2026-11")
+            Expect.equal (Budgeting.Persistence.loadPausedCategoriesWith connect current |> run) (Error "Pausen nicht lesbar") "unbekannter Typ"
 
-        testCase "Ein alter Eintrag Fortgesetzt hebt die Pause auf und steht in der Historie als Aufheben" <| fun () ->
-            let month = "2092-02-01"
-            let k = Guid.NewGuid()
-            for kind in [ "Pausiert"; "Fortgesetzt" ] do
-                Expect.isNone
-                    (tryExec $"INSERT INTO target_pause_events (id, occurred_at, month, category_id, category_name, kind) VALUES ('{Guid.NewGuid()}', '2026-11-04T09:00:00.0000000Z', '{month}', '{k}', 'A', '{kind}')")
-                    "eingefügt"
-            Expect.equal (Budgeting.Persistence.loadPausedCategories month |> run |> Result.map (Set.contains k)) (Ok false) "aufgehoben"
-            match Budgeting.Persistence.loadPauseEvents k month |> run with
-            | Ok [ PauseLifted _; TargetPaused _ ] -> ()
-            | other -> failtest $"Aufheben und Pausieren erwartet: {other}"
-
-        // budgeting-r3wq8: Stand und Historie ordnen das jüngste Ereignis gleich, nach rowid. Ein späteres
-        // Ereignis mit früherer Uhrzeit (Uhr verstellt) ist trotzdem das jüngste.
+        // budgeting-r3wq8: Stand und Historie ordnen das jüngste Ereignis gleich, nach der Reihenfolge des
+        // Festhaltens (`stream_version`). Ein späteres Ereignis mit früherer Uhrzeit (Uhr verstellt) ist
+        // trotzdem das jüngste.
         testCase "Stand und Historie nehmen dasselbe jüngste Ereignis, auch bei verstellter Uhr" <| fun () ->
             let month = "2092-03-01"
             let k = Guid.NewGuid()
-            let event hour kind : Budgeting.Persistence.PauseEvent =
-                { Id = Guid.NewGuid(); OccurredAt = DateTime(2026, 11, 4, hour, 0, 0, DateTimeKind.Utc); Month = month; CategoryId = k; CategoryName = "A"; Kind = kind }
-            Budgeting.Persistence.appendPauseEvent (event 10 Domain.PauseKind.Paused) |> run
-            Budgeting.Persistence.appendPauseEvent (event 9 Domain.PauseKind.PauseLifted) |> run
+            let event hour kind =
+                Budgeting.Persistence.recordPause (DateTime(2026, 11, 4, hour, 0, 0, DateTimeKind.Utc)) month k "A" kind |> run |> ignore
+            event 10 Domain.PauseKind.Paused
+            event 9 Domain.PauseKind.PauseLifted
             Expect.equal (Budgeting.Persistence.loadPausedCategories month |> run |> Result.map (Set.contains k)) (Ok false) "Stand: aufgehoben"
             match Budgeting.Persistence.loadPauseEvents k month |> run with
             | Ok (PauseLifted _ :: _) -> ()
@@ -497,7 +485,11 @@ let private boundaryTests =
             Expect.equal (api.setTargetPause "2026-11-01" (request k) |> run) (Error PausePastMonthText) "November vergangen"
             Expect.equal (api.setTargetPause "2026-12-01" (request k) |> run) (Ok (Some PausedInBb)) "Dezember pausiert"
             use conn = global.Persistence.getConnection ()
-            let stamped = Dapper.SqlMapper.ExecuteScalar<string>(conn, "SELECT occurred_at FROM target_pause_events WHERE category_id = @id", {| id = string k |})
+            let stamped =
+                Dapper.SqlMapper.ExecuteScalar<string>(
+                    conn,
+                    "SELECT occurred_at FROM events WHERE context = 'budgeting' AND event_type = 'TargetPaused' AND payload LIKE @id",
+                    {| id = $"%%{k}%%" |})
             Expect.stringStarts stamped "2026-11-30T23:30" "mit der Uhr gestempelt"
         }
     ]

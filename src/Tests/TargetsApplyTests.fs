@@ -297,10 +297,13 @@ let private applyOk (f: FakeYnab) (shown: TargetPreview) : ApplyReport =
     | Ok (Applied r) -> r
     | other -> failtest $"Applied erwartet: {other}"
 
+/// Die festgehaltenen Zeilen der Kategorien über alle Monate, gelesen wie die Historie.
 let private movementRows (ids: Guid list) : int =
-    use conn = global.Persistence.getConnection ()
-    let sql = "SELECT COUNT(*) FROM budget_movements WHERE category_id IN (" + (ids |> List.map (fun i -> $"'{i}'") |> String.concat ",") + ")"
-    Dapper.SqlMapper.ExecuteScalar<int>(conn, sql)
+    ids
+    |> List.sumBy (fun id ->
+        match Budgeting.Persistence.loadMovements { CategoryId = Some id; Month = None; Origin = None } |> Async.RunSynchronously with
+        | Ok found -> found.Length
+        | Error message -> failtest message)
 
 let private outcomeOf (report: ApplyReport) (id: Guid) =
     (report.Lines |> List.find (fun l -> l.CategoryId = id)).Outcome
@@ -496,51 +499,47 @@ let private persistenceTests =
           OldAssigned = 0L
           NewAssigned = 50000L }
 
-    let tryExec (sql: string) =
-        use conn = global.Persistence.getConnection ()
-        try
-            Dapper.SqlMapper.Execute(conn, sql) |> ignore
-            None
-        with ex -> Some ex.Message
+    let record (m: Budgeting.Persistence.Movement) =
+        match BudgetEventsFixture.recordGroups [ m ] with
+        | [ stored ] -> stored
+        | other -> failtest $"eine Zeile erwartet, kamen {List.length other}"
 
     testSequenced
     <| testList "Budget-Bewegungen: Persistenz (h2zfn)" [
         testCase "Eine Bewegung trägt Zeitpunkt, Herkunft, Monat, Kategorie, altes und neues Zugewiesen" <| fun () ->
             let m = movement ()
-            Budgeting.Persistence.appendMovements [ m ] |> run
-            let loaded = loadedOk m.ApplicationId
-            Expect.equal (loaded |> List.map (fun s -> s.Movement)) [ m ] "unverändert gelesen"
+            let stored = record m
+            let loaded = loadedOk stored.ApplicationId
+            Expect.equal
+                (loaded |> List.map (fun s -> s.Movement))
+                [ { m with Id = stored.Id; ApplicationId = stored.ApplicationId } ]
+                "unverändert gelesen, Ids vom Schreiben"
             Expect.equal loaded.Head.Latest None "noch kein Ergebnis"
 
-        testCase "Bewegungen sind nach dem Schreiben nicht veränderbar" <| fun () ->
-            let m = movement ()
-            Budgeting.Persistence.appendMovements [ m ] |> run
-            Expect.isSome (tryExec $"UPDATE budget_movements SET new_assigned = 1 WHERE id = '{m.Id}'") "UPDATE abgewiesen"
-            Expect.isSome (tryExec $"DELETE FROM budget_movements WHERE id = '{m.Id}'") "DELETE abgewiesen"
-            Expect.equal (loadedOk m.ApplicationId |> List.map (fun s -> s.Movement)) [ m ] "unverändert"
-
+        // budgeting-hyn77: jedes Ergebnis ist ein eigenes Ereignis im Monats-Stream.
         testCase "Ergebnisse werden nur angehängt, das jüngste ist der Stand" <| fun () ->
-            let m = movement ()
-            Budgeting.Persistence.appendMovements [ m ] |> run
-            Budgeting.Persistence.appendResult m.Id now (Failed "boom") |> run
-            Budgeting.Persistence.appendResult m.Id now Written |> run
+            let m = record (movement ())
+            BudgetEventsFixture.recordResult m now (Failed "boom")
+            BudgetEventsFixture.recordResult m now Written
             let state = loadedOk m.ApplicationId |> List.head
             Expect.equal state.Latest (Some Written) "jüngstes Ergebnis"
             use conn = global.Persistence.getConnection ()
-            let rows = Dapper.SqlMapper.ExecuteScalar<int>(conn, $"SELECT COUNT(*) FROM budget_movement_results WHERE movement_id = '{m.Id}'")
-            Expect.equal rows 2 "beide Zeilen bleiben stehen"
-            Expect.isSome (tryExec "UPDATE budget_movement_results SET status = 'written'") "UPDATE abgewiesen"
-            Expect.isSome (tryExec "DELETE FROM budget_movement_results") "DELETE abgewiesen"
+            let rows =
+                Dapper.SqlMapper.ExecuteScalar<int>(
+                    conn,
+                    "SELECT COUNT(*) FROM events WHERE context = 'budgeting' AND stream_id = 'budgeting:month:2026-11' \
+                     AND event_type IN ('AssignmentWriteBackFailed', 'AssignmentWrittenBackToYnab') AND payload LIKE @id",
+                    {| id = $"%%{m.ApplicationId}%%" |})
+            Expect.equal rows 2 "beide Ergebnisse bleiben stehen"
 
-        testCase "Der Grund eines Fehlschlags bleibt erhalten, ChangedInYnab hat keinen" <| fun () ->
-            let m1, m2 = movement (), { movement () with ApplicationId = Guid.NewGuid() }
-            Budgeting.Persistence.appendMovements [ m1; m2 ] |> run
-            Budgeting.Persistence.appendResult m1.Id now (Failed "Rate-Limit") |> run
-            Budgeting.Persistence.appendResult m2.Id now ChangedInYnab |> run
-            let l1 = loadedOk m1.ApplicationId |> List.head
-            let l2 = loadedOk m2.ApplicationId |> List.head
-            Expect.equal l1.Latest (Some (Failed "Rate-Limit")) "Grund"
-            Expect.equal l2.Latest (Some ChangedInYnab) "in YNAB geändert"
+        testCase "Der Grund eines Fehlschlags bleibt erhalten, ersetzt und zurückgezogen lesen sich als in YNAB geändert" <| fun () ->
+            let m1, m2, m3 = record (movement ()), record (movement ()), record (movement ())
+            Budgeting.Persistence.recordWriteBack m1 now (Budgeting.Events.WriteBackFailed "Rate-Limit") |> run
+            Budgeting.Persistence.recordWriteBack m2 now Budgeting.Events.SupersededInYnab |> run
+            Budgeting.Persistence.recordWriteBack m3 now Budgeting.Events.Withdrawn |> run
+            Expect.equal (loadedOk m1.ApplicationId |> List.head).Latest (Some (Failed "Rate-Limit")) "Grund"
+            Expect.equal (loadedOk m2.ApplicationId |> List.head).Latest (Some ChangedInYnab) "in YNAB geändert"
+            Expect.equal (loadedOk m3.ApplicationId |> List.head).Latest (Some ChangedInYnab) "zurückgezogen"
     ]
 
 // budgeting-et7z8: im letzten Monat kein Targets anwenden. Der Port zählt jedes Lesen

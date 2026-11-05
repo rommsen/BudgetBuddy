@@ -1,7 +1,7 @@
 ---
 id: budgeting-hyn77
 title: "Budget-Ereignistypen mit Codec und Startmigration der fünf Budget-Tabellen nach events, Schreibwege und Leser umgestellt, Verhalten unverändert"
-status: doing
+status: done
 type: feature
 context: budgeting
 created: 2026-11-05
@@ -154,3 +154,42 @@ mit budgeting-dgrp7 und budgeting-eh8xe, nicht hier (kein Typ ohne Schreiber).
 - Der Zustand (Soll, Regeln, Pausen) beginnt erst mit der Übernahme (budgeting-dgrp7,
   budgeting-eh8xe); migrierte Ereignisse sind Historie.
 - Nach dem Deploy greift ein Rollback nur über das Backup (restic, nächtlich).
+
+## Outcome
+
+Die Budget-Aufzeichnungen liegen in `events` (Kontext `budgeting`, ADR 0083/0084). `./verify.sh` im Worktree: `VERIFY: PASS` (dotnet 3976 grün, 13 opt-in übersprungen, nur Listen "(requires .env)"; node 310 grün).
+
+**Ereignistypen und Codec** (`src/Server/Budgeting/Events.fs`): die 13 Typen aus der Task-Tabelle als `BudgetEvent` (qualifiziert), Thoth-Codec in camelCase, Milliunits als JSON-Zahl, Schema-Version 1, Actor je Typ. Eine Funktion `monthIdOf` baut `YYYY-MM` aus `YYYY-MM-01`, `streamIdOf` baut `budgeting:month:<YYYY-MM>` und `budgeting:target:<categoryId>` über `EventStore.streamIdOf`. `WriteBackOutcome` (WrittenBack, WriteBackFailed, SupersededInYnab, Withdrawn), Leser bilden Superseded und Withdrawn auf `ChangedInYnab` ab.
+
+**Startmigration** (`src/Server/Budgeting/EventMigration.fs`, `migrateBudgetEventsOn`): läuft in `initializeBudgetingSchema` nach `EventStore.createSchemaOn` auf derselben Connection, nur wenn eine der fünf Tabellen existiert; eine Transaktion, ein Execute mit Parameter-Array, `occurred_at` als unveränderter Text, danach `DROP TABLE` der fünf (Indizes und Trigger gehen mit). Gruppen-Id = alte `application_id`, `lineId` = alte Bewegungs-Id, Pause- und Change-Id = `event_id`. Reihenfolge je Stream: `occurred_at` (ordinal als Text), Entscheidung vor Ergebnis, dann eine feste Tabellenfolge, dann rowid. Abbruchregeln wie im Task, dazu fünf zusätzliche, die die Abbildung sonst verfälschen würden: Zeilen einer Anwendung mit verschiedenem `occurred_at`, eine Kategorie zweimal in einer Anwendung, Zuweisen mit mehr als einer Zeile, Verschieben ohne genau eine sinkende Quelle, Monat nicht im Format `YYYY-MM-01`. `initializeBudgetingSchema` legt die Tabellen nicht mehr an, `migrateTargetChangeColumns` ist entfallen.
+
+**Schreibwege und Leser** (`src/Server/Budgeting/Persistence.fs`, `CommandHandlers.fs`): `recordDecision`, `recordWriteBack`, `recordPause`, `recordTargetChange`, `recordTargetChangeStepResult` (je mit `...On conn`) hängen über `EventStore.appendOn` an; die Gruppen-Id neuer Entscheidungen ist die zurückgegebene `event_id`. `retryFailed` schreibt bei der Quelle vor verlorenem Ziel und beim Ziel nach verlorener Quelle `AssignmentWriteBackWithdrawn`, beim echten `YnabWins` `AssignmentWriteBackSupersededInYnab`. Alle Leser (`queryMovements`, `queryRecentCategories`, `queryPausedCategories`, `queryPauseEvents`, `queryTargetChanges`, `queryLastTargetChanges`, `queryApplication`) lesen über `loadBudgetEventsOn` mit `context = 'budgeting'` und optional `stream_id`, decodieren jedes Ereignis (unbekannter Typ wird `Error`) und sortieren nach `occurred_at`/`stream_version`. `queryRecentCategories` liefert jetzt `Result`. Für Tests mit einem nicht lesbaren Ereignis auf eigener Datenbank kamen `loadPausedCategoriesWith`, `loadPauseEventsWith`, `loadTargetChangesWith`, `loadMovementsWith`, `QueryHandlers.budgetMonthOfWith` und `CommandHandlers.setTargetPauseWith` dazu; die bisherigen Namen sind Einzeiler auf die Datenbank der Anwendung (ein kaputtes Ereignis in der geteilten Testdatenbank träfe sonst jeden Leser über den ganzen Kontext).
+
+**Probe** (`src/Server/Budgeting/EventMigrationProbe.fs`, `probeBudgetEventMigrationOn`): liest jeden Leser vorher mit den früheren SQL-Abfragen, migriert, liest nachher aus `events`; Ergebnis nur Zahlen (Zeilen je Tabelle, Ereignisse je Typ) und Wahrheitswerte (StreamVersionsGapless, OccurredAtUnchanged, HistoryUnchanged, CategoryHistoriesUnchanged, RecentCategoriesUnchanged, PausesUnchanged, LastTargetChangesUnchanged, ApplicationsUnchanged, LegacyTablesGone). Gegen eine Kopie der lokalen Dev-Datenbank lief sie mit allen Wahrheitswerten true.
+
+**Probe gegen die Produktion (Conductor, nach PASS, vor dem Deploy)** auf einer Kopie der Produktions-Datenbank, außerhalb des Repos; der Test kopiert die Datei samt `-wal`/`-shm` selbst ins Temp-Verzeichnis und löscht die Kopie danach:
+
+```
+dotnet build src/Tests/Tests.fsproj
+BUDGET_MIGRATION_PROBE_DB=/pfad/zur/kopie/budgetbuddy.db USE_MEMORY_DB=true TZ=Europe/Berlin \
+  dotnet src/Tests/bin/Debug/net10.0/Tests.dll --filter "Budget-Migration: Probe gegen eine Kopie (requires .env)"
+```
+
+Erwartet: alle neun Wahrheitswerte `true`, der Test grün. Ins Outcome nur die Wahrheitswerte, keine Zahlen.
+
+**Tests** (`src/Tests/BudgetEventMigrationTests.fs`, Hilfen in `src/Tests/BudgetEventsFixture.fs`): Round-Trip je Typ, unbekannter Typ/Version/Monat; Migration eines Altbestands mit jeder Herkunft, jedem Status, jeder Pause-Art samt "Fortgesetzt", Ergebnis ohne Schritt und gleichem Zeitpunkt von Entscheidung und Ergebnis (Reihenfolge je Stream, lückenlose Versionen, `position` hinter dem Kassenbuch, Text-Zeitpunkt, Tabellen samt Indizes und Triggern weg); Ids bleiben (ApplicationId, MovementId, EventId, ChangeId, Counterpart, Kategorienamen); Vorher-nachher über die Probe mit Gegenbeweis; Replay migriert gegen neu geschrieben; zweiter Start; der Start legt keine Tabelle an; je Abbruchregel ein Test (Meldung mit Tabelle und Wert, `events` und alle fünf Tabellen unverändert) und der UNIQUE-Test auf einer späteren Zeile; Kassenbuch- und Fremdkontext-Ereignisse werden von keinem Leser gelesen; "erneut senden" findet eine migrierte Anwendung über die alte `application_id` und eine neue über die `event_id`; Wächter, dass außer Migration, Probe und ihren Tests keine Datei in `src/` die Tabellennamen nennt (mit Gegenbeweis); opt-in Probe. Bestehende Budget-Tests schreiben über die neuen Schreibwege; entfallen sind Trigger-Tests auf den alten Tabellen (append-only von `events` prüft `EventStoreTests`) und der Spaltentest von `migrateTargetChangeColumns`; "Fortgesetzt" und "Ergebnis ohne Schritt" prüft jetzt die Migration.
+
+`src/Shared/Budgeting.fs`: nur drei Doc-Kommentare, die die Tabellennamen nannten; kein Typ und kein Feld geändert, die Fixtures in `scripts/*.test.mjs` bleiben gültig.
+
+### Für den Conductor
+
+- ADR 0084 Punkt 4, Nachtrag vorschlagen: (a) zusätzliche Abbruchregeln der Migration: Anwendung mit mehreren Zeitpunkten, Kategorie doppelt in einer Anwendung, Zuweisen mit mehr als einer Zeile, Verschieben ohne eindeutige sinkende Quelle, Monat nicht `YYYY-MM-01`; (b) bei gleichem `occurred_at` und gleichem Rang ordnet eine feste Tabellenfolge vor der rowid; (c) die Rasterprüfung aus Punkt 3 läuft in der Migration nicht, weil migrierte Ereignisse Historie sind und nicht in die Faltung gehen (Punkt 4, "Der Zustand beginnt beim Übernahme-Ereignis").
+- ADR 0084 Punkt 2: `applicationId` steht nicht im Payload; die Gruppen-Id migrierter Entscheidungen ist ihre `event_id` (wie im Task festgelegt), alte Verweise bleiben so lesbar.
+- Override (C): Reviews vorschlagen: `qa-milestone-reviewer` (Tests geändert), `backend-code-quality` (src/Server).
+
+### Probe gegen die Produktionskopie (Conductor, 2026-11-05 18:08, vor dem Deploy)
+Kopie der Produktions-Datenbank im Session-Scratchpad, Opt-in-Test mit `BUDGET_MIGRATION_PROBE_DB`,
+Kopie danach gelöscht; die Eingabedatei blieb unverändert (gleiche Prüfsumme vorher und nachher).
+StreamVersionsGapless, OccurredAtUnchanged, HistoryUnchanged, CategoryHistoriesUnchanged,
+RecentCategoriesUnchanged, PausesUnchanged, LastTargetChangesUnchanged, ApplicationsUnchanged,
+LegacyTablesGone: alle true. Keine Abbruchregel schlug an.

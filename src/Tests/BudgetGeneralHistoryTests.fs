@@ -171,8 +171,11 @@ let queryTests =
             let moveOut = stored moveId MoneyMoved "2026-10-01" "H7 Lebensmittel" (time 9) 50000L 30000L
             let moveIn = stored moveId MoneyMoved "2026-10-01" "H7 Urlaub" (time 9) 0L 20000L
             let applied = stored (Guid.NewGuid()) TargetsApplied "2026-11-01" "H7 Miete" (time 10) 0L 800000L
-            Budgeting.Persistence.appendMovements [ september; moveOut; moveIn; applied ] |> run
-            Budgeting.Persistence.appendResult moveOut.Id (time 9) (Failed "Rate-Limit") |> run
+            let september, moveOut, moveIn, applied =
+                match BudgetEventsFixture.recordGroups [ september; moveOut; moveIn; applied ] with
+                | [ a; b; c; d ] -> a, b, c, d
+                | other -> failtest $"vier Zeilen erwartet, kamen {List.length other}"
+            BudgetEventsFixture.recordResult moveOut (time 9) (Failed "Rate-Limit")
             let mine = Set.ofList [ september.Id; moveOut.Id; moveIn.Id; applied.Id ]
             match budget.getBudgetHistory () |> run with
             | Error message -> failtest message

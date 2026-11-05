@@ -35,7 +35,7 @@ type OptionHandler<'T>() =
 do
     SqlMapper.AddTypeHandler(OptionHandler<string>())
     SqlMapper.AddTypeHandler(OptionHandler<DateTime>())
-    // `target_changes` trägt nullbare Milliunits (budgeting-k8wq3).
+    // Nullbare Milliunits der früheren Target-Änderungen (budgeting-k8wq3), gelesen von der Budget-Migration.
     SqlMapper.AddTypeHandler(OptionHandler<int64>())
 
 // ============================================

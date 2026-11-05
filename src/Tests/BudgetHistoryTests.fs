@@ -2,7 +2,7 @@ module Tests.BudgetHistoryTests
 
 // budgeting-dyn8g: Tab Historie je Kategorie. Reine Regeln (Zeile aus Sicht der Kategorie, Aufbau
 // von Verfügbar, Balken, Monatsfenster) und die Abfrage gegen In-Memory-SQLite über das Record-Feld
-// der API: Bewegungen aus `budget_movements`, Ausgaben aus dem Kassenbuch.
+// der API: Bewegungen aus `events`, Ausgaben aus dem Kassenbuch.
 
 open System
 
@@ -290,10 +290,13 @@ let queryTests =
             let moveIn = stored moveId MoneyMoved "2026-10-01" b "B" (at 9) 10000L 30000L
             let assigned = stored (Guid.NewGuid()) MoneyAssigned "2026-10-01" a "A" (at 10) 30000L 40000L
             let otherMonth = stored (Guid.NewGuid()) MoneyAssigned "2026-09-01" a "A" (at 11) 0L 5000L
-            Budgeting.Persistence.appendMovements [ targets; otherCategory; moveOut; moveIn; assigned; otherMonth ] |> run
-            Budgeting.Persistence.appendResult targets.Id (at 8) (Failed "Rate-Limit") |> run
-            Budgeting.Persistence.appendResult targets.Id (at 12) Written |> run
-            Budgeting.Persistence.appendResult moveOut.Id (at 9) ChangedInYnab |> run
+            let targets, moveOut, assigned =
+                match BudgetEventsFixture.recordGroups [ targets; otherCategory; moveOut; moveIn; assigned; otherMonth ] with
+                | [ t; _; o; _; a; _ ] -> t, o, a
+                | other -> failtest $"sechs Zeilen erwartet, kamen {List.length other}"
+            BudgetEventsFixture.recordResult targets (at 8) (Failed "Rate-Limit")
+            BudgetEventsFixture.recordResult targets (at 12) Written
+            BudgetEventsFixture.recordResult moveOut (at 9) ChangedInYnab
 
             let found = (history a "2026-10-01").Entries |> List.choose (function Movement m -> Some m | _ -> None)
             Expect.equal (found |> List.map (fun m -> m.MovementId)) [ assigned.Id; moveOut.Id; targets.Id ] "nur A im Oktober, neueste zuerst"
@@ -307,7 +310,10 @@ let queryTests =
             let first = stored (Guid.NewGuid()) MoneyAssigned "2026-10-01" (Guid.NewGuid()) "C" at 0L 1000L
             let second = stored (Guid.NewGuid()) MoneyAssigned "2026-08-01" (Guid.NewGuid()) "D" at 0L 2000L
             let other = stored (Guid.NewGuid()) TargetsApplied "2026-10-01" (Guid.NewGuid()) "E" at 0L 3000L
-            Budgeting.Persistence.appendMovements [ first; second; other ] |> run
+            let first, second, other =
+                match BudgetEventsFixture.recordGroups [ first; second; other ] with
+                | [ a; b; c ] -> a, b, c
+                | found -> failtest $"drei Zeilen erwartet, kamen {List.length found}"
             let filter : Server.Budgeting.Domain.MovementFilter = { CategoryId = None; Month = None; Origin = Some MoneyAssigned }
             match Server.Budgeting.QueryHandlers.movements Server.Budgeting.QueryHandlers.liveHistoryPort filter |> run with
             | Error message -> failtest message

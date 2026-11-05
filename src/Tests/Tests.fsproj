@@ -48,6 +48,7 @@
     <Compile Include="DuplicateDetectionTests.fs" />
     <Compile Include="OrderIdMatcherTests.fs" />
     <Compile Include="EventStoreTests.fs" />
+    <Compile Include="BudgetEventsFixture.fs" />
     <Compile Include="BudgetingTests.fs" />
     <Compile Include="TargetsApplyTests.fs" />
     <Compile Include="MoveMoneyTests.fs" />
@@ -84,6 +85,7 @@
     <Compile Include="LedgerTests.fs" />
     <Compile Include="LedgerMirrorTests.fs" />
     <Compile Include="LedgerEventMigrationTests.fs" />
+    <Compile Include="BudgetEventMigrationTests.fs" />
     <Compile Include="LedgerReviewMarkTests.fs" />
     <Compile Include="LedgerCategoryChangeTests.fs" />
     <Compile Include="LedgerSplitWriteTests.fs" />

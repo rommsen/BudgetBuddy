@@ -10,6 +10,7 @@ open System.Threading
 open Shared.Domain
 open Shared.Budgeting
 open Server.Budgeting.Domain
+open Budgeting.Events
 open Budgeting.Persistence
 
 /// Was die Abläufe von YNAB brauchen. `FetchMonth` liest den Monat roh (`YnabMonth`),
@@ -70,19 +71,23 @@ module internal TargetGuard =
 /// Unter der Sperre je Monat aufgerufen, sieht es jede Pause, die vorher festgehalten wurde.
 /// Sind die Pausen nicht lesbar, ist das wie bei `loadStates` ein `LocalReadFailed` (budgeting-c6vn4, P1).
 /// Neben dem Monat kommen die gespeicherten BB-Pausen mit, auch die ohne Target (`planPause`).
-let private fetchBudgetMonthWithPauses (port: YnabPort) (monthKey: string) : Async<Result<BudgetMonth * Set<Guid>, YnabError>> =
+let private fetchBudgetMonthWithPauses
+    (loadPaused: string -> Async<Result<Set<Guid>, string>>)
+    (port: YnabPort)
+    (monthKey: string)
+    : Async<Result<BudgetMonth * Set<Guid>, YnabError>> =
     async {
         match! port.FetchMonth monthKey with
         | Error e -> return Error e
         | Ok raw ->
-            match! loadPausedCategories monthKey with
+            match! loadPaused monthKey with
             | Error message -> return Error (YnabError.LocalReadFailed message)
             | Ok paused -> return Ok (toBudgetMonth paused raw, paused)
     }
 
 let private fetchBudgetMonth (port: YnabPort) (monthKey: string) : Async<Result<BudgetMonth, YnabError>> =
     async {
-        let! fetched = fetchBudgetMonthWithPauses port monthKey
+        let! fetched = fetchBudgetMonthWithPauses loadPausedCategories port monthKey
         return fetched |> Result.map fst
     }
 
@@ -149,19 +154,19 @@ let private sendAll
     (port: YnabPort)
     (now: DateTime)
     (monthKey: string)
-    (items: (Guid * Guid * int64) list) // Bewegung, Kategorie, Zielwert in Milliunits
+    (movements: Movement list)
     : Async<unit> =
     async {
         let rateLimited = ref false
-        for movementId, categoryId, target in items do
+        for m in movements do
             if rateLimited.Value then
-                do! appendResult movementId now (Failed "Rate-Limit")
+                do! recordWriteBack m now (WriteBackFailed "Rate-Limit")
             else
-                match! port.SetAssigned monthKey categoryId target with
-                | Ok () -> do! appendResult movementId now Written
+                match! port.SetAssigned monthKey m.CategoryId m.NewAssigned with
+                | Ok () -> do! recordWriteBack m now WrittenBack
                 | Error e ->
                     if isRateLimit e then rateLimited.Value <- true
-                    do! appendResult movementId now (Failed (ynabErrorText e))
+                    do! recordWriteBack m now (WriteBackFailed (ynabErrorText e))
     }
 
 // ============================================
@@ -184,22 +189,22 @@ let apply
         | Ok fresh when not (previewsMatch shown fresh) -> return Ok (PreviewChanged fresh)
         | Ok fresh when List.isEmpty fresh.Lines -> return Ok (PreviewChanged fresh)
         | Ok fresh ->
-            let applicationId = Guid.NewGuid()
-            let movements =
+            let lines =
                 fresh.Lines
                 |> List.map (fun l ->
-                    { Id = Guid.NewGuid()
-                      ApplicationId = applicationId
-                      OccurredAt = now
-                      Origin = TargetsApplied
-                      Month = fresh.Month
-                      CategoryId = l.CategoryId
+                    { CategoryId = l.CategoryId
                       CategoryName = l.CategoryName
                       OldAssigned = toMilliunits l.OldAssigned
                       NewAssigned = toMilliunits l.NewAssigned })
-            do! appendMovements movements
-            do!
-                sendAll port now fresh.Month (movements |> List.map (fun m -> m.Id, m.CategoryId, m.NewAssigned))
+            let skipped : SkippedPausedLine list =
+                fresh.Skipped
+                |> List.map (fun s ->
+                    { CategoryId = s.CategoryId
+                      CategoryName = s.CategoryName
+                      Underfunded = toMilliunits s.Underfunded })
+            let! movements = recordDecision now fresh.Month TargetsApplied lines skipped
+            do! sendAll port now fresh.Month movements
+            let applicationId = (List.head movements).ApplicationId
             let! report = reportOf port applicationId fresh.Month
             return report |> Result.map Applied
     })
@@ -229,13 +234,13 @@ let private sendInOrder
         let stopped = ref false
         for m in movements do
             if stopped.Value then
-                do! appendResult m.Id now (Failed TargetHeldBack)
+                do! recordWriteBack m now (WriteBackFailed TargetHeldBack)
             else
                 match! port.SetAssigned monthKey m.CategoryId m.NewAssigned with
-                | Ok () -> do! appendResult m.Id now Written
+                | Ok () -> do! recordWriteBack m now WrittenBack
                 | Error e ->
                     stopped.Value <- true
-                    do! appendResult m.Id now (Failed (ynabErrorText e))
+                    do! recordWriteBack m now (WriteBackFailed (ynabErrorText e))
     }
 
 /// Hält den Plan fest (eine Transaktion, gemeinsame `ApplicationId`) und sendet nacheinander. Der
@@ -247,22 +252,16 @@ let private recordAndSend
     (plan: MovePlan)
     : Async<Result<ApplyReport, YnabError>> =
     async {
-        let applicationId = Guid.NewGuid()
-        let movements =
+        let lines =
             plan.Lines
             |> List.map (fun l ->
-                { Id = Guid.NewGuid()
-                  ApplicationId = applicationId
-                  OccurredAt = now
-                  Origin = plan.Origin
-                  Month = monthKey
-                  CategoryId = l.CategoryId
+                { CategoryId = l.CategoryId
                   CategoryName = l.CategoryName
                   OldAssigned = toMilliunits l.OldAssigned
                   NewAssigned = toMilliunits l.NewAssigned })
-        do! appendMovements movements
+        let! movements = recordDecision now monthKey plan.Origin lines []
         do! sendInOrder port now monthKey movements
-        return! reportWith applicationId monthKey None
+        return! reportWith (List.head movements).ApplicationId monthKey None
     }
 
 /// Verschieben oder Zuweisen von Zu verteilen. Unter der Monats-Sperre: den Monat frisch lesen und relativ dazu
@@ -324,7 +323,8 @@ let assignMoney
 /// (`planPause`) und höchstens ein Ereignis anhängen. Nach YNAB geht nichts (ADR 0073 Punkt 5), der Port
 /// wird nur gelesen. Außen `Error`: der Monat war nicht lesbar. Innen `Error`: abgelehnt. In beiden
 /// Fällen ist nichts geschrieben. `currentMonth` ist der laufende Monat ("YYYY-MM-01").
-let setTargetPause
+let setTargetPauseWith
+    (loadPaused: string -> Async<Result<Set<Guid>, string>>)
     (port: YnabPort)
     (now: DateTime)
     (currentMonth: string)
@@ -335,7 +335,7 @@ let setTargetPause
         async { return Ok (Error PausePastMonthText) }
     else
         MonthGuard.exclusive monthKey (async {
-            match! fetchBudgetMonthWithPauses port monthKey with
+            match! fetchBudgetMonthWithPauses loadPaused port monthKey with
             | Error e -> return Error e
             | Ok (month, pausedInBbRaw) ->
                 match planPause month pausedInBbRaw request with
@@ -343,17 +343,15 @@ let setTargetPause
                 | Ok plan ->
                     match plan.Event with
                     | Some event ->
-                        do!
-                            appendPauseEvent
-                                { Id = Guid.NewGuid()
-                                  OccurredAt = now
-                                  Month = monthKey
-                                  CategoryId = plan.Category.Id
-                                  CategoryName = plan.Category.Name
-                                  Kind = event }
+                        let! _ = recordPause now monthKey plan.Category.Id plan.Category.Name event
+                        ()
                     | None -> ()
                     return Ok (Ok plan.After)
         })
+
+/// `setTargetPauseWith` mit den Pausen aus der Datenbank der Anwendung.
+let setTargetPause (port: YnabPort) (now: DateTime) (currentMonth: string) (monthKey: string) (request: TargetPauseRequest) =
+    setTargetPauseWith loadPausedCategories port now currentMonth monthKey request
 
 // ============================================
 // Target ändern und entfernen (budgeting-k8wq3, ADR 0072, ADR 0080)
@@ -368,10 +366,10 @@ let TargetStepHeldBack = "Schritt 1 fehlgeschlagen"
 /// übernommen, ein Fehler beim Anhängen darf das nicht als Fehlschlag melden (budgeting-r3wq8). Gilt für
 /// "geschrieben" nach einem `Ok` und für jedes Ergebnis nach einem geschriebenen Schritt (budgeting-g2ty9,
 /// X9). Der Fehler wird mit Schritt geloggt, die Zeile steht dann ohne dieses Ergebnis in der Historie.
-let private recordBestEffort (changeId: Guid) (step: int) (now: DateTime) (outcome: LineOutcome) : Async<unit> =
+let private recordBestEffort (categoryId: Guid) (changeId: Guid) (step: int) (now: DateTime) (outcome: LineOutcome) : Async<unit> =
     async {
         try
-            do! appendTargetChangeStepResult changeId step now outcome
+            do! recordTargetChangeStepResult categoryId changeId step now outcome
         with ex ->
             eprintfn
                 "Ergebnis von Schritt %d der Target-Änderung %O nicht festgehalten (YNAB hat geschrieben): %s"
@@ -412,8 +410,7 @@ let private targetChangeOf
         | TargetEdited
         | TargetCreated _
         | TargetKindChanged _ -> patches |> List.fold apply (oldGoal, oldDate)
-    { Id = Guid.NewGuid()
-      OccurredAt = now
+    { OccurredAt = now
       Month = monthKey
       CategoryId = category.Id
       CategoryName = category.Name.Trim()
@@ -458,26 +455,26 @@ let private sendSteps (port: YnabPort) (now: DateTime) (categoryId: Guid) (chang
                 | Some cause, Some (_, afterPrevious) ->
                     let reason = targetHeldBackReasonText cause
                     for s in step :: numbered (step + 1) rest do
-                        do! recordBestEffort changeId s now (Failed reason)
+                        do! recordBestEffort categoryId changeId s now (Failed reason)
                     return LaterHeldBack (afterPrevious, patch, cause)
                 | _ ->
                     match! port.SetTarget categoryId patch with
                     | Ok after ->
-                        do! recordBestEffort changeId step now Written
+                        do! recordBestEffort categoryId changeId step now Written
                         return! go (step + 1) (Some (patch, after)) rest
                     | Error e ->
                         let reason = ynabErrorText e
                         match previous with
                         | None ->
                             // Noch nichts geschrieben: ein Fehler beim Anhängen geht als Ausnahme hinaus.
-                            do! appendTargetChangeStepResult changeId step now (Failed reason)
+                            do! recordTargetChangeStepResult categoryId changeId step now (Failed reason)
                             for later in numbered (step + 1) rest do
-                                do! appendTargetChangeStepResult changeId later now (Failed TargetStepHeldBack)
+                                do! recordTargetChangeStepResult categoryId changeId later now (Failed TargetStepHeldBack)
                             return FirstFailed reason
                         | Some (_, afterPrevious) ->
-                            do! recordBestEffort changeId step now (Failed reason)
+                            do! recordBestEffort categoryId changeId step now (Failed reason)
                             for later in numbered (step + 1) rest do
-                                do! recordBestEffort changeId later now (Failed TargetStepHeldBack)
+                                do! recordBestEffort categoryId changeId later now (Failed TargetStepHeldBack)
                             return LaterNotWritten (afterPrevious, patch, reason)
         }
     go 1 None patches
@@ -531,8 +528,8 @@ let changeTarget
                         | first :: _ ->
                             let kind = targetChangeKindOf request.Shown request.Wanted first
                             let change = targetChangeOf now monthKey category request.Shown kind patches
-                            do! appendTargetChanges [ change ]
-                            match! sendSteps port now category.Id change.Id patches with
+                            let! changeId = recordTargetChange change
+                            match! sendSteps port now category.Id changeId patches with
                             | AllWritten after -> return Ok (Ok (TargetWritten after))
                             | FirstFailed reason -> return Ok (Error reason)
                             | LaterNotWritten (after, patch, reason) ->
@@ -594,8 +591,9 @@ let retryFailed
                                 match inOrder, states with
                                 | true, [ _; target ] when isOpenLine target.Latest ->
                                     match decisionFor target.Movement with
-                                    | Some YnabWins -> Some ChangedInYnab
-                                    | None -> Some (Failed SourceHeldBack)
+                                    // Das Ziel gehört YNAB: die Quelle wird ungesendet zurückgezogen.
+                                    | Some YnabWins -> Some Withdrawn
+                                    | None -> Some (WriteBackFailed SourceHeldBack)
                                     | Some _ -> None
                                 | _ -> None
                             let rateLimited = ref false
@@ -603,23 +601,23 @@ let retryFailed
                                 async {
                                     let close outcome =
                                         async {
-                                            do! appendResult m.Id now outcome
-                                            return outcome
+                                            do! recordWriteBack m now outcome
+                                            return lineOutcomeOf outcome
                                         }
                                     match decisionFor m with
-                                    | None -> return! close (Failed "Kategorie in YNAB nicht gefunden")
-                                    | Some AlreadyAtTarget -> return! close Written
-                                    | Some YnabWins -> return! close ChangedInYnab
+                                    | None -> return! close (WriteBackFailed "Kategorie in YNAB nicht gefunden")
+                                    | Some AlreadyAtTarget -> return! close WrittenBack
+                                    | Some YnabWins -> return! close SupersededInYnab
                                     | Some SendTarget ->
                                         match sourceBlocked with
                                         | Some outcome -> return! close outcome
-                                        | None when rateLimited.Value -> return! close (Failed "Rate-Limit")
+                                        | None when rateLimited.Value -> return! close (WriteBackFailed "Rate-Limit")
                                         | None ->
                                             match! port.SetAssigned monthKey m.CategoryId m.NewAssigned with
-                                            | Ok () -> return! close Written
+                                            | Ok () -> return! close WrittenBack
                                             | Error e ->
                                                 if isRateLimit e then rateLimited.Value <- true
-                                                return! close (Failed (ynabErrorText e))
+                                                return! close (WriteBackFailed (ynabErrorText e))
                                 }
                             // Der Stand der Vorgänger-Zeile nach diesem Lauf.
                             let previous = ref None
@@ -629,7 +627,8 @@ let retryFailed
                                 else
                                     match (if inOrder then previous.Value else None) with
                                     | Some ChangedInYnab ->
-                                        do! appendResult s.Movement.Id now ChangedInYnab
+                                        // Die Quelle ist verloren: das Ziel wird ungesendet zurückgezogen.
+                                        do! recordWriteBack s.Movement now Withdrawn
                                         previous.Value <- Some ChangedInYnab
                                     | Some (Failed _) -> ()
                                     | Some Written

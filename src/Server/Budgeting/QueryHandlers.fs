@@ -13,15 +13,24 @@ let private logReadFailure (what: string) (ex: exn) : unit =
 
 /// Liest einen Monat über `fetchMonth`, mit den BB-Pausen des Monats (ADR 0079). Eine Pause gilt nur
 /// für ihren Monat, der Folgemonat liest seine eigenen (ADR 0073 Punkt 3).
-let budgetMonthOf (fetchMonth: string -> Async<YnabResult<YnabMonth>>) (monthKey: string) : Async<YnabResult<BudgetMonth>> =
+/// `loadPaused` liest die Pausen des Monats.
+let budgetMonthOfWith
+    (loadPaused: string -> Async<Result<Set<Guid>, string>>)
+    (fetchMonth: string -> Async<YnabResult<YnabMonth>>)
+    (monthKey: string)
+    : Async<YnabResult<BudgetMonth>> =
     async {
         match! fetchMonth monthKey with
         | Error e -> return Error e
         | Ok month ->
-            match! Budgeting.Persistence.loadPausedCategories monthKey with
+            match! loadPaused monthKey with
             | Error message -> return Error (YnabError.LocalReadFailed message)
             | Ok paused -> return Ok (toBudgetMonth paused month)
     }
+
+/// `budgetMonthOfWith` mit den Pausen aus der Datenbank der Anwendung.
+let budgetMonthOf (fetchMonth: string -> Async<YnabResult<YnabMonth>>) (monthKey: string) : Async<YnabResult<BudgetMonth>> =
+    budgetMonthOfWith Budgeting.Persistence.loadPausedCategories fetchMonth monthKey
 
 /// Die Parallelrechnung des Fehlbetrags (budgeting-v7kfw, ADR 0084 Punkt 7): vergleicht BBs Fehlbetrag mit
 /// YNABs, gibt die Abweichungsliste an `save` und schreibt eine Zeile ins Server-Log. Ein Fehler darin landet
@@ -96,7 +105,7 @@ let frame (port: BudgetFramePort) (today: DateOnly) : Async<YnabResult<BudgetFra
             | Ok order -> return Ok (toBudgetFrame today months order)
     }
 
-/// Die Lese-Quellen der Historie (budgeting-dyn8g): die Bewegungen aus `budget_movements` und die
+/// Die Lese-Quellen der Historie (budgeting-dyn8g): die Bewegungen aus `events` (Kontext `budgeting`) und die
 /// Monatssummen aus dem Kassenbuch. Beide lesen nur die Datenbank, kein YNAB.
 type HistoryPort = {
     LoadMovements: MovementFilter -> Async<Result<HistoryMovement list, string>>
@@ -252,7 +261,7 @@ let targetCheck (port: TargetCheckPort) (today: DateOnly) : Async<Result<TargetC
     }
 
 /// Die echten Lese-Quellen von Targets prüfen: der Monat über `fetchMonth` (YNAB), Kassenbuch und
-/// `target_changes` aus der Datenbank.
+/// die Target-Änderungen aus `events`.
 let liveTargetCheckPort (fetchMonth: string -> Async<YnabResult<YnabMonth>>) : TargetCheckPort =
     { FetchMonth = fetchMonth
       LoadMonthlyActivity = Ledger.QueryHandlers.getMonthlyActivityByCategory

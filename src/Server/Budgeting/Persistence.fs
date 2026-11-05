@@ -1,11 +1,9 @@
-/// Die Budget-Bewegungen (Context `budgeting`, budgeting-h2zfn, ADR 0065): was "Targets
-/// anwenden" je Kategorie zugewiesen hat, und was beim Rückschreiben nach YNAB daraus wurde.
-///
-/// Zwei Tabellen, beide nach dem Schreiben unveränderlich (SQLite-Trigger weisen UPDATE und
-/// DELETE ab). `budget_movements` hält je Kategorie einer Anwendung eine Zeile (Zeitpunkt,
-/// Herkunft, Monat, Kategorie, altes und neues Zugewiesen in Milliunits).
-/// `budget_movement_results` ist angehängt: jedes Ergebnis ist eine neue Zeile, der Stand
-/// einer Bewegung ist ihr jüngstes Ergebnis. Getrennt vom Kassenbuch-Ereignis-Log (ADR 0013).
+/// Die Budget-Ereignisse in `events` lesen und schreiben (Context `budgeting`, ADR 0083, ADR 0084,
+/// budgeting-hyn77). Entscheidungen (Zuweisen, Verschieben, Targets anwenden), Pausen und ihre
+/// Rückschreib-Ergebnisse liegen im Monats-Stream, Target-Änderungen samt Schritt-Ergebnissen im
+/// Target-Stream der Kategorie. Jeder Leser filtert auf `context = 'budgeting'` und sortiert fachlich
+/// (`occurred_at`, `stream_version`), nie nach `position`. Ein unbekannter Ereignistyp im Kontext wird
+/// gemeldet, nicht übersprungen. `underfunded_comparisons` bleibt Zustand.
 module Budgeting.Persistence
 
 open System
@@ -14,12 +12,17 @@ open Microsoft.Data.Sqlite
 open Dapper
 open Shared.Budgeting
 open Server.Budgeting.Domain
+open Budgeting.Events
 
 module Core = global.Persistence
 
-/// Eine festgehaltene Budget-Bewegung. Beträge in Milliunits.
+type private StoredEventRow = EventStore.StoredEventRow
+
+/// Eine Zeile einer festgehaltenen Entscheidung. Beträge in Milliunits.
 type Movement = {
+    /// Die `lineId` der Zeile.
     Id: Guid
+    /// Die `event_id` des Entscheidungsereignisses.
     ApplicationId: Guid
     OccurredAt: DateTime
     Origin: MovementOrigin
@@ -31,144 +34,28 @@ type Movement = {
     NewAssigned: int64
 }
 
-/// Eine Bewegung mit ihrem jüngsten Ergebnis (`None`, solange keines angehängt ist).
+/// Eine Zeile mit ihrem jüngsten Ergebnis (`None`, solange keines angehängt ist).
 type MovementState = {
     Movement: Movement
     Latest: LineOutcome option
 }
 
-[<CLIMutable>]
-type private MovementRow = {
-    id: string
-    application_id: string
-    occurred_at: string
-    origin: string
-    month: string
-    category_id: string
-    category_name: string
-    old_assigned: int64
-    new_assigned: int64
-    status: string
-    reason: string
-}
-
 let private dateToText (d: DateTime) = d.ToString("o", CultureInfo.InvariantCulture)
 
-let private dateFromText (s: string) =
-    DateTime.Parse(s, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
+let private orDbNull (value: 'a option) : obj =
+    match value with
+    | Some v -> box v
+    | None -> null
 
-let private statusToText (outcome: LineOutcome) : string * string =
-    match outcome with
-    | Written -> "written", null
-    | Failed reason -> "failed", reason
-    | ChangedInYnab -> "changed-in-ynab", null
-
-let private statusFromText (status: string) (reason: string) : LineOutcome option =
-    if isNull status then None
-    else
-        match status with
-        | "written" -> Some Written
-        | "failed" -> Some (Failed (if isNull reason then "" else reason))
-        | "changed-in-ynab" -> Some ChangedInYnab
-        | other -> failwith $"Unbekannter Ergebnis-Status: {other}"
-
-/// Ergänzt die Spalten aus budgeting-xp46a an einer Datenbank aus budgeting-k8wq3: den Rhythmus beim
-/// Anlegen und beim Wechsel der Art (`target_changes.new_frequency`) und den Schritt je Ergebnis
-/// (`target_change_results.step`, bei alten Zeilen leer, gemeint ist Schritt 1). Eine neue Datenbank hat
-/// sie schon aus `CREATE TABLE`. SQLite kennt kein "ADD COLUMN IF NOT EXISTS": ob die Spalte fehlt, sagt
-/// `pragma_table_info` (budgeting-g2ty9, X11). Nimmt die Verbindung als Parameter, damit ein Test sie an
-/// einer eigenen Datenbank prüft.
-let migrateTargetChangeColumns (conn: SqliteConnection) =
-    for table, column, alter in
-        [ "target_changes", "new_frequency", "ALTER TABLE target_changes ADD COLUMN new_frequency TEXT"
-          "target_change_results", "step", "ALTER TABLE target_change_results ADD COLUMN step INTEGER" ] do
-        let present =
-            conn.ExecuteScalar<int64>(
-                "SELECT COUNT(*) FROM pragma_table_info(@table) WHERE name = @column",
-                {| table = table; column = column |}
-            )
-        if present = 0L then
-            conn.Execute(alter) |> ignore
-
-/// Legt die Tabellen an (`CREATE ... IF NOT EXISTS`, wiederholbar). Die Trigger machen alle
-/// Tabellen append-only, auch `target_pause_events` (budgeting-t6p8z, ADR 0079) und die Target-Änderungen
-/// (budgeting-k8wq3, ADR 0080). Läuft beim Start hinter `Ledger.Persistence.initializeLedgerSchema`.
+/// Legt `events` (ADR 0083) und `underfunded_comparisons` an und überführt die früheren Budget-Tabellen
+/// nach `events` (budgeting-hyn77). Wiederholbar. Läuft beim Start hinter
+/// `Ledger.Persistence.initializeLedgerSchema`. Bricht die Migration ab, wirft der Aufruf und BB startet
+/// nicht.
 let initializeBudgetingSchema () =
     use conn = Core.getConnection ()
+    EventStore.createSchemaOn conn
     conn.Execute(
         """
-        CREATE TABLE IF NOT EXISTS budget_movements (
-            id TEXT PRIMARY KEY,
-            application_id TEXT NOT NULL,
-            occurred_at TEXT NOT NULL,
-            origin TEXT NOT NULL,
-            month TEXT NOT NULL,
-            category_id TEXT NOT NULL,
-            category_name TEXT NOT NULL,
-            old_assigned INTEGER NOT NULL,
-            new_assigned INTEGER NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_budget_movements_application ON budget_movements (application_id);
-        CREATE TABLE IF NOT EXISTS budget_movement_results (
-            sequence INTEGER PRIMARY KEY AUTOINCREMENT,
-            movement_id TEXT NOT NULL,
-            occurred_at TEXT NOT NULL,
-            status TEXT NOT NULL,
-            reason TEXT
-        );
-        CREATE INDEX IF NOT EXISTS idx_budget_movement_results_movement ON budget_movement_results (movement_id);
-        CREATE TRIGGER IF NOT EXISTS budget_movements_no_update BEFORE UPDATE ON budget_movements
-        BEGIN SELECT RAISE(ABORT, 'budget_movements ist unveränderlich'); END;
-        CREATE TRIGGER IF NOT EXISTS budget_movements_no_delete BEFORE DELETE ON budget_movements
-        BEGIN SELECT RAISE(ABORT, 'budget_movements ist unveränderlich'); END;
-        CREATE TRIGGER IF NOT EXISTS budget_movement_results_no_update BEFORE UPDATE ON budget_movement_results
-        BEGIN SELECT RAISE(ABORT, 'budget_movement_results ist append-only'); END;
-        CREATE TRIGGER IF NOT EXISTS budget_movement_results_no_delete BEFORE DELETE ON budget_movement_results
-        BEGIN SELECT RAISE(ABORT, 'budget_movement_results ist append-only'); END;
-        CREATE TABLE IF NOT EXISTS target_pause_events (
-            id TEXT PRIMARY KEY,
-            occurred_at TEXT NOT NULL,
-            month TEXT NOT NULL,
-            category_id TEXT NOT NULL,
-            category_name TEXT NOT NULL,
-            kind TEXT NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_target_pause_events_month ON target_pause_events (month, category_id);
-        CREATE TRIGGER IF NOT EXISTS target_pause_events_no_update BEFORE UPDATE ON target_pause_events
-        BEGIN SELECT RAISE(ABORT, 'target_pause_events ist append-only'); END;
-        CREATE TRIGGER IF NOT EXISTS target_pause_events_no_delete BEFORE DELETE ON target_pause_events
-        BEGIN SELECT RAISE(ABORT, 'target_pause_events ist append-only'); END;
-        CREATE TABLE IF NOT EXISTS target_changes (
-            id TEXT PRIMARY KEY,
-            occurred_at TEXT NOT NULL,
-            month TEXT NOT NULL,
-            category_id TEXT NOT NULL,
-            category_name TEXT NOT NULL,
-            change_kind TEXT NOT NULL,
-            old_goal_target INTEGER,
-            new_goal_target INTEGER,
-            old_date TEXT,
-            new_date TEXT,
-            new_frequency TEXT
-        );
-        CREATE INDEX IF NOT EXISTS idx_target_changes_category ON target_changes (category_id, month);
-        CREATE TABLE IF NOT EXISTS target_change_results (
-            sequence INTEGER PRIMARY KEY AUTOINCREMENT,
-            change_id TEXT NOT NULL,
-            occurred_at TEXT NOT NULL,
-            status TEXT NOT NULL,
-            reason TEXT,
-            step INTEGER
-        );
-        CREATE INDEX IF NOT EXISTS idx_target_change_results_change ON target_change_results (change_id);
-        CREATE TRIGGER IF NOT EXISTS target_changes_no_update BEFORE UPDATE ON target_changes
-        BEGIN SELECT RAISE(ABORT, 'target_changes ist unveränderlich'); END;
-        CREATE TRIGGER IF NOT EXISTS target_changes_no_delete BEFORE DELETE ON target_changes
-        BEGIN SELECT RAISE(ABORT, 'target_changes ist unveränderlich'); END;
-        CREATE TRIGGER IF NOT EXISTS target_change_results_no_update BEFORE UPDATE ON target_change_results
-        BEGIN SELECT RAISE(ABORT, 'target_change_results ist append-only'); END;
-        CREATE TRIGGER IF NOT EXISTS target_change_results_no_delete BEFORE DELETE ON target_change_results
-        BEGIN SELECT RAISE(ABORT, 'target_change_results ist append-only'); END;
         CREATE TABLE IF NOT EXISTS underfunded_comparisons (
             month TEXT NOT NULL,
             category_id TEXT NOT NULL,
@@ -186,62 +73,20 @@ let initializeBudgetingSchema () =
         """
     )
     |> ignore
-    migrateTargetChangeColumns conn
+    Budgeting.EventMigration.migrateBudgetEventsOn conn |> ignore
 
-/// Hält alle Bewegungen einer Anwendung in einer Transaktion fest. Entweder sind alle
-/// da oder keine; erst danach darf der erste Push nach YNAB gehen (ADR 0050, Punkt 1).
-let appendMovements (movements: Movement list) : Async<unit> =
-    async {
-        use conn = Core.getConnection ()
-        conn.Open()
-        use tx = conn.BeginTransaction()
-        for m in movements do
-            conn.Execute(
-                "INSERT INTO budget_movements (id, application_id, occurred_at, origin, month, category_id, category_name, old_assigned, new_assigned) \
-                 VALUES (@id, @application_id, @occurred_at, @origin, @month, @category_id, @category_name, @old_assigned, @new_assigned)",
-                {| id = string m.Id
-                   application_id = string m.ApplicationId
-                   occurred_at = dateToText m.OccurredAt
-                   origin = originText m.Origin
-                   month = m.Month
-                   category_id = string m.CategoryId
-                   category_name = m.CategoryName
-                   old_assigned = m.OldAssigned
-                   new_assigned = m.NewAssigned |},
-                tx
-            )
-            |> ignore
-        tx.Commit()
-    }
+// ============================================
+// Laden
+// ============================================
 
-/// Hängt ein Ergebnis an eine Bewegung an. Frühere Ergebnisse bleiben stehen.
-let appendResult (movementId: Guid) (at: DateTime) (outcome: LineOutcome) : Async<unit> =
-    async {
-        let status, reason = statusToText outcome
-        use conn = Core.getConnection ()
-        conn.Execute(
-            "INSERT INTO budget_movement_results (movement_id, occurred_at, status, reason) VALUES (@movement_id, @occurred_at, @status, @reason)",
-            {| movement_id = string movementId; occurred_at = dateToText at; status = status; reason = reason |}
-        )
-        |> ignore
-    }
-
-/// Die Kategorien der jüngsten Bewegungen einer Herkunft, neueste zuerst, ohne Dubletten.
-let queryRecentCategories (conn: SqliteConnection) (origin: MovementOrigin) (limit: int) : Guid list =
-    conn.Query<string>(
-        "SELECT category_id FROM budget_movements WHERE origin = @origin \
-         GROUP BY category_id ORDER BY MAX(rowid) DESC LIMIT @limit",
-        {| origin = originText origin; limit = limit |}
-    )
-    |> Seq.map Guid.Parse
-    |> Seq.toList
-
-/// "Zuletzt verwendet" im Picker: nur Verschiebungen zwischen zwei Kategorien.
-let loadRecentMoveCategories (limit: int) : Async<Guid list> =
-    async {
-        use conn = Core.getConnection ()
-        return queryRecentCategories conn MoneyMoved limit
-    }
+/// Ein gelesenes Budget-Ereignis.
+type RecordedBudgetEvent = {
+    EventId: Guid
+    StreamId: string
+    StreamVersion: int64
+    OccurredAt: DateTime
+    Event: BudgetEvent
+}
 
 /// Alle Zeilen oder der erste Fehler, in der Reihenfolge der Eingabe.
 let private collectRows (rows: Result<'T, string> list) : Result<'T list, string> =
@@ -254,164 +99,217 @@ let private collectRows (rows: Result<'T, string> list) : Result<'T list, string
         rows
         (Ok [])
 
-/// Alle Bewegungen einer Anwendung (in der Reihenfolge des Festhaltens) mit ihrem jüngsten
-/// Ergebnis. `Error` nennt eine Zeile mit unbekannter Herkunft.
+let private toRecordedBudgetEvent (row: StoredEventRow) : Result<RecordedBudgetEvent, string> =
+    let recorded = EventStore.toRecordedEvent row
+    decodePayload recorded.EventType recorded.SchemaVersion recorded.Payload
+    |> Result.mapError (fun message -> $"Ereignis {recorded.EventId} in {recorded.StreamId}: {message}")
+    |> Result.map (fun event ->
+        { EventId = recorded.EventId
+          StreamId = recorded.StreamId
+          StreamVersion = recorded.StreamVersion
+          OccurredAt = recorded.OccurredAt
+          Event = event })
+
+/// Die Budget-Ereignisse eines Streams oder (`None`) des ganzen Kontexts, je Stream nach
+/// `stream_version`. Ein Ereignis, das sich nicht lesen lässt (unbekannter Typ, kaputte Payload), wird
+/// zum `Error` mit Ereignis-Id und Stream.
+let internal loadBudgetEventsOn (conn: SqliteConnection) (streamId: string option) : Result<RecordedBudgetEvent list, string> =
+    conn.Query<StoredEventRow>(
+        """SELECT position, event_id, context, stream_id, stream_version, occurred_at, actor_kind,
+                  actor_ref, event_type, schema_version, payload, command_id
+           FROM events
+           WHERE context = @context AND (@stream_id IS NULL OR stream_id = @stream_id)
+           ORDER BY stream_id, stream_version""",
+        {| context = Context; stream_id = orDbNull streamId |}
+    )
+    |> Seq.toList
+    |> List.map toRecordedBudgetEvent
+    |> collectRows
+
+/// Der Monats-Stream zu "YYYY-MM-01", `None` bei einem Monat in anderer Form.
+let private monthStreamOf (monthKey: string) : string option =
+    monthIdOf monthKey |> Result.toOption |> Option.map (MonthStream >> streamIdOf)
+
+// ============================================
+// Entscheidungen und ihre Zeilen
+// ============================================
+
+let private decisionOf (event: BudgetEvent) : (MovementOrigin * string * BudgetLine list) option =
+    match event with
+    | BudgetEvent.AssignmentChangedInBb p -> Some (MoneyAssigned, p.Month, [ p.Line ])
+    | BudgetEvent.MoneyMoved p -> Some (MoneyMoved, p.Month, [ p.From; p.To ])
+    | BudgetEvent.TargetsApplied p -> Some (TargetsApplied, p.Month, p.Lines)
+    | _ -> None
+
+/// Die Zeilen eines Entscheidungsereignisses in Sendereihenfolge (bei einer Verschiebung erst die
+/// Quelle). Leer für jedes andere Ereignis.
+let private movementsOf (recorded: RecordedBudgetEvent) : Movement list =
+    match decisionOf recorded.Event with
+    | None -> []
+    | Some (origin, monthId, lines) ->
+        lines
+        |> List.map (fun l ->
+            { Id = l.LineId
+              ApplicationId = recorded.EventId
+              OccurredAt = recorded.OccurredAt
+              Origin = origin
+              Month = monthKeyOfId monthId
+              CategoryId = l.CategoryId
+              CategoryName = l.CategoryName
+              OldAssigned = l.PreviousAssigned
+              NewAssigned = l.Assigned })
+
+let private writeBackOf (event: BudgetEvent) : (WriteBackRef * LineOutcome) option =
+    match event with
+    | BudgetEvent.AssignmentWrittenBackToYnab r -> Some (r, lineOutcomeOf WrittenBack)
+    | BudgetEvent.AssignmentWriteBackFailed (r, reason) -> Some (r, lineOutcomeOf (WriteBackFailed reason))
+    | BudgetEvent.AssignmentWriteBackSupersededInYnab r -> Some (r, lineOutcomeOf SupersededInYnab)
+    | BudgetEvent.AssignmentWriteBackWithdrawn r -> Some (r, lineOutcomeOf Withdrawn)
+    | _ -> None
+
+/// Je (Entscheidung, Kategorie) das jüngste Ergebnis. Die Ereignisse kommen je Stream nach
+/// `stream_version`, ein Ergebnis liegt im Stream seiner Entscheidung.
+let private latestWriteBacks (events: RecordedBudgetEvent list) : Map<Guid * Guid, LineOutcome> =
+    events
+    |> List.choose (fun e -> writeBackOf e.Event)
+    |> List.fold (fun acc (r, outcome) -> Map.add (r.DecisionEventId, r.CategoryId) outcome acc) Map.empty
+
+let private stateOf (latest: Map<Guid * Guid, LineOutcome>) (m: Movement) : MovementState =
+    { Movement = m; Latest = Map.tryFind (m.ApplicationId, m.CategoryId) latest }
+
+/// Alle Zeilen einer Anwendung (Gruppen-Id = `event_id` der Entscheidung) mit ihrem jüngsten Ergebnis.
+/// Leer, wenn es keine Entscheidung mit dieser Id gibt.
+let internal queryApplication (conn: SqliteConnection) (applicationId: Guid) : Result<MovementState list, string> =
+    let stream =
+        conn.Query<string>(
+            "SELECT stream_id FROM events WHERE context = @context AND event_id = @event_id",
+            {| context = Context; event_id = applicationId.ToString "D" |}
+        )
+        |> Seq.tryHead
+    match stream with
+    | None -> Ok []
+    | Some streamId ->
+        loadBudgetEventsOn conn (Some streamId)
+        |> Result.map (fun events ->
+            let latest = latestWriteBacks events
+            events
+            |> List.filter (fun e -> e.EventId = applicationId)
+            |> List.collect movementsOf
+            |> List.map (stateOf latest))
+
+/// `queryApplication` auf der Datenbank der Anwendung.
 let loadApplication (applicationId: Guid) : Async<Result<MovementState list, string>> =
     async {
         use conn = Core.getConnection ()
-        let rows =
-            conn.Query<MovementRow>(
-                "SELECT m.id, m.application_id, m.occurred_at, m.origin, m.month, m.category_id, m.category_name, \
-                        m.old_assigned, m.new_assigned, r.status, r.reason \
-                 FROM budget_movements m \
-                 LEFT JOIN budget_movement_results r \
-                   ON r.sequence = (SELECT MAX(sequence) FROM budget_movement_results WHERE movement_id = m.id) \
-                 WHERE m.application_id = @application_id \
-                 ORDER BY m.rowid",
-                {| application_id = string applicationId |}
-            )
-            |> Seq.toList
-        let toState (r: MovementRow) : Result<MovementState, string> =
-            originOfText r.origin
-            |> Result.map (fun origin ->
-                { Movement =
-                    { Id = Guid.Parse r.id
-                      ApplicationId = Guid.Parse r.application_id
-                      OccurredAt = dateFromText r.occurred_at
-                      Origin = origin
-                      Month = r.month
-                      CategoryId = Guid.Parse r.category_id
-                      CategoryName = r.category_name
-                      OldAssigned = r.old_assigned
-                      NewAssigned = r.new_assigned }
-                  Latest = statusFromText r.status r.reason })
-        return rows |> List.map toState |> collectRows
+        return queryApplication conn applicationId
     }
 
-[<CLIMutable>]
-type private HistoryRow = {
-    id: string
-    application_id: string
-    occurred_at: string
-    origin: string
-    month: string
-    category_id: string
-    category_name: string
-    old_assigned: int64
-    new_assigned: int64
-    status: string
-    reason: string
-    counterpart_name: string
-}
+/// Neueste zuerst: Zeitpunkt, dann Stream und Version, in einer Entscheidung die spätere Zeile zuerst.
+let private newestFirst (events: RecordedBudgetEvent list) : (RecordedBudgetEvent * Movement) list =
+    events
+    |> List.sortWith (fun a b ->
+        match compare b.OccurredAt a.OccurredAt with
+        | 0 ->
+            match compare b.StreamId a.StreamId with
+            | 0 -> compare b.StreamVersion a.StreamVersion
+            | c -> c
+        | c -> c)
+    |> List.collect (fun e -> movementsOf e |> List.rev |> List.map (fun m -> e, m))
 
-/// Die Bewegungen zum Filter, neueste zuerst, je mit dem jüngsten Ergebnis und bei einer
-/// Verschiebung mit der Kategorie der Gegenseite (dieselbe Gruppen-Id, andere Bewegung).
-/// `Error` nennt eine Zeile mit unbekannter Herkunft.
+/// Die Zeilen zum Filter, neueste zuerst, je mit dem jüngsten Ergebnis und bei einer Verschiebung mit
+/// der Kategorie der Gegenseite. `Error` nennt ein nicht lesbares Ereignis.
 let queryMovements (conn: SqliteConnection) (filter: MovementFilter) : Result<HistoryMovement list, string> =
-    let orNull (value: 'a option) (text: 'a -> string) : string =
-        match value with
-        | Some v -> text v
-        | None -> null
-    let rows =
-        conn.Query<HistoryRow>(
-            "SELECT m.id, m.application_id, m.occurred_at, m.origin, m.month, m.category_id, m.category_name, \
-                    m.old_assigned, m.new_assigned, r.status, r.reason, c.category_name AS counterpart_name \
-             FROM budget_movements m \
-             LEFT JOIN budget_movement_results r \
-               ON r.sequence = (SELECT MAX(sequence) FROM budget_movement_results WHERE movement_id = m.id) \
-             LEFT JOIN budget_movements c \
-               ON m.origin = @moved AND c.application_id = m.application_id AND c.id <> m.id \
-             WHERE (@category_id IS NULL OR m.category_id = @category_id) \
-               AND (@month IS NULL OR m.month = @month) \
-               AND (@origin IS NULL OR m.origin = @origin) \
-             ORDER BY m.occurred_at DESC, m.rowid DESC",
-            {| moved = originText MoneyMoved
-               category_id = orNull filter.CategoryId string
-               month = orNull filter.Month id
-               origin = orNull filter.Origin originText |}
-        )
-        |> Seq.toList
-    let toMovement (r: HistoryRow) : Result<HistoryMovement, string> =
-        originOfText r.origin
-        |> Result.map (fun origin ->
-            { MovementId = Guid.Parse r.id
-              ApplicationId = Guid.Parse r.application_id
-              OccurredAt = dateFromText r.occurred_at
-              Origin = origin
-              Month = r.month
-              CategoryId = Guid.Parse r.category_id
-              CategoryName = r.category_name
-              OldAssigned = euroOfMilliunits r.old_assigned
-              NewAssigned = euroOfMilliunits r.new_assigned
-              Counterpart = Option.ofObj r.counterpart_name
-              Latest = statusFromText r.status r.reason })
-    rows |> List.map toMovement |> collectRows
+    let stream =
+        match filter.Month with
+        | None -> Ok None
+        | Some month ->
+            match monthStreamOf month with
+            | Some s -> Ok (Some s)
+            | None -> Error ()
+    match stream with
+    | Error () -> Ok []
+    | Ok stream ->
+        loadBudgetEventsOn conn stream
+        |> Result.map (fun events ->
+            let latest = latestWriteBacks events
+            let counterpart (e: RecordedBudgetEvent) (m: Movement) =
+                match e.Event with
+                | BudgetEvent.MoneyMoved p ->
+                    [ p.From; p.To ] |> List.tryFind (fun l -> l.LineId <> m.Id) |> Option.map (fun l -> l.CategoryName)
+                | _ -> None
+            newestFirst events
+            |> List.filter (fun (_, m) ->
+                (filter.CategoryId |> Option.forall ((=) m.CategoryId))
+                && (filter.Month |> Option.forall ((=) m.Month))
+                && (filter.Origin |> Option.forall ((=) m.Origin)))
+            |> List.map (fun (e, m) ->
+                { MovementId = m.Id
+                  ApplicationId = m.ApplicationId
+                  OccurredAt = m.OccurredAt
+                  Origin = m.Origin
+                  Month = m.Month
+                  CategoryId = m.CategoryId
+                  CategoryName = m.CategoryName
+                  OldAssigned = euroOfMilliunits m.OldAssigned
+                  NewAssigned = euroOfMilliunits m.NewAssigned
+                  Counterpart = counterpart e m
+                  Latest = Map.tryFind (m.ApplicationId, m.CategoryId) latest }))
+
+/// Die Historie über `connect`. Liest nur die Datenbank, kein YNAB.
+let loadMovementsWith (connect: unit -> SqliteConnection) (filter: MovementFilter) : Async<Result<HistoryMovement list, string>> =
+    async {
+        use conn = connect ()
+        return queryMovements conn filter
+    }
 
 /// Die Historie liest nur die Datenbank, kein YNAB.
 let loadMovements (filter: MovementFilter) : Async<Result<HistoryMovement list, string>> =
+    loadMovementsWith Core.getConnection filter
+
+/// Die Kategorien der jüngsten Entscheidungen einer Herkunft, neueste zuerst, ohne Dubletten.
+let queryRecentCategories (conn: SqliteConnection) (origin: MovementOrigin) (limit: int) : Result<Guid list, string> =
+    loadBudgetEventsOn conn None
+    |> Result.map (fun events ->
+        newestFirst events
+        |> List.filter (fun (_, m) -> m.Origin = origin)
+        |> List.map (fun (_, m) -> m.CategoryId)
+        |> List.distinct
+        |> List.truncate limit)
+
+/// "Zuletzt verwendet" im Picker: nur Verschiebungen zwischen zwei Kategorien. Ein nicht lesbares
+/// Ereignis wirft, `QueryHandlers.recentMoveCategoriesWith` meldet es.
+let loadRecentMoveCategories (limit: int) : Async<Guid list> =
     async {
         use conn = Core.getConnection ()
-        return queryMovements conn filter
+        match queryRecentCategories conn MoneyMoved limit with
+        | Ok ids -> return ids
+        | Error message -> return failwith message
     }
 
 // ============================================
 // Target pausieren (budgeting-t6p8z, ADR 0079)
 // ============================================
 
-/// Ein festgehaltenes Pause-Ereignis. Der Stand je (Monat, Kategorie) ist das jüngste.
-type PauseEvent = {
-    Id: Guid
-    OccurredAt: DateTime
-    /// "YYYY-MM-01".
-    Month: string
-    CategoryId: Guid
-    CategoryName: string
-    Kind: PauseKind
-}
-
-/// Hängt ein Pause-Ereignis an. Frühere bleiben stehen.
-let appendPauseEvent (event: PauseEvent) : Async<unit> =
-    async {
-        use conn = Core.getConnection ()
-        conn.Execute(
-            "INSERT INTO target_pause_events (id, occurred_at, month, category_id, category_name, kind) \
-             VALUES (@id, @occurred_at, @month, @category_id, @category_name, @kind)",
-            {| id = string event.Id
-               occurred_at = dateToText event.OccurredAt
-               month = event.Month
-               category_id = string event.CategoryId
-               category_name = event.CategoryName
-               kind = pauseKindText event.Kind |}
-        )
-        |> ignore
-    }
-
-[<CLIMutable>]
-type private PauseEventRow = {
-    id: string
-    occurred_at: string
-    month: string
-    category_id: string
-    category_name: string
-    kind: string
-}
+let private pauseOf (event: BudgetEvent) : (PauseKind * PauseChange) option =
+    match event with
+    | BudgetEvent.TargetPaused p -> Some (PauseKind.Paused, p)
+    | BudgetEvent.TargetPauseLifted p -> Some (PauseKind.PauseLifted, p)
+    | _ -> None
 
 /// Die Kategorien, deren Target in BB für den Monat pausiert ist: je Kategorie zählt das jüngste
-/// Ereignis nach `rowid`, wie in der Historie (budgeting-r3wq8). Eine Abfrage für alle Kategorien des
-/// Monats. Ein unbekannter Wert in `kind` wird gemeldet, nicht auf einen Standard gelegt.
+/// Pause-Ereignis im Monats-Stream nach `stream_version`. Ein nicht lesbares Ereignis wird gemeldet.
 let queryPausedCategories (conn: SqliteConnection) (month: string) : Result<Set<Guid>, string> =
-    conn.Query<PauseEventRow>(
-        "SELECT e.id, e.occurred_at, e.month, e.category_id, e.category_name, e.kind \
-         FROM target_pause_events e \
-         WHERE e.month = @month \
-           AND e.rowid = (SELECT MAX(rowid) FROM target_pause_events l \
-                          WHERE l.month = e.month AND l.category_id = e.category_id)",
-        {| month = month |}
-    )
-    |> Seq.toList
-    |> List.map (fun r -> pauseKindOfText r.kind |> Result.map (fun kind -> kind, Guid.Parse r.category_id))
-    |> collectRows
-    |> Result.map (List.choose (fun (kind, id) -> if kind = PauseKind.Paused then Some id else None) >> Set.ofList)
+    match monthStreamOf month with
+    | None -> Ok Set.empty
+    | Some stream ->
+        loadBudgetEventsOn conn (Some stream)
+        |> Result.map (fun events ->
+            events
+            |> List.choose (fun e -> pauseOf e.Event)
+            |> List.fold (fun acc (kind, p) -> Map.add p.CategoryId kind acc) Map.empty
+            |> Map.filter (fun _ kind -> kind = PauseKind.Paused)
+            |> Map.keys
+            |> Set.ofSeq)
 
 /// Die Meldung, wenn die Pausen nicht lesbar sind. Die Ursache bleibt im Server-Log.
 [<Literal>]
@@ -425,70 +323,72 @@ let PauseEventsUnreadableText = "Pause-Ereignisse nicht lesbar"
 let logReadFailure (what: string) (cause: string) : unit =
     eprintfn "%s gescheitert: %s" what cause
 
-/// Die BB-Pausen des Monats, für `toBudgetMonth`. Ein Lesefehler oder eine unbekannte Art wird zu
-/// `Error PausesUnreadableText` (budgeting-r3wq8).
+/// Liest über `connect`; ein `Error` oder eine Ausnahme wird geloggt und zu `unreadable`.
+let private readWith
+    (connect: unit -> SqliteConnection)
+    (what: string)
+    (unreadable: string)
+    (query: SqliteConnection -> Result<'T, string>)
+    : Async<Result<'T, string>> =
+    async {
+        try
+            use conn = connect ()
+            match query conn with
+            | Ok value -> return Ok value
+            | Error message ->
+                logReadFailure what message
+                return Error unreadable
+        with ex ->
+            logReadFailure what ex.Message
+            return Error unreadable
+    }
+
+/// Die BB-Pausen des Monats über `connect`. Ein Lesefehler wird zu `Error PausesUnreadableText`.
+let loadPausedCategoriesWith (connect: unit -> SqliteConnection) (month: string) : Async<Result<Set<Guid>, string>> =
+    readWith connect "Pausen lesen" PausesUnreadableText (fun conn -> queryPausedCategories conn month)
+
+/// Die BB-Pausen des Monats, für `toBudgetMonth` (budgeting-r3wq8).
 let loadPausedCategories (month: string) : Async<Result<Set<Guid>, string>> =
-    async {
-        try
-            use conn = Core.getConnection ()
-            match queryPausedCategories conn month with
-            | Ok paused -> return Ok paused
-            | Error message ->
-                logReadFailure "Pausen lesen" message
-                return Error PausesUnreadableText
-        with ex ->
-            logReadFailure "Pausen lesen" ex.Message
-            return Error PausesUnreadableText
-    }
+    loadPausedCategoriesWith Core.getConnection month
 
-/// Die Pause-Ereignisse einer Kategorie im Monat für die Historie, neueste zuerst nach `rowid`, wie der
-/// Stand (budgeting-r3wq8). Eine unbekannte Art wird gemeldet.
+/// Die Pause-Ereignisse einer Kategorie im Monat für die Historie, neueste zuerst nach `stream_version`.
 let queryPauseEvents (conn: SqliteConnection) (categoryId: Guid) (month: string) : Result<HistoryEntry list, string> =
-    conn.Query<PauseEventRow>(
-        "SELECT id, occurred_at, month, category_id, category_name, kind FROM target_pause_events \
-         WHERE category_id = @category_id AND month = @month \
-         ORDER BY rowid DESC",
-        {| category_id = string categoryId; month = month |}
-    )
-    |> Seq.toList
-    |> List.map (fun r ->
-        let pause =
-            { EventId = Guid.Parse r.id
-              OccurredAt = dateFromText r.occurred_at
-              Month = r.month
-              CategoryId = Guid.Parse r.category_id
-              CategoryName = r.category_name }
-        pauseKindOfText r.kind
-        |> Result.map (fun kind ->
-            match kind with
-            | PauseKind.Paused -> TargetPaused pause
-            | PauseKind.PauseLifted -> HistoryEntry.PauseLifted pause))
-    |> collectRows
+    match monthStreamOf month with
+    | None -> Ok []
+    | Some stream ->
+        loadBudgetEventsOn conn (Some stream)
+        |> Result.map (fun events ->
+            events
+            |> List.choose (fun e ->
+                pauseOf e.Event
+                |> Option.filter (fun (_, p) -> p.CategoryId = categoryId)
+                |> Option.map (fun (kind, p) ->
+                    let pause =
+                        { EventId = e.EventId
+                          OccurredAt = e.OccurredAt
+                          Month = monthKeyOfId p.Month
+                          CategoryId = p.CategoryId
+                          CategoryName = p.CategoryName }
+                    match kind with
+                    | PauseKind.Paused -> TargetPaused pause
+                    | PauseKind.PauseLifted -> HistoryEntry.PauseLifted pause))
+            |> List.rev)
 
-/// Die Pause-Ereignisse für die Historie. Liest nur die Datenbank, kein YNAB. Ein Lesefehler kommt als
-/// `Error` mit Text.
+/// Die Pause-Ereignisse für die Historie über `connect`. Ein Lesefehler kommt als `Error` mit Text.
+let loadPauseEventsWith (connect: unit -> SqliteConnection) (categoryId: Guid) (month: string) : Async<Result<HistoryEntry list, string>> =
+    readWith connect "Pause-Ereignisse lesen" PauseEventsUnreadableText (fun conn -> queryPauseEvents conn categoryId month)
+
+/// Die Pause-Ereignisse für die Historie. Liest nur die Datenbank, kein YNAB.
 let loadPauseEvents (categoryId: Guid) (month: string) : Async<Result<HistoryEntry list, string>> =
-    async {
-        try
-            use conn = Core.getConnection ()
-            match queryPauseEvents conn categoryId month with
-            | Ok events -> return Ok events
-            | Error message ->
-                logReadFailure "Pause-Ereignisse lesen" message
-                return Error PauseEventsUnreadableText
-        with ex ->
-            logReadFailure "Pause-Ereignisse lesen" ex.Message
-            return Error PauseEventsUnreadableText
-    }
+    loadPauseEventsWith Core.getConnection categoryId month
 
 // ============================================
 // Target ändern und entfernen (budgeting-k8wq3, ADR 0080)
 // ============================================
 
-/// Eine festgehaltene Target-Änderung. Beträge in Milliunits, Datum "YYYY-MM-DD". `None`, wo kein
+/// Eine festzuhaltende Target-Änderung. Beträge in Milliunits, Datum "YYYY-MM-DD". `None`, wo kein
 /// Target oder kein Datum steht.
 type TargetChange = {
-    Id: Guid
     OccurredAt: DateTime
     /// Der laufende Monat, "YYYY-MM-01".
     Month: string
@@ -501,190 +401,274 @@ type TargetChange = {
     NewDate: string option
 }
 
-let private orDbNull (value: 'a option) : obj =
-    match value with
-    | Some v -> box v
-    | None -> null
+let private goalStepOf (event: BudgetEvent) : (GoalStepRef * LineOutcome) option =
+    match event with
+    | BudgetEvent.YnabGoalStepWrittenToYnab r -> Some (r, Written)
+    | BudgetEvent.YnabGoalStepWriteFailed (r, reason) -> Some (r, Failed reason)
+    | BudgetEvent.YnabGoalStepSupersededInYnab r -> Some (r, ChangedInYnab)
+    | _ -> None
 
-/// Hält Target-Änderungen in einer Transaktion fest (ADR 0080 Punkt 4). Erst danach darf der PATCH
-/// hinausgehen. Eine Änderung mit zwei Schritten ist eine Zeile, die Ergebnisse tragen den Schritt.
-let appendTargetChanges (changes: TargetChange list) : Async<unit> =
-    async {
-        use conn = Core.getConnection ()
-        conn.Open()
-        use tx = conn.BeginTransaction()
-        for c in changes do
-            conn.Execute(
-                "INSERT INTO target_changes (id, occurred_at, month, category_id, category_name, change_kind, \
-                    old_goal_target, new_goal_target, old_date, new_date, new_frequency) \
-                 VALUES (@id, @occurred_at, @month, @category_id, @category_name, @change_kind, \
-                    @old_goal_target, @new_goal_target, @old_date, @new_date, @new_frequency)",
-                {| id = string c.Id
-                   occurred_at = dateToText c.OccurredAt
-                   month = c.Month
-                   category_id = string c.CategoryId
-                   category_name = c.CategoryName
-                   change_kind = fst (targetChangeKindText c.Kind)
-                   new_frequency = orDbNull (snd (targetChangeKindText c.Kind))
-                   old_goal_target = orDbNull c.OldGoalTarget
-                   new_goal_target = orDbNull c.NewGoalTarget
-                   old_date = orDbNull c.OldDate
-                   new_date = orDbNull c.NewDate |},
-                tx
-            )
-            |> ignore
-        tx.Commit()
-    }
+/// Je (Änderung, Schritt) das jüngste Ergebnis, die Ereignisse je Stream nach `stream_version`.
+let private latestGoalSteps (events: RecordedBudgetEvent list) : Map<Guid * int, LineOutcome> =
+    events
+    |> List.choose (fun e -> goalStepOf e.Event)
+    |> List.fold (fun acc (r, outcome) -> Map.add (r.DecisionEventId, r.Step) outcome acc) Map.empty
 
-/// Hängt das Ergebnis eines Schritts (1 oder 2) an eine Target-Änderung an. Frühere Ergebnisse bleiben
-/// stehen, der Stand der Änderung ist das jüngste.
-let appendTargetChangeStepResult (changeId: Guid) (step: int) (at: DateTime) (outcome: LineOutcome) : Async<unit> =
-    async {
-        let status, reason = statusToText outcome
-        use conn = Core.getConnection ()
-        conn.Execute(
-            "INSERT INTO target_change_results (change_id, occurred_at, status, reason, step) \
-             VALUES (@change_id, @occurred_at, @status, @reason, @step)",
-            {| change_id = string changeId; occurred_at = dateToText at; status = status; reason = reason; step = step |}
-        )
-        |> ignore
-    }
+let private goalChangesOf (events: RecordedBudgetEvent list) : (RecordedBudgetEvent * YnabGoalChange) list =
+    events
+    |> List.choose (fun e ->
+        match e.Event with
+        | BudgetEvent.YnabGoalChangedFromBb p -> Some (e, p)
+        | _ -> None)
 
-[<CLIMutable>]
-type private TargetChangeRow = {
-    id: string
-    occurred_at: string
-    month: string
-    category_id: string
-    category_name: string
-    change_kind: string
-    old_goal_target: int64 option
-    new_goal_target: int64 option
-    old_date: string option
-    new_date: string option
-    new_frequency: string option
-    status: string
-    reason: string
-    date_status: string
-    date_reason: string
-}
-
-/// Die Target-Änderungen einer Kategorie im Monat für die Historie, neueste zuerst nach `rowid` wie die
-/// Pausen, je mit dem jüngsten Ergebnis von Schritt 1 und von Schritt 2 (budgeting-g2ty9, X7). Ein Ergebnis
-/// ohne Schritt stammt aus budgeting-k8wq3 und zählt als Schritt 1. Eine unbekannte Art wird gemeldet,
-/// nicht auf einen Standard gelegt.
+/// Die Target-Änderungen einer Kategorie im Monat für die Historie, neueste zuerst nach
+/// `stream_version`, je mit dem jüngsten Ergebnis von Schritt 1 und von Schritt 2.
 let queryTargetChanges (conn: SqliteConnection) (categoryId: Guid) (month: string) : Result<HistoryTargetChange list, string> =
-    conn.Query<TargetChangeRow>(
-        "SELECT c.id, c.occurred_at, c.month, c.category_id, c.category_name, c.change_kind, \
-                c.old_goal_target, c.new_goal_target, c.old_date, c.new_date, c.new_frequency, \
-                r1.status, r1.reason, r2.status AS date_status, r2.reason AS date_reason \
-         FROM target_changes c \
-         LEFT JOIN target_change_results r1 \
-           ON r1.sequence = (SELECT MAX(sequence) FROM target_change_results \
-                             WHERE change_id = c.id AND COALESCE(step, 1) = 1) \
-         LEFT JOIN target_change_results r2 \
-           ON r2.sequence = (SELECT MAX(sequence) FROM target_change_results \
-                             WHERE change_id = c.id AND step = 2) \
-         WHERE c.category_id = @category_id AND c.month = @month \
-         ORDER BY c.rowid DESC",
-        {| category_id = string categoryId; month = month |}
-    )
-    |> Seq.toList
-    |> List.map (fun r ->
-        targetChangeKindOfText r.change_kind r.new_frequency
-        |> Result.map (fun kind ->
-            { ChangeId = Guid.Parse r.id
-              OccurredAt = dateFromText r.occurred_at
-              Month = r.month
-              CategoryId = Guid.Parse r.category_id
-              CategoryName = r.category_name
-              ChangeKind = kind
-              GoalBefore = r.old_goal_target |> Option.map euroOfMilliunits
-              GoalAfter = r.new_goal_target |> Option.map euroOfMilliunits
-              DateBefore = r.old_date
-              DateAfter = r.new_date
-              Latest = statusFromText r.status r.reason
-              DateStep = statusFromText r.date_status r.date_reason }))
-    |> collectRows
+    match monthIdOf month with
+    | Error _ -> Ok []
+    | Ok monthId ->
+        loadBudgetEventsOn conn (Some (streamIdOf (TargetStream categoryId)))
+        |> Result.map (fun events ->
+            let steps = latestGoalSteps events
+            goalChangesOf events
+            |> List.filter (fun (_, p) -> p.Month = monthId)
+            |> List.rev
+            |> List.map (fun (e, p) ->
+                { ChangeId = e.EventId
+                  OccurredAt = e.OccurredAt
+                  Month = monthKeyOfId p.Month
+                  CategoryId = categoryId
+                  CategoryName = p.CategoryName
+                  ChangeKind = p.ChangeKind
+                  GoalBefore = p.OldGoalTarget |> Option.map euroOfMilliunits
+                  GoalAfter = p.NewGoalTarget |> Option.map euroOfMilliunits
+                  DateBefore = p.OldDate
+                  DateAfter = p.NewDate
+                  Latest = Map.tryFind (e.EventId, 1) steps
+                  DateStep = Map.tryFind (e.EventId, 2) steps }))
 
 /// Die Meldung, wenn die Target-Änderungen für die Historie nicht lesbar sind.
 [<Literal>]
 let TargetChangesUnreadableText = "Target-Änderungen nicht lesbar"
 
-/// Die Target-Änderungen für die Historie. Liest nur die Datenbank, kein YNAB. Ein Lesefehler oder eine
-/// unbekannte Art kommt als `Error` mit Text, die Ursache bleibt im Server-Log (wie `loadPauseEvents`).
-let loadTargetChanges (categoryId: Guid) (month: string) : Async<Result<HistoryTargetChange list, string>> =
-    async {
-        try
-            use conn = Core.getConnection ()
-            match queryTargetChanges conn categoryId month with
-            | Ok changes -> return Ok changes
-            | Error message ->
-                logReadFailure "Target-Änderungen lesen" message
-                return Error TargetChangesUnreadableText
-        with ex ->
-            logReadFailure "Target-Änderungen lesen" ex.Message
-            return Error TargetChangesUnreadableText
-    }
+/// Die Target-Änderungen für die Historie über `connect`. Ein Lesefehler kommt als `Error` mit Text.
+let loadTargetChangesWith (connect: unit -> SqliteConnection) (categoryId: Guid) (month: string) : Async<Result<HistoryTargetChange list, string>> =
+    readWith connect "Target-Änderungen lesen" TargetChangesUnreadableText (fun conn -> queryTargetChanges conn categoryId month)
 
-[<CLIMutable>]
-type private LastTargetChangeRow = {
-    row_order: int64
-    occurred_at: string
-    category_id: string
-    change_kind: string
-    new_frequency: string option
-}
+/// Die Target-Änderungen für die Historie. Liest nur die Datenbank, kein YNAB.
+let loadTargetChanges (categoryId: Guid) (month: string) : Async<Result<HistoryTargetChange list, string>> =
+    loadTargetChangesWith Core.getConnection categoryId month
 
 /// Je Kategorie die jüngste Target-Änderung, deren jüngstes Ergebnis von Schritt 1 geschrieben ist (Targets
-/// prüfen, budgeting-p2zr6, ADR 0082 Punkt 7). Ein Ergebnis ohne Schritt zählt als Schritt 1 wie in
-/// `queryTargetChanges`, Schritt 2 zählt nicht. Jüngste nach `occurred_at`, bei gleichem Zeitpunkt nach
-/// `rowid`. Der Tag ist der Berliner Kalendertag "YYYY-MM-DD" (`berlinTime`). Eine unbekannte Art wird
-/// gemeldet, nicht auf einen Standard gelegt.
+/// prüfen, budgeting-p2zr6, ADR 0082 Punkt 7). Jüngste nach `occurred_at`, bei gleichem Zeitpunkt nach
+/// `stream_version`. Der Tag ist der Berliner Kalendertag "YYYY-MM-DD" (`berlinTime`).
 let queryLastTargetChanges (conn: SqliteConnection) : Result<Map<Guid, TargetChangeMark>, string> =
-    conn.Query<LastTargetChangeRow>(
-        "SELECT c.rowid AS row_order, c.occurred_at, c.category_id, c.change_kind, c.new_frequency \
-         FROM target_changes c \
-         JOIN target_change_results r1 \
-           ON r1.sequence = (SELECT MAX(sequence) FROM target_change_results \
-                             WHERE change_id = c.id AND COALESCE(step, 1) = 1) \
-         WHERE r1.status = 'written'"
-    )
-    |> Seq.toList
-    |> List.map (fun r ->
-        targetChangeKindOfText r.change_kind r.new_frequency
-        |> Result.map (fun kind -> Guid.Parse r.category_id, dateFromText r.occurred_at, r.row_order, kind))
-    |> collectRows
-    |> Result.map (fun changes ->
-        changes
-        |> List.groupBy (fun (categoryId, _, _, _) -> categoryId)
+    loadBudgetEventsOn conn None
+    |> Result.map (fun events ->
+        let steps = latestGoalSteps events
+        goalChangesOf events
+        |> List.choose (fun (e, p) ->
+            match categoryOfTargetStream e.StreamId, Map.tryFind (e.EventId, 1) steps with
+            | Some categoryId, Some Written -> Some (categoryId, e, p)
+            | _ -> None)
+        |> List.groupBy (fun (categoryId, _, _) -> categoryId)
         |> List.map (fun (categoryId, rows) ->
-            let _, at, _, kind = rows |> List.maxBy (fun (_, at, order, _) -> at, order)
-            let day = (berlinTime at).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
-            let mark = if kind = TargetRemoved then TargetRemovedOn day else TargetSetOn day
+            let _, e, p = rows |> List.maxBy (fun (_, e, _) -> e.OccurredAt, e.StreamVersion)
+            let day = (berlinTime e.OccurredAt).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+            let mark = if p.ChangeKind = TargetRemoved then TargetRemovedOn day else TargetSetOn day
             categoryId, mark)
         |> Map.ofList)
 
 /// Die letzten Target-Änderungen aller Kategorien für Targets prüfen über die Verbindung aus `connect`.
-/// Liest nur die Datenbank. Ein Lesefehler oder eine unbekannte Art kommt als `Error` mit
-/// `TargetChangesUnreadableText`, die Ursache bleibt im Server-Log.
+/// Ein Lesefehler kommt als `Error` mit `TargetChangesUnreadableText`, die Ursache bleibt im Server-Log.
 let loadLastTargetChangesWith (connect: unit -> SqliteConnection) : Async<Result<Map<Guid, TargetChangeMark>, string>> =
-    async {
-        try
-            use conn = connect ()
-            match queryLastTargetChanges conn with
-            | Ok marks -> return Ok marks
-            | Error message ->
-                logReadFailure "Letzte Target-Änderungen lesen" message
-                return Error TargetChangesUnreadableText
-        with ex ->
-            logReadFailure "Letzte Target-Änderungen lesen" ex.Message
-            return Error TargetChangesUnreadableText
-    }
+    readWith connect "Letzte Target-Änderungen lesen" TargetChangesUnreadableText queryLastTargetChanges
 
 /// `loadLastTargetChangesWith` auf der Datenbank der Anwendung.
 let loadLastTargetChanges () : Async<Result<Map<Guid, TargetChangeMark>, string>> =
     loadLastTargetChangesWith Core.getConnection
+
+// ============================================
+// Schreiben
+// ============================================
+
+/// Hängt Ereignisse an einen Stream an, eine Transaktion (ADR 0083 Punkt 3). Die Zeitpunkte müssen UTC
+/// sein. Liefert die gespeicherten Ereignisse samt `event_id`.
+let internal appendOn (conn: SqliteConnection) (stream: BudgetStream) (events: (DateTime * BudgetEvent) list) : EventStore.RecordedEvent list =
+    if conn.State <> Data.ConnectionState.Open then
+        conn.Open()
+    let aggregate, id = streamParts stream
+    let request : EventStore.AppendRequest =
+        { Context = Context
+          CommandId = None
+          Streams =
+            [ { Aggregate = aggregate
+                Id = id
+                Events = events |> List.map (fun (at, event) -> toNewEvent at event) } ] }
+    use tx = conn.BeginTransaction()
+    match EventStore.appendOn conn tx request EventStore.noReadModels with
+    | EventStore.Appended recorded ->
+        tx.Commit()
+        recorded
+    | EventStore.CommandAlreadyProcessed _ -> failwith "Budget-Ereignisse tragen keine Befehls-Id"
+
+let private appendNow (stream: BudgetStream) (events: (DateTime * BudgetEvent) list) : Async<EventStore.RecordedEvent list> =
+    async {
+        use conn = Core.getConnection ()
+        return appendOn conn stream events
+    }
+
+let private monthStreamOrFail (monthKey: string) : string * BudgetStream =
+    match monthIdOf monthKey with
+    | Ok monthId -> monthId, MonthStream monthId
+    | Error message -> invalidArg "monthKey" message
+
+/// Eine geplante Zeile einer Entscheidung, Beträge in Milliunits.
+type PlannedLine = {
+    CategoryId: Guid
+    CategoryName: string
+    OldAssigned: int64
+    NewAssigned: int64
+}
+
+/// Das Entscheidungsereignis zu Herkunft und Zeilen; jede Zeile bekommt eine frische `lineId`.
+/// Verschieben braucht genau zwei Zeilen (Quelle, Ziel), Zuweisen genau eine.
+let internal decisionEvent
+    (monthId: string)
+    (origin: MovementOrigin)
+    (lines: PlannedLine list)
+    (skippedPaused: SkippedPausedLine list)
+    : BudgetEvent =
+    let line (l: PlannedLine) : BudgetLine =
+        { LineId = Guid.NewGuid()
+          CategoryId = l.CategoryId
+          CategoryName = l.CategoryName
+          PreviousAssigned = l.OldAssigned
+          Assigned = l.NewAssigned }
+    match origin, lines with
+    | TargetsApplied, _ ->
+        BudgetEvent.TargetsApplied { Month = monthId; Lines = lines |> List.map line; SkippedPaused = skippedPaused }
+    | MoneyMoved, [ from; target ] ->
+        BudgetEvent.MoneyMoved
+            { Month = monthId
+              From = line from
+              To = line target
+              Amount = from.OldAssigned - from.NewAssigned }
+    | MoneyAssigned, [ single ] -> BudgetEvent.AssignmentChangedInBb { Month = monthId; Line = line single }
+    | _ -> invalidArg "lines" $"{originText origin}: {lines.Length} Zeilen passen nicht zur Herkunft"
+
+/// Hält eine Entscheidung als ein Ereignis im Monats-Stream fest (ADR 0084 Punkt 4). Erst danach darf der
+/// erste PATCH nach YNAB gehen (ADR 0050). Liefert die Zeilen, ihre Gruppen-Id ist die `event_id`.
+let internal recordDecisionOn
+    (conn: SqliteConnection)
+    (at: DateTime)
+    (monthKey: string)
+    (origin: MovementOrigin)
+    (lines: PlannedLine list)
+    (skippedPaused: SkippedPausedLine list)
+    : Movement list =
+    let monthId, stream = monthStreamOrFail monthKey
+    let event = decisionEvent monthId origin lines skippedPaused
+    match appendOn conn stream [ at, event ] with
+    | [ recorded ] ->
+        movementsOf
+            { EventId = recorded.EventId
+              StreamId = recorded.StreamId
+              StreamVersion = recorded.StreamVersion
+              OccurredAt = at
+              Event = event }
+    | other -> failwith $"Ein Entscheidungsereignis erwartet, {other.Length} gespeichert"
+
+/// `recordDecisionOn` auf der Datenbank der Anwendung.
+let recordDecision
+    (at: DateTime)
+    (monthKey: string)
+    (origin: MovementOrigin)
+    (lines: PlannedLine list)
+    (skippedPaused: SkippedPausedLine list)
+    : Async<Movement list> =
+    async {
+        use conn = Core.getConnection ()
+        return recordDecisionOn conn at monthKey origin lines skippedPaused
+    }
+
+/// Hängt den Ausgang einer Zeile als Ergebnis-Ereignis an den Monats-Stream ihrer Entscheidung.
+let internal recordWriteBackOn (conn: SqliteConnection) (m: Movement) (at: DateTime) (outcome: WriteBackOutcome) : unit =
+    let _, stream = monthStreamOrFail m.Month
+    let reference = { DecisionEventId = m.ApplicationId; CategoryId = m.CategoryId }
+    appendOn conn stream [ at, writeBackEvent reference outcome ] |> ignore
+
+/// `recordWriteBackOn` auf der Datenbank der Anwendung.
+let recordWriteBack (m: Movement) (at: DateTime) (outcome: WriteBackOutcome) : Async<unit> =
+    async {
+        use conn = Core.getConnection ()
+        recordWriteBackOn conn m at outcome
+    }
+
+/// Hält ein Pause-Ereignis im Monats-Stream fest. Liefert seine `event_id`.
+let internal recordPauseOn
+    (conn: SqliteConnection)
+    (at: DateTime)
+    (monthKey: string)
+    (categoryId: Guid)
+    (categoryName: string)
+    (kind: PauseKind)
+    : Guid =
+    let monthId, stream = monthStreamOrFail monthKey
+    let pause = { Month = monthId; CategoryId = categoryId; CategoryName = categoryName }
+    let event =
+        match kind with
+        | PauseKind.Paused -> BudgetEvent.TargetPaused pause
+        | PauseKind.PauseLifted -> BudgetEvent.TargetPauseLifted pause
+    (appendOn conn stream [ at, event ] |> List.exactlyOne).EventId
+
+/// `recordPauseOn` auf der Datenbank der Anwendung.
+let recordPause (at: DateTime) (monthKey: string) (categoryId: Guid) (categoryName: string) (kind: PauseKind) : Async<Guid> =
+    async {
+        use conn = Core.getConnection ()
+        return recordPauseOn conn at monthKey categoryId categoryName kind
+    }
+
+/// Hält eine Target-Änderung im Target-Stream der Kategorie fest (ADR 0080 Punkt 4). Erst danach darf der
+/// PATCH hinausgehen. Liefert die `event_id`, auf sie verweisen die Schritt-Ergebnisse.
+let internal recordTargetChangeOn (conn: SqliteConnection) (change: TargetChange) : Guid =
+    let monthId, _ = monthStreamOrFail change.Month
+    let event =
+        BudgetEvent.YnabGoalChangedFromBb
+            { Month = monthId
+              CategoryName = change.CategoryName
+              ChangeKind = change.Kind
+              OldGoalTarget = change.OldGoalTarget
+              NewGoalTarget = change.NewGoalTarget
+              OldDate = change.OldDate
+              NewDate = change.NewDate }
+    (appendOn conn (TargetStream change.CategoryId) [ change.OccurredAt, event ] |> List.exactlyOne).EventId
+
+/// `recordTargetChangeOn` auf der Datenbank der Anwendung.
+let recordTargetChange (change: TargetChange) : Async<Guid> =
+    async {
+        use conn = Core.getConnection ()
+        return recordTargetChangeOn conn change
+    }
+
+/// Hängt das Ergebnis eines Schritts (1 oder 2) einer Target-Änderung an den Target-Stream an.
+let internal recordTargetChangeStepResultOn
+    (conn: SqliteConnection)
+    (categoryId: Guid)
+    (changeId: Guid)
+    (step: int)
+    (at: DateTime)
+    (outcome: LineOutcome)
+    : unit =
+    let event = goalStepEvent { DecisionEventId = changeId; Step = step } outcome
+    appendOn conn (TargetStream categoryId) [ at, event ] |> ignore
+
+/// `recordTargetChangeStepResultOn` auf der Datenbank der Anwendung.
+let recordTargetChangeStepResult (categoryId: Guid) (changeId: Guid) (step: int) (at: DateTime) (outcome: LineOutcome) : Async<unit> =
+    async {
+        use conn = Core.getConnection ()
+        recordTargetChangeStepResultOn conn categoryId changeId step at outcome
+    }
 
 // ============================================
 // Abweichungsliste (budgeting-v7kfw, ADR 0084 Punkt 7)

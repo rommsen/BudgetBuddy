@@ -199,10 +199,13 @@ let private movementsOf (report: ApplyReport) =
     | Ok states -> states
     | Error e -> failtest $"Zeilen erwartet: {e}"
 
+/// Die festgehaltenen Zeilen der Kategorien über alle Monate, gelesen wie die Historie.
 let private movementRows (ids: Guid list) : int =
-    use conn = global.Persistence.getConnection ()
-    let sql = "SELECT COUNT(*) FROM budget_movements WHERE category_id IN (" + (ids |> List.map (fun i -> $"'{i}'") |> String.concat ",") + ")"
-    Dapper.SqlMapper.ExecuteScalar<int>(conn, sql)
+    ids
+    |> List.sumBy (fun id ->
+        match Budgeting.Persistence.loadMovements { CategoryId = Some id; Month = None; Origin = None } |> Async.RunSynchronously with
+        | Ok found -> found.Length
+        | Error message -> failtest message)
 
 let private networkDown = YnabError.NetworkError "Netz weg"
 
@@ -222,10 +225,12 @@ let private recordedMove (a: Guid) (b: Guid) (source: LineOutcome option) (targe
           NewAssigned = newAssigned }
     let sourceMovement = movement a "Lebensmittel" 100000L 70000L
     let targetMovement = movement b "Urlaub" 20000L 50000L
-    Budgeting.Persistence.appendMovements [ sourceMovement; targetMovement ] |> run
-    source |> Option.iter (fun o -> Budgeting.Persistence.appendResult sourceMovement.Id now o |> run)
-    target |> Option.iter (fun o -> Budgeting.Persistence.appendResult targetMovement.Id now o |> run)
-    applicationId
+    match BudgetEventsFixture.recordGroups [ sourceMovement; targetMovement ] with
+    | [ sourceMovement; targetMovement ] ->
+        source |> Option.iter (BudgetEventsFixture.recordResult sourceMovement now)
+        target |> Option.iter (BudgetEventsFixture.recordResult targetMovement now)
+        sourceMovement.ApplicationId
+    | other -> failtest $"zwei Zeilen erwartet, kamen {List.length other}"
 
 let private retryApplication (f: FakeYnab) (applicationId: Guid) : ApplyReport =
     match run (retryFailed f.Port now applicationId) with
@@ -433,7 +438,8 @@ let private flowTests =
 
         testCase "Verschieben und Targets anwenden für denselben Monat laufen nicht ineinander" <| fun () ->
             let f, a, b = fake ()
-            let key = $"sperre-{Guid.NewGuid()}"
+            // Ein eigener, gültiger Monat für die Sperre: der Monats-Stream braucht "YYYY-MM-01" (budgeting-hyn77).
+            let key = $"{2100 + Random.Shared.Next 7000}-{1 + Random.Shared.Next 12:D2}-01"
             let holder = new System.Threading.SemaphoreSlim(0, 1)
             let release = new System.Threading.SemaphoreSlim(0, 1)
             // Die Sperre halten wie ein laufendes "Targets anwenden".
@@ -730,7 +736,8 @@ let private assignFlowTests =
 
         testCase "Die Sperre je Monat hält eine zweite Zuweisung und eine Verschiebung an" <| fun () ->
             let f, a, b = fake ()
-            let key = $"sperre-{Guid.NewGuid()}"
+            // Ein eigener, gültiger Monat für die Sperre: der Monats-Stream braucht "YYYY-MM-01" (budgeting-hyn77).
+            let key = $"{2100 + Random.Shared.Next 7000}-{1 + Random.Shared.Next 12:D2}-01"
             let holder = new System.Threading.SemaphoreSlim(0, 1)
             let release = new System.Threading.SemaphoreSlim(0, 1)
             let held =
@@ -845,42 +852,53 @@ let private assignBoundaryTests =
             Expect.equal noBudget (Error "Kein Standard-Budget konfiguriert (Settings)") "Budget"
     ]
 
-// Eigene Verbindung: die gemeinsame Testdatenbank ist nie leer (Doktrin Punkt 15).
+// Eigene Verbindung: die gemeinsame Testdatenbank ist nie leer (Doktrin Punkt 15). Die Entscheidungen
+// gehen über den echten Schreibweg nach `events` (budgeting-hyn77), je eine Stunde später als die vorige.
 let private recentTests =
-    let withTable (body: Microsoft.Data.Sqlite.SqliteConnection -> unit) =
+    let withDb (body: Microsoft.Data.Sqlite.SqliteConnection -> unit) =
         use conn = new Microsoft.Data.Sqlite.SqliteConnection("Data Source=:memory:")
         conn.Open()
-        Dapper.SqlMapper.Execute(conn, "CREATE TABLE budget_movements (category_id TEXT NOT NULL, origin TEXT NOT NULL)") |> ignore
+        EventStore.createSchemaOn conn
         body conn
-    let insert (conn: Microsoft.Data.Sqlite.SqliteConnection) (origin: MovementOrigin) (id: Guid) =
-        Dapper.SqlMapper.Execute(
-            conn,
-            "INSERT INTO budget_movements (category_id, origin) VALUES (@id, @origin)",
-            {| id = string id; origin = Domain.originText origin |})
+    let hour = ref 0
+    let record (conn: Microsoft.Data.Sqlite.SqliteConnection) (origin: MovementOrigin) (ids: Guid list) =
+        hour.Value <- hour.Value + 1
+        let lines : Budgeting.Persistence.PlannedLine list =
+            ids
+            |> List.mapi (fun i id ->
+                { CategoryId = id
+                  CategoryName = "K"
+                  OldAssigned = 10000L
+                  NewAssigned = (if i = 0 && origin = MoneyMoved then 0L else 20000L) })
+        Budgeting.Persistence.recordDecisionOn conn (DateTime(2026, 11, 1, 0, 0, 0, DateTimeKind.Utc).AddHours(float hour.Value)) monthKey origin lines []
         |> ignore
-    let query conn = Budgeting.Persistence.queryRecentCategories conn MoneyMoved 10
+    let query conn =
+        match Budgeting.Persistence.queryRecentCategories conn MoneyMoved 10 with
+        | Ok ids -> ids
+        | Error message -> failtest message
     testList "Zuletzt verwendet" [
-        test "Leere Tabelle: leere Liste" {
-            withTable (fun conn -> Expect.isEmpty (query conn) "leer")
+        test "Ohne Ereignisse: leere Liste" {
+            withDb (fun conn -> Expect.isEmpty (query conn) "leer")
         }
-        test "Neueste zuerst, ohne Dubletten" {
-            withTable (fun conn ->
+        test "Neueste zuerst, das Ziel vor der Quelle, ohne Dubletten" {
+            withDb (fun conn ->
                 let a, b, c = Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()
-                for id in [ a; b; c; a ] do insert conn MoneyMoved id
+                record conn MoneyMoved [ a; b ]
+                record conn MoneyMoved [ c; a ]
                 Expect.equal (query conn) [ a; c; b ] "a ist die jüngste")
         }
         test "Herkunft Targets anwenden und Zuweisen zählen nicht" {
-            withTable (fun conn ->
-                let a, b, c = Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()
-                insert conn MoneyMoved a
-                insert conn TargetsApplied b
-                insert conn MoneyAssigned c
-                Expect.equal (query conn) [ a ] "nur Verschieben")
+            withDb (fun conn ->
+                let a, b, c, d = Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()
+                record conn MoneyMoved [ a; d ]
+                record conn TargetsApplied [ b ]
+                record conn MoneyAssigned [ c ]
+                Expect.equal (query conn) [ d; a ] "nur Verschieben")
         }
         test "Höchstens zehn" {
-            withTable (fun conn ->
+            withDb (fun conn ->
                 let ids = List.init 12 (fun _ -> Guid.NewGuid())
-                for id in ids do insert conn MoneyMoved id
+                for pair in ids |> List.chunkBySize 2 do record conn MoneyMoved pair
                 Expect.equal (query conn) (ids |> List.rev |> List.truncate 10) "die zehn jüngsten")
         }
         testCase "Der Weg über die Abfrage liest die Bewegungen aus jedem Monat und kein YNAB" <| fun () ->

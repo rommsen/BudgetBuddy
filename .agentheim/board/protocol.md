@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 18:08 -- Task verified and completed: budgeting-hyn77 - "Budget-Ereignistypen mit Codec und Startmigration der fünf Budget-Tabellen nach events, Schreibwege und Leser umgestellt, Verhalten unverändert"
+
+**Type:** Work / Task completion
+**Task:** budgeting-hyn77 - "Budget-Ereignistypen mit Codec und Startmigration der fünf Budget-Tabellen nach events, Schreibwege und Leser umgestellt, Verhalten unverändert"
+**Summary:** Budget-Ereignisse nach events: englische Typen mit Codec, Startmigration der fünf Budget-Tabellen in einer Transaktion, Schreibwege und Leser auf events, Verhalten unverändert, Probe gegen Produktionskopie grün
+**Duration:** 35m
+**Verification:** PASS (iteration 1)
+**Files changed:** 20
+**Tests added:** 49
+**ADRs written:** none
+
+---
+
 ## 2026-11-05 17:33 -- Batch started: [budgeting-hyn77]
 
 **Type:** Work / Batch start

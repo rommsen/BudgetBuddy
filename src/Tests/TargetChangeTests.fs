@@ -351,17 +351,50 @@ let private request (k: Guid) (shown: Target option) (wanted: TargetDraft option
 let private change (f: FakeYnab) (month: string) (r: TargetChangeRequest) =
     changeTarget f.Port now current month r |> run
 
-/// Zeilen in `target_changes` der Kategorie: Art, alter und neuer Betrag in Milliunits, Status.
-let private changeRows (id: Guid) : string list =
+/// Die Ereignisse im Target-Stream der Kategorie (budgeting-hyn77), nach `stream_version`.
+let private targetEvents (id: Guid) : Budgeting.Persistence.RecordedBudgetEvent list =
     use conn = global.Persistence.getConnection ()
-    Dapper.SqlMapper.Query<string>(
+    match Budgeting.Persistence.loadBudgetEventsOn conn (Some (Budgeting.Events.streamIdOf (Budgeting.Events.TargetStream id))) with
+    | Ok events -> events
+    | Error message -> failtest message
+
+/// Die Schritt-Ergebnisse im Stream: Änderung, Schritt, Status wie früher in der Spalte, Grund.
+let private stepResults (events: Budgeting.Persistence.RecordedBudgetEvent list) : (Guid * int * string * string) list =
+    events
+    |> List.choose (fun e ->
+        match e.Event with
+        | Budgeting.Events.BudgetEvent.YnabGoalStepWrittenToYnab r -> Some (r.DecisionEventId, r.Step, "written", "")
+        | Budgeting.Events.BudgetEvent.YnabGoalStepWriteFailed (r, reason) -> Some (r.DecisionEventId, r.Step, "failed", reason)
+        | Budgeting.Events.BudgetEvent.YnabGoalStepSupersededInYnab r -> Some (r.DecisionEventId, r.Step, "changed-in-ynab", "")
+        | _ -> None)
+
+/// Die Target-Änderungen der Kategorie je Ergebnis: Monat, Art, alter und neuer Betrag in Milliunits, Status.
+let private changeRows (id: Guid) : string list =
+    let events = targetEvents id
+    let results = stepResults events
+    events
+    |> List.collect (fun e ->
+        match e.Event with
+        | Budgeting.Events.BudgetEvent.YnabGoalChangedFromBb p ->
+            let amount (v: int64 option) = v |> Option.map string |> Option.defaultValue "-"
+            let head =
+                $"{Budgeting.Events.monthKeyOfId p.Month}|{fst (Domain.targetChangeKindText p.ChangeKind)}|{amount p.OldGoalTarget}|{amount p.NewGoalTarget}"
+            match results |> List.filter (fun (c, _, _, _) -> c = e.EventId) with
+            | [] -> [ $"{head}|offen|" ]
+            | own -> own |> List.map (fun (_, _, status, reason) -> $"{head}|{status}|{reason}")
+        | _ -> [])
+
+/// Ein Trigger, der Schritt-Ergebnisse der Kategorie beim Anhängen abweist; `extra` grenzt weiter ein.
+let private blockStepResults (k: Guid) (extra: string) (body: unit -> unit) =
+    let trigger = $"fail_steps_{k:N}"
+    use conn = global.Persistence.getConnection ()
+    Dapper.SqlMapper.Execute(
         conn,
-        "SELECT c.month || '|' || c.change_kind || '|' || IFNULL(c.old_goal_target, '-') || '|' || IFNULL(c.new_goal_target, '-') \
-                || '|' || IFNULL(r.status, 'offen') || '|' || IFNULL(r.reason, '') \
-         FROM target_changes c LEFT JOIN target_change_results r ON r.change_id = c.id \
-         WHERE c.category_id = @id ORDER BY c.rowid, r.sequence",
-        {| id = string id |})
-    |> Seq.toList
+        $"CREATE TRIGGER {trigger} BEFORE INSERT ON events \
+          WHEN NEW.stream_id = 'budgeting:target:{k}' AND NEW.event_type LIKE 'YnabGoalStep%%' {extra} \
+          BEGIN SELECT RAISE(ABORT, 'kaputt'); END;")
+    |> ignore
+    try body () finally Dapper.SqlMapper.Execute(conn, $"DROP TRIGGER {trigger}") |> ignore
 
 let private flowTests =
     let testCase name body =
@@ -394,21 +427,11 @@ let private flowTests =
         // kommt zurück. Ein Trigger nur für diese Kategorie lässt das Anhängen scheitern.
         testCase "GIVEN YNAB schreibt, das Ergebnis lässt sich nicht anhängen WHEN ändern THEN trotzdem geschrieben, die Zeile bleibt offen" <| fun () ->
             let f, k = fakeWith (Some fifty)
-            let trigger = $"fail_result_{k:N}"
-            use conn = global.Persistence.getConnection ()
-            Dapper.SqlMapper.Execute(
-                conn,
-                $"CREATE TRIGGER {trigger} BEFORE INSERT ON target_change_results \
-                  WHEN NEW.change_id IN (SELECT id FROM target_changes WHERE category_id = '{k}') \
-                  BEGIN SELECT RAISE(ABORT, 'kaputt'); END;")
-            |> ignore
-            try
+            blockStepResults k "" (fun () ->
                 match change f current (request k (Some fifty) (Some (draft 60m None))) with
                 | Ok (Ok (TargetWritten (Some t))) -> Expect.equal t.Goal (eur 60m) "YNABs Ergebnis"
-                | other -> failtest $"geschrieben erwartet: {other}"
-                Expect.equal (changeRows k) [ $"{current}|Geändert|50000|60000|offen|" ] "festgehalten, ohne Ergebnis"
-            finally
-                Dapper.SqlMapper.Execute(conn, $"DROP TRIGGER {trigger}") |> ignore
+                | other -> failtest $"geschrieben erwartet: {other}")
+            Expect.equal (changeRows k) [ $"{current}|Geändert|50000|60000|offen|" ] "festgehalten, ohne Ergebnis"
 
         testCase "GIVEN YNAB steht inzwischen auf 55 €, gezeigt 50 € WHEN ändern THEN kein PATCH, keine Zeile, TargetChangedInYnab mit 55 €" <| fun () ->
             let f, k = fakeWith (Some (targetOf Need 55m None))
@@ -506,11 +529,8 @@ let private flowTests =
                   CategoryName = "Urlaub"
                   OldAssigned = 0L
                   NewAssigned = 10000L }
-            let pause : Budgeting.Persistence.PauseEvent =
-                { Id = Guid.NewGuid(); OccurredAt = at 3; Month = current; CategoryId = k; CategoryName = "Urlaub"; Kind = Domain.PauseKind.Paused }
             let targetChange hour (month: string) : Budgeting.Persistence.TargetChange =
-                { Id = Guid.NewGuid()
-                  OccurredAt = at hour
+                { OccurredAt = at hour
                   Month = month
                   CategoryId = k
                   CategoryName = "Urlaub"
@@ -519,12 +539,14 @@ let private flowTests =
                   NewGoalTarget = Some 60000L
                   OldDate = None
                   NewDate = None }
-            let c2, c4 = targetChange 2 current, targetChange 4 current
-            Budgeting.Persistence.appendMovements [ movement ] |> run
-            Budgeting.Persistence.appendPauseEvent pause |> run
-            Budgeting.Persistence.appendTargetChanges [ c2; c4; targetChange 5 "2026-12-01" ] |> run
-            Budgeting.Persistence.appendTargetChangeStepResult c2.Id 1 now (Failed "Rate-Limit") |> run
-            Budgeting.Persistence.appendTargetChangeStepResult c2.Id 1 now Written |> run
+            let movement = BudgetEventsFixture.recordGroups [ movement ] |> List.exactlyOne
+            let pause = Budgeting.Persistence.recordPause (at 3) current k "Urlaub" Domain.PauseKind.Paused |> run
+            let record c = Budgeting.Persistence.recordTargetChange c |> run
+            let c2 = record (targetChange 2 current)
+            let c4 = record (targetChange 4 current)
+            record (targetChange 5 "2026-12-01") |> ignore
+            Budgeting.Persistence.recordTargetChangeStepResult k c2 1 now (Failed "Rate-Limit") |> run
+            Budgeting.Persistence.recordTargetChangeStepResult k c2 1 now Written |> run
             let port = { QueryHandlers.liveHistoryPort with LoadMonthlyActivity = fun _ _ -> async { return [] } }
             match QueryHandlers.categoryHistory port k (DateTime(2026, 11, 1)) |> run with
             | Ok history ->
@@ -537,68 +559,54 @@ let private flowTests =
                         | TargetChanged c -> "Target", c.ChangeId, c.Latest)
                 Expect.equal
                     ids
-                    [ "Target", c4.Id, None; "Pause", pause.Id, None; "Target", c2.Id, Some Written; "Bewegung", movement.Id, None ]
+                    [ "Target", c4, None; "Pause", pause, None; "Target", c2, Some Written; "Bewegung", movement.Id, None ]
                     "gemischt, neueste zuerst, jüngstes Ergebnis"
             | Error e -> failtest e
     ]
 
 let private persistenceTests =
-    let tryExec (sql: string) =
-        use conn = global.Persistence.getConnection ()
-        try
-            Dapper.SqlMapper.Execute(conn, sql) |> ignore
-            None
-        with ex -> Some ex.Message
+    let change kind goalBefore goalAfter dateBefore dateAfter : Budgeting.Persistence.TargetChange =
+        { OccurredAt = now; Month = current; CategoryId = Guid.NewGuid(); CategoryName = "A"; Kind = kind
+          OldGoalTarget = goalBefore; NewGoalTarget = goalAfter; OldDate = dateBefore; NewDate = dateAfter }
     testSequenced
     <| testList "Target ändern: Persistenz" [
-        testCase "Beide Tabellen sind append-only, das Schema läuft zweimal" <| fun () ->
+        testCase "Das Schema läuft zweimal, nullbare Werte werden gelesen" <| fun () ->
             Budgeting.Persistence.initializeBudgetingSchema ()
             Budgeting.Persistence.initializeBudgetingSchema ()
-            let k = Guid.NewGuid()
-            let c : Budgeting.Persistence.TargetChange =
-                { Id = Guid.NewGuid(); OccurredAt = now; Month = current; CategoryId = k; CategoryName = "A"; Kind = TargetRemoved
-                  OldGoalTarget = Some 1000L; NewGoalTarget = None; OldDate = Some "2027-01-01"; NewDate = None }
-            Budgeting.Persistence.appendTargetChanges [ c ] |> run
-            Budgeting.Persistence.appendTargetChangeStepResult c.Id 1 now Written |> run
-            Expect.isSome (tryExec $"UPDATE target_changes SET change_kind = 'Geändert' WHERE category_id = '{k}'") "UPDATE Änderung"
-            Expect.isSome (tryExec $"DELETE FROM target_changes WHERE category_id = '{k}'") "DELETE Änderung"
-            Expect.isSome (tryExec $"UPDATE target_change_results SET status = 'failed' WHERE change_id = '{c.Id}'") "UPDATE Ergebnis"
-            Expect.isSome (tryExec $"DELETE FROM target_change_results WHERE change_id = '{c.Id}'") "DELETE Ergebnis"
-            match Budgeting.Persistence.loadTargetChanges k current |> run with
+            let c = change TargetRemoved (Some 1000L) None (Some "2027-01-01") None
+            let id = Budgeting.Persistence.recordTargetChange c |> run
+            Budgeting.Persistence.recordTargetChangeStepResult c.CategoryId id 1 now Written |> run
+            match Budgeting.Persistence.loadTargetChanges c.CategoryId current |> run with
             | Ok [ read ] ->
                 Expect.equal
-                    (read.ChangeKind, read.GoalBefore, read.GoalAfter, read.DateBefore, read.DateAfter, read.Latest)
-                    (TargetRemoved, Some (eur 1m), None, Some "2027-01-01", None, Some Written)
+                    (read.ChangeId, read.ChangeKind, read.GoalBefore, read.GoalAfter, read.DateBefore, read.DateAfter, read.Latest)
+                    (id, TargetRemoved, Some (eur 1m), None, Some "2027-01-01", None, Some Written)
                     "nullbare Werte gelesen"
             | other -> failtest $"eine Zeile erwartet: {other}"
 
         // budgeting-g2ty9 (X7): die Historie las nur das jüngste Ergebnis über alle Schritte, ein gescheitertes
         // Datum in Schritt 2 ließ die ganze Änderung fehlgeschlagen aussehen.
-        testCase "Ergebnisse werden je Schritt gelesen, ein Ergebnis ohne Schritt zählt als Schritt 1" <| fun () ->
+        testCase "Ergebnisse werden je Schritt gelesen" <| fun () ->
             Budgeting.Persistence.initializeBudgetingSchema ()
-            let k = Guid.NewGuid()
-            let c : Budgeting.Persistence.TargetChange =
-                { Id = Guid.NewGuid(); OccurredAt = now; Month = current; CategoryId = k; CategoryName = "A"; Kind = TargetCreated Yearly
-                  OldGoalTarget = None; NewGoalTarget = Some 600000L; OldDate = None; NewDate = Some "2027-06-01" }
-            Budgeting.Persistence.appendTargetChanges [ c ] |> run
-            Expect.isNone
-                (tryExec $"INSERT INTO target_change_results (change_id, occurred_at, status) VALUES ('{c.Id}', '2026-11-04T09:00:00.0000000Z', 'written')")
-                "Ergebnis ohne Schritt wie aus budgeting-k8wq3"
-            Budgeting.Persistence.appendTargetChangeStepResult c.Id 2 now (Failed "kaputt") |> run
-            match Budgeting.Persistence.loadTargetChanges k current |> run with
+            let c = change (TargetCreated Yearly) None (Some 600000L) None (Some "2027-06-01")
+            let id = Budgeting.Persistence.recordTargetChange c |> run
+            Budgeting.Persistence.recordTargetChangeStepResult c.CategoryId id 1 now Written |> run
+            Budgeting.Persistence.recordTargetChangeStepResult c.CategoryId id 2 now (Failed "kaputt") |> run
+            match Budgeting.Persistence.loadTargetChanges c.CategoryId current |> run with
             | Ok [ read ] -> Expect.equal (read.Latest, read.DateStep) (Some Written, Some (Failed "kaputt")) "je Schritt"
             | other -> failtest $"eine Zeile erwartet: {other}"
 
-        testCase "Eine unbekannte Art beim Lesen wird gemeldet, nicht auf einen Standard gelegt" <| fun () ->
-            Budgeting.Persistence.initializeBudgetingSchema ()
+        // budgeting-hyn77: ein unbekannter Ereignistyp im Target-Stream wird gemeldet, nicht übersprungen.
+        // Eigene Datenbank, damit das kaputte Ereignis keinen anderen Test trifft.
+        testCase "Ein unbekannter Ereignistyp beim Lesen wird gemeldet, nicht übersprungen" <| fun () ->
+            let anchor, connect = BudgetEventsFixture.isolatedDb ()
+            use _ = anchor
             let k = Guid.NewGuid()
-            Expect.isNone
-                (tryExec $"INSERT INTO target_changes (id, occurred_at, month, category_id, category_name, change_kind) VALUES ('{Guid.NewGuid()}', '2026-11-04T09:00:00.0000000Z', '{current}', '{k}', 'X', 'Quatsch')")
-                "eingefügt"
+            BudgetEventsFixture.appendUnknown anchor (Budgeting.Events.TargetStream k)
             Expect.equal
-                (Budgeting.Persistence.loadTargetChanges k current |> run)
+                (Budgeting.Persistence.loadTargetChangesWith connect k current |> run)
                 (Error Budgeting.Persistence.TargetChangesUnreadableText)
-                "unbekannte Art"
+                "unbekannter Typ"
     ]
 
 // ============================================
@@ -675,8 +683,14 @@ let private boundaryTests =
             Expect.equal (api.changeCategoryTarget "2026-12-01" r |> run) (Ok (TargetWritten (Some (targetOf Need 60m None)))) "Dezember geschrieben"
             use conn = global.Persistence.getConnection ()
             let stamped =
-                Dapper.SqlMapper.ExecuteScalar<string>(conn, "SELECT occurred_at || '|' || month FROM target_changes WHERE category_id = @id", {| id = string k |})
-            Expect.equal stamped "2026-11-30T23:30:00.0000000Z|2026-12-01" "mit der Uhr gestempelt, Monat der laufende"
+                Dapper.SqlMapper.ExecuteScalar<string>(
+                    conn,
+                    "SELECT occurred_at FROM events WHERE stream_id = @stream AND event_type = 'YnabGoalChangedFromBb'",
+                    {| stream = Budgeting.Events.streamIdOf (Budgeting.Events.TargetStream k) |})
+            Expect.equal stamped "2026-11-30T23:30:00.0000000Z" "mit der Uhr gestempelt"
+            match Budgeting.Persistence.loadTargetChanges k "2026-12-01" |> run with
+            | Ok [ read ] -> Expect.equal read.Month "2026-12-01" "Monat der laufende"
+            | other -> failtest $"eine Änderung im Dezember erwartet: {other}"
         }
     ]
 
@@ -856,14 +870,7 @@ let private createEncoderTests =
 
 /// Ergebnisse der Änderungen einer Kategorie je Schritt: "Schritt|Status|Grund".
 let private stepRows (id: Guid) : string list =
-    use conn = global.Persistence.getConnection ()
-    Dapper.SqlMapper.Query<string>(
-        conn,
-        "SELECT IFNULL(r.step, '-') || '|' || r.status || '|' || IFNULL(r.reason, '') \
-         FROM target_change_results r JOIN target_changes c ON r.change_id = c.id \
-         WHERE c.category_id = @id ORDER BY r.sequence",
-        {| id = string id |})
-    |> Seq.toList
+    targetEvents id |> stepResults |> List.map (fun (_, step, status, reason) -> $"{step}|{status}|{reason}")
 
 let private historyOf (k: Guid) : (string * HistoryStatus option) list =
     let port = { QueryHandlers.liveHistoryPort with LoadMonthlyActivity = fun _ _ -> async { return [] } }
@@ -953,15 +960,7 @@ let private createFlowTests =
         // für Schritt 2 dieser Kategorie lässt das Anhängen scheitern.
         testCase "GIVEN Schritt 1 geschrieben, das Ergebnis von Schritt 2 lässt sich nicht anhängen THEN kommt das Teilergebnis trotzdem zurück" <| fun () ->
             let blockStep2 (k: Guid) (body: unit -> unit) =
-                let trigger = $"fail_step2_{k:N}"
-                use conn = global.Persistence.getConnection ()
-                Dapper.SqlMapper.Execute(
-                    conn,
-                    $"CREATE TRIGGER {trigger} BEFORE INSERT ON target_change_results \
-                      WHEN NEW.step = 2 AND NEW.change_id IN (SELECT id FROM target_changes WHERE category_id = '{k}') \
-                      BEGIN SELECT RAISE(ABORT, 'kaputt'); END;")
-                |> ignore
-                try body () finally Dapper.SqlMapper.Execute(conn, $"DROP TRIGGER {trigger}") |> ignore
+                blockStepResults k "AND NEW.payload LIKE '%%\"step\":2%%'" body
             let wish = created Yearly 600m (Some "2027-06-01")
             // YNAB lehnt das Datum ab.
             let f, k = fakeWith None
@@ -1003,26 +1002,6 @@ let private createFlowTests =
             Expect.equal (historyOf k) [ "Rhythmus wöchentlich, Target 50,00 € → 12,00 €", Some HistoryWritten ] "Text"
     ]
 
-let private createPersistenceTests =
-    testList "Target anlegen und Art wechseln: Persistenz" [
-        test "Auf einer Datenbank ohne die neuen Spalten ergänzt das Schema sie, ein zweiter Lauf ändert nichts" {
-            // Eigene Verbindung: die Tabellen in der Form aus budgeting-k8wq3, dann die Migration.
-            use conn = new Microsoft.Data.Sqlite.SqliteConnection("Data Source=:memory:")
-            conn.Open()
-            Dapper.SqlMapper.Execute(
-                conn,
-                "CREATE TABLE target_changes (id TEXT PRIMARY KEY, change_kind TEXT NOT NULL); \
-                 CREATE TABLE target_change_results (sequence INTEGER PRIMARY KEY AUTOINCREMENT, change_id TEXT NOT NULL)")
-            |> ignore
-            Budgeting.Persistence.migrateTargetChangeColumns conn
-            Budgeting.Persistence.migrateTargetChangeColumns conn
-            let columns table =
-                Dapper.SqlMapper.Query<string>(conn, $"SELECT name FROM pragma_table_info('{table}')") |> Seq.toList
-            Expect.contains (columns "target_changes") "new_frequency" "Rhythmus"
-            Expect.contains (columns "target_change_results") "step" "Schritt"
-        }
-    ]
-
 // budgeting-k8wq3
 [<Tests>]
 let tests =
@@ -1032,4 +1011,4 @@ let tests =
 [<Tests>]
 let createTests =
     testList "Target anlegen und Art wechseln" [
-        createPlanTests; partlyTextTests; lossTests; createEncoderTests; createFlowTests; createPersistenceTests ]
+        createPlanTests; partlyTextTests; lossTests; createEncoderTests; createFlowTests ]

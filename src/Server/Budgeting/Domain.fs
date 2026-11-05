@@ -124,7 +124,7 @@ let planTargetApplication (month: BudgetMonth) : Result<TargetPreview, string> =
 // Target pausieren (budgeting-t6p8z, ADR 0073, ADR 0079)
 // ============================================
 
-/// Ein Ereignis in `target_pause_events`. Der Stand je Kategorie und Monat ist das jüngste. Ein Name je
+/// Ein Pause-Ereignis (`TargetPaused`, `TargetPauseLifted`). Der Stand je Kategorie und Monat ist das jüngste. Ein Name je
 /// Ereignis (budgeting-r3wq8): `PauseLifted` heißt in der Spalte "Aufgehoben" und in der Historie
 /// `HistoryEntry.PauseLifted`.
 [<RequireQualifiedAccess>]
@@ -132,7 +132,7 @@ type PauseKind =
     | Paused
     | PauseLifted
 
-/// Der Text in `target_pause_events.kind`. Geschrieben wird nur dieser Text.
+/// Der frühere Text der Pause-Art, gelesen nur noch von der Budget-Migration (budgeting-hyn77).
 let pauseKindText (kind: PauseKind) : string =
     match kind with
     | PauseKind.Paused -> "Pausiert"
@@ -263,14 +263,14 @@ let targetChangeKindOf (shown: Target option) (wanted: TargetDraft option) (firs
     | Some _, Some frequency, Some _ -> TargetKindChanged frequency
     | Some _, None, _ -> TargetEdited
 
-/// Der Rhythmus in `target_changes.new_frequency`: "monthly", "weekly", "yearly".
+/// Der Rhythmus einer früheren Target-Änderung: "monthly", "weekly", "yearly".
 let frequencyColumnText (frequency: TargetFrequency) : string =
     match frequency with
     | Weekly -> "weekly"
     | Monthly -> "monthly"
     | Yearly -> "yearly"
 
-/// Die Texte in `target_changes.change_kind` und `new_frequency`.
+/// Die früheren Texte von Art und Rhythmus einer Target-Änderung (Budget-Migration).
 let targetChangeKindText (kind: TargetChangeKind) : string * string option =
     match kind with
     | TargetEdited -> "Geändert", None
@@ -302,7 +302,7 @@ let previewsMatch (shown: TargetPreview) (fresh: TargetPreview) : bool =
         p.Lines |> List.map (fun l -> l.CategoryId, l.OldAssigned, l.NewAssigned)
     shown.Month = fresh.Month && shown.ToBeBudgeted = fresh.ToBeBudgeted && key shown = key fresh
 
-/// Der Text in `budget_movements.origin`. Geschrieben stehen diese Wörter in der Datenbank.
+/// Der frühere Text der Herkunft einer Budget-Bewegung, gelesen von der Budget-Migration und in Meldungen.
 let originText (origin: MovementOrigin) : string =
     match origin with
     | TargetsApplied -> "Targets anwenden"
