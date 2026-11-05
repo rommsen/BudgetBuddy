@@ -5,6 +5,24 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 11:18 -- Modeling / Captured: budgeting-zkbbd - "BB führt das Budget, YNAB wird Spiegel: Zuweisen, Verschieben und Targets entstehen als Ereignisse in BB, nach YNAB geht nur Zugewiesen je Monat und Kategorie"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Decision-Task: BB führt das Budget, YNAB wird Spiegel für Zugewiesen je Monat und Kategorie; wartet auf infrastructure-c7f53.
+
+---
+
+## 2026-11-05 11:18 -- Modeling / Captured: infrastructure-c7f53 - "Event Sourcing für die Kernkontexte ledger und budgeting mit gemeinsamem Ereignis-Umschlag; Reports als Read Models darauf, alles andere bleibt Zustand"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Globales Decision-Task: Event Sourcing für ledger und budgeting mit gemeinsamem Ereignis-Umschlag, Reports als Read Models, Rest bleibt Zustand.
+
+---
+
 ## 2026-11-05 10:58 -- Work session ended
 
 **Type:** Work / Session end
