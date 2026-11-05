@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 17:33 -- Batch started: [budgeting-hyn77]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-hyn77 - "Budget-Ereignistypen mit Codec und Startmigration der fünf Budget-Tabellen nach events, Schreibwege und Leser umgestellt, Verhalten unverändert"
+**Parallel:** scoped — builder named budgeting-hyn77; other ready tasks not dispatched
+
+---
+
 ## 2026-11-05 17:29 -- Modeling / Promoted: budgeting-hyn77 - "Budget-Ereignistypen mit Codec und Startmigration der fünf Budget-Tabellen nach events, Schreibwege und Leser umgestellt, Verhalten unverändert"
 
 **Type:** Modeling / Promote

@@ -1,7 +1,7 @@
 ---
 id: budgeting-hyn77
 title: "Budget-Ereignistypen mit Codec und Startmigration der fünf Budget-Tabellen nach events, Schreibwege und Leser umgestellt, Verhalten unverändert"
-status: todo
+status: doing
 type: feature
 context: budgeting
 created: 2026-11-05
