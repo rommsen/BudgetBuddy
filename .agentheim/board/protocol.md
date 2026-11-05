@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 07:29 -- Batch started: [infrastructure-d1dwb, infrastructure-shsvf]
+
+**Type:** Work / Batch start
+**Tasks:** infrastructure-d1dwb - "Gate startet Expecto direkt über die Tests.dll statt über dotnet test: 14 statt 168 Sekunden", infrastructure-shsvf - "Gate übersetzt den Client einmal: test:scripts und der Design-System-Export nutzen das Bundle aus npm run build"
+**Parallel:** scoped — builder named infrastructure-d1dwb, infrastructure-shsvf (2 workers); 1 other ready task (infrastructure-jsys4) not dispatched. Beide ändern verify.sh: nacheinander integrieren.
+
+---
+
 ## 2026-11-05 07:14 -- Modeling / Promoted: infrastructure-shsvf - "Gate übersetzt den Client einmal: test:scripts und der Design-System-Export nutzen das Bundle aus npm run build"
 
 **Type:** Modeling / Promote

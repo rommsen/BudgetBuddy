@@ -1,7 +1,7 @@
 ---
 id: infrastructure-shsvf
 title: "Gate übersetzt den Client einmal: test:scripts und der Design-System-Export nutzen das Bundle aus npm run build"
-status: todo
+status: doing
 type: chore
 context: infrastructure
 created: 2026-11-05

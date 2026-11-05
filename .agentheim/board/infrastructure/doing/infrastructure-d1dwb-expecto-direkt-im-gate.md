@@ -1,7 +1,7 @@
 ---
 id: infrastructure-d1dwb
 title: "Gate startet Expecto direkt über die Tests.dll statt über dotnet test: 14 statt 168 Sekunden"
-status: todo
+status: doing
 type: chore
 context: infrastructure
 created: 2026-11-05
