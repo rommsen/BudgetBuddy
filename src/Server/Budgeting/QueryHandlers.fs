@@ -23,9 +23,41 @@ let budgetMonthOf (fetchMonth: string -> Async<YnabResult<YnabMonth>>) (monthKey
             | Ok paused -> return Ok (toBudgetMonth paused month)
     }
 
-/// Liest einen Monat für die Budget-Seite über den YNAB-Port (`budgetMonthOf`).
+/// Die Parallelrechnung des Fehlbetrags (budgeting-v7kfw, ADR 0084 Punkt 7): vergleicht BBs Fehlbetrag mit
+/// YNABs, gibt die Abweichungsliste an `save` und schreibt eine Zeile ins Server-Log. Ein Fehler darin landet
+/// nur im Server-Log, die Antwort an den Client hängt nicht davon ab.
+let private runUnderfundedComparison
+    (save: string -> UnderfundedComparison list -> Async<unit>)
+    (month: BudgetMonth)
+    : Async<unit> =
+    async {
+        try
+            let rows = compareUnderfunded month
+            do! save month.Month rows
+            printfn "%s" (comparisonSummary month.Month rows)
+        with ex ->
+            logReadFailure "Parallelrechnung Fehlbetrag" ex
+    }
+
+/// Liest einen Monat für die Budget-Seite über den YNAB-Port (`budgetMonthOf`) und lässt danach die
+/// Parallelrechnung des Fehlbetrags laufen. `save` hält die Abweichungsliste fest; das Ergebnis an den
+/// Client ist dasselbe wie ohne Vergleich.
+let budgetMonthWith
+    (save: string -> UnderfundedComparison list -> Async<unit>)
+    (port: CommandHandlers.YnabPort)
+    (monthKey: string)
+    : Async<YnabResult<BudgetMonth>> =
+    async {
+        match! budgetMonthOf port.FetchMonth monthKey with
+        | Error e -> return Error e
+        | Ok month ->
+            do! runUnderfundedComparison save month
+            return Ok month
+    }
+
+/// Liest einen Monat für die Budget-Seite, die Abweichungsliste geht in `underfunded_comparisons`.
 let budgetMonth (port: CommandHandlers.YnabPort) (monthKey: string) : Async<YnabResult<BudgetMonth>> =
-    budgetMonthOf port.FetchMonth monthKey
+    budgetMonthWith Budgeting.Persistence.saveUnderfundedComparisons port monthKey
 
 /// Wie viele Kategorien "Zuletzt verwendet" liest. Mehr als der Picker zeigt: X und ausgeblendete
 /// Kategorien fallen dort noch heraus.

@@ -1,7 +1,7 @@
 ---
 id: budgeting-v7kfw
 title: "Fehlbetrag als reine Funktion je Target-Art, parallel zu YNABs goal_under_funded gerechnet, mit Abweichungsliste, ohne Verhaltensänderung"
-status: doing
+status: done
 type: feature
 context: budgeting
 created: 2026-11-05
@@ -144,3 +144,15 @@ fest.
   vorschlagen, mit Verweis auf diesen Task und ADR 0084 Punkt 7.
 - Die Toleranz legt Roman nach den ersten Wochen fest; sie ist Bedingung für das Umschalten von
   "Targets anwenden" in budgeting-eh8xe.
+
+## Outcome
+
+BB rechnet den Fehlbetrag jetzt parallel zu YNAB und hält die Abweichungsliste fest, ohne Verhaltensänderung.
+
+- Reine Funktion `underfunded target month assigned carryover activity` in `src/Server/Budgeting/Domain.fs` mit Ergebnis `UnderfundedResult` (`Computed of Money | NotComputed of reason`). Die Zuordnung steckt in `underfundedRuleOf` (Reihenfolge wie die Tabelle im Task: Mit Fälligkeit, Auffüllen bis, Monatlich, Wöchentlich, Zielstand, sonst Grund). Hilfen `remainingMonths` (beide Monate eingeschlossen, mindestens 1) und `weekdayCount` (0 = Sonntag). Aufgerundet auf den Cent wird nur bei Fälligkeit; negative Ergebnisse werden 0. TBD ohne Datum ist "nicht gerechnet".
+- Vergleich `compareUnderfunded (month: BudgetMonth)` liefert `UnderfundedComparison`-Zeilen je sichtbarer Kategorie mit Target, auch pausierte (`Paused = isPaused`). Ergebnis `Equal | Deviation | NotCompared`, Differenz BB − YNAB nur mit beiden Werten, "YNAB ohne Wert" wenn `Underfunded = None`. `comparisonSummary` baut die Log-Zeile (Monat, Anzahl gleich, abweichend, nicht gerechnet, ohne Beträge).
+- Ablage: Tabelle `underfunded_comparisons` in `initializeBudgetingSchema`, Primärschlüssel `(month, category_id)`. Spalten wie im Task, dazu `rule` (Name der Formel, nullable), damit die Liste nach Formel gefiltert werden kann. `kind` ist die Target-Art als `goal_type`-Kürzel (`goalTypeText`). `saveUnderfundedComparisonsWith connect comparedAt month rows` ersetzt die Zeilen des Monats in einer Transaktion; `saveUnderfundedComparisons` ist der Live-Anschluss mit `DateTime.UtcNow` (`src/Server/Budgeting/Persistence.fs`).
+- Einbindung: `QueryHandlers.budgetMonthWith save port monthKey` ruft nach `budgetMonthOf` den Vergleich auf, jeder Fehler darin geht nur ins Server-Log (`logReadFailure "Parallelrechnung Fehlbetrag"`), die Antwort bleibt gleich. `budgetMonth` ist `budgetMonthWith Budgeting.Persistence.saveUnderfundedComparisons`; der einzige Live-Anschluss, belegt durch den Test "budgetMonth hält die Abweichungsliste des gelesenen Monats in der Datenbank fest". Aufrufer (`Api.budgetMonthFor`) unverändert.
+- `src/Shared` ist unverändert, Targets anwenden und Vorschau rechnen weiter mit `goal_under_funded`.
+- Tests: `src/Tests/UnderfundedComparisonTests.fs` (36 Tests: jede Zeile der Zuordnungstabelle mit den geforderten Grenzen, Vergleich, Handler mit Port als Funktionswert, werfende Speicherfunktion, Ersetzen je Monat gegen In-Memory-SQLite). Alle Beträge und Namen erfunden. `./verify.sh`: VERIFY: PASS.
+- Abfrage in Produktion: `SELECT * FROM underfunded_comparisons WHERE outcome <> 'Gleich' ORDER BY month, kind, rule`.

@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 13:40 -- Task verified and completed: budgeting-v7kfw - "Fehlbetrag als reine Funktion je Target-Art, parallel zu YNABs goal_under_funded gerechnet, mit Abweichungsliste, ohne Verhaltensänderung"
+
+**Type:** Work / Task completion
+**Task:** budgeting-v7kfw - "Fehlbetrag als reine Funktion je Target-Art, parallel zu YNABs goal_under_funded gerechnet, mit Abweichungsliste, ohne Verhaltensänderung"
+**Summary:** Fehlbetrag als reine Funktion je Target-Art, Parallelrechnung gegen YNAB mit Abweichungsliste in underfunded_comparisons, ohne Verhaltensänderung
+**Duration:** 22m
+**Verification:** PASS (iteration 1)
+**Files changed:** 5
+**Tests added:** 36
+**ADRs written:** none
+
+---
+
 ## 2026-11-05 13:34 -- Task verified and completed: infrastructure-e4vq7 - "Gemeinsame Ereignistabelle `events`: Schema, append-only-Trigger, `UNIQUE(stream_id, stream_version)`, Befehls-Id, generisches Anhängen und Laden; Tests belegen Konflikt bei gleicher Stream-Version, Rollback und das Verhalten von `BeginTransaction`"
 
 **Type:** Work / Task completion

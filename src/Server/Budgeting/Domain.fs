@@ -492,3 +492,182 @@ let spendingOf (months: DateTime list) (sums: (DateTime * Money) list) : MonthSp
 let mergeHistory (movements: HistoryMovement list) (pauses: HistoryEntry list) (changes: HistoryTargetChange list) : HistoryEntry list =
     (movements |> List.map Movement) @ pauses @ (changes |> List.map TargetChanged)
     |> List.sortByDescending historyEntryTime
+
+// ============================================
+// Fehlbetrag in BB, Parallelrechnung (budgeting-v7kfw, ADR 0084 Punkt 7)
+// ============================================
+
+/// Der Fehlbetrag, wie BB ihn rechnet: gerechnet mit Betrag oder nicht gerechnet mit Grund.
+type UnderfundedResult =
+    | Computed of Money
+    | NotComputed of reason: string
+
+/// Nach welcher Formel BB den Fehlbetrag eines Targets rechnet (Zuordnungstabelle in budgeting-v7kfw).
+type UnderfundedRule =
+    /// NEED mit Datum oder TBD: aufrunden auf Cent von (Betrag − Übertrag) / verbleibende Monate, dann − Zugewiesen.
+    | DueDateRule of due: string
+    /// NEED "Refill up to" monatlich ohne Datum: Betrag − (Übertrag + Zugewiesen).
+    | RefillRule
+    /// NEED monatlich ohne Datum oder MF: Betrag − Zugewiesen.
+    | MonthlyRule
+    /// NEED wöchentlich mit Wochentag (0 Sonntag bis 6 Samstag): Vorkommen im Monat × Betrag − Zugewiesen.
+    | WeeklyRule of day: int
+    /// TB: Betrag − Verfügbar.
+    | BalanceRule
+
+/// Der Name der Formel, so wie die Abweichungsliste ihn zeigt.
+let underfundedRuleText (rule: UnderfundedRule) : string =
+    match rule with
+    | DueDateRule _ -> "Mit Fälligkeit"
+    | RefillRule -> "Auffüllen bis"
+    | MonthlyRule -> "Monatlich"
+    | WeeklyRule _ -> "Wöchentlich"
+    | BalanceRule -> "Zielstand"
+
+/// Die Formel zu einem Target, in der Reihenfolge der Zuordnungstabelle geprüft. `Error` trägt den Grund,
+/// warum BB dieses Target nicht rechnet.
+let underfundedRuleOf (target: Target) : Result<UnderfundedRule, string> =
+    match target.Kind, target.Date with
+    | Need, Some due
+    | TargetBalanceByDate, Some due -> Ok (DueDateRule due)
+    | TargetBalanceByDate, None -> Error "TBD ohne Datum"
+    | Need, None ->
+        match target.Rhythm, target.NeedsWholeAmount, target.Day with
+        | Months 1, Some false, _ -> Ok RefillRule
+        | Months 1, _, _ -> Ok MonthlyRule
+        | Weeks 1, _, Some day when day >= 0 && day <= 6 -> Ok (WeeklyRule day)
+        | Weeks 1, _, Some day -> Error $"NEED wöchentlich mit unbekanntem Wochentag {day}"
+        | Weeks 1, _, None -> Error "NEED wöchentlich ohne Wochentag"
+        | Weeks n, _, _ -> Error $"NEED alle {n} Wochen"
+        | Months n, _, _ -> Error $"NEED alle {n} Monate ohne Datum"
+        | Years n, _, _ -> Error $"NEED alle {n} Jahre ohne Datum"
+        | NoRhythm, _, _ -> Error "NEED ohne Rhythmus"
+    | MonthlyFunding, _ -> Ok MonthlyRule
+    | TargetBalance, _ -> Ok BalanceRule
+    | Debt, _ -> Error "DEBT rechnet BB nicht"
+    | OtherKind goalType, _ -> Error $"Unbekannte Target-Art {goalType}"
+
+let private monthIndexOf (text: string) : int option =
+    // "YYYY-MM-DD" und "YYYY-MM-01": nur Jahr und Monat zählen.
+    match DateTime.TryParseExact(text, "yyyy-MM-dd", Globalization.CultureInfo.InvariantCulture, Globalization.DateTimeStyles.None) with
+    | true, day -> Some (day.Year * 12 + day.Month - 1)
+    | false, _ -> None
+
+/// Die verbleibenden Monate vom gelesenen Monat bis zum Monat der Fälligkeit, beide eingeschlossen.
+/// Eine Fälligkeit im gelesenen Monat oder davor ergibt 1.
+let remainingMonths (month: string) (due: string) : Result<int, string> =
+    match monthIndexOf month, monthIndexOf due with
+    | Some m, Some d -> Ok (max 1 (d - m + 1))
+    | None, _ -> Error $"Monat {month} nicht lesbar"
+    | _, None -> Error $"Fälligkeit {due} nicht lesbar"
+
+/// Wie oft der Wochentag `day` (0 Sonntag bis 6 Samstag, wie `DayOfWeek`) im Monat vorkommt.
+let weekdayCount (month: string) (day: int) : Result<int, string> =
+    match monthIndexOf month with
+    | None -> Error $"Monat {month} nicht lesbar"
+    | Some index ->
+        let year = index / 12
+        let monthNumber = index % 12 + 1
+        [ 1 .. DateTime.DaysInMonth(year, monthNumber) ]
+        |> List.filter (fun d -> int (DateTime(year, monthNumber, d).DayOfWeek) = day)
+        |> List.length
+        |> Ok
+
+/// Auf den Cent aufgerundet. Nur für die Formel mit Fälligkeit, damit der Betrag auf 10 Milliunits liegt.
+let private ceilingToCent (amount: decimal) : decimal =
+    Math.Ceiling(amount * 100m) / 100m
+
+/// BBs Fehlbetrag eines Targets im gelesenen Monat `month` ("YYYY-MM-01"), ohne I/O (ADR 0084 Punkt 7).
+/// Übertrag = Verfügbar − Zugewiesen − Aktivität, also Verfügbar = Übertrag + Zugewiesen + Aktivität. Ein
+/// negatives Ergebnis ist 0. Eine Pause spielt hier keine Rolle, ihre Wirkung entscheidet der Aufrufer.
+let underfunded (target: Target) (month: string) (assigned: Money) (carryover: Money) (activity: Money) : UnderfundedResult =
+    let goal = target.Goal.Amount
+    let available = carryover.Amount + assigned.Amount + activity.Amount
+    let amount =
+        match underfundedRuleOf target with
+        | Error reason -> Error reason
+        | Ok (DueDateRule due) ->
+            remainingMonths month due
+            |> Result.map (fun months -> ceilingToCent ((goal - carryover.Amount) / decimal months) - assigned.Amount)
+        | Ok RefillRule -> Ok (goal - (carryover.Amount + assigned.Amount))
+        | Ok MonthlyRule -> Ok (goal - assigned.Amount)
+        | Ok (WeeklyRule day) -> weekdayCount month day |> Result.map (fun count -> decimal count * goal - assigned.Amount)
+        | Ok BalanceRule -> Ok (goal - available)
+    match amount with
+    | Ok value -> Computed { Amount = max 0m value; Currency = target.Goal.Currency }
+    | Error reason -> NotComputed reason
+
+/// Das Ergebnis einer Zeile der Abweichungsliste.
+type ComparisonOutcome =
+    | Equal
+    | Deviation
+    | NotCompared
+
+/// Der Text des Ergebnisses, so steht er in `underfunded_comparisons.outcome`.
+let comparisonOutcomeText (outcome: ComparisonOutcome) : string =
+    match outcome with
+    | Equal -> "Gleich"
+    | Deviation -> "Abweichung"
+    | NotCompared -> "Nicht gerechnet"
+
+/// Der Grund, wenn YNAB zu einem Target keinen Fehlbetrag liefert.
+[<Literal>]
+let YnabWithoutValueText = "YNAB ohne Wert"
+
+/// Eine Zeile der Abweichungsliste: BBs Fehlbetrag neben YNABs `goal_under_funded` für eine Kategorie.
+type UnderfundedComparison = {
+    Month: string
+    CategoryId: Guid
+    CategoryName: string
+    /// Die Target-Art (`goal_type`).
+    Kind: TargetKind
+    /// Die Formel, nach der BB rechnet. `None`, wenn BB das Target nicht rechnet.
+    Rule: UnderfundedRule option
+    Outcome: ComparisonOutcome
+    Bb: Money option
+    Ynab: Money option
+    /// BB − YNAB, nur wenn beide Werte da sind.
+    Difference: Money option
+    /// Der Grund bei "Nicht gerechnet".
+    Reason: string option
+    /// Pausiert in BB oder YNAB (`isPaused`).
+    Paused: bool
+}
+
+/// Die Abweichungsliste eines Monats: je sichtbarer Kategorie mit Target eine Zeile, auch pausierte, weil
+/// YNAB den Fehlbetrag auch für sie liefert. Verglichen wird genau, ohne Toleranz. Rein, ohne I/O.
+let compareUnderfunded (month: BudgetMonth) : UnderfundedComparison list =
+    month.Groups
+    |> List.collect (fun g -> g.Categories)
+    |> List.choose (fun c ->
+        c.Target
+        |> Option.map (fun target ->
+            let carryover = { c.Available with Amount = c.Available.Amount - c.Assigned.Amount - c.Activity.Amount }
+            let bb = underfunded target month.Month c.Assigned carryover c.Activity
+            let rule = underfundedRuleOf target |> Result.toOption
+            let row =
+                { Month = month.Month
+                  CategoryId = c.Id
+                  CategoryName = c.Name
+                  Kind = target.Kind
+                  Rule = rule
+                  Outcome = NotCompared
+                  Bb = None
+                  Ynab = c.Underfunded
+                  Difference = None
+                  Reason = None
+                  Paused = isPaused c }
+            match bb, c.Underfunded with
+            | NotComputed reason, _ -> { row with Reason = Some reason }
+            | Computed value, None -> { row with Bb = Some value; Reason = Some YnabWithoutValueText }
+            | Computed value, Some ynab ->
+                { row with
+                    Outcome = (if value.Amount = ynab.Amount then Equal else Deviation)
+                    Bb = Some value
+                    Difference = Some { value with Amount = value.Amount - ynab.Amount } }))
+
+/// Die Zeile im Server-Log je gelesenem Monat: Monat und Anzahl gleich, abweichend, nicht gerechnet.
+/// Beträge stehen nur in der Tabelle.
+let comparisonSummary (month: string) (rows: UnderfundedComparison list) : string =
+    let count outcome = rows |> List.filter (fun r -> r.Outcome = outcome) |> List.length
+    $"Parallelrechnung Fehlbetrag {month}: {count Equal} gleich, {count Deviation} abweichend, {count NotCompared} nicht gerechnet"

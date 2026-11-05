@@ -12,8 +12,8 @@ Catalog of this bounded context's tasks by status.
 <!-- task-counts:start -->
 - **Backlog:** 13
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 42
+- **Doing:** 0
+- **Done:** 43
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ Catalog of this bounded context's tasks by status.
 
 ### Doing
 <!-- doing-list:start -->
-- **budgeting-v7kfw** — "Fehlbetrag als reine Funktion je Target-Art, parallel zu YNABs goal_under_funded gerechnet, mit Abweichungsliste, ohne Verhaltensänderung" (feature) — `doing/budgeting-v7kfw-fehlbetrag-als-reine-funktion-je-target-art-parallel-zu-ynab.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **budgeting-v7kfw** — "Fehlbetrag als reine Funktion je Target-Art, parallel zu YNABs goal_under_funded gerechnet, mit Abweichungsliste, ohne Verhaltensänderung" (feature) — `done/budgeting-v7kfw-fehlbetrag-als-reine-funktion-je-target-art-parallel-zu-ynab.md`
 - **budgeting-zkbbd** — "BB führt das Budget, YNAB wird Spiegel: Zuweisen, Verschieben und Targets entstehen als Ereignisse in BB, nach YNAB geht nur Zugewiesen je Monat und Kategorie" (decision) — `done/budgeting-zkbbd-bb-fuehrt-das-budget.md`
 - **budgeting-gv74q** — "Targets prüfen nachbessern: Testlücken aus dem QA-Review schließen, TargetChangeMark als DU statt Bool, Prüfung ohne Lesen der Pausen" (refactor) — `done/budgeting-gv74q-targets-pruefen-nachbessern.md`
 - **budgeting-p8nd0** — "Target-Formular aufräumen: Wrapper, die nur Tests aufrufen, streichen und die Tab-Tests auf Kern und Sperrlage umstellen" (refactor) — `done/budgeting-p8nd0-target-formular-aufraeumen.md`

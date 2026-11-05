@@ -169,6 +169,20 @@ let initializeBudgetingSchema () =
         BEGIN SELECT RAISE(ABORT, 'target_change_results ist append-only'); END;
         CREATE TRIGGER IF NOT EXISTS target_change_results_no_delete BEFORE DELETE ON target_change_results
         BEGIN SELECT RAISE(ABORT, 'target_change_results ist append-only'); END;
+        CREATE TABLE IF NOT EXISTS underfunded_comparisons (
+            month TEXT NOT NULL,
+            category_id TEXT NOT NULL,
+            category_name TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            rule TEXT,
+            outcome TEXT NOT NULL,
+            bb_milliunits INTEGER,
+            ynab_milliunits INTEGER,
+            reason TEXT,
+            paused INTEGER NOT NULL,
+            compared_at TEXT NOT NULL,
+            PRIMARY KEY (month, category_id)
+        );
         """
     )
     |> ignore
@@ -671,3 +685,51 @@ let loadLastTargetChangesWith (connect: unit -> SqliteConnection) : Async<Result
 /// `loadLastTargetChangesWith` auf der Datenbank der Anwendung.
 let loadLastTargetChanges () : Async<Result<Map<Guid, TargetChangeMark>, string>> =
     loadLastTargetChangesWith Core.getConnection
+
+// ============================================
+// Abweichungsliste (budgeting-v7kfw, ADR 0084 Punkt 7)
+// ============================================
+
+let private milliunitsOf (money: Shared.Domain.Money option) : obj =
+    money |> Option.map (fun m -> int64 (Math.Round(m.Amount * 1000m))) |> orDbNull
+
+/// Ersetzt die Abweichungsliste des Monats `month` in einer Transaktion: erst alle Zeilen des Monats
+/// löschen, dann die neuen einfügen. So fällt eine Kategorie ohne Target heraus, andere Monate bleiben.
+/// Vorläufiger Zustand nach ADR 0083 (kein Read Model), entfällt mit budgeting-eh8xe.
+let saveUnderfundedComparisonsWith
+    (connect: unit -> SqliteConnection)
+    (comparedAt: DateTime)
+    (month: string)
+    (rows: UnderfundedComparison list)
+    : Async<unit> =
+    async {
+        use conn = connect ()
+        conn.Open()
+        use tx = conn.BeginTransaction()
+        conn.Execute("DELETE FROM underfunded_comparisons WHERE month = @month", {| month = month |}, tx) |> ignore
+        for r in rows do
+            conn.Execute(
+                "INSERT INTO underfunded_comparisons (month, category_id, category_name, kind, rule, outcome, \
+                    bb_milliunits, ynab_milliunits, reason, paused, compared_at) \
+                 VALUES (@month, @category_id, @category_name, @kind, @rule, @outcome, \
+                    @bb_milliunits, @ynab_milliunits, @reason, @paused, @compared_at)",
+                {| month = month
+                   category_id = string r.CategoryId
+                   category_name = r.CategoryName
+                   kind = goalTypeText r.Kind
+                   rule = r.Rule |> Option.map underfundedRuleText |> orDbNull
+                   outcome = comparisonOutcomeText r.Outcome
+                   bb_milliunits = milliunitsOf r.Bb
+                   ynab_milliunits = milliunitsOf r.Ynab
+                   reason = orDbNull r.Reason
+                   paused = (if r.Paused then 1L else 0L)
+                   compared_at = dateToText comparedAt |},
+                tx
+            )
+            |> ignore
+        tx.Commit()
+    }
+
+/// `saveUnderfundedComparisonsWith` auf der Datenbank der Anwendung, Zeitpunkt ist jetzt (UTC).
+let saveUnderfundedComparisons (month: string) (rows: UnderfundedComparison list) : Async<unit> =
+    saveUnderfundedComparisonsWith Core.getConnection DateTime.UtcNow month rows
