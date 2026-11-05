@@ -19,13 +19,19 @@ Argument (optional):
 - Commit-Bereich (`abc123..HEAD`): genau dieser Bereich.
 - BC-Name (`ledger`): Commits seit dem letzten `Review-Lauf`, nur mit Trailer `[<bc>-...]`.
 
-Startzeitpunkt ohne Argument (neueste Einträge stehen oben):
+Bereich ohne Argument. Der Commit des letzten Review-Laufs (Abschnitt 7) ist die untere Grenze, ausschließlich. Ein
+Zeitpunkt aus dem Protokoll taugt dafür nicht: `git log --since` schließt die ganze Minute ein und erfasst so die
+Fix-Commits des vorigen Laufs mit.
 
 ```bash
-SINCE="$(grep -m1 -E '^## .* -- Review-Lauf' .agentheim/board/protocol.md | sed -E 's/^## ([0-9-]+ [0-9:]+) .*/\1/')"
-[ -n "$SINCE" ] || SINCE="$(awk '/^## .* -- Work session ended/{n++; if(n==2) exit} /^## .* -- Batch started/{b=$0} END{print b}' \
-  .agentheim/board/protocol.md | sed -E 's/^## ([0-9-]+ [0-9:]+) .*/\1/')"
-git log --since="$SINCE" --format='%h %s' --name-only
+FROM="$(git log -1 --format=%h --grep='^chore: review-lauf ')"
+if [ -z "$FROM" ]; then
+  # Erster Lauf: ab dem ersten Batch-Start des letzten work-Laufs (neueste Einträge stehen oben).
+  SINCE="$(awk '/^## .* -- Work session ended/{n++; if(n==2) exit} /^## .* -- Batch started/{b=$0} END{print b}' \
+    .agentheim/board/protocol.md | sed -E 's/^## ([0-9-]+ [0-9:]+) .*/\1/')"
+  FROM="$(git log --since="$SINCE" --format=%h | tail -1)~1"
+fi
+git log "$FROM"..HEAD --format='%h %s' --name-only
 ```
 
 Daraus: Commit-Liste, geänderte Dateien (ohne `.agentheim/`, `diary/`, gelöschte Dateien), Task-Ids aus den Trailern.
