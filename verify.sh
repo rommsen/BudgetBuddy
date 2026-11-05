@@ -4,10 +4,11 @@
 # Läuft immer alle sechs Schritte, auch wenn ein früher Schritt rot ist:
 #   1. dotnet build            (BudgetBuddy.sln)
 #   2. dotnet test             (Expecto, src/Tests)
-#   3. npm run build           (vite build, Fable)
+#   3. npm run build           (vite build, Fable; das Bundle dist/public nutzt Schritt 6 mit)
 #   4. npm run guard:classes   (Tailwind-Klassen-Wächter)
 #   5. npm run guard:tokens    (Token-Wächter)
-#   6. npm run test:scripts    (node --test, Playwright-Wächter)
+#   6. npm run test:scripts    (node --test, Playwright-Wächter; BB_GUARD_DIST=dist/public,
+#                               wenn Schritt 3 grün war, sonst eigener Build)
 # Am Ende steht genau eine Zeile "VERIFY: PASS" oder "VERIFY: FAIL", bei FAIL mit
 # den roten Schritten und den Namen der roten Tests. Exit 0 nur bei PASS.
 #
@@ -134,8 +135,11 @@ else
 fi
 
 # ── 3. npm run build ────────────────────────────────────────────────────
+# BUILD_DIST: das Bundle aus diesem Schritt (build.outDir in vite.config.js), nur bei grünem Build gesetzt.
+BUILD_DIST=""
 if run_step 3 "npm run build" npm run build; then
     ok_step "npm run build"
+    BUILD_DIST="$ROOT/dist/public"
 else
     show_tail "$LOG_DIR/3.log" 25
     fail_step "npm run build" "vite build fehlgeschlagen"
@@ -160,7 +164,13 @@ fi
 echo ""
 echo "Lock für test:scripts: $LOCK_DIR"
 if vl_lock_acquire "$LOCK_DIR"; then
-    run_step 6 "npm run test:scripts" npm run test:scripts
+    # Bei grünem Schritt 3 nutzen run-guards.mjs und der Design-System-Export dessen Bundle,
+    # sonst baut test:scripts selbst (infrastructure-shsvf).
+    if [ -n "$BUILD_DIST" ]; then
+        run_step 6 "npm run test:scripts" env BB_GUARD_DIST="$BUILD_DIST" npm run test:scripts
+    else
+        run_step 6 "npm run test:scripts" env -u BB_GUARD_DIST npm run test:scripts
+    fi
     NODE_EXIT=$?
     vl_lock_release "$LOCK_DIR"
     N_TESTS="$(vl_node_count "$LOG_DIR/6.log" tests)"

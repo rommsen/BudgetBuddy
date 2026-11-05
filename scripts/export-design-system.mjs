@@ -415,6 +415,17 @@ async function buildApp() {
   return buildDir;
 }
 
+/// Woher das App-Bundle kommt (infrastructure-shsvf). Ist BB_GUARD_DIST gesetzt (Gate-Lauf,
+/// Bundle aus npm run build), wird es nur gelesen: kein vite build, und das Verzeichnis gehört
+/// dem Aufrufer (`owned: false`, main löscht es nicht). Ohne Variable baut `build` selbst.
+export async function resolveAppBuild(env, build = buildApp) {
+  if (env.BB_GUARD_DIST) {
+    log(`Bundle aus BB_GUARD_DIST: ${env.BB_GUARD_DIST} (kein eigener Build)`);
+    return { dir: env.BB_GUARD_DIST, owned: false };
+  }
+  return { dir: await build(), owned: true };
+}
+
 /// Schreibt absolute Asset-Pfade (`url(/...)`) im kopierten App-CSS relativ zur
 /// Bundle-Wurzel um (design-system-hadjy). Das gebaute styles.css bindet
 /// @font-face mit `url(/fonts/...)` ein (absolut, passend für die App, die von
@@ -987,9 +998,12 @@ async function main() {
   await writeTokenAndBrandPreviews(tokens);
 
   let buildDir;
+  let ownsBuildDir = false;
   let server;
   try {
-    buildDir = await buildApp();
+    const appBuild = await resolveAppBuild(process.env);
+    buildDir = appBuild.dir;
+    ownsBuildDir = appBuild.owned;
     await copyBuiltCss(buildDir);
 
     const port = await getFreePort();
@@ -999,7 +1013,7 @@ async function main() {
     await extractPreviews(`http://127.0.0.1:${port}`);
   } finally {
     await stopServer(server);
-    if (buildDir) await rm(buildDir, { recursive: true, force: true });
+    if (buildDir && ownsBuildDir) await rm(buildDir, { recursive: true, force: true });
   }
 
   await measureAndPatchViewports();

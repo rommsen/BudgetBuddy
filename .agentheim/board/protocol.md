@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 07:57 -- Task verified and completed: infrastructure-shsvf - "Gate übersetzt den Client einmal: test:scripts und der Design-System-Export nutzen das Bundle aus npm run build"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-shsvf - "Gate übersetzt den Client einmal: test:scripts und der Design-System-Export nutzen das Bundle aus npm run build"
+**Summary:** Gate übersetzt den Client einmal, test:scripts und Design-System-Export nutzen das Bundle aus npm run build
+**Duration:** 27m
+**Verification:** PASS (iteration 1)
+**Files changed:** 5
+**Tests added:** 7
+**ADRs written:** none
+
+---
+
 ## 2026-11-05 07:29 -- Batch started: [infrastructure-d1dwb, infrastructure-shsvf]
 
 **Type:** Work / Batch start

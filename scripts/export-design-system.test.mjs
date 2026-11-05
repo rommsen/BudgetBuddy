@@ -27,6 +27,7 @@ import {
   startServerProcess,
   stopServer,
   getFreePort,
+  resolveAppBuild,
 } from "./export-design-system.mjs";
 import { connect as netConnect } from "node:net";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -338,3 +339,18 @@ for (const exitCode of [1, 0]) {
     assert.ok(Date.now() - started < 10000, "Fehler muss vor dem Timeout kommen");
   });
 }
+
+// infrastructure-shsvf: im Gate kommt das Bundle aus npm run build über BB_GUARD_DIST.
+test("resolveAppBuild nutzt BB_GUARD_DIST ohne Build und überlässt das Löschen dem Aufrufer", async () => {
+  let builds = 0;
+  const result = await resolveAppBuild({ BB_GUARD_DIST: "/tmp/bb-fertig" }, async () => { builds++; return "/tmp/neu"; });
+  assert.equal(builds, 0);
+  assert.deepEqual(result, { dir: "/tmp/bb-fertig", owned: false });
+});
+
+test("resolveAppBuild baut ohne BB_GUARD_DIST selbst und räumt das eigene Verzeichnis auf", async () => {
+  let builds = 0;
+  const result = await resolveAppBuild({}, async () => { builds++; return "/tmp/neu"; });
+  assert.equal(builds, 1);
+  assert.deepEqual(result, { dir: "/tmp/neu", owned: true });
+});

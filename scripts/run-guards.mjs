@@ -6,6 +6,8 @@
 // Fable-Kompilierung zu starten. Argumente nach `--` (Dateien) gehen an
 // `node --test` durch; ohne Argumente laufen alle scripts/*.test.mjs.
 // Das Build-Verzeichnis wird auch bei rotem Lauf, Fehler und Abbruch entfernt.
+// Ist BB_GUARD_DIST beim Start schon gesetzt (verify.sh, Bundle aus Schritt 3),
+// baut das Skript nicht selbst und lässt das Verzeichnis liegen (infrastructure-shsvf).
 import { spawn, execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -127,8 +129,19 @@ function runNodeTest(files, env, { countFile, stdio = "inherit" } = {}) {
   });
 }
 
+/// Prüft ein vom Aufrufer gebautes Bundle (BB_GUARD_DIST beim Start, infrastructure-shsvf).
+/// Ohne index.html ist es kein Bundle; das ist ein Fehler, kein stiller Rückfall auf einen Build.
+export function assertPrebuiltDist(dist) {
+  if (!fs.existsSync(path.join(dist, "index.html"))) {
+    throw new Error(`BB_GUARD_DIST=${dist} enthält kein index.html, kein fertiges Bundle. Variable entfernen oder vorher npm run build ausführen.`);
+  }
+}
+
 /// Baut, lässt `run` mit BB_GUARD_DIST laufen, räumt immer auf, gibt den
 /// Exit-Code von `run` zurück. Die Funktionen sind austauschbar (Test).
+/// Ist BB_GUARD_DIST in `baseEnv` schon gesetzt (verify.sh reicht dist/public aus
+/// Schritt 3 durch), wird nicht gebaut und nicht gelöscht: das Verzeichnis gehört
+/// dem Aufrufer.
 export async function runWithDist({
   build = buildClient,
   run = runGate,
@@ -136,6 +149,12 @@ export async function runWithDist({
   baseEnv = process.env,
   makeDir = () => fs.mkdtempSync(path.join(os.tmpdir(), "bb-guard-dist-")),
 }) {
+  const prebuilt = baseEnv.BB_GUARD_DIST;
+  if (prebuilt) {
+    assertPrebuiltDist(prebuilt);
+    console.log(`Bundle aus BB_GUARD_DIST: ${prebuilt} (kein eigener Build)`);
+    return await run(files, { ...baseEnv });
+  }
   const dist = makeDir();
   try {
     build(dist);

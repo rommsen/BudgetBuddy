@@ -1,7 +1,7 @@
 ---
 id: infrastructure-shsvf
 title: "Gate übersetzt den Client einmal: test:scripts und der Design-System-Export nutzen das Bundle aus npm run build"
-status: doing
+status: done
 type: chore
 context: infrastructure
 created: 2026-11-05
@@ -47,3 +47,21 @@ Risiko: `dist/public` aus Schritt 3 ist dasselbe Produktions-Bundle wie der temp
 Unabhängig von infrastructure-d1dwb, beide ändern aber `verify.sh`: beim Merge nacheinander integrieren.
 
 Kein Gedankenstrich in Kommentaren und Doku (globale Schreibregel).
+
+## Outcome
+
+Ein Gate-Lauf übersetzt den Client jetzt einmal, in Schritt 3 (`npm run build`). Die beiden weiteren Builds in Schritt 6 (run-guards und Design-System-Export) entfallen.
+
+- `scripts/run-guards.mjs`: `runWithDist` übernimmt ein schon gesetztes `BB_GUARD_DIST` aus `baseEnv`: kein `makeDir`, kein `build`, kein Löschen (das Verzeichnis gehört dem Aufrufer). Neuer Helfer `assertPrebuiltDist`: fehlt `index.html`, wirft er einen Fehler mit Pfad, der Hauptteil meldet ihn auf stderr und endet mit Exit 1, bevor ein Test läuft. Ohne Variable bleibt alles wie vorher.
+- `verify.sh`: Schritt 3 setzt `BUILD_DIST="$ROOT/dist/public"` nur im grünen Zweig. Schritt 6 läuft dann mit `env BB_GUARD_DIST="$BUILD_DIST"`, sonst mit `env -u BB_GUARD_DIST` (eigener Build wie vorher). Geändert sind nur der Kopfkommentar zu Schritt 3 und 6 sowie die Blöcke von Schritt 3 und 6. Schritt 2 und `verify-lib.sh` sind unberührt (wegen infrastructure-d1dwb).
+- `scripts/export-design-system.mjs`: neuer exportierter Helfer `resolveAppBuild(env, build)` liefert `{ dir, owned }`. Bei gesetztem `BB_GUARD_DIST` ist `dir` dieses Verzeichnis und `owned: false`, und `main` löscht es im `finally` nicht. `vite preview` und `copyBuiltCss` laufen unverändert. Direkt gestartet (ohne Variable) baut das Skript weiter selbst.
+
+Tests (7 neu): `scripts/run-guards.test.mjs` (fertiges Bundle: kein Build, kein Löschen; bleibt bei rotem Lauf und bei Wurf liegen; ohne index.html Fehler mit Pfad und kein Lauf; Subprozess `run-guards.mjs` endet mit Exit ungleich 0, Pfad steht auf stderr, kein Test läuft; Quelltext-Wächter für die Kopplung in `verify.sh` plus `outDir` in `vite.config.js`), `scripts/export-design-system.test.mjs` (`resolveAppBuild` mit und ohne Variable). Alle neuen Tests waren vor der Änderung rot. Die drei vorhandenen `runWithDist`-Tests geben jetzt `baseEnv: {}` mit, denn im Gesamtlauf ist `BB_GUARD_DIST` im Testprozess gesetzt und hätte sonst den neuen Zweig ausgelöst.
+
+Messung (Gate-Lauf in diesem Worktree, Logs von Schritt 3 und 6 während des Laufs mitgeschrieben):
+- `cat 3.log 6.log | grep -c "built in"` ergibt 1 (`✓ built in 23.54s` in Schritt 3). Schritt 6 meldet `Bundle aus BB_GUARD_DIST: .../dist/public (kein eigener Build)`.
+- Schritt 6: vorher 180 s (Referenz 2026-11-05), nachher 153 s (duration_ms 152394).
+- `[flow:design-system-export]`: vorher 37 s (Referenz), nachher 12,6 s.
+- Risiko aus den Notes: Gegen `dist/public` aus Schritt 3 war der Gesamtlauf auf Anhieb grün (307/307). Ein Unterschied durch das andere `outDir` ist nicht aufgefallen.
+
+`./verify.sh`: `VERIFY: PASS (dotnet 3807 grün, node 307 grün, dotnet build, npm run build, guard:classes, guard:tokens grün)`. Das README-Delta für den Abschnitt "Wächter-Lauf" hat `npm run check:readme-delta` bestanden (Exit 0).

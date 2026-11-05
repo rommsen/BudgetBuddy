@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 19
 - **Todo:** 1
-- **Doing:** 2
-- **Done:** 40
+- **Doing:** 1
+- **Done:** 41
 <!-- task-counts:end -->
 
 ### Todo
@@ -23,12 +23,12 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **infrastructure-shsvf** — "Gate übersetzt den Client einmal: test:scripts und der Design-System-Export nutzen das Bundle aus npm run build" (chore) — `doing/infrastructure-shsvf-fable-einmal-bauen-im-gate.md`
 - **infrastructure-d1dwb** — "Gate startet Expecto direkt über die Tests.dll statt über dotnet test: 14 statt 168 Sekunden" (chore) — `doing/infrastructure-d1dwb-expecto-direkt-im-gate.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **infrastructure-shsvf** — "Gate übersetzt den Client einmal: test:scripts und der Design-System-Export nutzen das Bundle aus npm run build" (chore) — `done/infrastructure-shsvf-fable-einmal-bauen-im-gate.md`
 - **infrastructure-b3t9k** — "Browser-Tests nach Begründung statt fester Obergrenze: Kennung im Testnamen, Flows in fester Liste, je Flow höchstens ein Happy Path, die Zahl wird nur gemeldet" (chore) — `done/infrastructure-b3t9k-browser-tests-nach-begruendung.md`
 - **infrastructure-t5m2b** — "Browser-Tests auf das reduzieren, was nur der Browser prüfen kann, Logik wandert in MVU-Tests" (chore) — `done/infrastructure-t5m2b-browser-waechter-durchsicht.md`
 - **infrastructure-h4q8v** — "Wächter ledger-read-retry: mögliches Lastrennen bei abortWindowMs 200" (bug) — `done/infrastructure-h4q8v-w-chter-ledger-read-retry-m-gliches-lastrennen-bei-abortwind.md`
