@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 17:29 -- Modeling / Promoted: budgeting-hyn77 - "Budget-Ereignistypen mit Codec und Startmigration der fünf Budget-Tabellen nach events, Schreibwege und Leser umgestellt, Verhalten unverändert"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-05 17:29 -- Modeling / Refined: budgeting-hyn77 - Budget-Ereignisse nach events
 
 **Type:** Modeling / Refine
