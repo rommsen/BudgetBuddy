@@ -753,6 +753,9 @@ let appendAndApply (events: LedgerEvent list) : Async<unit> =
                 System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex).Throw()
     }
 
+// Reiht gleichzeitige Neuaufbauten im Prozess ein (ledger-cy1j8), siehe rebuildSplitIndexes.
+let private rebuildSplitIndexesGate = obj ()
+
 /// Baut die abgeleiteten Indextabellen `ledger_entry_split_categories` und
 /// `ledger_entry_split_transfers` (ADR 0048) vollständig aus
 /// `ledger_entries` neu auf (ADR 0038, Decision Punkt 6): leert die Tabelle und liest
@@ -768,36 +771,50 @@ let rebuildSplitIndexes (conn: SqliteConnection) : int =
     if conn.State <> System.Data.ConnectionState.Open then
         conn.Open()
 
-    conn.Execute("DELETE FROM ledger_entry_split_categories") |> ignore
-    conn.Execute("DELETE FROM ledger_entry_split_transfers") |> ignore
+    // Löschen und Neuaufbau in einer Transaktion (ledger-cy1j8): ohne sie verschränkten
+    // sich zwei gleichzeitige Aufrufe (parallele Tests auf der geteilten In-Memory-DB),
+    // und ein INSERT traf eine Zeile, die der andere Aufruf schon geschrieben hatte.
+    // Die Transaktion allein reicht für die Korrektheit, im Shared-Cache-Modus warten
+    // konkurrierende Aufrufe aber über die Wiederholungsschleife von Microsoft.Data.Sqlite
+    // (160 Aufrufe brauchten 14 s statt 0,1 s). Die Sperre reiht Neuaufbauten im Prozess
+    // vorher ein. Wirft ein Schritt, rollt das Dispose der nicht bestätigten Transaktion
+    // alles zurück.
+    lock rebuildSplitIndexesGate (fun () ->
+        use tx = conn.BeginTransaction()
 
-    let splitRows =
-        conn.Query<EntryRow>("SELECT * FROM ledger_entries WHERE splits <> '[]'") |> Seq.toList
+        conn.Execute("DELETE FROM ledger_entry_split_categories", transaction = tx) |> ignore
+        conn.Execute("DELETE FROM ledger_entry_split_transfers", transaction = tx) |> ignore
 
-    let mutable written = 0
+        let splitRows =
+            conn.Query<EntryRow>("SELECT * FROM ledger_entries WHERE splits <> '[]'", transaction = tx) |> Seq.toList
 
-    for row in splitRows do
-        let entry = rowToEntry row
+        let mutable written = 0
 
-        for categoryId in splitCategoryIds entry do
-            conn.Execute(
-                "INSERT INTO ledger_entry_split_categories (category_id, entry_id) VALUES (@category_id, @entry_id)",
-                {| category_id = categoryId.ToString(); entry_id = row.id |}
-            )
-            |> ignore
+        for row in splitRows do
+            let entry = rowToEntry row
 
-            written <- written + 1
+            for categoryId in splitCategoryIds entry do
+                conn.Execute(
+                    "INSERT INTO ledger_entry_split_categories (category_id, entry_id) VALUES (@category_id, @entry_id)",
+                    {| category_id = categoryId.ToString(); entry_id = row.id |},
+                    tx
+                )
+                |> ignore
 
-        for accountId in splitTransferAccountIds entry do
-            conn.Execute(
-                "INSERT INTO ledger_entry_split_transfers (entry_id, transfer_account_id) VALUES (@entry_id, @transfer_account_id)",
-                {| entry_id = row.id; transfer_account_id = accountId.ToString() |}
-            )
-            |> ignore
+                written <- written + 1
 
-            written <- written + 1
+            for accountId in splitTransferAccountIds entry do
+                conn.Execute(
+                    "INSERT INTO ledger_entry_split_transfers (entry_id, transfer_account_id) VALUES (@entry_id, @transfer_account_id)",
+                    {| entry_id = row.id; transfer_account_id = accountId.ToString() |},
+                    tx
+                )
+                |> ignore
 
-    written
+                written <- written + 1
+
+        tx.Commit()
+        written)
 
 /// Legt die Kassenbuch-Tabellen auf der Standard-Verbindung an und baut anschließend
 /// die abgeleitete Split-Kategorie-Indextabelle neu auf (ADR 0038, Decision Punkt 6):

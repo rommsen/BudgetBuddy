@@ -321,6 +321,51 @@ let persistenceTests =
             exec "UPDATE ledger_entries SET transfer_account_id = NULL"
             migrateLedgerEntryColumns conn
             Expect.equal (read ()) None "kein zweiter Backfill"
+
+        // Regression ledger-cy1j8: parallele Expecto-Tests rufen initializeLedgerSchema auf
+        // der geteilten In-Memory-DB gleichzeitig auf. Ohne Transaktion verschränken sich
+        // DELETE und INSERT zweier Neuaufbauten, ein INSERT trifft dann eine Zeile, die der
+        // andere Aufruf schon geschrieben hat (UNIQUE constraint failed).
+        testCase "rebuildSplitIndexes: parallele Aufrufe auf eigenen Connections werfen nicht und hinterlassen denselben Index wie ein einzelner" <| fun () ->
+            let acc = freshAccount 6
+            for n in 60 .. 65 do
+                append n (splitPayload acc n [ split (toCategory 10) -3m; split (toCategory 11) -2m; split (toTransfer 12) -1m ])
+
+            let ownRows () =
+                use conn = new Microsoft.Data.Sqlite.SqliteConnection(Persistence.activeConnectionString ())
+                conn.Open()
+                let ids = [ 60 .. 65 ] |> List.map (fun n -> (entryGuid n).ToString())
+                let categories =
+                    Dapper.SqlMapper.Query<string>(conn, "SELECT category_id || '/' || entry_id FROM ledger_entry_split_categories WHERE entry_id IN @ids", {| ids = ids |})
+                    |> Set.ofSeq
+                let transfers =
+                    Dapper.SqlMapper.Query<string>(conn, "SELECT entry_id || '/' || transfer_account_id FROM ledger_entry_split_transfers WHERE entry_id IN @ids", {| ids = ids |})
+                    |> Set.ofSeq
+                categories, transfers
+
+            let rebuildOnOwnConnection () =
+                use conn = new Microsoft.Data.Sqlite.SqliteConnection(Persistence.activeConnectionString ())
+                conn.Open()
+                rebuildSplitIndexes conn
+
+            let single = rebuildOnOwnConnection ()
+            let expected = ownRows ()
+            Expect.equal (Set.count (fst expected)) 12 "zwei Kategorien je Buchung"
+            Expect.equal (Set.count (snd expected)) 6 "ein Zielkonto je Buchung"
+
+            let results =
+                [ 1 .. 20 ]
+                |> List.collect (fun _ ->
+                    [ 1 .. 8 ]
+                    |> List.map (fun _ -> System.Threading.Tasks.Task.Run(fun () -> rebuildOnOwnConnection ()))
+                    |> Array.ofList
+                    |> System.Threading.Tasks.Task.WhenAll
+                    |> fun t -> t.GetAwaiter().GetResult()
+                    |> List.ofArray)
+
+            Expect.isTrue (results |> List.forall (fun w -> w >= 12 + 6)) "jeder Aufruf schreibt mindestens die Zeilen dieses Tests"
+            Expect.isTrue (single >= 12 + 6) "der einzelne Aufruf ebenso"
+            Expect.equal (ownRows ()) expected "nach den parallelen Aufrufen dieselben Zeilen wie nach einem einzelnen"
     ]
 
 // ============================================

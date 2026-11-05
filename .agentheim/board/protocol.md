@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 10:50 -- Task verified and completed: ledger-cy1j8 - "Bug: rebuildSplitIndexes löscht und füllt die Split-Indextabellen ohne Transaktion, parallele initializeLedgerSchema-Aufrufe werfen einen UNIQUE-Fehler"
+
+**Type:** Work / Task completion
+**Task:** ledger-cy1j8 - "Bug: rebuildSplitIndexes löscht und füllt die Split-Indextabellen ohne Transaktion, parallele initializeLedgerSchema-Aufrufe werfen einen UNIQUE-Fehler"
+**Summary:** rebuildSplitIndexes baut die Split-Indextabellen in einer Transaktion hinter einer Prozesssperre neu auf, parallele Aufrufe werfen keinen UNIQUE-Fehler mehr
+**Duration:** 25m
+**Verification:** PASS (iteration 1)
+**Files changed:** 2
+**Tests added:** 1
+**ADRs written:** none
+
+---
+
 ## 2026-11-05 10:44 -- Task verified and completed: budgeting-p8nd0 - "Target-Formular aufräumen: Wrapper, die nur Tests aufrufen, streichen und die Tab-Tests auf Kern und Sperrlage umstellen"
 
 **Type:** Work / Task completion
