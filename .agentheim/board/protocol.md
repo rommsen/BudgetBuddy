@@ -5,6 +5,28 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 12:34 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** 30m
+**Completed:** 1 (first-try PASS: 1, re-dispatched: 0, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Lost-result re-dispatches:** 0
+**Lost-result escalations:** 0
+**Dispatches:** budgeting-zkbbd: 1
+**Commits:** 2
+**Vision-conformance:** none — batch aligns with vision
+**Batch mix:** 100% product-facing / 0% harness / 0% bookkeeping (1 task)
+**Carry-over:** none — working tree clean
+**Verifikation:** Decision-Task ohne Codeänderung, Verifier auf Wunsch von Roman trotzdem gelaufen (PASS, README-Delta-Gate Exit 0).
+**Conductor auf main:** Nachträge zu ADR 0065, 0079, 0080, 0082; Notizen an budgeting-q4v8n, budgeting-m3x7f (je depends_on budgeting-eh8xe), budgeting-bk6tq, infrastructure-e4vq7; budgeting-eh8xe hängt zusätzlich an budgeting-dgrp7; drei Sätze im ADR nach den Schreibregeln umformuliert; offene README-Frage "Wer führt die Targets" als gelöst markiert.
+**Entscheidung Owner:** TargetTakenOverFromYnab zählt nicht als Target-Änderung (ADR 0082 Nachtrag).
+**Review-Vorschlag (Override C):** keiner für den Code (nur Doku). Bestandsreview: weiterhin kein Eintrag für budgeting im Protokoll, /architecture-review budgeting vorgeschlagen.
+
+---
+
 ## 2026-11-05 12:34 -- Task verified and completed: budgeting-zkbbd - "BB führt das Budget, YNAB wird Spiegel: Zuweisen, Verschieben und Targets entstehen als Ereignisse in BB, nach YNAB geht nur Zugewiesen je Monat und Kategorie"
 
 **Type:** Work / Task completion
