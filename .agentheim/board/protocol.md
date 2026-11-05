@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 13:16 -- Batch started: [infrastructure-e4vq7, budgeting-v7kfw]
+
+**Type:** Work / Batch start
+**Tasks:** infrastructure-e4vq7 - "Gemeinsame Ereignistabelle `events`: Schema, append-only-Trigger, `UNIQUE(stream_id, stream_version)`, Befehls-Id, generisches Anhängen und Laden; Tests belegen Konflikt bei gleicher Stream-Version, Rollback und das Verhalten von `BeginTransaction`", budgeting-v7kfw - "Fehlbetrag als reine Funktion je Target-Art, parallel zu YNABs goal_under_funded gerechnet, mit Abweichungsliste, ohne Verhaltensänderung"
+**Parallel:** yes (2 workers, builder asked for both; merge order e4vq7 then v7kfw because both likely touch src/Tests/Tests.fsproj)
+
+---
+
 ## 2026-11-05 13:14 -- Modeling / Promoted: budgeting-v7kfw - "Fehlbetrag als reine Funktion je Target-Art, parallel zu YNABs goal_under_funded gerechnet, mit Abweichungsliste, ohne Verhaltensänderung"
 
 **Type:** Modeling / Promote

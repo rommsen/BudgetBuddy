@@ -1,7 +1,7 @@
 ---
 id: infrastructure-e4vq7
 title: "Gemeinsame Ereignistabelle `events`: Schema, append-only-Trigger, `UNIQUE(stream_id, stream_version)`, Befehls-Id, generisches Anhängen und Laden; Tests belegen Konflikt bei gleicher Stream-Version, Rollback und das Verhalten von `BeginTransaction`"
-status: todo
+status: doing
 type: feature
 context: infrastructure
 created: 2026-11-05
