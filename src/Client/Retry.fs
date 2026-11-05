@@ -2,11 +2,12 @@ namespace Client
 
 open Fable.Remoting.Client
 
-/// Wiederholt lesende Abfragen, wenn der Browser die Verbindung abbricht.
+/// Wiederholt lesende Abfragen und Befehle mit Befehls-Id, wenn der Browser die Verbindung abbricht.
 /// Befund 2026-10-24 (Firefox, nach einem Deploy): "Http error (0)", obwohl der Server
 /// die Anfrage mit 200 beantwortet hat. `reading` nur für lesende Aufrufe: ein abgebrochener
-/// Schreibaufruf kann beim Server angekommen sein. Schreibende Aufrufe mit Befehls-Id laufen
-/// über `command` (ADR 0084 Punkt 8).
+/// Schreibaufruf kann beim Server angekommen sein. Schreibende Aufrufe laufen nur über `command`,
+/// dessen zweiter Versuch dieselbe Befehls-Id trägt (ADR 0084 Punkt 8). Ein Schreibaufruf ohne Id
+/// wird nicht wiederholt.
 [<RequireQualifiedAccess>]
 module Retry =
     /// Pausen vor dem zweiten und dritten Versuch (zusammen 1,6 Sekunden).
@@ -46,23 +47,16 @@ module Retry =
     let reading (call: 'arg -> Async<'a>) : 'arg -> Async<'a> =
         fun arg -> withRetry isNetworkError defaultDelaysMs Async.Sleep (fun () -> call arg)
 
-    /// Pause vor dem einen zweiten Versuch eines schreibenden Aufrufs.
+    /// Pause vor dem einen zweiten Versuch eines Befehls.
     let writingDelaysMs : int list = [ 400 ]
 
-    /// Umhüllt einen schreibenden Aufruf: höchstens eine Wiederholung, nur nach Status 0. Nur für Aufrufe,
-    /// deren Wiederholung der Server über die Befehls-Id erkennt.
-    let writingWith (sleep: int -> Async<unit>) (call: 'arg -> Async<'a>) : 'arg -> Async<'a> =
-        fun arg -> withRetry isNetworkError writingDelaysMs sleep (fun () -> call arg)
-
-    /// `writingWith` mit der echten Pause (Browser).
-    let writing (call: 'arg -> Async<'a>) : 'arg -> Async<'a> = writingWith Async.Sleep call
-
-    /// Eine schreibende Absicht mit Befehls-Id: Die Id kommt einmal aus `newId`, beide Versuche von
-    /// `writingWith` bekommen dieselbe. So erkennt der Server die Wiederholung (ADR 0084 Punkt 8).
+    /// Eine schreibende Absicht mit Befehls-Id: Die Id kommt einmal aus `newId`, beide Versuche bekommen
+    /// dieselbe. Höchstens eine Wiederholung, nur nach Status 0. So erkennt der Server die Wiederholung
+    /// (ADR 0084 Punkt 8).
     let commandWith (sleep: int -> Async<unit>) (newId: unit -> System.Guid) (call: System.Guid -> Async<'a>) : Async<'a> =
         async {
             let commandId = newId ()
-            return! writingWith sleep call commandId
+            return! withRetry isNetworkError writingDelaysMs sleep (fun () -> call commandId)
         }
 
     /// `commandWith` mit der echten Pause und einer frischen Guid je Absicht (Browser).

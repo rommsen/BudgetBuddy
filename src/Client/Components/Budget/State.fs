@@ -113,7 +113,8 @@ let private pauseCmd (monthKey: string) (request: TargetPauseRequest) : Cmd<Msg>
         (fun result -> TargetPauseAnswered (request.CategoryId, monthKey, result))
         (fun ex -> TargetPauseCallLost (request.CategoryId, monthKey, ex.Message))
 
-// Schreibt nach YNAB, deshalb nicht über `Retry`. Die Antwort trägt Kategorie und Monat des Aufrufs.
+// Schreibt nach YNAB und hat noch keine Befehls-Id (die kommt mit budgeting-eh8xe), deshalb nicht über
+// `Retry`. Die Antwort trägt Kategorie und Monat des Aufrufs.
 let private targetChangeCmd (monthKey: string) (request: TargetChangeRequest) : Cmd<Msg> =
     let answer result = TargetChangeAnswered (request.CategoryId, monthKey, result)
     Cmd.OfAsync.either

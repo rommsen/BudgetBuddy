@@ -213,15 +213,15 @@ let private noSleep (_: int) = async { return () }
 [<Tests>]
 let writingTests =
     testList "Schreibende Aufrufe mit Befehls-Id" [
-        test "Nach Status 0 wiederholt Retry.writing genau einmal" {
+        test "Nach Status 0 wiederholt Retry.commandWith genau einmal" {
             let seen, call = failingWith (proxyError 0)
-            Expect.throws (fun () -> Retry.writingWith noSleep call (System.Guid.NewGuid()) |> Async.RunSynchronously |> ignore) "der zweite Fehler kommt durch"
+            Expect.throws (fun () -> Retry.commandWith noSleep System.Guid.NewGuid call |> Async.RunSynchronously |> ignore) "der zweite Fehler kommt durch"
             Expect.equal seen.Count 2 "zwei Versuche"
         }
-        test "Nach einem anderen Fehler wiederholt Retry.writing nie" {
+        test "Nach einem anderen Fehler wiederholt Retry.commandWith nie" {
             for error in [ proxyError 500; exn "anders" ] do
                 let seen, call = failingWith error
-                Expect.throws (fun () -> Retry.writingWith noSleep call (System.Guid.NewGuid()) |> Async.RunSynchronously |> ignore) "wirft sofort"
+                Expect.throws (fun () -> Retry.commandWith noSleep System.Guid.NewGuid call |> Async.RunSynchronously |> ignore) "wirft sofort"
                 Expect.equal seen.Count 1 $"ein Versuch bei {error.Message}"
         }
         test "Beide Versuche einer Absicht tragen dieselbe Id, zwei Absichten zwei Ids aus der Quelle" {
