@@ -5,6 +5,28 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 18:12 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** 50m
+**Completed:** 1 (first-try PASS: 1, re-dispatched: 0, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Lost-result re-dispatches:** 0
+**Lost-result escalations:** 0
+**Dispatches:** budgeting-hyn77: 1
+**Commits:** 3
+**Vision-conformance:** none — batch aligns with vision
+**Batch mix:** 100% product-facing / 0% harness / 0% bookkeeping (1 task)
+**Carry-over:** none — working tree clean
+**Verifikation:** ./verify.sh auf main nach dem Commit: VERIFY: PASS (dotnet 3976 grün, node 310 grün). Probe gegen eine Kopie der Produktion vor dem Deploy: alle Wahrheitswerte true, Kopie gelöscht.
+**Conductor auf main:** Nachtrag zu ADR 0084 Punkt 4 (Gruppen-Id, weitere Abbruchregeln, Tabellenfolge bei Gleichstand, keine Rasterprüfung in der Migration, Withdrawn); Probe-Ergebnis im Outcome.
+**Review-Vorschlag (Override C):** /review-agents mit backend-code-quality (src/Server, unter anderem Leser, die je Aufruf den ganzen Budget-Kontext laden) und qa-milestone-reviewer (49 neue Tests). /architecture-review budgeting vorgeschlagen.
+**Offen:** Deploy von budgeting-hyn77 (Startmigration, Rollback nur über Backup).
+
+---
+
 ## 2026-11-05 18:08 -- Task verified and completed: budgeting-hyn77 - "Budget-Ereignistypen mit Codec und Startmigration der fünf Budget-Tabellen nach events, Schreibwege und Leser umgestellt, Verhalten unverändert"
 
 **Type:** Work / Task completion
