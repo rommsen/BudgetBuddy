@@ -1077,6 +1077,19 @@ let private commandTests =
             Expect.equal f.Reads 0 "kein FetchMonth"
             Expect.isEmpty f.Attempts "kein SetAssigned"
 
+        testCase "Die Id eines Zuweisens in einem Monat als Zuweisen in einem anderen Monat gesendet wird abgelehnt, ohne Ereignis und ohne YNAB" <| fun () ->
+            let f, a, b = fake ()
+            let x = Guid.NewGuid()
+            assignIdOk f x (assign a 120000L) |> ignore
+            let events = BudgetEventsFixture.eventsMentioning [ a; b ]
+            forget f
+            match run (assignMoney f.Port now "2026-12-01" (withId x (assign a 120000L))) with
+            | Ok (Error message) -> Expect.equal message ForeignCommandText "innen abgelehnt"
+            | other -> failtest $"Ablehnung erwartet: {other}"
+            Expect.equal (BudgetEventsFixture.eventsMentioning [ a; b ]) events "kein Ereignis"
+            Expect.equal f.Reads 0 "kein FetchMonth"
+            Expect.isEmpty f.Attempts "kein SetAssigned"
+
         testCase "Die Entscheidung trägt die Befehls-Id, ihre Ergebnis-Ereignisse tragen keine" <| fun () ->
             let f, a, b = fake ()
             let x = Guid.NewGuid()

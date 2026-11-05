@@ -220,6 +220,8 @@ type private FakeYnab(initial: (Guid * string * int64 * int64 * bool) list, tbb0
     /// Zu verteilen weicht nach jedem Schreiben um diesen Betrag ab (Milliunits).
     member val Drift = 0L with get, set
     member val Reads = 0 with get, set
+    /// Läuft bei jedem Lesen des Monats, vor der Antwort.
+    member val OnRead : unit -> unit = ignore with get, set
     member _.Assigned = assigned
     member _.MaxConcurrent = maxConcurrent.Value
     member _.Port : YnabPort =
@@ -227,6 +229,7 @@ type private FakeYnab(initial: (Guid * string * int64 * int64 * bool) list, tbb0
             fun monthKey ->
                 async {
                     this.Reads <- this.Reads + 1
+                    this.OnRead ()
                     if this.ReadsFailAfterWrite && this.Attempts.Count > 0 then
                         return Error (YnabError.NetworkError "Lesen scheitert")
                     else
@@ -732,6 +735,36 @@ let private commandTests =
             Expect.equal again.ApplicationId first.ApplicationId "dieselbe Anwendung"
             Expect.equal again.Lines first.Lines "dieselben Zeilen"
             Expect.isNone again.ActualToBeBudgeted "Zu verteilen nicht neu gelesen"
+
+        testCase "Die Id eines Zuweisens als Übernehmen gesendet wird abgelehnt, ohne Lesen, ohne Senden und ohne Ereignis" <| fun () ->
+            let f, (a, b, c, d, e) = fake 200000L
+            let x = Guid.NewGuid()
+            let line : Budgeting.Persistence.PlannedLine =
+                { CategoryId = a; CategoryName = "Essen"; OldAssigned = 0L; NewAssigned = 10000L }
+            Budgeting.Persistence.recordDecision (Some x) now monthKey MoneyAssigned [ line ] [] |> run |> ignore
+            let shown = { previewOf f with CommandId = Some x }
+            let ids = [ a; b; c; d; e ]
+            let events = BudgetEventsFixture.eventsMentioning ids
+            f.Reads <- 0
+            Expect.equal (run (apply f.Port now monthKey shown)) (Error (YnabError.RefusedByBb ForeignCommandText)) "außen abgelehnt"
+            Expect.equal f.Reads 0 "kein FetchMonth"
+            Expect.isEmpty f.Attempts "kein SetAssigned"
+            Expect.equal (BudgetEventsFixture.eventsMentioning ids) events "kein Ereignis"
+
+        testCase "Rennt die Id an der Vorabprüfung vorbei, antwortet Übernehmen aus dem Stream und sendet nichts" <| fun () ->
+            let f, (a, _, _, _, _) = fake 200000L
+            let x = Guid.NewGuid()
+            let shown = { previewOf f with CommandId = Some x }
+            let line : Budgeting.Persistence.PlannedLine =
+                { CategoryId = a; CategoryName = "Essen"; OldAssigned = 0L; NewAssigned = 50000L }
+            // Während des Lesens hält ein zweiter Weg dieselbe Id fest, wie es das Netz der Transaktion abfängt.
+            f.OnRead <- fun () ->
+                f.OnRead <- ignore
+                Budgeting.Persistence.recordDecision (Some x) now monthKey TargetsApplied [ line ] [] |> run |> ignore
+            let report = applyOk f shown
+            Expect.isEmpty f.Attempts "kein SetAssigned"
+            Expect.equal (report.Lines |> List.map (fun l -> l.CategoryId, l.NewAssigned)) [ a, eur 50000L ] "die festgehaltene Entscheidung"
+            Expect.isNone report.ActualToBeBudgeted "Zu verteilen nicht neu gelesen"
     ]
 
 [<Tests>]

@@ -145,11 +145,14 @@ let private domainTests =
 type private FakeYnab(categories: (Guid * string * decimal * bool * bool * bool) list) =
     member val Reads = 0 with get, set
     member val Writes = ResizeArray<Guid * int64>()
+    /// Läuft bei jedem Lesen des Monats, vor der Antwort.
+    member val OnRead : unit -> unit = ignore with get, set
     member this.Port : YnabPort =
         { FetchMonth =
             fun monthKey ->
                 async {
                     this.Reads <- this.Reads + 1
+                    this.OnRead ()
                     return
                         Ok
                             { Month = monthKey
@@ -538,6 +541,31 @@ let private commandTests =
             Expect.equal (pauseWithId f x other PauseTarget) (Ok (Error ForeignCommandText)) "innen abgelehnt"
             Expect.equal f.Reads 0 "YNAB nicht gelesen"
             Expect.isEmpty (eventRows other) "nichts angehängt"
+
+        testCase "GIVEN Pausieren und Aufheben mit Y WHEN Y wiederkommt THEN antwortet der Server ohne Pause, ohne YNAB und ohne neues Ereignis" <| fun () ->
+            let f, k = fakeWith false
+            let y = Guid.NewGuid()
+            pauseWithId f (Guid.NewGuid()) k PauseTarget |> ignore
+            Expect.equal (pauseWithId f y k LiftPause) (Ok (Ok None)) "aufgehoben"
+            f.Reads <- 0
+            Expect.equal (pauseWithId f y k LiftPause) (Ok (Ok None)) "Antwort aus dem Ereignis"
+            Expect.equal f.Reads 0 "YNAB nicht gelesen"
+            Expect.equal (eventRows k) [ current, "Pausiert"; current, "Aufgehoben" ] "nichts angehängt"
+
+        testCase "Rennt die Id an der Vorabprüfung vorbei, antwortet Pausieren aus dem Stream und hängt nichts an" <| fun () ->
+            let f, k = fakeWith false
+            let x = Guid.NewGuid()
+            // Während des Lesens hält ein zweiter Weg dieselbe Id fest, wie es das Netz der Transaktion abfängt.
+            // Die Pausen kommen aus dem Stand vor diesem Festhalten, sonst sähe die Planung nichts mehr zu tun.
+            f.OnRead <- fun () ->
+                f.OnRead <- ignore
+                Budgeting.Persistence.recordPause (Some x) now current k "Ausflug" Domain.PauseKind.Paused |> run |> ignore
+            let before = fun (_: string) -> async { return Ok Set.empty }
+            let result =
+                setTargetPauseWith before f.Port now current current { CategoryId = k; Intent = PauseTarget; CommandId = Some x } |> run
+            Expect.equal result (Ok (Ok (Some PausedInBb))) "Antwort aus dem Ereignis"
+            Expect.isEmpty f.Writes "kein Schreibaufruf"
+            Expect.equal (eventRows k) [ current, "Pausiert" ] "nur das festgehaltene Ereignis"
     ]
 
 [<Tests>]
