@@ -87,7 +87,13 @@ Ein ADR im `budgeting`, das den Wechsel der Führung festlegt.
 - Zuweisen und Verschieben gibt es in BB schon (budgeting-c5w2n, budgeting-afd8h), sie schreiben
   nach YNAB und halten Budget-Bewegungen fest. Der Wechsel betrifft vor allem, wer Quelle der
   Wahrheit ist und wie YNAB-Änderungen behandelt werden.
-- Wartet auf infrastructure-c7f53 (Umschlag und Reihenfolge).
+- Wartet auf infrastructure-c7f53 (Umschlag und Reihenfolge). Stand nach dessen Refinement
+  (2026-11-05): Alle Ereignisse liegen in einer gemeinsamen Tabelle `events` mit eigenem
+  Budget-Stream. Punkt 4 (Migration) heißt damit: Budget-Tabellen nach `events` überführen.
+  Die Umsetzungs-Tasks dieses ADRs warten auf die Kassenbuch-Migration nach `events`
+  (Folge-Task 2 aus infrastructure-c7f53); das ADR selbst kann vorher entstehen.
+- Echo-Regel mitdenken: BBs eigene Schreibung nach YNAB darf beim nächsten Lesen keine
+  Beobachtung erzeugen (Vorbild Kassenbuch: `...WrittenBackToYnab`, Actor `YnabMirror`).
 - Voraussetzungen geprüft am 2026-11-05: Die Produktions-Datenbank ist im täglichen
   Off-site-Backup (Stack wird angehalten, Restore-Test bestanden), das ist kein Blocker mehr.
   Sinnvoll vor dem Wechsel, aber kein Blocker: infrastructure-g4wy8 (Verbindungsabbrüche) und

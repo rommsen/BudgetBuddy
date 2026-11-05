@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 11:42 -- Modeling / Refined: infrastructure-c7f53 - Event Sourcing für die Kernkontexte
+
+**Type:** Modeling / Refine
+**BC:** infrastructure
+**Status after:** todo
+**Summary:** Roman entschied: gemeinsame Tabelle events mit position als globaler Reihenfolge, Geld-Regel für neue Fähigkeiten, Kassenbuch-Migration vor dem ersten Budget-Ereignis. Read-Model-Kriterium, Übergang des Kassenbuchs, Folge-Tasks und Risiken aus architect und tactical-modeler ergänzt; budgeting-zkbbd nachgezogen.
+**ADRs written:** keine (schreibt der Worker)
+
+---
+
 ## 2026-11-05 11:18 -- Modeling / Captured: budgeting-zkbbd - "BB führt das Budget, YNAB wird Spiegel: Zuweisen, Verschieben und Targets entstehen als Ereignisse in BB, nach YNAB geht nur Zugewiesen je Monat und Kategorie"
 
 **Type:** Modeling / Capture
