@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 12:37 -- Modeling / Promoted: infrastructure-e4vq7 - "Gemeinsame Ereignistabelle `events`: Schema, append-only-Trigger, `UNIQUE(stream_id, stream_version)`, Befehls-Id, generisches Anhängen und Laden; Tests belegen Konflikt bei gleicher Stream-Version, Rollback und das Verhalten von `BeginTransaction`"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-05 12:37 -- Modeling / Refined: infrastructure-e4vq7 - Gemeinsame Ereignistabelle events
 
 **Type:** Modeling / Refine

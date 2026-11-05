@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 22
-- **Todo:** 0
+- **Backlog:** 21
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 43
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **infrastructure-e4vq7** — "Gemeinsame Ereignistabelle `events`: Schema, append-only-Trigger, `UNIQUE(stream_id, stream_version)`, Befehls-Id, generisches Anhängen und Laden; Tests belegen Konflikt bei gleicher Stream-Version, Rollback und das Verhalten von `BeginTransaction`" (feature) — `todo/infrastructure-e4vq7-gemeinsame-ereignistabelle-events-schema-append-only-trigger.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -37,7 +38,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **infrastructure-e4vq7** — "Gemeinsame Ereignistabelle `events`: Schema, append-only-Trigger, `UNIQUE(stream_id, stream_version)`, Befehls-Id, generisches Anhängen und Laden; Tests belegen Konflikt bei gleicher Stream-Version, Rollback und das Verhalten von `BeginTransaction`" (feature) — `backlog/infrastructure-e4vq7-gemeinsame-ereignistabelle-events-schema-append-only-trigger.md`
 - **infrastructure-jc1y1** — "Die 61 [layout]-Tests aufräumen: Designwert-Assertions löschen, Invarianten dem Sweep überlassen, Verhaltens-Assertions in passende Tests oder nach .NET verschieben" (chore) — `backlog/infrastructure-jc1y1-layouttests-aufraeumen.md`
 - **infrastructure-nx14s** — "Layout-Invarianten als ein generischer Sweep über alle Routen und Breiten statt als Designwerte je Komponente, mit Doktrin-Regel für Layout-Regressionen" (chore) — `backlog/infrastructure-nx14s-layout-invarianten-sweep.md`
 - **infrastructure-hwfkn** — "Spike: Kernbudget für gleichzeitige Gate-Läufe messen. Parallelität je Lauf, Sperre um test:scripts und Zahl gleichzeitiger Worktrees zusammen entscheiden" (spike) — `backlog/infrastructure-hwfkn-gate-sperre-pruefen.md`
