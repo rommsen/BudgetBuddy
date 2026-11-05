@@ -10,7 +10,7 @@ Catalog of this bounded context's tasks by status.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 12
+- **Backlog:** 13
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 44
@@ -79,10 +79,11 @@ prior-art matcher additionally checks `done-archive/` when present.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **budgeting-dkjc5** — "Hintergrund-Übernahme: laufender und künftige Monate zuerst, dann ältere, unter YNABs Rate-Grenze" (feature) — `backlog/budgeting-dkjc5-hintergrund-uebernahme-aelterer-monate.md`
 - **budgeting-e2z7v** — "Rückweg-Aktion \"Targets nach YNAB zurückschreiben\": BBs Targets bewusst als Goals nach YNAB schreiben, soweit darstellbar, und listen, was YNAB nicht darstellen kann" (feature) — `backlog/budgeting-e2z7v-r-ckweg-aktion-targets-nach-ynab-zur-ckschreiben-bbs-targets.md`
 - **budgeting-eh8xe** — "Targets als BB-Regeln: einmalige Übernahme aus YNAB 1:1, Fehlbetrag aus BB, Rückbau des Goal-Schreibwegs und der YNAB-Pause, Wochentag in BB setzbar" (feature) — `backlog/budgeting-eh8xe-targets-als-bb-regeln-einmalige-bernahme-aus-ynab-1-1-fehlbe.md`
-- **budgeting-dgrp7** — "Budget aus YNAB übernehmen (sofort und im Hintergrund), Soll je Monat und Kategorie aus BB falten, YNAB-Änderungen über observeMonth mit Echo-Regel erkennen" (feature) — `backlog/budgeting-dgrp7-budget-aus-ynab-bernehmen-sofort-und-im-hintergrund-soll-je.md`
-- **budgeting-qm5x9** — "Befehls-Id für alle Budget-Entscheidungen aus der UI: optionales CommandId-Feld, Prüfung gegen processed_commands unter der Sperre, Antwort aus dem Stream, Client wiederholt einmal" (feature) — `backlog/budgeting-qm5x9-befehls-id-f-r-alle-budget-entscheidungen-aus-der-ui-optiona.md`
+- **budgeting-dgrp7** — "BB führt das Zugewiesen: Übernahme beim Lesen und vor jedem Befehl, Soll-Faltung mit bestätigtem Stand, observeMonth mit Echo-Regel, Befehle auf das Soll" (feature) — `backlog/budgeting-dgrp7-budget-aus-ynab-bernehmen-sofort-und-im-hintergrund-soll-je.md`
+- **budgeting-qm5x9** — "Befehls-Id für Budget-Entscheidungen aus der UI: optionales CommandId-Feld, Prüfung gegen processed_commands unter der Sperre vor YNAB, Antwort aus dem Stream, Client wiederholt einmal" (feature) — `backlog/budgeting-qm5x9-befehls-id-f-r-alle-budget-entscheidungen-aus-der-ui-optiona.md`
 - **budgeting-q4v8n** — "Seite Targets prüfen #/budget/target-check: Knopf im Kopf der Budget-Seite, Gruppen mit Balken, Vorschlag übernehmen und Anpassen … im Panel oder BottomSheet" (feature) — `backlog/budgeting-q4v8n-seite-targets-pruefen.md`
 - **budgeting-w5k2r** — "Pause verschwindet, wenn beim Tipp ein Lesen des Monats schon läuft (Wechsel hin und zurück)" (bug) — `backlog/budgeting-w5k2r-pause-verschwindet-wenn-beim-tipp-ein-lesen-des-monats-schon.md`
 - **budgeting-h9c3w** — "Gesammelte Sollte- und Kann-Befunde der Reviews zu budgeting-c6vn4 und budgeting-g2ty9" (chore) — `backlog/budgeting-h9c3w-review-befunde-sammlung.md`

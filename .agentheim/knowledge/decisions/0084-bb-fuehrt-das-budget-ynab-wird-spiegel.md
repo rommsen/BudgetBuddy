@@ -6,7 +6,7 @@ status: accepted
 date: 2026-11-05
 supersedes: []
 superseded_by: []
-related_tasks: [budgeting-zkbbd, budgeting-v7kfw, budgeting-hyn77, budgeting-qm5x9, budgeting-dgrp7, budgeting-eh8xe, budgeting-e2z7v]
+related_tasks: [budgeting-zkbbd, budgeting-v7kfw, budgeting-hyn77, budgeting-qm5x9, budgeting-dgrp7, budgeting-dkjc5, budgeting-eh8xe, budgeting-e2z7v]
 related_adrs: [0012, 0013, 0065, 0072, 0074, 0079, 0080, 0082, 0083]
 related_research: []
 ---
@@ -192,6 +192,41 @@ Die Ergebnis-Ereignisse (`AssignmentWrittenBackToYnab`, `AssignmentWriteBackFail
 - Altbestand `changed-in-ynab` wird `AssignmentWriteBackSupersededInYnab`; neue ungesendete
   Schließungen beim erneuten Senden schreiben `AssignmentWriteBackWithdrawn`.
 - Die Probe gegen eine Kopie der Produktion vor dem Deploy war in allen Punkten grün.
+
+**Nachtrag 2026-11-05 (Verfeinerung budgeting-qm5x9 und budgeting-dgrp7, neu budgeting-dkjc5):**
+- Punkt 8: `applyTargets` bekommt die Befehls-Id als Feld `CommandId: Guid option` in
+  `TargetPreview`; ein neuer Parametertyp bräche alte Clients. Die Prüfung der Befehls-Id steht
+  unter der Sperre vor Übernahme, Beobachtung und jedem YNAB-Aufruf; eine Wiederholung liest YNAB
+  nicht. Die Antwort kommt aus dem Stream: `reportWith` für Verschieben, Zuweisen und Anwenden
+  (ohne Zu verteilen), bei der Pause aus dem Ereignis. Eine Id, die zu einem anderen Auftrag
+  gehört, wird abgelehnt, eine leere Guid an der Grenze. Target ändern bekommt seine Befehls-Id
+  erst mit budgeting-eh8xe (entschieden von Roman): Der Vergleich gegen `Shown` lässt eine
+  verspätete Wiederholung schon vorher ins Leere laufen.
+- Punkt 3, Faltung: Neben dem Soll führt die Faltung je (Monat, Kategorie) den bestätigten Stand
+  (zuletzt von YNAB bestätigt) und höchstens eine offene Rückschreibung. Die Baseline der
+  Echo-Regel ist der bestätigte Stand; `previousAssigned` bleibt Historie. Eine neue Entscheidung
+  auf einer Kategorie mit offener Rückschreibung zieht die alte im selben Append mit
+  `AssignmentWriteBackWithdrawn` zurück. `AssignmentWriteBackWithdrawn` setzt das Soll auf den
+  bestätigten Stand. `decideRetry` entfällt, erneut senden beobachtet zuerst.
+- Punkt 3, Lesen: Das Lesen eines Monats ruft `observeMonth` unter `MonthGuard` auf und baut seine
+  Antwort aus dessen YNAB-Stand (ein YNAB-Aufruf je Lesen). Die Abbildung bleibt rein; scheitert
+  nur das Anhängen, wird geloggt und der Monat geliefert. Das präzisiert "danach". Zugewiesen zeigt
+  das Soll, bei offener Rückschreibung markiert; Verfügbar und Zu verteilen bleiben YNABs Werte
+  (entschieden von Roman). Targets anwenden lehnt bis budgeting-eh8xe ab, solange eine Kategorie
+  mit Fehlbetrag eine offene Rückschreibung hat.
+- Punkt 3, Raster: Die Rasterprüfung gilt für Werte, die BB sendet. Übernahme und Beobachtung
+  übernehmen YNABs Wert ungerundet; Runden erzeugte bei jedem Lesen eine neue Beobachtung
+  (entschieden von Roman).
+- Punkt 5: Umgeschaltet wird mit dem Deploy von budgeting-dgrp7, ohne Setting (entschieden von
+  Roman); ein Rücksprung geht nur über das Rückspielen der Datenbank-Sicherung. Der Serverstart
+  hängt nicht von YNAB ab. Laufender und künftige Monate übernimmt das erste Lesen oder der erste
+  Befehl; ein Hintergrunddienst (budgeting-dkjc5) arbeitet laufenden, künftige und ältere Monate ab,
+  höchstens einen je Minute. "Künftige" sind die Monate aus `GET /months` nach dem Berliner
+  laufenden Monat. Ohne Übernahme und ohne lesbares YNAB wird ein Befehl abgelehnt. Die Übernahme
+  umfasst alle Kategorien außer `internal`, auch ausgeblendete und gelöschte, und schließt offene
+  Rückschreibungen migrierter Entscheidungen des Monats mit `AssignmentWriteBackWithdrawn`.
+- Tabelle der Folge-Tasks: T3 ist geteilt in budgeting-dgrp7 (hängt an T1 und T2) und
+  budgeting-dkjc5 (hängt an T3). Beide gehen nur zusammen in Produktion (entschieden von Roman).
 
 ### 5. Übernahme
 

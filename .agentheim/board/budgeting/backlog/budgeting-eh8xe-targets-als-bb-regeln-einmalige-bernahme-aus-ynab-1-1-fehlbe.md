@@ -75,3 +75,7 @@ Teilfehlern, und Targets können, was YNAB-Goals nicht können (Wochentag setzen
 - `depends_on` um budgeting-dgrp7 ergänzt (Conductor, 2026-11-05): Targets anwenden braucht das BB-Soll aus der Faltung in budgeting-dgrp7.
 - Fachsprache: "Soll", "Übernahme" und "Rückweg" bekommen spätestens hier einen Eintrag in der Ubiquitous language der budgeting-README (Hinweis aus der Verifikation von budgeting-zkbbd).
 - Rückbau aus budgeting-v7kfw (Verfeinerung 2026-11-05): Die Zustandstabelle `underfunded_comparisons` und ihr Speichern beim Lesen eines Monats entfallen hier, sobald BB den Fehlbetrag aus `events` faltet. Die Projektion nutzt die reine Funktion `underfunded` aus v7kfw.
+- Aus der Verfeinerung von budgeting-qm5x9 und budgeting-dgrp7 (2026-11-05): Target ändern
+  bekommt hier seine Befehls-Id (`TargetChangeRequest.CommandId`, Prüfung unter `TargetGuard` im
+  Target-Stream, Antwort aus `TargetSet`), entschieden von Roman. Targets anwenden rechnet dann den
+  Fehlbetrag gegen das Soll; die Ablehnung bei offener Rückschreibung aus dgrp7 entfällt.

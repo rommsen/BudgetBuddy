@@ -5,6 +5,26 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 20:29 -- Modeling / Refined: budgeting-qm5x9, budgeting-dgrp7 - Befehls-Id und BB führt das Zugewiesen
+
+**Type:** Modeling / Refine
+**BC:** budgeting
+**Status after:** todo (qm5x9, dgrp7, dkjc5)
+**Summary:** qm5x9 präzisiert (Vorabprüfung unter der Sperre vor YNAB, tryProcessedCommandOn, Antworten je Befehl aus dem Stream, CommandId in TargetPreview, Target ändern erst mit eh8xe). dgrp7 neu geschnitten: Faltung mit bestätigtem Stand und höchstens einer offenen Rückschreibung, Echo-Regel, Lesen über observeMonth mit einem YNAB-Aufruf, Befehle auf das Soll, Anwenden lehnt bei offener Rückschreibung ab. dgrp7 hängt an qm5x9. Entscheidungen von Roman: Target-Id mit eh8xe, Soll mit Markierung, Anwenden ablehnen, Umschalten mit dem Deploy, Raster nur für gesendete Werte, dgrp7 und dkjc5 nur zusammen deployen, 1 Monat je Minute.
+**Split into:** budgeting-dkjc5 (Hintergrund-Übernahme)
+**ADRs written:** Nachtrag zu ADR 0084
+
+---
+
+## 2026-11-05 20:29 -- Modeling / Captured: budgeting-dkjc5 - "Hintergrund-Übernahme: laufender und künftige Monate zuerst, dann ältere, unter YNABs Rate-Grenze"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Aus budgeting-dgrp7 abgetrennt: Hintergrunddienst übernimmt laufenden, künftige und ältere Monate, einen je Minute, Pause nach 429. Geht nur zusammen mit dgrp7 in Produktion.
+
+---
+
 ## 2026-11-05 18:40 -- Review-Lauf: budgeting-hyn77
 
 **Type:** Review / Review-Lauf
