@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 15:57 -- Review-Lauf: ledger-r6wn3
+
+**Type:** Review / Review-Lauf
+**Bereich:** 3537f05..24addbe (ledger-r6wn3)
+**Agents:** backend-code-quality, qa-milestone-reviewer
+**Funde:** behoben 4, verworfen 1, Rückfrage 0, Ticket 0
+**Commits:** 24fb4ac, 5cece69, c25eea2
+**Verworfen:** QA-Vorschlag, die Tests für ImportId-Treffer (1106) und Regressionstest (1128) zusammenzulegen: gleiche Ebene, verschiedene Aussagen, Doktrin erfüllt.
+**Verifikation:** VERIFY: PASS (dotnet 3922 grün, node 310 grün)
+**Vorschlag:** /architecture-review ledger (103 erledigte Tasks seit dem letzten Bestandsreview).
+
+---
+
 ## 2026-11-05 15:06 -- Work session ended
 
 **Type:** Work / Session end
