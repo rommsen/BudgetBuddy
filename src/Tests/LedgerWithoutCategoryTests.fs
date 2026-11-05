@@ -293,18 +293,21 @@ let persistenceTests =
             let exec (sql: string) =
                 use cmd = new Microsoft.Data.Sqlite.SqliteCommand(sql, conn)
                 cmd.ExecuteNonQuery() |> ignore
-            // Zustandstabelle und Log in der Form vor dieser Änderung (ohne die neue Spalte).
+            // Zustandstabelle in der Form vor dieser Änderung (ohne die neue Spalte), das Log in
+            // `events` (ADR 0083, ledger-k9tm2).
             exec "CREATE TABLE ledger_entries (id TEXT PRIMARY KEY, account_id TEXT NOT NULL, deleted_in_ynab INTEGER NOT NULL DEFAULT 0)"
-            exec "CREATE TABLE ledger_entry_events (entry_id TEXT NOT NULL, sequence INTEGER NOT NULL, event_type TEXT NOT NULL, schema_version INTEGER NOT NULL, payload TEXT NOT NULL)"
+            EventStore.createSchemaOn conn
             let p = { payload (accountOf 6) 50 with TransferAccountId = Some (ynabAccount 13) }
             let body = EntryObservedInYnab p
             let insertEvent (sql: string) =
                 use cmd = new Microsoft.Data.Sqlite.SqliteCommand(sql, conn)
-                cmd.Parameters.AddWithValue("@id", (entryGuid 50).ToString()) |> ignore
+                cmd.Parameters.AddWithValue("@stream", EventStore.streamIdOf "ledger" "entry" (EventStore.GuidId (entryGuid 50))) |> ignore
                 cmd.Parameters.AddWithValue("@version", schemaVersion body) |> ignore
                 cmd.Parameters.AddWithValue("@payload", encodePayload body) |> ignore
                 cmd.ExecuteNonQuery() |> ignore
-            insertEvent "INSERT INTO ledger_entry_events VALUES (@id, 1, 'EntryObservedInYnab', @version, @payload)"
+            insertEvent
+                """INSERT INTO events (event_id, context, stream_id, stream_version, occurred_at, actor_kind, event_type, schema_version, payload)
+                   VALUES ('0195c000-0000-7000-8000-000000000e01', 'ledger', @stream, 1, '2026-01-01T00:00:00.0000000Z', 'YnabMirror', 'EntryObservedInYnab', @version, @payload)"""
             exec $"INSERT INTO ledger_entries (id, account_id) VALUES ('{entryGuid 50}', 'konto')"
 
             let read () =

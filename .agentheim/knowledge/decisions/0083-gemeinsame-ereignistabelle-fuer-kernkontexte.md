@@ -228,6 +228,13 @@ beim Schreiben nach dem Timeout mit `SQLITE_BUSY`. `BeginTransaction(true)` schi
 und nicht über `EventStore.validate`, damit ein alter Zeitpunkt ohne Zonenangabe den Start nicht
 blockiert. Vorher läuft ledger-r6wn3, damit Replay auch `ledger_entry_links` vollständig herstellt.
 
+**Nachtrag 2026-11-05 (ledger-k9tm2, umgesetzt):** Die Migration läuft in `createLedgerSchemaOn`
+nach dem Anlegen von `events` und vor den Spalten-Backfills, die damit schon `events` lesen.
+`appendAndApply` schreibt über `EventStore.appendOn`; neue Kassenbuch-Ereignisse brauchen damit
+einen UTC-Zeitpunkt (alle Produktionswege nutzen `DateTime.UtcNow`). Migrierte Zeitpunkte bleiben
+Text wie zuvor. `RecordedLedgerEvent.Sequence` bleibt als Feldname und wird aus `stream_version`
+gefüllt. Die Probe gegen eine Kopie der Produktion vor dem Deploy war in allen Punkten grün.
+
 ### 7. Regel für neue Fähigkeiten
 
 > Eine Fähigkeit bekommt Ereignisse, wenn sie Geld-Fakten oder Entscheidungen über Geld

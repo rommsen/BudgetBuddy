@@ -1620,7 +1620,7 @@ let private seedEntry (accountId: LedgerAccountId) (n: int) (amount: decimal) : 
         FlagName = None
     }
     appendAndApply [
-        { EntryId = pageEntryId n; OccurredAt = DateTime(2026, 4, 1); Actor = YnabMirror; Body = EntryObservedInYnab payload }
+        { EntryId = pageEntryId n; OccurredAt = DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc); Actor = YnabMirror; Body = EntryObservedInYnab payload }
     ]
 
 /// Wie `seedEntry`, aber die Buchung ist in YNAB gelöscht (ledger-p3n8k): erst die
@@ -1630,7 +1630,7 @@ let private seedDeletedEntry (accountId: LedgerAccountId) (n: int) (amount: deci
         do! seedEntry accountId n amount
         do! appendAndApply [
             { EntryId = pageEntryId n
-              OccurredAt = DateTime(2026, 4, 1)
+              OccurredAt = DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc)
               Actor = YnabMirror
               Body = EntryDeletionObservedInYnab }
         ]
@@ -1657,7 +1657,7 @@ let private seedReviewedEntry (accountId: LedgerAccountId) (n: int) (amount: dec
         FlagName = None
     }
     appendAndApply [
-        { EntryId = pageEntryId n; OccurredAt = DateTime(2026, 4, 1); Actor = YnabMirror; Body = EntryObservedInYnab payload }
+        { EntryId = pageEntryId n; OccurredAt = DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc); Actor = YnabMirror; Body = EntryObservedInYnab payload }
     ]
 
 // ledger-fgt4k: eigenes Konto und eigene Buchungs-Ids (Präfix f6f6f6f6), damit
@@ -1688,11 +1688,11 @@ let private seedEntryFgt (n: int) (amount: decimal) (reviewed: bool) (deleted: b
             FlagName = None
         }
         do! appendAndApply [
-            { EntryId = pageEntryIdFgt n; OccurredAt = DateTime(2026, 4, 1); Actor = YnabMirror; Body = EntryObservedInYnab payload }
+            { EntryId = pageEntryIdFgt n; OccurredAt = DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc); Actor = YnabMirror; Body = EntryObservedInYnab payload }
         ]
         if deleted then
             do! appendAndApply [
-                { EntryId = pageEntryIdFgt n; OccurredAt = DateTime(2026, 4, 1); Actor = YnabMirror; Body = EntryDeletionObservedInYnab }
+                { EntryId = pageEntryIdFgt n; OccurredAt = DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc); Actor = YnabMirror; Body = EntryDeletionObservedInYnab }
             ]
     }
 
@@ -1764,7 +1764,7 @@ let private seedEntryFull
         FlagName = None
     }
     appendAndApply [
-        { EntryId = pageEntryId n; OccurredAt = date; Actor = YnabMirror; Body = EntryObservedInYnab payload }
+        { EntryId = pageEntryId n; OccurredAt = DateTime.SpecifyKind(date, DateTimeKind.Utc); Actor = YnabMirror; Body = EntryObservedInYnab payload }
     ]
 
 /// Wie `seedEntryFull`, aber in YNAB gelöscht (analog `seedDeletedEntry`).
@@ -1780,7 +1780,7 @@ let private seedDeletedEntryFull
     async {
         do! seedEntryFull accountId n amount date payee memo categoryRef
         do! appendAndApply [
-            { EntryId = pageEntryId n; OccurredAt = date; Actor = YnabMirror; Body = EntryDeletionObservedInYnab }
+            { EntryId = pageEntryId n; OccurredAt = DateTime.SpecifyKind(date, DateTimeKind.Utc); Actor = YnabMirror; Body = EntryDeletionObservedInYnab }
         ]
     }
 
@@ -1818,7 +1818,7 @@ let private seedSplitEntry
         FlagName = None
     }
     appendAndApply [
-        { EntryId = pageEntryId n; OccurredAt = date; Actor = YnabMirror; Body = EntryObservedInYnab payload }
+        { EntryId = pageEntryId n; OccurredAt = DateTime.SpecifyKind(date, DateTimeKind.Utc); Actor = YnabMirror; Body = EntryObservedInYnab payload }
     ]
 
 /// Wie `seedSplitEntry`, aber in YNAB gelöscht (analog `seedDeletedEntryFull`).
@@ -1833,7 +1833,7 @@ let private seedDeletedSplitEntry
     async {
         do! seedSplitEntry accountId n date payee memo splits
         do! appendAndApply [
-            { EntryId = pageEntryId n; OccurredAt = date; Actor = YnabMirror; Body = EntryDeletionObservedInYnab }
+            { EntryId = pageEntryId n; OccurredAt = DateTime.SpecifyKind(date, DateTimeKind.Utc); Actor = YnabMirror; Body = EntryDeletionObservedInYnab }
         ]
     }
 
@@ -2109,7 +2109,7 @@ let ledgerPagingTests =
             seedEntry pageTestAccountA 39 -5m |> Async.RunSynchronously
             appendAndApply [
                 { EntryId = pageEntryId 39
-                  OccurredAt = DateTime(2026, 4, 2)
+                  OccurredAt = DateTime(2026, 4, 2, 0, 0, 0, DateTimeKind.Utc)
                   Actor = YnabMirror
                   Body = EntryDeletionObservedInYnab }
             ]
@@ -2728,7 +2728,7 @@ let ledgerPagingTests =
                   { Target = Uncategorized; Amount = eur -3m; Memo = None } ]
             appendAndApply [
                 { EntryId = pageEntryId 207
-                  OccurredAt = DateTime(2026, 8, 2)
+                  OccurredAt = DateTime(2026, 8, 2, 0, 0, 0, DateTimeKind.Utc)
                   Actor = YnabMirror
                   Body = EntryCategorizationChangeObservedInYnab { OldCategory = None; NewCategory = None; OldSplits = firstSplits; NewSplits = secondSplits } }
             ]
@@ -2741,7 +2741,7 @@ let ledgerPagingTests =
 
             appendAndApply [
                 { EntryId = pageEntryId 207
-                  OccurredAt = DateTime(2026, 8, 3)
+                  OccurredAt = DateTime(2026, 8, 3, 0, 0, 0, DateTimeKind.Utc)
                   Actor = YnabMirror
                   Body =
                     EntryCategorizationChangeObservedInYnab
@@ -2897,7 +2897,7 @@ let ledgerPagingTests =
                     FlagName = None
                 }
                 { EntryId = EntryId (Guid.NewGuid())
-                  OccurredAt = DateTime(2026, 1, 1).AddDays(float i)
+                  OccurredAt = DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddDays(float i)
                   Actor = YnabMirror
                   Body = EntryObservedInYnab payload }
 

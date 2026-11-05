@@ -647,12 +647,36 @@ let lenaSettingTests =
             initializeLedgerSchema ()
             // Die Einstellung und alle Flag-Buchungen früherer Fälle weg: der Vorschlag liest den Spiegel.
             saveLenaFlagColor None |> Async.RunSynchronously |> ignore
-            use conn = global.Persistence.getConnection ()
-            if conn.State <> System.Data.ConnectionState.Open then conn.Open()
-            // Log, Zustand und Verknüpfungen zusammen leeren, sonst stimmt der Replay anderer Tests nicht mehr.
-            for table in [ "ledger_entry_events"; "ledger_entries"; "ledger_entry_links" ] do
-                use cmd = new Microsoft.Data.Sqlite.SqliteCommand($"DELETE FROM {table}", conn)
-                cmd.ExecuteNonQuery() |> ignore
+            // Das Log in `events` ist append-only (ADR 0083): statt Log und Zustand zu leeren,
+            // nimmt ein Ereignis jeder Lena-Buchung früherer Fälle das Flag. So stimmen Log und
+            // Zustand für den Replay anderer Tests weiter überein.
+            let lenaFlagged =
+                use conn = global.Persistence.getConnection ()
+                if conn.State <> System.Data.ConnectionState.Open then conn.Open()
+                use cmd =
+                    new Microsoft.Data.Sqlite.SqliteCommand(
+                        "SELECT id, flag_color, flag_name FROM ledger_entries WHERE flag_name IS NOT NULL",
+                        conn
+                    )
+                use reader = cmd.ExecuteReader()
+                [
+                    while reader.Read() do
+                        let color = if reader.IsDBNull 1 then None else Some (reader.GetString 1)
+                        let name = Some (reader.GetString 2)
+                        if isLenaFlagName name then
+                            yield EntryId (Guid.Parse (reader.GetString 0)), color, name
+                ]
+            appendAndApply [
+                for entryId, color, name in lenaFlagged ->
+                    eventOn entryId UserInBb (
+                        EntryFlagChangedInBb {
+                            OldFlagColor = color
+                            OldFlagName = name
+                            NewFlagColor = None
+                            NewFlagName = None
+                        })
+            ]
+            |> Async.RunSynchronously
             body ())
 
     testSequenced

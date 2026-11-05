@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 16:42 -- Task verified and completed: ledger-k9tm2 - "Kassenbuch-Ereignisse nach `events` überführen: Kopie in rowid-Reihenfolge mit Abbruchprüfung, `appendAndApply` und Ladepfade umstellen, `ledger_entry_events` danach entfernen"
+
+**Type:** Work / Task completion
+**Task:** ledger-k9tm2 - "Kassenbuch-Ereignisse nach `events` überführen: Kopie in rowid-Reihenfolge mit Abbruchprüfung, `appendAndApply` und Ladepfade umstellen, `ledger_entry_events` danach entfernen"
+**Summary:** Kassenbuch-Log zieht nach events: Startmigration in rowid-Reihenfolge mit unverändertem Text und Abbruchprüfung, appendAndApply und Ladepfade auf events, Probe gegen Produktionskopie grün
+**Duration:** 23m
+**Verification:** PASS (iteration 1)
+**Files changed:** 8
+**Tests added:** 11
+**ADRs written:** none
+
+---
+
 ## 2026-11-05 16:19 -- Batch started: [ledger-k9tm2]
 
 **Type:** Work / Batch start

@@ -83,6 +83,7 @@
     <Compile Include="TailwindClassGuardTests.fs" />
     <Compile Include="LedgerTests.fs" />
     <Compile Include="LedgerMirrorTests.fs" />
+    <Compile Include="LedgerEventMigrationTests.fs" />
     <Compile Include="LedgerReviewMarkTests.fs" />
     <Compile Include="LedgerCategoryChangeTests.fs" />
     <Compile Include="LedgerSplitWriteTests.fs" />

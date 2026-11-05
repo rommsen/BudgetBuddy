@@ -1,7 +1,7 @@
 ---
 id: ledger-k9tm2
 title: "Kassenbuch-Ereignisse nach `events` überführen: Kopie in rowid-Reihenfolge mit Abbruchprüfung, `appendAndApply` und Ladepfade umstellen, `ledger_entry_events` danach entfernen"
-status: doing
+status: done
 type: feature
 context: ledger
 created: 2026-11-05
@@ -122,3 +122,45 @@ Tasks dahinter warten darauf.
   nachziehen.
 - Aus infrastructure-e4vq7: Für Startmigrationen gibt es `EventStore.appendOn conn tx`; hier wird
   bewusst direkt kopiert (siehe oben). Für neue Ereignisse ist `append`/`appendOn` der Weg.
+
+## Outcome
+
+Das Kassenbuch-Log ist von `ledger_entry_events` nach `events` umgezogen (ADR 0083 Abschnitt 6). `./verify.sh` endet mit VERIFY: PASS: dotnet 3928 grün (main vorher 3922; minus 5 Tests des zurückgebauten r6wn3-Startschritts, plus 11 neue Migrationstests), 12 Opt-in-Tests übersprungen (vorher 11, neu ist die Probe), node 310 grün.
+
+**Produktionscode**
+- `src/Server/Ledger/Persistence.fs`
+  - `migrateLedgerEventsOn conn` (internal): läuft nur, wenn `ledger_entry_events` existiert. Die Prüfung auf die Tabelle passiert zuerst ohne Transaktion und danach noch einmal in der Transaktion. Die Funktion liest nach `rowid` und prüft, dass die Buchungs-Id eine Guid im Format D ist und dass `sequence` je Buchung ab 1 um genau 1 steigt. Bei einer Abweichung wirft sie `Kassenbuch-Migration abgebrochen: Buchung <id>: erwartet laufende Nummer N, gefunden M (rowid R)`, und das Dispose der nicht bestätigten Transaktion lässt beide Tabellen unverändert. Die Kopie läuft als ein `Execute` mit Parameter-Array, unverändert als Text: `occurred_at`, `actor_kind`, `event_type`, `schema_version` und `payload`. Außerdem `actor_ref = actor_rule_id`, `stream_version = sequence`, `command_id` NULL und eine neue `event_id`. Danach folgen `DROP INDEX` und `DROP TABLE` in derselben Transaktion.
+  - `createLedgerSchemaOn` legt die alte Tabelle nicht mehr an. Es ruft `EventStore.createSchemaOn conn`, dann die Migration, dann `migrateLedgerEntryColumns` mit den Backfills. `initializeLedgerSchema` ruft zuerst `EventStore.initializeSchema ()`, dann `createLedgerSchemaOn` und danach `rebuildSplitIndexes`.
+  - `appendAndApplyOn` schreibt über `EventStore.appendOn` mit einem Stream-Abschnitt je Ereignis, damit die Reihenfolge des Aufrufers erhalten bleibt. Die Read Models (`linksFrom`-Links, Zustand, Split-Indizes) laufen in `applyLedgerReadModels` als `ApplyReadModels` in derselben Transaktion; sie dekodieren die gespeicherten Ereignisse. `WriteGuard` ist unverändert.
+  - Ladepfade: `loadEventsForEntry` über `EventStore.loadStream`. `loadAllEvents` und `loadAllEventsOn` lesen `context = 'ledger'`, sortiert nach `stream_id, stream_version`. `loadBobBookedAmountsBetween` (neu mit `...On conn`) filtert auf `context = 'ledger'`, Actor `Bob`, `CashExpenseAdded` und denselben Textvergleich auf `occurred_at`. `loadEntryOrigins` (neu mit `...On conn`) liest `stream_version = 1`. `backfillTransferAccountId` liest `events`. Kein Pfad sortiert nach `position`, außer der Probe, die die Einfügereihenfolge prüft.
+  - `EventRow` ist entfernt. Gelesen wird `EventStore.StoredEventRow` (in Ledger über einen Typalias, damit der Dapper-Wächter den Namen erkennt). `RecordedLedgerEvent.Sequence` bleibt als Feld bestehen und wird aus `StreamVersion` gefüllt, `src/Shared` ist unverändert.
+  - Der Startschritt `recordMissingYnabLinkEvents` ist zurückgebaut, ebenso `insertEventRow`.
+  - `probeLedgerEventMigrationOn conn` (internal) liefert `LedgerEventMigrationProbe`: Ereignisse vorher und nachher, Buchungen, Zeilen in `ledger_entries` sowie Wahrheitswerte für unveränderten Umschlag (inklusive der Prüfung, dass `position` der rowid folgt), lückenlose `stream_version`, gleiches Replay vorher und nachher, Replay gleich `ledger_entries`, gleich den Split-Tabellen, gleich `ledger_entry_links` und entfernte alte Tabelle.
+- `src/Server/EventStore.fs`: `StoredEventRow` und `toRecordedEvent` (vorher `rowToRecorded`) sind öffentlich, damit Kontexte eigene gefilterte Abfragen auf `events` lesen können.
+
+**Tests**
+- Neu: `src/Tests/LedgerEventMigrationTests.fs`, Liste "Kassenbuch-Migration nach events" mit 10 Fällen: Replay und Read Models mit Probe; Gegenprobe, dass die Probe veränderten Zustand und fehlende Links meldet; Umschlag je Ereignis und rowid-Reihenfolge; lückenlose Versionen; Abbruch bei fallender `sequence` ohne Änderung an beiden Tabellen; `occurred_at` ohne Zone; zweiter Start; `initializeLedgerSchema` ohne alte Tabelle; Bob-Summen vorher (alte SQL-Abfrage) und nachher, inklusive eines fremden Kontexts, der nicht mitzählt; `loadEntryOrigins` vorher und nachher; neue Ereignisse hinter den migrierten. Der Stand vor der Migration entsteht über `toLegacyLog`, das die alte Tabelle aus `events` füllt und `events` per DROP neu anlegt.
+- Opt-in-Liste "Kassenbuch-Migration: Probe gegen eine Kopie (requires .env)": ohne `LEDGER_MIGRATION_PROBE_DB` wird sie übersprungen. Mit der Variable kopiert sie die Datei samt eventuell vorhandenem `-wal`/`-shm` ins Temp-Verzeichnis, migriert nur die Kopie, gibt nur Zahlen und Wahrheitswerte aus und löscht die Kopie danach. Lokal geprüft gegen eine synthetische Datei mit leerer alter Tabelle: alles true, die Originaldatei blieb unverändert.
+- Angepasst: `LedgerMirrorTests.fs` (Liste des r6wn3-Startschritts entfernt). `LedgerLenaFlagTests.fs`: die Vorbereitung löscht nicht mehr Log und Zustand, weil `events` append-only ist. Sie hängt stattdessen je Lena-Buchung früherer Fälle ein `EntryFlagChangedInBb` ohne Flag an, so bleiben Log und Zustand konsistent. `LedgerWithoutCategoryTests.fs`: der Backfill-Test schreibt sein Ereignis nach `events`. `LedgerPageTests.fs`: 13 Ereignis-Zeitpunkte in Testdaten sind jetzt UTC, weil `EventStore.validate` UTC verlangt. Das Buchungsdatum ist unverändert.
+- `grep ledger_entry_events src` trifft nur noch den Migrationsabschnitt in `Ledger/Persistence.fs` und `LedgerEventMigrationTests.fs`. Einen Strukturwächter dafür gibt es bewusst nicht, weil die Test-Doktrin Punkt 7 Rückbau-Wächter verbietet.
+
+**Probe (Conductor, vor dem Deploy)** im Repo-Root, nach dem Build:
+```
+dotnet build src/Tests/Tests.fsproj --nologo -v q
+LEDGER_MIGRATION_PROBE_DB=<pfad-zur-kopie.db> USE_MEMORY_DB=true TZ=Europe/Berlin dotnet src/Tests/bin/Debug/net10.0/Tests.dll --filter-test-list "Kassenbuch-Migration: Probe gegen eine Kopie"
+```
+Die Ausgabe "Kassenbuch-Migrationsprobe:" mit Zählern und Wahrheitswerten gehört ohne echte Daten in dieses Outcome. Das Ergebnis gegen die Produktionskopie steht noch aus (Akzeptanzkriterium für den Conductor).
+
+**Hinweise**
+- Neue Kassenbuch-Ereignisse brauchen jetzt einen UTC-Zeitpunkt. Produktion nutzt `DateTime.UtcNow`, nur Testdaten waren betroffen.
+- Rollback auf eine ältere Version geht nach dem Deploy nur über das Backup.
+
+### Für den Conductor
+- ADR 0083 Abschnitt 6 könnte einen kurzen Nachtrag bekommen. Die Migration läuft innerhalb von `createLedgerSchemaOn` vor den Spalten-Backfills, und `appendAndApply` verlangt über `EventStore.validate` jetzt UTC-Zeitpunkte. `RecordedLedgerEvent.Sequence` blieb als Feldname bestehen und wird aus `stream_version` gefüllt.
+
+### Probe gegen die Produktionskopie (Conductor, 2026-11-05 16:41, vor dem Deploy)
+Kopie der Produktions-Datenbank im Session-Scratchpad, Opt-in-Test mit `LEDGER_MIGRATION_PROBE_DB`,
+Kopie danach gelöscht; die Eingabedatei blieb unverändert (gleiche Prüfsumme vorher und nachher).
+- Ereignisse vorher 15696, nachher 15696; Buchungen im Log 14221, Zeilen in `ledger_entries` 14221.
+- EnvelopeUnchanged, StreamVersionsGapless, ReplayUnchanged, ReplayMatchesEntries,
+  ReplayMatchesSplitIndexes, ReplayMatchesLinks, LegacyTableGone: alle true.

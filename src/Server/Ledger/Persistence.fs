@@ -73,39 +73,64 @@ let private accountKindFromText =
 // Schema
 // ============================================
 
+// ============================================
+// Kassenbuch-Streams in `events` (ADR 0083)
+// ============================================
+
+/// Kontextname des Kassenbuchs in `events`.
+let private ledgerContext = "ledger"
+
+/// Aggregat einer Buchung im Stream-Namen `ledger:entry:<entryId>`.
+let private entryAggregate = "entry"
+
+/// Der Stream einer Buchung. Den Text baut nur `EventStore.streamIdOf`.
+let private entryStreamId (entryGuid: Guid) =
+    EventStore.streamIdOf ledgerContext entryAggregate (EventStore.GuidId entryGuid)
+
+/// Die Buchung zu einem Kassenbuch-Stream. Ein Stream, der nicht genau so gebaut ist, wie
+/// `entryStreamId` ihn baut, ist ein Fehler im Log und wird gemeldet.
+let private entryGuidOfStream (streamId: string) : Guid =
+    let idText = streamId.Substring(streamId.LastIndexOf ':' + 1)
+
+    match Guid.TryParse idText with
+    | true, g when entryStreamId g = streamId -> g
+    | _ -> failwith $"Kein Kassenbuch-Stream: {streamId}"
+
+/// Die Zeile von `events` aus `EventStore`, unter ihrem eigenen Namen.
+type private StoredEventRow = EventStore.StoredEventRow
+
+[<CLIMutable>]
+type private ObservedPayloadRow = { stream_id: string; schema_version: int64; payload: string }
+
 /// Einmaliger Backfill von `ledger_entries.transfer_account_id` (ADR 0048, Punkt 5):
 /// liest jedes `EntryObservedInYnab`-Ereignis über den bestehenden Decoder und trägt
 /// das rohe `TransferAccountId` in die Zustandszeile ein. Es ändert sich nach der
-/// Entstehung nie, ein Entstehungs-Ereignis je Buchung reicht als Quelle.
+/// Entstehung nie, ein Entstehungs-Ereignis je Buchung reicht als Quelle. Liest das
+/// Kassenbuch-Log in `events` (ledger-k9tm2); beim Start läuft er nach der Migration.
 let private backfillTransferAccountId (conn: SqliteConnection) =
     let hasEventLog =
         use cmd =
-            new SqliteCommand("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'ledger_entry_events'", conn)
+            new SqliteCommand("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'events'", conn)
 
         Convert.ToInt64(cmd.ExecuteScalar()) > 0L
 
     // Ohne Ereignis-Log (nur in isolierten Teil-Schemata denkbar) gibt es nichts nachzutragen.
     let readPairs () =
-        use cmd =
-            new SqliteCommand(
-                "SELECT entry_id, schema_version, payload FROM ledger_entry_events WHERE event_type = 'EntryObservedInYnab'",
-                conn
-            )
+        conn.Query<ObservedPayloadRow>(
+            "SELECT stream_id, schema_version, payload FROM events WHERE context = @context AND event_type = 'EntryObservedInYnab'",
+            {| context = ledgerContext |}
+        )
+        |> Seq.choose (fun row ->
+            let entryId = (entryGuidOfStream row.stream_id).ToString()
 
-        use reader = cmd.ExecuteReader()
-
-        [ while reader.Read() do
-              let entryId = reader.GetString 0
-              let version = int (reader.GetInt64 1)
-              let payload = reader.GetString 2
-
-              match decodePayload "EntryObservedInYnab" version payload with
-              | Ok (EntryObservedInYnab p) ->
-                  match p.TransferAccountId with
-                  | Some (YnabAccountId a) -> yield entryId, a.ToString()
-                  | None -> ()
-              | Ok _ -> ()
-              | Error e -> failwith $"Ereignis {entryId} nicht lesbar beim Backfill: {e}" ]
+            match decodePayload "EntryObservedInYnab" (int row.schema_version) row.payload with
+            | Ok (EntryObservedInYnab p) ->
+                match p.TransferAccountId with
+                | Some (YnabAccountId a) -> Some (entryId, a.ToString())
+                | None -> None
+            | Ok _ -> None
+            | Error e -> failwith $"Ereignis {entryId} nicht lesbar beim Backfill: {e}")
+        |> Seq.toList
 
     let pairs = if hasEventLog then readPairs () else []
 
@@ -191,6 +216,129 @@ let migrateLedgerEntryColumns (conn: SqliteConnection) =
     if migrateColumn "ALTER TABLE ledger_entries ADD COLUMN linked_to_ynab INTEGER NOT NULL DEFAULT 0" then
         backfillLinkedToYnab conn
 
+// ============================================
+// Übergang des Kassenbuch-Logs nach `events` (ADR 0083 Abschnitt 6, ledger-k9tm2)
+// ============================================
+
+/// Eine Zeile der früheren Log-Tabelle `ledger_entry_events` samt ihrer rowid. Die Spalten
+/// bleiben Text, damit die Kopie sie unverändert übernimmt.
+[<CLIMutable>]
+type private LegacyEventRow = {
+    row_id: int64
+    entry_id: string
+    sequence: int64
+    occurred_at: string
+    actor_kind: string
+    actor_rule_id: string
+    event_type: string
+    schema_version: int64
+    payload: string
+}
+
+let private hasLegacyEventLog (conn: SqliteConnection) (tx: SqliteTransaction) =
+    conn.ExecuteScalar<int64>(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'ledger_entry_events'",
+        transaction = tx
+    ) > 0L
+
+/// Das frühere Log in rowid-Reihenfolge, der echten Einfügereihenfolge.
+let private loadLegacyEventsOn (conn: SqliteConnection) (tx: SqliteTransaction) : LegacyEventRow list =
+    conn.Query<LegacyEventRow>(
+        """SELECT rowid AS row_id, entry_id, sequence, occurred_at, actor_kind, actor_rule_id,
+                  event_type, schema_version, payload
+           FROM ledger_entry_events ORDER BY rowid""",
+        transaction = tx
+    )
+    |> Seq.toList
+
+/// Abbruchprüfung (ADR 0083 Abschnitt 6): je Buchung muss `sequence` in rowid-Reihenfolge
+/// bei 1 beginnen und um genau 1 steigen, und die Buchungs-Id muss eine Guid im Format `D`
+/// sein. Sonst ist die rowid keine Einfügereihenfolge (ein früheres VACUUM kann die verdeckte
+/// rowid neu nummeriert haben) oder der Stream-Name wiche vom Zustand ab. Liefert die erste
+/// Abweichung als Meldung.
+let private firstLegacyLogBreak (rows: LegacyEventRow list) : string option =
+    let rec check (last: Map<string, int64>) (rest: LegacyEventRow list) =
+        match rest with
+        | [] -> None
+        | row :: tail ->
+            match Guid.TryParse row.entry_id with
+            | true, g when g.ToString("D") = row.entry_id ->
+                let expected = (Map.tryFind row.entry_id last |> Option.defaultValue 0L) + 1L
+
+                if row.sequence <> expected then
+                    Some
+                        $"Buchung {row.entry_id}: erwartet laufende Nummer {expected}, gefunden {row.sequence} (rowid {row.row_id})"
+                else
+                    check (Map.add row.entry_id row.sequence last) tail
+            | _ -> Some $"Buchung '{row.entry_id}' hat keine Guid-Id im Format D (rowid {row.row_id})"
+
+    check Map.empty rows
+
+/// Startmigration (ADR 0083 Abschnitt 6, ledger-k9tm2): überführt `ledger_entry_events` nach
+/// `events` und entfernt die alte Tabelle, alles in einer Transaktion. Läuft nur, wenn die
+/// alte Tabelle existiert; sonst ändert sie nichts. Liefert die Zahl der kopierten Ereignisse.
+///
+/// Die Kopie läuft per SQL-Parameter und bewusst nicht über `EventStore.appendOn`: dessen
+/// Prüfung verlangt einen Zeitpunkt in UTC, und Parsen plus Formatieren änderte den Text.
+/// `occurred_at`, `actor_kind`, `event_type`, `schema_version` und `payload` gehen als
+/// unveränderter Wert hinüber, `actor_rule_id` wird zu `actor_ref`, `sequence` zu
+/// `stream_version`. Eingefügt wird in rowid-Reihenfolge, so vergibt SQLite `position` in
+/// der echten Einfügereihenfolge. Schlägt die Abbruchprüfung an, wirft sie, BB startet
+/// nicht, und das Dispose der nicht bestätigten Transaktion lässt beide Tabellen unverändert.
+let internal migrateLedgerEventsOn (conn: SqliteConnection) : int =
+    if conn.State <> System.Data.ConnectionState.Open then
+        conn.Open()
+
+    // Erst ohne Transaktion nachsehen: nach der Migration ist das der Normalfall, und eine
+    // Schreibtransaktion je Start (und je Testaufruf auf der geteilten DB) wäre unnötig.
+    if not (hasLegacyEventLog conn null) then
+        0
+    else
+        use tx = conn.BeginTransaction()
+
+        if not (hasLegacyEventLog conn tx) then
+            0
+        else
+            let rows = loadLegacyEventsOn conn tx
+
+            match firstLegacyLogBreak rows with
+            | Some message -> failwith $"Kassenbuch-Migration abgebrochen: {message}"
+            | None -> ()
+
+            let copies =
+                rows
+                |> List.map (fun row -> {|
+                    event_id = Guid.NewGuid().ToString("D")
+                    context = ledgerContext
+                    stream_id = entryStreamId (Guid.Parse row.entry_id)
+                    stream_version = row.sequence
+                    occurred_at = row.occurred_at
+                    actor_kind = row.actor_kind
+                    actor_ref = row.actor_rule_id
+                    event_type = row.event_type
+                    schema_version = row.schema_version
+                    payload = row.payload
+                |})
+                |> List.toArray
+
+            if copies.Length > 0 then
+                conn.Execute(
+                    """INSERT INTO events
+                         (event_id, context, stream_id, stream_version, occurred_at, actor_kind,
+                          actor_ref, event_type, schema_version, payload, command_id)
+                       VALUES
+                         (@event_id, @context, @stream_id, @stream_version, @occurred_at, @actor_kind,
+                          @actor_ref, @event_type, @schema_version, @payload, NULL)""",
+                    copies,
+                    tx
+                )
+                |> ignore
+
+            conn.Execute("DROP INDEX IF EXISTS idx_ledger_entry_events_entry", transaction = tx) |> ignore
+            conn.Execute("DROP TABLE ledger_entry_events", transaction = tx) |> ignore
+            tx.Commit()
+            rows.Length
+
 /// Legt die Kassenbuch-Tabellen an, auf der übergebenen Connection. Bestehende
 /// Tabellen bleiben unangetastet (`CREATE TABLE IF NOT EXISTS`); der Aufruf ist
 /// idempotent, auch auf einer bestehenden Datenbank, die einzelne dieser Tabellen
@@ -214,21 +362,6 @@ let internal createLedgerSchemaOn (conn: SqliteConnection) =
 
         CREATE UNIQUE INDEX IF NOT EXISTS idx_ledger_accounts_ynab
             ON ledger_accounts(ynab_account_id) WHERE ynab_account_id IS NOT NULL;
-
-        CREATE TABLE IF NOT EXISTS ledger_entry_events (
-            entry_id TEXT NOT NULL,
-            sequence INTEGER NOT NULL,
-            occurred_at TEXT NOT NULL,
-            actor_kind TEXT NOT NULL,
-            actor_rule_id TEXT,
-            event_type TEXT NOT NULL,
-            schema_version INTEGER NOT NULL,
-            payload TEXT NOT NULL,
-            PRIMARY KEY (entry_id, sequence)
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_ledger_entry_events_entry
-            ON ledger_entry_events(entry_id, sequence);
 
         CREATE TABLE IF NOT EXISTS ledger_entries (
             id TEXT PRIMARY KEY,
@@ -301,23 +434,15 @@ let internal createLedgerSchemaOn (conn: SqliteConnection) =
 
     cmd.ExecuteNonQuery() |> ignore
 
+    // Das Kassenbuch-Log liegt in `events` (ADR 0083). Reihenfolge: Schema, Migration des
+    // früheren Logs, dann die Spalten-Migrationen mit ihren Backfills, die das Log lesen.
+    EventStore.createSchemaOn conn
+    migrateLedgerEventsOn conn |> ignore
     migrateLedgerEntryColumns conn
 
 // ============================================
 // Zeilen-Typen
 // ============================================
-
-[<CLIMutable>]
-type private EventRow = {
-    entry_id: string
-    sequence: int64
-    occurred_at: string
-    actor_kind: string
-    actor_rule_id: string
-    event_type: string
-    schema_version: int64
-    payload: string
-}
 
 [<CLIMutable>]
 type private EntryRow = {
@@ -369,28 +494,35 @@ type private CategoryRow = {
     updated_at: string
 }
 
-let private rowToRecordedEvent (row: EventRow) : RecordedLedgerEvent =
+/// Ein gespeichertes Kassenbuch-Ereignis aus `events`: Umschlag dekodiert, Payload über den
+/// Decoder des Kassenbuchs. `Sequence` ist die `stream_version`.
+let private toRecordedLedgerEvent (recorded: EventStore.RecordedEvent) : RecordedLedgerEvent =
+    let entryGuid = entryGuidOfStream recorded.StreamId
+
     let actor =
-        match actorFromColumns row.actor_kind (toOption row.actor_rule_id) with
+        match actorFromColumns recorded.ActorKind recorded.ActorRef with
         | Ok a -> a
         | Error e -> failwith e
 
     let body =
-        match decodePayload row.event_type (int row.schema_version) row.payload with
+        match decodePayload recorded.EventType recorded.SchemaVersion recorded.Payload with
         | Ok b -> b
-        | Error e -> failwith $"Ereignis {row.entry_id}/{row.sequence} nicht lesbar: {e}"
+        | Error e -> failwith $"Ereignis {entryGuid}/{recorded.StreamVersion} nicht lesbar: {e}"
 
     {
-        Sequence = int row.sequence
-        EventType = row.event_type
-        SchemaVersion = int row.schema_version
+        Sequence = int recorded.StreamVersion
+        EventType = recorded.EventType
+        SchemaVersion = recorded.SchemaVersion
         Event = {
-            EntryId = EntryId (Guid.Parse row.entry_id)
-            OccurredAt = dateFromText row.occurred_at
+            EntryId = EntryId entryGuid
+            OccurredAt = recorded.OccurredAt
             Actor = actor
             Body = body
         }
     }
+
+let private rowToRecordedEvent (row: StoredEventRow) : RecordedLedgerEvent =
+    toRecordedLedgerEvent (EventStore.toRecordedEvent row)
 
 /// Die Split-Übertrags-Verknüpfungen (ADR 0046) als JSON-Liste von
 /// `{ ynabSubtransactionId, counterpartEntryId }`.
@@ -654,111 +786,103 @@ let private writeSplitIndexes (conn: SqliteConnection) (tx: SqliteTransaction) (
         )
         |> ignore
 
-/// Schreibt eine Ereigniszeile ins Log, auf der übergebenen Connection und Transaktion.
-/// Die laufende Nummer bestimmt der Aufrufer.
-let private insertEventRow (conn: SqliteConnection) (tx: SqliteTransaction) (sequence: int) (event: LedgerEvent) =
-    let (EntryId entryGuid) = event.EntryId
-    let actorKind, actorRuleId = actorToColumns event.Actor
+/// Ein Kassenbuch-Ereignis als Eingabe für `EventStore.appendOn`.
+let private toNewEvent (event: LedgerEvent) : EventStore.NewEvent =
+    let actorKind, actorRef = actorToColumns event.Actor
 
-    conn.Execute(
-        """INSERT INTO ledger_entry_events
-             (entry_id, sequence, occurred_at, actor_kind, actor_rule_id,
-              event_type, schema_version, payload)
-           VALUES
-             (@entry_id, @sequence, @occurred_at, @actor_kind, @actor_rule_id,
-              @event_type, @schema_version, @payload)""",
-        {|
-            entry_id = entryGuid.ToString()
-            sequence = sequence
-            occurred_at = dateToText event.OccurredAt
-            actor_kind = actorKind
-            actor_rule_id = orNull actorRuleId
-            event_type = eventTypeName event.Body
-            schema_version = schemaVersion event.Body
-            payload = encodePayload event.Body
-        |},
-        tx
-    )
-    |> ignore
+    {
+        EventType = eventTypeName event.Body
+        SchemaVersion = schemaVersion event.Body
+        Payload = encodePayload event.Body
+        OccurredAt = event.OccurredAt
+        ActorKind = actorKind
+        ActorRef = actorRef
+    }
+
+/// Ein Anhängen an `events`: ein Stream-Abschnitt je Ereignis, in der Reihenfolge des
+/// Aufrufers. `EventStore.appendOn` zählt die `stream_version` je Stream über die Abschnitte
+/// fort, so behalten Ereignisse mehrerer Buchungen in einem Aufruf ihre Reihenfolge.
+let private appendRequestOf (events: LedgerEvent list) : EventStore.AppendRequest = {
+    Context = ledgerContext
+    CommandId = None
+    Streams =
+        events
+        |> List.map (fun event ->
+            let (EntryId entryGuid) = event.EntryId
+
+            {
+                Aggregate = entryAggregate
+                Id = EventStore.GuidId entryGuid
+                Events = [ toNewEvent event ]
+            })
+}
+
+/// Die Read Models des Kassenbuchs (ADR 0083 Abschnitt 4): Fremd-Ids aus `linksFrom`,
+/// Zustand in `ledger_entries` und die Split-Indizes, fortgeschrieben aus den gerade
+/// gespeicherten Ereignissen in derselben Transaktion wie das Anhängen. Der Zustand ist
+/// abgeleitet: dieselbe reine Funktion `apply`, die auch das Replay benutzt. Wirft ein
+/// Schritt, rollt die Transaktion alles zurück.
+let private applyLedgerReadModels : EventStore.ApplyReadModels =
+    fun conn tx recorded ->
+        // Zustand je betroffener Buchung nur einmal laden; mehrere Ereignisse in einem
+        // Aufruf falten aufeinander auf.
+        let mutable states : Map<Guid, Entry option> = Map.empty
+
+        for stored in recorded do
+            let event = (toRecordedLedgerEvent stored).Event
+            let (EntryId entryGuid) = event.EntryId
+            let entryIdText = entryGuid.ToString()
+
+            let currentState =
+                match Map.tryFind entryGuid states with
+                | Some s -> s
+                | None ->
+                    let row =
+                        conn.QueryFirstOrDefault<EntryRow>(
+                            "SELECT * FROM ledger_entries WHERE id = @id",
+                            {| id = entryIdText |},
+                            tx
+                        )
+
+                    if isNull (box row) then None else Some (rowToEntry row)
+
+            for link in linksFrom event do
+                conn.Execute(
+                    "INSERT INTO ledger_entry_links (entry_id, system, value) VALUES (@entry_id, @system, @value)",
+                    {|
+                        entry_id = entryIdText
+                        system = linkSystemToString link.System
+                        value = link.Value
+                    |},
+                    tx
+                )
+                |> ignore
+
+            let newState = apply currentState event
+            conn.Execute(upsertEntrySql, entryParams newState, tx) |> ignore
+            writeSplitIndexes conn tx newState
+            states <- Map.add entryGuid (Some newState) states
 
 /// Kern von `appendAndApply` auf einer übergebenen, offenen Connection, damit Tests ihn
 /// gegen eine eigene, isolierte Verbindung fahren können (wie `createLedgerSchemaOn`).
-/// Eine Transaktion; wirft ein Schritt, steht danach nichts davon in der Datenbank.
+/// Eine Transaktion: `EventStore.appendOn` schreibt nach `events` (Kontext `ledger`,
+/// Aggregat `entry`) und ruft die Read Models auf. Wirft ein Schritt, rollt das Dispose der
+/// nicht bestätigten Transaktion alles zurück: kein Ereignis im Log ohne den passenden
+/// Zustand und umgekehrt (ADR 0013, Punkt 5).
 let internal appendAndApplyOn (conn: SqliteConnection) (events: LedgerEvent list) : unit =
     if not (List.isEmpty events) then
         if conn.State <> System.Data.ConnectionState.Open then
             conn.Open()
 
         use tx = conn.BeginTransaction()
-
-        try
-            // Zustand je betroffener Buchung nur einmal laden; mehrere Ereignisse in
-            // einem Aufruf falten aufeinander auf.
-            let mutable states : Map<Guid, Entry option> = Map.empty
-            let mutable sequences : Map<Guid, int> = Map.empty
-
-            for event in events do
-                let (EntryId entryGuid) = event.EntryId
-                let entryIdText = entryGuid.ToString()
-
-                let currentState =
-                    match Map.tryFind entryGuid states with
-                    | Some s -> s
-                    | None ->
-                        let row =
-                            conn.QueryFirstOrDefault<EntryRow>(
-                                "SELECT * FROM ledger_entries WHERE id = @id",
-                                {| id = entryIdText |},
-                                tx
-                            )
-                        if isNull (box row) then None else Some (rowToEntry row)
-
-                let nextSequence =
-                    match Map.tryFind entryGuid sequences with
-                    | Some s -> s + 1
-                    | None ->
-                        let maxSeq =
-                            conn.ExecuteScalar<int64>(
-                                "SELECT COALESCE(MAX(sequence), 0) FROM ledger_entry_events WHERE entry_id = @id",
-                                {| id = entryIdText |},
-                                tx
-                            )
-                        int maxSeq + 1
-
-                insertEventRow conn tx nextSequence event
-
-                for link in linksFrom event do
-                    conn.Execute(
-                        "INSERT INTO ledger_entry_links (entry_id, system, value) VALUES (@entry_id, @system, @value)",
-                        {|
-                            entry_id = entryIdText
-                            system = linkSystemToString link.System
-                            value = link.Value
-                        |},
-                        tx
-                    )
-                    |> ignore
-
-                // Der Zustand ist abgeleitet: dieselbe reine Funktion, die auch das
-                // Replay benutzt. Wirft sie, rollt die Transaktion das Ereignis zurück.
-                let newState = apply currentState event
-                conn.Execute(upsertEntrySql, entryParams newState, tx) |> ignore
-                writeSplitIndexes conn tx newState
-
-                states <- Map.add entryGuid (Some newState) states
-                sequences <- Map.add entryGuid nextSequence sequences
-
-            tx.Commit()
-        with ex ->
-            // Ein Fehler an irgendeiner Stelle nimmt alles zurück: kein Ereignis im
-            // Log ohne den passenden Zustand und umgekehrt (ADR 0013, Punkt 5).
-            tx.Rollback()
-            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex).Throw()
+        EventStore.appendOn conn tx (appendRequestOf events) applyLedgerReadModels |> ignore
+        tx.Commit()
 
 /// Hängt Ereignisse an das Log und schreibt den daraus abgeleiteten Zustand fort:
 /// beides auf **einer** Connection in **einer** Transaktion (ADR 0013, Punkt 5).
 /// Schlägt irgendein Schritt fehl, steht danach weder ein Ereignis im Log noch eine
-/// Änderung im Zustand. Die laufende Nummer je Buchung vergibt diese Funktion.
+/// Änderung im Zustand. Die laufende Nummer je Buchung (`stream_version`) vergibt
+/// `EventStore.appendOn`.
 let appendAndApply (events: LedgerEvent list) : Async<unit> =
     async {
         if not (List.isEmpty events) then
@@ -766,76 +890,18 @@ let appendAndApply (events: LedgerEvent list) : Async<unit> =
             appendAndApplyOn conn events
     }
 
-/// Das gesamte Log auf der übergebenen Connection, nach Buchung und laufender Nummer.
+/// Das gesamte Kassenbuch-Log auf der übergebenen Connection, je Buchung nach
+/// `stream_version`.
 let internal loadAllEventsOn (conn: SqliteConnection) (tx: SqliteTransaction) : RecordedLedgerEvent list =
-    conn.Query<EventRow>("SELECT * FROM ledger_entry_events ORDER BY entry_id, sequence", transaction = tx)
+    conn.Query<StoredEventRow>(
+        """SELECT position, event_id, context, stream_id, stream_version, occurred_at, actor_kind,
+                  actor_ref, event_type, schema_version, payload, command_id
+           FROM events WHERE context = @context ORDER BY stream_id, stream_version""",
+        {| context = ledgerContext |},
+        tx
+    )
     |> Seq.map rowToRecordedEvent
     |> Seq.toList
-
-// Reiht gleichzeitige Läufe des Nachtrags im Prozess ein, siehe recordMissingYnabLinkEvents.
-let private recordMissingYnabLinkEventsGate = obj ()
-
-/// Einmaliger Startschritt (ledger-r6wn3, ADR 0021 Nachtrag): bis ledger-r6wn3 schrieb
-/// der Spiegel die YNAB-Id einer über die ImportId gefundenen Buchung per `linkEntry`
-/// direkt in `ledger_entry_links`, ohne Ereignis. Für jede `ynab`-Zeile, die kein
-/// gespeichertes Ereignis über `linksFrom` stiftet, hängt dieser Schritt ein
-/// `EntryLinkedToYnab` an (Actor `YnabMirror`, `occurred_at` = `now`, nächste laufende
-/// Nummer der Buchung). Er schreibt nur das Ereignis: Zeile und Zustand stehen schon,
-/// die Projektion scheiterte am `UNIQUE` der Link-Tabelle. Ein Laden des ganzen Logs,
-/// kein Laden je Buchung; alles in einer Transaktion. Wirft ein Schritt, rollt das
-/// Dispose der nicht bestätigten Transaktion alles zurück (wie bei `rebuildSplitIndexes`),
-/// deshalb kein `try/with`. Fehlt nichts, schreibt er nichts.
-/// Liefert die Zahl der nachgetragenen Ereignisse. ledger-k9tm2 baut ihn zurück.
-let internal recordMissingYnabLinkEvents (conn: SqliteConnection) (now: DateTime) : int =
-    if conn.State <> System.Data.ConnectionState.Open then
-        conn.Open()
-
-    lock recordMissingYnabLinkEventsGate (fun () ->
-        use tx = conn.BeginTransaction()
-        let ynab = linkSystemToString YnabSystem
-        let recorded = loadAllEventsOn conn tx
-
-        let fromEvents =
-            recorded
-            |> Seq.collect (fun r -> linksFrom r.Event)
-            |> Seq.filter (fun l -> l.System = YnabSystem)
-            |> Seq.map (fun l ->
-                let (EntryId id) = l.EntryId
-                id, l.Value)
-            |> Set.ofSeq
-
-        let mutable lastSequence =
-            recorded
-            |> List.fold
-                (fun acc r ->
-                    let (EntryId id) = r.Event.EntryId
-                    Map.add id r.Sequence acc)
-                Map.empty
-
-        let missing =
-            conn.Query<LinkRow>(
-                "SELECT entry_id, system, value FROM ledger_entry_links WHERE system = @system ORDER BY entry_id, value",
-                {| system = ynab |},
-                tx
-            )
-            |> Seq.map (fun row -> Guid.Parse row.entry_id, row.value)
-            |> Seq.filter (fun key -> not (Set.contains key fromEvents))
-            |> Seq.toList
-
-        for entryGuid, ynabTransactionId in missing do
-            let sequence = (Map.tryFind entryGuid lastSequence |> Option.defaultValue 0) + 1
-
-            insertEventRow conn tx sequence {
-                EntryId = EntryId entryGuid
-                OccurredAt = now
-                Actor = YnabMirror
-                Body = EntryLinkedToYnab { YnabTransactionId = ynabTransactionId }
-            }
-
-            lastSequence <- Map.add entryGuid sequence lastSequence
-
-        tx.Commit()
-        List.length missing)
 
 // Reiht gleichzeitige Neuaufbauten im Prozess ein (ledger-cy1j8), siehe rebuildSplitIndexes.
 let private rebuildSplitIndexesGate = obj ()
@@ -900,65 +966,63 @@ let rebuildSplitIndexes (conn: SqliteConnection) : int =
         tx.Commit()
         written)
 
-/// Legt die Kassenbuch-Tabellen auf der Standard-Verbindung an, trägt fehlende
-/// `EntryLinkedToYnab` nach (ledger-r6wn3) und baut anschließend die abgeleitete
-/// Split-Kategorie-Indextabelle neu auf (ADR 0038, Decision Punkt 6): der Aufruf folgt
-/// dem Muster von `Persistence.initializeDatabase`.
+/// Legt die Ereignistabelle (ADR 0083) und die Kassenbuch-Tabellen auf der
+/// Standard-Verbindung an, überführt ein früheres Log nach `events` (ledger-k9tm2), führt
+/// die Spalten-Migrationen samt Backfills aus und baut anschließend die abgeleiteten
+/// Split-Indextabellen neu auf (ADR 0038, Decision Punkt 6): der Aufruf folgt dem Muster
+/// von `Persistence.initializeDatabase`.
 let initializeLedgerSchema () =
+    EventStore.initializeSchema ()
     let conn = Core.getConnection ()
     createLedgerSchemaOn conn
-    // Uhr des Aufrufers (Prozessstart), UTC, siehe recordMissingYnabLinkEvents.
-    recordMissingYnabLinkEvents conn DateTime.UtcNow |> ignore
     rebuildSplitIndexes conn |> ignore
 
 // ============================================
 // Lesepfad
 // ============================================
 
-/// Die vollstaendige Historie einer Buchung, in gespeicherter Reihenfolge.
+/// Die vollständige Historie einer Buchung, nach `stream_version`.
 let loadEventsForEntry (entryId: EntryId) : Async<RecordedLedgerEvent list> =
     async {
         let (EntryId id) = entryId
-        use conn = Core.getConnection ()
-        let! rows =
-            conn.QueryAsync<EventRow>(
-                "SELECT * FROM ledger_entry_events WHERE entry_id = @id ORDER BY sequence",
-                {| id = id.ToString() |}
-            )
-            |> Async.AwaitTask
-        return rows |> Seq.map rowToRecordedEvent |> Seq.toList
+        let! recorded = EventStore.loadStream ledgerContext entryAggregate (EventStore.GuidId id)
+        return recorded |> List.map toRecordedLedgerEvent
     }
 
-/// Das gesamte Log, nach Buchung und laufender Nummer sortiert.
+/// Das gesamte Kassenbuch-Log, je Buchung nach `stream_version`.
 let loadAllEvents () : Async<RecordedLedgerEvent list> =
     async {
         use conn = Core.getConnection ()
-        let! rows =
-            conn.QueryAsync<EventRow>("SELECT * FROM ledger_entry_events ORDER BY entry_id, sequence")
-            |> Async.AwaitTask
-        return rows |> Seq.map rowToRecordedEvent |> Seq.toList
+        conn.Open()
+        return loadAllEventsOn conn null
     }
 
 /// Die Beträge aller von Bob angelegten Buchungen (`CashExpenseAdded`, Actor `Bob`), deren
 /// Ereignis-Zeitpunkt in [fromUtc, toUtc) liegt (ledger-ssmp3, ADR 0068). Für die
 /// Tagesgrenze des Bots: gezählt wird, was gespeichert ist, nicht was im Speicher steht.
+/// Liest nur Zeilen des Kassenbuchs (`context = 'ledger'`); der Vergleich auf `occurred_at`
+/// läuft wie vor ledger-k9tm2 über den Text im Format `o`.
+let internal loadBobBookedAmountsBetweenOn (conn: SqliteConnection) (fromUtc: DateTime) (toUtc: DateTime) : Money list =
+    conn.Query<StoredEventRow>(
+        """SELECT position, event_id, context, stream_id, stream_version, occurred_at, actor_kind,
+                  actor_ref, event_type, schema_version, payload, command_id
+           FROM events
+           WHERE context = @context AND actor_kind = 'Bob' AND event_type = 'CashExpenseAdded'
+             AND occurred_at >= @fromAt AND occurred_at < @toAt""",
+        {| context = ledgerContext; fromAt = dateToText fromUtc; toAt = dateToText toUtc |}
+    )
+    |> Seq.map rowToRecordedEvent
+    |> Seq.choose (fun r ->
+        match r.Event.Body with
+        | CashExpenseAdded p -> Some p.Amount
+        | _ -> None)
+    |> Seq.toList
+
+/// Wie `loadBobBookedAmountsBetweenOn`, auf der Standard-Verbindung.
 let loadBobBookedAmountsBetween (fromUtc: DateTime) (toUtc: DateTime) : Async<Money list> =
     async {
         use conn = Core.getConnection ()
-        let! rows =
-            conn.QueryAsync<EventRow>(
-                "SELECT * FROM ledger_entry_events WHERE actor_kind = 'Bob' AND event_type = 'CashExpenseAdded' AND occurred_at >= @fromAt AND occurred_at < @toAt",
-                {| fromAt = dateToText fromUtc; toAt = dateToText toUtc |}
-            )
-            |> Async.AwaitTask
-        return
-            rows
-            |> Seq.map rowToRecordedEvent
-            |> Seq.choose (fun r ->
-                match r.Event.Body with
-                | CashExpenseAdded p -> Some p.Amount
-                | _ -> None)
-            |> Seq.toList
+        return loadBobBookedAmountsBetweenOn conn fromUtc toUtc
     }
 
 /// Der gespeicherte Zustand einer Buchung.
@@ -1694,25 +1758,26 @@ let loadAmountsForBalances () : Async<(Guid * Money * bool) list> =
     }
 
 [<CLIMutable>]
-type private OriginRow = { entry_id: string; actor_kind: string; actor_rule_id: string }
+type private OriginRow = { stream_id: string; actor_kind: string; actor_ref: string }
 
-/// Die Herkunft jeder Buchung: der Actor ihres **ersten** Ereignisses. Eine Zeile je
-/// Buchung, kein Replay — die Herkunft steht fest, sobald die Buchung entsteht.
+/// Die Herkunft jeder Buchung: der Actor ihres **ersten** Ereignisses (`stream_version = 1`).
+/// Eine Zeile je Buchung, kein Replay: die Herkunft steht fest, sobald die Buchung entsteht.
+let internal loadEntryOriginsOn (conn: SqliteConnection) : Map<Guid, Actor> =
+    conn.Query<OriginRow>(
+        "SELECT stream_id, actor_kind, actor_ref FROM events WHERE context = @context AND stream_version = 1",
+        {| context = ledgerContext |}
+    )
+    |> Seq.choose (fun row ->
+        match actorFromColumns row.actor_kind (toOption row.actor_ref) with
+        | Ok actor -> Some (entryGuidOfStream row.stream_id, actor)
+        | Error _ -> None)
+    |> Map.ofSeq
+
+/// Wie `loadEntryOriginsOn`, auf der Standard-Verbindung.
 let loadEntryOrigins () : Async<Map<Guid, Actor>> =
     async {
         use conn = Core.getConnection ()
-        let! rows =
-            conn.QueryAsync<OriginRow>(
-                "SELECT entry_id, actor_kind, actor_rule_id FROM ledger_entry_events WHERE sequence = 1"
-            )
-            |> Async.AwaitTask
-        return
-            rows
-            |> Seq.choose (fun row ->
-                match actorFromColumns row.actor_kind (toOption row.actor_rule_id) with
-                | Ok actor -> Some (Guid.Parse row.entry_id, actor)
-                | Error _ -> None)
-            |> Map.ofSeq
+        return loadEntryOriginsOn conn
     }
 
 /// Alle Fremd-Id-Verknuepfungen einer Buchung.
@@ -1774,23 +1839,182 @@ let findEntryByLink (system: LinkSystem) (value: string) : Async<EntryId option>
         return if isNull found then None else Some (EntryId (Guid.Parse found))
     }
 
+/// Faltet gespeicherte Ereignisse je Buchung nach laufender Nummer zum Zustand, nach Id
+/// sortiert. Rein; Grundlage von `replayAll` und der Migrationsprobe.
+let private replayRecorded (recorded: RecordedLedgerEvent list) : Entry list =
+    recorded
+    |> List.groupBy (fun r -> r.Event.EntryId)
+    |> List.map (fun (_, forEntry) ->
+        forEntry
+        |> List.sortBy (fun r -> r.Sequence)
+        |> List.map (fun r -> r.Event)
+        |> List.fold (fun state ev -> Some (apply state ev)) None
+        |> Option.get)
+    |> List.sortBy (fun e ->
+        let (EntryId id) = e.Id
+        id.ToString())
+
 /// Baut den Zustand aller Buchungen ausschliesslich aus dem Log neu, ohne zu schreiben.
 /// Pflichtgegenprobe zum synchron gefuehrten Zustandsmodell (ADR 0013, Punkt 6).
 let replayAll () : Async<Entry list> =
     async {
         let! recorded = loadAllEvents ()
-        return
-            recorded
-            |> List.groupBy (fun r -> r.Event.EntryId)
-            |> List.map (fun (_, forEntry) ->
-                forEntry
-                |> List.sortBy (fun r -> r.Sequence)
-                |> List.map (fun r -> r.Event)
-                |> List.fold (fun state ev -> Some (apply state ev)) None
-                |> Option.get)
-            |> List.sortBy (fun e ->
-                let (EntryId id) = e.Id
-                id.ToString())
+        return replayRecorded recorded
+    }
+
+// ============================================
+// Probe der Startmigration (ledger-k9tm2)
+// ============================================
+
+/// Ergebnis der Migrationsprobe: nur Zahlen und Wahrheitswerte, keine Beträge, Namen oder
+/// Ids, damit es in ein Testprotokoll darf.
+type LedgerEventMigrationProbe = {
+    /// Ereignisse in `ledger_entry_events` vor der Migration.
+    EventsBefore: int
+    /// Kassenbuch-Ereignisse in `events` nach der Migration.
+    EventsAfter: int
+    /// Buchungen mit mindestens einem Ereignis.
+    Entries: int
+    /// Zeilen in `ledger_entries`.
+    EntryRows: int
+    /// Je Ereignis gleich: Typ, Version, Payload, `occurred_at` als Text, Actor-Art und
+    /// Actor-Referenz, Buchung und laufende Nummer; `position` folgt der rowid-Reihenfolge.
+    EnvelopeUnchanged: bool
+    /// `stream_version` je Buchung lückenlos ab 1.
+    StreamVersionsGapless: bool
+    /// Replay vor und nach der Migration ergibt denselben Zustand.
+    ReplayUnchanged: bool
+    /// Replay nach der Migration ist gleich `ledger_entries`.
+    ReplayMatchesEntries: bool
+    /// Replay nach der Migration ergibt `ledger_entry_split_categories` und
+    /// `ledger_entry_split_transfers`.
+    ReplayMatchesSplitIndexes: bool
+    /// Die Verknüpfungen aus dem Log sind gleich `ledger_entry_links`.
+    ReplayMatchesLinks: bool
+    /// Die alte Tabelle ist nach der Migration entfernt.
+    LegacyTableGone: bool
+}
+
+[<CLIMutable>]
+type private SplitCategoryRow = { category_id: string; entry_id: string }
+
+[<CLIMutable>]
+type private SplitTransferRow = { entry_id: string; transfer_account_id: string }
+
+/// Führt die Startmigration auf der übergebenen Connection aus und prüft sie (ledger-k9tm2,
+/// ADR 0083 Abschnitt 6). Gedacht für eine **Kopie** der Produktions-Datenbank: die
+/// Migration wird dabei wirklich ausgeführt. Legt `events` an, falls sie fehlt, wie der Start.
+let internal probeLedgerEventMigrationOn (conn: SqliteConnection) : LedgerEventMigrationProbe =
+    if conn.State <> System.Data.ConnectionState.Open then
+        conn.Open()
+
+    EventStore.createSchemaOn conn
+
+    let legacy = if hasLegacyEventLog conn null then loadLegacyEventsOn conn null else []
+
+    let legacyRecorded =
+        legacy
+        |> List.map (fun row ->
+            {
+                Sequence = int row.sequence
+                EventType = row.event_type
+                SchemaVersion = int row.schema_version
+                Event = {
+                    EntryId = EntryId (Guid.Parse row.entry_id)
+                    OccurredAt = dateFromText row.occurred_at
+                    Actor =
+                        match actorFromColumns row.actor_kind (toOption row.actor_rule_id) with
+                        | Ok a -> a
+                        | Error e -> failwith e
+                    Body =
+                        match decodePayload row.event_type (int row.schema_version) row.payload with
+                        | Ok b -> b
+                        | Error e -> failwith $"Ereignis {row.entry_id}/{row.sequence} nicht lesbar: {e}"
+                }
+            })
+
+    let replayBefore = replayRecorded legacyRecorded
+
+    migrateLedgerEventsOn conn |> ignore
+
+    let stored =
+        conn.Query<StoredEventRow>(
+            """SELECT position, event_id, context, stream_id, stream_version, occurred_at, actor_kind,
+                      actor_ref, event_type, schema_version, payload, command_id
+               FROM events WHERE context = @context ORDER BY position""",
+            {| context = ledgerContext |}
+        )
+        |> Seq.toList
+
+    let sameEnvelope (before: LegacyEventRow) (after: StoredEventRow) =
+        after.stream_id = entryStreamId (Guid.Parse before.entry_id)
+        && after.stream_version = before.sequence
+        && after.event_type = before.event_type
+        && after.schema_version = before.schema_version
+        && after.payload = before.payload
+        && after.occurred_at = before.occurred_at
+        && after.actor_kind = before.actor_kind
+        && after.actor_ref = toOption before.actor_rule_id
+        && after.command_id = None
+
+    let gapless =
+        stored
+        |> List.groupBy (fun r -> r.stream_id)
+        |> List.forall (fun (_, rows) ->
+            (rows |> List.map (fun r -> r.stream_version) |> List.sort) = [ 1L .. int64 rows.Length ])
+
+    let recordedAfter = loadAllEventsOn conn null
+    let replayAfter = replayRecorded recordedAfter
+
+    let entryRows =
+        conn.Query<EntryRow>("SELECT * FROM ledger_entries ORDER BY id") |> Seq.map rowToEntry |> Seq.toList
+
+    let idText (EntryId id) = id.ToString()
+
+    let splitCategoriesFromReplay =
+        replayAfter
+        |> List.collect (fun e -> splitCategoryIds e |> List.map (fun c -> c.ToString(), idText e.Id))
+        |> Set.ofList
+
+    let splitCategoriesInTable =
+        conn.Query<SplitCategoryRow>("SELECT category_id, entry_id FROM ledger_entry_split_categories")
+        |> Seq.map (fun r -> r.category_id, r.entry_id)
+        |> Set.ofSeq
+
+    let splitTransfersFromReplay =
+        replayAfter
+        |> List.collect (fun e -> splitTransferAccountIds e |> List.map (fun a -> idText e.Id, a.ToString()))
+        |> Set.ofList
+
+    let splitTransfersInTable =
+        conn.Query<SplitTransferRow>("SELECT entry_id, transfer_account_id FROM ledger_entry_split_transfers")
+        |> Seq.map (fun r -> r.entry_id, r.transfer_account_id)
+        |> Set.ofSeq
+
+    let linksFromLog =
+        recordedAfter
+        |> List.collect (fun r -> linksFrom r.Event)
+        |> List.map (fun l -> idText l.EntryId, linkSystemToString l.System, l.Value)
+        |> Set.ofList
+
+    let linksInTable =
+        conn.Query<LinkRow>("SELECT entry_id, system, value FROM ledger_entry_links")
+        |> Seq.map (fun r -> r.entry_id, r.system, r.value)
+        |> Set.ofSeq
+
+    {
+        EventsBefore = legacy.Length
+        EventsAfter = stored.Length
+        Entries = replayAfter.Length
+        EntryRows = entryRows.Length
+        EnvelopeUnchanged = legacy.Length = stored.Length && List.forall2 sameEnvelope legacy stored
+        StreamVersionsGapless = gapless
+        ReplayUnchanged = replayBefore = replayAfter
+        ReplayMatchesEntries = replayAfter = entryRows
+        ReplayMatchesSplitIndexes =
+            splitCategoriesFromReplay = splitCategoriesInTable && splitTransfersFromReplay = splitTransfersInTable
+        ReplayMatchesLinks = linksFromLog = linksInTable
+        LegacyTableGone = not (hasLegacyEventLog conn null)
     }
 
 // ============================================

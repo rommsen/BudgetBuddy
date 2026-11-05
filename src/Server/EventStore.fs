@@ -195,8 +195,11 @@ let private orNull (s: string option) : obj =
     | Some v -> box v
     | None -> null
 
+/// Eine Zeile von `events`, wie Dapper sie liest. Kontexte mit eigenen Abfragen auf `events`
+/// (etwa das Kassenbuch mit Filtern auf Actor und Zeitraum) lesen diesen Typ und wandeln
+/// ihn über `toRecordedEvent`.
 [<CLIMutable>]
-type private StoredEventRow = {
+type StoredEventRow = {
     position: int64
     event_id: string
     context: string
@@ -211,7 +214,7 @@ type private StoredEventRow = {
     command_id: string option
 }
 
-let private rowToRecorded (row: StoredEventRow) : RecordedEvent = {
+let toRecordedEvent (row: StoredEventRow) : RecordedEvent = {
     Position = row.position
     EventId = Guid.Parse row.event_id
     Context = row.context
@@ -322,7 +325,7 @@ let appendOn
                     {| event_ids = eventIds.ToArray() |},
                     tx
                 )
-                |> Seq.map rowToRecorded
+                |> Seq.map toRecordedEvent
                 |> List.ofSeq
 
         match commandIdText, recorded with
@@ -371,7 +374,7 @@ let loadStream (context: string) (aggregate: string) (id: AggregateId) : Async<R
                    FROM events WHERE stream_id = @stream_id ORDER BY stream_version""",
                 {| stream_id = streamIdOf context aggregate id |}
             )
-            |> Seq.map rowToRecorded
+            |> Seq.map toRecordedEvent
             |> List.ofSeq
     }
 
@@ -388,6 +391,6 @@ let loadContext (context: string) : Async<RecordedEvent list> =
                    FROM events WHERE context = @context ORDER BY position""",
                 {| context = context |}
             )
-            |> Seq.map rowToRecorded
+            |> Seq.map toRecordedEvent
             |> List.ofSeq
     }
