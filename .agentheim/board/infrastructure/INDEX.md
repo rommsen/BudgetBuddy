@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 19
+- **Backlog:** 18
 - **Todo:** 1
 - **Doing:** 0
 - **Done:** 42
@@ -39,7 +39,6 @@ research touching this BC, and concept synthesis pages.
 <!-- backlog-list:start -->
 - **infrastructure-ztgge** — "Gezielter Testlauf während der Arbeit, volles Gate vor dem Abschluss: verify.sh --changed wählt Schritte nach geänderten Pfaden" (chore) — `backlog/infrastructure-ztgge-gezielter-testlauf-und-volles-gate.md`
 - **infrastructure-hwfkn** — "Prüfen, ob die Sperre um test:scripts noch nötig ist: ihr Grund, der 5-Sekunden-Start von vite preview, ist seit r5k2w behoben" (spike) — `backlog/infrastructure-hwfkn-gate-sperre-pruefen.md`
-- **infrastructure-hh19s** — "Parallelität von test:scripts neu messen: 4 Dateien gleichzeitig auf einem Rechner mit 10 Kernen" (chore) — `backlog/infrastructure-hh19s-waechter-parallelitaet-messen.md`
 - **infrastructure-pgpb6** — "Gate läuft nach dem dotnet build in zwei parallelen Strängen: Expecto neben npm build, Wächtern und test:scripts" (chore) — `backlog/infrastructure-pgpb6-gate-zwei-straenge-parallel.md`
 - **infrastructure-n2w8q** — "Browser-Test-Doktrin nachschärfen: gemischte Tests, Kennung für Verlauf und Routing, Spielarten als eigene Flows, Einzeiler-Verdrahtung im update" (decision) — `backlog/infrastructure-n2w8q-browser-test-doktrin-nachsch-rfen-gemischte-tests-kennung-f.md`
 - **infrastructure-v8m2d** — "Dev-Server: Vite stürzt ab, wenn dotnet parallel das Client-Projekt baut" (bug) — `backlog/infrastructure-v8m2d-dev-server-vite-st-rzt-ab-wenn-dotnet-parallel-das-client-pr.md`
