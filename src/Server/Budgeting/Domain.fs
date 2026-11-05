@@ -125,30 +125,12 @@ let planTargetApplication (month: BudgetMonth) : Result<TargetPreview, string> =
 // ============================================
 
 /// Ein Pause-Ereignis (`TargetPaused`, `TargetPauseLifted`). Der Stand je Kategorie und Monat ist das jüngste. Ein Name je
-/// Ereignis (budgeting-r3wq8): `PauseLifted` heißt in der Spalte "Aufgehoben" und in der Historie
+/// Ereignis (budgeting-r3wq8): `PauseLifted` hieß in der früheren Spalte "Aufgehoben" und heißt in der Historie
 /// `HistoryEntry.PauseLifted`.
 [<RequireQualifiedAccess>]
 type PauseKind =
     | Paused
     | PauseLifted
-
-/// Der frühere Text der Pause-Art, gelesen nur noch von der Budget-Migration (budgeting-hyn77).
-let pauseKindText (kind: PauseKind) : string =
-    match kind with
-    | PauseKind.Paused -> "Pausiert"
-    | PauseKind.PauseLifted -> "Aufgehoben"
-
-/// Der frühere Text für `PauseLifted`. Lokale Dev-Datenbanken tragen ihn noch, gelesen wird er weiter,
-/// geschrieben nie mehr.
-[<Literal>]
-let LegacyPauseLiftedText = "Fortgesetzt"
-
-/// Liest die Spalte. Ein unbekannter Text wird gemeldet, nicht auf einen Standard gelegt.
-let pauseKindOfText (text: string) : Result<PauseKind, string> =
-    match [ PauseKind.Paused; PauseKind.PauseLifted ] |> List.tryFind (fun k -> pauseKindText k = text) with
-    | Some kind -> Ok kind
-    | None when text = LegacyPauseLiftedText -> Ok PauseKind.PauseLifted
-    | None -> Error $"Unbekannte Art eines Pause-Ereignisses: {text}"
 
 /// Was aus einem Auftrag Pausieren oder Aufheben wird.
 type PausePlan = {
@@ -262,37 +244,6 @@ let targetChangeKindOf (shown: Target option) (wanted: TargetDraft option) (firs
     | Some _, Some frequency, None -> TargetCreated frequency
     | Some _, Some frequency, Some _ -> TargetKindChanged frequency
     | Some _, None, _ -> TargetEdited
-
-/// Der Rhythmus einer früheren Target-Änderung: "monthly", "weekly", "yearly".
-let frequencyColumnText (frequency: TargetFrequency) : string =
-    match frequency with
-    | Weekly -> "weekly"
-    | Monthly -> "monthly"
-    | Yearly -> "yearly"
-
-/// Die früheren Texte von Art und Rhythmus einer Target-Änderung (Budget-Migration).
-let targetChangeKindText (kind: TargetChangeKind) : string * string option =
-    match kind with
-    | TargetEdited -> "Geändert", None
-    | TargetRemoved -> "Entfernt", None
-    | TargetCreated f -> "Angelegt", Some (frequencyColumnText f)
-    | TargetKindChanged f -> "Art gewechselt", Some (frequencyColumnText f)
-
-/// Liest beide Spalten. Ein unbekannter Text oder ein fehlender Rhythmus wird gemeldet, nicht auf einen
-/// Standard gelegt.
-let targetChangeKindOfText (text: string) (frequency: string option) : Result<TargetChangeKind, string> =
-    let frequencyOf () =
-        match frequency |> Option.bind (fun f -> [ Weekly; Monthly; Yearly ] |> List.tryFind (fun x -> frequencyColumnText x = f)) with
-        | Some f -> Ok f
-        | None ->
-            let seen = frequency |> Option.defaultValue "keiner"
-            Error $"Unbekannter Rhythmus einer Target-Änderung: {seen}"
-    match text with
-    | "Geändert" -> Ok TargetEdited
-    | "Entfernt" -> Ok TargetRemoved
-    | "Angelegt" -> frequencyOf () |> Result.map TargetCreated
-    | "Art gewechselt" -> frequencyOf () |> Result.map TargetKindChanged
-    | _ -> Error $"Unbekannte Art einer Target-Änderung: {text}"
 
 /// Stimmt die frisch geplante Vorschau mit der gezeigten überein? Verglichen werden die Zeilen
 /// (Kategorie, altes und neues Zugewiesen) und Zu verteilen; Namen und Reihenfolge der

@@ -33,6 +33,52 @@ let internal existingLegacyTables (conn: SqliteConnection) (tx: SqliteTransactio
     |> Set.ofSeq
 
 // ============================================
+// Spaltentexte des Altbestands
+// ============================================
+
+/// Der frühere Text der Pause-Art in `target_pause_events.kind`.
+let pauseKindText (kind: PauseKind) : string =
+    match kind with
+    | PauseKind.Paused -> "Pausiert"
+    | PauseKind.PauseLifted -> "Aufgehoben"
+
+/// Der noch ältere Text für `PauseLifted`. Lokale Dev-Datenbanken tragen ihn noch.
+[<Literal>]
+let LegacyPauseLiftedText = "Fortgesetzt"
+
+/// Liest die Spalte. Ein unbekannter Text wird gemeldet, nicht auf einen Standard gelegt.
+let pauseKindOfText (text: string) : Result<PauseKind, string> =
+    match [ PauseKind.Paused; PauseKind.PauseLifted ] |> List.tryFind (fun k -> pauseKindText k = text) with
+    | Some kind -> Ok kind
+    | None when text = LegacyPauseLiftedText -> Ok PauseKind.PauseLifted
+    | None -> Error $"Unbekannte Art eines Pause-Ereignisses: {text}"
+
+/// Die früheren Texte von Art und Rhythmus in `target_changes.change_kind` und `new_frequency`. Den
+/// Rhythmus schrieb die Spalte mit denselben Texten wie die Payload (`Codec.frequencyText`).
+let targetChangeKindText (kind: TargetChangeKind) : string * string option =
+    match kind with
+    | TargetEdited -> "Geändert", None
+    | TargetRemoved -> "Entfernt", None
+    | TargetCreated f -> "Angelegt", Some (Codec.frequencyText f)
+    | TargetKindChanged f -> "Art gewechselt", Some (Codec.frequencyText f)
+
+/// Liest beide Spalten. Ein unbekannter Text oder ein fehlender Rhythmus wird gemeldet, nicht auf einen
+/// Standard gelegt.
+let targetChangeKindOfText (text: string) (frequency: string option) : Result<TargetChangeKind, string> =
+    let frequencyOf () =
+        match frequency |> Option.bind Codec.frequencyOfText with
+        | Some f -> Ok f
+        | None ->
+            let seen = frequency |> Option.defaultValue "keiner"
+            Error $"Unbekannter Rhythmus einer Target-Änderung: {seen}"
+    match text with
+    | "Geändert" -> Ok TargetEdited
+    | "Entfernt" -> Ok TargetRemoved
+    | "Angelegt" -> frequencyOf () |> Result.map TargetCreated
+    | "Art gewechselt" -> frequencyOf () |> Result.map TargetKindChanged
+    | _ -> Error $"Unbekannte Art einer Target-Änderung: {text}"
+
+// ============================================
 // Zeilen des Altbestands
 // ============================================
 

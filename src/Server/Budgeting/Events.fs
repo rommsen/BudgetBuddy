@@ -381,12 +381,17 @@ module Codec =
     let decodeWriteBackFailed : Decoder<WriteBackRef * string> =
         Decode.map2 (fun r reason -> r, reason) decodeWriteBack (Decode.field "reason" Decode.string)
 
-    /// Der Rhythmus wie früher in der Spalte: "monthly", "weekly", "yearly".
-    let private frequencyText (f: TargetFrequency) =
+    /// Der Rhythmus in der Payload: "monthly", "weekly", "yearly". Die frühere Spalte `new_frequency`
+    /// trug dieselben Texte, die Migration liest sie über `frequencyOfText`.
+    let frequencyText (f: TargetFrequency) =
         match f with
         | Weekly -> "weekly"
         | Monthly -> "monthly"
         | Yearly -> "yearly"
+
+    /// Der Rhythmus zu einem Text aus `frequencyText`, `None` bei jedem anderen.
+    let frequencyOfText (text: string) : TargetFrequency option =
+        [ Weekly; Monthly; Yearly ] |> List.tryFind (fun f -> frequencyText f = text)
 
     let private changeKindText (kind: TargetChangeKind) : string * TargetFrequency option =
         match kind with
@@ -412,7 +417,7 @@ module Codec =
         let frequency =
             Decode.field "newFrequency" Decode.string
             |> Decode.andThen (fun s ->
-                match [ Weekly; Monthly; Yearly ] |> List.tryFind (fun f -> frequencyText f = s) with
+                match frequencyOfText s with
                 | Some f -> Decode.succeed f
                 | None -> Decode.fail $"Unbekannter Rhythmus einer Target-Änderung: {s}")
         Decode.field "changeKind" Decode.string

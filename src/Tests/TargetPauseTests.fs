@@ -116,14 +116,14 @@ let private domainTests =
             Expect.equal (lifted.Text, lifted.Change, lifted.Status) ("Pause aufgehoben", None, None) "aufgehoben"
         }
         test "Ein unbekannter Text der Art wird gemeldet" {
-            Expect.isError (Domain.pauseKindOfText "Irgendwas") "kein Standard"
+            Expect.isError (Budgeting.EventMigration.pauseKindOfText "Irgendwas") "kein Standard"
             for kind in [ Domain.PauseKind.Paused; Domain.PauseKind.PauseLifted ] do
-                Expect.equal (Domain.pauseKindOfText (Domain.pauseKindText kind)) (Ok kind) $"{kind}"
+                Expect.equal (Budgeting.EventMigration.pauseKindOfText (Budgeting.EventMigration.pauseKindText kind)) (Ok kind) $"{kind}"
         }
         // budgeting-r3wq8: ein Name je Ereignis. Geschrieben wird "Aufgehoben", der Altwert "Fortgesetzt" aus
         // lokalen Dev-Datenbanken wird weiter als Aufheben gelesen.
         test "Der Altwert Fortgesetzt wird weiter als Aufheben gelesen" {
-            Expect.equal (Domain.pauseKindOfText "Fortgesetzt") (Ok Domain.PauseKind.PauseLifted) "Altwert"
+            Expect.equal (Budgeting.EventMigration.pauseKindOfText "Fortgesetzt") (Ok Domain.PauseKind.PauseLifted) "Altwert"
         }
         // budgeting-r3wq8: eine BB-Pause ohne Target wirkt nicht und wird nicht gemeldet.
         test "toBudgetMonth meldet eine BB-Pause ohne Target nicht" {
@@ -198,9 +198,9 @@ let private eventRows (id: Guid) : (string * string) list =
         |> List.choose (fun e ->
             match e.Event with
             | Budgeting.Events.BudgetEvent.TargetPaused p when p.CategoryId = id ->
-                Some (Budgeting.Events.monthKeyOfId p.Month, Domain.pauseKindText Domain.PauseKind.Paused)
+                Some (Budgeting.Events.monthKeyOfId p.Month, Budgeting.EventMigration.pauseKindText Domain.PauseKind.Paused)
             | Budgeting.Events.BudgetEvent.TargetPauseLifted p when p.CategoryId = id ->
-                Some (Budgeting.Events.monthKeyOfId p.Month, Domain.pauseKindText Domain.PauseKind.PauseLifted)
+                Some (Budgeting.Events.monthKeyOfId p.Month, Budgeting.EventMigration.pauseKindText Domain.PauseKind.PauseLifted)
             | _ -> None)
 
 let private monthOk (f: FakeYnab) (month: string) : BudgetMonth =

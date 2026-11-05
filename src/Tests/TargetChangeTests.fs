@@ -92,11 +92,11 @@ let private planTests =
                         TargetCreated f
                         TargetKindChanged f ]
             for kind in kinds do
-                let text, frequency = Domain.targetChangeKindText kind
-                Expect.equal (Domain.targetChangeKindOfText text frequency) (Ok kind) $"{kind}"
-            Expect.isError (Domain.targetChangeKindOfText "Quatsch" None) "kein Standard"
-            Expect.isError (Domain.targetChangeKindOfText "Angelegt" None) "angelegt ohne Rhythmus"
-            Expect.isError (Domain.targetChangeKindOfText "Art gewechselt" (Some "daily")) "unbekannter Rhythmus"
+                let text, frequency = Budgeting.EventMigration.targetChangeKindText kind
+                Expect.equal (Budgeting.EventMigration.targetChangeKindOfText text frequency) (Ok kind) $"{kind}"
+            Expect.isError (Budgeting.EventMigration.targetChangeKindOfText "Quatsch" None) "kein Standard"
+            Expect.isError (Budgeting.EventMigration.targetChangeKindOfText "Angelegt" None) "angelegt ohne Rhythmus"
+            Expect.isError (Budgeting.EventMigration.targetChangeKindOfText "Art gewechselt" (Some "daily")) "unbekannter Rhythmus"
         }
     ]
 
@@ -378,7 +378,7 @@ let private changeRows (id: Guid) : string list =
         | Budgeting.Events.BudgetEvent.YnabGoalChangedFromBb p ->
             let amount (v: int64 option) = v |> Option.map string |> Option.defaultValue "-"
             let head =
-                $"{Budgeting.Events.monthKeyOfId p.Month}|{fst (Domain.targetChangeKindText p.ChangeKind)}|{amount p.OldGoalTarget}|{amount p.NewGoalTarget}"
+                $"{Budgeting.Events.monthKeyOfId p.Month}|{fst (Budgeting.EventMigration.targetChangeKindText p.ChangeKind)}|{amount p.OldGoalTarget}|{amount p.NewGoalTarget}"
             match results |> List.filter (fun (c, _, _, _) -> c = e.EventId) with
             | [] -> [ $"{head}|offen|" ]
             | own -> own |> List.map (fun (_, _, status, reason) -> $"{head}|{status}|{reason}")
