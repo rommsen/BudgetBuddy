@@ -215,12 +215,12 @@ let lastChangeTests =
                 (Ok (Some (TargetSetOn "2026-08-01")))
                 "Berliner Kalendertag"
 
-        testCase "Ein unbekannter Ereignistyp wird gemeldet, nicht übersprungen" <| fun () ->
+        testCase "Ein nicht lesbares Schritt-Ergebnis wird gemeldet, nicht übersprungen" <| fun () ->
             use conn = openChangesDb ()
             let k = Guid.NewGuid()
             result conn (change conn k "2026-07-10T08:00:00.0000000Z" edited) 1 Written
-            BudgetEventsFixture.appendUnknown conn (Budgeting.Events.TargetStream k)
-            Expect.isError (Budgeting.Persistence.queryLastTargetChanges conn) "unbekannter Typ"
+            BudgetEventsFixture.appendUnreadable conn (Budgeting.Events.TargetStream k) "YnabGoalStepWrittenToYnab"
+            Expect.isError (Budgeting.Persistence.queryLastTargetChanges conn) "kaputte Payload"
 
         testCase "Bei gleichem occurred_at gilt die später festgehaltene Änderung (stream_version)" <| fun () ->
             use conn = openChangesDb ()
@@ -236,10 +236,10 @@ let lastChangeTests =
                 Expect.equal (marks |> Map.tryFind removedLast) (Some (TargetRemovedOn "2026-07-10")) "Entfernen zuletzt eingefügt"
                 Expect.equal (marks |> Map.tryFind editedLast) (Some (TargetSetOn "2026-07-10")) "Ändern zuletzt eingefügt"
 
-        testCase "loadLastTargetChangesWith meldet einen unbekannten Ereignistyp mit TargetChangesUnreadableText" <| fun () ->
+        testCase "loadLastTargetChangesWith meldet ein nicht lesbares Ereignis mit TargetChangesUnreadableText" <| fun () ->
             let connect () =
                 let conn = openChangesDb ()
-                BudgetEventsFixture.appendUnknown conn (Budgeting.Events.TargetStream (Guid.NewGuid()))
+                BudgetEventsFixture.appendUnreadable conn (Budgeting.Events.TargetStream (Guid.NewGuid())) "YnabGoalChangedFromBb"
                 conn
             Expect.equal
                 (Budgeting.Persistence.loadLastTargetChangesWith connect |> run)

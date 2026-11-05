@@ -159,6 +159,38 @@ let eventTypeName (event: BudgetEvent) : string =
     | BudgetEvent.YnabGoalStepWriteFailed _ -> "YnabGoalStepWriteFailed"
     | BudgetEvent.YnabGoalStepSupersededInYnab _ -> "YnabGoalStepSupersededInYnab"
 
+/// Typnamen für Leser, die nicht den ganzen Kontext brauchen (Filter auf `event_type`, Index
+/// `idx_events_context_type`). Aus `eventTypeName` abgeleitet, damit es keine zweite Schreibweise gibt;
+/// die Payload der Muster bleibt leer und wird nie gelesen.
+module EventTypes =
+    let private none<'T> : 'T = Unchecked.defaultof<'T>
+
+    /// Die Entscheidung zu einer Herkunft.
+    let decisionOf (origin: MovementOrigin) : string =
+        match origin with
+        | MoneyAssigned -> eventTypeName (BudgetEvent.AssignmentChangedInBb none)
+        | MoneyMoved -> eventTypeName (BudgetEvent.MoneyMoved none)
+        | TargetsApplied -> eventTypeName (BudgetEvent.TargetsApplied none)
+
+    /// Die drei Entscheidungen (Zuweisen, Verschieben, Targets anwenden).
+    let decisions : string list = [ MoneyAssigned; MoneyMoved; TargetsApplied ] |> List.map decisionOf
+
+    /// Die vier Ergebnisse einer Rückschreibung.
+    let writeBacks : string list =
+        [ BudgetEvent.AssignmentWrittenBackToYnab none
+          BudgetEvent.AssignmentWriteBackFailed (none, none)
+          BudgetEvent.AssignmentWriteBackSupersededInYnab none
+          BudgetEvent.AssignmentWriteBackWithdrawn none ]
+        |> List.map eventTypeName
+
+    /// Die Target-Änderung aus dem Zwei-Schritt-Weg und ihre drei Schritt-Ergebnisse.
+    let goalChanges : string list =
+        [ BudgetEvent.YnabGoalChangedFromBb none
+          BudgetEvent.YnabGoalStepWrittenToYnab none
+          BudgetEvent.YnabGoalStepWriteFailed (none, none)
+          BudgetEvent.YnabGoalStepSupersededInYnab none ]
+        |> List.map eventTypeName
+
 /// Alle Budget-Ereignisse tragen heute Schema-Version 1.
 [<Literal>]
 let SchemaVersion = 1

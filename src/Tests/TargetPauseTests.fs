@@ -190,7 +190,7 @@ let private pauseOk f month id intent : PauseSource option =
 /// deutscher Text, in der Reihenfolge des Festhaltens.
 let private eventRows (id: Guid) : (string * string) list =
     use conn = global.Persistence.getConnection ()
-    match Budgeting.Persistence.loadBudgetEventsOn conn None with
+    match Budgeting.Persistence.loadBudgetEventsOn conn Budgeting.Persistence.WholeContext with
     | Error message -> failtest message
     | Ok events ->
         events

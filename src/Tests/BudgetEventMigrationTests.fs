@@ -651,7 +651,7 @@ let boundaryTests =
             Expect.equal (queryPauseEvents conn k "2026-10-01") (Ok []) "Pause-Ereignisse"
             Expect.equal (queryTargetChanges conn k "2026-10-01") (Ok []) "Target-Änderungen"
             Expect.equal (queryLastTargetChanges conn) (Ok Map.empty) "letzte Target-Änderung"
-            Expect.equal (loadBudgetEventsOn conn None) (Ok []) "keine Budget-Ereignisse"
+            Expect.equal (loadBudgetEventsOn conn WholeContext) (Ok []) "keine Budget-Ereignisse"
 
         testCase "Ein unbekannter Ereignistyp im Kontext budgeting wird beim Laden gemeldet, nicht übersprungen" <| fun () ->
             use conn = new SqliteConnection("Data Source=:memory:")
@@ -659,10 +659,26 @@ let boundaryTests =
             EventStore.createSchemaOn conn
             recordPauseOn conn (DateTime(2026, 10, 3, 8, 0, 0, DateTimeKind.Utc)) "2026-10-01" (Guid.NewGuid()) "A" Server.Budgeting.Domain.PauseKind.Paused |> ignore
             BudgetEventsFixture.appendUnknown conn (MonthStream "2026-10")
-            match loadBudgetEventsOn conn None with
+            match loadBudgetEventsOn conn WholeContext with
             | Error message -> Expect.stringContains message "TargetQuatschGemacht" "nennt den Typ"
             | Ok events -> failtest $"Fehler erwartet, kamen {events.Length} Ereignisse"
-            Expect.isError (queryMovements conn { CategoryId = None; Month = None; Origin = None }) "Historie meldet"
+            Expect.isError (queryMovements conn { CategoryId = None; Month = Some "2026-10-01"; Origin = None }) "Historie des Monats meldet"
+
+        // Die Leser über den ganzen Kontext laden nur die Typen, die sie auswerten (Index
+        // `idx_events_context_type`). Ein fremder Typ im Kontext erreicht sie nicht, der Leser des Monats-Streams
+        // lädt alle Typen und meldet ihn weiterhin.
+        testCase "Ein unbekannter Ereignistyp stört Zuletzt verwendet, die allgemeine Historie und die letzte Target-Änderung nicht, der Monat meldet ihn" <| fun () ->
+            use conn = new SqliteConnection("Data Source=:memory:")
+            conn.Open()
+            EventStore.createSchemaOn conn
+            let k = Guid.NewGuid()
+            BudgetEventsFixture.appendUnknown conn (MonthStream "2026-10")
+            BudgetEventsFixture.appendUnknown conn (TargetStream k)
+            Expect.equal (queryRecentCategories conn MoneyMoved 10) (Ok []) "Zuletzt verwendet"
+            Expect.equal (queryMovements conn { CategoryId = None; Month = None; Origin = None }) (Ok []) "allgemeine Historie"
+            Expect.equal (queryLastTargetChanges conn) (Ok Map.empty) "letzte Target-Änderung"
+            Expect.isError (queryMovements conn { CategoryId = None; Month = Some "2026-10-01"; Origin = None }) "Historie des Monats meldet"
+            Expect.isError (queryTargetChanges conn k "2026-10-01") "Target-Änderungen der Kategorie melden"
     ]
 
 /// Ein YNAB-Port für "erneut senden": der Monat mit den Kategorien und ihrem Zugewiesen, jedes Senden

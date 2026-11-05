@@ -354,7 +354,7 @@ let private change (f: FakeYnab) (month: string) (r: TargetChangeRequest) =
 /// Die Ereignisse im Target-Stream der Kategorie (budgeting-hyn77), nach `stream_version`.
 let private targetEvents (id: Guid) : Budgeting.Persistence.RecordedBudgetEvent list =
     use conn = global.Persistence.getConnection ()
-    match Budgeting.Persistence.loadBudgetEventsOn conn (Some (Budgeting.Events.streamIdOf (Budgeting.Events.TargetStream id))) with
+    match Budgeting.Persistence.loadBudgetEventsOn conn (Budgeting.Persistence.InStream (Budgeting.Events.streamIdOf (Budgeting.Events.TargetStream id))) with
     | Ok events -> events
     | Error message -> failtest message
 

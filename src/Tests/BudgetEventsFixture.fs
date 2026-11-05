@@ -49,8 +49,9 @@ let isolatedDb () : Microsoft.Data.Sqlite.SqliteConnection * (unit -> Microsoft.
     EventStore.createSchemaOn anchor
     anchor, (fun () -> new Microsoft.Data.Sqlite.SqliteConnection(connectionString))
 
-/// Hängt ein Ereignis eines unbekannten Typs an einen Budget-Stream.
-let appendUnknown (conn: Microsoft.Data.Sqlite.SqliteConnection) (stream: BudgetStream) : unit =
+/// Hängt ein Ereignis mit Typname `eventType` und leerer Payload `{}` an einen Budget-Stream. Für einen
+/// bekannten Typ ist das ein Ereignis mit kaputter Payload.
+let appendUnreadable (conn: Microsoft.Data.Sqlite.SqliteConnection) (stream: BudgetStream) (eventType: string) : unit =
     let aggregate, id = streamParts stream
     let tx = conn.BeginTransaction()
     EventStore.appendOn
@@ -62,7 +63,7 @@ let appendUnknown (conn: Microsoft.Data.Sqlite.SqliteConnection) (stream: Budget
             [ { Aggregate = aggregate
                 Id = id
                 Events =
-                  [ { EventType = "TargetQuatschGemacht"
+                  [ { EventType = eventType
                       SchemaVersion = 1
                       Payload = "{}"
                       OccurredAt = System.DateTime(2026, 11, 4, 9, 0, 0, System.DateTimeKind.Utc)
@@ -71,3 +72,7 @@ let appendUnknown (conn: Microsoft.Data.Sqlite.SqliteConnection) (stream: Budget
         EventStore.noReadModels
     |> ignore
     tx.Commit()
+
+/// Hängt ein Ereignis eines unbekannten Typs an einen Budget-Stream.
+let appendUnknown (conn: Microsoft.Data.Sqlite.SqliteConnection) (stream: BudgetStream) : unit =
+    appendUnreadable conn stream "TargetQuatschGemacht"

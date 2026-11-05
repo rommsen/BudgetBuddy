@@ -110,18 +110,49 @@ let private toRecordedBudgetEvent (row: StoredEventRow) : Result<RecordedBudgetE
           OccurredAt = recorded.OccurredAt
           Event = event })
 
-/// Die Budget-Ereignisse eines Streams oder (`None`) des ganzen Kontexts, je Stream nach
-/// `stream_version`. Ein Ereignis, das sich nicht lesen lässt (unbekannter Typ, kaputte Payload), wird
-/// zum `Error` mit Ereignis-Id und Stream.
-let internal loadBudgetEventsOn (conn: SqliteConnection) (streamId: string option) : Result<RecordedBudgetEvent list, string> =
-    conn.Query<StoredEventRow>(
-        """SELECT position, event_id, context, stream_id, stream_version, occurred_at, actor_kind,
-                  actor_ref, event_type, schema_version, payload, command_id
-           FROM events
-           WHERE context = @context AND (@stream_id IS NULL OR stream_id = @stream_id)
-           ORDER BY stream_id, stream_version""",
-        {| context = Context; stream_id = orDbNull streamId |}
-    )
+/// Welche Budget-Ereignisse ein Leser lädt.
+type internal EventScope =
+    /// Ein Stream, alle Typen.
+    | InStream of streamId: string
+    /// Der ganze Kontext, nur diese Typen (`Events.EventTypes`).
+    | OfTypes of eventTypes: string list
+    /// Der ganze Kontext, alle Typen.
+    | WholeContext
+
+/// Die Budget-Ereignisse zum Bereich, je Stream nach `stream_version`. Ein Ereignis, das sich nicht
+/// lesen lässt (unbekannter Typ, kaputte Payload), wird zum `Error` mit Ereignis-Id und Stream. Ein
+/// Typfilter blendet Ereignisse anderer Typen aus, auch unbekannte.
+let internal loadBudgetEventsOn (conn: SqliteConnection) (scope: EventScope) : Result<RecordedBudgetEvent list, string> =
+    let rows =
+        match scope with
+        | InStream streamId ->
+            conn.Query<StoredEventRow>(
+                """SELECT position, event_id, context, stream_id, stream_version, occurred_at, actor_kind,
+                          actor_ref, event_type, schema_version, payload, command_id
+                   FROM events
+                   WHERE context = @context AND stream_id = @stream_id
+                   ORDER BY stream_id, stream_version""",
+                {| context = Context; stream_id = streamId |}
+            )
+        | OfTypes eventTypes ->
+            conn.Query<StoredEventRow>(
+                """SELECT position, event_id, context, stream_id, stream_version, occurred_at, actor_kind,
+                          actor_ref, event_type, schema_version, payload, command_id
+                   FROM events
+                   WHERE context = @context AND event_type IN @event_types
+                   ORDER BY stream_id, stream_version""",
+                {| context = Context; event_types = List.toArray eventTypes |}
+            )
+        | WholeContext ->
+            conn.Query<StoredEventRow>(
+                """SELECT position, event_id, context, stream_id, stream_version, occurred_at, actor_kind,
+                          actor_ref, event_type, schema_version, payload, command_id
+                   FROM events
+                   WHERE context = @context
+                   ORDER BY stream_id, stream_version""",
+                {| context = Context |}
+            )
+    rows
     |> Seq.toList
     |> List.map toRecordedBudgetEvent
     |> collectRows
@@ -189,7 +220,7 @@ let internal queryApplication (conn: SqliteConnection) (applicationId: Guid) : R
     match stream with
     | None -> Ok []
     | Some streamId ->
-        loadBudgetEventsOn conn (Some streamId)
+        loadBudgetEventsOn conn (InStream streamId)
         |> Result.map (fun events ->
             let latest = latestWriteBacks events
             events
@@ -219,17 +250,16 @@ let private newestFirst (events: RecordedBudgetEvent list) : (RecordedBudgetEven
 /// Die Zeilen zum Filter, neueste zuerst, je mit dem jüngsten Ergebnis und bei einer Verschiebung mit
 /// der Kategorie der Gegenseite. `Error` nennt ein nicht lesbares Ereignis.
 let queryMovements (conn: SqliteConnection) (filter: MovementFilter) : Result<HistoryMovement list, string> =
-    let stream =
+    // Ohne Monat reichen die Entscheidungen und ihre Rückschreib-Ergebnisse, Pausen und Target-Änderungen
+    // liest die Historie nicht.
+    let scope =
         match filter.Month with
-        | None -> Ok None
-        | Some month ->
-            match monthStreamOf month with
-            | Some s -> Ok (Some s)
-            | None -> Error ()
-    match stream with
-    | Error () -> Ok []
-    | Ok stream ->
-        loadBudgetEventsOn conn stream
+        | None -> Some (OfTypes (EventTypes.decisions @ EventTypes.writeBacks))
+        | Some month -> monthStreamOf month |> Option.map InStream
+    match scope with
+    | None -> Ok []
+    | Some scope ->
+        loadBudgetEventsOn conn scope
         |> Result.map (fun events ->
             let latest = latestWriteBacks events
             let counterpart (e: RecordedBudgetEvent) (m: Movement) =
@@ -268,7 +298,7 @@ let loadMovements (filter: MovementFilter) : Async<Result<HistoryMovement list, 
 
 /// Die Kategorien der jüngsten Entscheidungen einer Herkunft, neueste zuerst, ohne Dubletten.
 let queryRecentCategories (conn: SqliteConnection) (origin: MovementOrigin) (limit: int) : Result<Guid list, string> =
-    loadBudgetEventsOn conn None
+    loadBudgetEventsOn conn (OfTypes [ EventTypes.decisionOf origin ])
     |> Result.map (fun events ->
         newestFirst events
         |> List.filter (fun (_, m) -> m.Origin = origin)
@@ -302,7 +332,7 @@ let queryPausedCategories (conn: SqliteConnection) (month: string) : Result<Set<
     match monthStreamOf month with
     | None -> Ok Set.empty
     | Some stream ->
-        loadBudgetEventsOn conn (Some stream)
+        loadBudgetEventsOn conn (InStream stream)
         |> Result.map (fun events ->
             events
             |> List.choose (fun e -> pauseOf e.Event)
@@ -356,7 +386,7 @@ let queryPauseEvents (conn: SqliteConnection) (categoryId: Guid) (month: string)
     match monthStreamOf month with
     | None -> Ok []
     | Some stream ->
-        loadBudgetEventsOn conn (Some stream)
+        loadBudgetEventsOn conn (InStream stream)
         |> Result.map (fun events ->
             events
             |> List.choose (fun e ->
@@ -427,7 +457,7 @@ let queryTargetChanges (conn: SqliteConnection) (categoryId: Guid) (month: strin
     match monthIdOf month with
     | Error _ -> Ok []
     | Ok monthId ->
-        loadBudgetEventsOn conn (Some (streamIdOf (TargetStream categoryId)))
+        loadBudgetEventsOn conn (InStream (streamIdOf (TargetStream categoryId)))
         |> Result.map (fun events ->
             let steps = latestGoalSteps events
             goalChangesOf events
@@ -463,7 +493,7 @@ let loadTargetChanges (categoryId: Guid) (month: string) : Async<Result<HistoryT
 /// prüfen, budgeting-p2zr6, ADR 0082 Punkt 7). Jüngste nach `occurred_at`, bei gleichem Zeitpunkt nach
 /// `stream_version`. Der Tag ist der Berliner Kalendertag "YYYY-MM-DD" (`berlinTime`).
 let queryLastTargetChanges (conn: SqliteConnection) : Result<Map<Guid, TargetChangeMark>, string> =
-    loadBudgetEventsOn conn None
+    loadBudgetEventsOn conn (OfTypes EventTypes.goalChanges)
     |> Result.map (fun events ->
         let steps = latestGoalSteps events
         goalChangesOf events
