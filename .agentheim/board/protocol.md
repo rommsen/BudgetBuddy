@@ -5,6 +5,24 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 07:14 -- Modeling / Refined: infrastructure-shsvf - Gate übersetzt den Client einmal
+
+**Type:** Modeling / Refine
+**BC:** infrastructure
+**Status after:** todo
+**Summary:** Drei Fable-Builds je Gate belegt (npm run build, run-guards.mjs, export-design-system.mjs). BB_GUARD_DIST von außen wird übernommen und nicht gelöscht; verify.sh reicht dist/public nur bei grünem Schritt 3 durch. Wächter lesen das Bundle nur (pwa-update, static-serve geprüft).
+
+---
+
+## 2026-11-05 07:14 -- Modeling / Refined: infrastructure-d1dwb - Gate startet Expecto direkt über die Tests.dll
+
+**Type:** Modeling / Refine
+**BC:** infrastructure
+**Status after:** todo
+**Summary:** Expecto-Schalter --junit-summary und --fail-on-focused-tests am echten Testprojekt geprüft (14 s, 3818 Tests, 11 opt-in übersprungen). Form des JUnit-Berichts festgehalten (Einzeile, keine Zähl-Attribute, Namen mit ; getrennt). ACs für gleiche Gate-Semantik, DB- und TZ-Wächter am neuen Aufruf, fokussierte Tests und Messung.
+
+---
+
 ## 2026-11-05 07:13 -- Modeling / Captured: infrastructure-ztgge - "Gezielter Testlauf während der Arbeit, volles Gate vor dem Abschluss: verify.sh --changed wählt Schritte nach geänderten Pfaden"
 
 **Type:** Modeling / Capture
