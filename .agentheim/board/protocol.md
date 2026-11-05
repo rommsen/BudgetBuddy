@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 13:14 -- Modeling / Refined: budgeting-v7kfw - Fehlbetrag als reine Funktion, Parallelrechnung gegen YNAB
+
+**Type:** Modeling / Refine
+**BC:** budgeting
+**Status after:** todo
+**Summary:** Zuordnung je Target-Art präzisiert (Reihenfolge, Fälle ohne Rechnung, verbleibende Monate, Aufrunden auf Cent nur bei Fälligkeit). Vergleich in Milliunits ohne Toleranz, pausierte Targets werden mitverglichen. Ablage nach Entscheidung Roman als vorläufige Zustandstabelle underfunded_comparisons (Ersetzen je Monat) plus Summenzeile im Log; kein Read Model, weil YNABs Wert kein Ereignis ist und die Inputs erst nach hyn77 und dgrp7 in events liegen. Rückbau-Notiz an budgeting-eh8xe.
+**ADRs written:** keine
+
+---
+
 ## 2026-11-05 12:37 -- Modeling / Promoted: infrastructure-e4vq7 - "Gemeinsame Ereignistabelle `events`: Schema, append-only-Trigger, `UNIQUE(stream_id, stream_version)`, Befehls-Id, generisches Anhängen und Laden; Tests belegen Konflikt bei gleicher Stream-Version, Rollback und das Verhalten von `BeginTransaction`"
 
 **Type:** Modeling / Promote
