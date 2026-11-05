@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 21:41 -- Batch started: [budgeting-dgrp7, ledger-z71ka, infrastructure-w7d2c]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-dgrp7 - "BB führt das Zugewiesen: Übernahme beim Lesen und vor jedem Befehl, Soll-Faltung mit bestätigtem Stand, observeMonth mit Echo-Regel, Befehle auf das Soll", ledger-z71ka - "Bot-Commit: entry_id auch nach gescheitertem Push, und ein abgebrochener Commit ist wiederholbar, ohne doppelt zu buchen", infrastructure-w7d2c - "YnabClient.createTransactions hat keinen Aufrufer mehr und fliegt raus"
+**Parallel:** scoped, Nachtlauf: builder named budgeting-dgrp7, ledger-z71ka, infrastructure-w7d2c (3 workers); budgeting-dkjc5 folgt nach dgrp7
+
+---
+
 ## 2026-11-05 21:39 -- Modeling / Promoted: infrastructure-w7d2c - "YnabClient.createTransactions hat keinen Aufrufer mehr und fliegt raus"
 
 **Type:** Modeling / Promote

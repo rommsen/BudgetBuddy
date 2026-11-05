@@ -1,7 +1,7 @@
 ---
 id: infrastructure-w7d2c
 title: "YnabClient.createTransactions hat keinen Aufrufer mehr und fliegt raus"
-status: todo
+status: doing
 type: chore
 context: infrastructure
 created: 2026-11-01

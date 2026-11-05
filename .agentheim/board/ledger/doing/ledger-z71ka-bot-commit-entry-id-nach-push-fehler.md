@@ -1,7 +1,7 @@
 ---
 id: ledger-z71ka
 title: "Bot-Commit: entry_id auch nach gescheitertem Push, und ein abgebrochener Commit ist wiederholbar, ohne doppelt zu buchen"
-status: todo
+status: doing
 type: bug
 context: ledger
 created: 2026-10-29
