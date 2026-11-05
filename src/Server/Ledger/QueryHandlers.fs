@@ -732,3 +732,26 @@ let getCategoryMonthlyActivity (categoryId: YnabCategoryId) (firstDays: DateTime
             let! entries = Ledger.Persistence.loadCategoryEntries categoryId first lastDay
             return monthlyActivity categoryId entries
     }
+
+/// Die Netto-Aktivität mehrerer Kategorien in den Monaten ab `firstDays` (aufsteigend), in einer Abfrage für
+/// alle (budgeting-p2zr6, Targets prüfen). Je Kategorie wie `monthlyActivity`, also mit Split-Anteil und ohne
+/// Überträge. Eine Kategorie ohne Buchung fehlt in der Map.
+let getMonthlyActivityByCategory (categoryIds: Guid list) (firstDays: DateTime list) : Async<Map<Guid, (DateTime * Money) list>> =
+    async {
+        match firstDays, categoryIds with
+        | [], _
+        | _, [] -> return Map.empty
+        | _ ->
+            let first = List.min firstDays
+            let last = List.max firstDays
+            let lastDay = DateTime(last.Year, last.Month, DateTime.DaysInMonth(last.Year, last.Month))
+            let! entries = Ledger.Persistence.loadCategoriesEntries categoryIds first lastDay
+            return
+                categoryIds
+                |> List.distinct
+                |> List.choose (fun id ->
+                    match monthlyActivity (YnabCategoryId id) entries with
+                    | [] -> None
+                    | sums -> Some (id, sums))
+                |> Map.ofList
+    }

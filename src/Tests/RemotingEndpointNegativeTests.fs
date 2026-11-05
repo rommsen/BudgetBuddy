@@ -437,6 +437,17 @@ let private rows : Row list = [
         | Error message -> failtestf "leere Historie erwartet: %s" message }
     { Endpoint = "BudgetApi.getBudgetHistory"; Case = "ohne Einrichtung eine Liste, keine Ausnahme, kein YNAB"
       Run = fun () -> Expect.isOk (budget.getBudgetHistory () |> run) "liest nur die Datenbank" }
+    { Endpoint = "BudgetApi.getTargetCheck"; Case = "ohne Einrichtung: Fehler statt Ausnahme"
+      Run = fun () ->
+          // Die Settings als Parameter: in der geteilten Datenbank könnte ein anderer Test ein Token setzen.
+          let unconfigured =
+              Server.Api.budgetApiWith
+                  (fun _ -> async { return None })
+                  (fun _ _ -> failwith "ohne Einrichtung kein Port")
+                  (fun _ _ -> failwith "ohne Einrichtung kein Rahmen")
+                  (fun () -> DateTime(2026, 11, 5, 9, 0, 0, DateTimeKind.Utc))
+                  (TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin")
+          Expect.equal (unconfigured.getTargetCheck () |> run) (Error "Kein YNAB-Token eingerichtet (Settings)") "fehlende Einrichtung" }
     { Endpoint = "BudgetApi.retryFailedTargets"; Case = "keine gültige Anwendungs-Id: Fehler"
       Run = fun () -> budget.retryFailedTargets "keine-guid" |> run |> expectError "Wiederholen" }
 ]

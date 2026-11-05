@@ -1,7 +1,7 @@
 ---
 id: budgeting-p2zr6
 title: "Targets prüfen, Regel und Daten: reine Einordnungsfunktion in Shared.Budgeting und Endpoint getTargetCheck mit einer Kassenbuch-Abfrage für alle Kategorien und der letzten Target-Änderung je Kategorie"
-status: doing
+status: done
 type: feature
 context: budgeting
 created: 2026-11-04
@@ -83,3 +83,24 @@ Kein `depends_on` auf design-system-001: diese Task hat keine Oberfläche. budge
 Die Einordnung läuft im Client, nicht auf dem Server (ADR 0082 Punkt 12): nach einem Schreiben rechnet derselbe Code die Zeile neu. Der Server liefert deshalb alle 12 Monate und das Datum der letzten Änderung, die Auswahl der gezählten Monate trifft die reine Funktion.
 
 Nicht entschieden und hier nicht gebaut: ein Beginn des Kassenbuchs (Monate vor der ältesten Buchung zählen mit 0, ADR 0082 Negative).
+
+## Outcome
+
+Regel und Daten für "Targets prüfen" (ADR 0082) sind gebaut. Die Seite selbst folgt in budgeting-q4v8n.
+
+**Regel (rein, Fable-tauglich)** in `src/Shared/Budgeting.fs`, Abschnitt "Targets prüfen":
+- Typen `TargetChangeMark`, `TargetCheckSource`, `TargetCheckData`, `CheckGroup` (mit `checkGroupOrder` und `checkGroupText`), `FitsNote` (mit `fitsNoteText`, das Datum über `dateText`), `TargetSuggestion`, `TargetCheckRow` (Gruppe, Zusatz, Monatswert, Ø, gezählte Monate für `spendingBars`, `MonthsOver`, `MonthsWithSpending`, Vorschlag).
+- `monthlyValue`, `suggestTarget`, `targetCheckRow`, `targetCheckGroups`, `withWrittenTarget`. MF gilt unabhängig von der gelesenen Kadenz als monatlich. Einen Vorschlag gibt es nur bei mehr, weniger und Kein Target. Die Seite kann `suggestTarget` für andere Fälle (etwa "Anpassen …" bei Passt) selbst aufrufen.
+
+**Daten:**
+- `Ledger.QueryHandlers.getMonthlyActivityByCategory`: eine Abfrage über `Ledger.Persistence.loadCategoriesEntries` (Filter `CategoryIds` mit `IN`), je Kategorie über `monthlyActivity`. `loadCategoryEntries` ruft jetzt `loadCategoriesEntries [id]` auf. So bleibt es bei sechs Aufrufen von `loadAllMatching`, wie der Strukturtest AC13 in `LedgerPageTests.fs` verlangt. Sein Kommentar nennt noch `loadCategoryEntries` als sechsten Aufruf, gezählt ist jetzt `loadCategoriesEntries`.
+- `Budgeting.Persistence.queryLastTargetChanges` und `loadLastTargetChanges`: je Kategorie die jüngste Änderung (nach `occurred_at`, dann `rowid`), deren jüngstes Ergebnis von Schritt 1 geschrieben ist (`COALESCE(step, 1) = 1`). Der Tag ist der Berliner Kalendertag über `berlinTime`. Eine unbekannte Art kommt als Error.
+- `Server.Budgeting.QueryHandlers.TargetCheckPort`, `targetCheck` und `liveTargetCheckPort`. `budgetMonth` ist auf `budgetMonthOf fetchMonth` zurückgeführt (dieselbe Filterung und dieselben Pausen). Dazu `Server.Budgeting.Domain.targetCheckMonths`. Lesefehler kommen als "Ausgaben aus dem Kassenbuch nicht lesbar", `TargetChangesUnreadableText` oder mit dem YNAB-Text (`ynabErrorText`).
+- Endpoint `BudgetApi.getTargetCheck` (`src/Shared/Api.fs`), angeschlossen in `budgetApiWith` über `targetCheckWith` (`src/Server/Api.fs`) mit dem `FetchMonth` aus `portFor`, der Uhr und der Berliner Zone. Die Signatur von `budgetApiWith` ist unverändert. Kein bestehender Shared-Record hat ein neues Pflichtfeld, die Fixtures bleiben unberührt.
+
+**Tests:**
+- `src/Tests/TargetCheckTests.fs`: Domain, alle Grenzfälle aus den Akzeptanzkriterien, dazu die FsCheck-Eigenschaft zum Invariant aus ADR 0082 Punkt 9.
+- `src/Tests/TargetCheckQueryTests.fs`: Kassenbuch-Abfrage gegen In-Memory-SQLite; letzte Änderung auf einer eigenen `:memory:`-Verbindung, damit eine unbekannte Art nicht in der geteilten DB liegen bleibt; Handler über den Port mit Zähler; Endpoint-Verdrahtung über `budgetApiWith`, mit 23:30 UTC am 31.10., in Berlin schon der 01.11.
+- Neue Zeile in `RemotingEndpointNegativeTests.fs`.
+
+Der erste `./verify.sh`-Lauf war rot. Ursache 1 war der Strukturtest AC13 (behoben, siehe oben). Ursache 2 war ein UNIQUE-Fehler aus `rebuildSplitIndexes` in `initializeLedgerSchema`, als parallele Tests das Schema zur selben Zeit initialisierten. Die Handler-Tests initialisieren das Kassenbuch-Schema jetzt nicht mehr. Die Kassenbuch-Tests rufen es weiter auf, wie `BudgetHistoryTests`. Dieses Rennen gab es schon vorher. Zweiter Lauf: `VERIFY: PASS` (dotnet 3854, node 310).

@@ -1213,10 +1213,17 @@ let private loadAllMatching (accountId: LedgerAccountId option) (filter: EntryFi
         return rows |> Seq.map rowToEntry |> Seq.toList
     }
 
+/// Die Buchungen mehrerer Kategorien (eigene oder als Split-Zeile) zwischen zwei Kalendertagen, beide
+/// einschließlich, ohne in YNAB gelöschte, in einer Abfrage (budgeting-p2zr6). Ohne Kategorie keine Abfrage.
+let loadCategoriesEntries (categoryIds: Guid list) (firstDay: DateTime) (lastDay: DateTime) : Async<Entry list> =
+    match categoryIds with
+    | [] -> async { return [] }
+    | ids -> loadAllMatching None { noFilter with CategoryIds = ids; DateFrom = Some firstDay; DateTo = Some lastDay }
+
 /// Die Buchungen einer Kategorie (eigene oder als Split-Zeile) zwischen zwei Kalendertagen, beide
 /// einschließlich, ohne in YNAB gelöschte, neueste zuerst (budgeting-m1bce).
 let loadCategoryEntries (YnabCategoryId categoryId) (firstDay: DateTime) (lastDay: DateTime) : Async<Entry list> =
-    loadAllMatching None { noFilter with CategoryIds = [ categoryId ]; DateFrom = Some firstDay; DateTo = Some lastDay }
+    loadCategoriesEntries [ categoryId ] firstDay lastDay
 
 let private safePage (offset: int) (pageSize: int) (xs: Entry list) : Entry list =
     if offset >= List.length xs then [] else xs |> List.skip offset |> List.truncate pageSize

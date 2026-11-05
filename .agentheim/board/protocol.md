@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 09:53 -- Task verified and completed: budgeting-p2zr6 - "Targets prüfen, Regel und Daten: reine Einordnungsfunktion in Shared.Budgeting und Endpoint getTargetCheck mit einer Kassenbuch-Abfrage für alle Kategorien und der letzten Target-Änderung je Kategorie"
+
+**Type:** Work / Task completion
+**Task:** budgeting-p2zr6 - "Targets prüfen, Regel und Daten: reine Einordnungsfunktion in Shared.Budgeting und Endpoint getTargetCheck mit einer Kassenbuch-Abfrage für alle Kategorien und der letzten Target-Änderung je Kategorie"
+**Summary:** Target-Prüfung als reine Regel in Shared.Budgeting und Endpoint getTargetCheck mit einer Kassenbuch-Abfrage für alle Kategorien
+**Duration:** 36m
+**Verification:** PASS (iteration 1)
+**Files changed:** 12
+**Tests added:** 47
+**ADRs written:** none
+
+---
+
 ## 2026-11-05 09:50 -- Task verified and completed: budgeting-r7k2m - "Target-Formular aus dem Tab Target herauslösen, damit die Seite Targets prüfen es im Panel nutzen kann, ohne Verhaltensänderung im Tab"
 
 **Type:** Work / Task completion

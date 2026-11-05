@@ -11,17 +11,21 @@ open Server.Budgeting.Domain
 let private logReadFailure (what: string) (ex: exn) : unit =
     Budgeting.Persistence.logReadFailure what ex.Message
 
-/// Liest einen Monat für die Budget-Seite, mit den BB-Pausen des Monats (ADR 0079). Eine Pause gilt nur
+/// Liest einen Monat über `fetchMonth`, mit den BB-Pausen des Monats (ADR 0079). Eine Pause gilt nur
 /// für ihren Monat, der Folgemonat liest seine eigenen (ADR 0073 Punkt 3).
-let budgetMonth (port: CommandHandlers.YnabPort) (monthKey: string) : Async<YnabResult<BudgetMonth>> =
+let budgetMonthOf (fetchMonth: string -> Async<YnabResult<YnabMonth>>) (monthKey: string) : Async<YnabResult<BudgetMonth>> =
     async {
-        match! port.FetchMonth monthKey with
+        match! fetchMonth monthKey with
         | Error e -> return Error e
         | Ok month ->
             match! Budgeting.Persistence.loadPausedCategories monthKey with
             | Error message -> return Error (YnabError.LocalReadFailed message)
             | Ok paused -> return Ok (toBudgetMonth paused month)
     }
+
+/// Liest einen Monat für die Budget-Seite über den YNAB-Port (`budgetMonthOf`).
+let budgetMonth (port: CommandHandlers.YnabPort) (monthKey: string) : Async<YnabResult<BudgetMonth>> =
+    budgetMonthOf port.FetchMonth monthKey
 
 /// Wie viele Kategorien "Zuletzt verwendet" liest. Mehr als der Picker zeigt: X und ausgeblendete
 /// Kategorien fallen dort noch heraus.
@@ -144,3 +148,78 @@ let liveHistoryPort : HistoryPort =
       LoadTargetChanges = Budgeting.Persistence.loadTargetChanges
       LoadMonthlyActivity =
         fun categoryId months -> Ledger.QueryHandlers.getCategoryMonthlyActivity (YnabCategoryId categoryId) months }
+
+// ============================================
+// Targets prüfen (budgeting-p2zr6, ADR 0082)
+// ============================================
+
+/// Die Lese-Quellen von Targets prüfen: der laufende Monat aus YNAB, die Monatssummen aller sichtbaren
+/// Kategorien aus dem Kassenbuch in einer Abfrage und die letzte Target-Änderung je Kategorie. Kein Schreiben.
+type TargetCheckPort = {
+    FetchMonth: string -> Async<YnabResult<YnabMonth>>
+    /// Kategorien und Monatserste (aufsteigend): je Kategorie die Netto-Aktivität der Monate mit Buchungen.
+    LoadMonthlyActivity: Guid list -> DateTime list -> Async<Map<Guid, (DateTime * Money) list>>
+    /// Je Kategorie die jüngste geschriebene Target-Änderung.
+    LoadLastTargetChanges: unit -> Async<Result<Map<Guid, TargetChangeMark>, string>>
+}
+
+/// Die Meldung, wenn die Ausgaben aus dem Kassenbuch nicht lesbar sind (wie im Tab Historie).
+[<Literal>]
+let SpendingUnreadableText = "Ausgaben aus dem Kassenbuch nicht lesbar"
+
+/// Die Rohdaten von Targets prüfen für den laufenden Monat (`today`, Berliner Kalendertag): die sichtbaren
+/// Kategorien aus YNAB (dieselbe Filterung wie die Budget-Seite), die 12 vollen Monate vor dem laufenden aus
+/// einer Kassenbuch-Abfrage und die letzte Änderung je Kategorie. Jeder Lesefehler kommt als `Error` mit Text.
+let targetCheck (port: TargetCheckPort) (today: DateOnly) : Async<Result<TargetCheckData, string>> =
+    async {
+        let monthKey = currentMonthKey today
+        match! budgetMonthOf port.FetchMonth monthKey with
+        | Error e -> return Error (ynabErrorText e)
+        | Ok month ->
+            let categories =
+                month.Groups |> List.collect (fun g -> g.Categories |> List.map (fun c -> g.Name, c))
+            let months = targetCheckMonths (today.ToDateTime TimeOnly.MinValue)
+            let ids = categories |> List.map (fun (_, c) -> c.Id)
+            let! sums =
+                async {
+                    try
+                        let! sums = port.LoadMonthlyActivity ids months
+                        return Ok sums
+                    with ex ->
+                        logReadFailure "Ausgaben aus dem Kassenbuch lesen" ex
+                        return Error SpendingUnreadableText
+                }
+            let! marks =
+                async {
+                    try
+                        return! port.LoadLastTargetChanges ()
+                    with ex ->
+                        logReadFailure "Letzte Target-Änderungen lesen" ex
+                        return Error Budgeting.Persistence.TargetChangesUnreadableText
+                }
+            match sums, marks with
+            | Error message, _
+            | _, Error message -> return Error message
+            | Ok sums, Ok marks ->
+                let sources : TargetCheckSource list =
+                    categories
+                    |> List.map (fun (groupName, c) ->
+                        { CategoryId = c.Id
+                          Name = c.Name
+                          GroupName = groupName
+                          Target = c.Target
+                          Spending = spendingOf months (sums |> Map.tryFind c.Id |> Option.defaultValue [])
+                          LastChange = marks |> Map.tryFind c.Id })
+                return
+                    Ok
+                        { Month = monthKey
+                          Today = today.ToString("yyyy-MM-dd", Globalization.CultureInfo.InvariantCulture)
+                          Categories = sources }
+    }
+
+/// Die echten Lese-Quellen von Targets prüfen: der Monat über `fetchMonth` (YNAB), Kassenbuch und
+/// `target_changes` aus der Datenbank.
+let liveTargetCheckPort (fetchMonth: string -> Async<YnabResult<YnabMonth>>) : TargetCheckPort =
+    { FetchMonth = fetchMonth
+      LoadMonthlyActivity = Ledger.QueryHandlers.getMonthlyActivityByCategory
+      LoadLastTargetChanges = Budgeting.Persistence.loadLastTargetChanges }

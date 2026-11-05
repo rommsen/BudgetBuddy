@@ -1035,3 +1035,275 @@ let spendingBars (currentMonth: string) (spending: MonthSpending list) : Spendin
           Spending = { s.Activity with Amount = amount }
           Percent = percent
           Kind = monthKind currentMonth s.Month })
+
+// ============================================
+// Targets prüfen (budgeting-p2zr6, ADR 0082)
+// ============================================
+
+/// Die letzte in BB geschriebene Target-Änderung einer Kategorie (ADR 0082 Punkt 7): der Berliner
+/// Kalendertag "YYYY-MM-DD" und ob sie das Target entfernt hat.
+type TargetChangeMark = {
+    Day: string
+    Removed: bool
+}
+
+/// Eine sichtbare Kategorie des laufenden Monats mit ihren Rohdaten für die Target-Prüfung.
+type TargetCheckSource = {
+    CategoryId: Guid
+    Name: string
+    GroupName: string
+    Target: Target option
+    /// Die 12 vollen Monate vor dem laufenden, aufsteigend, je Monat genau ein Eintrag, 0 ohne Buchung.
+    Spending: MonthSpending list
+    /// Die jüngste geschriebene Target-Änderung über BB. `None`: keine.
+    LastChange: TargetChangeMark option
+}
+
+/// Die Antwort von `getTargetCheck`: Rohdaten, die Einordnung rechnet der Client (ADR 0082 Punkt 12).
+type TargetCheckData = {
+    /// Der laufende Monat "YYYY-MM-01".
+    Month: string
+    /// Der Berliner Tag "YYYY-MM-DD". Mit ihm rechnet der Client nach einem Schreiben (`withWrittenTarget`).
+    Today: string
+    Categories: TargetCheckSource list
+}
+
+/// Die Gruppe einer Kategorie auf der Seite Targets prüfen, in der Reihenfolge von ADR 0082 Punkt 3.
+type CheckGroup =
+    | SpendsMore
+    | SpendsLess
+    | NeverSpends
+    | WithoutTarget
+    | Fits
+
+/// Die Gruppen in der Reihenfolge der Seite.
+let checkGroupOrder : CheckGroup list = [ SpendsMore; SpendsLess; NeverSpends; WithoutTarget; Fits ]
+
+/// Der Satz über einer Gruppe.
+let checkGroupText (group: CheckGroup) : string =
+    match group with
+    | SpendsMore -> "Gibst du mehr aus?"
+    | SpendsLess -> "Gibst du weniger aus?"
+    | NeverSpends -> "Gibst du nie aus?"
+    | WithoutTarget -> "Kein Target"
+    | Fits -> "Passt"
+
+/// Warum eine Zeile bei "Passt" ohne Einordnung steht (ADR 0082 Punkt 5 und 7). Der Tag als "YYYY-MM-DD".
+type FitsNote =
+    /// Weniger gezählte Monate als nötig seit einer Änderung.
+    | RecentlySet of day: string
+    /// Weniger gezählte Monate als nötig seit dem Entfernen.
+    | RecentlyRemoved of day: string
+    /// TB und TBD: ein Guthaben, das wachsen soll.
+    | SavingsGoalNotChecked
+    /// DEBT, eine unbekannte Art, ein Target ohne Rhythmus oder ein Rhythmus über 12 Monate.
+    | NotChecked
+
+/// Der Zusatz in der Zeile: "neu gesetzt am 05.11.2026", "entfernt am 05.11.2026", "Sparziel, wird nicht
+/// geprüft", "wird nicht geprüft".
+let fitsNoteText (note: FitsNote) : string =
+    match note with
+    | RecentlySet day -> $"neu gesetzt am {dateText day}"
+    | RecentlyRemoved day -> $"entfernt am {dateText day}"
+    | SavingsGoalNotChecked -> "Sparziel, wird nicht geprüft"
+    | NotChecked -> "wird nicht geprüft"
+
+/// Der Vorschlag zu einer Zeile (ADR 0082 Punkt 9 und 10).
+type TargetSuggestion = {
+    /// Ø auf volle 5 € aufgerundet.
+    Monthly: Money
+    /// Der Betrag im Rhythmus des Targets, den Übernehmen sendet.
+    InRhythm: Money
+    /// Der fertige Entwurf für `changeCategoryTarget`.
+    Draft: TargetDraft
+}
+
+/// Eine eingeordnete Kategorie.
+type TargetCheckRow = {
+    CategoryId: Guid
+    Name: string
+    GroupName: string
+    Target: Target option
+    Group: CheckGroup
+    /// Nur bei "Passt" ohne Einordnung.
+    Note: FitsNote option
+    /// Das Target auf einen Monat umgerechnet (`monthlyValue`).
+    Monthly: Money option
+    /// Ø der Netto-Ausgaben über die gezählten Monate. `None` ohne gezählten Monat.
+    Average: Money option
+    /// Die gezählten Monate, aufsteigend. Die Balken daraus mit `spendingBars`.
+    CountedMonths: MonthSpending list
+    /// Monate mit Netto-Ausgaben über dem Monatswert, 0 ohne Monatswert.
+    MonthsOver: int
+    /// Monate mit Netto-Ausgaben über 0.
+    MonthsWithSpending: int
+    /// Nur bei "mehr", "weniger" und "Kein Target".
+    Suggestion: TargetSuggestion option
+}
+
+let private euro (amount: decimal) : Money = { Amount = amount; Currency = TargetCurrency }
+
+/// Hat das Target einen belastbaren Monatswert? TB, TBD, DEBT, unbekannte Arten und NEED ohne Rhythmus
+/// nicht (ADR 0082 Punkt 5). MF gilt immer als monatlich.
+let private checkedRhythm (target: Target) : TargetRhythm option =
+    match target.Kind, target.Rhythm with
+    | MonthlyFunding, _ -> Some (Months 1)
+    | Need, NoRhythm -> None
+    | Need, rhythm -> Some rhythm
+    | (TargetBalance | TargetBalanceByDate | Debt | OtherKind _), _ -> None
+
+/// Das Target auf einen Monat umgerechnet (ADR 0082 Punkt 4): monatlich und MF bleiben, alle n Monate ÷ n,
+/// alle n Jahre ÷ 12n, alle n Wochen × 52 ÷ 12n. Ohne Rundung. `None` bei einer Art ohne Monatswert.
+let monthlyValue (target: Target) : Money option =
+    checkedRhythm target
+    |> Option.bind (fun rhythm ->
+        match rhythm with
+        | Months n when n > 0 -> Some (target.Goal.Amount / decimal n)
+        | Years n when n > 0 -> Some (target.Goal.Amount / decimal (12 * n))
+        | Weeks n when n > 0 -> Some (target.Goal.Amount * 52m / decimal (12 * n))
+        | _ -> None)
+    |> Option.map (fun amount -> { target.Goal with Amount = amount })
+
+/// Die Periode P eines Rhythmus in Monaten (ADR 0082 Punkt 7).
+let private periodMonths (rhythm: TargetRhythm) : int =
+    match rhythm with
+    | Months n -> max 1 n
+    | Years n -> 12 * max 1 n
+    | Weeks _
+    | NoRhythm -> 1
+
+/// "YYYY-MM-01" zu einem Tag "YYYY-MM-DD".
+let private monthOfDay (day: string) : string = day.Substring(0, 7) + "-01"
+
+/// Der Vorschlag aus Ø (ADR 0082 Punkt 9): Ø auf volle 5 € aufgerundet als Monatswert, zurückgerechnet in
+/// den Rhythmus des Targets. Alle n Wochen kaufmännisch auf volle Euro, mindestens 1 €. Ohne Target ein
+/// monatliches NEED. Ø ≤ 0 ergibt keinen Vorschlag.
+let suggestTarget (target: Target option) (average: Money) : TargetSuggestion option =
+    if average.Amount <= 0m then
+        None
+    else
+        let monthly = Math.Ceiling(average.Amount / 5m) * 5m
+        match target with
+        | None ->
+            Some
+                { Monthly = euro monthly
+                  InRhythm = euro monthly
+                  Draft = { NewGoal = euro monthly; NewDate = None; NewRhythm = SetRhythm Monthly } }
+        | Some t ->
+            let inRhythm =
+                match checkedRhythm t |> Option.defaultValue (Months 1) with
+                | Months n -> monthly * decimal (max 1 n)
+                | Years n -> monthly * decimal (12 * max 1 n)
+                | Weeks n ->
+                    let weekly = Math.Round(monthly * decimal (12 * max 1 n) / 52m, MidpointRounding.AwayFromZero)
+                    max 1m weekly
+                | NoRhythm -> monthly
+            Some
+                { Monthly = euro monthly
+                  InRhythm = euro inRhythm
+                  Draft = { NewGoal = euro inRhythm; NewDate = t.Date; NewRhythm = KeepRhythm } }
+
+/// Ordnet eine Kategorie ein (ADR 0082 Punkt 6 bis 9). `today` ist der Berliner Tag "YYYY-MM-DD", der
+/// laufende Monat folgt daraus und zählt nie. Rein, gleich unter .NET und Fable.
+let targetCheckRow (today: string) (source: TargetCheckSource) : TargetCheckRow =
+    let current = monthOfDay today
+    let changeMonth = source.LastChange |> Option.map (fun mark -> monthOfDay mark.Day)
+    let counted =
+        source.Spending
+        |> List.filter (fun s ->
+            s.Month < current && (changeMonth |> Option.forall (fun changed -> s.Month > changed)))
+        |> List.rev
+        |> List.truncate 12
+        |> List.rev
+    let n = List.length counted
+    let spent (s: MonthSpending) = -s.Activity.Amount
+    let monthly = source.Target |> Option.bind monthlyValue
+    let average =
+        if n = 0 then None
+        else Some (euro ((counted |> List.sumBy spent) / decimal n))
+    let monthsWithSpending = counted |> List.filter (fun s -> spent s > 0m) |> List.length
+    let monthsOver =
+        match monthly with
+        | Some m -> counted |> List.filter (fun s -> spent s > m.Amount) |> List.length
+        | None -> 0
+    let period =
+        source.Target |> Option.bind checkedRhythm |> Option.map periodMonths |> Option.defaultValue 1
+    let notChecked =
+        match source.Target with
+        | Some { Kind = TargetBalance }
+        | Some { Kind = TargetBalanceByDate } -> Some SavingsGoalNotChecked
+        | Some _ when monthly.IsNone -> Some NotChecked
+        | Some _ when period > 12 -> Some NotChecked
+        | _ -> None
+    let tooFew =
+        let needed = if period > 3 then period else 3
+        match source.LastChange with
+        | Some mark when n < needed -> Some (if mark.Removed then RecentlyRemoved mark.Day else RecentlySet mark.Day)
+        | _ -> None
+    let avg = average |> Option.map (fun a -> a.Amount) |> Option.defaultValue 0m
+    let group, note =
+        match notChecked, tooFew with
+        | Some note, _
+        | None, Some note -> Fits, Some note
+        | None, None ->
+            match monthly with
+            | Some m ->
+                let never = if period = 1 then monthsWithSpending <= 1 else monthsWithSpending = 0
+                let more =
+                    avg > 1.1m * m.Amount
+                    && avg - m.Amount >= 10m
+                    && (period > 1 || 2 * monthsOver >= n)
+                let less = avg < 0.7m * m.Amount && m.Amount - avg >= 10m
+                if never then NeverSpends, None
+                elif more then SpendsMore, None
+                elif less then SpendsLess, None
+                else Fits, None
+            | None ->
+                if monthsWithSpending >= 3 && avg >= 10m then WithoutTarget, None else Fits, None
+    let suggestion =
+        match group, average with
+        | (SpendsMore | SpendsLess | WithoutTarget), Some a -> suggestTarget source.Target a
+        | _ -> None
+    { CategoryId = source.CategoryId
+      Name = source.Name
+      GroupName = source.GroupName
+      Target = source.Target
+      Group = group
+      Note = note
+      Monthly = monthly
+      Average = average
+      CountedMonths = counted
+      MonthsOver = monthsOver
+      MonthsWithSpending = monthsWithSpending
+      Suggestion = suggestion }
+
+/// Die Zeilen nach Gruppe in der Reihenfolge von ADR 0082 Punkt 3, leere Gruppen fehlen. In der Gruppe:
+/// "mehr" nach Ø − Monatswert absteigend, "weniger" nach Monatswert − Ø absteigend, "Kein Target" nach Ø
+/// absteigend, "nie" und "Passt" nach Name. Bei gleichem Abstand entscheidet der Name.
+let targetCheckGroups (today: string) (data: TargetCheckData) : (CheckGroup * TargetCheckRow list) list =
+    let rows = data.Categories |> List.map (targetCheckRow today)
+    let amountOf (m: Money option) = m |> Option.map (fun x -> x.Amount) |> Option.defaultValue 0m
+    let gap (row: TargetCheckRow) =
+        match row.Group with
+        | SpendsMore -> amountOf row.Average - amountOf row.Monthly
+        | SpendsLess -> amountOf row.Monthly - amountOf row.Average
+        | WithoutTarget -> amountOf row.Average
+        | NeverSpends
+        | Fits -> 0m
+    checkGroupOrder
+    |> List.choose (fun group ->
+        match rows |> List.filter (fun r -> r.Group = group) with
+        | [] -> None
+        | members -> Some (group, members |> List.sortBy (fun r -> -(gap r), r.Name)))
+
+/// Nach einem Schreiben (ADR 0082 Punkt 10): das Target aus der Antwort und `Today` als letzte Änderung,
+/// `None` heißt entfernt. Andere Kategorien bleiben, wie sie sind.
+let withWrittenTarget (categoryId: Guid) (target: Target option) (data: TargetCheckData) : TargetCheckData =
+    { data with
+        Categories =
+            data.Categories
+            |> List.map (fun c ->
+                if c.CategoryId = categoryId then
+                    { c with Target = target; LastChange = Some { Day = data.Today; Removed = target.IsNone } }
+                else
+                    c) }

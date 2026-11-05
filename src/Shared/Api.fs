@@ -565,4 +565,11 @@ type BudgetApi = {
     /// fasst sie zu Durchläufen zusammen (`historyRuns`). Liest nur die Datenbank, kein YNAB. Die Antwort ist
     /// heute unbegrenzt: sie trägt jede Bewegung seit Beginn der Aufzeichnung (Folgeaufgabe budgeting-q8m2v).
     getBudgetHistory: unit -> Async<Result<Shared.Budgeting.HistoryMovement list, string>>
+
+    /// Targets prüfen (budgeting-p2zr6, ADR 0082): die Rohdaten für den laufenden Monat nach Berliner
+    /// Kalender. Die sichtbaren Kategorien mit Target aus YNAB, je Kategorie die Ausgaben der 12 vollen
+    /// Monate davor aus dem Kassenbuch und die letzte in BB geschriebene Target-Änderung, dazu der heutige
+    /// Tag. Eingeordnet wird im Client (`targetCheckGroups`). Schreibt nichts. Error mit lesbarer Meldung bei
+    /// fehlender Einrichtung, YNAB-Fehlern und Lesefehlern der Datenbank.
+    getTargetCheck: unit -> Async<Result<Shared.Budgeting.TargetCheckData, string>>
 }

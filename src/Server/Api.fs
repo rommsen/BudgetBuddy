@@ -1882,6 +1882,24 @@ let categoryHistoryWith
         | Ok firstDay -> return! Server.Budgeting.QueryHandlers.categoryHistory port query.CategoryId firstDay
     }
 
+/// Targets prüfen ohne Settings und Netz (budgeting-p2zr6): über Token und Budget den Port bauen, dann
+/// lesen. `today` ist der Berliner Kalendertag.
+let targetCheckWith
+    (tokenOpt: string option)
+    (budgetOpt: string option)
+    (portFor: string -> YnabBudgetId -> Server.Budgeting.QueryHandlers.TargetCheckPort)
+    (today: DateOnly)
+    : Async<Result<Shared.Budgeting.TargetCheckData, string>> =
+    async {
+        let! result =
+            withYnabPort tokenOpt budgetOpt portFor (fun port ->
+                async {
+                    let! data = Server.Budgeting.QueryHandlers.targetCheck port today
+                    return Ok data
+                })
+        return result |> Result.bind id
+    }
+
 /// Der YNAB-Port der Server-Abläufe: echter Client für Lesen, Zuweisen und Target schreiben.
 let private livePort (token: string) (budgetId: YnabBudgetId) : Server.Budgeting.CommandHandlers.YnabPort =
     { FetchMonth = fun monthKey -> YnabClient.getMonth token budgetId monthKey
@@ -1975,7 +1993,14 @@ let budgetApiWith
 
       getCategoryHistory = categoryHistoryWith Server.Budgeting.QueryHandlers.liveHistoryPort
 
-      getBudgetHistory = fun () -> Server.Budgeting.QueryHandlers.budgetHistory Server.Budgeting.QueryHandlers.liveHistoryPort }
+      getBudgetHistory = fun () -> Server.Budgeting.QueryHandlers.budgetHistory Server.Budgeting.QueryHandlers.liveHistoryPort
+
+      getTargetCheck = fun () -> async {
+        let! tokenOpt, budgetOpt = ynabSettings ()
+        let portFor token budgetId =
+            Server.Budgeting.QueryHandlers.liveTargetCheckPort (portFor token budgetId).FetchMonth
+        return! targetCheckWith tokenOpt budgetOpt portFor (today ())
+      } }
 
 /// Die Budget-Seite mit den echten YNAB-Ports. Die Settings kommen als Parameter, damit der
 /// Integrationstest den Live-Anschluss ohne Eintrag in der Datenbank prüfen kann.

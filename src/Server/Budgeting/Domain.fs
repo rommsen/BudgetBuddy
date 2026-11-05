@@ -459,6 +459,15 @@ let spendingMonths (shown: DateTime) : DateTime list =
           if i >= 12 then
               DateTime(i / 12, i % 12 + 1, 1) ]
 
+/// Die Monatserste von Targets prüfen (budgeting-p2zr6, ADR 0082 Punkt 7): die 12 vollen Monate vor dem
+/// Monat von `today`, aufsteigend, der laufende nie. Vor dem Januar des Jahres 1 werden es weniger.
+let targetCheckMonths (today: DateTime) : DateTime list =
+    let index = today.Year * 12 + today.Month - 1
+    [ for back in 12 .. -1 .. 1 do
+          let i = index - back
+          if i >= 12 then
+              DateTime(i / 12, i % 12 + 1, 1) ]
+
 /// Welche Bewegungen die Historie liest (budgeting-dyn8g). `None` heißt: ohne diese Einschränkung.
 /// budgeting-h7q4v liest so alle Kategorien und filtert nach Herkunft.
 type MovementFilter = {

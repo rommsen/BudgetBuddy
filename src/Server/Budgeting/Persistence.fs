@@ -612,3 +612,57 @@ let loadTargetChanges (categoryId: Guid) (month: string) : Async<Result<HistoryT
             logReadFailure "Target-Änderungen lesen" ex.Message
             return Error TargetChangesUnreadableText
     }
+
+[<CLIMutable>]
+type private LastTargetChangeRow = {
+    row_order: int64
+    occurred_at: string
+    category_id: string
+    change_kind: string
+    new_frequency: string option
+}
+
+/// Je Kategorie die jüngste Target-Änderung, deren jüngstes Ergebnis von Schritt 1 geschrieben ist (Targets
+/// prüfen, budgeting-p2zr6, ADR 0082 Punkt 7). Ein Ergebnis ohne Schritt zählt als Schritt 1 wie in
+/// `queryTargetChanges`, Schritt 2 zählt nicht. Jüngste nach `occurred_at`, bei gleichem Zeitpunkt nach
+/// `rowid`. Der Tag ist der Berliner Kalendertag "YYYY-MM-DD" (`berlinTime`). Eine unbekannte Art wird
+/// gemeldet, nicht auf einen Standard gelegt.
+let queryLastTargetChanges (conn: SqliteConnection) : Result<Map<Guid, TargetChangeMark>, string> =
+    conn.Query<LastTargetChangeRow>(
+        "SELECT c.rowid AS row_order, c.occurred_at, c.category_id, c.change_kind, c.new_frequency \
+         FROM target_changes c \
+         JOIN target_change_results r1 \
+           ON r1.sequence = (SELECT MAX(sequence) FROM target_change_results \
+                             WHERE change_id = c.id AND COALESCE(step, 1) = 1) \
+         WHERE r1.status = 'written'"
+    )
+    |> Seq.toList
+    |> List.map (fun r ->
+        targetChangeKindOfText r.change_kind r.new_frequency
+        |> Result.map (fun kind -> Guid.Parse r.category_id, dateFromText r.occurred_at, r.row_order, kind))
+    |> collectRows
+    |> Result.map (fun changes ->
+        changes
+        |> List.groupBy (fun (categoryId, _, _, _) -> categoryId)
+        |> List.map (fun (categoryId, rows) ->
+            let _, at, _, kind = rows |> List.maxBy (fun (_, at, order, _) -> at, order)
+            let day = (berlinTime at).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+            categoryId, { Day = day; Removed = (kind = TargetRemoved) })
+        |> Map.ofList)
+
+/// Die letzten Target-Änderungen aller Kategorien für Targets prüfen. Liest nur die Datenbank. Ein
+/// Lesefehler oder eine unbekannte Art kommt als `Error` mit `TargetChangesUnreadableText`, die Ursache
+/// bleibt im Server-Log.
+let loadLastTargetChanges () : Async<Result<Map<Guid, TargetChangeMark>, string>> =
+    async {
+        try
+            use conn = Core.getConnection ()
+            match queryLastTargetChanges conn with
+            | Ok marks -> return Ok marks
+            | Error message ->
+                logReadFailure "Letzte Target-Änderungen lesen" message
+                return Error TargetChangesUnreadableText
+        with ex ->
+            logReadFailure "Letzte Target-Änderungen lesen" ex.Message
+            return Error TargetChangesUnreadableText
+    }
