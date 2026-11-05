@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 12:37 -- Modeling / Refined: infrastructure-e4vq7 - Gemeinsame Ereignistabelle events
+
+**Type:** Modeling / Refine
+**BC:** infrastructure
+**Status after:** todo
+**Summary:** Schnittstelle festgelegt (Modul EventStore.fs nach Persistence.fs, append mit mehreren Streams je Befehl, AppendResult mit CommandAlreadyProcessed, Variante mit offener Transaktion für ledger-k9tm2, loadStream und loadContext). Erstes Akzeptanzkriterium korrigiert: stream_version vergibt nur append, der UNIQUE-Konflikt wird per SQL getestet. Kriterien für mehrere Streams, Formprüfung von context und aggregate, Laden und Round-Trip ergänzt; Testort und Vorbild in den Notes.
+**ADRs written:** keine
+
+---
+
 ## 2026-11-05 12:34 -- Work session ended
 
 **Type:** Work / Session end
