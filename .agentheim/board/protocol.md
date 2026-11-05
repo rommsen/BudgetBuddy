@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 20:37 -- Batch started: [budgeting-qm5x9]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-qm5x9 - "Befehls-Id für Budget-Entscheidungen aus der UI: optionales CommandId-Feld, Prüfung gegen processed_commands unter der Sperre vor YNAB, Antwort aus dem Stream, Client wiederholt einmal"
+**Parallel:** scoped — builder named budgeting-qm5x9; no other ready tasks
+
+---
+
 ## 2026-11-05 20:32 -- Modeling / Promoted: budgeting-qm5x9 - "Befehls-Id für Budget-Entscheidungen aus der UI: optionales CommandId-Feld, Prüfung gegen processed_commands unter der Sperre vor YNAB, Antwort aus dem Stream, Client wiederholt einmal"
 
 **Type:** Modeling / Promote
