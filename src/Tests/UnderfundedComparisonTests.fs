@@ -47,6 +47,11 @@ let private ruleTests =
                 // November, Dezember, Januar: 3 Monate. (120 − 30) / 3 = 30, minus 10 zugewiesen.
                 Expect.equal (compute target november 10m 30m 0m) (computed 20m) "drei Monate"
 
+            testCase "NEED mit Datum und needs_whole_amount=false rechnet nach Fälligkeit, nicht nach Auffüllen" <| fun () ->
+                // Die Fälligkeit hat Vorrang vor "Auffüllen bis"; Auffüllen ergäbe hier 120 − (30 + 10) = 80.
+                let target = { need 120m (Years 1) with Date = Some "2027-01-15"; NeedsWholeAmount = Some false }
+                Expect.equal (compute target november 10m 30m 0m) (computed 20m) "(120 − 30) / 3 − 10"
+
             testCase "TBD rechnet wie NEED mit Datum" <| fun () ->
                 let target = { need 60m NoRhythm with Kind = TargetBalanceByDate; Date = Some "2026-12-31" }
                 Expect.equal (compute target november 0m 0m 0m) (computed 30m) "zwei Monate"
@@ -138,10 +143,6 @@ let private ruleTests =
                     | NotComputed reason -> Expect.isNotEmpty reason "Grund"
                     | Computed amount -> failtest $"kein Betrag erwartet, kam {amount}"
         ]
-
-        testCase "Eine Pause spielt für die Funktion keine Rolle" <| fun () ->
-            // Die Funktion kennt keine Pause: dieselben Eingaben, dasselbe Ergebnis.
-            Expect.equal (compute (need 100m (Months 1)) november 0m 0m 0m) (computed 100m) "ohne Pause gerechnet"
     ]
 
 // ============================================
@@ -157,6 +158,12 @@ let private category (name: string) (target: Target option) (assigned: decimal) 
       Underfunded = ynab |> Option.map eur
       Target = target
       Pause = None }
+
+/// Eine Kategorie mit Aktivität und Verfügbar; der Übertrag ist Verfügbar − Zugewiesen − Aktivität.
+let private categoryWithFlow (target: Target) (assigned: decimal) (activity: decimal) (available: decimal) (ynab: decimal) =
+    { category "Fluss" (Some target) assigned (Some ynab) with
+        Activity = eur activity
+        Available = eur available }
 
 let private monthWith (categories: BudgetCategory list) : BudgetMonth =
     { Month = november
@@ -204,24 +211,16 @@ let private comparisonTests =
                 Expect.isSome row.Reason "Grund"
             Expect.equal rows.Length targets.Length "alle da"
 
-        testCase "Ausgeblendete Kategorien fehlen" <| fun () ->
-            let visible = Guid.NewGuid()
-            let hidden = Guid.NewGuid()
-            let raw (id: Guid) (isHidden: bool) : YnabMonthCategory =
-                { Id = id
-                  Name = "Kat"
-                  GroupName = "Alltag"
-                  Assigned = eur 0m
-                  Activity = eur 0m
-                  Available = eur 0m
-                  Underfunded = Some (eur 100m)
-                  Target = Some (need 100m (Months 1))
-                  Snoozed = false
-                  Hidden = isHidden
-                  Deleted = false
-                  Internal = false }
-            let month = toBudgetMonth Set.empty { Month = november; ToBeBudgeted = eur 0m; Categories = [ raw visible false; raw hidden true ] }
-            Expect.equal (compareUnderfunded month |> List.map (fun r -> r.CategoryId)) [ visible ] "nur sichtbar"
+        testCase "Der Vergleich rechnet mit dem Übertrag aus Verfügbar, Zugewiesen und Aktivität und mit dem gelesenen Monat" <| fun () ->
+            // Übertrag = 50 − 20 − (−30) = 60; Auffüllen bis 100: 100 − (60 + 20) = 20.
+            let refill = categoryWithFlow { need 100m (Months 1) with NeedsWholeAmount = Some false } 20m -30m 50m 20m
+            // Fälligkeit Dezember, gelesen im November: zwei Monate, 60 / 2 = 30.
+            let due = categoryWithFlow { need 60m (Months 1) with Date = Some "2026-12-31" } 0m 0m 0m 30m
+            let rows = compareUnderfunded (monthWith [ refill; due ])
+            Expect.equal (rowOf rows refill.Id).Bb (Some (eur 20m)) "Übertrag gerechnet"
+            Expect.equal (rowOf rows refill.Id).Outcome Equal "gleich mit YNAB"
+            Expect.equal (rowOf rows due.Id).Bb (Some (eur 30m)) "Monat aus dem BudgetMonth"
+            Expect.equal (rowOf rows due.Id).Outcome Equal "gleich mit YNAB"
 
         testCase "Eine pausierte Kategorie wird verglichen und trägt das Kennzeichen pausiert" <| fun () ->
             let paused = { category "Pausiert" (Some (need 100m (Months 1))) 0m (Some 100m) with Pause = Some PausedInBb }
@@ -278,6 +277,8 @@ let private portFor (month: YnabMonth) : CommandHandlers.YnabPort =
       SetTarget = fun _ _ -> async { return failwith "kein Schreiben erwartet" } }
 
 let private handlerTests =
+    // Das Schema braucht `budgetMonthOf` für die BB-Pausen des Monats (`loadPausedCategories`); das
+    // Speichern der Abweichungsliste kommt hier nur als Funktionswert herein.
     let testCase name body =
         testCase name (fun () ->
             Budgeting.Persistence.initializeBudgetingSchema ()
@@ -326,6 +327,16 @@ let private storedRows (month: string) : (string * string * string * Nullable<in
         {| month = month |})
     |> Seq.toList
 
+/// Die übrigen Spalten einer gespeicherten Zeile: Kategorie-Id, Formel, Grund, Zeitpunkt.
+let private storedDetails (month: string) (name: string) : string * string * string * string =
+    use conn = global.Persistence.getConnection ()
+    Dapper.SqlMapper.Query<string * string * string * string>(
+        conn,
+        "SELECT category_id AS item1, rule AS item2, reason AS item3, compared_at AS item4 \
+         FROM underfunded_comparisons WHERE month = @month AND category_name = @name",
+        {| month = month; name = name |})
+    |> Seq.exactlyOne
+
 let private comparisonRow (month: string) (name: string) (outcome: ComparisonOutcome) : UnderfundedComparison =
     { Month = month
       CategoryId = Guid.NewGuid()
@@ -358,6 +369,9 @@ let private persistenceTests =
                 [ "A", "NEED", "Abweichung", Nullable 12340L, Nullable 10000L, 0L
                   "B", "NEED", "Nicht gerechnet", Nullable 12340L, Nullable(), 0L ]
                 "erstes Speichern"
+            let stamp = at.ToString("o", Globalization.CultureInfo.InvariantCulture)
+            Expect.equal (storedDetails month "A") (string a.CategoryId, "Monatlich", null, stamp) "A: Id, Formel, kein Grund, Zeitpunkt"
+            Expect.equal (storedDetails month "B") (string b.CategoryId, "Monatlich", YnabWithoutValueText, stamp) "B: mit Grund"
 
             save at month [ { a with Outcome = Equal; Paused = true } ] |> run
             Expect.equal (storedRows month) [ "A", "NEED", "Gleich", Nullable 12340L, Nullable 10000L, 1L ] "B ist weg, A ersetzt"

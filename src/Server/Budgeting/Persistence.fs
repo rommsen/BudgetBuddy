@@ -691,7 +691,7 @@ let loadLastTargetChanges () : Async<Result<Map<Guid, TargetChangeMark>, string>
 // ============================================
 
 let private milliunitsOf (money: Shared.Domain.Money option) : obj =
-    money |> Option.map (fun m -> int64 (Math.Round(m.Amount * 1000m))) |> orDbNull
+    money |> Option.map toMilliunits |> orDbNull
 
 /// Ersetzt die Abweichungsliste des Monats `month` in einer Transaktion: erst alle Zeilen des Monats
 /// löschen, dann die neuen einfügen. So fällt eine Kategorie ohne Target heraus, andere Monate bleiben.
@@ -707,12 +707,9 @@ let saveUnderfundedComparisonsWith
         conn.Open()
         use tx = conn.BeginTransaction()
         conn.Execute("DELETE FROM underfunded_comparisons WHERE month = @month", {| month = month |}, tx) |> ignore
-        for r in rows do
-            conn.Execute(
-                "INSERT INTO underfunded_comparisons (month, category_id, category_name, kind, rule, outcome, \
-                    bb_milliunits, ynab_milliunits, reason, paused, compared_at) \
-                 VALUES (@month, @category_id, @category_name, @kind, @rule, @outcome, \
-                    @bb_milliunits, @ynab_milliunits, @reason, @paused, @compared_at)",
+        let parameters =
+            rows
+            |> List.map (fun r ->
                 {| month = month
                    category_id = string r.CategoryId
                    category_name = r.CategoryName
@@ -723,7 +720,17 @@ let saveUnderfundedComparisonsWith
                    ynab_milliunits = milliunitsOf r.Ynab
                    reason = orDbNull r.Reason
                    paused = (if r.Paused then 1L else 0L)
-                   compared_at = dateToText comparedAt |},
+                   compared_at = dateToText comparedAt |})
+            |> Array.ofList
+
+        // Dapper führt das INSERT einmal je Element des Arrays aus, alles in derselben Transaktion.
+        if parameters.Length > 0 then
+            conn.Execute(
+                "INSERT INTO underfunded_comparisons (month, category_id, category_name, kind, rule, outcome, \
+                    bb_milliunits, ynab_milliunits, reason, paused, compared_at) \
+                 VALUES (@month, @category_id, @category_name, @kind, @rule, @outcome, \
+                    @bb_milliunits, @ynab_milliunits, @reason, @paused, @compared_at)",
+                parameters,
                 tx
             )
             |> ignore
