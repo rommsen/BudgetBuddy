@@ -5,6 +5,27 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 09:57 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** 40m
+**Completed:** 2 (first-try PASS: 2, re-dispatched: 0, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Lost-result re-dispatches:** 0
+**Lost-result escalations:** 0
+**Dispatches:** budgeting-r7k2m: 1, budgeting-p2zr6: 1
+**Commits:** 4
+**Vision-conformance:** none — batch aligns with vision
+**Batch mix:** 100% product-facing / 0% harness / 0% bookkeeping (2 tasks)
+**Carry-over:** none — working tree clean
+**Gate auf main:** ./verify.sh über beide Tasks zusammen vor dem zweiten Commit: VERIFY: PASS (dotnet 3856, node 310). Squash-Merge ohne Konflikt, Tests.fsproj automatisch zusammengeführt.
+**Auffällig:** p2zr6 fand ein bestehendes Rennen: parallele Tests, die initializeLedgerSchema aufrufen, werfen in rebuildSplitIndexes einen UNIQUE-Fehler. In den neuen Handler-Tests umgangen, Ursache nicht behoben. Testname von AC13 in src/Tests/LedgerPageTests.fs:2871 nennt noch loadCategoryEntries statt loadCategoriesEntries.
+**Review-Vorschlag (Override C):** qa-milestone-reviewer (neue Tests), backend-code-quality (src/Server), frontend-architecture (src/Client, TargetFormCore/TargetFormView).
+
+---
+
 ## 2026-11-05 09:53 -- Task verified and completed: budgeting-p2zr6 - "Targets prüfen, Regel und Daten: reine Einordnungsfunktion in Shared.Budgeting und Endpoint getTargetCheck mit einer Kassenbuch-Abfrage für alle Kategorien und der letzten Target-Änderung je Kategorie"
 
 **Type:** Work / Task completion
