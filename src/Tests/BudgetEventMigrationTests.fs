@@ -619,6 +619,26 @@ let abortTests =
 // ============================================
 
 [<Tests>]
+let decisionTests =
+    testList "Budget-Ereignisse: Entscheidung festhalten" [
+        // Die Rückschreib-Ergebnisse verweisen über (Entscheidung, Kategorie) auf ihre Zeile; zwei Zeilen
+        // derselben Kategorie teilten sich ein Ergebnis.
+        testCase "Eine Kategorie zweimal in einer Entscheidung wird abgelehnt, nichts wird festgehalten" <| fun () ->
+            use conn = new SqliteConnection("Data Source=:memory:")
+            conn.Open()
+            EventStore.createSchemaOn conn
+            let k = Guid.NewGuid()
+            let line assigned : PlannedLine =
+                { CategoryId = k; CategoryName = "A"; OldAssigned = 0L; NewAssigned = assigned }
+            Expect.throwsT<ArgumentException>
+                (fun () ->
+                    recordDecisionOn conn (DateTime(2026, 10, 3, 8, 0, 0, DateTimeKind.Utc)) "2026-10-01" TargetsApplied [ line 1000L; line 2000L ] []
+                    |> ignore)
+                "doppelte Kategorie"
+            Expect.equal (loadBudgetEventsOn conn WholeContext) (Ok []) "keine Budget-Ereignisse"
+    ]
+
+[<Tests>]
 let boundaryTests =
     testList "Budget-Ereignisse: Kontextgrenze" [
         testCase "Kein Budget-Leser liest Kassenbuch-Ereignisse oder Ereignisse eines fremden Kontexts" <| fun () ->

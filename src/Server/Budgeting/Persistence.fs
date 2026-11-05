@@ -565,13 +565,18 @@ type PlannedLine = {
 }
 
 /// Das Entscheidungsereignis zu Herkunft und Zeilen; jede Zeile bekommt eine frische `lineId`.
-/// Verschieben braucht genau zwei Zeilen (Quelle, Ziel), Zuweisen genau eine.
+/// Verschieben braucht genau zwei Zeilen (Quelle, Ziel), Zuweisen genau eine. Jede Kategorie darf nur
+/// einmal vorkommen: die Rückschreib-Ergebnisse verweisen über Entscheidung und Kategorie auf ihre Zeile
+/// (`latestWriteBacks`).
 let internal decisionEvent
     (monthId: string)
     (origin: MovementOrigin)
     (lines: PlannedLine list)
     (skippedPaused: SkippedPausedLine list)
     : BudgetEvent =
+    let categories = lines |> List.map (fun l -> l.CategoryId)
+    if (List.distinct categories).Length <> categories.Length then
+        invalidArg "lines" $"{originText origin}: eine Kategorie steht mehrfach in der Entscheidung"
     let line (l: PlannedLine) : BudgetLine =
         { LineId = Guid.NewGuid()
           CategoryId = l.CategoryId

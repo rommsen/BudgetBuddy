@@ -400,8 +400,8 @@ let private pendingOf (legacy: LegacyBudget) : Pending list =
 /// sonst ändert sie nichts. `events` muss schon angelegt sein. Liefert die Zahl der Ereignisse.
 ///
 /// `stream_version` wird je Stream lückenlos ab 1 vergeben, an eine schon belegte Version stößt das
-/// Einfügen über `UNIQUE (stream_id, stream_version)` und wirft. Eingefügt wird in der Reihenfolge der
-/// Streams, so folgt `position` ihr und liegt hinter dem Kassenbuch. Schlägt eine Abbruchregel oder
+/// Einfügen über `UNIQUE (stream_id, stream_version)` und wirft. Eingefügt wird in der Sortierfolge aus
+/// `pendingOf`, so folgt `position` ihr und liegt hinter dem Kassenbuch. Schlägt eine Abbruchregel oder
 /// das Einfügen an, wirft die Funktion, und das Dispose der nicht bestätigten Transaktion lässt alle
 /// Tabellen unverändert.
 let migrateBudgetEventsOn (conn: SqliteConnection) : int =
