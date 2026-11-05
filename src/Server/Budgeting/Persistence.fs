@@ -252,12 +252,16 @@ let internal queryApplication (conn: SqliteConnection) (applicationId: Guid) : R
             |> List.collect movementsOf
             |> List.map (stateOf latest))
 
-/// `queryApplication` auf der Datenbank der Anwendung.
-let loadApplication (applicationId: Guid) : Async<Result<MovementState list, string>> =
+/// `queryApplication` über `connect`.
+let loadApplicationWith (connect: unit -> SqliteConnection) (applicationId: Guid) : Async<Result<MovementState list, string>> =
     async {
-        use conn = Core.getConnection ()
+        use conn = connect ()
         return queryApplication conn applicationId
     }
+
+/// `queryApplication` auf der Datenbank der Anwendung.
+let loadApplication (applicationId: Guid) : Async<Result<MovementState list, string>> =
+    loadApplicationWith Core.getConnection applicationId
 
 /// Neueste zuerst: Zeitpunkt, dann Stream und Version, in einer Entscheidung die spätere Zeile zuerst.
 let private newestFirst (events: RecordedBudgetEvent list) : (RecordedBudgetEvent * Movement) list =
@@ -636,12 +640,16 @@ let internal recordWriteBackOn (conn: SqliteConnection) (m: Movement) (at: DateT
     let reference = { DecisionEventId = m.ApplicationId; CategoryId = m.CategoryId }
     appendOn conn stream [ at, writeBackEvent reference outcome ] |> ignore
 
-/// `recordWriteBackOn` auf der Datenbank der Anwendung.
-let recordWriteBack (m: Movement) (at: DateTime) (outcome: WriteBackOutcome) : Async<unit> =
+/// `recordWriteBackOn` über `connect`.
+let recordWriteBackWith (connect: unit -> SqliteConnection) (m: Movement) (at: DateTime) (outcome: WriteBackOutcome) : Async<unit> =
     async {
-        use conn = Core.getConnection ()
+        use conn = connect ()
         recordWriteBackOn conn m at outcome
     }
+
+/// `recordWriteBackOn` auf der Datenbank der Anwendung.
+let recordWriteBack (m: Movement) (at: DateTime) (outcome: WriteBackOutcome) : Async<unit> =
+    recordWriteBackWith Core.getConnection m at outcome
 
 /// Hält ein Pause-Ereignis im Monats-Stream fest. Liefert seine `event_id`.
 let internal recordPauseOn

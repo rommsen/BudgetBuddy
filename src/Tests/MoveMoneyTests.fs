@@ -237,6 +237,30 @@ let private retryApplication (f: FakeYnab) (applicationId: Guid) : ApplyReport =
     | Ok report -> report
     | Error e -> failtest $"Bericht erwartet: {e}"
 
+/// Der Typ des jüngsten Rückschreib-Ereignisses einer Zeile im Monats-Stream (budgeting-hyn77). Die Leser
+/// bilden `AssignmentWriteBackWithdrawn` und `AssignmentWriteBackSupersededInYnab` beide auf `ChangedInYnab` ab,
+/// den Unterschied sieht nur das Ereignis.
+let private lastWriteBackType (applicationId: Guid) (categoryId: Guid) : string option =
+    use conn = global.Persistence.getConnection ()
+    let stream =
+        match Budgeting.Events.monthIdOf monthKey with
+        | Ok monthId -> Budgeting.Events.streamIdOf (Budgeting.Events.MonthStream monthId)
+        | Error message -> failtest message
+    match Budgeting.Persistence.loadBudgetEventsOn conn (Budgeting.Persistence.InStream stream) with
+    | Error message -> failtest message
+    | Ok events ->
+        events
+        |> List.filter (fun e ->
+            match e.Event with
+            | Budgeting.Events.BudgetEvent.AssignmentWrittenBackToYnab r
+            | Budgeting.Events.BudgetEvent.AssignmentWriteBackFailed (r, _)
+            | Budgeting.Events.BudgetEvent.AssignmentWriteBackSupersededInYnab r
+            | Budgeting.Events.BudgetEvent.AssignmentWriteBackWithdrawn r ->
+                r.DecisionEventId = applicationId && r.CategoryId = categoryId
+            | _ -> false)
+        |> List.tryLast
+        |> Option.map (fun e -> Budgeting.Events.eventTypeName e.Event)
+
 let private flowTests =
     let testCase name body =
         testCase name (fun () ->
@@ -348,6 +372,8 @@ let private flowTests =
             let again = retryOk f report
             Expect.isEmpty f.Attempts "kein PATCH: das Geld käme sonst aus Zu verteilen"
             Expect.equal (outcomes again) [ ChangedInYnab; ChangedInYnab ] "beide geschlossen"
+            let applicationId = Guid.Parse report.ApplicationId
+            Expect.equal (lastWriteBackType applicationId a) (Some "AssignmentWriteBackSupersededInYnab") "YNAB gewinnt bei der Quelle"
 
         testCase "GIVEN die Quelle landete, die Antwort ging verloren und sie änderte sich danach WHEN erneut gesendet THEN bleibt das Ziel ungesendet und das Geld in Zu verteilen" <| fun () ->
             let f, a, b = fake ()
@@ -371,9 +397,11 @@ let private flowTests =
         testCase "GIVEN Quelle in YNAB geändert, Ziel ohne Stand WHEN erneut gesendet THEN geht das Ziel nicht hinaus und die Verschiebung schließt" <| fun () ->
             let f, a, b = fake ()
             f.Assigned[a] <- 90000L
-            let again = retryApplication f (recordedMove a b (Some ChangedInYnab) None)
+            let applicationId = recordedMove a b (Some ChangedInYnab) None
+            let again = retryApplication f applicationId
             Expect.isEmpty f.Attempts "kein PATCH: das Geld käme aus Zu verteilen"
             Expect.equal (outcomes again) [ ChangedInYnab; ChangedInYnab ] "beide geschlossen (ADR 0070)"
+            Expect.equal (lastWriteBackType applicationId b) (Some "AssignmentWriteBackWithdrawn") "das Ziel ungesendet zurückgezogen"
 
         // budgeting-nfrds: ein Abbruch nach der Quelle ließ das Ziel als "nicht gesendet" ewig offen.
         testCase "GIVEN Quelle geschrieben, Ziel ohne Stand WHEN erneut gesendet THEN greift das Ziel auf und der Bericht zeigt nichts Offenes" <| fun () ->
@@ -408,6 +436,7 @@ let private flowTests =
             Expect.isEmpty f.Attempts "kein PATCH"
             Expect.equal (f.Assigned[a], f.Assigned[b]) (100000L, 25000L) "YNAB bleibt, wie es ist"
             Expect.equal (outcomes again) [ ChangedInYnab; ChangedInYnab ] "beide geschlossen"
+            Expect.equal (lastWriteBackType applicationId a) (Some "AssignmentWriteBackWithdrawn") "die Quelle ungesendet zurückgezogen"
             let second = retryApplication f applicationId
             Expect.isEmpty f.Attempts "ein weiteres Senden holt die Quelle nicht nach"
             Expect.equal (outcomes second) [ ChangedInYnab; ChangedInYnab ] "der Stand bleibt"

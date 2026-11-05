@@ -7,6 +7,7 @@ module Server.Budgeting.CommandHandlers
 open System
 open System.Collections.Concurrent
 open System.Threading
+open Microsoft.Data.Sqlite
 open Shared.Domain
 open Shared.Budgeting
 open Server.Budgeting.Domain
@@ -111,15 +112,20 @@ let preview (port: YnabPort) (monthKey: string) : Async<Result<TargetPreview, Yn
 // ============================================
 
 /// Die Zeilen einer Anwendung, mit `YnabError` wie die übrigen Fehler dieser Abläufe.
-let private loadStates (applicationId: Guid) : Async<Result<MovementState list, YnabError>> =
+let private loadStates (connect: unit -> SqliteConnection) (applicationId: Guid) : Async<Result<MovementState list, YnabError>> =
     async {
-        let! states = loadApplication applicationId
+        let! states = loadApplicationWith connect applicationId
         return states |> Result.mapError YnabError.LocalReadFailed
     }
 
-let private reportWith (applicationId: Guid) (monthKey: string) (actual: Money option) : Async<Result<ApplyReport, YnabError>> =
+let private reportWith
+    (connect: unit -> SqliteConnection)
+    (applicationId: Guid)
+    (monthKey: string)
+    (actual: Money option)
+    : Async<Result<ApplyReport, YnabError>> =
     async {
-        let! states = loadStates applicationId
+        let! states = loadStates connect applicationId
         return
             states
             |> Result.map (fun states ->
@@ -136,7 +142,12 @@ let private reportWith (applicationId: Guid) (monthKey: string) (actual: Money o
                   ActualToBeBudgeted = actual })
     }
 
-let private reportOf (port: YnabPort) (applicationId: Guid) (monthKey: string) : Async<Result<ApplyReport, YnabError>> =
+let private reportOf
+    (connect: unit -> SqliteConnection)
+    (port: YnabPort)
+    (applicationId: Guid)
+    (monthKey: string)
+    : Async<Result<ApplyReport, YnabError>> =
     async {
         let! actual =
             async {
@@ -144,7 +155,7 @@ let private reportOf (port: YnabPort) (applicationId: Guid) (monthKey: string) :
                 | Ok raw -> return Some raw.ToBeBudgeted
                 | Error _ -> return None
             }
-        return! reportWith applicationId monthKey actual
+        return! reportWith connect applicationId monthKey actual
     }
 
 /// Sendet die Zeilen nacheinander. Ein Fehler schließt die Zeile als fehlgeschlagen ab, die
@@ -205,7 +216,7 @@ let apply
             let! movements = recordDecision now fresh.Month TargetsApplied lines skipped
             do! sendAll port now fresh.Month movements
             let applicationId = (List.head movements).ApplicationId
-            let! report = reportOf port applicationId fresh.Month
+            let! report = reportOf global.Persistence.getConnection port applicationId fresh.Month
             return report |> Result.map Applied
     })
 
@@ -261,7 +272,7 @@ let private recordAndSend
                   NewAssigned = toMilliunits l.NewAssigned })
         let! movements = recordDecision now monthKey plan.Origin lines []
         do! sendInOrder port now monthKey movements
-        return! reportWith (List.head movements).ApplicationId monthKey None
+        return! reportWith global.Persistence.getConnection (List.head movements).ApplicationId monthKey None
     }
 
 /// Verschieben oder Zuweisen von Zu verteilen. Unter der Monats-Sperre: den Monat frisch lesen und relativ dazu
@@ -561,13 +572,16 @@ let changeTarget
 /// Vor dem ersten Senden werden beide Stände geprüft (ADR 0070, Nachtrag). Ist das Ziel schon
 /// verloren, geht die Quelle nicht hinaus und schließt mit ihm: sonst läge das Geld in Zu verteilen.
 /// Fehlt das Ziel im Monat, bleibt die Quelle ungesendet fehlgeschlagen.
-let retryFailed
+///
+/// Liest und schreibt über `connect`.
+let retryFailedWith
+    (connect: unit -> SqliteConnection)
     (port: YnabPort)
     (now: DateTime)
     (applicationId: Guid)
     : Async<Result<ApplyReport, YnabError>> =
     async {
-        match! loadStates applicationId with
+        match! loadStates connect applicationId with
         | Error e -> return Error e
         | Ok [] -> return Error (YnabError.RefusedByBb "Targets-Anwendung nicht gefunden")
         | Ok (first :: _) ->
@@ -577,7 +591,7 @@ let retryFailed
                     match! port.FetchMonth monthKey with
                     | Error e -> return Error e
                     | Ok live ->
-                        match! loadStates applicationId with
+                        match! loadStates connect applicationId with
                         | Error e -> return Error e
                         | Ok states ->
                             let liveAssigned =
@@ -601,7 +615,7 @@ let retryFailed
                                 async {
                                     let close outcome =
                                         async {
-                                            do! recordWriteBack m now outcome
+                                            do! recordWriteBackWith connect m now outcome
                                             return lineOutcomeOf outcome
                                         }
                                     match decisionFor m with
@@ -628,13 +642,17 @@ let retryFailed
                                     match (if inOrder then previous.Value else None) with
                                     | Some ChangedInYnab ->
                                         // Die Quelle ist verloren: das Ziel wird ungesendet zurückgezogen.
-                                        do! recordWriteBack s.Movement now Withdrawn
+                                        do! recordWriteBackWith connect s.Movement now Withdrawn
                                         previous.Value <- Some ChangedInYnab
                                     | Some (Failed _) -> ()
                                     | Some Written
                                     | None ->
                                         let! outcome = retryLine s.Movement
                                         previous.Value <- Some outcome
-                            return! reportOf port applicationId monthKey
+                            return! reportOf connect port applicationId monthKey
                 })
     }
+
+/// `retryFailedWith` auf der Datenbank der Anwendung.
+let retryFailed (port: YnabPort) (now: DateTime) (applicationId: Guid) : Async<Result<ApplyReport, YnabError>> =
+    retryFailedWith global.Persistence.getConnection port now applicationId

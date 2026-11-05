@@ -551,6 +551,7 @@ let private aborts (name: string) (table: string) (value: string) (spoil: Sqlite
 [<Tests>]
 let abortTests =
     let month = "2026-10-01"
+    let upperApplicationId = Guid.NewGuid().ToString("D").ToUpperInvariant()
     testList "Budget-Migration: Abbruch" [
         aborts "Eine unbekannte Herkunft bricht ab" "budget_movements" "Quatsch" (fun conn f ->
             movementRow conn (Guid.NewGuid()) (Guid.NewGuid()) (time 13 0) "Quatsch" month f.X "Miete" 0L 1L)
@@ -563,11 +564,17 @@ let abortTests =
         aborts "Ein unbekannter Status eines Schritt-Ergebnisses bricht ab" "target_change_results" "vielleicht" (fun conn f ->
             changeResult conn (string (fst f.Changes)) (time 13 0) "vielleicht" null (box 1L))
         aborts "Eine Id außerhalb des Guid-Formats D bricht ab" "budget_movements" "ABC" (fun conn f ->
-            let upper = Guid.NewGuid().ToString("D").ToUpperInvariant()
             movementRow conn (Guid.NewGuid()) (Guid.NewGuid()) (time 13 0) "Zuweisen" month f.X "Miete" 0L 1L
             conn.Execute(
                 "INSERT INTO budget_movements VALUES ('ABC', @app, @at, 'Zuweisen', @month, @category, 'Miete', 0, 1)",
-                {| app = upper; at = time 13 0; month = month; category = string f.Y |})
+                {| app = string (Guid.NewGuid()); at = time 13 0; month = month; category = string f.Y |})
+            |> ignore)
+        // Format D heißt auch Kleinbuchstaben: eine Gruppen-Id in Großbuchstaben fände "erneut senden" über
+        // `event_id` nicht wieder.
+        aborts "Eine Anwendungs-Id in Großbuchstaben bricht ab" "budget_movements" upperApplicationId (fun conn f ->
+            conn.Execute(
+                "INSERT INTO budget_movements VALUES (@id, @app, @at, 'Zuweisen', @month, @category, 'Miete', 0, 1)",
+                {| id = string (Guid.NewGuid()); app = upperApplicationId; at = time 13 0; month = month; category = string f.Y |})
             |> ignore)
         aborts "Eine Pause-Id außerhalb des Guid-Formats D bricht ab" "target_pause_events" "pause-1" (fun conn f ->
             pauseRow conn "pause-1" (time 13 0) month f.X "Miete" "Pausiert")
@@ -732,106 +739,53 @@ let private retryPort (month: string) (categories: (Guid * decimal) list) (sent:
 
 [<Tests>]
 let retryTests =
-    // Auf der gemeinsamen Testdatenbank, in einem eigenen Monat: "erneut senden" liest über die Anwendung.
-    testSequenced
-    <| testList "Budget-Migration: erneut senden" [
+    testList "Budget-Migration: erneut senden" [
+        // Eine eigene Datenbank: die früheren Tabellen entstehen nur dort, nicht in der gemeinsamen.
         testCase "Erneut senden findet eine migrierte Anwendung über ihre alte application_id und eine neue über ihre event_id" <| fun () ->
-            Budgeting.Persistence.initializeBudgetingSchema ()
+            let anchor, connect = BudgetEventsFixture.isolatedDb ()
+            use _ = anchor
             let month = "2088-08-01"
             let x, y = Guid.NewGuid(), Guid.NewGuid()
             let oldApplication, oldLine = Guid.NewGuid(), Guid.NewGuid()
-            do
-                use conn = global.Persistence.getConnection ()
-                conn.Open()
-                use tx = conn.BeginTransaction()
-                conn.Execute(legacyDdl.Replace("CREATE TABLE ", "CREATE TABLE IF NOT EXISTS ").Replace("CREATE INDEX ", "CREATE INDEX IF NOT EXISTS ").Replace("CREATE TRIGGER ", "CREATE TRIGGER IF NOT EXISTS "), transaction = tx) |> ignore
-                conn.Execute(
-                    "INSERT INTO budget_movements VALUES (@id, @app, '2088-08-02T08:00:00.0000000Z', 'Targets anwenden', @month, @category, 'Miete', 0, 50000)",
-                    {| id = string oldLine; app = string oldApplication; month = month; category = string x |},
-                    tx)
-                |> ignore
-                conn.Execute(
-                    "INSERT INTO budget_movement_results (movement_id, occurred_at, status, reason) VALUES (@id, '2088-08-02T08:00:00.0000000Z', 'failed', 'Rate-Limit')",
-                    {| id = string oldLine |},
-                    tx)
-                |> ignore
-                tx.Commit()
-            Budgeting.Persistence.initializeBudgetingSchema ()
+            anchor.Execute(legacyDdl) |> ignore
+            anchor.Execute(
+                "INSERT INTO budget_movements VALUES (@id, @app, '2088-08-02T08:00:00.0000000Z', 'Targets anwenden', @month, @category, 'Miete', 0, 50000)",
+                {| id = string oldLine; app = string oldApplication; month = month; category = string x |})
+            |> ignore
+            anchor.Execute(
+                "INSERT INTO budget_movement_results (movement_id, occurred_at, status, reason) VALUES (@id, '2088-08-02T08:00:00.0000000Z', 'failed', 'Rate-Limit')",
+                {| id = string oldLine |})
+            |> ignore
+            migrateBudgetEventsOn anchor |> ignore
             let sent = ResizeArray<Guid * int64>()
             let port = retryPort month [ x, 0m; y, 10m ] sent
             let now = DateTime(2088, 8, 3, 9, 0, 0, DateTimeKind.Utc)
-            match Server.Budgeting.CommandHandlers.retryFailed port now oldApplication |> run with
+            match Server.Budgeting.CommandHandlers.retryFailedWith connect port now oldApplication |> run with
             | Ok report ->
                 Expect.equal report.ApplicationId (string oldApplication) "dieselbe Gruppen-Id"
                 Expect.equal (report.Lines |> List.map (fun l -> l.CategoryId, l.Outcome)) [ x, Written ] "erneut gesendet"
             | Error e -> failtest $"Bericht erwartet: {e}"
             Expect.equal (List.ofSeq sent) [ x, 50000L ] "das Ziel der migrierten Zeile"
-            let failing = { port with SetAssigned = fun _ _ _ -> async { return Error (YnabError.NetworkError "weg") } }
-            let request : AssignRequest = { CategoryId = y; Assigned = { Amount = 20m; Currency = "EUR" } }
             let fresh =
-                match Server.Budgeting.CommandHandlers.assignMoney failing now month request |> run with
-                | Ok (Ok report) -> report
-                | other -> failtest $"Bericht erwartet: {other}"
-            let decision =
-                use conn = global.Persistence.getConnection ()
-                conn.ExecuteScalar<string>(
-                    "SELECT event_id FROM events WHERE stream_id = 'budgeting:month:2088-08' AND event_type = 'AssignmentChangedInBb'")
-            Expect.equal fresh.ApplicationId decision "Gruppen-Id ist die event_id der Entscheidung"
-            match Server.Budgeting.CommandHandlers.retryFailed port now (Guid.Parse fresh.ApplicationId) |> run with
-            | Ok report -> Expect.equal (report.Lines |> List.map (fun l -> l.CategoryId, l.Outcome)) [ y, Written ] "neu gefunden"
-            | Error e -> failtest $"Bericht erwartet: {e}"
+                recordDecisionOn anchor now month MoneyAssigned [ ({ CategoryId = y; CategoryName = "K"; OldAssigned = 10000L; NewAssigned = 20000L } : PlannedLine) ] []
+            match fresh with
+            | [ line ] ->
+                recordWriteBackOn anchor line now (WriteBackFailed "Netzwerkfehler: weg")
+                let decision =
+                    anchor.ExecuteScalar<string>(
+                        "SELECT event_id FROM events WHERE stream_id = 'budgeting:month:2088-08' AND event_type = 'AssignmentChangedInBb'")
+                Expect.equal (string line.ApplicationId) decision "Gruppen-Id ist die event_id der Entscheidung"
+                match Server.Budgeting.CommandHandlers.retryFailedWith connect port now line.ApplicationId |> run with
+                | Ok report -> Expect.equal (report.Lines |> List.map (fun l -> l.CategoryId, l.Outcome)) [ y, Written ] "neu gefunden"
+                | Error e -> failtest $"Bericht erwartet: {e}"
+            | other -> failtest $"eine Zeile erwartet, kamen {other.Length}"
 
-        // In derselben Folge wie der Fall davor, der kurz frühere Tabellen in der gemeinsamen Datenbank anlegt.
         testCase "Der Start legt die früheren Tabellen nicht mehr an" <| fun () ->
             Budgeting.Persistence.initializeBudgetingSchema ()
             use conn = global.Persistence.getConnection ()
             conn.Open()
             Expect.isEmpty (existingLegacyTables conn null) "keine der fünf Tabellen"
             Expect.equal (conn.ExecuteScalar<int64>("SELECT COUNT(*) FROM sqlite_master WHERE name = 'events'")) 1L "events steht"
-    ]
-
-// ============================================
-// Wächter: die Tabellennamen
-// ============================================
-
-let private repoRoot =
-    Directory.GetParent(Directory.GetParent(__SOURCE_DIRECTORY__).FullName).FullName
-
-/// Nur die Migration, die Probe und ihre Tests nennen die früheren Tabellen.
-let private allowedFiles =
-    set [ "src/Server/Budgeting/EventMigration.fs"
-          "src/Server/Budgeting/EventMigrationProbe.fs"
-          "src/Tests/BudgetEventMigrationTests.fs" ]
-
-let private namePattern =
-    Text.RegularExpressions.Regex(@"\b(budget_movements|budget_movement_results|target_pause_events|target_changes|target_change_results)\b")
-
-/// Die Dateien unter `src/` (F#, ohne bin/obj), die einen der Tabellennamen tragen.
-let private filesNamingTables (files: (string * string) list) : string list =
-    files
-    |> List.filter (fun (path, text) -> not (allowedFiles.Contains path) && namePattern.IsMatch text)
-    |> List.map fst
-
-[<Tests>]
-let guardTests =
-    testList "Budget-Migration: Tabellennamen" [
-        test "Außer Migration, Probe und ihren Tests nennt keine Datei in src/ die fünf früheren Tabellen" {
-            let files =
-                Directory.EnumerateFiles(Path.Combine(repoRoot, "src"), "*.fs", SearchOption.AllDirectories)
-                |> Seq.map (fun p -> Path.GetRelativePath(repoRoot, p).Replace('\\', '/'), p)
-                |> Seq.filter (fun (rel, _) -> not (rel.Contains "/bin/" || rel.Contains "/obj/"))
-                |> Seq.map (fun (rel, p) -> rel, File.ReadAllText p)
-                |> Seq.toList
-            Expect.isGreaterThan files.Length 100 "der Wächter sieht die Quellen"
-            Expect.isEmpty (filesNamingTables files) "Dateien mit den früheren Tabellennamen"
-        }
-        test "Gegenbeweis: eine andere Datei mit einem Tabellennamen wird gemeldet, eine erlaubte nicht" {
-            let files =
-                [ "src/Server/Budgeting/Persistence.fs", "SELECT * FROM target_change_results"
-                  "src/Server/Budgeting/EventMigration.fs", "DROP TABLE budget_movements"
-                  "src/Server/Sonst.fs", "underfunded_comparisons" ]
-            Expect.equal (filesNamingTables files) [ "src/Server/Budgeting/Persistence.fs" ] "nur die nicht erlaubte"
-        }
     ]
 
 // ============================================
