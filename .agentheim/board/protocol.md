@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 16:19 -- Modeling / Promoted: ledger-k9tm2 - "Kassenbuch-Ereignisse nach `events` überführen: Kopie in rowid-Reihenfolge mit Abbruchprüfung, `appendAndApply` und Ladepfade umstellen, `ledger_entry_events` danach entfernen"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-05 15:57 -- Review-Lauf: ledger-r6wn3
 
 **Type:** Review / Review-Lauf
