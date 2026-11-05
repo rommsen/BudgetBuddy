@@ -1,7 +1,7 @@
 ---
 id: ledger-cy1j8
 title: "Bug: rebuildSplitIndexes löscht und füllt die Split-Indextabellen ohne Transaktion, parallele initializeLedgerSchema-Aufrufe werfen einen UNIQUE-Fehler"
-status: todo
+status: doing
 type: bug
 context: ledger
 created: 2026-11-05

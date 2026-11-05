@@ -1,7 +1,7 @@
 ---
 id: budgeting-p8nd0
 title: "Target-Formular aufräumen: Wrapper, die nur Tests aufrufen, streichen und die Tab-Tests auf Kern und Sperrlage umstellen"
-status: todo
+status: doing
 type: refactor
 context: budgeting
 created: 2026-11-05

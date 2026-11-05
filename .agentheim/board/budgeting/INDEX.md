@@ -11,19 +11,19 @@ Catalog of this bounded context's tasks by status.
 
 <!-- task-counts:start -->
 - **Backlog:** 8
-- **Todo:** 2
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 2
 - **Done:** 39
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **budgeting-p8nd0** — "Target-Formular aufräumen: Wrapper, die nur Tests aufrufen, streichen und die Tab-Tests auf Kern und Sperrlage umstellen" (refactor) — `todo/budgeting-p8nd0-target-formular-aufraeumen.md`
-- **budgeting-gv74q** — "Targets prüfen nachbessern: Testlücken aus dem QA-Review schließen, TargetChangeMark als DU statt Bool, Prüfung ohne Lesen der Pausen" (refactor) — `todo/budgeting-gv74q-targets-pruefen-nachbessern.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **budgeting-p8nd0** — "Target-Formular aufräumen: Wrapper, die nur Tests aufrufen, streichen und die Tab-Tests auf Kern und Sperrlage umstellen" (refactor) — `doing/budgeting-p8nd0-target-formular-aufraeumen.md`
+- **budgeting-gv74q** — "Targets prüfen nachbessern: Testlücken aus dem QA-Review schließen, TargetChangeMark als DU statt Bool, Prüfung ohne Lesen der Pausen" (refactor) — `doing/budgeting-gv74q-targets-pruefen-nachbessern.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)

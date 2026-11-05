@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-05 10:22 -- Batch started: [budgeting-gv74q, ledger-cy1j8, budgeting-p8nd0]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-gv74q - "Targets prüfen nachbessern: Testlücken aus dem QA-Review schließen, TargetChangeMark als DU statt Bool, Prüfung ohne Lesen der Pausen", ledger-cy1j8 - "Bug: rebuildSplitIndexes löscht und füllt die Split-Indextabellen ohne Transaktion, parallele initializeLedgerSchema-Aufrufe werfen einen UNIQUE-Fehler", budgeting-p8nd0 - "Target-Formular aufräumen: Wrapper, die nur Tests aufrufen, streichen und die Tab-Tests auf Kern und Sperrlage umstellen"
+**Parallel:** scoped — builder named budgeting-gv74q, ledger-cy1j8, budgeting-p8nd0; yes (3 workers)
+
+---
+
 ## 2026-11-05 10:21 -- Modeling / Captured: budgeting-gv74q, ledger-cy1j8, budgeting-p8nd0 aus den Reviews nach p2zr6 und r7k2m
 
 **Type:** Modeling / Capture

@@ -1,7 +1,7 @@
 ---
 id: budgeting-gv74q
 title: "Targets prüfen nachbessern: Testlücken aus dem QA-Review schließen, TargetChangeMark als DU statt Bool, Prüfung ohne Lesen der Pausen"
-status: todo
+status: doing
 type: refactor
 context: budgeting
 created: 2026-11-05
