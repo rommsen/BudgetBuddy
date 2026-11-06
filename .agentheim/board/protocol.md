@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 13:39 -- Modeling / Captured: budgeting-k5q2w - "Parallelrechnung: die Ausgaben der Periode kommen aus dem Kassenbuch, category_month_activity entfällt"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** todo
+**Summary:** Schritt 1 vor der Umschaltung: Parallelrechnung nimmt die Ausgaben der Periode aus dem Kassenbuch (Roman), Rückbau category_month_activity, danach fünfter Vergleich in Prod.
+
+---
+
 ## 2026-11-06 13:32 -- Task verified and completed: budgeting-eh8xe - "Targets in BB führen: einmalige Übernahme aus YNAB, Target ändern schreibt nur in BB mit Befehls-Id, Wochentag setzbar, Pause nur in BB, Rückbau des Goal-Schreibwegs"
 
 **Type:** Work / Task completion

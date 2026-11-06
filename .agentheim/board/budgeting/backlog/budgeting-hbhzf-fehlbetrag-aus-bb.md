@@ -6,7 +6,7 @@ type: feature
 context: budgeting
 created: 2026-11-06
 completed:
-depends_on: [budgeting-eh8xe, budgeting-r4kqm, budgeting-b9869, budgeting-pf8n7]
+depends_on: [budgeting-eh8xe, budgeting-r4kqm, budgeting-b9869, budgeting-pf8n7, budgeting-k5q2w]
 blocks: [budgeting-m3x7f]
 tags: [targets, fehlbetrag, rueckbau, fuehrung]
 related_adrs: [0083, 0084]
@@ -64,8 +64,12 @@ Teil 2 von 2 der Teilung von budgeting-eh8xe (2026-11-06).
   "nicht gerechnet". Bob bucht bis 31 Tage zurück, Import und Spiegel bringen ältere Buchungen nach.
   Optionen: `read_at` prüfen (Monat gilt als fehlend, solange er nicht nach Monatsende plus 31 Tagen
   gelesen wurde) oder die Aktivität aus dem Kassenbuch nehmen
-  (`Ledger.QueryHandlers.getMonthlyActivityByCategory`, immer aktuell, ohne YNAB). Entscheidung Roman.
-- Nach der Integration von budgeting-eh8xe (Review zu b9869): die Reihenfolge "Beobachtung vor Aktivität" in
-  `observeUnguarded` hängt an einer Test-Attrappe, die nach Aufrufzahl scheitert; Tests gezielt die
-  Stream-Verbindung scheitern lassen. `logReadFailure` für einen Schreibfehler umbenennen.
+  (`Ledger.QueryHandlers.getMonthlyActivityByCategory`, immer aktuell, ohne YNAB). **Entschieden von Roman
+  am 2026-11-06: Kassenbuch.** Umgesetzt in zwei Schritten: budgeting-k5q2w stellt die Parallelrechnung um
+  und baut `category_month_activity` zurück, danach fünfter Vergleich in Prod, erst dann schaltet diese Task um.
+- **Vierter Vergleich 2026-11-06 (nach budgeting-pf8n7, November 2026, Monate ab Dezember 2024 gelesen):** 99
+  von 100 gleich, keine Abweichung, eine Kategorie "nicht gerechnet" (erste Periode vor Dezember 2024). Von
+  Roman als erfüllte Toleranz angenommen.
+- ~~Nach der Integration von budgeting-eh8xe (Review zu b9869): Reihenfolge in `observeUnguarded`, Name
+  `logReadFailure`.~~ Entfällt mit dem Rückbau von `category_month_activity` in budgeting-k5q2w.
 - Deploy nur zusammen mit budgeting-eh8xe.
