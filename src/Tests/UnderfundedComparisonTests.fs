@@ -132,21 +132,24 @@ let private ruleTests =
         // YNAB 0. YNAB zählt Geld, das in der laufenden Periode schon ausgegeben wurde, als gedeckt
         // (`goal_overall_funded`), BB zählte nur den Übertrag. Beträge erfunden, Verhältnisse wie im Befund.
         testList "Ausgaben der laufenden Periode" [
-            testCase "Wie A2 (Auffüllen bis mit Fälligkeit): Übertrag plus Ausgaben der Periode decken den Monatsanteil" <| fun () ->
+            testCase "Auffüllen bis mit Fälligkeit: Übertrag plus Ausgaben der Periode decken den Monatsanteil" <| fun () ->
+                // Wie A2 im Befund.
                 // Fällig 2027-03, jährlich: Periode 2026-04 bis 2027-03, November bis März 5 Monate.
                 let target = { need 60m (Years 1) with Date = Some "2026-03-15"; NeedsWholeAmount = Some false }
                 let earlier = [ for m in 4 .. 10 -> $"2026-%02d{m}-01", (if m = 6 then -10m else 0m) ]
                 // (60 − (25 + 10)) / 5 = 5, zugewiesen 5. Ohne die Ausgaben: (60 − 25) / 5 − 5 = 2.
                 Expect.equal (computeWith target november 5m 25m 0m earlier) (computed 0m) "gedeckt wie YNAB"
 
-            testCase "Wie A5: Ausgaben über dem Ziel decken alles, ohne Übertrag und ohne Zuweisung" <| fun () ->
+            testCase "Ausgaben über dem Ziel decken alles, ohne Übertrag und ohne Zuweisung" <| fun () ->
+                // Wie A5 im Befund.
                 // Fällig 2027-01, jährlich: Periode 2026-02 bis 2027-01, November bis Januar 3 Monate.
                 let target = { need 240m (Years 1) with Date = Some "2026-01-20" }
                 let earlier = [ for m in 2 .. 10 -> $"2026-%02d{m}-01", (if m = 3 then -130m elif m = 8 then -120m else 0m) ]
                 // Ohne die Ausgaben: 240 / 3 = 80.
                 Expect.equal (computeWith target november 0m 0m 0m earlier) (computed 0m) "gedeckt wie YNAB"
 
-            testCase "Wie A7: Fälligkeit im gelesenen Monat, fast alles schon ausgegeben" <| fun () ->
+            testCase "Fälligkeit im gelesenen Monat, fast alles schon ausgegeben" <| fun () ->
+                // Wie A7 im Befund.
                 // Fällig 2026-11, jährlich: Periode 2025-12 bis 2026-11, 1 Monat.
                 let target = { need 300m (Years 1) with Date = Some "2025-11-20" }
                 let earlier =
@@ -164,6 +167,20 @@ let private ruleTests =
                 Expect.equal (periodMonthsBefore (Years 1) november "2026-10-15") [] "Periode beginnt im gelesenen Monat"
                 Expect.equal (periodMonthsBefore (Weeks 6) november "2026-10-30") [] "Wochen, vorige Fälligkeit im Oktober"
                 Expect.equal (periodMonthsBefore NoRhythm november "2026-03-15") [] "ohne Rhythmus"
+                // Alle 8 Wochen ab 2026-07-16: 2026-09-10, dann 2026-11-05 im gelesenen Monat. Die vorige
+                // Fälligkeit liegt zwei Monate zurück, die Periode davor ist der Oktober.
+                Expect.equal (periodMonthsBefore (Weeks 8) november "2026-07-16") [ "2026-10-01" ] "Wochen, vorige Fälligkeit im September"
+                Expect.equal (periodMonthsBefore (Years 1) november "kein Datum") [] "unlesbares Datum"
+
+            testCase "Ausgaben im gelesenen Monat zählen nicht als gedeckt, gerechnet wird mit dem Übertrag" <| fun () ->
+                // Bewusste Regel aus budgeting-b9869: die Aktivität des gelesenen Monats steckt nicht im Übertrag,
+                // als Ausgabe gezählt würde sie den Monatsanteil senken. Verfügbar wäre hier 25 − 10 = 15.
+                let target = { need 60m (Years 1) with Date = Some "2026-03-15" }
+                let earlier = [ for m in 4 .. 10 -> $"2026-%02d{m}-01", (if m = 6 then -10m else 0m) ]
+                let withActivity = computeWith target november 0m 25m -10m earlier
+                // (60 − (25 + 10)) / 5 = 5. Mit der Aktivität als Ausgabe: (60 − 45) / 5 = 3; mit Verfügbar: 7.
+                Expect.equal withActivity (computed 5m) "nur Übertrag und Ausgaben der Periode"
+                Expect.equal withActivity (computeWith target november 0m 25m 0m earlier) "wie ohne Aktivität im gelesenen Monat"
 
             testCase "Ausgaben vor Beginn der laufenden Periode zählen nicht" <| fun () ->
                 let target = { need 60m (Years 1) with Date = Some "2026-03-15" }
@@ -359,6 +376,18 @@ let private comparisonTests =
             Expect.equal m.Reason (Some PeriodActivityMissingText) "Grund"
             Expect.isNone m.Bb "kein Betrag"
 
+        testCase "Gebraucht werden die Periodenmonate aller Targets mit Fälligkeit, jeder Monat einmal" <| fun () ->
+            // budgeting-b9869. Jährlich fällig im März: April bis Oktober. Vierteljährlich fällig im Dezember: Oktober.
+            let annual = category "Jährlich" (Some { need 60m (Years 1) with Date = Some "2026-03-15" }) 0m (Some 0m)
+            let quarterly = category "Vierteljährlich" (Some { need 30m (Months 3) with Date = Some "2026-09-30" }) 0m (Some 0m)
+            let monthly = category "Monatlich" (Some (need 100m (Months 1))) 0m (Some 100m)
+            let withoutTarget = category "Ohne" None 0m None
+            Expect.equal
+                (periodMonthsNeeded (monthWith [ annual; quarterly; monthly; withoutTarget ]))
+                [ for m in 4 .. 10 -> $"2026-%02d{m}-01" ]
+                "April bis Oktober, Oktober nur einmal"
+            Expect.equal (periodMonthsNeeded (monthWith [ monthly; withoutTarget ])) [] "ohne Fälligkeit keine Monate"
+
         testCase "Eine pausierte Kategorie wird verglichen und trägt das Kennzeichen pausiert" <| fun () ->
             let paused = { category "Pausiert" (Some (need 100m (Months 1))) 0m (Some 100m) with Pause = Some PausedInBb }
             let active = category "Aktiv" (Some (need 100m (Months 1))) 0m (Some 100m)
@@ -486,31 +515,20 @@ let private handlerTests =
             Expect.isOk result "Ok trotz Fehler"
             Expect.equal result without "derselbe Monat"
 
-        testCase "Die Parallelrechnung zählt die Ausgaben früher gelesener Monate, das Lesen bleibt bei einem YNAB-Aufruf" <| fun () ->
-            // budgeting-b9869: Jedes Lesen hält die Aktivität des Monats fest; der Fehlbetrag im November nimmt die
-            // Ausgaben April bis Oktober daraus, nicht aus YNAB.
-            let id = Guid.NewGuid()
-            let november = "2032-11-01"
-            let port, calls =
-                countingPort (fun key ->
-                    if key = november then annualMonth id key 5m 0m 30m 0m
-                    else annualMonth id key 0m (if key = "2032-06-01" then -10m else 0m) 0m 0m)
-            let ignoreRows _ _ = async { return () }
-            for m in 4 .. 10 do
-                QueryHandlers.budgetMonthWith ignoreRows global.Persistence.getConnection port readAt $"2032-%02d{m}-01"
-                |> run
-                |> ignore
-            lock calls (fun () -> calls.Clear())
-            let saved = ResizeArray<UnderfundedComparison list>()
-            let save _ rows = async { saved.Add rows }
+        testCase "Scheitert das Festhalten der Aktivität, liefert das Lesen trotzdem denselben Monat" <| fun () ->
+            // budgeting-b9869: `observeUnguarded` fängt den Fehler von `recordMonthActivityWith` und loggt ihn. Die
+            // Aktivität sprengt die Milliunits (int64), nur das Festhalten der Aktivität rechnet sie um.
+            let monthKey = "2036-01-01"
+            let fine = ynabMonth monthKey
+            let raw = { fine with Categories = fine.Categories |> List.mapi (fun i c -> if i = 0 then { c with Activity = eur -1e17m } else c) }
 
-            let result = QueryHandlers.budgetMonthWith save global.Persistence.getConnection port readAt november |> run
+            let result = QueryHandlers.budgetMonthWith (fun _ _ -> async { return () }) global.Persistence.getConnection (portFor raw) readAt monthKey |> run
 
-            Expect.isOk result "Monat gelesen"
-            Expect.equal (List.ofSeq calls) [ november ] "genau ein YNAB-Aufruf für den gelesenen Monat"
-            let row = saved |> Seq.exactlyOne |> List.exactlyOne
-            // (60 − (25 + 10)) / 5 − 5 = 0 wie YNAB; ohne die Ausgaben wären es 2.
-            Expect.equal (row.Outcome, row.Bb) (Equal, Some (eur 0m)) "gedeckt wie YNAB"
+            let takenOver =
+                raw.Categories
+                |> List.map (fun c -> c.Id, { Assigned = toMilliunits c.Assigned; Confirmed = toMilliunits c.Assigned; Open = None })
+                |> Map.ofList
+            Expect.equal result (Ok (toBudgetMonthWith (Some takenOver) Set.empty raw)) "Ok mit dem gelesenen Monat"
     ]
 
 let private storedRows (month: string) : (string * string * string * Nullable<int64> * Nullable<int64> * int64) list =
@@ -573,8 +591,38 @@ let private persistenceTests =
             Expect.equal (storedRows month) [ "A", "NEED", "Gleich", Nullable 12340L, Nullable 10000L, 1L ] "B ist weg, A ersetzt"
             Expect.equal (storedRows other) [ "O", "NEED", "Gleich", Nullable 12340L, Nullable 10000L, 0L ] "anderer Monat unberührt"
 
+        testCase "Die Parallelrechnung zählt die Ausgaben früher gelesener Monate, das Lesen bleibt bei einem YNAB-Aufruf" <| fun () ->
+            // budgeting-b9869: Jedes Lesen hält die Aktivität des Monats fest; der Fehlbetrag im November nimmt die
+            // Ausgaben April bis Oktober daraus, nicht aus YNAB.
+            // Hier in der sequenzierten Liste, weil jedes Lesen alle Zeilen seines Monats ersetzt: die Monate
+            // 2032-04 bis 2032-11 gehören nur diesem Test.
+            Budgeting.Persistence.initializeBudgetingSchema ()
+            let id = Guid.NewGuid()
+            let november = "2032-11-01"
+            let port, calls =
+                countingPort (fun key ->
+                    if key = november then annualMonth id key 5m 0m 30m 0m
+                    else annualMonth id key 0m (if key = "2032-06-01" then -10m else 0m) 0m 0m)
+            let ignoreRows _ _ = async { return () }
+            for m in 4 .. 10 do
+                QueryHandlers.budgetMonthWith ignoreRows global.Persistence.getConnection port readAt $"2032-%02d{m}-01"
+                |> run
+                |> ignore
+            lock calls (fun () -> calls.Clear())
+            let saved = ResizeArray<UnderfundedComparison list>()
+            let save _ rows = async { saved.Add rows }
+
+            let result = QueryHandlers.budgetMonthWith save global.Persistence.getConnection port readAt november |> run
+
+            Expect.isOk result "Monat gelesen"
+            Expect.equal (List.ofSeq calls) [ november ] "genau ein YNAB-Aufruf für den gelesenen Monat"
+            let row = saved |> Seq.exactlyOne |> List.exactlyOne
+            // (60 − (25 + 10)) / 5 − 5 = 0 wie YNAB; ohne die Ausgaben wären es 2.
+            Expect.equal (row.Outcome, row.Bb) (Equal, Some (eur 0m)) "gedeckt wie YNAB"
+
         testCase "Fehlt die Aktivität eines früheren Monats, steht der Grund in der Abweichungsliste, ohne weiteren YNAB-Aufruf" <| fun () ->
-            // budgeting-b9869: kein Nachladen früherer Monate aus YNAB, sondern "Nicht gerechnet" mit Grund.
+            // budgeting-b9869: kein Nachladen früherer Monate aus YNAB, "Nicht gerechnet" mit Grund. Die Monate
+            // 2033-04 bis 2033-11 gehören nur diesem Test.
             Budgeting.Persistence.initializeBudgetingSchema ()
             let november = "2033-11-01"
             let port, calls = countingPort (fun key -> annualMonth (Guid.NewGuid()) key 5m 0m 30m 0m)
@@ -603,10 +651,32 @@ let private persistenceTests =
             record (monthOf "2034-02-01" [ a, -1m ])
             record (monthOf "2034-01-01" [ a, -20m ])
 
-            let loaded = load [ "2034-01-01" ] |> run
+            let loaded = load [ "2034-01-01" ] |> run |> Result.defaultWith failwith
             Expect.equal (loaded |> Map.tryFind a) (Some (Map.ofList [ "2034-01-01", eur -20m ])) "überschrieben, Februar nicht gefragt"
             Expect.isNone (loaded |> Map.tryFind b) "b fehlt nach dem zweiten Lesen des Monats"
-            Expect.equal (load [] |> run) Map.empty "ohne Monate keine Abfrage"
+
+        testCase "Ohne gefragte Monate wird die Datenbank nicht geöffnet" <| fun () ->
+            let unreachable () : Microsoft.Data.Sqlite.SqliteConnection = failwith "keine Verbindung erwartet"
+            Expect.equal (Budgeting.Persistence.loadMonthActivitiesWith unreachable [] |> run) (Ok Map.empty) "leer, ohne Fehler"
+
+        testCase "Eine Zeile mit unlesbarer Kategorie-Id wird übersprungen, die übrigen bleiben" <| fun () ->
+            // Der Monat 2036-02 gehört nur diesem Test.
+            Budgeting.Persistence.initializeBudgetingSchema ()
+            let monthKey = "2036-02-01"
+            let id = Guid.NewGuid()
+            Budgeting.Persistence.recordMonthActivityWith global.Persistence.getConnection readAt (annualMonth id monthKey 0m -4m 0m 0m)
+            do
+                use conn = global.Persistence.getConnection ()
+                Dapper.SqlMapper.Execute(
+                    conn,
+                    "INSERT INTO category_month_activity (month, category_id, activity_milliunits, read_at) \
+                     VALUES (@month, 'kaputt', -1000, @read_at)",
+                    {| month = monthKey; read_at = "2031-03-02T08:00:00.0000000Z" |})
+                |> ignore
+
+            let loaded = Budgeting.Persistence.loadMonthActivitiesWith global.Persistence.getConnection [ monthKey ] |> run
+
+            Expect.equal loaded (Ok (Map.ofList [ id, Map.ofList [ monthKey, eur -4m ] ])) "nur die lesbare Zeile"
 
         testCase "Die Übernahme im Hintergrund hält die Aktivität des übernommenen Monats fest" <| fun () ->
             // Belegt den Weg des TakeoverWorker (`ensureTakenOver` ist `ensureTakenOverWith` auf der Anwendungs-DB).
@@ -619,7 +689,7 @@ let private persistenceTests =
 
             Expect.equal taken (Ok CommandHandlers.TakenOverNow) "übernommen"
             let loaded = Budgeting.Persistence.loadMonthActivitiesWith global.Persistence.getConnection [ monthKey ] |> run
-            Expect.equal (loaded |> Map.tryFind id) (Some (Map.ofList [ monthKey, eur -7.5m ])) "Aktivität festgehalten"
+            Expect.equal (loaded |> Result.map (Map.tryFind id)) (Ok (Some (Map.ofList [ monthKey, eur -7.5m ]))) "Aktivität festgehalten"
 
         testCase "budgetMonth hält die Abweichungsliste des gelesenen Monats in der Datenbank fest" <| fun () ->
             // Belegt den Live-Anschluss: `budgetMonth` gibt `saveUnderfundedComparisons` an `budgetMonthWith`.
