@@ -5,6 +5,29 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 09:08 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** etwa 6h (Batch-Start 2026-11-05 21:4x bis Session-Ende, Nachtlauf mit Reviews)
+**Completed:** 4 (first-try PASS: 4, re-dispatched: 0, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Lost-result re-dispatches:** 0
+**Lost-result escalations:** 0
+**Dispatches:** budgeting-dgrp7: 1, ledger-z71ka: 1, infrastructure-w7d2c: 1, budgeting-dkjc5: 1
+**Commits:** 27
+**Vision-conformance:** none, batch aligns with vision
+**Batch mix:** 75% product-facing / 25% harness (4 tasks)
+**Carry-over:** none, working tree clean
+**Reviews:** alle vier Review-Läufe abgeschlossen (z71ka, w7d2c, dgrp7, dkjc5), Fixes auf main, Tickets ledger-p3vq8 und infrastructure-k3w8n
+**Owner-Entscheidungen:** Markierung neutral; dauerhaft scheiternder Monat im Durchlauf überspringen; ADR 0084 Nachtrag 2026-11-06
+**Deploy:** nicht deployt, nicht gepusht. dgrp7 und dkjc5 nur gemeinsam und nach Sicherung der Prod-DB
+**Verifikation:** VERIFY: PASS (dotnet 4115 grün, node 311 grün)
+**Vorschlag:** /architecture-review budgeting (Schwelle überschritten)
+
+---
+
 ## 2026-11-06 09:00 -- Review-Lauf: budgeting-dgrp7
 
 **Type:** Review / Review-Lauf
