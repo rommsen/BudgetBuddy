@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 19:08 -- Modeling / Captured: budgeting-c4ve4 - "Seite Targets prüfen an die freigegebene Skizze angleichen: kompakte Zeile mit Mini-Balken und Target-Linie, Gruppenfarben und Regelsatz, Kopf mit Erklärung und Zählern, Panel mit Satz und großen Balken"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Seite Targets prüfen an die freigegebene Skizze angleichen, nach Romans Korrektur. Abweichungen von Roman am 2026-11-06 entschieden, Nachtrag ADR 0075.
+
+---
+
 ## 2026-11-06 18:32 -- Review-Lauf: budgeting-q4v8n
 
 **Type:** Review / Review-Lauf

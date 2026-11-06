@@ -6,7 +6,7 @@ status: accepted
 date: 2026-11-02
 supersedes: []
 superseded_by: []
-related_tasks: [budgeting-v4ht9, budgeting-g8s3w]
+related_tasks: [budgeting-v4ht9, budgeting-g8s3w, budgeting-c4ve4]
 related_adrs: [0049]
 related_research: []
 ---
@@ -42,6 +42,18 @@ Dieses ADR ergänzt ADR 0049.
    Nachtrag 2026-11-05 (ADR 0082, Entscheidung des Owners): "Passt das Target noch?" steht nicht
    mehr an der Kategorie, sondern auf der eigenen Seite Targets prüfen. Gelb heißt auf der
    Budget-Seite damit nur noch `fehlt`.
+
+
+## Nachtrag 2026-11-06: Ausnahme Seite Targets prüfen (Entscheidung des Owners)
+Roman hat für die Seite Targets prüfen (ADR 0082) die Farben der freigegebenen Skizze gewählt, auch
+wo sie den Farbrollen oben und ADR 0049 widersprechen (budgeting-c4ve4):
+- Die Gruppenköpfe tragen eine Farbe: "Gibst du mehr aus?" Orange, "Gibst du weniger aus?" ein ruhiges
+  Blau (neues Token, die Skizze nutzt `#7ab8ff`), "Gibst du nie aus?" Violett, "Kein Target" die
+  Textfarbe, "Passt" Teal.
+- In den Monatsbalken der Seite sind die Monate über dem Target orange.
+- Die Knöpfe "übernehmen" und "Anpassen …" bleiben neutral (Punkt 3 oben gilt weiter).
+Die Ausnahme gilt nur für diese Seite. Die Budget-Liste und alle anderen Listen folgen weiter
+ADR 0049 und den Farbrollen oben.
 
 ## Consequences
 ### Positive
