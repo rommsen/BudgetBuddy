@@ -73,7 +73,11 @@ let private applyEvent (categories: Map<Guid, AssignmentState>) (eventId: Guid, 
     | BudgetEvent.YnabGoalChangedFromBb _
     | BudgetEvent.YnabGoalStepWrittenToYnab _
     | BudgetEvent.YnabGoalStepWriteFailed _
-    | BudgetEvent.YnabGoalStepSupersededInYnab _ -> categories
+    | BudgetEvent.YnabGoalStepSupersededInYnab _
+    // Target-Ereignisse liegen im Target-Stream und ändern das Zugewiesen nicht (budgeting-eh8xe).
+    | BudgetEvent.TargetTakenOverFromYnab _
+    | BudgetEvent.TargetSet _
+    | BudgetEvent.TargetRemoved _ -> categories
 
 /// Faltet die Ereignisse eines Monats-Streams in Stream-Reihenfolge ab dem jüngsten Übernahme-Ereignis.
 /// Alles davor ist Historie und wirkt nicht (ADR 0084 Punkt 4).

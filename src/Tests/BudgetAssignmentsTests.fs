@@ -122,6 +122,16 @@ let private foldTests =
         test "Übernahme: Soll und bestätigter Stand sind der übernommene Wert, nichts offen" {
             Expect.equal (after [ start ]) (state 10000L 10000L None) "Startstand"
         }
+        // Regressionstest (Review hbhzf): seit budgeting-eh8xe gibt es Target-Ereignisse, `applyEvent` kannte sie nicht
+        // und brach mit MatchFailureException ab. Sie gehören in den Target-Stream und ändern das Zugewiesen nicht.
+        test "Target-Ereignisse ändern das Zugewiesen nicht" {
+            let rule : Target = { Goal = { Amount = 50m; Currency = "EUR" }; Rhythm = Months 1; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None; CreatedIn = None }
+            let targetEvents =
+                [ BudgetEvent.TargetTakenOverFromYnab { CategoryName = "K"; Rule = rule; YnabGoalType = "NEED" }
+                  BudgetEvent.TargetSet { Rule = rule; EffectiveFrom = monthId }
+                  BudgetEvent.TargetRemoved { EffectiveFrom = monthId } ]
+            Expect.equal (after (start :: withIds targetEvents)) (state 10000L 10000L None) "unverändert"
+        }
         test "Entscheidung: Soll ist der neue Wert, sie ist die offene Rückschreibung" {
             let id, e = decide 20000L 10000L
             Expect.equal (after [ start; id, e ]) (state 20000L 10000L (Some id)) "offen"
