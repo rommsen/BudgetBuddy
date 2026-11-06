@@ -131,6 +131,7 @@ UI, Doku und Kommentare Deutsch mit echten Umlauten (ä, ö, ü, ß). Identifier
 ## README-Deltas (Agentheim)
 
 Vor dem Integrieren eines README_DELTA lokal gegen das echte Grammatik-Modul prüfen: `npm run check:readme-delta -- --bc <kontext> --delta <datei|->` (direkt: `node scripts/readme-delta-check.mjs --bc <kontext> --delta <datei|->`).
+Liegen zwischen RESULT und Integration Review-Fixes oder ein Merge (etwa bei einer geparkten Task), ist das Delta veraltet. Vor dem Gate jeden Satz am aktuellen Code prüfen: Verhalten, zitierte Nutzersätze (nicht Log-Sätze) und jeden Bullet, der dieselbe Regel nennt. Die bekannten Änderungen nur einzuarbeiten reicht nicht (budgeting-eh8xe, Verifier-FAIL in Iteration 2 und 3).
 Ein rotes Gate heißt: den README-Block von Hand platzieren, nicht das Delta blind anwenden.
 Exit 1: das Delta wurde inhaltlich abgelehnt, Grund in der Meldung.
 Exit 2: das Gate konnte gar nicht urteilen (Plugin-Modul nicht gefunden, Eingabe ungültig), das ist etwas anderes als "abgelehnt".
