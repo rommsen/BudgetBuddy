@@ -555,28 +555,68 @@ let remainingMonths (month: string) (due: string) : Result<int, string> =
     | None, _ -> Error $"Monat {month} nicht lesbar"
     | _, None -> Error $"Fälligkeit {due} nicht lesbar"
 
+let private dayOf (text: string) : DateTime option =
+    match DateTime.TryParseExact(text, "yyyy-MM-dd", Globalization.CultureInfo.InvariantCulture, Globalization.DateTimeStyles.None) with
+    | true, day -> Some day
+    | false, _ -> None
+
+/// Ein Rhythmus als Verschiebung um k Schritte, immer vom gespeicherten Datum aus, damit ein Monatsende (31.)
+/// nicht wandert. `None` ohne Rhythmus.
+let private rhythmShift (rhythm: TargetRhythm) : (DateTime -> int -> DateTime) option =
+    match rhythm with
+    | Weeks n when n > 0 -> Some (fun date k -> date.AddDays(float (7 * n * k)))
+    | Months n when n > 0 -> Some (fun date k -> date.AddMonths(n * k))
+    | Years n when n > 0 -> Some (fun date k -> date.AddYears(n * k))
+    | _ -> None
+
+let private monthIndexOfDay (day: DateTime) : int = day.Year * 12 + day.Month - 1
+
+/// Wie viele Rhythmus-Schritte vom gespeicherten Datum bis zur ersten Fälligkeit im Monat `monthIndex` oder danach.
+let private stepsUntil (shift: DateTime -> int -> DateTime) (date: DateTime) (monthIndex: int) : int =
+    Seq.initInfinite id |> Seq.find (fun k -> monthIndexOfDay (shift date k) >= monthIndex)
+
 /// Die Fälligkeit für die Formel "Mit Fälligkeit" im gelesenen Monat `month` (budgeting-r4kqm). Bei einem
 /// Target mit Rhythmus ist es die erste Fälligkeit ab dem gelesenen Monat: das gespeicherte Datum, so oft
 /// um den Rhythmus verschoben, bis es im gelesenen Monat oder danach liegt. YNAB lässt das gespeicherte
 /// Datum eines wiederkehrenden Ziels in der Vergangenheit stehen und rechnet bis zur nächsten Fälligkeit.
 /// Ohne Rhythmus oder mit unlesbarem Datum bleibt das gespeicherte Datum.
 let dueFrom (rhythm: TargetRhythm) (month: string) (due: string) : string =
-    let parsed = DateTime.TryParseExact(due, "yyyy-MM-dd", Globalization.CultureInfo.InvariantCulture, Globalization.DateTimeStyles.None)
-    let shift: (DateTime -> int -> DateTime) option =
-        match rhythm with
-        | Weeks n when n > 0 -> Some (fun date k -> date.AddDays(float (7 * n * k)))
-        | Months n when n > 0 -> Some (fun date k -> date.AddMonths(n * k))
-        | Years n when n > 0 -> Some (fun date k -> date.AddYears(n * k))
-        | _ -> None
-    match parsed, shift, monthIndexOf month with
-    | (true, date), Some step, Some monthIndex ->
-        // Immer vom gespeicherten Datum aus um k Schritte, damit ein Monatsende (31.) nicht wandert.
-        let indexOf (d: DateTime) = d.Year * 12 + d.Month - 1
-        Seq.initInfinite id
-        |> Seq.map (step date)
-        |> Seq.find (fun d -> indexOf d >= monthIndex)
-        |> fun d -> d.ToString("yyyy-MM-dd", Globalization.CultureInfo.InvariantCulture)
+    match dayOf due, rhythmShift rhythm, monthIndexOf month with
+    | Some date, Some shift, Some monthIndex ->
+        (shift date (stepsUntil shift date monthIndex)).ToString("yyyy-MM-dd", Globalization.CultureInfo.InvariantCulture)
     | _ -> due
+
+/// Die Monate der laufenden Periode vor dem gelesenen Monat `month` (budgeting-b9869), aufsteigend als
+/// "YYYY-MM-01". Die Periode beginnt im Monat nach der vorigen Fälligkeit (die Fälligkeit aus `dueFrom`, um
+/// einen Rhythmus-Schritt zurück). Der gelesene Monat gehört nicht dazu: seine Aktivität steckt nicht im
+/// Übertrag, ihre Ausgaben zählten sonst doppelt. Ohne Rhythmus oder mit unlesbarem Datum: keine Monate.
+let periodMonthsBefore (rhythm: TargetRhythm) (month: string) (due: string) : string list =
+    match dayOf due, rhythmShift rhythm, monthIndexOf month with
+    | Some date, Some shift, Some monthIndex ->
+        let previous = shift date (stepsUntil shift date monthIndex - 1)
+        [ monthIndexOfDay previous + 1 .. monthIndex - 1 ]
+        |> List.map (fun index -> DateTime(index / 12, index % 12 + 1, 1).ToString("yyyy-MM-dd", Globalization.CultureInfo.InvariantCulture))
+    | _ -> []
+
+/// Die früheren Monate, deren Aktivität BB für den Fehlbetrag eines Targets im gelesenen Monat braucht: nur
+/// bei "Mit Fälligkeit" mit Rhythmus, sonst keine.
+let periodMonthsOf (target: Target) (month: string) : string list =
+    match underfundedRuleOf target with
+    | Ok (DueDateRule due) -> periodMonthsBefore target.Rhythm month due
+    | _ -> []
+
+/// Der Grund, wenn für einen Monat der laufenden Periode keine Aktivität im Zustand liegt.
+[<Literal>]
+let PeriodActivityMissingText = "Aktivität der Periode fehlt"
+
+/// Die Ausgaben der Periode: minus die Summe der Aktivität in `months`, Zuflüsse senken sie nicht unter 0.
+/// `earlierActivity` ist die Aktivität der Kategorie je Monat ("YYYY-MM-01"). Fehlt ein Monat: `Error`.
+let private periodSpending (months: string list) (earlierActivity: Map<string, Money>) : Result<decimal, string> =
+    let found = months |> List.choose (fun m -> earlierActivity |> Map.tryFind m)
+    if found.Length < months.Length then
+        Error PeriodActivityMissingText
+    else
+        Ok (max 0m (-(found |> List.sumBy (fun a -> a.Amount))))
 
 /// Wie oft der Wochentag `day` (0 Sonntag bis 6 Samstag, wie `DayOfWeek`) im Monat vorkommt.
 let weekdayCount (month: string) (day: int) : Result<int, string> =
@@ -597,15 +637,28 @@ let private ceilingToCent (amount: decimal) : decimal =
 /// BBs Fehlbetrag eines Targets im gelesenen Monat `month` ("YYYY-MM-01"), ohne I/O (ADR 0084 Punkt 7).
 /// Übertrag = Verfügbar − Zugewiesen − Aktivität, also Verfügbar = Übertrag + Zugewiesen + Aktivität. Ein
 /// negatives Ergebnis ist 0. Eine Pause spielt hier keine Rolle, ihre Wirkung entscheidet der Aufrufer.
-let underfunded (target: Target) (month: string) (assigned: Money) (carryover: Money) (activity: Money) : UnderfundedResult =
+/// `earlierActivity` ist die Aktivität der Kategorie in früheren Monaten ("YYYY-MM-01"). "Mit Fälligkeit" zählt
+/// wie YNAB die Ausgaben der laufenden Periode als gedeckt (budgeting-b9869): gedeckt = Übertrag + Ausgaben der
+/// Periode vor dem gelesenen Monat (`periodMonthsBefore`). Fehlt dafür ein Monat, ist das Ergebnis nicht gerechnet.
+let underfunded
+    (target: Target)
+    (month: string)
+    (assigned: Money)
+    (carryover: Money)
+    (activity: Money)
+    (earlierActivity: Map<string, Money>)
+    : UnderfundedResult =
     let goal = target.Goal.Amount
     let available = carryover.Amount + assigned.Amount + activity.Amount
     let amount =
         match underfundedRuleOf target with
         | Error reason -> Error reason
         | Ok (DueDateRule due) ->
-            remainingMonths month (dueFrom target.Rhythm month due)
-            |> Result.map (fun months -> ceilingToCent ((goal - carryover.Amount) / decimal months) - assigned.Amount)
+            periodSpending (periodMonthsBefore target.Rhythm month due) earlierActivity
+            |> Result.bind (fun spent ->
+                remainingMonths month (dueFrom target.Rhythm month due)
+                |> Result.map (fun months ->
+                    ceilingToCent ((goal - (carryover.Amount + spent)) / decimal months) - assigned.Amount))
         | Ok RefillRule -> Ok (goal - (carryover.Amount + assigned.Amount))
         | Ok MonthlyRule -> Ok (goal - assigned.Amount)
         | Ok (WeeklyRule day) -> weekdayCount month day |> Result.map (fun count -> decimal count * goal - assigned.Amount)
@@ -653,14 +706,16 @@ type UnderfundedComparison = {
 
 /// Die Abweichungsliste eines Monats: je sichtbarer Kategorie mit Target eine Zeile, auch pausierte, weil
 /// YNAB den Fehlbetrag auch für sie liefert. Verglichen wird genau, ohne Toleranz. Rein, ohne I/O.
-let compareUnderfunded (month: BudgetMonth) : UnderfundedComparison list =
+/// `earlierActivity` ist die Aktivität früherer Monate je Kategorie (`periodMonthsOf`, budgeting-b9869).
+let compareUnderfunded (month: BudgetMonth) (earlierActivity: Map<Guid, Map<string, Money>>) : UnderfundedComparison list =
     month.Groups
     |> List.collect (fun g -> g.Categories)
     |> List.choose (fun c ->
         c.Target
         |> Option.map (fun target ->
             let carryover = { c.Available with Amount = c.Available.Amount - c.Assigned.Amount - c.Activity.Amount }
-            let bb = underfunded target month.Month c.Assigned carryover c.Activity
+            let earlier = earlierActivity |> Map.tryFind c.Id |> Option.defaultValue Map.empty
+            let bb = underfunded target month.Month c.Assigned carryover c.Activity earlier
             let rule = underfundedRuleOf target |> Result.toOption
             let row =
                 { Month = month.Month

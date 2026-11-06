@@ -3,7 +3,7 @@
 /// Rückschreib-Ergebnisse liegen im Monats-Stream, Target-Änderungen samt Schritt-Ergebnissen im
 /// Target-Stream der Kategorie. Jeder Leser filtert auf `context = 'budgeting'` und sortiert fachlich
 /// (`occurred_at`, `stream_version`), nie nach `position`. Ein unbekannter Ereignistyp im Kontext wird
-/// gemeldet, nicht übersprungen. `underfunded_comparisons` bleibt Zustand.
+/// gemeldet, nicht übersprungen. `underfunded_comparisons` und `category_month_activity` bleiben Zustand.
 module Budgeting.Persistence
 
 open System
@@ -47,7 +47,7 @@ let private orDbNull (value: 'a option) : obj =
     | Some v -> box v
     | None -> null
 
-/// Legt `events` (ADR 0083) und `underfunded_comparisons` an und überführt die früheren Budget-Tabellen
+/// Legt `events` (ADR 0083), `underfunded_comparisons` und `category_month_activity` an und überführt die früheren Budget-Tabellen
 /// nach `events` (budgeting-hyn77). Wiederholbar. Läuft beim Start hinter
 /// `Ledger.Persistence.initializeLedgerSchema`. Bricht die Migration ab, wirft der Aufruf und BB startet
 /// nicht.
@@ -68,6 +68,13 @@ let initializeBudgetingSchema () =
             reason TEXT,
             paused INTEGER NOT NULL,
             compared_at TEXT NOT NULL,
+            PRIMARY KEY (month, category_id)
+        );
+        CREATE TABLE IF NOT EXISTS category_month_activity (
+            month TEXT NOT NULL,
+            category_id TEXT NOT NULL,
+            activity_milliunits INTEGER NOT NULL,
+            read_at TEXT NOT NULL,
             PRIMARY KEY (month, category_id)
         );
         """
@@ -985,3 +992,61 @@ let saveUnderfundedComparisonsWith
 /// `saveUnderfundedComparisonsWith` auf der Datenbank der Anwendung, Zeitpunkt ist jetzt (UTC).
 let saveUnderfundedComparisons (month: string) (rows: UnderfundedComparison list) : Async<unit> =
     saveUnderfundedComparisonsWith Core.getConnection DateTime.UtcNow month rows
+
+// ============================================
+// Aktivität je Monat und Kategorie (budgeting-b9869)
+// ============================================
+
+/// Eine Zeile aus `category_month_activity`.
+[<CLIMutable>]
+type CategoryMonthActivityRow = {
+    month: string
+    category_id: string
+    activity_milliunits: int64
+}
+
+/// Hält YNABs Aktivität aller Kategorien des gelesenen Monats fest (Zustand nach ADR 0083, kein Ereignis): erst
+/// die Zeilen des Monats löschen, dann die neuen einfügen, in einer Transaktion. Jedes Lesen eines Monats
+/// überschreibt so den vorigen Stand. Grundlage der Ausgaben der Periode im Fehlbetrag "Mit Fälligkeit".
+let recordMonthActivityWith (connect: unit -> SqliteConnection) (readAt: DateTime) (month: YnabMonth) : unit =
+    use conn = connect ()
+    conn.Open()
+    use tx = conn.BeginTransaction()
+    conn.Execute("DELETE FROM category_month_activity WHERE month = @month", {| month = month.Month |}, tx) |> ignore
+    let parameters =
+        month.Categories
+        |> List.map (fun c ->
+            {| month = month.Month
+               category_id = string c.Id
+               activity_milliunits = toMilliunits c.Activity
+               read_at = dateToText readAt |})
+        |> Array.ofList
+    if parameters.Length > 0 then
+        conn.Execute(
+            "INSERT INTO category_month_activity (month, category_id, activity_milliunits, read_at) \
+             VALUES (@month, @category_id, @activity_milliunits, @read_at)",
+            parameters,
+            tx
+        )
+        |> ignore
+    tx.Commit()
+
+/// Die festgehaltene Aktivität der Monate `months` in einer Abfrage, je Kategorie und Monat. Ein Monat ohne
+/// Zeile fehlt in der Map.
+let loadMonthActivitiesWith (connect: unit -> SqliteConnection) (months: string list) : Async<Map<Guid, Map<string, Shared.Domain.Money>>> =
+    async {
+        if List.isEmpty months then
+            return Map.empty
+        else
+            use conn = connect ()
+            let rows =
+                conn.Query<CategoryMonthActivityRow>(
+                    "SELECT month, category_id, activity_milliunits FROM category_month_activity WHERE month IN @months",
+                    {| months = Array.ofList months |})
+                |> Seq.toList
+            return
+                rows
+                |> List.groupBy (fun r -> Guid.Parse r.category_id)
+                |> List.map (fun (id, rs) -> id, rs |> List.map (fun r -> r.month, euroOfMilliunits r.activity_milliunits) |> Map.ofList)
+                |> Map.ofList
+    }

@@ -12,8 +12,8 @@ Catalog of this bounded context's tasks by status.
 <!-- task-counts:start -->
 - **Backlog:** 6
 - **Todo:** 0
-- **Doing:** 2
-- **Done:** 48
+- **Doing:** 1
+- **Done:** 49
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,12 +22,12 @@ Catalog of this bounded context's tasks by status.
 
 ### Doing
 <!-- doing-list:start -->
-- **budgeting-b9869** — "Fehlbetrag mit Fälligkeit: Ausgaben seit Beginn der laufenden Periode zählen als gedeckt, wie bei YNAB" (bug) — `doing/budgeting-b9869-fehlbetrag-mit-faelligkeit-zaehlt-ausgaben-der-periode.md`
 - **budgeting-eh8xe** — "Targets in BB führen: einmalige Übernahme aus YNAB, Target ändern schreibt nur in BB mit Befehls-Id, Wochentag setzbar, Pause nur in BB, Rückbau des Goal-Schreibwegs" (feature) — `doing/budgeting-eh8xe-targets-als-bb-regeln-einmalige-bernahme-aus-ynab-1-1-fehlbe.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **budgeting-b9869** — "Fehlbetrag mit Fälligkeit: Ausgaben seit Beginn der laufenden Periode zählen als gedeckt, wie bei YNAB" (bug) — `done/budgeting-b9869-fehlbetrag-mit-faelligkeit-zaehlt-ausgaben-der-periode.md`
 - **budgeting-r4kqm** — "Fehlbetrag mit Fälligkeit: BB rechnet bei wiederkehrenden Targets bis zur nächsten Fälligkeit statt mit dem gespeicherten, vergangenen Datum" (bug) — `done/budgeting-r4kqm-fehlbetrag-mit-faelligkeit-bei-wiederkehrendem-target.md`
 - **budgeting-dkjc5** — "Hintergrund-Übernahme: laufender und künftige Monate zuerst, dann ältere, unter YNABs Rate-Grenze" (feature) — `done/budgeting-dkjc5-hintergrund-uebernahme-aelterer-monate.md`
 - **budgeting-dgrp7** — "BB führt das Zugewiesen: Übernahme beim Lesen und vor jedem Befehl, Soll-Faltung mit bestätigtem Stand, observeMonth mit Echo-Regel, Befehle auf das Soll" (feature) — `done/budgeting-dgrp7-budget-aus-ynab-bernehmen-sofort-und-im-hintergrund-soll-je.md`

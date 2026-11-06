@@ -13,14 +13,23 @@ let private logReadFailure (what: string) (ex: exn) : unit =
 
 /// Die Parallelrechnung des Fehlbetrags (budgeting-v7kfw, ADR 0084 Punkt 7): vergleicht BBs Fehlbetrag mit
 /// YNABs, gibt die Abweichungsliste an `save` und schreibt eine Zeile ins Server-Log. Ein Fehler darin landet
-/// nur im Server-Log, die Antwort an den Client hängt nicht davon ab.
+/// nur im Server-Log, die Antwort an den Client hängt nicht davon ab. `loadActivity` liest die festgehaltene
+/// Aktivität der Periodenmonate aller Targets in einer Abfrage (budgeting-b9869), ohne YNAB-Aufruf.
 let private runUnderfundedComparison
     (save: string -> UnderfundedComparison list -> Async<unit>)
+    (loadActivity: string list -> Async<Map<Guid, Map<string, Money>>>)
     (month: BudgetMonth)
     : Async<unit> =
     async {
         try
-            let rows = compareUnderfunded month
+            let needed =
+                month.Groups
+                |> List.collect (fun g -> g.Categories)
+                |> List.choose (fun c -> c.Target)
+                |> List.collect (fun t -> periodMonthsOf t month.Month)
+                |> List.distinct
+            let! earlier = loadActivity needed
+            let rows = compareUnderfunded month earlier
             do! save month.Month rows
             printfn "%s" (comparisonSummary month.Month rows)
         with ex ->
@@ -32,7 +41,8 @@ let private runUnderfundedComparison
 /// dessen YNAB-Stand und der Faltung. Zugewiesen ist BBs Soll, eine offene Rückschreibung trägt ihre Markierung;
 /// Aktivität, Verfügbar und Zu verteilen bleiben YNABs. Scheitert `FetchMonth`, scheitert das Lesen. Scheitert
 /// nur das Festhalten, steht der Grund im Server-Log und der Monat kommt aus dem YNAB-Stand. Danach läuft die
-/// Parallelrechnung des Fehlbetrags auf dem gelieferten Monat, `save` hält die Abweichungsliste fest.
+/// Parallelrechnung des Fehlbetrags auf dem gelieferten Monat, `save` hält die Abweichungsliste fest. Die
+/// Aktivität früherer Monate dafür kommt aus der Datenbank (`category_month_activity`), nie aus YNAB.
 /// `connect` ist die Datenbank für Stream, Pausen und Anhängen, `now` der Zeitpunkt der Ereignisse (UTC).
 let budgetMonthWith
     (save: string -> UnderfundedComparison list -> Async<unit>)
@@ -55,7 +65,7 @@ let budgetMonthWith
             | Error message -> return Error (YnabError.LocalReadFailed message)
             | Ok paused ->
                 let month = toBudgetMonthWith assignments paused raw
-                do! runUnderfundedComparison save month
+                do! runUnderfundedComparison save (Budgeting.Persistence.loadMonthActivitiesWith connect) month
                 return Ok month
     }
 

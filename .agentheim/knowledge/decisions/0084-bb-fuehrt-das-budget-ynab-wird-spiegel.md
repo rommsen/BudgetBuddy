@@ -247,6 +247,18 @@ Die Ergebnis-Ereignisse (`AssignmentWrittenBackToYnab`, `AssignmentWriteBackFail
 - Anzeige: Die Markierung "noch nicht in YNAB" steht in der Budget-Zeile neutral, am PC und am
   Handy gleich; Gelb bleibt in der Zeile "fehlt" vorbehalten (entschieden von Roman).
 
+**Nachtrag 2026-11-06 (budgeting-r4kqm und budgeting-b9869, Parallelrechnung in Prod):**
+- Punkt 7, Formel "Mit Fälligkeit": Bei einem Target mit Rhythmus gilt die nächste Fälligkeit ab
+  dem gelesenen Monat (das gespeicherte Datum, um den Rhythmus verschoben, `dueFrom`). Als gedeckt
+  zählen Übertrag plus die **Ausgaben der laufenden Periode** (vom Monat nach der vorigen
+  Fälligkeit bis vor den gelesenen Monat), wie YNABs `goal_overall_funded`. Belegt am Vergleich in
+  Prod (Mai 2026 bis Dezember 2026, dann Dezember 2025 bis November 2026) und an YNABs `goal_*`-Feldern.
+- Quelle der Ausgaben: YNABs Monatsaktivität, festgehalten als Zustand `category_month_activity`
+  (ADR 0083), überschrieben bei jedem Lesen eines Monats, ohne zusätzlichen YNAB-Aufruf
+  (entschieden von Roman). Fehlt ein Monat der Periode, rechnet BB nicht und nennt den Grund.
+- Toleranz für die Umschaltung (budgeting-hbhzf, entschieden von Roman): jede Abweichung im
+  laufenden Monat hat einen bekannten Grund.
+
 ### 5. Übernahme
 
 Entschieden von Roman am 2026-11-05.

@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 11:39 -- Task verified and completed: budgeting-b9869 - "Fehlbetrag mit Fälligkeit: Ausgaben seit Beginn der laufenden Periode zählen als gedeckt, wie bei YNAB"
+
+**Type:** Work / Task completion
+**Task:** budgeting-b9869 - "Fehlbetrag mit Fälligkeit: Ausgaben seit Beginn der laufenden Periode zählen als gedeckt, wie bei YNAB"
+**Summary:** Fehlbetrag mit Fälligkeit zählt die Ausgaben der laufenden Periode als gedeckt
+**Duration:** 55m
+**Verification:** PASS (iteration 1)
+**Files changed:** 5
+**Tests added:** 13
+**ADRs written:** none
+
+---
+
 ## 2026-11-06 10:48 -- Batch started: [budgeting-b9869]
 
 **Type:** Work / Batch start

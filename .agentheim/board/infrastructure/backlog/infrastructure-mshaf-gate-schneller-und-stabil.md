@@ -162,3 +162,5 @@ it can be promoted. Herkunft: nicht blockierender Hinweis des Verifiers von ledg
 
 ## Nachtrag 2026-11-06 (Verifier budgeting-r4kqm)
 - `src/Tests/BudgetTakeoverTests.fs:529` "die Wartefunktion des Servers wartet wirklich" misst unter paralleler Last 49,785 ms gegen eine Untergrenze von 50 ms und wird rot. Ein zweiter Lauf war grün.
+- `[flow:bank-trennen]` in `scripts/settings-secrets.test.mjs`: Playwright-Klick lief unter Last ab ("element not stable"), einzeln und im zweiten Lauf grün (Verifier budgeting-b9869).
+- Expecto blieb unter Last (über 20) mehrfach hängen, an CmdTiming-, YnabClient-Fake-Handler- und Netz-Wächter-Tests, auch mit der Tests.dll von `main` (Worker budgeting-b9869). Hängende Prozesse ließen sich aus der Session nicht beenden.
