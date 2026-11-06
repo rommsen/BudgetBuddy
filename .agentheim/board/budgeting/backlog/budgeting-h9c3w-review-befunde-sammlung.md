@@ -97,3 +97,5 @@ Kaputt-Szenario (GIVEN/WHEN/THEN): GIVEN Wechsel hin und zurück, das Lesen des 
 ## Aus budgeting-q4v8n (2026-11-06)
 - UI (Worker q4v8n): Auf der Seite Targets prüfen brechen am Handy "<Betrag> übernehmen" und "Anpassen …" um, jede Zeile wird dadurch rund 56 px höher.
 - UI (Worker q4v8n): Das vorbelegte Betragsfeld zeigt "1200,00" ohne Tausenderpunkt (`AmountMath.formatSignedAmount`, wie im Tab Target).
+- UI (Review q4v8n, Frontend V6 und Design V2): Die Panel-Hülle der Seite Targets prüfen (`TargetCheckView.fs`, Klassenkette `budget-inspector-panel … rounded-xl border`) wiederholt die des Inspektors (`InspectorView.fs`), `groupCard` die Karte der Historie (`HistoryView.fs`). Eine gemeinsame Hülle bzw. eine `Card`-Variante ohne Innenabstand ordnete alle drei.
+- UI (Review q4v8n, Design V5): Das Skelett der Seite Targets prüfen ist `Loading.txListSkeleton 5` (Buchungszeilen), die Seite rendert Karten mit hohen Zeilen und Balken; beim Eintreffen springt das Layout (wie in der Historie).

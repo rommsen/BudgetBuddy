@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 18:32 -- Review-Lauf: budgeting-q4v8n
+
+**Type:** Review / Review-Lauf
+**Bereich:** 2ad982c..e86f8d2 (budgeting-q4v8n)
+**Agents:** frontend-architecture, design-quality, qa-milestone-reviewer, backend-code-quality
+**Funde:** behoben 21, verworfen 2, Rückfrage 1, Ticket 0, Kann-Sammlung 2
+**Commits:** 199195a (Balken ein Tab-Stopp), f3f7b8b (roundHalfUp, Fable-Mittelwerte), 9330b5f (Neuladen gegen Schreib-Antwort, Toasts, Zusatz oder Werte, Mono, h2), cbe33df ([tastatur]-Test)
+**Verworfen:** Leerzustand "Alle Targets passen" (unter Passt stehen auch nicht geprüfte Targets, der Satz wäre falsch); Knopftexte im Browser-Test bleiben (sichern die gemessene Länge ab, QA selbst ohne Handlungszwang)
+**Rückfrage:** Icon checkCircle für Targets prüfen
+**Verifikation:** VERIFY: PASS (dotnet 4186 grün, node 316 grün, dotnet build, npm run build, guard:classes, guard:tokens grün)
+
+---
+
 ## 2026-11-06 18:04 -- Work session ended
 
 **Type:** Work / Session end
