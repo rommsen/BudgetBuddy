@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 22:59 -- Bestandsreview: ledger
+
+**Type:** Review / Bestandsreview
+**Befunde:** hoch 7, mittel 45, niedrig 42
+**Gruppen:** 7 (1 bis 5 zur Auswahl für Roman, 6 und 7 in der Kann-Sammlung ledger-k4n2s)
+**Bericht:** .agentheim/knowledge/reviews/2026-11-06-ledger.md
+**Tasks:** offen
+
+---
+
 ## 2026-11-06 22:49 -- Batch started: [budgeting-m3x7f]
 
 **Type:** Work / Batch start
