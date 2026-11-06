@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 09:00 -- Review-Lauf: budgeting-dgrp7
+
+**Type:** Review / Review-Lauf
+**Bereich:** 3415116 [budgeting-dgrp7]
+**Agents:** backend-code-quality, frontend-architecture, design-quality, qa-milestone-reviewer
+**Funde:** behoben 31, verworfen 2, Rückfrage 2, Ticket 0
+**Commits:** 60629cc (Client: Laufzustand Erneut senden, Historie, Markierung am Handy, Detail.notice gelb, Styleguide), 7566812 (Server und Tests: HistoryOrigin, connect-Port, Reihenfolgen als Aufzählung, sieben neue Handler- und Domain-Tests)
+**Verworfen:** RetryLine-Bools als DU (lesbar genug); ref-Zellen in der Sendeschleife (altes Muster, geringer Nutzen)
+**Rückfrage:** Farbe der Markierung in der Zeile (Roman: neutral, PC und Handy gleich); ADR-0084-Nachtrag (Roman: ja)
+**Verifikation:** VERIFY: PASS (dotnet 4113 grün, node 311 grün)
+
+---
+
 ## 2026-11-06 07:52 -- Review-Lauf: budgeting-dkjc5
 
 **Type:** Review / Review-Lauf
