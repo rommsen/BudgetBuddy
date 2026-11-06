@@ -226,12 +226,12 @@ let private monthKindTests =
         // 02:00 Uhr Berliner Zeit noch der Vormonat "dieser Monat", Targets anwenden schrieb dorthin.
         test "Kurz nach Mitternacht in Berlin gilt schon der neue Monat, auch wenn UTC noch im alten liegt" {
             let utc = DateTime(2026, 11, 30, 23, 30, 0, DateTimeKind.Utc)
-            let today = Server.Api.berlinToday berlin utc
+            let today = Server.Budgeting.Domain.berlinToday berlin utc
             Expect.equal today (DateOnly(2026, 12, 1)) "Berliner Tag"
             Expect.equal (Domain.currentMonthKey today) "2026-12-01" "laufender Monat"
         }
         test "Kurz vor Mitternacht in Berlin bleibt es beim alten Monat" {
-            let today = Server.Api.berlinToday berlin (DateTime(2026, 11, 30, 22, 30, 0, DateTimeKind.Utc))
+            let today = Server.Budgeting.Domain.berlinToday berlin (DateTime(2026, 11, 30, 22, 30, 0, DateTimeKind.Utc))
             Expect.equal today (DateOnly(2026, 11, 30)) "Berliner Tag"
         }
     ]

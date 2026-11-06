@@ -1703,11 +1703,6 @@ let ledgerApi : LedgerApi = {
 [<Literal>]
 let private NoYnabToken = "Kein YNAB-Token eingerichtet (Settings)"
 
-/// Der Kalendertag, auf den sich "dieser Monat" bezieht. Der Server läuft nicht zwingend in
-/// Berliner Zeit: mit `DateTime.Today` wäre am Monatsersten bis 02:00 Uhr noch der Vormonat "dieser Monat".
-let berlinToday (berlinZone: TimeZoneInfo) (utcNow: DateTime) : DateOnly =
-    DateOnly.FromDateTime(Ledger.Bot.Domain.berlinDayOf berlinZone utcNow)
-
 /// Der Weg über Token und Budget ohne Settings und Netz: beide verlangen, den Port bauen
 /// (`portFor token budgetId`) und `run` damit ausführen. YNAB-Fehler werden lesbar
 /// (`ynabErrorText`). Generisch über den Port: Budget-Monat, "Targets anwenden" und der Rahmen
@@ -1933,10 +1928,18 @@ let ynabSettingsWith (setting: string -> Async<string option>) : Async<string op
         return tokenOpt, budgetOpt
     }
 
+/// Token und Budget der Übernahme im Hintergrund aus denselben Schlüsseln, `None`, wenn eines fehlt.
+let ynabAccessWith (setting: string -> Async<string option>) : Async<Server.Budgeting.TakeoverWorker.YnabAccess option> =
+    async {
+        match! ynabSettingsWith setting with
+        | Some token, Some budget -> return Some { Token = token; Budget = YnabBudgetId budget }
+        | _ -> return None
+    }
+
 /// Die Ports der Übernahme im Hintergrund (budgeting-dkjc5): echte Settings, echter Client für Monatsfenster und
 /// Monat, echte Datenbank. `Program.fs` übergibt ihn an `TakeoverWorker`; Tests nutzen eigene Ports.
 let liveTakeoverPort : Server.Budgeting.TakeoverWorker.TakeoverPort =
-    { Settings = fun () -> ynabSettingsWith Persistence.Settings.getSetting
+    { Settings = fun () -> ynabAccessWith Persistence.Settings.getSetting
       FetchMonths = fun token budgetId -> YnabClient.getMonths token budgetId
       FetchMonth = fun token budgetId monthKey -> YnabClient.getMonth token budgetId monthKey
       LoadTakenOver = Budgeting.Persistence.loadTakenOverMonths
@@ -1954,7 +1957,7 @@ let budgetApiWith
     (berlinZone: TimeZoneInfo)
     : BudgetApi =
     let ynabSettings () = ynabSettingsWith setting
-    let today () = berlinToday berlinZone (utcNow ())
+    let today () = Server.Budgeting.Domain.berlinToday berlinZone (utcNow ())
     { getBudgetFrame = fun () -> async {
         let! tokenOpt, budgetOpt = ynabSettings ()
         return! withYnabPort tokenOpt budgetOpt framePortFor (fun port ->

@@ -666,7 +666,7 @@ let private boundaryTests =
             let setting key = async { return (if key = "ynab_token" then Some "das-token" else None) }
             let zone = TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin"
             let api = Server.Api.liveBudgetApi setting zone
-            let month = Domain.currentMonthKey (Server.Api.berlinToday zone DateTime.UtcNow)
+            let month = Domain.currentMonthKey (Server.Budgeting.Domain.berlinToday zone DateTime.UtcNow)
             Expect.equal (api.changeCategoryTarget month (req (eur 1m) None) |> run) (Error "Kein Standard-Budget konfiguriert (Settings)") "bis zum Budget gekommen"
         }
         test "Über die BudgetApi: ändern mit Uhr und Monatsart aus Berlin" {

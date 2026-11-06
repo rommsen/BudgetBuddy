@@ -6,11 +6,12 @@ module Tests.BudgetTakeoverTests
 //
 // Stellen, die den Live-Port anschließen (Test-Doktrin Punkt 3), und ihr Beleg:
 // - `Api.liveTakeoverPort`: Wächter `findMissingApiWirings` in StructureGuardTests.fs (Settings über
-//   `ynabSettingsWith`, das die Budget-Seite mitbenutzt, `getMonths`, `getMonth`, `loadTakenOverMonths`,
-//   `ensureTakenOver`).
+//   `ynabAccessWith`, `getMonths`, `getMonth`, `loadTakenOverMonths`, `ensureTakenOver`). `ynabAccessWith` und
+//   `ynabSettingsWith` (Schlüssel, die die Budget-Seite mitbenutzt) prüft "Settings" hier direkt.
 // - `Program.fs`: Wächter `isTakeoverWorkerWired` mit Gegenbeweis in StructureGuardTests.fs, Registrierung nur dort
 //   (`findHostedServiceRegistrations`).
-// - `ensureTakenOver` und `loadTakenOverMonths` sind Einzeiler über die hier getesteten `*With`-Funktionen.
+// - `ensureTakenOver` und `loadTakenOverMonths`: der Fake-Port der Schleife nutzt die Live-Fassungen (die Test-DB
+//   ist dieselbe In-Memory-DB), eine leere Fassung macht die Schleifentests rot.
 
 open System
 open System.Collections.Generic
@@ -85,7 +86,8 @@ type private FakeYnab(months: string list, sim: Sim) =
     member val SettingsCalls = ResizeArray<TimeSpan>()
     member val FailOnce = Dictionary<string, YnabError>()
     member val FailAlways = Dictionary<string, YnabError>()
-    member val Settings : TimeSpan -> string option * string option = (fun _ -> Some "token", Some "budget") with get, set
+    member val Settings : TimeSpan -> YnabAccess option =
+        (fun _ -> Some { Token = "token"; Budget = YnabBudgetId "budget" }) with get, set
     member this.FetchMonth (monthKey: string) : Async<YnabResult<YnabMonth>> =
         async {
             this.Calls.Add((sim.Elapsed, monthKey))
@@ -129,16 +131,22 @@ type private FakeYnab(months: string list, sim: Sim) =
                     return Ok months
                 }
           FetchMonth = fun _ _ monthKey -> this.FetchMonth monthKey
-          LoadTakenOver = fun () -> Budgeting.Persistence.loadTakenOverMonthsWith global.Persistence.getConnection
-          EnsureTakenOver = ensureTakenOverWith global.Persistence.getConnection }
+          LoadTakenOver = Budgeting.Persistence.loadTakenOverMonths
+          EnsureTakenOver = ensureTakenOver }
     member this.CallsOf (monthKey: string) = this.Calls |> Seq.filter (fun (_, m) -> m = monthKey) |> Seq.length
+
+/// Lässt die Schleife mit `port` laufen, bis die Simulation endet, und liefert die Log-Zeilen.
+let private simulatePort (port: TakeoverPort) (sim: Sim) : string list =
+    let logged = ResizeArray<string>()
+    try
+        runWith port berlin sim.Clock sim.Delay logged.Add |> run
+        failtest "die Schleife endet nicht von selbst"
+    with SimulationOver -> ()
+    List.ofSeq logged
 
 /// Lässt die Schleife laufen, bis die Simulation endet.
 let private simulate (fake: FakeYnab) (sim: Sim) : unit =
-    try
-        runWith fake.Port berlin sim.Clock sim.Delay ignore |> run
-        failtest "die Schleife endet nicht von selbst"
-    with SimulationOver -> ()
+    simulatePort fake.Port sim |> ignore
 
 /// Bis zur simulierten Zeit `limit`.
 let private until (limit: TimeSpan) = fun (elapsed: TimeSpan) (_: TimeSpan) -> elapsed >= limit
@@ -187,21 +195,46 @@ let private domainTests =
             [ TakeoverOutcome.TookOver "2026-06-01", minutes 1.0
               TakeoverOutcome.MonthNotOpen "2026-06-01", minutes 1.0
               TakeoverOutcome.RateLimited, minutes 15.0
-              TakeoverOutcome.Failed "NetworkError", minutes 15.0
+              TakeoverOutcome.Unauthorized, minutes 15.0
+              TakeoverOutcome.Failed (TakeoverFailure.Ynab (YnabError.NetworkError "weg")), minutes 15.0
+              TakeoverOutcome.Failed TakeoverFailure.TakenOverUnreadable, minutes 15.0
+              TakeoverOutcome.Failed (TakeoverFailure.Crashed "Exception"), minutes 15.0
               TakeoverOutcome.NotConfigured, minutes 15.0
               TakeoverOutcome.NothingLeft, TimeSpan.FromHours 6.0 ]
             |> List.iter (fun (outcome, expected) -> Expect.equal (nextDelay outcome) expected $"{outcome}")
 
         testCase "fehlende Settings und 401 stehen einmal je Zustandswechsel im Log, andere Fehler jedes Mal" <| fun () ->
-            let unauthorized = TakeoverOutcome.Failed "Unauthorized"
-            let network = TakeoverOutcome.Failed "NetworkError"
+            let unauthorized = TakeoverOutcome.Unauthorized
+            let network = TakeoverOutcome.Failed (TakeoverFailure.Ynab (YnabError.NetworkError "Antwort mit Daten"))
             Expect.isSome (logLine None TakeoverOutcome.NotConfigured) "Wechsel nach nicht eingerichtet"
             Expect.isNone (logLine (Some TakeoverOutcome.NotConfigured) TakeoverOutcome.NotConfigured) "unverändert"
             Expect.isSome (logLine (Some (TakeoverOutcome.TookOver "2026-06-01")) unauthorized) "Wechsel nach 401"
             Expect.isNone (logLine (Some unauthorized) unauthorized) "401 unverändert"
             Expect.isSome (logLine (Some network) network) "anderer Fehler jedes Mal"
-            Expect.equal (logLine None network) (Some "Übernahme aus YNAB gescheitert: NetworkError") "mit Fallnamen"
+            Expect.equal (logLine None network) (Some "Übernahme aus YNAB gescheitert: NetworkError") "mit Fallnamen, ohne Meldung"
+            Expect.equal
+                (logLine None (TakeoverOutcome.Failed TakeoverFailure.TakenOverUnreadable))
+                (Some "Übernahme aus YNAB gescheitert: LocalReadFailed")
+                "lokaler Lesefehler"
             Expect.isNone (logLine None (TakeoverOutcome.TookOver "2026-06-01")) "Übernahme ohne Zeile"
+    ]
+
+// ============================================
+// Settings
+// ============================================
+
+let private settingsTests =
+    testList "Settings" [
+        testCase "Token und Budget kommen aus ihren Schlüsseln, fehlt eines, wartet die Übernahme" <| fun () ->
+            let from (values: (string * string) list) (name: string) = async.Return (List.tryFind (fst >> (=) name) values |> Option.map snd)
+            let both = from [ "ynab_token", "das-token"; "ynab_default_budget_id", "das-budget" ]
+            Expect.equal (Server.Api.ynabSettingsWith both |> run) (Some "das-token", Some "das-budget") "Budget-Seite"
+            Expect.equal
+                (Server.Api.ynabAccessWith both |> run)
+                (Some { Token = "das-token"; Budget = YnabBudgetId "das-budget" })
+                "Übernahme"
+            Expect.isNone (Server.Api.ynabAccessWith (from [ "ynab_token", "das-token" ]) |> run) "ohne Budget"
+            Expect.isNone (Server.Api.ynabAccessWith (from [ "ynab_default_budget_id", "das-budget" ]) |> run) "ohne Token"
     ]
 
 // ============================================
@@ -307,9 +340,8 @@ let private loopTests =
             let fake = FakeYnab(monthsFrom year 12, sim)
             fake.Settings <-
                 fun elapsed ->
-                    if elapsed < TimeSpan.FromMinutes 15.0 then None, None
-                    elif elapsed < TimeSpan.FromMinutes 30.0 then Some "token", None
-                    else Some "token", Some "budget"
+                    if elapsed < TimeSpan.FromMinutes 30.0 then None
+                    else Some { Token = "token"; Budget = YnabBudgetId "budget" }
             simulate fake sim
             Expect.equal
                 (fake.SettingsCalls |> Seq.take 3 |> List.ofSeq)
@@ -366,6 +398,45 @@ let private loopTests =
             with SimulationOver -> ()
             Expect.equal (logged |> Seq.head) "Übernahme aus YNAB gescheitert: Exception" "Typname im Log"
             Expect.equal (fake.Calls |> Seq.head) (TimeSpan.FromMinutes 15.0, key year 6) "nach 15 Minuten weiter"
+
+        testCase "nach sechs Stunden ohne offenen Monat beginnt ein neuer Durchlauf mit neuem Fenster" <| fun () ->
+            let year = freshYear ()
+            let sim = Sim(juneOf year, until (TimeSpan.FromHours 7.0))
+            let fake = FakeYnab(monthsFrom year 12, sim)
+            fake.FailAlways[key year 8] <- YnabError.MonthNotOpen (key year 8)
+            simulate fake sim
+            Expect.equal fake.MonthListCalls.Count 2 "das Fenster je Durchlauf einmal"
+            Expect.isGreaterThanOrEqual fake.MonthListCalls[1] (TimeSpan.FromHours 6.0) "der zweite Durchlauf nach der Pause"
+            Expect.equal (fake.CallsOf (key year 8)) 2 "der 404-Monat im neuen Durchlauf noch einmal gefragt"
+
+        testCase "scheitert das Monatsfenster, folgt der nächste Versuch nach 15 Minuten" <| fun () ->
+            let year = freshYear ()
+            let sim = Sim(juneOf year, until (TimeSpan.FromMinutes 30.0))
+            let fake = FakeYnab(monthsFrom year 12, sim)
+            let port = { fake.Port with FetchMonths = fun _ _ -> async.Return (Error (YnabError.NetworkError "weg")) }
+            let logged = simulatePort port sim
+            Expect.equal (List.ofSeq sim.Delays) [ TimeSpan.FromMinutes 15.0; TimeSpan.FromMinutes 15.0 ] "15 Minuten"
+            Expect.isEmpty fake.Calls "kein Monatsaufruf"
+            Expect.equal logged [ for _ in 1 .. 2 -> "Übernahme aus YNAB gescheitert: NetworkError" ] "jeder Fehler im Log"
+
+        testCase "sind die übernommenen Monate nicht lesbar, folgt der nächste Versuch nach 15 Minuten" <| fun () ->
+            let year = freshYear ()
+            let sim = Sim(juneOf year, until (TimeSpan.FromMinutes 30.0))
+            let fake = FakeYnab(monthsFrom year 12, sim)
+            let port = { fake.Port with LoadTakenOver = fun () -> async.Return (Error "nicht lesbar") }
+            let logged = simulatePort port sim
+            Expect.equal (List.ofSeq sim.Delays) [ TimeSpan.FromMinutes 15.0; TimeSpan.FromMinutes 15.0 ] "15 Minuten"
+            Expect.isEmpty fake.Calls "kein Monatsaufruf"
+            Expect.equal (List.head logged) "Übernahme aus YNAB gescheitert: LocalReadFailed" "lokaler Lesefehler im Log"
+
+        testCase "ein ungültiges Token steht einmal im Log, YNAB wird alle 15 Minuten neu gefragt" <| fun () ->
+            let year = freshYear ()
+            let sim = Sim(juneOf year, until (TimeSpan.FromHours 1.0))
+            let fake = FakeYnab(monthsFrom year 12, sim)
+            fake.FailAlways[key year 6] <- YnabError.Unauthorized "Antwort mit Daten"
+            let logged = simulatePort fake.Port sim
+            Expect.equal (fake.Calls |> Seq.map fst |> List.ofSeq) [ for i in 0 .. 3 -> TimeSpan.FromMinutes (15.0 * float i) ] "alle 15 Minuten"
+            Expect.equal logged [ "Übernahme aus YNAB gescheitert: Unauthorized" ] "einmal, ohne Meldung"
     ]
 
 // ============================================
@@ -391,8 +462,39 @@ let private workerTests =
             Expect.equal (takeoverCount (key year 6)) 1 "laufender Monat übernommen"
             Expect.isTrue (worker.StopAsync(CancellationToken.None).Wait(TimeSpan.FromSeconds 10.0)) "Stopp beendet den Dienst"
             Expect.isTrue worker.ExecuteTask.IsCompleted "die Schleife ist beendet"
+
+        // Review-Fund zu budgeting-dkjc5: Der Stopp wartete auf einen Schritt, der an YNAB oder an der Monatssperre
+        // hängt (beide ohne Token). Der Dienst wartet nur bis `stopping`, wie `BankConnectionWorker`.
+        testCase "der Stopp wartet nicht auf einen hängenden Schritt" <| fun () ->
+            let year = freshYear ()
+            let sim = Sim(juneOf year, fun _ _ -> false)
+            let fake = FakeYnab(monthsFrom year 12, sim)
+            let started = TaskCompletionSource<unit>(TaskCreationOptions.RunContinuationsAsynchronously)
+            use release = new ManualResetEventSlim(false)
+            let port =
+                { fake.Port with
+                    Settings =
+                        fun () ->
+                            async {
+                                started.TrySetResult () |> ignore
+                                release.Wait()
+                                return None
+                            } }
+            use worker = new TakeoverWorker(port, berlin, sim.Clock, fun _ -> Async.Sleep Timeout.Infinite)
+            try
+                worker.StartAsync(CancellationToken.None).Wait()
+                Expect.isTrue (started.Task.Wait(TimeSpan.FromSeconds 10.0)) "der Schritt hängt"
+                Expect.isTrue (worker.StopAsync(CancellationToken.None).Wait(TimeSpan.FromSeconds 10.0)) "der Stopp endet trotzdem"
+            finally
+                release.Set()
+
+        testCase "die Wartefunktion des Servers wartet wirklich" <| fun () ->
+            let watch = Diagnostics.Stopwatch.StartNew()
+            sleep (TimeSpan.FromMilliseconds 50.0) |> run
+            Expect.isGreaterThanOrEqual watch.Elapsed.TotalMilliseconds 50.0 "mindestens 50 ms"
     ]
 
+// budgeting-dkjc5
 [<Tests>]
 let tests =
-    testList "Budget: Übernahme im Hintergrund (dkjc5)" [ domainTests; ensureTests; loopTests; workerTests ]
+    testList "Budget: Übernahme im Hintergrund" [ domainTests; settingsTests; ensureTests; loopTests; workerTests ]

@@ -139,7 +139,7 @@ let integrationTests =
                     | Error e -> failtest $"Budgets nicht lesbar: {e}"
 
                 let berlin = TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin"
-                let today = Server.Api.berlinToday berlin DateTime.UtcNow
+                let today = Server.Budgeting.Domain.berlinToday berlin DateTime.UtcNow
                 let month = Server.Budgeting.Domain.currentMonthKey today
                 let previousMonth = Server.Budgeting.Domain.currentMonthKey (today.AddMonths -1)
                 let read () =

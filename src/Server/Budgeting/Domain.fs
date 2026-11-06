@@ -10,8 +10,14 @@ open Shared.Budgeting
 let monthKeyOf (day: DateTime) : string =
     day.ToString("yyyy-MM-01", Globalization.CultureInfo.InvariantCulture)
 
+/// Der Kalendertag, auf den sich "dieser Monat" bezieht. Der Server läuft nicht zwingend in
+/// Berliner Zeit: mit `DateTime.Today` wäre am Monatsersten bis 02:00 Uhr noch der Vormonat "dieser Monat".
+/// Budget-Seite und Übernahme im Hintergrund nutzen ihn beide.
+let berlinToday (berlinZone: TimeZoneInfo) (utcNow: DateTime) : DateOnly =
+    DateOnly.FromDateTime(Ledger.Bot.Domain.berlinDayOf berlinZone utcNow)
+
 /// Der laufende Monat als "YYYY-MM-01". `today` ist ein Kalendertag ohne Uhrzeit, in Berlin zu
-/// bestimmen (`Server.Api.berlinToday`).
+/// bestimmen (`berlinToday`).
 let currentMonthKey (today: DateOnly) : string =
     monthKeyOf (today.ToDateTime TimeOnly.MinValue)
 
@@ -676,6 +682,17 @@ let takeoverQueue (currentMonth: string) (months: string list) (takenOver: Set<s
     let earlier = months |> List.filter (fun m -> m < currentMonth) |> List.distinct |> List.sortDescending
     currentMonth :: later @ earlier |> List.filter (fun m -> not (takenOver.Contains m))
 
+/// Was bei einem gescheiterten Schritt schiefging. Die Fälle können Meldungen mit Daten tragen; ins Log kommt nur
+/// der Fall- oder Typname (`TakeoverWorker.logLine`).
+[<RequireQualifiedAccess>]
+type TakeoverFailure =
+    /// YNAB antwortet mit einem anderen Fehler als 401 und 429.
+    | Ynab of YnabError
+    /// Die übernommenen Monate waren lokal nicht lesbar.
+    | TakenOverUnreadable
+    /// Der Schritt warf eine Ausnahme dieses Typs.
+    | Crashed of typeName: string
+
 /// Was ein Schritt des Hintergrunddienstes ergab.
 [<RequireQualifiedAccess>]
 type TakeoverOutcome =
@@ -687,19 +704,22 @@ type TakeoverOutcome =
     | NothingLeft
     /// YNAB meldet 429.
     | RateLimited
+    /// YNAB meldet 401: das Token gilt nicht (mehr).
+    | Unauthorized
     /// Token oder Budget fehlen in den Settings.
     | NotConfigured
-    /// Etwas anderes ging schief. `cause` ist ein Typ- oder Fallname, nie eine Meldung mit Daten.
-    | Failed of cause: string
+    /// Etwas anderes ging schief.
+    | Failed of TakeoverFailure
 
 /// Die Wartezeit nach einem Schritt (budgeting-dkjc5, Takt von Roman entschieden): nach einem Monatsaufruf eine
-/// Minute, also höchstens 60 Monatsaufrufe je Stunde; nach 429, einem Fehler oder fehlenden Settings 15 Minuten;
+/// Minute, also höchstens 60 Monatsaufrufe je Stunde; nach 429, 401, einem Fehler oder fehlenden Settings 15 Minuten;
 /// ist nichts mehr offen, 6 Stunden. Die Wartezeit aus `RateLimitExceeded` zählt nicht.
 let nextDelay (outcome: TakeoverOutcome) : TimeSpan =
     match outcome with
     | TakeoverOutcome.TookOver _
     | TakeoverOutcome.MonthNotOpen _ -> TimeSpan.FromMinutes 1.0
     | TakeoverOutcome.RateLimited
+    | TakeoverOutcome.Unauthorized
     | TakeoverOutcome.Failed _
     | TakeoverOutcome.NotConfigured -> TimeSpan.FromMinutes 15.0
     | TakeoverOutcome.NothingLeft -> TimeSpan.FromHours 6.0

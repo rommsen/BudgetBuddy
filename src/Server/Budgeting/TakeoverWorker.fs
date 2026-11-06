@@ -12,12 +12,15 @@ open Shared.Budgeting
 open Server.Budgeting.Domain
 open Server.Budgeting.CommandHandlers
 
-/// Was ein Schritt braucht. `Settings` liefert Token und Standard-Budget (je `None`, wenn nicht eingerichtet),
+/// Token und Standard-Budget aus den Settings, zusammen, damit nichts vertauscht werden kann.
+type YnabAccess = { Token: string; Budget: YnabBudgetId }
+
+/// Was ein Schritt braucht. `Settings` liefert Token und Standard-Budget (`None`, wenn eines fehlt),
 /// `FetchMonths token budgetId` das Monatsfenster aus `GET /months`, `FetchMonth token budgetId month` einen
 /// Monat, `LoadTakenOver` die übernommenen Monate (eine Abfrage) und `EnsureTakenOver` die Übernahme unter der
 /// Monatssperre (`CommandHandlers.ensureTakenOver`).
 type TakeoverPort = {
-    Settings: unit -> Async<string option * string option>
+    Settings: unit -> Async<YnabAccess option>
     FetchMonths: string -> YnabBudgetId -> Async<YnabResult<string list>>
     FetchMonth: string -> YnabBudgetId -> string -> Async<YnabResult<YnabMonth>>
     LoadTakenOver: unit -> Async<Result<Set<string>, string>>
@@ -39,11 +42,12 @@ let private caseName (error: YnabError) : string =
     let case, _ = FSharpValue.GetUnionFields(error, typeof<YnabError>)
     case.Name
 
-/// Ein YNAB-Fehler als Ergebnis: 429 als `RateLimited`, alles andere als `Failed` mit dem Fallnamen.
+/// Ein YNAB-Fehler als Ergebnis: 429 als `RateLimited`, 401 als `Unauthorized`, alles andere als `Failed`.
 let private outcomeOf (error: YnabError) : TakeoverOutcome =
     match error with
     | YnabError.RateLimitExceeded _ -> TakeoverOutcome.RateLimited
-    | other -> TakeoverOutcome.Failed (caseName other)
+    | YnabError.Unauthorized _ -> TakeoverOutcome.Unauthorized
+    | other -> TakeoverOutcome.Failed (TakeoverFailure.Ynab other)
 
 /// Ein Schritt: Settings lesen, Monatsfenster holen (einmal je Durchlauf), übernommene Monate lesen, den ersten
 /// offenen Monat aus `takeoverQueue` übernehmen. `now` ist UTC, `berlinZone` bestimmt den laufenden Monat.
@@ -56,8 +60,7 @@ let takeoverStep
     : Async<TakeoverOutcome * TakeoverPass> =
     async {
         match! port.Settings () with
-        | Some token, Some budget ->
-            let budgetId = YnabBudgetId budget
+        | Some { Token = token; Budget = budgetId } ->
             let! months =
                 match pass.Months with
                 | Some months -> async.Return (Ok months)
@@ -67,9 +70,9 @@ let takeoverStep
             | Ok months ->
                 let pass = { pass with Months = Some months }
                 match! port.LoadTakenOver () with
-                | Error _ -> return TakeoverOutcome.Failed "LocalReadFailed", pass
+                | Error _ -> return TakeoverOutcome.Failed TakeoverFailure.TakenOverUnreadable, pass
                 | Ok takenOver ->
-                    let current = currentMonthKey (DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(now, berlinZone)))
+                    let current = currentMonthKey (berlinToday berlinZone now)
                     match takeoverQueue current months takenOver |> List.filter (fun m -> not (pass.Skipped.Contains m)) with
                     | [] -> return TakeoverOutcome.NothingLeft, freshPass
                     | month :: _ ->
@@ -78,7 +81,7 @@ let takeoverStep
                         | Error (YnabError.MonthNotOpen _) ->
                             return TakeoverOutcome.MonthNotOpen month, { pass with Skipped = pass.Skipped.Add month }
                         | Error e -> return outcomeOf e, pass
-        | _ -> return TakeoverOutcome.NotConfigured, freshPass
+        | None -> return TakeoverOutcome.NotConfigured, freshPass
     }
 
 /// Die Zeile im Server-Log nach einem Schritt, `None` ohne Zeile. Fehlende Settings und ein 401 erscheinen
@@ -90,8 +93,15 @@ let logLine (previous: TakeoverOutcome option) (current: TakeoverOutcome) : stri
     | TakeoverOutcome.NothingLeft -> None
     | TakeoverOutcome.NotConfigured when repeated -> None
     | TakeoverOutcome.NotConfigured -> Some "Übernahme aus YNAB wartet: Token oder Budget fehlen in den Settings"
-    | TakeoverOutcome.Failed "Unauthorized" when repeated -> None
-    | TakeoverOutcome.Failed cause -> Some $"Übernahme aus YNAB gescheitert: {cause}"
+    | TakeoverOutcome.Unauthorized when repeated -> None
+    | TakeoverOutcome.Unauthorized -> Some "Übernahme aus YNAB gescheitert: Unauthorized"
+    | TakeoverOutcome.Failed failure ->
+        let cause =
+            match failure with
+            | TakeoverFailure.Ynab error -> caseName error
+            | TakeoverFailure.TakenOverUnreadable -> "LocalReadFailed"
+            | TakeoverFailure.Crashed typeName -> typeName
+        Some $"Übernahme aus YNAB gescheitert: {cause}"
     | TakeoverOutcome.RateLimited -> Some "Übernahme aus YNAB: Rate-Grenze erreicht, nächster Versuch in 15 Minuten"
     | TakeoverOutcome.MonthNotOpen month -> Some $"Übernahme aus YNAB: Monat {month} nicht offen, übersprungen"
 
@@ -112,7 +122,7 @@ let runWith
                     try
                         return! takeoverStep port berlinZone (clock ()) pass
                     with ex ->
-                        return TakeoverOutcome.Failed (ex.GetType().Name), pass
+                        return TakeoverOutcome.Failed (TakeoverFailure.Crashed (ex.GetType().Name)), pass
                 }
             logLine previous outcome |> Option.iter log
             do! delay (nextDelay outcome)
@@ -125,13 +135,18 @@ let sleep (span: TimeSpan) : Async<unit> = Async.Sleep span
 
 /// Der Hintergrunddienst (Vorbild `BankConnectionWorker`, ADR 0071 Punkt 8). Registriert nur in `Program.fs`, im
 /// TestServer läuft er nie. Der erste Schritt läuft auf dem Thread-Pool, der Serverstart wartet nicht auf YNAB.
-/// Die Datenbank steht, weil `Program.fs` sie vor `app.Run` anlegt.
+/// Die Datenbank steht, weil `Program.fs` sie vor `app.Run` anlegt. Ein Schritt kann an YNAB oder an der
+/// Monatssperre hängen, beide ohne Token. Deshalb wartet der Dienst auf die Schleife nur bis `stopping`; die
+/// verlassene Arbeit endet mit dem Prozess.
 type TakeoverWorker(port: TakeoverPort, berlinZone: TimeZoneInfo, clock: unit -> DateTime, delay: TimeSpan -> Async<unit>) =
     inherit BackgroundService()
 
     override _.ExecuteAsync(stopping: CancellationToken) =
         task {
             try
-                do! Async.StartAsTask(runWith port berlinZone clock delay (eprintfn "%s"), cancellationToken = stopping)
+                do!
+                    Async
+                        .StartAsTask(runWith port berlinZone clock delay (eprintfn "%s"), cancellationToken = stopping)
+                        .WaitAsync(stopping)
             with :? OperationCanceledException -> ()
         }

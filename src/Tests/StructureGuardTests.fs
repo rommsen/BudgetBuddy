@@ -668,9 +668,8 @@ let private apiWirings =
       @"\bbudgetApi\s*\(berlinZone:[^)]*\)\s*:\s*BudgetApi\s*=\s*liveBudgetApi\s+Persistence\.Settings\.getSetting\s+berlinZone\s*(?:\n\s*\n|\z)"
       @"\bRemoting\.fromValue\s+\(budgetApi\s+berlinZone\)"
       // Übernahme im Hintergrund (budgeting-dkjc5): Schritt und Schleife sind mit Fake-Ports getestet, der Port des
-      // Servers erreicht YNAB nur im laufenden Dienst. Die Settings-Schlüssel teilt er mit der Budget-Seite.
-      @"\blet\s+ynabSettings\s*\(\)\s*=\s*ynabSettingsWith\s+setting\b"
-      @"\bSettings\s*=\s*fun\s*\(\)\s*->\s*ynabSettingsWith\s+Persistence\.Settings\.getSetting\b"
+      // Servers erreicht YNAB nur im laufenden Dienst.
+      @"\bSettings\s*=\s*fun\s*\(\)\s*->\s*ynabAccessWith\s+Persistence\.Settings\.getSetting\b"
       @"\bFetchMonths\s*=\s*fun\s+token\s+budgetId\s*->\s*YnabClient\.getMonths\s+token\s+budgetId\s*\n\s*FetchMonth\s*=\s*fun\s+token\s+budgetId\s+monthKey\s*->\s*YnabClient\.getMonth\s+token\s+budgetId\s+monthKey\b"
       @"\bLoadTakenOver\s*=\s*Budgeting\.Persistence\.loadTakenOverMonths\b"
       @"\bEnsureTakenOver\s*=\s*Server\.Budgeting\.CommandHandlers\.ensureTakenOver\b" ]
@@ -771,8 +770,7 @@ let hostedServiceGuardTests =
                   "let liveBudgetApi (setting: string -> Async<string option>) (berlinZone: TimeZoneInfo) : BudgetApi =\n    budgetApiWith setting livePort liveFramePort (fun () -> DateTime.UtcNow) berlinZone\n\n"
                   "let budgetApi (berlinZone: TimeZoneInfo) : BudgetApi =\n    liveBudgetApi Persistence.Settings.getSetting berlinZone\n\n"
                   "|> Remoting.fromValue (budgetApi berlinZone)\n"
-                  "    let ynabSettings () = ynabSettingsWith setting\n"
-                  "{ Settings = fun () -> ynabSettingsWith Persistence.Settings.getSetting\n  FetchMonths = fun token budgetId -> YnabClient.getMonths token budgetId\n  FetchMonth = fun token budgetId monthKey -> YnabClient.getMonth token budgetId monthKey\n  LoadTakenOver = Budgeting.Persistence.loadTakenOverMonths\n  EnsureTakenOver = Server.Budgeting.CommandHandlers.ensureTakenOver }\n" ]
+                  "{ Settings = fun () -> ynabAccessWith Persistence.Settings.getSetting\n  FetchMonths = fun token budgetId -> YnabClient.getMonths token budgetId\n  FetchMonth = fun token budgetId monthKey -> YnabClient.getMonth token budgetId monthKey\n  LoadTakenOver = Budgeting.Persistence.loadTakenOverMonths\n  EnsureTakenOver = Server.Budgeting.CommandHandlers.ensureTakenOver }\n" ]
                 |> String.concat "\n"
             let replaced (original: string) (replacement: string) = real.Replace(original, replacement)
             Expect.isEmpty (findMissingApiWirings real) "richtig"
@@ -806,8 +804,7 @@ let hostedServiceGuardTests =
                   "(fun () -> DateTime.UtcNow) berlinZone", "(fun () -> DateTime.UtcNow) TimeZoneInfo.Utc", "Budget-Seite in UTC"
                   "liveBudgetApi Persistence.Settings.getSetting", "liveBudgetApi (fun _ -> async.Return None)", "leere Settings"
                   "Remoting.fromValue (budgetApi berlinZone)", "Remoting.fromValue fakeBudgetApi", "anderer Server"
-                  "ynabSettingsWith setting\n", "async.Return (None, None)\n", "Budget-Seite ohne Settings-Schlüssel"
-                  "ynabSettingsWith Persistence.Settings.getSetting", "async.Return (None, None)", "Übernahme ohne Settings"
+                  "ynabAccessWith Persistence.Settings.getSetting", "async.Return None", "Übernahme ohne Settings"
                   "YnabClient.getMonths token budgetId", "async.Return (Ok [])", "Übernahme ohne Fenster"
                   "fun token budgetId monthKey -> YnabClient.getMonth", "fun token budgetId monthKey -> fakeMonth", "Übernahme-Monat ohne YNAB"
                   "Budgeting.Persistence.loadTakenOverMonths", "(fun () -> async.Return (Ok Set.empty))", "nichts gilt als übernommen"
