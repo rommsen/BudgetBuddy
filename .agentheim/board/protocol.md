@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 00:06 -- Bestandsreview: budgeting
+
+**Type:** Review / Bestandsreview
+**Befunde:** hoch 1, mittel 20, niedrig 30
+**Gruppen:** 7 (1 bis 4 zur Auswahl für Roman, 5 bis 7 in der Kann-Sammlung budgeting-h9c3w)
+**Bericht:** .agentheim/knowledge/reviews/2026-11-07-budgeting.md
+**Tasks:** offen
+
+---
+
 ## 2026-11-06 23:55 -- Task verified and completed: budgeting-m3x7f - "Monatserster: Leiste nach der Skizze mit Targets prüfen, Targets anwenden, Überzogene decken und verteilen; Kopfknopf Monatserster statt Targets anwenden und Prüfen-Icon; Vorschau mit abwählbaren Zeilen; Ausblenden je Monat auf dem Server"
 
 **Type:** Work / Task completion
