@@ -31,27 +31,29 @@ Regel und Texte der Gruppen: ADR 0082. Vorbild für Route, Knopf, Laden und Rüc
 - Große Liste: Gruppen und Zeilenwerte einmal vor der Schleife berechnen, die zugeklappte Gruppe "Passt" rendert ihre Zeilen nicht (CLAUDE.md).
 
 ### Übernehmen
-- Schickt `changeCategoryTarget` mit `TargetCheckData.Month`, `Shown` = gelesenes Target, `Wanted` = `Suggestion.Draft` aus budgeting-p2zr6. Der Auftrag entsteht in einer reinen Funktion (Vorbild `buildQuickAddRequest`), der Cmd mit `Client.Api` liegt hinter einem Lambda.
+- Schickt `changeCategoryTarget` mit `TargetCheckData.Month`, `Shown` = gelesenes Target, `Wanted` = `TargetSuggestion.Draft` aus budgeting-p2zr6, `CommandId = None` (die Id setzt `Retry.command` wie im Tab, `targetChangeCmdWith` in `State.fs`). Der Auftrag entsteht in einer reinen Funktion (Vorbild `buildQuickAddRequest`), der Cmd mit `Client.Api` liegt hinter einem Lambda.
 - Antwort `TargetWritten t`: `withWrittenTarget` setzt Target und letzte Änderung, die Zeile steht bei "Passt" mit "neu gesetzt am <Today>". Ist der laufende Monat auf der Budget-Seite geladen, bekommt er das Target ebenfalls (`withTarget`).
-- `TargetChangedInYnab t`: Target aus der Antwort, ohne neue letzte Änderung, Zeile neu eingeordnet, Warn-Toast mit dem Satz aus `targetNoticeText TargetChangedNotice`.
+- `TargetChangedMeanwhile t`: BBs Stand aus der Antwort als Target, ohne neue letzte Änderung, Zeile neu eingeordnet, Warn-Toast `targetRejectedAwayText TargetChangedMeanwhileText` (derselbe Satz wie im Tab, `State.fs`). Der geladene laufende Monat der Budget-Seite bekommt den Stand ebenfalls (`withTarget`).
 - `Error grund`: Zeile unverändert, Fehler-Toast `targetRejectedAwayText grund` ("Target nicht gespeichert: …").
-- Abgebrochener Aufruf (Netzfehler des Proxys): Fehler-Toast, die Prüfung lädt still neu, weil der Ausgang offen ist.
+- Abgebrochener Aufruf (auch der zweite Versuch von `Retry.command` scheitert, `TargetChangeCallLost`): Fehler-Toast `targetCallLostText true <Meldung>`, die Prüfung lädt still neu (ohne `Loading`, die Liste bleibt stehen), weil der Ausgang offen ist.
 
 ### Anpassen … (Panel)
-- Öffnet ab 1024 px ein Panel rechts neben der Liste, darunter ein BottomSheet (dieselbe Grenze und dieselben Bausteine wie der Inspektor), mit Name der Kategorie und dem herausgelösten Formular aus budgeting-r7k2m. Monat ist `TargetCheckData.Month`.
-- Vorbelegt mit dem Vorschlag: Betragsfeld = Betrag im Rhythmus, Rhythmus und Datum wie gelesen; ohne Target Rhythmus monatlich. Ohne Vorschlag ("nie", "Passt", Ø ≤ 0) steht das gelesene Target ohne Eingabe.
+- Öffnet ab 1024 px ein Panel rechts neben der Liste, 340 px breit wie der Inspektor (`View.fs`, `grid-cols-[minmax(0,1fr)_340px]`; die 420 px im Styleguide gelten dem Buchungs-Detail), darunter ein BottomSheet (dieselbe Grenze und dieselben Bausteine wie der Inspektor), mit Name der Kategorie und dem herausgelösten Formular aus budgeting-r7k2m (`TargetFormView` mit `IsPanel` wie im Inspektor). Monat ist `TargetCheckData.Month`. Das gezeigte Target des Formulars ist das Target der Zeile in `TargetCheckData`.
+- Vorbelegt mit dem Vorschlag über einen Konstruktor im Kern, `prefilledTargetForm categoryId month amount frequency` in `TargetFormCore.fs`, der das Format an einer Stelle hält (`AmountMath.formatSignedAmount`): Betragsfeld = Betrag im Rhythmus, Rhythmus und Datum wie gelesen; ohne Target Rhythmus monatlich. Ohne Vorschlag ("nie", "Passt", Ø ≤ 0) steht das gelesene Target ohne Eingabe (`emptyTargetForm`).
 - Warnung beim Wechsel der Art und Bestätigung von "Target entfernen" wie im Tab Target.
 - Speichern mit `TargetWritten`: Panel schließt, Zeile rutscht nach "Passt" ("neu gesetzt am …" bzw. nach Entfernen "entfernt am …").
-- `TargetPartlyWritten`: Panel bleibt offen mit dem gelben Hinweis wie im Tab, die Zeile nimmt das Target nach Schritt 1 und rutscht nach "Passt".
-- `TargetChangedInYnab`: Panel bleibt offen mit dem Hinweis und dem frischen Stand, die Zeile wird neu eingeordnet.
+- `TargetChangedMeanwhile`: Panel bleibt offen mit dem gelben Hinweis wie im Tab (`formTakeAnswer`, `TargetChangedMeanwhileNotice`), die Zeile und das gezeigte Target nehmen BBs Stand aus der Antwort, die Zeile wird neu eingeordnet, die Eingabe bleibt.
 - `Error`: Panel bleibt offen, Meldung im Formular, Eingabe bleibt.
+- Abgebrochener Aufruf: Panel bleibt offen mit `formTakeCallLost (targetCallLostText true …)`, die Prüfung lädt still neu.
 - Abbrechen schließt ohne Senden. "Anpassen …" einer anderen Zeile ersetzt den Inhalt, die Eingabe ist verworfen. Ohne "Anpassen …" ist das Panel zu.
 
 ### Sperre
-- Es läuft höchstens ein Target-Aufruf zugleich, gemeinsam mit dem Tab Target über `TargetCall` (budgeting-n7h3x). Solange er läuft: ein zweiter Tipp auf denselben Knopf sendet nichts, alle anderen "übernehmen" sind gesperrt, Speichern und Entfernen im Panel warten mit "Wartet, bis das Target bei <Kategorie> gespeichert ist." (`targetWaitsForTargetText`). "Anpassen …" und Abbrechen bleiben bedienbar. Der Spinner steht nur am auslösenden Knopf.
+- Es läuft höchstens ein Target-Aufruf zugleich, gemeinsam mit dem Tab Target über `TargetCall` (budgeting-n7h3x). `TargetSaving` trägt dazu die Herkunft des Aufrufs (`TargetOrigin`: Tab Target, Zeile auf der Seite, Panel auf der Seite). Nur das Formular der Herkunft nimmt die Antwort ein (`formTakeAnswer`, `formTakeCallLost`), der Spinner steht nur am Knopf der Herkunft. Das Target im geladenen Monat (`withTarget`) und in `TargetCheckData` (`withWrittenTarget` bzw. BBs Stand) setzt jede Antwort, egal woher. Die Sperrlage des Panels kommt aus `targetFormLocksFor model categoryId month` mit dem Monat des Formulars; `targetFormLocks` ruft sie mit dem dargestellten Monat. Eine laufende Pause derselben Kategorie sperrt Zeile und Panel wie den Tab (`Pause.pauseCallFor`). Solange ein Target-Aufruf läuft: ein zweiter Tipp auf denselben Knopf sendet nichts, alle anderen "übernehmen" sind gesperrt, Speichern und Entfernen im Panel warten mit "Wartet, bis das Target bei <Kategorie> gespeichert ist." (`targetWaitsForTargetText`). "Anpassen …" und Abbrechen bleiben bedienbar. Der Spinner steht nur am auslösenden Knopf.
 - Die Antwort wirkt nur auf ihre Kategorie und auch dann, wenn die Seite inzwischen verlassen wurde.
 
-**Festgelegt (Tactical-Modeler):** Route `#/budget/target-check`; beide Zeilenknöpfe neutral; nur "Passt" klappbar; Zusatzzeilen ohne Werte; "Anpassen …" auch in "Passt" (dort ohne Vorschlag); Entfernen bleibt im Panel, weil es das bestehende Formular ist und die Antwort auf "Gibst du nie aus?" sein kann; `TargetPartlyWritten` lässt das Panel offen, weil sonst die Meldung zum fehlenden Datum verloren ginge; die Sperre ist die globale `TargetCall` statt einer eigenen, damit Tab und Seite nicht gegeneinander schreiben.
+**Festgelegt (Abgleich mit dem Code nach eh8xe und hbhzf, 2026-11-06):** `TargetPartlyWritten` und der Zwei-Schritt-Weg nach YNAB entfallen (ADR 0084 Punkt 7), `TargetChangedInYnab` heißt `TargetChangedMeanwhile`; Herkunft in `TargetSaving`, damit Tab und Panel sich keine Antwort teilen; Panel 340 px wie der Inspektor; die Seite rendert den Inspektor nicht (wie die Historie, `View.fs`), die festen ids und Selektoren in `TargetFormView.fs` bleiben deshalb eindeutig.
+
+**Festgelegt (Tactical-Modeler):** Route `#/budget/target-check`; beide Zeilenknöpfe neutral; nur "Passt" klappbar; Zusatzzeilen ohne Werte; "Anpassen …" auch in "Passt" (dort ohne Vorschlag); Entfernen bleibt im Panel, weil es das bestehende Formular ist und die Antwort auf "Gibst du nie aus?" sein kann; die Sperre ist die globale `TargetCall` statt einer eigenen, damit Tab und Seite nicht gegeneinander schreiben.
 
 ## Acceptance criteria
 Client-`update` unter .NET (Doktrin Punkt 1, Cmds mit `Client.Api` hinter Lambdas):
@@ -59,8 +61,9 @@ Client-`update` unter .NET (Doktrin Punkt 1, Cmds mit `Client.Api` hinter Lambda
 - [ ] Laden: Antwort mit fremder Generation wird verworfen; Fehler zeigt Wiederholen, Wiederholen lädt neu und behält Aufklappen.
 - [ ] "Passt" ist beim Betreten zu, ein Tipp klappt auf, ein zweiter zu.
 - [ ] Der Auftrag von "übernehmen" (reine Funktion): mit Target `Shown` = gelesenes Target, `Wanted` = Vorschlag im Rhythmus mit gelesenem Datum und `KeepRhythm`; bei "Kein Target" `Shown = None`, `SetRhythm Monthly`, ohne Datum; Monat = `TargetCheckData.Month`.
-- [ ] Antworten auf "übernehmen": `TargetWritten` setzt die Zeile nach "Passt" mit "neu gesetzt am <Today>" und das Target im geladenen laufenden Monat der Budget-Seite; `TargetChangedInYnab` ordnet mit dem frischen Target neu ein und meldet per Warn-Toast; `Error` lässt die Zeile stehen und meldet "Target nicht gespeichert: <Grund>"; ein abgebrochener Aufruf meldet und lädt die Prüfung neu.
-- [ ] Panel: "Anpassen …" öffnet mit vorbelegtem Vorschlag (Betragsfeld im Rhythmus), ohne Vorschlag mit dem gelesenen Target; Abbrechen schließt ohne Aufruf; "Anpassen …" einer anderen Zeile ersetzt den Inhalt; `TargetWritten` schließt und setzt die Zeile nach "Passt"; Entfernen mit `TargetWritten None` setzt "entfernt am <Today>"; `TargetPartlyWritten`, `TargetChangedInYnab` und `Error` lassen das Panel offen mit Hinweis bzw. Meldung.
+- [ ] Antworten auf "übernehmen": `TargetWritten` setzt die Zeile nach "Passt" mit "neu gesetzt am <Today>" und das Target im geladenen laufenden Monat der Budget-Seite; `TargetChangedMeanwhile` ordnet mit BBs Stand neu ein und meldet per Warn-Toast; `Error` lässt die Zeile stehen und meldet "Target nicht gespeichert: <Grund>"; ein abgebrochener Aufruf meldet und lädt die Prüfung neu.
+- [ ] Panel: "Anpassen …" öffnet mit vorbelegtem Vorschlag (Betragsfeld im Rhythmus), ohne Vorschlag mit dem gelesenen Target; Abbrechen schließt ohne Aufruf; "Anpassen …" einer anderen Zeile ersetzt den Inhalt; `TargetWritten` schließt und setzt die Zeile nach "Passt"; Entfernen mit `TargetWritten None` setzt "entfernt am <Today>"; `TargetChangedMeanwhile`, `Error` und ein abgebrochener Aufruf lassen das Panel offen mit Hinweis bzw. Meldung und behalten die Eingabe.
+- [ ] Herkunft: Ist im Tab Target dieselbe Kategorie im laufenden Monat mit Eingabe offen, ändert eine Antwort auf einen Aufruf aus dem Panel oder der Zeile das Tab-Formular nicht, und eine Antwort auf einen Aufruf aus dem Tab ändert das Panel nicht; das Target setzen beide. Zeigt die Budget-Seite einen anderen Monat als `TargetCheckData.Month`, dreht im Panel der eigene Knopf und die Felder sind gesperrt (`targetFormLocksFor`).
 - [ ] Zustandsregel als Aufzählung aller Reihenfolgen durch das echte `update` (Doktrin Punkt 20, Vorbild `moveWays`): Nachrichten "übernehmen A" (zweimal), "übernehmen B", "Anpassen … B" mit Speichern, Antwort A, Antwort B, Abbrechen. Orakel unabhängig vom Code: höchstens ein Aufruf zugleich, kein zweiter Aufruf für A vor der Antwort A, jede Antwort ändert nur ihre Kategorie, nach allen Antworten ist kein Aufruf offen.
 - [ ] Die Sichtbarkeit der Knöpfe (übernehmen nur bei Vorschlag in "mehr", "weniger", "Kein Target"; gesperrt und Spinner je Lage) kommt aus einer reinen Funktion, die View ruft sie nur auf; getestet je Gruppe und Lage.
 - [ ] `getTargetCheck` steht im Retry-Inventar von `src/Tests/RetryTests.fs`.
@@ -73,6 +76,7 @@ Browser-Wächter (`scripts/*.test.mjs`, API per `page.route` gemockt, nur mit Ke
 
 Sonst:
 - [ ] Neue DS-Varianten nur, falls `Stats.monthBars` mit 12 Balken in der Zeile nicht passt: dann als Variante in `src/Client/DesignSystem/Stats.fs` mit Eintrag im Styleguide (§2 Monatsbalken) und auf `/styleguide`. Werte aus dem Styleguide, nicht erfunden.
+- [ ] Styleguide: Der Absatz zum Kopf der Budget-Seite (`standards/frontend/styleguide.md`, Knopf Historie) nennt den Knopf "Targets prüfen" mit Icon und Lage am Handy.
 - [ ] README budgeting: **Targets prüfen** (Seite, Knopf, Zeile, übernehmen, Anpassen …, Sperre) als README-Delta, geprüft mit `npm run check:readme-delta -- --bc budgeting`.
 - [ ] `[human-eye]` Lesbarkeit der 12 Balken je Zeile am Handy und Dichte der Seite mit rund 100 Zeilen, per Screenshot (`npm run screenshot:route`) angesehen und im Outcome vermerkt.
 - [ ] `./verify.sh` zeigt `VERIFY: PASS`.
@@ -95,3 +99,5 @@ Hinweise aus den Reviews nach budgeting-r7k2m und budgeting-p2zr6 (2026-11-05), 
 - Nach dem Wechsel, auf den neuen Schreibweg (ADR 0084 Punkt 7, entschieden von Roman am
   2026-11-05): Dieser Task wird erst nach budgeting-eh8xe gebaut und schreibt Targets als
   Ereignisse in BB; der Zwei-Schritt-Weg nach YNAB entfällt.
+
+Alle Hinweise oben sind beim Abgleich am 2026-11-06 entschieden (siehe "Festgelegt" in What). Nach hbhzf rechnet BB den Fehlbetrag selbst: ein Übernehmen ändert ihn, darum liest die Budget-Seite den Monat nach der Rückkehr still neu (`KeptPage`).

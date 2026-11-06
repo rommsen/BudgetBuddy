@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 17:20 -- Modeling / Refined: budgeting-q4v8n - Seite Targets prüfen
+
+**Type:** Modeling / Refine
+**BC:** budgeting
+**Status after:** todo
+**Summary:** Gegen den Code nach eh8xe und hbhzf abgeglichen: TargetPartlyWritten entfällt, TargetChangedInYnab heißt TargetChangedMeanwhile, CommandId über Retry.command, Abbruch über targetCallLostText. Die Review-Hinweise sind entschieden: Herkunft in TargetSaving, targetFormLocksFor je Monat, prefilledTargetForm im Kern, Panel 340 px, Inspektor auf der Seite nicht gerendert. Kriterium Herkunft und Styleguide-Eintrag ergänzt.
+
+---
+
 ## 2026-11-06 16:56 -- Work session ended
 
 **Type:** Work / Session end
