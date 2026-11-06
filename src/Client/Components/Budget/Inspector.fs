@@ -275,7 +275,7 @@ let private spendingWithSign (amount: decimal) (format: decimal -> string) : str
 /// nebeneinander. Der volle Betrag steht im Label des Balkens. Überwiegen Erstattungen, ist die Ausgabe
 /// negativ und steht mit Plus da ("+85"): es kam mehr zurück, als ausgegeben wurde (budgeting-v6m3z).
 let barAmountText (m: Money) : string =
-    let rounded = System.Math.Round(m.Amount, 0, System.MidpointRounding.AwayFromZero)
+    let rounded = roundHalfUp m.Amount
     spendingWithSign rounded (fun amount ->
         let text = Money.formatAmountText false false amount m.Currency
         text.Substring(0, text.Length - 3))

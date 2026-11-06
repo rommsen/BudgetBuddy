@@ -279,10 +279,24 @@ test("[layout] Anpassen öffnet ab 1024 px ein Panel rechts neben der Liste, bei
 // Verhindert den Befund aus der Durchsicht am 2026-11-06: `Math.Round(x, MidpointRounding.AwayFromZero)` rundet im
 // Fable-Kompilat auf eine Nachkommastelle (der Modus galt als Stellenzahl), der wöchentliche Vorschlag stand mit
 // "23,10 €/Woche" statt auf vollen Euro (ADR 0082 Punkt 9). Unter .NET rechnet dieselbe Funktion richtig.
-test("[fable] Ein wöchentlicher Vorschlag steht auf vollen Euro", async () => {
-  const { context, page } = await openCheck(1280, 900);
+//
+// Verhindert außerdem den Befund aus der Durchsicht von e86f8d2: `Math.Round(x, 0, MidpointRounding.AwayFromZero)`
+// auf decimal rundet im Fable-Kompilat zur geraden Zahl (fable-library `Decimal.round` verwirft den Modus). Ein
+// Balkenbetrag von 84,50 € stand als "84" statt "85" unter dem Balken (`barAmountText`). "Tanken q4v8n" gibt es
+// nur in diesem Test, die anderen Tests sehen die Fixture ohne die Zeile.
+test("[fable] Ein wöchentlicher Vorschlag steht auf vollen Euro, ein Betrag auf 50 Cent wird aufgerundet", async () => {
+  const { context, page } = await mockedPage(1280, 900);
+  const withHalf = { ...checkData, Categories: [...checkData.Categories, source(6, "Tanken q4v8n", null, 84.5)] };
+  // Die später angelegte Route hat Vorrang vor der aus `mockedPage`.
+  await page.route("**/api/BudgetApi/getTargetCheck", (route) => json(route, { Ok: withHalf }));
   try {
+    await page.goto(`http://127.0.0.1:${frontendPort}/#/budget/target-check`, { waitUntil: "load" });
     await rowOf(page, "Kantine q4v8n").getByRole("button", { name: "23,00 €/Woche übernehmen" }).waitFor();
+    const amounts = await rowOf(page, "Tanken q4v8n")
+      .locator('[data-testid="month-bar"] > span:last-child')
+      .allTextContents();
+    assert.equal(amounts.length, 12, `12 Balkenbeträge (${JSON.stringify(amounts)})`);
+    assert.deepEqual([...new Set(amounts)], ["85"], "84,50 € steht kaufmännisch gerundet als 85");
   } finally {
     await context.close();
   }

@@ -16,6 +16,14 @@ type Money = {
     Currency: string
 }
 
+/// Kaufmännisch auf eine ganze Zahl, ein genauer Mittelwert weg von null (12,5 wird 13, -12,5 wird -13).
+/// Von Hand über `Math.Floor`, damit .NET und Fable gleich rechnen: `Math.Round` auf decimal rundet im
+/// Fable-Kompilat immer zur geraden Zahl, `MidpointRounding` wird dort verworfen (fable-library `Decimal.round`).
+/// Auf Cent: `roundHalfUp (x * 100m) / 100m`.
+let roundHalfUp (value: decimal) : decimal =
+    let rounded = Math.Floor(abs value + 0.5m)
+    if value < 0m then -rounded else rounded
+
 /// Unique identifier for bank transactions from Comdirect.
 /// Purpose: Prevents mixing transaction IDs with other ID types at compile time.
 type TransactionId = TransactionId of string

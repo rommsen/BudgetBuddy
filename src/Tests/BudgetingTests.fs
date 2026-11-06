@@ -5,6 +5,7 @@ module Tests.BudgetingTests
 
 open System
 open Expecto
+open Shared.Domain
 open Shared.Budgeting
 open Server.Budgeting
 
@@ -578,6 +579,40 @@ let private windowTests =
         }
     ]
 
+let private roundingTests =
+    // Review zu e86f8d2 (budgeting-q4v8n): `Math.Round` mit `MidpointRounding.AwayFromZero` rundet im
+    // Fable-Kompilat zur geraden Zahl. `roundHalfUp` rechnet von Hand, gleich auf beiden Seiten; der Beleg im
+    // Kompilat ist der `[fable]`-Test in scripts/target-check.test.mjs.
+    let month (m: string) (spent: decimal) : MonthSpending = { Month = m; Activity = euro -spent }
+    testList "Kaufmännisch runden" [
+        test "Ein genauer Mittelwert geht weg von null, auch eine gerade Zahl darunter" {
+            Expect.equal (roundHalfUp 12.5m) 13m "12,5"
+            Expect.equal (roundHalfUp 84.5m) 85m "84,5"
+            Expect.equal (roundHalfUp 0.5m) 1m "0,5"
+            Expect.equal (roundHalfUp -12.5m) -13m "-12,5"
+            Expect.equal (roundHalfUp -0.5m) -1m "-0,5"
+        }
+        test "Knapp unter und über dem Mittelwert rundet zur nächsten Zahl" {
+            Expect.equal (roundHalfUp 12.4999m) 12m "unter"
+            Expect.equal (roundHalfUp 12.5001m) 13m "über"
+            Expect.equal (roundHalfUp -12.4999m) -12m "negativ unter"
+            Expect.equal (roundHalfUp -12.5001m) -13m "negativ über"
+            Expect.equal (roundHalfUp 0m) 0m "null"
+            Expect.equal (roundHalfUp 7m) 7m "ganz"
+            Expect.equal (roundHalfUp -0.4m) 0m "negativ zu null"
+        }
+        test "Ein halber Cent im Betragstext wird aufgerundet, negativ mit Minus" {
+            Expect.equal (euroText (euro 1.225m)) "1,23 €" "1,225"
+            Expect.equal (euroText (euro -1.225m)) "-1,23 €" "-1,225"
+            Expect.equal (euroText (euro 1.224m)) "1,22 €" "darunter"
+            Expect.equal (euroText (euro -0.004m)) "0,00 €" "gerundet null ohne Minus"
+        }
+        test "Ein Balken bei genau 12,5 Prozent des größten ist 13 hoch" {
+            let bars = spendingBars "2026-11-01" [ month "2026-09-01" 200m; month "2026-10-01" 25m ]
+            Expect.equal (bars |> List.map (fun b -> b.Percent)) [ 100; 13 ] "12,5 aufgerundet"
+        }
+    ]
+
 [<Tests>]
 let tests =
-    testList "Budgeting (k7wmd)" [ decoderTests; rhythmTests; groupingTests; monthKindTests; validationTests; errorMappingTests; apiPathTests; monthsResponseTests; responseTextTests; frameTests; orderTests; missingTests; windowTests ]
+    testList "Budgeting (k7wmd)" [ decoderTests; rhythmTests; groupingTests; monthKindTests; validationTests; errorMappingTests; apiPathTests; monthsResponseTests; responseTextTests; frameTests; orderTests; missingTests; windowTests; roundingTests ]

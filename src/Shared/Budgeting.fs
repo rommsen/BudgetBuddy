@@ -578,9 +578,10 @@ let targetAfter (shown: Target option) (draft: TargetDraft) : Result<Target, str
     | Ok target, Some day -> Ok { target with Day = Some day }
     | Ok target, None -> Ok target
 
-/// Ein Betrag als "1.234,50 €", ohne Kultur und ohne Format-String, gleich unter .NET und Fable.
+/// Ein Betrag als "1.234,50 €", ohne Kultur und ohne Format-String, gleich unter .NET und Fable: ein halber Cent
+/// wird über `roundHalfUp` kaufmännisch aufgerundet (1,225 € wird "1,23 €").
 let euroText (money: Money) : string =
-    let cents = int64 (Math.Round(abs money.Amount * 100m, 0, MidpointRounding.AwayFromZero))
+    let cents = int64 (roundHalfUp (abs money.Amount * 100m))
     let rec group (digits: string) =
         if digits.Length <= 3 then digits else group digits.[.. digits.Length - 4] + "." + digits.[digits.Length - 3 ..]
     let sign = if money.Amount < 0m && cents > 0L then "-" else ""
@@ -1115,7 +1116,7 @@ let spendingBars (currentMonth: string) (spending: MonthSpending list) : Spendin
         let amount = spent s
         let percent =
             if highest <= 0m || amount <= 0m then 0
-            else int (Math.Round(amount / highest * 100m, 0, MidpointRounding.AwayFromZero))
+            else int (roundHalfUp (amount / highest * 100m))
         { Month = s.Month
           Spending = { s.Activity with Amount = amount }
           Percent = percent
@@ -1285,8 +1286,8 @@ let suggestTarget (target: Target option) (average: Money) : TargetSuggestion op
                 | Months n -> monthly * decimal (max 1 n)
                 | Years n -> monthly * decimal (12 * max 1 n)
                 | Weeks n ->
-                    // Mit Stellenzahl 0: im Fable-Kompilat galt `MidpointRounding` als zweites Argument als Stellenzahl.
-                    let weekly = Math.Round(monthly * decimal (12 * max 1 n) / 52m, 0, MidpointRounding.AwayFromZero)
+                    // Über `roundHalfUp`: `Math.Round` rundet im Fable-Kompilat einen Mittelwert zur geraden Zahl.
+                    let weekly = roundHalfUp (monthly * decimal (12 * max 1 n) / 52m)
                     max 1m weekly
                 | NoRhythm -> monthly
             Some
