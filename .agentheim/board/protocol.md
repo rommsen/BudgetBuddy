@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 10:45 -- Modeling / Captured: budgeting-b9869 - "Fehlbetrag mit Fälligkeit: Ausgaben seit Beginn der laufenden Periode zählen als gedeckt, wie bei YNAB"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Zweiter Prod-Vergleich: YNAB zählt Ausgaben der laufenden Zielperiode als gedeckt, BB nur den Übertrag. Blockiert hbhzf.
+
+---
+
 ## 2026-11-06 10:23 -- Task verified and completed: budgeting-r4kqm - "Fehlbetrag mit Fälligkeit: BB rechnet bei wiederkehrenden Targets bis zur nächsten Fälligkeit statt mit dem gespeicherten, vergangenen Datum"
 
 **Type:** Work / Task completion

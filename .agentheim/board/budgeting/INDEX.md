@@ -10,7 +10,7 @@ Catalog of this bounded context's tasks by status.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 6
+- **Backlog:** 7
 - **Todo:** 0
 - **Doing:** 1
 - **Done:** 48
@@ -84,6 +84,7 @@ prior-art matcher additionally checks `done-archive/` when present.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **budgeting-b9869** — "Fehlbetrag mit Fälligkeit: Ausgaben seit Beginn der laufenden Periode zählen als gedeckt, wie bei YNAB" (bug) — `backlog/budgeting-b9869-fehlbetrag-mit-faelligkeit-zaehlt-ausgaben-der-periode.md`
 - **budgeting-hbhzf** — "Fehlbetrag aus BB: Targets anwenden und die Anzeige rechnen mit BBs Fehlbetrag gegen das Soll, Rückbau der Parallelrechnung" (feature) — `backlog/budgeting-hbhzf-fehlbetrag-aus-bb.md`
 - **budgeting-e2z7v** — "Rückweg-Aktion \"Targets nach YNAB zurückschreiben\": BBs Targets bewusst als Goals nach YNAB schreiben, soweit darstellbar, und listen, was YNAB nicht darstellen kann" (feature) — `backlog/budgeting-e2z7v-r-ckweg-aktion-targets-nach-ynab-zur-ckschreiben-bbs-targets.md`
 - **budgeting-q4v8n** — "Seite Targets prüfen #/budget/target-check: Knopf im Kopf der Budget-Seite, Gruppen mit Balken, Vorschlag übernehmen und Anpassen … im Panel oder BottomSheet" (feature) — `backlog/budgeting-q4v8n-seite-targets-pruefen.md`
