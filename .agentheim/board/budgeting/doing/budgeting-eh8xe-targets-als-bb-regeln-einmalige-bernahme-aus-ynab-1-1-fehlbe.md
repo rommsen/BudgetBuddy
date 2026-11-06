@@ -1,7 +1,7 @@
 ---
 id: budgeting-eh8xe
 title: "Targets in BB führen: einmalige Übernahme aus YNAB, Target ändern schreibt nur in BB mit Befehls-Id, Wochentag setzbar, Pause nur in BB, Rückbau des Goal-Schreibwegs"
-status: todo
+status: doing
 type: feature
 context: budgeting
 created: 2026-11-05
