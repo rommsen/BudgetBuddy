@@ -1,7 +1,7 @@
 ---
 id: budgeting-k7r2w
 title: "Targets prüfen zählt eine neue Kategorie erst ab ihrer ersten Buchung im Kassenbuch, statt die Monate davor als 0 € mitzuzählen. Unter 3 gezählten Monaten steht sie unter Passt mit „neu seit <Monat>“."
-status: todo
+status: doing
 type: bug
 context: budgeting
 created: 2026-11-06

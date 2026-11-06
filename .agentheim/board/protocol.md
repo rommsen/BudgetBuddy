@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 22:18 -- Batch started: [budgeting-k7r2w]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-k7r2w - "Targets prüfen zählt eine neue Kategorie erst ab ihrer ersten Buchung im Kassenbuch, statt die Monate davor als 0 € mitzuzählen. Unter 3 gezählten Monaten steht sie unter Passt mit „neu seit <Monat>“."
+**Parallel:** scoped: Roman hat budgeting-k7r2w genannt, keine weiteren Tasks bereit
+
+---
+
 ## 2026-11-06 22:16 -- Modeling / Refined: budgeting-m3x7f - Monatserster-Leiste nach der Skizze
 
 **Type:** Modeling / Refine
