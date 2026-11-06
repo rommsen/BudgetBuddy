@@ -5,6 +5,18 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 07:06 -- Review-Lauf: infrastructure-w7d2c
+
+**Type:** Review / Review-Lauf
+**Bereich:** 32d5fc2 [infrastructure-w7d2c]
+**Agents:** backend-code-quality, qa-milestone-reviewer
+**Funde:** behoben 5, verworfen 1, Rückfrage 0, Ticket 0
+**Commits:** 6535b30
+**Verworfen:** englischer Testname des umgestellten Tests (bewusst übernommen, Kleinigkeit)
+**Verifikation:** VERIFY: PASS (dotnet 4016 grün, node 310 grün)
+
+---
+
 ## 2026-11-06 06:59 -- Capture / Captured: ledger-p3vq8 - "addCashExpense: gelingt der Push und scheitert danach das Schreiben der Verknüpfung, legt der Spiegel eine zweite Buchung an"
 
 **Type:** Capture
