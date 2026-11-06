@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 10:07 -- Modeling / Captured: budgeting-r4kqm - "Fehlbetrag mit Fälligkeit: BB rechnet bei wiederkehrenden Targets bis zur nächsten Fälligkeit statt mit dem gespeicherten, vergangenen Datum"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** todo
+**Summary:** Bug aus der Parallelrechnung: Fehlbetrag mit Fälligkeit ignoriert den Rhythmus wiederkehrender Targets. Blockiert hbhzf, vor eh8xe zu deployen.
+
+---
+
 ## 2026-11-06 10:03 -- Batch started: [budgeting-eh8xe]
 
 **Type:** Work / Batch start

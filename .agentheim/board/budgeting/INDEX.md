@@ -11,13 +11,14 @@ Catalog of this bounded context's tasks by status.
 
 <!-- task-counts:start -->
 - **Backlog:** 6
-- **Todo:** 0
+- **Todo:** 1
 - **Doing:** 1
 - **Done:** 47
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **budgeting-r4kqm** — "Fehlbetrag mit Fälligkeit: BB rechnet bei wiederkehrenden Targets bis zur nächsten Fälligkeit statt mit dem gespeicherten, vergangenen Datum" (bug) — `todo/budgeting-r4kqm-fehlbetrag-mit-faelligkeit-bei-wiederkehrendem-target.md`
 <!-- todo-list:end -->
 
 ### Doing

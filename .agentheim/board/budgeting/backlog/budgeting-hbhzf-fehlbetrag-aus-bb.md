@@ -6,7 +6,7 @@ type: feature
 context: budgeting
 created: 2026-11-06
 completed:
-depends_on: [budgeting-eh8xe]
+depends_on: [budgeting-eh8xe, budgeting-r4kqm]
 blocks: [budgeting-m3x7f]
 tags: [targets, fehlbetrag, rueckbau, fuehrung]
 related_adrs: [0083, 0084]
@@ -54,4 +54,8 @@ Teil 2 von 2 der Teilung von budgeting-eh8xe (2026-11-06).
 - **Toleranz (Roman, 2026-11-06):** Umschalten, wenn jede Abweichung im laufenden Monat einen
   bekannten Grund hat (etwa ein YNAB-Sonderfall). Die Liste wird einmal mit Roman durchgegangen,
   das Ergebnis kommt hierher. Roman öffnet dafür in Prod den laufenden und zwei, drei frühere Monate.
+- **Vergleich 2026-11-06 (Mai bis Dezember, 100 Kategorien mit Target):** "Nicht gerechnet" nur bei
+  monatlichen Targets in vergangenen Monaten, YNAB liefert dort keinen Wert (erklärt, YNAB-Sonderfall).
+  Alle Abweichungen betreffen "Mit Fälligkeit" und gehen auf einen BB-Fehler zurück: budgeting-r4kqm.
+  Nach dessen Deploy wird erneut verglichen.
 - Deploy nur zusammen mit budgeting-eh8xe.
