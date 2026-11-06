@@ -10,14 +10,15 @@ Catalog of this bounded context's tasks by status.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 5
-- **Todo:** 0
+- **Backlog:** 4
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 53
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **budgeting-q4v8n** — "Seite Targets prüfen #/budget/target-check: Knopf im Kopf der Budget-Seite, Gruppen mit Balken, Vorschlag übernehmen und Anpassen … im Panel oder BottomSheet" (feature) — `todo/budgeting-q4v8n-seite-targets-pruefen.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -89,7 +90,6 @@ prior-art matcher additionally checks `done-archive/` when present.
 ### Backlog
 <!-- backlog-list:start -->
 - **budgeting-e2z7v** — "Rückweg-Aktion \"Targets nach YNAB zurückschreiben\": BBs Targets bewusst als Goals nach YNAB schreiben, soweit darstellbar, und listen, was YNAB nicht darstellen kann" (feature) — `backlog/budgeting-e2z7v-r-ckweg-aktion-targets-nach-ynab-zur-ckschreiben-bbs-targets.md`
-- **budgeting-q4v8n** — "Seite Targets prüfen #/budget/target-check: Knopf im Kopf der Budget-Seite, Gruppen mit Balken, Vorschlag übernehmen und Anpassen … im Panel oder BottomSheet" (feature) — `backlog/budgeting-q4v8n-seite-targets-pruefen.md`
 - **budgeting-h9c3w** — "Kann-Sammlung budgeting" (chore) — `backlog/budgeting-h9c3w-review-befunde-sammlung.md`
 - **budgeting-m3x7f** — "Monatserster: Leiste mit Targets prüfen, Targets anwenden, rot decken und verteilen, Vorschau mit abwählbaren Zeilen" (feature) — `backlog/budgeting-m3x7f-monatserster-leiste.md`
 - **budgeting-bk6tq** — "Spike: Ausgaben am Monatswechsel. Wann kommen Buchungen bei Comdirect und ING an (vorgemerkt, gebucht, welches Datum), und was heißt das für Auffüllen auf einen festen Betrag am Monatsersten?" (spike) — `backlog/budgeting-bk6tq-vortrag-ab-dem-ersten-tag.md`
