@@ -72,3 +72,9 @@ Kaputt-Szenario (GIVEN/WHEN/THEN): GIVEN Wechsel hin und zurück, das Lesen des 
 - [ ] Regressionstest mit Bug-Kommentar, vor dem Fix rot.
 - [ ] Der Walk kennt den Monatswechsel während eines laufenden Wechsels und bleibt grün.
 - [ ] `./verify.sh` zeigt `VERIFY: PASS`.
+
+## Aus dem Review zu budgeting-eh8xe (2026-11-06)
+- Design: Die sieben Segmente des Wochentags (`Segmented`) sind am Handy (375 px) vermutlich etwa 43 bis 45 px breit, Styleguide Abschnitt 4 verlangt 48 px. Am Bildschirm prüfen, sonst Wochentag-Leiste ohne Rahmen oder mit kleinerer Lücke.
+- Frontend: Die lesende Anzeige des Targets nennt den Wochentag nicht (`Month.fs` `targetText`), im vergangenen oder künftigen Monat ist er unsichtbar. Produktfrage an Roman: "/Woche, Freitag"?
+- Backend: `categoryNameIn` (`Budgeting/Persistence.fs`) setzt für ein in BB angelegtes Target ohne Übernahme still `""`. `CategoryName` in `HistoryTargetChange` optional machen oder den Namen im `TargetSet` tragen.
+- Tests: optional ein `[layout]`-Test, dass die sieben Segmente im 500-px-Sheet nicht abgeschnitten werden.
