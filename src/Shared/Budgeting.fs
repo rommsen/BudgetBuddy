@@ -547,6 +547,14 @@ let keptWeekday (target: Target) : int option =
     | Weeks _ -> target.Day
     | _ -> None
 
+/// Baut der Wunsch eine neue Regel (Anlegen, Wechsel der Art)? Dann ihr Rhythmus, sonst `None`. Die eine Stelle,
+/// die das entscheidet: `targetAfter` baut danach, der Server stempelt danach den Anlegemonat (`planTargetChange`).
+let newRuleFrequency (shown: Target option) (draft: TargetDraft) : TargetFrequency option =
+    match shown, draft.NewRhythm with
+    | None, SetRhythm f -> Some f
+    | None, KeepRhythm -> None
+    | Some target, _ -> targetKindChange target draft
+
 /// Das Target nach dem Wunsch, vom gezeigten Stand aus (budgeting-eh8xe). Anlegen und ein Wechsel der Art
 /// ergeben NEED mit dem neuen Rhythmus; sonst bleiben Art, Rhythmus und "Auffüllen bis". Der Wochentag kommt
 /// bei wöchentlich aus dem Entwurf; ohne Wochentag im Entwurf bleibt der Tag bei gleichem Rhythmus (ein älterer
@@ -560,15 +568,11 @@ let targetAfter (shown: Target option) (draft: TargetDraft) : Result<Target, str
         | Weeks _ -> true
         | _ -> false
     let built =
-        match shown, draft.NewRhythm with
-        | None, KeepRhythm -> Error TargetRhythmMissingText
-        | None, SetRhythm f ->
+        match shown, newRuleFrequency shown draft with
+        | None, None -> Error TargetRhythmMissingText
+        | _, Some f ->
             Ok { Goal = draft.NewGoal; Rhythm = rhythmOfFrequency f; Kind = Need; Date = draft.NewDate; NeedsWholeAmount = None; Day = None; CreatedIn = None }
-        | Some target, _ ->
-            match targetKindChange target draft with
-            | Some f ->
-                Ok { Goal = draft.NewGoal; Rhythm = rhythmOfFrequency f; Kind = Need; Date = draft.NewDate; NeedsWholeAmount = None; Day = None; CreatedIn = None }
-            | None -> Ok { target with Goal = draft.NewGoal; Date = draft.NewDate }
+        | Some target, None -> Ok { target with Goal = draft.NewGoal; Date = draft.NewDate }
     match built, draft.NewDay with
     | Error message, _ -> Error message
     | Ok target, Some day when day < 0 || day > 6 || not (weekly target.Rhythm) -> Error TargetWeekdayText

@@ -166,10 +166,7 @@ let planTargetChange (month: string) (current: Target option) (request: TargetCh
         | None, None -> Ok (TargetUnchanged None)
         | None, Some _ -> Ok RemoveRule
         | Some draft, _ ->
-            let isNew =
-                match current with
-                | None -> true
-                | Some target -> (targetKindChange target draft).IsSome
+            let isNew = (newRuleFrequency current draft).IsSome
             targetAfter current draft
             |> Result.map (fun after -> if isNew then { after with CreatedIn = Some month } else after)
             |> Result.map (fun after -> if Some after = current then TargetUnchanged current else SetRule after)
