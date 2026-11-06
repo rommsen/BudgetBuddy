@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 07:16 -- Review-Lauf: ledger-z71ka
+
+**Type:** Review / Review-Lauf
+**Bereich:** e8ab9b1 [ledger-z71ka]
+**Agents:** backend-code-quality, qa-milestone-reviewer
+**Funde:** behoben 6, verworfen 3, Rückfrage 0, Ticket 1
+**Commits:** 7af88c2
+**Verworfen:** IsCanceled-Kommentar und Lesen nur bei Wiederholung (geringer Nutzen); Beleg für Rot vor dem Fix lässt sich nachträglich nicht erbringen, inhaltlich plausibel (Tests kompilierten gegen alten Code nicht)
+**Ticket:** ledger-p3vq8 (Push gelungen, Verknüpfung nicht geschrieben: Spiegel legt zweite Buchung an, seit ADR 0021)
+**Verifikation:** VERIFY: PASS (dotnet 4078 grün, node 310 grün)
+
+---
+
 ## 2026-11-06 07:07 -- Batch started: [budgeting-dkjc5]
 
 **Type:** Work / Batch start
