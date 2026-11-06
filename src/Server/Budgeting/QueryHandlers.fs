@@ -12,7 +12,8 @@ let private logReadFailure (what: string) (ex: exn) : unit =
     Budgeting.Persistence.logReadFailure what ex.Message
 
 /// Die Ausgaben der Periode für das Lesen eines Monats. Scheitert das Kassenbuch, steht der Grund im Server-Log
-/// und es kommt `None`: der Monat kommt dann ohne BBs Fehlbetrag, das Lesen scheitert nicht (budgeting-hbhzf).
+/// und es kommen keine Ausgaben (`Some Map.empty`): Targets mit Periodenmonaten sind dann "nicht gerechnet" und
+/// tragen keinen Fehlbetrag, alle anderen rechnen weiter; das Lesen scheitert nicht (budgeting-hbhzf, Review).
 let private periodActivityForPage
     (ledger: CommandHandlers.LedgerActivityPort)
     (targets: Map<Guid, Target>)
@@ -24,7 +25,7 @@ let private periodActivityForPage
             return Some activity
         with ex ->
             logReadFailure $"Ausgaben der Periode {monthKey} aus dem Kassenbuch lesen" ex
-            return None
+            return Some Map.empty
     }
 
 /// Liest einen Monat für die Budget-Seite (budgeting-dgrp7, ADR 0084 Punkt 3, Nachtrag): `observeMonth` liest

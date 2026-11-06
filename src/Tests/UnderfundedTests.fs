@@ -361,10 +361,10 @@ let private periodTests =
                     [ annual, { need 60m (Years 1) with Date = Some "2026-03-15" }
                       quarterly, { need 30m (Months 3) with Date = Some "2026-09-30" }
                       monthly, need 100m (Months 1) ]
-            Expect.equal
-                (periodMonthsNeeded targets november)
-                [ for m in 3 .. 10 -> $"2026-%02d{m}-01" ]
-                "März bis Oktober, September und Oktober nur einmal"
+            // Als Menge: die Reihenfolge hat kein beobachtbares Verhalten, das Kassenbuch fragt eine Menge ab (Review).
+            let months = periodMonthsNeeded targets november
+            Expect.equal (Set.ofList months) (Set.ofList [ for m in 3 .. 10 -> $"2026-%02d{m}-01" ]) "März bis Oktober"
+            Expect.equal months.Length 8 "September und Oktober nur einmal"
             Expect.equal (List.sort (periodCategoriesNeeded targets november)) (List.sort [ annual; quarterly ]) "nur mit Periode"
             Expect.equal (periodMonthsNeeded (Map.ofList [ monthly, need 100m (Months 1) ]) november) [] "ohne Fälligkeit keine Monate"
     ]
@@ -406,6 +406,14 @@ let private projectionTests =
             let refill = { need 100m (Months 1) with NeedsWholeAmount = Some false }
             let month = toBudgetMonthWith (openAt id 30m 20m) noActivity (Map.ofList [ id, refill ]) Set.empty (rawMonth id 20m -30m 50m)
             Expect.equal (rowIn month).Underfunded (Some (eur 10m)) "Übertrag ohne Soll"
+
+        testCase "Bei Zielstand zählt die Aktivität des Monats ins Verfügbar, gegen das Soll" <| fun () ->
+            // Review hbhzf (QA): die Aktivität geht nur hier in die Formel ein. Übertrag = 50 − 20 − (−30) = 60,
+            // Verfügbar nach BB = 60 + Soll 30 − 30 = 60, Zielstand 100: 40. Ohne die Aktivität wären es 10.
+            let id = Guid.NewGuid()
+            let balance = { need 100m NoRhythm with Kind = TargetBalance }
+            let month = toBudgetMonthWith (openAt id 30m 20m) noActivity (Map.ofList [ id, balance ]) Set.empty (rawMonth id 20m -30m 50m)
+            Expect.equal (rowIn month).Underfunded (Some (eur 40m)) "100 − 60"
 
         testCase "Mit Fälligkeit zählen die Ausgaben der Periode der Kategorie als gedeckt" <| fun () ->
             // Jährlich fällig im März, gelesen im November: Periode März bis Oktober, November bis März 5 Monate.
@@ -630,7 +638,7 @@ let private ledgerHandlerTests =
 
             Expect.equal row.Underfunded (Some (eur 0m)) "die späte Ausgabe im Oktober zählt"
 
-        testCase "Ist das Kassenbuch nicht lesbar, kommt der Monat ohne BBs Fehlbetrag und der Grund steht im Log" <| fun () ->
+        testCase "Ist das Kassenbuch nicht lesbar, fehlt der Fehlbetrag nur bei Targets mit Periode und der Grund steht im Log" <| fun () ->
             initializeWithLedger ()
             let id = Guid.NewGuid()
             let november = "2037-11-01"
@@ -650,7 +658,8 @@ let private ledgerHandlerTests =
             match result with
             | Ok month ->
                 let rows = month.Groups |> List.collect (fun g -> g.Categories)
-                Expect.equal (rows |> List.map (fun r -> r.Underfunded)) [ None; None ] "kein Fehlbetrag, auch nicht monatlich"
+                // Review hbhzf (Backend W2): ein monatliches Target braucht kein Kassenbuch und rechnet weiter (50 − 0).
+                Expect.equal (rows |> List.map (fun r -> r.Underfunded)) [ None; Some (eur 50m) ] "nur die Fälligkeit ohne Fehlbetrag"
                 Expect.equal (rows |> List.filter (fun r -> r.Target.IsSome) |> List.length) 2 "der Monat kommt mit Targets"
             | Error e -> failtest $"Monat erwartet: {e}"
             Expect.stringContains log "Kassenbuch weg" "Grund im Log"

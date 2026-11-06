@@ -894,7 +894,6 @@ let private commandTests =
                  |> run
                  |> notRecorded)
                 "Verschieben"
-            f.Goals[a] <- monthlyGoal 105000L
             let shownPreview : TargetPreview =
                 { Month = month; Lines = []; Skipped = []; Total = eur 0L; ToBeBudgeted = eur 100000L; ToBeBudgetedAfter = eur 100000L; CommandId = None }
             Expect.isTrue (applyWith (failingFirst ()) f.Port now month shownPreview |> run |> notRecorded) "Anwenden"
