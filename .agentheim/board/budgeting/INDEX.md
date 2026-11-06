@@ -10,7 +10,7 @@ Catalog of this bounded context's tasks by status.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 6
+- **Backlog:** 7
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 47
@@ -82,8 +82,9 @@ prior-art matcher additionally checks `done-archive/` when present.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **budgeting-hbhzf** — "Fehlbetrag aus BB: Targets anwenden und die Anzeige rechnen mit BBs Fehlbetrag gegen das Soll, Rückbau der Parallelrechnung" (feature) — `backlog/budgeting-hbhzf-fehlbetrag-aus-bb.md`
 - **budgeting-e2z7v** — "Rückweg-Aktion \"Targets nach YNAB zurückschreiben\": BBs Targets bewusst als Goals nach YNAB schreiben, soweit darstellbar, und listen, was YNAB nicht darstellen kann" (feature) — `backlog/budgeting-e2z7v-r-ckweg-aktion-targets-nach-ynab-zur-ckschreiben-bbs-targets.md`
-- **budgeting-eh8xe** — "Targets als BB-Regeln: einmalige Übernahme aus YNAB 1:1, Fehlbetrag aus BB, Rückbau des Goal-Schreibwegs und der YNAB-Pause, Wochentag in BB setzbar" (feature) — `backlog/budgeting-eh8xe-targets-als-bb-regeln-einmalige-bernahme-aus-ynab-1-1-fehlbe.md`
+- **budgeting-eh8xe** — "Targets in BB führen: einmalige Übernahme aus YNAB, Target ändern schreibt nur in BB mit Befehls-Id, Wochentag setzbar, Pause nur in BB, Rückbau des Goal-Schreibwegs" (feature) — `backlog/budgeting-eh8xe-targets-als-bb-regeln-einmalige-bernahme-aus-ynab-1-1-fehlbe.md`
 - **budgeting-q4v8n** — "Seite Targets prüfen #/budget/target-check: Knopf im Kopf der Budget-Seite, Gruppen mit Balken, Vorschlag übernehmen und Anpassen … im Panel oder BottomSheet" (feature) — `backlog/budgeting-q4v8n-seite-targets-pruefen.md`
 - **budgeting-h9c3w** — "Kann-Sammlung budgeting" (chore) — `backlog/budgeting-h9c3w-review-befunde-sammlung.md`
 - **budgeting-m3x7f** — "Monatserster: Leiste mit Targets prüfen, Targets anwenden, rot decken und verteilen, Vorschau mit abwählbaren Zeilen" (feature) — `backlog/budgeting-m3x7f-monatserster-leiste.md`

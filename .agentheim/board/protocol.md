@@ -5,6 +5,25 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 09:48 -- Modeling / Refined: budgeting-eh8xe - Targets in BB führen
+
+**Type:** Modeling / Refine
+**BC:** budgeting
+**Status after:** todo
+**Summary:** Geteilt in Targets in BB führen (Übernahme, Schreiben nur in BB mit Befehls-Id, Wochentag, Pause nur in BB, Rückbau Goal-Schreibweg) und BBs Fehlbetrag mit Rückbau der Parallelrechnung. Beide nur gemeinsam deployen. Toleranz noch offen: underfunded_comparisons ist in Prod leer, Daten müssen vor dem Deploy von eh8xe entstehen. m3x7f hängt zusätzlich an hbhzf.
+**Split into:** budgeting-hbhzf
+
+---
+
+## 2026-11-06 09:48 -- Modeling / Captured: budgeting-hbhzf - "Fehlbetrag aus BB: Targets anwenden und die Anzeige rechnen mit BBs Fehlbetrag gegen das Soll, Rückbau der Parallelrechnung"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Teil 2 aus der Teilung von budgeting-eh8xe: BBs Fehlbetrag in Targets anwenden und Anzeige, Rückbau der Parallelrechnung. Wartet auf Romans Toleranz.
+
+---
+
 ## 2026-11-06 09:44 -- Modeling / Dismissed: design-system-p8kvn
 
 **Type:** Modeling / Dismiss
