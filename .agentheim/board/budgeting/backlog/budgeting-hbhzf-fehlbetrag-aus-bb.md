@@ -6,7 +6,7 @@ type: feature
 context: budgeting
 created: 2026-11-06
 completed:
-depends_on: [budgeting-eh8xe, budgeting-r4kqm, budgeting-b9869]
+depends_on: [budgeting-eh8xe, budgeting-r4kqm, budgeting-b9869, budgeting-pf8n7]
 blocks: [budgeting-m3x7f]
 tags: [targets, fehlbetrag, rueckbau, fuehrung]
 related_adrs: [0083, 0084]

@@ -11,13 +11,14 @@ Catalog of this bounded context's tasks by status.
 
 <!-- task-counts:start -->
 - **Backlog:** 6
-- **Todo:** 0
+- **Todo:** 1
 - **Doing:** 1
 - **Done:** 49
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **budgeting-pf8n7** — "Fehlbetrag mit Fälligkeit: die laufende Periode beginnt im Monat der vorigen Fälligkeit, bei der ersten Fälligkeit im Anlegemonat des Ziels" (bug) — `todo/budgeting-pf8n7-periode-ab-voriger-faelligkeit-und-anlegemonat.md`
 <!-- todo-list:end -->
 
 ### Doing

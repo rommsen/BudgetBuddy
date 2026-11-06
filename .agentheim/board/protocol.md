@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 11:49 -- Modeling / Captured: budgeting-pf8n7 - "Fehlbetrag mit Fälligkeit: die laufende Periode beginnt im Monat der vorigen Fälligkeit, bei der ersten Fälligkeit im Anlegemonat des Ziels"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** todo
+**Summary:** Dritter Prod-Vergleich: Periode beginnt im Monat der vorigen Fälligkeit, bei der ersten Fälligkeit im Anlegemonat. Regel an 32 Targets geprüft.
+
+---
+
 ## 2026-11-06 11:39 -- Task verified and completed: budgeting-b9869 - "Fehlbetrag mit Fälligkeit: Ausgaben seit Beginn der laufenden Periode zählen als gedeckt, wie bei YNAB"
 
 **Type:** Work / Task completion
