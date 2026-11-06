@@ -100,3 +100,6 @@ Den Tonwert von `text-secondary` oder die betroffenen Flächen so anpassen, dass
 - [ ] `Badge.neutral` und `.setting-description` erreichen rechnerisch mindestens 4,5:1.
 - [ ] `./verify.sh` zeigt `VERIFY: PASS`.
 - [ ] Die Texte wirken auf `/styleguide` im Tonwert stimmig. [human-eye]
+
+## Aufgenommen aus budgeting-eh8xe (Review 2026-11-06)
+- Build: FS0025 (unvollständiger Match) als Fehler, `<WarningsAsErrors>FS0025</WarningsAsErrors>`. Die Warnung machte den Bug 840f213 sichtbar (Monatsfaltung ohne Fall für die Target-Ereignisse); als Fehler fiele so etwas schon beim Bauen auf.
