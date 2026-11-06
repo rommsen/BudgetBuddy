@@ -300,3 +300,33 @@ test("[fable] Ein wöchentlicher Vorschlag steht auf vollen Euro, ein Betrag auf
     await context.close();
   }
 });
+
+// Die enge Balkenreihe ist ein Tab-Stopp je Zeile (Review budgeting-q4v8n): Pfeiltasten wählen den Nachbarmonat,
+// Tab verlässt die Reihe zu den Knöpfen der Zeile, statt durch zwölf Balken zu laufen.
+test("[tastatur] In einer Zeile ist die Balkenreihe ein Tab-Stopp, Pfeil links wählt den Vormonat, Tab führt zum Knopf der Zeile", async () => {
+  const { context, page } = await openCheck(1280, 900);
+  try {
+    const row = rowOf(page, "Kantine q4v8n");
+    const bars = row.locator('[data-testid="month-bar"]');
+    assert.equal(await bars.count(), 12, "12 Balken in der Zeile");
+    const stops = row.locator('[data-testid="month-bar"][tabindex="0"]');
+    assert.equal(await stops.count(), 1, "genau ein Balken liegt in der Tab-Folge");
+    await stops.first().focus();
+    const focusedIndex = () =>
+      bars.evaluateAll((els) => els.findIndex((el) => el === document.activeElement));
+    assert.equal(await focusedIndex(), 11, "der Tab-Stopp ist der letzte Monat");
+    await page.keyboard.press("ArrowLeft");
+    assert.equal(await focusedIndex(), 10, "Pfeil links fokussiert den Vormonat");
+    await page.keyboard.press("Tab");
+    const active = await page.evaluate(() => ({
+      tag: document.activeElement?.tagName,
+      inRow: !!document.activeElement?.closest('[data-testid="target-check-row"]')?.textContent?.includes("Kantine q4v8n"),
+      text: document.activeElement?.textContent ?? "",
+    }));
+    assert.equal(active.tag, "BUTTON", `nach Tab steht der Fokus auf einem Knopf (${JSON.stringify(active)})`);
+    assert.ok(active.inRow, "der Knopf gehört zur selben Zeile");
+    assert.match(active.text, /übernehmen|Anpassen/, "es ist übernehmen oder Anpassen …");
+  } finally {
+    await context.close();
+  }
+});
