@@ -1,7 +1,7 @@
 ---
 id: budgeting-b9869
 title: "Fehlbetrag mit Fälligkeit: Ausgaben seit Beginn der laufenden Periode zählen als gedeckt, wie bei YNAB"
-status: todo
+status: doing
 type: bug
 context: budgeting
 created: 2026-11-06

@@ -11,18 +11,18 @@ Catalog of this bounded context's tasks by status.
 
 <!-- task-counts:start -->
 - **Backlog:** 6
-- **Todo:** 1
-- **Doing:** 1
+- **Todo:** 0
+- **Doing:** 2
 - **Done:** 48
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **budgeting-b9869** — "Fehlbetrag mit Fälligkeit: Ausgaben seit Beginn der laufenden Periode zählen als gedeckt, wie bei YNAB" (bug) — `todo/budgeting-b9869-fehlbetrag-mit-faelligkeit-zaehlt-ausgaben-der-periode.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **budgeting-b9869** — "Fehlbetrag mit Fälligkeit: Ausgaben seit Beginn der laufenden Periode zählen als gedeckt, wie bei YNAB" (bug) — `doing/budgeting-b9869-fehlbetrag-mit-faelligkeit-zaehlt-ausgaben-der-periode.md`
 - **budgeting-eh8xe** — "Targets in BB führen: einmalige Übernahme aus YNAB, Target ändern schreibt nur in BB mit Befehls-Id, Wochentag setzbar, Pause nur in BB, Rückbau des Goal-Schreibwegs" (feature) — `doing/budgeting-eh8xe-targets-als-bb-regeln-einmalige-bernahme-aus-ynab-1-1-fehlbe.md`
 <!-- doing-list:end -->
 

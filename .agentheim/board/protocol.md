@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 10:48 -- Batch started: [budgeting-b9869]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-b9869 - "Fehlbetrag mit Fälligkeit: Ausgaben seit Beginn der laufenden Periode zählen als gedeckt, wie bei YNAB"
+**Parallel:** yes (b9869 neben dem laufenden Verifier von eh8xe; eh8xe bleibt nach Romans Entscheidung bis zum Prod-Vergleich auf seinem Zweig)
+
+---
+
 ## 2026-11-06 10:48 -- Modeling / Promoted: budgeting-b9869 - "Fehlbetrag mit Fälligkeit: Ausgaben seit Beginn der laufenden Periode zählen als gedeckt, wie bei YNAB"
 
 **Type:** Modeling / Promote
