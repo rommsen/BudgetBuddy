@@ -8,9 +8,15 @@ open Client.DesignSystem
 open Components.Budget.Types
 open Components.Budget.Inspector
 
-/// Die Filter nach Art in ihrer Reihenfolge.
+/// Die Filter nach Art in ihrer Reihenfolge: erst was in BB entschieden wurde, dann was aus YNAB kam
+/// (budgeting-dgrp7).
 let runFilters : RunFilter list =
-    [ AllRuns; RunsOf MovementOrigin.TargetsApplied; RunsOf MovementOrigin.MoneyMoved; RunsOf MovementOrigin.MoneyAssigned ]
+    [ AllRuns
+      RunsOf MovementOrigin.TargetsApplied
+      RunsOf MovementOrigin.MoneyMoved
+      RunsOf MovementOrigin.MoneyAssigned
+      RunsOf MovementOrigin.ObservedInYnab
+      RunsOf MovementOrigin.TakenOverFromYnab ]
 
 let runFilterLabel (filter: RunFilter) : string =
     match filter with
@@ -19,7 +25,8 @@ let runFilterLabel (filter: RunFilter) : string =
     | RunsOf MovementOrigin.MoneyMoved -> "Verschieben"
     | RunsOf MovementOrigin.MoneyAssigned -> "Zuweisen"
     | RunsOf MovementOrigin.ObservedInYnab -> "In YNAB zugewiesen"
-    | RunsOf MovementOrigin.TakenOverFromYnab -> "Übernahme"
+    // Wie die Zeile der Übernahme ("Aus YNAB übernommen, N Kategorien").
+    | RunsOf MovementOrigin.TakenOverFromYnab -> "Aus YNAB übernommen"
 
 /// Die Durchläufe, die der Filter zeigt.
 let shownRuns (filter: RunFilter) (runs: HistoryRun list) : HistoryRun list =
@@ -35,18 +42,24 @@ let expandable (run: HistoryRun) : bool =
 let isRunOpen (history: GeneralHistory) (run: HistoryRun) : bool =
     expandable run && history.Expanded.Contains run.RunId
 
-/// Der Leertext der Liste (budgeting-c6vn4, A9): ohne Filter nennt er, was hier erscheint.
+/// Der Leertext der Liste (budgeting-c6vn4, A9): ohne Filter nennt er, was hier erscheint. Die Filter aus
+/// YNAB nennen, was fehlt: dort entsteht nichts durch einen Durchlauf in BB (budgeting-dgrp7).
 let emptyText (filter: RunFilter) : string =
     match filter with
-    | AllRuns -> "Noch keine Durchläufe. Targets anwenden, Verschieben, Zuweisen und Zuweisungen in YNAB erscheinen hier."
-    | RunsOf _ -> "Keine Durchläufe dieser Art"
+    | AllRuns -> "Noch keine Durchläufe. Targets anwenden, Verschieben, Zuweisen und Änderungen aus YNAB erscheinen hier."
+    | RunsOf MovementOrigin.ObservedInYnab -> "Keine Zuweisungen in YNAB"
+    | RunsOf MovementOrigin.TakenOverFromYnab -> "Keine Übernahme aus YNAB"
+    | RunsOf MovementOrigin.TargetsApplied
+    | RunsOf MovementOrigin.MoneyMoved
+    | RunsOf MovementOrigin.MoneyAssigned -> "Keine Durchläufe dieser Art"
 
 /// Text und Klassen des Betrags rechts in der Zeile (budgeting-c6vn4, A5), über dieselbe Funktion wie die
 /// Einzelzeilen. Eine Verschiebung trägt kein Vorzeichen: ihre Richtung steht im Text.
 let runAmount (run: HistoryRun) : string * string =
     match run.Origin with
     | MovementOrigin.MoneyMoved -> Money.formatAmountText false true run.Amount.Amount run.Amount.Currency, Money.signedListAmountClass
-    | MovementOrigin.TakenOverFromYnab -> Money.formatAmountText false false run.Amount.Amount run.Amount.Currency, Money.signedListAmountClass
+    // Eine Summe ohne Richtung: ohne Vorzeichen, mit Währung wie Verschieben.
+    | MovementOrigin.TakenOverFromYnab -> Money.formatAmountText false true run.Amount.Amount run.Amount.Currency, Money.signedListAmountClass
     | MovementOrigin.TargetsApplied
     | MovementOrigin.MoneyAssigned
     | MovementOrigin.ObservedInYnab -> historyChangeAmount run.Amount

@@ -130,11 +130,15 @@ let head
 type NoticeTone =
     | NoticeOrange
     | NoticeRed
+    /// Gelb: offen, kein Fehler, für die Budget-Seite ohne Orange und Pink (ADR 0075).
+    | NoticeYellow
 
-/// Die Aktion einer Hinweisleiste; `Busy` sperrt sie, solange ihr Aufruf läuft.
+/// Die Aktion einer Hinweisleiste; `Busy` zeigt den eigenen Lauf und sperrt sie, `Disabled` sperrt sie
+/// ohne Spinner, etwa solange ein anderer Aufruf läuft.
 type NoticeAction = {
     Label: string
     Busy: bool
+    Disabled: bool
     OnClick: unit -> unit
 }
 
@@ -154,6 +158,7 @@ let notice (props: NoticeProps) : ReactElement =
         match props.Tone with
         | NoticeOrange -> "bg-neon-orange/[0.07]", Badge.Orange
         | NoticeRed -> "bg-neon-red/[0.07]", Badge.Error
+        | NoticeYellow -> "bg-calm-yellow/[0.07]", Badge.Notice
 
     Html.div [
         prop.role "status"
@@ -176,6 +181,7 @@ let notice (props: NoticeProps) : ReactElement =
                                 Variant = Button.Secondary
                                 Size = Button.Small
                                 IsLoading = action.Busy
+                                IsDisabled = action.Disabled
                                 OnClick = action.OnClick
                         }
                     ]

@@ -138,23 +138,28 @@ let private missingButton (model: Model) (month: BudgetMonth) (category: BudgetC
     | AssignMissing _ -> button Button.Primary (canCover model)
     | OnlyLeft _ -> button Button.Secondary false
 
-/// Die Markierung einer offenen Rückschreibung mit dem Weg zu "erneut senden" (budgeting-dgrp7).
+/// Die Markierung einer offenen Rückschreibung mit dem Weg zu "erneut senden" (budgeting-dgrp7). Gelb wie
+/// jedes "offen, kein Fehler" der Budget-Seite (ADR 0075).
 let private notInYnabNotice (model: Model) (category: BudgetCategory) (dispatch: Msg -> unit) =
     match category.OpenWriteBack with
     | None -> Html.none
-    | Some applicationId ->
+    | Some groupId ->
+        let applicationId = string groupId
         Html.div [
             prop.custom ("data-testid", "assign-not-in-ynab")
-            prop.className "flex items-center justify-between gap-3"
+            // Die Leiste reicht wie im Buchungs-Detail bis an den Rand des Panels, der Tab hat `p-4`.
+            prop.className "-mx-4"
             prop.children [
-                Badge.noticeSmall NotInYnabText
-                Button.view
-                    { Button.defaultProps with
-                        Text = retryMoveLabel
-                        Variant = Button.Secondary
-                        Size = Button.Small
-                        IsDisabled = not (canStartMove model)
-                        OnClick = fun () -> dispatch (RetryWriteBack (string applicationId)) }
+                Detail.notice
+                    { Tone = Detail.NoticeYellow
+                      Badge = NotInYnabText
+                      Reason = NotInYnabReason
+                      Action =
+                        Some
+                            { Label = retryMoveLabel
+                              Busy = writeBackRetryRunning applicationId model
+                              Disabled = not (canStartMove model)
+                              OnClick = fun () -> dispatch (RetryMove applicationId) } }
             ]
         ]
 

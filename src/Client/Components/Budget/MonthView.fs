@@ -235,9 +235,18 @@ let private mobileGroup (selectedId: System.Guid option) (dispatch: Msg -> unit)
                           prop.className ListRoles.mobileLine2
                           prop.children [
                               Html.span [
-                                  prop.className $"{ListRoles.muted} truncate tabular-nums"
+                                  prop.className $"{ListRoles.muted} truncate min-w-0 tabular-nums"
                                   prop.text (mobileFiguresText c)
                               ]
+                              // Die Markierung kürzt nie, wie der Status in der dritten Zeile (budgeting-dgrp7).
+                              match mobileWriteBackMark c with
+                              | Some mark ->
+                                  Html.span [
+                                      prop.custom ("data-testid", "budget-not-in-ynab-mobile")
+                                      prop.className $"{ListRoles.muted} shrink-0 whitespace-nowrap"
+                                      prop.text mark
+                                  ]
+                              | None -> ()
                           ]
                       ]
                       mobileStatusLine c ]

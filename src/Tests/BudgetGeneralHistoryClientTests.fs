@@ -235,8 +235,23 @@ let tests =
             Expect.contains messages (State.BudgetMsg GeneralHistoryEntered) "die Historie lädt"
         }
         test "Der Leertext nennt ohne Filter, was hier erscheint, mit Filter die Art" {
-            Expect.equal (emptyText AllRuns) "Noch keine Durchläufe. Targets anwenden, Verschieben, Zuweisen und Zuweisungen in YNAB erscheinen hier." "ohne Filter"
+            Expect.equal (emptyText AllRuns) "Noch keine Durchläufe. Targets anwenden, Verschieben, Zuweisen und Änderungen aus YNAB erscheinen hier." "ohne Filter"
             Expect.equal (emptyText (RunsOf MovementOrigin.MoneyMoved)) "Keine Durchläufe dieser Art" "mit Filter"
+            Expect.equal (emptyText (RunsOf MovementOrigin.ObservedInYnab)) "Keine Zuweisungen in YNAB" "Beobachtung"
+            Expect.equal (emptyText (RunsOf MovementOrigin.TakenOverFromYnab)) "Keine Übernahme aus YNAB" "Übernahme"
+        }
+        // budgeting-dgrp7, Review-Fund: Beobachtung und Übernahme fehlten in der Filterleiste.
+        test "Die Filterleiste führt auch, was aus YNAB kam, mit den Worten der Zeilen" {
+            Expect.equal
+                (runFilters |> List.map runFilterLabel)
+                [ "Alle"; "Targets anwenden"; "Verschieben"; "Zuweisen"; "In YNAB zugewiesen"; "Aus YNAB übernommen" ]
+                "Chips"
+            let run origin : HistoryRun =
+                { RunId = Guid.NewGuid(); OccurredAt = DateTime.UtcNow; Origin = origin; Month = "2026-10-01"
+                  Text = ""; Amount = eur 1m; Status = RunFromYnab; Lines = [] }
+            let runs = [ run MovementOrigin.ObservedInYnab; run MovementOrigin.TakenOverFromYnab; run MovementOrigin.MoneyAssigned ]
+            Expect.equal (shownRuns (RunsOf MovementOrigin.ObservedInYnab) runs) [ runs[0] ] "Beobachtung"
+            Expect.equal (shownRuns (RunsOf MovementOrigin.TakenOverFromYnab) runs) [ runs[1] ] "Übernahme"
         }
         test "Der Betrag rechts: Verschieben ohne Vorzeichen, Zuweisen und Targets mit, eine Null ohne" {
             let run origin amount : HistoryRun =
@@ -246,11 +261,16 @@ let tests =
             Expect.equal (fst (runAmount (run MovementOrigin.MoneyAssigned -20m))) "-20,00 €" "zurück nach Zu verteilen"
             Expect.equal (fst (runAmount (run MovementOrigin.MoneyAssigned 0m))) "0,00 €" "Zuweisen mit 0"
             Expect.equal (fst (runAmount (run MovementOrigin.TargetsApplied 860m))) "+860,00 €" "Targets"
+            // budgeting-dgrp7, Review-Fund: die Summe der Übernahme stand ohne Währung da.
+            Expect.equal (fst (runAmount (run MovementOrigin.TakenOverFromYnab 2400m))) "2.400,00 €" "Übernahme: Summe ohne Vorzeichen"
+            Expect.equal (fst (runAmount (run MovementOrigin.ObservedInYnab -20m))) "-20,00 €" "Beobachtung: Änderung mit Vorzeichen"
         }
         test "Ein Teil-Fehlschlag steht im Badge, am Handy kurz, ein Fehlschlag mit Grund wie bei einer Bewegung" {
             Expect.equal (runBadge (RunPartlyFailed (1, 3))) (PartlyFailedBadge ("1 von 3", "1 von 3 fehlgeschlagen")) "Teil"
             Expect.equal (runBadge (RunFailed "Rate-Limit")) (StatusBadge (HistoryFailed "Rate-Limit")) "Grund"
             Expect.equal (runBadge RunOpen) (StatusBadge HistoryOpen) "offen"
+            Expect.equal (runBadge RunReplacedInBb) (StatusBadge HistoryReplacedInBb) "in BB ersetzt"
+            Expect.equal (runBadge RunFromYnab) NoBadge "aus YNAB ohne Badge"
         }
         test "Der Monat steht am Handy kurz" {
             Expect.equal (shortMonthYearLabel "2026-11-01") "Nov. 2026" "November"

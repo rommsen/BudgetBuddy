@@ -440,8 +440,6 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         match startMoveRetry applicationId model with
         | model', true -> model', retryMoveCmd applicationId, NoOp
         | model', false -> model', Cmd.none, NoOp
-    // Kein eigener Laufzustand: erneut senden beobachtet zuerst und setzt absolut, ein zweiter Klick ändert nichts.
-    | RetryWriteBack applicationId -> model, retryMoveCmd applicationId, NoOp
     | MoveRetried (applicationId, result) ->
         let model', external = applyMoveRetried applicationId result model
         afterMovement (model', afterAnswer true (frameDueAfterRetry result model) model', external)
@@ -469,7 +467,6 @@ type MsgRoute =
 let private routeOf (msg: Msg) (model: Model) : MsgRoute =
     match msg with
     | RetryMove _
-    | RetryWriteBack _
     | ConfirmTargets
     | RetryFailed
     | ConfirmTransfer -> MsgRoute.StartsMove

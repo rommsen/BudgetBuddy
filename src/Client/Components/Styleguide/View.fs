@@ -362,7 +362,9 @@ let private badgeSection =
                     Badge.noticeSmall "in YNAB geändert"
                     Badge.noticeSmall "teilweise geschrieben"
                     Badge.neutralSmall "noch offen"
+                    Badge.neutralSmall "in BB ersetzt"
                 ]
+                note "In BB ersetzt (budgeting-dgrp7): eine Rückschreibung, die eine spätere Entscheidung in BB zurückgezogen hat. Neutral, ohne Wertung: nichts ist schiefgegangen, die neuere Entscheidung gilt."
                 note "Stand der Bankverbindung (BankConnectionBadge), in Einstellungen und SyncFlow."
                 row [
                     Components.BankConnectionBadge.view BankConnected
@@ -586,6 +588,33 @@ let private calmListSection =
                                 Html.span [ prop.className $"{Tokens.ListRoles.secondary} shrink-0 whitespace-nowrap"; prop.text "· fehlt 200,00 €" ]
                             ]
                         ]
+                    ]
+                ]
+                note "Offene Rückschreibung (budgeting-dgrp7): Zugewiesen zeigt BBs Wert, YNAB hat ihn noch nicht. Am Handy steht die Markierung hinter den Zahlen und kürzt nie, die Zahlen kürzen; am PC ein kleines gelbes Badge hinter dem Namen."
+                Html.div [
+                    prop.className $"{Tokens.ListRoles.mobileRowPadding} border-b border-border-subtle max-w-sm"
+                    prop.children [
+                        Html.div [
+                            prop.className Tokens.ListRoles.mobileLine1
+                            prop.children [
+                                Html.span [ prop.className Tokens.ListRoles.primary; prop.text "Lebensmittel" ]
+                                Money.listAmount 120m "EUR"
+                            ]
+                        ]
+                        Html.div [
+                            prop.className Tokens.ListRoles.mobileLine2
+                            prop.children [
+                                Html.span [ prop.className $"{Tokens.ListRoles.muted} truncate min-w-0"; prop.text "Zugewiesen 1.400,00 € · Aktivität -1.280,00 €" ]
+                                Html.span [ prop.className $"{Tokens.ListRoles.muted} shrink-0 whitespace-nowrap"; prop.text "· noch nicht in YNAB" ]
+                            ]
+                        ]
+                    ]
+                ]
+                Html.div [
+                    prop.className "flex items-center gap-2"
+                    prop.children [
+                        Html.span [ prop.className Tokens.ListRoles.primary; prop.text "Lebensmittel" ]
+                        Badge.noticeSmall "noch nicht in YNAB"
                     ]
                 ]
                 Html.div [
@@ -1796,7 +1825,7 @@ let private DetailDemo () =
               Herkunft und Zeitleiste der Historie. Farbe nur für den Hinweis und den Punkt der \
               Zeitleiste (ADR 0049, ADR 0053)."
 
-        card "components-detail-notice" "Detail: Hinweisleiste" "Rot ohne Aktion, Orange ohne Aktion, Orange mit Aktion" [
+        card "components-detail-notice" "Detail: Hinweisleiste" "Rot ohne Aktion, Orange ohne Aktion, Orange mit Aktion, Gelb auf der Budget-Seite" [
             Detail.notice
                 { Tone = Detail.NoticeRed
                   Badge = "In YNAB gelöscht"
@@ -1811,7 +1840,14 @@ let private DetailDemo () =
                 { Tone = Detail.NoticeOrange
                   Badge = "Prüfvermerk nicht in YNAB"
                   Reason = "YNAB hat den Prüfvermerk nicht angenommen (Fehler 500)."
-                  Action = Some { Label = "Erneut senden"; Busy = false; OnClick = ignore } }
+                  Action = Some { Label = "Erneut senden"; Busy = false; Disabled = false; OnClick = ignore } }
+            // Gelb (NoticeYellow): auf der Budget-Seite für "offen, kein Fehler" statt Orange (ADR 0075),
+            // im Tab Geld bei einer offenen Rückschreibung (budgeting-dgrp7).
+            Detail.notice
+                { Tone = Detail.NoticeYellow
+                  Badge = "noch nicht in YNAB"
+                  Reason = "Zugewiesen zeigt BBs Wert, YNAB hat ihn noch nicht."
+                  Action = Some { Label = "Erneut senden"; Busy = false; Disabled = false; OnClick = ignore } }
         ]
 
         card "components-detail-external-links" "Detail: Link-Zeile" "Externe Links unter dem Memo (Amazon-Bestellung, PayPal-Aktivitäten), öffnen in neuem Tab" [
@@ -1937,7 +1973,7 @@ let private DetailDemo () =
                 { Tone = Detail.NoticeOrange
                   Badge = "Memo nicht in YNAB"
                   Reason = "Keine Verbindung zu YNAB: Zeitüberschreitung."
-                  Action = Some { Label = "Erneut senden"; Busy = false; OnClick = ignore } }
+                  Action = Some { Label = "Erneut senden"; Busy = false; Disabled = false; OnClick = ignore } }
         ]
 
         card "components-detail-timeline" "Detail: Zeitleiste" "Punktfarbe nach Urheber, neueste Zeile oben" [

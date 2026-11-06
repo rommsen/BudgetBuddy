@@ -300,6 +300,13 @@ let private rentMonth = monthOf 100m [ food; trip; rent ]
 let private onRent =
     run [ SelectCategory rent.Id; SwitchMoneyMode AssignMode ] { loaded with Month = Success rentMonth }
 
+/// Miete mit offener Rückschreibung (budgeting-dgrp7): Zugewiesen ist BBs Soll, YNAB hat es noch nicht.
+let private markedGuid = Guid "6d1f0c2a-0000-4000-8000-0000000d6a07"
+let private markedId = string markedGuid
+let private markedRent =
+    let marked = { rent with OpenWriteBack = Some markedGuid }
+    run [ SelectCategory rent.Id; SwitchMoneyMode AssignMode ] { loaded with Month = Success (monthOf 100m [ food; trip; marked ]) }
+
 let private line (c: BudgetCategory) (oldA: decimal) (newA: decimal) (outcome: LineOutcome) : ApplyLineResult =
     { CategoryId = c.Id; CategoryName = c.Name; OldAssigned = eur oldA; NewAssigned = eur newA; Outcome = outcome }
 
@@ -481,7 +488,16 @@ let private moveWays : MoveWay list =
         Arm = id
         Start = ConfirmTransfer
         Landed = fun stand -> MoveAnswered (Ok (reportFrom stand))
-        Lost = MoveCallLost "weg" } ]
+        Lost = MoveCallLost "weg" }
+      // budgeting-dgrp7, Review-Fund: "Erneut senden" an der Markierung "noch nicht in YNAB" lief ohne
+      // Laufzustand. Zuweisen, Verschieben und Fehlbetrag blieben während des Aufrufs offen (ADR 0078 Punkt 5),
+      // ein Doppeltipp sendete zweimal.
+      { Name = "Erneut senden an der Markierung"
+        Base = markedRent
+        Arm = id
+        Start = RetryMove markedId
+        Landed = fun stand -> MoveRetried (markedId, Ok { reportFrom stand with ApplicationId = markedId })
+        Lost = MoveRetried (markedId, Error "weg") } ]
 
 /// Der Stand in YNAB als Monat.
 let private monthWith (stand: decimal) : BudgetMonth =
@@ -507,7 +523,8 @@ let private moveWalks : (MoveWay * int * int) list =
       moveWays[0], 6, 400
       moveWays[1], 7, 60
       moveWays[2], 7, 60
-      moveWays[3], 6, 400 ]
+      moveWays[3], 6, 400
+      moveWays[4], 6, 400 ]
 
 /// Was in YNAB steht, wie die Aufzählung es kennt.
 type private Stand = { Rent: decimal; Food: decimal }
@@ -646,6 +663,30 @@ let private settledTests =
                 let running = run [ way.Start ] (armedWith [] way)
                 Expect.isTrue (moveRunning running) way.Name
                 Expect.isFalse (canStartMove running) $"{way.Name}: Knopf gesperrt, solange sie läuft")
+        }
+        // budgeting-dgrp7, Review-Fund: "Erneut senden" an der Markierung sendete bei jedem Tipp, der Knopf zeigte
+        // keinen Lauf, und ein offener Hinweis derselben Gruppe blieb sendbar.
+        test "Erneut senden an der Markierung: ein zweiter Tipp sendet nichts, der Knopf zeigt den Lauf, die Antwort gibt frei" {
+            let start = RetryMove markedId
+            Expect.equal (commands start markedRent) 1 "der erste Tipp sendet"
+            let running = run [ start ] markedRent
+            Expect.equal (commands start running) 0 "Doppeltipp"
+            Expect.isTrue (writeBackRetryRunning markedId running) "der Knopf zeigt den Lauf"
+            let answered = run [ MoveRetried (markedId, Error "weg") ] running
+            Expect.isFalse (writeBackRetryRunning markedId answered) "die Antwort setzt ihn zurück"
+            Expect.isFalse (moveRunning answered) "frei"
+            let hint =
+                { ApplicationId = markedId
+                  Headline = "Nicht zugewiesen"
+                  MonthLabel = "November 2026"
+                  Summary = "Miete"
+                  Reason = "weg"
+                  State = RetryReady
+                  AssignTarget = Some (rent.Id, monthKey) }
+            let withHint = run [ start ] { markedRent with OpenRetries = [ hint ] }
+            Expect.equal (withHint.OpenRetries |> List.map (fun r -> r.State)) [ RetryRunning ] "der Hinweis derselben Gruppe läuft mit"
+            Expect.equal (commands (RetryMove markedId) withHint) 0 "sein Knopf sendet nicht noch einmal"
+            Expect.equal (commands start (run [ Reloaded (markedRent.MonthGeneration, Ok rentMonth) ] markedRent)) 0 "ohne Markierung nichts zu senden"
         }
         test "Eine Eingabe ohne Änderung fällt weg, die Bewegung startet im selben Tipp" {
             forEachWay (fun way -> Expect.isTrue (moveRunning (run [ way.Start ] (armedWith [ typed "+0" ] way))) way.Name)

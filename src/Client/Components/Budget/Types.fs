@@ -244,6 +244,9 @@ type Model = {
     RecentCounterparts: RemoteData<System.Guid list>
     /// Verschiebungen, die noch erneut gesendet werden können.
     OpenRetries: OpenMoveRetry list
+    /// "Erneut senden" an der Markierung "noch nicht in YNAB" läuft für diese Gruppen-Id, ohne Hinweis in
+    /// `OpenRetries` (budgeting-dgrp7).
+    WriteBackRetry: string option
     /// Target pausieren oder Pause aufheben.
     PauseCall: PauseCall
     /// Das Formular im Tab Target, nur im laufenden Monat und mit Target (budgeting-k8wq3).
@@ -329,12 +332,10 @@ type Msg =
     | MoveAnswered of Result<ApplyReport, string>
     /// Der Aufruf selbst brach ab: ob etwas geschrieben wurde, ist unbekannt.
     | MoveCallLost of string
-    /// "Erneut senden" am Toast oder am Hinweis auf der Seite.
+    /// "Erneut senden" am Toast, am Hinweis auf der Seite oder an der Markierung "noch nicht in YNAB" einer
+    /// Kategorie (budgeting-dgrp7): die Gruppen-Id der fehlgeschlagenen oder offenen Rückschreibung.
     | RetryMove of applicationId: string
     | MoveRetried of applicationId: string * Result<ApplyReport, string>
-    /// "Erneut senden" an der Markierung "noch nicht in YNAB" einer Kategorie (budgeting-dgrp7): die offene
-    /// Rückschreibung mit ihrer Gruppen-Id.
-    | RetryWriteBack of applicationId: string
     /// Tipp auf eine Zeile.
     | SelectCategory of System.Guid
     /// `˄ ˅` im Sheet.
@@ -431,6 +432,7 @@ let init () : Model =
       Freshness = MonthRead
       RecentCounterparts = NotAsked
       OpenRetries = []
+      WriteBackRetry = None
       PauseCall = PauseIdle
       TargetForm = None
       TargetCall = TargetIdle

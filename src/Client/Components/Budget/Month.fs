@@ -458,9 +458,15 @@ let amountColumns : AmountColumn list =
 [<Literal>]
 let NotInYnabText = "noch nicht in YNAB"
 
-/// Die zweite Zeile am Handy: Zugewiesen und Aktivität, bei offener Rückschreibung mit Markierung.
+/// Der Grund unter der Markierung im Tab Geld.
+[<Literal>]
+let NotInYnabReason = "Zugewiesen zeigt BBs Wert, YNAB hat ihn noch nicht."
+
+/// Die zweite Zeile am Handy: Zugewiesen und Aktivität. Die Markierung steht als eigenes Element dahinter
+/// (`mobileWriteBackMark`): wird es eng, kürzen die Zahlen, nie der Status.
 let mobileFiguresText (c: BudgetCategory) : string =
-    let figures = $"Zugewiesen {moneyText c.Assigned} · Aktivität {moneyText c.Activity}"
-    match c.OpenWriteBack with
-    | Some _ -> $"{figures} · {NotInYnabText}"
-    | None -> figures
+    $"Zugewiesen {moneyText c.Assigned} · Aktivität {moneyText c.Activity}"
+
+/// Die Markierung hinter den Zahlen am Handy, nur bei offener Rückschreibung.
+let mobileWriteBackMark (c: BudgetCategory) : string option =
+    c.OpenWriteBack |> Option.map (fun _ -> $"· {NotInYnabText}")

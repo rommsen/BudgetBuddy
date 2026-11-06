@@ -56,6 +56,7 @@ let entryDropped (before: Model) (after: Model) : bool =
 let moveRunning (model: Model) : bool =
     model.MoveInFlight <> NoMoveCall
     || (model.OpenRetries |> List.exists (fun r -> r.State = RetryRunning))
+    || model.WriteBackRetry.IsSome
     || (match model.Targets with
         | Applying _
         | ApplyDone (_, _, true, _) -> true
@@ -688,8 +689,16 @@ let applyMoveAnswered (result: Result<ApplyReport, string>) (model: Model) : Mod
 let applyMoveCallLost (message: string) (model: Model) : Model * ExternalMsg =
     awaitMonth (resetTransfer { model with MoveInFlight = NoMoveCall }), ShowToast ($"Ob verschoben wurde, ist unklar: {message}. Der Stand wird gleich neu gelesen.", ToastError)
 
-/// "Erneut senden". `true` heißt: der Aufrufer muss senden. Läuft es schon oder ist die Verschiebung
-/// nicht mehr offen, geschieht nichts.
+/// Trägt eine Kategorie des geladenen Monats die Markierung "noch nicht in YNAB" mit dieser Gruppen-Id?
+let private hasOpenWriteBack (applicationId: string) (model: Model) : bool =
+    match model.Month with
+    | Success month ->
+        categoriesOf month |> List.exists (fun c -> c.OpenWriteBack |> Option.exists (fun id -> string id = applicationId))
+    | _ -> false
+
+/// "Erneut senden". `true` heißt: der Aufrufer muss senden. Ein Hinweis in `OpenRetries` läuft selbst; ohne
+/// Hinweis trägt `WriteBackRetry` den Lauf einer offenen Rückschreibung (budgeting-dgrp7). Läuft es schon
+/// oder ist nichts mehr offen, geschieht nichts.
 let startMoveRetry (applicationId: string) (model: Model) : Model * bool =
     match model.OpenRetries |> List.tryFind (fun r -> r.ApplicationId = applicationId) with
     | Some { State = RetryReady } ->
@@ -698,12 +707,23 @@ let startMoveRetry (applicationId: string) (model: Model) : Model * bool =
                 model.OpenRetries
                 |> List.map (fun r -> if r.ApplicationId = applicationId then { r with State = RetryRunning } else r) },
         true
-    | _ -> model, false
+    | Some _ -> model, false
+    | None when model.WriteBackRetry.IsNone && hasOpenWriteBack applicationId model ->
+        { model with WriteBackRetry = Some applicationId }, true
+    | None -> model, false
+
+/// Läuft "Erneut senden" für diese Gruppen-Id, über die Markierung oder über ihren Hinweis? Der Knopf an der
+/// Markierung zeigt es.
+let writeBackRetryRunning (applicationId: string) (model: Model) : bool =
+    model.WriteBackRetry = Some applicationId
+    || model.OpenRetries |> List.exists (fun r -> r.ApplicationId = applicationId && r.State = RetryRunning)
 
 /// Antwort auf "Erneut senden". Scheitert der Aufruf, bleibt die Verschiebung offen und sendbar,
 /// ein Toast nennt den Grund. In beiden Fällen liest der Aufrufer den Monat neu, denn der Lauf kann
 /// YNAB erreicht haben.
 let applyMoveRetried (applicationId: string) (result: Result<ApplyReport, string>) (model: Model) : Model * ExternalMsg =
+    let model =
+        if model.WriteBackRetry = Some applicationId then { model with WriteBackRetry = None } else model
     match result with
     | Ok report -> awaitFreshMonth (noteMoveReport report.Month report (withReport report model)), moveToast report
     | Error message ->

@@ -1274,6 +1274,7 @@ let private noticeView
                 |> Option.map (fun msg ->
                     { Label = "Erneut senden"
                       Busy = (pushRow = Some PushSending)
+                      Disabled = false
                       OnClick = fun () -> dispatch msg }) }
     | ReviewMarkNotice hint ->
         Detail.notice
@@ -1286,6 +1287,7 @@ let private noticeView
                     Some
                         { Label = label
                           Busy = (rowState = Some ReviewMarkSending)
+                          Disabled = false
                           OnClick = fun () -> dispatch msg }
                 | _ -> None }
     | CategoryNotice hint ->
@@ -1299,6 +1301,7 @@ let private noticeView
                     Some
                         { Label = label
                           Busy = (categoryRow = Some CategorySending)
+                          Disabled = false
                           OnClick = fun () -> dispatch msg }
                 | _ -> None }
     | FlagNotice (hint, busy) ->
@@ -1308,7 +1311,7 @@ let private noticeView
               Reason = hint.Reason
               Action =
                 match hint.RetryLabel, detailNoticeActionMsg entry.Id notice with
-                | Some label, Some msg -> Some { Label = label; Busy = busy; OnClick = fun () -> dispatch msg }
+                | Some label, Some msg -> Some { Label = label; Busy = busy; Disabled = false; OnClick = fun () -> dispatch msg }
                 | _ -> None }
     | MemoNotice (hint, busy) ->
         Detail.notice
@@ -1317,7 +1320,7 @@ let private noticeView
               Reason = hint.Reason
               Action =
                 match hint.RetryLabel, detailNoticeActionMsg entry.Id notice with
-                | Some label, Some msg -> Some { Label = label; Busy = busy; OnClick = fun () -> dispatch msg }
+                | Some label, Some msg -> Some { Label = label; Busy = busy; Disabled = false; OnClick = fun () -> dispatch msg }
                 | _ -> None }
 
 /// Die Beschriftung einer Split-Zeile: Kategorie, Übertrag oder offen.
@@ -3143,6 +3146,7 @@ let private orderStaleBar (dispatch: Msg -> unit) (model: Model) : ReactElement 
                         Some
                             { Label = orderStaleActionLabel
                               Busy = RemoteData.isLoading model.Entries
+                              Disabled = false
                               OnClick = fun () -> dispatch LoadEntries } }
             ]
         ]

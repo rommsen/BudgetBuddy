@@ -221,6 +221,39 @@ test("[layout] Handy: dritte Zeile mit Target, fehlt oder pausiert, nichts abges
   await narrow.context.close();
 });
 
+// budgeting-dgrp7, Review-Fund: die Markierung "noch nicht in YNAB" stand im gekürzten Zahlentext und war bei
+// 375 px mit vierstelligen Beträgen abgeschnitten. Der Status kürzt nie, die Zahlen kürzen.
+const writeBackFixture = (month) => ({
+  Month: month,
+  ToBeBudgeted: eur(10),
+  Groups: [
+    {
+      Name: "Alltag",
+      Categories: [
+        { ...category(1, "Lebensmittel", 1400, -1280.55, 119.45), OpenWriteBack: "00000000-0000-0000-0000-00000000d6a7" },
+        category(2, "Kleidung", 50, 0, 50),
+      ],
+    },
+  ],
+});
+
+test("[layout] Handy 375 px: die Markierung noch nicht in YNAB steht mit vierstelligen Beträgen ganz im Bild", async () => {
+  const { page, context } = await openPage(375, 800, { fixture: writeBackFixture });
+  const mark = page.locator('[data-testid="budget-not-in-ynab-mobile"]:visible');
+  await mark.waitFor();
+  const shown = await mark.evaluate((el) => ({
+    text: el.innerText,
+    clipped: el.scrollWidth > el.clientWidth,
+    right: el.getBoundingClientRect().right,
+    lineRight: el.parentElement.getBoundingClientRect().right,
+  }));
+  assert.equal(shown.text, "· noch nicht in YNAB");
+  assert.equal(shown.clipped, false, "die Markierung wird nicht abgeschnitten");
+  assert.ok(shown.right <= shown.lineRight + 0.5, `die Markierung liegt in ihrer Zeile (${JSON.stringify(shown)})`);
+  assert.equal(await page.locator('[data-testid="budget-not-in-ynab-mobile"]:visible').count(), 1, "nur die Zeile mit offener Rückschreibung");
+  await context.close();
+});
+
 test("[layout] PC: Spalte Target direkt hinter Kategorie zeigt denselben Inhalt, Gruppenzeile spannt alle Spalten", async () => {
   const { page, context } = await openPage(1440, 900, { fixture: targetFixture });
   await page.locator('[data-testid="budget-target"]:visible').first().waitFor();
