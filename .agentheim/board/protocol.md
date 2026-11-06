@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 07:07 -- Modeling / Promoted: budgeting-dkjc5 - "Hintergrund-Übernahme: laufender und künftige Monate zuerst, dann ältere, unter YNABs Rate-Grenze"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-06 07:07 -- Task verified and completed: budgeting-dgrp7 - "BB führt das Zugewiesen: Übernahme beim Lesen und vor jedem Befehl, Soll-Faltung mit bestätigtem Stand, observeMonth mit Echo-Regel, Befehle auf das Soll"
 
 **Type:** Work / Task completion

@@ -1,7 +1,7 @@
 ---
 id: budgeting-dkjc5
 title: "Hintergrund-Übernahme: laufender und künftige Monate zuerst, dann ältere, unter YNABs Rate-Grenze"
-status: backlog
+status: todo
 type: feature
 context: budgeting
 created: 2026-11-05
