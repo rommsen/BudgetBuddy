@@ -5,6 +5,18 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 14:34 -- Review-Lauf: budgeting-k5q2w und Merge-Teil von budgeting-eh8xe
+
+**Type:** Review / Review-Lauf
+**Bereich:** 7f8054b [budgeting-k5q2w], CreatedIn-Teil aus b2f4b8f [budgeting-eh8xe]
+**Agents:** backend-code-quality, qa-milestone-reviewer
+**Funde:** behoben 5, verworfen 2, Rückfrage 0, Ticket 0, Kann-Sammlung 3
+**Commits:** ad12ad6, 7a08d62, 6f38d8c, 4ee7e08
+**Verworfen:** strenges Dekodieren des Anlegemonats (unlesbar zählt wie keiner ist die Regel aus pf8n7, streng machte ein Feld den ganzen Stream unlesbar); doppelte Berechnung der Periodenmonate (geringe Kosten)
+**Verifikation:** VERIFY: PASS (dotnet 4143 grün, node 311 grün)
+
+---
+
 ## 2026-11-06 14:21 -- Task verified and completed: budgeting-k5q2w - "Parallelrechnung: die Ausgaben der Periode kommen aus dem Kassenbuch, category_month_activity entfällt"
 
 **Type:** Work / Task completion
