@@ -1,6 +1,7 @@
 module Client.DesignSystem.Stats
 
 open Feliz
+open Fable.Core.JsInterop
 open Client.DesignSystem.Tokens
 open Client.DesignSystem.Icons
 
@@ -399,7 +400,31 @@ let private monthBarsListClassFor (compact: bool) =
 let private monthBarAmountClassFor (compact: bool) =
     if compact then $"{monthBarAmountClass} max-md:hidden" else monthBarAmountClass
 
-let private monthBarItem (compact: bool) (chosen: string option) (bar: MonthBar) =
+/// Welcher Balken der engen Reihe in der Tab-Folge liegt (Roving `tabindex` wie bei `Tabs`, budgeting-q4v8n):
+/// `current` ist der zuletzt fokussierte Balken; ohne ihn (oder außerhalb der Reihe, etwa nach weniger Balken) der
+/// letzte. Eine Vorwahl gibt es in der engen Reihe nicht.
+/// So ist die Reihe ein Tab-Stopp statt zwölf vor den Knöpfen der Zeile.
+let monthBarTabStop (current: int option) (count: int) : int =
+    match current with
+    | Some index when index >= 0 && index < count -> index
+    | _ -> count - 1
+
+/// Wohin eine Taste den Fokus in der engen Reihe schiebt, nach dem Muster von `Tabs`: Pfeil links und rechts zum
+/// Nachbarn, am Rand bleibt er stehen, Pos1 und Ende springen an die Ränder. Mit Zusatztaste gehört die Taste
+/// dem Browser (Alt und Links: zurück).
+let monthBarKeyTarget (key: string) (withModifier: bool) (index: int) (count: int) : int option =
+    let last = count - 1
+    match key with
+    | _ when withModifier || count = 0 -> None
+    | "ArrowRight" -> Some (min last (index + 1))
+    | "ArrowLeft" -> Some (max 0 (index - 1))
+    | "Home" -> Some 0
+    | "End" -> Some last
+    | _ -> None
+
+/// `focusProps` macht das innere Element fokussierbar: in `monthBars` jeder Balken mit `tabIndex 0`, in der engen
+/// Reihe der Roving `tabindex` aus `CompactMonthBars`.
+let private monthBarItem (compact: bool) (chosen: string option) (focusProps: IReactProperty list) (bar: MonthBar) =
     Html.li [
         prop.key bar.Key
         prop.className (monthBarItemClass (chosen = Some bar.Key))
@@ -407,7 +432,7 @@ let private monthBarItem (compact: bool) (chosen: string option) (bar: MonthBar)
             Html.div [
                 prop.custom ("data-testid", "month-bar")
                 prop.role "img"
-                prop.tabIndex 0
+                yield! focusProps
                 prop.ariaLabel (monthBarAriaLabel bar)
                 prop.className monthBarTargetClass
                 prop.children [
@@ -450,7 +475,7 @@ let private monthBarItem (compact: bool) (chosen: string option) (bar: MonthBar)
 /// Wertzeile sein `Label`; ein Tipp daneben nimmt den Fokus weg und leert sie. Allein über CSS, ohne
 /// Zustand im Model. Für den Screenreader eine Liste, je Balken ein Eintrag mit `Label`; die sichtbaren
 /// Texte sind verborgen.
-let private monthBarsView (compact: bool) (chosen: string option) (label: string) (bars: MonthBar list) =
+let private monthBarsView (compact: bool) (label: string) (items: ReactElement list) =
     Html.div [
         prop.custom ("data-testid", "month-bars")
         prop.className monthBarsClass
@@ -464,22 +489,57 @@ let private monthBarsView (compact: bool) (chosen: string option) (label: string
                 prop.role "list"
                 prop.ariaLabel label
                 prop.className (monthBarsListClassFor compact)
-                prop.children (bars |> List.map (monthBarItem compact chosen))
+                prop.children items
             ]
         ]
     ]
 
-let monthBars (label: string) (bars: MonthBar list) = monthBarsView false None label bars
+let private fullMonthBars (chosen: string option) (label: string) (bars: MonthBar list) =
+    bars
+    |> List.map (monthBarItem false chosen [ prop.tabIndex 0 ])
+    |> monthBarsView false label
+
+let monthBars (label: string) (bars: MonthBar list) = fullMonthBars None label bars
+
+type private CompactMonthBarsProps = { Label: string; Bars: MonthBar list }
+
+/// Die enge Reihe mit Roving `tabindex` (budgeting-q4v8n): nur ein Balken liegt in der Tab-Folge
+/// (`monthBarTabStop`), die Pfeiltasten setzen den Fokus auf den Nachbarn (`monthBarKeyTarget`). Der Fokus wählt
+/// den Balken wie bisher über CSS; der Zustand hier merkt sich nur, welcher Balken zuletzt den Fokus hatte.
+[<ReactComponent>]
+let private CompactMonthBars (props: CompactMonthBarsProps) =
+    let focused, setFocused = React.useState (None: int option)
+    let count = props.Bars.Length
+    let stop = monthBarTabStop focused count
+    let onKey (index: int) (e: Browser.Types.KeyboardEvent) =
+        let withModifier = e.altKey || e.ctrlKey || e.metaKey || e.shiftKey
+        match monthBarKeyTarget e.key withModifier index count with
+        | Some next ->
+            e.preventDefault ()
+            // Vom inneren Element über `li` zur Liste, dort das innere Element des Ziels.
+            let target: obj = e.currentTarget?parentElement?parentElement?children?(next)?firstElementChild
+            target?focus ()
+        | None -> ()
+    props.Bars
+    |> List.mapi (fun index bar ->
+        monthBarItem true None [
+            prop.tabIndex (if index = stop then 0 else -1)
+            prop.onFocus (fun _ -> setFocused (Some index))
+            prop.onKeyDown (onKey index)
+        ] bar)
+    |> monthBarsView true props.Label
 
 /// Wie `monthBars`, eng für 12 Balken in einer Listenzeile (Seite Targets prüfen, budgeting-q4v8n): `gap-0.5`
 /// statt `gap-1.5`, die Beträge unter den Balken erst ab 768 px, darunter nur in der Wertzeile. Ohne laufenden
-/// Monat entfällt die Zeile für "läuft".
-let monthBarsCompact (label: string) (bars: MonthBar list) = monthBarsView true None label bars
+/// Monat entfällt die Zeile für "läuft". Die Reihe ist ein Tab-Stopp, Pfeil links und rechts, Pos1 und Ende
+/// wählen innerhalb der Reihe.
+let monthBarsCompact (label: string) (bars: MonthBar list) =
+    CompactMonthBars { Label = label; Bars = bars }
 
 /// Wie `monthBars`, der Balken mit `chosenKey` steht schon gewählt da, bis Maus oder Fokus einen
 /// anderen wählen. Für den Styleguide, der die Wertzeile ohne Zutun zeigt.
 let monthBarsChosen (label: string) (chosenKey: string) (bars: MonthBar list) =
-    monthBarsView false (Some chosenKey) label bars
+    fullMonthBars (Some chosenKey) label bars
 
 /// Der Platzhalter beim Laden, so hoch wie `monthBars`: nichts springt, wenn die Balken kommen.
 let monthBarsPlaceholder (count: int) =

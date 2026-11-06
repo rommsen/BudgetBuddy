@@ -213,7 +213,13 @@ Vorwahl) steht in `styles.css` an einer Stelle.
 `Stats.monthBarsCompact` (Seite Targets prüfen): 12 Balken in einer Listenzeile am Handy. Bei 375 px ist eine
 Spalte mit `gap-1.5` 20 px breit, schmaler als "Nov" in `font-mono text-xs`. Die enge Reihe nimmt `gap-0.5` und
 zeigt die Beträge unter den Balken erst ab 768 px; darunter stehen sie nur in der Wertzeile und im Label. Ohne
-laufenden Monat entfällt die leere Zeile für "läuft". Sonst gilt alles wie bei `monthBars`.
+laufenden Monat entfällt die leere Zeile für "läuft". Die Reihe ist ein Tab-Stopp (Roving `tabindex` wie bei
+`Tabs`): in der Tab-Folge liegt der Balken, der zuletzt den Fokus hatte, sonst der letzte. Pfeil links und rechts
+setzen den Fokus auf den Nachbarn und bleiben am Rand stehen, Pos1 und Ende springen an die Ränder, mit Zusatztaste
+gehört die Taste dem Browser (`monthBarTabStop`, `monthBarKeyTarget`). Sonst stünden in jeder Zeile zwölf Tab-Stopps
+vor "übernehmen" und "Anpassen …". Bewusste Ausnahme von den 48 px aus §4: bei 375 px ist eine Spalte etwa 24 px
+breit. Ein Tipp trifft schlimmstenfalls den Nachbarmonat, und die Folge ist nur eine andere Wertzeile. Sonst gilt
+alles wie bei `monthBars`.
 
 ---
 
