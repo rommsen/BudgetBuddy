@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 14:10 -- Research: ING per FinTS anbinden
+
+**Type:** Research
+**Requested by:** user
+**Report:** knowledge/research/ing-fints-anbindung-2026-11-06.md
+**Review:** PASS (iteration 1)
+**Summary:**
+- ING liefert per FinTS Girokonto, Extra-Konto und Direkt-Depot lesend (https://fints.ing.de/fints/, BLZ 50010517), nur MT940, kein CAMT.
+- Kein TAN-Verfahren in FinTS, Einschritt-Verfahren 999; FinTS-Log-in nur nach Online-Banking-Anmeldung in den letzten 90 Tagen.
+- python-fints ist mit der ING erprobt, libfintx ohne ING-Bericht; Dedup-Referenz in MT940 offen; Produktregistrierung bei der DK nötig (10 bis 15 Werktage).
+
+---
+
 ## 2026-11-06 13:39 -- Batch started: [budgeting-k5q2w]
 
 **Type:** Work / Batch start
