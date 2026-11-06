@@ -730,7 +730,8 @@ let private sketchTests =
             Expect.equal (tones bars) (List.replicate 8 NotCounted @ List.replicate 4 OverTarget) "bis Juni dunkler, danach orange"
             Expect.equal (List.length bars.Bars) 12 "12 Balken"
         }
-        test "Mini-Balken: Monate vor der ersten Buchung zählen nicht und sind dunkler (budgeting-k7r2w)" {
+        // budgeting-k7r2w
+        test "Mini-Balken: Monate vor der ersten Buchung zählen nicht und sind dunkler" {
             let months = List.replicate 12 150m |> List.mapi (fun i a -> { Month = DateTime(2025, 11, 1).AddMonths(i).ToString("yyyy-MM-01"); Activity = eur -a })
             let row =
                 targetCheckRow today
