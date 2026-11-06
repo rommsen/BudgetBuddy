@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 10:48 -- Modeling / Refined: budgeting-b9869 - Ausgaben der Periode zählen als gedeckt
+
+**Type:** Modeling / Refine
+**BC:** budgeting
+**Status after:** todo
+**Summary:** Formel an YNAB-Werten belegt (Ausgaben = goal_overall_funded − balance). Quelle YNABs Monatsaktivität als Zustand, ohne zusätzliche YNAB-Aufrufe beim Lesen. eh8xe bleibt bis zum Prod-Vergleich auf seinem Zweig (Entscheidung Roman).
+
+---
+
 ## 2026-11-06 10:45 -- Modeling / Captured: budgeting-b9869 - "Fehlbetrag mit Fälligkeit: Ausgaben seit Beginn der laufenden Periode zählen als gedeckt, wie bei YNAB"
 
 **Type:** Modeling / Capture
