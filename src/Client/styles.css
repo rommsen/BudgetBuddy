@@ -16,6 +16,8 @@
   --color-calm-yellow: #cdb27a;
   /* Ruhiges Blau, nur "Gibst du weniger aus?" auf der Seite Targets prüfen (Nachtrag ADR 0075). 8,93:1 auf bg-card. */
   --color-calm-blue: #7ab8ff;
+  /* Helles Violett, nur "Gibst du nie aus?" auf der Seite Targets prüfen (Nachtrag ADR 0075). 9,21:1 auf bg-card. */
+  --color-calm-violet: #c9a7ff;
 
   /* Surface Colors (maps to CSS vars for Tailwind utilities) */
   --color-surface-app: var(--bg-app);

@@ -220,7 +220,7 @@ let checkSparkBars (row: TargetCheckRow) : int option * Stats.SparkBar list =
           Tone =
             match b.Tone with
             | OverTarget -> Stats.SparkOver
-            | WithinTarget -> Stats.SparkWithin
+            | Counted -> Stats.SparkWithin
             | NotCounted -> Stats.SparkMuted } : Stats.SparkBar)
 
 /// Der Satz im Panel "Anpassen …" je Gruppe (budgeting-c4ve4).
@@ -339,6 +339,11 @@ let panelRow (model: Model) : (TargetCheckRow * TargetForm) option =
     | Success data, Some form when form.Month = data.Month ->
         rowOf data form.CategoryId |> Option.map (fun row -> row, form)
     | _ -> None
+
+/// Die Kategorie, deren Panel offen ist: dieselbe Bedingung wie `panelRow` (Kategorie und Monat). Ihre Zeile ist
+/// hinterlegt und ihr "Anpassen …" trägt `aria-expanded`.
+let panelCategory (model: Model) : System.Guid option =
+    panelRow model |> Option.map (fun (row, _) -> row.CategoryId)
 
 /// Die Sperrlage des Panels: `targetFormLocksFor` mit dem Monat des Formulars und der Herkunft Panel.
 let panelLocks (model: Model) (form: TargetForm) : TargetFormLocks =
@@ -511,6 +516,13 @@ let targetWrittenText (name: string) (target: Target option) : string =
     | Some t -> $"{name}: Target jetzt {toastAmountText t.Goal.Amount} {rhythmWordText t.Rhythm}."
     | None -> $"{name}: Target entfernt."
 
+/// Der Satz ohne Namen, wenn die Prüfung gerade lädt und den Namen nicht kennt: "Target gespeichert." bzw.
+/// "Target entfernt."
+let targetWrittenUnnamedText (target: Target option) : string =
+    match target with
+    | Some _ -> "Target gespeichert."
+    | None -> "Target entfernt."
+
 /// Der Name der Kategorie in der geladenen Prüfung, für den Toast.
 let checkCategoryName (categoryId: System.Guid) (model: Model) : string option =
     match model.TargetCheck.Data with
@@ -518,7 +530,8 @@ let checkCategoryName (categoryId: System.Guid) (model: Model) : string option =
     | _ -> None
 
 /// Der Toast zu einer Target-Antwort. Festgehalten von der Seite (Zeile und Panel) meldet ein Erfolgs-Toast
-/// (`targetWrittenText`, `name` aus `checkCategoryName`), auch aus dem Panel, das dabei schließt. Sonst:
+/// (`targetWrittenText`, `name` aus `checkCategoryName`), auch aus dem Panel, das dabei schließt; lädt die Prüfung
+/// gerade und kennt den Namen nicht, ohne Namen (`targetWrittenUnnamedText`). Sonst:
 /// `formOpen`, das Formular des Aufrufs (Tab oder Panel) steht noch offen und zeigt die Antwort selbst, dann
 /// keiner. Aufrufe von der Seite melden wie "übernehmen" (`takeAnswerToast`), alle anderen eine Ablehnung als
 /// Warnung.
@@ -530,6 +543,7 @@ let targetAnswerToast
     : ExternalMsg =
     match result, name with
     | Ok (TargetWritten target), Some name when fromCheckPage origin -> ShowToast (targetWrittenText name target, ToastSuccess)
+    | Ok (TargetWritten target), None when fromCheckPage origin -> ShowToast (targetWrittenUnnamedText target, ToastSuccess)
     | _ when formOpen -> NoOp
     | _ when fromCheckPage origin -> takeAnswerToast result
     | _ ->

@@ -27,7 +27,7 @@ type private RowView = {
     Selected: bool
 }
 
-let private rowViewOf (model: Model) (data: TargetCheckData) (row: TargetCheckRow) : RowView =
+let private rowViewOf (model: Model) (data: TargetCheckData) (selected: System.Guid option) (row: TargetCheckRow) : RowView =
     let line, bars = checkSparkBars row
     { Row = row
       Wide = checkRowText Wide row
@@ -38,14 +38,14 @@ let private rowViewOf (model: Model) (data: TargetCheckData) (row: TargetCheckRo
         match takeText row, takeButton model data row with
         | Some text, Some state -> Some (text, state)
         | _ -> None
-      Selected = model.TargetCheck.Panel |> Option.exists (fun f -> f.CategoryId = row.CategoryId) }
+      Selected = selected = Some row.CategoryId }
 
 // Die Zeile ist ein Raster. Schmal: Name und Ø in Zeile 1, die Balken über die volle Breite, darunter Zusatz und
 // Knöpfe. Breit (Liste ab 720 px): vier Spalten wie in der Skizze, der Zusatz unter dem Namen.
 
 let private rowClass (selected: bool) =
     let back = if selected then "bg-surface-hover" else ""
-    $"grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-2 items-start px-3 py-3 border-t border-border-subtle @min-[720px]:grid-cols-[minmax(0,1fr)_132px_minmax(0,1.5fr)_auto] @min-[720px]:gap-x-3 @min-[720px]:items-center @min-[720px]:gap-y-0.5 @min-[720px]:px-4 @min-[720px]:py-2.5 {back}"
+    $"grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-2 items-start px-3 py-3 border-t border-border-subtle @min-[720px]:grid-cols-[minmax(0,1.3fr)_132px_minmax(0,1fr)_auto] @min-[720px]:gap-x-4 @min-[720px]:items-center @min-[720px]:gap-y-0.5 @min-[720px]:px-4 @min-[720px]:py-2.5 {back}"
 
 let private nameClass (hasNote: bool) =
     let self = if hasNote then "@min-[720px]:self-end" else ""
@@ -146,6 +146,7 @@ let private rowView (dispatch: Msg -> unit) (view: RowView) =
                                 { Button.defaultProps with
                                     Text = "Anpassen …"
                                     Variant = Button.Secondary
+                                    AriaExpanded = Some view.Selected
                                     ClassName = Some rowButtonClass
                                     OnClick = fun () -> dispatch (AdjustTarget row.CategoryId) }
                         ]
@@ -161,7 +162,7 @@ let checkGroupTitleClass (group: CheckGroup) : string =
     match group with
     | SpendsMore -> Colors.neonOrange
     | SpendsLess -> Colors.calmBlue
-    | NeverSpends -> Colors.neonPurple
+    | NeverSpends -> Colors.calmViolet
     | WithoutTarget -> Colors.textPrimary
     | Fits -> Colors.neonTeal
 
@@ -177,7 +178,7 @@ let private groupKey (group: CheckGroup) =
 
 /// Eine Gruppe als Karte: der Kopf klappt auf und zu (Titel in der Farbe der Gruppe, Zahl, Regelsatz), zu
 /// rendert sie ihre Zeilen nicht.
-let private groupCard (model: Model) (data: TargetCheckData) (dispatch: Msg -> unit) (group: CheckGroup) (rows: TargetCheckRow list) =
+let private groupCard (model: Model) (data: TargetCheckData) (selected: System.Guid option) (dispatch: Msg -> unit) (group: CheckGroup) (rows: TargetCheckRow list) =
     let key = groupKey group
     let isOpen = model.TargetCheck.OpenGroups.Contains group
     let rowsId = $"target-check-{key}-rows"
@@ -188,25 +189,34 @@ let private groupCard (model: Model) (data: TargetCheckData) (dispatch: Msg -> u
         prop.ariaLabelledBy headingId
         prop.className cardClass
         prop.children [
-            Button.disclosureListRow key "target-check-group-toggle" rowsId isOpen (fun () -> dispatch (ToggleCheckGroup group)) [
-                Html.span [
-                    prop.className $"{ListRoles.primarySize} {FontWeights.semibold}"
-                    prop.children [
-                        Html.span [ prop.id headingId; prop.custom ("data-testid", "target-check-group-title"); prop.className (checkGroupTitleClass group); prop.text (checkGroupText group) ]
-                        Html.span [ prop.className $"ml-1.5 font-mono {FontWeights.medium} {Colors.textMuted}"; prop.text (string (List.length rows)) ]
+            // Die Überschrift trägt den Knopf, wie im Akkordeon-Muster der WAI-ARIA: eine Rolle "heading" im Knopf
+            // läse der Screenreader nicht, die Kinder eines Knopfs sind nur Text.
+            Html.h2 [
+                prop.custom ("data-testid", "target-check-group-heading")
+                prop.children [
+                    Button.disclosureListRow key "target-check-group-toggle" rowsId isOpen (fun () -> dispatch (ToggleCheckGroup group)) [
+                        Html.span [
+                            prop.className $"{ListRoles.primarySize} {FontWeights.semibold}"
+                            prop.children [
+                                Html.span [ prop.id headingId; prop.custom ("data-testid", "target-check-group-title"); prop.className (checkGroupTitleClass group); prop.text (checkGroupText group) ]
+                                Html.span [ prop.className $"ml-1.5 font-mono {FontWeights.medium} {Colors.textMuted}"; prop.text (string (List.length rows)) ]
+                            ]
+                        ]
+                        Html.span [ prop.className $"{ListRoles.muted} mt-0.5"; prop.text (checkGroupRule group) ]
                     ]
                 ]
-                Html.span [ prop.className $"{ListRoles.muted} mt-0.5"; prop.text (checkGroupRule group) ]
             ]
             Html.div [
                 prop.id rowsId
                 prop.hidden (not isOpen)
-                prop.children (if isOpen then rows |> List.map (rowViewOf model data >> rowView dispatch) else [])
+                prop.children (if isOpen then rows |> List.map (rowViewOf model data selected >> rowView dispatch) else [])
             ]
         ]
     ]
 
 let private groupsView (model: Model) (data: TargetCheckData) (groups: (CheckGroup * TargetCheckRow list) list) (dispatch: Msg -> unit) =
+    // Einmal vor der Schleife: die Zeile mit offenem Panel (CLAUDE.md, große Listen).
+    let selected = panelCategory model
     Html.div [
         prop.custom ("data-testid", "target-check-list")
         prop.className "@container flex flex-col gap-3 min-w-0"
@@ -218,7 +228,7 @@ let private groupsView (model: Model) (data: TargetCheckData) (groups: (CheckGro
                     prop.text NothingToCheckText
                 ]
             for group, rows in groups do
-                groupCard model data dispatch group rows
+                groupCard model data selected dispatch group rows
         ]
     ]
 

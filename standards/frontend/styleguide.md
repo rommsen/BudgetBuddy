@@ -56,11 +56,12 @@ sie kommuniziert Zustand/Rolle. Belegt durch `Tokens.fs` (Modul `Colors`, `Glows
 
 | Farbe | Bedeutung | Token-Beispiele (`Tokens.fs`) |
 |-------|-----------|-------------------------------|
-| **Orange** | primär / CTA / Action / Energie | `Colors.neonOrange`, `Glows.orangeLg` (Hero-CTAs), `Borders.orange` |
-| **Teal** | Ausgewähltes und Navigation (ADR 0075) | `Colors.neonTeal`, `Glows.teal`, `Presets.glowCard` (teal-Border) |
+| **Orange** | primär / CTA / Action / Energie; auf der Seite Targets prüfen zusätzlich der Titel "Gibst du mehr aus?" und die Monatsbalken über dem Target (Ausnahme, Nachtrag ADR 0075 vom 2026-11-06) | `Colors.neonOrange`, `Glows.orangeLg` (Hero-CTAs), `Borders.orange` |
+| **Teal** | Ausgewähltes und Navigation (ADR 0075); auf der Seite Targets prüfen zusätzlich der Titel "Passt" und der Zusatz einer Zeile darunter ("neu gesetzt am …", Ausnahme, Nachtrag ADR 0075 vom 2026-11-06) | `Colors.neonTeal`, `Glows.teal`, `Presets.glowCard` (teal-Border) |
 | **Green** | Erfolg / positiv / Wachstum | `Colors.neonGreen`, `Glows.green`, `Presets.moneyPositive` |
 | **Red** | Fehler / Gefahr / negativ | `Colors.neonRed`, `Presets.moneyNegative`, `Borders.red` |
 | **Purple** | Akzent / "special/premium"; Kategorie nur außerhalb von Listen (ADR 0049) | `Colors.neonPurple`, `Backgrounds.purpleSubtle` |
+| **Violett hell** | nur der Titel "Gibst du nie aus?" auf der Seite Targets prüfen (Ausnahme, Nachtrag ADR 0075 vom 2026-11-06). Heller als `neonPurple`, das auf `bg-hover` unter 4,5:1 fällt; kontrastiert 9,21:1 auf `bg-card`, 8,40:1 auf `bg-elevated`, 8,00:1 auf `bg-hover` | `Colors.calmViolet` |
 | **Pink** | Akzent / "attention needed", nicht auf der Budget-Seite (ADR 0075) | `Colors.neonPink`, `Backgrounds.pinkSubtle` |
 | **Gelb** | offen, kein Fehler: `fehlt` und "Passt das Target noch?" (ADR 0075). Kein Neon, kontrastiert 9,03:1 auf `bg-card`, 8,23:1 auf `bg-elevated`, 7,84:1 auf `bg-hover` | `Colors.calmYellow` |
 | **Blau** | nur der Titel "Gibst du weniger aus?" auf der Seite Targets prüfen (Nachtrag ADR 0075, budgeting-c4ve4). Ruhig, kein Neon, kontrastiert 8,93:1 auf `bg-card`, 8,14:1 auf `bg-elevated`, 7,75:1 auf `bg-hover` | `Colors.calmBlue` |
@@ -223,7 +224,7 @@ eine gestrichelte Linie in `text-primary/60` auf Höhe des Monatswerts. Für den
 mit zusammengefasstem `aria-label` ("Ausgaben der letzten 12 Monate, 11 über dem Target"), die Balken sind
 verborgen, es gibt keinen Tab-Stopp. Orange auf einer Listenzeile ist eine Ausnahme von §2 "Ruhige Listen", sie
 gilt nur für diese Seite (Nachtrag ADR 0075). `Stats.sparkBarsLabelled` ist dieselbe Reihe groß im Panel (56 px
-Balken, Ecken 3 px), darunter die Monatskürzel in Mono klein. `Stats.sparkBarsPlaceholder` steht beim Laden an ihrer Stelle.
+Balken, Ecken 3 px), darunter die Monatskürzel in Mono klein. `Stats.sparkBarsPlaceholder` steht beim Laden an ihrer Stelle, mit denselben Ecken von 2 px.
 
 ---
 
@@ -430,10 +431,13 @@ der Zuwachs geht an die Spalte Kategorie, das Panel bleibt 340 px. Am Handy haft
 verteilen und die Chips, die Suche scrollt mit, `Targets anwenden` steht in ihrer Zeile. Der Knopf
 Historie steht am Handy im Kopf neben Zu verteilen (48 px), Targets prüfen gleich daneben (48 px), beide nicht in
 der Suchzeile: die Suche teilt ihre Zeile nur mit `Targets anwenden`. Die Seite Targets prüfen
-`#/budget/target-check` hat Zurück, Titel und Monat im Kopf, die Gruppen als Karten, nur "Passt" klappt auf
-(`Button.disclosureListRow`). "<Betrag> übernehmen" und "Anpassen …" sind neutrale Knöpfe (`Button.Secondary`,
-ADR 0075 Punkt 3). "Anpassen …" öffnet das Target-Formular ab 1024 px als Panel rechts, 340 px breit wie der
-Inspektor, darunter als `BottomSheet.inspector`. In der Budget-Historie `#/budget/history` stehen die Filter nach Art
+`#/budget/target-check` hat am PC als Kopf eine Karte mit Zurück, Titel, Erklärung und den Zählern "Hinweise" und
+"Passt", am Handy Zurück, den Titel groß und eine Zeile mit Monat und Zählern. Die Gruppen sind Karten, jede klappt
+auf und zu (`Button.disclosureListRow` in einer `h2`), beim Betreten offen, "Passt" zu. Eine Zeile steht ab 720 px
+Breite der Liste (Container-Abfrage) in vier Spalten wie die Skizze (Name und Target, Mini-Balken 132 px, Ø und
+Monate, Knöpfe; Verhältnis 1,3 zu 1), schmaler wie am Handy untereinander. "<Betrag> übernehmen" und "Anpassen …"
+sind neutrale Knöpfe (`Button.Secondary`, ADR 0075 Punkt 3). "Anpassen …" öffnet das Target-Formular ab 1024 px als
+Panel rechts, 360 px breit wie die Skizze (`.target-check-panel`), darunter als `BottomSheet.inspector`. In der Budget-Historie `#/budget/history` stehen die Filter nach Art
 als `ChipBar.barWithTestId` in einer eigenen, haftenden Zeile unter Zurück und Titel. Im
 vergangenen Monat bleibt der Knopf `invisible`, die Seite springt nicht. Die Höhe des Kopfs ist
 gemessen (`ResizeObserver`, `--budget-month-bar-height`), weil er umbricht. Ein Halter mit

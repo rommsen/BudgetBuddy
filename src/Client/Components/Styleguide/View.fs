@@ -474,11 +474,43 @@ let private statsSection =
                                         50, Stats.SparkOver; 100, Stats.SparkOver; 75, Stats.SparkOver; 38, Stats.SparkWithin
                                         96, Stats.SparkOver; 0, Stats.SparkWithin; 67, Stats.SparkOver; 96, Stats.SparkOver ] ->
                                   spark i percent tone ]
+                        // Die PC-Fassung braucht einen Container ab 720 px, erst dort greift der Abstand von 3 px.
                         Html.div [
-                            prop.className "h-8 w-[132px]"
+                            prop.className "overflow-x-auto"
+                            prop.children [
+                                Html.div [
+                                    prop.custom ("data-testid", "styleguide-spark-bars-wide")
+                                    prop.className "@container w-[720px]"
+                                    prop.children [
+                                        Html.div [
+                                            prop.className "h-8 w-[132px]"
+                                            prop.children [ Stats.sparkBars "Ausgaben der letzten 12 Monate, 8 über dem Target" (Some 42) sparks ]
+                                        ]
+                                    ]
+                                ]
+                            ]
+                        ]
+                        caption "Stats.sparkBars am PC: Mini-Balken einer Listenzeile (Seite Targets prüfen), 32 px hoch in einer Spalte von 132 px, in einem Container ab 720 px mit 3 px Abstand. Orange über dem Target, gedämpft darunter, dunkler vor der letzten Änderung, gestrichelt die Target-Linie. Ein Bild ohne Tab-Stopp"
+                        Html.div [
+                            prop.className "@container h-7 w-full"
                             prop.children [ Stats.sparkBars "Ausgaben der letzten 12 Monate, 8 über dem Target" (Some 42) sparks ]
                         ]
-                        caption "Stats.sparkBars: Mini-Balken einer Listenzeile (Seite Targets prüfen). Orange über dem Target, gedämpft darunter, dunkler vor der letzten Änderung, gestrichelt die Target-Linie. Ein Bild ohne Tab-Stopp"
+                        caption "Stats.sparkBars am Handy: 28 px hoch über die volle Breite, 4 px Abstand"
+                        Html.div [
+                            prop.className "@container h-8 w-[132px]"
+                            prop.children [
+                                Stats.sparkBars
+                                    "Ausgaben der letzten 12 Monate, 11 mit Ausgaben"
+                                    None
+                                    (sparks |> List.map (fun b -> { b with Tone = Stats.SparkWithin }))
+                            ]
+                        ]
+                        caption "Stats.sparkBars ohne Target: keine Linie, alle gezählten Monate gedämpft"
+                        Html.div [
+                            prop.className "h-8 w-[132px]"
+                            prop.children [ Stats.sparkBarsPlaceholder () ]
+                        ]
+                        caption "Stats.sparkBarsPlaceholder: beim Laden an ihrer Stelle, Ecken 2 px"
                         Stats.sparkBarsLabelled "Ausgaben der letzten 12 Monate, 8 über dem Target" (Some 42) sparks
                         caption "Stats.sparkBarsLabelled: groß im Panel, darunter die Monatskürzel"
                     ]

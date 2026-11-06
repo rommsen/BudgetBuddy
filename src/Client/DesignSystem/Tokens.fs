@@ -35,6 +35,10 @@ module Colors =
     // Ruhiges Blau: nur "Gibst du weniger aus?" auf der Seite Targets prüfen (Nachtrag ADR 0075, budgeting-c4ve4)
     let calmBlue = "text-calm-blue"
 
+    // Helles Violett: nur "Gibst du nie aus?" auf der Seite Targets prüfen (Nachtrag ADR 0075, budgeting-c4ve4).
+    // `neonPurple` fiele auf `bg-hover` unter 4,5:1.
+    let calmViolet = "text-calm-violet"
+
     // Error: Neon Red
     let neonRed = "text-neon-red"
     let neonRedDim = "text-[#e6324f]"

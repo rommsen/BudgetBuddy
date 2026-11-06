@@ -42,6 +42,8 @@ type ButtonProps = {
     Title: string option  // Tooltip/accessibility title
     /// Name für Screenreader; Pflicht bei einem Knopf nur mit Icon
     AriaLabel: string option
+    /// `aria-expanded` für einen Knopf, der ein Panel öffnet; `None` ohne Attribut.
+    AriaExpanded: bool option
 }
 
 and IconPosition = Left | Right
@@ -61,6 +63,7 @@ let defaultProps = {
     ClassName = None
     Title = None
     AriaLabel = None
+    AriaExpanded = None
 }
 
 // ============================================
@@ -146,6 +149,7 @@ let view (props: ButtonProps) =
         prop.onClick (fun _ -> if not state.AriaDisabled then props.OnClick())
         if props.Title.IsSome then prop.title props.Title.Value
         if props.AriaLabel.IsSome then prop.ariaLabel props.AriaLabel.Value
+        if props.AriaExpanded.IsSome then prop.ariaExpanded props.AriaExpanded.Value
         prop.children [
             // Loading spinner
             if state.ShowsSpinner then

@@ -13,6 +13,15 @@ import assert from "node:assert/strict";
 import { chromium } from "playwright";
 import { getFreePort, startFrontend, stopServer, waitForPageLoaded } from "./screenshot-route.mjs";
 
+/// Die Farben der Tokens in `src/Client/styles.css` als berechnete Werte.
+const ORANGE = "rgb(255, 107, 44)"; // --color-neon-orange #ff6b2c
+const CALM_BLUE = "rgb(122, 184, 255)"; // --color-calm-blue #7ab8ff
+const CALM_VIOLET = "rgb(201, 167, 255)"; // --color-calm-violet #c9a7ff
+
+/// Die Höhe einer Zeile der Skizze (`Main.dc.html` `.row`: `min-height:56px` plus 2 × 10 px Rand und 1 px Linie),
+/// gemessen bei 1280 px mit und ohne Panel.
+const SKETCH_ROW_HEIGHT = 77;
+
 let frontend;
 let frontendPort;
 let browser;
@@ -37,19 +46,21 @@ const spending = (amount) =>
     return { Month: `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-01`, Activity: eur(-amount) };
   });
 
-const source = (n, name, goal, spent, rhythm) => ({
+const source = (n, name, goal, spent, rhythm, lastChange = null) => ({
   CategoryId: guid(n),
   Name: name,
   GroupName: "Haushalt q4v8n",
   Target: goal === null ? null : target(goal, rhythm),
   Spending: spending(spent),
-  LastChange: null,
+  LastChange: lastChange,
 });
 
 /// "Strom q4v8n": Target 100 €, Ausgaben 150 €, steht bei "Gibst du mehr aus?" mit "150 € übernehmen".
 /// "Versicherung q4v8n": 600 € im Jahr, Ausgaben 105 € je Monat, Vorschlag "1.260 € jährlich übernehmen".
 /// "Kantine q4v8n": 50 € je Woche, Ausgaben 100 € je Monat, Vorschlag 100 × 12 ÷ 52 = 23,08, auf volle Euro 23 €.
 /// "Urlaub q4v8n": ohne Target, Ausgaben 1.234 € je Monat, Vorschlag "1.235 € monatlich anlegen".
+/// "Rücklage q4v8n": Target 60 €, keine Ausgaben, steht bei "Gibst du nie aus?".
+/// "Reparatur q4v8n": Target 100 €, Ausgaben 150 €, Target am 10.06.2026 gesetzt: November bis Juni zählen nicht.
 const checkData = {
   Month: "2026-11-01",
   Today: "2026-11-06",
@@ -59,6 +70,8 @@ const checkData = {
     source(3, "Internet q4v8n", 100, 100),
     source(4, "Kantine q4v8n", 50, 100, { Weeks: 1 }),
     source(5, "Urlaub q4v8n", null, 1234),
+    source(7, "Rücklage q4v8n", 60, 0),
+    source(8, "Reparatur q4v8n", 100, 150, undefined, { TargetSetOn: "2026-06-10" }),
   ],
 };
 
@@ -159,7 +172,7 @@ test("[flow:targets-pruefen] Handy: über den Knopf im Kopf die Seite öffnen, b
   }
 });
 
-test("[layout] Handy 375 px: der Kopf der Budget-Seite trägt Historie und Targets prüfen mit 48 px, auf der Seite stehen Kopf und Zeilen ohne Überlauf, die Knöpfe einer Zeile nebeneinander, ungekürzt und 48 px hoch", async () => {
+test("[layout] Handy 375 px: der Kopf der Budget-Seite trägt Historie und Targets prüfen mit 48 px, auf der Seite stehen Kopf und Zeilen ohne Überlauf, die Knöpfe einer Zeile nebeneinander, ungekürzt und 48 px hoch, die Mini-Balken mit Ecken 2 px und 4 px Abstand wie Handy.dc.html", async () => {
   const { context, page } = await mockedPage(375, 812);
   try {
     await page.goto(`http://127.0.0.1:${frontendPort}/#/budget`, { waitUntil: "load" });
@@ -198,11 +211,16 @@ test("[layout] Handy 375 px: der Kopf der Budget-Seite trägt Historie und Targe
           const r = b.getBoundingClientRect();
           return { text: b.textContent, clipped: clipped(b), inside: within(b, rowBox), h: r.height, top: r.top };
         });
-        const bars = el.querySelector('[data-testid="spark-bars"]').getBoundingClientRect();
+        const barsEl = el.querySelector('[data-testid="spark-bars"]');
+        const bars = barsEl.getBoundingClientRect();
         return {
           name: el.querySelector('[data-testid="target-check-name"]').textContent,
           buttons,
           bars: { h: bars.height, w: bars.width, rowW: rowBox.width },
+          shape: {
+            radius: getComputedStyle(barsEl.querySelector('[data-testid="spark-bar"]')).borderTopLeftRadius,
+            gap: getComputedStyle(barsEl).columnGap,
+          },
           texts: [...el.querySelectorAll("span, p")].filter((t) => t.getBoundingClientRect().width > 0).every((t) => within(t, rowBox)),
         };
       });
@@ -219,6 +237,7 @@ test("[layout] Handy 375 px: der Kopf der Budget-Seite trägt Historie und Targe
       assert.ok(row.texts, `${row.name}: die Texte stehen in der Zeile (${rowFacts})`);
       assert.equal(Math.round(row.bars.h), 28, `${row.name}: Mini-Balken 28 px hoch (${rowFacts})`);
       assert.ok(row.bars.w >= row.bars.rowW - 2 * 12 - 1, `${row.name}: Mini-Balken über die volle Breite (${rowFacts})`);
+      assert.deepEqual(row.shape, { radius: "2px", gap: "4px" }, `${row.name}: Ecken 2 px, Abstand 4 px wie Handy.dc.html (${rowFacts})`);
       for (const b of row.buttons) {
         assert.ok(!b.clipped && b.inside && b.h >= 47.5, `${row.name}, ${b.text}: ungekürzt, im Bild, 48 px (${rowFacts})`);
       }
@@ -234,7 +253,7 @@ test("[layout] Handy 375 px: der Kopf der Budget-Seite trägt Historie und Targe
   }
 });
 
-test("[layout] PC 1280 px: eine Zeile mit Werten ist höchstens 72 px hoch und steht in vier Spalten nebeneinander, Anpassen öffnet das Panel rechts, die Mini-Balken haben keinen Tab-Stopp; bei 375 px ein BottomSheet", async () => {
+test("[layout] PC 1280 px: eine Zeile mit Werten ist so hoch wie in der Skizze und steht in vier Spalten nebeneinander, die Mini-Balken haben Ecken 2 px, 3 px Abstand und keinen Tab-Stopp, Anpassen öffnet das Panel rechts mit Balken mit Ecken 3 px; bei 375 px ein BottomSheet", async () => {
   const wide = await openCheck(1280, 900);
   try {
     await rowOf(wide.page, "Strom q4v8n").getByRole("button", { name: "Anpassen …" }).click();
@@ -257,6 +276,8 @@ test("[layout] PC 1280 px: eine Zeile mit Werten ist höchstens 72 px hoch und s
       const focusable = [...document.querySelectorAll('[data-testid="spark-bars"], [data-testid="spark-bars"] *')].filter(
         (el) => el.tabIndex >= 0 || el.hasAttribute("tabindex")
       ).length;
+      const barsEl = row.querySelector('[data-testid="spark-bars"]');
+      const large = document.querySelector('[data-testid="spark-bars-labelled"] [data-testid="spark-bar"]');
       return {
         listRight: list.right,
         panelLeft: box.left,
@@ -267,10 +288,15 @@ test("[layout] PC 1280 px: eine Zeile mit Werten ist höchstens 72 px hoch und s
         barsHeight: row.querySelector('[data-testid="spark-bars"]').getBoundingClientRect().height,
         columns,
         focusable,
+        shape: { radius: getComputedStyle(barsEl.querySelector('[data-testid="spark-bar"]')).borderTopLeftRadius, gap: getComputedStyle(barsEl).columnGap },
+        largeRadius: getComputedStyle(large).borderTopLeftRadius,
       };
     });
     const facts = JSON.stringify(at);
-    assert.ok(at.rowHeight <= 72, `die Zeile ist höchstens 72 px hoch (${facts})`);
+    // Die Zeile der Skizze (Main.dc.html `.row`, gemessen bei 1280 px mit Panel) ist 77 px hoch.
+    assert.ok(at.rowHeight <= SKETCH_ROW_HEIGHT + 3, `die Zeile ist höchstens ${SKETCH_ROW_HEIGHT + 3} px hoch (${facts})`);
+    assert.deepEqual(at.shape, { radius: "2px", gap: "3px" }, `Mini-Balken mit Ecken 2 px und 3 px Abstand wie Main.dc.html (${facts})`);
+    assert.equal(at.largeRadius, "3px", `die Panel-Balken mit Ecken 3 px (${facts})`);
     assert.equal(Math.round(at.barsHeight), 32, `Mini-Balken 32 px hoch (${facts})`);
     for (let i = 1; i < at.columns.length; i++) {
       assert.ok(at.columns[i].left >= at.columns[i - 1].right, `Spalte ${i + 1} steht rechts neben Spalte ${i} (${facts})`);
@@ -306,54 +332,36 @@ test("[layout] PC 1280 px: eine Zeile mit Werten ist höchstens 72 px hoch und s
   }
 });
 
-test("[layout] Mini-Balken der Zeile wie die Skizze: Ecken 2 px, Abstand am PC 3 px, am Handy 4 px; die Panel-Balken behalten 3 px", async () => {
-  const shape = async (page) =>
-    page.evaluate(() => {
-      const row = [...document.querySelectorAll('[data-testid="target-check-row"]')].find((el) => el.textContent.includes("Strom q4v8n"));
-      const bars = row.querySelector('[data-testid="spark-bars"]');
-      return { radius: getComputedStyle(bars.querySelector('[data-testid="spark-bar"]')).borderTopLeftRadius, gap: getComputedStyle(bars).columnGap };
-    });
-  const wide = await openCheck(1280, 900);
-  try {
-    const pc = await shape(wide.page);
-    assert.deepEqual(pc, { radius: "2px", gap: "3px" }, `PC wie Main.dc.html (${JSON.stringify(pc)})`);
-    await rowOf(wide.page, "Strom q4v8n").getByRole("button", { name: "Anpassen …" }).click();
-    const large = wide.page.locator('[data-testid="spark-bars-labelled"] [data-testid="spark-bar"]').first();
-    await large.waitFor();
-    assert.equal(await large.evaluate((el) => getComputedStyle(el).borderTopLeftRadius), "3px", "Panel-Balken 3 px");
-  } finally {
-    await wide.context.close();
-  }
-  const phone = await openCheck(375, 812);
-  try {
-    const handy = await shape(phone.page);
-    assert.deepEqual(handy, { radius: "2px", gap: "4px" }, `Handy wie Handy.dc.html (${JSON.stringify(handy)})`);
-  } finally {
-    await phone.context.close();
-  }
-});
-
-test("[layout] Berechnete Farben: der Titel Gibst du mehr aus ist orange, ein Balken über dem Target orange, einer darunter nicht", async () => {
+test("[layout] Berechnete Farben: die Gruppentitel mehr orange, weniger blau, nie hell violett, ein Balken über dem Target orange, einer darunter nicht, ein nicht gezählter anders als ein gezählter", async () => {
   const { context, page } = await openCheck(1280, 900);
   try {
     const colors = await page.evaluate(() => {
-      const probe = document.createElement("span");
-      probe.className = "text-neon-orange";
-      document.body.appendChild(probe);
-      const neon = getComputedStyle(probe).color;
-      probe.remove();
-      const title = [...document.querySelectorAll('[data-testid="target-check-group-title"]')].find((el) => el.textContent === "Gibst du mehr aus?");
-      const barOf = (name) => {
+      const title = (text) =>
+        getComputedStyle([...document.querySelectorAll('[data-testid="target-check-group-title"]')].find((el) => el.textContent === text)).color;
+      const barsOf = (name) => {
         const row = [...document.querySelectorAll('[data-testid="target-check-row"]')].find((el) => el.textContent.includes(name));
-        return getComputedStyle(row.querySelector('[data-testid="spark-bar"]')).backgroundColor;
+        return [...row.querySelectorAll('[data-testid="spark-bar"]')].map((bar) => getComputedStyle(bar).backgroundColor);
       };
-      return { neon, title: getComputedStyle(title).color, over: barOf("Strom q4v8n"), under: barOf("Kantine q4v8n") };
+      const repair = barsOf("Reparatur q4v8n");
+      return {
+        more: title("Gibst du mehr aus?"),
+        less: title("Gibst du weniger aus?"),
+        never: title("Gibst du nie aus?"),
+        over: barsOf("Strom q4v8n")[0],
+        under: barsOf("Kantine q4v8n")[0],
+        notCounted: repair[0],
+        repairCounted: repair[11],
+      };
     });
     const facts = JSON.stringify(colors);
-    assert.equal(colors.neon, "rgb(255, 107, 44)", `das Orange der Tokens (${facts})`);
-    assert.equal(colors.title, colors.neon, `der Titel ist orange (${facts})`);
-    assert.equal(colors.over, colors.neon, `ein Balken über dem Target ist orange (${facts})`);
-    assert.notEqual(colors.under, colors.neon, `ein Balken darunter ist nicht orange (${facts})`);
+    assert.equal(colors.more, ORANGE, `der Titel mehr ist orange (${facts})`);
+    assert.equal(colors.less, CALM_BLUE, `der Titel weniger ist das ruhige Blau (${facts})`);
+    assert.equal(colors.never, CALM_VIOLET, `der Titel nie ist das helle Violett (${facts})`);
+    assert.equal(colors.over, ORANGE, `ein Balken über dem Target ist orange (${facts})`);
+    assert.equal(colors.repairCounted, ORANGE, `bei Reparatur zählt Oktober und liegt über dem Target (${facts})`);
+    assert.notEqual(colors.under, ORANGE, `ein Balken darunter ist nicht orange (${facts})`);
+    assert.notEqual(colors.notCounted, ORANGE, `ein nicht gezählter Monat über dem Monatswert ist nicht orange (${facts})`);
+    assert.notEqual(colors.notCounted, colors.under, `ein nicht gezählter Balken sieht anders aus als ein gezählter darunter (${facts})`);
   } finally {
     await context.close();
   }

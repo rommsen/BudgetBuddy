@@ -578,15 +578,18 @@ let targetAfter (shown: Target option) (draft: TargetDraft) : Result<Target, str
     | Ok target, Some day -> Ok { target with Day = Some day }
     | Ok target, None -> Ok target
 
+/// Ziffern mit Tausenderpunkt: "1234567" wird "1.234.567". Für `euroText` und `wholeEuroText`.
+let rec private groupThousands (digits: string) : string =
+    if digits.Length <= 3 then digits
+    else groupThousands digits.[.. digits.Length - 4] + "." + digits.[digits.Length - 3 ..]
+
 /// Ein Betrag als "1.234,50 €", ohne Kultur und ohne Format-String, gleich unter .NET und Fable: ein halber Cent
 /// wird über `roundHalfUp` kaufmännisch aufgerundet (1,225 € wird "1,23 €").
 let euroText (money: Money) : string =
     let cents = int64 (roundHalfUp (abs money.Amount * 100m))
-    let rec group (digits: string) =
-        if digits.Length <= 3 then digits else group digits.[.. digits.Length - 4] + "." + digits.[digits.Length - 3 ..]
     let sign = if money.Amount < 0m && cents > 0L then "-" else ""
     let rest = (string (cents % 100L)).PadLeft(2, '0')
-    $"{sign}{group (string (cents / 100L))},{rest} €"
+    $"{sign}{groupThousands (string (cents / 100L))},{rest} €"
 
 /// "2027-06-01" als "01.06.2027". Ein anderer Text bleibt, wie er ist.
 let dateText (iso: string) : string =
@@ -655,6 +658,10 @@ type MonthSpending = {
     Month: string
     Activity: Money
 }
+
+/// Die Ausgaben eines Monats: die Netto-Aktivität mit umgekehrtem Vorzeichen. Überwiegen Erstattungen, ist der
+/// Wert negativ.
+let netSpending (s: MonthSpending) : decimal = -s.Activity.Amount
 
 /// Ein Pause-Ereignis (budgeting-t6p8z). Es geht nicht nach YNAB.
 type HistoryPause = {
@@ -1109,11 +1116,10 @@ type SpendingBar = {
 
 /// Die Balken aus den Monatssummen. `currentMonth` ist der laufende Monat ("YYYY-MM-01").
 let spendingBars (currentMonth: string) (spending: MonthSpending list) : SpendingBar list =
-    let spent (s: MonthSpending) = -s.Activity.Amount
-    let highest = spending |> List.map spent |> List.fold max 0m
+    let highest = spending |> List.map netSpending |> List.fold max 0m
     spending
     |> List.map (fun s ->
-        let amount = spent s
+        let amount = netSpending s
         let percent =
             if highest <= 0m || amount <= 0m then 0
             else int (roundHalfUp (amount / highest * 100m))
@@ -1298,6 +1304,10 @@ let suggestTarget (target: Target option) (average: Money) : TargetSuggestion op
                   InRhythm = euro inRhythm
                   Draft = { NewGoal = euro inRhythm; NewDate = t.Date; NewRhythm = KeepRhythm; NewDay = keptWeekday t } }
 
+/// Über dem Target heißt (ADR 0082 Punkt 6): die Ausgaben des Monats liegen strikt über dem Monatswert, ohne
+/// Spielraum. Dieselbe Regel zählt `MonthsOver` und färbt die Mini-Balken (`checkBars`).
+let spendsOverTarget (monthly: decimal) (s: MonthSpending) : bool = netSpending s > monthly
+
 /// Ordnet eine Kategorie ein (ADR 0082 Punkt 6 bis 9). `today` ist der Berliner Tag "YYYY-MM-DD", der
 /// laufende Monat folgt daraus und zählt nie. Rein, gleich unter .NET und Fable.
 let targetCheckRow (today: string) (source: TargetCheckSource) : TargetCheckRow =
@@ -1312,15 +1322,14 @@ let targetCheckRow (today: string) (source: TargetCheckSource) : TargetCheckRow 
     let counted =
         full |> List.filter (fun s -> changeMonth |> Option.forall (fun changed -> s.Month > changed))
     let n = List.length counted
-    let spent (s: MonthSpending) = -s.Activity.Amount
     let monthly = source.Target |> Option.bind monthlyValue
     let average =
         if n = 0 then None
-        else Some (euro ((counted |> List.sumBy spent) / decimal n))
-    let monthsWithSpending = counted |> List.filter (fun s -> spent s > 0m) |> List.length
+        else Some (euro ((counted |> List.sumBy netSpending) / decimal n))
+    let monthsWithSpending = counted |> List.filter (fun s -> netSpending s > 0m) |> List.length
     let monthsOver =
         match monthly with
-        | Some m -> counted |> List.filter (fun s -> spent s > m.Amount) |> List.length
+        | Some m -> counted |> List.filter (spendsOverTarget m.Amount) |> List.length
         | None -> 0
     let period =
         source.Target |> Option.bind checkedRhythm |> Option.map periodMonths |> Option.defaultValue 1
@@ -1411,17 +1420,15 @@ let withWrittenTarget (categoryId: Guid) (target: Target option) (data: TargetCh
 /// unter .NET und Fable.
 let wholeEuroText (amount: decimal) : string =
     let whole = int64 (roundHalfUp (abs amount))
-    let rec group (digits: string) =
-        if digits.Length <= 3 then digits else group digits.[.. digits.Length - 4] + "." + digits.[digits.Length - 3 ..]
     let sign = if amount < 0m && whole > 0L then "-" else ""
-    $"{sign}{group (string whole)} €"
+    $"{sign}{groupThousands (string whole)} €"
 
 /// Wie ein Mini-Balken auf der Seite Targets prüfen steht (budgeting-c4ve4).
 type CheckBarTone =
     /// Netto-Ausgaben über dem Monatswert des Targets (ADR 0082 Punkt 6): orange.
     | OverTarget
-    /// Gezählt und nicht darüber, oder ohne Target: gedämpft.
-    | WithinTarget
+    /// Gezählt und nicht über dem Target, auch jeder gezählte Monat ohne Target: gedämpft.
+    | Counted
     /// Vor der letzten Änderung, zählt nicht: dunkler.
     | NotCounted
 
@@ -1436,10 +1443,9 @@ type CheckBars = { Bars: CheckBar list; LinePercent: int option }
 /// mit Erstattungsüberschuss hat 0 (die View zeigt ihn 2 px hoch). Über dem Monatswert heißt wie in
 /// `MonthsOver` strikt darüber, ohne Spielraum, damit Balken und "x von N Monaten über dem Target" übereinstimmen.
 let checkBars (row: TargetCheckRow) : CheckBars =
-    let spent (s: MonthSpending) = -s.Activity.Amount
     let monthly = row.Monthly |> Option.map (fun m -> m.Amount)
     let highest =
-        row.Months |> List.map spent |> List.fold max (monthly |> Option.defaultValue 0m)
+        row.Months |> List.map netSpending |> List.fold max (monthly |> Option.defaultValue 0m)
     let percent (value: decimal) =
         if highest <= 0m || value <= 0m then 0 else int (roundHalfUp (value / highest * 100m))
     let counted = row.CountedMonths |> List.map (fun s -> s.Month) |> Set.ofList
@@ -1450,7 +1456,7 @@ let checkBars (row: TargetCheckRow) : CheckBars =
                 if not (counted.Contains s.Month) then NotCounted
                 else
                     match monthly with
-                    | Some m when spent s > m -> OverTarget
-                    | _ -> WithinTarget
-            { Month = s.Month; Percent = percent (spent s); Tone = tone })
+                    | Some m when spendsOverTarget m s -> OverTarget
+                    | _ -> Counted
+            { Month = s.Month; Percent = percent (netSpending s); Tone = tone })
       LinePercent = monthly |> Option.map percent }

@@ -593,9 +593,9 @@ let sparkBarsLabelled (label: string) (linePercent: int option) (bars: SparkBar 
         ]
     ]
 
-/// Der Platzhalter beim Laden, füllt wie `sparkBars` die Höhe des Elternelements.
+/// Der Platzhalter beim Laden, füllt wie `sparkBars` die Höhe des Elternelements, Ecken 2 px wie die Balken.
 let sparkBarsPlaceholder () =
     Html.div [
         prop.ariaHidden true
-        prop.className "h-full rounded-sm bg-surface-elevated animate-pulse"
+        prop.className "h-full rounded-[2px] bg-surface-elevated animate-pulse"
     ]
