@@ -587,14 +587,20 @@ let dueFrom (rhythm: TargetRhythm) (month: string) (due: string) : string =
     | _ -> due
 
 /// Die Monate der laufenden Periode vor dem gelesenen Monat `month` (budgeting-b9869), aufsteigend als
-/// "YYYY-MM-01". Die Periode beginnt im Monat nach der vorigen Fälligkeit (die Fälligkeit aus `dueFrom`, um
-/// einen Rhythmus-Schritt zurück). Der gelesene Monat gehört nicht dazu: seine Aktivität steckt nicht im
+/// "YYYY-MM-01". Die Periode beginnt im Monat der vorigen Fälligkeit, einschließlich (die Fälligkeit aus
+/// `dueFrom`, um einen Rhythmus-Schritt zurück, budgeting-pf8n7). Ist das gespeicherte Datum die erste
+/// Fälligkeit (`dueFrom` verschiebt es nicht) und der Anlegemonat `createdIn` ("YYYY-MM-01") lesbar, beginnt
+/// die Periode im Anlegemonat. Der gelesene Monat gehört nicht dazu: seine Aktivität steckt nicht im
 /// Übertrag, ihre Ausgaben zählten sonst doppelt. Ohne Rhythmus oder mit unlesbarem Datum: keine Monate.
-let periodMonthsBefore (rhythm: TargetRhythm) (month: string) (due: string) : string list =
+let periodMonthsBefore (rhythm: TargetRhythm) (createdIn: string option) (month: string) (due: string) : string list =
     match dayOf due, rhythmShift rhythm, monthIndexOf month with
     | Some date, Some shift, Some monthIndex ->
-        let previous = shift date (stepsUntil shift date monthIndex - 1)
-        [ monthIndexOfDay previous + 1 .. monthIndex - 1 ]
+        let steps = stepsUntil shift date monthIndex
+        let start =
+            match steps, createdIn |> Option.bind monthIndexOf with
+            | 0, Some created -> created
+            | _ -> monthIndexOfDay (shift date (steps - 1))
+        [ start .. monthIndex - 1 ]
         |> List.map (fun index -> DateTime(index / 12, index % 12 + 1, 1).ToString("yyyy-MM-dd", Globalization.CultureInfo.InvariantCulture))
     | _ -> []
 
@@ -602,7 +608,7 @@ let periodMonthsBefore (rhythm: TargetRhythm) (month: string) (due: string) : st
 /// bei "Mit Fälligkeit" mit Rhythmus, sonst keine.
 let periodMonthsOf (target: Target) (month: string) : string list =
     match underfundedRuleOf target with
-    | Ok (DueDateRule due) -> periodMonthsBefore target.Rhythm month due
+    | Ok (DueDateRule due) -> periodMonthsBefore target.Rhythm target.CreatedIn month due
     | _ -> []
 
 /// Der Grund, wenn für einen Monat der laufenden Periode keine Aktivität im Zustand liegt.
@@ -639,7 +645,7 @@ let private ceilingToCent (amount: decimal) : decimal =
 /// negatives Ergebnis ist 0. Eine Pause spielt hier keine Rolle, ihre Wirkung entscheidet der Aufrufer.
 /// `earlierActivity` ist die Aktivität der Kategorie in früheren Monaten ("YYYY-MM-01"). "Mit Fälligkeit" zählt
 /// wie YNAB die Ausgaben der laufenden Periode als gedeckt (budgeting-b9869): gedeckt = Übertrag + Ausgaben der
-/// Periode vor dem gelesenen Monat (`periodMonthsBefore`). Fehlt dafür ein Monat, ist das Ergebnis nicht gerechnet.
+/// Periode vor dem gelesenen Monat (`periodMonthsOf`, mit Anlegemonat). Fehlt dafür ein Monat, ist das Ergebnis nicht gerechnet.
 let underfunded
     (target: Target)
     (month: string)
@@ -654,7 +660,7 @@ let underfunded
         match underfundedRuleOf target with
         | Error reason -> Error reason
         | Ok (DueDateRule due) ->
-            periodSpending (periodMonthsBefore target.Rhythm month due) earlierActivity
+            periodSpending (periodMonthsOf target month) earlierActivity
             |> Result.bind (fun spent ->
                 remainingMonths month (dueFrom target.Rhythm month due)
                 |> Result.map (fun months ->

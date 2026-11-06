@@ -17,7 +17,7 @@ open Server.Budgeting.CommandHandlers
 
 let private eur (amount: decimal) : Money = { Amount = amount; Currency = "EUR" }
 
-let private target : Target = { Goal = eur 100m; Rhythm = Months 1; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None }
+let private target : Target = { Goal = eur 100m; Rhythm = Months 1; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None; CreatedIn = None }
 
 let private run x = Async.RunSynchronously x
 

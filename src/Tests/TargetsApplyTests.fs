@@ -99,14 +99,14 @@ let private planTests =
         }
         // budgeting-kjsht
         test "Das Target der Kategorie steht in der Zeile der Vorschau" {
-            let target : Target = { Goal = eur 1600000L; Rhythm = Months 1; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None }
+            let target : Target = { Goal = eur 1600000L; Rhythm = Months 1; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None; CreatedIn = None }
             let p = planOk (monthOf 50000L [ { category "A" 0L (Some 10000L) false with Target = Some target } ])
             Expect.equal p.Lines.Head.Target (Some target) "Target übernommen"
         }
         test "Ein geändertes Target allein löst kein Stand hat sich geändert aus" {
             let a = category "A" 0L (Some 10000L) false
-            let before = planOk (monthOf 50000L [ { a with Target = Some { Goal = eur 10000L; Rhythm = Months 1; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None } } ])
-            let after = planOk (monthOf 50000L [ { a with Target = Some { Goal = eur 99000L; Rhythm = Weeks 1; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None } } ])
+            let before = planOk (monthOf 50000L [ { a with Target = Some { Goal = eur 10000L; Rhythm = Months 1; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None; CreatedIn = None } } ])
+            let after = planOk (monthOf 50000L [ { a with Target = Some { Goal = eur 99000L; Rhythm = Weeks 1; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None; CreatedIn = None } } ])
             Expect.notEqual before.Lines.Head.Target after.Lines.Head.Target "Target weicht ab"
             Expect.isTrue (Domain.previewsMatch before after) "Vorschau gilt weiter"
         }

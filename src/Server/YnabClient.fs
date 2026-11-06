@@ -100,7 +100,8 @@ module Decoders =
                   Kind = targetKind goalType
                   Date = get.Optional.Field "goal_target_date" Decode.string
                   NeedsWholeAmount = get.Optional.Field "goal_needs_whole_amount" Decode.bool
-                  Day = get.Optional.Field "goal_day" Decode.int }
+                  Day = get.Optional.Field "goal_day" Decode.int
+                  CreatedIn = get.Optional.Field "goal_creation_month" Decode.string }
         | _ -> None
 
     /// Das Target aus der Antwort von `PATCH /budgets/{id}/categories/{id}` (`data.category`).

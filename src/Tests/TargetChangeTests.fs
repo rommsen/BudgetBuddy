@@ -27,7 +27,8 @@ let private targetOf (kind: TargetKind) (goal: decimal) (date: string option) : 
       Kind = kind
       Date = date
       NeedsWholeAmount = Some true
-      Day = Some 15 }
+      Day = Some 15
+      CreatedIn = None }
 
 let private draft (goal: decimal) (date: string option) : TargetDraft =
     { NewGoal = eur goal; NewDate = date; NewRhythm = KeepRhythm }
@@ -232,21 +233,21 @@ let private ynabTests =
             match map 401 "{}" with Error (YnabError.Unauthorized _) -> () | other -> failtest $"401: {other}"
             Expect.equal (map 200 (categoryJson """ "goal_type": null, "goal_target": null """)) (Ok None) "200 ohne Target nach dem Entfernen"
         }
-        test "Das Target trägt Art, Datum, Auffüllen und Tag, auch mit fehlenden Feldern und unbekannter Art" {
+        test "Das Target trägt Art, Datum, Auffüllen, Tag und Anlegemonat, auch mit fehlenden Feldern und unbekannter Art" {
             let decode fields =
                 match Decode.fromString Server.YnabClient.Decoders.categoryTargetDecoder (categoryJson fields) with
                 | Ok t -> t
                 | Error e -> failtest e
             let full =
-                decode """ "goal_type": "TBD", "goal_target": 120000, "goal_target_date": "2027-06-01", "goal_needs_whole_amount": false, "goal_day": 3 """
+                decode """ "goal_type": "TBD", "goal_target": 120000, "goal_target_date": "2027-06-01", "goal_needs_whole_amount": false, "goal_day": 3, "goal_creation_month": "2026-05-01" """
             Expect.equal
                 full
-                (Some { Goal = eur 120m; Rhythm = NoRhythm; Kind = TargetBalanceByDate; Date = Some "2027-06-01"; NeedsWholeAmount = Some false; Day = Some 3 })
+                (Some { Goal = eur 120m; Rhythm = NoRhythm; Kind = TargetBalanceByDate; Date = Some "2027-06-01"; NeedsWholeAmount = Some false; Day = Some 3; CreatedIn = Some "2026-05-01" })
                 "alle Felder"
             let bare = decode """ "goal_type": "XYZ", "goal_target": 1000, "goal_target_date": null """
             Expect.equal
                 bare
-                (Some { Goal = eur 1m; Rhythm = NoRhythm; Kind = OtherKind "XYZ"; Date = None; NeedsWholeAmount = None; Day = None })
+                (Some { Goal = eur 1m; Rhythm = NoRhythm; Kind = OtherKind "XYZ"; Date = None; NeedsWholeAmount = None; Day = None; CreatedIn = None })
                 "fehlende Felder, unbekannte Art"
             for goalType, kind in [ "NEED", Need; "TB", TargetBalance; "MF", MonthlyFunding; "DEBT", Debt ] do
                 Expect.equal (Server.YnabClient.Decoders.targetKind goalType) kind goalType
@@ -326,7 +327,8 @@ type private FakeYnab(initial: (Guid * Target option) list) =
                                       Kind = Need
                                       Date = None
                                       NeedsWholeAmount = Some true
-                                      Day = None }
+                                      Day = None
+                                      CreatedIn = None }
                             | None, _, _ -> None
                             | Some t, goal, _ ->
                                 let goal' = match goal with SetTo v -> euroOfMilliunits v | _ -> t.Goal
@@ -883,7 +885,7 @@ let private createFlowTests =
         testCase name (fun () ->
             Budgeting.Persistence.initializeBudgetingSchema ()
             body ())
-    let yearly600 = { Goal = eur 600m; Rhythm = Years 1; Kind = Need; Date = None; NeedsWholeAmount = Some true; Day = None }
+    let yearly600 = { Goal = eur 600m; Rhythm = Years 1; Kind = Need; Date = None; NeedsWholeAmount = Some true; Day = None; CreatedIn = None }
     let rejected = "YNAB hat abgelehnt: goal_target_date is invalid"
     testSequenced
     <| testList "Target anlegen und Art wechseln: Abläufe" [

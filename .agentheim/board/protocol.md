@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 12:11 -- Task verified and completed: budgeting-pf8n7 - "Fehlbetrag mit Fälligkeit: die laufende Periode beginnt im Monat der vorigen Fälligkeit, bei der ersten Fälligkeit im Anlegemonat des Ziels"
+
+**Type:** Work / Task completion
+**Task:** budgeting-pf8n7 - "Fehlbetrag mit Fälligkeit: die laufende Periode beginnt im Monat der vorigen Fälligkeit, bei der ersten Fälligkeit im Anlegemonat des Ziels"
+**Summary:** (no summary provided)
+**Duration:** (unknown)
+**Verification:** PASS (iteration 1)
+**Files changed:** 0
+**Tests added:** 0
+**ADRs written:** none
+
+---
+
 ## 2026-11-06 11:49 -- Batch started: [budgeting-pf8n7]
 
 **Type:** Work / Batch start

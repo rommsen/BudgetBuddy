@@ -28,6 +28,7 @@ const target = (goal) => ({
   Date: null,
   NeedsWholeAmount: true,
   Day: 15,
+  CreatedIn: null,
 });
 
 const monthFixture = (key, goal) => ({

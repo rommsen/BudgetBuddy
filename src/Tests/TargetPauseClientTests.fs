@@ -22,7 +22,7 @@ let private next = "2026-12-01"
 let private paused = Guid.Parse "00000000-0000-0000-0000-00000006a801"
 let private other = Guid.Parse "00000000-0000-0000-0000-00000006a802"
 
-let private target : Target = { Goal = eur 50m; Rhythm = Months 1; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None }
+let private target : Target = { Goal = eur 50m; Rhythm = Months 1; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None; CreatedIn = None }
 
 /// Ausflug: Target 50 €, nichts zugewiesen, Fehlbetrag 50 €. Urlaub ohne Target.
 let private trip : BudgetCategory =

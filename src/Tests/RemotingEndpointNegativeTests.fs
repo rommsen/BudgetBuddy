@@ -375,7 +375,7 @@ let private rows : Row list = [
       Run = fun () ->
           let shown : Shared.Budgeting.Target =
               { Goal = { Amount = 50m; Currency = "EUR" }; Rhythm = Shared.Budgeting.Months 1; Kind = Shared.Budgeting.Need
-                Date = None; NeedsWholeAmount = None; Day = None }
+                Date = None; NeedsWholeAmount = None; Day = None; CreatedIn = None }
           let request (goal: decimal) : Shared.Budgeting.TargetChangeRequest =
               { CategoryId = Guid.Empty
                 Shown = Some shown

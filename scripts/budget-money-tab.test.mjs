@@ -42,7 +42,7 @@ const monthFixture = (key) => ({
       Categories: [
         category(1, "Lebensmittel c5w2n", 900, 80),
         // Mit Target: der Pause-Knopf steht im Modus Zuweisen (budgeting-r3wq8).
-        { ...category(2, "Rot c5w2n", 0, -12.3), Target: { Goal: eur(20), Rhythm: { Months: 1 }, Kind: "Need", Date: null, NeedsWholeAmount: true, Day: null } },
+        { ...category(2, "Rot c5w2n", 0, -12.3), Target: { Goal: eur(20), Rhythm: { Months: 1 }, Kind: "Need", Date: null, NeedsWholeAmount: true, Day: null, CreatedIn: null } },
         category(3, LONG, 10, 10),
       ],
     },

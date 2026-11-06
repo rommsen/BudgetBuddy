@@ -21,7 +21,7 @@ let private eur (amount: decimal) : Money = { Amount = amount; Currency = "EUR" 
 let private run x = Async.RunSynchronously x
 
 let private need (goal: decimal) (rhythm: TargetRhythm) : Target =
-    { Goal = eur goal; Rhythm = rhythm; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None }
+    { Goal = eur goal; Rhythm = rhythm; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None; CreatedIn = None }
 
 /// Fehlbetrag mit Zugewiesen, Übertrag und Aktivität im gelesenen Monat `month`, ohne Ausgaben in der laufenden
 /// Periode: jeder frühere Monat, den die Rechnung braucht, hat Aktivität 0.
@@ -134,64 +134,68 @@ let private ruleTests =
         testList "Ausgaben der laufenden Periode" [
             testCase "Auffüllen bis mit Fälligkeit: Übertrag plus Ausgaben der Periode decken den Monatsanteil" <| fun () ->
                 // Wie A2 im Befund.
-                // Fällig 2027-03, jährlich: Periode 2026-04 bis 2027-03, November bis März 5 Monate.
+                // Fällig 2027-03, jährlich: Periode ab 2026-03 (vorige Fälligkeit, budgeting-pf8n7), November bis März 5 Monate.
                 let target = { need 60m (Years 1) with Date = Some "2026-03-15"; NeedsWholeAmount = Some false }
-                let earlier = [ for m in 4 .. 10 -> $"2026-%02d{m}-01", (if m = 6 then -10m else 0m) ]
+                let earlier = [ for m in 3 .. 10 -> $"2026-%02d{m}-01", (if m = 6 then -10m else 0m) ]
                 // (60 − (25 + 10)) / 5 = 5, zugewiesen 5. Ohne die Ausgaben: (60 − 25) / 5 − 5 = 2.
                 Expect.equal (computeWith target november 5m 25m 0m earlier) (computed 0m) "gedeckt wie YNAB"
 
             testCase "Ausgaben über dem Ziel decken alles, ohne Übertrag und ohne Zuweisung" <| fun () ->
                 // Wie A5 im Befund.
-                // Fällig 2027-01, jährlich: Periode 2026-02 bis 2027-01, November bis Januar 3 Monate.
+                // Fällig 2027-01, jährlich: Periode ab 2026-01 (vorige Fälligkeit), November bis Januar 3 Monate.
                 let target = { need 240m (Years 1) with Date = Some "2026-01-20" }
-                let earlier = [ for m in 2 .. 10 -> $"2026-%02d{m}-01", (if m = 3 then -130m elif m = 8 then -120m else 0m) ]
+                let earlier = [ for m in 1 .. 10 -> $"2026-%02d{m}-01", (if m = 3 then -130m elif m = 8 then -120m else 0m) ]
                 // Ohne die Ausgaben: 240 / 3 = 80.
                 Expect.equal (computeWith target november 0m 0m 0m earlier) (computed 0m) "gedeckt wie YNAB"
 
             testCase "Fälligkeit im gelesenen Monat, fast alles schon ausgegeben" <| fun () ->
                 // Wie A7 im Befund.
-                // Fällig 2026-11, jährlich: Periode 2025-12 bis 2026-11, 1 Monat.
+                // Fällig 2026-11, jährlich: Periode ab 2025-11 (vorige Fälligkeit), 1 Monat.
                 let target = { need 300m (Years 1) with Date = Some "2025-11-20" }
                 let earlier =
-                    [ "2025-12-01", 0m ] @ [ for m in 1 .. 10 -> $"2026-%02d{m}-01", (if m = 9 then -297.5m else 0m) ]
+                    [ "2025-11-01", 0m; "2025-12-01", 0m ] @ [ for m in 1 .. 10 -> $"2026-%02d{m}-01", (if m = 9 then -297.5m else 0m) ]
                 // (300 − (0 + 297,50)) / 1 − 2,50 = 0. Ohne die Ausgaben: 300 − 2,50 = 297,50.
                 Expect.equal (computeWith target november 2.5m 0m 0m earlier) (computed 0m) "gedeckt wie YNAB"
 
-            testCase "Die Periode beginnt im Monat nach der vorigen Fälligkeit und endet vor dem gelesenen Monat" <| fun () ->
+            // budgeting-pf8n7: seit dem dritten Prod-Vergleich beginnt die Periode im Monat der vorigen Fälligkeit, nicht danach.
+            testCase "Die Periode beginnt im Monat der vorigen Fälligkeit und endet vor dem gelesenen Monat" <| fun () ->
                 Expect.equal
-                    (periodMonthsBefore (Years 1) november "2026-03-15")
-                    [ for m in 4 .. 10 -> $"2026-%02d{m}-01" ]
-                    "April bis Oktober"
-                Expect.equal (periodMonthsBefore (Years 1) november "2025-11-20") ([ "2025-12-01" ] @ [ for m in 1 .. 10 -> $"2026-%02d{m}-01" ]) "Fälligkeit im gelesenen Monat"
-                Expect.equal (periodMonthsBefore (Months 3) november "2026-09-30") [ "2026-10-01" ] "vierteljährlich, fällig im Dezember"
-                Expect.equal (periodMonthsBefore (Years 1) november "2026-10-15") [] "Periode beginnt im gelesenen Monat"
-                Expect.equal (periodMonthsBefore (Weeks 6) november "2026-10-30") [] "Wochen, vorige Fälligkeit im Oktober"
-                Expect.equal (periodMonthsBefore NoRhythm november "2026-03-15") [] "ohne Rhythmus"
+                    (periodMonthsBefore (Years 1) None november "2026-03-15")
+                    [ for m in 3 .. 10 -> $"2026-%02d{m}-01" ]
+                    "März bis Oktober"
+                Expect.equal (periodMonthsBefore (Years 1) None november "2025-11-20") ([ "2025-11-01"; "2025-12-01" ] @ [ for m in 1 .. 10 -> $"2026-%02d{m}-01" ]) "Fälligkeit im gelesenen Monat"
+                Expect.equal (periodMonthsBefore (Months 3) None november "2026-09-30") [ "2026-09-01"; "2026-10-01" ] "vierteljährlich, fällig im Dezember"
+                Expect.equal (periodMonthsBefore (Years 1) None november "2026-10-15") [ "2026-10-01" ] "vorige Fälligkeit im Vormonat"
+                // Wöchentlich ab 2026-11-10, erste Fälligkeit: die rechnerisch vorige am 2026-11-03 liegt im gelesenen Monat.
+                Expect.equal (periodMonthsBefore (Weeks 1) None november "2026-11-10") [] "vorige Fälligkeit im gelesenen Monat"
+                Expect.equal (periodMonthsBefore (Weeks 6) None november "2026-10-30") [ "2026-10-01" ] "Wochen, vorige Fälligkeit im Oktober"
+                Expect.equal (periodMonthsBefore NoRhythm None november "2026-03-15") [] "ohne Rhythmus"
                 // Alle 8 Wochen ab 2026-07-16: 2026-09-10, dann 2026-11-05 im gelesenen Monat. Die vorige
-                // Fälligkeit liegt zwei Monate zurück, die Periode davor ist der Oktober.
-                Expect.equal (periodMonthsBefore (Weeks 8) november "2026-07-16") [ "2026-10-01" ] "Wochen, vorige Fälligkeit im September"
-                Expect.equal (periodMonthsBefore (Years 1) november "kein Datum") [] "unlesbares Datum"
+                // Fälligkeit liegt im September, die Periode reicht von September bis Oktober.
+                Expect.equal (periodMonthsBefore (Weeks 8) None november "2026-07-16") [ "2026-09-01"; "2026-10-01" ] "Wochen, vorige Fälligkeit im September"
+                Expect.equal (periodMonthsBefore (Years 1) None november "kein Datum") [] "unlesbares Datum"
 
             testCase "Ausgaben im gelesenen Monat zählen nicht als gedeckt, gerechnet wird mit dem Übertrag" <| fun () ->
                 // Bewusste Regel aus budgeting-b9869: die Aktivität des gelesenen Monats steckt nicht im Übertrag,
                 // als Ausgabe gezählt würde sie den Monatsanteil senken. Verfügbar wäre hier 25 − 10 = 15.
                 let target = { need 60m (Years 1) with Date = Some "2026-03-15" }
-                let earlier = [ for m in 4 .. 10 -> $"2026-%02d{m}-01", (if m = 6 then -10m else 0m) ]
+                let earlier = [ for m in 3 .. 10 -> $"2026-%02d{m}-01", (if m = 6 then -10m else 0m) ]
                 let withActivity = computeWith target november 0m 25m -10m earlier
                 // (60 − (25 + 10)) / 5 = 5. Mit der Aktivität als Ausgabe: (60 − 45) / 5 = 3; mit Verfügbar: 7.
                 Expect.equal withActivity (computed 5m) "nur Übertrag und Ausgaben der Periode"
                 Expect.equal withActivity (computeWith target november 0m 25m 0m earlier) "wie ohne Aktivität im gelesenen Monat"
 
-            testCase "Ausgaben vor Beginn der laufenden Periode zählen nicht" <| fun () ->
+            testCase "Ausgaben im Monat vor der vorigen Fälligkeit zählen nicht" <| fun () ->
                 let target = { need 60m (Years 1) with Date = Some "2026-03-15" }
-                // März 2026 ist die vorige Fälligkeit, gehört zur vorigen Periode.
-                let earlier = ("2026-03-01", -40m) :: [ for m in 4 .. 10 -> $"2026-%02d{m}-01", 0m ]
+                // März 2026 ist die vorige Fälligkeit und beginnt die Periode (budgeting-pf8n7), der Februar gehört
+                // zur vorigen Periode.
+                let earlier = ("2026-02-01", -40m) :: [ for m in 3 .. 10 -> $"2026-%02d{m}-01", 0m ]
                 Expect.equal (computeWith target november 0m 25m 0m earlier) (computed 7m) "(60 − 25) / 5"
 
             testCase "Zuflüsse senken die Ausgaben nicht unter 0, verrechnen sich aber mit Ausgaben" <| fun () ->
                 let target = { need 60m (Years 1) with Date = Some "2026-03-15" }
                 let monthsWith (values: Map<int, decimal>) =
-                    [ for m in 4 .. 10 -> $"2026-%02d{m}-01", values |> Map.tryFind m |> Option.defaultValue 0m ]
+                    [ for m in 3 .. 10 -> $"2026-%02d{m}-01", values |> Map.tryFind m |> Option.defaultValue 0m ]
                 // Netto ein Zufluss von 20: Ausgaben 0, nicht −20.
                 Expect.equal
                     (computeWith target november 0m 25m 0m (monthsWith (Map.ofList [ 5, 30m; 7, -10m ])))
@@ -211,8 +215,60 @@ let private ruleTests =
 
             testCase "Fehlt die Aktivität eines Monats der Periode, ist der Fehlbetrag nicht gerechnet" <| fun () ->
                 let target = { need 60m (Years 1) with Date = Some "2026-03-15" }
-                let earlier = [ for m in 4 .. 10 do if m <> 8 then yield $"2026-%02d{m}-01", -10m ]
+                let earlier = [ for m in 3 .. 10 do if m <> 8 then yield $"2026-%02d{m}-01", -10m ]
                 Expect.equal (computeWith target november 0m 25m 0m earlier) (NotComputed PeriodActivityMissingText) "kein Betrag"
+        ]
+
+        // Regressionstests budgeting-pf8n7: Der dritte Prod-Vergleich (2026-11-06) prüfte alle 32 NEED-Targets mit
+        // Fälligkeit gegen YNABs `goal_under_funded`. Mit dem Periodenbeginn im Monat nach der vorigen Fälligkeit
+        // waren 26 gleich, mit dem Beginn im Monat der vorigen Fälligkeit 30. Bei einem Ziel, dessen erste
+        // Fälligkeit noch aussteht (F3), zählt YNAB ab dem Anlegemonat. Beträge erfunden, Verhältnisse wie im Befund.
+        testList "Periode ab voriger Fälligkeit und Anlegemonat" [
+            testCase "GIVEN eine Ausgabe im Monat der vorigen Fälligkeit WHEN gerechnet wird THEN zählt sie als gedeckt" <| fun () ->
+                // Wie F2 im Befund. Fällig 2027-04, jährlich: vorige Fälligkeit 2026-04, November bis April 6 Monate.
+                let target = { need 120m (Years 1) with Date = Some "2026-04-10" }
+                let earlier = [ for m in 4 .. 10 -> $"2026-%02d{m}-01", (if m = 4 then -60m else 0m) ]
+                // (120 − (30 + 60)) / 6 − 5 = 0. Ohne den April: 120 − 30 = 90, 90 / 6 − 5 = 10.
+                Expect.equal (computeWith target november 5m 30m 0m earlier) (computed 0m) "gedeckt wie YNAB"
+
+            testCase "GIVEN ein Ziel vor seiner ersten Fälligkeit WHEN gerechnet wird THEN beginnt die Periode im Anlegemonat" <| fun () ->
+                // Wie F3 im Befund. Angelegt im Mai 2026, erste Fälligkeit August 2027 (jährlich). November bis August
+                // 10 Monate, die Periode reicht von Mai bis Oktober 2026.
+                let target = { need 150m (Years 1) with Date = Some "2027-08-15"; CreatedIn = Some "2026-05-01" }
+                let earlier = [ for m in 5 .. 10 -> $"2026-%02d{m}-01", (if m = 5 then -100m else 0m) ]
+                // (150 − 100) / 10 − 5 = 0. Ab der rechnerisch vorigen Fälligkeit (August): 150 / 10 − 5 = 10.
+                Expect.equal (computeWith target november 5m 0m 0m earlier) (computed 0m) "gedeckt wie YNAB"
+
+            testCase "GIVEN ein Ziel vor seiner ersten Fälligkeit ohne Anlegemonat WHEN gerechnet wird THEN gilt ab voriger Fälligkeit" <| fun () ->
+                let target = { need 150m (Years 1) with Date = Some "2027-08-15" }
+                let earlier = [ for m in 5 .. 10 -> $"2026-%02d{m}-01", (if m = 5 then -100m elif m = 8 then -20m else 0m) ]
+                // Nur August zählt: (150 − 20) / 10 − 5 = 8.
+                Expect.equal (computeWith target november 5m 0m 0m earlier) (computed 8m) "Mai zählt nicht"
+                Expect.equal (periodMonthsBefore (Years 1) None november "2027-08-15") [ "2026-08-01"; "2026-09-01"; "2026-10-01" ] "August bis Oktober"
+
+            testCase "GIVEN ein verschobenes Datum WHEN gerechnet wird THEN gilt ab voriger Fälligkeit, der Anlegemonat zählt nicht" <| fun () ->
+                // Gespeichert 2026-03-15, im November um ein Jahr verschoben: die erste Periode ist vorbei.
+                let target = { need 60m (Years 1) with Date = Some "2026-03-15"; CreatedIn = Some "2025-01-01" }
+                let earlier = [ for m in 3 .. 10 -> $"2026-%02d{m}-01", (if m = 3 then -10m else 0m) ]
+                // (60 − (25 + 10)) / 5 = 5. Die Monate vor März 2026 braucht die Rechnung nicht.
+                Expect.equal (computeWith target november 0m 25m 0m earlier) (computed 5m) "ab März"
+                Expect.equal
+                    (periodMonthsBefore (Years 1) (Some "2025-01-01") november "2026-03-15")
+                    [ for m in 3 .. 10 -> $"2026-%02d{m}-01" ]
+                    "März bis Oktober"
+
+            testCase "Die erste Periode beginnt im Anlegemonat, auch an den Grenzen" <| fun () ->
+                Expect.equal (periodMonthsBefore (Years 1) (Some "2026-10-01") november "2027-08-15") [ "2026-10-01" ] "angelegt im Vormonat"
+                Expect.equal (periodMonthsBefore (Years 1) (Some "2026-11-01") november "2027-08-15") [] "angelegt im gelesenen Monat"
+                Expect.equal (periodMonthsBefore (Years 1) (Some "2026-12-01") november "2027-08-15") [] "angelegt nach dem gelesenen Monat"
+                Expect.equal (periodMonthsBefore (Years 1) (Some "kein Monat") november "2027-08-15") [ "2026-08-01"; "2026-09-01"; "2026-10-01" ] "unlesbarer Anlegemonat wie ohne"
+                // Fälligkeit im gelesenen Monat, nicht verschoben: Anlegemonat statt vorige Fälligkeit.
+                Expect.equal (periodMonthsBefore (Years 1) (Some "2026-07-01") november "2026-11-20") [ for m in 7 .. 10 -> $"2026-%02d{m}-01" ] "fällig im gelesenen Monat"
+
+            testCase "Ohne Rhythmus zählen keine Ausgaben, auch mit Anlegemonat" <| fun () ->
+                let target = { need 60m NoRhythm with Date = Some "2027-03-15"; CreatedIn = Some "2026-01-01" }
+                Expect.equal (periodMonthsBefore NoRhythm (Some "2026-01-01") november "2027-03-15") [] "keine Monate"
+                Expect.equal (computeWith target november 0m 25m 0m []) (computed 7m) "(60 − 25) / 5"
         ]
 
         testList "Auffüllen bis" [
@@ -361,14 +417,14 @@ let private comparisonTests =
             Expect.equal (rowOf rows due.Id).Outcome Equal "gleich mit YNAB"
 
         testCase "Der Vergleich rechnet mit den Ausgaben der Periode je Kategorie, fehlt ein Monat mit Grund" <| fun () ->
-            // budgeting-b9869. Fällig 2027-03, jährlich: Periode April bis Oktober, November bis März 5 Monate.
+            // budgeting-b9869. Fällig 2027-03, jährlich: Periode März bis Oktober (budgeting-pf8n7), November bis März 5 Monate.
             let target = { need 60m (Years 1) with Date = Some "2026-03-15" }
             let spent = categoryWithFlow target 5m 0m 30m 0m
             let missing = categoryWithFlow target 5m 0m 30m 0m
             let earlier =
                 Map.ofList
-                    [ spent.Id, Map.ofList [ for m in 4 .. 10 -> $"2026-%02d{m}-01", (if m = 6 then eur -10m else eur 0m) ]
-                      missing.Id, Map.ofList [ for m in 4 .. 9 -> $"2026-%02d{m}-01", eur 0m ] ]
+                    [ spent.Id, Map.ofList [ for m in 3 .. 10 -> $"2026-%02d{m}-01", (if m = 6 then eur -10m else eur 0m) ]
+                      missing.Id, Map.ofList [ for m in 3 .. 9 -> $"2026-%02d{m}-01", eur 0m ] ]
             let rows = compareUnderfunded (monthWith [ spent; missing ]) earlier
             Expect.equal (rowOf rows spent.Id).Outcome Equal "(60 − (25 + 10)) / 5 − 5 = 0 wie YNAB"
             let m = rowOf rows missing.Id
@@ -377,15 +433,16 @@ let private comparisonTests =
             Expect.isNone m.Bb "kein Betrag"
 
         testCase "Gebraucht werden die Periodenmonate aller Targets mit Fälligkeit, jeder Monat einmal" <| fun () ->
-            // budgeting-b9869. Jährlich fällig im März: April bis Oktober. Vierteljährlich fällig im Dezember: Oktober.
+            // budgeting-b9869, Grenze nach budgeting-pf8n7. Jährlich fällig im März: März bis Oktober. Vierteljährlich
+            // fällig im Dezember: September und Oktober.
             let annual = category "Jährlich" (Some { need 60m (Years 1) with Date = Some "2026-03-15" }) 0m (Some 0m)
             let quarterly = category "Vierteljährlich" (Some { need 30m (Months 3) with Date = Some "2026-09-30" }) 0m (Some 0m)
             let monthly = category "Monatlich" (Some (need 100m (Months 1))) 0m (Some 100m)
             let withoutTarget = category "Ohne" None 0m None
             Expect.equal
                 (periodMonthsNeeded (monthWith [ annual; quarterly; monthly; withoutTarget ]))
-                [ for m in 4 .. 10 -> $"2026-%02d{m}-01" ]
-                "April bis Oktober, Oktober nur einmal"
+                [ for m in 3 .. 10 -> $"2026-%02d{m}-01" ]
+                "März bis Oktober, September und Oktober nur einmal"
             Expect.equal (periodMonthsNeeded (monthWith [ monthly; withoutTarget ])) [] "ohne Fälligkeit keine Monate"
 
         testCase "Eine pausierte Kategorie wird verglichen und trägt das Kennzeichen pausiert" <| fun () ->
@@ -447,7 +504,7 @@ let private portFor (month: YnabMonth) : CommandHandlers.YnabPort =
 let private readAt = DateTime(2031, 3, 2, 8, 0, 0, DateTimeKind.Utc)
 
 /// Ein YNAB-Monat mit einer Kategorie "Jährlich" (budgeting-b9869): Ziel 60, jährlich fällig im März (das
-/// gespeicherte Datum liegt weit zurück, `dueFrom` schiebt es). Gelesen im November: Periode April bis Oktober,
+/// gespeicherte Datum liegt weit zurück, `dueFrom` schiebt es). Gelesen im November: Periode März bis Oktober,
 /// November bis März 5 Monate.
 let private annualMonth (categoryId: Guid) (monthKey: string) (assigned: decimal) (activity: decimal) (available: decimal) (ynab: decimal) : YnabMonth =
     { Month = monthKey
@@ -593,9 +650,9 @@ let private persistenceTests =
 
         testCase "Die Parallelrechnung zählt die Ausgaben früher gelesener Monate, das Lesen bleibt bei einem YNAB-Aufruf" <| fun () ->
             // budgeting-b9869: Jedes Lesen hält die Aktivität des Monats fest; der Fehlbetrag im November nimmt die
-            // Ausgaben April bis Oktober daraus, nicht aus YNAB.
+            // Ausgaben März bis Oktober daraus, nicht aus YNAB.
             // Hier in der sequenzierten Liste, weil jedes Lesen alle Zeilen seines Monats ersetzt: die Monate
-            // 2032-04 bis 2032-11 gehören nur diesem Test.
+            // 2032-03 bis 2032-11 gehören nur diesem Test.
             Budgeting.Persistence.initializeBudgetingSchema ()
             let id = Guid.NewGuid()
             let november = "2032-11-01"
@@ -604,7 +661,7 @@ let private persistenceTests =
                     if key = november then annualMonth id key 5m 0m 30m 0m
                     else annualMonth id key 0m (if key = "2032-06-01" then -10m else 0m) 0m 0m)
             let ignoreRows _ _ = async { return () }
-            for m in 4 .. 10 do
+            for m in 3 .. 10 do
                 QueryHandlers.budgetMonthWith ignoreRows global.Persistence.getConnection port readAt $"2032-%02d{m}-01"
                 |> run
                 |> ignore

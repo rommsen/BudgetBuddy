@@ -74,6 +74,9 @@ type Target = {
     NeedsWholeAmount: bool option
     /// `goal_day`, nur gelesen. BB kann den Tag nicht schreiben (ADR 0072).
     Day: int option
+    /// Der Anlegemonat aus `goal_creation_month` als "YYYY-MM-01", nur gelesen. Die Parallelrechnung
+    /// beginnt damit die erste Periode eines Ziels mit Fälligkeit (budgeting-pf8n7).
+    CreatedIn: string option
 }
 
 /// Eine Kategorie so, wie YNABs Monats-Endpunkt sie liefert (vor dem Gruppieren).

@@ -280,7 +280,7 @@ let handlerTests =
             body ())
     testList "Targets prüfen: Handler über den Port" [
         testCase "Ausgeblendete, gelöschte und interne Kategorien fehlen, das Kassenbuch wird einmal für alle gefragt" <| fun () ->
-            let visible = { ynabCategory "Lebensmittel" with Target = Some { Goal = eur 300m; Rhythm = Months 1; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None } }
+            let visible = { ynabCategory "Lebensmittel" with Target = Some { Goal = eur 300m; Rhythm = Months 1; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None; CreatedIn = None } }
             let other = { ynabCategory "Urlaub" with GroupName = "Rücklagen" }
             let hidden = { ynabCategory "Versteckt" with Hidden = true }
             let deleted = { ynabCategory "Gelöscht" with Deleted = true }

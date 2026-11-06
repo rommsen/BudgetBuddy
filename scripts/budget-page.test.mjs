@@ -54,7 +54,7 @@ const withTarget = (base, target, underfunded, snoozed = false) => ({
   Pause: snoozed ? "PausedInYnab" : null,
   OpenWriteBack: null,
 });
-const monthly = { Goal: eur(1600), Rhythm: { Months: 1 }, Kind: "Need", Date: null, NeedsWholeAmount: true, Day: null };
+const monthly = { Goal: eur(1600), Rhythm: { Months: 1 }, Kind: "Need", Date: null, NeedsWholeAmount: true, Day: null, CreatedIn: null };
 const targetFixture = (month) => ({
   Month: month,
   ToBeBudgeted: eur(10),
@@ -68,7 +68,7 @@ const targetFixture = (month) => ({
         category(4, "Macbook", 10, 0, 10),
         withTarget(
           category(5, "Eine Kategorie mit langem Namen und langem Target", 0, 0, 0),
-          { Goal: eur(121600), Rhythm: { Months: 11 }, Kind: "Need", Date: null, NeedsWholeAmount: true, Day: null },
+          { Goal: eur(121600), Rhythm: { Months: 11 }, Kind: "Need", Date: null, NeedsWholeAmount: true, Day: null, CreatedIn: null },
           121600
         ),
       ],

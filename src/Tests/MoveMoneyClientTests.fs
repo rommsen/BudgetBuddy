@@ -29,7 +29,7 @@ let private category name (assigned: decimal) (available: decimal) : BudgetCateg
 
 let private food = category "Lebensmittel" 900m 80m
 let private trip = category "Urlaub" 0m -30.5m
-let private clothes = { category "Kleidung" 50m 100m with Underfunded = Some (eur 70m); Target = Some { Goal = eur 100m; Rhythm = Months 1; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None } }
+let private clothes = { category "Kleidung" 50m 100m with Underfunded = Some (eur 70m); Target = Some { Goal = eur 100m; Rhythm = Months 1; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None; CreatedIn = None } }
 let private monthKey = "2026-11-01"
 let private monthOf (toBeBudgeted: decimal) (cats: BudgetCategory list) : BudgetMonth =
     { Month = monthKey
@@ -742,7 +742,7 @@ let private settledTests =
 /// Die Review-Funde zu budgeting-c5w2n, je Fund ein kaputt- und ein intakt-Szenario.
 let private reviewTests =
     /// Verfügbar 0, Fehlbetrag 100, 500 zu verteilen. Der Fehlbetrag kommt von YNAB.
-    let gap = { category "Reparatur" 200m 0m with Underfunded = Some (eur 100m); Target = Some { Goal = eur 300m; Rhythm = Months 1; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None } }
+    let gap = { category "Reparatur" 200m 0m with Underfunded = Some (eur 100m); Target = Some { Goal = eur 300m; Rhythm = Months 1; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None; CreatedIn = None } }
     let gapMonth = monthOf 500m [ gap; food ]
     let onGap = run [ SelectCategory gap.Id ] { loaded with Month = Success gapMonth }
     let gapReport = { ApplicationId = "gap"; Month = monthKey; Lines = [ line gap 200m 300m Written ]; ActualToBeBudgeted = None }

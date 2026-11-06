@@ -20,7 +20,7 @@ let private fullMonths : string list =
     [ for i in 0 .. 11 -> DateTime(2025, 11, 1).AddMonths(i).ToString("yyyy-MM-01") ]
 
 let private target (kind: TargetKind) (rhythm: TargetRhythm) (goal: decimal) : Target =
-    { Goal = eur goal; Rhythm = rhythm; Kind = kind; Date = None; NeedsWholeAmount = None; Day = None }
+    { Goal = eur goal; Rhythm = rhythm; Kind = kind; Date = None; NeedsWholeAmount = None; Day = None; CreatedIn = None }
 
 let private monthly (goal: decimal) = target Need (Months 1) goal
 

@@ -87,7 +87,7 @@ let private decoderTests =
         // budgeting-kjsht
         test "goal_target mit Kadenz und Häufigkeit ergibt das Target" {
             let c = decodeCategory """ "goal_type": "NEED", "goal_target": 120000, "goal_cadence": 1, "goal_cadence_frequency": 3 """
-            let expected : Target = { Goal = { Amount = 120m; Currency = "EUR" }; Rhythm = Months 3; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None }
+            let expected : Target = { Goal = { Amount = 120m; Currency = "EUR" }; Rhythm = Months 3; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None; CreatedIn = None }
             Expect.equal c.Target (Some expected) "Betrag und Rhythmus"
         }
         test "goal_target null oder goal_type null ergibt kein Target" {
@@ -181,7 +181,7 @@ let private groupingTests =
         }
         // budgeting-kjsht
         test "Das Target gelangt in die angezeigte Kategorie" {
-            let target : Target = { Goal = eur 50000L; Rhythm = Weeks 1; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None }
+            let target : Target = { Goal = eur 50000L; Rhythm = Weeks 1; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None; CreatedIn = None }
             let month = monthOf [ { category "Alltag" "Essen" false false false with Target = Some target } ]
             let shown = (Domain.toBudgetMonth Set.empty month).Groups.Head.Categories.Head
             Expect.equal shown.Target (Some target) "Target"
@@ -515,7 +515,7 @@ let private orderTests =
     ]
 
 let private missingTests =
-    let target = { Goal = euro 900m; Rhythm = Months 1; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None }
+    let target = { Goal = euro 900m; Rhythm = Months 1; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None; CreatedIn = None }
     let category available under snoozed =
         { budgetCategory (Guid.NewGuid()) "k" with
             Available = euro available

@@ -27,7 +27,7 @@ let private tripId = Guid.Parse "00000000-0000-0000-0000-0000000a8301"
 let private holidayId = Guid.Parse "00000000-0000-0000-0000-0000000a8302"
 
 let private targetOf (goal: decimal) : Target =
-    { Goal = eur goal; Rhythm = Months 1; Kind = Need; Date = None; NeedsWholeAmount = Some true; Day = Some 15 }
+    { Goal = eur goal; Rhythm = Months 1; Kind = Need; Date = None; NeedsWholeAmount = Some true; Day = Some 15; CreatedIn = None }
 
 /// Ausflug: Target 50 €, Fehlbetrag 50 €. Urlaub: Target 20 €.
 let private trip (goal: decimal) : BudgetCategory =
@@ -451,7 +451,7 @@ let private changeTests =
                 |> step (TargetRhythmChanged Yearly)
                 |> step (TargetDateChanged (DateField.ValidDate (DateTime(2027, 6, 1))))
                 |> step SaveTarget
-            let after = { Goal = eur 600m; Rhythm = Years 1; Kind = Need; Date = None; NeedsWholeAmount = Some true; Day = None }
+            let after = { Goal = eur 600m; Rhythm = Years 1; Kind = Need; Date = None; NeedsWholeAmount = Some true; Day = None; CreatedIn = None }
             let message = "Target angelegt, Datum 01.06.2027 nicht gesetzt: kaputt. Speichern setzt das Datum erneut."
             let answered, _, external = update (TargetChangeAnswered (holidayId, current, Ok (TargetPartlyWritten (Some after, message)))) typed
             Expect.equal external NoOp "im Tab, kein Toast"
