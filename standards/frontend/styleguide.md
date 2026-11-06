@@ -57,7 +57,7 @@ sie kommuniziert Zustand/Rolle. Belegt durch `Tokens.fs` (Modul `Colors`, `Glows
 | Farbe | Bedeutung | Token-Beispiele (`Tokens.fs`) |
 |-------|-----------|-------------------------------|
 | **Orange** | primär / CTA / Action / Energie; auf der Seite Targets prüfen zusätzlich der Titel "Gibst du mehr aus?" und die Monatsbalken über dem Target (Ausnahme, Nachtrag ADR 0075 vom 2026-11-06) | `Colors.neonOrange`, `Glows.orangeLg` (Hero-CTAs), `Borders.orange` |
-| **Teal** | Ausgewähltes und Navigation (ADR 0075); auf der Seite Targets prüfen zusätzlich der Titel "Passt" und der Zusatz einer Zeile darunter ("neu gesetzt am …", Ausnahme, Nachtrag ADR 0075 vom 2026-11-06) | `Colors.neonTeal`, `Glows.teal`, `Presets.glowCard` (teal-Border) |
+| **Teal** | Ausgewähltes und Navigation (ADR 0075); auf der Seite Targets prüfen zusätzlich der Titel "Passt" und die Zusätze einer Zeile darunter (alle aus `fitsNoteText`, etwa "neu gesetzt am …" und "neu seit …", Ausnahme, Nachtrag ADR 0075 vom 2026-11-06) | `Colors.neonTeal`, `Glows.teal`, `Presets.glowCard` (teal-Border) |
 | **Green** | Erfolg / positiv / Wachstum | `Colors.neonGreen`, `Glows.green`, `Presets.moneyPositive` |
 | **Red** | Fehler / Gefahr / negativ | `Colors.neonRed`, `Presets.moneyNegative`, `Borders.red` |
 | **Purple** | Akzent / "special/premium"; Kategorie nur außerhalb von Listen (ADR 0049) | `Colors.neonPurple`, `Backgrounds.purpleSubtle` |

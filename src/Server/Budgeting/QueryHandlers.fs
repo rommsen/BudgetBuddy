@@ -211,7 +211,7 @@ type TargetCheckPort = {
     /// Kategorien und Monatserste (aufsteigend): je Kategorie die Netto-Aktivität der Monate mit Buchungen.
     LoadMonthlyActivity: Guid list -> DateTime list -> Async<Map<Guid, (DateTime * Money) list>>
     /// Je Kategorie der Tag ihrer ersten Buchung im Kassenbuch überhaupt (budgeting-k7r2w), ohne Buchung fehlt sie.
-    LoadFirstBookings: Guid list -> Async<Map<Guid, DateTime>>
+    LoadFirstBookingDays: Guid list -> Async<Map<Guid, DateTime>>
     /// Je Kategorie die jüngste geschriebene Target-Änderung.
     LoadLastTargetChanges: unit -> Async<Result<Map<Guid, TargetChangeMark>, string>>
 }
@@ -246,7 +246,7 @@ let targetCheck (port: TargetCheckPort) (today: DateOnly) : Async<Result<TargetC
             let! firstBookings =
                 async {
                     try
-                        let! days = port.LoadFirstBookings ids
+                        let! days = port.LoadFirstBookingDays ids
                         return Ok days
                     with ex ->
                         logReadFailure "Erste Buchungen aus dem Kassenbuch lesen" ex
@@ -291,5 +291,5 @@ let liveTargetCheckPort (port: CommandHandlers.YnabPort) (utcNow: unit -> DateTi
     { FetchMonth = port.FetchMonth
       LoadTargets = fun raw -> CommandHandlers.targetRulesBestEffort global.Persistence.getConnection port (utcNow ()) raw
       LoadMonthlyActivity = Ledger.QueryHandlers.getMonthlyActivityByCategory
-      LoadFirstBookings = Ledger.QueryHandlers.getFirstBookingDayByCategory
+      LoadFirstBookingDays = Ledger.QueryHandlers.getFirstBookingDayByCategory
       LoadLastTargetChanges = Budgeting.Persistence.loadLastTargetChanges }

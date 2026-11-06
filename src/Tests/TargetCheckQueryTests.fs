@@ -141,12 +141,14 @@ let ledgerTests =
                 Expect.equal (List.head months) (DateTime(2025, 11, 1)) "erster Monat"
                 Expect.equal (spending |> List.map (fun s -> s.Activity.Amount)) (List.replicate 11 0m @ [ -12m ]) "0 ohne Buchung"
 
-        testCase "Erste Buchung je Kategorie: vor dem Fenster, im Fenster, nur im Split, ohne gelöschte, ohne Buchung (budgeting-k7r2w)" <| fun () ->
+        // budgeting-k7r2w
+        testCase "Erste Buchung je Kategorie: vor dem Fenster, im Fenster, nur im Split, ohne gelöschte, ohne Buchung" <| fun () ->
             initialize ()
             let old = catRef (Guid.NewGuid()) "Alt K7r2w"
             let fresh = catRef (Guid.NewGuid()) "Neu K7r2w"
             let splitOnly = catRef (Guid.NewGuid()) "Nur Split K7r2w"
             let afterDeleted = catRef (Guid.NewGuid()) "Nach gelöschter K7r2w"
+            let afterDeletedSplit = catRef (Guid.NewGuid()) "Nach gelöschtem Split K7r2w"
             let none = catRef (Guid.NewGuid()) "Ohne Buchung K7r2w"
             booked old (utc 2026 3 10) -20m
             booked old (utc 2024 5 10) -30m
@@ -164,17 +166,28 @@ let ledgerTests =
                 [ observedEvent { observed (utc 2025 1 1) -99m with Category = Some afterDeleted } e
                   { observedEvent (observed (utc 2025 1 1) -99m) e with Body = EntryDeletionObservedInYnab } ])
             booked afterDeleted (utc 2026 9 9) -5m
+            // Gelöscht mit Split-Zeile auf die Kategorie: zählt ebenso nicht.
+            seed (fun e ->
+                let split =
+                    { observed (utc 2025 2 2) -30m with
+                        Splits =
+                            [ { Target = ToCategory (afterDeletedSplit.CategoryId, afterDeletedSplit.CategoryName); Amount = eur -10m; Memo = None }
+                              { Target = ToCategory (old.CategoryId, old.CategoryName); Amount = eur -20m; Memo = None } ] }
+                [ observedEvent split e
+                  { observedEvent split e with Body = EntryDeletionObservedInYnab } ])
+            booked afterDeletedSplit (utc 2026 9 10) -5m
 
             let idOf (c: CategoryRef) = let (YnabCategoryId id) = c.CategoryId in id
             let result =
-                Ledger.QueryHandlers.getFirstBookingDayByCategory (List.map idOf [ old; fresh; splitOnly; afterDeleted; none ]) |> run
+                Ledger.QueryHandlers.getFirstBookingDayByCategory (List.map idOf [ old; fresh; splitOnly; afterDeleted; afterDeletedSplit; none ]) |> run
             Expect.equal
                 result
                 (Map.ofList
                     [ idOf old, DateTime(2024, 5, 10)
                       idOf fresh, DateTime(2026, 6, 15)
                       idOf splitOnly, DateTime(2026, 2, 3)
-                      idOf afterDeleted, DateTime(2026, 9, 9) ])
+                      idOf afterDeleted, DateTime(2026, 9, 9)
+                      idOf afterDeletedSplit, DateTime(2026, 9, 10) ])
                 "je Kategorie der früheste Tag, auch als Split-Zeile, ohne gelöschte, ohne Buchung fehlt sie"
             Expect.equal (Ledger.QueryHandlers.getFirstBookingDayByCategory [] |> run) Map.empty "ohne Kategorie leer"
     ]
@@ -331,7 +344,7 @@ let private probe (categories: YnabMonthCategory list) : Probe =
                     calls.Add((ids, firstDays))
                     return Map.empty
                 }
-          LoadFirstBookings =
+          LoadFirstBookingDays =
             fun ids ->
                 async {
                     firstCalls.Add ids
@@ -385,11 +398,12 @@ let handlerTests =
                     [ "Lebensmittel", Some mark; "Urlaub", None ]
                     "je Kategorie"
 
-        testCase "Die erste Buchung hängt als Berliner Tag an ihrer Kategorie, einmal für alle gefragt (budgeting-k7r2w)" <| fun () ->
+        // budgeting-k7r2w
+        testCase "Die erste Buchung hängt als Buchungstag an ihrer Kategorie, einmal für alle gefragt" <| fun () ->
             let strom = ynabCategory "Strom"
             let never = ynabCategory "Urlaub"
             let p = probe [ strom; never ]
-            let port = { p.Port with LoadFirstBookings = fun ids -> async { p.FirstBookingCalls.Add ids; return Map.ofList [ strom.Id, DateTime(2026, 6, 3) ] } }
+            let port = { p.Port with LoadFirstBookingDays = fun ids -> async { p.FirstBookingCalls.Add ids; return Map.ofList [ strom.Id, DateTime(2026, 6, 3) ] } }
             match Server.Budgeting.QueryHandlers.targetCheck port today |> run with
             | Error message -> failtest message
             | Ok data ->
@@ -431,7 +445,7 @@ let handlerTests =
                 (Error Server.Budgeting.QueryHandlers.SpendingUnreadableText)
                 "Kassenbuch"
             Expect.equal
-                (check { p.Port with LoadFirstBookings = fun _ -> async { return failwith "Datenbank weg" } })
+                (check { p.Port with LoadFirstBookingDays = fun _ -> async { return failwith "Datenbank weg" } })
                 (Error Server.Budgeting.QueryHandlers.SpendingUnreadableText)
                 "erste Buchungen"
             Expect.equal

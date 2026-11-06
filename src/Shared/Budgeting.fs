@@ -611,6 +611,18 @@ let monthLabel (month: string) : string =
         | _ -> month
     | _ -> month
 
+let private shortMonthNames =
+    [| "Jan"; "Feb"; "Mär"; "Apr"; "Mai"; "Jun"; "Jul"; "Aug"; "Sep"; "Okt"; "Nov"; "Dez" |]
+
+/// "2026-10-01" als "Okt", für die Balken der Ausgaben. Ein unlesbarer Wert bleibt, wie er ist.
+let shortMonthLabel (month: string) : string =
+    match month.Split '-' with
+    | [| _; mm; _ |] ->
+        match System.Int32.TryParse mm with
+        | true, m when m >= 1 && m <= 12 -> shortMonthNames.[m - 1]
+        | _ -> month
+    | _ -> month
+
 // ============================================
 // Historie je Kategorie (budgeting-dyn8g)
 // ============================================
@@ -1168,8 +1180,8 @@ type TargetCheckSource = {
     Spending: MonthSpending list
     /// Die jüngste geschriebene Target-Änderung über BB. `None`: keine.
     LastChange: TargetChangeMark option
-    /// Der Berliner Kalendertag "YYYY-MM-DD" der ersten Buchung der Kategorie im Kassenbuch überhaupt, auch
-    /// vor den 12 Monaten (budgeting-k7r2w). Gezählt wird ab ihrem Monat. `None`: keine Buchung.
+    /// Der Buchungstag "YYYY-MM-DD" der ersten Buchung der Kategorie im Kassenbuch überhaupt, wie YNAB oder
+    /// Comdirect ihn liefern (Tagesteil von `date`), auch vor den 12 Monaten (budgeting-k7r2w). Gezählt wird ab ihrem Monat. `None`: keine Buchung.
     FirstBooking: string option
 }
 
@@ -1328,8 +1340,8 @@ let suggestTarget (target: Target option) (average: Money) : TargetSuggestion op
 /// Spielraum. Dieselbe Regel zählt `MonthsOver` und färbt die Mini-Balken (`checkBars`).
 let spendsOverTarget (monthly: decimal) (s: MonthSpending) : bool = netSpending s > monthly
 
-/// Ordnet eine Kategorie ein (ADR 0082 Punkt 6 bis 9, Zählbeginn ab der ersten Buchung nach budgeting-k7r2w). `today` ist der Berliner Tag "YYYY-MM-DD", der
-/// laufende Monat folgt daraus und zählt nie. Rein, gleich unter .NET und Fable.
+/// Ordnet eine Kategorie ein (ADR 0082 Punkt 6 bis 9, Zählbeginn ab der ersten Buchung nach budgeting-k7r2w).
+/// `today` ist der Berliner Tag "YYYY-MM-DD", der laufende Monat folgt daraus und zählt nie. Rein, gleich unter .NET und Fable.
 let targetCheckRow (today: string) (source: TargetCheckSource) : TargetCheckRow =
     let current = monthOfDay today
     let changeMonth = source.LastChange |> Option.map (changeMarkDay >> monthOfDay)

@@ -286,18 +286,6 @@ let frameDueAfterRetry (result: Result<ApplyReport, string>) (model: Model) : bo
     | Ok report -> frameDueAfterReport report model
     | Error _ -> frameDueAfterLostCall model
 
-let private shortMonthNames =
-    [| "Jan"; "Feb"; "Mär"; "Apr"; "Mai"; "Jun"; "Jul"; "Aug"; "Sep"; "Okt"; "Nov"; "Dez" |]
-
-/// "2026-10-01" als "Okt", für die Balken der Ausgaben. Ein unlesbarer Wert bleibt, wie er ist.
-let shortMonthLabel (month: string) : string =
-    match month.Split '-' with
-    | [| _; mm; _ |] ->
-        match System.Int32.TryParse mm with
-        | true, m when m >= 1 && m <= 12 -> shortMonthNames.[m - 1]
-        | _ -> month
-    | _ -> month
-
 /// Ein Betrag als Text: "1.600,00 €".
 let moneyText (m: Money) = Money.formatAmountText false true m.Amount m.Currency
 
