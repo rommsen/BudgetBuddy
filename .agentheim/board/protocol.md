@@ -5,6 +5,18 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 16:08 -- Review-Lauf: budgeting-hbhzf
+
+**Type:** Review / Review-Lauf
+**Bereich:** fccde6a [budgeting-hbhzf]
+**Agents:** backend-code-quality, qa-milestone-reviewer (frontend-architecture nicht, im Client nur ein Kommentar)
+**Funde:** behoben 5 (davon 1 Bug aus eh8xe: Faltung ohne Fall für Target-Ereignisse, gefunden über Compiler-Warnung), verworfen 0, Rückfrage 0, Ticket 0, Kann-Sammlung 6
+**Commits:** 840f213, c9b19de, eb1d78a
+**Verworfen:** keine
+**Verifikation:** VERIFY: PASS (dotnet 4142 grün, node 311 grün)
+
+---
+
 ## 2026-11-06 15:55 -- Task verified and completed: budgeting-hbhzf - "Fehlbetrag aus BB: Targets anwenden und die Anzeige rechnen mit BBs Fehlbetrag gegen das Soll, Rückbau der Parallelrechnung"
 
 **Type:** Work / Task completion
