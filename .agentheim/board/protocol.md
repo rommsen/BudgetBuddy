@@ -5,6 +5,18 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 12:46 -- Review-Lauf: budgeting-pf8n7
+
+**Type:** Review / Review-Lauf
+**Bereich:** e090b9a [budgeting-pf8n7]
+**Agents:** backend-code-quality, qa-milestone-reviewer
+**Funde:** behoben 1, verworfen 2, Rückfrage 0, Ticket 0
+**Commits:** 8cbb43f
+**Verworfen:** lange erste Perioden bei alten Zielen (kein Fehler, Punkt für den Prod-Vergleich); eigener Monatstyp für CreatedIn (gehört zu eh8xe)
+**Verifikation:** VERIFY: PASS (dotnet 4147 grün, node 311 grün)
+
+---
+
 ## 2026-11-06 12:11 -- Task verified and completed: budgeting-pf8n7 - "Fehlbetrag mit Fälligkeit: die laufende Periode beginnt im Monat der vorigen Fälligkeit, bei der ersten Fälligkeit im Anlegemonat des Ziels"
 
 **Type:** Work / Task completion
