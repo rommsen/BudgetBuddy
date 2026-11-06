@@ -11,13 +11,14 @@ Catalog of this bounded context's tasks by status.
 
 <!-- task-counts:start -->
 - **Backlog:** 4
-- **Todo:** 0
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 55
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **budgeting-k7r2w** — "Targets prüfen zählt eine neue Kategorie erst ab ihrer ersten Buchung im Kassenbuch, statt die Monate davor als 0 € mitzuzählen. Unter 3 gezählten Monaten steht sie unter Passt mit „neu seit <Monat>“." (bug) — `todo/budgeting-k7r2w-targets-pruefen-ab-erster-buchung.md`
 <!-- todo-list:end -->
 
 ### Doing

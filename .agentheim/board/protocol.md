@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 22:04 -- Modeling / Captured: budgeting-k7r2w - "Targets prüfen zählt eine neue Kategorie erst ab ihrer ersten Buchung im Kassenbuch, statt die Monate davor als 0 € mitzuzählen. Unter 3 gezählten Monaten steht sie unter Passt mit „neu seit <Monat>“."
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** todo
+**Summary:** Targets prüfen zählt neue Kategorien ab der ersten Buchung im Kassenbuch. Entscheidungen von Roman zu Zählbeginn und Zusatz „neu seit <Monat>“.
+
+---
+
 ## 2026-11-06 20:31 -- Review-Lauf: budgeting-c4ve4
 
 **Type:** Review / Review-Lauf
