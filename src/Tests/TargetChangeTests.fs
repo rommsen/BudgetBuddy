@@ -238,9 +238,13 @@ let private takeoverTests =
                 match stored with
                 | Ok decoded -> Expect.equal (ruleAt "2026-11" [ decoded ]) goal.Target goal.Name
                 | Error e -> failtest e
-            // budgeting-pf8n7: der Anlegemonat kommt mit, und ein Ereignis ohne das Feld hat keinen.
-            let monthly = goals |> List.find (fun g -> g.Name = "Monatlich mit Tag")
+        }
+        // budgeting-pf8n7: der Anlegemonat beginnt die erste Periode; die Übernahme bringt ihn aus YNAB mit.
+        test "Die Übernahme liest den Anlegemonat aus goal_creation_month" {
+            let monthly = parsed () |> List.find (fun g -> g.Name = "Monatlich mit Tag")
             Expect.equal (monthly.Target |> Option.bind (fun t -> t.CreatedIn)) (Some "2025-03-01") "Anlegemonat gelesen"
+        }
+        test "Ein gespeichertes Target ohne Anlegemonat wird ohne gelesen" {
             let withoutField =
                 """{ "categoryName": "x", "rule": { "goal": 1000, "rhythm": { "unit": "none" }, "kind": "TB" }, "ynabGoalType": "TB" }"""
             match decodePayload "TargetTakenOverFromYnab" SchemaVersion withoutField with

@@ -52,6 +52,14 @@ let private orDbNull (value: 'a option) : obj =
 /// Kassenbuch, die Tabelle war abgeleiteter Zustand ohne Geldentscheidung). Wiederholbar. Läuft beim Start hinter
 /// `Ledger.Persistence.initializeLedgerSchema`. Bricht die Migration ab, wirft der Aufruf und BB startet
 /// nicht.
+/// Entfernt `category_month_activity` (bis budgeting-k5q2w YNABs Aktivität je Monat, abgeleiteter Zustand), nur
+/// wenn sie noch da ist: ein DROP sperrt auch ohne Tabelle das Schema für alle Verbindungen. Wiederholbar.
+let dropMonthActivityOn (conn: SqliteConnection) : unit =
+    let leftover =
+        conn.ExecuteScalar<int64>("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'category_month_activity'")
+    if leftover > 0L then
+        conn.Execute("DROP TABLE IF EXISTS category_month_activity") |> ignore
+
 let initializeBudgetingSchema () =
     use conn = Core.getConnection ()
     EventStore.createSchemaOn conn
@@ -74,11 +82,7 @@ let initializeBudgetingSchema () =
         """
     )
     |> ignore
-    // Nur, wenn sie noch da ist: ein DROP sperrt auch ohne Tabelle das Schema für alle Verbindungen.
-    let leftover =
-        conn.ExecuteScalar<int64>("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'category_month_activity'")
-    if leftover > 0L then
-        conn.Execute("DROP TABLE IF EXISTS category_month_activity") |> ignore
+    dropMonthActivityOn conn
     Budgeting.EventMigration.migrateBudgetEventsOn conn |> ignore
 
 // ============================================

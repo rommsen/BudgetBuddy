@@ -652,12 +652,12 @@ let private persistenceTests =
 
         testCase "Das Schema entfernt category_month_activity, auch wiederholt" <| fun () ->
             // budgeting-k5q2w: die Tabelle war abgeleiteter Zustand, die Ausgaben der Periode kommen aus dem Kassenbuch.
-            do
-                use conn = global.Persistence.getConnection ()
-                Dapper.SqlMapper.Execute(conn, "CREATE TABLE IF NOT EXISTS category_month_activity (month TEXT NOT NULL)") |> ignore
-            Budgeting.Persistence.initializeBudgetingSchema ()
-            Budgeting.Persistence.initializeBudgetingSchema ()
-            use conn = global.Persistence.getConnection ()
+            // Auf einer eigenen Datenbank: in der geteilten sähen parallele Tests die Tabelle und sperrten mit (Review).
+            use conn = new Microsoft.Data.Sqlite.SqliteConnection("Data Source=:memory:")
+            conn.Open()
+            Dapper.SqlMapper.Execute(conn, "CREATE TABLE category_month_activity (month TEXT NOT NULL)") |> ignore
+            Budgeting.Persistence.dropMonthActivityOn conn
+            Budgeting.Persistence.dropMonthActivityOn conn
             let count =
                 Dapper.SqlMapper.ExecuteScalar<int64>(
                     conn,
@@ -845,7 +845,26 @@ let private ledgerHandlerTests =
                 [ event (Ledger.Events.EntryObservedInYnab payload); event Ledger.Events.EntryDeletionObservedInYnab ]
             |> run
 
-            Expect.equal (Ledger.Persistence.loadFirstEntryDate () |> run) (Some (DateTime(1901, 1, 3))) "der 2. ist gelöscht"
+            // Über den Live-Port: belegt dessen Anschluss an `loadFirstEntryDate` (Doktrin Punkt 3, Review k5q2w).
+            Expect.equal (QueryHandlers.liveLedgerActivityPort.LoadFirstEntryDate () |> run) (Some (DateTime(1901, 1, 3))) "der 2. ist gelöscht"
+
+        testCase "Liegt die erste Buchung des Kassenbuchs in der Periode, rechnet BB den Fehlbetrag nicht" <| fun () ->
+            // Review k5q2w: belegt, dass das Lesen eines Monats die erste Buchung an den Adapter gibt. Periode März bis
+            // Oktober 2039, erste Buchung im Mai: März und April fehlen.
+            initializeWithLedger ()
+            let id = Guid.NewGuid()
+            let november = "2039-11-01"
+            let port = portFor (annualMonth id november 5m 0m 30m 0m)
+            let ledger: QueryHandlers.LedgerActivityPort =
+                { LoadMonthlyActivity = fun _ _ -> async { return Map.empty }
+                  LoadFirstEntryDate = fun () -> async { return Some (DateTime(2039, 5, 2)) } }
+            let saved = ResizeArray<UnderfundedComparison list>()
+            let save _ rows = async { saved.Add rows }
+
+            QueryHandlers.budgetMonthWithLedger ledger save global.Persistence.getConnection port readAt november |> run |> ignore
+
+            let row = saved |> Seq.exactlyOne |> List.exactlyOne
+            Expect.equal (row.Outcome, row.Reason) (NotCompared, Some PeriodActivityMissingText) "März und April fehlen"
     ]
 
 [<Tests>]
