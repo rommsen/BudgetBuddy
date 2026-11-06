@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 09:48 -- Modeling / Promoted: budgeting-eh8xe - "Targets in BB führen: einmalige Übernahme aus YNAB, Target ändern schreibt nur in BB mit Befehls-Id, Wochentag setzbar, Pause nur in BB, Rückbau des Goal-Schreibwegs"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-06 09:48 -- Modeling / Refined: budgeting-eh8xe - Targets in BB führen
 
 **Type:** Modeling / Refine
