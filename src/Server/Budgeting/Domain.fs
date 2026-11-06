@@ -590,7 +590,8 @@ let dueFrom (rhythm: TargetRhythm) (month: string) (due: string) : string =
 /// "YYYY-MM-01". Die Periode beginnt im Monat der vorigen Fälligkeit, einschließlich (die Fälligkeit aus
 /// `dueFrom`, um einen Rhythmus-Schritt zurück, budgeting-pf8n7). Ist das gespeicherte Datum die erste
 /// Fälligkeit (`dueFrom` verschiebt es nicht) und der Anlegemonat `createdIn` ("YYYY-MM-01") lesbar, beginnt
-/// die Periode im Anlegemonat. Der gelesene Monat gehört nicht dazu: seine Aktivität steckt nicht im
+/// die Periode im Anlegemonat. "Nicht verschoben heißt erste Fälligkeit" ist eine Annahme über YNAB: sie gilt,
+/// solange YNAB das gespeicherte Datum eines wiederkehrenden Ziels stehen lässt (budgeting-r4kqm). Der gelesene Monat gehört nicht dazu: seine Aktivität steckt nicht im
 /// Übertrag, ihre Ausgaben zählten sonst doppelt. Ohne Rhythmus oder mit unlesbarem Datum: keine Monate.
 let periodMonthsBefore (rhythm: TargetRhythm) (createdIn: string option) (month: string) (due: string) : string list =
     match dayOf due, rhythmShift rhythm, monthIndexOf month with
