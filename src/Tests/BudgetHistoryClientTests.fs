@@ -207,7 +207,7 @@ let tests =
         test "Ein Probelauf oder ein Fehler beim Targets anwenden macht die Historie nicht neu fällig" {
             let preview : TargetPreview =
                 { Month = "2026-10-01"; Lines = []; Skipped = []; Total = eur 0m; ToBeBudgeted = eur 0m; ToBeBudgetedAfter = eur 0m; CommandId = None }
-            let applying = { historyShown () with Targets = Applying preview }
+            let applying = { historyShown () with Targets = Applying { Shown = preview; Changed = false; Excluded = Set.empty } }
             for name, result in [ "Probelauf", Ok (PreviewChanged preview); "Fehler", Error "weg" ] do
                 let after = applying |> step (TargetsApplied result)
                 Expect.equal after.HistoryGeneration applying.HistoryGeneration $"{name}: derselbe Stand"

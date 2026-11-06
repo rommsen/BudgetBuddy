@@ -56,20 +56,24 @@ let canApplyTargets (shown: PreviewShown) : bool =
 let confirmTargets (model: Model) : Model * TargetPreview option =
     match model.Targets with
     | PreviewReady shown when canApplyTargets shown ->
-        let sent = selectedPreview shown
-        { model with Targets = Applying sent }, Some sent
+        { model with Targets = Applying shown }, Some (selectedPreview shown)
     | _ -> model, None
 
 /// Antwort auf "Übernehmen". Hat sich YNABs Stand geändert, steht die neue Vorschau mit dem
-/// Hinweis da (nichts wurde geschrieben).
+/// Hinweis da (nichts wurde geschrieben). Die Abwahl bleibt für jede Kategorie, die in der neuen Vorschau noch steht:
+/// ein zweites Anwenden schreibt keine Zeile, die Roman abgewählt hatte.
 let applyApplied (result: Result<ApplyResult, string>) (model: Model) : Model =
     match model.Targets with
-    | Applying preview ->
+    | Applying shown ->
+        let sent = selectedPreview shown
         match result with
         | Ok (Applied report) ->
-            { model with Targets = ApplyDone { Sent = preview; Report = report; Retrying = false; RetryError = None } }
-        | Ok (PreviewChanged fresh) -> { model with Targets = PreviewReady { Shown = fresh; Changed = true; Excluded = Set.empty } }
-        | Error message -> { model with Targets = ApplyFailed (preview, message) }
+            { model with Targets = ApplyDone { Sent = sent; Report = report; Retrying = false; RetryError = None } }
+        | Ok (PreviewChanged fresh) ->
+            let stillShown = fresh.Lines |> List.map (fun l -> l.CategoryId) |> Set.ofList
+            let excluded = Set.intersect shown.Excluded stillShown
+            { model with Targets = PreviewReady { Shown = fresh; Changed = true; Excluded = excluded } }
+        | Error message -> { model with Targets = ApplyFailed (sent, message) }
     | _ -> model
 
 /// "Fehlgeschlagene erneut senden". Gibt die Anwendung zurück, die der Server erneut senden

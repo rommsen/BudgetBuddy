@@ -85,15 +85,18 @@ let private fieldTests =
     testList "Felder der Leiste" [
         test "Targets prüfen zeigt die Hinweise, erledigt bei 0, ohne lesbare Prüfung leer" {
             let check hints = monthStartFields (figures hints 0m 0 0m) Set.empty |> fieldOf CheckField
-            Expect.equal (check (HintsKnown 2)) { Field = CheckField; Value = "2"; Label = "Targets prüfen"; State = FieldOpen } "offen"
+            Expect.equal (check (HintsKnown 2)) { Field = CheckField; Value = "2"; Label = "Targets prüfen"; State = FieldOpen; Title = None } "offen"
             Expect.equal ((check (HintsKnown 0)).Value, (check (HintsKnown 0)).State) (DoneMark, FieldDone) "erledigt"
-            Expect.equal ((check HintsUnreadable).Value, (check HintsUnreadable).State) (UnknownMark, FieldOpen) "nicht lesbar"
+            let unreadable = check (HintsUnreadable "YNAB antwortet nicht")
+            Expect.equal (unreadable.Value, unreadable.State) (UnknownMark, FieldOpen) "nicht lesbar"
+            Expect.equal unreadable.Title (Some "YNAB antwortet nicht") "die Meldung als Tooltip"
             Expect.equal (check HintsPending).Value UnknownMark "lädt"
+            Expect.isNone (check HintsPending).Title "lädt: kein Tooltip"
         }
         test "Targets prüfen zählt wie die Kopf-Karte der Seite: nur Zeilen außerhalb von Passt" {
             Expect.equal (hintsOf (Success (checkData true))) (HintsKnown 1) "eine mehr, eine passt"
             Expect.equal (hintsOf (Success (checkData false))) (HintsKnown 0) "beide passen"
-            Expect.equal (hintsOf (Failure "weg")) HintsUnreadable "Lesefehler"
+            Expect.equal (hintsOf (Failure "weg")) (HintsUnreadable "weg") "Lesefehler mit Meldung"
         }
         test "Targets anwenden zeigt die Summe, erledigt bei 0, aktiv bei offener Vorschau" {
             let apply total active = monthStartFields (figures (HintsKnown 0) total 0 0m) active |> fieldOf ApplyField
@@ -126,6 +129,17 @@ let private fieldTests =
         }
     ]
 
+let private fieldMsgTests =
+    testList "Was ein Feld tut" [
+        test "Jedes Feld schickt seine Nachricht, nur Überzogene decken unterscheidet PC und Handy" {
+            for panel in [ true; false ] do
+                Expect.equal (fieldMsg panel CheckField) OpenTargetCheck $"Targets prüfen, panel {panel}"
+                Expect.equal (fieldMsg panel ApplyField) OpenTargets $"Targets anwenden, panel {panel}"
+                Expect.equal (fieldMsg panel OverdrawnField) (CoverOverdrawn panel) $"Überzogene decken, panel {panel}"
+                Expect.equal (fieldMsg panel DistributeField) (SelectFilter AllCategories) $"verteilen, panel {panel}"
+        }
+    ]
+
 let private standsTests =
     testList "Wann die Leiste steht" [
         test "Im laufenden Monat steht sie, solange eines der Felder 1 bis 3 offen ist" {
@@ -148,7 +162,7 @@ let private standsTests =
         }
         test "Eine Prüfung, die lädt oder nicht lesbar ist, hält die Leiste nicht auf" {
             Expect.isFalse (anyFieldOpen (figures HintsPending 0m 0 0m)) "lädt"
-            Expect.isFalse (anyFieldOpen (figures HintsUnreadable 0m 0 0m)) "nicht lesbar"
+            Expect.isFalse (anyFieldOpen (figures (HintsUnreadable "weg") 0m 0 0m)) "nicht lesbar"
             Expect.isTrue (anyFieldOpen (figures (HintsKnown 1) 0m 0 0m)) "ein Hinweis"
         }
         test "Im kommenden Monat nicht von selbst, im vergangenen nie" {
@@ -208,8 +222,40 @@ let private updateTests =
             let settled = step (CoverOverdrawn true) (pageWith (frameAt current) (settledMonth current) (checkData false))
             Expect.equal (settled.Filter, settled.Selected) (OverdrawnOnly, None) "nichts gewählt"
         }
-        test "Verteilen setzt den Filter Alle" {
-            Expect.equal (step (SelectFilter AllCategories) { page with Filter = OverdrawnOnly }).Filter AllCategories "Alle"
+        test "Im kommenden Monat über den Kopfknopf geöffnet, blendet Ausblenden nur diesen Monat aus" {
+            let december = step ToggleMonthStart (pageWith (frameAt current) (openMonth next) (checkData true))
+            Expect.isSome (monthStartBar december) "über den Kopfknopf im Dezember"
+            let hidden, sent = hideMonthStart december
+            Expect.equal sent (Some next) "der Server hält den Dezember fest"
+            Expect.equal hidden.MonthStartHidden (Set.ofList [ next ]) "nur der Dezember"
+            let _, cmd, _ = update HideMonthStart december
+            Expect.equal (List.length cmd) 1 "ein Aufruf an den Server"
+        }
+        test "Ausblenden nicht gespeichert: Warnung, die Leiste bleibt auf dieser Seite ausgeblendet" {
+            let hidden = step HideMonthStart page
+            let after, cmd, external = update (MonthStartHideAnswered (Error "Ausblenden nicht gespeichert.")) hidden
+            Expect.equal external (ShowToast ("Ausblenden nicht gespeichert.", ToastWarning)) "Warnung mit dem Satz des Servers, ohne Doppelung"
+            let _, _, offline = update (MonthStartHideAnswered (Error "Netzwerk nicht erreichbar")) hidden
+            Expect.equal offline (ShowToast ("Ausblenden nicht gespeichert: Netzwerk nicht erreichbar", ToastWarning)) "ein Netzfehler bekommt den Zusammenhang"
+            Expect.isEmpty cmd "kein neuer Aufruf"
+            Expect.isNone (monthStartBar after) "bleibt ausgeblendet"
+            Expect.equal after.MonthStartHidden (Set.ofList [ current ]) "der November"
+        }
+        test "Überzogene decken leert die Suche, damit Zahl und Liste übereinstimmen" {
+            // Mit der Suche "Drog" wäre Drogerie die erste überzogene Zeile, das Feld zählt aber zwei.
+            let covered = step (CoverOverdrawn true) { page with CategorySearch = "Drog" }
+            Expect.equal covered.CategorySearch "" "Suche leer"
+            Expect.equal (covered.Selected |> Option.map (fun s -> s.CategoryId)) (Some foodId) "die erste überzogene der ganzen Liste"
+            let phone = step (CoverOverdrawn false) { page with CategorySearch = "Drog" }
+            Expect.equal (phone.CategorySearch, phone.Filter) ("", OverdrawnOnly) "am Handy auch"
+        }
+        test "Überzogene decken während eines Monatswechsels setzt nur den Filter" {
+            let changing = step (SelectMonth next) { page with Tab = HistoryTab }
+            Expect.isTrue (Components.Budget.Month.monthChanging changing) "der Wechsel läuft"
+            let covered = step (CoverOverdrawn true) changing
+            Expect.equal covered.Filter OverdrawnOnly "Filter"
+            Expect.isNone covered.Selected "keine Zeile aus dem alten Monat"
+            Expect.equal covered.Tab HistoryTab "kein Tabwechsel"
         }
         test "Das Betreten lädt die Prüfung neu, eine späte Antwort zählt nicht, ein Fehler macht nur das Feld leer" {
             let entered = step PageEntered page
@@ -252,11 +298,22 @@ let private previewTests =
             Expect.isFalse (canApplyTargets { shown with Excluded = Set.ofList [ foodId; drugstoreId ] }) "keine gewählt"
             Expect.isTrue (lineChosen shown drugstoreId && not (lineChosen shown foodId)) "Haken"
         }
-        test "Wieder anwählen nimmt die Zeile zurück, eine neue Vorschau beginnt mit allen Zeilen" {
+        test "Wieder anwählen nimmt die Zeile zurück" {
             let twice = ready |> step (ToggleTargetLine foodId) |> step (ToggleTargetLine foodId)
             Expect.equal twice.Targets ready.Targets "wie vorher"
-            let changed = { (step (ToggleTargetLine foodId) ready) with Targets = Applying preview } |> step (TargetsApplied (Ok (PreviewChanged preview)))
-            Expect.equal changed.Targets (PreviewReady { Shown = preview; Changed = true; Excluded = Set.empty }) "alle gewählt"
+        }
+        // Regression: nach "Stand hat sich geändert" begann die neue Vorschau mit allen Zeilen, ein zweites Anwenden
+        // schrieb die abgewählte Kategorie mit.
+        test "Stand hat sich geändert: die Abwahl bleibt, soweit die Zeile in der neuen Vorschau noch steht" {
+            let applying = ready |> step (ToggleTargetLine foodId) |> step ConfirmTargets
+            let fresh = { preview with Lines = [ { lineA with Underfunded = eur 950m; NewAssigned = eur 950m }; lineB ]; Total = eur 1030m; ToBeBudgetedAfter = eur 620m }
+            let changed = applying |> step (TargetsApplied (Ok (PreviewChanged fresh)))
+            Expect.equal changed.Targets (PreviewReady { Shown = fresh; Changed = true; Excluded = Set.ofList [ foodId ] }) "Abwahl bleibt"
+            let _, resent = confirmTargets changed
+            Expect.equal (resent |> Option.map (fun p -> p.Lines |> List.map (fun l -> l.CategoryId))) (Some [ drugstoreId ]) "das zweite Anwenden schickt nur Drogerie"
+            let withoutFood = { preview with Lines = [ lineB ]; Total = eur 80m; ToBeBudgetedAfter = eur 1570m }
+            let gone = applying |> step (TargetsApplied (Ok (PreviewChanged withoutFood)))
+            Expect.equal gone.Targets (PreviewReady { Shown = withoutFood; Changed = true; Excluded = Set.empty }) "eine verschwundene Zeile fällt aus der Abwahl"
         }
         // Doktrin Punkt 20: alle Reihenfolgen von Abwählen, Anwenden und Monatswechsel nach dem Öffnen.
         test "Anwenden schickt genau die Zeilen, die beim Anwenden gewählt sind, in jeder Reihenfolge" {
@@ -285,10 +342,16 @@ let private previewTests =
                         next, (if w = Apply then sends + List.length cmd else sends)) (ready, 0)
                 match sent with
                 | Some lines ->
+                    // Summe und Zu verteilen danach aus den Beträgen der Testdaten: Lebensmittel 900, Drogerie 80,
+                    // Zu verteilen 1.650.
+                    let amountOf id = if id = foodId then 900m else 80m
+                    let total = lines |> List.sumBy amountOf
                     match final.Targets with
-                    | Applying p ->
+                    | Applying shown ->
+                        let p = selectedPreview shown
                         Expect.equal (p.Lines |> List.map (fun l -> l.CategoryId)) lines $"%A{way}: gesendete Zeilen"
-                        Expect.equal p.Total (eur (p.Lines |> List.sumBy (fun l -> l.Underfunded.Amount))) $"%A{way}: Summe der Auswahl"
+                        Expect.equal p.Total (eur total) $"%A{way}: Summe der Auswahl"
+                        Expect.equal p.ToBeBudgetedAfter (eur (1650m - total)) $"%A{way}: Zu verteilen danach"
                         Expect.equal p.Month current $"%A{way}: Monat der Vorschau"
                     | other -> failtest $"%A{way}: Anwenden erwartet, bekam %A{other}"
                     Expect.equal sentCmds 1 $"%A{way}: genau ein Aufruf"
@@ -300,4 +363,4 @@ let private previewTests =
 
 [<Tests>]
 let tests =
-    testList "Monatserster, Client (budgeting-m3x7f)" [ fieldTests; standsTests; updateTests; previewTests ]
+    testList "Monatserster, Client (budgeting-m3x7f)" [ fieldTests; fieldMsgTests; standsTests; updateTests; previewTests ]

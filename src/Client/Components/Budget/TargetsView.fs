@@ -26,18 +26,14 @@ let private dialogAmount (testId: string option) (m: Money) =
     ]
 
 /// Eine Zeile der Vorschau (Skizze Zeile 186): Checkbox links vor dem Namen, der Betrag, den die Zeile zuweist, rechts.
-/// Die Checkbox ist die native der Skizze.
+/// Die Checkbox ist die native der Skizze (`Input.checkboxNative`). Am Handy 48 px hoch, ab md 40 px wie die Skizze.
 let private previewLine (shown: PreviewShown) (dispatch: Msg -> unit) (l: TargetLine) =
     Html.label [
         prop.key (string l.CategoryId)
         prop.custom ("data-testid", "targets-line")
-        prop.className "flex items-center gap-2.5 min-h-10 shrink-0 text-sm text-text-primary border-b border-border-default cursor-pointer"
+        prop.className "flex items-center gap-2.5 min-h-12 md:min-h-10 shrink-0 text-sm text-text-primary border-b border-border-default cursor-pointer"
         prop.children [
-            Html.input [
-                prop.type' "checkbox"
-                prop.isChecked (lineChosen shown l.CategoryId)
-                prop.onChange (fun (_: bool) -> dispatch (ToggleTargetLine l.CategoryId))
-            ]
+            Input.checkboxNative (lineChosen shown l.CategoryId) (fun _ -> dispatch (ToggleTargetLine l.CategoryId))
             Html.span [ prop.className "flex-1 min-w-0 truncate"; prop.text l.CategoryName ]
             dialogAmount None l.Underfunded
         ]
@@ -137,7 +133,7 @@ let private doneBody (preview: TargetPreview) (report: ApplyReport) (retryError:
               Html.p [
                   prop.custom ("data-testid", "targets-count")
                   prop.className "text-sm text-text-primary"
-                  prop.text $"{writtenCount report} von {total} übernommen"
+                  prop.text $"{writtenCount report} von {total} angewendet"
               ]
               match report.ActualToBeBudgeted with
               | Some actual ->
@@ -210,20 +206,25 @@ let targetsDialog (model: Model) (dispatch: Msg -> unit) =
         Html.div [ prop.className "flex flex-wrap justify-end gap-2 shrink-0"; prop.children children ]
     match model.Targets with
     | TargetsClosed -> Html.none
-    | PreviewLoading -> card [ Loading.centered "Lade Vorschau ..." ]
+    | PreviewLoading ->
+        card [
+            Loading.centered "Lade Vorschau ..."
+            // Derselbe Ausweg wie in der stehenden Vorschau; Anwenden wartet auf sie, die Knöpfe springen dann nicht.
+            buttonPair (wideButton "Abbrechen" false close) (wideButton "Anwenden" true ignore)
+        ]
     | PreviewFailed message ->
         card [
             ErrorDisplay.card message (Some (fun () -> dispatch OpenTargets))
             footer [ Button.ghost "Schließen" close ]
         ]
     | PreviewReady shown -> card (previewBody (categoryOrder model) model shown dispatch)
-    | Applying preview ->
-        card [ summary preview; Loading.centered "Schreibe nach YNAB ..." ]
+    | Applying shown ->
+        card [ summary (selectedPreview shown); Loading.centered "Schreibe nach YNAB ..." ]
     | ApplyFailed (preview, message) ->
         card [
             summary preview
             ErrorDisplay.cardCompact $"{message} Ob etwas geschrieben wurde, ist unklar. Beim Schließen wird der Monat neu gelesen." None
-            footer [ Button.primary "Schließen" close ]
+            footer [ Button.secondary "Schließen" close ]
         ]
     | ApplyDone applied ->
         card [

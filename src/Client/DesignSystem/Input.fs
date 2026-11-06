@@ -341,6 +341,15 @@ let checkbox (isChecked: bool) (onChange: bool -> unit) (label: string) =
 let checkboxListRow (isChecked: bool) (onChange: bool -> unit) (label: string) =
     checkboxWith true isChecked onChange label
 
+/// Die native Checkbox des Browsers ohne eigene Gestalt, wie in der Skizze der Vorschau Targets anwenden
+/// (budgeting-m3x7f). Ohne Beschriftung: sie steht im umgebenden `label` der Zeile, ein Klick auf die Zeile schaltet.
+let checkboxNative (isChecked: bool) (onChange: bool -> unit) =
+    Html.input [
+        prop.type' "checkbox"
+        prop.isChecked isChecked
+        prop.onChange (fun (value: bool) -> onChange value)
+    ]
+
 /// Checkbox without label
 let checkboxSimple (isChecked: bool) (onChange: bool -> unit) =
     Html.label [

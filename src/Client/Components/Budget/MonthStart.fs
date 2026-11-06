@@ -33,14 +33,16 @@ type MonthStartFieldView = {
     /// Darunter, gedämpft.
     Label: string
     State: FieldState
+    /// Der Tooltip des Felds: bei nicht lesbarer Prüfung die Meldung, sonst keiner.
+    Title: string option
 }
 
 /// Die Hinweise von Targets prüfen für das Feld Targets prüfen.
 type CheckHints =
     /// Noch nicht geladen.
     | HintsPending
-    /// Nicht lesbar: das Feld bleibt leer, die Leiste bedienbar.
-    | HintsUnreadable
+    /// Nicht lesbar, mit Meldung: das Feld bleibt leer, die Leiste bedienbar.
+    | HintsUnreadable of message: string
     | HintsKnown of int
 
 /// Was die Felder brauchen, aus Monat und Prüfung.
@@ -64,7 +66,7 @@ let UnknownMark = "–"
 let hintsOf (check: RemoteData<TargetCheckData>) : CheckHints =
     match check with
     | Success data -> HintsKnown (checkCounts (checkGroups data)).Hints
-    | Failure _ -> HintsUnreadable
+    | Failure message -> HintsUnreadable message
     | NotAsked
     | Loading -> HintsPending
 
@@ -86,14 +88,18 @@ let monthStartFields (figures: MonthStartFigures) (active: Set<MonthStartField>)
             if active.Contains kind then FieldActive
             elif isDone then FieldDone
             else FieldOpen
-        { Field = kind; Value = (if isDone then DoneMark else value); Label = label; State = state }
+        { Field = kind; Value = (if isDone then DoneMark else value); Label = label; State = state; Title = None }
     let checkValue, checkDone =
         match figures.Hints with
         | HintsKnown 0 -> "", true
         | HintsKnown n -> string n, false
         | HintsPending
-        | HintsUnreadable -> UnknownMark, false
-    [ field CheckField "Targets prüfen" checkValue checkDone
+        | HintsUnreadable _ -> UnknownMark, false
+    let checkTitle =
+        match figures.Hints with
+        | HintsUnreadable message -> Some message
+        | _ -> None
+    [ { field CheckField "Targets prüfen" checkValue checkDone with Title = checkTitle }
       field ApplyField "Targets anwenden" (fieldAmountText figures.ApplyTotal) (figures.ApplyTotal.Amount <= 0m)
       field OverdrawnField "Überzogene decken" (string figures.Overdrawn) (figures.Overdrawn = 0)
       field DistributeField "verteilen" (fieldAmountText figures.ToBeBudgeted) (figures.ToBeBudgeted.Amount <= 0m) ]
@@ -105,7 +111,7 @@ let anyFieldOpen (figures: MonthStartFigures) : bool =
     (match figures.Hints with
      | HintsKnown n -> n > 0
      | HintsPending
-     | HintsUnreadable -> false)
+     | HintsUnreadable _ -> false)
     || figures.ApplyTotal.Amount > 0m
     || figures.Overdrawn > 0
 
@@ -131,7 +137,9 @@ let monthStartHiddenFor (model: Model) (month: string) : bool =
 let activeFields (model: Model) : Set<MonthStartField> =
     Set.ofList [
         if model.Filter = OverdrawnOnly then OverdrawnField
-        if model.Targets <> TargetsClosed then ApplyField
+        match model.Targets with
+        | TargetsClosed -> ()
+        | _ -> ApplyField
     ]
 
 /// Die Felder der Leiste, wenn sie im dargestellten Monat steht; sonst `None`.
@@ -168,18 +176,28 @@ let hideMonthStart (model: Model) : Model * string option =
         Some month.Month
     | _ -> model, None
 
+/// Was ein Feld tut: Targets prüfen öffnet die Seite, Targets anwenden die Vorschau, Überzogene decken setzt den Filter
+/// (am PC, `panel`, mit erster Zeile und Tab Geld), verteilen ist nur Anzeige und setzt den Filter Alle.
+let fieldMsg (panel: bool) (field: MonthStartField) : Msg =
+    match field with
+    | CheckField -> OpenTargetCheck
+    | ApplyField -> OpenTargets
+    | OverdrawnField -> CoverOverdrawn panel
+    | DistributeField -> SelectFilter AllCategories
+
 /// Die Seite wird verlassen: der Kopfknopf gilt nicht mehr.
 let leaveMonthStart (model: Model) : Model =
     { model with MonthStartToggle = MonthStartByRule }
 
-/// Feld Überzogene decken: Filter Überzogen. Am PC (`panel`) zusätzlich die erste überzogene Zeile, wie die Liste sie
-/// zeigt, mit Tab Geld (`leiste-pc-rot.png`); am Handy nur der Filter. Ohne überzogene Zeile bleibt die leere Ansicht
-/// des Filters.
+/// Feld Überzogene decken: Filter Überzogen, die Suche wird geleert, damit die Liste so viele Zeilen zeigt, wie das Feld
+/// zählt. Am PC (`panel`) zusätzlich die erste überzogene Zeile, wie die Liste sie zeigt, mit Tab Geld
+/// (`leiste-pc-rot.png`); am Handy nur der Filter. Während eines Monatswechsels nur der Filter: die erste Zeile stammte
+/// sonst aus dem alten Monat. Ohne überzogene Zeile bleibt die leere Ansicht des Filters.
 let coverOverdrawn (panel: bool) (model: Model) : Model =
-    let filtered = { model with Filter = OverdrawnOnly }
+    let filtered = { model with Filter = OverdrawnOnly; CategorySearch = "" }
     match model.Month with
-    | Success month when panel ->
-        match shownGroups OverdrawnOnly model.CategorySearch month.Groups |> List.collect (fun g -> g.Categories) with
+    | Success month when panel && not (monthChanging model) ->
+        match shownGroups OverdrawnOnly filtered.CategorySearch month.Groups |> List.collect (fun g -> g.Categories) with
         // Wie leiste-pc-rot.png im Modus Zuweisen ("900,00 zuweisen"), eine rote Kategorie startete sonst auf Holen.
         | first :: _ -> selectCategory first.Id { filtered with Tab = MoneyTab } |> syncMoneyTab |> switchMode AssignMode
         | [] -> filtered

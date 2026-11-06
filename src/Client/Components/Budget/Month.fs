@@ -370,7 +370,7 @@ let filterCount (filter: CategoryFilter) (groups: BudgetGroup list) : int =
     groups |> List.sumBy (fun g -> g.Categories |> List.filter (matchesFilter filter) |> List.length)
 
 /// Die Zeilen der Vorschau in Romans Reihenfolge, nur für die Anzeige. `TargetPreview.Lines` bleibt
-/// unangetastet: `previewsMatch` vergleicht reihenfolgetreu und meldete sonst `PreviewChanged`.
+/// unangetastet, an den Server geht die Vorschau in seiner Reihenfolge.
 let orderedPreviewLines (order: System.Guid list) (lines: TargetLine list) : TargetLine list =
     let ranks = order |> List.mapi (fun index id -> id, index) |> Map.ofList
     lines

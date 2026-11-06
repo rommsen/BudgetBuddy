@@ -150,7 +150,8 @@ let assignFigure (compact: bool) (model: Model) =
 
 /// Der Kopfknopf Monatserster (budgeting-m3x7f): ein Icon-Knopf wie Historie, öffnet und schließt die Leiste und schreibt
 /// nichts. Im vergangenen Monat unsichtbar statt weg: sonst änderte der Kopf beim Blättern seine Breite und die Liste sprang.
-let monthStartButton (model: Model) (dispatch: Msg -> unit) =
+/// `expanded`: die Leiste steht.
+let monthStartButton (expanded: bool) (model: Model) (dispatch: Msg -> unit) =
     match model.Month with
     | Success _ ->
         Html.div [
@@ -165,7 +166,7 @@ let monthStartButton (model: Model) (dispatch: Msg -> unit) =
                         OnClick = fun () -> dispatch ToggleMonthStart
                         Title = Some "Monatserster"
                         AriaLabel = Some "Monatserster"
-                        AriaExpanded = Some (monthStartBar model).IsSome }
+                        AriaExpanded = Some expanded }
             ]
         ]
     | _ -> Html.none
@@ -481,28 +482,20 @@ let private fieldTestId (field: MonthStartField) =
     | OverdrawnField -> "month-start-overdrawn"
     | DistributeField -> "month-start-distribute"
 
-/// Was ein Feld tut: Targets prüfen öffnet die Seite, Targets anwenden die Vorschau, Überzogene decken setzt den Filter
-/// (am PC mit erster Zeile und Tab Geld), verteilen ist nur Anzeige und setzt den Filter Alle.
-let private fieldMsg (panel: bool) (field: MonthStartField) : Msg =
-    match field with
-    | CheckField -> OpenTargetCheck
-    | ApplyField -> OpenTargets
-    | OverdrawnField -> CoverOverdrawn panel
-    | DistributeField -> SelectFilter AllCategories
-
 let private monthStartFieldButton (panel: bool) (dispatch: Msg -> unit) (f: MonthStartFieldView) =
     Html.div [
         prop.key (fieldTestId f.Field)
         prop.className "grid min-w-0"
         prop.children [
-            Button.tile (fieldTestId f.Field) f.Value f.Label (tileState f.State) (fun () -> dispatch (fieldMsg panel f.Field))
+            Button.tile (fieldTestId f.Field) f.Value f.Label f.Title (tileState f.State) (fun () -> dispatch (fieldMsg panel f.Field))
         ]
     ]
 
 /// Die Leiste nach der Skizze (Zeile 45 bis 52): Karte mit Kopfzeile "Monatserster" und "Ausblenden", darunter vier
-/// gleich breite Felder, an PC und Handy gleich. `panel`: der Inspektor steht als Panel daneben (PC).
-let monthStartBarView (model: Model) (panel: bool) (dispatch: Msg -> unit) =
-    match monthStartBar model with
+/// gleich breite Felder, an PC und Handy gleich. `bar`: die Felder aus `monthStartBar`, `None` wenn die Leiste nicht steht.
+/// `panel`: der Inspektor steht als Panel daneben (PC).
+let monthStartBarView (bar: MonthStartFieldView list option) (model: Model) (panel: bool) (dispatch: Msg -> unit) =
+    match bar with
     | None -> Html.none
     | Some fields ->
         Html.section [

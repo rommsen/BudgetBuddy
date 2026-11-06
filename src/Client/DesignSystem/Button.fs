@@ -457,11 +457,15 @@ let private tileStateClass (state: TileState) =
     | TileOpen -> "border-border-default text-text-primary"
 
 /// Eine Kachel: oben ein Wert in Mono 13 px 600, darunter die Bezeichnung 11 px gedämpft, zentriert, mindestens
-/// 52 px hoch, Radius 10 px. Die Bezeichnung bricht in einer schmalen Kachel um, die Kachel wächst mit.
-let tile (testId: string) (value: string) (label: string) (state: TileState) (onClick: unit -> unit) =
+/// 52 px hoch, Radius 10 px. Die Bezeichnung bricht in einer schmalen Kachel um, die Kachel wächst mit. `title`: ein
+/// Tooltip, etwa die Meldung, wenn der Wert nicht lesbar ist.
+let tile (testId: string) (value: string) (label: string) (title: string option) (state: TileState) (onClick: unit -> unit) =
     Html.button [
         prop.type' "button"
         prop.custom ("data-testid", testId)
+        match title with
+        | Some text -> prop.title text
+        | None -> ()
         prop.custom ("data-state", (match state with TileActive -> "active" | TileDone -> "done" | TileOpen -> "open"))
         prop.className
             $"flex flex-col items-center justify-center min-w-0 min-h-[52px] rounded-[10px] border px-0.5 py-1 text-center cursor-pointer touch-manipulation hover:bg-surface-hover transition-colors {tileStateClass state}"

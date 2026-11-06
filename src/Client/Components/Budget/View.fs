@@ -92,7 +92,7 @@ let private historyButton (dispatch: Msg -> unit) =
 /// Der Kopf wie die Skizze (budgeting-m3x7f): `‹ Monat ›`, Historie und Monatserster links, Zu verteilen rechts.
 /// Suche und Chips stehen darunter in eigener Zeile (`searchRow`). Am Handy der kurze Monatsname, damit alles in eine
 /// Zeile passt (Zu verteilen dort ohne €); erst schmaler oder mit fünfstelligem Betrag bricht Zu verteilen um.
-let private head (wide: bool) (model: Model) (dispatch: Msg -> unit) =
+let private head (wide: bool) (barStands: bool) (model: Model) (dispatch: Msg -> unit) =
     headBar [
         prop.className (
             if wide then "budget-month-bar flex flex-wrap items-center gap-x-3 gap-y-1 py-1 -mx-1 px-1"
@@ -101,7 +101,7 @@ let private head (wide: bool) (model: Model) (dispatch: Msg -> unit) =
         prop.children [
             headStepper (not wide) model dispatch
             historyButton dispatch
-            monthStartButton model dispatch
+            monthStartButton barStands model dispatch
             assignFigure (not wide) model
         ]
     ]
@@ -117,16 +117,15 @@ let private searchRow (model: Model) (month: BudgetMonth) (wide: bool) (dispatch
         ]
     ]
 
-/// Leiste Monatserster und darunter die Suchzeile, 10 px Abstand wie die Skizze. Ohne beides fällt der Block weg.
-let private belowHead (model: Model) (panel: bool) (wide: bool) (dispatch: Msg -> unit) =
-    let bar = monthStartBarView model panel dispatch
-    match model.Month, Components.Budget.MonthStart.monthStartBar model with
-    | Success month, _ ->
+/// Leiste Monatserster und darunter die Suchzeile, 10 px Abstand wie die Skizze. Ohne geladenen Monat fällt der Block
+/// weg (die Leiste steht nur mit geladenem Monat).
+let private belowHead (bar: Components.Budget.MonthStart.MonthStartFieldView list option) (model: Model) (panel: bool) (wide: bool) (dispatch: Msg -> unit) =
+    match model.Month with
+    | Success month ->
         Html.div [
             prop.className "flex flex-col gap-2.5"
-            prop.children [ bar; searchRow model month wide dispatch ]
+            prop.children [ monthStartBarView bar model panel dispatch; searchRow model month wide dispatch ]
         ]
-    | _, Some _ -> bar
     | _ -> Html.none
 
 let private listArea (model: Model) (shown: BudgetGroup list) (wide: bool) (dispatch: Msg -> unit) =
@@ -149,6 +148,8 @@ let view (model: Model) (dispatch: Msg -> unit) =
     let isPanel = Viewport.isInspectorPanelViewport ()
     // ADR 0043: zur Renderzeit genau ein Kopf, ein Suchfeld kann nicht doppelt stehen.
     let wide = Viewport.isDesktopViewport ()
+    // Einmal je Render: Kopfknopf und Leiste lesen dieselben Felder.
+    let bar = Components.Budget.MonthStart.monthStartBar model
     // Einmal je Render: Liste, Pfeile und Zahlen nutzen dieselben Zeilen.
     let shown =
         match model.Month with
@@ -163,9 +164,9 @@ let view (model: Model) (dispatch: Msg -> unit) =
             prop.children [
                 PageHeader.screenReaderTitle "Budget"
                 targetsDialog model dispatch
-                head wide model dispatch
+                head wide bar.IsSome model dispatch
                 // Die Leiste Monatserster steht zwischen Kopf und Suche (budgeting-m3x7f), an PC und Handy wie die Skizze.
-                belowHead model isPanel wide dispatch
+                belowHead bar model isPanel wide dispatch
                 // Steht das Sheet offen, trägt es den Hinweis. Genau eine Stelle, nie beide. Der Platz bleibt
                 // auch leer belegt: fiele er weg, rückten die Geschwister auf, React baute Liste und Sheet
                 // neu auf, und das Sheet führe nicht mehr ein.

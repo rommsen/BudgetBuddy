@@ -293,9 +293,9 @@ let private buttonSection =
                         Html.div [
                             prop.className "grid grid-cols-3 gap-1.5 max-w-sm"
                             prop.children [
-                                Button.tile "styleguide-tile-open" "2" "Targets prüfen" Button.TileOpen ignore
-                                Button.tile "styleguide-tile-done" "✓" "Targets anwenden" Button.TileDone ignore
-                                Button.tile "styleguide-tile-active" "3" "Überzogene decken" Button.TileActive ignore
+                                Button.tile "styleguide-tile-open" "2" "Targets prüfen" None Button.TileOpen ignore
+                                Button.tile "styleguide-tile-done" "✓" "Targets anwenden" None Button.TileDone ignore
+                                Button.tile "styleguide-tile-active" "3" "Überzogene decken" None Button.TileActive ignore
                             ]
                         ]
                         Button.quietText "styleguide-quiet-text" "Ausblenden" ignore
@@ -982,6 +982,7 @@ let private InputDemo () =
     let selectValue, setSelectValue = React.useState ""
     let toggleValue, setToggleValue = React.useState true
     let checkValue, setCheckValue = React.useState false
+    let nativeValue, setNativeValue = React.useState true
     let searchValue, setSearchValue = React.useState ""
 
     let categoryOptions = [
@@ -1015,6 +1016,15 @@ let private InputDemo () =
                 Input.groupSimple "Searchable Select" (Input.searchableSelect searchValue setSearchValue "Kategorie suchen…" groupedOptions)
                 Input.toggle toggleValue setToggleValue (Some "Auto-Kategorisierung aktiv")
                 Input.checkbox checkValue setCheckValue "Bestätigt"
+                // checkboxNative: die native Checkbox, in einem label mit der Zeile (Vorschau Targets anwenden).
+                Html.label [
+                    prop.custom ("data-testid", "styleguide-checkbox-native")
+                    prop.className "flex items-center gap-2.5 text-sm text-text-primary cursor-pointer"
+                    prop.children [
+                        Input.checkboxNative nativeValue setNativeValue
+                        Html.span [ prop.text "Lebensmittel (checkboxNative)" ]
+                    ]
+                ]
             ]
         ]
     ]

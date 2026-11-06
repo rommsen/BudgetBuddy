@@ -890,7 +890,9 @@ test("[flow:budget-oeffnen] Navigation: die Budget-Seite ist über die Tab-Leist
 /// (budgeting-m3x7f: Targets anwenden und Targets prüfen liegen in der Leiste, Suche und Chips stehen unter ihr).
 const headParts = (page) =>
   page.evaluate(() => {
+    // Fehlt ein Teil im DOM, steht dort null: ein Test kann das als Befund melden statt mit einem TypeError abzubrechen.
     const box = (el) => {
+      if (!el) return null;
       const { top, bottom, left, right } = el.getBoundingClientRect();
       return { top, bottom, left, right };
     };
@@ -1318,7 +1320,17 @@ test("[layout] Handy: der Kopf steht in einer Zeile mit Monatserster, im vergang
     assert.ok(before.search.top >= before.bar.bottom, `die Suche steht unter dem Kopf (${facts})`);
     // Fehler-Toasts der nicht gemockten Routen liegen über den Pfeilen, Playwright scrollte dann für den Klick.
     await page.addStyleTag({ content: ".toast-layer { display: none; }" });
+    // Im vergangenen Monat steht die Leiste nie. Damit nur der Kopf zählt, wird sie im laufenden vorher ausgeblendet.
+    const bar = page.locator('[data-testid="month-start-bar"]');
+    if ((await bar.count()) > 0) {
+      await page.locator('[data-testid="month-start-hide"]').click();
+      await bar.waitFor({ state: "detached" });
+    }
+    const firstRow = () => visibleRows(page).first().evaluate((el) => el.getBoundingClientRect().top);
+    // Die Seite fährt beim Betreten ein (`animate-page-enter`), mitten darin gemessen sähe es nach Sprung aus.
     await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
+    const rowBefore = await firstRow();
+    const startBefore = (await headParts(page)).start;
 
     await previousArrow(page).click();
     await monthName(page).getByText("Sep 2026").waitFor();
@@ -1326,7 +1338,11 @@ test("[layout] Handy: der Kopf steht in einer Zeile mit Monatserster, im vergang
     // Der Knopf blendet per Übergang aus, `visibility` wechselt erst an dessen Ende.
     await page.getByRole("button", { name: "Monatserster" }).waitFor({ state: "hidden" });
     const after = await headParts(page);
-    assert.equal(after.history.left, before.history.left, "Historie bleibt an ihrem Platz, der Kopf springt nicht");
+    // Unsichtbar statt weg: der Platz des Knopfs bleibt, mit Html.none fiele er weg.
+    assert.ok(after.start, `der Knopf steht weiter im Kopf (${JSON.stringify(after)})`);
+    assert.deepEqual([after.start.left, after.start.right], [startBefore.left, startBefore.right], "der Knopf behält seinen Platz");
+    assert.equal(after.history.left, before.history.left, "Historie bleibt an ihrem Platz");
+    assert.equal(await firstRow(), rowBefore, "die Seite springt nicht");
   } finally {
     await context.close();
   }

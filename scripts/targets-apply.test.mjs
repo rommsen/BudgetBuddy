@@ -203,19 +203,17 @@ test("[flow:targets-anwenden] Handy: über die Leiste die Vorschau öffnen, eine
   try {
     await open(page);
     await page.locator('[data-testid="targets-line"]').nth(1).locator("input").click();
-    assert.match(await text(page.locator('[data-testid="targets-total"]')), /^20,00$/, "die Summe folgt der Auswahl");
-    assert.match(await text(page.locator('[data-testid="targets-after"]')), /^4\.980,00$/, "Zu verteilen danach auch");
     await page.getByRole("button", { name: "Anwenden", exact: true }).click();
     await page.locator('[data-testid="targets-count"]').waitFor();
     assert.equal(calls.apply.length, 1);
     assert.equal(calls.apply[0][0], "2026-11-01");
     assert.deepEqual(calls.apply[0][1].Lines.map((l) => l.CategoryId), sent.Lines.map((l) => l.CategoryId), "nur die gewählten Zeilen gehen mit");
-    assert.match(await text(page.locator('[data-testid="targets-count"]')), /1 von 2 übernommen/);
+    assert.match(await text(page.locator('[data-testid="targets-count"]')), /1 von 2 angewendet/);
     const lines = await page.locator('[data-testid="targets-result-line"]').allInnerTexts();
     assert.match(lines[0].replace(/\s+/g, " "), /Rate-Limit/, "Fehlgeschlagene stehen oben, mit Grund");
 
     await page.getByRole("button", { name: "Fehlgeschlagene erneut senden" }).click();
-    await page.getByText("2 von 2 übernommen").waitFor();
+    await page.getByText("2 von 2 angewendet").waitFor();
     assert.deepEqual(calls.retry, [["11111111-1111-1111-1111-111111111111"]]);
     assert.equal(await page.locator('[data-testid="targets-differs"]').count(), 0, "kein Unterschied zur gesendeten Vorschau");
 

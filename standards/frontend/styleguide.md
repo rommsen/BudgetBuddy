@@ -296,7 +296,7 @@ steht nur **wann welche / wann nicht**.
 | **Button** | Jede klickbare Aktion (dazu `amountStep` für Schritte neben einem Feld, hält den Fokus; `sideRow` und `sideRowFixed` für die Zeilen `von` und `nach`): `primary` (Orange-CTA), `secondary` (neutral mit grauem Rand, ADR 0075), `ghost`, `danger`, `hero`/`heroTeal` (große CTAs), `*Loading`, `IsBusy` (der eigene Aufruf läuft auf einem Knopf, der den Fokus haben kann: Spinner, `aria-disabled` und `aria-busy`, kein `disabled`, der Fokus bleibt), `*WithIcon`, `group`, in Listen `selectableListRow` (Zeile, die etwas wählt, gewählt mit `aria-current` und Teal), `stepArrow`/`stepArrowGap` (`‹ ›`, der Platz bleibt am Rand frei), `homeLabel` (Name, der nach Hause führt und teal ist, wenn man woanders steht; `homeLabelCompact` schmal für ein kurzes Wort wie „Nov 2026“ im Kopf der Budget-Seite am Handy), `listName` (Name einer Zeile als Knopf, sieht aus wie der Name, am Handy 48 px Trefferfläche ohne höhere Zeile) `listRow` (ganze zweizeilige Listenzeile als Knopf) und `disclosureListRow` (Zeile, die einen Block darunter aufklappt: Chevron in `text-muted` rechts, dreht sich beim Öffnen, `aria-expanded` und `aria-controls`, der Block bleibt zu `hidden` im DOM), `tile` (Kachel mit Wert in Mono 13 px und Bezeichnung 11 px, Radius 10 px, mindestens 52 px hoch, Zustand offen, erledigt oder aktiv mit Teal-Rand; Leiste Monatserster) und `quietText` (leiser Textknopf 12 px gedämpft, „Ausblenden“) | Navigation zwischen Seiten → `Navigation`; Link nach extern → eigener Anker mit `Icons.externalLink` |
 | **Card** | Inhaltsblöcke: `standard`, `glass`, `glow` (featured), `withAccent`, `emptyState`, plus `header`/`body`/`footer` | Volle Seiten-Layouts → `Primitives`; modale Inhalte → `Modal` |
 | **Badge** | Kompakter Status/Label: semantisch (`success`/`warning`/`error`/`info`, `notice` in Gelb für die Budget-Seite, ADR 0075), Domänen-Status (`imported`, `pendingReview`, `autoCategorized`, `uncategorized`), `count` | Klickbare Filter → `Button.ghost`/Pills; lange Texte |
-| **Input** | Alle Formularelemente: `text`/`password`/`email`/`number`, `textarea`, `select`/`selectSimple`, `checkbox`, `toggle`, `searchableSelect`, plus `group`/`groupWithError`/`formSection` | Reine Anzeige; mobiles Kategorie-/Konto-Auswählen → `BottomSheet` (§7) |
+| **Input** | Alle Formularelemente: `text`/`password`/`email`/`number`, `textarea`, `select`/`selectSimple`, `checkbox`, `checkboxNative` (die native Checkbox des Browsers ohne eigene Gestalt, in einem `label` mit der Zeile; Vorschau Targets anwenden nach der Skizze), `toggle`, `searchableSelect`, plus `group`/`groupWithError`/`formSection` | Reine Anzeige; mobiles Kategorie-/Konto-Auswählen → `BottomSheet` (§7) |
 | **Modal** | Zentrierte Dialoge auf **Desktop**: `simple`, `custom`, `fullScreen`, `confirm`/`confirmDanger` (beide mit "Abbrechen"), `alert`, `loading` | Mobile Auswahl-Flows → `BottomSheet` (keyboard-fest); persistente Inhalte |
 | **Toast** | Flüchtiges Feedback nach Aktion: `success`/`error`/`warning'`/`info'`, `renderList` | Blockierende Fehler → `ErrorDisplay`/`Modal`; persistenter Status → `Badge` |
 | **Stats** | KPI-/Kennzahl-Kacheln: `withIcon`, `withTrend`, `transactionCount`, `syncCount`, `grid*`, `withAccent` (Akzentfarbe wählen, inkl. `NoAccent` für gar keinen Streifen, z. B. Kontostände-Karten); Monatsbalken `monthBars`, `monthBarsChosen` (vorgewählter Balken, nur im Styleguide) und `monthBarsPlaceholder` (beim Laden, gleich hoch); Mini-Balken `sparkBars`, `sparkBarsLabelled` und `sparkBarsPlaceholder` (Seite Targets prüfen); Regeln in §2 Monatsbalken | Vollständige Tabellen → `Table`; einzelner Betrag im Fließtext → `Money` |
@@ -422,26 +422,30 @@ darunter neu verankert. Filterwechsel braucht kein Hochscrollen. Beleg:
 `infrastructure/done/2026-06-11-mobile-polish-sticky-filter-skeleton-springs`;
 Positionierung in `styles.css`. Sticky-Tabellenköpfe analog über `Table` (`Sticky=true`).
 
-Der Kopf der Budget-Seite ist am PC eine sticky Zeile: Monat, Suche, Filter, Zu verteilen,
-`Targets anwenden`, der Knopf Historie (Icon-Knopf `Icons.clock`, `aria-label` "Historie") und rechts daneben
-der Knopf Targets prüfen (Icon-Knopf `Icons.checkCircle`, `aria-label` und `title` "Targets prüfen", in jedem
-Monat sichtbar, die Seite gilt immer für den laufenden), ab 1024 px
-in einer Zeile, darunter bis 768 px in zweien. Der Spaltenkopf haftet
-darunter. Der Titel entfällt, die Navigation nennt die Seite, die `h1` bleibt für den Screenreader
-(`PageHeader.screenReaderTitle`). Die Seite läuft über die volle Breite mit dem üblichen Seitenrand,
-der Zuwachs geht an die Spalte Kategorie, das Panel bleibt 340 px. Am Handy haften nur Monat mit Zu
-verteilen und die Chips, die Suche scrollt mit, `Targets anwenden` steht in ihrer Zeile. Der Knopf
-Historie steht am Handy im Kopf neben Zu verteilen (48 px), Targets prüfen gleich daneben (48 px), beide nicht in
-der Suchzeile: die Suche teilt ihre Zeile nur mit `Targets anwenden`. Die Seite Targets prüfen
-`#/budget/target-check` hat am PC als Kopf eine Karte mit Zurück, Titel, Erklärung und den Zählern "Hinweise" und
+Der Kopf der Budget-Seite ist eine sticky Zeile wie die Skizze (budgeting-m3x7f): `‹ Monat ›`, der Knopf
+Historie (Icon-Knopf `Icons.clock`, `aria-label` "Historie"), der Knopf Monatserster (Icon-Knopf `Icons.calendar`,
+`aria-label` und `title` "Monatserster", `aria-expanded` sagt, ob die Leiste steht) und rechts Zu verteilen. Den Knopf
+Monatserster gibt es im laufenden und in kommenden Monaten, im vergangenen bleibt er `invisible`, der Kopf springt beim
+Blättern nicht. Ab 768 px steht der Kopf in einer Zeile, am Handy bei 390 px auch (Monat kurz über
+`Button.homeLabelCompact`, Zu verteilen ohne €, beide Icon-Knöpfe 48 px). Darunter steht die Leiste Monatserster (Karte
+mit vier `Button.tile` und `Button.quietText` "Ausblenden"), darunter mit 10 px Abstand die Suchzeile: am PC die Suche
+(256 px) und die Chips in einer Zeile, am Handy nur die Suche, die Chips liegen in der Liste. Ohne Leiste steht die
+Suchzeile direkt unter dem Kopf. Von selbst steht die Leiste im laufenden Monat, solange Targets prüfen, Targets
+anwenden oder Überzogene decken offen ist und sie für den Monat nicht ausgeblendet ist; über den Kopfknopf steht sie im
+laufenden und in kommenden Monaten jederzeit. Der Weg zu Targets prüfen ist Feld 1 der Leiste, der zu Targets anwenden
+Feld 2, im Kopf gibt es für beide keinen Knopf. Der Spaltenkopf haftet unter dem Kopf. Der Titel entfällt, die
+Navigation nennt die Seite, die `h1` bleibt für den Screenreader (`PageHeader.screenReaderTitle`). Die Seite läuft über
+die volle Breite mit dem üblichen Seitenrand, der Zuwachs geht an die Spalte Kategorie, das Panel bleibt 340 px. Am PC
+scrollen Leiste, Suche und Chips mit. Am Handy haften der Kopf und die Chips, die Suche scrollt mit.
+
+Die Seite Targets prüfen `#/budget/target-check` hat am PC als Kopf eine Karte mit Zurück, Titel, Erklärung und den Zählern "Hinweise" und
 "Passt", am Handy Zurück, den Titel groß und eine Zeile mit Monat und Zählern. Die Gruppen sind Karten, jede klappt
 auf und zu (`Button.disclosureListRow` in einer `h2`), beim Betreten offen, "Passt" zu. Eine Zeile steht ab 720 px
 Breite der Liste (Container-Abfrage) in vier Spalten wie die Skizze (Name und Target, Mini-Balken 132 px, Ø und
 Monate, Knöpfe; Verhältnis 1,3 zu 1), schmaler wie am Handy untereinander. "<Betrag> übernehmen" und "Anpassen …"
 sind neutrale Knöpfe (`Button.Secondary`, ADR 0075 Punkt 3). "Anpassen …" öffnet das Target-Formular ab 1024 px als
 Panel rechts, 360 px breit wie die Skizze (`.target-check-panel`), darunter als `BottomSheet.inspector`. In der Budget-Historie `#/budget/history` stehen die Filter nach Art
-als `ChipBar.barWithTestId` in einer eigenen, haftenden Zeile unter Zurück und Titel. Im
-vergangenen Monat bleibt der Knopf `invisible`, die Seite springt nicht. Die Höhe des Kopfs ist
+als `ChipBar.barWithTestId` in einer eigenen, haftenden Zeile unter Zurück und Titel. Die Höhe des Kopfs ist
 gemessen (`ResizeObserver`, `--budget-month-bar-height`), weil er umbricht. Ein Halter mit
 `overflow-hidden` nimmt dem Spaltenkopf das Haften: dort `overflow-clip`.
 

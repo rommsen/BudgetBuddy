@@ -104,7 +104,7 @@ let private confirmTests =
             let ready = { loaded with Targets = PreviewReady { Shown = preview; Changed = false; Excluded = Set.empty } }
             let m, sent = confirmTargets ready
             Expect.equal sent (Some preview) "gezeigte Vorschau geht an den Server"
-            Expect.equal m.Targets (Applying preview) "läuft"
+            Expect.equal m.Targets (Applying { Shown = preview; Changed = false; Excluded = Set.empty }) "läuft"
             let _, again = confirmTargets m
             Expect.isNone again "kein zweiter Aufruf während des Laufs"
         }
@@ -119,13 +119,13 @@ let private confirmTests =
             Expect.isNone sent "kein Aufruf"
         }
         test "Hat sich YNABs Stand geändert, zeigt der Dialog die neue Vorschau mit Hinweis" {
-            let applying = { loaded with Targets = Applying preview }
+            let applying = { loaded with Targets = Applying { Shown = preview; Changed = false; Excluded = Set.empty } }
             let fresh = previewOf 40m [ line "Essen" 10m 30m ]
             let m = applyApplied (Ok (PreviewChanged fresh)) applying
             Expect.equal m.Targets (PreviewReady { Shown = fresh; Changed = true; Excluded = Set.empty }) "neue Vorschau, changed = true"
         }
         test "Der Ausgang wird gezeigt, ein Aufruffehler bleibt sichtbar" {
-            let applying = { loaded with Targets = Applying preview }
+            let applying = { loaded with Targets = Applying { Shown = preview; Changed = false; Excluded = Set.empty } }
             let report = reportOf [ Written; Written ] (Some preview.ToBeBudgetedAfter)
             Expect.equal (applyApplied (Ok (Applied report)) applying).Targets (ApplyDone { Sent = preview; Report = report; Retrying = false; RetryError = None }) "fertig"
             Expect.equal (applyApplied (Error "Netz weg") applying).Targets (ApplyFailed (preview, "Netz weg")) "Fehler"
@@ -164,7 +164,7 @@ let private retryTests =
             Expect.isNone reloadPreview "Abbrechen schreibt nichts, kein Neuladen"
         }
         test "Während des Schreibens lässt sich der Dialog nicht schließen" {
-            let applying = { loaded with Targets = Applying preview }
+            let applying = { loaded with Targets = Applying { Shown = preview; Changed = false; Excluded = Set.empty } }
             Expect.equal (closeTargets applying) (applying, None) "Applying bleibt"
             let report = reportOf [ Failed "x" ] None
             let retrying = { loaded with Targets = ApplyDone { Sent = preview; Report = report; Retrying = true; RetryError = None } }
@@ -221,7 +221,7 @@ let private retryTests =
             Expect.equal rereadAfterRetry (Some FullReread) "über Loaded"
         }
         test "Läuft der Lauf noch, bleibt der Dialog beim Schließen offen und nichts wird gelesen" {
-            let applying = { loaded with Targets = Applying preview }
+            let applying = { loaded with Targets = Applying { Shown = preview; Changed = false; Excluded = Set.empty } }
             let model, cmd, _ = Components.Budget.State.update CloseTargets applying
             Expect.equal model applying "unverändert"
             Expect.isEmpty cmd "kein Aufruf"

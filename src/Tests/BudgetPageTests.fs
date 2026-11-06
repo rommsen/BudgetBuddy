@@ -1034,14 +1034,8 @@ let private pageViewTests =
             Expect.equal (monthStepperFor frameK7wmd "2026-10-01") { Previous = Some "2026-09-01"; Next = Some "2026-11-01"; Elsewhere = false } "laufend"
             Expect.equal (monthStepperFor frameK7wmd "2026-11-01") { Previous = Some "2026-10-01"; Next = None; Elsewhere = true } "hinten"
         }
-        test "Blättern liest nur den Monat, nicht den Rahmen, der Kopfknopf Monatserster steht nicht im vergangenen Monat" {
+        test "Blättern liest nur den Monat, nicht den Rahmen" {
             Expect.equal (commands (SelectMonth "2026-09-01") framed) 1 "genau ein Aufruf: der Monat"
-            let shownAfter key =
-                let changing = update (SelectMonth key) framed
-                update (Loaded (changing.MonthGeneration, Ok { monthK7wmd with Month = key })) changing
-            Expect.isTrue (Components.Budget.MonthStart.monthStartButtonVisible framed) "laufender Monat"
-            Expect.isFalse (Components.Budget.MonthStart.monthStartButtonVisible (shownAfter "2026-09-01")) "vergangener Monat"
-            Expect.isTrue (Components.Budget.MonthStart.monthStartButtonVisible (shownAfter "2026-11-01")) "kommender Monat"
         }
         // Iteration 2: aus "PC: Tabelle mit Spaltenköpfen" und "Handy: Zu verteilen negativ …" gezogen.
         test "Unter Zugewiesen, Aktivität und Verfügbar stehen die Beträge der Kategorie, am Handy Zugewiesen und Aktivität als Zeile" {

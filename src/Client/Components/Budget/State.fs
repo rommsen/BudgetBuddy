@@ -417,7 +417,9 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
     | MonthStartHideAnswered (Ok ()) -> model, Cmd.none, NoOp
     | MonthStartHideAnswered (Error message) ->
         // Auf dieser Seite bleibt die Leiste ausgeblendet; auf einem anderen Gerät stünde sie wieder.
-        model, Cmd.none, ShowToast ($"Ausblenden nicht gespeichert, auf anderen Geräten steht die Leiste noch: {message}", ToastWarning)
+        // Der Server meldet schon den ganzen Satz ("Ausblenden nicht gespeichert."), ein Netzfehler nur seinen Grund.
+        let text = if message.StartsWith "Ausblenden" then message else $"Ausblenden nicht gespeichert: {message}"
+        model, Cmd.none, ShowToast (text, ToastWarning)
     | CoverOverdrawn panel -> quiet (withTabData (coverOverdrawn panel model))
     | MonthStartCheckLoaded (generation, result) -> applyMonthStartCheck generation result model, Cmd.none, NoOp
     | ConfirmTargets ->

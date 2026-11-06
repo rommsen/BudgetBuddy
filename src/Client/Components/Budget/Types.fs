@@ -18,7 +18,8 @@ type PreviewShown = {
     Shown: TargetPreview
     /// Sie wurde neu geladen, weil sich der Stand beim Übernehmen geändert hatte (es wurde nichts geschrieben).
     Changed: bool
-    /// Die abgewählten Kategorien. Beim Öffnen und nach jeder neuen Vorschau leer: alle Zeilen sind gewählt.
+    /// Die abgewählten Kategorien. Beim Öffnen leer: alle Zeilen sind gewählt. Nach "Stand hat sich geändert" bleibt die
+    /// Abwahl für jede Kategorie, die in der neuen Vorschau noch steht.
     Excluded: Set<System.Guid>
 }
 
@@ -41,8 +42,8 @@ type TargetsState =
     | PreviewFailed of message: string
     /// Die Vorschau steht, mit Auswahl.
     | PreviewReady of PreviewShown
-    /// Übernehmen läuft, mit der gesendeten Vorschau (nur gewählte Zeilen).
-    | Applying of preview: TargetPreview
+    /// Übernehmen läuft, mit der Vorschau und ihrer Auswahl. Gesendet sind nur die gewählten Zeilen (`selectedPreview`).
+    | Applying of PreviewShown
     /// Der Aufruf selbst scheiterte: ob etwas geschrieben wurde, ist unbekannt.
     | ApplyFailed of preview: TargetPreview * message: string
     /// Ausgang der Anwendung.
