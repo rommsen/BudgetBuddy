@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 22:48 -- Review-Lauf: budgeting-k7r2w
+
+**Type:** Review / Review-Lauf
+**Bereich:** budgeting-k7r2w (9c4e932)
+**Agents:** qa-milestone-reviewer, backend-code-quality, frontend-architecture, design-quality
+**Funde:** behoben 11, verworfen 6, Rückfrage 0, Ticket 0
+**Commits:** 6ef7310, a103805
+**Verworfen:** Split-Eltern mit Kategorie (der Spiegel speichert bei Splits keine Kategorie an der Elternbuchung, resolveCategoryVsSplits); doppelte Datumsumwandlung im Port (parallel zu loadFirstEntryDate, bewusst); Fehlertext SpendingUnreadableText bleibt (treffend genug); monthLabel-Tests bleiben in BudgetPageTests (laufen über Shared, kein Nutzen); Erklärsatz mit oder bleibt (knapp genug, Design-Agent rät selbst dazu); Mini-Balken-Test bleibt (im Kriterium verlangt)
+**Offen [human-eye]:** Umbruch des längeren Erklärsatzes im Kopf bei 768 und 1024 px; neu seit stimmt nur, soweit das Kassenbuch bis zur echten ersten Buchung zurückreicht
+**Verifikation:** VERIFY: PASS (dotnet 4210 grün, node 316 grün)
+
+---
+
 ## 2026-11-06 22:39 -- Task verified and completed: budgeting-k7r2w - "Targets prüfen zählt eine neue Kategorie erst ab ihrer ersten Buchung im Kassenbuch, statt die Monate davor als 0 € mitzuzählen. Unter 3 gezählten Monaten steht sie unter Passt mit „neu seit <Monat>“."
 
 **Type:** Work / Task completion
