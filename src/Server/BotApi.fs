@@ -43,10 +43,10 @@ type BotPreview = {
     Memo: string option
 }
 
-/// Das Ergebnis eines Commits. `EntryId` fehlt, wenn der Push scheiterte (die Buchung steht
-/// dann trotzdem im Kassenbuch, `addCashExpense` reicht dort nur den Fehler durch).
+/// Das Ergebnis eines Commits. `EntryId` ist die Kassenbuch-Buchung, auch wenn der Push
+/// scheiterte (ledger-z71ka): Die Buchung steht dann ohne YNAB-Verknüpfung im Kassenbuch.
 type BotCommitResult = {
-    EntryId: Guid option
+    EntryId: Guid
     PushedToYnab: bool
     PushError: string option
 }
@@ -56,12 +56,22 @@ type BotCommitOutcome =
     | BotBooked of BotCommitResult
     | BotDailyLimitReached of message: string
 
+/// Der Commit einer Vorschau: die beim ersten Aufruf festgelegte `EntryId` und der laufende
+/// oder abgeschlossene Versuch.
+type private BotCommitSlot = {
+    EntryId: Ledger.Events.EntryId
+    mutable Attempt: Task<BotCommitOutcome>
+}
+
 /// Vorschau-Speicher im Arbeitsspeicher. Nach einem Neustart verfallen alle Vorschauen
-/// (ADR 0066). Der Commit läuft je Vorschau höchstens einmal: gleichzeitige Aufrufe teilen
-/// sich dieselbe Aufgabe.
+/// (ADR 0066). Der Commit legt je Vorschau einmal die `EntryId` fest und läuft höchstens
+/// einmal gleichzeitig: gleichzeitige Aufrufe teilen sich denselben Versuch. Ein Versuch,
+/// der mit einer Ausnahme endete, wird beim nächsten Aufruf durch einen neuen mit derselben
+/// `EntryId` ersetzt (ledger-z71ka), nie wiederverwendet.
 type BotPreviewStore() =
     let previews = ConcurrentDictionary<Guid, BotPreview>()
-    let commits = ConcurrentDictionary<Guid, Lazy<Task<BotCommitOutcome>>>()
+    let commits = ConcurrentDictionary<Guid, BotCommitSlot>()
+    let gate = obj ()
 
     member _.Add(preview: BotPreview) = previews[preview.Id] <- preview
 
@@ -72,11 +82,22 @@ type BotPreviewStore() =
 
     member _.IsCommitted(id: Guid) = commits.ContainsKey id
 
-    /// Startet den Commit genau einmal je Vorschau; jeder weitere Aufruf bekommt dieselbe
-    /// Aufgabe und damit dasselbe Ergebnis.
-    member _.CommitOnce(id: Guid, work: unit -> Async<BotCommitOutcome>) : Task<BotCommitOutcome> =
-        let lazyTask = commits.GetOrAdd(id, fun _ -> lazy (Async.StartAsTask(work ())))
-        lazyTask.Value
+    /// Startet den Commit je Vorschau mit einer beim ersten Aufruf festgelegten `EntryId`.
+    /// Läuft ein Versuch oder ist er abgeschlossen, bekommt jeder weitere Aufruf denselben
+    /// Versuch und damit dasselbe Ergebnis. Endete er mit einer Ausnahme, startet der nächste
+    /// Aufruf `work` erneut mit derselben `EntryId`; `work` sieht dann im Kassenbuch nach.
+    member _.CommitOnce(id: Guid, work: Ledger.Events.EntryId -> Async<BotCommitOutcome>) : Task<BotCommitOutcome> =
+        lock gate (fun () ->
+            match commits.TryGetValue id with
+            | true, slot when slot.Attempt.IsFaulted || slot.Attempt.IsCanceled ->
+                slot.Attempt <- Async.StartAsTask(work slot.EntryId)
+                slot.Attempt
+            | true, slot -> slot.Attempt
+            | _ ->
+                let entryId = Ledger.Events.newEntryId ()
+                let slot = { EntryId = entryId; Attempt = Async.StartAsTask(work entryId) }
+                commits[id] <- slot
+                slot.Attempt)
 
     /// Wirft Vorschauen weg, die länger als `retainExpired` abgelaufen sind.
     member _.Purge(now: DateTime) =
@@ -159,6 +180,17 @@ type BotDeps = {
     LoadCategories: unit -> Async<Result<YnabCategory list, string>>
     ResolveTarget: unit -> Async<Result<BotTarget, string>>
     Push: BotPreview -> Async<YnabResult<string>>
+    /// Das Buchen ins Kassenbuch mit anschließendem Push. Live ist das
+    /// `Ledger.CommandHandlers.addCashExpense`; Tests lösen hier Ausnahmen vor und nach dem
+    /// Schreiben aus (ledger-z71ka).
+    AddCashExpense:
+        Ledger.Events.Actor
+            -> DateTime
+            -> Ledger.Events.EntryId
+            -> (unit -> Async<YnabResult<string>>)
+            -> (unit -> unit)
+            -> Ledger.CommandHandlers.CashExpenseInput
+            -> Async<YnabResult<Ledger.Events.EntryId>>
     TriggerMirror: unit -> unit
     Store: BotPreviewStore
     Limiter: BotRateLimiter
@@ -218,7 +250,7 @@ let private commitJson (previewId: Guid) (r: BotCommitResult) : JsonValue =
     Encode.object [
         "preview_id", Encode.string (previewId.ToString())
         "status", Encode.string "booked"
-        "entry_id", (match r.EntryId with Some id -> Encode.string (id.ToString()) | None -> Encode.nil)
+        "entry_id", Encode.string (r.EntryId.ToString())
         "pushed_to_ynab", Encode.bool r.PushedToYnab
         "push_error", (match r.PushError with Some e -> Encode.string e | None -> Encode.nil)
     ]
@@ -309,7 +341,28 @@ let private previewHandler (deps: BotDeps) : HttpHandler =
                                     return! respond 200 (previewJson preview) earlyReturn ctx
         }
 
-let private bookWithinLimit (deps: BotDeps) (p: BotPreview) : Async<BotCommitOutcome> =
+/// Was das Kassenbuch zu einer schon geschriebenen Buchung sagt (ledger-z71ka): verknüpft,
+/// wenn `EntryLinkedToYnab` im Stream steht, sonst der Grund des letzten
+/// `EntryPushToYnabFailed`. `None`, wenn unter der Id nichts steht.
+let private bookedFromLedger (entryId: Ledger.Events.EntryId) : Async<BotCommitResult option> =
+    async {
+        let! recorded = Ledger.Persistence.loadEventsForEntry entryId
+        if List.isEmpty recorded then
+            return None
+        else
+            let bodies = recorded |> List.map (fun r -> r.Event.Body)
+            let linked = bodies |> List.exists (function Ledger.Events.EntryLinkedToYnab _ -> true | _ -> false)
+            let pushError =
+                if linked then None
+                else
+                    bodies
+                    |> List.rev
+                    |> List.tryPick (function Ledger.Events.EntryPushToYnabFailed f -> Some f.Reason | _ -> None)
+            let (Ledger.Events.EntryId id) = entryId
+            return Some { EntryId = id; PushedToYnab = linked; PushError = pushError }
+    }
+
+let private bookWithinLimit (deps: BotDeps) (p: BotPreview) (entryId: Ledger.Events.EntryId) : Async<BotCommitOutcome> =
     async {
         let! usedSum, usedCount = loadDailyUsage deps.BerlinZone (deps.Now())
         match checkBotDailyLimit usedSum usedCount p.AmountEur with
@@ -325,29 +378,37 @@ let private bookWithinLimit (deps: BotDeps) (p: BotPreview) : Async<BotCommitOut
                 Category = Some ({ CategoryId = p.Category.Id; CategoryName = p.Category.Name } : Ledger.Events.CategoryRef)
             }
             match!
-                Ledger.CommandHandlers.addCashExpense
+                deps.AddCashExpense
                     Ledger.Events.Bob
                     (deps.Now())
+                    entryId
                     (fun () -> deps.Push p)
                     deps.TriggerMirror
                     input
             with
             | Ok (Ledger.Events.EntryId id) ->
-                return BotBooked { EntryId = Some id; PushedToYnab = true; PushError = None }
+                return BotBooked { EntryId = id; PushedToYnab = true; PushError = None }
             | Error err ->
+                let (Ledger.Events.EntryId id) = entryId
                 return
                     BotBooked
-                        { EntryId = None
+                        { EntryId = id
                           PushedToYnab = false
                           PushError = Some (ynabErrorText err) }
     }
 
-/// Prüfung der Tagesgrenze und Buchung unter einer Sperre (siehe `bookingGate`).
-let private bookPreview (deps: BotDeps) (p: BotPreview) : Async<BotCommitOutcome> =
+/// Prüfung der Tagesgrenze und Buchung unter einer Sperre (siehe `bookingGate`). Steht
+/// unter `entryId` schon eine Buchung (ein früherer Versuch warf danach), gilt sie als das
+/// Ergebnis, ohne neue Buchung und ohne neuen Push (ADR 0021: Erneut senden und Spiegel
+/// sind dafür zuständig). Sonst bucht der Versuch mit derselben `entryId`, wieder unter
+/// Prüfung der Tagesgrenze (ADR 0068).
+let private bookPreview (deps: BotDeps) (p: BotPreview) (entryId: Ledger.Events.EntryId) : Async<BotCommitOutcome> =
     async {
         do! bookingGate.WaitAsync() |> Async.AwaitTask
         try
-            return! bookWithinLimit deps p
+            match! bookedFromLedger entryId with
+            | Some booked -> return BotBooked booked
+            | None -> return! bookWithinLimit deps p entryId
         finally
             bookingGate.Release() |> ignore
     }
@@ -367,14 +428,17 @@ let private commitHandler (deps: BotDeps) (idText: string) : HttpHandler =
                         respond 410 (errorBody "preview_expired" "Die Vorschau ist abgelaufen, bitte neu anlegen" []) earlyReturn ctx
                 | Some preview ->
                     try
-                        let! outcome = deps.Store.CommitOnce(id, fun () -> bookPreview deps preview)
+                        let! outcome = deps.Store.CommitOnce(id, bookPreview deps preview)
                         match outcome with
                         | BotBooked result -> return! respond 200 (commitJson id result) earlyReturn ctx
                         | BotDailyLimitReached message ->
                             return! respond 422 (errorBody "daily_limit_reached" message []) earlyReturn ctx
                     with ex ->
                         printfn "[Bot] Commit %O fehlgeschlagen: %s" id ex.Message
-                        return! respond 500 (errorBody "commit_failed" "Die Buchung ist fehlgeschlagen" []) earlyReturn ctx
+                        let message =
+                            "Die Buchung ist fehlgeschlagen. Ein erneuter Commit derselben preview_id ist sicher: "
+                            + "er bucht höchstens einmal und meldet eine schon gespeicherte Buchung"
+                        return! respond 500 (errorBody "commit_failed" message []) earlyReturn ctx
         }
 
 let private categoriesHandler (deps: BotDeps) : HttpHandler =
@@ -489,6 +553,7 @@ let liveDeps (berlinZone: TimeZoneInfo) : BotDeps =
                         }
                         return! Server.YnabClient.createManualTransaction token budgetId p.Target.YnabAccountId request
                 }
+        AddCashExpense = Ledger.CommandHandlers.addCashExpense
         TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground
         Store = BotPreviewStore()
         Limiter = BotRateLimiter(rateLimitPerWindow, rateLimitWindow)

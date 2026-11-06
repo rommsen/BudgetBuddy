@@ -662,15 +662,21 @@ let describeNotCreatedReason (importId: string) (result: Ynab.TransactionCreateR
 /// `now`, `push` und `triggerMirror` kommen von außen, damit der Ablauf ohne Uhr, ohne
 /// Netz und ohne Spiegel-Lauf testbar ist (Muster wie `MirrorFetchers` beim
 /// Spiegel-Lauf).
+///
+/// Die `entryId` legt der Aufrufer vorab fest (Quick Add mit `newEntryId ()`, die
+/// Bot-Schnittstelle je Vorschau, ledger-z71ka). Sie gilt auch, wenn der Push scheitert:
+/// Dann steht die Buchung unter genau dieser Id im Kassenbuch, und `Error` meldet nur den
+/// Push-Fehler. So kann ein Aufrufer nach einem Abbruch im Kassenbuch nachsehen, ob die
+/// Buchung schon steht.
 let addCashExpense
     (actor: Actor)
     (now: DateTime)
+    (entryId: EntryId)
     (push: unit -> Async<YnabResult<string>>)
     (triggerMirror: unit -> unit)
     (input: CashExpenseInput)
     : Async<YnabResult<EntryId>> =
     async {
-        let entryId = newEntryId ()
         let cashExpenseAdded = {
             EntryId = entryId
             OccurredAt = now

@@ -37,6 +37,18 @@ großzügigere Regel in BB greift nur, wenn eine Anfrage auf einem anderen Weg a
   410 abgelaufen, 422 mit `daily_limit_reached`, wenn die Tagesgrenze inzwischen erreicht ist
   (mehrere offene Vorschauen können zusammen darüber liegen). Ein zweiter Aufruf bucht nicht noch einmal und liefert das erste Ergebnis.
   Die Antwort nennt `entry_id`, `pushed_to_ynab` und bei einem Fehlschlag `push_error`.
+  - Push gescheitert: Die Buchung steht trotzdem im Kassenbuch. Antwort 200 mit
+    `status: "booked"`, der `entry_id` dieser Buchung, `pushed_to_ynab: false` und
+    `push_error`. Bob legt dann keine neue Vorschau an. Ein zweiter Commit liefert dasselbe
+    Ergebnis und versucht den Push nicht noch einmal; den Weg nach YNAB übernehmen
+    "Erneut senden" in BB und der Spiegel (ADR 0021).
+  - Commit abgebrochen: Antwort 500 mit `commit_failed`. Bob wiederholt den Commit mit
+    derselben `preview_id`, keine neue Vorschau. Die Id der Buchung steht schon vor dem Buchen
+    fest. Steht die Buchung im Kassenbuch, liefert die Wiederholung 200 `booked` mit dieser
+    `entry_id` (`pushed_to_ynab` und `push_error` aus dem Kassenbuch). Steht sie nicht da,
+    bucht die Wiederholung genau einmal, wieder mit Prüfung der Tagesgrenze (422
+    `daily_limit_reached`, wenn sie inzwischen erreicht ist). Eine Vorschau, deren Commit
+    schon begonnen hat, verfällt nicht mehr mit 410.
 - `GET /bot/categories` liefert `id`, `name`, `group` der wählbaren Kategorien (ohne interne und
   versteckte). Vorschau und diese Route teilen einen Kategorien-Cache.
 

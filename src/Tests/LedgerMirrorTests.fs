@@ -1272,7 +1272,7 @@ let mirrorRunTests =
             let push () : Async<YnabResult<string>> = async.Return (Ok ynabTxId)
 
             let entryId =
-                match addCashExpense QuickAdd (Run.at 3) push (fun () -> ()) input |> Async.RunSynchronously with
+                match addCashExpense QuickAdd (Run.at 3) (newEntryId ()) push (fun () -> ()) input |> Async.RunSynchronously with
                 | Ok entryId -> entryId
                 | Error err -> failtest $"addCashExpense sollte gelingen, war: {err}"
 

@@ -509,6 +509,7 @@ let ynabApi : YnabApi = {
                             Ledger.CommandHandlers.addCashExpense
                                 Ledger.Events.QuickAdd
                                 DateTime.UtcNow
+                                (Ledger.Events.newEntryId ())
                                 push
                                 Ledger.CommandHandlers.triggerMirrorInBackground
                                 input

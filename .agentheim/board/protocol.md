@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 06:51 -- Task verified and completed: ledger-z71ka - "Bot-Commit: entry_id auch nach gescheitertem Push, und ein abgebrochener Commit ist wiederholbar, ohne doppelt zu buchen"
+
+**Type:** Work / Task completion
+**Task:** ledger-z71ka - "Bot-Commit: entry_id auch nach gescheitertem Push, und ein abgebrochener Commit ist wiederholbar, ohne doppelt zu buchen"
+**Summary:** Bot-Commit: entry_id nach Push-Fehler, wiederholbarer Commit nach Ausnahme
+**Duration:** 16m
+**Verification:** PASS (iteration 1)
+**Files changed:** 8
+**Tests added:** 6
+**ADRs written:** none
+
+---
+
 ## 2026-11-05 21:41 -- Batch started: [budgeting-dgrp7, ledger-z71ka, infrastructure-w7d2c]
 
 **Type:** Work / Batch start

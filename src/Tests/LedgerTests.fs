@@ -1830,7 +1830,7 @@ let ledgerQuickAddCommandTests =
             let push () : Async<YnabResult<string>> = async.Return (Ok ynabTxId)
 
             match
-                addCashExpense QuickAdd (DateTime(2026, 3, 1, 9, 0, 0, DateTimeKind.Utc)) push noTrigger input
+                addCashExpense QuickAdd (DateTime(2026, 3, 1, 9, 0, 0, DateTimeKind.Utc)) (newEntryId ()) push noTrigger input
                 |> Async.RunSynchronously
             with
             | Error err -> failtest $"addCashExpense sollte gelingen, war: {err}"
@@ -1862,7 +1862,7 @@ let ledgerQuickAddCommandTests =
                 async.Return (Error (YnabError.NetworkError "Timeout"))
 
             let result =
-                addCashExpense QuickAdd (DateTime(2026, 3, 2, 9, 0, 0, DateTimeKind.Utc)) push noTrigger input
+                addCashExpense QuickAdd (DateTime(2026, 3, 2, 9, 0, 0, DateTimeKind.Utc)) (newEntryId ()) push noTrigger input
                 |> Async.RunSynchronously
 
             match result with
@@ -1904,7 +1904,7 @@ let ledgerQuickAddCommandTests =
             let mutable triggerCount = 0
             let triggerMirror () = triggerCount <- triggerCount + 1
 
-            addCashExpense QuickAdd (DateTime(2026, 3, 8, 9, 0, 0, DateTimeKind.Utc)) push triggerMirror input
+            addCashExpense QuickAdd (DateTime(2026, 3, 8, 9, 0, 0, DateTimeKind.Utc)) (newEntryId ()) push triggerMirror input
             |> Async.RunSynchronously
             |> ignore
 
@@ -1940,7 +1940,7 @@ let ledgerQuickAddCommandTests =
                     |> Option.map (fun id ->
                         loadEventsForEntry id |> Async.RunSynchronously |> List.map (fun r -> r.EventType))
 
-            addCashExpense QuickAdd (DateTime(2026, 3, 10, 9, 0, 0, DateTimeKind.Utc)) push triggerMirror input
+            addCashExpense QuickAdd (DateTime(2026, 3, 10, 9, 0, 0, DateTimeKind.Utc)) (newEntryId ()) push triggerMirror input
             |> Async.RunSynchronously
             |> ignore
 
@@ -1966,7 +1966,7 @@ let ledgerQuickAddCommandTests =
             let mutable triggerCount = 0
             let triggerMirror () = triggerCount <- triggerCount + 1
 
-            addCashExpense QuickAdd (DateTime(2026, 3, 9, 9, 0, 0, DateTimeKind.Utc)) push triggerMirror input
+            addCashExpense QuickAdd (DateTime(2026, 3, 9, 9, 0, 0, DateTimeKind.Utc)) (newEntryId ()) push triggerMirror input
             |> Async.RunSynchronously
             |> ignore
 

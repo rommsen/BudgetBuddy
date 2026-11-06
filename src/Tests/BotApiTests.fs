@@ -49,7 +49,7 @@ let private nextTestDay () =
 
 /// Eine Testumgebung mit zählbarem Push und verstellbarer Uhr. Die Uhr startet um 10:00 UTC
 /// am eigenen Tag D (in Berlin derselbe Kalendertag).
-type private Env(?pushResult: Async<YnabResult<string>>, ?target: Result<BotTarget, string>, ?token': string option, ?delayMs: int, ?rateLimit: int, ?loadCategories: Async<Result<YnabCategory list, string>>) =
+type private Env(?pushResult: Async<YnabResult<string>>, ?target: Result<BotTarget, string>, ?token': string option, ?delayMs: int, ?rateLimit: int, ?loadCategories: Async<Result<YnabCategory list, string>>, ?addCashExpense) =
     let day = nextTestDay ()
     let mutable now = day.AddHours 10.0
     let mutable pushes = 0
@@ -89,6 +89,7 @@ type private Env(?pushResult: Async<YnabResult<string>>, ?target: Result<BotTarg
                     | Some r -> return! r
                     | None -> return Ok $"ynab-{Guid.NewGuid()}"
                 }
+          AddCashExpense = defaultArg addCashExpense Ledger.CommandHandlers.addCashExpense
           TriggerMirror = ignore
           Store = BotPreviewStore()
           Limiter = BotRateLimiter(defaultArg rateLimit 100000, rateLimitWindow)
@@ -113,6 +114,28 @@ let private call (deps: BotDeps) (meth: string) (path: string) (auth: string opt
         responseBody.Position <- 0L
         let text = (new StreamReader(responseBody)).ReadToEnd()
         ctx.Response.StatusCode, (if text = "" then None else Some (JsonDocument.Parse(text).RootElement))
+
+/// Wo der Buchungs-Port beim ersten Aufruf wirft (ledger-z71ka): vor dem Schreiben ins
+/// Kassenbuch, oder nachdem Buchung und Push gelaufen sind.
+type private FaultPoint =
+    | BeforeWrite
+    | AfterWrite
+
+/// Buchungs-Port, der beim ersten Aufruf an `point` eine Ausnahme wirft und danach wie der
+/// echte `addCashExpense` bucht. Steht für einen DB-Fehler mitten im Commit.
+let private failingOnce (point: FaultPoint) =
+    let calls = ref 0
+    fun (actor: Actor) (now: DateTime) (entryId: EntryId) (push: unit -> Async<YnabResult<string>>) (trigger: unit -> unit) (input: Ledger.CommandHandlers.CashExpenseInput) ->
+        async {
+            let first = Interlocked.Increment(&calls.contents) = 1
+            match point with
+            | BeforeWrite when first -> return failwith "Datenbank nicht erreichbar"
+            | BeforeWrite -> return! Ledger.CommandHandlers.addCashExpense actor now entryId push trigger input
+            | AfterWrite ->
+                let! result = Ledger.CommandHandlers.addCashExpense actor now entryId push trigger input
+                if first then failwith "Datenbank nach dem Schreiben nicht erreichbar"
+                return result
+        }
 
 let private bearer = Some $"Bearer {token}"
 
@@ -395,7 +418,7 @@ let botApiTests =
             Expect.equal (entriesFor payee).Length 1 "genau eine Buchung"
             Expect.equal env.Pushes 1 "genau ein Push"
 
-        testCase "Push-Fehlschlag: Buchung steht, EntryPushToYnabFailed mit Actor Bob, die Antwort meldet ihn" <| fun () ->
+        testCase "Push-Fehlschlag: Buchung steht, EntryPushToYnabFailed mit Actor Bob, die Antwort meldet ihn mit der entry_id der Buchung" <| fun () ->
             let env = Env(pushResult = async.Return (Error (YnabError.NetworkError "Timeout")))
             let payee = uniquePayee ()
             let id = preview env.Deps payee "9" "outflow"
@@ -404,14 +427,127 @@ let botApiTests =
             Expect.isFalse (json.Value.GetProperty("pushed_to_ynab").GetBoolean()) "nicht in YNAB"
             Expect.stringContains (str json "push_error") "Netzwerk" "Grund"
             let entry = entriesFor payee |> List.exactlyOne
+            // ledger-z71ka: vorher kam `entry_id: null`, Bob hielt die Buchung für nicht gebucht
+            // und legte eine neue Vorschau an (Doppelbuchung).
+            let (EntryId bookedId) = entry.Id
+            Expect.equal (str json "entry_id") (bookedId.ToString()) "entry_id der gespeicherten Buchung"
             Expect.isSome entry.PushToYnabFailure "Fehlschlag im Zustand"
             let recorded = loadEventsForEntry entry.Id |> Async.RunSynchronously
             Expect.equal (recorded |> List.map (fun r -> r.EventType)) [ "CashExpenseAdded"; "EntryPushToYnabFailed" ] "Ereignisse"
             Expect.equal (recorded |> List.map (fun r -> r.Event.Actor)) [ Bob; Bob ] "Actor Bob"
             let _, again = commit env.Deps id
             Expect.equal (str again "push_error") (str json "push_error") "Wiederholung liefert das erste Ergebnis"
+            Expect.equal (str again "entry_id") (str json "entry_id") "Wiederholung nennt dieselbe entry_id"
             Expect.equal (entriesFor payee).Length 1 "keine zweite Buchung"
             Expect.equal env.Pushes 1 "kein zweiter Push"
+
+        // ---- Wiederholung nach einer Ausnahme im Commit (ledger-z71ka) ----
+        // Vorher blieb der fehlerhafte Commit gespeichert: jede Wiederholung derselben Vorschau
+        // bekam 500 ohne Angabe, ob gebucht wurde, und Bob konnte über eine neue Vorschau
+        // doppelt buchen.
+
+        testCase "Ausnahme nach dem Buchen: der erneute Commit liefert 200 mit derselben Buchung und bucht nicht doppelt" <| fun () ->
+            let env = Env(addCashExpense = failingOnce AfterWrite)
+            let payee = uniquePayee ()
+            let id = preview env.Deps payee "8" "outflow"
+            let status, json = commit env.Deps id
+            Expect.equal status 500 "erster Aufruf scheitert"
+            Expect.equal (str json "error") "commit_failed" "Code"
+            Expect.stringContains (str json "message") "erneuter Commit derselben preview_id ist sicher" "Hinweis auf Wiederholung"
+            // Auch nach Ablauf der Vorschau gilt sie als begonnen und verfällt nicht mit 410.
+            env.Now <- env.Now.AddHours 2.0
+            let againStatus, again = commit env.Deps id
+            Expect.equal againStatus 200 "Wiederholung 200"
+            Expect.equal (str again "status") "booked" "gebucht"
+            let entry = entriesFor payee |> List.exactlyOne
+            let (EntryId bookedId) = entry.Id
+            Expect.equal (str again "entry_id") (bookedId.ToString()) "entry_id der gespeicherten Buchung"
+            Expect.isTrue (again.Value.GetProperty("pushed_to_ynab").GetBoolean()) "Verknüpfung aus dem Stream"
+            Expect.equal (again.Value.GetProperty("push_error").ValueKind) JsonValueKind.Null "kein Push-Fehler"
+            Expect.equal env.Pushes 1 "kein zweiter Push"
+
+        testCase "Ausnahme nach dem Buchen mit gescheitertem Push: der erneute Commit meldet den Push-Fehler aus dem Stream" <| fun () ->
+            let env =
+                Env(pushResult = async.Return (Error (YnabError.NetworkError "Timeout")), addCashExpense = failingOnce AfterWrite)
+            let payee = uniquePayee ()
+            let id = preview env.Deps payee "6" "outflow"
+            Expect.equal (fst (commit env.Deps id)) 500 "erster Aufruf scheitert"
+            let status, json = commit env.Deps id
+            Expect.equal status 200 "Wiederholung 200"
+            let entry = entriesFor payee |> List.exactlyOne
+            let (EntryId bookedId) = entry.Id
+            Expect.equal (str json "entry_id") (bookedId.ToString()) "entry_id der gespeicherten Buchung"
+            Expect.isFalse (json.Value.GetProperty("pushed_to_ynab").GetBoolean()) "nicht in YNAB"
+            Expect.stringContains (str json "push_error") "Netzwerk" "Grund aus EntryPushToYnabFailed"
+            Expect.equal env.Pushes 1 "kein zweiter Push"
+
+        testCase "Ausnahme vor dem Buchen: der erneute Commit bucht genau einmal und liefert 200" <| fun () ->
+            let env = Env(addCashExpense = failingOnce BeforeWrite)
+            let payee = uniquePayee ()
+            let id = preview env.Deps payee "4" "outflow"
+            Expect.equal (fst (commit env.Deps id)) 500 "erster Aufruf scheitert"
+            Expect.isEmpty (entriesFor payee) "noch nichts gebucht"
+            let status, json = commit env.Deps id
+            Expect.equal status 200 "Wiederholung 200"
+            Expect.equal (str json "status") "booked" "gebucht"
+            let entry = entriesFor payee |> List.exactlyOne
+            let (EntryId bookedId) = entry.Id
+            Expect.equal (str json "entry_id") (bookedId.ToString()) "entry_id der Buchung"
+            Expect.equal (loadEventsForEntry entry.Id |> Async.RunSynchronously |> List.map (fun r -> r.Event.Actor)) [ Bob; Bob ] "Actor Bob"
+            let _, third = commit env.Deps id
+            Expect.equal (str third "entry_id") (str json "entry_id") "danach idempotent"
+            Expect.equal (entriesFor payee).Length 1 "genau eine Buchung"
+            Expect.equal env.Pushes 1 "ein Push"
+
+        testCase "zehn gleichzeitige Wiederholungen nach einer Ausnahme buchen nur einmal" <| fun () ->
+            let env = Env(delayMs = 150, addCashExpense = failingOnce BeforeWrite)
+            let payee = uniquePayee ()
+            let id = preview env.Deps payee "3" "outflow"
+            Expect.equal (fst (commit env.Deps id)) 500 "erster Aufruf scheitert"
+            let results =
+                [ for _ in 1..10 -> Task.Run(fun () -> commit env.Deps id) ]
+                |> List.map (fun t -> t.GetAwaiter().GetResult())
+            Expect.isTrue (results |> List.forall (fun (s, _) -> s = 200)) "alle 200"
+            Expect.equal (results |> List.map (fun (_, j) -> str j "entry_id") |> List.distinct |> List.length) 1 "dieselbe entry_id"
+            Expect.equal (entriesFor payee).Length 1 "genau eine Buchung"
+            Expect.equal env.Pushes 1 "genau ein Push"
+
+        testCase "die erneute Buchung nach einer Ausnahme hält die Tagesgrenze ein: inzwischen erreicht ergibt 422 und bucht nicht" <| fun () ->
+            let env = Env(addCashExpense = failingOnce BeforeWrite)
+            let payee = uniquePayee ()
+            let id = preview env.Deps payee "300" "outflow"
+            Expect.equal (fst (commit env.Deps id)) 500 "erster Aufruf scheitert"
+            Expect.equal (fst (commit env.Deps (preview env.Deps (uniquePayee ()) "300" "outflow"))) 200 "andere Vorschau bucht 300 Euro"
+            let status, json = commit env.Deps id
+            Expect.equal status 422 "300 plus 300 über 500"
+            Expect.equal (str json "error") "daily_limit_reached" "Code"
+            Expect.isEmpty (entriesFor payee) "nicht gebucht"
+            Expect.equal env.Pushes 1 "nur der Push der anderen Vorschau"
+
+        testCase "die echte Umgebung bucht über addCashExpense ins Kassenbuch" <| fun () ->
+            // Belegt den Live-Port `AddCashExpense` in `liveDeps` (Test-Doktrin Punkt 3): ein
+            // Stub dort schriebe keine Ereignisse.
+            let live = liveDeps (TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin")
+            let entryId = newEntryId ()
+            // Eigener Tag, damit die Buchung keine Tagesgrenze eines anderen Tests berührt.
+            let day = nextTestDay ()
+            let input : Ledger.CommandHandlers.CashExpenseInput = {
+                AccountId = accountId
+                Date = day
+                Amount = { Amount = -1m; Currency = "EUR" }
+                Payee = Some (uniquePayee ())
+                Memo = None
+                Category = None
+            }
+            let result =
+                live.AddCashExpense Bob (day.AddHours 10.0) entryId (fun () -> async.Return (Ok $"ynab-{Guid.NewGuid()}")) ignore input
+                |> Async.RunSynchronously
+            Expect.equal result (Ok entryId) "liefert die vorab festgelegte Id"
+            Expect.equal
+                (loadEventsForEntry entryId |> Async.RunSynchronously |> List.map (fun r -> r.EventType))
+                [ "CashExpenseAdded"; "EntryLinkedToYnab" ]
+                "unter der vorab festgelegten Id gebucht"
+
         // ---- Tagesgrenze und Datumsfenster (ledger-ssmp3, ADR 0068) ----
         // Jeder Test rechnet relativ zum eigenen Tag D seiner Umgebung (`Env`, `nextTestDay`),
         // kein Test nennt ein festes Datum.
