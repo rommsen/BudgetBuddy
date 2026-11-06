@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 00:22 -- Review-Lauf: budgeting-m3x7f
+
+**Type:** Review / Review-Lauf
+**Bereich:** budgeting-m3x7f (6f5d458)
+**Agents:** qa-milestone-reviewer, backend-code-quality, frontend-architecture, design-quality
+**Funde:** behoben 36, verworfen 5, Rückfrage 1, Ticket 0, Kann-Sammlung 3
+**Commits:** cc344ae, 664c9ff
+**Verworfen:** Kachel ohne aria-Zustand (Roman: Screenreader ist mir gerade egal, siehe budgeting-h9c3w); abgewählte Zeilen im Ereignis (ADR 0085 verlangt es nicht, kein Leser); Prüfung nach ApplyDone neu laden (Hinweise hängen am Target, nicht am Zugewiesenen); Daten der Prüfseite wiederverwenden (kaum Nutzen); Radius.lg statt rounded-[12px] (Radius.lg misst hier 24 px, Kann-Sammlung)
+**Rückfrage an Roman:** Ist das Kalender-Icon am Handy als Monatserster erkennbar?
+**Verifikation:** VERIFY: PASS (dotnet 4251 grün, node 316 grün)
+
+---
+
 ## 2026-11-07 00:06 -- Bestandsreview: budgeting
 
 **Type:** Review / Bestandsreview
