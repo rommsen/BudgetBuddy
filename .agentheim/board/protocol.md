@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 07:07 -- Batch started: [budgeting-dkjc5]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-dkjc5 - "Hintergrund-Übernahme: laufender und künftige Monate zuerst, dann ältere, unter YNABs Rate-Grenze"
+**Parallel:** scoped, Nachtlauf: budgeting-dkjc5 nach budgeting-dgrp7
+
+---
+
 ## 2026-11-06 07:07 -- Modeling / Promoted: budgeting-dkjc5 - "Hintergrund-Übernahme: laufender und künftige Monate zuerst, dann ältere, unter YNABs Rate-Grenze"
 
 **Type:** Modeling / Promote
