@@ -552,7 +552,8 @@ let periodMonthsOf (target: Target) (month: string) : string list =
     | Ok (DueDateRule due) -> periodMonthsBefore target.Rhythm target.CreatedIn month due
     | _ -> []
 
-/// Der Grund, wenn für einen Monat der laufenden Periode keine Aktivität im Zustand liegt.
+/// Der Grund, wenn für einen Monat der laufenden Periode keine Aktivität vorliegt: er liegt vor der ersten
+/// Buchung des Kassenbuchs (budgeting-k5q2w).
 [<Literal>]
 let PeriodActivityMissingText = "Aktivität der Periode fehlt"
 
@@ -660,9 +661,18 @@ let periodMonthsNeeded (month: BudgetMonth) : string list =
     |> List.collect (fun t -> periodMonthsOf t month.Month)
     |> List.distinct
 
+/// Die Kategorien, deren Target Periodenmonate braucht (`periodMonthsOf`, budgeting-k5q2w), jede einmal. Rein.
+let periodCategoriesNeeded (month: BudgetMonth) : Guid list =
+    month.Groups
+    |> List.collect (fun g -> g.Categories)
+    |> List.filter (fun c -> c.Target |> Option.exists (fun t -> not (List.isEmpty (periodMonthsOf t month.Month))))
+    |> List.map (fun c -> c.Id)
+    |> List.distinct
+
 /// Die Abweichungsliste eines Monats: je sichtbarer Kategorie mit Target eine Zeile, auch pausierte, weil
 /// YNAB den Fehlbetrag auch für sie liefert. Verglichen wird genau, ohne Toleranz. Rein, ohne I/O.
-/// `earlierActivity` ist die Aktivität früherer Monate je Kategorie (`periodMonthsOf`, budgeting-b9869).
+/// `earlierActivity` ist die Aktivität früherer Monate je Kategorie (`periodMonthsOf`, budgeting-b9869), aus dem
+/// Kassenbuch (budgeting-k5q2w).
 let compareUnderfunded (month: BudgetMonth) (earlierActivity: Map<Guid, Map<string, Money>>) : UnderfundedComparison list =
     month.Groups
     |> List.collect (fun g -> g.Categories)

@@ -291,9 +291,7 @@ let private recordObservationWith
         appendMonthEventsOn conn now monthKey added
         fold)
 
-/// `observeMonth` ohne Sperre, für Abläufe, die sie schon halten: ein `FetchMonth`, dann festhalten. Danach hält
-/// es die Aktivität des Monats als Zustand fest (budgeting-b9869), ohne weiteren YNAB-Aufruf; scheitert das, steht
-/// der Grund nur im Server-Log.
+/// `observeMonth` ohne Sperre, für Abläufe, die sie schon halten: ein `FetchMonth`, dann festhalten.
 let private observeUnguarded
     (connect: unit -> SqliteConnection)
     (fetchMonth: string -> Async<YnabResult<YnabMonth>>)
@@ -304,13 +302,7 @@ let private observeUnguarded
         match! fetchMonth monthKey with
         | Error e -> return Error (FetchFailed e)
         | Ok raw ->
-            let observed = recordObservationWith connect now monthKey raw
-            // Nach der Beobachtung: deren Verbindung kommt zuerst, die Aktivität ist nur Zustand daneben.
-            try
-                recordMonthActivityWith connect now raw
-            with ex ->
-                logReadFailure $"Aktivität {monthKey} festhalten" ex.Message
-            match observed with
+            match recordObservationWith connect now monthKey raw with
             | Ok fold -> return Ok { Raw = raw; Fold = fold }
             | Error reason ->
                 logReadFailure $"Übernahme und Beobachtung {monthKey} festhalten" reason

@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 14:21 -- Task verified and completed: budgeting-k5q2w - "Parallelrechnung: die Ausgaben der Periode kommen aus dem Kassenbuch, category_month_activity entfällt"
+
+**Type:** Work / Task completion
+**Task:** budgeting-k5q2w - "Parallelrechnung: die Ausgaben der Periode kommen aus dem Kassenbuch, category_month_activity entfällt"
+**Summary:** (no summary provided)
+**Duration:** (unknown)
+**Verification:** PASS (iteration 1)
+**Files changed:** 0
+**Tests added:** 0
+**ADRs written:** none
+
+---
+
 ## 2026-11-06 14:10 -- Research: ING per FinTS anbinden
 
 **Type:** Research

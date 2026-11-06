@@ -1,7 +1,7 @@
 ---
 id: budgeting-k5q2w
 title: "Parallelrechnung: die Ausgaben der Periode kommen aus dem Kassenbuch, category_month_activity entfällt"
-status: doing
+status: done
 type: feature
 context: budgeting
 created: 2026-11-06
@@ -85,3 +85,23 @@ passt. Erst danach schaltet budgeting-hbhzf um.
 - Refill-Fall F1 (YNAB brutto, BB netto) bleibt erklärt und außerhalb dieser Task.
 - `getMonthlyActivityByCategory` nimmt `DateTime`-Monatserste; `periodMonthsNeeded` liefert
   "YYYY-MM-01". Die Umrechnung gehört in den Adapter, die Domäne bleibt rein.
+
+## Outcome
+
+Die Ausgaben der Periode für die Parallelrechnung kommen jetzt aus dem Kassenbuch. YNABs festgehaltene Monatsaktivität wird dafür nicht mehr verwendet.
+
+- `src/Server/Budgeting/QueryHandlers.fs`: neuer Port `LedgerActivityPort` (`LoadMonthlyActivity`, `LoadFirstEntryDate`) und `liveLedgerActivityPort` (`Ledger.QueryHandlers.getMonthlyActivityByCategory`, `Ledger.Persistence.loadFirstEntryDate`). Der reine Adapter `periodActivityFromLedger` macht daraus die Form `Map<Guid, Map<string, Money>>`, die `compareUnderfunded` erwartet. Ein Monat ohne Buchung zählt dabei als 0. Ein Monat vor dem Monat der ersten Buchung fehlt, und ohne jede Buchung fehlt jeder Monat. Ohne Periodenmonat wird nichts gelesen. `runUnderfundedComparison` fängt Fehler beim Lesen des Kassenbuchs ab und schreibt den Grund ins Server-Log ("Parallelrechnung Fehlbetrag"). Es wird dann nichts gespeichert, und die Antwort bleibt gleich. `budgetMonthWithLedger` nimmt den Port als Parameter, `budgetMonthWith` ist dieselbe Funktion mit dem Live-Port.
+- `src/Server/Budgeting/Domain.fs`: `periodCategoriesNeeded` liefert die Kategorien, deren Target Periodenmonate braucht. Die Formel ist unverändert.
+- `src/Server/Ledger/Persistence.fs`: `loadFirstEntryDate`, `MIN(substr(date, 1, 10))` über nicht gelöschte Buchungen.
+- Rückbau: `recordMonthActivityWith`, `loadMonthActivitiesWith`, `CategoryMonthActivityRow`, `MonthActivityUnreadableText`, das Schema der Tabelle und der Aufruf in `CommandHandlers.observeUnguarded` sind entfernt. `initializeBudgetingSchema` löscht `category_month_activity` nur, wenn die Tabelle in `sqlite_master` noch existiert. Ein `DROP TABLE IF EXISTS` bei jedem Aufruf hat die geteilte In-Memory-DB im parallelen Testlauf blockiert: der Lauf hing ohne Fortschritt, weil das DROP auch ohne Tabelle das Schema sperrt.
+- Live-Anschluss des Ports (Doktrin Punkt 3): `liveLedgerActivityPort` wird nur in `budgetMonthWith` angeschlossen, `budgetMonth` ruft `budgetMonthWith` auf, der Endpoint ruft `budgetMonth` auf (`src/Server/Api.fs` Zeile 1739, unverändert). Den Nachweis liefern die beiden Handler-Tests über `budgetMonthWith` mit echten Kassenbuch-Buchungen. Gegenprobe: mit `LoadMonthlyActivity = fun _ _ -> async { return Map.empty }` im Live-Port werden genau diese beiden Tests rot (Mutantenliste: nur dieser eine Mutant).
+- Tests in `src/Tests/UnderfundedComparisonTests.fs`: Adapter auf reiner Ebene (Monat ohne Buchung zählt 0; Monat vor der ersten Buchung fehlt, der Monat der ersten Buchung zählt; ohne Buchung fehlt jeder Monat; ein fehlender Monat führt über `compareUnderfunded` zu "nicht gerechnet" mit `PeriodActivityMissingText`, mit Gegenprobe). Handler-Tests mit In-Memory-SQLite und Kassenbuch-Buchungen: Ausgaben ohne je gelesene frühere Monate zählen als gedeckt, mit genau `FetchMonth` plus einmal `/categories`; eine Ausgabe, die nach dem Lesen der früheren Monate ins Kassenbuch kam, zählt mit; scheitert der Kassenbuch-Port, ist die Antwort dieselbe und nichts wird gespeichert; `loadFirstEntryDate` ohne gelöschte Buchung. Dazu ein Schema-Test: die Tabelle wird entfernt, auch bei wiederholtem Aufruf. Beide Handler-Tests sind Regressionstests: vorher war das Ergebnis "nicht gerechnet" bzw. ein Betrag von 2 statt 0. Entfernt wurden die Tests für Festhalten und Laden von `category_month_activity`.
+- Split-Anteil, Erstattung und gelöschte Buchung: der Adapter nutzt `getMonthlyActivityByCategory` direkt, deshalb gelten die vorhandenen Tests in `src/Tests/TargetCheckQueryTests.fs`.
+- Targets anwenden, "fehlt" und die Vorschau sind nicht berührt und rechnen weiter mit YNABs `goal_under_funded`.
+- `./verify.sh`: VERIFY: PASS (dotnet 4140 grün, node 311 grün).
+- Offen [human-eye]: der fünfte Vergleich in Prod nach dem Deploy zusammen mit budgeting-eh8xe.
+- Kann-Funde: ADR 0084, Nachtrag "budgeting-r4kqm und budgeting-b9869" nennt noch `category_month_activity` als Quelle. Dafür braucht es einen Nachtrag zu budgeting-k5q2w (Quelle Kassenbuch, nur Monate vor der ersten Buchung fehlen); das ist Sache des Conductors oder von Modeling. Der Grund für einen Lesefehler steht im Log nur als allgemeines "Parallelrechnung Fehlbetrag", ohne eigenen Text für das Kassenbuch.
+
+### Integration (2026-11-06)
+- Verifier Iteration 1: FAIL nur wegen ADR 0084 (der Nachtrag zu r4kqm und b9869 nannte noch `category_month_activity`). Code und Tests PASS, `./verify.sh` im zweiten Lauf `VERIFY: PASS` (dotnet 4140, node 311; der erste Lauf scheiterte am bekannten Timer-Test aus infrastructure-mshaf). Behoben bei der Integration mit dem Nachtrag "budgeting-k5q2w, Quelle der Ausgaben" zu ADR 0084, ohne erneute Iteration.
+- Kann-Fund (eigener Log-Text für Lesefehler im Kassenbuch) steht in budgeting-h9c3w.

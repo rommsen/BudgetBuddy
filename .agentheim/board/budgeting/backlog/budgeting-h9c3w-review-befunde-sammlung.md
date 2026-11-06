@@ -80,3 +80,6 @@ Kaputt-Szenario (GIVEN/WHEN/THEN): GIVEN Wechsel hin und zurück, das Lesen des 
 - Tests: optional ein `[layout]`-Test, dass die sieben Segmente im 500-px-Sheet nicht abgeschnitten werden.
 - Backend (Worker eh8xe): Die Vorschau kann jetzt die einmalige Target-Übernahme festhalten, sonst schreibt sie nichts. Im Alltag hat das Lesen des Monats vorher übernommen.
 - Shared (Worker eh8xe): `TargetChangeResult` hat nur noch einen Fall. Ein Record wäre schlichter, bricht aber Fixtures und ältere Clients.
+
+## Aus budgeting-k5q2w (2026-11-06)
+- Backend (Worker k5q2w): Ein Lesefehler im Kassenbuch steht im Server-Log nur unter "Parallelrechnung Fehlbetrag", ohne eigenen Text für die Quelle.

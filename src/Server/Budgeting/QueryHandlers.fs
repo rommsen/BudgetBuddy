@@ -11,23 +11,75 @@ open Server.Budgeting.Domain
 let private logReadFailure (what: string) (ex: exn) : unit =
     Budgeting.Persistence.logReadFailure what ex.Message
 
+/// Die Lese-Quellen der Ausgaben der Periode im Kassenbuch (budgeting-k5q2w). Beide lesen nur die Datenbank.
+type LedgerActivityPort = {
+    /// Kategorien und Monatserste: je Kategorie die Netto-Aktivität der Monate mit Buchungen, in einer Abfrage.
+    LoadMonthlyActivity: Guid list -> DateTime list -> Async<Map<Guid, (DateTime * Money) list>>
+    /// Der Kalendertag der ersten nicht gelöschten Buchung im Kassenbuch, ohne Buchung `None`.
+    LoadFirstEntryDate: unit -> Async<DateTime option>
+}
+
+/// Das Kassenbuch der Anwendung als Quelle der Ausgaben der Periode.
+let liveLedgerActivityPort: LedgerActivityPort =
+    { LoadMonthlyActivity = Ledger.QueryHandlers.getMonthlyActivityByCategory
+      LoadFirstEntryDate = Ledger.Persistence.loadFirstEntryDate }
+
+let private firstOfMonth (monthKey: string) : DateTime =
+    DateTime.ParseExact(monthKey, "yyyy-MM-dd", Globalization.CultureInfo.InvariantCulture)
+
+/// Formt die Monatssummen aus dem Kassenbuch in die Aktivität je Kategorie und Monat ("YYYY-MM-01"), die
+/// `compareUnderfunded` nimmt (budgeting-k5q2w). Lückenlos: ein Monat ohne Buchung der Kategorie steht mit 0
+/// da. Nur ein Monat vor dem Monat der ersten Buchung (`firstEntry`) fehlt, ohne Buchung fehlt jeder. Rein.
+let periodActivityFromLedger
+    (categoryIds: Guid list)
+    (months: string list)
+    (firstEntry: DateTime option)
+    (sums: Map<Guid, (DateTime * Money) list>)
+    : Map<Guid, Map<string, Money>> =
+    let covered =
+        match firstEntry with
+        | None -> []
+        | Some first ->
+            let start = DateTime(first.Year, first.Month, 1)
+            months |> List.filter (fun m -> firstOfMonth m >= start)
+    categoryIds
+    |> List.distinct
+    |> List.map (fun id ->
+        let byMonth = sums |> Map.tryFind id |> Option.defaultValue [] |> Map.ofList
+        id,
+        covered
+        |> List.map (fun m -> m, byMonth |> Map.tryFind (firstOfMonth m) |> Option.defaultValue { Amount = 0m; Currency = TargetCurrency })
+        |> Map.ofList)
+    |> Map.ofList
+
+/// Die Aktivität der Periodenmonate (`periodMonthsNeeded`) aller Kategorien, die sie brauchen, aus dem
+/// Kassenbuch: eine Abfrage für die erste Buchung, eine für alle Kategorien. Ohne Periodenmonat kein Lesen.
+let private loadPeriodActivity (ledger: LedgerActivityPort) (month: BudgetMonth) : Async<Map<Guid, Map<string, Money>>> =
+    async {
+        match periodMonthsNeeded month with
+        | [] -> return Map.empty
+        | months ->
+            let ids = periodCategoriesNeeded month
+            let! first = ledger.LoadFirstEntryDate ()
+            let! sums = ledger.LoadMonthlyActivity ids (months |> List.map firstOfMonth)
+            return periodActivityFromLedger ids months first sums
+    }
+
 /// Die Parallelrechnung des Fehlbetrags (budgeting-v7kfw, ADR 0084 Punkt 7): vergleicht BBs Fehlbetrag mit
-/// YNABs, gibt die Abweichungsliste an `save` und schreibt eine Zeile ins Server-Log. Ein Fehler darin landet
-/// nur im Server-Log, die Antwort an den Client hängt nicht davon ab. `loadActivity` liest die festgehaltene
-/// Aktivität der Periodenmonate aller Targets in einer Abfrage (budgeting-b9869), ohne YNAB-Aufruf.
+/// YNABs, gibt die Abweichungsliste an `save` und schreibt eine Zeile ins Server-Log. Ein Fehler darin, auch
+/// beim Lesen des Kassenbuchs, landet nur im Server-Log, die Antwort an den Client hängt nicht davon ab. Die
+/// Ausgaben der Periode kommen aus dem Kassenbuch (budgeting-k5q2w), ohne YNAB-Aufruf.
 let private runUnderfundedComparison
     (save: string -> UnderfundedComparison list -> Async<unit>)
-    (loadActivity: string list -> Async<Result<Map<Guid, Map<string, Money>>, string>>)
+    (ledger: LedgerActivityPort)
     (month: BudgetMonth)
     : Async<unit> =
     async {
         try
-            match! loadActivity (periodMonthsNeeded month) with
-            | Error message -> Budgeting.Persistence.logReadFailure "Parallelrechnung Fehlbetrag" message
-            | Ok earlier ->
-                let rows = compareUnderfunded month earlier
-                do! save month.Month rows
-                printfn "%s" (comparisonSummary month.Month rows)
+            let! earlier = loadPeriodActivity ledger month
+            let rows = compareUnderfunded month earlier
+            do! save month.Month rows
+            printfn "%s" (comparisonSummary month.Month rows)
         with ex ->
             logReadFailure "Parallelrechnung Fehlbetrag" ex
     }
@@ -39,10 +91,11 @@ let private runUnderfundedComparison
 /// nur das Festhalten, steht der Grund im Server-Log und der Monat kommt aus dem YNAB-Stand. Danach läuft die
 /// Parallelrechnung des Fehlbetrags auf dem gelieferten Monat, `save` hält die Abweichungsliste fest. Die Targets
 /// sind BBs Regeln im Monat; wartet eine Kategorie noch auf die Target-Übernahme, läuft sie vorher
-/// (budgeting-eh8xe). Die Aktivität früherer Monate dafür kommt aus der Datenbank (`category_month_activity`),
-/// nie aus YNAB.
+/// (budgeting-eh8xe). Die Ausgaben der Periode dafür kommen aus dem Kassenbuch (`ledger`, budgeting-k5q2w), nie
+/// aus YNAB.
 /// `connect` ist die Datenbank für Stream, Pausen und Anhängen, `now` der Zeitpunkt der Ereignisse (UTC).
-let budgetMonthWith
+let budgetMonthWithLedger
+    (ledger: LedgerActivityPort)
     (save: string -> UnderfundedComparison list -> Async<unit>)
     (connect: unit -> Microsoft.Data.Sqlite.SqliteConnection)
     (port: CommandHandlers.YnabPort)
@@ -66,9 +119,19 @@ let budgetMonthWith
                 | Error message -> return Error (YnabError.LocalReadFailed message)
                 | Ok targets ->
                     let month = toBudgetMonthWith assignments targets paused raw
-                    do! runUnderfundedComparison save (Budgeting.Persistence.loadMonthActivitiesWith connect) month
+                    do! runUnderfundedComparison save ledger month
                     return Ok month
     }
+
+/// `budgetMonthWithLedger` mit dem Kassenbuch der Anwendung (`liveLedgerActivityPort`).
+let budgetMonthWith
+    (save: string -> UnderfundedComparison list -> Async<unit>)
+    (connect: unit -> Microsoft.Data.Sqlite.SqliteConnection)
+    (port: CommandHandlers.YnabPort)
+    (now: DateTime)
+    (monthKey: string)
+    : Async<YnabResult<BudgetMonth>> =
+    budgetMonthWithLedger liveLedgerActivityPort save connect port now monthKey
 
 /// Liest einen Monat für die Budget-Seite auf der Datenbank der Anwendung, die Abweichungsliste geht in
 /// `underfunded_comparisons`.

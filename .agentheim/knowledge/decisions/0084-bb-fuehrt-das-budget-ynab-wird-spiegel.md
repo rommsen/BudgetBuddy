@@ -276,6 +276,19 @@ Die Ergebnis-Ereignisse (`AssignmentWrittenBackToYnab`, `AssignmentWriteBackFail
   der Triage, Roman informiert). Ohne YNAB-Aufruf prüft BB nicht mehr, ob die Kategorie im Monat
   sichtbar ist (hingenommen).
 
+**Nachtrag 2026-11-06 (budgeting-k5q2w, Quelle der Ausgaben):**
+- Punkt 7, Ausgaben der Periode: Die Aktivität kommt aus BBs Kassenbuch
+  (`Ledger.QueryHandlers.getMonthlyActivityByCategory`, netto, mit Split-Anteil, ohne in YNAB gelöschte
+  Buchungen), entschieden von Roman. Das löst "YNABs Monatsaktivität, festgehalten als Zustand
+  `category_month_activity`" aus dem Nachtrag zu budgeting-r4kqm und budgeting-b9869 ab. Die Tabelle
+  entfällt, das Schema entfernt sie.
+- Lückenlos: Ein Monat ohne Buchung der Kategorie zählt als 0. Nur ein Monat vor dem Monat der ersten
+  Buchung des Kassenbuchs fehlt, dann rechnet BB nicht und nennt den Grund. Grund für den Wechsel: Ein
+  nie gelesener Monat fehlte, und ein vor seinem Ende gelesener Monat galt für immer mit einem Teil
+  seiner Ausgaben.
+- Die Parallelrechnung bleibt bis zum fünften Vergleich in Prod stehen, erst danach schaltet
+  budgeting-hbhzf auf BBs Fehlbetrag um.
+
 ### 5. Übernahme
 
 Entschieden von Roman am 2026-11-05.

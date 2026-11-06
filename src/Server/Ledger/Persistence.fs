@@ -1391,6 +1391,20 @@ let loadCategoriesEntries (categoryIds: Guid list) (firstDay: DateTime) (lastDay
     | [] -> async { return [] }
     | ids -> loadAllMatching None { noFilter with CategoryIds = ids; DateFrom = Some firstDay; DateTo = Some lastDay }
 
+/// Der Kalendertag der ersten Buchung im Kassenbuch, ohne in YNAB gelöschte (budgeting-k5q2w). Verglichen wird
+/// wie im Filter auf dem Tagesteil (`substr(date, 1, 10)`). Ohne Buchung `None`.
+let loadFirstEntryDate () : Async<DateTime option> =
+    async {
+        use conn = Core.getConnection ()
+        let! first =
+            conn.ExecuteScalarAsync<string>("SELECT MIN(substr(date, 1, 10)) FROM ledger_entries WHERE deleted_in_ynab = 0")
+            |> Async.AwaitTask
+        return
+            first
+            |> Option.ofObj
+            |> Option.map (fun day -> DateTime.ParseExact(day, "yyyy-MM-dd", CultureInfo.InvariantCulture))
+    }
+
 /// Die Buchungen einer Kategorie (eigene oder als Split-Zeile) zwischen zwei Kalendertagen, beide
 /// einschließlich, ohne in YNAB gelöschte, neueste zuerst (budgeting-m1bce).
 let loadCategoryEntries (YnabCategoryId categoryId) (firstDay: DateTime) (lastDay: DateTime) : Async<Entry list> =
