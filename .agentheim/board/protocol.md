@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 07:52 -- Review-Lauf: budgeting-dkjc5
+
+**Type:** Review / Review-Lauf
+**Bereich:** 83ae61e [budgeting-dkjc5]
+**Agents:** backend-code-quality, qa-milestone-reviewer
+**Funde:** behoben 10, verworfen 2, Rückfrage 1, Ticket 0
+**Commits:** c85e151
+**Verworfen:** eigener Ausgang für AlreadyTakenOver (nur Wettlauf, harmlos); Test Serverstart wartet nicht (optional, Start läuft auf dem Thread-Pool)
+**Rückfrage:** ein dauerhafter Fehler außer 404 auf einem Monat blockiert alle älteren Monate (Task: nur 404 überspringt); dazu gezieltes EXISTS statt Dekodieren des Streams
+**Verifikation:** VERIFY: PASS (dotnet 4105 grün, node 311 grün)
+
+---
+
 ## 2026-11-06 07:35 -- Task verified and completed: budgeting-dkjc5 - "Hintergrund-Übernahme: laufender und künftige Monate zuerst, dann ältere, unter YNABs Rate-Grenze"
 
 **Type:** Work / Task completion
