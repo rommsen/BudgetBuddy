@@ -11,18 +11,18 @@ Catalog of this bounded context's tasks by status.
 
 <!-- task-counts:start -->
 - **Backlog:** 3
-- **Todo:** 1
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 1
 - **Done:** 56
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **budgeting-m3x7f** — "Monatserster: Leiste nach der Skizze mit Targets prüfen, Targets anwenden, Überzogene decken und verteilen; Kopfknopf Monatserster statt Targets anwenden und Prüfen-Icon; Vorschau mit abwählbaren Zeilen; Ausblenden je Monat auf dem Server" (feature) — `todo/budgeting-m3x7f-monatserster-leiste.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **budgeting-m3x7f** — "Monatserster: Leiste nach der Skizze mit Targets prüfen, Targets anwenden, Überzogene decken und verteilen; Kopfknopf Monatserster statt Targets anwenden und Prüfen-Icon; Vorschau mit abwählbaren Zeilen; Ausblenden je Monat auf dem Server" (feature) — `doing/budgeting-m3x7f-monatserster-leiste.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)

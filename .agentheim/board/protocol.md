@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 22:49 -- Batch started: [budgeting-m3x7f]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-m3x7f - "Monatserster: Leiste nach der Skizze mit Targets prüfen, Targets anwenden, Überzogene decken und verteilen; Kopfknopf Monatserster statt Targets anwenden und Prüfen-Icon; Vorschau mit abwählbaren Zeilen; Ausblenden je Monat auf dem Server"
+**Parallel:** scoped, builder named budgeting-m3x7f (Kette aus dem Handoff); other ready tasks not dispatched
+
+---
+
 ## 2026-11-06 22:49 -- Modeling / Promoted: budgeting-m3x7f - "Monatserster: Leiste nach der Skizze mit Targets prüfen, Targets anwenden, Überzogene decken und verteilen; Kopfknopf Monatserster statt Targets anwenden und Prüfen-Icon; Vorschau mit abwählbaren Zeilen; Ausblenden je Monat auf dem Server"
 
 **Type:** Modeling / Promote
