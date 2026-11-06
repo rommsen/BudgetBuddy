@@ -26,7 +26,7 @@ let private budgetCategory (id: Guid) (name: string) : BudgetCategory =
       Available = eur 70m
       Underfunded = None
       Target = None
-      Pause = None }
+      Pause = None; OpenWriteBack = None }
 
 let private october : BudgetMonth =
     { Month = "2026-10-01"
@@ -317,7 +317,7 @@ let textTests =
                       OldAssigned = eur oldAssigned
                       NewAssigned = eur newAssigned
                       Counterpart = (if origin = MovementOrigin.MoneyMoved then Some "Urlaub" else None)
-                      Latest = None }
+                      Latest = None; ReplacedBy = None }
             for origin in [ MovementOrigin.MoneyMoved; MovementOrigin.MoneyAssigned; MovementOrigin.TargetsApplied ] do
                 let change entry = (historyEntryLine entry).Change |> Option.get
                 let up = change (movement origin 30m 50m)

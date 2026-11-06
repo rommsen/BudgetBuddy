@@ -38,7 +38,7 @@ let private trip (goal: decimal) : BudgetCategory =
       Available = eur 0m
       Underfunded = Some (eur 50m)
       Target = Some (targetOf goal)
-      Pause = None }
+      Pause = None; OpenWriteBack = None }
 
 let private holiday : BudgetCategory =
     { trip 20m with Id = holidayId; Name = "Urlaub"; Underfunded = Some (eur 0m) }

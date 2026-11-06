@@ -27,6 +27,7 @@ const category = (n, name, assigned, activity, available) => ({
   Underfunded: null,
   Target: null,
   Pause: null,
+  OpenWriteBack: null,
 });
 
 const monthFixture = (month, toBeBudgeted) => ({
@@ -51,6 +52,7 @@ const withTarget = (base, target, underfunded, snoozed = false) => ({
   Target: target,
   Underfunded: eur(underfunded),
   Pause: snoozed ? "PausedInYnab" : null,
+  OpenWriteBack: null,
 });
 const monthly = { Goal: eur(1600), Rhythm: { Months: 1 }, Kind: "Need", Date: null, NeedsWholeAmount: true, Day: null };
 const targetFixture = (month) => ({
@@ -1309,6 +1311,7 @@ test("[layout] Tab Historie am Handy: langer Fehlgrund kürzt mit Ellipse, Datum
         NewAssigned: eur(1600),
         Counterpart: null,
         Latest: { Failed: reason },
+        ReplacedBy: null,
         },
       },
     ],

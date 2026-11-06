@@ -293,6 +293,12 @@ let private desktopRow (selectedId: System.Guid option) (dispatch: Msg -> unit) 
                         match missingText c with
                         | Some text -> missingBadge "budget-missing" text
                         | None -> ()
+                        if c.OpenWriteBack.IsSome then
+                            Html.span [
+                                prop.custom ("data-testid", "budget-not-in-ynab")
+                                prop.className "shrink-0"
+                                prop.children [ Badge.noticeSmall NotInYnabText ]
+                            ]
                     ]
                 ]
             ]

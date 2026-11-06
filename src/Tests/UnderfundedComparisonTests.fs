@@ -157,7 +157,7 @@ let private category (name: string) (target: Target option) (assigned: decimal) 
       Available = eur assigned
       Underfunded = ynab |> Option.map eur
       Target = target
-      Pause = None }
+      Pause = None; OpenWriteBack = None }
 
 /// Eine Kategorie mit Aktivität und Verfügbar; der Übertrag ist Verfügbar − Zugewiesen − Aktivität.
 let private categoryWithFlow (target: Target) (assigned: decimal) (activity: decimal) (available: decimal) (ynab: decimal) =
@@ -276,8 +276,11 @@ let private portFor (month: YnabMonth) : CommandHandlers.YnabPort =
       SetAssigned = fun _ _ _ -> async { return failwith "kein Schreiben erwartet" }
       SetTarget = fun _ _ -> async { return failwith "kein Schreiben erwartet" } }
 
+/// Der Zeitpunkt des Lesens (UTC): stempelt Übernahme und Beobachtungen (budgeting-dgrp7).
+let private readAt = DateTime(2031, 3, 2, 8, 0, 0, DateTimeKind.Utc)
+
 let private handlerTests =
-    // Das Schema braucht `budgetMonthOf` für die BB-Pausen des Monats (`loadPausedCategories`); das
+    // Das Schema braucht `budgetMonthWith` für die BB-Pausen und die Übernahme des Monats; das
     // Speichern der Abweichungsliste kommt hier nur als Funktionswert herein.
     let testCase name body =
         testCase name (fun () ->
@@ -292,8 +295,8 @@ let private handlerTests =
             let saved = ResizeArray<string * UnderfundedComparison list>()
             let save month rows = async { saved.Add((month, rows)) }
 
-            let withComparison = QueryHandlers.budgetMonthWith save port monthKey |> run
-            let without = QueryHandlers.budgetMonthOf port.FetchMonth monthKey |> run
+            let withComparison = QueryHandlers.budgetMonthWith save global.Persistence.getConnection port readAt monthKey |> run
+            let without = QueryHandlers.budgetMonthWith (fun _ _ -> async { return () }) global.Persistence.getConnection port readAt monthKey |> run
 
             Expect.equal withComparison without "Antwort an den Client wie ohne Vergleich"
             match withComparison with
@@ -310,8 +313,8 @@ let private handlerTests =
             let port = portFor (ynabMonth monthKey)
             let save _ _ : Async<unit> = async { return failwith "Datenbank weg" }
 
-            let result = QueryHandlers.budgetMonthWith save port monthKey |> run
-            let without = QueryHandlers.budgetMonthOf port.FetchMonth monthKey |> run
+            let result = QueryHandlers.budgetMonthWith save global.Persistence.getConnection port readAt monthKey |> run
+            let without = QueryHandlers.budgetMonthWith (fun _ _ -> async { return () }) global.Persistence.getConnection port readAt monthKey |> run
 
             Expect.isOk result "Ok trotz Fehler"
             Expect.equal result without "derselbe Monat"
@@ -381,7 +384,7 @@ let private persistenceTests =
             // Belegt den Live-Anschluss: `budgetMonth` gibt `saveUnderfundedComparisons` an `budgetMonthWith`.
             Budgeting.Persistence.initializeBudgetingSchema ()
             let monthKey = "2031-07-01"
-            let result = QueryHandlers.budgetMonth (portFor (ynabMonth monthKey)) monthKey |> run
+            let result = QueryHandlers.budgetMonth (portFor (ynabMonth monthKey)) readAt monthKey |> run
             Expect.isOk result "Monat gelesen"
             Expect.equal
                 (storedRows monthKey)

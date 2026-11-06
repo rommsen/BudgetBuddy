@@ -29,7 +29,7 @@ let private october : BudgetMonth =
                   Available = eur 70m
                   Underfunded = None
                   Target = None
-                  Pause = None } ] } ] }
+                  Pause = None; OpenWriteBack = None } ] } ] }
 
 let private frame : BudgetFrame =
     { CurrentMonth = "2026-10-01"
@@ -58,7 +58,7 @@ let private movement (group: Guid) origin (name: string) oldAssigned newAssigned
       OldAssigned = eur oldAssigned
       NewAssigned = eur newAssigned
       Counterpart = None
-      Latest = Some Written }
+      Latest = Some Written; ReplacedBy = None }
 
 let private targetsGroup = Guid.NewGuid()
 let private moveGroup = Guid.NewGuid()
@@ -235,7 +235,7 @@ let tests =
             Expect.contains messages (State.BudgetMsg GeneralHistoryEntered) "die Historie lädt"
         }
         test "Der Leertext nennt ohne Filter, was hier erscheint, mit Filter die Art" {
-            Expect.equal (emptyText AllRuns) "Noch keine Durchläufe. Targets anwenden, Verschieben oder Zuweisen erscheinen hier." "ohne Filter"
+            Expect.equal (emptyText AllRuns) "Noch keine Durchläufe. Targets anwenden, Verschieben, Zuweisen und Zuweisungen in YNAB erscheinen hier." "ohne Filter"
             Expect.equal (emptyText (RunsOf MovementOrigin.MoneyMoved)) "Keine Durchläufe dieser Art" "mit Filter"
         }
         test "Der Betrag rechts: Verschieben ohne Vorzeichen, Zuweisen und Targets mit, eine Null ohne" {

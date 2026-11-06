@@ -47,6 +47,7 @@
     <Compile Include="Ledger/QueryHandlers.fs" />
     <Compile Include="Budgeting/Domain.fs" />
     <Compile Include="Budgeting/Events.fs" />
+    <Compile Include="Budgeting/Assignments.fs" />
     <Compile Include="Budgeting/EventMigration.fs" />
     <Compile Include="Budgeting/Persistence.fs" />
     <Compile Include="Budgeting/EventMigrationProbe.fs" />

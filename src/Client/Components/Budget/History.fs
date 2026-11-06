@@ -18,6 +18,8 @@ let runFilterLabel (filter: RunFilter) : string =
     | RunsOf MovementOrigin.TargetsApplied -> "Targets anwenden"
     | RunsOf MovementOrigin.MoneyMoved -> "Verschieben"
     | RunsOf MovementOrigin.MoneyAssigned -> "Zuweisen"
+    | RunsOf MovementOrigin.ObservedInYnab -> "In YNAB zugewiesen"
+    | RunsOf MovementOrigin.TakenOverFromYnab -> "Übernahme"
 
 /// Die Durchläufe, die der Filter zeigt.
 let shownRuns (filter: RunFilter) (runs: HistoryRun list) : HistoryRun list =
@@ -36,7 +38,7 @@ let isRunOpen (history: GeneralHistory) (run: HistoryRun) : bool =
 /// Der Leertext der Liste (budgeting-c6vn4, A9): ohne Filter nennt er, was hier erscheint.
 let emptyText (filter: RunFilter) : string =
     match filter with
-    | AllRuns -> "Noch keine Durchläufe. Targets anwenden, Verschieben oder Zuweisen erscheinen hier."
+    | AllRuns -> "Noch keine Durchläufe. Targets anwenden, Verschieben, Zuweisen und Zuweisungen in YNAB erscheinen hier."
     | RunsOf _ -> "Keine Durchläufe dieser Art"
 
 /// Text und Klassen des Betrags rechts in der Zeile (budgeting-c6vn4, A5), über dieselbe Funktion wie die
@@ -44,8 +46,10 @@ let emptyText (filter: RunFilter) : string =
 let runAmount (run: HistoryRun) : string * string =
     match run.Origin with
     | MovementOrigin.MoneyMoved -> Money.formatAmountText false true run.Amount.Amount run.Amount.Currency, Money.signedListAmountClass
+    | MovementOrigin.TakenOverFromYnab -> Money.formatAmountText false false run.Amount.Amount run.Amount.Currency, Money.signedListAmountClass
     | MovementOrigin.TargetsApplied
-    | MovementOrigin.MoneyAssigned -> historyChangeAmount run.Amount
+    | MovementOrigin.MoneyAssigned
+    | MovementOrigin.ObservedInYnab -> historyChangeAmount run.Amount
 
 /// Was als Stand eines Durchlaufs dasteht.
 type RunBadge =
@@ -54,6 +58,8 @@ type RunBadge =
     /// Ein Teil-Fehlschlag: ein rotes Badge, am Handy kurz ("1 von 3"), am PC lang ("1 von 3
     /// fehlgeschlagen"). Die Gründe stehen in den Einzelzeilen.
     | PartlyFailedBadge of short: string * long: string
+    /// Kein Badge: der Durchlauf kam aus YNAB und wurde nicht geschrieben (budgeting-dgrp7).
+    | NoBadge
 
 /// Der Stand eines Durchlaufs in den Worten einer Bewegung (budgeting-c6vn4, A6). Ein Teil-Fehlschlag
 /// steht ganz im Badge: neben Zeit und Monat passt am Handy kein zweiter Text.
@@ -62,6 +68,8 @@ let runBadge (status: RunStatus) : RunBadge =
     | RunWritten -> StatusBadge HistoryWritten
     | RunOpen -> StatusBadge HistoryOpen
     | RunChangedInYnab -> StatusBadge HistoryChangedInYnab
+    | RunReplacedInBb -> StatusBadge HistoryReplacedInBb
+    | RunFromYnab -> NoBadge
     | RunFailed reason -> StatusBadge (HistoryFailed reason)
     | RunPartlyFailed (failed, total) -> PartlyFailedBadge ($"{failed} von {total}", $"{failed} von {total} fehlgeschlagen")
 

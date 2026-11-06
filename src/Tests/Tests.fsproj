@@ -53,6 +53,8 @@
     <Compile Include="TargetsApplyTests.fs" />
     <Compile Include="MoveMoneyTests.fs" />
     <Compile Include="TargetPauseTests.fs" />
+    <Compile Include="BudgetAssignmentsTests.fs" />
+    <Compile Include="BudgetLeadTests.fs" />
     <Compile Include="TargetChangeTests.fs" />
     <Compile Include="TargetCheckTests.fs" />
     <Compile Include="TargetCheckQueryTests.fs" />

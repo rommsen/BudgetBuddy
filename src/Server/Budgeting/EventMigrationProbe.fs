@@ -131,7 +131,8 @@ let private legacyMovements (conn: SqliteConnection) (filter: MovementFilter) : 
               OldAssigned = euroOfMilliunits r.old_assigned
               NewAssigned = euroOfMilliunits r.new_assigned
               Counterpart = Option.ofObj r.counterpart_name
-              Latest = statusFromText r.status r.reason }))
+              Latest = statusFromText r.status r.reason
+              ReplacedBy = None }))
     |> collect
 
 /// Die Zeilen einer Anwendung wie früher: rowid-Reihenfolge, jüngstes Ergebnis nach `sequence`.

@@ -27,16 +27,37 @@ let toBudgetFrame (today: DateOnly) (months: string list) (order: Guid list) : B
 let isVisible (category: YnabMonthCategory) : bool =
     not category.Hidden && not category.Deleted && not category.Internal
 
-let private toBudgetCategory (pausedInBb: Set<Guid>) (c: YnabMonthCategory) : BudgetCategory =
+/// Der Stand einer Kategorie in einem Monat, wie BB ihn aus seinen Ereignissen faltet (ADR 0084, Nachtrag
+/// zur Verfeinerung von qm5x9 und dgrp7). Beträge in Milliunits.
+type AssignmentState = {
+    /// Das Soll: was BB als Zugewiesen führt.
+    Assigned: int64
+    /// Der bestätigte Stand: was YNAB zuletzt bestätigt hat. Baseline der Echo-Regel.
+    Confirmed: int64
+    /// Die offene Rückschreibung: die Entscheidung, deren Wert noch nicht in YNAB bestätigt ist. Höchstens
+    /// eine; Soll ungleich bestätigtem Stand nur mit ihr.
+    Open: Guid option
+}
+
+/// Eine Kategorie ohne Eintrag in der Faltung: Soll und bestätigter Stand 0, nichts offen.
+let unassigned : AssignmentState = { Assigned = 0L; Confirmed = 0L; Open = None }
+
+let private toBudgetCategory (assignments: Map<Guid, AssignmentState> option) (pausedInBb: Set<Guid>) (c: YnabMonthCategory) : BudgetCategory =
+    let state = assignments |> Option.map (fun m -> m |> Map.tryFind c.Id |> Option.defaultValue unassigned)
     { Id = c.Id
       Name = c.Name.Trim()
-      Assigned = c.Assigned
+      // Zugewiesen ist BBs Soll; Aktivität, Verfügbar und Fehlbetrag bleiben YNABs Werte (entschieden von Roman).
+      Assigned =
+        match state with
+        | Some s -> { Amount = decimal s.Assigned / 1000m; Currency = c.Assigned.Currency }
+        | None -> c.Assigned
       Activity = c.Activity
       Available = c.Available
       Underfunded = c.Underfunded
       Target = c.Target
       // Eine BB-Pause ohne Target wirkt nicht und wird nicht gemeldet (budgeting-r3wq8).
-      Pause = pauseSourceOf c.Snoozed (c.Target.IsSome && pausedInBb.Contains c.Id) }
+      Pause = pauseSourceOf c.Snoozed (c.Target.IsSome && pausedInBb.Contains c.Id)
+      OpenWriteBack = state |> Option.bind (fun s -> s.Open) }
 
 /// Gruppiert die sichtbaren Kategorien nach Kategoriegruppe. Die Folge ist die der Monatsantwort
 /// und damit ungeordnet (ADR 0074 Punkt 6): `toBudgetMonth` dient den Server-Abläufen, die Seite
@@ -45,7 +66,11 @@ let private toBudgetCategory (pausedInBb: Set<Guid>) (c: YnabMonthCategory) : Bu
 /// `pausedInBb` sind die Kategorien, deren Target in BB für diesen Monat pausiert ist. Hier und nur
 /// hier kommen YNAB-Monat und BB-Pause zusammen (ADR 0079 Punkt 3). Eine Id, die im Monat fehlt,
 /// ändert nichts.
-let toBudgetMonth (pausedInBb: Set<Guid>) (month: YnabMonth) : BudgetMonth =
+///
+/// `assignments` ist BBs Faltung des Monats (budgeting-dgrp7): mit ihr zeigt Zugewiesen das Soll und eine
+/// offene Rückschreibung ihre Markierung; eine Kategorie ohne Eintrag hat Soll 0. `None` zeigt YNABs
+/// Zugewiesen ohne Markierung, etwa wenn das Lesen die Faltung nicht festhalten konnte.
+let toBudgetMonthWith (assignments: Map<Guid, AssignmentState> option) (pausedInBb: Set<Guid>) (month: YnabMonth) : BudgetMonth =
     let groups =
         month.Categories
         |> List.filter isVisible
@@ -54,7 +79,7 @@ let toBudgetMonth (pausedInBb: Set<Guid>) (month: YnabMonth) : BudgetMonth =
                 let name = c.GroupName.Trim()
                 let order' = if Map.containsKey name byGroup then order else name :: order
                 let existing = byGroup |> Map.tryFind name |> Option.defaultValue []
-                order', Map.add name (toBudgetCategory pausedInBb c :: existing) byGroup)
+                order', Map.add name (toBudgetCategory assignments pausedInBb c :: existing) byGroup)
             ([], Map.empty)
         |> fun (order, byGroup) ->
             order
@@ -65,13 +90,23 @@ let toBudgetMonth (pausedInBb: Set<Guid>) (month: YnabMonth) : BudgetMonth =
       ToBeBudgeted = month.ToBeBudgeted
       Groups = groups }
 
+/// Der Monat mit YNABs Zugewiesen, ohne BBs Faltung (Targets prüfen, Abläufe ohne Soll).
+let toBudgetMonth (pausedInBb: Set<Guid>) (month: YnabMonth) : BudgetMonth =
+    toBudgetMonthWith None pausedInBb month
+
 // ============================================
 // Targets anwenden (budgeting-h2zfn)
 // ============================================
 
+/// Der Anfang der Ablehnung von Targets anwenden bei offener Rückschreibung, dahinter die Kategorien.
+[<Literal>]
+let TargetsOpenWriteBackText =
+    "Targets anwenden geht erst, wenn alle Zuweisungen in YNAB sind. Bitte zuerst erneut senden. Noch nicht in YNAB:"
+
 /// Die Vorschau von "Targets anwenden" aus dem Monatsmodell. Aufgenommen wird jede Kategorie
-/// mit Fehlbetrag größer 0 und ohne pausiertes Target; neu = altes Zugewiesen + Fehlbetrag
-/// (BB rechnet keine Targets, der Fehlbetrag ist YNABs). Pausierte Kategorien mit Fehlbetrag
+/// mit Fehlbetrag größer 0 und ohne pausiertes Target; neu = Soll + Fehlbetrag (BB rechnet keine
+/// Targets, der Fehlbetrag ist YNABs). Hat eine solche Kategorie eine offene Rückschreibung, lehnt die
+/// Funktion ab und nennt sie (budgeting-dgrp7). Pausierte Kategorien mit Fehlbetrag
 /// größer 0 stehen getrennt in `Skipped`. Fehlbetrag 0 oder unbekannt fällt weg. Zu verteilen
 /// danach darf negativ sein. Liegt ein Betrag nicht auf 10 Milliunits, lehnt die Funktion ab,
 /// weil YNAB sonst still rundet. Rein, ohne I/O.
@@ -103,13 +138,21 @@ let planTargetApplication (month: BudgetMonth) : Result<TargetPreview, string> =
     let lines = List.rev lines
     let skipped = List.rev skipped
 
+    // Bis budgeting-eh8xe ist der Fehlbetrag YNABs `goal_under_funded`, gerechnet auf YNABs Zugewiesen. Bei
+    // offener Rückschreibung weicht das Soll davon ab, Soll plus Fehlbetrag wäre falsch (ADR 0084, Nachtrag).
+    let notInYnab =
+        lines |> List.filter (fun l -> categories |> List.exists (fun (_, c) -> c.Id = l.CategoryId && c.OpenWriteBack.IsSome))
+
     let offGrid =
         lines |> List.tryFind (fun l -> not (isOnTenMilliunits l.OldAssigned && isOnTenMilliunits l.NewAssigned))
 
-    match offGrid with
-    | Some l ->
+    match notInYnab, offGrid with
+    | _ :: _, _ ->
+        let names = notInYnab |> List.map (fun l -> l.CategoryName) |> String.concat ", "
+        Error $"{TargetsOpenWriteBackText} {names}."
+    | [], Some l ->
         Error $"Der Betrag für {l.CategoryName} liegt nicht auf 10 Milliunits (0,01 €) und würde beim Schreiben gerundet. BB wendet deshalb nichts an."
-    | None ->
+    | [], None ->
         let currency = month.ToBeBudgeted.Currency
         let total = lines |> List.sumBy (fun l -> l.Underfunded.Amount)
         Ok
@@ -261,6 +304,8 @@ let originText (origin: MovementOrigin) : string =
     | TargetsApplied -> "Targets anwenden"
     | MoneyMoved -> "Verschieben"
     | MoneyAssigned -> "Zuweisen"
+    | ObservedInYnab -> "In YNAB zugewiesen"
+    | TakenOverFromYnab -> "Aus YNAB übernommen"
 
 /// Liest die Spalte. Ein unbekannter Text wird gemeldet, nicht auf eine Herkunft abgebildet.
 let originOfText (text: string) : Result<MovementOrigin, string> =
@@ -274,7 +319,9 @@ let sendsInOrder (origin: MovementOrigin) : bool =
     match origin with
     | MoneyMoved -> true
     | TargetsApplied
-    | MoneyAssigned -> false
+    | MoneyAssigned
+    | ObservedInYnab
+    | TakenOverFromYnab -> false
 
 /// Steht die Zeile noch aus? Fehlgeschlagen oder ohne Stand (der Lauf brach vor ihr ab).
 let isOpenLine (latest: LineOutcome option) : bool =
@@ -283,22 +330,6 @@ let isOpenLine (latest: LineOutcome option) : bool =
     | Some (Failed _) -> true
     | Some Written
     | Some ChangedInYnab -> false
-
-/// Was beim erneuten Senden einer fehlgeschlagenen Zeile mit dem Live-Wert zu tun ist.
-type RetryDecision =
-    /// YNAB steht auf dem alten Wert: den Zielwert (erneut) setzen.
-    | SendTarget
-    /// YNAB steht schon auf dem Zielwert: nichts senden, die Zeile ist geschrieben.
-    | AlreadyAtTarget
-    /// YNAB steht weder auf dem alten noch auf dem Zielwert: YNAB gewinnt (ADR 0055).
-    | YnabWins
-
-/// Entscheidung beim erneuten Senden. Das Ziel hat Vorrang vor dem alten Wert, falls beide
-/// gleich sind (Fehlbetrag 0 kommt in einer Anwendung nicht vor).
-let decideRetry (baseline: Money) (target: Money) (live: Money) : RetryDecision =
-    if toMilliunits live = toMilliunits target then AlreadyAtTarget
-    elif toMilliunits live = toMilliunits baseline then SendTarget
-    else YnabWins
 
 // ============================================
 // Geld verschieben und zuweisen (ADR 0069, ADR 0078)

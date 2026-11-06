@@ -250,6 +250,7 @@ let historyStatusText (status: HistoryStatus) : string =
     | HistoryWritten -> "geschrieben"
     | HistoryFailed _ -> "fehlgeschlagen"
     | HistoryChangedInYnab -> "in YNAB geändert"
+    | HistoryReplacedInBb -> "in BB ersetzt"
     | HistoryOpen -> "noch offen"
     | HistoryPartlyWritten _ -> "teilweise geschrieben"
 
@@ -262,6 +263,7 @@ let historyFailureReason (status: HistoryStatus) : string option =
     | HistoryFailed _
     | HistoryWritten
     | HistoryChangedInYnab
+    | HistoryReplacedInBb
     | HistoryOpen -> None
 
 /// Die Vorzeichenregel der Ausgaben: eine negative Ausgabe ist ein Erstattungsüberschuss und steht als

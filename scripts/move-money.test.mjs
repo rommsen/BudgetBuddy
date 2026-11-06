@@ -28,6 +28,7 @@ const category = (n, name, available) => ({
   Underfunded: null,
   Target: null,
   Pause: null,
+  OpenWriteBack: null,
 });
 
 const monthFixture = (food, trip, month = "2026-11-01") => ({

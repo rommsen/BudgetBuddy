@@ -50,7 +50,7 @@ let private budgetCategory (available: decimal) (under: decimal option) (pause: 
       Available = eur available
       Underfunded = under |> Option.map eur
       Target = Some target
-      Pause = pause }
+      Pause = pause; OpenWriteBack = None }
 
 let private sources = [ PausedInYnab; PausedInBb; PausedInBoth ]
 
@@ -207,7 +207,7 @@ let private eventRows (id: Guid) : (string * string) list =
             | _ -> None)
 
 let private monthOk (f: FakeYnab) (month: string) : BudgetMonth =
-    match QueryHandlers.budgetMonth f.Port month |> run with
+    match QueryHandlers.budgetMonth f.Port now month |> run with
     | Ok m -> m
     | Error e -> failtest $"Monat erwartet: {e}"
 
@@ -399,7 +399,7 @@ let private flowTests =
             BudgetEventsFixture.appendUnknown anchor (Budgeting.Events.MonthStream "2093-07")
             let loadPaused = Budgeting.Persistence.loadPausedCategoriesWith connect
             let unreadable = YnabError.LocalReadFailed "Pausen nicht lesbar"
-            Expect.equal (QueryHandlers.budgetMonthOfWith loadPaused f.Port.FetchMonth month |> run) (Error unreadable) "Monat"
+            Expect.equal (QueryHandlers.budgetMonthWith (fun _ _ -> async { return () }) connect f.Port now month |> run) (Error unreadable) "Monat"
             Expect.equal (ynabErrorText unreadable) "BB-Daten nicht lesbar: Pausen nicht lesbar" "Text für den Nutzer"
             Expect.equal
                 (setTargetPauseWith loadPaused f.Port now current month { CategoryId = k; Intent = PauseTarget; CommandId = None } |> run)

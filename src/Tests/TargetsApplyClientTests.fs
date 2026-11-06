@@ -195,7 +195,7 @@ let private retryTests =
             let kino = Guid.Parse "00000000-0000-0000-0000-0000000a7002"
             let category id : BudgetCategory =
                 { Id = id; Name = "K"; Assigned = eur 0m; Activity = eur 0m; Available = eur 0m
-                  Underfunded = None; Target = None; Pause = None }
+                  Underfunded = None; Target = None; Pause = None; OpenWriteBack = None }
             let withCategories = { month with Groups = [ { Name = "Alltag"; Categories = [ category essen; category kino ] } ] }
             let report =
                 { reportOf [] None with

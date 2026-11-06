@@ -189,7 +189,6 @@ let private historyMovements (history: CategoryHistory) =
                 ]
             else
                 Html.div [ prop.children (history.Entries |> List.map (historyEntryLine >> historyLineView)) ]
-            ynabAssignedNote ()
         ]
     ]
 

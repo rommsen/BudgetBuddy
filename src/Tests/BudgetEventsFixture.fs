@@ -29,7 +29,7 @@ let recordGroups (movements: Movement list) : Movement list =
                       CategoryName = m.CategoryName
                       OldAssigned = m.OldAssigned
                       NewAssigned = m.NewAssigned })
-            let recorded = recordDecision None first.OccurredAt first.Month first.Origin lines [] |> Async.RunSynchronously |> recordedOrFail
+            let recorded = recordDecision None first.OccurredAt first.Month first.Origin lines [] [] |> Async.RunSynchronously |> recordedOrFail
             List.zip group recorded)
         |> Map.ofList
     movements |> List.map (fun m -> Map.find m stored)

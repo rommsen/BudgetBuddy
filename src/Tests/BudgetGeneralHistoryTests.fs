@@ -28,7 +28,7 @@ let private movement (group: Guid) origin (name: string) counterpart oldAssigned
       OldAssigned = eur oldAssigned
       NewAssigned = eur newAssigned
       Counterpart = counterpart
-      Latest = latest }
+      Latest = latest; ReplacedBy = None }
 
 let private single (movements: HistoryMovement list) : HistoryRun =
     match historyRuns movements with

@@ -13,6 +13,7 @@ open Shared.Budgeting
 open Server.Budgeting.Domain
 open Budgeting.Events
 open Budgeting.Persistence
+open Server.Budgeting.Assignments
 
 /// Was die Abläufe von YNAB brauchen. `FetchMonth` liest den Monat roh (`YnabMonth`),
 /// `SetAssigned month categoryId milliunits` setzt das Zugewiesen absolut (ein PATCH),
@@ -65,47 +66,139 @@ module internal TargetGuard =
         }
 
 // ============================================
+// Beobachten: Übernahme und Echo (budgeting-dgrp7, ADR 0084 Punkt 3 und 5)
+// ============================================
+
+/// Der unter der Monatssperre gelesene YNAB-Monat und BBs Faltung danach.
+type ObservedMonth = {
+    Raw: YnabMonth
+    Fold: MonthFold
+}
+
+/// Warum `observeMonth` nichts lieferte.
+type ObserveFailure =
+    /// YNAB war nicht lesbar.
+    | FetchFailed of YnabError
+    /// YNAB war lesbar, Übernahme und Beobachtungen ließen sich nicht festhalten (Stream nicht lesbar oder
+    /// Anhängen gescheitert). Trägt den rohen Monat, das Lesen liefert ihn trotzdem.
+    | NotRecorded of raw: YnabMonth * reason: string
+
+/// Die Meldung an den Aufrufer, wenn Übernahme und Beobachtungen nicht festgehalten sind. Die Ursache bleibt
+/// im Server-Log.
+[<Literal>]
+let ObservationNotRecordedText = "Abgleich mit YNAB nicht festgehalten"
+
+/// Hält auf dem gerade gelesenen Monat fest, was `Assignments.observe` ergibt: Übernahme, falls noch keine im
+/// Stream liegt, und die Echo-Regel, in einem Append ohne Befehls-Id. `now` ist der Zeitpunkt (UTC), die
+/// Übernahme wird nicht zurückdatiert.
+let private recordObservationWith
+    (connect: unit -> SqliteConnection)
+    (now: DateTime)
+    (monthKey: string)
+    (raw: YnabMonth)
+    : Result<MonthFold, string> =
+    try
+        match monthIdOf monthKey with
+        | Error message -> Error message
+        | Ok monthId ->
+            use conn = connect ()
+            match loadMonthEventsOn conn monthKey with
+            | Error message -> Error message
+            | Ok events ->
+                let added, fold = observe monthId events raw
+                appendMonthEventsOn conn now monthKey added
+                Ok fold
+    with ex ->
+        Error ex.Message
+
+/// `observeMonth` ohne Sperre, für Abläufe, die sie schon halten: ein `FetchMonth`, dann festhalten.
+let private observeUnguarded
+    (connect: unit -> SqliteConnection)
+    (port: YnabPort)
+    (now: DateTime)
+    (monthKey: string)
+    : Async<Result<ObservedMonth, ObserveFailure>> =
+    async {
+        match! port.FetchMonth monthKey with
+        | Error e -> return Error (FetchFailed e)
+        | Ok raw ->
+            match recordObservationWith connect now monthKey raw with
+            | Ok fold -> return Ok { Raw = raw; Fold = fold }
+            | Error reason ->
+                logReadFailure $"Übernahme und Beobachtung {monthKey} festhalten" reason
+                return Error (NotRecorded (raw, reason))
+    }
+
+/// Beobachtet einen Monat (ADR 0084 Punkt 3, Nachtrag): unter `MonthGuard` ein `FetchMonth`, Übernahme falls
+/// nötig, Echo-Regel, alles in einem Append ohne Befehls-Id. Verglichen wird so nur ein Stand, der unter der
+/// Sperre gelesen wurde. Liefert den rohen YNAB-Monat und die Faltung danach. Liest und schreibt über `connect`.
+let observeMonthWith
+    (connect: unit -> SqliteConnection)
+    (port: YnabPort)
+    (now: DateTime)
+    (monthKey: string)
+    : Async<Result<ObservedMonth, ObserveFailure>> =
+    MonthGuard.exclusive monthKey (observeUnguarded connect port now monthKey)
+
+/// `observeMonthWith` auf der Datenbank der Anwendung.
+let observeMonth (port: YnabPort) (now: DateTime) (monthKey: string) : Async<Result<ObservedMonth, ObserveFailure>> =
+    observeMonthWith global.Persistence.getConnection port now monthKey
+
+/// Der Monat, auf dem ein Befehl plant (ADR 0084, Nachtrag): unter der schon gehaltenen Sperre beobachten,
+/// dann die BB-Pausen lesen und beides zum Monat mit BBs Soll zusammenführen. Scheitert das Lesen von YNAB,
+/// die Übernahme, die Beobachtung oder das Lesen der Pausen, kommt außen ein `Error`, und der Befehl entscheidet
+/// nichts. Neben dem Monat kommen die gespeicherten BB-Pausen (auch ohne Target, `planPause`) und die Faltung.
+let private preparedMonth
+    (loadPaused: string -> Async<Result<Set<Guid>, string>>)
+    (port: YnabPort)
+    (now: DateTime)
+    (monthKey: string)
+    : Async<Result<BudgetMonth * Set<Guid> * MonthFold, YnabError>> =
+    async {
+        match! observeUnguarded global.Persistence.getConnection port now monthKey with
+        | Error (FetchFailed e) -> return Error e
+        | Error (NotRecorded _) -> return Error (YnabError.LocalReadFailed ObservationNotRecordedText)
+        | Ok observed ->
+            match! loadPaused monthKey with
+            | Error message -> return Error (YnabError.LocalReadFailed message)
+            | Ok paused ->
+                return Ok (toBudgetMonthWith (Some observed.Fold.Categories) paused observed.Raw, paused, observed.Fold)
+    }
+
+// ============================================
 // Vorschau
 // ============================================
 
-/// Liest den Monat aus YNAB und die BB-Pausen des Monats und führt beides zusammen (ADR 0079 Punkt 3).
-/// Unter der Sperre je Monat aufgerufen, sieht es jede Pause, die vorher festgehalten wurde.
-/// Sind die Pausen nicht lesbar, ist das wie bei `loadStates` ein `LocalReadFailed` (budgeting-c6vn4, P1).
-/// Neben dem Monat kommen die gespeicherten BB-Pausen mit, auch die ohne Target (`planPause`).
-let private fetchBudgetMonthWithPauses
-    (loadPaused: string -> Async<Result<Set<Guid>, string>>)
-    (port: YnabPort)
-    (monthKey: string)
-    : Async<Result<BudgetMonth * Set<Guid>, YnabError>> =
-    async {
+let private planOf (month: BudgetMonth) : Result<TargetPreview, YnabError> =
+    match planTargetApplication month with
+    | Ok preview -> Ok preview
+    // BB lehnt ab, nicht YNAB (budgeting-b5n8q).
+    | Error message -> Error (YnabError.RefusedByBb message)
+
+/// Die Vorschau: liest den Monat unter der Sperre und plant auf BBs Soll. Übernahme und Echo-Regel laufen nur im
+/// Speicher; die Vorschau schreibt weder nach YNAB noch in die Datenbank.
+let preview (port: YnabPort) (monthKey: string) : Async<Result<TargetPreview, YnabError>> =
+    MonthGuard.exclusive monthKey (async {
         match! port.FetchMonth monthKey with
         | Error e -> return Error e
         | Ok raw ->
-            match! loadPaused monthKey with
-            | Error message -> return Error (YnabError.LocalReadFailed message)
-            | Ok paused -> return Ok (toBudgetMonth paused raw, paused)
-    }
-
-let private fetchBudgetMonth (port: YnabPort) (monthKey: string) : Async<Result<BudgetMonth, YnabError>> =
-    async {
-        let! fetched = fetchBudgetMonthWithPauses loadPausedCategories port monthKey
-        return fetched |> Result.map fst
-    }
-
-let private plan (port: YnabPort) (monthKey: string) : Async<Result<TargetPreview, YnabError>> =
-    async {
-        match! fetchBudgetMonth port monthKey with
-        | Error e -> return Error e
-        | Ok month ->
-            match planTargetApplication month with
-            | Ok preview -> return Ok preview
-            // BB lehnt ab, nicht YNAB (budgeting-b5n8q).
-            | Error message -> return Error (YnabError.RefusedByBb message)
-    }
-
-/// Die Vorschau: liest den Monat und plant. Schreibt weder nach YNAB noch in die Datenbank.
-let preview (port: YnabPort) (monthKey: string) : Async<Result<TargetPreview, YnabError>> =
-    plan port monthKey
+            let events =
+                try
+                    use conn = global.Persistence.getConnection ()
+                    loadMonthEventsOn conn monthKey
+                with ex ->
+                    Error ex.Message
+            match events, monthIdOf monthKey with
+            | Error reason, _
+            | _, Error reason ->
+                logReadFailure $"Vorschau {monthKey}: Monats-Stream lesen" reason
+                return Error (YnabError.LocalReadFailed ObservationNotRecordedText)
+            | Ok events, Ok monthId ->
+                let _, fold = observe monthId events raw
+                match! loadPausedCategories monthKey with
+                | Error message -> return Error (YnabError.LocalReadFailed message)
+                | Ok paused -> return planOf (toBudgetMonthWith (Some fold.Categories) paused raw)
+    })
 
 // ============================================
 // Berichte
@@ -321,31 +414,35 @@ let apply
             | None -> return Error (YnabError.RefusedByBb ForeignCommandText)
         }
     MonthGuard.exclusive monthKey (onceFor shown.CommandId answer (async {
-        match! plan port monthKey with
+        match! preparedMonth loadPausedCategories port now monthKey with
         | Error e -> return Error e
-        | Ok fresh when not (previewsMatch shown fresh) -> return Ok (PreviewChanged fresh)
-        | Ok fresh when List.isEmpty fresh.Lines -> return Ok (PreviewChanged fresh)
-        | Ok fresh ->
-            let lines =
-                fresh.Lines
-                |> List.map (fun l ->
-                    { CategoryId = l.CategoryId
-                      CategoryName = l.CategoryName
-                      OldAssigned = toMilliunits l.OldAssigned
-                      NewAssigned = toMilliunits l.NewAssigned })
-            let skipped : SkippedPausedLine list =
-                fresh.Skipped
-                |> List.map (fun s ->
-                    { CategoryId = s.CategoryId
-                      CategoryName = s.CategoryName
-                      Underfunded = toMilliunits s.Underfunded })
-            match! recordDecision shown.CommandId now fresh.Month TargetsApplied lines skipped with
-            | CommandAlreadyProcessed (id, _) -> return! answerAgain id answer
-            | Recorded movements ->
-                do! sendAll port now fresh.Month movements
-                let applicationId = (List.head movements).ApplicationId
-                let! report = reportOf global.Persistence.getConnection port applicationId fresh.Month
-                return report |> Result.map Applied
+        | Ok (month, _, fold) ->
+            match planOf month with
+            | Error e -> return Error e
+            | Ok fresh when not (previewsMatch shown fresh) -> return Ok (PreviewChanged fresh)
+            | Ok fresh when List.isEmpty fresh.Lines -> return Ok (PreviewChanged fresh)
+            | Ok fresh ->
+                let lines =
+                    fresh.Lines
+                    |> List.map (fun l ->
+                        { CategoryId = l.CategoryId
+                          CategoryName = l.CategoryName
+                          OldAssigned = toMilliunits l.OldAssigned
+                          NewAssigned = toMilliunits l.NewAssigned })
+                let skipped : SkippedPausedLine list =
+                    fresh.Skipped
+                    |> List.map (fun s ->
+                        { CategoryId = s.CategoryId
+                          CategoryName = s.CategoryName
+                          Underfunded = toMilliunits s.Underfunded })
+                let withdrawn = withdrawalsFor fold (lines |> List.map (fun l -> l.CategoryId))
+                match! recordDecision shown.CommandId now fresh.Month TargetsApplied lines skipped withdrawn with
+                | CommandAlreadyProcessed (id, _) -> return! answerAgain id answer
+                | Recorded movements ->
+                    do! sendAll port now fresh.Month movements
+                    let applicationId = (List.head movements).ApplicationId
+                    let! report = reportOf global.Persistence.getConnection port applicationId fresh.Month
+                    return report |> Result.map Applied
     }))
 
 // ============================================
@@ -358,7 +455,7 @@ let TargetHeldBack = "Quelle nicht geschrieben, Ziel nicht gesendet"
 
 /// Grund der Quell-Zeile, wenn das Ziel im Monat fehlt.
 [<Literal>]
-let SourceHeldBack = "Ziel in YNAB nicht gefunden, Quelle nicht gesendet"
+let SourceHeldBack = SourceHeldBackText
 
 /// Sendet die Zeilen nacheinander und hält beim ersten Fehler an: stiege das Ziel, ohne dass die
 /// Quelle sinkt, käme das Geld still aus Zu verteilen (ADR 0069 Punkt 3). Die übrigen Zeilen
@@ -390,6 +487,7 @@ let private recordAndSend
     (monthKey: string)
     (commandId: Guid option)
     (answer: EventStore.RecordedEvent -> Async<Result<Result<ApplyReport, string>, YnabError>>)
+    (fold: MonthFold)
     (plan: MovePlan)
     : Async<Result<Result<ApplyReport, string>, YnabError>> =
     async {
@@ -400,7 +498,8 @@ let private recordAndSend
                   CategoryName = l.CategoryName
                   OldAssigned = toMilliunits l.OldAssigned
                   NewAssigned = toMilliunits l.NewAssigned })
-        match! recordDecision commandId now monthKey plan.Origin lines [] with
+        let withdrawn = withdrawalsFor fold (lines |> List.map (fun l -> l.CategoryId))
+        match! recordDecision commandId now monthKey plan.Origin lines [] withdrawn with
         | CommandAlreadyProcessed (id, _) -> return! answerAgain id answer
         | Recorded movements ->
             do! sendInOrder port now monthKey movements
@@ -421,12 +520,12 @@ let moveMoney
     : Async<Result<Result<ApplyReport, string>, YnabError>> =
     let answer = decisionAnswer monthKey (moveEventTypes request) (moveCategories request)
     MonthGuard.exclusive monthKey (onceFor request.CommandId answer (async {
-        match! fetchBudgetMonth port monthKey with
+        match! preparedMonth loadPausedCategories port now monthKey with
         | Error e -> return Error e
-        | Ok month ->
+        | Ok (month, _, fold) ->
             match planMove month request with
             | Error message -> return Ok (Error message)
-            | Ok plan -> return! recordAndSend port now monthKey request.CommandId answer plan
+            | Ok plan -> return! recordAndSend port now monthKey request.CommandId answer fold plan
     }))
 
 /// Zuweisen (ADR 0078): setzt das Zugewiesen absolut. Wie `moveMoney` unter der Monats-Sperre und
@@ -441,9 +540,9 @@ let assignMoney
     : Async<Result<Result<ApplyReport, string>, YnabError>> =
     let answer = decisionAnswer monthKey [ EventTypes.decisionOf MoneyAssigned ] [ request.CategoryId ]
     MonthGuard.exclusive monthKey (onceFor request.CommandId answer (async {
-        match! fetchBudgetMonth port monthKey with
+        match! preparedMonth loadPausedCategories port now monthKey with
         | Error e -> return Error e
-        | Ok month ->
+        | Ok (month, _, fold) ->
             match planAssign month request with
             | Error message -> return Ok (Error message)
             | Ok None ->
@@ -453,7 +552,7 @@ let assignMoney
                       Lines = []
                       ActualToBeBudgeted = None }
                 return Ok (Ok unchanged)
-            | Ok (Some plan) -> return! recordAndSend port now monthKey request.CommandId answer plan
+            | Ok (Some plan) -> return! recordAndSend port now monthKey request.CommandId answer fold plan
     }))
 
 // ============================================
@@ -488,9 +587,9 @@ let setTargetPauseWith
                 else return Ok (Error ForeignCommandText)
             }
         MonthGuard.exclusive monthKey (onceFor request.CommandId answer (async {
-            match! fetchBudgetMonthWithPauses loadPaused port monthKey with
+            match! preparedMonth loadPaused port now monthKey with
             | Error e -> return Error e
-            | Ok (month, pausedInBbRaw) ->
+            | Ok (month, pausedInBbRaw, _) ->
                 match planPause month pausedInBbRaw request with
                 | Error message -> return Ok (Error message)
                 | Ok plan ->
@@ -697,24 +796,21 @@ let changeTarget
 // Fehlgeschlagene erneut senden
 // ============================================
 
-/// Sendet die offenen Zeilen einer Anwendung erneut: fehlgeschlagene und solche ohne Stand (der
-/// Lauf brach vor ihnen ab). Der Zielwert ist absolut, ein zweites Senden ändert nichts. Der
-/// Live-Wert entscheidet (`decideRetry`): steht YNAB schon auf dem Ziel, wird nichts gesendet und
-/// die Zeile als geschrieben festgehalten; steht es weder auf dem alten noch auf dem Zielwert,
-/// gewinnt YNAB (ADR 0055) und die Zeile wird als "in YNAB geändert" geschlossen.
+/// Sendet die offenen Zeilen einer Anwendung erneut (budgeting-dgrp7). Unter der Monatssperre wird zuerst
+/// beobachtet (`observeMonth`): Steht YNAB schon auf dem Soll, schließt die Echo-Regel die Zeile als
+/// geschrieben; steht es auf einem anderen Wert, gewinnt YNAB als Beobachtung. Was danach noch offen ist, plant
+/// `Assignments.planRetry` und sendet das Soll absolut, ein zweites Senden ändert nichts. Offen ist eine Zeile
+/// nur, solange ihre Entscheidung die offene Rückschreibung der Kategorie ist: eine Zeile, die eine spätere
+/// Entscheidung ersetzt hat, sendet nichts.
 ///
-/// Bei einer Verschiebung bleibt die Reihenfolge verbindlich (ADR 0069 Punkt 3). Maßgeblich ist der
-/// Stand der Vorgänger-Zeile, auch aus einem früheren Lauf: solange die Quelle nicht geschrieben
-/// ist, geht das Ziel nicht hinaus. Scheitert sie wieder, bleibt das Ziel unberührt. Hat YNAB bei
-/// der Quelle gewonnen, wird das Ziel ungesendet ebenso als "in YNAB geändert" geschlossen: die
-/// Quelle gehört dann YNAB, und ein gesendetes Ziel nähme das Geld aus Zu verteilen. Offen ist
-/// dabei, ob die Quelle je gesunken ist. Kam ihr PATCH an und nur die Antwort ging verloren, und
-/// änderte sie sich danach, bleibt das Geld in Zu verteilen und Roman verschiebt es von Hand.
+/// Bei einer Verschiebung bleibt die Reihenfolge verbindlich (ADR 0069 Punkt 3): solange die Quelle nicht
+/// geschrieben ist, geht das Ziel nicht hinaus. Scheitert sie wieder, bleibt das Ziel unberührt. Ist eine Seite
+/// verloren (in YNAB ersetzt oder zurückgezogen), wird die andere ungesendet zurückgezogen und ihr Soll fällt
+/// auf den bestätigten Stand: ein gesendetes Ziel nähme das Geld sonst aus Zu verteilen. Kam ein PATCH der
+/// Quelle an, ging nur die Antwort verloren und änderte sie sich danach, bleibt das Geld in Zu verteilen und
+/// Roman verschiebt es von Hand. Fehlt das Ziel im Monat, bleibt die Quelle ungesendet fehlgeschlagen.
 ///
-/// Vor dem ersten Senden werden beide Stände geprüft (ADR 0070, Nachtrag). Ist das Ziel schon
-/// verloren, geht die Quelle nicht hinaus und schließt mit ihm: sonst läge das Geld in Zu verteilen.
-/// Fehlt das Ziel im Monat, bleibt die Quelle ungesendet fehlgeschlagen.
-///
+/// Bei 429 bricht der Lauf ab, die übrigen zu sendenden Zeilen schließen fehlgeschlagen mit "Rate-Limit".
 /// Liest und schreibt über `connect`.
 let retryFailedWith
     (connect: unit -> SqliteConnection)
@@ -730,67 +826,39 @@ let retryFailedWith
             let monthKey = first.Movement.Month
             return!
                 MonthGuard.exclusive monthKey (async {
-                    match! port.FetchMonth monthKey with
-                    | Error e -> return Error e
-                    | Ok live ->
+                    match! observeUnguarded connect port now monthKey with
+                    | Error (FetchFailed e) -> return Error e
+                    | Error (NotRecorded _) -> return Error (YnabError.LocalReadFailed ObservationNotRecordedText)
+                    | Ok observed ->
                         match! loadStates connect applicationId with
                         | Error e -> return Error e
                         | Ok states ->
-                            let liveAssigned =
-                                live.Categories |> List.map (fun c -> c.Id, c.Assigned) |> Map.ofList
-                            let decisionFor (m: Movement) =
-                                Map.tryFind m.CategoryId liveAssigned
-                                |> Option.map (decideRetry (euroOfMilliunits m.OldAssigned) (euroOfMilliunits m.NewAssigned))
+                            let inYnab = observed.Raw.Categories |> List.map (fun c -> c.Id) |> Set.ofList
+                            let lines =
+                                states
+                                |> List.map (fun s ->
+                                    { CategoryId = s.Movement.CategoryId
+                                      Latest = s.Latest
+                                      Open = (stateOf observed.Fold s.Movement.CategoryId).Open = Some applicationId
+                                      InYnab = inYnab.Contains s.Movement.CategoryId })
                             let inOrder = sendsInOrder first.Movement.Origin
-                            // Ist das Ziel verloren, wäre ein Senden der Quelle das Geld in Zu verteilen.
-                            let sourceBlocked =
-                                match inOrder, states with
-                                | true, [ _; target ] when isOpenLine target.Latest ->
-                                    match decisionFor target.Movement with
-                                    // Das Ziel gehört YNAB: die Quelle wird ungesendet zurückgezogen.
-                                    | Some YnabWins -> Some Withdrawn
-                                    | None -> Some (WriteBackFailed SourceHeldBack)
-                                    | Some _ -> None
-                                | _ -> None
+                            let actions = planRetry inOrder lines
+                            let stopped = ref false
                             let rateLimited = ref false
-                            let retryLine (m: Movement) =
-                                async {
-                                    let close outcome =
-                                        async {
-                                            do! recordWriteBackWith connect m now outcome
-                                            return lineOutcomeOf outcome
-                                        }
-                                    match decisionFor m with
-                                    | None -> return! close (WriteBackFailed "Kategorie in YNAB nicht gefunden")
-                                    | Some AlreadyAtTarget -> return! close WrittenBack
-                                    | Some YnabWins -> return! close SupersededInYnab
-                                    | Some SendTarget ->
-                                        match sourceBlocked with
-                                        | Some outcome -> return! close outcome
-                                        | None when rateLimited.Value -> return! close (WriteBackFailed "Rate-Limit")
-                                        | None ->
-                                            match! port.SetAssigned monthKey m.CategoryId m.NewAssigned with
-                                            | Ok () -> return! close WrittenBack
-                                            | Error e ->
-                                                if isRateLimit e then rateLimited.Value <- true
-                                                return! close (WriteBackFailed (ynabErrorText e))
-                                }
-                            // Der Stand der Vorgänger-Zeile nach diesem Lauf.
-                            let previous = ref None
-                            for s in states do
-                                if not (isOpenLine s.Latest) then
-                                    previous.Value <- s.Latest
-                                else
-                                    match (if inOrder then previous.Value else None) with
-                                    | Some ChangedInYnab ->
-                                        // Die Quelle ist verloren: das Ziel wird ungesendet zurückgezogen.
-                                        do! recordWriteBackWith connect s.Movement now Withdrawn
-                                        previous.Value <- Some ChangedInYnab
-                                    | Some (Failed _) -> ()
-                                    | Some Written
-                                    | None ->
-                                        let! outcome = retryLine s.Movement
-                                        previous.Value <- Some outcome
+                            for s, action in List.zip states actions do
+                                let close outcome = recordWriteBackWith connect s.Movement now outcome
+                                match action with
+                                | Leave -> ()
+                                | Close outcome -> do! close outcome
+                                | Send when stopped.Value -> ()
+                                | Send when rateLimited.Value -> do! close (WriteBackFailed "Rate-Limit")
+                                | Send ->
+                                    match! port.SetAssigned monthKey s.Movement.CategoryId s.Movement.NewAssigned with
+                                    | Ok () -> do! close WrittenBack
+                                    | Error e ->
+                                        if isRateLimit e then rateLimited.Value <- true
+                                        if inOrder then stopped.Value <- true
+                                        do! close (WriteBackFailed (ynabErrorText e))
                             return! reportOf connect port applicationId monthKey
                 })
     }

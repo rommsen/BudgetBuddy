@@ -26,7 +26,7 @@ let private budgetCategory name (assigned: int64) : BudgetCategory =
       Available = eur assigned
       Underfunded = None
       Target = None
-      Pause = None }
+      Pause = None; OpenWriteBack = None }
 
 let private monthWith (cats: BudgetCategory list) : BudgetMonth =
     { Month = "2026-11-01"
@@ -202,19 +202,34 @@ let private movementsOf (report: ApplyReport) =
     | Ok states -> states
     | Error e -> failtest $"Zeilen erwartet: {e}"
 
-/// Die festgehaltenen Zeilen der Kategorien über alle Monate, gelesen wie die Historie.
+/// Die festgehaltenen Zeilen der Entscheidungen in BB über alle Monate, gelesen wie die Historie. Übernahme und
+/// Beobachtung zählen nicht: sie hält das Beobachten vor jedem Befehl fest (budgeting-dgrp7).
 let private movementRows (ids: Guid list) : int =
     ids
     |> List.sumBy (fun id ->
         match Budgeting.Persistence.loadMovements { CategoryId = Some id; Month = None; Origin = None } |> Async.RunSynchronously with
-        | Ok found -> found.Length
+        | Ok found -> found |> List.filter (fun m -> not (isFromYnab m.Origin)) |> List.length
         | Error message -> failtest message)
 
 let private networkDown = YnabError.NetworkError "Netz weg"
 
 /// Eine festgehaltene Verschiebung von `a` (100 auf 70) nach `b` (20 auf 50) mit den angehängten
-/// Ständen. `None` heißt: es wurde nie ein Ergebnis angehängt, der Lauf brach vorher ab.
-let private recordedMove (a: Guid) (b: Guid) (source: LineOutcome option) (target: LineOutcome option) : Guid =
+/// Ständen. `None` heißt: es wurde nie ein Ergebnis angehängt, der Lauf brach vorher ab. Vorher beobachtet BB
+/// den Monat mit YNAB auf den alten Werten (budgeting-dgrp7): so sind sie Soll und bestätigter Stand, wie vor
+/// jeder echten Entscheidung. Was der Test danach in `f` eingestellt hat, gilt wieder.
+let private recordedMove (f: FakeYnab) (a: Guid) (b: Guid) (source: LineOutcome option) (target: LineOutcome option) : Guid =
+    let shown = f.Assigned[a], f.Assigned[b], List.ofSeq f.Gone
+    f.Assigned[a] <- 100000L
+    f.Assigned[b] <- 20000L
+    f.Gone.Clear()
+    match run (observeMonth f.Port now monthKey) with
+    | Ok _ -> ()
+    | Error e -> failtest $"Beobachten erwartet: {e}"
+    let shownA, shownB, gone = shown
+    f.Assigned[a] <- shownA
+    f.Assigned[b] <- shownB
+    for id in gone do f.Gone.Add id |> ignore
+    f.Reads <- 0
     let applicationId = Guid.NewGuid()
     let movement category name (oldAssigned: int64) (newAssigned: int64) : Budgeting.Persistence.Movement =
         { Id = Guid.NewGuid()
@@ -400,7 +415,7 @@ let private flowTests =
         testCase "GIVEN Quelle in YNAB geändert, Ziel ohne Stand WHEN erneut gesendet THEN geht das Ziel nicht hinaus und die Verschiebung schließt" <| fun () ->
             let f, a, b = fake ()
             f.Assigned[a] <- 90000L
-            let applicationId = recordedMove a b (Some ChangedInYnab) None
+            let applicationId = recordedMove f a b (Some ChangedInYnab) None
             let again = retryApplication f applicationId
             Expect.isEmpty f.Attempts "kein PATCH: das Geld käme aus Zu verteilen"
             Expect.equal (outcomes again) [ ChangedInYnab; ChangedInYnab ] "beide geschlossen (ADR 0070)"
@@ -410,21 +425,21 @@ let private flowTests =
         testCase "GIVEN Quelle geschrieben, Ziel ohne Stand WHEN erneut gesendet THEN greift das Ziel auf und der Bericht zeigt nichts Offenes" <| fun () ->
             let f, a, b = fake ()
             f.Assigned[a] <- 70000L
-            let applicationId = recordedMove a b (Some Written) None
+            let applicationId = recordedMove f a b (Some Written) None
             let again = retryApplication f applicationId
             Expect.equal (List.ofSeq f.Attempts) [ b, 50000L ] "nur das Ziel"
             Expect.equal (outcomes again) [ Written; Written ] "nichts mehr offen"
 
         testCase "GIVEN der Lauf brach vor der Quelle ab WHEN erneut gesendet THEN geht erst die Quelle, dann das Ziel" <| fun () ->
             let f, a, b = fake ()
-            let again = retryApplication f (recordedMove a b None None)
+            let again = retryApplication f (recordedMove f a b None None)
             Expect.equal (List.ofSeq f.Attempts) [ a, 70000L; b, 50000L ] "Reihenfolge"
             Expect.equal (outcomes again) [ Written; Written ] "beide geschrieben"
 
         testCase "GIVEN Quelle ohne Stand scheitert WHEN erneut gesendet THEN bleibt das Ziel ungesendet und erneut sendbar" <| fun () ->
             let f, a, b = fake ()
             f.Failures[a] <- networkDown
-            let again = retryApplication f (recordedMove a b None None)
+            let again = retryApplication f (recordedMove f a b None None)
             Expect.equal (List.ofSeq f.Attempts) [ a, 70000L ] "nur die Quelle"
             Expect.isTrue (outcomes again |> List.forall isFailed) "beide fehlgeschlagen"
 
@@ -434,7 +449,7 @@ let private flowTests =
             let f, a, b = fake ()
             f.Assigned[b] <- 25000L
             let failed = Some (Failed "Netzwerkfehler: Netz weg")
-            let applicationId = recordedMove a b failed failed
+            let applicationId = recordedMove f a b failed failed
             let again = retryApplication f applicationId
             Expect.isEmpty f.Attempts "kein PATCH"
             Expect.equal (f.Assigned[a], f.Assigned[b]) (100000L, 25000L) "YNAB bleibt, wie es ist"
@@ -449,7 +464,7 @@ let private flowTests =
             f.Assigned[a] <- 70000L
             f.Assigned[b] <- 25000L
             let failed = Some (Failed "Netzwerkfehler: Netz weg")
-            let again = retryApplication f (recordedMove a b failed failed)
+            let again = retryApplication f (recordedMove f a b failed failed)
             Expect.isEmpty f.Attempts "kein PATCH"
             Expect.equal (outcomes again) [ Written; ChangedInYnab ] "die Quelle steht wirklich auf dem Ziel"
 
@@ -457,14 +472,14 @@ let private flowTests =
             let f, a, b = fake ()
             f.Gone.Add b |> ignore
             let failed = Some (Failed "Netzwerkfehler: Netz weg")
-            let again = retryApplication f (recordedMove a b failed failed)
+            let again = retryApplication f (recordedMove f a b failed failed)
             Expect.isEmpty f.Attempts "kein PATCH"
             Expect.isTrue (outcomes again |> List.forall isFailed) "bleibt erneut sendbar"
 
         testCase "GIVEN Ziel fehlgeschlagen, Quelle geschrieben, Ziel steht unverändert WHEN erneut gesendet THEN geht das Ziel hinaus" <| fun () ->
             let f, a, b = fake ()
             f.Assigned[a] <- 70000L
-            let again = retryApplication f (recordedMove a b (Some Written) (Some (Failed "Rate-Limit")))
+            let again = retryApplication f (recordedMove f a b (Some Written) (Some (Failed "Rate-Limit")))
             Expect.equal (List.ofSeq f.Attempts) [ b, 50000L ] "das Ziel"
             Expect.equal (outcomes again) [ Written; Written ] "geschrieben"
 
@@ -902,7 +917,7 @@ let private recentTests =
                   CategoryName = "K"
                   OldAssigned = 10000L
                   NewAssigned = (if i = 0 && origin = MoneyMoved then 0L else 20000L) })
-        Budgeting.Persistence.recordDecisionOn conn None (DateTime(2026, 11, 1, 0, 0, 0, DateTimeKind.Utc).AddHours(float hour.Value)) monthKey origin lines []
+        Budgeting.Persistence.recordDecisionOn conn None (DateTime(2026, 11, 1, 0, 0, 0, DateTimeKind.Utc).AddHours(float hour.Value)) monthKey origin lines [] []
         |> ignore
     let query conn =
         match Budgeting.Persistence.queryRecentCategories conn MoneyMoved 10 with
@@ -1095,8 +1110,10 @@ let private commandTests =
             let x = Guid.NewGuid()
             f.Failures[b] <- networkDown
             moveOk f { request (CategorySide a) (CategorySide b) 30000L with CommandId = Some x } |> ignore
+            // Übernahme und Beobachtungen des Monats hängt das Beobachten vor dem Befehl an (budgeting-dgrp7).
+            let fromYnab = [ "BudgetTakenOverFromYnab"; "AssignmentChangeObservedInYnab" ]
             Expect.equal
-                (BudgetEventsFixture.eventsMentioning [ a; b ])
+                (BudgetEventsFixture.eventsMentioning [ a; b ] |> List.filter (fun (t, _) -> not (List.contains t fromYnab)))
                 [ "MoneyMoved", Some (x.ToString "D")
                   "AssignmentWrittenBackToYnab", None
                   "AssignmentWriteBackFailed", None ]
@@ -1110,7 +1127,7 @@ let private commandTests =
             // Während des Lesens hält ein zweiter Weg dieselbe Id fest, wie es das Netz der Transaktion abfängt.
             f.OnRead <- fun () ->
                 f.OnRead <- ignore
-                Budgeting.Persistence.recordDecision (Some x) now monthKey MoneyAssigned [ line ] [] |> run |> ignore
+                Budgeting.Persistence.recordDecision (Some x) now monthKey MoneyAssigned [ line ] [] [] |> run |> ignore
             let report = assignIdOk f x (assign a 120000L)
             Expect.isEmpty f.Attempts "kein PATCH"
             Expect.equal (report.Lines |> List.map (fun l -> l.CategoryId, l.NewAssigned)) [ a, eur 90000L ] "die festgehaltene Entscheidung"

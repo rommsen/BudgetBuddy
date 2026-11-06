@@ -27,7 +27,7 @@ let private category name (assigned: int64) (under: int64 option) (snoozed: bool
       Available = eur assigned
       Underfunded = under |> Option.map eur
       Target = None
-      Pause = (if snoozed then Some PausedInYnab else None) }
+      Pause = (if snoozed then Some PausedInYnab else None); OpenWriteBack = None }
 
 let private monthOf (tbb: int64) (cats: BudgetCategory list) : BudgetMonth =
     { Month = "2026-11-01"
@@ -109,12 +109,6 @@ let private planTests =
             let after = planOk (monthOf 50000L [ { a with Target = Some { Goal = eur 99000L; Rhythm = Weeks 1; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None } } ])
             Expect.notEqual before.Lines.Head.Target after.Lines.Head.Target "Target weicht ab"
             Expect.isTrue (Domain.previewsMatch before after) "Vorschau gilt weiter"
-        }
-        test "decideRetry: Ziel, Baseline, sonst gewinnt YNAB" {
-            let baseline, target = eur 0L, eur 10000L
-            Expect.equal (Domain.decideRetry baseline target (eur 10000L)) Domain.AlreadyAtTarget "schon am Ziel"
-            Expect.equal (Domain.decideRetry baseline target (eur 0L)) Domain.SendTarget "noch an der Baseline"
-            Expect.equal (Domain.decideRetry baseline target (eur 7000L)) Domain.YnabWins "dazwischen"
         }
     ]
 
@@ -302,12 +296,13 @@ let private applyOk (f: FakeYnab) (shown: TargetPreview) : ApplyReport =
     | Ok (Applied r) -> r
     | other -> failtest $"Applied erwartet: {other}"
 
-/// Die festgehaltenen Zeilen der Kategorien über alle Monate, gelesen wie die Historie.
+/// Die festgehaltenen Zeilen der Entscheidungen in BB über alle Monate, gelesen wie die Historie. Übernahme und
+/// Beobachtung zählen nicht: sie hält das Beobachten vor jedem Befehl fest (budgeting-dgrp7).
 let private movementRows (ids: Guid list) : int =
     ids
     |> List.sumBy (fun id ->
         match Budgeting.Persistence.loadMovements { CategoryId = Some id; Month = None; Origin = None } |> Async.RunSynchronously with
-        | Ok found -> found.Length
+        | Ok found -> found |> List.filter (fun m -> not (isFromYnab m.Origin)) |> List.length
         | Error message -> failtest message)
 
 let private outcomeOf (report: ApplyReport) (id: Guid) =
@@ -741,8 +736,9 @@ let private commandTests =
             let x = Guid.NewGuid()
             let line : Budgeting.Persistence.PlannedLine =
                 { CategoryId = a; CategoryName = "Essen"; OldAssigned = 0L; NewAssigned = 10000L }
-            Budgeting.Persistence.recordDecision (Some x) now monthKey MoneyAssigned [ line ] [] |> run |> ignore
+            // Die Vorschau vor dem Zuweisen: dessen offene Rückschreibung ließe Targets anwenden sonst ablehnen.
             let shown = { previewOf f with CommandId = Some x }
+            Budgeting.Persistence.recordDecision (Some x) now monthKey MoneyAssigned [ line ] [] [] |> run |> ignore
             let ids = [ a; b; c; d; e ]
             let events = BudgetEventsFixture.eventsMentioning ids
             f.Reads <- 0
@@ -755,15 +751,18 @@ let private commandTests =
             let f, (a, _, _, _, _) = fake 200000L
             let x = Guid.NewGuid()
             let shown = { previewOf f with CommandId = Some x }
+            // Eine Kategorie außerhalb der Vorschau: eine offene Rückschreibung auf einer ihrer Kategorien ließe
+            // Targets anwenden vor dem Anhängen ablehnen (budgeting-dgrp7).
+            let elsewhere = Guid.NewGuid()
             let line : Budgeting.Persistence.PlannedLine =
-                { CategoryId = a; CategoryName = "Essen"; OldAssigned = 0L; NewAssigned = 50000L }
+                { CategoryId = elsewhere; CategoryName = "Anderswo"; OldAssigned = 0L; NewAssigned = 50000L }
             // Während des Lesens hält ein zweiter Weg dieselbe Id fest, wie es das Netz der Transaktion abfängt.
             f.OnRead <- fun () ->
                 f.OnRead <- ignore
-                Budgeting.Persistence.recordDecision (Some x) now monthKey TargetsApplied [ line ] [] |> run |> ignore
+                Budgeting.Persistence.recordDecision (Some x) now monthKey TargetsApplied [ line ] [] [] |> run |> ignore
             let report = applyOk f shown
             Expect.isEmpty f.Attempts "kein SetAssigned"
-            Expect.equal (report.Lines |> List.map (fun l -> l.CategoryId, l.NewAssigned)) [ a, eur 50000L ] "die festgehaltene Entscheidung"
+            Expect.equal (report.Lines |> List.map (fun l -> l.CategoryId, l.NewAssigned)) [ elsewhere, eur 50000L ] "die festgehaltene Entscheidung"
             Expect.isNone report.ActualToBeBudgeted "Zu verteilen nicht neu gelesen"
 
         // Die Anschlussstelle: `Api.applyTargetsWith` prüft die Befehls-Id über `validateTargetsApply`.

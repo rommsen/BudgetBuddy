@@ -263,8 +263,67 @@ let loadApplicationWith (connect: unit -> SqliteConnection) (applicationId: Guid
 let loadApplication (applicationId: Guid) : Async<Result<MovementState list, string>> =
     loadApplicationWith Core.getConnection applicationId
 
+/// Eine Zeilen-Id je (Ereignis, Kategorie) für die Kategorien einer Übernahme: stabil über jedes Lesen, ohne
+/// sie zu speichern.
+let private takeoverLineId (eventId: Guid) (categoryId: Guid) : Guid =
+    let a = eventId.ToByteArray()
+    let b = categoryId.ToByteArray()
+    Guid(Array.map2 (^^^) a b)
+
+/// Übernahme und Beobachtung als Zeilen der Historie (budgeting-dgrp7): je Kategorie einer Übernahme eine Zeile
+/// mit dem übernommenen Wert vorher und nachher, je Beobachtung eine Zeile vom Soll davor zum YNAB-Wert. Sie
+/// sind in YNAB, ihr Stand ist geschrieben.
+let private fromYnabOf (recorded: RecordedBudgetEvent) : (Movement * LineOutcome option) list =
+    let row origin (monthId: string) (lineId: Guid) (categoryId: Guid) (name: string) (previous: int64) (assigned: int64) =
+        { Id = lineId
+          ApplicationId = recorded.EventId
+          OccurredAt = recorded.OccurredAt
+          Origin = origin
+          Month = monthKeyOfId monthId
+          CategoryId = categoryId
+          CategoryName = name
+          OldAssigned = previous
+          NewAssigned = assigned },
+        Some Written
+    match recorded.Event with
+    | BudgetEvent.BudgetTakenOverFromYnab p ->
+        p.Categories
+        |> List.map (fun c ->
+            row TakenOverFromYnab p.Month (takeoverLineId recorded.EventId c.CategoryId) c.CategoryId c.CategoryName c.Assigned c.Assigned)
+    | BudgetEvent.AssignmentChangeObservedInYnab p ->
+        [ row ObservedInYnab p.Month recorded.EventId p.CategoryId p.CategoryName p.PreviousAssigned p.Assigned ]
+    | _ -> []
+
+/// Die Zeilen der Historie eines Ereignisses: Entscheidungen mit ihrem jüngsten Ergebnis, Übernahme und
+/// Beobachtung als geschrieben.
+let private historyRowsOf (latest: Map<Guid * Guid, LineOutcome>) (recorded: RecordedBudgetEvent) : (Movement * LineOutcome option) list =
+    match movementsOf recorded with
+    | [] -> fromYnabOf recorded
+    | lines -> lines |> List.map (fun m -> m, Map.tryFind (m.ApplicationId, m.CategoryId) latest)
+
+/// Zurückgezogene Zeilen, die eine spätere Entscheidung in BB ersetzt hat (budgeting-dgrp7), abgeleitet aus dem
+/// Stream: Die jüngste Entscheidung derselben Kategorie vor dem Zurückziehen ist eine andere als die der Zeile.
+/// Je (Entscheidung, Kategorie) die Gruppen-Id der ersetzenden Entscheidung. Die Ereignisse kommen je Stream nach
+/// `stream_version`.
+let private replacedLines (events: RecordedBudgetEvent list) : Map<Guid * Guid, Guid> =
+    events
+    |> List.fold
+        (fun (lastDecision: Map<string * Guid, Guid>, replaced: Map<Guid * Guid, Guid>) e ->
+            match e.Event with
+            | BudgetEvent.AssignmentWriteBackWithdrawn r ->
+                match lastDecision |> Map.tryFind (e.StreamId, r.CategoryId) with
+                | Some decision when decision <> r.DecisionEventId ->
+                    lastDecision, Map.add (r.DecisionEventId, r.CategoryId) decision replaced
+                | _ -> lastDecision, replaced
+            | _ ->
+                let lastDecision =
+                    movementsOf e |> List.fold (fun acc m -> Map.add (e.StreamId, m.CategoryId) e.EventId acc) lastDecision
+                lastDecision, replaced)
+        (Map.empty, Map.empty)
+    |> snd
+
 /// Neueste zuerst: Zeitpunkt, dann Stream und Version, in einer Entscheidung die spätere Zeile zuerst.
-let private newestFirst (events: RecordedBudgetEvent list) : (RecordedBudgetEvent * Movement) list =
+let private newestFirstWith (rowsOf: RecordedBudgetEvent -> 'row list) (events: RecordedBudgetEvent list) : (RecordedBudgetEvent * 'row) list =
     events
     |> List.sortWith (fun a b ->
         match compare b.OccurredAt a.OccurredAt with
@@ -273,7 +332,10 @@ let private newestFirst (events: RecordedBudgetEvent list) : (RecordedBudgetEven
             | 0 -> compare b.StreamVersion a.StreamVersion
             | c -> c
         | c -> c)
-    |> List.collect (fun e -> movementsOf e |> List.rev |> List.map (fun m -> e, m))
+    |> List.collect (fun e -> rowsOf e |> List.rev |> List.map (fun m -> e, m))
+
+let private newestFirst (events: RecordedBudgetEvent list) : (RecordedBudgetEvent * Movement) list =
+    newestFirstWith movementsOf events
 
 /// Die Zeilen zum Filter, neueste zuerst, je mit dem jüngsten Ergebnis und bei einer Verschiebung mit
 /// der Kategorie der Gegenseite. `Error` nennt ein nicht lesbares Ereignis.
@@ -282,7 +344,7 @@ let queryMovements (conn: SqliteConnection) (filter: MovementFilter) : Result<Hi
     // liest die Historie nicht.
     let scope =
         match filter.Month with
-        | None -> Some (OfTypes (EventTypes.decisions @ EventTypes.writeBacks))
+        | None -> Some (OfTypes (EventTypes.decisions @ EventTypes.writeBacks @ EventTypes.fromYnab))
         | Some month -> monthStreamOf month |> Option.map InStream
     match scope with
     | None -> Ok []
@@ -290,17 +352,18 @@ let queryMovements (conn: SqliteConnection) (filter: MovementFilter) : Result<Hi
         loadBudgetEventsOn conn scope
         |> Result.map (fun events ->
             let latest = latestWriteBacks events
+            let replaced = replacedLines events
             let counterpart (e: RecordedBudgetEvent) (m: Movement) =
                 match e.Event with
                 | BudgetEvent.MoneyMoved p ->
                     [ p.From; p.To ] |> List.tryFind (fun l -> l.LineId <> m.Id) |> Option.map (fun l -> l.CategoryName)
                 | _ -> None
-            newestFirst events
-            |> List.filter (fun (_, m) ->
+            newestFirstWith (historyRowsOf latest) events
+            |> List.filter (fun (_, (m, _)) ->
                 (filter.CategoryId |> Option.forall ((=) m.CategoryId))
                 && (filter.Month |> Option.forall ((=) m.Month))
                 && (filter.Origin |> Option.forall ((=) m.Origin)))
-            |> List.map (fun (e, m) ->
+            |> List.map (fun (e, (m, outcome)) ->
                 { MovementId = m.Id
                   ApplicationId = m.ApplicationId
                   OccurredAt = m.OccurredAt
@@ -311,7 +374,8 @@ let queryMovements (conn: SqliteConnection) (filter: MovementFilter) : Result<Hi
                   OldAssigned = euroOfMilliunits m.OldAssigned
                   NewAssigned = euroOfMilliunits m.NewAssigned
                   Counterpart = counterpart e m
-                  Latest = Map.tryFind (m.ApplicationId, m.CategoryId) latest }))
+                  Latest = outcome
+                  ReplacedBy = Map.tryFind (m.ApplicationId, m.CategoryId) replaced }))
 
 /// Die Historie über `connect`. Liest nur die Datenbank, kein YNAB.
 let loadMovementsWith (connect: unit -> SqliteConnection) (filter: MovementFilter) : Async<Result<HistoryMovement list, string>> =
@@ -617,7 +681,9 @@ let internal decisionEvent
 
 /// Hält eine Entscheidung als ein Ereignis im Monats-Stream fest (ADR 0084 Punkt 4). Erst danach darf der
 /// erste PATCH nach YNAB gehen (ADR 0050). Liefert die Zeilen, ihre Gruppen-Id ist die `event_id`. Das
-/// Ereignis trägt die Befehls-Id; ist sie schon festgehalten, entsteht nichts.
+/// Ereignis trägt die Befehls-Id; ist sie schon festgehalten, entsteht nichts. `withdrawn` sind die offenen
+/// Rückschreibungen, die die Entscheidung ersetzt (budgeting-dgrp7): je eine `AssignmentWriteBackWithdrawn`
+/// im selben Append hinter der Entscheidung, damit `first_position` der Befehls-Id auf die Entscheidung zeigt.
 let internal recordDecisionOn
     (conn: SqliteConnection)
     (commandId: Guid option)
@@ -626,11 +692,13 @@ let internal recordDecisionOn
     (origin: MovementOrigin)
     (lines: PlannedLine list)
     (skippedPaused: SkippedPausedLine list)
+    (withdrawn: WriteBackRef list)
     : Recorded<Movement list> =
     let monthId, stream = monthStreamOrFail monthKey
     let event = decisionEvent monthId origin lines skippedPaused
-    match appendCommandOn conn commandId stream [ at, event ] with
-    | Recorded [ recorded ] ->
+    let withdrawals = withdrawn |> List.map (fun r -> at, BudgetEvent.AssignmentWriteBackWithdrawn r)
+    match appendCommandOn conn commandId stream ((at, event) :: withdrawals) with
+    | Recorded (recorded :: _) ->
         Recorded (
             movementsOf
                 { EventId = recorded.EventId
@@ -639,7 +707,7 @@ let internal recordDecisionOn
                   OccurredAt = at
                   Event = event }
         )
-    | Recorded other -> failwith $"Ein Entscheidungsereignis erwartet, {other.Length} gespeichert"
+    | Recorded [] -> failwith "Ein Entscheidungsereignis erwartet, keins gespeichert"
     | CommandAlreadyProcessed (id, firstPosition) -> CommandAlreadyProcessed (id, firstPosition)
 
 /// `recordDecisionOn` auf der Datenbank der Anwendung.
@@ -650,10 +718,11 @@ let recordDecision
     (origin: MovementOrigin)
     (lines: PlannedLine list)
     (skippedPaused: SkippedPausedLine list)
+    (withdrawn: WriteBackRef list)
     : Async<Recorded<Movement list>> =
     async {
         use conn = Core.getConnection ()
-        return recordDecisionOn conn commandId at monthKey origin lines skippedPaused
+        return recordDecisionOn conn commandId at monthKey origin lines skippedPaused withdrawn
     }
 
 /// Hängt den Ausgang einer Zeile als Ergebnis-Ereignis an den Monats-Stream ihrer Entscheidung.
@@ -661,6 +730,22 @@ let internal recordWriteBackOn (conn: SqliteConnection) (m: Movement) (at: DateT
     let _, stream = monthStreamOrFail m.Month
     let reference = { DecisionEventId = m.ApplicationId; CategoryId = m.CategoryId }
     appendOn conn stream [ at, writeBackEvent reference outcome ] |> ignore
+
+/// Die Ereignisse des Monats-Streams zu "YYYY-MM-01" in Stream-Reihenfolge, je mit `event_id`, für die
+/// Faltung (budgeting-dgrp7). Ein nicht lesbares Ereignis wird gemeldet.
+let internal loadMonthEventsOn (conn: SqliteConnection) (monthKey: string) : Result<(Guid * BudgetEvent) list, string> =
+    match monthIdOf monthKey with
+    | Error message -> Error message
+    | Ok monthId ->
+        loadBudgetEventsOn conn (InStream (streamIdOf (MonthStream monthId)))
+        |> Result.map (List.map (fun e -> e.EventId, e.Event))
+
+/// Hängt Übernahme und Beobachtungen ohne Befehls-Id an den Monats-Stream, in einer Transaktion. Eine leere
+/// Liste hängt nichts an.
+let internal appendMonthEventsOn (conn: SqliteConnection) (at: DateTime) (monthKey: string) (events: BudgetEvent list) : unit =
+    if not (List.isEmpty events) then
+        let _, stream = monthStreamOrFail monthKey
+        appendOn conn stream (events |> List.map (fun e -> at, e)) |> ignore
 
 /// `recordWriteBackOn` über `connect`.
 let recordWriteBackWith (connect: unit -> SqliteConnection) (m: Movement) (at: DateTime) (outcome: WriteBackOutcome) : Async<unit> =

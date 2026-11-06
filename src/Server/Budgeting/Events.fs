@@ -37,8 +37,8 @@ let monthKeyOfId (monthId: string) : string = monthId + "-01"
 
 /// Ein Stream des Budgets.
 type BudgetStream =
-    /// `budgeting:month:<YYYY-MM>`: Zuweisen, Verschieben, Targets anwenden, Pausen und
-    /// Rückschreib-Ergebnisse eines Monats.
+    /// `budgeting:month:<YYYY-MM>`: Zuweisen, Verschieben, Targets anwenden, Pausen,
+    /// Rückschreib-Ergebnisse, Übernahme und Beobachtungen eines Monats.
     | MonthStream of monthId: string
     /// `budgeting:target:<categoryId>`: das Target einer Kategorie.
     | TargetStream of categoryId: Guid
@@ -125,6 +125,30 @@ type YnabGoalChange = {
 /// Verweis eines Schritt-Ergebnisses auf seine Target-Änderung.
 type GoalStepRef = { DecisionEventId: Guid; Step: int }
 
+/// Eine Kategorie einer Übernahme: der Wert, den YNAB beim Übernehmen zeigte, ungerundet.
+type TakenOverCategory = {
+    CategoryId: Guid
+    CategoryName: string
+    Assigned: int64
+}
+
+/// Die Übernahme eines Monats aus YNAB (ADR 0084 Punkt 5): Startstand der Faltung. Alle Kategorien außer
+/// `internal`, auch ausgeblendete und gelöschte.
+type BudgetTakeover = {
+    Month: string
+    Categories: TakenOverCategory list
+}
+
+/// Eine Zuweisung, die BB in YNAB sah und nicht selbst geschrieben hat (ADR 0084 Punkt 3).
+/// `PreviousAssigned` ist BBs Soll davor, `Assigned` der YNAB-Wert, ungerundet.
+type ObservedAssignment = {
+    Month: string
+    CategoryId: Guid
+    CategoryName: string
+    PreviousAssigned: int64
+    Assigned: int64
+}
+
 /// Ein Budget-Ereignis. Qualifiziert zu benutzen: die Namen gleichen Fällen in `Shared.Budgeting`.
 [<RequireQualifiedAccess>]
 type BudgetEvent =
@@ -141,6 +165,8 @@ type BudgetEvent =
     | YnabGoalStepWrittenToYnab of GoalStepRef
     | YnabGoalStepWriteFailed of GoalStepRef * reason: string
     | YnabGoalStepSupersededInYnab of GoalStepRef
+    | BudgetTakenOverFromYnab of BudgetTakeover
+    | AssignmentChangeObservedInYnab of ObservedAssignment
 
 /// Der Typname in `events.event_type` (ADR 0083 Punkt 9).
 let eventTypeName (event: BudgetEvent) : string =
@@ -158,6 +184,8 @@ let eventTypeName (event: BudgetEvent) : string =
     | BudgetEvent.YnabGoalStepWrittenToYnab _ -> "YnabGoalStepWrittenToYnab"
     | BudgetEvent.YnabGoalStepWriteFailed _ -> "YnabGoalStepWriteFailed"
     | BudgetEvent.YnabGoalStepSupersededInYnab _ -> "YnabGoalStepSupersededInYnab"
+    | BudgetEvent.BudgetTakenOverFromYnab _ -> "BudgetTakenOverFromYnab"
+    | BudgetEvent.AssignmentChangeObservedInYnab _ -> "AssignmentChangeObservedInYnab"
 
 /// Typnamen für Leser, die nicht den ganzen Kontext brauchen (Filter auf `event_type`, Index
 /// `idx_events_context_type`). Aus `eventTypeName` abgeleitet, damit es keine zweite Schreibweise gibt;
@@ -165,12 +193,14 @@ let eventTypeName (event: BudgetEvent) : string =
 module EventTypes =
     let private none<'T> : 'T = Unchecked.defaultof<'T>
 
-    /// Die Entscheidung zu einer Herkunft.
+    /// Das Ereignis zu einer Herkunft: die Entscheidung, bei Beobachtung und Übernahme das Ereignis des Spiegels.
     let decisionOf (origin: MovementOrigin) : string =
         match origin with
         | MoneyAssigned -> eventTypeName (BudgetEvent.AssignmentChangedInBb none)
         | MoneyMoved -> eventTypeName (BudgetEvent.MoneyMoved none)
         | TargetsApplied -> eventTypeName (BudgetEvent.TargetsApplied none)
+        | ObservedInYnab -> eventTypeName (BudgetEvent.AssignmentChangeObservedInYnab none)
+        | TakenOverFromYnab -> eventTypeName (BudgetEvent.BudgetTakenOverFromYnab none)
 
     /// Die drei Entscheidungen (Zuweisen, Verschieben, Targets anwenden).
     let decisions : string list = [ MoneyAssigned; MoneyMoved; TargetsApplied ] |> List.map decisionOf
@@ -186,6 +216,9 @@ module EventTypes =
           BudgetEvent.AssignmentWriteBackSupersededInYnab none
           BudgetEvent.AssignmentWriteBackWithdrawn none ]
         |> List.map eventTypeName
+
+    /// Übernahme und Beobachtung aus YNAB (budgeting-dgrp7), so wie die Historie sie liest.
+    let fromYnab : string list = [ TakenOverFromYnab; ObservedInYnab ] |> List.map decisionOf
 
     /// Die Target-Änderung aus dem Zwei-Schritt-Weg und ihre drei Schritt-Ergebnisse.
     let goalChanges : string list =
@@ -215,7 +248,9 @@ let actorKindOf (event: BudgetEvent) : string =
     | BudgetEvent.AssignmentWriteBackSupersededInYnab _
     | BudgetEvent.YnabGoalStepWrittenToYnab _
     | BudgetEvent.YnabGoalStepWriteFailed _
-    | BudgetEvent.YnabGoalStepSupersededInYnab _ -> "YnabMirror"
+    | BudgetEvent.YnabGoalStepSupersededInYnab _
+    | BudgetEvent.BudgetTakenOverFromYnab _
+    | BudgetEvent.AssignmentChangeObservedInYnab _ -> "YnabMirror"
 
 // ============================================
 // Ausgang einer Rückschreibung
@@ -461,6 +496,50 @@ module Codec =
     let decodeStepFailed : Decoder<GoalStepRef * string> =
         Decode.map2 (fun r reason -> r, reason) decodeStep (Decode.field "reason" Decode.string)
 
+    let encodeTakenOverCategory (c: TakenOverCategory) =
+        Encode.object [
+            "categoryId", encodeGuid c.CategoryId
+            "categoryName", Encode.string c.CategoryName
+            "assigned", encodeMilliunits c.Assigned
+        ]
+
+    let decodeTakenOverCategory : Decoder<TakenOverCategory> =
+        Decode.object (fun get -> {
+            CategoryId = get.Required.Field "categoryId" decodeGuid
+            CategoryName = get.Required.Field "categoryName" Decode.string
+            Assigned = get.Required.Field "assigned" Decode.int64
+        })
+
+    let encodeTakeover (p: BudgetTakeover) =
+        Encode.object [
+            "month", Encode.string p.Month
+            "categories", Encode.list (p.Categories |> List.map encodeTakenOverCategory)
+        ]
+
+    let decodeTakeover : Decoder<BudgetTakeover> =
+        Decode.object (fun get -> {
+            Month = get.Required.Field "month" decodeMonth
+            Categories = get.Required.Field "categories" (Decode.list decodeTakenOverCategory)
+        })
+
+    let encodeObserved (p: ObservedAssignment) =
+        Encode.object [
+            "month", Encode.string p.Month
+            "categoryId", encodeGuid p.CategoryId
+            "categoryName", Encode.string p.CategoryName
+            "previousAssigned", encodeMilliunits p.PreviousAssigned
+            "assigned", encodeMilliunits p.Assigned
+        ]
+
+    let decodeObserved : Decoder<ObservedAssignment> =
+        Decode.object (fun get -> {
+            Month = get.Required.Field "month" decodeMonth
+            CategoryId = get.Required.Field "categoryId" decodeGuid
+            CategoryName = get.Required.Field "categoryName" Decode.string
+            PreviousAssigned = get.Required.Field "previousAssigned" Decode.int64
+            Assigned = get.Required.Field "assigned" Decode.int64
+        })
+
 /// Die Payload als JSON-Text, Felder in camelCase.
 let encodePayload (event: BudgetEvent) : string =
     let json =
@@ -478,6 +557,8 @@ let encodePayload (event: BudgetEvent) : string =
         | BudgetEvent.YnabGoalStepWrittenToYnab r
         | BudgetEvent.YnabGoalStepSupersededInYnab r -> Codec.encodeStep r
         | BudgetEvent.YnabGoalStepWriteFailed (r, reason) -> Codec.encodeStepFailed (r, reason)
+        | BudgetEvent.BudgetTakenOverFromYnab p -> Codec.encodeTakeover p
+        | BudgetEvent.AssignmentChangeObservedInYnab p -> Codec.encodeObserved p
     Encode.toString 0 json
 
 /// Liest eine gespeicherte Payload. Typname und Schema-Version bestimmen den Decoder; ein unbekannter
@@ -499,6 +580,8 @@ let decodePayload (eventType: string) (version: int) (payload: string) : Result<
     | "YnabGoalStepWrittenToYnab", 1 -> decode Codec.decodeStep BudgetEvent.YnabGoalStepWrittenToYnab
     | "YnabGoalStepWriteFailed", 1 -> decode Codec.decodeStepFailed BudgetEvent.YnabGoalStepWriteFailed
     | "YnabGoalStepSupersededInYnab", 1 -> decode Codec.decodeStep BudgetEvent.YnabGoalStepSupersededInYnab
+    | "BudgetTakenOverFromYnab", 1 -> decode Codec.decodeTakeover BudgetEvent.BudgetTakenOverFromYnab
+    | "AssignmentChangeObservedInYnab", 1 -> decode Codec.decodeObserved BudgetEvent.AssignmentChangeObservedInYnab
     | t, v -> Error $"Unbekannter Budget-Ereignistyp '{t}' in Schema-Version {v}"
 
 /// Ein Ereignis für `EventStore.append`. Der Zeitpunkt muss UTC sein (`EventStore.validate`).

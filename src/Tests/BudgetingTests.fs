@@ -324,7 +324,7 @@ let private apiPathTests =
             { FetchMonth = fetch token budgetId
               SetAssigned = fun _ _ _ -> async { return Ok () }
               SetTarget = fun _ _ -> async { return failwith "schreibt kein Target" } }
-        Server.Api.budgetMonthFor token budget key portFor |> Async.RunSynchronously
+        Server.Api.budgetMonthFor token budget key portFor (DateTime(2026, 10, 1, 8, 0, 0, DateTimeKind.Utc)) |> Async.RunSynchronously
     testList "Weg der Budget-Seite (k7wmd)" [
         test "429 kommt als lesbare Meldung an" {
             match call (Some "t") (Some "b") "2026-10-01" (fetchWith (Error (Shared.Domain.YnabError.RateLimitExceeded 60))) with
@@ -478,7 +478,7 @@ let private euro amount : Shared.Domain.Money = { Amount = amount; Currency = "E
 
 let private budgetCategory (id: Guid) (name: string) : BudgetCategory =
     { Id = id; Name = name; Assigned = euro 0m; Activity = euro 0m; Available = euro 0m
-      Underfunded = None; Target = None; Pause = None }
+      Underfunded = None; Target = None; Pause = None; OpenWriteBack = None }
 
 let private orderTests =
     let ids = List.init 5 (fun _ -> Guid.NewGuid())
@@ -521,7 +521,7 @@ let private missingTests =
             Available = euro available
             Underfunded = under |> Option.map euro
             Target = under |> Option.map (fun _ -> target)
-            Pause = (if snoozed then Some PausedInYnab else None) }
+            Pause = (if snoozed then Some PausedInYnab else None); OpenWriteBack = None }
     let missing c = missingAmount c |> Option.map (fun m -> m.Amount)
     testList "Fehlt" [
         test "Negatives Verfügbar ohne Target fehlt" {

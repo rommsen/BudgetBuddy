@@ -138,9 +138,30 @@ let private missingButton (model: Model) (month: BudgetMonth) (category: BudgetC
     | AssignMissing _ -> button Button.Primary (canCover model)
     | OnlyLeft _ -> button Button.Secondary false
 
+/// Die Markierung einer offenen Rückschreibung mit dem Weg zu "erneut senden" (budgeting-dgrp7).
+let private notInYnabNotice (model: Model) (category: BudgetCategory) (dispatch: Msg -> unit) =
+    match category.OpenWriteBack with
+    | None -> Html.none
+    | Some applicationId ->
+        Html.div [
+            prop.custom ("data-testid", "assign-not-in-ynab")
+            prop.className "flex items-center justify-between gap-3"
+            prop.children [
+                Badge.noticeSmall NotInYnabText
+                Button.view
+                    { Button.defaultProps with
+                        Text = retryMoveLabel
+                        Variant = Button.Secondary
+                        Size = Button.Small
+                        IsDisabled = not (canStartMove model)
+                        OnClick = fun () -> dispatch (RetryWriteBack (string applicationId)) }
+            ]
+        ]
+
 let private assignMode (model: Model) (month: BudgetMonth) (category: BudgetCategory) (tab: MoneyTabState) (dispatch: Msg -> unit) =
     React.fragment [
         assignField model category tab dispatch
+        notInYnabNotice model category dispatch
         previewSlot month category tab
         // Am PC tippt man die Rechnung, die Schritte ersetzen die fehlenden Tasten am Handy.
         if not (Viewport.isInspectorPanelViewport ()) then

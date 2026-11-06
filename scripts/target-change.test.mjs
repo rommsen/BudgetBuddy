@@ -46,6 +46,7 @@ const monthFixture = (key, goal) => ({
           Underfunded: goal === null ? null : eur(goal),
           Target: goal === null ? null : target(goal),
           Pause: null,
+          OpenWriteBack: null,
         },
       ],
     },

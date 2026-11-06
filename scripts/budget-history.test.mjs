@@ -27,7 +27,7 @@ const monthFixture = (key) => ({
     {
       Name: "Alltag h7q4v",
       Categories: [
-        { Id: guid(1), Name: "Miete h7q4v", Assigned: eur(800), Activity: eur(0), Available: eur(800), Underfunded: null, Target: null, Pause: null },
+        { Id: guid(1), Name: "Miete h7q4v", Assigned: eur(800), Activity: eur(0), Available: eur(800), Underfunded: null, Target: null, Pause: null, OpenWriteBack: null },
       ],
     },
   ],
@@ -45,6 +45,7 @@ const movement = (n, group, origin, name, oldAssigned, newAssigned, latest, coun
   NewAssigned: eur(newAssigned),
   Counterpart: counterpart,
   Latest: latest,
+  ReplacedBy: null,
 });
 
 const movements = [

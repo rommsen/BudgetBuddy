@@ -157,6 +157,10 @@ type BudgetCategory = {
     /// Die Pause des Targets in diesem Monat mit ihrer Quelle (ADR 0079). Fachregeln fragen nur
     /// `isPaused`, die Quelle braucht die Oberfläche für Aufheben und den Hinweis zur YNAB-Pause.
     Pause: PauseSource option
+    /// Offene Rückschreibung (ADR 0084, budgeting-dgrp7): das Zugewiesen ist BBs Soll und noch nicht in
+    /// YNAB. Trägt die Gruppen-Id der Entscheidung, über sie läuft "erneut senden". `None`: Soll und YNAB
+    /// stimmen überein. Optional, damit ein älterer Client oder Server ohne das Feld weiter liest.
+    OpenWriteBack: Guid option
 }
 
 /// Ist das Target der Kategorie in diesem Monat pausiert, in BB, in YNAB oder auf beiden Seiten?
@@ -555,6 +559,20 @@ type MovementOrigin =
     | MoneyMoved
     /// Eine Seite ist Zu verteilen.
     | MoneyAssigned
+    /// Eine Zuweisung, die BB in YNAB sah, nicht selbst schrieb (Beobachtung, budgeting-dgrp7).
+    | ObservedInYnab
+    /// Der Startstand des Monats aus YNAB (Übernahme, budgeting-dgrp7).
+    | TakenOverFromYnab
+
+/// Kommt die Bewegung aus YNAB (Beobachtung, Übernahme)? Sie geht nicht nach YNAB und hat keinen Stand
+/// beim Schreiben.
+let isFromYnab (origin: MovementOrigin) : bool =
+    match origin with
+    | ObservedInYnab
+    | TakenOverFromYnab -> true
+    | TargetsApplied
+    | MoneyMoved
+    | MoneyAssigned -> false
 
 /// Eine festgehaltene Budget-Bewegung, wie die Historie sie liest.
 type HistoryMovement = {
@@ -574,6 +592,10 @@ type HistoryMovement = {
     Counterpart: string option
     /// Das jüngste Ergebnis. `None`: es ist noch keins angehängt.
     Latest: LineOutcome option
+    /// Die Rückschreibung wurde ungesendet zurückgezogen, weil eine spätere Entscheidung in BB dieselbe
+    /// Kategorie setzte: die Gruppen-Id dieser Entscheidung (budgeting-dgrp7). Abgeleitet aus dem Stream, kein
+    /// eigenes Ergebnis. `None` sonst, auch bei einem älteren Server ohne das Feld.
+    ReplacedBy: Guid option
 }
 
 /// Die Netto-Aktivität einer Kategorie in einem Monat aus dem Kassenbuch (Erstattungen mindern,
@@ -736,6 +758,9 @@ type HistoryStatus =
     | HistoryWritten
     | HistoryFailed of reason: string
     | HistoryChangedInYnab
+    /// Ungesendet zurückgezogen, weil eine spätere Entscheidung in BB dieselbe Kategorie setzte
+    /// (budgeting-dgrp7). Unterscheidet sich von "in YNAB geändert".
+    | HistoryReplacedInBb
     /// Kein Ergebnis angehängt: der Lauf brach vor dieser Zeile ab oder läuft noch.
     | HistoryOpen
     /// Nur bei einer Target-Änderung in zwei Schritten (budgeting-g2ty9, X7): Schritt 1 ist geschrieben,
@@ -769,6 +794,13 @@ let private historyStatus (latest: LineOutcome option) : HistoryStatus =
     | Some ChangedInYnab -> HistoryChangedInYnab
     | None -> HistoryOpen
 
+/// Der Stand einer Bewegung: ersetzt in BB vor dem jüngsten Ergebnis, denn auch ein ersetztes Ziel trägt
+/// zuletzt ein Zurückziehen.
+let private movementStatus (m: HistoryMovement) : HistoryStatus =
+    match m.ReplacedBy with
+    | Some _ -> HistoryReplacedInBb
+    | None -> historyStatus m.Latest
+
 /// Bewegung zu Zeile. Die Richtung folgt aus dem Vorzeichen von neu minus alt: Bei einer Verschiebung
 /// geht Geld nach der Gegenseite oder kommt von ihr, bei Zuweisen kommt es aus Zu verteilen oder geht
 /// dorthin zurück.
@@ -781,11 +813,15 @@ let historyLine (m: HistoryMovement) : HistoryLine =
         | MoneyAssigned, _ -> if incoming then "zugewiesen" else "zurück nach Zu verteilen"
         | MoneyMoved, Some other -> if incoming then $"von {other}" else $"nach {other}"
         | MoneyMoved, None -> "verschoben"
+        | ObservedInYnab, _ -> "in YNAB zugewiesen"
+        | TakenOverFromYnab, _ -> $"aus YNAB übernommen, {euroText m.NewAssigned}"
     { EntryId = m.MovementId
       OccurredAt = m.OccurredAt
-      Change = Some change
+      // Die Übernahme ändert nichts, sie nennt den Stand im Text.
+      Change = (if m.Origin = TakenOverFromYnab then None else Some change)
       Text = text
-      Status = Some (historyStatus m.Latest) }
+      // Was aus YNAB kommt, wird nicht geschrieben und hat keinen Stand.
+      Status = (if isFromYnab m.Origin then None else Some (movementStatus m)) }
 
 /// Der Stand einer Target-Änderung aus den Ergebnissen ihrer Schritte (budgeting-g2ty9, X7). Ist Schritt 1
 /// geschrieben, entscheidet Schritt 2: fehlgeschlagen heißt teilweise geschrieben, ohne Ergebnis bei
@@ -873,6 +909,10 @@ type RunStatus =
     | RunWritten
     | RunOpen
     | RunChangedInYnab
+    /// Ungesendet zurückgezogen, eine spätere Entscheidung in BB setzte dieselbe Kategorie (budgeting-dgrp7).
+    | RunReplacedInBb
+    /// Kam aus YNAB (Beobachtung, Übernahme): kein Schreiben, kein Stand (budgeting-dgrp7).
+    | RunFromYnab
     /// Gescheitert mit dem Grund der ersten gescheiterten Bewegung. Bei Targets anwenden nur, wenn alle
     /// Kategorien scheiterten oder es nur eine gibt (budgeting-b5n8q).
     | RunFailed of reason: string
@@ -918,8 +958,10 @@ let private runStatus (origin: MovementOrigin) (statuses: HistoryStatus list) : 
         RunPartlyFailed (List.length failed, List.length statuses)
     | reason :: _, _ -> RunFailed reason
     | [], _ ->
-        if List.contains HistoryOpen statuses then RunOpen
+        if isFromYnab origin then RunFromYnab
+        elif List.contains HistoryOpen statuses then RunOpen
         elif List.contains HistoryChangedInYnab statuses then RunChangedInYnab
+        elif List.contains HistoryReplacedInBb statuses then RunReplacedInBb
         else RunWritten
 
 /// Text und Betrag einer Verschiebung: Quelle und Ziel, der Betrag ohne Vorzeichen. Fehlt eine Seite in
@@ -942,7 +984,7 @@ let private historyRun (movements: HistoryMovement list) : HistoryRun =
     // Die Abfrage liefert neueste zuerst, innerhalb einer Transaktion die zuletzt eingefügte vorn.
     let inOrder = List.rev movements
     let first = List.head inOrder
-    let statuses = inOrder |> List.map (fun m -> historyStatus m.Latest)
+    let statuses = inOrder |> List.map movementStatus
     let text, amount, lines =
         match first.Origin with
         | TargetsApplied ->
@@ -956,8 +998,15 @@ let private historyRun (movements: HistoryMovement list) : HistoryRun =
                 { MovementId = m.MovementId
                   CategoryName = m.CategoryName
                   Change = changeOf m
-                  Status = historyStatus m.Latest })
+                  Status = movementStatus m })
         | MoneyAssigned -> $"Zuweisen, {first.CategoryName}", changeOf first, []
+        | ObservedInYnab -> $"In YNAB zugewiesen, {first.CategoryName}", changeOf first, []
+        | TakenOverFromYnab ->
+            let count = List.length inOrder
+            let categories = if count = 1 then "1 Kategorie" else $"{count} Kategorien"
+            $"Aus YNAB übernommen, {categories}",
+            { first.NewAssigned with Amount = inOrder |> List.sumBy (fun m -> m.NewAssigned.Amount) },
+            []
         | MoneyMoved ->
             let text, amount = moveTextAndAmount inOrder
             text, amount, []

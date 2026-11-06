@@ -39,6 +39,7 @@ let private runMeta (run: HistoryRun) =
             | StatusBadge status ->
                 Html.span [ prop.className "shrink-0"; prop.children [ historyStatusView status ] ]
                 historyFailureView status
+            | NoBadge -> Html.none
             | PartlyFailedBadge (short, long) ->
                 Html.span [
                     prop.custom ("data-testid", "general-history-partly-failed")
@@ -163,7 +164,6 @@ let private runList (history: GeneralHistory) (runs: HistoryRun list) (dispatch:
                         yield! shown |> List.map (runView history dispatch)
                 ]
             ]
-            ynabAssignedNote ()
         ]
     ]
 

@@ -453,6 +453,14 @@ let amountColumns : AmountColumn list =
       { Header = "Aktivität"; Value = (fun c -> c.Activity); IsAvailable = false }
       { Header = "Verfügbar"; Value = (fun c -> c.Available); IsAvailable = true } ]
 
-/// Die zweite Zeile am Handy: Zugewiesen und Aktivität.
+/// Die Markierung einer offenen Rückschreibung (budgeting-dgrp7): Zugewiesen zeigt BBs Soll, YNAB hat es noch
+/// nicht.
+[<Literal>]
+let NotInYnabText = "noch nicht in YNAB"
+
+/// Die zweite Zeile am Handy: Zugewiesen und Aktivität, bei offener Rückschreibung mit Markierung.
 let mobileFiguresText (c: BudgetCategory) : string =
-    $"Zugewiesen {moneyText c.Assigned} · Aktivität {moneyText c.Activity}"
+    let figures = $"Zugewiesen {moneyText c.Assigned} · Aktivität {moneyText c.Activity}"
+    match c.OpenWriteBack with
+    | Some _ -> $"{figures} · {NotInYnabText}"
+    | None -> figures

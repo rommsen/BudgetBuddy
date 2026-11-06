@@ -30,6 +30,7 @@ const category = (n, name, assigned, available) => ({
   Underfunded: null,
   Target: null,
   Pause: null,
+  OpenWriteBack: null,
 });
 
 const monthFixture = (key) => ({

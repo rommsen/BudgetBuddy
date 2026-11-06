@@ -19,7 +19,8 @@ let historyStatusView (status: HistoryStatus) =
     | HistoryChangedInYnab
     // Gelb wie "offen, kein Fehler" (ADR 0075): das Target steht, nur das Datum fehlt (budgeting-g2ty9, X7).
     | HistoryPartlyWritten _ -> Badge.noticeSmall text
-    | HistoryOpen -> Badge.neutralSmall text
+    | HistoryOpen
+    | HistoryReplacedInBb -> Badge.neutralSmall text
 
 /// Der Betrag einer Bewegungszeile, wie `historyChangeAmount` ihn liefert.
 let historyChangeView (change: Money) =
@@ -51,10 +52,3 @@ let historyFailureWrapped (status: HistoryStatus) =
             prop.text reason
         ]
     | None -> Html.none
-
-/// Der Satz unter jeder Bewegungsliste (ADR 0065, Negative).
-let ynabAssignedNote () =
-    Html.p [
-        prop.className $"{ListRoles.muted} px-4 pt-1"
-        prop.text "Was direkt in YNAB zugewiesen wurde, steht hier nicht."
-    ]

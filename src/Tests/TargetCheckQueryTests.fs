@@ -319,9 +319,17 @@ let handlerTests =
             use _ = anchor
             BudgetEventsFixture.appendUnknown anchor (Budgeting.Events.MonthStream "2093-04")
             let p = probe [ ynabCategory "Lebensmittel" ]
-            let loadPaused = Budgeting.Persistence.loadPausedCategoriesWith connect
+            let read =
+                Server.Budgeting.QueryHandlers.budgetMonthWith
+                    (fun _ _ -> async { return () })
+                    connect
+                    { FetchMonth = p.Port.FetchMonth
+                      SetAssigned = fun _ _ _ -> async { return failwith "kein Schreiben" }
+                      SetTarget = fun _ _ -> async { return failwith "kein Schreiben" } }
+                    (DateTime(2093, 4, 15, 8, 0, 0, DateTimeKind.Utc))
+                    monthKey
             Expect.equal
-                (Server.Budgeting.QueryHandlers.budgetMonthOfWith loadPaused p.Port.FetchMonth monthKey |> run |> Result.isError)
+                (read |> run |> Result.isError)
                 true
                 "Gegenprobe: mit Pausen scheitert der Monat"
             match Server.Budgeting.QueryHandlers.targetCheck p.Port (DateOnly(2093, 4, 15)) |> run with

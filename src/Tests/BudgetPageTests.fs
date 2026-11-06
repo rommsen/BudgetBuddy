@@ -38,7 +38,7 @@ let private guardCategory : BudgetCategory =
       Available = eur 1m
       Underfunded = None
       Target = None
-      Pause = None }
+      Pause = None; OpenWriteBack = None }
 
 let private detailMonthForGuard : BudgetMonth =
     { monthK7wmd with Groups = [ { Name = "Alltag"; Categories = [ guardCategory ] } ] }
@@ -273,7 +273,7 @@ let private labelTests =
         test "Kategorien werden über alle Gruppen gezählt" {
             let cat n : BudgetCategory =
                 { Id = System.Guid.NewGuid(); Name = n; Assigned = eur 0m; Activity = eur 0m
-                  Available = eur 0m; Underfunded = None; Target = None; Pause = None }
+                  Available = eur 0m; Underfunded = None; Target = None; Pause = None; OpenWriteBack = None }
             let month =
                 { monthK7wmd with
                     Groups = [ { Name = "A"; Categories = [ cat "a"; cat "b" ] }; { Name = "B"; Categories = [ cat "c" ] } ] }
@@ -324,7 +324,7 @@ let private cat (n: int) (name: string) : BudgetCategory =
       Available = rxxb4Money
       Underfunded = None
       Target = None
-      Pause = None }
+      Pause = None; OpenWriteBack = None }
 
 let private groupsRxxb4 : BudgetGroup list =
     [ { Name = "Alltag"; Categories = [ cat 1 "Lebensmittel"; cat 2 "Kino" ] }
@@ -408,7 +408,7 @@ let private detailCategoryFixture : BudgetCategory =
       Available = eur 70m
       Underfunded = None
       Target = None
-      Pause = None }
+      Pause = None; OpenWriteBack = None }
 
 let private detailMonth : BudgetMonth =
     { Month = "2026-10-01"
@@ -899,7 +899,7 @@ let private targetCategory (target: Target) (under: decimal option) (snoozed: bo
     { detailCategoryFixture with
         Target = Some target
         Underfunded = under |> Option.map eur
-        Pause = (if snoozed then Some PausedInYnab else None) }
+        Pause = (if snoozed then Some PausedInYnab else None); OpenWriteBack = None }
 
 let private targetTextTests =
     testList "Rhythmus-Text (kjsht)" [
@@ -1049,6 +1049,11 @@ let private pageViewTests =
             let shown = amountColumns |> List.map (fun column -> column.Header, (column.Value essen).Amount, column.IsAvailable)
             Expect.equal shown [ "Zugewiesen", 1600m, false; "Aktivität", -921.1m, false; "Verfügbar", 1120.09m, true ] "Spalten"
             Expect.equal (mobileFiguresText essen) "Zugewiesen 1.600,00 € · Aktivität -921,10 €" "Handy"
+        }
+        // budgeting-dgrp7: bei offener Rückschreibung ist Zugewiesen BBs Soll, die Zeile sagt, dass YNAB es noch nicht hat.
+        test "Am Handy trägt die Zeile einer offenen Rückschreibung die Markierung noch nicht in YNAB" {
+            let essen = { cat 1 "Essen" with Assigned = eur 1600m; Activity = eur -921.1m; OpenWriteBack = Some (System.Guid.NewGuid()) }
+            Expect.equal (mobileFiguresText essen) "Zugewiesen 1.600,00 € · Aktivität -921,10 € · noch nicht in YNAB" "Handy"
         }
         test "Wiederholen liest den Rahmen neu und zeigt das Laden, die Antwort zeigt den Monat" {
             let failed = update (FrameLoaded (Error "Rahmen kaputt")) (beginLoad (init ()))

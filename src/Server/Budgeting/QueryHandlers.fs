@@ -11,27 +11,6 @@ open Server.Budgeting.Domain
 let private logReadFailure (what: string) (ex: exn) : unit =
     Budgeting.Persistence.logReadFailure what ex.Message
 
-/// Liest einen Monat über `fetchMonth`, mit den BB-Pausen des Monats (ADR 0079). Eine Pause gilt nur
-/// für ihren Monat, der Folgemonat liest seine eigenen (ADR 0073 Punkt 3).
-/// `loadPaused` liest die Pausen des Monats.
-let budgetMonthOfWith
-    (loadPaused: string -> Async<Result<Set<Guid>, string>>)
-    (fetchMonth: string -> Async<YnabResult<YnabMonth>>)
-    (monthKey: string)
-    : Async<YnabResult<BudgetMonth>> =
-    async {
-        match! fetchMonth monthKey with
-        | Error e -> return Error e
-        | Ok month ->
-            match! loadPaused monthKey with
-            | Error message -> return Error (YnabError.LocalReadFailed message)
-            | Ok paused -> return Ok (toBudgetMonth paused month)
-    }
-
-/// `budgetMonthOfWith` mit den Pausen aus der Datenbank der Anwendung.
-let budgetMonthOf (fetchMonth: string -> Async<YnabResult<YnabMonth>>) (monthKey: string) : Async<YnabResult<BudgetMonth>> =
-    budgetMonthOfWith Budgeting.Persistence.loadPausedCategories fetchMonth monthKey
-
 /// Die Parallelrechnung des Fehlbetrags (budgeting-v7kfw, ADR 0084 Punkt 7): vergleicht BBs Fehlbetrag mit
 /// YNABs, gibt die Abweichungsliste an `save` und schreibt eine Zeile ins Server-Log. Ein Fehler darin landet
 /// nur im Server-Log, die Antwort an den Client hängt nicht davon ab.
@@ -48,25 +27,42 @@ let private runUnderfundedComparison
             logReadFailure "Parallelrechnung Fehlbetrag" ex
     }
 
-/// Liest einen Monat für die Budget-Seite über den YNAB-Port (`budgetMonthOf`) und lässt danach die
-/// Parallelrechnung des Fehlbetrags laufen. `save` hält die Abweichungsliste fest; das Ergebnis an den
-/// Client ist dasselbe wie ohne Vergleich.
+/// Liest einen Monat für die Budget-Seite (budgeting-dgrp7, ADR 0084 Punkt 3, Nachtrag): `observeMonth` liest
+/// YNAB unter der Monatssperre (ein Aufruf), hält Übernahme und Beobachtungen fest, und die Antwort entsteht aus
+/// dessen YNAB-Stand und der Faltung. Zugewiesen ist BBs Soll, eine offene Rückschreibung trägt ihre Markierung;
+/// Aktivität, Verfügbar und Zu verteilen bleiben YNABs. Scheitert `FetchMonth`, scheitert das Lesen. Scheitert
+/// nur das Festhalten, steht der Grund im Server-Log und der Monat kommt aus dem YNAB-Stand. Danach läuft die
+/// Parallelrechnung des Fehlbetrags auf dem gelieferten Monat, `save` hält die Abweichungsliste fest.
+/// `connect` ist die Datenbank für Stream, Pausen und Anhängen, `now` der Zeitpunkt der Ereignisse (UTC).
 let budgetMonthWith
     (save: string -> UnderfundedComparison list -> Async<unit>)
+    (connect: unit -> Microsoft.Data.Sqlite.SqliteConnection)
     (port: CommandHandlers.YnabPort)
+    (now: DateTime)
     (monthKey: string)
     : Async<YnabResult<BudgetMonth>> =
     async {
-        match! budgetMonthOf port.FetchMonth monthKey with
+        let! observed = CommandHandlers.observeMonthWith connect port now monthKey
+        let found =
+            match observed with
+            | Error (CommandHandlers.FetchFailed e) -> Error e
+            | Error (CommandHandlers.NotRecorded (raw, _)) -> Ok (raw, None)
+            | Ok o -> Ok (o.Raw, Some o.Fold.Categories)
+        match found with
         | Error e -> return Error e
-        | Ok month ->
-            do! runUnderfundedComparison save month
-            return Ok month
+        | Ok (raw, assignments) ->
+            match! Budgeting.Persistence.loadPausedCategoriesWith connect monthKey with
+            | Error message -> return Error (YnabError.LocalReadFailed message)
+            | Ok paused ->
+                let month = toBudgetMonthWith assignments paused raw
+                do! runUnderfundedComparison save month
+                return Ok month
     }
 
-/// Liest einen Monat für die Budget-Seite, die Abweichungsliste geht in `underfunded_comparisons`.
-let budgetMonth (port: CommandHandlers.YnabPort) (monthKey: string) : Async<YnabResult<BudgetMonth>> =
-    budgetMonthWith Budgeting.Persistence.saveUnderfundedComparisons port monthKey
+/// Liest einen Monat für die Budget-Seite auf der Datenbank der Anwendung, die Abweichungsliste geht in
+/// `underfunded_comparisons`.
+let budgetMonth (port: CommandHandlers.YnabPort) (now: DateTime) (monthKey: string) : Async<YnabResult<BudgetMonth>> =
+    budgetMonthWith Budgeting.Persistence.saveUnderfundedComparisons global.Persistence.getConnection port now monthKey
 
 /// Wie viele Kategorien "Zuletzt verwendet" liest. Mehr als der Picker zeigt: X und ausgeblendete
 /// Kategorien fallen dort noch heraus.

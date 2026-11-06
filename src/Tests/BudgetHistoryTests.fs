@@ -31,7 +31,7 @@ let private movement origin counterpart oldAssigned newAssigned latest : History
       OldAssigned = eur oldAssigned
       NewAssigned = eur newAssigned
       Counterpart = counterpart
-      Latest = latest }
+      Latest = latest; ReplacedBy = None }
 
 [<Tests>]
 let lineTests =
@@ -150,7 +150,7 @@ let private category assigned activity available : BudgetCategory =
       Available = eur available
       Underfunded = None
       Target = None
-      Pause = None }
+      Pause = None; OpenWriteBack = None }
 
 [<Tests>]
 let buildupTests =

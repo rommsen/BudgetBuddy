@@ -1,7 +1,7 @@
 ---
 id: budgeting-dgrp7
 title: "BB führt das Zugewiesen: Übernahme beim Lesen und vor jedem Befehl, Soll-Faltung mit bestätigtem Stand, observeMonth mit Echo-Regel, Befehle auf das Soll"
-status: doing
+status: done
 type: feature
 context: budgeting
 created: 2026-11-05
@@ -173,3 +173,27 @@ Gate:
   taucht dort nicht auf" bereinigen (gilt nach diesem Task nicht mehr), ebenso "Liest die Beträge
   live aus YNAB" bei Budget-Seite und "Fehlbetrag ... Zugewiesen wird altes Zugewiesen plus
   Fehlbetrag" (jetzt Soll). Hinweis aus der Verifikation von budgeting-zkbbd.
+
+## Outcome
+
+BB führt das Zugewiesen je (Monat, Kategorie) nach ADR 0084 (Nachtrag zur Verfeinerung von qm5x9 und dgrp7). `./verify.sh` im Worktree: `VERIFY: PASS` (dotnet 4071 grün, 13 opt-in übersprungen nur "(requires .env)"; node 310 grün).
+
+**Ereignisse** (`src/Server/Budgeting/Events.fs`): `BudgetTakenOverFromYnab` (`month`, `categories` mit Id, Name, `assigned`) und `AssignmentChangeObservedInYnab` (`month`, `categoryId`, `categoryName`, `previousAssigned`, `assigned`), Actor `YnabMirror`, Schema-Version 1, Codec und `decodePayload`. `EventTypes.fromYnab` für die Historie.
+
+**Reine Regeln** (`src/Server/Budgeting/Assignments.fs`, neues Modul ohne I/O): `foldMonth` (Tabelle aus dem Task, ab dem jüngsten Übernahme-Ereignis, `AssignmentState` mit `Assigned`/`Confirmed`/`Open` in `Domain.fs`), `takeoverEvents` (alle Kategorien außer `internal`, ungerundet, offene Rückschreibungen migrierter Entscheidungen mit `AssignmentWriteBackWithdrawn`), `echoOf`/`echoEvents` (Echo-Regel, fehlende Kategorie ergibt nichts), `observe` (Übernahme, dann Echo, Faltung danach), `withdrawalsFor` (eine offene Rückschreibung je Kategorie) und `planRetry` (Paarregel ADR 0069 Punkt 3, Kategorie fehlt). `Domain.toBudgetMonthWith` zeigt das Soll und setzt `BudgetCategory.OpenWriteBack`; `planTargetApplication` lehnt bei offener Rückschreibung auf einer Kategorie mit Fehlbetrag ab (`TargetsOpenWriteBackText`, nennt die Kategorien, verweist auf "erneut senden"). `decideRetry` und `RetryDecision` sind entfallen.
+
+**Handler** (`src/Server/Budgeting/CommandHandlers.fs`): `observeMonthWith connect port now monthKey` / `observeMonth` (unter `MonthGuard` ein `FetchMonth`, Übernahme, Echo, ein Append ohne Befehls-Id; Ergebnis `ObservedMonth` oder `ObserveFailure` mit `FetchFailed`/`NotRecorded`). `moveMoney`, `assignMoney`, `apply`, `setTargetPauseWith` laufen über `preparedMonth` in der Reihenfolge Befehls-Id, `FetchMonth`, Übernahme, Echo, Append, planen auf dem Soll, Entscheidung samt `Withdrawn` (Entscheidung zuerst, `recordDecision` hat dafür den Parameter `withdrawn`), senden. Scheitert Lesen oder Festhalten: außen `Error` (`LocalReadFailed ObservationNotRecordedText`), keine Entscheidung. `preview` liegt unter der Sperre und wendet das Echo nur im Speicher an. `retryFailedWith` beobachtet zuerst und sendet nur Zeilen, deren Entscheidung noch die offene Rückschreibung der Kategorie ist.
+
+**Lesen** (`QueryHandlers.budgetMonthWith save connect port now monthKey`, `Api.budgetMonthFor ... now`): ein YNAB-Aufruf über `observeMonthWith`; scheitert nur das Festhalten, wird geloggt und der Monat aus YNABs Stand geliefert. `budgetMonthOf`/`budgetMonthOfWith` sind entfallen (kein Aufrufer mehr).
+
+**Historie** (`Persistence.queryMovements`, `src/Shared/Budgeting.fs`): `MovementOrigin` hat `ObservedInYnab` und `TakenOverFromYnab` (`isFromYnab`), `HistoryMovement.ReplacedBy: Guid option` (abgeleitet aus dem Stream: jüngste Entscheidung derselben Kategorie vor dem Zurückziehen ist eine andere), `HistoryStatus.HistoryReplacedInBb` ("in BB ersetzt"), `RunStatus.RunReplacedInBb` und `RunFromYnab` (ohne Badge). Texte: "aus YNAB übernommen, 100,00 €", "in YNAB zugewiesen", "Aus YNAB übernommen, N Kategorien", "In YNAB zugewiesen, <Kategorie>". Der Satz "Was direkt in YNAB zugewiesen wurde, steht hier nicht." ist entfernt.
+
+**Client**: Markierung "noch nicht in YNAB" (`Month.NotInYnabText`) am Handy in der zweiten Zeile (`mobileFiguresText`), am PC als Badge hinter dem Namen, im Tab Geld mit Knopf "Erneut senden" (neue Nachricht `RetryWriteBack`, läuft über `retryMoveCmd`/`MoveRetried`).
+
+**Tests**: rein in `src/Tests/BudgetAssignmentsTests.fs` (Echo je Zeile, Faltung je Ereigniszeile, A/B mit `Withdrawn`, Verschiebung in YNAB, Raster, Übernahme, `planRetry`, Monat mit Soll und Ablehnung); Handler in `src/Tests/BudgetLeadTests.fs` mit eigenem Monat je Test, Fake-YNAB als Port und Uhr als Parameter: Aufzählung der Reihenfolgen mit Orakeln O1 (Beobachtungen je Szenario von Hand bestimmt), O2 (aus den Ereignissen abgezählt, gegen Seite und Fake) und O3 (Fake prüft den Stream vor jedem PATCH), dazu Übernahme (gleichzeitig, migriert, internal, Uhr, im selben Befehl), YNAB weg, Targets anwenden abgelehnt, Lesen mit scheiterndem Anhängen (Trigger in der Datenbank und werfender Verbindungs-Port, Log über stderr), ein `FetchMonth`, Markierung, gleicher Wert, Append-Reihenfolge mit `first_position`, Historie je Kategorie und allgemein. Bestehende Tests: `movementRows` zählt nur Entscheidungen, `recordedMove` beobachtet vorher, zwei qm5x9-Tests auf die neue Ablehnung angepasst, die Migrations-Retry-Erwartung folgt der Übernahme, `decideRetry`-Test entfernt. Fixtures in `scripts/*.test.mjs` tragen `OpenWriteBack: null` und `ReplacedBy: null`.
+
+### Für den Conductor
+
+- Nicht deployen, bis budgeting-dkjc5 auf `main` ist (Task-Notes). Vor dem Deploy die Produktions-Datenbank sichern: alter Code kann `BudgetTakenOverFromYnab` und `AssignmentChangeObservedInYnab` nicht lesen.
+- ADR 0084, Nachtrag vorschlagen: (a) Die Paarregel beim erneuten Senden zieht eine Seite auch zurück, wenn ihr Partner von einer späteren BB-Entscheidung ersetzt wurde (nicht nur in YNAB). (b) Scheitert beim Lesen nur das Festhalten, zeigt der Monat YNABs Zugewiesen ohne Markierung. (c) Beobachtung und Übernahme erscheinen in der Historie als zwei neue `MovementOrigin`-Fälle ohne Stand.
+- Override (C): Reviews vorschlagen: `qa-milestone-reviewer` (Tests), `backend-code-quality` (src/Server), `frontend-architecture` (src/Client), `design-quality` (Markierung und Knopf im Tab Geld).

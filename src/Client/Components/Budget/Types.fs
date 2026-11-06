@@ -332,6 +332,9 @@ type Msg =
     /// "Erneut senden" am Toast oder am Hinweis auf der Seite.
     | RetryMove of applicationId: string
     | MoveRetried of applicationId: string * Result<ApplyReport, string>
+    /// "Erneut senden" an der Markierung "noch nicht in YNAB" einer Kategorie (budgeting-dgrp7): die offene
+    /// Rückschreibung mit ihrer Gruppen-Id.
+    | RetryWriteBack of applicationId: string
     /// Tipp auf eine Zeile.
     | SelectCategory of System.Guid
     /// `˄ ˅` im Sheet.
