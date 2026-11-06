@@ -49,8 +49,11 @@ Roman hat für die Seite Targets prüfen (ADR 0082) die Farben der freigegebenen
 wo sie den Farbrollen oben und ADR 0049 widersprechen (budgeting-c4ve4):
 - Die Gruppenköpfe tragen eine Farbe: "Gibst du mehr aus?" Orange, "Gibst du weniger aus?" ein ruhiges
   Blau (neues Token, die Skizze nutzt `#7ab8ff`), "Gibst du nie aus?" Violett, "Kein Target" die
-  Textfarbe, "Passt" Teal.
+  Textfarbe, "Passt" Teal. Das Violett ist das helle der Skizze (`#c9a7ff`, eigenes Token), weil
+  `neonPurple` auf der Hover-Fläche unter 4,5:1 fällt (Review budgeting-c4ve4).
 - In den Monatsbalken der Seite sind die Monate über dem Target orange.
+- Der Zusatz einer Zeile unter "Passt" ("neu gesetzt am …", "entfernt am …") steht in Teal wie in der
+  Skizze, auch neben orangen Balken in derselben Zeile.
 - Die Knöpfe "übernehmen" und "Anpassen …" bleiben neutral (Punkt 3 oben gilt weiter).
 Die Ausnahme gilt nur für diese Seite. Die Budget-Liste und alle anderen Listen folgen weiter
 ADR 0049 und den Farbrollen oben.
