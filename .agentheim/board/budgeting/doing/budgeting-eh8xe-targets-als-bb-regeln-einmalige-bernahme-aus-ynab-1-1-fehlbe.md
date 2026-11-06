@@ -84,3 +84,10 @@ anwenden" und in der Anzeige, Rückbau der Parallelrechnung.
   "Soll" und "Übernahme" (des Budgets) stehen seit dgrp7 dort.
 - Teilung 2026-11-06 (Roman: "ja" zum Vorschlag): Fehlbetrag, Toleranz und Rückbau der
   Parallelrechnung gingen nach budgeting-hbhzf.
+
+## Geparkt nach Verifikation (2026-11-06)
+- Verifier: PASS in Iteration 1 (Gate im Worktree: dotnet 4091 grün, node 311 grün), geprüft nach einem
+  sauberen Merge von `main` mit budgeting-r4kqm.
+- Auf Romans Entscheidung bleibt die Arbeit auf dem Zweig `aw/budgeting-eh8xe` (Worktree
+  `.worktrees/budgeting-eh8xe`), bis budgeting-b9869 deployt und in Prod verglichen ist. Erst dann wird
+  integriert. Das RESULT liegt in `.worktrees/.results/budgeting-eh8xe.iter-1.md`.
