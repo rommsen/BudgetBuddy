@@ -16,7 +16,7 @@ Newest entries on top.
 **Lost-result re-dispatches:** 0
 **Lost-result escalations:** 0
 **Dispatches:** budgeting-dgrp7: 1, ledger-z71ka: 1, infrastructure-w7d2c: 1, budgeting-dkjc5: 1
-**Commits:** 27
+**Commits:** 19
 **Vision-conformance:** none, batch aligns with vision
 **Batch mix:** 75% product-facing / 25% harness (4 tasks)
 **Carry-over:** none, working tree clean
