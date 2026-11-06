@@ -5,6 +5,18 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 20:31 -- Review-Lauf: budgeting-c4ve4
+
+**Type:** Review / Review-Lauf
+**Bereich:** ca00757..2cd23f1 (budgeting-c4ve4)
+**Agents:** design-quality (mit den Skizzen-Screenshots), frontend-architecture, qa-milestone-reviewer, backend-code-quality
+**Funde:** behoben 17, verworfen 3, Rückfrage 0, Ticket 0, Kann-Sammlung 3
+**Commits:** 1ca30f3 (Nachtrag ADR 0075: helles Violett, Teal-Zusatz), 18ec4d4 (Spalten und Violett wie die Skizze, spendsOverTarget, Toast beim Laden, Tests gegen feste Farben, Styleguide)
+**Verworfen:** Panel-Balken 72 px (die Skizze zeichnet 56 px plus Kürzelzeile, die Task war ungenau); checkGroupTitleClass bleibt in der View (Klassen-Wächter); gedämpfte Balken mit wenig Kontrast (wie die Skizze, die Zahl steht als Text daneben)
+**Verifikation:** VERIFY: PASS (dotnet 4197 grün, node 316 grün, dotnet build, npm run build, guard:classes, guard:tokens grün)
+
+---
+
 ## 2026-11-06 20:06 -- Work session ended
 
 **Type:** Work / Session end

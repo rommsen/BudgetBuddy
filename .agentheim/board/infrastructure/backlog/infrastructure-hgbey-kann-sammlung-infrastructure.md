@@ -103,3 +103,6 @@ Den Tonwert von `text-secondary` oder die betroffenen Flächen so anpassen, dass
 
 ## Aufgenommen aus budgeting-eh8xe (Review 2026-11-06)
 - Build: FS0025 (unvollständiger Match) als Fehler, `<WarningsAsErrors>FS0025</WarningsAsErrors>`. Die Warnung machte den Bug 840f213 sichtbar (Monatsfaltung ohne Fall für die Target-Ereignisse); als Fehler fiele so etwas schon beim Bauen auf.
+
+## Aufgenommen aus budgeting-c4ve4 (Review 2026-11-06)
+- `scripts/export-design-system.mjs` führt eine eigene Farbtabelle, dort fehlen die neuen Tokens `--color-calm-blue` und `--color-calm-violet` (nur Gelb steht da).
