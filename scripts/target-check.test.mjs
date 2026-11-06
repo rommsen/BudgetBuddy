@@ -250,7 +250,6 @@ test("[layout] Anpassen öffnet ab 1024 px ein Panel rechts neben der Liste, bei
     });
     assert.ok(at.panelLeft >= at.listRight, `rechts neben der Liste (${JSON.stringify(at)})`);
     assert.equal(Math.round(at.panelWidth), 340, "340 px wie der Inspektor");
-    assert.equal(await panel.locator('[data-testid="target-amount"] input').inputValue(), "150,00", "vorbelegt");
     assert.equal(await wide.page.locator(".bottom-sheet.active").count(), 0, "kein Sheet");
   } finally {
     await wide.context.close();

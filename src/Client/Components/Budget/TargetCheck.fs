@@ -26,15 +26,37 @@ let openTargetCheck (model: Model) : Model =
 
 /// Die Seite wird betreten: die Rohdaten kommen neu, "Passt" ist zu, das Panel zu.
 let enterTargetCheck (model: Model) : Model =
-    withCheck model (fun c -> { c with Data = Loading; FitsOpen = false; Panel = None; Generation = c.Generation + 1 })
+    withCheck model (fun c ->
+        { c with Data = Loading; FitsOpen = false; Panel = None; Generation = c.Generation + 1; LoadPending = true })
 
 /// "Wiederholen": nur neu laden, das Aufklappen bleibt.
 let retryTargetCheck (model: Model) : Model =
-    withCheck model (fun c -> { c with Data = Loading; Generation = c.Generation + 1 })
+    withCheck model (fun c -> { c with Data = Loading; Generation = c.Generation + 1; LoadPending = true })
 
 /// Das stille Neuladen nach einem abgebrochenen Aufruf: die Liste bleibt stehen, kein `Loading`.
 let reloadTargetCheck (model: Model) : Model =
-    withCheck model (fun c -> { c with Generation = c.Generation + 1 })
+    withCheck model (fun c -> { c with Generation = c.Generation + 1; LoadPending = true })
+
+/// Wie die Prüfung neu liest: mit `Loading`, solange die Seite noch lädt (Antwort `TargetCheckLoaded`), sonst
+/// still (Antwort `TargetCheckReloaded`).
+type CheckRead =
+    | CheckLoad
+    | CheckQuietReload
+
+/// Liest die Prüfung neu, passend zu ihrem Stand: lädt sie noch, bleibt `Loading` und die Antwort ist eine
+/// Lade-Antwort, sonst still. Die neue Generation verwirft die Antwort, die noch unterwegs ist.
+let private readCheckAgain (model: Model) : Model * CheckRead =
+    match model.TargetCheck.Data with
+    | NotAsked
+    | Loading -> retryTargetCheck model, CheckLoad
+    | _ -> reloadTargetCheck model, CheckQuietReload
+
+/// Neue Rohdaten: ein Panel eines anderen Monats schließt, es stünde sonst unsichtbar offen (`panelRow`).
+let private settleLoaded (data: TargetCheckData) (c: TargetCheckPage) : TargetCheckPage =
+    { c with
+        Data = Success data
+        LoadPending = false
+        Panel = c.Panel |> Option.filter (fun form -> form.Month = data.Month) }
 
 /// Eine Antwort mit fremder Generation ist überholt: ein späteres Betreten oder Wiederholen lädt schon.
 let applyTargetCheckLoaded (generation: int) (result: Result<TargetCheckData, string>) (model: Model) : Model =
@@ -42,19 +64,28 @@ let applyTargetCheckLoaded (generation: int) (result: Result<TargetCheckData, st
         if generation <> c.Generation then c
         else
             match result with
-            | Ok data -> { c with Data = Success data }
-            | Error message -> { c with Data = Failure message })
+            | Ok data -> settleLoaded data c
+            | Error message -> { c with Data = Failure message; LoadPending = false })
 
-/// Die Antwort des stillen Neuladens. Ein Fehler lässt die Liste stehen; lud die Seite noch, wird er zur
-/// Fehlerkarte, sonst bliebe sie beim Skelett stehen.
-let applyTargetCheckReloaded (generation: int) (result: Result<TargetCheckData, string>) (model: Model) : Model =
-    withCheck model (fun c ->
-        if generation <> c.Generation then c
-        else
-            match result, c.Data with
-            | Ok data, _ -> { c with Data = Success data }
-            | Error message, (NotAsked | Loading) -> { c with Data = Failure message }
-            | Error _, _ -> c)
+/// Die Antwort des stillen Neuladens. Ein Fehler lässt die Liste stehen und meldet per Warn-Toast, dass sie
+/// veraltet sein kann (wie `Month.applyReloaded`); lud die Seite noch, wird er zur Fehlerkarte, sonst bliebe sie
+/// beim Skelett stehen.
+let applyTargetCheckReloaded
+    (generation: int)
+    (result: Result<TargetCheckData, string>)
+    (model: Model)
+    : Model * ExternalMsg =
+    let c = model.TargetCheck
+    if generation <> c.Generation then model, NoOp
+    else
+        match result, c.Data with
+        | Ok data, _ -> withCheck model (settleLoaded data), NoOp
+        | Error message, (NotAsked | Loading) ->
+            withCheck model (fun c -> { c with Data = Failure message; LoadPending = false }), NoOp
+        | Error message, Success _ ->
+            withCheck model (fun c -> { c with LoadPending = false }),
+            ShowToast ($"Prüfung nicht neu gelesen, sie kann veraltet sein: {message}", ToastWarning)
+        | Error _, Failure _ -> withCheck model (fun c -> { c with LoadPending = false }), NoOp
 
 /// Ein Tipp auf "Passt" klappt auf, ein zweiter zu.
 let toggleFits (model: Model) : Model =
@@ -91,33 +122,47 @@ let private rowOf (data: TargetCheckData) (categoryId: System.Guid) : TargetChec
     |> List.tryFind (fun c -> c.CategoryId = categoryId)
     |> Option.map (targetCheckRow data.Today)
 
-/// Die Werte einer Zeile als Text. `Note` steht allein, ohne Werte und Balken (Zusatz bei "Passt").
-type CheckRowFacts = {
-    Note: string option
+/// Ein Betrag einer Zeile, getrennt in Wort davor, Betrag und Wort danach: der Betrag steht in Ziffern
+/// untereinander (Mono), die Wörter in der Sans ("Target ", "216,67 €", "/Monat").
+type FactAmount = { Before: string; Amount: string; After: string }
+
+/// Die Werte einer Zeile ohne Zusatz.
+type CheckRowValues = {
     /// "Target 216,67 €/Monat", ohne Target `None`.
-    Monthly: string option
+    Monthly: FactAmount option
     /// Der gelesene Betrag mit Rhythmus wie in der Budget-Liste, nur bei anderem Rhythmus als monatlich.
-    Read: string option
+    Read: FactAmount option
     /// "Ø 260,00 €".
-    Average: string option
+    Average: FactAmount option
     /// "8 von 12 Monaten darüber", ohne Target und bei "nie" "1 von 12 Monaten mit Ausgaben".
     Count: string
 }
+
+/// Was eine Zeile zeigt: bei "Passt" mit Zusatz nur den Zusatz, ohne Werte und Balken, sonst die Werte mit Balken.
+type CheckRowFacts =
+    | NoteOnly of string
+    | Values of CheckRowValues
 
 let private monthsWord (n: int) : string = if n = 1 then "Monat" else "Monaten"
 
 /// Die Werte einer Zeile (budgeting-q4v8n).
 let checkRowFacts (row: TargetCheckRow) : CheckRowFacts =
-    let n = List.length row.CountedMonths
-    let count =
-        match row.Monthly, row.Group with
-        | Some _, group when group <> NeverSpends -> $"{row.MonthsOver} von {n} {monthsWord n} darüber"
-        | _ -> $"{row.MonthsWithSpending} von {n} {monthsWord n} mit Ausgaben"
-    { Note = row.Note |> Option.map fitsNoteText
-      Monthly = row.Monthly |> Option.map (fun m -> $"Target {moneyText m}/Monat")
-      Read = row.Target |> Option.filter (fun t -> t.Rhythm <> Months 1) |> Option.map targetText
-      Average = row.Average |> Option.map (fun a -> $"Ø {moneyText a}")
-      Count = count }
+    match row.Note with
+    | Some note -> NoteOnly (fitsNoteText note)
+    | None ->
+        let n = List.length row.CountedMonths
+        let count =
+            match row.Monthly, row.Group with
+            | Some _, group when group <> NeverSpends -> $"{row.MonthsOver} von {n} {monthsWord n} darüber"
+            | _ -> $"{row.MonthsWithSpending} von {n} {monthsWord n} mit Ausgaben"
+        Values
+            { Monthly = row.Monthly |> Option.map (fun m -> { Before = "Target "; Amount = moneyText m; After = "/Monat" })
+              Read =
+                row.Target
+                |> Option.filter (fun t -> t.Rhythm <> Months 1)
+                |> Option.map (fun t -> { Before = ""; Amount = moneyText t.Goal; After = rhythmText t.Rhythm })
+              Average = row.Average |> Option.map (fun a -> { Before = "Ø "; Amount = moneyText a; After = "" })
+              Count = count }
 
 /// Die Balken der gezählten Monate, alle vorbei.
 let checkRowBars (data: TargetCheckData) (row: TargetCheckRow) : SpendingBar list =
@@ -273,6 +318,12 @@ let panelOwnsAnswer (origin: TargetOrigin option) (categoryId: System.Guid) (mon
     origin = Some FromCheckPanel
     && model.TargetCheck.Panel |> Option.exists (fun f -> f.CategoryId = categoryId && f.Month = month)
 
+/// Steht das Formular des Aufrufs noch offen und zeigt die Antwort selbst? Das Panel (`panelOwnsAnswer`) oder der
+/// Tab Target, wenn der Aufruf von dort kam (`targetAnswerInTab`). Dann gibt es keinen Toast.
+let answerFormOpen (origin: TargetOrigin option) (categoryId: System.Guid) (month: string) (model: Model) : bool =
+    panelOwnsAnswer origin categoryId month model
+    || (origin = Some FromTargetTab && targetAnswerInTab categoryId month model)
+
 /// Setzt das Target der Kategorie in den Rohdaten, wenn sie zum Monat des Aufrufs gehören. `written`: mit
 /// heute als letzter Änderung (`withWrittenTarget`), sonst nur BBs Stand.
 let private setCheckTarget (categoryId: System.Guid) (month: string) (target: Target option) (written: bool) (model: Model) : Model =
@@ -293,36 +344,62 @@ let private onPanel (change: TargetForm -> TargetForm option) (model: Model) : M
 
 /// Nimmt die Antwort auf der Seite ein, egal woher der Aufruf kam: das Target in den Rohdaten. Ins Panel kommt
 /// sie nur bei `panelOwnsAnswer`: festgehalten schließt es, inzwischen geändert und abgelehnt bleibt es offen
-/// mit Hinweis und Eingabe (`formTakeAnswer`).
+/// mit Hinweis und Eingabe (`formTakeAnswer`). Läuft noch ein Laden, kann seine Antwort älter sein als diese:
+/// dann liest die Prüfung neu (`Some`), und die Antwort, die noch unterwegs ist, zählt nicht mehr.
 let applyCheckAnswered
     (origin: TargetOrigin option)
     (categoryId: System.Guid)
     (month: string)
     (result: Result<TargetChangeResult, string>)
     (model: Model)
-    : Model =
+    : Model * CheckRead option =
     let owns = panelOwnsAnswer origin categoryId month model
     let panel change = if owns then onPanel change else id
-    match result with
-    | Ok (TargetWritten target) -> model |> setCheckTarget categoryId month target true |> panel (fun _ -> None)
-    | Ok (TargetChangedMeanwhile target) ->
-        model |> setCheckTarget categoryId month target false |> panel (formTakeAnswer result >> Some)
-    | Error _ -> model |> panel (formTakeAnswer result >> Some)
+    let answered =
+        match result with
+        | Ok (TargetWritten target) -> model |> setCheckTarget categoryId month target true |> panel (fun _ -> None)
+        | Ok (TargetChangedMeanwhile target) ->
+            model |> setCheckTarget categoryId month target false |> panel (formTakeAnswer result >> Some)
+        | Error _ -> model |> panel (formTakeAnswer result >> Some)
+    // Gesetzt hätte die Antwort, wenn sie ein Target trägt und die Rohdaten zum Monat gehören oder noch kommen.
+    let setsData =
+        match result, answered.TargetCheck.Data with
+        | Error _, _ -> false
+        | Ok _, (NotAsked | Loading) -> true
+        | Ok _, Success data -> data.Month = month
+        | Ok _, Failure _ -> false
+    if setsData && answered.TargetCheck.LoadPending then
+        let again, read = readCheckAgain answered
+        again, Some read
+    else
+        answered, None
 
-/// Der Aufruf brach ab: im eigenen Panel der Satz aus `targetCallLostText`, die Eingabe bleibt. Ergebnis: das
-/// Modell und ob die Prüfung still neu lädt, weil der Ausgang offen ist (wenn sie zum Monat des Aufrufs steht).
+/// Der Aufruf brach ab: der Ausgang ist offen, die Prüfung liest neu, wenn sie zum Monat des Aufrufs steht oder
+/// noch lädt. Im eigenen Panel steht der Satz aus `targetCallLostText`, er verspricht das Neuladen nur, wenn es
+/// läuft; die Eingabe bleibt.
 let applyCheckCallLost
     (origin: TargetOrigin option)
     (categoryId: System.Guid)
     (month: string)
     (message: string)
     (model: Model)
-    : Model * bool =
+    : Model * CheckRead option =
+    let open' =
+        match model.TargetCheck.Data with
+        | Success data -> data.Month = month
+        | Loading -> true
+        | NotAsked
+        | Failure _ -> false
+    let reading, read =
+        if open' then
+            let again, how = readCheckAgain model
+            again, Some how
+        else
+            model, None
     let owns = panelOwnsAnswer origin categoryId month model
-    let noted = if owns then onPanel (formTakeCallLost (targetCallLostText true message) >> Some) model else model
-    match noted.TargetCheck.Data with
-    | Success data when data.Month = month -> reloadTargetCheck noted, true
-    | _ -> noted, false
+    let noted =
+        if owns then onPanel (formTakeCallLost (targetCallLostText read.IsSome message) >> Some) reading else reading
+    noted, read
 
 /// Der Toast zu einer Antwort auf "übernehmen": abgelehnt als Fehler, inzwischen geändert als Warnung mit
 /// demselben Satz wie im Tab, festgehalten keiner.
@@ -331,3 +408,33 @@ let takeAnswerToast (result: Result<TargetChangeResult, string>) : ExternalMsg =
     | Ok (TargetWritten _) -> NoOp
     | Ok (TargetChangedMeanwhile _) -> ShowToast (targetRejectedAwayText TargetChangedMeanwhileText, ToastWarning)
     | Error message -> ShowToast (targetRejectedAwayText message, ToastError)
+
+let private fromCheckPage (origin: TargetOrigin option) : bool =
+    origin = Some FromCheckRow || origin = Some FromCheckPanel
+
+/// Der Toast zu einer Target-Antwort. `formOpen`: das Formular des Aufrufs (Tab oder Panel) steht noch offen
+/// und zeigt die Antwort selbst, dann keiner. Aufrufe von der Seite (Zeile und Panel) melden wie "übernehmen"
+/// (`takeAnswerToast`), alle anderen eine Ablehnung als Warnung.
+let targetAnswerToast (origin: TargetOrigin option) (formOpen: bool) (result: Result<TargetChangeResult, string>) : ExternalMsg =
+    if formOpen then NoOp
+    elif fromCheckPage origin then takeAnswerToast result
+    else
+        match result with
+        | Error message -> ShowToast (targetRejectedAwayText message, ToastWarning)
+        | Ok (TargetChangedMeanwhile _) -> ShowToast (targetRejectedAwayText TargetChangedMeanwhileText, ToastWarning)
+        | Ok (TargetWritten _) -> NoOp
+
+/// Der Toast zu einem abgebrochenen Target-Aufruf, keiner bei offenem Formular. Der Satz verspricht das Neulesen
+/// nur, wenn es läuft: von der Seite das Neuladen der Prüfung (`checkReads`), sonst auch das Neulesen des
+/// Monats (`monthRereads`).
+let targetCallLostToast
+    (origin: TargetOrigin option)
+    (formOpen: bool)
+    (checkReads: bool)
+    (monthRereads: bool)
+    (message: string)
+    : ExternalMsg =
+    if formOpen then NoOp
+    else
+        let rereads = if fromCheckPage origin then checkReads else checkReads || monthRereads
+        ShowToast (targetCallLostText rereads message, ToastError)

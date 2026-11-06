@@ -190,6 +190,9 @@ type TargetCheckPage = {
     /// Zählt je Betreten, je "Wiederholen" und je stillem Neuladen hoch. Eine Antwort mit fremder Generation
     /// ist überholt und wird verworfen (Vorbild `GeneralHistory.Generation`).
     Generation: int
+    /// Läuft ein Laden oder stilles Neuladen? Seine Antwort kann älter sein als eine Schreib-Antwort, die vor
+    /// ihr kommt; dann lädt die Prüfung noch einmal (`applyCheckAnswered`).
+    LoadPending: bool
 }
 
 /// Filter über der Liste neben der Suche.
@@ -508,7 +511,7 @@ let init () : Model =
       Selected = None
       Tab = MoneyTab
       GeneralHistory = { Runs = NotAsked; Filter = AllRuns; Expanded = Set.empty; ReturnPending = false; Generation = 0 }
-      TargetCheck = { Data = NotAsked; FitsOpen = false; Panel = None; ReturnPending = false; Generation = 0 }
+      TargetCheck = { Data = NotAsked; FitsOpen = false; Panel = None; ReturnPending = false; Generation = 0; LoadPending = false }
       EntriesGeneration = 0
       HistoryGeneration = 0
       MonthGeneration = 0 }

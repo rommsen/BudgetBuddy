@@ -28,6 +28,7 @@ let private BarsLabel = "Ausgaben der gezählten Monate"
 type private RowView = {
     Row: TargetCheckRow
     Facts: CheckRowFacts
+    /// Nur bei `Values`: ein Zusatz steht ohne Balken.
     Bars: Stats.MonthBar list
     Take: (string * TargetButtonState) option
 }
@@ -36,34 +37,49 @@ let private rowViewOf (model: Model) (data: TargetCheckData) (row: TargetCheckRo
     let facts = checkRowFacts row
     { Row = row
       Facts = facts
-      Bars = if facts.Note.IsSome then [] else checkRowBars data row |> List.map spendingMonthBar
+      Bars =
+        match facts with
+        | Values _ -> checkRowBars data row |> List.map spendingMonthBar
+        | NoteOnly _ -> []
       Take =
         match takeText row, takeButton model data row with
         | Some text, Some state -> Some (text, state)
         | _ -> None }
 
+/// Ein Betrag der Zeile: die Wörter in der Sans, der Betrag in Mono mit Ziffern untereinander wie die Spalte
+/// Target der Budget-Liste (`MonthView.plainAmount`).
+let private factAmount (muted: bool) (fact: FactAmount) =
+    Html.span [
+        prop.className (if muted then $"{ListRoles.muted} whitespace-nowrap" else $"{ListRoles.secondary} whitespace-nowrap")
+        prop.children [
+            if fact.Before <> "" then Html.text fact.Before
+            Html.span [ prop.className $"font-mono {FontWeights.medium} tabular-nums"; prop.text fact.Amount ]
+            if fact.After <> "" then Html.text fact.After
+        ]
+    ]
+
 /// Target als Monatswert, der gelesene Betrag mit Rhythmus klein dahinter, Ø und die Zahl der Monate.
-let private factsView (facts: CheckRowFacts) =
+let private factsView (values: CheckRowValues) =
     Html.div [
         prop.custom ("data-testid", "target-check-facts")
         prop.className "flex flex-wrap items-baseline gap-x-3 gap-y-0.5"
         prop.children [
-            match facts.Monthly with
-            | Some text ->
+            match values.Monthly with
+            | Some monthly ->
                 Html.span [
                     prop.className "inline-flex items-baseline gap-1.5 min-w-0"
                     prop.children [
-                        Html.span [ prop.className ListRoles.secondary; prop.text text ]
-                        match facts.Read with
-                        | Some read -> Html.span [ prop.className ListRoles.muted; prop.text read ]
+                        factAmount false monthly
+                        match values.Read with
+                        | Some read -> factAmount true read
                         | None -> ()
                     ]
                 ]
             | None -> ()
-            match facts.Average with
-            | Some text -> Html.span [ prop.className $"{ListRoles.secondary} whitespace-nowrap"; prop.text text ]
+            match values.Average with
+            | Some average -> factAmount false average
             | None -> ()
-            Html.span [ prop.className $"{ListRoles.muted} whitespace-nowrap"; prop.text facts.Count ]
+            Html.span [ prop.className $"{ListRoles.muted} whitespace-nowrap"; prop.text values.Count ]
         ]
     ]
 
@@ -81,11 +97,11 @@ let private rowView (dispatch: Msg -> unit) (view: RowView) =
                     Html.span [ prop.className $"{ListRoles.muted} truncate"; prop.text row.GroupName ]
                 ]
             ]
-            match view.Facts.Note with
-            | Some note ->
+            match view.Facts with
+            | NoteOnly note ->
                 Html.p [ prop.custom ("data-testid", "target-check-note"); prop.className ListRoles.secondary; prop.text note ]
-            | None ->
-                factsView view.Facts
+            | Values values ->
+                factsView values
                 Stats.monthBarsCompact BarsLabel view.Bars
             Html.div [
                 prop.className "flex flex-wrap gap-2"
@@ -122,29 +138,38 @@ let private rowView (dispatch: Msg -> unit) (view: RowView) =
         ]
     ]
 
-/// Satz und Zahl im Kopf einer Gruppe.
-let private groupHead (group: CheckGroup) (count: int) =
+/// Der Satz im Kopf einer Gruppe, abgesetzt über das Gewicht.
+let private headClass = $"{ListRoles.primarySize} {FontWeights.semibold} {Colors.textPrimary}"
+
+/// Satz und Zahl im Kopf einer Gruppe. Der Satz ist die Überschrift (`heading`): offen ein `h2`, im Knopf von
+/// "Passt" ein `span` mit `headingId`, auf das die `section` per `aria-labelledby` verweist (kein `h2` im Knopf).
+let private groupHead (heading: string -> ReactElement) (group: CheckGroup) (count: int) =
     Html.span [
         prop.className "flex items-center justify-between gap-3"
         prop.children [
-            Html.span [ prop.className ListRoles.primary; prop.text (checkGroupText group) ]
+            heading (checkGroupText group)
             Html.span [ prop.className $"{ListRoles.secondary} font-mono tabular-nums"; prop.text (string count) ]
         ]
     ]
 
-let private groupCard (testId: string) (children: ReactElement list) =
+let private groupCard (labelledBy: string option) (children: ReactElement list) =
     Html.section [
-        prop.custom ("data-testid", testId)
+        prop.custom ("data-testid", "target-check-group")
+        match labelledBy with
+        | Some id -> prop.ariaLabelledBy id
+        | None -> ()
         prop.className "rounded-xl border border-border-subtle bg-surface-card overflow-clip"
         prop.children children
     ]
 
 /// Eine offene Gruppe: Kopf und Zeilen.
 let private openGroup (model: Model) (data: TargetCheckData) (dispatch: Msg -> unit) (group: CheckGroup) (rows: TargetCheckRow list) =
-    groupCard "target-check-group" [
+    groupCard None [
         Html.div [
             prop.className $"{ListRoles.mobileRowPadding} border-b border-border-subtle"
-            prop.children [ groupHead group (List.length rows) ]
+            prop.children [
+                groupHead (fun text -> Html.h2 [ prop.className headClass; prop.text text ]) group (List.length rows)
+            ]
         ]
         yield! rows |> List.map (rowViewOf model data >> rowView dispatch)
     ]
@@ -153,9 +178,10 @@ let private openGroup (model: Model) (data: TargetCheckData) (dispatch: Msg -> u
 let private fitsGroup (model: Model) (data: TargetCheckData) (dispatch: Msg -> unit) (rows: TargetCheckRow list) =
     let isOpen = model.TargetCheck.FitsOpen
     let rowsId = "target-check-fits-rows"
-    groupCard "target-check-group" [
+    let headingId = "target-check-fits-heading"
+    groupCard (Some headingId) [
         Button.disclosureListRow "fits" "target-check-fits-toggle" rowsId isOpen (fun () -> dispatch ToggleFits) [
-            groupHead Fits (List.length rows)
+            groupHead (fun text -> Html.span [ prop.id headingId; prop.className headClass; prop.text text ]) Fits (List.length rows)
         ]
         Html.div [
             prop.id rowsId
@@ -185,7 +211,7 @@ let private groupsView (model: Model) (data: TargetCheckData) (dispatch: Msg -> 
     ]
 
 /// Das Formular des Panels, angebunden an die Nachrichten der Seite. Abbrechen steht am Ende.
-let private panelForm (model: Model) (row: TargetCheckRow) (form: TargetForm) (isPanel: bool) (dispatch: Msg -> unit) =
+let private panelFormView (model: Model) (row: TargetCheckRow) (form: TargetForm) (isPanel: bool) (dispatch: Msg -> unit) =
     Html.div [
         prop.custom ("data-testid", "target-check-form")
         prop.className "flex flex-col gap-4"
@@ -238,7 +264,7 @@ let private sidePanel (model: Model) (dispatch: Msg -> unit) =
                 ]
                 Html.div [
                     prop.className "flex-1 min-h-0 overflow-y-auto px-4 pb-4"
-                    prop.children [ panelForm model row form true dispatch ]
+                    prop.children [ panelFormView model row form true dispatch ]
                 ]
             ]
         ]
@@ -261,7 +287,7 @@ let private sheet (model: Model) (dispatch: Msg -> unit) =
             [ Html.div [
                   prop.custom ("data-testid", "target-check-sheet")
                   prop.className "py-4"
-                  prop.children [ panelForm model row form false dispatch ]
+                  prop.children [ panelFormView model row form false dispatch ]
               ] ]
     | None -> BottomSheet.inspector (props "" None false) [] [] []
 

@@ -225,16 +225,51 @@ let private pageTests =
         }
         test "Die Werte einer Zeile: Monatswert, gelesener Rhythmus, Ø und Monate, bei Passt mit Zusatz nur der Zusatz" {
             let row id = checkGroups checkData |> List.collect snd |> List.find (fun r -> r.CategoryId = id)
-            let less = checkRowFacts (row lessId)
+            let values id =
+                match checkRowFacts (row id) with
+                | Values values -> values
+                | NoteOnly note -> failtest $"Werte erwartet, kam der Zusatz {note}"
+            let less = values lessId
             Expect.equal (less.Monthly, less.Read, less.Average, less.Count)
-                (Some "Target 216,67 €/Monat", Some "50,00 €/Woche", Some "Ø 100,00 €", "0 von 12 Monaten darüber") "weniger, wöchentlich"
-            let more = checkRowFacts (row moreId)
-            Expect.equal (more.Read, more.Count) (None, "12 von 12 Monaten darüber") "mehr, monatlich ohne Zusatz"
-            Expect.equal (checkRowFacts (row withoutId)).Count "12 von 12 Monaten mit Ausgaben" "ohne Target"
-            Expect.equal (checkRowFacts (row neverId)).Count "0 von 12 Monaten mit Ausgaben" "nie"
+                (Some { Before = "Target "; Amount = "216,67 €"; After = "/Monat" },
+                 Some { Before = ""; Amount = "50,00 €"; After = "/Woche" },
+                 Some { Before = "Ø "; Amount = "100,00 €"; After = "" },
+                 "0 von 12 Monaten darüber") "weniger, wöchentlich, Beträge getrennt von den Wörtern"
+            let more = values moreId
+            Expect.equal (more.Read, more.Count) (None, "12 von 12 Monaten darüber") "mehr, monatlich ohne gelesenen Betrag"
+            Expect.equal (values withoutId).Count "12 von 12 Monaten mit Ausgaben" "ohne Target"
+            Expect.equal (values neverId).Count "0 von 12 Monaten mit Ausgaben" "nie"
+            Expect.equal (values fitsId).Monthly (Some { Before = "Target "; Amount = "100,00 €"; After = "/Monat" }) "Passt ohne Zusatz zeigt Werte"
             let set = { source fitsId "Internet" (Some (monthly 100m)) 100m with LastChange = Some (TargetSetOn "2026-11-02") }
-            Expect.equal (checkRowFacts (targetCheckRow today set)).Note (Some "neu gesetzt am 02.11.2026") "Zusatz"
+            Expect.equal (checkRowFacts (targetCheckRow today set)) (NoteOnly "neu gesetzt am 02.11.2026") "mit Zusatz nur der Zusatz, ohne Werte"
             Expect.equal (checkRowBars checkData (row moreId) |> List.map (fun b -> b.Kind)) (List.replicate 12 PastMonth) "12 Balken, alle vorbei"
+        }
+        test "Der Toast einer Antwort: offenes Formular keiner, von der Seite wie übernehmen, sonst Ablehnung als Warnung" {
+            let results = [ Ok (TargetWritten None); Ok (TargetChangedMeanwhile None); Error "nein" ]
+            for origin in [ Some FromCheckRow; Some FromCheckPanel; Some FromTargetTab; None ] do
+                for result in results do
+                    Expect.equal (targetAnswerToast origin true result) NoOp $"{origin}, {result}: offenes Formular"
+            for origin in [ Some FromCheckRow; Some FromCheckPanel ] do
+                for result in results do
+                    Expect.equal (targetAnswerToast origin false result) (takeAnswerToast result) $"{origin}, {result}: wie übernehmen"
+            Expect.equal (takeAnswerToast (Error "nein")) (ShowToast ("Target nicht gespeichert: nein", ToastError)) "abgelehnt als Fehler"
+            for origin in [ Some FromTargetTab; None ] do
+                Expect.equal (targetAnswerToast origin false (Error "nein")) (ShowToast ("Target nicht gespeichert: nein", ToastWarning)) $"{origin}: Warnung"
+                Expect.equal (targetAnswerToast origin false (Ok (TargetChangedMeanwhile None)))
+                    (ShowToast (targetRejectedAwayText TargetChangedMeanwhileText, ToastWarning)) $"{origin}: inzwischen geändert"
+                Expect.equal (targetAnswerToast origin false (Ok (TargetWritten None))) NoOp $"{origin}: festgehalten"
+        }
+        test "Der Toast eines Abbruchs: offenes Formular keiner, von der Seite verspricht er nur das Neuladen der Prüfung" {
+            let toast rereads = ShowToast (targetCallLostText rereads "weg", ToastError)
+            for origin in [ Some FromCheckRow; Some FromCheckPanel; Some FromTargetTab; None ] do
+                Expect.equal (targetCallLostToast origin true true true "weg") NoOp $"{origin}: offenes Formular"
+            for origin in [ Some FromCheckRow; Some FromCheckPanel ] do
+                Expect.equal (targetCallLostToast origin false true false "weg") (toast true) $"{origin}: Prüfung lädt neu"
+                Expect.equal (targetCallLostToast origin false false true "weg") (toast false) $"{origin}: nur der Monat, kein Versprechen"
+            for origin in [ Some FromTargetTab; None ] do
+                Expect.equal (targetCallLostToast origin false false true "weg") (toast true) $"{origin}: Monat liest neu"
+                Expect.equal (targetCallLostToast origin false true false "weg") (toast true) $"{origin}: Prüfung lädt neu"
+                Expect.equal (targetCallLostToast origin false false false "weg") (toast false) $"{origin}: nichts liest neu"
         }
     ]
 
@@ -316,8 +351,46 @@ let private takeTests =
             Expect.isNonEmpty cmd "Aufruf"
             let reloaded = lost |> step (TargetCheckReloaded (lost.TargetCheck.Generation, Ok { checkData with Categories = [] }))
             Expect.equal (dataOf reloaded).Categories [] "die neue Antwort steht"
-            let failed = lost |> step (TargetCheckReloaded (lost.TargetCheck.Generation, Error "weg"))
+            let failed, _, failedToast = update (TargetCheckReloaded (lost.TargetCheck.Generation, Error "weg")) lost
             Expect.equal failed.TargetCheck.Data running.TargetCheck.Data "ein Fehler lässt die Liste stehen"
+            // Review zu budgeting-q4v8n: ein gescheitertes stilles Neuladen blieb ohne jede Anzeige.
+            Expect.equal failedToast (ShowToast ("Prüfung nicht neu gelesen, sie kann veraltet sein: weg", ToastWarning)) "Warn-Toast mit Grund"
+            let _, _, staleToast = update (TargetCheckReloaded (lost.TargetCheck.Generation - 1, Error "alt")) lost
+            Expect.equal staleToast NoOp "ein überholter Fehler meldet nichts"
+        }
+        // Review zu budgeting-q4v8n: ein stilles Neuladen, das vor einer Schreib-Antwort startete, ersetzte mit
+        // seinem älteren Stand die Rohdaten danach. Ebenso das Laden beim Betreten, das noch lief.
+        test "Kommt eine Schreib-Antwort, während die Prüfung lädt, lädt sie neu und die ältere Antwort ersetzt nichts" {
+            let writtenLess = Ok (TargetWritten (Some { lessTarget with Goal = eur 23m }))
+            // GIVEN Abbruch A lädt still neu, dann übernehmen B. WHEN Antwort B, danach die alte Antwort des Neuladens.
+            let lostA = loaded () |> step (TakeSuggestion moreId) |> step (TargetChangeCallLost (moreId, current, "weg"))
+            let stale = lostA.TargetCheck.Generation
+            let answeredB, cmd, _ = lostA |> step (TakeSuggestion lessId) |> answered lessId writtenLess
+            Expect.equal (groupOf answeredB lessId) Fits "B steht bei Passt"
+            Expect.isGreaterThan answeredB.TargetCheck.Generation stale "lädt neu"
+            let afterStale = answeredB |> step (TargetCheckReloaded (stale, Ok checkData))
+            Expect.equal (groupOf afterStale lessId) Fits "die ältere Antwort ersetzt B nicht"
+            // intakt: ohne offenes Laden lädt eine Antwort nicht neu.
+            let plain, plainCmd, _ = loaded () |> step (TakeSuggestion lessId) |> answered lessId writtenLess
+            Expect.equal plain.TargetCheck.Generation (loaded ()).TargetCheck.Generation "ohne offenes Laden kein Neuladen"
+            Expect.isGreaterThan (List.length cmd) (List.length plainCmd) "mit offenem Laden ein Aufruf mehr"
+            // Beim Betreten: die Seite lädt noch, als Antwort B kommt.
+            let entered = loaded () |> step (TakeSuggestion lessId) |> step TargetCheckEntered
+            let answeredLoading, _, _ = entered |> answered lessId writtenLess
+            Expect.isGreaterThan answeredLoading.TargetCheck.Generation entered.TargetCheck.Generation "lädt beim Betreten neu"
+            let afterStaleLoad = answeredLoading |> step (TargetCheckLoaded (entered.TargetCheck.Generation, Ok checkData))
+            Expect.equal afterStaleLoad.TargetCheck.Data Loading "die ältere Antwort beim Betreten zählt nicht"
+        }
+        // Review zu budgeting-q4v8n: der Satz versprach das Neuladen auch, wenn die Prüfung nicht neu lud.
+        test "Lädt die Prüfung nach einem Abbruch nicht neu, verspricht der Satz in Toast und Panel kein Neuladen" {
+            let failedRow = loaded () |> step (TakeSuggestion moreId) |> step TargetCheckEntered |> answer (Error "kaputt")
+            let lost, _, external = update (TargetChangeCallLost (moreId, current, "weg")) failedRow
+            Expect.equal external (ShowToast (targetCallLostText false "weg", ToastError)) "Toast der Zeile"
+            Expect.equal lost.TargetCheck.Generation failedRow.TargetCheck.Generation "lädt nicht"
+            let failedPanel =
+                loaded () |> step (AdjustTarget moreId) |> step SaveCheckTarget |> step RetryTargetCheck |> answer (Error "kaputt")
+            let lostPanel = failedPanel |> step (TargetChangeCallLost (moreId, current, "weg"))
+            Expect.equal (panelOf lostPanel).Notice (Some (TargetRejectedNotice (targetCallLostText false "weg"))) "Satz im Panel"
         }
     ]
 
@@ -381,6 +454,25 @@ let private panelTests =
             Expect.isGreaterThan lost.TargetCheck.Generation running.TargetCheck.Generation "lädt still neu"
             Expect.isNonEmpty cmd "Aufruf"
         }
+        // Review zu budgeting-q4v8n: Abgelehnt nach geschlossenem Panel meldet derselbe Fehler-Toast wie übernehmen.
+        test "Kommt die Ablehnung, nachdem das Panel während des Aufrufs geschlossen wurde, meldet ein Fehler-Toast" {
+            let after, _, external =
+                loaded () |> step (AdjustTarget moreId) |> step SaveCheckTarget |> step CloseCheckPanel
+                |> answered moreId (Error "Kategorie gelöscht")
+            Expect.equal external (ShowToast ("Target nicht gespeichert: Kategorie gelöscht", ToastError)) "Fehler-Toast"
+            Expect.isNone after.TargetCheck.Panel "bleibt zu"
+        }
+        // Review zu budgeting-q4v8n: ein neuer Monat in den Rohdaten ließ das Panel unsichtbar offen.
+        test "Bringt Laden oder stilles Neuladen einen anderen Monat, schließt das Panel, beim selben Monat bleibt es offen" {
+            let december = { checkData with Month = "2026-12-01" }
+            let opened = loaded () |> step (AdjustTarget moreId)
+            Expect.isNone (opened |> step RetryTargetCheck |> answer (Ok december)).TargetCheck.Panel "Laden"
+            Expect.isSome (opened |> step RetryTargetCheck |> answer (Ok checkData)).TargetCheck.Panel "Laden, selber Monat"
+            let lost = opened |> step SaveCheckTarget |> step (TargetChangeCallLost (moreId, current, "weg"))
+            let reload data = lost |> step (TargetCheckReloaded (lost.TargetCheck.Generation, Ok data))
+            Expect.isNone (reload december).TargetCheck.Panel "stilles Neuladen"
+            Expect.isSome (reload checkData).TargetCheck.Panel "stilles Neuladen, selber Monat"
+        }
         test "Solange übernehmen läuft, wartet Speichern im Panel einer anderen Kategorie mit Satz, Anpassen und Abbrechen gehen" {
             let running = loaded () |> step (TakeSuggestion lessId) |> step (AdjustTarget moreId)
             let row, form = panelRow running |> Option.get
@@ -426,6 +518,8 @@ let private originTests =
             Expect.equal (rowIn after moreId).Target (Some (monthly 60m)) "Target in der Prüfung"
             let failed, _, _ = running |> answered moreId (Error "nein")
             Expect.equal (panelOf failed).Notice None "auch ein Fehler nicht"
+            let lost = running |> step (TargetChangeCallLost (moreId, current, "weg"))
+            Expect.equal ((panelOf lost).AmountInput, (panelOf lost).Notice) (Some "170", None) "auch ein Abbruch nicht"
         }
         test "Zeigt die Budget-Seite einen anderen Monat, dreht im Panel der eigene Knopf und die Felder sind gesperrt" {
             let elsewhere = { page with ChosenMonth = Some past; Month = Success (budgetMonth past) } |> checkedPage

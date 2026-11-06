@@ -184,6 +184,19 @@ let private targetCheckCmd (answer: int * Result<TargetCheckData, string> -> Msg
         (fun result -> answer (generation, result))
         (fun ex -> answer (generation, Error ex.Message))
 
+/// Ein Übergang, der einen Target-Aufruf starten kann (Tab und Seite Targets prüfen): mit Auftrag geht er los.
+let private sendTargetChange (model: Model, request: (string * TargetChangeRequest) option) : Model * Cmd<Msg> * ExternalMsg =
+    match request with
+    | Some (monthKey, request) -> model, targetChangeCmd monthKey request, NoOp
+    | None -> model, Cmd.none, NoOp
+
+/// Das Neulesen der Prüfung nach einer Target-Antwort oder einem Abbruch (`CheckRead`), mit ihrer Generation.
+let private checkReadCmd (read: CheckRead option) (model: Model) : Cmd<Msg> =
+    match read with
+    | Some CheckLoad -> targetCheckCmd TargetCheckLoaded model.TargetCheck.Generation
+    | Some CheckQuietReload -> targetCheckCmd TargetCheckReloaded model.TargetCheck.Generation
+    | None -> Cmd.none
+
 /// Startet den Kopf der Schlange, wenn keiner läuft.
 let private flushAssign (model: Model) : Model * Cmd<Msg> =
     match startNextAssign model with
@@ -426,57 +439,34 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
     | TargetDateChanged entry -> typeTargetDate entry model, Cmd.none, NoOp
     | TargetRhythmChanged frequency -> chooseTargetRhythm frequency model, Cmd.none, NoOp
     | TargetWeekdayChanged day -> chooseTargetWeekday day model, Cmd.none, NoOp
-    | SaveTarget ->
-        match startTargetSave model with
-        | model', Some (monthKey, request) -> model', targetChangeCmd monthKey request, NoOp
-        | model', None -> model', Cmd.none, NoOp
-    | ConfirmTargetChange ->
-        match confirmTargetChange model with
-        | model', Some (monthKey, request) -> model', targetChangeCmd monthKey request, NoOp
-        | model', None -> model', Cmd.none, NoOp
+    | SaveTarget -> sendTargetChange (startTargetSave model)
+    | ConfirmTargetChange -> sendTargetChange (confirmTargetChange model)
     | CancelTargetChange -> cancelTargetChange model, Cmd.none, NoOp
     | AskRemoveTarget -> askRemoveTarget model, Cmd.none, NoOp
     | CancelRemoveTarget -> cancelRemoveTarget model, Cmd.none, NoOp
-    | ConfirmRemoveTarget ->
-        match startTargetRemove model with
-        | model', Some (monthKey, request) -> model', targetChangeCmd monthKey request, NoOp
-        | model', None -> model', Cmd.none, NoOp
+    | ConfirmRemoveTarget -> sendTargetChange (startTargetRemove model)
     | TargetChangeAnswered (categoryId, month, result) ->
         // Die Herkunft entscheidet, welches Formular die Antwort einnimmt und wo eine Meldung steht
         // (budgeting-q4v8n). Das Target setzt jede Antwort, im geladenen Monat und auf der Seite Targets prüfen.
         let origin = targetCallOrigin categoryId month model
-        let inPanel = panelOwnsAnswer origin categoryId month model
-        let inTab = origin = Some FromTargetTab && targetAnswerInTab categoryId month model
+        let formOpen = answerFormOpen origin categoryId month model
         let shown = targetAnswerShown categoryId month model
         let answered, reread = applyTargetAnswered categoryId month result model
-        let checked = applyCheckAnswered origin categoryId month result answered
-        let external =
-            match origin, result with
-            | Some FromCheckRow, _ -> takeAnswerToast result
-            | _ when inPanel || inTab -> NoOp
-            | _, Error message -> ShowToast (targetRejectedAwayText message, ToastWarning)
-            | _, Ok (TargetChangedMeanwhile _) -> ShowToast (targetRejectedAwayText TargetChangedMeanwhileText, ToastWarning)
-            | _, Ok (TargetWritten _) -> NoOp
-        afterTargetAnswer shown reread (checked, external)
+        // Lief noch ein Laden der Prüfung, liest sie neu: seine Antwort kann älter sein als diese.
+        let checked, checkRead = applyCheckAnswered origin categoryId month result answered
+        let model', cmd, external = afterTargetAnswer shown reread (checked, targetAnswerToast origin formOpen result)
+        model', Cmd.batch [ cmd; checkReadCmd checkRead model' ], external
     | TargetChangeCallLost (categoryId, month, message) ->
         let origin = targetCallOrigin categoryId month model
-        let inPanel = panelOwnsAnswer origin categoryId month model
-        let inTab = origin = Some FromTargetTab && targetAnswerInTab categoryId month model
+        let formOpen = answerFormOpen origin categoryId month model
         let shown = targetAnswerShown categoryId month model
         let lost, reread = applyTargetCallLost categoryId month message model
-        // Der Ausgang ist offen: die Prüfung lädt still neu, wenn sie zum Monat des Aufrufs steht.
-        let checked, reloadCheck = applyCheckCallLost origin categoryId month message lost
-        // Steht das Formular offen (Tab oder Panel), steht der Satz dort, sonst als Toast. Nach "übernehmen"
-        // verspricht er das Neuladen der Prüfung.
-        let external =
-            match origin with
-            | Some FromCheckRow -> ShowToast (Components.Budget.TargetFormCore.targetCallLostText true message, ToastError)
-            | _ when inPanel || inTab -> NoOp
-            | _ -> ShowToast (Components.Budget.TargetFormCore.targetCallLostText reread message, ToastError)
+        // Der Ausgang ist offen: die Prüfung liest neu, wenn sie zum Monat des Aufrufs steht oder noch lädt.
+        let checked, checkRead = applyCheckCallLost origin categoryId month message lost
+        // Steht das Formular offen (Tab oder Panel), steht der Satz dort, sonst als Toast.
+        let external = targetCallLostToast origin formOpen checkRead.IsSome reread message
         let model', cmd, external' = afterTargetAnswer shown reread (checked, external)
-        let reloadCmd =
-            if reloadCheck then targetCheckCmd TargetCheckReloaded model'.TargetCheck.Generation else Cmd.none
-        model', Cmd.batch [ cmd; reloadCmd ], external'
+        model', Cmd.batch [ cmd; checkReadCmd checkRead model' ], external'
     | OpenTargetCheck -> openTargetCheck model, Cmd.none, ShowTargetCheck
     | TargetCheckEntered ->
         let entered = enterTargetCheck model
@@ -485,35 +475,25 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         let retried = retryTargetCheck model
         retried, targetCheckCmd TargetCheckLoaded retried.TargetCheck.Generation, NoOp
     | TargetCheckLoaded (generation, result) -> applyTargetCheckLoaded generation result model, Cmd.none, NoOp
-    | TargetCheckReloaded (generation, result) -> applyTargetCheckReloaded generation result model, Cmd.none, NoOp
+    | TargetCheckReloaded (generation, result) ->
+        let reloaded, external = applyTargetCheckReloaded generation result model
+        reloaded, Cmd.none, external
     | ToggleFits -> toggleFits model, Cmd.none, NoOp
     | LeaveTargetCheck -> model, Cmd.none, leaveTargetCheck model
     | TargetCheckAbandoned -> abandonTargetCheck model, Cmd.none, NoOp
-    | TakeSuggestion categoryId ->
-        match startTake categoryId model with
-        | model', Some (monthKey, request) -> model', targetChangeCmd monthKey request, NoOp
-        | model', None -> model', Cmd.none, NoOp
+    | TakeSuggestion categoryId -> sendTargetChange (startTake categoryId model)
     | AdjustTarget categoryId -> openPanel categoryId model, Cmd.none, NoOp
     | CloseCheckPanel -> closePanel model, Cmd.none, NoOp
     | CheckAmountChanged text -> typeCheckAmount text model, Cmd.none, NoOp
     | CheckDateChanged entry -> typeCheckDate entry model, Cmd.none, NoOp
     | CheckRhythmChanged frequency -> chooseCheckRhythm frequency model, Cmd.none, NoOp
     | CheckWeekdayChanged day -> chooseCheckWeekday day model, Cmd.none, NoOp
-    | SaveCheckTarget ->
-        match startCheckSave model with
-        | model', Some (monthKey, request) -> model', targetChangeCmd monthKey request, NoOp
-        | model', None -> model', Cmd.none, NoOp
-    | ConfirmCheckTargetChange ->
-        match confirmCheckChange model with
-        | model', Some (monthKey, request) -> model', targetChangeCmd monthKey request, NoOp
-        | model', None -> model', Cmd.none, NoOp
+    | SaveCheckTarget -> sendTargetChange (startCheckSave model)
+    | ConfirmCheckTargetChange -> sendTargetChange (confirmCheckChange model)
     | CancelCheckTargetChange -> cancelCheckChange model, Cmd.none, NoOp
     | AskRemoveCheckTarget -> askRemoveCheck model, Cmd.none, NoOp
     | CancelRemoveCheckTarget -> cancelRemoveCheck model, Cmd.none, NoOp
-    | ConfirmRemoveCheckTarget ->
-        match startCheckRemove model with
-        | model', Some (monthKey, request) -> model', targetChangeCmd monthKey request, NoOp
-        | model', None -> model', Cmd.none, NoOp
+    | ConfirmRemoveCheckTarget -> sendTargetChange (startCheckRemove model)
     | MoveAnswered result ->
         let model', external, reload = applyMoveAnswered result model
         afterMovementWhen reload (model', afterAnswer reload (frameDueAfterAnswer result model) model', external)
