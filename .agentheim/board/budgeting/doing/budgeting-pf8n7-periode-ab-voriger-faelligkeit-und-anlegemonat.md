@@ -1,7 +1,7 @@
 ---
 id: budgeting-pf8n7
 title: "Fehlbetrag mit Fälligkeit: die laufende Periode beginnt im Monat der vorigen Fälligkeit, bei der ersten Fälligkeit im Anlegemonat des Ziels"
-status: todo
+status: doing
 type: bug
 context: budgeting
 created: 2026-11-06

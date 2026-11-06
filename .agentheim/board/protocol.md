@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 11:49 -- Batch started: [budgeting-pf8n7]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-pf8n7 - "Fehlbetrag mit Fälligkeit: die laufende Periode beginnt im Monat der vorigen Fälligkeit, bei der ersten Fälligkeit im Anlegemonat des Ziels"
+**Parallel:** yes (neben den Review-Fixes zu b9869 auf rv/b9869-review; eh8xe geparkt)
+
+---
+
 ## 2026-11-06 11:49 -- Modeling / Captured: budgeting-pf8n7 - "Fehlbetrag mit Fälligkeit: die laufende Periode beginnt im Monat der vorigen Fälligkeit, bei der ersten Fälligkeit im Anlegemonat des Ziels"
 
 **Type:** Modeling / Capture
