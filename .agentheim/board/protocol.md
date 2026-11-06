@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 22:16 -- Modeling / Refined: budgeting-m3x7f - Monatserster-Leiste nach der Skizze
+
+**Type:** Modeling / Refine
+**BC:** budgeting
+**Status after:** todo
+**Summary:** Vorlage ist der Gesamt-Prototyp (Artifact JfQDhhTLwdEadmQyJbbzkz, Board Gesamt.dc.html), Screenshots unter docs/ux/budget/skizze-monatserster/. Jedes Element der Leiste und der Vorschau ist ein Kriterium, sechs Abweichungen mit Grund. Roman: Kopfknopf Monatserster statt Targets anwenden und Prüfen-Icon, Leiste im laufenden Monat bis erledigt, Feld Targets prüfen zeigt Hinweise und ist bei 0 erledigt, Ausblenden je Monat auf dem Server. Hängt neu an budgeting-k7r2w.
+
+---
+
 ## 2026-11-06 22:04 -- Modeling / Captured: budgeting-k7r2w - "Targets prüfen zählt eine neue Kategorie erst ab ihrer ersten Buchung im Kassenbuch, statt die Monate davor als 0 € mitzuzählen. Unter 3 gezählten Monaten steht sie unter Passt mit „neu seit <Monat>“."
 
 **Type:** Modeling / Capture
