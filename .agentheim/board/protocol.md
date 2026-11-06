@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 10:07 -- Batch started: [budgeting-r4kqm]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-r4kqm - "Fehlbetrag mit Fälligkeit: BB rechnet bei wiederkehrenden Targets bis zur nächsten Fälligkeit statt mit dem gespeicherten, vergangenen Datum"
+**Parallel:** yes (2 workers, r4kqm zur laufenden eh8xe dazu; beide ändern underfunded in Domain.fs, r4kqm wird zuerst integriert)
+
+---
+
 ## 2026-11-06 10:07 -- Modeling / Captured: budgeting-r4kqm - "Fehlbetrag mit Fälligkeit: BB rechnet bei wiederkehrenden Targets bis zur nächsten Fälligkeit statt mit dem gespeicherten, vergangenen Datum"
 
 **Type:** Modeling / Capture

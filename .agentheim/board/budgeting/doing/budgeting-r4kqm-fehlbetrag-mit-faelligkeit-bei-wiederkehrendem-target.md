@@ -1,7 +1,7 @@
 ---
 id: budgeting-r4kqm
 title: "Fehlbetrag mit Fälligkeit: BB rechnet bei wiederkehrenden Targets bis zur nächsten Fälligkeit statt mit dem gespeicherten, vergangenen Datum"
-status: todo
+status: doing
 type: bug
 context: budgeting
 created: 2026-11-06
