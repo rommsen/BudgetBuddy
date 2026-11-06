@@ -68,6 +68,50 @@ let private ruleTests =
                 let target = { need 80m (Months 1) with Date = Some "2026-08-15" }
                 Expect.equal (compute target november 5m 20m 0m) (computed 55m) "ein Monat"
 
+            testCase "Fälligkeit vor dem gelesenen Monat ohne Rhythmus zählt als ein Monat" <| fun () ->
+                let target = { need 80m NoRhythm with Kind = TargetBalanceByDate; Date = Some "2026-08-15" }
+                Expect.equal (compute target november 5m 20m 0m) (computed 55m) "ein Monat"
+
+            // Regressionstest budgeting-r4kqm: Die Parallelrechnung in Prod (Monate 2026-05 bis 2026-12,
+            // gelesen am 2026-11-06) zeigte nur Abweichungen bei "Mit Fälligkeit". Bei wiederkehrenden
+            // Zielen liegt das gespeicherte Datum in der Vergangenheit, BB rechnete mit 1 verbleibenden
+            // Monat und verlangte den ganzen Rest auf einmal. YNAB rechnet bis zur nächsten Fälligkeit.
+            testCase "Datum im Vormonat und Rhythmus jährlich: gerechnet bis zur nächsten Fälligkeit in 11 Monaten" <| fun () ->
+                let target = { need 120m (Years 1) with Date = Some "2026-10-15" }
+                // Nächste Fälligkeit 2027-10: November bis Oktober sind 12 Monate. 120 / 12 = 10.
+                Expect.equal (compute target november 0m 0m 0m) (computed 10m) "zwölf Monate bis 2027-10"
+
+            testCase "Datum im Vormonat und Rhythmus alle 12 Monate: gerechnet bis zur nächsten Fälligkeit" <| fun () ->
+                let target = { need 120m (Months 12) with Date = Some "2026-10-15" }
+                Expect.equal (compute target november 0m 0m 0m) (computed 10m) "zwölf Monate bis 2027-10"
+
+            testCase "Wie im Befund: monatlicher Anteil zugewiesen ergibt 0, im Folgemonat ohne Zuweisung den Anteil" <| fun () ->
+                // Erfundene Zahlen nach dem Muster des Befunds: 89,88 je Jahr, fällig im Februar, Datum 2026-02.
+                let target = { need 89.88m (Years 1) with Date = Some "2026-02-28" }
+                // November bis Februar: 4 Monate. (89,88 − 59,92) / 4 = 7,49, zugewiesen 7,49.
+                Expect.equal (compute target november 7.49m 59.92m 0m) (computed 0m) "gedeckt wie YNAB"
+                // Dezember bis Februar: 3 Monate. (89,88 − 67,41) / 3 = 7,49, nichts zugewiesen.
+                Expect.equal (compute target "2026-12-01" 0m 67.41m 0m) (computed 7.49m) "monatlicher Anteil"
+
+            testCase "Fälligkeit mit Rhythmus im gelesenen Monat bleibt im gelesenen Monat" <| fun () ->
+                let target = { need 80m (Years 1) with Date = Some "2025-11-30" }
+                // 2025-11 um ein Jahr verschoben ist 2026-11, der gelesene Monat: ein Monat.
+                Expect.equal (compute target november 5m 20m 0m) (computed 55m) "ein Monat"
+
+            testCase "Rhythmus in Wochen verschiebt das Datum bis in den gelesenen Monat" <| fun () ->
+                let target = { need 80m (Weeks 2) with Date = Some "2026-10-20" }
+                // 2026-10-20 plus zwei Wochen ist 2026-11-03, im gelesenen Monat: ein Monat.
+                Expect.equal (compute target november 5m 20m 0m) (computed 55m) "ein Monat"
+
+            testCase "Rhythmus in Wochen über den gelesenen Monat hinaus ergibt die Fälligkeit im Folgemonat" <| fun () ->
+                let target = { need 80m (Weeks 6) with Date = Some "2026-10-30" }
+                // 2026-10-30 plus sechs Wochen ist 2026-12-11: November und Dezember. (80 − 20) / 2 − 5 = 25.
+                Expect.equal (compute target november 5m 20m 0m) (computed 25m) "zwei Monate"
+
+            testCase "Datum in der Zukunft mit Rhythmus bleibt unverändert" <| fun () ->
+                let target = { need 120m (Months 1) with Date = Some "2027-01-15" }
+                Expect.equal (compute target november 10m 30m 0m) (computed 20m) "drei Monate"
+
             testCase "Zugewiesen über dem Betrag ergibt 0" <| fun () ->
                 let target = { need 50m (Months 1) with Date = Some "2026-11-30" }
                 Expect.equal (compute target november 70m 0m 0m) (computed 0m) "nicht negativ"

@@ -555,6 +555,29 @@ let remainingMonths (month: string) (due: string) : Result<int, string> =
     | None, _ -> Error $"Monat {month} nicht lesbar"
     | _, None -> Error $"Fälligkeit {due} nicht lesbar"
 
+/// Die Fälligkeit für die Formel "Mit Fälligkeit" im gelesenen Monat `month` (budgeting-r4kqm). Bei einem
+/// Target mit Rhythmus ist es die erste Fälligkeit ab dem gelesenen Monat: das gespeicherte Datum, so oft
+/// um den Rhythmus verschoben, bis es im gelesenen Monat oder danach liegt. YNAB lässt das gespeicherte
+/// Datum eines wiederkehrenden Ziels in der Vergangenheit stehen und rechnet bis zur nächsten Fälligkeit.
+/// Ohne Rhythmus oder mit unlesbarem Datum bleibt das gespeicherte Datum.
+let dueFrom (rhythm: TargetRhythm) (month: string) (due: string) : string =
+    let parsed = DateTime.TryParseExact(due, "yyyy-MM-dd", Globalization.CultureInfo.InvariantCulture, Globalization.DateTimeStyles.None)
+    let shift: (DateTime -> int -> DateTime) option =
+        match rhythm with
+        | Weeks n when n > 0 -> Some (fun date k -> date.AddDays(float (7 * n * k)))
+        | Months n when n > 0 -> Some (fun date k -> date.AddMonths(n * k))
+        | Years n when n > 0 -> Some (fun date k -> date.AddYears(n * k))
+        | _ -> None
+    match parsed, shift, monthIndexOf month with
+    | (true, date), Some step, Some monthIndex ->
+        // Immer vom gespeicherten Datum aus um k Schritte, damit ein Monatsende (31.) nicht wandert.
+        let indexOf (d: DateTime) = d.Year * 12 + d.Month - 1
+        Seq.initInfinite id
+        |> Seq.map (step date)
+        |> Seq.find (fun d -> indexOf d >= monthIndex)
+        |> fun d -> d.ToString("yyyy-MM-dd", Globalization.CultureInfo.InvariantCulture)
+    | _ -> due
+
 /// Wie oft der Wochentag `day` (0 Sonntag bis 6 Samstag, wie `DayOfWeek`) im Monat vorkommt.
 let weekdayCount (month: string) (day: int) : Result<int, string> =
     match monthIndexOf month with
@@ -581,7 +604,7 @@ let underfunded (target: Target) (month: string) (assigned: Money) (carryover: M
         match underfundedRuleOf target with
         | Error reason -> Error reason
         | Ok (DueDateRule due) ->
-            remainingMonths month due
+            remainingMonths month (dueFrom target.Rhythm month due)
             |> Result.map (fun months -> ceilingToCent ((goal - carryover.Amount) / decimal months) - assigned.Amount)
         | Ok RefillRule -> Ok (goal - (carryover.Amount + assigned.Amount))
         | Ok MonthlyRule -> Ok (goal - assigned.Amount)

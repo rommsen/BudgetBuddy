@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 10:23 -- Task verified and completed: budgeting-r4kqm - "Fehlbetrag mit Fälligkeit: BB rechnet bei wiederkehrenden Targets bis zur nächsten Fälligkeit statt mit dem gespeicherten, vergangenen Datum"
+
+**Type:** Work / Task completion
+**Task:** budgeting-r4kqm - "Fehlbetrag mit Fälligkeit: BB rechnet bei wiederkehrenden Targets bis zur nächsten Fälligkeit statt mit dem gespeicherten, vergangenen Datum"
+**Summary:** Fehlbetrag mit Fälligkeit rechnet bei wiederkehrenden Targets bis zur nächsten Fälligkeit
+**Duration:** 10m
+**Verification:** PASS (iteration 1)
+**Files changed:** 2
+**Tests added:** 8
+**ADRs written:** none
+
+---
+
 ## 2026-11-06 10:07 -- Batch started: [budgeting-r4kqm]
 
 **Type:** Work / Batch start

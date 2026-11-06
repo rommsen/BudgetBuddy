@@ -159,3 +159,6 @@ Das feste Warten durch ein Warten auf die Antwort (z. B. `waitForResponse` auf `
 ### Notes
 Captured via `quick-capture` on 2026-10-26, raw, unrefined. Needs a `modeling` refine pass before
 it can be promoted. Herkunft: nicht blockierender Hinweis des Verifiers von ledger-s8t3s.
+
+## Nachtrag 2026-11-06 (Verifier budgeting-r4kqm)
+- `src/Tests/BudgetTakeoverTests.fs:529` "die Wartefunktion des Servers wartet wirklich" misst unter paralleler Last 49,785 ms gegen eine Untergrenze von 50 ms und wird rot. Ein zweiter Lauf war grün.
