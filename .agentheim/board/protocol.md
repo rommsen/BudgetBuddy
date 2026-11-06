@@ -5,6 +5,27 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 16:56 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** etwa 7h (2026-11-06 09:4x bis 16:3x, Triage, Fehlbetrag-Kette bis zur Umschaltung)
+**Completed:** 6 (budgeting-r4kqm, budgeting-b9869, budgeting-pf8n7, budgeting-eh8xe, budgeting-k5q2w, budgeting-hbhzf)
+**Verifikation je Task:** pf8n7 PASS in Iteration 1; eh8xe PASS in Iteration 1, nach dem Merge von main Iteration 2 und 3 FAIL nur wegen README-Sätzen, integriert auf Romans Entscheidung; k5q2w Iteration 1 FAIL nur wegen ADR 0084, behoben mit Nachtrag bei der Integration; hbhzf Iteration 1 und 2 FAIL nur wegen Doku, integriert mit den Formulierungen des Verifiers. Code und Tests in allen Runden PASS. r4kqm und b9869 vor dem Handoff dieser Session abgeschlossen.
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 1 (eh8xe nach Iteration 3, Owner: integrieren)
+**Commits:** 46 seit dem letzten Session-Ende (09:08)
+**Backlog-Triage:** 57 auf 26 Tickets, Regel Backlog-Disziplin in CLAUDE.md, review-agents und architecture-review
+**Reviews:** Review-Läufe zu pf8n7, k5q2w (mit Merge-Teil von eh8xe) und hbhzf, Funde behoben; dabei ein Bug aus eh8xe gefunden (Monatsfaltung ohne Fall für Target-Ereignisse, 840f213)
+**Vergleiche in Prod:** vierter 99 von 100 gleich (eine Kategorie nicht gerechnet, erste Periode vor Dezember 2024), fünfter mit Kassenbuch 100 von 100 gleich
+**Owner-Entscheidungen:** Kassenbuch als Quelle der Ausgaben der Periode; Umstellung in zwei Schritten (k5q2w, dann hbhzf); Umschaltung auf BBs Fehlbetrag freigegeben nach dem fünften Vergleich; eh8xe ohne vierte Verifier-Runde integrieren; learn-Regel zu veralteten README-Deltas übernommen (CLAUDE.md, 10d9e48)
+**Deploy:** pf8n7 (0342313), eh8xe mit k5q2w (4e5c771), hbhzf (6f531d4), jeweils nach Sicherung der Prod-DB unter ~/budgetbuddy-backups/ (vor-pf8n7, vor-eh8xe-k5q2w, vor-hbhzf)
+**Carry-over:** none, working tree clean, main gepusht
+**Verifikation:** VERIFY: PASS (dotnet 4142 grün, node 311 grün)
+**Vorschlag:** /architecture-review budgeting (kein Bestandsreview im Protokoll, 25 erledigte Tasks); FS0025 als Fehler im Build für die Kann-Sammlung infrastructure; als Nächstes frei: budgeting-m3x7f (war von hbhzf blockiert), budgeting-q4v8n, budgeting-e2z7v, ledger-p3vq8
+
+---
+
 ## 2026-11-06 16:08 -- Review-Lauf: budgeting-hbhzf
 
 **Type:** Review / Review-Lauf
