@@ -11,7 +11,7 @@ blocks: []
 tags: [test-scripts, playwright, flaky]
 related_adrs: []
 related_research: []
-prior_art: [ledger-vqvq6]
+prior_art: [infrastructure-mshaf]
 ---
 
 ## Why
