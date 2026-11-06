@@ -28,7 +28,8 @@ type TakeoverPort = {
 }
 
 /// Der Stand eines Durchlaufs, nur im Speicher. `Months` ist das Monatsfenster, einmal je Durchlauf geholt;
-/// `Skipped` die Monate, die YNAB in diesem Durchlauf mit 404 beantwortet hat.
+/// `Skipped` die Monate, deren Übernahme in diesem Durchlauf scheiterte: 404 oder ein anderer Fehler außer 429 und
+/// 401. Der nächste Durchlauf fragt sie neu.
 type TakeoverPass = {
     Months: string list option
     Skipped: Set<string>
@@ -51,7 +52,10 @@ let private outcomeOf (error: YnabError) : TakeoverOutcome =
 
 /// Ein Schritt: Settings lesen, Monatsfenster holen (einmal je Durchlauf), übernommene Monate lesen, den ersten
 /// offenen Monat aus `takeoverQueue` übernehmen. `now` ist UTC, `berlinZone` bestimmt den laufenden Monat.
-/// Ohne Token oder Budget fragt der Schritt YNAB nicht. Ein 404 merkt sich den Monat als übersprungen.
+/// Ohne Token oder Budget fragt der Schritt YNAB nicht. Scheitert die Übernahme des Monats mit 404 oder einem
+/// anderen Fehler außer 429 und 401 (auch lokal beim Lesen oder Festhalten), überspringt der Durchlauf den Monat:
+/// ein dauerhaft scheiternder Monat hält die älteren nicht auf. Nach 429 und 401 bleibt er vorn, beide betreffen
+/// jeden Monat.
 let takeoverStep
     (port: TakeoverPort)
     (berlinZone: TimeZoneInfo)
@@ -80,7 +84,11 @@ let takeoverStep
                         | Ok _ -> return TakeoverOutcome.TookOver month, pass
                         | Error (YnabError.MonthNotOpen _) ->
                             return TakeoverOutcome.MonthNotOpen month, { pass with Skipped = pass.Skipped.Add month }
-                        | Error e -> return outcomeOf e, pass
+                        | Error e ->
+                            match outcomeOf e with
+                            | TakeoverOutcome.Failed _ as failed ->
+                                return failed, { pass with Skipped = pass.Skipped.Add month }
+                            | outcome -> return outcome, pass
         | None -> return TakeoverOutcome.NotConfigured, freshPass
     }
 

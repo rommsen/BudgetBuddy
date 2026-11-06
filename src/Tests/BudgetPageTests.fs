@@ -1052,11 +1052,11 @@ let private pageViewTests =
         }
         // budgeting-dgrp7: bei offener Rückschreibung ist Zugewiesen BBs Soll, die Zeile sagt, dass YNAB es noch nicht hat.
         // Review-Fund: die Markierung stand im gekürzten Zahlentext und fiel am Handy dem Abschneiden zum Opfer.
-        test "Am Handy trägt die Zeile einer offenen Rückschreibung die Markierung noch nicht in YNAB hinter den Zahlen" {
+        test "Die Zeile einer offenen Rückschreibung trägt die Markierung noch nicht in YNAB, am Handy hinter den Zahlen" {
             let essen = { cat 1 "Essen" with Assigned = eur 1600m; Activity = eur -921.1m; OpenWriteBack = Some (System.Guid.NewGuid()) }
             Expect.equal (mobileFiguresText essen) "Zugewiesen 1.600,00 € · Aktivität -921,10 €" "die Zahlen allein"
-            Expect.equal (mobileWriteBackMark essen) (Some "· noch nicht in YNAB") "die Markierung"
-            Expect.isNone (mobileWriteBackMark { essen with OpenWriteBack = None }) "ohne offene Rückschreibung keine"
+            Expect.equal (writeBackMark essen) (Some "noch nicht in YNAB") "die Markierung"
+            Expect.isNone (writeBackMark { essen with OpenWriteBack = None }) "ohne offene Rückschreibung keine"
         }
         test "Wiederholen liest den Rahmen neu und zeigt das Laden, die Antwort zeigt den Monat" {
             let failed = update (FrameLoaded (Error "Rahmen kaputt")) (beginLoad (init ()))

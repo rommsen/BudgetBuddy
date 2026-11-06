@@ -590,7 +590,7 @@ let private calmListSection =
                         ]
                     ]
                 ]
-                note "Offene Rückschreibung (budgeting-dgrp7): Zugewiesen zeigt BBs Wert, YNAB hat ihn noch nicht. Am Handy steht die Markierung hinter den Zahlen und kürzt nie, die Zahlen kürzen; am PC ein kleines gelbes Badge hinter dem Namen."
+                note "Offene Rückschreibung (budgeting-dgrp7): Zugewiesen zeigt BBs Wert, YNAB hat ihn noch nicht. Die Markierung ist an PC und Handy dasselbe kleine Badge, neutral, damit Gelb in der Zeile `fehlt` bleibt. Am Handy steht sie hinter den Zahlen und kürzt nie, die Zahlen kürzen; am PC steht sie hinter dem Namen."
                 Html.div [
                     prop.className $"{Tokens.ListRoles.mobileRowPadding} border-b border-border-subtle max-w-sm"
                     prop.children [
@@ -605,7 +605,7 @@ let private calmListSection =
                             prop.className Tokens.ListRoles.mobileLine2
                             prop.children [
                                 Html.span [ prop.className $"{Tokens.ListRoles.muted} truncate min-w-0"; prop.text "Zugewiesen 1.400,00 € · Aktivität -1.280,00 €" ]
-                                Html.span [ prop.className $"{Tokens.ListRoles.muted} shrink-0 whitespace-nowrap"; prop.text "· noch nicht in YNAB" ]
+                                Html.span [ prop.className "shrink-0"; prop.children [ Badge.neutralSmall "noch nicht in YNAB" ] ]
                             ]
                         ]
                     ]
@@ -614,7 +614,7 @@ let private calmListSection =
                     prop.className "flex items-center gap-2"
                     prop.children [
                         Html.span [ prop.className Tokens.ListRoles.primary; prop.text "Lebensmittel" ]
-                        Badge.noticeSmall "noch nicht in YNAB"
+                        Badge.neutralSmall "noch nicht in YNAB"
                     ]
                 ]
                 Html.div [

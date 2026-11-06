@@ -463,10 +463,11 @@ let NotInYnabText = "noch nicht in YNAB"
 let NotInYnabReason = "Zugewiesen zeigt BBs Wert, YNAB hat ihn noch nicht."
 
 /// Die zweite Zeile am Handy: Zugewiesen und Aktivität. Die Markierung steht als eigenes Element dahinter
-/// (`mobileWriteBackMark`): wird es eng, kürzen die Zahlen, nie der Status.
+/// (`writeBackMark`): wird es eng, kürzen die Zahlen, nie der Status.
 let mobileFiguresText (c: BudgetCategory) : string =
     $"Zugewiesen {moneyText c.Assigned} · Aktivität {moneyText c.Activity}"
 
-/// Die Markierung hinter den Zahlen am Handy, nur bei offener Rückschreibung.
-let mobileWriteBackMark (c: BudgetCategory) : string option =
-    c.OpenWriteBack |> Option.map (fun _ -> $"· {NotInYnabText}")
+/// Die Markierung der Zeile, nur bei offener Rückschreibung. PC und Handy zeigen sie gleich als neutrales
+/// Badge: Gelb bleibt in der Zeile `fehlt` vorbehalten.
+let writeBackMark (c: BudgetCategory) : string option =
+    c.OpenWriteBack |> Option.map (fun _ -> NotInYnabText)

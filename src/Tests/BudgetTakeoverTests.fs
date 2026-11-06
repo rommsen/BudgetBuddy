@@ -282,6 +282,21 @@ let private ensureTests =
             let result = ensureTakenOverWith global.Persistence.getConnection fake.FetchMonth (juneOf year) month |> run
             Expect.equal result (Error (YnabError.MonthNotOpen month)) "nicht offen"
             Expect.equal (takeoverCount month) 0 "keine Übernahme"
+
+        // Review-Entscheidung: die Prüfung vor dem YNAB-Aufruf fragt gezielt nach der Übernahme. Vorher dekodierte sie
+        // den ganzen Stream, ein nicht lesbares Ereignis machte den Monat für immer zu LocalReadFailed.
+        testCase "ein übernommener Monat mit einem nicht lesbaren Ereignis im Stream kostet keinen Monatsaufruf" <| fun () ->
+            let anchor, connect = BudgetEventsFixture.isolatedDb ()
+            use _ = anchor
+            let year = freshYear ()
+            let month = key year 6
+            let sim = Sim(juneOf year, fun _ _ -> false)
+            let fake = FakeYnab([ month ], sim)
+            Expect.equal (ensureTakenOverWith connect fake.FetchMonth (juneOf year) month |> run) (Ok TakenOverNow) "übernommen"
+            BudgetEventsFixture.appendUnknown anchor (MonthStream $"{year}-06")
+            let result = ensureTakenOverWith connect fake.FetchMonth (juneOf year) month |> run
+            Expect.equal result (Ok AlreadyTakenOver) "die Übernahme zählt trotz des nicht lesbaren Ereignisses"
+            Expect.equal (fake.CallsOf month) 1 "kein zweiter Monatsaufruf"
     ]
 
 // ============================================
@@ -380,6 +395,26 @@ let private loopTests =
             for month in months |> List.filter ((<>) (key year 8)) do
                 Expect.equal (takeoverCount month) 1 $"{month} übernommen"
             Expect.equal (sim.Delays |> Seq.last) (TimeSpan.FromHours 6.0) "danach nichts mehr offen"
+
+        // Review-Entscheidung: ein Monat, dessen Abruf dauerhaft mit einem anderen Fehler als 404, 429 oder 401
+        // scheitert, blieb vorn in der Warteschlange und kam alle 15 Minuten wieder dran; die älteren Monate nie.
+        testCase "ein dauerhaft scheiternder Monat wird im Durchlauf übersprungen, die älteren werden übernommen, der nächste Durchlauf fragt ihn neu" <| fun () ->
+            let year = freshYear ()
+            let months = monthsFrom year 12
+            let broken = key year 8
+            let sim = Sim(juneOf year, until (TimeSpan.FromHours 7.0))
+            let fake = FakeYnab(months, sim)
+            fake.FailAlways[broken] <- YnabError.NetworkError "weg"
+            simulate fake sim
+            for month in months |> List.filter ((<>) broken) do
+                Expect.equal (takeoverCount month) 1 $"{month} übernommen"
+            let brokenCalls = fake.Calls |> Seq.filter (fun (_, m) -> m = broken) |> Seq.map fst |> List.ofSeq
+            Expect.equal brokenCalls.Length 2 "je Durchlauf einmal gefragt"
+            Expect.isGreaterThanOrEqual brokenCalls[1] (TimeSpan.FromHours 6.0) "der zweite Versuch erst im neuen Durchlauf"
+            let calls = fake.Calls |> List.ofSeq
+            let failedAt = calls |> List.findIndex (fun (_, m) -> m = broken)
+            Expect.equal (fst calls[failedAt + 1] - fst calls[failedAt]) (TimeSpan.FromMinutes 15.0) "nach dem Fehler 15 Minuten Pause"
+            Expect.equal (snd calls[failedAt + 1]) (key year 9) "danach der nächste Monat"
 
         testCase "eine Ausnahme im Schritt beendet die Schleife nicht" <| fun () ->
             let year = freshYear ()

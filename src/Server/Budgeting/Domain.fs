@@ -704,7 +704,7 @@ type TakeoverOutcome =
     | Unauthorized
     /// Token oder Budget fehlen in den Settings.
     | NotConfigured
-    /// Etwas anderes ging schief.
+    /// Etwas anderes ging schief. Scheiterte die Übernahme eines Monats, überspringt der Durchlauf ihn.
     | Failed of TakeoverFailure
 
 /// Die Wartezeit nach einem Schritt (budgeting-dkjc5, Takt von Roman entschieden): nach einem Monatsaufruf eine

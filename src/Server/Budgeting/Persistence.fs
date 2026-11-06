@@ -796,6 +796,23 @@ let internal queryTakenOverMonths (conn: SqliteConnection) : Result<Set<string>,
     |> Set.ofSeq
     |> Ok
 
+/// Liegt im Monats-Stream zu "YYYY-MM-01" schon ein `BudgetTakenOverFromYnab`? Eine gezielte Abfrage über
+/// `events`, ohne Payload: ein nicht dekodierbares Ereignis im selben Stream stört die Antwort nicht.
+let internal queryMonthTakenOver (conn: SqliteConnection) (monthKey: string) : Result<bool, string> =
+    match monthIdOf monthKey with
+    | Error message -> Error message
+    | Ok monthId ->
+        conn.ExecuteScalar<int64>(
+            """SELECT EXISTS (
+                   SELECT 1 FROM events
+                   WHERE context = @context AND stream_id = @stream_id AND event_type = @event_type)""",
+            {| context = Context
+               stream_id = streamIdOf (MonthStream monthId)
+               event_type = EventTypes.takenOver |}
+        )
+        |> (=) 1L
+        |> Ok
+
 /// Die Meldung, wenn sich die übernommenen Monate nicht lesen lassen.
 [<Literal>]
 let TakenOverMonthsUnreadableText = "Übernommene Monate nicht lesbar"

@@ -228,6 +228,25 @@ Die Ergebnis-Ereignisse (`AssignmentWrittenBackToYnab`, `AssignmentWriteBackFail
 - Tabelle der Folge-Tasks: T3 ist geteilt in budgeting-dgrp7 (hängt an T1 und T2) und
   budgeting-dkjc5 (hängt an T3). Beide gehen nur zusammen in Produktion (entschieden von Roman).
 
+**Nachtrag 2026-11-06 (budgeting-dgrp7 und budgeting-dkjc5, umgesetzt):**
+- Punkt 3, erneut senden: Die Paarregel aus ADR 0069 Punkt 3 zieht eine Seite einer Verschiebung
+  auch dann zurück, wenn ihr Partner von einer späteren Entscheidung in BB ersetzt wurde, nicht
+  nur bei einer Änderung in YNAB. Gesendet wird nur eine Zeile, deren Entscheidung noch die
+  offene Rückschreibung ihrer Kategorie ist.
+- Punkt 3, Lesen: Scheitert beim Lesen nur das Festhalten von Übernahme oder Beobachtung, zeigt
+  der Monat YNABs Zugewiesen ohne Markierung, und der Grund steht im Log. Ein Befehl lehnt in
+  diesem Fall außen ab und entscheidet nichts.
+- Historie: Beobachtung und Übernahme erscheinen als eigene Herkünfte (`HistoryOrigin`,
+  `ObservedInYnab` und `TakenOverFromYnab` neben `Decision`), ohne Stand beim Schreiben.
+  `MovementOrigin` bleibt auf die drei Entscheidungen beschränkt. Eine von einer späteren
+  BB-Entscheidung zurückgezogene Zeile heißt "in BB ersetzt".
+- Punkt 5, Hintergrund: Scheitert die Übernahme eines Monats mit einem anderen Fehler als 404,
+  429 oder 401, überspringt der Dienst den Monat für diesen Durchlauf; der nächste Durchlauf
+  versucht ihn neu (entschieden von Roman). Ob ein Monat schon übernommen ist, prüft er gezielt
+  am Ereignistyp, ohne den Stream zu dekodieren.
+- Anzeige: Die Markierung "noch nicht in YNAB" steht in der Budget-Zeile neutral, am PC und am
+  Handy gleich; Gelb bleibt in der Zeile "fehlt" vorbehalten (entschieden von Roman).
+
 ### 5. Übernahme
 
 Entschieden von Roman am 2026-11-05.

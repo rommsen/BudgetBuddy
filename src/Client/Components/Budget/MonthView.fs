@@ -169,6 +169,18 @@ let missingBadge (testId: string) (text: string) =
         prop.text text
     ]
 
+/// Die Markierung einer offenen Rückschreibung, PC und Handy gleich: neutral, damit Gelb in der Zeile
+/// `fehlt` bleibt. Sie kürzt nie (budgeting-dgrp7).
+let private writeBackBadge (testId: string) (c: BudgetCategory) =
+    match writeBackMark c with
+    | Some text ->
+        Html.span [
+            prop.custom ("data-testid", testId)
+            prop.className "shrink-0"
+            prop.children [ Badge.neutralSmall text ]
+        ]
+    | None -> Html.none
+
 /// Die dritte Zeile am Handy: Target und Status, fehlt im Statusplatz. Wird es eng, kürzt das
 /// Target, nie der Status: er ist die Aussage der Zeile.
 let private mobileStatusLine (c: BudgetCategory) =
@@ -238,15 +250,7 @@ let private mobileGroup (selectedId: System.Guid option) (dispatch: Msg -> unit)
                                   prop.className $"{ListRoles.muted} truncate min-w-0 tabular-nums"
                                   prop.text (mobileFiguresText c)
                               ]
-                              // Die Markierung kürzt nie, wie der Status in der dritten Zeile (budgeting-dgrp7).
-                              match mobileWriteBackMark c with
-                              | Some mark ->
-                                  Html.span [
-                                      prop.custom ("data-testid", "budget-not-in-ynab-mobile")
-                                      prop.className $"{ListRoles.muted} shrink-0 whitespace-nowrap"
-                                      prop.text mark
-                                  ]
-                              | None -> ()
+                              writeBackBadge "budget-not-in-ynab-mobile" c
                           ]
                       ]
                       mobileStatusLine c ]
@@ -302,12 +306,7 @@ let private desktopRow (selectedId: System.Guid option) (dispatch: Msg -> unit) 
                         match missingText c with
                         | Some text -> missingBadge "budget-missing" text
                         | None -> ()
-                        if c.OpenWriteBack.IsSome then
-                            Html.span [
-                                prop.custom ("data-testid", "budget-not-in-ynab")
-                                prop.className "shrink-0"
-                                prop.children [ Badge.noticeSmall NotInYnabText ]
-                            ]
+                        writeBackBadge "budget-not-in-ynab" c
                     ]
                 ]
             ]

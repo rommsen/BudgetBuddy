@@ -247,7 +247,7 @@ test("[layout] Handy 375 px: die Markierung noch nicht in YNAB steht mit vierste
     right: el.getBoundingClientRect().right,
     lineRight: el.parentElement.getBoundingClientRect().right,
   }));
-  assert.equal(shown.text, "· noch nicht in YNAB");
+  assert.equal(shown.text, "noch nicht in YNAB");
   assert.equal(shown.clipped, false, "die Markierung wird nicht abgeschnitten");
   assert.ok(shown.right <= shown.lineRight + 0.5, `die Markierung liegt in ihrer Zeile (${JSON.stringify(shown)})`);
   assert.equal(await page.locator('[data-testid="budget-not-in-ynab-mobile"]:visible').count(), 1, "nur die Zeile mit offener Rückschreibung");

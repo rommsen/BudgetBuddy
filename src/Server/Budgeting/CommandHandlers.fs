@@ -175,8 +175,9 @@ type EnsuredTakeover =
     | TakenOverNow
 
 /// Übernimmt einen Monat, falls noch keine Übernahme im Stream liegt (budgeting-dkjc5, ADR 0084 Punkt 5): unter
-/// `MonthGuard` zuerst den Stream prüfen, nur ohne Übernahme ein `fetchMonth` und dann wie `observeMonth`
-/// festhalten. Ein Monat, den vorher ein Lesen oder ein Befehl übernommen hat, kostet so keinen YNAB-Aufruf und
+/// `MonthGuard` zuerst gezielt nach einer Übernahme im Stream fragen (`queryMonthTakenOver`, ohne die Ereignisse
+/// zu dekodieren: ein nicht lesbares Ereignis blockiert die Prüfung nicht), nur ohne Übernahme ein `fetchMonth`
+/// und dann wie `observeMonth` festhalten. Ein Monat, den vorher ein Lesen oder ein Befehl übernommen hat, kostet so keinen YNAB-Aufruf und
 /// bekommt kein zweites Übernahme-Ereignis. BBs eigene Daten nicht lesbar oder nicht festgehalten:
 /// `LocalReadFailed`, die Ursache steht im Server-Log.
 let ensureTakenOverWith
@@ -189,7 +190,7 @@ let ensureTakenOverWith
         let takenOver =
             try
                 use conn = connect ()
-                loadMonthEventsOn conn monthKey |> Result.map hasTakeover
+                queryMonthTakenOver conn monthKey
             with ex ->
                 Error ex.Message
         match takenOver with
