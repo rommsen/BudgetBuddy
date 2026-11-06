@@ -735,20 +735,13 @@ type ParsedCreateResponse =
     | UnparseableCreateResponse of parseError: string
 
 /// Result of creating transactions in YNAB. Getrennt in "Created" (mit YNAB-Id, über
-/// die ImportId zugeordnet), Duplikate, Transfer-Rejects und Zukunftsdatierte, plus ein
+/// die ImportId zugeordnet) und Duplikate, plus ein
 /// Kennzeichen für eine nicht auswertbare Antwort (Teil 1, Punkte 2 bis 5: drei Bugs
 /// behoben, die vorher an dieser Stelle steckten).
 type TransactionCreateResult = {
     /// Tatsächlich angelegte Buchungen, YNAB-Id über die ImportId zugeordnet.
     Created: CreatedTransactionResult list
     DuplicateImportIds: string list
-    /// Transactions excluded from the request body because a transfer split line
-    /// had no resolvable transfer payee in YNAB (ADR 0006). The caller marks these
-    /// RejectedByYnab (UnknownRejection ...).
-    RejectedTransferTransactionIds: TransactionId list
-    /// Buchungen mit Datum in der Zukunft: nie gesendet, deshalb auch nie in `Created`
-    /// (Bug: vorher wurden sie danach trotzdem als importiert markiert).
-    FutureDatedTransactionIds: TransactionId list
     /// War die 201-Antwort nicht auswertbar? Dann ist `Created` leer, statt pauschal
     /// alle gesendeten Buchungen als angelegt zu behandeln (Bug: vorher galt genau das
     /// als Fallback).
@@ -761,8 +754,6 @@ type TransactionCreateResult = {
 let emptyCreateResult : TransactionCreateResult = {
     Created = []
     DuplicateImportIds = []
-    RejectedTransferTransactionIds = []
-    FutureDatedTransactionIds = []
     ResponseUnparseable = false
 }
 
@@ -1114,8 +1105,6 @@ let buildCreateResult (prepared: PreparedTransaction list) (parsed: ParsedCreate
         {
             Created = createdResults
             DuplicateImportIds = duplicateIds
-            RejectedTransferTransactionIds = []
-            FutureDatedTransactionIds = []
             ResponseUnparseable = false
         }
     | UnparseableCreateResponse _ ->
@@ -1126,11 +1115,11 @@ let buildCreateResult (prepared: PreparedTransaction list) (parsed: ParsedCreate
         { emptyCreateResult with ResponseUnparseable = true }
 
 /// Senden (Teil 1, Punkt 1): postet genau die übergebene, vorbereitete Liste und
-/// wertet die Antwort über `buildCreateResult` aus. `RejectedTransferTransactionIds`/
-/// `FutureDatedTransactionIds` sind hier immer leer, die trägt der Aufrufer aus dem
-/// `PrepareResult` nach. `Server.Api.importToYnab` und `forceImportDuplicates` bereiten
-/// über `Server.Api.prepareForImport` (`prepareTransactions`) vor und senden einzeln über
-/// `sendPrepared`, dazwischen liegt der Kassenbuch-Schreibpfad (ADR 0021).
+/// wertet die Antwort über `buildCreateResult` aus. Zukunftsdatierte und
+/// transfer-abgelehnte Buchungen liest die Auswertung direkt aus dem `PrepareResult`
+/// (`PushOutcomeClassification`). `Server.Api.importToYnab` und `forceImportDuplicates`
+/// bereiten über `Server.Api.prepareForImport` (`prepareTransactions`) vor und senden
+/// getrennt davon über `sendPrepared`, dazwischen liegt der Kassenbuch-Schreibpfad (ADR 0021).
 let sendPrepared
     (token: string)
     (YnabBudgetId budgetId: YnabBudgetId)
@@ -1183,21 +1172,6 @@ let sendPrepared
         with ex ->
             return Error (YnabError.NetworkError $"Failed to create transactions: {ex.Message}")
     }
-
-/// Markiert nur die Buchungen, die YNAB laut `result.Created` tatsächlich angelegt hat,
-/// als importiert. Zukunftsdatierte, transfer-abgelehnte oder (bei nicht auswertbarer
-/// Antwort) unbestätigte Buchungen bleiben unverändert. Pure, extrahiert für
-/// `forceImportDuplicates` (Verifier-Fund, ledger-qvt84 Iteration 2): vorher markierte
-/// der Aufrufer jede gesendete Buchung pauschal als `Imported`, unabhängig von
-/// `result.Created`, `result.ResponseUnparseable` und `result.FutureDatedTransactionIds`.
-let markCreatedAsImported (result: TransactionCreateResult) (transactions: SyncTransaction list) : SyncTransaction list =
-    let createdTxIds = result.Created |> List.map (fun c -> c.TransactionId) |> Set.ofList
-    transactions
-    |> List.map (fun tx ->
-        if createdTxIds.Contains tx.Transaction.Id then
-            { tx with Status = Imported; YnabImportStatus = YnabImported }
-        else
-            tx)
 
 /// Builds the JSON body for a single transaction created from the Kassenbuch (Quick Add,
 /// and "Erneut senden" for a booking that is not yet in YNAB, ledger-cks06).

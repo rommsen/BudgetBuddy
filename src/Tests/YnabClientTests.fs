@@ -1405,7 +1405,7 @@ let prepareTransactionsTests =
 
         testCase "Force-Import erzeugt eine neue ImportId, die der Aufrufer auslesen kann" <| fun () ->
             // Regressionstest für Bug 2: vorher wurde die neue ImportId nur innerhalb
-            // innerhalb des Sendens erzeugt und nie zurückgegeben; der Aufrufer
+            // des Sendens erzeugt und nie zurückgegeben; der Aufrufer
             // (forceImportDuplicates) konnte nicht verknüpfen. Jetzt steht sie direkt
             // an `PreparedTransaction.ImportId`.
             let today = DateTime(2026, 9, 11)
@@ -1519,38 +1519,4 @@ let buildCreateResultTests =
 
             Expect.isEmpty result.Created "kein geratener Erfolg bei nicht lesbarer Antwort"
             Expect.isTrue result.ResponseUnparseable "der Zustand ist erkennbar unbekannt, nicht pauschal erfolgreich"
-    ]
-
-// ============================================
-// markCreatedAsImported (forceImportDuplicates): nur tatsächlich angelegte Buchungen
-// markieren, extrahiert damit sie ohne HTTP testbar ist (Verifier-Fund Iteration 2).
-// ============================================
-
-[<Tests>]
-let markCreatedAsImportedTests =
-    testList "markCreatedAsImported (Force-Import, nur tatsächlich Angelegte markieren)" [
-
-        testCase "markiert nur Buchungen aus result.Created, nicht pauschal alle gesendeten" <| fun () ->
-            // Regressionstest: forceImportDuplicates markierte vorher jede gesendete
-            // Buchung als Imported, unabhängig von result.Created,
-            // result.ResponseUnparseable und result.FutureDatedTransactionIds.
-            let today = DateTime(2026, 9, 11)
-            let created = PrepareFixtures.makeTx "tx-created" NeedsAttention today
-            let notCreated = PrepareFixtures.makeTx "tx-not-created" NeedsAttention today
-
-            let result = {
-                emptyCreateResult with
-                    Created =
-                        [ { TransactionId = created.Transaction.Id; ImportId = "BB:txcreated"; YnabTransactionId = "ynab-1" } ]
-            }
-
-            let updated = markCreatedAsImported result [ created; notCreated ]
-
-            let updatedCreated = updated |> List.find (fun t -> t.Transaction.Id = created.Transaction.Id)
-            let updatedNotCreated = updated |> List.find (fun t -> t.Transaction.Id = notCreated.Transaction.Id)
-
-            Expect.equal updatedCreated.Status Imported "die tatsächlich angelegte Buchung gilt als importiert"
-            Expect.equal updatedCreated.YnabImportStatus YnabImported "YnabImportStatus gesetzt"
-            Expect.equal updatedNotCreated.Status notCreated.Status "eine nicht angelegte Buchung bleibt unverändert"
-            Expect.equal updatedNotCreated.YnabImportStatus NotAttempted "kein pauschaler Erfolg"
     ]
