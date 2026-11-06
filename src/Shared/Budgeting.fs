@@ -77,7 +77,7 @@ type Target = {
     Day: int option
     /// Der Anlegemonat als "YYYY-MM-01" (budgeting-pf8n7): bei der Target-Übernahme aus `goal_creation_month`,
     /// bei einer in BB neuen Regel (Anlegen, Wechsel der Art) der Monat, ab dem sie gilt; eine Änderung behält
-    /// ihn (`TargetRules.planTargetChange`). Die Parallelrechnung beginnt damit die erste Periode eines Ziels mit
+    /// ihn (`TargetRules.planTargetChange`). BBs Fehlbetrag beginnt damit die erste Periode eines Ziels mit
     /// Fälligkeit.
     CreatedIn: string option
 }
@@ -95,8 +95,6 @@ type YnabMonthCategory = {
     Activity: Money
     /// Verfügbar (YNAB `balance`).
     Available: Money
-    /// Fehlbetrag (YNAB `goal_under_funded`): `None` ohne Target, `Some 0` wenn erfüllt.
-    Underfunded: Money option
     /// Das Goal aus YNAB: `None`, wenn YNAB keins liefert. Die Seite zeigt BBs Regel (budgeting-eh8xe); das
     /// Goal sagt nur, ob eine Kategorie noch auf die Target-Übernahme wartet.
     Target: Target option
@@ -131,7 +129,8 @@ type PauseSource =
 
 /// Eine angezeigte Kategorie. Felder wie `YnabMonthCategory`, ohne die Filter-Flags.
 /// `Underfunded` (Fehlbetrag) und `Pause` braucht "Targets anwenden" (budgeting-h2zfn); die Seite
-/// zeigt sie zusammen mit dem Target an (budgeting-kjsht).
+/// zeigt sie zusammen mit dem Target an (budgeting-kjsht). Der Fehlbetrag ist BBs, gerechnet gegen das Soll
+/// (budgeting-hbhzf, ADR 0084 Punkt 7): `None` ohne Target oder wenn BB ihn nicht rechnet, `Some 0` wenn erfüllt.
 type BudgetCategory = {
     Id: Guid
     Name: string

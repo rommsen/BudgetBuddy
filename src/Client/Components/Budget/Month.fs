@@ -330,7 +330,7 @@ let targetText (target: Target) : string =
     moneyText target.Goal + rhythmText target.Rhythm
 
 /// Der Zusatz zum Target im Tab Target: pausiert oder erfüllt. Pausiert geht vor, weil der
-/// Fehlbetrag dann nicht zählt. Ein offener Fehlbetrag erscheint als `missingText`. Liefert YNAB keinen
+/// Fehlbetrag dann nicht zählt. Ein offener Fehlbetrag erscheint als `missingText`. Rechnet BB keinen
 /// Fehlbetrag, gibt es keinen Zusatz.
 let targetStatusText (category: BudgetCategory) : string option =
     match category.Pause, category.Underfunded with

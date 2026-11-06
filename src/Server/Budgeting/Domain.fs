@@ -48,84 +48,14 @@ type AssignmentState = {
 /// Eine Kategorie ohne Eintrag in der Faltung: Soll und bestätigter Stand 0, nichts offen.
 let unassigned : AssignmentState = { Assigned = 0L; Confirmed = 0L; Open = None }
 
-let private toBudgetCategory
-    (assignments: Map<Guid, AssignmentState> option)
-    (targets: Map<Guid, Target>)
-    (pausedInBb: Set<Guid>)
-    (c: YnabMonthCategory)
-    : BudgetCategory =
-    let target = targets |> Map.tryFind c.Id
-    let state = assignments |> Option.map (fun m -> m |> Map.tryFind c.Id |> Option.defaultValue unassigned)
-    { Id = c.Id
-      Name = c.Name.Trim()
-      // Zugewiesen ist BBs Soll; Aktivität, Verfügbar und Fehlbetrag bleiben YNABs Werte (entschieden von Roman).
-      Assigned =
-        match state with
-        | Some s -> euroOfMilliunits s.Assigned
-        | None -> c.Assigned
-      Activity = c.Activity
-      Available = c.Available
-      Underfunded = c.Underfunded
-      // Das Target ist BBs Regel für diesen Monat, YNABs Goal zählt nicht (budgeting-eh8xe, ADR 0084 Punkt 6).
-      Target = target
-      // Eine BB-Pause ohne Target wirkt nicht und wird nicht gemeldet (budgeting-r3wq8). Eine Pause in YNAB wirkt
-      // nicht (budgeting-eh8xe, Nachtrag ADR 0079).
-      Pause = (if target.IsSome && pausedInBb.Contains c.Id then Some PausedInBb else None)
-      OpenWriteBack = state |> Option.bind (fun s -> s.Open) }
-
-/// Gruppiert die sichtbaren Kategorien nach Kategoriegruppe. Die Folge ist die der Monatsantwort
-/// und damit ungeordnet (ADR 0074 Punkt 6): `toBudgetMonth` dient den Server-Abläufen, die Seite
-/// ordnet mit `orderGroups`. Eine Gruppe ohne sichtbare Kategorie erscheint nicht.
-///
-/// `pausedInBb` sind die Kategorien, deren Target in BB für diesen Monat pausiert ist, `targets` BBs Regeln
-/// im Monat (budgeting-eh8xe). Hier und nur hier kommen YNAB-Monat, BB-Pause und Target zusammen (ADR 0079
-/// Punkt 3). Eine Id, die im Monat fehlt, ändert nichts.
-///
-/// `assignments` ist BBs Faltung des Monats (budgeting-dgrp7): mit ihr zeigt Zugewiesen das Soll und eine
-/// offene Rückschreibung ihre Markierung; eine Kategorie ohne Eintrag hat Soll 0. `None` zeigt YNABs
-/// Zugewiesen ohne Markierung, etwa wenn das Lesen die Faltung nicht festhalten konnte.
-let toBudgetMonthWith
-    (assignments: Map<Guid, AssignmentState> option)
-    (targets: Map<Guid, Target>)
-    (pausedInBb: Set<Guid>)
-    (month: YnabMonth)
-    : BudgetMonth =
-    let groups =
-        month.Categories
-        |> List.filter isVisible
-        |> List.fold
-            (fun (order: string list, byGroup: Map<string, BudgetCategory list>) c ->
-                let name = c.GroupName.Trim()
-                let order' = if Map.containsKey name byGroup then order else name :: order
-                let existing = byGroup |> Map.tryFind name |> Option.defaultValue []
-                order', Map.add name (toBudgetCategory assignments targets pausedInBb c :: existing) byGroup)
-            ([], Map.empty)
-        |> fun (order, byGroup) ->
-            order
-            |> List.rev
-            |> List.map (fun name -> { Name = name; Categories = byGroup[name] |> List.rev })
-
-    { Month = month.Month
-      ToBeBudgeted = month.ToBeBudgeted
-      Groups = groups }
-
-/// Der Monat mit YNABs Zugewiesen, ohne BBs Faltung (Targets prüfen, Abläufe ohne Soll).
-let toBudgetMonth (targets: Map<Guid, Target>) (pausedInBb: Set<Guid>) (month: YnabMonth) : BudgetMonth =
-    toBudgetMonthWith None targets pausedInBb month
-
 // ============================================
 // Targets anwenden (budgeting-h2zfn)
 // ============================================
 
-/// Der Anfang der Ablehnung von Targets anwenden bei offener Rückschreibung, dahinter die Kategorien.
-[<Literal>]
-let TargetsOpenWriteBackText =
-    "Targets anwenden geht erst, wenn alle Zuweisungen in YNAB sind. Bitte zuerst erneut senden. Noch nicht in YNAB:"
-
 /// Die Vorschau von "Targets anwenden" aus dem Monatsmodell. Aufgenommen wird jede Kategorie
-/// mit Fehlbetrag größer 0 und ohne pausiertes Target; neu = Soll + Fehlbetrag (BB rechnet keine
-/// Targets, der Fehlbetrag ist YNABs). Hat eine solche Kategorie eine offene Rückschreibung, lehnt die
-/// Funktion ab und nennt sie (budgeting-dgrp7). Pausierte Kategorien mit Fehlbetrag
+/// mit Fehlbetrag größer 0 und ohne pausiertes Target; neu = Soll + Fehlbetrag. Der Fehlbetrag ist BBs,
+/// gerechnet gegen das Soll (`toBudgetMonthWith`, budgeting-hbhzf), deshalb gilt das auch bei offener
+/// Rückschreibung. Pausierte Kategorien mit Fehlbetrag
 /// größer 0 stehen getrennt in `Skipped`. Fehlbetrag 0 oder unbekannt fällt weg. Zu verteilen
 /// danach darf negativ sein. Liegt ein Betrag nicht auf 10 Milliunits, lehnt die Funktion ab,
 /// weil YNAB sonst still rundet. Rein, ohne I/O.
@@ -157,21 +87,13 @@ let planTargetApplication (month: BudgetMonth) : Result<TargetPreview, string> =
     let lines = List.rev lines
     let skipped = List.rev skipped
 
-    // Bis budgeting-eh8xe ist der Fehlbetrag YNABs `goal_under_funded`, gerechnet auf YNABs Zugewiesen. Bei
-    // offener Rückschreibung weicht das Soll davon ab, Soll plus Fehlbetrag wäre falsch (ADR 0084, Nachtrag).
-    let notInYnab =
-        lines |> List.filter (fun l -> categories |> List.exists (fun (_, c) -> c.Id = l.CategoryId && c.OpenWriteBack.IsSome))
-
     let offGrid =
         lines |> List.tryFind (fun l -> not (isOnTenMilliunits l.OldAssigned && isOnTenMilliunits l.NewAssigned))
 
-    match notInYnab, offGrid with
-    | _ :: _, _ ->
-        let names = notInYnab |> List.map (fun l -> l.CategoryName) |> String.concat ", "
-        Error $"{TargetsOpenWriteBackText} {names}."
-    | [], Some l ->
+    match offGrid with
+    | Some l ->
         Error $"Der Betrag für {l.CategoryName} liegt nicht auf 10 Milliunits (0,01 €) und würde beim Schreiben gerundet. BB wendet deshalb nichts an."
-    | [], None ->
+    | None ->
         let currency = month.ToBeBudgeted.Currency
         let total = lines |> List.sumBy (fun l -> l.Underfunded.Amount)
         Ok
@@ -428,7 +350,7 @@ let mergeHistory (movements: HistoryMovement list) (pauses: HistoryEntry list) (
     |> List.sortByDescending historyEntryTime
 
 // ============================================
-// Fehlbetrag in BB, Parallelrechnung (budgeting-v7kfw, ADR 0084 Punkt 7)
+// Fehlbetrag in BB (budgeting-v7kfw, budgeting-hbhzf, ADR 0084 Punkt 7)
 // ============================================
 
 /// Der Fehlbetrag, wie BB ihn rechnet: gerechnet mit Betrag oder nicht gerechnet mit Grund.
@@ -448,15 +370,6 @@ type UnderfundedRule =
     | WeeklyRule of day: int
     /// TB: Betrag − Verfügbar.
     | BalanceRule
-
-/// Der Name der Formel, so wie die Abweichungsliste ihn zeigt.
-let underfundedRuleText (rule: UnderfundedRule) : string =
-    match rule with
-    | DueDateRule _ -> "Mit Fälligkeit"
-    | RefillRule -> "Auffüllen bis"
-    | MonthlyRule -> "Monatlich"
-    | WeeklyRule _ -> "Wöchentlich"
-    | BalanceRule -> "Zielstand"
 
 /// Die Formel zu einem Target, in der Reihenfolge der Zuordnungstabelle geprüft. `Error` trägt den Grund,
 /// warum BB dieses Target nicht rechnet.
@@ -615,100 +528,135 @@ let underfunded
     | Ok value -> Computed { Amount = max 0m value; Currency = target.Goal.Currency }
     | Error reason -> NotComputed reason
 
-/// Das Ergebnis einer Zeile der Abweichungsliste.
-type ComparisonOutcome =
-    | Equal
-    | Deviation
-    | NotCompared
-
-/// Der Text des Ergebnisses, so steht er in `underfunded_comparisons.outcome`.
-let comparisonOutcomeText (outcome: ComparisonOutcome) : string =
-    match outcome with
-    | Equal -> "Gleich"
-    | Deviation -> "Abweichung"
-    | NotCompared -> "Nicht gerechnet"
-
-/// Der Grund, wenn YNAB zu einem Target keinen Fehlbetrag liefert.
-[<Literal>]
-let YnabWithoutValueText = "YNAB ohne Wert"
-
-/// Eine Zeile der Abweichungsliste: BBs Fehlbetrag neben YNABs `goal_under_funded` für eine Kategorie.
-type UnderfundedComparison = {
-    Month: string
-    CategoryId: Guid
-    CategoryName: string
-    /// Die Target-Art (`goal_type`).
-    Kind: TargetKind
-    /// Die Formel, nach der BB rechnet. `None`, wenn BB das Target nicht rechnet.
-    Rule: UnderfundedRule option
-    Outcome: ComparisonOutcome
-    Bb: Money option
-    Ynab: Money option
-    /// BB − YNAB, nur wenn beide Werte da sind.
-    Difference: Money option
-    /// Der Grund bei "Nicht gerechnet".
-    Reason: string option
-    /// Pausiert in BB oder YNAB (`isPaused`).
-    Paused: bool
-}
-
-/// Die früheren Monate, deren Aktivität die Abweichungsliste von `month` braucht (budgeting-b9869): die
-/// Periodenmonate aller Targets (`periodMonthsOf`), jeder Monat einmal. Rein, ohne I/O.
-let periodMonthsNeeded (month: BudgetMonth) : string list =
-    month.Groups
-    |> List.collect (fun g -> g.Categories)
-    |> List.choose (fun c -> c.Target)
-    |> List.collect (fun t -> periodMonthsOf t month.Month)
+/// Die früheren Monate, deren Aktivität der Fehlbetrag im Monat `month` braucht (budgeting-b9869): die
+/// Periodenmonate aller Targets (`periodMonthsOf`), jeder Monat einmal, aufsteigend. Hängt nur an BBs Targets und am Monat,
+/// damit die Ausgaben vor dem Monatsmodell geladen werden können (budgeting-hbhzf). Rein, ohne I/O.
+let periodMonthsNeeded (targets: Map<Guid, Target>) (month: string) : string list =
+    targets
+    |> Map.toList
+    |> List.collect (fun (_, t) -> periodMonthsOf t month)
     |> List.distinct
+    |> List.sort
 
 /// Die Kategorien, deren Target Periodenmonate braucht (`periodMonthsOf`, budgeting-k5q2w), jede einmal. Rein.
-let periodCategoriesNeeded (month: BudgetMonth) : Guid list =
-    month.Groups
-    |> List.collect (fun g -> g.Categories)
-    |> List.filter (fun c -> c.Target |> Option.exists (fun t -> not (List.isEmpty (periodMonthsOf t month.Month))))
-    |> List.map (fun c -> c.Id)
+let periodCategoriesNeeded (targets: Map<Guid, Target>) (month: string) : Guid list =
+    targets
+    |> Map.toList
+    |> List.filter (fun (_, t) -> not (List.isEmpty (periodMonthsOf t month)))
+    |> List.map fst
+
+let private firstOfMonth (monthKey: string) : DateTime =
+    DateTime.ParseExact(monthKey, "yyyy-MM-dd", Globalization.CultureInfo.InvariantCulture)
+
+/// Formt die Monatssummen aus dem Kassenbuch in die Aktivität je Kategorie und Monat ("YYYY-MM-01"), die
+/// `toBudgetMonthWith` nimmt (budgeting-k5q2w). Lückenlos: ein Monat ohne Buchung der Kategorie steht mit 0
+/// da. Nur ein Monat vor dem Monat der ersten Buchung (`firstEntry`) fehlt, ohne Buchung fehlt jeder. Rein.
+let periodActivityFromLedger
+    (categoryIds: Guid list)
+    (months: string list)
+    (firstEntry: DateTime option)
+    (sums: Map<Guid, (DateTime * Money) list>)
+    : Map<Guid, Map<string, Money>> =
+    let covered =
+        match firstEntry with
+        | None -> []
+        | Some first ->
+            let start = DateTime(first.Year, first.Month, 1)
+            months |> List.filter (fun m -> firstOfMonth m >= start)
+    categoryIds
     |> List.distinct
+    |> List.map (fun id ->
+        let byMonth = sums |> Map.tryFind id |> Option.defaultValue [] |> Map.ofList
+        id,
+        covered
+        |> List.map (fun m -> m, byMonth |> Map.tryFind (firstOfMonth m) |> Option.defaultValue { Amount = 0m; Currency = TargetCurrency })
+        |> Map.ofList)
+    |> Map.ofList
 
-/// Die Abweichungsliste eines Monats: je sichtbarer Kategorie mit Target eine Zeile, auch pausierte, weil
-/// YNAB den Fehlbetrag auch für sie liefert. Verglichen wird genau, ohne Toleranz. Rein, ohne I/O.
-/// `earlierActivity` ist die Aktivität früherer Monate je Kategorie (`periodMonthsOf`, budgeting-b9869), aus dem
-/// Kassenbuch (budgeting-k5q2w).
-let compareUnderfunded (month: BudgetMonth) (earlierActivity: Map<Guid, Map<string, Money>>) : UnderfundedComparison list =
-    month.Groups
-    |> List.collect (fun g -> g.Categories)
-    |> List.choose (fun c ->
-        c.Target
-        |> Option.map (fun target ->
-            let carryover = { c.Available with Amount = c.Available.Amount - c.Assigned.Amount - c.Activity.Amount }
-            let earlier = earlierActivity |> Map.tryFind c.Id |> Option.defaultValue Map.empty
-            let bb = underfunded target month.Month c.Assigned carryover c.Activity earlier
-            let rule = underfundedRuleOf target |> Result.toOption
-            let row =
-                { Month = month.Month
-                  CategoryId = c.Id
-                  CategoryName = c.Name
-                  Kind = target.Kind
-                  Rule = rule
-                  Outcome = NotCompared
-                  Bb = None
-                  Ynab = c.Underfunded
-                  Difference = None
-                  Reason = None
-                  Paused = isPaused c }
-            match bb, c.Underfunded with
-            | NotComputed reason, _ -> { row with Reason = Some reason }
-            | Computed value, None -> { row with Bb = Some value; Reason = Some YnabWithoutValueText }
-            | Computed value, Some ynab ->
-                { row with
-                    Outcome = (if value.Amount = ynab.Amount then Equal else Deviation)
-                    Bb = Some value
-                    Difference = Some { value with Amount = value.Amount - ynab.Amount } }))
+let private toBudgetCategory
+    (month: string)
+    (assignments: Map<Guid, AssignmentState> option)
+    (periodActivity: Map<Guid, Map<string, Money>> option)
+    (targets: Map<Guid, Target>)
+    (pausedInBb: Set<Guid>)
+    (c: YnabMonthCategory)
+    : BudgetCategory =
+    let target = targets |> Map.tryFind c.Id
+    let state = assignments |> Option.map (fun m -> m |> Map.tryFind c.Id |> Option.defaultValue unassigned)
+    // Zugewiesen ist BBs Soll; Aktivität und Verfügbar bleiben YNABs Werte (entschieden von Roman).
+    let assigned =
+        match state with
+        | Some s -> euroOfMilliunits s.Assigned
+        | None -> c.Assigned
+    // Der Übertrag kommt live aus YNABs Stand, unabhängig vom Soll (ADR 0084 Punkt 7).
+    let carryover = { c.Available with Amount = c.Available.Amount - c.Assigned.Amount - c.Activity.Amount }
+    // BBs Fehlbetrag gegen das Soll (budgeting-hbhzf). Nicht gerechnet heißt kein Fehlbetrag, wie ohne Target.
+    let underfundedOf (rule: Target) =
+        periodActivity
+        |> Option.bind (fun activity ->
+            let earlier = activity |> Map.tryFind c.Id |> Option.defaultValue Map.empty
+            match underfunded rule month assigned carryover c.Activity earlier with
+            | Computed value -> Some value
+            | NotComputed _ -> None)
+    { Id = c.Id
+      Name = c.Name.Trim()
+      Assigned = assigned
+      Activity = c.Activity
+      Available = c.Available
+      Underfunded = target |> Option.bind underfundedOf
+      // Das Target ist BBs Regel für diesen Monat, YNABs Goal zählt nicht (budgeting-eh8xe, ADR 0084 Punkt 6).
+      Target = target
+      // Eine BB-Pause ohne Target wirkt nicht und wird nicht gemeldet (budgeting-r3wq8). Eine Pause in YNAB wirkt
+      // nicht (budgeting-eh8xe, Nachtrag ADR 0079).
+      Pause = (if target.IsSome && pausedInBb.Contains c.Id then Some PausedInBb else None)
+      OpenWriteBack = state |> Option.bind (fun s -> s.Open) }
 
-/// Die Zeile im Server-Log je gelesenem Monat: Monat und Anzahl gleich, abweichend, nicht gerechnet.
-/// Beträge stehen nur in der Tabelle.
-let comparisonSummary (month: string) (rows: UnderfundedComparison list) : string =
-    let count outcome = rows |> List.filter (fun r -> r.Outcome = outcome) |> List.length
-    $"Parallelrechnung Fehlbetrag {month}: {count Equal} gleich, {count Deviation} abweichend, {count NotCompared} nicht gerechnet"
+/// Gruppiert die sichtbaren Kategorien nach Kategoriegruppe. Die Folge ist die der Monatsantwort
+/// und damit ungeordnet (ADR 0074 Punkt 6): `toBudgetMonth` dient den Server-Abläufen, die Seite
+/// ordnet mit `orderGroups`. Eine Gruppe ohne sichtbare Kategorie erscheint nicht.
+///
+/// `pausedInBb` sind die Kategorien, deren Target in BB für diesen Monat pausiert ist, `targets` BBs Regeln
+/// im Monat (budgeting-eh8xe). Hier und nur hier kommen YNAB-Monat, BB-Pause und Target zusammen (ADR 0079
+/// Punkt 3). Eine Id, die im Monat fehlt, ändert nichts.
+///
+/// `assignments` ist BBs Faltung des Monats (budgeting-dgrp7): mit ihr zeigt Zugewiesen das Soll und eine
+/// offene Rückschreibung ihre Markierung; eine Kategorie ohne Eintrag hat Soll 0. `None` zeigt YNABs
+/// Zugewiesen ohne Markierung, etwa wenn das Lesen die Faltung nicht festhalten konnte.
+///
+/// `periodActivity` sind die Ausgaben der Periodenmonate je Kategorie aus dem Kassenbuch (`periodMonthsNeeded`,
+/// `periodActivityFromLedger`). Damit trägt jede Kategorie mit Target BBs Fehlbetrag (`underfunded`, gegen
+/// Zugewiesen, budgeting-hbhzf); rechnet BB ihn nicht, ist er `None`. `None` statt der Ausgaben heißt: kein
+/// Fehlbetrag in keiner Zeile, etwa wenn das Kassenbuch nicht lesbar war.
+let toBudgetMonthWith
+    (assignments: Map<Guid, AssignmentState> option)
+    (periodActivity: Map<Guid, Map<string, Money>> option)
+    (targets: Map<Guid, Target>)
+    (pausedInBb: Set<Guid>)
+    (month: YnabMonth)
+    : BudgetMonth =
+    let groups =
+        month.Categories
+        |> List.filter isVisible
+        |> List.fold
+            (fun (order: string list, byGroup: Map<string, BudgetCategory list>) c ->
+                let name = c.GroupName.Trim()
+                let order' = if Map.containsKey name byGroup then order else name :: order
+                let existing = byGroup |> Map.tryFind name |> Option.defaultValue []
+                order', Map.add name (toBudgetCategory month.Month assignments periodActivity targets pausedInBb c :: existing) byGroup)
+            ([], Map.empty)
+        |> fun (order, byGroup) ->
+            order
+            |> List.rev
+            |> List.map (fun name -> { Name = name; Categories = byGroup[name] |> List.rev })
+
+    { Month = month.Month
+      ToBeBudgeted = month.ToBeBudgeted
+      Groups = groups }
+
+/// Der Monat mit YNABs Zugewiesen, ohne BBs Faltung und ohne Ausgaben der Periode (Targets prüfen, das den
+/// Fehlbetrag nicht nutzt). Ein Target, das Periodenmonate braucht, bleibt hier ohne Fehlbetrag.
+let toBudgetMonth (targets: Map<Guid, Target>) (pausedInBb: Set<Guid>) (month: YnabMonth) : BudgetMonth =
+    toBudgetMonthWith None (Some Map.empty) targets pausedInBb month
 
 // ============================================
 // Übernahme im Hintergrund (budgeting-dkjc5, ADR 0084 Punkt 5)

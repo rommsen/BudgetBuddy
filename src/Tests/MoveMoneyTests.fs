@@ -148,7 +148,6 @@ type private FakeYnab(categories: (Guid * string * int64) list) =
                                           Assigned = eur assigned[id]
                                           Activity = eur 0L
                                           Available = eur assigned[id]
-                                          Underfunded = None
                                           Target = None
                                           Hidden = false
                                           Deleted = false

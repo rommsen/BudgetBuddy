@@ -3,7 +3,7 @@
 /// Rückschreib-Ergebnisse liegen im Monats-Stream, Übernahme und Änderungen der Targets (samt Altbestand mit
 /// Schritt-Ergebnissen) im Target-Stream der Kategorie. Jeder Leser filtert auf `context = 'budgeting'` und sortiert fachlich
 /// (`occurred_at`, `stream_version`), nie nach `position`. Ein unbekannter Ereignistyp im Kontext wird
-/// gemeldet, nicht übersprungen. `underfunded_comparisons` bleibt Zustand.
+/// gemeldet, nicht übersprungen.
 module Budgeting.Persistence
 
 open System
@@ -40,18 +40,6 @@ type MovementState = {
     Latest: LineOutcome option
 }
 
-let private dateToText (d: DateTime) = d.ToString("o", CultureInfo.InvariantCulture)
-
-let private orDbNull (value: 'a option) : obj =
-    match value with
-    | Some v -> box v
-    | None -> null
-
-/// Legt `events` (ADR 0083) und `underfunded_comparisons` an und überführt die früheren Budget-Tabellen nach `events`
-/// (budgeting-hyn77). Entfernt `category_month_activity` (budgeting-k5q2w: die Ausgaben der Periode kommen aus dem
-/// Kassenbuch, die Tabelle war abgeleiteter Zustand ohne Geldentscheidung). Wiederholbar. Läuft beim Start hinter
-/// `Ledger.Persistence.initializeLedgerSchema`. Bricht die Migration ab, wirft der Aufruf und BB startet
-/// nicht.
 /// Entfernt `category_month_activity` (bis budgeting-k5q2w YNABs Aktivität je Monat, abgeleiteter Zustand), nur
 /// wenn sie noch da ist: ein DROP sperrt auch ohne Tabelle das Schema für alle Verbindungen. Wiederholbar.
 let dropMonthActivityOn (conn: SqliteConnection) : unit =
@@ -60,29 +48,24 @@ let dropMonthActivityOn (conn: SqliteConnection) : unit =
     if leftover > 0L then
         conn.Execute("DROP TABLE IF EXISTS category_month_activity") |> ignore
 
+/// Entfernt `underfunded_comparisons` (bis budgeting-hbhzf die Abweichungsliste der Parallelrechnung, vorläufiger
+/// Zustand), nur wenn sie noch da ist, aus demselben Grund wie `dropMonthActivityOn`. Wiederholbar.
+let dropUnderfundedComparisonsOn (conn: SqliteConnection) : unit =
+    let leftover =
+        conn.ExecuteScalar<int64>("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'underfunded_comparisons'")
+    if leftover > 0L then
+        conn.Execute("DROP TABLE IF EXISTS underfunded_comparisons") |> ignore
+
+/// Legt `events` (ADR 0083) an und überführt die früheren Budget-Tabellen nach `events` (budgeting-hyn77). Entfernt
+/// `category_month_activity` (budgeting-k5q2w: die Ausgaben der Periode kommen aus dem Kassenbuch) und
+/// `underfunded_comparisons` (budgeting-hbhzf: BB rechnet den Fehlbetrag selbst, die Parallelrechnung entfällt),
+/// beides abgeleiteter Zustand ohne Geldentscheidung. Wiederholbar. Läuft beim Start hinter
+/// `Ledger.Persistence.initializeLedgerSchema`. Bricht die Migration ab, wirft der Aufruf und BB startet nicht.
 let initializeBudgetingSchema () =
     use conn = Core.getConnection ()
     EventStore.createSchemaOn conn
-    conn.Execute(
-        """
-        CREATE TABLE IF NOT EXISTS underfunded_comparisons (
-            month TEXT NOT NULL,
-            category_id TEXT NOT NULL,
-            category_name TEXT NOT NULL,
-            kind TEXT NOT NULL,
-            rule TEXT,
-            outcome TEXT NOT NULL,
-            bb_milliunits INTEGER,
-            ynab_milliunits INTEGER,
-            reason TEXT,
-            paused INTEGER NOT NULL,
-            compared_at TEXT NOT NULL,
-            PRIMARY KEY (month, category_id)
-        );
-        """
-    )
-    |> ignore
     dropMonthActivityOn conn
+    dropUnderfundedComparisonsOn conn
     Budgeting.EventMigration.migrateBudgetEventsOn conn |> ignore
 
 // ============================================
@@ -1006,58 +989,3 @@ let internal appendTargetTakeoverOn (conn: SqliteConnection) (at: DateTime) (eve
         match EventStore.appendOn conn tx request EventStore.noReadModels with
         | EventStore.Appended _ -> tx.Commit()
         | EventStore.CommandAlreadyProcessed _ -> failwith "Eine Übernahme ohne Befehls-Id kann nicht schon festgehalten sein"
-
-// ============================================
-// Abweichungsliste (budgeting-v7kfw, ADR 0084 Punkt 7)
-// ============================================
-
-let private milliunitsOf (money: Shared.Domain.Money option) : obj =
-    money |> Option.map toMilliunits |> orDbNull
-
-/// Ersetzt die Abweichungsliste des Monats `month` in einer Transaktion: erst alle Zeilen des Monats
-/// löschen, dann die neuen einfügen. So fällt eine Kategorie ohne Target heraus, andere Monate bleiben.
-/// Vorläufiger Zustand nach ADR 0083 (kein Read Model), entfällt mit budgeting-eh8xe.
-let saveUnderfundedComparisonsWith
-    (connect: unit -> SqliteConnection)
-    (comparedAt: DateTime)
-    (month: string)
-    (rows: UnderfundedComparison list)
-    : Async<unit> =
-    async {
-        use conn = connect ()
-        conn.Open()
-        use tx = conn.BeginTransaction()
-        conn.Execute("DELETE FROM underfunded_comparisons WHERE month = @month", {| month = month |}, tx) |> ignore
-        let parameters =
-            rows
-            |> List.map (fun r ->
-                {| month = month
-                   category_id = string r.CategoryId
-                   category_name = r.CategoryName
-                   kind = goalTypeText r.Kind
-                   rule = r.Rule |> Option.map underfundedRuleText |> orDbNull
-                   outcome = comparisonOutcomeText r.Outcome
-                   bb_milliunits = milliunitsOf r.Bb
-                   ynab_milliunits = milliunitsOf r.Ynab
-                   reason = orDbNull r.Reason
-                   paused = (if r.Paused then 1L else 0L)
-                   compared_at = dateToText comparedAt |})
-            |> Array.ofList
-
-        // Dapper führt das INSERT einmal je Element des Arrays aus, alles in derselben Transaktion.
-        if parameters.Length > 0 then
-            conn.Execute(
-                "INSERT INTO underfunded_comparisons (month, category_id, category_name, kind, rule, outcome, \
-                    bb_milliunits, ynab_milliunits, reason, paused, compared_at) \
-                 VALUES (@month, @category_id, @category_name, @kind, @rule, @outcome, \
-                    @bb_milliunits, @ynab_milliunits, @reason, @paused, @compared_at)",
-                parameters,
-                tx
-            )
-            |> ignore
-        tx.Commit()
-    }
-
-/// `saveUnderfundedComparisonsWith` auf der Datenbank der Anwendung, Zeitpunkt ist jetzt (UTC).
-let saveUnderfundedComparisons (month: string) (rows: UnderfundedComparison list) : Async<unit> =
-    saveUnderfundedComparisonsWith Core.getConnection DateTime.UtcNow month rows

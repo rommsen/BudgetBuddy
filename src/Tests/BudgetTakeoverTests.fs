@@ -110,7 +110,6 @@ type private FakeYnab(months: string list, sim: Sim) =
                                     Assigned = eur 50000L
                                     Activity = eur 0L
                                     Available = eur 50000L
-                                    Underfunded = None
                                     Target = None
                                     Hidden = false
                                     Deleted = false

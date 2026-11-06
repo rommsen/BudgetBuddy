@@ -86,3 +86,7 @@ Kaputt-Szenario (GIVEN/WHEN/THEN): GIVEN Wechsel hin und zurück, das Lesen des 
 - Backend (Review k5q2w, V1): `periodActivityFromLedger` ist rein und gehört nach `Domain.fs`; dabei `spendingOf` und das Monatsparsen wiederverwenden (eine Schreibweise des Null-Betrags).
 - Backend (Review k5q2w, V4): Ein `TargetSet` trägt `effectiveFrom` als "YYYY-MM" und `rule.createdIn` als "YYYY-MM-01". Ein eigener Typ für den Monatsschlüssel schlösse Verwechslungen aus.
 - Tests (Review k5q2w): Kein Test belegt, dass ohne Periodenmonat das Kassenbuch nicht gelesen wird (`loadPeriodActivity`, Zweig `[]`); nur eine überflüssige Abfrage, kein falsches Ergebnis.
+
+## Aus budgeting-hbhzf (2026-11-06)
+- Tests (Verifier hbhzf): `BudgetLeadTests` schreibt die Gruppe "Server-Log" als Literal statt `UnderfundedTests.ServerLogGroup`.
+- Tests (Verifier hbhzf, wie bei k5q2w): der Aufruf von `dropUnderfundedComparisonsOn` in `initializeBudgetingSchema` ist nur über den Funktionstest belegt, ein Mutant ohne Aufruf überlebt.

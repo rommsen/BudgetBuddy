@@ -64,7 +64,6 @@ let private ynabCategory (name: string) : YnabMonthCategory =
       Assigned = eur 0m
       Activity = eur 0m
       Available = eur 0m
-      Underfunded = None
       Target = None
       Hidden = false
       Deleted = false
@@ -349,7 +348,6 @@ let handlerTests =
             let p = probe [ ynabCategory "Lebensmittel" ]
             let read =
                 Server.Budgeting.QueryHandlers.budgetMonthWith
-                    (fun _ _ -> async { return () })
                     connect
                     { FetchMonth = p.Port.FetchMonth
                       SetAssigned = fun _ _ _ -> async { return failwith "kein Schreiben" }

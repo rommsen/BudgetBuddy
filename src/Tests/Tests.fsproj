@@ -59,7 +59,7 @@
     <Compile Include="TargetChangeTests.fs" />
     <Compile Include="TargetCheckTests.fs" />
     <Compile Include="TargetCheckQueryTests.fs" />
-    <Compile Include="UnderfundedComparisonTests.fs" />
+    <Compile Include="UnderfundedTests.fs" />
     <Compile Include="SplitTransactionTests.fs" />
     <Compile Include="SplitPushTests.fs" />
     <Compile Include="ImportAskLenaTests.fs" />

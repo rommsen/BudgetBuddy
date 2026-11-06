@@ -55,7 +55,6 @@ let private category groupName name hidden deleted internal' : YnabMonthCategory
       Assigned = eur 1000L
       Activity = eur -500L
       Available = eur 500L
-      Underfunded = None
       Target = None
       Hidden = hidden
       Deleted = deleted
@@ -77,11 +76,6 @@ let private decoderTests =
             Expect.equal c.Activity.Amount -921.1m "activity"
             Expect.equal c.Available.Amount 1120.09m "balance"
             Expect.equal c.GroupName "Alltag" "Gruppe"
-        }
-        test "goal_under_funded 0 ist Some 0, positiv ist Some, null ist None" {
-            Expect.equal decoded.Categories.[0].Underfunded (Some (eur 0L)) "0 bleibt Some 0"
-            Expect.equal decoded.Categories.[1].Underfunded (Some (eur 25500L)) "positiv"
-            Expect.equal decoded.Categories.[2].Underfunded None "null"
         }
         // budgeting-kjsht
         test "goal_target mit Kadenz und Häufigkeit ergibt das Target" {
@@ -111,7 +105,6 @@ let private decoderTests =
             | Ok c ->
                 Expect.isFalse c.Hidden "hidden fehlt"
                 Expect.isFalse c.Deleted "deleted fehlt"
-                Expect.equal c.Underfunded None "kein Target"
             | Error e -> failwith e
         }
         test "Der bestehende Ready-to-Assign-Decoder liest dieselbe Antwort unverändert" {
@@ -193,7 +186,6 @@ let private groupingTests =
         test "Der echte Beispielmonat ergibt zwei Gruppen mit je ihren Kategorien" {
             let result = BudgetEventsFixture.toBudgetMonthOfYnab Set.empty decoded
             Expect.equal (result.Groups |> List.map (fun g -> g.Name, g.Categories.Length)) [ "Alltag", 2; "Rücklagen", 1 ] "Gruppen"
-            Expect.equal result.Groups.[0].Categories.[1].Underfunded (Some (eur 25500L)) "Fehlbetrag bleibt erhalten"
             // budgeting-eh8xe: `goal_snoozed_at` ist gesetzt, eine Pause in YNAB wirkt in BB nicht.
             Expect.equal result.Groups.[0].Categories.[1].Pause None "eine Pause in YNAB ändert in BB nichts"
         }

@@ -1,9 +1,9 @@
-module Tests.UnderfundedComparisonTests
+module Tests.UnderfundedTests
 
-// budgeting-v7kfw, ADR 0084 Punkt 7: BB rechnet den Fehlbetrag selbst, parallel zu YNABs
-// `goal_under_funded`, und hält die Abweichungsliste als vorläufigen Zustand fest. Reine Funktion je
-// Zeile der Zuordnungstabelle, Vergleich, Einbindung in `budgetMonth` und Ablage gegen In-Memory-SQLite.
-// Alle Beträge und Namen sind erfunden.
+// budgeting-v7kfw, budgeting-hbhzf, ADR 0084 Punkt 7: BBs Fehlbetrag. Reine Funktion je Zeile der
+// Zuordnungstabelle, die Zeile des Monatsmodells (gegen das Soll), die Ausgaben der Periode aus dem Kassenbuch
+// (Adapter rein, Lesen eines Monats, Vorschau und Targets anwenden gegen In-Memory-SQLite) und der Rückbau der
+// Parallelrechnung im Schema. Alle Beträge und Namen sind erfunden.
 
 open System
 
@@ -345,173 +345,113 @@ let private ruleTests =
         ]
     ]
 
+
 // ============================================
-// Vergleich
+// Periodenmonate
 // ============================================
 
-let private category (name: string) (target: Target option) (assigned: decimal) (ynab: decimal option) : BudgetCategory =
-    { Id = Guid.NewGuid()
-      Name = name
-      Assigned = eur assigned
-      Activity = eur 0m
-      Available = eur assigned
-      Underfunded = ynab |> Option.map eur
-      Target = target
-      Pause = None; OpenWriteBack = None }
-
-/// Eine Kategorie mit Aktivität und Verfügbar; der Übertrag ist Verfügbar − Zugewiesen − Aktivität.
-let private categoryWithFlow (target: Target) (assigned: decimal) (activity: decimal) (available: decimal) (ynab: decimal) =
-    { category "Fluss" (Some target) assigned (Some ynab) with
-        Activity = eur activity
-        Available = eur available }
-
-let private monthWith (categories: BudgetCategory list) : BudgetMonth =
-    { Month = november
-      ToBeBudgeted = eur 0m
-      Groups = [ { Name = "Alltag"; Categories = categories } ] }
-
-let private rowOf (rows: UnderfundedComparison list) (id: Guid) =
-    rows |> List.find (fun r -> r.CategoryId = id)
-
-let private comparisonTests =
-    testList "Vergleich" [
-        testCase "Gleich, Abweichung mit Differenz BB − YNAB und DEBT als nicht gerechnet; ohne Target fehlt" <| fun () ->
-            let equal = category "Gleich" (Some (need 100m (Months 1))) 40m (Some 60m)
-            let deviating = category "Abweichend" (Some (need 100m (Months 1))) 40m (Some 50m)
-            let debt = category "Schulden" (Some { need 100m (Months 1) with Kind = Debt }) 0m (Some 100m)
-            let withoutTarget = category "Ohne" None 0m None
-            let rows = compareUnderfunded (monthWith [ equal; deviating; debt; withoutTarget ]) Map.empty
-
-            Expect.equal (rows |> List.map (fun r -> r.CategoryId)) [ equal.Id; deviating.Id; debt.Id ] "ohne Target fehlt"
-            let e = rowOf rows equal.Id
-            Expect.equal e.Outcome Equal "gleich"
-            Expect.equal e.Difference (Some (eur 0m)) "Differenz 0"
-            let d = rowOf rows deviating.Id
-            Expect.equal d.Outcome Deviation "abweichend"
-            Expect.equal (d.Bb, d.Ynab, d.Difference) (Some (eur 60m), Some (eur 50m), Some (eur 10m)) "beide Werte und BB − YNAB"
-            Expect.equal d.Rule (Some MonthlyRule) "Formel"
-            let n = rowOf rows debt.Id
-            Expect.equal n.Outcome NotCompared "DEBT nicht gerechnet"
-            Expect.equal (n.Bb, n.Difference) (None, None) "keine Abweichung 0"
-            Expect.isSome n.Reason "Grund"
-            Expect.equal n.Kind Debt "Art"
-
-        testCase "Jeder Fall der Zeile \"Nicht gerechnet\" erscheint als nicht gerechnet mit Grund" <| fun () ->
-            let targets =
-                [ { need 100m (Months 1) with Kind = OtherKind "XYZ" }
-                  need 10m (Weeks 1)
-                  { need 10m (Weeks 2) with Day = Some 1 }
-                  need 90m (Months 3)
-                  need 120m (Years 1)
-                  need 50m NoRhythm ]
-            let rows = compareUnderfunded (monthWith (targets |> List.map (fun t -> category "X" (Some t) 0m (Some 0m)))) Map.empty
-            for row in rows do
-                Expect.equal row.Outcome NotCompared "nicht gerechnet"
-                Expect.isNone row.Difference "keine Differenz"
-                Expect.isSome row.Reason "Grund"
-            Expect.equal rows.Length targets.Length "alle da"
-
-        testCase "Der Vergleich rechnet mit dem Übertrag aus Verfügbar, Zugewiesen und Aktivität und mit dem gelesenen Monat" <| fun () ->
-            // Übertrag = 50 − 20 − (−30) = 60; Auffüllen bis 100: 100 − (60 + 20) = 20.
-            let refill = categoryWithFlow { need 100m (Months 1) with NeedsWholeAmount = Some false } 20m -30m 50m 20m
-            // Fälligkeit Dezember, gelesen im November: zwei Monate, 60 / 2 = 30.
-            let due = categoryWithFlow { need 60m (Months 1) with Date = Some "2026-12-31" } 0m 0m 0m 30m
-            let rows = compareUnderfunded (monthWith [ refill; due ]) Map.empty
-            Expect.equal (rowOf rows refill.Id).Bb (Some (eur 20m)) "Übertrag gerechnet"
-            Expect.equal (rowOf rows refill.Id).Outcome Equal "gleich mit YNAB"
-            Expect.equal (rowOf rows due.Id).Bb (Some (eur 30m)) "Monat aus dem BudgetMonth"
-            Expect.equal (rowOf rows due.Id).Outcome Equal "gleich mit YNAB"
-
-        testCase "Der Vergleich rechnet mit den Ausgaben der Periode je Kategorie, fehlt ein Monat mit Grund" <| fun () ->
-            // budgeting-b9869. Fällig 2027-03, jährlich: Periode März bis Oktober (budgeting-pf8n7), November bis März 5 Monate.
-            let target = { need 60m (Years 1) with Date = Some "2026-03-15" }
-            let spent = categoryWithFlow target 5m 0m 30m 0m
-            let missing = categoryWithFlow target 5m 0m 30m 0m
-            let earlier =
-                Map.ofList
-                    [ spent.Id, Map.ofList [ for m in 3 .. 10 -> $"2026-%02d{m}-01", (if m = 6 then eur -10m else eur 0m) ]
-                      missing.Id, Map.ofList [ for m in 3 .. 9 -> $"2026-%02d{m}-01", eur 0m ] ]
-            let rows = compareUnderfunded (monthWith [ spent; missing ]) earlier
-            Expect.equal (rowOf rows spent.Id).Outcome Equal "(60 − (25 + 10)) / 5 − 5 = 0 wie YNAB"
-            let m = rowOf rows missing.Id
-            Expect.equal m.Outcome NotCompared "nicht gerechnet"
-            Expect.equal m.Reason (Some PeriodActivityMissingText) "Grund"
-            Expect.isNone m.Bb "kein Betrag"
-
+let private periodTests =
+    testList "Periodenmonate" [
         testCase "Gebraucht werden die Periodenmonate aller Targets mit Fälligkeit, jeder Monat einmal" <| fun () ->
             // budgeting-b9869, Grenze nach budgeting-pf8n7. Jährlich fällig im März: März bis Oktober. Vierteljährlich
             // fällig im Dezember: September und Oktober.
-            let annual = category "Jährlich" (Some { need 60m (Years 1) with Date = Some "2026-03-15" }) 0m (Some 0m)
-            let quarterly = category "Vierteljährlich" (Some { need 30m (Months 3) with Date = Some "2026-09-30" }) 0m (Some 0m)
-            let monthly = category "Monatlich" (Some (need 100m (Months 1))) 0m (Some 100m)
-            let withoutTarget = category "Ohne" None 0m None
+            let annual, quarterly, monthly = Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()
+            let targets =
+                Map.ofList
+                    [ annual, { need 60m (Years 1) with Date = Some "2026-03-15" }
+                      quarterly, { need 30m (Months 3) with Date = Some "2026-09-30" }
+                      monthly, need 100m (Months 1) ]
             Expect.equal
-                (periodMonthsNeeded (monthWith [ annual; quarterly; monthly; withoutTarget ]))
+                (periodMonthsNeeded targets november)
                 [ for m in 3 .. 10 -> $"2026-%02d{m}-01" ]
                 "März bis Oktober, September und Oktober nur einmal"
-            Expect.equal (periodMonthsNeeded (monthWith [ monthly; withoutTarget ])) [] "ohne Fälligkeit keine Monate"
-
-        testCase "Eine pausierte Kategorie wird verglichen und trägt das Kennzeichen pausiert" <| fun () ->
-            let paused = { category "Pausiert" (Some (need 100m (Months 1))) 0m (Some 100m) with Pause = Some PausedInBb }
-            let active = category "Aktiv" (Some (need 100m (Months 1))) 0m (Some 100m)
-            let rows = compareUnderfunded (monthWith [ paused; active ]) Map.empty
-            let p = rowOf rows paused.Id
-            Expect.equal p.Outcome Equal "verglichen"
-            Expect.isTrue p.Paused "pausiert"
-            Expect.isFalse (rowOf rows active.Id).Paused "nicht pausiert"
-
-        testCase "Target, aber YNAB ohne Fehlbetrag: nicht gerechnet mit Grund \"YNAB ohne Wert\"" <| fun () ->
-            let c = category "Ohne Wert" (Some (need 100m (Months 1))) 0m None
-            let row = rowOf (compareUnderfunded (monthWith [ c ]) Map.empty) c.Id
-            Expect.equal row.Outcome NotCompared "nicht gerechnet"
-            Expect.equal row.Reason (Some YnabWithoutValueText) "Grund"
-            Expect.equal row.Bb (Some (eur 100m)) "BBs Wert bleibt"
-
-        testCase "Die Log-Zeile nennt Monat und die drei Anzahlen, keine Beträge" <| fun () ->
-            let rows =
-                compareUnderfunded (
-                    monthWith
-                        [ category "A" (Some (need 100m (Months 1))) 0m (Some 100m)
-                          category "B" (Some (need 100m (Months 1))) 0m (Some 90m)
-                          category "C" (Some { need 100m (Months 1) with Kind = Debt }) 0m (Some 0m) ]
-                ) Map.empty
-            Expect.equal
-                (comparisonSummary november rows)
-                "Parallelrechnung Fehlbetrag 2026-11-01: 1 gleich, 1 abweichend, 1 nicht gerechnet"
-                "Log-Zeile"
+            Expect.equal (List.sort (periodCategoriesNeeded targets november)) (List.sort [ annual; quarterly ]) "nur mit Periode"
+            Expect.equal (periodMonthsNeeded (Map.ofList [ monthly, need 100m (Months 1) ]) november) [] "ohne Fälligkeit keine Monate"
     ]
 
 // ============================================
-// Einbindung in budgetMonth und Ablage
+// BBs Fehlbetrag in der Zeile (budgeting-hbhzf)
 // ============================================
 
-let private ynabMonth (monthKey: string) : YnabMonth =
-    let raw (name: string) (under: decimal) : YnabMonthCategory =
-        { Id = Guid.NewGuid()
-          Name = name
-          GroupName = "Alltag"
-          Assigned = eur 20m
-          Activity = eur 0m
-          Available = eur 20m
-          Underfunded = Some (eur under)
-          Target = Some (need 100m (Months 1))
-          Hidden = false
-          Deleted = false
-          Internal = false }
-    { Month = monthKey; ToBeBudgeted = eur 500m; Categories = [ raw "Eins" 80m; raw "Zwei" 70m ] }
+let private rawMonth (id: Guid) (assigned: decimal) (activity: decimal) (available: decimal) : YnabMonth =
+    { Month = november
+      ToBeBudgeted = eur 0m
+      Categories =
+        [ { Id = id; Name = "Zeile"; GroupName = "Alltag"; Assigned = eur assigned; Activity = eur activity
+            Available = eur available; Target = None; Hidden = false; Deleted = false; Internal = false } ] }
 
-let private portFor (month: YnabMonth) : CommandHandlers.YnabPort =
-    { FetchMonth = fun _ -> async { return Ok month }
-      SetAssigned = fun _ _ _ -> async { return failwith "kein Schreiben erwartet" }
-      FetchCategoryGoals = fun () -> async { return Ok (BudgetEventsFixture.goalsOf month) } }
+let private rowIn (month: BudgetMonth) : BudgetCategory =
+    month.Groups |> List.collect (fun g -> g.Categories) |> List.exactlyOne
 
-/// Der Zeitpunkt des Lesens (UTC): stempelt Übernahme und Beobachtungen (budgeting-dgrp7).
+/// BBs Faltung mit offener Rückschreibung: Soll `soll`, bestätigt `confirmed` (Euro).
+let private openAt (id: Guid) (soll: decimal) (confirmed: decimal) : Map<Guid, AssignmentState> option =
+    Some (Map.ofList [ id, { Assigned = toMilliunits (eur soll); Confirmed = toMilliunits (eur confirmed); Open = Some (Guid.NewGuid()) } ])
+
+let private noActivity : Map<Guid, Map<string, Money>> option = Some Map.empty
+
+let private projectionTests =
+    testList "BBs Fehlbetrag in der Zeile" [
+        testCase "Die Zeile zeigt fehlt aus BBs Fehlbetrag gegen das Soll, YNABs Wert zählt nicht" <| fun () ->
+            // Regressionstest budgeting-hbhzf: vorher stand hier YNABs `goal_under_funded` (30, auf YNABs Zugewiesen 20).
+            let id = Guid.NewGuid()
+            let month = toBudgetMonthWith (openAt id 30m 20m) noActivity (Map.ofList [ id, need 50m (Months 1) ]) Set.empty (rawMonth id 20m 0m 20m)
+            let row = rowIn month
+            Expect.equal row.Underfunded (Some (eur 20m)) "50 − Soll 30"
+            Expect.equal (missingAmount row) (Some (eur 20m)) "fehlt"
+
+        testCase "Der Übertrag kommt aus YNABs Verfügbar, Zugewiesen und Aktivität, unabhängig vom Soll" <| fun () ->
+            // Übertrag = 50 − 20 − (−30) = 60. Auffüllen bis 100 mit Soll 30: 100 − (60 + 30) = 10. Mit dem Soll im
+            // Übertrag wären es 20.
+            let id = Guid.NewGuid()
+            let refill = { need 100m (Months 1) with NeedsWholeAmount = Some false }
+            let month = toBudgetMonthWith (openAt id 30m 20m) noActivity (Map.ofList [ id, refill ]) Set.empty (rawMonth id 20m -30m 50m)
+            Expect.equal (rowIn month).Underfunded (Some (eur 10m)) "Übertrag ohne Soll"
+
+        testCase "Mit Fälligkeit zählen die Ausgaben der Periode der Kategorie als gedeckt" <| fun () ->
+            // Jährlich fällig im März, gelesen im November: Periode März bis Oktober, November bis März 5 Monate.
+            // Übertrag 25, Ausgaben im Juni 10: (60 − 35) / 5 = 5; ohne die Ausgaben 7.
+            let id = Guid.NewGuid()
+            let target = { need 60m (Years 1) with Date = Some "2026-03-15" }
+            let activity = Some (Map.ofList [ id, Map.ofList [ for m in 3 .. 10 -> $"2026-%02d{m}-01", (if m = 6 then eur -10m else eur 0m) ] ])
+            let month = toBudgetMonthWith None activity (Map.ofList [ id, target ]) Set.empty (rawMonth id 0m 0m 25m)
+            Expect.equal (rowIn month).Underfunded (Some (eur 5m)) "gedeckt"
+
+        testCase "Rechnet BB den Fehlbetrag nicht, zeigt die Zeile kein fehlt und Targets anwenden lässt sie weg" <| fun () ->
+            let id, due = Guid.NewGuid(), Guid.NewGuid()
+            let debt = { need 100m (Months 1) with Kind = Debt }
+            // Eine Fälligkeit, deren Periode im Kassenbuch fehlt (`PeriodActivityMissingText`).
+            let annual = { need 60m (Years 1) with Date = Some "2026-03-15" }
+            let raw = { rawMonth id 0m 0m 0m with Categories = (rawMonth id 0m 0m 0m).Categories @ (rawMonth due 0m 0m 0m).Categories }
+            let month = toBudgetMonthWith None noActivity (Map.ofList [ id, debt; due, annual ]) Set.empty raw
+            for row in month.Groups |> List.collect (fun g -> g.Categories) do
+                Expect.equal row.Underfunded None "kein Fehlbetrag"
+                Expect.equal (missingAmount row) None "kein fehlt"
+            match planTargetApplication month with
+            | Ok preview -> Expect.isEmpty preview.Lines "weggelassen"
+            | Error message -> failtest message
+
+        testCase "Ohne Target in BB trägt die Zeile keinen Fehlbetrag" <| fun () ->
+            let id = Guid.NewGuid()
+            let month = toBudgetMonthWith None noActivity Map.empty Set.empty (rawMonth id 0m 0m 0m)
+            Expect.equal (rowIn month).Underfunded None "ohne Target"
+
+        testCase "Ohne Ausgaben der Periode trägt keine Zeile einen Fehlbetrag, auch ein monatliches Target nicht" <| fun () ->
+            let id = Guid.NewGuid()
+            let month = toBudgetMonthWith None None (Map.ofList [ id, need 50m (Months 1) ]) Set.empty (rawMonth id 0m 0m 0m)
+            Expect.equal (rowIn month).Underfunded None "kein Fehlbetrag"
+            Expect.equal (rowIn month).Target (Some (need 50m (Months 1))) "das Target bleibt"
+    ]
+
+// ============================================
+// Ausgaben der Periode aus dem Kassenbuch (budgeting-k5q2w, budgeting-hbhzf)
+// ============================================
+
 let private readAt = DateTime(2031, 3, 2, 8, 0, 0, DateTimeKind.Utc)
 
 /// Ein YNAB-Monat mit einer Kategorie "Jährlich" (budgeting-b9869): Ziel 60, jährlich fällig im März (das
 /// gespeicherte Datum liegt weit zurück, `dueFrom` schiebt es). Gelesen im November: Periode März bis Oktober,
 /// November bis März 5 Monate.
-let private annualMonth (categoryId: Guid) (monthKey: string) (assigned: decimal) (activity: decimal) (available: decimal) (ynab: decimal) : YnabMonth =
+let private annualMonth (categoryId: Guid) (monthKey: string) (assigned: decimal) (activity: decimal) (available: decimal) : YnabMonth =
     { Month = monthKey
       ToBeBudgeted = eur 0m
       Categories =
@@ -521,16 +461,17 @@ let private annualMonth (categoryId: Guid) (monthKey: string) (assigned: decimal
             Assigned = eur assigned
             Activity = eur activity
             Available = eur available
-            Underfunded = Some (eur ynab)
             Target = Some { need 60m (Years 1) with Date = Some "2000-03-15" }
             Hidden = false
             Deleted = false
             Internal = false } ] }
 
 /// Ein Port, der jeden YNAB-Aufruf mitschreibt (Grenze: 200 je Stunde): `FetchMonth` mit dem Monat,
-/// `FetchCategoryGoals` als "categories" mit den Goals des zuletzt gelesenen Monats (budgeting-eh8xe).
-let private countingPort (monthOf: string -> YnabMonth) : CommandHandlers.YnabPort * ResizeArray<string> =
+/// `FetchCategoryGoals` als "categories" mit den Goals des zuletzt gelesenen Monats (budgeting-eh8xe), `SetAssigned`
+/// als (Kategorie, Milliunits) in der zweiten Liste.
+let private countingPort (monthOf: string -> YnabMonth) : CommandHandlers.YnabPort * ResizeArray<string> * ResizeArray<Guid * int64> =
     let calls = ResizeArray<string>()
+    let writes = ResizeArray<Guid * int64>()
     let last = ref None
     { FetchMonth =
         fun key ->
@@ -539,147 +480,15 @@ let private countingPort (monthOf: string -> YnabMonth) : CommandHandlers.YnabPo
                 lock calls (fun () -> calls.Add key; last.Value <- Some month)
                 return Ok month
             }
-      SetAssigned = fun _ _ _ -> async { return failwith "kein Schreiben erwartet" }
+      SetAssigned = fun _ id milliunits -> async { lock writes (fun () -> writes.Add((id, milliunits))); return Ok () }
       FetchCategoryGoals =
         fun () ->
             async {
                 let month = lock calls (fun () -> calls.Add "categories"; last.Value)
                 return Ok (month |> Option.map BudgetEventsFixture.goalsOf |> Option.defaultValue [])
             } },
-    calls
-
-let private handlerTests =
-    // Das Schema braucht `budgetMonthWith` für die BB-Pausen und die Übernahme des Monats; das
-    // Speichern der Abweichungsliste kommt hier nur als Funktionswert herein.
-    let testCase name body =
-        testCase name (fun () ->
-            Budgeting.Persistence.initializeBudgetingSchema ()
-            body ())
-
-    testList "Einbindung in budgetMonth" [
-        testCase "Die Speicherfunktion bekommt die Vergleichszeilen des übernommenen Monats, die Antwort hängt nicht vom Speichern ab" <| fun () ->
-            let monthKey = "2031-03-01"
-            let raw = ynabMonth monthKey
-            let port = portFor raw
-            let saved = ResizeArray<string * UnderfundedComparison list>()
-            let save month rows = async { saved.Add((month, rows)) }
-
-            let withComparison = QueryHandlers.budgetMonthWith save global.Persistence.getConnection port readAt monthKey |> run
-            let without = QueryHandlers.budgetMonthWith (fun _ _ -> async { return () }) global.Persistence.getConnection port readAt monthKey |> run
-
-            Expect.equal withComparison without "Antwort an den Client wie ohne Vergleich"
-            // Erwartet, unabhängig von der Antwort: der Monat mit BBs Soll gleich YNABs Stand, wie ihn die Übernahme
-            // beim ersten Lesen hinterlässt.
-            let takenOver =
-                raw.Categories
-                |> List.map (fun c -> c.Id, { Assigned = toMilliunits c.Assigned; Confirmed = toMilliunits c.Assigned; Open = None })
-                |> Map.ofList
-            let expected = compareUnderfunded (toBudgetMonthWith (Some takenOver) (BudgetEventsFixture.ynabTargets raw) Set.empty raw) Map.empty
-            Expect.equal (List.ofSeq saved) [ monthKey, expected ] "Zeilen dieses Monats"
-            Expect.equal (expected |> List.map (fun r -> r.Outcome)) [ Equal; Deviation ] "ein Treffer, eine Abweichung"
-
-        testCase "Eine Speicherfunktion, die wirft, lässt das Lesen nicht scheitern" <| fun () ->
-            let monthKey = "2031-04-01"
-            let port = portFor (ynabMonth monthKey)
-            let save _ _ : Async<unit> = async { return failwith "Datenbank weg" }
-
-            let result = QueryHandlers.budgetMonthWith save global.Persistence.getConnection port readAt monthKey |> run
-            let without = QueryHandlers.budgetMonthWith (fun _ _ -> async { return () }) global.Persistence.getConnection port readAt monthKey |> run
-
-            Expect.isOk result "Ok trotz Fehler"
-            Expect.equal result without "derselbe Monat"
-    ]
-
-let private storedRows (month: string) : (string * string * string * Nullable<int64> * Nullable<int64> * int64) list =
-    use conn = global.Persistence.getConnection ()
-    Dapper.SqlMapper.Query<string * string * string * Nullable<int64> * Nullable<int64> * int64>(
-        conn,
-        "SELECT category_name AS item1, kind AS item2, outcome AS item3, bb_milliunits AS item4, \
-         ynab_milliunits AS item5, paused AS item6 \
-         FROM underfunded_comparisons WHERE month = @month ORDER BY category_name",
-        {| month = month |})
-    |> Seq.toList
-
-/// Die übrigen Spalten einer gespeicherten Zeile: Kategorie-Id, Formel, Grund, Zeitpunkt.
-let private storedDetails (month: string) (name: string) : string * string * string * string =
-    use conn = global.Persistence.getConnection ()
-    Dapper.SqlMapper.Query<string * string * string * string>(
-        conn,
-        "SELECT category_id AS item1, rule AS item2, reason AS item3, compared_at AS item4 \
-         FROM underfunded_comparisons WHERE month = @month AND category_name = @name",
-        {| month = month; name = name |})
-    |> Seq.exactlyOne
-
-let private comparisonRow (month: string) (name: string) (outcome: ComparisonOutcome) : UnderfundedComparison =
-    { Month = month
-      CategoryId = Guid.NewGuid()
-      CategoryName = name
-      Kind = Need
-      Rule = Some MonthlyRule
-      Outcome = outcome
-      Bb = Some (eur 12.34m)
-      Ynab = (if outcome = NotCompared then None else Some (eur 10m))
-      Difference = None
-      Reason = (if outcome = NotCompared then Some YnabWithoutValueText else None)
-      Paused = false }
-
-let private persistenceTests =
-    testSequenced <| testList "Ablage in underfunded_comparisons" [
-        testCase "Ein zweites Speichern ersetzt die Zeilen des Monats, andere Monate bleiben" <| fun () ->
-            Budgeting.Persistence.initializeBudgetingSchema ()
-            let save = Budgeting.Persistence.saveUnderfundedComparisonsWith global.Persistence.getConnection
-            let at = DateTime(2031, 5, 2, 8, 0, 0, DateTimeKind.Utc)
-            let month = "2031-05-01"
-            let other = "2031-06-01"
-            let a = comparisonRow month "A" Deviation
-            let b = comparisonRow month "B" NotCompared
-            let o = comparisonRow other "O" Equal
-
-            save at other [ o ] |> run
-            save at month [ a; b ] |> run
-            Expect.equal
-                (storedRows month)
-                [ "A", "NEED", "Abweichung", Nullable 12340L, Nullable 10000L, 0L
-                  "B", "NEED", "Nicht gerechnet", Nullable 12340L, Nullable(), 0L ]
-                "erstes Speichern"
-            let stamp = at.ToString("o", Globalization.CultureInfo.InvariantCulture)
-            Expect.equal (storedDetails month "A") (string a.CategoryId, "Monatlich", null, stamp) "A: Id, Formel, kein Grund, Zeitpunkt"
-            Expect.equal (storedDetails month "B") (string b.CategoryId, "Monatlich", YnabWithoutValueText, stamp) "B: mit Grund"
-
-            save at month [ { a with Outcome = Equal; Paused = true } ] |> run
-            Expect.equal (storedRows month) [ "A", "NEED", "Gleich", Nullable 12340L, Nullable 10000L, 1L ] "B ist weg, A ersetzt"
-            Expect.equal (storedRows other) [ "O", "NEED", "Gleich", Nullable 12340L, Nullable 10000L, 0L ] "anderer Monat unberührt"
-
-        testCase "Das Schema entfernt category_month_activity, auch wiederholt" <| fun () ->
-            // budgeting-k5q2w: die Tabelle war abgeleiteter Zustand, die Ausgaben der Periode kommen aus dem Kassenbuch.
-            // Auf einer eigenen Datenbank: in der geteilten sähen parallele Tests die Tabelle und sperrten mit (Review).
-            use conn = new Microsoft.Data.Sqlite.SqliteConnection("Data Source=:memory:")
-            conn.Open()
-            Dapper.SqlMapper.Execute(conn, "CREATE TABLE category_month_activity (month TEXT NOT NULL)") |> ignore
-            Budgeting.Persistence.dropMonthActivityOn conn
-            Budgeting.Persistence.dropMonthActivityOn conn
-            let count =
-                Dapper.SqlMapper.ExecuteScalar<int64>(
-                    conn,
-                    "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'category_month_activity'")
-            Expect.equal count 0L "Tabelle entfernt"
-
-        testCase "budgetMonth hält die Abweichungsliste des gelesenen Monats in der Datenbank fest" <| fun () ->
-            // Belegt den Live-Anschluss: `budgetMonth` gibt `saveUnderfundedComparisons` an `budgetMonthWith`.
-            Budgeting.Persistence.initializeBudgetingSchema ()
-            let monthKey = "2031-07-01"
-            let result = QueryHandlers.budgetMonth (portFor (ynabMonth monthKey)) readAt monthKey |> run
-            Expect.isOk result "Monat gelesen"
-            Expect.equal
-                (storedRows monthKey)
-                [ "Eins", "NEED", "Gleich", Nullable 80000L, Nullable 80000L, 0L
-                  "Zwei", "NEED", "Abweichung", Nullable 80000L, Nullable 70000L, 0L ]
-                "zwei Zeilen"
-    ]
-
-// ============================================
-// Ausgaben der Periode aus dem Kassenbuch (budgeting-k5q2w)
-// ============================================
+    calls,
+    writes
 
 let private utc (y: int) (m: int) (d: int) = DateTime(y, m, d, 0, 0, 0, DateTimeKind.Utc)
 
@@ -714,13 +523,38 @@ let private initializeWithLedger () =
     Ledger.Persistence.initializeLedgerSchema ()
     Budgeting.Persistence.initializeBudgetingSchema ()
 
+/// Das Kassenbuch scheitert bei jedem Lesen.
+let private brokenLedger: CommandHandlers.LedgerActivityPort =
+    { LoadMonthlyActivity = fun _ _ -> async { return failwith "Kassenbuch weg" }
+      LoadFirstEntryDate = fun () -> async { return failwith "Kassenbuch weg" } }
+
+/// Die Gruppe der Tests, die das Server-Log fangen (auch in `BudgetLeadTests`).
+[<Literal>]
+let ServerLogGroup = "Server-Log"
+
+/// Fängt, was der Server ins Fehler-Log schreibt, während `work` läuft.
+let private stderrOf (work: unit -> 'a) : 'a * string =
+    let original = Console.Error
+    use writer = new IO.StringWriter()
+    Console.SetError writer
+    try
+        let result = work ()
+        result, writer.ToString()
+    finally
+        Console.SetError original
+
+let private pageRow (result: YnabResult<BudgetMonth>) : BudgetCategory =
+    match result with
+    | Ok month -> rowIn month
+    | Error e -> failtest $"Monat erwartet: {e}"
+
 let private ledgerAdapterTests =
     let a, b = Guid.NewGuid(), Guid.NewGuid()
     let months = [ "2026-03-01"; "2026-04-01"; "2026-05-01" ]
     testList "Ausgaben der Periode aus dem Kassenbuch, Adapter" [
         testCase "Ein Periodenmonat ohne Buchung der Kategorie zählt als 0" <| fun () ->
             let sums = Map.ofList [ a, [ DateTime(2026, 4, 1), eur -12.5m ] ]
-            let activity = QueryHandlers.periodActivityFromLedger [ a; b ] months (Some (DateTime(2019, 7, 14))) sums
+            let activity = periodActivityFromLedger [ a; b ] months (Some (DateTime(2019, 7, 14))) sums
             Expect.equal
                 (activity |> Map.tryFind a)
                 (Some (Map.ofList [ "2026-03-01", eur 0m; "2026-04-01", eur -12.5m; "2026-05-01", eur 0m ]))
@@ -731,52 +565,53 @@ let private ledgerAdapterTests =
                 "b ohne Buchung: jeder Monat 0"
 
         testCase "Ein Periodenmonat vor dem Monat der ersten Buchung fehlt, der Monat der ersten Buchung zählt" <| fun () ->
-            let activity = QueryHandlers.periodActivityFromLedger [ a ] months (Some (DateTime(2026, 4, 30))) Map.empty
+            let activity = periodActivityFromLedger [ a ] months (Some (DateTime(2026, 4, 30))) Map.empty
             Expect.equal (activity |> Map.tryFind a) (Some (Map.ofList [ "2026-04-01", eur 0m; "2026-05-01", eur 0m ])) "März fehlt"
 
         testCase "Ohne Buchung im Kassenbuch fehlt jeder Monat" <| fun () ->
-            let activity = QueryHandlers.periodActivityFromLedger [ a ] months None Map.empty
+            let activity = periodActivityFromLedger [ a ] months None Map.empty
             Expect.equal (activity |> Map.tryFind a) (Some Map.empty) "kein Monat"
 
-        testCase "Fehlt ein Periodenmonat, ist der Fehlbetrag nicht gerechnet, mit Grund" <| fun () ->
+        testCase "Fehlt ein Periodenmonat, trägt die Zeile keinen Fehlbetrag" <| fun () ->
             // Jährlich fällig im März, gelesen im November: Periode März bis Oktober. Erste Buchung im Mai.
             let november = "2032-11-01"
             let id = Guid.NewGuid()
-            let month = toBudgetMonthWith None (BudgetEventsFixture.ynabTargets (annualMonth id november 5m 0m 30m 0m)) Set.empty (annualMonth id november 5m 0m 30m 0m)
-            let needed = periodMonthsNeeded month
-            let activity = QueryHandlers.periodActivityFromLedger (periodCategoriesNeeded month) needed (Some (DateTime(2032, 5, 3))) Map.empty
-            let row = compareUnderfunded month activity |> List.exactlyOne
-            Expect.equal (row.Outcome, row.Reason) (NotCompared, Some PeriodActivityMissingText) "nicht gerechnet"
-            let complete = QueryHandlers.periodActivityFromLedger (periodCategoriesNeeded month) needed (Some (DateTime(2032, 3, 31))) Map.empty
-            let row = compareUnderfunded month complete |> List.exactlyOne
-            Expect.equal row.Reason None "Gegenprobe: ab März gerechnet"
+            let raw = annualMonth id november 5m 0m 30m
+            let targets = BudgetEventsFixture.ynabTargets raw
+            let needed = periodMonthsNeeded targets november
+            let ids = periodCategoriesNeeded targets november
+            let late = periodActivityFromLedger ids needed (Some (DateTime(2032, 5, 3))) Map.empty
+            Expect.equal (rowIn (toBudgetMonthWith None (Some late) targets Set.empty raw)).Underfunded None "nicht gerechnet"
+            let complete = periodActivityFromLedger ids needed (Some (DateTime(2032, 3, 31))) Map.empty
+            Expect.equal
+                (rowIn (toBudgetMonthWith None (Some complete) targets Set.empty raw)).Underfunded
+                (Some (eur 2m))
+                "Gegenprobe: ab März gerechnet, (60 − 25) / 5 − 5 = 2"
     ]
 
 let private ledgerHandlerTests =
     // Kassenbuch und Budget-Streams teilen die In-Memory-DB. Isolation über neue Kategorie-Ids und eigene Monate (die
-    // Jahre 2032, 2037 und 2038 gehören nur diesen Tests), je
-    // Test; eine Buchung vor der Periode sichert, dass die erste Buchung des Kassenbuchs nicht später liegt (andere
-    // Tests können sie nur früher legen).
-    testList "Ausgaben der Periode aus dem Kassenbuch, Lesen eines Monats" [
-        testCase "Ausgaben der Periode im Kassenbuch zählen als gedeckt, ohne je gelesene frühere Monate" <| fun () ->
-            // Regressionstest budgeting-k5q2w: vorher fehlten nie gelesene Monate, der Fehlbetrag war "nicht gerechnet".
+    // Jahre 2032 bis 2039 gehören nur diesen Tests), je Test; eine Buchung vor der Periode sichert, dass die erste
+    // Buchung des Kassenbuchs nicht später liegt (andere Tests können sie nur früher legen).
+    // Die Tests fangen das Server-Log über `Console.SetError`: nie gleichzeitig mit anderen, die es auch tun.
+    testSequencedGroup ServerLogGroup
+    <| testList "Ausgaben der Periode aus dem Kassenbuch, Lesen eines Monats" [
+        testCase "Die Seite zeigt BBs Fehlbetrag, Ausgaben der Periode im Kassenbuch zählen als gedeckt" <| fun () ->
+            // Regressionstest budgeting-hbhzf: vorher zeigte die Seite YNABs `goal_under_funded`. Regressionstest
+            // budgeting-k5q2w: vorher fehlten nie gelesene frühere Monate.
             initializeWithLedger ()
             let id = Guid.NewGuid()
-            let november = "2032-11-01"
-            booked id (utc 2032 2 10) -1m
-            booked id (utc 2032 6 14) -10m
-            let port, calls = countingPort (fun key -> annualMonth id key 5m 0m 30m 0m)
-            let saved = ResizeArray<UnderfundedComparison list>()
-            let save _ rows = async { saved.Add rows }
+            let november = "2034-11-01"
+            booked id (utc 2034 2 10) -1m
+            booked id (utc 2034 6 14) -10m
+            let port, calls, _ = countingPort (fun key -> annualMonth id key 5m 0m 30m)
 
-            let result = QueryHandlers.budgetMonthWith save global.Persistence.getConnection port readAt november |> run
+            let row = QueryHandlers.budgetMonthWith global.Persistence.getConnection port readAt november |> run |> pageRow
 
-            Expect.isOk result "Monat gelesen"
+            // (60 − (25 + 10)) / 5 − 5 = 0; ohne die Ausgaben wären es 2.
+            Expect.equal row.Underfunded (Some (eur 0m)) "gedeckt"
             // budgeting-eh8xe: das erste Lesen übernimmt das Target und fragt dafür einmal `/categories`.
             Expect.equal (List.ofSeq calls) [ november; "categories" ] "ein YNAB-Aufruf für den Monat, einer für die Übernahme"
-            let row = saved |> Seq.exactlyOne |> List.exactlyOne
-            // (60 − (25 + 10)) / 5 − 5 = 0 wie YNAB; ohne die Ausgaben wären es 2.
-            Expect.equal (row.Outcome, row.Bb) (Equal, Some (eur 0m)) "gedeckt wie YNAB"
 
         testCase "Eine Ausgabe, die nach dem Lesen eines früheren Monats ins Kassenbuch kam, zählt mit" <| fun () ->
             // Regressionstest budgeting-k5q2w (Review b9869, Backend W1): vorher galt der Stand des letzten Lesens.
@@ -784,38 +619,41 @@ let private ledgerHandlerTests =
             let id = Guid.NewGuid()
             let november = "2038-11-01"
             booked id (utc 2038 2 10) -1m
-            let port, _ = countingPort (fun key -> if key = november then annualMonth id key 5m 0m 30m 0m else annualMonth id key 0m 0m 0m 0m)
-            let ignoreRows _ _ = async { return () }
+            let port, _, _ = countingPort (fun key -> if key = november then annualMonth id key 5m 0m 30m else annualMonth id key 0m 0m 0m)
             for m in 3 .. 10 do
-                QueryHandlers.budgetMonthWith ignoreRows global.Persistence.getConnection port readAt $"2038-%02d{m}-01"
+                QueryHandlers.budgetMonthWith global.Persistence.getConnection port readAt $"2038-%02d{m}-01"
                 |> run
                 |> ignore
             booked id (utc 2038 10 30) -10m
-            let saved = ResizeArray<UnderfundedComparison list>()
-            let save _ rows = async { saved.Add rows }
 
-            QueryHandlers.budgetMonthWith save global.Persistence.getConnection port readAt november |> run |> ignore
+            let row = QueryHandlers.budgetMonthWith global.Persistence.getConnection port readAt november |> run |> pageRow
 
-            let row = saved |> Seq.exactlyOne |> List.exactlyOne
-            Expect.equal (row.Outcome, row.Bb) (Equal, Some (eur 0m)) "die späte Ausgabe im Oktober zählt"
+            Expect.equal row.Underfunded (Some (eur 0m)) "die späte Ausgabe im Oktober zählt"
 
-        testCase "Scheitert das Lesen des Kassenbuchs, ist die Antwort dieselbe und nichts wird gespeichert" <| fun () ->
+        testCase "Ist das Kassenbuch nicht lesbar, kommt der Monat ohne BBs Fehlbetrag und der Grund steht im Log" <| fun () ->
             initializeWithLedger ()
             let id = Guid.NewGuid()
             let november = "2037-11-01"
-            let port = portFor (annualMonth id november 5m 0m 30m 0m)
-            let broken: QueryHandlers.LedgerActivityPort =
-                { LoadMonthlyActivity = fun _ _ -> async { return failwith "Kassenbuch weg" }
-                  LoadFirstEntryDate = fun () -> async { return failwith "Kassenbuch weg" } }
-            let saved = ResizeArray<UnderfundedComparison list>()
-            let save _ rows = async { saved.Add rows }
+            // Dazu ein monatliches Target, das ohne Periodenmonate gerechnet werden könnte (50 − 0).
+            let monthly = Guid.NewGuid()
+            let withMonthly key =
+                let raw = annualMonth id key 5m 0m 30m
+                { raw with
+                    Categories =
+                        raw.Categories
+                        @ [ { raw.Categories.Head with Id = monthly; Name = "Monatlich"; Assigned = eur 0m; Available = eur 0m; Target = Some (need 50m (Months 1)) } ] }
+            let port, _, _ = countingPort withMonthly
 
-            let result = QueryHandlers.budgetMonthWithLedger broken save global.Persistence.getConnection port readAt november |> run
-            let without = QueryHandlers.budgetMonthWith (fun _ _ -> async { return () }) global.Persistence.getConnection port readAt november |> run
+            let result, log =
+                stderrOf (fun () -> QueryHandlers.budgetMonthWithLedger brokenLedger global.Persistence.getConnection port readAt november |> run)
 
-            Expect.isOk result "Ok trotz Fehler"
-            Expect.equal result without "derselbe Monat"
-            Expect.isEmpty saved "keine Abweichungsliste"
+            match result with
+            | Ok month ->
+                let rows = month.Groups |> List.collect (fun g -> g.Categories)
+                Expect.equal (rows |> List.map (fun r -> r.Underfunded)) [ None; None ] "kein Fehlbetrag, auch nicht monatlich"
+                Expect.equal (rows |> List.filter (fun r -> r.Target.IsSome) |> List.length) 2 "der Monat kommt mit Targets"
+            | Error e -> failtest $"Monat erwartet: {e}"
+            Expect.stringContains log "Kassenbuch weg" "Grund im Log"
 
         testCase "Die erste Buchung des Kassenbuchs zählt ohne gelöschte" <| fun () ->
             // 1901 liegt vor jeder anderen Buchung der Tests.
@@ -846,7 +684,7 @@ let private ledgerHandlerTests =
             |> run
 
             // Über den Live-Port: belegt dessen Anschluss an `loadFirstEntryDate` (Doktrin Punkt 3, Review k5q2w).
-            Expect.equal (QueryHandlers.liveLedgerActivityPort.LoadFirstEntryDate () |> run) (Some (DateTime(1901, 1, 3))) "der 2. ist gelöscht"
+            Expect.equal (CommandHandlers.liveLedgerActivityPort.LoadFirstEntryDate () |> run) (Some (DateTime(1901, 1, 3))) "der 2. ist gelöscht"
 
         testCase "Liegt die erste Buchung des Kassenbuchs in der Periode, rechnet BB den Fehlbetrag nicht" <| fun () ->
             // Review k5q2w: belegt, dass das Lesen eines Monats die erste Buchung an den Adapter gibt. Periode März bis
@@ -854,21 +692,107 @@ let private ledgerHandlerTests =
             initializeWithLedger ()
             let id = Guid.NewGuid()
             let november = "2039-11-01"
-            let port = portFor (annualMonth id november 5m 0m 30m 0m)
-            let ledger: QueryHandlers.LedgerActivityPort =
+            let port, _, _ = countingPort (fun key -> annualMonth id key 5m 0m 30m)
+            let ledger: CommandHandlers.LedgerActivityPort =
                 { LoadMonthlyActivity = fun _ _ -> async { return Map.empty }
                   LoadFirstEntryDate = fun () -> async { return Some (DateTime(2039, 5, 2)) } }
-            let saved = ResizeArray<UnderfundedComparison list>()
-            let save _ rows = async { saved.Add rows }
 
-            QueryHandlers.budgetMonthWithLedger ledger save global.Persistence.getConnection port readAt november |> run |> ignore
+            let row = QueryHandlers.budgetMonthWithLedger ledger global.Persistence.getConnection port readAt november |> run |> pageRow
 
-            let row = saved |> Seq.exactlyOne |> List.exactlyOne
-            Expect.equal (row.Outcome, row.Reason) (NotCompared, Some PeriodActivityMissingText) "März und April fehlen"
+            Expect.equal row.Underfunded None "März und April fehlen"
+    ]
+
+let private applyTests =
+    // Die Tests fangen das Server-Log über `Console.SetError`: nie gleichzeitig mit anderen, die es auch tun.
+    testSequencedGroup ServerLogGroup
+    <| testList "Ausgaben der Periode aus dem Kassenbuch, Vorschau und Targets anwenden" [
+        testCase "Targets anwenden zählt die Ausgaben der Periode im Kassenbuch als gedeckt" <| fun () ->
+            // Regressionstest budgeting-hbhzf: vorher wies Targets anwenden YNABs `goal_under_funded` zu.
+            initializeWithLedger ()
+            let id = Guid.NewGuid()
+            let november = "2035-11-01"
+            booked id (utc 2035 2 10) -1m
+            booked id (utc 2035 6 14) -10m
+            let port, _, writes = countingPort (fun key -> annualMonth id key 0m 0m 25m)
+            let shown =
+                match CommandHandlers.previewWith global.Persistence.getConnection port readAt november |> run with
+                | Ok p -> p
+                | Error e -> failtest $"Vorschau erwartet: {e}"
+            // Übertrag 25, Ausgaben im Juni 10: (60 − 35) / 5 = 5. Ohne die Ausgaben wären es 7.
+            Expect.equal (shown.Lines |> List.map (fun l -> l.CategoryId, l.Underfunded)) [ id, eur 5m ] "Vorschau"
+            match CommandHandlers.applyWith global.Persistence.getConnection port readAt november shown |> run with
+            | Ok (Applied _) -> ()
+            | other -> failtest $"Applied erwartet: {other}"
+            Expect.equal (List.ofSeq writes) [ id, 5000L ] "zugewiesen"
+
+        testCase "Ist das Kassenbuch nicht lesbar, lehnen Vorschau und Targets anwenden mit Meldung ab und weisen nichts zu" <| fun () ->
+            initializeWithLedger ()
+            let id = Guid.NewGuid()
+            let november = "2036-11-01"
+            let port, _, writes = countingPort (fun key -> annualMonth id key 0m 0m 25m)
+            let unreadable = Error (YnabError.LocalReadFailed CommandHandlers.PeriodActivityUnreadableText)
+            let shown : TargetPreview =
+                { Month = november
+                  Lines = []
+                  Skipped = []
+                  Total = eur 0m
+                  ToBeBudgeted = eur 0m
+                  ToBeBudgetedAfter = eur 0m
+                  CommandId = Some (Guid.NewGuid()) }
+
+            let preview, previewLog =
+                stderrOf (fun () -> CommandHandlers.previewWithLedger brokenLedger global.Persistence.getConnection port readAt november |> run)
+            let applied, applyLog =
+                stderrOf (fun () -> CommandHandlers.applyWithLedger brokenLedger global.Persistence.getConnection port readAt november shown |> run)
+
+            Expect.equal preview unreadable "Vorschau abgelehnt"
+            Expect.equal (applied |> Result.map ignore) unreadable "Targets anwenden abgelehnt"
+            Expect.stringContains previewLog "Kassenbuch weg" "Grund der Vorschau im Log"
+            Expect.stringContains applyLog "Kassenbuch weg" "Grund im Log"
+            Expect.isEmpty writes "nichts gesendet"
+            let decisions =
+                match Budgeting.Persistence.loadMovements { CategoryId = Some id; Month = None; Origin = None } |> run with
+                | Ok found -> found |> List.filter (fun m -> not (isFromYnab m.Origin))
+                | Error message -> failtest message
+            Expect.isEmpty decisions "keine Entscheidung festgehalten"
+    ]
+
+// ============================================
+// Rückbau im Schema
+// ============================================
+
+let private schemaTests =
+    testList "Rückbau im Schema" [
+        testCase "Das Schema entfernt category_month_activity, auch wiederholt" <| fun () ->
+            // budgeting-k5q2w: die Tabelle war abgeleiteter Zustand, die Ausgaben der Periode kommen aus dem Kassenbuch.
+            // Auf einer eigenen Datenbank: in der geteilten sähen parallele Tests die Tabelle und sperrten mit (Review).
+            use conn = new Microsoft.Data.Sqlite.SqliteConnection("Data Source=:memory:")
+            conn.Open()
+            Dapper.SqlMapper.Execute(conn, "CREATE TABLE category_month_activity (month TEXT NOT NULL)") |> ignore
+            Budgeting.Persistence.dropMonthActivityOn conn
+            Budgeting.Persistence.dropMonthActivityOn conn
+            let count =
+                Dapper.SqlMapper.ExecuteScalar<int64>(
+                    conn,
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'category_month_activity'")
+            Expect.equal count 0L "Tabelle entfernt"
+
+        testCase "Das Schema entfernt underfunded_comparisons, auch wiederholt" <| fun () ->
+            // budgeting-hbhzf: die Abweichungsliste der Parallelrechnung entfällt. Eigene Datenbank wie oben.
+            use conn = new Microsoft.Data.Sqlite.SqliteConnection("Data Source=:memory:")
+            conn.Open()
+            Dapper.SqlMapper.Execute(conn, "CREATE TABLE underfunded_comparisons (month TEXT NOT NULL)") |> ignore
+            Budgeting.Persistence.dropUnderfundedComparisonsOn conn
+            Budgeting.Persistence.dropUnderfundedComparisonsOn conn
+            let count =
+                Dapper.SqlMapper.ExecuteScalar<int64>(
+                    conn,
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'underfunded_comparisons'")
+            Expect.equal count 0L "Tabelle entfernt"
     ]
 
 [<Tests>]
 let tests =
     testList
-        "Fehlbetrag in BB, Parallelrechnung"
-        [ ruleTests; comparisonTests; handlerTests; persistenceTests; ledgerAdapterTests; ledgerHandlerTests ]
+        "Fehlbetrag in BB"
+        [ ruleTests; periodTests; projectionTests; ledgerAdapterTests; ledgerHandlerTests; applyTests; schemaTests ]

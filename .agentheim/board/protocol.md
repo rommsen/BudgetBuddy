@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 15:55 -- Task verified and completed: budgeting-hbhzf - "Fehlbetrag aus BB: Targets anwenden und die Anzeige rechnen mit BBs Fehlbetrag gegen das Soll, Rückbau der Parallelrechnung"
+
+**Type:** Work / Task completion
+**Task:** budgeting-hbhzf - "Fehlbetrag aus BB: Targets anwenden und die Anzeige rechnen mit BBs Fehlbetrag gegen das Soll, Rückbau der Parallelrechnung"
+**Summary:** (no summary provided)
+**Duration:** (unknown)
+**Verification:** PASS (iteration 1)
+**Files changed:** 0
+**Tests added:** 0
+**ADRs written:** none
+
+---
+
 ## 2026-11-06 15:09 -- Batch started: [budgeting-hbhzf]
 
 **Type:** Work / Batch start

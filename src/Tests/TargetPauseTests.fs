@@ -32,7 +32,6 @@ let private ynabCategory (id: Guid) (name: string) : YnabMonthCategory =
       Assigned = eur 0m
       Activity = eur 0m
       Available = eur 0m
-      Underfunded = Some (eur 50m)
       Target = Some target
       Hidden = false
       Deleted = false
@@ -120,7 +119,7 @@ let private domainTests =
             let raw : YnabMonth =
                 { Month = "2026-11-01"
                   ToBeBudgeted = eur 0m
-                  Categories = [ { ynabCategory k "ohne Target" with Target = None; Underfunded = None } ] }
+                  Categories = [ { ynabCategory k "ohne Target" with Target = None } ] }
             Expect.equal (pauseOf (BudgetEventsFixture.toBudgetMonthOfYnab (Set.ofList [ k ]) raw) k) None "keine Pause"
         }
     ]
@@ -148,9 +147,8 @@ type private FakeYnab(categories: (Guid * string * decimal * bool * bool) list) 
                               ToBeBudgeted = eur 1000m
                               Categories =
                                 categories
-                                |> List.map (fun (id, name, under, hasTarget, hidden) ->
+                                |> List.map (fun (id, name, _, hasTarget, hidden) ->
                                     { ynabCategory id name with
-                                        Underfunded = (if hasTarget then Some (eur under) else None)
                                         Target = (if hasTarget then Some target else None)
                                         Hidden = hidden }) }
                 }
@@ -382,7 +380,7 @@ let private flowTests =
             BudgetEventsFixture.appendUnknown anchor (Budgeting.Events.MonthStream "2093-07")
             let loadPaused = Budgeting.Persistence.loadPausedCategoriesWith connect
             let unreadable = YnabError.LocalReadFailed "Pausen nicht lesbar"
-            Expect.equal (QueryHandlers.budgetMonthWith (fun _ _ -> async { return () }) connect f.Port now month |> run) (Error unreadable) "Monat"
+            Expect.equal (QueryHandlers.budgetMonthWith connect f.Port now month |> run) (Error unreadable) "Monat"
             Expect.equal (ynabErrorText unreadable) "BB-Daten nicht lesbar: Pausen nicht lesbar" "Text für den Nutzer"
             Expect.equal
                 (setTargetPauseWith global.Persistence.getConnection loadPaused f.Port now current month { CategoryId = k; Intent = PauseTarget; CommandId = None } |> run)

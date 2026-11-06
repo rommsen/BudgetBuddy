@@ -717,7 +717,6 @@ let private retryPort (month: string) (categories: (Guid * decimal) list) (sent:
           Assigned = { Amount = assigned; Currency = "EUR" }
           Activity = { Amount = 0m; Currency = "EUR" }
           Available = { Amount = assigned; Currency = "EUR" }
-          Underfunded = None
           Target = None
           Hidden = false
           Deleted = false

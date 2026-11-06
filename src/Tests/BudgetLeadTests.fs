@@ -52,7 +52,8 @@ type private FakeYnab(categories: (Guid * string * int64) list) =
     member val CrashOnWrite = false with get, set
     member val OnWrite : Guid -> int64 -> unit = (fun _ _ -> ()) with get, set
     member val OnRead : unit -> unit = ignore with get, set
-    member val Underfunded = Dictionary<Guid, int64>()
+    /// YNABs Goal je Kategorie: BB übernimmt es beim ersten Lesen als Target (budgeting-eh8xe).
+    member val Goals = Dictionary<Guid, Target>()
     member val Hidden = HashSet<Guid>()
     member val Deleted = HashSet<Guid>()
     member val Internal = HashSet<Guid>()
@@ -79,11 +80,10 @@ type private FakeYnab(categories: (Guid * string * int64) list) =
                                           Assigned = eur assigned[id]
                                           Activity = eur 0L
                                           Available = eur assigned[id]
-                                          Underfunded =
-                                            (match this.Underfunded.TryGetValue id with
-                                             | true, v -> Some (eur v)
+                                          Target =
+                                            (match this.Goals.TryGetValue id with
+                                             | true, goal -> Some goal
                                              | _ -> None)
-                                          Target = None
                                           Hidden = this.Hidden.Contains id
                                           Deleted = this.Deleted.Contains id
                                           Internal = this.Internal.Contains id }) }
@@ -101,7 +101,20 @@ type private FakeYnab(categories: (Guid * string * int64) list) =
                         if this.LostAnswers.Contains id then return Error (YnabError.NetworkError "Antwort verloren")
                         else return Ok ()
                 }
-          FetchCategoryGoals = fun () -> async { return Ok [] } }
+          FetchCategoryGoals =
+            fun () ->
+                async {
+                    return
+                        Ok
+                            [ for id, name, _ in categories do
+                                  match this.Goals.TryGetValue id with
+                                  | true, goal -> yield { Id = id; Name = name; Target = Some goal }
+                                  | _ -> () ]
+                } }
+
+/// Ein monatliches Goal über `milliunits`: BBs Fehlbetrag ist Betrag − Soll (ADR 0084 Punkt 7).
+let private monthlyGoal (milliunits: int64) : Target =
+    { Goal = eur milliunits; Rhythm = Months 1; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None; CreatedIn = None }
 
 let private fake () =
     let a, b = Guid.NewGuid(), Guid.NewGuid()
@@ -169,10 +182,8 @@ let private unclosedLines (monthKey: string) : Map<Guid, (Guid * int64) list> =
     |> List.map (fun (category, rows) -> category, rows |> List.map snd)
     |> Map.ofList
 
-let private noSave = fun (_: string) (_: Domain.UnderfundedComparison list) -> async { return () }
-
 let private readWith (connect: unit -> Microsoft.Data.Sqlite.SqliteConnection) (f: FakeYnab) (monthKey: string) =
-    QueryHandlers.budgetMonthWith noSave connect f.Port now monthKey |> run
+    QueryHandlers.budgetMonthWith connect f.Port now monthKey |> run
 
 let private read (f: FakeYnab) (monthKey: string) : BudgetMonth =
     match readWith global.Persistence.getConnection f monthKey with
@@ -744,28 +755,32 @@ let private stderrOf (work: unit -> 'a) : 'a * string =
         Console.SetError original
 
 let private readTests =
-    testSequenced
+    // Fängt das Server-Log über `Console.SetError`, wie die Tests in `UnderfundedTests` (gleiche Gruppe).
+    testSequencedGroup "Server-Log"
     <| testList "Lesen und Targets anwenden" [
-        testCase "Targets anwenden mit offener Rückschreibung auf einer Kategorie mit Fehlbetrag lehnt ab und nennt sie" <| fun () ->
+        // Regressionstest budgeting-hbhzf: vorher lehnte Targets anwenden bei offener Rückschreibung ab
+        // (`TargetsOpenWriteBackText`), weil YNABs Fehlbetrag auf YNABs Zugewiesen gerechnet war. BBs Fehlbetrag
+        // rechnet gegen das Soll.
+        testCase "Targets anwenden mit offener Rückschreibung rechnet gegen das Soll und lehnt nicht ab" <| fun () ->
             let f, a, _ = fake ()
             let month = freshMonth ()
-            f.Underfunded[a] <- 5000L
+            f.Goals[a] <- monthlyGoal 125000L
             f.CrashOnWrite <- true
             crashes (fun () -> assign f month a 120000L None |> ignore)
             f.CrashOnWrite <- false
-            let before = typesOf month
             f.Attempts.Clear()
-            let shownPreview : TargetPreview =
-                { Month = month; Lines = []; Skipped = []; Total = eur 0L; ToBeBudgeted = eur 100000L; ToBeBudgetedAfter = eur 100000L; CommandId = None }
+            let shownPreview =
+                match preview f.Port now month |> run with
+                | Ok p -> p
+                | other -> failtest $"Vorschau erwartet: {other}"
+            Expect.equal
+                (shownPreview.Lines |> List.map (fun l -> l.CategoryId, l.OldAssigned, l.Underfunded, l.NewAssigned))
+                [ a, eur 120000L, eur 5000L, eur 125000L ]
+                "vom Soll aus: 125 − 120"
             match apply f.Port now month shownPreview |> run with
-            | Error (YnabError.RefusedByBb message) ->
-                Expect.stringStarts message $"{Domain.TargetsOpenWriteBackText} Lebensmittel" "Grund mit der Kategorie"
-            | other -> failtest $"Ablehnung erwartet: {other}"
-            match preview f.Port now month |> run with
-            | Error (YnabError.RefusedByBb _) -> ()
-            | other -> failtest $"Vorschau abgelehnt erwartet: {other}"
-            Expect.equal (typesOf month) before "nichts festgehalten"
-            Expect.isEmpty f.Attempts "nichts gesendet"
+            | Ok (Applied _) -> ()
+            | other -> failtest $"Applied erwartet: {other}"
+            Expect.equal (List.ofSeq f.Attempts) [ a, 125000L ] "Soll plus BBs Fehlbetrag"
 
         testCase "Lesen, dessen Anhängen in der Datenbank scheitert, liefert den Monat und loggt den Fehler" <| fun () ->
             let anchor, connect = BudgetEventsFixture.isolatedDb ()
@@ -879,7 +894,7 @@ let private commandTests =
                  |> run
                  |> notRecorded)
                 "Verschieben"
-            f.Underfunded[a] <- 5000L
+            f.Goals[a] <- monthlyGoal 105000L
             let shownPreview : TargetPreview =
                 { Month = month; Lines = []; Skipped = []; Total = eur 0L; ToBeBudgeted = eur 100000L; ToBeBudgetedAfter = eur 100000L; CommandId = None }
             Expect.isTrue (applyWith (failingFirst ()) f.Port now month shownPreview |> run |> notRecorded) "Anwenden"
@@ -908,9 +923,10 @@ let private commandTests =
         testCase "Die Vorschau wendet die Echo-Regel nur im Speicher an und plant auf dem Wert aus YNAB" <| fun () ->
             let f, a, _ = fake ()
             let month = freshMonth ()
+            // BBs Fehlbetrag: 115 − Soll; das Soll folgt der Beobachtung in YNAB (110).
+            f.Goals[a] <- monthlyGoal 115000L
             read f month |> ignore
             f.Assigned[a] <- 110000L
-            f.Underfunded[a] <- 5000L
             let before = recordedEvents month
             match preview f.Port now month |> run with
             | Ok shown ->

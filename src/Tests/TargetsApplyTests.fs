@@ -197,8 +197,8 @@ let private apiTests =
 // Abläufe gegen Fake-YNAB und In-Memory-SQLite
 // ============================================
 
-/// Ein Fake-YNAB, das Zugewiesen und Zu verteilen wie YNAB führt: Fehlbetrag = Ziel minus
-/// Zugewiesen (nicht negativ), Zu verteilen sinkt mit jeder erfolgreichen Zuweisung.
+/// Ein Fake-YNAB, das Zugewiesen und Zu verteilen wie YNAB führt; Zu verteilen sinkt mit jeder erfolgreichen
+/// Zuweisung. BBs Fehlbetrag eines monatlichen Goals ist Ziel minus Soll (nicht negativ, budgeting-hbhzf).
 /// Kategorien als (Id, Name, Zugewiesen, Ziel, pausiert) in Milliunits. Jede hat ein monatliches Goal über das
 /// Ziel, BB übernimmt es beim ersten Lesen (budgeting-eh8xe); pausiert heißt in BB pausiert (`fake`).
 let private goalOf (target: int64) : Target =
@@ -246,7 +246,6 @@ type private FakeYnab(initial: (Guid * string * int64 * int64 * bool) list, tbb0
                                           Assigned = eur assigned[id]
                                           Activity = eur 0L
                                           Available = eur assigned[id]
-                                          Underfunded = Some (eur (max 0L (target - assigned[id])))
                                           Target = Some (goalOf target)
                                           Hidden = false
                                           Deleted = false
@@ -339,6 +338,22 @@ let private flowTests =
             Expect.equal (p.Skipped |> List.map (fun l -> l.CategoryId)) [ c ] "C übersprungen"
             Expect.isEmpty f.Attempts "kein schreibender YNAB-Aufruf"
             Expect.equal (movementRows [ a; b; c; d; e ]) 0 "keine Bewegung in der Datenbank"
+
+        // Regressionstest budgeting-hbhzf: vorher wies Targets anwenden YNABs `goal_under_funded` zu, gerechnet auf
+        // dem eingefrorenen Goal (hier 50 statt BBs 80).
+        testCase "Targets anwenden weist BBs Fehlbetrag zu, auch wenn YNABs Goal noch den alten Betrag zeigt" <| fun () ->
+            let a = Guid.NewGuid()
+            let f = FakeYnab([ a, "Essen h", 0L, 50000L, false ], 200000L)
+            // Das erste Lesen übernimmt das Target 50 aus YNABs Goal, danach ändert Roman es in BB auf 80.
+            previewOf f |> ignore
+            let wanted = { NewGoal = eur 80000L; NewDate = None; NewRhythm = KeepRhythm; NewDay = None }
+            match changeTarget now monthKey monthKey { CategoryId = a; Shown = Some (goalOf 50000L); Wanted = Some wanted; CommandId = None } |> run with
+            | Ok (Ok (TargetWritten _)) -> ()
+            | other -> failtest $"Target geändert erwartet: {other}"
+            let shown = previewOf f
+            Expect.equal (shown.Lines |> List.map (fun l -> l.CategoryId, l.Underfunded)) [ a, eur 80000L ] "BBs Fehlbetrag, YNAB meldet 50"
+            applyOk f shown |> ignore
+            Expect.equal (List.ofSeq f.Attempts) [ a, 80000L ] "zugewiesen wird BBs Fehlbetrag"
 
         // budgeting-b5n8q: BB lehnt die Planung selbst ab, die Meldung schob die Ablehnung YNAB zu.
         testCase "Lehnt BB die Planung ab, meldet die Vorschau eine Ablehnung durch BB ohne YNAB im Text" <| fun () ->

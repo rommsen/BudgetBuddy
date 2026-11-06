@@ -1,7 +1,7 @@
 ---
 id: budgeting-hbhzf
 title: "Fehlbetrag aus BB: Targets anwenden und die Anzeige rechnen mit BBs Fehlbetrag gegen das Soll, Rückbau der Parallelrechnung"
-status: doing
+status: done
 type: feature
 context: budgeting
 created: 2026-11-06
@@ -109,3 +109,34 @@ Teil 2 von 2 der Teilung von budgeting-eh8xe (2026-11-06).
   dem Kassenbuch, BBs Regeln aus der Übernahme): 100 von 100 gleich, keine Abweichung, kein "nicht gerechnet".
   Die Toleranz (jede Abweichung hat einen bekannten Grund) ist erfüllt.
 - Bis zum Deploy dieser Task ändert Roman kein Target in BB.
+
+## Outcome
+
+Die Umschaltung ist von Roman am 2026-11-06 freigegeben, nach dem fünften Vergleich in Prod (November 2026, Aktivität aus dem Kassenbuch, BBs Regeln aus der Übernahme): 100 von 100 gleich, keine Abweichung, kein "nicht gerechnet". Die Toleranz aus den Notes (jede Abweichung im laufenden Monat hat einen bekannten Grund) ist damit erfüllt.
+
+Targets anwenden, die Vorschau und "fehlt" rechnen jetzt mit BBs Fehlbetrag. YNABs `goal_under_funded` wird nicht mehr verwendet. Die Formel ist unverändert.
+
+- `src/Server/Budgeting/Domain.fs`: Der Fehlbetrag wird an einer Stelle gerechnet, in `toBudgetCategory` über `toBudgetMonthWith assignments periodActivity targets paused raw`. Die Eingaben: Zugewiesen ist das Soll, der Übertrag ist YNABs Verfügbar − YNABs Zugewiesen − Aktivität (unabhängig vom Soll), die Aktivität ist YNABs Aktivität des Monats. `Computed x` wird `Some x`, `NotComputed` und "ohne Target" werden `None`. Bei `periodActivity = None` hat keine Zeile einen Fehlbetrag. `toBudgetMonth` (Targets prüfen, nutzt den Fehlbetrag nicht) übergibt `Some Map.empty`. `periodMonthsNeeded` und `periodCategoriesNeeded` brauchen nur noch BBs Targets und den Monat, die Monate kommen aufsteigend. Der reine Adapter `periodActivityFromLedger` liegt jetzt hier. `planTargetApplication` lehnt bei offener Rückschreibung nicht mehr ab. Entfernt: `TargetsOpenWriteBackText`, `ComparisonOutcome`, `comparisonOutcomeText`, `YnabWithoutValueText`, `UnderfundedComparison`, `compareUnderfunded`, `comparisonSummary`, `underfundedRuleText`.
+- `src/Server/Budgeting/CommandHandlers.fs`: Hierher verschoben sind `LedgerActivityPort` und `liveLedgerActivityPort`. Neu sind `loadPeriodActivity` (eine Abfrage für alle Kategorien) und `PeriodActivityUnreadableText`. Neu sind auch `previewWithLedger` und `applyWithLedger`; `previewWith` und `applyWith` rufen sie mit dem Live-Port auf. Ist das Kassenbuch nicht lesbar, lehnen Vorschau und Targets anwenden mit `LocalReadFailed` ab: "Die Ausgaben der Periode aus dem Kassenbuch sind nicht lesbar. BB rechnet den Fehlbetrag deshalb nicht und weist nichts zu." Der Grund steht im Log, nichts wird festgehalten oder gesendet. `preparedMonth` bekommt den Port als `option`. Verschieben, Zuweisen und Pausieren übergeben `None` und lesen das Kassenbuch nicht.
+- `src/Server/Budgeting/QueryHandlers.fs`: `budgetMonthWithLedger ledger connect port now monthKey` lädt die Ausgaben nach den Targets. Scheitert das, steht der Grund im Log und der Monat kommt ohne Fehlbetrag. Der Parameter `save` ist weg, ebenso `runUnderfundedComparison`.
+- `src/Server/Budgeting/Persistence.fs`: `underfunded_comparisons` wird nicht mehr angelegt. `dropUnderfundedComparisonsOn` entfernt die Tabelle nur, wenn `sqlite_master` sie zeigt (wie `dropMonthActivityOn`, kein DROP bei jedem Start). `saveUnderfundedComparisons*` ist entfernt.
+- `src/Shared/Budgeting.fs` und `src/Server/YnabClient.fs`: `YnabMonthCategory.Underfunded` und das Lesen von `goal_under_funded` sind entfernt, weil kein Leser bleibt. `YnabMonthCategory` geht nicht über Remoting. Deshalb ändert sich keine Fixture in `scripts/*.test.mjs`, und `BudgetCategory` bleibt unverändert. Die Kommentare am Feld, in `toBudgetCategory`, in `planTargetApplication` und in `src/Client/Components/Budget/Month.fs` sind angepasst.
+- Tests: `src/Tests/UnderfundedComparisonTests.fs` heißt jetzt `src/Tests/UnderfundedTests.fs`. Die Formeltests sind unverändert. Neu sind Projektionstests: "fehlt" gegen das Soll, Übertrag unabhängig vom Soll, Ausgaben der Periode, "nicht gerechnet" ohne "fehlt" und weggelassen, ohne Target, ohne Ausgaben. Die Kassenbuch-Tests prüfen jetzt BBs Fehlbetrag der Seite statt der Abweichungsliste. Dazu kommen ein Handler-Test für Vorschau und Targets anwenden mit Kassenbuch-Buchungen, das nicht lesbare Kassenbuch für die Seite (mit Log, auch ein monatliches Target ohne Fehlbetrag) und für Vorschau und Targets anwenden (Meldung, nichts gesendet, nichts festgehalten) und der Schema-Rückbau auf einer eigenen DB. In `src/Tests/TargetsApplyTests.fs` steht ein neuer Test: ein in BB geändertes Target weist BBs 80 zu, YNABs Goal zeigt 50. In `src/Tests/BudgetLeadTests.fs` ersetzt "mit offener Rückschreibung rechnet gegen das Soll und lehnt nicht ab" den Ablehnungstest. Die Fake-Ports bekommen Goals statt eines YNAB-Fehlbetrags. Entfallen sind die Tests, die nur Vergleich und Speichern prüften (Vergleich, Speicherfunktion, `underfunded_comparisons`), der Decoder-Test für `goal_under_funded` und der reine Ablehnungstest in `BudgetAssignmentsTests`. Die Tests, die das Server-Log über `Console.SetError` fangen, laufen in der Gruppe `testSequencedGroup "Server-Log"`. Grund: Parallel liefen sie sich in die Quere, ein Lauf war rot.
+- Regressionstests vor der Änderung rot gesehen, mit den alten Signaturen: Targets anwenden mit geändertem Target (Vorschau 50 statt 80), offene Rückschreibung (Vorschau abgelehnt), die Zeile zeigt "fehlt" aus BBs Wert (YNAB 30), Übertrag unabhängig vom Soll, "nicht gerechnet" ohne "fehlt", ohne Target kein Fehlbetrag, die Seite mit Kassenbuch-Ausgaben (YNAB-Wert statt 0), Targets anwenden mit Kassenbuch-Ausgaben (YNAB-Wert statt 5). Das sind 8 von 8 rot.
+- Live-Anschluss (Doktrin Punkt 3). `CommandHandlers.liveLedgerActivityPort` wird an drei Stellen angeschlossen: `QueryHandlers.budgetMonthWith` (`budgetMonth` ruft es auf, `Api.budgetMonthFor` ruft `budgetMonth` auf, unverändert), `CommandHandlers.previewWith` (über `preview` aus `Api`) und `CommandHandlers.applyWith` (über `apply` aus `Api`). Der Endpoint ist unverändert. Gegenprobe mit Mutanten, jeweils der ganze Expecto-Lauf:
+  - M1, Seite mit leerem Port: 2 Tests rot.
+  - M2, Vorschau mit leerem Port: 1 rot.
+  - M3, Anwenden mit leerem Port: 1 rot.
+  - M4, `liveLedgerActivityPort.LoadMonthlyActivity` leer: 3 rot.
+  - M5, Übertrag mit dem Soll: 1 rot.
+  - M6, `preparedMonth None` bei Targets anwenden: 3 rot (dazu Folgefehler).
+  - M7, Seite bei Kassenbuch-Fehler mit `Some Map.empty` statt `None`: zunächst überlebt. Daraufhin bekam der Test ein monatliches Target, danach 1 rot.
+  Kein Überlebender in dieser Liste. `LoadFirstEntryDate` belegt weiter "Die erste Buchung des Kassenbuchs zählt ohne gelöschte" über den Live-Port.
+- `./verify.sh`: VERIFY: PASS (dotnet 4140 grün, 13 übersprungen "(requires .env)", node 311 grün). Der erste Lauf war rot an einem `[layout]`-Test in `scripts/move-money.test.mjs` (Popover 778 gegen 775 px). Dieser Test berührt diese Änderung nicht. Allein lief die Datei grün, der zweite ganze Lauf war grün.
+- Offen in der README: Die offene Frage zu "Monatlich mit `goal_day`" nennt `goal_under_funded` des Vormonats. Sie ist kein Bullet mit fettem Kopf und per Delta nicht erreichbar, sie blieb unverändert.
+
+### Integration (2026-11-06)
+- Verifier: Iteration 1 und 2 FAIL nur wegen der Doku (README-Delta, ADR-Nachtrag, ein Doc-Kommentar), Code und Tests in beiden PASS. Korrigiert: "entscheiden nichts" statt "halten nichts fest", nach Befehl getrennt (Targets anwenden hat Übernahme und Beobachtung schon festgehalten, die Vorschau höchstens eine fällige Target-Übernahme); Bullet "Vorschau" an BBs Fehlbetrag und an die Target-Übernahme angepasst. Integriert mit den Formulierungen des Verifiers, ohne dritte Runde.
+- Offene Frage "Monatlich mit `goal_day`" als gegenstandslos durchgestrichen (kein Goal-Schreibweg mehr, Fehlbetrag ist BBs).
+- Nachtrag zu ADR 0084 Punkt 7 (Umschaltung) angehängt.
+- Kann-Funde aus der Verifikation in budgeting-h9c3w.

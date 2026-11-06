@@ -27,6 +27,63 @@ type YnabPort = {
     FetchCategoryGoals: unit -> Async<YnabResult<YnabCategoryGoal list>>
 }
 
+/// Die Lese-Quellen der Ausgaben der Periode im Kassenbuch (budgeting-k5q2w). Beide lesen nur die Datenbank, kein
+/// YNAB. Lesen eines Monats, Vorschau und Targets anwenden rechnen damit BBs Fehlbetrag (budgeting-hbhzf).
+type LedgerActivityPort = {
+    /// Kategorien und Monatserste: je Kategorie die Netto-Aktivität der Monate mit Buchungen, in einer Abfrage.
+    LoadMonthlyActivity: Guid list -> DateTime list -> Async<Map<Guid, (DateTime * Money) list>>
+    /// Der Kalendertag der ersten nicht gelöschten Buchung im Kassenbuch, ohne Buchung `None`.
+    LoadFirstEntryDate: unit -> Async<DateTime option>
+}
+
+/// Das Kassenbuch der Anwendung als Quelle der Ausgaben der Periode.
+let liveLedgerActivityPort: LedgerActivityPort =
+    { LoadMonthlyActivity = Ledger.QueryHandlers.getMonthlyActivityByCategory
+      LoadFirstEntryDate = Ledger.Persistence.loadFirstEntryDate }
+
+/// Die Aktivität der Periodenmonate (`periodMonthsNeeded`) aller Kategorien, die sie brauchen, aus dem
+/// Kassenbuch: eine Abfrage für die erste Buchung, eine für alle Kategorien. Ohne Periodenmonat kein Lesen.
+/// Ein Lesefehler kommt als Ausnahme, der Aufrufer entscheidet, was er bedeutet.
+let loadPeriodActivity
+    (ledger: LedgerActivityPort)
+    (targets: Map<Guid, Target>)
+    (monthKey: string)
+    : Async<Map<Guid, Map<string, Money>>> =
+    async {
+        match periodMonthsNeeded targets monthKey with
+        | [] -> return Map.empty
+        | months ->
+            let ids = periodCategoriesNeeded targets monthKey
+            let! first = ledger.LoadFirstEntryDate ()
+            let! sums =
+                ledger.LoadMonthlyActivity
+                    ids
+                    (months |> List.map (fun m -> DateTime.ParseExact(m, "yyyy-MM-dd", Globalization.CultureInfo.InvariantCulture)))
+            return periodActivityFromLedger ids months first sums
+    }
+
+/// Die Meldung, wenn vor der Vorschau oder Targets anwenden das Kassenbuch nicht lesbar ist (budgeting-hbhzf).
+[<Literal>]
+let PeriodActivityUnreadableText =
+    "Die Ausgaben der Periode aus dem Kassenbuch sind nicht lesbar. BB rechnet den Fehlbetrag deshalb nicht und weist nichts zu."
+
+/// Die Ausgaben der Periode vor einer Planung mit Fehlbetrag (Vorschau, Targets anwenden). Scheitert das Lesen,
+/// steht der Grund im Log und es kommt ein `Error` mit `PeriodActivityUnreadableText`: ohne die Ausgaben würde
+/// BB zu viel zuweisen.
+let private periodActivityForCommand
+    (ledger: LedgerActivityPort)
+    (targets: Map<Guid, Target>)
+    (monthKey: string)
+    : Async<Result<Map<Guid, Map<string, Money>>, YnabError>> =
+    async {
+        try
+            let! activity = loadPeriodActivity ledger targets monthKey
+            return Ok activity
+        with ex ->
+            logReadFailure $"Ausgaben der Periode {monthKey} aus dem Kassenbuch lesen" ex.Message
+            return Error (YnabError.LocalReadFailed PeriodActivityUnreadableText)
+    }
+
 let private isRateLimit (error: YnabError) =
     match error with
     | YnabError.RateLimitExceeded _ -> true
@@ -374,7 +431,10 @@ let ensureTakenOver
 /// dann die BB-Pausen und BBs Targets lesen und alles zum Monat mit BBs Soll zusammenführen. Scheitert das Lesen
 /// von YNAB, die Übernahme des Monats, die Beobachtung, die Target-Übernahme (`targetRulesForCommand`) oder das
 /// Lesen der Pausen oder Targets, kommt außen ein `Error`, und der Befehl entscheidet nichts. Neben dem Monat kommen die gespeicherten BB-Pausen (auch ohne Target, `planPause`) und die Faltung.
+/// `ledger` ist die Quelle der Ausgaben der Periode für BBs Fehlbetrag (Targets anwenden). `None` plant ohne
+/// Fehlbetrag: Verschieben, Zuweisen und Pausieren lesen ihn nicht, ein Lesefehler im Kassenbuch hält sie nicht auf.
 let private preparedMonth
+    (ledger: LedgerActivityPort option)
     (connect: unit -> SqliteConnection)
     (loadPaused: string -> Async<Result<Set<Guid>, string>>)
     (port: YnabPort)
@@ -392,8 +452,19 @@ let private preparedMonth
                 match! targetRulesForCommand connect port now observed.Raw with
                 | Error e -> return Error e
                 | Ok targets ->
-                    let month = toBudgetMonthWith (Some observed.Fold.Categories) targets paused observed.Raw
-                    return Ok (month, paused, observed.Fold)
+                    let! activity =
+                        match ledger with
+                        | None -> async { return Ok None }
+                        | Some port ->
+                            async {
+                                let! loaded = periodActivityForCommand port targets monthKey
+                                return loaded |> Result.map Some
+                            }
+                    match activity with
+                    | Error e -> return Error e
+                    | Ok activity ->
+                        let month = toBudgetMonthWith (Some observed.Fold.Categories) activity targets paused observed.Raw
+                        return Ok (month, paused, observed.Fold)
     }
 
 // ============================================
@@ -409,7 +480,10 @@ let private planOf (month: BudgetMonth) : Result<TargetPreview, YnabError> =
 /// Die Vorschau: liest den Monat unter der Sperre und plant auf BBs Soll. Übernahme und Echo-Regel laufen nur im
 /// Speicher; die Vorschau schreibt nicht nach YNAB und hält höchstens die einmalige Target-Übernahme fest, wenn
 /// eine Kategorie des Monats noch darauf wartet (budgeting-eh8xe, Best-Effort wie das Lesen: `targetRulesBestEffort`). Liest über `connect`, `now` stempelt sie.
-let previewWith
+/// Der Fehlbetrag ist BBs, die Ausgaben der Periode kommen aus `ledger` (budgeting-hbhzf); ist es nicht lesbar,
+/// kommt `PeriodActivityUnreadableText` und keine Vorschau.
+let previewWithLedger
+    (ledger: LedgerActivityPort)
     (connect: unit -> SqliteConnection)
     (port: YnabPort)
     (now: DateTime)
@@ -429,8 +503,20 @@ let previewWith
                 | Ok paused ->
                     match! targetRulesBestEffort connect port now raw with
                     | Error message -> return Error (YnabError.LocalReadFailed message)
-                    | Ok targets -> return planOf (toBudgetMonthWith (Some fold.Categories) targets paused raw)
+                    | Ok targets ->
+                        match! periodActivityForCommand ledger targets monthKey with
+                        | Error e -> return Error e
+                        | Ok activity -> return planOf (toBudgetMonthWith (Some fold.Categories) (Some activity) targets paused raw)
     })
+
+/// `previewWithLedger` mit dem Kassenbuch der Anwendung (`liveLedgerActivityPort`).
+let previewWith
+    (connect: unit -> SqliteConnection)
+    (port: YnabPort)
+    (now: DateTime)
+    (monthKey: string)
+    : Async<Result<TargetPreview, YnabError>> =
+    previewWithLedger liveLedgerActivityPort connect port now monthKey
 
 /// `previewWith` auf der Datenbank der Anwendung.
 let preview (port: YnabPort) (now: DateTime) (monthKey: string) : Async<Result<TargetPreview, YnabError>> =
@@ -645,8 +731,12 @@ let private sendAll
 /// Übernehmen. Unter der Monats-Sperre: den Monat neu lesen und mit der gezeigten Vorschau
 /// vergleichen. Weicht etwas ab, wird nichts geschrieben und die frische Vorschau
 /// zurückgegeben. Sonst zuerst alle Bewegungen festhalten, dann die PATCHes nacheinander
-/// senden (ADR 0050/0055). Danach liest der Bericht Zu verteilen erneut.
-let applyWith
+/// senden (ADR 0050/0055). Danach liest der Bericht Zu verteilen erneut. Geplant wird mit BBs Fehlbetrag, die
+/// Ausgaben der Periode kommen aus `ledger` (budgeting-hbhzf); ist es nicht lesbar, wird mit
+/// `PeriodActivityUnreadableText` abgelehnt: keine Entscheidung festgehalten, nichts gesendet (Übernahme und
+/// Beobachtung des Monats sind wie bei jedem Befehl schon festgehalten).
+let applyWithLedger
+    (ledger: LedgerActivityPort)
     (connect: unit -> SqliteConnection)
     (port: YnabPort)
     (now: DateTime)
@@ -662,7 +752,7 @@ let applyWith
             | None -> return Error (YnabError.RefusedByBb (foreignCommand recorded))
         }
     MonthGuard.exclusive monthKey (onceFor connect shown.CommandId answer (async {
-        match! preparedMonth connect (loadPausedCategoriesWith connect) port now monthKey with
+        match! preparedMonth (Some ledger) connect (loadPausedCategoriesWith connect) port now monthKey with
         | Error e -> return Error e
         | Ok (month, _, fold) ->
             match planOf month with
@@ -692,6 +782,16 @@ let applyWith
                     let! report = reportOf connect port applicationId fresh.Month
                     return report |> Result.map Applied
     }))
+
+/// `applyWithLedger` mit dem Kassenbuch der Anwendung (`liveLedgerActivityPort`).
+let applyWith
+    (connect: unit -> SqliteConnection)
+    (port: YnabPort)
+    (now: DateTime)
+    (monthKey: string)
+    (shown: TargetPreview)
+    : Async<Result<ApplyResult, YnabError>> =
+    applyWithLedger liveLedgerActivityPort connect port now monthKey shown
 
 /// `applyWith` auf der Datenbank der Anwendung.
 let apply (port: YnabPort) (now: DateTime) (monthKey: string) (shown: TargetPreview) : Async<Result<ApplyResult, YnabError>> =
@@ -775,7 +875,7 @@ let moveMoneyWith
     : Async<Result<Result<ApplyReport, string>, YnabError>> =
     let answer = decisionAnswer connect monthKey (moveEventTypes request) (moveCategories request)
     MonthGuard.exclusive monthKey (onceFor connect request.CommandId answer (async {
-        match! preparedMonth connect (loadPausedCategoriesWith connect) port now monthKey with
+        match! preparedMonth None connect (loadPausedCategoriesWith connect) port now monthKey with
         | Error e -> return Error e
         | Ok (month, _, fold) ->
             match planMove month request with
@@ -800,7 +900,7 @@ let assignMoneyWith
     : Async<Result<Result<ApplyReport, string>, YnabError>> =
     let answer = decisionAnswer connect monthKey [ EventTypes.decisionOf MoneyAssigned ] [ request.CategoryId ]
     MonthGuard.exclusive monthKey (onceFor connect request.CommandId answer (async {
-        match! preparedMonth connect (loadPausedCategoriesWith connect) port now monthKey with
+        match! preparedMonth None connect (loadPausedCategoriesWith connect) port now monthKey with
         | Error e -> return Error e
         | Ok (month, _, fold) ->
             match planAssign month request with
@@ -851,7 +951,7 @@ let setTargetPauseWith
                 else return Ok (Error (foreignCommand recorded))
             }
         MonthGuard.exclusive monthKey (onceFor connect request.CommandId answer (async {
-            match! preparedMonth connect loadPaused port now monthKey with
+            match! preparedMonth None connect loadPaused port now monthKey with
             | Error e -> return Error e
             | Ok (month, pausedInBbRaw, _) ->
                 match planPause month pausedInBbRaw request with

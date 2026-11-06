@@ -258,7 +258,7 @@ let private takeoverTests =
                   ToBeBudgeted = eur 0m
                   Categories =
                     [ { Id = k; Name = "x"; GroupName = "g"; Assigned = eur 0m; Activity = eur 0m; Available = eur 0m
-                        Underfunded = None; Target = target; Hidden = true; Deleted = false; Internal = false } ] }
+                        Target = target; Hidden = true; Deleted = false; Internal = false } ] }
             let waiting skip from target = awaitingTakeover skip from (monthWith target)
             Expect.equal (waiting Set.empty "2026-11-01" (Some fifty)) (Set.ofList [ k ]) "Goal ohne Führung, auch ausgeblendet"
             Expect.equal (waiting Set.empty "2026-10-01" (Some fifty)) (Set.ofList [ k ]) "ein künftiger Monat wartet auch"
@@ -522,14 +522,14 @@ let private takeoverFlowTests =
                   ToBeBudgeted = eur 0m
                   Categories =
                     [ { Id = k; Name = "Urlaub"; GroupName = "Rücklagen"; Assigned = eur 0m; Activity = eur 0m; Available = eur 0m
-                        Underfunded = Some (eur 50m); Target = Some fifty; Hidden = false; Deleted = false; Internal = false } ] }
+                        Target = Some fifty; Hidden = false; Deleted = false; Internal = false } ] }
             let probe = GoalsProbe [ { Id = k; Name = "Urlaub"; Target = Some fifty } ]
             let port : CommandHandlers.YnabPort =
                 { FetchMonth = fun _ -> async { return Ok raw }
                   SetAssigned = fun _ _ _ -> async { return failwith "kein Schreiben" }
                   FetchCategoryGoals = probe.Fetch }
             let read () =
-                match QueryHandlers.budgetMonthWith (fun _ _ -> async { return () }) global.Persistence.getConnection port now monthKey |> run with
+                match QueryHandlers.budgetMonthWith global.Persistence.getConnection port now monthKey |> run with
                 | Ok m -> (m.Groups |> List.collect (fun g -> g.Categories) |> List.exactlyOne).Target
                 | Error e -> failtest $"{e}"
             Expect.equal (read ()) (Some fifty) "übernommen"
@@ -537,7 +537,7 @@ let private takeoverFlowTests =
             Expect.equal probe.Calls 1 "/categories nur einmal"
             // Ein Goal, das YNAB danach zeigt, ändert BBs Regel nicht (Goals eingefroren, ADR 0084 Punkt 6).
             let port' = { port with FetchMonth = fun _ -> async { return Ok { raw with Categories = [ { raw.Categories.Head with Target = Some { fifty with Goal = eur 99m } } ] } } }
-            match QueryHandlers.budgetMonthWith (fun _ _ -> async { return () }) global.Persistence.getConnection port' now monthKey |> run with
+            match QueryHandlers.budgetMonthWith global.Persistence.getConnection port' now monthKey |> run with
             | Ok m -> Expect.equal (m.Groups.Head.Categories.Head.Target) (Some fifty) "BBs Regel bleibt"
             | Error e -> failtest $"{e}"
 
@@ -549,12 +549,12 @@ let private takeoverFlowTests =
                   ToBeBudgeted = eur 0m
                   Categories =
                     [ { Id = k; Name = "Urlaub"; GroupName = "Rücklagen"; Assigned = eur 0m; Activity = eur 0m; Available = eur 0m
-                        Underfunded = None; Target = Some fifty; Hidden = false; Deleted = false; Internal = false } ] }
+                        Target = Some fifty; Hidden = false; Deleted = false; Internal = false } ] }
             let port : CommandHandlers.YnabPort =
                 { FetchMonth = fun _ -> async { return Ok raw }
                   SetAssigned = fun _ _ _ -> async { return failwith "kein Schreiben" }
                   FetchCategoryGoals = fun () -> async { return Error (YnabError.RateLimitExceeded 60) } }
-            match QueryHandlers.budgetMonthWith (fun _ _ -> async { return () }) global.Persistence.getConnection port now monthKey |> run with
+            match QueryHandlers.budgetMonthWith global.Persistence.getConnection port now monthKey |> run with
             | Ok m -> Expect.equal m.Groups.Head.Categories.Head.Target None "ohne Übernahme kein Target"
             | Error e -> failtest $"{e}"
 
@@ -624,14 +624,14 @@ let private takeoverFlowTests =
                   ToBeBudgeted = eur 0m
                   Categories =
                     [ { Id = k; Name = "Urlaub"; GroupName = "Rücklagen"; Assigned = eur 0m; Activity = eur 0m; Available = eur 0m
-                        Underfunded = None; Target = Some fifty; Hidden = false; Deleted = false; Internal = false } ] }
+                        Target = Some fifty; Hidden = false; Deleted = false; Internal = false } ] }
             let probe = GoalsProbe [ { Id = k; Name = "Urlaub"; Target = None } ]
             let port : CommandHandlers.YnabPort =
                 { FetchMonth = fun _ -> async { return Ok raw }
                   SetAssigned = fun _ _ _ -> async { return failwith "kein Schreiben" }
                   FetchCategoryGoals = probe.Fetch }
             for _ in 1..2 do
-                match QueryHandlers.budgetMonthWith (fun _ _ -> async { return () }) connect port now current |> run with
+                match QueryHandlers.budgetMonthWith connect port now current |> run with
                 | Ok m -> Expect.equal m.Groups.Head.Categories.Head.Target None "kein Target"
                 | Error e -> failtest $"{e}"
             Expect.equal probe.Calls 1 "/categories nur beim ersten Lesen"
@@ -645,13 +645,13 @@ let private takeoverFlowTests =
                   ToBeBudgeted = eur 0m
                   Categories =
                     [ { Id = k; Name = "Urlaub"; GroupName = "Rücklagen"; Assigned = eur 0m; Activity = eur 0m; Available = eur 0m
-                        Underfunded = None; Target = Some fifty; Hidden = false; Deleted = false; Internal = false } ] }
+                        Target = Some fifty; Hidden = false; Deleted = false; Internal = false } ] }
             let probe = GoalsProbe [ { Id = k; Name = "Urlaub"; Target = Some fifty } ]
             let port : CommandHandlers.YnabPort =
                 { FetchMonth = fun _ -> async { return Ok raw }
                   SetAssigned = fun _ _ _ -> async { return failwith "kein Schreiben" }
                   FetchCategoryGoals = probe.Fetch }
-            Expect.isOk (QueryHandlers.budgetMonthWith (fun _ _ -> async { return () }) connect port now "2026-10-01" |> run) "gelesen"
+            Expect.isOk (QueryHandlers.budgetMonthWith connect port now "2026-10-01" |> run) "gelesen"
             Expect.equal probe.Calls 0 "kein Abruf"
 
         // Review-Fund eh8xe (Backend W2): scheiterte die Übernahme, planten Befehle ohne die Targets weiter.
@@ -665,7 +665,7 @@ let private takeoverFlowTests =
                   ToBeBudgeted = eur 100m
                   Categories =
                     [ { Id = k; Name = "Urlaub"; GroupName = "Rücklagen"; Assigned = eur 0m; Activity = eur 0m; Available = eur 0m
-                        Underfunded = Some (eur 50m); Target = Some fifty; Hidden = false; Deleted = false; Internal = false } ] }
+                        Target = Some fifty; Hidden = false; Deleted = false; Internal = false } ] }
             let patches = ResizeArray<Guid>()
             let port : CommandHandlers.YnabPort =
                 { FetchMonth = fun _ -> async { return Ok raw }
@@ -679,7 +679,7 @@ let private takeoverFlowTests =
                 (Dapper.SqlMapper.ExecuteScalar<int64>(anchor, "SELECT COUNT(*) FROM events WHERE event_type = 'AssignmentChangedInBb'"))
                 0L
                 "keine Entscheidung"
-            Expect.isOk (QueryHandlers.budgetMonthWith (fun _ _ -> async { return () }) connect port now monthKey |> run) "Lesen geht"
+            Expect.isOk (QueryHandlers.budgetMonthWith connect port now monthKey |> run) "Lesen geht"
             Expect.isOk (CommandHandlers.previewWith connect port now monthKey |> run) "Vorschau geht"
 
         // Review-Fund eh8xe (QA D6c, Backend W4): ein gescheitertes Festhalten kam als Lesefehler.
@@ -704,7 +704,7 @@ let private takeoverFlowTests =
                   SetAssigned = fun _ _ _ -> async { return failwith "kein Schreiben" }
                   FetchCategoryGoals = fun () -> async { return Ok [] } }
             Expect.equal
-                (QueryHandlers.budgetMonthWith (fun _ _ -> async { return () }) connect port now current |> run)
+                (QueryHandlers.budgetMonthWith connect port now current |> run)
                 (Error (YnabError.LocalReadFailed Budgeting.Persistence.TargetRulesUnreadableText))
                 "nicht lesbar"
 
@@ -729,13 +729,13 @@ let private takeoverFlowTests =
                                       ToBeBudgeted = eur 0m
                                       Categories =
                                         [ { Id = k; Name = "Urlaub"; GroupName = "Rücklagen"; Assigned = eur 0m; Activity = eur 0m
-                                            Available = eur 0m; Underfunded = None; Target = Some { fifty with Goal = eur 99m }
+                                            Available = eur 0m; Target = Some { fifty with Goal = eur 99m }
                                             Hidden = false; Deleted = false; Internal = false } ] }
                         }
                   SetAssigned = fun _ _ _ -> async { return failwith "kein Schreiben" }
                   FetchCategoryGoals = fun () -> async { return failwith "geführt, kein Abruf" } }
             let targetIn monthKey =
-                match QueryHandlers.budgetMonthWith (fun _ _ -> async { return () }) connect port now monthKey |> run with
+                match QueryHandlers.budgetMonthWith connect port now monthKey |> run with
                 | Ok m -> m.Groups.Head.Categories.Head.Target |> Option.map (fun t -> t.Goal)
                 | Error e -> failtest $"{e}"
             Expect.equal (targetIn "2026-10-01", targetIn current) (Some (eur 50m), Some (eur 60m)) "Oktober 50, November 60"

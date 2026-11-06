@@ -105,7 +105,7 @@ module Decoders =
         | _ -> None
 
     /// Eine Kategorie aus `GET /budgets/{id}/months/{month}` (budgeting-k7wmd).
-    /// `goal_under_funded` ist `null` ohne Target (dann `None`), sonst der Fehlbetrag;
+    /// `goal_under_funded` liest BB nicht, den Fehlbetrag rechnet es selbst (budgeting-hbhzf);
     /// eine Pause in YNAB (`goal_snoozed_at`) liest BB nicht (budgeting-eh8xe). Fehlende Flags gelten als `false`.
     let monthCategoryDecoder : Decoder<Shared.Budgeting.YnabMonthCategory> =
         Decode.object (fun get ->
@@ -118,8 +118,6 @@ module Decoders =
                Assigned = get.Required.Field "budgeted" Decode.int64 |> milliunitsMoney
                Activity = get.Required.Field "activity" Decode.int64 |> milliunitsMoney
                Available = get.Required.Field "balance" Decode.int64 |> milliunitsMoney
-               Underfunded =
-                   get.Optional.Field "goal_under_funded" Decode.int64 |> Option.map milliunitsMoney
                Target = goalTarget get
                Hidden = flag "hidden"
                Deleted = flag "deleted"

@@ -30,7 +30,6 @@ let private raw (categories: (Guid * int64) list) : YnabMonth =
               Assigned = eur assigned
               Activity = eur 0L
               Available = eur assigned
-              Underfunded = None
               Target = None
               Hidden = false
               Deleted = false
@@ -339,34 +338,19 @@ let private retryTests =
     ]
 
 let private monthTests =
-    let category (id: Guid) (underfunded: int64 option) : YnabMonthCategory =
-        { (raw [ id, 10000L ]).Categories.Head with Underfunded = underfunded |> Option.map eur }
+    let category (id: Guid) : YnabMonthCategory =
+        (raw [ id, 10000L ]).Categories.Head
     testList "Monat mit BBs Soll" [
         test "Zugewiesen ist das Soll, die Markierung trägt die offene Rückschreibung; Verfügbar bleibt YNABs" {
             let c, d = Guid.NewGuid(), Guid.NewGuid()
             let decision = Guid.NewGuid()
             let fold = Map.ofList [ c, state 25000L 10000L (Some decision) ]
-            let month = toBudgetMonthWith (Some fold) Map.empty Set.empty { raw [] with Categories = [ category c None; category d None ] }
+            let month = toBudgetMonthWith (Some fold) (Some Map.empty) Map.empty Set.empty { raw [] with Categories = [ category c; category d ] }
             let byId id = month.Groups |> List.collect (fun g -> g.Categories) |> List.find (fun x -> x.Id = id)
             Expect.equal ((byId c).Assigned, (byId c).OpenWriteBack, (byId c).Available) (eur 25000L, Some decision, eur 10000L) "offen"
             Expect.equal ((byId d).Assigned, (byId d).OpenWriteBack) (eur 0L, None) "ohne Eintrag 0, keine Markierung"
-            let plain = toBudgetMonth Map.empty Set.empty { raw [] with Categories = [ category c None ] }
+            let plain = toBudgetMonth Map.empty Set.empty { raw [] with Categories = [ category c ] }
             Expect.equal (plain.Groups.Head.Categories.Head.Assigned, plain.Groups.Head.Categories.Head.OpenWriteBack) (eur 10000L, None) "ohne Faltung YNABs Wert"
-        }
-        test "Targets anwenden lehnt ab, solange eine Kategorie mit Fehlbetrag eine offene Rückschreibung hat, und nennt sie" {
-            let c, d = Guid.NewGuid(), Guid.NewGuid()
-            let fold = Map.ofList [ c, state 25000L 10000L (Some (Guid.NewGuid())); d, state 10000L 10000L None ]
-            let month =
-                toBudgetMonthWith
-                    (Some fold)
-                    Map.empty
-                    Set.empty
-                    { raw [] with Categories = [ { category c (Some 5000L) with Name = "Urlaub" }; category d (Some 5000L) ] }
-            match planTargetApplication month with
-            | Error message -> Expect.equal message $"{TargetsOpenWriteBackText} Urlaub." "Grund, nur die Kategorie mit Fehlbetrag und offener Rückschreibung"
-            | Ok preview -> failtest $"Ablehnung erwartet: {preview}"
-            let fine = toBudgetMonthWith (Some fold) Map.empty Set.empty { raw [] with Categories = [ category c None; category d (Some 5000L) ] }
-            Expect.isOk (planTargetApplication fine) "offen ohne Fehlbetrag stört nicht"
         }
     ]
 
