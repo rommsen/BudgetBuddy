@@ -89,6 +89,15 @@ beheben, nicht umgehen.
 ## Ablauf
 
 - Features und Bugs: `/agentheim:modeling` (capture, refine, promote), dann `/agentheim:work`.
+- Skizzen (claude.ai-Artifact, von Roman freigegeben) sind die Vorlage für Form und Inhalt einer Seite.
+  Beim Verfeinern jedes sichtbare Element der Skizze als Kriterium übernehmen (Zeilenaufbau, Balken, Farben,
+  Texte, Kopf, Panel). Jede Abweichung steht ausdrücklich in der Task, mit Grund, sonst gilt die Skizze. Ein
+  Baustein aus dem DS ersetzt ein Element der Skizze nur, wenn er gleich aussieht. Sonst wird er eine neue
+  DS-Variante.
+- Worker und Verifier können claude.ai-Artifacts nicht öffnen. Der Conductor liest die Skizze (`Artifact`
+  read), legt ihre Dateien und einen Screenshot je Ansicht in den Scratchpad und gibt Worker, Verifier und
+  `design-quality` die Pfade mit. Die Task trägt ein Kriterium „Seite neben der Skizze verglichen, Abweichungen
+  nur die genannten“ mit Screenshot-Vergleich im Outcome.
 - Worktrees unter `.worktrees/`: nach `git worktree add` `scripts/worktree-prep.sh`, Abbau nur
   über `scripts/worktree-teardown.sh` (sonst leert `git worktree remove --force` das echte
   `node_modules`).
