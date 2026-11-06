@@ -108,12 +108,16 @@ let private openDecisionLines (events: (Guid * BudgetEvent) list) : WriteBackRef
         |> List.filter (fun l -> not (latest |> Map.tryFind (eventId, l.CategoryId) |> Option.defaultValue false))
         |> List.map (fun l -> { DecisionEventId = eventId; CategoryId = l.CategoryId }))
 
+/// Im Stream liegt schon ein `BudgetTakenOverFromYnab` (ADR 0084 Punkt 5: Version 1 ist kein Merkmal).
+let hasTakeover (events: (Guid * BudgetEvent) list) : bool =
+    events |> List.exists (snd >> isTakeover)
+
 /// Die Übernahme eines Monats aus dem gerade gelesenen YNAB-Stand, wenn im Stream noch keine liegt: ein
 /// `BudgetTakenOverFromYnab` mit allen Kategorien außer `internal` (auch ausgeblendete und gelöschte), Werte
 /// ungerundet, dahinter je offener Rückschreibung einer migrierten Entscheidung ein
 /// `AssignmentWriteBackWithdrawn`. Liegt schon eine Übernahme im Stream, nichts.
 let takeoverEvents (monthId: string) (events: (Guid * BudgetEvent) list) (raw: YnabMonth) : BudgetEvent list =
-    if events |> List.exists (snd >> isTakeover) then
+    if hasTakeover events then
         []
     else
         let takeover =

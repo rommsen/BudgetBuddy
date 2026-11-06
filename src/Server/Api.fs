@@ -1924,6 +1924,24 @@ let private liveFramePort (token: string) (budgetId: YnabBudgetId) : Server.Budg
                         id))
             } }
 
+/// Token und Standard-Budget aus den Settings, je `None`, wenn nicht eingerichtet. Budget-Seite und Übernahme im
+/// Hintergrund lesen dieselben Schlüssel.
+let ynabSettingsWith (setting: string -> Async<string option>) : Async<string option * string option> =
+    async {
+        let! tokenOpt = setting "ynab_token"
+        let! budgetOpt = setting "ynab_default_budget_id"
+        return tokenOpt, budgetOpt
+    }
+
+/// Die Ports der Übernahme im Hintergrund (budgeting-dkjc5): echte Settings, echter Client für Monatsfenster und
+/// Monat, echte Datenbank. `Program.fs` übergibt ihn an `TakeoverWorker`; Tests nutzen eigene Ports.
+let liveTakeoverPort : Server.Budgeting.TakeoverWorker.TakeoverPort =
+    { Settings = fun () -> ynabSettingsWith Persistence.Settings.getSetting
+      FetchMonths = fun token budgetId -> YnabClient.getMonths token budgetId
+      FetchMonth = fun token budgetId monthKey -> YnabClient.getMonth token budgetId monthKey
+      LoadTakenOver = Budgeting.Persistence.loadTakenOverMonths
+      EnsureTakenOver = Server.Budgeting.CommandHandlers.ensureTakenOver }
+
 /// Die Budget-Seite ohne Settings, Netz und Uhr: liest den Monat live aus YNAB. Nur "Targets
 /// anwenden" und "Verschieben" schreiben (nach YNAB und in die Budget-Bewegungen), "Target pausieren"
 /// schreibt nur in BB. "Verschieben"
@@ -1935,12 +1953,7 @@ let budgetApiWith
     (utcNow: unit -> DateTime)
     (berlinZone: TimeZoneInfo)
     : BudgetApi =
-    let ynabSettings () =
-        async {
-            let! tokenOpt = setting "ynab_token"
-            let! budgetOpt = setting "ynab_default_budget_id"
-            return tokenOpt, budgetOpt
-        }
+    let ynabSettings () = ynabSettingsWith setting
     let today () = berlinToday berlinZone (utcNow ())
     { getBudgetFrame = fun () -> async {
         let! tokenOpt, budgetOpt = ynabSettings ()

@@ -53,6 +53,7 @@
     <Compile Include="Budgeting/EventMigrationProbe.fs" />
     <Compile Include="Budgeting/CommandHandlers.fs" />
     <Compile Include="Budgeting/QueryHandlers.fs" />
+    <Compile Include="Budgeting/TakeoverWorker.fs" />
     <Compile Include="Rules/CommandHandlers.fs" />
     <Compile Include="PushOutcomeClassification.fs" />
     <Compile Include="BotApi.fs" />

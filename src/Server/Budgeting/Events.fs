@@ -56,6 +56,16 @@ let streamIdOf (stream: BudgetStream) : string =
 
 let private targetStreamPrefix = Context + ":target:"
 
+let private monthStreamPrefix = Context + ":month:"
+
+/// Der Monat "YYYY-MM" eines Monats-Streams, `None` für jeden anderen Stream (budgeting-dkjc5).
+let monthOfMonthStream (streamId: string) : string option =
+    if not (isNull streamId) && streamId.StartsWith(monthStreamPrefix, StringComparison.Ordinal) then
+        let monthId = streamId.Substring monthStreamPrefix.Length
+        if monthIdPattern.IsMatch monthId then Some monthId else None
+    else
+        None
+
 /// Die Kategorie eines Target-Streams, `None` für jeden anderen Stream.
 let categoryOfTargetStream (streamId: string) : Guid option =
     if not (isNull streamId) && streamId.StartsWith(targetStreamPrefix, StringComparison.Ordinal) then

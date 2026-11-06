@@ -740,6 +740,31 @@ let internal loadMonthEventsOn (conn: SqliteConnection) (monthKey: string) : Res
         loadBudgetEventsOn conn (InStream (streamIdOf (MonthStream monthId)))
         |> Result.map (List.map (fun e -> e.EventId, e.Event))
 
+/// Die übernommenen Monate als "YYYY-MM-01": jeder Monats-Stream mit einem `BudgetTakenOverFromYnab`, in einer
+/// Abfrage über `events` (budgeting-dkjc5). Gelesen wird nur `stream_id`, keine Payload.
+let internal queryTakenOverMonths (conn: SqliteConnection) : Result<Set<string>, string> =
+    conn.Query<string>(
+        """SELECT DISTINCT stream_id FROM events
+           WHERE context = @context AND event_type = @event_type""",
+        {| context = Context; event_type = EventTypes.decisionOf TakenOverFromYnab |}
+    )
+    |> Seq.choose monthOfMonthStream
+    |> Seq.map monthKeyOfId
+    |> Set.ofSeq
+    |> Ok
+
+/// Die Meldung, wenn sich die übernommenen Monate nicht lesen lassen.
+[<Literal>]
+let TakenOverMonthsUnreadableText = "Übernommene Monate nicht lesbar"
+
+/// `queryTakenOverMonths` über `connect`.
+let loadTakenOverMonthsWith (connect: unit -> SqliteConnection) : Async<Result<Set<string>, string>> =
+    readWith connect "Übernommene Monate lesen" TakenOverMonthsUnreadableText queryTakenOverMonths
+
+/// `queryTakenOverMonths` auf der Datenbank der Anwendung.
+let loadTakenOverMonths () : Async<Result<Set<string>, string>> =
+    loadTakenOverMonthsWith Core.getConnection
+
 /// Hängt Übernahme und Beobachtungen ohne Befehls-Id an den Monats-Stream, in einer Transaktion. Eine leere
 /// Liste hängt nichts an.
 let internal appendMonthEventsOn (conn: SqliteConnection) (at: DateTime) (monthKey: string) (events: BudgetEvent list) : unit =

@@ -55,6 +55,16 @@ let main args =
             Server.BankConnection.tickPeriod))
     |> ignore
 
+    // Übernimmt die Monate aus YNAB nach und nach (budgeting-dkjc5, ADR 0084 Punkt 5). Nur hier registriert, im
+    // TestServer läuft der Dienst nie (ADR 0071 Punkt 8, Wächter in StructureGuardTests.fs).
+    builder.Services.AddHostedService(fun (_: System.IServiceProvider) ->
+        new Server.Budgeting.TakeoverWorker.TakeoverWorker(
+            Server.Api.liveTakeoverPort,
+            berlinZone,
+            (fun () -> System.DateTime.UtcNow),
+            Server.Budgeting.TakeoverWorker.sleep))
+    |> ignore
+
     let app = builder.Build()
 
     // Initialize database (creates tables if they don't exist)

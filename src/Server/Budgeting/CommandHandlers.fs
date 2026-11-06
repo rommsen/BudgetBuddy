@@ -114,12 +114,12 @@ let private recordObservationWith
 /// `observeMonth` ohne Sperre, für Abläufe, die sie schon halten: ein `FetchMonth`, dann festhalten.
 let private observeUnguarded
     (connect: unit -> SqliteConnection)
-    (port: YnabPort)
+    (fetchMonth: string -> Async<YnabResult<YnabMonth>>)
     (now: DateTime)
     (monthKey: string)
     : Async<Result<ObservedMonth, ObserveFailure>> =
     async {
-        match! port.FetchMonth monthKey with
+        match! fetchMonth monthKey with
         | Error e -> return Error (FetchFailed e)
         | Ok raw ->
             match recordObservationWith connect now monthKey raw with
@@ -138,11 +138,56 @@ let observeMonthWith
     (now: DateTime)
     (monthKey: string)
     : Async<Result<ObservedMonth, ObserveFailure>> =
-    MonthGuard.exclusive monthKey (observeUnguarded connect port now monthKey)
+    MonthGuard.exclusive monthKey (observeUnguarded connect port.FetchMonth now monthKey)
 
 /// `observeMonthWith` auf der Datenbank der Anwendung.
 let observeMonth (port: YnabPort) (now: DateTime) (monthKey: string) : Async<Result<ObservedMonth, ObserveFailure>> =
     observeMonthWith global.Persistence.getConnection port now monthKey
+
+/// Was `ensureTakenOver` vorfand.
+type EnsuredTakeover =
+    /// Im Stream lag schon eine Übernahme, YNAB wurde nicht gefragt.
+    | AlreadyTakenOver
+    /// Der Monat wurde gerade aus YNAB übernommen.
+    | TakenOverNow
+
+/// Übernimmt einen Monat, falls noch keine Übernahme im Stream liegt (budgeting-dkjc5, ADR 0084 Punkt 5): unter
+/// `MonthGuard` zuerst den Stream prüfen, nur ohne Übernahme ein `fetchMonth` und dann wie `observeMonth`
+/// festhalten. Ein Monat, den vorher ein Lesen oder ein Befehl übernommen hat, kostet so keinen YNAB-Aufruf und
+/// bekommt kein zweites Übernahme-Ereignis. BBs eigene Daten nicht lesbar oder nicht festgehalten:
+/// `LocalReadFailed`, die Ursache steht im Server-Log.
+let ensureTakenOverWith
+    (connect: unit -> SqliteConnection)
+    (fetchMonth: string -> Async<YnabResult<YnabMonth>>)
+    (now: DateTime)
+    (monthKey: string)
+    : Async<Result<EnsuredTakeover, YnabError>> =
+    MonthGuard.exclusive monthKey (async {
+        let takenOver =
+            try
+                use conn = connect ()
+                loadMonthEventsOn conn monthKey |> Result.map hasTakeover
+            with ex ->
+                Error ex.Message
+        match takenOver with
+        | Error reason ->
+            logReadFailure $"Übernahme {monthKey} prüfen" reason
+            return Error (YnabError.LocalReadFailed ObservationNotRecordedText)
+        | Ok true -> return Ok AlreadyTakenOver
+        | Ok false ->
+            match! observeUnguarded connect fetchMonth now monthKey with
+            | Ok _ -> return Ok TakenOverNow
+            | Error (FetchFailed e) -> return Error e
+            | Error (NotRecorded _) -> return Error (YnabError.LocalReadFailed ObservationNotRecordedText)
+    })
+
+/// `ensureTakenOverWith` auf der Datenbank der Anwendung.
+let ensureTakenOver
+    (fetchMonth: string -> Async<YnabResult<YnabMonth>>)
+    (now: DateTime)
+    (monthKey: string)
+    : Async<Result<EnsuredTakeover, YnabError>> =
+    ensureTakenOverWith global.Persistence.getConnection fetchMonth now monthKey
 
 /// Der Monat, auf dem ein Befehl plant (ADR 0084, Nachtrag): unter der schon gehaltenen Sperre beobachten,
 /// dann die BB-Pausen lesen und beides zum Monat mit BBs Soll zusammenführen. Scheitert das Lesen von YNAB,
@@ -155,7 +200,7 @@ let private preparedMonth
     (monthKey: string)
     : Async<Result<BudgetMonth * Set<Guid> * MonthFold, YnabError>> =
     async {
-        match! observeUnguarded global.Persistence.getConnection port now monthKey with
+        match! observeUnguarded global.Persistence.getConnection port.FetchMonth now monthKey with
         | Error (FetchFailed e) -> return Error e
         | Error (NotRecorded _) -> return Error (YnabError.LocalReadFailed ObservationNotRecordedText)
         | Ok observed ->
@@ -826,7 +871,7 @@ let retryFailedWith
             let monthKey = first.Movement.Month
             return!
                 MonthGuard.exclusive monthKey (async {
-                    match! observeUnguarded connect port now monthKey with
+                    match! observeUnguarded connect port.FetchMonth now monthKey with
                     | Error (FetchFailed e) -> return Error e
                     | Error (NotRecorded _) -> return Error (YnabError.LocalReadFailed ObservationNotRecordedText)
                     | Ok observed ->

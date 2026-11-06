@@ -663,3 +663,43 @@ let compareUnderfunded (month: BudgetMonth) : UnderfundedComparison list =
 let comparisonSummary (month: string) (rows: UnderfundedComparison list) : string =
     let count outcome = rows |> List.filter (fun r -> r.Outcome = outcome) |> List.length
     $"Parallelrechnung Fehlbetrag {month}: {count Equal} gleich, {count Deviation} abweichend, {count NotCompared} nicht gerechnet"
+
+// ============================================
+// Übernahme im Hintergrund (budgeting-dkjc5, ADR 0084 Punkt 5)
+// ============================================
+
+/// Die Reihenfolge, in der der Hintergrunddienst Monate übernimmt: der laufende Monat (Berliner Kalendermonat),
+/// dann die künftigen aus `GET /months` aufsteigend, dann die älteren absteigend. Schon übernommene Monate fallen
+/// heraus. Fehlt der laufende Monat in `months`, steht er trotzdem vorn. Alle Monate als "YYYY-MM-01".
+let takeoverQueue (currentMonth: string) (months: string list) (takenOver: Set<string>) : string list =
+    let later = months |> List.filter (fun m -> m > currentMonth) |> List.distinct |> List.sort
+    let earlier = months |> List.filter (fun m -> m < currentMonth) |> List.distinct |> List.sortDescending
+    currentMonth :: later @ earlier |> List.filter (fun m -> not (takenOver.Contains m))
+
+/// Was ein Schritt des Hintergrunddienstes ergab.
+[<RequireQualifiedAccess>]
+type TakeoverOutcome =
+    /// Der Monat ist übernommen (oder lag beim Prüfen unter der Sperre schon übernommen im Stream).
+    | TookOver of month: string
+    /// YNAB kennt den Monat nicht (404). Er wird in diesem Durchlauf übersprungen.
+    | MonthNotOpen of month: string
+    /// Kein Monat mehr offen. Der nächste Durchlauf holt die Liste neu.
+    | NothingLeft
+    /// YNAB meldet 429.
+    | RateLimited
+    /// Token oder Budget fehlen in den Settings.
+    | NotConfigured
+    /// Etwas anderes ging schief. `cause` ist ein Typ- oder Fallname, nie eine Meldung mit Daten.
+    | Failed of cause: string
+
+/// Die Wartezeit nach einem Schritt (budgeting-dkjc5, Takt von Roman entschieden): nach einem Monatsaufruf eine
+/// Minute, also höchstens 60 Monatsaufrufe je Stunde; nach 429, einem Fehler oder fehlenden Settings 15 Minuten;
+/// ist nichts mehr offen, 6 Stunden. Die Wartezeit aus `RateLimitExceeded` zählt nicht.
+let nextDelay (outcome: TakeoverOutcome) : TimeSpan =
+    match outcome with
+    | TakeoverOutcome.TookOver _
+    | TakeoverOutcome.MonthNotOpen _ -> TimeSpan.FromMinutes 1.0
+    | TakeoverOutcome.RateLimited
+    | TakeoverOutcome.Failed _
+    | TakeoverOutcome.NotConfigured -> TimeSpan.FromMinutes 15.0
+    | TakeoverOutcome.NothingLeft -> TimeSpan.FromHours 6.0

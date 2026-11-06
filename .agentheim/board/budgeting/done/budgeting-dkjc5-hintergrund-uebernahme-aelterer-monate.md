@@ -1,7 +1,7 @@
 ---
 id: budgeting-dkjc5
 title: "Hintergrund-Übernahme: laufender und künftige Monate zuerst, dann ältere, unter YNABs Rate-Grenze"
-status: doing
+status: done
 type: feature
 context: budgeting
 created: 2026-11-05
@@ -67,3 +67,26 @@ nur beim Lesen und vor Befehlen. Dieser Task schließt die übrigen Monate unter
   `ynab_default_budget_id` ließe die Übernahmen des alten Budgets gelten. In der README als Grenze
   nennen.
 - Live-Dienste nur in Integrationstests hinter `RUN_INTEGRATION_TESTS`.
+
+## Outcome
+
+Übernahme im Hintergrund nach ADR 0084 Punkt 5 (Nachtrag zur Verfeinerung von qm5x9 und dgrp7). `./verify.sh` im Worktree: `VERIFY: PASS` (dotnet 4093 grün, 13 übersprungen nur "(requires .env)"; node 310 grün).
+
+**Reine Regeln** (`src/Server/Budgeting/Domain.fs`): `takeoverQueue currentMonth months takenOver` (laufend, künftig aufsteigend, älter absteigend, ohne Übernommene, laufender Monat auch außerhalb des Fensters vorn), `TakeoverOutcome` (`TookOver`, `MonthNotOpen`, `NothingLeft`, `RateLimited`, `NotConfigured`, `Failed cause`, qualifiziert) und `nextDelay` (1 Minute, 15 Minuten, 6 Stunden; `RateLimitExceeded 60` zählt nicht).
+
+**Übernahme unter der Sperre** (`src/Server/Budgeting/CommandHandlers.fs`): `ensureTakenOverWith connect fetchMonth now monthKey` / `ensureTakenOver` prüft unter `MonthGuard` den Stream (`Assignments.hasTakeover`) und ruft YNAB nur ohne Übernahme (`AlreadyTakenOver` / `TakenOverNow`, lokale Fehler als `LocalReadFailed`). `observeUnguarded` nimmt dafür die Lesefunktion statt des ganzen `YnabPort`.
+
+**Übernommene Monate** (`Budgeting.Persistence.loadTakenOverMonthsWith` / `loadTakenOverMonths`): eine Abfrage `SELECT DISTINCT stream_id` über `events` (Kontext `budgeting`, Typ `BudgetTakenOverFromYnab`), ohne Payload, über `Events.monthOfMonthStream`.
+
+**Dienst** (`src/Server/Budgeting/TakeoverWorker.fs`): `TakeoverPort` (Settings, FetchMonths, FetchMonth, LoadTakenOver, EnsureTakenOver), `takeoverStep` (Fenster einmal je Durchlauf, 404-Monate im Durchlauf übersprungen, nur im Speicher), `logLine` (fehlende Settings und 401 einmal je Zustandswechsel, sonst Fall- oder Typname, nie ein Token), `runWith` mit Uhr und Wartefunktion (eine Ausnahme im Schritt wird zu `Failed` mit Typnamen) und `TakeoverWorker` (BackgroundService, erster Schritt auf dem Thread-Pool, Serverstart wartet nicht auf YNAB).
+
+**Live-Anschluss** (Test-Doktrin Punkt 3): `Api.liveTakeoverPort` (Settings über das neue `Api.ynabSettingsWith`, das jetzt auch `budgetApiWith` nutzt, `YnabClient.getMonths`, `YnabClient.getMonth`, `loadTakenOverMonths`, `ensureTakenOver`), belegt durch neue Muster in `apiWirings` mit Gegenbeweisen; `Program.fs` registriert `TakeoverWorker(Server.Api.liveTakeoverPort, berlinZone, (fun () -> DateTime.UtcNow), TakeoverWorker.sleep)`, belegt durch `isTakeoverWorkerWired` mit Gegenbeweis (anderer Port, feste Uhr, Warten ohne Warten, Kommentar); Registrierung nur dort (`findHostedServiceRegistrations`).
+
+**Tests** (`src/Tests/BudgetTakeoverTests.fs`): Warteschlange, Takt und Log rein; `ensureTakenOverWith` gegen In-Memory-SQLite (schon gelesener Monat ohne Aufruf und ohne zweites Ereignis, Übernahme mit einem Aufruf, 404); Schleife mit simulierter Uhr und gezähltem Fake-YNAB, je Test eigenes Jahrzehnt ab Jahr 6000: 60 Monatsaufrufe in einer simulierten Stunde bei 100 Monaten, Reihenfolge, 429 dann 15 Minuten, vorher gelesener Monat, ohne Token oder Budget kein YNAB-Aufruf und Anlauf ohne Neustart, Neustart mitten im Durchlauf, 404 überspringt nur den Monat, Ausnahme im Schritt; Dienst startet, übernimmt, endet mit dem Stopp. Mutanten geprüft und rot: 404 nicht übersprungen, Stream-Prüfung entfernt, Übernommene nicht gefiltert, 429 mit 1 Minute, Takt 50 Sekunden, Token ohne Budget als eingerichtet.
+
+Hinweis: Ein anderer dauerhafter Fehler als 404 auf einem Monat (etwa eine nicht lesbare Antwort) wird alle 15 Minuten wiederholt und hält die übrigen Monate auf; laut Task nicht übersprungen. Die Grenze zur Budget-Id steht im README-Delta.
+
+### Für den Conductor
+
+- Deploy erst zusammen mit budgeting-dgrp7 (beide jetzt auf dem Weg nach `main`); vorher die Produktions-Datenbank sichern.
+- Override (C): Reviews vorschlagen: `qa-milestone-reviewer` (Tests), `backend-code-quality` (src/Server).
