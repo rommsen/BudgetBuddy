@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 19:08 -- Modeling / Promoted: budgeting-c4ve4 - "Seite Targets prüfen an die freigegebene Skizze angleichen: kompakte Zeile mit Mini-Balken und Target-Linie, Gruppenfarben und Regelsatz, Kopf mit Erklärung und Zählern, Panel mit Satz und großen Balken"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-06 19:08 -- Modeling / Captured: budgeting-c4ve4 - "Seite Targets prüfen an die freigegebene Skizze angleichen: kompakte Zeile mit Mini-Balken und Target-Linie, Gruppenfarben und Regelsatz, Kopf mit Erklärung und Zählern, Panel mit Satz und großen Balken"
 
 **Type:** Modeling / Capture

@@ -1,7 +1,7 @@
 ---
 id: budgeting-c4ve4
 title: "Seite Targets prüfen an die freigegebene Skizze angleichen: kompakte Zeile mit Mini-Balken und Target-Linie, Gruppenfarben und Regelsatz, Kopf mit Erklärung und Zählern, Panel mit Satz und großen Balken"
-status: backlog
+status: todo
 type: feature
 context: budgeting
 created: 2026-11-06
