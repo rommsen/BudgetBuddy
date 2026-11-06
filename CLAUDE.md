@@ -109,6 +109,15 @@ bei geänderten Tests, `backend-code-quality` bei `src/Server/**`, `frontend-arc
 (`.claude/skills/review-agents/SKILL.md`) lässt sie laufen und behebt die Funde selbst. Liegen seit dem letzten `Bestandsreview: <bc>` im
 Protokoll zehn oder mehr erledigte Tasks des BC, zusätzlich `/architecture-review <bc>` vorschlagen.
 
+### Backlog-Disziplin
+
+Für Funde aus einem work-Lauf (Follow-up eines Workers, Anmerkung eines Verifiers, überlebender Mutant einer
+Gegenprobe), aus `/review-agents` und aus `/architecture-review` gilt: Ein eigenes Ticket gibt es nur, wenn der Fund
+Geld oder Daten verfälscht, im Alltag sichtbar stört, eine Sicherheitsgrenze betrifft oder ein Feature blockiert.
+Alles andere wird eine Zeile in der Kann-Sammlung des BC (eine Task je BC mit dem Titel „Kann-Sammlung <bc>“, fehlt
+sie, wird sie angelegt). Kann-Sammlungen werden nie automatisch gebaut. Der Conductor wendet die Regel an, wenn er
+Follow-ups aus dem RESULT-Block übernimmt. `/architecture-review` legt höchstens fünf Gruppen zur Auswahl vor.
+
 ## Lernen
 
 Nach einer Korrektur durch den Owner, einem Verifier-FAIL in der dritten Iteration oder einem

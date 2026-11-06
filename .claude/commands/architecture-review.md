@@ -69,7 +69,8 @@ Entscheidungen und wird nach dem Lauf nicht mehr geändert, außer dass hinter e
 
 Dem Owner im Terminal zeigen: eine Tabelle mit einer Zeile je Gruppe (Titel, höchste Schwere, Befunde, BCs) und den Pfad
 zum Bericht. Danach per AskUserQuestion fragen, welche Gruppen jetzt eine Task werden (Mehrfachauswahl, dazu „später
-entscheiden“). Ohne Auswahl entsteht keine Task.
+entscheiden“). Ohne Auswahl entsteht keine Task. Zur Auswahl stehen höchstens fünf Gruppen, und zwar nur solche, die
+die Schwelle der Backlog-Disziplin aus `CLAUDE.md` erfüllen. Der Rest geht als je eine Zeile in die Kann-Sammlung des BC.
 
 ### Tasks
 

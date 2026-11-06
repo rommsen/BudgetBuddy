@@ -74,8 +74,11 @@ genannten Stelle nachlesen und einer Gruppe zuordnen:
   Nutzen trägt die Änderung nicht. Ein Satz Begründung.
 - **Rückfrage**: nur bei echten Entscheidungen des Owners (sichtbares Verhalten ändert sich, ADR müsste sich ändern,
   zwei vertretbare Wege). Gesammelt am Ende stellen, mit `AskUserQuestion`, nicht einzeln zwischendurch.
-- **Ticket**: nur wenn der Fix eigenes Modeling braucht oder über mehrere BCs geht. Erwartung: null pro Lauf. Dann
-  über `agentheim:quick-capture` in den Backlog, mit Verweis auf den Fund.
+- **Ticket**: nur wenn der Fix eigenes Modeling braucht oder über mehrere BCs geht und der Fund die Schwelle der
+  Backlog-Disziplin aus `CLAUDE.md` erfüllt. Erwartung: null pro Lauf. Dann über `agentheim:quick-capture` in den
+  Backlog, mit Verweis auf den Fund.
+- **Kann-Sammlung**: ein Fund, der stimmt, aber nicht in den Rahmen passt und die Schwelle nicht erfüllt, wird eine
+  Zeile in der Kann-Sammlung des BC (Task mit dem Titel „Kann-Sammlung <bc>“ im Backlog, sonst neu anlegen).
 
 "Gute Muster" aus den Berichten bleiben unangetastet. Vorschläge ohne klaren Nutzen fallen unter Verwerfen.
 
