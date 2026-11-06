@@ -1,7 +1,7 @@
 ---
 id: budgeting-q4v8n
 title: "Seite Targets prüfen #/budget/target-check: Knopf im Kopf der Budget-Seite, Gruppen mit Balken, Vorschlag übernehmen und Anpassen … im Panel oder BottomSheet"
-status: todo
+status: doing
 type: feature
 context: budgeting
 created: 2026-11-05

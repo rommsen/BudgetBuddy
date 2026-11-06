@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 17:20 -- Batch started: [budgeting-q4v8n]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-q4v8n - "Seite Targets prüfen #/budget/target-check: Knopf im Kopf der Budget-Seite, Gruppen mit Balken, Vorschlag übernehmen und Anpassen … im Panel oder BottomSheet"
+**Parallel:** scoped — builder named budgeting-q4v8n; other ready tasks not dispatched
+
+---
+
 ## 2026-11-06 17:20 -- Modeling / Promoted: budgeting-q4v8n - "Seite Targets prüfen #/budget/target-check: Knopf im Kopf der Budget-Seite, Gruppen mit Balken, Vorschlag übernehmen und Anpassen … im Panel oder BottomSheet"
 
 **Type:** Modeling / Promote
