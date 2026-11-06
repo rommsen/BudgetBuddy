@@ -15,6 +15,7 @@ open Components.Budget.Pause
 open Components.Budget.TargetEdit
 open Components.Budget.History
 open Components.Budget.TargetCheck
+open Components.Budget.MonthStart
 open Types
 open Client
 
@@ -184,6 +185,22 @@ let private targetCheckCmd (answer: int * Result<TargetCheckData, string> -> Msg
         (fun result -> answer (generation, result))
         (fun ex -> answer (generation, Error ex.Message))
 
+/// Das Feld Targets prüfen der Leiste (budgeting-m3x7f): dieselben Rohdaten im Hintergrund, mit der Generation beim Start.
+let private monthStartCheckCmd (generation: int) : Cmd<Msg> =
+    Cmd.OfAsync.either
+        (fun () -> Retry.reading Api.budget.getTargetCheck ())
+        ()
+        (fun result -> MonthStartCheckLoaded (generation, result))
+        (fun ex -> MonthStartCheckLoaded (generation, Error ex.Message))
+
+/// "Ausblenden" an der Leiste auf dem Server festhalten.
+let private hideMonthStartCmd (month: string) : Cmd<Msg> =
+    Cmd.OfAsync.either
+        (fun key -> Api.budget.hideMonthStart key)
+        month
+        MonthStartHideAnswered
+        (fun ex -> MonthStartHideAnswered (Error ex.Message))
+
 /// Ein Übergang, der einen Target-Aufruf starten kann (Tab und Seite Targets prüfen): mit Auftrag geht er los.
 let private sendTargetChange (model: Model, request: (string * TargetChangeRequest) option) : Model * Cmd<Msg> * ExternalMsg =
     match request with
@@ -294,12 +311,16 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
     let quiet (model': Model, cmd: Cmd<Msg>) = model', cmd, NoOp
     match msg with
     | PageEntered ->
-        match enterPage model with
-        | model', FreshEntry -> beginLoad model', frameCmd (), NoOp
+        // Das Feld Targets prüfen der Leiste liest bei jedem Betreten neu: nach einem Schreiben auf der Seite Targets
+        // prüfen stimmt die Zahl so bei der Rückkehr.
+        let checking = beginMonthStartCheck model
+        let checkCmd = monthStartCheckCmd checking.MonthStartCheckGeneration
+        match enterPage checking with
+        | model', FreshEntry -> beginLoad model', Cmd.batch [ frameCmd (); checkCmd ], NoOp
         | model', KeptPage ->
             let rereading, reread = rereadMonth model'
             let withRequest, tabDataCmd = withTabData rereading
-            withRequest, Cmd.batch [ rereadCmd reread withRequest; tabDataCmd ], NoOp
+            withRequest, Cmd.batch [ rereadCmd reread withRequest; tabDataCmd; checkCmd ], NoOp
     | Load -> beginLoad model, frameCmd (), NoOp
     | FrameLoaded result ->
         let model', external, loadMonth = applyFrameLoaded result model
@@ -325,7 +346,7 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
             match model.MoveInFlight with
             | MoveCallRunning -> MoveCallRunningAway
             | call -> call
-        { model with MoveInFlight = away }, Cmd.none, NoOp
+        leaveMonthStart { model with MoveInFlight = away }, Cmd.none, NoOp
     | OpenGeneralHistory -> openGeneralHistory model, Cmd.none, ShowGeneralHistory
     | GeneralHistoryEntered ->
         let entered = enterGeneralHistory model
@@ -387,6 +408,18 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         | (model', true), Some month -> model', previewCmd month, NoOp
         | (model', _), _ -> model', Cmd.none, NoOp
     | PreviewLoaded (month, result) -> applyPreviewLoaded month result model, Cmd.none, NoOp
+    | ToggleTargetLine categoryId -> toggleTargetLine categoryId model, Cmd.none, NoOp
+    | ToggleMonthStart -> toggleMonthStart model, Cmd.none, NoOp
+    | HideMonthStart ->
+        match hideMonthStart model with
+        | model', Some month -> model', hideMonthStartCmd month, NoOp
+        | model', None -> model', Cmd.none, NoOp
+    | MonthStartHideAnswered (Ok ()) -> model, Cmd.none, NoOp
+    | MonthStartHideAnswered (Error message) ->
+        // Auf dieser Seite bleibt die Leiste ausgeblendet; auf einem anderen Gerät stünde sie wieder.
+        model, Cmd.none, ShowToast ($"Ausblenden nicht gespeichert, auf anderen Geräten steht die Leiste noch: {message}", ToastWarning)
+    | CoverOverdrawn panel -> quiet (withTabData (coverOverdrawn panel model))
+    | MonthStartCheckLoaded (generation, result) -> applyMonthStartCheck generation result model, Cmd.none, NoOp
     | ConfirmTargets ->
         match confirmTargets model with
         | model', Some preview -> model', applyCmd preview, NoOp
@@ -535,6 +568,8 @@ let private routeOf (msg: Msg) (model: Model) : MsgRoute =
     | ConfirmTargets
     | RetryFailed
     | ConfirmTransfer -> MsgRoute.StartsMove
+    // Am PC wählt das Feld die erste überzogene Zeile, das verlässt den Inspektor.
+    | CoverOverdrawn true
     | SelectMonth _
     | SelectCategory _
     | StepCategory _
@@ -565,6 +600,12 @@ let private routeOf (msg: Msg) (model: Model) : MsgRoute =
     | Loaded _
     | Reloaded _
     | OpenTargets
+    | ToggleTargetLine _
+    | ToggleMonthStart
+    | HideMonthStart
+    | MonthStartHideAnswered _
+    | CoverOverdrawn false
+    | MonthStartCheckLoaded _
     | PreviewLoaded _
     | TargetsApplied _
     | TargetsRetried _

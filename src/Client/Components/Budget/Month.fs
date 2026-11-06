@@ -67,7 +67,7 @@ let rereadMonth (model: Model) : Model * MonthReread =
     | _ -> awaitMonth model, FullReread
 
 /// Die Monatsart des Monats, den die Seite gerade darstellt. Während eines Wechsels ist das noch der
-/// alte: der Knopf "Targets anwenden" springt nicht vor der Antwort.
+/// alte: Kopfknopf und Leiste Monatserster springen nicht vor der Antwort.
 let displayedMonthKind (model: Model) : MonthKind option =
     match model.Frame, model.Month with
     | Success frame, Success month -> Some (monthKind frame.CurrentMonth month.Month)
@@ -409,10 +409,6 @@ let monthStepperFor (frame: BudgetFrame) (month: string) : MonthStepper =
     { Previous = previousMonth frame.Months month
       Next = nextMonth frame.Months month
       Elsewhere = month <> frame.CurrentMonth }
-
-/// Targets anwenden steht nur im laufenden oder einem kommenden Monat, im vergangenen bleibt sein Platz frei.
-let targetsButtonVisible (model: Model) : bool =
-    displayedMonthKind model |> Option.exists targetsAllowed
 
 /// Die Betragsspalten der PC-Tabelle hinter Kategorie und Target: Kopf und Wert je Kategorie.
 /// `IsAvailable` markiert die Spalte mit der Farblogik für Verfügbar.

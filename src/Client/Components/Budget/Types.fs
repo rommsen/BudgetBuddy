@@ -12,22 +12,51 @@ open Types
 open Client.DesignSystem
 open Components.Budget.TargetFormCore
 
+/// Die Vorschau im Dialog "Targets anwenden" mit der Auswahl (budgeting-m3x7f).
+type PreviewShown = {
+    /// Die Vorschau des Servers mit allen Zeilen.
+    Shown: TargetPreview
+    /// Sie wurde neu geladen, weil sich der Stand beim Übernehmen geändert hatte (es wurde nichts geschrieben).
+    Changed: bool
+    /// Die abgewählten Kategorien. Beim Öffnen und nach jeder neuen Vorschau leer: alle Zeilen sind gewählt.
+    Excluded: Set<System.Guid>
+}
+
+/// Ausgang einer Anwendung im Dialog (budgeting-m3x7f, vorher ein Tupel).
+type AppliedTargets = {
+    /// Die gesendete Vorschau, nur mit den gewählten Zeilen.
+    Sent: TargetPreview
+    Report: ApplyReport
+    /// "Fehlgeschlagene erneut senden" läuft.
+    Retrying: bool
+    /// Der Aufruf von "Fehlgeschlagene erneut senden" scheiterte, mit Meldung.
+    RetryError: string option
+}
+
 /// Stand des Dialogs "Targets anwenden" (budgeting-h2zfn).
 type TargetsState =
     | TargetsClosed
     /// Die Vorschau wird geholt.
     | PreviewLoading
     | PreviewFailed of message: string
-    /// Die Vorschau steht. `changed` heißt: sie wurde neu geladen, weil sich YNABs Stand beim
-    /// Übernehmen geändert hatte (es wurde nichts geschrieben).
-    | PreviewReady of preview: TargetPreview * changed: bool
-    /// Übernehmen läuft.
+    /// Die Vorschau steht, mit Auswahl.
+    | PreviewReady of PreviewShown
+    /// Übernehmen läuft, mit der gesendeten Vorschau (nur gewählte Zeilen).
     | Applying of preview: TargetPreview
     /// Der Aufruf selbst scheiterte: ob etwas geschrieben wurde, ist unbekannt.
     | ApplyFailed of preview: TargetPreview * message: string
-    /// Ausgang der Anwendung; `retrying` während "Fehlgeschlagene erneut senden" läuft,
-    /// `retryError` wenn dieser Aufruf scheiterte.
-    | ApplyDone of preview: TargetPreview * report: ApplyReport * retrying: bool * retryError: string option
+    /// Ausgang der Anwendung.
+    | ApplyDone of AppliedTargets
+
+/// Wie die Leiste Monatserster gerade steht (budgeting-m3x7f). Der Kopfknopf Monatserster überstimmt die Regel, bis die
+/// Seite verlassen oder "Ausblenden" gedrückt wird. Er schreibt nichts auf den Server.
+type MonthStartToggle =
+    /// Die Regel entscheidet (`monthStartStands`).
+    | MonthStartByRule
+    /// Über den Kopfknopf geöffnet: steht auch ausgeblendet oder fertig.
+    | MonthStartOpened
+    /// Über den Kopfknopf geschlossen.
+    | MonthStartClosed
 
 /// Wo der Auftrag im Tab steht. Ob er läuft, sagt `Model.MoveInFlight`.
 type Submission =
@@ -300,6 +329,16 @@ type Model = {
     /// Zählt die Abfragen des Monats: eine späte Antwort ersetzt keinen neueren Stand, auch nicht
     /// bei gleicher Monatswahl (zwei Reloads nach schnellen Verschiebungen, Wechsel A, B, A).
     MonthGeneration: int
+    /// Der Kopfknopf Monatserster (budgeting-m3x7f).
+    MonthStartToggle: MonthStartToggle
+    /// Monate, in denen "Ausblenden" auf dieser Seite gedrückt wurde. Dazu kommen die aus dem Rahmen
+    /// (`BudgetFrame.MonthStartHidden`), gespeichert auf dem Server.
+    MonthStartHidden: Set<string>
+    /// Die Rohdaten von Targets prüfen für das Feld Targets prüfen der Leiste, im Hintergrund je Betreten der Seite
+    /// geladen. Ein Fehler macht nur das Feld leer.
+    MonthStartCheck: RemoteData<TargetCheckData>
+    /// Zählt die Abfragen von `MonthStartCheck`: eine späte Antwort ersetzt keinen neueren Stand.
+    MonthStartCheckGeneration: int
 }
 
 type Msg =
@@ -317,8 +356,20 @@ type Msg =
     | Loaded of generation: int * Result<BudgetMonth, string>
     /// Antwort des stillen Neu-Lesens nach einer Bewegung oder Zuweisung.
     | Reloaded of generation: int * Result<BudgetMonth, string>
-    /// Knopf "Targets anwenden": Vorschau öffnen.
+    /// Feld Targets anwenden der Leiste, oder "Wiederholen" nach gescheiterter Vorschau: Vorschau öffnen.
     | OpenTargets
+    /// Die Checkbox einer Zeile der Vorschau: ab- oder wieder anwählen (budgeting-m3x7f).
+    | ToggleTargetLine of categoryId: System.Guid
+    /// Der Kopfknopf Monatserster: die Leiste öffnen oder schließen (budgeting-m3x7f).
+    | ToggleMonthStart
+    /// "Ausblenden" an der Leiste: für den gezeigten Monat ausblenden, auf dem Server gespeichert.
+    | HideMonthStart
+    /// Antwort auf das Speichern von "Ausblenden".
+    | MonthStartHideAnswered of Result<unit, string>
+    /// Feld Überzogene decken: Filter Überzogen, am PC (`panel`) die erste überzogene Zeile mit Tab Geld.
+    | CoverOverdrawn of panel: bool
+    /// Antwort auf das Laden der Rohdaten für das Feld Targets prüfen, mit der Generation beim Start.
+    | MonthStartCheckLoaded of generation: int * Result<TargetCheckData, string>
     /// Antwort der Vorschau, mit dem Monat, zu dem sie gehört.
     | PreviewLoaded of month: string * Result<TargetPreview, string>
     /// "Übernehmen".
@@ -439,7 +490,7 @@ type Msg =
     /// Der Aufruf von Target ändern brach auch im zweiten Versuch ab: ob das Target gespeichert ist, ist
     /// unbekannt (budgeting-eh8xe, Vorbild `TargetPauseCallLost`).
     | TargetChangeCallLost of categoryId: System.Guid * month: string * message: string
-    /// Der Knopf "Targets prüfen" im Seitenkopf (budgeting-q4v8n).
+    /// Das Feld Targets prüfen der Leiste (budgeting-m3x7f, vorher ein Knopf im Seitenkopf).
     | OpenTargetCheck
     /// Die Seite `#/budget/target-check` wird betreten: die Rohdaten holen.
     | TargetCheckEntered
@@ -514,4 +565,8 @@ let init () : Model =
       TargetCheck = { Data = NotAsked; OpenGroups = Set.empty; Panel = None; ReturnPending = false; Generation = 0; LoadPending = false }
       EntriesGeneration = 0
       HistoryGeneration = 0
-      MonthGeneration = 0 }
+      MonthGeneration = 0
+      MonthStartToggle = MonthStartByRule
+      MonthStartHidden = Set.empty
+      MonthStartCheck = NotAsked
+      MonthStartCheckGeneration = 0 }

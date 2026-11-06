@@ -26,7 +26,8 @@ let currentMonthKey (today: DateOnly) : string =
 let toBudgetFrame (today: DateOnly) (months: string list) (order: Guid list) : BudgetFrame =
     { CurrentMonth = currentMonthKey today
       Months = List.sort months
-      CategoryOrder = order }
+      CategoryOrder = order
+      MonthStartHidden = [] }
 
 /// Soll die Kategorie angezeigt werden? Ausgeblendete, gelöschte und interne Kategorien
 /// (Inflow: Ready to Assign) fallen weg.
@@ -60,32 +61,7 @@ let unassigned : AssignmentState = { Assigned = 0L; Confirmed = 0L; Open = None 
 /// danach darf negativ sein. Liegt ein Betrag nicht auf 10 Milliunits, lehnt die Funktion ab,
 /// weil YNAB sonst still rundet. Rein, ohne I/O.
 let planTargetApplication (month: BudgetMonth) : Result<TargetPreview, string> =
-    let categories = month.Groups |> List.collect (fun g -> g.Categories |> List.map (fun c -> g.Name, c))
-
-    let lines, skipped =
-        categories
-        |> List.fold
-            (fun (lines, skipped) (groupName, c) ->
-                match c.Underfunded with
-                | Some under when under.Amount > 0m ->
-                    if isPaused c then
-                        lines,
-                        { CategoryId = c.Id; CategoryName = c.Name; Underfunded = under } :: skipped
-                    else
-                        let line =
-                            { CategoryId = c.Id
-                              CategoryName = c.Name
-                              GroupName = groupName
-                              OldAssigned = c.Assigned
-                              Underfunded = under
-                              NewAssigned = { Amount = c.Assigned.Amount + under.Amount; Currency = c.Assigned.Currency }
-                              Target = c.Target }
-                        line :: lines, skipped
-                | _ -> lines, skipped)
-            ([], [])
-
-    let lines = List.rev lines
-    let skipped = List.rev skipped
+    let lines, skipped = targetApplicationLines month
 
     let offGrid =
         lines |> List.tryFind (fun l -> not (isOnTenMilliunits l.OldAssigned && isOnTenMilliunits l.NewAssigned))
@@ -94,17 +70,16 @@ let planTargetApplication (month: BudgetMonth) : Result<TargetPreview, string> =
     | Some l ->
         Error $"Der Betrag für {l.CategoryName} liegt nicht auf 10 Milliunits (0,01 €) und würde beim Schreiben gerundet. BB wendet deshalb nichts an."
     | None ->
-        let currency = month.ToBeBudgeted.Currency
-        let total = lines |> List.sumBy (fun l -> l.Underfunded.Amount)
-        Ok
+        let empty =
             { Month = month.Month
-              Lines = lines
+              Lines = []
               Skipped = skipped
-              Total = { Amount = total; Currency = currency }
+              Total = { Amount = 0m; Currency = month.ToBeBudgeted.Currency }
               ToBeBudgeted = month.ToBeBudgeted
-              ToBeBudgetedAfter = { Amount = month.ToBeBudgeted.Amount - total; Currency = currency }
+              ToBeBudgetedAfter = month.ToBeBudgeted
               // Die Vorschau ist kein Befehl, die Id setzt der Client beim Übernehmen.
               CommandId = None }
+        Ok (previewWithLines empty lines)
 
 // ============================================
 // Target pausieren (budgeting-t6p8z, ADR 0073, ADR 0079)
@@ -158,13 +133,22 @@ let planPause (month: BudgetMonth) (pausedInBbRaw: Set<Guid>) (request: TargetPa
               Event = event
               After = (if pausedAfter then Some PausedInBb else None) }
 
-/// Stimmt die frisch geplante Vorschau mit der gezeigten überein? Verglichen werden die Zeilen
-/// (Kategorie, altes und neues Zugewiesen) und Zu verteilen; Namen und Reihenfolge der
-/// pausierten Zeilen zählen nicht.
+/// Gilt die gezeigte Vorschau noch gegen die frisch geplante? Die gezeigte trägt nur die gewählten Zeilen
+/// (budgeting-m3x7f): jede muss in der frischen mit Kategorie, altem und neuem Zugewiesen stehen, und Zu verteilen
+/// davor muss gleich sein. Abgewählte oder neu hinzugekommene Zeilen der frischen zählen nicht, sie werden nicht
+/// geschrieben. Ohne gewählte Zeile gilt sie nicht. Namen, Targets und pausierte Zeilen zählen nicht.
 let previewsMatch (shown: TargetPreview) (fresh: TargetPreview) : bool =
-    let key (p: TargetPreview) =
-        p.Lines |> List.map (fun l -> l.CategoryId, l.OldAssigned, l.NewAssigned)
-    shown.Month = fresh.Month && shown.ToBeBudgeted = fresh.ToBeBudgeted && key shown = key fresh
+    let key (l: TargetLine) = l.CategoryId, l.OldAssigned, l.NewAssigned
+    let freshKeys = fresh.Lines |> List.map key |> Set.ofList
+    shown.Month = fresh.Month
+    && shown.ToBeBudgeted = fresh.ToBeBudgeted
+    && not (List.isEmpty shown.Lines)
+    && shown.Lines |> List.forall (fun l -> freshKeys.Contains (key l))
+
+/// Die Zeilen der frischen Vorschau, die die gezeigte gewählt hat, in der Reihenfolge der frischen.
+let chosenLines (shown: TargetPreview) (fresh: TargetPreview) : TargetLine list =
+    let chosen = shown.Lines |> List.map (fun l -> l.CategoryId) |> Set.ofList
+    fresh.Lines |> List.filter (fun l -> chosen.Contains l.CategoryId)
 
 /// Der frühere Text der Herkunft einer Budget-Bewegung, gelesen von der Budget-Migration und in Meldungen.
 let originText (origin: MovementOrigin) : string =

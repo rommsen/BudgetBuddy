@@ -44,7 +44,7 @@ let private monthWith (month: string) (pause: PauseSource option) : BudgetMonth 
       Groups = [ { Name = "Alltag"; Categories = [ { trip with Pause = pause }; holiday ] } ] }
 
 let private frame : BudgetFrame =
-    { CurrentMonth = current; Months = [ "2026-10-01"; current; next ]; CategoryOrder = [ paused; other ] }
+    { CurrentMonth = current; Months = [ "2026-10-01"; current; next ]; CategoryOrder = [ paused; other ]; MonthStartHidden = [] }
 
 let private page : Model =
     { Components.Budget.Types.init () with Frame = Success frame; Month = Success (monthWith current None) }

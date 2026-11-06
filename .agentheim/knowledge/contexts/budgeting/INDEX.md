@@ -10,6 +10,7 @@ Catalog of ADRs, research, and concept synthesis pages scoped to this bounded co
 ## ADRs scoped to this BC
 
 <!-- adr-local:start -->
+- **ADR 0085**: Targets anwenden mit Auswahl. Der Client schickt nur die gewählten Zeilen der Vorschau, der Server gleicht sie als Teilmenge der frischen ab und schreibt nur sie; Leiste und Vorschau rechnen die Summe aus derselben Funktion. `decisions/0085-targets-anwenden-mit-auswahl.md`
 - **ADR 0084** — BB führt das Budget, YNAB wird Spiegel: Zuweisen, Verschieben, Pausen und Targets als Ereignisse in Streams je Monat und je Target, Goals in YNAB eingefroren mit Rückweg-Aktion, Fehlbetrag als BB-Rechnung mit Parallelrechnung vor dem Umschalten — `decisions/0084-bb-fuehrt-das-budget-ynab-wird-spiegel.md`
 - **ADR 0082** — Targets prüfen ist eine eigene Seite ohne Gedächtnis, Einordnung nach Monatswert, Ø der gezählten Monate und Periode des Rhythmus; löst ADR 0075 Punkt 1 für Passt das Target noch? ab — `decisions/0082-targets-pruefen-als-eigene-seite-mit-pruefregel.md`
 - **ADR 0079** — Die Pause eines Targets ist eine Ereignisfolge in BB, die Kategorie trägt ihre Quelle, zusammengeführt beim Bau des Monats — `decisions/0079-pause-als-ereignisfolge-in-bb.md`

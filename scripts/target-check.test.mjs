@@ -110,7 +110,7 @@ async function mockedPage(width, height) {
     route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"not mocked in this test"}' })
   );
   await page.route("**/api/BudgetApi/getBudgetFrame", (route) =>
-    json(route, { Ok: { CurrentMonth: "2026-11-01", Months: ["2026-10-01", "2026-11-01"], CategoryOrder: checkData.Categories.map((c) => c.CategoryId) } })
+    json(route, { Ok: { CurrentMonth: "2026-11-01", Months: ["2026-10-01", "2026-11-01"], CategoryOrder: checkData.Categories.map((c) => c.CategoryId), MonthStartHidden: [] } })
   );
   await page.route("**/api/BudgetApi/getBudgetMonth", (route) => {
     const [key] = JSON.parse(route.request().postData() ?? "[]");
@@ -146,12 +146,12 @@ after(async () => {
   await stopServer(frontend, frontendPort);
 });
 
-test("[flow:targets-pruefen] Handy: über den Knopf im Kopf die Seite öffnen, bei Gibst du mehr aus übernehmen, die Zeile steht danach bei Passt, Zurück führt zur Budget-Seite", async () => {
+test("[flow:targets-pruefen] Handy: über das Feld Targets prüfen der Leiste Monatserster die Seite öffnen, bei Gibst du mehr aus übernehmen, die Zeile steht danach bei Passt, Zurück führt zur Budget-Seite", async () => {
   const { context, page, calls } = await mockedPage(375, 812);
   try {
     await page.goto(`http://127.0.0.1:${frontendPort}/#/budget`, { waitUntil: "load" });
     await waitForPageLoaded(page, "/budget");
-    await page.locator('[data-testid="budget-target-check-button"]:visible button').click();
+    await page.locator('[data-testid="month-start-check"]').click();
     await page.waitForURL(/#\/budget\/target-check$/);
     const more = page.locator('[data-testid="target-check-group"]').filter({ hasText: "Gibst du mehr aus?" });
     await more.waitFor();
@@ -174,7 +174,7 @@ test("[flow:targets-pruefen] Handy: über den Knopf im Kopf die Seite öffnen, b
   }
 });
 
-test("[layout] Handy 375 px: der Kopf der Budget-Seite trägt Historie und Targets prüfen mit 48 px, auf der Seite stehen Kopf und Zeilen ohne Überlauf, die Knöpfe einer Zeile nebeneinander, ungekürzt und 48 px hoch, die Mini-Balken mit Ecken 2 px und 4 px Abstand wie Handy.dc.html", async () => {
+test("[layout] Handy 375 px: der Kopf der Budget-Seite trägt Historie und Monatserster mit 48 px, auf der Seite stehen Kopf und Zeilen ohne Überlauf, die Knöpfe einer Zeile nebeneinander, ungekürzt und 48 px hoch, die Mini-Balken mit Ecken 2 px und 4 px Abstand wie Handy.dc.html", async () => {
   const { context, page } = await mockedPage(375, 812);
   try {
     await page.goto(`http://127.0.0.1:${frontendPort}/#/budget`, { waitUntil: "load" });
@@ -182,7 +182,7 @@ test("[layout] Handy 375 px: der Kopf der Budget-Seite trägt Historie und Targe
     const head = await page.evaluate(() => {
       const box = (testId) => document.querySelector(`[data-testid="${testId}"] button`).getBoundingClientRect();
       const history = box("budget-history-button");
-      const check = box("budget-target-check-button");
+      const check = box("budget-month-start-button");
       return {
         scrollWidth: document.documentElement.scrollWidth,
         history: { w: history.width, h: history.height, right: history.right },
@@ -198,7 +198,7 @@ test("[layout] Handy 375 px: der Kopf der Budget-Seite trägt Historie und Targe
     }
     assert.equal(Math.round(head.check.top), Math.round(head.historyTop), `nebeneinander in einer Zeile (${facts})`);
 
-    await page.locator('[data-testid="budget-target-check-button"]:visible button').click();
+    await page.locator('[data-testid="month-start-check"]').click();
     await page.locator('[data-testid="target-check-row"]').first().waitFor();
     const result = await page.evaluate(() => {
       const clipped = (node) => node.scrollWidth > node.clientWidth + 0.5;

@@ -140,6 +140,7 @@ module FontSizes =
     let xs = "text-xs"                   // Labels, captions
     let micro = "text-[10px]"            // Micro labels: stat captions, status chips, mono glyphs (below the xs scale by design)
     let microPlus = "text-[11px]"        // Slightly larger micro labels (e.g. desktop-only meta strings)
+    let compact = "text-[13px]"          // Zwischen xs und sm: Kopf und Werte der Leiste Monatserster (Skizze, budgeting-m3x7f)
 
 /// Typografie-Rollen für ruhige Listen (ADR 0049, Styleguide §2 "Ruhige Listen").
 /// Arbiträre Größen (`text-[15px]`, `text-[10px]`) stehen nur hier, nicht in Views.

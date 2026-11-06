@@ -36,7 +36,8 @@ let private october : BudgetMonth =
 let private frame : BudgetFrame =
     { CurrentMonth = "2026-10-01"
       Months = [ "2026-09-01"; "2026-10-01"; "2026-11-01" ]
-      CategoryOrder = [ categoryA; categoryB ] }
+      CategoryOrder = [ categoryA; categoryB ]
+      MonthStartHidden = [] }
 
 let private page : Model = { Components.Budget.Types.init () with Frame = Success frame; Month = Success october }
 

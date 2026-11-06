@@ -58,8 +58,8 @@ let moveRunning (model: Model) : bool =
     || (model.OpenRetries |> List.exists (fun r -> r.State = RetryRunning))
     || model.WriteBackRetry.IsSome
     || (match model.Targets with
-        | Applying _
-        | ApplyDone (_, _, true, _) -> true
+        | Applying _ -> true
+        | ApplyDone applied -> applied.Retrying
         | _ -> false)
 
 /// Warum gerade keine Bewegung startet.

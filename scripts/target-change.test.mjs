@@ -66,7 +66,7 @@ async function openPage(width, height, initialGoal = 50) {
     route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"not mocked in this test"}' })
   );
   await page.route("**/api/BudgetApi/getBudgetFrame", (route) =>
-    json(route, { Ok: { CurrentMonth: "2026-11-01", Months: ["2026-10-01", "2026-11-01", "2026-12-01"], CategoryOrder: [guid(1)] } })
+    json(route, { Ok: { CurrentMonth: "2026-11-01", Months: ["2026-10-01", "2026-11-01", "2026-12-01"], CategoryOrder: [guid(1)], MonthStartHidden: [] } })
   );
   await page.route("**/api/BudgetApi/getBudgetMonth", (route) => {
     const [key] = JSON.parse(route.request().postData() ?? "[]");

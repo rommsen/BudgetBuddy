@@ -758,10 +758,10 @@ let applyWithLedger
             match planOf month with
             | Error e -> return Error e
             | Ok fresh when not (previewsMatch shown fresh) -> return Ok (PreviewChanged fresh)
-            | Ok fresh when List.isEmpty fresh.Lines -> return Ok (PreviewChanged fresh)
             | Ok fresh ->
+                // Nur die gewählten Zeilen (budgeting-m3x7f); abgewählte werden nicht geschrieben.
                 let lines =
-                    fresh.Lines
+                    chosenLines shown fresh
                     |> List.map (fun l ->
                         { CategoryId = l.CategoryId
                           CategoryName = l.CategoryName

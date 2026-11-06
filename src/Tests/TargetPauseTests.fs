@@ -462,7 +462,7 @@ let private boundaryTests =
             let f, k = fakeWith ()
             let settings key = async { return Some $"wert-{key}" }
             let framePort _ _ : QueryHandlers.BudgetFramePort =
-                { FetchMonths = (fun () -> async { return Ok [] }); FetchCategoryOrder = (fun () -> async { return Ok [] }) }
+                { FetchMonths = (fun () -> async { return Ok [] }); FetchCategoryOrder = (fun () -> async { return Ok [] }); LoadMonthStartHidden = (fun _ -> async { return Ok [] }) }
             // In Berlin schon der 1. Dezember: der November ist vergangen.
             let lateUtc = DateTime(2026, 11, 30, 23, 30, 0, DateTimeKind.Utc)
             let api = Server.Api.budgetApiWith settings (fun _ _ -> f.Port) framePort (fun () -> lateUtc) (TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin")

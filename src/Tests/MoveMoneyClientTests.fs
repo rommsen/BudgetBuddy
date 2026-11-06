@@ -39,7 +39,8 @@ let private month = monthOf 100m [ food; trip; clothes ]
 let private frame : BudgetFrame =
     { CurrentMonth = monthKey
       Months = [ "2026-10-01"; monthKey; "2026-12-01" ]
-      CategoryOrder = [] }
+      CategoryOrder = []
+      MonthStartHidden = [] }
 
 let private loaded = { init () with Frame = Success frame; Month = Success month }
 
@@ -473,13 +474,13 @@ let private moveWays : MoveWay list =
         Lost = MoveRetried ("app-2", Error "weg") }
       { Name = "Übernehmen"
         Base = onRent
-        Arm = fun model -> { model with Targets = PreviewReady (preview, false) }
+        Arm = fun model -> { model with Targets = PreviewReady { Shown = preview; Changed = false; Excluded = Set.empty } }
         Start = ConfirmTargets
         Landed = fun stand -> TargetsApplied (Ok (Applied (reportFrom stand)))
         Lost = TargetsApplied (Error "weg") }
       { Name = "Fehlgeschlagene erneut senden"
         Base = onRent
-        Arm = fun model -> { model with Targets = ApplyDone (preview, failedReport, false, None) }
+        Arm = fun model -> { model with Targets = ApplyDone { Sent = preview; Report = failedReport; Retrying = false; RetryError = None } }
         Start = RetryFailed
         Landed = fun stand -> TargetsRetried (Ok (reportFrom stand))
         Lost = TargetsRetried (Error "weg") }

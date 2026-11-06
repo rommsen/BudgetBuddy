@@ -72,7 +72,7 @@ async function openPage(width, height, { lines = detailLines, entry = () => jump
   });
   await page.route("**/api/BudgetApi/getBudgetFrame", (route) => {
     calls.frames += 1;
-    return json(route, { Ok: { CurrentMonth: "2026-11-01", Months: ["2026-10-01", "2026-11-01"], CategoryOrder: [CATEGORY, guid(2)] } });
+    return json(route, { Ok: { CurrentMonth: "2026-11-01", Months: ["2026-10-01", "2026-11-01"], CategoryOrder: [CATEGORY, guid(2)], MonthStartHidden: [] } });
   });
   await page.route("**/api/BudgetApi/getBudgetMonth", (route) => json(route, { Ok: month }));
   await page.route("**/api/LedgerApi/getCategoryMonthEntries", (route) => {

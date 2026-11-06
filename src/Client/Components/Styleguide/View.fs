@@ -263,7 +263,7 @@ let private buttonSection =
                                 ]
                             ]
                         subTitle "Blättern"
-                        note "stepArrow mit 48 px Trefferfläche am Handy. stepArrowGap hält den Platz, wenn am Rand der Pfeil fehlt. homeLabel führt nach Hause und ist teal, solange woanders."
+                        note "stepArrow mit 48 px Trefferfläche am Handy. stepArrowGap hält den Platz, wenn am Rand der Pfeil fehlt. homeLabel führt nach Hause und ist teal, solange woanders. homeLabelCompact ist schmal für ein kurzes Wort (Kopf der Budget-Seite am Handy: Nov 2026)."
                         Html.div [
                             prop.className "flex items-center"
                             prop.children [
@@ -280,6 +280,25 @@ let private buttonSection =
                                 Button.stepArrow "styleguide-step-next-away" "Nächster Monat" "›" ignore
                             ]
                         ]
+                        Html.div [
+                            prop.className "flex items-center"
+                            prop.children [
+                                Button.stepArrow "styleguide-step-previous-compact" "Vorheriger Monat" "‹" ignore
+                                Button.homeLabelCompact "styleguide-home-label-compact" "November 2026, zum laufenden Monat" false "Nov 2026" ignore
+                                Button.stepArrow "styleguide-step-next-compact" "Nächster Monat" "›" ignore
+                            ]
+                        ]
+                        subTitle "Kachel und leiser Textknopf"
+                        note "tile: Wert in Mono, Bezeichnung gedämpft, offen, erledigt (✓) oder aktiv (Teal). quietText: leiser Textknopf. Leiste Monatserster der Budget-Seite."
+                        Html.div [
+                            prop.className "grid grid-cols-3 gap-1.5 max-w-sm"
+                            prop.children [
+                                Button.tile "styleguide-tile-open" "2" "Targets prüfen" Button.TileOpen ignore
+                                Button.tile "styleguide-tile-done" "✓" "Targets anwenden" Button.TileDone ignore
+                                Button.tile "styleguide-tile-active" "3" "Überzogene decken" Button.TileActive ignore
+                            ]
+                        ]
+                        Button.quietText "styleguide-quiet-text" "Ausblenden" ignore
                     ]
                 ]
             ]

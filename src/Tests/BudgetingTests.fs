@@ -457,7 +457,8 @@ let private frameTests =
     let order = [ Guid.NewGuid() ]
     let port months categories : QueryHandlers.BudgetFramePort =
         { FetchMonths = fun () -> async { return months }
-          FetchCategoryOrder = fun () -> async { return categories } }
+          FetchCategoryOrder = fun () -> async { return categories }
+          LoadMonthStartHidden = fun _ -> async { return Ok [] } }
     let frameOf p = QueryHandlers.frame p today |> Async.RunSynchronously
     let limited : Shared.Domain.YnabResult<_> = Error (Shared.Domain.YnabError.RateLimitExceeded 60)
     testList "Rahmen der Budget-Seite" [

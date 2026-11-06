@@ -89,68 +89,45 @@ let private historyButton (dispatch: Msg -> unit) =
         ]
     ]
 
-/// Der Knopf "Targets prüfen": öffnet `#/budget/target-check` (budgeting-q4v8n, ADR 0082). Ein Icon-Knopf wie
-/// Historie, daneben im Kopf, am Handy auch. In jedem gezeigten Monat sichtbar: die Seite gilt immer für den
-/// laufenden.
-let private targetCheckButton (dispatch: Msg -> unit) =
-    Html.div [
-        prop.custom ("data-testid", "budget-target-check-button")
-        prop.className "shrink-0"
-        prop.children [
-            Button.view
-                { Button.defaultProps with
-                    Variant = Button.Ghost
-                    Size = Button.Small
-                    Icon = Some (Icons.checkCircle Icons.SM Icons.Default)
-                    OnClick = fun () -> dispatch OpenTargetCheck
-                    Title = Some "Targets prüfen"
-                    AriaLabel = Some "Targets prüfen" }
-        ]
-    ]
-
-/// Ab 768 px steht alles im Kopf: ab 1024 px in einer Zeile, darunter bricht er in zwei um.
-let private wideHead (model: Model) (dispatch: Msg -> unit) =
+/// Der Kopf wie die Skizze (budgeting-m3x7f): `‹ Monat ›`, Historie und Monatserster links, Zu verteilen rechts.
+/// Suche und Chips stehen darunter in eigener Zeile (`searchRow`). Am Handy der kurze Monatsname, damit alles in eine
+/// Zeile passt (Zu verteilen dort ohne €); erst schmaler oder mit fünfstelligem Betrag bricht Zu verteilen um.
+let private head (wide: bool) (model: Model) (dispatch: Msg -> unit) =
     headBar [
-        // Bis 1280 px der kleinere Abstand: mit der schmaleren Suche passt der Kopf so bei 1024 px in eine
-        // Zeile, auch mit fünfstelligem Zu verteilen und zweistelligen Zählern (budgeting-a3k7m).
-        prop.className "budget-month-bar flex flex-wrap items-center gap-x-2 xl:gap-x-3 gap-y-1 py-1 -mx-1 px-1"
+        prop.className (
+            if wide then "budget-month-bar flex flex-wrap items-center gap-x-3 gap-y-1 py-1 -mx-1 px-1"
+            else "budget-month-bar flex flex-wrap items-center py-2 -mx-1 px-1"
+        )
         prop.children [
-            headStepper model dispatch
-            match model.Month with
-            | Success month ->
-                // Suche und Chips stehen außerhalb der Liste und dimmen beim Monatswechsel selbst mit.
-                // `min-w-fit`: die Gruppe bricht als Ganzes um, statt sich zu quetschen.
-                Html.div [
-                    prop.className $"flex flex-1 min-w-fit items-center gap-3 {monthChangeClass model}"
-                    prop.children [
-                        categorySearchField model.CategorySearch dispatch
-                        filterChips model month dispatch
-                    ]
-                ]
-            | _ -> ()
-            assignFigure model
-            targetsButton model dispatch
+            headStepper (not wide) model dispatch
             historyButton dispatch
-            targetCheckButton dispatch
+            monthStartButton model dispatch
+            assignFigure (not wide) model
         ]
     ]
 
-/// Am Handy haften nur Monat mit Zu verteilen und die Chips, damit die festen Zeilen wenig Höhe nehmen.
-let private phoneHead (model: Model) (dispatch: Msg -> unit) =
-    headBar [
-        prop.className "budget-month-bar flex flex-wrap items-center gap-x-3 py-2 -mx-1 px-1"
-        prop.children [ headStepper model dispatch; assignFigure model; historyButton dispatch; targetCheckButton dispatch ]
-    ]
-
-/// Die Zeile unter dem Kopf am Handy, sie scrollt mit. Die Chips liegen in der Liste: dort haften sie.
-let private phoneSearch (model: Model) (dispatch: Msg -> unit) =
+/// Suche und Filter unter Kopf und Leiste wie die Skizze (`leiste-pc.png`, `mitte-pc.png`). Am PC in einer Zeile, am
+/// Handy nur die Suche: sie scrollt mit, die Chips liegen in der Liste und haften dort.
+let private searchRow (model: Model) (month: BudgetMonth) (wide: bool) (dispatch: Msg -> unit) =
     Html.div [
-        prop.className "flex items-center gap-2"
+        prop.className $"flex items-center gap-2 md:gap-3 {monthChangeClass model}"
         prop.children [
             categorySearchField model.CategorySearch dispatch
-            targetsButton model dispatch
+            if wide then filterChips model month dispatch
         ]
     ]
+
+/// Leiste Monatserster und darunter die Suchzeile, 10 px Abstand wie die Skizze. Ohne beides fällt der Block weg.
+let private belowHead (model: Model) (panel: bool) (wide: bool) (dispatch: Msg -> unit) =
+    let bar = monthStartBarView model panel dispatch
+    match model.Month, Components.Budget.MonthStart.monthStartBar model with
+    | Success month, _ ->
+        Html.div [
+            prop.className "flex flex-col gap-2.5"
+            prop.children [ bar; searchRow model month wide dispatch ]
+        ]
+    | _, Some _ -> bar
+    | _ -> Html.none
 
 let private listArea (model: Model) (shown: BudgetGroup list) (wide: bool) (dispatch: Msg -> unit) =
     Html.div [
@@ -163,9 +140,7 @@ let private listArea (model: Model) (shown: BudgetGroup list) (wide: bool) (disp
             | Loading -> Loading.centered "Lade Budget ..."
             | Failure message -> ErrorDisplay.card message (Some (fun () -> dispatch Load))
             | Success month ->
-                if not wide then
-                    phoneSearch model dispatch
-                    filterChips model month dispatch
+                if not wide then filterChips model month dispatch
                 categories model month shown dispatch
         ]
     ]
@@ -188,7 +163,9 @@ let view (model: Model) (dispatch: Msg -> unit) =
             prop.children [
                 PageHeader.screenReaderTitle "Budget"
                 targetsDialog model dispatch
-                if wide then wideHead model dispatch else phoneHead model dispatch
+                head wide model dispatch
+                // Die Leiste Monatserster steht zwischen Kopf und Suche (budgeting-m3x7f), an PC und Handy wie die Skizze.
+                belowHead model isPanel wide dispatch
                 // Steht das Sheet offen, trägt es den Hinweis. Genau eine Stelle, nie beide. Der Platz bleibt
                 // auch leer belegt: fiele er weg, rückten die Geschwister auf, React baute Liste und Sheet
                 // neu auf, und das Sheet führe nicht mehr ein.

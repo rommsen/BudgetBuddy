@@ -91,6 +91,7 @@ const frameFor = (fixture, months = WINDOW, current = CURRENT) => ({
   CurrentMonth: current,
   Months: months,
   CategoryOrder: fixture(current, 0).Groups.flatMap((g) => g.Categories.map((c) => c.Id)),
+  MonthStartHidden: [],
 });
 
 const mockFrame = (page, frame, onCall = () => {}) =>
@@ -154,9 +155,10 @@ test("[fable] Handy: der laufende Monat wird angefragt, Beträge deutsch formati
     assert.deepEqual(requestedKeys, [CURRENT], "der laufende Monat ist die Vorgabe");
     const box = page.locator('[data-testid="budget-to-be-budgeted"]');
     const text = (await box.innerText()).replace(/\s+/g, " ");
-    assert.match(text, /-12,34 €/, "negativ, deutsch formatiert");
+    // Am Handy ohne € wie die Skizze (budgeting-m3x7f), so passt der Kopf in eine Zeile.
+    assert.match(text, /-12,34$/, "negativ, deutsch formatiert, ohne €");
     assert.equal(await page.getByRole("heading", { name: "Budget" }).filter({ visible: true }).count(), 1);
-    assert.ok(await page.getByText("Oktober 2026").isVisible(), "Monat im Kopf");
+    assert.ok(await page.getByText("Okt 2026").isVisible(), "Monat im Kopf, am Handy kurz");
 
     const groups = page.locator('[data-testid="budget-group"]').filter({ visible: true });
     assert.equal(await groups.count(), 2);
@@ -710,7 +712,7 @@ test("[layout] Handy: nach dem Scrollen bleibt die Monatsleiste unter der Navbar
   }
 });
 
-test("[layout] PC: nach dem Scrollen haftet der Kopf mit Suche und Chips, der Spaltenkopf direkt darunter, auch bei großer Schrift", async () => {
+test("[layout] PC: nach dem Scrollen haftet der Kopf, Suche und Chips scrollen mit, der Spaltenkopf direkt darunter, auch bei großer Schrift", async () => {
   for (const rootFont of [null, "20px"]) {
     const { context, page } = await openPage(1440, 900, { fixture: longFixture });
     try {
@@ -723,9 +725,9 @@ test("[layout] PC: nach dem Scrollen haftet der Kopf mit Suche und Chips, der Sp
       const panel = await page.locator('aside[data-testid="budget-inspector"]').boundingBox();
       const facts = JSON.stringify({ rootFont, at, head, panel });
       assert.ok(at.bar.top >= at.navBottom - 0.5, `der Kopf liegt unter der Navigation (${facts})`);
-      assert.ok(at.chips.top >= at.bar.top - 0.5 && at.chips.bottom <= at.bar.bottom + 0.5, `die Chips liegen im Kopf (${facts})`);
-      assert.ok(at.search.top >= at.bar.top - 0.5 && at.search.bottom <= at.bar.bottom + 0.5, `die Suche liegt im Kopf (${facts})`);
-      assert.ok(at.chipsOnTop, `nichts verdeckt die Chips (${facts})`);
+      // budgeting-m3x7f: Suche und Chips stehen wie in der Skizze in eigener Zeile unter Kopf und Leiste.
+      assert.ok(at.search.bottom <= at.navBottom && at.chips.bottom <= at.navBottom, `Suche und Chips sind weggescrollt (${facts})`);
+      assert.ok(at.monthOnTop, `nichts verdeckt den Monat (${facts})`);
       assert.ok(head.y >= at.bar.bottom - 0.5, `der Spaltenkopf liegt unter dem Kopf (${facts})`);
       assert.ok(head.y < at.bar.bottom + 24, `der Spaltenkopf haftet direkt darunter (${facts})`);
       assert.ok(panel.y >= at.bar.bottom - 0.5, `Leiste und Panel überlappen nicht (${facts})`);
@@ -884,22 +886,22 @@ test("[flow:budget-oeffnen] Navigation: die Budget-Seite ist über die Tab-Leist
 
 // ---------------- budgeting-h3k9d: dichter, Tastatur seitenweit, Überzogen, ˄ ˅ ----------------
 
-/// Die Teile des Kopfs: Monat, Suche, Filter, Zu verteilen, Targets anwenden, Historie.
+/// Die Teile des Kopfs: Monat, Historie, Monatserster, Zu verteilen, dazu Suche und Filter aus der Zeile darunter
+/// (budgeting-m3x7f: Targets anwenden und Targets prüfen liegen in der Leiste, Suche und Chips stehen unter ihr).
 const headParts = (page) =>
   page.evaluate(() => {
     const box = (el) => {
       const { top, bottom, left, right } = el.getBoundingClientRect();
       return { top, bottom, left, right };
     };
-    const button = [...document.querySelectorAll("button")].find((el) => el.textContent === "Targets anwenden");
     return {
       bar: box(document.querySelector('[data-testid="budget-month-switcher"]')),
       month: box(document.querySelector('[data-testid="budget-month-name"]')),
       search: box(document.querySelector('[data-testid="budget-category-search"]')),
       filter: box(document.querySelector('[data-testid="budget-filter"]')),
       assign: box(document.querySelector('[data-testid="budget-to-be-budgeted"]')),
-      targets: box(button),
       history: box(document.querySelector('[data-testid="budget-history-button"]')),
+      start: box(document.querySelector('[data-testid="budget-month-start-button"]')),
     };
   });
 
@@ -918,10 +920,14 @@ const denseFixture = (month) => {
   return base;
 };
 
-test("[layout] PC: 1440 × 900 zeigt mindestens 16 Kategorien, die erste Zeile im oberen Viertel, jede höchstens 40 px und einzeilig", async () => {
+test("[layout] PC: 1440 × 900 zeigt mindestens 16 Kategorien, die erste Zeile in den oberen 30 %, jede höchstens 40 px und einzeilig", async () => {
   const { context, page } = await openPage(1440, 900, { fixture: denseFixture });
   try {
     await page.locator('[data-testid="budget-target"]:visible').first().waitFor();
+    // Gemessen wird die Liste im Alltag: die Leiste Monatserster (budgeting-m3x7f) steht am Monatsersten darüber und
+    // ist hier ausgeblendet.
+    await page.locator('[data-testid="month-start-hide"]').click();
+    await page.locator('[data-testid="month-start-bar"]').waitFor({ state: "detached" });
     const measured = await page.evaluate(() => {
       const rows = [...document.querySelectorAll("tr[data-testid='budget-category-row']")];
       const boxes = rows.map((el) => el.getBoundingClientRect());
@@ -939,7 +945,9 @@ test("[layout] PC: 1440 × 900 zeigt mindestens 16 Kategorien, die erste Zeile i
     });
     const facts = JSON.stringify(measured);
     assert.ok(measured.inView >= 16, `mindestens 16 Kategorien im Blick (${facts})`);
-    assert.ok(measured.firstTop <= 900 * 0.25, `die erste Zeile beginnt in den oberen 25 % (${facts})`);
+    // budgeting-m3x7f: Suche und Chips haben wie in der Skizze (mitte-pc.png) eine eigene Zeile unter dem Kopf, das kostet
+    // eine Zeilenhöhe. Vorher 25 %.
+    assert.ok(measured.firstTop <= 900 * 0.3, `die erste Zeile beginnt in den oberen 30 % (${facts})`);
     assert.ok(measured.tallest <= 40, `eine Zeile misst höchstens 40 px (${facts})`);
     assert.ok(measured.groupHead <= 32, `ein Gruppenkopf misst höchstens 32 px (${facts})`);
     assert.ok(measured.tallestTarget <= 24, `Target mit Rhythmus in einer Zeile (${facts})`);
@@ -950,8 +958,8 @@ test("[layout] PC: 1440 × 900 zeigt mindestens 16 Kategorien, die erste Zeile i
 });
 
 // budgeting-c6vn4 (M1): der Knopf Historie stand in der Suchzeile, die Suche schrumpfte bei 375 px auf etwa
-// 70 px. Vor budgeting-h7q4v teilte sie die Zeile nur mit Targets anwenden: so breit muss sie wieder sein.
-test("[layout] Handy 375 px: die Suche teilt ihre Zeile nur mit Targets anwenden, der Knopf Historie steht im Kopf mit 48 px", async () => {
+// 70 px. Seit budgeting-m3x7f steht auch Targets anwenden nicht mehr dort: die Suche hat die Zeile für sich.
+test("[layout] Handy 375 px: die Suche hat ihre Zeile für sich, Historie und Monatserster stehen im Kopf mit 48 px", async () => {
   const { context, page } = await openPage(375, 800, { fixture: targetFixture });
   try {
     const at = await page.evaluate(() => {
@@ -960,24 +968,23 @@ test("[layout] Handy 375 px: die Suche teilt ihre Zeile nur mit Targets anwenden
         return { top, bottom, left, right, width, height };
       };
       const search = document.querySelector('[data-testid="budget-category-search"]');
-      const button = [...document.querySelectorAll("button")].find((el) => el.textContent === "Targets anwenden" && el.getBoundingClientRect().width > 0);
-      const history = [...document.querySelectorAll('[data-testid="budget-history-button"] button')].find((el) => el.getBoundingClientRect().width > 0);
+      const visible = (selector) => [...document.querySelectorAll(selector)].find((el) => el.getBoundingClientRect().width > 0);
       return {
         row: box(search.parentElement),
         search: box(search),
-        targets: box(button),
-        history: box(history),
+        history: box(visible('[data-testid="budget-history-button"] button')),
+        start: box(visible('[data-testid="budget-month-start-button"] button')),
         bar: box(document.querySelector('[data-testid="budget-month-switcher"]')),
       };
     });
     const facts = JSON.stringify(at);
-    const gap = at.targets.left - at.search.right;
-    assert.ok(at.search.width >= at.row.width - at.targets.width - gap - 1, `die Suche nimmt den Rest der Zeile (${facts})`);
-    assert.ok(at.search.width >= 160, `die Suche bleibt benutzbar (${facts})`);
-    assert.ok(at.history.top >= at.bar.top && at.history.bottom <= at.bar.bottom, `Historie steht im Kopf (${facts})`);
-    // budgeting-r7h2q: bei gebrochener Lage misst der Knopf mal 47,99999 px. Gerundet wie die anderen
-    // [layout]-Tests, ein Knopf mit 44 px bleibt rot.
-    assert.ok(Math.round(at.history.width) >= 48 && Math.round(at.history.height) >= 48, `Historie hat 48 px Trefferfläche (${facts})`);
+    assert.ok(at.search.width >= at.row.width - 1, `die Suche nimmt die ganze Zeile (${facts})`);
+    for (const name of ["history", "start"]) {
+      assert.ok(at[name].top >= at.bar.top && at[name].bottom <= at.bar.bottom, `${name} steht im Kopf (${facts})`);
+      // budgeting-r7h2q: bei gebrochener Lage misst der Knopf mal 47,99999 px. Gerundet wie die anderen
+      // [layout]-Tests, ein Knopf mit 44 px bleibt rot.
+      assert.ok(Math.round(at[name].width) >= 48 && Math.round(at[name].height) >= 48, `${name} hat 48 px Trefferfläche (${facts})`);
+    }
   } finally {
     await context.close();
   }
@@ -1000,11 +1007,12 @@ const realisticHeadFixture = (month) => ({
   ],
 });
 
-test("[layout] Kopf: ab 1024 px eine Zeile in der verlangten Reihenfolge, bei 768 px zwei Zeilen", async () => {
-  for (const width of [1024, 1440]) {
+test("[layout] Kopf: ab 768 px eine Zeile Monat, Historie, Monatserster, Zu verteilen, darunter Leiste, dann Suche und Chips", async () => {
+  for (const width of [768, 1024, 1440]) {
     const { context, page } = await openPage(width, 800, { fixture: realisticHeadFixture, current: "2026-09-01", months: ["2026-08-01", "2026-09-01", "2026-10-01"] });
     try {
       await monthName(page).getByText("September 2026").waitFor();
+      await page.locator('[data-testid="month-start-bar"]').waitFor();
       const shown = await page.evaluate(() => ({
         filter: document.querySelector('[data-testid="budget-filter"]').textContent,
         assign: document.querySelector('[data-testid="budget-to-be-budgeted"]').textContent,
@@ -1012,34 +1020,31 @@ test("[layout] Kopf: ab 1024 px eine Zeile in der verlangten Reihenfolge, bei 76
       assert.ok(/Fehlt \(\d\d\)/.test(shown.filter) && /Überzogen \(\d\d\)/.test(shown.filter), `zweistellige Zähler (${JSON.stringify(shown)})`);
       assert.ok(shown.assign.includes("12.345,67"), `Zu verteilen fünfstellig (${JSON.stringify(shown)})`);
       const at = await headParts(page);
-      const facts = JSON.stringify({ width, at });
+      const strip = await page.locator('[data-testid="month-start-bar"]').boundingBox();
+      const facts = JSON.stringify({ width, at, strip });
       // budgeting-c6vn4 (M1): mit dem Knopf Historie brach der Kopf bei 1024 px in zwei Zeilen um.
-      for (const part of ["search", "filter", "assign", "targets", "history"]) {
+      for (const part of ["assign", "history", "start"]) {
         assert.ok(sharesLine(at.month, at[part]), `${part} steht in der Zeile des Monats (${facts})`);
       }
       assert.ok(
-        at.month.right <= at.search.left &&
-          at.search.right <= at.filter.left &&
-          at.filter.right <= at.assign.left &&
-          at.assign.right <= at.targets.left &&
-          at.targets.right <= at.history.left,
-        `Reihenfolge Monat, Suche, Filter, Zu verteilen, Targets anwenden, Historie (${facts})`
+        at.month.right <= at.history.left && at.history.right <= at.start.left && at.start.right <= at.assign.left,
+        `Reihenfolge Monat, Historie, Monatserster, Zu verteilen (${facts})`
       );
+      // Skizze leiste-pc.png: Kopf, Leiste, 10 px darunter Suche und Chips in einer Zeile.
+      assert.ok(strip.y >= at.bar.bottom - 0.5, `die Leiste steht unter dem Kopf (${facts})`);
+      assert.ok(Math.abs(at.search.top - (strip.y + strip.height) - 10) <= 1, `10 px zwischen Leiste und Suche (${facts})`);
+      assert.ok(sharesLine(at.search, at.filter) && at.search.right <= at.filter.left, `Suche und Chips in einer Zeile (${facts})`);
       assert.ok(at.search.right - at.search.left >= 120, `die Suche bleibt benutzbar (${facts})`);
+      assert.ok(await noSideScroll(page), "kein seitliches Scrollen");
+
+      // mitte-pc.png: ohne Leiste stehen Suche und Chips direkt unter dem Kopf.
+      await page.locator('[data-testid="month-start-hide"]').click();
+      await page.locator('[data-testid="month-start-bar"]').waitFor({ state: "detached" });
+      const hidden = await headParts(page);
+      assert.ok(hidden.search.top >= hidden.bar.bottom - 0.5 && hidden.search.top - hidden.bar.bottom <= 16, `Suche direkt unter dem Kopf (${JSON.stringify(hidden)})`);
     } finally {
       await context.close();
     }
-  }
-  const { context, page } = await openPage(768, 800, { fixture: targetFixture });
-  try {
-    const at = await headParts(page);
-    const facts = JSON.stringify(at);
-    const lines = new Set(Object.entries(at).filter(([k]) => k !== "bar").map(([, b]) => Math.round((b.top + b.bottom) / 8)));
-    assert.ok(lines.size >= 2, `mehr als eine Zeile (${facts})`);
-    assert.ok(at.bar.bottom - at.bar.top <= 130, `höchstens zwei Zeilen (${facts})`);
-    assert.ok(await noSideScroll(page), "kein seitliches Scrollen");
-  } finally {
-    await context.close();
   }
 });
 
@@ -1236,8 +1241,9 @@ test("[tastatur] Tastatur: bei offenem Dialog passiert auf der Seite nichts, die
     const panel = page.locator('aside[data-testid="budget-inspector"]');
     await pickRow(page, "Essen");
     await panel.getByRole("heading", { name: "Essen", exact: true }).waitFor();
-    await page.getByRole("button", { name: "Targets anwenden" }).click();
-    await page.getByRole("heading", { name: /Targets anwenden/ }).waitFor();
+    // budgeting-m3x7f: Targets anwenden öffnet sich über das Feld der Leiste Monatserster.
+    await page.locator('[data-testid="month-start-apply"]').click();
+    await page.getByRole("heading", { name: "Targets anwenden" }).waitFor();
     await stayOnEssen(page, panel, "Targets anwenden");
   } finally {
     await second.context.close();
@@ -1297,28 +1303,30 @@ test("[layout] Sheet: ein langer Name kürzt im Kopf, die Knöpfe bleiben im Bil
   }
 });
 
-test("[layout] Handy: Targets anwenden steht in der Zeile der Suche, im vergangenen Monat bleibt der Platz frei", async () => {
+test("[layout] Handy: der Kopf steht in einer Zeile mit Monatserster, im vergangenen Monat bleibt sein Platz frei", async () => {
   const { context, page } = await openPage(390, 844, { fixture: longFixture });
   try {
     const before = await headParts(page);
     const facts = JSON.stringify(before);
-    assert.ok(sharesLine(before.search, before.targets), `Suche und Targets anwenden in einer Zeile (${facts})`);
-    assert.ok(sharesLine(before.month, before.assign), `Monat und Zu verteilen in einer Zeile (${facts})`);
+    assert.ok(sharesLine(before.history, before.start), `Historie und Monatserster in einer Zeile (${facts})`);
+    assert.ok(before.start.top >= before.bar.top && before.start.bottom <= before.bar.bottom, `Monatserster steht im Kopf (${facts})`);
+    // leiste-handy.png: "‹ Nov 2026 › Historie | Zu verteilen" in einer Zeile.
+    for (const part of ["history", "start", "assign"]) {
+      assert.ok(sharesLine(before.month, before[part]), `${part} in der Zeile des Monats (${facts})`);
+    }
+    assert.ok(before.bar.bottom - before.bar.top <= 80, `der Kopf hat eine Zeile (${facts})`);
+    assert.ok(before.search.top >= before.bar.bottom, `die Suche steht unter dem Kopf (${facts})`);
     // Fehler-Toasts der nicht gemockten Routen liegen über den Pfeilen, Playwright scrollte dann für den Klick.
     await page.addStyleTag({ content: ".toast-layer { display: none; }" });
-    const firstRow = () => visibleRows(page).first().evaluate((el) => el.getBoundingClientRect().top);
-    // Die Seite fährt beim Betreten ein (`animate-page-enter`), mitten darin gemessen sähe es nach Sprung aus.
     await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
-    const rowBefore = await firstRow();
 
     await previousArrow(page).click();
-    await monthName(page).getByText("September 2026").waitFor();
+    await monthName(page).getByText("Sep 2026").waitFor();
     await page.locator('[data-testid="budget-list-area"][aria-busy="false"]').waitFor();
     // Der Knopf blendet per Übergang aus, `visibility` wechselt erst an dessen Ende.
-    await page.getByRole("button", { name: "Targets anwenden" }).waitFor({ state: "hidden" });
-    assert.equal(await firstRow(), rowBefore, "die Seite springt nicht");
+    await page.getByRole("button", { name: "Monatserster" }).waitFor({ state: "hidden" });
     const after = await headParts(page);
-    assert.equal(after.search.right, before.search.right, "die Suche behält ihre Breite");
+    assert.equal(after.history.left, before.history.left, "Historie bleibt an ihrem Platz, der Kopf springt nicht");
   } finally {
     await context.close();
   }
@@ -1520,5 +1528,40 @@ test("[layout] Ausgaben-Balken am Handy: die Wertzeile hält ihre Höhe und blei
     }
   } finally {
     await context.close();
+  }
+});
+
+// budgeting-m3x7f: die Leiste Monatserster nach der Skizze. Vier gleich breite Felder, auch am Handy in einer Zeile,
+// jedes mindestens 52 px hoch; Ausblenden mit 48 px Trefferfläche am Handy, 36 px am PC.
+test("[layout] Leiste Monatserster: vier gleich breite Felder mit mindestens 52 px bei 1280 und 390 px, Ausblenden erreichbar", async () => {
+  for (const [width, height] of [[1280, 800], [390, 844]]) {
+    const { context, page } = await openPage(width, height, { fixture: filterFixture });
+    try {
+      await page.locator('[data-testid="month-start-bar"]').waitFor();
+      const at = await page.evaluate(() => {
+        const box = (el) => {
+          const { top, bottom, left, right, width, height } = el.getBoundingClientRect();
+          return { top, bottom, left, right, width, height };
+        };
+        const bar = document.querySelector('[data-testid="month-start-bar"]');
+        const ids = ["month-start-check", "month-start-apply", "month-start-overdrawn", "month-start-distribute"];
+        return {
+          bar: box(bar),
+          fields: ids.map((id) => box(bar.querySelector(`[data-testid="${id}"]`))),
+          hide: box(bar.querySelector('[data-testid="month-start-hide"]')),
+          scrollWidth: document.documentElement.scrollWidth,
+        };
+      });
+      const facts = JSON.stringify({ width, at });
+      const widths = at.fields.map((f) => f.width);
+      assert.ok(Math.max(...widths) - Math.min(...widths) <= 1, `gleich breit (${facts})`);
+      assert.ok(at.fields.every((f) => f.height >= 52), `mindestens 52 px hoch (${facts})`);
+      assert.ok(at.fields.every((f) => Math.round(f.top) === Math.round(at.fields[0].top)), `eine Zeile (${facts})`);
+      assert.ok(at.fields[0].left < at.fields[1].left && at.fields[2].right < at.fields[3].right, `Reihenfolge (${facts})`);
+      assert.ok(Math.round(at.hide.height) >= (width < 768 ? 48 : 36), `Ausblenden Trefferfläche (${facts})`);
+      assert.ok(at.scrollWidth <= width, `kein seitliches Scrollen (${facts})`);
+    } finally {
+      await context.close();
+    }
   }
 });

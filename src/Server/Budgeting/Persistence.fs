@@ -59,11 +59,45 @@ let dropUnderfundedComparisonsOn (conn: SqliteConnection) : unit =
 /// Legt `events` (ADR 0083) an und überführt die früheren Budget-Tabellen nach `events` (budgeting-hyn77). Entfernt
 /// `category_month_activity` (budgeting-k5q2w: die Ausgaben der Periode kommen aus dem Kassenbuch) und
 /// `underfunded_comparisons` (budgeting-hbhzf: BB rechnet den Fehlbetrag selbst, die Parallelrechnung entfällt),
-/// beides abgeleiteter Zustand ohne Geldentscheidung. Wiederholbar. Läuft beim Start hinter
+/// beides abgeleiteter Zustand ohne Geldentscheidung. Legt `budget_month_start_hidden` an (budgeting-m3x7f). Wiederholbar. Läuft beim Start hinter
 /// `Ledger.Persistence.initializeLedgerSchema`. Bricht die Migration ab, wirft der Aufruf und BB startet nicht.
+// ============================================
+// Leiste Monatserster ausgeblendet (budgeting-m3x7f)
+// ============================================
+
+/// Für welche Monate die Leiste Monatserster ausgeblendet ist. Zustand, kein Ereignis (ADR 0083): Ausblenden bewegt
+/// kein Geld und entscheidet nichts über Geld. Eine eigene kleine Tabelle statt eines Settings-Schlüssels, weil der
+/// Zustand je Monat gilt: ein Ausblenden im kommenden Monat nimmt das im laufenden nicht weg. Wiederholbar.
+let createMonthStartHiddenSchemaOn (conn: SqliteConnection) : unit =
+    conn.Execute(
+        """CREATE TABLE IF NOT EXISTS budget_month_start_hidden (
+               month     TEXT NOT NULL PRIMARY KEY,
+               hidden_at TEXT NOT NULL
+           )"""
+    )
+    |> ignore
+
+/// Blendet die Leiste für den Monat ("YYYY-MM-01") aus. Ein zweites Ausblenden ändert nichts, der erste Zeitpunkt bleibt.
+let hideMonthStartOn (conn: SqliteConnection) (month: string) (at: DateTime) : unit =
+    conn.Execute(
+        "INSERT OR IGNORE INTO budget_month_start_hidden (month, hidden_at) VALUES (@month, @at)",
+        {| month = month; at = at.ToString("o", CultureInfo.InvariantCulture) |}
+    )
+    |> ignore
+
+/// Die Monate ab `fromMonth` ("YYYY-MM-01", einschließlich), für die die Leiste ausgeblendet ist, aufsteigend. Ältere
+/// Monate braucht die Seite nicht: dort steht die Leiste nie.
+let loadMonthStartHiddenOn (conn: SqliteConnection) (fromMonth: string) : string list =
+    conn.Query<string>(
+        "SELECT month FROM budget_month_start_hidden WHERE month >= @fromMonth ORDER BY month",
+        {| fromMonth = fromMonth |}
+    )
+    |> List.ofSeq
+
 let initializeBudgetingSchema () =
     use conn = Core.getConnection ()
     EventStore.createSchemaOn conn
+    createMonthStartHiddenSchemaOn conn
     dropMonthActivityOn conn
     dropUnderfundedComparisonsOn conn
     Budgeting.EventMigration.migrateBudgetEventsOn conn |> ignore

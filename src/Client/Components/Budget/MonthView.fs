@@ -11,6 +11,7 @@ open Components.Budget.Month
 open Components.Budget.Targets
 open Components.Budget.Moves
 open Components.Budget.Inspector
+open Components.Budget.MonthStart
 open Client.DesignSystem
 open Client.DesignSystem.Tokens
 
@@ -88,7 +89,8 @@ let detailAmount (m: Money) =
 // ============================================
 
 /// Zu verteilen rechts in der Leiste, die Karte entfällt.
-let toBeBudgeted (m: Money) =
+/// `compact`: am Handy ohne € wie die Skizze (`leiste-handy.png`), so passt der Kopf bei 390 px in eine Zeile.
+let toBeBudgeted (compact: bool) (m: Money) =
     Html.div [
         prop.custom ("data-testid", "budget-to-be-budgeted")
         prop.className "flex flex-col items-end"
@@ -100,27 +102,36 @@ let toBeBudgeted (m: Money) =
                     Currency = m.Currency
                     Size = Money.Large
                     Glow = Money.NoGlow
-                    ShowSign = false }
+                    ShowSign = false
+                    ShowCurrency = not compact }
         ]
     ]
 
 /// `‹ Monat ›`. Am Rand fehlt der Pfeil, sein Platz bleibt frei. Der Name führt zum laufenden Monat
 /// und ist teal, sobald ein anderer gezeigt wird. Bleibt auch stehen, wenn der Monat nicht offen ist.
-let monthStepper (frame: BudgetFrame) (month: string) (dispatch: Msg -> unit) =
+/// "2026-11-01" als "Nov 2026" wie im Kopf der Skizze am Handy. Ein unlesbarer Wert bleibt, wie er ist.
+let compactMonthLabel (month: string) : string =
+    match month.Split '-' with
+    | [| year; _; _ |] when shortMonthLabel month <> month -> $"{shortMonthLabel month} {year}"
+    | _ -> month
+
+/// `compact`: am Handy der kurze Name ("Nov 2026"), damit der Kopf in eine Zeile passt (Skizze `leiste-handy.png`).
+let monthStepper (compact: bool) (frame: BudgetFrame) (month: string) (dispatch: Msg -> unit) =
     let arrow testId label arrowText target =
         match target with
         | Some m -> Button.stepArrow testId label arrowText (fun () -> dispatch (SelectMonth m))
         | None -> Button.stepArrowGap ()
     let stepper = monthStepperFor frame month
+    let label = if compact then Button.homeLabelCompact else Button.homeLabel
     Html.div [
-        prop.className "flex items-center"
+        prop.className "flex shrink-0 items-center"
         prop.children [
             arrow "budget-month-previous" "Vorheriger Monat" "‹" stepper.Previous
-            Button.homeLabel
+            label
                 "budget-month-name"
                 $"{monthLabel month}, zum laufenden Monat"
                 stepper.Elsewhere
-                (monthLabel month)
+                (if compact then compactMonthLabel month else monthLabel month)
                 (fun () -> dispatch (SelectMonth frame.CurrentMonth))
             arrow "budget-month-next" "Nächster Monat" "›" stepper.Next
         ]
@@ -128,29 +139,40 @@ let monthStepper (frame: BudgetFrame) (month: string) (dispatch: Msg -> unit) =
 
 /// Zu verteilen, solange der Monat steht. `ml-auto` rückt es in einer eigenen Zeile nach rechts.
 /// Der Name zeigt beim Blättern sofort das Ziel, Zu verteilen bleibt bis zur Antwort beim alten Monat.
-let assignFigure (model: Model) =
+let assignFigure (compact: bool) (model: Model) =
     match model.Month with
     | Success month ->
         Html.div [
             prop.className $"ml-auto {monthChangeClass model}"
-            prop.children [ toBeBudgeted month.ToBeBudgeted ]
+            prop.children [ toBeBudgeted compact month.ToBeBudgeted ]
         ]
     | _ -> Html.none
 
-/// Unsichtbar statt weg: sonst änderte der Kopf beim Blättern seine Breite und die Liste sprang.
-let targetsButton (model: Model) (dispatch: Msg -> unit) =
+/// Der Kopfknopf Monatserster (budgeting-m3x7f): ein Icon-Knopf wie Historie, öffnet und schließt die Leiste und schreibt
+/// nichts. Im vergangenen Monat unsichtbar statt weg: sonst änderte der Kopf beim Blättern seine Breite und die Liste sprang.
+let monthStartButton (model: Model) (dispatch: Msg -> unit) =
     match model.Month with
     | Success _ ->
-        let allowed = targetsButtonVisible model
         Html.div [
-            prop.className (if allowed then "shrink-0" else "shrink-0 invisible")
-            prop.children [ Button.secondary "Targets anwenden" (fun () -> dispatch OpenTargets) ]
+            prop.custom ("data-testid", "budget-month-start-button")
+            prop.className (if monthStartButtonVisible model then "shrink-0" else "shrink-0 invisible")
+            prop.children [
+                Button.view
+                    { Button.defaultProps with
+                        Variant = Button.Ghost
+                        Size = Button.Small
+                        Icon = Some (Icons.calendar Icons.SM Icons.Default)
+                        OnClick = fun () -> dispatch ToggleMonthStart
+                        Title = Some "Monatserster"
+                        AriaLabel = Some "Monatserster"
+                        AriaExpanded = Some (monthStartBar model).IsSome }
+            ]
         ]
     | _ -> Html.none
 
-let headStepper (model: Model) (dispatch: Msg -> unit) =
+let headStepper (compact: bool) (model: Model) (dispatch: Msg -> unit) =
     match model.Frame, shownMonth model with
-    | Success frame, Some month -> monthStepper frame month dispatch
+    | Success frame, Some month -> monthStepper compact frame month dispatch
     | _ -> Html.none
 
 /// Der Kopf der Seite als sticky Leiste.
@@ -352,9 +374,8 @@ let private desktopTable (selectedId: System.Guid option) (dispatch: Msg -> unit
 let categorySearchField (search: string) (dispatch: Msg -> unit) =
     Html.div [
         prop.custom ("data-testid", "budget-category-search")
-        // Zwischen 768 und 1280 px schmaler (budgeting-a3k7m): sonst bricht der Kopf bei 1024 px mit echten
-        // Zahlen um und der Knopf Historie steht allein in Zeile 2.
-        prop.className "relative flex-1 min-w-0 md:min-w-28 md:w-28 xl:min-w-32 xl:w-32"
+        // Am PC 256 px in der eigenen Zeile unter Kopf und Leiste wie die Skizze (budgeting-m3x7f), am Handy die volle Zeile.
+        prop.className "relative flex-1 min-w-0 md:flex-none md:w-64"
         prop.children [
             Input.text
                 { Input.textInputDefaults with
@@ -441,4 +462,65 @@ let categories (model: Model) (month: BudgetMonth) (shown: BudgetGroup list) (di
                 Viewport.isInspectorPanelViewport (),
                 desktopTable selectedId dispatch shown
             )
+        ]
+
+// ============================================
+// Leiste Monatserster (budgeting-m3x7f)
+// ============================================
+
+let private tileState (state: FieldState) =
+    match state with
+    | FieldActive -> Button.TileActive
+    | FieldDone -> Button.TileDone
+    | FieldOpen -> Button.TileOpen
+
+let private fieldTestId (field: MonthStartField) =
+    match field with
+    | CheckField -> "month-start-check"
+    | ApplyField -> "month-start-apply"
+    | OverdrawnField -> "month-start-overdrawn"
+    | DistributeField -> "month-start-distribute"
+
+/// Was ein Feld tut: Targets prüfen öffnet die Seite, Targets anwenden die Vorschau, Überzogene decken setzt den Filter
+/// (am PC mit erster Zeile und Tab Geld), verteilen ist nur Anzeige und setzt den Filter Alle.
+let private fieldMsg (panel: bool) (field: MonthStartField) : Msg =
+    match field with
+    | CheckField -> OpenTargetCheck
+    | ApplyField -> OpenTargets
+    | OverdrawnField -> CoverOverdrawn panel
+    | DistributeField -> SelectFilter AllCategories
+
+let private monthStartFieldButton (panel: bool) (dispatch: Msg -> unit) (f: MonthStartFieldView) =
+    Html.div [
+        prop.key (fieldTestId f.Field)
+        prop.className "grid min-w-0"
+        prop.children [
+            Button.tile (fieldTestId f.Field) f.Value f.Label (tileState f.State) (fun () -> dispatch (fieldMsg panel f.Field))
+        ]
+    ]
+
+/// Die Leiste nach der Skizze (Zeile 45 bis 52): Karte mit Kopfzeile "Monatserster" und "Ausblenden", darunter vier
+/// gleich breite Felder, an PC und Handy gleich. `panel`: der Inspektor steht als Panel daneben (PC).
+let monthStartBarView (model: Model) (panel: bool) (dispatch: Msg -> unit) =
+    match monthStartBar model with
+    | None -> Html.none
+    | Some fields ->
+        Html.section [
+            prop.custom ("data-testid", "month-start-bar")
+            prop.ariaLabel "Monatserster"
+            prop.className
+                $"flex flex-col gap-1.5 bg-surface-card border border-border-subtle rounded-[12px] pt-1.5 px-2.5 pb-2.5 {monthChangeClass model}"
+            prop.children [
+                Html.div [
+                    prop.className "flex items-center justify-between gap-3"
+                    prop.children [
+                        Html.span [ prop.className $"{FontSizes.compact} font-semibold text-text-primary"; prop.text "Monatserster" ]
+                        Button.quietText "month-start-hide" "Ausblenden" (fun () -> dispatch HideMonthStart)
+                    ]
+                ]
+                Html.div [
+                    prop.className "grid grid-cols-4 gap-1.5"
+                    prop.children (fields |> List.map (monthStartFieldButton panel dispatch))
+                ]
+            ]
         ]

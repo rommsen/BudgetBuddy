@@ -91,13 +91,17 @@ let recentMoveCategoriesWith (load: int -> Async<Result<Guid list, string>>) : A
 let recentMoveCategories () : Async<Result<Guid list, string>> =
     recentMoveCategoriesWith Budgeting.Persistence.loadRecentMoveCategories
 
-/// Die beiden Lese-Quellen des Rahmens.
+/// Die Lese-Quellen des Rahmens.
 type BudgetFramePort = {
     FetchMonths: unit -> Async<YnabResult<string list>>
     FetchCategoryOrder: unit -> Async<YnabResult<Guid list>>
+    /// Die Monate ab dem übergebenen laufenden, in denen die Leiste Monatserster ausgeblendet ist (budgeting-m3x7f).
+    /// Liest nur die Datenbank.
+    LoadMonthStartHidden: string -> Async<Result<string list, string>>
 }
 
-/// Liest den Rahmen. Scheitert eine Quelle, ist das Ergebnis dieser Fehler.
+/// Liest den Rahmen. Scheitert eine YNAB-Quelle, ist das Ergebnis dieser Fehler. Ist das Ausblenden der Leiste nicht
+/// lesbar, gilt sie als nicht ausgeblendet: Sie steht dann einmal zu viel, die Seite bleibt bedienbar.
 let frame (port: BudgetFramePort) (today: DateOnly) : Async<YnabResult<BudgetFrame>> =
     async {
         match! port.FetchMonths () with
@@ -105,7 +109,20 @@ let frame (port: BudgetFramePort) (today: DateOnly) : Async<YnabResult<BudgetFra
         | Ok months ->
             match! port.FetchCategoryOrder () with
             | Error e -> return Error e
-            | Ok order -> return Ok (toBudgetFrame today months order)
+            | Ok order ->
+                let frame = toBudgetFrame today months order
+                let! hidden = port.LoadMonthStartHidden frame.CurrentMonth
+                return Ok { frame with MonthStartHidden = hidden |> Result.defaultValue [] }
+    }
+
+/// Die ausgeblendeten Monate aus der Datenbank der Anwendung. Ein Lesefehler wird zum `Error` mit Text.
+let loadMonthStartHidden (fromMonth: string) : Async<Result<string list, string>> =
+    async {
+        try
+            use conn = global.Persistence.getConnection ()
+            return Ok (Budgeting.Persistence.loadMonthStartHiddenOn conn fromMonth)
+        with ex ->
+            return Error $"Ausblenden der Leiste nicht lesbar: {ex.Message}"
     }
 
 /// Die Lese-Quellen der Historie (budgeting-dyn8g): die Bewegungen aus `events` (Kontext `budgeting`) und die

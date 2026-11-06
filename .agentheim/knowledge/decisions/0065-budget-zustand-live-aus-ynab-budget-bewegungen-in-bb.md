@@ -6,8 +6,8 @@ status: accepted
 date: 2026-10-26
 supersedes: []
 superseded_by: []
-related_tasks: [budgeting-k7wmd, budgeting-h2zfn, budgeting-afd8h, budgeting-m1bce, budgeting-dyn8g]
-related_adrs: [0013, 0050, 0055, 0063]
+related_tasks: [budgeting-k7wmd, budgeting-h2zfn, budgeting-afd8h, budgeting-m1bce, budgeting-dyn8g, budgeting-m3x7f]
+related_adrs: [0013, 0050, 0055, 0063, 0085]
 related_research: [ynab-api-targets-zuweisung-2026-10-25]
 ---
 
@@ -96,3 +96,11 @@ ADR 0084 macht BB im Budget führend. Bis zur Umsetzung der Folge-Tasks gilt die
   Vorschau. Vorher beobachtet der Befehl YNAB (`observeMonth`, Echo-Regel aus ADR 0084 Punkt 3),
   und die Vorschau rechnet mit dem Soll aus BB.
 - Die Tabellen aus Punkt 2 gehen mit budgeting-hyn77 in `events` auf und werden entfernt.
+
+## Nachtrag 2026-11-06 (ADR 0085, budgeting-m3x7f)
+
+- **Punkt 6:** Die Vorschau von Targets anwenden hat abwählbare Zeilen. Der Client schickt nur die
+  gewählten Zeilen, der Server gleicht sie als Teilmenge der frisch geplanten ab (Kategorie, altes
+  und neues Zugewiesen je gewählter Zeile, Zu verteilen davor gleich) und schreibt nur sie. Eine
+  Zeile, die zwischen Vorschau und Anwenden neu hinzukommt, meldet kein "Stand hat sich geändert"
+  mehr; sie steht in der nächsten Vorschau. Für die gewählten Zeilen gilt Punkt 6 unverändert.

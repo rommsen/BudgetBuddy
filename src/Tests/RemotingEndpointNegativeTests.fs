@@ -362,7 +362,7 @@ let private rows : Row list = [
                 SetAssigned = fun _ _ _ -> async { return failwith "Pausieren schreibt nicht nach YNAB" }
                 FetchCategoryGoals = fun () -> async { return Ok [] } }
           let frame _ _ : Server.Budgeting.QueryHandlers.BudgetFramePort =
-              { FetchMonths = (fun () -> async { return Ok [] }); FetchCategoryOrder = (fun () -> async { return Ok [] }) }
+              { FetchMonths = (fun () -> async { return Ok [] }); FetchCategoryOrder = (fun () -> async { return Ok [] }); LoadMonthStartHidden = (fun _ -> async { return Ok [] }) }
           let configured =
               Server.Api.budgetApiWith
                   (fun _ -> async { return Some "eingerichtet" })
@@ -387,7 +387,7 @@ let private rows : Row list = [
                 SetAssigned = fun _ _ _ -> async { return failwith "kein Zuweisen erwartet" }
                 FetchCategoryGoals = fun () -> async { return Ok [] } }
           let frame _ _ : Server.Budgeting.QueryHandlers.BudgetFramePort =
-              { FetchMonths = (fun () -> async { return Ok [] }); FetchCategoryOrder = (fun () -> async { return Ok [] }) }
+              { FetchMonths = (fun () -> async { return Ok [] }); FetchCategoryOrder = (fun () -> async { return Ok [] }); LoadMonthStartHidden = (fun _ -> async { return Ok [] }) }
           // budgeting-c6vn4 (M3): ohne Einrichtung darf kein Port entstehen. Mit demselben leeren Port wie
           // eingerichtet bliebe der Fall auch ohne `withYnabPort` grün ("nicht sichtbar" statt Einrichtung).
           let apiWith (setting: string option) =
@@ -452,6 +452,8 @@ let private rows : Row list = [
                   (fun () -> DateTime(2026, 11, 5, 9, 0, 0, DateTimeKind.Utc))
                   (TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin")
           Expect.equal (unconfigured.getTargetCheck () |> run) (Error "Kein YNAB-Token eingerichtet (Settings)") "fehlende Einrichtung" }
+    { Endpoint = "BudgetApi.hideMonthStart"; Case = "ungültiger Monat: Fehler statt Ausnahme, nichts gespeichert"
+      Run = fun () -> budget.hideMonthStart "kein-monat" |> run |> expectError "Ausblenden" }
     { Endpoint = "BudgetApi.retryFailedTargets"; Case = "keine gültige Anwendungs-Id: Fehler"
       Run = fun () -> budget.retryFailedTargets "keine-guid" |> run |> expectError "Wiederholen" }
 ]

@@ -25,16 +25,39 @@ let applyPreviewLoaded (month: string) (result: Result<TargetPreview, string>) (
         model
     else
         match result with
-        | Ok preview -> { model with Targets = PreviewReady (preview, false) }
+        | Ok preview -> { model with Targets = PreviewReady { Shown = preview; Changed = false; Excluded = Set.empty } }
         | Error message -> { model with Targets = PreviewFailed message }
 
-/// "Übernehmen". Gibt die Vorschau zurück, die an den Server geht. Ohne Zeilen gibt es nichts
-/// zu übernehmen; ein zweiter Klick während des Laufs tut nichts. Ein negatives Zu verteilen
-/// danach sperrt nichts.
+/// Die Vorschau mit der Auswahl: nur die gewählten Zeilen, Summe und Zu verteilen danach folgen ihnen
+/// (budgeting-m3x7f). Das zeigt der Dialog, und das geht an den Server.
+let selectedPreview (shown: PreviewShown) : TargetPreview =
+    previewWithLines shown.Shown (shown.Shown.Lines |> List.filter (fun l -> not (shown.Excluded.Contains l.CategoryId)))
+
+/// Ist die Zeile gewählt?
+let lineChosen (shown: PreviewShown) (categoryId: System.Guid) : bool =
+    not (shown.Excluded.Contains categoryId)
+
+/// Die Checkbox einer Zeile: ab- oder wieder anwählen. Nur, solange die Vorschau steht.
+let toggleTargetLine (categoryId: System.Guid) (model: Model) : Model =
+    match model.Targets with
+    | PreviewReady shown ->
+        let excluded =
+            if shown.Excluded.Contains categoryId then shown.Excluded.Remove categoryId else shown.Excluded.Add categoryId
+        { model with Targets = PreviewReady { shown with Excluded = excluded } }
+    | _ -> model
+
+/// Kann "Anwenden" senden? Nur mit mindestens einer gewählten Zeile.
+let canApplyTargets (shown: PreviewShown) : bool =
+    not (List.isEmpty (selectedPreview shown).Lines)
+
+/// "Anwenden". Gibt die Vorschau zurück, die an den Server geht: nur die gewählten Zeilen, abgewählte werden nicht
+/// geschrieben. Ohne gewählte Zeile gibt es nichts anzuwenden; ein zweiter Klick während des Laufs tut nichts. Ein
+/// negatives Zu verteilen danach sperrt nichts.
 let confirmTargets (model: Model) : Model * TargetPreview option =
     match model.Targets with
-    | PreviewReady (preview, _) when not (List.isEmpty preview.Lines) ->
-        { model with Targets = Applying preview }, Some preview
+    | PreviewReady shown when canApplyTargets shown ->
+        let sent = selectedPreview shown
+        { model with Targets = Applying sent }, Some sent
     | _ -> model, None
 
 /// Antwort auf "Übernehmen". Hat sich YNABs Stand geändert, steht die neue Vorschau mit dem
@@ -43,8 +66,9 @@ let applyApplied (result: Result<ApplyResult, string>) (model: Model) : Model =
     match model.Targets with
     | Applying preview ->
         match result with
-        | Ok (Applied report) -> { model with Targets = ApplyDone (preview, report, false, None) }
-        | Ok (PreviewChanged fresh) -> { model with Targets = PreviewReady (fresh, true) }
+        | Ok (Applied report) ->
+            { model with Targets = ApplyDone { Sent = preview; Report = report; Retrying = false; RetryError = None } }
+        | Ok (PreviewChanged fresh) -> { model with Targets = PreviewReady { Shown = fresh; Changed = true; Excluded = Set.empty } }
         | Error message -> { model with Targets = ApplyFailed (preview, message) }
     | _ -> model
 
@@ -52,16 +76,16 @@ let applyApplied (result: Result<ApplyResult, string>) (model: Model) : Model =
 /// soll; ohne fehlgeschlagene Zeile oder während eines Laufs `None`.
 let retryFailed (model: Model) : Model * string option =
     match model.Targets with
-    | ApplyDone (preview, report, false, _) when failedCount report > 0 ->
-        { model with Targets = ApplyDone (preview, report, true, None) }, Some report.ApplicationId
+    | ApplyDone applied when not applied.Retrying && failedCount applied.Report > 0 ->
+        { model with Targets = ApplyDone { applied with Retrying = true; RetryError = None } }, Some applied.Report.ApplicationId
     | _ -> model, None
 
 let applyRetried (result: Result<ApplyReport, string>) (model: Model) : Model =
     match model.Targets with
-    | ApplyDone (preview, report, true, _) ->
+    | ApplyDone applied when applied.Retrying ->
         match result with
-        | Ok report' -> { model with Targets = ApplyDone (preview, report', false, None) }
-        | Error message -> { model with Targets = ApplyDone (preview, report, false, Some message) }
+        | Ok report -> { model with Targets = ApplyDone { applied with Report = report; Retrying = false; RetryError = None } }
+        | Error message -> { model with Targets = ApplyDone { applied with Retrying = false; RetryError = Some message } }
     | _ -> model
 
 /// Dialog schließen. Während Übernehmen oder erneutem Senden läuft, bleibt er offen. Nach
@@ -72,12 +96,12 @@ let applyRetried (result: Result<ApplyReport, string>) (model: Model) : Model =
 /// Rechengrundlage: `awaitMonth`.
 let closeTargets (model: Model) : Model * MonthReread option =
     match model.Targets with
-    | Applying _
-    | ApplyDone (_, _, true, _) -> model, None
-    | ApplyDone (_, report, _, None) ->
+    | Applying _ -> model, None
+    | ApplyDone applied when applied.Retrying -> model, None
+    | ApplyDone { Report = report; RetryError = None } ->
         let closed, reread = rereadMonth (withReport report { model with Targets = TargetsClosed })
         closed, Some reread
-    | ApplyDone (_, _, _, Some _)
+    | ApplyDone _
     | ApplyFailed _ -> awaitMonth { model with Targets = TargetsClosed }, Some FullReread
     | _ -> { model with Targets = TargetsClosed }, None
 

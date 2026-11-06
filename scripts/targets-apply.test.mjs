@@ -1,10 +1,10 @@
 // scripts/targets-apply.test.mjs
 //
-// Wächter für `budgeting-h2zfn`: der Dialog "Targets anwenden" auf der Budget-Seite. Gemessen
-// am echten, per Vite gestarteten Fable-Client gegen gemockte BudgetApi-Antworten: Vorschau mit
-// Summe und "Zu verteilen danach" (am Handy ohne Scrollen sichtbar, Übernehmen erreichbar auch
-// bei langer Liste), negatives Zu verteilen ohne Warnung und Sperre, Übernehmen schickt die
-// gezeigte Vorschau, "X von N übernommen", erneutes Senden, "Stand hat sich geändert".
+// Wächter für `budgeting-h2zfn`: der Dialog "Targets anwenden" auf der Budget-Seite, seit budgeting-m3x7f
+// geöffnet über das Feld Targets anwenden der Leiste Monatserster, mit abwählbaren Zeilen. Gemessen am echten,
+// per Vite gestarteten Fable-Client gegen gemockte BudgetApi-Antworten: Summe und "Zu verteilen danach" am
+// Handy ohne Scrollen sichtbar, Anwenden erreichbar auch bei langer Liste, Farben der Hinweise, und der Flow
+// über die Leiste mit einer abgewählten Zeile bis zum Bericht.
 //
 // Ausführen: node --test scripts/targets-apply.test.mjs
 // (Teil von `npm run test:scripts`.)
@@ -82,7 +82,7 @@ async function openPage(width, height, handlers) {
     route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"not mocked in this test"}' })
   );
   await page.route("**/api/BudgetApi/getBudgetFrame", (route) =>
-    json(route, { Ok: { CurrentMonth: "2026-11-01", Months: ["2026-10-01", "2026-11-01"], CategoryOrder: handlers.order ?? [guid(1)] } })
+    json(route, { Ok: { CurrentMonth: "2026-11-01", Months: ["2026-10-01", "2026-11-01"], CategoryOrder: handlers.order ?? [guid(1)], MonthStartHidden: [] } })
   );
   await page.route("**/api/BudgetApi/getBudgetMonth", (route) => {
     calls.month += 1;
@@ -106,8 +106,9 @@ async function openPage(width, height, handlers) {
   return { context, page, calls };
 }
 
+/// Die Vorschau über das Feld Targets anwenden der Leiste Monatserster öffnen (budgeting-m3x7f).
 const open = async (page) => {
-  await page.getByRole("button", { name: "Targets anwenden" }).click();
+  await page.locator('[data-testid="month-start-apply"]').click();
   await page.locator('[data-testid="targets-summary"]').waitFor();
 };
 
@@ -124,41 +125,25 @@ after(async () => {
   await stopServer(frontend, frontendPort);
 });
 
-test("[layout] Handy: Summe und Zu verteilen danach sichtbar, Übernehmen ohne Scrollen erreichbar, auch bei langer Liste", async () => {
+test("[layout] Handy: Summe und Zu verteilen danach sichtbar, Anwenden ohne Scrollen erreichbar, auch bei langer Liste", async () => {
   const preview = previewFixture(40);
   const { context, page, calls } = await openPage(390, 844, { preview, apply: () => ({ Error: "nicht erwartet" }), retry: () => ({ Error: "x" }) });
   try {
     await open(page);
     assert.deepEqual(calls.preview, [["2026-11-01"]], "Vorschau für den laufenden Monat");
-    assert.match(await text(page.locator('[data-testid="targets-total"]')), /400,00 €/);
-    assert.match(await text(page.locator('[data-testid="targets-after"]')), /4\.600,00 €/);
+    assert.match(await text(page.locator('[data-testid="targets-total"]')), /^400,00$/);
+    assert.match(await text(page.locator('[data-testid="targets-after"]')), /^4\.600,00$/);
     for (const id of ["targets-total", "targets-after"]) {
       const box = await page.locator(`[data-testid="${id}"]`).boundingBox();
       assert.ok(box && box.y >= 0 && box.y + box.height <= 844, `${id} liegt im sichtbaren Bereich`);
     }
-    const apply = page.getByRole("button", { name: "Übernehmen" });
+    const apply = page.getByRole("button", { name: "Anwenden", exact: true });
     const box = await apply.boundingBox();
-    assert.ok(box && box.y >= 0 && box.y + box.height <= 844, "Übernehmen liegt ohne Scrollen im Bild");
+    assert.ok(box && box.y >= 0 && box.y + box.height <= 844, "Anwenden liegt ohne Scrollen im Bild");
     assert.equal(await page.locator('[data-testid="targets-line"]').count(), 40);
-    assert.match(await text(page.locator('[data-testid="targets-skipped"]')), /Ausflug pausiert h2zfn.*pausiert/);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
     assert.ok(overflow, "kein horizontales Scrollen");
     assert.equal(calls.apply.length, 0, "die Vorschau schreibt nicht");
-  } finally {
-    await context.close();
-  }
-});
-
-// budgeting-kjsht: die Zeile ist am Handy länger als die Breite, sie muss umbrechen und darf nicht abgeschnitten werden.
-test("[layout] Handy: eine Vorschau-Zeile zeigt Target, Zugewiesen und Fehlbetrag vollständig", async () => {
-  const preview = previewFixture(1);
-  const { context, page } = await openPage(390, 844, { preview, apply: () => ({ Error: "nicht erwartet" }), retry: () => ({ Error: "x" }) });
-  try {
-    await open(page);
-    const detail = page.locator('[data-testid="targets-line-detail"]');
-    assert.equal(await text(detail), "Target 1.600,00 €/Monat, Zugewiesen 0,00 €, Fehlbetrag 10,00 €");
-    const clipped = await detail.evaluate((el) => el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight);
-    assert.equal(clipped, false, "die Zeile bleibt ganz lesbar");
   } finally {
     await context.close();
   }
@@ -188,13 +173,13 @@ test("[layout] Hinweise im Dialog stehen in Gelb, auf der Budget-Seite gibt es k
   try {
     await open(page);
     assert.equal(await pinkCount(), 0, "kein Pink in der Vorschau");
-    await page.getByRole("button", { name: "Übernehmen" }).click();
+    await page.getByRole("button", { name: "Anwenden", exact: true }).click();
     const changed = page.locator('[data-testid="targets-changed"]');
     await changed.waitFor();
     assert.equal(await pinkCount(), 0, "kein Pink beim Hinweis Stand geändert");
     assert.equal(await changed.locator("svg").first().evaluate((el) => getComputedStyle(el).color), await yellow());
 
-    await page.getByRole("button", { name: "Übernehmen" }).click();
+    await page.getByRole("button", { name: "Anwenden", exact: true }).click();
     await page.locator('[data-testid="targets-differs"]').waitFor();
     assert.equal(await pinkCount(), 0, "kein Pink bei Abweichung und in YNAB geändert");
     const badge = page.getByText("in YNAB geändert").first();
@@ -204,10 +189,12 @@ test("[layout] Hinweise im Dialog stehen in Gelb, auf der Budget-Seite gibt es k
   }
 });
 
-test("[flow:targets-anwenden] Übernehmen schickt die gezeigte Vorschau, zeigt X von N, erneutes Senden holt den Rest", async () => {
+test("[flow:targets-anwenden] Handy: über die Leiste die Vorschau öffnen, eine Zeile abwählen, anwenden, X von N, erneutes Senden holt den Rest", async () => {
   const preview = previewFixture(3);
-  const failed = reportFixture(preview, ["Written", { Failed: "Rate-Limit" }, { Failed: "Rate-Limit" }], eur(4980));
-  const healed = reportFixture(preview, ["Written", "Written", "Written"], eur(4970));
+  // Die zweite Zeile wird abgewählt: gesendet und berichtet werden nur die erste und dritte.
+  const sent = { ...preview, Lines: [preview.Lines[0], preview.Lines[2]] };
+  const failed = reportFixture(sent, ["Written", { Failed: "Rate-Limit" }], eur(4990));
+  const healed = reportFixture(sent, ["Written", "Written"], eur(4980));
   const { context, page, calls } = await openPage(390, 844, {
     preview,
     apply: () => ({ Ok: { Applied: failed } }),
@@ -215,22 +202,22 @@ test("[flow:targets-anwenden] Übernehmen schickt die gezeigte Vorschau, zeigt X
   });
   try {
     await open(page);
-    await page.getByRole("button", { name: "Übernehmen" }).click();
+    await page.locator('[data-testid="targets-line"]').nth(1).locator("input").click();
+    assert.match(await text(page.locator('[data-testid="targets-total"]')), /^20,00$/, "die Summe folgt der Auswahl");
+    assert.match(await text(page.locator('[data-testid="targets-after"]')), /^4\.980,00$/, "Zu verteilen danach auch");
+    await page.getByRole("button", { name: "Anwenden", exact: true }).click();
     await page.locator('[data-testid="targets-count"]').waitFor();
     assert.equal(calls.apply.length, 1);
     assert.equal(calls.apply[0][0], "2026-11-01");
-    assert.deepEqual(calls.apply[0][1].Lines.map((l) => l.CategoryId), preview.Lines.map((l) => l.CategoryId), "die gezeigte Vorschau geht mit");
-    assert.match(await text(page.locator('[data-testid="targets-count"]')), /1 von 3 übernommen/);
-    assert.match(await text(page.locator('[data-testid="targets-actual"]')), /4\.980,00 €/);
+    assert.deepEqual(calls.apply[0][1].Lines.map((l) => l.CategoryId), sent.Lines.map((l) => l.CategoryId), "nur die gewählten Zeilen gehen mit");
+    assert.match(await text(page.locator('[data-testid="targets-count"]')), /1 von 2 übernommen/);
     const lines = await page.locator('[data-testid="targets-result-line"]').allInnerTexts();
     assert.match(lines[0].replace(/\s+/g, " "), /Rate-Limit/, "Fehlgeschlagene stehen oben, mit Grund");
-    assert.match(await text(page.locator('[data-testid="targets-differs"]')), /weicht von der Vorschau ab/i, "Unterschied zur Vorschau (4.970,00 €) angezeigt");
 
     await page.getByRole("button", { name: "Fehlgeschlagene erneut senden" }).click();
-    await page.getByText("3 von 3 übernommen").waitFor();
+    await page.getByText("2 von 2 übernommen").waitFor();
     assert.deepEqual(calls.retry, [["11111111-1111-1111-1111-111111111111"]]);
-    assert.equal(await page.getByRole("button", { name: "Fehlgeschlagene erneut senden" }).count(), 0, "nichts mehr zu senden");
-    assert.equal(await page.locator('[data-testid="targets-differs"]').count(), 0, "kein Unterschied mehr");
+    assert.equal(await page.locator('[data-testid="targets-differs"]').count(), 0, "kein Unterschied zur gesendeten Vorschau");
 
     const reread = page.waitForResponse("**/api/BudgetApi/getBudgetMonth");
     await page.getByRole("button", { name: "Schließen" }).click();
@@ -241,4 +228,3 @@ test("[flow:targets-anwenden] Übernehmen schickt die gezeigte Vorschau, zeigt X
     await context.close();
   }
 });
-

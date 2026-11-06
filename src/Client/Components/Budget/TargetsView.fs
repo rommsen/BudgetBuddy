@@ -15,114 +15,94 @@ open Client.DesignSystem
 open Client.DesignSystem.Tokens
 open Components.Budget.MonthView
 
-/// Summe und Zu verteilen danach stehen oben im Dialog, außerhalb des scrollenden Teils.
+/// Ein Betrag im Dialog ohne Währungszeichen, in Mono, wie die Skizze.
+let private dialogAmount (testId: string option) (m: Money) =
+    Html.span [
+        match testId with
+        | Some id -> prop.custom ("data-testid", id)
+        | None -> ()
+        prop.className "font-mono tabular-nums"
+        prop.text (Money.formatAmountText false false m.Amount m.Currency)
+    ]
+
+/// Eine Zeile der Vorschau (Skizze Zeile 186): Checkbox links vor dem Namen, der Betrag, den die Zeile zuweist, rechts.
+/// Die Checkbox ist die native der Skizze.
+let private previewLine (shown: PreviewShown) (dispatch: Msg -> unit) (l: TargetLine) =
+    Html.label [
+        prop.key (string l.CategoryId)
+        prop.custom ("data-testid", "targets-line")
+        prop.className "flex items-center gap-2.5 min-h-10 shrink-0 text-sm text-text-primary border-b border-border-default cursor-pointer"
+        prop.children [
+            Html.input [
+                prop.type' "checkbox"
+                prop.isChecked (lineChosen shown l.CategoryId)
+                prop.onChange (fun (_: bool) -> dispatch (ToggleTargetLine l.CategoryId))
+            ]
+            Html.span [ prop.className "flex-1 min-w-0 truncate"; prop.text l.CategoryName ]
+            dialogAmount None l.Underfunded
+        ]
+    ]
+
+/// "Summe" und "Zu verteilen danach" unter den Zeilen (Skizze Zeile 188 und 189). Beide folgen der Auswahl.
 let private summary (preview: TargetPreview) =
     Html.div [
         prop.custom ("data-testid", "targets-summary")
-        prop.className "flex items-end justify-between gap-4 px-4 md:px-6 py-3 border-b border-border-default"
+        prop.className "flex flex-col shrink-0"
         prop.children [
             Html.div [
-                prop.className "flex flex-col gap-1 min-w-0"
-                prop.children [
-                    Html.span [ prop.className ListRoles.groupHeader; prop.text "Summe" ]
-                    Html.span [
-                        prop.custom ("data-testid", "targets-total")
-                        prop.className "font-mono font-medium tabular-nums text-text-primary"
-                        prop.text (moneyText preview.Total)
-                    ]
-                ]
+                prop.className $"flex items-center justify-between gap-3 min-h-7 {FontSizes.compact} font-semibold text-text-primary"
+                prop.children [ Html.span [ prop.text "Summe" ]; dialogAmount (Some "targets-total") preview.Total ]
             ]
             Html.div [
-                prop.className "flex flex-col gap-1 items-end"
-                prop.children [
-                    Html.span [ prop.className ListRoles.groupHeader; prop.text "Zu verteilen danach" ]
-                    Html.span [
-                        prop.custom ("data-testid", "targets-after")
-                        prop.children [
-                            Money.view
-                                { Money.defaultProps with
-                                    Amount = preview.ToBeBudgetedAfter.Amount
-                                    Currency = preview.ToBeBudgetedAfter.Currency
-                                    Size = Money.Large
-                                    Glow = Money.NoGlow
-                                    ShowSign = false }
-                        ]
-                    ]
-                ]
+                prop.className $"flex items-center justify-between gap-3 min-h-7 {FontSizes.compact} text-text-secondary"
+                prop.children [ Html.span [ prop.text "Zu verteilen danach" ]; dialogAmount (Some "targets-after") preview.ToBeBudgetedAfter ]
             ]
         ]
     ]
 
-let private previewLine (l: TargetLine) =
+/// Zwei gleich breite Knöpfe nebeneinander (Skizze Zeile 190), neutral nach ADR 0075.
+let private buttonPair (left: ReactElement) (right: ReactElement) =
     Html.div [
-        prop.key (string l.CategoryId)
-        prop.custom ("data-testid", "targets-line")
-        prop.className $"{ListRoles.mobileRowPadding} border-b border-border-subtle"
-        prop.children [
-            Html.div [
-                prop.className ListRoles.mobileLine1
-                prop.children [
-                    Html.span [ prop.className $"{ListRoles.primary} truncate min-w-0"; prop.text l.CategoryName ]
-                    plainAmount l.NewAssigned
-                ]
-            ]
-            // Bricht um statt abzuschneiden: mit Target passt die Zeile am Handy nicht in eine Zeile.
-            Html.p [
-                prop.custom ("data-testid", "targets-line-detail")
-                prop.className $"{ListRoles.secondary} mt-0.5"
-                prop.text (previewDetailText l)
-            ]
-        ]
+        prop.className "grid grid-cols-2 gap-2 shrink-0"
+        prop.children [ left; right ]
     ]
 
-let private skippedLines (skipped: SkippedLine list) =
-    if List.isEmpty skipped then
-        Html.none
-    else
-        Html.div [
-            prop.custom ("data-testid", "targets-skipped")
-            prop.children [
-                Html.h3 [
-                    prop.className $"{ListRoles.groupHeader} px-4 pt-4 pb-1"
-                    prop.text "Übersprungen (pausiert)"
-                ]
-                for s in skipped do
-                    Html.div [
-                        prop.key (string s.CategoryId)
-                        prop.className $"{ListRoles.mobileRowPadding} border-b border-border-subtle"
-                        prop.children [
-                            Html.div [
-                                prop.className ListRoles.mobileLine1
-                                prop.children [
-                                    Html.span [ prop.className $"{ListRoles.secondary} truncate min-w-0"; prop.text s.CategoryName ]
-                                    Badge.neutral "pausiert"
-                                ]
-                            ]
-                        ]
-                    ]
-            ]
-        ]
+let private wideButton (text: string) (disabled: bool) (onClick: unit -> unit) =
+    Button.view
+        { Button.defaultProps with
+            Text = text
+            Variant = Button.Secondary
+            IsDisabled = disabled
+            OnClick = onClick
+            ClassName = Some "w-full" }
 
-let private previewBody (order: System.Guid list) (preview: TargetPreview) (changed: bool) =
-    Modal.bodyNoPadding [
-        if changed then
-            Html.div [
-                prop.custom ("data-testid", "targets-changed")
-                prop.className "p-4"
-                prop.children [
-                    ErrorDisplay.notice "Stand hat sich geändert. Die Vorschau ist neu geladen, es wurde nichts geschrieben."
-                ]
-            ]
-        if List.isEmpty preview.Lines then
-            Html.p [
-                prop.custom ("data-testid", "targets-empty")
-                prop.className "p-4 text-sm text-text-secondary"
-                prop.text "Keine Kategorie hat einen Fehlbetrag. Es gibt nichts anzuwenden."
-            ]
-        else
-            Html.div [ prop.children (orderedPreviewLines order preview.Lines |> List.map previewLine) ]
-        skippedLines preview.Skipped
-    ]
+let private previewBody (order: System.Guid list) (model: Model) (shown: PreviewShown) (dispatch: Msg -> unit) =
+    let selected = selectedPreview shown
+    [ if shown.Changed then
+          Html.div [
+              prop.custom ("data-testid", "targets-changed")
+              prop.className "shrink-0"
+              prop.children [
+                  ErrorDisplay.notice "Stand hat sich geändert. Die Vorschau ist neu geladen, es wurde nichts geschrieben."
+              ]
+          ]
+      if List.isEmpty shown.Shown.Lines then
+          Html.p [
+              prop.custom ("data-testid", "targets-empty")
+              prop.className "text-sm text-text-secondary"
+              prop.text "Keine Kategorie hat einen Fehlbetrag. Es gibt nichts anzuwenden."
+          ]
+      else
+          // Lange Listen scrollen hier; Summe und Knöpfe bleiben ohne Scrollen erreichbar.
+          Html.div [
+              prop.custom ("data-testid", "targets-lines")
+              prop.className "flex flex-col min-h-0 overflow-y-auto"
+              prop.children (orderedPreviewLines order shown.Shown.Lines |> List.map (previewLine shown dispatch))
+          ]
+      summary selected
+      buttonPair
+          (wideButton "Abbrechen" false (fun () -> dispatch CloseTargets))
+          (wideButton "Anwenden" (not (canApplyTargets shown && canStartMove model)) (fun () -> dispatch ConfirmTargets)) ]
 
 let private outcomeLine (l: ApplyLineResult) =
     let detail, badge =
@@ -151,116 +131,111 @@ let private outcomeLine (l: ApplyLineResult) =
 
 let private doneBody (preview: TargetPreview) (report: ApplyReport) (retryError: string option) =
     let total = report.Lines.Length
-    Modal.bodyNoPadding [
-        Html.div [
-            prop.className "p-4 flex flex-col gap-2"
-            prop.children [
-                Html.p [
-                    prop.custom ("data-testid", "targets-count")
-                    prop.className "text-sm text-text-primary"
-                    prop.text $"{writtenCount report} von {total} übernommen"
-                ]
-                match report.ActualToBeBudgeted with
-                | Some actual ->
-                    Html.div [
-                        prop.custom ("data-testid", "targets-actual")
-                        prop.className "flex items-center gap-2 text-sm text-text-secondary"
-                        prop.children [
-                            Html.span [ prop.text "Zu verteilen jetzt" ]
-                            Money.view
-                                { Money.defaultProps with
-                                    Amount = actual.Amount
-                                    Currency = actual.Currency
-                                    Size = Money.Medium
-                                    Glow = Money.NoGlow
-                                    ShowSign = false }
-                        ]
-                    ]
-                | None ->
-                    Html.p [
-                        prop.custom ("data-testid", "targets-actual")
-                        prop.className "text-sm text-text-secondary"
-                        prop.text "Zu verteilen konnte nach dem Lauf nicht gelesen werden."
-                    ]
-                match actualCheck preview report with
-                | DiffersFromPreview _ ->
-                    Html.div [
-                        prop.custom ("data-testid", "targets-differs")
-                        prop.children [
-                            ErrorDisplay.notice $"Zu verteilen weicht von der Vorschau ab (Vorschau: {moneyText preview.ToBeBudgetedAfter})."
-                        ]
-                    ]
-                | _ -> ()
-                match retryError with
-                | Some message -> ErrorDisplay.cardCompact message None
-                | None -> ()
-            ]
-        ]
-        Html.div [ prop.children (reportLines report |> List.map outcomeLine) ]
-    ]
+    [ Html.div [
+          prop.className "flex flex-col gap-2 shrink-0"
+          prop.children [
+              Html.p [
+                  prop.custom ("data-testid", "targets-count")
+                  prop.className "text-sm text-text-primary"
+                  prop.text $"{writtenCount report} von {total} übernommen"
+              ]
+              match report.ActualToBeBudgeted with
+              | Some actual ->
+                  Html.div [
+                      prop.custom ("data-testid", "targets-actual")
+                      prop.className "flex items-center gap-2 text-sm text-text-secondary"
+                      prop.children [
+                          Html.span [ prop.text "Zu verteilen jetzt" ]
+                          Money.view
+                              { Money.defaultProps with
+                                  Amount = actual.Amount
+                                  Currency = actual.Currency
+                                  Size = Money.Medium
+                                  Glow = Money.NoGlow
+                                  ShowSign = false }
+                      ]
+                  ]
+              | None ->
+                  Html.p [
+                      prop.custom ("data-testid", "targets-actual")
+                      prop.className "text-sm text-text-secondary"
+                      prop.text "Zu verteilen konnte nach dem Lauf nicht gelesen werden."
+                  ]
+              match actualCheck preview report with
+              | DiffersFromPreview _ ->
+                  Html.div [
+                      prop.custom ("data-testid", "targets-differs")
+                      prop.children [
+                          ErrorDisplay.notice $"Zu verteilen weicht von der Vorschau ab (Vorschau: {moneyText preview.ToBeBudgetedAfter})."
+                      ]
+                  ]
+              | _ -> ()
+              match retryError with
+              | Some message -> ErrorDisplay.cardCompact message None
+              | None -> ()
+          ]
+      ]
+      Html.div [
+          prop.className "flex flex-col min-h-0 overflow-y-auto"
+          prop.children (reportLines report |> List.map outcomeLine)
+      ] ]
+
+/// Die Karte des Dialogs wie die Skizze (Zeile 184): Titel "Targets anwenden", darunter der Inhalt, Fläche
+/// `bg-elevated`, Innenabstand 18 px, Abstand 10 px. Der Rahmen ist `Modal`, am Handy unten wie heute.
+let private dialogCard (close: unit -> unit) (children: ReactElement list) =
+    Modal.view
+        { Modal.defaultProps with
+            IsOpen = true
+            Size = Modal.Medium
+            ShowCloseButton = false
+            OnClose = close }
+        [ Html.div [
+              prop.custom ("data-testid", "targets-dialog")
+              prop.className "flex flex-col gap-2.5 p-[18px] min-h-0 flex-1 bg-surface-elevated rounded-xl"
+              prop.children [
+                  Html.div [
+                      prop.role "heading"
+                      prop.ariaLevel 2
+                      prop.className "text-base font-semibold text-text-primary shrink-0"
+                      prop.text "Targets anwenden"
+                  ]
+                  yield! children
+              ]
+          ] ]
 
 let targetsDialog (model: Model) (dispatch: Msg -> unit) =
     let close = fun () -> dispatch CloseTargets
-    let modal title children =
-        Modal.view
-            { Modal.defaultProps with
-                IsOpen = true
-                Title = Some title
-                Size = Modal.Large
-                OnClose = close }
-            children
-    let monthTitle =
-        match model.Month with
-        | Success month -> $"Targets anwenden, {monthLabel month.Month}"
-        | _ -> "Targets anwenden"
+    let card = dialogCard close
+    let footer (children: ReactElement list) =
+        Html.div [ prop.className "flex flex-wrap justify-end gap-2 shrink-0"; prop.children children ]
     match model.Targets with
     | TargetsClosed -> Html.none
-    | PreviewLoading ->
-        modal monthTitle [ Modal.body [ Loading.centered "Lade Vorschau ..." ] ]
+    | PreviewLoading -> card [ Loading.centered "Lade Vorschau ..." ]
     | PreviewFailed message ->
-        modal monthTitle [
-            Modal.body [ ErrorDisplay.card message (Some (fun () -> dispatch OpenTargets)) ]
-            Modal.footer [ Button.ghost "Schließen" close ]
+        card [
+            ErrorDisplay.card message (Some (fun () -> dispatch OpenTargets))
+            footer [ Button.ghost "Schließen" close ]
         ]
-    | PreviewReady (preview, changed) ->
-        modal monthTitle [
-            summary preview
-            previewBody (categoryOrder model) preview changed
-            Modal.footer [
-                Button.ghost "Abbrechen" close
-                if not (List.isEmpty preview.Lines) then
-                    Button.view
-                        { Button.defaultProps with
-                            Text = "Übernehmen"
-                            Variant = Button.Primary
-                            IsDisabled = not (canStartMove model)
-                            OnClick = fun () -> dispatch ConfirmTargets }
-            ]
-        ]
+    | PreviewReady shown -> card (previewBody (categoryOrder model) model shown dispatch)
     | Applying preview ->
-        modal monthTitle [
-            summary preview
-            Modal.body [ Loading.centered "Schreibe nach YNAB ..." ]
-        ]
+        card [ summary preview; Loading.centered "Schreibe nach YNAB ..." ]
     | ApplyFailed (preview, message) ->
-        modal monthTitle [
+        card [
             summary preview
-            Modal.body [
-                ErrorDisplay.cardCompact $"{message} Ob etwas geschrieben wurde, ist unklar. Beim Schließen wird der Monat neu gelesen." None
-            ]
-            Modal.footer [ Button.primary "Schließen" close ]
+            ErrorDisplay.cardCompact $"{message} Ob etwas geschrieben wurde, ist unklar. Beim Schließen wird der Monat neu gelesen." None
+            footer [ Button.primary "Schließen" close ]
         ]
-    | ApplyDone (preview, report, retrying, retryError) ->
-        modal monthTitle [
-            doneBody preview report retryError
-            Modal.footer [
+    | ApplyDone applied ->
+        card [
+            yield! doneBody applied.Sent applied.Report applied.RetryError
+            footer [
                 Button.ghost "Schließen" close
-                if failedCount report > 0 then
+                if failedCount applied.Report > 0 then
                     Button.view
                         { Button.defaultProps with
                             Text = "Fehlgeschlagene erneut senden"
                             Variant = Button.Primary
-                            IsLoading = retrying
+                            IsLoading = applied.Retrying
                             IsDisabled = not (canStartMove model)
                             OnClick = fun () -> dispatch RetryFailed }
             ]

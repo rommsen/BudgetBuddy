@@ -6,7 +6,9 @@ https://claude.ai/artifact/JfQDhhTLwdEadmQyJbbzkz (Seite "Archiv" enthält die v
 **Prüfskript:** `pruefe-prototyp.mjs` spielt die Abläufe ohne Browser durch:
 `node docs/ux/budget/pruefe-prototyp.mjs docs/ux/budget/gesamt-prototyp.dc.html`.
 Alle Beträge und Kategorien im Prototyp sind erfunden. Die Optik kommt aus Styleguide und echten
-DS-Komponenten, nicht aus dem Prototyp.
+DS-Komponenten, nicht aus dem Prototyp. Ausnahme ist die Leiste Monatserster samt Vorschau Targets anwenden:
+für sie ist der Prototyp die Vorlage (Board `Gesamt.dc.html`, Screenshots unter `skizze-monatserster/`,
+budgeting-m3x7f), neue Bausteine dafür stehen im DS (`Button.tile`, `Button.quietText`).
 
 ## Grundidee
 
@@ -23,7 +25,9 @@ und Rechts wechseln am PC die Tabs.
 | **Historie** | Verfügbar-Aufbau, Bewegungen, Ausgaben der letzten 6 Monate |
 | **Target** | Target anlegen, ändern, entfernen, pausieren |
 
-Der Seitenkopf trägt Monat, Suche, Filter, Zu verteilen, Targets anwenden, die Knöpfe Targets prüfen und Historie.
+Der Seitenkopf trägt Monat, die Icon-Knöpfe Historie und Monatserster und rechts Zu verteilen, am Handy in einer
+Zeile mit kurzem Monatsnamen. Darunter steht die Leiste Monatserster, darunter Suche und Filter in eigener Zeile wie im
+Prototyp. Targets anwenden und Targets prüfen stehen nicht im Kopf, beide erreicht man über die Leiste (budgeting-m3x7f).
 
 ## Die vier Abläufe
 
@@ -32,8 +36,9 @@ Der Seitenkopf trägt Monat, Suche, Filter, Zu verteilen, Targets anwenden, die 
    vorn, weil ein geändertes Target den Fehlbetrag ändert. Überzogene stehen hinter Anwenden, weil
    Targets sie meist schon ausgleichen. Die Leiste ist kein Modus: Targets prüfen führt auf die
    Seite Targets prüfen, Überzogene filtert die Liste, Anwenden öffnet die Vorschau mit abwählbaren
-   Zeilen. Verteilen ist vorerst nur eine Anzeige. Sie verschwindet, wenn die ersten drei Felder
-   erledigt sind, und lässt sich ausblenden.
+   Zeilen. Verteilen ist vorerst nur eine Anzeige. Sie steht von selbst im laufenden Monat und verschwindet,
+   wenn die ersten drei Felder erledigt sind. "Ausblenden" gilt für den Monat auf allen Geräten. Der Kopfknopf
+   Monatserster zeigt sie jederzeit (auch in kommenden Monaten), bis die Seite verlassen wird.
 2. **Monatsmitte:** Zeile wählen, im Tab Geld handeln, weiter zur nächsten.
 3. **Was ist passiert:** Tab Historie je Kategorie, Knopf Historie für alle, filterbar nach Art.
 4. **Targets pflegen:** im Tab Target, und gesammelt auf der Seite Targets prüfen.

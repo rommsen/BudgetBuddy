@@ -101,3 +101,9 @@ Kaputt-Szenario (GIVEN/WHEN/THEN): GIVEN Wechsel hin und zurück, das Lesen des 
 ## Aus budgeting-c4ve4 (2026-11-06)
 - UI (Review c4ve4, Frontend V3): Der Vorschlagshinweis im Panel nennt den Rhythmus des gelesenen Targets; wechselt man im Panel den Rhythmus, bleibt "… 35 € wöchentlich" stehen. Besser ein Zusatz "(im bisherigen Rhythmus)" oder der Hinweis verschwindet nach dem Wechsel.
 - UI (Review c4ve4, Design V5): Die Titel der Seite Targets prüfen nutzen rohe Größen (`text-lg`, `text-xl`, `text-2xl`). Eine Rolle in `Tokens.fs` für schlanke Seitenköpfe teilten Budget-Historie und diese Seite.
+
+## Aus budgeting-m3x7f (2026-11-06)
+- UI (Worker m3x7f): Die Checkbox der Vorschau von Targets anwenden ist die native des Browsers wie in der Skizze. Ein DS-Baustein im Stil der Skizze wäre einheitlicher.
+- UI (Verifier m3x7f): Am Handy steht "Zu verteilen" im Kopf ohne €, damit der Kopf in eine Zeile passt; die Beträge der Liste darunter tragen €. Am Bildschirm prüfen, ob das gemischt stört.
+- Test (Verifier m3x7f): Der Dichte-Test bei 1440 × 900 in `scripts/budget-page.test.mjs` erlaubt die erste Zeile jetzt in den oberen 30 % statt 25 % (eigene Suchzeile wie die Skizze). Der Abstand zur Grenze ist klein (etwa 265 px bei 270 px).
+- Code (Verifier m3x7f): In `src/Server/Budgeting/Persistence.fs` stehen die neuen Funktionen für Ausblenden zwischen dem Doc-Kommentar von `initializeBudgetingSchema` und der Funktion; der Kommentar hängt jetzt über dem Banner.

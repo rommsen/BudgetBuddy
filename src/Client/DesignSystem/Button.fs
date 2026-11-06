@@ -422,12 +422,63 @@ let sideRowFixed (testId: string) (children: ReactElement list) =
 
 /// Der Name einer Stelle als Knopf zurück nach Hause, etwa der Monat. `away` heißt: gerade woanders,
 /// dann ist er teal (ADR 0075: Navigation). Die feste Breite hält die Pfeile daneben an ihrem Platz.
-let homeLabel (testId: string) (ariaLabel: string) (away: bool) (text: string) (onClick: unit -> unit) =
+let private homeLabelIn (width: string) (testId: string) (ariaLabel: string) (away: bool) (text: string) (onClick: unit -> unit) =
     Html.button [
         prop.type' "button"
         prop.custom ("data-testid", testId)
         prop.ariaLabel ariaLabel
-        prop.className $"""inline-flex items-center justify-center w-36 {TouchTargets.minHeight} md:min-h-[36px] text-sm font-semibold whitespace-nowrap cursor-pointer touch-manipulation rounded-md hover:bg-surface-hover {if away then Colors.neonTeal else Colors.textPrimary}"""
+        prop.className $"""inline-flex items-center justify-center {width} {TouchTargets.minHeight} md:min-h-[36px] text-sm font-semibold whitespace-nowrap cursor-pointer touch-manipulation rounded-md hover:bg-surface-hover {if away then Colors.neonTeal else Colors.textPrimary}"""
+        prop.onClick (fun _ -> onClick ())
+        prop.text text
+    ]
+
+let homeLabel (testId: string) (ariaLabel: string) (away: bool) (text: string) (onClick: unit -> unit) =
+    homeLabelIn "w-36" testId ariaLabel away text onClick
+
+/// Schmal für ein kurzes Wort wie "Nov 2026": der Kopf der Budget-Seite am Handy (budgeting-m3x7f, Skizze).
+let homeLabelCompact (testId: string) (ariaLabel: string) (away: bool) (text: string) (onClick: unit -> unit) =
+    homeLabelIn "w-16" testId ariaLabel away text onClick
+
+// ============================================
+// Kachel und leiser Textknopf (Leiste Monatserster, budgeting-m3x7f)
+// ============================================
+
+/// Zustand einer Kachel wie in der Skizze der Leiste Monatserster: aktiv (Teal-Rand), erledigt (`border-subtle`,
+/// gedämpft) oder offen (`border`).
+type TileState =
+    | TileOpen
+    | TileDone
+    | TileActive
+
+let private tileStateClass (state: TileState) =
+    match state with
+    | TileActive -> "border-neon-teal text-text-primary"
+    | TileDone -> "border-border-subtle text-text-secondary"
+    | TileOpen -> "border-border-default text-text-primary"
+
+/// Eine Kachel: oben ein Wert in Mono 13 px 600, darunter die Bezeichnung 11 px gedämpft, zentriert, mindestens
+/// 52 px hoch, Radius 10 px. Die Bezeichnung bricht in einer schmalen Kachel um, die Kachel wächst mit.
+let tile (testId: string) (value: string) (label: string) (state: TileState) (onClick: unit -> unit) =
+    Html.button [
+        prop.type' "button"
+        prop.custom ("data-testid", testId)
+        prop.custom ("data-state", (match state with TileActive -> "active" | TileDone -> "done" | TileOpen -> "open"))
+        prop.className
+            $"flex flex-col items-center justify-center min-w-0 min-h-[52px] rounded-[10px] border px-0.5 py-1 text-center cursor-pointer touch-manipulation hover:bg-surface-hover transition-colors {tileStateClass state}"
+        prop.onClick (fun _ -> onClick ())
+        prop.children [
+            Html.span [ prop.className $"block font-mono {FontSizes.compact} font-semibold tabular-nums"; prop.text value ]
+            Html.span [ prop.className $"block {FontSizes.microPlus} {Colors.textSecondary}"; prop.text label ]
+        ]
+    ]
+
+/// Ein leiser Textknopf, 12 px gedämpft, ohne Rand und Fläche ("Ausblenden"). Trefferfläche 48 px am Handy, 36 px ab md.
+let quietText (testId: string) (text: string) (onClick: unit -> unit) =
+    Html.button [
+        prop.type' "button"
+        prop.custom ("data-testid", testId)
+        prop.className
+            $"inline-flex items-center min-h-[48px] md:min-h-9 px-1 -mr-1 text-xs {Colors.textSecondary} cursor-pointer touch-manipulation hover:text-text-primary transition-colors"
         prop.onClick (fun _ -> onClick ())
         prop.text text
     ]

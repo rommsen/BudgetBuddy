@@ -51,6 +51,7 @@
     <Compile Include="BudgetEventsFixture.fs" />
     <Compile Include="BudgetingTests.fs" />
     <Compile Include="TargetsApplyTests.fs" />
+    <Compile Include="BudgetMonthStartTests.fs" />
     <Compile Include="MoveMoneyTests.fs" />
     <Compile Include="TargetPauseTests.fs" />
     <Compile Include="BudgetAssignmentsTests.fs" />
@@ -144,6 +145,7 @@
     <Compile Include="BudgetHistoryClientTests.fs" />
     <Compile Include="AmountMathTests.fs" />
     <Compile Include="TargetsApplyClientTests.fs" />
+    <Compile Include="MonthStartClientTests.fs" />
     <Compile Include="MoveMoneyClientTests.fs" />
     <Compile Include="TargetPauseClientTests.fs" />
     <Compile Include="TargetChangeClientTests.fs" />

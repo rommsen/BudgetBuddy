@@ -176,6 +176,9 @@ type BudgetFrame = {
     Months: string list
     /// Alle Kategorie-Ids flach, Gruppe für Gruppe aus `GET /categories`.
     CategoryOrder: Guid list
+    /// Die Monate ("YYYY-MM-01", ab dem laufenden), für die Roman die Leiste Monatserster ausgeblendet hat
+    /// (budgeting-m3x7f). Zustand, kein Ereignis (ADR 0083): Ausblenden bewegt kein Geld.
+    MonthStartHidden: string list
 }
 
 /// Ordnet Gruppen und Kategorien nach dem Rang in `order` (ADR 0074 Punkt 6). Der Rang einer Gruppe
@@ -269,6 +272,51 @@ type TargetPreview = {
     /// sie je Absicht. `previewsMatch` vergleicht sie nicht. Ein alter Client lässt das Feld weg.
     CommandId: Guid option
 }
+
+/// Die Zeilen von Targets anwenden aus dem Monat: jede Kategorie mit Fehlbetrag über 0 und ohne pausiertes Target,
+/// neu = Soll + Fehlbetrag; pausierte mit Fehlbetrag über 0 stehen getrennt. Fehlbetrag 0 oder unbekannt fällt weg.
+/// Eine Quelle für die Vorschau des Servers und das Feld Targets anwenden der Leiste (budgeting-m3x7f).
+let targetApplicationLines (month: BudgetMonth) : TargetLine list * SkippedLine list =
+    let lines, skipped =
+        month.Groups
+        |> List.collect (fun g -> g.Categories |> List.map (fun c -> g.Name, c))
+        |> List.fold
+            (fun (lines, skipped) (groupName, c) ->
+                match c.Underfunded with
+                | Some under when under.Amount > 0m ->
+                    if isPaused c then
+                        lines, ({ CategoryId = c.Id; CategoryName = c.Name; Underfunded = under } : SkippedLine) :: skipped
+                    else
+                        let line =
+                            { CategoryId = c.Id
+                              CategoryName = c.Name
+                              GroupName = groupName
+                              OldAssigned = c.Assigned
+                              Underfunded = under
+                              NewAssigned = { Amount = c.Assigned.Amount + under.Amount; Currency = c.Assigned.Currency }
+                              Target = c.Target }
+                        line :: lines, skipped
+                | _ -> lines, skipped)
+            ([], [])
+    List.rev lines, List.rev skipped
+
+/// Die Summe von Zeilen: was sie zusammen zuweisen (Summe der Fehlbeträge).
+let linesTotal (currency: string) (lines: TargetLine list) : Money =
+    { Amount = lines |> List.sumBy (fun l -> l.Underfunded.Amount); Currency = currency }
+
+/// Was Targets anwenden im Monat zuweisen würde. Das Feld Targets anwenden der Leiste zeigt es, die Vorschau
+/// rechnet ihre Summe mit denselben Zeilen (`targetApplicationLines`, `linesTotal`).
+let targetApplicationTotal (month: BudgetMonth) : Money =
+    linesTotal month.ToBeBudgeted.Currency (fst (targetApplicationLines month))
+
+/// Die Vorschau mit diesen Zeilen: Summe und Zu verteilen danach folgen ihnen. So entsteht die Vorschau des Servers,
+/// und so folgt die Auswahl im Dialog (abgewählte Zeilen fallen weg, budgeting-m3x7f).
+let previewWithLines (preview: TargetPreview) (lines: TargetLine list) : TargetPreview =
+    let total = linesTotal preview.ToBeBudgeted.Currency lines
+    { preview with
+        Lines = lines
+        Total = total
+        ToBeBudgetedAfter = { preview.ToBeBudgeted with Amount = preview.ToBeBudgeted.Amount - total.Amount } }
 
 /// Stand einer Zeile einer Anwendung (das jüngste Ergebnis).
 type LineOutcome =

@@ -571,4 +571,9 @@ type BudgetApi = {
     /// Tag. Eingeordnet wird im Client (`targetCheckGroups`). Schreibt nichts. Error mit lesbarer Meldung bei
     /// fehlender Einrichtung, YNAB-Fehlern und Lesefehlern der Datenbank.
     getTargetCheck: unit -> Async<Result<Shared.Budgeting.TargetCheckData, string>>
+
+    /// "Ausblenden" an der Leiste Monatserster (budgeting-m3x7f): blendet sie für den Monat ("YYYY-MM-01") auf allen
+    /// Geräten aus. Zustand, kein Ereignis (ADR 0083). Ein zweites Ausblenden ändert nichts. Gelesen wird über
+    /// `getBudgetFrame` (`MonthStartHidden`). Ein ungültiger Monat wird abgelehnt. Kein YNAB.
+    hideMonthStart: string -> Async<Result<unit, string>>
 }

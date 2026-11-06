@@ -49,7 +49,7 @@ let private monthWith (month: string) (goal: decimal) : BudgetMonth =
       Groups = [ { Name = "Alltag"; Categories = [ trip goal; holiday ] } ] }
 
 let private frame : BudgetFrame =
-    { CurrentMonth = current; Months = [ past; current; next ]; CategoryOrder = [ tripId; holidayId ] }
+    { CurrentMonth = current; Months = [ past; current; next ]; CategoryOrder = [ tripId; holidayId ]; MonthStartHidden = [] }
 
 let private update (msg: Msg) (model: Model) =
     let model', cmd, external = Components.Budget.State.update msg model

@@ -1915,7 +1915,27 @@ let private liveFramePort (token: string) (budgetId: YnabBudgetId) : Server.Budg
                     |> Result.map (List.map (fun c ->
                         let (YnabCategoryId id) = c.Id
                         id))
-            } }
+            }
+      LoadMonthStartHidden = Server.Budgeting.QueryHandlers.loadMonthStartHidden }
+
+/// "Ausblenden" an der Leiste Monatserster ohne Netz (budgeting-m3x7f): Monat prüfen, dann festhalten. `connect` liefert
+/// die Datenbank, `now` stempelt den Zeitpunkt (UTC). Ein Schreibfehler wird zum `Error` mit Text.
+let hideMonthStartWith
+    (connect: unit -> Microsoft.Data.Sqlite.SqliteConnection)
+    (now: DateTime)
+    (monthKeyText: string)
+    : Async<Result<unit, string>> =
+    async {
+        match Validation.validateMonthKey monthKeyText with
+        | Error message -> return Error message
+        | Ok key ->
+            try
+                use conn = connect ()
+                Budgeting.Persistence.hideMonthStartOn conn key now
+                return Ok ()
+            with ex ->
+                return Error $"Ausblenden nicht gespeichert: {ex.Message}"
+    }
 
 /// Token und Standard-Budget aus den Settings, je `None`, wenn nicht eingerichtet. Budget-Seite und Übernahme im
 /// Hintergrund lesen dieselben Schlüssel.
@@ -2016,7 +2036,9 @@ let budgetApiWith
         let portFor token budgetId =
             Server.Budgeting.QueryHandlers.liveTargetCheckPort (portFor token budgetId) utcNow
         return! targetCheckWith tokenOpt budgetOpt portFor (today ())
-      } }
+      }
+
+      hideMonthStart = fun monthKeyText -> hideMonthStartWith Persistence.getConnection (utcNow ()) monthKeyText }
 
 /// Die Budget-Seite mit den echten YNAB-Ports. Die Settings kommen als Parameter, damit der
 /// Integrationstest den Live-Anschluss ohne Eintrag in der Datenbank prüfen kann.

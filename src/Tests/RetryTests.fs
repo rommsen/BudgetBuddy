@@ -155,7 +155,9 @@ let tests =
                   [ "getCurrentSession"; "getTransactions"; "getLenaFlagSettings"; "getSettings"; "getSettings"
                     "getSettings"; "getCategories"; "getBudgetAccounts"; "getPayees"; "testRule" ]
                   "Components/Budget/State.fs",
-                  [ "getBudgetFrame"; "getBudgetFrame"; "getBudgetMonth"; "previewTargets"; "getCategoryMonthEntries"; "getCategoryHistory"; "getRecentMoveCategories"; "getBudgetHistory"; "getTargetCheck" ] ]
+                  [ "getBudgetFrame"; "getBudgetFrame"; "getBudgetMonth"; "previewTargets"; "getCategoryMonthEntries"; "getCategoryHistory"; "getRecentMoveCategories"; "getBudgetHistory"; "getTargetCheck"
+                    // budgeting-m3x7f: das Feld Targets prüfen der Leiste liest dieselben Rohdaten.
+                    "getTargetCheck" ] ]
             for file, expected in inventory do
                 Expect.equal
                     (List.sort (wrappedCalls (readClient file)))

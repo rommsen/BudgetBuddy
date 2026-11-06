@@ -73,7 +73,7 @@ let private budgetMonth (month: string) : BudgetMonth =
                 budgetCategory neverId "Kino" (Some (monthly 30m)) ] } ] }
 
 let private frame : BudgetFrame =
-    { CurrentMonth = current; Months = [ past; current ]; CategoryOrder = [ moreId; lessId; fitsId; withoutId; neverId ] }
+    { CurrentMonth = current; Months = [ past; current ]; CategoryOrder = [ moreId; lessId; fitsId; withoutId; neverId ]; MonthStartHidden = [] }
 
 /// Die Budget-Seite im laufenden Monat.
 let private page : Model =

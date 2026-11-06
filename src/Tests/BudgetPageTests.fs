@@ -25,7 +25,8 @@ let private monthK7wmd : BudgetMonth =
 let private frameK7wmd : BudgetFrame =
     { CurrentMonth = "2026-10-01"
       Months = [ "2026-09-01"; "2026-10-01"; "2026-11-01" ]
-      CategoryOrder = [] }
+      CategoryOrder = []
+      MonthStartHidden = [] }
 
 /// Der Rahmen ist gelesen, der laufende Monat geladen.
 let private framed = { init () with Frame = Success frameK7wmd; Month = Success monthK7wmd }
@@ -112,7 +113,7 @@ let private selectTests =
         }
         // ADR 0074: Fehlt der laufende Monat im Fenster, bleibt die Navigation trotzdem da.
         test "Monat nicht offen: der Pfeil lädt den Vormonat, auch außerhalb des Fensters" {
-            let outside = { CurrentMonth = "2026-12-01"; Months = [ "2026-09-01"; "2026-10-01" ]; CategoryOrder = [] }
+            let outside = { CurrentMonth = "2026-12-01"; Months = [ "2026-09-01"; "2026-10-01" ]; CategoryOrder = []; MonthStartHidden = [] }
             let failed = { init () with Frame = Success outside; Month = Failure "Monat nicht offen" }
             let target = shownMonth failed |> Option.bind (previousMonth outside.Months)
             Expect.equal target (Some "2026-10-01") "Pfeil bleibt"
@@ -717,7 +718,7 @@ let private monthOrderTests =
                   Total = eur 2m; ToBeBudgeted = eur 2m; ToBeBudgetedAfter = eur 0m; CommandId = None }
             let shown = orderedPreviewLines frame.CategoryOrder preview.Lines
             Expect.equal (shown |> List.map (fun l -> l.CategoryName)) [ "Erste"; "Zweite" ] "Anzeige"
-            let ready = { model with Targets = PreviewReady (preview, false) }
+            let ready = { model with Targets = PreviewReady { Shown = preview; Changed = false; Excluded = Set.empty } }
             let _, sent = confirmTargets ready
             Expect.equal (sent |> Option.map (fun p -> p.Lines)) (Some serverOrder) "Übernehmen sendet unverändert"
         }
@@ -787,7 +788,8 @@ let private returnTests =
             Expect.isGreaterThan model.MonthGeneration left.MonthGeneration "eine neue Abfrage"
             Expect.equal (rereadMonth (fst (enterPage left)) |> snd) QuietReread "still, über Reloaded"
             Expect.equal (entriesOf model) Loading "die Buchungen werden geholt"
-            Expect.equal (List.length cmd) 2 "Monat und Buchungen"
+            // Dazu die Prüfung für das Feld Targets prüfen der Leiste Monatserster (budgeting-m3x7f).
+            Expect.equal (List.length cmd) 3 "Monat, Buchungen und Prüfung"
         }
         test "Scheitert das stille Neu-Lesen nach der Rückkehr, bleibt die Liste und ein Warn-Toast nennt den Grund" {
             let returned, _, _ = Components.Budget.State.update PageEntered (leaveForEntry onEntriesLoaded)
@@ -801,7 +803,7 @@ let private returnTests =
             let left = leaveForEntry { onEntriesLoaded with Month = Failure "kaputt" }
             let model, cmd, _ = Components.Budget.State.update PageEntered left
             Expect.equal model.Month Loading "Laden"
-            Expect.equal (List.length cmd) 1 "der Monat wird geholt"
+            Expect.equal (List.length cmd) 2 "der Monat wird geholt, dazu die Prüfung der Leiste"
             Expect.equal (rereadMonth (fst (enterPage left)) |> snd) FullReread "über Loaded"
             let failed, _, _ = Components.Budget.State.update (Loaded (model.MonthGeneration, Error "weg")) model
             Expect.equal failed.Month (Failure "weg") "Fehlerkarte mit Wiederholen"
@@ -1032,14 +1034,14 @@ let private pageViewTests =
             Expect.equal (monthStepperFor frameK7wmd "2026-10-01") { Previous = Some "2026-09-01"; Next = Some "2026-11-01"; Elsewhere = false } "laufend"
             Expect.equal (monthStepperFor frameK7wmd "2026-11-01") { Previous = Some "2026-10-01"; Next = None; Elsewhere = true } "hinten"
         }
-        test "Blättern liest nur den Monat, nicht den Rahmen, Targets anwenden steht nicht im vergangenen Monat" {
+        test "Blättern liest nur den Monat, nicht den Rahmen, der Kopfknopf Monatserster steht nicht im vergangenen Monat" {
             Expect.equal (commands (SelectMonth "2026-09-01") framed) 1 "genau ein Aufruf: der Monat"
             let shownAfter key =
                 let changing = update (SelectMonth key) framed
                 update (Loaded (changing.MonthGeneration, Ok { monthK7wmd with Month = key })) changing
-            Expect.isTrue (targetsButtonVisible framed) "laufender Monat"
-            Expect.isFalse (targetsButtonVisible (shownAfter "2026-09-01")) "vergangener Monat"
-            Expect.isTrue (targetsButtonVisible (shownAfter "2026-11-01")) "kommender Monat"
+            Expect.isTrue (Components.Budget.MonthStart.monthStartButtonVisible framed) "laufender Monat"
+            Expect.isFalse (Components.Budget.MonthStart.monthStartButtonVisible (shownAfter "2026-09-01")) "vergangener Monat"
+            Expect.isTrue (Components.Budget.MonthStart.monthStartButtonVisible (shownAfter "2026-11-01")) "kommender Monat"
         }
         // Iteration 2: aus "PC: Tabelle mit Spaltenköpfen" und "Handy: Zu verteilen negativ …" gezogen.
         test "Unter Zugewiesen, Aktivität und Verfügbar stehen die Beträge der Kategorie, am Handy Zugewiesen und Aktivität als Zeile" {

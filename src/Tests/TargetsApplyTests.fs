@@ -88,6 +88,25 @@ let private planTests =
             Expect.isEmpty p.Lines "keine Zeilen"
             Expect.equal p.ToBeBudgetedAfter (eur 5000L) "unverändert"
         }
+        // budgeting-m3x7f: das Feld Targets anwenden der Leiste und die Vorschau rechnen aus einer Quelle.
+        test "Die Summe der Leiste ist die Summe der Vorschau, ein pausiertes Target zählt in keiner" {
+            let month =
+                monthOf 100000L [ category "A" 0L (Some 30000L) false; category "B" 5000L (Some 20000L) false; category "Pause" 0L (Some 70000L) true ]
+            Expect.equal (targetApplicationTotal month) (planOk month).Total "gleiche Daten, gleiche Summe"
+            Expect.equal (targetApplicationTotal month) (eur 50000L) "ohne das pausierte Target"
+        }
+        // budgeting-m3x7f: die Vorschau trägt nur die gewählten Zeilen.
+        test "previewsMatch gilt für eine Auswahl der frischen Zeilen, nicht für eine fremde oder leere" {
+            let a = category "A" 0L (Some 10000L) false
+            let b = category "B" 0L (Some 20000L) false
+            let fresh = planOk (monthOf 50000L [ a; b ])
+            let onlyB = previewWithLines fresh (fresh.Lines |> List.filter (fun l -> l.CategoryId = b.Id))
+            Expect.isTrue (Domain.previewsMatch onlyB fresh) "abgewählte Zeile zählt nicht"
+            Expect.equal (Domain.chosenLines onlyB fresh |> List.map (fun l -> l.CategoryId)) [ b.Id ] "nur B wird geschrieben"
+            let foreign = planOk (monthOf 50000L [ category "C" 0L (Some 10000L) false ])
+            Expect.isFalse (Domain.previewsMatch foreign fresh) "Zeile gibt es frisch nicht"
+            Expect.isFalse (Domain.previewsMatch (previewWithLines fresh []) fresh) "ohne gewählte Zeile"
+        }
         test "previewsMatch vergleicht Zeilen und Zu verteilen" {
             let a = category "A" 0L (Some 10000L) false
             let p = planOk (monthOf 50000L [ a ])
@@ -384,6 +403,17 @@ let private flowTests =
             Expect.isEmpty f.Attempts "nichts geschrieben"
             Expect.equal (movementRows [ a; b; c; d; e ]) 0 "keine Bewegung"
 
+        // budgeting-m3x7f: abgewählte Zeilen der Vorschau werden nicht geschrieben.
+        testCase "Übernehmen mit abgewählter Zeile schreibt und hält nur die gewählten fest" <| fun () ->
+            let f, (a, b, c, d, e) = fake 200000L
+            let full = previewOf f
+            let chosen = previewWithLines full (full.Lines |> List.filter (fun l -> l.CategoryId <> b))
+            let report = applyOk f chosen
+            Expect.equal (report.Lines |> List.map (fun l -> l.CategoryId)) [ a; e ] "Bericht nur für A und E"
+            Expect.equal (List.ofSeq f.Attempts) [ a, 50000L; e, 10000L ] "B wird nicht gesendet"
+            Expect.equal (movementRows [ b ]) 0 "für B keine Bewegung"
+            Expect.equal (movementRows [ a; b; c; d; e ]) 2 "Bewegungen nur für A und E"
+
         testCase "Übernehmen hält zuerst alle Bewegungen fest, dann folgen die PATCHes" <| fun () ->
             let f, (a, b, c, d, e) = fake 200000L
             let seenAtWrite = ResizeArray<int>()
@@ -662,7 +692,8 @@ let private wiringTests =
         let framePortFor token (YnabBudgetId budget) : Server.Budgeting.QueryHandlers.BudgetFramePort =
             seen.Add((token, budget))
             { FetchMonths = fun () -> async { return Ok [ "2026-12-01"; "2026-11-01" ] }
-              FetchCategoryOrder = fun () -> async { return Ok [] } }
+              FetchCategoryOrder = fun () -> async { return Ok [] }
+              LoadMonthStartHidden = fun _ -> async { return Ok [] } }
         Server.Api.budgetApiWith settings portFor framePortFor (fun () -> lateUtc) berlin, seen, reads
     testList "Verdrahtung der BudgetApi" [
         // Bug B1 am Endpunkt: siehe "Kurz nach Mitternacht" in BudgetingTests.

@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 23:55 -- Task verified and completed: budgeting-m3x7f - "Monatserster: Leiste nach der Skizze mit Targets prüfen, Targets anwenden, Überzogene decken und verteilen; Kopfknopf Monatserster statt Targets anwenden und Prüfen-Icon; Vorschau mit abwählbaren Zeilen; Ausblenden je Monat auf dem Server"
+
+**Type:** Work / Task completion
+**Task:** budgeting-m3x7f - "Monatserster: Leiste nach der Skizze mit Targets prüfen, Targets anwenden, Überzogene decken und verteilen; Kopfknopf Monatserster statt Targets anwenden und Prüfen-Icon; Vorschau mit abwählbaren Zeilen; Ausblenden je Monat auf dem Server"
+**Summary:** Leiste Monatserster nach der Skizze, Kopfknopf Monatserster statt Targets anwenden und Prüfen-Icon, Vorschau mit abwählbaren Zeilen, Ausblenden je Monat auf dem Server
+**Duration:** 1h01m
+**Verification:** PASS (iteration 2)
+**Files changed:** 54
+**Tests added:** 34
+**ADRs written:** 0085
+
+---
+
+## 2026-11-06 23:29 -- Verification failed: budgeting-m3x7f - Monatserster-Leiste nach der Skizze
+
+**Type:** Work / Verification failure
+**Task:** budgeting-m3x7f - Monatserster-Leiste nach der Skizze
+**Iteration:** 1 of 3
+**Reasons:** Suche und Chips am PC im Kopf statt unter der Leiste (nicht gelistete Abweichung), Handy-Kopf zweizeilig statt einzeilig, Feld 3 öffnet Holen statt Zuweisen
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-06 22:59 -- Bestandsreview: ledger
 
 **Type:** Review / Bestandsreview
