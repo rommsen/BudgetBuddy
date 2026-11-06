@@ -1,7 +1,7 @@
 ---
 id: budgeting-m3x7f
 title: "Monatserster: Leiste nach der Skizze mit Targets prüfen, Targets anwenden, Überzogene decken und verteilen; Kopfknopf Monatserster statt Targets anwenden und Prüfen-Icon; Vorschau mit abwählbaren Zeilen; Ausblenden je Monat auf dem Server"
-status: backlog
+status: todo
 type: feature
 context: budgeting
 created: 2026-11-02
