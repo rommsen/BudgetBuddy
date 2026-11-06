@@ -51,10 +51,15 @@ type BotCommitResult = {
     PushError: string option
 }
 
+/// `push_error` einer Buchung, die im Kassenbuch steht, aber weder verknüpft ist noch einen
+/// Push-Fehlschlag trägt: der Push lief nicht zu Ende (ledger-z71ka, Review).
+let unknownPushStateText = "Ob der Push zu YNAB gelang, ist unbekannt; der Spiegel gleicht ab"
+
 /// Ausgang eines Commits: gebucht oder wegen der Tagesgrenze abgelehnt (ADR 0068).
 type BotCommitOutcome =
     | BotBooked of BotCommitResult
     | BotDailyLimitReached of message: string
+    | BotPreviewGone
 
 /// Der Commit einer Vorschau: die beim ersten Aufruf festgelegte `EntryId` und der laufende
 /// oder abgeschlossene Versuch.
@@ -80,31 +85,39 @@ type BotPreviewStore() =
         | true, p -> Some p
         | _ -> None
 
-    member _.IsCommitted(id: Guid) = commits.ContainsKey id
+    member _.HasCommitStarted(id: Guid) = commits.ContainsKey id
 
     /// Startet den Commit je Vorschau mit einer beim ersten Aufruf festgelegten `EntryId`.
     /// Läuft ein Versuch oder ist er abgeschlossen, bekommt jeder weitere Aufruf denselben
     /// Versuch und damit dasselbe Ergebnis. Endete er mit einer Ausnahme, startet der nächste
     /// Aufruf `work` erneut mit derselben `EntryId`; `work` sieht dann im Kassenbuch nach.
+    /// Ist die Vorschau inzwischen weggeworfen (`Purge` zwischen `TryGet` und diesem Aufruf),
+    /// startet nichts: ein neuer Slot hätte eine neue `EntryId` und buchte ein zweites Mal
+    /// (ledger-z71ka, Review). Das Ergebnis ist dann `BotPreviewGone`.
     member _.CommitOnce(id: Guid, work: Ledger.Events.EntryId -> Async<BotCommitOutcome>) : Task<BotCommitOutcome> =
         lock gate (fun () ->
-            match commits.TryGetValue id with
-            | true, slot when slot.Attempt.IsFaulted || slot.Attempt.IsCanceled ->
-                slot.Attempt <- Async.StartAsTask(work slot.EntryId)
-                slot.Attempt
-            | true, slot -> slot.Attempt
-            | _ ->
-                let entryId = Ledger.Events.newEntryId ()
-                let slot = { EntryId = entryId; Attempt = Async.StartAsTask(work entryId) }
-                commits[id] <- slot
-                slot.Attempt)
+            if not (previews.ContainsKey id) then
+                Task.FromResult BotPreviewGone
+            else
+                match commits.TryGetValue id with
+                | true, slot when slot.Attempt.IsFaulted || slot.Attempt.IsCanceled ->
+                    slot.Attempt <- Async.StartAsTask(work slot.EntryId)
+                    slot.Attempt
+                | true, slot -> slot.Attempt
+                | _ ->
+                    let entryId = Ledger.Events.newEntryId ()
+                    let slot = { EntryId = entryId; Attempt = Async.StartAsTask(work entryId) }
+                    commits[id] <- slot
+                    slot.Attempt)
 
-    /// Wirft Vorschauen weg, die länger als `retainExpired` abgelaufen sind.
+    /// Wirft Vorschauen weg, die länger als `retainExpired` abgelaufen sind. Unter derselben
+    /// Sperre wie `CommitOnce`, damit Vorschau und Commit-Slot nur zusammen verschwinden.
     member _.Purge(now: DateTime) =
-        for KeyValue(id, p) in previews do
-            if p.ExpiresAt + retainExpired < now then
-                previews.TryRemove id |> ignore
-                commits.TryRemove id |> ignore
+        lock gate (fun () ->
+            for KeyValue(id, p) in previews do
+                if p.ExpiresAt + retainExpired < now then
+                    previews.TryRemove id |> ignore
+                    commits.TryRemove id |> ignore)
 
 /// Hält Prüfung der Tagesgrenze und Buchung zusammen: ohne die Sperre könnten zwei
 /// gleichzeitige Commits verschiedener Vorschauen beide unter der Grenze zählen und
@@ -342,24 +355,20 @@ let private previewHandler (deps: BotDeps) : HttpHandler =
         }
 
 /// Was das Kassenbuch zu einer schon geschriebenen Buchung sagt (ledger-z71ka): verknüpft,
-/// wenn `EntryLinkedToYnab` im Stream steht, sonst der Grund des letzten
-/// `EntryPushToYnabFailed`. `None`, wenn unter der Id nichts steht.
+/// mit dem Grund des offenen Push-Fehlschlags, oder mit `unknownPushStateText`, wenn der Push
+/// nicht zu Ende lief. `None`, wenn unter der Id nichts steht.
 let private bookedFromLedger (entryId: Ledger.Events.EntryId) : Async<BotCommitResult option> =
     async {
-        let! recorded = Ledger.Persistence.loadEventsForEntry entryId
-        if List.isEmpty recorded then
-            return None
-        else
-            let bodies = recorded |> List.map (fun r -> r.Event.Body)
-            let linked = bodies |> List.exists (function Ledger.Events.EntryLinkedToYnab _ -> true | _ -> false)
-            let pushError =
-                if linked then None
-                else
-                    bodies
-                    |> List.rev
-                    |> List.tryPick (function Ledger.Events.EntryPushToYnabFailed f -> Some f.Reason | _ -> None)
-            let (Ledger.Events.EntryId id) = entryId
-            return Some { EntryId = id; PushedToYnab = linked; PushError = pushError }
+        let! state = Ledger.QueryHandlers.getYnabPushState entryId
+        let (Ledger.Events.EntryId id) = entryId
+        return
+            state
+            |> Option.map (fun state ->
+                match state with
+                | Ledger.QueryHandlers.LinkedInYnab -> { EntryId = id; PushedToYnab = true; PushError = None }
+                | Ledger.QueryHandlers.PushFailed reason -> { EntryId = id; PushedToYnab = false; PushError = Some reason }
+                | Ledger.QueryHandlers.PushOutcomeUnknown ->
+                    { EntryId = id; PushedToYnab = false; PushError = Some unknownPushStateText })
     }
 
 let private bookWithinLimit (deps: BotDeps) (p: BotPreview) (entryId: Ledger.Events.EntryId) : Async<BotCommitOutcome> =
@@ -368,6 +377,7 @@ let private bookWithinLimit (deps: BotDeps) (p: BotPreview) (entryId: Ledger.Eve
         match checkBotDailyLimit usedSum usedCount p.AmountEur with
         | Error reason -> return BotDailyLimitReached reason
         | Ok () ->
+            let (Ledger.Events.EntryId id) = entryId
             let signed = match p.Direction with BotOutflow -> -p.AmountEur | BotInflow -> p.AmountEur
             let input : Ledger.CommandHandlers.CashExpenseInput = {
                 AccountId = p.Target.LedgerAccountId
@@ -386,10 +396,8 @@ let private bookWithinLimit (deps: BotDeps) (p: BotPreview) (entryId: Ledger.Eve
                     deps.TriggerMirror
                     input
             with
-            | Ok (Ledger.Events.EntryId id) ->
-                return BotBooked { EntryId = id; PushedToYnab = true; PushError = None }
+            | Ok _ -> return BotBooked { EntryId = id; PushedToYnab = true; PushError = None }
             | Error err ->
-                let (Ledger.Events.EntryId id) = entryId
                 return
                     BotBooked
                         { EntryId = id
@@ -423,7 +431,7 @@ let private commitHandler (deps: BotDeps) (idText: string) : HttpHandler =
                 match deps.Store.TryGet id with
                 | None ->
                     return! respond 404 (errorBody "preview_not_found" "Unbekannte Vorschau" []) earlyReturn ctx
-                | Some preview when not (deps.Store.IsCommitted id) && preview.ExpiresAt <= deps.Now() ->
+                | Some preview when not (deps.Store.HasCommitStarted id) && preview.ExpiresAt <= deps.Now() ->
                     return!
                         respond 410 (errorBody "preview_expired" "Die Vorschau ist abgelaufen, bitte neu anlegen" []) earlyReturn ctx
                 | Some preview ->
@@ -433,6 +441,8 @@ let private commitHandler (deps: BotDeps) (idText: string) : HttpHandler =
                         | BotBooked result -> return! respond 200 (commitJson id result) earlyReturn ctx
                         | BotDailyLimitReached message ->
                             return! respond 422 (errorBody "daily_limit_reached" message []) earlyReturn ctx
+                        | BotPreviewGone ->
+                            return! respond 404 (errorBody "preview_not_found" "Unbekannte Vorschau" []) earlyReturn ctx
                     with ex ->
                         printfn "[Bot] Commit %O fehlgeschlagen: %s" id ex.Message
                         let message =

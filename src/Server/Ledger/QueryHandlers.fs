@@ -507,6 +507,31 @@ let getLedgerEntry (entryGuid: Guid) : Async<LedgerEntryView option> =
                 |> Some
     }
 
+/// Wie weit eine Buchung auf dem Weg nach YNAB ist (ADR 0021), aus ihrem Zustand.
+type YnabPushState =
+    /// `EntryLinkedToYnab` steht da: die Buchung ist in YNAB.
+    | LinkedInYnab
+    /// Der offene Fehlschlag des letzten Push, mit Grund.
+    | PushFailed of reason: string
+    /// Weder Verknüpfung noch Fehlschlag: der Push lief nicht zu Ende (er warf, oder das
+    /// Schreiben der Verknüpfung danach warf). Ob er YNAB erreichte, weiß das Kassenbuch nicht.
+    | PushOutcomeUnknown
+
+/// Der Push-Zustand einer Buchung (ledger-z71ka): Bob fragt ihn bei einer Wiederholung ab.
+/// `None` für eine unbekannte Buchung.
+let getYnabPushState (entryId: EntryId) : Async<YnabPushState option> =
+    async {
+        let! entry = Ledger.Persistence.loadEntry entryId
+        return
+            entry
+            |> Option.map (fun e ->
+                if e.LinkedToYnab then LinkedInYnab
+                else
+                    match e.PushToYnabFailure with
+                    | Some failure -> PushFailed failure.Reason
+                    | None -> PushOutcomeUnknown)
+    }
+
 /// Die Zeilen des Kategorie-Details aus den Buchungen: der Anteil dieser Kategorie je Buchung, in der
 /// Reihenfolge der Eingabe. Eine Buchung auf einem unbekannten Konto bleibt drin, ohne Kontonamen.
 let categoryMonthEntries

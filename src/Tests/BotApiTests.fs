@@ -524,6 +524,45 @@ let botApiTests =
             Expect.isEmpty (entriesFor payee) "nicht gebucht"
             Expect.equal env.Pushes 1 "nur der Push der anderen Vorschau"
 
+        testCase "die erneute Buchung nach einer Ausnahme nach dem Schreiben meldet die Buchung, auch wenn die Tagesgrenze inzwischen erreicht ist" <| fun () ->
+            // Die Buchung von A steht schon im Kassenbuch und zählt zur Tagessumme. Prüfte die
+            // Wiederholung erst die Grenze und dann das Kassenbuch, bekäme Bob 422 für eine
+            // Buchung, die steht (ledger-z71ka, Review).
+            let env = Env(addCashExpense = failingOnce AfterWrite)
+            let payee = uniquePayee ()
+            let id = preview env.Deps payee "300" "outflow"
+            Expect.equal (fst (commit env.Deps id)) 500 "erster Aufruf scheitert nach dem Schreiben"
+            Expect.equal (fst (commit env.Deps (preview env.Deps (uniquePayee ()) "200" "outflow"))) 200 "B bucht 200 Euro, Tagessumme 500 Euro"
+            let status, json = commit env.Deps id
+            Expect.equal status 200 "Wiederholung 200, kein 422"
+            Expect.equal (str json "status") "booked" "gebucht"
+            let entry = entriesFor payee |> List.exactlyOne
+            let (EntryId bookedId) = entry.Id
+            Expect.equal (str json "entry_id") (bookedId.ToString()) "entry_id von A"
+            Expect.equal env.Pushes 2 "je ein Push für A und B, kein zweiter für A"
+
+        testCase "steht die Buchung ohne Verknüpfung und ohne Push-Fehlschlag da, meldet die Wiederholung den Push-Zustand als unbekannt" <| fun () ->
+            // Wirft der Push selbst (oder das Schreiben der Verknüpfung nach einem gelungenen
+            // Push), steht nur `CashExpenseAdded` im Stream. Vorher meldete die Wiederholung
+            // `pushed_to_ynab: false` mit `push_error: null`, als wäre nichts schiefgegangen
+            // (ledger-z71ka, Review).
+            let env = Env(pushResult = async { return failwith "Verbindung abgebrochen" })
+            let payee = uniquePayee ()
+            let id = preview env.Deps payee "2" "outflow"
+            Expect.equal (fst (commit env.Deps id)) 500 "erster Aufruf scheitert im Push"
+            let entry = entriesFor payee |> List.exactlyOne
+            Expect.equal
+                (loadEventsForEntry entry.Id |> Async.RunSynchronously |> List.map (fun r -> r.EventType))
+                [ "CashExpenseAdded" ]
+                "weder Verknüpfung noch Push-Fehlschlag"
+            let status, json = commit env.Deps id
+            Expect.equal status 200 "Wiederholung 200"
+            let (EntryId bookedId) = entry.Id
+            Expect.equal (str json "entry_id") (bookedId.ToString()) "entry_id der Buchung"
+            Expect.isFalse (json.Value.GetProperty("pushed_to_ynab").GetBoolean()) "nicht als gepusht gemeldet"
+            Expect.equal (str json "push_error") unknownPushStateText "Push-Zustand unbekannt"
+            Expect.equal env.Pushes 1 "kein zweiter Push"
+
         testCase "die echte Umgebung bucht über addCashExpense ins Kassenbuch" <| fun () ->
             // Belegt den Live-Port `AddCashExpense` in `liveDeps` (Test-Doktrin Punkt 3): ein
             // Stub dort schriebe keine Ereignisse.
@@ -661,4 +700,44 @@ let botApiTests =
             Expect.equal (fst (previewOn env.Deps (env.DateText 1) "60" "outflow")) 422 "gleicher Berliner Tag"
             env.SetUtc(0, 21, 0)
             Expect.equal (fst (previewOn env.Deps (env.DateText 0) "500" "outflow")) 200 "D 21:00 UTC ist in Berlin noch D, ein anderer Tag"
+    ]
+
+/// Ein Vorschau-Datensatz für die Tests direkt am Speicher.
+let private storePreview (now: DateTime) : BotPreview =
+    { Id = Guid.NewGuid()
+      CreatedAt = now
+      ExpiresAt = now + previewTtl
+      Target = { LedgerAccountId = accountId; YnabAccountId = ynabAccountId; AccountName = "Bar" }
+      AmountEur = 1m
+      Direction = Ledger.Bot.Domain.BotOutflow
+      Payee = "Speicher"
+      Category = haushaltshilfe
+      Date = now.Date
+      Memo = None }
+
+[<Tests>]
+let botPreviewStoreTests =
+    testList "Bot-Schnittstelle (Vorschau-Speicher)" [
+
+        testCase "nach dem Wegwerfen einer Vorschau startet ihr Commit keine neue Buchung und meldet sie als verschwunden" <| fun () ->
+            // Doppelbuchungsfenster (ledger-z71ka, Review): `commitHandler` hatte die Vorschau
+            // schon geholt, ein `Purge` dazwischen entfernte Vorschau und Commit-Slot, und
+            // `CommitOnce` legte einen neuen Slot mit neuer `EntryId` an und buchte ein zweites Mal.
+            let store = BotPreviewStore()
+            let now = DateTime(2030, 6, 1, 10, 0, 0, DateTimeKind.Utc)
+            let p = storePreview now
+            store.Add p
+            let calls = ref 0
+            let work (EntryId id) =
+                async {
+                    Interlocked.Increment(&calls.contents) |> ignore
+                    return BotBooked { EntryId = id; PushedToYnab = true; PushError = None }
+                }
+            match store.CommitOnce(p.Id, work).GetAwaiter().GetResult() with
+            | BotBooked _ -> ()
+            | other -> failtest $"erster Commit sollte buchen, war {other}"
+            store.Purge(now.AddDays 1.0)
+            let second = store.CommitOnce(p.Id, work).GetAwaiter().GetResult()
+            Expect.equal calls.Value 1 "keine zweite Buchung gestartet"
+            Expect.equal second BotPreviewGone "als verschwunden gemeldet"
     ]

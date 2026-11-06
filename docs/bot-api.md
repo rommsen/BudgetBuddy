@@ -49,6 +49,13 @@ großzügigere Regel in BB greift nur, wenn eine Anfrage auf einem anderen Weg a
     bucht die Wiederholung genau einmal, wieder mit Prüfung der Tagesgrenze (422
     `daily_limit_reached`, wenn sie inzwischen erreicht ist). Eine Vorschau, deren Commit
     schon begonnen hat, verfällt nicht mehr mit 410.
+  - Push-Zustand unbekannt: Brach der erste Commit im Push ab (oder beim Speichern der
+    YNAB-Verknüpfung danach), steht die Buchung ohne Verknüpfung und ohne Push-Fehlschlag im
+    Kassenbuch. Die Wiederholung liefert 200 `booked` mit `pushed_to_ynab: false` und
+    `push_error: "Ob der Push zu YNAB gelang, ist unbekannt; der Spiegel gleicht ab"`. Bob
+    bucht dann nicht neu; den Abgleich mit YNAB übernimmt der Spiegel (ADR 0021).
+  - Wurde die Vorschau inzwischen weggeworfen (eine Stunde nach Ablauf), antwortet der Commit
+    404 `preview_not_found` und bucht nicht.
 - `GET /bot/categories` liefert `id`, `name`, `group` der wählbaren Kategorien (ohne interne und
   versteckte). Vorschau und diese Route teilen einen Kategorien-Cache.
 
