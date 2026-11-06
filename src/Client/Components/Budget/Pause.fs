@@ -78,7 +78,7 @@ let pauseHeldByConfirm (model: Model) (categoryId: System.Guid) : bool =
 /// (budgeting-c2t9w). Ein Aufruf einer anderen Kategorie sperrt nicht (budgeting-f8w2n).
 let private targetCallFor (model: Model) (categoryId: System.Guid) : bool =
     match model.TargetCall with
-    | TargetSaving (c, _, _) -> c = categoryId
+    | TargetSaving (c, _, _, _) -> c = categoryId
     | TargetIdle -> false
 
 /// Ist der Pause-Knopf der Kategorie gesperrt? Solange irgendein Pause-Aufruf läuft (es gibt nur einen),

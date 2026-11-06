@@ -392,7 +392,14 @@ let monthBarAriaLabel (bar: MonthBar) : string =
 [<Literal>]
 let RunningMonthText = "läuft"
 
-let private monthBarItem (chosen: string option) (bar: MonthBar) =
+/// Die enge Reihe (`monthBarsCompact`, budgeting-q4v8n): 12 Balken in einer Listenzeile am Handy. Der Abstand ist
+/// `gap-0.5`, die Beträge unter den Balken stehen erst ab 768 px, darunter zeigt sie die Wertzeile.
+let private monthBarsListClassFor (compact: bool) =
+    if compact then "flex gap-0.5" else monthBarsListClass
+let private monthBarAmountClassFor (compact: bool) =
+    if compact then $"{monthBarAmountClass} max-md:hidden" else monthBarAmountClass
+
+let private monthBarItem (compact: bool) (chosen: string option) (bar: MonthBar) =
     Html.li [
         prop.key bar.Key
         prop.className (monthBarItemClass (chosen = Some bar.Key))
@@ -421,12 +428,18 @@ let private monthBarItem (chosen: string option) (bar: MonthBar) =
                         ]
                     ]
                     Html.span [ prop.ariaHidden true; prop.className monthBarMonthClass; prop.text bar.MonthText ]
-                    Html.span [ prop.ariaHidden true; prop.className monthBarAmountClass; prop.text bar.AmountText ]
                     Html.span [
                         prop.ariaHidden true
-                        prop.className monthBarStateClass
-                        prop.text (if bar.Running then RunningMonthText else "")
+                        prop.className (monthBarAmountClassFor compact)
+                        prop.text bar.AmountText
                     ]
+                    // Die enge Reihe trägt keinen laufenden Monat, die leere Zeile entfällt dort.
+                    if not compact || bar.Running then
+                        Html.span [
+                            prop.ariaHidden true
+                            prop.className monthBarStateClass
+                            prop.text (if bar.Running then RunningMonthText else "")
+                        ]
                 ]
             ]
         ]
@@ -437,7 +450,7 @@ let private monthBarItem (chosen: string option) (bar: MonthBar) =
 /// Wertzeile sein `Label`; ein Tipp daneben nimmt den Fokus weg und leert sie. Allein über CSS, ohne
 /// Zustand im Model. Für den Screenreader eine Liste, je Balken ein Eintrag mit `Label`; die sichtbaren
 /// Texte sind verborgen.
-let private monthBarsView (chosen: string option) (label: string) (bars: MonthBar list) =
+let private monthBarsView (compact: bool) (chosen: string option) (label: string) (bars: MonthBar list) =
     Html.div [
         prop.custom ("data-testid", "month-bars")
         prop.className monthBarsClass
@@ -450,18 +463,23 @@ let private monthBarsView (chosen: string option) (label: string) (bars: MonthBa
             Html.ul [
                 prop.role "list"
                 prop.ariaLabel label
-                prop.className monthBarsListClass
-                prop.children (bars |> List.map (monthBarItem chosen))
+                prop.className (monthBarsListClassFor compact)
+                prop.children (bars |> List.map (monthBarItem compact chosen))
             ]
         ]
     ]
 
-let monthBars (label: string) (bars: MonthBar list) = monthBarsView None label bars
+let monthBars (label: string) (bars: MonthBar list) = monthBarsView false None label bars
+
+/// Wie `monthBars`, eng für 12 Balken in einer Listenzeile (Seite Targets prüfen, budgeting-q4v8n): `gap-0.5`
+/// statt `gap-1.5`, die Beträge unter den Balken erst ab 768 px, darunter nur in der Wertzeile. Ohne laufenden
+/// Monat entfällt die Zeile für "läuft".
+let monthBarsCompact (label: string) (bars: MonthBar list) = monthBarsView true None label bars
 
 /// Wie `monthBars`, der Balken mit `chosenKey` steht schon gewählt da, bis Maus oder Fokus einen
 /// anderen wählen. Für den Styleguide, der die Wertzeile ohne Zutun zeigt.
 let monthBarsChosen (label: string) (chosenKey: string) (bars: MonthBar list) =
-    monthBarsView (Some chosenKey) label bars
+    monthBarsView false (Some chosenKey) label bars
 
 /// Der Platzhalter beim Laden, so hoch wie `monthBars`: nichts springt, wenn die Balken kommen.
 let monthBarsPlaceholder (count: int) =

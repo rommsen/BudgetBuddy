@@ -1,7 +1,7 @@
 ---
 id: budgeting-q4v8n
 title: "Seite Targets prüfen #/budget/target-check: Knopf im Kopf der Budget-Seite, Gruppen mit Balken, Vorschlag übernehmen und Anpassen … im Panel oder BottomSheet"
-status: doing
+status: done
 type: feature
 context: budgeting
 created: 2026-11-05
@@ -101,3 +101,21 @@ Hinweise aus den Reviews nach budgeting-r7k2m und budgeting-p2zr6 (2026-11-05), 
   Ereignisse in BB; der Zwei-Schritt-Weg nach YNAB entfällt.
 
 Alle Hinweise oben sind beim Abgleich am 2026-11-06 entschieden (siehe "Festgelegt" in What). Nach hbhzf rechnet BB den Fehlbetrag selbst: ein Übernehmen ändert ihn, darum liest die Budget-Seite den Monat nach der Rückkehr still neu (`KeptPage`).
+
+## Outcome
+
+Die Seite Targets prüfen `#/budget/target-check` steht. `./verify.sh`: VERIFY: PASS (dotnet 4168 grün, node 315 grün, beide Wächter grün).
+
+- Route und Rückkehr: `BudgetTargetCheck` in `src/Client/Types.fs`, Laden und Abschied in `src/Client/State.fs` (`TargetCheckEntered`, `TargetCheckAbandoned`, `isPageReady`), Navigation zeigt Budget (`src/Client/View.fs`). Der Zustand liegt als `TargetCheckPage` auf der Budget-Seite (`Components/Budget/Types.fs`), die Rückkehr läuft über `enterPage` mit `KeptPage` (Monat still neu gelesen).
+- Reine Übergänge in `src/Client/Components/Budget/TargetCheck.fs`: Laden mit Generation, stilles Neuladen, `toggleFits`, `checkRowFacts`, `takeRequest`, `takeText`, `takeButton` (Sichtbarkeit und Sperre von "übernehmen"), `startTake`, Panel (`panelForm`, `openPanel`, `panelRow`, `panelLocks`, Formular-Übergänge über den Kern), Antworten (`applyCheckAnswered`, `applyCheckCallLost`, `takeAnswerToast`). View in `TargetCheckView.fs`; Knopf `targetCheckButton` (Icon `Icons.checkCircle`) in `Components/Budget/View.fs`, am PC und am Handy neben Historie.
+- Herkunft: `TargetSaving` trägt `TargetOrigin` (`FromTargetTab`, `FromCheckRow`, `FromCheckPanel`). `TargetEdit.fs`: `targetCallOrigin`, `targetActionFrom`, `targetFormLocksFor model categoryId month origin` (die Herkunft ist ein vierter Parameter gegenüber der Skizze in der Task, damit nur der Knopf der Herkunft dreht), `targetFormLocks` ruft sie mit dem dargestellten Monat. Das Tab-Formular nimmt Antworten nur bei Herkunft Tab ein, das Panel nur bei Herkunft Panel; das Target setzen alle Antworten im geladenen Monat (`withTarget`) und in `TargetCheckData`. Der Satz "Wartet, bis das Target bei <Kategorie> gespeichert ist." nennt jetzt auch eine Kategorie, die nur auf der Prüfseite steht.
+- `prefilledTargetForm` in `TargetFormCore.fs`.
+- Neue DS-Variante `Stats.monthBarsCompact` (`gap-0.5`, Beträge unter den Balken erst ab 768 px, ohne leere "läuft"-Zeile): bei 375 px war eine Spalte mit `monthBars` 20 px breit und schon "Nov" (22 px) lief über, gemessen im Browser-Wächter. Eintrag in `standards/frontend/styleguide.md` §2 Monatsbalken und in der Komponententabelle, gezeigt auf `/styleguide`. Der Absatz zum Kopf der Budget-Seite nennt den Knopf Targets prüfen mit Icon und Lage am Handy, der Eintrag zu `BottomSheet.confirm` die neue Seite.
+- Fable-Rundung (Bug aus budgeting-p2zr6, beim Ansehen gefunden): `Math.Round(x, MidpointRounding.AwayFromZero)` rundete im Fable-Kompilat auf eine Nachkommastelle, der wöchentliche Vorschlag stand als "93,50 €/Woche". In `src/Shared/Budgeting.fs` alle vier Stellen auf `Math.Round(x, 0, …)` umgestellt (`suggestTarget`, `spendingBars`, `euroText`, `toMilliunits`; unter .NET unverändert). Regressionstest `[fable] Ein wöchentlicher Vorschlag steht auf vollen Euro`, vor dem Fix rot.
+- Tests: `src/Tests/TargetCheckClientTests.fs` (26 Fälle durch das echte `update`: Route und Rückkehr über das App-`update`, Generation, Wiederholen, Aufklappen, Werte, Auftrag von übernehmen, alle Antworten auf übernehmen und Panel, Herkunft in beide Richtungen, Sperrlage bei anderem gezeigten Monat, Knöpfe je Gruppe und Lage, Aufzählung aller Reihenfolgen bis Tiefe 6 mit unabhängigem Orakel). Gegenprobe: Ohne Prüfung der Herkunft im Tab-Formular oder im Panel werden die Herkunft-Tests rot. `getTargetCheck` steht im Retry-Inventar. Browser: `scripts/target-check.test.mjs` mit `[flow:targets-pruefen]` (neu in `FLOWS`), zwei `[layout]` und einem `[fable]`; bestehende Fixtures unverändert, neue nur mit erfundenen Namen. `KNOWN_ROUTES` in `scripts/screenshot-route.mjs` um die Route ergänzt.
+- Abweichung: der `[layout]`-Wächter prüft "1.260,00 €/Jahr übernehmen" statt "1.234,00 €/Jahr": ein jährlicher Vorschlag ist immer ein Vielfaches von 60 € (5 € × 12), dieselbe Länge.
+- `[human-eye]` (Kästchen bleibt für Roman offen): angesehen mit gemockten 100 erfundenen Zeilen bei 375 px und 1024 px (eigenes Playwright-Skript, nicht `npm run screenshot:route`, weil das die echte Datenbank und YNAB braucht). Am Handy sind die 12 Balken mit Monatsnamen lesbar, die Beträge zeigt die Wertzeile beim Tipp. Eine Zeile ist rund 350 px hoch, weil "<Betrag> übernehmen" und "Anpassen …" am Handy nicht in eine Zeile passen und umbrechen; 100 Zeilen ergeben eine lange Seite, "Passt" ist zugeklappt. Bei 1024 px mit Panel stehen auch vierstellige Beträge unter den Balken. Ob die Dichte am Handy reicht, entscheidet Roman.
+
+Zeilen für die Kann-Sammlung budgeting (budgeting-h9c3w):
+- Am Handy brechen "<Betrag> übernehmen" und "Anpassen …" um, jede Zeile wird dadurch rund 56 px höher.
+- Das vorbelegte Betragsfeld zeigt "1200,00" ohne Tausenderpunkt (`AmountMath.formatSignedAmount`, wie im Tab Target).

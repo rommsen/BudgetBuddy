@@ -210,6 +210,11 @@ leer. Das `li` ist ein reines Listenelement, den Fokus trägt ein inneres Elemen
 `aria-label`; vorgelesen wird das Label mit Komma statt "·". Die Vorrangregel (Maus vor Fokus vor
 Vorwahl) steht in `styles.css` an einer Stelle.
 
+`Stats.monthBarsCompact` (Seite Targets prüfen): 12 Balken in einer Listenzeile am Handy. Bei 375 px ist eine
+Spalte mit `gap-1.5` 20 px breit, schmaler als "Nov" in `font-mono text-xs`. Die enge Reihe nimmt `gap-0.5` und
+zeigt die Beträge unter den Balken erst ab 768 px; darunter stehen sie nur in der Wertzeile und im Label. Ohne
+laufenden Monat entfällt die leere Zeile für "läuft". Sonst gilt alles wie bei `monthBars`.
+
 ---
 
 ## 3. Token-Layer — Tokens statt hartkodierter Klassen
@@ -281,7 +286,7 @@ steht nur **wann welche / wann nicht**.
 | **Input** | Alle Formularelemente: `text`/`password`/`email`/`number`, `textarea`, `select`/`selectSimple`, `checkbox`, `toggle`, `searchableSelect`, plus `group`/`groupWithError`/`formSection` | Reine Anzeige; mobiles Kategorie-/Konto-Auswählen → `BottomSheet` (§7) |
 | **Modal** | Zentrierte Dialoge auf **Desktop**: `simple`, `custom`, `fullScreen`, `confirm`/`confirmDanger` (beide mit "Abbrechen"), `alert`, `loading` | Mobile Auswahl-Flows → `BottomSheet` (keyboard-fest); persistente Inhalte |
 | **Toast** | Flüchtiges Feedback nach Aktion: `success`/`error`/`warning'`/`info'`, `renderList` | Blockierende Fehler → `ErrorDisplay`/`Modal`; persistenter Status → `Badge` |
-| **Stats** | KPI-/Kennzahl-Kacheln: `withIcon`, `withTrend`, `transactionCount`, `syncCount`, `grid*`, `withAccent` (Akzentfarbe wählen, inkl. `NoAccent` für gar keinen Streifen, z. B. Kontostände-Karten); Monatsbalken `monthBars`, `monthBarsChosen` (vorgewählter Balken, nur im Styleguide) und `monthBarsPlaceholder` (beim Laden, gleich hoch), Regeln in §2 Monatsbalken | Vollständige Tabellen → `Table`; einzelner Betrag im Fließtext → `Money` |
+| **Stats** | KPI-/Kennzahl-Kacheln: `withIcon`, `withTrend`, `transactionCount`, `syncCount`, `grid*`, `withAccent` (Akzentfarbe wählen, inkl. `NoAccent` für gar keinen Streifen, z. B. Kontostände-Karten); Monatsbalken `monthBars`, `monthBarsCompact` (12 Balken in einer Listenzeile am Handy), `monthBarsChosen` (vorgewählter Balken, nur im Styleguide) und `monthBarsPlaceholder` (beim Laden, gleich hoch), Regeln in §2 Monatsbalken | Vollständige Tabellen → `Table`; einzelner Betrag im Fließtext → `Money` |
 | **Money** | **Jede** Geldanzeige — setzt Vorzeichen-Farbe + Glow automatisch: `available` (Auswahl, §2), `afterAmount` (Verfügbar danach: fett, rot unter 0, grün bei genau 0), `simple`, `large`, `hero`, `noSign`, `fromMoney`, `accountBalance` (Kontostand ohne führendes Plus, für Kontostände-Leiste und -Liste), `accountListRow` (klickbare Kontozeile: Name links, farbcodierter Betrag rechts, aktiver Zustand mit Teal-Akzentlinie) | Nicht-monetäre Zahlen → `Presets.monoNumber` |
 | **Table** | Dichte tabellarische Daten (Desktop), inkl. `headerCell`/sortierbar/`sticky` | Mobile Listen mit Zeilen-Aktionen → Card-Liste + `Swipe`; einfache Key-Value-Paare → `Card` |
 | **Loading** | Ladezustände: `spinner`, `centered`, `neonPulse`, Skeletons (`txListSkeleton`, `tableSkeleton`, `statsGridSkeleton`, `cardSkeleton`) | Inhalt da → echten Inhalt zeigen; Fehler → `ErrorDisplay` |
@@ -292,7 +297,7 @@ steht nur **wann welche / wann nicht**.
 | **Primitives** | Layout-Bausteine: `Container`, `Stack`/`HStack`, `Grid`, `Spacer`, responsive Sichtbarkeit (`mobileOnly`/`desktopOnly`) | Visuell gestylte Blöcke → `Card`; Token-Klassen reichen für Spacing |
 | **Tokens** | Quelle aller Klassen-Konstanten (§3) — überall referenzieren | Niemals umgehen: rohe Tailwind-/Hex-Klassen sind Drift |
 | **Form** | Submit-Buttons mit Required-Field-Gating: `submitButton(WithIcon/Secondary)` deaktivieren bei fehlenden Pflichtfeldern | Reine Felder → `Input`; freie Buttons → `Button` |
-| **BottomSheet** | **Mobile** Auswahl-/Picker-Flows (keyboard-aware): `view`, `inspector` (immer gerendert, fährt über `IsOpen` ein und aus und hält dabei seinen Inhalt, feste Höhe 500 px, fester Bereich zwischen Kopf und Inhalt, der ab 55 % Höhe in sich scrollt, wird mit Tastatur kleiner), `categoryPicker`, `categoryPickerLayered`, `chipButton`, `sectionTitle`, `confirmDanger` (Rückfrage vor einer zerstörenden Aktion als Block im Sheet, Gegenstück zu `Modal.confirmDanger`: Titel, Text, "Abbrechen" und der rote Knopf, `role "alertdialog"` mit `aria-labelledby`, ohne `aria-modal`, weil sie im Fluss des Sheets steht und den Fokus nicht fängt, beim Öffnen hat "Abbrechen" den Fokus, Escape bricht ab, nach dem Schließen geht der Fokus über `ReturnFocus` auf den Knopf, der sie geöffnet hat: nach "Abbrechen" wieder bedienbar, nach dem Bestätigen mit dem laufenden Aufruf (`IsBusy`). Das nur, wenn der Fokus beim Schließen noch in der Rückfrage lag oder auf `body` gefallen ist (Abbrechen, Escape, Bestätigen); schließt sie, weil im Feld darüber getippt wurde, bleibt der Fokus im Feld; höchstens eine Rückfrage zugleich, solange sie offen ist, warten die übrigen Aktionen des Tabs), `confirm` (dasselbe mit dem Orange-Knopf vor einer Aktion mit Folgen, Gegenstück zu `Modal.confirm`, etwa der Wechsel der Art eines Targets) | Desktop-Dialog → `Modal`; einfaches Dropdown → `Input.select` |
+| **BottomSheet** | **Mobile** Auswahl-/Picker-Flows (keyboard-aware): `view`, `inspector` (immer gerendert, fährt über `IsOpen` ein und aus und hält dabei seinen Inhalt, feste Höhe 500 px, fester Bereich zwischen Kopf und Inhalt, der ab 55 % Höhe in sich scrollt, wird mit Tastatur kleiner), `categoryPicker`, `categoryPickerLayered`, `chipButton`, `sectionTitle`, `confirmDanger` (Rückfrage vor einer zerstörenden Aktion als Block im Sheet, Gegenstück zu `Modal.confirmDanger`: Titel, Text, "Abbrechen" und der rote Knopf, `role "alertdialog"` mit `aria-labelledby`, ohne `aria-modal`, weil sie im Fluss des Sheets steht und den Fokus nicht fängt, beim Öffnen hat "Abbrechen" den Fokus, Escape bricht ab, nach dem Schließen geht der Fokus über `ReturnFocus` auf den Knopf, der sie geöffnet hat: nach "Abbrechen" wieder bedienbar, nach dem Bestätigen mit dem laufenden Aufruf (`IsBusy`). Das nur, wenn der Fokus beim Schließen noch in der Rückfrage lag oder auf `body` gefallen ist (Abbrechen, Escape, Bestätigen); schließt sie, weil im Feld darüber getippt wurde, bleibt der Fokus im Feld; höchstens eine Rückfrage zugleich, solange sie offen ist, warten die übrigen Aktionen des Tabs), `confirm` (dasselbe mit dem Orange-Knopf vor einer Aktion mit Folgen, Gegenstück zu `Modal.confirm`, etwa der Wechsel der Art eines Targets im Tab Target und im Sheet der Seite Targets prüfen) | Desktop-Dialog → `Modal`; einfaches Dropdown → `Input.select` |
 | **Tabs** | Gleich breite Segmente mit `role=tablist`, aktiv in Teal, am Handy 48 px Trefferfläche, Pfeiltasten (am Rand bleiben sie stehen) und roving `tabindex`: `bar`, dazu `panel` für `role=tabpanel`. Fokus: Tabs zeigen Auswahl und Tastatur-Fokus mit demselben teal Strich, ohne Ring und ohne Fläche, Filter-Chips (`ChipBar`) zeigen den Fokus als Ring direkt auf dem Rand der Pille, ohne Abstand (beides ungelayert in `styles.css`) | Filter über einer Liste → `ChipBar` |
 | **Segmented** | Umschalter zwischen Ansichten derselben Sache: Knöpfe mit `aria-pressed`, aktiv in Teal (ADR 0075), 48 px, erster Nutzer ist der Tab Geld, dazu der Rhythmus und der Wochentag im Tab Target. `Segment.Disabled` sperrt einen Knopf (`disabled`, `opacity-50 cursor-not-allowed`, kein Hover), etwa den Rhythmus, solange das Speichern läuft | Bereiche mit eigenem Panel → `Tabs`; zwei Tab-Leisten übereinander stören sich bei den Pfeiltasten |
 | **Swipe** | Wischbare Listenzeilen mit enthüllter Aktion (mobile) | Statische Zeilen → Card/`Table`; Desktop-Hover-Aktionen → `Button.iconButton` |
@@ -405,14 +410,20 @@ darunter neu verankert. Filterwechsel braucht kein Hochscrollen. Beleg:
 Positionierung in `styles.css`. Sticky-Tabellenköpfe analog über `Table` (`Sticky=true`).
 
 Der Kopf der Budget-Seite ist am PC eine sticky Zeile: Monat, Suche, Filter, Zu verteilen,
-`Targets anwenden` und der Knopf Historie (Icon-Knopf `Icons.clock`, `aria-label` "Historie"), ab 1024 px
+`Targets anwenden`, der Knopf Historie (Icon-Knopf `Icons.clock`, `aria-label` "Historie") und rechts daneben
+der Knopf Targets prüfen (Icon-Knopf `Icons.checkCircle`, `aria-label` und `title` "Targets prüfen", in jedem
+Monat sichtbar, die Seite gilt immer für den laufenden), ab 1024 px
 in einer Zeile, darunter bis 768 px in zweien. Der Spaltenkopf haftet
 darunter. Der Titel entfällt, die Navigation nennt die Seite, die `h1` bleibt für den Screenreader
 (`PageHeader.screenReaderTitle`). Die Seite läuft über die volle Breite mit dem üblichen Seitenrand,
 der Zuwachs geht an die Spalte Kategorie, das Panel bleibt 340 px. Am Handy haften nur Monat mit Zu
 verteilen und die Chips, die Suche scrollt mit, `Targets anwenden` steht in ihrer Zeile. Der Knopf
-Historie steht am Handy im Kopf neben Zu verteilen (48 px), nicht in der Suchzeile: die Suche teilt ihre
-Zeile nur mit `Targets anwenden`. In der Budget-Historie `#/budget/history` stehen die Filter nach Art
+Historie steht am Handy im Kopf neben Zu verteilen (48 px), Targets prüfen gleich daneben (48 px), beide nicht in
+der Suchzeile: die Suche teilt ihre Zeile nur mit `Targets anwenden`. Die Seite Targets prüfen
+`#/budget/target-check` hat Zurück, Titel und Monat im Kopf, die Gruppen als Karten, nur "Passt" klappt auf
+(`Button.disclosureListRow`). "<Betrag> übernehmen" und "Anpassen …" sind neutrale Knöpfe (`Button.Secondary`,
+ADR 0075 Punkt 3). "Anpassen …" öffnet das Target-Formular ab 1024 px als Panel rechts, 340 px breit wie der
+Inspektor, darunter als `BottomSheet.inspector`. In der Budget-Historie `#/budget/history` stehen die Filter nach Art
 als `ChipBar.barWithTestId` in einer eigenen, haftenden Zeile unter Zurück und Titel. Im
 vergangenen Monat bleibt der Knopf `invisible`, die Seite springt nicht. Die Höhe des Kopfs ist
 gemessen (`ResizeObserver`, `--budget-month-bar-height`), weil er umbricht. Ein Halter mit

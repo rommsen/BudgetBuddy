@@ -69,27 +69,51 @@ let private targetBusy (model: Model) : bool =
 let private targetWaits (model: Model) (categoryId: System.Guid) : bool =
     targetBusy model || Pause.pauseCallFor model categoryId
 
-/// Was der Aufruf für diese Kategorie im dargestellten Monat tut, wenn er läuft. Dann dreht der Knopf, der
-/// ihn ausgelöst hat (budgeting-g2ty9, F1).
-let targetActionFor (model: Model) (categoryId: System.Guid) : TargetAction option =
-    match model.TargetCall, displayedMonth model with
-    | TargetSaving (c, m, action), Some shown when c = categoryId && m = shown -> Some action
+/// Was der Aufruf für diese Kategorie in diesem Monat tut, wenn er läuft und von `origin` kam. Dann dreht der
+/// Knopf, der ihn ausgelöst hat (budgeting-g2ty9, F1), und nur dieser (budgeting-q4v8n).
+let targetActionFrom (origin: TargetOrigin) (model: Model) (categoryId: System.Guid) (month: string) : TargetAction option =
+    match model.TargetCall with
+    | TargetSaving (c, m, action, o) when c = categoryId && m = month && o = origin -> Some action
     | _ -> None
 
-/// Der Satz zur Sperre im Tab Target. Läuft ein Target-Aufruf einer anderen Kategorie, nennt der Satz sie
-/// und hat Vorrang (budgeting-n7h3x). Läuft einer derselben Kategorie, dreht dort der Knopf, ein Satz
-/// steht nicht. Sonst steht der Satz zur Pause, wenn eine Pause derselben Kategorie läuft (budgeting-f8w2n).
-let private targetWaitHint (model: Model) (categoryId: System.Guid) : string option =
+/// Was der Aufruf aus dem Tab Target für diese Kategorie im dargestellten Monat tut, wenn er läuft.
+let targetActionFor (model: Model) (categoryId: System.Guid) : TargetAction option =
+    displayedMonth model |> Option.bind (targetActionFrom FromTargetTab model categoryId)
+
+/// Der Name einer Kategorie für die Sätze zur Sperre: aus dem gezeigten Monat, sonst aus der Seite Targets
+/// prüfen (budgeting-q4v8n).
+let private targetCategoryName (model: Model) (categoryId: System.Guid) : string option =
+    match Pause.categoryNameOf model categoryId, model.TargetCheck.Data with
+    | Some name, _ -> Some name
+    | None, Success data -> data.Categories |> List.tryFind (fun c -> c.CategoryId = categoryId) |> Option.map (fun c -> c.Name)
+    | None, _ -> None
+
+/// Der Satz zur Sperre eines Formulars. Läuft ein Target-Aufruf einer anderen Kategorie oder derselben aus
+/// einem anderen Formular, nennt der Satz sie und hat Vorrang (budgeting-n7h3x, budgeting-q4v8n). Läuft der
+/// eigene, dreht dort der Knopf, ein Satz steht nicht. Sonst steht der Satz zur Pause, wenn eine Pause
+/// derselben Kategorie läuft (budgeting-f8w2n).
+let private targetWaitHint (origin: TargetOrigin) (model: Model) (categoryId: System.Guid) : string option =
     match model.TargetCall with
-    | TargetSaving (c, _, _) when c <> categoryId -> Some (targetWaitsForTargetText (Pause.categoryNameOf model c))
-    | TargetSaving _ -> None
+    | TargetSaving (c, _, _, o) when c = categoryId && o = origin -> None
+    | TargetSaving (c, _, _, _) -> Some (targetWaitsForTargetText (targetCategoryName model c))
     | TargetIdle -> if Pause.pauseCallFor model categoryId then Some TargetWaitsForPauseText else None
 
-/// Die Sperrlage des Formulars der Kategorie im Tab Target, für den Kern (budgeting-r7k2m).
-let targetFormLocks (model: Model) (categoryId: System.Guid) : TargetFormLocks =
+/// Die Sperrlage eines Formulars der Kategorie im Monat des Formulars, für den Kern (budgeting-r7k2m). Der
+/// Knopf dreht nur bei einem Aufruf aus demselben Formular (`origin`, budgeting-q4v8n): das Panel der Seite
+/// Targets prüfen ruft sie mit `TargetCheckData.Month`, auch wenn die Budget-Seite einen anderen Monat zeigt.
+let targetFormLocksFor (model: Model) (categoryId: System.Guid) (month: string) (origin: TargetOrigin) : TargetFormLocks =
     { Waits = targetWaits model categoryId
-      Running = targetActionFor model categoryId
-      WaitHint = targetWaitHint model categoryId }
+      Running = targetActionFrom origin model categoryId month
+      WaitHint = targetWaitHint origin model categoryId }
+
+/// Die Sperrlage des Formulars der Kategorie im Tab Target: `targetFormLocksFor` mit dem dargestellten Monat.
+let targetFormLocks (model: Model) (categoryId: System.Guid) : TargetFormLocks =
+    match displayedMonth model with
+    | Some month -> targetFormLocksFor model categoryId month FromTargetTab
+    | None ->
+        { Waits = targetWaits model categoryId
+          Running = None
+          WaitHint = targetWaitHint FromTargetTab model categoryId }
 
 /// Das gezeigte Target und das Formular, wenn der Tab bearbeitbar ist (ändern oder anlegen).
 let private editableForm (mode: TargetTabMode) : (Target option * TargetForm) option =
@@ -139,7 +163,7 @@ let private start
         match step shown (targetFormLocks model category.Id) form with
         | form', Some send ->
             { model with
-                TargetCall = TargetSaving (category.Id, form.Month, send.Action)
+                TargetCall = TargetSaving (category.Id, form.Month, send.Action, FromTargetTab)
                 TargetForm = Some form' },
             Some (form.Month, send.Request)
         | form', None -> { model with TargetForm = Some form' }, None
@@ -223,15 +247,30 @@ let targetAnswerShown (categoryId: System.Guid) (month: string) (model: Model) :
 let targetAnswerInTab (categoryId: System.Guid) (month: string) (model: Model) : bool =
     targetAnswerShown categoryId month model && model.Tab = TargetTab
 
+/// Die Herkunft des laufenden Aufrufs dieser Kategorie in diesem Monat, `None` ohne (budgeting-q4v8n).
+let targetCallOrigin (categoryId: System.Guid) (month: string) (model: Model) : TargetOrigin option =
+    match model.TargetCall with
+    | TargetSaving (c, m, _, origin) when c = categoryId && m = month -> Some origin
+    | _ -> None
+
 /// Gibt den Target-Aufruf frei, wenn er der Aufruf dieser Kategorie in diesem Monat ist.
 let private releaseTargetCall (categoryId: System.Guid) (month: string) (model: Model) : Model =
-    match model.TargetCall with
-    | TargetSaving (c, m, _) when c = categoryId && m = month -> { model with TargetCall = TargetIdle }
-    | _ -> model
+    match targetCallOrigin categoryId month model with
+    | Some _ -> { model with TargetCall = TargetIdle }
+    | None -> model
 
-/// Ein Übergang auf dem Formular dieser Kategorie in diesem Monat, andere Formulare bleiben.
-let private onOwnForm (categoryId: System.Guid) (month: string) (change: TargetForm -> TargetForm) (model: Model) : Model =
-    updateForm (fun f -> if f.CategoryId = categoryId && f.Month = month then change f else f) model
+/// Ein Übergang auf dem Formular des Tabs dieser Kategorie in diesem Monat, wenn der Aufruf aus dem Tab kam
+/// (budgeting-q4v8n): eine Antwort auf "übernehmen" oder das Panel der Seite Targets prüfen lässt die Eingabe
+/// im Tab stehen. Andere Formulare bleiben.
+let private onOwnForm
+    (origin: TargetOrigin option)
+    (categoryId: System.Guid)
+    (month: string)
+    (change: TargetForm -> TargetForm)
+    (model: Model)
+    : Model =
+    if origin <> Some FromTargetTab then model
+    else updateForm (fun f -> if f.CategoryId = categoryId && f.Month = month then change f else f) model
 
 /// Nimmt die Antwort ein. Sie wirkt nur auf ihre Kategorie und ihren Monat. Ergebnis: das Modell und ob der
 /// Monat neu zu lesen ist. Festgehalten: das neue Target steht, der Monat wird neu gelesen. Inzwischen geändert
@@ -243,8 +282,9 @@ let applyTargetAnswered
     (result: Result<TargetChangeResult, string>)
     (model: Model)
     : Model * bool =
+    let origin = targetCallOrigin categoryId month model
     let answered = releaseTargetCall categoryId month model
-    let takeAnswer = onOwnForm categoryId month (formTakeAnswer result)
+    let takeAnswer = onOwnForm origin categoryId month (formTakeAnswer result)
     match result with
     | Ok (TargetWritten target) -> withTarget categoryId month target answered |> takeAnswer, true
     | Ok (TargetChangedMeanwhile target) -> withTarget categoryId month target answered |> takeAnswer, false
@@ -258,8 +298,9 @@ let targetCallLostRereads (month: string) (model: Model) : bool =
 /// mit dem Satz aus `targetCallLostText`. Ergebnis: das Modell und ob der Monat still neu zu lesen ist.
 let applyTargetCallLost (categoryId: System.Guid) (month: string) (message: string) (model: Model) : Model * bool =
     let rereads = targetCallLostRereads month model
+    let origin = targetCallOrigin categoryId month model
     releaseTargetCall categoryId month model
-    |> onOwnForm categoryId month (formTakeCallLost (targetCallLostText rereads message)),
+    |> onOwnForm origin categoryId month (formTakeCallLost (targetCallLostText rereads message)),
     rereads
 
 /// Der Toast, wenn eine Ablehnung kam, während ihre Kategorie nicht mehr gezeigt wird.

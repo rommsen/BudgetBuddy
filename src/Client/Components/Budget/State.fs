@@ -14,6 +14,7 @@ open Components.Budget.Inspector
 open Components.Budget.Pause
 open Components.Budget.TargetEdit
 open Components.Budget.History
+open Components.Budget.TargetCheck
 open Types
 open Client
 
@@ -173,6 +174,15 @@ let private generalHistoryCmd (generation: int) : Cmd<Msg> =
         ()
         (fun result -> GeneralHistoryLoaded (generation, result))
         (fun ex -> GeneralHistoryLoaded (generation, Error ex.Message))
+
+/// Die Seite Targets prüfen (budgeting-q4v8n): die Rohdaten des laufenden Monats, lesend. Die Antwort trägt
+/// die Generation beim Start, `answer` wählt zwischen Laden und stillem Neuladen.
+let private targetCheckCmd (answer: int * Result<TargetCheckData, string> -> Msg) (generation: int) : Cmd<Msg> =
+    Cmd.OfAsync.either
+        (fun () -> Retry.reading Api.budget.getTargetCheck ())
+        ()
+        (fun result -> answer (generation, result))
+        (fun ex -> answer (generation, Error ex.Message))
 
 /// Startet den Kopf der Schlange, wenn keiner läuft.
 let private flushAssign (model: Model) : Model * Cmd<Msg> =
@@ -432,23 +442,78 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         | model', Some (monthKey, request) -> model', targetChangeCmd monthKey request, NoOp
         | model', None -> model', Cmd.none, NoOp
     | TargetChangeAnswered (categoryId, month, result) ->
+        // Die Herkunft entscheidet, welches Formular die Antwort einnimmt und wo eine Meldung steht
+        // (budgeting-q4v8n). Das Target setzt jede Antwort, im geladenen Monat und auf der Seite Targets prüfen.
+        let origin = targetCallOrigin categoryId month model
+        let inPanel = panelOwnsAnswer origin categoryId month model
+        let inTab = origin = Some FromTargetTab && targetAnswerInTab categoryId month model
         let shown = targetAnswerShown categoryId month model
         let answered, reread = applyTargetAnswered categoryId month result model
+        let checked = applyCheckAnswered origin categoryId month result answered
         let external =
-            match result with
-            | Error message when not (targetAnswerInTab categoryId month model) ->
-                ShowToast (targetRejectedAwayText message, ToastWarning)
-            | Ok (TargetChangedMeanwhile _) when not (targetAnswerInTab categoryId month model) ->
-                ShowToast (targetRejectedAwayText TargetChangedMeanwhileText, ToastWarning)
-            | _ -> NoOp
-        afterTargetAnswer shown reread (answered, external)
+            match origin, result with
+            | Some FromCheckRow, _ -> takeAnswerToast result
+            | _ when inPanel || inTab -> NoOp
+            | _, Error message -> ShowToast (targetRejectedAwayText message, ToastWarning)
+            | _, Ok (TargetChangedMeanwhile _) -> ShowToast (targetRejectedAwayText TargetChangedMeanwhileText, ToastWarning)
+            | _, Ok (TargetWritten _) -> NoOp
+        afterTargetAnswer shown reread (checked, external)
     | TargetChangeCallLost (categoryId, month, message) ->
+        let origin = targetCallOrigin categoryId month model
+        let inPanel = panelOwnsAnswer origin categoryId month model
+        let inTab = origin = Some FromTargetTab && targetAnswerInTab categoryId month model
         let shown = targetAnswerShown categoryId month model
-        let inTab = targetAnswerInTab categoryId month model
         let lost, reread = applyTargetCallLost categoryId month message model
-        // Steht das Formular im offenen Tab, steht der Satz dort, sonst als Toast.
-        let external = if inTab then NoOp else ShowToast (Components.Budget.TargetFormCore.targetCallLostText reread message, ToastError)
-        afterTargetAnswer shown reread (lost, external)
+        // Der Ausgang ist offen: die Prüfung lädt still neu, wenn sie zum Monat des Aufrufs steht.
+        let checked, reloadCheck = applyCheckCallLost origin categoryId month message lost
+        // Steht das Formular offen (Tab oder Panel), steht der Satz dort, sonst als Toast. Nach "übernehmen"
+        // verspricht er das Neuladen der Prüfung.
+        let external =
+            match origin with
+            | Some FromCheckRow -> ShowToast (Components.Budget.TargetFormCore.targetCallLostText true message, ToastError)
+            | _ when inPanel || inTab -> NoOp
+            | _ -> ShowToast (Components.Budget.TargetFormCore.targetCallLostText reread message, ToastError)
+        let model', cmd, external' = afterTargetAnswer shown reread (checked, external)
+        let reloadCmd =
+            if reloadCheck then targetCheckCmd TargetCheckReloaded model'.TargetCheck.Generation else Cmd.none
+        model', Cmd.batch [ cmd; reloadCmd ], external'
+    | OpenTargetCheck -> openTargetCheck model, Cmd.none, ShowTargetCheck
+    | TargetCheckEntered ->
+        let entered = enterTargetCheck model
+        entered, targetCheckCmd TargetCheckLoaded entered.TargetCheck.Generation, NoOp
+    | RetryTargetCheck ->
+        let retried = retryTargetCheck model
+        retried, targetCheckCmd TargetCheckLoaded retried.TargetCheck.Generation, NoOp
+    | TargetCheckLoaded (generation, result) -> applyTargetCheckLoaded generation result model, Cmd.none, NoOp
+    | TargetCheckReloaded (generation, result) -> applyTargetCheckReloaded generation result model, Cmd.none, NoOp
+    | ToggleFits -> toggleFits model, Cmd.none, NoOp
+    | LeaveTargetCheck -> model, Cmd.none, leaveTargetCheck model
+    | TargetCheckAbandoned -> abandonTargetCheck model, Cmd.none, NoOp
+    | TakeSuggestion categoryId ->
+        match startTake categoryId model with
+        | model', Some (monthKey, request) -> model', targetChangeCmd monthKey request, NoOp
+        | model', None -> model', Cmd.none, NoOp
+    | AdjustTarget categoryId -> openPanel categoryId model, Cmd.none, NoOp
+    | CloseCheckPanel -> closePanel model, Cmd.none, NoOp
+    | CheckAmountChanged text -> typeCheckAmount text model, Cmd.none, NoOp
+    | CheckDateChanged entry -> typeCheckDate entry model, Cmd.none, NoOp
+    | CheckRhythmChanged frequency -> chooseCheckRhythm frequency model, Cmd.none, NoOp
+    | CheckWeekdayChanged day -> chooseCheckWeekday day model, Cmd.none, NoOp
+    | SaveCheckTarget ->
+        match startCheckSave model with
+        | model', Some (monthKey, request) -> model', targetChangeCmd monthKey request, NoOp
+        | model', None -> model', Cmd.none, NoOp
+    | ConfirmCheckTargetChange ->
+        match confirmCheckChange model with
+        | model', Some (monthKey, request) -> model', targetChangeCmd monthKey request, NoOp
+        | model', None -> model', Cmd.none, NoOp
+    | CancelCheckTargetChange -> cancelCheckChange model, Cmd.none, NoOp
+    | AskRemoveCheckTarget -> askRemoveCheck model, Cmd.none, NoOp
+    | CancelRemoveCheckTarget -> cancelRemoveCheck model, Cmd.none, NoOp
+    | ConfirmRemoveCheckTarget ->
+        match startCheckRemove model with
+        | model', Some (monthKey, request) -> model', targetChangeCmd monthKey request, NoOp
+        | model', None -> model', Cmd.none, NoOp
     | MoveAnswered result ->
         let model', external, reload = applyMoveAnswered result model
         afterMovementWhen reload (model', afterAnswer reload (frameDueAfterAnswer result model) model', external)
@@ -558,6 +623,27 @@ let private routeOf (msg: Msg) (model: Model) : MsgRoute =
     | CancelRemoveTarget
     | TargetChangeAnswered _
     | TargetChangeCallLost _
+    | OpenTargetCheck
+    | TargetCheckEntered
+    | RetryTargetCheck
+    | TargetCheckLoaded _
+    | TargetCheckReloaded _
+    | ToggleFits
+    | LeaveTargetCheck
+    | TargetCheckAbandoned
+    | TakeSuggestion _
+    | AdjustTarget _
+    | CloseCheckPanel
+    | CheckAmountChanged _
+    | CheckDateChanged _
+    | CheckRhythmChanged _
+    | CheckWeekdayChanged _
+    | SaveCheckTarget
+    | ConfirmCheckTargetChange
+    | CancelCheckTargetChange
+    | AskRemoveCheckTarget
+    | ConfirmRemoveCheckTarget
+    | CancelRemoveCheckTarget
     | OpenEntryInLedger _ -> MsgRoute.Free
 
 /// Speichert die offene Eingabe, dann wirkt die Nachricht. Der Toast zur Eingabe geht vor.

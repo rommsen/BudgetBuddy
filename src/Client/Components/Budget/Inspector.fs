@@ -334,18 +334,19 @@ let private backOnPage (model: Model) : Model * bool =
     | _ -> watched, false
 
 /// Die Seite wird betreten. Der Tab Geld überlebt den Seitenwechsel nicht, außer eine Absage kam,
-/// während die Seite verlassen war: Dann, bei der Rückkehr aus dem Kassenbuch und aus der allgemeinen
-/// Historie stehen Auswahl, Tab, Filter und Suche wieder da und die Liste kommt neu. Sonst beginnt die Seite von vorn, beim
+/// während die Seite verlassen war: Dann, bei der Rückkehr aus dem Kassenbuch, aus der allgemeinen
+/// Historie und aus Targets prüfen (budgeting-q4v8n) stehen Auswahl, Tab, Filter und Suche wieder da und die Liste kommt neu. Sonst beginnt die Seite von vorn, beim
 /// laufenden Monat. Ein laufender Aufruf hält nichts fest, er liegt auf `Model`.
 let enterPage (model: Model) : Model * PageEntry =
     let back, keepsTab = backOnPage model
     let entered = if keepsTab then back else { back with TabMoney = None }
-    if returnPending model || keepsTab || model.GeneralHistory.ReturnPending then
+    if returnPending model || keepsTab || model.GeneralHistory.ReturnPending || model.TargetCheck.ReturnPending then
         let returned =
             resetTabData
                 { entered with
                     Selected = entered.Selected |> Option.map (fun s -> { s with ReturnPending = false })
-                    GeneralHistory = { entered.GeneralHistory with ReturnPending = false } }
+                    GeneralHistory = { entered.GeneralHistory with ReturnPending = false }
+                    TargetCheck = { entered.TargetCheck with ReturnPending = false } }
         returned, KeptPage
     else
         { entered with

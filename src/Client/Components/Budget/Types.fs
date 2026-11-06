@@ -139,11 +139,22 @@ type PauseCall =
     /// gezeigt werden.
     | PauseRejected of categoryId: System.Guid * month: string * message: string
 
-/// Der Aufruf Target ändern oder entfernen. Trägt Kategorie und Monat: die Antwort wirkt nur auf sie.
-/// Er sperrt weder Auswahl noch Monatswechsel.
+/// Wo ein Target-Aufruf ausgelöst wurde (budgeting-q4v8n): nur das Formular der Herkunft nimmt die Antwort
+/// ein, nur ihr Knopf dreht.
+type TargetOrigin =
+    /// Das Formular im Tab Target.
+    | FromTargetTab
+    /// "<Betrag> übernehmen" an einer Zeile der Seite Targets prüfen.
+    | FromCheckRow
+    /// Das Formular im Panel der Seite Targets prüfen ("Anpassen …").
+    | FromCheckPanel
+
+/// Der Aufruf Target ändern oder entfernen. Trägt Kategorie, Monat und Herkunft: die Antwort wirkt nur auf
+/// Kategorie und Monat, ins Formular kommt sie nur bei der Herkunft. Er sperrt weder Auswahl noch
+/// Monatswechsel. Es läuft höchstens einer, für Tab und Seite Targets prüfen gemeinsam (budgeting-n7h3x).
 type TargetCall =
     | TargetIdle
-    | TargetSaving of categoryId: System.Guid * month: string * action: TargetAction
+    | TargetSaving of categoryId: System.Guid * month: string * action: TargetAction * origin: TargetOrigin
 
 /// Der Filter nach Art in der allgemeinen Historie (budgeting-h7q4v).
 type RunFilter =
@@ -162,6 +173,22 @@ type GeneralHistory = {
     ReturnPending: bool
     /// Zählt je Betreten und je "Wiederholen" hoch. Eine Antwort mit fremder Generation ist überholt und
     /// wird verworfen (budgeting-c6vn4, A1; Vorbild `HistoryGeneration`).
+    Generation: int
+}
+
+/// Die Seite Targets prüfen `#/budget/target-check` (budgeting-q4v8n, ADR 0082). Liegt auf der Budget-Seite
+/// wie `GeneralHistory`, damit die Rückkehr Monat und Auswahl behält.
+type TargetCheckPage = {
+    /// Die Rohdaten des laufenden Monats. Eingeordnet wird beim Rendern mit `targetCheckGroups`.
+    Data: RemoteData<TargetCheckData>
+    /// Steht die Gruppe "Passt" offen? Beim Betreten zu.
+    FitsOpen: bool
+    /// Das Formular von "Anpassen …", `None`: das Panel ist zu. Hält Kategorie und Monat der Zeile.
+    Panel: TargetForm option
+    /// Über den Knopf "Targets prüfen" geöffnet: die Rückkehr zur Budget-Seite behält Monat und Auswahl.
+    ReturnPending: bool
+    /// Zählt je Betreten, je "Wiederholen" und je stillem Neuladen hoch. Eine Antwort mit fremder Generation
+    /// ist überholt und wird verworfen (Vorbild `GeneralHistory.Generation`).
     Generation: int
 }
 
@@ -259,6 +286,8 @@ type Model = {
     Tab: InspectorTab
     /// Die allgemeine Historie (budgeting-h7q4v).
     GeneralHistory: GeneralHistory
+    /// Die Seite Targets prüfen (budgeting-q4v8n).
+    TargetCheck: TargetCheckPage
     /// Zählt die Stände der Buchungen zu Kategorie und Monat: eine späte Antwort zu einem älteren
     /// Stand ersetzt nichts. Jeder Tab hat seine eigene, damit die Historie nach einer Bewegung neu
     /// kommt, ohne laufende Buchungen zu verwerfen (budgeting-x4k7p).
@@ -407,6 +436,39 @@ type Msg =
     /// Der Aufruf von Target ändern brach auch im zweiten Versuch ab: ob das Target gespeichert ist, ist
     /// unbekannt (budgeting-eh8xe, Vorbild `TargetPauseCallLost`).
     | TargetChangeCallLost of categoryId: System.Guid * month: string * message: string
+    /// Der Knopf "Targets prüfen" im Seitenkopf (budgeting-q4v8n).
+    | OpenTargetCheck
+    /// Die Seite `#/budget/target-check` wird betreten: die Rohdaten holen.
+    | TargetCheckEntered
+    /// "Wiederholen" nach einem Fehler: nur neu laden, das Aufklappen bleibt.
+    | RetryTargetCheck
+    /// Die Antwort, mit der Generation beim Start des Ladens.
+    | TargetCheckLoaded of generation: int * Result<TargetCheckData, string>
+    /// Antwort des stillen Neuladens nach einem abgebrochenen Aufruf: die Liste blieb stehen.
+    | TargetCheckReloaded of generation: int * Result<TargetCheckData, string>
+    /// Tipp auf die Gruppe "Passt": auf- oder zuklappen.
+    | ToggleFits
+    /// Der Knopf Zurück der Seite Targets prüfen.
+    | LeaveTargetCheck
+    /// Die Seite Targets prüfen wurde auf eine andere Seite als die Budget-Seite verlassen: keine Rückkehr.
+    | TargetCheckAbandoned
+    /// "<Betrag> übernehmen" an einer Zeile.
+    | TakeSuggestion of categoryId: System.Guid
+    /// "Anpassen …" an einer Zeile: das Panel öffnen oder seinen Inhalt ersetzen.
+    | AdjustTarget of categoryId: System.Guid
+    /// "Abbrechen" im Panel oder das Sheet schließen: zu, ohne Senden.
+    | CloseCheckPanel
+    /// Eingaben und Knöpfe im Panel, wie im Tab Target.
+    | CheckAmountChanged of string
+    | CheckDateChanged of DateField.DateEntry
+    | CheckRhythmChanged of TargetFrequency
+    | CheckWeekdayChanged of int
+    | SaveCheckTarget
+    | ConfirmCheckTargetChange
+    | CancelCheckTargetChange
+    | AskRemoveCheckTarget
+    | ConfirmRemoveCheckTarget
+    | CancelRemoveCheckTarget
 
 /// Was die Seite an die App meldet (wie im Kassenbuch).
 type ExternalMsg =
@@ -417,6 +479,8 @@ type ExternalMsg =
     | JumpToEntry of System.Guid
     /// Zur allgemeinen Historie `#/budget/history`.
     | ShowGeneralHistory
+    /// Zur Seite Targets prüfen `#/budget/target-check` (budgeting-q4v8n).
+    | ShowTargetCheck
     /// Zur Budget-Seite als neuer Eintrag im Browser-Verlauf: die Historie wurde per Link geöffnet.
     | ShowBudgetPage
     /// Ein Schritt zurück im Browser-Verlauf, wie der Zurück-Knopf des Browsers: die Historie kam über den
@@ -444,6 +508,7 @@ let init () : Model =
       Selected = None
       Tab = MoneyTab
       GeneralHistory = { Runs = NotAsked; Filter = AllRuns; Expanded = Set.empty; ReturnPending = false; Generation = 0 }
+      TargetCheck = { Data = NotAsked; FitsOpen = false; Panel = None; ReturnPending = false; Generation = 0 }
       EntriesGeneration = 0
       HistoryGeneration = 0
       MonthGeneration = 0 }

@@ -222,7 +222,7 @@ let freeAmount (c: BudgetCategory) : Money =
 /// Milliunits eines Betrags (YNAB rechnet in Tausendsteln). Ein Betrag mit mehr als drei
 /// Nachkommastellen wird gerundet; Beträge aus YNAB haben nie mehr.
 let toMilliunits (money: Money) : int64 =
-    int64 (Math.Round(money.Amount * 1000m, MidpointRounding.AwayFromZero))
+    int64 (Math.Round(money.Amount * 1000m, 0, MidpointRounding.AwayFromZero))
 
 /// Ein Betrag in Euro aus Milliunits, die Gegenrichtung zu `toMilliunits` (gespeicherte Bewegungen).
 let euroOfMilliunits (milliunits: int64) : Money =
@@ -580,7 +580,7 @@ let targetAfter (shown: Target option) (draft: TargetDraft) : Result<Target, str
 
 /// Ein Betrag als "1.234,50 €", ohne Kultur und ohne Format-String, gleich unter .NET und Fable.
 let euroText (money: Money) : string =
-    let cents = int64 (Math.Round(abs money.Amount * 100m, MidpointRounding.AwayFromZero))
+    let cents = int64 (Math.Round(abs money.Amount * 100m, 0, MidpointRounding.AwayFromZero))
     let rec group (digits: string) =
         if digits.Length <= 3 then digits else group digits.[.. digits.Length - 4] + "." + digits.[digits.Length - 3 ..]
     let sign = if money.Amount < 0m && cents > 0L then "-" else ""
@@ -1115,7 +1115,7 @@ let spendingBars (currentMonth: string) (spending: MonthSpending list) : Spendin
         let amount = spent s
         let percent =
             if highest <= 0m || amount <= 0m then 0
-            else int (Math.Round(amount / highest * 100m, MidpointRounding.AwayFromZero))
+            else int (Math.Round(amount / highest * 100m, 0, MidpointRounding.AwayFromZero))
         { Month = s.Month
           Spending = { s.Activity with Amount = amount }
           Percent = percent
@@ -1285,7 +1285,8 @@ let suggestTarget (target: Target option) (average: Money) : TargetSuggestion op
                 | Months n -> monthly * decimal (max 1 n)
                 | Years n -> monthly * decimal (12 * max 1 n)
                 | Weeks n ->
-                    let weekly = Math.Round(monthly * decimal (12 * max 1 n) / 52m, MidpointRounding.AwayFromZero)
+                    // Mit Stellenzahl 0: im Fable-Kompilat galt `MidpointRounding` als zweites Argument als Stellenzahl.
+                    let weekly = Math.Round(monthly * decimal (12 * max 1 n) / 52m, 0, MidpointRounding.AwayFromZero)
                     max 1m weekly
                 | NoRhythm -> monthly
             Some

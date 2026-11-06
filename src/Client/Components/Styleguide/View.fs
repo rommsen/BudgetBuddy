@@ -465,6 +465,18 @@ let private statsSection =
                         caption "Stats.monthBarsChosen: Juli gewählt, die Wertzeile zeigt Monat und genauen Betrag"
                         Stats.monthBarsPlaceholder 6
                         caption "Stats.monthBarsPlaceholder: beim Laden, gleich hoch"
+                        let twelve =
+                            [ for i, (month, amount, percent) in
+                                  List.indexed
+                                      [ "Nov", "1.234", 100; "Dez", "640", 52; "Jan", "0", 0; "Feb", "905", 73
+                                        "Mär", "310", 25; "Apr", "1.020", 83; "Mai", "450", 36; "Jun", "780", 63
+                                        "Jul", "120", 10; "Aug", "560", 45; "Sep", "1.100", 89; "Okt", "300", 24 ] ->
+                                  bar $"compact-{i}" month amount percent $"{month} · {amount},00 €" ]
+                        Html.div [
+                            prop.className "max-w-xs"
+                            prop.children [ Stats.monthBarsCompact "Ausgaben der gezählten Monate" twelve ]
+                        ]
+                        caption "Stats.monthBarsCompact: 12 Balken in einer Listenzeile am Handy (Seite Targets prüfen), enger Abstand, die Beträge erst ab 768 px, darunter in der Wertzeile"
                     ]
                 ]
             ]

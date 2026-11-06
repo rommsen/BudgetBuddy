@@ -89,6 +89,25 @@ let private historyButton (dispatch: Msg -> unit) =
         ]
     ]
 
+/// Der Knopf "Targets prüfen": öffnet `#/budget/target-check` (budgeting-q4v8n, ADR 0082). Ein Icon-Knopf wie
+/// Historie, daneben im Kopf, am Handy auch. In jedem gezeigten Monat sichtbar: die Seite gilt immer für den
+/// laufenden.
+let private targetCheckButton (dispatch: Msg -> unit) =
+    Html.div [
+        prop.custom ("data-testid", "budget-target-check-button")
+        prop.className "shrink-0"
+        prop.children [
+            Button.view
+                { Button.defaultProps with
+                    Variant = Button.Ghost
+                    Size = Button.Small
+                    Icon = Some (Icons.checkCircle Icons.SM Icons.Default)
+                    OnClick = fun () -> dispatch OpenTargetCheck
+                    Title = Some "Targets prüfen"
+                    AriaLabel = Some "Targets prüfen" }
+        ]
+    ]
+
 /// Ab 768 px steht alles im Kopf: ab 1024 px in einer Zeile, darunter bricht er in zwei um.
 let private wideHead (model: Model) (dispatch: Msg -> unit) =
     headBar [
@@ -112,6 +131,7 @@ let private wideHead (model: Model) (dispatch: Msg -> unit) =
             assignFigure model
             targetsButton model dispatch
             historyButton dispatch
+            targetCheckButton dispatch
         ]
     ]
 
@@ -119,7 +139,7 @@ let private wideHead (model: Model) (dispatch: Msg -> unit) =
 let private phoneHead (model: Model) (dispatch: Msg -> unit) =
     headBar [
         prop.className "budget-month-bar flex flex-wrap items-center gap-x-3 py-2 -mx-1 px-1"
-        prop.children [ headStepper model dispatch; assignFigure model; historyButton dispatch ]
+        prop.children [ headStepper model dispatch; assignFigure model; historyButton dispatch; targetCheckButton dispatch ]
     ]
 
 /// Die Zeile unter dem Kopf am Handy, sie scrollt mit. Die Chips liegen in der Liste: dort haften sie.

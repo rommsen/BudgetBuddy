@@ -70,6 +70,19 @@ let emptyTargetForm (categoryId: System.Guid) (month: string) : TargetForm =
       ConfirmingChange = false
       WeekdayInput = None }
 
+/// Ein Formular, vorbelegt mit einem Betrag (budgeting-q4v8n, "Anpassen …" auf der Seite Targets prüfen): das
+/// Betragsfeld trägt `amount` im Format des Felds (`AmountMath.formatSignedAmount`), das Datum bleibt wie
+/// gelesen. `frequency` ist der Rhythmus im `Segmented`, `None` heißt wie gelesen (ohne Target monatlich).
+let prefilledTargetForm
+    (categoryId: System.Guid)
+    (month: string)
+    (amount: decimal)
+    (frequency: TargetFrequency option)
+    : TargetForm =
+    { emptyTargetForm categoryId month with
+        AmountInput = Some (AmountMath.formatSignedAmount amount)
+        RhythmInput = frequency }
+
 /// Der Stand, auf dem eine Rechnung im Betragsfeld aufsetzt: der Betrag des Targets, ohne Target 0.
 let private baseAmount (shown: Target option) : decimal =
     shown |> Option.map (fun t -> t.Goal.Amount) |> Option.defaultValue 0m

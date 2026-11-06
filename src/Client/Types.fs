@@ -155,6 +155,8 @@ type Page =
     | Budget
     /// Die allgemeine Budget-Historie: alle Durchläufe, neueste zuerst (budgeting-h7q4v).
     | BudgetHistory
+    /// Targets prüfen: passt das Target zu den Ausgaben, für den laufenden Monat (budgeting-q4v8n, ADR 0082).
+    | BudgetTargetCheck
 
 
 /// Zeigt die Seite das Kassenbuch, mit oder ohne offene Buchung?
@@ -191,6 +193,7 @@ module Routing =
         | ["ledger"; "entry"; id] -> parseEntryRoute id
         | ["budget"] -> Budget
         | ["budget"; "history"] -> BudgetHistory
+        | ["budget"; "target-check"] -> BudgetTargetCheck
         | _ -> SyncFlow  // Fallback to SyncFlow for unknown routes
 
     /// Convert Page to URL segments (for navigation)
@@ -205,6 +208,7 @@ module Routing =
         | LedgerEntry entryId -> ["ledger"; "entry"; string entryId]
         | Budget -> ["budget"]
         | BudgetHistory -> ["budget"; "history"]
+        | BudgetTargetCheck -> ["budget"; "target-check"]
 
     /// Get current page from URL (for initialization)
     let currentPage () : Page =
