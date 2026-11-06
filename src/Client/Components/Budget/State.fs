@@ -451,10 +451,11 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         let origin = targetCallOrigin categoryId month model
         let formOpen = answerFormOpen origin categoryId month model
         let shown = targetAnswerShown categoryId month model
+        let name = checkCategoryName categoryId model
         let answered, reread = applyTargetAnswered categoryId month result model
         // Lief noch ein Laden der Prüfung, liest sie neu: seine Antwort kann älter sein als diese.
         let checked, checkRead = applyCheckAnswered origin categoryId month result answered
-        let model', cmd, external = afterTargetAnswer shown reread (checked, targetAnswerToast origin formOpen result)
+        let model', cmd, external = afterTargetAnswer shown reread (checked, targetAnswerToast origin formOpen name result)
         model', Cmd.batch [ cmd; checkReadCmd checkRead model' ], external
     | TargetChangeCallLost (categoryId, month, message) ->
         let origin = targetCallOrigin categoryId month model
@@ -478,7 +479,7 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
     | TargetCheckReloaded (generation, result) ->
         let reloaded, external = applyTargetCheckReloaded generation result model
         reloaded, Cmd.none, external
-    | ToggleFits -> toggleFits model, Cmd.none, NoOp
+    | ToggleCheckGroup group -> toggleCheckGroup group model, Cmd.none, NoOp
     | LeaveTargetCheck -> model, Cmd.none, leaveTargetCheck model
     | TargetCheckAbandoned -> abandonTargetCheck model, Cmd.none, NoOp
     | TakeSuggestion categoryId -> sendTargetChange (startTake categoryId model)
@@ -608,7 +609,7 @@ let private routeOf (msg: Msg) (model: Model) : MsgRoute =
     | RetryTargetCheck
     | TargetCheckLoaded _
     | TargetCheckReloaded _
-    | ToggleFits
+    | ToggleCheckGroup _
     | LeaveTargetCheck
     | TargetCheckAbandoned
     | TakeSuggestion _

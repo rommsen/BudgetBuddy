@@ -71,46 +71,6 @@ let private tests =
             }
         ]
 
-        // budgeting-q4v8n: auf der Seite Targets prüfen war jeder der 12 Balken je Zeile ein eigener Tab-Stopp
-        // vor "übernehmen" und "Anpassen …". Die enge Reihe ist ein Tab-Stopp, die Pfeile wählen darin.
-        testList "Stats.monthBarTabStop" [
-            test "Ohne fokussierten Balken liegt der letzte in der Tab-Folge" {
-                Expect.equal (Stats.monthBarTabStop None 12) 11 "der letzte"
-            }
-            test "Der zuletzt fokussierte Balken bleibt der Tab-Stopp" {
-                Expect.equal (Stats.monthBarTabStop (Some 3) 12) 3 "der fokussierte"
-                Expect.equal (Stats.monthBarTabStop (Some 0) 12) 0 "auch der erste"
-            }
-            test "Ein Index außerhalb der Reihe fällt auf den letzten zurück, so bleibt immer genau ein Tab-Stopp" {
-                Expect.equal (Stats.monthBarTabStop (Some 11) 6) 5 "die Reihe ist kürzer geworden"
-                Expect.equal (Stats.monthBarTabStop (Some -1) 6) 5 "negativ"
-            }
-        ]
-
-        testList "Stats.monthBarKeyTarget" [
-            let target key index = Stats.monthBarKeyTarget key false index 12
-            test "Pfeil rechts und links wählen den Nachbarn" {
-                Expect.equal (target "ArrowRight" 4) (Some 5) "rechts"
-                Expect.equal (target "ArrowLeft" 4) (Some 3) "links"
-            }
-            test "Am Rand bleiben die Pfeile stehen" {
-                Expect.equal (target "ArrowRight" 11) (Some 11) "rechter Rand"
-                Expect.equal (target "ArrowLeft" 0) (Some 0) "linker Rand"
-            }
-            test "Pos1 und Ende springen an die Ränder" {
-                Expect.equal (target "Home" 6) (Some 0) "Pos1"
-                Expect.equal (target "End" 6) (Some 11) "Ende"
-            }
-            test "Andere Tasten und Tasten mit Zusatztaste gehören dem Browser" {
-                Expect.equal (target "Tab" 6) None "Tab verlässt die Reihe"
-                Expect.equal (target "Enter" 6) None "Enter"
-                Expect.equal (Stats.monthBarKeyTarget "ArrowLeft" true 6 12) None "Alt und Links: zurück"
-            }
-            test "Eine leere Reihe hat kein Ziel" {
-                Expect.equal (Stats.monthBarKeyTarget "End" false 0 0) None "leer"
-            }
-        ]
-
         testList "Stats.monthBarAmountClass" [
             test "Der Balkenbetrag ist immer text-secondary, nie Rot" {
                 let cls = Stats.monthBarAmountClass

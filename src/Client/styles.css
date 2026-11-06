@@ -14,6 +14,8 @@
   --color-neon-red: #ff3b5c;
   /* Gelb heißt "offen, kein Fehler" (ADR 0075). Kein Neon: es soll neben Rot ruhig bleiben. */
   --color-calm-yellow: #cdb27a;
+  /* Ruhiges Blau, nur "Gibst du weniger aus?" auf der Seite Targets prüfen (Nachtrag ADR 0075). 8,93:1 auf bg-card. */
+  --color-calm-blue: #7ab8ff;
 
   /* Surface Colors (maps to CSS vars for Tailwind utilities) */
   --color-surface-app: var(--bg-app);
@@ -1229,6 +1231,12 @@ nav a:focus-visible {
   top: calc(var(--budget-bar-bottom) + 8px);
   height: 640px;
   max-height: calc(100dvh - var(--budget-bar-bottom) - 24px);
+}
+/* Das Panel der Seite Targets prüfen (budgeting-c4ve4): haftet wie der Inspektor, so hoch wie sein Inhalt. */
+.target-check-panel {
+  position: sticky;
+  top: calc(var(--budget-nav-height) + 8px);
+  max-height: calc(100dvh - var(--budget-nav-height) - 24px);
 }
 
 /* ============================================================

@@ -64,6 +64,7 @@ let editableTarget
           IsPanel = Viewport.isInspectorPanelViewport ()
           Status = status
           Pause = pause
+          AmountNote = None
           OnAmountChanged = TargetAmountChanged >> dispatch
           OnDateChanged = TargetDateChanged >> dispatch
           OnRhythmChanged = TargetRhythmChanged >> dispatch

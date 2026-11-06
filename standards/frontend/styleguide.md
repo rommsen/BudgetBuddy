@@ -63,6 +63,7 @@ sie kommuniziert Zustand/Rolle. Belegt durch `Tokens.fs` (Modul `Colors`, `Glows
 | **Purple** | Akzent / "special/premium"; Kategorie nur außerhalb von Listen (ADR 0049) | `Colors.neonPurple`, `Backgrounds.purpleSubtle` |
 | **Pink** | Akzent / "attention needed", nicht auf der Budget-Seite (ADR 0075) | `Colors.neonPink`, `Backgrounds.pinkSubtle` |
 | **Gelb** | offen, kein Fehler: `fehlt` und "Passt das Target noch?" (ADR 0075). Kein Neon, kontrastiert 9,03:1 auf `bg-card`, 8,23:1 auf `bg-elevated`, 7,84:1 auf `bg-hover` | `Colors.calmYellow` |
+| **Blau** | nur der Titel "Gibst du weniger aus?" auf der Seite Targets prüfen (Nachtrag ADR 0075, budgeting-c4ve4). Ruhig, kein Neon, kontrastiert 8,93:1 auf `bg-card`, 8,14:1 auf `bg-elevated`, 7,75:1 auf `bg-hover` | `Colors.calmBlue` |
 
 Die Token-Kommentare in `Tokens.fs` sind die kanonische Begründung (z. B. *"Primary:
 Neon Green — Success, Growth, Positive"*, *"Accent: Cyber Teal - Ausgewähltes und
@@ -210,16 +211,19 @@ leer. Das `li` ist ein reines Listenelement, den Fokus trägt ein inneres Elemen
 `aria-label`; vorgelesen wird das Label mit Komma statt "·". Die Vorrangregel (Maus vor Fokus vor
 Vorwahl) steht in `styles.css` an einer Stelle.
 
-`Stats.monthBarsCompact` (Seite Targets prüfen): 12 Balken in einer Listenzeile am Handy. Bei 375 px ist eine
-Spalte mit `gap-1.5` 20 px breit, schmaler als "Nov" in `font-mono text-xs`. Die enge Reihe nimmt `gap-0.5` und
-zeigt die Beträge unter den Balken erst ab 768 px; darunter stehen sie nur in der Wertzeile und im Label. Ohne
-laufenden Monat entfällt die leere Zeile für "läuft". Die Reihe ist ein Tab-Stopp (Roving `tabindex` wie bei
-`Tabs`): in der Tab-Folge liegt der Balken, der zuletzt den Fokus hatte, sonst der letzte. Pfeil links und rechts
-setzen den Fokus auf den Nachbarn und bleiben am Rand stehen, Pos1 und Ende springen an die Ränder, mit Zusatztaste
-gehört die Taste dem Browser (`monthBarTabStop`, `monthBarKeyTarget`). Sonst stünden in jeder Zeile zwölf Tab-Stopps
-vor "übernehmen" und "Anpassen …". Bewusste Ausnahme von den 48 px aus §4: bei 375 px ist eine Spalte etwa 24 px
-breit. Ein Tipp trifft schlimmstenfalls den Nachbarmonat, und die Folge ist nur eine andere Wertzeile. Sonst gilt
-alles wie bei `monthBars`.
+`Stats.sparkBars` (Mini-Balken, Seite Targets prüfen, budgeting-c4ve4): 12 Balken ohne Beschriftung in einer
+Listenzeile, die Reihe füllt die Höhe ihres Elternelements (am PC 32 px in einer Spalte von 132 px, am Handy
+28 px über die volle Breite), Ecken 2 px (`rounded-[2px]`, nicht `rounded-sm`, das hier 8 px ist), Abstand am Handy
+4 px und ab einem Container von 720 px (dieselbe Grenze, an der die Zeile auf vier Spalten wechselt) 3 px wie in
+der Skizze, jeder Balken mindestens 2 px hoch. Die Höhe ist relativ zum größten
+Wert aus Monatsausgaben und Monatswert des Targets (`checkBars` in `Shared.Budgeting`). Farben: über dem
+Monatswert `bg-neon-orange` (ADR 0082 Punkt 6, ohne Spielraum), gezählt und nicht darüber gedämpft
+`bg-text-muted/45`, vor der letzten Änderung (nicht gezählt) dunkler `bg-text-muted/15`. Bei einem Target liegt
+eine gestrichelte Linie in `text-primary/60` auf Höhe des Monatswerts. Für den Screenreader ist die Reihe ein Bild
+mit zusammengefasstem `aria-label` ("Ausgaben der letzten 12 Monate, 11 über dem Target"), die Balken sind
+verborgen, es gibt keinen Tab-Stopp. Orange auf einer Listenzeile ist eine Ausnahme von §2 "Ruhige Listen", sie
+gilt nur für diese Seite (Nachtrag ADR 0075). `Stats.sparkBarsLabelled` ist dieselbe Reihe groß im Panel (56 px
+Balken, Ecken 3 px), darunter die Monatskürzel in Mono klein. `Stats.sparkBarsPlaceholder` steht beim Laden an ihrer Stelle.
 
 ---
 
@@ -292,7 +296,7 @@ steht nur **wann welche / wann nicht**.
 | **Input** | Alle Formularelemente: `text`/`password`/`email`/`number`, `textarea`, `select`/`selectSimple`, `checkbox`, `toggle`, `searchableSelect`, plus `group`/`groupWithError`/`formSection` | Reine Anzeige; mobiles Kategorie-/Konto-Auswählen → `BottomSheet` (§7) |
 | **Modal** | Zentrierte Dialoge auf **Desktop**: `simple`, `custom`, `fullScreen`, `confirm`/`confirmDanger` (beide mit "Abbrechen"), `alert`, `loading` | Mobile Auswahl-Flows → `BottomSheet` (keyboard-fest); persistente Inhalte |
 | **Toast** | Flüchtiges Feedback nach Aktion: `success`/`error`/`warning'`/`info'`, `renderList` | Blockierende Fehler → `ErrorDisplay`/`Modal`; persistenter Status → `Badge` |
-| **Stats** | KPI-/Kennzahl-Kacheln: `withIcon`, `withTrend`, `transactionCount`, `syncCount`, `grid*`, `withAccent` (Akzentfarbe wählen, inkl. `NoAccent` für gar keinen Streifen, z. B. Kontostände-Karten); Monatsbalken `monthBars`, `monthBarsCompact` (12 Balken in einer Listenzeile am Handy), `monthBarsChosen` (vorgewählter Balken, nur im Styleguide) und `monthBarsPlaceholder` (beim Laden, gleich hoch), Regeln in §2 Monatsbalken | Vollständige Tabellen → `Table`; einzelner Betrag im Fließtext → `Money` |
+| **Stats** | KPI-/Kennzahl-Kacheln: `withIcon`, `withTrend`, `transactionCount`, `syncCount`, `grid*`, `withAccent` (Akzentfarbe wählen, inkl. `NoAccent` für gar keinen Streifen, z. B. Kontostände-Karten); Monatsbalken `monthBars`, `monthBarsChosen` (vorgewählter Balken, nur im Styleguide) und `monthBarsPlaceholder` (beim Laden, gleich hoch); Mini-Balken `sparkBars`, `sparkBarsLabelled` und `sparkBarsPlaceholder` (Seite Targets prüfen); Regeln in §2 Monatsbalken | Vollständige Tabellen → `Table`; einzelner Betrag im Fließtext → `Money` |
 | **Money** | **Jede** Geldanzeige — setzt Vorzeichen-Farbe + Glow automatisch: `available` (Auswahl, §2), `afterAmount` (Verfügbar danach: fett, rot unter 0, grün bei genau 0), `simple`, `large`, `hero`, `noSign`, `fromMoney`, `accountBalance` (Kontostand ohne führendes Plus, für Kontostände-Leiste und -Liste), `accountListRow` (klickbare Kontozeile: Name links, farbcodierter Betrag rechts, aktiver Zustand mit Teal-Akzentlinie) | Nicht-monetäre Zahlen → `Presets.monoNumber` |
 | **Table** | Dichte tabellarische Daten (Desktop), inkl. `headerCell`/sortierbar/`sticky` | Mobile Listen mit Zeilen-Aktionen → Card-Liste + `Swipe`; einfache Key-Value-Paare → `Card` |
 | **Loading** | Ladezustände: `spinner`, `centered`, `neonPulse`, Skeletons (`txListSkeleton`, `tableSkeleton`, `statsGridSkeleton`, `cardSkeleton`) | Inhalt da → echten Inhalt zeigen; Fehler → `ErrorDisplay` |

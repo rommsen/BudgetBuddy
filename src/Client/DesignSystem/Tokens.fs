@@ -32,6 +32,9 @@ module Colors =
     // Offen, kein Fehler: fehlt und "Passt das Target noch?" (ADR 0075)
     let calmYellow = "text-calm-yellow"
 
+    // Ruhiges Blau: nur "Gibst du weniger aus?" auf der Seite Targets prüfen (Nachtrag ADR 0075, budgeting-c4ve4)
+    let calmBlue = "text-calm-blue"
+
     // Error: Neon Red
     let neonRed = "text-neon-red"
     let neonRedDim = "text-[#e6324f]"

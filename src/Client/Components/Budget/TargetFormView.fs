@@ -25,6 +25,8 @@ type TargetFormProps = {
     Status: ReactElement
     /// Der Pause-Knopf vor "Target entfernen", `Html.none` ohne.
     Pause: ReactElement
+    /// Ein Satz unter dem Betragsfeld, etwa der Vorschlag auf der Seite Targets prüfen (budgeting-c4ve4).
+    AmountNote: string option
     OnAmountChanged: string -> unit
     OnDateChanged: DateField.DateEntry -> unit
     OnRhythmChanged: TargetFrequency -> unit
@@ -202,6 +204,10 @@ let private amountField (props: TargetFormProps) =
                         prop.custom ("data-testid", "target-amount-hint")
                         prop.children [ invalidHint "target-amount-hint-text" text ]
                     ]
+                | None -> ()
+                match props.AmountNote with
+                | Some text ->
+                    Html.p [ prop.custom ("data-testid", "target-amount-note"); prop.className ListRoles.secondary; prop.text text ]
                 | None -> ()
             ]
         ]

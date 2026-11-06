@@ -1,115 +1,131 @@
-/// Die Seite Targets prüfen `#/budget/target-check` (budgeting-q4v8n, ADR 0082): die Kategorien des laufenden
-/// Monats in fünf Gruppen, je Zeile Werte, Balken der gezählten Monate, "<Betrag> übernehmen" und "Anpassen …".
-/// "Anpassen …" öffnet das Target-Formular ab 1024 px als Panel rechts (340 px wie der Inspektor), darunter als
-/// `BottomSheet`. Den Inspektor rendert die Seite nicht, die festen ids des Formulars bleiben eindeutig. Was
-/// erscheint und was gesperrt ist, sagen `TargetCheck` und der Kern `TargetFormCore`. Ausschließlich
-/// Design-System-Bausteine.
+/// Die Seite Targets prüfen `#/budget/target-check` (budgeting-q4v8n, Form nach der Skizze budgeting-c4ve4,
+/// ADR 0082): ein Kopf mit Erklärung und Zählern, darunter die Kategorien des laufenden Monats in fünf Gruppen,
+/// je Gruppe eine Karte, die auf- und zuklappt. Eine Zeile zeigt Name und Target, Mini-Balken, Ø und Monate,
+/// "<Betrag> übernehmen" und "Anpassen …". Ist die Liste mindestens 720 px breit, steht die Zeile in vier Spalten
+/// (Container-Abfrage auf der Liste), sonst wie am Handy untereinander. "Anpassen …" öffnet ab 1024 px ein Panel
+/// rechts, darunter ein `BottomSheet`. Was erscheint und was gesperrt ist, sagen `TargetCheck` und der Kern
+/// `TargetFormCore`.
 module Components.Budget.TargetCheckView
 
 open Feliz
-open Shared.Domain
 open Shared.Budgeting
 open Types
 open Components.Budget.Types
-open Components.Budget.Month
-open Components.Budget.Inspector
 open Components.Budget.TargetFormCore
 open Components.Budget.TargetCheck
 open Client.DesignSystem
 open Client.DesignSystem.Tokens
 
-/// `last:border-b-0`: die letzte Zeile trägt keine Linie, die Karte hat schon ihren Rand.
-let private rowClass = $"{ListRoles.mobileRowPadding} flex flex-col gap-2 border-b border-border-subtle last:border-b-0"
-
-[<Literal>]
-let private BarsLabel = "Ausgaben der gezählten Monate"
-
 /// Was eine Zeile zeigt, einmal vor der Schleife gerechnet (CLAUDE.md, große Listen).
 type private RowView = {
     Row: TargetCheckRow
-    Facts: CheckRowFacts
-    /// Nur bei `Values`: ein Zusatz steht ohne Balken.
-    Bars: Stats.MonthBar list
+    Wide: CheckRowText
+    Narrow: CheckRowText
+    Line: int option
+    Bars: Stats.SparkBar list
     Take: (string * TargetButtonState) option
+    Selected: bool
 }
 
 let private rowViewOf (model: Model) (data: TargetCheckData) (row: TargetCheckRow) : RowView =
-    let facts = checkRowFacts row
+    let line, bars = checkSparkBars row
     { Row = row
-      Facts = facts
-      Bars =
-        match facts with
-        | Values _ -> checkRowBars data row |> List.map spendingMonthBar
-        | NoteOnly _ -> []
+      Wide = checkRowText Wide row
+      Narrow = checkRowText Narrow row
+      Line = line
+      Bars = bars
       Take =
         match takeText row, takeButton model data row with
         | Some text, Some state -> Some (text, state)
-        | _ -> None }
+        | _ -> None
+      Selected = model.TargetCheck.Panel |> Option.exists (fun f -> f.CategoryId = row.CategoryId) }
 
-/// Ein Betrag der Zeile: die Wörter in der Sans, der Betrag in Mono mit Ziffern untereinander wie die Spalte
-/// Target der Budget-Liste (`MonthView.plainAmount`).
-let private factAmount (muted: bool) (fact: FactAmount) =
-    Html.span [
-        prop.className (if muted then $"{ListRoles.muted} whitespace-nowrap" else $"{ListRoles.secondary} whitespace-nowrap")
-        prop.children [
-            if fact.Before <> "" then Html.text fact.Before
-            Html.span [ prop.className $"font-mono {FontWeights.medium} tabular-nums"; prop.text fact.Amount ]
-            if fact.After <> "" then Html.text fact.After
-        ]
-    ]
+// Die Zeile ist ein Raster. Schmal: Name und Ø in Zeile 1, die Balken über die volle Breite, darunter Zusatz und
+// Knöpfe. Breit (Liste ab 720 px): vier Spalten wie in der Skizze, der Zusatz unter dem Namen.
 
-/// Target als Monatswert, der gelesene Betrag mit Rhythmus klein dahinter, Ø und die Zahl der Monate.
-let private factsView (values: CheckRowValues) =
-    Html.div [
-        prop.custom ("data-testid", "target-check-facts")
-        prop.className "flex flex-wrap items-baseline gap-x-3 gap-y-0.5"
-        prop.children [
-            match values.Monthly with
-            | Some monthly ->
-                Html.span [
-                    prop.className "inline-flex items-baseline gap-1.5 min-w-0"
-                    prop.children [
-                        factAmount false monthly
-                        match values.Read with
-                        | Some read -> factAmount true read
-                        | None -> ()
-                    ]
-                ]
-            | None -> ()
-            match values.Average with
-            | Some average -> factAmount false average
-            | None -> ()
-            Html.span [ prop.className $"{ListRoles.muted} whitespace-nowrap"; prop.text values.Count ]
-        ]
-    ]
+let private rowClass (selected: bool) =
+    let back = if selected then "bg-surface-hover" else ""
+    $"grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-2 items-start px-3 py-3 border-t border-border-subtle @min-[720px]:grid-cols-[minmax(0,1fr)_132px_minmax(0,1.5fr)_auto] @min-[720px]:gap-x-3 @min-[720px]:items-center @min-[720px]:gap-y-0.5 @min-[720px]:px-4 @min-[720px]:py-2.5 {back}"
+
+let private nameClass (hasNote: bool) =
+    let self = if hasNote then "@min-[720px]:self-end" else ""
+    $"col-start-1 row-start-1 flex min-w-0 flex-col gap-0.5 {self}"
+
+let private averageClass (hasNote: bool) =
+    let span = if hasNote then "@min-[720px]:row-span-2" else ""
+    $"col-start-2 row-start-1 flex flex-col items-end gap-0.5 text-right @min-[720px]:col-start-3 @min-[720px]:items-start @min-[720px]:text-left {span}"
+
+/// Die Balken füllen ihre Zelle: schmal 28 px hoch über die volle Breite, breit 32 px in der Spalte von 132 px.
+let private barsClass (hasNote: bool) =
+    let span = if hasNote then "@min-[720px]:row-span-2" else ""
+    $"col-span-2 row-start-2 h-7 @min-[720px]:col-span-1 @min-[720px]:col-start-2 @min-[720px]:row-start-1 @min-[720px]:h-8 @min-[720px]:self-center {span}"
+
+let private noteClass =
+    $"col-span-2 row-start-3 {ListRoles.secondary} {Colors.neonTeal} @min-[720px]:col-span-1 @min-[720px]:col-start-1 @min-[720px]:row-start-2 @min-[720px]:self-start"
+
+let private actionsClass (hasNote: bool) =
+    let row = if hasNote then "row-start-4 @min-[720px]:row-span-2" else "row-start-3"
+    $"col-span-2 {row} flex gap-2 @min-[720px]:col-span-1 @min-[720px]:col-start-4 @min-[720px]:row-start-1 @min-[720px]:justify-end"
+
+/// Schmal sichtbar, breit verborgen, und umgekehrt.
+let private narrowOnly = "@min-[720px]:hidden"
+let private wideOnly = "hidden @min-[720px]:inline"
+
+/// Ein Text in zwei Fassungen: schmal und breit.
+let private twoWidths (narrow: string) (wide: string) =
+    [ Html.span [ prop.className narrowOnly; prop.text narrow ]
+      Html.span [ prop.className wideOnly; prop.text wide ] ]
+
+/// Ein Knopf der Zeile: schmal halbe Breite mit 48 px, breit so breit wie sein Text.
+let private rowButtonClass = $"w-full text-center {TouchTargets.sheetMinHeight} @max-[720px]:px-3 @min-[720px]:w-auto @min-[720px]:px-3.5 @min-[720px]:whitespace-nowrap"
+let private rowButtonWrap = "flex min-w-0 flex-1 @min-[720px]:flex-none"
 
 let private rowView (dispatch: Msg -> unit) (view: RowView) =
     let row = view.Row
+    let hasNote = view.Wide.Note.IsSome
     Html.div [
         prop.key (string row.CategoryId)
         prop.custom ("data-testid", "target-check-row")
-        prop.className rowClass
+        prop.className (rowClass view.Selected)
         prop.children [
             Html.div [
-                prop.className "flex flex-col min-w-0"
+                prop.className (nameClass hasNote)
                 prop.children [
                     Html.span [ prop.custom ("data-testid", "target-check-name"); prop.className $"{ListRoles.primary} truncate"; prop.text row.Name ]
-                    Html.span [ prop.className $"{ListRoles.muted} truncate"; prop.text row.GroupName ]
+                    Html.span [ prop.className ListRoles.muted; prop.children (twoWidths view.Narrow.Target view.Wide.Target) ]
                 ]
             ]
-            match view.Facts with
-            | NoteOnly note ->
-                Html.p [ prop.custom ("data-testid", "target-check-note"); prop.className ListRoles.secondary; prop.text note ]
-            | Values values ->
-                factsView values
-                Stats.monthBarsCompact BarsLabel view.Bars
             Html.div [
-                prop.className "flex flex-wrap gap-2"
+                prop.custom ("data-testid", "target-check-average")
+                prop.className (averageClass hasNote)
+                prop.children [
+                    match view.Narrow.Average, view.Wide.Average with
+                    | Some narrow, Some wide ->
+                        Html.span [
+                            prop.className $"font-mono {FontWeights.medium} text-sm tabular-nums whitespace-nowrap {Colors.textPrimary}"
+                            prop.children (twoWidths narrow wide)
+                        ]
+                    | _ -> ()
+                    match view.Narrow.Count, view.Wide.Count with
+                    | Some narrow, Some wide -> Html.span [ prop.className ListRoles.muted; prop.children (twoWidths narrow wide) ]
+                    | _ -> ()
+                ]
+            ]
+            Html.div [
+                prop.className (barsClass hasNote)
+                prop.children [ Stats.sparkBars (checkBarsLabel row) view.Line view.Bars ]
+            ]
+            match view.Wide.Note with
+            | Some note -> Html.p [ prop.custom ("data-testid", "target-check-note"); prop.className noteClass; prop.text note ]
+            | None -> ()
+            Html.div [
+                prop.className (actionsClass hasNote)
                 prop.children [
                     match view.Take with
                     | Some (text, state) ->
                         Html.div [
                             prop.custom ("data-testid", "target-check-take")
+                            prop.className rowButtonWrap
                             prop.children [
                                 Button.view
                                     { Button.defaultProps with
@@ -117,19 +133,20 @@ let private rowView (dispatch: Msg -> unit) (view: RowView) =
                                         Variant = Button.Secondary
                                         IsBusy = state.Busy
                                         IsDisabled = state.Disabled
-                                        ClassName = Some TouchTargets.sheetMinHeight
+                                        ClassName = Some rowButtonClass
                                         OnClick = fun () -> dispatch (TakeSuggestion row.CategoryId) }
                             ]
                         ]
                     | None -> ()
                     Html.div [
                         prop.custom ("data-testid", "target-check-adjust")
+                        prop.className rowButtonWrap
                         prop.children [
                             Button.view
                                 { Button.defaultProps with
                                     Text = "Anpassen …"
                                     Variant = Button.Secondary
-                                    ClassName = Some TouchTargets.sheetMinHeight
+                                    ClassName = Some rowButtonClass
                                     OnClick = fun () -> dispatch (AdjustTarget row.CategoryId) }
                         ]
                     ]
@@ -138,64 +155,61 @@ let private rowView (dispatch: Msg -> unit) (view: RowView) =
         ]
     ]
 
-/// Der Satz im Kopf einer Gruppe, abgesetzt über das Gewicht.
-let private headClass = $"{ListRoles.primarySize} {FontWeights.semibold} {Colors.textPrimary}"
+/// Die Farbe des Titels einer Gruppe (Nachtrag ADR 0075 vom 2026-11-06). Steht hier, damit
+/// der Klassen-Wächter die Klassen in derselben Datei findet.
+let checkGroupTitleClass (group: CheckGroup) : string =
+    match group with
+    | SpendsMore -> Colors.neonOrange
+    | SpendsLess -> Colors.calmBlue
+    | NeverSpends -> Colors.neonPurple
+    | WithoutTarget -> Colors.textPrimary
+    | Fits -> Colors.neonTeal
 
-/// Satz und Zahl im Kopf einer Gruppe. Der Satz ist die Überschrift (`heading`): offen ein `h2`, im Knopf von
-/// "Passt" ein `span` mit `headingId`, auf das die `section` per `aria-labelledby` verweist (kein `h2` im Knopf).
-let private groupHead (heading: string -> ReactElement) (group: CheckGroup) (count: int) =
-    Html.span [
-        prop.className "flex items-center justify-between gap-3"
-        prop.children [
-            heading (checkGroupText group)
-            Html.span [ prop.className $"{ListRoles.secondary} font-mono tabular-nums"; prop.text (string count) ]
-        ]
-    ]
+let private cardClass = "rounded-2xl border border-border-subtle bg-surface-card overflow-clip"
 
-let private groupCard (labelledBy: string option) (children: ReactElement list) =
+let private groupKey (group: CheckGroup) =
+    match group with
+    | SpendsMore -> "more"
+    | SpendsLess -> "less"
+    | NeverSpends -> "never"
+    | WithoutTarget -> "without"
+    | Fits -> "fits"
+
+/// Eine Gruppe als Karte: der Kopf klappt auf und zu (Titel in der Farbe der Gruppe, Zahl, Regelsatz), zu
+/// rendert sie ihre Zeilen nicht.
+let private groupCard (model: Model) (data: TargetCheckData) (dispatch: Msg -> unit) (group: CheckGroup) (rows: TargetCheckRow list) =
+    let key = groupKey group
+    let isOpen = model.TargetCheck.OpenGroups.Contains group
+    let rowsId = $"target-check-{key}-rows"
+    let headingId = $"target-check-{key}-heading"
     Html.section [
+        prop.key key
         prop.custom ("data-testid", "target-check-group")
-        match labelledBy with
-        | Some id -> prop.ariaLabelledBy id
-        | None -> ()
-        prop.className "rounded-xl border border-border-subtle bg-surface-card overflow-clip"
-        prop.children children
-    ]
-
-/// Eine offene Gruppe: Kopf und Zeilen.
-let private openGroup (model: Model) (data: TargetCheckData) (dispatch: Msg -> unit) (group: CheckGroup) (rows: TargetCheckRow list) =
-    groupCard None [
-        Html.div [
-            prop.className $"{ListRoles.mobileRowPadding} border-b border-border-subtle"
-            prop.children [
-                groupHead (fun text -> Html.h2 [ prop.className headClass; prop.text text ]) group (List.length rows)
+        prop.ariaLabelledBy headingId
+        prop.className cardClass
+        prop.children [
+            Button.disclosureListRow key "target-check-group-toggle" rowsId isOpen (fun () -> dispatch (ToggleCheckGroup group)) [
+                Html.span [
+                    prop.className $"{ListRoles.primarySize} {FontWeights.semibold}"
+                    prop.children [
+                        Html.span [ prop.id headingId; prop.custom ("data-testid", "target-check-group-title"); prop.className (checkGroupTitleClass group); prop.text (checkGroupText group) ]
+                        Html.span [ prop.className $"ml-1.5 font-mono {FontWeights.medium} {Colors.textMuted}"; prop.text (string (List.length rows)) ]
+                    ]
+                ]
+                Html.span [ prop.className $"{ListRoles.muted} mt-0.5"; prop.text (checkGroupRule group) ]
+            ]
+            Html.div [
+                prop.id rowsId
+                prop.hidden (not isOpen)
+                prop.children (if isOpen then rows |> List.map (rowViewOf model data >> rowView dispatch) else [])
             ]
         ]
-        yield! rows |> List.map (rowViewOf model data >> rowView dispatch)
     ]
 
-/// "Passt": klappt auf und zu, zu rendert sie ihre Zeilen nicht.
-let private fitsGroup (model: Model) (data: TargetCheckData) (dispatch: Msg -> unit) (rows: TargetCheckRow list) =
-    let isOpen = model.TargetCheck.FitsOpen
-    let rowsId = "target-check-fits-rows"
-    let headingId = "target-check-fits-heading"
-    groupCard (Some headingId) [
-        Button.disclosureListRow "fits" "target-check-fits-toggle" rowsId isOpen (fun () -> dispatch ToggleFits) [
-            groupHead (fun text -> Html.span [ prop.id headingId; prop.className headClass; prop.text text ]) Fits (List.length rows)
-        ]
-        Html.div [
-            prop.id rowsId
-            prop.hidden (not isOpen)
-            prop.className "border-t border-border-subtle"
-            prop.children (if isOpen then rows |> List.map (rowViewOf model data >> rowView dispatch) else [])
-        ]
-    ]
-
-let private groupsView (model: Model) (data: TargetCheckData) (dispatch: Msg -> unit) =
-    let groups = checkGroups data
+let private groupsView (model: Model) (data: TargetCheckData) (groups: (CheckGroup * TargetCheckRow list) list) (dispatch: Msg -> unit) =
     Html.div [
         prop.custom ("data-testid", "target-check-list")
-        prop.className "flex flex-col gap-4 min-w-0"
+        prop.className "@container flex flex-col gap-3 min-w-0"
         prop.children [
             if nothingToCheck groups then
                 Html.p [
@@ -204,18 +218,62 @@ let private groupsView (model: Model) (data: TargetCheckData) (dispatch: Msg -> 
                     prop.text NothingToCheckText
                 ]
             for group, rows in groups do
-                match group with
-                | Fits -> fitsGroup model data dispatch rows
-                | _ -> openGroup model data dispatch group rows
+                groupCard model data dispatch group rows
         ]
     ]
 
-/// Das Formular des Panels, angebunden an die Nachrichten der Seite. Abbrechen steht am Ende.
-let private panelFormView (model: Model) (row: TargetCheckRow) (form: TargetForm) (isPanel: bool) (dispatch: Msg -> unit) =
+/// Beim Laden: zwei Karten mit kompakten Zeilen, so hoch wie die echten.
+let private skeleton () =
+    let pulse = "rounded bg-surface-elevated animate-pulse"
+    Html.div [
+        prop.custom ("data-testid", "target-check-skeleton")
+        prop.ariaLabel "Lade die Prüfung"
+        prop.className "@container flex flex-col gap-3 min-w-0"
+        prop.children [
+            for card in 1..2 do
+                Html.div [
+                    prop.key card
+                    prop.className cardClass
+                    prop.children [
+                        Html.div [
+                            prop.className $"{ListRoles.mobileRowPadding} flex flex-col gap-1.5"
+                            prop.children [ Html.div [ prop.className $"w-40 h-4 {pulse}" ]; Html.div [ prop.className $"w-72 max-w-full h-3 {pulse}" ] ]
+                        ]
+                        for row in 1..3 do
+                            Html.div [
+                                prop.key row
+                                prop.className (rowClass false)
+                                prop.children [
+                                    Html.div [ prop.className (nameClass false); prop.children [ Html.div [ prop.className $"w-32 h-4 {pulse}" ]; Html.div [ prop.className $"w-40 h-3 {pulse}" ] ] ]
+                                    Html.div [ prop.className (averageClass false); prop.children [ Html.div [ prop.className $"w-20 h-4 {pulse}" ]; Html.div [ prop.className $"w-28 h-3 {pulse}" ] ] ]
+                                    Html.div [ prop.className (barsClass false); prop.children [ Stats.sparkBarsPlaceholder () ] ]
+                                    Html.div [ prop.className (actionsClass false); prop.children [ Html.div [ prop.className $"flex-1 h-10 @min-[720px]:flex-none @min-[720px]:w-32 {pulse}" ] ] ]
+                                ]
+                            ]
+                    ]
+                ]
+        ]
+    ]
+
+/// Satz, große Balken mit Legende (nur im Panel) und das gemeinsame Target-Formular mit Abbrechen am Ende.
+let private panelBody (model: Model) (row: TargetCheckRow) (form: TargetForm) (isPanel: bool) (dispatch: Msg -> unit) =
     Html.div [
         prop.custom ("data-testid", "target-check-form")
         prop.className "flex flex-col gap-4"
         prop.children [
+            Html.p [ prop.custom ("data-testid", "target-check-sentence"); prop.className $"text-sm leading-relaxed {Colors.textPrimary}"; prop.text (checkPanelSentence row) ]
+            if isPanel then
+                let line, bars = checkSparkBars row
+                Stats.sparkBarsLabelled (checkBarsLabel row) line bars
+                Html.div [
+                    prop.ariaHidden true
+                    prop.className $"flex flex-wrap gap-x-4 gap-y-1 {ListRoles.muted}"
+                    prop.children [
+                        Html.span "Balken: Ausgaben je Monat"
+                        Html.span [ prop.className Colors.neonOrange; prop.text "orange: über dem Target" ]
+                        Html.span "Linie: Target"
+                    ]
+                ]
             TargetFormView.view
                 { Shown = row.Target
                   Form = form
@@ -223,6 +281,7 @@ let private panelFormView (model: Model) (row: TargetCheckRow) (form: TargetForm
                   IsPanel = isPanel
                   Status = Html.none
                   Pause = Html.none
+                  AmountNote = checkSuggestionHint row
                   OnAmountChanged = CheckAmountChanged >> dispatch
                   OnDateChanged = CheckDateChanged >> dispatch
                   OnRhythmChanged = CheckRhythmChanged >> dispatch
@@ -247,87 +306,164 @@ let private panelFormView (model: Model) (row: TargetCheckRow) (form: TargetForm
         ]
     ]
 
-/// Das Panel ab 1024 px, wie der Inspektor: Name, Gruppe und Monat oben, darunter das Formular.
+/// Das Panel ab 1024 px: Name und "Schließen" oben, darunter Satz, große Balken und Formular.
 let private sidePanel (model: Model) (dispatch: Msg -> unit) =
     match panelRow model with
     | Some (row, form) ->
         Html.aside [
             prop.custom ("data-testid", "target-check-panel")
-            prop.className "budget-inspector-panel flex flex-col rounded-xl border border-border-subtle bg-surface-card overflow-hidden"
+            prop.className "target-check-panel flex flex-col gap-3.5 rounded-2xl border border-border-default bg-surface-elevated p-4 overflow-y-auto"
             prop.children [
                 Html.div [
-                    prop.className "flex flex-col gap-1 p-4 shrink-0"
+                    prop.className "flex items-baseline justify-between gap-3"
                     prop.children [
-                        Html.h2 [ prop.className $"{ListRoles.primary} truncate"; prop.text row.Name ]
-                        Html.span [ prop.className $"{ListRoles.secondary} truncate"; prop.text $"{row.GroupName} · {monthLabel form.Month}" ]
+                        Html.h2 [ prop.className $"text-lg {FontWeights.semibold} {Colors.textPrimary} truncate"; prop.text row.Name ]
+                        Html.div [
+                            prop.custom ("data-testid", "target-check-close")
+                            prop.children [
+                                Button.view
+                                    { Button.defaultProps with
+                                        Text = "Schließen"
+                                        Variant = Button.Ghost
+                                        Size = Button.Small
+                                        AriaLabel = Some "Panel schließen"
+                                        OnClick = fun () -> dispatch CloseCheckPanel }
+                            ]
+                        ]
                     ]
                 ]
-                Html.div [
-                    prop.className "flex-1 min-h-0 overflow-y-auto px-4 pb-4"
-                    prop.children [ panelFormView model row form true dispatch ]
-                ]
+                panelBody model row form true dispatch
             ]
         ]
     | None -> Html.none
 
 /// Das Sheet unter 1024 px. Immer gerendert, damit es ein- und ausfährt.
 let private sheet (model: Model) (dispatch: Msg -> unit) =
-    let props title subtitle isOpen : BottomSheet.BottomSheetProps =
+    let props title isOpen : BottomSheet.BottomSheetProps =
         { IsOpen = isOpen
           OnClose = fun () -> dispatch CloseCheckPanel
           Title = title
-          Subtitle = subtitle
+          Subtitle = None
           Footer = None }
     match panelRow model with
     | Some (row, form) ->
         BottomSheet.inspector
-            (props row.Name (Some $"{row.GroupName} · {monthLabel form.Month}") true)
+            (props row.Name true)
             []
             []
             [ Html.div [
                   prop.custom ("data-testid", "target-check-sheet")
                   prop.className "py-4"
-                  prop.children [ panelFormView model row form false dispatch ]
+                  prop.children [ panelBody model row form false dispatch ]
               ] ]
-    | None -> BottomSheet.inspector (props "" None false) [] [] []
+    | None -> BottomSheet.inspector (props "" false) [] [] []
+
+let private backButton (dispatch: Msg -> unit) =
+    Button.view
+        { Button.defaultProps with
+            Text = "← Budget"
+            Variant = Button.Ghost
+            Size = Button.Small
+            AriaLabel = Some "Zurück zum Budget"
+            ClassName = Some "-ml-3"
+            OnClick = fun () -> dispatch LeaveTargetCheck }
+
+let private counter (hints: bool) (count: int) =
+    let testId, label = if hints then "target-check-hints", "Hinweise" else "target-check-fits", "Passt"
+    let toneClass = if hints then Colors.neonOrange else Colors.neonTeal
+    Html.div [
+        prop.custom ("data-testid", testId)
+        prop.className "flex flex-col"
+        prop.children [
+            Html.span [ prop.className ListRoles.groupHeader; prop.text label ]
+            Html.span [ prop.className $"font-mono text-2xl {FontWeights.semibold} tabular-nums {toneClass}"; prop.text (string count) ]
+        ]
+    ]
+
+/// Der Kopf: am PC eine Karte mit Zurück, Titel, Erklärung und den Zählern rechts, am Handy Zurück oben, darunter
+/// der Titel groß und eine Zeile mit Monat und Zählern.
+let private header (data: (TargetCheckData * CheckCounts) option) (dispatch: Msg -> unit) =
+    React.fragment [
+        Html.div [
+            prop.custom ("data-testid", "target-check-head")
+            prop.className $"hidden md:flex flex-wrap items-center justify-between gap-3 {cardClass} px-4 py-3"
+            prop.children [
+                Html.div [
+                    prop.className "flex min-w-0 flex-col gap-1"
+                    prop.children [
+                        Html.div [
+                            prop.className "flex items-baseline gap-3"
+                            prop.children [
+                                backButton dispatch
+                                Html.h1 [ prop.className $"text-xl {FontWeights.semibold} {Colors.textPrimary}"; prop.text "Targets prüfen" ]
+                            ]
+                        ]
+                        match data with
+                        | Some (d, _) -> Html.p [ prop.custom ("data-testid", "target-check-intro"); prop.className ListRoles.muted; prop.text (checkIntroText d.Month) ]
+                        | None -> ()
+                    ]
+                ]
+                match data with
+                | Some (_, counts) ->
+                    Html.div [
+                        prop.className "flex gap-4"
+                        prop.children [
+                            counter true counts.Hints
+                            counter false counts.Fits
+                        ]
+                    ]
+                | None -> ()
+            ]
+        ]
+        Html.div [
+            prop.custom ("data-testid", "target-check-head-narrow")
+            prop.className "flex flex-col gap-0.5 md:hidden"
+            prop.children [
+                Html.div [ prop.className "self-start"; prop.children [ backButton dispatch ] ]
+                Html.h1 [ prop.className $"text-2xl {FontWeights.semibold} {Colors.textPrimary}"; prop.text "Targets prüfen" ]
+                match data with
+                | Some (d, counts) ->
+                    let hints, fits = checkCountsText counts
+                    Html.p [
+                        prop.custom ("data-testid", "target-check-intro-narrow")
+                        prop.className ListRoles.muted
+                        prop.children [
+                            Html.text $"{Month.monthLabel d.Month} · "
+                            Html.span [ prop.className Colors.neonOrange; prop.text hints ]
+                            Html.text " · "
+                            Html.span [ prop.className Colors.neonTeal; prop.text fits ]
+                        ]
+                    ]
+                | None -> ()
+            ]
+        ]
+    ]
 
 let view (model: Model) (dispatch: Msg -> unit) =
     let isPanel = Viewport.isInspectorPanelViewport ()
     let check = model.TargetCheck
-    let content =
+    let loaded =
         match check.Data with
-        | NotAsked
-        | Loading -> Loading.txListSkeleton 5
-        | Failure message -> ErrorDisplay.card message (Some (fun () -> dispatch RetryTargetCheck))
-        | Success data -> groupsView model data dispatch
+        | Success data -> Some (data, checkGroups data)
+        | _ -> None
+    let content =
+        match check.Data, loaded with
+        | Failure message, _ -> ErrorDisplay.card message (Some (fun () -> dispatch RetryTargetCheck))
+        | _, Some (data, groups) -> groupsView model data groups dispatch
+        | _ -> skeleton ()
     // Die Klasse `budget-page` setzt die Maße unter der Navbar, an denen das Panel haftet.
     Primitives.Container.full [
         Html.div [
             prop.custom ("data-testid", "target-check-page")
-            prop.className "budget-page flex flex-col gap-4 py-2"
+            prop.className "budget-page flex flex-col gap-3 py-2"
             prop.children [
-                PageHeader.screenReaderTitle "Targets prüfen"
-                Html.div [
-                    prop.className "flex flex-wrap items-center gap-x-3 gap-y-1"
-                    prop.children [
-                        Button.secondary "Zurück" (fun () -> dispatch LeaveTargetCheck)
-                        Html.span [ prop.className ListRoles.primary; prop.text "Targets prüfen" ]
-                        match check.Data with
-                        | Success data ->
-                            Html.span [
-                                prop.custom ("data-testid", "target-check-month")
-                                prop.className ListRoles.secondary
-                                prop.text (monthLabel data.Month)
-                            ]
-                        | _ -> ()
-                    ]
-                ]
+                header (loaded |> Option.map (fun (data, groups) -> data, checkCounts groups)) dispatch
                 // ADR 0043: zur Renderzeit genau eine Hülle. Ohne "Anpassen …" ist das Panel zu.
                 if isPanel then
                     match panelRow model with
                     | Some _ ->
                         Html.div [
-                            prop.className "grid grid-cols-[minmax(0,1fr)_340px] gap-4 items-start"
+                            prop.className "grid grid-cols-[minmax(0,1fr)_360px] gap-3 items-start"
                             prop.children [ content; sidePanel model dispatch ]
                         ]
                     | None -> content

@@ -24,10 +24,13 @@ let private withCheck (model: Model) (change: TargetCheckPage -> TargetCheckPage
 let openTargetCheck (model: Model) : Model =
     withCheck model (fun c -> { c with ReturnPending = true })
 
-/// Die Seite wird betreten: die Rohdaten kommen neu, "Passt" ist zu, das Panel zu.
+/// Beim Betreten offen: alle Gruppen außer "Passt" (budgeting-c4ve4).
+let openOnEntry : Set<CheckGroup> = Set.ofList [ SpendsMore; SpendsLess; NeverSpends; WithoutTarget ]
+
+/// Die Seite wird betreten: die Rohdaten kommen neu, die Gruppen offen außer "Passt", das Panel zu.
 let enterTargetCheck (model: Model) : Model =
     withCheck model (fun c ->
-        { c with Data = Loading; FitsOpen = false; Panel = None; Generation = c.Generation + 1; LoadPending = true })
+        { c with Data = Loading; OpenGroups = openOnEntry; Panel = None; Generation = c.Generation + 1; LoadPending = true })
 
 /// "Wiederholen": nur neu laden, das Aufklappen bleibt.
 let retryTargetCheck (model: Model) : Model =
@@ -87,9 +90,11 @@ let applyTargetCheckReloaded
             ShowToast ($"Prüfung nicht neu gelesen, sie kann veraltet sein: {message}", ToastWarning)
         | Error _, Failure _ -> withCheck model (fun c -> { c with LoadPending = false }), NoOp
 
-/// Ein Tipp auf "Passt" klappt auf, ein zweiter zu.
-let toggleFits (model: Model) : Model =
-    withCheck model (fun c -> { c with FitsOpen = not c.FitsOpen })
+/// Ein Tipp auf den Kopf einer Gruppe klappt sie auf, ein zweiter zu.
+let toggleCheckGroup (group: CheckGroup) (model: Model) : Model =
+    withCheck model (fun c ->
+        let groups = if c.OpenGroups.Contains group then c.OpenGroups.Remove group else c.OpenGroups.Add group
+        { c with OpenGroups = groups })
 
 /// Der Knopf Zurück: über den Knopf "Targets prüfen" geöffnet, liegt die Budget-Seite im Browser-Verlauf direkt
 /// davor und Zurück geht einen Schritt zurück. Per Link geöffnet, führt es zur Budget-Seite (wie
@@ -122,51 +127,131 @@ let private rowOf (data: TargetCheckData) (categoryId: System.Guid) : TargetChec
     |> List.tryFind (fun c -> c.CategoryId = categoryId)
     |> Option.map (targetCheckRow data.Today)
 
-/// Ein Betrag einer Zeile, getrennt in Wort davor, Betrag und Wort danach: der Betrag steht in Ziffern
-/// untereinander (Mono), die Wörter in der Sans ("Target ", "216,67 €", "/Monat").
-type FactAmount = { Before: string; Amount: string; After: string }
+/// Die Zähler im Kopf: Zeilen außerhalb von "Passt" (Hinweise, orange) und in "Passt" (teal).
+type CheckCounts = { Hints: int; Fits: int }
 
-/// Die Werte einer Zeile ohne Zusatz.
-type CheckRowValues = {
-    /// "Target 216,67 €/Monat", ohne Target `None`.
-    Monthly: FactAmount option
-    /// Der gelesene Betrag mit Rhythmus wie in der Budget-Liste, nur bei anderem Rhythmus als monatlich.
-    Read: FactAmount option
-    /// "Ø 260,00 €".
-    Average: FactAmount option
-    /// "8 von 12 Monaten darüber", ohne Target und bei "nie" "1 von 12 Monaten mit Ausgaben".
-    Count: string
+let checkCounts (groups: (CheckGroup * TargetCheckRow list) list) : CheckCounts =
+    let count predicate =
+        groups |> List.filter (fst >> predicate) |> List.sumBy (snd >> List.length)
+    { Hints = count (fun g -> g <> Fits); Fits = count (fun g -> g = Fits) }
+
+/// Der Satz unter dem Titel: "November 2026. Verglichen mit dem Ø der vollen Monate aus dem Kassenbuch,
+/// höchstens 12, ab der letzten Änderung des Targets."
+let checkIntroText (month: string) : string =
+    $"{monthLabel month}. Verglichen mit dem Ø der vollen Monate aus dem Kassenbuch, höchstens 12, ab der letzten Änderung des Targets."
+
+/// Die Zähler am Handy: "7 Hinweise" und "2 passen", in der Einzahl "1 Hinweis" und "1 passt".
+let checkCountsText (counts: CheckCounts) : string * string =
+    (if counts.Hints = 1 then "1 Hinweis" else $"{counts.Hints} Hinweise"),
+    (if counts.Fits = 1 then "1 passt" else $"{counts.Fits} passen")
+
+/// Der Regelsatz unter dem Titel einer Gruppe (ADR 0082 Punkt 8).
+let checkGroupRule (group: CheckGroup) : string =
+    match group with
+    | SpendsMore -> "Ø mehr als 10 % und 10 € über dem Target, bei monatlichem oder wöchentlichem Rhythmus in mindestens der Hälfte der Monate."
+    | SpendsLess -> "Ø mehr als 30 % und 10 € unter dem Target."
+    | NeverSpends -> "Höchstens ein Monat mit Ausgaben, bei längerem Rhythmus keiner. Für eine Rücklage ist das richtig."
+    | WithoutTarget -> "Regelmäßige Ausgaben, aber kein Target."
+    | Fits -> "Keine Auffälligkeit. Übernommene und neu gesetzte Targets stehen hier."
+
+/// Breit die Zeile am PC (vier Spalten), schmal die Zeile am Handy und in einer schmalen Liste.
+type CheckRowWidth =
+    | Wide
+    | Narrow
+
+/// Die Texte einer Zeile in ganzen Euro (budgeting-c4ve4).
+type CheckRowText = {
+    /// "Target 50 € wöchentlich (217 € im Monat)", schmal ohne Klammer, ohne Target "Kein Target".
+    Target: string
+    /// Der Zusatz bei "Passt" ("neu gesetzt am 06.11.2026").
+    Note: string option
+    /// "Ø 175 € im Monat", schmal "Ø 175 €". `None` ohne gezählten Monat.
+    Average: string option
+    /// "11 von 12 Monaten über dem Target", schmal "11 von 12 Mon. darüber"; ohne Target "mit Ausgaben".
+    /// `None` ohne gezählten Monat.
+    Count: string option
 }
-
-/// Was eine Zeile zeigt: bei "Passt" mit Zusatz nur den Zusatz, ohne Werte und Balken, sonst die Werte mit Balken.
-type CheckRowFacts =
-    | NoteOnly of string
-    | Values of CheckRowValues
 
 let private monthsWord (n: int) : string = if n = 1 then "Monat" else "Monaten"
 
-/// Die Werte einer Zeile (budgeting-q4v8n).
-let checkRowFacts (row: TargetCheckRow) : CheckRowFacts =
-    match row.Note with
-    | Some note -> NoteOnly (fitsNoteText note)
-    | None ->
-        let n = List.length row.CountedMonths
-        let count =
-            match row.Monthly, row.Group with
-            | Some _, group when group <> NeverSpends -> $"{row.MonthsOver} von {n} {monthsWord n} darüber"
-            | _ -> $"{row.MonthsWithSpending} von {n} {monthsWord n} mit Ausgaben"
-        Values
-            { Monthly = row.Monthly |> Option.map (fun m -> { Before = "Target "; Amount = moneyText m; After = "/Monat" })
-              Read =
-                row.Target
-                |> Option.filter (fun t -> t.Rhythm <> Months 1)
-                |> Option.map (fun t -> { Before = ""; Amount = moneyText t.Goal; After = rhythmText t.Rhythm })
-              Average = row.Average |> Option.map (fun a -> { Before = "Ø "; Amount = moneyText a; After = "" })
-              Count = count }
+let checkRowText (width: CheckRowWidth) (row: TargetCheckRow) : CheckRowText =
+    let n = List.length row.CountedMonths
+    let target =
+        match row.Target with
+        | None -> "Kein Target"
+        | Some t ->
+            let read = $"Target {wholeEuroText t.Goal.Amount} {rhythmWordText t.Rhythm}"
+            match row.Monthly, width with
+            | Some m, Wide when t.Rhythm <> Months 1 -> $"{read} ({wholeEuroText m.Amount} im Monat)"
+            | _ -> read
+    let count =
+        let months = match width with Wide -> monthsWord n | Narrow -> "Mon."
+        match row.Monthly, width with
+        | Some _, Wide -> $"{row.MonthsOver} von {n} {months} über dem Target"
+        | Some _, Narrow -> $"{row.MonthsOver} von {n} {months} darüber"
+        | None, _ -> $"{row.MonthsWithSpending} von {n} {months} mit Ausgaben"
+    { Target = target
+      Note = row.Note |> Option.map fitsNoteText
+      Average =
+        row.Average
+        |> Option.map (fun a ->
+            match width with
+            | Wide -> $"Ø {wholeEuroText a.Amount} im Monat"
+            | Narrow -> $"Ø {wholeEuroText a.Amount}")
+      Count = if n = 0 then None else Some count }
 
-/// Die Balken der gezählten Monate, alle vorbei.
-let checkRowBars (data: TargetCheckData) (row: TargetCheckRow) : SpendingBar list =
-    spendingBars data.Month row.CountedMonths
+/// Was die Mini-Balken vorlesen: "Ausgaben der letzten 12 Monate, 11 über dem Target".
+let checkBarsLabel (row: TargetCheckRow) : string =
+    let months = List.length row.Months
+    match row.Monthly with
+    | Some _ -> $"Ausgaben der letzten {months} Monate, {row.MonthsOver} über dem Target"
+    | None -> $"Ausgaben der letzten {months} Monate, {row.MonthsWithSpending} mit Ausgaben"
+
+/// Die Mini-Balken einer Zeile für den Baustein `Stats.sparkBars`: Linie in Prozent und Balken mit Ton und
+/// Monatskürzel, gerechnet von `checkBars`.
+let checkSparkBars (row: TargetCheckRow) : int option * Stats.SparkBar list =
+    let bars = checkBars row
+    bars.LinePercent,
+    bars.Bars
+    |> List.map (fun b ->
+        { Key = b.Month
+          Percent = b.Percent
+          MonthText = shortMonthLabel b.Month
+          Tone =
+            match b.Tone with
+            | OverTarget -> Stats.SparkOver
+            | WithinTarget -> Stats.SparkWithin
+            | NotCounted -> Stats.SparkMuted } : Stats.SparkBar)
+
+/// Der Satz im Panel "Anpassen …" je Gruppe (budgeting-c4ve4).
+let checkPanelSentence (row: TargetCheckRow) : string =
+    let n = List.length row.CountedMonths
+    let avg = row.Average |> Option.map (fun a -> wholeEuroText a.Amount) |> Option.defaultValue (wholeEuroText 0m)
+    let monthly = row.Monthly |> Option.map (fun m -> wholeEuroText m.Amount) |> Option.defaultValue (wholeEuroText 0m)
+    match row.Group with
+    | SpendsMore ->
+        $"Du gibst im Ø {avg} im Monat aus, das Target sieht {monthly} vor. {row.MonthsOver} von {n} {monthsWord n} lagen darüber."
+    | SpendsLess -> $"Du gibst im Ø {avg} im Monat aus, das Target sieht {monthly} vor."
+    | NeverSpends ->
+        let spent =
+            if row.MonthsWithSpending = 0 then "gab es hier keine Ausgabe"
+            else "gab es hier nur in einem Monat eine Ausgabe"
+        $"In {n} {monthsWord n} {spent}. Für eine Rücklage ist das richtig, dann lässt du es so."
+    | WithoutTarget -> $"Du gibst im Ø {avg} im Monat aus, ohne Target."
+    | Fits when row.Target.IsNone -> "Ohne Target, die Ausgaben sind unauffällig."
+    | Fits -> "Das Target passt zu den Ausgaben."
+
+/// Der Hinweis unter dem Betragsfeld im Panel (ADR 0082 Punkt 9): "Vorschlag aus dem Ø, auf volle 5 € gerundet:
+/// 175 € monatlich", wöchentlich "auf volle Euro gerundet". Ohne Vorschlag keiner.
+let checkSuggestionHint (row: TargetCheckRow) : string option =
+    row.Suggestion
+    |> Option.map (fun s ->
+        let rhythm = row.Target |> Option.map (fun t -> t.Rhythm) |> Option.defaultValue (Months 1)
+        let rounded =
+            match rhythm with
+            | Weeks _ -> "auf volle Euro gerundet"
+            | _ -> "auf volle 5 € gerundet"
+        $"Vorschlag aus dem Ø, {rounded}: {wholeEuroText s.InRhythm.Amount} {rhythmWordText rhythm}")
 
 // ============================================
 // Übernehmen
@@ -187,13 +272,16 @@ let takeRequest (data: TargetCheckData) (row: TargetCheckRow) : (string * Target
         )
     | _ -> None
 
-/// Die Beschriftung von "übernehmen": der Betrag im Rhythmus mit Rhythmus wie in der Liste ("50,00 €/Woche
-/// übernehmen"), ohne Target monatlich.
+/// Die Beschriftung von "übernehmen" in ganzen Euro (budgeting-c4ve4): "175 € übernehmen" (monatlich ohne
+/// Rhythmuswort), "35 € wöchentlich übernehmen", ohne Target "20 € monatlich anlegen".
 let takeText (row: TargetCheckRow) : string option =
     row.Suggestion
     |> Option.map (fun s ->
-        let rhythm = row.Target |> Option.map (fun t -> t.Rhythm) |> Option.defaultValue (Months 1)
-        $"{moneyText s.InRhythm}{rhythmText rhythm} übernehmen")
+        let amount = wholeEuroText s.InRhythm.Amount
+        match row.Target with
+        | None -> $"{amount} monatlich anlegen"
+        | Some t when t.Rhythm = Months 1 -> $"{amount} übernehmen"
+        | Some t -> $"{amount} {rhythmWordText t.Rhythm} übernehmen")
 
 /// Läuft ein Target-Aufruf, oder eine Pause derselben Kategorie? Dann sendet "übernehmen" nichts.
 let private takeBlocked (model: Model) (categoryId: System.Guid) : bool =
@@ -412,13 +500,39 @@ let takeAnswerToast (result: Result<TargetChangeResult, string>) : ExternalMsg =
 let private fromCheckPage (origin: TargetOrigin option) : bool =
     origin = Some FromCheckRow || origin = Some FromCheckPanel
 
-/// Der Toast zu einer Target-Antwort. `formOpen`: das Formular des Aufrufs (Tab oder Panel) steht noch offen
-/// und zeigt die Antwort selbst, dann keiner. Aufrufe von der Seite (Zeile und Panel) melden wie "übernehmen"
-/// (`takeAnswerToast`), alle anderen eine Ablehnung als Warnung.
-let targetAnswerToast (origin: TargetOrigin option) (formOpen: bool) (result: Result<TargetChangeResult, string>) : ExternalMsg =
-    if formOpen then NoOp
-    elif fromCheckPage origin then takeAnswerToast result
-    else
+/// Ein Betrag im Erfolgs-Toast: ganze Euro ohne Cent ("175 €"), sonst genau ("172,50 €").
+let private toastAmountText (amount: decimal) : string =
+    if amount = System.Math.Floor amount then wholeEuroText amount else euroText { Amount = amount; Currency = TargetCurrency }
+
+/// Der Satz des Erfolgs-Toasts nach einem Schreiben von der Seite (budgeting-c4ve4): "Essen auswärts: Target
+/// jetzt 175 € monatlich.", entfernt "Essen auswärts: Target entfernt."
+let targetWrittenText (name: string) (target: Target option) : string =
+    match target with
+    | Some t -> $"{name}: Target jetzt {toastAmountText t.Goal.Amount} {rhythmWordText t.Rhythm}."
+    | None -> $"{name}: Target entfernt."
+
+/// Der Name der Kategorie in der geladenen Prüfung, für den Toast.
+let checkCategoryName (categoryId: System.Guid) (model: Model) : string option =
+    match model.TargetCheck.Data with
+    | Success data -> data.Categories |> List.tryFind (fun c -> c.CategoryId = categoryId) |> Option.map (fun c -> c.Name)
+    | _ -> None
+
+/// Der Toast zu einer Target-Antwort. Festgehalten von der Seite (Zeile und Panel) meldet ein Erfolgs-Toast
+/// (`targetWrittenText`, `name` aus `checkCategoryName`), auch aus dem Panel, das dabei schließt. Sonst:
+/// `formOpen`, das Formular des Aufrufs (Tab oder Panel) steht noch offen und zeigt die Antwort selbst, dann
+/// keiner. Aufrufe von der Seite melden wie "übernehmen" (`takeAnswerToast`), alle anderen eine Ablehnung als
+/// Warnung.
+let targetAnswerToast
+    (origin: TargetOrigin option)
+    (formOpen: bool)
+    (name: string option)
+    (result: Result<TargetChangeResult, string>)
+    : ExternalMsg =
+    match result, name with
+    | Ok (TargetWritten target), Some name when fromCheckPage origin -> ShowToast (targetWrittenText name target, ToastSuccess)
+    | _ when formOpen -> NoOp
+    | _ when fromCheckPage origin -> takeAnswerToast result
+    | _ ->
         match result with
         | Error message -> ShowToast (targetRejectedAwayText message, ToastWarning)
         | Ok (TargetChangedMeanwhile _) -> ShowToast (targetRejectedAwayText TargetChangedMeanwhileText, ToastWarning)

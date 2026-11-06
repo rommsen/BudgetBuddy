@@ -1222,8 +1222,11 @@ type TargetCheckRow = {
     Monthly: Money option
     /// Ø der Netto-Ausgaben über die gezählten Monate. `None` ohne gezählten Monat.
     Average: Money option
-    /// Die gezählten Monate, aufsteigend. Die Balken daraus mit `spendingBars`.
+    /// Die gezählten Monate, aufsteigend.
     CountedMonths: MonthSpending list
+    /// Die vollen Monate vor dem laufenden, höchstens 12, aufsteigend, auch die vor der letzten Änderung. Die
+    /// Mini-Balken daraus mit `checkBars` (budgeting-c4ve4).
+    Months: MonthSpending list
     /// Monate mit Netto-Ausgaben über dem Monatswert, 0 ohne Monatswert.
     MonthsOver: int
     /// Monate mit Netto-Ausgaben über 0.
@@ -1300,13 +1303,14 @@ let suggestTarget (target: Target option) (average: Money) : TargetSuggestion op
 let targetCheckRow (today: string) (source: TargetCheckSource) : TargetCheckRow =
     let current = monthOfDay today
     let changeMonth = source.LastChange |> Option.map (changeMarkDay >> monthOfDay)
-    let counted =
+    let full =
         source.Spending
-        |> List.filter (fun s ->
-            s.Month < current && (changeMonth |> Option.forall (fun changed -> s.Month > changed)))
+        |> List.filter (fun s -> s.Month < current)
         |> List.rev
         |> List.truncate 12
         |> List.rev
+    let counted =
+        full |> List.filter (fun s -> changeMonth |> Option.forall (fun changed -> s.Month > changed))
     let n = List.length counted
     let spent (s: MonthSpending) = -s.Activity.Amount
     let monthly = source.Target |> Option.bind monthlyValue
@@ -1366,6 +1370,7 @@ let targetCheckRow (today: string) (source: TargetCheckSource) : TargetCheckRow 
       Monthly = monthly
       Average = average
       CountedMonths = counted
+      Months = full
       MonthsOver = monthsOver
       MonthsWithSpending = monthsWithSpending
       Suggestion = suggestion }
@@ -1401,3 +1406,51 @@ let withWrittenTarget (categoryId: Guid) (target: Target option) (data: TargetCh
             data.Categories
             |> List.map (fun c ->
                 if c.CategoryId = categoryId then { c with Target = target; LastChange = Some mark } else c) }
+
+/// Ein Betrag in ganzen Euro, kaufmännisch über `roundHalfUp`: "1.260 €", "-12 €" (budgeting-c4ve4). Gleich
+/// unter .NET und Fable.
+let wholeEuroText (amount: decimal) : string =
+    let whole = int64 (roundHalfUp (abs amount))
+    let rec group (digits: string) =
+        if digits.Length <= 3 then digits else group digits.[.. digits.Length - 4] + "." + digits.[digits.Length - 3 ..]
+    let sign = if amount < 0m && whole > 0L then "-" else ""
+    $"{sign}{group (string whole)} €"
+
+/// Wie ein Mini-Balken auf der Seite Targets prüfen steht (budgeting-c4ve4).
+type CheckBarTone =
+    /// Netto-Ausgaben über dem Monatswert des Targets (ADR 0082 Punkt 6): orange.
+    | OverTarget
+    /// Gezählt und nicht darüber, oder ohne Target: gedämpft.
+    | WithinTarget
+    /// Vor der letzten Änderung, zählt nicht: dunkler.
+    | NotCounted
+
+/// Ein Mini-Balken: der Monat, die Höhe in Prozent des größten Werts und sein Ton.
+type CheckBar = { Month: string; Percent: int; Tone: CheckBarTone }
+
+/// Die Mini-Balken einer Zeile und die Höhe der Target-Linie in Prozent, `None` ohne Monatswert.
+type CheckBars = { Bars: CheckBar list; LinePercent: int option }
+
+/// Die Mini-Balken einer Zeile (budgeting-c4ve4): je voller Monat ein Balken, die Höhe relativ zum größten Wert
+/// aus Monatsausgaben und Monatswert des Targets, kaufmännisch auf ganze Prozent. Ein Monat ohne Ausgaben oder
+/// mit Erstattungsüberschuss hat 0 (die View zeigt ihn 2 px hoch). Über dem Monatswert heißt wie in
+/// `MonthsOver` strikt darüber, ohne Spielraum, damit Balken und "x von N Monaten über dem Target" übereinstimmen.
+let checkBars (row: TargetCheckRow) : CheckBars =
+    let spent (s: MonthSpending) = -s.Activity.Amount
+    let monthly = row.Monthly |> Option.map (fun m -> m.Amount)
+    let highest =
+        row.Months |> List.map spent |> List.fold max (monthly |> Option.defaultValue 0m)
+    let percent (value: decimal) =
+        if highest <= 0m || value <= 0m then 0 else int (roundHalfUp (value / highest * 100m))
+    let counted = row.CountedMonths |> List.map (fun s -> s.Month) |> Set.ofList
+    { Bars =
+        row.Months
+        |> List.map (fun s ->
+            let tone =
+                if not (counted.Contains s.Month) then NotCounted
+                else
+                    match monthly with
+                    | Some m when spent s > m -> OverTarget
+                    | _ -> WithinTarget
+            { Month = s.Month; Percent = percent (spent s); Tone = tone })
+      LinePercent = monthly |> Option.map percent }

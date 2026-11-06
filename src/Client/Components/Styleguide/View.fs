@@ -465,18 +465,22 @@ let private statsSection =
                         caption "Stats.monthBarsChosen: Juli gewählt, die Wertzeile zeigt Monat und genauen Betrag"
                         Stats.monthBarsPlaceholder 6
                         caption "Stats.monthBarsPlaceholder: beim Laden, gleich hoch"
-                        let twelve =
-                            [ for i, (month, amount, percent) in
+                        let spark i percent tone : Stats.SparkBar =
+                            { Key = $"spark-{i}"; Percent = percent; Tone = tone; MonthText = [| "Nov"; "Dez"; "Jan"; "Feb"; "Mär"; "Apr"; "Mai"; "Jun"; "Jul"; "Aug"; "Sep"; "Okt" |].[i] }
+                        let sparks =
+                            [ for i, (percent, tone) in
                                   List.indexed
-                                      [ "Nov", "1.234", 100; "Dez", "640", 52; "Jan", "0", 0; "Feb", "905", 73
-                                        "Mär", "310", 25; "Apr", "1.020", 83; "Mai", "450", 36; "Jun", "780", 63
-                                        "Jul", "120", 10; "Aug", "560", 45; "Sep", "1.100", 89; "Okt", "300", 24 ] ->
-                                  bar $"compact-{i}" month amount percent $"{month} · {amount},00 €" ]
+                                      [ 30, Stats.SparkMuted; 40, Stats.SparkMuted; 88, Stats.SparkOver; 67, Stats.SparkOver
+                                        50, Stats.SparkOver; 100, Stats.SparkOver; 75, Stats.SparkOver; 38, Stats.SparkWithin
+                                        96, Stats.SparkOver; 0, Stats.SparkWithin; 67, Stats.SparkOver; 96, Stats.SparkOver ] ->
+                                  spark i percent tone ]
                         Html.div [
-                            prop.className "max-w-xs"
-                            prop.children [ Stats.monthBarsCompact "Ausgaben der gezählten Monate" twelve ]
+                            prop.className "h-8 w-[132px]"
+                            prop.children [ Stats.sparkBars "Ausgaben der letzten 12 Monate, 8 über dem Target" (Some 42) sparks ]
                         ]
-                        caption "Stats.monthBarsCompact: 12 Balken in einer Listenzeile am Handy (Seite Targets prüfen), enger Abstand, die Beträge erst ab 768 px, darunter in der Wertzeile"
+                        caption "Stats.sparkBars: Mini-Balken einer Listenzeile (Seite Targets prüfen). Orange über dem Target, gedämpft darunter, dunkler vor der letzten Änderung, gestrichelt die Target-Linie. Ein Bild ohne Tab-Stopp"
+                        Stats.sparkBarsLabelled "Ausgaben der letzten 12 Monate, 8 über dem Target" (Some 42) sparks
+                        caption "Stats.sparkBarsLabelled: groß im Panel, darunter die Monatskürzel"
                     ]
                 ]
             ]

@@ -201,63 +201,54 @@ let private pageTests =
             Expect.equal failed.TargetCheck.Data (Failure "kaputt") "Fehlerkarte"
         }
         test "Wiederholen lädt neu und behält das Aufklappen, eine Antwort von vorher zählt nicht" {
-            let opened = loaded () |> step ToggleFits
+            let opened = loaded () |> step (ToggleCheckGroup Fits)
             let failed = opened |> step RetryTargetCheck |> answer (Error "kaputt")
             let retrying, cmd, _ = update RetryTargetCheck failed
             Expect.equal retrying.TargetCheck.Data Loading "lädt"
             Expect.isNonEmpty cmd "Aufruf"
-            Expect.isTrue retrying.TargetCheck.FitsOpen "aufgeklappt bleibt"
+            Expect.isTrue (retrying.TargetCheck.OpenGroups.Contains Fits) "aufgeklappt bleibt"
             let stale = retrying |> step (TargetCheckLoaded (failed.TargetCheck.Generation, Ok checkData))
             Expect.equal stale.TargetCheck.Data Loading "die Antwort vor dem Wiederholen zählt nicht"
         }
-        test "Passt ist beim Betreten zu, ein Tipp klappt auf, ein zweiter zu, ein neues Betreten wieder zu" {
+        // budgeting-c4ve4: jede Gruppe klappt auf und zu, nicht mehr nur "Passt".
+        test "Jede Gruppe klappt auf und zu, beim Betreten offen außer Passt, ein neues Betreten setzt das zurück" {
             let entered = loaded ()
-            Expect.isFalse entered.TargetCheck.FitsOpen "zu"
-            let opened = entered |> step ToggleFits
-            Expect.isTrue opened.TargetCheck.FitsOpen "auf"
-            Expect.isFalse (opened |> step ToggleFits).TargetCheck.FitsOpen "zu"
-            Expect.isFalse (opened |> checkedPage).TargetCheck.FitsOpen "neu betreten: zu"
+            Expect.equal entered.TargetCheck.OpenGroups (Set.ofList [ SpendsMore; SpendsLess; NeverSpends; WithoutTarget ]) "offen außer Passt"
+            let toggled = entered |> step (ToggleCheckGroup SpendsMore) |> step (ToggleCheckGroup Fits)
+            Expect.equal toggled.TargetCheck.OpenGroups (Set.ofList [ SpendsLess; NeverSpends; WithoutTarget; Fits ]) "mehr zu, Passt auf"
+            Expect.isTrue ((toggled |> step (ToggleCheckGroup SpendsMore)).TargetCheck.OpenGroups.Contains SpendsMore) "ein zweiter Tipp klappt wieder auf"
+            Expect.equal (toggled |> checkedPage).TargetCheck.OpenGroups entered.TargetCheck.OpenGroups "neu betreten: zurückgesetzt"
         }
         test "Sind die vier ersten Gruppen leer, steht Nichts zu prüfen" {
             let onlyFits = { checkData with Categories = [ source fitsId "Internet" (Some (monthly 100m)) 100m ] }
             Expect.isTrue (nothingToCheck (checkGroups onlyFits)) "nur Passt"
             Expect.isFalse (nothingToCheck (checkGroups checkData)) "mit Gruppen"
         }
-        test "Die Werte einer Zeile: Monatswert, gelesener Rhythmus, Ø und Monate, bei Passt mit Zusatz nur der Zusatz" {
-            let row id = checkGroups checkData |> List.collect snd |> List.find (fun r -> r.CategoryId = id)
-            let values id =
-                match checkRowFacts (row id) with
-                | Values values -> values
-                | NoteOnly note -> failtest $"Werte erwartet, kam der Zusatz {note}"
-            let less = values lessId
-            Expect.equal (less.Monthly, less.Read, less.Average, less.Count)
-                (Some { Before = "Target "; Amount = "216,67 €"; After = "/Monat" },
-                 Some { Before = ""; Amount = "50,00 €"; After = "/Woche" },
-                 Some { Before = "Ø "; Amount = "100,00 €"; After = "" },
-                 "0 von 12 Monaten darüber") "weniger, wöchentlich, Beträge getrennt von den Wörtern"
-            let more = values moreId
-            Expect.equal (more.Read, more.Count) (None, "12 von 12 Monaten darüber") "mehr, monatlich ohne gelesenen Betrag"
-            Expect.equal (values withoutId).Count "12 von 12 Monaten mit Ausgaben" "ohne Target"
-            Expect.equal (values neverId).Count "0 von 12 Monaten mit Ausgaben" "nie"
-            Expect.equal (values fitsId).Monthly (Some { Before = "Target "; Amount = "100,00 €"; After = "/Monat" }) "Passt ohne Zusatz zeigt Werte"
-            let set = { source fitsId "Internet" (Some (monthly 100m)) 100m with LastChange = Some (TargetSetOn "2026-11-02") }
-            Expect.equal (checkRowFacts (targetCheckRow today set)) (NoteOnly "neu gesetzt am 02.11.2026") "mit Zusatz nur der Zusatz, ohne Werte"
-            Expect.equal (checkRowBars checkData (row moreId) |> List.map (fun b -> b.Kind)) (List.replicate 12 PastMonth) "12 Balken, alle vorbei"
-        }
-        test "Der Toast einer Antwort: offenes Formular keiner, von der Seite wie übernehmen, sonst Ablehnung als Warnung" {
-            let results = [ Ok (TargetWritten None); Ok (TargetChangedMeanwhile None); Error "nein" ]
-            for origin in [ Some FromCheckRow; Some FromCheckPanel; Some FromTargetTab; None ] do
-                for result in results do
-                    Expect.equal (targetAnswerToast origin true result) NoOp $"{origin}, {result}: offenes Formular"
+        test "Der Toast einer Antwort: festgehalten von der Seite ein Erfolg, sonst offenes Formular keiner, von der Seite wie übernehmen, sonst Ablehnung als Warnung" {
+            let name = Some "Strom"
+            let notWritten = [ Ok (TargetChangedMeanwhile None); Error "nein" ]
             for origin in [ Some FromCheckRow; Some FromCheckPanel ] do
-                for result in results do
-                    Expect.equal (targetAnswerToast origin false result) (takeAnswerToast result) $"{origin}, {result}: wie übernehmen"
+                for formOpen in [ true; false ] do
+                    Expect.equal (targetAnswerToast origin formOpen name (Ok (TargetWritten None))) (ShowToast ("Strom: Target entfernt.", ToastSuccess)) $"{origin}, {formOpen}: Erfolg"
+                    Expect.equal (targetAnswerToast origin formOpen name (Ok (TargetWritten (Some (monthly 175m)))))
+                        (ShowToast ("Strom: Target jetzt 175 € monatlich.", ToastSuccess)) $"{origin}, {formOpen}: Erfolg mit Betrag"
+                for result in notWritten do
+                    Expect.equal (targetAnswerToast origin false name result) (takeAnswerToast result) $"{origin}, {result}: wie übernehmen"
+            for origin in [ Some FromCheckRow; Some FromCheckPanel; Some FromTargetTab; None ] do
+                for result in notWritten do
+                    Expect.equal (targetAnswerToast origin true name result) NoOp $"{origin}, {result}: offenes Formular"
             Expect.equal (takeAnswerToast (Error "nein")) (ShowToast ("Target nicht gespeichert: nein", ToastError)) "abgelehnt als Fehler"
             for origin in [ Some FromTargetTab; None ] do
-                Expect.equal (targetAnswerToast origin false (Error "nein")) (ShowToast ("Target nicht gespeichert: nein", ToastWarning)) $"{origin}: Warnung"
-                Expect.equal (targetAnswerToast origin false (Ok (TargetChangedMeanwhile None)))
+                Expect.equal (targetAnswerToast origin false name (Error "nein")) (ShowToast ("Target nicht gespeichert: nein", ToastWarning)) $"{origin}: Warnung"
+                Expect.equal (targetAnswerToast origin false name (Ok (TargetChangedMeanwhile None)))
                     (ShowToast (targetRejectedAwayText TargetChangedMeanwhileText, ToastWarning)) $"{origin}: inzwischen geändert"
-                Expect.equal (targetAnswerToast origin false (Ok (TargetWritten None))) NoOp $"{origin}: festgehalten"
+                Expect.equal (targetAnswerToast origin false name (Ok (TargetWritten None))) NoOp $"{origin}: festgehalten ohne Toast"
+        }
+        test "Der Satz des Erfolgs-Toasts: ganze Euro ohne Cent, sonst genau, mit dem Rhythmus als Wort" {
+            Expect.equal (targetWrittenText "Kantine" (Some (weekly 35m))) "Kantine: Target jetzt 35 € wöchentlich." "wöchentlich"
+            Expect.equal (targetWrittenText "Kantine" (Some (monthly 172.5m))) "Kantine: Target jetzt 172,50 € monatlich." "mit Cent"
+            Expect.equal (targetWrittenText "Kantine" (Some { monthly 1260m with Rhythm = Years 1 })) "Kantine: Target jetzt 1.260 € jährlich." "jährlich, mit Tausenderpunkt"
+            Expect.equal (targetWrittenText "Kantine" None) "Kantine: Target entfernt." "entfernt"
         }
         test "Der Toast eines Abbruchs: offenes Formular keiner, von der Seite verspricht er nur das Neuladen der Prüfung" {
             let toast rereads = ShowToast (targetCallLostText rereads "weg", ToastError)
@@ -295,8 +286,10 @@ let private takeTests =
                 "Kein Target"
             Expect.isNone (takeRequest checkData (row neverId)) "nie"
             Expect.isNone (takeRequest checkData (row fitsId)) "Passt"
-            Expect.equal (takeText (row lessId)) (Some "23,00 €/Woche übernehmen") "Beschriftung im Rhythmus"
-            Expect.equal (takeText (row withoutId)) (Some "40,00 €/Monat übernehmen") "ohne Target monatlich"
+            Expect.equal (takeText (row moreId)) (Some "150 € übernehmen") "monatlich ohne Rhythmuswort"
+            Expect.equal (takeText (row lessId)) (Some "23 € wöchentlich übernehmen") "im Rhythmus"
+            Expect.equal (takeText (row withoutId)) (Some "40 € monatlich anlegen") "ohne Target monatlich anlegen"
+            Expect.isNone (takeText (row neverId)) "ohne Vorschlag keine Beschriftung"
         }
         test "Übernehmen sendet einmal, der Spinner steht nur an der Zeile, alle anderen übernehmen sind gesperrt" {
             let running, cmd, _ = update (TakeSuggestion moreId) (loaded ())
@@ -327,7 +320,7 @@ let private takeTests =
             Expect.equal (fitsNoteText (RecentlySet today)) "neu gesetzt am 06.11.2026" "der Satz"
             Expect.equal (budgetTarget after moreId) (Some written) "im geladenen Monat"
             Expect.equal (groupOf after lessId) SpendsLess "andere Zeilen bleiben"
-            Expect.equal (after.TargetCall, external) (TargetIdle, NoOp) "frei, kein Toast"
+            Expect.equal (after.TargetCall, external) (TargetIdle, ShowToast ("Strom: Target jetzt 150 € monatlich.", ToastSuccess)) "frei, Erfolgs-Toast"
         }
         test "TargetChangedMeanwhile ordnet mit BBs Stand neu ein und meldet per Warn-Toast" {
             let bbs = monthly 150m
@@ -425,7 +418,7 @@ let private panelTests =
             let after, _, external = opened |> step SaveCheckTarget |> answered moreId (Ok (TargetWritten (Some (monthly 150m))))
             Expect.isNone after.TargetCheck.Panel "zu"
             Expect.equal (rowIn after moreId).Note (Some (RecentlySet today)) "Passt, neu gesetzt"
-            Expect.equal external NoOp "kein Toast"
+            Expect.equal external (ShowToast ("Strom: Target jetzt 150 € monatlich.", ToastSuccess)) "Erfolgs-Toast, das Panel ist zu"
         }
         test "Entfernen mit TargetWritten None setzt entfernt am heute" {
             let asked = loaded () |> step (AdjustTarget fitsId) |> step AskRemoveCheckTarget
@@ -433,7 +426,8 @@ let private panelTests =
             let removing, cmd, _ = update ConfirmRemoveCheckTarget asked
             Expect.isNonEmpty cmd "gesendet"
             Expect.equal removing.TargetCall (TargetSaving (fitsId, current, RemovingTarget, FromCheckPanel)) "entfernen läuft"
-            let after, _, _ = removing |> answered fitsId (Ok (TargetWritten None))
+            let after, _, external = removing |> answered fitsId (Ok (TargetWritten None))
+            Expect.equal external (ShowToast ("Internet: Target entfernt.", ToastSuccess)) "Erfolgs-Toast"
             Expect.equal ((rowIn after fitsId).Note, (rowIn after fitsId).Target) (Some (RecentlyRemoved today), None) "entfernt"
             Expect.equal (fitsNoteText (RecentlyRemoved today)) "entfernt am 06.11.2026" "der Satz"
             Expect.isNone after.TargetCheck.Panel "zu"
@@ -604,5 +598,139 @@ let private walkTests =
         }
     ]
 
+// ============================================
+// Form nach der Skizze (budgeting-c4ve4)
+// ============================================
+
+let private yearlyId = Guid.Parse "00000000-0000-0000-0000-0000000c4806"
+let private halfId = Guid.Parse "00000000-0000-0000-0000-0000000c4807"
+
+/// Jahr: 600 € im Jahr (50 € im Monat), Ausgaben 105 € je Monat, Vorschlag 105 × 12 = 1.260 €.
+/// Halb: ohne Target, Ausgaben 84,50 € je Monat.
+let private moreData : TargetCheckData =
+    { checkData with
+        Categories =
+            checkData.Categories
+            @ [ source yearlyId "Versicherung" (Some { monthly 600m with Rhythm = Years 1 }) 105m
+                source halfId "Tanken" None 84.5m ] }
+
+let private rowOf (data: TargetCheckData) (id: Guid) : TargetCheckRow =
+    checkGroups data |> List.collect snd |> List.find (fun r -> r.CategoryId = id)
+
+/// Eine Zeile mit eigenen Monatsausgaben, aufsteigend ab November 2025.
+let private rowWith (target: Target option) (amounts: decimal list) (lastChange: TargetChangeMark option) : TargetCheckRow =
+    let months =
+        amounts |> List.mapi (fun i a -> { Month = DateTime(2025, 11, 1).AddMonths(i).ToString("yyyy-MM-01"); Activity = eur -a })
+    targetCheckRow today
+        { CategoryId = moreId; Name = "Probe"; GroupName = "Haushalt"; Target = target; Spending = months; LastChange = lastChange }
+
+let private percents (bars: CheckBars) = bars.Bars |> List.map (fun b -> b.Percent)
+let private tones (bars: CheckBars) = bars.Bars |> List.map (fun b -> b.Tone)
+
+let private sketchTests =
+    testList "Targets prüfen: Form nach der Skizze" [
+        test "Die Zähler: Hinweise sind alle Zeilen außerhalb von Passt, Passt die Zeilen darin, über alle fünf Gruppen" {
+            let twoFits = { checkData with Categories = checkData.Categories @ [ source halfId "Telefon" (Some (monthly 40m)) 40m ] }
+            Expect.equal (checkGroups twoFits |> List.map fst) checkGroupOrder "alle fünf Gruppen"
+            Expect.equal (checkCounts (checkGroups twoFits)) { Hints = 4; Fits = 2 } "4 Hinweise, 2 passen"
+            Expect.equal (checkCountsText { Hints = 4; Fits = 2 }) ("4 Hinweise", "2 passen") "Mehrzahl"
+            Expect.equal (checkCountsText { Hints = 1; Fits = 1 }) ("1 Hinweis", "1 passt") "Einzahl"
+            Expect.equal (checkIntroText current)
+                "November 2026. Verglichen mit dem Ø der vollen Monate aus dem Kassenbuch, höchstens 12, ab der letzten Änderung des Targets."
+                "die Erklärung mit dem Monat"
+        }
+        test "Die Texte einer Zeile breit: Target je Rhythmus mit Monatswert in Klammern, Ø im Monat, Monate über dem Target" {
+            let text id = checkRowText Wide (rowOf moreData id)
+            Expect.equal (text moreId) { Target = "Target 100 € monatlich"; Note = None; Average = Some "Ø 150 € im Monat"; Count = Some "12 von 12 Monaten über dem Target" } "monatlich"
+            Expect.equal (text lessId).Target "Target 50 € wöchentlich (217 € im Monat)" "wöchentlich, 216,67 kaufmännisch auf 217"
+            Expect.equal (text lessId).Count (Some "0 von 12 Monaten über dem Target") "weniger"
+            Expect.equal (text yearlyId).Target "Target 600 € jährlich (50 € im Monat)" "jährlich"
+            Expect.equal (text withoutId) { Target = "Kein Target"; Note = None; Average = Some "Ø 40 € im Monat"; Count = Some "12 von 12 Monaten mit Ausgaben" } "ohne Target"
+            Expect.equal (text halfId).Average (Some "Ø 85 € im Monat") "84,50 kaufmännisch auf 85"
+        }
+        test "Die Texte einer Zeile schmal: Target ohne Klammer, Ø ohne im Monat, Mon. darüber und Mon. mit Ausgaben" {
+            let text id = checkRowText Narrow (rowOf moreData id)
+            Expect.equal (text moreId) { Target = "Target 100 € monatlich"; Note = None; Average = Some "Ø 150 €"; Count = Some "12 von 12 Mon. darüber" } "monatlich"
+            Expect.equal (text lessId).Target "Target 50 € wöchentlich" "ohne Monatswert"
+            Expect.equal (text withoutId).Count (Some "12 von 12 Mon. mit Ausgaben") "ohne Target"
+        }
+        test "Bei Passt mit Zusatz steht der Zusatz, ohne gezählten Monat ohne Ø und Monate" {
+            let set = { source fitsId "Internet" (Some (monthly 100m)) 100m with LastChange = Some (TargetSetOn "2026-11-02") }
+            Expect.equal (checkRowText Wide (targetCheckRow today set))
+                { Target = "Target 100 € monatlich"; Note = Some "neu gesetzt am 02.11.2026"; Average = None; Count = None } "neu gesetzt"
+        }
+        test "Die Beschriftung von übernehmen jährlich mit Tausenderpunkt" {
+            Expect.equal (takeText (rowOf moreData yearlyId)) (Some "1.260 € jährlich übernehmen") "jährlich"
+        }
+        test "Regelsatz und Farbe je Gruppe" {
+            let look group = checkGroupRule group, Components.Budget.TargetCheckView.checkGroupTitleClass group
+            Expect.equal (look SpendsMore)
+                ("Ø mehr als 10 % und 10 € über dem Target, bei monatlichem oder wöchentlichem Rhythmus in mindestens der Hälfte der Monate.", "text-neon-orange") "mehr"
+            Expect.equal (look SpendsLess) ("Ø mehr als 30 % und 10 € unter dem Target.", "text-calm-blue") "weniger"
+            Expect.equal (look NeverSpends)
+                ("Höchstens ein Monat mit Ausgaben, bei längerem Rhythmus keiner. Für eine Rücklage ist das richtig.", "text-neon-purple") "nie"
+            Expect.equal (look WithoutTarget) ("Regelmäßige Ausgaben, aber kein Target.", "text-text-primary") "Kein Target"
+            Expect.equal (look Fits) ("Keine Auffälligkeit. Übernommene und neu gesetzte Targets stehen hier.", "text-neon-teal") "Passt"
+        }
+        test "Mini-Balken: Höhe relativ zum größten Wert aus Ausgaben und Monatswert, genau auf dem Monatswert nicht orange" {
+            let bars = checkBars (rowWith (Some (monthly 100m)) [ 150m; 100m; 50m; 0m; -20m; 101m ] None)
+            Expect.equal (percents bars) [ 100; 67; 33; 0; 0; 67 ] "Höhen, eine Erstattung als 0"
+            Expect.equal (tones bars) [ OverTarget; WithinTarget; WithinTarget; WithinTarget; WithinTarget; OverTarget ] "nur strikt darüber orange"
+            Expect.equal bars.LinePercent (Some 67) "die Linie auf dem Monatswert"
+            Expect.equal (bars.Bars |> List.filter (fun b -> b.Tone = OverTarget) |> List.length) (rowWith (Some (monthly 100m)) [ 150m; 100m; 50m; 0m; -20m; 101m ] None).MonthsOver "so viele orange wie Monate darüber"
+        }
+        test "Mini-Balken: ein Monatswert über allen Ausgaben ist der größte Wert" {
+            let bars = checkBars (rowWith (Some (monthly 200m)) [ 50m; 100m ] None)
+            Expect.equal (percents bars, bars.LinePercent) ([ 25; 50 ], Some 100) "die Linie oben"
+        }
+        test "Mini-Balken ohne Target: keine Linie, alle gedämpft" {
+            let bars = checkBars (rowWith None [ 40m; 0m; 80m ] None)
+            Expect.equal (percents bars, tones bars, bars.LinePercent) ([ 50; 0; 100 ], List.replicate 3 WithinTarget, None) "ohne Target"
+        }
+        test "Mini-Balken mit lauter 0: alle 0, mit Target die Linie oben, ohne Target keine" {
+            let withTarget = checkBars (rowWith (Some (monthly 30m)) (List.replicate 12 0m) None)
+            Expect.equal (percents withTarget, withTarget.LinePercent) (List.replicate 12 0, Some 100) "mit Target"
+            let without = checkBars (rowWith None (List.replicate 12 0m) None)
+            Expect.equal (percents without, without.LinePercent) (List.replicate 12 0, None) "ohne Target"
+        }
+        test "Mini-Balken: Monate vor der letzten Änderung zählen nicht und sind dunkler, auch über dem Monatswert" {
+            let bars = checkBars (rowWith (Some (monthly 100m)) (List.replicate 12 150m) (Some (TargetSetOn "2026-06-10")))
+            Expect.equal (tones bars) (List.replicate 8 NotCounted @ List.replicate 4 OverTarget) "bis Juni dunkler, danach orange"
+            Expect.equal (List.length bars.Bars) 12 "12 Balken"
+        }
+        test "Der Satz im Panel je Gruppe" {
+            let sentence id = checkPanelSentence (rowOf moreData id)
+            Expect.equal (sentence moreId) "Du gibst im Ø 150 € im Monat aus, das Target sieht 100 € vor. 12 von 12 Monaten lagen darüber." "mehr"
+            Expect.equal (sentence lessId) "Du gibst im Ø 100 € im Monat aus, das Target sieht 217 € vor." "weniger"
+            Expect.equal (sentence neverId) "In 12 Monaten gab es hier keine Ausgabe. Für eine Rücklage ist das richtig, dann lässt du es so." "nie"
+            let once = rowWith (Some (monthly 30m)) (40m :: List.replicate 11 0m) None
+            Expect.equal once.Group NeverSpends "ein Monat mit Ausgaben ist nie"
+            Expect.equal (checkPanelSentence once) "In 12 Monaten gab es hier nur in einem Monat eine Ausgabe. Für eine Rücklage ist das richtig, dann lässt du es so." "nie, ein Monat"
+            Expect.equal (sentence withoutId) "Du gibst im Ø 40 € im Monat aus, ohne Target." "Kein Target"
+            Expect.equal (sentence fitsId) "Das Target passt zu den Ausgaben." "Passt"
+            Expect.equal (checkPanelSentence (rowWith None [ 5m; 0m; 0m ] None)) "Ohne Target, die Ausgaben sind unauffällig." "Passt ohne Target"
+        }
+        test "Der Vorschlag unter dem Betragsfeld: auf volle 5 €, wöchentlich auf volle Euro, ohne Vorschlag keiner" {
+            let hint id = checkSuggestionHint (rowOf moreData id)
+            Expect.equal (hint moreId) (Some "Vorschlag aus dem Ø, auf volle 5 € gerundet: 150 € monatlich") "monatlich"
+            Expect.equal (hint lessId) (Some "Vorschlag aus dem Ø, auf volle Euro gerundet: 23 € wöchentlich") "wöchentlich"
+            Expect.equal (hint yearlyId) (Some "Vorschlag aus dem Ø, auf volle 5 € gerundet: 1.260 € jährlich") "jährlich"
+            Expect.equal (hint withoutId) (Some "Vorschlag aus dem Ø, auf volle 5 € gerundet: 40 € monatlich") "ohne Target"
+            Expect.isNone (hint neverId) "nie"
+            Expect.isNone (hint fitsId) "Passt"
+        }
+        test "Was die Mini-Balken vorlesen" {
+            Expect.equal (checkBarsLabel (rowOf moreData moreId)) "Ausgaben der letzten 12 Monate, 12 über dem Target" "mit Target"
+            Expect.equal (checkBarsLabel (rowOf moreData withoutId)) "Ausgaben der letzten 12 Monate, 12 mit Ausgaben" "ohne Target"
+        }
+        test "Ganze Euro kaufmännisch mit Tausenderpunkt" {
+            Expect.equal (wholeEuroText 1259.5m) "1.260 €" "aufgerundet"
+            Expect.equal (wholeEuroText 216.49m) "216 €" "abgerundet"
+            Expect.equal (wholeEuroText -12.5m) "-13 €" "negativ"
+            Expect.equal (wholeEuroText -0.4m) "0 €" "kein Minus vor 0"
+            Expect.equal (wholeEuroText 1234567m) "1.234.567 €" "Millionen"
+        }
+    ]
+
 [<Tests>]
-let tests = testList "Targets prüfen" [ pageTests; takeTests; panelTests; originTests; walkTests ]
+let tests = testList "Targets prüfen" [ pageTests; takeTests; panelTests; originTests; walkTests; sketchTests ]

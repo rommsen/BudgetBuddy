@@ -1,8 +1,8 @@
 // scripts/target-check.test.mjs
 //
-// Wächter für `budgeting-q4v8n`: die Seite Targets prüfen `#/budget/target-check`. Nur der Happy Path des
-// Nutzerflusses und was nur der Browser messen kann (Überlauf, Trefferflächen, Panel oder Sheet), gegen eine
-// gemockte BudgetApi. Die Regeln (Gruppen, übernehmen, Panel, Sperre, Rückkehr) liegen in
+// Wächter für `budgeting-q4v8n` und `budgeting-c4ve4` (Form nach der Skizze): die Seite Targets prüfen
+// `#/budget/target-check`. Nur der Happy Path des Nutzerflusses und was nur der Browser messen kann (Maße,
+// Spalten, Überlauf, Trefferflächen, berechnete Farben, Panel oder Sheet), gegen eine gemockte BudgetApi. Die Regeln (Gruppen, übernehmen, Panel, Sperre, Rückkehr) liegen in
 // `src/Tests/TargetCheckClientTests.fs`. Namen und Beträge sind erfunden.
 //
 // Ausführen: node --test scripts/target-check.test.mjs
@@ -46,10 +46,10 @@ const source = (n, name, goal, spent, rhythm) => ({
   LastChange: null,
 });
 
-/// "Strom q4v8n": Target 100 €, Ausgaben 150 €, steht bei "Gibst du mehr aus?" mit "150,00 €/Monat übernehmen".
-/// "Versicherung q4v8n": 600 € im Jahr, Ausgaben 105 € je Monat, Vorschlag "1.260,00 €/Jahr übernehmen".
+/// "Strom q4v8n": Target 100 €, Ausgaben 150 €, steht bei "Gibst du mehr aus?" mit "150 € übernehmen".
+/// "Versicherung q4v8n": 600 € im Jahr, Ausgaben 105 € je Monat, Vorschlag "1.260 € jährlich übernehmen".
 /// "Kantine q4v8n": 50 € je Woche, Ausgaben 100 € je Monat, Vorschlag 100 × 12 ÷ 52 = 23,08, auf volle Euro 23 €.
-/// "Urlaub q4v8n": ohne Target, Ausgaben 1.234 € je Monat: vierstellige Beträge unter den Balken.
+/// "Urlaub q4v8n": ohne Target, Ausgaben 1.234 € je Monat, Vorschlag "1.235 € monatlich anlegen".
 const checkData = {
   Month: "2026-11-01",
   Today: "2026-11-06",
@@ -140,17 +140,18 @@ test("[flow:targets-pruefen] Handy: über den Knopf im Kopf die Seite öffnen, b
     await page.waitForURL(/#\/budget\/target-check$/);
     const more = page.locator('[data-testid="target-check-group"]').filter({ hasText: "Gibst du mehr aus?" });
     await more.waitFor();
-    await rowOf(page, "Strom q4v8n").getByRole("button", { name: "150,00 €/Monat übernehmen" }).click();
+    await rowOf(page, "Strom q4v8n").getByRole("button", { name: "150 € übernehmen" }).click();
+    await page.getByText("Strom q4v8n: Target jetzt 150 € monatlich.").waitFor();
 
     const fits = page.locator('[data-testid="target-check-group"]').filter({ hasText: "Passt" });
-    await fits.locator('[data-testid="target-check-fits-toggle"]').click();
+    await fits.locator('[data-testid="target-check-group-toggle"]').click();
     const moved = fits.locator('[data-testid="target-check-row"]').filter({ hasText: "Strom q4v8n" });
     await moved.waitFor();
     assert.match(await moved.locator('[data-testid="target-check-note"]').textContent(), /^neu gesetzt am 06\.11\.2026$/);
     assert.equal(calls.change.length, 1, "ein Aufruf");
     assert.equal(String(calls.change[0][1].Wanted.NewGoal.Amount), "150", "der Vorschlag");
 
-    await page.getByRole("button", { name: "Zurück" }).click();
+    await page.getByRole("button", { name: "Zurück zum Budget" }).click();
     await page.waitForURL(/#\/budget$/);
     await page.locator('[data-testid="budget-to-be-budgeted"]').first().waitFor();
   } finally {
@@ -158,18 +159,16 @@ test("[flow:targets-pruefen] Handy: über den Knopf im Kopf die Seite öffnen, b
   }
 });
 
-test("[layout] Handy 375 px: der Kopf der Budget-Seite trägt Historie und Targets prüfen ohne Überlauf mit 48 px, jede Zeile zeigt Werte, 12 Balken und beide Knöpfe ungekürzt, auch mit vierstelligen Beträgen", async () => {
+test("[layout] Handy 375 px: der Kopf der Budget-Seite trägt Historie und Targets prüfen mit 48 px, auf der Seite stehen Kopf und Zeilen ohne Überlauf, die Knöpfe einer Zeile nebeneinander, ungekürzt und 48 px hoch", async () => {
   const { context, page } = await mockedPage(375, 812);
   try {
     await page.goto(`http://127.0.0.1:${frontendPort}/#/budget`, { waitUntil: "load" });
     await waitForPageLoaded(page, "/budget");
     const head = await page.evaluate(() => {
-      const bar = [...document.querySelectorAll(".budget-month-bar")].find((el) => el.getBoundingClientRect().height > 0);
       const box = (testId) => document.querySelector(`[data-testid="${testId}"] button`).getBoundingClientRect();
       const history = box("budget-history-button");
       const check = box("budget-target-check-button");
       return {
-        barRight: bar.getBoundingClientRect().right,
         scrollWidth: document.documentElement.scrollWidth,
         history: { w: history.width, h: history.height, right: history.right },
         check: { w: check.width, h: check.height, right: check.right, top: check.top },
@@ -186,58 +185,56 @@ test("[layout] Handy 375 px: der Kopf der Budget-Seite trägt Historie und Targe
 
     await page.locator('[data-testid="budget-target-check-button"]:visible button').click();
     await page.locator('[data-testid="target-check-row"]').first().waitFor();
-    // Jede offene Zeile, auch mit vierstelligen Beträgen ("Urlaub q4v8n").
-    const rows = await page.evaluate(() =>
-      [...document.querySelectorAll('[data-testid="target-check-row"]')].map((el) => {
-        const clipped = (node) => node.scrollWidth > node.clientWidth + 0.5;
-        const within = (node, box) => {
-          const b = node.getBoundingClientRect();
-          return b.left >= box.left - 0.5 && b.right <= box.right + 0.5;
-        };
+    const result = await page.evaluate(() => {
+      const clipped = (node) => node.scrollWidth > node.clientWidth + 0.5;
+      const within = (node, box) => {
+        const b = node.getBoundingClientRect();
+        return b.left >= box.left - 0.5 && b.right <= box.right + 0.5;
+      };
+      const headNarrow = document.querySelector('[data-testid="target-check-head-narrow"]');
+      const rows = [...document.querySelectorAll('[data-testid="target-check-row"]')].map((el) => {
         const rowBox = el.getBoundingClientRect();
-        const bars = [...el.querySelectorAll('[data-testid="month-bar"]')];
-        // Jeder sichtbare Text unter einem Balken bleibt in seiner Spalte. Die Wertzeile liegt über der ganzen Breite.
-        const outside = bars.flatMap((bar) =>
-          [...bar.querySelectorAll("span")]
-            .filter((t) => t.dataset.testid !== "month-bar-value" && t.getBoundingClientRect().width > 0 && t.textContent !== "")
-            .filter((t) => !within(t, bar.getBoundingClientRect()))
-            .map((t) => `${t.textContent} ${Math.round(t.getBoundingClientRect().width)}/${Math.round(bar.getBoundingClientRect().width)}`)
-        );
-        const barTextsInColumn = outside.length === 0;
+        const buttons = [...el.querySelectorAll("button")].map((b) => {
+          const r = b.getBoundingClientRect();
+          return { text: b.textContent, clipped: clipped(b), inside: within(b, rowBox), h: r.height, top: r.top };
+        });
+        const bars = el.querySelector('[data-testid="spark-bars"]').getBoundingClientRect();
         return {
           name: el.querySelector('[data-testid="target-check-name"]').textContent,
-          bars: bars.length,
-          barTextsInColumn,
-          outside,
-          factsInside: [...el.querySelectorAll('[data-testid="target-check-facts"] span')].every((t) => within(t, rowBox)),
-          buttons: [...el.querySelectorAll("button")].map((b) => ({
-            text: b.textContent,
-            clipped: clipped(b),
-            inside: within(b, rowBox),
-            h: b.getBoundingClientRect().height,
-          })),
+          buttons,
+          bars: { h: bars.height, w: bars.width, rowW: rowBox.width },
+          texts: [...el.querySelectorAll("span, p")].filter((t) => t.getBoundingClientRect().width > 0).every((t) => within(t, rowBox)),
         };
-      })
-    );
-    const rowFacts = JSON.stringify(rows);
-    assert.ok(rows.length >= 4, `die offenen Zeilen (${rowFacts})`);
-    for (const row of rows) {
-      assert.equal(row.bars, 12, `${row.name}: 12 Balken (${rowFacts})`);
-      assert.ok(row.barTextsInColumn, `${row.name}: die Texte unter den Balken bleiben in ihrer Spalte (${rowFacts})`);
-      assert.ok(row.factsInside, `${row.name}: die Werte stehen in der Zeile (${rowFacts})`);
+      });
+      return {
+        head: { clipped: clipped(headNarrow), visible: headNarrow.getBoundingClientRect().height > 0 },
+        rows,
+        scrollWidth: document.documentElement.scrollWidth,
+      };
+    });
+    const rowFacts = JSON.stringify(result);
+    assert.ok(result.head.visible && !result.head.clipped, `der Kopf am Handy steht ohne Überlauf (${rowFacts})`);
+    assert.ok(result.rows.length >= 4, `die offenen Zeilen (${rowFacts})`);
+    for (const row of result.rows) {
+      assert.ok(row.texts, `${row.name}: die Texte stehen in der Zeile (${rowFacts})`);
+      assert.equal(Math.round(row.bars.h), 28, `${row.name}: Mini-Balken 28 px hoch (${rowFacts})`);
+      assert.ok(row.bars.w >= row.bars.rowW - 2 * 12 - 1, `${row.name}: Mini-Balken über die volle Breite (${rowFacts})`);
       for (const b of row.buttons) {
         assert.ok(!b.clipped && b.inside && b.h >= 47.5, `${row.name}, ${b.text}: ungekürzt, im Bild, 48 px (${rowFacts})`);
       }
+      if (row.buttons.length === 2) {
+        assert.equal(Math.round(row.buttons[0].top), Math.round(row.buttons[1].top), `${row.name}: die Knöpfe nebeneinander (${rowFacts})`);
+      }
     }
-    const yearly = rows.find((r) => r.name === "Versicherung q4v8n");
-    assert.deepEqual(yearly.buttons.map((b) => b.text), ["1.260,00 €/Jahr übernehmen", "Anpassen …"], "beide Knöpfe");
-    assert.ok((await page.evaluate(() => document.documentElement.scrollWidth)) <= 375, "kein waagerechter Überlauf");
+    const yearly = result.rows.find((r) => r.name === "Versicherung q4v8n");
+    assert.deepEqual(yearly.buttons.map((b) => b.text), ["1.260 € jährlich übernehmen", "Anpassen …"], "beide Knöpfe");
+    assert.ok(result.scrollWidth <= 375, "kein waagerechter Überlauf");
   } finally {
     await context.close();
   }
 });
 
-test("[layout] Anpassen öffnet ab 1024 px ein Panel rechts neben der Liste, bei 375 px ein BottomSheet", async () => {
+test("[layout] PC 1280 px: eine Zeile mit Werten ist höchstens 72 px hoch und steht in vier Spalten nebeneinander, Anpassen öffnet das Panel rechts, die Mini-Balken haben keinen Tab-Stopp; bei 375 px ein BottomSheet", async () => {
   const wide = await openCheck(1280, 900);
   try {
     await rowOf(wide.page, "Strom q4v8n").getByRole("button", { name: "Anpassen …" }).click();
@@ -246,10 +243,44 @@ test("[layout] Anpassen öffnet ab 1024 px ein Panel rechts neben der Liste, bei
     const at = await wide.page.evaluate(() => {
       const list = document.querySelector('[data-testid="target-check-list"]').getBoundingClientRect();
       const box = document.querySelector('[data-testid="target-check-panel"]').getBoundingClientRect();
-      return { listRight: list.right, panelLeft: box.left, panelWidth: box.width };
+      const row = [...document.querySelectorAll('[data-testid="target-check-row"]')].find((el) => el.textContent.includes("Strom q4v8n"));
+      const rect = (el) => {
+        const r = el.getBoundingClientRect();
+        return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+      };
+      const columns = [
+        rect(row.querySelector('[data-testid="target-check-name"]').parentElement),
+        rect(row.querySelector('[data-testid="spark-bars"]')),
+        rect(row.querySelector('[data-testid="target-check-average"]')),
+        rect(row.querySelector('[data-testid="target-check-adjust"]').parentElement),
+      ];
+      const focusable = [...document.querySelectorAll('[data-testid="spark-bars"], [data-testid="spark-bars"] *')].filter(
+        (el) => el.tabIndex >= 0 || el.hasAttribute("tabindex")
+      ).length;
+      return {
+        listRight: list.right,
+        panelLeft: box.left,
+        panelWidth: box.width,
+        rowHeight: row.getBoundingClientRect().height,
+        rowTop: row.getBoundingClientRect().top,
+        rowBottom: row.getBoundingClientRect().bottom,
+        barsHeight: row.querySelector('[data-testid="spark-bars"]').getBoundingClientRect().height,
+        columns,
+        focusable,
+      };
     });
-    assert.ok(at.panelLeft >= at.listRight, `rechts neben der Liste (${JSON.stringify(at)})`);
-    assert.equal(Math.round(at.panelWidth), 340, "340 px wie der Inspektor");
+    const facts = JSON.stringify(at);
+    assert.ok(at.rowHeight <= 72, `die Zeile ist höchstens 72 px hoch (${facts})`);
+    assert.equal(Math.round(at.barsHeight), 32, `Mini-Balken 32 px hoch (${facts})`);
+    for (let i = 1; i < at.columns.length; i++) {
+      assert.ok(at.columns[i].left >= at.columns[i - 1].right, `Spalte ${i + 1} steht rechts neben Spalte ${i} (${facts})`);
+    }
+    for (const c of at.columns) {
+      assert.ok(c.top >= at.rowTop - 0.5 && c.bottom <= at.rowBottom + 0.5, `jede Spalte in derselben Zeile (${facts})`);
+    }
+    assert.equal(at.focusable, 0, `die Mini-Balken haben keinen Tab-Stopp (${facts})`);
+    assert.ok(at.panelLeft >= at.listRight, `rechts neben der Liste (${facts})`);
+    assert.equal(Math.round(at.panelWidth), 360, "360 px wie die Skizze");
     assert.equal(await wide.page.locator(".bottom-sheet.active").count(), 0, "kein Sheet");
   } finally {
     await wide.context.close();
@@ -275,57 +306,77 @@ test("[layout] Anpassen öffnet ab 1024 px ein Panel rechts neben der Liste, bei
   }
 });
 
+test("[layout] Mini-Balken der Zeile wie die Skizze: Ecken 2 px, Abstand am PC 3 px, am Handy 4 px; die Panel-Balken behalten 3 px", async () => {
+  const shape = async (page) =>
+    page.evaluate(() => {
+      const row = [...document.querySelectorAll('[data-testid="target-check-row"]')].find((el) => el.textContent.includes("Strom q4v8n"));
+      const bars = row.querySelector('[data-testid="spark-bars"]');
+      return { radius: getComputedStyle(bars.querySelector('[data-testid="spark-bar"]')).borderTopLeftRadius, gap: getComputedStyle(bars).columnGap };
+    });
+  const wide = await openCheck(1280, 900);
+  try {
+    const pc = await shape(wide.page);
+    assert.deepEqual(pc, { radius: "2px", gap: "3px" }, `PC wie Main.dc.html (${JSON.stringify(pc)})`);
+    await rowOf(wide.page, "Strom q4v8n").getByRole("button", { name: "Anpassen …" }).click();
+    const large = wide.page.locator('[data-testid="spark-bars-labelled"] [data-testid="spark-bar"]').first();
+    await large.waitFor();
+    assert.equal(await large.evaluate((el) => getComputedStyle(el).borderTopLeftRadius), "3px", "Panel-Balken 3 px");
+  } finally {
+    await wide.context.close();
+  }
+  const phone = await openCheck(375, 812);
+  try {
+    const handy = await shape(phone.page);
+    assert.deepEqual(handy, { radius: "2px", gap: "4px" }, `Handy wie Handy.dc.html (${JSON.stringify(handy)})`);
+  } finally {
+    await phone.context.close();
+  }
+});
+
+test("[layout] Berechnete Farben: der Titel Gibst du mehr aus ist orange, ein Balken über dem Target orange, einer darunter nicht", async () => {
+  const { context, page } = await openCheck(1280, 900);
+  try {
+    const colors = await page.evaluate(() => {
+      const probe = document.createElement("span");
+      probe.className = "text-neon-orange";
+      document.body.appendChild(probe);
+      const neon = getComputedStyle(probe).color;
+      probe.remove();
+      const title = [...document.querySelectorAll('[data-testid="target-check-group-title"]')].find((el) => el.textContent === "Gibst du mehr aus?");
+      const barOf = (name) => {
+        const row = [...document.querySelectorAll('[data-testid="target-check-row"]')].find((el) => el.textContent.includes(name));
+        return getComputedStyle(row.querySelector('[data-testid="spark-bar"]')).backgroundColor;
+      };
+      return { neon, title: getComputedStyle(title).color, over: barOf("Strom q4v8n"), under: barOf("Kantine q4v8n") };
+    });
+    const facts = JSON.stringify(colors);
+    assert.equal(colors.neon, "rgb(255, 107, 44)", `das Orange der Tokens (${facts})`);
+    assert.equal(colors.title, colors.neon, `der Titel ist orange (${facts})`);
+    assert.equal(colors.over, colors.neon, `ein Balken über dem Target ist orange (${facts})`);
+    assert.notEqual(colors.under, colors.neon, `ein Balken darunter ist nicht orange (${facts})`);
+  } finally {
+    await context.close();
+  }
+});
+
 // Verhindert den Befund aus der Durchsicht am 2026-11-06: `Math.Round(x, MidpointRounding.AwayFromZero)` rundet im
 // Fable-Kompilat auf eine Nachkommastelle (der Modus galt als Stellenzahl), der wöchentliche Vorschlag stand mit
 // "23,10 €/Woche" statt auf vollen Euro (ADR 0082 Punkt 9). Unter .NET rechnet dieselbe Funktion richtig.
 //
 // Verhindert außerdem den Befund aus der Durchsicht von e86f8d2: `Math.Round(x, 0, MidpointRounding.AwayFromZero)`
-// auf decimal rundet im Fable-Kompilat zur geraden Zahl (fable-library `Decimal.round` verwirft den Modus). Ein
-// Balkenbetrag von 84,50 € stand als "84" statt "85" unter dem Balken (`barAmountText`). "Tanken q4v8n" gibt es
-// nur in diesem Test, die anderen Tests sehen die Fixture ohne die Zeile.
-test("[fable] Ein wöchentlicher Vorschlag steht auf vollen Euro, ein Betrag auf 50 Cent wird aufgerundet", async () => {
+// auf decimal rundet im Fable-Kompilat zur geraden Zahl (fable-library `Decimal.round` verwirft den Modus). Seit
+// budgeting-c4ve4 stehen die Beträge der Zeile in ganzen Euro (`wholeEuroText`): ein Ø von 84,50 € muss als
+// "Ø 85 € im Monat" stehen, nicht "84". "Tanken q4v8n" gibt es nur in diesem Test.
+test("[fable] Ein wöchentlicher Vorschlag steht auf vollen Euro, ein Ø auf 50 Cent wird aufgerundet", async () => {
   const { context, page } = await mockedPage(1280, 900);
   const withHalf = { ...checkData, Categories: [...checkData.Categories, source(6, "Tanken q4v8n", null, 84.5)] };
   // Die später angelegte Route hat Vorrang vor der aus `mockedPage`.
   await page.route("**/api/BudgetApi/getTargetCheck", (route) => json(route, { Ok: withHalf }));
   try {
     await page.goto(`http://127.0.0.1:${frontendPort}/#/budget/target-check`, { waitUntil: "load" });
-    await rowOf(page, "Kantine q4v8n").getByRole("button", { name: "23,00 €/Woche übernehmen" }).waitFor();
-    const amounts = await rowOf(page, "Tanken q4v8n")
-      .locator('[data-testid="month-bar"] > span:last-child')
-      .allTextContents();
-    assert.equal(amounts.length, 12, `12 Balkenbeträge (${JSON.stringify(amounts)})`);
-    assert.deepEqual([...new Set(amounts)], ["85"], "84,50 € steht kaufmännisch gerundet als 85");
-  } finally {
-    await context.close();
-  }
-});
-
-// Die enge Balkenreihe ist ein Tab-Stopp je Zeile (Review budgeting-q4v8n): Pfeiltasten wählen den Nachbarmonat,
-// Tab verlässt die Reihe zu den Knöpfen der Zeile, statt durch zwölf Balken zu laufen.
-test("[tastatur] In einer Zeile ist die Balkenreihe ein Tab-Stopp, Pfeil links wählt den Vormonat, Tab führt zum Knopf der Zeile", async () => {
-  const { context, page } = await openCheck(1280, 900);
-  try {
-    const row = rowOf(page, "Kantine q4v8n");
-    const bars = row.locator('[data-testid="month-bar"]');
-    assert.equal(await bars.count(), 12, "12 Balken in der Zeile");
-    const stops = row.locator('[data-testid="month-bar"][tabindex="0"]');
-    assert.equal(await stops.count(), 1, "genau ein Balken liegt in der Tab-Folge");
-    await stops.first().focus();
-    const focusedIndex = () =>
-      bars.evaluateAll((els) => els.findIndex((el) => el === document.activeElement));
-    assert.equal(await focusedIndex(), 11, "der Tab-Stopp ist der letzte Monat");
-    await page.keyboard.press("ArrowLeft");
-    assert.equal(await focusedIndex(), 10, "Pfeil links fokussiert den Vormonat");
-    await page.keyboard.press("Tab");
-    const active = await page.evaluate(() => ({
-      tag: document.activeElement?.tagName,
-      inRow: !!document.activeElement?.closest('[data-testid="target-check-row"]')?.textContent?.includes("Kantine q4v8n"),
-      text: document.activeElement?.textContent ?? "",
-    }));
-    assert.equal(active.tag, "BUTTON", `nach Tab steht der Fokus auf einem Knopf (${JSON.stringify(active)})`);
-    assert.ok(active.inRow, "der Knopf gehört zur selben Zeile");
-    assert.match(active.text, /übernehmen|Anpassen/, "es ist übernehmen oder Anpassen …");
+    await rowOf(page, "Kantine q4v8n").getByRole("button", { name: "23 € wöchentlich übernehmen" }).waitFor();
+    const average = await rowOf(page, "Tanken q4v8n").locator('[data-testid="target-check-average"]').innerText();
+    assert.match(average, /^Ø 85 € im Monat/, `84,50 € steht kaufmännisch gerundet als 85 (${average})`);
   } finally {
     await context.close();
   }

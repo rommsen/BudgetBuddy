@@ -12,8 +12,8 @@ Catalog of this bounded context's tasks by status.
 <!-- task-counts:start -->
 - **Backlog:** 4
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 54
+- **Doing:** 0
+- **Done:** 55
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ Catalog of this bounded context's tasks by status.
 
 ### Doing
 <!-- doing-list:start -->
-- **budgeting-c4ve4** — "Seite Targets prüfen an die freigegebene Skizze angleichen: kompakte Zeile mit Mini-Balken und Target-Linie, Gruppenfarben und Regelsatz, Kopf mit Erklärung und Zählern, Panel mit Satz und großen Balken" (feature) — `doing/budgeting-c4ve4-targets-pruefen-wie-skizze.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **budgeting-c4ve4** — "Seite Targets prüfen an die freigegebene Skizze angleichen: kompakte Zeile mit Mini-Balken und Target-Linie, Gruppenfarben und Regelsatz, Kopf mit Erklärung und Zählern, Panel mit Satz und großen Balken" (feature) — `done/budgeting-c4ve4-targets-pruefen-wie-skizze.md`
 - **budgeting-q4v8n** — "Seite Targets prüfen #/budget/target-check: Knopf im Kopf der Budget-Seite, Gruppen mit Balken, Vorschlag übernehmen und Anpassen … im Panel oder BottomSheet" (feature) — `done/budgeting-q4v8n-seite-targets-pruefen.md`
 - **budgeting-hbhzf** — "Fehlbetrag aus BB: Targets anwenden und die Anzeige rechnen mit BBs Fehlbetrag gegen das Soll, Rückbau der Parallelrechnung" (feature) — `done/budgeting-hbhzf-fehlbetrag-aus-bb.md`
 - **budgeting-k5q2w** — "Parallelrechnung: die Ausgaben der Periode kommen aus dem Kassenbuch, category_month_activity entfällt" (feature) — `done/budgeting-k5q2w-parallelrechnung-mit-aktivitaet-aus-dem-kassenbuch.md`

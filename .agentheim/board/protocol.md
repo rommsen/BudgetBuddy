@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 20:06 -- Task verified and completed: budgeting-c4ve4 - "Seite Targets prüfen an die freigegebene Skizze angleichen: kompakte Zeile mit Mini-Balken und Target-Linie, Gruppenfarben und Regelsatz, Kopf mit Erklärung und Zählern, Panel mit Satz und großen Balken"
+
+**Type:** Work / Task completion
+**Task:** budgeting-c4ve4 - "Seite Targets prüfen an die freigegebene Skizze angleichen: kompakte Zeile mit Mini-Balken und Target-Linie, Gruppenfarben und Regelsatz, Kopf mit Erklärung und Zählern, Panel mit Satz und großen Balken"
+**Summary:** Seite Targets prüfen nach der freigegebenen Skizze
+**Duration:** 1h20m
+**Verification:** PASS (iteration 2)
+**Files changed:** 15
+**Tests added:** 19
+**ADRs written:** none
+
+---
+
+## 2026-11-06 19:44 -- Verification failed: budgeting-c4ve4 - Seite Targets prüfen nach der Skizze
+
+**Type:** Work / Verification failure
+**Task:** budgeting-c4ve4 - Seite Targets prüfen nach der Skizze
+**Iteration:** 1 of 3
+**Reasons:** Mini-Balken mit 8 px Radius statt 2 px der Skizze (rounded-sm ist hier 8 px), am Handy 3 px statt 4 px Abstand
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-06 19:08 -- Batch started: [budgeting-c4ve4]
 
 **Type:** Work / Batch start

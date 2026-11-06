@@ -1,7 +1,6 @@
 module Client.DesignSystem.Stats
 
 open Feliz
-open Fable.Core.JsInterop
 open Client.DesignSystem.Tokens
 open Client.DesignSystem.Icons
 
@@ -393,38 +392,7 @@ let monthBarAriaLabel (bar: MonthBar) : string =
 [<Literal>]
 let RunningMonthText = "läuft"
 
-/// Die enge Reihe (`monthBarsCompact`, budgeting-q4v8n): 12 Balken in einer Listenzeile am Handy. Der Abstand ist
-/// `gap-0.5`, die Beträge unter den Balken stehen erst ab 768 px, darunter zeigt sie die Wertzeile.
-let private monthBarsListClassFor (compact: bool) =
-    if compact then "flex gap-0.5" else monthBarsListClass
-let private monthBarAmountClassFor (compact: bool) =
-    if compact then $"{monthBarAmountClass} max-md:hidden" else monthBarAmountClass
-
-/// Welcher Balken der engen Reihe in der Tab-Folge liegt (Roving `tabindex` wie bei `Tabs`, budgeting-q4v8n):
-/// `current` ist der zuletzt fokussierte Balken; ohne ihn (oder außerhalb der Reihe, etwa nach weniger Balken) der
-/// letzte. Eine Vorwahl gibt es in der engen Reihe nicht.
-/// So ist die Reihe ein Tab-Stopp statt zwölf vor den Knöpfen der Zeile.
-let monthBarTabStop (current: int option) (count: int) : int =
-    match current with
-    | Some index when index >= 0 && index < count -> index
-    | _ -> count - 1
-
-/// Wohin eine Taste den Fokus in der engen Reihe schiebt, nach dem Muster von `Tabs`: Pfeil links und rechts zum
-/// Nachbarn, am Rand bleibt er stehen, Pos1 und Ende springen an die Ränder. Mit Zusatztaste gehört die Taste
-/// dem Browser (Alt und Links: zurück).
-let monthBarKeyTarget (key: string) (withModifier: bool) (index: int) (count: int) : int option =
-    let last = count - 1
-    match key with
-    | _ when withModifier || count = 0 -> None
-    | "ArrowRight" -> Some (min last (index + 1))
-    | "ArrowLeft" -> Some (max 0 (index - 1))
-    | "Home" -> Some 0
-    | "End" -> Some last
-    | _ -> None
-
-/// `focusProps` macht das innere Element fokussierbar: in `monthBars` jeder Balken mit `tabIndex 0`, in der engen
-/// Reihe der Roving `tabindex` aus `CompactMonthBars`.
-let private monthBarItem (compact: bool) (chosen: string option) (focusProps: IReactProperty list) (bar: MonthBar) =
+let private monthBarItem (chosen: string option) (bar: MonthBar) =
     Html.li [
         prop.key bar.Key
         prop.className (monthBarItemClass (chosen = Some bar.Key))
@@ -432,7 +400,7 @@ let private monthBarItem (compact: bool) (chosen: string option) (focusProps: IR
             Html.div [
                 prop.custom ("data-testid", "month-bar")
                 prop.role "img"
-                yield! focusProps
+                prop.tabIndex 0
                 prop.ariaLabel (monthBarAriaLabel bar)
                 prop.className monthBarTargetClass
                 prop.children [
@@ -455,16 +423,14 @@ let private monthBarItem (compact: bool) (chosen: string option) (focusProps: IR
                     Html.span [ prop.ariaHidden true; prop.className monthBarMonthClass; prop.text bar.MonthText ]
                     Html.span [
                         prop.ariaHidden true
-                        prop.className (monthBarAmountClassFor compact)
+                        prop.className monthBarAmountClass
                         prop.text bar.AmountText
                     ]
-                    // Die enge Reihe trägt keinen laufenden Monat, die leere Zeile entfällt dort.
-                    if not compact || bar.Running then
-                        Html.span [
-                            prop.ariaHidden true
-                            prop.className monthBarStateClass
-                            prop.text (if bar.Running then RunningMonthText else "")
-                        ]
+                    Html.span [
+                        prop.ariaHidden true
+                        prop.className monthBarStateClass
+                        prop.text (if bar.Running then RunningMonthText else "")
+                    ]
                 ]
             ]
         ]
@@ -475,7 +441,7 @@ let private monthBarItem (compact: bool) (chosen: string option) (focusProps: IR
 /// Wertzeile sein `Label`; ein Tipp daneben nimmt den Fokus weg und leert sie. Allein über CSS, ohne
 /// Zustand im Model. Für den Screenreader eine Liste, je Balken ein Eintrag mit `Label`; die sichtbaren
 /// Texte sind verborgen.
-let private monthBarsView (compact: bool) (label: string) (items: ReactElement list) =
+let private monthBarsView (label: string) (items: ReactElement list) =
     Html.div [
         prop.custom ("data-testid", "month-bars")
         prop.className monthBarsClass
@@ -488,53 +454,16 @@ let private monthBarsView (compact: bool) (label: string) (items: ReactElement l
             Html.ul [
                 prop.role "list"
                 prop.ariaLabel label
-                prop.className (monthBarsListClassFor compact)
+                prop.className monthBarsListClass
                 prop.children items
             ]
         ]
     ]
 
 let private fullMonthBars (chosen: string option) (label: string) (bars: MonthBar list) =
-    bars
-    |> List.map (monthBarItem false chosen [ prop.tabIndex 0 ])
-    |> monthBarsView false label
+    bars |> List.map (monthBarItem chosen) |> monthBarsView label
 
 let monthBars (label: string) (bars: MonthBar list) = fullMonthBars None label bars
-
-type private CompactMonthBarsProps = { Label: string; Bars: MonthBar list }
-
-/// Die enge Reihe mit Roving `tabindex` (budgeting-q4v8n): nur ein Balken liegt in der Tab-Folge
-/// (`monthBarTabStop`), die Pfeiltasten setzen den Fokus auf den Nachbarn (`monthBarKeyTarget`). Der Fokus wählt
-/// den Balken wie bisher über CSS; der Zustand hier merkt sich nur, welcher Balken zuletzt den Fokus hatte.
-[<ReactComponent>]
-let private CompactMonthBars (props: CompactMonthBarsProps) =
-    let focused, setFocused = React.useState (None: int option)
-    let count = props.Bars.Length
-    let stop = monthBarTabStop focused count
-    let onKey (index: int) (e: Browser.Types.KeyboardEvent) =
-        let withModifier = e.altKey || e.ctrlKey || e.metaKey || e.shiftKey
-        match monthBarKeyTarget e.key withModifier index count with
-        | Some next ->
-            e.preventDefault ()
-            // Vom inneren Element über `li` zur Liste, dort das innere Element des Ziels.
-            let target: obj = e.currentTarget?parentElement?parentElement?children?(next)?firstElementChild
-            target?focus ()
-        | None -> ()
-    props.Bars
-    |> List.mapi (fun index bar ->
-        monthBarItem true None [
-            prop.tabIndex (if index = stop then 0 else -1)
-            prop.onFocus (fun _ -> setFocused (Some index))
-            prop.onKeyDown (onKey index)
-        ] bar)
-    |> monthBarsView true props.Label
-
-/// Wie `monthBars`, eng für 12 Balken in einer Listenzeile (Seite Targets prüfen, budgeting-q4v8n): `gap-0.5`
-/// statt `gap-1.5`, die Beträge unter den Balken erst ab 768 px, darunter nur in der Wertzeile. Ohne laufenden
-/// Monat entfällt die Zeile für "läuft". Die Reihe ist ein Tab-Stopp, Pfeil links und rechts, Pos1 und Ende
-/// wählen innerhalb der Reihe.
-let monthBarsCompact (label: string) (bars: MonthBar list) =
-    CompactMonthBars { Label = label; Bars = bars }
 
 /// Wie `monthBars`, der Balken mit `chosenKey` steht schon gewählt da, bis Maus oder Fokus einen
 /// anderen wählen. Für den Styleguide, der die Wertzeile ohne Zutun zeigt.
@@ -566,4 +495,107 @@ let monthBarsPlaceholder (count: int) =
                 ]
             ]
         ]
+    ]
+
+// ============================================
+// Mini-Balken (budgeting-c4ve4)
+// ============================================
+
+/// Der Ton eines Mini-Balkens.
+type SparkTone =
+    /// Über dem Target: orange.
+    | SparkOver
+    /// Gezählt, nicht darüber: gedämpft.
+    | SparkWithin
+    /// Zählt nicht (vor der letzten Änderung): dunkler.
+    | SparkMuted
+
+/// Ein Mini-Balken: Höhe in Prozent des größten Werts (0 bis 100) und Ton. Gerechnet wird außerhalb.
+type SparkBar = {
+    Key: string
+    Percent: int
+    Tone: SparkTone
+    /// Der kurze Monatsname unter dem Balken, nur in `sparkBarsLabelled`.
+    MonthText: string
+}
+
+let private sparkToneClass (tone: SparkTone) =
+    match tone with
+    | SparkOver -> "bg-neon-orange"
+    | SparkWithin -> "bg-text-muted/45"
+    | SparkMuted -> "bg-text-muted/15"
+
+/// Die gestrichelte Target-Linie auf `percent` der Höhe.
+let private sparkLine (percent: int option) =
+    match percent with
+    | Some p ->
+        Html.div [
+            prop.custom ("data-testid", "spark-line")
+            prop.className "pointer-events-none absolute inset-x-0 border-t border-dashed border-text-primary/60"
+            prop.style [ style.bottom (length.percent p) ]
+        ]
+    | None -> Html.none
+
+let private sparkBar (large: bool) (bar: SparkBar) =
+    let radius = if large then "rounded-[3px]" else "rounded-[2px]"
+    Html.div [
+        prop.key bar.Key
+        prop.custom ("data-testid", "spark-bar")
+        prop.ariaHidden true
+        prop.className $"flex-1 min-w-0 min-h-0.5 {radius} {sparkToneClass bar.Tone}"
+        prop.style [ style.height (length.percent bar.Percent) ]
+    ]
+
+/// Mini-Balken für eine Listenzeile (Seite Targets prüfen): je Monat ein Balken ohne Beschriftung, mindestens
+/// 2 px hoch, dazu die gestrichelte Target-Linie. Die Reihe füllt die Höhe ihres Elternelements, der Aufrufer
+/// setzt sie. Für den Screenreader ein Bild mit `label`, die Balken sind verborgen. Kein Tab-Stopp.
+/// Ecken 2 px wie die Skizze. Abstand 4 px (Handy.dc.html), ab einem Container von 720 px 3 px (Main.dc.html):
+/// dieselbe Container-Grenze, an der die Zeile von zwei Reihen auf vier Spalten wechselt.
+let sparkBars (label: string) (linePercent: int option) (bars: SparkBar list) =
+    Html.div [
+        prop.custom ("data-testid", "spark-bars")
+        prop.role "img"
+        prop.ariaLabel label
+        prop.className "relative flex h-full items-end gap-1 @min-[720px]:gap-[3px]"
+        prop.children [
+            yield! bars |> List.map (sparkBar false)
+            sparkLine linePercent
+        ]
+    ]
+
+/// Große Mini-Balken für das Panel: 56 px Balken, darunter der Monatsname in Mono klein.
+let sparkBarsLabelled (label: string) (linePercent: int option) (bars: SparkBar list) =
+    Html.div [
+        prop.custom ("data-testid", "spark-bars-labelled")
+        prop.role "img"
+        prop.ariaLabel label
+        prop.className "flex flex-col gap-1"
+        prop.children [
+            Html.div [
+                prop.className "relative flex h-14 items-end gap-1.5"
+                prop.children [
+                    yield! bars |> List.map (sparkBar true)
+                    sparkLine linePercent
+                ]
+            ]
+            Html.div [
+                prop.ariaHidden true
+                prop.className "flex gap-1.5"
+                prop.children [
+                    for bar in bars do
+                        Html.span [
+                            prop.key bar.Key
+                            prop.className $"flex-1 min-w-0 font-mono {FontSizes.micro} text-text-muted text-center"
+                            prop.text bar.MonthText
+                        ]
+                ]
+            ]
+        ]
+    ]
+
+/// Der Platzhalter beim Laden, füllt wie `sparkBars` die Höhe des Elternelements.
+let sparkBarsPlaceholder () =
+    Html.div [
+        prop.ariaHidden true
+        prop.className "h-full rounded-sm bg-surface-elevated animate-pulse"
     ]

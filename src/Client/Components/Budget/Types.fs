@@ -181,8 +181,8 @@ type GeneralHistory = {
 type TargetCheckPage = {
     /// Die Rohdaten des laufenden Monats. Eingeordnet wird beim Rendern mit `targetCheckGroups`.
     Data: RemoteData<TargetCheckData>
-    /// Steht die Gruppe "Passt" offen? Beim Betreten zu.
-    FitsOpen: bool
+    /// Die aufgeklappten Gruppen (budgeting-c4ve4). Beim Betreten alle außer "Passt".
+    OpenGroups: Set<CheckGroup>
     /// Das Formular von "Anpassen …", `None`: das Panel ist zu. Hält Kategorie und Monat der Zeile.
     Panel: TargetForm option
     /// Über den Knopf "Targets prüfen" geöffnet: die Rückkehr zur Budget-Seite behält Monat und Auswahl.
@@ -449,8 +449,8 @@ type Msg =
     | TargetCheckLoaded of generation: int * Result<TargetCheckData, string>
     /// Antwort des stillen Neuladens nach einem abgebrochenen Aufruf: die Liste blieb stehen.
     | TargetCheckReloaded of generation: int * Result<TargetCheckData, string>
-    /// Tipp auf die Gruppe "Passt": auf- oder zuklappen.
-    | ToggleFits
+    /// Tipp auf den Kopf einer Gruppe: auf- oder zuklappen (budgeting-c4ve4).
+    | ToggleCheckGroup of CheckGroup
     /// Der Knopf Zurück der Seite Targets prüfen.
     | LeaveTargetCheck
     /// Die Seite Targets prüfen wurde auf eine andere Seite als die Budget-Seite verlassen: keine Rückkehr.
@@ -511,7 +511,7 @@ let init () : Model =
       Selected = None
       Tab = MoneyTab
       GeneralHistory = { Runs = NotAsked; Filter = AllRuns; Expanded = Set.empty; ReturnPending = false; Generation = 0 }
-      TargetCheck = { Data = NotAsked; FitsOpen = false; Panel = None; ReturnPending = false; Generation = 0; LoadPending = false }
+      TargetCheck = { Data = NotAsked; OpenGroups = Set.empty; Panel = None; ReturnPending = false; Generation = 0; LoadPending = false }
       EntriesGeneration = 0
       HistoryGeneration = 0
       MonthGeneration = 0 }
