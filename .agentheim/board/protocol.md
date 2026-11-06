@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 19:08 -- Batch started: [budgeting-c4ve4]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-c4ve4 - "Seite Targets prüfen an die freigegebene Skizze angleichen: kompakte Zeile mit Mini-Balken und Target-Linie, Gruppenfarben und Regelsatz, Kopf mit Erklärung und Zählern, Panel mit Satz und großen Balken"
+**Parallel:** scoped — builder named budgeting-c4ve4 (Nacharbeit nach Skizze); other ready tasks not dispatched
+
+---
+
 ## 2026-11-06 19:08 -- Modeling / Promoted: budgeting-c4ve4 - "Seite Targets prüfen an die freigegebene Skizze angleichen: kompakte Zeile mit Mini-Balken und Target-Linie, Gruppenfarben und Regelsatz, Kopf mit Erklärung und Zählern, Panel mit Satz und großen Balken"
 
 **Type:** Modeling / Promote
