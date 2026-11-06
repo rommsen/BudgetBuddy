@@ -83,3 +83,6 @@ Kaputt-Szenario (GIVEN/WHEN/THEN): GIVEN Wechsel hin und zurück, das Lesen des 
 
 ## Aus budgeting-k5q2w (2026-11-06)
 - Backend (Worker k5q2w): Ein Lesefehler im Kassenbuch steht im Server-Log nur unter "Parallelrechnung Fehlbetrag", ohne eigenen Text für die Quelle.
+- Backend (Review k5q2w, V1): `periodActivityFromLedger` ist rein und gehört nach `Domain.fs`; dabei `spendingOf` und das Monatsparsen wiederverwenden (eine Schreibweise des Null-Betrags).
+- Backend (Review k5q2w, V4): Ein `TargetSet` trägt `effectiveFrom` als "YYYY-MM" und `rule.createdIn` als "YYYY-MM-01". Ein eigener Typ für den Monatsschlüssel schlösse Verwechslungen aus.
+- Tests (Review k5q2w): Kein Test belegt, dass ohne Periodenmonat das Kassenbuch nicht gelesen wird (`loadPeriodActivity`, Zweig `[]`); nur eine überflüssige Abfrage, kein falsches Ergebnis.
