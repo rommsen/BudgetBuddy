@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 9
+- **Backlog:** 10
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 105
@@ -35,6 +35,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ledger-p3vq8** — "addCashExpense: gelingt der Push und scheitert danach das Schreiben der Verknüpfung, legt der Spiegel eine zweite Buchung an" (bug) — `backlog/ledger-p3vq8-push-gelungen-verknuepfung-nicht-geschrieben.md`
 - **ledger-yfqxp** — "Ledger-README: Barabhebung nennt noch die Konto-Auswahl statt des Ziel-Pickers" (chore) — `backlog/ledger-yfqxp-ledger-readme-barabhebung-nennt-noch-die-konto-auswahl-statt.md`
 - **ledger-x2aan** — "Bot-Drossel: globaler Zähler vor der Token-Prüfung erlaubt es Fremden, Bob auszusperren" (decision) — `backlog/ledger-x2aan-bot-drossel-vor-anmeldung.md`
 - **ledger-mj3a9** — "BOT_MAX_AMOUNT_EUR: ungültiger Wert fällt auf das Maximum zurück statt auf einen sicheren Wert" (bug) — `backlog/ledger-mj3a9-bot-betragsdeckel-faellt-sicher.md`

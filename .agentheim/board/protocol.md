@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 06:59 -- Capture / Captured: ledger-p3vq8 - "addCashExpense: gelingt der Push und scheitert danach das Schreiben der Verknüpfung, legt der Spiegel eine zweite Buchung an"
+
+**Type:** Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Review-Fund zu ledger-z71ka: nach gelungenem Push und gescheitertem Schreiben der Verknüpfung legt der Spiegel eine zweite Buchung an.
+
+---
+
 ## 2026-11-06 06:55 -- Task verified and completed: infrastructure-w7d2c - "YnabClient.createTransactions hat keinen Aufrufer mehr und fliegt raus"
 
 **Type:** Work / Task completion
