@@ -21,7 +21,7 @@ let private movement (group: Guid) origin (name: string) counterpart oldAssigned
     { MovementId = Guid.NewGuid()
       ApplicationId = group
       OccurredAt = at 9
-      Origin = origin
+      Origin = Decision origin
       Month = "2026-10-01"
       CategoryId = Guid.NewGuid()
       CategoryName = name
@@ -55,7 +55,7 @@ let runTests =
         test "Zuweisen steht mit Art und Kategorie, der Betrag mit Vorzeichen getrennt, ohne Einzelzeilen" {
             let up = single [ movement (Guid.NewGuid()) MoneyAssigned "Urlaub" None 0m 20m (Some Written) ]
             Expect.equal (up.Text, up.Amount) ("Zuweisen, Urlaub", eur 20m) "aus Zu verteilen"
-            Expect.equal up.Origin MoneyAssigned "Art"
+            Expect.equal up.Origin (Decision MoneyAssigned) "Art"
             Expect.isEmpty up.Lines "keine Einzelzeilen"
             let down = single [ movement (Guid.NewGuid()) MoneyAssigned "Urlaub" None 50m 30m (Some Written) ]
             Expect.equal down.Amount (eur -20m) "zurück nach Zu verteilen"
@@ -129,7 +129,7 @@ let runTests =
                 | [ later; earlier ] -> [ { later with OccurredAt = at 12 }; { earlier with OccurredAt = at 8 } ]
                 | other -> failtest $"zwei Zeilen erwartet, kamen {List.length other}"
             let runs = historyRuns (applied @ moved @ [ assigned ])
-            Expect.equal (runs |> List.map (fun r -> r.Origin)) [ TargetsApplied; MoneyAssigned; MoneyMoved ] "drei Durchläufe"
+            Expect.equal (runs |> List.map (fun r -> r.Origin)) [ Decision TargetsApplied; Decision MoneyAssigned; Decision MoneyMoved ] "drei Durchläufe"
             Expect.equal
                 (runs |> List.map (fun r -> r.RunId))
                 [ applied.Head.ApplicationId; assigned.ApplicationId; moved.Head.ApplicationId ]

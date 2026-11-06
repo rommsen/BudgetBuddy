@@ -288,7 +288,7 @@ let private handlerTests =
             body ())
 
     testList "Einbindung in budgetMonth" [
-        testCase "Die Speicherfunktion bekommt die Vergleichszeilen des Monats, die Antwort bleibt gleich" <| fun () ->
+        testCase "Die Speicherfunktion bekommt die Vergleichszeilen des übernommenen Monats, die Antwort hängt nicht vom Speichern ab" <| fun () ->
             let monthKey = "2031-03-01"
             let raw = ynabMonth monthKey
             let port = portFor raw
@@ -299,14 +299,15 @@ let private handlerTests =
             let without = QueryHandlers.budgetMonthWith (fun _ _ -> async { return () }) global.Persistence.getConnection port readAt monthKey |> run
 
             Expect.equal withComparison without "Antwort an den Client wie ohne Vergleich"
-            match withComparison with
-            | Ok month ->
-                Expect.equal (List.ofSeq saved) [ monthKey, compareUnderfunded month ] "Zeilen dieses Monats"
-                Expect.equal
-                    (saved[0] |> snd |> List.map (fun r -> r.Outcome))
-                    [ Equal; Deviation ]
-                    "ein Treffer, eine Abweichung"
-            | Error e -> failtest $"Monat erwartet: {e}"
+            // Erwartet, unabhängig von der Antwort: der Monat mit BBs Soll gleich YNABs Stand, wie ihn die Übernahme
+            // beim ersten Lesen hinterlässt.
+            let takenOver =
+                raw.Categories
+                |> List.map (fun c -> c.Id, { Assigned = toMilliunits c.Assigned; Confirmed = toMilliunits c.Assigned; Open = None })
+                |> Map.ofList
+            let expected = compareUnderfunded (toBudgetMonthWith (Some takenOver) Set.empty raw)
+            Expect.equal (List.ofSeq saved) [ monthKey, expected ] "Zeilen dieses Monats"
+            Expect.equal (expected |> List.map (fun r -> r.Outcome)) [ Equal; Deviation ] "ein Treffer, eine Abweichung"
 
         testCase "Eine Speicherfunktion, die wirft, lässt das Lesen nicht scheitern" <| fun () ->
             let monthKey = "2031-04-01"

@@ -55,7 +55,7 @@ let private toBudgetCategory (assignments: Map<Guid, AssignmentState> option) (p
       // Zugewiesen ist BBs Soll; Aktivität, Verfügbar und Fehlbetrag bleiben YNABs Werte (entschieden von Roman).
       Assigned =
         match state with
-        | Some s -> { Amount = decimal s.Assigned / 1000m; Currency = c.Assigned.Currency }
+        | Some s -> euroOfMilliunits s.Assigned
         | None -> c.Assigned
       Activity = c.Activity
       Available = c.Available
@@ -310,8 +310,6 @@ let originText (origin: MovementOrigin) : string =
     | TargetsApplied -> "Targets anwenden"
     | MoneyMoved -> "Verschieben"
     | MoneyAssigned -> "Zuweisen"
-    | ObservedInYnab -> "In YNAB zugewiesen"
-    | TakenOverFromYnab -> "Aus YNAB übernommen"
 
 /// Liest die Spalte. Ein unbekannter Text wird gemeldet, nicht auf eine Herkunft abgebildet.
 let originOfText (text: string) : Result<MovementOrigin, string> =
@@ -325,9 +323,7 @@ let sendsInOrder (origin: MovementOrigin) : bool =
     match origin with
     | MoneyMoved -> true
     | TargetsApplied
-    | MoneyAssigned
-    | ObservedInYnab
-    | TakenOverFromYnab -> false
+    | MoneyAssigned -> false
 
 /// Steht die Zeile noch aus? Fehlgeschlagen oder ohne Stand (der Lauf brach vor ihr ab).
 let isOpenLine (latest: LineOutcome option) : bool =

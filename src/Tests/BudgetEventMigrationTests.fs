@@ -385,7 +385,7 @@ let migrationTests =
                 (ofApp f.Applied |> List.map (fun m -> m.MovementId, m.Latest))
                 [ a2, Some Written; a1, Some Written ]
                 "Targets anwenden, jüngstes Ergebnis"
-            Expect.equal (ofApp f.Assigned |> List.map (fun m -> m.MovementId, m.Origin, m.Month)) [ f.AssignedLine, MoneyAssigned, "2026-10-01" ] "Zuweisen"
+            Expect.equal (ofApp f.Assigned |> List.map (fun m -> m.MovementId, m.Origin, m.Month)) [ f.AssignedLine, Decision MoneyAssigned, "2026-10-01" ] "Zuweisen"
             let pauseIds =
                 [ f.X; f.Z ]
                 |> List.collect (fun c -> ok (queryPauseEvents conn c "2026-10-01"))

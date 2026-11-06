@@ -38,11 +38,21 @@ let private isRateLimit (error: YnabError) =
 /// überholt. `internal`, damit ein Test die Sperre halten kann.
 module internal MonthGuard =
     let private gates = ConcurrentDictionary<string, SemaphoreSlim>()
+    let private waiting = ConcurrentDictionary<string, int>()
+
+    /// Wie viele Abläufe gerade an der Sperre des Monats stehen. Damit belegt ein Test, dass ein Ablauf wartet,
+    /// ohne eine feste Zeit abzuwarten.
+    let waitingFor (month: string) : int =
+        match waiting.TryGetValue month with
+        | true, count -> count
+        | _ -> 0
 
     let exclusive (month: string) (work: Async<'a>) : Async<'a> =
         async {
             let gate = gates.GetOrAdd(month, fun _ -> new SemaphoreSlim(1, 1))
+            waiting.AddOrUpdate(month, 1, fun _ count -> count + 1) |> ignore
             do! gate.WaitAsync() |> Async.AwaitTask
+            waiting.AddOrUpdate(month, 0, fun _ count -> count - 1) |> ignore
             try
                 return! work
             finally
@@ -88,6 +98,28 @@ type ObserveFailure =
 [<Literal>]
 let ObservationNotRecordedText = "Abgleich mit YNAB nicht festgehalten"
 
+/// Die Meldung an den Aufrufer der Vorschau, wenn der Monats-Stream nicht lesbar ist. Die Ursache bleibt im
+/// Server-Log.
+[<Literal>]
+let MonthStreamUnreadableText = "Monats-Stream nicht lesbar"
+
+/// Liest den Monats-Stream über eine Verbindung aus `connect` und lässt `work` auf derselben Verbindung mit der
+/// Monats-Id und den Ereignissen arbeiten. Jeder Fehler (Monat ungültig, Verbindung, Lesen, `work`) kommt als
+/// `Error` mit der Ursache.
+let private onMonthStream
+    (connect: unit -> SqliteConnection)
+    (monthKey: string)
+    (work: SqliteConnection -> string -> (Guid * BudgetEvent) list -> 'a)
+    : Result<'a, string> =
+    try
+        match monthIdOf monthKey with
+        | Error message -> Error message
+        | Ok monthId ->
+            use conn = connect ()
+            loadMonthEventsOn conn monthKey |> Result.map (work conn monthId)
+    with ex ->
+        Error ex.Message
+
 /// Hält auf dem gerade gelesenen Monat fest, was `Assignments.observe` ergibt: Übernahme, falls noch keine im
 /// Stream liegt, und die Echo-Regel, in einem Append ohne Befehls-Id. `now` ist der Zeitpunkt (UTC), die
 /// Übernahme wird nicht zurückdatiert.
@@ -97,19 +129,10 @@ let private recordObservationWith
     (monthKey: string)
     (raw: YnabMonth)
     : Result<MonthFold, string> =
-    try
-        match monthIdOf monthKey with
-        | Error message -> Error message
-        | Ok monthId ->
-            use conn = connect ()
-            match loadMonthEventsOn conn monthKey with
-            | Error message -> Error message
-            | Ok events ->
-                let added, fold = observe monthId events raw
-                appendMonthEventsOn conn now monthKey added
-                Ok fold
-    with ex ->
-        Error ex.Message
+    onMonthStream connect monthKey (fun conn monthId events ->
+        let added, fold = observe monthId events raw
+        appendMonthEventsOn conn now monthKey added
+        fold)
 
 /// `observeMonth` ohne Sperre, für Abläufe, die sie schon halten: ein `FetchMonth`, dann festhalten.
 let private observeUnguarded
@@ -194,13 +217,14 @@ let ensureTakenOver
 /// die Übernahme, die Beobachtung oder das Lesen der Pausen, kommt außen ein `Error`, und der Befehl entscheidet
 /// nichts. Neben dem Monat kommen die gespeicherten BB-Pausen (auch ohne Target, `planPause`) und die Faltung.
 let private preparedMonth
+    (connect: unit -> SqliteConnection)
     (loadPaused: string -> Async<Result<Set<Guid>, string>>)
     (port: YnabPort)
     (now: DateTime)
     (monthKey: string)
     : Async<Result<BudgetMonth * Set<Guid> * MonthFold, YnabError>> =
     async {
-        match! observeUnguarded global.Persistence.getConnection port.FetchMonth now monthKey with
+        match! observeUnguarded connect port.FetchMonth now monthKey with
         | Error (FetchFailed e) -> return Error e
         | Error (NotRecorded _) -> return Error (YnabError.LocalReadFailed ObservationNotRecordedText)
         | Ok observed ->
@@ -221,29 +245,25 @@ let private planOf (month: BudgetMonth) : Result<TargetPreview, YnabError> =
     | Error message -> Error (YnabError.RefusedByBb message)
 
 /// Die Vorschau: liest den Monat unter der Sperre und plant auf BBs Soll. Übernahme und Echo-Regel laufen nur im
-/// Speicher; die Vorschau schreibt weder nach YNAB noch in die Datenbank.
-let preview (port: YnabPort) (monthKey: string) : Async<Result<TargetPreview, YnabError>> =
+/// Speicher; die Vorschau schreibt weder nach YNAB noch in die Datenbank. Liest über `connect`.
+let previewWith (connect: unit -> SqliteConnection) (port: YnabPort) (monthKey: string) : Async<Result<TargetPreview, YnabError>> =
     MonthGuard.exclusive monthKey (async {
         match! port.FetchMonth monthKey with
         | Error e -> return Error e
         | Ok raw ->
-            let events =
-                try
-                    use conn = global.Persistence.getConnection ()
-                    loadMonthEventsOn conn monthKey
-                with ex ->
-                    Error ex.Message
-            match events, monthIdOf monthKey with
-            | Error reason, _
-            | _, Error reason ->
+            match onMonthStream connect monthKey (fun _ monthId events -> observe monthId events raw |> snd) with
+            | Error reason ->
                 logReadFailure $"Vorschau {monthKey}: Monats-Stream lesen" reason
-                return Error (YnabError.LocalReadFailed ObservationNotRecordedText)
-            | Ok events, Ok monthId ->
-                let _, fold = observe monthId events raw
-                match! loadPausedCategories monthKey with
+                return Error (YnabError.LocalReadFailed MonthStreamUnreadableText)
+            | Ok fold ->
+                match! loadPausedCategoriesWith connect monthKey with
                 | Error message -> return Error (YnabError.LocalReadFailed message)
                 | Ok paused -> return planOf (toBudgetMonthWith (Some fold.Categories) paused raw)
     })
+
+/// `previewWith` auf der Datenbank der Anwendung.
+let preview (port: YnabPort) (monthKey: string) : Async<Result<TargetPreview, YnabError>> =
+    previewWith global.Persistence.getConnection port monthKey
 
 // ============================================
 // Berichte
@@ -346,6 +366,7 @@ let private belongsTo
 /// Unter der Sperre vor allem anderen: Ist die Befehls-Id festgehalten, kommt die Antwort aus `answer`, ohne
 /// YNAB zu lesen und ohne etwas anzuhängen. Sonst läuft `fresh`.
 let private onceFor
+    (connect: unit -> SqliteConnection)
     (commandId: Guid option)
     (answer: EventStore.RecordedEvent -> Async<'r>)
     (fresh: Async<'r>)
@@ -354,7 +375,7 @@ let private onceFor
         match commandId with
         | None -> return! fresh
         | Some id ->
-            match! findCommand global.Persistence.getConnection id with
+            match! findCommand connect id with
             | Some recorded -> return! answer recorded
             | None -> return! fresh
     }
@@ -363,11 +384,12 @@ let private onceFor
 /// dieselbe Id in zwei Monaten): die Antwort auf demselben Weg aus dem Stream. Fehlt ihr Ereignis, sind
 /// `processed_commands` und `events` uneins.
 let private answerAgain
+    (connect: unit -> SqliteConnection)
     (commandId: Guid)
     (answer: EventStore.RecordedEvent -> Async<'r>)
     : Async<'r> =
     async {
-        match! findCommand global.Persistence.getConnection commandId with
+        match! findCommand connect commandId with
         | Some recorded -> return! answer recorded
         | None -> return failwith $"Befehls-Id {commandId} als festgehalten gemeldet, ihr Ereignis fehlt"
     }
@@ -387,6 +409,7 @@ let private moveCategories (request: MoveRequest) : Guid list =
 /// Der Bericht der festgehaltenen Entscheidung, oder `None`, wenn sie nicht zum Auftrag gehört (`belongsTo`).
 /// Eine Wiederholung trägt Zu verteilen nicht: die erste Antwort las es neu, hier wird YNAB nicht gelesen.
 let private storedReport
+    (connect: unit -> SqliteConnection)
     (monthKey: string)
     (expectedTypes: string list)
     (expectedCategories: Guid list option)
@@ -394,7 +417,7 @@ let private storedReport
     : Async<Result<ApplyReport, YnabError> option> =
     async {
         if belongsTo monthKey expectedTypes expectedCategories recorded then
-            let! report = reportWith global.Persistence.getConnection recorded.EventId monthKey None
+            let! report = reportWith connect recorded.EventId monthKey None
             return Some report
         else
             return None
@@ -403,13 +426,14 @@ let private storedReport
 /// Die Antwort auf eine Wiederholung von Verschieben und Zuweisen: der Bericht der festgehaltenen
 /// Entscheidung, eine fremde Id als innerer `Error`.
 let private decisionAnswer
+    (connect: unit -> SqliteConnection)
     (monthKey: string)
     (expectedTypes: string list)
     (expectedCategories: Guid list)
     (recorded: EventStore.RecordedEvent)
     : Async<Result<Result<ApplyReport, string>, YnabError>> =
     async {
-        match! storedReport monthKey expectedTypes (Some expectedCategories) recorded with
+        match! storedReport connect monthKey expectedTypes (Some expectedCategories) recorded with
         | Some report -> return report |> Result.map Ok
         | None -> return Ok (Error ForeignCommandText)
     }
@@ -418,6 +442,7 @@ let private decisionAnswer
 /// übrigen werden trotzdem gesendet. Bei 429 bricht der Lauf ab: der Rest wird als
 /// fehlgeschlagen mit Grund "Rate-Limit" festgehalten, schon Geschriebenes bleibt unberührt.
 let private sendAll
+    (connect: unit -> SqliteConnection)
     (port: YnabPort)
     (now: DateTime)
     (monthKey: string)
@@ -427,13 +452,13 @@ let private sendAll
         let rateLimited = ref false
         for m in movements do
             if rateLimited.Value then
-                do! recordWriteBack m now (WriteBackFailed "Rate-Limit")
+                do! recordWriteBackWith connect m now (WriteBackFailed "Rate-Limit")
             else
                 match! port.SetAssigned monthKey m.CategoryId m.NewAssigned with
-                | Ok () -> do! recordWriteBack m now WrittenBack
+                | Ok () -> do! recordWriteBackWith connect m now WrittenBack
                 | Error e ->
                     if isRateLimit e then rateLimited.Value <- true
-                    do! recordWriteBack m now (WriteBackFailed (ynabErrorText e))
+                    do! recordWriteBackWith connect m now (WriteBackFailed (ynabErrorText e))
     }
 
 // ============================================
@@ -444,7 +469,8 @@ let private sendAll
 /// vergleichen. Weicht etwas ab, wird nichts geschrieben und die frische Vorschau
 /// zurückgegeben. Sonst zuerst alle Bewegungen festhalten, dann die PATCHes nacheinander
 /// senden (ADR 0050/0055). Danach liest der Bericht Zu verteilen erneut.
-let apply
+let applyWith
+    (connect: unit -> SqliteConnection)
     (port: YnabPort)
     (now: DateTime)
     (monthKey: string)
@@ -454,12 +480,12 @@ let apply
     // lehnt in diesem Ablauf wie bei `plan` über den äußeren Fehler ab.
     let answer (recorded: EventStore.RecordedEvent) =
         async {
-            match! storedReport monthKey [ EventTypes.decisionOf TargetsApplied ] None recorded with
+            match! storedReport connect monthKey [ EventTypes.decisionOf TargetsApplied ] None recorded with
             | Some report -> return report |> Result.map Applied
             | None -> return Error (YnabError.RefusedByBb ForeignCommandText)
         }
-    MonthGuard.exclusive monthKey (onceFor shown.CommandId answer (async {
-        match! preparedMonth loadPausedCategories port now monthKey with
+    MonthGuard.exclusive monthKey (onceFor connect shown.CommandId answer (async {
+        match! preparedMonth connect (loadPausedCategoriesWith connect) port now monthKey with
         | Error e -> return Error e
         | Ok (month, _, fold) ->
             match planOf month with
@@ -481,14 +507,18 @@ let apply
                           CategoryName = s.CategoryName
                           Underfunded = toMilliunits s.Underfunded })
                 let withdrawn = withdrawalsFor fold (lines |> List.map (fun l -> l.CategoryId))
-                match! recordDecision shown.CommandId now fresh.Month TargetsApplied lines skipped withdrawn with
-                | CommandAlreadyProcessed (id, _) -> return! answerAgain id answer
+                match! recordDecisionWith connect shown.CommandId now fresh.Month TargetsApplied lines skipped withdrawn with
+                | CommandAlreadyProcessed (id, _) -> return! answerAgain connect id answer
                 | Recorded movements ->
-                    do! sendAll port now fresh.Month movements
+                    do! sendAll connect port now fresh.Month movements
                     let applicationId = (List.head movements).ApplicationId
-                    let! report = reportOf global.Persistence.getConnection port applicationId fresh.Month
+                    let! report = reportOf connect port applicationId fresh.Month
                     return report |> Result.map Applied
     }))
+
+/// `applyWith` auf der Datenbank der Anwendung.
+let apply (port: YnabPort) (now: DateTime) (monthKey: string) (shown: TargetPreview) : Async<Result<ApplyResult, YnabError>> =
+    applyWith global.Persistence.getConnection port now monthKey shown
 
 // ============================================
 // Verschieben (budgeting-afd8h, ADR 0069)
@@ -506,6 +536,7 @@ let SourceHeldBack = SourceHeldBackText
 /// Quelle sinkt, käme das Geld still aus Zu verteilen (ADR 0069 Punkt 3). Die übrigen Zeilen
 /// stehen danach als fehlgeschlagen da. Anders als `sendAll`, wo jede Zeile für sich steht.
 let private sendInOrder
+    (connect: unit -> SqliteConnection)
     (port: YnabPort)
     (now: DateTime)
     (monthKey: string)
@@ -515,18 +546,19 @@ let private sendInOrder
         let stopped = ref false
         for m in movements do
             if stopped.Value then
-                do! recordWriteBack m now (WriteBackFailed TargetHeldBack)
+                do! recordWriteBackWith connect m now (WriteBackFailed TargetHeldBack)
             else
                 match! port.SetAssigned monthKey m.CategoryId m.NewAssigned with
-                | Ok () -> do! recordWriteBack m now WrittenBack
+                | Ok () -> do! recordWriteBackWith connect m now WrittenBack
                 | Error e ->
                     stopped.Value <- true
-                    do! recordWriteBack m now (WriteBackFailed (ynabErrorText e))
+                    do! recordWriteBackWith connect m now (WriteBackFailed (ynabErrorText e))
     }
 
 /// Hält den Plan fest (eine Transaktion, gemeinsame `ApplicationId`) und sendet nacheinander. Der
 /// Bericht liest Zu verteilen nicht neu, die Seite lädt den Monat ohnehin.
 let private recordAndSend
+    (connect: unit -> SqliteConnection)
     (port: YnabPort)
     (now: DateTime)
     (monthKey: string)
@@ -544,11 +576,11 @@ let private recordAndSend
                   OldAssigned = toMilliunits l.OldAssigned
                   NewAssigned = toMilliunits l.NewAssigned })
         let withdrawn = withdrawalsFor fold (lines |> List.map (fun l -> l.CategoryId))
-        match! recordDecision commandId now monthKey plan.Origin lines [] withdrawn with
-        | CommandAlreadyProcessed (id, _) -> return! answerAgain id answer
+        match! recordDecisionWith connect commandId now monthKey plan.Origin lines [] withdrawn with
+        | CommandAlreadyProcessed (id, _) -> return! answerAgain connect id answer
         | Recorded movements ->
-            do! sendInOrder port now monthKey movements
-            let! report = reportWith global.Persistence.getConnection (List.head movements).ApplicationId monthKey None
+            do! sendInOrder connect port now monthKey movements
+            let! report = reportWith connect (List.head movements).ApplicationId monthKey None
             return report |> Result.map Ok
     }
 
@@ -557,35 +589,41 @@ let private recordAndSend
 /// nacheinander senden. Außen `Error`: der Monat war nicht lesbar. Innen `Error`: der Auftrag ist
 /// abgelehnt. In beiden Fällen ist nichts geschrieben. Der Bericht liest Zu verteilen nicht neu,
 /// weil die Seite den Monat ohnehin neu lädt und jeder Aufruf das Sheet langsamer machte.
-let moveMoney
+let moveMoneyWith
+    (connect: unit -> SqliteConnection)
     (port: YnabPort)
     (now: DateTime)
     (monthKey: string)
     (request: MoveRequest)
     : Async<Result<Result<ApplyReport, string>, YnabError>> =
-    let answer = decisionAnswer monthKey (moveEventTypes request) (moveCategories request)
-    MonthGuard.exclusive monthKey (onceFor request.CommandId answer (async {
-        match! preparedMonth loadPausedCategories port now monthKey with
+    let answer = decisionAnswer connect monthKey (moveEventTypes request) (moveCategories request)
+    MonthGuard.exclusive monthKey (onceFor connect request.CommandId answer (async {
+        match! preparedMonth connect (loadPausedCategoriesWith connect) port now monthKey with
         | Error e -> return Error e
         | Ok (month, _, fold) ->
             match planMove month request with
             | Error message -> return Ok (Error message)
-            | Ok plan -> return! recordAndSend port now monthKey request.CommandId answer fold plan
+            | Ok plan -> return! recordAndSend connect port now monthKey request.CommandId answer fold plan
     }))
+
+/// `moveMoneyWith` auf der Datenbank der Anwendung.
+let moveMoney (port: YnabPort) (now: DateTime) (monthKey: string) (request: MoveRequest) =
+    moveMoneyWith global.Persistence.getConnection port now monthKey request
 
 /// Zuweisen (ADR 0078): setzt das Zugewiesen absolut. Wie `moveMoney` unter der Monats-Sperre und
 /// mit denselben Fehlerwegen. Der gelesene Wert ist der alte, ein Vergleich mit dem gezeigten Stand
 /// findet nicht statt. Steht YNAB schon auf dem Wert, entsteht nichts: Der Bericht hat keine Zeilen,
 /// und `Guid.Empty` sagt, dass es keine Anwendung gibt, die man erneut senden könnte.
-let assignMoney
+let assignMoneyWith
+    (connect: unit -> SqliteConnection)
     (port: YnabPort)
     (now: DateTime)
     (monthKey: string)
     (request: AssignRequest)
     : Async<Result<Result<ApplyReport, string>, YnabError>> =
-    let answer = decisionAnswer monthKey [ EventTypes.decisionOf MoneyAssigned ] [ request.CategoryId ]
-    MonthGuard.exclusive monthKey (onceFor request.CommandId answer (async {
-        match! preparedMonth loadPausedCategories port now monthKey with
+    let answer = decisionAnswer connect monthKey [ EventTypes.decisionOf MoneyAssigned ] [ request.CategoryId ]
+    MonthGuard.exclusive monthKey (onceFor connect request.CommandId answer (async {
+        match! preparedMonth connect (loadPausedCategoriesWith connect) port now monthKey with
         | Error e -> return Error e
         | Ok (month, _, fold) ->
             match planAssign month request with
@@ -597,8 +635,12 @@ let assignMoney
                       Lines = []
                       ActualToBeBudgeted = None }
                 return Ok (Ok unchanged)
-            | Ok (Some plan) -> return! recordAndSend port now monthKey request.CommandId answer fold plan
+            | Ok (Some plan) -> return! recordAndSend connect port now monthKey request.CommandId answer fold plan
     }))
+
+/// `assignMoneyWith` auf der Datenbank der Anwendung.
+let assignMoney (port: YnabPort) (now: DateTime) (monthKey: string) (request: AssignRequest) =
+    assignMoneyWith global.Persistence.getConnection port now monthKey request
 
 // ============================================
 // Target pausieren (budgeting-t6p8z, ADR 0073, ADR 0079)
@@ -610,6 +652,7 @@ let assignMoney
 /// wird nur gelesen. Außen `Error`: der Monat war nicht lesbar. Innen `Error`: abgelehnt. In beiden
 /// Fällen ist nichts geschrieben. `currentMonth` ist der laufende Monat ("YYYY-MM-01").
 let setTargetPauseWith
+    (connect: unit -> SqliteConnection)
     (loadPaused: string -> Async<Result<Set<Guid>, string>>)
     (port: YnabPort)
     (now: DateTime)
@@ -631,8 +674,8 @@ let setTargetPauseWith
                 if belongsTo monthKey [ expected ] (Some [ request.CategoryId ]) recorded then return Ok (Ok answered)
                 else return Ok (Error ForeignCommandText)
             }
-        MonthGuard.exclusive monthKey (onceFor request.CommandId answer (async {
-            match! preparedMonth loadPaused port now monthKey with
+        MonthGuard.exclusive monthKey (onceFor connect request.CommandId answer (async {
+            match! preparedMonth connect loadPaused port now monthKey with
             | Error e -> return Error e
             | Ok (month, pausedInBbRaw, _) ->
                 match planPause month pausedInBbRaw request with
@@ -640,15 +683,15 @@ let setTargetPauseWith
                 | Ok plan ->
                     match plan.Event with
                     | Some event ->
-                        match! recordPause request.CommandId now monthKey plan.Category.Id plan.Category.Name event with
-                        | CommandAlreadyProcessed (id, _) -> return! answerAgain id answer
+                        match! recordPauseWith connect request.CommandId now monthKey plan.Category.Id plan.Category.Name event with
+                        | CommandAlreadyProcessed (id, _) -> return! answerAgain connect id answer
                         | Recorded _ -> return Ok (Ok plan.After)
                     | None -> return Ok (Ok plan.After)
         }))
 
 /// `setTargetPauseWith` mit den Pausen aus der Datenbank der Anwendung.
 let setTargetPause (port: YnabPort) (now: DateTime) (currentMonth: string) (monthKey: string) (request: TargetPauseRequest) =
-    setTargetPauseWith loadPausedCategories port now currentMonth monthKey request
+    setTargetPauseWith global.Persistence.getConnection loadPausedCategories port now currentMonth monthKey request
 
 // ============================================
 // Target ändern und entfernen (budgeting-k8wq3, ADR 0072, ADR 0080)

@@ -316,9 +316,9 @@ let textTests =
                       CategoryName = "Lebensmittel"
                       OldAssigned = eur oldAssigned
                       NewAssigned = eur newAssigned
-                      Counterpart = (if origin = MovementOrigin.MoneyMoved then Some "Urlaub" else None)
+                      Counterpart = (if origin = (Decision MovementOrigin.MoneyMoved) then Some "Urlaub" else None)
                       Latest = None; ReplacedBy = None }
-            for origin in [ MovementOrigin.MoneyMoved; MovementOrigin.MoneyAssigned; MovementOrigin.TargetsApplied ] do
+            for origin in [ (Decision MovementOrigin.MoneyMoved); (Decision MovementOrigin.MoneyAssigned); (Decision MovementOrigin.TargetsApplied) ] do
                 let change entry = (historyEntryLine entry).Change |> Option.get
                 let up = change (movement origin 30m 50m)
                 let down = change (movement origin 50m 30m)

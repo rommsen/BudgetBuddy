@@ -90,6 +90,19 @@ let private echoTests =
                   BudgetEvent.AssignmentWriteBackSupersededInYnab (ref' decision c) ]
                 "Beobachtung und ersetzt"
         }
+        // Review-Fund dgrp7 (QA 1): Soll gleich bestätigtem Stand bei offener Rückschreibung. Prüfte die Regel den
+        // bestätigten Stand vor dem Soll, bliebe B offen, obwohl YNAB ihren Wert zeigt.
+        test "A (10 auf 20) offen, B (20 auf 10) zieht A zurück, YNAB zeigt 10: B ist geschrieben" {
+            let a, b = Guid.NewGuid(), Guid.NewGuid()
+            let fold =
+                foldMonth
+                    [ Guid.Empty, takeover [ c, 10000L ]
+                      a, assigned c 10000L 20000L
+                      b, assigned c 20000L 10000L
+                      Guid.Empty, BudgetEvent.AssignmentWriteBackWithdrawn (ref' a c) ]
+            Expect.equal (stateOf fold c) (state 10000L 10000L (Some b)) "B offen, Soll gleich bestätigtem Stand"
+            Expect.equal (echo (stateOf fold c) 10000L) [ BudgetEvent.AssignmentWrittenBackToYnab (ref' b c) ] "geschrieben"
+        }
         test "Eine Kategorie, die in der YNAB-Antwort fehlt, ergibt nichts" {
             let fold = foldMonth (withIds [ takeover [ c, 10000L ] ])
             Expect.isEmpty (echoEvents monthId fold (raw [])) "kein Ereignis"
@@ -180,7 +193,6 @@ let private foldTests =
         test "Ereignisse vor der Übernahme sind Historie und wirken nicht" {
             let id, e = decide 50000L 0L
             Expect.equal (after [ id, e; start ]) (state 10000L 10000L None) "nur ab der Übernahme"
-            Expect.isFalse (foldMonth [ id, e ]).TakenOver "ohne Übernahme keine Faltung"
             Expect.isEmpty (foldMonth [ id, e ]).Categories "leer"
         }
     ]
@@ -205,8 +217,6 @@ let private ruleTests =
                 (echoEvents monthId afterB (raw [ c, 30000L ]))
                 [ BudgetEvent.AssignmentWrittenBackToYnab (ref' b c) ]
                 "YNAB 30: nur B geschrieben"
-            let lineA = { CategoryId = c; Latest = Some ChangedInYnab; Open = (stateOf afterB c).Open = Some a; InYnab = true }
-            Expect.equal (planRetry false [ lineA ]) [ Leave ] "A sendet nichts"
         }
         test "Ohne offene Rückschreibung zieht eine Entscheidung nichts zurück" {
             Expect.isEmpty (withdrawalsFor (foldMonth [ Guid.Empty, takeover [ c, 10000L ] ]) [ c ]) "nichts"
@@ -283,7 +293,6 @@ let private takeoverTests =
             let c = Guid.NewGuid()
             let added, fold = observe monthId [] (raw [ c, 40000L ])
             Expect.equal (typesOf added) [ "BudgetTakenOverFromYnab" ] "nur die Übernahme"
-            Expect.isTrue fold.TakenOver "übernommen"
             Expect.equal (stateOf fold c) (state 40000L 40000L None) "Startstand"
         }
     ]
@@ -354,10 +363,7 @@ let private monthTests =
                     Set.empty
                     { raw [] with Categories = [ { category c (Some 5000L) with Name = "Urlaub" }; category d (Some 5000L) ] }
             match planTargetApplication month with
-            | Error message ->
-                Expect.stringStarts message TargetsOpenWriteBackText "Grund"
-                Expect.stringContains message "Urlaub" "nennt die Kategorie"
-                Expect.stringContains message "erneut senden" "Weg"
+            | Error message -> Expect.equal message $"{TargetsOpenWriteBackText} Urlaub." "Grund, nur die Kategorie mit Fehlbetrag und offener Rückschreibung"
             | Ok preview -> failtest $"Ablehnung erwartet: {preview}"
             let fine = toBudgetMonthWith (Some fold) Set.empty { raw [] with Categories = [ category c None; category d (Some 5000L) ] }
             Expect.isOk (planTargetApplication fine) "offen ohne Fehlbetrag stört nicht"

@@ -281,9 +281,6 @@ let private decisions (rows: LegacyMovementRow list) : Pending list * Map<string
                     match group with
                     | [ single ] -> BudgetEvent.AssignmentChangedInBb { Month = monthId; Line = line single }
                     | _ -> abort table first.row_id $"Zuweisen {applicationId} hat {group.Length} Zeilen statt 1"
-                | Ok (ObservedInYnab | TakenOverFromYnab as origin) ->
-                    // `originOfText` kennt nur die drei früheren Herkünfte; Beobachtung und Übernahme gab es dort nie.
-                    abort table first.row_id $"Herkunft {originText origin} gibt es im Altbestand nicht"
                 | Error message -> abort table first.row_id message
             { OccurredAt = first.occurred_at
               Rank = 0

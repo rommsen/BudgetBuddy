@@ -12,21 +12,21 @@ open Components.Budget.Inspector
 /// (budgeting-dgrp7).
 let runFilters : RunFilter list =
     [ AllRuns
-      RunsOf MovementOrigin.TargetsApplied
-      RunsOf MovementOrigin.MoneyMoved
-      RunsOf MovementOrigin.MoneyAssigned
-      RunsOf MovementOrigin.ObservedInYnab
-      RunsOf MovementOrigin.TakenOverFromYnab ]
+      RunsOf (Decision MovementOrigin.TargetsApplied)
+      RunsOf (Decision MovementOrigin.MoneyMoved)
+      RunsOf (Decision MovementOrigin.MoneyAssigned)
+      RunsOf HistoryOrigin.ObservedInYnab
+      RunsOf HistoryOrigin.TakenOverFromYnab ]
 
 let runFilterLabel (filter: RunFilter) : string =
     match filter with
     | AllRuns -> "Alle"
-    | RunsOf MovementOrigin.TargetsApplied -> "Targets anwenden"
-    | RunsOf MovementOrigin.MoneyMoved -> "Verschieben"
-    | RunsOf MovementOrigin.MoneyAssigned -> "Zuweisen"
-    | RunsOf MovementOrigin.ObservedInYnab -> "In YNAB zugewiesen"
+    | RunsOf (Decision MovementOrigin.TargetsApplied) -> "Targets anwenden"
+    | RunsOf (Decision MovementOrigin.MoneyMoved) -> "Verschieben"
+    | RunsOf (Decision MovementOrigin.MoneyAssigned) -> "Zuweisen"
+    | RunsOf HistoryOrigin.ObservedInYnab -> "In YNAB zugewiesen"
     // Wie die Zeile der Übernahme ("Aus YNAB übernommen, N Kategorien").
-    | RunsOf MovementOrigin.TakenOverFromYnab -> "Aus YNAB übernommen"
+    | RunsOf HistoryOrigin.TakenOverFromYnab -> "Aus YNAB übernommen"
 
 /// Die Durchläufe, die der Filter zeigt.
 let shownRuns (filter: RunFilter) (runs: HistoryRun list) : HistoryRun list =
@@ -36,7 +36,7 @@ let shownRuns (filter: RunFilter) (runs: HistoryRun list) : HistoryRun list =
 
 /// Nur ein Durchlauf Targets anwenden klappt auf: Verschieben und Zuweisen stehen ganz in ihrer Zeile.
 let expandable (run: HistoryRun) : bool =
-    run.Origin = MovementOrigin.TargetsApplied && not (List.isEmpty run.Lines)
+    run.Origin = Decision MovementOrigin.TargetsApplied && not (List.isEmpty run.Lines)
 
 /// Steht der Durchlauf aufgeklappt? Nur ein aufklappbarer kann offen sein.
 let isRunOpen (history: GeneralHistory) (run: HistoryRun) : bool =
@@ -47,22 +47,20 @@ let isRunOpen (history: GeneralHistory) (run: HistoryRun) : bool =
 let emptyText (filter: RunFilter) : string =
     match filter with
     | AllRuns -> "Noch keine Durchläufe. Targets anwenden, Verschieben, Zuweisen und Änderungen aus YNAB erscheinen hier."
-    | RunsOf MovementOrigin.ObservedInYnab -> "Keine Zuweisungen in YNAB"
-    | RunsOf MovementOrigin.TakenOverFromYnab -> "Keine Übernahme aus YNAB"
-    | RunsOf MovementOrigin.TargetsApplied
-    | RunsOf MovementOrigin.MoneyMoved
-    | RunsOf MovementOrigin.MoneyAssigned -> "Keine Durchläufe dieser Art"
+    | RunsOf HistoryOrigin.ObservedInYnab -> "Keine Zuweisungen in YNAB"
+    | RunsOf HistoryOrigin.TakenOverFromYnab -> "Keine Übernahme aus YNAB"
+    | RunsOf (Decision _) -> "Keine Durchläufe dieser Art"
 
 /// Text und Klassen des Betrags rechts in der Zeile (budgeting-c6vn4, A5), über dieselbe Funktion wie die
 /// Einzelzeilen. Eine Verschiebung trägt kein Vorzeichen: ihre Richtung steht im Text.
 let runAmount (run: HistoryRun) : string * string =
     match run.Origin with
-    | MovementOrigin.MoneyMoved -> Money.formatAmountText false true run.Amount.Amount run.Amount.Currency, Money.signedListAmountClass
+    | Decision MovementOrigin.MoneyMoved -> Money.formatAmountText false true run.Amount.Amount run.Amount.Currency, Money.signedListAmountClass
     // Eine Summe ohne Richtung: ohne Vorzeichen, mit Währung wie Verschieben.
-    | MovementOrigin.TakenOverFromYnab -> Money.formatAmountText false true run.Amount.Amount run.Amount.Currency, Money.signedListAmountClass
-    | MovementOrigin.TargetsApplied
-    | MovementOrigin.MoneyAssigned
-    | MovementOrigin.ObservedInYnab -> historyChangeAmount run.Amount
+    | HistoryOrigin.TakenOverFromYnab -> Money.formatAmountText false true run.Amount.Amount run.Amount.Currency, Money.signedListAmountClass
+    | Decision MovementOrigin.TargetsApplied
+    | Decision MovementOrigin.MoneyAssigned
+    | HistoryOrigin.ObservedInYnab -> historyChangeAmount run.Amount
 
 /// Was als Stand eines Durchlaufs dasteht.
 type RunBadge =

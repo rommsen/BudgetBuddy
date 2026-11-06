@@ -1336,7 +1336,7 @@ test("[layout] Tab Historie am Handy: langer Fehlgrund kürzt mit Ellipse, Datum
         MovementId: "00000000-0000-0000-0000-00000000d201",
         ApplicationId: "00000000-0000-0000-0000-00000000d202",
         OccurredAt: "2026-10-03T09:30:00.0000000Z",
-        Origin: "MoneyAssigned",
+        Origin: { Decision: "MoneyAssigned" },
         Month: CURRENT,
         CategoryId: essen,
         CategoryName: "Essen k7wmd",

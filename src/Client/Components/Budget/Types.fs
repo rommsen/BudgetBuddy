@@ -148,7 +148,7 @@ type TargetCall =
 /// Der Filter nach Art in der allgemeinen Historie (budgeting-h7q4v).
 type RunFilter =
     | AllRuns
-    | RunsOf of MovementOrigin
+    | RunsOf of HistoryOrigin
 
 /// Die allgemeine Historie `#/budget/history`. Liegt auf der Budget-Seite, damit die Rückkehr den
 /// Monat behält.

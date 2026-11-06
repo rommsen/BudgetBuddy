@@ -37,7 +37,7 @@ const movement = (n, group, origin, name, oldAssigned, newAssigned, latest, coun
   MovementId: guid(100 + n),
   ApplicationId: guid(group),
   OccurredAt: "2026-11-03T09:30:00.0000000Z",
-  Origin: origin,
+  Origin: { Decision: origin },
   Month: "2026-11-01",
   CategoryId: guid(200 + n),
   CategoryName: name,

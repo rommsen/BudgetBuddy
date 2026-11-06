@@ -24,7 +24,7 @@ let private movement origin counterpart oldAssigned newAssigned latest : History
     { MovementId = Guid.NewGuid()
       ApplicationId = Guid.NewGuid()
       OccurredAt = DateTime(2026, 10, 3, 9, 30, 0, DateTimeKind.Utc)
-      Origin = origin
+      Origin = Decision origin
       Month = "2026-10-01"
       CategoryId = Guid.NewGuid()
       CategoryName = "Lebensmittel"
@@ -302,7 +302,7 @@ let queryTests =
             Expect.equal (found |> List.map (fun m -> m.MovementId)) [ assigned.Id; moveOut.Id; targets.Id ] "nur A im Oktober, neueste zuerst"
             Expect.equal (found |> List.map (fun m -> m.Latest)) [ None; Some ChangedInYnab; Some Written ] "jüngstes Ergebnis"
             Expect.equal (found |> List.map (fun m -> m.Counterpart)) [ None; Some "B"; None ] "Gegenseite nur bei der Verschiebung"
-            Expect.equal (found |> List.map (fun m -> m.Origin)) [ MoneyAssigned; MoneyMoved; TargetsApplied ] "Herkunft"
+            Expect.equal (found |> List.map (fun m -> m.Origin)) [ Decision MoneyAssigned; Decision MoneyMoved; Decision TargetsApplied ] "Herkunft"
             Expect.equal ((List.item 1 found).NewAssigned) (eur 30m) "Beträge in Euro"
 
         testCase "Mit Filter nach Herkunft und ohne Kategorie und Monat: alle Bewegungen dieser Herkunft" <| fun () ->
@@ -321,7 +321,7 @@ let queryTests =
                 let ids = found |> List.map (fun m -> m.MovementId) |> Set.ofList
                 Expect.isTrue (ids.Contains first.Id && ids.Contains second.Id) "beide Monate und Kategorien"
                 Expect.isFalse (ids.Contains other.Id) "keine andere Herkunft"
-                Expect.isTrue (found |> List.forall (fun m -> m.Origin = MoneyAssigned)) "nur Zuweisen"
+                Expect.isTrue (found |> List.forall (fun m -> m.Origin = Decision MoneyAssigned)) "nur Zuweisen"
 
         testCase "Ausgaben: 6 Monatssummen bis einschließlich des gezeigten, netto, ohne gelöschte, mit Split-Anteil" <| fun () ->
             let id = Guid.NewGuid()

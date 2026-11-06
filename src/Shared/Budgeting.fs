@@ -552,27 +552,31 @@ let dateText (iso: string) : string =
 // Historie je Kategorie (budgeting-dyn8g)
 // ============================================
 
-/// Woher eine Budget-Bewegung stammt (ADR 0065, ADR 0069). Die Historie zeigt und filtert danach.
+/// Welche Entscheidung in BB eine Budget-Bewegung festhielt (ADR 0065, ADR 0069). Nur Entscheidungen werden
+/// nach YNAB geschrieben.
 type MovementOrigin =
     | TargetsApplied
     /// Zwischen zwei Kategorien.
     | MoneyMoved
     /// Eine Seite ist Zu verteilen.
     | MoneyAssigned
-    /// Eine Zuweisung, die BB in YNAB sah, nicht selbst schrieb (Beobachtung, budgeting-dgrp7).
+
+/// Woher eine Zeile der Historie stammt: eine Entscheidung in BB oder ein Ereignis des Spiegels
+/// (budgeting-dgrp7). Die Historie zeigt und filtert danach.
+type HistoryOrigin =
+    | Decision of MovementOrigin
+    /// Eine Zuweisung, die BB in YNAB sah, nicht selbst schrieb (Beobachtung).
     | ObservedInYnab
-    /// Der Startstand des Monats aus YNAB (Übernahme, budgeting-dgrp7).
+    /// Der Startstand des Monats aus YNAB (Übernahme).
     | TakenOverFromYnab
 
-/// Kommt die Bewegung aus YNAB (Beobachtung, Übernahme)? Sie geht nicht nach YNAB und hat keinen Stand
+/// Kommt die Zeile aus YNAB (Beobachtung, Übernahme)? Sie geht nicht nach YNAB und hat keinen Stand
 /// beim Schreiben.
-let isFromYnab (origin: MovementOrigin) : bool =
+let isFromYnab (origin: HistoryOrigin) : bool =
     match origin with
     | ObservedInYnab
     | TakenOverFromYnab -> true
-    | TargetsApplied
-    | MoneyMoved
-    | MoneyAssigned -> false
+    | Decision _ -> false
 
 /// Eine festgehaltene Budget-Bewegung, wie die Historie sie liest.
 type HistoryMovement = {
@@ -581,7 +585,7 @@ type HistoryMovement = {
     ApplicationId: Guid
     /// Zeitpunkt des Festhaltens, UTC.
     OccurredAt: DateTime
-    Origin: MovementOrigin
+    Origin: HistoryOrigin
     /// "YYYY-MM-01".
     Month: string
     CategoryId: Guid
@@ -809,10 +813,10 @@ let historyLine (m: HistoryMovement) : HistoryLine =
     let incoming = change.Amount >= 0m
     let text =
         match m.Origin, m.Counterpart with
-        | TargetsApplied, _ -> "Targets anwenden"
-        | MoneyAssigned, _ -> if incoming then "zugewiesen" else "zurück nach Zu verteilen"
-        | MoneyMoved, Some other -> if incoming then $"von {other}" else $"nach {other}"
-        | MoneyMoved, None -> "verschoben"
+        | Decision TargetsApplied, _ -> "Targets anwenden"
+        | Decision MoneyAssigned, _ -> if incoming then "zugewiesen" else "zurück nach Zu verteilen"
+        | Decision MoneyMoved, Some other -> if incoming then $"von {other}" else $"nach {other}"
+        | Decision MoneyMoved, None -> "verschoben"
         | ObservedInYnab, _ -> "in YNAB zugewiesen"
         | TakenOverFromYnab, _ -> $"aus YNAB übernommen, {euroText m.NewAssigned}"
     { EntryId = m.MovementId
@@ -927,7 +931,7 @@ type HistoryRun = {
     RunId: Guid
     /// Zeitpunkt des Festhaltens, UTC: der jüngste seiner Bewegungen.
     OccurredAt: DateTime
-    Origin: MovementOrigin
+    Origin: HistoryOrigin
     /// "YYYY-MM-01".
     Month: string
     /// Art, Kategorie oder Richtung, Anzahl, ohne Betrag (budgeting-c6vn4, A5): "Verschieben,
@@ -951,10 +955,10 @@ let UnknownCategoryText = "unbekannte Kategorie"
 /// Der Stand eines Durchlaufs aus den Ständen seiner Bewegungen. Bei Targets anwenden mit mehreren
 /// Kategorien zählt er die Fehlschläge, die Gründe je Kategorie stehen in den Einzelzeilen. Scheitern
 /// alle, ist er gescheitert mit dem ersten Grund (budgeting-b5n8q).
-let private runStatus (origin: MovementOrigin) (statuses: HistoryStatus list) : RunStatus =
+let private runStatus (origin: HistoryOrigin) (statuses: HistoryStatus list) : RunStatus =
     let failed = statuses |> List.choose (function HistoryFailed reason -> Some reason | _ -> None)
     match failed, origin with
-    | _ :: _, TargetsApplied when List.length failed < List.length statuses ->
+    | _ :: _, Decision TargetsApplied when List.length failed < List.length statuses ->
         RunPartlyFailed (List.length failed, List.length statuses)
     | reason :: _, _ -> RunFailed reason
     | [], _ ->
@@ -987,7 +991,7 @@ let private historyRun (movements: HistoryMovement list) : HistoryRun =
     let statuses = inOrder |> List.map movementStatus
     let text, amount, lines =
         match first.Origin with
-        | TargetsApplied ->
+        | Decision TargetsApplied ->
             let count = List.length inOrder
             let total = { first.NewAssigned with Amount = inOrder |> List.sumBy (fun m -> (changeOf m).Amount) }
             let categories = if count = 1 then "1 Kategorie" else $"{count} Kategorien"
@@ -999,7 +1003,7 @@ let private historyRun (movements: HistoryMovement list) : HistoryRun =
                   CategoryName = m.CategoryName
                   Change = changeOf m
                   Status = movementStatus m })
-        | MoneyAssigned -> $"Zuweisen, {first.CategoryName}", changeOf first, []
+        | Decision MoneyAssigned -> $"Zuweisen, {first.CategoryName}", changeOf first, []
         | ObservedInYnab -> $"In YNAB zugewiesen, {first.CategoryName}", changeOf first, []
         | TakenOverFromYnab ->
             let count = List.length inOrder
@@ -1007,7 +1011,7 @@ let private historyRun (movements: HistoryMovement list) : HistoryRun =
             $"Aus YNAB übernommen, {categories}",
             { first.NewAssigned with Amount = inOrder |> List.sumBy (fun m -> m.NewAssigned.Amount) },
             []
-        | MoneyMoved ->
+        | Decision MoneyMoved ->
             let text, amount = moveTextAndAmount inOrder
             text, amount, []
     { RunId = first.ApplicationId

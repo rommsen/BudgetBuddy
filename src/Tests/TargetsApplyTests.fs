@@ -662,6 +662,25 @@ let private wiringTests =
             Expect.isOk (api.getBudgetMonth "2019-03-01" |> run) "Monat"
             Expect.equal (List.ofSeq reads) [ "2019-03-01" ] "2019"
 
+        // Review-Fund dgrp7 (QA 7): der Live-Anschluss der Uhr beim Lesen. `budgetMonthFor` bekommt `utcNow ()`
+        // aus `budgetApiWith`; mit einer anderen Uhr trüge die Übernahme einen anderen Zeitpunkt.
+        testCase "Lesen stempelt die Übernahme mit der Uhr" <| fun () ->
+            let f, _ = fake 500000L
+            let api, _, _ = apiFor f
+            Expect.isOk (api.getBudgetMonth "2017-04-01" |> run) "Monat"
+            let stream =
+                match Budgeting.Events.monthIdOf "2017-04-01" with
+                | Ok monthId -> Budgeting.Events.streamIdOf (Budgeting.Events.MonthStream monthId)
+                | Error message -> failtest message
+            use conn = global.Persistence.getConnection ()
+            match Budgeting.Persistence.loadBudgetEventsOn conn (Budgeting.Persistence.InStream stream) with
+            | Ok events ->
+                Expect.equal
+                    (events |> List.map (fun e -> Budgeting.Events.eventTypeName e.Event, e.OccurredAt))
+                    [ "BudgetTakenOverFromYnab", lateUtc ]
+                    "Übernahme mit der Uhr"
+            | Error message -> failtest message
+
         testCase "Übernehmen schreibt in den übergebenen Monat und stempelt mit der Uhr" <| fun () ->
             let f, _ = fake 500000L
             let api, _, _ = apiFor f

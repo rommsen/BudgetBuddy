@@ -1109,15 +1109,18 @@ let private commandTests =
             let f, a, b = fake ()
             let x = Guid.NewGuid()
             f.Failures[b] <- networkDown
-            moveOk f { request (CategorySide a) (CategorySide b) 30000L with CommandId = Some x } |> ignore
-            // Übernahme und Beobachtungen des Monats hängt das Beobachten vor dem Befehl an (budgeting-dgrp7).
-            let fromYnab = [ "BudgetTakenOverFromYnab"; "AssignmentChangeObservedInYnab" ]
+            // Ein eigener Monat: die Übernahme vor dem Befehl (budgeting-dgrp7) nennt dann genau a und b, und es gibt
+            // keine Beobachtung neuer Kategorien in einem schon übernommenen Monat.
+            match run (moveMoney f.Port now "2033-05-01" { request (CategorySide a) (CategorySide b) 30000L with CommandId = Some x }) with
+            | Ok (Ok _) -> ()
+            | other -> failtest $"Bericht erwartet: {other}"
             Expect.equal
-                (BudgetEventsFixture.eventsMentioning [ a; b ] |> List.filter (fun (t, _) -> not (List.contains t fromYnab)))
-                [ "MoneyMoved", Some (x.ToString "D")
+                (BudgetEventsFixture.eventsMentioning [ a; b ])
+                [ "BudgetTakenOverFromYnab", None
+                  "MoneyMoved", Some (x.ToString "D")
                   "AssignmentWrittenBackToYnab", None
                   "AssignmentWriteBackFailed", None ]
-                "Entscheidung mit Id, Ergebnisse ohne"
+                "Übernahme und Ergebnisse ohne Id, die Entscheidung mit"
 
         testCase "Rennt die Id an der Vorabprüfung vorbei, antwortet der Server aus dem Stream und sendet nichts" <| fun () ->
             let f, a, _ = fake ()

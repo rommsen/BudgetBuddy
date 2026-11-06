@@ -10,10 +10,9 @@ open Shared.Budgeting
 open Server.Budgeting.Domain
 open Budgeting.Events
 
-/// Die Faltung eines Monats. `TakenOver`: im Stream liegt ein `BudgetTakenOverFromYnab`. Ohne Übernahme ist
-/// alles im Stream Historie und `Categories` leer.
+/// Die Faltung eines Monats: je Kategorie Soll, bestätigter Stand und offene Rückschreibung. Ohne Übernahme im
+/// Stream ist alles Historie und `Categories` leer.
 type MonthFold = {
-    TakenOver: bool
     Categories: Map<Guid, AssignmentState>
 }
 
@@ -80,10 +79,8 @@ let private applyEvent (categories: Map<Guid, AssignmentState>) (eventId: Guid, 
 /// Alles davor ist Historie und wirkt nicht (ADR 0084 Punkt 4).
 let foldMonth (events: (Guid * BudgetEvent) list) : MonthFold =
     match events |> List.tryFindIndexBack (snd >> isTakeover) with
-    | None -> { TakenOver = false; Categories = Map.empty }
-    | Some index ->
-        { TakenOver = true
-          Categories = events |> List.skip index |> List.fold applyEvent Map.empty }
+    | None -> { Categories = Map.empty }
+    | Some index -> { Categories = events |> List.skip index |> List.fold applyEvent Map.empty }
 
 // ============================================
 // Übernahme
@@ -241,7 +238,15 @@ let planRetry (inOrder: bool) (lines: RetryLine list) : RetryAction list =
             match sourceAction with
             | _ when not target.Open -> Leave
             | Close Withdrawn -> Close Withdrawn
-            | Close (WriteBackFailed _) -> single target |> function Close outcome -> Close outcome | _ -> Leave
+            | Close (WriteBackFailed _) ->
+                // Die Quelle schließt ungesendet fehlgeschlagen: sie fehlt in YNAB, oder ihr Ziel fehlt. Fehlgeschlagen
+                // schließt die Rückschreibung nicht, sie bleibt bewusst offen, und jeder weitere Lauf hängt erneut
+                // `Failed` an. Ohne geschriebene Quelle geht das Ziel nicht hinaus; fehlt es selbst in YNAB, bekommt
+                // es seinen eigenen Grund.
+                match single target with
+                | Close outcome -> Close outcome
+                | Send
+                | Leave -> Leave
             | _ when isLost source -> Close Withdrawn
             | _ -> single target
         [ sourceAction; targetAction ]

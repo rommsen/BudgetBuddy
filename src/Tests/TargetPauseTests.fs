@@ -402,7 +402,7 @@ let private flowTests =
             Expect.equal (QueryHandlers.budgetMonthWith (fun _ _ -> async { return () }) connect f.Port now month |> run) (Error unreadable) "Monat"
             Expect.equal (ynabErrorText unreadable) "BB-Daten nicht lesbar: Pausen nicht lesbar" "Text für den Nutzer"
             Expect.equal
-                (setTargetPauseWith loadPaused f.Port now current month { CategoryId = k; Intent = PauseTarget; CommandId = None } |> run)
+                (setTargetPauseWith global.Persistence.getConnection loadPaused f.Port now current month { CategoryId = k; Intent = PauseTarget; CommandId = None } |> run)
                 (Error unreadable)
                 "Pausieren"
             let port =
@@ -562,7 +562,7 @@ let private commandTests =
                 Budgeting.Persistence.recordPause (Some x) now current k "Ausflug" Domain.PauseKind.Paused |> run |> ignore
             let before = fun (_: string) -> async { return Ok Set.empty }
             let result =
-                setTargetPauseWith before f.Port now current current { CategoryId = k; Intent = PauseTarget; CommandId = Some x } |> run
+                setTargetPauseWith global.Persistence.getConnection before f.Port now current current { CategoryId = k; Intent = PauseTarget; CommandId = Some x } |> run
             Expect.equal result (Ok (Ok (Some PausedInBb))) "Antwort aus dem Ereignis"
             Expect.isEmpty f.Writes "kein Schreibaufruf"
             Expect.equal (eventRows k) [ current, "Pausiert" ] "nur das festgehaltene Ereignis"

@@ -264,27 +264,57 @@ let loadApplication (applicationId: Guid) : Async<Result<MovementState list, str
     loadApplicationWith Core.getConnection applicationId
 
 /// Eine Zeilen-Id je (Ereignis, Kategorie) für die Kategorien einer Übernahme: stabil über jedes Lesen, ohne
-/// sie zu speichern.
+/// sie zu speichern. Sie ist nur der Anzeigeschlüssel der Historienzeile (`MovementId`); kein Ergebnis-Ereignis
+/// und keine andere Abfrage verweist auf sie, eine Übernahme wird nicht nach YNAB geschrieben.
 let private takeoverLineId (eventId: Guid) (categoryId: Guid) : Guid =
     let a = eventId.ToByteArray()
     let b = categoryId.ToByteArray()
     Guid(Array.map2 (^^^) a b)
 
+/// Eine Zeile der Historie: eine Zeile einer Entscheidung oder eine aus YNAB (budgeting-dgrp7), mit ihrem
+/// jüngsten Ergebnis. Beträge in Milliunits.
+type private HistoryItem = {
+    Origin: HistoryOrigin
+    /// Die `lineId`, bei einer Übernahme `takeoverLineId`, bei einer Beobachtung die `event_id`.
+    RowId: Guid
+    /// Die `event_id` des Ereignisses.
+    EventId: Guid
+    At: DateTime
+    MonthKey: string
+    Category: Guid
+    Name: string
+    Before: int64
+    After: int64
+    Outcome: LineOutcome option
+}
+
+let private historyItemOf (m: Movement) (outcome: LineOutcome option) : HistoryItem =
+    { Origin = Decision m.Origin
+      RowId = m.Id
+      EventId = m.ApplicationId
+      At = m.OccurredAt
+      MonthKey = m.Month
+      Category = m.CategoryId
+      Name = m.CategoryName
+      Before = m.OldAssigned
+      After = m.NewAssigned
+      Outcome = outcome }
+
 /// Übernahme und Beobachtung als Zeilen der Historie (budgeting-dgrp7): je Kategorie einer Übernahme eine Zeile
 /// mit dem übernommenen Wert vorher und nachher, je Beobachtung eine Zeile vom Soll davor zum YNAB-Wert. Sie
 /// sind in YNAB, ihr Stand ist geschrieben.
-let private fromYnabOf (recorded: RecordedBudgetEvent) : (Movement * LineOutcome option) list =
-    let row origin (monthId: string) (lineId: Guid) (categoryId: Guid) (name: string) (previous: int64) (assigned: int64) =
-        { Id = lineId
-          ApplicationId = recorded.EventId
-          OccurredAt = recorded.OccurredAt
-          Origin = origin
-          Month = monthKeyOfId monthId
-          CategoryId = categoryId
-          CategoryName = name
-          OldAssigned = previous
-          NewAssigned = assigned },
-        Some Written
+let private fromYnabOf (recorded: RecordedBudgetEvent) : HistoryItem list =
+    let row origin (monthId: string) (rowId: Guid) (categoryId: Guid) (name: string) (previous: int64) (assigned: int64) : HistoryItem =
+        { Origin = origin
+          RowId = rowId
+          EventId = recorded.EventId
+          At = recorded.OccurredAt
+          MonthKey = monthKeyOfId monthId
+          Category = categoryId
+          Name = name
+          Before = previous
+          After = assigned
+          Outcome = Some Written }
     match recorded.Event with
     | BudgetEvent.BudgetTakenOverFromYnab p ->
         p.Categories
@@ -296,10 +326,10 @@ let private fromYnabOf (recorded: RecordedBudgetEvent) : (Movement * LineOutcome
 
 /// Die Zeilen der Historie eines Ereignisses: Entscheidungen mit ihrem jüngsten Ergebnis, Übernahme und
 /// Beobachtung als geschrieben.
-let private historyRowsOf (latest: Map<Guid * Guid, LineOutcome>) (recorded: RecordedBudgetEvent) : (Movement * LineOutcome option) list =
+let private historyRowsOf (latest: Map<Guid * Guid, LineOutcome>) (recorded: RecordedBudgetEvent) : HistoryItem list =
     match movementsOf recorded with
     | [] -> fromYnabOf recorded
-    | lines -> lines |> List.map (fun m -> m, Map.tryFind (m.ApplicationId, m.CategoryId) latest)
+    | lines -> lines |> List.map (fun m -> historyItemOf m (Map.tryFind (m.ApplicationId, m.CategoryId) latest))
 
 /// Zurückgezogene Zeilen, die eine spätere Entscheidung in BB ersetzt hat (budgeting-dgrp7), abgeleitet aus dem
 /// Stream: Die jüngste Entscheidung derselben Kategorie vor dem Zurückziehen ist eine andere als die der Zeile.
@@ -353,29 +383,29 @@ let queryMovements (conn: SqliteConnection) (filter: MovementFilter) : Result<Hi
         |> Result.map (fun events ->
             let latest = latestWriteBacks events
             let replaced = replacedLines events
-            let counterpart (e: RecordedBudgetEvent) (m: Movement) =
+            let counterpart (e: RecordedBudgetEvent) (r: HistoryItem) =
                 match e.Event with
                 | BudgetEvent.MoneyMoved p ->
-                    [ p.From; p.To ] |> List.tryFind (fun l -> l.LineId <> m.Id) |> Option.map (fun l -> l.CategoryName)
+                    [ p.From; p.To ] |> List.tryFind (fun l -> l.LineId <> r.RowId) |> Option.map (fun l -> l.CategoryName)
                 | _ -> None
             newestFirstWith (historyRowsOf latest) events
-            |> List.filter (fun (_, (m, _)) ->
-                (filter.CategoryId |> Option.forall ((=) m.CategoryId))
-                && (filter.Month |> Option.forall ((=) m.Month))
-                && (filter.Origin |> Option.forall ((=) m.Origin)))
-            |> List.map (fun (e, (m, outcome)) ->
-                { MovementId = m.Id
-                  ApplicationId = m.ApplicationId
-                  OccurredAt = m.OccurredAt
-                  Origin = m.Origin
-                  Month = m.Month
-                  CategoryId = m.CategoryId
-                  CategoryName = m.CategoryName
-                  OldAssigned = euroOfMilliunits m.OldAssigned
-                  NewAssigned = euroOfMilliunits m.NewAssigned
-                  Counterpart = counterpart e m
-                  Latest = outcome
-                  ReplacedBy = Map.tryFind (m.ApplicationId, m.CategoryId) replaced }))
+            |> List.filter (fun (_, r) ->
+                (filter.CategoryId |> Option.forall ((=) r.Category))
+                && (filter.Month |> Option.forall ((=) r.MonthKey))
+                && (filter.Origin |> Option.forall (fun o -> r.Origin = Decision o)))
+            |> List.map (fun (e, r) ->
+                { MovementId = r.RowId
+                  ApplicationId = r.EventId
+                  OccurredAt = r.At
+                  Origin = r.Origin
+                  Month = r.MonthKey
+                  CategoryId = r.Category
+                  CategoryName = r.Name
+                  OldAssigned = euroOfMilliunits r.Before
+                  NewAssigned = euroOfMilliunits r.After
+                  Counterpart = counterpart e r
+                  Latest = r.Outcome
+                  ReplacedBy = Map.tryFind (r.EventId, r.Category) replaced }))
 
 /// Die Historie über `connect`. Liest nur die Datenbank, kein YNAB.
 let loadMovementsWith (connect: unit -> SqliteConnection) (filter: MovementFilter) : Async<Result<HistoryMovement list, string>> =
@@ -710,6 +740,22 @@ let internal recordDecisionOn
     | Recorded [] -> failwith "Ein Entscheidungsereignis erwartet, keins gespeichert"
     | CommandAlreadyProcessed (id, firstPosition) -> CommandAlreadyProcessed (id, firstPosition)
 
+/// `recordDecisionOn` über `connect`.
+let recordDecisionWith
+    (connect: unit -> SqliteConnection)
+    (commandId: Guid option)
+    (at: DateTime)
+    (monthKey: string)
+    (origin: MovementOrigin)
+    (lines: PlannedLine list)
+    (skippedPaused: SkippedPausedLine list)
+    (withdrawn: WriteBackRef list)
+    : Async<Recorded<Movement list>> =
+    async {
+        use conn = connect ()
+        return recordDecisionOn conn commandId at monthKey origin lines skippedPaused withdrawn
+    }
+
 /// `recordDecisionOn` auf der Datenbank der Anwendung.
 let recordDecision
     (commandId: Guid option)
@@ -720,10 +766,7 @@ let recordDecision
     (skippedPaused: SkippedPausedLine list)
     (withdrawn: WriteBackRef list)
     : Async<Recorded<Movement list>> =
-    async {
-        use conn = Core.getConnection ()
-        return recordDecisionOn conn commandId at monthKey origin lines skippedPaused withdrawn
-    }
+    recordDecisionWith Core.getConnection commandId at monthKey origin lines skippedPaused withdrawn
 
 /// Hängt den Ausgang einer Zeile als Ergebnis-Ereignis an den Monats-Stream ihrer Entscheidung.
 let internal recordWriteBackOn (conn: SqliteConnection) (m: Movement) (at: DateTime) (outcome: WriteBackOutcome) : unit =
@@ -746,7 +789,7 @@ let internal queryTakenOverMonths (conn: SqliteConnection) : Result<Set<string>,
     conn.Query<string>(
         """SELECT DISTINCT stream_id FROM events
            WHERE context = @context AND event_type = @event_type""",
-        {| context = Context; event_type = EventTypes.decisionOf TakenOverFromYnab |}
+        {| context = Context; event_type = EventTypes.takenOver |}
     )
     |> Seq.choose monthOfMonthStream
     |> Seq.map monthKeyOfId
@@ -804,6 +847,21 @@ let internal recordPauseOn
     | Recorded recorded -> Recorded (List.exactlyOne recorded).EventId
     | CommandAlreadyProcessed (id, firstPosition) -> CommandAlreadyProcessed (id, firstPosition)
 
+/// `recordPauseOn` über `connect`.
+let recordPauseWith
+    (connect: unit -> SqliteConnection)
+    (commandId: Guid option)
+    (at: DateTime)
+    (monthKey: string)
+    (categoryId: Guid)
+    (categoryName: string)
+    (kind: PauseKind)
+    : Async<Recorded<Guid>> =
+    async {
+        use conn = connect ()
+        return recordPauseOn conn commandId at monthKey categoryId categoryName kind
+    }
+
 /// `recordPauseOn` auf der Datenbank der Anwendung.
 let recordPause
     (commandId: Guid option)
@@ -813,10 +871,7 @@ let recordPause
     (categoryName: string)
     (kind: PauseKind)
     : Async<Recorded<Guid>> =
-    async {
-        use conn = Core.getConnection ()
-        return recordPauseOn conn commandId at monthKey categoryId categoryName kind
-    }
+    recordPauseWith Core.getConnection commandId at monthKey categoryId categoryName kind
 
 /// Hält eine Target-Änderung im Target-Stream der Kategorie fest (ADR 0080 Punkt 4). Erst danach darf der
 /// PATCH hinausgehen. Liefert die `event_id`, auf sie verweisen die Schritt-Ergebnisse.

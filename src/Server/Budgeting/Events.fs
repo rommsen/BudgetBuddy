@@ -203,14 +203,12 @@ let eventTypeName (event: BudgetEvent) : string =
 module EventTypes =
     let private none<'T> : 'T = Unchecked.defaultof<'T>
 
-    /// Das Ereignis zu einer Herkunft: die Entscheidung, bei Beobachtung und Übernahme das Ereignis des Spiegels.
+    /// Das Entscheidungsereignis zu einer Herkunft.
     let decisionOf (origin: MovementOrigin) : string =
         match origin with
         | MoneyAssigned -> eventTypeName (BudgetEvent.AssignmentChangedInBb none)
         | MoneyMoved -> eventTypeName (BudgetEvent.MoneyMoved none)
         | TargetsApplied -> eventTypeName (BudgetEvent.TargetsApplied none)
-        | ObservedInYnab -> eventTypeName (BudgetEvent.AssignmentChangeObservedInYnab none)
-        | TakenOverFromYnab -> eventTypeName (BudgetEvent.BudgetTakenOverFromYnab none)
 
     /// Die drei Entscheidungen (Zuweisen, Verschieben, Targets anwenden).
     let decisions : string list = [ MoneyAssigned; MoneyMoved; TargetsApplied ] |> List.map decisionOf
@@ -227,8 +225,11 @@ module EventTypes =
           BudgetEvent.AssignmentWriteBackWithdrawn none ]
         |> List.map eventTypeName
 
+    /// Die Übernahme eines Monats aus YNAB (budgeting-dgrp7).
+    let takenOver : string = eventTypeName (BudgetEvent.BudgetTakenOverFromYnab none)
+
     /// Übernahme und Beobachtung aus YNAB (budgeting-dgrp7), so wie die Historie sie liest.
-    let fromYnab : string list = [ TakenOverFromYnab; ObservedInYnab ] |> List.map decisionOf
+    let fromYnab : string list = [ takenOver; eventTypeName (BudgetEvent.AssignmentChangeObservedInYnab none) ]
 
     /// Die Target-Änderung aus dem Zwei-Schritt-Weg und ihre drei Schritt-Ergebnisse.
     let goalChanges : string list =

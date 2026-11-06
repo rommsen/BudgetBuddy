@@ -65,11 +65,11 @@ let private moveGroup = Guid.NewGuid()
 let private assignGroup = Guid.NewGuid()
 
 let private movements : HistoryMovement list =
-    [ movement assignGroup MovementOrigin.MoneyAssigned "Urlaub" 0m 20m
-      movement moveGroup MovementOrigin.MoneyMoved "Urlaub" 0m 20m
-      movement moveGroup MovementOrigin.MoneyMoved "Lebensmittel" 50m 30m
-      movement targetsGroup MovementOrigin.TargetsApplied "Miete" 0m 800m
-      movement targetsGroup MovementOrigin.TargetsApplied "Strom" 0m 60m ]
+    [ movement assignGroup (Decision MovementOrigin.MoneyAssigned) "Urlaub" 0m 20m
+      movement moveGroup (Decision MovementOrigin.MoneyMoved) "Urlaub" 0m 20m
+      movement moveGroup (Decision MovementOrigin.MoneyMoved) "Lebensmittel" 50m 30m
+      movement targetsGroup (Decision MovementOrigin.TargetsApplied) "Miete" 0m 800m
+      movement targetsGroup (Decision MovementOrigin.TargetsApplied) "Strom" 0m 60m ]
 
 /// Die Antwort auf das jüngste Laden.
 let private answer (result: Result<HistoryMovement list, string>) (model: Model) : Model =
@@ -115,7 +115,7 @@ let tests =
             let entering, cmd, _ = Components.Budget.State.update GeneralHistoryEntered page
             Expect.equal entering.GeneralHistory.Runs Loading "lädt"
             Expect.isFalse (List.isEmpty cmd) "das Laden ist angestoßen"
-            Expect.equal (shownOrigins (loaded ())) [ MovementOrigin.MoneyAssigned; MovementOrigin.MoneyMoved; MovementOrigin.TargetsApplied ] "drei Durchläufe"
+            Expect.equal (shownOrigins (loaded ())) [ (Decision MovementOrigin.MoneyAssigned); (Decision MovementOrigin.MoneyMoved); (Decision MovementOrigin.TargetsApplied) ] "drei Durchläufe"
             let failed = entering |> answer (Error "kaputt")
             Expect.equal failed.GeneralHistory.Runs (Failure "kaputt") "Fehlerkarte"
         }
@@ -134,12 +134,12 @@ let tests =
         test "Wiederholen lädt neu und lässt Filter und Aufklappen stehen" {
             let chosen =
                 loaded ()
-                |> step (SelectRunFilter (RunsOf MovementOrigin.TargetsApplied))
+                |> step (SelectRunFilter (RunsOf (Decision MovementOrigin.TargetsApplied)))
                 |> step (ToggleRun targetsGroup)
             let retrying, cmd, _ = Components.Budget.State.update RetryGeneralHistory chosen
             Expect.equal retrying.GeneralHistory.Runs Loading "lädt"
             Expect.isFalse (List.isEmpty cmd) "das Laden ist angestoßen"
-            Expect.equal retrying.GeneralHistory.Filter (RunsOf MovementOrigin.TargetsApplied) "Filter bleibt"
+            Expect.equal retrying.GeneralHistory.Filter (RunsOf (Decision MovementOrigin.TargetsApplied)) "Filter bleibt"
             Expect.isTrue (retrying.GeneralHistory.Expanded.Contains targetsGroup) "aufgeklappt bleibt"
             let stale = retrying |> step (GeneralHistoryLoaded (chosen.GeneralHistory.Generation, Ok []))
             Expect.equal stale.GeneralHistory.Runs Loading "die Antwort vor dem Wiederholen zählt nicht"
@@ -147,16 +147,16 @@ let tests =
         test "Erneutes Betreten setzt Filter und Aufklappen zurück" {
             let again =
                 loaded ()
-                |> step (SelectRunFilter (RunsOf MovementOrigin.MoneyMoved))
+                |> step (SelectRunFilter (RunsOf (Decision MovementOrigin.MoneyMoved)))
                 |> step (ToggleRun targetsGroup)
                 |> step GeneralHistoryEntered
             Expect.equal again.GeneralHistory.Filter AllRuns "Filter von vorn"
             Expect.isEmpty again.GeneralHistory.Expanded "alles zu"
         }
         test "Der Filter nach Art zeigt nur Durchläufe dieser Herkunft, Alle wieder alle" {
-            for origin in [ MovementOrigin.TargetsApplied; MovementOrigin.MoneyMoved; MovementOrigin.MoneyAssigned ] do
+            for origin in [ (Decision MovementOrigin.TargetsApplied); (Decision MovementOrigin.MoneyMoved); (Decision MovementOrigin.MoneyAssigned) ] do
                 Expect.equal (shownOrigins (loaded () |> step (SelectRunFilter (RunsOf origin)))) [ origin ] $"{origin}"
-            let back = loaded () |> step (SelectRunFilter (RunsOf MovementOrigin.MoneyMoved)) |> step (SelectRunFilter AllRuns)
+            let back = loaded () |> step (SelectRunFilter (RunsOf (Decision MovementOrigin.MoneyMoved))) |> step (SelectRunFilter AllRuns)
             Expect.equal (List.length (shownOrigins back)) 3 "Alle"
         }
         test "Ein Tipp auf einen Targets-Durchlauf klappt seine Einzelzeilen auf, ein zweiter klappt zu" {
@@ -236,9 +236,9 @@ let tests =
         }
         test "Der Leertext nennt ohne Filter, was hier erscheint, mit Filter die Art" {
             Expect.equal (emptyText AllRuns) "Noch keine Durchläufe. Targets anwenden, Verschieben, Zuweisen und Änderungen aus YNAB erscheinen hier." "ohne Filter"
-            Expect.equal (emptyText (RunsOf MovementOrigin.MoneyMoved)) "Keine Durchläufe dieser Art" "mit Filter"
-            Expect.equal (emptyText (RunsOf MovementOrigin.ObservedInYnab)) "Keine Zuweisungen in YNAB" "Beobachtung"
-            Expect.equal (emptyText (RunsOf MovementOrigin.TakenOverFromYnab)) "Keine Übernahme aus YNAB" "Übernahme"
+            Expect.equal (emptyText (RunsOf (Decision MovementOrigin.MoneyMoved))) "Keine Durchläufe dieser Art" "mit Filter"
+            Expect.equal (emptyText (RunsOf HistoryOrigin.ObservedInYnab)) "Keine Zuweisungen in YNAB" "Beobachtung"
+            Expect.equal (emptyText (RunsOf HistoryOrigin.TakenOverFromYnab)) "Keine Übernahme aus YNAB" "Übernahme"
         }
         // budgeting-dgrp7, Review-Fund: Beobachtung und Übernahme fehlten in der Filterleiste.
         test "Die Filterleiste führt auch, was aus YNAB kam, mit den Worten der Zeilen" {
@@ -249,21 +249,21 @@ let tests =
             let run origin : HistoryRun =
                 { RunId = Guid.NewGuid(); OccurredAt = DateTime.UtcNow; Origin = origin; Month = "2026-10-01"
                   Text = ""; Amount = eur 1m; Status = RunFromYnab; Lines = [] }
-            let runs = [ run MovementOrigin.ObservedInYnab; run MovementOrigin.TakenOverFromYnab; run MovementOrigin.MoneyAssigned ]
-            Expect.equal (shownRuns (RunsOf MovementOrigin.ObservedInYnab) runs) [ runs[0] ] "Beobachtung"
-            Expect.equal (shownRuns (RunsOf MovementOrigin.TakenOverFromYnab) runs) [ runs[1] ] "Übernahme"
+            let runs = [ run HistoryOrigin.ObservedInYnab; run HistoryOrigin.TakenOverFromYnab; run (Decision MovementOrigin.MoneyAssigned) ]
+            Expect.equal (shownRuns (RunsOf HistoryOrigin.ObservedInYnab) runs) [ runs[0] ] "Beobachtung"
+            Expect.equal (shownRuns (RunsOf HistoryOrigin.TakenOverFromYnab) runs) [ runs[1] ] "Übernahme"
         }
         test "Der Betrag rechts: Verschieben ohne Vorzeichen, Zuweisen und Targets mit, eine Null ohne" {
             let run origin amount : HistoryRun =
                 { RunId = Guid.NewGuid(); OccurredAt = DateTime.UtcNow; Origin = origin; Month = "2026-10-01"
                   Text = ""; Amount = eur amount; Status = RunWritten; Lines = [] }
-            Expect.equal (fst (runAmount (run MovementOrigin.MoneyMoved 20m))) "20,00 €" "Verschieben"
-            Expect.equal (fst (runAmount (run MovementOrigin.MoneyAssigned -20m))) "-20,00 €" "zurück nach Zu verteilen"
-            Expect.equal (fst (runAmount (run MovementOrigin.MoneyAssigned 0m))) "0,00 €" "Zuweisen mit 0"
-            Expect.equal (fst (runAmount (run MovementOrigin.TargetsApplied 860m))) "+860,00 €" "Targets"
+            Expect.equal (fst (runAmount (run (Decision MovementOrigin.MoneyMoved) 20m))) "20,00 €" "Verschieben"
+            Expect.equal (fst (runAmount (run (Decision MovementOrigin.MoneyAssigned) -20m))) "-20,00 €" "zurück nach Zu verteilen"
+            Expect.equal (fst (runAmount (run (Decision MovementOrigin.MoneyAssigned) 0m))) "0,00 €" "Zuweisen mit 0"
+            Expect.equal (fst (runAmount (run (Decision MovementOrigin.TargetsApplied) 860m))) "+860,00 €" "Targets"
             // budgeting-dgrp7, Review-Fund: die Summe der Übernahme stand ohne Währung da.
-            Expect.equal (fst (runAmount (run MovementOrigin.TakenOverFromYnab 2400m))) "2.400,00 €" "Übernahme: Summe ohne Vorzeichen"
-            Expect.equal (fst (runAmount (run MovementOrigin.ObservedInYnab -20m))) "-20,00 €" "Beobachtung: Änderung mit Vorzeichen"
+            Expect.equal (fst (runAmount (run HistoryOrigin.TakenOverFromYnab 2400m))) "2.400,00 €" "Übernahme: Summe ohne Vorzeichen"
+            Expect.equal (fst (runAmount (run HistoryOrigin.ObservedInYnab -20m))) "-20,00 €" "Beobachtung: Änderung mit Vorzeichen"
         }
         test "Ein Teil-Fehlschlag steht im Badge, am Handy kurz, ein Fehlschlag mit Grund wie bei einer Bewegung" {
             Expect.equal (runBadge (RunPartlyFailed (1, 3))) (PartlyFailedBadge ("1 von 3", "1 von 3 fehlgeschlagen")) "Teil"

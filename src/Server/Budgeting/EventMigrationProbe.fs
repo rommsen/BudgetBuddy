@@ -124,7 +124,7 @@ let private legacyMovements (conn: SqliteConnection) (filter: MovementFilter) : 
             { MovementId = Guid.Parse r.id
               ApplicationId = Guid.Parse r.application_id
               OccurredAt = dateFromText r.occurred_at
-              Origin = origin
+              Origin = Decision origin
               Month = r.month
               CategoryId = Guid.Parse r.category_id
               CategoryName = r.category_name
@@ -147,7 +147,11 @@ let private legacyApplication (conn: SqliteConnection) (applicationId: Guid) : R
                 { Id = m.MovementId
                   ApplicationId = m.ApplicationId
                   OccurredAt = m.OccurredAt
-                  Origin = m.Origin
+                  // Der Altbestand kennt nur Entscheidungen (`originOfText`).
+                  Origin =
+                    match m.Origin with
+                    | Decision origin -> origin
+                    | other -> failwith $"Altbestand mit Herkunft {other}"
                   Month = m.Month
                   CategoryId = m.CategoryId
                   CategoryName = m.CategoryName
