@@ -90,3 +90,6 @@ Kaputt-Szenario (GIVEN/WHEN/THEN): GIVEN Wechsel hin und zurück, das Lesen des 
 ## Aus budgeting-hbhzf (2026-11-06)
 - Tests (Verifier hbhzf): `BudgetLeadTests` schreibt die Gruppe "Server-Log" als Literal statt `UnderfundedTests.ServerLogGroup`.
 - Tests (Verifier hbhzf, wie bei k5q2w): der Aufruf von `dropUnderfundedComparisonsOn` in `initializeBudgetingSchema` ist nur über den Funktionstest belegt, ein Mutant ohne Aufruf überlebt.
+- Backend (Review hbhzf, W1): "Nicht gerechnet" verschwindet ohne Spur, Targets anwenden lässt die Kategorie still weg und die Vorschau nennt sie nicht. Heute ohne Fall (fünfter Vergleich ohne "nicht gerechnet", das Formular legt nur NEED monatlich, wöchentlich, jährlich an). Vorschlag: Grund bis in die Vorschau tragen oder mindestens ins Log.
+- Backend (Review hbhzf, V1/V2/V3): `LedgerActivityPort` und `loadPeriodActivity` sind Lese-Bausteine in `CommandHandlers`, eine eigene Datei vor beiden Handlern ordnete das; `DateTime.ParseExact` des Monatsersten doppelt zu `Domain.firstOfMonth`; `YnabError.LocalReadFailed` für einen lokalen Lesefehler führt im Namen in die falsche Richtung.
+- Tests (Review hbhzf): `stderrOf` steht doppelt in `BudgetLeadTests` und `UnderfundedTests`, Helfer und Gruppenname an eine Stelle vor beiden Dateien.
