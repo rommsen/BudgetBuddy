@@ -99,6 +99,5 @@ Kaputt-Szenario (GIVEN/WHEN/THEN): GIVEN Wechsel hin und zurück, das Lesen des 
 - UI (Review q4v8n, Frontend V6 und Design V2): Die Panel-Hülle der Seite Targets prüfen (`TargetCheckView.fs`, Klassenkette `budget-inspector-panel … rounded-xl border`) wiederholt die des Inspektors (`InspectorView.fs`), `groupCard` die Karte der Historie (`HistoryView.fs`). Eine gemeinsame Hülle bzw. eine `Card`-Variante ohne Innenabstand ordnete alle drei.
 
 ## Aus budgeting-c4ve4 (2026-11-06)
-- UI (Worker und Verifier c4ve4): Im Sheet "Anpassen …" am Handy schließt das X des `BottomSheet.inspector` statt des Worts "Schließen" wie in der Skizze; `BottomSheet.inspector` hat keinen Text-Schließknopf. Roman entscheidet, ob es so bleibt.
 - UI (Review c4ve4, Frontend V3): Der Vorschlagshinweis im Panel nennt den Rhythmus des gelesenen Targets; wechselt man im Panel den Rhythmus, bleibt "… 35 € wöchentlich" stehen. Besser ein Zusatz "(im bisherigen Rhythmus)" oder der Hinweis verschwindet nach dem Wechsel.
 - UI (Review c4ve4, Design V5): Die Titel der Seite Targets prüfen nutzen rohe Größen (`text-lg`, `text-xl`, `text-2xl`). Eine Rolle in `Tokens.fs` für schlanke Seitenköpfe teilten Budget-Historie und diese Seite.

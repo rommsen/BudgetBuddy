@@ -130,3 +130,6 @@ Ergänzt, weil die Skizze den Fall nicht hat: "nie" mit genau einem Ausgabemonat
 Kann-Sammlung budgeting (budgeting-h9c3w): Die beiden Zeilen aus q4v8n sind erledigt und können gestrichen werden: Umbruch der Knöpfe am Handy (die Knöpfe stehen nebeneinander) und Skelett in falscher Form (jetzt Karten mit kompakten Zeilen). Neue Kann-Zeilen: (1) Im Sheet steht das X des BottomSheet statt "Schließen" wie in der Skizze, der Owner entscheidet. (2) Der Test "Budget: Übernahme im Hintergrund.Dienst.die Wartefunktion des Servers wartet wirklich mindestens 50 ms" (`src/Tests/BudgetTakeoverTests.fs`) war im ersten Gate-Lauf dieser Iteration einmal rot mit 49,82 ms (Timer-Auflösung), im zweiten Lauf grün; nicht von dieser Task berührt.
 
 Nach dem Lauf vorschlagen: `design-quality` (mit den Skizzen-Screenshots), `frontend-architecture`, `qa-milestone-reviewer`.
+
+## Entscheidung des Owners (2026-11-06)
+Im Sheet "Anpassen …" am Handy bleibt das X des `BottomSheet.inspector` statt "Schließen" wie in der Skizze (Roman: "X lassen"). Alle BottomSheets der App schließen über das X.
