@@ -388,6 +388,8 @@ type Msg =
     | TargetDateChanged of DateField.DateEntry
     /// Rhythmus im `Segmented` gewählt (budgeting-xp46a).
     | TargetRhythmChanged of TargetFrequency
+    /// Wochentag eines wöchentlichen Targets gewählt, 0 Sonntag bis 6 Samstag (budgeting-eh8xe).
+    | TargetWeekdayChanged of int
     /// Die Warnung vor dem Wechsel der Art bestätigt: jetzt senden.
     | ConfirmTargetChange
     /// Die Warnung abgebrochen: nichts gesendet, die Eingabe bleibt.
@@ -402,6 +404,9 @@ type Msg =
     | CancelRemoveTarget
     /// Antwort auf Ändern oder Entfernen, mit Kategorie und Monat des Aufrufs.
     | TargetChangeAnswered of categoryId: System.Guid * month: string * Result<TargetChangeResult, string>
+    /// Der Aufruf von Target ändern brach auch im zweiten Versuch ab: ob das Target gespeichert ist, ist
+    /// unbekannt (budgeting-eh8xe, Vorbild `TargetPauseCallLost`).
+    | TargetChangeCallLost of categoryId: System.Guid * month: string * message: string
 
 /// Was die Seite an die App meldet (wie im Kassenbuch).
 type ExternalMsg =

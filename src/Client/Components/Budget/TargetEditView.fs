@@ -67,6 +67,7 @@ let editableTarget
           OnAmountChanged = TargetAmountChanged >> dispatch
           OnDateChanged = TargetDateChanged >> dispatch
           OnRhythmChanged = TargetRhythmChanged >> dispatch
+          OnWeekdayChanged = TargetWeekdayChanged >> dispatch
           OnSave = fun () -> dispatch SaveTarget
           OnConfirmChange = fun () -> dispatch ConfirmTargetChange
           OnCancelChange = fun () -> dispatch CancelTargetChange

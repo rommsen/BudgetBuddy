@@ -150,7 +150,6 @@ type private FakeYnab(categories: (Guid * string * int64) list) =
                                           Available = eur assigned[id]
                                           Underfunded = None
                                           Target = None
-                                          Snoozed = false
                                           Hidden = false
                                           Deleted = false
                                           Internal = false }) }
@@ -170,7 +169,7 @@ type private FakeYnab(categories: (Guid * string * int64) list) =
                         assigned[id] <- milliunits
                         return Ok ()
                 }
-          SetTarget = fun _ _ -> async { return failwith "schreibt kein Target" } }
+          FetchCategoryGoals = fun () -> async { return Ok [] } }
 
 let private monthKey = "2026-11-01"
 let private now = DateTime(2026, 10, 30, 9, 0, 0, DateTimeKind.Utc)

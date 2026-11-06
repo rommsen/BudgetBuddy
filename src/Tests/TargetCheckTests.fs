@@ -285,15 +285,13 @@ let suggestionTests =
             Expect.equal (inRhythm (Weeks 1) 3m) (eur 1m) "5 € wöchentlich: mindestens 1 €"
         }
 
-        test "Mit Target: gelesenes Datum, KeepRhythm, und planTargetWrite plant nur goal_target" {
+        // budgeting-eh8xe: das Übernehmen ändert nur den Betrag, Art, Rhythmus, Datum und Tag bleiben.
+        test "Mit Target: gelesenes Datum, KeepRhythm, und das Target danach ändert nur den Betrag" {
             let weekly = { target Need (Weeks 1) 30m with Date = Some "2027-03-01"; Day = Some 2 }
-            for shown in [ weekly; target MonthlyFunding (Months 1) 100m; target Need (Years 1) 1200m ] do
+            for shown in [ weekly; { target MonthlyFunding (Months 1) 100m with Day = Some 6 }; target Need (Years 1) 1200m ] do
                 let s = (fromAverage (Some shown) 212.01m).Value
-                Expect.equal s.Draft { NewGoal = s.InRhythm; NewDate = shown.Date; NewRhythm = KeepRhythm } $"{shown.Rhythm}"
-                Expect.equal
-                    (Server.Budgeting.Domain.planTargetWrite (Some shown) (Some s.Draft))
-                    (Ok [ { GoalTarget = SetTo (toMilliunits s.InRhythm); TargetDate = Keep; Frequency = None } ])
-                    $"{shown.Kind} {shown.Rhythm}: ein Patch nur mit goal_target"
+                Expect.equal s.Draft { NewGoal = s.InRhythm; NewDate = shown.Date; NewRhythm = KeepRhythm; NewDay = keptWeekday shown } $"{shown.Rhythm}"
+                Expect.equal (targetAfter (Some shown) s.Draft) (Ok { shown with Goal = s.InRhythm }) $"{shown.Kind} {shown.Rhythm}: nur der Betrag"
         }
 
         test "Ohne Target: SetRhythm Monthly ohne Datum mit dem Vorschlag als Betrag" {
@@ -301,7 +299,7 @@ let suggestionTests =
             Expect.equal row.Group WithoutTarget "Kein Target"
             Expect.equal
                 (row.Suggestion |> Option.map (fun s -> s.Draft))
-                (Some { NewGoal = eur 10m; NewDate = None; NewRhythm = SetRhythm Monthly })
+                (Some { NewGoal = eur 10m; NewDate = None; NewRhythm = SetRhythm Monthly; NewDay = None })
                 "monatliches NEED"
         }
 

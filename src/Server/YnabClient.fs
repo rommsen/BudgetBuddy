@@ -104,13 +104,9 @@ module Decoders =
                   CreatedIn = get.Optional.Field "goal_creation_month" Decode.string }
         | _ -> None
 
-    /// Das Target aus der Antwort von `PATCH /budgets/{id}/categories/{id}` (`data.category`).
-    let categoryTargetDecoder : Decoder<Shared.Budgeting.Target option> =
-        Decode.field "data" (Decode.field "category" (Decode.object goalTarget))
-
     /// Eine Kategorie aus `GET /budgets/{id}/months/{month}` (budgeting-k7wmd).
     /// `goal_under_funded` ist `null` ohne Target (dann `None`), sonst der Fehlbetrag;
-    /// `goal_snoozed_at` gesetzt heißt pausiert. Fehlende Flags gelten als `false`.
+    /// eine Pause in YNAB (`goal_snoozed_at`) liest BB nicht (budgeting-eh8xe). Fehlende Flags gelten als `false`.
     let monthCategoryDecoder : Decoder<Shared.Budgeting.YnabMonthCategory> =
         Decode.object (fun get ->
             let flag name = get.Optional.Field name Decode.bool |> Option.defaultValue false
@@ -125,8 +121,6 @@ module Decoders =
                Underfunded =
                    get.Optional.Field "goal_under_funded" Decode.int64 |> Option.map milliunitsMoney
                Target = goalTarget get
-               Snoozed =
-                   get.Optional.Field "goal_snoozed_at" Decode.string |> Option.isSome
                Hidden = flag "hidden"
                Deleted = flag "deleted"
                Internal = flag "internal" } : Shared.Budgeting.YnabMonthCategory))
@@ -490,93 +484,6 @@ let setAssigned
     : Async<YnabResult<unit>> =
     setAssignedWith (patchSender token) budgetId monthKey categoryId milliunits
 
-// ============================================
-// Target schreiben (budgeting-k8wq3, ADR 0072)
-// ============================================
-
-/// Der Pfad zum Target einer Kategorie: `/budgets/{id}/categories/{id}`. Er hat keinen Monat, das
-/// Target gilt für die Kategorie.
-let categoryUrl (budgetId: string) (categoryId: Guid) : string =
-    $"{baseUrl}/budgets/{budgetId}/categories/{categoryId}"
-
-let private frequencyText (frequency: Shared.Budgeting.TargetFrequency) : string =
-    match frequency with
-    | Shared.Budgeting.Weekly -> "weekly"
-    | Shared.Budgeting.Monthly -> "monthly"
-    | Shared.Budgeting.Yearly -> "yearly"
-
-/// Der Body eines Target-PATCH: `{"category":{...}}` nur mit den gesetzten Feldern (ADR 0072 Punkt 3).
-/// `Keep` fehlt, `Clear` ist `null`. Ein leerer Patch ist ein Fehler, dann geht nichts hinaus. Ebenso
-/// `goal_frequency` zusammen mit `goal_target_date`: YNAB lehnt das ab, das Datum geht als eigener
-/// Aufruf hinterher (ADR 0072 Punkt 5, budgeting-xp46a).
-let buildTargetBody (patch: Shared.Budgeting.TargetPatch) : Result<string, string> =
-    let field (name: string) (value: Shared.Budgeting.FieldPatch<'T>) (encode: 'T -> JsonValue) =
-        match value with
-        | Shared.Budgeting.Keep -> None
-        | Shared.Budgeting.SetTo v -> Some (name, encode v)
-        | Shared.Budgeting.Clear -> Some (name, Encode.nil)
-    let fields =
-        [ // Thoth schreibt int64 als String; YNAB verwirft dann still (wie beim Zuweisen). Also eine
-          // JSON-Zahl über int, Checked.int wirft über rund 2,1 Mio. Euro.
-          field "goal_target" patch.GoalTarget (fun milliunits -> Encode.int (Checked.int milliunits))
-          field "goal_target_date" patch.TargetDate Encode.string
-          patch.Frequency |> Option.map (fun f -> "goal_frequency", Encode.string (frequencyText f)) ]
-        |> List.choose id
-    if List.isEmpty fields then
-        Error "Leerer Target-Patch: es gibt nichts zu senden."
-    elif patch.Frequency.IsSome && patch.TargetDate <> Shared.Budgeting.Keep then
-        Error "Rhythmus und Datum gehen nicht in einem Target-Patch, das Datum folgt als eigener Aufruf."
-    else
-        Ok (Encode.object [ "category", Encode.object fields ] |> Encode.toString 0)
-
-/// YNABs Fehlertext aus `{"error":{"detail":...}}`, sonst der ganze Body.
-let private errorDetail (bodyText: string) : string =
-    let detail = Decode.field "error" (Decode.field "detail" Decode.string)
-    match Decode.fromString detail bodyText with
-    | Ok text when not (String.IsNullOrWhiteSpace text) -> text
-    | _ -> bodyText
-
-/// Ordnet die Antwort von `PATCH /budgets/{id}/categories/{id}` zu. 200 liefert das Target danach,
-/// 400 YNABs `error.detail`, 404 heißt Kategorie nicht gefunden (der Pfad hat keinen Monat).
-let interpretTargetResponse (categoryId: Guid) (status: int) (bodyText: string) : YnabResult<Shared.Budgeting.Target option> =
-    match status with
-    | 200 ->
-        match Decode.fromString Decoders.categoryTargetDecoder bodyText with
-        | Ok target -> Ok target
-        | Error err -> Error (unreadableResponse "category" err)
-    | 400 -> Error (YnabError.InvalidResponse (errorDetail bodyText))
-    | 401 -> Error (YnabError.Unauthorized "Invalid YNAB Personal Access Token")
-    | 404 -> Error (YnabError.CategoryNotFound (string categoryId))
-    | 429 -> Error (YnabError.RateLimitExceeded 60)
-    | other -> Error (YnabError.NetworkError $"HTTP {other}: {errorDetail bodyText}")
-
-/// Naht für Tests wie `setAssignedWith`. Ein leerer Patch sendet nichts.
-let setCategoryTargetWith
-    (send: string -> string -> Async<int * string>)
-    (budgetId: string)
-    (categoryId: Guid)
-    (patch: Shared.Budgeting.TargetPatch)
-    : Async<YnabResult<Shared.Budgeting.Target option>> =
-    async {
-        match buildTargetBody patch with
-        | Error message -> return Error (YnabError.InvalidResponse message)
-        | Ok body ->
-            try
-                let! status, bodyText = send (categoryUrl budgetId categoryId) body
-                return interpretTargetResponse categoryId status bodyText
-            with ex ->
-                return Error (YnabError.NetworkError $"Failed to set category target: {ex.Message}")
-    }
-
-/// Schreibt das Target einer Kategorie (ein PATCH, nur die gesetzten Felder).
-let setCategoryTarget
-    (token: string)
-    (YnabBudgetId budgetId: YnabBudgetId)
-    (categoryId: Guid)
-    (patch: Shared.Budgeting.TargetPatch)
-    : Async<YnabResult<Shared.Budgeting.Target option>> =
-    setCategoryTargetWith (patchSender token) budgetId categoryId patch
-
 /// Die Kategorien aus `GET /budgets/{id}/categories`, flach mit Gruppennamen.
 let interpretCategoriesResponse (budgetId: string) (status: int) (bodyText: string) : YnabResult<YnabCategory list> =
     match status with
@@ -601,6 +508,27 @@ let interpretCategoriesResponse (budgetId: string) (status: int) (bodyText: stri
     | 429 -> Error (YnabError.RateLimitExceeded 60)
     | other -> Error (statusFailure "categories" other bodyText)
 
+/// Die Goals aller Kategorien aus `GET /budgets/{id}/categories` (`goal_*`, `goalTarget`), Quelle der
+/// Target-Übernahme (budgeting-eh8xe, ADR 0084 Punkt 5). Kategorien ohne Goal tragen `None`.
+let interpretCategoryGoalsResponse (budgetId: string) (status: int) (bodyText: string) : YnabResult<Shared.Budgeting.YnabCategoryGoal list> =
+    match status with
+    | 200 ->
+        let goal =
+            Decode.object (fun get ->
+                ({ Id = get.Required.Field "id" Decode.guid
+                   Name = get.Required.Field "name" Decode.string
+                   Target = Decoders.goalTarget get }
+                 : Shared.Budgeting.YnabCategoryGoal))
+        let group =
+            Decode.object (fun get -> get.Optional.Field "categories" (Decode.list goal) |> Option.defaultValue [])
+        match Decode.fromString (Decode.field "data" (Decode.field "category_groups" (Decode.list group))) bodyText with
+        | Ok groups -> Ok (List.concat groups)
+        | Error err -> Error (unreadableResponse "categories" err)
+    | 401 -> Error (YnabError.Unauthorized "Invalid YNAB token")
+    | 404 -> Error (YnabError.BudgetNotFound budgetId)
+    | 429 -> Error (YnabError.RateLimitExceeded 60)
+    | other -> Error (statusFailure "categories" other bodyText)
+
 /// Naht für Tests wie `getMonthWith`.
 let getCategoriesWith (fetch: unit -> Async<int * string>) (budgetId: string) : Async<YnabResult<YnabCategory list>> =
     async {
@@ -611,20 +539,36 @@ let getCategoriesWith (fetch: unit -> Async<int * string>) (budgetId: string) : 
             return Error (fetchFailure "categories" ex)
     }
 
+/// `GET /budgets/{id}/categories` als Text, für Kategorien und Goals.
+let private fetchCategoriesText (token: string) (budgetId: string) () : Async<int * string> =
+    async {
+        let! response =
+            http {
+                GET $"{baseUrl}/budgets/{budgetId}/categories"
+                Authorization $"Bearer {token}"
+            }
+            |> Request.sendAsync
+        let! bodyText = response |> Response.toTextAsync
+        return (response.statusCode |> int), bodyText
+    }
+
 /// Fetches all categories for a specific budget
 let getCategories (token: string) (YnabBudgetId budgetId: YnabBudgetId) : Async<YnabResult<YnabCategory list>> =
-    let fetch () =
-        async {
-            let! response =
-                http {
-                    GET $"{baseUrl}/budgets/{budgetId}/categories"
-                    Authorization $"Bearer {token}"
-                }
-                |> Request.sendAsync
-            let! bodyText = response |> Response.toTextAsync
-            return (response.statusCode |> int), bodyText
-        }
-    getCategoriesWith fetch budgetId
+    getCategoriesWith (fetchCategoriesText token budgetId) budgetId
+
+/// Naht für Tests wie `getCategoriesWith`.
+let getCategoryGoalsWith (fetch: unit -> Async<int * string>) (budgetId: string) : Async<YnabResult<Shared.Budgeting.YnabCategoryGoal list>> =
+    async {
+        try
+            let! status, bodyText = fetch ()
+            return interpretCategoryGoalsResponse budgetId status bodyText
+        with ex ->
+            return Error (fetchFailure "categories" ex)
+    }
+
+/// Liest die Goals aller Kategorien für die Target-Übernahme (ein Aufruf).
+let getCategoryGoals (token: string) (YnabBudgetId budgetId: YnabBudgetId) : Async<YnabResult<Shared.Budgeting.YnabCategoryGoal list>> =
+    getCategoryGoalsWith (fetchCategoriesText token budgetId) budgetId
 
 /// Fetches all payees from YNAB for the given budget.
 let getPayees (token: string) (YnabBudgetId budgetId: YnabBudgetId) : Async<YnabResult<YnabPayee list>> =

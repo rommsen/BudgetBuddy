@@ -1130,7 +1130,7 @@ let private BottomSheetDemo () =
                 if changeOpen then
                     BottomSheet.confirm
                         { Title = "Rhythmus wechseln?"
-                          Message = "Der Tag des Targets geht verloren. Ein Wochentag lässt sich danach in BB nicht setzen."
+                          Message = "Der Tag des Targets geht verloren."
                           ConfirmText = "Wechseln"
                           OnConfirm = fun () -> setChangeOpen false
                           OnCancel = fun () -> setChangeOpen false
@@ -1684,6 +1684,23 @@ let private SegmentedDemo () =
                     [ for label in [ "Monat"; "Woche"; "Jahr" ] do
                           ({ Label = label; IsActive = (label = "Monat"); Disabled = true; OnClick = ignore } : Segmented.Segment) ]
                 caption "Gesperrt: disabled, gedämpft, kein Hover (Rhythmus im Tab Target, solange das Speichern läuft)"
+                Segmented.view
+                    "demo-segmented-weekday"
+                    "Wochentag"
+                    [ for label, _ in Shared.Budgeting.weekdays do
+                          ({ Label = label; IsActive = (label = "Fr"); Disabled = false; OnClick = ignore } : Segmented.Segment) ]
+                caption "Wochentag im Tab Target: sieben Segmente, Montag zuerst"
+                Html.div [
+                    prop.className "w-[340px] max-w-full"
+                    prop.children [
+                        Segmented.view
+                            "demo-segmented-weekday-panel"
+                            "Wochentag im Panel"
+                            [ for label, _ in Shared.Budgeting.weekdays do
+                                  ({ Label = label; IsActive = (label = "Mo"); Disabled = false; OnClick = ignore } : Segmented.Segment) ]
+                    ]
+                ]
+                caption "Dieselbe Leiste in 340 px, der Breite des Panels am PC"
                 Html.div [
                     prop.className "grid grid-cols-6 gap-1"
                     prop.children [

@@ -28,6 +28,8 @@ type TargetFormProps = {
     OnAmountChanged: string -> unit
     OnDateChanged: DateField.DateEntry -> unit
     OnRhythmChanged: TargetFrequency -> unit
+    /// Wochentag gewählt, 0 Sonntag bis 6 Samstag (budgeting-eh8xe).
+    OnWeekdayChanged: int -> unit
     OnSave: unit -> unit
     OnConfirmChange: unit -> unit
     OnCancelChange: unit -> unit
@@ -63,7 +65,7 @@ let private removeConfirm (props: TargetFormProps) =
     let form = props.Form
     let isPanel = props.IsPanel
     let title = "Target entfernen?"
-    let message = "Das Target wird in YNAB entfernt. Der Fehlbetrag entfällt."
+    let message = "Das Target wird entfernt. Der Fehlbetrag entfällt."
     if isPanel then
         Modal.confirmDanger
             form.ConfirmingRemove
@@ -153,6 +155,28 @@ let private rhythmChoice (props: TargetFormProps) =
         ]
     )
 
+/// Der Wochentag eines wöchentlichen Targets als `Segmented`, Montag zuerst (budgeting-eh8xe). Steht nur, wenn
+/// das Target nach dem Speichern wöchentlich ist (`targetWeeklyAfter`), gesperrt wie der Rhythmus. Ein Pflichtfeld:
+/// ohne Wahl steht der Grund darunter (`targetWeekdayHint`) und Speichern ist gesperrt.
+let private weekdayChoice (props: TargetFormProps) =
+    let active = targetWeekdayValue props.Shown props.Form
+    let locked = formFieldsLocked props.Locks
+    let segment (label: string, day: int) : Segmented.Segment =
+        { Label = label
+          IsActive = (active = Some day)
+          Disabled = locked
+          OnClick = fun () -> props.OnWeekdayChanged day }
+    Input.group
+        { Label = "Wochentag"
+          Required = true
+          Error = targetWeekdayHint props.Shown props.Form
+          HelpText = None
+          Children =
+            Html.div [
+                prop.custom ("data-testid", "target-weekday-choice")
+                prop.children [ Segmented.view "target-weekday-segment" "Wochentag des Targets" (weekdays |> List.map segment) ]
+            ] }
+
 let private amountField (props: TargetFormProps) =
     let target = props.Shown
     let form = props.Form
@@ -205,16 +229,8 @@ let view (props: TargetFormProps) =
     let isPanel = props.IsPanel
     let save = formSaveButton shown props.Locks form
     React.fragment [
-        match form.Notice with
-        | Some TargetChangedNotice ->
-            Html.div [
-                prop.custom ("data-testid", "target-notice")
-                prop.children [ ErrorDisplay.notice (targetNoticeText TargetChangedNotice) ]
-            ]
-        | Some (TargetRejectedNotice _)
-        | Some (TargetPartlyNotice _)
-        | None -> ()
         rhythmChoice props
+        if targetWeeklyAfter shown form then weekdayChoice props
         Html.div [
             // Im 340-px-Panel am PC steht das Datum in eigener Zeile, sonst schnitte das Feld den Platzhalter
             // ab (budgeting-g2ty9, X6).
@@ -276,13 +292,13 @@ let view (props: TargetFormProps) =
                             prop.custom ("data-testid", "target-error")
                             prop.children [ ErrorDisplay.cardCompact (targetNoticeText notice) None ]
                         ]
-                    | Some (TargetPartlyNotice _ as notice) ->
-                        // Gelb, kein Fehler: das Target steht, nur das Datum fehlt (budgeting-g2ty9, X4).
+                    // Inzwischen geändert ist kein Fehler: der Tab zeigt BBs Stand, gelb wie andere offene Hinweise
+                    // der Budget-Seite (ADR 0075).
+                    | Some TargetChangedMeanwhileNotice ->
                         Html.div [
-                            prop.custom ("data-testid", "target-partly")
-                            prop.children [ ErrorDisplay.notice (targetNoticeText notice) ]
+                            prop.custom ("data-testid", "target-changed-meanwhile")
+                            prop.children [ ErrorDisplay.notice (targetNoticeText TargetChangedMeanwhileNotice) ]
                         ]
-                    | Some TargetChangedNotice
                     | None -> ()
                 ]
             ]

@@ -1,6 +1,7 @@
 /// Die Abläufe von "Targets anwenden" (Context `budgeting`, budgeting-h2zfn, ADR 0065):
 /// Vorschau, Übernehmen und Fehlgeschlagene erneut senden, dazu "Verschieben" (ADR 0069) und
-/// "Zuweisen" (ADR 0078) und "Target pausieren" (ADR 0079). YNAB kommt als Port herein,
+/// "Zuweisen" (ADR 0078), "Target pausieren" (ADR 0079) und "Target ändern" (ADR 0080, nur in BB seit
+/// budgeting-eh8xe). YNAB kommt als Port herein,
 /// damit Tests einen Fake-Client einsetzen (der Server spricht YNAB in Tests nie live an).
 module Server.Budgeting.CommandHandlers
 
@@ -14,14 +15,16 @@ open Server.Budgeting.Domain
 open Budgeting.Events
 open Budgeting.Persistence
 open Server.Budgeting.Assignments
+open Server.Budgeting.TargetRules
 
 /// Was die Abläufe von YNAB brauchen. `FetchMonth` liest den Monat roh (`YnabMonth`),
 /// `SetAssigned month categoryId milliunits` setzt das Zugewiesen absolut (ein PATCH),
-/// `SetTarget categoryId patch` schreibt das Target der Kategorie und liefert es danach (budgeting-k8wq3).
+/// `FetchCategoryGoals` liest die Goals aller Kategorien aus `/categories`, nur für die Target-Übernahme
+/// (budgeting-eh8xe). Nach YNAB geht kein Goal mehr (ADR 0084 Punkt 6).
 type YnabPort = {
     FetchMonth: string -> Async<YnabResult<YnabMonth>>
     SetAssigned: string -> Guid -> int64 -> Async<YnabResult<unit>>
-    SetTarget: Guid -> TargetPatch -> Async<YnabResult<Target option>>
+    FetchCategoryGoals: unit -> Async<YnabResult<YnabCategoryGoal list>>
 }
 
 let private isRateLimit (error: YnabError) =
@@ -74,6 +77,160 @@ module internal TargetGuard =
             finally
                 gate.Release() |> ignore
         }
+
+/// Die Target-Übernahme läuft höchstens einmal zugleich und nie neben dem Festhalten einer Target-Änderung
+/// (budgeting-eh8xe): sonst könnte eine Übernahme hinter ein gerade gesetztes Target geschrieben werden und es
+/// überdecken. Ein Schlüssel für alle Kategorien, weil die Übernahme alle auf einmal schreibt. Sie hält keine
+/// andere Sperre, deshalb gibt es keinen Kreis mit `MonthGuard` oder `TargetGuard`.
+module internal TargetTakeoverGuard =
+    let private gate = new SemaphoreSlim(1, 1)
+
+    let exclusive (work: Async<'a>) : Async<'a> =
+        async {
+            do! gate.WaitAsync() |> Async.AwaitTask
+            try
+                return! work
+            finally
+                gate.Release() |> ignore
+        }
+
+// ============================================
+// Target-Übernahme (budgeting-eh8xe, ADR 0084 Punkt 5 und 6)
+// ============================================
+
+/// Was eine Target-Übernahme festhielt und was nicht.
+type TargetTakeoverReport = {
+    TakenOver: Guid list
+    NotTakenOver: NotTakenOver list
+}
+
+/// Die Meldung, wenn sich die Target-Übernahme nicht festhalten ließ. Die Ursache bleibt im Server-Log.
+[<Literal>]
+let TargetTakeoverNotRecordedText = "Target-Übernahme nicht festgehalten"
+
+/// Die Kategorien, für die eine Übernahme nichts übernahm (kein Goal, DEBT, unbekannte Art, oder in `/categories`
+/// nicht zu finden), für die Laufzeit des Prozesses (Review-Fund eh8xe). Ihretwegen fragt BB `/categories` nicht
+/// erneut, und ein nicht übernommenes Goal steht nur einmal im Server-Log. Nach einem Neustart wird wieder gefragt.
+module internal TakeoverDeclined =
+    let private declined = ConcurrentDictionary<Guid, unit>()
+
+    /// Alle gemerkten Kategorien.
+    let all () : Set<Guid> = declined.Keys |> Set.ofSeq
+
+    /// Merkt die Kategorien und liefert die, die vorher nicht gemerkt waren.
+    let remember (ids: Guid seq) : Set<Guid> =
+        ids |> Seq.filter (fun id -> declined.TryAdd(id, ())) |> Set.ofSeq
+
+/// Übernimmt die Goals aus `/categories` (ein YNAB-Aufruf) als `TargetTakenOverFromYnab`, je Kategorie mit
+/// übernehmbarem Goal, deren Target BB noch nicht führt, alle in einer Transaktion. Kategorien ohne übernehmbares
+/// Goal merkt sich der Prozess (`TakeoverDeclined`); ein nicht übernommenes Goal (DEBT, unbekannte Art) steht im
+/// Bericht und beim ersten Mal im Server-Log. Eine gelungene Übernahme mit Ereignissen schreibt eine Zeile ins
+/// Log. Ein zweiter Lauf schreibt nichts. Unter `TargetTakeoverGuard`. Liest und schreibt über `connect`, `now`
+/// stempelt die Ereignisse (UTC). Nicht festgehalten: `LocalWriteFailed`, die Ursache steht im Server-Log.
+let takeOverTargetsWith
+    (connect: unit -> SqliteConnection)
+    (fetchGoals: unit -> Async<YnabResult<YnabCategoryGoal list>>)
+    (now: DateTime)
+    : Async<Result<TargetTakeoverReport, YnabError>> =
+    TargetTakeoverGuard.exclusive (async {
+        match! fetchGoals () with
+        | Error e -> return Error e
+        | Ok goals ->
+            let recorded =
+                try
+                    use conn = connect ()
+                    queryLedTargets conn
+                    |> Result.map (fun led ->
+                        let plan = planTargetTakeover led goals
+                        appendTargetTakeoverOn conn now plan.Events
+                        led, plan)
+                with ex ->
+                    Error ex.Message
+            match recorded with
+            | Error reason ->
+                logReadFailure "Target-Übernahme festhalten" reason
+                return Error (YnabError.LocalWriteFailed TargetTakeoverNotRecordedText)
+            | Ok (led, plan) ->
+                if not (List.isEmpty plan.Events) then
+                    printfn "Target-Übernahme: %d Kategorien übernommen" plan.Events.Length
+                let takenOver = plan.Events |> List.map fst |> Set.ofList
+                let firstTime =
+                    goals
+                    |> List.map (fun g -> g.Id)
+                    |> List.filter (fun id -> not (led.Contains id) && not (takenOver.Contains id))
+                    |> TakeoverDeclined.remember
+                for n in plan.NotTakenOver do
+                    if firstTime.Contains n.CategoryId then
+                        eprintfn "Target-Übernahme: %s nicht übernommen (%s)" n.CategoryName n.Reason
+                return Ok { TakenOver = plan.Events |> List.map fst; NotTakenOver = plan.NotTakenOver }
+    })
+
+/// Läuft die Target-Übernahme, wenn eine Kategorie des gelesenen Monats auf sie wartet (`awaitingTakeover`):
+/// nicht für einen vergangenen Monat, nicht für geführte und nicht für gemerkte Kategorien (`TakeoverDeclined`).
+/// Was danach noch wartete und nicht übernommen wurde, merkt sich der Prozess, so fragt das nächste Lesen nicht
+/// erneut. Vergangen heißt: vor dem Monat von `now` (UTC). Am Monatsersten bis 01:00 oder 02:00 Uhr Berliner Zeit
+/// zählt der Vormonat damit noch nicht als vergangen; das kostet höchstens einen Abruf, den das Merken abfängt.
+let private takeOverIfAwaited
+    (connect: unit -> SqliteConnection)
+    (port: YnabPort)
+    (now: DateTime)
+    (raw: YnabMonth)
+    : Async<Result<unit, YnabError>> =
+    async {
+        let led =
+            try
+                use conn = connect ()
+                queryLedTargets conn
+            with ex ->
+                Error ex.Message
+        match led with
+        | Error reason ->
+            logReadFailure "Geführte Targets lesen" reason
+            return Error (YnabError.LocalReadFailed TargetRulesUnreadableText)
+        | Ok led ->
+            let awaiting = awaitingTakeover (Set.union led (TakeoverDeclined.all ())) (monthKeyOf now) raw
+            if Set.isEmpty awaiting then
+                return Ok ()
+            else
+                match! takeOverTargetsWith connect port.FetchCategoryGoals now with
+                | Error e -> return Error e
+                | Ok report ->
+                    Set.difference awaiting (Set.ofList report.TakenOver) |> TakeoverDeclined.remember |> ignore
+                    return Ok ()
+    }
+
+/// BBs Targets im gelesenen Monat für Lesen und Vorschau (budgeting-eh8xe): wartet eine Kategorie des Monats noch
+/// auf die Übernahme, läuft sie zuerst (`takeOverIfAwaited`). Best-Effort: scheitert die Übernahme, steht der
+/// Grund im Server-Log und die Regeln kommen ohne sie. Scheitert das Lesen der Regeln, kommt `Error`.
+let targetRulesBestEffort
+    (connect: unit -> SqliteConnection)
+    (port: YnabPort)
+    (now: DateTime)
+    (raw: YnabMonth)
+    : Async<Result<Map<Guid, Target>, string>> =
+    async {
+        match! takeOverIfAwaited connect port now raw with
+        | Ok () -> ()
+        | Error e -> logReadFailure "Target-Übernahme" (ynabErrorText e)
+        return! loadTargetRulesWith connect raw.Month
+    }
+
+/// BBs Targets im gelesenen Monat für einen Befehl: wie `targetRulesBestEffort`, nur ist eine gescheiterte
+/// Übernahme ein `Error`, und der Befehl entscheidet nichts (Review-Fund eh8xe): er plante sonst ohne die Targets,
+/// die die Übernahme gebracht hätte.
+let private targetRulesForCommand
+    (connect: unit -> SqliteConnection)
+    (port: YnabPort)
+    (now: DateTime)
+    (raw: YnabMonth)
+    : Async<Result<Map<Guid, Target>, YnabError>> =
+    async {
+        match! takeOverIfAwaited connect port now raw with
+        | Error e -> return Error e
+        | Ok () ->
+            let! rules = loadTargetRulesWith connect raw.Month
+            return rules |> Result.mapError YnabError.LocalReadFailed
+    }
 
 // ============================================
 // Beobachten: Übernahme und Echo (budgeting-dgrp7, ADR 0084 Punkt 3 und 5)
@@ -222,9 +379,9 @@ let ensureTakenOver
     ensureTakenOverWith global.Persistence.getConnection fetchMonth now monthKey
 
 /// Der Monat, auf dem ein Befehl plant (ADR 0084, Nachtrag): unter der schon gehaltenen Sperre beobachten,
-/// dann die BB-Pausen lesen und beides zum Monat mit BBs Soll zusammenführen. Scheitert das Lesen von YNAB,
-/// die Übernahme, die Beobachtung oder das Lesen der Pausen, kommt außen ein `Error`, und der Befehl entscheidet
-/// nichts. Neben dem Monat kommen die gespeicherten BB-Pausen (auch ohne Target, `planPause`) und die Faltung.
+/// dann die BB-Pausen und BBs Targets lesen und alles zum Monat mit BBs Soll zusammenführen. Scheitert das Lesen
+/// von YNAB, die Übernahme des Monats, die Beobachtung, die Target-Übernahme (`targetRulesForCommand`) oder das
+/// Lesen der Pausen oder Targets, kommt außen ein `Error`, und der Befehl entscheidet nichts. Neben dem Monat kommen die gespeicherten BB-Pausen (auch ohne Target, `planPause`) und die Faltung.
 let private preparedMonth
     (connect: unit -> SqliteConnection)
     (loadPaused: string -> Async<Result<Set<Guid>, string>>)
@@ -240,7 +397,11 @@ let private preparedMonth
             match! loadPaused monthKey with
             | Error message -> return Error (YnabError.LocalReadFailed message)
             | Ok paused ->
-                return Ok (toBudgetMonthWith (Some observed.Fold.Categories) paused observed.Raw, paused, observed.Fold)
+                match! targetRulesForCommand connect port now observed.Raw with
+                | Error e -> return Error e
+                | Ok targets ->
+                    let month = toBudgetMonthWith (Some observed.Fold.Categories) targets paused observed.Raw
+                    return Ok (month, paused, observed.Fold)
     }
 
 // ============================================
@@ -254,8 +415,14 @@ let private planOf (month: BudgetMonth) : Result<TargetPreview, YnabError> =
     | Error message -> Error (YnabError.RefusedByBb message)
 
 /// Die Vorschau: liest den Monat unter der Sperre und plant auf BBs Soll. Übernahme und Echo-Regel laufen nur im
-/// Speicher; die Vorschau schreibt weder nach YNAB noch in die Datenbank. Liest über `connect`.
-let previewWith (connect: unit -> SqliteConnection) (port: YnabPort) (monthKey: string) : Async<Result<TargetPreview, YnabError>> =
+/// Speicher; die Vorschau schreibt nicht nach YNAB und hält höchstens die einmalige Target-Übernahme fest, wenn
+/// eine Kategorie des Monats noch darauf wartet (budgeting-eh8xe, Best-Effort wie das Lesen: `targetRulesBestEffort`). Liest über `connect`, `now` stempelt sie.
+let previewWith
+    (connect: unit -> SqliteConnection)
+    (port: YnabPort)
+    (now: DateTime)
+    (monthKey: string)
+    : Async<Result<TargetPreview, YnabError>> =
     MonthGuard.exclusive monthKey (async {
         match! port.FetchMonth monthKey with
         | Error e -> return Error e
@@ -267,12 +434,15 @@ let previewWith (connect: unit -> SqliteConnection) (port: YnabPort) (monthKey: 
             | Ok fold ->
                 match! loadPausedCategoriesWith connect monthKey with
                 | Error message -> return Error (YnabError.LocalReadFailed message)
-                | Ok paused -> return planOf (toBudgetMonthWith (Some fold.Categories) paused raw)
+                | Ok paused ->
+                    match! targetRulesBestEffort connect port now raw with
+                    | Error message -> return Error (YnabError.LocalReadFailed message)
+                    | Ok targets -> return planOf (toBudgetMonthWith (Some fold.Categories) targets paused raw)
     })
 
 /// `previewWith` auf der Datenbank der Anwendung.
-let preview (port: YnabPort) (monthKey: string) : Async<Result<TargetPreview, YnabError>> =
-    previewWith global.Persistence.getConnection port monthKey
+let preview (port: YnabPort) (now: DateTime) (monthKey: string) : Async<Result<TargetPreview, YnabError>> =
+    previewWith global.Persistence.getConnection port now monthKey
 
 // ============================================
 // Berichte
@@ -329,9 +499,15 @@ let private reportOf
 // Befehls-Id (ADR 0084 Punkt 8, budgeting-qm5x9)
 // ============================================
 
-/// Die Ablehnung, wenn eine Befehls-Id schon zu einem anderen Auftrag festgehalten ist.
+/// Die Ablehnung, wenn eine Befehls-Id schon zu einem anderen Auftrag festgehalten ist. Der Satz geht an den
+/// Nutzer, der technische Grund steht nur im Server-Log (`foreignCommand`).
 [<Literal>]
-let ForeignCommandText = "Befehls-Id gehört zu einem anderen Auftrag."
+let ForeignCommandText = "Der Auftrag wurde schon anders verarbeitet. Seite neu laden und erneut speichern."
+
+/// Meldet eine fremde Befehls-Id im Server-Log und liefert den Satz für den Nutzer (`ForeignCommandText`).
+let private foreignCommand (recorded: EventStore.RecordedEvent) : string =
+    eprintfn "Befehls-Id gehört zu einem anderen Auftrag: festgehalten mit Ereignis %O (%s)" recorded.EventId recorded.EventType
+    ForeignCommandText
 
 /// Das Ereignis, mit dem die Befehls-Id festgehalten ist, oder `None`. Liest über `connect`.
 let private findCommand (connect: unit -> SqliteConnection) (commandId: Guid) : Async<EventStore.RecordedEvent option> =
@@ -444,7 +620,7 @@ let private decisionAnswer
     async {
         match! storedReport connect monthKey expectedTypes (Some expectedCategories) recorded with
         | Some report -> return report |> Result.map Ok
-        | None -> return Ok (Error ForeignCommandText)
+        | None -> return Ok (Error (foreignCommand recorded))
     }
 
 /// Sendet die Zeilen nacheinander. Ein Fehler schließt die Zeile als fehlgeschlagen ab, die
@@ -491,7 +667,7 @@ let applyWith
         async {
             match! storedReport connect monthKey [ EventTypes.decisionOf TargetsApplied ] None recorded with
             | Some report -> return report |> Result.map Applied
-            | None -> return Error (YnabError.RefusedByBb ForeignCommandText)
+            | None -> return Error (YnabError.RefusedByBb (foreignCommand recorded))
         }
     MonthGuard.exclusive monthKey (onceFor connect shown.CommandId answer (async {
         match! preparedMonth connect (loadPausedCategoriesWith connect) port now monthKey with
@@ -672,8 +848,7 @@ let setTargetPauseWith
     if not (targetsAllowed (monthKind currentMonth monthKey)) then
         async { return Ok (Error PausePastMonthText) }
     else
-        // Eine Wiederholung antwortet aus dem Ereignis. Der YNAB-Anteil der Pause fehlt darin, der Client liest
-        // den Monat danach ohnehin neu.
+        // Eine Wiederholung antwortet aus dem Ereignis.
         let expected, answered =
             match request.Intent with
             | PauseTarget -> EventTypes.paused, Some PausedInBb
@@ -681,7 +856,7 @@ let setTargetPauseWith
         let answer (recorded: EventStore.RecordedEvent) =
             async {
                 if belongsTo monthKey [ expected ] (Some [ request.CategoryId ]) recorded then return Ok (Ok answered)
-                else return Ok (Error ForeignCommandText)
+                else return Ok (Error (foreignCommand recorded))
             }
         MonthGuard.exclusive monthKey (onceFor connect request.CommandId answer (async {
             match! preparedMonth connect loadPaused port now monthKey with
@@ -703,191 +878,85 @@ let setTargetPause (port: YnabPort) (now: DateTime) (currentMonth: string) (mont
     setTargetPauseWith global.Persistence.getConnection loadPausedCategories port now currentMonth monthKey request
 
 // ============================================
-// Target ändern und entfernen (budgeting-k8wq3, ADR 0072, ADR 0080)
+// Target ändern und entfernen (budgeting-k8wq3, ADR 0080, budgeting-eh8xe)
 // ============================================
 
-/// Grund von Schritt 2, wenn Schritt 1 scheiterte (ADR 0080 Punkt 4, wie das Ziel einer Verschiebung nach
-/// ADR 0069 Punkt 3).
+/// Die Antwort aus einem festgehaltenen `TargetSet` oder `TargetRemoved`: die Regel danach, `None` nach dem
+/// Entfernen. Ein anderes Ereignis oder ein anderer Stream gehört nicht zum Auftrag (`ForeignCommandText`).
+let private storedTargetAnswer
+    (categoryId: Guid)
+    (recorded: EventStore.RecordedEvent)
+    : Result<TargetChangeResult, string> =
+    if recorded.Context <> Context || recorded.StreamId <> streamIdOf (TargetStream categoryId) then
+        Error (foreignCommand recorded)
+    else
+        match decodePayload recorded.EventType recorded.SchemaVersion recorded.Payload with
+        | Ok (BudgetEvent.TargetSet p) -> Ok (TargetWritten (Some p.Rule))
+        | Ok (BudgetEvent.TargetRemoved _) -> Ok (TargetWritten None)
+        | Ok _ -> Error (foreignCommand recorded)
+        | Error message -> failwith $"Ereignis {recorded.EventId} der Befehls-Id nicht lesbar: {message}"
+
+/// Die Meldung, wenn sich eine Target-Änderung nicht festhalten ließ. Die Ursache bleibt im Server-Log.
 [<Literal>]
-let TargetStepHeldBack = "Schritt 1 fehlgeschlagen"
+let TargetChangeNotRecordedText = "Target nicht gespeichert: BB konnte die Änderung nicht festhalten."
 
-/// Hängt das Ergebnis eines Schritts als Best-Effort an: YNAB hat einen Schritt dieser Änderung schon
-/// übernommen, ein Fehler beim Anhängen darf das nicht als Fehlschlag melden (budgeting-r3wq8). Gilt für
-/// "geschrieben" nach einem `Ok` und für jedes Ergebnis nach einem geschriebenen Schritt (budgeting-g2ty9,
-/// X9). Der Fehler wird mit Schritt geloggt, die Zeile steht dann ohne dieses Ergebnis in der Historie.
-let private recordBestEffort (categoryId: Guid) (changeId: Guid) (step: int) (now: DateTime) (outcome: LineOutcome) : Async<unit> =
-    async {
-        try
-            do! recordTargetChangeStepResult categoryId changeId step now outcome
-        with ex ->
-            eprintfn
-                "Ergebnis von Schritt %d der Target-Änderung %O nicht festgehalten (YNAB hat geschrieben): %s"
-                step
-                changeId
-                ex.Message
-    }
-
-/// Die festzuhaltende Zeile einer Target-Änderung, vom gezeigten Target aus. Alle Patches zusammen ergeben
-/// den neuen Stand: `goal_frequency` ersetzt das Target und löscht das Datum (ADR 0072 Punkt 4), ein
-/// folgender Patch setzt es wieder.
-let private targetChangeOf
-    (now: DateTime)
-    (monthKey: string)
-    (category: YnabMonthCategory)
-    (shown: Target option)
-    (kind: TargetChangeKind)
-    (patches: TargetPatch list)
-    : TargetChange =
-    let oldGoal = shown |> Option.map (fun t -> toMilliunits t.Goal)
-    let oldDate = shown |> Option.bind (fun t -> t.Date)
-    let apply (goal: int64 option, date: string option) (patch: TargetPatch) =
-        let date = if patch.Frequency.IsSome then None else date
-        let goal =
-            match patch.GoalTarget with
-            | Keep -> goal
-            | SetTo value -> Some value
-            | Clear -> None
-        let date =
-            match patch.TargetDate with
-            | Keep -> date
-            | SetTo value -> Some value
-            | Clear -> None
-        goal, date
-    let newGoal, newDate =
-        match kind with
-        | TargetRemoved -> None, None
-        | TargetEdited
-        | TargetCreated _
-        | TargetKindChanged _ -> patches |> List.fold apply (oldGoal, oldDate)
-    { OccurredAt = now
-      Month = monthKey
-      CategoryId = category.Id
-      CategoryName = category.Name.Trim()
-      Kind = kind
-      OldGoalTarget = oldGoal
-      NewGoalTarget = newGoal
-      OldDate = oldDate
-      NewDate = newDate }
-
-/// Wie die Schritte einer Target-Änderung ausgingen.
-type private StepsOutcome =
-    /// Alle geschrieben, mit YNABs Stand danach.
-    | AllWritten of Target option
-    /// Schritt 1 scheiterte, mit YNABs Grund.
-    | FirstFailed of reason: string
-    /// Schritt 1 geschrieben (Stand danach), ein späterer nicht: YNAB lehnte ihn ab, mit Grund. Trägt den
-    /// nicht geschriebenen Patch, aus ihm kommt das Datum der Meldung.
-    | LaterNotWritten of after: Target option * patch: TargetPatch * reason: string
-    /// Schritt 1 geschrieben, YNABs Antwort passt aber nicht zum Wunsch: der spätere Patch ging nicht
-    /// hinaus (`continueAfter`), mit dem Grund (`heldBackCause`).
-    | LaterHeldBack of after: Target option * patch: TargetPatch * cause: TargetHeldBackCause
-
-/// Sendet die festgehaltenen Schritte der Reihe nach (ADR 0080 Punkt 4), je Schritt ein Ergebnis. Ein
-/// Schritt nach dem ersten geht nur hinaus, wenn der vorige geschrieben ist und YNABs Antwort zu ihm passt
-/// (`continueAfter`). Sonst wird er ungesendet als fehlgeschlagen festgehalten. Ab einem geschriebenen
-/// Schritt ist jedes Ergebnis Best-Effort (`recordBestEffort`): das Teilergebnis kommt auch zurück, wenn das
-/// Anhängen scheitert (budgeting-g2ty9, X9).
-let private sendSteps (port: YnabPort) (now: DateTime) (categoryId: Guid) (changeId: Guid) (patches: TargetPatch list) : Async<StepsOutcome> =
-    let numbered (first: int) (rest: TargetPatch list) = rest |> List.mapi (fun i _ -> first + i)
-    let rec go (step: int) (previous: (TargetPatch * Target option) option) (remaining: TargetPatch list) =
-        async {
-            match remaining, previous with
-            | [], Some (_, after) -> return AllWritten after
-            | [], None -> return AllWritten None
-            | patch :: rest, _ ->
-                let heldBack =
-                    match previous with
-                    | Some (before, after) when not (continueAfter after before) ->
-                        before.Frequency |> Option.map (heldBackCause after)
-                    | _ -> None
-                match heldBack, previous with
-                | Some cause, Some (_, afterPrevious) ->
-                    let reason = targetHeldBackReasonText cause
-                    for s in step :: numbered (step + 1) rest do
-                        do! recordBestEffort categoryId changeId s now (Failed reason)
-                    return LaterHeldBack (afterPrevious, patch, cause)
-                | _ ->
-                    match! port.SetTarget categoryId patch with
-                    | Ok after ->
-                        do! recordBestEffort categoryId changeId step now Written
-                        return! go (step + 1) (Some (patch, after)) rest
-                    | Error e ->
-                        let reason = ynabErrorText e
-                        match previous with
-                        | None ->
-                            // Noch nichts geschrieben: ein Fehler beim Anhängen geht als Ausnahme hinaus.
-                            do! recordTargetChangeStepResult categoryId changeId step now (Failed reason)
-                            for later in numbered (step + 1) rest do
-                                do! recordTargetChangeStepResult categoryId changeId later now (Failed TargetStepHeldBack)
-                            return FirstFailed reason
-                        | Some (_, afterPrevious) ->
-                            do! recordBestEffort categoryId changeId step now (Failed reason)
-                            for later in numbered (step + 1) rest do
-                                do! recordBestEffort categoryId changeId later now (Failed TargetStepHeldBack)
-                            return LaterNotWritten (afterPrevious, patch, reason)
-        }
-    go 1 None patches
-
-/// Das Datum eines zurückgehaltenen oder abgelehnten Patches für die Meldung. Ein späterer Schritt trägt
-/// immer ein Datum (`planTargetWrite`); fehlt es doch, steht "ohne Datum".
-let private patchDateText (patch: TargetPatch) : string =
-    match patch.TargetDate with
-    | SetTo date -> date
-    | Keep
-    | Clear -> "ohne Datum"
-
-/// Target anlegen, ändern, die Art wechseln oder entfernen (ADR 0080, budgeting-xp46a). Außerhalb des
-/// laufenden Monats und wenn die Planung gegen den gezeigten Stand scheitert (Anlegen ohne Rhythmus) wird
-/// vor allem anderen abgelehnt, ohne YNAB zu lesen. Sonst unter der Sperre je Kategorie: den Monat frisch
-/// lesen und das Target suchen. Weicht es vom gezeigten ab, gewinnt YNAB: nichts gesendet, nichts
-/// festgehalten (`TargetChangedInYnab`). Steht YNAB schon auf dem Wunsch, ebenso nichts. Sonst die Änderung
-/// mit allen Schritten in einer Transaktion festhalten, dann der Reihe nach senden (`sendSteps`). Kein
-/// Erneut-Senden: scheitert Schritt 1, kommt ein innerer `Error` mit YNABs Meldung; scheitert das Datum in
-/// Schritt 2, kommt `TargetPartlyWritten` mit dem Stand nach Schritt 1, ein erneutes Speichern plant dann nur
-/// das Datum. Außen `Error`: der Monat war nicht lesbar. `currentMonth` ist der laufende Monat ("YYYY-MM-01").
-let changeTarget
-    (port: YnabPort)
+/// Target anlegen, ändern, die Art wechseln oder entfernen, nur in BB (ADR 0080 mit Nachtrag ADR 0084,
+/// budgeting-eh8xe). Außerhalb des laufenden Monats wird vor allem anderen abgelehnt. Sonst unter `TargetGuard`:
+/// zuerst die Befehls-Id (eine Wiederholung antwortet aus dem festgehaltenen Ereignis und hängt nichts an), dann
+/// BBs Stand aus dem Target-Stream falten und gegen das gezeigte Target planen (`planTargetChange`). Weicht es
+/// ab, hängt nichts an und die Antwort trägt BBs Stand (`TargetChangedMeanwhile`). Sonst höchstens ein Ereignis: `TargetSet` mit der vollständigen Regel, gültig ab dem
+/// laufenden Monat, oder `TargetRemoved`. YNAB wird nicht aufgerufen. Außen `Error`: BBs Stand war nicht lesbar
+/// (`LocalReadFailed`) oder das Ereignis ließ sich nicht festhalten (`LocalWriteFailed`). Innen `Error`: abgelehnt. `currentMonth` ist der laufende Monat ("YYYY-MM-01"), `now` stempelt das Ereignis.
+let changeTargetWith
+    (connect: unit -> SqliteConnection)
     (now: DateTime)
     (currentMonth: string)
     (monthKey: string)
     (request: TargetChangeRequest)
     : Async<Result<Result<TargetChangeResult, string>, YnabError>> =
-    if not (targetEditAllowed (monthKind currentMonth monthKey)) then
-        async { return Ok (Error (targetMonthRefusalText request)) }
-    else
-        match planTargetWrite request.Shown request.Wanted with
-        | Error message -> async { return Ok (Error message) }
-        | Ok patches ->
-            TargetGuard.exclusive request.CategoryId (async {
-                match! port.FetchMonth monthKey with
-                | Error e -> return Error e
-                | Ok raw ->
-                    match raw.Categories |> List.tryFind (fun c -> c.Id = request.CategoryId && isVisible c) with
-                    | None ->
-                        return Ok (Error CategoryNotVisibleText)
-                    | Some category when category.Target <> request.Shown ->
-                        return Ok (Ok (TargetChangedInYnab category.Target))
-                    | Some category ->
-                        match patches with
-                        | [] -> return Ok (Ok (TargetWritten category.Target))
-                        | _ when patches |> List.exists targetPatchIsEmpty ->
-                            // BB lehnt einen leeren Patch selbst ab, bevor etwas festgehalten oder
-                            // gesendet wird; sonst käme er als "YNAB hat abgelehnt" zurück.
-                            return Ok (Error EmptyTargetPatchText)
-                        | first :: _ ->
-                            let kind = targetChangeKindOf request.Shown request.Wanted first
-                            let change = targetChangeOf now monthKey category request.Shown kind patches
-                            let! changeId = recordTargetChange change
-                            match! sendSteps port now category.Id changeId patches with
-                            | AllWritten after -> return Ok (Ok (TargetWritten after))
-                            | FirstFailed reason -> return Ok (Error reason)
-                            | LaterNotWritten (after, patch, reason) ->
-                                let message = targetPartlyText kind (patchDateText patch) (DateRefused reason)
-                                return Ok (Ok (TargetPartlyWritten (after, message)))
-                            | LaterHeldBack (after, patch, cause) ->
-                                let message = targetPartlyText kind (patchDateText patch) (DateHeldBack cause)
-                                return Ok (Ok (TargetPartlyWritten (after, message)))
-            })
+    match monthIdOf monthKey with
+    | Ok monthId when targetEditAllowed (monthKind currentMonth monthKey) ->
+        let answer (recorded: EventStore.RecordedEvent) = async { return Ok (storedTargetAnswer request.CategoryId recorded) }
+        TargetGuard.exclusive request.CategoryId (onceFor connect request.CommandId answer (TargetTakeoverGuard.exclusive (async {
+            let stream =
+                try
+                    use conn = connect ()
+                    loadTargetStreamOn conn request.CategoryId
+                with ex ->
+                    Error ex.Message
+            match stream with
+            | Error reason ->
+                logReadFailure "Target-Stream lesen" reason
+                return Error (YnabError.LocalReadFailed TargetRulesUnreadableText)
+            | Ok events ->
+                // Hält das Ereignis fest; scheitert das Anhängen, kommt ein sauberer Fehler, nichts ist angehängt.
+                let record (event: BudgetEvent) (after: Target option) =
+                    async {
+                        let recorded =
+                            try
+                                use conn = connect ()
+                                Ok (recordTargetChangeOn conn request.CommandId now request.CategoryId event)
+                            with ex ->
+                                Error ex.Message
+                        match recorded with
+                        | Error reason ->
+                            logReadFailure "Target-Änderung festhalten" reason
+                            return Error (YnabError.LocalWriteFailed TargetChangeNotRecordedText)
+                        | Ok (CommandAlreadyProcessed (id, _)) -> return! answerAgain connect id answer
+                        | Ok (Recorded _) -> return Ok (Ok (TargetWritten after))
+                    }
+                match planTargetChange (monthKeyOfId monthId) (ruleAt monthId events) request with
+                | Error message -> return Ok (Error message)
+                | Ok (TargetUnchanged current) -> return Ok (Ok (TargetWritten current))
+                | Ok (ShownOutdated current) -> return Ok (Ok (TargetChangedMeanwhile current))
+                | Ok (SetRule rule) -> return! record (BudgetEvent.TargetSet { Rule = rule; EffectiveFrom = monthId }) (Some rule)
+                | Ok RemoveRule -> return! record (BudgetEvent.TargetRemoved { EffectiveFrom = monthId }) None
+        })))
+    | _ -> async { return Ok (Error (targetMonthRefusalText request)) }
+
+/// `changeTargetWith` auf der Datenbank der Anwendung.
+let changeTarget (now: DateTime) (currentMonth: string) (monthKey: string) (request: TargetChangeRequest) =
+    changeTargetWith global.Persistence.getConnection now currentMonth monthKey request
 
 // ============================================
 // Fehlgeschlagene erneut senden

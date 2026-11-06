@@ -960,7 +960,7 @@ let private missingTests =
             Expect.equal (missingActionText (actionOf 100m c)) "20,00 zuweisen" "Fehlbetrag"
         }
         test "Pausiertes Target: der Fehlbetrag zählt nicht" {
-            let paused = { minus with Available = eur 10m; Underfunded = Some (eur 20m); Pause = Some PausedInYnab }
+            let paused = { minus with Available = eur 10m; Underfunded = Some (eur 20m); Pause = Some PausedInBb }
             Expect.equal (actionOf 100m paused) NothingMissing "kein Knopf"
             Expect.equal (missingActionText (actionOf 100m { paused with Available = eur -5m })) "5,00 zuweisen" "nur das Minus"
             Expect.equal (actionOf 100m { minus with Available = eur 10m }) NothingMissing "nichts fehlt"

@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 13:32 -- Task verified and completed: budgeting-eh8xe - "Targets in BB führen: einmalige Übernahme aus YNAB, Target ändern schreibt nur in BB mit Befehls-Id, Wochentag setzbar, Pause nur in BB, Rückbau des Goal-Schreibwegs"
+
+**Type:** Work / Task completion
+**Task:** budgeting-eh8xe - "Targets in BB führen: einmalige Übernahme aus YNAB, Target ändern schreibt nur in BB mit Befehls-Id, Wochentag setzbar, Pause nur in BB, Rückbau des Goal-Schreibwegs"
+**Summary:** (no summary provided)
+**Duration:** (unknown)
+**Verification:** PASS (iteration 1)
+**Files changed:** 0
+**Tests added:** 0
+**ADRs written:** none
+
+---
+
 ## 2026-11-06 12:46 -- Review-Lauf: budgeting-pf8n7
 
 **Type:** Review / Review-Lauf

@@ -234,8 +234,11 @@ let private legacyTargetChanges (conn: SqliteConnection) (categoryId: Guid) (mon
               GoalAfter = r.new_goal_target |> Option.map euroOfMilliunits
               DateBefore = r.old_date
               DateAfter = r.new_date
+              DayBefore = None
+              DayAfter = None
               Latest = statusFromText r.status r.reason
-              DateStep = statusFromText r.date_status r.date_reason }))
+              DateStep = statusFromText r.date_status r.date_reason
+              SentToYnab = true }))
     |> collect
 
 let private legacyLastTargetChanges (conn: SqliteConnection) : Result<Map<Guid, TargetChangeMark>, string> =

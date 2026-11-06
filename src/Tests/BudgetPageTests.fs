@@ -899,7 +899,7 @@ let private targetCategory (target: Target) (under: decimal option) (snoozed: bo
     { detailCategoryFixture with
         Target = Some target
         Underfunded = under |> Option.map eur
-        Pause = (if snoozed then Some PausedInYnab else None); OpenWriteBack = None }
+        Pause = (if snoozed then Some PausedInBb else None); OpenWriteBack = None }
 
 let private targetTextTests =
     testList "Rhythmus-Text (kjsht)" [
@@ -929,20 +929,18 @@ let private targetStatusTests =
         }
         test "Pausiert geht vor, auch mit Fehlbetrag" {
             let c = targetCategory target (Some 1600m) true
-            Expect.equal (targetStatusText c) (Some "pausiert in YNAB") "Zusatz"
+            Expect.equal (targetStatusText c) (Some "pausiert") "Zusatz"
             Expect.equal (missingText c) None "der Fehlbetrag zählt nicht"
         }
         test "Pausiert gilt auch ohne Fehlbetrag von YNAB" {
-            Expect.equal (targetStatusText (targetCategory target None true)) (Some "pausiert in YNAB") "Zusatz"
+            Expect.equal (targetStatusText (targetCategory target None true)) (Some "pausiert") "Zusatz"
         }
-        // budgeting-t6p8z: der Tab Target nennt die Quelle, die Liste nicht.
-        test "Der Tab Target nennt die Quelle der Pause, die Liste schreibt nur pausiert" {
-            let paused source = { targetCategory target (Some 1600m) false with Pause = Some source }
-            Expect.equal (targetStatusText (paused PausedInBb)) (Some "pausiert in BB") "in BB"
-            Expect.equal (targetStatusText (paused PausedInBoth)) (Some "pausiert in BB und YNAB") "beide"
-            for source in [ PausedInBb; PausedInYnab; PausedInBoth ] do
-                Expect.equal (listStatusText (paused source)) (Some "pausiert") $"Liste bei {source}"
-                Expect.isNone (targetUnderfunded (paused source)) $"kein Fehlbetrag im Tab bei {source}"
+        // budgeting-eh8xe: eine Pause gibt es nur in BB, Tab und Liste schreiben "pausiert".
+        test "Tab Target und Liste schreiben pausiert, ohne Fehlbetrag im Tab" {
+            let paused = { targetCategory target (Some 1600m) false with Pause = Some PausedInBb }
+            Expect.equal (targetStatusText paused) (Some "pausiert") "Tab"
+            Expect.equal (listStatusText paused) (Some "pausiert") "Liste"
+            Expect.isNone (targetUnderfunded paused) "kein Fehlbetrag im Tab"
         }
         test "Ohne Fehlbetrag von YNAB gibt es keinen Zusatz" {
             Expect.equal (targetStatusText (targetCategory target None false)) None "kein Zusatz"

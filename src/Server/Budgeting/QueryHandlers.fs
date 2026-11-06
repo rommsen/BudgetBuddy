@@ -37,8 +37,10 @@ let private runUnderfundedComparison
 /// dessen YNAB-Stand und der Faltung. Zugewiesen ist BBs Soll, eine offene Rückschreibung trägt ihre Markierung;
 /// Aktivität, Verfügbar und Zu verteilen bleiben YNABs. Scheitert `FetchMonth`, scheitert das Lesen. Scheitert
 /// nur das Festhalten, steht der Grund im Server-Log und der Monat kommt aus dem YNAB-Stand. Danach läuft die
-/// Parallelrechnung des Fehlbetrags auf dem gelieferten Monat, `save` hält die Abweichungsliste fest. Die
-/// Aktivität früherer Monate dafür kommt aus der Datenbank (`category_month_activity`), nie aus YNAB.
+/// Parallelrechnung des Fehlbetrags auf dem gelieferten Monat, `save` hält die Abweichungsliste fest. Die Targets
+/// sind BBs Regeln im Monat; wartet eine Kategorie noch auf die Target-Übernahme, läuft sie vorher
+/// (budgeting-eh8xe). Die Aktivität früherer Monate dafür kommt aus der Datenbank (`category_month_activity`),
+/// nie aus YNAB.
 /// `connect` ist die Datenbank für Stream, Pausen und Anhängen, `now` der Zeitpunkt der Ereignisse (UTC).
 let budgetMonthWith
     (save: string -> UnderfundedComparison list -> Async<unit>)
@@ -60,9 +62,12 @@ let budgetMonthWith
             match! Budgeting.Persistence.loadPausedCategoriesWith connect monthKey with
             | Error message -> return Error (YnabError.LocalReadFailed message)
             | Ok paused ->
-                let month = toBudgetMonthWith assignments paused raw
-                do! runUnderfundedComparison save (Budgeting.Persistence.loadMonthActivitiesWith connect) month
-                return Ok month
+                match! CommandHandlers.targetRulesBestEffort connect port now raw with
+                | Error message -> return Error (YnabError.LocalReadFailed message)
+                | Ok targets ->
+                    let month = toBudgetMonthWith assignments targets paused raw
+                    do! runUnderfundedComparison save (Budgeting.Persistence.loadMonthActivitiesWith connect) month
+                    return Ok month
     }
 
 /// Liest einen Monat für die Budget-Seite auf der Datenbank der Anwendung, die Abweichungsliste geht in
@@ -198,6 +203,8 @@ let liveHistoryPort : HistoryPort =
 /// Kategorien aus dem Kassenbuch in einer Abfrage und die letzte Target-Änderung je Kategorie. Kein Schreiben.
 type TargetCheckPort = {
     FetchMonth: string -> Async<YnabResult<YnabMonth>>
+    /// BBs Targets im gelesenen Monat, samt Target-Übernahme, falls eine Kategorie darauf wartet (budgeting-eh8xe).
+    LoadTargets: YnabMonth -> Async<Result<Map<Guid, Target>, string>>
     /// Kategorien und Monatserste (aufsteigend): je Kategorie die Netto-Aktivität der Monate mit Buchungen.
     LoadMonthlyActivity: Guid list -> DateTime list -> Async<Map<Guid, (DateTime * Money) list>>
     /// Je Kategorie die jüngste geschriebene Target-Änderung.
@@ -205,7 +212,7 @@ type TargetCheckPort = {
 }
 
 /// Die Rohdaten von Targets prüfen für den laufenden Monat (`today`, Berliner Kalendertag): die sichtbaren
-/// Kategorien aus YNAB (dieselbe Filterung wie die Budget-Seite), die 12 vollen Monate vor dem laufenden aus
+/// Kategorien aus YNAB (dieselbe Filterung wie die Budget-Seite) mit BBs Targets, die 12 vollen Monate vor dem laufenden aus
 /// einer Kassenbuch-Abfrage und die letzte Änderung je Kategorie. Jeder Lesefehler kommt als `Error` mit Text.
 /// Die BB-Pausen liest es nicht: eine pausierte Kategorie wird geprüft wie jede andere (ADR 0082 Punkt 3).
 let targetCheck (port: TargetCheckPort) (today: DateOnly) : Async<Result<TargetCheckData, string>> =
@@ -214,7 +221,10 @@ let targetCheck (port: TargetCheckPort) (today: DateOnly) : Async<Result<TargetC
         match! port.FetchMonth monthKey with
         | Error e -> return Error (ynabErrorText e)
         | Ok raw ->
-            let month = toBudgetMonth Set.empty raw
+          match! port.LoadTargets raw with
+          | Error message -> return Error message
+          | Ok targets ->
+            let month = toBudgetMonth targets Set.empty raw
             let categories =
                 month.Groups |> List.collect (fun g -> g.Categories |> List.map (fun c -> g.Name, c))
             let months = targetCheckMonths (today.ToDateTime TimeOnly.MinValue)
@@ -256,9 +266,10 @@ let targetCheck (port: TargetCheckPort) (today: DateOnly) : Async<Result<TargetC
                           Categories = sources }
     }
 
-/// Die echten Lese-Quellen von Targets prüfen: der Monat über `fetchMonth` (YNAB), Kassenbuch und
-/// die Target-Änderungen aus `events`.
-let liveTargetCheckPort (fetchMonth: string -> Async<YnabResult<YnabMonth>>) : TargetCheckPort =
-    { FetchMonth = fetchMonth
+/// Die echten Lese-Quellen von Targets prüfen: der Monat über den YNAB-Port, BBs Targets, Kassenbuch und die
+/// Target-Änderungen aus `events`.
+let liveTargetCheckPort (port: CommandHandlers.YnabPort) (utcNow: unit -> DateTime) : TargetCheckPort =
+    { FetchMonth = port.FetchMonth
+      LoadTargets = fun raw -> CommandHandlers.targetRulesBestEffort global.Persistence.getConnection port (utcNow ()) raw
       LoadMonthlyActivity = Ledger.QueryHandlers.getMonthlyActivityByCategory
       LoadLastTargetChanges = Budgeting.Persistence.loadLastTargetChanges }

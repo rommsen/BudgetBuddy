@@ -662,8 +662,8 @@ let private apiWirings =
       // Servers erreichen nur die Integrationstests hinter dem Schalter.
       @"\bFetchMonth\s*=\s*fun\s+monthKey\s*->\s*YnabClient\.getMonth\s+token\s+budgetId\s+monthKey\b"
       @"\bSetAssigned\s*=\s*fun\s+monthKey\s+categoryId\s+milliunits\s*->\s*YnabClient\.setAssigned\s+token\s+budgetId\s+monthKey\s+categoryId\s+milliunits\b"
-      // Target schreiben (budgeting-k8wq3): mit Fake-Port getestet, live nur im Integrationstest.
-      @"\bSetTarget\s*=\s*fun\s+categoryId\s+patch\s*->\s*YnabClient\.setCategoryTarget\s+token\s+budgetId\s+categoryId\s+patch\b"
+      // Goals für die Target-Übernahme (budgeting-eh8xe): mit Fake-Port getestet, live nur im laufenden Server.
+      @"\bFetchCategoryGoals\s*=\s*fun\s*\(\)\s*->\s*YnabClient\.getCategoryGoals\s+token\s+budgetId\b"
       @"\bliveBudgetApi\s*\(setting:[^)]*\)\s*\(berlinZone:[^)]*\)\s*:\s*BudgetApi\s*=\s*budgetApiWith\s+setting\s+livePort\s+liveFramePort\s+\(fun\s*\(\)\s*->\s*DateTime\.UtcNow\)\s+berlinZone\s*(?:\n\s*\n|\z)"
       @"\bbudgetApi\s*\(berlinZone:[^)]*\)\s*:\s*BudgetApi\s*=\s*liveBudgetApi\s+Persistence\.Settings\.getSetting\s+berlinZone\s*(?:\n\s*\n|\z)"
       @"\bRemoting\.fromValue\s+\(budgetApi\s+berlinZone\)"
@@ -766,7 +766,7 @@ let hostedServiceGuardTests =
                   "Today = liveBerlinDay\n"
                   "prepareForImport liveBerlinZone.Value DateTime.UtcNow ynabAccountId transferPayees false toImport\n"
                   "prepareForImport liveBerlinZone.Value DateTime.UtcNow ynabAccountId transferPayees true transactionsToForce\n"
-                  "{ FetchMonth = fun monthKey -> YnabClient.getMonth token budgetId monthKey\n  SetAssigned = fun monthKey categoryId milliunits -> YnabClient.setAssigned token budgetId monthKey categoryId milliunits\n  SetTarget = fun categoryId patch -> YnabClient.setCategoryTarget token budgetId categoryId patch }\n"
+                  "{ FetchMonth = fun monthKey -> YnabClient.getMonth token budgetId monthKey\n  SetAssigned = fun monthKey categoryId milliunits -> YnabClient.setAssigned token budgetId monthKey categoryId milliunits\n  FetchCategoryGoals = fun () -> YnabClient.getCategoryGoals token budgetId }\n"
                   "let liveBudgetApi (setting: string -> Async<string option>) (berlinZone: TimeZoneInfo) : BudgetApi =\n    budgetApiWith setting livePort liveFramePort (fun () -> DateTime.UtcNow) berlinZone\n\n"
                   "let budgetApi (berlinZone: TimeZoneInfo) : BudgetApi =\n    liveBudgetApi Persistence.Settings.getSetting berlinZone\n\n"
                   "|> Remoting.fromValue (budgetApi berlinZone)\n"
@@ -796,7 +796,7 @@ let hostedServiceGuardTests =
                   "prepareForImport liveBerlinZone.Value DateTime.UtcNow ynabAccountId transferPayees true", "prepareForImport TimeZoneInfo.Utc DateTime.UtcNow ynabAccountId transferPayees true", "erzwungener Import in UTC"
                   "YnabClient.getMonth token budgetId monthKey", "async.Return (Error fehler)", "Monat ohne YNAB"
                   "YnabClient.setAssigned token budgetId monthKey categoryId milliunits", "async.Return (Ok ())", "Zuweisen ohne YNAB"
-                  "YnabClient.setCategoryTarget token budgetId categoryId patch", "async.Return (Ok None)", "Target ohne YNAB"
+                  "YnabClient.getCategoryGoals token budgetId", "async.Return (Ok [])", "Übernahme ohne Goals"
                   "budgetApiWith setting livePort", "budgetApiWith (fun _ -> async.Return None) livePort", "Budget-Seite ohne Settings"
                   "setting livePort liveFramePort", "setting emptyPort liveFramePort", "anderer YNAB-Port"
                   "setting livePort liveFramePort", "setting livePort emptyFramePort", "anderer Rahmen-Port"

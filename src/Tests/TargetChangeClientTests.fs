@@ -136,7 +136,7 @@ let private visibilityTests =
             let form entry = { formOf onTrip with DateInput = Some entry }
             Expect.equal
                 (targetFormState (Some dated) (form DateField.EmptyDate))
-                (FormChanged { NewGoal = eur 50m; NewDate = None; NewRhythm = KeepRhythm })
+                (FormChanged { NewGoal = eur 50m; NewDate = None; NewRhythm = KeepRhythm; NewDay = None })
                 "leer löscht"
             Expect.equal (targetFormState (Some dated) (form (DateField.ValidDate (DateTime(2027, 6, 1))))) FormUnchanged "gleiches Datum"
         }
@@ -159,6 +159,11 @@ let private visibilityTests =
 // Ablauf durch das echte update
 // ============================================
 
+let private requestOf (model: Model) : TargetChangeRequest =
+    match startTargetSave model with
+    | _, Some (_, request) -> request
+    | _, None -> failtest "Aufruf erwartet"
+
 let private flowTests =
     testList "Tab Target: Ablauf" [
         test "Eingabe im laufenden Monat, Wechsel in den künftigen verwirft sie, zurück zeigt den geladenen Stand" {
@@ -176,7 +181,7 @@ let private flowTests =
                 Expect.equal month current "Monat"
                 Expect.equal
                     request
-                    { CategoryId = tripId; Shown = Some (targetOf 50m); Wanted = Some { NewGoal = eur 60m; NewDate = Some "2027-06-01"; NewRhythm = KeepRhythm } }
+                    { CategoryId = tripId; Shown = Some (targetOf 50m); Wanted = Some { NewGoal = eur 60m; NewDate = Some "2027-06-01"; NewRhythm = KeepRhythm; NewDay = None }; CommandId = None }
                     "Auftrag"
             | _, None -> failtest "Auftrag erwartet"
             let running, cmd, _ = update SaveTarget typed
@@ -209,23 +214,53 @@ let private flowTests =
             Expect.equal (answered.Selected |> Option.map (fun s -> s.History)) (Some NotAsked) "Historie fällig"
             Expect.equal ((formOf answered).AmountInput, answered.TargetCall) (None, TargetIdle) "Formular auf dem neuen Stand"
         }
-        test "TargetChangedInYnab zeigt den frischen Stand mit Hinweis, die Eingabe ist verworfen" {
+        // Review-Fund eh8xe (Frontend W2): die Ablehnung wurde am Text erkannt und rot gezeigt. Jetzt trägt die
+        // Antwort BBs Stand, der Tab zeigt ihn ohne Neulesen, der Hinweis ist gelb, die Eingabe bleibt.
+        test "GIVEN BBs Stand ist inzwischen 55 WHEN die Antwort kommt THEN steht 55, die Eingabe bleibt mit Hinweis, kein Neulesen" {
             let running = onTrip |> step (TargetAmountChanged "60") |> step SaveTarget
-            let answered = running |> step (TargetChangeAnswered (tripId, current, Ok (TargetChangedInYnab (Some (targetOf 55m)))))
-            Expect.equal (categoryOf answered tripId).Target (Some (targetOf 55m)) "frischer Stand"
-            Expect.equal ((formOf answered).AmountInput, (formOf answered).Notice) (None, Some TargetChangedNotice) "Hinweis"
-            Expect.equal
-                (targetNoticeText TargetChangedNotice)
-                "Target wurde inzwischen in YNAB geändert. Hier steht jetzt der Stand aus YNAB, deine Eingabe ist verworfen."
-                "Text"
+            let answered, cmd, external = update (TargetChangeAnswered (tripId, current, Ok (TargetChangedMeanwhile (Some (targetOf 55m))))) running
+            Expect.equal (categoryOf answered tripId).Target (Some (targetOf 55m)) "BBs Stand"
+            Expect.equal ((formOf answered).AmountInput, (formOf answered).Notice) (Some "60", Some TargetChangedMeanwhileNotice) "Eingabe und Hinweis"
+            Expect.equal answered.TargetCall TargetIdle "Aufruf frei"
+            Expect.equal answered.MonthGeneration running.MonthGeneration "kein Neulesen"
+            Expect.isEmpty cmd "kein Aufruf"
+            Expect.equal external NoOp "kein Toast im offenen Tab"
+            Expect.isTrue (sends SaveTarget answered) "erneut speichern gegen den neuen Stand"
+            Expect.equal (requestOf answered).Shown (Some (targetOf 55m)) "gezeigt ist jetzt BBs Stand"
         }
-        test "Ein Fehler zeigt die Meldung, die Eingabe bleibt, ein zweites Speichern geht" {
+        test "Ein Fehler zeigt die Meldung, die Eingabe bleibt, der Monat wird nicht neu gelesen, ein zweites Speichern geht" {
             let running = onTrip |> step (TargetAmountChanged "60") |> step SaveTarget
-            let answered, _, external = update (TargetChangeAnswered (tripId, current, Error "YNAB hat abgelehnt: kaputt")) running
-            Expect.equal ((formOf answered).AmountInput, (formOf answered).Notice) (Some "60", Some (TargetRejectedNotice "YNAB hat abgelehnt: kaputt")) "Meldung"
+            let answered, cmd, external = update (TargetChangeAnswered (tripId, current, Error "Targets nicht lesbar")) running
+            Expect.equal ((formOf answered).AmountInput, (formOf answered).Notice) (Some "60", Some (TargetRejectedNotice "Targets nicht lesbar")) "Meldung"
             Expect.equal (categoryOf answered tripId).Target (Some (targetOf 50m)) "Target unverändert"
+            Expect.equal answered.MonthGeneration running.MonthGeneration "kein Neulesen"
+            Expect.isEmpty cmd "kein Aufruf"
             Expect.equal external NoOp "kein Toast, die Meldung steht im Tab"
             Expect.isTrue (sends SaveTarget answered) "erneut speichern"
+        }
+        // Review-Fund eh8xe (Frontend W1): brach der Aufruf zweimal mit Status 0 ab, galt das als Ablehnung,
+        // und der Monat wurde nicht neu gelesen, obwohl das Target gespeichert sein konnte.
+        test "GIVEN Speichern läuft WHEN der Aufruf abbricht THEN ist der Aufruf frei, die Eingabe bleibt, der Monat wird still gelesen" {
+            let running = onTrip |> step (TargetAmountChanged "60") |> step SaveTarget
+            let lost, cmd, external = update (TargetChangeCallLost (tripId, current, "Http error (0)")) running
+            Expect.equal lost.TargetCall TargetIdle "Aufruf frei"
+            Expect.equal ((formOf lost).AmountInput, (formOf lost).Notice) (Some "60", Some (TargetRejectedNotice (targetCallLostText true "Http error (0)"))) "Eingabe und Satz"
+            Expect.isGreaterThan lost.MonthGeneration running.MonthGeneration "neu gelesen"
+            Expect.isNonEmpty cmd "Aufruf"
+            Expect.equal external NoOp "Satz im Tab"
+        }
+        test "Bricht der Aufruf ab, während eine andere Kategorie gezeigt wird, kommt der Satz als Toast" {
+            let running = onTrip |> step (TargetAmountChanged "60") |> step SaveTarget |> step (SelectCategory holidayId)
+            let lost, _, external = update (TargetChangeCallLost (tripId, current, "Netz weg.")) running
+            Expect.equal external (ShowToast (targetCallLostText true "Netz weg.", ToastError)) "Toast"
+            Expect.equal lost.TargetCall TargetIdle "Aufruf frei"
+        }
+        test "Bricht der Aufruf ab, während ein anderer Monat gewählt ist, wird nichts neu gelesen und der Satz verspricht es nicht" {
+            let running = onTrip |> step (TargetAmountChanged "60") |> step SaveTarget |> moveTo next 50m
+            let lost, cmd, external = update (TargetChangeCallLost (tripId, current, "weg")) running
+            Expect.equal lost.MonthGeneration running.MonthGeneration "kein Neulesen"
+            Expect.isEmpty cmd "kein Aufruf"
+            Expect.equal external (ShowToast (targetCallLostText false "weg", ToastError)) "Toast ohne Versprechen"
         }
         // budgeting-r3wq8, Bug: während des Speicherns ließen sich Betrag und Datum weiter bearbeiten. Die
         // Antwort setzte das Formular zurück, die nachgetippte Eingabe war still weg.
@@ -350,11 +385,6 @@ let private onHolidayWithout (month: string) : Model =
         Tab = TargetTab }
     |> step (SelectCategory holidayId)
 
-let private requestOf (model: Model) : TargetChangeRequest =
-    match startTargetSave model with
-    | _, Some (_, request) -> request
-    | _, None -> failtest "Aufruf erwartet"
-
 let private createTests =
     testList "Tab Target: Anlegen" [
         test "Ohne Target im künftigen und im vergangenen Monat steht Kein Target ohne Formular, im laufenden das Formular zum Anlegen" {
@@ -374,12 +404,12 @@ let private createTests =
             Expect.isTrue (tabForm typed (categoryOf typed holidayId) |||> formCanSave) "mit Betrag"
             Expect.equal
                 (requestOf typed)
-                { CategoryId = holidayId; Shown = None; Wanted = Some { NewGoal = eur 50m; NewDate = None; NewRhythm = SetRhythm Monthly } }
+                { CategoryId = holidayId; Shown = None; Wanted = Some { NewGoal = eur 50m; NewDate = None; NewRhythm = SetRhythm Monthly; NewDay = None }; CommandId = None }
                 "monatlich"
             let yearly = typed |> step (TargetRhythmChanged Yearly) |> step (TargetDateChanged (DateField.ValidDate (DateTime(2027, 6, 1))))
             Expect.equal
                 (requestOf yearly).Wanted
-                (Some { NewGoal = eur 50m; NewDate = Some "2027-06-01"; NewRhythm = SetRhythm Yearly })
+                (Some { NewGoal = eur 50m; NewDate = Some "2027-06-01"; NewRhythm = SetRhythm Yearly; NewDay = None })
                 "jährlich mit Datum"
             Expect.isTrue (sends SaveTarget yearly) "ohne Warnung gesendet"
         }
@@ -391,7 +421,7 @@ let private changeTests =
             Expect.isFalse ((tabForm (onTrip |> step (TargetRhythmChanged Monthly)) (trip 50m) |||> formCanSave)) "monatlich bleibt"
         }
         test "GIVEN Wechsel mit Verlusten WHEN Speichern THEN erst die Warnung, gesendet wird nur nach Bestätigung" {
-            let chosen = onTrip |> step (TargetRhythmChanged Weekly)
+            let chosen = onTrip |> step (TargetRhythmChanged Yearly)
             let warned, cmd, _ = update SaveTarget chosen
             Expect.isEmpty cmd "Speichern sendet nicht"
             Expect.isTrue (formOf warned).ConfirmingChange "Warnung offen"
@@ -418,10 +448,10 @@ let private changeTests =
         test "GIVEN Wechsel ohne Verlust THEN keine Warnung" {
             let plain = { targetOf 50m with Day = None }
             let model = onTrip |> withTarget tripId current (Some plain)
-            Expect.isTrue (sends SaveTarget (model |> step (TargetRhythmChanged Weekly))) "gesendet"
+            Expect.isTrue (sends SaveTarget (model |> step (TargetRhythmChanged Weekly) |> step (TargetWeekdayChanged 3))) "gesendet"
         }
         test "GIVEN Warnung offen WHEN Monatswechsel THEN Warnung zu, nichts gesendet" {
-            let warned = onTrip |> step (TargetRhythmChanged Weekly) |> step SaveTarget
+            let warned = onTrip |> step (TargetRhythmChanged Weekly) |> step (TargetWeekdayChanged 3) |> step SaveTarget
             let moved = step (SelectMonth next) warned
             Expect.isNone moved.TargetForm "Formular weg"
             Expect.isFalse (sends ConfirmTargetChange moved) "nichts gesendet"
@@ -429,61 +459,67 @@ let private changeTests =
             Expect.isFalse (formOf back).ConfirmingChange "zurück im laufenden Monat ohne Warnung"
             Expect.isFalse (sends ConfirmTargetChange back) "auch dort nichts"
         }
-        test "Die Warnung nennt die Verluste und beim Wechsel auf wöchentlich den Wochentag" {
+        // budgeting-eh8xe: der Satz, ein Wochentag lasse sich in BB nicht setzen, entfällt.
+        test "Die Warnung nennt die Verluste" {
             let dated = { targetOf 50m with Date = Some "2027-06-01"; Rhythm = Months 3 }
             let form rhythm = { formOf onTrip with RhythmInput = Some rhythm; DateInput = Some DateField.EmptyDate }
             Expect.equal
-                (targetChangeWarningText dated (form Weekly))
+                (targetChangeWarningText dated (form Yearly))
                 ("Der Tag des Targets geht verloren. Das Datum 01.06.2027 geht verloren. "
-                 + "Der Rhythmus „alle 3 Monate“ geht verloren. BB kann ihn nicht wiederherstellen, der Wechsel ist endgültig. "
-                 + "Ein Wochentag lässt sich danach in BB nicht setzen.")
-                "wöchentlich"
+                 + "Der Rhythmus „alle 3 Monate“ geht verloren. BB kann ihn nicht wiederherstellen, der Wechsel ist endgültig.")
+                "jährlich"
             Expect.equal
                 (targetChangeWarningText { targetOf 50m with Kind = MonthlyFunding; Day = None } (form Yearly))
                 "Die bisherige Art des Targets geht verloren, BB legt ein Target „Set aside another“ an."
                 "MF auf jährlich"
         }
-        test "GIVEN Teilergebnis Datum nicht gesetzt THEN Meldung, Formular mit Datum und neuem Stand, Speichern sendet nur das Datum" {
-            let model = onHolidayWithout current
-            let typed =
-                model
-                |> step (TargetAmountChanged "600")
-                |> step (TargetRhythmChanged Yearly)
-                |> step (TargetDateChanged (DateField.ValidDate (DateTime(2027, 6, 1))))
-                |> step SaveTarget
-            let after = { Goal = eur 600m; Rhythm = Years 1; Kind = Need; Date = None; NeedsWholeAmount = Some true; Day = None; CreatedIn = None }
-            let message = "Target angelegt, Datum 01.06.2027 nicht gesetzt: kaputt. Speichern setzt das Datum erneut."
-            let answered, _, external = update (TargetChangeAnswered (holidayId, current, Ok (TargetPartlyWritten (Some after, message)))) typed
-            Expect.equal external NoOp "im Tab, kein Toast"
-            Expect.equal (categoryOf answered holidayId).Target (Some after) "neuer gezeigter Stand"
-            let form = formOf answered
-            // budgeting-g2ty9 (X4): ein gelber Hinweis, keine Fehlerkarte. budgeting-c2t9w, Bug: der Client hängte
-            // den Handlungssatz ohne Satzzeichen an, auch wenn BB Schritt 2 zurückgehalten hatte. Den ganzen Satz
-            // baut der Server, der Client zeigt ihn unverändert.
-            Expect.equal form.Notice (Some (TargetPartlyNotice message)) "Hinweis"
-            Expect.equal (targetNoticeText (TargetPartlyNotice message)) message "unverändert"
-            let heldBack = targetPartlyText (TargetCreated Yearly) "2027-06-01" (DateHeldBack NoTargetAfterFirst)
-            let held = typed |> step (TargetChangeAnswered (holidayId, current, Ok (TargetPartlyWritten (None, heldBack))))
-            Expect.equal ((formOf held).Notice |> Option.map targetNoticeText) (Some heldBack) "zurückgehalten: ohne Handlungssatz"
-            Expect.equal (targetDateValue (Some after) form) (Some (DateTime(2027, 6, 1))) "Datum bleibt"
-            Expect.isTrue (tabForm answered (categoryOf answered holidayId) |||> formCanSave) "Speichern aktiv"
+        // budgeting-eh8xe: der Wochentag eines wöchentlichen Targets lässt sich in BB setzen.
+        test "Bei wöchentlich steht der Wochentag, eine Wahl geht mit dem Auftrag hinaus" {
+            let weekly = { targetOf 25m with Rhythm = Weeks 1; Day = Some 1; NeedsWholeAmount = None }
+            let model = onTrip |> withTarget tripId current (Some weekly)
+            Expect.isTrue (targetWeeklyAfter (Some weekly) (formOf model)) "wöchentlich"
+            Expect.equal (targetWeekdayValue (Some weekly) (formOf model)) (Some 1) "Montag gelesen"
+            Expect.equal (targetFormState (Some weekly) (formOf model)) FormUnchanged "unverändert"
+            let friday = model |> step (TargetWeekdayChanged 5)
             Expect.equal
-                (requestOf answered)
-                { CategoryId = holidayId; Shown = Some after; Wanted = Some { NewGoal = eur 600m; NewDate = Some "2027-06-01"; NewRhythm = KeepRhythm } }
-                "gegen den neuen Stand, ohne Wechsel"
-            Expect.isTrue (sends SaveTarget answered) "ohne Warnung gesendet"
+                (requestOf friday).Wanted
+                (Some { NewGoal = eur 25m; NewDate = None; NewRhythm = KeepRhythm; NewDay = Some 5 })
+                "Freitag"
+            Expect.isFalse (targetWeeklyAfter (Some (targetOf 50m)) (formOf onTrip)) "monatlich ohne Wochentag"
+            let switched = onTrip |> step (TargetRhythmChanged Weekly) |> step (TargetWeekdayChanged 3)
+            Expect.equal ((requestOf (switched |> step ConfirmTargetChange)).Wanted |> Option.bind (fun d -> d.NewDay)) (Some 3) "beim Wechsel"
         }
-        test "Ein Teilergebnis, während eine andere Kategorie gezeigt wird, kommt als Toast" {
-            let running = onTrip |> step (TargetAmountChanged "60") |> step SaveTarget |> step (SelectCategory holidayId)
-            let _, _, external = update (TargetChangeAnswered (tripId, current, Ok (TargetPartlyWritten (Some (targetOf 60m), "Datum fehlt")))) running
-            Expect.equal external (ShowToast ("Datum fehlt", ToastWarning)) "Toast"
+        // Review-Fund eh8xe (Design W1): ein wöchentliches Target ließ sich ohne Wochentag speichern, BB legte es
+        // ohne Tag an und konnte den Fehlbetrag nicht rechnen.
+        test "GIVEN Wechsel auf wöchentlich ohne Wochentag THEN Speichern gesperrt mit Grund, nichts gesendet, nach der Wahl geht es" {
+            let chosen = onTrip |> step (TargetRhythmChanged Weekly)
+            let shown, locks, form = tabForm chosen (categoryOf chosen tripId)
+            Expect.isFalse (formCanSave shown locks form) "gesperrt"
+            Expect.equal (targetWeekdayHint shown form) (Some TargetWeekdayMissingText) "Grund"
+            Expect.isFalse (sends SaveTarget chosen) "nichts gesendet"
+            Expect.isFalse (formOf (step SaveTarget chosen)).ConfirmingChange "keine Warnung"
+            let picked = chosen |> step (TargetWeekdayChanged 2)
+            let shown, locks, form = tabForm picked (categoryOf picked tripId)
+            Expect.isTrue (formCanSave shown locks form) "mit Wochentag"
+            Expect.isNone (targetWeekdayHint shown form) "kein Grund mehr"
+        }
+        test "GIVEN Anlegen wöchentlich ohne Wochentag THEN nichts gesendet, mit Wochentag schon" {
+            let typed = onHolidayWithout current |> step (TargetAmountChanged "25") |> step (TargetRhythmChanged Weekly)
+            Expect.isFalse (sends SaveTarget typed) "ohne Tag"
+            Expect.equal ((requestOf (typed |> step (TargetWeekdayChanged 0))).Wanted |> Option.bind (fun d -> d.NewDay)) (Some 0) "Sonntag"
+        }
+        test "Ein wöchentliches Target mit Wochentag braucht keine neue Wahl, ein Betrag allein geht" {
+            let weekly = { targetOf 25m with Rhythm = Weeks 1; Day = Some 4; NeedsWholeAmount = None }
+            let typed = onTrip |> withTarget tripId current (Some weekly) |> step (TargetAmountChanged "30")
+            Expect.isNone (targetWeekdayHint (Some weekly) (formOf typed)) "kein Grund"
+            Expect.equal ((requestOf typed).Wanted |> Option.bind (fun d -> d.NewDay)) (Some 4) "Donnerstag geht mit"
         }
     ]
 
 /// Was die Aufzählung der Warnung weiß, unabhängig vom getesteten Code.
 type private WarnWalk = {
     Month: string
-    /// Wöchentlich ist im Formular gewählt.
+    /// Ein anderer Rhythmus (jährlich) ist im Formular gewählt.
     Chosen: bool
     /// Betrag oder Datum sind getippt: ohne Wechsel sendet Speichern direkt.
     Typed: bool
@@ -511,7 +547,7 @@ let private warnWalkTests =
     let apply (name: string) (w: WarnWalk) (model: Model) : Model * Cmd<Msg> =
         let run msg = let m, cmd, _ = update msg model in m, cmd
         match name with
-        | "Rhythmus" -> run (TargetRhythmChanged Weekly)
+        | "Rhythmus" -> run (TargetRhythmChanged Yearly)
         | "Betrag" -> run (TargetAmountChanged "70")
         | "Datum" -> run (TargetDateChanged (DateField.ValidDate (DateTime(2027, 6, 1))))
         | "Speichern" -> run SaveTarget
@@ -554,7 +590,7 @@ let private reviewTests =
             Expect.equal removing.TargetCall (TargetSaving (tripId, current, RemovingTarget)) "Entfernen läuft"
             Expect.equal (formRemoveButton (locksOf removing) (formOf removing)) { Busy = true; Disabled = false } "Entfernen dreht"
             Expect.equal (tabForm removing (categoryOf removing tripId) |||> formSaveButton) { Busy = false; Disabled = true } "Speichern gesperrt"
-            let switching = onTrip |> step (TargetRhythmChanged Weekly) |> step SaveTarget |> step ConfirmTargetChange
+            let switching = onTrip |> step (TargetRhythmChanged Weekly) |> step (TargetWeekdayChanged 3) |> step SaveTarget |> step ConfirmTargetChange
             Expect.equal (tabForm switching (categoryOf switching tripId) |||> formSaveButton) { Busy = true; Disabled = false } "Wechseln dreht am Speichern-Knopf"
             Expect.equal (tabForm onTrip (trip 50m) |||> formSaveButton) { Busy = false; Disabled = true } "ohne Änderung gesperrt"
             Expect.equal (formRemoveButton (locksOf onTrip) (formOf onTrip)) { Busy = false; Disabled = false } "Entfernen frei"
@@ -567,7 +603,7 @@ let private reviewTests =
         }
         // X2: ein stilles Neulesen bei offener Warnung ließ "Wechseln" wirkungslos und Speichern gesperrt.
         test "GIVEN Warnung offen WHEN ein stilles Neulesen zeigt ein Target ohne Verluste THEN schließt die Warnung, Speichern geht" {
-            let warned = onTrip |> step (TargetRhythmChanged Weekly) |> step SaveTarget
+            let warned = onTrip |> step (TargetRhythmChanged Yearly) |> step SaveTarget
             Expect.isTrue (formOf warned).ConfirmingChange "Warnung offen"
             let withoutDay =
                 { monthWith current 50m with
@@ -575,10 +611,10 @@ let private reviewTests =
             let reread = warned |> step (Reloaded (warned.MonthGeneration, Ok withoutDay))
             Expect.isFalse (formOf reread).ConfirmingChange "Warnung zu"
             Expect.isTrue (sends SaveTarget reread) "Speichern sendet ohne Warnung"
-            let weekly =
+            let yearly =
                 { monthWith current 50m with
-                    Groups = [ { Name = "Alltag"; Categories = [ { trip 50m with Target = Some { targetOf 50m with Rhythm = Weeks 1 } }; holiday ] } ] }
-            let unchanged = warned |> step (Reloaded (warned.MonthGeneration, Ok weekly))
+                    Groups = [ { Name = "Alltag"; Categories = [ { trip 50m with Target = Some { targetOf 50m with Rhythm = Years 1 } }; holiday ] } ] }
+            let unchanged = warned |> step (Reloaded (warned.MonthGeneration, Ok yearly))
             Expect.isFalse (formOf unchanged).ConfirmingChange "kein Wechsel mehr: Warnung zu"
             let still = warned |> step (Reloaded (warned.MonthGeneration, Ok (monthWith current 50m)))
             Expect.isTrue (formOf still).ConfirmingChange "gleicher Stand: Warnung bleibt"
@@ -639,7 +675,7 @@ let private reviewTests =
 
 /// Was die Aufzählung der Rückfragen weiß, unabhängig vom getesteten Code (budgeting-g2ty9, X1; budgeting-c2t9w).
 type private AskWalk = {
-    /// Wöchentlich ist gewählt, ein Speichern verlöre den Tag.
+    /// Ein anderer Rhythmus ist gewählt, ein Speichern verlöre den Tag.
     Chosen: bool
     /// Ein Betrag ist getippt, der vom geladenen abweicht: ohne Wechsel sendet Speichern direkt.
     Typed: bool
@@ -698,7 +734,7 @@ let private askWalkTests =
     let apply (name: string) (w: AskWalk) (model: Model) : Model * Cmd<Msg> =
         let run msg = let m, cmd, _ = update msg model in m, cmd
         match name with
-        | "Rhythmus" -> run (TargetRhythmChanged Weekly)
+        | "Rhythmus" -> run (TargetRhythmChanged Yearly)
         | "Betrag" -> run (TargetAmountChanged "60")
         | "Speichern" -> run SaveTarget
         | "Wechseln" -> run ConfirmTargetChange
@@ -906,7 +942,7 @@ let private dateTests =
             Expect.isFalse (targetDateShown (Some datedMonthly) (form Weekly)) "Wechsel von monatlich mit Datum auf wöchentlich"
         }
         test "Ein gelesenes Datum eines wöchentlichen Targets bleibt sichtbar und lässt sich entfernen" {
-            let weekly = { targetOf 50m with Rhythm = Weeks 1; Date = Some "2027-06-01" }
+            let weekly = { targetOf 50m with Rhythm = Weeks 1; Date = Some "2027-06-01"; Day = Some 3 }
             let model = onTrip |> withTarget tripId current (Some weekly)
             Expect.isTrue (targetDateShown (Some weekly) (formOf model)) "sichtbar"
             Expect.isTrue (targetDateShown (Some weekly) { formOf model with RhythmInput = Some Weekly }) "auch mit gewähltem Rhythmus"
@@ -914,35 +950,35 @@ let private dateTests =
             Expect.isTrue (targetDateShown (Some weekly) (formOf removed)) "nach dem Leeren weiter sichtbar"
             Expect.equal
                 (requestOf removed).Wanted
-                (Some { NewGoal = eur 50m; NewDate = None; NewRhythm = KeepRhythm })
+                (Some { NewGoal = eur 50m; NewDate = None; NewRhythm = KeepRhythm; NewDay = Some 3 })
                 "entfernt"
         }
         test "GIVEN Datum bei monatlich getippt WHEN Wechsel auf wöchentlich THEN das ungespeicherte Datum fällt aus dem Entwurf" {
             let typed = onTrip |> step (TargetDateChanged june)
-            let weekly = typed |> step (TargetRhythmChanged Weekly)
+            let weekly = typed |> step (TargetRhythmChanged Weekly) |> step (TargetWeekdayChanged 3)
             Expect.isNone (formOf weekly).DateInput "Eingabe verworfen"
             Expect.equal (targetDateValue (Some (targetOf 50m)) (formOf (weekly |> step (TargetRhythmChanged Monthly)))) None "zurück auf monatlich ohne Datum"
             let datedMonthly = { targetOf 50m with Date = Some "2027-06-01"; Day = None }
-            let readDated = onTrip |> withTarget tripId current (Some datedMonthly) |> step (TargetRhythmChanged Weekly)
+            let readDated = onTrip |> withTarget tripId current (Some datedMonthly) |> step (TargetRhythmChanged Weekly) |> step (TargetWeekdayChanged 3)
             match targetFormState (Some datedMonthly) (formOf readDated) with
             | FormChanged draft -> Expect.equal (draft.NewDate, draft.NewRhythm) (None, SetRhythm Weekly) "gelesenes Datum geht nicht mit"
             | other -> failtest $"Entwurf erwartet: {other}"
             // Ein Datum, das trotzdem ankommt (etwa ein Tipp vor dem Neuzeichnen), geht nie hinaus.
-            let late = typed |> step (TargetRhythmChanged Weekly) |> step (TargetDateChanged june)
+            let late = typed |> step (TargetRhythmChanged Weekly) |> step (TargetWeekdayChanged 3) |> step (TargetDateChanged june)
             match targetFormState (Some (targetOf 50m)) (formOf late) with
             | FormChanged draft -> Expect.isNone draft.NewDate "kein Datum"
             | other -> failtest $"Entwurf erwartet: {other}"
         }
         test "GIVEN Anlegen mit Datum bei monatlich WHEN wöchentlich angelegt THEN der Auftrag trägt kein Datum" {
             let typed = onHolidayWithout current |> step (TargetAmountChanged "50") |> step (TargetDateChanged june)
-            Expect.equal (requestOf typed).Wanted (Some { NewGoal = eur 50m; NewDate = Some "2027-06-01"; NewRhythm = SetRhythm Monthly }) "monatlich mit Datum"
-            let weekly = typed |> step (TargetRhythmChanged Weekly)
+            Expect.equal (requestOf typed).Wanted (Some { NewGoal = eur 50m; NewDate = Some "2027-06-01"; NewRhythm = SetRhythm Monthly; NewDay = None }) "monatlich mit Datum"
+            let weekly = typed |> step (TargetRhythmChanged Weekly) |> step (TargetWeekdayChanged 3)
             let saved, cmd, _ = update SaveTarget weekly
             Expect.isNonEmpty cmd "gesendet"
             Expect.equal saved.TargetCall (TargetSaving (holidayId, current, SavingTarget)) "Aufruf läuft"
-            Expect.equal (requestOf weekly).Wanted (Some { NewGoal = eur 50m; NewDate = None; NewRhythm = SetRhythm Weekly }) "wöchentlich ohne Datum"
+            Expect.equal (requestOf weekly).Wanted (Some { NewGoal = eur 50m; NewDate = None; NewRhythm = SetRhythm Weekly; NewDay = Some 3 }) "wöchentlich ohne Datum"
             let lateDate = weekly |> step (TargetDateChanged june)
-            Expect.equal (requestOf lateDate).Wanted (Some { NewGoal = eur 50m; NewDate = None; NewRhythm = SetRhythm Weekly }) "auch ein spätes Datum geht nicht mit"
+            Expect.equal (requestOf lateDate).Wanted (Some { NewGoal = eur 50m; NewDate = None; NewRhythm = SetRhythm Weekly; NewDay = Some 3 }) "auch ein spätes Datum geht nicht mit"
         }
         test "Das Feld heißt Fällig am bei monatlich und jährlich, sonst Datum" {
             Expect.equal (targetDateLabel (Some Monthly)) "Fällig am" "monatlich"

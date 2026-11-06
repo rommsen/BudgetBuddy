@@ -66,7 +66,6 @@ let private ynabCategory (name: string) : YnabMonthCategory =
       Available = eur 0m
       Underfunded = None
       Target = None
-      Snoozed = false
       Hidden = false
       Deleted = false
       Internal = false }
@@ -129,7 +128,11 @@ let ledgerTests =
             let category = ynabCategory "Kategorie C P2zr6"
             booked (catRef category.Id category.Name) (utc 2026 10 3) -12m
             let port =
-                { Server.Budgeting.QueryHandlers.liveTargetCheckPort (fun month -> async { return Ok (monthWith [ category ] month) }) with
+                let ynab : Server.Budgeting.CommandHandlers.YnabPort =
+                    { FetchMonth = fun month -> async { return Ok (monthWith [ category ] month) }
+                      SetAssigned = fun _ _ _ -> async { return failwith "Targets prüfen schreibt nicht" }
+                      FetchCategoryGoals = fun () -> async { return Ok [] } }
+                { Server.Budgeting.QueryHandlers.liveTargetCheckPort ynab (fun () -> DateTime(2026, 11, 5, 8, 0, 0, DateTimeKind.Utc)) with
                     LoadLastTargetChanges = fun () -> async { return Ok Map.empty } }
             match Server.Budgeting.QueryHandlers.targetCheck port today |> run with
             | Error message -> failtest message
@@ -152,27 +155,34 @@ let private openChangesDb () =
     EventStore.createSchemaOn conn
     conn
 
-/// Eine Target-Änderung über den echten Schreibweg, `at` als UTC-Zeitpunkt im Format `o`.
+let private utcOf (at: string) =
+    DateTime.Parse(at, Globalization.CultureInfo.InvariantCulture, Globalization.DateTimeStyles.RoundtripKind)
+
+/// Eine Target-Änderung aus dem Altbestand (`YnabGoalChangedFromBb`), `at` als UTC-Zeitpunkt im Format `o`.
 let private change (conn: Microsoft.Data.Sqlite.SqliteConnection) (categoryId: Guid) (at: string) (kind: TargetChangeKind) : Guid * Guid =
-    let occurredAt = DateTime.Parse(at, Globalization.CultureInfo.InvariantCulture, Globalization.DateTimeStyles.RoundtripKind)
-    let id =
-        Budgeting.Persistence.recordTargetChangeOn
-            conn
-            { OccurredAt = occurredAt
-              Month = "2026-07-01"
-              CategoryId = categoryId
+    let event =
+        Budgeting.Events.BudgetEvent.YnabGoalChangedFromBb
+            { Month = "2026-07"
               CategoryName = "X"
-              Kind = kind
+              ChangeKind = kind
               OldGoalTarget = None
               NewGoalTarget = None
               OldDate = None
               NewDate = None }
-    categoryId, id
+    let recorded = Budgeting.Persistence.appendOn conn (Budgeting.Events.TargetStream categoryId) [ utcOf at, event ]
+    categoryId, (List.exactlyOne recorded).EventId
 
-/// Ein Ergebnis zu einem Schritt der Änderung.
+/// Ein Ergebnis zu einem Schritt der Änderung aus dem Altbestand.
 let private result (conn: Microsoft.Data.Sqlite.SqliteConnection) (categoryId: Guid, changeId: Guid) (step: int) (outcome: LineOutcome) =
-    Budgeting.Persistence.recordTargetChangeStepResultOn
-        conn categoryId changeId step (DateTime(2026, 7, 1, 10, 0, 0, DateTimeKind.Utc)) outcome
+    let event = Budgeting.Events.goalStepEvent { DecisionEventId = changeId; Step = step } outcome
+    Budgeting.Persistence.appendOn conn (Budgeting.Events.TargetStream categoryId) [ DateTime(2026, 7, 1, 10, 0, 0, DateTimeKind.Utc), event ]
+    |> ignore
+
+/// Ein Ereignis im Target-Stream, `at` wie bei `change` (budgeting-eh8xe).
+let private appendTarget (conn: Microsoft.Data.Sqlite.SqliteConnection) (categoryId: Guid) (at: string) (event: Budgeting.Events.BudgetEvent) =
+    Budgeting.Persistence.appendOn conn (Budgeting.Events.TargetStream categoryId) [ utcOf at, event ] |> ignore
+
+let private rule : Target = { Goal = eur 50m; Rhythm = Months 1; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None; CreatedIn = None }
 
 let private edited = TargetEdited
 let private removedKind = TargetRemoved
@@ -236,6 +246,23 @@ let lastChangeTests =
                 Expect.equal (marks |> Map.tryFind removedLast) (Some (TargetRemovedOn "2026-07-10")) "Entfernen zuletzt eingefügt"
                 Expect.equal (marks |> Map.tryFind editedLast) (Some (TargetSetOn "2026-07-10")) "Ändern zuletzt eingefügt"
 
+        // budgeting-eh8xe, ADR 0082 Punkt 7 mit Nachtrag: die letzte Änderung kommt aus TargetSet oder TargetRemoved,
+        // die Übernahme zählt nicht.
+        testCase "TargetSet und TargetRemoved zählen, jünger als der Altbestand, die Übernahme zählt nicht" <| fun () ->
+            use conn = openChangesDb ()
+            let set, removed, takenOver = Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()
+            result conn (change conn set "2026-06-10T08:00:00.0000000Z" edited) 1 Written
+            appendTarget conn set "2026-09-02T08:00:00.0000000Z" (Budgeting.Events.BudgetEvent.TargetSet { Rule = rule; EffectiveFrom = "2026-09" })
+            appendTarget conn removed "2026-09-03T08:00:00.0000000Z" (Budgeting.Events.BudgetEvent.TargetTakenOverFromYnab { CategoryName = "X"; Rule = rule; YnabGoalType = "NEED" })
+            appendTarget conn removed "2026-09-04T08:00:00.0000000Z" (Budgeting.Events.BudgetEvent.TargetRemoved { EffectiveFrom = "2026-09" })
+            appendTarget conn takenOver "2026-09-05T08:00:00.0000000Z" (Budgeting.Events.BudgetEvent.TargetTakenOverFromYnab { CategoryName = "X"; Rule = rule; YnabGoalType = "NEED" })
+            match Budgeting.Persistence.queryLastTargetChanges conn with
+            | Error message -> failtest message
+            | Ok marks ->
+                Expect.equal (marks |> Map.tryFind set) (Some (TargetSetOn "2026-09-02")) "gesetzt, jünger als der Altbestand"
+                Expect.equal (marks |> Map.tryFind removed) (Some (TargetRemovedOn "2026-09-04")) "entfernt"
+                Expect.equal (marks |> Map.tryFind takenOver) None "die Übernahme ist keine Änderung"
+
         testCase "loadLastTargetChangesWith meldet ein nicht lesbares Ereignis mit TargetChangesUnreadableText" <| fun () ->
             let connect () =
                 let conn = openChangesDb ()
@@ -266,6 +293,7 @@ let private probe (categories: YnabMonthCategory list) : Probe =
                     calls.Add((ids, firstDays))
                     return Map.empty
                 }
+          LoadTargets = fun raw -> async { return Ok (BudgetEventsFixture.ynabTargets raw) }
           LoadLastTargetChanges = fun () -> async { return Ok Map.empty } }
       ActivityCalls = calls }
 
@@ -325,7 +353,7 @@ let handlerTests =
                     connect
                     { FetchMonth = p.Port.FetchMonth
                       SetAssigned = fun _ _ _ -> async { return failwith "kein Schreiben" }
-                      SetTarget = fun _ _ -> async { return failwith "kein Schreiben" } }
+                      FetchCategoryGoals = fun () -> async { return Ok [] } }
                     (DateTime(2093, 4, 15, 8, 0, 0, DateTimeKind.Utc))
                     monthKey
             Expect.equal
@@ -364,24 +392,19 @@ let endpointTests =
             initialize ()
             let category = ynabCategory "Kategorie E P2zr6"
             booked (catRef category.Id category.Name) (utc 2026 10 3) -12m
-            // Eine in BB geschriebene Änderung über den echten Persistenzweg (Schritt 1 geschrieben).
-            let written : Budgeting.Persistence.TargetChange =
-                { OccurredAt = DateTime(2026, 8, 10, 8, 0, 0, DateTimeKind.Utc)
-                  Month = "2026-08-01"
-                  CategoryId = category.Id
-                  CategoryName = category.Name
-                  Kind = TargetEdited
-                  OldGoalTarget = Some 50000L
-                  NewGoalTarget = Some 60000L
-                  OldDate = None
-                  NewDate = None }
-            let writtenId = Budgeting.Persistence.recordTargetChange written |> run
-            Budgeting.Persistence.recordTargetChangeStepResult category.Id writtenId 1 written.OccurredAt Written |> run
+            // Eine Änderung in BB über den echten Schreibweg (budgeting-eh8xe).
+            Budgeting.Persistence.recordTargetChangeOn
+                (global.Persistence.getConnection ())
+                None
+                (DateTime(2026, 8, 10, 8, 0, 0, DateTimeKind.Utc))
+                category.Id
+                (Budgeting.Events.BudgetEvent.TargetSet { Rule = rule; EffectiveFrom = "2026-08" })
+            |> ignore
             let fetched = ResizeArray<string>()
             let ynab : Server.Budgeting.CommandHandlers.YnabPort =
                 { FetchMonth = fun month -> async { fetched.Add month; return Ok (monthWith [ category ] month) }
                   SetAssigned = fun _ _ _ -> async { return failwith "Targets prüfen schreibt nicht" }
-                  SetTarget = fun _ _ -> async { return failwith "Targets prüfen schreibt nicht" } }
+                  FetchCategoryGoals = fun () -> async { return Ok [] } }
             let api =
                 Server.Api.budgetApiWith
                     (fun _ -> async { return Some "eingerichtet" })
@@ -398,4 +421,6 @@ let endpointTests =
                 let only = data.Categories |> List.exactlyOne
                 Expect.equal (List.last only.Spending) { Month = "2026-10-01"; Activity = eur -12m } "Ausgaben aus dem Kassenbuch"
                 Expect.equal only.LastChange (Some (TargetSetOn "2026-08-10")) "letzte Änderung aus events"
+                // YNAB zeigt kein Goal: das Target kommt aus BBs Regeln (Anschluss `liveTargetCheckPort.LoadTargets`).
+                Expect.equal only.Target (Some rule) "BBs Regel"
     ]

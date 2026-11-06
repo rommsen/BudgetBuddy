@@ -188,7 +188,7 @@ test("[fokus] Handy: bei offener Warnung bleibt der Fokus beim Tippen im Betrags
   const { context, page, calls } = await openPage(390, 844);
   try {
     await openTargetTab(page);
-    await sheet(page).getByRole("button", { name: "Woche" }).click();
+    await sheet(page).getByRole("button", { name: "Jahr" }).click();
     await sheet(page).getByRole("button", { name: "Target speichern" }).click();
     const dialog = sheet(page).getByRole("alertdialog", { name: "Rhythmus wechseln?" });
     await dialog.waitFor();
@@ -275,7 +275,7 @@ test("[layout] Handy: Target anlegen und die Warnung vor dem Wechsel der Art lie
   const changed = await openPage(390, 844);
   try {
     await openTargetTab(changed.page);
-    await sheet(changed.page).getByRole("button", { name: "Woche" }).click();
+    await sheet(changed.page).getByRole("button", { name: "Jahr" }).click();
     await sheet(changed.page).getByRole("button", { name: "Target speichern" }).click();
     const dialog = sheet(changed.page).getByRole("alertdialog", { name: "Rhythmus wechseln?" });
     await dialog.waitFor();

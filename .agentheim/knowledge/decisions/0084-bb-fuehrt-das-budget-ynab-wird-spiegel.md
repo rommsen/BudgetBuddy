@@ -259,6 +259,23 @@ Die Ergebnis-Ereignisse (`AssignmentWrittenBackToYnab`, `AssignmentWriteBackFail
 - Toleranz für die Umschaltung (budgeting-hbhzf, entschieden von Roman): jede Abweichung im
   laufenden Monat hat einen bekannten Grund.
 
+**Nachtrag 2026-11-06 (budgeting-pf8n7 und budgeting-eh8xe):**
+- Punkt 7, laufende Periode: Sie beginnt im Monat der vorigen Fälligkeit, einschließlich. Bei der
+  ersten Fälligkeit eines Ziels beginnt sie im Anlegemonat (am Target `CreatedIn`, aus YNABs
+  `goal_creation_month`). Das ersetzt "vom Monat nach der vorigen Fälligkeit" im Nachtrag davor.
+  Vierter Vergleich in Prod (November 2026, Monate ab Dezember 2024 gelesen): 99 von 100 gleich,
+  keine Abweichung, eine Kategorie "nicht gerechnet", weil ihre erste Periode vor Dezember 2024
+  beginnt. Roman hat das als erfüllte Toleranz angenommen.
+- Punkt 5, Targets (umgesetzt in budgeting-eh8xe): BB übernimmt sie, wenn ein Monat gelesen wird,
+  bei der Vorschau und vor einem Befehl, sobald eine Kategorie des Monats ein übernehmbares Goal
+  zeigt, dessen Target BB noch nicht führt. Übernehmbar sind NEED, TB, TBD und MF. Ein vergangener
+  Monat löst keine Übernahme aus. Beim Lesen läuft sie nach bestem Bemühen, vor einem Befehl streng.
+- Punkt 6: Der Anlegemonat gehört zur Regel. Die Übernahme bringt ihn mit, eine Änderung behält ihn,
+  eine in BB neue Regel (Anlegen, Wechsel der Art) bekommt den Monat, ab dem sie gilt.
+- Punkt 7, Target ändern: Der Wochentag eines wöchentlichen Targets ist Pflicht (entschieden bei
+  der Triage, Roman informiert). Ohne YNAB-Aufruf prüft BB nicht mehr, ob die Kategorie im Monat
+  sichtbar ist (hingenommen).
+
 ### 5. Übernahme
 
 Entschieden von Roman am 2026-11-05.

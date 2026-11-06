@@ -48,7 +48,13 @@ type AssignmentState = {
 /// Eine Kategorie ohne Eintrag in der Faltung: Soll und bestätigter Stand 0, nichts offen.
 let unassigned : AssignmentState = { Assigned = 0L; Confirmed = 0L; Open = None }
 
-let private toBudgetCategory (assignments: Map<Guid, AssignmentState> option) (pausedInBb: Set<Guid>) (c: YnabMonthCategory) : BudgetCategory =
+let private toBudgetCategory
+    (assignments: Map<Guid, AssignmentState> option)
+    (targets: Map<Guid, Target>)
+    (pausedInBb: Set<Guid>)
+    (c: YnabMonthCategory)
+    : BudgetCategory =
+    let target = targets |> Map.tryFind c.Id
     let state = assignments |> Option.map (fun m -> m |> Map.tryFind c.Id |> Option.defaultValue unassigned)
     { Id = c.Id
       Name = c.Name.Trim()
@@ -60,23 +66,30 @@ let private toBudgetCategory (assignments: Map<Guid, AssignmentState> option) (p
       Activity = c.Activity
       Available = c.Available
       Underfunded = c.Underfunded
-      Target = c.Target
-      // Eine BB-Pause ohne Target wirkt nicht und wird nicht gemeldet (budgeting-r3wq8).
-      Pause = pauseSourceOf c.Snoozed (c.Target.IsSome && pausedInBb.Contains c.Id)
+      // Das Target ist BBs Regel für diesen Monat, YNABs Goal zählt nicht (budgeting-eh8xe, ADR 0084 Punkt 6).
+      Target = target
+      // Eine BB-Pause ohne Target wirkt nicht und wird nicht gemeldet (budgeting-r3wq8). Eine Pause in YNAB wirkt
+      // nicht (budgeting-eh8xe, Nachtrag ADR 0079).
+      Pause = (if target.IsSome && pausedInBb.Contains c.Id then Some PausedInBb else None)
       OpenWriteBack = state |> Option.bind (fun s -> s.Open) }
 
 /// Gruppiert die sichtbaren Kategorien nach Kategoriegruppe. Die Folge ist die der Monatsantwort
 /// und damit ungeordnet (ADR 0074 Punkt 6): `toBudgetMonth` dient den Server-Abläufen, die Seite
 /// ordnet mit `orderGroups`. Eine Gruppe ohne sichtbare Kategorie erscheint nicht.
 ///
-/// `pausedInBb` sind die Kategorien, deren Target in BB für diesen Monat pausiert ist. Hier und nur
-/// hier kommen YNAB-Monat und BB-Pause zusammen (ADR 0079 Punkt 3). Eine Id, die im Monat fehlt,
-/// ändert nichts.
+/// `pausedInBb` sind die Kategorien, deren Target in BB für diesen Monat pausiert ist, `targets` BBs Regeln
+/// im Monat (budgeting-eh8xe). Hier und nur hier kommen YNAB-Monat, BB-Pause und Target zusammen (ADR 0079
+/// Punkt 3). Eine Id, die im Monat fehlt, ändert nichts.
 ///
 /// `assignments` ist BBs Faltung des Monats (budgeting-dgrp7): mit ihr zeigt Zugewiesen das Soll und eine
 /// offene Rückschreibung ihre Markierung; eine Kategorie ohne Eintrag hat Soll 0. `None` zeigt YNABs
 /// Zugewiesen ohne Markierung, etwa wenn das Lesen die Faltung nicht festhalten konnte.
-let toBudgetMonthWith (assignments: Map<Guid, AssignmentState> option) (pausedInBb: Set<Guid>) (month: YnabMonth) : BudgetMonth =
+let toBudgetMonthWith
+    (assignments: Map<Guid, AssignmentState> option)
+    (targets: Map<Guid, Target>)
+    (pausedInBb: Set<Guid>)
+    (month: YnabMonth)
+    : BudgetMonth =
     let groups =
         month.Categories
         |> List.filter isVisible
@@ -85,7 +98,7 @@ let toBudgetMonthWith (assignments: Map<Guid, AssignmentState> option) (pausedIn
                 let name = c.GroupName.Trim()
                 let order' = if Map.containsKey name byGroup then order else name :: order
                 let existing = byGroup |> Map.tryFind name |> Option.defaultValue []
-                order', Map.add name (toBudgetCategory assignments pausedInBb c :: existing) byGroup)
+                order', Map.add name (toBudgetCategory assignments targets pausedInBb c :: existing) byGroup)
             ([], Map.empty)
         |> fun (order, byGroup) ->
             order
@@ -97,8 +110,8 @@ let toBudgetMonthWith (assignments: Map<Guid, AssignmentState> option) (pausedIn
       Groups = groups }
 
 /// Der Monat mit YNABs Zugewiesen, ohne BBs Faltung (Targets prüfen, Abläufe ohne Soll).
-let toBudgetMonth (pausedInBb: Set<Guid>) (month: YnabMonth) : BudgetMonth =
-    toBudgetMonthWith None pausedInBb month
+let toBudgetMonth (targets: Map<Guid, Target>) (pausedInBb: Set<Guid>) (month: YnabMonth) : BudgetMonth =
+    toBudgetMonthWith None targets pausedInBb month
 
 // ============================================
 // Targets anwenden (budgeting-h2zfn)
@@ -202,8 +215,7 @@ let CategoryNotVisibleText = "Die Kategorie ist in diesem Monat nicht sichtbar (
 /// `pausedInBbRaw` sind die gespeicherten BB-Pausen des Monats, auch die ohne Target: `toBudgetMonth`
 /// meldet eine BB-Pause ohne Target nicht, sie wirkt nicht, aufheben lässt sie sich trotzdem
 /// (budgeting-r3wq8). Abgelehnt werden eine im Monat nicht sichtbare Kategorie und Pausieren ohne
-/// Target. Doppeltes Pausieren und Aufheben ohne BB-Pause ergeben kein Ereignis. Aufheben gilt nur der
-/// BB-Pause, eine Pause aus YNAB bleibt (ADR 0073 Punkt 2). Rein, ohne I/O.
+/// Target. Doppeltes Pausieren und Aufheben ohne BB-Pause ergeben kein Ereignis. Rein, ohne I/O.
 let planPause (month: BudgetMonth) (pausedInBbRaw: Set<Guid>) (request: TargetPauseRequest) : Result<PausePlan, string> =
     let category =
         month.Groups
@@ -222,79 +234,7 @@ let planPause (month: BudgetMonth) (pausedInBbRaw: Set<Guid>) (request: TargetPa
         Ok
             { Category = c
               Event = event
-              After = pauseSourceOf (pausedInYnab c.Pause) pausedAfter }
-
-// ============================================
-// Target ändern und entfernen (budgeting-k8wq3, ADR 0072, ADR 0080)
-// ============================================
-
-/// Die Patches vom gezeigten zum gewünschten Target (ADR 0072 Punkt 3, ADR 0080 Punkt 3): nur Felder, die
-/// abweichen. Betrag ist nur `goal_target`, Datum nur `goal_target_date`, Entfernen `goal_target: null`. Nie
-/// `goal_needs_whole_amount`. Ohne Abweichung eine leere Liste. Gilt für jede Art gleich (ADR 0072 Punkt 2).
-///
-/// Anlegen (`shown = None`) und ein echter Wechsel der Art (`targetKindChange`, budgeting-xp46a) senden
-/// `goal_target` mit `goal_frequency`. Ein Datum im Entwurf folgt dann als eigener zweiter Patch nur mit
-/// `goal_target_date`: YNAB lehnt beides in einem Aufruf ab, belegt für jährlich (ADR 0072 Punkt 5), zwei
-/// Aufrufe sind für alle Rhythmen gefahrlos. Anlegen ohne Rhythmus ist ein Fehler. Rein.
-let planTargetWrite (shown: Target option) (wanted: TargetDraft option) : Result<TargetPatch list, string> =
-    let replacing (frequency: TargetFrequency) (draft: TargetDraft) =
-        [ { GoalTarget = SetTo (toMilliunits draft.NewGoal); TargetDate = Keep; Frequency = Some frequency }
-          match draft.NewDate with
-          | Some date -> { GoalTarget = Keep; TargetDate = SetTo date; Frequency = None }
-          | None -> () ]
-    match shown, wanted with
-    | None, None -> Ok []
-    | Some _, None -> Ok [ { GoalTarget = Clear; TargetDate = Keep; Frequency = None } ]
-    | None, Some { NewRhythm = KeepRhythm } -> Error TargetRhythmMissingText
-    | None, Some ({ NewRhythm = SetRhythm frequency } as draft) -> Ok (replacing frequency draft)
-    | Some target, Some draft ->
-        match targetKindChange target draft with
-        | Some frequency -> Ok (replacing frequency draft)
-        | None ->
-            let goal =
-                if toMilliunits draft.NewGoal = toMilliunits target.Goal then Keep
-                else SetTo (toMilliunits draft.NewGoal)
-            let date =
-                match target.Date, draft.NewDate with
-                | before, after when before = after -> Keep
-                | _, Some date -> SetTo date
-                | _, None -> Clear
-            match goal, date with
-            | Keep, Keep -> Ok []
-            | _ -> Ok [ { GoalTarget = goal; TargetDate = date; Frequency = None } ]
-
-/// Darf der nächste Schritt hinaus, nach dieser Antwort von YNAB auf den vorigen Patch (ADR 0080 Punkt 4)?
-/// Setzte der vorige `goal_frequency`, nur wenn die Antwort den neuen Rhythmus zeigt: sonst gehörte das
-/// Datum an ein Target, das nicht das gewünschte ist. Ohne `goal_frequency` immer. Rein.
-let continueAfter (after: Target option) (previous: TargetPatch) : bool =
-    match previous.Frequency with
-    | None -> true
-    | Some frequency -> after |> Option.exists (fun t -> t.Kind = Need && t.Rhythm = rhythmOfFrequency frequency)
-
-/// Warum der nächste Schritt nach `continueAfter` nicht hinausgeht, aus YNABs Antwort und dem gewünschten
-/// Rhythmus: kein Target, keine NEED-Art oder ein anderer Rhythmus (budgeting-c2t9w).
-let heldBackCause (after: Target option) (frequency: TargetFrequency) : TargetHeldBackCause =
-    match after with
-    | None -> NoTargetAfterFirst
-    | Some t when t.Kind <> Need -> OtherKindAfterFirst t.Kind
-    | Some t -> OtherRhythmAfterFirst (t.Rhythm, frequency)
-
-/// Ein Patch ohne gesetztes Feld. BB sendet ihn nie, der Ablauf lehnt ihn vor dem Senden ab.
-let targetPatchIsEmpty (patch: TargetPatch) : bool =
-    patch.GoalTarget = Keep && patch.TargetDate = Keep && patch.Frequency.IsNone
-
-/// Die Ablehnung eines leeren Patches, BBs eigener Text.
-[<Literal>]
-let EmptyTargetPatchText = "Am Target ist nichts geändert, es gibt nichts zu senden."
-
-/// Die Art der Target-Änderung aus dem gezeigten Stand und dem ersten Patch: kein Wunsch heißt entfernen,
-/// `goal_frequency` ohne gezeigtes Target anlegen, mit gezeigtem die Art wechseln.
-let targetChangeKindOf (shown: Target option) (wanted: TargetDraft option) (first: TargetPatch) : TargetChangeKind =
-    match wanted, first.Frequency, shown with
-    | None, _, _ -> TargetRemoved
-    | Some _, Some frequency, None -> TargetCreated frequency
-    | Some _, Some frequency, Some _ -> TargetKindChanged frequency
-    | Some _, None, _ -> TargetEdited
+              After = (if pausedAfter then Some PausedInBb else None) }
 
 /// Stimmt die frisch geplante Vorschau mit der gezeigten überein? Verglichen werden die Zeilen
 /// (Kategorie, altes und neues Zugewiesen) und Zu verteilen; Namen und Reihenfolge der

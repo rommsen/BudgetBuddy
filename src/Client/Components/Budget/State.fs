@@ -141,15 +141,22 @@ let pauseCmdWith
 let private pauseCmd (monthKey: string) (request: TargetPauseRequest) : Cmd<Msg> =
     pauseCmdWith (fun month request -> Api.budget.setTargetPause month request) monthKey request
 
-// Schreibt nach YNAB und hat noch keine Befehls-Id (die kommt mit budgeting-eh8xe), deshalb nicht über
-// `Retry`. Die Antwort trägt Kategorie und Monat des Aufrufs.
-let private targetChangeCmd (monthKey: string) (request: TargetChangeRequest) : Cmd<Msg> =
-    let answer result = TargetChangeAnswered (request.CategoryId, monthKey, result)
+/// Target ändern mit Befehls-Id (budgeting-eh8xe): eine Id je Absicht, nach Status 0 einmal wiederholt
+/// (`Retry.command`). Die Antwort trägt Kategorie und Monat des Aufrufs. Ein Aufruf, der auch im zweiten
+/// Versuch abbricht, ist keine Ablehnung, er hat eine eigene Nachricht (wie `pauseCmdWith`).
+let targetChangeCmdWith
+    (call: string -> TargetChangeRequest -> Async<Result<TargetChangeResult, string>>)
+    (monthKey: string)
+    (request: TargetChangeRequest)
+    : Cmd<Msg> =
     Cmd.OfAsync.either
-        (fun () -> Api.budget.changeCategoryTarget monthKey request)
+        (fun () -> Retry.command (fun id -> call monthKey { request with CommandId = Some id }))
         ()
-        answer
-        (fun ex -> answer (Error ex.Message))
+        (fun result -> TargetChangeAnswered (request.CategoryId, monthKey, result))
+        (fun ex -> TargetChangeCallLost (request.CategoryId, monthKey, ex.Message))
+
+let private targetChangeCmd (monthKey: string) (request: TargetChangeRequest) : Cmd<Msg> =
+    targetChangeCmdWith (fun month request -> Api.budget.changeCategoryTarget month request) monthKey request
 
 let private recentCmd () : Cmd<Msg> =
     Cmd.OfAsync.either
@@ -243,6 +250,16 @@ let private afterPauseAnswered
             model, Cmd.none
     if pauseAnswerShown categoryId month rereading then afterMovement (rereading, cmd, external)
     else rereading, cmd, external
+
+/// Nach einer Antwort auf Target ändern (auch einem Abbruch): bei `reread` still neu lesen, bis dahin ist der
+/// Fehlbetrag-Knopf gesperrt; gilt die Antwort der gezeigten Kategorie (`shown`), ist die Historie wieder fällig.
+let private afterTargetAnswer (shown: bool) (reread: bool) (model: Model, external: ExternalMsg) : Model * Cmd<Msg> * ExternalMsg =
+    if reread then
+        let rereading, how = rereadMonth model
+        let cmd = rereadCmd how rereading
+        if shown then afterMovement (rereading, cmd, external) else rereading, cmd, external
+    else
+        model, Cmd.none, external
 
 /// `afterMovement` nur, wenn die Antwort den Monat neu liest: In der Zuweisungs-Schlange ist das die
 /// letzte Antwort, eine abgelehnte Verschiebung ändert nichts.
@@ -398,6 +415,7 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
     | TargetAmountChanged text -> typeTargetAmount text model, Cmd.none, NoOp
     | TargetDateChanged entry -> typeTargetDate entry model, Cmd.none, NoOp
     | TargetRhythmChanged frequency -> chooseTargetRhythm frequency model, Cmd.none, NoOp
+    | TargetWeekdayChanged day -> chooseTargetWeekday day model, Cmd.none, NoOp
     | SaveTarget ->
         match startTargetSave model with
         | model', Some (monthKey, request) -> model', targetChangeCmd monthKey request, NoOp
@@ -420,16 +438,17 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
             match result with
             | Error message when not (targetAnswerInTab categoryId month model) ->
                 ShowToast (targetRejectedAwayText message, ToastWarning)
-            | Ok (TargetPartlyWritten (_, message)) when not (targetAnswerInTab categoryId month model) ->
-                ShowToast (message, ToastWarning)
+            | Ok (TargetChangedMeanwhile _) when not (targetAnswerInTab categoryId month model) ->
+                ShowToast (targetRejectedAwayText TargetChangedMeanwhileText, ToastWarning)
             | _ -> NoOp
-        if reread then
-            // YNAB rechnet den Fehlbetrag neu: still neu lesen, bis dahin ist der Fehlbetrag-Knopf gesperrt.
-            let rereading, how = rereadMonth answered
-            let cmd = rereadCmd how rereading
-            if shown then afterMovement (rereading, cmd, external) else rereading, cmd, external
-        else
-            answered, Cmd.none, external
+        afterTargetAnswer shown reread (answered, external)
+    | TargetChangeCallLost (categoryId, month, message) ->
+        let shown = targetAnswerShown categoryId month model
+        let inTab = targetAnswerInTab categoryId month model
+        let lost, reread = applyTargetCallLost categoryId month message model
+        // Steht das Formular im offenen Tab, steht der Satz dort, sonst als Toast.
+        let external = if inTab then NoOp else ShowToast (Components.Budget.TargetFormCore.targetCallLostText reread message, ToastError)
+        afterTargetAnswer shown reread (lost, external)
     | MoveAnswered result ->
         let model', external, reload = applyMoveAnswered result model
         afterMovementWhen reload (model', afterAnswer reload (frameDueAfterAnswer result model) model', external)
@@ -530,6 +549,7 @@ let private routeOf (msg: Msg) (model: Model) : MsgRoute =
     | TargetAmountChanged _
     | TargetDateChanged _
     | TargetRhythmChanged _
+    | TargetWeekdayChanged _
     | ConfirmTargetChange
     | CancelTargetChange
     | SaveTarget
@@ -537,6 +557,7 @@ let private routeOf (msg: Msg) (model: Model) : MsgRoute =
     | ConfirmRemoveTarget
     | CancelRemoveTarget
     | TargetChangeAnswered _
+    | TargetChangeCallLost _
     | OpenEntryInLedger _ -> MsgRoute.Free
 
 /// Speichert die offene Eingabe, dann wirkt die Nachricht. Der Toast zur Eingabe geht vor.

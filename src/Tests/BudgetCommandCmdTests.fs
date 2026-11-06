@@ -1,7 +1,7 @@
 module Tests.BudgetCommandCmdTests
 
 // budgeting-qm5x9, ADR 0084 Punkt 8: Die vier Budget-Entscheidungen (Übernehmen, Verschieben, Zuweisen,
-// Pausieren) schicken eine Befehls-Id mit, und nach Status 0 wiederholt der Client den Aufruf einmal mit
+// Pausieren, seit budgeting-eh8xe auch Target ändern) schicken eine Befehls-Id mit, und nach Status 0 wiederholt der Client den Aufruf einmal mit
 // derselben Id. Geprüft wird der echte Cmd aus `Components.Budget.State`; der Remoting-Aufruf ist ein
 // Fake, der beim ersten Mal mit Status 0 scheitert und beim zweiten Mal antwortet. Die Pause vor dem
 // zweiten Versuch ist die echte aus `Retry.command` (400 ms).
@@ -81,5 +81,24 @@ let tests =
             let expected = TargetPauseAnswered (request.CategoryId, monthKey, Ok (Some PausedInBb))
             expectAfter 400 expected (pauseCmdWith call monthKey request)
             expectSameIdTwice seen (fun (r: TargetPauseRequest) -> r.CommandId)
+        }
+
+        // budgeting-eh8xe: Target ändern bekommt seine Befehls-Id.
+        test "Target ändern schickt beide Versuche mit derselben Befehls-Id und meldet die Antwort" {
+            let request : TargetChangeRequest =
+                { CategoryId = Guid.NewGuid(); Shown = None; Wanted = None; CommandId = None }
+            let seen, call = flakyCall (Ok (TargetWritten None))
+            let expected = TargetChangeAnswered (request.CategoryId, monthKey, Ok (TargetWritten None))
+            expectAfter 400 expected (targetChangeCmdWith call monthKey request)
+            expectSameIdTwice seen (fun (r: TargetChangeRequest) -> r.CommandId)
+        }
+
+        // Review-Fund eh8xe (Frontend W1): ein Abbruch auch im zweiten Versuch kam als Ablehnung an.
+        test "Target ändern meldet einen Abbruch auch im zweiten Versuch als eigene Nachricht, nicht als Ablehnung" {
+            let request : TargetChangeRequest =
+                { CategoryId = Guid.NewGuid(); Shown = None; Wanted = None; CommandId = None }
+            let call (_: string) (_: TargetChangeRequest) : Async<Result<TargetChangeResult, string>> =
+                async { return raise (statusZero ()) }
+            expectAfter 400 (TargetChangeCallLost (request.CategoryId, monthKey, "Http error (0)")) (targetChangeCmdWith call monthKey request)
         }
     ]

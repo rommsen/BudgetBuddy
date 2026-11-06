@@ -539,15 +539,14 @@ type BudgetApi = {
     /// Target pausieren oder die Pause aufheben (budgeting-t6p8z, ADR 0073, ADR 0079) im Monat
     /// ("YYYY-MM-01"). Schreibt nur in BB, nichts nach YNAB. Unter der Sperre je Monat: liest den Monat
     /// frisch aus YNAB und prüft, dass er nicht vergangen ist, die Kategorie im Monat sichtbar ist und ein
-    /// Target hat. Doppeltes Pausieren oder Aufheben schreibt nichts. Aufheben gilt nur der Pause in BB.
+    /// Target hat. Doppeltes Pausieren oder Aufheben schreibt nichts.
     /// Ok trägt die Pause der Kategorie danach, Error eine lesbare Meldung, dann ist nichts geschrieben.
     setTargetPause: string -> Shared.Budgeting.TargetPauseRequest -> Async<Result<Shared.Budgeting.PauseSource option, string>>
 
-    /// Target ändern oder entfernen (budgeting-k8wq3, ADR 0072, ADR 0080) im Monat ("YYYY-MM-01"), nur im
-    /// laufenden. Unter der Sperre je Kategorie: liest den Monat frisch aus YNAB. Weicht das Target vom
-    /// gezeigten ab, wird nichts gesendet (`TargetChangedInYnab`). Sonst wird die Target-Änderung
-    /// festgehalten und nur das geänderte Feld nach YNAB gesendet. Error mit konkreter Meldung, auch
-    /// wenn YNAB ablehnt.
+    /// Target ändern oder entfernen (budgeting-k8wq3, ADR 0080, budgeting-eh8xe) im Monat ("YYYY-MM-01"), nur
+    /// im laufenden. Nur in BB, YNAB wird nicht aufgerufen. Unter der Sperre je Kategorie: weicht das gezeigte
+    /// Target von BBs Stand ab, wird abgelehnt. Sonst ein `TargetSet` oder `TargetRemoved`. Eine Wiederholung
+    /// mit derselben Befehls-Id antwortet wie beim ersten Mal. Error mit konkreter Meldung.
     changeCategoryTarget: string -> Shared.Budgeting.TargetChangeRequest -> Async<Result<Shared.Budgeting.TargetChangeResult, string>>
 
     /// "Zuletzt verwendet" im Picker der Gegenseite: Kategorien aus den Bewegungen mit Herkunft

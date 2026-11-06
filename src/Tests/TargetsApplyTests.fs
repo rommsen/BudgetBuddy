@@ -27,7 +27,7 @@ let private category name (assigned: int64) (under: int64 option) (snoozed: bool
       Available = eur assigned
       Underfunded = under |> Option.map eur
       Target = None
-      Pause = (if snoozed then Some PausedInYnab else None); OpenWriteBack = None }
+      Pause = (if snoozed then Some PausedInBb else None); OpenWriteBack = None }
 
 let private monthOf (tbb: int64) (cats: BudgetCategory list) : BudgetMonth =
     { Month = "2026-11-01"
@@ -163,10 +163,10 @@ let private ynabTests =
 let private fakePortWith (result: YnabResult<unit>) : YnabPort =
     { FetchMonth = fun _ -> async { return Error (YnabError.RateLimitExceeded 60) }
       SetAssigned = fun _ _ _ -> async { return result }
-      SetTarget = fun _ _ -> async { return failwith "schreibt kein Target" } }
+      FetchCategoryGoals = fun () -> async { return Ok [] } }
 
 let private apiTests =
-    let run port = async { return! Server.Budgeting.CommandHandlers.preview port "2026-11-01" }
+    let run port = async { return! Server.Budgeting.CommandHandlers.preview port DateTime.UtcNow "2026-11-01" }
     let call token budget =
         Server.Api.withYnabPort token budget (fun _ _ -> fakePortWith (Ok ())) run |> Async.RunSynchronously
     testList "Weg von Targets anwenden im Api (h2zfn)" [
@@ -199,7 +199,11 @@ let private apiTests =
 
 /// Ein Fake-YNAB, das Zugewiesen und Zu verteilen wie YNAB führt: Fehlbetrag = Ziel minus
 /// Zugewiesen (nicht negativ), Zu verteilen sinkt mit jeder erfolgreichen Zuweisung.
-/// Kategorien als (Id, Name, Zugewiesen, Ziel, pausiert) in Milliunits.
+/// Kategorien als (Id, Name, Zugewiesen, Ziel, pausiert) in Milliunits. Jede hat ein monatliches Goal über das
+/// Ziel, BB übernimmt es beim ersten Lesen (budgeting-eh8xe); pausiert heißt in BB pausiert (`fake`).
+let private goalOf (target: int64) : Target =
+    { Goal = eur target; Rhythm = Months 1; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None; CreatedIn = None }
+
 type private FakeYnab(initial: (Guid * string * int64 * int64 * bool) list, tbb0: int64) as this =
     let assigned = Dictionary<Guid, int64>()
     do for (id, _, a, _, _) in initial do assigned[id] <- a
@@ -243,8 +247,7 @@ type private FakeYnab(initial: (Guid * string * int64 * int64 * bool) list, tbb0
                                           Activity = eur 0L
                                           Available = eur assigned[id]
                                           Underfunded = Some (eur (max 0L (target - assigned[id])))
-                                          Target = None
-                                          Snoozed = snoozed
+                                          Target = Some (goalOf target)
                                           Hidden = false
                                           Deleted = false
                                           Internal = false }) }
@@ -264,7 +267,12 @@ type private FakeYnab(initial: (Guid * string * int64 * int64 * bool) list, tbb0
                         assigned[id] <- milliunits
                         return Ok ()
                 }
-          SetTarget = fun _ _ -> async { return failwith "schreibt kein Target" } }
+          FetchCategoryGoals =
+            fun () ->
+                async {
+                    return
+                        Ok [ for id, name, _, target, _ in initial -> { Id = id; Name = name; Target = Some (goalOf target) } ]
+                } }
 
 /// Frische Ids je Test, damit gemeinsame Tabellen sich nicht in die Quere kommen.
 /// Reihenfolge der Zeilen: A (0 auf 50), B (20 auf 70), E (0 auf 10); C ist pausiert, D erfüllt.
@@ -279,6 +287,10 @@ let private fake (tbb0: int64) =
               e, "Geschenke", 0L, 10000L, false ],
             tbb0
         )
+    // C ist in BB pausiert (eine Pause in YNAB wirkt seit budgeting-eh8xe nicht mehr).
+    Budgeting.Persistence.recordPause None (DateTime(2026, 10, 20, 9, 0, 0, DateTimeKind.Utc)) "2026-11-01" c "Ausflug" Domain.PauseKind.Paused
+    |> Async.RunSynchronously
+    |> ignore
     f, (a, b, c, d, e)
 
 let private monthKey = "2026-11-01"
@@ -287,7 +299,7 @@ let private now = DateTime(2026, 10, 26, 9, 0, 0, DateTimeKind.Utc)
 let private run x = Async.RunSynchronously x
 
 let private previewOf (f: FakeYnab) =
-    match run (preview f.Port monthKey) with
+    match run (preview f.Port now monthKey) with
     | Ok p -> p
     | Error e -> failtest $"Vorschau erwartet: {e}"
 
@@ -331,7 +343,7 @@ let private flowTests =
         // budgeting-b5n8q: BB lehnt die Planung selbst ab, die Meldung schob die Ablehnung YNAB zu.
         testCase "Lehnt BB die Planung ab, meldet die Vorschau eine Ablehnung durch BB ohne YNAB im Text" <| fun () ->
             let f = FakeYnab([ Guid.NewGuid(), "Essen k", 0L, 12345L, false ], 100000L)
-            match run (preview f.Port monthKey) with
+            match run (preview f.Port now monthKey) with
             | Error ((YnabError.RefusedByBb message) as e) ->
                 Expect.stringContains message "Essen k" "nennt die Kategorie"
                 Expect.isFalse ((ynabErrorText e).Contains "YNAB") $"Nutzertext ohne YNAB: {ynabErrorText e}"
@@ -560,7 +572,7 @@ let private lastMonthTests =
                         f.Port.FetchMonth key }
         port, reads
     let previewVia port key =
-        Server.Api.previewTargetsWith (Some "t") (Some "b") (fun _ _ -> port) today key |> run
+        Server.Api.previewTargetsWith (Some "t") (Some "b") (fun _ _ -> port) today now key |> run
     let applyVia port key shown =
         Server.Api.applyTargetsWith (Some "t") (Some "b") (fun _ _ -> port) today now key shown |> run
     testList "Targets anwenden in vergangenen Monaten (ADR 0074)" [

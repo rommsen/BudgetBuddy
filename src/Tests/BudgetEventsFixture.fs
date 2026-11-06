@@ -110,3 +110,37 @@ let processedCommandRows (commandId: System.Guid) : int64 =
         "SELECT COUNT(*) FROM processed_commands WHERE command_id = @id",
         {| id = commandId.ToString "D" |}
     )
+
+/// YNABs Goals eines Monats als BBs Targets, für reine Tests von `toBudgetMonth`, die das Target aus dem Monat
+/// erwarten (budgeting-eh8xe: die Seite zeigt BBs Regeln).
+let ynabTargets (month: YnabMonth) : Map<System.Guid, Target> =
+    month.Categories |> List.choose (fun c -> c.Target |> Option.map (fun t -> c.Id, t)) |> Map.ofList
+
+/// Die Goals eines Monats so, wie `/categories` sie liefert: Quelle der Target-Übernahme für Fake-Ports.
+let goalsOf (month: YnabMonth) : YnabCategoryGoal list =
+    month.Categories |> List.map (fun c -> { Id = c.Id; Name = c.Name; Target = c.Target })
+
+/// `toBudgetMonth` mit YNABs Goals als BB-Targets (`ynabTargets`).
+let toBudgetMonthOfYnab (pausedInBb: Set<System.Guid>) (month: YnabMonth) : BudgetMonth =
+    Server.Budgeting.Domain.toBudgetMonth (ynabTargets month) pausedInBb month
+
+/// Hält eine Target-Änderung des Altbestands (`YnabGoalChangedFromBb`) im Target-Stream fest, wie sie der
+/// Zwei-Schritt-Weg bis budgeting-eh8xe schrieb. Liefert ihre `event_id`.
+let recordLegacyGoalChangeOn
+    (conn: Microsoft.Data.Sqlite.SqliteConnection)
+    (categoryId: System.Guid)
+    (at: System.DateTime)
+    (change: YnabGoalChange)
+    : System.Guid =
+    (appendOn conn (TargetStream categoryId) [ at, BudgetEvent.YnabGoalChangedFromBb change ] |> List.exactlyOne).EventId
+
+/// Hängt ein Schritt-Ergebnis des Altbestands an den Target-Stream.
+let recordLegacyStepOn
+    (conn: Microsoft.Data.Sqlite.SqliteConnection)
+    (categoryId: System.Guid)
+    (changeId: System.Guid)
+    (step: int)
+    (at: System.DateTime)
+    (outcome: LineOutcome)
+    : unit =
+    appendOn conn (TargetStream categoryId) [ at, goalStepEvent { DecisionEventId = changeId; Step = step } outcome ] |> ignore

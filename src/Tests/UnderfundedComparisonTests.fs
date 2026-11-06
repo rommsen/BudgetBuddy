@@ -91,6 +91,12 @@ let private ruleTests =
                 let target = { need 120m (Months 12) with Date = Some "2026-10-15" }
                 Expect.equal (compute target november 0m 0m 0m) (computed 10m) "zwölf Monate bis 2027-10"
 
+            // Review-Fund eh8xe (QA D9): die Fälligkeit liegt mehrere Rhythmus-Schritte zurück.
+            testCase "Datum zwei Jahre zurück und Rhythmus jährlich: gerechnet bis zur nächsten Fälligkeit in 12 Monaten" <| fun () ->
+                let target = { need 120m (Years 1) with Date = Some "2024-10-15" }
+                // 2024-10 um zwei Jahre ist 2026-10, vor November; um drei Jahre 2027-10: 12 Monate. 120 / 12 = 10.
+                Expect.equal (compute target november 0m 0m 0m) (computed 10m) "zwölf Monate bis 2027-10"
+
             testCase "Wie im Befund: monatlicher Anteil zugewiesen ergibt 0, im Folgemonat ohne Zuweisung den Anteil" <| fun () ->
                 // Erfundene Zahlen nach dem Muster des Befunds: 89,88 je Jahr, fällig im Februar, Datum 2026-02.
                 let target = { need 89.88m (Years 1) with Date = Some "2026-02-28" }
@@ -489,7 +495,6 @@ let private ynabMonth (monthKey: string) : YnabMonth =
           Available = eur 20m
           Underfunded = Some (eur under)
           Target = Some (need 100m (Months 1))
-          Snoozed = false
           Hidden = false
           Deleted = false
           Internal = false }
@@ -498,7 +503,7 @@ let private ynabMonth (monthKey: string) : YnabMonth =
 let private portFor (month: YnabMonth) : CommandHandlers.YnabPort =
     { FetchMonth = fun _ -> async { return Ok month }
       SetAssigned = fun _ _ _ -> async { return failwith "kein Schreiben erwartet" }
-      SetTarget = fun _ _ -> async { return failwith "kein Schreiben erwartet" } }
+      FetchCategoryGoals = fun () -> async { return Ok (BudgetEventsFixture.goalsOf month) } }
 
 /// Der Zeitpunkt des Lesens (UTC): stempelt Übernahme und Beobachtungen (budgeting-dgrp7).
 let private readAt = DateTime(2031, 3, 2, 8, 0, 0, DateTimeKind.Utc)
@@ -518,17 +523,29 @@ let private annualMonth (categoryId: Guid) (monthKey: string) (assigned: decimal
             Available = eur available
             Underfunded = Some (eur ynab)
             Target = Some { need 60m (Years 1) with Date = Some "2000-03-15" }
-            Snoozed = false
             Hidden = false
             Deleted = false
             Internal = false } ] }
 
-/// Ein Port, der jeden `FetchMonth` mitschreibt (Grenze: 200 YNAB-Aufrufe je Stunde).
+/// Ein Port, der jeden YNAB-Aufruf mitschreibt (Grenze: 200 je Stunde): `FetchMonth` mit dem Monat,
+/// `FetchCategoryGoals` als "categories" mit den Goals des zuletzt gelesenen Monats (budgeting-eh8xe).
 let private countingPort (monthOf: string -> YnabMonth) : CommandHandlers.YnabPort * ResizeArray<string> =
     let calls = ResizeArray<string>()
-    { FetchMonth = fun key -> async { lock calls (fun () -> calls.Add key); return Ok (monthOf key) }
+    let last = ref None
+    { FetchMonth =
+        fun key ->
+            async {
+                let month = monthOf key
+                lock calls (fun () -> calls.Add key; last.Value <- Some month)
+                return Ok month
+            }
       SetAssigned = fun _ _ _ -> async { return failwith "kein Schreiben erwartet" }
-      SetTarget = fun _ _ -> async { return failwith "kein Schreiben erwartet" } },
+      FetchCategoryGoals =
+        fun () ->
+            async {
+                let month = lock calls (fun () -> calls.Add "categories"; last.Value)
+                return Ok (month |> Option.map BudgetEventsFixture.goalsOf |> Option.defaultValue [])
+            } },
     calls
 
 let private handlerTests =
@@ -557,7 +574,7 @@ let private handlerTests =
                 raw.Categories
                 |> List.map (fun c -> c.Id, { Assigned = toMilliunits c.Assigned; Confirmed = toMilliunits c.Assigned; Open = None })
                 |> Map.ofList
-            let expected = compareUnderfunded (toBudgetMonthWith (Some takenOver) Set.empty raw) Map.empty
+            let expected = compareUnderfunded (toBudgetMonthWith (Some takenOver) (BudgetEventsFixture.ynabTargets raw) Set.empty raw) Map.empty
             Expect.equal (List.ofSeq saved) [ monthKey, expected ] "Zeilen dieses Monats"
             Expect.equal (expected |> List.map (fun r -> r.Outcome)) [ Equal; Deviation ] "ein Treffer, eine Abweichung"
 
@@ -585,7 +602,7 @@ let private handlerTests =
                 raw.Categories
                 |> List.map (fun c -> c.Id, { Assigned = toMilliunits c.Assigned; Confirmed = toMilliunits c.Assigned; Open = None })
                 |> Map.ofList
-            Expect.equal result (Ok (toBudgetMonthWith (Some takenOver) Set.empty raw)) "Ok mit dem gelesenen Monat"
+            Expect.equal result (Ok (toBudgetMonthWith (Some takenOver) (BudgetEventsFixture.ynabTargets raw) Set.empty raw)) "Ok mit dem gelesenen Monat"
     ]
 
 let private storedRows (month: string) : (string * string * string * Nullable<int64> * Nullable<int64> * int64) list =
@@ -688,7 +705,8 @@ let private persistenceTests =
             let result = QueryHandlers.budgetMonthWith save global.Persistence.getConnection port readAt november |> run
 
             Expect.isOk result "Monat gelesen"
-            Expect.equal (List.ofSeq calls) [ november ] "ein YNAB-Aufruf"
+            // budgeting-eh8xe: das erste Lesen übernimmt das Target und fragt dafür einmal `/categories`.
+            Expect.equal (List.ofSeq calls) [ november; "categories" ] "Monat und Übernahme, kein Nachladen früherer Monate"
             Expect.equal (storedRows november) [ "Jährlich", "NEED", "Nicht gerechnet", Nullable(), Nullable 0L, 0L ] "ohne BB-Betrag"
             let _, rule, reason, _ = storedDetails november "Jährlich"
             Expect.equal (rule, reason) ("Mit Fälligkeit", PeriodActivityMissingText) "Grund gespeichert"

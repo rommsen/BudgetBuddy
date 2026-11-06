@@ -47,11 +47,11 @@ const monthFixture = (month, toBeBudgeted) => ({
 
 // budgeting-kjsht: je eine Kategorie mit fehlendem, erfülltem und pausiertem Target, dazu eine
 // ohne Target und eine mit dem längsten Text, den die Zeile am Handy tragen muss.
-const withTarget = (base, target, underfunded, snoozed = false) => ({
+const withTarget = (base, target, underfunded, paused = false) => ({
   ...base,
   Target: target,
   Underfunded: eur(underfunded),
-  Pause: snoozed ? "PausedInYnab" : null,
+  Pause: paused ? "PausedInBb" : null,
   OpenWriteBack: null,
 });
 const monthly = { Goal: eur(1600), Rhythm: { Months: 1 }, Kind: "Need", Date: null, NeedsWholeAmount: true, Day: null, CreatedIn: null };

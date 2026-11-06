@@ -61,8 +61,8 @@ type TargetKind =
     | Debt
     | OtherKind of goalType: string
 
-/// Das Target einer Kategorie, wie YNAB es liefert (`goal_target` und Kadenz). BB zeigt es nur
-/// an und rechnet nicht damit (ADR 0065): was fehlt, sagt der Fehlbetrag von YNAB.
+/// Das Target einer Kategorie: BBs Regel aus dem Stream `budgeting:target:<categoryId>` (ADR 0084 Punkt 6,
+/// budgeting-eh8xe). Einmal aus YNABs `goal_*`-Feldern übernommen, danach nur in BB geändert.
 type Target = {
     Goal: Money
     Rhythm: TargetRhythm
@@ -70,12 +70,15 @@ type Target = {
     Kind: TargetKind
     /// Das Datum aus `goal_target_date` als "YYYY-MM-DD", wie der Monatsschlüssel ein String.
     Date: string option
-    /// `goal_needs_whole_amount`, nur gelesen: `Some false` heißt "Auffüllen bis" (F6).
+    /// `goal_needs_whole_amount`: `Some false` heißt "Auffüllen bis" (F6).
     NeedsWholeAmount: bool option
-    /// `goal_day`, nur gelesen. BB kann den Tag nicht schreiben (ADR 0072).
+    /// Der Tag: bei wöchentlich der Wochentag (0 Sonntag bis 6 Samstag, wie YNABs `goal_day`), in BB setzbar
+    /// (budgeting-eh8xe). Bei anderen Rhythmen der aus YNAB übernommene Wert.
     Day: int option
-    /// Der Anlegemonat aus `goal_creation_month` als "YYYY-MM-01", nur gelesen. Die Parallelrechnung
-    /// beginnt damit die erste Periode eines Ziels mit Fälligkeit (budgeting-pf8n7).
+    /// Der Anlegemonat als "YYYY-MM-01" (budgeting-pf8n7): bei der Target-Übernahme aus `goal_creation_month`,
+    /// bei einer in BB neuen Regel (Anlegen, Wechsel der Art) der Monat, ab dem sie gilt; eine Änderung behält
+    /// ihn (`TargetRules.planTargetChange`). Die Parallelrechnung beginnt damit die erste Periode eines Ziels mit
+    /// Fälligkeit.
     CreatedIn: string option
 }
 
@@ -94,11 +97,9 @@ type YnabMonthCategory = {
     Available: Money
     /// Fehlbetrag (YNAB `goal_under_funded`): `None` ohne Target, `Some 0` wenn erfüllt.
     Underfunded: Money option
-    /// Das Target: `None`, wenn YNAB keins liefert.
+    /// Das Goal aus YNAB: `None`, wenn YNAB keins liefert. Die Seite zeigt BBs Regel (budgeting-eh8xe); das
+    /// Goal sagt nur, ob eine Kategorie noch auf die Target-Übernahme wartet.
     Target: Target option
-    /// Pausiert in YNAB (`goal_snoozed_at` gesetzt), der rohe YNAB-Wert. Die Pause in BB kommt erst
-    /// in `toBudgetMonth` dazu (`BudgetCategory.Pause`, ADR 0079).
-    Snoozed: bool
     Hidden: bool
     Deleted: bool
     Internal: bool
@@ -114,37 +115,19 @@ type YnabMonth = {
     Categories: YnabMonthCategory list
 }
 
-/// Wo die Pause eines Targets im Monat gesetzt ist (ADR 0073 Punkt 2, ADR 0079). In YNAB heißt:
-/// `goal_snoozed_at` ist gesetzt, die Pause lässt sich nur dort aufheben. In BB heißt: das jüngste
-/// Pause-Ereignis für Kategorie und Monat ist `TargetPaused`.
+/// Das Goal einer Kategorie aus `GET /budgets/{id}/categories` (`goal_*`), Quelle der Target-Übernahme
+/// (ADR 0084 Punkt 5 und 6, budgeting-eh8xe). `None` ohne Goal.
+type YnabCategoryGoal = {
+    Id: Guid
+    Name: string
+    Target: Target option
+}
+
+/// Die Pause eines Targets im Monat (ADR 0079, Nachtrag ADR 0084): es gibt sie nur in BB, das jüngste
+/// Pause-Ereignis für Kategorie und Monat ist `TargetPaused`. Eine Pause in YNAB wirkt in BB nicht
+/// (budgeting-eh8xe).
 type PauseSource =
-    | PausedInYnab
     | PausedInBb
-    | PausedInBoth
-
-/// Die Quelle aus beiden Seiten. `None`, wenn keine Seite pausiert.
-let pauseSourceOf (inYnab: bool) (inBb: bool) : PauseSource option =
-    match inYnab, inBb with
-    | true, true -> Some PausedInBoth
-    | true, false -> Some PausedInYnab
-    | false, true -> Some PausedInBb
-    | false, false -> None
-
-/// Steht die Pause (auch) in BB? Nur diese lässt sich in BB aufheben.
-let pausedInBb (pause: PauseSource option) : bool =
-    match pause with
-    | Some PausedInBb
-    | Some PausedInBoth -> true
-    | Some PausedInYnab
-    | None -> false
-
-/// Steht die Pause (auch) in YNAB?
-let pausedInYnab (pause: PauseSource option) : bool =
-    match pause with
-    | Some PausedInYnab
-    | Some PausedInBoth -> true
-    | Some PausedInBb
-    | None -> false
 
 /// Eine angezeigte Kategorie. Felder wie `YnabMonthCategory`, ohne die Filter-Flags.
 /// `Underfunded` (Fehlbetrag) und `Pause` braucht "Targets anwenden" (budgeting-h2zfn); die Seite
@@ -157,8 +140,7 @@ type BudgetCategory = {
     Available: Money
     Underfunded: Money option
     Target: Target option
-    /// Die Pause des Targets in diesem Monat mit ihrer Quelle (ADR 0079). Fachregeln fragen nur
-    /// `isPaused`, die Quelle braucht die Oberfläche für Aufheben und den Hinweis zur YNAB-Pause.
+    /// Die Pause des Targets in diesem Monat (ADR 0079). Fachregeln fragen nur `isPaused`.
     Pause: PauseSource option
     /// Offene Rückschreibung (ADR 0084, budgeting-dgrp7): das Zugewiesen ist BBs Soll und noch nicht in
     /// YNAB. Trägt die Gruppen-Id der Entscheidung, über sie läuft "erneut senden". `None`: Soll und YNAB
@@ -166,8 +148,8 @@ type BudgetCategory = {
     OpenWriteBack: Guid option
 }
 
-/// Ist das Target der Kategorie in diesem Monat pausiert, in BB, in YNAB oder auf beiden Seiten?
-/// Die einzige Frage der Fachregeln (Fehlt, Frei, Targets anwenden).
+/// Ist das Target der Kategorie in diesem Monat pausiert? Die einzige Frage der Fachregeln (Fehlt, Frei,
+/// Targets anwenden).
 let isPaused (c: BudgetCategory) : bool =
     c.Pause.IsSome
 
@@ -216,8 +198,8 @@ let orderGroups (order: Guid list) (groups: BudgetGroup list) : BudgetGroup list
         sortKey (group.Categories |> List.tryHead |> Option.bind rankOf) group.Name)
 
 /// Fehlt: BBs Antwort je Kategorie, auch ohne Target. Das Größere aus negativem Verfügbar und
-/// Fehlbetrag, `None` ohne Betrag über 0. Bei einem pausierten Target (in BB, in YNAB oder beidem)
-/// zählt der Fehlbetrag nicht, negatives Verfügbar bleibt (ADR 0073 Punkt 4).
+/// Fehlbetrag, `None` ohne Betrag über 0. Bei einem pausierten Target zählt der Fehlbetrag nicht, negatives
+/// Verfügbar bleibt (ADR 0073 Punkt 4).
 let missingAmount (c: BudgetCategory) : Money option =
     let negative = if c.Available.Amount < 0m then -c.Available.Amount else 0m
     let underfunded =
@@ -371,8 +353,7 @@ type AssignRequest = {
     CommandId: Guid option
 }
 
-/// Was ein Auftrag zur Pause will (budgeting-r3wq8): das Target in BB pausieren oder die BB-Pause
-/// aufheben. Eine Pause aus YNAB bleibt davon unberührt (ADR 0073 Punkt 2).
+/// Was ein Auftrag zur Pause will (budgeting-r3wq8): das Target in BB pausieren oder die Pause aufheben.
 type PauseIntent =
     | PauseTarget
     | LiftPause
@@ -393,34 +374,18 @@ type TargetPauseRequest = {
 let PausePastMonthText = "Target pausieren geht in vergangenen Monaten nicht."
 
 // ============================================
-// Target ändern und entfernen (budgeting-k8wq3, ADR 0072, ADR 0080)
+// Target ändern und entfernen (budgeting-k8wq3, ADR 0080, budgeting-eh8xe)
 // ============================================
 
-/// Ein Feld im PATCH eines Targets: `Keep` lässt es weg, `SetTo` setzt es, `Clear` sendet `null`.
-type FieldPatch<'T> =
-    | Keep
-    | SetTo of 'T
-    | Clear
-
-/// Der Rhythmus, den YNABs `goal_frequency` setzt. Er ersetzt das Target (ADR 0072 Punkt 4): BB sendet ihn
-/// nur beim Anlegen und bei einem echten Wechsel der Art (budgeting-xp46a).
+/// Der Rhythmus, den BB beim Anlegen und bei einem Wechsel der Art setzt (budgeting-xp46a): jeweils mit
+/// Abstand 1.
 type TargetFrequency =
     | Weekly
     | Monthly
     | Yearly
 
-/// Ein PATCH auf `/budgets/{id}/categories/{id}`: nur die gesetzten Felder gehen hinaus (ADR 0072
-/// Punkt 3). `GoalTarget` in Milliunits, `TargetDate` als "YYYY-MM-DD".
-type TargetPatch = {
-    GoalTarget: FieldPatch<int64>
-    TargetDate: FieldPatch<string>
-    /// `goal_frequency`, nur beim Anlegen und beim Wechsel der Art. Nie zusammen mit `TargetDate`
-    /// (`buildTargetBody` lehnt das ab, ADR 0072 Punkt 5).
-    Frequency: TargetFrequency option
-}
-
 /// Bleibt der Rhythmus, oder wird er gesetzt? Beim Anlegen ist `SetRhythm` Pflicht. Bei einem bestehenden
-/// Target ist `SetRhythm` mit dem gelesenen Rhythmus kein Wechsel (`targetKindChange`).
+/// Target ist `SetRhythm` mit dem gezeigten Rhythmus kein Wechsel (`targetKindChange`).
 type RhythmChoice =
     | KeepRhythm
     | SetRhythm of TargetFrequency
@@ -436,6 +401,11 @@ type TargetDraft = {
     /// "YYYY-MM-DD", `None` heißt ohne Datum.
     NewDate: string option
     NewRhythm: RhythmChoice
+    /// Der Wochentag eines wöchentlichen Targets, 0 Sonntag bis 6 Samstag (budgeting-eh8xe). `None` heißt: der
+    /// Tag des gezeigten Targets bleibt, auch bei einem älteren Client ohne das Feld. Einen Wochentag entfernen
+    /// gibt es nicht, ein wöchentliches Target braucht einen (das Formular sperrt Speichern ohne). Optional,
+    /// damit ein älterer Client ohne das Feld weiter sendet.
+    NewDay: int option
 }
 
 /// Der Auftrag Target ändern oder entfernen. `Shown` ist das Target, das der Client gezeigt hat,
@@ -444,24 +414,25 @@ type TargetChangeRequest = {
     CategoryId: Guid
     Shown: Target option
     Wanted: TargetDraft option
+    /// Die Befehls-Id der Absicht (ADR 0084 Punkt 8, budgeting-eh8xe): eine Wiederholung mit derselben Id
+    /// hängt nichts an und bekommt die Antwort des ersten Mals. `None` bei einem alten Client.
+    CommandId: Guid option
 }
 
 /// Antwort auf Target ändern. Ein Fehler kommt als `Error` mit konkreter Meldung.
 type TargetChangeResult =
-    /// Geschrieben, oder YNAB stand schon auf dem Wunsch. Trägt das Target danach (`None`: entfernt).
+    /// In BB festgehalten, oder BB stand schon auf dem Wunsch. Trägt das Target danach (`None`: entfernt).
     | TargetWritten of Target option
-    /// YNAB stand anders als gezeigt: nichts gesendet, nichts festgehalten. Trägt den frischen Stand.
-    | TargetChangedInYnab of Target option
-    /// Schritt 1 geschrieben, Schritt 2 (das Datum) nicht (budgeting-xp46a, ADR 0080 Punkt 6). Trägt den
-    /// Stand nach Schritt 1 und die Meldung, etwa "Target angelegt, Datum 01.06.2027 nicht gesetzt: …".
-    | TargetPartlyWritten of target: Target option * message: string
+    /// Das gezeigte Target ist nicht mehr BBs Stand (budgeting-eh8xe, ADR 0080 Punkt 3): nichts festgehalten.
+    /// Trägt BBs Stand (`None`: kein Target), damit der Client ihn ohne Neulesen zeigt.
+    | TargetChangedMeanwhile of Target option
 
 /// Die Ablehnung außerhalb des laufenden Monats (ADR 0080 Punkt 1, `targetEditAllowed`).
 [<Literal>]
 let TargetEditMonthText = "Target ändern geht nur im laufenden Monat."
 
-/// Die Ablehnung eines neuen Targets ohne Rhythmus: BB legt nur NEED monatlich, wöchentlich oder jährlich an
-/// (ADR 0072 Punkt 2).
+/// Die Ablehnung eines neuen Targets ohne Rhythmus: BB legt nur monatlich, wöchentlich oder jährlich an
+/// (ADR 0084 Punkt 6, Arten 1:1).
 [<Literal>]
 let TargetRhythmMissingText = "Für ein neues Target fehlt der Rhythmus: monatlich, wöchentlich oder jährlich."
 
@@ -470,10 +441,24 @@ let TargetRhythmMissingText = "Für ein neues Target fehlt der Rhythmus: monatli
 [<Literal>]
 let TargetCreateMonthText = "Target anlegen geht nur im laufenden Monat."
 
-/// Die Ablehnung eines neuen Targets mit 0 € (budgeting-g2ty9, X8): YNAB legte sonst ein Target ohne
-/// Fehlbetrag an.
+/// Die Ablehnung eines neuen Targets mit 0 € (budgeting-g2ty9, X8): ein Target ohne Fehlbetrag.
 [<Literal>]
 let TargetCreateZeroText = "Ein neues Target braucht einen Betrag über 0 €."
+
+/// Der Hinweis, wenn das gezeigte Target nicht mehr BBs Stand ist (budgeting-eh8xe, ADR 0080 Punkt 3,
+/// Nachtrag ADR 0084, `TargetChangedMeanwhile`): nichts festgehalten, der Tab zeigt BBs Stand, die Eingabe bleibt.
+[<Literal>]
+let TargetChangedMeanwhileText = "Das Target wurde inzwischen geändert. Neuen Stand prüfen und erneut speichern."
+
+/// Die Ablehnung eines Wochentags außerhalb von 0 bis 6 oder an einem Target, das nicht wöchentlich ist
+/// (budgeting-eh8xe).
+[<Literal>]
+let TargetWeekdayText = "Ein Wochentag geht nur bei einem wöchentlichen Target, Sonntag bis Samstag."
+
+/// Die Ablehnung eines Targets, das nach dem Speichern wöchentlich ist und keinen Wochentag trägt
+/// (budgeting-eh8xe): derselbe Satz im Formular und an der API-Grenze.
+[<Literal>]
+let TargetWeekdayMissingText = "Ein wöchentliches Target braucht einen Wochentag."
 
 /// Der Rhythmus als Wort: "monatlich", "alle 3 Monate", "ohne Rhythmus" (budgeting-g2ty9, X11). Ein Text
 /// für Server und Client.
@@ -487,31 +472,50 @@ let rhythmWordText (rhythm: TargetRhythm) : string =
     | Years n -> $"alle {n} Jahre"
     | NoRhythm -> "ohne Rhythmus"
 
-/// Der Rhythmus, den YNAB nach `goal_frequency` liefert: jeweils mit Abstand 1.
+/// Der Rhythmus zu einer Wahl im Formular: jeweils mit Abstand 1.
 let rhythmOfFrequency (frequency: TargetFrequency) : TargetRhythm =
     match frequency with
     | Weekly -> Weeks 1
     | Monthly -> Months 1
     | Yearly -> Years 1
 
+/// Die Wahl zu einem Rhythmus, `None` bei einem, den BB nicht anlegt (alle n mit n über 1, ohne Rhythmus).
+let frequencyOfRhythm (rhythm: TargetRhythm) : TargetFrequency option =
+    [ Weekly; Monthly; Yearly ] |> List.tryFind (fun f -> rhythmOfFrequency f = rhythm)
+
 /// "monatlich", "wöchentlich", "jährlich".
 let frequencyText (frequency: TargetFrequency) : string = rhythmWordText (rhythmOfFrequency frequency)
 
-/// Ist der Wunsch ein echter Wechsel der Art (ADR 0072 Punkt 4)? Ja, wenn `SetRhythm f` vom gelesenen
-/// Rhythmus abweicht oder die heutige Art kein NEED ist. Gleicher Rhythmus bei NEED ist kein Wechsel, dann
-/// geht nie `goal_frequency` hinaus: sonst ginge auch bei "jährlich auf jährlich" das Datum verloren.
-/// Liefert den neuen Rhythmus.
+/// Ist der Wunsch ein echter Wechsel der Art? Ja, wenn `SetRhythm f` vom gezeigten Rhythmus abweicht oder die
+/// heutige Art kein NEED ist. Gleicher Rhythmus bei NEED ist kein Wechsel. Liefert den neuen Rhythmus.
 let targetKindChange (shown: Target) (draft: TargetDraft) : TargetFrequency option =
     match draft.NewRhythm with
     | KeepRhythm -> None
     | SetRhythm f when shown.Kind = Need && shown.Rhythm = rhythmOfFrequency f -> None
     | SetRhythm f -> Some f
 
-/// Was ein Wechsel der Art am gelesenen Target verliert (budgeting-xp46a).
+/// Die Wochentage für die Auswahl, Montag zuerst: Kurzname und Wert wie YNABs `goal_day` (0 Sonntag).
+let weekdays : (string * int) list =
+    [ "Mo", 1; "Di", 2; "Mi", 3; "Do", 4; "Fr", 5; "Sa", 6; "So", 0 ]
+
+/// Der Wochentag als Wort: "Montag". Ein Wert außerhalb von 0 bis 6 bleibt als Zahl lesbar.
+let weekdayText (day: int) : string =
+    match day with
+    | 0 -> "Sonntag"
+    | 1 -> "Montag"
+    | 2 -> "Dienstag"
+    | 3 -> "Mittwoch"
+    | 4 -> "Donnerstag"
+    | 5 -> "Freitag"
+    | 6 -> "Samstag"
+    | other -> $"Tag {other}"
+
+/// Was ein Wechsel der Art am gezeigten Target verliert (budgeting-xp46a).
 type TargetLoss =
-    /// `goal_day` ist gesetzt: der Tag geht verloren, BB kann ihn nicht schreiben.
+    /// Ein Tag ist gesetzt und gilt nur für den bisherigen Rhythmus: er geht verloren, außer der Entwurf setzt
+    /// einen Wochentag.
     | LosesDay
-    /// `goal_target_date` ist gesetzt und der Entwurf hat kein Datum.
+    /// Ein Datum ist gesetzt und der Entwurf hat kein Datum.
     | LosesDate
     /// Die Art ist kein NEED (TB, TBD, MF und andere): BB legt nur NEED an.
     | LosesKind
@@ -519,8 +523,8 @@ type TargetLoss =
     /// ein NEED ohne Kadenz). Der Wechsel ist endgültig.
     | LosesRhythm
 
-/// Was am gelesenen Stand verloren geht, wenn der Entwurf gesendet wird. Leer heißt keine Warnung: auch
-/// jede Änderung ohne Wechsel der Art ist leer, sie sendet kein `goal_frequency`. Rein.
+/// Was am gezeigten Stand verloren geht, wenn der Entwurf gespeichert wird. Leer heißt keine Warnung: auch
+/// jede Änderung ohne Wechsel der Art ist leer. Rein.
 let targetChangeLosses (shown: Target) (draft: TargetDraft) : TargetLoss list =
     match targetKindChange shown draft with
     | None -> []
@@ -531,10 +535,45 @@ let targetChangeLosses (shown: Target) (draft: TargetDraft) : TargetLoss list =
             | Months n
             | Years n -> n > 1
             | NoRhythm -> shown.Kind = Need
-        [ if shown.Day.IsSome then LosesDay
+        [ if shown.Day.IsSome && draft.NewDay.IsNone then LosesDay
           if shown.Date.IsSome && draft.NewDate.IsNone then LosesDate
           if shown.Kind <> Need then LosesKind
           if rhythmLost then LosesRhythm ]
+
+/// Der Wochentag, den ein Entwurf ohne Wechsel tragen muss, damit er bleibt: bei wöchentlich der Tag des
+/// Targets, sonst keiner (`targetAfter`).
+let keptWeekday (target: Target) : int option =
+    match target.Rhythm with
+    | Weeks _ -> target.Day
+    | _ -> None
+
+/// Das Target nach dem Wunsch, vom gezeigten Stand aus (budgeting-eh8xe). Anlegen und ein Wechsel der Art
+/// ergeben NEED mit dem neuen Rhythmus; sonst bleiben Art, Rhythmus und "Auffüllen bis". Der Wochentag kommt
+/// bei wöchentlich aus dem Entwurf; ohne Wochentag im Entwurf bleibt der Tag bei gleichem Rhythmus (ein älterer
+/// Client ohne das Feld löscht ihn so nicht). Eine neu gebaute Regel hat keinen Anlegemonat, den setzt der Server
+/// (`planTargetChange`); eine geänderte behält ihn (budgeting-pf8n7). Ein Wochentag an einem
+/// Ergebnis, das nicht wöchentlich ist, und ein Wochentag außerhalb von 0 bis 6 sind ein Fehler. Rein, gleich
+/// in Client und Server.
+let targetAfter (shown: Target option) (draft: TargetDraft) : Result<Target, string> =
+    let weekly (rhythm: TargetRhythm) =
+        match rhythm with
+        | Weeks _ -> true
+        | _ -> false
+    let built =
+        match shown, draft.NewRhythm with
+        | None, KeepRhythm -> Error TargetRhythmMissingText
+        | None, SetRhythm f ->
+            Ok { Goal = draft.NewGoal; Rhythm = rhythmOfFrequency f; Kind = Need; Date = draft.NewDate; NeedsWholeAmount = None; Day = None; CreatedIn = None }
+        | Some target, _ ->
+            match targetKindChange target draft with
+            | Some f ->
+                Ok { Goal = draft.NewGoal; Rhythm = rhythmOfFrequency f; Kind = Need; Date = draft.NewDate; NeedsWholeAmount = None; Day = None; CreatedIn = None }
+            | None -> Ok { target with Goal = draft.NewGoal; Date = draft.NewDate }
+    match built, draft.NewDay with
+    | Error message, _ -> Error message
+    | Ok target, Some day when day < 0 || day > 6 || not (weekly target.Rhythm) -> Error TargetWeekdayText
+    | Ok target, Some day -> Ok { target with Day = Some day }
+    | Ok target, None -> Ok target
 
 /// Ein Betrag als "1.234,50 €", ohne Kultur und ohne Format-String, gleich unter .NET und Fable.
 let euroText (money: Money) : string =
@@ -635,31 +674,6 @@ type TargetChangeKind =
     /// Die Art gewechselt (`goal_frequency`), auf NEED mit diesem Rhythmus.
     | TargetKindChanged of TargetFrequency
 
-/// "angelegt" beim Anlegen, sonst "geändert".
-let private changedWord (kind: TargetChangeKind) : string =
-    match kind with
-    | TargetCreated _ -> "angelegt"
-    | TargetEdited
-    | TargetRemoved
-    | TargetKindChanged _ -> "geändert"
-
-/// Warum BB Schritt 2 zurückhielt: YNABs Antwort auf Schritt 1 zeigt nicht das gewünschte NEED-Target
-/// (`continueAfter`, budgeting-c2t9w).
-type TargetHeldBackCause =
-    /// Kein Target in YNABs Antwort.
-    | NoTargetAfterFirst
-    /// Ein Target einer anderen Art als NEED.
-    | OtherKindAfterFirst of TargetKind
-    /// NEED, aber mit einem anderen Rhythmus als gewünscht.
-    | OtherRhythmAfterFirst of seen: TargetRhythm * wanted: TargetFrequency
-
-/// Warum das Datum aus Schritt 2 nicht gesetzt ist.
-type TargetDateMissed =
-    /// Schritt 2 ging hinaus und wurde abgelehnt, mit dem Grund (von YNAB oder BB).
-    | DateRefused of reason: string
-    /// BB hielt Schritt 2 zurück.
-    | DateHeldBack of TargetHeldBackCause
-
 /// YNABs Kürzel der Art aus `goal_type`: "NEED", "MF", "TB".
 let goalTypeText (kind: TargetKind) : string =
     match kind with
@@ -670,38 +684,16 @@ let goalTypeText (kind: TargetKind) : string =
     | Debt -> "DEBT"
     | OtherKind goalType -> goalType
 
-/// Der Grund zu einem zurückgehaltenen Schritt 2, ohne Punkt am Ende: so steht er auch am Schritt in der
-/// Historie. Je Fall ein eigener Satz, der nennt, was YNAB zeigt (budgeting-c2t9w).
-let targetHeldBackReasonText (cause: TargetHeldBackCause) : string =
-    match cause with
-    | NoTargetAfterFirst -> "YNAB zeigt nach Schritt 1 kein Target"
-    | OtherKindAfterFirst kind -> $"YNAB zeigt nach Schritt 1 die Art {goalTypeText kind} statt NEED"
-    | OtherRhythmAfterFirst (seen, wanted) ->
-        $"YNAB zeigt nach Schritt 1 {rhythmWordText seen} statt {frequencyText wanted}"
-
-/// Der Handlungssatz, wenn YNAB das Datum abgelehnt hat: ein erneutes Speichern plant dann nur das Datum
-/// (ADR 0080 Punkt 6, budgeting-g2ty9 X4).
-[<Literal>]
-let TargetDateRetryText = "Speichern setzt das Datum erneut."
-
-/// Ein Punkt ans Ende, wenn der Text nicht schon mit einem Satzzeichen endet.
-let private withStop (text: string) : string =
-    let trimmed = text.TrimEnd()
-    if trimmed.EndsWith "." || trimmed.EndsWith "!" || trimmed.EndsWith "?" then trimmed else trimmed + "."
-
-/// Die ganze Meldung zu einem Teilergebnis, Schritt 1 geschrieben, das Datum nicht (budgeting-c2t9w). Hat
-/// YNAB das Datum abgelehnt: "Target angelegt, Datum 01.06.2027 nicht gesetzt: <Grund>. Speichern setzt das
-/// Datum erneut." Hat BB Schritt 2 zurückgehalten, nennt der Satz, was YNAB zeigt, ohne Satz zum erneuten
-/// Speichern: dort plante es wieder einen Wechsel. Beim Wechsel der Art "Target geändert, …". Zeigt YNAB
-/// nach Schritt 1 kein Target, meldet der Satz keinen Erfolg: "Schritt 1 an YNAB gesendet, YNAB zeigt danach
-/// kein Target. Datum 01.06.2027 nicht gesetzt." (budgeting-f8w2n). Der Client zeigt den Satz unverändert.
-let targetPartlyText (kind: TargetChangeKind) (date: string) (missed: TargetDateMissed) : string =
-    let head = $"Target {changedWord kind}, Datum {dateText date} nicht gesetzt"
-    match missed with
-    | DateRefused reason -> $"{head}: {withStop reason} {TargetDateRetryText}"
-    | DateHeldBack NoTargetAfterFirst ->
-        $"Schritt 1 an YNAB gesendet, YNAB zeigt danach kein Target. Datum {dateText date} nicht gesetzt."
-    | DateHeldBack cause -> $"{head}: {withStop (targetHeldBackReasonText cause)}"
+/// Die Art zu YNABs Kürzel aus `goal_type`, die Umkehrung von `goalTypeText`. Ein unbekanntes Kürzel bleibt
+/// als `OtherKind` lesbar.
+let targetKindOfGoalType (goalType: string) : TargetKind =
+    match goalType with
+    | "NEED" -> Need
+    | "TB" -> TargetBalance
+    | "TBD" -> TargetBalanceByDate
+    | "MF" -> MonthlyFunding
+    | "DEBT" -> Debt
+    | other -> OtherKind other
 
 /// Die Ablehnung außerhalb des laufenden Monats: beim Anlegen (kein Target gezeigt, ein Wunsch) "Target
 /// anlegen geht nur im laufenden Monat.", sonst "Target ändern geht nur im laufenden Monat." (budgeting-c2t9w).
@@ -710,8 +702,10 @@ let targetMonthRefusalText (request: TargetChangeRequest) : string =
     | None, Some _ -> TargetCreateMonthText
     | _ -> TargetEditMonthText
 
-/// Eine festgehaltene Target-Änderung (`YnabGoalChangedFromBb`), mit dem jüngsten Ergebnis je Schritt (ADR 0080
-/// Punkt 2 und 4, budgeting-g2ty9 X7). Keine Budget-Bewegung: das Zugewiesen bleibt.
+/// Eine festgehaltene Target-Änderung: `TargetSet` oder `TargetRemoved` in BB (budgeting-eh8xe), oder aus dem
+/// Altbestand `YnabGoalChangedFromBb` mit dem jüngsten Ergebnis je Schritt (ADR 0080 Punkt 2 und 4, budgeting-g2ty9
+/// X7). Art, alter und neuer Wert einer Änderung in BB kommen aus der vorigen Faltung. Keine Budget-Bewegung:
+/// das Zugewiesen bleibt.
 type HistoryTargetChange = {
     ChangeId: Guid
     /// Zeitpunkt des Festhaltens, UTC.
@@ -726,12 +720,19 @@ type HistoryTargetChange = {
     /// "YYYY-MM-DD".
     DateBefore: string option
     DateAfter: string option
+    /// Der Tag vorher und nachher, bei wöchentlich der Wochentag (budgeting-eh8xe). Der Altbestand kennt ihn
+    /// nicht und trägt `None`.
+    DayBefore: int option
+    DayAfter: int option
     /// Das jüngste Ergebnis von Schritt 1 (alte Zeilen ohne Schritt zählen als Schritt 1). `None`: noch keins
     /// angehängt.
     Latest: LineOutcome option
     /// Das jüngste Ergebnis von Schritt 2, dem Datum nach Anlegen oder Wechsel der Art. `None`: kein
     /// zweiter Schritt oder noch kein Ergebnis.
     DateStep: LineOutcome option
+    /// Ging die Änderung nach YNAB? Nur der Altbestand aus dem Zwei-Schritt-Weg. Eine Änderung nur in BB hat
+    /// keinen Stand beim Schreiben, wie eine Pause.
+    SentToYnab: bool
 }
 
 /// Ein Eintrag im Tab Historie: eine Budget-Bewegung, ein Pause-Ereignis oder eine Target-Änderung.
@@ -834,7 +835,7 @@ let historyLine (m: HistoryMovement) : HistoryLine =
 /// geschrieben, entscheidet Schritt 2: fehlgeschlagen heißt teilweise geschrieben, ohne Ergebnis bei
 /// einem erwarteten Datum noch offen. Sonst gilt Schritt 1 wie bei einer Bewegung.
 let targetChangeStatus (c: HistoryTargetChange) : HistoryStatus =
-    // Zwei Schritte hat nur ein Anlegen oder Wechsel der Art mit Datum (`planTargetWrite`).
+    // Zwei Schritte hatte im Altbestand nur ein Anlegen oder Wechsel der Art mit Datum.
     let twoSteps =
         match c.ChangeKind, c.DateAfter with
         | (TargetCreated _ | TargetKindChanged _), Some _ -> true
@@ -855,6 +856,10 @@ let targetChangeText (c: HistoryTargetChange) : string =
         match targetChangeStatus c with
         | HistoryPartlyWritten _ -> " nicht gesetzt"
         | _ -> ""
+    let weekdayAfter (frequency: TargetFrequency) =
+        match frequency, c.DayAfter with
+        | Weekly, Some day -> [ $"Wochentag {weekdayText day}" ]
+        | _ -> []
     let changes =
         [ if c.GoalBefore <> c.GoalAfter then
               $"Target {amount c.GoalBefore} → {amount c.GoalAfter}"
@@ -866,18 +871,27 @@ let targetChangeText (c: HistoryTargetChange) : string =
     | TargetRemoved -> "Target entfernt"
     | TargetCreated frequency ->
         [ $"Target angelegt, {amount c.GoalAfter} {frequencyText frequency}"
+          yield! weekdayAfter frequency
           match c.DateAfter with
           | Some date -> $"Datum {dateText date}{dateNotSet}"
           | None -> () ]
         |> String.concat ", "
-    | TargetKindChanged frequency -> $"Rhythmus {frequencyText frequency}" :: changes |> String.concat ", "
+    | TargetKindChanged frequency ->
+        $"Rhythmus {frequencyText frequency}" :: weekdayAfter frequency @ changes |> String.concat ", "
     | TargetEdited ->
+        // Bei gleichem Rhythmus ändert sich der Tag nur bei wöchentlich (`targetAfter`).
+        let changes =
+            changes
+            @ [ if c.DayBefore <> c.DayAfter then
+                    match c.DayAfter with
+                    | Some day -> $"Wochentag {weekdayText day}"
+                    | None -> "Wochentag entfernt" ]
         match changes with
         | [] -> "Target unverändert"
         | parts -> String.concat ", " parts
 
 /// Eintrag zu Zeile. Eine Pause hat weder Betrag noch Stand: sie geht nie nach YNAB (ADR 0073 Punkt 5).
-/// Eine Target-Änderung behält ihren echten Stand.
+/// Eine Target-Änderung aus dem Altbestand behält ihren echten Stand, eine Änderung nur in BB hat keinen.
 let historyEntryLine (entry: HistoryEntry) : HistoryLine =
     let pauseLine (p: HistoryPause) (text: string) =
         { EntryId = p.EventId
@@ -894,7 +908,7 @@ let historyEntryLine (entry: HistoryEntry) : HistoryLine =
           OccurredAt = c.OccurredAt
           Change = None
           Text = targetChangeText c
-          Status = Some (targetChangeStatus c) }
+          Status = (if c.SentToYnab then Some (targetChangeStatus c) else None) }
 
 // ============================================
 // Allgemeine Historie (budgeting-h7q4v)
@@ -1261,7 +1275,7 @@ let suggestTarget (target: Target option) (average: Money) : TargetSuggestion op
             Some
                 { Monthly = euro monthly
                   InRhythm = euro monthly
-                  Draft = { NewGoal = euro monthly; NewDate = None; NewRhythm = SetRhythm Monthly } }
+                  Draft = { NewGoal = euro monthly; NewDate = None; NewRhythm = SetRhythm Monthly; NewDay = None } }
         | Some t ->
             let inRhythm =
                 match checkedRhythm t |> Option.defaultValue (Months 1) with
@@ -1274,7 +1288,7 @@ let suggestTarget (target: Target option) (average: Money) : TargetSuggestion op
             Some
                 { Monthly = euro monthly
                   InRhythm = euro inRhythm
-                  Draft = { NewGoal = euro inRhythm; NewDate = t.Date; NewRhythm = KeepRhythm } }
+                  Draft = { NewGoal = euro inRhythm; NewDate = t.Date; NewRhythm = KeepRhythm; NewDay = keptWeekday t } }
 
 /// Ordnet eine Kategorie ein (ADR 0082 Punkt 6 bis 9). `today` ist der Berliner Tag "YYYY-MM-DD", der
 /// laufende Monat folgt daraus und zählt nie. Rein, gleich unter .NET und Fable.

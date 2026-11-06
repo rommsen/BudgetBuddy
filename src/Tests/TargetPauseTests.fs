@@ -25,7 +25,7 @@ let private run x = Async.RunSynchronously x
 // Reine Regeln
 // ============================================
 
-let private ynabCategory (id: Guid) (name: string) (snoozed: bool) : YnabMonthCategory =
+let private ynabCategory (id: Guid) (name: string) : YnabMonthCategory =
     { Id = id
       Name = name
       GroupName = "Alltag"
@@ -34,7 +34,6 @@ let private ynabCategory (id: Guid) (name: string) (snoozed: bool) : YnabMonthCa
       Available = eur 0m
       Underfunded = Some (eur 50m)
       Target = Some target
-      Snoozed = snoozed
       Hidden = false
       Deleted = false
       Internal = false }
@@ -52,8 +51,6 @@ let private budgetCategory (available: decimal) (under: decimal option) (pause: 
       Target = Some target
       Pause = pause; OpenWriteBack = None }
 
-let private sources = [ PausedInYnab; PausedInBb; PausedInBoth ]
-
 let private pauseEvent (id: Guid) : HistoryPause =
     { EventId = id
       OccurredAt = DateTime(2026, 11, 4, 9, 0, 0, DateTimeKind.Utc)
@@ -63,39 +60,31 @@ let private pauseEvent (id: Guid) : HistoryPause =
 
 let private domainTests =
     testList "Pause: reine Regeln" [
-        test "toBudgetMonth führt BB- und YNAB-Pause zur Quelle zusammen" {
-            let onlyBb, onlyYnab, both, none = Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()
+        test "toBudgetMonth zeigt die BB-Pause einer Kategorie mit Target" {
+            let paused, none = Guid.NewGuid(), Guid.NewGuid()
             let raw : YnabMonth =
                 { Month = "2026-11-01"
                   ToBeBudgeted = eur 0m
-                  Categories =
-                    [ ynabCategory onlyBb "nur BB" false
-                      ynabCategory onlyYnab "nur YNAB" true
-                      ynabCategory both "beide" true
-                      ynabCategory none "keine" false ] }
-            let month = Domain.toBudgetMonth (Set.ofList [ onlyBb; both ]) raw
-            Expect.equal (pauseOf month onlyBb) (Some PausedInBb) "nur in BB"
-            Expect.equal (pauseOf month onlyYnab) (Some PausedInYnab) "nur in YNAB"
-            Expect.equal (pauseOf month both) (Some PausedInBoth) "beide"
+                  Categories = [ ynabCategory paused "pausiert"; ynabCategory none "keine" ] }
+            let month = BudgetEventsFixture.toBudgetMonthOfYnab (Set.ofList [ paused ]) raw
+            Expect.equal (pauseOf month paused) (Some PausedInBb) "in BB"
             Expect.equal (pauseOf month none) None "keine"
         }
         test "Eine BB-Pause für eine Kategorie, die im Monat fehlt, ändert nichts" {
             let raw : YnabMonth =
-                { Month = "2026-11-01"; ToBeBudgeted = eur 0m; Categories = [ ynabCategory (Guid.NewGuid()) "da" false ] }
-            Expect.equal (Domain.toBudgetMonth (Set.ofList [ Guid.NewGuid() ]) raw) (Domain.toBudgetMonth Set.empty raw) "gleich"
+                { Month = "2026-11-01"; ToBeBudgeted = eur 0m; Categories = [ ynabCategory (Guid.NewGuid()) "da" ] }
+            Expect.equal (BudgetEventsFixture.toBudgetMonthOfYnab (Set.ofList [ Guid.NewGuid() ]) raw) (BudgetEventsFixture.toBudgetMonthOfYnab Set.empty raw) "gleich"
         }
-        test "Bei jeder Quelle zählt der Fehlbetrag in Fehlt und Frei nicht" {
-            for source in sources do
-                let c = budgetCategory 10m (Some 50m) (Some source)
-                Expect.equal (missingAmount c) None $"Fehlt bei {source}"
-                Expect.equal (freeAmount c) (eur 10m) $"Frei bei {source}"
+        test "Bei einer Pause zählt der Fehlbetrag in Fehlt und Frei nicht" {
+            let c = budgetCategory 10m (Some 50m) (Some PausedInBb)
+            Expect.equal (missingAmount c) None "Fehlt"
+            Expect.equal (freeAmount c) (eur 10m) "Frei"
             let open' = budgetCategory 10m (Some 50m) None
             Expect.equal (missingAmount open') (Some (eur 50m)) "ohne Pause zählt er"
             Expect.equal (freeAmount open') (eur -40m) "ohne Pause sperrt er"
         }
-        test "Bei jeder Quelle bleibt negatives Verfügbar in Fehlt" {
-            for source in sources do
-                Expect.equal (missingAmount (budgetCategory -5m (Some 50m) (Some source))) (Some (eur 5m)) $"{source}"
+        test "Bei einer Pause bleibt negatives Verfügbar in Fehlt" {
+            Expect.equal (missingAmount (budgetCategory -5m (Some 50m) (Some PausedInBb))) (Some (eur 5m)) "pausiert"
         }
         test "Targets anwenden überspringt eine in BB pausierte Kategorie mit Fehlbetrag" {
             let paused = budgetCategory 0m (Some 50m) (Some PausedInBb)
@@ -131,8 +120,8 @@ let private domainTests =
             let raw : YnabMonth =
                 { Month = "2026-11-01"
                   ToBeBudgeted = eur 0m
-                  Categories = [ { ynabCategory k "ohne Target" false with Target = None; Underfunded = None } ] }
-            Expect.equal (pauseOf (Domain.toBudgetMonth (Set.ofList [ k ]) raw) k) None "keine Pause"
+                  Categories = [ { ynabCategory k "ohne Target" with Target = None; Underfunded = None } ] }
+            Expect.equal (pauseOf (BudgetEventsFixture.toBudgetMonthOfYnab (Set.ofList [ k ]) raw) k) None "keine Pause"
         }
     ]
 
@@ -142,7 +131,7 @@ let private domainTests =
 
 /// Ein Fake-YNAB: liefert den Monat aus der Liste, zählt jedes Lesen und jeden Schreibversuch.
 /// Kategorien als (Id, Name, Fehlbetrag in Euro, mit Target, in YNAB pausiert, ausgeblendet).
-type private FakeYnab(categories: (Guid * string * decimal * bool * bool * bool) list) =
+type private FakeYnab(categories: (Guid * string * decimal * bool * bool) list) =
     member val Reads = 0 with get, set
     member val Writes = ResizeArray<Guid * int64>()
     /// Läuft bei jedem Lesen des Monats, vor der Antwort.
@@ -159,8 +148,8 @@ type private FakeYnab(categories: (Guid * string * decimal * bool * bool * bool)
                               ToBeBudgeted = eur 1000m
                               Categories =
                                 categories
-                                |> List.map (fun (id, name, under, hasTarget, snoozed, hidden) ->
-                                    { ynabCategory id name snoozed with
+                                |> List.map (fun (id, name, under, hasTarget, hidden) ->
+                                    { ynabCategory id name with
                                         Underfunded = (if hasTarget then Some (eur under) else None)
                                         Target = (if hasTarget then Some target else None)
                                         Hidden = hidden }) }
@@ -171,15 +160,21 @@ type private FakeYnab(categories: (Guid * string * decimal * bool * bool * bool)
                     this.Writes.Add((id, milliunits))
                     return Ok ()
                 }
-          SetTarget = fun _ _ -> async { return failwith "schreibt kein Target" } }
+          FetchCategoryGoals =
+            fun () ->
+                async {
+                    return
+                        Ok [ for id, name, _, hasTarget, _ in categories ->
+                                 { Id = id; Name = name; Target = (if hasTarget then Some target else None) } ]
+                } }
 
 let private current = "2026-11-01"
 let private now = DateTime(2026, 11, 4, 9, 0, 0, DateTimeKind.Utc)
 
 /// Eine Kategorie mit Target und Fehlbetrag 50 €, frische Id je Test.
-let private fakeWith (snoozed: bool) =
+let private fakeWith () =
     let k = Guid.NewGuid()
-    FakeYnab([ k, "Ausflug", 50m, true, snoozed, false ]), k
+    FakeYnab([ k, "Ausflug", 50m, true, false ]), k
 
 let private pause (f: FakeYnab) (month: string) (id: Guid) (intent: PauseIntent) =
     setTargetPause f.Port now current month { CategoryId = id; Intent = intent; CommandId = None } |> run
@@ -223,7 +218,7 @@ let private flowTests =
     testSequenced
     <| testList "Pause: Abläufe" [
         testCase "GIVEN Target im laufenden Monat WHEN pausieren THEN ein Ereignis, der Monat zeigt die BB-Pause, YNAB wird nicht beschrieben" <| fun () ->
-            let f, k = fakeWith false
+            let f, k = fakeWith ()
             Expect.equal (pauseOk f current k PauseTarget) (Some PausedInBb) "Ergebnis"
             Expect.equal (eventRows k) [ current, "Pausiert" ] "ein Ereignis"
             let shown = categoryIn (monthOk f current) k
@@ -232,32 +227,20 @@ let private flowTests =
             Expect.isEmpty f.Writes "kein Schreibaufruf an YNAB"
 
         testCase "GIVEN BB-Pause im Monat M WHEN der Folgemonat gelesen wird THEN gilt sie dort nicht" <| fun () ->
-            let f, k = fakeWith false
+            let f, k = fakeWith ()
             pauseOk f current k PauseTarget |> ignore
             Expect.equal (categoryIn (monthOk f "2026-12-01") k).Pause None "endet mit dem Monat"
 
         testCase "Doppeltes Pausieren und Aufheben ohne BB-Pause schreiben keine Zeile" <| fun () ->
-            let f, k = fakeWith false
+            let f, k = fakeWith ()
             Expect.equal (pauseOk f current k LiftPause) None "Aufheben ohne Pause"
             Expect.isEmpty (eventRows k) "keine Zeile beim Aufheben"
             pauseOk f current k PauseTarget |> ignore
             Expect.equal (pauseOk f current k PauseTarget) (Some PausedInBb) "noch einmal pausiert"
             Expect.equal (eventRows k |> List.length) 1 "keine zweite Zeile"
 
-        testCase "GIVEN Pause in BB und YNAB WHEN aufheben THEN Aufgehoben, die YNAB-Pause bleibt" <| fun () ->
-            let f, k = fakeWith true
-            Expect.equal (pauseOk f current k PauseTarget) (Some PausedInBoth) "beide"
-            Expect.equal (pauseOk f current k LiftPause) (Some PausedInYnab) "YNAB bleibt"
-            Expect.equal (eventRows k |> List.map snd) [ "Pausiert"; "Aufgehoben" ] "angehängt"
-            Expect.equal (categoryIn (monthOk f current) k).Pause (Some PausedInYnab) "gelesen"
-
-        testCase "GIVEN nur YNAB-Pause WHEN aufheben THEN keine Zeile, sie bleibt" <| fun () ->
-            let f, k = fakeWith true
-            Expect.equal (pauseOk f current k LiftPause) (Some PausedInYnab) "unverändert"
-            Expect.isEmpty (eventRows k) "keine Zeile"
-
         testCase "Im vergangenen Monat abgelehnt, ohne YNAB zu lesen" <| fun () ->
-            let f, k = fakeWith false
+            let f, k = fakeWith ()
             match pause f "2026-10-01" k PauseTarget with
             | Ok (Error message) -> Expect.equal message PausePastMonthText "Grund"
             | other -> failtest $"Ablehnung erwartet: {other}"
@@ -265,13 +248,13 @@ let private flowTests =
             Expect.equal f.Reads 0 "kein YNAB-Aufruf"
 
         testCase "Ein künftiger Monat im Fenster wird wie der laufende pausiert" <| fun () ->
-            let f, k = fakeWith false
+            let f, k = fakeWith ()
             Expect.equal (pauseOk f "2027-01-01" k PauseTarget) (Some PausedInBb) "Ergebnis"
             Expect.equal (eventRows k) [ "2027-01-01", "Pausiert" ] "Ereignis im künftigen Monat"
 
         testCase "Ohne Target, ausgeblendet oder unbekannt: Fehler mit Grund, keine Zeile" <| fun () ->
             let noTarget, hidden, unknown = Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()
-            let f = FakeYnab([ noTarget, "Ohne Ziel", 0m, false, false, false; hidden, "Versteckt", 50m, true, false, true ])
+            let f = FakeYnab([ noTarget, "Ohne Ziel", 0m, false, false; hidden, "Versteckt", 50m, true, true ])
             let reason id =
                 match pause f current id PauseTarget with
                 | Ok (Error message) -> message
@@ -283,9 +266,9 @@ let private flowTests =
                 Expect.isEmpty (eventRows id) "keine Zeile"
 
         testCase "Eine Pause zwischen Vorschau und Übernehmen ergibt PreviewChanged, die neue Vorschau überspringt K" <| fun () ->
-            let f, k = fakeWith false
+            let f, k = fakeWith ()
             let shown =
-                match preview f.Port current |> run with
+                match preview f.Port now current |> run with
                 | Ok p -> p
                 | Error e -> failtest $"{e}"
             Expect.equal (shown.Lines |> List.map (fun l -> l.CategoryId)) [ k ] "K in den Zeilen"
@@ -298,7 +281,7 @@ let private flowTests =
             Expect.isEmpty f.Writes "nichts geschrieben"
 
         testCase "Pausieren wartet auf die Sperre je Monat, wie Targets anwenden" <| fun () ->
-            let f, k = fakeWith false
+            let f, k = fakeWith ()
             // Ein eigener Monat: kein anderer Test hält oder liest ihn.
             let month = "2094-05-01"
             let holder = new System.Threading.SemaphoreSlim(0, 1)
@@ -362,8 +345,8 @@ let private flowTests =
         // keine Pause.
         testCase "GIVEN BB-Pause, Target danach entfernt WHEN aufheben THEN aufgehoben, ein neues Target ist nicht pausiert" <| fun () ->
             let k = Guid.NewGuid()
-            let withTarget = FakeYnab([ k, "Ausflug", 50m, true, false, false ])
-            let withoutTarget = FakeYnab([ k, "Ausflug", 0m, false, false, false ])
+            let withTarget = FakeYnab([ k, "Ausflug", 50m, true, false ])
+            let withoutTarget = FakeYnab([ k, "Ausflug", 0m, false, false ])
             Expect.equal (pauseOk withTarget current k PauseTarget) (Some PausedInBb) "pausiert"
             Expect.equal (pauseOk withoutTarget current k LiftPause) None "aufgehoben ohne Target"
             Expect.equal (eventRows k |> List.map snd) [ "Pausiert"; "Aufgehoben" ] "festgehalten"
@@ -372,14 +355,14 @@ let private flowTests =
         // Intakt: Pausieren verlangt weiter ein Target.
         testCase "GIVEN kein Target WHEN pausieren THEN abgelehnt, keine Zeile" <| fun () ->
             let k = Guid.NewGuid()
-            let f = FakeYnab([ k, "Ohne Ziel", 0m, false, false, false ])
+            let f = FakeYnab([ k, "Ohne Ziel", 0m, false, false ])
             match pause f current k PauseTarget with
             | Ok (Error message) -> Expect.equal message "Ohne Ziel hat kein Target. Pausieren geht nur mit Target." "Grund"
             | other -> failtest $"Ablehnung erwartet: {other}"
             Expect.isEmpty (eventRows k) "keine Zeile"
 
         testCase "Monat nicht lesbar: außen Error, keine Zeile" <| fun () ->
-            let f, k = fakeWith false
+            let f, k = fakeWith ()
             let port : YnabPort =
                 { f.Port with FetchMonth = fun _ -> async { return Error (YnabError.NetworkError "weg") } }
             match setTargetPause port now current current { CategoryId = k; Intent = PauseTarget; CommandId = None } |> run with
@@ -393,7 +376,7 @@ let private flowTests =
         // Nutzer ankommt. Beim Monat und beim Pausieren ist er ein `LocalReadFailed`.
         testCase "Pausen nicht lesbar: Monat, Pausieren und Historie melden den Fehler als BB-Lesefehler" <| fun () ->
             let month = "2093-07-01"
-            let f, k = fakeWith false
+            let f, k = fakeWith ()
             let anchor, connect = BudgetEventsFixture.isolatedDb ()
             use _ = anchor
             BudgetEventsFixture.appendUnknown anchor (Budgeting.Events.MonthStream "2093-07")
@@ -478,7 +461,7 @@ let private boundaryTests =
         }
         test "Über die BudgetApi: pausieren mit Uhr und Monatsart aus Berlin" {
             Budgeting.Persistence.initializeBudgetingSchema ()
-            let f, k = fakeWith false
+            let f, k = fakeWith ()
             let settings key = async { return Some $"wert-{key}" }
             let framePort _ _ : QueryHandlers.BudgetFramePort =
                 { FetchMonths = (fun () -> async { return Ok [] }); FetchCategoryOrder = (fun () -> async { return Ok [] }) }
@@ -511,7 +494,7 @@ let private commandTests =
     testSequenced
     <| testList "Pause: Befehls-Id" [
         testCase "GIVEN Pausieren mit X und danach Aufheben mit Y WHEN X verspätet wiederkommt THEN hängt nichts an, YNAB wird nicht gelesen und die Pause bleibt aufgehoben" <| fun () ->
-            let f, k = fakeWith false
+            let f, k = fakeWith ()
             let x = Guid.NewGuid()
             Expect.equal (pauseWithId f x k PauseTarget) (Ok (Ok (Some PausedInBb))) "pausiert"
             Expect.equal (pauseWithId f (Guid.NewGuid()) k LiftPause) (Ok (Ok None)) "aufgehoben"
@@ -522,7 +505,7 @@ let private commandTests =
             Expect.equal (categoryIn (monthOk f current) k).Pause None "die Pause bleibt aufgehoben"
 
         testCase "Die Id eines Pausierens beim Aufheben wird abgelehnt, ohne Ereignis" <| fun () ->
-            let f, k = fakeWith false
+            let f, k = fakeWith ()
             let x = Guid.NewGuid()
             pauseWithId f x k PauseTarget |> ignore
             f.Reads <- 0
@@ -534,7 +517,7 @@ let private commandTests =
         // meldete `Some PausedInBb` für eine nie pausierte Kategorie.
         testCase "Die Id eines Pausierens als Pausieren einer anderen Kategorie gesendet wird abgelehnt, ohne Ereignis" <| fun () ->
             let k, other = Guid.NewGuid(), Guid.NewGuid()
-            let f = FakeYnab([ k, "Ausflug", 50m, true, false, false; other, "Reisen", 50m, true, false, false ])
+            let f = FakeYnab([ k, "Ausflug", 50m, true, false; other, "Reisen", 50m, true, false ])
             let x = Guid.NewGuid()
             pauseWithId f x k PauseTarget |> ignore
             f.Reads <- 0
@@ -543,7 +526,7 @@ let private commandTests =
             Expect.isEmpty (eventRows other) "nichts angehängt"
 
         testCase "GIVEN Pausieren und Aufheben mit Y WHEN Y wiederkommt THEN antwortet der Server ohne Pause, ohne YNAB und ohne neues Ereignis" <| fun () ->
-            let f, k = fakeWith false
+            let f, k = fakeWith ()
             let y = Guid.NewGuid()
             pauseWithId f (Guid.NewGuid()) k PauseTarget |> ignore
             Expect.equal (pauseWithId f y k LiftPause) (Ok (Ok None)) "aufgehoben"
@@ -553,7 +536,7 @@ let private commandTests =
             Expect.equal (eventRows k) [ current, "Pausiert"; current, "Aufgehoben" ] "nichts angehängt"
 
         testCase "Rennt die Id an der Vorabprüfung vorbei, antwortet Pausieren aus dem Stream und hängt nichts an" <| fun () ->
-            let f, k = fakeWith false
+            let f, k = fakeWith ()
             let x = Guid.NewGuid()
             // Während des Lesens hält ein zweiter Weg dieselbe Id fest, wie es das Netz der Transaktion abfängt.
             // Die Pausen kommen aus dem Stand vor diesem Festhalten, sonst sähe die Planung nichts mehr zu tun.

@@ -1750,13 +1750,14 @@ let previewTargetsWith
     (budgetOpt: string option)
     (portFor: string -> YnabBudgetId -> Server.Budgeting.CommandHandlers.YnabPort)
     (today: DateOnly)
+    (now: DateTime)
     (monthKeyText: string)
     : Async<Result<Shared.Budgeting.TargetPreview, string>> =
     async {
         match targetsMonthKey today monthKeyText with
         | Error message -> return Error message
         | Ok key ->
-            return! withYnabPort tokenOpt budgetOpt portFor (fun port -> Server.Budgeting.CommandHandlers.preview port key)
+            return! withYnabPort tokenOpt budgetOpt portFor (fun port -> Server.Budgeting.CommandHandlers.preview port now key)
     }
 
 /// "Übernehmen" von "Targets anwenden" ohne Settings und Netz, Prüfung wie `previewTargetsWith` und dazu die
@@ -1845,13 +1846,11 @@ let setTargetPauseWith
             return result |> Result.bind id
     }
 
-/// Der Weg von Target ändern und entfernen ohne Settings und Netz (budgeting-k8wq3, ADR 0080). Geprüft
-/// wird vor allem anderen: ein vergangener oder künftiger Monat liest YNAB nicht. `today` ist der
-/// Kalendertag in Berlin für die Monatsart, `now` stempelt die Target-Änderung (UTC).
+/// Der Weg von Target ändern und entfernen (budgeting-k8wq3, ADR 0080). Seit budgeting-eh8xe nur in BB: kein
+/// YNAB, deshalb auch keine Einrichtung nötig. Geprüft wird vor allem anderen. `today` ist der Kalendertag in
+/// Berlin für die Monatsart, `now` stempelt die Target-Änderung (UTC).
 let changeCategoryTargetWith
-    (tokenOpt: string option)
-    (budgetOpt: string option)
-    (portFor: string -> YnabBudgetId -> Server.Budgeting.CommandHandlers.YnabPort)
+    (change: DateTime -> string -> string -> Shared.Budgeting.TargetChangeRequest -> Async<Result<Result<Shared.Budgeting.TargetChangeResult, string>, YnabError>>)
     (today: DateOnly)
     (now: DateTime)
     (monthKeyText: string)
@@ -1862,10 +1861,9 @@ let changeCategoryTargetWith
         match Validation.validateTargetChange current monthKeyText request with
         | Error errors -> return Error (String.concat " " errors)
         | Ok () ->
-            let! result =
-                withYnabPort tokenOpt budgetOpt portFor (fun port ->
-                    Server.Budgeting.CommandHandlers.changeTarget port now current monthKeyText request)
-            return result |> Result.bind id
+            match! change now current monthKeyText request with
+            | Error e -> return Error (ynabErrorText e)
+            | Ok result -> return result
     }
 
 /// Der Tab Historie ohne feste Lese-Quellen (budgeting-dyn8g). Die Grenze prüft wie beim
@@ -1899,11 +1897,11 @@ let targetCheckWith
         return result |> Result.bind id
     }
 
-/// Der YNAB-Port der Server-Abläufe: echter Client für Lesen, Zuweisen und Target schreiben.
+/// Der YNAB-Port der Server-Abläufe: echter Client für Lesen, Zuweisen und die Goals der Target-Übernahme.
 let private livePort (token: string) (budgetId: YnabBudgetId) : Server.Budgeting.CommandHandlers.YnabPort =
     { FetchMonth = fun monthKey -> YnabClient.getMonth token budgetId monthKey
       SetAssigned = fun monthKey categoryId milliunits -> YnabClient.setAssigned token budgetId monthKey categoryId milliunits
-      SetTarget = fun categoryId patch -> YnabClient.setCategoryTarget token budgetId categoryId patch }
+      FetchCategoryGoals = fun () -> YnabClient.getCategoryGoals token budgetId }
 
 /// Die Lese-Quellen des Rahmens (budgeting-g8s3w): echter Client für Monatsfenster und Reihenfolge.
 let private liveFramePort (token: string) (budgetId: YnabBudgetId) : Server.Budgeting.QueryHandlers.BudgetFramePort =
@@ -1971,7 +1969,7 @@ let budgetApiWith
 
       previewTargets = fun monthKeyText -> async {
         let! tokenOpt, budgetOpt = ynabSettings ()
-        return! previewTargetsWith tokenOpt budgetOpt portFor (today ()) monthKeyText
+        return! previewTargetsWith tokenOpt budgetOpt portFor (today ()) (utcNow ()) monthKeyText
       }
 
       applyTargets = fun monthKeyText shown -> async {
@@ -2004,10 +2002,8 @@ let budgetApiWith
         return! setTargetPauseWith tokenOpt budgetOpt portFor (today ()) (utcNow ()) monthKeyText request
       }
 
-      changeCategoryTarget = fun monthKeyText request -> async {
-        let! tokenOpt, budgetOpt = ynabSettings ()
-        return! changeCategoryTargetWith tokenOpt budgetOpt portFor (today ()) (utcNow ()) monthKeyText request
-      }
+      changeCategoryTarget = fun monthKeyText request ->
+        changeCategoryTargetWith Server.Budgeting.CommandHandlers.changeTarget (today ()) (utcNow ()) monthKeyText request
 
       getRecentMoveCategories = fun () -> Server.Budgeting.QueryHandlers.recentMoveCategories ()
 
@@ -2018,7 +2014,7 @@ let budgetApiWith
       getTargetCheck = fun () -> async {
         let! tokenOpt, budgetOpt = ynabSettings ()
         let portFor token budgetId =
-            Server.Budgeting.QueryHandlers.liveTargetCheckPort (portFor token budgetId).FetchMonth
+            Server.Budgeting.QueryHandlers.liveTargetCheckPort (portFor token budgetId) utcNow
         return! targetCheckWith tokenOpt budgetOpt portFor (today ())
       } }
 

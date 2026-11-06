@@ -32,7 +32,6 @@ let private raw (categories: (Guid * int64) list) : YnabMonth =
               Available = eur assigned
               Underfunded = None
               Target = None
-              Snoozed = false
               Hidden = false
               Deleted = false
               Internal = false }) }
@@ -347,11 +346,11 @@ let private monthTests =
             let c, d = Guid.NewGuid(), Guid.NewGuid()
             let decision = Guid.NewGuid()
             let fold = Map.ofList [ c, state 25000L 10000L (Some decision) ]
-            let month = toBudgetMonthWith (Some fold) Set.empty { raw [] with Categories = [ category c None; category d None ] }
+            let month = toBudgetMonthWith (Some fold) Map.empty Set.empty { raw [] with Categories = [ category c None; category d None ] }
             let byId id = month.Groups |> List.collect (fun g -> g.Categories) |> List.find (fun x -> x.Id = id)
             Expect.equal ((byId c).Assigned, (byId c).OpenWriteBack, (byId c).Available) (eur 25000L, Some decision, eur 10000L) "offen"
             Expect.equal ((byId d).Assigned, (byId d).OpenWriteBack) (eur 0L, None) "ohne Eintrag 0, keine Markierung"
-            let plain = toBudgetMonth Set.empty { raw [] with Categories = [ category c None ] }
+            let plain = toBudgetMonth Map.empty Set.empty { raw [] with Categories = [ category c None ] }
             Expect.equal (plain.Groups.Head.Categories.Head.Assigned, plain.Groups.Head.Categories.Head.OpenWriteBack) (eur 10000L, None) "ohne Faltung YNABs Wert"
         }
         test "Targets anwenden lehnt ab, solange eine Kategorie mit Fehlbetrag eine offene Rückschreibung hat, und nennt sie" {
@@ -360,12 +359,13 @@ let private monthTests =
             let month =
                 toBudgetMonthWith
                     (Some fold)
+                    Map.empty
                     Set.empty
                     { raw [] with Categories = [ { category c (Some 5000L) with Name = "Urlaub" }; category d (Some 5000L) ] }
             match planTargetApplication month with
             | Error message -> Expect.equal message $"{TargetsOpenWriteBackText} Urlaub." "Grund, nur die Kategorie mit Fehlbetrag und offener Rückschreibung"
             | Ok preview -> failtest $"Ablehnung erwartet: {preview}"
-            let fine = toBudgetMonthWith (Some fold) Set.empty { raw [] with Categories = [ category c None; category d (Some 5000L) ] }
+            let fine = toBudgetMonthWith (Some fold) Map.empty Set.empty { raw [] with Categories = [ category c None; category d (Some 5000L) ] }
             Expect.isOk (planTargetApplication fine) "offen ohne Fehlbetrag stört nicht"
         }
     ]

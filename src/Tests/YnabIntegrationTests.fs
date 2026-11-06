@@ -119,11 +119,9 @@ let integrationTests =
                     |> Async.RunSynchronously
                     |> ignore
 
-        // budgeting-k8wq3, ADR 0072 Punkt 6: Vorbedingung vor dem ersten Target-Schreiben in Romans Budget.
-        // Ein PATCH nur mit goal_target muss Tag, Kadenz, goal_needs_whole_amount und Datum erhalten. Dazu die
-        // Beobachtung des Vormonats (goal_under_funded vor und nach der Änderung), die den Test nicht färbt.
-        // Schreibt nur in das Budget "Test" und stellt den alten Betrag im finally wieder her.
-        testCase "Ein Monats-Target mit Tag behält Tag, Kadenz und Datum, wenn nur goal_target gesendet wird (Budget Test)" <| fun () ->
+        // budgeting-eh8xe, ADR 0084 Punkt 5: die Quelle der Target-Übernahme. Die Goals aus /categories gleichen den
+        // goal_*-Feldern des laufenden Monats (Art, Betrag, Rhythmus, Datum, Tag). Liest nur das Budget "Test".
+        testCase "Die Goals aus /categories gleichen den Targets des laufenden Monats (Budget Test)" <| fun () ->
             if not (shouldRunIntegrationTests()) then
                 Tests.skiptest "RUN_INTEGRATION_TESTS not set to 'true' - skipping integration test (set RUN_INTEGRATION_TESTS=true in .env to enable)"
 
@@ -137,66 +135,24 @@ let integrationTests =
                         | Some b -> b.Id
                         | None -> Tests.skiptest "Budget 'Test' nicht vorhanden - skipping integration test"
                     | Error e -> failtest $"Budgets nicht lesbar: {e}"
-
                 let berlin = TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin"
-                let today = Server.Budgeting.Domain.berlinToday berlin DateTime.UtcNow
-                let month = Server.Budgeting.Domain.currentMonthKey today
-                let previousMonth = Server.Budgeting.Domain.currentMonthKey (today.AddMonths -1)
-                let read () =
+                let month = Server.Budgeting.Domain.currentMonthKey (Server.Budgeting.Domain.berlinToday berlin DateTime.UtcNow)
+                let monthTargets =
                     match getMonth token budget month |> Async.RunSynchronously with
-                    | Ok m -> m
-                    | Error e -> failtest $"Monat nicht lesbar: {e}"
-
-                let category =
-                    read().Categories
-                    |> List.tryFind (fun c ->
-                        not c.Hidden && not c.Deleted && not c.Internal
-                        && c.Target
-                           |> Option.exists (fun t ->
-                               t.Kind = Shared.Budgeting.Need && t.Rhythm = Shared.Budgeting.Months 1 && t.Day.IsSome))
-                    |> Option.defaultWith (fun () -> failtest "Im Budget Test ein Monats-Target mit Tag von Hand anlegen")
-                let before = category.Target.Value
-
-                /// Der Fehlbetrag der Kategorie im Vormonat; `None`, wenn der Monat nicht offen ist (404) oder nicht
-                /// lesbar. Die Beobachtung färbt den Test nicht, ein Fehler wird nur gemeldet (budgeting-r3wq8).
-                let previousUnderfunded () =
-                    match getMonth token budget previousMonth |> Async.RunSynchronously with
-                    | Ok m -> Some (m.Categories |> List.tryFind (fun c -> c.Id = category.Id) |> Option.bind (fun c -> c.Underfunded))
-                    | Error (YnabError.MonthNotOpen _) -> None
-                    | Error e ->
-                        printfn "Vormonat %s nicht lesbar, die Beobachtung entfällt: %s" previousMonth (ynabErrorText e)
-                        None
-
-                let previousBefore = previousUnderfunded ()
-                let patch : Shared.Budgeting.TargetPatch =
-                    { GoalTarget = Shared.Budgeting.SetTo (Shared.Budgeting.toMilliunits before.Goal + 1000L)
-                      TargetDate = Shared.Budgeting.Keep
-                      Frequency = None }
-                try
-                    match setCategoryTarget token budget category.Id patch |> Async.RunSynchronously with
-                    | Error e -> failtest $"PATCH abgelehnt: {ynabErrorText e}"
-                    | Ok _ -> ()
-                    let after =
-                        (read().Categories |> List.find (fun c -> c.Id = category.Id)).Target
-                        |> Option.defaultWith (fun () -> failtest "Target nach dem PATCH verschwunden")
-                    Expect.equal after.Goal.Amount (before.Goal.Amount + 1m) "neuer Betrag"
-                    Expect.equal after.Day before.Day "gleicher Tag"
-                    Expect.equal after.Rhythm before.Rhythm "gleiche Kadenz"
-                    Expect.equal after.NeedsWholeAmount before.NeedsWholeAmount "gleiches goal_needs_whole_amount"
-                    Expect.equal after.Date before.Date "gleiches Datum"
-                    match previousBefore, previousUnderfunded () with
-                    | Some old, Some now ->
-                        printfn "Vormonat %s: goal_under_funded vorher %A, nachher %A" previousMonth old now
-                        printfn "%s" (if old = now then "Vormonat unverändert" else "YNAB rechnet den Vormonat neu")
-                    | _ -> printfn "Vormonat %s nicht offen oder nicht lesbar, die Beobachtung entfällt" previousMonth
-                finally
-                    let restore : Shared.Budgeting.TargetPatch =
-                        { patch with GoalTarget = Shared.Budgeting.SetTo (Shared.Budgeting.toMilliunits before.Goal) }
-                    // Ein gescheitertes Zurücksetzen färbt den Test nicht, es wird gemeldet: das Target im Budget Test
-                    // steht dann von Hand zurückzusetzen.
-                    match setCategoryTarget token budget category.Id restore |> Async.RunSynchronously with
-                    | Ok _ -> ()
-                    | Error e -> printfn "Target nicht zurückgesetzt, bitte im Budget Test von Hand: %s" (ynabErrorText e)
+                    | Ok m -> m.Categories |> List.map (fun c -> c.Id, c.Target) |> Map.ofList
+                    | Error e -> failtest $"Monat nicht lesbar: {ynabErrorText e}"
+                match getCategoryGoals token budget |> Async.RunSynchronously with
+                | Error e -> failtest $"Goals nicht lesbar: {ynabErrorText e}"
+                | Ok goals ->
+                    let mutable compared = 0
+                    for goal in goals |> List.filter (fun g -> g.Target.IsSome) do
+                        match monthTargets |> Map.tryFind goal.Id with
+                        | Some target ->
+                            compared <- compared + 1
+                            Expect.equal goal.Target target $"Goal von {goal.Name}"
+                        | None -> ()
+                    // Review-Fund eh8xe (QA D11): ohne einen Vergleich bewiese der Test nichts.
+                    Expect.isGreaterThan compared 0 "mindestens ein Goal verglichen"
 
         testCase "can fetch budgets with real token" <| fun () ->
             if not (shouldRunIntegrationTests()) then

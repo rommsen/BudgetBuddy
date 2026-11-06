@@ -78,3 +78,5 @@ Kaputt-Szenario (GIVEN/WHEN/THEN): GIVEN Wechsel hin und zurück, das Lesen des 
 - Frontend: Die lesende Anzeige des Targets nennt den Wochentag nicht (`Month.fs` `targetText`), im vergangenen oder künftigen Monat ist er unsichtbar. Produktfrage an Roman: "/Woche, Freitag"?
 - Backend: `categoryNameIn` (`Budgeting/Persistence.fs`) setzt für ein in BB angelegtes Target ohne Übernahme still `""`. `CategoryName` in `HistoryTargetChange` optional machen oder den Namen im `TargetSet` tragen.
 - Tests: optional ein `[layout]`-Test, dass die sieben Segmente im 500-px-Sheet nicht abgeschnitten werden.
+- Backend (Worker eh8xe): Die Vorschau kann jetzt die einmalige Target-Übernahme festhalten, sonst schreibt sie nichts. Im Alltag hat das Lesen des Monats vorher übernommen.
+- Shared (Worker eh8xe): `TargetChangeResult` hat nur noch einen Fall. Ein Record wäre schlichter, bricht aber Fixtures und ältere Clients.

@@ -57,7 +57,6 @@ let private category groupName name hidden deleted internal' : YnabMonthCategory
       Available = eur 500L
       Underfunded = None
       Target = None
-      Snoozed = false
       Hidden = hidden
       Deleted = deleted
       Internal = internal' }
@@ -103,10 +102,6 @@ let private decoderTests =
             Expect.equal (c.Target |> Option.map (fun t -> t.Rhythm)) (Some NoRhythm) "nur der Betrag"
             let nulls = decodeCategory """ "goal_type": "MF", "goal_target": 120000, "goal_cadence": null, "goal_cadence_frequency": null """
             Expect.equal (nulls.Target |> Option.map (fun t -> t.Rhythm)) (Some (Months 1)) "MF ohne Kadenz"
-        }
-        test "goal_snoozed_at gesetzt ist pausiert, null nicht" {
-            Expect.isTrue decoded.Categories.[1].Snoozed "gesetzt"
-            Expect.isFalse decoded.Categories.[0].Snoozed "null"
         }
         test "hidden wird gelesen, fehlende Flags gelten als false" {
             Expect.isTrue decoded.Categories.[3].Hidden "hidden"
@@ -156,7 +151,7 @@ let private groupingTests =
                     category "A" "a1" false false false
                     category "B" "b2" false false false
                 ]
-            let result = Domain.toBudgetMonth Set.empty month
+            let result = BudgetEventsFixture.toBudgetMonthOfYnab Set.empty month
             Expect.equal (result.Groups |> List.map (fun g -> g.Name)) [ "B"; "A" ] "Gruppen in Reihenfolge des ersten Auftretens"
             Expect.equal (result.Groups.[0].Categories |> List.map (fun c -> c.Name)) [ "b1"; "b2" ] "Kategorien in Reihenfolge"
         }
@@ -168,7 +163,7 @@ let private groupingTests =
                     category "A" "gelöscht" false true false
                     category "A" "Inflow" false false true
                 ]
-            let names = (Domain.toBudgetMonth Set.empty month).Groups |> List.collect (fun g -> g.Categories |> List.map (fun c -> c.Name))
+            let names = (BudgetEventsFixture.toBudgetMonthOfYnab Set.empty month).Groups |> List.collect (fun g -> g.Categories |> List.map (fun c -> c.Name))
             Expect.equal names [ "sichtbar" ] "nur die sichtbare"
         }
         test "Eine Gruppe ohne sichtbare Kategorie erscheint nicht" {
@@ -177,29 +172,34 @@ let private groupingTests =
                     category "Leer" "versteckt" true false false
                     category "Voll" "da" false false false
                 ]
-            Expect.equal ((Domain.toBudgetMonth Set.empty month).Groups |> List.map (fun g -> g.Name)) [ "Voll" ] "leere Gruppe fehlt"
+            Expect.equal ((BudgetEventsFixture.toBudgetMonthOfYnab Set.empty month).Groups |> List.map (fun g -> g.Name)) [ "Voll" ] "leere Gruppe fehlt"
         }
         // budgeting-kjsht
-        test "Das Target gelangt in die angezeigte Kategorie" {
-            let target : Target = { Goal = eur 50000L; Rhythm = Weeks 1; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None; CreatedIn = None }
-            let month = monthOf [ { category "Alltag" "Essen" false false false with Target = Some target } ]
-            let shown = (Domain.toBudgetMonth Set.empty month).Groups.Head.Categories.Head
-            Expect.equal shown.Target (Some target) "Target"
+        // budgeting-eh8xe: die Seite zeigt BBs Regel, YNABs Goal zählt nicht.
+        test "BBs Target gelangt in die angezeigte Kategorie, YNABs Goal nicht" {
+            let target : Target = { Goal = eur 50000L; Rhythm = Weeks 1; Kind = Need; Date = None; NeedsWholeAmount = None; Day = Some 1; CreatedIn = None }
+            let goal = { target with Goal = eur 70000L }
+            let withBb = category "Alltag" "Essen" false false false
+            let ynabOnly = { category "Alltag" "Miete" false false false with Target = Some goal }
+            let month = monthOf [ { withBb with Target = Some goal }; ynabOnly ]
+            let shown = (Domain.toBudgetMonth (Map.ofList [ withBb.Id, target ]) Set.empty month).Groups.Head.Categories
+            Expect.equal (shown |> List.map (fun c -> c.Target)) [ Some target; None ] "BBs Regel, ohne Regel kein Target"
         }
         test "Ein Monat ohne Kategorien hat keine Gruppen und behält Zu verteilen" {
-            let result = Domain.toBudgetMonth Set.empty { monthOf [] with ToBeBudgeted = eur -5000L }
+            let result = BudgetEventsFixture.toBudgetMonthOfYnab Set.empty { monthOf [] with ToBeBudgeted = eur -5000L }
             Expect.isEmpty result.Groups "keine Gruppen"
             Expect.equal result.ToBeBudgeted.Amount -5m "Zu verteilen bleibt"
         }
         test "Der echte Beispielmonat ergibt zwei Gruppen mit je ihren Kategorien" {
-            let result = Domain.toBudgetMonth Set.empty decoded
+            let result = BudgetEventsFixture.toBudgetMonthOfYnab Set.empty decoded
             Expect.equal (result.Groups |> List.map (fun g -> g.Name, g.Categories.Length)) [ "Alltag", 2; "Rücklagen", 1 ] "Gruppen"
             Expect.equal result.Groups.[0].Categories.[1].Underfunded (Some (eur 25500L)) "Fehlbetrag bleibt erhalten"
-            Expect.equal result.Groups.[0].Categories.[1].Pause (Some PausedInYnab) "Pausiert in YNAB bleibt erhalten"
+            // budgeting-eh8xe: `goal_snoozed_at` ist gesetzt, eine Pause in YNAB wirkt in BB nicht.
+            Expect.equal result.Groups.[0].Categories.[1].Pause None "eine Pause in YNAB ändert in BB nichts"
         }
         test "Gruppennamen werden gekürzt (YNAB liefert Leerzeichen am Ende)" {
             let month = monthOf [ category "Medien + Software " "m" false false false ]
-            Expect.equal (Domain.toBudgetMonth Set.empty month).Groups.[0].Name "Medien + Software" "gekürzt"
+            Expect.equal (BudgetEventsFixture.toBudgetMonthOfYnab Set.empty month).Groups.[0].Name "Medien + Software" "gekürzt"
         }
     ]
 
@@ -323,7 +323,7 @@ let private apiPathTests =
         let portFor token budgetId : CommandHandlers.YnabPort =
             { FetchMonth = fetch token budgetId
               SetAssigned = fun _ _ _ -> async { return Ok () }
-              SetTarget = fun _ _ -> async { return failwith "schreibt kein Target" } }
+              FetchCategoryGoals = fun () -> async { return Ok [] } }
         Server.Api.budgetMonthFor token budget key portFor (DateTime(2026, 10, 1, 8, 0, 0, DateTimeKind.Utc)) |> Async.RunSynchronously
     testList "Weg der Budget-Seite (k7wmd)" [
         test "429 kommt als lesbare Meldung an" {
@@ -435,6 +435,20 @@ let private responseTextTests =
                 |> Async.RunSynchronously
             Expect.isFalse ((readable failing).Contains "kaputt") "kein Ausnahmetext"
         }
+        // Review-Fund eh8xe (QA D7): die Goals für die Target-Übernahme lesen dieselbe Antwort wie die Kategorien.
+        test "GET /categories für die Goals: 500 mit Rumpf, unlesbare 200 und Ausnahme nennen weder Rumpf noch Ausnahmetext" {
+            let goals status text =
+                Server.YnabClient.getCategoryGoalsWith (fun () -> async { return status, text }) "budget" |> Async.RunSynchronously
+            Expect.stringContains (readable (goals 500 body)) "YNAB antwortet mit HTTP 500" "deutsch mit Status"
+            Expect.isFalse ((readable (goals 500 body)).Contains "4711") "kein Rumpf bei 500"
+            Expect.isFalse ((readable (goals 200 body)).Contains "4711") "kein Rumpf bei unlesbarer 200"
+            let failing =
+                Server.YnabClient.getCategoryGoalsWith
+                    (fun () -> async { return raise (System.Net.Http.HttpRequestException "kaputt") })
+                    "budget"
+                |> Async.RunSynchronously
+            Expect.isFalse ((readable failing).Contains "kaputt") "kein Ausnahmetext"
+        }
         test "Die Kategorien kommen flach mit Gruppennamen" {
             let json =
                 """{"data":{"category_groups":[{"name":"Alltag","categories":[
@@ -521,7 +535,7 @@ let private missingTests =
             Available = euro available
             Underfunded = under |> Option.map euro
             Target = under |> Option.map (fun _ -> target)
-            Pause = (if snoozed then Some PausedInYnab else None); OpenWriteBack = None }
+            Pause = (if snoozed then Some PausedInBb else None); OpenWriteBack = None }
     let missing c = missingAmount c |> Option.map (fun m -> m.Amount)
     testList "Fehlt" [
         test "Negatives Verfügbar ohne Target fehlt" {

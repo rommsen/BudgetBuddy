@@ -1,7 +1,7 @@
 /// Der Kern des Target-Formulars (budgeting-r7k2m): Formular, Antwort-Hinweis und Sperrlage als Typen, dazu
 /// alle Übergänge auf `TargetForm` mit dem gezeigten Target und der Sperrlage als Eingabe. Der Kern kennt das
 /// Modell der Budget-Seite nicht. Der Tab Target bindet ihn in `TargetEdit` an `Model` und `Msg`, die Seite
-/// Targets prüfen (ADR 0082 Punkt 11) an ihr eigenes Modell. Alles rein (ADR 0072, ADR 0080).
+/// Targets prüfen (ADR 0082 Punkt 11) an ihr eigenes Modell. Alles rein (ADR 0080, budgeting-eh8xe).
 module Components.Budget.TargetFormCore
 
 open Shared.Domain
@@ -10,13 +10,11 @@ open Client.DesignSystem
 
 /// Was über dem Formular steht, nachdem eine Antwort kam (budgeting-k8wq3).
 type TargetNotice =
-    /// YNAB stand anders als gezeigt: das Formular zeigt den frischen Stand, die Eingabe ist verworfen.
-    | TargetChangedNotice
-    /// Der Server oder YNAB lehnte ab, mit der konkreten Meldung. Die Eingabe bleibt stehen.
+    /// Der Server lehnte ab oder der Aufruf brach ab, mit der konkreten Meldung. Die Eingabe bleibt stehen.
     | TargetRejectedNotice of message: string
-    /// Schritt 1 geschrieben, das Datum nicht (budgeting-g2ty9, X4): ein gelber Hinweis, kein Fehler. Die
-    /// Eingabe mit dem Datum bleibt, Speichern setzt es erneut.
-    | TargetPartlyNotice of message: string
+    /// BBs Stand war ein anderer als der gezeigte (`TargetChangedMeanwhile`, budgeting-eh8xe): nichts gespeichert,
+    /// der Tab zeigt BBs Stand, die Eingabe bleibt. Ein offener Hinweis, kein Fehler (gelb, ADR 0075).
+    | TargetChangedMeanwhileNotice
 
 /// Das Formular (budgeting-k8wq3, ADR 0080). Hält Kategorie und Monat: es gilt nur, solange beide gezeigt
 /// werden und der Monat der laufende ist (im Tab Target `syncTargetForm`). Ein Wechsel verwirft die Eingabe.
@@ -35,6 +33,9 @@ type TargetForm = {
     RhythmInput: TargetFrequency option
     /// Ein Wechsel der Art mit Verlusten wurde gespeichert, die Warnung steht offen (budgeting-xp46a).
     ConfirmingChange: bool
+    /// Der gewählte Wochentag eines wöchentlichen Targets (0 Sonntag bis 6 Samstag, budgeting-eh8xe). `None`,
+    /// solange nichts gewählt wurde: dann gilt der Wochentag des Targets.
+    WeekdayInput: int option
 }
 
 /// Was der laufende Aufruf des Formulars tut (budgeting-g2ty9, F1): der Spinner steht nur am Knopf, der
@@ -66,7 +67,8 @@ let emptyTargetForm (categoryId: System.Guid) (month: string) : TargetForm =
       ConfirmingRemove = false
       Notice = None
       RhythmInput = None
-      ConfirmingChange = false }
+      ConfirmingChange = false
+      WeekdayInput = None }
 
 /// Der Stand, auf dem eine Rechnung im Betragsfeld aufsetzt: der Betrag des Targets, ohne Target 0.
 let private baseAmount (shown: Target option) : decimal =
@@ -106,6 +108,36 @@ let targetRhythmValue (shown: Target option) (form: TargetForm) : TargetFrequenc
     | Some f, _ -> Some f
     | None, Some target -> targetReadFrequency target
     | None, None -> Some Monthly
+
+/// Wird das Target nach dem Speichern wöchentlich? Nach der Wahl im `Segmented`, ohne aktives Segment nach dem
+/// gezeigten Rhythmus (etwa alle 2 Wochen).
+let targetWeeklyAfter (shown: Target option) (form: TargetForm) : bool =
+    match targetRhythmValue shown form, shown with
+    | Some f, _ -> f = Weekly
+    | None, Some target ->
+        match target.Rhythm with
+        | Weeks _ -> true
+        | _ -> false
+    | None, None -> false
+
+/// Der Wochentag im Formular: die Wahl, sonst der des wöchentlichen Targets, `None` ohne. Nur bei
+/// `targetWeeklyAfter` (budgeting-eh8xe).
+let targetWeekdayValue (shown: Target option) (form: TargetForm) : int option =
+    if not (targetWeeklyAfter shown form) then None
+    else
+        match form.WeekdayInput with
+        | Some day -> Some day
+        | None -> shown |> Option.bind keptWeekday
+
+/// Fehlt der Wochentag? Ja, wenn das Target nach dem Speichern wöchentlich ist und weder eine Wahl noch das
+/// gezeigte Target einen Tag trägt. Dann geht Speichern nicht (`targetFormState`), vorbelegt wird nichts.
+let targetWeekdayMissing (shown: Target option) (form: TargetForm) : bool =
+    targetWeeklyAfter shown form && (targetWeekdayValue shown form).IsNone
+
+/// Der Hinweis unter dem Wochentag, wenn er fehlt (`targetWeekdayMissing`), sonst `None`. Der Satz
+/// (`TargetWeekdayMissingText`) steht in Shared, die API-Grenze meldet denselben.
+let targetWeekdayHint (shown: Target option) (form: TargetForm) : string option =
+    if targetWeekdayMissing shown form then Some TargetWeekdayMissingText else None
 
 /// Steht das Datumsfeld im Formular (budgeting-d7r4k, ADR 0072 Nachtrag 2026-11-04)? Bei wöchentlich nicht:
 /// dort zählt der Wochentag, ein Datum hat keine belegte Wirkung. Nur ein gelesenes Datum eines
@@ -176,10 +208,8 @@ let private withoutWeeklyDate (draft: TargetDraft) : TargetDraft =
     | SetRhythm _
     | KeepRhythm -> draft
 
-/// Ohne Target ist das Formular erst geändert, wenn ein Betrag getippt ist; der Rhythmus ist dann immer
-/// gesetzt (`SetRhythm`, Vorgabe monatlich). Mit Target ist ein gewählter Rhythmus gleich dem gelesenen
-/// keine Änderung (`targetKindChange`).
-let targetFormState (shown: Target option) (form: TargetForm) : TargetFormState =
+/// Der Stand ohne Blick auf den Wochentag (`targetFormState`).
+let private draftState (shown: Target option) (form: TargetForm) : TargetFormState =
     let date =
         match form.DateInput with
         | None -> Some (shown |> Option.bind (fun t -> t.Date))
@@ -192,7 +222,13 @@ let targetFormState (shown: Target option) (form: TargetForm) : TargetFormState 
         | None, _, Some _ -> FormUnchanged
         | Some _, Some amount, Some date when amount > 0m ->
             let rhythm = targetRhythmValue None form |> Option.defaultValue Monthly
-            FormChanged (withoutWeeklyDate { NewGoal = { Amount = amount; Currency = TargetCurrency }; NewDate = date; NewRhythm = SetRhythm rhythm })
+            FormChanged (
+                withoutWeeklyDate
+                    { NewGoal = { Amount = amount; Currency = TargetCurrency }
+                      NewDate = date
+                      NewRhythm = SetRhythm rhythm
+                      NewDay = targetWeekdayValue None form }
+            )
         | _ -> FormInvalid
     | Some target ->
         match targetAmountOf shown form, date with
@@ -200,12 +236,24 @@ let targetFormState (shown: Target option) (form: TargetForm) : TargetFormState 
             let draft =
                 { NewGoal = { target.Goal with Amount = amount }
                   NewDate = date
-                  NewRhythm = match form.RhythmInput with Some f -> SetRhythm f | None -> KeepRhythm }
+                  NewRhythm = match form.RhythmInput with Some f -> SetRhythm f | None -> KeepRhythm
+                  NewDay = targetWeekdayValue shown form }
             let draft = if (targetKindChange target draft).IsNone then { draft with NewRhythm = KeepRhythm } else draft
             let draft = withoutWeeklyDate draft
-            if amount = target.Goal.Amount && date = target.Date && draft.NewRhythm = KeepRhythm then FormUnchanged
+            if amount = target.Goal.Amount && date = target.Date && draft.NewRhythm = KeepRhythm
+               && draft.NewDay = keptWeekday target then
+                FormUnchanged
             else FormChanged draft
         | _ -> FormInvalid
+
+/// Ohne Target ist das Formular erst geändert, wenn ein Betrag getippt ist; der Rhythmus ist dann immer
+/// gesetzt (`SetRhythm`, Vorgabe monatlich). Mit Target ist ein gewählter Rhythmus gleich dem gelesenen
+/// keine Änderung (`targetKindChange`). Eine Änderung, nach der das Target wöchentlich ohne Wochentag wäre,
+/// ist ungültig (`targetWeekdayMissing`, budgeting-eh8xe).
+let targetFormState (shown: Target option) (form: TargetForm) : TargetFormState =
+    match draftState shown form with
+    | FormChanged _ when targetWeekdayMissing shown form -> FormInvalid
+    | state -> state
 
 /// Steht im Formular eine Rückfrage offen, die Warnung vor dem Wechsel oder die Bestätigung von "Target
 /// entfernen"? Dann gibt es keine zweite, und Speichern, Entfernen und Pausieren warten (budgeting-g2ty9, X1).
@@ -265,6 +313,10 @@ let formChooseRhythm
         locks
         form
 
+/// Wochentag gewählt, wie `formTypeAmount` (budgeting-eh8xe).
+let formChooseWeekday (day: int) (locks: TargetFormLocks) (form: TargetForm) : TargetForm =
+    typeIn (fun f -> { f with WeekdayInput = Some day; Notice = None; ConfirmingChange = false }) locks form
+
 /// Ein Aufruf, den ein Übergang auslöst: was er tut (dafür dreht der Knopf) und die Anfrage. Der Monat ist
 /// der des Formulars.
 type TargetFormSend = { Action: TargetAction; Request: TargetChangeRequest }
@@ -282,7 +334,9 @@ let private start
     else
         match wanted shown form with
         | Some draft ->
-            let request : TargetChangeRequest = { CategoryId = form.CategoryId; Shown = shown; Wanted = draft }
+            // Die Befehls-Id setzt der Aufruf (`Retry.command`), eine je Absicht.
+            let request : TargetChangeRequest =
+                { CategoryId = form.CategoryId; Shown = shown; Wanted = draft; CommandId = None }
             { form with ConfirmingRemove = false; ConfirmingChange = false; Notice = None },
             Some { Action = action; Request = request }
         | None -> form, None
@@ -338,17 +392,25 @@ let formCancelRemove (form: TargetForm) : TargetForm = { form with ConfirmingRem
 let formConfirmRemove (shown: Target option) (locks: TargetFormLocks) (form: TargetForm) : TargetForm * TargetFormSend option =
     start RemovingTarget (fun shown form -> if form.ConfirmingRemove && shown.IsSome then Some None else None) shown locks form
 
-/// Nimmt die Antwort auf den Aufruf dieses Formulars ein. Geschrieben: das Formular ist leer, bei einem
-/// anderen Stand in YNAB mit Hinweis. Zum Teil geschrieben: die Eingabe mit dem Datum bleibt, ein erneutes
-/// Speichern plant dann nur das Datum (ADR 0080 Punkt 6). Abgelehnt: die Eingabe bleibt, mit der Meldung.
+/// Nimmt die Antwort auf den Aufruf dieses Formulars ein. Festgehalten: das Formular ist leer. Inzwischen
+/// geändert oder abgelehnt: die Eingabe bleibt, mit dem Hinweis.
 let formTakeAnswer (result: Result<TargetChangeResult, string>) (form: TargetForm) : TargetForm =
     match result with
     | Ok (TargetWritten _) -> emptyTargetForm form.CategoryId form.Month
-    | Ok (TargetChangedInYnab _) -> { emptyTargetForm form.CategoryId form.Month with Notice = Some TargetChangedNotice }
-    | Ok (TargetPartlyWritten (_, message)) ->
-        // Den ganzen Satz baut der Server (`targetPartlyText`), der Client zeigt ihn unverändert (budgeting-c2t9w).
-        { form with Notice = Some (TargetPartlyNotice message); ConfirmingChange = false }
+    | Ok (TargetChangedMeanwhile _) -> { form with Notice = Some TargetChangedMeanwhileNotice }
     | Error message -> { form with Notice = Some (TargetRejectedNotice message) }
+
+/// Der Satz, wenn der Aufruf auch im zweiten Versuch abbrach (budgeting-eh8xe, Vorbild `pauseCallLostText`): ob
+/// das Target gespeichert ist, ist unbekannt. Nur bei `rereads` verspricht er das Neulesen. Ein Punkt am Ende
+/// der Meldung fällt weg, sonst stünden zwei.
+let targetCallLostText (rereads: bool) (message: string) : string =
+    let reason = message.TrimEnd('.')
+    if rereads then $"Ob das Target gespeichert ist, ist unklar: {reason}. Der Stand wird gleich neu gelesen."
+    else $"Ob das Target gespeichert ist, ist unklar: {reason}."
+
+/// Der Aufruf dieses Formulars brach ab: die Eingabe bleibt, mit dem Satz aus `targetCallLostText`.
+let formTakeCallLost (text: string) (form: TargetForm) : TargetForm =
+    { form with Notice = Some (TargetRejectedNotice text) }
 
 /// Wie ein Knopf im Formular aussieht: `Busy` dreht und behält den Fokus (`Button.IsBusy`), `Disabled`
 /// sperrt (budgeting-g2ty9, F1 und F2).
@@ -389,10 +451,8 @@ let targetWaitsForTargetText (categoryName: string option) : string =
 /// Der Hinweis über dem Formular oder unter dem Speichern-Knopf.
 let targetNoticeText (notice: TargetNotice) : string =
     match notice with
-    | TargetChangedNotice ->
-        "Target wurde inzwischen in YNAB geändert. Hier steht jetzt der Stand aus YNAB, deine Eingabe ist verworfen."
     | TargetRejectedNotice message -> message
-    | TargetPartlyNotice message -> message
+    | TargetChangedMeanwhileNotice -> TargetChangedMeanwhileText
 
 /// Ein Satz je Verlust für die Warnung vor dem Wechsel der Art.
 let targetLossText (shown: Target) (loss: TargetLoss) : string =
@@ -408,14 +468,9 @@ let targetLossText (shown: Target) (loss: TargetLoss) : string =
         | rhythm ->
             $"Der Rhythmus „{rhythmWordText rhythm}“ geht verloren. BB kann ihn nicht wiederherstellen, der Wechsel ist endgültig."
 
-/// Der Text der Warnung: die Sätze zu den Verlusten, beim Wechsel auf wöchentlich der Hinweis zum Wochentag.
+/// Der Text der Warnung: die Sätze zu den Verlusten.
 let targetChangeWarningText (shown: Target) (form: TargetForm) : string =
-    let losses = targetFormLosses (Some shown) form |> List.map (targetLossText shown)
-    let weekday =
-        match targetRhythmValue (Some shown) form with
-        | Some Weekly -> [ "Ein Wochentag lässt sich danach in BB nicht setzen." ]
-        | _ -> []
-    losses @ weekday |> String.concat " "
+    targetFormLosses (Some shown) form |> List.map (targetLossText shown) |> String.concat " "
 
 /// Der Titel der Warnung: "Art wechseln?", wenn die bisherige Art verloren geht, sonst "Rhythmus wechseln?"
 /// (budgeting-g2ty9, X5).

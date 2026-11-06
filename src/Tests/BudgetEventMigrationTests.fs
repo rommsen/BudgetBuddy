@@ -464,19 +464,18 @@ let migrationTests =
                 { CategoryId = category; CategoryName = name; OldAssigned = oldA; NewAssigned = newA }
             let october = "2026-10-01"
             // In der Reihenfolge der Streams aus dem ersten Test.
+            // Der Altbestand des Zwei-Schritt-Wegs, wie er bis budgeting-eh8xe geschrieben wurde.
             let c1 =
-                recordTargetChangeOn
-                    written
-                    { OccurredAt = at (time 7 0); Month = october; CategoryId = f.X; CategoryName = "Miete"; Kind = TargetEdited
+                BudgetEventsFixture.recordLegacyGoalChangeOn written f.X (at (time 7 0))
+                    { Month = "2026-10"; CategoryName = "Miete"; ChangeKind = TargetEdited
                       OldGoalTarget = Some 50000L; NewGoalTarget = Some 60000L; OldDate = None; NewDate = None }
-            recordTargetChangeStepResultOn written f.X c1 1 (at (time 7 0)) Written
+            BudgetEventsFixture.recordLegacyStepOn written f.X c1 1 (at (time 7 0)) Written
             let c2 =
-                recordTargetChangeOn
-                    written
-                    { OccurredAt = at (time 7 30); Month = october; CategoryId = f.Y; CategoryName = "Strom"; Kind = TargetCreated Yearly
+                BudgetEventsFixture.recordLegacyGoalChangeOn written f.Y (at (time 7 30))
+                    { Month = "2026-10"; CategoryName = "Strom"; ChangeKind = TargetCreated Yearly
                       OldGoalTarget = None; NewGoalTarget = Some 600000L; OldDate = None; NewDate = Some "2027-06-01" }
-            recordTargetChangeStepResultOn written f.Y c2 1 (at (time 7 30)) Written
-            recordTargetChangeStepResultOn written f.Y c2 2 (at (time 7 30)) (Failed "kaputt")
+            BudgetEventsFixture.recordLegacyStepOn written f.Y c2 1 (at (time 7 30)) Written
+            BudgetEventsFixture.recordLegacyStepOn written f.Y c2 2 (at (time 7 30)) (Failed "kaputt")
             let applied =
                 recordDecisionOn written None (at (time 8 0)) october TargetsApplied [ planned f.X "Miete" 0L 800000L; planned f.Y "Strom" 0L 60000L ] [] [] |> BudgetEventsFixture.recordedOrFail
             recordWriteBackOn written applied[0] (at (time 8 0)) WrittenBack
@@ -720,7 +719,6 @@ let private retryPort (month: string) (categories: (Guid * decimal) list) (sent:
           Available = { Amount = assigned; Currency = "EUR" }
           Underfunded = None
           Target = None
-          Snoozed = false
           Hidden = false
           Deleted = false
           Internal = false }
@@ -735,7 +733,7 @@ let private retryPort (month: string) (categories: (Guid * decimal) list) (sent:
                 if key = month then sent.Add((id, value))
                 return Ok ()
             }
-      SetTarget = fun _ _ -> async { return failwith "erneut senden schreibt kein Target" } }
+      FetchCategoryGoals = fun () -> async { return Ok [] } }
 
 [<Tests>]
 let retryTests =

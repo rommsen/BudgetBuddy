@@ -310,9 +310,10 @@ let private isIsoDate (text: string) : bool =
 /// Prüft den Auftrag Target ändern oder entfernen (budgeting-k8wq3, ADR 0080) vor allem anderen, auch ohne
 /// Einrichtung, und sammelt alle Fehler: ungültiger, vergangener oder künftiger Monat (`current` ist der
 /// laufende; beim Anlegen mit eigenem Satz, `targetMonthRefusalText`), leere Kategorie, und am Wunsch
-/// Betrag negativ, nicht auf den Cent, über der Obergrenze, nicht in EUR und ein Datum, das nicht "YYYY-MM-DD" ist. Beim Anlegen (`Shown = None`) zusätzlich ein
-/// fehlender Rhythmus und 0 € (budgeting-g2ty9, X8); `planTargetWrite` prüft den Rhythmus als zweite
-/// Sicherung.
+/// Betrag negativ, nicht auf den Cent, über der Obergrenze, nicht in EUR, ein Datum, das nicht "YYYY-MM-DD" ist,
+/// und ein Wochentag außerhalb von 0 bis 6. Beim Anlegen (`Shown = None`) zusätzlich ein fehlender Rhythmus und
+/// 0 € (budgeting-g2ty9, X8); `targetAfter` prüft Rhythmus und Wochentag als zweite Sicherung. Dazu ein Wunsch,
+/// der nach `targetAfter` wöchentlich ohne Wochentag wäre, und eine leere Befehls-Id (budgeting-eh8xe).
 let validateTargetChange
     (current: string)
     (monthKey: string)
@@ -342,11 +343,21 @@ let validateTargetChange
               | Some date when not (isIsoDate date) ->
                   $"Ungültiges Datum: '{date}'. Erwartet wird JJJJ-MM-TT."
               | _ -> ()
+              match draft.NewDay with
+              | Some day when day < 0 || day > 6 -> Shared.Budgeting.TargetWeekdayText
+              | _ -> ()
               if request.Shown.IsNone then
                   if draft.NewRhythm = Shared.Budgeting.KeepRhythm then
                       Shared.Budgeting.TargetRhythmMissingText
                   if goal.Amount = 0m then
-                      Shared.Budgeting.TargetCreateZeroText ]
+                      Shared.Budgeting.TargetCreateZeroText
+              // Ist das Target nach dem Wunsch wöchentlich ohne Tag, fehlt der Wochentag. Ohne `NewDay` bleibt
+              // der Tag eines schon wöchentlichen Targets (`targetAfter`), dann ist der Wunsch gültig.
+              match Shared.Budgeting.targetAfter request.Shown draft with
+              | Ok after when after.Day.IsNone && (match after.Rhythm with Shared.Budgeting.Weeks _ -> true | _ -> false) ->
+                  Shared.Budgeting.TargetWeekdayMissingText
+              | _ -> ()
+          yield! commandIdErrors request.CommandId ]
 
     if errors.IsEmpty then Ok () else Error errors
 

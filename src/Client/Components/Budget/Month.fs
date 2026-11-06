@@ -329,18 +329,16 @@ let rhythmText (rhythm: TargetRhythm) : string =
 let targetText (target: Target) : string =
     moneyText target.Goal + rhythmText target.Rhythm
 
-/// Der Zusatz zum Target im Tab Target: pausiert mit Quelle oder erfüllt. Pausiert geht vor, weil der
+/// Der Zusatz zum Target im Tab Target: pausiert oder erfüllt. Pausiert geht vor, weil der
 /// Fehlbetrag dann nicht zählt. Ein offener Fehlbetrag erscheint als `missingText`. Liefert YNAB keinen
 /// Fehlbetrag, gibt es keinen Zusatz.
 let targetStatusText (category: BudgetCategory) : string option =
     match category.Pause, category.Underfunded with
-    | Some PausedInBb, _ -> Some "pausiert in BB"
-    | Some PausedInYnab, _ -> Some "pausiert in YNAB"
-    | Some PausedInBoth, _ -> Some "pausiert in BB und YNAB"
+    | Some PausedInBb, _ -> Some "pausiert"
     | None, Some under when under.Amount = 0m -> Some "erfüllt"
     | None, _ -> None
 
-/// Der Zusatz in der Liste: nur pausiert, ohne Quelle. "erfüllt" sagt dort nichts und steht im Tab Target.
+/// Der Zusatz in der Liste: nur pausiert. "erfüllt" sagt dort nichts und steht im Tab Target.
 let listStatusText (category: BudgetCategory) : string option =
     if isPaused category then Some "pausiert" else None
 

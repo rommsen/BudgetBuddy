@@ -176,6 +176,10 @@ let syncTargetForm (model: Model) : Model =
 let chooseTargetRhythm (frequency: TargetFrequency) (model: Model) : Model =
     changeForm (fun locks f -> formChooseRhythm frequency (shownTarget model f.CategoryId) locks f) model
 
+/// Wochentag gewählt (`formChooseWeekday`, budgeting-eh8xe).
+let chooseTargetWeekday (day: int) (model: Model) : Model =
+    changeForm (fun locks f -> formChooseWeekday day locks f) model
+
 /// "Target speichern" oder "Target anlegen" (`formPlanSave`).
 let startTargetSave (model: Model) : Model * (string * TargetChangeRequest) option =
     start formPlanSave model
@@ -219,27 +223,44 @@ let targetAnswerShown (categoryId: System.Guid) (month: string) (model: Model) :
 let targetAnswerInTab (categoryId: System.Guid) (month: string) (model: Model) : bool =
     targetAnswerShown categoryId month model && model.Tab = TargetTab
 
+/// Gibt den Target-Aufruf frei, wenn er der Aufruf dieser Kategorie in diesem Monat ist.
+let private releaseTargetCall (categoryId: System.Guid) (month: string) (model: Model) : Model =
+    match model.TargetCall with
+    | TargetSaving (c, m, _) when c = categoryId && m = month -> { model with TargetCall = TargetIdle }
+    | _ -> model
+
+/// Ein Übergang auf dem Formular dieser Kategorie in diesem Monat, andere Formulare bleiben.
+let private onOwnForm (categoryId: System.Guid) (month: string) (change: TargetForm -> TargetForm) (model: Model) : Model =
+    updateForm (fun f -> if f.CategoryId = categoryId && f.Month = month then change f else f) model
+
 /// Nimmt die Antwort ein. Sie wirkt nur auf ihre Kategorie und ihren Monat. Ergebnis: das Modell und ob der
-/// Monat neu zu lesen ist. Ein Fehler lässt Target und Eingabe stehen und zeigt die Meldung im Formular
-/// (`formTakeAnswer`).
+/// Monat neu zu lesen ist. Festgehalten: das neue Target steht, der Monat wird neu gelesen. Inzwischen geändert
+/// (budgeting-eh8xe): BBs Stand aus der Antwort steht, die Eingabe bleibt mit dem Hinweis, ein Neulesen braucht
+/// es nicht. Ein Fehler lässt Target und Eingabe stehen und zeigt die Meldung im Formular (`formTakeAnswer`).
 let applyTargetAnswered
     (categoryId: System.Guid)
     (month: string)
     (result: Result<TargetChangeResult, string>)
     (model: Model)
     : Model * bool =
-    let call =
-        match model.TargetCall with
-        | TargetSaving (c, m, _) when c = categoryId && m = month -> TargetIdle
-        | other -> other
-    let answered = { model with TargetCall = call }
-    let ownForm (f: TargetForm) = f.CategoryId = categoryId && f.Month = month
-    let takeAnswer (m: Model) = updateForm (fun f -> if ownForm f then formTakeAnswer result f else f) m
+    let answered = releaseTargetCall categoryId month model
+    let takeAnswer = onOwnForm categoryId month (formTakeAnswer result)
     match result with
-    | Ok (TargetWritten target)
-    | Ok (TargetChangedInYnab target)
-    | Ok (TargetPartlyWritten (target, _)) -> withTarget categoryId month target answered |> takeAnswer, true
+    | Ok (TargetWritten target) -> withTarget categoryId month target answered |> takeAnswer, true
+    | Ok (TargetChangedMeanwhile target) -> withTarget categoryId month target answered |> takeAnswer, false
     | Error _ -> takeAnswer answered, false
+
+/// Liest der Abbruch den Monat neu? Wenn der Monat des Aufrufs gewählt ist (wie `pauseCallLostRereads`).
+let targetCallLostRereads (month: string) (model: Model) : bool =
+    shownMonth model = Some month
+
+/// Der Aufruf brach ab (budgeting-eh8xe, Vorbild `applyPauseCallLost`): der Aufruf ist frei, die Eingabe bleibt
+/// mit dem Satz aus `targetCallLostText`. Ergebnis: das Modell und ob der Monat still neu zu lesen ist.
+let applyTargetCallLost (categoryId: System.Guid) (month: string) (message: string) (model: Model) : Model * bool =
+    let rereads = targetCallLostRereads month model
+    releaseTargetCall categoryId month model
+    |> onOwnForm categoryId month (formTakeCallLost (targetCallLostText rereads message)),
+    rereads
 
 /// Der Toast, wenn eine Ablehnung kam, während ihre Kategorie nicht mehr gezeigt wird.
 let targetRejectedAwayText (message: string) : string =

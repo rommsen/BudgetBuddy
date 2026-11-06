@@ -74,27 +74,20 @@ let private controlTests =
                 Expect.equal (pauseControl kind holiday) NoPauseControl $"{kind}"
         }
         test "Im vergangenen Monat fehlt der Knopf, sein Platz bleibt frei" {
-            for pause in [ None; Some PausedInBb; Some PausedInYnab; Some PausedInBoth ] do
+            for pause in [ None; Some PausedInBb ] do
                 Expect.equal (pauseControl PastMonth (withPause pause)) PauseSlotFree $"{pause}"
         }
-        test "Laufender und künftiger Monat zeigen je Quelle denselben Knopf und Satz" {
-            let pausing = Some { Label = "Target pausieren"; Intent = PauseTarget }
-            let lifting = Some { Label = "Pause aufheben"; Intent = LiftPause }
-            // budgeting-r3wq8: bei Pause auf beiden Seiten hebt der Knopf nur die BB-Pause auf und sagt es.
-            let liftingBb = Some { Label = "Pause in BB aufheben"; Intent = LiftPause }
+        test "Laufender und künftiger Monat zeigen denselben Knopf" {
             let cases =
-                [ None, PauseOffered (pausing, None)
-                  Some PausedInBb, PauseOffered (lifting, None)
-                  Some PausedInYnab, PauseOffered (None, Some ynabPauseNote)
-                  Some PausedInBoth,
-                  PauseOffered (liftingBb, Some "In YNAB ist das Target ebenfalls pausiert, diese Pause lässt sich nur dort aufheben.") ]
+                [ None, PauseOffered { Label = "Target pausieren"; Intent = PauseTarget }
+                  Some PausedInBb, PauseOffered { Label = "Pause aufheben"; Intent = LiftPause } ]
             for kind in [ CurrentMonth; FutureMonth ] do
                 for pause, expected in cases do
                     Expect.equal (pauseControl kind (withPause pause)) expected $"{kind} {pause}"
         }
         test "Ein erfülltes Target lässt sich auch pausieren" {
             match pauseControl CurrentMonth { trip with Underfunded = Some (eur 0m) } with
-            | PauseOffered (Some button, None) -> Expect.equal button.Intent PauseTarget "pausieren"
+            | PauseOffered button -> Expect.equal button.Intent PauseTarget "pausieren"
             | other -> failtest $"Knopf erwartet: {other}"
         }
     ]
@@ -144,7 +137,7 @@ let private flowTests =
             Expect.isNonEmpty cmd "der Monat wird neu gelesen"
         }
         test "Aufheben einer BB-Pause schickt die Absicht LiftPause" {
-            let pausedTrip = { onTrip with Month = Success (monthWith current (Some PausedInBoth)) }
+            let pausedTrip = { onTrip with Month = Success (monthWith current (Some PausedInBb)) }
             match startPause LiftPause pausedTrip with
             | _, Some (month, request) -> Expect.equal (month, request) (current, { CategoryId = paused; Intent = LiftPause; CommandId = None }) "Auftrag"
             | _, None -> failtest "Auftrag erwartet"

@@ -84,7 +84,6 @@ type private FakeYnab(categories: (Guid * string * int64) list) =
                                              | true, v -> Some (eur v)
                                              | _ -> None)
                                           Target = None
-                                          Snoozed = false
                                           Hidden = this.Hidden.Contains id
                                           Deleted = this.Deleted.Contains id
                                           Internal = this.Internal.Contains id }) }
@@ -102,7 +101,7 @@ type private FakeYnab(categories: (Guid * string * int64) list) =
                         if this.LostAnswers.Contains id then return Error (YnabError.NetworkError "Antwort verloren")
                         else return Ok ()
                 }
-          SetTarget = fun _ _ -> async { return failwith "schreibt kein Target" } }
+          FetchCategoryGoals = fun () -> async { return Ok [] } }
 
 let private fake () =
     let a, b = Guid.NewGuid(), Guid.NewGuid()
@@ -762,7 +761,7 @@ let private readTests =
             | Error (YnabError.RefusedByBb message) ->
                 Expect.stringStarts message $"{Domain.TargetsOpenWriteBackText} Lebensmittel" "Grund mit der Kategorie"
             | other -> failtest $"Ablehnung erwartet: {other}"
-            match preview f.Port month |> run with
+            match preview f.Port now month |> run with
             | Error (YnabError.RefusedByBb _) -> ()
             | other -> failtest $"Vorschau abgelehnt erwartet: {other}"
             Expect.equal (typesOf month) before "nichts festgehalten"
@@ -913,7 +912,7 @@ let private commandTests =
             f.Assigned[a] <- 110000L
             f.Underfunded[a] <- 5000L
             let before = recordedEvents month
-            match preview f.Port month |> run with
+            match preview f.Port now month |> run with
             | Ok shown ->
                 Expect.equal
                     (shown.Lines |> List.map (fun l -> l.CategoryId, l.OldAssigned, l.NewAssigned))

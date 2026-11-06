@@ -360,7 +360,7 @@ let private rows : Row list = [
           let empty : Server.Budgeting.CommandHandlers.YnabPort =
               { FetchMonth = fun month -> async { return Ok { Month = month; ToBeBudgeted = { Amount = 0m; Currency = "EUR" }; Categories = [] } }
                 SetAssigned = fun _ _ _ -> async { return failwith "Pausieren schreibt nicht nach YNAB" }
-                SetTarget = fun _ _ -> async { return failwith "kein Target-Schreiben erwartet" } }
+                FetchCategoryGoals = fun () -> async { return Ok [] } }
           let frame _ _ : Server.Budgeting.QueryHandlers.BudgetFramePort =
               { FetchMonths = (fun () -> async { return Ok [] }); FetchCategoryOrder = (fun () -> async { return Ok [] }) }
           let configured =
@@ -371,7 +371,7 @@ let private rows : Row list = [
                   (fun () -> DateTime(2026, 11, 4, 9, 0, 0, DateTimeKind.Utc))
                   (TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin")
           configured.setTargetPause "2026-11-01" request |> run |> expectError "unbekannte Kategorie" }
-    { Endpoint = "BudgetApi.changeCategoryTarget"; Case = "leere Kategorie, Betrag am Rand von decimal, vergangener und künftiger Monat, Anlegen im Vormonat, Anlegen ohne Rhythmus, fehlende Einrichtung, unbekannte Kategorie: Fehler statt Ausnahme"
+    { Endpoint = "BudgetApi.changeCategoryTarget"; Case = "leere Kategorie, Betrag am Rand von decimal, vergangener und künftiger Monat, Anlegen im Vormonat, Anlegen ohne Rhythmus, leere Befehls-Id, unbekannte Kategorie ohne Einrichtung: Fehler statt Ausnahme"
       Run = fun () ->
           let shown : Shared.Budgeting.Target =
               { Goal = { Amount = 50m; Currency = "EUR" }; Rhythm = Shared.Budgeting.Months 1; Kind = Shared.Budgeting.Need
@@ -379,12 +379,13 @@ let private rows : Row list = [
           let request (goal: decimal) : Shared.Budgeting.TargetChangeRequest =
               { CategoryId = Guid.Empty
                 Shown = Some shown
-                Wanted = Some { NewGoal = { Amount = goal; Currency = "EUR" }; NewDate = None; NewRhythm = Shared.Budgeting.KeepRhythm } }
+                Wanted = Some { NewGoal = { Amount = goal; Currency = "EUR" }; NewDate = None; NewRhythm = Shared.Budgeting.KeepRhythm; NewDay = None }
+                CommandId = None }
           // Der laufende Monat kommt aus einer festen Uhr, nicht aus DateTime.UtcNow (budgeting-r3wq8).
           let empty : Server.Budgeting.CommandHandlers.YnabPort =
               { FetchMonth = fun month -> async { return Ok { Month = month; ToBeBudgeted = { Amount = 0m; Currency = "EUR" }; Categories = [] } }
                 SetAssigned = fun _ _ _ -> async { return failwith "kein Zuweisen erwartet" }
-                SetTarget = fun _ _ -> async { return failwith "kein Target-Schreiben erwartet" } }
+                FetchCategoryGoals = fun () -> async { return Ok [] } }
           let frame _ _ : Server.Budgeting.QueryHandlers.BudgetFramePort =
               { FetchMonths = (fun () -> async { return Ok [] }); FetchCategoryOrder = (fun () -> async { return Ok [] }) }
           // budgeting-c6vn4 (M3): ohne Einrichtung darf kein Port entstehen. Mit demselben leeren Port wie
@@ -411,7 +412,7 @@ let private rows : Row list = [
               { request 60m with
                   CategoryId = Guid.NewGuid()
                   Shown = None
-                  Wanted = Some { NewGoal = { Amount = 60m; Currency = "EUR" }; NewDate = None; NewRhythm = Shared.Budgeting.SetRhythm Shared.Budgeting.Monthly } }
+                  Wanted = Some { NewGoal = { Amount = 60m; Currency = "EUR" }; NewDate = None; NewRhythm = Shared.Budgeting.SetRhythm Shared.Budgeting.Monthly; NewDay = None } }
           match configured.changeCategoryTarget "2026-10-01" createInPast |> run with
           | Error message -> Expect.stringContains message Shared.Budgeting.TargetCreateMonthText "Anlegen im Vormonat"
           | Ok _ -> failtest "Anlegen im Vormonat hätte abgelehnt werden müssen"
@@ -421,13 +422,13 @@ let private rows : Row list = [
           | Error message -> Expect.stringContains message Shared.Budgeting.TargetRhythmMissingText "Anlegen ohne Rhythmus"
           | Ok _ -> failtest "Anlegen ohne Rhythmus hätte abgelehnt werden müssen"
           let valid = { request 60m with CategoryId = Guid.NewGuid() }
+          { valid with CommandId = Some Guid.Empty } |> configured.changeCategoryTarget "2026-11-01" |> run |> expectError "leere Befehls-Id"
+          // budgeting-eh8xe: Target ändern liest YNAB nicht und braucht keine Einrichtung. Eine unbekannte Kategorie
+          // hat in BB kein Target, das gezeigte ist veraltet: die Antwort trägt BBs Stand, kein Target.
           Expect.equal
               ((apiWith None).changeCategoryTarget "2026-11-01" valid |> run)
-              (Error "Kein YNAB-Token eingerichtet (Settings)")
-              "fehlende Einrichtung"
-          match configured.changeCategoryTarget "2026-11-01" valid |> run with
-          | Error message -> Expect.stringContains message "nicht sichtbar" "unbekannte Kategorie"
-          | Ok _ -> failtest "unbekannte Kategorie hätte abgelehnt werden müssen" }
+              (Ok (Shared.Budgeting.TargetChangedMeanwhile None))
+              "unbekannte Kategorie" }
     { Endpoint = "BudgetApi.getRecentMoveCategories"; Case = "ohne Einrichtung eine Liste, keine Ausnahme"
       Run = fun () -> Expect.isOk (budget.getRecentMoveCategories () |> run) "liest nur die Datenbank" }
     { Endpoint = "BudgetApi.getCategoryHistory"; Case = "ungültiger Monat: Fehler, unbekannte Kategorie: leere Historie"

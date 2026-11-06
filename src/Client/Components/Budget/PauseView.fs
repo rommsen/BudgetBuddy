@@ -58,19 +58,8 @@ let pauseControlView (placement: PausePlacement) (model: Model) (category: Budge
         | PauseSlotFree, PauseInTargetTab -> ()
         | PauseSlotFree, PauseInMoneyTab ->
             pauseButton placement model category { Label = "Target pausieren"; Intent = PauseTarget } true dispatch
-        | PauseOffered (offered, note), _ ->
-            match note with
-            | Some text ->
-                Html.p [
-                    prop.key "pause-note"
-                    prop.custom ("data-testid", "target-pause-ynab")
-                    prop.className ListRoles.muted
-                    prop.text text
-                ]
-            | None -> ()
-            match offered with
-            | Some b -> pauseButton placement model category b false dispatch
-            | None -> ()
+        | PauseOffered b, _ ->
+            pauseButton placement model category b false dispatch
             // Sperrt ein Target-Aufruf derselben Kategorie oder eine Pause einer anderen den Knopf, steht der
             // Grund darunter (budgeting-f8w2n, budgeting-n7h3x).
             match pauseWaitHint model category with

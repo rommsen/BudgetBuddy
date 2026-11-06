@@ -19,27 +19,19 @@ type PauseControl =
     | NoPauseControl
     /// Vergangener Monat: kein Knopf, sein Platz bleibt frei (wie Targets anwenden).
     | PauseSlotFree
-    /// Der Knopf, wenn BB etwas tun kann, und der Satz zur YNAB-Pause, wenn sie in YNAB gesetzt ist.
-    | PauseOffered of button: PauseButton option * ynabNote: string option
-
-/// Der Satz, wenn die Pause nur in YNAB gesetzt ist (ADR 0073 Punkt 2).
-let ynabPauseNote = "Die Pause ist in YNAB gesetzt und lässt sich nur dort aufheben."
-
-/// Der Satz, wenn die Pause in BB und in YNAB steht: der Knopf hebt nur die BB-Pause auf (budgeting-r3wq8).
-let bothPauseNote = "In YNAB ist das Target ebenfalls pausiert, diese Pause lässt sich nur dort aufheben."
+    /// Der Knopf: pausieren oder aufheben. Eine Pause gibt es nur in BB (budgeting-eh8xe).
+    | PauseOffered of button: PauseButton
 
 /// Sichtbarkeit und Beschriftung des Knopfs. Pausieren geht im laufenden und in künftigen Monaten
-/// (`targetsAllowed`), nur mit Target, auch wenn es erfüllt ist. Aufheben gilt nur der BB-Pause.
+/// (`targetsAllowed`), nur mit Target, auch wenn es erfüllt ist.
 let pauseControl (kind: MonthKind) (category: BudgetCategory) : PauseControl =
     match category.Target with
     | None -> NoPauseControl
     | Some _ when not (targetsAllowed kind) -> PauseSlotFree
     | Some _ ->
         match category.Pause with
-        | None -> PauseOffered (Some { Label = "Target pausieren"; Intent = PauseTarget }, None)
-        | Some PausedInBb -> PauseOffered (Some { Label = "Pause aufheben"; Intent = LiftPause }, None)
-        | Some PausedInBoth -> PauseOffered (Some { Label = "Pause in BB aufheben"; Intent = LiftPause }, Some bothPauseNote)
-        | Some PausedInYnab -> PauseOffered (None, Some ynabPauseNote)
+        | None -> PauseOffered { Label = "Target pausieren"; Intent = PauseTarget }
+        | Some PausedInBb -> PauseOffered { Label = "Pause aufheben"; Intent = LiftPause }
 
 /// `pauseControl` für den Monat, den die Seite darstellt (während eines Wechsels noch der alte).
 let pauseControlFor (model: Model) (category: BudgetCategory) : PauseControl =
@@ -133,7 +125,7 @@ let private pauseCallElsewhere (model: Model) (categoryId: System.Guid) : System
 /// sonst keinen Grund. Bei der eigenen Pause dreht der Knopf, ein Satz steht nicht.
 let pauseWaitHint (model: Model) (category: BudgetCategory) : string option =
     match pauseControlFor model category with
-    | PauseOffered (Some _, _) ->
+    | PauseOffered _ ->
         match pauseCallElsewhere model category.Id with
         | Some other -> Some (pauseWaitsForPauseText (categoryNameOf model other))
         | None when targetCallFor model category.Id -> Some PauseWaitsForTargetText
@@ -155,7 +147,7 @@ let startPause (intent: PauseIntent) (model: Model) : Model * (string * TargetPa
         match categoriesOf month |> List.tryFind (fun c -> c.Id = selected.CategoryId) with
         | Some category ->
             match pauseControlFor model category with
-            | PauseOffered (Some button, _) when button.Intent = intent && not (pauseLocked model category.Id) ->
+            | PauseOffered button when button.Intent = intent && not (pauseLocked model category.Id) ->
                 { model with PauseCall = PauseRunning (category.Id, month.Month, model.MonthGeneration) },
                 Some (month.Month, { CategoryId = category.Id; Intent = intent; CommandId = None })
             | _ -> model, None

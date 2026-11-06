@@ -112,7 +112,6 @@ type private FakeYnab(months: string list, sim: Sim) =
                                     Available = eur 50000L
                                     Underfunded = None
                                     Target = None
-                                    Snoozed = false
                                     Hidden = false
                                     Deleted = false
                                     Internal = false } ] }
@@ -251,7 +250,7 @@ let private ensureTests =
             let reader : YnabPort =
                 { FetchMonth = fake.FetchMonth
                   SetAssigned = fun _ _ _ -> failwith "schreibt nicht"
-                  SetTarget = fun _ _ -> failwith "schreibt nicht" }
+                  FetchCategoryGoals = fun () -> async { return Ok [] } }
             match observeMonthWith global.Persistence.getConnection reader (juneOf year) month |> run with
             | Ok _ -> ()
             | Error e -> failtest $"Lesen erwartet: {e}"
@@ -340,7 +339,7 @@ let private loopTests =
             let reader : YnabPort =
                 { FetchMonth = fake.FetchMonth
                   SetAssigned = fun _ _ _ -> failwith "schreibt nicht"
-                  SetTarget = fun _ _ -> failwith "schreibt nicht" }
+                  FetchCategoryGoals = fun () -> async { return Ok [] } }
             match observeMonthWith global.Persistence.getConnection reader (juneOf year) (key year 7) |> run with
             | Ok _ -> ()
             | Error e -> failtest $"Lesen erwartet: {e}"

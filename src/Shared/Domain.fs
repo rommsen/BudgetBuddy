@@ -649,6 +649,9 @@ type YnabError =
     /// BBs eigene Daten (Pausen, Bewegungen) waren nicht lesbar (budgeting-c6vn4, P1). Kein YNAB-Fehler,
     /// er steht nur hier, weil die Monatswege `YnabError` tragen.
     | LocalReadFailed of message: string
+    /// BB konnte eigene Daten nicht festhalten (budgeting-eh8xe): etwa die Target-Übernahme oder eine Target-Änderung.
+    /// Kein YNAB-Fehler. Die Meldung ist schon ein Satz für den Nutzer, die Ursache steht im Server-Log.
+    | LocalWriteFailed of message: string
     /// BB selbst lehnt ab, YNAB hat nicht widersprochen (budgeting-b5n8q): etwa ein Betrag außerhalb des
     /// 10-Milliunits-Rasters oder eine unbekannte Anwendung. Kein YNAB-Fehler, die Meldung ist schon
     /// konkret und geht unverändert an den Nutzer.
@@ -668,6 +671,7 @@ let ynabErrorText (error: YnabError) : string =
     | CategoryNotFound _ -> "Kategorie in YNAB nicht gefunden"
     | MonthNotOpen _ -> "Monat nicht offen"
     | LocalReadFailed message -> $"BB-Daten nicht lesbar: {message}"
+    | LocalWriteFailed message -> message
     | RefusedByBb message -> message
 
 /// Errors during rules operations.
