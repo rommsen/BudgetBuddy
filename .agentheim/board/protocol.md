@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 15:09 -- Modeling / Promoted: budgeting-hbhzf - "Fehlbetrag aus BB: Targets anwenden und die Anzeige rechnen mit BBs Fehlbetrag gegen das Soll, Rückbau der Parallelrechnung"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-06 14:34 -- Review-Lauf: budgeting-k5q2w und Merge-Teil von budgeting-eh8xe
 
 **Type:** Review / Review-Lauf

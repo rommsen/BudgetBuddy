@@ -1,7 +1,7 @@
 ---
 id: budgeting-hbhzf
 title: "Fehlbetrag aus BB: Targets anwenden und die Anzeige rechnen mit BBs Fehlbetrag gegen das Soll, Rückbau der Parallelrechnung"
-status: backlog
+status: todo
 type: feature
 context: budgeting
 created: 2026-11-06
@@ -30,6 +30,31 @@ Teil 2 von 2 der Teilung von budgeting-eh8xe (2026-11-06).
 - Rückbau der Parallelrechnung: `underfunded_comparisons`, `saveUnderfundedComparisons*`,
   `compareUnderfunded` und das Speichern beim Lesen eines Monats.
 
+### Verfeinerung 2026-11-06 (nach budgeting-k5q2w)
+- **Eine Stelle:** Der Fehlbetrag entsteht in `Domain.toBudgetCategory` (heute `Underfunded = c.Underfunded`).
+  Dort `underfunded target month assigned carryover activity earlier` mit Zugewiesen = BBs Soll, Übertrag
+  live = YNABs Verfügbar − YNABs Zugewiesen − Aktivität (unabhängig vom Soll), Aktivität = YNABs Aktivität des
+  Monats. `Computed x` wird `Some x`, `NotComputed` wird `None` (wie heute ein fehlender YNAB-Wert: "fehlt"
+  zeigt nichts, Targets anwenden lässt die Kategorie weg). Ohne Target `None`.
+- **Ausgaben der Periode aus dem Kassenbuch** über `LedgerActivityPort` und `periodActivityFromLedger`
+  (budgeting-k5q2w). `toBudgetMonthWith` bekommt die Aktivität der Periodenmonate als Parameter, bleibt rein.
+  Die nötigen Monate hängen nur an den Targets und am Monat: `periodMonthsNeeded` und `periodCategoriesNeeded`
+  so umstellen, dass sie ohne fertigen `BudgetMonth` auskommen (sonst Henne und Ei).
+- **Alle Aufrufer laden die Aktivität vorher**, je eine Abfrage für alle Kategorien: `QueryHandlers.budgetMonthWith`
+  (Seite), die Vorschau und Targets anwenden in `CommandHandlers` (heute `toBudgetMonthWith (Some ...) targets
+  paused raw`), Targets prüfen (`toBudgetMonth`), sofern es den Fehlbetrag nutzt. Jede Stelle, die den Live-Port
+  anschließt, ist belegt (Doktrin Punkt 3). Scheitert das Lesen des Kassenbuchs beim Lesen der Seite: der Monat
+  kommt ohne BB-Fehlbetrag (alle `None`) und der Grund steht im Log; vor einem Befehl (Targets anwenden) ist es
+  ein Fehler mit konkreter Meldung, damit nichts mit fehlenden Ausgaben zugewiesen wird.
+- **Rückbau:** `underfunded_comparisons` (Schema wie bei `category_month_activity` über `sqlite_master` entfernen,
+  nicht bei jedem Start ein DROP), `saveUnderfundedComparisons*`, `compareUnderfunded`, `comparisonSummary`,
+  `runUnderfundedComparison`, der `save`-Parameter von `budgetMonthWith`, `YnabWithoutValueText` und was nur der
+  Vergleich braucht. `YnabMonthCategory.Underfunded` und das Lesen von `goal_under_funded` entfallen, wenn kein
+  Leser bleibt. Das Ereignis `TargetsApplied` behält seinen Fehlbetrag je Zeile (Historie).
+- **Ablehnung bei offener Rückschreibung entfällt** (`TargetsOpenWriteBackText`): gerechnet wird gegen das Soll.
+- Kommentare, die "der Fehlbetrag ist YNABs" sagen (`toBudgetCategory`, `planTargetApplication`,
+  `Shared/Budgeting.fs` am Feld), nachziehen.
+
 ## Acceptance criteria
 - [ ] GIVEN eine Kategorie mit in BB geändertem Target, WHEN "Targets anwenden" läuft, THEN weist
       es BBs Fehlbetrag zu, nicht YNABs `goal_under_funded` (Handler-Test mit abweichendem
@@ -37,6 +62,13 @@ Teil 2 von 2 der Teilung von budgeting-eh8xe (2026-11-06).
 - [ ] GIVEN eine offene Rückschreibung im Monat, WHEN "Targets anwenden" läuft, THEN rechnet es
       gegen das Soll und lehnt nicht ab.
 - [ ] Die Zeile zeigt "fehlt" aus BBs Fehlbetrag (Test der Projektion).
+- [ ] GIVEN ein Target "Mit Fälligkeit" mit Ausgaben der Periode im Kassenbuch, WHEN der Monat gelesen wird bzw.
+      Targets anwenden läuft, THEN zählen diese Ausgaben als gedeckt (Handler-Test mit Kassenbuch-Buchungen).
+- [ ] GIVEN BB kann den Fehlbetrag nicht rechnen (`NotComputed`), THEN zeigt die Zeile kein "fehlt" und Targets
+      anwenden lässt die Kategorie weg.
+- [ ] GIVEN das Kassenbuch ist nicht lesbar, WHEN die Seite gelesen wird, THEN kommt der Monat ohne BB-Fehlbetrag
+      und der Grund steht im Log; WHEN Targets anwenden läuft, THEN wird mit konkreter Meldung abgelehnt und nichts
+      zugewiesen.
 - [ ] `underfunded_comparisons` wird nicht mehr geschrieben; `compareUnderfunded` und
       `saveUnderfundedComparisons*` sind aus Code und Tests verschwunden.
 - [ ] Die Umschaltung ist im Outcome als von Roman freigegeben vermerkt, mit der Toleranz aus den
@@ -72,4 +104,8 @@ Teil 2 von 2 der Teilung von budgeting-eh8xe (2026-11-06).
   Roman als erfüllte Toleranz angenommen.
 - ~~Nach der Integration von budgeting-eh8xe (Review zu b9869): Reihenfolge in `observeUnguarded`, Name
   `logReadFailure`.~~ Entfällt mit dem Rückbau von `category_month_activity` in budgeting-k5q2w.
-- Deploy nur zusammen mit budgeting-eh8xe.
+- ~~Deploy nur zusammen mit budgeting-eh8xe.~~ eh8xe und k5q2w sind seit 2026-11-06 15:02 in Prod.
+- **Umschaltung freigegeben von Roman am 2026-11-06** nach dem fünften Vergleich (November 2026, Aktivität aus
+  dem Kassenbuch, BBs Regeln aus der Übernahme): 100 von 100 gleich, keine Abweichung, kein "nicht gerechnet".
+  Die Toleranz (jede Abweichung hat einen bekannten Grund) ist erfüllt.
+- Bis zum Deploy dieser Task ändert Roman kein Target in BB.
