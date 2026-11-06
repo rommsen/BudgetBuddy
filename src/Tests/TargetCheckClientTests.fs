@@ -44,7 +44,7 @@ let private spending (amount: decimal) : MonthSpending list =
     [ for i in 0..11 -> { Month = DateTime(2025, 11, 1).AddMonths(i).ToString("yyyy-MM-01"); Activity = eur -amount } ]
 
 let private source (id: Guid) (name: string) (target: Target option) (spent: decimal) : TargetCheckSource =
-    { CategoryId = id; Name = name; GroupName = "Haushalt"; Target = target; Spending = spending spent; LastChange = None }
+    { CategoryId = id; Name = name; GroupName = "Haushalt"; Target = target; Spending = spending spent; LastChange = None; FirstBooking = None }
 
 let private checkData : TargetCheckData =
     { Month = current
@@ -648,7 +648,7 @@ let private rowWith (target: Target option) (amounts: decimal list) (lastChange:
     let months =
         amounts |> List.mapi (fun i a -> { Month = DateTime(2025, 11, 1).AddMonths(i).ToString("yyyy-MM-01"); Activity = eur -a })
     targetCheckRow today
-        { CategoryId = moreId; Name = "Probe"; GroupName = "Haushalt"; Target = target; Spending = months; LastChange = lastChange }
+        { CategoryId = moreId; Name = "Probe"; GroupName = "Haushalt"; Target = target; Spending = months; LastChange = lastChange; FirstBooking = None }
 
 let private percents (bars: CheckBars) = bars.Bars |> List.map (fun b -> b.Percent)
 let private tones (bars: CheckBars) = bars.Bars |> List.map (fun b -> b.Tone)
@@ -662,7 +662,7 @@ let private sketchTests =
             Expect.equal (checkCountsText { Hints = 4; Fits = 2 }) ("4 Hinweise", "2 passen") "Mehrzahl"
             Expect.equal (checkCountsText { Hints = 1; Fits = 1 }) ("1 Hinweis", "1 passt") "Einzahl"
             Expect.equal (checkIntroText current)
-                "November 2026. Verglichen mit dem Ø der vollen Monate aus dem Kassenbuch, höchstens 12, ab der letzten Änderung des Targets."
+                "November 2026. Verglichen mit dem Ø der vollen Monate aus dem Kassenbuch, höchstens 12, ab der ersten Buchung oder der letzten Änderung des Targets."
                 "die Erklärung mit dem Monat"
         }
         test "Die Texte einer Zeile breit: Target je Rhythmus mit Monatswert in Klammern, Ø im Monat, Monate über dem Target" {
@@ -728,6 +728,16 @@ let private sketchTests =
         test "Mini-Balken: Monate vor der letzten Änderung zählen nicht und sind dunkler, auch über dem Monatswert" {
             let bars = checkBars (rowWith (Some (monthly 100m)) (List.replicate 12 150m) (Some (TargetSetOn "2026-06-10")))
             Expect.equal (tones bars) (List.replicate 8 NotCounted @ List.replicate 4 OverTarget) "bis Juni dunkler, danach orange"
+            Expect.equal (List.length bars.Bars) 12 "12 Balken"
+        }
+        test "Mini-Balken: Monate vor der ersten Buchung zählen nicht und sind dunkler (budgeting-k7r2w)" {
+            let months = List.replicate 12 150m |> List.mapi (fun i a -> { Month = DateTime(2025, 11, 1).AddMonths(i).ToString("yyyy-MM-01"); Activity = eur -a })
+            let row =
+                targetCheckRow today
+                    { CategoryId = moreId; Name = "Probe"; GroupName = "Haushalt"; Target = Some (monthly 100m)
+                      Spending = months; LastChange = None; FirstBooking = Some "2026-05-20" }
+            let bars = checkBars row
+            Expect.equal (tones bars) (List.replicate 6 NotCounted @ List.replicate 6 OverTarget) "bis April dunkler, ab Mai orange"
             Expect.equal (List.length bars.Bars) 12 "12 Balken"
         }
         test "Die Mini-Balken der Zeile: über dem Target orange, gezählt darunter gedämpft, vor der letzten Änderung dunkler" {

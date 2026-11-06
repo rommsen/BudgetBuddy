@@ -202,20 +202,23 @@ let liveHistoryPort : HistoryPort =
 // ============================================
 
 /// Die Lese-Quellen von Targets prüfen: der laufende Monat aus YNAB, die Monatssummen aller sichtbaren
-/// Kategorien aus dem Kassenbuch in einer Abfrage und die letzte Target-Änderung je Kategorie. Kein Schreiben.
+/// Kategorien aus dem Kassenbuch in einer Abfrage, ihre erste Buchung in einer weiteren und die letzte
+/// Target-Änderung je Kategorie. Kein Schreiben.
 type TargetCheckPort = {
     FetchMonth: string -> Async<YnabResult<YnabMonth>>
     /// BBs Targets im gelesenen Monat, samt Target-Übernahme, falls eine Kategorie darauf wartet (budgeting-eh8xe).
     LoadTargets: YnabMonth -> Async<Result<Map<Guid, Target>, string>>
     /// Kategorien und Monatserste (aufsteigend): je Kategorie die Netto-Aktivität der Monate mit Buchungen.
     LoadMonthlyActivity: Guid list -> DateTime list -> Async<Map<Guid, (DateTime * Money) list>>
+    /// Je Kategorie der Tag ihrer ersten Buchung im Kassenbuch überhaupt (budgeting-k7r2w), ohne Buchung fehlt sie.
+    LoadFirstBookings: Guid list -> Async<Map<Guid, DateTime>>
     /// Je Kategorie die jüngste geschriebene Target-Änderung.
     LoadLastTargetChanges: unit -> Async<Result<Map<Guid, TargetChangeMark>, string>>
 }
 
 /// Die Rohdaten von Targets prüfen für den laufenden Monat (`today`, Berliner Kalendertag): die sichtbaren
 /// Kategorien aus YNAB (dieselbe Filterung wie die Budget-Seite) mit BBs Targets, die 12 vollen Monate vor dem laufenden aus
-/// einer Kassenbuch-Abfrage und die letzte Änderung je Kategorie. Jeder Lesefehler kommt als `Error` mit Text.
+/// einer Kassenbuch-Abfrage, die erste Buchung je Kategorie aus einer weiteren und die letzte Änderung je Kategorie. Jeder Lesefehler kommt als `Error` mit Text.
 /// Die BB-Pausen liest es nicht: eine pausierte Kategorie wird geprüft wie jede andere (ADR 0082 Punkt 3).
 let targetCheck (port: TargetCheckPort) (today: DateOnly) : Async<Result<TargetCheckData, string>> =
     async {
@@ -240,6 +243,15 @@ let targetCheck (port: TargetCheckPort) (today: DateOnly) : Async<Result<TargetC
                         logReadFailure "Ausgaben aus dem Kassenbuch lesen" ex
                         return Error SpendingUnreadableText
                 }
+            let! firstBookings =
+                async {
+                    try
+                        let! days = port.LoadFirstBookings ids
+                        return Ok days
+                    with ex ->
+                        logReadFailure "Erste Buchungen aus dem Kassenbuch lesen" ex
+                        return Error SpendingUnreadableText
+                }
             let! marks =
                 async {
                     try
@@ -248,10 +260,11 @@ let targetCheck (port: TargetCheckPort) (today: DateOnly) : Async<Result<TargetC
                         logReadFailure "Letzte Target-Änderungen lesen" ex
                         return Error Budgeting.Persistence.TargetChangesUnreadableText
                 }
-            match sums, marks with
-            | Error message, _
-            | _, Error message -> return Error message
-            | Ok sums, Ok marks ->
+            match sums, firstBookings, marks with
+            | Error message, _, _
+            | _, Error message, _
+            | _, _, Error message -> return Error message
+            | Ok sums, Ok firstBookings, Ok marks ->
                 let sources : TargetCheckSource list =
                     categories
                     |> List.map (fun (groupName, c) ->
@@ -260,7 +273,11 @@ let targetCheck (port: TargetCheckPort) (today: DateOnly) : Async<Result<TargetC
                           GroupName = groupName
                           Target = c.Target
                           Spending = spendingOf months (sums |> Map.tryFind c.Id |> Option.defaultValue [])
-                          LastChange = marks |> Map.tryFind c.Id })
+                          LastChange = marks |> Map.tryFind c.Id
+                          FirstBooking =
+                            firstBookings
+                            |> Map.tryFind c.Id
+                            |> Option.map (fun day -> day.ToString("yyyy-MM-dd", Globalization.CultureInfo.InvariantCulture)) })
                 return
                     Ok
                         { Month = monthKey
@@ -274,4 +291,5 @@ let liveTargetCheckPort (port: CommandHandlers.YnabPort) (utcNow: unit -> DateTi
     { FetchMonth = port.FetchMonth
       LoadTargets = fun raw -> CommandHandlers.targetRulesBestEffort global.Persistence.getConnection port (utcNow ()) raw
       LoadMonthlyActivity = Ledger.QueryHandlers.getMonthlyActivityByCategory
+      LoadFirstBookings = Ledger.QueryHandlers.getFirstBookingDayByCategory
       LoadLastTargetChanges = Budgeting.Persistence.loadLastTargetChanges }

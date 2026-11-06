@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 22:39 -- Task verified and completed: budgeting-k7r2w - "Targets prüfen zählt eine neue Kategorie erst ab ihrer ersten Buchung im Kassenbuch, statt die Monate davor als 0 € mitzuzählen. Unter 3 gezählten Monaten steht sie unter Passt mit „neu seit <Monat>“."
+
+**Type:** Work / Task completion
+**Task:** budgeting-k7r2w - "Targets prüfen zählt eine neue Kategorie erst ab ihrer ersten Buchung im Kassenbuch, statt die Monate davor als 0 € mitzuzählen. Unter 3 gezählten Monaten steht sie unter Passt mit „neu seit <Monat>“."
+**Summary:** Targets prüfen zählt eine Kategorie erst ab ihrer ersten Buchung im Kassenbuch, zu kurz mit neu seit Monat Jahr
+**Duration:** 20m
+**Verification:** PASS (iteration 1)
+**Files changed:** 11
+**Tests added:** 11
+**ADRs written:** none (Nachtrag ADR 0082)
+
+---
+
 ## 2026-11-06 22:18 -- Batch started: [budgeting-k7r2w]
 
 **Type:** Work / Batch start

@@ -286,19 +286,6 @@ let frameDueAfterRetry (result: Result<ApplyReport, string>) (model: Model) : bo
     | Ok report -> frameDueAfterReport report model
     | Error _ -> frameDueAfterLostCall model
 
-let private monthNames =
-    [| "Januar"; "Februar"; "März"; "April"; "Mai"; "Juni"
-       "Juli"; "August"; "September"; "Oktober"; "November"; "Dezember" |]
-
-/// "2026-10-01" als "Oktober 2026". Ein unlesbarer Wert bleibt, wie er ist.
-let monthLabel (month: string) : string =
-    match month.Split '-' with
-    | [| year; mm; _ |] ->
-        match System.Int32.TryParse mm with
-        | true, m when m >= 1 && m <= 12 -> $"{monthNames.[m - 1]} {year}"
-        | _ -> month
-    | _ -> month
-
 let private shortMonthNames =
     [| "Jan"; "Feb"; "Mär"; "Apr"; "Mai"; "Jun"; "Jul"; "Aug"; "Sep"; "Okt"; "Nov"; "Dez" |]
 

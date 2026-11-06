@@ -36,7 +36,8 @@ let private source (name: string) (t: Target option) (amounts: decimal list) (ch
       GroupName = "Alltag"
       Target = t
       Spending = spendingOf amounts
-      LastChange = change }
+      LastChange = change
+      FirstBooking = None }
 
 let private changedOn (day: string) = Some (TargetSetOn day)
 
@@ -153,6 +154,74 @@ let countedMonthTests =
             let quarterly = rowOf (Some (target Need (Months 3) 300m)) [] (changedOn "2026-07-15")
             Expect.equal (List.length quarterly.CountedMonths) 3 "3 Monate"
             Expect.equal (quarterly.Group, quarterly.Note) (NeverSpends, None) "eingeordnet"
+        }
+    ]
+
+/// Wie `rowOf`, mit dem Tag der ersten Buchung im Kassenbuch (budgeting-k7r2w).
+let private rowSince (firstBooking: string) t amounts change =
+    targetCheckRow Today { source "Kategorie" t amounts change with FirstBooking = Some firstBooking }
+
+let private countedOf (row: TargetCheckRow) = row.CountedMonths |> List.map (fun m -> m.Month)
+
+[<Tests>]
+let firstBookingTests =
+    testList "Targets prüfen: ab der ersten Buchung (budgeting-k7r2w)" [
+        test "Regression Strom: erste Buchung im 6. Monat, die Monate davor drücken den Ø nicht, Passt ohne Vorschlag" {
+            // Vor dem Fix zählten die 5 leeren Monate mit 0 €: Ø 79,58 € unter 70 % von 127 €, also "weniger".
+            let row = rowSince "2026-04-12" (Some (monthly 127m)) (every 5 0m @ [ 125m; 125m; 125m; 130m; 125m; 125m; 200m ]) None
+            Expect.equal (countedOf row) (fullMonths |> List.skip 5) "April bis Oktober"
+            Expect.equal row.Average (Some (eur (955m / 7m))) "Ø über die 7 Monate seit der ersten Buchung"
+            Expect.equal row.MonthsOver 2 "130 € und 200 € über 127 €"
+            Expect.equal (row.Group, row.Note) (Fits, None) "Passt, eingeordnet"
+            Expect.isNone row.Suggestion "kein Vorschlag"
+        }
+
+        test "Erste Buchung vor dem Fenster, im Fenster nur eine im September: 12 Monate, Gibst du nie aus?" {
+            let amounts = every 10 0m @ [ 50m; 0m ]
+            let row = rowSince "2024-03-01" (Some (monthly 100m)) amounts None
+            Expect.equal (countedOf row) fullMonths "12 Monate"
+            Expect.equal (row.Group, row.Note) (NeverSpends, None) "wie bisher"
+            Expect.equal row (rowOf (Some (monthly 100m)) amounts None |> fun r -> { r with CategoryId = row.CategoryId }) "gleich wie ohne erste Buchung"
+        }
+
+        test "Ohne jede Buchung: 12 Monate mit 0 €, Gibst du nie aus? wie bisher" {
+            let row = rowOf (Some (monthly 100m)) [] None
+            Expect.equal (countedOf row) fullMonths "12 Monate"
+            Expect.equal (row.Group, row.Note) (NeverSpends, None) "nie"
+        }
+
+        test "Erste Buchung im vorletzten vollen Monat: 2 Monate, Passt mit neu seit September 2026" {
+            let row = rowSince "2026-09-14" (Some (monthly 100m)) (every 12 500m) None
+            Expect.equal (countedOf row) [ "2026-09-01"; "2026-10-01" ] "2 Monate"
+            Expect.equal (row.Group, row.Note) (Fits, Some (NewSince "2026-09-01")) "zu wenige Monate seit der ersten Buchung"
+            Expect.equal (fitsNoteText (NewSince "2026-09-01")) "neu seit September 2026" "Monat ausgeschrieben"
+            Expect.equal (fitsNoteText (NewSince "2027-03-01")) "neu seit März 2027" "mit Umlaut"
+        }
+
+        test "Jährliches Target mit erster Buchung im 9. Monat: Passt mit neu seit Juli 2026, nicht mehr" {
+            let row = rowSince "2026-07-03" (Some (target Need (Years 1) 1200m)) (every 12 500m) None
+            Expect.equal (List.length row.CountedMonths) 4 "Juli bis Oktober"
+            Expect.equal (row.Group, row.Note) (Fits, Some (NewSince "2026-07-01")) "weniger als P = 12"
+        }
+
+        test "Vorrang: Änderung nach der ersten Buchung, beide zu kurz, der Zusatz nennt die Änderung" {
+            let row = rowSince "2026-08-20" (Some (monthly 100m)) (every 12 500m) (changedOn "2026-09-03")
+            Expect.equal (countedOf row) [ "2026-10-01" ] "ab dem Monat nach der Änderung"
+            Expect.equal (row.Group, row.Note) (Fits, Some (RecentlySet "2026-09-03")) "das spätere Ereignis"
+        }
+
+        test "Vorrang: erste Buchung nach der Änderung, der Zusatz nennt die erste Buchung" {
+            let row = rowSince "2026-09-02" (Some (monthly 100m)) (every 12 500m) (changedOn "2026-07-15")
+            Expect.equal (countedOf row) [ "2026-09-01"; "2026-10-01" ] "ab dem Monat der ersten Buchung"
+            Expect.equal (row.Group, row.Note) (Fits, Some (NewSince "2026-09-01")) "das spätere Ereignis"
+            let removed = rowSince "2026-09-02" None (every 12 500m) (Some (TargetRemovedOn "2026-07-15"))
+            Expect.equal (removed.Group, removed.Note) (Fits, Some (NewSince "2026-09-01")) "auch nach dem Entfernen"
+        }
+
+        test "Grenze: der Monat der ersten Buchung zählt, der davor nicht, 3 Monate werden eingeordnet" {
+            let row = rowSince "2026-08-31" (Some (monthly 100m)) (every 9 0m @ every 3 500m) None
+            Expect.equal (countedOf row) [ "2026-08-01"; "2026-09-01"; "2026-10-01" ] "August bis Oktober, Juli nicht"
+            Expect.equal (row.Group, row.Note) (SpendsMore, None) "eingeordnet, kein neu seit"
         }
     ]
 
@@ -371,6 +440,15 @@ let afterWriteTests =
             let row = rowFor removed written.CategoryId
             Expect.equal (row.Group, row.Note) (Fits, Some (RecentlyRemoved Today)) "entfernt am Today"
             Expect.equal (fitsNoteText (RecentlyRemoved Today)) "entfernt am 05.11.2026" "Text"
+        }
+
+        test "Nach dem Schreiben bleibt die erste Buchung, der Zusatz nennt die spätere Änderung" {
+            let written = { source "Strom" (Some (monthly 100m)) (every 12 300m) None with FirstBooking = Some "2026-09-14" }
+            let data = { Month = "2026-11-01"; Today = Today; Categories = [ written ] }
+            let after = withWrittenTarget written.CategoryId (Some (monthly 300m)) data
+            let changed = after.Categories |> List.exactlyOne
+            Expect.equal changed.FirstBooking (Some "2026-09-14") "erste Buchung bleibt"
+            Expect.equal (targetCheckRow Today changed).Note (Some (RecentlySet Today)) "die Änderung ist später"
         }
     ]
 

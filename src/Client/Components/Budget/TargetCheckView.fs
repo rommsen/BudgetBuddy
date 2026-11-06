@@ -443,7 +443,7 @@ let private header (data: (TargetCheckData * CheckCounts) option) (dispatch: Msg
                         prop.custom ("data-testid", "target-check-intro-narrow")
                         prop.className ListRoles.muted
                         prop.children [
-                            Html.text $"{Month.monthLabel d.Month} · "
+                            Html.text $"{monthLabel d.Month} · "
                             Html.span [ prop.className Colors.neonOrange; prop.text hints ]
                             Html.text " · "
                             Html.span [ prop.className Colors.neonTeal; prop.text fits ]

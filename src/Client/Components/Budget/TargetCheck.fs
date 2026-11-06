@@ -136,9 +136,9 @@ let checkCounts (groups: (CheckGroup * TargetCheckRow list) list) : CheckCounts 
     { Hints = count (fun g -> g <> Fits); Fits = count (fun g -> g = Fits) }
 
 /// Der Satz unter dem Titel: "November 2026. Verglichen mit dem Ø der vollen Monate aus dem Kassenbuch,
-/// höchstens 12, ab der letzten Änderung des Targets."
+/// höchstens 12, ab der ersten Buchung oder der letzten Änderung des Targets."
 let checkIntroText (month: string) : string =
-    $"{monthLabel month}. Verglichen mit dem Ø der vollen Monate aus dem Kassenbuch, höchstens 12, ab der letzten Änderung des Targets."
+    $"{monthLabel month}. Verglichen mit dem Ø der vollen Monate aus dem Kassenbuch, höchstens 12, ab der ersten Buchung oder der letzten Änderung des Targets."
 
 /// Die Zähler am Handy: "7 Hinweise" und "2 passen", in der Einzahl "1 Hinweis" und "1 passt".
 let checkCountsText (counts: CheckCounts) : string * string =

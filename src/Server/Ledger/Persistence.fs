@@ -1406,6 +1406,41 @@ let loadFirstEntryDate () : Async<DateTime option> =
             |> Option.map (fun day -> DateTime.ParseExact(day, "yyyy-MM-dd", CultureInfo.InvariantCulture))
     }
 
+[<CLIMutable>]
+type private FirstEntryRow = { CategoryId: string; FirstDay: string }
+
+/// Je Kategorie der Kalendertag ihrer ersten Buchung im Kassenbuch überhaupt (eigene oder als Split-Zeile),
+/// ohne in YNAB gelöschte, in einer Abfrage für alle (budgeting-k7r2w, Targets prüfen). Verglichen wird wie in
+/// `loadFirstEntryDate` auf dem Tagesteil. Eine Kategorie ohne Buchung fehlt in der Map, ohne Kategorie keine
+/// Abfrage.
+let loadFirstEntryDaysByCategory (categoryIds: Guid list) : Async<Map<Guid, DateTime>> =
+    async {
+        match categoryIds with
+        | [] -> return Map.empty
+        | ids ->
+            use conn = Core.getConnection ()
+            let idTexts = ids |> List.distinct |> List.map (fun g -> g.ToString())
+            let! rows =
+                conn.QueryAsync<FirstEntryRow>(
+                    """SELECT category_id AS CategoryId, substr(MIN(date), 1, 10) AS FirstDay FROM (
+                         SELECT category_id, date FROM ledger_entries
+                         WHERE deleted_in_ynab = 0 AND category_id IN @categoryIds
+                         UNION ALL
+                         SELECT s.category_id, e.date FROM ledger_entry_split_categories s
+                         JOIN ledger_entries e ON e.id = s.entry_id
+                         WHERE e.deleted_in_ynab = 0 AND s.category_id IN @splitCategoryIds
+                       ) GROUP BY category_id""",
+                    {| categoryIds = idTexts; splitCategoryIds = idTexts |}
+                )
+                |> Async.AwaitTask
+            return
+                rows
+                |> Seq.map (fun row ->
+                    Guid.Parse row.CategoryId,
+                    DateTime.ParseExact(row.FirstDay, "yyyy-MM-dd", CultureInfo.InvariantCulture))
+                |> Map.ofSeq
+    }
+
 /// Die Buchungen einer Kategorie (eigene oder als Split-Zeile) zwischen zwei Kalendertagen, beide
 /// einschließlich, ohne in YNAB gelöschte, neueste zuerst (budgeting-m1bce).
 let loadCategoryEntries (YnabCategoryId categoryId) (firstDay: DateTime) (lastDay: DateTime) : Async<Entry list> =

@@ -597,6 +597,20 @@ let dateText (iso: string) : string =
     | [| year; month; day |] when year.Length = 4 && month.Length = 2 && day.Length = 2 -> $"{day}.{month}.{year}"
     | _ -> iso
 
+let private monthNames =
+    [| "Januar"; "Februar"; "März"; "April"; "Mai"; "Juni"
+       "Juli"; "August"; "September"; "Oktober"; "November"; "Dezember" |]
+
+/// "2026-10-01" als "Oktober 2026". Ein unlesbarer Wert bleibt, wie er ist. Liegt in Shared, weil auch
+/// `fitsNoteText` den Monat ausschreibt (budgeting-k7r2w).
+let monthLabel (month: string) : string =
+    match month.Split '-' with
+    | [| year; mm; _ |] ->
+        match System.Int32.TryParse mm with
+        | true, m when m >= 1 && m <= 12 -> $"{monthNames.[m - 1]} {year}"
+        | _ -> month
+    | _ -> month
+
 // ============================================
 // Historie je Kategorie (budgeting-dyn8g)
 // ============================================
@@ -1154,6 +1168,9 @@ type TargetCheckSource = {
     Spending: MonthSpending list
     /// Die jüngste geschriebene Target-Änderung über BB. `None`: keine.
     LastChange: TargetChangeMark option
+    /// Der Berliner Kalendertag "YYYY-MM-DD" der ersten Buchung der Kategorie im Kassenbuch überhaupt, auch
+    /// vor den 12 Monaten (budgeting-k7r2w). Gezählt wird ab ihrem Monat. `None`: keine Buchung.
+    FirstBooking: string option
 }
 
 /// Die Antwort von `getTargetCheck`: Rohdaten, die Einordnung rechnet der Client (ADR 0082 Punkt 12).
@@ -1191,17 +1208,20 @@ type FitsNote =
     | RecentlySet of day: string
     /// Weniger gezählte Monate als nötig seit dem Entfernen.
     | RecentlyRemoved of day: string
+    /// Weniger gezählte Monate als nötig seit der ersten Buchung (budgeting-k7r2w). Der Monat "YYYY-MM-01".
+    | NewSince of month: string
     /// TB und TBD: ein Guthaben, das wachsen soll.
     | SavingsGoalNotChecked
     /// DEBT, eine unbekannte Art, ein Target ohne Rhythmus oder ein Rhythmus über 12 Monate.
     | NotChecked
 
-/// Der Zusatz in der Zeile: "neu gesetzt am 05.11.2026", "entfernt am 05.11.2026", "Sparziel, wird nicht
-/// geprüft", "wird nicht geprüft".
+/// Der Zusatz in der Zeile: "neu gesetzt am 05.11.2026", "entfernt am 05.11.2026", "neu seit Juli 2026",
+/// "Sparziel, wird nicht geprüft", "wird nicht geprüft".
 let fitsNoteText (note: FitsNote) : string =
     match note with
     | RecentlySet day -> $"neu gesetzt am {dateText day}"
     | RecentlyRemoved day -> $"entfernt am {dateText day}"
+    | NewSince month -> $"neu seit {monthLabel month}"
     | SavingsGoalNotChecked -> "Sparziel, wird nicht geprüft"
     | NotChecked -> "wird nicht geprüft"
 
@@ -1230,8 +1250,8 @@ type TargetCheckRow = {
     Average: Money option
     /// Die gezählten Monate, aufsteigend.
     CountedMonths: MonthSpending list
-    /// Die vollen Monate vor dem laufenden, höchstens 12, aufsteigend, auch die vor der letzten Änderung. Die
-    /// Mini-Balken daraus mit `checkBars` (budgeting-c4ve4).
+    /// Die vollen Monate vor dem laufenden, höchstens 12, aufsteigend, auch die vor der letzten Änderung und vor
+    /// der ersten Buchung. Die Mini-Balken daraus mit `checkBars` (budgeting-c4ve4).
     Months: MonthSpending list
     /// Monate mit Netto-Ausgaben über dem Monatswert, 0 ohne Monatswert.
     MonthsOver: int
@@ -1308,7 +1328,7 @@ let suggestTarget (target: Target option) (average: Money) : TargetSuggestion op
 /// Spielraum. Dieselbe Regel zählt `MonthsOver` und färbt die Mini-Balken (`checkBars`).
 let spendsOverTarget (monthly: decimal) (s: MonthSpending) : bool = netSpending s > monthly
 
-/// Ordnet eine Kategorie ein (ADR 0082 Punkt 6 bis 9). `today` ist der Berliner Tag "YYYY-MM-DD", der
+/// Ordnet eine Kategorie ein (ADR 0082 Punkt 6 bis 9, Zählbeginn ab der ersten Buchung nach budgeting-k7r2w). `today` ist der Berliner Tag "YYYY-MM-DD", der
 /// laufende Monat folgt daraus und zählt nie. Rein, gleich unter .NET und Fable.
 let targetCheckRow (today: string) (source: TargetCheckSource) : TargetCheckRow =
     let current = monthOfDay today
@@ -1319,8 +1339,14 @@ let targetCheckRow (today: string) (source: TargetCheckSource) : TargetCheckRow 
         |> List.rev
         |> List.truncate 12
         |> List.rev
+    // Gezählt wird ab dem späteren von zwei Monaten: dem nach der letzten Änderung und dem der ersten Buchung
+    // (budgeting-k7r2w). Eine Kategorie, die es vorher nicht gab, hat davor keine Ausgaben mit 0 €.
+    let firstMonth = source.FirstBooking |> Option.map monthOfDay
     let counted =
-        full |> List.filter (fun s -> changeMonth |> Option.forall (fun changed -> s.Month > changed))
+        full
+        |> List.filter (fun s ->
+            changeMonth |> Option.forall (fun changed -> s.Month > changed)
+            && firstMonth |> Option.forall (fun first -> s.Month >= first))
     let n = List.length counted
     let monthly = source.Target |> Option.bind monthlyValue
     let average =
@@ -1342,10 +1368,24 @@ let targetCheckRow (today: string) (source: TargetCheckSource) : TargetCheckRow 
         | _ -> None
     let tooFew =
         let needed = if period > 3 then period else 3
-        match source.LastChange with
-        | Some (TargetSetOn day) when n < needed -> Some (RecentlySet day)
-        | Some (TargetRemovedOn day) when n < needed -> Some (RecentlyRemoved day)
-        | _ -> None
+        let byChange =
+            match source.LastChange with
+            | Some (TargetSetOn day) -> Some (day, RecentlySet day)
+            | Some (TargetRemovedOn day) -> Some (day, RecentlyRemoved day)
+            | None -> None
+        // Nur eine erste Buchung, die Monate des Fensters abschneidet. Liegt sie davor, ändert sie nichts.
+        let byFirstBooking =
+            match source.FirstBooking, firstMonth with
+            | Some day, Some first when full |> List.exists (fun s -> s.Month < first) -> Some (day, NewSince first)
+            | _ -> None
+        if n >= needed then None
+        else
+            // Erklären beide die zu wenigen Monate, nennt der Zusatz das spätere Ereignis.
+            match byChange, byFirstBooking with
+            | Some (changed, changeNote), Some (first, firstNote) -> Some (if first > changed then firstNote else changeNote)
+            | Some (_, note), None
+            | None, Some (_, note) -> Some note
+            | None, None -> None
     let avg = average |> Option.map (fun a -> a.Amount) |> Option.defaultValue 0m
     let group, note =
         match notChecked, tooFew with
@@ -1429,7 +1469,7 @@ type CheckBarTone =
     | OverTarget
     /// Gezählt und nicht über dem Target, auch jeder gezählte Monat ohne Target: gedämpft.
     | Counted
-    /// Vor der letzten Änderung, zählt nicht: dunkler.
+    /// Vor der letzten Änderung oder vor der ersten Buchung, zählt nicht: dunkler.
     | NotCounted
 
 /// Ein Mini-Balken: der Monat, die Höhe in Prozent des größten Werts und sein Ton.

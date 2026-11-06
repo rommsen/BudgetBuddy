@@ -76,3 +76,21 @@ Das Gesamtkonzept sah "Passt das Target noch?" als Hinweis in Gelb an der Katego
   es nach dem Einfrieren der Goals nicht mehr. `TargetTakenOverFromYnab` zählt nicht als
   Änderung: Die Übernahme hält einen bestehenden Stand fest, sonst begänne die Zählung für alle
   Kategorien am Tag der Übernahme neu.
+
+## Nachtrag 2026-11-06 (budgeting-k7r2w)
+
+- **Punkt 7, Zählbeginn erste Buchung:** Gezählt werden die vollen Monate ab dem späteren von
+  zwei Monaten: dem Monat der ersten Buchung der Kategorie im Kassenbuch überhaupt
+  (einschließlich, eigene Buchung oder Split-Zeile, ohne in YNAB gelöschte) und dem Monat nach
+  der letzten Target-Änderung. YNAB liefert kein Anlegedatum einer Kategorie, die erste Buchung
+  ist die einzige Quelle. Vorher zählten die Monate, bevor es die Kategorie gab, mit 0 € und
+  drückten den Ø (Fall Strom: Ø 56 € statt rund 134 €). Liegt die erste Buchung vor dem
+  Fenster, ändert sich nichts. Ohne jede Buchung bleibt es bei 12 Monaten mit 0 €.
+- **Neue FitsNote:** Weniger gezählte Monate als nötig (3, bei P > 3 P) seit der ersten
+  Buchung: "Passt" mit "neu seit Juli 2026" (Monat der ersten Buchung ausgeschrieben), in Teal
+  wie "neu gesetzt am …".
+- **Vorrang beim Zusatz:** Erklären die erste Buchung und eine Target-Änderung beide die zu
+  wenigen Monate, nennt der Zusatz das spätere der beiden Ereignisse nach Berliner Tag. Bei
+  gleichem Tag gilt die Änderung.
+- **Balken:** Monate vor der ersten Buchung sind wie Monate vor einer Änderung dunkler
+  (`NotCounted`). Die Zahl der Balken bleibt gleich.

@@ -780,3 +780,8 @@ let getMonthlyActivityByCategory (categoryIds: Guid list) (firstDays: DateTime l
                     | sums -> Some (id, sums))
                 |> Map.ofList
     }
+
+/// Je Kategorie der Tag ihrer ersten Buchung im Kassenbuch, auch vor dem Fenster der Monatssummen, in einer
+/// Abfrage für alle (budgeting-k7r2w, Targets prüfen). Eine Kategorie ohne Buchung fehlt in der Map.
+let getFirstBookingDayByCategory (categoryIds: Guid list) : Async<Map<Guid, DateTime>> =
+    Ledger.Persistence.loadFirstEntryDaysByCategory categoryIds

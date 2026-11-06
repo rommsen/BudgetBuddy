@@ -53,6 +53,8 @@ const source = (n, name, goal, spent, rhythm, lastChange = null) => ({
   Target: goal === null ? null : target(goal, rhythm),
   Spending: spending(spent),
   LastChange: lastChange,
+  // budgeting-k7r2w: Tag der ersten Buchung im Kassenbuch, null ohne Buchung. Die Fixtures zählen alle 12 Monate.
+  FirstBooking: null,
 });
 
 /// "Strom q4v8n": Target 100 €, Ausgaben 150 €, steht bei "Gibst du mehr aus?" mit "150 € übernehmen".
