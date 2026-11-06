@@ -58,4 +58,14 @@ Teil 2 von 2 der Teilung von budgeting-eh8xe (2026-11-06).
   monatlichen Targets in vergangenen Monaten, YNAB liefert dort keinen Wert (erklärt, YNAB-Sonderfall).
   Alle Abweichungen betreffen "Mit Fälligkeit" und gehen auf einen BB-Fehler zurück: budgeting-r4kqm.
   Nach dessen Deploy wird erneut verglichen.
+- **Vor dem Umschalten zu klären (Review zu budgeting-b9869, Backend W1):** Die Aktivität eines Monats in
+  `category_month_activity` gilt für immer, sobald sie einmal gelesen wurde. Wurde ein Monat zuletzt vor
+  seinem Ende gelesen, zählt BB nur einen Teil seiner Ausgaben und rechnet einen falschen Betrag statt
+  "nicht gerechnet". Bob bucht bis 31 Tage zurück, Import und Spiegel bringen ältere Buchungen nach.
+  Optionen: `read_at` prüfen (Monat gilt als fehlend, solange er nicht nach Monatsende plus 31 Tagen
+  gelesen wurde) oder die Aktivität aus dem Kassenbuch nehmen
+  (`Ledger.QueryHandlers.getMonthlyActivityByCategory`, immer aktuell, ohne YNAB). Entscheidung Roman.
+- Nach der Integration von budgeting-eh8xe (Review zu b9869): die Reihenfolge "Beobachtung vor Aktivität" in
+  `observeUnguarded` hängt an einer Test-Attrappe, die nach Aufrufzahl scheitert; Tests gezielt die
+  Stream-Verbindung scheitern lassen. `logReadFailure` für einen Schreibfehler umbenennen.
 - Deploy nur zusammen mit budgeting-eh8xe.
