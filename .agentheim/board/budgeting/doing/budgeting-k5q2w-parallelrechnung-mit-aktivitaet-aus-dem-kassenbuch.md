@@ -1,7 +1,7 @@
 ---
 id: budgeting-k5q2w
 title: "Parallelrechnung: die Ausgaben der Periode kommen aus dem Kassenbuch, category_month_activity entfällt"
-status: todo
+status: doing
 type: feature
 context: budgeting
 created: 2026-11-06

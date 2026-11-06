@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 13:39 -- Batch started: [budgeting-k5q2w]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-k5q2w - "Parallelrechnung: die Ausgaben der Periode kommen aus dem Kassenbuch, category_month_activity entfällt"
+**Parallel:** no (1 worker)
+
+---
+
 ## 2026-11-06 13:39 -- Modeling / Captured: budgeting-k5q2w - "Parallelrechnung: die Ausgaben der Periode kommen aus dem Kassenbuch, category_month_activity entfällt"
 
 **Type:** Modeling / Capture
