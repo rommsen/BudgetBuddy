@@ -1128,8 +1128,9 @@ let buildCreateResult (prepared: PreparedTransaction list) (parsed: ParsedCreate
 /// Senden (Teil 1, Punkt 1): postet genau die übergebene, vorbereitete Liste und
 /// wertet die Antwort über `buildCreateResult` aus. `RejectedTransferTransactionIds`/
 /// `FutureDatedTransactionIds` sind hier immer leer, die trägt der Aufrufer aus dem
-/// `PrepareResult` nach (`createTransactions` tut das; `Ledger.CommandHandlers` hängt
-/// dazwischen den Kassenbuch-Schreibpfad, ADR 0021).
+/// `PrepareResult` nach. `Server.Api.importToYnab` und `forceImportDuplicates` bereiten
+/// über `Server.Api.prepareForImport` (`prepareTransactions`) vor und senden einzeln über
+/// `sendPrepared`, dazwischen liegt der Kassenbuch-Schreibpfad (ADR 0021).
 let sendPrepared
     (token: string)
     (YnabBudgetId budgetId: YnabBudgetId)
@@ -1181,41 +1182,6 @@ let sendPrepared
                 | _ -> return Error (YnabError.NetworkError $"HTTP {statusCode}: {bodyText}")
         with ex ->
             return Error (YnabError.NetworkError $"Failed to create transactions: {ex.Message}")
-    }
-
-/// Creates transactions in YNAB: vorbereiten (Filter, ImportId, Payee-Auflösung),
-/// dann senden (Teil 1, Punkt 1). Behält Name und Signatur für `forceImportDuplicates`
-/// bei; `Server.Api.importToYnab` nutzt `prepareTransactions`/`sendPrepared` einzeln,
-/// weil dazwischen der Kassenbuch-Schreibpfad liegt (ADR 0021).
-let createTransactions
-    (token: string)
-    (budgetId: YnabBudgetId)
-    (accountId: YnabAccountId)
-    (transactions: SyncTransaction list)
-    (forceNewImportId: bool)
-    (today: DateTime)
-    : Async<YnabResult<TransactionCreateResult>> =
-    async {
-        match! resolveTransferPayees token budgetId transactions with
-        | Error err -> return Error err
-        | Ok transferPayees ->
-            let prepared = prepareTransactions today accountId transferPayees forceNewImportId transactions
-
-            for txId in prepared.FutureDatedTransactionIds do
-                let (TransactionId id) = txId
-                printfn "[YNAB] Skipping future-dated transaction: %s" id
-            for txId in prepared.RejectedTransferTransactionIds do
-                let (TransactionId id) = txId
-                printfn "[YNAB] Excluding transaction %s: a transfer split line has no transfer payee in YNAB" id
-
-            match! sendPrepared token budgetId prepared.ToSend with
-            | Error err -> return Error err
-            | Ok sent ->
-                return Ok {
-                    sent with
-                        RejectedTransferTransactionIds = prepared.RejectedTransferTransactionIds
-                        FutureDatedTransactionIds = prepared.FutureDatedTransactionIds
-                }
     }
 
 /// Markiert nur die Buchungen, die YNAB laut `result.Created` tatsächlich angelegt hat,

@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 06:55 -- Task verified and completed: infrastructure-w7d2c - "YnabClient.createTransactions hat keinen Aufrufer mehr und fliegt raus"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-w7d2c - "YnabClient.createTransactions hat keinen Aufrufer mehr und fliegt raus"
+**Summary:** YnabClient.createTransactions entfernt, Nachbau-Tests auf prepareTransactions umgestellt
+**Duration:** 21m
+**Verification:** PASS (iteration 1)
+**Files changed:** 2
+**Tests added:** 0
+**ADRs written:** none
+
+---
+
 ## 2026-11-06 06:51 -- Task verified and completed: ledger-z71ka - "Bot-Commit: entry_id auch nach gescheitertem Push, und ein abgebrochener Commit ist wiederholbar, ohne doppelt zu buchen"
 
 **Type:** Work / Task completion

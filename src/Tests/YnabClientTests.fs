@@ -664,28 +664,22 @@ let transactionConversionTests =
                 AskLena = false
             }
 
-            // Simulate the conversion logic from createTransactions
-            // Use Domain.generateImportId to match actual production code
-            let (YnabCategoryId categoryIdGuid) = syncTransaction.CategoryId.Value
+            // Läuft über `prepareTransactions`, den echten Weg von `importToYnab` und
+            // `forceImportDuplicates` (vorher ein Nachbau der Logik im Test).
+            let prepared =
+                prepareTransactions (DateTime(2025, 11, 30)) accountId Map.empty false [ syncTransaction ]
+            let request = prepared.ToSend.Head.Request
 
-            let ynabTransaction = {|
-                account_id = accountId.ToString()
-                date = syncTransaction.Transaction.BookingDate.ToString("yyyy-MM-dd")
-                amount = int64 (syncTransaction.Transaction.Amount.Amount * 1000m)
-                payee_name = syncTransaction.Transaction.Payee |> Option.defaultValue "Unknown"
-                category_id = categoryIdGuid.ToString()
-                memo = syncTransaction.Transaction.Memo
-                cleared = "uncleared"
-                import_id = generateImportId syncTransaction.Transaction.Id
-            |}
-
-            Expect.equal ynabTransaction.date "2025-11-29" "Date should be formatted correctly"
-            Expect.equal ynabTransaction.amount -50250L "Amount should be converted to milliunits"
-            Expect.equal ynabTransaction.payee_name "Test Store" "Payee should match"
-            Expect.equal ynabTransaction.memo "Test purchase" "Memo should match"
-            Expect.equal ynabTransaction.cleared "uncleared" "Should be marked as uncleared"
-            Expect.stringStarts ynabTransaction.import_id $"{ImportIdPrefix}:" "Import ID should use correct prefix"
-            Expect.stringContains ynabTransaction.import_id "tx123" "Import ID should contain transaction ID without dashes"
+            Expect.equal request.AccountId "a1b2c3d4-e5f6-7890-abcd-ef1234567890" "Account should match"
+            Expect.equal request.Date "2025-11-29" "Date should be formatted correctly"
+            Expect.equal request.Amount -50250 "Amount should be converted to milliunits"
+            Expect.equal request.PayeeName "Test Store" "Payee should match"
+            Expect.equal request.Memo "Test purchase, Ref: REF123" "Memo should carry the reference"
+            Expect.equal request.Cleared "uncleared" "Should be marked as uncleared"
+            Expect.equal request.CategoryId (Some (Guid.Parse("c1b2a3d4-e5f6-7890-abcd-ef1234567890").ToString())) "Category should match"
+            Expect.equal request.ImportId (generateImportId syncTransaction.Transaction.Id) "Import ID should be the deterministic one"
+            Expect.stringStarts request.ImportId $"{ImportIdPrefix}:" "Import ID should use correct prefix"
+            Expect.stringContains request.ImportId "tx123" "Import ID should contain transaction ID without dashes"
 
         testCase "uses PayeeOverride when provided" <| fun () ->
             let transactionId = TransactionId "tx-456"
@@ -812,53 +806,6 @@ let transactionConversionTests =
                 |> List.filter (fun tx -> tx.Status <> Skipped)
 
             Expect.hasLength filtered 1 "Uncategorized transactions should pass the filter"
-
-        testCase "future-dated transactions are filtered out before YNAB import" <| fun () ->
-            // This test prevents regression of the bug where Comdirect pre-notified transactions
-            // (Vormerkbuchungen) had future booking dates, causing YNAB to reject the entire batch
-            // with "date must not be in the future or over 5 years ago".
-            let today = DateTime.Today
-            let makeTx id date = {
-                Transaction = {
-                    Id = TransactionId id
-                    BookingDate = date
-                    Amount = { Amount = -10m; Currency = "EUR" }
-                    Payee = Some "Store"
-                    Memo = "Test"
-                    Reference = id
-                    RawData = "{}"
-                }
-                Status = AutoCategorized
-                CategoryId = Some (YnabCategoryId (Guid.NewGuid()))
-                CategoryName = Some "Category"
-                MatchedRuleId = None
-                PayeeOverride = None
-                ExternalLinks = []
-                UserNotes = None
-                DuplicateStatus = NotDuplicate (emptyDetectionDetails id)
-                YnabImportStatus = NotAttempted
-                Splits = None
-                SuggestedByOrderId = None
-                ReviewSteps = []
-                AskLena = false
-            }
-
-            let transactions = [
-                makeTx "tx-today" today
-                makeTx "tx-yesterday" (today.AddDays(-1.0))
-                makeTx "tx-tomorrow" (today.AddDays(1.0))
-                makeTx "tx-next-week" (today.AddDays(7.0))
-            ]
-
-            // Replicate the filter logic from createTransactions
-            let futureSkipped, valid =
-                transactions
-                |> List.filter (fun tx -> tx.Status <> Skipped)
-                |> List.partition (fun tx -> tx.Transaction.BookingDate.Date > today)
-
-            Expect.hasLength valid 2 "Only today and past transactions should pass"
-            Expect.hasLength futureSkipped 2 "Future-dated transactions should be filtered out"
-            Expect.all valid (fun tx -> tx.Transaction.BookingDate.Date <= today) "All valid transactions should have date <= today"
 
         testCase "transaction dated today is not filtered out" <| fun () ->
             // Edge case: a transaction booked today should be accepted
@@ -1358,7 +1305,7 @@ let mirrorInitialFetchTests =
 // Teil 1 (ledger-qvt84): Vorbereiten/Senden getrennt, drei Push-Bugs behoben
 // ============================================
 //
-// `createTransactions` postet per HTTP und ist nicht .NET-testbar. Die drei Bugs aus
+// Senden (`sendPrepared`) postet per HTTP und ist nicht .NET-testbar. Die drei Bugs aus
 // dem Task (Zukunftsdatum still importiert, Force-Import-ImportId nie auslesbar,
 // nicht lesbare Antwort als pauschaler Erfolg) stecken jetzt in den reinen Funktionen
 // `prepareTransactions` und `parseCreateTransactionsResponse`; hier direkt getestet.
@@ -1458,7 +1405,7 @@ let prepareTransactionsTests =
 
         testCase "Force-Import erzeugt eine neue ImportId, die der Aufrufer auslesen kann" <| fun () ->
             // Regressionstest für Bug 2: vorher wurde die neue ImportId nur innerhalb
-            // von createTransactions erzeugt und nie zurückgegeben; der Aufrufer
+            // innerhalb des Sendens erzeugt und nie zurückgegeben; der Aufrufer
             // (forceImportDuplicates) konnte nicht verknüpfen. Jetzt steht sie direkt
             // an `PreparedTransaction.ImportId`.
             let today = DateTime(2026, 9, 11)
