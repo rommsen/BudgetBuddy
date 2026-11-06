@@ -191,7 +191,12 @@ let private groupCard (model: Model) (data: TargetCheckData) (selected: System.G
         prop.children [
             // Die Überschrift trägt den Knopf, wie im Akkordeon-Muster der WAI-ARIA: eine Rolle "heading" im Knopf
             // läse der Screenreader nicht, die Kinder eines Knopfs sind nur Text.
-            Html.h2 [
+            // Ein `div` mit Rolle "heading" statt `h2`: die globale, ungelayerte Regel für h2 in `styles.css`
+            // (Display-Schrift, 600, enger Abstand) schlägt jede Tailwind-Klasse und gäbe dem Regelsatz die Schrift
+            // eines Titels. Titel und Regelsatz stehen in der Schrift der Liste wie in der Skizze.
+            Html.div [
+                prop.role "heading"
+                prop.ariaLevel 2
                 prop.custom ("data-testid", "target-check-group-heading")
                 prop.children [
                     Button.disclosureListRow key "target-check-group-toggle" rowsId isOpen (fun () -> dispatch (ToggleCheckGroup group)) [

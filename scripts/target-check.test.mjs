@@ -332,7 +332,7 @@ test("[layout] PC 1280 px: eine Zeile mit Werten ist so hoch wie in der Skizze u
   }
 });
 
-test("[layout] Berechnete Farben: die Gruppentitel mehr orange, weniger blau, nie hell violett, ein Balken über dem Target orange, einer darunter nicht, ein nicht gezählter anders als ein gezählter", async () => {
+test("[layout] Berechnete Farben und Schrift: die Gruppentitel mehr orange, weniger blau, nie hell violett, der Regelsatz in normaler Schrift der Liste, ein Balken über dem Target orange, einer darunter nicht, ein nicht gezählter anders als ein gezählter", async () => {
   const { context, page } = await openCheck(1280, 900);
   try {
     const colors = await page.evaluate(() => {
@@ -343,7 +343,15 @@ test("[layout] Berechnete Farben: die Gruppentitel mehr orange, weniger blau, ni
         return [...row.querySelectorAll('[data-testid="spark-bar"]')].map((bar) => getComputedStyle(bar).backgroundColor);
       };
       const repair = barsOf("Reparatur q4v8n");
+      // Die globale Regel für h2 gab dem Regelsatz Display-Schrift und Gewicht 600 (Durchsicht c4ve4).
+      const rule = [...document.querySelectorAll('[data-testid="target-check-group-heading"] span')].find((el) =>
+        el.textContent.startsWith("Ø mehr als 10 %")
+      );
+      const rowName = document.querySelector('[data-testid="target-check-row"]');
       return {
+        ruleWeight: getComputedStyle(rule).fontWeight,
+        ruleFont: getComputedStyle(rule).fontFamily,
+        rowFont: getComputedStyle(rowName).fontFamily,
         more: title("Gibst du mehr aus?"),
         less: title("Gibst du weniger aus?"),
         never: title("Gibst du nie aus?"),
@@ -354,6 +362,8 @@ test("[layout] Berechnete Farben: die Gruppentitel mehr orange, weniger blau, ni
       };
     });
     const facts = JSON.stringify(colors);
+    assert.equal(colors.ruleWeight, "400", `der Regelsatz steht in normalem Gewicht (${facts})`);
+    assert.equal(colors.ruleFont, colors.rowFont, `der Regelsatz steht in der Schrift der Liste (${facts})`);
     assert.equal(colors.more, ORANGE, `der Titel mehr ist orange (${facts})`);
     assert.equal(colors.less, CALM_BLUE, `der Titel weniger ist das ruhige Blau (${facts})`);
     assert.equal(colors.never, CALM_VIOLET, `der Titel nie ist das helle Violett (${facts})`);
