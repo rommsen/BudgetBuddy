@@ -17,21 +17,17 @@ let private logReadFailure (what: string) (ex: exn) : unit =
 /// Aktivität der Periodenmonate aller Targets in einer Abfrage (budgeting-b9869), ohne YNAB-Aufruf.
 let private runUnderfundedComparison
     (save: string -> UnderfundedComparison list -> Async<unit>)
-    (loadActivity: string list -> Async<Map<Guid, Map<string, Money>>>)
+    (loadActivity: string list -> Async<Result<Map<Guid, Map<string, Money>>, string>>)
     (month: BudgetMonth)
     : Async<unit> =
     async {
         try
-            let needed =
-                month.Groups
-                |> List.collect (fun g -> g.Categories)
-                |> List.choose (fun c -> c.Target)
-                |> List.collect (fun t -> periodMonthsOf t month.Month)
-                |> List.distinct
-            let! earlier = loadActivity needed
-            let rows = compareUnderfunded month earlier
-            do! save month.Month rows
-            printfn "%s" (comparisonSummary month.Month rows)
+            match! loadActivity (periodMonthsNeeded month) with
+            | Error message -> Budgeting.Persistence.logReadFailure "Parallelrechnung Fehlbetrag" message
+            | Ok earlier ->
+                let rows = compareUnderfunded month earlier
+                do! save month.Month rows
+                printfn "%s" (comparisonSummary month.Month rows)
         with ex ->
             logReadFailure "Parallelrechnung Fehlbetrag" ex
     }

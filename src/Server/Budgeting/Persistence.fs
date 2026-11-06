@@ -1031,22 +1031,32 @@ let recordMonthActivityWith (connect: unit -> SqliteConnection) (readAt: DateTim
         |> ignore
     tx.Commit()
 
+/// Die Meldung, wenn die Aktivität früherer Monate nicht lesbar ist. Die Ursache bleibt im Server-Log.
+[<Literal>]
+let MonthActivityUnreadableText = "Aktivität früherer Monate nicht lesbar"
+
 /// Die festgehaltene Aktivität der Monate `months` in einer Abfrage, je Kategorie und Monat. Ein Monat ohne
-/// Zeile fehlt in der Map.
-let loadMonthActivitiesWith (connect: unit -> SqliteConnection) (months: string list) : Async<Map<Guid, Map<string, Shared.Domain.Money>>> =
-    async {
-        if List.isEmpty months then
-            return Map.empty
-        else
-            use conn = connect ()
-            let rows =
-                conn.Query<CategoryMonthActivityRow>(
-                    "SELECT month, category_id, activity_milliunits FROM category_month_activity WHERE month IN @months",
-                    {| months = Array.ofList months |})
-                |> Seq.toList
-            return
-                rows
-                |> List.groupBy (fun r -> Guid.Parse r.category_id)
-                |> List.map (fun (id, rs) -> id, rs |> List.map (fun r -> r.month, euroOfMilliunits r.activity_milliunits) |> Map.ofList)
-                |> Map.ofList
-    }
+/// Zeile fehlt in der Map. Ohne Monate keine Verbindung. Eine Zeile mit unlesbarer Kategorie-Id wird geloggt
+/// und übersprungen, die übrigen bleiben. Ein Lesefehler wird zu `Error MonthActivityUnreadableText`.
+let loadMonthActivitiesWith
+    (connect: unit -> SqliteConnection)
+    (months: string list)
+    : Async<Result<Map<Guid, Map<string, Shared.Domain.Money>>, string>> =
+    if List.isEmpty months then
+        async { return Ok Map.empty }
+    else
+        readWith connect "Aktivität früherer Monate lesen" MonthActivityUnreadableText (fun conn ->
+            conn.Query<CategoryMonthActivityRow>(
+                "SELECT month, category_id, activity_milliunits FROM category_month_activity WHERE month IN @months",
+                {| months = Array.ofList months |})
+            |> Seq.toList
+            |> List.choose (fun r ->
+                match Guid.TryParse r.category_id with
+                | true, id -> Some (id, r)
+                | false, _ ->
+                    logReadFailure $"Aktivität {r.month} lesen" $"Kategorie-Id {r.category_id} nicht lesbar, Zeile übersprungen"
+                    None)
+            |> List.groupBy fst
+            |> List.map (fun (id, rs) -> id, rs |> List.map (fun (_, r) -> r.month, euroOfMilliunits r.activity_milliunits) |> Map.ofList)
+            |> Map.ofList
+            |> Ok)

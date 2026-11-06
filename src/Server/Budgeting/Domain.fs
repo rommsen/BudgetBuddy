@@ -704,6 +704,15 @@ type UnderfundedComparison = {
     Paused: bool
 }
 
+/// Die früheren Monate, deren Aktivität die Abweichungsliste von `month` braucht (budgeting-b9869): die
+/// Periodenmonate aller Targets (`periodMonthsOf`), jeder Monat einmal. Rein, ohne I/O.
+let periodMonthsNeeded (month: BudgetMonth) : string list =
+    month.Groups
+    |> List.collect (fun g -> g.Categories)
+    |> List.choose (fun c -> c.Target)
+    |> List.collect (fun t -> periodMonthsOf t month.Month)
+    |> List.distinct
+
 /// Die Abweichungsliste eines Monats: je sichtbarer Kategorie mit Target eine Zeile, auch pausierte, weil
 /// YNAB den Fehlbetrag auch für sie liefert. Verglichen wird genau, ohne Toleranz. Rein, ohne I/O.
 /// `earlierActivity` ist die Aktivität früherer Monate je Kategorie (`periodMonthsOf`, budgeting-b9869).
