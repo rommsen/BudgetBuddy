@@ -13,7 +13,11 @@ do Environment.SetEnvironmentVariable("USE_MEMORY_DB", "true")
 let private november = "2026-11-01"
 let private december = "2026-12-01"
 let private now = DateTime(2026, 11, 2, 7, 30, 0, DateTimeKind.Utc)
+let private today = DateOnly(2026, 11, 2)
 let private run x = Async.RunSynchronously x
+
+/// Der Adapter mit dem Berliner Tag 2. November 2026.
+let private hideWith connect at month = Server.Api.hideMonthStartWith connect today at month
 
 /// Eine eigene In-Memory-Datenbank mit der Tabelle; die erste Verbindung hält sie am Leben.
 let private isolated () : SqliteConnection * (unit -> SqliteConnection) =
@@ -43,7 +47,7 @@ let tests =
         testCase "Ausblenden hält den Monat fest, der Rahmen liest ihn, ein anderer Monat gilt nicht" <| fun () ->
             let anchor, connect = isolated ()
             use _ = anchor
-            Expect.equal (Server.Api.hideMonthStartWith connect now november |> run) (Ok ()) "gespeichert"
+            Expect.equal (hideWith connect now november |> run) (Ok ()) "gespeichert"
             let load fromMonth = async { return Ok (hidden connect fromMonth) }
             Expect.equal (frameWith load).MonthStartHidden [ november ] "der Rahmen nennt den November"
             Expect.isEmpty (hidden connect december) "ab Dezember gelesen ist nichts ausgeblendet"
@@ -51,26 +55,52 @@ let tests =
         testCase "Wiederholtes Ausblenden ändert nichts und bleibt bei einer Zeile" <| fun () ->
             let anchor, connect = isolated ()
             use _ = anchor
-            Server.Api.hideMonthStartWith connect now november |> run |> ignore
-            Expect.equal (Server.Api.hideMonthStartWith connect (now.AddHours 1.0) november |> run) (Ok ()) "zweites Mal"
+            hideWith connect now november |> run |> ignore
+            Expect.equal (hideWith connect (now.AddHours 1.0) november |> run) (Ok ()) "zweites Mal"
             Expect.equal (hidden connect november) [ november ] "eine Zeile"
-            Server.Api.hideMonthStartWith connect now december |> run |> ignore
+            hideWith connect now december |> run |> ignore
             Expect.equal (hidden connect november) [ november; december ] "der Dezember nimmt den November nicht weg"
 
         testCase "Ein ungültiger Monat wird abgelehnt und nichts gespeichert" <| fun () ->
             let anchor, connect = isolated ()
             use _ = anchor
-            match Server.Api.hideMonthStartWith connect now "2026-13-01" |> run with
+            match hideWith connect now "2026-13-01" |> run with
             | Error message -> Expect.stringContains message "2026-13-01" "nennt den Monat"
             | Ok () -> failtest "Fehler erwartet"
+            Expect.isEmpty (hidden connect "2000-01-01") "nichts gespeichert"
+
+        testCase "Ein vergangener Monat wird abgelehnt und nichts gespeichert" <| fun () ->
+            let anchor, connect = isolated ()
+            use _ = anchor
+            Expect.equal (hideWith connect now "2026-10-01" |> run) (Error "Ausblenden geht in vergangenen Monaten nicht.") "Oktober ist vergangen"
             Expect.isEmpty (hidden connect "2000-01-01") "nichts gespeichert"
 
         testCase "Ein Monat vor dem laufenden steht nicht im Rahmen" <| fun () ->
             let anchor, connect = isolated ()
             use _ = anchor
-            Server.Api.hideMonthStartWith connect now "2026-10-01" |> run |> ignore
+            // Ein Oktober von früher, als er noch der laufende war: direkt geschrieben.
+            do
+                use conn = connect ()
+                Budgeting.Persistence.hideMonthStartOn conn "2026-10-01" now
             let load fromMonth = async { return Ok (hidden connect fromMonth) }
             Expect.isEmpty (frameWith load).MonthStartHidden "Oktober ist vergangen"
+
+        testCase "Scheitert das Schreiben, kommt die kurze Meldung ohne den Text der Ausnahme" <| fun () ->
+            let broken () : SqliteConnection = failwith "disk I/O error"
+            Expect.equal (hideWith broken now november |> run) (Error CommandHandlers.MonthStartNotHiddenText) "nur die kurze Meldung"
+            Expect.equal CommandHandlers.MonthStartNotHiddenText "Ausblenden nicht gespeichert." "Wortlaut"
+
+        // Doktrin Punkt 3: die echte Verdrahtung. `budgetApi` schreibt in die Datenbank der Anwendung, der Rahmen liest
+        // über den Port `liveFramePort` dieselbe Tabelle. Ein Monat weit in der Zukunft gilt gegen die echte Uhr als
+        // kommender und kommt in keinem anderen Test vor.
+        testCase "budgetApi.hideMonthStart schreibt, und der Live-Port des Rahmens liest es zurück" <| fun () ->
+            Budgeting.Persistence.initializeBudgetingSchema ()
+            let far = "2098-03-01"
+            let api = Server.Api.budgetApi (TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin")
+            Expect.equal (api.hideMonthStart far |> run) (Ok ()) "gespeichert"
+            Expect.equal (QueryHandlers.loadMonthStartHidden far |> run) (Ok [ far ]) "der Live-Leser findet den Monat"
+            let port = Server.Api.liveFramePort "kein-token" (Shared.Domain.YnabBudgetId "kein-budget")
+            Expect.equal (port.LoadMonthStartHidden far |> run) (Ok [ far ]) "der Port des Rahmens liest dieselbe Tabelle"
 
         testCase "Ist das Ausblenden nicht lesbar, liefert der Rahmen trotzdem, ohne ausgeblendeten Monat" <| fun () ->
             let frame = frameWith (fun _ -> async { return Error "kaputt" })

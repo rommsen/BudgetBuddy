@@ -755,13 +755,13 @@ let applyWithLedger
         match! preparedMonth (Some ledger) connect (loadPausedCategoriesWith connect) port now monthKey with
         | Error e -> return Error e
         | Ok (month, _, fold) ->
-            match planOf month with
+            match planOf month |> Result.map (fun fresh -> fresh, chosenLinesIfCurrent shown fresh) with
             | Error e -> return Error e
-            | Ok fresh when not (previewsMatch shown fresh) -> return Ok (PreviewChanged fresh)
-            | Ok fresh ->
+            | Ok (fresh, None) -> return Ok (PreviewChanged fresh)
+            | Ok (fresh, Some chosen) ->
                 // Nur die gewählten Zeilen (budgeting-m3x7f); abgewählte werden nicht geschrieben.
                 let lines =
-                    chosenLines shown fresh
+                    chosen
                     |> List.map (fun l ->
                         { CategoryId = l.CategoryId
                           CategoryName = l.CategoryName
@@ -1124,3 +1124,25 @@ let retryFailedWith
 /// `retryFailedWith` auf der Datenbank der Anwendung.
 let retryFailed (port: YnabPort) (now: DateTime) (applicationId: Guid) : Async<Result<ApplyReport, YnabError>> =
     retryFailedWith global.Persistence.getConnection port now applicationId
+
+// ============================================
+// Leiste Monatserster ausblenden (budgeting-m3x7f)
+// ============================================
+
+/// Die Meldung, wenn sich das Ausblenden nicht speichern ließ. Die Ursache steht im Server-Log.
+[<Literal>]
+let MonthStartNotHiddenText = "Ausblenden nicht gespeichert."
+
+/// Blendet die Leiste Monatserster für den Monat ("YYYY-MM-01", schon geprüft) aus. Zustand, kein Ereignis (ADR 0083).
+/// Schreibt über `connect`, `now` stempelt den Zeitpunkt (UTC). Ein zweites Ausblenden ändert nichts. Scheitert das
+/// Schreiben, steht die Ursache im Server-Log und der Aufrufer bekommt `MonthStartNotHiddenText`.
+let hideMonthStartWith (connect: unit -> SqliteConnection) (now: DateTime) (month: string) : Async<Result<unit, string>> =
+    async {
+        try
+            use conn = connect ()
+            hideMonthStartOn conn month now
+            return Ok ()
+        with ex ->
+            eprintfn "Leiste Monatserster: Ausblenden für %s nicht gespeichert (%s)" month ex.Message
+            return Error MonthStartNotHiddenText
+    }

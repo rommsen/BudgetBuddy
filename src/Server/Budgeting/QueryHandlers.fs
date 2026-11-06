@@ -112,7 +112,13 @@ let frame (port: BudgetFramePort) (today: DateOnly) : Async<YnabResult<BudgetFra
             | Ok order ->
                 let frame = toBudgetFrame today months order
                 let! hidden = port.LoadMonthStartHidden frame.CurrentMonth
-                return Ok { frame with MonthStartHidden = hidden |> Result.defaultValue [] }
+                let hiddenMonths =
+                    match hidden with
+                    | Ok months -> months
+                    | Error message ->
+                        eprintfn "Leiste Monatserster: Ausblenden nicht lesbar (%s)" message
+                        []
+                return Ok { frame with MonthStartHidden = hiddenMonths }
     }
 
 /// Die ausgeblendeten Monate aus der Datenbank der Anwendung. Ein Lesefehler wird zum `Error` mit Text.

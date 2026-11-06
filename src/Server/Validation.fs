@@ -206,6 +206,16 @@ let validateTargetsMonth (current: string) (key: string) : Result<string, string
         else
             Error "Targets anwenden geht in vergangenen Monaten nicht.")
 
+/// Prüft den Monat für "Ausblenden" an der Leiste Monatserster (budgeting-m3x7f). Die Leiste gibt es im laufenden und
+/// in kommenden Monaten (`targetsAllowed`, wie der Kopfknopf im Client), ein vergangener Monat wird abgelehnt.
+let validateMonthStartMonth (current: string) (key: string) : Result<string, string> =
+    validateMonthKey key
+    |> Result.bind (fun month ->
+        if Shared.Budgeting.targetsAllowed (Shared.Budgeting.monthKind current month) then
+            Ok month
+        else
+            Error "Ausblenden geht in vergangenen Monaten nicht.")
+
 /// Die Ablehnung einer leeren Befehls-Id (ADR 0084 Punkt 8). Eine Id, die keine Guid ist, scheitert schon
 /// beim Deserialisieren.
 [<Literal>]

@@ -70,16 +70,16 @@ let planTargetApplication (month: BudgetMonth) : Result<TargetPreview, string> =
     | Some l ->
         Error $"Der Betrag für {l.CategoryName} liegt nicht auf 10 Milliunits (0,01 €) und würde beim Schreiben gerundet. BB wendet deshalb nichts an."
     | None ->
-        let empty =
+        let total = linesTotal month.ToBeBudgeted.Currency lines
+        Ok
             { Month = month.Month
-              Lines = []
+              Lines = lines
               Skipped = skipped
-              Total = { Amount = 0m; Currency = month.ToBeBudgeted.Currency }
+              Total = total
               ToBeBudgeted = month.ToBeBudgeted
-              ToBeBudgetedAfter = month.ToBeBudgeted
+              ToBeBudgetedAfter = { month.ToBeBudgeted with Amount = month.ToBeBudgeted.Amount - total.Amount }
               // Die Vorschau ist kein Befehl, die Id setzt der Client beim Übernehmen.
               CommandId = None }
-        Ok (previewWithLines empty lines)
 
 // ============================================
 // Target pausieren (budgeting-t6p8z, ADR 0073, ADR 0079)
@@ -133,22 +133,24 @@ let planPause (month: BudgetMonth) (pausedInBbRaw: Set<Guid>) (request: TargetPa
               Event = event
               After = (if pausedAfter then Some PausedInBb else None) }
 
-/// Gilt die gezeigte Vorschau noch gegen die frisch geplante? Die gezeigte trägt nur die gewählten Zeilen
-/// (budgeting-m3x7f): jede muss in der frischen mit Kategorie, altem und neuem Zugewiesen stehen, und Zu verteilen
-/// davor muss gleich sein. Abgewählte oder neu hinzugekommene Zeilen der frischen zählen nicht, sie werden nicht
-/// geschrieben. Ohne gewählte Zeile gilt sie nicht. Namen, Targets und pausierte Zeilen zählen nicht.
-let previewsMatch (shown: TargetPreview) (fresh: TargetPreview) : bool =
+/// Die Zeilen, die geschrieben werden, wenn die gezeigte Vorschau gegen die frisch geplante noch gilt; `None` heißt
+/// "Stand hat sich geändert". Die gezeigte trägt nur die gewählten Zeilen (budgeting-m3x7f): jede muss in der frischen
+/// mit Kategorie, altem und neuem Zugewiesen stehen, und Zu verteilen davor muss gleich sein. Abgewählte oder neu
+/// hinzugekommene Zeilen der frischen zählen nicht, sie werden nicht geschrieben. Ohne gewählte Zeile gilt sie nicht.
+/// Namen, Targets und pausierte Zeilen zählen nicht. Die Zeilen kommen aus der frischen, in ihrer Reihenfolge.
+let chosenLinesIfCurrent (shown: TargetPreview) (fresh: TargetPreview) : TargetLine list option =
     let key (l: TargetLine) = l.CategoryId, l.OldAssigned, l.NewAssigned
     let freshKeys = fresh.Lines |> List.map key |> Set.ofList
-    shown.Month = fresh.Month
-    && shown.ToBeBudgeted = fresh.ToBeBudgeted
-    && not (List.isEmpty shown.Lines)
-    && shown.Lines |> List.forall (fun l -> freshKeys.Contains (key l))
-
-/// Die Zeilen der frischen Vorschau, die die gezeigte gewählt hat, in der Reihenfolge der frischen.
-let chosenLines (shown: TargetPreview) (fresh: TargetPreview) : TargetLine list =
-    let chosen = shown.Lines |> List.map (fun l -> l.CategoryId) |> Set.ofList
-    fresh.Lines |> List.filter (fun l -> chosen.Contains l.CategoryId)
+    let current =
+        shown.Month = fresh.Month
+        && shown.ToBeBudgeted = fresh.ToBeBudgeted
+        && not (List.isEmpty shown.Lines)
+        && shown.Lines |> List.forall (fun l -> freshKeys.Contains (key l))
+    if current then
+        let chosen = shown.Lines |> List.map (fun l -> l.CategoryId) |> Set.ofList
+        Some (fresh.Lines |> List.filter (fun l -> chosen.Contains l.CategoryId))
+    else
+        None
 
 /// Der frühere Text der Herkunft einer Budget-Bewegung, gelesen von der Budget-Migration und in Meldungen.
 let originText (origin: MovementOrigin) : string =

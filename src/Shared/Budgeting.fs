@@ -245,7 +245,7 @@ type TargetLine = {
     OldAssigned: Money
     Underfunded: Money
     NewAssigned: Money
-    /// Nur zur Anzeige; zählt nicht beim Vergleich der Vorschau (`previewsMatch`).
+    /// Nur zur Anzeige; zählt nicht beim Vergleich der Vorschau (`chosenLinesIfCurrent`).
     Target: Target option
 }
 
@@ -269,7 +269,7 @@ type TargetPreview = {
     /// Zu verteilen nach dem Anwenden (Zu verteilen minus Summe), darf negativ sein.
     ToBeBudgetedAfter: Money
     /// Die Befehls-Id des Übernehmens (ADR 0084 Punkt 8). Die Vorschau liefert `None`, der Client setzt
-    /// sie je Absicht. `previewsMatch` vergleicht sie nicht. Ein alter Client lässt das Feld weg.
+    /// sie je Absicht. `chosenLinesIfCurrent` vergleicht sie nicht. Ein alter Client lässt das Feld weg.
     CommandId: Guid option
 }
 

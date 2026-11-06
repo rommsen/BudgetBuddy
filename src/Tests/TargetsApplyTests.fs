@@ -96,25 +96,24 @@ let private planTests =
             Expect.equal (targetApplicationTotal month) (eur 50000L) "ohne das pausierte Target"
         }
         // budgeting-m3x7f: die Vorschau trägt nur die gewählten Zeilen.
-        test "previewsMatch gilt für eine Auswahl der frischen Zeilen, nicht für eine fremde oder leere" {
+        test "chosenLinesIfCurrent gilt für eine Auswahl der frischen Zeilen, nicht für eine fremde oder leere" {
             let a = category "A" 0L (Some 10000L) false
             let b = category "B" 0L (Some 20000L) false
             let fresh = planOk (monthOf 50000L [ a; b ])
             let onlyB = previewWithLines fresh (fresh.Lines |> List.filter (fun l -> l.CategoryId = b.Id))
-            Expect.isTrue (Domain.previewsMatch onlyB fresh) "abgewählte Zeile zählt nicht"
-            Expect.equal (Domain.chosenLines onlyB fresh |> List.map (fun l -> l.CategoryId)) [ b.Id ] "nur B wird geschrieben"
+            Expect.equal (Domain.chosenLinesIfCurrent onlyB fresh |> Option.map (List.map (fun l -> l.CategoryId))) (Some [ b.Id ]) "abgewählte Zeile zählt nicht, nur B wird geschrieben"
             let foreign = planOk (monthOf 50000L [ category "C" 0L (Some 10000L) false ])
-            Expect.isFalse (Domain.previewsMatch foreign fresh) "Zeile gibt es frisch nicht"
-            Expect.isFalse (Domain.previewsMatch (previewWithLines fresh []) fresh) "ohne gewählte Zeile"
+            Expect.isNone (Domain.chosenLinesIfCurrent foreign fresh) "Zeile gibt es frisch nicht"
+            Expect.isNone (Domain.chosenLinesIfCurrent (previewWithLines fresh []) fresh) "ohne gewählte Zeile"
         }
-        test "previewsMatch vergleicht Zeilen und Zu verteilen" {
+        test "chosenLinesIfCurrent vergleicht Zeilen und Zu verteilen" {
             let a = category "A" 0L (Some 10000L) false
             let p = planOk (monthOf 50000L [ a ])
-            Expect.isTrue (Domain.previewsMatch p p) "gleich"
+            Expect.isSome (Domain.chosenLinesIfCurrent p p) "gleich"
             let moved = planOk (monthOf 50000L [ { a with Assigned = eur 2000L } ])
-            Expect.isFalse (Domain.previewsMatch p moved) "anderes Zugewiesen"
+            Expect.isNone (Domain.chosenLinesIfCurrent p moved) "anderes Zugewiesen"
             let other = planOk (monthOf 49000L [ a ])
-            Expect.isFalse (Domain.previewsMatch p other) "anderes Zu verteilen"
+            Expect.isNone (Domain.chosenLinesIfCurrent p other) "anderes Zu verteilen"
         }
         // budgeting-kjsht
         test "Das Target der Kategorie steht in der Zeile der Vorschau" {
@@ -127,7 +126,7 @@ let private planTests =
             let before = planOk (monthOf 50000L [ { a with Target = Some { Goal = eur 10000L; Rhythm = Months 1; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None; CreatedIn = None } } ])
             let after = planOk (monthOf 50000L [ { a with Target = Some { Goal = eur 99000L; Rhythm = Weeks 1; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None; CreatedIn = None } } ])
             Expect.notEqual before.Lines.Head.Target after.Lines.Head.Target "Target weicht ab"
-            Expect.isTrue (Domain.previewsMatch before after) "Vorschau gilt weiter"
+            Expect.isSome (Domain.chosenLinesIfCurrent before after) "Vorschau gilt weiter"
         }
     ]
 

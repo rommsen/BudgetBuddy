@@ -56,11 +56,6 @@ let dropUnderfundedComparisonsOn (conn: SqliteConnection) : unit =
     if leftover > 0L then
         conn.Execute("DROP TABLE IF EXISTS underfunded_comparisons") |> ignore
 
-/// Legt `events` (ADR 0083) an und überführt die früheren Budget-Tabellen nach `events` (budgeting-hyn77). Entfernt
-/// `category_month_activity` (budgeting-k5q2w: die Ausgaben der Periode kommen aus dem Kassenbuch) und
-/// `underfunded_comparisons` (budgeting-hbhzf: BB rechnet den Fehlbetrag selbst, die Parallelrechnung entfällt),
-/// beides abgeleiteter Zustand ohne Geldentscheidung. Legt `budget_month_start_hidden` an (budgeting-m3x7f). Wiederholbar. Läuft beim Start hinter
-/// `Ledger.Persistence.initializeLedgerSchema`. Bricht die Migration ab, wirft der Aufruf und BB startet nicht.
 // ============================================
 // Leiste Monatserster ausgeblendet (budgeting-m3x7f)
 // ============================================
@@ -94,6 +89,11 @@ let loadMonthStartHiddenOn (conn: SqliteConnection) (fromMonth: string) : string
     )
     |> List.ofSeq
 
+/// Legt `events` (ADR 0083) an und überführt die früheren Budget-Tabellen nach `events` (budgeting-hyn77). Entfernt
+/// `category_month_activity` (budgeting-k5q2w: die Ausgaben der Periode kommen aus dem Kassenbuch) und
+/// `underfunded_comparisons` (budgeting-hbhzf: BB rechnet den Fehlbetrag selbst, die Parallelrechnung entfällt),
+/// beides abgeleiteter Zustand ohne Geldentscheidung. Legt `budget_month_start_hidden` an (budgeting-m3x7f).
+/// Wiederholbar. Läuft beim Start hinter `Ledger.Persistence.initializeLedgerSchema`. Bricht die Migration ab, wirft der Aufruf und BB startet nicht.
 let initializeBudgetingSchema () =
     use conn = Core.getConnection ()
     EventStore.createSchemaOn conn

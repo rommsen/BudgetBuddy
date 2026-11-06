@@ -20,8 +20,8 @@ Die freigegebene Skizze (Gesamt-Prototyp, Zeile 183 bis 196) zeigt in der Vorsch
 ## Decision
 
 1. Der Client schickt beim Anwenden die Vorschau nur mit den gewählten Zeilen; Summe und Zu verteilen danach sind auf diese Zeilen umgerechnet (`previewWithLines`). Kein neues Feld im Vertrag, ein alter Client schickt wie bisher alle Zeilen.
-2. Der Server plant frisch und prüft unter der Sperre je Monat: jede gezeigte Zeile steht mit Kategorie, altem und neuem Zugewiesen in der frischen Vorschau, Monat und Zu verteilen davor sind gleich, und es ist mindestens eine Zeile gewählt (`Domain.previewsMatch`). Sonst kommt die frische Vorschau zurück, nichts wird geschrieben. Abgewählte oder seither neu hinzugekommene Zeilen zählen dabei nicht.
-3. Festgehalten und gesendet werden nur die gewählten Zeilen der frischen Vorschau (`Domain.chosenLines`). Pausierte Zeilen bleiben wie bisher übersprungen.
+2. Der Server plant frisch und prüft unter der Sperre je Monat: jede gezeigte Zeile steht mit Kategorie, altem und neuem Zugewiesen in der frischen Vorschau, Monat und Zu verteilen davor sind gleich, und es ist mindestens eine Zeile gewählt (`Domain.chosenLinesIfCurrent`). Sonst kommt die frische Vorschau zurück, nichts wird geschrieben. Abgewählte oder seither neu hinzugekommene Zeilen zählen dabei nicht.
+3. Festgehalten und gesendet werden nur die gewählten Zeilen der frischen Vorschau (`Domain.chosenLinesIfCurrent`, aus derselben Prüfung). Kommt die frische Vorschau zurück, behält der Client die Abwahl für jede Kategorie, die darin noch steht; ein zweites Anwenden schreibt also keine abgewählte Zeile. Pausierte Zeilen bleiben wie bisher übersprungen.
 4. Die Zeilen von Targets anwenden entstehen an einer Stelle in `Shared.Budgeting` (`targetApplicationLines`), die Summe über `linesTotal`. Der Server plant damit die Vorschau, der Client rechnet damit das Feld Targets anwenden der Leiste (`targetApplicationTotal`).
 
 ## Consequences

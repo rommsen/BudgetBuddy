@@ -1903,8 +1903,9 @@ let private livePort (token: string) (budgetId: YnabBudgetId) : Server.Budgeting
       SetAssigned = fun monthKey categoryId milliunits -> YnabClient.setAssigned token budgetId monthKey categoryId milliunits
       FetchCategoryGoals = fun () -> YnabClient.getCategoryGoals token budgetId }
 
-/// Die Lese-Quellen des Rahmens (budgeting-g8s3w): echter Client für Monatsfenster und Reihenfolge.
-let private liveFramePort (token: string) (budgetId: YnabBudgetId) : Server.Budgeting.QueryHandlers.BudgetFramePort =
+/// Die Lese-Quellen des Rahmens (budgeting-g8s3w): echter Client für Monatsfenster und Reihenfolge, das Ausblenden der
+/// Leiste Monatserster aus der Datenbank der Anwendung. `internal` für den Test der Verdrahtung (ohne YNAB-Aufruf).
+let internal liveFramePort (token: string) (budgetId: YnabBudgetId) : Server.Budgeting.QueryHandlers.BudgetFramePort =
     { FetchMonths = fun () -> YnabClient.getMonths token budgetId
       FetchCategoryOrder =
         fun () ->
@@ -1918,23 +1919,19 @@ let private liveFramePort (token: string) (budgetId: YnabBudgetId) : Server.Budg
             }
       LoadMonthStartHidden = Server.Budgeting.QueryHandlers.loadMonthStartHidden }
 
-/// "Ausblenden" an der Leiste Monatserster ohne Netz (budgeting-m3x7f): Monat prüfen, dann festhalten. `connect` liefert
-/// die Datenbank, `now` stempelt den Zeitpunkt (UTC). Ein Schreibfehler wird zum `Error` mit Text.
+/// "Ausblenden" an der Leiste Monatserster ohne Netz (budgeting-m3x7f): Monat prüfen (laufender oder kommender, gemessen
+/// am Berliner `today`), dann über `CommandHandlers.hideMonthStartWith` festhalten. `connect` liefert die Datenbank,
+/// `now` stempelt den Zeitpunkt (UTC).
 let hideMonthStartWith
     (connect: unit -> Microsoft.Data.Sqlite.SqliteConnection)
+    (today: DateOnly)
     (now: DateTime)
     (monthKeyText: string)
     : Async<Result<unit, string>> =
     async {
-        match Validation.validateMonthKey monthKeyText with
+        match Validation.validateMonthStartMonth (Server.Budgeting.Domain.currentMonthKey today) monthKeyText with
         | Error message -> return Error message
-        | Ok key ->
-            try
-                use conn = connect ()
-                Budgeting.Persistence.hideMonthStartOn conn key now
-                return Ok ()
-            with ex ->
-                return Error $"Ausblenden nicht gespeichert: {ex.Message}"
+        | Ok key -> return! Server.Budgeting.CommandHandlers.hideMonthStartWith connect now key
     }
 
 /// Token und Standard-Budget aus den Settings, je `None`, wenn nicht eingerichtet. Budget-Seite und Übernahme im
@@ -2038,7 +2035,7 @@ let budgetApiWith
         return! targetCheckWith tokenOpt budgetOpt portFor (today ())
       }
 
-      hideMonthStart = fun monthKeyText -> hideMonthStartWith Persistence.getConnection (utcNow ()) monthKeyText }
+      hideMonthStart = fun monthKeyText -> hideMonthStartWith Persistence.getConnection (today ()) (utcNow ()) monthKeyText }
 
 /// Die Budget-Seite mit den echten YNAB-Ports. Die Settings kommen als Parameter, damit der
 /// Integrationstest den Live-Anschluss ohne Eintrag in der Datenbank prüfen kann.

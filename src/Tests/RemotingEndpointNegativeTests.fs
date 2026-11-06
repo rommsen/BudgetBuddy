@@ -452,8 +452,12 @@ let private rows : Row list = [
                   (fun () -> DateTime(2026, 11, 5, 9, 0, 0, DateTimeKind.Utc))
                   (TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin")
           Expect.equal (unconfigured.getTargetCheck () |> run) (Error "Kein YNAB-Token eingerichtet (Settings)") "fehlende Einrichtung" }
-    { Endpoint = "BudgetApi.hideMonthStart"; Case = "ungültiger Monat: Fehler statt Ausnahme, nichts gespeichert"
-      Run = fun () -> budget.hideMonthStart "kein-monat" |> run |> expectError "Ausblenden" }
+    { Endpoint = "BudgetApi.hideMonthStart"; Case = "ungültiger oder vergangener Monat: Fehler statt Ausnahme, nichts gespeichert"
+      Run = fun () ->
+        budget.hideMonthStart "kein-monat" |> run |> expectError "Ausblenden"
+        match budget.hideMonthStart "2020-01-01" |> run with
+        | Error message -> Expect.stringContains message "vergangenen Monaten" "Grund"
+        | Ok () -> failtest "Ausblenden hätte abgelehnt werden müssen" }
     { Endpoint = "BudgetApi.retryFailedTargets"; Case = "keine gültige Anwendungs-Id: Fehler"
       Run = fun () -> budget.retryFailedTargets "keine-guid" |> run |> expectError "Wiederholen" }
 ]
