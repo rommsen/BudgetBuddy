@@ -51,4 +51,7 @@ Teil 2 von 2 der Teilung von budgeting-eh8xe (2026-11-06).
   seit dem Deploy von dgrp7 (09:25), `underfunded_comparisons` ist leer. Sie füllt sich, wenn ein
   Monat auf der Budget-Seite gelesen wird. Die Daten müssen vor dem Deploy von budgeting-eh8xe
   entstehen, danach weichen YNABs Goals absichtlich ab und der Vergleich sagt nichts mehr.
+- **Toleranz (Roman, 2026-11-06):** Umschalten, wenn jede Abweichung im laufenden Monat einen
+  bekannten Grund hat (etwa ein YNAB-Sonderfall). Die Liste wird einmal mit Roman durchgegangen,
+  das Ergebnis kommt hierher. Roman öffnet dafür in Prod den laufenden und zwei, drei frühere Monate.
 - Deploy nur zusammen mit budgeting-eh8xe.
