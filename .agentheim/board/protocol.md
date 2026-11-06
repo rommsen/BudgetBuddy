@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 10:48 -- Modeling / Promoted: budgeting-b9869 - "Fehlbetrag mit Fälligkeit: Ausgaben seit Beginn der laufenden Periode zählen als gedeckt, wie bei YNAB"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-06 10:48 -- Modeling / Refined: budgeting-b9869 - Ausgaben der Periode zählen als gedeckt
 
 **Type:** Modeling / Refine
