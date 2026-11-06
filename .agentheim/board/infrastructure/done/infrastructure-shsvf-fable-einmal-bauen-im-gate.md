@@ -7,7 +7,7 @@ context: infrastructure
 created: 2026-11-05
 completed:
 depends_on: []
-blocks: [infrastructure-pgpb6]
+blocks: []
 tags: [verify, gate, laufzeit, fable, test-scripts]
 related_adrs: []
 related_research: []

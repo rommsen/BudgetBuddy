@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 3
+- **Backlog:** 1
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 43
@@ -33,9 +33,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **design-system-p8kvn** — "Badge.neutral und setting-description liegen bei 12 px knapp unter 4,5:1 Kontrast" (bug) — `backlog/design-system-p8kvn-kontrast-text-secondary.md`
-- **design-system-fpem2** — "Wächter: .NET-Tests prüfen keine Tailwind-Größen per Klassenstring" (chore) — `backlog/design-system-fpem2-waechter-keine-tailwind-groessen-in-tests.md`
-- **design-system-taytp** — "Kategorie-Picker vereinheitlichen" (refactor) — `backlog/design-system-taytp-kategorie-picker-vereinheitlichen.md`
+- **design-system-taytp** — "Kategorie-Picker vereinheitlichen und Split im Import auf das Design-System" (refactor) — `backlog/design-system-taytp-kategorie-picker-vereinheitlichen.md`
 <!-- backlog-list:end -->
 
 

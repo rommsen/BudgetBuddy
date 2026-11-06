@@ -7,7 +7,7 @@ context: infrastructure
 created: 2026-11-05
 completed:
 depends_on: []
-blocks: [infrastructure-pgpb6]
+blocks: []
 tags: [verify, gate, laufzeit, expecto]
 related_adrs: ["0030", "0081"]
 related_research: []

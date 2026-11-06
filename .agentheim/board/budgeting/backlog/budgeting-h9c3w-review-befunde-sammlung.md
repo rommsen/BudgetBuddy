@@ -1,6 +1,6 @@
 ---
 id: budgeting-h9c3w
-title: "Kann-Befunde der Reviews zu budgeting-c6vn4 und budgeting-g2ty9 (Rest nach der Aufteilung)"
+title: "Kann-Sammlung budgeting"
 status: backlog
 type: chore
 context: budgeting
@@ -8,8 +8,8 @@ created: 2026-11-04
 completed:
 depends_on: []
 blocks: []
-tags: [budget, review, ux, test, a11y]
-related_adrs: [0075, 0080]
+tags: [budget, review, ux, test, a11y, design, pause, bug]
+related_adrs: [0075, 0080, 0049]
 related_research: []
 prior_art: [budgeting-c6vn4, budgeting-g2ty9, budgeting-f4k9n]
 ---
@@ -42,3 +42,33 @@ Was hier bleibt, sind Kann-Befunde. Sie werden nicht automatisch gebaut.
 
 ## Notes
 Roman will BB bald zur Quelle machen und YNAB spiegeln. Kann-Punkte zu YNAB-Sonderfällen sind dann vermutlich hinfällig.
+
+## Kann-Sammlung (ab 2026-11-06)
+Diese Task ist die Kann-Sammlung des BC nach der Regel Backlog-Disziplin in CLAUDE.md. Neue Funde ohne Geld-, Daten-, Sicherheits- oder Alltagsfehler kommen als Zeile hierher. Sie wird nie automatisch gebaut.
+
+## Aufgenommen aus budgeting-w2f6c (Triage 2026-11-06)
+**Budget-Seite: Listenbeträge gegen ADR 0049** (bug, erfasst 2026-11-02)
+
+### Why
+`plainAmount` in `Components/Budget/View.fs:27-31` setzt `text-secondary` statt `text-primary`, und eine positive Aktivität ist nicht Teal. Das weicht von ADR 0049 ab. Die Reviews zu budgeting-g8s3w haben es gefunden, budgeting-p4n6r schloss es aus.
+
+### What
+Die Beträge an ADR 0049 angleichen oder die Abweichung per ADR als Ausnahme für die Budget-Seite festhalten.
+
+### Acceptance criteria
+- [ ] (Browser) Zugewiesen, Aktivität und Target folgen den Farbregeln aus ADR 0049, oder ein ADR nennt die Ausnahme und ihren Grund.
+- [ ] Styleguide und `/styleguide` stimmen mit der Entscheidung überein.
+
+## Aufgenommen aus budgeting-w5k2r (Triage 2026-11-06)
+**Pause verschwindet, wenn beim Tipp ein Lesen des Monats schon läuft (Wechsel hin und zurück)** (bug, erfasst 2026-11-04)
+
+### Why
+Aus budgeting-m4v8t. Ablauf: Monat geladen, `SelectMonth` nächster Monat, vor dessen Antwort `SelectMonth` zurück. Die alte Liste steht, kein Wechsel läuft (`monthChanging` falsch), `Freshness = MonthRead`, das Lesen des Rückwegs läuft noch. Jetzt `SetTargetPause`: der Aufruf startet mit der Generation dieses Lesens. Kommt die Pause-Antwort vor dem Lesen, sieht `pauseNeedsReread` nichts (Generation gleich, geladen, nicht veraltet). Danach kommt das Lesen an, das vor dem Speichern begann, und `applyLoaded` überschreibt die Pause bis zum nächsten Lesen. Die Monatspfeile sind während eines Wechsels nicht gesperrt, der Fall ist in der UI erreichbar. Der Walk in `src/Tests/TargetPauseClientTests.fs` erreicht ihn nicht: sein Ereignis "Monat" kommt nur, wenn `Displayed = Chosen`.
+
+### What
+Kaputt-Szenario (GIVEN/WHEN/THEN): GIVEN Wechsel hin und zurück, das Lesen des Rückwegs läuft, Tipp auf Pausieren WHEN die Pause-Antwort vor dem Lesen kommt und danach das Lesen ohne Pause THEN zeigt der Monat nach allen Lesevorgängen die Pause. Intakt-Szenario: ohne laufendes Lesen beim Tipp liest die Antwort nicht neu (bestehender Test "GIVEN Fehlbetrag WHEN Pause bestätigt ..."). Mögliche Wege: ein Lesen, das beim Start schon lief, im Modell erkennbar machen (etwa `MonthStale` auch bei `select`, Folgen für `Moves.fs:481` prüfen) oder `startPause` sperren, solange ein Lesen läuft. Den Walk um "Monat" während eines Wechsels erweitern.
+
+### Acceptance criteria
+- [ ] Regressionstest mit Bug-Kommentar, vor dem Fix rot.
+- [ ] Der Walk kennt den Monatswechsel während eines laufenden Wechsels und bleibt grün.
+- [ ] `./verify.sh` zeigt `VERIFY: PASS`.

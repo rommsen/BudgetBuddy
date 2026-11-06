@@ -8,7 +8,7 @@ created: 2026-11-01
 completed:
 depends_on: [banking-import-bftq0, infrastructure-jsys4]
 blocks: []
-tags: [backend, comdirect, session, benachrichtigung]
+tags: [backend, comdirect, session, benachrichtigung, tests]
 related_adrs: [0071]
 related_research: []
 prior_art: []
@@ -42,3 +42,27 @@ geht ins Netz. Der Aufruf darf deshalb nicht innerhalb des Gate abgewartet werde
 Deckt den Mutanten `L-report` aus `banking-import-q7ds2` ab. Die übrigen Zusätze dort bleiben offen.
 
 Scheitert der Geräte-Beweis in `infrastructure-jsys4`, entfällt dieser Task.
+
+## Hinweis Triage 2026-11-06
+Der Mutant aus banking-import-q7ds2 (ReportLoss auf ignore) wird mit dieser Task durch einen Test auf den Push-Weg abgedeckt.
+
+## Aufgenommen aus banking-import-q7ds2 (Triage 2026-11-06)
+**ReportLoss im laufenden Server absichern** (chore, erfasst 2026-10-31)
+
+### Why
+Aus der Gegenprobe von banking-import-z4h6p überlebt ein Mutant: `ReportLoss` in `livePorts` auf `ignore`. Der Verlust ginge dann nicht ins Server-Log, die ganze Suite bleibt grün.
+
+### What
+Den Mutanten rot machen oder festhalten, dass die Zeile bis `banking-import-bftq0` ungetestet bleibt. Mittel nach Test-Doktrin Punkt 1 und 7.
+
+### Acceptance criteria
+- [ ] `ReportLoss` in `livePorts` auf `ignore` macht mindestens einen Test rot, oder der Task hält begründet fest, dass diese Zeile bis `banking-import-bftq0` ungetestet bleibt.
+- [ ] Die Mutante ist in einer Kopie ohne `.env` gelaufen, mit sauberer Basis.
+- [ ] `./verify.sh` zeigt `VERIFY: PASS`.
+
+### Notes
+Die Mutante steht als `L-report` in `mut.py` der Iteration 4 von banking-import-z4h6p.
+
+Zusatz des Verifiers: Der Mutant `X-bankClock` überlebt ebenfalls (die Uhr `fun () -> DateTimeOffset.UtcNow` in `liveImportPorts` auf `MinValue`). Dieselbe Lücke ist beim `DateTimeOffset.UtcNow` in `testComdirectConnection` zu vermuten, dort lief kein Mutant.
+
+Zusatz aus infrastructure-mngfn: Der Anschluss von `loadAppSettings` in `liveImportPorts.LoadSettings` hat keinen Wächter. Ein eingefügtes `try/with`, das leere Einstellungen liefert, bleibt grün (Mutant `live-loadsettings-swallow`).

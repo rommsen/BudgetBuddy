@@ -1,6 +1,6 @@
 ---
 id: categorization-krscs
-title: "Regel-Dialog: Ladezustände, Fehler und Seiteneffekte"
+title: "Regel-Dialog im Client: Ladezustände, Fehler, Seiteneffekte und Retry beim Muster-Test"
 status: backlog
 type: refactor
 context: categorization
@@ -8,7 +8,7 @@ created: 2026-10-30
 completed:
 depends_on: []
 blocks: []
-tags: [captured, bestandsreview]
+tags: [captured, bestandsreview, client, retry, frontend, tests]
 related_adrs: []
 related_research: []
 prior_art: []
@@ -40,3 +40,30 @@ Alle Befunde der Gruppe, je Zeile Fundstelle | Regel | Schwere | Vorschlag. Beri
 
 ## Notes
 Captured via `quick-capture` on 2026-10-30, raw, unrefined. Bewusst groß; im Refinement (`agentheim:modeling`) kleiner schneiden, wenn der Owner das will.
+
+## Aufgenommen aus categorization-h2w8k (Triage 2026-11-06)
+**Muster testen im Regel-Dialog läuft ohne Retry.reading, an der Importzeile mit** (bug, erfasst 2026-11-03)
+
+### Why
+Bei infrastructure-t5m2b aufgefallen: `testRule` ist ein lesender Aufruf. An der Importzeile (`Components/SyncFlow/State.fs`) läuft er über `Retry.reading`, im Regel-Dialog (`Components/Rules/State.fs`, `testPatternCmd`) nicht. Bricht dort die Verbindung einmal ab (Status 0), meldet der Dialog sofort "nicht geprüft", statt still zu wiederholen.
+
+### What
+Klären, ob der Regel-Dialog dieselbe Wiederholung bekommt. Falls ja: `Retry.reading` dort einsetzen und das Inventar in `src/Tests/RetryTests.fs` mitziehen.
+
+### Acceptance criteria
+- [ ] Entscheidung festgehalten (gleich behandeln oder begründet verschieden).
+- [ ] Bei Änderung: Regressionstest, der vor dem Fix rot ist (Inventar oder Verhalten), `./verify.sh` PASS.
+
+## Aufgenommen aus categorization-m7tq3 (Triage 2026-11-06)
+**Muster-Test: Hochzählen des Stands beim Öffnen des Formulars absichern** (chore, erfasst 2026-10-31)
+
+### Why
+Die Gegenprobe zu categorization-f955d zeigt einen überlebenden Mutanten: `OpenInlineRuleForm` ohne Hochzählen von `InlineRuleTestVersion`. Das Hochzählen ist die einzige Sicherung beim Wechsel von Formular A nach B ohne Schließen. Der Code ist korrekt, nur ungetestet.
+
+### What
+Ein Test rein über `update`, ohne API, der über `OpenInlineRuleForm` läuft.
+
+### Acceptance criteria
+- [ ] GIVEN eine laufende Anfrage aus Formular A WHEN Formular B geöffnet wird und die Antwort kommt THEN bleibt das Ergebnis in B unberührt.
+- [ ] Der Mutant ohne Hochzählen macht den Test rot.
+- [ ] `./verify.sh` zeigt `VERIFY: PASS`.

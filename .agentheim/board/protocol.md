@@ -5,6 +5,225 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 09:44 -- Modeling / Dismissed: design-system-p8kvn
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- design-system-p8kvn - "Badge.neutral und setting-description liegen bei 12 px knapp unter 4,5:1 Kontrast" (design-system)
+
+---
+
+## 2026-11-06 09:44 -- Modeling / Dismissed: infrastructure-f3k7x
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- infrastructure-f3k7x - "Feliz 2.9 auf 3.x heben, damit React 19 nicht für jede Kinderliste die Key-Warnung meldet" (infrastructure)
+
+---
+
+## 2026-11-06 09:44 -- Modeling / Dismissed: infrastructure-q7m2k
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- infrastructure-q7m2k - "Eingabeprüfung für setDefaultBudget, setDefaultAccount und setQuickAddAccount" (infrastructure)
+
+---
+
+## 2026-11-06 09:44 -- Modeling / Dismissed: infrastructure-w4mzc
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- infrastructure-w4mzc - "Einstellungen: ein nicht entschlüsselbarer Wert sieht in loadAppSettingsFrom weiter wie nichts gesetzt aus" (infrastructure)
+
+---
+
+## 2026-11-06 09:44 -- Modeling / Dismissed: infrastructure-t7qkh
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- infrastructure-t7qkh - "Einstellungen: Entwürfe bleiben beim Bereichswechsel stehen, Abbrechen setzt Konto-ID und Sync-Tage nicht zurück" (infrastructure)
+
+---
+
+## 2026-11-06 09:44 -- Modeling / Dismissed: design-system-fpem2
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- design-system-fpem2 - "Wächter: .NET-Tests prüfen keine Tailwind-Größen per Klassenstring" (design-system)
+
+---
+
+## 2026-11-06 09:44 -- Modeling / Dismissed: infrastructure-c4r8n
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- infrastructure-c4r8n - "CORS-Abwesenheit als Host-Test statt Quelltext-Suche" (infrastructure)
+
+---
+
+## 2026-11-06 09:44 -- Modeling / Dismissed: infrastructure-q7v2m
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- infrastructure-q7v2m - "Übrige Quelltext-Tests auf View-Verdrahtung durch update- oder Browser-Tests ersetzen" (infrastructure)
+
+---
+
+## 2026-11-06 09:44 -- Modeling / Dismissed: infrastructure-q7r4m
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- infrastructure-q7r4m - "Strukturtests auf View-Verdrahtung in CategoryPickerTests und RulesListTests nach Doktrin Punkt 7 ablösen" (infrastructure)
+
+---
+
+## 2026-11-06 09:44 -- Modeling / Dismissed: infrastructure-k3w8n
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- infrastructure-k3w8n - "Nachgebaute Tests in YnabClientTests gegen Produktionscode stellen" (infrastructure)
+
+---
+
+## 2026-11-06 09:44 -- Modeling / Dismissed: categorization-mznx3
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-mznx3 - "Testlücken und nachgebaute Tests" (categorization)
+
+---
+
+## 2026-11-06 09:44 -- Modeling / Dismissed: ledger-vqvq6
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- ledger-vqvq6 - "Playwright-Wächter ledger-split-cashback wartet auf die Settings-Antwort statt fest 400 ms" (ledger)
+
+---
+
+## 2026-11-06 09:44 -- Modeling / Dismissed: infrastructure-v3tqk
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- infrastructure-v3tqk - "Wächter ledger-read-retry flackert bei getLedgerPayeeSuggestions unter Last" (infrastructure)
+
+---
+
+## 2026-11-06 09:44 -- Modeling / Dismissed: infrastructure-r6c3v
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- infrastructure-r6c3v - "Testbau sieht neue öffentliche Client-Werte nicht: veraltete Referenz-Assembly" (infrastructure)
+
+---
+
+## 2026-11-06 09:44 -- Modeling / Dismissed: infrastructure-ztgge
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- infrastructure-ztgge - "Gezielter Testlauf während der Arbeit, volles Gate vor dem Abschluss: verify.sh --changed wählt Schritte nach geänderten Pfaden" (infrastructure)
+
+---
+
+## 2026-11-06 09:44 -- Modeling / Dismissed: infrastructure-pgpb6
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- infrastructure-pgpb6 - "Gate läuft nach dem dotnet build in zwei parallelen Strängen: Expecto neben npm build, Wächtern und test:scripts" (infrastructure)
+
+---
+
+## 2026-11-06 09:44 -- Modeling / Dismissed: infrastructure-hwfkn
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- infrastructure-hwfkn - "Spike: Kernbudget für gleichzeitige Gate-Läufe messen. Parallelität je Lauf, Sperre um test:scripts und Zahl gleichzeitiger Worktrees zusammen entscheiden" (infrastructure)
+
+---
+
+## 2026-11-06 09:44 -- Modeling / Dismissed: ledger-c7j8e
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- ledger-c7j8e - Kursquelle für Geldmarkt-ETF per ISIN (Research-Spike) (ledger)
+
+---
+
+## 2026-11-06 09:44 -- Modeling / Dismissed: banking-import-q7ds2
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- banking-import-q7ds2 - "ReportLoss im laufenden Server absichern" (banking-import)
+
+---
+
+## 2026-11-06 09:44 -- Modeling / Dismissed: budgeting-w5k2r
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- budgeting-w5k2r - "Pause verschwindet, wenn beim Tipp ein Lesen des Monats schon läuft (Wechsel hin und zurück)" (budgeting)
+
+---
+
+## 2026-11-06 09:44 -- Modeling / Dismissed: budgeting-w2f6c
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- budgeting-w2f6c - "Budget-Seite: Listenbeträge gegen ADR 0049" (budgeting)
+
+---
+
+## 2026-11-06 09:44 -- Modeling / Dismissed: banking-import-wp7js
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- banking-import-wp7js - "Split im Import" (banking-import)
+
+---
+
+## 2026-11-06 09:44 -- Modeling / Dismissed: categorization-m7tq3
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-m7tq3 - "Muster-Test: Hochzählen des Stands beim Öffnen des Formulars absichern" (categorization)
+
+---
+
+## 2026-11-06 09:44 -- Modeling / Dismissed: categorization-h2w8k
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-h2w8k - "Muster testen im Regel-Dialog läuft ohne Retry.reading, an der Importzeile mit" (categorization)
+
+---
+
+## 2026-11-06 09:44 -- Modeling / Captured: infrastructure-hgbey - "Kann-Sammlung infrastructure"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Triage 2026-11-06: Kann-Sammlung infrastructure angelegt, nimmt t7qkh, w4mzc, q7m2k, f3k7x und design-system-p8kvn auf.
+
+---
+
+## 2026-11-06 09:44 -- Modeling / Captured: infrastructure-phadg - "Altlasten nach der Test-Doktrin: nachgebaute Tests und Quelltext-Tests auf View-Verdrahtung ersetzen"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Triage 2026-11-06: sechs Tickets zu nachgebauten und Quelltext-Tests gebündelt (categorization-mznx3, k3w8n, q7r4m, q7v2m, c4r8n, design-system-fpem2).
+
+---
+
+## 2026-11-06 09:44 -- Modeling / Captured: infrastructure-mshaf - "Gate schneller und stabil: parallele Stränge, gezielter Lauf, Kernbudget, flackernde Wächter, veraltete Referenz-Assembly"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Triage 2026-11-06: sechs Gate-Tickets gebündelt (hwfkn, pgpb6, ztgge, r6c3v, v3tqk, ledger-vqvq6).
+
+---
+
 ## 2026-11-06 09:42 -- Backlog-Triage
 
 **Type:** Modeling / Backlog-Triage
