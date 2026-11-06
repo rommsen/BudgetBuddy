@@ -1392,12 +1392,13 @@ let loadCategoriesEntries (categoryIds: Guid list) (firstDay: DateTime) (lastDay
     | ids -> loadAllMatching None { noFilter with CategoryIds = ids; DateFrom = Some firstDay; DateTo = Some lastDay }
 
 /// Der Kalendertag der ersten Buchung im Kassenbuch, ohne in YNAB gelöschte (budgeting-k5q2w). Verglichen wird
-/// wie im Filter auf dem Tagesteil (`substr(date, 1, 10)`). Ohne Buchung `None`.
+/// wie im Filter auf dem Tagesteil. `MIN(date)` vor `substr`, damit der Index auf `date` greift (ISO-Format, die
+/// Reihenfolge der Texte ist die der Tage). Ohne Buchung `None`.
 let loadFirstEntryDate () : Async<DateTime option> =
     async {
         use conn = Core.getConnection ()
         let! first =
-            conn.ExecuteScalarAsync<string>("SELECT MIN(substr(date, 1, 10)) FROM ledger_entries WHERE deleted_in_ynab = 0")
+            conn.ExecuteScalarAsync<string>("SELECT substr(MIN(date), 1, 10) FROM ledger_entries WHERE deleted_in_ynab = 0")
             |> Async.AwaitTask
         return
             first
