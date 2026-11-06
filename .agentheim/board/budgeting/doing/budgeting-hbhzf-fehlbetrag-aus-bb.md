@@ -1,7 +1,7 @@
 ---
 id: budgeting-hbhzf
 title: "Fehlbetrag aus BB: Targets anwenden und die Anzeige rechnen mit BBs Fehlbetrag gegen das Soll, Rückbau der Parallelrechnung"
-status: todo
+status: doing
 type: feature
 context: budgeting
 created: 2026-11-06

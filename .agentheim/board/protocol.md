@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 15:09 -- Batch started: [budgeting-hbhzf]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-hbhzf - "Fehlbetrag aus BB: Targets anwenden und die Anzeige rechnen mit BBs Fehlbetrag gegen das Soll, Rückbau der Parallelrechnung"
+**Parallel:** no (1 worker)
+
+---
+
 ## 2026-11-06 15:09 -- Modeling / Promoted: budgeting-hbhzf - "Fehlbetrag aus BB: Targets anwenden und die Anzeige rechnen mit BBs Fehlbetrag gegen das Soll, Rückbau der Parallelrechnung"
 
 **Type:** Modeling / Promote
