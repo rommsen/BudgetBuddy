@@ -5,6 +5,115 @@ Newest entries on top.
 
 ---
 
+## 2026-11-06 09:42 -- Backlog-Triage
+
+**Type:** Modeling / Backlog-Triage
+**Anlass:** Backlog bei 57 Tickets, Roman: viele Testthemen, unklar ob noch sinnvoll. Ziel rund 26.
+**Gestrichen (11):**
+- budgeting-q8m2v: Historie begrenzen lohnt bei einem Haushalt nicht.
+- budgeting-w3p7n: Pausen in der allgemeinen Historie nicht vermisst.
+- banking-import-m4xrt: Konto-Id wird praktisch nie geändert.
+- infrastructure-aaryk: PWA-Wächter mit zwei Builds teuer, Logik ist getestet.
+- infrastructure-n2w8q: offene Doktrin-Fragen haben nichts blockiert.
+- infrastructure-p9kd4: nur aus dem Quelltext abgeleitet, nie beobachtet.
+- infrastructure-v8m2d: Fremd-Plugin, Umgehung steht in CLAUDE.md.
+- ledger-x2aan: Verhalten laut ADR 0068 gewollt.
+- ynab-sync-r7m2c: nur nach mehreren gescheiterten Wiederholungen, selten.
+- design-system-w3k5d: kein Knopf hat einen Text aus Leerzeichen.
+- ledger-yfqxp: README-Satz direkt korrigiert.
+**Zusammengelegt:** folgt in eigenen Commits, je mit Verweis auf die aufgenommenen Ids.
+**Entscheidung Roman:** Triage wie vorgeschlagen, budgeting-e2z7v bleibt, Regel Backlog-Disziplin übernehmen.
+
+---
+
+## 2026-11-06 09:42 -- Modeling / Dismissed: ledger-yfqxp
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- ledger-yfqxp - "Ledger-README: Barabhebung nennt noch die Konto-Auswahl statt des Ziel-Pickers" (ledger)
+
+---
+
+## 2026-11-06 09:42 -- Modeling / Dismissed: design-system-w3k5d
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- design-system-w3k5d - "Button.iconOnlyClass erkennt einen Text aus Leerzeichen als Icon-only" (design-system)
+
+---
+
+## 2026-11-06 09:42 -- Modeling / Dismissed: ynab-sync-r7m2c
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- ynab-sync-r7m2c - "Import prüfen: eine alte Antwort auf die Lena-Farbe darf die neuere nicht ersetzen" (ynab-sync)
+
+---
+
+## 2026-11-06 09:42 -- Modeling / Dismissed: ledger-x2aan
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- ledger-x2aan - "Bot-Drossel: globaler Zähler vor der Token-Prüfung erlaubt es Fremden, Bob auszusperren" (ledger)
+
+---
+
+## 2026-11-06 09:42 -- Modeling / Dismissed: infrastructure-v8m2d
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- infrastructure-v8m2d - "Dev-Server: Vite stürzt ab, wenn dotnet parallel das Client-Projekt baut" (infrastructure)
+
+---
+
+## 2026-11-06 09:42 -- Modeling / Dismissed: infrastructure-p9kd4
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- infrastructure-p9kd4 - "Kassenbuch: Nachladen mit eingefrorener Query kann eine Zeile überspringen, wenn währenddessen eine Zeile aus der Liste fällt" (infrastructure)
+
+---
+
+## 2026-11-06 09:42 -- Modeling / Dismissed: infrastructure-n2w8q
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- infrastructure-n2w8q - "Browser-Test-Doktrin nachschärfen: gemischte Tests, Kennung für Verlauf und Routing, Spielarten als eigene Flows, Einzeiler-Verdrahtung im update" (infrastructure)
+
+---
+
+## 2026-11-06 09:42 -- Modeling / Dismissed: infrastructure-aaryk
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- infrastructure-aaryk - Playwright-Wächter für den PWA-Wechsel mit zwei Builds: alter Stand läuft, neuer Deploy kommt, Zurückholen lädt neu bzw. zeigt den Hinweis (infrastructure)
+
+---
+
+## 2026-11-06 09:42 -- Modeling / Dismissed: banking-import-m4xrt
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- banking-import-m4xrt - "Live messen, wie Comdirect auf eine falsche Konto-Id antwortet" (banking-import)
+
+---
+
+## 2026-11-06 09:42 -- Modeling / Dismissed: budgeting-w3p7n
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- budgeting-w3p7n - "Allgemeine Historie: Pausen und Target-Änderungen als eigene Arten?" (budgeting)
+
+---
+
+## 2026-11-06 09:42 -- Modeling / Dismissed: budgeting-q8m2v
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- budgeting-q8m2v - "Allgemeine Historie begrenzen oder nach Monat laden" (budgeting)
+
+---
+
 ## 2026-11-06 09:08 -- Work session ended
 
 **Type:** Work / Session end

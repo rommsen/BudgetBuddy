@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 1
+- **Backlog:** 0
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 15
@@ -45,7 +45,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **ynab-sync-r7m2c** — "Import prüfen: eine alte Antwort auf die Lena-Farbe darf die neuere nicht ersetzen" (bug) — `backlog/ynab-sync-r7m2c-import-pr-fen-eine-alte-antwort-auf-die-lena-farbe-darf-die.md`
 <!-- backlog-list:end -->
 
 
