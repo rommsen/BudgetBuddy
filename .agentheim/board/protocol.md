@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-08 00:52 -- Modeling / Promoted: design-system-dak16 - "Palette 2 im Token-Layer: ein Akzent für Aktion und Auswahl, Gelb für braucht dich, keine Seitenausnahmen, Kontrast-Wächter"
+
+**Type:** Modeling / Promote
+**BC:** design-system
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-08 00:52 -- Review-Lauf: infrastructure-jc1y1
 
 **Type:** Review / Review-Lauf
