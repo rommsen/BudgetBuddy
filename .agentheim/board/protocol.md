@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 16:53 -- Batch started: [infrastructure-nx14s, design-system-bcdqy]
+
+**Type:** Work / Batch start
+**Tasks:** infrastructure-nx14s - "Layout-Invarianten als ein generischer Sweep über alle Routen und Breiten statt als Designwerte je Komponente, mit Doktrin-Regel für Layout-Regressionen", design-system-bcdqy - "Muster im Styleguide: Orte, Auswahl, Liste mit Panel, Tastatur, Dialoge und Layout-Regeln für Handy und PC"
+**Parallel:** yes (2 workers, getrennte Dateien: scripts/ und test-doctrine gegen styleguide.md)
+
+---
+
 ## 2026-11-07 16:44 -- Modeling / Refined: Etappe 1 (Bedeutungen)
 
 **Type:** Modeling / Refine

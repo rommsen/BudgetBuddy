@@ -1,7 +1,7 @@
 ---
 id: design-system-bcdqy
 title: "Muster im Styleguide: Orte, Auswahl, Liste mit Panel, Tastatur, Dialoge und Layout-Regeln für Handy und PC"
-status: todo
+status: doing
 type: feature
 context: design-system
 created: 2026-11-07

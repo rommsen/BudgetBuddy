@@ -11,18 +11,18 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 2
-- **Todo:** 1
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 1
 - **Done:** 43
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **design-system-bcdqy** — "Muster im Styleguide: Orte, Auswahl, Liste mit Panel, Tastatur, Dialoge und Layout-Regeln für Handy und PC" (feature) — `todo/design-system-bcdqy-muster-im-styleguide.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **design-system-bcdqy** — "Muster im Styleguide: Orte, Auswahl, Liste mit Panel, Tastatur, Dialoge und Layout-Regeln für Handy und PC" (feature) — `doing/design-system-bcdqy-muster-im-styleguide.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
