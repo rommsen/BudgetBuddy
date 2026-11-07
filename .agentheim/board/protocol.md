@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 09:38 -- Modeling / Promoted: infrastructure-vp308 - "Fehler über die Grenze: kein Stacktrace an den Client, kein YNAB-Rohtext an Client, Bob und in events"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-07 09:37 -- Task verified and completed: ledger-bk3q8 - "Quick Add und Bob über einen gemeinsamen Barbuchungs-Befehl, Push-Bau als reine Funktion; ein Kategorien-Ladefehler bucht nicht mehr still ohne Kategorie"
 
 **Type:** Work / Task completion

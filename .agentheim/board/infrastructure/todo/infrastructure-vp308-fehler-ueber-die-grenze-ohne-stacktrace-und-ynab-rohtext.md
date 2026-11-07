@@ -1,7 +1,7 @@
 ---
 id: infrastructure-vp308
 title: "Fehler über die Grenze: kein Stacktrace an den Client, kein YNAB-Rohtext an Client, Bob und in events"
-status: backlog
+status: todo
 type: bug
 context: infrastructure
 created: 2026-11-07
