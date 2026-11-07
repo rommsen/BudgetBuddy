@@ -340,6 +340,9 @@ type Model = {
     MonthStartCheck: RemoteData<TargetCheckData>
     /// Zählt die Abfragen von `MonthStartCheck`: eine späte Antwort ersetzt keinen neueren Stand.
     MonthStartCheckGeneration: int
+    /// Zählt das Öffnen der Vorschau von Targets anwenden (budgeting-gvajj): nur die Antwort der jüngsten Öffnung
+    /// füllt den Dialog.
+    TargetsPreviewGeneration: int
 }
 
 type Msg =
@@ -371,8 +374,8 @@ type Msg =
     | CoverOverdrawn of panel: bool
     /// Antwort auf das Laden der Rohdaten für das Feld Targets prüfen, mit der Generation beim Start.
     | MonthStartCheckLoaded of generation: int * Result<TargetCheckData, string>
-    /// Antwort der Vorschau, mit dem Monat, zu dem sie gehört.
-    | PreviewLoaded of month: string * Result<TargetPreview, string>
+    /// Antwort der Vorschau, mit dem Monat, zu dem sie gehört, und der Generation der Öffnung.
+    | PreviewLoaded of month: string * generation: int * Result<TargetPreview, string>
     /// "Übernehmen".
     | ConfirmTargets
     | TargetsApplied of Result<ApplyResult, string>
@@ -570,4 +573,5 @@ let init () : Model =
       MonthStartToggle = MonthStartByRule
       MonthStartHidden = Set.empty
       MonthStartCheck = NotAsked
-      MonthStartCheckGeneration = 0 }
+      MonthStartCheckGeneration = 0
+      TargetsPreviewGeneration = 0 }

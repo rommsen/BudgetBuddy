@@ -10,18 +10,18 @@ open Client.DesignSystem
 
 /// Dialog öffnen oder nach gescheiterter Vorschau "Wiederholen". Nur bei geladenem Monat und nur,
 /// wenn der Dialog zu ist oder an der Vorschau scheiterte; `true` heißt: der Aufrufer muss die
-/// Vorschau holen.
+/// Vorschau holen, mit der neuen `TargetsPreviewGeneration`.
 let openTargets (model: Model) : Model * bool =
     match model.Month, model.Targets with
     | Success _, (TargetsClosed | PreviewFailed _)
         when shownMonthKind model |> Option.exists targetsAllowed && not (monthChanging model) ->
-        { model with Targets = PreviewLoading }, true
+        { model with Targets = PreviewLoading; TargetsPreviewGeneration = model.TargetsPreviewGeneration + 1 }, true
     | _ -> model, false
 
-/// Antwort der Vorschau einnehmen. Eine Antwort zu einem anderen Monat oder zu einem
-/// inzwischen geschlossenen Dialog wird verworfen.
-let applyPreviewLoaded (month: string) (result: Result<TargetPreview, string>) (model: Model) : Model =
-    if shownMonth model <> Some month || model.Targets <> PreviewLoading then
+/// Antwort der Vorschau einnehmen. Eine Antwort zu einem anderen Monat, zu einem inzwischen
+/// geschlossenen Dialog oder zu einer früheren Öffnung wird verworfen (budgeting-gvajj).
+let applyPreviewLoaded (month: string) (generation: int) (result: Result<TargetPreview, string>) (model: Model) : Model =
+    if shownMonth model <> Some month || model.Targets <> PreviewLoading || generation <> model.TargetsPreviewGeneration then
         model
     else
         match result with

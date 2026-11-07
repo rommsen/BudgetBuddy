@@ -54,12 +54,12 @@ let private monthCmd (reread: MonthReread) (model: Model) : Cmd<Msg> =
 
 let private loadCmd (model: Model) : Cmd<Msg> = monthCmd FullReread model
 
-let private previewCmd (month: string) : Cmd<Msg> =
+let private previewCmd (month: string) (generation: int) : Cmd<Msg> =
     Cmd.OfAsync.either
         (fun key -> Retry.reading Api.budget.previewTargets key)
         month
-        (fun result -> PreviewLoaded (month, result))
-        (fun ex -> PreviewLoaded (month, Error ex.Message))
+        (fun result -> PreviewLoaded (month, generation, result))
+        (fun ex -> PreviewLoaded (month, generation, Error ex.Message))
 
 // Budget-Entscheidungen tragen eine Befehls-Id je Absicht (ADR 0084 Punkt 8) und laufen über
 // `Retry.command`: nach Status 0 höchstens ein zweiter Versuch mit derselben Id, den der Server als
@@ -192,6 +192,11 @@ let private monthStartCheckCmd (generation: int) : Cmd<Msg> =
         ()
         (fun result -> MonthStartCheckLoaded (generation, result))
         (fun ex -> MonthStartCheckLoaded (generation, Error ex.Message))
+
+/// Die Leiste beginnt eine neue Prüfung (Generation zählt hoch, der geladene Stand bleibt bis zur Antwort) und holt sie.
+let private rereadMonthStartCheck (model: Model) : Model * Cmd<Msg> =
+    let checking = beginMonthStartCheck model
+    checking, monthStartCheckCmd checking.MonthStartCheckGeneration
 
 /// "Ausblenden" an der Leiste auf dem Server festhalten.
 let private hideMonthStartCmd (month: string) : Cmd<Msg> =
@@ -405,9 +410,9 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
     | Loaded (generation, result) -> quiet (withTabData (applyLoaded generation result model))
     | OpenTargets ->
         match openTargets model, shownMonth model with
-        | (model', true), Some month -> model', previewCmd month, NoOp
+        | (model', true), Some month -> model', previewCmd month model'.TargetsPreviewGeneration, NoOp
         | (model', _), _ -> model', Cmd.none, NoOp
-    | PreviewLoaded (month, result) -> applyPreviewLoaded month result model, Cmd.none, NoOp
+    | PreviewLoaded (month, generation, result) -> applyPreviewLoaded month generation result model, Cmd.none, NoOp
     | ToggleTargetLine categoryId -> toggleTargetLine categoryId model, Cmd.none, NoOp
     | ToggleMonthStart -> toggleMonthStart model, Cmd.none, NoOp
     | HideMonthStart ->
@@ -491,7 +496,13 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         // Lief noch ein Laden der Prüfung, liest sie neu: seine Antwort kann älter sein als diese.
         let checked, checkRead = applyCheckAnswered origin categoryId month result answered
         let model', cmd, external = afterTargetAnswer shown reread (checked, targetAnswerToast origin formOpen name result)
-        model', Cmd.batch [ cmd; checkReadCmd checkRead model' ], external
+        // Ein angenommenes Target ändert die Hinweise: das Feld Targets prüfen der Leiste liest neu (budgeting-gvajj).
+        // Eine Ablehnung schrieb nichts.
+        let model', barCmd =
+            match result with
+            | Ok _ -> rereadMonthStartCheck model'
+            | Error _ -> model', Cmd.none
+        model', Cmd.batch [ cmd; checkReadCmd checkRead model'; barCmd ], external
     | TargetChangeCallLost (categoryId, month, message) ->
         let origin = targetCallOrigin categoryId month model
         let formOpen = answerFormOpen origin categoryId month model
@@ -502,7 +513,9 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         // Steht das Formular offen (Tab oder Panel), steht der Satz dort, sonst als Toast.
         let external = targetCallLostToast origin formOpen checkRead.IsSome reread message
         let model', cmd, external' = afterTargetAnswer shown reread (checked, external)
-        model', Cmd.batch [ cmd; checkReadCmd checkRead model' ], external'
+        // Vielleicht geschrieben: auch die Leiste liest neu (budgeting-gvajj).
+        let model', barCmd = rereadMonthStartCheck model'
+        model', Cmd.batch [ cmd; checkReadCmd checkRead model'; barCmd ], external'
     | OpenTargetCheck -> openTargetCheck model, Cmd.none, ShowTargetCheck
     | TargetCheckEntered ->
         let entered = enterTargetCheck model

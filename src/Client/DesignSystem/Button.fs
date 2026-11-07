@@ -458,13 +458,17 @@ let private tileStateClass (state: TileState) =
 
 /// Eine Kachel: oben ein Wert in Mono 13 px 600, darunter die Bezeichnung 11 px gedämpft, zentriert, mindestens
 /// 52 px hoch, Radius 10 px. Die Bezeichnung bricht in einer schmalen Kachel um, die Kachel wächst mit. `title`: ein
-/// Tooltip, etwa die Meldung, wenn der Wert nicht lesbar ist.
-let tile (testId: string) (value: string) (label: string) (title: string option) (state: TileState) (onClick: unit -> unit) =
+/// Tooltip, etwa die Meldung, wenn der Wert nicht lesbar ist. `ariaLabel`: der Name für Screenreader, wenn der
+/// sichtbare Text nicht reicht.
+let tile (testId: string) (value: string) (label: string) (title: string option) (ariaLabel: string option) (state: TileState) (onClick: unit -> unit) =
     Html.button [
         prop.type' "button"
         prop.custom ("data-testid", testId)
         match title with
         | Some text -> prop.title text
+        | None -> ()
+        match ariaLabel with
+        | Some text -> prop.ariaLabel text
         | None -> ()
         prop.custom ("data-state", (match state with TileActive -> "active" | TileDone -> "done" | TileOpen -> "open"))
         prop.className

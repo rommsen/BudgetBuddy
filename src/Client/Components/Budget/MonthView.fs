@@ -487,7 +487,7 @@ let private monthStartFieldButton (panel: bool) (dispatch: Msg -> unit) (f: Mont
         prop.key (fieldTestId f.Field)
         prop.className "grid min-w-0"
         prop.children [
-            Button.tile (fieldTestId f.Field) f.Value f.Label f.Title (tileState f.State) (fun () -> dispatch (fieldMsg panel f.Field))
+            Button.tile (fieldTestId f.Field) f.Value f.Label f.Title f.AriaLabel (tileState f.State) (fun () -> dispatch (fieldMsg panel f.Field))
         ]
     ]
 

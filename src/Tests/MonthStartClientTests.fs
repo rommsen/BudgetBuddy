@@ -84,8 +84,8 @@ let private figures hints apply overdrawn tbb : MonthStartFigures =
 let private fieldTests =
     testList "Felder der Leiste" [
         test "Targets prüfen zeigt die Hinweise, erledigt bei 0, ohne lesbare Prüfung leer" {
-            let check hints = monthStartFields (figures hints 0m 0 0m) Set.empty |> fieldOf CheckField
-            Expect.equal (check (HintsKnown 2)) { Field = CheckField; Value = "2"; Label = "Targets prüfen"; State = FieldOpen; Title = None } "offen"
+            let check hints = monthStartFields CurrentMonth (figures hints 0m 0 0m) Set.empty |> fieldOf CheckField
+            Expect.equal (check (HintsKnown 2)) { Field = CheckField; Value = "2"; Label = "Targets prüfen"; State = FieldOpen; Title = None; AriaLabel = None } "offen"
             Expect.equal ((check (HintsKnown 0)).Value, (check (HintsKnown 0)).State) (DoneMark, FieldDone) "erledigt"
             let unreadable = check (HintsUnreadable "YNAB antwortet nicht")
             Expect.equal (unreadable.Value, unreadable.State) (UnknownMark, FieldOpen) "nicht lesbar"
@@ -93,26 +93,48 @@ let private fieldTests =
             Expect.equal (check HintsPending).Value UnknownMark "lädt"
             Expect.isNone (check HintsPending).Title "lädt: kein Tooltip"
         }
+        test "Im kommenden Monat zeigt Targets prüfen die Zahl mit dem Hinweis auf den laufenden Monat" {
+            // budgeting-gvajj, Bug: `getTargetCheck` gilt immer für den laufenden Monat. Im kommenden Monat zeigte das
+            // Feld dieselbe Zahl ohne Hinweis, dass sie zum laufenden Monat gehört (Entscheidung Roman: B).
+            let check hints = monthStartFields FutureMonth (figures hints 0m 0 0m) Set.empty |> fieldOf CheckField
+            let three = check (HintsKnown 3)
+            Expect.equal (three.Value, three.State) ("3", FieldOpen) "die Zahl bleibt"
+            Expect.equal three.Title (Some "Hinweise für den laufenden Monat") "Tooltip"
+            Expect.equal three.AriaLabel (Some "Targets prüfen 3, Hinweise für den laufenden Monat") "aria-label"
+            let none = check (HintsKnown 0)
+            Expect.equal (none.Value, none.State) (DoneMark, FieldDone) "erledigt"
+            Expect.equal none.AriaLabel (Some "Targets prüfen erledigt, Hinweise für den laufenden Monat") "aria-label erledigt"
+            let unreadable = check (HintsUnreadable "YNAB antwortet nicht")
+            Expect.equal unreadable.Value UnknownMark "nicht lesbar"
+            Expect.equal unreadable.Title (Some "Hinweise für den laufenden Monat. YNAB antwortet nicht") "Hinweis und Meldung"
+            Expect.equal unreadable.AriaLabel (Some "Targets prüfen nicht bekannt, Hinweise für den laufenden Monat") "aria-label ohne Zahl"
+            let others = monthStartFields FutureMonth (figures (HintsKnown 3) 10m 1 5m) Set.empty |> List.filter (fun f -> f.Field <> CheckField)
+            Expect.isTrue (others |> List.forall (fun f -> f.Title.IsNone && f.AriaLabel.IsNone)) "die anderen Felder gelten dem gezeigten Monat"
+            let future = step ToggleMonthStart (pageWith (frameAt current) (openMonth next) (checkData true))
+            let shown = monthStartBar future |> Option.map (fieldOf CheckField)
+            Expect.equal (shown |> Option.bind (fun f -> f.Title)) (Some "Hinweise für den laufenden Monat") "die Leiste im Dezember"
+            Expect.isNone (monthStartBar page |> Option.bind (fieldOf CheckField >> fun f -> f.AriaLabel)) "im laufenden Monat kein Zusatz"
+        }
         test "Targets prüfen zählt wie die Kopf-Karte der Seite: nur Zeilen außerhalb von Passt" {
             Expect.equal (hintsOf (Success (checkData true))) (HintsKnown 1) "eine mehr, eine passt"
             Expect.equal (hintsOf (Success (checkData false))) (HintsKnown 0) "beide passen"
             Expect.equal (hintsOf (Failure "weg")) (HintsUnreadable "weg") "Lesefehler mit Meldung"
         }
         test "Targets anwenden zeigt die Summe, erledigt bei 0, aktiv bei offener Vorschau" {
-            let apply total active = monthStartFields (figures (HintsKnown 0) total 0 0m) active |> fieldOf ApplyField
+            let apply total active = monthStartFields CurrentMonth (figures (HintsKnown 0) total 0 0m) active |> fieldOf ApplyField
             Expect.equal ((apply 1560m Set.empty).Value, (apply 1560m Set.empty).State) ("1.560,00", FieldOpen) "offen"
             Expect.equal ((apply 0m Set.empty).Value, (apply 0m Set.empty).State) (DoneMark, FieldDone) "erledigt"
             Expect.equal (apply 1560m (Set.ofList [ ApplyField ])).State FieldActive "aktiv"
         }
         test "Überzogene decken zählt die überzogenen Kategorien, erledigt bei 0, aktiv beim Filter" {
-            let covered count active = monthStartFields (figures (HintsKnown 0) 0m count 0m) active |> fieldOf OverdrawnField
+            let covered count active = monthStartFields CurrentMonth (figures (HintsKnown 0) 0m count 0m) active |> fieldOf OverdrawnField
             Expect.equal ((covered 2 Set.empty).Value, (covered 2 Set.empty).State) ("2", FieldOpen) "offen"
             Expect.equal ((covered 0 Set.empty).Value, (covered 0 Set.empty).State) (DoneMark, FieldDone) "erledigt"
             Expect.equal (covered 0 (Set.ofList [ OverdrawnField ])).State FieldActive "aktiv geht vor erledigt"
             Expect.equal (covered 2 Set.empty).Label "Überzogene decken" "Bezeichnung"
         }
         test "Verteilen zeigt Zu verteilen, solange positiv, sonst erledigt" {
-            let spread tbb = monthStartFields (figures (HintsKnown 0) 0m 0 tbb) Set.empty |> fieldOf DistributeField
+            let spread tbb = monthStartFields CurrentMonth (figures (HintsKnown 0) 0m 0 tbb) Set.empty |> fieldOf DistributeField
             Expect.equal ((spread 1650m).Value, (spread 1650m).State) ("1.650,00", FieldOpen) "offen"
             Expect.equal ((spread 0m).Value, (spread 0m).State) (DoneMark, FieldDone) "erledigt"
             Expect.equal (spread -5m).State FieldDone "negativ"
@@ -269,6 +291,33 @@ let private updateTests =
         }
     ]
 
+let private targetChangeTests =
+    // budgeting-gvajj, Bug: die Leiste las ihre Prüfung nur bei `PageEntered`. Nach einer Target-Änderung im Inspektor
+    // oder auf der Seite Targets prüfen zeigte das Feld Targets prüfen den alten Stand, bis Roman die Seite verließ und
+    // wieder betrat.
+    let written = TargetChangeAnswered (foodId, current, Ok (TargetWritten (Some (monthly 150m))))
+    let lost = TargetChangeCallLost (foodId, current, "Http error (0)")
+    let rereads (name: string) (msg: Msg) =
+        test name {
+            let g = page.MonthStartCheckGeneration
+            let answered = step msg page
+            Expect.equal answered.MonthStartCheckGeneration (g + 1) "eine neue Prüfung"
+            Expect.equal answered.MonthStartCheck (Success (checkData true)) "der alte Stand bleibt bis zur Antwort"
+            let stale = step (MonthStartCheckLoaded (g, Ok (checkData false))) answered
+            Expect.equal stale.MonthStartCheck (Success (checkData true)) "die ältere Antwort zählt nicht"
+            let fresh = step (MonthStartCheckLoaded (g + 1, Ok (checkData false))) answered
+            Expect.equal fresh.MonthStartCheck (Success (checkData false)) "der neue Stand"
+        }
+    testList "Leiste nach einer Target-Änderung" [
+        rereads "Nach einem geschriebenen Target liest die Leiste ihre Prüfung neu" written
+        rereads "Nach einem Target-Aufruf mit offenem Ausgang liest die Leiste ihre Prüfung neu" lost
+        test "Eine abgelehnte Target-Änderung liest die Leiste nicht neu" {
+            let rejected = step (TargetChangeAnswered (foodId, current, Error "abgelehnt")) page
+            Expect.equal rejected.MonthStartCheckGeneration page.MonthStartCheckGeneration "keine neue Prüfung"
+            Expect.equal rejected.MonthStartCheck page.MonthStartCheck "der Stand bleibt"
+        }
+    ]
+
 let private lineA = { CategoryId = foodId; CategoryName = "Lebensmittel"; GroupName = "Laufend"; OldAssigned = eur 0m; Underfunded = eur 900m; NewAssigned = eur 900m; Target = None }
 let private lineB = { lineA with CategoryId = drugstoreId; CategoryName = "Drogerie"; Underfunded = eur 80m; NewAssigned = eur 80m }
 
@@ -363,4 +412,4 @@ let private previewTests =
 
 [<Tests>]
 let tests =
-    testList "Monatserster, Client (budgeting-m3x7f)" [ fieldTests; fieldMsgTests; standsTests; updateTests; previewTests ]
+    testList "Monatserster, Client (budgeting-m3x7f)" [ fieldTests; fieldMsgTests; standsTests; updateTests; targetChangeTests; previewTests ]

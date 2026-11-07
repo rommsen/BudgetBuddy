@@ -92,10 +92,10 @@ let private openTests =
         }
         test "Die Vorschau wird eingenommen, eine späte Antwort zu anderem Monat oder geschlossenem Dialog nicht" {
             let waiting = { loaded with Targets = PreviewLoading }
-            Expect.equal (applyPreviewLoaded "2026-11-01" (Ok preview) waiting).Targets (PreviewReady { Shown = preview; Changed = false; Excluded = Set.empty }) "eingenommen"
-            Expect.equal (applyPreviewLoaded "2026-12-01" (Ok preview) waiting) waiting "anderer Monat"
-            Expect.equal (applyPreviewLoaded "2026-11-01" (Ok preview) loaded) loaded "Dialog geschlossen"
-            Expect.equal (applyPreviewLoaded "2026-11-01" (Error "kaputt") waiting).Targets (PreviewFailed "kaputt") "Fehler"
+            Expect.equal (applyPreviewLoaded "2026-11-01" 0 (Ok preview) waiting).Targets (PreviewReady { Shown = preview; Changed = false; Excluded = Set.empty }) "eingenommen"
+            Expect.equal (applyPreviewLoaded "2026-12-01" 0 (Ok preview) waiting) waiting "anderer Monat"
+            Expect.equal (applyPreviewLoaded "2026-11-01" 0 (Ok preview) loaded) loaded "Dialog geschlossen"
+            Expect.equal (applyPreviewLoaded "2026-11-01" 0 (Error "kaputt") waiting).Targets (PreviewFailed "kaputt") "Fehler"
         }
     ]
 
@@ -296,6 +296,73 @@ let private viewSourceTests =
         }
     ]
 
+/// Ein Schritt im Ablauf der Vorschau: zweimal öffnen, dazwischen schließen, zwei Antworten.
+type private PreviewStep =
+    | OpenFirst
+    | CloseDialog
+    | OpenSecond
+    | AnswerFirst
+    | AnswerSecond
+
+/// Was der Test selbst mitschreibt, ohne den getesteten Code zu fragen: ist der Dialog offen, welche Öffnung ist die
+/// jüngste, welche Antworten sind da.
+type private PreviewOracle = { IsOpen: bool; Latest: int; Answered: Set<int> }
+
+let rec private orders (items: 'a list) : 'a list list =
+    match items with
+    | [] -> [ [] ]
+    | _ -> items |> List.collect (fun x -> orders (List.filter ((<>) x) items) |> List.map (fun rest -> x :: rest))
+
+/// Roman öffnet, schließt und öffnet in dieser Reihenfolge; eine Antwort kommt irgendwann nach ihrer Öffnung.
+let private possible (order: PreviewStep list) : bool =
+    let at step = List.findIndex ((=) step) order
+    at OpenFirst < at CloseDialog && at CloseDialog < at OpenSecond
+    && at OpenFirst < at AnswerFirst && at OpenSecond < at AnswerSecond
+
+let private lateAnswerTests =
+    // budgeting-gvajj, Bug: `applyPreviewLoaded` prüfte nur Monat und `PreviewLoading`. Nach Öffnen, Schließen und
+    // erneutem Öffnen füllte die Antwort des ersten Öffnens den Dialog, auch wenn das zweite Öffnen einen neueren Stand
+    // bekäme.
+    let previews = Map.ofList [ 1, previewOf 50m [ line "Essen" 0m 30m ]; 2, previewOf 40m [ line "Essen" 0m 40m ] ]
+    let update msg model =
+        let next, _, _ = Components.Budget.State.update msg model
+        next
+    let walk (order: PreviewStep list) =
+        let start = loaded, Map.empty<int, int>, { IsOpen = false; Latest = 0; Answered = Set.empty }
+        order
+        |> List.fold
+            (fun (model, generations: Map<int, int>, oracle) step ->
+                // Die Generation, die der echte Aufruf der Öffnung mitträgt, steht nach dem Öffnen im Modell.
+                let opened n =
+                    let next = update OpenTargets model
+                    next, generations.Add(n, next.TargetsPreviewGeneration), { oracle with IsOpen = true; Latest = n }
+                let answered n =
+                    let next = update (PreviewLoaded ("2026-11-01", generations[n], Ok previews[n])) model
+                    next, generations, { oracle with Answered = oracle.Answered.Add n }
+                let model', generations', oracle' =
+                    match step with
+                    | OpenFirst -> opened 1
+                    | OpenSecond -> opened 2
+                    | CloseDialog -> update CloseTargets model, generations, { oracle with IsOpen = false }
+                    | AnswerFirst -> answered 1
+                    | AnswerSecond -> answered 2
+                let expected =
+                    if not oracle'.IsOpen then TargetsClosed
+                    elif oracle'.Answered.Contains oracle'.Latest then
+                        PreviewReady { Shown = previews[oracle'.Latest]; Changed = false; Excluded = Set.empty }
+                    else PreviewLoading
+                Expect.equal model'.Targets expected $"%A{order}, nach %A{step}"
+                model', generations', oracle')
+            start
+        |> ignore
+    testList "Späte Antwort der Vorschau (gvajj)" [
+        test "In jeder Reihenfolge von Öffnen, Schließen, Öffnen und zwei Antworten gilt nur die jüngste Öffnung" {
+            let all = orders [ OpenFirst; CloseDialog; OpenSecond; AnswerFirst; AnswerSecond ] |> List.filter possible
+            Expect.equal all.Length 4 "alle möglichen Reihenfolgen"
+            all |> List.iter walk
+        }
+    ]
+
 [<Tests>]
 let tests =
-    testList "Targets anwenden, Client (budgeting-h2zfn)" [ openTests; confirmTests; retryTests; actualTests; reportLineTests; viewSourceTests ]
+    testList "Targets anwenden, Client (budgeting-h2zfn)" [ openTests; confirmTests; retryTests; actualTests; reportLineTests; viewSourceTests; lateAnswerTests ]

@@ -293,9 +293,9 @@ let private buttonSection =
                         Html.div [
                             prop.className "grid grid-cols-3 gap-1.5 max-w-sm"
                             prop.children [
-                                Button.tile "styleguide-tile-open" "2" "Targets prüfen" None Button.TileOpen ignore
-                                Button.tile "styleguide-tile-done" "✓" "Targets anwenden" None Button.TileDone ignore
-                                Button.tile "styleguide-tile-active" "3" "Überzogene decken" None Button.TileActive ignore
+                                Button.tile "styleguide-tile-open" "2" "Targets prüfen" None None Button.TileOpen ignore
+                                Button.tile "styleguide-tile-done" "✓" "Targets anwenden" None None Button.TileDone ignore
+                                Button.tile "styleguide-tile-active" "3" "Überzogene decken" None None Button.TileActive ignore
                             ]
                         ]
                         Button.quietText "styleguide-quiet-text" "Ausblenden" ignore

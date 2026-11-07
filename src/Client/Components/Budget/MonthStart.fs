@@ -33,8 +33,11 @@ type MonthStartFieldView = {
     /// Darunter, gedämpft.
     Label: string
     State: FieldState
-    /// Der Tooltip des Felds: bei nicht lesbarer Prüfung die Meldung, sonst keiner.
+    /// Der Tooltip des Felds: bei nicht lesbarer Prüfung die Meldung, im kommenden Monat der Hinweis auf den laufenden,
+    /// sonst keiner.
     Title: string option
+    /// Der Name für Screenreader, wenn der sichtbare Text nicht reicht (Targets prüfen im kommenden Monat), sonst keiner.
+    AriaLabel: string option
 }
 
 /// Die Hinweise von Targets prüfen für das Feld Targets prüfen.
@@ -62,6 +65,10 @@ let DoneMark = "✓"
 [<Literal>]
 let UnknownMark = "–"
 
+/// Der Zusatz am Feld Targets prüfen im kommenden Monat: die Prüfung gilt dem laufenden.
+[<Literal>]
+let CurrentMonthHint = "Hinweise für den laufenden Monat"
+
 /// Die Hinweise aus den Rohdaten: Zeilen außerhalb von "Passt", wie die Zähler der Seite Targets prüfen (`checkCounts`).
 let hintsOf (check: RemoteData<TargetCheckData>) : CheckHints =
     match check with
@@ -80,26 +87,40 @@ let figuresOf (check: RemoteData<TargetCheckData>) (month: BudgetMonth) : MonthS
 let fieldAmountText (m: Money) : string =
     Client.DesignSystem.Money.formatAmountText false false m.Amount m.Currency
 
-/// Die vier Felder. `active` sind die Felder, deren Filter oder Vorschau gerade offen ist; aktiv geht vor erledigt.
-/// Erledigt zeigt "✓". Verteilen ist nur Anzeige, erledigt ab Zu verteilen 0 oder darunter.
-let monthStartFields (figures: MonthStartFigures) (active: Set<MonthStartField>) : MonthStartFieldView list =
+/// Die vier Felder im Monat der Art `kind`. `active` sind die Felder, deren Filter oder Vorschau gerade offen ist; aktiv
+/// geht vor erledigt. Erledigt zeigt "✓". Verteilen ist nur Anzeige, erledigt ab Zu verteilen 0 oder darunter.
+let monthStartFields (kind: MonthKind) (figures: MonthStartFigures) (active: Set<MonthStartField>) : MonthStartFieldView list =
     let field kind label (value: string) isDone =
         let state =
             if active.Contains kind then FieldActive
             elif isDone then FieldDone
             else FieldOpen
-        { Field = kind; Value = (if isDone then DoneMark else value); Label = label; State = state; Title = None }
+        { Field = kind; Value = (if isDone then DoneMark else value); Label = label; State = state; Title = None; AriaLabel = None }
     let checkValue, checkDone =
         match figures.Hints with
         | HintsKnown 0 -> "", true
         | HintsKnown n -> string n, false
         | HintsPending
         | HintsUnreadable _ -> UnknownMark, false
-    let checkTitle =
-        match figures.Hints with
-        | HintsUnreadable message -> Some message
-        | _ -> None
-    [ { field CheckField "Targets prüfen" checkValue checkDone with Title = checkTitle }
+    // Die Prüfung gilt immer dem laufenden Monat. Im kommenden bleibt die Zahl (Targets gelten für alle Monate, ADR
+    // 0080), Tooltip und Screenreader-Name sagen, wofür sie steht (budgeting-gvajj, Entscheidung Roman B).
+    let checkTitle, checkAria =
+        match kind, figures.Hints with
+        | FutureMonth, hints ->
+            let spoken =
+                match hints with
+                | HintsKnown 0 -> "erledigt"
+                | HintsKnown n -> string n
+                | HintsPending
+                | HintsUnreadable _ -> "nicht bekannt"
+            let title =
+                match hints with
+                | HintsUnreadable message -> $"{CurrentMonthHint}. {message}"
+                | _ -> CurrentMonthHint
+            Some title, Some $"Targets prüfen {spoken}, {CurrentMonthHint}"
+        | _, HintsUnreadable message -> Some message, None
+        | _ -> None, None
+    [ { field CheckField "Targets prüfen" checkValue checkDone with Title = checkTitle; AriaLabel = checkAria }
       field ApplyField "Targets anwenden" (fieldAmountText figures.ApplyTotal) (figures.ApplyTotal.Amount <= 0m)
       field OverdrawnField "Überzogene decken" (string figures.Overdrawn) (figures.Overdrawn = 0)
       field DistributeField "verteilen" (fieldAmountText figures.ToBeBudgeted) (figures.ToBeBudgeted.Amount <= 0m) ]
@@ -148,7 +169,7 @@ let monthStartBar (model: Model) : MonthStartFieldView list option =
     | Success month, Some kind ->
         let figures = figuresOf model.MonthStartCheck month
         if monthStartStands kind (monthStartHiddenFor model month.Month) (anyFieldOpen figures) model.MonthStartToggle then
-            Some (monthStartFields figures (activeFields model))
+            Some (monthStartFields kind figures (activeFields model))
         else
             None
     | _ -> None

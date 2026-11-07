@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 09:05 -- Task verified and completed: budgeting-gvajj - "Leiste Monatserster: Targets prüfen liest nach einer Target-Änderung neu, die Vorschau von Targets anwenden nimmt keine späte Antwort mehr ein"
+
+**Type:** Work / Task completion
+**Task:** budgeting-gvajj - "Leiste Monatserster: Targets prüfen liest nach einer Target-Änderung neu, die Vorschau von Targets anwenden nimmt keine späte Antwort mehr ein"
+**Summary:** Das Feld Targets prüfen der Leiste Monatserster liest nach jeder angenommenen Target-Änderung und nach einem Target-Aufruf mit offenem Ausgang neu und trägt im kommenden Monat Tooltip und aria-label "Hinweise für den laufenden Monat"; die Vorschau von Targets anwenden nimmt nur die Antwort der jüngsten Öffnung ein.
+**Duration:** (unknown)
+**Verification:** PASS (iteration 2)
+**Files changed:** 10
+**Tests added:** 5
+**ADRs written:** none
+
+---
+
+## 2026-11-07 09:04 -- Verification failed: budgeting-gvajj - Leiste Monatserster ohne alte Stände
+
+**Type:** Work / Verification failure
+**Task:** budgeting-gvajj
+**Iteration:** 1 of 3
+**Reasons:** README_DELTA Leiste Monatserster verschweigt das Neulesen nach inzwischen geändert
+**Iteration hint:** likely-fixable
+**Next:** Delta vom Conductor korrigiert, Verifier Iteration 2
+
+---
+
 ## 2026-11-07 09:01 -- Batch started: [budgeting-r5h2n]
 
 **Type:** Work / Batch start

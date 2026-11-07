@@ -223,7 +223,9 @@ let private flowTests =
             Expect.equal ((formOf answered).AmountInput, (formOf answered).Notice) (Some "60", Some TargetChangedMeanwhileNotice) "Eingabe und Hinweis"
             Expect.equal answered.TargetCall TargetIdle "Aufruf frei"
             Expect.equal answered.MonthGeneration running.MonthGeneration "kein Neulesen"
-            Expect.isEmpty cmd "kein Aufruf"
+            // Nur die Leiste liest ihre Prüfung neu (budgeting-gvajj): BBs Stand war ein anderer als gezeigt.
+            Expect.equal answered.MonthStartCheckGeneration (running.MonthStartCheckGeneration + 1) "die Leiste liest neu"
+            Expect.equal cmd.Length 1 "kein weiterer Aufruf"
             Expect.equal external NoOp "kein Toast im offenen Tab"
             Expect.isTrue (sends SaveTarget answered) "erneut speichern gegen den neuen Stand"
             Expect.equal (requestOf answered).Shown (Some (targetOf 55m)) "gezeigt ist jetzt BBs Stand"
@@ -259,7 +261,9 @@ let private flowTests =
             let running = onTrip |> step (TargetAmountChanged "60") |> step SaveTarget |> moveTo next 50m
             let lost, cmd, external = update (TargetChangeCallLost (tripId, current, "weg")) running
             Expect.equal lost.MonthGeneration running.MonthGeneration "kein Neulesen"
-            Expect.isEmpty cmd "kein Aufruf"
+            // Der Ausgang ist offen: nur die Leiste liest ihre Prüfung neu (budgeting-gvajj), sie gilt dem laufenden Monat.
+            Expect.equal lost.MonthStartCheckGeneration (running.MonthStartCheckGeneration + 1) "die Leiste liest neu"
+            Expect.equal cmd.Length 1 "kein weiterer Aufruf"
             Expect.equal external (ShowToast (targetCallLostText false "weg", ToastError)) "Toast ohne Versprechen"
         }
         // budgeting-r3wq8, Bug: während des Speicherns ließen sich Betrag und Datum weiter bearbeiten. Die
