@@ -848,7 +848,10 @@ let resolveCategoryRefWith
         | Some name -> return Ok { CategoryId = categoryId; CategoryName = name }
         | None ->
             match! fromYnab () with
-            | Error _ -> return Error categoryLoadFailedText
+            | Error err ->
+                // Die Ursache bleibt im Server-Log, der Nutzer bekommt den festen Satz.
+                eprintfn "Kategorie für Quick Add nicht geladen: %s" (ynabErrorText err)
+                return Error categoryLoadFailedText
             | Ok categories ->
                 match categories |> List.tryFind (fun c -> c.Id = categoryId) with
                 | Some c -> return Ok { CategoryId = categoryId; CategoryName = c.Name }

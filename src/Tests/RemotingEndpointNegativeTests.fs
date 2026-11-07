@@ -157,18 +157,12 @@ let private rows : Row list = [
         restoringSetting "ynab_quickadd_account_id" (fun () ->
             let result = ynabApi.setQuickAddAccount (YnabAccountId (Guid.NewGuid())) |> run
             Expect.isOk result "angenommen") }
-    { Endpoint = "YnabApi.addManualTransaction"; Case = "Betrag 0 und leerer Empfänger werden abgelehnt, eine unbekannte Kategorie-Id auch"
+    { Endpoint = "YnabApi.addManualTransaction"; Case = "Betrag 0 und leerer Empfänger werden abgelehnt"
       Run = fun () ->
+        // Eine unbekannte Kategorie-Id prüft `LedgerCashBookingTests.fs` mit Ports (ledger-bk3q8).
         ynabApi.addManualTransaction
             { Amount = 0m; IsOutflow = true; PayeeName = ""; CategoryId = None; Date = DateTime.Today; Memo = None }
-        |> run |> expectError "Buchung"
-        // ledger-bk3q8: eine Id, die weder die Stammdaten noch YNAB kennen, bucht nicht. Ohne
-        // Einrichtung endet der Fall vor der Kategorie; die Auflösung selbst prüft
-        // `LedgerCashBookingTests.fs` mit Ports.
-        ynabApi.addManualTransaction
-            { Amount = 1m; IsOutflow = true; PayeeName = "Kiosk"; CategoryId = Some (YnabCategoryId (Guid.NewGuid()))
-              Date = DateTime.Today; Memo = None }
-        |> run |> expectError "unbekannte Kategorie" }
+        |> run |> expectError "Buchung" }
     { Endpoint = "YnabApi.getRecentQuickAddTemplates"; Case = "ohne Einrichtung leere Liste"
       Run = fun () ->
         match ynabApi.getRecentQuickAddTemplates () |> run with

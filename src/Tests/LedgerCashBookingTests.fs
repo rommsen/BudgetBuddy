@@ -414,8 +414,18 @@ let adapterTests =
         testCase "Quick Add ohne gespiegeltes Kassenbuch-Konto: Fehler, kein Ereignis, kein Push" <| fun () ->
             let probe = QuickAddProbe(fakeYnab @ [ quickAddAccountSettingKey, Guid.NewGuid().ToString() ])
             let result = Server.Api.addManualTransactionWith probe.Ports at (quickAddRequest None) |> Async.RunSynchronously
-            Expect.equal result (Error (YnabError.AccountNotFound quickAddAccountNotMirroredText)) "fester Satz"
+            // Verhindert den Bug, dass der feste Satz als `AccountNotFound` verpackt war und der Nutzer
+            // nur "Konto in YNAB nicht gefunden" sah (Review rv/backend).
+            Expect.equal (result |> Result.mapError ynabErrorText) (Error quickAddAccountNotMirroredText) "fester Satz beim Nutzer"
             Expect.isEmpty (eventTypesOf probe.EntryId) "kein Ereignis"
+            Expect.isEmpty probe.Pushes "kein Push"
+
+        testCase "Quick Add ohne Standard-Budget: der Nutzer liest den Satz zur fehlenden Einstellung" <| fun () ->
+            // Verhindert den Bug, dass der Satz als `BudgetNotFound` verpackt war und als
+            // "Budget in YNAB nicht gefunden" ankam (Review rv/backend).
+            let probe = QuickAddProbe([ "ynab_token", "token-kuenstlich"; quickAddAccountSettingKey, Guid.NewGuid().ToString() ])
+            let result = Server.Api.addManualTransactionWith probe.Ports at (quickAddRequest None) |> Async.RunSynchronously
+            Expect.equal (result |> Result.mapError ynabErrorText) (Error "Kein Standard-Budget konfiguriert (Settings)") "Satz beim Nutzer"
             Expect.isEmpty probe.Pushes "kein Push"
 
         testCase "Quick Add nimmt den Kategorienamen aus den gespiegelten Stammdaten und pusht auf das Quick-Add-Konto" <| fun () ->
@@ -439,6 +449,24 @@ let adapterTests =
                 Expect.equal count 3 "nennt die Buchungen"
                 Expect.stringContains message "Jetzt spiegeln" "sagt, was zu tun ist"
             | other -> failtest $"Fehler erwartet, war: {other}"
+
+        testCase "Import-Push mit ungültiger Import-Konto-Id: fester Satz statt Absturz" <| fun () ->
+            // Verhindert den Bug, dass `Guid.Parse` bei kaputtem `ynab_default_account_id` warf und
+            // Roman nur "Interner Fehler im Server" sah (Review rv/backend).
+            let setting = settingsFrom (fakeYnab @ [ "ynab_default_account_id", "keine-guid" ])
+            match Server.Api.importTargetWith setting 2 |> Async.RunSynchronously with
+            | Error (SyncError.YnabImportFailed (count, message)) ->
+                Expect.equal count 2 "nennt die Buchungen"
+                Expect.equal message Server.Api.importAccountInvalidText "fester Satz"
+            | other -> failtest $"Fehler erwartet, war: {other}"
+
+        testCase "Erneut senden einer Buchung ohne YNAB-Konto: der Grund ist der Satz der Push-Planung" <| fun () ->
+            // Verhindert den Bug, dass `pushNotPossibleReason` als `AccountNotFound` verpackt war und als
+            // "Konto in YNAB nicht gefunden" im Ereignis `EntryPushToYnabFailed` landete (Review rv/backend).
+            let create _ _ _ _ _ _ = async.Return (Ok "nie")
+            let push = Server.Api.entryPushWith (settingsFrom fakeYnab) create |> Async.RunSynchronously
+            let result = push (entry (freshAccount ()) -7m) |> Async.RunSynchronously
+            Expect.equal (result |> Result.mapError ynabErrorText) (Error pushNotPossibleReason) "Satz beim Nutzer"
 
         testCase "Erneut senden pusht den Request der reinen Push-Funktion auf das verknüpfte YNAB-Konto" <| fun () ->
             let account = mirroredAccount ()

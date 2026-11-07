@@ -387,11 +387,13 @@ let addManualTransactionWith (ports: QuickAddPorts) (now: DateTime) (validReques
 
         match tokenOpt, budgetOpt with
         | None, _ -> return Error (YnabError.Unauthorized "No YNAB token configured")
-        | _, None -> return Error (YnabError.BudgetNotFound "Kein Standard-Budget konfiguriert (Settings)")
+        // Fehlende Einstellungen sind eine Ablehnung durch BB, kein YNAB-Fehler: `RefusedByBb`
+        // bringt den Satz unverändert zum Nutzer.
+        | _, None -> return Error (YnabError.RefusedByBb "Kein Standard-Budget konfiguriert (Settings)")
         | Some token, Some budgetId ->
             // Bewusst nicht das Konto des Bank-Imports: Barbuchungen haben ihr eigenes Konto.
             match! Ledger.QueryHandlers.resolveQuickAddAccountWith ports.Setting with
-            | Error reason -> return Error (YnabError.AccountNotFound reason)
+            | Error reason -> return Error (YnabError.RefusedByBb reason)
             | Ok account ->
                 let budget = YnabBudgetId budgetId
                 let resolveCategory =
@@ -427,8 +429,11 @@ let liveQuickAddPorts : QuickAddPorts = {
 // Import-Push: Ziel aus den Settings (ledger-bk3q8)
 // ============================================
 
+let importNotConfiguredText = "YNAB ist nicht vollständig eingerichtet. Token, Budget und Import-Konto in den Settings unter YNAB setzen."
+let importAccountInvalidText = "Das Import-Konto ist ungültig eingerichtet. Wähle es in den Settings unter YNAB neu aus."
+
 /// Token, Budget, YNAB-Konto und Kassenbuch-Konto des Import-Pushs (`importToYnab` und
-/// `forceImportDuplicates`). Fehlt eine Einstellung oder das gespiegelte Kassenbuch-Konto,
+/// `forceImportDuplicates`). Fehlt eine Einstellung, ist die Konto-Id keine Guid oder fehlt das gespiegelte Kassenbuch-Konto,
 /// ist das ein Fehler mit `count` Buchungen, bevor irgendetwas geschrieben oder YNAB
 /// gefragt wird (ADR 0021: erst Kassenbuch, dann Push; kein erfundenes Konto).
 let importTargetWith
@@ -442,19 +447,22 @@ let importTargetWith
 
         match tokenOpt, defaultBudgetIdOpt, defaultAccountIdOpt with
         | None, _, _ | _, None, _ | _, _, None ->
-            return Error (SyncError.YnabImportFailed (0, "YNAB not fully configured"))
+            return Error (SyncError.YnabImportFailed (0, importNotConfiguredText))
         | Some token, Some budgetId, Some accountIdText ->
-            let ynabAccountId = YnabAccountId (Guid.Parse(accountIdText: string))
-            match! Ledger.Persistence.findAccountByYnabAccountId ynabAccountId with
-            | None ->
-                return
-                    Error (
-                        SyncError.YnabImportFailed (
-                            count,
-                            "Kein gespiegeltes Kassenbuch-Konto für das Import-Konto. Einmal \"Jetzt spiegeln\" ausführen, dann erneut versuchen."
+            match Guid.TryParse(accountIdText: string) with
+            | false, _ -> return Error (SyncError.YnabImportFailed (count, importAccountInvalidText))
+            | true, accountGuid ->
+                let ynabAccountId = YnabAccountId accountGuid
+                match! Ledger.Persistence.findAccountByYnabAccountId ynabAccountId with
+                | None ->
+                    return
+                        Error (
+                            SyncError.YnabImportFailed (
+                                count,
+                                "Kein gespiegeltes Kassenbuch-Konto für das Import-Konto. Einmal \"Jetzt spiegeln\" ausführen, dann erneut versuchen."
+                            )
                         )
-                    )
-            | Some ledgerAccount -> return Ok (token, YnabBudgetId budgetId, ynabAccountId, ledgerAccount)
+                | Some ledgerAccount -> return Ok (token, YnabBudgetId budgetId, ynabAccountId, ledgerAccount)
     }
 
 // ============================================
@@ -1373,7 +1381,8 @@ let entryPushWith (setting: string -> Async<string option>) (create: EntryPushCr
                 match Ledger.CommandHandlers.planEntryPush accounts links entry with
                 | Ok plan ->
                     return! create plan.ImportId plan.FlagColor token (YnabBudgetId budgetId) plan.YnabAccountId plan.Request
-                | Error reason -> return Error (YnabError.AccountNotFound reason)
+                // Der Satz der Push-Planung geht unverändert als Grund in `EntryPushToYnabFailed`.
+                | Error reason -> return Error (YnabError.RefusedByBb reason)
             }
         | None, _ ->
             return fun _ -> async { return Error (YnabError.Unauthorized "No YNAB token configured") }
