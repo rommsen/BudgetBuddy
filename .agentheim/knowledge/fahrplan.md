@@ -12,6 +12,12 @@ Regeln:
 Ziel: Jede Farbe und jedes Muster heißt überall dasselbe, und die drei Orte sind als Skizze
 freigegeben. Klein halten.
 
+- Entschieden 2026-11-07 (Skizze Version 2, https://claude.ai/artifact/HPpe24Y1owgpSZLWvtdGWd,
+  Recherchen `farbschema-neon-dark-2026-11-07`, `seitenlayout-liste-detail-2026-11-07`):
+  Pink entfällt; ein Akzent (Cyan) für Aktion und Auswahl, Orange entfällt als Aktionsfarbe (Palette 2);
+  Lena über ein Flag-Symbol in der YNAB-Flag-Farbe aus den Settings, Farbe nur im Symbol, immer mit Name;
+  Durchgehen startet in der Übersicht, das Kassenbuch zeigt Kontowahl, Suche und Filter-Knopf;
+  Regeln als Tab im Kassenbuch; Layout-Regeln aus der Skizze als Grundlage.
 - Bedeutungsschicht des Styleguides: Farben (aufbauend auf ADR 0075) und die Muster
   Auswahl aus wenigen Optionen, Historie, Seitenpanel, Liste mit Aktionen, leerer Zustand.
   *Wird nach der Skizze erfasst.*
