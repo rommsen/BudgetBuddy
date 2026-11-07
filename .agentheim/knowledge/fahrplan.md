@@ -3,14 +3,14 @@
 Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success looks like“.
 
 ## Stand
-Zuletzt aktualisiert: 2026-11-07, nach work und Review von nx14s und bcdqy.
+Zuletzt aktualisiert: 2026-11-08, nach work und Review von jc1y1.
 
-- **Etappe 1 · Bedeutungen:** läuft, 3 von 5 erledigt (Skizze und Prototyp, Layout-Sweep,
-  Muster im Styleguide, von Roman freigegeben). Panel ab 1024 px (Roman, 2026-11-07).
-  `infrastructure-jc1y1` nach drei Verifier-FAILs eskaliert, Roman hat Iteration 4 erlaubt.
+- **Etappe 1 · Bedeutungen:** läuft, 4 von 5 erledigt (Skizze und Prototyp, Layout-Sweep,
+  Muster im Styleguide, Designwert-Tests aufgeräumt). Offen: `design-system-dak16`.
+  Panel ab 1024 px (Roman, 2026-11-07).
 - **Etappe 2 · Lücken schließen:** noch nicht verfeinert.
 - **Etappe 3 · Ein Produkt:** noch nicht verfeinert, Zeilen wachsen.
-- **Nächster Schritt:** `infrastructure-jc1y1` Iteration 4 verifizieren, integrieren, Review.
+- **Nächster Schritt:** `design-system-dak16` promoten, `/agentheim:work`, Review (Roman: selbständig).
 - **Danach:** `design-system-dak16`, dann Etappe 2 verfeinern.
 
 ## Ablauf je Schritt
@@ -42,7 +42,7 @@ Reihenfolge: `infrastructure-nx14s` → `infrastructure-jc1y1` → `design-syste
 
 - [x] Skizze und Prototyp der drei Orte, von Roman freigegeben (2026-11-07)
 - [x] `infrastructure-nx14s` Layout-Invarianten als ein Sweep (2026-11-07)
-- `infrastructure-jc1y1` Designwert-Tests aufräumen (Iteration 4 läuft)
+- [x] `infrastructure-jc1y1` Designwert-Tests aufräumen (2026-11-08, Verifier PASS in Iteration 4)
 - `design-system-dak16` Palette 2 im Token-Layer, Kontrast-Wächter (wartet auf jc1y1)
 - [x] `design-system-bcdqy` Muster im Styleguide (2026-11-07, von Roman freigegeben)
 
