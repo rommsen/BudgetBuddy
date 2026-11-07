@@ -274,11 +274,6 @@ let private errorMappingTests =
             | Ok m -> Expect.equal m.Month "2026-10-01" "Monat"
             | Error e -> failtestf "Ok erwartet: %A" e
         }
-        test "200 mit kaputtem JSON ist eine ungültige Antwort" {
-            match runMonth 200 "{}" with
-            | Error (Shared.Domain.YnabError.InvalidResponse _) -> ()
-            | other -> failtestf "InvalidResponse erwartet: %A" other
-        }
         test "401 ist Unauthorized" {
             match runMonth 401 "{}" with
             | Error (Shared.Domain.YnabError.Unauthorized _) -> ()
@@ -295,19 +290,7 @@ let private errorMappingTests =
             | Error (Shared.Domain.YnabError.RateLimitExceeded _) -> ()
             | other -> failtestf "429: %A" other
         }
-        test "Anderer Status ist ein Netzfehler mit Status" {
-            match runMonth 503 "weg" with
-            | Error (Shared.Domain.YnabError.NetworkError msg) -> Expect.stringContains msg "503" "Status"
-            | other -> failtestf "503: %A" other
-        }
-        test "Eine Ausnahme beim Abruf wird zum Netzfehler" {
-            let result =
-                Server.YnabClient.getMonthWith (fun () -> async { return raise (System.Net.Http.HttpRequestException "kaputt") }) "2026-10-01"
-                |> Async.RunSynchronously
-            match result with
-            | Error (Shared.Domain.YnabError.NetworkError msg) -> Expect.stringContains msg "kaputt" "Ursache"
-            | other -> failtestf "Netzfehler erwartet: %A" other
-        }
+        // Kaputtes JSON, anderer Status und Ausnahme beim Abruf: `fixedErrorTextTests` in YnabClientTests.fs (infrastructure-vp308).
     ]
 
 let private apiPathTests =

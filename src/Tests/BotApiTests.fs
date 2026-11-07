@@ -247,6 +247,15 @@ let botApiTests =
                 Expect.equal (fst (call env.Deps meth path (Some "Bearer falsch") "")) 401 $"{meth} {path} falsches Token"
                 Expect.equal (fst (call env.Deps meth path (Some token) "")) 401 "ohne Bearer-Präfix"
 
+        // infrastructure-vp308: `FixedTimeEquals` auf Bytes ungleicher Länge kehrt sofort zurück und verriet die
+        // Länge über die Antwortzeit; jetzt werden beide Seiten vorher mit SHA-256 gehasht. Die Zeit misst
+        // kein Test, hier stehen die Fälle, die abgelehnt bleiben müssen.
+        testCase "falsche Tokens gleicher, kürzerer und längerer Länge werden abgelehnt, das richtige nicht" <| fun () ->
+            let env = Env()
+            for given in [ "test-token-124"; "test"; token + "4"; token.ToUpperInvariant() ] do
+                Expect.equal (fst (call env.Deps "GET" "/bot/categories" (Some $"Bearer {given}") "")) 401 $"'{given}'"
+            Expect.equal (fst (call env.Deps "GET" "/bot/categories" bearer "")) 200 "richtiges Token"
+
         testCase "ist kein Token konfiguriert, sind die Routen abgeschaltet (401), auch mit beliebigem Header" <| fun () ->
             let env = Env(token' = None)
             Expect.equal (fst (call env.Deps "GET" "/bot/categories" bearer "")) 401 "abgeschaltet"
@@ -440,6 +449,21 @@ let botApiTests =
             Expect.equal (str again "entry_id") (str json "entry_id") "Wiederholung nennt dieselbe entry_id"
             Expect.equal (entriesFor payee).Length 1 "keine zweite Buchung"
             Expect.equal env.Pushes 1 "kein zweiter Push"
+
+        // infrastructure-vp308: bei 400 hängte `createTransactionWithFlag` YNABs Antwortrumpf an den Fehler,
+        // Bob bekam ihn als `push_error`, das Kassenbuch als Grund von `EntryPushToYnabFailed`. Der Fake
+        // läuft über die echte Abbildung `interpretCreateTransactionResponse`. Der Marker ist erfunden.
+        testCase "GIVEN YNAB lehnt die Buchung mit 400 ab WHEN Bob committet THEN ist push_error ein fester Satz ohne Rumpf" <| fun () ->
+            let rejected = async { return Server.YnabClient.interpretCreateTransactionResponse 400 "{\"error\":{\"detail\":\"marker-vp308\"}}" }
+            let env = Env(pushResult = rejected)
+            let payee = uniquePayee ()
+            let id = preview env.Deps payee "9" "outflow"
+            let status, json = commit env.Deps id
+            Expect.equal status 200 "Buchung steht"
+            Expect.isFalse (json.Value.GetProperty("pushed_to_ynab").GetBoolean()) "nicht in YNAB"
+            Expect.equal (str json "push_error") "YNAB hat abgelehnt: Buchung ungültig (HTTP 400)" "fester Satz"
+            let entry = entriesFor payee |> List.exactlyOne
+            Expect.equal entry.PushToYnabFailure.Value.Reason "YNAB hat abgelehnt: Buchung ungültig (HTTP 400)" "Grund im Kassenbuch"
 
         // ---- Wiederholung nach einer Ausnahme im Commit (ledger-z71ka) ----
         // Vorher blieb der fehlerhafte Commit gespeichert: jede Wiederholung derselben Vorschau

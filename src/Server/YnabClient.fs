@@ -313,6 +313,35 @@ let getReadyToAssign (token: string) (YnabBudgetId budgetId: YnabBudgetId) : Asy
         with _ -> return None
     }
 
+// Antworttext und Ausnahmen bleiben im Server-Log (budgeting-p4n6r, infrastructure-vp308): der Fehler
+// geht bis zur Oberfläche, an Bob und als Grund in `events`, dort steht nur ein fester deutscher Satz.
+// `ynabErrorText` setzt "Netzwerkfehler: " bzw. "YNAB hat abgelehnt: " davor, die Sätze tragen deshalb
+// keine eigene Einleitung.
+
+/// Ein unerwarteter Status bei `method` (GET, PATCH, POST); der Rumpf nur ins Log.
+let private statusFailureOf (method: string) (endpoint: string) (status: int) (bodyText: string) : YnabError =
+    printfn "[YNAB] %s %s: HTTP %d: %s" method endpoint status bodyText
+    YnabError.NetworkError $"YNAB antwortet mit HTTP {status}"
+
+/// Eine Antwort, die sich nicht lesen lässt; der Dekodierfehler mit seinem Ausschnitt nur ins Log.
+let private unreadableResponseOf (method: string) (endpoint: string) (detail: string) : YnabError =
+    printfn "[YNAB] %s %s: Antwort nicht lesbar: %s" method endpoint detail
+    YnabError.InvalidResponse "YNAB-Antwort nicht lesbar"
+
+/// Eine Ausnahme beim Senden oder Lesen (Netzfehler); die Meldung nur ins Log.
+let private fetchFailureOf (method: string) (endpoint: string) (ex: exn) : YnabError =
+    printfn "[YNAB] %s %s: Abruf gescheitert: %s" method endpoint ex.Message
+    YnabError.NetworkError "YNAB nicht erreichbar"
+
+/// Eine Ablehnung mit 400 (`what` etwa "Zuweisung" oder "Buchung"); der Rumpf nur ins Log.
+let private badRequestOf (method: string) (endpoint: string) (what: string) (bodyText: string) : YnabError =
+    printfn "[YNAB] %s %s: HTTP 400: %s" method endpoint bodyText
+    YnabError.InvalidResponse $"{what} ungültig (HTTP 400)"
+
+let private statusFailure endpoint status bodyText = statusFailureOf "GET" endpoint status bodyText
+let private unreadableResponse endpoint detail = unreadableResponseOf "GET" endpoint detail
+let private fetchFailure endpoint ex = fetchFailureOf "GET" endpoint ex
+
 /// Liest einen Monat live aus YNAB (`GET /budgets/{id}/months/{YYYY-MM-01}`), mit Zu verteilen
 /// und je Kategorie Zugewiesen, Aktivität, Verfügbar, Fehlbetrag und Pausiert (budgeting-k7wmd).
 /// Schreibt nichts und merkt sich nichts. 429 kommt als `RateLimitExceeded`, ein Monat außerhalb
@@ -322,11 +351,11 @@ let interpretMonthResponse (monthKey: string) (status: int) (bodyText: string) :
     | 200 ->
         match Decode.fromString Decoders.monthDecoder bodyText with
         | Ok month -> Ok month
-        | Error err -> Error (YnabError.InvalidResponse $"Failed to parse month: {err}")
+        | Error err -> Error (unreadableResponse "month" err)
     | 401 -> Error (YnabError.Unauthorized "Invalid YNAB Personal Access Token")
     | 404 -> Error (YnabError.MonthNotOpen monthKey)
     | 429 -> Error (YnabError.RateLimitExceeded 60)
-    | other -> Error (YnabError.NetworkError $"HTTP {other}: {bodyText}")
+    | other -> Error (statusFailure "month" other bodyText)
 
 /// Naht für Tests: `fetch` liefert Statuscode und Antworttext. Eine Ausnahme (Netzfehler)
 /// wird zu `NetworkError`.
@@ -339,7 +368,7 @@ let getMonthWith
             let! status, bodyText = fetch ()
             return interpretMonthResponse monthKey status bodyText
         with ex ->
-            return Error (YnabError.NetworkError $"Failed to fetch month: {ex.Message}")
+            return Error (fetchFailure "month" ex)
     }
 
 let getMonth
@@ -359,20 +388,6 @@ let getMonth
             return (response.statusCode |> int), bodyText
         }
     getMonthWith fetch monthKey
-
-// Antworttext und Ausnahmen bleiben im Server-Log (budgeting-p4n6r): der Fehler geht bis zur Oberfläche,
-// dort steht ein fester deutscher Satz.
-let private statusFailure (endpoint: string) (status: int) (bodyText: string) : YnabError =
-    printfn "[YNAB] GET %s: HTTP %d: %s" endpoint status bodyText
-    YnabError.NetworkError $"YNAB antwortet mit HTTP {status}"
-
-let private unreadableResponse (endpoint: string) (detail: string) : YnabError =
-    printfn "[YNAB] GET %s: Antwort nicht lesbar: %s" endpoint detail
-    YnabError.InvalidResponse "YNAB-Antwort nicht lesbar"
-
-let private fetchFailure (endpoint: string) (ex: exn) : YnabError =
-    printfn "[YNAB] GET %s: Abruf gescheitert: %s" endpoint ex.Message
-    YnabError.NetworkError "YNAB nicht erreichbar"
 
 /// Das Monatsfenster aus `GET /budgets/{id}/months` (budgeting-g8s3w, ADR 0074). Gelöschte Monate
 /// fallen weg. Die Folge der Antwort zählt nicht, sortiert wird in `toBudgetFrame`. Ein 404 meint
@@ -435,11 +450,11 @@ let buildAssignBody (milliunits: int64) : string =
 let interpretAssignResponse (monthKey: string) (status: int) (bodyText: string) : YnabResult<unit> =
     match status with
     | 200 -> Ok ()
-    | 400 -> Error (YnabError.InvalidResponse $"Bad request: {bodyText}")
+    | 400 -> Error (badRequestOf "PATCH" "month category" "Zuweisung" bodyText)
     | 401 -> Error (YnabError.Unauthorized "Invalid YNAB Personal Access Token")
     | 404 -> Error (YnabError.MonthNotOpen monthKey)
     | 429 -> Error (YnabError.RateLimitExceeded 60)
-    | other -> Error (YnabError.NetworkError $"HTTP {other}: {bodyText}")
+    | other -> Error (statusFailureOf "PATCH" "month category" other bodyText)
 
 /// Der PATCH-Sender mit Token, geteilt von Zuweisen und Target schreiben.
 let private patchSender (token: string) (url: string) (body: string) : Async<int * string> =
@@ -468,7 +483,7 @@ let setAssignedWith
             let! status, bodyText = send (assignUrl budgetId monthKey categoryId) (buildAssignBody milliunits)
             return interpretAssignResponse monthKey status bodyText
         with ex ->
-            return Error (YnabError.NetworkError $"Failed to assign category: {ex.Message}")
+            return Error (fetchFailureOf "PATCH" "month category" ex)
     }
 
 /// Setzt das Zugewiesen einer Kategorie in einem Monat auf einen absoluten Wert in Milliunits
@@ -1183,6 +1198,33 @@ let buildManualTransactionBody (accountId: YnabAccountId) (request: ManualTransa
 let manualTransactionIdDecoder : Decoder<string> =
     Decode.field "data" (Decode.field "transaction" (Decode.field "id" Decode.string))
 
+/// Ordnet die Antwort von `POST /budgets/{id}/transactions` (Einzelbuchung) zu. 201 liefert
+/// die YNAB-Transaction-Id aus der Antwort.
+let interpretCreateTransactionResponse (status: int) (bodyText: string) : YnabResult<string> =
+    match status with
+    | 201 ->
+        match Decode.fromString manualTransactionIdDecoder bodyText with
+        | Ok ynabTransactionId -> Ok ynabTransactionId
+        | Error parseErr -> Error (unreadableResponseOf "POST" "transactions" parseErr)
+    | 400 -> Error (badRequestOf "POST" "transactions" "Buchung" bodyText)
+    | 401 -> Error (YnabError.Unauthorized "YNAB-Token ungültig")
+    | 404 ->
+        printfn "[YNAB] POST transactions: HTTP 404: %s" bodyText
+        Error (YnabError.InvalidResponse "Budget oder Konto nicht gefunden (HTTP 404)")
+    | 429 -> Error (YnabError.RateLimitExceeded 60)
+    | _ -> Error (statusFailureOf "POST" "transactions" status bodyText)
+
+/// Naht für Tests: `send` bekommt den Body und liefert Statuscode und Antworttext. Eine
+/// Ausnahme (Netzfehler) wird zu `NetworkError`.
+let createTransactionVia (send: string -> Async<int * string>) (requestBody: string) : Async<YnabResult<string>> =
+    async {
+        try
+            let! status, bodyText = send requestBody
+            return interpretCreateTransactionResponse status bodyText
+        with ex ->
+            return Error (fetchFailureOf "POST" "transactions" ex)
+    }
+
 /// Creates a single manually entered transaction (Quick Add) in YNAB.
 /// Returns the YNAB transaction id from the response so the caller can link the
 /// Kassenbuch-Buchung to it (`EntryLinkedToYnab`, ADR 0021).
@@ -1194,11 +1236,8 @@ let createTransactionWithFlag
     (accountId: YnabAccountId)
     (request: ManualTransactionRequest)
     : Async<YnabResult<string>> =
-
-    async {
-        try
-            let requestBody = buildManualTransactionBodyWithFlag importId flagColor accountId request
-
+    let send (requestBody: string) =
+        async {
             use httpClient = new System.Net.Http.HttpClient()
             httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}")
 
@@ -1209,20 +1248,14 @@ let createTransactionWithFlag
 
             printfn "[YNAB] POST /budgets/%s/transactions - Quick Add" budgetId
             printfn "[YNAB] Response Status: %d" statusCode
-
-            match statusCode with
-            | 201 ->
-                match Decode.fromString manualTransactionIdDecoder bodyText with
-                | Ok ynabTransactionId -> return Ok ynabTransactionId
-                | Error parseErr ->
-                    return Error (YnabError.InvalidResponse $"Konnte YNAB-Transaction-Id nicht aus der Antwort lesen: {parseErr}")
-            | 400 -> return Error (YnabError.InvalidResponse $"Bad request: {bodyText}")
-            | 401 -> return Error (YnabError.Unauthorized "Invalid YNAB token")
-            | 404 -> return Error (YnabError.InvalidResponse "Budget or account not found")
-            | 429 -> return Error (YnabError.RateLimitExceeded 60)
-            | _ -> return Error (YnabError.NetworkError $"HTTP {statusCode}: {bodyText}")
+            return statusCode, bodyText
+        }
+    async {
+        try
+            let requestBody = buildManualTransactionBodyWithFlag importId flagColor accountId request
+            return! createTransactionVia send requestBody
         with ex ->
-            return Error (YnabError.NetworkError $"Failed to create transaction: {ex.Message}")
+            return Error (fetchFailureOf "POST" "transactions" ex)
     }
 
 let createTransactionWith

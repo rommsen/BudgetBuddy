@@ -37,6 +37,8 @@ großzügigere Regel in BB greift nur, wenn eine Anfrage auf einem anderen Weg a
   410 abgelaufen, 422 mit `daily_limit_reached`, wenn die Tagesgrenze inzwischen erreicht ist
   (mehrere offene Vorschauen können zusammen darüber liegen). Ein zweiter Aufruf bucht nicht noch einmal und liefert das erste Ergebnis.
   Die Antwort nennt `entry_id`, `pushed_to_ynab` und bei einem Fehlschlag `push_error`.
+  `push_error` ist ein fester deutscher Satz, etwa "YNAB hat abgelehnt: Buchung ungültig (HTTP 400)"
+  oder "Netzwerkfehler: YNAB nicht erreichbar"; YNABs Antworttext steht nur im Server-Log.
   - Push gescheitert: Die Buchung steht trotzdem im Kassenbuch. Antwort 200 mit
     `status: "booked"`, der `entry_id` dieser Buchung, `pushed_to_ynab: false` und
     `push_error`. Bob legt dann keine neue Vorschau an. Ein zweiter Commit liefert dasselbe
@@ -63,8 +65,8 @@ großzügigere Regel in BB greift nur, wenn eine Anfrage auf einem anderen Weg a
 
 Die YNAB-Kategorien für die Bot-Schnittstelle bleiben 5 Minuten im Speicher. Vorschau und
 `GET /bot/categories` teilen den Cache, ein Abruf kostet also höchstens eine YNAB-Anfrage je
-5 Minuten. Schlägt der Abruf ohne gültigen Cache fehl, bleibt es bei 502 `ynab_unavailable`;
-Fehler werden nicht gecacht. Quick Add und Sync nutzen den Cache nicht.
+5 Minuten. Schlägt der Abruf ohne gültigen Cache fehl, bleibt es bei 502 `ynab_unavailable`
+mit einem festen deutschen Satz als `message`; Fehler werden nicht gecacht. Quick Add und Sync nutzen den Cache nicht.
 
 Auf `/bot/` sind höchstens 10 Anfragen pro Minute erlaubt, gezählt über alle Bot-Anfragen vor
 der Anmeldung, auch die mit 401 (so wird das Raten des Tokens gebremst). Darüber antwortet die

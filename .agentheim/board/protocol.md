@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 10:06 -- Task verified and completed: infrastructure-vp308 - "Fehler über die Grenze: kein Stacktrace an den Client, kein YNAB-Rohtext an Client, Bob und in events"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-vp308 - "Fehler über die Grenze: kein Stacktrace an den Client, kein YNAB-Rohtext an Client, Bob und in events"
+**Summary:** Fehler über die Grenze tragen nur noch feste deutsche Sätze: der Remoting-Fehlerhandler propagiert einen Satz mit Kennung (Ausnahme samt Stacktrace nur im Log), Monat lesen, Zuweisen und Buchung anlegen hängen keinen YNAB-Rumpf mehr an, damit sind `push_error` an Bob und neue Gründe in `events` fest. Dazu Leser über `readWith`, Ablehnungen mit `CategoryNotVisibleText`, Log in `reportOf` und Bobs Token-Vergleich über SHA-256.
+**Duration:** (unknown)
+**Verification:** PASS (iteration 1)
+**Files changed:** 14
+**Tests added:** 14
+**ADRs written:** none
+
+---
+
 ## 2026-11-07 09:38 -- Batch started: [infrastructure-vp308, ledger-r8h19]
 
 **Type:** Work / Batch start

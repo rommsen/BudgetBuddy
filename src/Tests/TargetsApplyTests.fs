@@ -157,19 +157,28 @@ let private ynabTests =
             match map 404 with
             | Error ((YnabError.MonthNotOpen _) as e) -> Expect.equal (ynabErrorText e) "Monat nicht offen" "ADR 0074 Punkt 3"
             | other -> failtest $"404: {other}"
-            match map 400 with Error (YnabError.InvalidResponse _) -> () | other -> failtest $"400: {other}"
-            match map 503 with Error (YnabError.NetworkError m) -> Expect.stringContains m "503" "503" | other -> failtest $"503: {other}"
         }
-        test "setAssignedWith reicht Pfad und Body durch und macht aus einer Ausnahme einen Netzfehler" {
+        // infrastructure-vp308: 400 und ein unerwarteter Status hängten YNABs Antwortrumpf an den Grund,
+        // der als `AssignmentWriteBackFailed` für immer in `events` stand. Der Marker ist erfunden.
+        test "400 und ein unerwarteter Status tragen einen festen Satz ohne Antwortrumpf" {
+            let reason status =
+                match Server.YnabClient.interpretAssignResponse "2026-11-01" status "{\"error\":\"marker-vp308\"}" with
+                | Error e -> ynabErrorText e
+                | Ok () -> failtest $"{status}: Fehler erwartet"
+            Expect.equal (reason 400) "YNAB hat abgelehnt: Zuweisung ungültig (HTTP 400)" "400"
+            Expect.equal (reason 503) "Netzwerkfehler: YNAB antwortet mit HTTP 503" "503"
+        }
+        // infrastructure-vp308: die Meldung der Ausnahme ging als "Failed to assign category: …" in den Grund.
+        test "setAssignedWith reicht Pfad und Body durch und macht aus einer Ausnahme YNAB nicht erreichbar" {
             let mutable seen = "", ""
             let send url body = async { seen <- url, body; return 200, "{}" }
             let r = Server.YnabClient.setAssignedWith send "bud" "2026-11-01" id1 5000L |> Async.RunSynchronously
             Expect.equal r (Ok ()) "ok"
             Expect.equal (snd seen) """{"category":{"budgeted":5000}}""" "Body"
             Expect.stringContains (fst seen) "/months/2026-11-01/categories/" "Pfad"
-            let boom _ _ = async { return failwith "kaputt" }
+            let boom _ _ = async { return failwith "marker-vp308" }
             match Server.YnabClient.setAssignedWith boom "bud" "2026-11-01" id1 5000L |> Async.RunSynchronously with
-            | Error (YnabError.NetworkError m) -> Expect.stringContains m "kaputt" "Meldung"
+            | Error ((YnabError.NetworkError _) as e) -> Expect.equal (ynabErrorText e) "Netzwerkfehler: YNAB nicht erreichbar" "fester Satz ohne Marker"
             | other -> failtest $"Netzfehler erwartet: {other}"
         }
     ]

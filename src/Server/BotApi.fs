@@ -268,15 +268,18 @@ let private commitJson (previewId: Guid) (r: BotCommitResult) : JsonValue =
 // Anmeldung
 // ============================================
 
-/// Vergleicht in konstanter Zeit, damit die Antwortzeit das Token nicht verrät.
+/// Vergleicht in konstanter Zeit, damit die Antwortzeit das Token nicht verrät. Beide Seiten werden vorher
+/// mit SHA-256 gehasht (infrastructure-vp308): `FixedTimeEquals` kehrt bei ungleicher Länge sofort zurück
+/// und verriet so die Länge des Tokens; Hashes sind immer 32 Bytes lang.
 let private tokenMatches (expected: string) (header: string) : bool =
     let prefix = "Bearer "
     if isNull header || not (header.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) then false
     else
         let given = header.Substring(prefix.Length).Trim()
+        let hash (text: string) = System.Security.Cryptography.SHA256.HashData(Text.Encoding.UTF8.GetBytes text)
         System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
-            ReadOnlySpan<byte>(Text.Encoding.UTF8.GetBytes expected),
-            ReadOnlySpan<byte>(Text.Encoding.UTF8.GetBytes given)
+            ReadOnlySpan<byte>(hash expected),
+            ReadOnlySpan<byte>(hash given)
         )
 
 // ============================================

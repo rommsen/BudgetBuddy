@@ -225,7 +225,7 @@ let planMove (month: BudgetMonth) (request: MoveRequest) : Result<MovePlan, stri
         | CategorySide id ->
             match categories |> List.tryFind (fun c -> c.Id = id) with
             | Some c -> Ok (Some c)
-            | None -> Error $"Die Kategorie {id} fehlt im Monat {month.Month}."
+            | None -> Error CategoryNotVisibleText
 
     let source = resolve request.Source
     let target = resolve request.Target
@@ -274,7 +274,7 @@ let planAssign (month: BudgetMonth) (request: AssignRequest) : Result<MovePlan o
         |> List.collect (fun g -> g.Categories)
         |> List.tryFind (fun c -> c.Id = request.CategoryId)
     let errors =
-        [ if category.IsNone then $"Die Kategorie {request.CategoryId} fehlt im Monat {month.Month}."
+        [ if category.IsNone then CategoryNotVisibleText
           if not (isOnTenMilliunits request.Assigned) then "Der Betrag muss auf den Cent genau sein." ]
     match category with
     | Some c when List.isEmpty errors ->

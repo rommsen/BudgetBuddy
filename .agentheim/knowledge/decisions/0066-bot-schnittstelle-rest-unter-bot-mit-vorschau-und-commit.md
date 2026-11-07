@@ -43,3 +43,7 @@ für den eigenen Client gebaut und ihr Wire-Format ist ein internes Detail.
   an der Herkunft `Bob`.
 - Ein Deploy zwischen Vorschau und Commit lässt den Commit mit 404 scheitern; Bob muss die
   Vorschau neu anlegen.
+
+## Nachtrag 2026-11-07 (infrastructure-vp308)
+
+Das Bearer-Token wird in konstanter Zeit über die SHA-256-Hashes beider Seiten verglichen (`tokenMatches` in `src/Server/BotApi.fs`). `CryptographicOperations.FixedTimeEquals` auf den rohen Bytes kehrt bei ungleicher Länge sofort zurück und verriet so die Länge des Tokens über die Antwortzeit. Die Hashes sind immer 32 Bytes lang. `push_error` und die `message` von `ynab_unavailable` sind feste deutsche Sätze, YNABs Antworttext steht nur im Server-Log. Die Grenzen aus ADR 0068 sind unverändert.

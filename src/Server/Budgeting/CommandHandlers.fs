@@ -568,7 +568,10 @@ let private reportOf
             async {
                 match! port.FetchMonth monthKey with
                 | Ok raw -> return Some raw.ToBeBudgeted
-                | Error _ -> return None
+                | Error err ->
+                    // Der Bericht kommt trotzdem, nur ohne Zu verteilen; der Grund steht im Log (infrastructure-vp308).
+                    logReadFailure "Zu verteilen für den Bericht lesen" (ynabErrorText err)
+                    return None
             }
         return! reportWith connect applicationId monthKey actual
     }

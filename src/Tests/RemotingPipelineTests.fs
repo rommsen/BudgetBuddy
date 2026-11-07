@@ -124,9 +124,49 @@ let pipelineTests =
                     Expect.equal status 200 $"{name}: Status, Antwort {answer}"
                     Expect.stringContains answer "Kein YNAB-Token eingerichtet" $"{name}: fachliche Meldung")
 
+        // infrastructure-vp308: der Fehlerhandler gab jede Ausnahme mit `Propagate ex` weiter, der Rumpf trug
+        // Typ, Meldung und Stacktrace mit Dateipfaden des Servers. Ein Argument, das sich nicht in den
+        // erwarteten Typ lesen lässt, löst ohne Produktionsschalter eine Ausnahme mit dem Marker aus.
+        testCase "eine Ausnahme in einem Remoting-Aufruf kommt ohne Meldung und Stacktrace im Rumpf an" <| fun () ->
+            withTestHost (fun client ->
+                for KeyValue (name, (meth, path, _)) in pipelineCalls do
+                    let status, body = send client (meth, path, Some "[\"marker-vp308\", {\"x\": marker-vp308")
+                    Expect.equal status 500 $"{name}: Status, Antwort {body}"
+                    Expect.isFalse (body.Contains "marker-vp308") $"{name}: kein Marker im Rumpf: {body}"
+                    Expect.isFalse (body.Contains "Exception") $"{name}: kein Typname im Rumpf: {body}"
+                    Expect.stringContains body "Interner Fehler im Server" $"{name}: fester Satz")
+
         testCase "der Bot-Handler in Api.webApp beantwortet /bot ohne Token mit 401" <| fun () ->
             // Gegenprobe: der Bot-Handler sitzt wirklich in derselben Pipeline.
             withTestHost (fun client ->
                 let status, _ = send client (HttpMethod.Get, "/bot/categories", None)
                 Expect.equal status 401 "Bot-Pfad ohne Token")
+    ]
+
+// infrastructure-vp308: der Fehlerhandler gab jede Ausnahme mit `Propagate ex` an den Client weiter, mit Typ,
+// Meldung und Stacktrace. Der Marker ist erfunden.
+[<Tests>]
+let errorHandlerTests =
+    testList "Fehlerhandler von Fable.Remoting (infrastructure-vp308)" [
+        testCase "der Fehlerhandler gibt nur einen festen Satz mit Kennung weiter, Meldung und Kennung stehen im Log" <| fun () ->
+            let ex =
+                try
+                    failwith "marker-vp308"
+                with e -> e
+            Expect.isNotNull ex.StackTrace "die Ausnahme hat einen Stacktrace"
+            let lines = ResizeArray<string>()
+            let result = Server.Api.remotingErrorResult (fun () -> "k7x2") lines.Add "getBudgetMonth" ex
+            let propagated =
+                match result with
+                | Fable.Remoting.Server.Propagate value ->
+                    Newtonsoft.Json.JsonConvert.SerializeObject(value, Fable.Remoting.Json.FableJsonConverter())
+                | Fable.Remoting.Server.Ignore -> failtest "Propagate erwartet"
+            Expect.isFalse (propagated.Contains "marker-vp308") $"kein Marker: {propagated}"
+            Expect.isFalse (propagated.Contains "RemotingPipelineTests") $"kein Stacktrace: {propagated}"
+            Expect.isFalse (propagated.Contains "Exception") $"kein Typname: {propagated}"
+            Expect.stringContains propagated "k7x2" "Kennung"
+            let log = String.concat "\n" lines
+            Expect.stringContains log "marker-vp308" "Meldung im Log"
+            Expect.stringContains log "k7x2" "Kennung im Log"
+            Expect.stringContains log "getBudgetMonth" "Methode im Log"
     ]

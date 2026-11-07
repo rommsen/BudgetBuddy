@@ -2023,10 +2023,20 @@ open Giraffe
 
 let private routeBuilder typeName methodName = $"/api/{typeName}/{methodName}"
 
+/// Was der Fehlerhandler von Fable.Remoting aus einer Ausnahme macht (infrastructure-vp308): Methode,
+/// Kennung und die ganze Ausnahme mit Stacktrace gehen ins Server-Log, an den Client geht nur ein fester
+/// Satz mit der Kennung. Vorher kam `Propagate ex`, der Rumpf trug Typ, Meldung und Stacktrace mit
+/// Dateipfaden des Servers. `newId` liefert die Kennung, `log` schreibt eine Zeile ins Server-Log.
+let remotingErrorResult (newId: unit -> string) (log: string -> unit) (methodName: string) (ex: exn) : ErrorResult =
+    let id = newId ()
+    log $"Fable.Remoting ERROR in {methodName} (Kennung {id}): {ex}"
+    Propagate $"Interner Fehler im Server (Kennung {id}), Details stehen im Server-Log."
+
+/// Eine kurze Kennung je Ausnahme, damit sich Meldung im Browser und Zeile im Log finden.
+let private newErrorId () : string = Guid.NewGuid().ToString("N").Substring(0, 8)
+
 let private errorHandler (ex: exn) (routeInfo: RouteInfo<'a>) =
-    printfn "Fable.Remoting ERROR in %s: %s" routeInfo.methodName ex.Message
-    printfn "Stack trace: %s" ex.StackTrace
-    Propagate ex
+    remotingErrorResult newErrorId (printfn "%s") routeInfo.methodName ex
 
 /// `berlinZone` ist die beim Start aufgelöste Zeitzone Europe/Berlin (Bob-Tagesgrenze).
 let webApp (berlinZone: System.TimeZoneInfo) =

@@ -279,12 +279,14 @@ let internal queryApplication (conn: SqliteConnection) (applicationId: Guid) : R
             |> List.collect movementsOf
             |> List.map (stateOf latest))
 
-/// `queryApplication` über `connect`.
+/// Die Meldung, wenn die Zeilen einer Anwendung nicht lesbar sind. Die Ursache bleibt im Server-Log.
+[<Literal>]
+let ApplicationUnreadableText = "Die Zeilen der Entscheidung sind nicht lesbar"
+
+/// `queryApplication` über `connect`. Ein Lesefehler wird geloggt und zu `Error ApplicationUnreadableText`
+/// (infrastructure-vp308: vorher ging die Meldung mit Ereignis-Id und Stream bis zum Client).
 let loadApplicationWith (connect: unit -> SqliteConnection) (applicationId: Guid) : Async<Result<MovementState list, string>> =
-    async {
-        use conn = connect ()
-        return queryApplication conn applicationId
-    }
+    readWith connect "Zeilen der Entscheidung lesen" ApplicationUnreadableText (fun conn -> queryApplication conn applicationId)
 
 /// `queryApplication` auf der Datenbank der Anwendung.
 let loadApplication (applicationId: Guid) : Async<Result<MovementState list, string>> =
@@ -434,12 +436,14 @@ let queryMovements (conn: SqliteConnection) (filter: MovementFilter) : Result<Hi
                   Latest = r.Outcome
                   ReplacedBy = Map.tryFind (r.EventId, r.Category) replaced }))
 
-/// Die Historie über `connect`. Liest nur die Datenbank, kein YNAB.
+/// Die Meldung, wenn die Historie nicht lesbar ist. Die Ursache bleibt im Server-Log.
+[<Literal>]
+let MovementsUnreadableText = "Historie nicht lesbar"
+
+/// Die Historie über `connect`. Liest nur die Datenbank, kein YNAB. Ein Lesefehler wird geloggt und zu
+/// `Error MovementsUnreadableText` (infrastructure-vp308).
 let loadMovementsWith (connect: unit -> SqliteConnection) (filter: MovementFilter) : Async<Result<HistoryMovement list, string>> =
-    async {
-        use conn = connect ()
-        return queryMovements conn filter
-    }
+    readWith connect "Historie lesen" MovementsUnreadableText (fun conn -> queryMovements conn filter)
 
 /// Die Historie liest nur die Datenbank, kein YNAB.
 let loadMovements (filter: MovementFilter) : Async<Result<HistoryMovement list, string>> =

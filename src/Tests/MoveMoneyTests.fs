@@ -90,10 +90,16 @@ let private planTests =
             Expect.stringContains (planErrorOf month (request (CategorySide a.Id) (CategorySide a.Id) 10000L)) "verschieden" "Kategorie"
             Expect.stringContains (planErrorOf month (request ToBeBudgetedSide ToBeBudgetedSide 10000L)) "verschieden" "Zu verteilen"
         }
-        test "Eine im Monat fehlende Kategorie wird abgelehnt, auf jeder Seite" {
+        // infrastructure-vp308: die Ablehnung nannte Guid und Monatsschlüssel ("Die Kategorie {id} fehlt im
+        // Monat {month}"), obwohl ein Mensch sie liest.
+        test "Eine im Monat fehlende Kategorie wird abgelehnt, auf jeder Seite, ohne Guid und Monatsschlüssel" {
             let missing = Guid.NewGuid()
-            Expect.stringContains (planErrorOf month (request (CategorySide missing) (CategorySide b.Id) 10000L)) (string missing) "Quelle"
-            Expect.stringContains (planErrorOf month (request (CategorySide a.Id) (CategorySide missing) 10000L)) (string missing) "Ziel"
+            for side, req in [ "Quelle", request (CategorySide missing) (CategorySide b.Id) 10000L
+                               "Ziel", request (CategorySide a.Id) (CategorySide missing) 10000L ] do
+                let e = planErrorOf month req
+                Expect.equal e Domain.CategoryNotVisibleText side
+                Expect.isFalse (e.Contains (string missing)) $"{side}: keine Guid"
+                Expect.isFalse (e.Contains month.Month) $"{side}: kein Monatsschlüssel"
         }
         test "Ein altes Zugewiesen neben dem Raster wird abgelehnt, YNAB würde runden" {
             let odd = budgetCategory "Krumm" 12345L
@@ -103,7 +109,7 @@ let private planTests =
         test "Alle Gründe werden zusammen gemeldet" {
             let e = planErrorOf month (request (CategorySide (Guid.NewGuid())) (CategorySide (Guid.NewGuid())) 0L)
             Expect.stringContains e "größer als 0" "Betrag"
-            Expect.stringContains e "fehlt" "Kategorie"
+            Expect.stringContains e Domain.CategoryNotVisibleText "Kategorie"
         }
     ]
 
@@ -322,7 +328,7 @@ let private flowTests =
         testCase "Ein abgelehnter Auftrag schreibt nichts und hält nichts fest" <| fun () ->
             let f, a, b = fake ()
             match run (moveMoney f.Port now monthKey (request (CategorySide a) (CategorySide (Guid.NewGuid())) 30000L)) with
-            | Ok (Error message) -> Expect.stringContains message "fehlt" "Grund"
+            | Ok (Error message) -> Expect.equal message Domain.CategoryNotVisibleText "Grund"
             | other -> failtest $"Ablehnung erwartet: {other}"
             Expect.isEmpty f.Attempts "kein PATCH"
             Expect.equal (movementRows [ a; b ]) 0 "keine Bewegung"
@@ -697,11 +703,14 @@ let private assignPlanTests =
             | Ok (Some plan) -> Expect.equal plan.Lines.Head.NewAssigned (eur -20000L) "negativ"
             | other -> failtest $"Plan erwartet: {other}"
         }
-        test "Fehlt die Kategorie im Monat und liegt der Betrag neben dem Raster, stehen beide Gründe da" {
+        // infrastructure-vp308: die Ablehnung nannte Guid und Monatsschlüssel.
+        test "Fehlt die Kategorie im Monat und liegt der Betrag neben dem Raster, stehen beide Gründe da, ohne Guid" {
             let missing = Guid.NewGuid()
             match Domain.planAssign month (assign missing 12345L) with
             | Error e ->
-                Expect.stringContains e (string missing) "Kategorie"
+                Expect.stringContains e Domain.CategoryNotVisibleText "Kategorie"
+                Expect.isFalse (e.Contains (string missing)) "keine Guid"
+                Expect.isFalse (e.Contains month.Month) "kein Monatsschlüssel"
                 Expect.stringContains e "Cent" "Raster"
             | Ok plan -> failtest $"Ablehnung erwartet: {plan}"
         }
@@ -774,7 +783,7 @@ let private assignFlowTests =
         testCase "Abgelehnt: innen Error, nichts festgehalten, nichts gesendet" <| fun () ->
             let f, a, b = fake ()
             match run (assignMoney f.Port now monthKey (assign (Guid.NewGuid()) 120000L)) with
-            | Ok (Error message) -> Expect.stringContains message "fehlt" "Grund"
+            | Ok (Error message) -> Expect.equal message Domain.CategoryNotVisibleText "Grund"
             | other -> failtest $"Ablehnung erwartet: {other}"
             Expect.isEmpty f.Attempts "kein PATCH"
             Expect.equal (movementRows [ a; b ]) 0 "keine Bewegung"
@@ -784,6 +793,18 @@ let private assignFlowTests =
             f.Failures[a] <- networkDown
             let report = assignOk f (assign a 120000L)
             Expect.equal (outcomes report) [ Failed "Netzwerkfehler: Netz weg" ] "Grund"
+
+        // infrastructure-vp308: bei 400 hängte `interpretAssignResponse` YNABs Antwortrumpf an. Der Grund stand
+        // so für immer in `AssignmentWriteBackFailed` und im Bericht. Der Marker ist erfunden.
+        testCase "GIVEN YNAB lehnt den PATCH mit 400 ab WHEN Zuweisen THEN nennen Ereignis und Bericht einen festen Satz ohne Rumpf" <| fun () ->
+            let f, a, _ = fake ()
+            match Server.YnabClient.interpretAssignResponse monthKey 400 "{\"error\":{\"detail\":\"marker-vp308\"}}" with
+            | Error e -> f.Failures[a] <- e
+            | Ok () -> failtest "400 ist ein Fehler"
+            let report = assignOk f (assign a 120000L)
+            let expected = Failed "YNAB hat abgelehnt: Zuweisung ungültig (HTTP 400)"
+            Expect.equal (outcomes report) [ expected ] "Bericht"
+            Expect.equal ((movementsOf report) |> List.map (fun s -> s.Latest)) [ Some expected ] "AssignmentWriteBackFailed in events"
 
         testCase "429 beim PATCH: fehlgeschlagen mit Wartezeit, erneut sendbar" <| fun () ->
             let f, a, _ = fake ()

@@ -375,3 +375,47 @@ let queryTests =
                 Expect.stringContains message "Kategorie fehlt" "Kategorie"
                 Expect.stringContains message "kein-monat" "Monat"
     ]
+
+// infrastructure-vp308: `loadApplicationWith` und `loadMovementsWith` reichten einen Dekodierfehler mit
+// Ereignis-Id und Stream ungeloggt bis zum Client durch; die übrigen Leser laufen über `readWith` und
+// melden einen festen Satz.
+[<Tests>]
+let unreadableReaderTests =
+    let monthKey = "2026-11-01"
+    let withBrokenDecision (body: (unit -> Microsoft.Data.Sqlite.SqliteConnection) -> Guid -> unit) =
+        let anchor, connect = BudgetEventsFixture.isolatedDb ()
+        use _ = anchor
+        let monthId =
+            match Budgeting.Events.monthIdOf monthKey with
+            | Ok id -> id
+            | Error e -> failwith e
+        BudgetEventsFixture.appendUnreadable
+            anchor
+            (Budgeting.Events.MonthStream monthId)
+            (Budgeting.Events.EventTypes.decisionOf MoneyAssigned)
+        let eventId = Dapper.SqlMapper.ExecuteScalar<string>(anchor, "SELECT event_id FROM events") |> Guid.Parse
+        body connect eventId
+    let expectFixed (result: Result<'T, string>) (expected: string) (eventId: Guid) =
+        match result with
+        | Error message ->
+            Expect.equal message expected "fester Satz"
+            Expect.isFalse (message.Contains (string eventId)) "keine Ereignis-Id"
+            Expect.isFalse (message.Contains "budgeting:") "kein Stream"
+        | Ok value -> failtest $"Fehler erwartet: {value}"
+    testList "Unlesbare Budget-Ereignisse in Bericht und Historie" [
+        testCase "GIVEN ein Entscheidungsereignis ist nicht lesbar WHEN die Zeilen einer Anwendung gelesen werden THEN kommt ein fester Satz" <| fun () ->
+            withBrokenDecision (fun connect eventId ->
+                expectFixed
+                    (Budgeting.Persistence.loadApplicationWith connect eventId |> run)
+                    Budgeting.Persistence.ApplicationUnreadableText
+                    eventId)
+
+        testCase "GIVEN ein Entscheidungsereignis ist nicht lesbar WHEN die Historie gelesen wird THEN kommt ein fester Satz" <| fun () ->
+            withBrokenDecision (fun connect eventId ->
+                let all : Server.Budgeting.Domain.MovementFilter = { CategoryId = None; Month = None; Origin = None }
+                for filter in [ all; { all with Month = Some monthKey } ] do
+                    expectFixed
+                        (Budgeting.Persistence.loadMovementsWith connect filter |> run)
+                        Budgeting.Persistence.MovementsUnreadableText
+                        eventId)
+    ]

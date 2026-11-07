@@ -1520,3 +1520,70 @@ let buildCreateResultTests =
             Expect.isEmpty result.Created "kein geratener Erfolg bei nicht lesbarer Antwort"
             Expect.isTrue result.ResponseUnparseable "der Zustand ist erkennbar unbekannt, nicht pauschal erfolgreich"
     ]
+
+// infrastructure-vp308: Monat lesen und Buchung anlegen hängten YNABs Antwortrumpf, den Thoth-Text
+// samt JSON-Ausschnitt oder die Meldung einer Ausnahme an den Fehler. Über `ynabErrorText` ging das
+// an den Client, an Bob (`push_error`) und als Grund in `events`. Der Marker ist erfunden.
+let private marker = "marker-vp308"
+
+let private reasonOf (result: YnabResult<'T>) : string =
+    match result with
+    | Error e -> ynabErrorText e
+    | Ok value -> failtest $"Fehler erwartet: {value}"
+
+let private englishWords = [ "Bad request"; "Failed"; "Invalid"; "not found"; "Could not" ]
+
+let private expectFixedGerman (reason: string) (what: string) =
+    Expect.isFalse (reason.Contains marker) $"{what}: kein Marker in '{reason}'"
+    for word in englishWords do
+        Expect.isFalse (reason.Contains word) $"{what}: kein englischer Text '{word}' in '{reason}'"
+
+[<Tests>]
+let fixedErrorTextTests =
+    testList "YNAB-Fehler tragen feste deutsche Sätze (infrastructure-vp308)" [
+        testCase "Monat: ein unerwarteter Status nennt den Status, nicht den Rumpf" <| fun () ->
+            let reason = interpretMonthResponse "2026-10-01" 500 $"{{\"error\":\"{marker}\"}}" |> reasonOf
+            expectFixedGerman reason "500"
+            Expect.equal reason "Netzwerkfehler: YNAB antwortet mit HTTP 500" "Satz"
+
+        testCase "Monat: ein unlesbarer 200-Rumpf heißt YNAB-Antwort nicht lesbar, ohne Ausschnitt" <| fun () ->
+            let reason = interpretMonthResponse "2026-10-01" 200 $"{{\"data\":{{\"month\":\"{marker}\"}}}}" |> reasonOf
+            expectFixedGerman reason "200"
+            Expect.equal reason "YNAB hat abgelehnt: YNAB-Antwort nicht lesbar" "Satz"
+
+        testCase "Monat: eine Ausnahme beim Abruf heißt YNAB nicht erreichbar" <| fun () ->
+            let reason =
+                getMonthWith (fun () -> async { return raise (System.Net.Http.HttpRequestException marker) }) "2026-10-01"
+                |> Async.RunSynchronously
+                |> reasonOf
+            expectFixedGerman reason "Ausnahme"
+            Expect.equal reason "Netzwerkfehler: YNAB nicht erreichbar" "Satz"
+
+        testCase "Buchung anlegen: 400, 401, 404, 500 und eine unlesbare 201-Antwort tragen feste Sätze" <| fun () ->
+            let body = $"{{\"error\":{{\"detail\":\"{marker}\"}}}}"
+            let cases =
+                [ 400, body, "YNAB hat abgelehnt: Buchung ungültig (HTTP 400)"
+                  401, body, "YNAB-Token ungültig (HTTP 401)"
+                  404, body, "YNAB hat abgelehnt: Budget oder Konto nicht gefunden (HTTP 404)"
+                  500, body, "Netzwerkfehler: YNAB antwortet mit HTTP 500"
+                  201, $"{{\"data\":{{\"id\":\"{marker}\"}}}}", "YNAB hat abgelehnt: YNAB-Antwort nicht lesbar" ]
+            for status, text, expected in cases do
+                let reason = interpretCreateTransactionResponse status text |> reasonOf
+                expectFixedGerman reason (string status)
+                Expect.equal reason expected $"{status}: Satz"
+
+        testCase "Buchung anlegen: eine Ausnahme beim Senden heißt YNAB nicht erreichbar" <| fun () ->
+            let reason =
+                createTransactionVia (fun _ -> async { return raise (System.Net.Http.HttpRequestException marker) }) "{}"
+                |> Async.RunSynchronously
+                |> reasonOf
+            expectFixedGerman reason "Ausnahme"
+            Expect.equal reason "Netzwerkfehler: YNAB nicht erreichbar" "Satz"
+
+        testCase "Buchung anlegen: 201 mit Id liefert die Id, 429 bleibt RateLimitExceeded" <| fun () ->
+            Expect.equal
+                (interpretCreateTransactionResponse 201 """{"data":{"transaction":{"id":"ynab-1"}}}""")
+                (Ok "ynab-1")
+                "201"
+            Expect.equal (interpretCreateTransactionResponse 429 "x") (Error (YnabError.RateLimitExceeded 60)) "429"
+    ]
