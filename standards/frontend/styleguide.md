@@ -284,12 +284,14 @@ nutzt die zweite Variante über `CategoryPicker.popoverInDialog`.
 
 ---
 
-## 5. Komponenten-Inventar (23 DS-Komponenten)
+## 5. Komponenten-Inventar (23 DS-Komponenten mit eigener Zeile)
 
 Alle Komponenten liegen unter
 [`src/Client/DesignSystem/`](../../src/Client/DesignSystem/). Konkrete API/Props stehen dort in den
 Komponenten und ihren Doc-Kommentaren, Live-Beispiele zeigt die Route `/styleguide`. Hier
-steht nur **wann welche / wann nicht**.
+steht nur **wann welche / wann nicht**. Weitere Bausteine wie `ChipBar`, `DateField`, `Detail`,
+`FilterPopover`, `MultiSelect`, `CategoryMultiSelect`, `PickerParts` und `SplitEditor` haben noch keine
+eigene Zeile; §2 und §7 nennen sie, wo sie gelten.
 
 > **Drift-Definition:** Inline-Feliz für etwas, das eine dieser Komponenten abdeckt,
 > ist Drift. Erst Komponente suchen, dann bauen.
@@ -380,6 +382,11 @@ nicht“ und eine Quelle. Sie gelten für jede neue und jede umgebaute Ansicht. 
 abweicht, steht das als Zeile im Fahrplan Etappe 3 (`.agentheim/knowledge/fahrplan.md`); diese
 Abweichungen sind bekannt und kein Grund, die Regel aufzuweichen. Vorlage für Form und Verhalten ist
 der Prototyp (Version 14), den Roman am Handy und am PC freigegeben hat.
+
+„Akzent“ meint in §5 und §7 den Akzent aus ADR 0087 Punkt 2, nicht die Zeilen Purple und Pink in §2. Bis
+design-system-dak16 (Palette 2 im Token-Layer) heißt das Orange für die Hauptaktion und Teal für Auswahl
+und Navigation. Gelb steht nach ADR 0087 Punkt 3 für „braucht dich, kein Fehler“; wo §2 Pink dafür nennt,
+hat ADR 0087 Vorrang.
 
 ### 7.1 Visual-Viewport-Sheet + Click-Commit (ADR 0005)
 
@@ -695,7 +702,7 @@ und Animation regelt §6.
 - Was am Handy hinter einem Menü liegt, steht am PC offen da: die Konten in der Seitenleiste, die
   Filter als sichtbare Zeile über der Liste. Die Funktion bleibt gleich.
 - Ab 600 px steht die Navigation links als Seitenleiste oder Rail.
-- Zeilen dürfen dichter als 44 px sein, weil der Zeiger kleinere Ziele trifft; Untergrenze ist die
+- Die Mindesthöhe aus §4 gilt am PC nicht, weil der Zeiger kleinere Ziele trifft; Untergrenze ist die
   Lesbarkeit.
 - Fließtext im Panel hat höchstens 75 Zeichen je Zeile.
 - Gruppen trennt man über Leerraum und Nähe; Rahmen und Karten nur, wo Leerraum nicht reicht.

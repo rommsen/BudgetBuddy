@@ -92,6 +92,10 @@ Ziel: Drei Orte, eine Sprache, Seite für Seite an der Skizze.
   bleiben (Roman, 2026-11-07).
 - Tastenregeln aus Styleguide §7.8 und §7.9 als ein generischer Test über alle Listen mit Panel,
   wie der Layout-Sweep, statt eines Tests je Seite.
+- Navigation ab 600 px links als Seitenleiste oder Rail (heute Leiste oben; Styleguide §7.4 und §7.15).
+- Breakpoints 600 und 840 px aus Styleguide §7.15 in Token-Layer und `@theme`; heute schalten
+  Trefferflächen (`TouchTargets`) und der Layout-Sweep bei `md` (768 px), Sheets bei `lg` (1024 px).
+  Hängt an Romans Entscheidung zum Panel (840 oder 1024 px).
 - Logo und Icon: Vorlage Buddy in `standards/frontend/brand/` (Entwurf 2026-11-07, Palette 2).
 - `banking-import-t4raw` zeitgesteuertes Vorbereiten
 - `banking-import-q7vd2` confirmTan-Fehlerzweig

@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 2
+- **Backlog:** 3
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 44
@@ -34,6 +34,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **design-system-k8s2m** — "Kann-Sammlung design-system" (chore) — `backlog/design-system-k8s2m-kann-sammlung-design-system.md`
 - **design-system-dak16** — "Palette 2 im Token-Layer: ein Akzent für Aktion und Auswahl, Gelb für braucht dich, keine Seitenausnahmen, Kontrast-Wächter" (feature) — `backlog/design-system-dak16-palette-2-im-token-layer.md`
 - **design-system-taytp** — "Kategorie-Picker vereinheitlichen und Split im Import auf das Design-System" (refactor) — `backlog/design-system-taytp-kategorie-picker-vereinheitlichen.md`
 <!-- backlog-list:end -->

@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 19:31 -- Capture / Captured: design-system-k8s2m - "Kann-Sammlung design-system"
+
+**Type:** Capture
+**BC:** design-system
+**Filed to:** backlog
+**Summary:** Kann-Sammlung design-system angelegt, vier Zeilen aus dem Review-Lauf nach bcdqy und nx14s.
+
+---
+
 ## 2026-11-07 19:25 -- Work session ended
 
 **Type:** Work / Session end
