@@ -5,6 +5,39 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 21:44 -- Verification failed: infrastructure-jc1y1 - Designwert-Tests aufräumen
+
+**Type:** Work / Verification failure
+**Task:** infrastructure-jc1y1 - Designwert-Tests aufräumen
+**Iteration:** 3 of 3
+**Reasons:** kein Sweep-Zustand erreicht die Ansichten des Bugs aus 5850313 (PreviewChanged, Bericht mit ChangedInYnab), measurePink sieht sie nie
+**Iteration hint:** likely-fixable
+**Next:** escalated to user, Worktree bleibt, Patch unter .agentheim/salvage/infrastructure-jc1y1-escalated-iter3.patch
+
+---
+
+## 2026-11-07 21:13 -- Verification failed: infrastructure-jc1y1 - Designwert-Tests aufräumen
+
+**Type:** Work / Verification failure
+**Task:** infrastructure-jc1y1 - Designwert-Tests aufräumen
+**Iteration:** 2 of 3
+**Reasons:** Liste der Pink zeichnenden DS-Aufrufe in budget-ohne-pink unvollständig (Badge.pendingReview, Table.calmRow true, StatusEdge = true) und an einer Stelle zu breit (Toast Warning ist orange), drei Musterteile ohne Test
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker, Ansatz gewechselt auf DOM-Prüfung über die Budget-Zustände des Sweeps
+
+---
+
+## 2026-11-07 20:51 -- Verification failed: infrastructure-jc1y1 - Designwert-Tests aufräumen
+
+**Type:** Work / Verification failure
+**Task:** infrastructure-jc1y1 - Designwert-Tests aufräumen
+**Iteration:** 1 of 3
+**Reasons:** budget-ohne-pink fängt den Bug aus 5850313 nicht (Pink kam über Badge.warning und ErrorDisplay.warning), drei feste Designwerte übrig (ledger-selection:291, ledger-split-cashback:124, budget-money-tab:209), README_DELTA beschreibt nicht vorhandenen Schutz
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-07 19:53 -- Batch started: [infrastructure-jc1y1]
 
 **Type:** Work / Batch start

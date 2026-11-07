@@ -184,3 +184,40 @@ Es gibt keine gemeinsame Hilfsdatei für Invarianten. Die Messungen stehen meist
 - **Primärknopf erreichbar (Fuß im Viewport)**: inline in ledger-split-editor.test.mjs:229 bis 234. Eine Prüfung bei offener Bildschirmtastatur gibt es in diesen Dateien nicht.
 - **Kandidaten außerhalb der vorgegebenen Liste**: kein Layout-Sprung beim Nachladen (inline sync-start.test.mjs:107 bis 111; der Animations-Warter dort filtert endlose Animationen nicht, anders als `scrollIntoStickyState`), kein Knopf doppelt sichtbar (`visibleMirrorButtons(page)` in ledger-mirror-buttons.test.mjs:59), fokussiertes Element sichtbar (`opacityReaches(payee, value)` in ledger-review-button-visibility.test.mjs:62).
 
+
+## Verifier note (iteration 1)
+
+**VERDICT:** FAIL (likely-fixable). Gate selbst gelaufen: `./verify.sh` PASS (dotnet 4286, node 281), Sweep zweimal 19/19 grün, Kennungen „layout 20, fokus 9, tastatur 18, scroll 3, fable 7, flow 35, Summe 92“. Stichprobe von zehn Bugbezügen: neun tragen.
+
+**REASONS**
+- Kriterium 2, `targets-apply:165` (ADR 0075, Bug-Commit 5850313): Das Muster `budget-ohne-pink` in `scripts/token-guard.mjs` findet nur das wörtliche „pink“ unter `Components/Budget/`. Der echte Bug waren `Badge.warning "in YNAB geändert"` und `ErrorDisplay.warning …` in `Budget/View.fs`; beide zeichnen über das DS Pink, im Budget-Quelltext steht kein „pink“. Gegenprobe: `findViolations` über diese Zeilen liefert `[]`. Die drei neuen Testfälle prüfen nur wörtliche Pink-Strings.
+- Kriterium 1: feste Designwerte übrig in `scripts/ledger-selection.test.mjs:291` (Platzhalter `{ w: 28, h: 28 }`), `scripts/ledger-split-cashback.test.mjs:124` (gleiche Höhe wie der Nachbarknopf), `scripts/budget-money-tab.test.mjs:209` (Feldschrift exakt `"16px"` statt Schwelle).
+- README_DELTA: „Farbregeln einer Seite prüft der Token-Wächter (kein Pink …)“ beschreibt einen Schutz, den es nicht gibt; „der Sweep ist die einzige Heimat der Layout-Invarianten“ stimmt nicht ganz (`budget-money-tab:187` misst weiter 48 px und Feldschrift).
+
+**SUGGESTED_FIX:** `budget-ohne-pink` auf die DS-Aufrufe erweitern, die Pink zeichnen (`Badge.warning`, `ErrorDisplay.warning`, `Variant = Warning`, `Icons.warning … Warning` unter `Components/Budget/`) oder ein DOM-Wächter auf `neon-pink` im gerenderten Budget; Testfall mit genau den Zeilen vor 5850313, der rot werden muss. `ledger-selection:291` und `ledger-split-cashback:124` entfernen, Feldschrift in `budget-money-tab:209` als `>= 16`. README_DELTA an den echten Stand anpassen.
+
+## Verifier note (iteration 2)
+
+**VERDICT:** FAIL (likely-fixable). Gate selbst gelaufen: `./verify.sh` PASS (dotnet 4286, node 288), Sweep 19/19, token-guard 29/29, Kennungen „layout 20, fokus 9, tastatur 18, scroll 3, fable 7, flow 35, Summe 92“, README-Delta-Gate Exit 0. Punkt 2 (Designwerte) erledigt. Der echte Bug aus 5850313 wird jetzt gemeldet (Zeilen 479, 498, 559).
+
+**REASONS**
+- Die Liste der Pink zeichnenden DS-Aufrufe in `budget-ohne-pink` ist unvollständig: `Badge.pendingReview ()` (ruft `warning "Review"`, `Badge.fs:222`), `Table.calmRow true …`, `Table.calmRowClass true`, `StatusEdge = true` (Pink-Kante über `ListRoles.statusEdge`, `Table.fs:285, 451-457`), `Badge.dot`/`pulsingDot`/`withIcon` mit unqualifiziertem `Warning`.
+- Zu breit: `Variant = Warning` trifft `Toast.Warning`, das orange zeichnet (`Toast.fs:70`).
+- Drei Musterteile ohne Test (`heroSimple`, `\bstatusEdge\b`, Suffix `Badge.warning\w*`); der grüne Fall `ErrorDisplay.notice warning` prüft nicht, was sein Kommentar sagt.
+
+**SUGGESTED_FIX (Verifier):** Liste erweitern, `Variant = Warning` eingrenzen, fehlende Testfälle.
+
+**Vorgabe des Conductors für Iteration 3:** Eine Aufrufliste bleibt mit jeder neuen DS-Variante lückenhaft. Statt sie zu flicken: „kein Pink auf der Budget-Seite“ im gerenderten DOM prüfen, über alle Budget- und Targets-Zustände des Sweeps (`scripts/layout-states.mjs`), wie der alte Browser-Test (`[class*="neon-pink"]`, dazu berechnete Farbe gegen `--color-neon-pink` nur falls Klassen nicht reichen). Mit Gegenbeweis: ein Zustand, in dem per `prepare` ein `Badge.warning`-Element (oder dessen Klasse) eingefügt wird, wird rot. Im Token-Wächter bleibt nur das wörtliche Pink unter `Components/Budget/`; die DS-Aufrufliste fällt weg. README_DELTA und Outcome entsprechend.
+
+## Verifier note (iteration 3)
+
+**VERDICT:** FAIL (likely-fixable), Eskalation nach drei Iterationen. Gate selbst gelaufen: `./verify.sh` PASS (dotnet 4286, node 284), Sweep zweimal 20/20, Kennungen „layout 21, fokus 9, tastatur 18, scroll 3, fable 7, flow 35, Summe 93“, README-Delta-Gate Exit 0. `measurePink` erkennt jeden real genutzten Pink-Weg des DS (Klasse `neon-pink` oder berechnete Farbe, auch `box-shadow`), Orange und Gelb schlagen nicht an, der Gegenbeweis trägt.
+
+**REASONS**
+- Kriterium 2, `targets-apply:165` (ADR 0075, 5850313): Kein Sweep-Zustand erreicht die Ansichten des Bugs. Der alte Test rief `PreviewChanged` (`[data-testid="targets-changed"]`) und den Bericht mit `ChangedInYnab` (`[data-testid="targets-differs"]`, Badge „in YNAB geändert“) auf; das sind `TargetsView.fs:82`, `:111`, `:175`. `budget-targets-anwenden` öffnet nur die Vorschau. Wer 5850313 zurückdreht, bekommt kein Rot.
+
+**SUGGESTED_FIX:** In `scripts/layout-states.mjs` zwei Budget-Zustände, die über die Leiste „Anwenden“ klicken: einer mit `{ Ok: { PreviewChanged } }` (zeigt `targets-changed`), einer mit `Applied` samt `ChangedInYnab` und abweichendem Zu verteilen (zeigt `targets-differs` und „in YNAB geändert“). Einmal lokal belegen, dass `Badge.Warning` an `TargetsView.fs:111` den Sweep rot macht. Outcome-Bezug für `targets-apply:165` auf diese Zustände umstellen.
+
+## Salvage note
+
+Diff des Worktrees gesichert: `/Users/romansachse/src/BudgetBuddy/.agentheim/salvage/infrastructure-jc1y1-escalated-iter3.patch` (gegen Fork-Punkt `91aaafc0142e476e666c2612cb02065268bb2d47`). Der Worktree `.worktrees/infrastructure-jc1y1` bleibt stehen.
