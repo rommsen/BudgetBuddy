@@ -88,6 +88,8 @@ beheben, nicht umgehen.
 
 ## Ablauf
 
+- Fortschritt und nächster Schritt: `.agentheim/knowledge/fahrplan.md`, Abschnitt „Stand“ (ADR 0086).
+  Nach jedem work-Lauf mit Review dort abhaken und „Stand“ neu schreiben. Nach `/compact` zuerst lesen.
 - Features und Bugs: `/agentheim:modeling` (capture, refine, promote), dann `/agentheim:work`.
 - Skizzen (claude.ai-Artifact, von Roman freigegeben) sind die Vorlage für Form und Inhalt einer Seite.
   Beim Verfeinern jedes sichtbare Element der Skizze als Kriterium übernehmen (Zeilenaufbau, Balken, Farben,
@@ -139,6 +141,9 @@ Fehler, der schon einmal vorkam: den globalen `learn`-Skill aufrufen. Er schläg
 ## Sprache
 
 UI, Doku und Kommentare Deutsch mit echten Umlauten (ä, ö, ü, ß). Identifier Englisch.
+
+Im Gespräch mit Roman steht hinter jeder Task-Id in Klammern, worum es geht, in wenigen Worten:
+`design-system-dak16` (Palette 2 im Token-Layer). Nie die Id allein. Gilt auch für ADR-Nummern.
 
 ## README-Deltas (Agentheim)
 
