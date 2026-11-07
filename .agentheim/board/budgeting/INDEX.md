@@ -11,18 +11,18 @@ Catalog of this bounded context's tasks by status.
 
 <!-- task-counts:start -->
 - **Backlog:** 3
-- **Todo:** 1
-- **Doing:** 1
+- **Todo:** 0
+- **Doing:** 2
 - **Done:** 59
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **budgeting-r5h2n** — "Allgemeine Historie zeigt alles, was das Budget betrifft, auch Target-Änderungen und Pausen" (feature) — `todo/budgeting-r5h2n-allgemeine-historie-zeigt-alles-zum-budget.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **budgeting-r5h2n** — "Allgemeine Historie zeigt alles, was das Budget betrifft, auch Target-Änderungen und Pausen" (feature) — `doing/budgeting-r5h2n-allgemeine-historie-zeigt-alles-zum-budget.md`
 - **budgeting-gvajj** — "Leiste Monatserster: Targets prüfen liest nach einer Target-Änderung neu, die Vorschau von Targets anwenden nimmt keine späte Antwort mehr ein" (bug) — `doing/budgeting-gvajj-leiste-monatserster-und-vorschau-ohne-alte-staende.md`
 <!-- doing-list:end -->
 

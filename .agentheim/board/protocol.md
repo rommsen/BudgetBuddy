@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 09:01 -- Batch started: [budgeting-r5h2n]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-r5h2n - "Allgemeine Historie zeigt alles, was das Budget betrifft, auch Target-Änderungen und Pausen"
+**Parallel:** yes (nach Integration von budgeting-my8p8)
+
+---
+
 ## 2026-11-07 09:01 -- Modeling / Promoted: budgeting-r5h2n - "Allgemeine Historie zeigt alles, was das Budget betrifft, auch Target-Änderungen und Pausen"
 
 **Type:** Modeling / Promote
