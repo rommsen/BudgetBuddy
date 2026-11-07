@@ -11,18 +11,18 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 2
-- **Todo:** 1
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 1
 - **Done:** 44
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **design-system-dak16** — "Palette 2 im Token-Layer: ein Akzent für Aktion und Auswahl, Gelb für braucht dich, keine Seitenausnahmen, Kontrast-Wächter" (feature) — `todo/design-system-dak16-palette-2-im-token-layer.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **design-system-dak16** — "Palette 2 im Token-Layer: ein Akzent für Aktion und Auswahl, Gelb für braucht dich, keine Seitenausnahmen, Kontrast-Wächter" (feature) — `doing/design-system-dak16-palette-2-im-token-layer.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)

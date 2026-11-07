@@ -1,7 +1,7 @@
 ---
 id: design-system-dak16
 title: "Palette 2 im Token-Layer: ein Akzent für Aktion und Auswahl, Gelb für braucht dich, keine Seitenausnahmen, Kontrast-Wächter"
-status: todo
+status: doing
 type: feature
 context: design-system
 created: 2026-11-07
