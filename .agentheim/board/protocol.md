@@ -5,6 +5,17 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 07:45 -- Deploy: budgeting-j8r4t
+
+**Type:** Deploy
+**Stand:** 8d6fbff (gepusht nach origin und deploy)
+**Inhalt:** budgeting-j8r4t (Targets prüfen je Zahlung bei langem Rhythmus) mit Review-Fixes 98455a2 und 9bdc5d6; capture budgeting-r5h2n
+**Sicherung:** ~/budgetbuddy-backups/budgetbuddy.db.vor-j8r4t-20261107-074147 auf docker-host, integrity ok, 16009 Ereignisse
+**Health:** Deploy successful, budgetbuddy-app healthy
+**Offen:** [human-eye] die betroffene Jahres-Kategorie steht unter Passt (Roman)
+
+---
+
 ## 2026-11-07 07:34 -- Review-Lauf: budgeting-j8r4t
 
 **Type:** Review / Review-Lauf
