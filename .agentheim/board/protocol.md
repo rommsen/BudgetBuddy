@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 14:54 -- Research: Seitenlayout Liste plus Detail
+
+**Type:** Research
+**Requested by:** user
+**Report:** knowledge/research/seitenlayout-liste-detail-2026-11-07.md
+**Review:** PASS (iteration 2)
+**Summary:**
+- Material: unten 3 bis 5 Ziele, Apple: keine Aktionen und kein Mehr-Tab in der Leiste; heute 6 Punkte mit Aktion Quick Add.
+- Horizontale Leisten schwach belegt (NN/g, Baymard); Ersatz: Auswahlfeld mit Sheet, Filter-Sheet mit sichtbaren gesetzten Filtern, Segmented bis 5.
+- Drei Optionen A/B/C für die zwei Leisten im Kassenbuch, C verlegt Zu prüfen und Lena als Kacheln in die Übersicht (wie YNAB Card Mode, Copilot To Review).
+
+---
+
 ## 2026-11-07 13:29 -- Modeling / Fahrplan-Zuordnung nach ADR 0086
 
 **Type:** Modeling / Refine
