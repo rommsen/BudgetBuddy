@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 11:30 -- Review-Lauf: a59a51c..2bccd25e
+
+**Type:** Review / Review-Lauf
+**Bereich:** a59a51c..2bccd25e (infrastructure-k84s2, ledger-kfd5m, budgeting-my8p8, budgeting-gvajj, ledger-vq2g8, ledger-bk3q8, budgeting-r5h2n, infrastructure-vp308, ledger-r8h19)
+**Agents:** qa-milestone-reviewer, backend-code-quality, frontend-architecture, design-quality (kein kritischer Fund)
+**Funde:** behoben 14, verworfen 4, Rückfrage 4 (an Roman, Bildschirm), Ticket 0, Kann-Sammlung 12 (ledger 9, infrastructure 3)
+**Commits:** 46af07df, a81778e6, b601ffa0, c87f98df, 86fac4b6
+**Verworfen:** mutable MirrorBatchState (privat, ein Lauf, unter der Sperre); weitere Einzeiler-Helfer (bleiben, solange Tests sie festhalten); Kommentar zu ledgerCategoriesFailed über Success (fachlich vertretbar); Wartezeiten der Sperr-Tests (Gate stabil)
+**Rückfrage an Roman:** Wiederholen heißt "Erneut laden", "Erneut versuchen" und "Wiederholen" (vereinheitlichen?); Badge "in BB zurückgezogen" klein neben Medium-Badges im Bericht; Teal-Kante der aktiven Konto-Karte am Handy oben abgeschnitten?; Chips "Targets anwenden" und "Targets" am Handy unterscheidbar?
+**Verifikation:** VERIFY: PASS (dotnet 4286 grün, node 317 grün)
+
+---
+
 ## 2026-11-07 11:08 -- Work session ended
 
 **Type:** Work / Session end
