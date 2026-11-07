@@ -5,6 +5,17 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 11:55 -- Deploy: 9 Tasks aus den Bestandsreviews ledger und budgeting
+
+**Type:** Deploy
+**Stand:** 24eab96c (gepusht nach origin und deploy)
+**Inhalt:** infrastructure-k84s2, ledger-kfd5m, budgeting-my8p8, budgeting-gvajj, ledger-vq2g8, ledger-bk3q8, budgeting-r5h2n, infrastructure-vp308, ledger-r8h19; Review-Fixes 46af07df, a81778e6, b601ffa0, c87f98df, 86fac4b6; Agent-Wächter e25e41ba
+**Sicherung:** ~/budgetbuddy-backups/budgetbuddy.db.vor-9tasks-20261107-114856 auf docker-host, integrity ok, 16009 Ereignisse
+**Health:** Deploy successful, budgetbuddy-app healthy
+**Offen [human-eye]:** Jahres-Kategorie unter Passt (j8r4t); Badge "in BB zurückgezogen" klein neben Medium-Badges im Bericht von Targets anwenden; Leiste Monatserster; Kassenbuch-Ladezustände (Platzhalter, Strich, Erneut laden, Grund im Picker); allgemeine Historie mit Target-Zeilen und Chip Targets; Teal-Kante der aktiven Konto-Karte am Handy
+
+---
+
 ## 2026-11-07 11:30 -- Review-Lauf: a59a51c..2bccd25e
 
 **Type:** Review / Review-Lauf
