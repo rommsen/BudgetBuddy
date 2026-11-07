@@ -11,13 +11,14 @@ Catalog of this bounded context's tasks by status.
 
 <!-- task-counts:start -->
 - **Backlog:** 3
-- **Todo:** 0
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 57
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **budgeting-j8r4t** — "Targets prüfen: bei Rhythmus über einen Monat gilt mehr nur, wenn auch die Zahlung über dem Target liegt (verschobene Jahresabbuchung)" (bug) — `todo/budgeting-j8r4t-targets-pruefen-je-zahlung-bei-langem-rhythmus.md`
 <!-- todo-list:end -->
 
 ### Doing

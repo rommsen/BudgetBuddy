@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 07:10 -- Modeling / Promoted: budgeting-j8r4t - "Targets prüfen: bei Rhythmus über einen Monat gilt mehr nur, wenn auch die Zahlung über dem Target liegt (verschobene Jahresabbuchung)"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-07 06:57 -- Deploy: budgeting-k7r2w und budgeting-m3x7f
 
 **Type:** Deploy
