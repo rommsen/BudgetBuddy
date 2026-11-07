@@ -638,6 +638,12 @@ let formatAmountTests =
         test "keeps a leading zero for sub-euro amounts" {
             Expect.equal (formatAmountForInput 0.05m) "0,05" "0.05 → 0,05"
         }
+        test "rundet einen genauen halben Cent kaufmännisch auf" {
+            // Bug-Regression (Bestandsreviews budgeting Gruppe 3 und ledger Gruppe 3): `Math.Round`
+            // ohne Modus rundete zur geraden Zahl, eine bestätigte Vorbelegung schickte 12,34 weiter.
+            Expect.equal (formatAmountForInput 12.345m) "12,35" "12.345 → 12,35"
+            Expect.equal (formatAmountForInput 0.005m) "0,01" "0.005 → 0,01"
+        }
     ]
 
 let prefillTests =

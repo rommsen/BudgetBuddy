@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 8
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 45
+- **Doing:** 0
+- **Done:** 46
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **infrastructure-k84s2** — "Geldanzeige und Vorbelegung runden halbe Cent kaufmännisch über roundHalfUp" (bug) — `doing/infrastructure-k84s2-geldanzeige-rundet-halbe-cent-kaufmaennisch.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **infrastructure-k84s2** — "Geldanzeige und Vorbelegung runden halbe Cent kaufmännisch über roundHalfUp" (bug) — `done/infrastructure-k84s2-geldanzeige-rundet-halbe-cent-kaufmaennisch.md`
 - **infrastructure-w7d2c** — "YnabClient.createTransactions hat keinen Aufrufer mehr und fliegt raus" (chore) — `done/infrastructure-w7d2c-ynabclient-createtransactions-hat-keinen-aufrufer-mehr-und-f.md`
 - **infrastructure-e4vq7** — "Gemeinsame Ereignistabelle `events`: Schema, append-only-Trigger, `UNIQUE(stream_id, stream_version)`, Befehls-Id, generisches Anhängen und Laden; Tests belegen Konflikt bei gleicher Stream-Version, Rollback und das Verhalten von `BeginTransaction`" (feature) — `done/infrastructure-e4vq7-gemeinsame-ereignistabelle-events-schema-append-only-trigger.md`
 - **infrastructure-c7f53** — "Event Sourcing für die Kernkontexte ledger und budgeting mit gemeinsamem Ereignis-Umschlag; Reports als Read Models darauf, alles andere bleibt Zustand" (decision) — `done/infrastructure-c7f53-event-sourcing-fuer-kernkontexte.md`

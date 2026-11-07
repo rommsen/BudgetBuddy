@@ -123,7 +123,10 @@ let formatAmountText (showSign: bool) (showCurrency: bool) (amount: decimal) (cu
     // and comes out mangled (caught by `MoneyFormatTests` while writing this fix).
     // Working in whole cents via plain integer arithmetic sidesteps every
     // culture-dependent formatting path, in both the Fable build and `dotnet test`.
-    let totalCents = System.Math.Round(abs amount * 100m, 0) |> int64
+    // Die Cent rundet `Shared.Domain.roundHalfUp` kaufmännisch: ein genauer halber Cent
+    // geht weg von null (12,345 € wird 12,35 €). Die eingebaute Rundung auf decimal ohne
+    // Modus rundete ihn unter .NET und im Fable-Kompilat zur geraden Zahl (infrastructure-k84s2).
+    let totalCents = Shared.Domain.roundHalfUp (abs amount * 100m) |> int64
     let integerPart = string (totalCents / 100L)
     let decimalPart = (string (totalCents % 100L)).PadLeft(2, '0')
     let formattedAmount = $"{groupThousands integerPart},{decimalPart}"

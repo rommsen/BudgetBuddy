@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 08:53 -- Task verified and completed: infrastructure-k84s2 - "Geldanzeige und Vorbelegung runden halbe Cent kaufmännisch über roundHalfUp"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-k84s2 - "Geldanzeige und Vorbelegung runden halbe Cent kaufmännisch über roundHalfUp"
+**Summary:** Geldanzeige (`Money.formatAmountText`), Vorbelegung (`formatAmountForInput`) und `SplitEditor.amountText` runden einen halben Cent jetzt kaufmännisch über `Shared.Domain.roundHalfUp`. In `src/Client` steht kein `Math.Round` mehr, die Rule nennt das Verhalten unter .NET und hat eine Grep-Zeile.
+**Duration:** (unknown)
+**Verification:** PASS (iteration 1)
+**Files changed:** 7
+**Tests added:** 4
+**ADRs written:** none
+
+---
+
 ## 2026-11-07 08:29 -- Batch started: [budgeting-gvajj]
 
 **Type:** Work / Batch start

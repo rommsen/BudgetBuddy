@@ -36,12 +36,18 @@ paths:
   Stellenzahl: `Math.Round(x, MidpointRounding.AwayFromZero)` rundet auf eine Nachkommastelle (budgeting-q4v8n).
 - Kaufmännisch in Code, der im Client läuft (`src/Shared`, `src/Client`): `Shared.Domain.roundHalfUp`, auf Cent
   `roundHalfUp (x * 100m) / 100m`. `Math.Round` mit Modus nur in Code, der allein unter .NET läuft (`toMilliunits`).
+- Auch unter .NET rundet `Math.Round` auf decimal ohne Modus zur geraden Zahl (`MidpointRounding.ToEven` ist der
+  Standard): `Math.Round(1234.5m, 0)` ergibt 1234. Ein Test unter .NET fängt den halben Cent deshalb schon ab. In
+  `src/Client` steht kein `Math.Round` mehr, Geldanzeige und Vorbelegung runden über `roundHalfUp` (infrastructure-k84s2).
 
 ## Grep-Checks
 
 ```bash
 # MidpointRounding in Code, der nach JS übersetzt wird (erlaubt: toMilliunits, läuft nur unter .NET)
 grep -rn 'MidpointRounding' src/Client/ src/Shared/
+
+# Math.Round im Client (erwartet: nichts, kaufmännisch über Shared.Domain.roundHalfUp)
+grep -rn 'Math.Round' src/Client/
 
 # DateTimeOffset ohne UTC
 grep -rn 'DateTimeOffset(' src/Server/ | grep -v 'TimeSpan.Zero'

@@ -39,10 +39,11 @@ type SplitEditorState = {
 
 let emptyLine : SplitDraftLine = { Target = None; AmountText = ""; Memo = "" }
 
-/// Ein Betrag als Eingabetext: positiver Betrag, Dezimalkomma, leer bei null.
+/// Ein Betrag als Eingabetext: positiver Betrag, Dezimalkomma, leer bei null. Läuft über
+/// `Types.formatAmountForInput`, denselben Cent-Weg wie die Vorbelegung.
 let amountText (amount: decimal) : string =
     if amount = 0m then ""
-    else (abs amount).ToString("0.00", Globalization.CultureInfo.InvariantCulture).Replace(".", ",")
+    else Types.formatAmountForInput amount
 
 /// Liest einen Betrag als positive Größe. Leer ist 0, Unlesbares ist `None`. Ein Minuszeichen
 /// wird ignoriert: im Editor stehen nur positive Beträge.

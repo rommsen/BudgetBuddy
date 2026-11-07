@@ -45,6 +45,20 @@ let private formatTests =
         test "Unbekannter Waehrungscode faellt auf den Code selbst zurueck" {
             Expect.equal (formatAmountText false true 10m "USD") "10,00 USD" "Kein erfundenes Symbol"
         }
+
+        test "Ein genauer halber Cent wird kaufmännisch aufgerundet, auch negativ" {
+            // Bug-Regression (Bestandsreviews budgeting Gruppe 3 und ledger Gruppe 3): `Math.Round`
+            // auf decimal ohne Modus rundete einen halben Cent zur geraden Zahl, unter .NET wie im
+            // Fable-Kompilat. 12,345 € stand als 12,34 €, 0,005 € als 0,00 €.
+            Expect.equal (formatAmountText true true 12.345m "EUR") "+12,35 €" "halber Cent aufgerundet"
+            Expect.equal (formatAmountText false true -12.345m "EUR") "-12,35 €" "negativ weg von null"
+            Expect.equal (formatAmountText false true 0.005m "EUR") "0,01 €" "halber Cent unter einem Euro"
+        }
+
+        test "Neben dem halben Cent bleibt die Rundung wie bisher" {
+            Expect.equal (formatAmountText false true 12.355m "EUR") "12,36 €" "ungerader Nachbar"
+            Expect.equal (formatAmountText false true 12.3449m "EUR") "12,34 €" "knapp unter dem halben Cent"
+        }
     ]
 
 let private formatCountTests =

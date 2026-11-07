@@ -154,6 +154,12 @@ let private functionBody (source: string) (header: string) : string =
 let arithmeticTests =
     testList "Split-Editor: Rechnen und Prüfen (ledger-pafkp)" [
 
+        testCase "amountText rundet kaufmännisch, leer bei null, ohne Vorzeichen" <| fun () ->
+            // Läuft über `formatAmountForInput`, denselben Cent-Weg wie die Vorbelegung (infrastructure-k84s2).
+            Expect.equal (amountText 12.345m) "12,35" "halber Cent aufgerundet"
+            Expect.equal (amountText 0m) "" "null bleibt leer"
+            Expect.equal (amountText -23.4m) "23,40" "negativ ohne Minus"
+
         testCase "Rest gleich Gesamtbetrag minus Summe der positiv eingegebenen Beträge" <| fun () ->
             let state = stateOf -81.90m [ lineWith toMoebel "23,40"; lineWith None "" ]
             Expect.equal (remainder state) 58.50m "81,90 minus 23,40"

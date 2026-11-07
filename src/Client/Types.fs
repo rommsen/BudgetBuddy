@@ -381,8 +381,9 @@ let buildQuickAddRequest (form: QuickAddFormState) : Result<Shared.Domain.Manual
 /// Formats a decimal amount as a 2-decimal, comma-separated string ("4,50").
 /// Hand-rolled to be culture-independent (identical under .NET and Fable) and to
 /// round-trip through `parseAmountInput`, which accepts both "," and ".".
+/// Ein halber Cent wird kaufmännisch aufgerundet (`Shared.Domain.roundHalfUp`, infrastructure-k84s2).
 let formatAmountForInput (amount: decimal) : string =
-    let cents = int (System.Math.Round(abs amount * 100m))
+    let cents = int (Shared.Domain.roundHalfUp (abs amount * 100m))
     sprintf "%d,%02d" (cents / 100) (cents % 100)
 
 /// Prefills a Quick Add form from a recent-transaction template (ynab-t4n8p).
