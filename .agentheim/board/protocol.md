@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 07:34 -- Review-Lauf: budgeting-j8r4t
+
+**Type:** Review / Review-Lauf
+**Bereich:** 114e5ea (budgeting-j8r4t)
+**Agents:** qa-milestone-reviewer, backend-code-quality, frontend-architecture
+**Funde:** behoben 6, verworfen 1, Rückfrage 0, Ticket 0
+**Commits:** 98455a2, 9bdc5d6
+**Behoben:** Grenze der Einzelzahlungen nie bei Ausgaben in allen gezählten Monaten (P = 2, n = 3, Regressionstest vor dem Fix rot); Target je Rhythmus direkt aus dem Target-Betrag; Summe einmal gebildet; Bedingung in singlePayments und perPaymentOver geteilt; Test für die Aufrundung der Grenze; Regelsatz mehr nennt das ganze Target.
+**Verworfen:** Wortlaut-Test der Regelsätze (TargetCheckClientTests) bleibt, er sichert den Text der Skizze.
+**Verifikation:** VERIFY: PASS (dotnet 4261 grün, node 316 grün)
+
+---
+
 ## 2026-11-07 07:26 -- Task verified and completed: budgeting-j8r4t - "Targets prüfen: bei Rhythmus über einen Monat gilt mehr nur, wenn auch die Zahlung über dem Target liegt (verschobene Jahresabbuchung)"
 
 **Type:** Work / Task completion
