@@ -1,7 +1,7 @@
 ---
 id: budgeting-my8p8
 title: "Erneut senden: eine von BB zurückgezogene Zeile heißt nicht mehr \"in YNAB geändert\", und Erneut senden im Folgemonat ist getestet"
-status: todo
+status: doing
 type: bug
 context: budgeting
 created: 2026-11-07

@@ -11,19 +11,19 @@ Catalog of this bounded context's tasks by status.
 
 <!-- task-counts:start -->
 - **Backlog:** 4
-- **Todo:** 2
-- **Doing:** 0
+- **Todo:** 1
+- **Doing:** 1
 - **Done:** 58
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
 - **budgeting-gvajj** — "Leiste Monatserster: Targets prüfen liest nach einer Target-Änderung neu, die Vorschau von Targets anwenden nimmt keine späte Antwort mehr ein" (bug) — `todo/budgeting-gvajj-leiste-monatserster-und-vorschau-ohne-alte-staende.md`
-- **budgeting-my8p8** — "Erneut senden: eine von BB zurückgezogene Zeile heißt nicht mehr \"in YNAB geändert\", und Erneut senden im Folgemonat ist getestet" (bug) — `todo/budgeting-my8p8-zurueckgezogene-zeile-eigener-stand-erneut-senden-im-folgemonat.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **budgeting-my8p8** — "Erneut senden: eine von BB zurückgezogene Zeile heißt nicht mehr \"in YNAB geändert\", und Erneut senden im Folgemonat ist getestet" (bug) — `doing/budgeting-my8p8-zurueckgezogene-zeile-eigener-stand-erneut-senden-im-folgemonat.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)

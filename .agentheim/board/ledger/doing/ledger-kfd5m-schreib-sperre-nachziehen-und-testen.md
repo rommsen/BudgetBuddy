@@ -1,7 +1,7 @@
 ---
 id: ledger-kfd5m
 title: "Schreib-Sperre: Quick Add, Bob, Erneut senden und Prüfvermerk sperren den Spiegel nicht aus, die meisten Sperren sind ungetestet"
-status: todo
+status: doing
 type: bug
 context: ledger
 created: 2026-11-07

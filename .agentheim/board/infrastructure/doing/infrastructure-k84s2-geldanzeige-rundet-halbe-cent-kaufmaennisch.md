@@ -1,7 +1,7 @@
 ---
 id: infrastructure-k84s2
 title: "Geldanzeige und Vorbelegung runden halbe Cent kaufmännisch über roundHalfUp"
-status: todo
+status: doing
 type: bug
 context: infrastructure
 created: 2026-11-07

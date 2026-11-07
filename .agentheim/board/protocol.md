@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 08:21 -- Batch started: [ledger-kfd5m, budgeting-my8p8, infrastructure-k84s2]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-kfd5m - "Schreib-Sperre: Quick Add, Bob, Erneut senden und Prüfvermerk sperren den Spiegel nicht aus, die meisten Sperren sind ungetestet", budgeting-my8p8 - "Erneut senden: eine von BB zurückgezogene Zeile heißt nicht mehr \"in YNAB geändert\", und Erneut senden im Folgemonat ist getestet", infrastructure-k84s2 - "Geldanzeige und Vorbelegung runden halbe Cent kaufmännisch über roundHalfUp"
+**Parallel:** yes (3 workers; ledger-vq2g8 und budgeting-gvajj in der nächsten Welle, Cap 3; bk3q8, r8h19, vp308, r5h2n warten auf Vorgänger)
+
+---
+
 ## 2026-11-07 08:20 -- Modeling / Promoted: infrastructure-k84s2 - "Geldanzeige und Vorbelegung runden halbe Cent kaufmännisch über roundHalfUp"
 
 **Type:** Modeling / Promote
