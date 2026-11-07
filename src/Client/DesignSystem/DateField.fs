@@ -129,7 +129,7 @@ let private openNativePicker (el: Browser.Types.HTMLInputElement) : unit =
 /// nur, wenn er etwas tut (budgeting-g2ty9, F4).
 let calendarButtonClass (disabled: bool) (readOnly: bool) : string =
     let baseClasses =
-        $"shrink-0 inline-flex items-center justify-center rounded-lg min-w-[36px] min-h-[36px] {Backgrounds.dark} {Borders.default'} border transition-colors"
+        $"shrink-0 inline-flex items-center justify-center rounded-lg {TouchTargets.minSize} md:min-w-[36px] md:min-h-[36px] {Backgrounds.dark} {Borders.default'} border transition-colors"
     if disabled then $"{baseClasses} opacity-50 cursor-not-allowed"
     elif readOnly then $"{baseClasses} opacity-60 cursor-default"
     else $"{baseClasses} hover:border-neon-teal"

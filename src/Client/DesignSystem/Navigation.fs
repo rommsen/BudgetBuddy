@@ -79,9 +79,10 @@ let private brand (onClick: unit -> unit) =
                     ]
                 ]
             ]
-            // Brand text
+            // Brand text: erst ab lg, zwischen md und lg passen Marke und sechs Einträge sonst nicht in die Leiste
+            // (infrastructure-nx14s).
             Html.span [
-                prop.className "text-lg font-bold font-display gradient-text"
+                prop.className "hidden lg:inline text-lg font-bold font-display gradient-text"
                 prop.text "BudgetBuddy"
             ]
         ]
@@ -122,8 +123,8 @@ let private mobileNavItem (item: NavItem) (currentPage: NavPage) (onClick: NavPa
     let isActive = item.Page = currentPage
     Html.a [
         prop.className (
-            "flex flex-col items-center justify-center gap-0.5 py-2.5 px-2 " +
-            "rounded-lg transition-all duration-200 cursor-pointer min-w-[60px] min-h-[52px] " +
+            "flex flex-col items-center justify-center gap-0.5 py-2.5 px-1 " +
+            "rounded-lg transition-all duration-200 cursor-pointer min-w-12 min-h-[52px] " +
             "whitespace-nowrap " +
             if isActive then
                 "text-neon-teal"
@@ -153,7 +154,7 @@ let mobileNav (currentPage: NavPage) (onNavigate: NavPage -> unit) =
         )
         prop.children [
             Html.div [
-                prop.className "flex items-center justify-around px-2 py-1"
+                prop.className "flex items-center justify-around px-1 py-1"
                 prop.children [
                     for item in navItems do
                         mobileNavItem item currentPage onNavigate

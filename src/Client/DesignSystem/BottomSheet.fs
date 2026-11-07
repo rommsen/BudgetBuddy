@@ -199,12 +199,15 @@ let private BottomSheetInternal (input: BottomSheetInternalProps) =
                             prop.children [
                                 Html.div [
                                     prop.children [
+                                        // Ein langer Titel kürzt im festen Kopf, der title trägt ihn ganz.
                                         Html.h3 [
+                                            prop.title props.Title
                                             prop.text props.Title
                                         ]
                                         match props.Subtitle with
                                         | Some sub ->
                                             Html.p [
+                                                prop.title sub
                                                 prop.text sub
                                             ]
                                         | None -> ()

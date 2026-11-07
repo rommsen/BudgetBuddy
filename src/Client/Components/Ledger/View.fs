@@ -533,7 +533,7 @@ let reviewMarkButtonClassName (hoverOnly: bool) (rowFocused: bool) : string =
         if not hoverOnly then ""
         elif rowFocused then "opacity-100"
         else "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
-    "inline-flex shrink-0 items-center justify-center rounded-lg h-11 w-11 md:h-7 md:w-7 " +
+    "inline-flex shrink-0 items-center justify-center rounded-lg h-12 w-12 md:h-7 md:w-7 " +
     "text-text-secondary hover:text-text-primary hover:bg-surface-hover " +
     "transition-colors touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed " +
     visibility
@@ -541,7 +541,7 @@ let reviewMarkButtonClassName (hoverOnly: bool) (rowFocused: bool) : string =
 /// Die Schaltfläche "Geprüft" / "Ungeprüft" einer Zeile (ledger-r777c, ADR 0050): ein
 /// Symbol (Haken für "Geprüft", Pfeil zurück für "Ungeprüft") mit der Beschriftung als
 /// nur vorgelesenem Text, damit die Statusspalte der PC-Tabelle (128px) nicht
-/// überläuft. Am Handy 44px Trefferfläche, am PC 28px. Der Klick öffnet nicht die
+/// überläuft. Am Handy 48px Trefferfläche, am PC 28px. Der Klick öffnet nicht die
 /// Historie der Zeile (`stopPropagation`). Ein laufender Aufruf sperrt die Schaltfläche.
 let private reviewMarkButton
     (dispatch: Msg -> unit)
@@ -592,6 +592,7 @@ let private reviewMarkHintView
             ]
             Html.span [
                 prop.className $"{Tokens.ListRoles.muted} truncate min-w-0"
+                prop.title hint.Reason
                 prop.text hint.Reason
             ]
             match hint.RetryLabel with
@@ -657,6 +658,7 @@ let private entryRow
                 prop.children [
                     Html.span [
                         prop.className $"{Tokens.ListRoles.primary} truncate min-w-0"
+                        prop.title (payeeLabel entry)
                         prop.text (payeeLabel entry)
                     ]
                     Html.span [ prop.className "shrink-0"; prop.children [ entryMoney entry ] ]
@@ -673,12 +675,14 @@ let private entryRow
                     | None -> ()
                     Html.span [
                         prop.className $"{categoryClassName entry} truncate shrink-0 max-w-3/5"
+                        prop.title (listCategoryLabel PhoneRow entry)
                         prop.text (listCategoryLabel PhoneRow entry)
                     ]
                     match entry.Memo |> Option.filter (String.IsNullOrWhiteSpace >> not) with
                     | Some memo ->
                         Html.span [
                             prop.className $"{Tokens.ListRoles.muted} truncate min-w-0"
+                            prop.title memo
                             prop.text memo
                         ]
                     | None -> ()
@@ -830,9 +834,9 @@ let private dateGroupHeader (date: DateTime) (sum: Money) =
 
 /// Eine Zelle der PC-Tabelle, deren Text auf eine Zeile gekürzt wird (Payee,
 /// Kategorie, Memo): die Tabelle hat feste Spaltenbreiten (`FixedLayout`), ohne
-/// Kürzung würde langer Text umbrechen und die Zeile höher machen als jede andere.
-let private truncatedRoleCell (role: Table.CellRole) (child: ReactElement) =
-    Table.roleCell role [ Html.div [ prop.className "truncate"; prop.children [ child ] ] ]
+/// Kürzung würde langer Text umbrechen und die Zeile höher machen als jede andere. `title` trägt den ganzen Text.
+let private truncatedRoleCell (role: Table.CellRole) (title: string) (child: ReactElement) =
+    Table.roleCell role [ Html.div [ prop.className "truncate"; prop.title title; prop.children [ child ] ] ]
 
 /// Die Kategorie-Zelle der PC-Tabelle (ADR 0049 Punkt 4): sekundäre Rolle, nur "ohne
 /// Kategorie" in Orange. Der `span` mit eigener Farbklasse gewinnt gegenüber der
@@ -842,6 +846,7 @@ let private truncatedRoleCell (role: Table.CellRole) (child: ReactElement) =
 let private categoryCell (entry: LedgerEntryView) =
     truncatedRoleCell
         Table.Secondary
+        (listCategoryLabel TableRow entry)
         (Html.span [ prop.className (categoryClassName entry); prop.text (listCategoryLabel TableRow entry) ])
 
 /// Der Betrag als eigene Zelle: rechtsbündig über `Table.amountCell` (Listenvariante,
@@ -946,6 +951,7 @@ let private payeeCell (accountAbbreviation: string option) (entry: LedgerEntryVi
         Table.Payee
         [ Html.div [
               prop.className "truncate"
+              prop.title (payeeLabel entry)
               prop.children [ abbreviation; Html.span [ prop.text (payeeLabel entry) ] ]
           ] ]
 
@@ -979,7 +985,7 @@ let private entryTableRow
             payeeCell (payeeAccountAbbreviation isAllAccounts columns (accountAbbreviationOf entry.AccountId)) entry
             categoryCell entry
             if List.contains MemoColumn columns then
-                truncatedRoleCell Table.Muted (Html.text (entry.Memo |> Option.defaultValue ""))
+                truncatedRoleCell Table.Muted (entry.Memo |> Option.defaultValue "") (Html.text (entry.Memo |> Option.defaultValue ""))
             tdMoney entry
             Table.cell { Table.defaultCellProps with Align = Some "right" } [
                 Html.div [
@@ -2763,7 +2769,7 @@ let private dateQuickButton (dispatch: Msg -> unit) (model: Model) (quick: DateQ
     Html.button [
         prop.type' "button"
         prop.className (
-            "rounded-full py-2 text-xs font-semibold border transition-colors "
+            "rounded-full py-2 min-h-12 md:min-h-0 text-xs font-semibold border transition-colors "
             + (if isSelected then $"bg-neon-teal/10 border-neon-teal {Tokens.Colors.neonTeal}"
                else $"{Tokens.Backgrounds.dark} {Tokens.Borders.default'} {Tokens.Colors.textSecondary}"))
         prop.onClick (fun _ -> dispatch (SetDateQuick quick))
@@ -2808,8 +2814,9 @@ let private datePickerBody (dispatch: Msg -> unit) (model: Model) =
                     dateQuickButton dispatch model Last12Months
                 ]
             ]
+            // Am schmalen Handy untereinander: nebeneinander schnitte das Feld den Platzhalter ab (infrastructure-nx14s).
             Html.div [
-                prop.className "grid grid-cols-2 gap-3 md:grid-cols-1"
+                prop.className "grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-1"
                 prop.children [
                     dateDraftInput "Von" model.DateDraft.From model.DateDraftFromInvalid (fun v -> dispatch (SetDateDraftFrom v))
                     dateDraftInput "Bis" model.DateDraft.To model.DateDraftToInvalid (fun v -> dispatch (SetDateDraftTo v))
@@ -3472,13 +3479,14 @@ let private accountSwitcher
         Primitives.Responsive.mobileOnly [
             Html.button [
                 prop.type' "button"
-                prop.className "flex items-center gap-1 min-h-[44px] mb-2 text-left text-text-primary"
+                prop.className "flex items-center gap-1 min-h-12 mb-2 text-left text-text-primary"
                 prop.custom ("data-testid", "ledger-account-switcher")
                 prop.custom ("aria-haspopup", "dialog")
                 prop.onClick (fun _ -> dispatch OpenAccountSheet)
                 prop.children [
                     Html.span [
                         prop.className "text-base font-semibold font-display truncate"
+                        prop.title activeLabel
                         prop.text activeLabel
                     ]
                     Icons.chevronDown Icons.SM Icons.Default

@@ -332,7 +332,7 @@ let private sidePanel (model: Model) (dispatch: Msg -> unit) =
                 Html.div [
                     prop.className "flex items-baseline justify-between gap-3"
                     prop.children [
-                        Html.h2 [ prop.className $"text-lg {FontWeights.semibold} {Colors.textPrimary} truncate"; prop.text row.Name ]
+                        Html.h2 [ prop.className $"text-lg {FontWeights.semibold} {Colors.textPrimary} truncate"; prop.title row.Name; prop.text row.Name ]
                         Html.div [
                             prop.custom ("data-testid", "target-check-close")
                             prop.children [

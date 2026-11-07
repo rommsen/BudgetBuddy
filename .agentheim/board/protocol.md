@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 19:24 -- Task verified and completed: infrastructure-nx14s - "Layout-Invarianten als ein generischer Sweep über alle Routen und Breiten statt als Designwerte je Komponente, mit Doktrin-Regel für Layout-Regressionen"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-nx14s - "Layout-Invarianten als ein generischer Sweep über alle Routen und Breiten statt als Designwerte je Komponente, mit Doktrin-Regel für Layout-Regressionen"
+**Summary:** Ein generischer Layout-Sweep prüft 21 Zustände bei ihren Breiten gegen neun Layout-Invarianten, je Invariante mit Gegenbeweis. Trefferflächen und Feldschrift gelten ab 320 px, einzige benannte Ausnahme sind die sechs Schritte im Tab Geld bei 320 px. Flackern der Regelseite (Messung während der Eintritts-Animation) behoben.
+**Duration:** ca. 3h
+**Verification:** PASS (iteration 2)
+**Files changed:** 28
+**Tests added:** 11
+**ADRs written:** none
+
+---
+
+## 2026-11-07 18:22 -- Verification failed: infrastructure-nx14s - Layout-Invarianten als ein generischer Sweep
+
+**Type:** Work / Verification failure
+**Task:** infrastructure-nx14s - Layout-Invarianten als ein generischer Sweep
+**Iteration:** 1 of 3
+**Reasons:** verify.sh rot (rules-page-mobile Pfeile 47,99 px, flackert nur im Worktree), TOUCH_FROM = 390 als pauschale Ausnahme, reviewedSwitch ohne md-Variante
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-07 17:15 -- Task verified and completed: design-system-bcdqy - "Muster im Styleguide: Orte, Auswahl, Liste mit Panel, Tastatur, Dialoge und Layout-Regeln für Handy und PC"
 
 **Type:** Work / Task completion

@@ -45,7 +45,7 @@ let private detailEntryLine (entry: CategoryMonthEntry) (dispatch: Msg -> unit) 
         Html.span [
             prop.className ListRoles.mobileLine1
             prop.children [
-                Html.span [ prop.className $"{ListRoles.primary} truncate min-w-0"; prop.text payee ]
+                Html.span [ prop.className $"{ListRoles.primary} truncate min-w-0"; prop.title payee; prop.text payee ]
                 Money.listAmount entry.Amount.Amount entry.Amount.Currency
             ]
         ]
@@ -55,7 +55,7 @@ let private detailEntryLine (entry: CategoryMonthEntry) (dispatch: Msg -> unit) 
                 Html.span [ prop.className ListRoles.date; prop.text date ]
                 match entry.AccountName with
                 | Some account ->
-                    Html.span [ prop.className $"{ListRoles.secondary} truncate"; prop.text $"· {account}" ]
+                    Html.span [ prop.className $"{ListRoles.secondary} truncate"; prop.title $"· {account}"; prop.text $"· {account}" ]
                 | None -> ()
                 if entry.IsSplitShare then
                     Badge.neutral "Split"
@@ -150,7 +150,7 @@ let private historyLineView (line: HistoryLine) =
             Html.div [
                 prop.className ListRoles.mobileLine1
                 prop.children [
-                    Html.span [ prop.className $"{ListRoles.primary} truncate min-w-0"; prop.text line.Text ]
+                    Html.span [ prop.className $"{ListRoles.primary} truncate min-w-0"; prop.title line.Text; prop.text line.Text ]
                     match line.Change with
                     | Some change -> historyChangeView change
                     | None -> ()
@@ -390,8 +390,8 @@ let inspectorPanel (model: Model) (dispatch: Msg -> unit) =
                 Html.div [
                     prop.className "flex flex-col gap-1 p-4 shrink-0"
                     prop.children [
-                        Html.h2 [ prop.className $"{ListRoles.primary} truncate"; prop.text category.Name ]
-                        Html.span [ prop.className $"{ListRoles.secondary} truncate"; prop.text $"{groupName} · {monthLabel month.Month}" ]
+                        Html.h2 [ prop.className $"{ListRoles.primary} truncate"; prop.title category.Name; prop.text category.Name ]
+                        Html.span [ prop.className $"{ListRoles.secondary} truncate"; prop.title $"{groupName} · {monthLabel month.Month}"; prop.text $"{groupName} · {monthLabel month.Month}" ]
                     ]
                 ]
                 Html.div [ prop.className "shrink-0"; prop.children [ inspectorTabBar model dispatch ] ]

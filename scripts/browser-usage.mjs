@@ -80,7 +80,7 @@ export function leafTests(lines) {
 
 /// Die Kennungen eines Browser-Tests (Doktrin Punkt 5): was er prüft, das nur der Browser kann.
 export const TAGS = {
-  layout: "Maße, Breiten, Abschneiden, sticky, Viewport, Trefferflächen, berechnete Farben",
+  layout: "Layout-Invarianten: seitliches Scrollen, Abschneiden, Verdecken, sticky, Viewport, Trefferflächen",
   fokus: "Fokus im echten DOM",
   tastatur: "Tastatur-Ereignisse im echten DOM",
   scroll: "Scrollen und Scrollposition",

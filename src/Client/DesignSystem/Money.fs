@@ -468,6 +468,7 @@ let accountListRowWith (label: string) (value: ReactElement) (isActive: bool) (o
                       else
                           Tokens.Colors.textSecondary
                 )
+                prop.title label
                 prop.text label
             ]
             value

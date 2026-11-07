@@ -198,6 +198,8 @@ let private ModalInternal (input: ModalInternalProps) =
                         prop.children [
                             // Modal content
                             Html.div [
+                                // Markiert die Ebene für den Layout-Sweep (scripts/layout-invariants.mjs).
+                                prop.custom ("data-layer", "dialog")
                                 prop.className (
                                     "relative z-50 w-full bg-surface-card border border-border-default shadow-2xl " +
                                     (if shouldAnimate then "animate-scale-in " else "") +

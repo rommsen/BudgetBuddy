@@ -261,21 +261,21 @@ let completedView (session: SyncSession) (dispatch: Msg -> unit) =
                                         prop.className "bg-surface-card rounded-xl border border-border-subtle shadow-lg p-4 text-center"
                                         prop.children [
                                             Html.p [ prop.className "text-2xl font-bold font-mono text-text-primary"; prop.text (string session.TransactionCount) ]
-                                            Html.p [ prop.className $"{Tokens.FontSizes.micro} leading-tight text-text-muted uppercase tracking-wider truncate"; prop.text "Gesamt" ]
+                                            Html.p [ prop.className $"{Tokens.FontSizes.micro} leading-tight text-text-muted uppercase tracking-wider truncate"; prop.title "Gesamt"; prop.text "Gesamt" ]
                                         ]
                                     ]
                                     Html.div [
                                         prop.className "bg-surface-card rounded-xl border border-neon-green/30 shadow-lg p-4 text-center"
                                         prop.children [
                                             Html.p [ prop.className "text-2xl font-bold font-mono text-neon-green"; prop.text (string session.ImportedCount) ]
-                                            Html.p [ prop.className $"{Tokens.FontSizes.micro} leading-tight text-text-muted uppercase tracking-wider truncate"; prop.text "Importiert" ]
+                                            Html.p [ prop.className $"{Tokens.FontSizes.micro} leading-tight text-text-muted uppercase tracking-wider truncate"; prop.title "Importiert"; prop.text "Importiert" ]
                                         ]
                                     ]
                                     Html.div [
                                         prop.className "bg-surface-card rounded-xl border border-border-subtle shadow-lg p-4 text-center"
                                         prop.children [
                                             Html.p [ prop.className "text-2xl font-bold font-mono text-text-muted"; prop.text (string session.SkippedCount) ]
-                                            Html.p [ prop.className $"{Tokens.FontSizes.micro} leading-tight text-text-muted uppercase tracking-wider truncate"; prop.text "Übersprungen" ]
+                                            Html.p [ prop.className $"{Tokens.FontSizes.micro} leading-tight text-text-muted uppercase tracking-wider truncate"; prop.title "Übersprungen"; prop.text "Übersprungen" ]
                                         ]
                                     ]
                                 ]
@@ -301,7 +301,8 @@ let private bankStatusRow (status: Types.RemoteData<BankConnectionStatus>) =
             prop.className "flex items-center justify-between gap-3 min-h-6 mb-4"
             prop.children children
         ]
-    let hint (text: string) = Html.p [ prop.className "text-sm text-text-secondary"; prop.text text ]
+    // Einzeilig: ein Umbruch am schmalen Handy machte die Zeile nach der Antwort höher (infrastructure-nx14s).
+    let hint (text: string) = Html.p [ prop.className "min-w-0 truncate text-sm text-text-secondary"; prop.title text; prop.text text ]
     row [
         match Components.BankConnectionBadge.hintFor status with
         | Some text -> hint text

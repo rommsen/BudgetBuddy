@@ -86,6 +86,12 @@ Ziel: Drei Orte, eine Sprache, Seite für Seite an der Skizze.
   ersetzt den Inhalt des Sheets und führt zurück (Styleguide §7.15).
 - Rückmeldung am PC über der Auswahl-Leiste des Kassenbuchs statt auf ihr (Styleguide §7.13).
 - Budget-Historie: Filter nach Art als Auswahlfeld „Zeigen“ statt `ChipBar` (Styleguide §7.11).
+- Browser-Tests beim Umbau: Wird eine Seite umgebaut, fliegen ihre `[flow]`-, `[tastatur]`-,
+  `[fokus]`- und `[scroll]`-Tests raus und werden gegen die Muster aus dem Styleguide neu
+  geschrieben, je Flow einer. Nicht nachziehen. `[fable]`, der Layout-Sweep und die Backend-Tests
+  bleiben (Roman, 2026-11-07).
+- Tastenregeln aus Styleguide §7.8 und §7.9 als ein generischer Test über alle Listen mit Panel,
+  wie der Layout-Sweep, statt eines Tests je Seite.
 - Logo und Icon: Vorlage Buddy in `standards/frontend/brand/` (Entwurf 2026-11-07, Palette 2).
 - `banking-import-t4raw` zeitgesteuertes Vorbereiten
 - `banking-import-q7vd2` confirmTan-Fehlerzweig

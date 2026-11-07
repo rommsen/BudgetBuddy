@@ -34,7 +34,7 @@ let private previewLine (shown: PreviewShown) (dispatch: Msg -> unit) (l: Target
         prop.className "flex items-center gap-2.5 min-h-12 md:min-h-10 shrink-0 text-sm text-text-primary border-b border-border-default cursor-pointer"
         prop.children [
             Input.checkboxNative (lineChosen shown l.CategoryId) (fun _ -> dispatch (ToggleTargetLine l.CategoryId))
-            Html.span [ prop.className "flex-1 min-w-0 truncate"; prop.text l.CategoryName ]
+            Html.span [ prop.className "flex-1 min-w-0 truncate"; prop.title l.CategoryName; prop.text l.CategoryName ]
             dialogAmount None l.Underfunded
         ]
     ]
@@ -124,13 +124,13 @@ let private outcomeLine (l: ApplyLineResult) =
             Html.div [
                 prop.className ListRoles.mobileLine1
                 prop.children [
-                    Html.span [ prop.className $"{ListRoles.primary} truncate min-w-0"; prop.text l.CategoryName ]
+                    Html.span [ prop.className $"{ListRoles.primary} truncate min-w-0"; prop.title l.CategoryName; prop.text l.CategoryName ]
                     badge
                 ]
             ]
             Html.div [
                 prop.className ListRoles.mobileLine2
-                prop.children [ Html.span [ prop.className $"{ListRoles.muted} truncate"; prop.text detail ] ]
+                prop.children [ Html.span [ prop.className $"{ListRoles.muted} truncate"; prop.title detail; prop.text detail ] ]
             ]
         ]
     ]

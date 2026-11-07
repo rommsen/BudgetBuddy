@@ -121,3 +121,6 @@ Kaputt-Szenario (GIVEN/WHEN/THEN): GIVEN Wechsel hin und zurück, das Lesen des 
 
 ## Aus budgeting-r5h2n (2026-11-07)
 - Am Handy kürzt der Fehlgrund neben dem Badge ("Rate…") in der allgemeinen Historie. Das betrifft Durchläufe und Target-Zeilen gleich und bestand schon vorher.
+
+## Aus infrastructure-nx14s (2026-11-07, Layout-Sweep)
+- Tab Geld bei 320 px: die sechs Schritte messen 44,7 × 48 px statt 48. Zwei Zeilen schieben „Nur noch … zu verteilen“ aus dem 500-px-Sheet (budgeting-c5w2n); eine Lösung braucht einen kleinen Umbau des Tabs. Danach die Ausnahme in `scripts/layout-states.mjs` (Zustand `budget-geld-zuweisen`) und im Test „Ausnahmen sind einzeln benannt“ in `scripts/layout-invariants.test.mjs` streichen.

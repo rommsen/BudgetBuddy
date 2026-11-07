@@ -99,7 +99,7 @@ let private targetButton (props: LineProps) : ReactElement =
         prop.custom ("data-testid", $"split-target-{props.Index}")
         prop.disabled props.Disabled
         prop.className (
-            $"flex min-h-11 w-full min-w-0 items-center rounded-lg border {Borders.default'} {Backgrounds.elevated} " +
+            $"flex min-h-12 md:min-h-11 w-full min-w-0 items-center rounded-lg border {Borders.default'} {Backgrounds.elevated} " +
             $"px-3 py-2 text-left {FontSizes.sm} {color} truncate transition-colors touch-manipulation " +
             "hover:border-neon-teal disabled:opacity-50 disabled:cursor-not-allowed"
         )

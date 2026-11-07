@@ -64,10 +64,13 @@ let view (props: Props) =
     Html.div [
         prop.className (containerClass props.TitleStyle)
         prop.children [
+            // Ein langes Wort im Titel bricht um, statt die Aktionen aus dem Bild zu schieben (infrastructure-nx14s).
             Html.div [
+                prop.className "min-w-0"
                 prop.children [
                     Html.h1 [
-                        prop.className titleClass
+                        prop.lang "de"
+                        prop.className $"{titleClass} hyphens-auto break-words"
                         prop.text props.Title
                     ]
                     match props.Subtitle with
@@ -81,7 +84,7 @@ let view (props: Props) =
             ]
             if not props.Actions.IsEmpty then
                 Html.div [
-                    prop.className "flex gap-2"
+                    prop.className "flex shrink-0 gap-2"
                     prop.children props.Actions
                 ]
         ]

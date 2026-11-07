@@ -1,0 +1,626 @@
+// scripts/layout-states.mjs
+//
+// Die Zustände des Layout-Sweeps (infrastructure-nx14s): jede Route und jedes Sheet, Popover oder jeder Dialog,
+// der schon einmal eine Layout-Regression hatte. Ein neuer Layoutbug bekommt hier einen Zustand (oder in
+// `layout-invariants.mjs` eine Invariante), keinen eigenen Test je Komponente (Doktrin Punkt 5 und 8).
+//
+// Ein Zustand: `name`, `route`, `widths`, `mock(page)` (rein synthetische Antworten per `page.route`),
+// `open(page, { width, mobile })` stellt den Zustand her und wartet auf ihn. Optional: `primary(page)` (der
+// Primärknopf einer Ebene, Invarianten 5 und 7, je Breite auch `null`), `reach(page)` (was ohne Scrollen
+// sichtbar bleiben muss), `keyboard: { focus, reach }` (Invariante 7 mit offener Tastatur: `focus` bekommt den
+// Fokus, `reach` bleibt im Bild), `deferred: { api, body, loaded }` (eine verzögerte Antwort, Invariante 9),
+// `height` (Höhe des Viewports), `checks` (nur diese Invarianten). Die Fixtures tragen lange Namen und große
+// Beträge (Invariante 4).
+
+import { HANDY_WIDTHS, PAGE_WIDTHS, TABLE_WIDTHS } from "./layout-invariants.mjs";
+import { buildAccountsFixture, buildBalancesFixture, buildCategoriesFixture, buildEntryFixture, CATEGORY_IDS, fixtureGuid, mockFilterBarApi } from "./ledger-filter-bar.mjs";
+
+const eur = (amount) => ({ Amount: amount, Currency: "EUR" });
+const guid = (n) => `00000000-0000-0000-0000-${String(n).padStart(12, "0")}`;
+const W = (c, v) => ({ [c]: v });
+const json = (route, body) => route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
+const frames = (page) => page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+
+// ============================================================
+// Was jede Seite lädt
+// ============================================================
+
+/// Die Aufrufe, die die App auf jeder Seite macht (Navigation, Sync-Stand, Einstellungen). Spätere Routen
+/// überschreiben sie (Playwright lässt die zuletzt registrierte gewinnen).
+async function mockApp(page) {
+  await page.route("**/api/SettingsApi/getSettings", (r) =>
+    json(r, { Comdirect: null, Ynab: { HasToken: true, DefaultBudgetId: W("YnabBudgetId", "fake-budget-id"), DefaultAccountId: null, QuickAddAccountId: null }, Sync: { DaysToFetch: 14 } })
+  );
+  await page.route("**/api/SettingsApi/getLenaFlagSettings", (r) => json(r, { SavedColor: "Purple", SuggestedColor: null }));
+  await page.route("**/api/SyncApi/getBankConnectionStatus", (r) => json(r, "BankConnected"));
+  await page.route("**/api/SyncApi/getCurrentSession", (r) => json(r, null));
+  await page.route("**/api/BudgetApi/getTargetCheck", (r) => json(r, { Ok: { Month: "2026-11-01", Today: "2026-11-06", Categories: [] } }));
+  await page.route("**/api/YnabApi/getPayees", (r) => json(r, { Ok: [] }));
+  await page.route("**/api/YnabApi/getCategories", (r) =>
+    json(r, { Ok: [...buildCategoriesFixture(), { Id: { YnabCategoryId: guid(2) }, Name: LONG_CATEGORY, GroupName: "Alltag", Available: eur(12345.67), Hidden: false }] })
+  );
+  await page.route("**/api/LedgerApi/getBudgetAccounts", (r) =>
+    json(r, {
+      Ok: [
+        { Id: { YnabAccountId: fixtureGuid(7001) }, Name: "Tagesgeld", Balance: eur(0), OnBudget: true, Closed: false },
+        { Id: { YnabAccountId: fixtureGuid(7002) }, Name: "Bargeld", Balance: eur(0), OnBudget: true, Closed: false },
+      ],
+    })
+  );
+}
+
+// ============================================================
+// Budget
+// ============================================================
+
+export const LONG_CATEGORY = "Eine Kategorie mit einem sehr langen Namen, der am Handy abgeschnitten werden muss";
+const CURRENT = "2026-11-01";
+const MONTHS = ["2026-10-01", CURRENT, "2026-12-01"];
+const monthly = (goal) => ({ Goal: eur(goal), Rhythm: { Months: 1 }, Kind: "Need", Date: null, NeedsWholeAmount: true, Day: 15, CreatedIn: null });
+const category = (n, name, assigned, activity, available, extra = {}) => ({
+  Id: guid(n),
+  Name: name,
+  Assigned: eur(assigned),
+  Activity: eur(activity),
+  Available: eur(available),
+  Underfunded: null,
+  Target: null,
+  Pause: null,
+  OpenWriteBack: null,
+  ...extra,
+});
+
+const budgetMonth = (key) => ({
+  Month: key,
+  ToBeBudgeted: eur(-12345.67),
+  Groups: [
+    {
+      Name: "Alltag",
+      Categories: [
+        category(1, "Essen", 0, -921.1, -12.5, { Target: monthly(1600), Underfunded: eur(1600) }),
+        category(2, LONG_CATEGORY, 12345.67, -9876.54, 12345.67, {
+          Target: { Goal: eur(12160), Rhythm: { Months: 11 }, Kind: "Need", Date: null, NeedsWholeAmount: true, Day: null, CreatedIn: null },
+          Underfunded: eur(12160),
+        }),
+        category(3, "Kleidung", 1600, 0, 1600, { Target: monthly(1600), Underfunded: eur(0) }),
+        category(4, "Reise", 0, 0, 0, { Target: monthly(1600), Underfunded: eur(1600), Pause: "PausedInBb" }),
+        category(5, "Urlaub", 0, 0, 0),
+      ],
+    },
+    { Name: "Rücklagen mit einem langen Gruppennamen", Categories: Array.from({ length: 30 }, (_, i) => category(10 + i, `Kategorie ${i + 1}`, 10, 0, 10)) },
+  ],
+});
+const BUDGET_ORDER = budgetMonth(CURRENT).Groups.flatMap((g) => g.Categories.map((c) => c.Id));
+
+const categoryEntries = Array.from({ length: 12 }, (_, i) => ({
+  EntryId: `00000000-0000-0000-0001-${String(i + 1).padStart(12, "0")}`,
+  AccountId: "00000000-0000-0000-0002-000000000001",
+  AccountName: "Gemeinsames Girokonto mit langem Namen",
+  Date: "2026-11-05T00:00:00.0000000",
+  Payee: i === 0 ? "Ein Empfänger mit einem sehr langen Namen, der nicht in eine Zeile passt" : `Empfänger ${i + 1}`,
+  Amount: eur(i === 0 ? -12345.67 : -1 - i),
+  IsSplitShare: i === 1,
+}));
+
+const historyMovement = (n, origin, latest, extra = {}) => ({
+  Movement: {
+    MovementId: guid(300 + n),
+    ApplicationId: guid(400 + n),
+    OccurredAt: "2026-11-03T09:30:00.0000000Z",
+    Origin: { Decision: origin },
+    Month: CURRENT,
+    CategoryId: guid(1),
+    CategoryName: "Essen",
+    OldAssigned: eur(1550),
+    NewAssigned: eur(12345.67),
+    Counterpart: null,
+    Latest: latest,
+    ReplacedBy: null,
+    ...extra,
+  },
+});
+const categoryHistory = {
+  Entries: [
+    historyMovement(1, "MoneyAssigned", { Failed: "YNAB hat die Zuweisung abgelehnt, weil das Budget gerade von einer anderen Sitzung geändert wird" }),
+    historyMovement(2, "MoneyMoved", "Written", { Counterpart: LONG_CATEGORY }),
+    historyMovement(3, "TargetsApplied", "Written"),
+  ],
+  Spending: ["2026-06-01", "2026-07-01", "2026-08-01", "2026-09-01", "2026-10-01", CURRENT].map((month, i) => ({
+    Month: month,
+    Activity: eur(i === 3 ? 85 : -12345.67 * (i + 1)),
+  })),
+};
+
+const previewLine = (n, name) => ({
+  CategoryId: guid(n),
+  CategoryName: name,
+  GroupName: "Alltag",
+  OldAssigned: eur(12345.67),
+  Underfunded: eur(12160),
+  NewAssigned: eur(24505.67),
+  Target: monthly(12160),
+});
+const targetsPreview = {
+  Month: CURRENT,
+  Lines: [previewLine(2, LONG_CATEGORY), ...Array.from({ length: 39 }, (_, i) => previewLine(10 + i, `Kategorie ${i + 1}`))],
+  Skipped: [{ CategoryId: guid(4), CategoryName: "Reise, pausiert bis zum nächsten Frühjahr", Underfunded: eur(1600) }],
+  Total: eur(474240),
+  ToBeBudgeted: eur(5000),
+  ToBeBudgetedAfter: eur(-469240),
+  CommandId: null,
+};
+
+const generalMovement = (n, group, origin, name, latest, counterpart = null) => ({
+  Movement: {
+    MovementId: guid(500 + n),
+    ApplicationId: guid(group),
+    OccurredAt: "2026-11-03T09:30:00.0000000Z",
+    Origin: { Decision: origin },
+    Month: CURRENT,
+    CategoryId: guid(600 + n),
+    CategoryName: name,
+    OldAssigned: eur(1500),
+    NewAssigned: eur(12345.67),
+    Counterpart: counterpart,
+    Latest: latest,
+    ReplacedBy: null,
+  },
+});
+const budgetHistory = [
+  generalMovement(1, 11, "MoneyMoved", LONG_CATEGORY, "Written", "Essen/Einkaufen"),
+  generalMovement(2, 11, "MoneyMoved", "Essen/Einkaufen", "Written", LONG_CATEGORY),
+  generalMovement(3, 12, "TargetsApplied", "Strom", { Failed: "Rate-Limit" }),
+  generalMovement(4, 12, "TargetsApplied", "Miete", "Written"),
+  ...Array.from({ length: 30 }, (_, i) => generalMovement(10 + i, 20 + i, "MoneyAssigned", `Kategorie ${i + 1}`, "Written")),
+];
+
+const emptyReport = (key) => ({ ApplicationId: guid(9), Month: key, Lines: [], ActualToBeBudgeted: null });
+
+async function mockBudget(page) {
+  await mockApp(page);
+  await page.route("**/api/BudgetApi/getBudgetFrame", (r) => json(r, { Ok: { CurrentMonth: CURRENT, Months: MONTHS, CategoryOrder: BUDGET_ORDER, MonthStartHidden: [] } }));
+  await page.route("**/api/BudgetApi/getBudgetMonth", (r) => {
+    const [key] = JSON.parse(r.request().postData() ?? "[]");
+    return json(r, { Ok: budgetMonth(key) });
+  });
+  await page.route("**/api/BudgetApi/getRecentMoveCategories", (r) => json(r, { Ok: [guid(2), guid(1)] }));
+  await page.route("**/api/LedgerApi/getCategoryMonthEntries", (r) => json(r, { Ok: categoryEntries }));
+  await page.route("**/api/BudgetApi/getCategoryHistory", (r) => json(r, { Ok: categoryHistory }));
+  await page.route("**/api/BudgetApi/previewTargets", (r) => json(r, { Ok: targetsPreview }));
+  await page.route("**/api/BudgetApi/getBudgetHistory", (r) => json(r, { Ok: budgetHistory }));
+  await page.route("**/api/BudgetApi/assignMoney", (r) => json(r, { Ok: emptyReport(CURRENT) }));
+  await page.route("**/api/BudgetApi/moveMoney", (r) => json(r, { Ok: emptyReport(CURRENT) }));
+}
+
+const budgetRow = (page, name) => page.locator('[data-testid="budget-category-row"]:visible').filter({ has: page.getByText(name, { exact: true }) });
+const openBudget = async (page) => page.locator('[data-testid="budget-to-be-budgeted"]').waitFor();
+const inspector = (page, mobile) => (mobile ? page.locator(".bottom-sheet.fixed-height.active") : page.locator('[data-testid="budget-inspector"]'));
+const openInspector = async (page, mobile, name, tab) => {
+  await openBudget(page);
+  await budgetRow(page, name).click();
+  const scope = inspector(page, mobile);
+  await scope.waitFor();
+  if (tab) await scope.locator('[data-testid="inspector-tabs"]').getByRole("tab", { name: tab }).click();
+  return scope;
+};
+const moneyMode = (page, name) => page.locator('[data-testid="money-mode"]:visible').filter({ hasText: name });
+
+// ============================================================
+// Kassenbuch
+// ============================================================
+
+const TODAY = new Date().toISOString().slice(0, 10) + "T00:00:00.0000000";
+export const LONG_PAYEE = "Ein Zahlungsempfänger mit einem sehr langen Namen, der in keine Spalte passt";
+
+function ledgerEntries(accountId) {
+  const entry = (n, extra) => buildEntryFixture(accountId, n, { Date: TODAY, LinkedToYnab: true, CategorizationWriteBackFailure: null, ...extra });
+  const lebensmittel = { CategoryId: CATEGORY_IDS.lebensmittel, CategoryName: "Lebensmittel", CategoryGroupName: "Alltag" };
+  return [
+    entry(1, { Payee: "Bauhaus", NeedsReview: true, Amount: eur(-81.9), ...lebensmittel }),
+    entry(2, {
+      Payee: "AMAZON PAYMENTS",
+      Memo: "304-1234567-7654321 Lampe und ein sehr langes Memo, das weit über die Spalte hinausgeht",
+      ExternalLinks: [{ Label: "Bestellung 304-1234567-7654321", Url: "https://www.amazon.de/gp/your-account/order-details?orderID=304-1234567-7654321" }],
+      ...lebensmittel,
+    }),
+    entry(3, { Payee: "PayPal Shop", ExternalLinks: [{ Label: "PayPal Activity", Url: "https://www.paypal.com/activities" }] }),
+    entry(4, { Payee: LONG_PAYEE, Amount: eur(-12345.67), CategoryName: LONG_CATEGORY, CategoryGroupName: "Rücklagen mit einem langen Gruppennamen" }),
+    entry(5, { Payee: "Rückfrage und Prüfung", NeedsReview: true, Flag: "AskLena" }),
+    entry(6, { Payee: "Gelöscht und zu prüfen", NeedsReview: true, DeletedInYnab: true }),
+    entry(7, { Payee: "Markiert und zu prüfen", NeedsReview: true, Flag: "Marked" }),
+    entry(8, { Payee: "Nicht in YNAB und zu prüfen", NeedsReview: true, LinkedToYnab: false }),
+    entry(9, {
+      Payee: "Kaufland Split",
+      CategoryId: null,
+      CategoryName: null,
+      CategoryGroupName: null,
+      Splits: [
+        { Target: { ToCategory: [{ YnabCategoryId: CATEGORY_IDS.lebensmittel }, "Lebensmittel"] }, Amount: eur(-10), Memo: null },
+        { Target: "Uncategorized", Amount: eur(-5), Memo: null },
+      ],
+    }),
+    ...Array.from({ length: 40 }, (_, i) => entry(20 + i, { Payee: `Füllbuchung ${i + 1}`, ...lebensmittel })),
+  ];
+}
+
+async function mockLedger(page) {
+  await mockApp(page);
+  const accountsFixture = buildAccountsFixture(3);
+  accountsFixture.Accounts[2].Name = "Gemeinschaftskonto mit einem sehr langen Kontonamen";
+  await mockFilterBarApi(page, {
+    accountsFixture,
+    balancesFixture: buildBalancesFixture(accountsFixture.Accounts).map((b, i) => (i === 2 ? { ...b, Balance: eur(-12345.67) } : b)),
+    resolveEntries: () => ledgerEntries(accountsFixture.DefaultAccountId),
+  });
+  for (const [name, body] of [
+    ["getEntryHistory", []],
+    ["getLedgerEntry", null],
+    ["getPayeeCategorySuggestions", [{ YnabCategoryId: CATEGORY_IDS.bahn }]],
+  ]) {
+    await page.route(`**/api/LedgerApi/${name}`, (r) => json(r, body));
+  }
+  await page.route("**/api/LedgerApi/mirrorYnabBudget", () => {});
+  await page.route("**/api/LedgerApi/setEntryCategory", (r) =>
+    json(r, { Ok: { Previous: { CategoryId: { YnabCategoryId: CATEGORY_IDS.lebensmittel }, CategoryName: "Lebensmittel" }, Change: "CategoryChanged", WriteBack: "CategorySent" } })
+  );
+}
+
+const openLedger = async (page) => page.getByText("Bauhaus", { exact: true }).locator("visible=true").first().waitFor();
+const ledgerSheet = (page) => page.locator(".bottom-sheet.active").first();
+const openLedgerDetail = async (page, payee) => {
+  await page.getByText(payee, { exact: true }).first().waitFor();
+  await page.getByText(payee, { exact: true }).first().tap();
+  const sheet = ledgerSheet(page);
+  await sheet.waitFor();
+  return sheet;
+};
+
+// ============================================================
+// Regeln
+// ============================================================
+
+const RULE_TIME = "2026-01-01T00:00:00.0000000Z";
+const rule = (n, name, categoryNumber) => ({
+  Id: W("RuleId", guid(n)),
+  Name: name,
+  Pattern: `muster${n}`,
+  PatternType: "Contains",
+  TargetField: "Combined",
+  CategoryId: W("YnabCategoryId", guid(categoryNumber)),
+  CategoryName: categoryNumber === 2 ? LONG_CATEGORY : `Kategorie ${categoryNumber}`,
+  PayeeOverride: null,
+  Priority: 10 - n,
+  Enabled: true,
+  CreatedAt: RULE_TIME,
+  UpdatedAt: RULE_TIME,
+});
+
+async function mockRules(page) {
+  await mockApp(page);
+  await page.route("**/api/YnabApi/getCategories", (r) =>
+    json(r, { Ok: Array.from({ length: 12 }, (_, i) => ({ Id: W("YnabCategoryId", guid(i + 1)), Name: i === 1 ? LONG_CATEGORY : `Kategorie ${i + 1}`, GroupName: "Alltag", Available: null, Hidden: false })) })
+  );
+  await page.route("**/api/RulesApi/getAllRules", (r) => json(r, [rule(1, "Regel eins", 1), rule(2, "Eine Regel mit einem sehr langen Namen für die Zeile", 2), rule(3, "Regel drei", 3)]));
+}
+const openRules = async (page) => page.getByText("Regel eins").locator("visible=true").first().waitFor();
+
+// ============================================================
+// Sync
+// ============================================================
+
+const mockSync = mockApp;
+
+// ============================================================
+// Die Zustände
+// ============================================================
+
+export const STATES = [
+  // Bug F3 (budgeting-kjsht), Bug D3, budgeting-c6vn4: Zeilen mit Target am Handy, sticky Kopf, Breiten.
+  {
+    name: "budget",
+    route: "/budget",
+    widths: PAGE_WIDTHS,
+    mock: mockBudget,
+    open: openBudget,
+  },
+  // budgeting-c5w2n: Tab Geld im Sheet, Feld und Knopf ohne Scrollen, auch bei offener Tastatur.
+  {
+    name: "budget-geld-zuweisen",
+    route: "/budget",
+    widths: HANDY_WIDTHS,
+    mock: mockBudget,
+    open: async (page, { mobile }) => {
+      await openInspector(page, mobile, "Essen");
+      await moneyMode(page, "Zuweisen").click();
+      await page.locator('[data-testid="assign-field"] input:visible').waitFor();
+    },
+    primary: (page) => page.locator('.bottom-sheet.active [data-testid="assign-missing"] button'),
+    // Die einzige Ausnahme im Sweep: bei 320 px messen die sechs Schritte 44,7 × 48 px. Sechs Spalten passen
+    // dort nicht auf 48 px, zwei Zeilen schieben den Knopf aus dem 500-px-Sheet (budgeting-c5w2n). Steht in der
+    // Kann-Sammlung budgeting (infrastructure-nx14s).
+    exceptions: [{ width: 320, inv: 2, selector: 'button[data-testid="assign-step"]' }],
+    keyboard: {
+      focus: (page) => page.locator('.bottom-sheet.active [data-testid="assign-field"] input'),
+      reach: (page) => page.locator('.bottom-sheet.active [data-testid="assign-field"] input, .bottom-sheet.active [data-testid="assign-available-after"]'),
+    },
+  },
+  // Lange Kategorienamen in von, nach und im Knopf (budget-money-tab), am Handy und im Panel.
+  {
+    name: "budget-geld-abgeben",
+    route: "/budget",
+    widths: [...HANDY_WIDTHS, 1280],
+    mock: mockBudget,
+    open: async (page, { mobile }) => {
+      await openInspector(page, mobile, "Essen");
+      await moneyMode(page, "Abgeben").click();
+      await page.locator('[data-testid="transfer-amount"] input:visible').fill("5");
+      await page.locator('[data-testid="transfer-to"]:visible').click();
+      await page.locator('[role="option"]:visible').filter({ hasText: LONG_CATEGORY }).last().click();
+      await page.locator('[data-testid="transfer-to"]:visible').getByText(LONG_CATEGORY).waitFor();
+      // Das Picker-Sheet schluckt den nächsten Klick (ADR 0005): warten, bis es zu ist.
+      await page.locator(".bottom-sheet.layer-2.active").waitFor({ state: "detached" }).catch(() => {});
+    },
+  },
+  // budgeting-gffps, budgeting-nfrds: der Kategorie-Picker als Sheet am Handy (16 px Suche) und als Popover
+  // im Panel (ganz sichtbar, vom Panel nicht abgeschnitten, Fuß nicht verdeckt).
+  {
+    name: "budget-picker",
+    route: "/budget",
+    widths: [...HANDY_WIDTHS, 1280],
+    height: 800,
+    mock: mockBudget,
+    open: async (page, { mobile }) => {
+      await openInspector(page, mobile, "Essen");
+      await moneyMode(page, "Abgeben").click();
+      await page.locator('[data-testid="transfer-amount"] input:visible').waitFor();
+      // Fest am Seitenanfang: der Klick auf die Zeile scrollte die Seite sonst je Lauf verschieden weit.
+      await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+      await page.locator('[data-testid="transfer-to"]:visible').click();
+      await page.locator('[role="option"]:visible').first().waitFor();
+    },
+    // Am PC hat das Popover einen Fuß, am Handy wählt ein Tipp im Sheet ohne Knopf.
+    primary: (page, { mobile }) => (mobile ? null : page.locator('[data-testid="category-picker-footer-hint"]:visible')),
+  },
+  // budgeting-m1bce: Buchungen im Sheet, ein großer Betrag überlappt bei schmaler Breite nicht.
+  {
+    name: "budget-buchungen",
+    route: "/budget",
+    widths: [...HANDY_WIDTHS, 1440],
+    mock: mockBudget,
+    open: async (page, { mobile }) => {
+      await openInspector(page, mobile, "Essen", "Buchungen");
+      await page.locator('[data-testid="detail-entry"]:visible').first().waitFor();
+    },
+  },
+  // budgeting-x4k7p, budgeting-v6m3z: Tab Historie mit langem Fehlgrund und Ausgaben-Balken.
+  {
+    name: "budget-historie-tab",
+    route: "/budget",
+    widths: [...HANDY_WIDTHS, 1440],
+    mock: mockBudget,
+    open: async (page, { mobile }) => {
+      await openInspector(page, mobile, LONG_CATEGORY, "Historie");
+      await page.locator('[data-testid="month-bar"]:visible').first().waitFor();
+      await page.locator('[data-testid="month-bar"]:visible').last().click();
+    },
+  },
+  // budgeting-k8wq3: Tab Target einer Kategorie mit Target, Target speichern ohne Scrollen im 500-px-Sheet.
+  {
+    name: "budget-target",
+    route: "/budget",
+    widths: [...HANDY_WIDTHS, 1440],
+    mock: mockBudget,
+    open: async (page, { mobile }) => {
+      await openInspector(page, mobile, "Essen", "Target");
+      await page.locator('[data-testid="target-amount"] input:visible').waitFor();
+    },
+    primary: (page) => page.locator('[data-testid="target-save"] button:visible'),
+    keyboard: {
+      focus: (page) => page.locator('.bottom-sheet.active [data-testid="target-amount"] input'),
+      reach: (page) => page.locator('.bottom-sheet.active [data-testid="target-amount"] input'),
+    },
+  },
+  // budgeting-xp46a, budgeting-g2ty9: Target anlegen ohne Scrollen, Platzhalter des Datums ganz im Feld.
+  {
+    name: "budget-target-anlegen",
+    route: "/budget",
+    widths: [...HANDY_WIDTHS, 1440],
+    mock: mockBudget,
+    open: async (page, { mobile }) => {
+      await openInspector(page, mobile, "Urlaub", "Target");
+      await page.locator('[data-testid="target-amount"] input:visible').waitFor();
+    },
+    primary: (page) => page.locator('[data-testid="target-save"] button:visible'),
+    keyboard: {
+      focus: (page) => page.locator('.bottom-sheet.active [data-testid="target-amount"] input'),
+      reach: (page) => page.locator('.bottom-sheet.active [data-testid="target-amount"] input'),
+    },
+  },
+  // budgeting-xp46a: die Warnung vor dem Wechsel der Art im Sheet ohne Scrollen.
+  {
+    name: "budget-target-warnung",
+    route: "/budget",
+    widths: HANDY_WIDTHS,
+    mock: mockBudget,
+    open: async (page, { mobile }) => {
+      const scope = await openInspector(page, mobile, "Essen", "Target");
+      await scope.getByRole("button", { name: "Jahr" }).click();
+      await scope.getByRole("button", { name: "Target speichern" }).click();
+      await scope.getByRole("alertdialog").waitFor();
+    },
+    primary: (page) => page.locator(".bottom-sheet.active").getByRole("alertdialog").getByRole("button").last(),
+  },
+  // budgeting-h2zfn, budgeting-kjsht: Targets anwenden, Summe und Anwenden ohne Scrollen bei langer Liste.
+  {
+    name: "budget-targets-anwenden",
+    route: "/budget",
+    widths: [...HANDY_WIDTHS, 1440],
+    mock: mockBudget,
+    open: async (page) => {
+      await openBudget(page);
+      await page.locator('[data-testid="month-start-apply"]:visible').click();
+      await page.locator('[data-testid="targets-total"]:visible').waitFor();
+    },
+    primary: (page) => page.getByRole("button", { name: "Anwenden", exact: true }).locator("visible=true"),
+    reach: (page) => page.locator('[data-testid="targets-total"]:visible, [data-testid="targets-after"]:visible'),
+  },
+  // budgeting-c6vn4, budgeting-a3k7m: die allgemeine Historie, Kopf einer Verschiebung bricht um statt abzuschneiden.
+  {
+    name: "budget-historie",
+    route: "/budget/history",
+    widths: PAGE_WIDTHS,
+    mock: mockBudget,
+    open: async (page) => {
+      const run = page.locator('[data-testid="general-history-run"]').first();
+      await run.waitFor();
+      await page.locator('[data-testid="general-history-toggle"]:visible, [data-testid="general-history-run"] button[aria-expanded]:visible').first().click();
+    },
+  },
+  // ledger-qh9qx, ledger-qns4j (AC5), Regression ledger-filter-bar: Spaltenköpfe, Statuszelle mit zwei
+  // Kennzeichen, die Filterleiste haftet ohne den Tabellenkopf zu verdecken.
+  {
+    name: "kassenbuch",
+    route: "/ledger",
+    widths: [...new Set([...PAGE_WIDTHS, ...TABLE_WIDTHS])].sort((a, b) => a - b),
+    mock: mockLedger,
+    open: openLedger,
+  },
+  // design-system-btwhg: Datumsfeld und Kategorie-Suche der Filterleiste am Handy mit 16 px.
+  {
+    name: "kassenbuch-filter-kategorie",
+    route: "/ledger",
+    widths: HANDY_WIDTHS,
+    mock: mockLedger,
+    open: async (page) => {
+      await openLedger(page);
+      await page.getByRole("button", { name: /^Kategorie/ }).locator("visible=true").first().click();
+      await page.locator(".bottom-sheet.active").waitFor();
+    },
+  },
+  {
+    name: "kassenbuch-filter-zeitraum",
+    route: "/ledger",
+    widths: HANDY_WIDTHS,
+    mock: mockLedger,
+    open: async (page) => {
+      await openLedger(page);
+      await page.getByRole("button", { name: /^Zeitraum/ }).locator("visible=true").first().click();
+      await page.locator(".bottom-sheet.active").waitFor();
+    },
+  },
+  // ledger-external-links: das Detail-Sheet mit Bestell-Link.
+  {
+    name: "kassenbuch-detail",
+    route: "/ledger",
+    widths: HANDY_WIDTHS,
+    mock: mockLedger,
+    open: async (page) => {
+      const sheet = await openLedgerDetail(page, "AMAZON PAYMENTS");
+      await sheet.locator('[data-testid="detail-external-link"]').waitFor();
+    },
+  },
+  // ledger-split-editor, design-system-j6dnj: Aufteilen im Sheet, Speichern klebt unten, Zeile hinzufügen und
+  // Barabhebung mit voller Trefferfläche.
+  {
+    name: "kassenbuch-aufteilen",
+    route: "/ledger",
+    widths: HANDY_WIDTHS,
+    mock: mockLedger,
+    open: async (page) => {
+      const sheet = await openLedgerDetail(page, "Bauhaus");
+      await sheet.locator('[data-testid="detail-split-action"]').tap();
+      await sheet.locator('[data-testid="split-summary"]').waitFor();
+    },
+    primary: (page) => page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Speichern", exact: true }),
+    // Der Fuß mit Speichern steht außerhalb des Scrollbereichs und fährt mit dem Sheet über die Tastatur.
+    keyboard: {
+      focus: (page) => page.locator('.bottom-sheet.active [data-testid="split-amount-0"]'),
+      reach: (page) => page.locator('.bottom-sheet.active [data-testid="split-amount-0"]').or(page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Speichern", exact: true })),
+    },
+  },
+  // Regression c819eeb (Toast hinter dem Detail-Sheet): nach dem Kategoriewechsel liegt der Toast oben.
+  {
+    name: "kassenbuch-kategorie-toast",
+    route: "/ledger",
+    widths: HANDY_WIDTHS,
+    mock: mockLedger,
+    open: async (page) => {
+      const sheet = await openLedgerDetail(page, "Bauhaus");
+      await sheet.locator('[data-testid="detail-category-arrow"]').tap();
+      const picker = page.locator(".bottom-sheet.active", { hasText: "Kategorie wählen" });
+      await picker.waitFor();
+      await picker.locator('[role="option"]', { hasText: "Nebenkosten" }).last().tap();
+      await page.locator('[data-toast-action="true"]').first().waitFor();
+    },
+  },
+  // ledger-w29y6: Kategorie setzen für eine Auswahl öffnet das Popover ganz im Bild.
+  {
+    name: "kassenbuch-auswahl-popover",
+    route: "/ledger",
+    widths: [1440],
+    mock: mockLedger,
+    open: async (page) => {
+      await openLedger(page);
+      for (const payee of ["Bauhaus", "PayPal Shop"]) {
+        await page.locator("table tbody tr", { hasText: payee }).first().getByRole("checkbox").click();
+      }
+      await page.getByRole("button", { name: "Kategorie setzen" }).click();
+      await page.locator('[data-layer] [role="option"]').first().waitFor();
+    },
+  },
+  // categorization-cgq35: Prioritätspfeile und Overflow-Knopf am Handy, Regeln mit langen Namen.
+  {
+    name: "regeln",
+    route: "/rules",
+    widths: PAGE_WIDTHS,
+    mock: mockRules,
+    open: openRules,
+  },
+  // categorization-cgq35, categorization-f955d: das Menü im Sheet, jeder Eintrag voll antippbar.
+  {
+    name: "regeln-menue",
+    route: "/rules",
+    widths: HANDY_WIDTHS,
+    mock: mockRules,
+    open: async (page) => {
+      await openRules(page);
+      await page.locator('[data-testid="rules-menu-button"] button').click();
+      await page.locator('[role="menuitem"]').first().waitFor();
+    },
+  },
+  // categorization-cgq35: am PC bleibt der Regel-Dialog ein Modal, der Picker hängt als Popover ganz im Bild.
+  {
+    name: "regeln-dialog-picker",
+    route: "/rules",
+    widths: [1440],
+    mock: mockRules,
+    open: async (page) => {
+      await openRules(page);
+      await page.locator('[data-testid="rule-row"]:visible').filter({ hasText: "Regel eins" }).getByText("Regel eins").click();
+      await page.locator('[data-testid="rule-dialog"]').waitFor();
+      await page.locator('[data-testid="rule-category"] button').click();
+      await page.locator('[role="option"]').first().waitFor();
+      await frames(page);
+    },
+    primary: (page) => page.locator('[data-testid="category-picker-footer-hint"]:visible'),
+  },
+  // Fix 31f15e0 (banking-import-v8n3k): die Zeile zum Bankstand nimmt beim Laden schon ihre Höhe ein.
+  {
+    name: "sync-start",
+    route: "/",
+    widths: [...HANDY_WIDTHS, 1440],
+    mock: mockSync,
+    open: async (page) => page.getByRole("button", { name: "Sync starten" }).waitFor(),
+    deferred: {
+      api: "**/api/SyncApi/getBankConnectionStatus",
+      body: "BankConnected",
+      loaded: (page) => page.getByText("Nächster Sync ohne TAN"),
+    },
+  },
+];
+
+export const stateNamed = (name) => {
+  const found = STATES.find((s) => s.name === name);
+  if (!found) throw new Error(`kein Zustand ${name}`);
+  return found;
+};

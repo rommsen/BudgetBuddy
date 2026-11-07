@@ -153,7 +153,9 @@ let toast (props: ToastProps) =
             | Some action ->
                 Html.button [
                     prop.className (
-                        "flex-shrink-0 px-2 py-1 rounded-md text-sm font-semibold transition-colors " +
+                        // Am Handy 48 px Trefferfläche, der negative Rand hält den Toast so hoch wie bisher.
+                        $"flex-shrink-0 inline-flex items-center justify-center {TouchTargets.minSize} -my-3 md:min-h-0 md:min-w-0 md:my-0 " +
+                        "px-2 py-1 rounded-md text-sm font-semibold transition-colors " +
                         "text-neon-teal hover:bg-surface-hover"
                     )
                     prop.custom ("data-toast-action", "true")
@@ -165,7 +167,8 @@ let toast (props: ToastProps) =
             // Close button
             Html.button [
                 prop.className (
-                    "flex-shrink-0 p-1 rounded-md transition-colors " +
+                    $"flex-shrink-0 inline-flex items-center justify-center {TouchTargets.minSize} -my-3 md:min-h-0 md:min-w-0 md:my-0 " +
+                    "p-1 rounded-md transition-colors " +
                     "text-text-muted/70 hover:text-text-primary hover:bg-surface-hover"
                 )
                 prop.onClick (fun _ -> props.OnDismiss props.Id)

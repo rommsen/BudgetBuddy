@@ -90,6 +90,8 @@ let private FilterPopoverInternal (props: FilterPopoverProps) (positionClass: st
     else
         Html.div [
             prop.ref containerRef
+            // Markiert die Ebene für den Layout-Sweep (scripts/layout-invariants.mjs).
+            prop.custom ("data-layer", "popover")
             prop.className (
                 "absolute z-30 "
                 + positionClass

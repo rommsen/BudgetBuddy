@@ -72,6 +72,7 @@ let private runHead (run: HistoryRun) =
             Html.span [
                 prop.custom ("data-testid", "general-history-text")
                 prop.className $"{ListRoles.primary} min-w-0 max-md:line-clamp-2 md:truncate"
+                prop.title run.Text
                 prop.text run.Text
             ]
             Html.span [
@@ -93,7 +94,7 @@ let private runLineView (line: HistoryRunLine) =
             Html.div [
                 prop.className ListRoles.mobileLine1
                 prop.children [
-                    Html.span [ prop.className $"{ListRoles.secondary} truncate min-w-0"; prop.text line.CategoryName ]
+                    Html.span [ prop.className $"{ListRoles.secondary} truncate min-w-0"; prop.title line.CategoryName; prop.text line.CategoryName ]
                     historyChangeView line.Change
                 ]
             ]

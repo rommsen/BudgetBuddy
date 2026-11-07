@@ -235,9 +235,10 @@ let view (props: TargetFormProps) =
         rhythmChoice props
         if targetWeeklyAfter shown form then weekdayChoice props
         Html.div [
-            // Im 340-px-Panel am PC steht das Datum in eigener Zeile, sonst schnitte das Feld den Platzhalter
-            // ab (budgeting-g2ty9, X6).
-            prop.className (if isPanel then "grid grid-cols-1 gap-3" else "grid grid-cols-2 gap-3")
+            // Im 340-px-Panel am PC steht das Datum in eigener Zeile, sonst schnitte das Feld den Platzhalter ab
+            // (budgeting-g2ty9, X6). Am Handy bekommt das Datum mit dem 48-px-Kalenderknopf den größeren Teil
+            // (infrastructure-nx14s), Target speichern bleibt so im 500-px-Sheet ohne Scrollen (budgeting-k8wq3).
+            prop.className (if isPanel then "grid grid-cols-1 gap-3" else "grid grid-cols-[1fr_2fr] gap-3")
             prop.children [
                 amountField props
                 // Bei wöchentlich kein Datum, bei monatlich und jährlich "Fällig am" (budgeting-d7r4k).

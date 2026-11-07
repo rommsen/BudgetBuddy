@@ -23,7 +23,7 @@ Mechanisch geprüft von: `src/Tests/RemotingPipelineTests.fs`, `src/Tests/Remoti
 
    | Kennung | Aussage |
    |---|---|
-   | `[layout]` | Maße, Breiten, Abschneiden, sticky, Viewport, Trefferflächen, berechnete Farben |
+   | `[layout]` | Layout-Invarianten: seitliches Scrollen, Abschneiden, Verdecken, sticky, Viewport, Trefferflächen |
    | `[fokus]` | Fokus im echten DOM |
    | `[tastatur]` | Tastatur-Ereignisse im echten DOM |
    | `[scroll]` | Scrollen und Scrollposition |
@@ -32,6 +32,8 @@ Mechanisch geprüft von: `src/Tests/RemotingPipelineTests.fs`, `src/Tests/Remoti
 
    Quelle der Kennungen und der Flow-Liste ist `scripts/browser-usage.mjs` (`TAGS`, `FLOWS`, je Flow ein Name und ein Satz). Ein neuer Nutzerfluss bekommt eine Zeile in `FLOWS` und genau einen `[flow:…]`-Test, dazu nur Tests mit den anderen Kennungen. Je Flow höchstens ein Test. Passt ein Test zu keiner Kennung, prüft er Logik: welcher Text, welche Zahl, welcher Zustand nach einem Klick erscheint, gehört in Client-`update` oder eine reine Funktion. Eine feste Obergrenze gibt es nicht. `npm run test:scripts` wird rot bei fehlender oder unbekannter Kennung, bei einem Flow außerhalb von `FLOWS` und bei zwei Tests für denselben Flow, und meldet die Zahl je Kennung samt Summe ("Browser-Tests je Kennung: …"), damit Wachstum sichtbar bleibt (Prüfung in `scripts/run-guards.mjs`, Gegenbeweise in `scripts/browser-test-budget.test.mjs`). Geprüft wird zur Laufzeit über den Hook in `NODE_OPTIONS` und `BB_BROWSER_USAGE_OWNER`: ein Kindprozess, der beide nicht erbt (etwa `env: {}` beim Start), startet einen Browser ungeprüft und ist deshalb verboten. Ebenso ungeprüft bleiben die synchronen Starts (`spawnSync`, `execSync`, `execFileSync`); einen Browser darüber zu starten ist verboten. Ein Zeitgeber-Cmd (`Debounce.delayed`, Rückfall, Takt) bekommt einen .NET-Test, der ihn ablaufen lässt (Vorbild `src/Tests/CmdTiming.fs`). Die API wird per `page.route` gemockt. Auf Bedingungen warten, kein `waitForTimeout`. "Heute" als Berliner Kalendertag, nicht `new Date().toISOString()`. Bei Fehlern zuerst die Netzwerk-Antworten ansehen.
 
+   Layout prüft ein Sweep: `scripts/layout-invariants.test.mjs` besucht die Zustände aus `scripts/layout-states.mjs` (Routen, offene Sheets, Popover und Dialoge) bei mehreren Breiten und prüft für jeden dieselben Invarianten aus `scripts/layout-invariants.mjs` (kein seitliches Scrollen, Trefferflächen 48 px und Feldschrift 16 px am Handy, kein Text abgeschnitten außer mit Ellipse und `title`, nichts verdeckt, Sticky-Köpfe überlappen nicht, Primärknopf ohne Scrollen erreichbar auch bei offener Tastatur, Spaltenköpfe überlappen nicht, kein Sprung beim Nachladen). Ein neuer Zustand oder eine neue Invariante dort statt eines eigenen `[layout]`-Tests je Komponente. Feste Designwerte (Größen, Abstände, Farben, Reihenfolge, Animation) werden nicht im Browser getestet: sie stehen im Styleguide, die Tokens prüfen `guard:tokens` und `guard:classes`. Als Schwellen gelten nur die des Styleguides. Eine Ausnahme nennt Zustand, Breite, Invariante und Selektor (`exceptions` im Zustand), nie eine ganze Breite, und steht in der Kann-Sammlung des BC.
+
 ## Kein Test für
 
 6. Konstanten, Feldkopien, gerade gebaute Records, Framework- oder Sprachverhalten, Tailwind-Größen als Klassenstring (Größe und Trefferfläche misst der Browser-Wächter, Punkt 5). Gegenprobe: bleibt der Test grün, wenn die getestete Zeile im Produktionscode gelöscht oder vertauscht wird, ist er wertlos. Keine "documents"-Tests; Doku gehört in Kommentare.
@@ -39,7 +41,7 @@ Mechanisch geprüft von: `src/Tests/RemotingPipelineTests.fs`, `src/Tests/Remoti
 
 ## Bugfixes
 
-8. Jeder Bugfix bekommt einen Regressionstest, der vor dem Fix rot ist. Der Test nennt im Kommentar, welchen Bug er verhindert.
+8. Jeder Bugfix bekommt einen Regressionstest, der vor dem Fix rot ist. Der Test nennt im Kommentar, welchen Bug er verhindert. Ein Layoutbug bekommt seinen Regressionstest als neuen Zustand (mit Kommentar zum Bug) oder als neue Invariante im Sweep (Punkt 5), nicht als eigenen Test je Komponente; eine neue Invariante bringt einen Gegenbeweis mit absichtlich kaputter Seite mit.
 9. Bug mit fachlichem Verhalten: vorab mindestens ein kaputt-Szenario (soll nach dem Fix gehen) und ein intakt-Szenario (muss weiter gehen), als GIVEN/WHEN/THEN. Ablauf: kaputt-Test schreiben und rot sehen, Ursache klären, fixen, beide grün, `./verify.sh`.
 
 ## BudgetBuddy-Pflichtliste

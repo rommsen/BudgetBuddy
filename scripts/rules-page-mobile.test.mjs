@@ -18,6 +18,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
 import { getFreePort, startFrontend, stopServer, waitForPageLoaded } from "./screenshot-route.mjs";
+import { settle } from "./layout-invariants.mjs";
 
 let frontend;
 let frontendPort;
@@ -95,6 +96,10 @@ async function openPage(width, height) {
   await page.goto(`http://127.0.0.1:${frontendPort}/#/rules`, { waitUntil: "load" });
   await waitForPageLoaded(page, "/rules");
   await page.getByText("Regel eins").locator("visible=true").first().waitFor();
+  // Gemessen wird erst nach dem Seiteneintritt (`pageEnter` verschiebt die Seite per transform). Während der
+  // Animation rechnet Chromium die Box in float32: liegen Ober- und Unterkante eines 48-px-Knopfs beiderseits
+  // von 128 oder 256 px, meldet boundingBox 47,99998 (infrastructure-nx14s, Messregel des Layout-Sweeps).
+  await settle(page);
   return { context, page, calls };
 }
 

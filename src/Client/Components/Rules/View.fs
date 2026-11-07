@@ -351,6 +351,7 @@ let private categoryField (model: Model) (dispatch: Msg -> unit) =
                     Button.view {
                         Button.defaultProps with
                             Text = categoryButtonLabel model.Categories model.EditingRule form
+                            Title = Some (categoryButtonLabel model.Categories model.EditingRule form)
                             Variant = Button.Secondary
                             ClassName = Some "w-full"
                             OnClick = fun () ->

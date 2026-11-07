@@ -219,6 +219,7 @@ let private mobileStatusLine (c: BudgetCategory) =
                 | Some target ->
                     Html.span [
                         prop.className $"{ListRoles.secondary} truncate min-w-0"
+                        prop.title $"Target {targetText target}"
                         prop.text $"Target {targetText target}"
                     ]
                 | None -> ()
@@ -258,6 +259,7 @@ let private mobileGroup (selectedId: System.Guid option) (dispatch: Msg -> unit)
                               Html.span [
                                   prop.custom ("data-testid", "budget-category-name")
                                   prop.className $"{ListRoles.primary} truncate min-w-0"
+                                  prop.title c.Name
                                   prop.text c.Name
                               ]
                               Html.span [
@@ -271,6 +273,7 @@ let private mobileGroup (selectedId: System.Guid option) (dispatch: Msg -> unit)
                           prop.children [
                               Html.span [
                                   prop.className $"{ListRoles.muted} truncate min-w-0 tabular-nums"
+                                  prop.title (mobileFiguresText c)
                                   prop.text (mobileFiguresText c)
                               ]
                               writeBackBadge "budget-not-in-ynab-mobile" c
@@ -287,7 +290,10 @@ let private targetCell (c: BudgetCategory) =
     | Some target ->
         Html.span [
             prop.custom ("data-testid", "budget-target")
-            prop.className "whitespace-nowrap"
+            // Darf unter xl zwischen Betrag und Rhythmus umbrechen: neben dem Panel bei 1024 px schob ein einzeiliges
+            // Target mit fünfstelligen Beträgen Verfügbar unter das Panel (infrastructure-nx14s). Ab xl bleibt die
+            // Zeile einzeilig.
+            prop.className "xl:whitespace-nowrap"
             prop.children [
                 plainAmount target.Goal
                 Html.span [
