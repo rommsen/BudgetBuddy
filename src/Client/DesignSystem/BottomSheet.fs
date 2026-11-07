@@ -117,13 +117,7 @@ let optionRow (label: string) (isSelected: bool) (onClick: unit -> unit) : React
             onClick ()
         )
         prop.children [
-            Html.span [
-                prop.className (
-                    if isSelected then "text-sm font-semibold text-neon-teal truncate min-w-0"
-                    else "text-sm truncate min-w-0"
-                )
-                prop.text label
-            ]
+            Truncate.text (if isSelected then "text-sm font-semibold text-neon-teal" else "text-sm") label
             if isSelected then
                 Client.DesignSystem.Icons.check Client.DesignSystem.Icons.SM Client.DesignSystem.Icons.NeonTeal
         ]

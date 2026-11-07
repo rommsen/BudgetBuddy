@@ -460,17 +460,9 @@ let accountListRowWith (label: string) (value: ReactElement) (isActive: bool) (o
                   "border-l-transparent hover:bg-surface-hover"
         )
         prop.children [
-            Html.span [
-                prop.className (
-                    "truncate text-sm "
-                    + if isActive then
-                          $"font-semibold {Tokens.Colors.textPrimary}"
-                      else
-                          Tokens.Colors.textSecondary
-                )
-                prop.title label
-                prop.text label
-            ]
+            Truncate.text
+                (if isActive then $"text-sm font-semibold {Tokens.Colors.textPrimary}" else $"text-sm {Tokens.Colors.textSecondary}")
+                label
             value
         ]
     ]

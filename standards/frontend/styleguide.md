@@ -243,8 +243,9 @@ Module in [`Tokens.fs`](../../src/Client/DesignSystem/Tokens.fs):
   `pageTitle = "text-xl md:text-4xl"`), `FontWeights`.
 - `Spacing`, `Padding`, `Margin` — alle mobile-first (z. B.
   `Padding.cardMobile = "p-4 md:p-6"`).
-- `Radius`, `ZIndex`, `TouchTargets` (`minSize = "min-h-[48px] min-w-[48px]"`),
-  `Breakpoints`.
+- `Radius`, `ZIndex`, `TouchTargets` (`minSize = "min-h-[48px] min-w-[48px]"`; `minHeight` 48 px nur am Handy;
+  `mobileMinHeight` und `mobileSquare` als Handy-Wert, den PC-Wert setzt der Aufrufer mit `md:` dahinter;
+  `mobileOverlap` für kleine Knöpfe in einer festen Zeile), `Breakpoints`.
 - `Animations`, `StaggerDelays`, `Transitions` — siehe Motion (§6).
 - `Presets` — fertige Kombinationen für wiederkehrende Muster.
 
@@ -277,6 +278,8 @@ nutzt die zweite Variante über `CategoryPicker.popoverInDialog`.
   Keine eigenen `text-[Npx]` setzen — das umgeht die Skala (Drift, siehe Rule).
   Zwischen `xs` (12px) und `sm` (14px) liegt `FontSizes.compact` (13px), für Kopf und Werte der Leiste
   Monatserster auf der Budget-Seite (Skizze, budgeting-m3x7f); `FontSizes.microPlus` (11px) trägt dort die Bezeichnungen.
+- **Gekürzter Text** auf einer Zeile über `Truncate.text` (oder `Truncate.textProps` und `Truncate.props`): setzt
+  `truncate min-w-0` und `title` mit dem ganzen Text zusammen, damit er beim Zeigen lesbar bleibt.
 - **Touch-Targets ≥ 48px** auf Mobile (`TouchTargets.minSize`). Tappables bekommen
   außerdem `touch-action: manipulation`. Am PC dürfen Zeilen dichter sein (§7.15).
 - **Je Ansicht** höchstens drei Größen aus dieser Skala (§7.14).

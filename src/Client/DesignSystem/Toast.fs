@@ -154,7 +154,7 @@ let toast (props: ToastProps) =
                 Html.button [
                     prop.className (
                         // Am Handy 48 px Trefferfläche, der negative Rand hält den Toast so hoch wie bisher.
-                        $"flex-shrink-0 inline-flex items-center justify-center {TouchTargets.minSize} -my-3 md:min-h-0 md:min-w-0 md:my-0 " +
+                        $"flex-shrink-0 inline-flex items-center justify-center {TouchTargets.mobileOverlap} " +
                         "px-2 py-1 rounded-md text-sm font-semibold transition-colors " +
                         "text-neon-teal hover:bg-surface-hover"
                     )
@@ -167,12 +167,12 @@ let toast (props: ToastProps) =
             // Close button
             Html.button [
                 prop.className (
-                    $"flex-shrink-0 inline-flex items-center justify-center {TouchTargets.minSize} -my-3 md:min-h-0 md:min-w-0 md:my-0 " +
+                    $"flex-shrink-0 inline-flex items-center justify-center {TouchTargets.mobileOverlap} " +
                     "p-1 rounded-md transition-colors " +
                     "text-text-muted/70 hover:text-text-primary hover:bg-surface-hover"
                 )
                 prop.onClick (fun _ -> props.OnDismiss props.Id)
-                prop.ariaLabel "Dismiss"
+                prop.ariaLabel "Schließen"
                 prop.children [ x XS IconColor.Default ]
             ]
         ]

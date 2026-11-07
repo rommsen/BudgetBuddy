@@ -91,7 +91,7 @@ let private rowView (dispatch: Msg -> unit) (view: RowView) =
             Html.div [
                 prop.className (nameClass hasNote)
                 prop.children [
-                    Html.span [ prop.custom ("data-testid", "target-check-name"); prop.className $"{ListRoles.primary} truncate"; prop.text row.Name ]
+                    Html.span [ prop.custom ("data-testid", "target-check-name"); yield! Truncate.textProps ListRoles.primary row.Name ]
                     Html.span [ prop.className ListRoles.muted; prop.children (twoWidths view.Narrow.Target view.Wide.Target) ]
                 ]
             ]
@@ -332,7 +332,7 @@ let private sidePanel (model: Model) (dispatch: Msg -> unit) =
                 Html.div [
                     prop.className "flex items-baseline justify-between gap-3"
                     prop.children [
-                        Html.h2 [ prop.className $"text-lg {FontWeights.semibold} {Colors.textPrimary} truncate"; prop.title row.Name; prop.text row.Name ]
+                        Html.h2 (Truncate.textProps $"text-lg {FontWeights.semibold} {Colors.textPrimary}" row.Name)
                         Html.div [
                             prop.custom ("data-testid", "target-check-close")
                             prop.children [

@@ -90,7 +90,7 @@ let view (props: CategoryMultiSelectProps) : ReactElement =
                             prop.children [
                                 Html.button [
                                     prop.type' "button"
-                                    prop.className $"w-full flex items-center justify-between py-2 min-h-12 md:min-h-0 {Tokens.Colors.textSecondary} {Tokens.FontSizes.xs} font-semibold"
+                                    prop.className $"w-full flex items-center justify-between py-2 {Tokens.TouchTargets.minHeight} {Tokens.Colors.textSecondary} {Tokens.FontSizes.xs} font-semibold"
                                     prop.onClick (fun _ -> props.OnToggleHiddenExpanded ())
                                     prop.children [
                                         Html.span [ prop.text $"Versteckt ({List.length hidden})" ]

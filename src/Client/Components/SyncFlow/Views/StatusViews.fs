@@ -294,15 +294,16 @@ let completedView (session: SyncSession) (dispatch: Msg -> unit) =
 // Start Sync View
 // ============================================
 
-/// Die Zeile hält ihre Höhe in jedem Stand, die Antwort verschiebt den Knopf darunter nicht.
+/// Die Zeile hält ihre Höhe in jedem Stand, die Antwort verschiebt den Knopf darunter nicht: sie reserviert zwei
+/// Zeilen Hinweistext (`min-h-[2lh]` bei `text-sm`), der Hinweis bricht höchstens auf zwei Zeilen um. So bleibt er
+/// am schmalen Handy lesbar, ohne dass „Sync starten“ nach dem Nachladen springt (infrastructure-nx14s).
 let private bankStatusRow (status: Types.RemoteData<BankConnectionStatus>) =
     let row (children: ReactElement list) =
         Html.div [
-            prop.className "flex items-center justify-between gap-3 min-h-6 mb-4"
+            prop.className "flex items-center justify-between gap-3 text-sm min-h-[2lh] mb-4"
             prop.children children
         ]
-    // Einzeilig: ein Umbruch am schmalen Handy machte die Zeile nach der Antwort höher (infrastructure-nx14s).
-    let hint (text: string) = Html.p [ prop.className "min-w-0 truncate text-sm text-text-secondary"; prop.title text; prop.text text ]
+    let hint (text: string) = Html.p [ prop.className "min-w-0 line-clamp-2 text-sm text-text-secondary"; prop.title text; prop.text text ]
     row [
         match Components.BankConnectionBadge.hintFor status with
         | Some text -> hint text

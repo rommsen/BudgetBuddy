@@ -94,7 +94,7 @@ let private runLineView (line: HistoryRunLine) =
             Html.div [
                 prop.className ListRoles.mobileLine1
                 prop.children [
-                    Html.span [ prop.className $"{ListRoles.secondary} truncate min-w-0"; prop.title line.CategoryName; prop.text line.CategoryName ]
+                    Truncate.text ListRoles.secondary line.CategoryName
                     historyChangeView line.Change
                 ]
             ]

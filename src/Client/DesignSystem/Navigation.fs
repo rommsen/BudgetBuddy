@@ -66,8 +66,9 @@ let private brand (onClick: unit -> unit) =
         prop.className "flex items-center gap-3 cursor-pointer group"
         prop.onClick (fun _ -> onClick())
         prop.children [
-            // Logo icon
+            // Logo icon, nur Zierde: den Namen liest der Screenreader aus dem Markentext
             Html.div [
+                prop.ariaHidden true
                 prop.className (
                     "w-10 h-10 rounded-xl bg-gradient-to-br from-neon-orange to-neon-teal " +
                     "flex items-center justify-center shadow-lg group-hover:shadow-glow-orange/30 transition-shadow"
@@ -79,10 +80,10 @@ let private brand (onClick: unit -> unit) =
                     ]
                 ]
             ]
-            // Brand text: erst ab lg, zwischen md und lg passen Marke und sechs Einträge sonst nicht in die Leiste
-            // (infrastructure-nx14s).
+            // Brand text: sichtbar erst ab lg, zwischen md und lg passen Marke und sechs Einträge sonst nicht in die
+            // Leiste (infrastructure-nx14s). Darunter bleibt er für den Screenreader stehen, der Link heißt sonst nur „B“.
             Html.span [
-                prop.className "hidden lg:inline text-lg font-bold font-display gradient-text"
+                prop.className "max-lg:sr-only text-lg font-bold font-display gradient-text"
                 prop.text "BudgetBuddy"
             ]
         ]

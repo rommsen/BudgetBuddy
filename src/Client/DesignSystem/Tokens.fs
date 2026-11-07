@@ -329,6 +329,13 @@ module TouchTargets =
     /// 48 px auf jeder Breite.
     let alwaysMinHeight = "min-h-[48px]"
     let minSize = "min-h-[48px] min-w-[48px]"
+    /// 48 px Mindesthöhe nur als Handy-Wert: der Aufrufer setzt den PC-Wert mit `md:min-h-…` dahinter.
+    let mobileMinHeight = "min-h-[48px]"
+    /// 48 × 48 px als Handy-Wert: der Aufrufer setzt den PC-Wert mit `md:h-… md:w-…` dahinter.
+    let mobileSquare = "h-[48px] w-[48px]"
+    /// 48 × 48 px am Handy, ohne das umgebende Element höher zu machen (der negative Rand gleicht die Höhe aus); ab md
+    /// ohne Mindestmaß und ohne Rand. Für kleine Knöpfe in einer festen Zeile wie im Toast.
+    let mobileOverlap = "min-h-[48px] min-w-[48px] -my-3 md:min-h-0 md:min-w-0 md:my-0"
 
 // ============================================
 // Common Utility Combinations

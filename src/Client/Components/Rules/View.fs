@@ -338,6 +338,7 @@ let private categoryField (model: Model) (dispatch: Msg -> unit) =
           OnRetry = ignore
           OnSelect = CategoryPicker.categoryChoice (UpdateRuleFormCategoryId >> dispatch)
           OnClose = fun () -> dispatch CloseRuleCategoryPicker }
+    let categoryLabel = categoryButtonLabel model.Categories model.EditingRule form
     Html.div [
         prop.className "relative"
         prop.children [
@@ -350,8 +351,8 @@ let private categoryField (model: Model) (dispatch: Msg -> unit) =
                 prop.children [
                     Button.view {
                         Button.defaultProps with
-                            Text = categoryButtonLabel model.Categories model.EditingRule form
-                            Title = Some (categoryButtonLabel model.Categories model.EditingRule form)
+                            Text = categoryLabel
+                            Title = Some categoryLabel
                             Variant = Button.Secondary
                             ClassName = Some "w-full"
                             OnClick = fun () ->

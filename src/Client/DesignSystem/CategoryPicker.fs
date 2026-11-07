@@ -391,7 +391,7 @@ let keyAction (key: string) (rows: PickerRow list) (active: int option) (searchi
 
 let private rowClassFor (isActive: bool) : string =
     let tone = if isActive then "bg-surface-hover" else "hover:bg-surface-hover"
-    $"px-2 min-h-12 md:min-h-9 rounded-lg cursor-pointer {tone}"
+    $"px-2 {TouchTargets.mobileMinHeight} md:min-h-9 rounded-lg cursor-pointer {tone}"
 
 type private ContentProps = {
     Picker: CategoryPickerProps

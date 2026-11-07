@@ -533,7 +533,7 @@ let reviewMarkButtonClassName (hoverOnly: bool) (rowFocused: bool) : string =
         if not hoverOnly then ""
         elif rowFocused then "opacity-100"
         else "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
-    "inline-flex shrink-0 items-center justify-center rounded-lg h-12 w-12 md:h-7 md:w-7 " +
+    $"inline-flex shrink-0 items-center justify-center rounded-lg {Tokens.TouchTargets.mobileSquare} md:h-7 md:w-7 " +
     "text-text-secondary hover:text-text-primary hover:bg-surface-hover " +
     "transition-colors touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed " +
     visibility
@@ -590,11 +590,7 @@ let private reviewMarkHintView
                 prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.neonOrange} font-medium shrink-0"
                 prop.text hint.Title
             ]
-            Html.span [
-                prop.className $"{Tokens.ListRoles.muted} truncate min-w-0"
-                prop.title hint.Reason
-                prop.text hint.Reason
-            ]
+            Truncate.text Tokens.ListRoles.muted hint.Reason
             match hint.RetryLabel with
             | Some label ->
                 Button.view {
@@ -656,11 +652,7 @@ let private entryRow
             Html.div [
                 prop.className Tokens.ListRoles.mobileLine1
                 prop.children [
-                    Html.span [
-                        prop.className $"{Tokens.ListRoles.primary} truncate min-w-0"
-                        prop.title (payeeLabel entry)
-                        prop.text (payeeLabel entry)
-                    ]
+                    Truncate.text Tokens.ListRoles.primary (payeeLabel entry)
                     Html.span [ prop.className "shrink-0"; prop.children [ entryMoney entry ] ]
                 ]
             ]
@@ -673,18 +665,10 @@ let private entryRow
                     match accountAbbreviationOf with
                     | Some abbreviationOf -> keepWidth (accountBadge (abbreviationOf entry.AccountId))
                     | None -> ()
-                    Html.span [
-                        prop.className $"{categoryClassName entry} truncate shrink-0 max-w-3/5"
-                        prop.title (listCategoryLabel PhoneRow entry)
-                        prop.text (listCategoryLabel PhoneRow entry)
-                    ]
+                    Truncate.text $"{categoryClassName entry} shrink-0 max-w-3/5" (listCategoryLabel PhoneRow entry)
                     match entry.Memo |> Option.filter (String.IsNullOrWhiteSpace >> not) with
                     | Some memo ->
-                        Html.span [
-                            prop.className $"{Tokens.ListRoles.muted} truncate min-w-0"
-                            prop.title memo
-                            prop.text memo
-                        ]
+                        Truncate.text Tokens.ListRoles.muted memo
                     | None -> ()
                     if entry.Flag <> NoFlag then keepWidth (flagBadge entry.Flag)
                     match rowStatusMark entry with
@@ -835,8 +819,12 @@ let private dateGroupHeader (date: DateTime) (sum: Money) =
 /// Eine Zelle der PC-Tabelle, deren Text auf eine Zeile gekürzt wird (Payee,
 /// Kategorie, Memo): die Tabelle hat feste Spaltenbreiten (`FixedLayout`), ohne
 /// Kürzung würde langer Text umbrechen und die Zeile höher machen als jede andere. `title` trägt den ganzen Text.
-let private truncatedRoleCell (role: Table.CellRole) (title: string) (child: ReactElement) =
-    Table.roleCell role [ Html.div [ prop.className "truncate"; prop.title title; prop.children [ child ] ] ]
+let private truncatedRoleCell (role: Table.CellRole) (title: string) (children: ReactElement list) =
+    Table.roleCell role [ Html.div (Truncate.props "" title @ [ prop.children children ]) ]
+
+/// Dieselbe Zelle mit reinem Text, `title` und Text sind derselbe Wert.
+let private truncatedTextRoleCell (role: Table.CellRole) (text: string) =
+    Table.roleCell role [ Html.div (Truncate.textProps "" text) ]
 
 /// Die Kategorie-Zelle der PC-Tabelle (ADR 0049 Punkt 4): sekundäre Rolle, nur "ohne
 /// Kategorie" in Orange. Der `span` mit eigener Farbklasse gewinnt gegenüber der
@@ -844,10 +832,8 @@ let private truncatedRoleCell (role: Table.CellRole) (title: string) (child: Rea
 /// die Zellen sind keine eigenen Klickziele, ein Klick ist ein Zeilenklick (ADR 0053
 /// Punkt 3); das Filtern liegt als Knopf im Detail.
 let private categoryCell (entry: LedgerEntryView) =
-    truncatedRoleCell
-        Table.Secondary
-        (listCategoryLabel TableRow entry)
-        (Html.span [ prop.className (categoryClassName entry); prop.text (listCategoryLabel TableRow entry) ])
+    let label = listCategoryLabel TableRow entry
+    truncatedRoleCell Table.Secondary label [ Html.span [ prop.className (categoryClassName entry); prop.text label ] ]
 
 /// Der Betrag als eigene Zelle: rechtsbündig über `Table.amountCell` (Listenvariante,
 /// ADR 0049); gedämpft und durchgestrichen für eine in YNAB gelöschte Buchung.
@@ -947,13 +933,8 @@ let private payeeCell (accountAbbreviation: string option) (entry: LedgerEntryVi
         | Some abbreviation ->
             Html.span [ prop.className $"{Tokens.ListRoles.muted} mr-1.5 shrink-0"; prop.text abbreviation ]
         | None -> Html.none
-    Table.roleCell
-        Table.Payee
-        [ Html.div [
-              prop.className "truncate"
-              prop.title (payeeLabel entry)
-              prop.children [ abbreviation; Html.span [ prop.text (payeeLabel entry) ] ]
-          ] ]
+    let payee = payeeLabel entry
+    truncatedRoleCell Table.Payee payee [ abbreviation; Html.span [ prop.text payee ] ]
 
 let private entryTableRow
     (dispatch: Msg -> unit)
@@ -985,7 +966,7 @@ let private entryTableRow
             payeeCell (payeeAccountAbbreviation isAllAccounts columns (accountAbbreviationOf entry.AccountId)) entry
             categoryCell entry
             if List.contains MemoColumn columns then
-                truncatedRoleCell Table.Muted (entry.Memo |> Option.defaultValue "") (Html.text (entry.Memo |> Option.defaultValue ""))
+                truncatedTextRoleCell Table.Muted (entry.Memo |> Option.defaultValue "")
             tdMoney entry
             Table.cell { Table.defaultCellProps with Align = Some "right" } [
                 Html.div [
@@ -2769,7 +2750,7 @@ let private dateQuickButton (dispatch: Msg -> unit) (model: Model) (quick: DateQ
     Html.button [
         prop.type' "button"
         prop.className (
-            "rounded-full py-2 min-h-12 md:min-h-0 text-xs font-semibold border transition-colors "
+            $"rounded-full py-2 {Tokens.TouchTargets.minHeight} text-xs font-semibold border transition-colors "
             + (if isSelected then $"bg-neon-teal/10 border-neon-teal {Tokens.Colors.neonTeal}"
                else $"{Tokens.Backgrounds.dark} {Tokens.Borders.default'} {Tokens.Colors.textSecondary}"))
         prop.onClick (fun _ -> dispatch (SetDateQuick quick))
@@ -3479,16 +3460,12 @@ let private accountSwitcher
         Primitives.Responsive.mobileOnly [
             Html.button [
                 prop.type' "button"
-                prop.className "flex items-center gap-1 min-h-12 mb-2 text-left text-text-primary"
+                prop.className $"flex items-center gap-1 {Tokens.TouchTargets.alwaysMinHeight} mb-2 text-left text-text-primary"
                 prop.custom ("data-testid", "ledger-account-switcher")
                 prop.custom ("aria-haspopup", "dialog")
                 prop.onClick (fun _ -> dispatch OpenAccountSheet)
                 prop.children [
-                    Html.span [
-                        prop.className "text-base font-semibold font-display truncate"
-                        prop.title activeLabel
-                        prop.text activeLabel
-                    ]
+                    Truncate.text "text-base font-semibold font-display" activeLabel
                     Icons.chevronDown Icons.SM Icons.Default
                 ]
             ]

@@ -47,5 +47,10 @@
     "token": "{alignClass}",
     "reason": "Table.fs' headerCell/cell leiten die Ausrichtungsklasse aus `props.Align: string option` über `headerAlignClass`/`cellAlignClass` her (je ein Match auf wörtliche Klassen, design-system-q7rkm). Der Wächter folgt dem Funktionsaufruf nicht; die möglichen Werte stehen als Literale in Table.fs.",
     "locations": ["src/Client/DesignSystem/Table.fs"]
+  },
+  {
+    "token": "{className}",
+    "reason": "Truncate.props und Truncate.text nehmen die Klassen des gekürzten Texts als Funktionsparameter (className: string) vom Aufrufer und hängen `truncate min-w-0` an (infrastructure-nx14s). Die Werte stehen als Literale oder Tokens an den Aufrufstellen.",
+    "locations": ["src/Client/DesignSystem/Truncate.fs"]
   }
 ]

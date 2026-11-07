@@ -69,7 +69,6 @@ let view (props: Props) =
                 prop.className "min-w-0"
                 prop.children [
                     Html.h1 [
-                        prop.lang "de"
                         prop.className $"{titleClass} hyphens-auto break-words"
                         prop.text props.Title
                     ]

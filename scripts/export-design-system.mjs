@@ -611,9 +611,9 @@ async function extractPreviews(baseUrl) {
     // Toast rendert nicht per Portal, braucht aber einen Klick, bevor ein Toast im
     // data-ds-card-Container sichtbar ist (s. COMPONENT_CARDS oben).
     await page.click('[data-ds-card-trigger="components-toast"]');
-    // Kein stabiler ".toast"-Klassenname (Toast.fs); der Dismiss-Button jedes
+    // Kein stabiler ".toast"-Klassenname (Toast.fs); der Schließen-Knopf jedes
     // Toasts hat ein festes aria-label und dient als Bereitschafts-Signal.
-    await page.waitForSelector('[data-ds-card="components-toast"] button[aria-label="Dismiss"]');
+    await page.waitForSelector('[data-ds-card="components-toast"] button[aria-label="Schließen"]');
 
     for (const card of COMPONENT_CARDS) {
       const { html, name, subtitle } = await page

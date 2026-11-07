@@ -87,7 +87,7 @@ let filterButton (label: string) (onClick: unit -> unit) : ReactElement =
         prop.ariaLabel label
         prop.custom ("data-testid", "detail-filter")
         prop.className (
-            $"inline-flex h-12 w-12 md:h-8 md:w-8 shrink-0 items-center justify-center rounded-lg {Colors.textMuted} " +
+            $"inline-flex {TouchTargets.mobileSquare} md:h-8 md:w-8 shrink-0 items-center justify-center rounded-lg {Colors.textMuted} " +
             "hover:text-text-primary hover:bg-surface-hover transition-colors touch-manipulation"
         )
         prop.onClick (fun e ->
@@ -246,7 +246,7 @@ let pickerArrow (label: string) (isOpen: bool) (lockedHint: string option) (onCl
         prop.custom ("aria-expanded", (if isOpen then "true" else "false"))
         prop.custom ("data-testid", "detail-category-arrow")
         prop.className (
-            $"inline-flex h-12 w-12 md:h-11 md:w-8 shrink-0 items-center justify-center rounded-lg {Colors.textMuted} transition-colors touch-manipulation "
+            $"inline-flex {TouchTargets.mobileSquare} md:h-11 md:w-8 shrink-0 items-center justify-center rounded-lg {Colors.textMuted} transition-colors touch-manipulation "
             + (if locked then "opacity-40 cursor-not-allowed" else "hover:text-text-primary hover:bg-surface-hover")
         )
         prop.onMouseDown (fun e -> e.stopPropagation ())
@@ -259,7 +259,7 @@ let pickerArrow (label: string) (isOpen: bool) (lockedHint: string option) (onCl
 /// Ein unsichtbarer Platzhalter in der Breite des Pfeils: Feldzeilen ohne Pfeil (Payee) halten
 /// damit ihren Filter-Knopf bündig mit dem der Kategorie-Zeile.
 let pickerArrowSpacer () : ReactElement =
-    Html.span [ prop.className "h-12 w-12 md:h-11 md:w-8 shrink-0"; prop.ariaHidden true ]
+    Html.span [ prop.className $"{TouchTargets.mobileSquare} md:h-11 md:w-8 shrink-0"; prop.ariaHidden true ]
 
 /// Der Wert einer Feldzeile als Text; `className` trägt die Farbe (Kategorie) oder
 /// `Colors.textMuted` für einen Platzhalter.
@@ -285,7 +285,7 @@ let externalLinksRow (links: (string * string) list) : ReactElement =
                         prop.target "_blank"
                         prop.rel "noopener noreferrer"
                         prop.className (
-                            $"inline-flex min-h-12 md:min-h-11 min-w-0 items-center gap-2 {FontSizes.sm} {Colors.neonTeal} "
+                            $"inline-flex {TouchTargets.mobileMinHeight} md:min-h-11 min-w-0 items-center gap-2 {FontSizes.sm} {Colors.neonTeal} "
                             + "hover:underline touch-manipulation"
                         )
                         prop.children [
@@ -307,7 +307,7 @@ let splitLines (lines: (string * string) list) : ReactElement =
                     prop.key (target + amountText)
                     prop.className "flex min-w-0 items-baseline justify-end gap-3"
                     prop.children [
-                        Html.span [ prop.className $"min-w-0 truncate {FontSizes.sm} {Colors.textSecondary}"; prop.title target; prop.text target ]
+                        Truncate.text $"{FontSizes.sm} {Colors.textSecondary}" target
                         Html.span [
                             prop.className $"shrink-0 font-mono tabular-nums {FontSizes.sm} {Colors.textPrimary}"
                             prop.text amountText
@@ -329,7 +329,7 @@ let splitActionButton (label: string) (lockedHint: string option) (onClick: unit
         prop.custom ("aria-disabled", (if locked then "true" else "false"))
         prop.custom ("data-testid", "detail-split-action")
         prop.className (
-            $"inline-flex min-h-12 md:min-h-11 shrink-0 items-center justify-center rounded-lg border {Borders.default'} " +
+            $"inline-flex {TouchTargets.mobileMinHeight} md:min-h-11 shrink-0 items-center justify-center rounded-lg border {Borders.default'} " +
             $"{Backgrounds.elevated} px-3 {FontSizes.sm} {Colors.textPrimary} transition-colors touch-manipulation " +
             (if locked then "opacity-40 cursor-not-allowed" else "hover:border-neon-teal active:scale-[0.98]")
         )
@@ -366,7 +366,7 @@ let fieldActionButton
         prop.custom ("aria-disabled", (if inactive then "true" else "false"))
         prop.custom ("data-testid", testId)
         prop.className (
-            $"inline-flex min-h-12 md:min-h-11 shrink-0 items-center justify-center rounded-lg border {Borders.default'} " +
+            $"inline-flex {TouchTargets.mobileMinHeight} md:min-h-11 shrink-0 items-center justify-center rounded-lg border {Borders.default'} " +
             $"{Backgrounds.elevated} px-3 {FontSizes.sm} {Colors.textPrimary} transition-colors touch-manipulation " +
             (if inactive then "opacity-40 cursor-not-allowed" else "hover:border-neon-teal active:scale-[0.98]")
         )
@@ -493,10 +493,12 @@ let reviewedSwitch (label: string) (isOn: bool) (busy: bool) (onToggle: bool -> 
                 // Am Handy ist der Knopf die Trefferfläche (48 px, Styleguide), die Schiene liegt darin. Ab md
                 // hat der Knopf wieder die Höhe der Schiene.
                 prop.className
-                    "inline-flex h-12 md:h-7 w-12 shrink-0 items-center justify-center touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed"
+                    $"inline-flex {TouchTargets.mobileSquare} md:h-7 shrink-0 items-center justify-center touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed"
                 prop.onClick (fun _ -> onToggle (not isOn))
                 prop.children [
+                    // Die Schiene ist nur Zierde, Name und Zustand trägt der Knopf (`role switch`, `aria-checked`).
                     Html.span [
+                        prop.ariaHidden true
                         prop.className $"relative inline-flex h-7 w-12 items-center rounded-full border transition-colors {track}"
                         prop.children [
                             Html.span [
