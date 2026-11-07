@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 09:01 -- Modeling / Promoted: budgeting-r5h2n - "Allgemeine Historie zeigt alles, was das Budget betrifft, auch Target-Änderungen und Pausen"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-07 09:01 -- Task verified and completed: budgeting-my8p8 - "Erneut senden: eine von BB zurückgezogene Zeile heißt nicht mehr \"in YNAB geändert\", und Erneut senden im Folgemonat ist getestet"
 
 **Type:** Work / Task completion

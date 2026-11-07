@@ -1,7 +1,7 @@
 ---
 id: budgeting-r5h2n
 title: "Allgemeine Historie zeigt alles, was das Budget betrifft, auch Target-Änderungen und Pausen"
-status: backlog
+status: todo
 type: feature
 context: budgeting
 created: 2026-11-07

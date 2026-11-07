@@ -10,14 +10,15 @@ Catalog of this bounded context's tasks by status.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 4
-- **Todo:** 0
+- **Backlog:** 3
+- **Todo:** 1
 - **Doing:** 1
 - **Done:** 59
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **budgeting-r5h2n** — "Allgemeine Historie zeigt alles, was das Budget betrifft, auch Target-Änderungen und Pausen" (feature) — `todo/budgeting-r5h2n-allgemeine-historie-zeigt-alles-zum-budget.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -95,7 +96,6 @@ prior-art matcher additionally checks `done-archive/` when present.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **budgeting-r5h2n** — "Allgemeine Historie zeigt alles, was das Budget betrifft, auch Target-Änderungen und Pausen" (feature) — `backlog/budgeting-r5h2n-allgemeine-historie-zeigt-alles-zum-budget.md`
 - **budgeting-e2z7v** — "Rückweg-Aktion \"Targets nach YNAB zurückschreiben\": BBs Targets bewusst als Goals nach YNAB schreiben, soweit darstellbar, und listen, was YNAB nicht darstellen kann" (feature) — `backlog/budgeting-e2z7v-r-ckweg-aktion-targets-nach-ynab-zur-ckschreiben-bbs-targets.md`
 - **budgeting-h9c3w** — "Kann-Sammlung budgeting" (chore) — `backlog/budgeting-h9c3w-review-befunde-sammlung.md`
 - **budgeting-bk6tq** — "Spike: Ausgaben am Monatswechsel. Wann kommen Buchungen bei Comdirect und ING an (vorgemerkt, gebucht, welches Datum), und was heißt das für Auffüllen auf einen festen Betrag am Monatsersten?" (spike) — `backlog/budgeting-bk6tq-vortrag-ab-dem-ersten-tag.md`
