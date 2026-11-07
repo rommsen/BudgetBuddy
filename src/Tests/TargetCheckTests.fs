@@ -368,6 +368,22 @@ let perPaymentTests =
             Expect.equal (groupOf small (paid 99.99m) None) Fits "9,99 € darüber"
             Expect.equal (groupOf small (paid 100m) None) SpendsMore "10,00 € darüber"
         }
+
+        // Regression Review budgeting-j8r4t: Bei P = 2 und 3 gezählten Monaten ist ⌈3 ÷ 2⌉ + 1 = 3, so galten
+        // Ausgaben in jedem gezählten Monat als einzelne Zahlungen, und der doppelte Ø stand bei "Passt".
+        test "Alle 2 Monate 90 €: Ausgaben in allen gezählten Monaten sind verteilt und mehr" {
+            let small = Some (target Need (Months 2) 90m)
+            let row = rowOf small (every 9 0m @ every 3 95m) (changedOn "2026-07-15")
+            Expect.equal row.MonthsWithSpending 3 "3 von 3 gezählten Monaten mit Ausgaben"
+            Expect.equal row.Group SpendsMore "Ø 95 € gegen 45 €"
+        }
+
+        test "Die Grenze der Einzelzahlungen rundet auf: 4 gezählte Monate alle 3 Monate erlauben 3 Zahlungen" {
+            // ⌈4 ÷ 3⌉ + 1 = 3. Abgerundet wäre die Grenze 2, und der Ø 225 € gegen 100 € ergäbe "mehr".
+            let row = rowOf quarterly (every 8 0m @ [ 300m; 0m; 300m; 300m ]) (changedOn "2026-06-15")
+            Expect.equal row.MonthsWithSpending 3 "3 von 4 gezählten Monaten mit Ausgaben"
+            Expect.equal row.Group Fits "je Zahlung 300 € = Target je Rhythmus"
+        }
     ]
 
 [<Tests>]

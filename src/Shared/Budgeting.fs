@@ -1409,9 +1409,10 @@ let targetCheckRow (today: string) (source: TargetCheckSource) : TargetCheckRow 
             && firstMonth |> Option.forall (fun first -> s.Month >= first))
     let n = List.length counted
     let monthly = source.Target |> Option.bind monthlyValue
+    let total = counted |> List.sumBy netSpending
     let average =
         if n = 0 then None
-        else Some (euro ((counted |> List.sumBy netSpending) / decimal n))
+        else Some (euro (total / decimal n))
     let monthsWithSpending = counted |> List.filter (fun s -> netSpending s > 0m) |> List.length
     let monthsOver =
         match monthly with
@@ -1455,21 +1456,24 @@ let targetCheckRow (today: string) (source: TargetCheckSource) : TargetCheckRow 
             match monthly with
             | Some m ->
                 let never = if period = 1 then monthsWithSpending <= 1 else monthsWithSpending = 0
-                // Bei P > 1 und einzelnen Zahlungen (höchstens ⌈n ÷ P⌉ + 1 Monate mit Ausgaben) muss auch der Betrag je
-                // Zahlung über dem Target je Rhythmus liegen (budgeting-j8r4t). Sonst ergibt eine verschobene
-                // Abbuchung, also zwei Zahlungen im Fenster, schon den doppelten Ø.
-                let perPaymentFits =
+                // Bei P > 1 und einzelnen Zahlungen (höchstens ⌈n ÷ P⌉ + 1 Monate mit Ausgaben, nie alle gezählten)
+                // muss auch der Betrag je Zahlung über dem Target je Rhythmus liegen (budgeting-j8r4t). Sonst ergibt
+                // eine verschobene Abbuchung, also zwei Zahlungen im Fenster, schon den doppelten Ø.
+                let singlePayments =
                     period > 1
                     && monthsWithSpending > 0
+                    && monthsWithSpending < n
                     && monthsWithSpending <= (n + period - 1) / period + 1
-                    && (let perPayment = (counted |> List.sumBy netSpending) / decimal monthsWithSpending
-                        let perRhythm = m.Amount * decimal period
-                        not (perPayment > 1.1m * perRhythm && perPayment - perRhythm >= 10m))
+                let perPaymentOver =
+                    // Das Target je Rhythmus ist der Betrag des Targets selbst, ohne Rückrechnung aus dem Monatswert.
+                    let perRhythm = source.Target |> Option.map (fun t -> t.Goal.Amount) |> Option.defaultValue 0m
+                    let perPayment = total / decimal (max monthsWithSpending 1)
+                    perPayment > 1.1m * perRhythm && perPayment - perRhythm >= 10m
                 let more =
                     avg > 1.1m * m.Amount
                     && avg - m.Amount >= 10m
                     && (period > 1 || 2 * monthsOver >= n)
-                    && not perPaymentFits
+                    && (not singlePayments || perPaymentOver)
                 let less = avg < 0.7m * m.Amount && m.Amount - avg >= 10m
                 if never then NeverSpends, None
                 elif more then SpendsMore, None
