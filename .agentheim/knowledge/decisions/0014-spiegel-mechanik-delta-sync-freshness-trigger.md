@@ -87,3 +87,7 @@ Push, nicht für einen vollständigen Spiegel.
   aktiv anstoßen, bevor die Seite verlässlich aktuell ist; das Frische-Kriterium erreicht
   Aktualität, ohne dass er daran denken muss.
 - **Webhooks**: nicht verfügbar in YNABs API.
+
+## Nachtrag 2026-11-07 (ledger-r8h19)
+
+Ein Spiegel-Lauf lädt die Verknüpfungen seines Batches (YNAB-Id, Übertrags- und Split-Übertrags-Gegenbuchungen, ImportId, abgelöste Id) und die zugehörigen Buchungen einmal vor der Schleife, in Stücken zu 400 Werten, statt je Beobachtung bis zu vier Einzelabfragen zu stellen. Jedes Anhängen im Lauf trägt `linksFrom` und `apply` in diesen Stand nach, dieselben reinen Funktionen, mit denen das Anhängen `ledger_entry_links` und `ledger_entries` fortschreibt. Ein späterer Schritt sieht damit, was ein früherer im selben Lauf angelegt hat, wie bisher. Verworfen: den Stand nach jedem Anhängen aus der Datenbank neu laden (wieder eine Abfrage je geänderter Beobachtung). Idempotenz, Match-Reihenfolge (YNAB-Id vor ImportId, ADR 0015) und das Auslassen der Lösch-Beobachtung einer abgelösten Id (ADR 0058 Punkt 5) bleiben unverändert; ein Charakterisierungstest (`LedgerMirrorBatchTests`) hält die Ereignisse eines Batches mit allen diesen Fällen fest.

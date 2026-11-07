@@ -12,7 +12,6 @@ module Tests.LedgerCategoriesAwaitSettingsTests
 // `LedgerMsg LoadCategories` abgeschickt wird, und dass dieser Zweig bei Settings
 // `Success` mit Budget zum Abruf führt (Quelltext-Zusicherung unten).
 
-open System.IO
 open Expecto
 open Types
 open Shared.Domain
@@ -74,13 +73,6 @@ let private requestCategories settings =
     |> withSettings settings
     |> State.update loadCategoriesMsg
 
-let private stateSource =
-    let rec up (dir: DirectoryInfo) =
-        if File.Exists(Path.Combine(dir.FullName, "src", "Client", "State.fs")) then dir.FullName
-        elif isNull dir.Parent then failwith "State.fs nicht gefunden"
-        else up dir.Parent
-    File.ReadAllText(Path.Combine(up (DirectoryInfo(__SOURCE_DIRECTORY__)), "src", "Client", "State.fs"))
-
 [<Tests>]
 let ledgerCategoriesAwaitSettingsTests =
     testList "State: Kategorien laden holt fehlende Settings nach (ledger-k9tq7)" [
@@ -113,10 +105,25 @@ let ledgerCategoriesAwaitSettingsTests =
         }
 
         test "Mit Settings Success und Budget führt LoadCategories zum Abruf getCategories und beendet das Warten" {
-            // `Cmd.OfAsync` ist unter .NET nicht ausführbar; der Zweig wird an seiner
-            // Quelle geprüft: Abruf über `getCategories`, Warten wird beendet.
-            Expect.stringContains stateSource "Retry.reading Api.ynab.getCategories" "getCategories wird gerufen"
-            Expect.stringContains stateSource "CategoriesAwaitSettings = false" "Warten endet mit dem Abruf"
+            // ledger-r8h19: vorher am Quelltext von State.fs geprüft. Jetzt über den Port
+            // `GetCategories` (Cmd über Lambda, Doktrin Punkt 1).
+            let calls = System.Collections.Concurrent.ConcurrentQueue<YnabBudgetId>()
+            let category : YnabCategory =
+                { Id = YnabCategoryId (System.Guid.Parse "0195e900-0000-7000-8000-0000000a8190")
+                  Name = "Lebensmittel r8h19"
+                  GroupName = "Alltag"
+                  Available = None
+                  Hidden = false }
+            let ports : UpdatePorts =
+                { GetCategories = fun budgetId -> async { calls.Enqueue budgetId; return Ok [ category ] } }
+            let b = baseModel Ledger
+            let waiting = { b with Ledger = { b.Ledger with Categories = Loading; CategoriesAwaitSettings = true } }
+            let m, cmd = waiting |> withSettings (Success settingsWithBudget) |> State.updateWith ports loadCategoriesMsg
+            Expect.isFalse m.Ledger.CategoriesAwaitSettings "Warten endet mit dem Abruf"
+            Expect.equal m.Ledger.Categories Loading "Kategorien laden"
+            let msg, _ = Tests.CmdTiming.firstDispatchedAfter 3000 cmd
+            Expect.equal msg (LedgerMsg (Components.Ledger.Types.CategoriesLoaded (Ok [ category ]))) "die Antwort des Abrufs kommt an"
+            Expect.equal (List.ofSeq calls) [ YnabBudgetId "fake-budget-id" ] "getCategories genau einmal mit dem Standard-Budget"
         }
 
         test "Nach dem Warten setzt SettingsLoaded (Error) die Kategorien auf Failure" {

@@ -6,7 +6,6 @@ module LedgerNotInYnabClientTests
 // `scripts/ledger-not-in-ynab.test.mjs`.
 
 open System
-open System.IO
 open Expecto
 open Shared.Domain
 open Types
@@ -53,13 +52,6 @@ let statusMarkTests =
                 (rowStatusMark { entry 1 false with DeletedInYnab = true })
                 RowDeleted
                 "gelöscht vor Nicht in YNAB"
-
-        testCase "Handy-Zeile und PC-Statusspalte rendern das Kennzeichen aus rowStatusMark" <| fun () ->
-            let root = Directory.GetParent(Directory.GetParent(__SOURCE_DIRECTORY__).FullName).FullName
-            let source = File.ReadAllText(Path.Combine(root, "src", "Client", "Components", "Ledger", "View.fs"))
-            Expect.stringContains source "\"Nicht in YNAB\"" "Wortlaut"
-            let uses = source.Split("match rowStatusMark entry with").Length - 1
-            Expect.equal uses 2 "Handy-Zeile und Statusspalte"
     ]
 
 [<Tests>]
@@ -120,7 +112,7 @@ let retryPushTests =
             | other -> failtestf "Erwartet Fehler-Toast, war %A" other
 
         testCase "der Satz der Leiste verspricht keinen Versuch beim nächsten Lauf" <| fun () ->
-            // Der Spiegel-Lauf pusht nichts (LedgerRetryPushTests), der Satz darf es nicht behaupten.
+            // Der Spiegel-Lauf pusht nichts (`MirrorFetchers` kennt keinen Schreibaufruf), der Satz darf es nicht behaupten.
             let failure : LedgerPushFailure = { Reason = "Timeout"; FailedAt = failedAt }
             Expect.isFalse ((notInYnabNoticeReason (Some failure)).Contains "nächsten Lauf") "mit Fehlschlag"
             Expect.isFalse ((notInYnabNoticeReason None).Contains "nächsten Lauf") "ohne Fehlschlag"

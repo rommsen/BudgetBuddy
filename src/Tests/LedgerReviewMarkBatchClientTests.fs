@@ -6,7 +6,6 @@ module LedgerReviewMarkBatchClientTests
 // indem wir die Cmd mit einem aufzeichnenden `dispatch` ausführen.
 
 open System
-open System.IO
 open Expecto
 open Shared.Domain
 open Types
@@ -14,12 +13,6 @@ open Components.Ledger.Types
 open LedgerSelectionTests
 
 let private update = Components.Ledger.State.update
-
-let private repoRoot =
-    Directory.GetParent(Directory.GetParent(__SOURCE_DIRECTORY__).FullName).FullName
-
-let private readRepo (parts: string list) =
-    File.ReadAllText(Path.Combine(repoRoot :: parts |> List.toArray))
 
 let private eur (amount: decimal) : Money = { Amount = amount; Currency = "EUR" }
 
@@ -250,42 +243,4 @@ let undoTests =
             match external with
             | ShowToast (text, ToastError) -> Expect.stringContains text "weg" "Grund"
             | other -> failtest $"erwartet Fehler-Toast, war {other}"
-    ]
-
-[<Tests>]
-let barTests =
-    testList "Geprüft für die Auswahl: Leiste (ledger-nhwrt)" [
-
-        testCase "Geprüft ist die primäre Aktion auf Handy und PC (Quelltext der Bausteine)" <| fun () ->
-            let ds = readRepo [ "src"; "Client"; "DesignSystem"; "MultiSelect.fs" ]
-            let slice (header: string) =
-                let start = ds.IndexOf header
-                Expect.isGreaterThan start -1 header
-                let rest = ds.Substring start
-                let next = rest.IndexOf("\nlet ", 5)
-                if next < 0 then rest else rest.Substring(0, next)
-            let button = slice "let private reviewedButton"
-            Expect.stringContains button "Variant = Button.Primary" "Orange, die einzige primäre Aktion"
-            Expect.stringContains button "IsLoading = busy" "Spinner und Sperre während des Aufrufs"
-            Expect.stringContains (slice "let barMobile") "reviewedButton reviewedLabel" "Handy-Leiste, Reihe 2"
-            Expect.stringContains (slice "let barDesktop") "reviewedButton reviewedLabel" "PC-Leiste rechts"
-            // Reihe 2 am Handy: Alle, Geprüft, Auswahl aufheben in dieser Folge.
-            let mobile = slice "let barMobile"
-            let all = mobile.IndexOf "ChipBar.chip"
-            let reviewed = mobile.IndexOf "reviewedButton reviewedLabel"
-            let clear = mobile.IndexOf "clearButton clearLabel"
-            Expect.isTrue (all < reviewed && reviewed < clear) "Alle, Geprüft, Auswahl aufheben"
-
-        testCase "Die Seite reicht Beschriftung, Sperre und Klick an beide Leisten (Quelltext)" <| fun () ->
-            let view = readRepo [ "src"; "Client"; "Components"; "Ledger"; "View.fs" ]
-            let from = view.IndexOf "let selectionBars"
-            let barView = view.Substring(from, view.IndexOf("let private selectionBarSpacers") - from)
-            let count (needle: string) =
-                barView.Split([| needle |], StringSplitOptions.None).Length - 1
-            Expect.equal (count "selectionReviewedLabel") 2 "in Handy- und PC-Leiste"
-            // Einmal in `locked` (beide Sammelaktionen, ledger-w29y6), je einmal als Spinner in den Leisten.
-            Expect.equal (count "model.ReviewMarkBatchRunning") 3 "Sperre in beiden"
-            Expect.equal (count "\n                locked\n") 2 "die gemeinsame Sperre erreicht beide Leisten"
-            Expect.equal (count "dispatch StartReviewMarkBatch") 2 "Klick in beiden"
-            Expect.equal selectionReviewedLabel "Geprüft" "Beschriftung"
     ]

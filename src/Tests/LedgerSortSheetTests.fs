@@ -4,18 +4,11 @@ module LedgerSortSheetTests
 // DOM. Chip und Sheet im echten Browser prüft `scripts/ledger-sort-chip.test.mjs`.
 
 open System
-open System.IO
 open Expecto
 open Shared.Domain
 open Types
 open Components.Ledger.Types
 open Components.Ledger.State
-
-let private repoRoot =
-    Directory.GetParent(Directory.GetParent(__SOURCE_DIRECTORY__).FullName).FullName
-
-let private readSource (parts: string list) =
-    File.ReadAllText(Path.Combine(Array.ofList (repoRoot :: parts)))
 
 let private accountId = Guid.Parse "0195e900-0000-7000-8000-000000000001"
 
@@ -120,24 +113,12 @@ let sortSheetTests =
             Expect.isEmpty closeMsgs "kein Befehl"
         }
 
-        test "Das Sheet startet geschlossen" {
-            let model, _ = init ()
-            Expect.isFalse model.SortSheetOpen "zu"
-        }
-
         test "Der Chip steht nur bei CompactList und ist nur bei Abweichung vom Standard aktiv" {
-            let view = readSource [ "src"; "Client"; "Components"; "Ledger"; "View.fs" ]
-            Expect.stringContains view "(visibleColumns tableWidth isAllAccounts = CompactList)" "Chip hängt an visibleColumns"
-            Expect.stringContains view "IsActive = sort <> LedgerSort.defaultSort" "aktiv nur bei Abweichung"
-            Expect.stringContains view "OnRemove = None" "kein Kreuz"
-        }
-
-        test "BottomSheet.optionRow existiert und steht im Styleguide" {
-            let sheet = readSource [ "src"; "Client"; "DesignSystem"; "BottomSheet.fs" ]
-            Expect.stringContains sheet "let optionRow (label: string) (isSelected: bool) (onClick: unit -> unit)" "Signatur"
-            Expect.stringContains sheet "min-h-[44px]" "44px Trefferfläche"
-            let guide = readSource [ "src"; "Client"; "Components"; "Styleguide"; "View.fs" ]
-            Expect.stringContains guide "BottomSheet.optionRow \"Neueste zuerst\" true" "gewählter Zustand"
-            Expect.stringContains guide "BottomSheet.optionRow \"Älteste zuerst\" false" "ungewählter Zustand"
+            // ledger-r8h19: ersetzt den Quelltext-Test; die View ruft `sortChipVisible` und `sortChipActive`.
+            Expect.isTrue (Components.Ledger.View.sortChipVisible Components.Ledger.View.CompactList) "Handy-Liste"
+            Expect.isFalse (Components.Ledger.View.sortChipVisible (Components.Ledger.View.Columns [])) "Tabelle"
+            Expect.isFalse (sortChipActive LedgerSort.defaultSort) "Standard"
+            Expect.isTrue (sortChipActive (asc SortByAmount)) "Betrag"
+            Expect.isTrue (sortChipActive (asc SortByDate)) "Datum aufsteigend weicht ab"
         }
     ]

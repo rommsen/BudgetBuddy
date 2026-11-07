@@ -244,6 +244,24 @@ let rowStatusMark (entry: LedgerEntryView) : RowStatusMark =
     elif not entry.LinkedToYnab then RowNotInYnab
     else RowOtherStates
 
+/// Die Kennzeichen der PC-Statusspalte in ihrer Reihenfolge (ledger-qns4j, ledger-cks06):
+/// Status, nie Herkunft. Eine nicht verknüpfte Buchung trägt nur "Nicht in YNAB", damit die
+/// 128-px-Zelle nicht überläuft; sonst "zu prüfen" (nur bei `NeedsReview`), das Flag und bei
+/// einer gelöschten Buchung das Gelöscht-Symbol.
+type TableStatusMark =
+    | StatusNotInYnab
+    | StatusNeedsReview
+    | StatusFlag of LedgerFlag
+    | StatusDeleted
+
+let tableStatusMarks (entry: LedgerEntryView) : TableStatusMark list =
+    match rowStatusMark entry with
+    | RowNotInYnab -> [ StatusNotInYnab ]
+    | mark ->
+        [ if entry.NeedsReview then StatusNeedsReview
+          if entry.Flag <> NoFlag then StatusFlag entry.Flag
+          if mark = RowDeleted then StatusDeleted ]
+
 /// Das Status-Kennzeichen "zu prüfen" der PC-Statusspalte (ADR 0032, ADR 0049 Punkt
 /// 7): ein kleines Wort in Pink statt eines Badges. Die eigentliche Markierung ist
 /// die Statuskante am Zeilenrand (`Table.RowProps.StatusEdge`); das Wort ist der
@@ -674,6 +692,27 @@ let private entryRow
         ]
     ]
 
+/// Was an der Stelle der Prüf-Schaltfläche einer Zeile steht. Eine in YNAB gelöschte Buchung
+/// nimmt keinen Prüfvermerk an (der Server lehnt sie ab). Bei laufender Auswahl schreibt nur die
+/// Leiste: in Tabelle und Maus-Zeile hält ein unsichtbarer Platzhalter gleicher Größe die Breite,
+/// damit die Kennzeichen nicht springen (ledger-r1d2f, ledger-w4vte).
+type ReviewMarkSlot =
+    | ReviewMarkButtonSlot
+    | ReviewMarkPlaceholder
+    | NoReviewMarkSlot
+
+/// Tabelle und Maus-Zeile: Schaltfläche, bei laufender Auswahl der Platzhalter.
+let pointerRowReviewMarkSlot (entry: LedgerEntryView) (selectionActive: bool) : ReviewMarkSlot =
+    if entry.DeletedInYnab then NoReviewMarkSlot
+    elif selectionActive then ReviewMarkPlaceholder
+    else ReviewMarkButtonSlot
+
+/// Finger-Zeile: Schaltfläche nur ohne Maus, außerhalb des Auswahl-Modus und ohne Auswahl;
+/// sonst gar nichts (kein Platzhalter, die Zeile hat keine Spalten).
+let touchRowReviewMarkSlot (entry: LedgerEntryView) (mouse: bool) (inSelectionMode: bool) (selectionActive: bool) : ReviewMarkSlot =
+    if entry.DeletedInYnab || mouse || inSelectionMode || selectionActive then NoReviewMarkSlot
+    else ReviewMarkButtonSlot
+
 let private entryRowWithReviewMark
     (dispatch: Msg -> unit)
     (accountAbbreviationOf: (Guid -> string) option)
@@ -744,11 +783,13 @@ let private entryRowWithReviewMark
                     // laufender Auswahl steht wie in der Tabelle ein unsichtbarer Platzhalter.
                     match mouse with
                     | Some info ->
-                        if not entry.DeletedInYnab then
+                        match pointerRowReviewMarkSlot entry selectionActive with
+                        | NoReviewMarkSlot -> ()
+                        | slot ->
                             Html.div [
                                 prop.className "shrink-0 flex items-center px-1"
                                 prop.children [
-                                    if selectionActive then
+                                    if slot = ReviewMarkPlaceholder then
                                         Html.span [ prop.className "h-7 w-7 shrink-0"; prop.ariaHidden true ]
                                     else
                                         reviewMarkButton dispatch true info.IsFocused rowState entry
@@ -758,7 +799,7 @@ let private entryRowWithReviewMark
                     // Eine in YNAB gelöschte Buchung nimmt keinen Prüfvermerk an (wie am PC).
                     // Bei laufender Auswahl entfällt die Schaltfläche: die Leiste schreibt,
                     // die Zeilen nicht (ledger-r1d2f, ledger-w4vte).
-                    if not entry.DeletedInYnab && mouse.IsNone && selected.IsNone && not selectionActive then
+                    if touchRowReviewMarkSlot entry mouse.IsSome selected.IsSome selectionActive = ReviewMarkButtonSlot then
                         Html.div [
                             prop.className $"shrink-0 flex items-center px-1 {Tokens.Backgrounds.dark} border-b {Tokens.Borders.subtle}"
                             prop.children [ reviewMarkButton dispatch false false rowState entry ]
@@ -862,6 +903,25 @@ type LedgerColumn =
     | AmountColumn
     | StatusColumn
 
+/// Kopf einer Spalte der PC-Tabelle: Text, Ausrichtung und das Sortierfeld, wenn der Kopf
+/// sortiert. Memo und Status sortieren nicht; das Auswahl-Kästchen hat einen eigenen Kopf.
+type TableHeader =
+    { HeaderText: string
+      HeaderAlign: string option
+      HeaderSortField: LedgerSortField option }
+
+let tableHeaderFor (column: LedgerColumn) : TableHeader option =
+    let header label align field = Some { HeaderText = label; HeaderAlign = align; HeaderSortField = field }
+    match column with
+    | SelectColumn -> None
+    | DateColumn -> header "Datum" None (Some SortByDate)
+    | AccountColumn -> header "Konto" None (Some SortByAccount)
+    | PayeeColumn -> header "Payee" None (Some SortByPayee)
+    | CategoryColumn -> header "Kategorie" None (Some SortByCategory)
+    | MemoColumn -> header "Memo" None None
+    | AmountColumn -> header "Betrag" (Some "right") (Some SortByAmount)
+    | StatusColumn -> header "Status" (Some "right") None
+
 /// Was die PC-Ansicht bei einer Tabellenbreite zeigt: die Tabelle mit den sichtbaren
 /// Spalten samt Breiten, oder die kompakte Liste (dieselbe wie am Handy).
 type TableLayout =
@@ -872,6 +932,10 @@ type TableLayout =
 /// in der Gesamtsicht), steht das Kontokürzel klein vor dem Payee in derselben Zelle,
 /// als eigenes Element neben dem Payee-Text (ledger-qh9qx). Reiner Text, kein eigenes
 /// Klickziel (ADR 0053 Punkt 3).
+/// Kürzel des Kontos vor dem Payee: nur in der Gesamtsicht und nur, wenn die Konto-Spalte fehlt.
+let payeeAccountAbbreviation (isAllAccounts: bool) (columns: LedgerColumn list) (abbreviation: string) : string option =
+    if isAllAccounts && not (List.contains AccountColumn columns) then Some abbreviation else None
+
 let private payeeCell (accountAbbreviation: string option) (entry: LedgerEntryView) =
     let abbreviation =
         match accountAbbreviation with
@@ -912,12 +976,7 @@ let private entryTableRow
             Table.roleCell Table.DateCell [ Html.text (formatDate entry.Date) ]
             if List.contains AccountColumn columns then
                 Table.roleCell Table.Muted [ Html.text (accountAbbreviationOf entry.AccountId) ]
-            payeeCell
-                (if isAllAccounts && not (List.contains AccountColumn columns) then
-                     Some (accountAbbreviationOf entry.AccountId)
-                 else
-                     None)
-                entry
+            payeeCell (payeeAccountAbbreviation isAllAccounts columns (accountAbbreviationOf entry.AccountId)) entry
             categoryCell entry
             if List.contains MemoColumn columns then
                 truncatedRoleCell Table.Muted (Html.text (entry.Memo |> Option.defaultValue ""))
@@ -934,22 +993,21 @@ let private entryTableRow
                         // Gelöscht steht vor Nicht in YNAB (ledger-cks06): die gelöschte Buchung
                         // behält ihre bisherigen Kennzeichen samt Symbol, die nicht verknüpfte
                         // trägt nur das Wort, damit die 128px-Zelle nicht überläuft.
-                        match rowStatusMark entry with
-                        | RowNotInYnab -> notInYnabBadge ()
-                        | mark ->
-                            if entry.NeedsReview then needsReviewStatusBadge ()
-                            flagStatusBadge entry.Flag
-                            if mark = RowDeleted then deletedStatusIcon ()
+                        for mark in tableStatusMarks entry do
+                            match mark with
+                            | StatusNotInYnab -> notInYnabBadge ()
+                            | StatusNeedsReview -> needsReviewStatusBadge ()
+                            | StatusFlag flag -> flagStatusBadge flag
+                            | StatusDeleted -> deletedStatusIcon ()
                         // Eine in YNAB gelöschte Buchung nimmt keinen Prüfvermerk mehr an
                         // (der Server lehnt sie ab), also bekommt sie keine Schaltfläche.
                         // Bei laufender Auswahl ersetzt ein unsichtbarer Platzhalter gleicher
                         // Größe die Schaltfläche (der einzige Prüfweg ist "Geprüft" in der
                         // Leiste); so springen die Kennzeichen nicht (ledger-w4vte).
-                        if not entry.DeletedInYnab then
-                            if selectionActive then
-                                Html.span [ prop.className "h-7 w-7 shrink-0"; prop.ariaHidden true ]
-                            else
-                                reviewMarkButton dispatch true isFocused rowState entry
+                        match pointerRowReviewMarkSlot entry selectionActive with
+                        | ReviewMarkPlaceholder -> Html.span [ prop.className "h-7 w-7 shrink-0"; prop.ariaHidden true ]
+                        | ReviewMarkButtonSlot -> reviewMarkButton dispatch true isFocused rowState entry
+                        | NoReviewMarkSlot -> ()
                     ]
                 ]
             ]
@@ -1412,10 +1470,14 @@ let private historyView (dispatch: Msg -> unit) (entry: LedgerEntryView) (histor
     | Success [] -> Detail.timelineEmpty "Noch keine Einträge"
     | Success lines -> Detail.timeline (historyTimelineItems lines)
 
+/// Eine in YNAB gelöschte Buchung ist im Detail ein Lesezustand (ledger-q1hw2): gedämpfter
+/// Betrag und Text, kein Geprüft-Schalter; die Filter-Knöpfe bleiben.
+let detailReadOnly (entry: LedgerEntryView) : bool = entry.DeletedInYnab
+
 /// Der Kopf des Details: Betrag, "Konto · Datum", Schließen.
 let private detailHead (model: Model) (entry: LedgerEntryView) (onClose: (unit -> unit) option) =
     Detail.head
-        (Detail.amount entry.Amount.Amount entry.Amount.Currency entry.DeletedInYnab)
+        (Detail.amount entry.Amount.Amount entry.Amount.Currency (detailReadOnly entry))
         (detailSubtitle (accountNameOf model entry) entry)
         onClose
 
@@ -1693,7 +1755,7 @@ let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
     let categoryRow = model.CategoryRows |> Map.tryFind entry.Id
     let flagRow = model.FlagRows |> Map.tryFind entry.Id
     let memoRow = model.MemoRows |> Map.tryFind entry.Id
-    let muted = entry.DeletedInYnab
+    let muted = detailReadOnly entry
     let textColor = if muted then Tokens.Colors.textMuted else Tokens.Colors.textPrimary
 
     [ match detailNoticeWithMemo rowState categoryRow flagRow memoRow model.History entry with
@@ -1747,7 +1809,7 @@ let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
       flagField dispatch model flagRow entry
 
       // Eine in YNAB gelöschte Buchung nimmt keinen Prüfvermerk an: kein Schalter.
-      if not entry.DeletedInYnab then
+      if not (detailReadOnly entry) then
           Detail.reviewedSwitch
               "Geprüft"
               (not entry.NeedsReview)
@@ -2183,6 +2245,26 @@ let private LongPressRow (enabled: bool) (onLongPress: unit -> unit) (child: Rea
 /// Eine Zeile der Handy-Liste: im Normalbetrieb mit Wisch-Geste, im Auswahl-Modus mit
 /// Kästchen und ohne Wisch (ein Wisch wäre dort überraschend, ledger-r1d2f). In beiden Fällen
 /// unter derselben Hülle für das lange Drücken.
+/// Wie eine Zeile der Handy-Liste bedient wird. Im Auswahl-Modus mit Kästchen; mit Maus
+/// (ledger-m6zpd) mit Kästchen, Markierung und Hover-Schaltfläche, ohne Wisch; mit einer
+/// Auswahl ohne Modus (das Fenster ist mit bestehender Auswahl von der Tabelle auf die
+/// Kompaktliste geschrumpft) weder Wisch noch Schaltfläche; sonst mit Wisch.
+type MobileRowMode =
+    | MobileSelectionRow
+    | MobileMouseRow
+    | MobilePlainRow
+    | MobileSwipeRow
+
+let mobileRowMode (selectionMode: bool) (mouse: bool) (selectionActive: bool) : MobileRowMode =
+    if selectionMode then MobileSelectionRow
+    elif mouse then MobileMouseRow
+    elif selectionActive then MobilePlainRow
+    else MobileSwipeRow
+
+/// Startet langes Drücken den Auswahl-Modus? Nicht im Modus selbst und nicht mit Maus
+/// (auch nicht am Touchscreen eines Laptops).
+let mobileRowLongPress (selectionMode: bool) (mouse: bool) : bool = not selectionMode && not mouse
+
 let private mobileEntryRow
     (dispatch: Msg -> unit)
     (accountAbbreviationOf: (Guid -> string) option)
@@ -2196,19 +2278,16 @@ let private mobileEntryRow
     (entry: LedgerEntryView)
     =
     let inner =
-        if selectionMode then
+        match mobileRowMode selectionMode mouse.IsSome selectionActive with
+        | MobileSelectionRow ->
             entryRowWithReviewMark dispatch accountAbbreviationOf rowState (Some (isSelected selection entry.Id)) None true flatDate entry
-        elif mouse.IsSome then
-            // Kompaktliste mit Maus (ledger-m6zpd): Kästchen, Markierung, Hover-Schaltfläche,
-            // weder Wisch noch langes Drücken (auch nicht am Touchscreen eines Laptops).
+        | MobileMouseRow ->
             entryRowWithReviewMark dispatch accountAbbreviationOf rowState None mouse selectionActive flatDate entry
-        elif selectionActive then
-            // Eine Auswahl ohne Modus (das Fenster ist mit bestehender Auswahl von der
-            // Tabelle auf die Kompaktliste geschrumpft): weder Wisch noch Schaltfläche.
+        | MobilePlainRow ->
             entryRowWithReviewMark dispatch accountAbbreviationOf rowState None None true flatDate entry
-        else
+        | MobileSwipeRow ->
             swipeableEntryRow dispatch accountAbbreviationOf rowState flatDate entry
-    let row = LongPressRow (not selectionMode && mouse.IsNone) (fun () -> dispatch (StartSelectionMode entry.Id)) inner
+    let row = LongPressRow (mobileRowLongPress selectionMode mouse.IsSome) (fun () -> dispatch (StartSelectionMode entry.Id)) inner
     React.keyedFragment (
         string entry.Id,
         [ if isFilteredOut then
@@ -2490,14 +2569,12 @@ let private entryListDesktop
             [
                 Html.colgroup [ for (_, width) in columns -> col width ]
                 Table.thead [
-                    selectHeaderCell dispatch headerState
-                    sortHeader "Datum" None SortByDate
-                    if List.contains AccountColumn visible then sortHeader "Konto" None SortByAccount
-                    sortHeader "Payee" None SortByPayee
-                    sortHeader "Kategorie" None SortByCategory
-                    if List.contains MemoColumn visible then Table.calmHeaderCell "Memo" None
-                    sortHeader "Betrag" (Some "right") SortByAmount
-                    Table.calmHeaderCell "Status" (Some "right")
+                    for column in visible do
+                        match column, tableHeaderFor column with
+                        | SelectColumn, _ -> selectHeaderCell dispatch headerState
+                        | _, Some { HeaderText = label; HeaderAlign = align; HeaderSortField = Some field } -> sortHeader label align field
+                        | _, Some { HeaderText = label; HeaderAlign = align; HeaderSortField = None } -> Table.calmHeaderCell label align
+                        | _, None -> ()
                 ]
                 Table.tbody (
                     if usesDayGroups sort then
@@ -2886,7 +2963,7 @@ let private dateChipLabel (filters: Filters) : string =
     |> Option.map dateQuickLabel
     |> Option.defaultValue "Zeitraum"
 
-let private chipLabel (model: Model) (chip: ChipId) : string =
+let chipLabel (model: Model) (chip: ChipId) : string =
     match chip with
     | NeedsReviewChip -> needsReviewChipLabel model.NeedsReviewCount
     | AskLenaChip -> askLenaChipLabel model.AskLenaCount
@@ -2943,6 +3020,9 @@ let private filterChip (dispatch: Msg -> unit) (model: Model) (categories: YnabC
         let isOpen = model.OpenPopover = Some chip
         ChipBar.chipWithPopover chipElement (filterChrome dispatch chip isOpen (popoverBody dispatch model categories chip))
 
+/// Der Sortier-Chip steht nur, wenn die Liste als Handy-Liste gerendert wird.
+let sortChipVisible (layout: TableLayout) : bool = layout = CompactList
+
 /// Der Sortier-Chip am Ende der Filterleiste samt Sheet (ledger-skpcx). Er steht nur,
 /// wenn die Liste als Handy-Liste gerendert wird (`visibleColumns` liefert `CompactList`);
 /// dann ist er die einzige Chrome dieser Art (ADR 0043). Aktiv gefärbt, wenn die wirksame
@@ -2952,7 +3032,7 @@ let private sortChip (dispatch: Msg -> unit) (model: Model) (isAllAccounts: bool
     let chipElement =
         ChipBar.chip {
             Label = Components.Ledger.State.sortChipLabel sort
-            IsActive = sort <> LedgerSort.defaultSort
+            IsActive = Components.Ledger.State.sortChipActive sort
             OnClick = (fun () -> dispatch OpenSortSheet)
             OnRemove = None
         }
@@ -3074,8 +3154,18 @@ let private selectionSummaryRow (model: Model) : ReactElement =
     MultiSelect.summaryRow (selectionSummaryText totals.Count model.TotalCount) totals.Amount
 
 /// Summenzeile über der Liste: die Auswahl, wenn eine läuft, sonst der Treffer.
+/// Über der Liste steht die Auswahl, solange sie nicht leer ist, sonst der Treffer.
+type SummaryRowKind =
+    | SelectionSummary
+    | HitSummary
+
+let summaryRowKind (model: Model) : SummaryRowKind =
+    if hasSelection model then SelectionSummary else HitSummary
+
 let private summaryOrSelectionRow (accounts: LedgerAccountView list) (categories: YnabCategory list) (model: Model) : ReactElement =
-    if hasSelection model then selectionSummaryRow model else summaryRow accounts categories model
+    match summaryRowKind model with
+    | SelectionSummary -> selectionSummaryRow model
+    | HitSummary -> summaryRow accounts categories model
 
 /// Steht der Tastaturhinweis da? Nur mit geladenen Zeilen und ohne Auswahl, an deren Stelle
 /// die Leiste tritt. In der Kompaktliste nur mit Maus (ledger-m6zpd): das Modellfeld
@@ -3346,7 +3436,7 @@ let private FilterBarColumn
                     // stehen, der Hinweis steht daneben (ADR 0014).
                     Loading.inlineWithText "Spiegel läuft — die Liste bleibt so lange stehen."
 
-                filterChipBar dispatch model categories (visibleColumns tableWidth isAllAccounts = CompactList) isAllAccounts (Some barCallbackRef)
+                filterChipBar dispatch model categories (sortChipVisible (visibleColumns tableWidth isAllAccounts)) isAllAccounts (Some barCallbackRef)
                 summaryOrSelectionRow accounts categories model
                 deletedToggleRow dispatch model
                 orderStaleBar dispatch model

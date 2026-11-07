@@ -4,19 +4,12 @@ module LedgerSortClientTests
 // DOM. Die Kopfzellen im echten Browser prüft `scripts/ledger-sort-headers.test.mjs`.
 
 open System
-open System.IO
 open Expecto
 open Shared.Domain
 open Types
 open Components.Ledger.Types
 open Components.Ledger.State
 open Components.Ledger.View
-
-let private repoRoot =
-    Directory.GetParent(Directory.GetParent(__SOURCE_DIRECTORY__).FullName).FullName
-
-let private readSource (parts: string list) =
-    File.ReadAllText(Path.Combine(Array.ofList (repoRoot :: parts)))
 
 let private eur (amount: decimal) : Money = { Amount = amount; Currency = "EUR" }
 
@@ -195,23 +188,17 @@ let sortClientTests =
             Expect.equal (Client.DesignSystem.Table.ariaSortValue Client.DesignSystem.Table.Unsorted) "none" "keine"
         }
 
-        test "Kopfzellen: sortierbare über die Sortier-Funktion, Memo und Status nicht" {
-            let view = readSource [ "src"; "Client"; "Components"; "Ledger"; "View.fs" ]
-            Expect.stringContains view "sortHeader \"Konto\" None SortByAccount" "Konto"
-            Expect.stringContains view "sortHeader \"Payee\" None SortByPayee" "Payee"
-            Expect.stringContains view "sortHeader \"Kategorie\" None SortByCategory" "Kategorie"
-            Expect.stringContains view "sortHeader \"Datum\" None SortByDate" "Datum"
-            Expect.stringContains view "sortHeader \"Betrag\" (Some \"right\") SortByAmount" "Betrag"
-            Expect.stringContains view "Table.calmHeaderCell \"Memo\" None" "Memo bleibt einfach"
-            Expect.stringContains view "Table.calmHeaderCell \"Status\" (Some \"right\")" "Status bleibt einfach"
-            Expect.isFalse (view.Contains "sortHeader \"Memo\"") "Memo nicht sortierbar"
-            Expect.isFalse (view.Contains "sortHeader \"Status\"") "Status nicht sortierbar"
-        }
-
-        test "Styleguide zeigt die sortierbare Kopfzelle in drei Zuständen" {
-            let guide = readSource [ "src"; "Client"; "Components"; "Styleguide"; "View.fs" ]
-            Expect.stringContains guide "calmSortableHeaderCell \"Betrag aufsteigend\" None Table.Ascending" "aufsteigend"
-            Expect.stringContains guide "Table.Descending" "absteigend"
-            Expect.stringContains guide "Table.Unsorted" "ohne"
+        test "Kopfzellen: Datum, Konto, Payee, Kategorie und Betrag sortieren, Memo und Status nicht" {
+            // ledger-r8h19: ersetzt den Quelltext-Test; der Tabellenkopf ruft nur `tableHeaderFor`.
+            let sortOf column = tableHeaderFor column |> Option.bind (fun h -> h.HeaderSortField)
+            Expect.equal (sortOf DateColumn) (Some SortByDate) "Datum"
+            Expect.equal (sortOf AccountColumn) (Some SortByAccount) "Konto"
+            Expect.equal (sortOf PayeeColumn) (Some SortByPayee) "Payee"
+            Expect.equal (sortOf CategoryColumn) (Some SortByCategory) "Kategorie"
+            Expect.equal (sortOf AmountColumn) (Some SortByAmount) "Betrag"
+            Expect.equal (sortOf MemoColumn) None "Memo nicht sortierbar"
+            Expect.equal (sortOf StatusColumn) None "Status nicht sortierbar"
+            Expect.isNone (tableHeaderFor SelectColumn) "das Kästchen hat einen eigenen Kopf"
+            Expect.equal (tableHeaderFor AmountColumn |> Option.map (fun h -> h.HeaderAlign)) (Some (Some "right")) "Betrag rechtsbündig"
         }
     ]

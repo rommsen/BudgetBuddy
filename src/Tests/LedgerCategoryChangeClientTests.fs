@@ -6,7 +6,6 @@ module LedgerCategoryChangeClientTests
 // nicht inspizieren; die Verdrahtung der Ansicht prüfen Quelltext-Zusicherungen.
 
 open System
-open System.IO
 open Expecto
 open Shared.Domain
 open Types
@@ -99,14 +98,6 @@ let private changed (previous: CategoryChoice option) (writeBack: CategoryWriteB
     { Previous = previous; Change = CategoryChanged; WriteBack = writeBack }
 
 let private lebensmittel : CategoryChoice = { CategoryId = catId 1; CategoryName = "Lebensmittel" }
-
-let private repoRoot =
-    Directory.GetParent(Directory.GetParent(__SOURCE_DIRECTORY__).FullName).FullName
-
-let private readRepo (parts: string list) =
-    File.ReadAllText(Path.Combine(repoRoot :: parts |> List.toArray))
-
-let private viewSource () = readRepo [ "src"; "Client"; "Components"; "Ledger"; "View.fs" ]
 
 [<Tests>]
 let openingTests =
@@ -203,6 +194,8 @@ let changeTests =
             Expect.equal (model.CategoryRows |> Map.tryFind (idOf 1)) (Some CategorySending) "sendet"
             Expect.isNone model.CategoryPickerFor "Picker zu"
             Expect.equal sent [ RunSetEntryCategory (idOf 1, Some (catId 3)) ] "genau ein Aufruf"
+            // ledger-r8h19: ersetzt den Teilstring-Test der Verdrahtung in LedgerRecentCategoriesTests.
+            Expect.equal (List.tryHead model.RecentCategories) (Some (catGuid 3)) "rückt an die Spitze von Zuletzt verwendet"
             // Ein zweiter Klick während des Aufrufs tut nichts.
             let again, sentAgain, _ = run (StartSetEntryCategory (idOf 1, Some (catId 2))) model
             Expect.equal again model "unverändert"
@@ -338,9 +331,8 @@ let undoTests =
             let model, sent, _ = run (StartUndoCategory (idOf 1, Some lebensmittel)) (defaultModel ())
             Expect.equal (model.CategoryRows |> Map.tryFind (idOf 1)) (Some CategorySending) "sendet"
             Expect.equal sent [ RunUndoCategory (idOf 1, Some lebensmittel) ] "ein Aufruf"
-            // Der Aufruf selbst ist setEntryCategory mit Previous |> Option.map _.CategoryId (siehe Quelltext).
-            let source = readRepo [ "src"; "Client"; "Components"; "Ledger"; "State.fs" ]
-            Expect.stringContains source "(previous |> Option.map (fun p -> p.CategoryId))" "alte Id, auch None"
+            // Dass der Aufruf die alte Kategorie sendet, prüft `[flow:kategorie-aendern]`
+            // (scripts/ledger-category-change.test.mjs, "Rückgängig sendet die alte Kategorie").
 
         testCase "Nach der Änderung und Rücknahme trägt die Zeile wieder die alte Kategorie, Available ist zurück, ohne Karte und ohne Aktion" <| fun () ->
             let afterChange, _, _ =
@@ -549,27 +541,10 @@ let viewTests =
         testCase "Der Picker geht am PC als Popover im Panel auf, am Handy und in der Kompaktliste als Sheet über dem Detail" <| fun () ->
             Expect.equal (Components.Ledger.View.categoryPickerPlacement DetailPanel) Components.Ledger.View.PickerPopover "PC"
             Expect.equal (Components.Ledger.View.categoryPickerPlacement DetailSheet) Components.Ledger.View.PickerSheet "Handy"
-            let source = viewSource ()
-            Expect.stringContains source "CategoryPicker.popoverInPanel pickerOpen pickerProps" "Popover verdrahtet"
-            Expect.stringContains source "CategoryPicker.sheetLayered pickerOpen (Some sheetSubtitle) pickerProps" "zweites Sheet über dem Detail"
 
-        testCase "Der Pfeil sitzt in detail-category, gesperrt mit Hinweistext, die Zeile selbst öffnet auch" <| fun () ->
-            let source = viewSource ()
-            Expect.stringContains source "\"detail-category\"" "Zeile"
-            Expect.stringContains source "Detail.pickerArrow categoryArrowLabel pickerOpen (categoryLockHint lock) onArrow" "Pfeil mit Sperrtext"
-            Expect.stringContains source "(if arrowMsg.IsSome then Some onArrow else None)" "Klick auf die Zeile öffnet, gesperrt nicht"
-            let ds = readRepo [ "src"; "Client"; "DesignSystem"; "Detail.fs" ]
-            Expect.stringContains ds "aria-disabled" "gesperrt ist ausgezeichnet"
-            Expect.stringContains ds "opacity-40 cursor-not-allowed" "gedämpft"
-            Expect.stringContains ds "if not locked then onClick ()" "ohne Wirkung"
-
-        testCase "Die Karte steht direkt unter dem Kategorie-Feld und nimmt die Zeilen aus dem Modell" <| fun () ->
-            let source = viewSource ()
-            let field = source.IndexOf "let private categoryField"
-            let card = source.IndexOf("category-change-card", field)
-            let popover = source.IndexOf("CategoryPicker.popoverInPanel", field)
-            Expect.isTrue (field >= 0 && popover > field && card > popover) "Karte nach dem Feld samt Popover"
-            Expect.stringContains source "CategoryPicker.CategoryChangeCard.view lines" "Baustein aus dem Design-System"
+        testCase "Die Karte nimmt die Zeilen aus dem Modell, nur für die geänderte Buchung" <| fun () ->
+            // ledger-r8h19: die Lage unter dem Kategorie-Feld messen `[flow:kategorie-aendern]` und
+            // `[layout] Handy (390x844): …` in scripts/ledger-category-change.test.mjs.
             let model, _, _ =
                 update (EntryCategorySet (idOf 1, Some (catId 3), Ok (changed (Some lebensmittel) CategorySent))) (defaultModel ())
             let lines = Components.Ledger.View.categoryCardLinesFor model (entryOf 1)
@@ -577,18 +552,6 @@ let viewTests =
             Expect.isTrue (CategoryPicker.CategoryChangeCard.hasContent lines) "Karte hat Inhalt"
             Expect.isEmpty (Components.Ledger.View.categoryCardLinesFor model (entryOf 2)) "nicht für eine andere Buchung"
             Expect.isEmpty (Components.Ledger.View.categoryCardLinesFor { model with CategoryCard = None } (entryOf 1)) "nach Ablauf weg"
-
-        testCase "Die ausgegraute Zeile trägt die gedämpfte Klasse und den Vermerk, die Leiste Neu laden nur bei OrderStale" <| fun () ->
-            let source = viewSource ()
-            Expect.stringContains source "prop.className \"opacity-50\"" "gedämpfte Klasse an der Handy-Zeile"
-            Expect.stringContains source "(if isFilteredOut then \" opacity-50\" else \"\")" "gedämpfte Klasse an der PC-Zeile"
-            Expect.stringContains source "filteredOutNote" "Vermerk an Zeilen"
-            Expect.stringContains source "if not model.OrderStale then" "Leiste nur bei OrderStale"
-            Expect.stringContains source "orderStaleText" "Satz der Leiste"
-            Expect.stringContains source "dispatch LoadEntries" "Neu laden lädt ab Seite 1"
-            Expect.stringContains source "(selectionForRows model)" "ausgegraute Zeilen sind nie gewählt"
-            Expect.equal orderStaleText "Reihenfolge oder Treffer haben sich geändert." "Satz"
-            Expect.equal orderStaleActionLabel "Neu laden" "Knopf"
 
         testCase "Der Tooltip-Text und die Toast-Texte kommen aus reinen Funktionen ohne Beträge" <| fun () ->
             Expect.equal (categoryChangedToastText (Some "Möbel") (Some lebensmittel)) "Kategorie geändert: Möbel" "geändert"
@@ -603,9 +566,7 @@ let viewTests =
             Expect.equal (derive (Failure "x")) Client.DesignSystem.CategoryPicker.PickerFailed "Failure fehlgeschlagen"
             Expect.equal (derive (Success categories)) Client.DesignSystem.CategoryPicker.PickerReady "Success bereit"
 
-        testCase "Erneut versuchen im Picker löst LoadCategories aus, das auf Loading schaltet (dmw83)" <| fun () ->
-            let src = System.IO.File.ReadAllText(System.IO.Path.Combine(__SOURCE_DIRECTORY__, "..", "Client", "Components", "Ledger", "View.fs"))
-            Expect.stringContains src "OnRetry = fun () -> dispatch LoadCategories" "Rückruf löst LoadCategories aus"
+        testCase "LoadCategories nach einem Fehlschlag schaltet auf Loading (dmw83)" <| fun () ->
             let failed = { defaultModel () with Categories = Failure "x" }
             let model, _, _ = update LoadCategories failed
             Expect.equal model.Categories Loading "der Abruf beginnt, der Picker zeigt den Ladehinweis"

@@ -4,18 +4,11 @@ module LedgerCompactInteractionTests
 // und läuft ohne Browser; die Bedienung im echten Browser prüfen
 // `scripts/ledger-compact-mouse.test.mjs` (Maus und Touch).
 
-open System.IO
 open Expecto
 open Shared.Domain
 open Types
 open Components.Ledger.Types
 open Components.Ledger.View
-
-let private repoRoot =
-    Directory.GetParent(Directory.GetParent(__SOURCE_DIRECTORY__).FullName).FullName
-
-let private readView () =
-    File.ReadAllText(Path.Combine(repoRoot, "src", "Client", "Components", "Ledger", "View.fs"))
 
 let private entryOf (n: int) : LedgerEntryView =
     LedgerSelectionTests.entryOf n (-10m * decimal n) true false
@@ -86,30 +79,8 @@ let hintAndReducerTests =
     ]
 
 [<Tests>]
-let sourceTests =
-    testList "Kompaktliste mit Maus: Quelltext (ledger-m6zpd)" [
-        testCase "das Kästchen der Maus-Zeile schickt ClickRowCheckbox mit Umschalt-Information" <| fun () ->
-            let view = readView ()
-            let from = view.IndexOf "let private entryRowWithReviewMark"
-            let body = view.Substring(from, view.IndexOf("let private dateGroupHeader", from) - from)
-            Expect.stringContains body "MultiSelect.boxButton" "Kästchen"
-            Expect.stringContains body "ClickRowCheckbox (entry.Id, shift)" "Nachricht wie die Tabelle"
-
-        testCase "die Maus-Zeile ist kein Knopf und setzt die Fokus-Attribute" <| fun () ->
-            let view = readView ()
-            Expect.stringContains view "if mouse.IsSome then (fun props -> Html.div props)" "div statt button"
-            Expect.stringContains view "data-keyboard-focus" "Fokus-Attribut"
-            Expect.stringContains view "Table.focusedRowClass" "Fokus-Darstellung der Tabelle"
-
-        testCase "langes Drücken ist mit Maus aus und die Zeile wird nicht gewischt" <| fun () ->
-            let view = readView ()
-            let from = view.IndexOf "let private mobileEntryRow"
-            let body = view.Substring(from, view.IndexOf("let private entryListMobile", from) - from)
-            Expect.stringContains body "LongPressRow (not selectionMode && mouse.IsNone)" "kein langes Drücken"
-            let mouseAt = body.IndexOf "elif mouse.IsSome then"
-            let swipeAt = body.IndexOf "swipeableEntryRow"
-            Expect.isGreaterThan swipeAt mouseAt "Wisch erst nach dem Maus-Zweig"
-
+let mouseRowContainerTests =
+    testList "Kompaktliste mit Maus: Container der Zeile (ledger-m6zpd)" [
         testCase "der Container der Maus-Zeile: Markierung, Anker und Statuskante" <| fun () ->
             let plain = mouseRowContainerClassName { Selected = false; IsAnchor = false; IsFocused = false } false
             Expect.stringContains plain "group" "group für den Hover der Schaltfläche"

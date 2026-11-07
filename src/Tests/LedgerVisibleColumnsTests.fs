@@ -4,7 +4,6 @@ module LedgerVisibleColumnsTests
 // reine Funktion (`visibleColumns`) und läuft ohne Browser. Die Köpfe im echten Browser
 // misst `scripts/ledger-table-columns.test.mjs`.
 
-open System.IO
 open Expecto
 open Components.Ledger.View
 
@@ -22,9 +21,6 @@ let private allAccountsNoMemo = allAccountsFull |> List.filter ((<>) MemoColumn)
 let private allAccountsNoMemoNoAccount = allAccountsNoMemo |> List.filter ((<>) AccountColumn)
 let private singleFull = allAccountsFull |> List.filter ((<>) AccountColumn)
 let private singleNoMemo = singleFull |> List.filter ((<>) MemoColumn)
-
-let private repoRoot =
-    Directory.GetParent(Directory.GetParent(__SOURCE_DIRECTORY__).FullName).FullName
 
 [<Tests>]
 let visibleColumnsTests =
@@ -106,11 +102,11 @@ let visibleColumnsTests =
                     $"ein Konto bei {width}px"
         }
 
-        test "ohne Konto-Spalte steht das Kürzel in der Payee-Zelle (Quelltext-Wächter)" {
-            let view = File.ReadAllText(Path.Combine(repoRoot, "src", "Client", "Components", "Ledger", "View.fs"))
-            Expect.stringContains view "if isAllAccounts && not (List.contains AccountColumn columns)"
-                "Das Kürzel erscheint in der Gesamtsicht, wenn die Konto-Spalte fehlt."
-            Expect.stringContains view "Html.span [ prop.text (payeeLabel entry) ]"
-                "Payee-Text und Kürzel sind getrennte Elemente."
+        test "das Kürzel steht in der Payee-Zelle nur in der Gesamtsicht ohne Konto-Spalte" {
+            // ledger-r8h19: ersetzt den Quelltext-Wächter; die View ruft nur `payeeAccountAbbreviation`.
+            Expect.equal (payeeAccountAbbreviation true [ PayeeColumn ] "GK") (Some "GK") "Gesamtsicht ohne Konto-Spalte"
+            Expect.isNone (payeeAccountAbbreviation true [ AccountColumn; PayeeColumn ] "GK") "Gesamtsicht mit Konto-Spalte"
+            Expect.isNone (payeeAccountAbbreviation false [ PayeeColumn ] "GK") "ein Konto"
+            Expect.isNone (payeeAccountAbbreviation false [ AccountColumn; PayeeColumn ] "GK") "ein Konto mit Spalte"
         }
     ]

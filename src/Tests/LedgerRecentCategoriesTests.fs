@@ -4,18 +4,11 @@ module LedgerRecentCategoriesTests
 // dieselbe wie im Kategorie-Filter (ledger-v9rq3). Fixtures tragen das Kürzel d4msf.
 
 open System
-open System.IO
 open Expecto
 open Shared.Domain
 open Client.DesignSystem
 open Client.DesignSystem.CategoryPicker
 open Components.Ledger.Types
-
-let private repoRoot =
-    Directory.GetParent(Directory.GetParent(__SOURCE_DIRECTORY__).FullName).FullName
-
-let private read (parts: string list) =
-    File.ReadAllText(Path.Combine(repoRoot :: parts |> List.toArray))
 
 let private guidOf (n: int) = Guid.Parse $"d4d4d4d4-0000-7000-8000-0000000004{n:D2}"
 let private idOf (n: int) = YnabCategoryId (guidOf n)
@@ -72,12 +65,4 @@ let tests =
             let applied = pushRecentCategories (Set.singleton (guidOf 4)) [ guidOf 1 ]
             let shown = recentPickerIds applied |> recentCategories categories None |> List.map (fun c -> c.Id)
             Expect.equal shown [ idOf 4; idOf 1 ] "gleiche Liste"
-
-        testCase "Verdrahtung: Einzelwahl und Auswahl merken, beide Picker bekommen die Liste" <| fun () ->
-            let state = read [ "src"; "Client"; "Components"; "Ledger"; "State.fs" ]
-            Expect.stringContains state "RecentCategories = rememberPickedCategory newId model.RecentCategories" "Einzelwahl"
-            Expect.stringContains state "RecentCategories = rememberPickedCategory target model.RecentCategories" "Auswahl"
-            let view = read [ "src"; "Client"; "Components"; "Ledger"; "View.fs" ]
-            let count = view.Split("Recent = recentPickerIds model.RecentCategories").Length - 1
-            Expect.equal count 2 "Kategorie-Feld und Auswahl-Picker"
     ]

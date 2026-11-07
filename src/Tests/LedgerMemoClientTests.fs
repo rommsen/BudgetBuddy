@@ -8,7 +8,6 @@ module LedgerMemoClientTests
 // die Darstellung am echten Element prüft der Playwright-Wächter `scripts/ledger-memo.test.mjs`.
 
 open System
-open System.IO
 open Expecto
 open Shared.Domain
 open Types
@@ -70,14 +69,6 @@ let private rowOf (n: int) (model: Model) =
 
 let private outcome (previous: string option) (current: string option) (writeBack: MemoWriteBack) : MemoOutcome =
     { PreviousMemo = previous; CurrentMemo = current; MemoChange = MemoChanged; MemoWriteBack = writeBack }
-
-let private repoRoot =
-    Directory.GetParent(Directory.GetParent(__SOURCE_DIRECTORY__).FullName).FullName
-
-let private readRepo (parts: string list) =
-    File.ReadAllText(Path.Combine(repoRoot :: parts |> List.toArray))
-
-let private viewSource () = readRepo [ "src"; "Client"; "Components"; "Ledger"; "View.fs" ]
 
 // ============================================
 // Reine Bausteine
@@ -333,35 +324,4 @@ let detailFeinschliffTests =
                 (Components.Ledger.View.splitTargetLabel (Map.ofList [ id, "Wohnen" ]) split)
                 "Wohnen: Möbel"
                 "unabhängig von der Form des Details"
-
-        testCase "der Picker am PC trägt den Fußtext, das Sheet am Handy nicht" <| fun () ->
-            Expect.equal
-                Client.DesignSystem.CategoryPicker.popoverFooterHint
-                "Esc schließt ohne zu ändern · Klick wählt sofort"
-                "Wortlaut der Tafel 4.2"
-            let src = readRepo [ "src"; "Client"; "DesignSystem"; "CategoryPicker.fs" ]
-            Expect.stringContains src "MarkCurrent = true; FooterHint = Some popoverFooterHint" "Popover am PC"
-            Expect.stringContains src "MarkCurrent = markCurrent; FooterHint = None" "Sheet am Handy ohne Fußtext"
-            Expect.stringContains src "category-picker-footer-hint" "Testkennung für den Wächter"
-
-        testCase "die Ansicht ist verdrahtet: Memo-Zeile, Knopf, Eingabefeld und Hinweisleiste" <| fun () ->
-            let src = viewSource ()
-            for literal in [ "detail-memo-action"; "Detail.memoEditor"; "MemoNotice"; "StartSaveMemo"; "detailNoticeWithMemo"; "memoField" ] do
-                Expect.stringContains src literal $"View.fs enthält {literal}"
-            Expect.isFalse (src.Contains "\"Kein Memo\")\n          None") "die starre Zeile ohne Knopf ist weg"
-
-        testCase "/styleguide zeigt die Auswahl-Bausteine und die neuen Memo-Bausteine" <| fun () ->
-            let src = readRepo [ "src"; "Client"; "Components"; "Styleguide"; "View.fs" ]
-            for literal in
-                [ "components-multiselect-checkbox"
-                  "components-multiselect-summary"
-                  "components-multiselect-bar-mobile"
-                  "components-multiselect-bar-desktop"
-                  "MultiSelect.summaryRow"
-                  "MultiSelect.barMobile"
-                  "MultiSelect.barDesktop"
-                  "MultiSelect.boxButton"
-                  "multiSelectSection"
-                  "Detail.memoEditor" ] do
-                Expect.stringContains src literal $"Styleguide enthält {literal}"
     ]

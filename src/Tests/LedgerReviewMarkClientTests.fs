@@ -5,7 +5,6 @@ module LedgerReviewMarkClientTests
 // `StartRetryReviewMark` setzen nur den Zustand, der Proxy steckt hinter `Run...` (ADR 0020).
 
 open System
-open System.IO
 open Expecto
 open Shared.Domain
 open Types
@@ -154,18 +153,6 @@ let reviewMarkViewTests =
 
         testCase "Zeile ohne Fehlschlag zeigt keinen Hinweis" <| fun () ->
             Expect.isNone (reviewMarkHintFor None (entryView 1 true)) "kein Hinweis"
-
-        testCase "Die Ansicht verdrahtet die Schaltfläche mit den Start-Nachrichten" <| fun () ->
-            // Unter .NET lässt sich die React-Ansicht nicht rendern (Fable-only): die
-            // Verdrahtung wird am Quelltext geprüft (Muster aus RuhigeListenTests).
-            let rec findRoot (dir: string) =
-                if File.Exists(Path.Combine(dir, "BudgetBuddy.sln")) || Directory.Exists(Path.Combine(dir, "src", "Client")) then dir
-                else findRoot (Directory.GetParent(dir).FullName)
-            let root = findRoot AppContext.BaseDirectory
-            let source = File.ReadAllText(Path.Combine(root, "src", "Client", "Components", "Ledger", "View.fs"))
-            Expect.stringContains source "StartSetReviewMark (entry.Id, action.Target)" "Klick setzt den Vermerk"
-            Expect.stringContains source "StartRetryReviewMark entryId" "Erneut senden"
-            Expect.stringContains source "e.stopPropagation ()" "Klick öffnet nicht die Historie"
     ]
 
 
@@ -306,14 +293,4 @@ let swipeGestureTests =
             Expect.equal (Client.DesignSystem.Swipe.rubberbandOffset Client.DesignSystem.Swipe.SwipeRight -80.0 400.0) 0.0 "gegen die Richtung"
             Expect.equal (Client.DesignSystem.Swipe.rubberbandOffset Client.DesignSystem.Swipe.SwipeRight 80.0 400.0) 80.0 "mit der Richtung"
             Expect.equal (Client.DesignSystem.Swipe.rubberbandOffset Client.DesignSystem.Swipe.SwipeLeft -80.0 400.0) -80.0 "links wie bisher"
-
-        testCase "Die Handy-Liste nutzt SwipeableRowRight nur für zu prüfende Zeilen" <| fun () ->
-            let rec findRoot (dir: string) =
-                if Directory.Exists(Path.Combine(dir, "src", "Client")) then dir else findRoot (Directory.GetParent(dir).FullName)
-            let root = findRoot AppContext.BaseDirectory
-            let source = File.ReadAllText(Path.Combine(root, "src", "Client", "Components", "Ledger", "View.fs"))
-            Expect.stringContains source "Swipe.SwipeableRowRight" "Geste nach rechts"
-            Expect.stringContains source "dispatch (StartSwipeReviewed entry.Id)" "Geste löst StartSwipeReviewed aus"
-            Expect.stringContains source "if swipeAppliesTo entry then" "nur zu prüfende Zeilen"
-            Expect.isFalse (source.Contains "SwipeableRow {") "keine Geste nach links im Kassenbuch"
     ]

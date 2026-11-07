@@ -145,18 +145,6 @@ let retryPushTests =
                 (actorsAfter (Error (YnabError.NetworkError "Timeout")))
                 [ "CashExpenseAdded", QuickAdd; "EntryPushToYnabFailed", UserInBb ]
                 "Fehlschlag mit UserInBb"
-
-        testCase "der nächste Spiegel-Lauf pusht nichts und lässt die Buchung unverknüpft" <| fun () ->
-            // Der Lauf liest nur aus YNAB (`MirrorFetchers` kennt keinen Schreibaufruf); eine
-            // Buchung ohne Verknüpfung bleibt danach unverknüpft. Der Satz der Leiste darf
-            // deshalb keinen Retry im Lauf versprechen (ledger-cks06).
-            let entryId = newEntry "mirror"
-            append entryId (EntryPushToYnabFailed { Reason = "Netzwerkfehler: Timeout" })
-            let budgetId = YnabBudgetId "budget-cks06"
-            runMirror (at.AddDays 1.0) emptyMirrorFetchers budgetId |> Async.RunSynchronously |> ignore
-            let entry = loadEntry entryId |> Async.RunSynchronously |> Option.get
-            Expect.isFalse entry.LinkedToYnab "weiter unverknüpft"
-            Expect.isSome entry.PushToYnabFailure "Fehlschlag steht weiter"
     ]
 
 // ============================================

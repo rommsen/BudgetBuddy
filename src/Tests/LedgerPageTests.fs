@@ -14,8 +14,6 @@ module LedgerPageTests
 // ("Spiegel laeuft"), und eine unreine, die den Aufruf absetzt.
 
 open System
-open System.IO
-open System.Text.RegularExpressions
 open Expecto
 open Shared.Domain
 open Ledger.Events
@@ -919,6 +917,13 @@ let reducerTests =
             Expect.equal applied.OpenPopover None "Das Popover schließt sich"
             Expect.equal applied.NextPage 0 "Ein Filterwechsel beginnt wieder bei Seite 0"
             Expect.contains (dispatched cmd) LoadEntries "Das Neuladen wird angestoßen"
+            // ledger-r8h19: Chip-Text und Seitenanfrage, vorher im [layout]-Test der Filterleiste.
+            Expect.equal (Components.Ledger.View.chipLabel applied CategoryChip) "Kategorie: 2" "Der Chip nennt die Zahl der Kategorien"
+            Expect.equal (Components.Ledger.View.chipLabel opened CategoryChip) "Kategorie" "Ohne Filter heißt der Chip nur Kategorie"
+            Expect.equal
+                (Set.ofList (Components.Ledger.State.buildPageQuery applied None 0).CategoryIds)
+                (Set.ofList [ catA; catB ])
+                "Die Seitenanfrage trägt beide Kategorien"
         }
 
         test "Esc/Schließen verwirft den Entwurf, der vorherige Filterzustand bleibt unverändert" {
@@ -3021,6 +3026,15 @@ let ledgerPagingTests =
             |> Async.RunSynchronously
             seedEntryFull pageTestAccountAJ 239 -4m (DateTime(2026, 9, 4)) (Some "Aldi") None None
             |> Async.RunSynchronously
+            // ledger-r8h19: der Umlaut-Fall ersetzt die Quelltext-Zusicherung "keine eigene Faltung".
+            // Eine Faltung, die nur ASCII A-Z faltet (wie SQLites `lower()`), trennt die beiden
+            // Schreibweisen; `Core.searchFold` (ADR 0037) fasst sie in beiden Zweigen zusammen.
+            seedEntryFull pageTestAccountAJ 240 -5m (DateTime(2026, 9, 5)) (Some "Bäckerei Müller") None None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountAJ 241 -6m (DateTime(2026, 9, 6)) (Some "BÄCKEREI MÜLLER") None None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountAJ 242 -7m (DateTime(2026, 9, 7)) (Some "Bäckerei Müller") None None
+            |> Async.RunSynchronously
 
             let (LedgerAccountId rawAJ) = pageTestAccountAJ
             let sqlPath =
@@ -3037,22 +3051,9 @@ let ledgerPagingTests =
             let sorted (suggestions: LedgerPayeeSuggestion list) =
                 suggestions |> List.sortBy (fun s -> s.Payee) |> List.map (fun s -> s.Payee, s.Count)
 
-            let expected = [ "Aldi", 1; "REWE", 3 ]
-            Expect.equal (sorted sqlPath) expected "SQL-Zweig: 'REWE'/'Rewe' zu einem Vorschlag gefaltet, 'Aldi' für sich"
+            let expected = [ "Aldi", 1; "Bäckerei Müller", 3; "REWE", 3 ]
+            Expect.equal (sorted sqlPath) expected "SQL-Zweig: 'REWE'/'Rewe' und die Umlaut-Schreibweisen je zu einem Vorschlag gefaltet, 'Aldi' für sich"
             Expect.equal (sorted amountPath) expected "F#-Zweig (Betragsfilter): dieselbe Gruppierung und Anzeige-Schreibweise wie der SQL-Zweig"
-
-        testCase "AC5: loadPayeeSuggestions enthält keine eigene Groß-/Kleinschreibungs-Faltung, nur Core.searchFold" <| fun () ->
-            // Quelltext-Zusicherung nach dem Muster von FontFaceRegressionTests.fs: eine zweite,
-            // eigenständige Normalisierung (statt der gemeinsamen `Core.searchFold`)
-            // wäre hier still möglich, ohne dass ein Verhaltens-Test es zwingend
-            // aufdeckt, solange sie zufällig dasselbe Ergebnis liefert.
-            let testDir = __SOURCE_DIRECTORY__
-            let repoRoot = Directory.GetParent(Directory.GetParent(testDir).FullName).FullName
-            let persistenceFsPath = Path.Combine(repoRoot, "src", "Server", "Ledger", "Persistence.fs")
-            let text = File.ReadAllText persistenceFsPath
-
-            Expect.isFalse (Regex.IsMatch(text, @"\.ToLower\b|\.ToUpper\b|\.Replace\("))
-                "keine eigene ToLower/ToUpper/Replace-Faltung in Ledger.Persistence, nur Core.searchFold (ADR 0037)"
     ]
 
 // ============================================

@@ -5,17 +5,10 @@ module LedgerAccountChoiceTests
 // `scripts/ledger-account-choice.test.mjs`.
 
 open System
-open System.IO
 open Expecto
 open Shared.Domain
 open Components.Ledger.Types
 open Components.Ledger.State
-
-let private repoRoot =
-    Directory.GetParent(Directory.GetParent(__SOURCE_DIRECTORY__).FullName).FullName
-
-let private readSource (parts: string list) =
-    File.ReadAllText(Path.Combine(Array.ofList (repoRoot :: parts)))
 
 let private idA = Guid.Parse "0195e900-0000-7000-8000-00000000ab01"
 let private idB = Guid.Parse "0195e900-0000-7000-8000-00000000ab02"
@@ -88,14 +81,5 @@ let tests =
                 Expect.isTrue opened.AccountSheetOpen "offen"
                 let closed, _, _ = update CloseAccountSheet opened
                 Expect.isFalse closed.AccountSheetOpen "zu"
-        ]
-
-        testList "Quelltext" [
-            testCase "der Wechsler nutzt den BottomSheet-Baustein und den Speicher-Schlüssel" <| fun () ->
-                let view = readSource [ "src"; "Client"; "Components"; "Ledger"; "View.fs" ]
-                Expect.stringContains view "accountSwitcher" "Wechsler"
-                Expect.stringContains view "Title = \"Konto wechseln\"" "Sheet-Titel"
-                let state = readSource [ "src"; "Client"; "Components"; "Ledger"; "State.fs" ]
-                Expect.stringContains state "localStorage" "Gerätespeicher"
         ]
     ]

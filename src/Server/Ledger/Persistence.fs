@@ -1057,6 +1057,27 @@ let loadEntry (entryId: EntryId) : Async<Entry option> =
         return if isNull (box row) then None else Some (rowToEntry row)
     }
 
+/// Die gespeicherten Zustände mehrerer Buchungen, in Stücken zu 400 Ids (ledger-r8h19, kein
+/// N+1 in Sammelbefehlen und im Spiegel-Lauf). Eine unbekannte Id fehlt in der Map; eine leere
+/// Liste fragt nichts ab.
+let loadEntries (entryIds: EntryId list) : Async<Map<EntryId, Entry>> =
+    async {
+        let ids = entryIds |> List.distinct |> List.map (fun (EntryId id) -> id.ToString())
+        if List.isEmpty ids then
+            return Map.empty
+        else
+            use conn = Core.getConnection ()
+            let mutable found : Map<EntryId, Entry> = Map.empty
+            for chunk in List.chunkBySize 400 ids do
+                let! rows =
+                    conn.QueryAsync<EntryRow>("SELECT * FROM ledger_entries WHERE id IN @ids", {| ids = chunk |})
+                    |> Async.AwaitTask
+                for row in rows do
+                    let entry = rowToEntry row
+                    found <- Map.add entry.Id entry found
+            return found
+    }
+
 /// Alle gespeicherten Buchungen, nach Id sortiert.
 let loadAllEntries () : Async<Entry list> =
     async {
@@ -1866,6 +1887,59 @@ let linksForEntry (entryId: EntryId) : Async<EntryLink list> =
                 | Ok s -> { EntryId = EntryId (Guid.Parse r.entry_id); System = s; Value = r.value }
                 | Error e -> failwith e)
             |> Seq.toList
+    }
+
+let private linkOfRow (r: LinkRow) : EntryLink =
+    match linkSystemFromString r.system with
+    | Ok s -> { EntryId = EntryId (Guid.Parse r.entry_id); System = s; Value = r.value }
+    | Error e -> failwith e
+
+/// Alle Fremd-Id-Verknüpfungen mehrerer Buchungen, in Stücken zu 400 Ids (ledger-r8h19), je
+/// Buchung wie `linksForEntry` nach System und Wert sortiert. Eine Buchung ohne Verknüpfung
+/// und eine unbekannte Id fehlen in der Map; eine leere Liste fragt nichts ab.
+let linksForEntries (entryIds: EntryId list) : Async<Map<EntryId, EntryLink list>> =
+    async {
+        let ids = entryIds |> List.distinct |> List.map (fun (EntryId id) -> id.ToString())
+        if List.isEmpty ids then
+            return Map.empty
+        else
+            use conn = Core.getConnection ()
+            let found = ResizeArray<EntryLink>()
+            for chunk in List.chunkBySize 400 ids do
+                let! rows =
+                    conn.QueryAsync<LinkRow>("SELECT * FROM ledger_entry_links WHERE entry_id IN @ids", {| ids = chunk |})
+                    |> Async.AwaitTask
+                for row in rows do
+                    found.Add (linkOfRow row)
+            return
+                found
+                |> Seq.toList
+                |> List.groupBy (fun l -> l.EntryId)
+                |> List.map (fun (entryId, links) ->
+                    entryId, links |> List.sortBy (fun l -> linkSystemToString l.System, l.Value))
+                |> Map.ofList
+    }
+
+/// Die Buchungen zu mehreren Fremd-Ids eines Systems, in Stücken zu 400 Werten (ledger-r8h19,
+/// Spiegel-Lauf). Ein Wert ohne Buchung fehlt in der Map; eine leere Liste fragt nichts ab.
+let findEntriesByLinks (system: LinkSystem) (values: string list) : Async<Map<string, EntryId>> =
+    async {
+        let values = List.distinct values
+        if List.isEmpty values then
+            return Map.empty
+        else
+            use conn = Core.getConnection ()
+            let mutable found : Map<string, EntryId> = Map.empty
+            for chunk in List.chunkBySize 400 values do
+                let! rows =
+                    conn.QueryAsync<LinkRow>(
+                        "SELECT * FROM ledger_entry_links WHERE system = @system AND value IN @values",
+                        {| system = linkSystemToString system; values = chunk |}
+                    )
+                    |> Async.AwaitTask
+                for row in rows do
+                    found <- Map.add row.value (EntryId (Guid.Parse row.entry_id)) found
+            return found
     }
 
 /// Die `import_id`-Verknüpfungen mehrerer Buchungen in wenigen Abfragen (ledger-pafkp,

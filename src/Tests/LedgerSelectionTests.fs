@@ -5,11 +5,11 @@ module LedgerSelectionTests
 // Ansichts-Tests öffentliche reine Funktionen und lesen den Quelltext.
 
 open System
-open System.IO
 open Expecto
 open Shared.Domain
 open Types
 open Components.Ledger.Types
+open Components.Ledger.View
 
 let private eur (amount: decimal) : Money = { Amount = amount; Currency = "EUR" }
 
@@ -64,12 +64,6 @@ let private step (msg: Msg) (model: Model) : Model =
 
 let private amountOf (model: Model) = (selectionTotals model).Amount.Amount
 let private countOf (model: Model) = (selectionTotals model).Count
-
-let private repoRoot =
-    Directory.GetParent(Directory.GetParent(__SOURCE_DIRECTORY__).FullName).FullName
-
-let private readRepo (parts: string list) =
-    File.ReadAllText(Path.Combine(repoRoot :: parts |> List.toArray))
 
 [<Tests>]
 let totalsTests =
@@ -295,44 +289,13 @@ let viewTests =
             Expect.equal (selectionSummaryText 1 1) "Auswahl: 1 von 1 Buchung" "Einzahl"
             Expect.equal (selectionSummaryText 1234 12116) "Auswahl: 1.234 von 12.116 Buchungen" "mit Tausenderpunkt"
 
-        testCase "Summenzeile zeigt bei leerer Auswahl den Treffer, sonst die Auswahl (Quelltext)" <| fun () ->
-            let view = readRepo [ "src"; "Client"; "Components"; "Ledger"; "View.fs" ]
-            Expect.stringContains view "if hasSelection model then selectionSummaryRow model else summaryRow accounts categories model"
-                "Auswahl statt Treffer, solange die Auswahl nicht leer ist"
-            Expect.stringContains view "summaryOrSelectionRow accounts categories model" "die Spalte benutzt diese Umschaltung"
-
-        testCase "Leiste: 'n ausgewählt', Alle und Auswahl aufheben" <| fun () ->
-            Expect.equal (selectionBarCountText 12) "12 ausgewählt" "Anzahl"
-            Expect.equal selectionAllLabel "Alle" "Alle"
-            Expect.equal selectionClearLabel "Auswahl aufheben" "Ausstieg"
-
-        testCase "Handy-Leiste hat Alle, PC-Leiste nicht; als schreibende Aktion nur Geprüft (Quelltext)" <| fun () ->
-            let ds = readRepo [ "src"; "Client"; "DesignSystem"; "MultiSelect.fs" ]
-            let slice (header: string) =
-                let start = ds.IndexOf header
-                Expect.isGreaterThan start -1 header
-                let rest = ds.Substring start
-                let next = rest.IndexOf("\nlet ", 5)
-                if next < 0 then rest else rest.Substring(0, next)
-            let mobile = slice "let barMobile"
-            let desktop = slice "let barDesktop"
-            Expect.stringContains mobile "ChipBar.chip" "Alle ist ein Chip mit Aktivzustand"
-            Expect.stringContains mobile "allLabel" "Alle in der Handy-Leiste"
-            Expect.isFalse (desktop.Contains "allLabel") "kein Alle in der PC-Leiste"
-            for bar in [ mobile; desktop ] do
-                for word in [ "Kategorie ändern"; "Flag"; "Ungeprüft" ] do
-                    Expect.isFalse (bar.Contains word) $"'{word}' gehört nicht in die Leiste"
-                Expect.stringContains bar "reviewedButton" "Geprüft ist die primäre Aktion der Leiste"
-            let view = readRepo [ "src"; "Client"; "Components"; "Ledger"; "View.fs" ]
-            let from = view.IndexOf "let selectionBars"
-            let barView = view.Substring(from, view.IndexOf("let private selectionBarSpacers") - from)
-            for word in [ "\"Kategorie ändern\""; "\"Flag\""; "\"Ungeprüft\"" ] do
-                Expect.isFalse (barView.Contains word) $"{word} wird in der Leiste nicht gesetzt"
-
-        testCase "Die Auswahl-Leiste steht außerhalb der Seitenhülle (Quelltext)" <| fun () ->
-            let view = readRepo [ "src"; "Client"; "View.fs" ]
-            Expect.stringContains view "Components.Ledger.View.selectionBars"
-                "die fixe Leiste steht außerhalb der Seitenhülle mit dem Transform (animate-page-enter)"
+        testCase "Summenzeile zeigt bei leerer Auswahl den Treffer, sonst die Auswahl" <| fun () ->
+            // ledger-r8h19: ersetzt den Quelltext-Test; die Ansicht ruft nur `summaryRowKind`.
+            let model = modelWith (rows 5) 50 -1500m
+            Expect.equal (summaryRowKind { model with Selection = NoSelection }) HitSummary "ohne Auswahl der Treffer"
+            Expect.equal (summaryRowKind { model with Selection = Picked Set.empty }) HitSummary "leere Auswahl wie keine"
+            Expect.equal (summaryRowKind { model with Selection = Picked (Set.singleton (idOf 2)) }) SelectionSummary "eine Zeile gewählt"
+            Expect.equal (summaryRowKind { model with Selection = AllExcept (Set.singleton (idOf 1)) }) SelectionSummary "alle außer einer"
 
         testCase "Der Anker trägt die Teal-Kante, andere gewählte Zeilen nicht" <| fun () ->
             let edge = "shadow-[inset_2px_0_0_0_var(--color-neon-teal)]"
@@ -345,35 +308,28 @@ let viewTests =
             Expect.stringContains picked "bg-neon-teal/[0.07]" "gewählt trägt blasses Teal"
             Expect.isFalse (plain.Contains "bg-neon-teal") "ungewählt nicht"
 
-        testCase "Kästchen: drei Zustände, 20px am Handy und 17px am PC" <| fun () ->
+        testCase "Kästchen: drei Zustände in Teal, blassem Teal und ohne Teal" <| fun () ->
+            // ledger-r8h19: die Größen (20 px Handy, 17 px PC) misst der Browser
+            // (`[tastatur] PC 1440x900: Kästchen, …` in scripts/ledger-selection.test.mjs).
             let cls = Client.DesignSystem.MultiSelect.boxClassName
             Expect.stringContains (cls Client.DesignSystem.MultiSelect.Checked true) "bg-neon-teal" "gesetzt in Teal"
             Expect.stringContains (cls Client.DesignSystem.MultiSelect.Partial false) "bg-neon-teal/20" "Teilauswahl auf blassem Teal"
             Expect.isFalse ((cls Client.DesignSystem.MultiSelect.Unchecked true).Contains "neon-teal") "leer ohne Teal"
-            Expect.stringContains (cls Client.DesignSystem.MultiSelect.Unchecked true) "size-5" "Handy 20px"
-            Expect.stringContains (cls Client.DesignSystem.MultiSelect.Unchecked false) "size-[17px]" "PC 17px"
 
-        testCase "Im Auswahl-Modus ist die Wisch-Geste aus (Quelltext)" <| fun () ->
-            let view = readRepo [ "src"; "Client"; "Components"; "Ledger"; "View.fs" ]
-            let start = view.IndexOf "let private mobileEntryRow"
-            let body = view.Substring(start, 1500)
-            Expect.stringContains body "if selectionMode then" "der Modus entscheidet"
-            let selectionBranch = body.Substring(0, body.IndexOf "else")
-            Expect.isFalse (selectionBranch.Contains "swipeableEntryRow") "im Modus keine Wisch-Zeile"
-    ]
+        testCase "Handy-Zeile: Kästchen im Modus, Maus ohne Wisch, Auswahl ohne Modus schlicht, sonst Wisch" <| fun () ->
+            // ledger-r8h19: ersetzt die Quelltext-Tests zur Wisch-Geste (hier und in
+            // LedgerCompactInteractionTests); die Ansicht ruft nur `mobileRowMode`.
+            for mouse in [ true; false ] do
+                for active in [ true; false ] do
+                    Expect.equal (mobileRowMode true mouse active) MobileSelectionRow $"Modus gewinnt, Maus={mouse}, Auswahl={active}"
+            for active in [ true; false ] do
+                Expect.equal (mobileRowMode false true active) MobileMouseRow $"Maus ohne Wisch, Auswahl={active}"
+            Expect.equal (mobileRowMode false false true) MobilePlainRow "Auswahl ohne Modus: weder Wisch noch Schaltfläche"
+            Expect.equal (mobileRowMode false false false) MobileSwipeRow "sonst Wisch"
 
-[<Tests>]
-let escHintTests =
-    testList "PC-Leiste: Esc aufheben (ledger-w4vte)" [
-        testCase "die PC-Leiste trägt 'Esc aufheben', die Handy-Leiste nicht (Quelltext)" <| fun () ->
-            Expect.equal selectionClearKeyHint "Esc aufheben" "Text"
-            let ds = readRepo [ "src"; "Client"; "DesignSystem"; "MultiSelect.fs" ]
-            let from = ds.IndexOf "let barDesktop"
-            let desktop = ds.Substring from
-            Expect.stringContains desktop "clearKeyHint" "PC-Leiste setzt den Hinweis"
-            let mobileFrom = ds.IndexOf "let barMobile"
-            let mobile = ds.Substring(mobileFrom, from - mobileFrom)
-            Expect.isFalse (mobile.Contains "clearKeyHint") "kein Hinweis am Handy"
-            let view = readRepo [ "src"; "Client"; "Components"; "Ledger"; "View.fs" ]
-            Expect.stringContains view "selectionClearKeyHint" "die Seite reicht den Text an die Leiste"
+        testCase "langes Drücken startet den Auswahl-Modus nur ohne Modus und ohne Maus" <| fun () ->
+            Expect.isTrue (mobileRowLongPress false false) "Finger, kein Modus"
+            Expect.isFalse (mobileRowLongPress true false) "schon im Modus"
+            Expect.isFalse (mobileRowLongPress false true) "Maus"
+            Expect.isFalse (mobileRowLongPress true true) "Modus und Maus"
     ]

@@ -143,7 +143,9 @@ let tests =
             let inventory =
                 [ "Components/Settings/State.fs", [ "getSettings"; "getLenaFlagSettings" ]
                   "Components/Rules/State.fs", [ "getAllRules" ]
-                  "State.fs", [ "getCategories"; "getCategories"; "getRecentQuickAddTemplates" ]
+                  // ledger-r8h19: beide Kategorien-Abrufe (Regeln, Kassenbuch) laufen über den Port
+                  // `GetCategories`, umhüllt einmal in `livePorts`.
+                  "State.fs", [ "getCategories"; "getRecentQuickAddTemplates" ]
                   "Components/Ledger/State.fs",
                   [ "getLedgerAccounts"; "getLastMirrorRun"; "getLenaFlagSettings"
                     "getLedgerAccountBalances"; "getLedgerEntriesPage"; "getLedgerEntriesPage"

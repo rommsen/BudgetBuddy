@@ -6,7 +6,6 @@ module LedgerLenaFlagClientTests
 // Verdrahtung der Ansicht prüfen Quelltext-Zusicherungen.
 
 open System
-open System.IO
 open Expecto
 open Shared.Domain
 open Types
@@ -73,14 +72,6 @@ let private lenaState : FlagState = { Color = Some "purple"; Name = Some "Lena" 
 
 let private changed (previous: FlagState) (writeBack: FlagWriteBack) : FlagOutcome =
     { Previous = previous; Change = FlagChanged; WriteBack = writeBack }
-
-let private repoRoot =
-    Directory.GetParent(Directory.GetParent(__SOURCE_DIRECTORY__).FullName).FullName
-
-let private readRepo (parts: string list) =
-    File.ReadAllText(Path.Combine(repoRoot :: parts |> List.toArray))
-
-let private viewSource () = readRepo [ "src"; "Client"; "Components"; "Ledger"; "View.fs" ]
 
 [<Tests>]
 let lenaActionTests =
@@ -172,13 +163,6 @@ let lenaActionTests =
             Expect.equal (flagOfState { Color = Some "orange"; Name = Some "Markiert" }) Marked "anderes Flag"
             Expect.equal (flagOfState { Color = Some "orange"; Name = None }) Marked "nur Farbe"
             Expect.equal (flagOfState none) NoFlag "kein Flag"
-
-        testCase "die Ansicht ist verdrahtet: Flag-Zeile, Knopf, Chip und Hinweisleiste" <| fun () ->
-            let src = viewSource ()
-            for literal in [ "detail-flag"; "Detail.fieldActionButton"; "askLenaChipLabel"; "AskLenaChip"; "FlagNotice"; "StartSetLenaFlag" ] do
-                Expect.stringContains src literal $"View.fs enthält {literal}"
-            let styleguide = readRepo [ "src"; "Client"; "Components"; "Styleguide"; "View.fs" ]
-            Expect.stringContains styleguide "Detail.fieldActionButton" "der neue Baustein steht in /styleguide"
     ]
 
 [<Tests>]

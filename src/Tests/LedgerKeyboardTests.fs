@@ -47,9 +47,6 @@ let private okOutcome : ReviewMarkOutcome =
 let private repoRoot =
     Directory.GetParent(Directory.GetParent(__SOURCE_DIRECTORY__).FullName).FullName
 
-let private readRepo (parts: string list) =
-    File.ReadAllText(Path.Combine(repoRoot :: parts |> List.toArray))
-
 let private ids (model: Model) =
     model.Entries |> RemoteData.withDefault [] |> List.map (fun e -> e.Id)
 
@@ -228,17 +225,21 @@ let keyBindingTests =
 
         // Beide Seiten stehen nie zugleich im DOM, ihre Tasten kollidieren nicht.
         testCase "nur Kassenbuch und Budget-Seite hören auf Tasten am Dokument, kein anderes Kürzel kollidiert" <| fun () ->
+            // Repo-weite Invariante ohne Verhaltenszugang (Doktrin Punkt 7): ein Dokument-Handler
+            // in einer dritten Datei fängt dieselben Tasten ab. Gegenbeweis unten. Die Einbindung
+            // in die Seite prüfen die [tastatur]-Tests in scripts/ledger-selection.test.mjs.
+            let listensToKeys (text: string) =
+                text.Contains "addEventListener (\"keydown\"" || text.Contains "addEventListener(\"keydown\""
+            Expect.isTrue (listensToKeys "document.addEventListener (\"keydown\", handler)") "Gegenbeweis: mit Leerzeichen erkannt"
+            Expect.isTrue (listensToKeys "document.addEventListener(\"keydown\", handler)") "Gegenbeweis: ohne Leerzeichen erkannt"
+            Expect.isFalse (listensToKeys "document.addEventListener (\"keyup\", handler)") "Gegenbeweis: andere Ereignisse zählen nicht"
             let clientDir = Path.Combine(repoRoot, "src", "Client")
             let listeners =
                 Directory.GetFiles(clientDir, "*.fs", SearchOption.AllDirectories)
-                |> Array.filter (fun f ->
-                    let text = File.ReadAllText f
-                    text.Contains "addEventListener (\"keydown\"" || text.Contains "addEventListener(\"keydown\"")
+                |> Array.filter (fun f -> listensToKeys (File.ReadAllText f))
                 |> Array.map (fun f -> Path.GetRelativePath(clientDir, f).Replace('\\', '/'))
                 |> Array.sort
             Expect.equal listeners [| "Components/Budget/View.fs"; "Components/Ledger/View.fs" |] "die einzigen Dokument-Handler"
-            let view = readRepo [ "src"; "Client"; "Components"; "Ledger"; "View.fs" ]
-            Expect.stringContains view "KeyboardNavigation model.FocusedRow dispatch" "in der Seite eingebunden"
     ]
 
 [<Tests>]
@@ -250,18 +251,10 @@ let viewTests =
             let other = Table.rowClass Table.defaultRowProps
             Expect.stringContains focused "bg-surface-hover" "Grund der Fokuszeile"
             Expect.isFalse (other.Contains "bg-surface-hover") "andere Zeilen ohne Grund"
-            let table = readRepo [ "src"; "Client"; "DesignSystem"; "Table.fs" ]
-            Expect.stringContains table "aria-selected" "aria-selected nur an der Fokuszeile"
-            Expect.stringContains table "if props.IsFocused then" "bedingt"
 
         testCase "die Fokuszeile ist ruhig: kein Ring, kein Schatten, keine Leuchtfarbe" <| fun () ->
             for forbidden in [ "ring"; "shadow"; "neon"; "glow" ] do
                 Expect.isFalse (Table.focusedRowClass.Contains forbidden) $"{forbidden} in {Table.focusedRowClass}"
-
-        testCase "die Liste reicht den Fokus an die PC-Zeile durch" <| fun () ->
-            let view = readRepo [ "src"; "Client"; "Components"; "Ledger"; "View.fs" ]
-            Expect.stringContains view "IsFocused = isFocused" "Zeile"
-            Expect.stringContains view "(focusedRow = Some entry.Id)" "Vergleich mit der Fokuszeile"
 
         testCase "der Tastaturhinweis nennt G und steht nur mit Zeilen und ohne Auswahl da" <| fun () ->
             Expect.stringContains Components.Ledger.View.keyboardHintText "G geprüft" "Text"
@@ -384,31 +377,24 @@ let selectionRulesTests =
             Expect.isFalse (Components.Ledger.View.keyboardHintVisible selecting) "mit Auswahl ersetzt die Leiste den Hinweis"
 
 
-        testCase "PC-Zeile: bei laufender Auswahl ein Platzhalter statt Prüf-Schaltfläche (Quelltext)" <| fun () ->
-            let view = readRepo [ "src"; "Client"; "Components"; "Ledger"; "View.fs" ]
-            let from = view.IndexOf "let private entryTableRow"
-            let body = view.Substring(from, view.IndexOf("let private entryHintRow", from) - from)
-            Expect.stringContains body "(selectionActive: bool)" "Parameter"
-            Expect.stringContains body "if selectionActive then" "Auswahl läuft"
-            Expect.stringContains body "h-7 w-7 shrink-0" "Platzhalter gleicher Größe"
-            Expect.stringContains body "prop.ariaHidden true" "Platzhalter ist versteckt"
-            Expect.stringContains view "(hasSelection model)" "entryList reicht hasSelection durch"
+        testCase "Tabelle und Maus-Zeile: bei laufender Auswahl ein Platzhalter statt Prüf-Schaltfläche" <| fun () ->
+            // ledger-r8h19: ersetzt den Quelltext-Test; die Zeilen rufen nur `pointerRowReviewMarkSlot`.
+            let open' = entry 1 true
+            let deleted = { open' with DeletedInYnab = true }
+            Expect.equal (Components.Ledger.View.pointerRowReviewMarkSlot open' false) Components.Ledger.View.ReviewMarkButtonSlot "ohne Auswahl die Schaltfläche"
+            Expect.equal (Components.Ledger.View.pointerRowReviewMarkSlot open' true) Components.Ledger.View.ReviewMarkPlaceholder "bei laufender Auswahl der Platzhalter"
+            for active in [ true; false ] do
+                Expect.equal (Components.Ledger.View.pointerRowReviewMarkSlot deleted active) Components.Ledger.View.NoReviewMarkSlot $"gelöscht nichts, Auswahl={active}"
 
-        testCase "Handy-Zeile: bei hasSelection ohne Modus weder Wisch noch Schaltfläche (Quelltext)" <| fun () ->
-            let view = readRepo [ "src"; "Client"; "Components"; "Ledger"; "View.fs" ]
-            let from = view.IndexOf "let private mobileEntryRow"
-            let body = view.Substring(from, view.IndexOf("let private entryListMobile", from) - from)
-            Expect.stringContains body "elif selectionActive then" "eigener Zweig für Auswahl ohne Modus"
-            let swipeAt = body.IndexOf "swipeableEntryRow"
-            Expect.isGreaterThan swipeAt (body.IndexOf "elif selectionActive then") "Wisch erst im Zweig ohne Auswahl"
-            let rowFrom = view.IndexOf "let private entryRowWithReviewMark"
-            let rowBody = view.Substring(rowFrom, view.IndexOf("let private dateGroupHeader", rowFrom) - rowFrom)
-            Expect.stringContains rowBody "selected.IsNone && not selectionActive" "Schaltfläche nur ohne Auswahl"
-
-        testCase "Handy-Kästchen: der Container trägt den Tipp und ist mindestens 44 px breit (Quelltext)" <| fun () ->
-            let view = readRepo [ "src"; "Client"; "Components"; "Ledger"; "View.fs" ]
-            let rowFrom = view.IndexOf "let private entryRowWithReviewMark"
-            let rowBody = view.Substring(rowFrom, view.IndexOf("let private dateGroupHeader", rowFrom) - rowFrom)
-            Expect.stringContains rowBody "prop.onClick (fun _ -> dispatch (ToggleRowSelected entry.Id))" "Handler am Container"
-            Expect.stringContains rowBody "min-w-11" "mindestens 44 px"
+        testCase "Handy-Zeile: bei laufender Auswahl ohne Modus weder Wisch noch Schaltfläche" <| fun () ->
+            // ledger-r8h19: ersetzt den Quelltext-Test; Wisch entscheidet `mobileRowMode`
+            // (LedgerSelectionTests), die Schaltfläche `touchRowReviewMarkSlot`.
+            let open' = entry 1 true
+            let slot = Components.Ledger.View.touchRowReviewMarkSlot
+            Expect.equal (slot open' false false false) Components.Ledger.View.ReviewMarkButtonSlot "Finger ohne Auswahl"
+            Expect.equal (slot open' false false true) Components.Ledger.View.NoReviewMarkSlot "Auswahl ohne Modus"
+            Expect.equal (slot open' false true false) Components.Ledger.View.NoReviewMarkSlot "im Auswahl-Modus"
+            Expect.equal (slot open' true false false) Components.Ledger.View.NoReviewMarkSlot "mit Maus steht sie in der Maus-Zeile"
+            Expect.equal (slot { open' with DeletedInYnab = true } false false false) Components.Ledger.View.NoReviewMarkSlot "gelöscht"
+            Expect.equal (Components.Ledger.View.mobileRowMode false false true) Components.Ledger.View.MobilePlainRow "kein Wisch bei Auswahl ohne Modus"
     ]

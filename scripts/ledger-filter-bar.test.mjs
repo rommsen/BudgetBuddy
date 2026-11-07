@@ -73,7 +73,6 @@ const popover = () => page.locator(".shadow-2xl");
 // Die Handy-Liste bleibt per `md:hidden` im DOM, Payee-Texte kämen sonst doppelt vor.
 const table = () => page.locator("table");
 const mobileCategoryChip = () => mobilePage.getByRole("button", { name: /^Kategorie/ }).first();
-const mobileNeedsReviewChip = () => mobilePage.getByRole("button", { name: /^Zu prüfen/ }).first();
 // `BottomSheet.view` steht immer im DOM, offen ist es nur mit der Klasse `active`.
 const mobileSheet = () => mobilePage.locator(".bottom-sheet.active");
 
@@ -226,31 +225,15 @@ test("[fokus] Der Kalender-Knopf wirft keinen Konsolenfehler und lässt das Text
   await page.keyboard.press("Escape");
 });
 
-test("[layout] Am Handy öffnet der Chip ein BottomSheet, Tippen außerhalb filtert nicht, zwei Kategorien filtern, der aktive Chip rückt vor Zu prüfen", async () => {
+test("[layout] Am Handy öffnet der Chip ein BottomSheet statt eines Popovers", async () => {
+  // ledger-r8h19: Schließen ohne Übernehmen, Chip-Text, Seitenanfrage und Trefferzahl prüft
+  // `LedgerPageTests` ("Esc/Schließen verwirft den Entwurf …", "'Übernehmen' schreibt den Entwurf …"),
+  // die Summenzeile `LedgerReviewStateTests`, die Chip-Reihenfolge `LedgerViewTests` (Chip-Reihenfolge).
   await mobileCategoryChip().click();
   await mobileSheet().getByText("Lebensmittel", { exact: true }).waitFor();
   assert.equal(await mobilePage.locator(".shadow-2xl").count(), 0, "kein Popover am Handy");
   await mobilePage.locator(".overlay.active").click({ position: { x: 5, y: 5 } });
   await mobileSheet().waitFor({ state: "detached" });
-  assert.equal(await mobileCategoryChip().innerText(), "Kategorie", "Schließen filtert nicht");
-
-  await mobileCategoryChip().click();
-  await mobileSheet().getByText("Lebensmittel", { exact: true }).click();
-  await mobileSheet().getByText("Bahn", { exact: true }).click();
-  await mobileSheet().getByRole("button", { name: "Übernehmen (2)" }).click();
-  await mobileSheet().waitFor({ state: "detached" });
-  assert.equal(await mobileCategoryChip().innerText(), "Kategorie: 2");
-  await mobilePage.getByText("REWE Mitte", { exact: true }).first().waitFor();
-  assert.equal(await mobilePage.getByText("Stadtwerke Musterstadt", { exact: true }).count(), 0, "Nebenkosten fällt heraus");
-  assert.ok(await mobilePage.getByText("3 Buchungen", { exact: true }).isVisible(), "Trefferzahl");
-
-  const categoryHandle = await mobileCategoryChip().elementHandle();
-  const needsReviewHandle = await mobileNeedsReviewChip().elementHandle();
-  const inFront = await mobilePage.evaluate(
-    ([a, b]) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING),
-    [categoryHandle, needsReviewHandle]
-  );
-  assert.ok(inFront, "der aktive Chip steht im DOM vor Zu prüfen");
 });
 
 // ---------------------------------------------------------------------------

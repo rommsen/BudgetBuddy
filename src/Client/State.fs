@@ -498,7 +498,13 @@ let ledgerCategoriesSetupGap (settings: AppSettingsView) : string option =
 let private ledgerCategoriesFailed (reason: string) (ledger: Components.Ledger.Types.Model) =
     { ledger with Categories = Failure reason; CategoriesAwaitSettings = false }
 
-let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
+/// Ausgehende Aufrufe des Root-`update` als Funktionswerte (Doktrin Punkt 1): unter .NET wirft
+/// der Remoting-Proxy im Typinitialisierer, Tests geben deshalb eigene Funktionen mit
+/// (ledger-r8h19). Der Live-Port steht in `livePorts`, `update` schließt ihn an.
+type UpdatePorts =
+    { GetCategories: YnabBudgetId -> Async<YnabResult<YnabCategory list>> }
+
+let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     match msg with
     // ============================================
     // Navigation
@@ -700,7 +706,7 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                     | Some budgetId ->
                         let cmd =
                             Cmd.OfAsync.either
-                                (Retry.reading Api.ynab.getCategories)
+                                ports.GetCategories
                                 budgetId
                                 (fun result -> RulesMsg (Components.Rules.Types.CategoriesLoaded result))
                                 (fun ex -> RulesMsg (Components.Rules.Types.CategoriesLoaded (Error (YnabError.NetworkError ex.Message))))
@@ -724,7 +730,7 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     // ============================================
     | LedgerMsg Components.Ledger.Types.EnsureCategoriesFresh ->
         if Components.Ledger.Types.categoriesReloadDue model.Ledger DateTime.Now then
-            update (LedgerMsg Components.Ledger.Types.LoadCategories) model
+            updateWith ports (LedgerMsg Components.Ledger.Types.LoadCategories) model
         else
             model, Cmd.none
 
@@ -745,7 +751,7 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 | Some budgetId ->
                     let cmd =
                         Cmd.OfAsync.either
-                            (Retry.reading Api.ynab.getCategories)
+                            ports.GetCategories
                             budgetId
                             (fun result -> LedgerMsg (Components.Ledger.Types.CategoriesLoaded (result |> Result.mapError ynabErrorText)))
                             (fun ex -> LedgerMsg (Components.Ledger.Types.CategoriesLoaded (Error ex.Message)))
@@ -894,3 +900,10 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
         // Nothing is posted — Roman reviews, adjusts and taps Speichern himself.
         let baseForm = model.QuickAdd |> Option.defaultValue (freshQuickAddForm ())
         { model with QuickAdd = Some (applyTemplateToForm template baseForm) }, Cmd.none
+
+/// Der Live-Port: der Abruf über den Remoting-Proxy mit Wiederholung bei Netzfehlern. Die
+/// Lambda greift erst beim Aufruf auf `Api.ynab` zu, nicht beim Bau des Ports.
+let livePorts : UpdatePorts =
+    { GetCategories = fun budgetId -> Retry.reading Api.ynab.getCategories budgetId }
+
+let update (msg: Msg) (model: Model) : Model * Cmd<Msg> = updateWith livePorts msg model

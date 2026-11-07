@@ -8,7 +8,6 @@ module LedgerSplitEditorClientTests
 // Playwright-Skript `scripts/ledger-split-editor.test.mjs`.
 
 open System
-open System.IO
 open Expecto
 open Shared.Domain
 open Types
@@ -131,20 +130,6 @@ let private stateOf (total: decimal) (lines: SplitDraftLine list) : SplitEditorS
 
 let private toMoebel = Some (ToCategory (catId 2, "Möbel"))
 let private toHaushalt = Some (ToCategory (catId 1, "Haushalt"))
-
-let private repoRoot =
-    Directory.GetParent(Directory.GetParent(__SOURCE_DIRECTORY__).FullName).FullName
-
-let private readRepo (parts: string list) =
-    File.ReadAllText(Path.Combine(repoRoot :: parts |> List.toArray))
-
-let private viewSource () = readRepo [ "src"; "Client"; "Components"; "Ledger"; "View.fs" ]
-
-let private functionBody (source: string) (header: string) : string =
-    let start = source.IndexOf header
-    if start < 0 then failtestf "Funktionskopf '%s' nicht gefunden" header
-    let next = source.IndexOf("\nlet ", start + header.Length)
-    if next < 0 then source.Substring start else source.Substring(start, next - start)
 
 // ============================================
 // Reine Rechen- und Prüffunktionen
@@ -379,8 +364,6 @@ let lockTests =
                 (Components.Ledger.View.categoryArrowMsg model (splitEntry 1))
                 (Some (OpenSplitEditor (idOf 1)))
                 "Pfeil öffnet den Editor"
-            let source = readRepo [ "src"; "Client"; "Components"; "Ledger"; "Types.fs" ]
-            Expect.isFalse (source.Contains "Split bearbeiten folgt") "der Hinweis ist entfernt"
 
         testCase "die Hinweisleiste nennt für Neuanlage offen einen eigenen Text und Erneut senden" <| fun () ->
             let pending =
@@ -404,8 +387,6 @@ let lockTests =
             let model, sent, _ = run (StartRetryCategorization pending.Id) (modelWith [ pending; entryOf 2 ])
             Expect.equal sent [ RunRetryCategorization pending.Id ] "genau ein Aufruf"
             Expect.equal (model.CategoryRows |> Map.tryFind pending.Id) (Some CategorySending) "sendet"
-            let state = readRepo [ "src"; "Client"; "Components"; "Ledger"; "State.fs" ]
-            Expect.stringContains state "Api.ledger.retryCategorizationWriteBack" "Weg für Kategorie und Split"
     ]
 
 // ============================================
@@ -689,44 +670,10 @@ let viewTests =
                     (Components.SyncFlow.Views.SplitSheet.splitAmountClass warn)
                     "gleiche Klasse wie der Import-Editor"
 
-        testCase "Ziel je Zeile über den einen Picker (PC Popover, Handy sheetLayered)" <| fun () ->
-            let body = functionBody (viewSource ()) "let private splitEditorBody"
-            for needle in [ "CategoryPicker.popoverInPanel"; "CategoryPicker.sheetLayered" ] do
-                Expect.stringContains body needle needle
-            let props = functionBody (viewSource ()) "let private splitTargetPickerProps"
-            Expect.stringContains props "LoadState = categoryLoadState model.Categories" "Ladezustand wie im Kategorie-Feld"
-            Expect.stringContains props "OnRetry = fun () -> dispatch LoadCategories" "Erneut versuchen"
-            let accounts = functionBody (viewSource ()) "let transferTargetsFor"
-            Expect.stringContains accounts "openOnBudgetAccounts" "offene Budget-Konten"
-
-        testCase "Rechnung kommt aus Shared.Domain, nicht aus SyncFlow" <| fun () ->
-            let logic = readRepo [ "src"; "Client"; "Components"; "Ledger"; "SplitEditor.fs" ]
-            Expect.stringContains logic "splitRemainder" "splitRemainder"
-            Expect.stringContains logic "mkSplits" "mkSplits"
-            Expect.isFalse (logic.Contains "SyncFlow") "kein SyncFlow"
-
-        testCase "Aufteilen und Ändern sind feste Knöpfe mit Trefferfläche ab 44 px" <| fun () ->
-            let ds = readRepo [ "src"; "Client"; "DesignSystem"; "Detail.fs" ]
-            let button = functionBody ds "let splitActionButton"
-            Expect.stringContains button "min-h-11" "44 px"
-            Expect.stringContains button "aria-disabled" "gesperrt ausgezeichnet"
+        testCase "der Knopf heißt Aufteilen ohne Split und Ändern mit Split" <| fun () ->
+            // ledger-r8h19: die 44 px misst `[layout] Handy (390x844): Aufteilen im selben Sheet, …`.
             Expect.equal (splitActionLabel (entryOf 1)) "Aufteilen" "unaufgeteilt"
             Expect.equal (splitActionLabel (splitEntry 1)) "Ändern" "aufgeteilt"
-            let field = functionBody (viewSource ()) "let private splitField"
-            Expect.stringContains field "Detail.splitActionButton" "Knopf im Feld"
-            Expect.stringContains field "\"Kein Split\"" "Platzhalter"
-
-        testCase "neue Bausteine stehen in /styleguide" <| fun () ->
-            let source = readRepo [ "src"; "Client"; "Components"; "Styleguide"; "View.fs" ]
-            for needle in [ "Split-Editor"; "SplitEditor.line"; "SplitEditor.summary"; "CategoryPicker.popoverInPanel"; "Detail.splitActionButton" ] do
-                Expect.stringContains source needle needle
-
-        testCase "Optik nur aus Tokens: keine Hex-Werte, keine Standardfarben, kein style.fontSize" <| fun () ->
-            for file in [ "SplitEditor.fs" ] do
-                let text = readRepo [ "src"; "Client"; "DesignSystem"; file ]
-                Expect.isFalse (System.Text.RegularExpressions.Regex.IsMatch(text, "#[0-9a-fA-F]{3,8}\\b")) $"{file}: kein Hex"
-                Expect.isFalse (text.Contains "style.fontSize") $"{file}: kein style.fontSize"
-                Expect.isFalse (System.Text.RegularExpressions.Regex.IsMatch(text, "(text|bg|border)-(red|green|blue|gray|slate|pink|purple)-[0-9]")) $"{file}: keine Standardfarben"
     ]
 
 // ledger-s8t3s: Knopf "Barabhebung" im Split-Editor des Kassenbuchs.
@@ -823,11 +770,4 @@ let cashbackTests =
             Expect.equal loaded.QuickAddAccountId (Some cashAccountId) "gemerkt"
             let failed, _, _ = update (QuickAddAccountLoaded (Error "weg")) loaded
             Expect.equal failed.QuickAddAccountId (Some cashAccountId) "ein Fehler lässt den Stand"
-
-        testCase "Ansicht: der Knopf Barabhebung steht im Editor und löst das Ziel aus Quick-Add-Konto und Konto-Liste auf" <| fun () ->
-            let body = functionBody (viewSource ()) "let private splitEditorBody"
-            Expect.stringContains body "SplitUi.lineActions" "Knopfzeile mit Barabhebung"
-            Expect.stringContains body "StartSplitCashback" "Nachricht"
-            Expect.stringContains body "cashbackTarget model.QuickAddAccountId (transferTargetsFor model entry)" "Ziel aus beiden Quellen"
-            Expect.equal Client.DesignSystem.SplitEditor.cashbackLabel "Barabhebung" "Beschriftung"
     ]

@@ -7,7 +7,6 @@ module LedgerCategoryBatchClientTests
 // Folgebefehle (`Cmd.ofMsg`) laufen in den Tests.
 
 open System
-open System.IO
 open Expecto
 open Shared.Domain
 open Types
@@ -15,12 +14,6 @@ open Components.Ledger.Types
 open Client.DesignSystem
 
 let private update = Components.Ledger.State.update
-
-let private repoRoot =
-    Directory.GetParent(Directory.GetParent(__SOURCE_DIRECTORY__).FullName).FullName
-
-let private readRepo (parts: string list) =
-    File.ReadAllText(Path.Combine(repoRoot :: parts |> List.toArray))
 
 let private eur (amount: decimal) : Money = { Amount = amount; Currency = "EUR" }
 
@@ -153,6 +146,8 @@ let startTests =
             let started, sent, _ = run (StartCategoryBatch (Some (catId 2))) model
             Expect.isTrue started.CategoryBatchRunning "gesperrt"
             Expect.isFalse started.BatchCategoryPickerOpen "Picker zu"
+            // ledger-r8h19: ersetzt den Teilstring-Test der Verdrahtung in LedgerRecentCategoriesTests.
+            Expect.equal (List.tryHead started.RecentCategories) (Some (catGuid 2)) "rückt an die Spitze von Zuletzt verwendet"
             match sent with
             | [ RunCategoryBatch (BatchPicked ids, target) ] ->
                 Expect.equal (List.sort ids) (List.sort (idsOf [ 1; 2; 3 ])) "genau die gewählten Ids"
@@ -344,30 +339,8 @@ let textTests =
     ]
 
 [<Tests>]
-let barSourceTests =
-    testList "Kategorie setzen für die Auswahl: Leiste und Bausteine (ledger-w29y6)" [
-
-        testCase "die Leiste reicht die Sammelaktion durch, Geprüft bleibt primär, Kategorie setzen sekundär" <| fun () ->
-            let ds = readRepo [ "src"; "Client"; "DesignSystem"; "MultiSelect.fs" ]
-            Expect.stringContains ds "Variant = Button.Primary" "Geprüft primär"
-            Expect.stringContains ds "Variant = Button.Secondary" "Kategorie setzen sekundär"
-            let view = readRepo [ "src"; "Client"; "Components"; "Ledger"; "View.fs" ]
-            Expect.stringContains view "selectionCategoryLabel" "Beschriftung"
-            Expect.stringContains view "let locked = model.ReviewMarkBatchRunning || model.CategoryBatchRunning" "ein Aufruf sperrt beide"
-
-        testCase "Picker der Auswahl öffnet über der Leiste und ohne Haken (Bausteine)" <| fun () ->
-            let popover = readRepo [ "src"; "Client"; "DesignSystem"; "FilterPopover.fs" ]
-            Expect.stringContains popover "bottom-full right-0 mb-6" "Variante nach oben"
-            let picker = readRepo [ "src"; "Client"; "DesignSystem"; "CategoryPicker.fs" ]
-            Expect.stringContains picker "MarkCurrent = false" "ohne markierte Zeile"
-            Expect.stringContains picker "FilterPopover.viewAbove" "Popover nach oben"
-
-        testCase "die neuen Varianten erscheinen in /styleguide und im Styleguide-Dokument" <| fun () ->
-            let gallery = readRepo [ "src"; "Client"; "Components"; "Styleguide"; "View.fs" ]
-            Expect.stringContains gallery "CategoryPicker.selectionPopover" "Popover nach oben in der Galerie"
-            Expect.stringContains gallery "CategoryPicker.selectionSheet" "Sheet ohne Haken in der Galerie"
-            let doc = readRepo [ "standards"; "frontend"; "styleguide.md" ]
-            Expect.stringContains doc "selectionPopover" "Dokument nennt die Varianten"
+let undoWiringTests =
+    testList "Kategorie setzen für die Auswahl: Rücknahme (ledger-w29y6)" [
 
         testCase "Rücknahme und Toast sind verdrahtet" <| fun () ->
             let changes = [ change 1 None CategorySent ]

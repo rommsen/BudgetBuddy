@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 11:03 -- Task verified and completed: ledger-r8h19 - "Aufräum-Lauf ledger: Quelltext-, Klassenstring- und Konstanten-Tests ersetzen oder löschen, Logik aus [layout]-Tests nach .NET, N+1 in Sammelbefehlen und Spiegel-Lauf"
+
+**Type:** Work / Task completion
+**Task:** ledger-r8h19 - "Aufräum-Lauf ledger: Quelltext-, Klassenstring- und Konstanten-Tests ersetzen oder löschen, Logik aus [layout]-Tests nach .NET, N+1 in Sammelbefehlen und Spiegel-Lauf"
+**Summary:** Kassenbuch-Tests lesen keinen Client-Quelltext mehr per Teilstring (zwei Wächter begründet behalten); Entscheidungen aus View und Root-update sind reine Funktionen mit Tests und Mutanten; die zwei [layout]-Tests treffen nur Lage-Aussagen; Sammelbefehle und Spiegel-Lauf laden Buchungen und Verknüpfungen einmal je Auswahl bzw. Batch.
+**Duration:** (unknown)
+**Verification:** PASS (iteration 2, nur Outcome-Text korrigiert)
+**Files changed:** 36
+**Tests added:** 24
+**ADRs written:** none
+
+---
+
 ## 2026-11-07 10:44 -- Task verified and completed: budgeting-r5h2n - "Allgemeine Historie zeigt alles, was das Budget betrifft, auch Target-Änderungen und Pausen"
 
 **Type:** Work / Task completion

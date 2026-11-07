@@ -248,6 +248,9 @@ let inputActiveTests =
         active "Kassenbuch: AmountMinDraft weicht ab" (withLedger (fun l -> { l with AmountMinDraft = "5" }))
         active "Kassenbuch: AmountMaxDraft weicht ab" (withLedger (fun l -> { l with AmountMaxDraft = "9" }))
         active "Kassenbuch: ReviewMarkBatchRunning" (withLedger (fun l -> { l with ReviewMarkBatchRunning = true }))
+        // ledger-r8h19: ersetzen den Teilstring-Test auf State.fs in LedgerLenaFlagBatchClientTests.
+        active "Kassenbuch: CategoryBatchRunning" (withLedger (fun l -> { l with CategoryBatchRunning = true }))
+        active "Kassenbuch: LenaBatchRunning" (withLedger (fun l -> { l with LenaBatchRunning = true }))
         active "Einstellungen: EditingSection" (fun m ->
             { m with Settings = { m.Settings with EditingSection = Some Components.Settings.Types.YnabSection } })
         active "Schnellerfassung: Betrag ausgefüllt" (fun m -> { m with QuickAdd = Some { blankForm with AmountText = "4,50" } })

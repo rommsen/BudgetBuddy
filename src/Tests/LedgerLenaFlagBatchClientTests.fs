@@ -6,7 +6,6 @@ module LedgerLenaFlagBatchClientTests
 // inspizieren; die Verdrahtung der Leiste prüfen Quelltext-Zusicherungen.
 
 open System
-open System.IO
 open Expecto
 open Shared.Domain
 open Types
@@ -78,12 +77,6 @@ let private change (n: int) (previous: FlagState) (writeBack: FlagWriteBack) : F
 
 let private outcome (changes: FlagBatchChange list) : FlagBatchOutcome =
     { Changed = changes; UnchangedCount = 0; FailedCount = 0 }
-
-let private repoRoot =
-    Directory.GetParent(Directory.GetParent(__SOURCE_DIRECTORY__).FullName).FullName
-
-let private readRepo (parts: string list) =
-    File.ReadAllText(Path.Combine(repoRoot :: parts |> List.toArray))
 
 [<Tests>]
 let reducerTests =
@@ -270,26 +263,4 @@ let textTests =
         testCase "mehrere Fehlschläge nennen den ersten Grund und die Zahl" <| fun () ->
             let result = outcome [ change 1 noFlagState (FlagSendFailed "weg"); change 2 noFlagState (FlagSendFailed "weg") ]
             Expect.stringContains (flagBatchToastText AssignLena result) "Flag nicht in YNAB: weg (bei 2 Buchungen)" "Satz"
-
-        testCase "die Leiste reicht beide Aktionen an Handy- und PC-Leiste, Lena fragen sekundär (Quelltext)" <| fun () ->
-            let view = readRepo [ "src"; "Client"; "Components"; "Ledger"; "View.fs" ]
-            let from = view.IndexOf "let selectionBars"
-            let barView = view.Substring(from, view.IndexOf("let private selectionBarSpacers") - from)
-            Expect.stringContains barView "selectionLenaLabel totals.Count" "Anzahl im Namen"
-            Expect.stringContains barView "selectionLenaDisabledReason model.LenaFlagColor" "Grund bei fehlender Farbe"
-            Expect.stringContains barView "StartLenaBatch AssignLena" "Lena fragen"
-            Expect.stringContains barView "StartLenaBatch WithdrawLena" "Zurücknehmen"
-            Expect.stringContains barView "model.LenaBatchRunning" "Sperre"
-            let count (needle: string) = barView.Split([| needle |], StringSplitOptions.None).Length - 1
-            Expect.equal (count "                lena\n                withdraw\n") 2 "in Handy- und PC-Leiste"
-            let ds = readRepo [ "src"; "Client"; "DesignSystem"; "MultiSelect.fs" ]
-            let rest = ds.Substring(ds.IndexOf "let private lenaButton")
-            let lenaButton = rest.Substring(0, rest.IndexOf("\nlet ", 5))
-            Expect.stringContains lenaButton "Variant = Button.Secondary" "sekundär"
-            Expect.stringContains ds "Title = action.Reason" "der Grund steht im Tooltip"
-            Expect.stringContains ds "selection-lena-reason" "am Handy steht der Grund als Zeile"
-
-        testCase "Seitenwechsel- und Sperrlogik kennt die neue Sammelaktion (Quelltext)" <| fun () ->
-            let state = readRepo [ "src"; "Client"; "State.fs" ]
-            Expect.stringContains state "ledger.LenaBatchRunning" "ungesicherte Arbeit"
     ]

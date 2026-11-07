@@ -196,22 +196,72 @@ type private EntryMatch =
     /// Kein Treffer: eine neue Buchung mit frischer Id.
     | NewEntry of EntryId
 
+/// Was der Spiegel-Lauf über die Buchungen seines Batches weiß (ledger-r8h19, kein N+1): die
+/// Verknüpfungen, die eine Beobachtung finden kann (YNAB-Id, Übertrags-Gegenbuchungen,
+/// ImportId, abgelöste Id), und die Buchungen dazu, einmal vor der Schleife geladen. Jedes
+/// Anhängen im Lauf geht über `MirrorBatchState.append`: es schreibt wie bisher und trägt
+/// dieselben Verknüpfungen (`linksFrom`) und denselben Zustand (`apply`) nach, die das
+/// Anhängen in die Tabellen schreibt. So sieht ein späterer Schritt, was ein früherer im
+/// selben Lauf angelegt hat (neue Buchung, Übertrags-Gegenbuchung, Verknüpfung über die
+/// ImportId), wie vorher über die Einzelabfragen.
+type private MirrorBatchState = {
+    mutable Links: Map<LinkSystem * string, EntryId>
+    mutable Entries: Map<EntryId, Entry>
+}
+
+module private MirrorBatchState =
+    let load (observations: YnabObservation list) : Async<MirrorBatchState> =
+        async {
+            let ynabIds = [
+                for obs in observations do
+                    obs.YnabTransactionId
+                    match obs.TransferYnabTransactionId with
+                    | Some counterpart -> counterpart
+                    | None -> ()
+                    for split in obs.SplitTransfers do
+                        match split.TransferYnabTransactionId with
+                        | Some counterpart -> counterpart
+                        | None -> ()
+            ]
+            let importIds = observations |> List.choose (fun obs -> obs.ImportId)
+            let deletedIds = observations |> List.filter (fun obs -> obs.Deleted) |> List.map (fun obs -> obs.YnabTransactionId)
+            let! byYnab = Ledger.Persistence.findEntriesByLinks YnabSystem ynabIds
+            let! byImportId = Ledger.Persistence.findEntriesByLinks ImportIdSystem importIds
+            let! bySuperseded = Ledger.Persistence.findEntriesByLinks YnabSupersededSystem deletedIds
+            let links =
+                [ for system, found in [ YnabSystem, byYnab; ImportIdSystem, byImportId; YnabSupersededSystem, bySuperseded ] do
+                      for KeyValue (value, entryId) in found -> (system, value), entryId ]
+                |> Map.ofList
+            let! entries = Ledger.Persistence.loadEntries (links |> Map.toList |> List.map snd)
+            return { Links = links; Entries = entries }
+        }
+
+    let find (state: MirrorBatchState) (system: LinkSystem) (value: string) : EntryId option =
+        Map.tryFind (system, value) state.Links
+
+    let entry (state: MirrorBatchState) (entryId: EntryId) : Entry option =
+        Map.tryFind entryId state.Entries
+
+    let append (state: MirrorBatchState) (events: LedgerEvent list) : Async<unit> =
+        async {
+            do! Ledger.Persistence.appendAndApply events
+            for event in events do
+                for link in linksFrom event do
+                    state.Links <- Map.add (link.System, link.Value) link.EntryId state.Links
+                state.Entries <- Map.add event.EntryId (apply (Map.tryFind event.EntryId state.Entries) event) state.Entries
+        }
+
 /// Sucht die Buchung zu einer Beobachtung: erst über die YNAB-Id, dann über die
 /// ImportId, sonst ist sie neu. Liest nur, das Anhängen übernimmt `runMirror`.
-let private resolveEntry (obs: YnabObservation) : Async<EntryMatch> =
-    async {
-        match! Ledger.Persistence.findEntryByLink YnabSystem obs.YnabTransactionId with
-        | Some entryId -> return MatchedByYnabId entryId
-        | None ->
-            let! byImportId =
-                match obs.ImportId with
-                | Some importId -> Ledger.Persistence.findEntryByLink ImportIdSystem importId
-                | None -> async.Return None
+let private resolveEntry (state: MirrorBatchState) (obs: YnabObservation) : EntryMatch =
+    match MirrorBatchState.find state YnabSystem obs.YnabTransactionId with
+    | Some entryId -> MatchedByYnabId entryId
+    | None ->
+        let byImportId = obs.ImportId |> Option.bind (MirrorBatchState.find state ImportIdSystem)
 
-            match byImportId with
-            | Some entryId -> return MatchedByImportId entryId
-            | None -> return NewEntry (newEntryId ())
-    }
+        match byImportId with
+        | Some entryId -> MatchedByImportId entryId
+        | None -> NewEntry (newEntryId ())
 
 /// Verknuepft die Gegenbuchung eines Uebertrags, nachdem die Beobachtung selbst
 /// geschrieben ist (ADR 0015, `EntryTransferCounterpartObservedInYnab`, ledger-t7v2q).
@@ -232,6 +282,7 @@ let private resolveEntry (obs: YnabObservation) : Async<EntryMatch> =
 /// `appendAndApply`-Aufruf (eine Transaktion).
 let private linkTransferCounterpart
     (now: DateTime)
+    (state: MirrorBatchState)
     (entryId: EntryId)
     (obs: YnabObservation)
     : Async<unit> =
@@ -242,7 +293,7 @@ let private linkTransferCounterpart
             match obs.TransferYnabTransactionId with
             | None -> return ()
             | Some counterpartYnabTxId ->
-                match! Ledger.Persistence.findEntryByLink YnabSystem counterpartYnabTxId with
+                match MirrorBatchState.find state YnabSystem counterpartYnabTxId with
                 | None ->
                     // Kein Treffer ist der Normalfall: die Gegenbuchung ist im
                     // Kassenbuch (noch) nicht bekannt.
@@ -263,8 +314,8 @@ let private linkTransferCounterpart
                         obs.YnabTransactionId
                     return ()
                 | Some counterpartId ->
-                    let! thisEntry = Ledger.Persistence.loadEntry entryId
-                    let! counterpartEntry = Ledger.Persistence.loadEntry counterpartId
+                    let thisEntry = MirrorBatchState.entry state entryId
+                    let counterpartEntry = MirrorBatchState.entry state counterpartId
 
                     let linkEvent (side: EntryId) (counterpart: EntryId) (counterpartYnabTransactionId: string) =
                         {
@@ -291,7 +342,7 @@ let private linkTransferCounterpart
                             | _ -> ()
                         ]
 
-                    do! Ledger.Persistence.appendAndApply events
+                    do! MirrorBatchState.append state events
     }
 
 /// Verknüpft die Gegenbuchungen der Übertrags-Split-Zeilen einer Buchung (ADR 0046,
@@ -309,6 +360,7 @@ let private linkTransferCounterpart
 /// `appendAndApply`-Aufruf. Die Zähler des Laufs bleiben unberührt.
 let private linkSplitTransferCounterparts
     (now: DateTime)
+    (state: MirrorBatchState)
     (entryId: EntryId)
     (obs: YnabObservation)
     : Async<unit> =
@@ -320,7 +372,7 @@ let private linkSplitTransferCounterparts
                 match split.TransferYnabTransactionId with
                 | None -> ()
                 | Some counterpartYnabTxId ->
-                    match! Ledger.Persistence.findEntryByLink YnabSystem counterpartYnabTxId with
+                    match MirrorBatchState.find state YnabSystem counterpartYnabTxId with
                     | None -> ()
                     | Some counterpartId when counterpartId = entryId ->
                         let (EntryId id) = entryId
@@ -329,8 +381,8 @@ let private linkSplitTransferCounterparts
                             id
                             obs.YnabTransactionId
                     | Some counterpartId ->
-                        let! thisEntry = Ledger.Persistence.loadEntry entryId
-                        let! counterpartEntry = Ledger.Persistence.loadEntry counterpartId
+                        let thisEntry = MirrorBatchState.entry state entryId
+                        let counterpartEntry = MirrorBatchState.entry state counterpartId
 
                         match thisEntry with
                         | Some e when
@@ -365,28 +417,23 @@ let private linkSplitTransferCounterparts
                         | _ -> ()
 
             if events.Count > 0 then
-                do! Ledger.Persistence.appendAndApply (List.ofSeq events)
+                do! MirrorBatchState.append state (List.ofSeq events)
     }
 
 /// Ist diese Beobachtung die Lösch-Beobachtung einer abgelösten YNAB-Id (ADR 0058, Punkt 5)?
 /// Abgelöst ist eine Id, wenn ein Ersatz sie festgehalten hat (Verknüpfung
 /// `YnabSupersededSystem`) oder wenn das DELETE gelungen und die Neuanlage noch offen ist
 /// (`YnabDeletedTransactionId` am offenen Fehlschlag). Beides lässt `DeletedInYnab` aus.
-let private isSupersededDeletion (existing: Entry option) (obs: YnabObservation) : Async<bool> =
-    async {
-        if not obs.Deleted then
-            return false
-        else
-            let pendingDeletion =
-                existing
-                |> Option.bind (fun e -> e.CategorizationWriteBackFailure)
-                |> Option.bind (fun f -> f.YnabDeletedTransactionId)
-            if pendingDeletion = Some obs.YnabTransactionId then
-                return true
-            else
-                let! superseded = Ledger.Persistence.findEntryByLink YnabSupersededSystem obs.YnabTransactionId
-                return superseded.IsSome
-    }
+let private isSupersededDeletion (state: MirrorBatchState) (existing: Entry option) (obs: YnabObservation) : bool =
+    if not obs.Deleted then
+        false
+    else
+        let pendingDeletion =
+            existing
+            |> Option.bind (fun e -> e.CategorizationWriteBackFailure)
+            |> Option.bind (fun f -> f.YnabDeletedTransactionId)
+        pendingDeletion = Some obs.YnabTransactionId
+        || (MirrorBatchState.find state YnabSupersededSystem obs.YnabTransactionId).IsSome
 
 /// Ein Spiegel-Lauf: Beobachtungen holen, Konten nachziehen, je Beobachtung die Buchung
 /// suchen, den Snapshot gegen den Zustand vergleichen und nur bei Unterschied Ereignisse
@@ -426,6 +473,7 @@ let runMirror
                 match! fetchers.FetchTransactions knowledge with
                 | Error error -> return! finish (Error (ynabErrorText error))
                 | Ok batch ->
+                    let! state = MirrorBatchState.load batch.Observations
                     let mutable newEntries = 0
                     let mutable changedEntries = 0
                     let mutable deletedEntries = 0
@@ -442,7 +490,7 @@ let runMirror
                                     Some
                                         $"Buchung {obs.YnabTransactionId} zeigt auf das YNAB-Konto {accountId}, das der Konten-Abruf nicht kennt"
                             | Some ledgerAccountId ->
-                                let! entryMatch = resolveEntry obs
+                                let entryMatch = resolveEntry state obs
 
                                 // Treffer über die ImportId: die YNAB-Verknüpfung geht als
                                 // `EntryLinkedToYnab` mit den Ereignissen der Beobachtung in
@@ -464,13 +512,11 @@ let runMirror
                                         ]
                                     | NewEntry id -> id, false, []
 
-                                let! existing =
-                                    if known then Ledger.Persistence.loadEntry entryId
-                                    else async.Return None
+                                let existing = if known then MirrorBatchState.entry state entryId else None
 
                                 // ADR 0058, Punkt 5: das Löschen der ersetzten Id ist BBs eigenes
                                 // Werk und darf die Buchung nicht als "in YNAB gelöscht" markieren.
-                                let! supersededDeletion = isSupersededDeletion existing obs
+                                let supersededDeletion = isSupersededDeletion state existing obs
 
                                 let events =
                                     if supersededDeletion then []
@@ -480,7 +526,7 @@ let runMirror
                                             existing
                                             obs
 
-                                do! Ledger.Persistence.appendAndApply (linkEvents @ events)
+                                do! MirrorBatchState.append state (linkEvents @ events)
 
                                 // Uebertrags-Verknuepfung (ADR 0015): erst nachdem die
                                 // Beobachtung selbst steht, sonst findet der Lookup die
@@ -488,7 +534,7 @@ let runMirror
                                 // NICHT in changedEntries/newEntries/deletedEntries: die
                                 // Zaehler beschreiben, was sich in YNAB geaendert hat,
                                 // die Verknuepfung ist BBs eigener Nachtrag.
-                                do! linkTransferCounterpart now entryId obs
+                                do! linkTransferCounterpart now state entryId obs
 
                                 if not (List.isEmpty obs.SplitTransfers) then
                                     splitTransferObservations.Add((entryId, obs))
@@ -518,7 +564,7 @@ let runMirror
                         // Nachlauf (ADR 0046): jetzt sind alle Buchungen des Batches
                         // geschrieben, die Gegenbuchung ist auffindbar, egal wo sie liegt.
                         for (entryId, obs) in splitTransferObservations do
-                            do! linkSplitTransferCounterparts now entryId obs
+                            do! linkSplitTransferCounterparts now state entryId obs
 
                         // Erst wenn alle Beobachtungen verarbeitet sind, ruecken wir das
                         // Gedaechtnis vor: ein abgebrochener Lauf holt beim naechsten Mal
@@ -1326,6 +1372,11 @@ let private tryYnabTransactionId (entryId: EntryId) : Async<string option> =
         return currentYnabTransactionId links
     }
 
+/// Die gültige YNAB-Id je Buchung aus den einmal geladenen Verknüpfungen einer Auswahl
+/// (ledger-r8h19, kein N+1 in den Sammelbefehlen).
+let private ynabTransactionIdIn (links: Map<EntryId, EntryLink list>) (entryId: EntryId) : string option =
+    links |> Map.tryFind entryId |> Option.defaultValue [] |> currentYnabTransactionId
+
 let private reviewMarkEvent (entryId: EntryId) (now: DateTime) (actor: Actor) (body: LedgerEventBody) : LedgerEvent =
     { EntryId = entryId; OccurredAt = now; Actor = actor; Body = body }
 
@@ -1540,9 +1591,12 @@ let private changeReviewMarkBatch
             let candidates = ResizeArray<BatchCandidate>()
             let mutable unchanged = 0
             let mutable failed = 0
+            let ids = targets |> List.map fst
+            let! entries = Ledger.Persistence.loadEntries ids
+            let! links = Ledger.Persistence.linksForEntries ids
 
             for entryId, resolveTarget in targets do
-                match! Ledger.Persistence.loadEntry entryId with
+                match Map.tryFind entryId entries with
                 | None -> failed <- failed + 1
                 | Some entry when entry.DeletedInYnab -> failed <- failed + 1
                 | Some entry ->
@@ -1551,7 +1605,7 @@ let private changeReviewMarkBatch
                     if target = previous then
                         unchanged <- unchanged + 1
                     else
-                        match! tryYnabTransactionId entryId with
+                        match ynabTransactionIdIn links entryId with
                         | None -> failed <- failed + 1
                         | Some ynabId ->
                             candidates.Add {
@@ -1871,8 +1925,10 @@ let setEntryCategoryBatch
                 let skipped = ResizeArray<CategorySkipReason>()
                 let mutable unchanged = 0
 
+                let! entries = Ledger.Persistence.loadEntries ids
+
                 for entryId in ids do
-                    match! Ledger.Persistence.loadEntry entryId with
+                    match Map.tryFind entryId entries with
                     | None -> skipped.Add SkipNotFound
                     | Some entry ->
                         match categoryNotChangeable entry with
@@ -1905,9 +1961,10 @@ let setEntryCategoryBatch
 
                     let linked = ResizeArray<Entry * string>()
                     let unlinked = ResizeArray<Entry>()
+                    let! links = Ledger.Persistence.linksForEntries [ for entry in changed -> entry.Id ]
 
                     for entry in changed do
-                        match! tryYnabTransactionId entry.Id with
+                        match ynabTransactionIdIn links entry.Id with
                         | Some ynabId -> linked.Add((entry, ynabId))
                         | None -> unlinked.Add entry
 
@@ -2786,9 +2843,10 @@ let private changeFlagBatch
             let candidates = ResizeArray<Entry * (string option * string option)>()
             let mutable unchanged = 0
             let mutable failed = 0
+            let! entries = Ledger.Persistence.loadEntries (targets |> List.map fst)
 
             for entryId, resolveTarget in targets do
-                match! Ledger.Persistence.loadEntry entryId with
+                match Map.tryFind entryId entries with
                 | None -> failed <- failed + 1
                 | Some entry when entry.DeletedInYnab -> failed <- failed + 1
                 | Some entry ->
@@ -2816,9 +2874,10 @@ let private changeFlagBatch
                     ]
 
                 let linked = ResizeArray<Entry * string option * string>()
+                let! links = Ledger.Persistence.linksForEntries [ for entry, _ in changed -> entry.Id ]
 
                 for entry, (newColor, _) in changed do
-                    match! tryYnabTransactionId entry.Id with
+                    match ynabTransactionIdIn links entry.Id with
                     | Some ynabId -> linked.Add((entry, newColor, ynabId))
                     | None -> ()
 

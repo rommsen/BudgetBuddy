@@ -86,15 +86,6 @@ let private storedEntry : Entry = {
     PushToYnabFailure = None
 }
 
-let private repoRoot =
-    let rec up (dir: IO.DirectoryInfo) =
-        if IO.File.Exists(IO.Path.Combine(dir.FullName, "BudgetBuddy.sln")) || IO.Directory.Exists(IO.Path.Combine(dir.FullName, "src", "Client"))
-        then dir.FullName
-        else up dir.Parent
-    up (IO.DirectoryInfo AppContext.BaseDirectory)
-
-let private source (relative: string) = IO.File.ReadAllText(IO.Path.Combine(repoRoot, relative))
-
 [<Tests>]
 let filterButtonTests =
     testList "Filter-Knöpfe im Detail (ledger-q1hw2, ADR 0053)" [
@@ -262,44 +253,6 @@ let filterButtonTests =
                 let query = Components.Ledger.State.buildPageQuery updated None 0
                 Expect.equal query.CategoryIds [ categoryGuid ] "Anfrage mit einer Kategorie"
                 Expect.isFalse query.WithoutCategory "ohne Ohne-Kategorie"
-            }
-        ]
-
-        testList "Oberfläche (Quelltext)" [
-            test "Payee- und Kategorie-Zelle der PC-Zeile sind reiner Text ohne eigenen Auslöser" {
-                let view = source "src/Client/Components/Ledger/View.fs"
-                let slice (from: string) (until: string) =
-                    let start = view.IndexOf from
-                    let stop = view.IndexOf(until, start)
-                    Expect.isGreaterThan start 0 $"{from} vorhanden"
-                    Expect.isGreaterThan stop start $"{until} danach"
-                    view.Substring(start, stop - start)
-                let cells =
-                    [ slice "let private categoryCell" "/// Der Betrag als eigene Zelle"
-                      slice "let private payeeCell" "let private entryTableRow" ]
-                for cell in cells do
-                    Expect.isFalse (cell.Contains "Html.button") "kein Button in der Zelle"
-                    Expect.isFalse (cell.Contains "onClick") "kein eigener Klick in der Zelle"
-                    Expect.isFalse (cell.Contains "dispatch") "die Zelle sendet nichts"
-            }
-            test "Die Zeile öffnet das Detail, nicht mehr die Historie" {
-                let view = source "src/Client/Components/Ledger/View.fs"
-                let start = view.IndexOf "let private entryTableRow"
-                Expect.stringContains (view.Substring(start, 1200)) "dispatch (OpenDetail entry)" "Zeilenklick"
-            }
-            test "Der Filter-Knopf stoppt die Weitergabe und trägt Name und Tooltip" {
-                let text = source "src/Client/DesignSystem/Detail.fs"
-                let start = text.IndexOf "let filterButton"
-                Expect.isGreaterThan start 0 "filterButton vorhanden"
-                let body = text.Substring(start, 900)
-                Expect.stringContains body "prop.title label" "Tooltip"
-                Expect.stringContains body "prop.ariaLabel label" "zugänglicher Name"
-                Expect.stringContains body "e.stopPropagation ()" "stopPropagation"
-            }
-            test "FilterPopover.menuItem bleibt im Design-System, mit seiner Styleguide-Karte" {
-                let text = source "src/Client/Components/Styleguide/View.fs"
-                Expect.stringContains text "FilterPopover.menuItem" "menuItem in der Karte"
-                Expect.stringContains text "components-filterpopover-menuitem" "eigene Karte"
             }
         ]
     ]

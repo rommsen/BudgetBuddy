@@ -225,6 +225,9 @@ let sortChipLabel (sort: LedgerSort) : string =
     let arrow = match sort.Direction with SortAsc -> "↑" | SortDesc -> "↓"
     $"{sortFieldName sort.Field} {arrow}"
 
+/// Der Sortier-Chip ist aktiv gefärbt, wenn die wirksame Sortierung vom Standard abweicht.
+let sortChipActive (sort: LedgerSort) : bool = sort <> LedgerSort.defaultSort
+
 /// Die wirksame Sortierung (ADR 0051 Punkt 9): die Spalte "Konto" gibt es nur in der
 /// Gesamtsicht. Ist `SortByAccount` gewählt und ein einzelnes Konto aktiv, gilt
 /// `LedgerSort.defaultSort`; das Modell behält die Wahl für die Rückkehr in die Gesamtsicht.

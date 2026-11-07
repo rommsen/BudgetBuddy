@@ -7,7 +7,6 @@ module LedgerDetailTests
 // Die gerenderte Fassung prüft `scripts/ledger-detail.test.mjs`.
 
 open System
-open System.IO
 open Expecto
 open Shared.Domain
 open Types
@@ -44,21 +43,6 @@ let private run (msg: Msg) (model: Model) : Model * Msg list =
     model', List.ofSeq sent
 
 let private step (msg: Msg) (model: Model) : Model = run msg model |> fst
-
-let private repoRoot =
-    Directory.GetParent(Directory.GetParent(__SOURCE_DIRECTORY__).FullName).FullName
-
-let private readRepo (parts: string list) =
-    File.ReadAllText(Path.Combine(repoRoot :: parts |> List.toArray))
-
-let private viewSource () = readRepo [ "src"; "Client"; "Components"; "Ledger"; "View.fs" ]
-
-/// Der Rumpf einer Top-Level-Funktion: vom Kopf bis zum nächsten `let` auf Spalte 0.
-let private functionBody (source: string) (header: string) : string =
-    let start = source.IndexOf header
-    if start < 0 then failtestf "Funktionskopf '%s' nicht gefunden" header
-    let next = source.IndexOf("\nlet ", start + header.Length)
-    if next < 0 then source.Substring start else source.Substring(start, next - start)
 
 let private okOutcome : ReviewMarkOutcome =
     { Previous = { IsApproved = false; ClearedState = ReviewUncleared }
@@ -301,13 +285,6 @@ let formTests =
                 Expect.equal (visibleColumns width false) CompactList $"{width}px: Kompaktliste"
                 Expect.equal (detailFormFor width false) DetailSheet $"{width}px: Sheet"
                 Expect.equal (detailFormFor width true) DetailSheet $"{width}px, Gesamtsicht: Sheet"
-
-        testCase "die Form hängt nicht davon ab, ob das Panel offen ist (kein Kippen)" <| fun () ->
-            // `detailFormFor` bekommt die Breite OHNE Panel; die Spalte der Ansicht reserviert den
-            // Platz als Innenabstand, die gemessene Außenbreite bleibt gleich.
-            let source = viewSource ()
-            Expect.stringContains source "detailFormFor tableWidth isAllAccounts" "Form aus der Breite ohne Panel"
-            Expect.stringContains source "md:pr-[420px]" "das Panel reserviert seinen Platz als Innenabstand"
     ]
 
 // ============================================
@@ -467,53 +444,10 @@ let contentTests =
             Expect.equal (categoryLabel split) "2 Split-Zeilen" "Handy-Zeile"
             Expect.equal (categoryLabelQualified split) "2 Split-Zeilen" "PC-Zeile"
 
-        testCase "nur detailContent ruft splitLineTexts auf, Panel und Sheet zeigen dieselben Texte" <| fun () ->
-            let source = viewSource ()
-            // Der Aufruf lebt seit ledger-pafkp im Split-Feld (`splitField`), das detailContent einhängt.
-            Expect.stringContains (functionBody source "let private splitField") "splitLineTexts entry" "Verdrahtung"
-            Expect.stringContains (functionBody source "let private detailContent") "splitField dispatch entry" "Inhalt hängt das Feld ein"
-            let aufrufe = source.Split("splitLineTexts entry").Length - 1
-            Expect.equal aufrufe 1 "genau ein Aufruf im Modul"
-            Expect.isFalse ((functionBody source "let private detailPanelView").Contains "splitLineTexts") "Panel hat keinen eigenen Aufruf"
-            Expect.isFalse ((functionBody source "let private detailSheetView").Contains "splitLineTexts") "Sheet hat keinen eigenen Aufruf"
-
-        testCase "ohne Splits gibt es keine Zeilen, die Ansicht schreibt dann Kein Split" <| fun () ->
+        testCase "ohne Splits gibt es keine Zeilen" <| fun () ->
             Expect.isEmpty (splitLineTexts (entry 1)) "keine Zeilen"
-            let content = functionBody (viewSource ()) "let private splitField"
-            Expect.stringContains content "\"Kein Split\"" "Platzhalter"
 
-        testCase "Kategorie, Split, Memo und Geprüft erscheinen im Inhalt für Panel und Sheet gleich" <| fun () ->
-            let source = viewSource ()
-            // Die Kategorie-Zeile mit Pfeil und Picker lebt seit ledger-sfab0 in `categoryField`.
-            let content =
-                functionBody source "let private detailContent"
-                + functionBody source "let private categoryField"
-                + functionBody source "let private splitField"
-                // Die Memo-Zeile lebt seit ledger-fa1fp in `memoField`.
-                + functionBody source "let private memoField"
-            for field in [ "\"Kategorie\""; "\"Split\""; "\"Memo\""; "\"Geprüft\"" ] do
-                Expect.stringContains content field $"Feld {field}"
-            Expect.stringContains (functionBody source "let private detailPanelView") "detailContent" "Panel nutzt den Inhalt"
-            Expect.stringContains (functionBody source "let private detailSheetView") "detailContent" "Sheet nutzt den Inhalt"
-
-        testCase "die Felder im Inhalt sind lesend, der Pfeil der Kategorie lebt in categoryField (ledger-sfab0)" <| fun () ->
-            let content = functionBody (viewSource ()) "let private detailContent"
-            Expect.isFalse (content.Contains "chevron") "kein Pfeil im Inhalt"
-            Expect.isFalse (content.Contains "onClick") "kein Klick in den Feldern"
-            Expect.stringContains (functionBody (viewSource ()) "let private categoryField") "Detail.pickerArrow" "Pfeil an der Kategorie"
-
-        testCase "die Kategorie steht am PC voll qualifiziert, im Sheet am Handy kurz (ledger-fa1fp)" <| fun () ->
-            let source = viewSource ()
-            Expect.stringContains (functionBody source "let private categoryField") "detailCategoryLabel model.DetailForm entry" "Form entscheidet"
-            let label = functionBody source "let detailCategoryLabel"
-            Expect.stringContains label "DetailPanel -> categoryLabelQualified entry" "PC voll qualifiziert"
-            Expect.stringContains label "DetailSheet -> categoryLabel entry" "Handy kurz"
-
-        testCase "die Herkunft-Zeile zeigt für jede Art das Wort der Domäne in einem Teal-Badge" <| fun () ->
-            let content = functionBody (viewSource ()) "let private detailContent"
-            Expect.stringContains content "Detail.originRow" "Herkunft-Zeile"
-            Expect.stringContains content "originLabel entry.Origin" "das Wort kommt aus originLabel"
-            Expect.stringContains content "Variant = Badge.Info" "Teal"
+        testCase "die Herkunft-Zeile zeigt für jede Art das Wort der Domäne" <| fun () ->
             Expect.equal (originLabel ImportedFromComdirect) "Comdirect-Import" "Comdirect-Import"
             Expect.equal (originLabel DecidedByRule) "Regel" "Regel"
             Expect.equal (originLabel MirroredFromYnab) "YNAB-Spiegel" "YNAB-Spiegel"
@@ -556,17 +490,6 @@ let contentTests =
                 (dotOf EntryReviewMarkWrittenBackToYnab)
                 Detail.DotRed
                 "ein gewöhnlicher Satz ist nicht rot"
-
-        testCase "Lade- und Leerzustand der Historie sind vorhanden" <| fun () ->
-            let history = functionBody (viewSource ()) "let private historyView"
-            Expect.stringContains history "Loading.centered \"Historie wird geladen…\"" "Ladezustand"
-            Expect.stringContains history "Detail.timelineEmpty \"Noch keine Einträge\"" "Leerzustand"
-            Expect.stringContains history "ErrorDisplay.cardCompact" "Fehlerzustand mit Wiederholen"
-
-        testCase "die Zeitleiste des Details hat Punktfarben je Urheber im Design-System" <| fun () ->
-            let ds = readRepo [ "src"; "Client"; "DesignSystem"; "Detail.fs" ]
-            for cls in [ "bg-neon-teal"; "bg-neon-purple"; "bg-text-muted"; "bg-neon-green"; "bg-neon-red" ] do
-                Expect.stringContains ds cls $"Punkt {cls}"
     ]
 
 // ============================================
@@ -577,37 +500,16 @@ let contentTests =
 let deletedTests =
     testList "Detail: gelöschte Buchung ist ein Lesezustand (ledger-q1hw2)" [
 
-        testCase "kein Geprüft-Schalter, grauer Betrag und nur Filter-Knöpfe als Aktion" <| fun () ->
-            let source = viewSource ()
-            let content = functionBody source "let private detailContent"
-            Expect.stringContains content "if not entry.DeletedInYnab then" "der Schalter hängt an DeletedInYnab"
-            let afterGuard = content.Substring(content.IndexOf "if not entry.DeletedInYnab then")
-            Expect.stringContains (afterGuard.Substring(0, 200)) "Detail.reviewedSwitch" "der Schalter steht im geschützten Zweig"
-            Expect.stringContains (functionBody source "let private detailHead") "entry.DeletedInYnab" "Betrag gedämpft"
-            let ds = readRepo [ "src"; "Client"; "DesignSystem"; "Detail.fs" ]
-            Expect.stringContains ds "if muted then Colors.textMuted" "gedämpfter Betrag im Design-System"
+        testCase "eine gelöschte Buchung ist ein Lesezustand, eine offene nicht" <| fun () ->
+            // ledger-r8h19: ersetzt den Quelltext-Test; Betrag, Text und Geprüft-Schalter des
+            // Details hängen nur an `detailReadOnly`.
+            Expect.isTrue (detailReadOnly { entry 1 with DeletedInYnab = true }) "gelöscht: gedämpft, kein Schalter"
+            Expect.isFalse (detailReadOnly (entry 1)) "offen: Schalter und voller Betrag"
 
         testCase "die gelöschte Buchung bekommt trotzdem beide Filter-Knöpfe" <| fun () ->
             let deleted = { entry 1 with DeletedInYnab = true; Payee = Some "Café Lotte"; CategoryId = Some (Guid.NewGuid()); CategoryName = Some "Restaurants" }
             Expect.isSome (payeeFilterLabel deleted) "Payee"
             Expect.isSome (categoryFilterLabel deleted) "Kategorie"
-    ]
-
-// ============================================
-// Design-System und Styleguide
-// ============================================
-
-[<Tests>]
-let styleguideTests =
-    testList "Detail: Design-System-Bausteine mit Galerie-Beispiel (ledger-q1hw2)" [
-
-        testCase "jeder neue Baustein hat ein Beispiel im Styleguide" <| fun () ->
-            let gallery = readRepo [ "src"; "Client"; "Components"; "Styleguide"; "View.fs" ]
-            for call in
-                [ "Detail.notice"; "Detail.originRow"; "Detail.timeline"; "Detail.panel"
-                  "Detail.reviewedSwitch"; "Detail.filterButton"; "Detail.fieldRow"; "Detail.externalLinksRow" ] do
-                Expect.stringContains gallery call $"Galerie zeigt {call}"
-            Expect.stringContains gallery "components-detail" "eigene Galerie-Karte mit Anker"
     ]
 
 // ============================================
@@ -631,34 +533,10 @@ let externalLinksTests =
 
         testCase "bei leerer Liste baut das Detail keine Link-Zeile" <| fun () ->
             Expect.isEmpty (detailExternalLinks (withLinks [])) "keine Links"
-            // Die Zeile selbst baut Feliz-Elemente und lässt sich unter .NET nicht erzeugen
-            // (Fable-Proxy); der Playwright-Wächter ledger-external-links prüft sie am Browser.
-            let body = functionBody (viewSource ()) "let externalLinksField"
-            Expect.stringContains body "| [] -> None" "leere Liste: keine Zeile"
 
         testCase "die Antwort eines älteren Servers ohne das Feld (null) ergibt keine Zeile" <| fun () ->
             let old = { entry 1 with ExternalLinks = Unchecked.defaultof<ExternalLink list> }
             Expect.isEmpty (detailExternalLinks old) "null wird wie leer behandelt"
-
-        testCase "Sheet und Seitenpanel teilen dieselbe Detail-Funktion mit der Zeile unter dem Memo" <| fun () ->
-            let body = functionBody (viewSource ()) "let private detailContent"
-            Expect.stringContains body "externalLinksField entry" "die Zeile steht in der gemeinsamen Detail-Funktion"
-            Expect.isTrue
-                (body.IndexOf "memoField dispatch" < body.IndexOf "externalLinksField entry"
-                 && body.IndexOf "externalLinksField entry" < body.IndexOf "flagField dispatch")
-                "zwischen Memo und Flag"
-
-        testCase "der Link öffnet in neuem Tab, mit rel und Symbol" <| fun () ->
-            let source = readRepo [ "src"; "Client"; "DesignSystem"; "Detail.fs" ]
-            let body = functionBody source "let externalLinksRow"
-            for literal in [ "prop.target \"_blank\""; "noopener noreferrer"; "Icons.externalLink" ] do
-                Expect.stringContains body literal $"Link-Zeile enthält {literal}"
-
-        testCase "die Kassenbuch-Liste (Tabelle und Kompaktliste) zeigt keinen Link" <| fun () ->
-            let source = viewSource ()
-            let occurrences = source.Split("externalLinksField").Length - 1
-            Expect.equal occurrences 2 "nur Definition und ein Aufruf (detailContent)"
-            Expect.equal (source.Split("entry.ExternalLinks").Length - 1) 2 "ExternalLinks nur in detailExternalLinks gelesen"
     ]
 
 // ============================================
