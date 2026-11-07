@@ -336,6 +336,29 @@ const openLedgerDetail = async (page, payee) => {
   return sheet;
 };
 
+/// Die Gesamtsicht aus der Konten-Spalte: gewartet wird auf die Liste aller Konten.
+const openAllAccounts = async (page) => {
+  await openLedger(page);
+  const loaded = page.waitForResponse("**/api/LedgerApi/getLedgerEntriesPage");
+  await page.locator(".ledger-account-strip").getByText("Alle Konten", { exact: true }).filter({ visible: true }).first().click();
+  await loaded;
+  await frames(page);
+};
+
+/// Die Auswahl am Handy: langes Drücken wie in ledger-selection.test.mjs, gehalten, bis die Leiste erscheint.
+const openMobileSelection = async (page) => {
+  await openLedger(page);
+  const row = page.locator("button", { hasText: "Bauhaus" }).filter({ visible: true }).first();
+  const b = await row.boundingBox();
+  const init = { pointerType: "touch", pointerId: 7, isPrimary: true, bubbles: true, clientX: b.x + b.width / 2, clientY: b.y + b.height / 2 };
+  await row.dispatchEvent("pointerdown", init);
+  const bar = page.locator(".selection-bar").filter({ visible: true });
+  await bar.waitFor();
+  await row.dispatchEvent("pointerup", init);
+  await row.dispatchEvent("click", { bubbles: true, clientX: init.clientX, clientY: init.clientY });
+  await bar.getByRole("button", { name: /^Lena fragen/ }).waitFor();
+};
+
 // ============================================================
 // Regeln
 // ============================================================
@@ -612,6 +635,28 @@ export const STATES = [
     mock: mockLedger,
     open: openLedger,
   },
+  // ledger-qh9qx (Fix 38f2118): in der Gesamtsicht mit Konto-Spalte blendet die Tabelle in schmalen Fenstern
+  // stufenweise Spalten aus (Memo, dann Konto), statt Payee, Kategorie und Memo zusammenzudrücken. Der Zustand
+  // `kassenbuch` zeigt das Standardkonto, also die Ansicht eines Kontos ohne Konto-Spalte.
+  {
+    name: "kassenbuch-alle-konten",
+    route: "/ledger",
+    widths: TABLE_WIDTHS,
+    mock: mockLedger,
+    open: openAllAccounts,
+  },
+  // Die Navbar ist `h-16` (4rem): bei 20 px Grundschrift wächst sie, Filterleiste, Tabellenkopf und
+  // Konten-Spalte haften trotzdem darunter (`--nav-height` in styles.css).
+  {
+    name: "kassenbuch-grosse-schrift",
+    route: "/ledger",
+    widths: [1440],
+    mock: mockLedger,
+    open: async (page) => {
+      await openLedger(page);
+      await page.addStyleTag({ content: "html { font-size: 20px; }" });
+    },
+  },
   // design-system-btwhg: Datumsfeld und Kategorie-Suche der Filterleiste am Handy mit 16 px.
   {
     name: "kassenbuch-filter-kategorie",
@@ -716,6 +761,19 @@ export const STATES = [
     mock: (page) => mockLedger(page, { accounts: 30 }),
     open: openLedger,
   },
+  // Mit Auswahl steht am PC die Auswahl-Leiste statt des Tastatur-Hinweises: das Ende der Konten-Spalte bleibt
+  // über ihr sichtbar (Invariante 5, am Ende gescrollt).
+  {
+    name: "kassenbuch-viele-konten-auswahl",
+    route: "/ledger",
+    widths: [1024, 1440],
+    mock: (page) => mockLedger(page, { accounts: 30 }),
+    open: async (page) => {
+      await openLedger(page);
+      await page.locator("table tbody tr", { hasText: "Bauhaus" }).first().getByRole("checkbox").click();
+      await page.locator(".selection-bar").filter({ visible: true }).waitFor();
+    },
+  },
   // Regression ledger-filter-bar (feste Höhenschätzung): bei 1024 px bricht die Leiste mit zwei Kategorien um,
   // der Tabellenkopf haftet trotzdem darunter.
   {
@@ -760,7 +818,9 @@ export const STATES = [
       await hint.waitFor({ state: "detached" });
     },
   },
-  // ledger-y54gr: die Auswahl-Leiste am Handy mit beiden Lena-Aktionen und dem Grund als Zeile.
+  // ledger-y54gr: die Auswahl-Leiste am Handy mit beiden Lena-Aktionen und dem Grund als Zeile. Bei 320 px bricht
+  // sie um und wird höher: am Ende der Liste liegt die letzte Buchung trotzdem über ihr (Invariante 5, am Ende
+  // gescrollt).
   {
     name: "kassenbuch-auswahl-handy",
     route: "/ledger",
@@ -769,19 +829,7 @@ export const STATES = [
       await mockLedger(page);
       await page.route("**/api/SettingsApi/getLenaFlagSettings", (r) => json(r, { SavedColor: null, SuggestedColor: null }));
     },
-    open: async (page) => {
-      await openLedger(page);
-      // Langes Drücken wie in ledger-selection.test.mjs: gehalten, bis die Leiste erscheint.
-      const row = page.locator("button", { hasText: "Bauhaus" }).filter({ visible: true }).first();
-      const b = await row.boundingBox();
-      const init = { pointerType: "touch", pointerId: 7, isPrimary: true, bubbles: true, clientX: b.x + b.width / 2, clientY: b.y + b.height / 2 };
-      await row.dispatchEvent("pointerdown", init);
-      const bar = page.locator(".selection-bar").filter({ visible: true });
-      await bar.waitFor();
-      await row.dispatchEvent("pointerup", init);
-      await row.dispatchEvent("click", { bubbles: true, clientX: init.clientX, clientY: init.clientY });
-      await bar.getByRole("button", { name: /^Lena fragen/ }).waitFor();
-    },
+    open: openMobileSelection,
   },
   // categorization-cgq35: Prioritätspfeile und Overflow-Knopf am Handy, Regeln mit langen Namen.
   {

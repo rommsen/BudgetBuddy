@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-08 00:07 -- Capture / Captured: categorization-m5k2c - "Kann-Sammlung categorization"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Kann-Sammlung categorization angelegt, eine Zeile aus dem Review-Lauf nach jc1y1.
+
+---
+
 ## 2026-11-08 00:00 -- Work session ended
 
 **Type:** Work / Session end

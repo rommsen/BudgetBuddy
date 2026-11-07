@@ -1,8 +1,8 @@
 // scripts/target-check.test.mjs
 //
 // Wächter für `budgeting-q4v8n` und `budgeting-c4ve4` (Form nach der Skizze): die Seite Targets prüfen
-// `#/budget/target-check`. Nur der Happy Path des Nutzerflusses und die Rundung im Fable-Kompilat, gegen eine
-// gemockte BudgetApi. Überlauf und Trefferflächen prüft der Layout-Sweep (Zustände targets-pruefen*), die Regeln
+// `#/budget/target-check`. Nur der Happy Path des Nutzerflusses (mit der Zusicherung, dass die Mini-Balken kein
+// Tab-Stopp sind) und die Rundung im Fable-Kompilat, gegen eine gemockte BudgetApi. Überlauf und Trefferflächen prüft der Layout-Sweep (Zustände targets-pruefen*), die Regeln
 // (Gruppen, Töne der Balken, übernehmen, Panel, Sperre, Rückkehr) liegen in `src/Tests/TargetCheckClientTests.fs`.
 // Namen und Beträge sind erfunden.
 //
@@ -140,6 +140,13 @@ test("[flow:targets-pruefen] Handy: über das Feld Targets prüfen der Leiste Mo
     await page.waitForURL(/#\/budget\/target-check$/);
     const more = page.locator('[data-testid="target-check-group"]').filter({ hasText: "Gibst du mehr aus?" });
     await more.waitFor();
+    // Die Mini-Balken sind ein Bild für den Screenreader, kein Tab-Stopp (`Stats.sparkBars`, budgeting-c4ve4).
+    // Stand bis infrastructure-jc1y1 in einem eigenen [layout]-Test.
+    const sparkStops = await page.evaluate(() =>
+      [...document.querySelectorAll('[data-testid="spark-bars"], [data-testid="spark-bars"] *')].filter((el) => el.tabIndex >= 0 || el.hasAttribute("tabindex")).length
+    );
+    assert.ok((await page.locator('[data-testid="spark-bars"]').count()) > 0, "die Mini-Balken stehen da");
+    assert.equal(sparkStops, 0, "die Mini-Balken haben keinen Tab-Stopp");
     await rowOf(page, "Strom q4v8n").getByRole("button", { name: "150 € übernehmen" }).click();
     await page.getByText("Strom q4v8n: Target jetzt 150 € monatlich.").waitFor();
 

@@ -110,7 +110,7 @@ let chipButton (text: string) (isSuggested: bool) (onClick: unit -> unit) : Reac
 let optionRow (label: string) (isSelected: bool) (onClick: unit -> unit) : ReactElement =
     Html.button [
         prop.type' "button"
-        prop.className "w-full text-left category-item min-h-12 md:min-h-[44px] flex items-center justify-between gap-3 min-w-0"
+        prop.className $"w-full text-left category-item {Tokens.TouchTargets.mobileMinHeight} md:min-h-11 flex items-center justify-between gap-3 min-w-0"
         prop.custom ("aria-pressed", isSelected)
         prop.onClick (fun e ->
             e.stopPropagation()

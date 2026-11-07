@@ -140,6 +140,9 @@
   --nav-height-mobile: 56px;
   --nav-height-desktop: 56px;
   --bottom-nav-height: 64px;
+  /* Die PC-Navbar ist `h-16` (`Navigation.fs`): in rem, sie wächst mit der Grundschrift. Alles, was
+     darunter haftet, rückt mit (Layout-Sweep, Zustände budget-grosse-schrift, kassenbuch-grosse-schrift). */
+  --nav-height: 4rem;
   --content-max-width: 960px;
   --content-padding: 16px;
 
@@ -1156,7 +1159,7 @@ nav a:focus-visible {
   -webkit-backdrop-filter: blur(12px);
 }
 @media (min-width: 768px) {
-  .filters { top: 64px; }
+  .filters { top: var(--nav-height); }
 }
 .filters::-webkit-scrollbar { display: none; }
 
@@ -1168,7 +1171,7 @@ nav a:focus-visible {
    unter der fixen Navbar. Anders als bei der Tabelle gilt das auf beiden
    Geräten (Styleguide 7.3, Aufgaben-`## What`: "auf beiden Geräten"), deshalb
    zwei Werte statt eines einzigen `@media`-Blocks: 56px Handy-Kopfzeile
-   (`mobileHeader`, plus Safe-Area) und 64px PC-Navbar, genau wie `.filters`
+   (`mobileHeader`, plus Safe-Area) und `--nav-height` am PC, genau wie `.filters`
    oben.
 
    `--ledger-filter-bar-height` (an `.table-sticky-thead thead` unten) trägt die
@@ -1189,13 +1192,9 @@ nav a:focus-visible {
   -webkit-backdrop-filter: blur(12px);
 }
 @media (min-width: 768px) {
-  .ledger-filter-bar {
-    top: 64px;
-  }
-  /* Die Navbar ist `h-16` (4rem): mit größerer Grundschrift wächst sie, der Kopf rückt mit
-     (Layout-Sweep, Zustand budget-grosse-schrift). */
+  .ledger-filter-bar,
   .budget-month-bar {
-    top: 4rem;
+    top: var(--nav-height);
   }
 }
 
@@ -1220,7 +1219,7 @@ nav a:focus-visible {
 }
 @media (min-width: 768px) {
   .budget-page {
-    --budget-nav-height: 4rem;
+    --budget-nav-height: var(--nav-height);
   }
   .budget-filter-chips {
     position: static;
@@ -1251,19 +1250,19 @@ nav a:focus-visible {
 /* `Table.view` with `Sticky = true` (ledger-x0yga: Kassenbuch-PC-Tabelle). Same
    reasoning as `.filters` above: a plain `position: sticky; top: 0` sticks the
    header at the viewport's very top, which is covered by the fixed navbar
-   (`Navigation`, 64px tall at md+, z-50) — the header's top pixels get cut off.
-   Sticking at 64px instead keeps it flush below the navbar, fully visible. Only
+   (`Navigation`, `--nav-height` tall at md+, z-50) — the header's top pixels get cut off.
+   Sticking at `--nav-height` instead keeps it flush below the navbar, fully visible. Only
    relevant at md+, since tables in this app are desktop-only.
 
    `+ var(--ledger-filter-bar-height, 0px)` (ledger-j8xq4): the fallback keeps
    the documented `Sticky` contract on every page without a filter bar above
-   the table, the offset stays exactly `64px`. Only the Kassenbuch column
+   the table, the offset stays exactly `--nav-height`. Only the Kassenbuch column
    (`Components.Ledger.View.FilterBarColumn`) ever sets this variable, as an
    inline style scoped to that column, to the filter bar's actually measured
    height. */
 .table-sticky-thead thead {
   position: sticky;
-  top: calc(64px + var(--ledger-filter-bar-height, 0px));
+  top: calc(var(--nav-height) + var(--ledger-filter-bar-height, 0px));
   z-index: 10;
 }
 
@@ -1271,8 +1270,8 @@ nav a:focus-visible {
    Kassenbuch: Konten-Spalte haftet beim Scrollen (ledger-qns4j)
    ============================================================ */
 /* `accountStrip` (Components.Ledger.View): dieselbe Begründung wie
-   `.table-sticky-thead` oben. Die feste Navbar (64px bei md+) verdeckt die
-   obersten Pixel eines `top: 0`-Stickys, deshalb `top: 64px`. Zusätzlich eine
+   `.table-sticky-thead` oben. Die feste Navbar (`--nav-height` bei md+) verdeckt die
+   obersten Pixel eines `top: 0`-Stickys, deshalb `top: var(--nav-height)`. Zusätzlich eine
    `max-height` plus eigener `overflow-y: auto`, damit eine Kontoliste, die höher
    als der sichtbare Bereich ist, in sich scrollt statt den Seiteninhalt
    abzuschneiden oder die Haftung zu verlieren (AC2). Nur ab `md`: am Handy zeigt
@@ -1281,12 +1280,13 @@ nav a:focus-visible {
 @media (min-width: 768px) {
   .ledger-account-strip {
     position: sticky;
-    top: 64px;
+    top: var(--nav-height);
     align-self: flex-start;
-    /* Unten 3rem frei, so hoch wie der Abstandshalter der festen Tastatur-Hinweisleiste (`h-12`): sonst
-       verdeckte die Leiste das Ende der Spalte, und am Seitenende schob `md:pb-8` von `main` die Spalte
-       unter die Navbar (Layout-Sweep, Zustand kassenbuch-viele-konten). */
-    max-height: calc(100vh - 64px - 3rem);
+    /* Unten frei, so hoch wie die feste Leiste, die gerade steht (Tastatur-Hinweis oder Auswahl-Leiste,
+       gemessen in `MeasuredBottomBar`, `Components.Ledger.View`): sonst verdeckte die Leiste das Ende der
+       Spalte, und am Seitenende schob `md:pb-8` von `main` die Spalte unter die Navbar (Layout-Sweep,
+       Zustände kassenbuch-viele-konten, kassenbuch-viele-konten-auswahl). */
+    max-height: calc(100dvh - var(--nav-height) - var(--ledger-bottom-bar-height, 0px));
     overflow-y: auto;
   }
 }

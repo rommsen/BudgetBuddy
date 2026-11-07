@@ -181,6 +181,31 @@ test("[layout] Gegenbeweis Invariante 5: ein Toast hinter dem Sheet meldet seine
   assert.ok(hits.some((v) => v.selector.startsWith("button") && v.value.startsWith("verdeckt")), hits.map(formatViolation).join("\n"));
 });
 
+test("[layout] Gegenbeweis Invariante 5: ein Betrag, der über den Payee rückt, meldet die Überdeckung", async () => {
+  // budgeting-m1bce (Fix 66a7c32): Payee und Betrag einer Buchung überlappten am Handy.
+  const hits = await brokenFinds("budget-buchungen", 320, 5, '[data-testid="detail-entry"] .font-mono { margin-left: -60px; }');
+  assert.ok(hits.some((v) => v.value.startsWith("Text überdeckt") && v.value.includes("Ein Empfänger")), hits.map(formatViolation).join("\n"));
+});
+
+test("[layout] Gegenbeweis Invariante 5: eine Liste, deren Ende unter der Auswahl-Leiste liegt, meldet das Verdecken", async () => {
+  // Ohne den Innenabstand von main reicht der Abstandshalter (h-52) nicht für die Leiste mit Grund.
+  const hits = await brokenFinds("kassenbuch-auswahl-handy", 390, 5, "main { padding-bottom: 0 !important; }");
+  assert.ok(hits.some((v) => v.value.startsWith("am Ende gescrollt verdeckt") && v.value.includes("selection-bar")), hits.map(formatViolation).join("\n"));
+});
+
+test("[layout] Gegenbeweis Invariante 6: ein Sheet, das als Ganzes scrollt, meldet Kopf und Tabs als mitgerückt", async () => {
+  // Früher in budget-page.test.mjs: Kopf und Tabs des Sheets bleiben stehen, wenn der Inhalt scrollt.
+  const hits = await brokenFinds(
+    "budget-buchungen",
+    390,
+    6,
+    ".bottom-sheet.active { overflow-y: auto !important; } .bottom-sheet.active > .sheet-body { overflow: visible !important; flex: none !important; height: auto !important; max-height: none !important; }"
+  );
+  const report = hits.map(formatViolation).join("\n");
+  assert.ok(hits.some((v) => v.selector.includes("sheet-header") && v.value.startsWith("rückt beim Scrollen")), report);
+  assert.ok(hits.some((v) => v.selector.includes('[role="tablist"]')), report);
+});
+
 test("[layout] Gegenbeweis Invariante 6: ein Tabellenkopf, der unter die Navigation rutscht, meldet die Überlappung", async () => {
   const hits = await brokenFinds("kassenbuch", 1440, 6, "thead, thead th { top: 0 !important; }");
   assert.ok(hits.some((v) => v.value.startsWith("überlappen")), hits.map(formatViolation).join("\n"));

@@ -13,8 +13,10 @@
 //   3 Eingabefelder am Handy mindestens 16 px Schrift
 //   4 kein sichtbarer Text abgeschnitten (Ellipse mit `title` ist erlaubt)
 //   5 nichts verdeckt: ein offenes Sheet, Popover oder Dialog liegt ganz im Bild und in jedem Behälter, der
-//     abschneidet; sein Primärknopf und die Knöpfe der Toasts sind das oberste Element
-//   6 Sticky-Köpfe überlappen sich nach dem Scrollen nicht
+//     abschneidet; sein Primärknopf und die Knöpfe der Toasts sind das oberste Element; Texte nebeneinander in
+//     einer Zeile überdecken sich nicht; am Ende gescrollt verdeckt keine feste Leiste unten ein Bedienelement
+//   6 Sticky-Köpfe überlappen sich nach dem Scrollen nicht; in einer offenen Ebene bleiben Kopf, Tabs und
+//     angeheftete Zeilen stehen, wenn ihr Körper scrollt
 //   7 der Primärknopf eines Sheets ist ohne Scrollen erreichbar, auch bei offener Tastatur (kleinerer Viewport)
 //   8 Spaltenköpfe einer Tabelle überlappen nicht und tragen ihren Text ganz
 //   9 kein Layout-Sprung beim Nachladen
@@ -319,6 +321,48 @@ function measureInPage({ mobile, touchMin, inputFontMin, checks, reachSelector }
       const hit = topmost(el);
       if (!hit.ok) report(5, el, `verdeckt von ${hit.hit ? describe(hit.hit) : "nichts"}`);
     }
+    // Texte nebeneinander in einer Zeile (Kinder eines waagerechten Flex-Behälters) überdecken sich nicht, etwa
+    // Payee und Betrag (budgeting-m1bce, Fix 66a7c32).
+    // Der sichtbare Text eines Kinds: jede Textzeile, beschnitten von jedem Behälter bis zum Kind, der abschneidet
+    // (eine gekürzte Zeile zählt nur bis zu ihrer Ellipse).
+    const contentRect = (el) => {
+      let box = null;
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        if (!node.textContent.trim() || !shown(node.parentElement)) continue;
+        const clipsTo = [];
+        for (let up = node.parentElement; up; up = up === el ? null : up.parentElement) {
+          if (clips(getComputedStyle(up))) clipsTo.push(clientRect(up));
+        }
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        for (const line of range.getClientRects()) {
+          let r = { left: line.left, top: line.top, right: line.right, bottom: line.bottom };
+          for (const c of clipsTo) r = { left: Math.max(r.left, c.left), top: Math.max(r.top, c.top), right: Math.min(r.right, c.right), bottom: Math.min(r.bottom, c.bottom) };
+          if (r.right - r.left <= 0 || r.bottom - r.top <= 0) continue;
+          box = box
+            ? { left: Math.min(box.left, r.left), top: Math.min(box.top, r.top), right: Math.max(box.right, r.right), bottom: Math.max(box.bottom, r.bottom) }
+            : r;
+        }
+      }
+      return box;
+    };
+    for (const row of document.body.querySelectorAll("*")) {
+      const s = getComputedStyle(row);
+      if (!s.display.endsWith("flex") || !s.flexDirection.startsWith("row") || s.flexWrap === "wrap") continue;
+      if (!shown(row) || parked(row) || row.closest("svg")) continue;
+      const texts = [...row.children]
+        .filter((child) => shown(child) && (child.textContent ?? "").trim() !== "" && !["absolute", "fixed"].includes(getComputedStyle(child).position))
+        .map((child) => ({ child, box: contentRect(child) }))
+        .filter((t) => t.box);
+      for (let i = 1; i < texts.length; i++) {
+        const a = texts[i - 1].box;
+        const b = texts[i].box;
+        const w = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+        const h = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+        if (w > tol && h > tol) report(5, texts[i].child, `Text überdeckt ${describe(texts[i - 1].child)} um ${round(w)} × ${round(h)} px`);
+      }
+    }
   }
 
   // 7 Primärknopf ohne Scrollen erreichbar: im Bild und in jedem Behälter, der abschneidet oder scrollt.
@@ -416,6 +460,111 @@ export async function measureSticky(page, { where = "" } = {}) {
     }
     return out;
   });
+}
+
+/// Invariante 5 am Ende: Seite und jeder Scrollbereich der Seite stehen am Ende (`measureSticky` hat sie dorthin
+/// gescrollt). Dann verdeckt keine feste Leiste am unteren Rand (Auswahl-Leiste, Tastatur-Hinweis) ein
+/// Bedienelement: weiter scrollen geht nicht, es bliebe unerreichbar. Gemessen wird am unteren Rand des sichtbaren
+/// Teils (ein Pixel Toleranz), dort rückt eine Leiste von unten zuerst darüber.
+export async function measureBottomCover(page, { where = "" } = {}) {
+  await page.evaluate(async () => {
+    for (const el of document.body.querySelectorAll("*")) {
+      if (el.closest('.bottom-sheet, .overlay, .toast-layer, [data-layer]')) continue;
+      const s = getComputedStyle(el);
+      if (!["auto", "scroll"].includes(s.overflowY) || el.scrollHeight <= el.clientHeight + 1) continue;
+      el.scrollTop = el.scrollHeight;
+    }
+    await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+  });
+  await settle(page, { where });
+  return page.evaluate(() => {
+    const out = [];
+    const tol = 1;
+    const vw = document.documentElement.clientWidth;
+    const vh = window.innerHeight;
+    const describe = (el) => {
+      const holder = el.closest("[data-testid]");
+      const name = (el.getAttribute("aria-label") || el.textContent || "").replace(/\s+/g, " ").trim();
+      const cls = typeof el.className === "string" ? el.className.split(/\s+/).find((c) => /^[a-z]+(-[a-z]+)+$/.test(c)) : null;
+      return `${holder ? `[data-testid="${holder.getAttribute("data-testid")}"] ` : ""}${el.tagName.toLowerCase()}${cls ? `.${cls}` : ""}${name ? ` "${name.length > 40 ? name.slice(0, 40) + "…" : name}"` : ""}`;
+    };
+    const fixedAncestor = (el) => {
+      for (let node = el; node && node !== document.documentElement; node = node.parentElement) {
+        if (getComputedStyle(node).position === "fixed") return node;
+      }
+      return null;
+    };
+    for (const el of document.querySelectorAll('button, a[href], input, select, textarea, [role="option"], [role="tab"]')) {
+      if (el.closest('.bottom-sheet, .overlay, .toast-layer, [data-layer], [inert], [aria-hidden="true"]')) continue;
+      if (fixedAncestor(el)) continue;
+      if (!el.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue;
+      // Der sichtbare Teil: im Bild und in jedem Behälter, der abschneidet.
+      let r = el.getBoundingClientRect();
+      let box = { left: Math.max(r.left, 0), top: Math.max(r.top, 0), right: Math.min(r.right, vw), bottom: Math.min(r.bottom, vh) };
+      for (let node = el.parentElement; node && node !== document.body; node = node.parentElement) {
+        const s = getComputedStyle(node);
+        if (s.overflowX === "visible" && s.overflowY === "visible") continue;
+        const c = node.getBoundingClientRect();
+        box = { left: Math.max(box.left, c.left), top: Math.max(box.top, c.top), right: Math.min(box.right, c.right), bottom: Math.min(box.bottom, c.bottom) };
+      }
+      if (box.right - box.left < tol || box.bottom - box.top < tol) continue;
+      const hit = document.elementFromPoint((box.left + box.right) / 2, Math.max(box.top, box.bottom - tol - 0.5));
+      if (!hit || hit === el || el.contains(hit)) continue;
+      const bar = fixedAncestor(hit);
+      if (!bar || bar.getBoundingClientRect().bottom < vh - tol) continue;
+      out.push({ inv: 5, selector: describe(el), value: `am Ende gescrollt verdeckt von ${describe(bar)}` });
+    }
+    return out;
+  });
+}
+
+/// Invariante 6 in einer offenen Ebene: scrollt ihr Körper, bleiben Kopf, Tabs und angeheftete Zeilen stehen.
+/// Ist der Körper zu kurz zum Scrollen, verlängert ihn für die Messung ein leerer Block.
+export async function measureLayerSticky(page, { where = "" } = {}) {
+  const before = await page.evaluate(() => {
+    const fixed = '.sheet-header, .sheet-pinned, [role="tablist"]';
+    const layers = [...document.querySelectorAll(".bottom-sheet.active, [data-layer]")].filter((el) => el.checkVisibility());
+    const marked = [];
+    layers.forEach((layer, i) => {
+      const body = layer.querySelector(".sheet-body");
+      if (!body) return;
+      const filler = document.createElement("div");
+      filler.setAttribute("data-sweep-filler", "");
+      filler.style.height = "2000px";
+      body.append(filler);
+      for (const el of layer.querySelectorAll(fixed)) {
+        if (!el.checkVisibility() || body.contains(el) && !["sticky"].includes(getComputedStyle(el).position)) continue;
+        const id = `${i}-${marked.length}`;
+        el.setAttribute("data-sweep-fixed", id);
+        const r = el.getBoundingClientRect();
+        marked.push({ id, top: r.top, left: r.left });
+      }
+      // Alles, was in der Ebene scrollt, ans Ende: der Körper und jeder Behälter um ihn.
+      for (let node = body; node && node !== layer.parentElement; node = node.parentElement) {
+        const s = getComputedStyle(node);
+        if (["auto", "scroll"].includes(s.overflowY)) node.scrollTop = node.scrollHeight;
+      }
+    });
+    return marked;
+  });
+  await settle(page, { where: `${where}, Ebene gescrollt` });
+  return page.evaluate((before) => {
+    const out = [];
+    for (const { id, top, left } of before) {
+      const el = document.querySelector(`[data-sweep-fixed="${id}"]`);
+      el.removeAttribute("data-sweep-fixed");
+      const r = el.getBoundingClientRect();
+      const dy = r.top - top;
+      const dx = r.left - left;
+      if (Math.abs(dy) > 1 || Math.abs(dx) > 1) {
+        const holder = el.closest("[data-testid]");
+        const what = el.getAttribute("role") ? `[role="${el.getAttribute("role")}"]` : `.${el.className.split(/\s+/)[0]}`;
+        out.push({ inv: 6, selector: `${holder ? `[data-testid="${holder.getAttribute("data-testid")}"] ` : ""}${el.tagName.toLowerCase()}${what}`, value: `rückt beim Scrollen der Ebene um ${Math.round(dx)} / ${Math.round(dy)} px` });
+      }
+    }
+    for (const filler of document.querySelectorAll("[data-sweep-filler]")) filler.remove();
+    return out;
+  }, before);
 }
 
 /// Farbregel neben den Invarianten (ADR 0075 Punkt 5, Fix 5850313): auf der Budget-Seite gibt es kein Pink.
@@ -568,8 +717,16 @@ export async function runState(browser, baseUrl, state, width, { inject = null, 
       await settle(page, { where });
     }
 
-    // Sticky-Köpfe der Seite zählen nur ohne offene Ebene: mit Sheet ist die Seite dahinter gesperrt.
-    if (want(6) && !(await hasOpenLayer(page))) found.push(...(await measureSticky(page, { where })));
+    // Sticky-Köpfe der Seite zählen nur ohne offene Ebene: mit Sheet ist die Seite dahinter gesperrt, dann
+    // zählen Kopf und Tabs der Ebene. Am Ende der Seite misst Invariante 5 noch, ob eine feste Leiste unten
+    // etwas verdeckt.
+    if (await hasOpenLayer(page)) {
+      if (want(6)) found.push(...(await measureLayerSticky(page, { where })));
+    } else if (want(6) || want(5)) {
+      const sticky = await measureSticky(page, { where });
+      if (want(6)) found.push(...sticky);
+      if (want(5)) found.push(...(await measureBottomCover(page, { where })));
+    }
   } finally {
     await context.close();
   }

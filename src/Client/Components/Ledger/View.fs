@@ -851,10 +851,10 @@ let selectableRowClassName (selected: bool) (isAnchor: bool) : string =
     |> String.concat " "
 
 /// Die Kästchen-Zelle einer PC-Zeile: ein Klick schaltet die Auswahl (mit Shift die
-/// Spanne), er öffnet nicht die Historie.
+/// Spanne), er öffnet nicht die Historie. Der Abstand links in Pixeln wie im Kopf (`Table.calmHeaderContentCell`).
 let private selectBoxCell (dispatch: Msg -> unit) (selected: bool) (entry: LedgerEntryView) : ReactElement =
     Html.td [
-        prop.className "pl-5 pr-0 py-0"
+        prop.className "pl-[20px] pr-0 py-0"
         prop.children [
             MultiSelect.boxButton
                 (if selected then MultiSelect.Checked else MultiSelect.Unchecked)
@@ -3163,6 +3163,26 @@ let keyboardHintVisible (model: Model) : bool =
     | Success (_ :: _) -> (listInteractionTraits model.ListInteraction).FooterHint && not (hasSelection model)
     | _ -> false
 
+/// Die feste Leiste unten am PC (Auswahl-Leiste oder Tastatur-Hinweis) schreibt ihre gemessene Höhe als
+/// `--ledger-bottom-bar-height` auf das Dokument, `.ledger-account-strip` in `styles.css` endet darüber. Die
+/// Leiste bricht um und wächst mit der Schrift, eine feste Höhe passte dann nicht (Layout-Sweep, Zustand
+/// kassenbuch-viele-konten-auswahl). Gemessen wird das erste Kind der Hülle, die Hülle selbst hat keine Höhe,
+/// weil die Leiste `fixed` ist. Der Aufrufer gibt jeder Leiste einen eigenen Schlüssel, damit ein Wechsel
+/// einen neuen Knoten bindet.
+[<ReactComponent>]
+let private MeasuredBottomBar (bar: ReactElement) =
+    let disconnect = React.useRef<(unit -> unit) option> None
+    let measure =
+        React.useCallback (
+            (fun (element: Browser.Types.Element) ->
+                disconnect.current |> Option.iter (fun stop -> stop ())
+                disconnect.current <- None
+                if not (isNull (box element)) then
+                    disconnect.current <- Some (Viewport.mirrorChildHeight "--ledger-bottom-bar-height" element)),
+            [||]
+        )
+    Html.div [ prop.ref measure; prop.children [ bar ] ]
+
 /// Die Auswahl-Leiste am unteren Rand (ledger-r1d2f), mit der einen primären Aktion
 /// "Geprüft" (ledger-nhwrt). Am Handy
 /// erscheint sie im Auswahl-Modus und ersetzt die Tab-Bar (zwei Reihen), am PC, solange die
@@ -3240,21 +3260,26 @@ let selectionBars (dispatch: Msg -> unit) (model: Model) : ReactElement =
                 selectionClearLabel
                 (fun () -> dispatch ClearSelection)
         if totals.Count > 0 then
-            MultiSelect.barDesktop
-                countText
-                totals.Amount
-                selectionReviewedLabel
-                model.ReviewMarkBatchRunning
-                locked
-                (fun () -> dispatch StartReviewMarkBatch)
-                category
-                lena
-                withdraw
-                selectionClearLabel
-                selectionClearKeyHint
-                (fun () -> dispatch ClearSelection)
+            React.keyedFragment (
+                "selection-bar",
+                [ MeasuredBottomBar (
+                      MultiSelect.barDesktop
+                          countText
+                          totals.Amount
+                          selectionReviewedLabel
+                          model.ReviewMarkBatchRunning
+                          locked
+                          (fun () -> dispatch StartReviewMarkBatch)
+                          category
+                          lena
+                          withdraw
+                          selectionClearLabel
+                          selectionClearKeyHint
+                          (fun () -> dispatch ClearSelection)
+                  ) ]
+            )
         elif keyboardHintVisible model then
-            keyboardHint (keyboardHintTextFor model)
+            React.keyedFragment ("keyboard-hint", [ MeasuredBottomBar (keyboardHint (keyboardHintTextFor model)) ])
     ]
 
 /// Je ein Abstandshalter in Höhe der Leiste unter der Liste, damit die letzte Zeile

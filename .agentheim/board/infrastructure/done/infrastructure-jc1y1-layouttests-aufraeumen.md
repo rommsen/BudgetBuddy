@@ -257,7 +257,7 @@ Der Zustand `regeln-dialog-picker` (aus nx14s) flackerte unter Last. Das Popover
 
 **Wo die Regressionsfälle der Tests mit Bugbezug weiterleben:**
 - `budget-page:192` (Bug F3, budgeting-kjsht): Sweep `budget` (Zeilen mit fehlt und pausiert bei 320 und 390 px, Invariante 4).
-- `budget-page:381` (design-system-k4f9t, w7c2h, 0f9453c): `[fokus] Fokus am PC: nach einem Mausklick …` (wann der Ring erscheint). Wie er aussieht, ist Optik (Styleguide).
+- `budget-page:381` (design-system-k4f9t, w7c2h, 0f9453c): entfällt als Designwert. Der Fix 0f9453c war rein optisch (Innenabstand der Chips, `outline-offset: 0`, kein Ring am Tab). Der zunächst verschobene `[fokus]`-Test prüfte nur die `:focus-visible`-Heuristik des Browsers und ist im Review-Lauf vom 2026-11-08 gelöscht.
 - `budget-page:658` (Bug D3): Sweep `budget`, Invariante 6 nach dem Scrollen ans Ende.
 - `budget-page:735` (5850313): `[fokus] Sheet: beim Schließen ist es sofort inert …` und `BudgetPageTests` „Schließen beendet die Auswahl“. Die Ausfahrt selbst ist Animation.
 - `budget-page:919` (budgeting-c6vn4 M1, h7q4v, r7h2q, 9faa461), `:968` (c6vn4, a3k7m): Sweep `budget` bei `PAGE_WIDTHS` (Invarianten 1, 2, 4). Die Reihenfolge im Kopf ist Design.

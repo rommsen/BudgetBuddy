@@ -9,7 +9,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-import { findViolations, patternsFor, run } from "./token-guard.mjs";
+import { findViolations, run } from "./token-guard.mjs";
 
 const scriptPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "token-guard.mjs");
 
@@ -127,16 +127,6 @@ for (const line of PINK_LINES) {
     assert.equal(comment.code, 0, comment.out);
   });
 }
-
-test("unter Components/Budget/: die echten Budget-Dateien tragen kein wörtliches Pink", () => {
-  const budgetDir = path.join(path.dirname(scriptPath), "..", "src", "Client", "Components", "Budget");
-  const files = fs.readdirSync(budgetDir).filter((n) => n.endsWith(".fs"));
-  assert.ok(files.length > 5, "die Budget-Dateien sind da");
-  for (const name of files) {
-    const hits = findViolations(fs.readFileSync(path.join(budgetDir, name), "utf8"), patternsFor(`Components/Budget/${name}`));
-    assert.deepEqual(hits, [], name);
-  }
-});
 
 test("obj/ und bin/ werden nicht geprüft", () => {
   const fx = makeFixture({ "obj/Gen.fs": 'let v = "text-red-500"\n', "bin/Gen.fs": 'let v = "text-red-500"\n' });

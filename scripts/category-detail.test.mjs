@@ -153,12 +153,11 @@ test("[flow:budget-zur-buchung] Handy: Zeile tippen, Tab Buchungen, Buchung tipp
   }
 });
 
-// Der Kontowechsel auf der Route stand vorher in einem eigenen Test mit demselben Sprung
-// (infrastructure-b3t9k): der Schritt in die Liste lädt nicht neu, Browser-Zurück öffnet die
-// Buchung nicht erneut. Bis infrastructure-jc1y1 trug der Test `[layout]`; Beträge und Texte im Panel
-// prüft BudgetPageTests, hier bleibt der Weg mit Esc zurück und über die Kontoleiste.
-test("[tastatur] PC: aus dem Panel zur Buchung im Kassenbuch, Esc führt zurück, ein Kontowechsel dort lädt nicht neu und Browser-Zurück öffnet die Buchung nicht erneut", async () => {
-  const { context, page, calls } = await openPage(1440, 900);
+// Der Sprung selbst ist `[flow:budget-zur-buchung]`, dass ein Kontowechsel im Kassenbuch nicht neu lädt, prüft
+// `src/Tests/LedgerPageTests.fs`. Hier bleibt die Taste: Esc führt aus der Buchung zurück ins Panel, und
+// Browser-Zurück öffnet die Buchung danach nicht erneut (infrastructure-b3t9k, infrastructure-jc1y1).
+test("[tastatur] PC: aus dem Panel zur Buchung im Kassenbuch, Esc führt zurück und Browser-Zurück öffnet die Buchung nicht erneut", async () => {
+  const { context, page } = await openPage(1440, 900);
   try {
     await row(page, "Lebensmittel m1bce").click();
     await openTab(page, "Buchungen");
@@ -170,17 +169,10 @@ test("[tastatur] PC: aus dem Panel zur Buchung im Kassenbuch, Esc führt zurück
     await page.keyboard.press("Escape");
     await expectBackInDetail(page);
 
-    await page.locator('[data-testid="detail-entry"]').first().click();
-    await page.waitForURL(/#\/ledger\/entry\//);
-    await page.getByLabel("Detail Sprung m1bce").waitFor();
-    const accountLoads = calls.accounts;
-    await page.locator(".ledger-account-strip").getByText("Alle Konten").filter({ visible: true }).first().click();
-    await page.waitForURL(/#\/ledger$/);
-    assert.equal(calls.accounts, accountLoads, "der Schritt in die Liste lädt die Seite nicht neu");
     await page.goBack();
-    await page.waitForURL(/#\/budget$/);
+    await page.waitForURL((url) => !/#\/budget$/.test(url.href));
+    assert.doesNotMatch(page.url(), /#\/ledger\/entry\//, "Browser-Zurück öffnet die Buchung nicht erneut");
   } finally {
     await context.close();
   }
 });
-

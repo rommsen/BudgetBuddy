@@ -108,13 +108,13 @@ let summaryRow (label: string) (amount: Shared.Domain.Money) : ReactElement =
         ]
     ]
 
-/// Der Textknopf "Auswahl aufheben": ohne Grund und Rand, gedämpft. `fill` füllt am Handy
-/// die Reihe (44px Trefferfläche), am PC bleibt er so breit wie sein Text.
-let private clearButton (label: string) (onClick: unit -> unit) (fill: bool) : ReactElement =
+/// Der Textknopf "Auswahl aufheben": ohne Grund und Rand, gedämpft, so breit wie sein Text. `mobile` (die
+/// Handy-Leiste) gibt 48 px Trefferfläche; bricht die Reihe um, steht er links in der neuen Zeile.
+let private clearButton (label: string) (onClick: unit -> unit) (mobile: bool) : ReactElement =
     Html.button [
         prop.type' "button"
         prop.className (
-            (if fill then "flex-1 min-h-12 md:min-h-[44px] px-2 whitespace-nowrap " else "py-2.5 px-3.5 ") +
+            (if mobile then $"{TouchTargets.alwaysMinHeight} px-2 whitespace-nowrap " else "py-2.5 px-3.5 ") +
             $"inline-flex items-center justify-center rounded-lg font-semibold {FontSizes.sm} " +
             $"{Colors.textSecondary} hover:text-text-primary hover:bg-surface-hover transition-colors touch-manipulation"
         )
@@ -238,7 +238,7 @@ let barMobile
                 prop.children (countAndSum countText amount)
             ]
             Html.div [
-                // Bei 320 px bricht "Auswahl aufheben" in eine eigene Zeile um, statt aus dem Bild zu ragen.
+                // Die Reihe bricht um, sobald die Elemente nicht in eine Reihe passen, statt aus dem Bild zu ragen.
                 prop.className "flex flex-wrap items-center gap-2"
                 prop.children [
                     ChipBar.chip { Label = allLabel; IsActive = allActive; OnClick = onAll; OnRemove = None }

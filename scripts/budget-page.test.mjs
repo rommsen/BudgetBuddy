@@ -206,40 +206,6 @@ const tabsOf = (scope) => scope.locator('[data-testid="inspector-tabs"]').getByR
 
 const pickRow = (page, name) => visibleRows(page).filter({ has: page.getByText(name, { exact: true }) }).click();
 
-/// Zeigt das fokussierte Element den Fokusring (`:focus-visible`)?
-const focusVisible = (page) => page.evaluate(() => document.activeElement.matches(":focus-visible"));
-
-// Regression (design-system-k4f9t, design-system-w7c2h): am Tab und am aktiven Chip sah der Fokus je nach
-// Klickfolge verschieden aus. Wie der Ring aussieht, ist Optik (Styleguide, Doktrin Punkt 5); hier bleibt,
-// wann er erscheint: nach einem Mausklick nie, per Tastatur immer.
-test("[fokus] Fokus am PC: nach einem Mausklick auf Tab oder Chip steht kein Fokusring, per Tastatur erscheint er", async () => {
-  const { context, page } = await openPage(1440, 900, { fixture: filterFixture });
-  try {
-    const panel = page.locator('[data-testid="budget-inspector"]');
-    const geld = tabsOf(panel).first();
-    await pickRow(page, "Essen");
-    await panel.getByRole("heading", { name: "Essen" }).waitFor();
-
-    await geld.click();
-    assert.equal(await focusVisible(page), false, "nach dem Mausklick auf den Tab kein Ring");
-    await page.keyboard.press("ArrowRight");
-    await page.waitForFunction(() => document.activeElement.textContent === "Buchungen");
-    await page.keyboard.press("ArrowLeft");
-    await page.waitForFunction(() => document.activeElement.textContent === "Geld");
-    assert.equal(await focusVisible(page), true, "Tab: der Fokus kommt von der Tastatur");
-
-    const chips = page.locator('[data-testid="budget-filter"]').getByRole("button");
-    await chips.nth(2).click();
-    assert.equal(await focusVisible(page), false, "nach dem Mausklick auf den Chip kein Ring");
-    await page.keyboard.press("Shift+Tab");
-    await page.keyboard.press("Tab");
-    assert.match(await page.evaluate(() => document.activeElement.textContent), /^Überzogen/, "Chip: der Fokus steht auf Überzogen");
-    assert.equal(await focusVisible(page), true, "Chip: per Tastatur ist der Ring sichtbar");
-  } finally {
-    await context.close();
-  }
-});
-
 const sheet = (page) => page.locator(".bottom-sheet.fixed-height");
 
 test("[tastatur] Tastatur am PC: Pfeile wechseln die Kategorie und die Liste scrollt mit", async () => {

@@ -440,10 +440,12 @@ let calmSortableHeaderCell (text: string) (align: string option) (direction: Sor
     ]
 
 /// Kopfzelle der ruhigen Tabelle mit eigenem Inhalt, etwa das Kopfzeilen-Kästchen einer
-/// Auswahlspalte (ledger-r1d2f). Links bündig, rechts ohne Innenabstand.
+/// Auswahlspalte (ledger-r1d2f). Links bündig, rechts ohne Innenabstand. Der Abstand links steht in Pixeln wie
+/// die Spaltenbreite (44 px, `selectColumnWidth` im Kassenbuch): in rem wüchse er mit der Grundschrift über die
+/// Spalte hinaus (Layout-Sweep, Zustand kassenbuch-grosse-schrift).
 let calmHeaderContentCell (children: ReactElement list) =
     Html.th [
-        prop.className $"{ListRoles.columnHeader} bg-surface-elevated pl-5 pr-0 text-left"
+        prop.className $"{ListRoles.columnHeader} bg-surface-elevated pl-[20px] pr-0 text-left"
         prop.children children
     ]
 

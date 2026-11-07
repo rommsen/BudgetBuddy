@@ -26,3 +26,4 @@ Geschnitten und priorisiert wird im Refinement.
 - Untere Navigation bei 320 px: zwischen den sechs Einträgen hängt der Abstand an `justify-around`, die 8 px aus §7.15 misst der Sweep nicht. Erledigt sich mit „Navigation nur mit den drei Orten“ (Etappe 3).
 - `grid-cols-[1fr_2fr]` im Tab Target (`TargetFormView.fs`) ist ein freier Wert; bei 320 px bleiben dem Betragsfeld rund 90 px. Am Bildschirm prüfen.
 - `src/Client/DesignSystem/ErrorDisplay.fs:355` zeigt den sichtbaren Text „Dismiss“, englisch (Styleguide §8). Aufgefallen beim Review-Lauf, außerhalb seines Rahmens.
+- Rohe 48-px-Klassen außerhalb von `TouchTargets` bestehen noch in `Button.fs:75`, `:76`, `:489`, `Input.fs:36` und `Components/Budget/TargetsView.fs:34` (`min-h-12 md:min-h-10`). Auf `TouchTargets.mobileMinHeight` umstellen (Review-Lauf nach jc1y1).

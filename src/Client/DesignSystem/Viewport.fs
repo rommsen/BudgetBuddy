@@ -51,6 +51,15 @@ let private sync () =
 let observeHeight (element: Element) (onResize: float -> unit) : (unit -> unit) =
     jsNative
 
+/// Schreibt die Rand-zu-Rand-Höhe des ersten Kinds von `element` als CSS-Variable auf das Dokument und hält
+/// sie per ResizeObserver aktuell, für eine `fixed` Leiste, deren Hülle selbst keine Höhe hat. Die zurückgegebene
+/// Funktion trennt den Observer und entfernt die Variable.
+[<Emit(
+    "(function(v, el) { var child = el.firstElementChild; if (!child) return function() {}; var root = document.documentElement; var o = new ResizeObserver(function() { root.style.setProperty(v, child.getBoundingClientRect().height + 'px'); }); o.observe(child); return function() { o.disconnect(); root.style.removeProperty(v); }; })($0, $1)"
+)>]
+let mirrorChildHeight (variable: string) (element: Element) : (unit -> unit) =
+    jsNative
+
 let mutable private started = false
 
 /// Starts mirroring the visual viewport into CSS vars. Idempotent; call once at startup.

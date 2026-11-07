@@ -311,16 +311,23 @@ test("[flow:regeln-importieren] Handy: das Menü bleibt nach dem Tipp offen, Imp
     await page.getByText(/Imported 2 rule/).first().waitFor();
     assert.deepEqual(calls.importRules.map((body) => JSON.parse(body)), [[importFile]]);
 
-    // Beide Klicks laufen im selben Tick, damit das Fenster von 350 ms nicht von der Testlast abhängt.
     await openSheets(page).first().waitFor({ state: "detached" });
-    // Der Schutz nach Importieren schluckt bis zu 350 ms lang einen Klick (ADR 0005): bis zur Wirkung wiederholen.
-    for (let attempt = 0; attempt < 5 && (await menuItems(page).count()) === 0; attempt += 1) {
-      await menuButton(page).click();
-      await menuItems(page).first().waitFor({ timeout: 500 }).catch(() => {});
-    }
+    // Der Schutz nach Importieren schluckt bis zu 350 ms lang einen Klick (ADR 0005). Gewartet wird, bis ein
+    // Probeklick wieder ankommt: ein geschluckter Klick beendet den Schutz, danach ist er weg.
+    await page.waitForFunction(() => {
+      const probe = document.createElement("span");
+      document.body.append(probe);
+      let arrived = false;
+      probe.addEventListener("click", () => (arrived = true));
+      probe.click();
+      probe.remove();
+      return arrived;
+    });
+    await menuButton(page).click();
     await menuItems(page).first().waitFor();
     const exported = page.waitForResponse("**/api/RulesApi/exportRules");
     const clicked = page.evaluate(() => new Promise((done) => window.addEventListener("click", () => requestAnimationFrame(() => requestAnimationFrame(done)), { once: true, capture: true })));
+    // Beide Klicks laufen im selben Tick, damit das Fenster von 350 ms nicht von der Testlast abhängt.
     await page.evaluate(() => {
       const item = [...document.querySelectorAll('[role="menuitem"]')].find((el) => el.textContent === "Regeln exportieren");
       const row = [...document.querySelectorAll('[data-testid="rule-row"]')].find((el) => el.offsetParent !== null);
