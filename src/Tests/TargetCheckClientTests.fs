@@ -697,7 +697,7 @@ let private sketchTests =
         test "Regelsatz und Farbe je Gruppe" {
             let look group = checkGroupRule group, Components.Budget.TargetCheckView.checkGroupTitleClass group
             Expect.equal (look SpendsMore)
-                ("Ø mehr als 10 % und 10 € über dem Target, bei monatlichem oder wöchentlichem Rhythmus in mindestens der Hälfte der Monate, bei längerem mit einzelnen Zahlungen auch je Zahlung.", "text-neon-orange") "mehr"
+                ("Ø mehr als 10 % und 10 € über dem Target, bei monatlichem oder wöchentlichem Rhythmus in mindestens der Hälfte der Monate. Bei längerem Rhythmus mit Zahlungen in wenigen Monaten liegt auch die Zahlung so weit über dem ganzen Target.", "text-neon-orange") "mehr"
             Expect.equal (look SpendsLess) ("Ø mehr als 30 % und 10 € unter dem Target.", "text-calm-blue") "weniger"
             Expect.equal (look NeverSpends)
                 ("Höchstens ein Monat mit Ausgaben, bei längerem Rhythmus keiner. Für eine Rücklage ist das richtig.", "text-calm-violet") "nie"

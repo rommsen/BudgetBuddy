@@ -101,8 +101,10 @@ Das Gesamtkonzept sah "Passt das Target noch?" als Hinweis in Gelb an der Katego
   "Gibst du mehr aus?" nur, wenn zusätzlich zur Regel über den Ø die durchschnittliche Zahlung
   über dem Target je Rhythmus liegt, sofern die Ausgaben als einzelne Zahlungen kommen.
   Einzelne Zahlungen heißt: höchstens ⌈N ÷ P⌉ + 1 Monate mit Ausgaben bei N gezählten Monaten
-  (jährlich und 12 Monate: höchstens 2, alle 3 Monate und 12 Monate: höchstens 5). Betrag je
-  Zahlung = Summe der gezählten Monate ÷ Monate mit Ausgaben, Target je Rhythmus = M × P. Die
+  (jährlich und 12 Monate: höchstens 2, alle 3 Monate und 12 Monate: höchstens 5), und nie
+  Ausgaben in allen gezählten Monaten (sonst gälten bei P = 2 und N = 3 verteilte Ausgaben als
+  Zahlungen). Betrag je Zahlung = Summe der gezählten Monate ÷ Monate mit Ausgaben, Target je
+  Rhythmus = der Betrag des Targets (gleich M × P, ohne Rückrechnung). Die
   Zahlung muss über 1,1 × Target je Rhythmus und mindestens 10 € darüber liegen. Bei mehr
   Monaten mit Ausgaben (verteilte Ausgaben) bleibt die Regel über den Ø allein.
 - **Erklärung unter Punkt 8 eingeschränkt:** Der Satz "Bei P > 1 entscheidet deshalb nur der Ø
@@ -119,5 +121,5 @@ Das Gesamtkonzept sah "Passt das Target noch?" als Hinweis in Gelb an der Katego
 - **In Kauf genommen:** Zwei echte Zahlungen im Jahr mit dem Betrag des Targets sehen aus wie
   eine verschobene Abbuchung und stehen bei "Passt".
 - Weniger, nie, Kein Target, Zählbeginn, Vorschlag und P = 1 bleiben unverändert. Der
-  Regelsatz der Gruppe nennt die Bedingung ("bei längerem mit einzelnen Zahlungen auch je
-  Zahlung").
+  Regelsatz der Gruppe nennt die Bedingung ("Bei längerem Rhythmus mit Zahlungen in wenigen
+  Monaten liegt auch die Zahlung so weit über dem ganzen Target.").
