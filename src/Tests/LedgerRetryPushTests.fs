@@ -128,3 +128,54 @@ let retryPushTests =
             Expect.isFalse entry.LinkedToYnab "weiter unverknüpft"
             Expect.isSome entry.PushToYnabFailure "Fehlschlag steht weiter"
     ]
+
+// ============================================
+// Erneut senden unter der Schreib-Sperre (ADR 0055 Punkt 6, ledger-kfd5m)
+// ============================================
+
+[<Tests>]
+let retryPushWriteGuardTests =
+    let testCase name body =
+        testCase name (fun () ->
+            initializeLedgerSchema ()
+            global.Persistence.initializeDatabase ()
+            body ())
+
+    testSequenced
+    <| testList "Ledger Erneut senden (Schreib-Sperre)" [
+
+        testCase "Erneut senden während eines Spiegel-Laufs pusht und verknüpft erst nach dem Lauf" <| fun () ->
+            // ledger-kfd5m: `retryPushToYnab` lief ohne Schreib-Sperre. Ein Lauf zwischen
+            // Push und `EntryLinkedToYnab` sah die YNAB-Buchung ohne Partner und legte eine
+            // zweite Buchung an.
+            let entryId = newEntry "sperre"
+            append entryId (EntryPushToYnabFailed { Reason = "Netzwerkfehler: Timeout" })
+            let calls, push = countingPush (Ok $"ynab-kfd5m-{Guid.NewGuid()}")
+
+            let result =
+                LedgerWriteGuardProbe.commandWaitsForMirror
+                    (fun () ->
+                        Expect.equal (eventTypesOf entryId) [ "CashExpenseAdded"; "EntryPushToYnabFailed" ] "noch keine Verknüpfung während des Laufs"
+                        Expect.isEmpty calls "noch kein Push")
+                    (retryPushToYnab (at.AddHours 2.0) push noTrigger entryId)
+
+            Expect.equal result (Ok PushToYnabSent) "gesendet"
+            Expect.equal
+                (eventTypesOf entryId)
+                [ "CashExpenseAdded"; "EntryPushToYnabFailed"; "EntryLinkedToYnab" ]
+                "Verknüpfung erst nach dem Lauf"
+            Expect.equal calls.Count 1 "ein Push"
+
+        testCase "der Spiegel-Auslöser nach Erneut senden läuft erst nach Freigabe der Sperre" <| fun () ->
+            // ledger-kfd5m: `triggerMirror` sitzt hinter dem gesperrten Abschnitt. Ein
+            // Auslöser, der synchron einen gesperrten Lauf abwartet, darf nicht blockieren.
+            let entryId = newEntry "auslöser"
+            let _, push = countingPush (Ok $"ynab-kfd5m-{Guid.NewGuid()}")
+            let trigger = LedgerWriteGuardProbe.SyncMirrorTrigger(2000)
+
+            LedgerWriteGuardProbe.serialized (fun () ->
+                let run = Async.StartAsTask(retryPushToYnab (at.AddHours 2.0) push trigger.Trigger entryId)
+                Expect.isTrue (run.Wait 10000) "Befehl beendet")
+
+            Expect.equal trigger.FinishedInTime (Some true) "der Lauf des Auslösers endet in der Frist, die Sperre ist schon frei"
+    ]

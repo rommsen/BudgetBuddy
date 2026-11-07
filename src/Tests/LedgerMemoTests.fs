@@ -385,6 +385,51 @@ let commandTests =
     ]
 
 // ============================================
+// Schreib-Sperre gegen den Spiegel-Lauf (ADR 0055 Punkt 6, ledger-kfd5m)
+// ============================================
+//
+// ledger-kfd5m: die Sperren an `setEntryMemo` und `retryMemoWriteBack` waren ungetestet.
+// Ohne Sperre sähe ein Lauf zwischen Ereignis und PUT das alte Memo in YNAB als Änderung
+// und drehte das BB-Memo zurück.
+
+[<Tests>]
+let memoWriteGuardTests =
+    let testCase name body =
+        testCase name (fun () ->
+            initializeLedgerSchema ()
+            global.Persistence.initializeDatabase ()
+            body ())
+
+    let waitsForMirror (entryId: EntryId) (probe: MemoProbe) (command: Async<'a>) : 'a =
+        let before = eventTypesOf entryId
+        LedgerWriteGuardProbe.commandWaitsForMirror
+            (fun () ->
+                Expect.equal (eventTypesOf entryId) before "noch kein Ereignis während des Laufs"
+                Expect.isEmpty probe.Calls "noch kein Push")
+            command
+
+    testSequenced
+    <| testList "Memo: Schreib-Sperre" [
+
+        testCase "Memo ändern während eines Spiegel-Laufs schreibt und pusht erst nach dem Lauf" <| fun () ->
+            let entryId, _ = seedLinked (freshAccount ()) None
+            let probe = okProbe ()
+            waitsForMirror entryId probe (setEntryMemo at probe.Push entryId "Notiz") |> unwrap |> ignore
+            Expect.equal (eventTypesOf entryId |> List.length) 2 "ein neues Ereignis erst nach dem Lauf"
+            Expect.equal probe.Calls.Length 1 "ein Push"
+
+        testCase "Erneut senden des Memos während eines Spiegel-Laufs pusht erst nach dem Lauf" <| fun () ->
+            let entryId, _ = seedLinked (freshAccount ()) None
+            let failing = MemoProbe(Error (YnabError.NetworkError "weg"))
+            setMemo failing.Push entryId "Notiz" |> unwrap |> ignore
+            let probe = okProbe ()
+            let result = waitsForMirror entryId probe (retryMemoWriteBack at probe.Push entryId) |> unwrap
+            Expect.equal result MemoSent "gesendet"
+            Expect.equal (eventTypesOf entryId |> List.last) "EntryMemoWrittenBackToYnab" "Ereignis erst nach dem Lauf"
+            Expect.equal probe.Calls.Length 1 "ein Push"
+    ]
+
+// ============================================
 // Spiegel: observe mit Baseline (ADR 0062)
 // ============================================
 

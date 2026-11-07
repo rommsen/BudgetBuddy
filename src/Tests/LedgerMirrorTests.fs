@@ -1431,11 +1431,14 @@ let mirrorRunTests =
 let mirrorGuardTests =
     // Siehe mirrorRunTests oben: Initialisierung erst innerhalb der Testausführung,
     // nicht beim Modul-Laden (ADR 0030, infra-sdad8).
+    // `serialized`: ein Test, der gerade einen Spiegel-Lauf festhält (Schreib-Sperre,
+    // `LedgerWriteGuardProbe`), teilte sonst seinen Lauf mit diesen Tests (single flight).
     let testCase name body =
         testCase name (fun () ->
-            initializeLedgerSchema ()
-            global.Persistence.initializeDatabase ()
-            body ())
+            LedgerWriteGuardProbe.serialized (fun () ->
+                initializeLedgerSchema ()
+                global.Persistence.initializeDatabase ()
+                body ()))
 
     testSequenced
     <| testList "Ledger Spiegel: Einzel-Flug-Schutz (runMirrorGuarded)" [

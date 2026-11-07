@@ -1974,6 +1974,71 @@ let ledgerQuickAddCommandTests =
     ]
 
 // ============================================
+// Quick Add und Bob unter der Schreib-Sperre (ADR 0055 Punkt 6, ledger-kfd5m)
+// ============================================
+
+[<Tests>]
+let ledgerQuickAddWriteGuardTests =
+    let testCase name body =
+        testCase name (fun () ->
+            initializeLedgerSchema ()
+            global.Persistence.initializeDatabase ()
+            body ())
+
+    let freshInput (label: string) : CashExpenseInput = {
+        AccountId = testAccountId
+        Date = DateTime(2026, 11, 6, 0, 0, 0, DateTimeKind.Utc)
+        Amount = eur -8.40m
+        Payee = Some $"kfd5m-{label}-{Guid.NewGuid()}"
+        Memo = None
+        Category = None
+    }
+    let now = DateTime(2026, 11, 7, 9, 0, 0, DateTimeKind.Utc)
+
+    testSequenced
+    <| testList "Ledger CommandHandlers (addCashExpense, Schreib-Sperre)" [
+
+        testCase "eine Barbuchung, die während eines Spiegel-Laufs startet, schreibt und pusht erst nach dem Lauf" <| fun () ->
+            // ledger-kfd5m: `addCashExpense` lief ohne Schreib-Sperre. Ein Spiegel-Lauf
+            // zwischen Push und `EntryLinkedToYnab` sah die neue YNAB-Buchung ohne Partner
+            // (Quick Add und Bob tragen keine ImportId) und legte sie ein zweites Mal ins
+            // Kassenbuch. Der Befehl muss auf einen laufenden Lauf warten.
+            let entryId = newEntryId ()
+            let mutable pushCalls = 0
+            let push () : Async<YnabResult<string>> =
+                async {
+                    pushCalls <- pushCalls + 1
+                    return Ok $"ynab-kfd5m-{Guid.NewGuid()}"
+                }
+            let eventTypes () =
+                loadEventsForEntry entryId |> Async.RunSynchronously |> List.map (fun r -> r.EventType)
+
+            let result =
+                LedgerWriteGuardProbe.commandWaitsForMirror
+                    (fun () ->
+                        Expect.isEmpty (eventTypes ()) "noch kein CashExpenseAdded während des Laufs"
+                        Expect.equal pushCalls 0 "noch kein Push")
+                    (addCashExpense Bob now entryId push noTrigger (freshInput "gesperrt"))
+
+            Expect.equal result (Ok entryId) "gebucht"
+            Expect.equal (eventTypes ()) [ "CashExpenseAdded"; "EntryLinkedToYnab" ] "Ereignisse erst nach dem Lauf"
+            Expect.equal pushCalls 1 "ein Push"
+
+        testCase "der Spiegel-Auslöser nach dem Push läuft erst nach Freigabe der Sperre" <| fun () ->
+            // ledger-kfd5m: `triggerMirror` darf nicht im gesperrten Abschnitt sitzen. Ein
+            // Auslöser, der dort synchron einen gesperrten Lauf abwartet, käme nie an die
+            // Sperre; die Frist macht den Fehler sichtbar, ohne den Testlauf festzuhalten.
+            let trigger = LedgerWriteGuardProbe.SyncMirrorTrigger(2000)
+            let push () : Async<YnabResult<string>> = async.Return (Ok $"ynab-kfd5m-{Guid.NewGuid()}")
+
+            LedgerWriteGuardProbe.serialized (fun () ->
+                let run = Async.StartAsTask(addCashExpense QuickAdd now (newEntryId ()) push trigger.Trigger (freshInput "auslöser"))
+                Expect.isTrue (run.Wait 10000) "Befehl beendet")
+
+            Expect.equal trigger.FinishedInTime (Some true) "der Lauf des Auslösers endet in der Frist, die Sperre ist schon frei"
+    ]
+
+// ============================================
 // Import-Push: Kassenbuch zuerst, dann YNAB, dann Verknüpfung (ADR 0021, Teil 2,
 // ledger-qvt84, pushComdirectImports)
 // ============================================

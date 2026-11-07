@@ -623,35 +623,32 @@ let categoryWriteGuardTests =
 
         testCase "ein Befehl, der während eines Spiegel-Laufs startet, schreibt sein Ereignis erst nach dem Lauf" <| fun () ->
             let entryId, _ = seedLinked (Some catA)
-            let fetchStarted = TaskCompletionSource<unit>()
-            let release = TaskCompletionSource<unit>()
-            let fetchers : MirrorFetchers = {
-                emptyMirrorFetchers with
-                    FetchTransactions =
-                        fun _ ->
-                            async {
-                                fetchStarted.TrySetResult () |> ignore
-                                do! Async.AwaitTask release.Task
-                                return Ok { Observations = []; ServerKnowledge = 1L }
-                            }
-            }
-            let mirrorTask =
-                Async.StartAsTask(runMirrorGuarded at fetchers (YnabBudgetId "budget-write-guard"))
-            Expect.isTrue (fetchStarted.Task.Wait 5000) "der Lauf hängt im Abruf"
-
             let probe = okProbe ()
-            let commandTask =
-                Async.StartAsTask(setEntryCategory at probe.Push entryId (Some (idOf catB)))
-            Threading.Thread.Sleep 300
-            Expect.isFalse commandTask.IsCompleted "der Befehl wartet auf den Lauf"
-            Expect.equal (eventTypesOf entryId) [ "EntryObservedInYnab" ] "noch kein Ereignis während des Laufs"
-            Expect.isEmpty probe.Calls "noch kein Push"
-
-            release.SetResult ()
-            Expect.isTrue (mirrorTask.Wait 5000) "Lauf beendet"
-            Expect.isTrue (commandTask.Wait 5000) "Befehl beendet"
+            LedgerWriteGuardProbe.commandWaitsForMirror
+                (fun () ->
+                    Expect.equal (eventTypesOf entryId) [ "EntryObservedInYnab" ] "noch kein Ereignis während des Laufs"
+                    Expect.isEmpty probe.Calls "noch kein Push")
+                (setEntryCategory at probe.Push entryId (Some (idOf catB)))
+            |> ignore
             Expect.equal (eventTypesOf entryId) [ "EntryObservedInYnab"; "EntryRecategorized" ] "Ereignis erst nach dem Lauf"
             Expect.equal (entryOf entryId).Category (Some catB) "Kategorie gesetzt"
+            Expect.equal probe.Calls.Length 1 "ein Push"
+
+        testCase "Erneut senden der Kategorie während eines Spiegel-Laufs pusht erst nach dem Lauf" <| fun () ->
+            // ledger-kfd5m: die Sperre an `retryCategorizationWriteBack` war ungetestet.
+            let entryId, _ = seedLinked (Some catA)
+            let failing = PushProbe(Error (YnabError.NetworkError "Timeout"))
+            setCategory failing.Push entryId (Some catB) |> unwrap |> ignore
+            let before = eventTypesOf entryId
+            let probe = okProbe ()
+            let result =
+                LedgerWriteGuardProbe.commandWaitsForMirror
+                    (fun () ->
+                        Expect.equal (eventTypesOf entryId) before "noch kein Ereignis während des Laufs"
+                        Expect.isEmpty probe.Calls "noch kein Push")
+                    (retryCategorizationWriteBack at probe.Push entryId)
+            Expect.equal (unwrap result) CategorySent "gesendet"
+            Expect.equal (eventTypesOf entryId |> List.last) "EntryCategorizationWrittenBackToYnab" "Ereignis erst nach dem Lauf"
             Expect.equal probe.Calls.Length 1 "ein Push"
     ]
 

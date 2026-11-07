@@ -542,12 +542,21 @@ let runMirror
             return! finish (Error $"Spiegel-Lauf abgebrochen: {ex.Message}")
     }
 
-/// Die Schreib-Sperre (ADR 0055, Punkt 6): der Spiegel-Lauf (Abruf und `observe`) und die
-/// Kategorie-Befehle (Ereignis und Push) laufen nicht ineinander. Sonst kann ein Lauf, der
-/// zwischen Ereignis und PUT abruft, den alten YNAB-Stand als Änderung beobachten und die
-/// BB-Kategorie zurückdrehen. Ein Befehl wartet höchstens auf einen laufenden Lauf (oder
+/// Die Schreib-Sperre (ADR 0055, Punkt 6, Nachtrag 2026-11-07): der Spiegel-Lauf (Abruf und
+/// `observe`) und jeder Kassenbuch-Befehl, der ein Ereignis schreibt und danach zu YNAB
+/// pusht, laufen nicht ineinander. Sonst kann ein Lauf, der zwischen Ereignis und Push
+/// abruft, den alten YNAB-Stand als Änderung beobachten und die BB-Entscheidung
+/// zurückdrehen (Kategorie, Split, Memo, Flag, Prüfvermerk), oder er sieht eine gerade
+/// angelegte YNAB-Buchung ohne Partner und legt sie ein zweites Mal an (Quick Add, Bob,
+/// Erneut senden; ledger-kfd5m). Ein Befehl wartet höchstens auf einen laufenden Lauf (oder
 /// einen anderen Befehl). `internal`, damit ein Test die Sperre halten kann
 /// (`InternalsVisibleTo "Tests"`).
+///
+/// Kein Verschachteln: `SemaphoreSlim` ist nicht wiedereintrittsfähig. Kein gesperrter
+/// Befehl ruft einen anderen gesperrten Befehl, und kein gesperrter Abschnitt ruft
+/// `triggerMirror` (der Spiegel-Lauf nimmt dieselbe Sperre); der Auslöser läuft erst nach
+/// der Freigabe. Bobs `bookingGate` (`BotApi`) wird immer vor dieser Sperre genommen,
+/// nie umgekehrt: `bookPreview` hält `bookingGate` und ruft darin `addCashExpense`.
 module internal WriteGuard =
     let private gate = new System.Threading.SemaphoreSlim(1, 1)
 
@@ -654,10 +663,12 @@ let describeNotCreatedReason (importId: string) (result: Ynab.TransactionCreateR
 /// YNAB-Verknüpfung bis zu einem erneuten Push oder dem nächsten Spiegel-Lauf. Der
 /// Fehlschlag steht danach als `EntryPushToYnabFailed` mit Grund im Log (ledger-rynk5).
 ///
-/// Nach erfolgreichem Push stößt `triggerMirror` den Spiegel an (ADR 0014 Punkt 2):
-/// erst wenn `EntryLinkedToYnab` geschrieben ist, nie davor (Task-Nachtrag, ADR 0021),
-/// sonst sähe ein dazwischenkommender Lauf die YNAB-Buchung ungematcht und legte eine
-/// zweite Buchung an (Quick Add trägt keine ImportId, ADR 0004).
+/// Ereignis, Push und Verknüpfung laufen unter der Schreib-Sperre (`WriteGuard`,
+/// ledger-kfd5m): ein Lauf zwischen Push und `EntryLinkedToYnab` sähe die YNAB-Buchung
+/// ungematcht und legte eine zweite Buchung an (Quick Add trägt keine ImportId, ADR 0004).
+/// Nach erfolgreichem Push stößt `triggerMirror` den Spiegel an (ADR 0014 Punkt 2): erst
+/// wenn `EntryLinkedToYnab` geschrieben und die Sperre wieder frei ist, nie davor
+/// (Task-Nachtrag, ADR 0021; der Lauf nimmt dieselbe Sperre).
 ///
 /// `now`, `push` und `triggerMirror` kommen von außen, damit der Ablauf ohne Uhr, ohne
 /// Netz und ohne Spiegel-Lauf testbar ist (Muster wie `MirrorFetchers` beim
@@ -677,49 +688,59 @@ let addCashExpense
     (input: CashExpenseInput)
     : Async<YnabResult<EntryId>> =
     async {
-        let cashExpenseAdded = {
-            EntryId = entryId
-            OccurredAt = now
-            Actor = actor
-            Body =
-                CashExpenseAdded {
-                    AccountId = input.AccountId
-                    Date = input.Date
-                    Amount = input.Amount
-                    Payee = input.Payee
-                    Memo = input.Memo
-                    Category = input.Category
-                    // Manuelle Eintraege sind immer uncleared (ADR 0004, Punkt 4).
-                    Cleared = Uncleared
-                    // Quick Add sendet kein `approved`; YNAB legt die Buchung
-                    // unbestätigt an (ADR 0032).
-                    Approved = false
-                }
-        }
-        do! Ledger.Persistence.appendAndApply [ cashExpenseAdded ]
-
-        match! push () with
-        | Ok ynabTransactionId ->
-            let linked = {
-                EntryId = entryId
-                OccurredAt = now
-                Actor = actor
-                Body = EntryLinkedToYnab { YnabTransactionId = ynabTransactionId }
-            }
-            do! Ledger.Persistence.appendAndApply [ linked ]
-            triggerMirror ()
-            return Ok entryId
-        | Error err ->
-            do!
-                Ledger.Persistence.appendAndApply [
-                    {
+        // Ereignis, Push und Verknüpfung unter der Schreib-Sperre (ledger-kfd5m): ein Lauf
+        // dazwischen sähe die neue YNAB-Buchung ohne Partner und legte eine zweite an.
+        let! result =
+            WriteGuard.exclusive (
+                async {
+                    let cashExpenseAdded = {
                         EntryId = entryId
                         OccurredAt = now
                         Actor = actor
-                        Body = EntryPushToYnabFailed { Reason = ynabErrorText err }
+                        Body =
+                            CashExpenseAdded {
+                                AccountId = input.AccountId
+                                Date = input.Date
+                                Amount = input.Amount
+                                Payee = input.Payee
+                                Memo = input.Memo
+                                Category = input.Category
+                                // Manuelle Eintraege sind immer uncleared (ADR 0004, Punkt 4).
+                                Cleared = Uncleared
+                                // Quick Add sendet kein `approved`; YNAB legt die Buchung
+                                // unbestätigt an (ADR 0032).
+                                Approved = false
+                            }
                     }
-                ]
-            return Error err
+                    do! Ledger.Persistence.appendAndApply [ cashExpenseAdded ]
+
+                    match! push () with
+                    | Ok ynabTransactionId ->
+                        let linked = {
+                            EntryId = entryId
+                            OccurredAt = now
+                            Actor = actor
+                            Body = EntryLinkedToYnab { YnabTransactionId = ynabTransactionId }
+                        }
+                        do! Ledger.Persistence.appendAndApply [ linked ]
+                        return Ok entryId
+                    | Error err ->
+                        do!
+                            Ledger.Persistence.appendAndApply [
+                                {
+                                    EntryId = entryId
+                                    OccurredAt = now
+                                    Actor = actor
+                                    Body = EntryPushToYnabFailed { Reason = ynabErrorText err }
+                                }
+                            ]
+                        return Error err
+                }
+            )
+
+        // Der Auslöser erst nach der Freigabe: der Lauf nimmt dieselbe Sperre.
+        if Result.isOk result then triggerMirror ()
+        return result
     }
 
 // ============================================
@@ -745,7 +766,8 @@ let pushNotPossibleReason = "Das Konto der Buchung ist nicht mit YNAB verbunden"
 /// (löst den offenen Fehlschlag auf) und stößt den Spiegel an, ein Fehlschlag schreibt
 /// `EntryPushToYnabFailed` mit Grund (ersetzt den alten Fehlschlag, Zeitpunkt `now`).
 /// Eine unbekannte, in YNAB gelöschte oder schon verknüpfte Buchung wird abgelehnt, ohne
-/// dass `push` aufgerufen wird (eine zweite YNAB-Buchung wäre die Folge).
+/// dass `push` aufgerufen wird (eine zweite YNAB-Buchung wäre die Folge). Läuft unter der
+/// Schreib-Sperre (`WriteGuard`, ledger-kfd5m), der Auslöser erst nach der Freigabe.
 let retryPushToYnab
     (now: DateTime)
     (push: EntryPush)
@@ -753,36 +775,45 @@ let retryPushToYnab
     (entryId: EntryId)
     : Async<Result<PushToYnabWriteBack, string>> =
     async {
-        match! Ledger.Persistence.loadEntry entryId with
-        | None -> return Error "Buchung nicht gefunden"
-        | Some entry when entry.DeletedInYnab -> return Error "Die Buchung ist in YNAB gelöscht"
-        | Some entry when entry.LinkedToYnab -> return Error "Die Buchung ist schon in YNAB"
-        | Some entry ->
-            match! push entry with
-            | Ok ynabTransactionId ->
-                do!
-                    Ledger.Persistence.appendAndApply [
-                        {
-                            EntryId = entryId
-                            OccurredAt = now
-                            Actor = UserInBb
-                            Body = EntryLinkedToYnab { YnabTransactionId = ynabTransactionId }
-                        }
-                    ]
-                triggerMirror ()
-                return Ok PushToYnabSent
-            | Error err ->
-                let reason = ynabErrorText err
-                do!
-                    Ledger.Persistence.appendAndApply [
-                        {
-                            EntryId = entryId
-                            OccurredAt = now
-                            Actor = UserInBb
-                            Body = EntryPushToYnabFailed { Reason = reason }
-                        }
-                    ]
-                return Ok (PushToYnabFailed reason)
+        // Push und Verknüpfung unter der Schreib-Sperre (ledger-kfd5m), wie `addCashExpense`.
+        let! result =
+            WriteGuard.exclusive (
+                async {
+                    match! Ledger.Persistence.loadEntry entryId with
+                    | None -> return Error "Buchung nicht gefunden"
+                    | Some entry when entry.DeletedInYnab -> return Error "Die Buchung ist in YNAB gelöscht"
+                    | Some entry when entry.LinkedToYnab -> return Error "Die Buchung ist schon in YNAB"
+                    | Some entry ->
+                        match! push entry with
+                        | Ok ynabTransactionId ->
+                            do!
+                                Ledger.Persistence.appendAndApply [
+                                    {
+                                        EntryId = entryId
+                                        OccurredAt = now
+                                        Actor = UserInBb
+                                        Body = EntryLinkedToYnab { YnabTransactionId = ynabTransactionId }
+                                    }
+                                ]
+                            return Ok PushToYnabSent
+                        | Error err ->
+                            let reason = ynabErrorText err
+                            do!
+                                Ledger.Persistence.appendAndApply [
+                                    {
+                                        EntryId = entryId
+                                        OccurredAt = now
+                                        Actor = UserInBb
+                                        Body = EntryPushToYnabFailed { Reason = reason }
+                                    }
+                                ]
+                            return Ok (PushToYnabFailed reason)
+                }
+            )
+
+        // Der Auslöser erst nach der Freigabe: der Lauf nimmt dieselbe Sperre.
+        if result = Ok PushToYnabSent then triggerMirror ()
+        return result
     }
 
 // ============================================
@@ -1201,50 +1232,54 @@ let private sendReviewMark
 /// lehnt gelöschte ab, bestimmt den Zielzustand (`resolveTarget`), schreibt bei einer
 /// Änderung zuerst `EntryReviewMarkChangedInBb` und ruft danach den Push (ADR 0050,
 /// Punkt 3 bis 5, 12). Ziel gleich Ist: kein Ereignis, kein Push, `ReviewMarkUnchanged`.
+/// Läuft unter der Schreib-Sperre (`WriteGuard`, ledger-kfd5m): ein Lauf zwischen Ereignis
+/// und PATCH sähe das alte `approved` in YNAB als Änderung und drehte den Haken zurück.
 let private changeReviewMark
     (now: DateTime)
     (push: ReviewMarkPush)
     (entryId: EntryId)
     (resolveTarget: Entry -> bool * ClearedState)
     : Async<Result<ReviewMarkOutcome, string>> =
-    async {
-        match! Ledger.Persistence.loadEntry entryId with
-        | None -> return Error "Buchung nicht gefunden"
-        | Some entry when entry.DeletedInYnab -> return Error "Die Buchung ist in YNAB gelöscht"
-        | Some entry ->
-            let previous = reviewMarkOf entry
-            let newApproved, newCleared = resolveTarget entry
-            let oldApproved, oldCleared = previous
+    WriteGuard.exclusive (
+        async {
+            match! Ledger.Persistence.loadEntry entryId with
+            | None -> return Error "Buchung nicht gefunden"
+            | Some entry when entry.DeletedInYnab -> return Error "Die Buchung ist in YNAB gelöscht"
+            | Some entry ->
+                let previous = reviewMarkOf entry
+                let newApproved, newCleared = resolveTarget entry
+                let oldApproved, oldCleared = previous
 
-            if newApproved = oldApproved && newCleared = oldCleared then
-                return
-                    Ok {
-                        Previous = toReviewMarkState previous
-                        Change = ReviewMarkUnchanged
-                        WriteBack = ReviewMarkNotSent
-                    }
-            else
-                do!
-                    Ledger.Persistence.appendAndApply [
-                        reviewMarkEvent entryId now UserInBb (
-                            EntryReviewMarkChangedInBb {
-                                OldApproved = oldApproved
-                                NewApproved = newApproved
-                                OldCleared = oldCleared
-                                NewCleared = newCleared
-                            }
-                        )
-                    ]
+                if newApproved = oldApproved && newCleared = oldCleared then
+                    return
+                        Ok {
+                            Previous = toReviewMarkState previous
+                            Change = ReviewMarkUnchanged
+                            WriteBack = ReviewMarkNotSent
+                        }
+                else
+                    do!
+                        Ledger.Persistence.appendAndApply [
+                            reviewMarkEvent entryId now UserInBb (
+                                EntryReviewMarkChangedInBb {
+                                    OldApproved = oldApproved
+                                    NewApproved = newApproved
+                                    OldCleared = oldCleared
+                                    NewCleared = newCleared
+                                }
+                            )
+                        ]
 
-                let! writeBack = sendReviewMark now push entryId newApproved (clearedForPush oldCleared newCleared)
+                    let! writeBack = sendReviewMark now push entryId newApproved (clearedForPush oldCleared newCleared)
 
-                return
-                    Ok {
-                        Previous = toReviewMarkState previous
-                        Change = ReviewMarkChanged
-                        WriteBack = writeBack
-                    }
-    }
+                    return
+                        Ok {
+                            Previous = toReviewMarkState previous
+                            Change = ReviewMarkChanged
+                            WriteBack = writeBack
+                        }
+        }
+    )
 
 /// "Geprüft" / "Ungeprüft" (ADR 0050). Kassenbuch zuerst, dann der Push; kein Rollback.
 let setReviewMark
@@ -1269,50 +1304,52 @@ let restoreReviewMark
 /// "Erneut senden" am Hinweis "Prüfvermerk nicht in YNAB" (ADR 0050, Punkt 9): sendet
 /// den aktuellen Stand. Erfolg schreibt `EntryReviewMarkWrittenBackToYnab` (Actor
 /// `UserInBb`), ein erneuter Fehlschlag ersetzt den Grund. Ohne offenen Fehlschlag tut
-/// der Befehl nichts.
+/// der Befehl nichts. Läuft unter der Schreib-Sperre (`WriteGuard`, ledger-kfd5m).
 let retryReviewMarkWriteBack
     (now: DateTime)
     (push: ReviewMarkPush)
     (entryId: EntryId)
     : Async<Result<ReviewMarkWriteBack, string>> =
-    async {
-        match! Ledger.Persistence.loadEntry entryId with
-        | None -> return Error "Buchung nicht gefunden"
-        | Some entry when entry.DeletedInYnab -> return Error "Die Buchung ist in YNAB gelöscht"
-        | Some entry when entry.ReviewMarkWriteBackFailure.IsNone -> return Ok ReviewMarkNotSent
-        | Some entry ->
-            // Der Ist-Stand geht hinaus; `cleared` nur, wenn er nicht Reconciled ist.
-            let cleared =
-                match entry.Cleared with
-                | Cleared -> Some Ynab.SendCleared
-                | Uncleared -> Some Ynab.SendUncleared
-                | Reconciled -> None
+    WriteGuard.exclusive (
+        async {
+            match! Ledger.Persistence.loadEntry entryId with
+            | None -> return Error "Buchung nicht gefunden"
+            | Some entry when entry.DeletedInYnab -> return Error "Die Buchung ist in YNAB gelöscht"
+            | Some entry when entry.ReviewMarkWriteBackFailure.IsNone -> return Ok ReviewMarkNotSent
+            | Some entry ->
+                // Der Ist-Stand geht hinaus; `cleared` nur, wenn er nicht Reconciled ist.
+                let cleared =
+                    match entry.Cleared with
+                    | Cleared -> Some Ynab.SendCleared
+                    | Uncleared -> Some Ynab.SendUncleared
+                    | Reconciled -> None
 
-            match! tryYnabTransactionId entryId with
-            | None ->
-                do!
-                    Ledger.Persistence.appendAndApply [
-                        reviewMarkEvent entryId now UserInBb (
-                            EntryReviewMarkWriteBackFailed { Reason = reviewMarkNotLinkedReason }
-                        )
-                    ]
-                return Ok (ReviewMarkSendFailed reviewMarkNotLinkedReason)
-            | Some ynabTransactionId ->
-                match! push ynabTransactionId entry.Approved cleared with
-                | Ok () ->
+                match! tryYnabTransactionId entryId with
+                | None ->
                     do!
                         Ledger.Persistence.appendAndApply [
-                            reviewMarkEvent entryId now UserInBb EntryReviewMarkWrittenBackToYnab
+                            reviewMarkEvent entryId now UserInBb (
+                                EntryReviewMarkWriteBackFailed { Reason = reviewMarkNotLinkedReason }
+                            )
                         ]
-                    return Ok ReviewMarkSent
-                | Error err ->
-                    let reason = ynabErrorText err
-                    do!
-                        Ledger.Persistence.appendAndApply [
-                            reviewMarkEvent entryId now UserInBb (EntryReviewMarkWriteBackFailed { Reason = reason })
-                        ]
-                    return Ok (ReviewMarkSendFailed reason)
-    }
+                    return Ok (ReviewMarkSendFailed reviewMarkNotLinkedReason)
+                | Some ynabTransactionId ->
+                    match! push ynabTransactionId entry.Approved cleared with
+                    | Ok () ->
+                        do!
+                            Ledger.Persistence.appendAndApply [
+                                reviewMarkEvent entryId now UserInBb EntryReviewMarkWrittenBackToYnab
+                            ]
+                        return Ok ReviewMarkSent
+                    | Error err ->
+                        let reason = ynabErrorText err
+                        do!
+                            Ledger.Persistence.appendAndApply [
+                                reviewMarkEvent entryId now UserInBb (EntryReviewMarkWriteBackFailed { Reason = reason })
+                            ]
+                        return Ok (ReviewMarkSendFailed reason)
+        }
+    )
 
 // ============================================
 // Prüfvermerk für eine ganze Auswahl, ein Sammel-PATCH (ledger-nhwrt)
@@ -1361,91 +1398,95 @@ type private BatchCandidate = {
 /// Buchung ein eigenes `EntryReviewMarkChangedInBb` und sendet danach EINEN Sammel-PATCH.
 /// Scheitert er, trägt jede Buchung des PATCH `EntryReviewMarkWriteBackFailed` mit
 /// demselben Grund; nennt die Antwort einzelne nicht gespeicherte Buchungen, gelten nur
-/// diese als gescheitert. Ohne geänderte Buchung geht kein PATCH hinaus.
+/// diese als gescheitert. Ohne geänderte Buchung geht kein PATCH hinaus. Läuft unter der
+/// Schreib-Sperre (`WriteGuard`, ledger-kfd5m): Laden der Buchungen, Ereignisse und PATCH
+/// liegen im selben gesperrten Abschnitt.
 let private changeReviewMarkBatch
     (now: DateTime)
     (push: ReviewMarkBatchPush)
     (targets: (EntryId * (Entry -> bool * ClearedState)) list)
     : Async<Result<ReviewMarkBatchOutcome, string>> =
-    async {
-        let candidates = ResizeArray<BatchCandidate>()
-        let mutable unchanged = 0
-        let mutable failed = 0
+    WriteGuard.exclusive (
+        async {
+            let candidates = ResizeArray<BatchCandidate>()
+            let mutable unchanged = 0
+            let mutable failed = 0
 
-        for entryId, resolveTarget in targets do
-            match! Ledger.Persistence.loadEntry entryId with
-            | None -> failed <- failed + 1
-            | Some entry when entry.DeletedInYnab -> failed <- failed + 1
-            | Some entry ->
-                let previous = reviewMarkOf entry
-                let target = resolveTarget entry
-                if target = previous then
-                    unchanged <- unchanged + 1
-                else
-                    match! tryYnabTransactionId entryId with
-                    | None -> failed <- failed + 1
-                    | Some ynabId ->
-                        candidates.Add {
-                            EntryId = entryId
-                            Previous = previous
-                            Target = target
-                            YnabTransactionId = ynabId
-                        }
-
-        let changed = candidates |> Seq.toList
-
-        if List.isEmpty changed then
-            return Ok { Changed = []; UnchangedCount = unchanged; FailedCount = failed }
-        else
-            do!
-                Ledger.Persistence.appendAndApply [
-                    for c in changed ->
-                        reviewMarkEvent c.EntryId now UserInBb (
-                            EntryReviewMarkChangedInBb {
-                                OldApproved = fst c.Previous
-                                NewApproved = fst c.Target
-                                OldCleared = snd c.Previous
-                                NewCleared = snd c.Target
+            for entryId, resolveTarget in targets do
+                match! Ledger.Persistence.loadEntry entryId with
+                | None -> failed <- failed + 1
+                | Some entry when entry.DeletedInYnab -> failed <- failed + 1
+                | Some entry ->
+                    let previous = reviewMarkOf entry
+                    let target = resolveTarget entry
+                    if target = previous then
+                        unchanged <- unchanged + 1
+                    else
+                        match! tryYnabTransactionId entryId with
+                        | None -> failed <- failed + 1
+                        | Some ynabId ->
+                            candidates.Add {
+                                EntryId = entryId
+                                Previous = previous
+                                Target = target
+                                YnabTransactionId = ynabId
                             }
-                        )
-                ]
 
-            let items : Ynab.ReviewMarkBatchItem list =
-                [ for c in changed ->
-                    { YnabTransactionId = c.YnabTransactionId
-                      Approved = fst c.Target
-                      Cleared = clearedForPush (snd c.Previous) (snd c.Target) } ]
+            let changed = candidates |> Seq.toList
 
-            let! pushed = push items
+            if List.isEmpty changed then
+                return Ok { Changed = []; UnchangedCount = unchanged; FailedCount = failed }
+            else
+                do!
+                    Ledger.Persistence.appendAndApply [
+                        for c in changed ->
+                            reviewMarkEvent c.EntryId now UserInBb (
+                                EntryReviewMarkChangedInBb {
+                                    OldApproved = fst c.Previous
+                                    NewApproved = fst c.Target
+                                    OldCleared = snd c.Previous
+                                    NewCleared = snd c.Target
+                                }
+                            )
+                    ]
 
-            let reasonOf (c: BatchCandidate) : string option =
-                match pushed with
-                | Ok notSaved when notSaved |> List.contains c.YnabTransactionId -> Some reviewMarkNotSavedReason
-                | Ok _ -> None
-                | Error err -> Some (ynabErrorText err)
+                let items : Ynab.ReviewMarkBatchItem list =
+                    [ for c in changed ->
+                        { YnabTransactionId = c.YnabTransactionId
+                          Approved = fst c.Target
+                          Cleared = clearedForPush (snd c.Previous) (snd c.Target) } ]
 
-            let writeBacks = changed |> List.map (fun c -> c, reasonOf c)
+                let! pushed = push items
 
-            do!
-                Ledger.Persistence.appendAndApply [
-                    for c, reason in writeBacks do
-                        match reason with
-                        | Some r -> reviewMarkEvent c.EntryId now UserInBb (EntryReviewMarkWriteBackFailed { Reason = r })
-                        | None -> ()
-                ]
+                let reasonOf (c: BatchCandidate) : string option =
+                    match pushed with
+                    | Ok notSaved when notSaved |> List.contains c.YnabTransactionId -> Some reviewMarkNotSavedReason
+                    | Ok _ -> None
+                    | Error err -> Some (ynabErrorText err)
 
-            let (outcomes: ReviewMarkBatchChange list) =
-                [ for c, reason in writeBacks ->
-                    let (EntryId id) = c.EntryId
-                    { EntryId = id
-                      Previous = toReviewMarkState c.Previous
-                      WriteBack =
-                        (match reason with
-                         | Some r -> ReviewMarkSendFailed r
-                         | None -> ReviewMarkSent) } ]
+                let writeBacks = changed |> List.map (fun c -> c, reasonOf c)
 
-            return Ok { Changed = outcomes; UnchangedCount = unchanged; FailedCount = failed }
-    }
+                do!
+                    Ledger.Persistence.appendAndApply [
+                        for c, reason in writeBacks do
+                            match reason with
+                            | Some r -> reviewMarkEvent c.EntryId now UserInBb (EntryReviewMarkWriteBackFailed { Reason = r })
+                            | None -> ()
+                    ]
+
+                let (outcomes: ReviewMarkBatchChange list) =
+                    [ for c, reason in writeBacks ->
+                        let (EntryId id) = c.EntryId
+                        { EntryId = id
+                          Previous = toReviewMarkState c.Previous
+                          WriteBack =
+                            (match reason with
+                             | Some r -> ReviewMarkSendFailed r
+                             | None -> ReviewMarkSent) } ]
+
+                return Ok { Changed = outcomes; UnchangedCount = unchanged; FailedCount = failed }
+        }
+    )
 
 /// "Geprüft" für die ganze Auswahl (ledger-nhwrt): löst die Auswahl auf dem Server auf
 /// und setzt `Reviewed` je Buchung, mit einem Sammel-PATCH.
@@ -1455,6 +1496,11 @@ let setReviewMarkBatch
     (selection: ReviewMarkBatchSelection)
     : Async<Result<ReviewMarkBatchOutcome, string>> =
     async {
+        // Die Auflösung der Auswahl liegt vor der Sperre, wie bei `setLenaFlagBatch`: sie
+        // bestimmt nur die Ids. Ist- und Zielstand jeder Buchung liest `changeReviewMarkBatch`
+        // erst unter der Sperre, darum liegen Ereignis und PATCH auf demselben Stand. Ein Lauf
+        // zwischen Auflösung und Sperre verschiebt höchstens, welche Buchungen ein Filter
+        // trifft, wie jeder Lauf zwischen Anzeige und Klick (ledger-kfd5m).
         let! ids = resolveReviewMarkBatchSelection selection
         return! changeReviewMarkBatch now push [ for id in ids -> id, reviewMarkTarget Reviewed ]
     }

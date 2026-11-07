@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 08:56 -- Task verified and completed: ledger-kfd5m - "Schreib-Sperre: Quick Add, Bob, Erneut senden und Prüfvermerk sperren den Spiegel nicht aus, die meisten Sperren sind ungetestet"
+
+**Type:** Work / Task completion
+**Task:** ledger-kfd5m - "Schreib-Sperre: Quick Add, Bob, Erneut senden und Prüfvermerk sperren den Spiegel nicht aus, die meisten Sperren sind ungetestet"
+**Summary:** Quick Add und Bob (addCashExpense), Erneut senden (retryPushToYnab) und alle Prüfvermerk-Befehle laufen jetzt unter der Schreib-Sperre, triggerMirror erst nach der Freigabe. Jede der 15 Aufrufstellen von WriteGuard.exclusive hat einen Sperr-Test über einen gemeinsamen Helfer, die Gegenprobe tötet alle 17 Mutanten.
+**Duration:** (unknown)
+**Verification:** PASS (iteration 1)
+**Files changed:** 14
+**Tests added:** 17
+**ADRs written:** none
+
+---
+
 ## 2026-11-07 08:54 -- Batch started: [ledger-vq2g8]
 
 **Type:** Work / Batch start

@@ -424,3 +424,48 @@ let batchYnabClientTests =
             | Error (YnabError.NetworkError _) -> ()
             | other -> failtest $"erwartet Netzfehler, war {other}"
     ]
+
+// ============================================
+// Schreib-Sperre gegen den Spiegel-Lauf (ADR 0055 Punkt 6, ledger-kfd5m)
+// ============================================
+//
+// Bug ledger-kfd5m: der Sammel-Prüfvermerk lief ohne Schreib-Sperre. Ein Spiegel-Lauf
+// zwischen den Ereignissen und dem Sammel-PATCH dreht `approved` zurück. Der Befehl
+// wartet auf einen laufenden Lauf: kein Ereignis und kein PATCH vor dessen Ende.
+
+[<Tests>]
+let reviewMarkBatchWriteGuardTests =
+    let testCase name body =
+        testCase name (fun () ->
+            initializeLedgerSchema ()
+            global.Persistence.initializeDatabase ()
+            body ())
+
+    let waitsForMirror (entryId: EntryId) (probe: BatchProbe) (command: Async<'a>) : 'a =
+        let before = eventTypesOf entryId
+        LedgerWriteGuardProbe.commandWaitsForMirror
+            (fun () ->
+                Expect.equal (eventTypesOf entryId) before "noch kein Ereignis während des Laufs"
+                Expect.isEmpty probe.Calls "noch kein PATCH")
+            command
+
+    testSequenced
+    <| testList "Ledger Prüfvermerk für die Auswahl (Schreib-Sperre)" [
+
+        testCase "Geprüft für die Auswahl während eines Spiegel-Laufs schreibt und pusht erst nach dem Lauf" <| fun () ->
+            let a, _ = seedLinkedOn (freshAccount ()) false Uncleared
+            let probe = okProbe ()
+            let outcome = waitsForMirror a probe (setReviewMarkBatch at probe.Push (BatchPicked [ guidOf a ])) |> unwrap
+            Expect.equal (List.length outcome.Changed) 1 "geändert"
+            Expect.equal (eventTypesOf a) [ "EntryObservedInYnab"; "EntryReviewMarkChangedInBb" ] "Ereignis erst nach dem Lauf"
+            Expect.equal probe.Calls.Length 1 "ein PATCH"
+
+        testCase "Sammel-Rückgängig während eines Spiegel-Laufs schreibt und pusht erst nach dem Lauf" <| fun () ->
+            let a, _ = seedLinkedOn (freshAccount ()) true Cleared
+            let probe = okProbe ()
+            let items = [ { EntryId = guidOf a; Previous = { IsApproved = false; ClearedState = ReviewUncleared } } ]
+            waitsForMirror a probe (restoreReviewMarkBatch at probe.Push items) |> unwrap |> ignore
+            Expect.equal (eventTypesOf a) [ "EntryObservedInYnab"; "EntryReviewMarkChangedInBb" ] "Ereignis erst nach dem Lauf"
+            Expect.equal probe.Calls.Length 1 "ein PATCH"
+            Expect.isFalse (entryOf a).Approved "Vorzustand hergestellt"
+    ]

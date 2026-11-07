@@ -309,6 +309,40 @@ let lenaFlagBatchCommandTests =
     ]
 
 // ============================================
+// Schreib-Sperre gegen den Spiegel-Lauf (ADR 0055 Punkt 6, ledger-kfd5m)
+// ============================================
+//
+// ledger-kfd5m: die Sperre an `changeFlagBatch` (über `setLenaFlagBatch`) war ungetestet.
+// Ohne Sperre sähe ein Lauf zwischen den Ereignissen und dem Sammel-PATCH die alten Flags
+// in YNAB als Änderung.
+
+[<Tests>]
+let lenaFlagBatchWriteGuardTests =
+    let testCase name body =
+        testCase name (fun () ->
+            initializeLedgerSchema ()
+            global.Persistence.initializeDatabase ()
+            body ())
+
+    testSequenced
+    <| testList "Ledger Lena fragen für die Auswahl (Schreib-Sperre)" [
+
+        testCase "Lena fragen für die Auswahl während eines Spiegel-Laufs schreibt und pusht erst nach dem Lauf" <| fun () ->
+            let a, _ = seedLinked (freshAccount ()) None None
+            let before = eventTypesOf a
+            let probe = okProbe ()
+            LedgerWriteGuardProbe.commandWaitsForMirror
+                (fun () ->
+                    Expect.equal (eventTypesOf a) before "noch kein Ereignis während des Laufs"
+                    Expect.isEmpty probe.Calls "noch kein PATCH")
+                (setLenaFlagBatch at probe.Push purple (BatchPicked [ guidOf a ]) AssignLena)
+            |> unwrap
+            |> ignore
+            Expect.equal (eventTypesOf a |> List.length) (before.Length + 1) "ein neues Ereignis erst nach dem Lauf"
+            Expect.equal probe.Calls.Length 1 "ein PATCH"
+    ]
+
+// ============================================
 // PATCH an YNAB (Fake-Handler, kein echter Aufruf)
 // ============================================
 

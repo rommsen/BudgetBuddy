@@ -758,6 +758,60 @@ let splitCommandTests =
     ]
 
 // ============================================
+// Schreib-Sperre gegen den Spiegel-Lauf (ADR 0055 Punkt 6, ledger-kfd5m)
+// ============================================
+//
+// ledger-kfd5m: die Sperren an `setEntrySplits` und `retryCategorizationOrSplitWriteBack`
+// waren ungetestet. Ohne Sperre sähe ein Lauf zwischen Ereignis und PUT den alten
+// YNAB-Stand als Änderung und drehte die Aufteilung zurück.
+
+[<Tests>]
+let splitWriteGuardTests =
+    let testCase name body =
+        testCase name (fun () ->
+            initializeLedgerSchema ()
+            global.Persistence.initializeDatabase ()
+            seedCategories ()
+            seedAccount ()
+            body ())
+
+    let waitsForMirror (entryId: EntryId) (probe: ToolsProbe) (command: Async<'a>) : 'a =
+        let before = eventTypesOf entryId
+        let callsBefore = probe.WriteCalls
+        LedgerWriteGuardProbe.commandWaitsForMirror
+            (fun () ->
+                Expect.equal (eventTypesOf entryId) before "noch kein Ereignis während des Laufs"
+                Expect.equal probe.WriteCalls callsBefore "noch kein Push")
+            command
+
+    testSequenced
+    <| testList "Ledger Split-Schreibweg (Schreib-Sperre)" [
+
+        testCase "Aufteilen während eines Spiegel-Laufs schreibt und pusht erst nach dem Lauf" <| fun () ->
+            let entryId, _, _ = seedPlain ()
+            let probe = ToolsProbe()
+            waitsForMirror entryId probe (setEntrySplits at probe.Tools entryId twoLines) |> unwrap |> ignore
+            Expect.equal (eventTypesOf entryId) [ "EntryObservedInYnab"; "EntryRecategorized" ] "Ereignis erst nach dem Lauf"
+            Expect.equal probe.Puts.Length 1 "ein PUT"
+
+        testCase "Erneut senden der Aufteilung während eines Spiegel-Laufs pusht erst nach dem Lauf" <| fun () ->
+            let entryId, _, _ = seedPlain ()
+            let probe = ToolsProbe()
+            probe.PutResult <- Error (YnabError.NetworkError "Timeout")
+            setSplits probe entryId twoLines |> unwrap |> ignore
+            Expect.isSome (entryOf entryId).CategorizationWriteBackFailure "offener Fehlschlag"
+            probe.PutResult <- Ok ()
+            let result =
+                waitsForMirror
+                    entryId
+                    probe
+                    (retryCategorizationOrSplitWriteBack at (fun _ _ -> async { return Ok () }) probe.Tools entryId)
+            Expect.equal (unwrap result) CategorySent "gesendet"
+            Expect.equal (eventTypesOf entryId |> List.last) "EntryCategorizationWrittenBackToYnab" "Ereignis erst nach dem Lauf"
+            Expect.equal probe.Puts.Length 2 "zweiter PUT erst nach dem Lauf"
+    ]
+
+// ============================================
 // JSON-Verträge und HTTP-Wege des YnabClient
 // ============================================
 

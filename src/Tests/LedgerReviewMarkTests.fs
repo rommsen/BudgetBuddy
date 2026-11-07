@@ -601,3 +601,64 @@ let reviewMarkYnabClientTests =
             | Error (YnabError.NetworkError _) -> ()
             | other -> failtest $"erwartet Netzfehler, war {other}"
     ]
+
+// ============================================
+// Schreib-Sperre gegen den Spiegel-Lauf (ADR 0055 Punkt 6, ledger-kfd5m)
+// ============================================
+//
+// Bug ledger-kfd5m: die Prüfvermerk-Befehle liefen ohne Schreib-Sperre. Liest ein
+// Spiegel-Lauf den YNAB-Stand zwischen Ereignis und PATCH, beobachtet er das alte
+// `approved` als Änderung in YNAB und dreht den Haken zurück. Jeder Befehl muss auf einen
+// laufenden Lauf warten: kein Ereignis und kein Push vor dem Ende des Laufs.
+
+[<Tests>]
+let reviewMarkWriteGuardTests =
+    let testCase name body =
+        testCase name (fun () ->
+            initializeLedgerSchema ()
+            global.Persistence.initializeDatabase ()
+            body ())
+
+    let waitsForMirror (entryId: EntryId) (probe: PushProbe) (command: Async<'a>) : 'a =
+        let before = eventTypesOf entryId
+        let callsBefore = probe.Calls.Length
+        LedgerWriteGuardProbe.commandWaitsForMirror
+            (fun () ->
+                Expect.equal (eventTypesOf entryId) before "noch kein Ereignis während des Laufs"
+                Expect.equal probe.Calls.Length callsBefore "noch kein Push")
+            command
+
+    testSequenced
+    <| testList "Ledger Prüfvermerk (Schreib-Sperre)" [
+
+        testCase "Geprüft während eines Spiegel-Laufs schreibt und pusht erst nach dem Lauf" <| fun () ->
+            let entryId, _ = seedLinked false Uncleared
+            let probe = okProbe ()
+            let outcome = waitsForMirror entryId probe (setReviewMark at probe.Push entryId Reviewed) |> unwrap
+            Expect.equal outcome.WriteBack ReviewMarkSent "gesendet"
+            Expect.equal (eventTypesOf entryId) [ "EntryObservedInYnab"; "EntryReviewMarkChangedInBb" ] "Ereignis erst nach dem Lauf"
+            Expect.equal probe.Calls.Length 1 "ein Push"
+
+        testCase "Rückgängig beim Prüfvermerk während eines Spiegel-Laufs schreibt und pusht erst nach dem Lauf" <| fun () ->
+            let entryId, _ = seedLinked true Cleared
+            let probe = okProbe ()
+            let previous = { IsApproved = false; ClearedState = ReviewUncleared }
+            waitsForMirror entryId probe (restoreReviewMark at probe.Push entryId previous) |> unwrap |> ignore
+            Expect.equal (eventTypesOf entryId) [ "EntryObservedInYnab"; "EntryReviewMarkChangedInBb" ] "Ereignis erst nach dem Lauf"
+            Expect.equal probe.Calls.Length 1 "ein Push"
+            Expect.isFalse (entryOf entryId).Approved "Vorzustand hergestellt"
+
+        testCase "Erneut senden des Prüfvermerks während eines Spiegel-Laufs pusht erst nach dem Lauf" <| fun () ->
+            let entryId, _ = seedLinked false Uncleared
+            let failing = PushProbe(Error (YnabError.NetworkError "Timeout"))
+            setReviewMark at failing.Push entryId Reviewed |> Async.RunSynchronously |> unwrap |> ignore
+            Expect.isSome (entryOf entryId).ReviewMarkWriteBackFailure "offener Fehlschlag"
+            let probe = okProbe ()
+            let result = waitsForMirror entryId probe (retryReviewMarkWriteBack at probe.Push entryId)
+            Expect.equal result (Ok ReviewMarkSent) "gesendet"
+            Expect.equal
+                (eventTypesOf entryId |> List.last)
+                "EntryReviewMarkWrittenBackToYnab"
+                "Rückschreiben erst nach dem Lauf"
+            Expect.equal probe.Calls.Length 1 "ein Push"
+    ]

@@ -87,6 +87,7 @@
     <Compile Include="ToastLifecycleTests.fs" />
     <Compile Include="FontFaceRegressionTests.fs" />
     <Compile Include="TailwindClassGuardTests.fs" />
+    <Compile Include="LedgerWriteGuardProbe.fs" />
     <Compile Include="LedgerTests.fs" />
     <Compile Include="LedgerMirrorTests.fs" />
     <Compile Include="LedgerEventMigrationTests.fs" />

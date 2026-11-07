@@ -323,32 +323,13 @@ let categoryBatchWriteGuardTests =
         testCase "ein Sammel-Befehl, der während eines Spiegel-Laufs startet, schreibt erst nach dem Lauf" <| fun () ->
             let account = freshAccount ()
             let a, _ = seedLinked account (Some catA) []
-            let fetchStarted = TaskCompletionSource<unit>()
-            let release = TaskCompletionSource<unit>()
-            let fetchers : MirrorFetchers = {
-                emptyMirrorFetchers with
-                    FetchTransactions =
-                        fun _ ->
-                            async {
-                                fetchStarted.TrySetResult () |> ignore
-                                do! Async.AwaitTask release.Task
-                                return Ok { Observations = []; ServerKnowledge = 1L }
-                            }
-            }
-            let mirrorTask = Async.StartAsTask(runMirrorGuarded at fetchers (YnabBudgetId "budget-w29y6-guard"))
-            Expect.isTrue (fetchStarted.Task.Wait 5000) "der Lauf hängt im Abruf"
-
             let probe = okProbe ()
-            let commandTask =
-                Async.StartAsTask(setEntryCategoryBatch at probe.Push (BatchPicked [ guidOf a ]) (Some (idOf catB)))
-            Threading.Thread.Sleep 300
-            Expect.isFalse commandTask.IsCompleted "der Befehl wartet auf den Lauf"
-            Expect.equal (eventTypesOf a) [ "EntryObservedInYnab" ] "noch kein Ereignis während des Laufs"
-            Expect.isEmpty probe.Calls "noch kein Push"
-
-            release.SetResult ()
-            Expect.isTrue (mirrorTask.Wait 5000) "Lauf beendet"
-            Expect.isTrue (commandTask.Wait 5000) "Befehl beendet"
+            LedgerWriteGuardProbe.commandWaitsForMirror
+                (fun () ->
+                    Expect.equal (eventTypesOf a) [ "EntryObservedInYnab" ] "noch kein Ereignis während des Laufs"
+                    Expect.isEmpty probe.Calls "noch kein Push")
+                (setEntryCategoryBatch at probe.Push (BatchPicked [ guidOf a ]) (Some (idOf catB)))
+            |> ignore
             Expect.equal (eventTypesOf a) [ "EntryObservedInYnab"; "EntryRecategorized" ] "Ereignis erst nach dem Lauf"
             Expect.equal probe.Calls.Length 1 "ein Push"
     ]
