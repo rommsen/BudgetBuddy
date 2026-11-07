@@ -1,7 +1,7 @@
 ---
 id: ledger-r8h19
 title: "Aufräum-Lauf ledger: Quelltext-, Klassenstring- und Konstanten-Tests ersetzen oder löschen, Logik aus [layout]-Tests nach .NET, N+1 in Sammelbefehlen und Spiegel-Lauf"
-status: todo
+status: doing
 type: chore
 context: ledger
 created: 2026-11-07

@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 09:38 -- Batch started: [infrastructure-vp308, ledger-r8h19]
+
+**Type:** Work / Batch start
+**Tasks:** infrastructure-vp308 - "Fehler über die Grenze: kein Stacktrace an den Client, kein YNAB-Rohtext an Client, Bob und in events", ledger-r8h19 - "Aufräum-Lauf ledger: Quelltext-, Klassenstring- und Konstanten-Tests ersetzen oder löschen, Logik aus [layout]-Tests nach .NET, N+1 in Sammelbefehlen und Spiegel-Lauf"
+**Parallel:** yes (2 workers)
+
+---
+
 ## 2026-11-07 09:38 -- Modeling / Promoted: infrastructure-vp308 - "Fehler über die Grenze: kein Stacktrace an den Client, kein YNAB-Rohtext an Client, Bob und in events"
 
 **Type:** Modeling / Promote
