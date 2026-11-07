@@ -3453,6 +3453,14 @@ let private staleAnswerTests =
             Expect.equal (update (BalancesLoaded (Error "x")) shown).Balances (Success []) "bleibt"
             Expect.equal (update (BalancesLoaded (Error "x")) { shown with Balances = Loading }).Balances (Failure "x") "ohne Stand gilt der Fehler"
 
+        // Regression (Review 2026-11): `LoadBalances` setzte immer `Loading`, nach "Jetzt spiegeln"
+        // flackerten alle geladenen Kontostände zu Platzhaltern.
+        testCase "Nachladen lässt geladene Kontostände stehen, ohne Stand lädt es" <| fun () ->
+            let shown = { freshModel () with Balances = Success [] }
+            Expect.equal (update LoadBalances shown).Balances (Success []) "bleibt"
+            Expect.equal (update LoadBalances { shown with Balances = NotAsked }).Balances Loading "erster Abruf lädt"
+            Expect.equal (update LoadBalances { shown with Balances = Failure "x" }).Balances Loading "nach Fehler lädt"
+
         testCase "Ein spätes Scheitern ersetzt die fertige Historie derselben Buchung nicht" <| fun () ->
             let shown = withDetail { freshModel () with History = Success [] }
             let id = (entryView 1 -1m false).Id

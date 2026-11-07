@@ -989,13 +989,21 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     // Kontostaende
     // ============================================
     | LoadBalances ->
+        // Der Aufruf liegt hinter einem Lambda, damit `update` auch unter .NET läuft, wo der
+        // Proxy beim ersten Zugriff wirft.
         let cmd =
             Cmd.OfAsync.either
-                (Retry.reading Api.ledger.getLedgerAccountBalances)
+                (fun () -> Retry.reading Api.ledger.getLedgerAccountBalances ())
                 ()
                 (Ok >> BalancesLoaded)
                 (fun ex -> BalancesLoaded (Error ex.Message))
-        { model with Balances = Loading }, cmd, NoOp
+        // Geladene Stände bleiben stehen, bis die neuen da sind (wie die Kategorien, ledger-kwwxz):
+        // sonst flackern nach "Jetzt spiegeln" alle Kontostände zu Platzhaltern.
+        let balances =
+            match model.Balances with
+            | Success _ -> model.Balances
+            | _ -> Loading
+        { model with Balances = balances }, cmd, NoOp
 
     | BalancesLoaded (Ok balances) ->
         { model with Balances = Success balances }, Cmd.none, NoOp
