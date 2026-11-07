@@ -1144,6 +1144,61 @@ let historyRuns (movements: HistoryMovement list) : HistoryRun list =
     |> List.map (snd >> historyRun)
     |> List.sortByDescending (fun r -> r.OccurredAt)
 
+/// Eine Pause oder Target-Änderung als eigene Zeile der allgemeinen Historie (budgeting-r5h2n): ohne Betrag,
+/// nicht aufklappbar.
+type HistoryTargetRow = {
+    /// Die Id des Pause-Ereignisses oder der Target-Änderung.
+    EntryId: Guid
+    /// Zeitpunkt des Festhaltens, UTC.
+    OccurredAt: DateTime
+    /// "YYYY-MM-01": bei einer Pause ihr Monat, bei einer Änderung `effectiveFrom` oder der Monat des Altbestands.
+    Month: string
+    /// "Art, Kategorie" wie bei den Durchläufen: "Target pausiert, Urlaub", "Target 50,00 € → 60,00 €, Urlaub".
+    Text: string
+    /// Der Stand wie im Tab Historie: nur beim Altbestand, der nach YNAB ging. `None` bei einer Pause und bei
+    /// einer Änderung nur in BB.
+    Status: HistoryStatus option
+}
+
+/// Eine Zeile der allgemeinen Historie: ein Durchlauf aus Bewegungen oder eine Pause oder Target-Änderung.
+type GeneralHistoryRow =
+    | RunRow of HistoryRun
+    | TargetRow of HistoryTargetRow
+
+/// Die Einträge der allgemeinen Historie zu Zeilen (budgeting-r5h2n): die Bewegungen zu Durchläufen
+/// (`historyRuns`), jede Pause und Target-Änderung eine eigene Zeile, neueste zuerst. Ein Durchlauf zählt mit
+/// seiner jüngsten Bewegung. Bei gleichem Zeitpunkt steht der Durchlauf vor der Pause und die Pause vor der
+/// Target-Änderung, wie in `mergeHistory`.
+let generalHistoryRows (entries: HistoryEntry list) : GeneralHistoryRow list =
+    let targetRow (entry: HistoryEntry) (categoryName: string) (month: string) =
+        let line = historyEntryLine entry
+        let name = if String.IsNullOrEmpty categoryName then UnknownCategoryText else categoryName
+        TargetRow
+            { EntryId = line.EntryId
+              OccurredAt = line.OccurredAt
+              Month = month
+              Text = $"{line.Text}, {name}"
+              Status = line.Status }
+    let runs =
+        entries
+        |> List.choose (function Movement m -> Some m | _ -> None)
+        |> historyRuns
+        |> List.map (fun r -> r.OccurredAt, 0, RunRow r)
+    let others =
+        entries
+        |> List.choose (fun entry ->
+            match entry with
+            | Movement _ -> None
+            | TargetPaused p
+            | PauseLifted p -> Some (p.OccurredAt, 1, targetRow entry p.CategoryName p.Month)
+            | TargetChanged c -> Some (c.OccurredAt, 2, targetRow entry c.CategoryName c.Month))
+    runs @ others
+    |> List.sortWith (fun (timeA, rankA, _) (timeB, rankB, _) ->
+        match compare timeB timeA with
+        | 0 -> compare rankA rankB
+        | order -> order)
+    |> List.map (fun (_, _, row) -> row)
+
 let private lastSundayUtc (year: int) (month: int) : DateTime =
     let last = DateTime(year, month, DateTime.DaysInMonth(year, month), 0, 0, 0, DateTimeKind.Utc)
     last.AddDays(-(float (int last.DayOfWeek)))

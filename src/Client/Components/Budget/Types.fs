@@ -190,12 +190,15 @@ type TargetCall =
 type RunFilter =
     | AllRuns
     | RunsOf of HistoryOrigin
+    /// Target-Änderungen und Pausen zusammen, keine Durchläufe (budgeting-r5h2n).
+    | TargetChanges
 
 /// Die allgemeine Historie `#/budget/history`. Liegt auf der Budget-Seite, damit die Rückkehr den
 /// Monat behält.
 type GeneralHistory = {
-    /// Die Durchläufe, einmal je Laden aus den Bewegungen gebildet, neueste zuerst.
-    Runs: RemoteData<HistoryRun list>
+    /// Die Zeilen, einmal je Laden aus den Einträgen gebildet (`generalHistoryRows`), neueste zuerst: Durchläufe,
+    /// Pausen und Target-Änderungen (budgeting-r5h2n).
+    Rows: RemoteData<GeneralHistoryRow list>
     Filter: RunFilter
     /// Die aufgeklappten Durchläufe Targets anwenden.
     Expanded: Set<System.Guid>
@@ -443,7 +446,7 @@ type Msg =
     /// "Wiederholen" nach einem Fehler: nur neu laden, Filter und Aufklappen bleiben (budgeting-c6vn4, A2).
     | RetryGeneralHistory
     /// Die Antwort, mit der Generation beim Start des Ladens.
-    | GeneralHistoryLoaded of generation: int * Result<HistoryMovement list, string>
+    | GeneralHistoryLoaded of generation: int * Result<HistoryEntry list, string>
     | SelectRunFilter of RunFilter
     /// Tipp auf einen Durchlauf Targets anwenden: auf- oder zuklappen.
     | ToggleRun of System.Guid
@@ -565,7 +568,7 @@ let init () : Model =
       TargetCall = TargetIdle
       Selected = None
       Tab = MoneyTab
-      GeneralHistory = { Runs = NotAsked; Filter = AllRuns; Expanded = Set.empty; ReturnPending = false; Generation = 0 }
+      GeneralHistory = { Rows = NotAsked; Filter = AllRuns; Expanded = Set.empty; ReturnPending = false; Generation = 0 }
       TargetCheck = { Data = NotAsked; OpenGroups = Set.empty; Panel = None; ReturnPending = false; Generation = 0; LoadPending = false }
       EntriesGeneration = 0
       HistoryGeneration = 0

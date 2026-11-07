@@ -1,5 +1,6 @@
-/// Die allgemeine Budget-Historie `#/budget/history` (budgeting-h7q4v): reine Übergänge. Die Durchläufe
-/// bildet `historyRuns` in `Shared.Budgeting`, hier liegen Filter, Aufklappen und die Rückkehr.
+/// Die allgemeine Budget-Historie `#/budget/history` (budgeting-h7q4v): reine Übergänge. Die Zeilen (Durchläufe,
+/// Pausen, Target-Änderungen) bildet `generalHistoryRows` in `Shared.Budgeting`, hier liegen Filter, Aufklappen
+/// und die Rückkehr.
 module Components.Budget.History
 
 open Shared.Budgeting
@@ -9,12 +10,13 @@ open Components.Budget.Types
 open Components.Budget.Inspector
 
 /// Die Filter nach Art in ihrer Reihenfolge: erst was in BB entschieden wurde, dann was aus YNAB kam
-/// (budgeting-dgrp7).
+/// (budgeting-dgrp7). Target-Änderungen und Pausen stehen bei dem, was in BB entschieden wurde (budgeting-r5h2n).
 let runFilters : RunFilter list =
     [ AllRuns
       RunsOf (Decision MovementOrigin.TargetsApplied)
       RunsOf (Decision MovementOrigin.MoneyMoved)
       RunsOf (Decision MovementOrigin.MoneyAssigned)
+      TargetChanges
       RunsOf HistoryOrigin.ObservedInYnab
       RunsOf HistoryOrigin.TakenOverFromYnab ]
 
@@ -24,15 +26,18 @@ let runFilterLabel (filter: RunFilter) : string =
     | RunsOf (Decision MovementOrigin.TargetsApplied) -> "Targets anwenden"
     | RunsOf (Decision MovementOrigin.MoneyMoved) -> "Verschieben"
     | RunsOf (Decision MovementOrigin.MoneyAssigned) -> "Zuweisen"
+    | TargetChanges -> "Targets"
     | RunsOf HistoryOrigin.ObservedInYnab -> "In YNAB zugewiesen"
     // Wie die Zeile der Übernahme ("Aus YNAB übernommen, N Kategorien").
     | RunsOf HistoryOrigin.TakenOverFromYnab -> "Aus YNAB übernommen"
 
-/// Die Durchläufe, die der Filter zeigt.
-let shownRuns (filter: RunFilter) (runs: HistoryRun list) : HistoryRun list =
+/// Die Zeilen, die der Filter zeigt: Alle zeigt alles, "Targets" nur Pausen und Target-Änderungen, jeder andere
+/// nur Durchläufe seiner Herkunft (budgeting-r5h2n).
+let shownRows (filter: RunFilter) (rows: GeneralHistoryRow list) : GeneralHistoryRow list =
     match filter with
-    | AllRuns -> runs
-    | RunsOf origin -> runs |> List.filter (fun r -> r.Origin = origin)
+    | AllRuns -> rows
+    | TargetChanges -> rows |> List.filter (function TargetRow _ -> true | RunRow _ -> false)
+    | RunsOf origin -> rows |> List.filter (function RunRow r -> r.Origin = origin | TargetRow _ -> false)
 
 /// Nur ein Durchlauf Targets anwenden klappt auf: Verschieben und Zuweisen stehen ganz in ihrer Zeile.
 let expandable (run: HistoryRun) : bool =
@@ -46,7 +51,9 @@ let isRunOpen (history: GeneralHistory) (run: HistoryRun) : bool =
 /// YNAB nennen, was fehlt: dort entsteht nichts durch einen Durchlauf in BB (budgeting-dgrp7).
 let emptyText (filter: RunFilter) : string =
     match filter with
-    | AllRuns -> "Noch keine Durchläufe. Targets anwenden, Verschieben, Zuweisen und Änderungen aus YNAB erscheinen hier."
+    | AllRuns ->
+        "Noch keine Einträge. Targets anwenden, Verschieben, Zuweisen, Target-Änderungen, Pausen und Änderungen aus YNAB erscheinen hier."
+    | TargetChanges -> "Keine Target-Änderungen oder Pausen"
     | RunsOf HistoryOrigin.ObservedInYnab -> "Keine Zuweisungen in YNAB"
     | RunsOf HistoryOrigin.TakenOverFromYnab -> "Keine Übernahme aus YNAB"
     | RunsOf (Decision _) -> "Keine Durchläufe dieser Art"
@@ -104,23 +111,23 @@ let private withHistory (model: Model) (change: GeneralHistory -> GeneralHistory
 let openGeneralHistory (model: Model) : Model =
     withHistory model (fun h -> { h with ReturnPending = true })
 
-/// Die Seite wird betreten: die Bewegungen kommen neu, Filter und Aufklappen beginnen von vorn.
+/// Die Seite wird betreten: die Einträge kommen neu, Filter und Aufklappen beginnen von vorn.
 let enterGeneralHistory (model: Model) : Model =
     withHistory model (fun h ->
-        { h with Runs = Loading; Filter = AllRuns; Expanded = Set.empty; Generation = h.Generation + 1 })
+        { h with Rows = Loading; Filter = AllRuns; Expanded = Set.empty; Generation = h.Generation + 1 })
 
 /// "Wiederholen": nur neu laden, Filter und Aufklappen bleiben stehen.
 let retryGeneralHistory (model: Model) : Model =
-    withHistory model (fun h -> { h with Runs = Loading; Generation = h.Generation + 1 })
+    withHistory model (fun h -> { h with Rows = Loading; Generation = h.Generation + 1 })
 
 /// Eine Antwort mit fremder Generation ist überholt: ein späteres Betreten oder Wiederholen lädt schon.
-let applyGeneralHistoryLoaded (generation: int) (result: Result<HistoryMovement list, string>) (model: Model) : Model =
+let applyGeneralHistoryLoaded (generation: int) (result: Result<HistoryEntry list, string>) (model: Model) : Model =
     withHistory model (fun h ->
         if generation <> h.Generation then h
         else
             match result with
-            | Ok movements -> { h with Runs = Success (historyRuns movements) }
-            | Error message -> { h with Runs = Failure message })
+            | Ok entries -> { h with Rows = Success (generalHistoryRows entries) }
+            | Error message -> { h with Rows = Failure message })
 
 let selectRunFilter (filter: RunFilter) (model: Model) : Model =
     withHistory model (fun h -> { h with Filter = filter })

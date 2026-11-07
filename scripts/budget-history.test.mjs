@@ -33,7 +33,9 @@ const monthFixture = (key) => ({
   ],
 });
 
-const movement = (n, group, origin, name, oldAssigned, newAssigned, latest, counterpart = null) => ({
+/// Ein Eintrag der Historie (`HistoryEntry`, budgeting-r5h2n): die Bewegung als Union-Fall `Movement`, so wie
+/// Fable.Remoting einen Fall mit Record kodiert.
+const movement = (n, group, origin, name, oldAssigned, newAssigned, latest, counterpart = null) => ({ Movement: {
   MovementId: guid(100 + n),
   ApplicationId: guid(group),
   OccurredAt: "2026-11-03T09:30:00.0000000Z",
@@ -46,7 +48,7 @@ const movement = (n, group, origin, name, oldAssigned, newAssigned, latest, coun
   Counterpart: counterpart,
   Latest: latest,
   ReplacedBy: null,
-});
+} });
 
 const movements = [
   movement(1, 11, "MoneyAssigned", "Urlaub h7q4v", 0, 20, "Written"),

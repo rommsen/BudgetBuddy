@@ -984,7 +984,11 @@ let private categoryEntries (monthKey: string) (category: Guid) : HistoryLine li
 
 let private generalRuns (category: Guid) : HistoryRun list =
     match QueryHandlers.budgetHistory historyPort |> run with
-    | Ok movements -> movements |> List.filter (fun m -> m.CategoryId = category) |> historyRuns |> List.rev
+    | Ok entries ->
+        entries
+        |> List.choose (function Movement m when m.CategoryId = category -> Some m | _ -> None)
+        |> historyRuns
+        |> List.rev
     | Error message -> failtest message
 
 let private historyTests =

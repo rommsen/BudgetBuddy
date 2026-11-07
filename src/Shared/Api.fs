@@ -559,11 +559,12 @@ type BudgetApi = {
     /// Datenbank, kein YNAB. Ungültiger Monat oder fehlende Kategorie: Error mit allen Gründen.
     getCategoryHistory: Shared.Domain.CategoryMonthQuery -> Async<Result<Shared.Budgeting.CategoryHistory, string>>
 
-    /// Die allgemeine Historie (budgeting-h7q4v): alle Budget-Bewegungen aller Monate und Kategorien,
-    /// neueste zuerst, je mit jüngstem Ergebnis und bei Verschiebungen mit der Gegenseite. Der Client
-    /// fasst sie zu Durchläufen zusammen (`historyRuns`). Liest nur die Datenbank, kein YNAB. Die Antwort ist
-    /// heute unbegrenzt: sie trägt jede Bewegung seit Beginn der Aufzeichnung (Folgeaufgabe budgeting-q8m2v).
-    getBudgetHistory: unit -> Async<Result<Shared.Budgeting.HistoryMovement list, string>>
+    /// Die allgemeine Historie (budgeting-h7q4v, budgeting-r5h2n): alle Budget-Bewegungen, Pause-Ereignisse und
+    /// Target-Änderungen aller Monate und Kategorien, gemischt und neueste zuerst. Bewegungen je mit jüngstem
+    /// Ergebnis und bei Verschiebungen mit der Gegenseite, Target-Änderungen wie im Tab Historie. Der Client
+    /// fasst die Bewegungen zu Durchläufen zusammen (`generalHistoryRows`). Liest nur die Datenbank, kein YNAB.
+    /// Die Antwort ist unbegrenzt: sie trägt jeden Eintrag seit Beginn der Aufzeichnung.
+    getBudgetHistory: unit -> Async<Result<Shared.Budgeting.HistoryEntry list, string>>
 
     /// Targets prüfen (budgeting-p2zr6, ADR 0082): die Rohdaten für den laufenden Monat nach Berliner
     /// Kalender. Die sichtbaren Kategorien mit Target aus YNAB, je Kategorie die Ausgaben der 12 vollen

@@ -348,7 +348,7 @@ let isPageReady (model: Model) : bool =
     | Ledger -> ledgerReady ()
     | LedgerEntry _ -> ledgerReady () && model.Ledger.PendingRouteEntry.IsNone
     | Budget -> notLoading model.Budget.Month
-    | BudgetHistory -> notLoading model.Budget.GeneralHistory.Runs
+    | BudgetHistory -> notLoading model.Budget.GeneralHistory.Rows
     | BudgetTargetCheck -> notLoading model.Budget.TargetCheck.Data
 
 /// Die Auswahl-Leiste des Kassenbuchs ersetzt am Handy die Tab-Bar (ledger-r1d2f).

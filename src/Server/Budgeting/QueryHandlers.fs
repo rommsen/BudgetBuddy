@@ -141,7 +141,21 @@ type HistoryPort = {
     LoadPauseEvents: Guid -> string -> Async<Result<HistoryEntry list, string>>
     /// Kategorie und Monat: die Target-Änderungen, neueste zuerst (budgeting-k8wq3).
     LoadTargetChanges: Guid -> string -> Async<Result<HistoryTargetChange list, string>>
+    /// Die Pause-Ereignisse aller Kategorien und Monate, neueste zuerst (allgemeine Historie, budgeting-r5h2n).
+    LoadAllPauseEvents: unit -> Async<Result<HistoryEntry list, string>>
+    /// Die Target-Änderungen aller Kategorien und Monate, neueste zuerst (allgemeine Historie, budgeting-r5h2n).
+    LoadAllTargetChanges: unit -> Async<Result<HistoryTargetChange list, string>>
 }
+
+/// Liest über `load`; eine Ausnahme wird geloggt und zu `unreadable`. Ein `Error` der Quelle bleibt, wie er ist.
+let private readSource (what: string) (unreadable: string) (load: unit -> Async<Result<'T, string>>) : Async<Result<'T, string>> =
+    async {
+        try
+            return! load ()
+        with ex ->
+            logReadFailure what ex
+            return Error unreadable
+    }
 
 /// Die Bewegungen zum Filter. Grundlage der Historie je Kategorie und der allgemeinen (budgeting-h7q4v).
 let movements (port: HistoryPort) (filter: MovementFilter) : Async<Result<HistoryMovement list, string>> =
@@ -170,21 +184,11 @@ let categoryHistory (port: HistoryPort) (categoryId: Guid) (firstDay: DateTime) 
         | Error message -> return Error message
         | Ok found ->
             let! pauses =
-                async {
-                    try
-                        return! port.LoadPauseEvents categoryId monthKey
-                    with ex ->
-                        logReadFailure "Pause-Ereignisse lesen" ex
-                        return Error Budgeting.Persistence.PauseEventsUnreadableText
-                }
+                readSource "Pause-Ereignisse lesen" Budgeting.Persistence.PauseEventsUnreadableText (fun () ->
+                    port.LoadPauseEvents categoryId monthKey)
             let! changes =
-                async {
-                    try
-                        return! port.LoadTargetChanges categoryId monthKey
-                    with ex ->
-                        logReadFailure "Target-Änderungen lesen" ex
-                        return Error Budgeting.Persistence.TargetChangesUnreadableText
-                }
+                readSource "Target-Änderungen lesen" Budgeting.Persistence.TargetChangesUnreadableText (fun () ->
+                    port.LoadTargetChanges categoryId monthKey)
             match pauses, changes with
             | Error message, _
             | _, Error message -> return Error message
@@ -207,16 +211,33 @@ let categoryHistory (port: HistoryPort) (categoryId: Guid) (firstDay: DateTime) 
                     return Ok { Entries = entries; Spending = spendingOf months sums }
     }
 
-/// Die allgemeine Historie (budgeting-h7q4v): alle Bewegungen aller Monate und Kategorien, neueste
-/// zuerst. Zu Durchläufen fasst sie der Client zusammen.
-let budgetHistory (port: HistoryPort) : Async<Result<HistoryMovement list, string>> =
-    movements port { CategoryId = None; Month = None; Origin = None }
+/// Die allgemeine Historie (budgeting-h7q4v, budgeting-r5h2n): alle Bewegungen, Pause-Ereignisse und
+/// Target-Änderungen aller Monate und Kategorien, gemischt mit `mergeHistory`, neueste zuerst. Ohne Grenze. Zu
+/// Durchläufen fasst der Client die Bewegungen zusammen. Ein Lesefehler einer Quelle macht die Antwort zum `Error`
+/// mit ihrem Text, die Ursache steht im Server-Log.
+let budgetHistory (port: HistoryPort) : Async<Result<HistoryEntry list, string>> =
+    async {
+        match! movements port { CategoryId = None; Month = None; Origin = None } with
+        | Error message -> return Error message
+        | Ok found ->
+            let! pauses =
+                readSource "Pause-Ereignisse lesen" Budgeting.Persistence.PauseEventsUnreadableText port.LoadAllPauseEvents
+            let! changes =
+                readSource "Target-Änderungen lesen" Budgeting.Persistence.TargetChangesUnreadableText port.LoadAllTargetChanges
+            match pauses, changes with
+            | Error message, _
+            | _, Error message -> return Error message
+            | Ok pauses, Ok changes -> return Ok (mergeHistory found pauses changes)
+    }
 
-/// Die echten Lese-Quellen: Budget-Bewegungen und Kassenbuch (Lese-Naht ledger an budgeting).
+/// Die echten Lese-Quellen: Budget-Ereignisse (Bewegungen, Pausen, Target-Änderungen) und Kassenbuch (Lese-Naht
+/// ledger an budgeting).
 let liveHistoryPort : HistoryPort =
     { LoadMovements = Budgeting.Persistence.loadMovements
       LoadPauseEvents = Budgeting.Persistence.loadPauseEvents
       LoadTargetChanges = Budgeting.Persistence.loadTargetChanges
+      LoadAllPauseEvents = Budgeting.Persistence.loadAllPauseEvents
+      LoadAllTargetChanges = Budgeting.Persistence.loadAllTargetChanges
       LoadMonthlyActivity =
         fun categoryId months -> Ledger.QueryHandlers.getCategoryMonthlyActivity (YnabCategoryId categoryId) months }
 

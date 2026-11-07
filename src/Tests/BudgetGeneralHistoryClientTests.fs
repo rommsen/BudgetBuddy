@@ -72,17 +72,59 @@ let private movements : HistoryMovement list =
       movement targetsGroup (Decision MovementOrigin.TargetsApplied) "Miete" 0m 800m
       movement targetsGroup (Decision MovementOrigin.TargetsApplied) "Strom" 0m 60m ]
 
+/// Eine Pause und eine Target-Änderung neben den Bewegungen (budgeting-r5h2n), älter als die Bewegungen.
+let private pauseId = Guid.NewGuid()
+let private changeId = Guid.NewGuid()
+
+let private targetEntries : HistoryEntry list =
+    [ TargetPaused
+        { EventId = pauseId
+          OccurredAt = DateTime(2026, 10, 2, 9, 0, 0, DateTimeKind.Utc)
+          Month = "2026-10-01"
+          CategoryId = Guid.NewGuid()
+          CategoryName = "Urlaub" }
+      TargetChanged
+        { ChangeId = changeId
+          OccurredAt = DateTime(2026, 10, 1, 9, 0, 0, DateTimeKind.Utc)
+          Month = "2026-10-01"
+          CategoryId = Guid.NewGuid()
+          CategoryName = "Urlaub"
+          ChangeKind = TargetRemoved
+          GoalBefore = Some (eur 50m)
+          GoalAfter = None
+          DateBefore = None
+          DateAfter = None
+          DayBefore = None
+          DayAfter = None
+          Latest = None
+          DateStep = None
+          SentToYnab = false } ]
+
+/// Die Antwort des Servers: Bewegungen, Pause und Target-Änderung, neueste zuerst.
+let private entries : HistoryEntry list = (movements |> List.map Movement) @ targetEntries
+
 /// Die Antwort auf das jüngste Laden.
-let private answer (result: Result<HistoryMovement list, string>) (model: Model) : Model =
+let private answer (result: Result<HistoryEntry list, string>) (model: Model) : Model =
     model |> step (GeneralHistoryLoaded (model.GeneralHistory.Generation, result))
 
 let private loaded () : Model =
-    page |> step GeneralHistoryEntered |> answer (Ok movements)
+    page |> step GeneralHistoryEntered |> answer (Ok entries)
+
+/// Die gezeigten Zeilen: ein Durchlauf mit seiner Herkunft, eine Target-Zeile mit ihrer Id.
+let private shownRowsOf (model: Model) : Choice<HistoryOrigin, Guid> list =
+    match model.GeneralHistory.Rows with
+    | Success rows ->
+        shownRows model.GeneralHistory.Filter rows
+        |> List.map (function RunRow r -> Choice1Of2 r.Origin | TargetRow t -> Choice2Of2 t.EntryId)
+    | other -> failtest $"Zeilen erwartet, kam {other}"
 
 let private shownOrigins (model: Model) =
-    match model.GeneralHistory.Runs with
-    | Success runs -> shownRuns model.GeneralHistory.Filter runs |> List.map (fun r -> r.Origin)
-    | other -> failtest $"Durchläufe erwartet, kam {other}"
+    shownRowsOf model |> List.choose (function Choice1Of2 origin -> Some origin | Choice2Of2 _ -> None)
+
+let private runsOf (model: Model) : HistoryRun list =
+    match model.GeneralHistory.Rows with
+    | Success rows -> rows |> List.choose (function RunRow r -> Some r | TargetRow _ -> None)
+    | other -> failtest $"Zeilen erwartet, kam {other}"
 
 let private rootModel (page: Page) (budget: Model) : State.Model =
     let settingsModel, _ = Components.Settings.State.init ()
@@ -114,22 +156,22 @@ let tests =
         }
         test "Betreten lädt die Bewegungen, die Antwort wird zu Durchläufen, ein Fehler zur Fehlerkarte" {
             let entering, cmd, _ = Components.Budget.State.update GeneralHistoryEntered page
-            Expect.equal entering.GeneralHistory.Runs Loading "lädt"
+            Expect.equal entering.GeneralHistory.Rows Loading "lädt"
             Expect.isFalse (List.isEmpty cmd) "das Laden ist angestoßen"
             Expect.equal (shownOrigins (loaded ())) [ (Decision MovementOrigin.MoneyAssigned); (Decision MovementOrigin.MoneyMoved); (Decision MovementOrigin.TargetsApplied) ] "drei Durchläufe"
             let failed = entering |> answer (Error "kaputt")
-            Expect.equal failed.GeneralHistory.Runs (Failure "kaputt") "Fehlerkarte"
+            Expect.equal failed.GeneralHistory.Rows (Failure "kaputt") "Fehlerkarte"
         }
         // budgeting-c6vn4 (A1): verhindert, dass eine späte Antwort eines früheren Ladens (Retry.reading
         // wiederholt verzögert) eine neuere ersetzt: öffnen, zurück, buchen, wieder öffnen.
         test "Eine alte Antwort nach einer neueren ersetzt nichts" {
             let first = page |> step GeneralHistoryEntered
             let oldGeneration = first.GeneralHistory.Generation
-            let fresh = first |> step GeneralHistoryEntered |> answer (Ok movements)
+            let fresh = first |> step GeneralHistoryEntered |> answer (Ok entries)
             let late = fresh |> step (GeneralHistoryLoaded (oldGeneration, Ok []))
-            Expect.equal late.GeneralHistory.Runs fresh.GeneralHistory.Runs "die neuere Antwort bleibt"
+            Expect.equal late.GeneralHistory.Rows fresh.GeneralHistory.Rows "die neuere Antwort bleibt"
             let failedLate = fresh |> step (GeneralHistoryLoaded (oldGeneration, Error "alt"))
-            Expect.equal failedLate.GeneralHistory.Runs fresh.GeneralHistory.Runs "ein alter Fehler auch nicht"
+            Expect.equal failedLate.GeneralHistory.Rows fresh.GeneralHistory.Rows "ein alter Fehler auch nicht"
         }
         // budgeting-c6vn4 (A2): "Wiederholen" setzte früher über `GeneralHistoryEntered` Filter und Aufklappen zurück.
         test "Wiederholen lädt neu und lässt Filter und Aufklappen stehen" {
@@ -138,12 +180,20 @@ let tests =
                 |> step (SelectRunFilter (RunsOf (Decision MovementOrigin.TargetsApplied)))
                 |> step (ToggleRun targetsGroup)
             let retrying, cmd, _ = Components.Budget.State.update RetryGeneralHistory chosen
-            Expect.equal retrying.GeneralHistory.Runs Loading "lädt"
+            Expect.equal retrying.GeneralHistory.Rows Loading "lädt"
             Expect.isFalse (List.isEmpty cmd) "das Laden ist angestoßen"
             Expect.equal retrying.GeneralHistory.Filter (RunsOf (Decision MovementOrigin.TargetsApplied)) "Filter bleibt"
             Expect.isTrue (retrying.GeneralHistory.Expanded.Contains targetsGroup) "aufgeklappt bleibt"
             let stale = retrying |> step (GeneralHistoryLoaded (chosen.GeneralHistory.Generation, Ok []))
-            Expect.equal stale.GeneralHistory.Runs Loading "die Antwort vor dem Wiederholen zählt nicht"
+            Expect.equal stale.GeneralHistory.Rows Loading "die Antwort vor dem Wiederholen zählt nicht"
+        }
+        // budgeting-r5h2n: auch der neue Filter "Targets" bleibt beim Wiederholen stehen.
+        test "Wiederholen mit dem Filter Targets behält ihn, erneutes Betreten setzt auf Alle zurück" {
+            let chosen = loaded () |> step (SelectRunFilter TargetChanges)
+            let retried = chosen |> step RetryGeneralHistory |> answer (Ok entries)
+            Expect.equal retried.GeneralHistory.Filter TargetChanges "Filter bleibt"
+            Expect.equal (shownRowsOf retried) [ Choice2Of2 pauseId; Choice2Of2 changeId ] "weiter nur Target-Zeilen"
+            Expect.equal (chosen |> step GeneralHistoryEntered).GeneralHistory.Filter AllRuns "von vorn"
         }
         test "Erneutes Betreten setzt Filter und Aufklappen zurück" {
             let again =
@@ -160,21 +210,28 @@ let tests =
             let back = loaded () |> step (SelectRunFilter (RunsOf (Decision MovementOrigin.MoneyMoved))) |> step (SelectRunFilter AllRuns)
             Expect.equal (List.length (shownOrigins back)) 3 "Alle"
         }
+        // budgeting-r5h2n: Target-Änderungen und Pausen stehen unter Alle gemischt, unter "Targets" allein und
+        // unter keinem Chip einer Herkunft.
+        test "Der Filter Targets zeigt nur Pausen und Target-Änderungen, Alle alles gemischt, Zuweisen keine Target-Zeile" {
+            let targetRows = [ Choice2Of2 pauseId; Choice2Of2 changeId ]
+            Expect.equal (shownRowsOf (loaded () |> step (SelectRunFilter TargetChanges))) targetRows "nur Target-Zeilen"
+            let all = shownRowsOf (loaded ())
+            Expect.equal (List.length all) 5 "drei Durchläufe und zwei Target-Zeilen"
+            Expect.equal (all |> List.skip 3) targetRows "gemischt nach Zeitpunkt, die älteren Target-Zeilen hinten"
+            Expect.equal
+                (shownRowsOf (loaded () |> step (SelectRunFilter (RunsOf (Decision MovementOrigin.MoneyAssigned)))))
+                [ Choice1Of2 (Decision MovementOrigin.MoneyAssigned) ]
+                "Zuweisen ohne Target-Zeile"
+        }
         test "Ein Tipp auf einen Targets-Durchlauf klappt seine Einzelzeilen auf, ein zweiter klappt zu" {
-            let targetsRun (model: Model) =
-                match model.GeneralHistory.Runs with
-                | Success runs -> runs |> List.find (fun r -> r.RunId = targetsGroup)
-                | other -> failtest $"{other}"
+            let targetsRun (model: Model) = runsOf model |> List.find (fun r -> r.RunId = targetsGroup)
             let opened = loaded () |> step (ToggleRun targetsGroup)
             Expect.isTrue (isRunOpen opened.GeneralHistory (targetsRun opened)) "auf"
             let closed = opened |> step (ToggleRun targetsGroup)
             Expect.isFalse (isRunOpen closed.GeneralHistory (targetsRun closed)) "zu"
         }
         test "Nur ein Durchlauf Targets anwenden klappt auf" {
-            match (loaded ()).GeneralHistory.Runs with
-            | Success runs ->
-                Expect.equal (runs |> List.map expandable) [ false; false; true ] "Zuweisen, Verschieben, Targets"
-            | other -> failtest $"{other}"
+            Expect.equal (runsOf (loaded ()) |> List.map expandable) [ false; false; true ] "Zuweisen, Verschieben, Targets"
         }
         test "Der Knopf Historie im Seitenkopf führt zu #/budget/history" {
             let root, cmd = State.update (State.BudgetMsg OpenGeneralHistory) (rootModel Page.Budget page)
@@ -191,7 +248,7 @@ let tests =
                 |> step OpenGeneralHistory
                 |> step PageLeft
                 |> step GeneralHistoryEntered
-                |> answer (Ok movements)
+                |> answer (Ok entries)
             let _, _, viaButton = Components.Budget.State.update LeaveGeneralHistory shown
             Expect.equal viaButton StepBackToBudgetPage "ein Schritt zurück"
             let abandoned = page |> step OpenGeneralHistory |> step GeneralHistoryAbandoned |> step GeneralHistoryEntered
@@ -209,7 +266,7 @@ let tests =
                 |> step OpenGeneralHistory
                 |> step PageLeft
                 |> step GeneralHistoryEntered
-                |> answer (Ok movements)
+                |> answer (Ok entries)
                 |> step PageEntered
             Expect.equal back.ChosenMonth (Some "2026-09-01") "der Monat bleibt"
             Expect.equal back.Month (Success october) "der Monat steht weiter da"
@@ -236,7 +293,11 @@ let tests =
             Expect.contains messages (State.BudgetMsg GeneralHistoryEntered) "die Historie lädt"
         }
         test "Der Leertext nennt ohne Filter, was hier erscheint, mit Filter die Art" {
-            Expect.equal (emptyText AllRuns) "Noch keine Durchläufe. Targets anwenden, Verschieben, Zuweisen und Änderungen aus YNAB erscheinen hier." "ohne Filter"
+            Expect.equal
+                (emptyText AllRuns)
+                "Noch keine Einträge. Targets anwenden, Verschieben, Zuweisen, Target-Änderungen, Pausen und Änderungen aus YNAB erscheinen hier."
+                "ohne Filter"
+            Expect.equal (emptyText TargetChanges) "Keine Target-Änderungen oder Pausen" "Targets"
             Expect.equal (emptyText (RunsOf (Decision MovementOrigin.MoneyMoved))) "Keine Durchläufe dieser Art" "mit Filter"
             Expect.equal (emptyText (RunsOf HistoryOrigin.ObservedInYnab)) "Keine Zuweisungen in YNAB" "Beobachtung"
             Expect.equal (emptyText (RunsOf HistoryOrigin.TakenOverFromYnab)) "Keine Übernahme aus YNAB" "Übernahme"
@@ -245,14 +306,14 @@ let tests =
         test "Die Filterleiste führt auch, was aus YNAB kam, mit den Worten der Zeilen" {
             Expect.equal
                 (runFilters |> List.map runFilterLabel)
-                [ "Alle"; "Targets anwenden"; "Verschieben"; "Zuweisen"; "In YNAB zugewiesen"; "Aus YNAB übernommen" ]
+                [ "Alle"; "Targets anwenden"; "Verschieben"; "Zuweisen"; "Targets"; "In YNAB zugewiesen"; "Aus YNAB übernommen" ]
                 "Chips"
             let run origin : HistoryRun =
                 { RunId = Guid.NewGuid(); OccurredAt = DateTime.UtcNow; Origin = origin; Month = "2026-10-01"
                   Text = ""; Amount = eur 1m; Status = RunFromYnab; Lines = [] }
-            let runs = [ run HistoryOrigin.ObservedInYnab; run HistoryOrigin.TakenOverFromYnab; run (Decision MovementOrigin.MoneyAssigned) ]
-            Expect.equal (shownRuns (RunsOf HistoryOrigin.ObservedInYnab) runs) [ runs[0] ] "Beobachtung"
-            Expect.equal (shownRuns (RunsOf HistoryOrigin.TakenOverFromYnab) runs) [ runs[1] ] "Übernahme"
+            let rows = [ run HistoryOrigin.ObservedInYnab; run HistoryOrigin.TakenOverFromYnab; run (Decision MovementOrigin.MoneyAssigned) ] |> List.map RunRow
+            Expect.equal (shownRows (RunsOf HistoryOrigin.ObservedInYnab) rows) [ rows[0] ] "Beobachtung"
+            Expect.equal (shownRows (RunsOf HistoryOrigin.TakenOverFromYnab) rows) [ rows[1] ] "Übernahme"
         }
         test "Der Betrag rechts: Verschieben ohne Vorzeichen, Zuweisen und Targets mit, eine Null ohne" {
             let run origin amount : HistoryRun =

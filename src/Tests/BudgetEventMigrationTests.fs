@@ -671,6 +671,8 @@ let boundaryTests =
             foreign (streamIdOf (TargetStream k)) (eventTypeName goal) (encodePayload goal)
             foreign "fremd:sonstwas:1" "GanzAndersPassiert" "{}"
             Expect.equal (queryMovements conn { CategoryId = None; Month = None; Origin = None }) (Ok []) "allgemeine Historie"
+            Expect.equal (queryAllPauseEvents conn) (Ok []) "Pausen der allgemeinen Historie"
+            Expect.equal (queryAllTargetChanges conn) (Ok []) "Target-Änderungen der allgemeinen Historie"
             Expect.equal (queryMovements conn { CategoryId = Some k; Month = Some "2026-10-01"; Origin = None }) (Ok []) "Historie je Kategorie"
             Expect.equal (queryRecentCategories conn MoneyMoved 10) (Ok []) "Zuletzt verwendet"
             Expect.equal (queryPausedCategories conn "2026-10-01") (Ok Set.empty) "Pausen"
@@ -702,6 +704,8 @@ let boundaryTests =
             BudgetEventsFixture.appendUnknown conn (TargetStream k)
             Expect.equal (queryRecentCategories conn MoneyMoved 10) (Ok []) "Zuletzt verwendet"
             Expect.equal (queryMovements conn { CategoryId = None; Month = None; Origin = None }) (Ok []) "allgemeine Historie"
+            Expect.equal (queryAllPauseEvents conn) (Ok []) "Pausen der allgemeinen Historie"
+            Expect.equal (queryAllTargetChanges conn) (Ok []) "Target-Änderungen der allgemeinen Historie"
             Expect.equal (queryLastTargetChanges conn) (Ok Map.empty) "letzte Target-Änderung"
             Expect.isError (queryMovements conn { CategoryId = None; Month = Some "2026-10-01"; Origin = None }) "Historie des Monats meldet"
             Expect.isError (queryTargetChanges conn k "2026-10-01") "Target-Änderungen der Kategorie melden"

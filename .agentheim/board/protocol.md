@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 10:44 -- Task verified and completed: budgeting-r5h2n - "Allgemeine Historie zeigt alles, was das Budget betrifft, auch Target-Änderungen und Pausen"
+
+**Type:** Work / Task completion
+**Task:** budgeting-r5h2n - "Allgemeine Historie zeigt alles, was das Budget betrifft, auch Target-Änderungen und Pausen"
+**Summary:** Die allgemeine Historie zeigt neben den Durchläufen jede Pause und jede Target-Änderung als eigene Zeile "Art, Kategorie", gemischt und neueste zuerst, mit dem neuen Filter "Targets"; getBudgetHistory liefert HistoryEntry list aus drei Abfragen über alle Streams, gemischt mit mergeHistory.
+**Duration:** (unknown)
+**Verification:** PASS (iteration 1)
+**Files changed:** 13
+**Tests added:** 11
+**ADRs written:** none
+
+---
+
 ## 2026-11-07 10:06 -- Task verified and completed: infrastructure-vp308 - "Fehler über die Grenze: kein Stacktrace an den Client, kein YNAB-Rohtext an Client, Bob und in events"
 
 **Type:** Work / Task completion

@@ -118,3 +118,6 @@ Kaputt-Szenario (GIVEN/WHEN/THEN): GIVEN Wechsel hin und zurück, das Lesen des 
 ## Aus dem Modeling von budgeting-my8p8 (2026-11-07, Bestandsreview budgeting Gruppe 1)
 - Benennung (erst beim nächsten Vertragsbruch): `retryFailedTargets` heißt besser `retryWriteBack` (`src/Shared/Api.fs:524`), `ApplyReport.ApplicationId` ist `string` statt `Guid` (`src/Shared/Budgeting.fs:340`), `Guid.TryParse` der Anwendungs-Id gehört nach `Validation.fs` (`src/Server/Api.fs:1998`), "Targets-Anwendung nicht gefunden" gilt auch für Verschieben und Zuweisen (`src/Server/Budgeting/CommandHandlers.fs:1082`).
 - UI: Der Bericht von Targets anwenden trägt in jeder Zeile ein grünes `Badge.success` (`TargetsView.fs:110`); schlicht wie die Historie (styleguide §2).
+
+## Aus budgeting-r5h2n (2026-11-07)
+- Am Handy kürzt der Fehlgrund neben dem Badge ("Rate…") in der allgemeinen Historie. Das betrifft Durchläufe und Target-Zeilen gleich und bestand schon vorher.

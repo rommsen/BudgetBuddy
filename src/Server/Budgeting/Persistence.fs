@@ -513,6 +513,18 @@ let loadPausedCategoriesWith (connect: unit -> SqliteConnection) (month: string)
 let loadPausedCategories (month: string) : Async<Result<Set<Guid>, string>> =
     loadPausedCategoriesWith Core.getConnection month
 
+/// Ein Pause-Ereignis als Eintrag der Historie.
+let private pauseEntryOf (e: RecordedBudgetEvent) (kind: PauseKind, p: PauseChange) : HistoryEntry =
+    let pause =
+        { EventId = e.EventId
+          OccurredAt = e.OccurredAt
+          Month = monthKeyOfId p.Month
+          CategoryId = p.CategoryId
+          CategoryName = p.CategoryName }
+    match kind with
+    | PauseKind.Paused -> TargetPaused pause
+    | PauseKind.PauseLifted -> HistoryEntry.PauseLifted pause
+
 /// Die Pause-Ereignisse einer Kategorie im Monat für die Historie, neueste zuerst nach `stream_version`.
 let queryPauseEvents (conn: SqliteConnection) (categoryId: Guid) (month: string) : Result<HistoryEntry list, string> =
     match monthStreamOf month with
@@ -524,17 +536,18 @@ let queryPauseEvents (conn: SqliteConnection) (categoryId: Guid) (month: string)
             |> List.choose (fun e ->
                 pauseOf e.Event
                 |> Option.filter (fun (_, p) -> p.CategoryId = categoryId)
-                |> Option.map (fun (kind, p) ->
-                    let pause =
-                        { EventId = e.EventId
-                          OccurredAt = e.OccurredAt
-                          Month = monthKeyOfId p.Month
-                          CategoryId = p.CategoryId
-                          CategoryName = p.CategoryName }
-                    match kind with
-                    | PauseKind.Paused -> TargetPaused pause
-                    | PauseKind.PauseLifted -> HistoryEntry.PauseLifted pause))
+                |> Option.map (pauseEntryOf e))
             |> List.rev)
+
+/// Die Pause-Ereignisse aller Kategorien und Monate für die allgemeine Historie (budgeting-r5h2n), in einer
+/// Abfrage über alle Monats-Streams, neueste zuerst nach `occurred_at`.
+let queryAllPauseEvents (conn: SqliteConnection) : Result<HistoryEntry list, string> =
+    loadBudgetEventsOn conn (OfTypes [ EventTypes.paused; EventTypes.pauseLifted ])
+    |> Result.map (fun events ->
+        events
+        |> List.choose (fun e -> pauseOf e.Event |> Option.map (pauseEntryOf e))
+        |> List.rev
+        |> List.sortByDescending historyEntryTime)
 
 /// Die Pause-Ereignisse für die Historie über `connect`. Ein Lesefehler kommt als `Error` mit Text.
 let loadPauseEventsWith (connect: unit -> SqliteConnection) (categoryId: Guid) (month: string) : Async<Result<HistoryEntry list, string>> =
@@ -543,6 +556,14 @@ let loadPauseEventsWith (connect: unit -> SqliteConnection) (categoryId: Guid) (
 /// Die Pause-Ereignisse für die Historie. Liest nur die Datenbank, kein YNAB.
 let loadPauseEvents (categoryId: Guid) (month: string) : Async<Result<HistoryEntry list, string>> =
     loadPauseEventsWith Core.getConnection categoryId month
+
+/// Die Pause-Ereignisse aller Kategorien über `connect`. Ein Lesefehler kommt als `Error` mit Text.
+let loadAllPauseEventsWith (connect: unit -> SqliteConnection) : Async<Result<HistoryEntry list, string>> =
+    readWith connect "Pause-Ereignisse lesen" PauseEventsUnreadableText queryAllPauseEvents
+
+/// Die Pause-Ereignisse aller Kategorien für die allgemeine Historie. Liest nur die Datenbank, kein YNAB.
+let loadAllPauseEvents () : Async<Result<HistoryEntry list, string>> =
+    loadAllPauseEventsWith Core.getConnection
 
 // ============================================
 // Targets (budgeting-k8wq3, ADR 0080, budgeting-eh8xe)
@@ -573,62 +594,81 @@ let private categoryNameIn (events: RecordedBudgetEvent list) : string =
     |> List.tryLast
     |> Option.defaultValue ""
 
-/// Die Target-Änderungen einer Kategorie im Monat für die Historie, neueste zuerst nach `stream_version`: der
-/// Altbestand je mit dem jüngsten Ergebnis von Schritt 1 und von Schritt 2, die Änderungen in BB (`TargetSet`,
-/// `TargetRemoved`) mit Art, vorher und nachher aus der vorigen Faltung (ADR 0084 Punkt 2). Die Übernahme ist
-/// keine Änderung.
+/// Die Target-Änderungen eines Target-Streams in Stream-Reihenfolge, über alle Monate: der Altbestand je mit dem
+/// jüngsten Ergebnis von Schritt 1 und von Schritt 2, die Änderungen in BB (`TargetSet`, `TargetRemoved`) mit Art,
+/// vorher und nachher aus der vorigen Faltung (ADR 0084 Punkt 2). Die Übernahme ist keine Änderung, sie ist nur
+/// der Startstand der Faltung. `events` ist der Stream nach `stream_version`, mindestens Übernahme, Änderungen in
+/// BB, Altbestand und Schritt-Ergebnisse (budgeting-r5h2n, gemeinsam für Tab Historie und allgemeine Historie).
+let private targetChangesIn (categoryId: Guid) (events: RecordedBudgetEvent list) : HistoryTargetChange list =
+    let steps = latestGoalSteps events
+    let name = categoryNameIn events
+    let states = events |> List.map (fun e -> e.Event) |> Server.Budgeting.TargetRules.withStates
+    List.zip events states
+    |> List.choose (fun (e, (_, before, after)) ->
+        let inBb (effectiveFrom: string) =
+            Some
+                { ChangeId = e.EventId
+                  OccurredAt = e.OccurredAt
+                  Month = monthKeyOfId effectiveFrom
+                  CategoryId = categoryId
+                  CategoryName = name
+                  ChangeKind = Server.Budgeting.TargetRules.changeKindBetween before after
+                  GoalBefore = before |> Option.map (fun t -> t.Goal)
+                  GoalAfter = after |> Option.map (fun t -> t.Goal)
+                  DateBefore = before |> Option.bind (fun t -> t.Date)
+                  DateAfter = after |> Option.bind (fun t -> t.Date)
+                  DayBefore = before |> Option.bind (fun t -> t.Day)
+                  DayAfter = after |> Option.bind (fun t -> t.Day)
+                  Latest = None
+                  DateStep = None
+                  SentToYnab = false }
+        match e.Event with
+        | BudgetEvent.TargetSet p -> inBb p.EffectiveFrom
+        | BudgetEvent.TargetRemoved p -> inBb p.EffectiveFrom
+        | BudgetEvent.YnabGoalChangedFromBb p ->
+            Some
+                { ChangeId = e.EventId
+                  OccurredAt = e.OccurredAt
+                  Month = monthKeyOfId p.Month
+                  CategoryId = categoryId
+                  CategoryName = p.CategoryName
+                  ChangeKind = p.ChangeKind
+                  GoalBefore = p.OldGoalTarget |> Option.map euroOfMilliunits
+                  GoalAfter = p.NewGoalTarget |> Option.map euroOfMilliunits
+                  DateBefore = p.OldDate
+                  DateAfter = p.NewDate
+                  DayBefore = None
+                  DayAfter = None
+                  Latest = Map.tryFind (e.EventId, 1) steps
+                  DateStep = Map.tryFind (e.EventId, 2) steps
+                  SentToYnab = true }
+        | _ -> None)
+
+/// Die Target-Änderungen einer Kategorie im Monat für die Historie, neueste zuerst nach `stream_version`
+/// (`targetChangesIn`, gefiltert auf den Monat: `effectiveFrom` oder Monat des Altbestands).
 let queryTargetChanges (conn: SqliteConnection) (categoryId: Guid) (month: string) : Result<HistoryTargetChange list, string> =
     match monthIdOf month with
     | Error _ -> Ok []
     | Ok monthId ->
         loadBudgetEventsOn conn (InStream (streamIdOf (TargetStream categoryId)))
         |> Result.map (fun events ->
-            let steps = latestGoalSteps events
-            let name = categoryNameIn events
-            let states = events |> List.map (fun e -> e.Event) |> Server.Budgeting.TargetRules.withStates
-            List.zip events states
-            |> List.choose (fun (e, (_, before, after)) ->
-                let inBb (effectiveFrom: string) =
-                    if effectiveFrom <> monthId then None
-                    else
-                        Some
-                            { ChangeId = e.EventId
-                              OccurredAt = e.OccurredAt
-                              Month = monthKeyOfId effectiveFrom
-                              CategoryId = categoryId
-                              CategoryName = name
-                              ChangeKind = Server.Budgeting.TargetRules.changeKindBetween before after
-                              GoalBefore = before |> Option.map (fun t -> t.Goal)
-                              GoalAfter = after |> Option.map (fun t -> t.Goal)
-                              DateBefore = before |> Option.bind (fun t -> t.Date)
-                              DateAfter = after |> Option.bind (fun t -> t.Date)
-                              DayBefore = before |> Option.bind (fun t -> t.Day)
-                              DayAfter = after |> Option.bind (fun t -> t.Day)
-                              Latest = None
-                              DateStep = None
-                              SentToYnab = false }
-                match e.Event with
-                | BudgetEvent.TargetSet p -> inBb p.EffectiveFrom
-                | BudgetEvent.TargetRemoved p -> inBb p.EffectiveFrom
-                | BudgetEvent.YnabGoalChangedFromBb p when p.Month = monthId ->
-                    Some
-                        { ChangeId = e.EventId
-                          OccurredAt = e.OccurredAt
-                          Month = monthKeyOfId p.Month
-                          CategoryId = categoryId
-                          CategoryName = p.CategoryName
-                          ChangeKind = p.ChangeKind
-                          GoalBefore = p.OldGoalTarget |> Option.map euroOfMilliunits
-                          GoalAfter = p.NewGoalTarget |> Option.map euroOfMilliunits
-                          DateBefore = p.OldDate
-                          DateAfter = p.NewDate
-                          DayBefore = None
-                          DayAfter = None
-                          Latest = Map.tryFind (e.EventId, 1) steps
-                          DateStep = Map.tryFind (e.EventId, 2) steps
-                          SentToYnab = true }
-                | _ -> None)
+            targetChangesIn categoryId events
+            |> List.filter (fun c -> c.Month = monthKeyOfId monthId)
             |> List.rev)
+
+/// Die Target-Änderungen aller Kategorien und Monate für die allgemeine Historie (budgeting-r5h2n): eine Abfrage
+/// über alle Target-Streams, die Übernahme mitgelesen als Startstand der Faltung, gruppiert nach Stream. Neueste
+/// zuerst nach `occurred_at`, bei gleichem Zeitpunkt die spätere im Stream vorn.
+let queryAllTargetChanges (conn: SqliteConnection) : Result<HistoryTargetChange list, string> =
+    loadBudgetEventsOn conn (OfTypes (EventTypes.targetRules @ EventTypes.goalChanges))
+    |> Result.map (fun events ->
+        events
+        |> List.groupBy (fun e -> e.StreamId)
+        |> List.collect (fun (streamId, inStream) ->
+            match categoryOfTargetStream streamId with
+            | None -> []
+            | Some categoryId -> targetChangesIn categoryId inStream |> List.rev)
+        |> List.sortByDescending (fun c -> c.OccurredAt))
 
 /// Die Meldung, wenn die Target-Änderungen für die Historie nicht lesbar sind.
 [<Literal>]
@@ -641,6 +681,14 @@ let loadTargetChangesWith (connect: unit -> SqliteConnection) (categoryId: Guid)
 /// Die Target-Änderungen für die Historie. Liest nur die Datenbank, kein YNAB.
 let loadTargetChanges (categoryId: Guid) (month: string) : Async<Result<HistoryTargetChange list, string>> =
     loadTargetChangesWith Core.getConnection categoryId month
+
+/// Die Target-Änderungen aller Kategorien über `connect`. Ein Lesefehler kommt als `Error` mit Text.
+let loadAllTargetChangesWith (connect: unit -> SqliteConnection) : Async<Result<HistoryTargetChange list, string>> =
+    readWith connect "Target-Änderungen lesen" TargetChangesUnreadableText queryAllTargetChanges
+
+/// Die Target-Änderungen aller Kategorien für die allgemeine Historie. Liest nur die Datenbank, kein YNAB.
+let loadAllTargetChanges () : Async<Result<HistoryTargetChange list, string>> =
+    loadAllTargetChangesWith Core.getConnection
 
 /// Je Kategorie die jüngste Target-Änderung (Targets prüfen, budgeting-p2zr6, ADR 0082 Punkt 7, Nachtrag ADR
 /// 0084): ein `TargetSet` oder `TargetRemoved`, oder aus dem Altbestand eine Änderung, deren jüngstes Ergebnis
