@@ -920,7 +920,10 @@ let private calmListSourceTests =
 
         test "Kontostände laufen über die ruhigen Money-Bausteine" {
             let view = readLedgerView ()
-            Expect.stringContains (sliceFunctionBody view "let private accountCardView") "Money.accountBalance" "Handy-Karte"
+            // Seit ledger-vq2g8 läuft der Betrag beider Formen über `cardBalanceElement`
+            // (Stand, Platzhalter oder Strich).
+            Expect.stringContains (sliceFunctionBody view "let private cardBalanceElement") "Money.accountBalanceFor" "Betrag"
+            Expect.stringContains (sliceFunctionBody view "let private accountCardView") "cardBalanceElement" "Handy-Karte"
             Expect.stringContains (sliceFunctionBody view "let private accountListRowView") "Money.accountListRow" "PC-Liste"
         }
 
@@ -941,22 +944,50 @@ let private accountCardsTests =
     testList "buildAccountCards" [
 
         test "'Alle Konten' steht zuerst und traegt die Summe aller Kontostaende" {
-            let accounts = [ accountView 1 "ING"; accountView 2 "Comdirect" ]
+            let accounts = [ accountView 1 "Konto A"; accountView 2 "Konto B" ]
             let balances =
                 [ { AccountId = accountId 1; Balance = eur 100m }
                   { AccountId = accountId 2; Balance = eur -20m } ]
 
-            let cards = buildAccountCards accounts balances
+            let cards = buildAccountCards accounts (Success balances)
             Expect.equal (cards |> List.map (fun c -> c.Filter)) [ AllAccounts; OneAccount (accountId 1); OneAccount (accountId 2) ]
                 "Alle Konten zuerst, danach die Konten in ihrer Reihenfolge"
-            Expect.equal (cards |> List.head).Balance (eur 80m) "100 - 20"
+            Expect.equal (cards |> List.map (fun c -> c.Balance)) [ BalanceShown (eur 80m); BalanceShown (eur 100m); BalanceShown (eur -20m) ]
+                "Summe 100 - 20, danach jeder eigene Stand"
         }
 
-        test "Ein Konto ohne geladenen Stand zeigt Null, keinen Fehler" {
-            let accounts = [ accountView 1 "ING" ]
-            let cards = buildAccountCards accounts []
-            Expect.equal (cards |> List.item 1).Balance (eur 0m) "Kein Stand geladen: Null statt Crash"
-            Expect.equal (cards |> List.head).Balance (eur 0m) "Auch 'Alle Konten' ist dann Null"
+        test "Ein Konto ohne Eintrag in einer erfolgreichen Antwort hat keine Buchungen und zeigt Null" {
+            let cards = buildAccountCards [ accountView 1 "Konto A"; accountView 2 "Konto B" ] (Success [ { AccountId = accountId 1; Balance = eur 5m } ])
+            Expect.equal (cards |> List.item 2).Balance (BalanceShown (eur 0m)) "Stand Null"
+        }
+
+        // Regression ledger-vq2g8 (Bestandsreview 2026-11-06): brach der Abruf der Kontostände
+        // ab, zeigte die Leiste für jedes Konto und für "Alle Konten" 0,00 €, was wie ein
+        // echter Stand aussah. Jetzt trägt jede Karte den Zustand "gescheitert".
+        test "Scheitert der Abruf der Kontostände, trägt keine Karte einen Betrag, sondern den Zustand gescheitert" {
+            let cards = buildAccountCards [ accountView 1 "Konto A"; accountView 2 "Konto B" ] (Failure "Http error (0)")
+            Expect.equal (cards |> List.map (fun c -> c.Filter)) [ AllAccounts; OneAccount (accountId 1); OneAccount (accountId 2) ]
+                "die Karten bleiben als Kontofilter stehen"
+            Expect.all cards (fun c -> c.Balance = BalanceUnavailable) "jede Karte gescheitert, kein 0,00 €"
+        }
+
+        // Regression ledger-vq2g8: auch beim Laden stand 0,00 € statt eines Platzhalters.
+        test "Solange die Kontostände laden oder noch nicht angefragt sind, zeigt jede Karte den Zustand lädt" {
+            for balances in [ Loading; NotAsked ] do
+                let cards = buildAccountCards [ accountView 1 "Konto A" ] balances
+                Expect.hasLength cards 2 "Alle Konten und das Konto"
+                Expect.all cards (fun c -> c.Balance = BalancePending) $"{balances}: lädt, kein Betrag"
+        }
+
+        test "Nur ein gescheiterter Abruf bringt die Zeile mit Erneut laden, die LoadBalances schickt" {
+            match balancesNotice (Failure "x") with
+            | Some notice ->
+                Expect.equal notice.Text "Kontostände konnten nicht geladen werden" "Text"
+                Expect.equal notice.RetryLabel "Erneut laden" "Knopf"
+                Expect.equal notice.Retry LoadBalances "Erneut laden lädt die Kontostände"
+            | None -> failtest "Hinweis erwartet"
+            for balances in [ Success []; Loading; NotAsked ] do
+                Expect.isNone (balancesNotice balances) $"{balances}: kein Hinweis"
         }
     ]
 

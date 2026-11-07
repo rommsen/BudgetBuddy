@@ -211,6 +211,7 @@ let private counterpartSide
           Recent = recentCounterparts model
           Accounts = []
           CurrentAccount = None
+          AccountsLoad = CategoryPicker.PickerReady
           OfferWithout = false
           ToBeBudgeted = Some month.ToBeBudgeted
           StandLabel = None

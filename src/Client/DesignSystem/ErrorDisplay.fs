@@ -123,8 +123,9 @@ module ErrorDisplay =
             ]
         ]
 
-    /// Compact error card without header, just icon + message
-    let cardCompact (message: string) (onRetry: (unit -> unit) option) =
+    /// Compact error card without header, just icon + message, mit eigener Beschriftung des
+    /// Knopfs (etwa "Erneut laden" über der Kontostände-Leiste, ledger-vq2g8)
+    let cardCompactWith (retryLabel: string) (message: string) (onRetry: (unit -> unit) option) =
         Html.div [
             prop.className "rounded-lg bg-neon-red/5 border border-neon-red/20 px-4 py-3 flex items-start gap-3"
             prop.role "alert"
@@ -142,13 +143,17 @@ module ErrorDisplay =
                             Html.button [
                                 prop.className "text-neon-red hover:text-neon-red/80 text-sm font-medium mt-2 underline"
                                 prop.onClick (fun _ -> retry())
-                                prop.text "Erneut versuchen"
+                                prop.text retryLabel
                             ]
                         | None -> ()
                     ]
                 ]
             ]
         ]
+
+    /// Compact error card without header, just icon + message
+    let cardCompact (message: string) (onRetry: (unit -> unit) option) =
+        cardCompactWith "Erneut versuchen" message onRetry
 
     // ============================================================================
     // HERO ERROR - For SyncFlow and major operations

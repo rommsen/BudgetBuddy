@@ -56,6 +56,7 @@ let private targetProps : CategoryPickerProps =
       Recent = [ idOf 2 ]
       Accounts = accounts
       CurrentAccount = None
+      AccountsLoad = PickerReady
       OfferWithout = true
       ToBeBudgeted = None
       StandLabel = None
@@ -129,6 +130,18 @@ let private targetTests =
             let l = layoutForPicker { targetProps with Categories = []; LoadState = PickerFailed } ""
             Expect.equal l.Notice (Some FailedNotice) "Hinweis"
             Expect.equal (accountNames l) [ "Bar"; "Tagesgeld" ] "Konten"
+        }
+        // Regression ledger-vq2g8: scheiterte der Abruf der Übertrag-Ziele, fehlte der Abschnitt
+        // "Übertrag auf Konto" im Split-Editor ohne Hinweis.
+        test "gescheiterte Übertrag-Ziele zeigen einen Hinweis im Konten-Abschnitt, laden zeigt den Ladezustand" {
+            let failed = layoutForPicker { targetProps with Accounts = []; AccountsLoad = PickerFailed } ""
+            Expect.equal failed.AccountsNotice (Some FailedNotice) "Fehlerhinweis"
+            Expect.equal accountsFailedText "Übertrag-Ziele konnten nicht geladen werden" "Wortlaut"
+            Expect.isNone failed.Notice "die Kategorien bleiben"
+            let loading = layoutForPicker { targetProps with Accounts = []; AccountsLoad = PickerLoading } ""
+            Expect.equal loading.AccountsNotice (Some LoadingNotice) "Ladehinweis"
+            Expect.isNone (layoutForPicker targetProps "").AccountsNotice "geladen: kein Hinweis"
+            Expect.isNone (layoutForPicker { targetProps with AccountsLoad = PickerLoading } "").AccountsNotice "Nachladen mit Liste: kein Hinweis"
         }
         test "ohne ToBeBudgeted gibt es die Zeile Zu verteilen nicht" {
             let l = layoutForPicker targetProps ""

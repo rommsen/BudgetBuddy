@@ -424,7 +424,8 @@ let accountBalanceClass (isActive: bool) (amount: decimal) : string =
         else Colors.textSecondary
     $"font-mono font-semibold tabular-nums whitespace-nowrap text-sm md:text-base {color}"
 
-let private accountBalanceFor (isActive: bool) (amount: decimal) (currency: string) =
+/// Kontostand für eine Zeile, die aktiv sein kann (`accountListRow`, ledger-x0yga).
+let accountBalanceFor (isActive: bool) (amount: decimal) (currency: string) =
     Html.span [
         prop.className (accountBalanceClass isActive amount)
         prop.text (formatAmountText false true amount currency)
@@ -440,7 +441,7 @@ let accountBalance (amount: decimal) (currency: string) =
 /// gradient-topped `Stats` card the PC view used before — that shape is right for
 /// KPI tiles, not for a scannable list of accounts. Active account gets the same
 /// teal highlight as the desktop nav's active tab (`Navigation.desktopNavItem`).
-let accountListRow (label: string) (amount: decimal) (currency: string) (isActive: bool) (onClick: unit -> unit) =
+let accountListRowWith (label: string) (value: ReactElement) (isActive: bool) (onClick: unit -> unit) =
     Html.button [
         prop.onClick (fun _ -> onClick ())
         prop.className (
@@ -469,6 +470,18 @@ let accountListRow (label: string) (amount: decimal) (currency: string) (isActiv
                 )
                 prop.text label
             ]
-            accountBalanceFor isActive amount currency
+            value
         ]
+    ]
+
+let accountListRow (label: string) (amount: decimal) (currency: string) (isActive: bool) (onClick: unit -> unit) =
+    accountListRowWith label (accountBalanceFor isActive amount currency) isActive onClick
+
+/// Strich an der Stelle eines Kontostands, der nicht geladen werden konnte (ledger-vq2g8):
+/// gedämpft, in der Ziffernschrift des Betrags, damit die Zeile ihre Form behält.
+let balanceUnavailable () =
+    Html.span [
+        prop.className $"font-mono tabular-nums whitespace-nowrap text-sm md:text-base {Colors.textMuted}"
+        prop.ariaLabel "Kontostand nicht geladen"
+        prop.text "—"
     ]

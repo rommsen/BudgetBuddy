@@ -330,6 +330,7 @@ let private categoryField (model: Model) (dispatch: Msg -> unit) =
           Recent = []
           Accounts = []
           CurrentAccount = None
+          AccountsLoad = CategoryPicker.PickerReady
           OfferWithout = false
           ToBeBudgeted = None
           StandLabel = None

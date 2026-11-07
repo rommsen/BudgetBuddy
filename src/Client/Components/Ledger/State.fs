@@ -140,7 +140,7 @@ let init () : Model * Cmd<Msg> =
         CategorySuggestions = []
         CategoryRows = Map.empty
         FlagRows = Map.empty
-        LenaFlagColor = None
+        LenaFlagColor = NotAsked
         AskLenaCount = 0
         CategoryCard = None
         CategoryCardVersion = 0
@@ -1845,13 +1845,20 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 ()
                 (Ok >> LenaFlagSettingsLoaded)
                 (fun ex -> LenaFlagSettingsLoaded (Error ex.Message))
-        model, cmd, NoOp
+        // Eine geladene Farbe bleibt, bis die neue da ist.
+        let color =
+            match model.LenaFlagColor with
+            | Success _ -> model.LenaFlagColor
+            | _ -> Loading
+        { model with LenaFlagColor = color }, cmd, NoOp
 
     | LenaFlagSettingsLoaded (Ok settings) ->
-        { model with LenaFlagColor = settings.SavedColor }, Cmd.none, NoOp
+        { model with LenaFlagColor = Success settings.SavedColor }, Cmd.none, NoOp
 
-    // Ohne die Farbe bleibt "Lena fragen" gesperrt und nennt den Grund; ein Fehler ist kein Toast wert.
-    | LenaFlagSettingsLoaded (Error _) -> model, Cmd.none, NoOp
+    // Ohne die Farbe bleibt "Lena fragen" gesperrt. Ein Ladefehler ist kein Toast wert, nennt
+    // aber einen eigenen Grund (`lenaColorLoadFailedReason`, ledger-vq2g8).
+    | LenaFlagSettingsLoaded (Error message) ->
+        { model with LenaFlagColor = RemoteData.lateFailure message model.LenaFlagColor }, Cmd.none, NoOp
 
     | StartSetLenaFlag (entryId, target) ->
         match findEntry model entryId with
@@ -1875,7 +1882,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | LenaFlagSet (entryId, target, Ok outcome) ->
         let newState =
             match target with
-            | AssignLena -> { Color = model.LenaFlagColor; Name = Some lenaFlagName }
+            | AssignLena -> { Color = lenaColorOf model.LenaFlagColor; Name = Some lenaFlagName }
             | WithdrawLena -> { Color = None; Name = None }
         let model' = applyFlagResult entryId newState outcome model
         let external =
@@ -2626,7 +2633,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | LenaBatchDone (target, Ok outcome) ->
         let newState =
             match target with
-            | AssignLena -> { Color = model.LenaFlagColor; Name = Some lenaFlagName }
+            | AssignLena -> { Color = lenaColorOf model.LenaFlagColor; Name = Some lenaFlagName }
             | WithdrawLena -> { Color = None; Name = None }
         let model' = applyFlagBatch (fun _ -> newState) true outcome model
         let text = flagBatchToastText target outcome

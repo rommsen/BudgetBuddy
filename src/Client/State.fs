@@ -482,6 +482,22 @@ let init () : Model * Cmd<Msg> =
 // Update - Delegates to child components
 // ============================================
 
+/// Warum die Kassenbuch-Kategorien mit diesen Settings nicht geladen werden können, oder
+/// `None`, wenn YNAB samt Standard-Budget eingerichtet ist (ledger-vq2g8). Vorher blieben
+/// die Kategorien in beiden Fällen für immer `Loading`, die Auswahl drehte sich.
+let ledgerCategoriesNoYnab = "YNAB ist in den Settings nicht eingerichtet"
+let ledgerCategoriesNoBudget = "Kein Standard-Budget in den Settings gewählt"
+
+let ledgerCategoriesSetupGap (settings: AppSettingsView) : string option =
+    match settings.Ynab with
+    | None -> Some ledgerCategoriesNoYnab
+    | Some ynab when ynab.DefaultBudgetId.IsNone -> Some ledgerCategoriesNoBudget
+    | Some _ -> None
+
+/// Die Kassenbuch-Kategorien als Fehler mit Grund; das Warten auf die Settings endet.
+let private ledgerCategoriesFailed (reason: string) (ledger: Components.Ledger.Types.Model) =
+    { ledger with Categories = Failure reason; CategoriesAwaitSettings = false }
+
 let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     match msg with
     // ============================================
@@ -638,9 +654,13 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
         let ledgerAfterSettings =
             match settingsMsg with
             | Components.Settings.Types.SettingsLoaded (Error _) when model.Ledger.CategoriesAwaitSettings ->
-                { model.Ledger with
-                    Categories = Failure "Einstellungen konnten nicht geladen werden"
-                    CategoriesAwaitSettings = false }
+                ledgerCategoriesFailed "Einstellungen konnten nicht geladen werden" model.Ledger
+            // Settings da, aber ohne YNAB oder Budget: kein Abruf möglich, also ein Fehler
+            // mit Grund statt eines ewigen `Loading` (ledger-vq2g8).
+            | Components.Settings.Types.SettingsLoaded (Ok settings) when model.Ledger.CategoriesAwaitSettings ->
+                match ledgerCategoriesSetupGap settings with
+                | Some reason -> ledgerCategoriesFailed reason model.Ledger
+                | None -> model.Ledger
             | _ -> model.Ledger
 
         { model with Settings = settingsModel'; Ledger = ledgerAfterSettings }, Cmd.batch [ Cmd.map SettingsMsg settingsCmd; externalCmd; syncCategoriesCmd ]
@@ -735,8 +755,8 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                         | Success _ -> model.Ledger.Categories
                         | _ -> Loading
                     { model with Ledger = { model.Ledger with Categories = categories; CategoriesRefreshing = true; CategoriesAwaitSettings = false } }, cmd
-                | None -> model, Cmd.none
-            | None -> model, Cmd.none
+                | None -> { model with Ledger = ledgerCategoriesFailed ledgerCategoriesNoBudget model.Ledger }, Cmd.none
+            | None -> { model with Ledger = ledgerCategoriesFailed ledgerCategoriesNoYnab model.Ledger }, Cmd.none
         | settings ->
             // Settings fehlen oder sind gescheitert (ledger-k9tq7, Befund 2026-10-24):
             // nicht still aufgeben, sondern auf die Settings warten. Läuft ihre Abfrage

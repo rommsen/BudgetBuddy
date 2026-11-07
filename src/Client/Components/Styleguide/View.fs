@@ -430,6 +430,15 @@ let private moneySection =
                         caption "accountListRow (aktiv / inaktiv, ledger-x0yga)"
                     ]
                 ]
+                Html.div [
+                    prop.className "max-w-sm space-y-1"
+                    prop.children [
+                        ErrorDisplay.cardCompactWith "Erneut laden" "Kontostände konnten nicht geladen werden" (Some ignore)
+                        Money.accountListRowWith "Girokonto" (Loading.amountSkeleton ()) false ignore
+                        Money.accountListRowWith "Tagesgeld" (Money.balanceUnavailable ()) false ignore
+                        caption "accountListRowWith: lädt (Loading.amountSkeleton) und gescheitert (balanceUnavailable), darüber cardCompactWith (ledger-vq2g8)"
+                    ]
+                ]
             ]
         ]
     ]
@@ -1360,6 +1369,7 @@ let private CategoryPickerSingleDemo () =
           Recent = []
           Accounts = []
           CurrentAccount = None
+          AccountsLoad = CategoryPicker.PickerReady
           OfferWithout = true
           ToBeBudgeted = None
           StandLabel = Some "Stand 14:02"
@@ -1552,6 +1562,7 @@ let private SplitEditorDemo () =
           Recent = []
           Accounts = accounts
           CurrentAccount = None
+          AccountsLoad = CategoryPicker.PickerReady
           OfferWithout = true
           ToBeBudgeted = None
           StandLabel = None

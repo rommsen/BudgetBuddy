@@ -170,6 +170,11 @@ let skeleton (props: SkeletonProps) =
         if not styleProps.IsEmpty then prop.style styleProps
     ]
 
+/// Platzhalter in der Breite eines Betrags, etwa für einen Kontostand, der noch lädt
+/// (ledger-vq2g8).
+let amountSkeleton () =
+    skeleton { defaultSkeleton with ClassName = Some "w-20" }
+
 /// Line skeleton (text placeholder)
 let line width =
     skeleton { defaultSkeleton with Width = Some width }

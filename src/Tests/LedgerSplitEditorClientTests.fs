@@ -310,6 +310,14 @@ let transferTargetTests =
             let model = { modelWith [ entryOf 1 ] with TransferTargets = Loading }
             Expect.isEmpty (Components.Ledger.View.transferTargetsFor model (entryOf 1)) "leer"
 
+        // Regression ledger-vq2g8: bei `TransferTargets = Failure` lieferte der Split-Editor
+        // eine stille leere Liste, ohne Hinweis. Jetzt meldet die Entscheidung den Fehler.
+        testCase "gescheiterte Übertrag-Ziele melden den Fehler, ladende den Ladezustand" <| fun () ->
+            Expect.equal (Components.Ledger.View.transferTargetsLoadState (Failure "Http error (0)")) CategoryPicker.PickerFailed "Fehler"
+            Expect.equal (Components.Ledger.View.transferTargetsLoadState Loading) CategoryPicker.PickerLoading "lädt"
+            Expect.equal (Components.Ledger.View.transferTargetsLoadState NotAsked) CategoryPicker.PickerLoading "noch nicht angefragt"
+            Expect.equal (Components.Ledger.View.transferTargetsLoadState (Success [])) CategoryPicker.PickerReady "geladen"
+
         testCase "der Ziel-Picker filtert Konten nach dem Namen ohne Beachtung der Schreibweise" <| fun () ->
             let accounts = [ account 1 "Tagesgeld" true false; account 2 "Bargeld" true false ]
             Expect.equal (CategoryPicker.filterAccounts "" accounts |> List.length) 2 "leer: alle"

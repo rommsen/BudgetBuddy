@@ -49,7 +49,7 @@ let private modelWith (rows: LedgerEntryView list) : Model =
         TotalCount = List.length rows
         TotalAmount = eur (rows |> List.sumBy (fun e -> e.Amount.Amount))
         HasMoreEntries = false
-        LenaFlagColor = Some "purple"
+        LenaFlagColor = Success (Some "purple")
         AskLenaCount = rows |> List.filter (fun e -> e.Flag = AskLena) |> List.length }
 
 let private selecting (ids: int list) (model: Model) : Model =
@@ -105,13 +105,13 @@ let reducerTests =
                 Expect.isEmpty msgs $"{name}: kein Aufruf"
                 Expect.equal model'.LenaBatchRunning model.LenaBatchRunning $"{name}: Sperre unverändert"
             noop "ohne Auswahl" base' AssignLena
-            noop "ohne Farbe" ({ (selecting [ 1 ] base') with LenaFlagColor = None }) AssignLena
+            noop "ohne Farbe" ({ (selecting [ 1 ] base') with LenaFlagColor = Success None }) AssignLena
             noop "Geprüft läuft" ({ (selecting [ 1 ] base') with ReviewMarkBatchRunning = true }) AssignLena
             noop "Kategorie läuft" ({ (selecting [ 1 ] base') with CategoryBatchRunning = true }) WithdrawLena
             noop "Lena läuft" ({ (selecting [ 1 ] base') with LenaBatchRunning = true }) WithdrawLena
 
         testCase "Zurücknehmen braucht die Farbe nicht" <| fun () ->
-            let model = { (modelWith [ lenaEntry 1 ] |> selecting [ 1 ]) with LenaFlagColor = None }
+            let model = { (modelWith [ lenaEntry 1 ] |> selecting [ 1 ]) with LenaFlagColor = Success None }
             let _, msgs, _ = run (StartLenaBatch WithdrawLena) model
             Expect.equal (List.length msgs) 1 "Aufruf geht hinaus"
 
@@ -254,8 +254,8 @@ let textTests =
             Expect.equal (selectionWithdrawLabel 1) "Rückfrage zurücknehmen (1)" "Zurücknehmen"
 
         testCase "ohne Farbe ist Lena fragen gesperrt mit Grund, mit Farbe nicht" <| fun () ->
-            Expect.equal (selectionLenaDisabledReason None) (Some lenaColorMissingReason) "Grund"
-            Expect.isNone (selectionLenaDisabledReason (Some "purple")) "frei"
+            Expect.equal (selectionLenaDisabledReason (Success None)) (Some lenaColorMissingReason) "Grund"
+            Expect.isNone (selectionLenaDisabledReason (Success (Some "purple"))) "frei"
 
         testCase "Toast-Sätze für Zurücknehmen mit Zählern" <| fun () ->
             let result : FlagBatchOutcome = { Changed = [ change 1 lenaState FlagSent ]; UnchangedCount = 2; FailedCount = 1 }

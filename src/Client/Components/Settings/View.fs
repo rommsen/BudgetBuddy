@@ -87,6 +87,11 @@ let private settingRow (label: string) (description: string) (value: string) =
 // YNAB Settings Card
 // ============================================
 
+/// Beschriftung eines Kontos in der Konto-Auswahl, etwa "Bar (1.234,50 €)" (ledger-vq2g8).
+/// Vorher englisch über `sprintf "%.2f"` als "Bar (1234.50 EUR)".
+let accountOptionLabel (account: YnabAccount) : string =
+    $"{account.Name} ({Money.formatAmountText false true account.Balance.Amount account.Balance.Currency})"
+
 let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
     let isConfigured =
         match model.Settings with
@@ -294,7 +299,7 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
                                                                 Html.option [
                                                                     prop.key (id.ToString())
                                                                     prop.value (id.ToString())
-                                                                    prop.text (sprintf "%s (%.2f %s)" account.Name account.Balance.Amount account.Balance.Currency)
+                                                                    prop.text (accountOptionLabel account)
                                                                 ]
                                                         ]
                                                     ])

@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 7
 - **Todo:** 1
-- **Doing:** 2
-- **Done:** 106
+- **Doing:** 1
+- **Done:** 107
 <!-- task-counts:end -->
 
 ### Todo
@@ -24,11 +24,11 @@ research touching this BC, and concept synthesis pages.
 ### Doing
 <!-- doing-list:start -->
 - **ledger-bk3q8** — "Quick Add und Bob über einen gemeinsamen Barbuchungs-Befehl, Push-Bau als reine Funktion; ein Kategorien-Ladefehler bucht nicht mehr still ohne Kategorie" (bug) — `doing/ledger-bk3q8-barbuchung-und-push-bau-gemeinsam-und-getestet.md`
-- **ledger-vq2g8** — "Kassenbuch zeigt bei gescheitertem Abruf 0,00 € oder lädt endlos; es soll Laden und Fehler sichtbar nennen" (bug) — `doing/ledger-vq2g8-kassenbuch-nennt-ladefehler-statt-null-und-dauer-laden.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **ledger-vq2g8** — "Kassenbuch zeigt bei gescheitertem Abruf 0,00 € oder lädt endlos; es soll Laden und Fehler sichtbar nennen" (bug) — `done/ledger-vq2g8-kassenbuch-nennt-ladefehler-statt-null-und-dauer-laden.md`
 - **ledger-kfd5m** — "Schreib-Sperre: Quick Add, Bob, Erneut senden und Prüfvermerk sperren den Spiegel nicht aus, die meisten Sperren sind ungetestet" (bug) — `done/ledger-kfd5m-schreib-sperre-nachziehen-und-testen.md`
 - **ledger-z71ka** — "Bot-Commit: entry_id auch nach gescheitertem Push, und ein abgebrochener Commit ist wiederholbar, ohne doppelt zu buchen" (bug) — `done/ledger-z71ka-bot-commit-entry-id-nach-push-fehler.md`
 - **ledger-k9tm2** — "Kassenbuch-Ereignisse nach `events` überführen: Kopie in rowid-Reihenfolge mit Abbruchprüfung, `appendAndApply` und Ladepfade umstellen, `ledger_entry_events` danach entfernen" (feature) — `done/ledger-k9tm2-kassenbuch-ereignisse-nach-events-berf-hren-kopie-in-rowid-r.md`

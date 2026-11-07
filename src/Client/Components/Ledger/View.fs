@@ -150,31 +150,63 @@ let needsReviewChipLabel (count: int) : string = $"Zu prüfen ({count})"
 /// Der Text des Chips "Rückfrage Lena (n)" (ADR 0056, Punkt 6), im Muster von "Zu prüfen (n)".
 let askLenaChipLabel (count: int) : string = $"Rückfrage Lena ({count})"
 
-/// Eine Karte der Kontostaende-Leiste: ein Filter (Konto oder "Alle Konten"), ihr
+/// Was eine Karte der Kontostände-Leiste an der Stelle des Betrags zeigt (ledger-vq2g8):
+/// den geladenen Stand, einen Platzhalter, solange die Stände laden, oder einen Strich,
+/// wenn der Abruf scheiterte. Ein erfundener Nullwert war vorher von einem echten Stand
+/// nicht zu unterscheiden.
+type CardBalance =
+    | BalanceShown of Money
+    | BalancePending
+    | BalanceUnavailable
+
+/// Eine Karte der Kontostände-Leiste: ein Filter (Konto oder "Alle Konten"), ihr
 /// Anzeigename und ihr Stand.
 type AccountCard = {
     Filter: AccountFilter
     Label: string
-    Balance: Money
+    Balance: CardBalance
 }
 
-/// Baut die Karten der Kontostaende-Leiste (AC3): "Alle Konten" steht immer zuerst
-/// und traegt die Summe aller Konten, danach jedes Konto mit seinem eigenen Stand.
-/// Ein Konto ohne (noch geladenen) Stand zeigt Null statt eines Fehlers.
-let buildAccountCards (accounts: LedgerAccountView list) (balances: LedgerAccountBalanceView list) : AccountCard list =
-    let balanceOf (accountId: Guid) =
-        balances
-        |> List.tryFind (fun b -> b.AccountId = accountId)
-        |> Option.map (fun b -> b.Balance)
-        |> Option.defaultValue { Amount = 0m; Currency = "EUR" }
-
-    let total = sumMoney "EUR" (balances |> List.map (fun b -> b.Balance))
+/// Baut die Karten der Kontostände-Leiste (AC3 ledger-b1xwe): "Alle Konten" steht immer
+/// zuerst und trägt die Summe aller Konten, danach jedes Konto mit seinem eigenen Stand.
+/// Die Karten stehen in jedem Ladezustand, weil sie auch der Kontofilter sind. Nur eine
+/// erfolgreiche Antwort liefert Beträge; ein Konto ohne Eintrag darin hat keine Buchungen
+/// und damit den Stand Null (ledger-vq2g8).
+let buildAccountCards (accounts: LedgerAccountView list) (balances: RemoteData<LedgerAccountBalanceView list>) : AccountCard list =
+    let balanceOf, total =
+        match balances with
+        | Success loaded ->
+            let ofAccount (accountId: Guid) =
+                loaded
+                |> List.tryFind (fun b -> b.AccountId = accountId)
+                |> Option.map (fun b -> b.Balance)
+                |> Option.defaultValue { Amount = 0m; Currency = "EUR" }
+                |> BalanceShown
+            ofAccount, BalanceShown (sumMoney "EUR" (loaded |> List.map (fun b -> b.Balance)))
+        | Failure _ -> (fun _ -> BalanceUnavailable), BalanceUnavailable
+        | NotAsked | Loading -> (fun _ -> BalancePending), BalancePending
 
     let accountCards =
         accounts
         |> List.map (fun a -> { Filter = OneAccount a.Id; Label = a.Name; Balance = balanceOf a.Id })
 
     { Filter = AllAccounts; Label = "Alle Konten"; Balance = total } :: accountCards
+
+/// Die Zeile über der Kontostände-Leiste, wenn der Abruf scheiterte (ledger-vq2g8,
+/// Entscheidung Roman 2026-11-07, Variante A): Text, Beschriftung des Knopfs und die
+/// Nachricht, die er schickt.
+type BalancesNotice = {
+    Text: string
+    RetryLabel: string
+    Retry: Msg
+}
+
+let balancesFailedText = "Kontostände konnten nicht geladen werden"
+
+let balancesNotice (balances: RemoteData<LedgerAccountBalanceView list>) : BalancesNotice option =
+    match balances with
+    | Failure _ -> Some { Text = balancesFailedText; RetryLabel = "Erneut laden"; Retry = LoadBalances }
+    | _ -> None
 
 // ============================================
 // Bausteine
@@ -973,11 +1005,19 @@ let private dateGroupRow (columnsBeforeAmount: int) (date: DateTime) (sum: Money
 /// statt reinem Text). Die PC-Ansicht nutzt seit `ledger-x0yga` `Money.accountListRow`
 /// statt dieser Karte — eine hohe Kachel mit Farbstreifen passt fuer eine Kennzahl,
 /// nicht fuer eine scanbare Kontoliste.
+/// Was an der Stelle des Betrags steht (ledger-vq2g8): der Stand, ein Platzhalter beim Laden
+/// oder ein Strich nach einem Fehler.
+let private cardBalanceElement (isActive: bool) (balance: CardBalance) : ReactElement =
+    match balance with
+    | BalanceShown money -> Money.accountBalanceFor isActive money.Amount money.Currency
+    | BalancePending -> Loading.amountSkeleton ()
+    | BalanceUnavailable -> Money.balanceUnavailable ()
+
 let private accountCardView (dispatch: Msg -> unit) (selected: AccountFilter option) (card: AccountCard) =
     Stats.view {
         Stats.defaultProps with
             Label = card.Label
-            ValueElement = Some (Money.accountBalance card.Balance.Amount card.Balance.Currency)
+            ValueElement = Some (cardBalanceElement true card.Balance)
             Size = Stats.Compact
             // AC4 (ledger-w9skm): keine Farbverlaufsstreifen mehr — `Stats.view`
             // zeichnet ihn sonst per `defaultProps.Accent = Gradient` (siehe
@@ -990,23 +1030,31 @@ let private accountCardView (dispatch: Msg -> unit) (selected: AccountFilter opt
 /// Eine Zeile der PC-Kontostaende-Liste (AC6): kompakt, Name links, Betrag rechts,
 /// aktives Konto hervorgehoben — siehe `Money.accountListRow`.
 let private accountListRowView (dispatch: Msg -> unit) (selected: AccountFilter option) (card: AccountCard) =
-    Money.accountListRow
+    let isActive = selected = Some card.Filter
+    Money.accountListRowWith
         card.Label
-        card.Balance.Amount
-        card.Balance.Currency
-        (selected = Some card.Filter)
+        (cardBalanceElement isActive card.Balance)
+        isActive
         (fun () -> dispatch (SelectFilter card.Filter))
 
 let private accountStrip
     (dispatch: Msg -> unit)
     (accounts: LedgerAccountView list)
-    (balances: LedgerAccountBalanceView list)
+    (balances: RemoteData<LedgerAccountBalanceView list>)
     (selected: AccountFilter option)
     =
     if List.isEmpty accounts then
         Html.none
     else
         let cards = buildAccountCards accounts balances
+        let notice =
+            match balancesNotice balances with
+            | Some n ->
+                Html.div [
+                    prop.className "pb-2"
+                    prop.children [ ErrorDisplay.cardCompactWith n.RetryLabel n.Text (Some (fun () -> dispatch n.Retry)) ]
+                ]
+            | None -> Html.none
         Html.div [
             // Breite nach Handoff Screen 1.9 (Konten-Spalte: 268px). Kein eigener
             // Hintergrund (der Entwurf setzt dort `surface-app`, also denselben
@@ -1025,6 +1073,7 @@ let private accountStrip
             // ohne Sticky.
             prop.className $"md:w-[268px] md:shrink-0 md:border-r {Tokens.Borders.subtle} md:pr-3 ledger-account-strip"
             prop.children [
+                notice
                 Primitives.Responsive.mobileOnlyFlex [
                     Primitives.ScrollContainer.horizontal [
                         Html.div [
@@ -1435,6 +1484,7 @@ let private categoryField (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
           Recent = recentPickerIds model.RecentCategories
           Accounts = []
           CurrentAccount = None
+          AccountsLoad = CategoryPicker.PickerReady
           OfferWithout = true
           ToBeBudgeted = None
           StandLabel = categoryStandLabel model DateTime.Now
@@ -1723,7 +1773,7 @@ let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
 
 /// Die wählbaren Übertrag-Ziele einer Zeile: die offenen Budget-Konten des Budgets
 /// (`openOnBudgetAccounts`), ohne das eigene Konto der Buchung. Solange die Liste nicht geladen
-/// ist, ist sie leer.
+/// ist, ist sie leer; den Grund dafür zeigt `transferTargetsLoadState`.
 let transferTargetsFor (model: Model) (entry: LedgerEntryView) : YnabAccount list =
     let own =
         match model.Accounts with
@@ -1735,6 +1785,15 @@ let transferTargetsFor (model: Model) (entry: LedgerEntryView) : YnabAccount lis
     match model.TransferTargets with
     | Success accounts -> openOnBudgetAccounts accounts |> List.filter (fun a -> Some a.Id <> own)
     | _ -> []
+
+/// Der Ladezustand der Übertrag-Ziele für den Picker im Split-Editor (ledger-vq2g8): bei
+/// `Failure` meldet der Konten-Abschnitt den Fehler, beim Laden den Ladezustand. Vorher war die
+/// leere Liste von `transferTargetsFor` still, Übertrag-Ziele fehlten ohne Hinweis.
+let transferTargetsLoadState (targets: RemoteData<YnabAccount list>) : CategoryPicker.PickerLoadState =
+    match targets with
+    | Success _ -> CategoryPicker.PickerReady
+    | Failure _ -> CategoryPicker.PickerFailed
+    | NotAsked | Loading -> CategoryPicker.PickerLoading
 
 let private isSavingSplit (model: Model) (editor: SplitLogic.SplitEditorState) : bool =
     (model.CategoryRows |> Map.tryFind editor.EntryId) = Some CategorySending
@@ -1774,6 +1833,7 @@ let private splitTargetPickerProps
       Recent = []
       Accounts = transferTargetsFor model entry
       CurrentAccount = lineAccountId line
+      AccountsLoad = transferTargetsLoadState model.TransferTargets
       OfferWithout = true
       ToBeBudgeted = None
       StandLabel = categoryStandLabel model DateTime.Now
@@ -3044,6 +3104,7 @@ let selectionBars (dispatch: Msg -> unit) (model: Model) : ReactElement =
           Recent = recentPickerIds model.RecentCategories
           Accounts = []
           CurrentAccount = None
+          AccountsLoad = CategoryPicker.PickerReady
           OfferWithout = true
           ToBeBudgeted = None
           StandLabel = categoryStandLabel model DateTime.Now
@@ -3304,7 +3365,7 @@ let private accountSwitcher
     (dispatch: Msg -> unit)
     (model: Model)
     (accounts: LedgerAccountView list)
-    (balances: LedgerAccountBalanceView list)
+    (balances: RemoteData<LedgerAccountBalanceView list>)
     : ReactElement =
     if List.isEmpty accounts then
         Html.none
@@ -3343,12 +3404,7 @@ let private accountSwitcher
                         for card in cards ->
                             React.keyedFragment (
                                 card.Label,
-                                [ Money.accountListRow
-                                    card.Label
-                                    card.Balance.Amount
-                                    card.Balance.Currency
-                                    (Some card.Filter = model.SelectedFilter)
-                                    (fun () -> dispatch (SelectFilter card.Filter)) ]
+                                [ accountListRowView dispatch model.SelectedFilter card ]
                             )
                     ]
                   ] ]
@@ -3356,7 +3412,7 @@ let private accountSwitcher
 
 let view (model: Model) (dispatch: Msg -> unit) =
     let accounts = model.Accounts |> RemoteData.toOption |> Option.map (fun a -> a.Accounts) |> Option.defaultValue []
-    let balances = model.Balances |> RemoteData.toOption |> Option.defaultValue []
+    let balances = model.Balances
     let isAllAccounts = model.SelectedFilter = Some AllAccounts
     let categories = model.Categories |> RemoteData.toOption |> Option.defaultValue []
 

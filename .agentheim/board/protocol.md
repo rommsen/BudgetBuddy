@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 09:33 -- Task verified and completed: ledger-vq2g8 - "Kassenbuch zeigt bei gescheitertem Abruf 0,00 € oder lädt endlos; es soll Laden und Fehler sichtbar nennen"
+
+**Type:** Work / Task completion
+**Task:** ledger-vq2g8 - "Kassenbuch zeigt bei gescheitertem Abruf 0,00 € oder lädt endlos; es soll Laden und Fehler sichtbar nennen"
+**Summary:** Das Kassenbuch zeigt bei gescheitertem oder laufendem Abruf der Kontostände keinen erfundenen Nullwert mehr, sondern Platzhalter oder Strich mit "Erneut laden". Kategorien ohne YNAB-Einrichtung, Lena-Einstellung und Übertrag-Ziele nennen ihren Lade- oder Fehlerzustand, die Settings zeigen Kontostände deutsch formatiert.
+**Duration:** (unknown)
+**Verification:** PASS (iteration 1)
+**Files changed:** 22
+**Tests added:** 12
+**ADRs written:** none
+
+---
+
 ## 2026-11-07 09:25 -- Brainstorm: 95 % BB, ein Produkt aus einer Hand
 
 **Type:** Brainstorm

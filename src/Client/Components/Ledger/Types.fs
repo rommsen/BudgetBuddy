@@ -513,7 +513,26 @@ type LenaAction = {
 
 let lenaDeletedReason = "In YNAB gelöscht, das Flag lässt sich nicht ändern"
 
-let lenaActionFor (lenaColor: string option) (entry: LedgerEntryView) : LenaAction =
+/// Der Grund, wenn die Lena-Einstellung nicht geladen werden konnte (ledger-vq2g8). Vorher
+/// nannte die Sperre dann "In den Settings die Flag-Farbe für Lena wählen", obwohl die Farbe
+/// gewählt war.
+let lenaColorLoadFailedReason = "Die Lena-Farbe konnte nicht geladen werden"
+
+/// Die gewählte Lena-Farbe, sobald die Einstellung geladen ist.
+let lenaColorOf (lenaColor: RemoteData<string option>) : string option =
+    match lenaColor with
+    | Success color -> color
+    | _ -> None
+
+/// Warum "Lena fragen" ohne Farbe gesperrt ist, oder `None` mit Farbe: ein Ladefehler nennt
+/// sich selbst, sonst fehlt die Farbe (oder ist noch nicht geladen).
+let lenaColorBlockReason (lenaColor: RemoteData<string option>) : string option =
+    match lenaColor with
+    | Success (Some _) -> None
+    | Failure _ -> Some lenaColorLoadFailedReason
+    | _ -> Some lenaColorMissingReason
+
+let lenaActionFor (lenaColor: RemoteData<string option>) (entry: LedgerEntryView) : LenaAction =
     let label, target =
         match entry.Flag with
         | AskLena -> "Rückfrage zurücknehmen", WithdrawLena
@@ -521,7 +540,7 @@ let lenaActionFor (lenaColor: string option) (entry: LedgerEntryView) : LenaActi
     let reason =
         if entry.DeletedInYnab then Some lenaDeletedReason
         // Zurücknehmen braucht die Farbe nicht, nur das Zuweisen.
-        elif target = AssignLena && lenaColor.IsNone then Some lenaColorMissingReason
+        elif target = AssignLena then lenaColorBlockReason lenaColor
         else None
     { Label = label; Target = target; DisabledReason = reason }
 
@@ -1014,9 +1033,10 @@ type Model = {
     /// Der Zustand der Flag-Aktion je Buchung (Aufruf läuft, Befehl scheiterte).
     FlagRows: Map<Guid, FlagRowState>
 
-    /// Die Flag-Farbe, die Roman in den Settings für "Lena" gewählt hat. `None`, solange sie
-    /// nicht gesetzt oder nicht geladen ist: die Aktion "Lena fragen" ist dann gesperrt.
-    LenaFlagColor: string option
+    /// Die Flag-Farbe, die Roman in den Settings für "Lena" gewählt hat, als Ladezustand der
+    /// Einstellung (`Success None`: keine Farbe gewählt). Ohne Farbe ist "Lena fragen" gesperrt,
+    /// ein Ladefehler nennt einen eigenen Grund (ledger-vq2g8).
+    LenaFlagColor: RemoteData<string option>
 
     /// Die Zahl der Buchungen mit Flag "Lena" im aktiven Konto-Filter, wie die zuletzt geladene
     /// Seite sie gemeldet hat (unabhängig vom Chip "Rückfrage Lena").
@@ -1294,9 +1314,10 @@ let selectionWithdrawLabel (count: int) : string =
     $"Rückfrage zurücknehmen ({Client.DesignSystem.Money.formatCount count})"
 
 /// Warum "Lena fragen" in der Leiste gesperrt ist, oder `None`: ohne gesetzte Flag-Farbe
-/// (ADR 0056, Punkt 1). Zurücknehmen braucht die Farbe nicht.
-let selectionLenaDisabledReason (lenaColor: string option) : string option =
-    if lenaColor.IsNone then Some lenaColorMissingReason else None
+/// (ADR 0056, Punkt 1) oder wenn die Einstellung nicht geladen werden konnte (ledger-vq2g8).
+/// Zurücknehmen braucht die Farbe nicht.
+let selectionLenaDisabledReason (lenaColor: RemoteData<string option>) : string option =
+    lenaColorBlockReason lenaColor
 
 /// Die Buchungen des Stapels, deren Weg nach YNAB gescheitert ist, mit ihrem Grund.
 let flagBatchSendFailures (outcome: Shared.Domain.FlagBatchOutcome) : string list =

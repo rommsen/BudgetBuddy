@@ -57,6 +57,10 @@ type CategoryPickerProps = {
     /// Wählbare Übertrag-Konten, vom Aufrufer vorgefiltert. Leer zeigt keine Konten: der Picker
     /// verhält sich dann wie ein reiner Kategorie-Picker.
     Accounts: YnabAccount list
+    /// Ladezustand der Übertrag-Konten (ledger-vq2g8): lädt oder gescheitert zeigt im Abschnitt
+    /// "Übertrag auf Konto" einen Hinweis statt einer stillen Lücke. `PickerReady` bei Aufrufern
+    /// ohne Konten.
+    AccountsLoad: PickerLoadState
     /// Aktuelles Übertrag-Konto der Zeile, `None` ohne Übertrag
     CurrentAccount: YnabAccountId option
     /// Steht die Zeile "Ohne Kategorie" zur Wahl? Der Import-Split bietet sie nicht an.
@@ -104,6 +108,9 @@ type Layout = {
     ShowAllHeader: bool
     /// Abschnitt "Übertrag auf Konto", immer unter den Kategorien
     Accounts: YnabAccount list
+    /// Hinweis im Abschnitt "Übertrag auf Konto", solange die Konten laden oder wenn ihr Abruf
+    /// scheiterte (ledger-vq2g8)
+    AccountsNotice: PickerNotice option
 }
 
 /// Was eine Taste im Picker auslöst
@@ -181,12 +188,22 @@ let accountsHeader = "Übertrag auf Konto"
 let loadingText = "Kategorien werden geladen"
 let failedText = "Kategorien konnten nicht geladen werden"
 let retryLabel = "Erneut versuchen"
+let accountsLoadingText = "Übertrag-Ziele werden geladen"
+let accountsFailedText = "Übertrag-Ziele konnten nicht geladen werden"
 
 /// Welcher Hinweis die Liste ersetzt. Beim Nachladen mit vorhandener Liste keiner.
 let noticeFor (loadState: PickerLoadState) (categories: YnabCategory list) : PickerNotice option =
     match loadState with
     | PickerFailed -> Some FailedNotice
     | PickerLoading when List.isEmpty categories -> Some LoadingNotice
+    | _ -> None
+
+/// Welcher Hinweis im Konten-Abschnitt steht (ledger-vq2g8), nach derselben Regel wie
+/// `noticeFor`: Fehler immer, Laden nur ohne vorhandene Konten.
+let accountsNoticeFor (loadState: PickerLoadState) (accounts: YnabAccount list) : PickerNotice option =
+    match loadState with
+    | PickerFailed -> Some FailedNotice
+    | PickerLoading when List.isEmpty accounts -> Some LoadingNotice
     | _ -> None
 
 /// Das Präfix, das die Suche auf die Konten einschränkt
@@ -220,6 +237,7 @@ let private buildLayout
     (toBeBudgeted: Money option)
     (offerWithout: bool)
     (accounts: YnabAccount list)
+    (accountsLoad: PickerLoadState)
     (loadState: PickerLoadState)
     (rawSearch: string)
     (current: YnabCategoryId option)
@@ -251,6 +269,7 @@ let private buildLayout
         Hidden = hiddenAll |> List.filter (matchesSearch search)
         ShowAllHeader = PickerParts.showAllCategoriesHeader (not suggestedList.IsEmpty) (not recentList.IsEmpty) searching
         Accounts = filterAccounts search accounts
+        AccountsNotice = accountsNoticeFor accountsLoad accounts
     }
     let withoutCategories (l: Layout) =
         { l with
@@ -275,7 +294,7 @@ let layoutForRecent
     (recent: YnabCategoryId list)
     (categories: YnabCategory list)
     : Layout =
-    buildLayout None true [] loadState search current suggested recent categories
+    buildLayout None true [] PickerReady loadState search current suggested recent categories
 
 /// Das Layout für die Props eines offenen Pickers
 let layoutForPicker (props: CategoryPickerProps) (search: string) : Layout =
@@ -283,6 +302,7 @@ let layoutForPicker (props: CategoryPickerProps) (search: string) : Layout =
         props.ToBeBudgeted
         props.OfferWithout
         props.Accounts
+        props.AccountsLoad
         props.LoadState
         search
         props.Current
@@ -659,12 +679,29 @@ let private Content (input: ContentProps) =
                             ]
                         ]
 
-                    if not lay.Accounts.IsEmpty then
+                    if not lay.Accounts.IsEmpty || lay.AccountsNotice.IsSome then
                         Html.div [
                             prop.key "accounts"
                             prop.custom ("data-testid", "category-picker-accounts")
                             prop.children [
                                 PickerParts.groupHeader accountsHeader
+                                match lay.AccountsNotice with
+                                | Some LoadingNotice ->
+                                    Html.div [
+                                        prop.role "status"
+                                        prop.className $"flex items-center gap-2 py-2 {ListRoles.muted}"
+                                        prop.children [
+                                            Loading.spinner Loading.SM Loading.Default
+                                            Html.span [ prop.text accountsLoadingText ]
+                                        ]
+                                    ]
+                                | Some FailedNotice ->
+                                    Html.div [
+                                        prop.role "alert"
+                                        prop.className $"py-2 {ListRoles.muted}"
+                                        prop.text accountsFailedText
+                                    ]
+                                | None -> ()
                                 Html.div [
                                     prop.className "flex flex-col"
                                     prop.children (lay.Accounts |> List.map accountRow)
@@ -672,7 +709,7 @@ let private Content (input: ContentProps) =
                             ]
                         ]
 
-                    if lay.Notice.IsNone && List.isEmpty rows && lay.HiddenCount = 0 then
+                    if lay.Notice.IsNone && lay.AccountsNotice.IsNone && List.isEmpty rows && lay.HiddenCount = 0 then
                         Html.div [
                             prop.className $"py-2 {ListRoles.muted}"
                             prop.text "Keine Treffer"

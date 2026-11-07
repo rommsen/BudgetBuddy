@@ -54,6 +54,15 @@ let private dispatched (cmd: Elmish.Cmd<'msg>) : 'msg list =
     cmd |> List.iter (fun effect -> effect collected.Add)
     List.ofSeq collected
 
+let private settingsWithoutYnab : AppSettingsView = { settingsWithBudget with Ynab = None }
+
+let private settingsWithoutBudget : AppSettingsView =
+    { settingsWithBudget with Ynab = settingsWithBudget.Ynab |> Option.map (fun y -> { y with DefaultBudgetId = None }) }
+
+let private expectFailure (expected: string) (m: State.Model) =
+    Expect.equal m.Ledger.Categories (Failure expected) "Fehler mit Grund statt Loading"
+    Expect.isFalse m.Ledger.CategoriesAwaitSettings "Warten beendet"
+
 let private withSettings (settings: RemoteData<AppSettingsView>) (model: State.Model) =
     { model with Settings = { model.Settings with Settings = settings } }
 
@@ -117,6 +126,32 @@ let ledgerCategoriesAwaitSettingsTests =
             | Failure text -> Expect.stringContains text "Einstellungen konnten nicht geladen werden" "Fehlertext"
             | other -> failtestf "Failure erwartet, war %A" other
             Expect.isFalse m.Ledger.CategoriesAwaitSettings "Warten beendet"
+        }
+
+        // Regression ledger-vq2g8 (Bestandsreview 2026-11-06): kamen die Settings ohne YNAB oder
+        // ohne Standard-Budget an, während die Kategorien warteten, blieb `Ledger.Categories`
+        // für immer `Loading`, die Kategorienauswahl drehte sich.
+        test "Nach dem Warten setzen Settings ohne YNAB die Kategorien auf Failure mit Grund" {
+            let waiting, _ = requestCategories NotAsked
+            let m, cmd = State.update (SettingsMsg (Components.Settings.Types.SettingsLoaded (Ok settingsWithoutYnab))) waiting
+            expectFailure "YNAB ist in den Settings nicht eingerichtet" m
+            Expect.isFalse (List.contains loadCategoriesMsg (dispatched cmd)) "kein Abruf"
+        }
+
+        test "Nach dem Warten setzen Settings mit YNAB, aber ohne Budget die Kategorien auf Failure mit Grund" {
+            let waiting, _ = requestCategories NotAsked
+            let m, _ = State.update (SettingsMsg (Components.Settings.Types.SettingsLoaded (Ok settingsWithoutBudget))) waiting
+            expectFailure "Kein Standard-Budget in den Settings gewählt" m
+        }
+
+        // Regression ledger-vq2g8: derselbe Fall direkt in `LoadCategories` (State.fs, die
+        // Zweige ohne YNAB und ohne Budget gaben das Modell unverändert zurück).
+        test "LoadCategories mit Settings ohne YNAB oder ohne Budget endet in Failure mit Grund" {
+            let m1, _ = requestCategories (Success settingsWithoutYnab)
+            expectFailure "YNAB ist in den Settings nicht eingerichtet" m1
+            let waiting = { baseModel Ledger with Ledger = { (baseModel Ledger).Ledger with Categories = Loading; CategoriesAwaitSettings = true } }
+            let m2, _ = waiting |> withSettings (Success settingsWithoutBudget) |> State.update loadCategoriesMsg
+            expectFailure "Kein Standard-Budget in den Settings gewählt" m2
         }
 
         test "Ein SettingsLoaded (Ok), während die Kategorien Success sind und nicht warten, löst kein LoadCategories aus" {

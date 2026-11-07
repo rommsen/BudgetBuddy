@@ -117,6 +117,7 @@
     <Compile Include="PushOutcomeClassificationTests.fs" />
     <Compile Include="LedgerPageTests.fs" />
     <Compile Include="LedgerViewTests.fs" />
+    <Compile Include="SettingsViewTests.fs" />
     <Compile Include="LedgerReviewButtonVisibilityTests.fs" />
     <Compile Include="LedgerVisibleColumnsTests.fs" />
     <Compile Include="LedgerFilterButtonTests.fs" />

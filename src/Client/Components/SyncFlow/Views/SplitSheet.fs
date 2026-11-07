@@ -134,6 +134,7 @@ let splitSheet (model: Model) (dispatch: Msg -> unit) =
               Recent = model.RecentlyUsedCategoryIds
               Accounts = openOnBudgetAccounts (knownAccounts model)
               CurrentAccount = pickerLine |> Option.bind (snd >> lineAccount)
+              AccountsLoad = CategoryPicker.PickerReady
               OfferWithout = false
               ToBeBudgeted = None
               StandLabel = None

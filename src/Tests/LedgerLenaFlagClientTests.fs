@@ -49,7 +49,7 @@ let private modelWith (rows: LedgerEntryView list) : Model =
         TotalCount = List.length rows
         TotalAmount = eur (rows |> List.sumBy (fun e -> e.Amount.Amount))
         HasMoreEntries = false
-        LenaFlagColor = Some "purple"
+        LenaFlagColor = Success (Some "purple")
         AskLenaCount = rows |> List.filter (fun e -> e.Flag = AskLena) |> List.length
         DetailFor = rows |> List.tryHead
         DetailForm = DetailPanel }
@@ -87,7 +87,7 @@ let lenaActionTests =
     testList "Lena fragen: Aktion und Hinweis im Detail (reine Bausteine)" [
 
         testCase "ohne Flag oder mit anderem Flag steht Lena fragen, bei Rückfrage Lena Rückfrage zurücknehmen" <| fun () ->
-            let color = Some "purple"
+            let color = Success (Some "purple")
             let a (flag: LedgerFlag) = lenaActionFor color { entryOf 1 with Flag = flag }
             Expect.equal (a NoFlag).Label "Lena fragen" "ohne Flag"
             Expect.equal (a Marked).Label "Lena fragen" "anderes Flag"
@@ -97,14 +97,24 @@ let lenaActionTests =
             Expect.isNone (a NoFlag).DisabledReason "aktiv"
 
         testCase "ohne gesetzte Farbe ist Lena fragen gesperrt und nennt den Grund; Zurücknehmen bleibt möglich" <| fun () ->
-            let ask = lenaActionFor None (entryOf 1)
+            let ask = lenaActionFor (Success None) (entryOf 1)
             Expect.equal ask.DisabledReason (Some lenaColorMissingReason) "Grund"
             Expect.equal lenaColorMissingReason "In den Settings die Flag-Farbe für Lena wählen" "Wortlaut"
-            Expect.isNone (lenaActionFor None (lenaEntry 1)).DisabledReason "Zurücknehmen braucht die Farbe nicht"
+            Expect.isNone (lenaActionFor (Success None) (lenaEntry 1)).DisabledReason "Zurücknehmen braucht die Farbe nicht"
+
+        // Regression ledger-vq2g8 (Bestandsreview 2026-11-06): scheiterte das Laden der
+        // Lena-Einstellung, verwarf der Client den Fehler, und "Lena fragen" nannte
+        // "In den Settings die Flag-Farbe für Lena wählen", obwohl die Farbe gewählt war.
+        testCase "ist die Lena-Einstellung gescheitert, nennt Lena fragen den Ladefehler, nicht die fehlende Farbe" <| fun () ->
+            let ask = lenaActionFor (Failure "Http error (0)") (entryOf 1)
+            Expect.equal ask.DisabledReason (Some lenaColorLoadFailedReason) "Ladefehler als Grund"
+            Expect.equal lenaColorLoadFailedReason "Die Lena-Farbe konnte nicht geladen werden" "Wortlaut"
+            Expect.isNone (lenaActionFor (Failure "x") (lenaEntry 1)).DisabledReason "Zurücknehmen braucht die Farbe weiter nicht"
+            Expect.equal (selectionLenaDisabledReason (Failure "x")) (Some lenaColorLoadFailedReason) "auch die Auswahl-Leiste"
 
         testCase "in YNAB gelöschte Buchungen: die Aktion ist aus" <| fun () ->
             let deleted = { entryOf 1 with DeletedInYnab = true }
-            Expect.equal (lenaActionFor (Some "purple") deleted).DisabledReason (Some lenaDeletedReason) "gelöscht"
+            Expect.equal (lenaActionFor (Success (Some "purple")) deleted).DisabledReason (Some lenaDeletedReason) "gelöscht"
 
         testCase "Hinweis Flag nicht in YNAB mit Grund und Erneut senden; ein Befehlsfehler hat Vorrang" <| fun () ->
             let failing = { lenaEntry 1 with FlagWriteBackFailure = Some "Keine Verbindung zu YNAB" }
@@ -135,7 +145,7 @@ let lenaActionTests =
                 (Components.Ledger.View.lenaActionMsg model (entryOf 1))
                 (Some (StartSetLenaFlag (idOf 1, AssignLena)))
                 "aktiv"
-            Expect.isNone (Components.Ledger.View.lenaActionMsg { model with LenaFlagColor = None } (entryOf 1)) "ohne Farbe"
+            Expect.isNone (Components.Ledger.View.lenaActionMsg { model with LenaFlagColor = Success None } (entryOf 1)) "ohne Farbe"
             Expect.isNone
                 (Components.Ledger.View.lenaActionMsg { model with FlagRows = Map.ofList [ idOf 1, FlagSending ] } (entryOf 1))
                 "während der Aufruf läuft"
@@ -186,7 +196,7 @@ let lenaReducerTests =
                 let m, msgs, _ = run msg model
                 Expect.equal m model "Modell unverändert"
                 Expect.isEmpty msgs "kein Aufruf"
-            noop (StartSetLenaFlag (idOf 1, AssignLena)) { base' with LenaFlagColor = None }
+            noop (StartSetLenaFlag (idOf 1, AssignLena)) { base' with LenaFlagColor = Success None }
             noop (StartSetLenaFlag (idOf 2, AssignLena)) base'
             noop (StartSetLenaFlag (idOf 1, WithdrawLena)) base'
             noop (StartSetLenaFlag (idOf 1, AssignLena)) { base' with FlagRows = Map.ofList [ idOf 1, FlagSending ] }
@@ -309,9 +319,20 @@ let lenaReducerTests =
             let model, _, _ = run (EntriesPageLoaded (0, 0, Ok page)) (modelWith [])
             Expect.equal model.AskLenaCount 4 "Zähler vom Server"
 
+        // Regression ledger-vq2g8: `LenaFlagSettingsLoaded (Error _)` gab das Modell unverändert
+        // zurück, der Fehler war danach von "keine Farbe gewählt" nicht zu unterscheiden.
+        testCase "LenaFlagSettingsLoaded mit Fehler merkt sich den Ladefehler, eine geladene Farbe bleibt" <| fun () ->
+            let fresh = { modelWith [ entryOf 1 ] with LenaFlagColor = Loading }
+            let failed, _, external = run (LenaFlagSettingsLoaded (Error "Http error (0)")) fresh
+            Expect.equal failed.LenaFlagColor (Failure "Http error (0)") "Ladefehler im Zustand"
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (Components.Ledger.View.lenaActionMsg failed (entryOf 1)) None "Lena fragen gesperrt"
+            let kept, _, _ = run (LenaFlagSettingsLoaded (Error "x")) (modelWith [ entryOf 1 ])
+            Expect.equal kept.LenaFlagColor (Success (Some "purple")) "geladene Farbe bleibt"
+
         testCase "LenaFlagSettingsLoaded übernimmt die gespeicherte Farbe" <| fun () ->
             let model, _, _ = run (LenaFlagSettingsLoaded (Ok { SavedColor = Some "blue"; SuggestedColor = Some "red" })) (modelWith [])
-            Expect.equal model.LenaFlagColor (Some "blue") "gespeichert, nicht der Vorschlag"
+            Expect.equal model.LenaFlagColor (Success (Some "blue")) "gespeichert, nicht der Vorschlag"
     ]
 
 [<Tests>]
