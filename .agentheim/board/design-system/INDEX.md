@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 1
-- **Todo:** 0
+- **Backlog:** 2
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 43
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **design-system-bcdqy** — "Muster im Styleguide: Orte, Auswahl, Liste mit Panel, Tastatur, Dialoge und Layout-Regeln für Handy und PC" (feature) — `todo/design-system-bcdqy-muster-im-styleguide.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -33,6 +34,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **design-system-dak16** — "Palette 2 im Token-Layer: ein Akzent für Aktion und Auswahl, Gelb für braucht dich, keine Seitenausnahmen, Kontrast-Wächter" (feature) — `backlog/design-system-dak16-palette-2-im-token-layer.md`
 - **design-system-taytp** — "Kategorie-Picker vereinheitlichen und Split im Import auf das Design-System" (refactor) — `backlog/design-system-taytp-kategorie-picker-vereinheitlichen.md`
 <!-- backlog-list:end -->
 

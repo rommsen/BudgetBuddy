@@ -5,6 +5,50 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 16:44 -- Modeling / Refined: Etappe 1 (Bedeutungen)
+
+**Type:** Modeling / Refine
+**BC:** design-system, infrastructure
+**Status after:** todo (infrastructure-nx14s, design-system-bcdqy), backlog wartend (infrastructure-jc1y1, design-system-dak16)
+**Summary:** Aus Skizze, Prototyp (Version 14) und zwei Recherchen die Bedeutungsschicht festgelegt. Palette 2 als Token-Task mit Kontrast-Wächter, Muster als Styleguide-Task. Funde aus dem Prototyp als Zeilen in Etappe 2 und 3 des Fahrplans.
+**ADRs written:** 0087
+
+---
+
+## 2026-11-07 16:43 -- Modeling / Promoted: design-system-bcdqy - "Muster im Styleguide: Orte, Auswahl, Liste mit Panel, Tastatur, Dialoge und Layout-Regeln für Handy und PC"
+
+**Type:** Modeling / Promote
+**BC:** design-system
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-07 16:43 -- Modeling / Promoted: infrastructure-nx14s - "Layout-Invarianten als ein generischer Sweep über alle Routen und Breiten statt als Designwerte je Komponente, mit Doktrin-Regel für Layout-Regressionen"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-07 16:43 -- Modeling / Captured: design-system-bcdqy - "Muster im Styleguide: Orte, Auswahl, Liste mit Panel, Tastatur, Dialoge und Layout-Regeln für Handy und PC"
+
+**Type:** Modeling / Capture
+**BC:** design-system
+**Filed to:** backlog
+**Summary:** Etappe 1: Muster aus ADR 0087 und Layout-Regeln der Recherche im Styleguide, prüfbar formuliert.
+
+---
+
+## 2026-11-07 16:43 -- Modeling / Captured: design-system-dak16 - "Palette 2 im Token-Layer: ein Akzent für Aktion und Auswahl, Gelb für braucht dich, keine Seitenausnahmen, Kontrast-Wächter"
+
+**Type:** Modeling / Capture
+**BC:** design-system
+**Filed to:** backlog
+**Summary:** Etappe 1: Palette 2 als Tokens, ein Akzent für Aktion und Auswahl, keine Seitenausnahmen, Kontrast-Wächter (ADR 0087).
+
+---
+
 ## 2026-11-07 14:56 -- Research: Farbschema neon-on-dark
 
 **Type:** Research

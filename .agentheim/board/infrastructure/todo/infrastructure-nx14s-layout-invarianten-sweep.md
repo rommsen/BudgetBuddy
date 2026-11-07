@@ -1,7 +1,7 @@
 ---
 id: infrastructure-nx14s
 title: "Layout-Invarianten als ein generischer Sweep über alle Routen und Breiten statt als Designwerte je Komponente, mit Doktrin-Regel für Layout-Regressionen"
-status: backlog
+status: todo
 type: chore
 context: infrastructure
 created: 2026-11-05

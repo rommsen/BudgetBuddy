@@ -12,19 +12,19 @@ Regeln:
 Ziel: Jede Farbe und jedes Muster heißt überall dasselbe, und die drei Orte sind als Skizze
 freigegeben. Klein halten.
 
-- Entschieden 2026-11-07 (Skizze Version 2, https://claude.ai/artifact/HPpe24Y1owgpSZLWvtdGWd,
-  Recherchen `farbschema-neon-dark-2026-11-07`, `seitenlayout-liste-detail-2026-11-07`):
-  Pink entfällt; ein Akzent (Cyan) für Aktion und Auswahl, Orange entfällt als Aktionsfarbe (Palette 2);
-  Lena über ein Flag-Symbol in der YNAB-Flag-Farbe aus den Settings, Farbe nur im Symbol, immer mit Name;
-  Durchgehen startet in der Übersicht, das Kassenbuch zeigt Kontowahl, Suche und Filter-Knopf;
-  Regeln als Tab im Kassenbuch; Layout-Regeln aus der Skizze als Grundlage.
-- Bedeutungsschicht des Styleguides: Farben (aufbauend auf ADR 0075) und die Muster
-  Auswahl aus wenigen Optionen, Historie, Seitenpanel, Liste mit Aktionen, leerer Zustand.
-  *Wird nach der Skizze erfasst.*
-- Skizze der drei Orte (Übersicht, Kassenbuch, Budget) als claude.ai-Artifact, von Roman
-  freigegeben.
-- `infrastructure-nx14s` Layout-Invarianten als ein Sweep
-- `infrastructure-jc1y1` Designwert-Tests aufräumen
+Entschieden in ADR 0087 (Palette 2, Lena als Flag, drei Orte, Panel statt Dialog, Tastenregeln).
+Vorlage für alles Weitere: Prototyp https://claude.ai/artifact/CE3WJZHhPX6NABosJaviRg (Version 14,
+Handy und PC), Skizze https://claude.ai/artifact/HPpe24Y1owgpSZLWvtdGWd (Version 2).
+
+Reihenfolge: `infrastructure-nx14s` → `infrastructure-jc1y1` → `design-system-dak16`;
+`design-system-bcdqy` läuft unabhängig. `jc1y1` und `dak16` sind verfeinert und warten in
+`backlog/`, bis ihr Vorgänger erledigt ist; dann promoten.
+
+- [x] Skizze und Prototyp der drei Orte, von Roman freigegeben (2026-11-07)
+- `infrastructure-nx14s` Layout-Invarianten als ein Sweep (todo)
+- `infrastructure-jc1y1` Designwert-Tests aufräumen (wartet auf nx14s)
+- `design-system-dak16` Palette 2 im Token-Layer, Kontrast-Wächter (wartet auf jc1y1)
+- `design-system-bcdqy` Muster im Styleguide (todo)
 
 ## Etappe 2 · Lücken schließen
 Ziel: Nichts zwingt mehr zu YNAB außer Reports.
@@ -36,13 +36,22 @@ Ziel: Nichts zwingt mehr zu YNAB außer Reports.
 - `design-system-taytp` Kategorie-Picker vereinheitlichen
 - `ledger-p3vq8` Push gelungen, Verknüpfung nicht geschrieben
 - `ledger-nb4tv` ETF-Konto und Abgleich
+- Buchung löschen im Detail (auch in YNAB), mit Rückgängig.
+- Kategorie deaktivieren nur ohne verfügbares Geld; Gruppe als Auswahlfeld mit „Neue Gruppe“.
 
 ## Etappe 3 · Ein Produkt
 Ziel: Drei Orte, eine Sprache, Seite für Seite an der Skizze.
 
-- Übersicht als Einstieg statt Sync.
-- Import ins Kassenbuch: automatisch und jederzeit von Hand anstoßbar.
-- Durchgehen neuer Buchungen, Karte für Karte bestätigen.
+- Übersicht als Einstieg statt Sync, Variante A: Zu tun (eine Hauptaktion), Monat mit Balken und
+  Marke „heute“, Angepinnt, am Handy Konten.
+- Angepinnte Kategorien (wählbar auf der Übersicht und im Kategorie-Detail, Zustand, kein Ereignis).
+- Import ins Kassenbuch: direkt in Kassenbuch und YNAB als „zu prüfen“, nur unsichere Duplikate
+  warten; automatisch und jederzeit von Hand anstoßbar.
+- Durchgehen neuer Buchungen, Karte für Karte bestätigen, mit Amazon-Link und Duplikat-Karte.
+- „+ Buchung“ auch in der Übersicht.
+- PC: Seitenleiste mit Konten, Liste plus Panel überall (auch Regeln, Erfassen, Targets prüfen,
+  Kategorien), Mehrfachauswahl mit Zusammenfassung im Panel.
+- Tastenregel aus dem Budget für alle Listen; Auswahl-Dialoge mit Fokus in der Suche.
 - Regeln ins Kassenbuch.
 - Quick Add hört auf, ein eigener Ort zu sein.
 - Budget an die Bedeutungen angleichen (Targets prüfen: zu viel Orange).
