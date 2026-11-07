@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 07:10 -- Batch started: [budgeting-j8r4t]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-j8r4t - "Targets prüfen: bei Rhythmus über einen Monat gilt mehr nur, wenn auch die Zahlung über dem Target liegt (verschobene Jahresabbuchung)"
+**Parallel:** scoped, builder named budgeting-j8r4t (Fund nach dem Deploy)
+
+---
+
 ## 2026-11-07 07:10 -- Modeling / Promoted: budgeting-j8r4t - "Targets prüfen: bei Rhythmus über einen Monat gilt mehr nur, wenn auch die Zahlung über dem Target liegt (verschobene Jahresabbuchung)"
 
 **Type:** Modeling / Promote

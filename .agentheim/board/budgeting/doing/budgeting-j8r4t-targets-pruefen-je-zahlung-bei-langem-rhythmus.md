@@ -1,7 +1,7 @@
 ---
 id: budgeting-j8r4t
 title: "Targets prüfen: bei Rhythmus über einen Monat gilt mehr nur, wenn auch die Zahlung über dem Target liegt (verschobene Jahresabbuchung)"
-status: todo
+status: doing
 type: bug
 context: budgeting
 created: 2026-11-07
