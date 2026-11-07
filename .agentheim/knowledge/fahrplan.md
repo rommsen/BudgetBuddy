@@ -6,12 +6,11 @@ Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success loo
 Zuletzt aktualisiert: 2026-11-07, nach work und Review von nx14s und bcdqy.
 
 - **Etappe 1 · Bedeutungen:** läuft, 3 von 5 erledigt (Skizze und Prototyp, Layout-Sweep,
-  Muster im Styleguide). Offen bei bcdqy: Freigabe der Styleguide-Abschnitte §7.4 bis §7.15
-  durch Roman, dazu seine Entscheidung, ob das Panel ab 840 px (Styleguide) oder ab 1024 px
-  (Prototyp) kommt.
+  Muster im Styleguide, von Roman freigegeben). Panel ab 1024 px (Roman, 2026-11-07).
+  `infrastructure-jc1y1` nach drei Verifier-FAILs eskaliert, Roman hat Iteration 4 erlaubt.
 - **Etappe 2 · Lücken schließen:** noch nicht verfeinert.
 - **Etappe 3 · Ein Produkt:** noch nicht verfeinert, Zeilen wachsen.
-- **Nächster Schritt:** `infrastructure-jc1y1` promoten, `/agentheim:work`, Review.
+- **Nächster Schritt:** `infrastructure-jc1y1` Iteration 4 verifizieren, integrieren, Review.
 - **Danach:** `design-system-dak16`, dann Etappe 2 verfeinern.
 
 ## Ablauf je Schritt
@@ -43,9 +42,9 @@ Reihenfolge: `infrastructure-nx14s` → `infrastructure-jc1y1` → `design-syste
 
 - [x] Skizze und Prototyp der drei Orte, von Roman freigegeben (2026-11-07)
 - [x] `infrastructure-nx14s` Layout-Invarianten als ein Sweep (2026-11-07)
-- `infrastructure-jc1y1` Designwert-Tests aufräumen (bereit zum Promoten)
+- `infrastructure-jc1y1` Designwert-Tests aufräumen (Iteration 4 läuft)
 - `design-system-dak16` Palette 2 im Token-Layer, Kontrast-Wächter (wartet auf jc1y1)
-- [x] `design-system-bcdqy` Muster im Styleguide (2026-11-07, Freigabe Roman offen)
+- [x] `design-system-bcdqy` Muster im Styleguide (2026-11-07, von Roman freigegeben)
 
 ## Etappe 2 · Lücken schließen
 Ziel: Nichts zwingt mehr zu YNAB außer Reports.
@@ -83,8 +82,8 @@ Ziel: Drei Orte, eine Sprache, Seite für Seite an der Skizze.
 - Kassenbuch am Handy: die zwei wischenden Leisten entfallen, Filter-Knopf mit Sheet und gesetzte
   Filter als Chips (Styleguide §7.5).
 - Wochentag eines Targets als Auswahlfeld statt sieben Knöpfe im `Segmented` (Styleguide §7.5).
-- Panel rund 30 % der Breite und ab 840 px (heute fest 340, 360 und 420 px, Targets prüfen erst ab
-  1024 px; Styleguide §7.6).
+- Panel rund 30 % der Breite und ab 1024 px (heute fest 340, 360 und 420 px;
+  Styleguide §7.6).
 - Kategorie-Picker nicht mehr über einem Sheet stapeln (`CategoryPicker.sheetLayered`); die Auswahl
   ersetzt den Inhalt des Sheets und führt zurück (Styleguide §7.15).
 - Rückmeldung am PC über der Auswahl-Leiste des Kassenbuchs statt auf ihr (Styleguide §7.13).
@@ -95,10 +94,8 @@ Ziel: Drei Orte, eine Sprache, Seite für Seite an der Skizze.
   bleiben (Roman, 2026-11-07).
 - Tastenregeln aus Styleguide §7.8 und §7.9 als ein generischer Test über alle Listen mit Panel,
   wie der Layout-Sweep, statt eines Tests je Seite.
-- Navigation ab 600 px links als Seitenleiste oder Rail (heute Leiste oben; Styleguide §7.4 und §7.15).
-- Breakpoints 600 und 840 px aus Styleguide §7.15 in Token-Layer und `@theme`; heute schalten
-  Trefferflächen (`TouchTargets`) und der Layout-Sweep bei `md` (768 px), Sheets bei `lg` (1024 px).
-  Hängt an Romans Entscheidung zum Panel (840 oder 1024 px).
+- Navigation ab 768 px (`md`) links als Seitenleiste oder Rail (heute Leiste oben; Styleguide §7.4
+  und §7.15).
 - Logo und Icon: Vorlage Buddy in `standards/frontend/brand/` (Entwurf 2026-11-07, Palette 2).
 - `banking-import-t4raw` zeitgesteuertes Vorbereiten
 - `banking-import-q7vd2` confirmTan-Fehlerzweig

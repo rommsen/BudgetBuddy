@@ -529,7 +529,7 @@ Bereiche mit eigenem Inhalt sind `Tabs` (§5). Freitext, wo es eine endliche Men
 
 ### 7.6 Liste mit Panel (PC)
 
-**Regel:** Ab 840 px Breite stehen Liste und Panel nebeneinander, darunter nur eins von beiden. Das
+**Regel:** Ab 1024 px Breite (`lg`) stehen Liste und Panel nebeneinander, darunter nur eins von beiden. Das
 Panel ist eine feste Spalte rechts mit rund 30 % der Breite (im Prototyp 30 % der Fensterbreite,
 mindestens 380 px, höchstens 520 px). Was ein Ding der Liste zeigt, bearbeitet oder neu anlegt, steht
 im Panel: Buchung, Regel, Kategorie, Target, die neue Buchung. Nach dem Anlegen zeigt das Panel das
@@ -539,10 +539,10 @@ neue Ding. Ein Dialog (`Modal`) ist nur eine kurze Frage (Rückfrage vor dem Lö
 **Wann:** jede Liste am PC, deren Zeilen ein Detail haben (Kassenbuch mit Buchungen und Regeln,
 Budget, Targets prüfen, Kategorien).
 
-**Wann nicht:** Unter 840 px öffnet das Detail als `BottomSheet` (§7.1). Eine Rückfrage oder eine
+**Wann nicht:** Unter 1024 px öffnet das Detail als `BottomSheet` (§7.1). Eine Rückfrage oder eine
 Auswahl wird kein Panel.
 
-**Quelle:** ADR 0087 Punkt 16; Recherche Abschnitt 6, PC 1 und 2.
+**Quelle:** ADR 0087 Punkt 16; Recherche Abschnitt 6, PC 1 und 2. Die Schwelle 1024 px folgt dem Prototyp (Roman, 2026-11-07); die Recherche nannte 840 px.
 
 ### 7.7 Mehrfachauswahl
 
@@ -689,7 +689,7 @@ und Animation regelt §6.
 
 ### 7.15 Layout-Regeln Handy und PC
 
-**Regel am Handy** (unter 600 px):
+**Regel am Handy** (unter 768 px, `md`):
 
 - Trefferfläche jeder Zeile und jedes Knopfs mindestens 48 × 48 px, 8 px Abstand zwischen Zielen
   (`TouchTargets.minSize`, §4).
@@ -698,13 +698,13 @@ und Animation regelt §6.
   nicht gestapelt: eine Auswahl aus einem Sheet heraus ersetzt dessen Inhalt und führt nach der Wahl
   dorthin zurück.
 
-**Regel am PC** (ab 840 px):
+**Regel am PC** (ab 768 px, `md`; das Panel kommt ab 1024 px, §7.6):
 
 - Freie Breite geht an Spalten und Panel, die Ränder bleiben gleich. Ab etwa 1600 px bekommt die
   Liste eine Höchstbreite oder es kommt eine Spalte dazu.
 - Was am Handy hinter einem Menü liegt, steht am PC offen da: die Konten in der Seitenleiste, die
   Filter als sichtbare Zeile über der Liste. Die Funktion bleibt gleich.
-- Ab 600 px steht die Navigation links als Seitenleiste oder Rail.
+- Ab 768 px steht die Navigation links als Seitenleiste oder Rail.
 - Die Mindesthöhe aus §4 gilt am PC nicht, weil der Zeiger kleinere Ziele trifft; Untergrenze ist die
   Lesbarkeit.
 - Fließtext im Panel hat höchstens 75 Zeichen je Zeile.
@@ -712,7 +712,7 @@ und Animation regelt §6.
 
 **Wann:** jede Seite, beim Bauen und beim Vergleich mit Skizze und Prototyp.
 
-**Wann nicht:** Die dichteren Zeilen des PCs gelten unter 840 px nicht, dort bleiben es 48 px.
+**Wann nicht:** Die dichteren Zeilen des PCs gelten unter 768 px nicht, dort bleiben es 48 px.
 
 **Quelle:** Recherche `seitenlayout-liste-detail-2026-11-07` Abschnitt 6, Handy 2, 7 und 9, PC 3 bis
 8; ADR 0005 für die Sheets.

@@ -42,6 +42,7 @@ Mechanisch geprüft von: `src/Tests/RemotingPipelineTests.fs`, `src/Tests/Remoti
 ## Bugfixes
 
 8. Jeder Bugfix bekommt einen Regressionstest, der vor dem Fix rot ist. Der Test nennt im Kommentar, welchen Bug er verhindert. Ein Layoutbug bekommt seinen Regressionstest als neuen Zustand (mit Kommentar zum Bug) oder als neue Invariante im Sweep (Punkt 5), nicht als eigenen Test je Komponente; eine neue Invariante bringt einen Gegenbeweis mit absichtlich kaputter Seite mit.
+   Das gilt auch beim Umzug: Wird ein Test mit Bugbezug gelöscht oder verschoben, weil ein anderer Test ihn deckt, den Fix aus dem genannten Commit lokal zurückdrehen (die Zeilen von vor dem Fix einsetzen) und zeigen, dass der neue Ort rot wird; danach wieder herstellen. Das Outcome nennt je Test den Fix-Commit und den roten Test. Ein Gegenbeweis mit eingefügtem Markup zeigt nur, dass der Detektor anschlägt, nicht dass der Bug-Zustand besucht wird.
 9. Bug mit fachlichem Verhalten: vorab mindestens ein kaputt-Szenario (soll nach dem Fix gehen) und ein intakt-Szenario (muss weiter gehen), als GIVEN/WHEN/THEN. Ablauf: kaputt-Test schreiben und rot sehen, Ursache klären, fixen, beide grün, `./verify.sh`.
 
 ## BudgetBuddy-Pflichtliste
