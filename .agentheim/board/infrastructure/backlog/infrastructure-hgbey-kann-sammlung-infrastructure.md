@@ -106,3 +106,8 @@ Den Tonwert von `text-secondary` oder die betroffenen Flächen so anpassen, dass
 
 ## Aufgenommen aus budgeting-c4ve4 (Review 2026-11-06)
 - `scripts/export-design-system.mjs` führt eine eigene Farbtabelle, dort fehlen die neuen Tokens `--color-calm-blue` und `--color-calm-violet` (nur Gelb steht da).
+
+## Aus dem Modeling von infrastructure-vp308 (2026-11-07, Bestandsreviews budgeting Gruppe 2 und ledger Gruppe 4)
+- Die übrigen YNAB-Schreib- und Lesewege in `src/Server/YnabClient.fs` geben weiter Rohtext weiter ("Bad request: {bodyText}", "HTTP {statusCode}: {bodyText}", etwa `:1110`, `:1298`, `:1388`, `:1452`, `:1531`, `:1595`, `:1672`, `:1736`, `:1877`, `:2224`, Lesewege `:242`, `:277`, `:614`, `:2154`). Mit den Helfern aus vp308 ein mechanischer Schritt.
+- Englische Meldungen mit `ex.Message` in Settings und Regeln (`src/Server/Api.fs:220`, `:279`, `:299`, `:317`, `:412`, `:421`, `:430`, `:573`, `:585`, `:593`, `:727`).
+- Der Client zeigt bei einer unerwarteten Ausnahme (Status 500) den englischen Satz des Fable.Remoting-Proxys. Den deutschen Satz aus dem Rumpf zu zeigen hieße, rund 100 Stellen mit `ex.Message` in sieben Client-Dateien über eine Hilfsfunktion neben `Retry.isNetworkError` zu führen (Roman, 2026-11-07: nicht in vp308).

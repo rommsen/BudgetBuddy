@@ -5,6 +5,118 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 08:20 -- Modeling / Promoted: infrastructure-k84s2 - "Geldanzeige und Vorbelegung runden halbe Cent kaufmännisch über roundHalfUp"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-07 08:20 -- Modeling / Promoted: budgeting-gvajj - "Leiste Monatserster: Targets prüfen liest nach einer Target-Änderung neu, die Vorschau von Targets anwenden nimmt keine späte Antwort mehr ein"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-07 08:20 -- Modeling / Promoted: budgeting-my8p8 - "Erneut senden: eine von BB zurückgezogene Zeile heißt nicht mehr \"in YNAB geändert\", und Erneut senden im Folgemonat ist getestet"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-07 08:20 -- Modeling / Promoted: ledger-vq2g8 - "Kassenbuch zeigt bei gescheitertem Abruf 0,00 € oder lädt endlos; es soll Laden und Fehler sichtbar nennen"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-07 08:20 -- Modeling / Promoted: ledger-kfd5m - "Schreib-Sperre: Quick Add, Bob, Erneut senden und Prüfvermerk sperren den Spiegel nicht aus, die meisten Sperren sind ungetestet"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-07 08:20 -- Modeling / Captured: infrastructure-vp308 - "Fehler über die Grenze: kein Stacktrace an den Client, kein YNAB-Rohtext an Client, Bob und in events"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Aus den Bestandsreviews ledger und budgeting, von Roman am 2026-11-07 ausgewählt (Priorität jetzt oder bald). Verfeinert mit Romans Antworten.
+
+---
+
+## 2026-11-07 08:20 -- Modeling / Captured: infrastructure-k84s2 - "Geldanzeige und Vorbelegung runden halbe Cent kaufmännisch über roundHalfUp"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Aus den Bestandsreviews ledger und budgeting, von Roman am 2026-11-07 ausgewählt (Priorität jetzt oder bald). Verfeinert mit Romans Antworten.
+
+---
+
+## 2026-11-07 08:20 -- Modeling / Captured: budgeting-my8p8 - "Erneut senden: eine von BB zurückgezogene Zeile heißt nicht mehr \"in YNAB geändert\", und Erneut senden im Folgemonat ist getestet"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Aus den Bestandsreviews ledger und budgeting, von Roman am 2026-11-07 ausgewählt (Priorität jetzt oder bald). Verfeinert mit Romans Antworten.
+
+---
+
+## 2026-11-07 08:20 -- Modeling / Captured: ledger-r8h19 - "Aufräum-Lauf ledger: Quelltext-, Klassenstring- und Konstanten-Tests ersetzen oder löschen, Logik aus [layout]-Tests nach .NET, N+1 in Sammelbefehlen und Spiegel-Lauf"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Aus den Bestandsreviews ledger und budgeting, von Roman am 2026-11-07 ausgewählt (Priorität jetzt oder bald). Verfeinert mit Romans Antworten.
+
+---
+
+## 2026-11-07 08:20 -- Modeling / Captured: ledger-vq2g8 - "Kassenbuch zeigt bei gescheitertem Abruf 0,00 € oder lädt endlos; es soll Laden und Fehler sichtbar nennen"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Aus den Bestandsreviews ledger und budgeting, von Roman am 2026-11-07 ausgewählt (Priorität jetzt oder bald). Verfeinert mit Romans Antworten.
+
+---
+
+## 2026-11-07 08:20 -- Modeling / Captured: ledger-bk3q8 - "Quick Add und Bob über einen gemeinsamen Barbuchungs-Befehl, Push-Bau als reine Funktion; ein Kategorien-Ladefehler bucht nicht mehr still ohne Kategorie"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Aus den Bestandsreviews ledger und budgeting, von Roman am 2026-11-07 ausgewählt (Priorität jetzt oder bald). Verfeinert mit Romans Antworten.
+
+---
+
+## 2026-11-07 08:20 -- Modeling / Captured: ledger-kfd5m - "Schreib-Sperre: Quick Add, Bob, Erneut senden und Prüfvermerk sperren den Spiegel nicht aus, die meisten Sperren sind ungetestet"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Aus den Bestandsreviews ledger und budgeting, von Roman am 2026-11-07 ausgewählt (Priorität jetzt oder bald). Verfeinert mit Romans Antworten.
+
+---
+
+## 2026-11-07 08:19 -- Modeling / Captured: budgeting-gvajj - "Leiste Monatserster: Targets prüfen liest nach einer Target-Änderung neu, die Vorschau von Targets anwenden nimmt keine späte Antwort mehr ein"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Aus den Bestandsreviews ledger und budgeting, von Roman am 2026-11-07 ausgewählt (Priorität jetzt oder bald). Verfeinert mit Romans Antworten.
+
+---
+
 ## 2026-11-07 07:45 -- Deploy: budgeting-j8r4t
 
 **Type:** Deploy

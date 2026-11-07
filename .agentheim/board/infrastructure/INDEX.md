@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 7
-- **Todo:** 0
+- **Backlog:** 8
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 45
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **infrastructure-k84s2** — "Geldanzeige und Vorbelegung runden halbe Cent kaufmännisch über roundHalfUp" (bug) — `todo/infrastructure-k84s2-geldanzeige-rundet-halbe-cent-kaufmaennisch.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -39,6 +40,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **infrastructure-vp308** — "Fehler über die Grenze: kein Stacktrace an den Client, kein YNAB-Rohtext an Client, Bob und in events" (bug) — `backlog/infrastructure-vp308-fehler-ueber-die-grenze-ohne-stacktrace-und-ynab-rohtext.md`
 - **infrastructure-hgbey** — "Kann-Sammlung infrastructure" (chore) — `backlog/infrastructure-hgbey-kann-sammlung-infrastructure.md`
 - **infrastructure-phadg** — "Altlasten nach der Test-Doktrin: nachgebaute Tests und Quelltext-Tests auf View-Verdrahtung ersetzen" (chore) — `backlog/infrastructure-phadg-altlasten-test-doktrin.md`
 - **infrastructure-mshaf** — "Gate schneller und stabil: parallele Stränge, gezielter Lauf, Kernbudget, flackernde Wächter, veraltete Referenz-Assembly" (chore) — `backlog/infrastructure-mshaf-gate-schneller-und-stabil.md`
