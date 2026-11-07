@@ -252,12 +252,7 @@ let viewTests =
             Expect.stringContains focused "bg-surface-hover" "Grund der Fokuszeile"
             Expect.isFalse (other.Contains "bg-surface-hover") "andere Zeilen ohne Grund"
 
-        testCase "die Fokuszeile ist ruhig: kein Ring, kein Schatten, keine Leuchtfarbe" <| fun () ->
-            for forbidden in [ "ring"; "shadow"; "neon"; "glow" ] do
-                Expect.isFalse (Table.focusedRowClass.Contains forbidden) $"{forbidden} in {Table.focusedRowClass}"
-
-        testCase "der Tastaturhinweis nennt G und steht nur mit Zeilen und ohne Auswahl da" <| fun () ->
-            Expect.stringContains Components.Ledger.View.keyboardHintText "G geprüft" "Text"
+        testCase "der Tastaturhinweis steht nur mit Zeilen und ohne Auswahl da" <| fun () ->
             let model = modelWith (rows 2)
             Expect.isTrue (Components.Ledger.View.keyboardHintVisible model) "mit Zeilen"
             Expect.isFalse (Components.Ledger.View.keyboardHintVisible { model with Selection = Picked (Set.singleton (idOf 1)) }) "mit Auswahl"

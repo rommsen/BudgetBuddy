@@ -318,8 +318,7 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
     | PageEntered ->
         // Das Feld Targets prüfen der Leiste liest bei jedem Betreten neu: nach einem Schreiben auf der Seite Targets
         // prüfen stimmt die Zahl so bei der Rückkehr.
-        let checking = beginMonthStartCheck model
-        let checkCmd = monthStartCheckCmd checking.MonthStartCheckGeneration
+        let checking, checkCmd = rereadMonthStartCheck model
         match enterPage checking with
         | model', FreshEntry -> beginLoad model', Cmd.batch [ frameCmd (); checkCmd ], NoOp
         | model', KeptPage ->

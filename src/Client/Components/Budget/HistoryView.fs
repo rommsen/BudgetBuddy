@@ -138,7 +138,8 @@ let private runView (history: GeneralHistory) (dispatch: Msg -> unit) (run: Hist
 
 /// Eine Pause oder Target-Änderung (budgeting-r5h2n): die Bausteine der Durchlauf-Zeile, ohne Betrag, ohne
 /// Chevron, nicht aufklappbar. Am Handy bricht der Text ohne Grenze um, damit die Kategorie am Ende einer langen
-/// Änderung ganz dasteht; am PC eine Zeile mit `truncate`, der ganze Text im `title`. Ohne Stand kein Badge.
+/// Änderung ganz dasteht; am PC höchstens zwei Zeilen (`line-clamp-2`), damit der Text ohne Hover lesbar ist, der
+/// ganze Text steht zusätzlich im `title`. Ohne Stand kein Badge.
 let private targetRowView (row: HistoryTargetRow) =
     Html.div [
         prop.key (string row.EntryId)
@@ -146,11 +147,11 @@ let private targetRowView (row: HistoryTargetRow) =
         prop.className rowClass
         prop.children [
             Html.span [
-                prop.className "flex max-md:min-h-5 md:items-center md:h-5"
+                prop.className "flex min-h-5 md:items-center"
                 prop.children [
                     Html.span [
                         prop.custom ("data-testid", "general-history-text")
-                        prop.className $"{ListRoles.primary} min-w-0 md:truncate"
+                        prop.className $"{ListRoles.primary} min-w-0 md:line-clamp-2"
                         prop.title row.Text
                         prop.text row.Text
                     ]
