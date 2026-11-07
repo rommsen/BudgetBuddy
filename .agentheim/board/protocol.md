@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 08:57 -- Batch started: [ledger-bk3q8]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-bk3q8 - "Quick Add und Bob über einen gemeinsamen Barbuchungs-Befehl, Push-Bau als reine Funktion; ein Kategorien-Ladefehler bucht nicht mehr still ohne Kategorie"
+**Parallel:** yes (ledger-r8h19 bewusst zurückgehalten bis vq2g8 und bk3q8 integriert sind, gleiche Kassenbuch-Tests)
+
+---
+
 ## 2026-11-07 08:56 -- Modeling / Promoted: ledger-r8h19 - "Aufräum-Lauf ledger: Quelltext-, Klassenstring- und Konstanten-Tests ersetzen oder löschen, Logik aus [layout]-Tests nach .NET, N+1 in Sammelbefehlen und Spiegel-Lauf"
 
 **Type:** Modeling / Promote
