@@ -5,6 +5,17 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 06:57 -- Deploy: budgeting-k7r2w und budgeting-m3x7f
+
+**Type:** Deploy
+**Freigabe:** Roman, "Ja" auf die Frage nach Push und Deploy
+**Sicherung:** ~/budgetbuddy-backups/budgetbuddy.db.vor-k7r2w-m3x7f-20261107-065044 auf docker-host (Backup-API, integrity_check ok, 16008 Ereignisse)
+**Push:** origin und deploy 799ec2c..e9b093e
+**Ergebnis:** Health-Check grün, Tabelle budget_month_start_hidden angelegt, 16008 Ereignisse unverändert, keine Fehler im Log
+**Offen [human-eye]:** Zeile Strom in Targets prüfen; Leiste und Vorschau neben der Skizze; Kalender-Icon am Handy
+
+---
+
 ## 2026-11-07 00:22 -- Work session ended
 
 **Type:** Work / Session end
