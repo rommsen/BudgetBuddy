@@ -41,6 +41,7 @@ Research reports relevant to more than one BC (or to the project as a whole). BC
 reports are listed in each BC's `INDEX.md`.
 
 <!-- research-global:start -->
+- **farbschema-neon-dark-2026-11-07** — Farbschema für das dunkle Neon-Theme: Rollen, Kontraste nach WCAG, Prüfung der heutigen Tokens, Vorschlags-Palette, Lena-Farbe vs. Flags (Etappe 1, ADR 0086) — `knowledge/research/farbschema-neon-dark-2026-11-07.md`
 - **seitenlayout-liste-detail-2026-11-07** — Layout-Regeln für Liste plus Detail am Handy und PC, Alternativen zu horizontalen Leisten, Navigation mit 3 bis 5 Zielen (Etappe 1, ADR 0086) — `knowledge/research/seitenlayout-liste-detail-2026-11-07.md`
 <!-- research-global:end -->
 

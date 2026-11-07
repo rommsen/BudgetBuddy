@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 14:56 -- Research: Farbschema neon-on-dark
+
+**Type:** Research
+**Requested by:** user
+**Report:** knowledge/research/farbschema-neon-dark-2026-11-07.md
+**Review:** PASS (iteration 1)
+**Summary:**
+- Weißer Text auf neon-orange 2,84:1 fällt durch, ebenso neon-purple und neon-pink als Text, border 1,35:1; verwechselbar Rot/Pink, Orange/Rot, Teal/Grün.
+- Vorschlags-Palette in OKLCH mit Kontrastwerten, drei Optionen für die Hauptaktion (Orange bleibt, ein Akzent wie Linear, grüner Knopf wie Primer).
+- Keine reservierte Personenfarbe in den gesichteten Systemen; Lena als feste Farbe, YNAB-Flag-Farbe oder neutraler Namens-Chip.
+
+---
+
 ## 2026-11-07 14:54 -- Research: Seitenlayout Liste plus Detail
 
 **Type:** Research
