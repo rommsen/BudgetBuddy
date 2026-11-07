@@ -1,6 +1,7 @@
 namespace Client.DesignSystem
 
 open Feliz
+open Client.DesignSystem.Tokens
 open Client.DesignSystem.Icons
 open Client.DesignSystem.Button
 
@@ -140,8 +141,11 @@ module ErrorDisplay =
                         ]
                         match onRetry with
                         | Some retry ->
+                            // 48 px Trefferfläche (Styleguide §4) wie bei `Button.listName`: `-my-3`
+                            // hält die Karte so hoch wie mit dem schmalen Text-Link.
                             Html.button [
-                                prop.className "text-neon-red hover:text-neon-red/80 text-sm font-medium mt-2 underline"
+                                prop.type' "button"
+                                prop.className $"inline-flex items-center {TouchTargets.minSize} relative -my-3 cursor-pointer touch-manipulation text-neon-red hover:text-neon-red/80 text-sm font-medium mt-2 underline"
                                 prop.onClick (fun _ -> retry())
                                 prop.text retryLabel
                             ]

@@ -171,9 +171,10 @@ let skeleton (props: SkeletonProps) =
     ]
 
 /// Platzhalter in der Breite eines Betrags, etwa für einen Kontostand, der noch lädt
-/// (ledger-vq2g8).
+/// (ledger-vq2g8). So hoch wie die Zeile des Betrags (`text-sm md:text-base`: 20 px, ab
+/// 768 px 24 px), damit die Zeile nicht springt, wenn der Stand kommt.
 let amountSkeleton () =
-    skeleton { defaultSkeleton with ClassName = Some "w-20" }
+    skeleton { defaultSkeleton with Shape = Custom; ClassName = Some "w-20 h-5 md:h-6" }
 
 /// Line skeleton (text placeholder)
 let line width =

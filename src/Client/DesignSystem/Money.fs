@@ -479,9 +479,12 @@ let accountListRow (label: string) (amount: decimal) (currency: string) (isActiv
 
 /// Strich an der Stelle eines Kontostands, der nicht geladen werden konnte (ledger-vq2g8):
 /// gedämpft, in der Ziffernschrift des Betrags, damit die Zeile ihre Form behält.
+/// Der Strich ist für Screenreader verborgen, sie lesen stattdessen den Text daneben.
 let balanceUnavailable () =
     Html.span [
         prop.className $"font-mono tabular-nums whitespace-nowrap text-sm md:text-base {Colors.textMuted}"
-        prop.ariaLabel "Kontostand nicht geladen"
-        prop.text "—"
+        prop.children [
+            Html.span [ prop.ariaHidden true; prop.text "—" ]
+            Html.span [ prop.className "sr-only"; prop.text "Kontostand nicht geladen" ]
+        ]
     ]
