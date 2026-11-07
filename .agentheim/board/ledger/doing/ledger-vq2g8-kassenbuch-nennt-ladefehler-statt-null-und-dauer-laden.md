@@ -1,7 +1,7 @@
 ---
 id: ledger-vq2g8
 title: "Kassenbuch zeigt bei gescheitertem Abruf 0,00 € oder lädt endlos; es soll Laden und Fehler sichtbar nennen"
-status: todo
+status: doing
 type: bug
 context: ledger
 created: 2026-11-07

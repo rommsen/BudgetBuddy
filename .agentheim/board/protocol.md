@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 08:54 -- Batch started: [ledger-vq2g8]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-vq2g8 - "Kassenbuch zeigt bei gescheitertem Abruf 0,00 € oder lädt endlos; es soll Laden und Fehler sichtbar nennen"
+**Parallel:** yes (nachgeschoben nach der Integration von infrastructure-k84s2, gleiche Geldformatierung im Kassenbuch)
+
+---
+
 ## 2026-11-07 08:53 -- Task verified and completed: infrastructure-k84s2 - "Geldanzeige und Vorbelegung runden halbe Cent kaufmännisch über roundHalfUp"
 
 **Type:** Work / Task completion
