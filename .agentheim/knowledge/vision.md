@@ -1,5 +1,9 @@
 # Vision: BudgetBuddy
 
+> **Revision 2026-11-07.** Ziel ist jetzt 95 % des Alltags in BB, als ein Produkt aus einer
+> Hand (ADR 0086). Neu: der Fahrplan in drei Etappen, die drei Orte (Übersicht,
+> Kassenbuch, Budget), Kategorie-Verwaltung als Ziel. Budget-Stufe 3 rückt nach hinten.
+>
 > **Revision 2026-10-25.** Erweitert die Vision vom 2026-09-06 um das **Budget** (ADR 0063).
 > Das Budget ist die nächste große Fähigkeit, vor der ETF-Bewertung. YNAB abschalten wird
 > vom Non-Goal zur Richtung. Kassenbuch, Spiegel und Companion-Teil bleiben unverändert
@@ -16,11 +20,13 @@ eigenes, dauerhaftes **Kassenbuch** über alle Konten, mit einer Historie, die w
 auditierbar ist: jede Änderung an einer Buchung ist nachvollziehbar nach Zeitpunkt und
 Herkunft (BB-Regel, Roman in BB, Roman in YNAB, Bank-Import).
 
-Das Kassenbuch steht und wird benutzt: Spiegel, Prüfvermerk, Kategorie ändern, Splits,
-Lena fragen, Memo. Die größte Fähigkeit, die noch an YNAB bindet, ist das **Budget**:
-Geld auf Kategorien verteilen, verschieben, Targets anwenden. Es kommt als Nächstes, nach
-demselben Muster wie alles andere (**BB entscheidet, YNAB wird nachgezogen**), und an
-einigen Stellen besser als in YNAB.
+Kassenbuch und Budget stehen und werden benutzt: Spiegel, Prüfvermerk, Kategorie ändern,
+Splits, Lena fragen, Memo, Targets anwenden, Geld verschieben, Budget-Historie. Beides folgt
+demselben Muster (**BB entscheidet, YNAB wird nachgezogen**).
+
+Das nächste Ziel ist, **95 % des Alltags in BB** zu erledigen, und zwar in einem Produkt
+**aus einer Hand**. BB ist Stück für Stück gewachsen (Sync, Regeln, Quick Add, Kassenbuch,
+Budget), und das sieht man. YNAB bleibt Spiegel und Ort für Reports, bis BB sie hat.
 
 Gebaut von und für Roman als Daily Driver (Frau nutzt mit). Leitprinzip unverändert:
 **fertiges Tool, kein Hobby-Projekt. Was nicht real gebraucht wird, fliegt raus.**
@@ -30,8 +36,9 @@ Gebaut von und für Roman als Daily Driver (Frau nutzt mit). Leitprinzip unverä
   bearbeitet Buchungen nach, budgetiert. Verteilt am Monatsersten nach seinen Targets,
   verschiebt im Laufe des Monats häufig Geld zwischen Kategorien, auch am Handy. Sucht bei
   größeren Anschaffungen nach Gefühl, aus welchen Kategorien er Geld nehmen kann.
-- **Frau**: erfasst Bar-Ausgaben (Quick Add), bestellt bei Amazon, liest mit. Budgetiert
-  praktisch nicht.
+- **Lena** (Frau): erfasst Bar-Ausgaben (Quick Add), bestellt bei Amazon, liest mit.
+  Budgetiert praktisch nicht. Sieht dasselbe wie Roman und filtert auf das, was ihr
+  zugewiesen ist („Lena fragen“).
 
 Single-User-Modell mit gemeinsamem Konto. Kein Multi-Tenant, keine Rollen, kein Konfliktmodell.
 
@@ -61,10 +68,44 @@ Single-User-Modell mit gemeinsamem Konto. Kein Multi-Tenant, keine Rollen, kein 
      Kategorien er Geld geliehen hat, und es nach und nach zurückgezahlt.
    - **Am Handy** kann man nicht nach einer Kategorie suchen.
 
+5. **Kein Produkt aus einer Hand** (Stand 2026-11-07). Was heute noch zu YNAB zwingt:
+   Kategorien bearbeiten und von Hand buchen (ING-Tagesgeld, dabei sind Buchungen liegen
+   geblieben und die Zahlen stimmen nicht mehr), dazu ETF-Abgleich und Reports. Was sich
+   nicht rund anfühlt, auf drei Ebenen:
+   - **Uneinheitlich**: Die Historie sieht im Kassenbuch anders aus als im Budget, die
+     Kontowahl am Handy ist mal eine Pillenleiste, mal eine Selectbox, Orange heißt mal
+     Warnung, mal Button.
+   - **Ungeführt**: große Leerflächen am PC, ein ungeordnetes Seitenpanel im Kassenbuch,
+     man sieht nicht sofort, wo was ist.
+   - **Zerschnitten**: Import und Quick Add sind eigene Inseln, der Einstieg ist der Sync.
+
 ## What success looks like
-Die bisherigen Stufen bleiben, die Reihenfolge ändert sich: **das Budget kommt vor der
-ETF-Bewertung** (ADR 0063). v2 (Ownership der Nachbearbeitung) läuft schon und wird
-weitergeführt.
+**Fahrplan · 95 % BB, aus einer Hand** (ADR 0086, kommt vor allem Folgenden).
+Mit allen Funktionen würde Roman BB nutzen, auch uneinheitlich. Die Funktionen entscheiden
+über die Nutzung, die Einheitlichkeit über das Gefühl. Daher:
+
+- **Etappe 1 · Bedeutungen festlegen.** Die Bedeutungsschicht des Styleguides: welche Farbe
+  was heißt (auf ADR 0075 aufbauend) und die Muster, die heute auseinanderlaufen (Auswahl
+  aus wenigen Optionen, Historie, Seitenpanel, Liste mit Aktionen, leerer Zustand). Dazu
+  der Zuschnitt in drei Orte als Skizze. Klein halten.
+- **Etappe 2 · Lücken schließen.** Erst **Buchung erfassen** im Kassenbuch für jedes Konto
+  (wenige Klicks, kluge Vorbelegung wie bei Quick Add), dann **Kategorien verwalten**
+  (anlegen, umbenennen, Gruppe wechseln, deaktivieren).
+- **Etappe 3 · Ein Produkt.** Drei Orte: **Übersicht** als Einstieg, **Kassenbuch** mit
+  Import (automatisch und jederzeit von Hand anstoßbar), Durchgehen, Regeln und Erfassen,
+  **Budget**. Seite für Seite an einer Skizze, Handy-Macken inklusive, neues Logo.
+
+Woran man merkt, dass es gelungen ist: Roman öffnet YNAB nur noch für Reports. Lena findet
+sich ohne Erklärung zurecht. Gleiche Dinge sehen überall gleich aus, eine Farbe heißt
+überall dasselbe.
+
+**Vorgehen:** Verfeinert wird nur die nächste Etappe. Ideen für spätere Etappen werden eine
+Zeile im Fahrplan, kein Ticket.
+
+Danach, bei Bedarf: Reports, Budget-Stufe 3, ETF-Bewertung, ING-Import.
+
+Die bisherigen Stufen bleiben als Hintergrund. Grundlage, Stufe 1 und Stufe 2 des Budgets
+sind gebaut (Stand 2026-11-07). v2 (Ownership der Nachbearbeitung) läuft.
 
 **v1 · Alles unter einem Dach.** Erreicht bis auf die ETF-Bewertung in BB, die nach
 hinten rückt. Der ETF bleibt bis dahin ein manuelles YNAB-Konto mit monatlichem Abgleich,
@@ -108,8 +149,10 @@ ist, Roman aber weiter in YNAB budgetiert.
 - **Automatik am Monatsersten.** Ein Knopf, kein Zeitplan. Roman bestätigt.
 - **Berechnete Empfehlung, woher Geld kommen kann.** Die Entscheidung "da brauche ich es
   nicht" bleibt Romans Gefühl. BB macht sie leichter (Entwurf, Leihen), trifft sie nicht.
-- **Kategorie-Verwaltung** (anlegen, umbenennen, Gruppen umbauen) im Budget-Schritt.
-  Bleibt in YNAB.
+- ~~**Kategorie-Verwaltung** im Budget-Schritt.~~ Seit 2026-11-07 Ziel (Etappe 2, ADR 0086).
+  Gelöscht wird nie, nur deaktiviert.
+- **Open Source, FinTS, allgemeiner Bankimport.** Erst mal für Roman.
+- **Backlog-Flut.** Verfeinert wird nur die nächste Etappe des Fahrplans.
 - **Prognosen, Cashflow-Vorschau.** Die erwartete Einnahme ist eine einzelne Ankündigung,
   kein Forecast-Modul.
 - **Lena-Sicht** im Budget als eigenes Feature.
@@ -118,7 +161,8 @@ ist, Roman aber weiter in YNAB budgetiert.
 - **ING-Bankadapter:** ING-Buchungen kommen weiter über den YNAB-Spiegel.
 - **Amazon-Auslesen, lokale LLMs, Finanz-Vorschläge** bleiben geparkt.
 - **Reports** nur, wenn real vermisst, dann als Sichten auf die eigene Historie.
-- **Multi-User, Konfliktmodell.** Mobiles Budgetieren ist kein Non-Goal mehr: Verschieben
+- **Multi-User, Konfliktmodell.** Lena braucht keine eigene Identität, ein Filter auf das,
+  was ihr zugewiesen ist, reicht. Mobiles Budgetieren ist kein Non-Goal mehr: Verschieben
   und Ansehen am Handy gehören zum Budget.
 - **Companion-Funktionen wegwerfen.** Import, Regeln, Dedup, Push, Quick Add bleiben.
 
@@ -172,6 +216,18 @@ Kassenbuch-Begriffe gelten unverändert; verbindliche Definitionen in den BC-REA
   bis es zurückgezahlt ist.
 - **Entwurf**: eine Reihe von Verschiebungen, die noch nicht gilt; zeigt die Summe und
   wird übernommen oder verworfen.
+- **Kategorie deaktivieren**: eine Kategorie aus Auswahl und Anzeige nehmen, ohne ihre
+  Historie zu verlieren (YNABs „Hide“). Löschen gibt es nicht.
+
+**Produkt** (neu 2026-11-07, ADR 0086):
+- **Übersicht**: der Einstieg. Wo stehe ich, was steht an, worauf konzentriere ich mich.
+- **Erfassen**: eine Buchung in BB anlegen, für jedes Konto, mit wenigen Klicks und kluger
+  Vorbelegung. Quick Add ist kein eigener Ort mehr, das Quick-Add-Konto bleibt die
+  Vorbelegung für bar.
+- **Durchgehen**: neue Buchungen nach dem Import eine nach der anderen prüfen und bestätigen.
+- **Bedeutungsschicht**: was eine Farbe oder ein Muster in BB heißt, überall gleich.
+- **Fahrplan / Etappe**: die geordnete Folge der nächsten großen Schritte; nur die nächste
+  Etappe wird verfeinert.
 
 ## Open questions
 - **Kursquelle für den Geldmarkt-ETF:** vertagt (ADR 0016, Research-Spike `ledger-c7j8e`),
@@ -196,3 +252,8 @@ Kassenbuch-Begriffe gelten unverändert; verbindliche Definitionen in den BC-REA
   (open since 2026-10-25)
 - **Gibt es bei YNAB schon ein Target mit Deckel?** Ändert nichts am Wunsch, aber an der
   Frage, ob BB es beim Spiegeln der Targets schon vorfindet. (open since 2026-10-25)
+- **Import im Kassenbuch:** läuft er automatisch, und in welchem Takt? Von Hand anstoßen
+  muss immer gehen. (open since 2026-11-07)
+- **Was zeigt die Übersicht** genau? Klärt die Skizze in Etappe 1. (open since 2026-11-07)
+- **Logo und Icon:** die Roboter-Figur mit dem B (Entwurf mit Gemini) als Ausgangspunkt,
+  Form und Farben offen. Gehört zu Etappe 3. (open since 2026-11-07)

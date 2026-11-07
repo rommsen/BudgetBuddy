@@ -5,6 +5,17 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 09:25 -- Brainstorm: 95 % BB, ein Produkt aus einer Hand
+
+**Type:** Brainstorm
+**Outcome:** vision revised
+**BCs identified:** none
+**Summary:** Ziel ist 95 % des Alltags in BB als ein Produkt aus einer Hand. Fahrplan in drei Etappen: Bedeutungsschicht des Styleguides mit Skizze der drei Orte (Übersicht, Kassenbuch, Budget), dann Buchung erfassen und Kategorien verwalten, dann Umbau zu einem Produkt. Kategorie-Verwaltung ist kein Non-Goal mehr, Lena bekommt einen Filter statt eigener Identität, verfeinert wird nur die nächste Etappe.
+**ADRs written:** 0086
+**Foundation tasks emitted:** skipped, Fundament steht (reifes Projekt)
+
+---
+
 ## 2026-11-07 09:05 -- Task verified and completed: budgeting-gvajj - "Leiste Monatserster: Targets prüfen liest nach einer Target-Änderung neu, die Vorschau von Targets anwenden nimmt keine späte Antwort mehr ein"
 
 **Type:** Work / Task completion

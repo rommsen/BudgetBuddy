@@ -23,6 +23,7 @@ For BC-scoped artifacts, see each BC's `INDEX.md`.
 ## Global ADRs (scope: global)
 
 <!-- adr-global:start -->
+- **0086** — Fahrplan zu 95 % BB aus einer Hand: drei Orte (Übersicht, Kassenbuch, Budget), Etappen Bedeutungen, Lücken, ein Produkt; Kategorie-Verwaltung wird Ziel — 2026-11-07 — `knowledge/decisions/0086-fahrplan-ein-produkt-aus-einer-hand.md`
 - **0083** — Gemeinsame Ereignistabelle `events` für ledger und budgeting (Umschlag, globale Reihenfolge, Befehls-Id, Read-Model-Kriterium); Geld-Fakten und Entscheidungen über Geld sind Ereignisse, alles andere Zustand — 2026-11-05 — `knowledge/decisions/0083-gemeinsame-ereignistabelle-fuer-kernkontexte.md`
 - **ADR 0077** — Nachtrag zu 0075: Token calm-yellow, Button.secondary ändert nur den Hover, bestehende Seiten ziehen sofort mit. — `decisions/0077-nachtrag-calm-yellow-und-button-secondary.md`
 - **ADR 0075** — Farbrollen: Gelb für offen, neutrale Knöpfe, Teal für Ausgewähltes und Navigation — `decisions/0075-farbrollen-gelb-und-neutrale-knoepfe.md`
