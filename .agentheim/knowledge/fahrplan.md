@@ -2,6 +2,24 @@
 
 Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success looks like“.
 
+## Stand
+Zuletzt aktualisiert: 2026-11-07, nach dem Verfeinern von Etappe 1.
+
+- **Etappe 1 · Bedeutungen:** läuft, 1 von 5 erledigt (Skizze und Prototyp).
+- **Etappe 2 · Lücken schließen:** noch nicht verfeinert.
+- **Etappe 3 · Ein Produkt:** noch nicht verfeinert.
+- **Nächster Schritt:** `/agentheim:work` für `infrastructure-nx14s` und `design-system-bcdqy`.
+- **Danach:** `infrastructure-jc1y1` promoten, dann `design-system-dak16`.
+
+## Ablauf je Schritt
+1. Nächsten Schritt aus „Stand“ nennen.
+2. Verfeinern, nur Tasks der laufenden Etappe; promoten.
+3. `/agentheim:work` (Worker, Verifier).
+4. `/review-agents`; Funde unter der Muss-Schwelle in die Kann-Sammlung, nicht ins Backlog.
+5. Roman prüft die `[human-eye]`-Kriterien (Seite gegen Prototyp).
+6. Haken setzen, „Stand“ aktualisieren, committen.
+7. Wird der Kontext knapp: „Stand“ ist die Übergabe; nach `/compact` zuerst diese Datei lesen.
+
 Regeln:
 - Verfeinert wird nur die nächste Etappe. Spätere Etappen haben Zeilen, keine Tickets.
 - Neue Ideen für spätere Etappen kommen hier als Zeile dazu.
