@@ -48,7 +48,7 @@ Ziel: Drei Orte, eine Sprache, Seite für Seite an der Skizze.
 - Budget an die Bedeutungen angleichen (Targets prüfen: zu viel Orange).
 - Kassenbuch: Seitenpanel ordnen, Historie wie im Budget.
 - Am PC große Leerflächen, am Handy Kontowahl mal Pillenleiste, mal Selectbox: vereinheitlichen.
-- Logo und Icon (Roboter-Figur mit B als Ausgangspunkt).
+- Logo und Icon: Vorlage Buddy in `standards/frontend/brand/` (Entwurf 2026-11-07, Palette 2).
 - `banking-import-t4raw` zeitgesteuertes Vorbereiten
 - `banking-import-q7vd2` confirmTan-Fehlerzweig
 - `categorization-hz6vj` Kategorisieren im Import
