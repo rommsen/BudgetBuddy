@@ -80,6 +80,7 @@ let runBadge (status: RunStatus) : RunBadge =
     | RunOpen -> StatusBadge HistoryOpen
     | RunChangedInYnab -> StatusBadge HistoryChangedInYnab
     | RunReplacedInBb -> StatusBadge HistoryReplacedInBb
+    | RunWithdrawnInBb -> StatusBadge HistoryWithdrawnInBb
     | RunFromYnab -> NoBadge
     | RunFailed reason -> StatusBadge (HistoryFailed reason)
     | RunPartlyFailed (failed, total) -> PartlyFailedBadge ($"{failed} von {total}", $"{failed} von {total} fehlgeschlagen")

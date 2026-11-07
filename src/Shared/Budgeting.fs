@@ -326,6 +326,9 @@ type LineOutcome =
     | Failed of reason: string
     /// YNAB stand weder auf dem alten noch auf dem Zielwert: YNAB gewinnt, nichts geschrieben.
     | ChangedInYnab
+    /// BB schloss die Zeile ungesendet, YNAB blieb unverändert (budgeting-my8p8): die Gegenseite einer
+    /// Verschiebung ist verloren, oder eine spätere Entscheidung in BB setzte dieselbe Kategorie.
+    | WithdrawnInBb
 
 type ApplyLineResult = {
     CategoryId: Guid
@@ -854,6 +857,9 @@ type HistoryStatus =
     /// Ungesendet zurückgezogen, weil eine spätere Entscheidung in BB dieselbe Kategorie setzte
     /// (budgeting-dgrp7). Unterscheidet sich von "in YNAB geändert".
     | HistoryReplacedInBb
+    /// Ungesendet zurückgezogen, ohne ersetzende Entscheidung in BB: die Gegenseite der Verschiebung ist
+    /// verloren (budgeting-my8p8). YNAB hat die Zeile nie berührt.
+    | HistoryWithdrawnInBb
     /// Kein Ergebnis angehängt: der Lauf brach vor dieser Zeile ab oder läuft noch.
     | HistoryOpen
     /// Nur bei einer Target-Änderung in zwei Schritten (budgeting-g2ty9, X7): Schritt 1 ist geschrieben,
@@ -885,6 +891,7 @@ let private historyStatus (latest: LineOutcome option) : HistoryStatus =
     | Some Written -> HistoryWritten
     | Some (Failed reason) -> HistoryFailed reason
     | Some ChangedInYnab -> HistoryChangedInYnab
+    | Some WithdrawnInBb -> HistoryWithdrawnInBb
     | None -> HistoryOpen
 
 /// Der Stand einer Bewegung: ersetzt in BB vor dem jüngsten Ergebnis, denn auch ein ersetztes Ziel trägt
@@ -1017,6 +1024,8 @@ type RunStatus =
     | RunChangedInYnab
     /// Ungesendet zurückgezogen, eine spätere Entscheidung in BB setzte dieselbe Kategorie (budgeting-dgrp7).
     | RunReplacedInBb
+    /// Ungesendet zurückgezogen, ohne ersetzende Entscheidung in BB (budgeting-my8p8).
+    | RunWithdrawnInBb
     /// Kam aus YNAB (Beobachtung, Übernahme): kein Schreiben, kein Stand (budgeting-dgrp7).
     | RunFromYnab
     /// Gescheitert mit dem Grund der ersten gescheiterten Bewegung. Bei Targets anwenden nur, wenn alle
@@ -1044,7 +1053,8 @@ type HistoryRun = {
     Amount: Money
     /// Fehlgeschlagen, sobald eine Bewegung fehlschlug: bei Targets anwenden teilweise fehlgeschlagen,
     /// solange mindestens eine Kategorie nicht scheiterte, sonst gescheitert mit dem ersten Grund. Ohne
-    /// Fehlschlag noch offen, in YNAB geändert oder geschrieben, in dieser Rangfolge.
+    /// Fehlschlag noch offen, in YNAB geändert, in BB ersetzt, in BB zurückgezogen oder geschrieben, in dieser
+    /// Rangfolge.
     Status: RunStatus
     /// Bei Targets anwenden die Kategorien in der Reihenfolge des Durchlaufs, sonst leer.
     Lines: HistoryRunLine list
@@ -1067,7 +1077,9 @@ let private runStatus (origin: HistoryOrigin) (statuses: HistoryStatus list) : R
         if isFromYnab origin then RunFromYnab
         elif List.contains HistoryOpen statuses then RunOpen
         elif List.contains HistoryChangedInYnab statuses then RunChangedInYnab
+        // Beide Stände in BB stehen hinter "in YNAB geändert". Kommen beide vor, nennt "in BB ersetzt" den Anlass.
         elif List.contains HistoryReplacedInBb statuses then RunReplacedInBb
+        elif List.contains HistoryWithdrawnInBb statuses then RunWithdrawnInBb
         else RunWritten
 
 /// Text und Betrag einer Verschiebung: Quelle und Ziel, der Betrag ohne Vorzeichen. Fehlt eine Seite in

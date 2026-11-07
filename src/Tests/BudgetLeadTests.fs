@@ -1015,7 +1015,8 @@ let private historyTests =
                   "Zuweisen, Lebensmittel", RunWritten ]
                 "allgemein, älteste zuerst"
 
-        testCase "Eine von der Paarregel zurückgezogene Seite einer Verschiebung bleibt in YNAB geändert" <| fun () ->
+        // budgeting-my8p8: die zurückgezogene Seite hieß "in YNAB geändert", obwohl YNAB sie nie berührt hatte.
+        testCase "Eine von der Paarregel zurückgezogene Seite einer Verschiebung heißt in BB zurückgezogen, nicht in BB ersetzt" <| fun () ->
             let f, a, b = fake ()
             let month = freshMonth ()
             f.Failures[a] <- YnabError.NetworkError "weg"
@@ -1024,7 +1025,9 @@ let private historyTests =
             f.Assigned[b] <- 25000L
             retryOk f (Guid.Parse report.ApplicationId) |> ignore
             let source = categoryEntries month a |> List.filter (fun l -> l.Status.IsSome)
-            Expect.equal (source |> List.map (fun l -> l.Status)) [ Some HistoryChangedInYnab ] "nicht ersetzt in BB"
+            Expect.equal (source |> List.map (fun l -> l.Status)) [ Some HistoryWithdrawnInBb ] "zurückgezogen, nicht ersetzt in BB"
+            let target = categoryEntries month b |> List.filter (fun l -> l.Status.IsSome)
+            Expect.equal (target |> List.map (fun l -> l.Status)) [ Some HistoryChangedInYnab ] "das Ziel in YNAB geändert"
     ]
 
 [<Tests>]

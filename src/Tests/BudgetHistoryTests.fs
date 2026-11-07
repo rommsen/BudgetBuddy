@@ -67,6 +67,13 @@ let lineTests =
             Expect.equal (statusOf (Some (Failed "Rate-Limit"))) (Some (HistoryFailed "Rate-Limit")) "fehlgeschlagen mit Grund"
             Expect.equal (statusOf (Some ChangedInYnab)) (Some HistoryChangedInYnab) "in YNAB geändert"
             Expect.equal (statusOf None) (Some HistoryOpen) "noch offen"
+
+        // budgeting-my8p8: eine ungesendet zurückgezogene Zeile hieß "in YNAB geändert".
+        testCase "Zurückgezogen ohne ersetzende Entscheidung heißt in BB zurückgezogen, mit ersetzender in BB ersetzt" <| fun () ->
+            let withdrawn = movement MoneyMoved (Some "Lebensmittel") 10m 30m (Some WithdrawnInBb)
+            Expect.equal (historyLine withdrawn).Status (Some HistoryWithdrawnInBb) "in BB zurückgezogen"
+            let replaced = { withdrawn with ReplacedBy = Some (Guid.NewGuid()) }
+            Expect.equal (historyLine replaced).Status (Some HistoryReplacedInBb) "in BB ersetzt geht vor"
     ]
 
 let private pauseAt (time: DateTime) : HistoryEntry =

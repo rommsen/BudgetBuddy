@@ -1346,6 +1346,16 @@ let private retryTests =
             let model = noteMoveReport "2026-11-01" { failing with ApplicationId = "app-2" } afterFailure
             Expect.equal (model.OpenRetries |> List.map (fun r -> r.ApplicationId)) [ "app-1"; "app-2" ] "beide"
         }
+        // budgeting-my8p8: Erneut senden geht auch hinaus, wenn der Monat der Verschiebung inzwischen vergangen ist.
+        test "Im Folgemonat sendet eine offene Verschiebung des Vormonats erneut, über den Hinweis und über die Markierung" {
+            let december = Success { frame with CurrentMonth = "2026-12-01" }
+            let pastFailure = { afterFailure with Frame = december }
+            Expect.equal (displayedMonthKind pastFailure) (Some PastMonth) "der November ist vergangen"
+            Expect.isTrue (snd (startMoveRetry "app-1" pastFailure)) "über den Hinweis"
+            let pastMarked = { markedRent with Frame = december }
+            Expect.equal (displayedMonthKind pastMarked) (Some PastMonth) "auch hier vergangen"
+            Expect.isTrue (snd (startMoveRetry markedId pastMarked)) "über die Markierung"
+        }
         test "Ein zweiter Klick während des Laufs sendet nicht noch einmal" {
             let running, first = startMoveRetry "app-1" afterFailure
             Expect.isTrue first "der erste sendet"

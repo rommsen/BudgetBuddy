@@ -100,12 +100,22 @@ let private previewBody (order: System.Guid list) (model: Model) (shown: Preview
           (wideButton "Abbrechen" false (fun () -> dispatch CloseTargets))
           (wideButton "Anwenden" (not (canApplyTargets shown && canStartMove model)) (fun () -> dispatch ConfirmTargets)) ]
 
+/// Satz und Badge einer Zeile im Bericht je Stand (budgeting-my8p8). "in BB zurückgezogen" steht neutral und
+/// klein wie "in BB ersetzt": Roman muss nichts tun, die Gegenseite der Verschiebung trägt das gelbe "in YNAB
+/// geändert".
+let outcomeLook (l: ApplyLineResult) : string * Badge.BadgeProps =
+    let badge variant size text = { Badge.defaultProps with Text = text; Variant = variant; Size = size }
+    match l.Outcome with
+    | Written -> $"{moneyText l.OldAssigned} auf {moneyText l.NewAssigned}", badge Badge.Success Badge.Medium "geschrieben"
+    | Failed reason -> reason, badge Badge.Error Badge.Medium "fehlgeschlagen"
+    | ChangedInYnab -> "YNAB steht anders als erwartet, nichts überschrieben", badge Badge.Notice Badge.Medium "in YNAB geändert"
+    | WithdrawnInBb ->
+        "Nicht gesendet, BB hat die Zeile zurückgezogen. YNAB blieb unverändert.",
+        badge Badge.Neutral Badge.Small "in BB zurückgezogen"
+
 let private outcomeLine (l: ApplyLineResult) =
-    let detail, badge =
-        match l.Outcome with
-        | Written -> $"{moneyText l.OldAssigned} auf {moneyText l.NewAssigned}", Badge.success "geschrieben"
-        | Failed reason -> reason, Badge.error "fehlgeschlagen"
-        | ChangedInYnab -> "YNAB steht anders als erwartet, nichts überschrieben", Badge.notice "in YNAB geändert"
+    let detail, look = outcomeLook l
+    let badge = Badge.view look
     Html.div [
         prop.key (string l.CategoryId)
         prop.custom ("data-testid", "targets-result-line")

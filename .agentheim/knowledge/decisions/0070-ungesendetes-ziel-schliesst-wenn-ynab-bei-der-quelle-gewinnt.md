@@ -80,3 +80,12 @@ Fehlt das Ziel im Monat, bleibt die Quelle ungesendet fehlgeschlagen und erneut 
 Folge für budgeting-dyn8g: auch eine Quelle, die YNAB nie berührt hat, kann jetzt "in YNAB geändert" tragen.
 
 Tests in `src/Tests/MoveMoneyTests.fs`: "GIVEN beide Zeilen fehlgeschlagen, Ziel in YNAB geändert ...", "GIVEN Quelle in YNAB geändert, Ziel ohne Stand ...", "GIVEN Quelle geschrieben, Ziel ohne Stand ...".
+
+
+## Nachtrag 2026-11-07 (budgeting-my8p8, Entscheidung des Owners)
+
+Das ungesendet geschlossene Ziel (und die ungesendet geschlossene Quelle, Nachtrag 2026-10-31) trägt jetzt einen eigenen Stand, "in BB zurückgezogen" (`LineOutcome.WithdrawnInBb`). Die Gegenseite, bei der YNAB gewann, heißt weiter "in YNAB geändert". Grund: seit ADR 0084 ist `AssignmentWriteBackWithdrawn` ein eigenes Ereignis, und die Tabelle `budget_movement_results` gibt es nicht mehr. Die Begründung unter "Neutral" ("Es kommt kein neuer Stand dazu. Das Schema von `budget_movement_results` bleibt.") gilt nicht mehr. Damit entfällt auch die Folge für budgeting-dyn8g unter "Negative" und im Nachtrag 2026-10-31: eine Zeile, die YNAB nie berührt hat, heißt nicht mehr "in YNAB geändert".
+
+Am Verhalten ändert sich nichts. Die zurückgezogene Zeile ist geschlossen wie eine in YNAB geänderte (`isOpenLine`), und die Paarregel in `planRetry` zieht die Quelle auch dann zurück, wenn ihr Ziel "in BB zurückgezogen" trägt. Anzeige nach Romans Wahl (Option A): kleines neutrales Badge "in BB zurückgezogen", im Bericht der Satz "Nicht gesendet, BB hat die Zeile zurückgezogen. YNAB blieb unverändert." In der Historie je Kategorie geht "in BB ersetzt" vor. In der allgemeinen Historie steht der Stand hinter "in YNAB geändert" und "in BB ersetzt".
+
+Tests in `src/Tests/MoveMoneyTests.fs`: "Hat YNAB bei der Quelle gewonnen ...", "GIVEN beide Zeilen fehlgeschlagen, Ziel in YNAB geändert ...", "GIVEN Quelle in YNAB geändert, Ziel in BB zurückgezogen ...".

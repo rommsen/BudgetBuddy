@@ -267,16 +267,16 @@ let textTests =
     testList "Historie im Inspektor: Texte" [
         test "Der Stand je Ergebnisart" {
             Expect.equal
-                ([ HistoryWritten; HistoryFailed "Rate-Limit"; HistoryFailed ""; HistoryChangedInYnab; HistoryOpen ]
+                ([ HistoryWritten; HistoryFailed "Rate-Limit"; HistoryFailed ""; HistoryChangedInYnab; HistoryOpen; HistoryReplacedInBb; HistoryWithdrawnInBb ]
                  |> List.map historyStatusText)
-                [ "geschrieben"; "fehlgeschlagen"; "fehlgeschlagen"; "in YNAB geändert"; "noch offen" ]
+                [ "geschrieben"; "fehlgeschlagen"; "fehlgeschlagen"; "in YNAB geändert"; "noch offen"; "in BB ersetzt"; "in BB zurückgezogen" ]
                 "Texte"
         }
         test "Der Grund einer fehlgeschlagenen Bewegung steht neben dem Badge, ohne Grund nichts" {
             Expect.equal
-                ([ HistoryWritten; HistoryFailed "Rate-Limit"; HistoryFailed " "; HistoryChangedInYnab; HistoryOpen ]
+                ([ HistoryWritten; HistoryFailed "Rate-Limit"; HistoryFailed " "; HistoryChangedInYnab; HistoryOpen; HistoryWithdrawnInBb ]
                  |> List.map historyFailureReason)
-                [ None; Some "Rate-Limit"; None; None; None ]
+                [ None; Some "Rate-Limit"; None; None; None; None ]
                 "Grund"
         }
         test "Der Betrag am Balken in ganzen Euro, mit Tausenderpunkt, ein Erstattungsüberschuss mit Plus" {

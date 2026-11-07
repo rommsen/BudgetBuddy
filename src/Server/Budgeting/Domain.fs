@@ -179,7 +179,8 @@ let isOpenLine (latest: LineOutcome option) : bool =
     | None
     | Some (Failed _) -> true
     | Some Written
-    | Some ChangedInYnab -> false
+    | Some ChangedInYnab
+    | Some WithdrawnInBb -> false
 
 // ============================================
 // Geld verschieben und zuweisen (ADR 0069, ADR 0078)

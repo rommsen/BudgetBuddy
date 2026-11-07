@@ -235,7 +235,10 @@ let planRetry (inOrder: bool) (lines: RetryLine list) : RetryAction list =
     | true, [ source; target ] ->
         let sourceAction =
             match single source with
-            | Send when not target.Open && target.Latest = Some ChangedInYnab -> Close Withdrawn
+            // Das Ziel ist verloren: in YNAB geändert, oder in BB zurückgezogen (etwa von einer späteren Entscheidung
+            // ersetzt, budgeting-dgrp7).
+            | Send when not target.Open && (target.Latest = Some ChangedInYnab || target.Latest = Some WithdrawnInBb) ->
+                Close Withdrawn
             | Send when target.Open && not target.InYnab -> Close (WriteBackFailed SourceHeldBackText)
             | action -> action
         let targetAction =

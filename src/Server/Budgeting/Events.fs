@@ -322,21 +322,24 @@ let writeBackEvent (reference: WriteBackRef) (outcome: WriteBackOutcome) : Budge
     | SupersededInYnab -> BudgetEvent.AssignmentWriteBackSupersededInYnab reference
     | Withdrawn -> BudgetEvent.AssignmentWriteBackWithdrawn reference
 
-/// Was Historie und Bericht zeigen: Ersetzt und Zurückgezogen sind beide "in YNAB geändert" und
-/// schließen die Zeile für "erneut senden" (budgeting-hyn77).
+/// Was Historie und Bericht zeigen. Ersetzt heißt "in YNAB geändert", Zurückgezogen "in BB zurückgezogen"
+/// (budgeting-my8p8): YNAB hat eine zurückgezogene Zeile nie berührt. Beide schließen die Zeile für "erneut
+/// senden" (budgeting-hyn77).
 let lineOutcomeOf (outcome: WriteBackOutcome) : LineOutcome =
     match outcome with
     | WrittenBack -> Written
     | WriteBackFailed reason -> Failed reason
-    | SupersededInYnab
-    | Withdrawn -> ChangedInYnab
+    | SupersededInYnab -> ChangedInYnab
+    | Withdrawn -> WithdrawnInBb
 
 /// Das Schritt-Ergebnis-Ereignis einer Target-Änderung aus dem Altbestand zu einem Ausgang (Startmigration).
 let goalStepEvent (reference: GoalStepRef) (outcome: LineOutcome) : BudgetEvent =
     match outcome with
     | Written -> BudgetEvent.YnabGoalStepWrittenToYnab reference
     | Failed reason -> BudgetEvent.YnabGoalStepWriteFailed (reference, reason)
-    | ChangedInYnab -> BudgetEvent.YnabGoalStepSupersededInYnab reference
+    // Ein Target-Schritt wird nie zurückgezogen, der Altbestand kennt den Stand nicht.
+    | ChangedInYnab
+    | WithdrawnInBb -> BudgetEvent.YnabGoalStepSupersededInYnab reference
 
 // ============================================
 // Codec

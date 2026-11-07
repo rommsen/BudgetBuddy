@@ -14,6 +14,7 @@ open Components.Budget.Month
 open Components.Budget.Targets
 open Components.Budget.Moves
 open Components.Budget.Inspector
+open Client.DesignSystem
 
 let private eur (amount: decimal) : Money = { Amount = amount; Currency = "EUR" }
 
@@ -146,6 +147,19 @@ let private retryTests =
             let _, none = retryFailed { loaded with Targets = ApplyDone { Sent = preview; Report = ok; Retrying = false; RetryError = None } }
             Expect.isNone none "nichts Fehlgeschlagenes"
         }
+        // budgeting-my8p8: Erneut senden geht auch hinaus, wenn der Monat der Anwendung inzwischen vergangen ist.
+        test "Im Folgemonat nennt erneut senden die Anwendung des Vormonats" {
+            let december = { frame with CurrentMonth = "2026-12-01"; Months = [ "2026-11-01"; "2026-12-01" ] }
+            let failed = reportOf [ Written; Failed "Rate-Limit" ] None
+            let pastMonth =
+                { loaded with
+                    Frame = Success december
+                    ChosenMonth = Some "2026-11-01"
+                    Targets = ApplyDone { Sent = preview; Report = failed; Retrying = false; RetryError = None } }
+            Expect.equal (displayedMonthKind pastMonth) (Some PastMonth) "der November ist vergangen"
+            let _, id = retryFailed pastMonth
+            Expect.equal id (Some failed.ApplicationId) "Anwendung"
+        }
         test "Das Ergebnis des erneuten Sendens ersetzt den Bericht, ein Fehler lässt ihn stehen" {
             let failed = reportOf [ Failed "Rate-Limit" ] None
             let running = { loaded with Targets = ApplyDone { Sent = preview; Report = failed; Retrying = true; RetryError = None } }
@@ -234,6 +248,22 @@ let private reportLineTests =
         test "Probleme stehen vor den geschriebenen Zeilen, sonst bleibt die Folge" {
             let report = reportOf [ Written; Failed "a"; Written; ChangedInYnab ] None
             Expect.equal (reportLines report |> List.map (fun l -> l.CategoryName)) [ "K1"; "K3"; "K0"; "K2" ] "Folge"
+        }
+        // budgeting-my8p8: eine in BB zurückgezogene Zeile hieß im Bericht "in YNAB geändert".
+        test "Satz und Badge je Stand" {
+            let look outcome =
+                let detail, badge = Components.Budget.TargetsView.outcomeLook (reportOf [ outcome ] None).Lines.Head
+                detail, badge.Text, badge.Variant, badge.Size
+            Expect.equal (look Written) ("0,00 € auf 10,00 €", "geschrieben", Badge.Success, Badge.Medium) "geschrieben"
+            Expect.equal (look (Failed "Rate-Limit")) ("Rate-Limit", "fehlgeschlagen", Badge.Error, Badge.Medium) "fehlgeschlagen"
+            Expect.equal
+                (look ChangedInYnab)
+                ("YNAB steht anders als erwartet, nichts überschrieben", "in YNAB geändert", Badge.Notice, Badge.Medium)
+                "in YNAB geändert"
+            Expect.equal
+                (look WithdrawnInBb)
+                ("Nicht gesendet, BB hat die Zeile zurückgezogen. YNAB blieb unverändert.", "in BB zurückgezogen", Badge.Neutral, Badge.Small)
+                "in BB zurückgezogen, neutral und klein wie in BB ersetzt"
         }
     ]
 

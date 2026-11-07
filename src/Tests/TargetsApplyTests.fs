@@ -588,14 +588,15 @@ let private persistenceTests =
                     {| id = $"%%{m.ApplicationId}%%" |})
             Expect.equal rows 2 "beide Ergebnisse bleiben stehen"
 
-        testCase "Der Grund eines Fehlschlags bleibt erhalten, ersetzt und zurückgezogen lesen sich als in YNAB geändert" <| fun () ->
+        // budgeting-my8p8: zurückgezogen las sich als "in YNAB geändert", obwohl YNAB die Zeile nie berührt hatte.
+        testCase "Der Grund eines Fehlschlags bleibt erhalten, ersetzt liest sich als in YNAB geändert, zurückgezogen als in BB zurückgezogen" <| fun () ->
             let m1, m2, m3 = record (movement ()), record (movement ()), record (movement ())
             Budgeting.Persistence.recordWriteBack m1 now (Budgeting.Events.WriteBackFailed "Rate-Limit") |> run
             Budgeting.Persistence.recordWriteBack m2 now Budgeting.Events.SupersededInYnab |> run
             Budgeting.Persistence.recordWriteBack m3 now Budgeting.Events.Withdrawn |> run
             Expect.equal (loadedOk m1.ApplicationId |> List.head).Latest (Some (Failed "Rate-Limit")) "Grund"
             Expect.equal (loadedOk m2.ApplicationId |> List.head).Latest (Some ChangedInYnab) "in YNAB geändert"
-            Expect.equal (loadedOk m3.ApplicationId |> List.head).Latest (Some ChangedInYnab) "zurückgezogen"
+            Expect.equal (loadedOk m3.ApplicationId |> List.head).Latest (Some WithdrawnInBb) "zurückgezogen"
     ]
 
 // budgeting-et7z8: im letzten Monat kein Targets anwenden. Der Port zählt jedes Lesen
@@ -658,6 +659,63 @@ let private lastMonthTests =
                 for state in states do
                     Expect.equal state.Movement.OccurredAt now "Zeitstempel ist die Uhr, nicht der Kalendertag"
             | other -> failtest $"Applied erwartet: {other}"
+    ]
+
+// budgeting-my8p8: Erneut senden geht auch hinaus, wenn der Monat der Anwendung inzwischen vergangen ist
+// (README budgeting, Anwendung). Vorher prüfte kein Test das; eine Sperre für vergangene Monate in
+// `retryFailedWith` bliebe unbemerkt, und BB und YNAB stünden für den Vormonat dauerhaft auseinander.
+let private nextMonthRetryTests =
+    let testCase name body =
+        testCase name (fun () ->
+            Budgeting.Persistence.initializeBudgetingSchema ()
+            body ())
+    let november = DateOnly(2026, 11, 10)
+    let novemberUtc = DateTime(2026, 11, 10, 9, 0, 0, DateTimeKind.Utc)
+    let decemberUtc = DateTime(2026, 12, 2, 9, 0, 0, DateTimeKind.Utc)
+    let berlin = TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin"
+    let settings key =
+        async {
+            return
+                match key with
+                | "ynab_token" -> Some "t"
+                | "ynab_default_budget_id" -> Some "b"
+                | _ -> None
+        }
+    let framePortFor _ _ : Server.Budgeting.QueryHandlers.BudgetFramePort =
+        { FetchMonths = fun () -> async { return Ok [ "2026-11-01"; "2026-12-01" ] }
+          FetchCategoryOrder = fun () -> async { return Ok [] }
+          LoadMonthStartHidden = fun _ -> async { return Ok [] } }
+    testList "Erneut senden im Folgemonat (budgeting-my8p8)" [
+        testCase "GIVEN eine Anwendung im November mit fehlgeschlagener Zeile WHEN im Dezember erneut gesendet THEN geht der PATCH in den November" <| fun () ->
+            let f, (_, b, _, _, _) = fake 200000L
+            f.Failures[b] <- YnabError.NetworkError "Netz weg"
+            let shown =
+                match Server.Api.previewTargetsWith (Some "t") (Some "b") (fun _ _ -> f.Port) november novemberUtc monthKey |> run with
+                | Ok p -> p
+                | Error e -> failtest e
+            let report =
+                match Server.Api.applyTargetsWith (Some "t") (Some "b") (fun _ _ -> f.Port) november novemberUtc monthKey shown |> run with
+                | Ok (Applied r) -> r
+                | other -> failtest $"Applied erwartet: {other}"
+            Expect.equal (outcomeOf report b) (Failed "Netzwerkfehler: Netz weg") "B fehlgeschlagen"
+            f.Failures.Remove b |> ignore
+            let patched = ResizeArray<string * Guid>()
+            let portFor _ _ =
+                { f.Port with
+                    SetAssigned =
+                        fun month id milliunits ->
+                            patched.Add((month, id))
+                            f.Port.SetAssigned month id milliunits }
+            let api = Server.Api.budgetApiWith settings portFor framePortFor (fun () -> decemberUtc) berlin
+            match api.getBudgetFrame () |> run with
+            | Ok frame -> Expect.equal frame.CurrentMonth "2026-12-01" "die Uhr steht im Dezember"
+            | Error e -> failtest e
+            match api.retryFailedTargets report.ApplicationId |> run with
+            | Ok retried ->
+                Expect.equal (List.ofSeq patched) [ monthKey, b ] "der PATCH geht in den Monat der Anwendung"
+                Expect.equal retried.Month monthKey "Bericht für den November"
+                Expect.equal (outcomeOf retried b) Written "B geschrieben"
+            | Error e -> failtest $"Bericht erwartet: {e}"
     ]
 
 // Die Verdrahtung der BudgetApi: Settings, Port und Uhr sind die einzigen Stellen, an denen
@@ -856,4 +914,4 @@ let private commandTests =
 
 [<Tests>]
 let tests =
-    testList "Targets anwenden (budgeting-h2zfn)" [ planTests; ynabTests; apiTests; flowTests; persistenceTests; lastMonthTests; wiringTests; commandTests ]
+    testList "Targets anwenden (budgeting-h2zfn)" [ planTests; ynabTests; apiTests; flowTests; persistenceTests; lastMonthTests; nextMonthRetryTests; wiringTests; commandTests ]

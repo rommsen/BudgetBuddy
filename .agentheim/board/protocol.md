@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 09:01 -- Task verified and completed: budgeting-my8p8 - "Erneut senden: eine von BB zurückgezogene Zeile heißt nicht mehr \"in YNAB geändert\", und Erneut senden im Folgemonat ist getestet"
+
+**Type:** Work / Task completion
+**Task:** budgeting-my8p8 - "Erneut senden: eine von BB zurückgezogene Zeile heißt nicht mehr \"in YNAB geändert\", und Erneut senden im Folgemonat ist getestet"
+**Summary:** Eine von BB ungesendet geschlossene Zeile trägt den eigenen Stand "in BB zurückgezogen" (WithdrawnInBb) in Bericht, Historie je Kategorie und allgemeiner Historie, statt "in YNAB geändert"; Erneut senden im Folgemonat ist am Server und am Client getestet.
+**Duration:** (unknown)
+**Verification:** PASS (iteration 1)
+**Files changed:** 20
+**Tests added:** 12
+**ADRs written:** none
+
+---
+
 ## 2026-11-07 08:57 -- Batch started: [ledger-bk3q8]
 
 **Type:** Work / Batch start

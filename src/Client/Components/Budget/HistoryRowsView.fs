@@ -20,7 +20,8 @@ let historyStatusView (status: HistoryStatus) =
     // Gelb wie "offen, kein Fehler" (ADR 0075): das Target steht, nur das Datum fehlt (budgeting-g2ty9, X7).
     | HistoryPartlyWritten _ -> Badge.noticeSmall text
     | HistoryOpen
-    | HistoryReplacedInBb -> Badge.neutralSmall text
+    | HistoryReplacedInBb
+    | HistoryWithdrawnInBb -> Badge.neutralSmall text
 
 /// Der Betrag einer Bewegungszeile, wie `historyChangeAmount` ihn liefert.
 let historyChangeView (change: Money) =

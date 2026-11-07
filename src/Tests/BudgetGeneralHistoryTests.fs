@@ -119,6 +119,23 @@ let runTests =
             Expect.equal (statusOf [ Some Written; Some ChangedInYnab ]) RunChangedInYnab "in YNAB geändert"
             Expect.equal (statusOf [ Some Written; Some Written ]) RunWritten "geschrieben"
         }
+        // budgeting-my8p8: eigener Stand für "in BB zurückgezogen", hinter "in YNAB geändert".
+        test "Verschiebung mit Quelle in YNAB geändert und zurückgezogenem Ziel steht als in YNAB geändert" {
+            Expect.equal (single (move 20m (Some ChangedInYnab) (Some WithdrawnInBb))).Status RunChangedInYnab "Quelle zeigt, wo etwas passierte"
+            Expect.equal (single (move 20m (Some WithdrawnInBb) (Some ChangedInYnab))).Status RunChangedInYnab "Gegenrichtung"
+        }
+        test "Ein Durchlauf nur aus geschriebenen und zurückgezogenen Zeilen steht als in BB zurückgezogen" {
+            let statusOf outcomes =
+                (single (targets (outcomes |> List.mapi (fun i o -> $"K{i}", 10m, o)))).Status
+            Expect.equal (statusOf [ Some Written; Some WithdrawnInBb ]) RunWithdrawnInBb "in BB zurückgezogen"
+            Expect.equal (statusOf [ Some WithdrawnInBb; None ]) RunOpen "offen geht vor"
+        }
+        test "Ist das Ziel in BB ersetzt und die Quelle zurückgezogen, nennt der Durchlauf den Anlass" {
+            let run =
+                move 20m (Some WithdrawnInBb) (Some WithdrawnInBb)
+                |> List.map (fun m -> if m.CategoryName = "Urlaub" then { m with ReplacedBy = Some (Guid.NewGuid()) } else m)
+            Expect.equal (single run).Status RunReplacedInBb "in BB ersetzt"
+        }
         // budgeting-c6vn4 (M2): die Eingabe kommt älteste zuerst, damit das Sortieren in `historyRuns` und der
         // jüngste Zeitpunkt je Durchlauf (`List.max`) wirklich geprüft sind.
         test "Eine Zeile je Gruppen-Id, neueste zuerst, ein Durchlauf zählt mit seiner jüngsten Bewegung" {

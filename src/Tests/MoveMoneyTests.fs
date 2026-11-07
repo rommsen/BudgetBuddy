@@ -253,9 +253,9 @@ let private retryApplication (f: FakeYnab) (applicationId: Guid) : ApplyReport =
     | Ok report -> report
     | Error e -> failtest $"Bericht erwartet: {e}"
 
-/// Der Typ des jüngsten Rückschreib-Ereignisses einer Zeile im Monats-Stream (budgeting-hyn77). Die Leser
-/// bilden `AssignmentWriteBackWithdrawn` und `AssignmentWriteBackSupersededInYnab` beide auf `ChangedInYnab` ab,
-/// den Unterschied sieht nur das Ereignis.
+/// Der Typ des jüngsten Rückschreib-Ereignisses einer Zeile im Monats-Stream (budgeting-hyn77). Seit
+/// budgeting-my8p8 lesen sich `AssignmentWriteBackWithdrawn` als `WithdrawnInBb` und
+/// `AssignmentWriteBackSupersededInYnab` als `ChangedInYnab`; das Ereignis prüft zusätzlich den Schreibweg.
 let private lastWriteBackType (applicationId: Guid) (categoryId: Guid) : string option =
     use conn = global.Persistence.getConnection ()
     let stream =
@@ -378,7 +378,9 @@ let private flowTests =
             Expect.equal (List.ofSeq f.Attempts) [ b, 50000L ] "nur das Ziel"
             Expect.equal (outcomes again) [ Written; Written ] "beide geschrieben"
 
-        testCase "Hat YNAB bei der Quelle gewonnen, bleibt das Ziel ungesendet und die Verschiebung ist erledigt" <| fun () ->
+        // budgeting-my8p8: das ungesendete Ziel hieß "in YNAB geändert", obwohl YNAB es nie berührt hatte. Roman
+        // suchte in YNAB eine Änderung am Ziel, die es nicht gab.
+        testCase "Hat YNAB bei der Quelle gewonnen, bleibt das Ziel ungesendet, heißt in BB zurückgezogen und die Verschiebung ist erledigt" <| fun () ->
             let f, a, b = fake ()
             f.Failures[a] <- networkDown
             let report = moveOk f (request (CategorySide a) (CategorySide b) 30000L)
@@ -387,9 +389,10 @@ let private flowTests =
             f.Assigned[a] <- 90000L
             let again = retryOk f report
             Expect.isEmpty f.Attempts "kein PATCH: das Geld käme sonst aus Zu verteilen"
-            Expect.equal (outcomes again) [ ChangedInYnab; ChangedInYnab ] "beide geschlossen"
+            Expect.equal (outcomes again) [ ChangedInYnab; WithdrawnInBb ] "Quelle in YNAB geändert, Ziel in BB zurückgezogen"
             let applicationId = Guid.Parse report.ApplicationId
             Expect.equal (lastWriteBackType applicationId a) (Some "AssignmentWriteBackSupersededInYnab") "YNAB gewinnt bei der Quelle"
+            Expect.equal (lastWriteBackType applicationId b) (Some "AssignmentWriteBackWithdrawn") "das Ziel ungesendet zurückgezogen"
 
         testCase "GIVEN die Quelle landete, die Antwort ging verloren und sie änderte sich danach WHEN erneut gesendet THEN bleibt das Ziel ungesendet und das Geld in Zu verteilen" <| fun () ->
             let f, a, b = fake ()
@@ -403,10 +406,10 @@ let private flowTests =
             let again = retryOk f report
             Expect.isEmpty f.Attempts "kein PATCH: die Quelle gehört YNAB, das Ziel bleibt liegen"
             Expect.equal (f.Assigned[a], f.Assigned[b]) (65000L, 20000L) "die 30 € sind weder am Ziel noch zurück an der Quelle"
-            Expect.equal (outcomes again) [ ChangedInYnab; ChangedInYnab ] "beide geschlossen, auch das nie gesendete Ziel"
+            Expect.equal (outcomes again) [ ChangedInYnab; WithdrawnInBb ] "beide geschlossen, das nie gesendete Ziel in BB zurückgezogen"
             let second = retryOk f report
             Expect.isEmpty f.Attempts "ein weiteres Senden holt das Ziel nicht nach"
-            Expect.equal (outcomes second) [ ChangedInYnab; ChangedInYnab ] "der Stand bleibt"
+            Expect.equal (outcomes second) [ ChangedInYnab; WithdrawnInBb ] "der Stand bleibt"
 
         // budgeting-nfrds: `held` stammte nur aus Zeilen desselben Laufs. Die Quelle stand schon auf
         // "in YNAB geändert", das Ziel ohne Stand blieb ewig "nicht gesendet".
@@ -416,8 +419,18 @@ let private flowTests =
             let applicationId = recordedMove f a b (Some ChangedInYnab) None
             let again = retryApplication f applicationId
             Expect.isEmpty f.Attempts "kein PATCH: das Geld käme aus Zu verteilen"
-            Expect.equal (outcomes again) [ ChangedInYnab; ChangedInYnab ] "beide geschlossen (ADR 0070)"
+            Expect.equal (outcomes again) [ ChangedInYnab; WithdrawnInBb ] "beide geschlossen (ADR 0070), das Ziel in BB zurückgezogen"
             Expect.equal (lastWriteBackType applicationId b) (Some "AssignmentWriteBackWithdrawn") "das Ziel ungesendet zurückgezogen"
+
+        // budgeting-my8p8: eine in BB zurückgezogene Zeile ist geschlossen wie eine in YNAB geänderte.
+        testCase "GIVEN Quelle in YNAB geändert, Ziel in BB zurückgezogen WHEN erneut gesendet THEN geht kein PATCH für das Ziel hinaus" <| fun () ->
+            let f, a, b = fake ()
+            f.Assigned[a] <- 90000L
+            let applicationId = recordedMove f a b (Some ChangedInYnab) (Some WithdrawnInBb)
+            let again = retryApplication f applicationId
+            Expect.isEmpty (f.Attempts |> Seq.filter (fun (i, _) -> i = b)) "kein PATCH für das Ziel"
+            Expect.isEmpty f.Attempts "auch keiner für die Quelle"
+            Expect.equal (outcomes again) [ ChangedInYnab; WithdrawnInBb ] "der Stand bleibt"
 
         // budgeting-nfrds: ein Abbruch nach der Quelle ließ das Ziel als "nicht gesendet" ewig offen.
         testCase "GIVEN Quelle geschrieben, Ziel ohne Stand WHEN erneut gesendet THEN greift das Ziel auf und der Bericht zeigt nichts Offenes" <| fun () ->
@@ -442,7 +455,8 @@ let private flowTests =
             Expect.isTrue (outcomes again |> List.forall isFailed) "beide fehlgeschlagen"
 
         // budgeting-nfrds, Nachtrag zu ADR 0070: die Quelle ging hinaus, obwohl das Ziel schon
-        // verloren war. Das Geld lag dann in Zu verteilen.
+        // verloren war. Das Geld lag dann in Zu verteilen. budgeting-my8p8: die ungesendete Quelle hieß
+        // "in YNAB geändert", obwohl YNAB sie nie berührt hatte.
         testCase "GIVEN beide Zeilen fehlgeschlagen, Ziel in YNAB geändert WHEN erneut gesendet THEN geht die Quelle nicht hinaus" <| fun () ->
             let f, a, b = fake ()
             f.Assigned[b] <- 25000L
@@ -451,11 +465,11 @@ let private flowTests =
             let again = retryApplication f applicationId
             Expect.isEmpty f.Attempts "kein PATCH"
             Expect.equal (f.Assigned[a], f.Assigned[b]) (100000L, 25000L) "YNAB bleibt, wie es ist"
-            Expect.equal (outcomes again) [ ChangedInYnab; ChangedInYnab ] "beide geschlossen"
+            Expect.equal (outcomes again) [ WithdrawnInBb; ChangedInYnab ] "Quelle in BB zurückgezogen, Ziel in YNAB geändert"
             Expect.equal (lastWriteBackType applicationId a) (Some "AssignmentWriteBackWithdrawn") "die Quelle ungesendet zurückgezogen"
             let second = retryApplication f applicationId
             Expect.isEmpty f.Attempts "ein weiteres Senden holt die Quelle nicht nach"
-            Expect.equal (outcomes second) [ ChangedInYnab; ChangedInYnab ] "der Stand bleibt"
+            Expect.equal (outcomes second) [ WithdrawnInBb; ChangedInYnab ] "der Stand bleibt"
 
         testCase "GIVEN die Quelle landete, nur die Antwort ging verloren, das Ziel änderte sich WHEN erneut gesendet THEN gilt die Quelle als geschrieben" <| fun () ->
             let f, a, b = fake ()

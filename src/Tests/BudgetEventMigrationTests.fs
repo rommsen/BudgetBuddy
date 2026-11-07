@@ -761,8 +761,9 @@ let retryTests =
             | Ok report ->
                 Expect.equal report.ApplicationId (string oldApplication) "dieselbe Gruppen-Id"
                 // budgeting-dgrp7: Erneut senden beobachtet zuerst. Die Übernahme des Monats zieht die offene Zeile
-                // der migrierten Entscheidung zurück, gesendet wird nichts.
-                Expect.equal (report.Lines |> List.map (fun l -> l.CategoryId, l.Outcome)) [ x, ChangedInYnab ] "von der Übernahme geschlossen"
+                // der migrierten Entscheidung zurück, gesendet wird nichts. Seit budgeting-my8p8 heißt das "in BB
+                // zurückgezogen".
+                Expect.equal (report.Lines |> List.map (fun l -> l.CategoryId, l.Outcome)) [ x, WithdrawnInBb ] "von der Übernahme geschlossen"
             | Error e -> failtest $"Bericht erwartet: {e}"
             Expect.isEmpty sent "nichts gesendet"
             let fresh =

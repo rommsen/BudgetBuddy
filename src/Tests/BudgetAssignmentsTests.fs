@@ -324,6 +324,25 @@ let private retryTests =
                 [ Close Withdrawn; Leave ]
                 "Quelle zurück"
         }
+        // budgeting-my8p8: vorher las sich ein zurückgezogenes Ziel als "in YNAB geändert", die Paarregel griff
+        // über diesen Stand. Mit eigenem Stand muss sie ihn ausdrücklich prüfen.
+        test "Verschiebung: Ziel in BB zurückgezogen, die Quelle wird zurückgezogen" {
+            Expect.equal
+                (planRetry true [ line true failed true; line false (Some WithdrawnInBb) true ])
+                [ Close Withdrawn; Leave ]
+                "Quelle zurück"
+        }
+        test "Verschiebung: Quelle in BB zurückgezogen, das Ziel wird zurückgezogen" {
+            Expect.equal
+                (planRetry true [ line false (Some WithdrawnInBb) true; line true None true ])
+                [ Leave; Close Withdrawn ]
+                "Ziel zurück"
+        }
+        test "Eine in BB zurückgezogene Zeile ist geschlossen wie eine in YNAB geänderte" {
+            Expect.isFalse (Domain.isOpenLine (Some WithdrawnInBb)) "zurückgezogen"
+            Expect.isFalse (Domain.isOpenLine (Some ChangedInYnab)) "in YNAB geändert"
+            Expect.isTrue (Domain.isOpenLine (Some (Failed "weg"))) "fehlgeschlagen bleibt offen"
+        }
         test "Verschiebung: Quelle in YNAB ersetzt, das Ziel wird zurückgezogen" {
             Expect.equal
                 (planRetry true [ line false (Some ChangedInYnab) true; line true None true ])

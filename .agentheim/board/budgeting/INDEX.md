@@ -12,8 +12,8 @@ Catalog of this bounded context's tasks by status.
 <!-- task-counts:start -->
 - **Backlog:** 4
 - **Todo:** 0
-- **Doing:** 2
-- **Done:** 58
+- **Doing:** 1
+- **Done:** 59
 <!-- task-counts:end -->
 
 ### Todo
@@ -23,11 +23,11 @@ Catalog of this bounded context's tasks by status.
 ### Doing
 <!-- doing-list:start -->
 - **budgeting-gvajj** — "Leiste Monatserster: Targets prüfen liest nach einer Target-Änderung neu, die Vorschau von Targets anwenden nimmt keine späte Antwort mehr ein" (bug) — `doing/budgeting-gvajj-leiste-monatserster-und-vorschau-ohne-alte-staende.md`
-- **budgeting-my8p8** — "Erneut senden: eine von BB zurückgezogene Zeile heißt nicht mehr \"in YNAB geändert\", und Erneut senden im Folgemonat ist getestet" (bug) — `doing/budgeting-my8p8-zurueckgezogene-zeile-eigener-stand-erneut-senden-im-folgemonat.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **budgeting-my8p8** — "Erneut senden: eine von BB zurückgezogene Zeile heißt nicht mehr \"in YNAB geändert\", und Erneut senden im Folgemonat ist getestet" (bug) — `done/budgeting-my8p8-zurueckgezogene-zeile-eigener-stand-erneut-senden-im-folgemonat.md`
 - **budgeting-j8r4t** — "Targets prüfen: bei Rhythmus über einen Monat gilt mehr nur, wenn auch die Zahlung über dem Target liegt (verschobene Jahresabbuchung)" (bug) — `done/budgeting-j8r4t-targets-pruefen-je-zahlung-bei-langem-rhythmus.md`
 - **budgeting-m3x7f** — "Monatserster: Leiste nach der Skizze mit Targets prüfen, Targets anwenden, Überzogene decken und verteilen; Kopfknopf Monatserster statt Targets anwenden und Prüfen-Icon; Vorschau mit abwählbaren Zeilen; Ausblenden je Monat auf dem Server" (feature) — `done/budgeting-m3x7f-monatserster-leiste.md`
 - **budgeting-k7r2w** — "Targets prüfen zählt eine neue Kategorie erst ab ihrer ersten Buchung im Kassenbuch, statt die Monate davor als 0 € mitzuzählen. Unter 3 gezählten Monaten steht sie unter Passt mit „neu seit <Monat>“." (bug) — `done/budgeting-k7r2w-targets-pruefen-ab-erster-buchung.md`

@@ -271,6 +271,7 @@ let tests =
             Expect.equal (runBadge (RunFailed "Rate-Limit")) (StatusBadge (HistoryFailed "Rate-Limit")) "Grund"
             Expect.equal (runBadge RunOpen) (StatusBadge HistoryOpen) "offen"
             Expect.equal (runBadge RunReplacedInBb) (StatusBadge HistoryReplacedInBb) "in BB ersetzt"
+            Expect.equal (runBadge RunWithdrawnInBb) (StatusBadge HistoryWithdrawnInBb) "in BB zurückgezogen"
             Expect.equal (runBadge RunFromYnab) NoBadge "aus YNAB ohne Badge"
         }
         test "Der Monat steht am Handy kurz" {

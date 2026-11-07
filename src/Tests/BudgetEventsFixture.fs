@@ -40,6 +40,7 @@ let writeBackOf (outcome: LineOutcome) : WriteBackOutcome =
     | Written -> WrittenBack
     | Failed reason -> WriteBackFailed reason
     | ChangedInYnab -> SupersededInYnab
+    | WithdrawnInBb -> Withdrawn
 
 /// Hängt ein Ergebnis an eine gespeicherte Zeile.
 let recordResult (m: Movement) (at: System.DateTime) (outcome: LineOutcome) : unit =
