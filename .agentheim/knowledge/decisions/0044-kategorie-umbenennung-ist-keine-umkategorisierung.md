@@ -174,3 +174,7 @@ gespeicherten Namen veralten.
   jeweils aktuellen YNAB-Antwort)
 - `.agentheim/knowledge/decisions/0039-kategoriegruppe-im-lesepfad-statt-im-ereignis-log.md`
 - `.agentheim/board/ledger/backlog/ledger-ggzdw-spiegel-kategorie-vergleich-nur-ueber-id.md`
+
+## Nachtrag 2026-11-07 (ledger-bk3q8)
+
+Auch Quick Add liest den Kategorienamen aus den Kategorie-Stammdaten (`ledger_categories`), nicht mehr je Buchung bei YNAB. YNAB wird nur gefragt, wenn die Id dort fehlt (Kategorie neu, noch nicht gespiegelt). Scheitert auch das oder kennt YNAB die Id nicht, bricht Quick Add ohne Ereignis und ohne Push ab (Entscheidung Roman, Option B).

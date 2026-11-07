@@ -744,6 +744,135 @@ let addCashExpense
     }
 
 // ============================================
+// Barbuchung: gemeinsamer Befehl für Quick Add und Bob (ledger-bk3q8)
+// ============================================
+
+/// Eine Barbuchung auf dem Quick-Add-Konto, wie Quick Add und Bob sie fachlich angeben:
+/// `Amount` ohne Vorzeichen, die Richtung steht in `IsOutflow`. Payee und Memo kommen
+/// roh; Trimmen und das Weglassen leerer Werte macht `cashBookingParts`.
+type CashBooking = {
+    AccountId: LedgerAccountId
+    Date: DateTime
+    Amount: decimal
+    IsOutflow: bool
+    Payee: string
+    Memo: string option
+    Category: CategoryRef option
+}
+
+/// Kassenbuch-Eingabe und YNAB-Request einer Barbuchung aus denselben Werten
+/// (ledger-bk3q8): Eine Ausgabe steht mit negativem Betrag im Kassenbuch und geht mit
+/// positivem Betrag und `IsOutflow = true` an YNAB, eine Einnahme umgekehrt. Ein leerer
+/// Payee steht im Kassenbuch als `None` und geht als leerer Text an YNAB, ein leeres Memo
+/// fällt an beiden Stellen weg. Die Kategorie trägt im Kassenbuch Id und Namen, im
+/// Request nur die Id. Rein.
+let cashBookingParts (booking: CashBooking) : CashExpenseInput * ManualTransactionRequest =
+    let payee =
+        if String.IsNullOrWhiteSpace booking.Payee then None else Some (booking.Payee.Trim())
+    let memo =
+        booking.Memo
+        |> Option.filter (fun m -> not (String.IsNullOrWhiteSpace m))
+        |> Option.map (fun m -> m.Trim())
+    let signedAmount = if booking.IsOutflow then -booking.Amount else booking.Amount
+    let input : CashExpenseInput = {
+        AccountId = booking.AccountId
+        Date = booking.Date
+        Amount = { Amount = signedAmount; Currency = "EUR" }
+        Payee = payee
+        Memo = memo
+        Category = booking.Category
+    }
+    let request : ManualTransactionRequest = {
+        Amount = booking.Amount
+        IsOutflow = booking.IsOutflow
+        PayeeName = payee |> Option.defaultValue ""
+        CategoryId = booking.Category |> Option.map (fun c -> c.CategoryId)
+        Date = booking.Date
+        Memo = memo
+    }
+    input, request
+
+/// Die Form von `addCashExpense` als Port: Bobs Umgebung reicht sie durch, damit Tests
+/// dort Ausnahmen vor und nach dem Schreiben auslösen können (ledger-z71ka).
+type AddCashExpense =
+    Actor
+        -> DateTime
+        -> EntryId
+        -> (unit -> Async<YnabResult<string>>)
+        -> (unit -> unit)
+        -> CashExpenseInput
+        -> Async<YnabResult<EntryId>>
+
+/// Die Barbuchung mit eingesetztem `addCashExpense` (siehe `addCashBooking`). Bob ruft
+/// diese Form mit seinem Port, alle anderen `addCashBooking`.
+let addCashBookingWith
+    (addExpense: AddCashExpense)
+    (actor: Actor)
+    (now: DateTime)
+    (entryId: EntryId)
+    (push: ManualTransactionRequest -> Async<YnabResult<string>>)
+    (triggerMirror: unit -> unit)
+    (booking: CashBooking)
+    : Async<YnabResult<EntryId>> =
+    let input, request = cashBookingParts booking
+    addExpense actor now entryId (fun () -> push request) triggerMirror input
+
+/// Barbuchung (Quick Add mit Actor `QuickAdd`, Bob mit Actor `Bob`): bildet Kassenbuch-
+/// Eingabe und YNAB-Request aus denselben Werten (`cashBookingParts`) und bucht über
+/// `addCashExpense`, das die Schreib-Sperre hält (ledger-kfd5m). Der Befehl nimmt die
+/// Sperre nicht selbst. `push` bekommt den Request und bindet Token, Budget und das
+/// YNAB-Konto an. Die `entryId` gilt wie bei `addCashExpense` auch nach einem
+/// Push-Fehler (ledger-z71ka).
+let addCashBooking
+    (actor: Actor)
+    (now: DateTime)
+    (entryId: EntryId)
+    (push: ManualTransactionRequest -> Async<YnabResult<string>>)
+    (triggerMirror: unit -> unit)
+    (booking: CashBooking)
+    : Async<YnabResult<EntryId>> =
+    addCashBookingWith addCashExpense actor now entryId push triggerMirror booking
+
+/// Quick Add (ledger-bk3q8): löst die gewählte Kategorie-Id vor dem Ereignis zu einer
+/// `CategoryRef` auf und bucht dann als Barbuchung mit Actor `QuickAdd`. Scheitert die
+/// Auflösung, bricht Quick Add mit dem Satz von `resolveCategory` ab (`RefusedByBb`):
+/// kein Ereignis, kein Push. Vorher entstand die Buchung dann still ohne Kategorie,
+/// während YNAB die Id bekam. `request` ist schon an der API-Grenze geprüft.
+let addQuickAdd
+    (now: DateTime)
+    (entryId: EntryId)
+    (resolveCategory: YnabCategoryId -> Async<Result<CategoryRef, string>>)
+    (push: ManualTransactionRequest -> Async<YnabResult<string>>)
+    (triggerMirror: unit -> unit)
+    (accountId: LedgerAccountId)
+    (request: ManualTransactionRequest)
+    : Async<YnabResult<EntryId>> =
+    async {
+        let! category =
+            match request.CategoryId with
+            | None -> async.Return (Ok None)
+            | Some categoryId ->
+                async {
+                    let! resolved = resolveCategory categoryId
+                    return resolved |> Result.map Some
+                }
+
+        match category with
+        | Error reason -> return Error (YnabError.RefusedByBb reason)
+        | Ok category ->
+            let booking = {
+                AccountId = accountId
+                Date = request.Date
+                Amount = request.Amount
+                IsOutflow = request.IsOutflow
+                Payee = request.PayeeName
+                Memo = request.Memo
+                Category = category
+            }
+            return! addCashBooking QuickAdd now entryId push triggerMirror booking
+    }
+
+// ============================================
 // Erneut senden: Push einer nicht verknüpften Buchung (ledger-cks06, ADR 0021)
 // ============================================
 
@@ -1894,6 +2023,39 @@ let currentImportId (links: EntryLink list) : string option =
     |> List.sortBy (fun l -> snd (splitReplacementSuffix l.Value))
     |> List.tryLast
     |> Option.map (fun l -> l.Value)
+
+/// Was der Einzel-Push einer Buchung an YNAB schickt: Konto, Request, `import_id` und
+/// Flag-Farbe.
+type EntryPushPlan = {
+    YnabAccountId: YnabAccountId
+    Request: ManualTransactionRequest
+    ImportId: string option
+    FlagColor: string option
+}
+
+/// Der Push einer Kassenbuch-Buchung (ledger-bk3q8, vorher inline in `Server.Api.entryPush`):
+/// Betrag ohne Vorzeichen, die Richtung als `IsOutflow`, ein fehlender Payee als leerer
+/// Text, die Kategorie als Id, die aktuelle `import_id` aus den Verknüpfungen
+/// (`currentImportId`, auch nach einem Ersatz) und die Flag-Farbe des BB-Stands. Gehört
+/// das Konto zu keinem YNAB-Konto, gibt es keinen Request, sondern
+/// `pushNotPossibleReason`. Rein.
+let planEntryPush (accounts: LedgerAccount list) (links: EntryLink list) (entry: Entry) : Result<EntryPushPlan, string> =
+    match accounts |> List.tryFind (fun a -> a.Id = entry.AccountId) with
+    | Some { Link = YnabMirrored ynabAccountId } ->
+        Ok {
+            YnabAccountId = ynabAccountId
+            Request = {
+                Amount = abs entry.Amount.Amount
+                IsOutflow = entry.Amount.Amount < 0m
+                PayeeName = entry.Payee |> Option.defaultValue ""
+                CategoryId = entry.Category |> Option.map (fun c -> c.CategoryId)
+                Date = entry.Date
+                Memo = entry.Memo
+            }
+            ImportId = currentImportId links
+            FlagColor = pushFlagColorOf entry
+        }
+    | _ -> Error pushNotPossibleReason
 
 /// Die `import_id` der Ersatzbuchung: die aktuelle plus `:r<n>`, n ist die Zahl der
 /// bisherigen Ersätze plus 1 (ADR 0058, Punkt 2). Ohne `import_id` keine. Rein.

@@ -785,3 +785,72 @@ let getMonthlyActivityByCategory (categoryIds: Guid list) (firstDays: DateTime l
 /// Abfrage für alle (budgeting-k7r2w, Targets prüfen). Eine Kategorie ohne Buchung fehlt in der Map.
 let getFirstBookingDayByCategory (categoryIds: Guid list) : Async<Map<Guid, DateTime>> =
     Ledger.Persistence.loadFirstEntryDaysByCategory categoryIds
+
+// ============================================
+// Quick-Add-Konto und Kategorie einer Barbuchung (ledger-bk3q8)
+// ============================================
+
+/// Das Konto, auf das Quick Add und Bob buchen: das Kassenbuch-Konto zum eingerichteten
+/// YNAB-Quick-Add-Konto (ADR 0004).
+type QuickAddAccount = {
+    LedgerAccountId: LedgerAccountId
+    YnabAccountId: YnabAccountId
+    AccountName: string
+}
+
+/// Der Settings-Schlüssel des Quick-Add-Kontos (YNAB-Konto-Id als Guid).
+let quickAddAccountSettingKey = "ynab_quickadd_account_id"
+
+let quickAddAccountMissingText = "Kein Quick-Add-Konto eingerichtet. Wähle es in den Settings unter YNAB aus."
+let quickAddAccountInvalidText = "Das Quick-Add-Konto ist ungültig eingerichtet. Wähle es in den Settings unter YNAB neu aus."
+let quickAddAccountNotMirroredText =
+    "Das Quick-Add-Konto ist im Kassenbuch noch nicht bekannt. Einmal \"Jetzt spiegeln\" ausführen, dann erneut versuchen."
+
+/// Löst das Quick-Add-Konto auf (Quick Add und Bobs Vorschau, ledger-bk3q8): Setting lesen,
+/// als Guid lesen, das gespiegelte Kassenbuch-Konto suchen. Jeder Fehlschlag hat einen
+/// festen deutschen Satz. Ohne gespiegeltes Konto gibt es kein Ersatzkonto (ADR 0016,
+/// ADR 0021: erst Kassenbuch, dann Push). `setting` liest die Einstellung.
+let resolveQuickAddAccountWith (setting: string -> Async<string option>) : Async<Result<QuickAddAccount, string>> =
+    async {
+        let! accountOpt = setting quickAddAccountSettingKey
+        match accountOpt |> Option.map (fun (text: string) -> Guid.TryParse text) with
+        | None -> return Error quickAddAccountMissingText
+        | Some (false, _) -> return Error quickAddAccountInvalidText
+        | Some (true, guid) ->
+            let ynabAccountId = YnabAccountId guid
+            match! Ledger.Persistence.findAccountByYnabAccountId ynabAccountId with
+            | None -> return Error quickAddAccountNotMirroredText
+            | Some account ->
+                return Ok { LedgerAccountId = account.Id; YnabAccountId = ynabAccountId; AccountName = account.Name }
+    }
+
+/// `resolveQuickAddAccountWith` mit den echten Einstellungen.
+let resolveQuickAddAccount () : Async<Result<QuickAddAccount, string>> =
+    resolveQuickAddAccountWith Core.Settings.getSetting
+
+let categoryLoadFailedText = "Die Kategorie konnte nicht geladen werden, bitte erneut versuchen"
+let categoryUnknownText = "Die Kategorie gibt es in YNAB nicht mehr"
+
+/// Der Name zu einer Kategorie-Id für Quick Add (ledger-bk3q8, Entscheidung Roman
+/// 2026-11-07): zuerst aus den gespiegelten Stammdaten (`ledger_categories`, ADR 0044), ohne
+/// YNAB-Aufruf. Fehlt die Id dort (in YNAB neu, noch nicht gespiegelt), fragt `fromYnab`
+/// nach. Scheitert der Abruf, ist das `categoryLoadFailedText`; kennt auch YNAB die Id
+/// nicht, `categoryUnknownText`.
+let resolveCategoryRefWith
+    (mirroredNames: unit -> Async<Map<Guid, string>>)
+    (fromYnab: unit -> Async<YnabResult<YnabCategory list>>)
+    (categoryId: YnabCategoryId)
+    : Async<Result<CategoryRef, string>> =
+    async {
+        let (YnabCategoryId id) = categoryId
+        let! names = mirroredNames ()
+        match names |> Map.tryFind id with
+        | Some name -> return Ok { CategoryId = categoryId; CategoryName = name }
+        | None ->
+            match! fromYnab () with
+            | Error _ -> return Error categoryLoadFailedText
+            | Ok categories ->
+                match categories |> List.tryFind (fun c -> c.Id = categoryId) with
+                | Some c -> return Ok { CategoryId = categoryId; CategoryName = c.Name }
+                | None -> return Error categoryUnknownText
+    }

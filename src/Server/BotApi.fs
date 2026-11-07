@@ -192,18 +192,14 @@ type BotDeps = {
     BerlinZone: TimeZoneInfo
     LoadCategories: unit -> Async<Result<YnabCategory list, string>>
     ResolveTarget: unit -> Async<Result<BotTarget, string>>
-    Push: BotPreview -> Async<YnabResult<string>>
+    /// Der Push nach YNAB auf das Konto der Vorschau, mit dem Request, den die Barbuchung
+    /// (`Ledger.CommandHandlers.addCashBookingWith`) aus denselben Werten wie die
+    /// Kassenbuch-Eingabe baut (ledger-bk3q8).
+    Push: YnabAccountId * ManualTransactionRequest -> Async<YnabResult<string>>
     /// Das Buchen ins Kassenbuch mit anschließendem Push. Live ist das
     /// `Ledger.CommandHandlers.addCashExpense`; Tests lösen hier Ausnahmen vor und nach dem
     /// Schreiben aus (ledger-z71ka).
-    AddCashExpense:
-        Ledger.Events.Actor
-            -> DateTime
-            -> Ledger.Events.EntryId
-            -> (unit -> Async<YnabResult<string>>)
-            -> (unit -> unit)
-            -> Ledger.CommandHandlers.CashExpenseInput
-            -> Async<YnabResult<Ledger.Events.EntryId>>
+    AddCashExpense: Ledger.CommandHandlers.AddCashExpense
     TriggerMirror: unit -> unit
     Store: BotPreviewStore
     Limiter: BotRateLimiter
@@ -378,23 +374,26 @@ let private bookWithinLimit (deps: BotDeps) (p: BotPreview) (entryId: Ledger.Eve
         | Error reason -> return BotDailyLimitReached reason
         | Ok () ->
             let (Ledger.Events.EntryId id) = entryId
-            let signed = match p.Direction with BotOutflow -> -p.AmountEur | BotInflow -> p.AmountEur
-            let input : Ledger.CommandHandlers.CashExpenseInput = {
+            // Die gemeinsame Barbuchung (ledger-bk3q8): Vorzeichen, Request und
+            // Kassenbuch-Eingabe entstehen an einer Stelle.
+            let booking : Ledger.CommandHandlers.CashBooking = {
                 AccountId = p.Target.LedgerAccountId
                 Date = p.Date
-                Amount = { Amount = signed; Currency = "EUR" }
-                Payee = Some p.Payee
+                Amount = p.AmountEur
+                IsOutflow = (p.Direction = BotOutflow)
+                Payee = p.Payee
                 Memo = p.Memo
                 Category = Some ({ CategoryId = p.Category.Id; CategoryName = p.Category.Name } : Ledger.Events.CategoryRef)
             }
             match!
-                deps.AddCashExpense
+                Ledger.CommandHandlers.addCashBookingWith
+                    deps.AddCashExpense
                     Ledger.Events.Bob
                     (deps.Now())
                     entryId
-                    (fun () -> deps.Push p)
+                    (fun request -> deps.Push (p.Target.YnabAccountId, request))
                     deps.TriggerMirror
-                    input
+                    booking
             with
             | Ok _ -> return BotBooked { EntryId = id; PushedToYnab = true; PushError = None }
             | Error err ->
@@ -536,32 +535,18 @@ let liveDeps (berlinZone: TimeZoneInfo) : BotDeps =
         ResolveTarget =
             fun () ->
                 async {
-                    let! accountOpt = Persistence.Settings.getSetting "ynab_quickadd_account_id"
-                    match accountOpt |> Option.map Guid.TryParse with
-                    | None -> return Error "Kein Quick-Add-Konto eingerichtet (Settings, YNAB)"
-                    | Some (false, _) -> return Error "Das Quick-Add-Konto ist ungültig eingerichtet"
-                    | Some (true, guid) ->
-                        let ynabAccountId = YnabAccountId guid
-                        match! Ledger.Persistence.findAccountByYnabAccountId ynabAccountId with
-                        | None -> return Error "Das Quick-Add-Konto ist im Kassenbuch noch nicht bekannt"
-                        | Some account ->
-                            return Ok { LedgerAccountId = account.Id; YnabAccountId = ynabAccountId; AccountName = account.Name }
+                    match! Ledger.QueryHandlers.resolveQuickAddAccount () with
+                    | Error reason -> return Error reason
+                    | Ok account ->
+                        return
+                            Ok { LedgerAccountId = account.LedgerAccountId; YnabAccountId = account.YnabAccountId; AccountName = account.AccountName }
                 }
         Push =
-            fun p ->
+            fun (ynabAccountId, request) ->
                 async {
                     match! ynabContext () with
                     | Error reason -> return Error (YnabError.Unauthorized reason)
-                    | Ok (token, budgetId) ->
-                        let request : ManualTransactionRequest = {
-                            Amount = p.AmountEur
-                            IsOutflow = (p.Direction = BotOutflow)
-                            PayeeName = p.Payee
-                            CategoryId = Some p.Category.Id
-                            Date = p.Date
-                            Memo = p.Memo
-                        }
-                        return! Server.YnabClient.createManualTransaction token budgetId p.Target.YnabAccountId request
+                    | Ok (token, budgetId) -> return! Server.YnabClient.createManualTransaction token budgetId ynabAccountId request
                 }
         AddCashExpense = Ledger.CommandHandlers.addCashExpense
         TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground

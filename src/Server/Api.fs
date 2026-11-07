@@ -361,6 +361,103 @@ let settingsApi : SettingsApi = {
 }
 
 // ============================================
+// Quick Add (ledger-tdnpk, ledger-bk3q8)
+// ============================================
+
+/// Die Umgebung von Quick Add: Einstellungen, die beiden YNAB-Aufrufe (Kategorien als
+/// Rückfall, Push), die Id der neuen Buchung und der Spiegel-Auslöser. Tests setzen hier
+/// Fälschungen ein, damit kein Fall YNAB erreicht.
+type QuickAddPorts = {
+    Setting: string -> Async<string option>
+    LoadYnabCategories: string -> YnabBudgetId -> Async<YnabResult<YnabCategory list>>
+    Push: string -> YnabBudgetId -> YnabAccountId -> ManualTransactionRequest -> Async<YnabResult<string>>
+    NewEntryId: unit -> Ledger.Events.EntryId
+    TriggerMirror: unit -> unit
+}
+
+/// Quick Add nach der Prüfung an der API-Grenze: Token und Budget, das Quick-Add-Konto
+/// (`Ledger.QueryHandlers.resolveQuickAddAccountWith`), dann `Ledger.CommandHandlers.addQuickAdd`
+/// mit der Kategorie-Auflösung aus den gespiegelten Stammdaten, YNAB nur als Rückfall
+/// (ledger-bk3q8). Ohne gespiegeltes Kassenbuch-Konto gibt es kein Ereignis und keinen
+/// Push (ADR 0021).
+let addManualTransactionWith (ports: QuickAddPorts) (now: DateTime) (validRequest: ManualTransactionRequest) : Async<YnabResult<unit>> =
+    async {
+        let! tokenOpt = ports.Setting "ynab_token"
+        let! budgetOpt = ports.Setting "ynab_default_budget_id"
+
+        match tokenOpt, budgetOpt with
+        | None, _ -> return Error (YnabError.Unauthorized "No YNAB token configured")
+        | _, None -> return Error (YnabError.BudgetNotFound "Kein Standard-Budget konfiguriert (Settings)")
+        | Some token, Some budgetId ->
+            // Bewusst nicht das Konto des Bank-Imports: Barbuchungen haben ihr eigenes Konto.
+            match! Ledger.QueryHandlers.resolveQuickAddAccountWith ports.Setting with
+            | Error reason -> return Error (YnabError.AccountNotFound reason)
+            | Ok account ->
+                let budget = YnabBudgetId budgetId
+                let resolveCategory =
+                    Ledger.QueryHandlers.resolveCategoryRefWith
+                        Ledger.Persistence.loadCategoryNames
+                        (fun () -> ports.LoadYnabCategories token budget)
+                let push request = ports.Push token budget account.YnabAccountId request
+
+                match!
+                    Ledger.CommandHandlers.addQuickAdd
+                        now
+                        (ports.NewEntryId ())
+                        resolveCategory
+                        push
+                        ports.TriggerMirror
+                        account.LedgerAccountId
+                        validRequest
+                with
+                | Ok _entryId -> return Ok ()
+                | Error err -> return Error err
+    }
+
+/// Die Umgebung des laufenden Servers für Quick Add.
+let liveQuickAddPorts : QuickAddPorts = {
+    Setting = Persistence.Settings.getSetting
+    LoadYnabCategories = YnabClient.getCategories
+    Push = YnabClient.createManualTransaction
+    NewEntryId = Ledger.Events.newEntryId
+    TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground
+}
+
+// ============================================
+// Import-Push: Ziel aus den Settings (ledger-bk3q8)
+// ============================================
+
+/// Token, Budget, YNAB-Konto und Kassenbuch-Konto des Import-Pushs (`importToYnab` und
+/// `forceImportDuplicates`). Fehlt eine Einstellung oder das gespiegelte Kassenbuch-Konto,
+/// ist das ein Fehler mit `count` Buchungen, bevor irgendetwas geschrieben oder YNAB
+/// gefragt wird (ADR 0021: erst Kassenbuch, dann Push; kein erfundenes Konto).
+let importTargetWith
+    (setting: string -> Async<string option>)
+    (count: int)
+    : Async<Result<string * YnabBudgetId * YnabAccountId * Ledger.Domain.LedgerAccount, SyncError>> =
+    async {
+        let! tokenOpt = setting "ynab_token"
+        let! defaultBudgetIdOpt = setting "ynab_default_budget_id"
+        let! defaultAccountIdOpt = setting "ynab_default_account_id"
+
+        match tokenOpt, defaultBudgetIdOpt, defaultAccountIdOpt with
+        | None, _, _ | _, None, _ | _, _, None ->
+            return Error (SyncError.YnabImportFailed (0, "YNAB not fully configured"))
+        | Some token, Some budgetId, Some accountIdText ->
+            let ynabAccountId = YnabAccountId (Guid.Parse(accountIdText: string))
+            match! Ledger.Persistence.findAccountByYnabAccountId ynabAccountId with
+            | None ->
+                return
+                    Error (
+                        SyncError.YnabImportFailed (
+                            count,
+                            "Kein gespiegeltes Kassenbuch-Konto für das Import-Konto. Einmal \"Jetzt spiegeln\" ausführen, dann erneut versuchen."
+                        )
+                    )
+            | Some ledgerAccount -> return Ok (token, YnabBudgetId budgetId, ynabAccountId, ledgerAccount)
+    }
+
+// ============================================
 // YNAB API Implementation
 // ============================================
 
@@ -435,87 +532,7 @@ let ynabApi : YnabApi = {
         | Error errors ->
             // BB lehnt selbst ab, YNAB wurde nicht gefragt (ledger-q4m7z).
             return Error (YnabError.RefusedByBb (String.concat ", " errors))
-        | Ok validRequest ->
-            let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
-            let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
-            // Deliberately NOT the bank-import default account: Quick Add is for
-            // cash expenses, which belong in their own (configurable) account.
-            let! accountOpt = Persistence.Settings.getSetting "ynab_quickadd_account_id"
-
-            match tokenOpt, budgetOpt, accountOpt with
-            | None, _, _ ->
-                return Error (YnabError.Unauthorized "No YNAB token configured")
-            | _, None, _ ->
-                return Error (YnabError.BudgetNotFound "Kein Standard-Budget konfiguriert (Settings)")
-            | _, _, None ->
-                return Error (YnabError.AccountNotFound "Kein Quick-Add-Konto konfiguriert. Wähle es in den Settings unter YNAB aus.")
-            | Some token, Some budgetId, Some accountIdStr ->
-                match System.Guid.TryParse accountIdStr with
-                | false, _ ->
-                    return Error (YnabError.AccountNotFound accountIdStr)
-                | true, accountGuid ->
-                    let ynabAccountId = YnabAccountId accountGuid
-
-                    // ADR 0021: erst Kassenbuch, dann Push. Ohne ein gespiegeltes
-                    // Kassenbuch-Konto fuer das Quick-Add-Konto (der Spiegel ist noch nie
-                    // gelaufen) kann die Buchung nicht zuerst im Kassenbuch entstehen; kein
-                    // Fallback auf ein zweites, unverknuepftes "Bar"-Konto (ADR 0016), kein
-                    // stiller Push ohne Kassenbuch-Eintrag, sondern eine klare Fehlermeldung
-                    // an Roman.
-                    match! Ledger.Persistence.findAccountByYnabAccountId ynabAccountId with
-                    | None ->
-                        return
-                            Error (
-                                YnabError.AccountNotFound
-                                    "Das Quick-Add-Konto ist im Kassenbuch noch nicht bekannt. Einmal \"Jetzt spiegeln\" ausführen, dann erneut versuchen."
-                            )
-                    | Some ledgerAccount ->
-                        let! category = async {
-                            match validRequest.CategoryId with
-                            | None -> return None
-                            | Some categoryId ->
-                                match! YnabClient.getCategories token (YnabBudgetId budgetId) with
-                                | Ok categories ->
-                                    return
-                                        categories
-                                        |> List.tryFind (fun cat -> cat.Id = categoryId)
-                                        |> Option.map (fun cat ->
-                                            ({ CategoryId = cat.Id; CategoryName = cat.Name } : Ledger.Events.CategoryRef))
-                                | Error _ -> return None
-                        }
-
-                        let signedAmount = if validRequest.IsOutflow then -validRequest.Amount else validRequest.Amount
-                        let payee =
-                            if String.IsNullOrWhiteSpace validRequest.PayeeName then None
-                            else Some (validRequest.PayeeName.Trim())
-                        let memo =
-                            validRequest.Memo
-                            |> Option.filter (fun m -> not (String.IsNullOrWhiteSpace m))
-                            |> Option.map (fun m -> m.Trim())
-
-                        let input : Ledger.CommandHandlers.CashExpenseInput = {
-                            AccountId = ledgerAccount.Id
-                            Date = validRequest.Date
-                            Amount = { Amount = signedAmount; Currency = "EUR" }
-                            Payee = payee
-                            Memo = memo
-                            Category = category
-                        }
-
-                        let push () =
-                            YnabClient.createManualTransaction token (YnabBudgetId budgetId) ynabAccountId validRequest
-
-                        match!
-                            Ledger.CommandHandlers.addCashExpense
-                                Ledger.Events.QuickAdd
-                                DateTime.UtcNow
-                                (Ledger.Events.newEntryId ())
-                                push
-                                Ledger.CommandHandlers.triggerMirrorInBackground
-                                input
-                        with
-                        | Ok _entryId -> return Ok ()
-                        | Error err -> return Error err
+        | Ok validRequest -> return! addManualTransactionWith liveQuickAddPorts DateTime.UtcNow validRequest
     }
 
     getRecentQuickAddTemplates = fun () -> async {
@@ -998,32 +1015,11 @@ let syncApi : SyncApi = {
             if toImport.IsEmpty then
                 return Ok { CreatedCount = 0; DuplicateTransactionIds = []; LenaFlagNotSentCount = 0 }
             else
-                // Get YNAB settings
-                let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
-                let! defaultBudgetIdOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
-                let! defaultAccountIdOpt = Persistence.Settings.getSetting "ynab_default_account_id"
-
-                match tokenOpt, defaultBudgetIdOpt, defaultAccountIdOpt with
-                | None, _, _ | _, None, _ | _, _, None ->
-                    return Error (SyncError.YnabImportFailed (0, "YNAB not fully configured"))
-                | Some token, Some budgetId, Some accountIdText ->
-                    let ynabAccountId = YnabAccountId (Guid.Parse(accountIdText: string))
-
-                    // ADR 0021: erst Kassenbuch, dann Push. Ohne ein gespiegeltes
-                    // Kassenbuch-Konto für das Import-Konto (der Spiegel ist noch nie
-                    // gelaufen) kann keine Buchung zuerst im Kassenbuch entstehen; kein
-                    // Fallback auf ein erfundenes Konto, sondern eine klare Fehlermeldung
-                    // an Roman (konsistent mit Quick Add, ledger-tdnpk).
-                    match! Ledger.Persistence.findAccountByYnabAccountId ynabAccountId with
-                    | None ->
-                        return
-                            Error (
-                                SyncError.YnabImportFailed (
-                                    toImport.Length,
-                                    "Kein gespiegeltes Kassenbuch-Konto für das Import-Konto. Einmal \"Jetzt spiegeln\" ausführen, dann erneut versuchen."
-                                )
-                            )
-                    | Some ledgerAccount ->
+                // ADR 0021: erst Kassenbuch, dann Push. Ohne gespiegeltes Kassenbuch-Konto
+                // für das Import-Konto kein Ereignis und kein YNAB-Aufruf (`importTargetWith`).
+                match! importTargetWith Persistence.Settings.getSetting toImport.Length with
+                | Error err -> return Error err
+                | Ok (token, YnabBudgetId budgetId, ynabAccountId, ledgerAccount) ->
                         match! resolveTransferPayees token (YnabBudgetId budgetId) toImport with
                         | Error ynabError ->
                             return Error (SyncError.YnabImportFailed (toImport.Length, ynabErrorText ynabError))
@@ -1149,30 +1145,11 @@ let syncApi : SyncApi = {
             if transactionsToForce.IsEmpty then
                 return Ok 0
             else
-                // Get YNAB settings
-                let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
-                let! defaultBudgetIdOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
-                let! defaultAccountIdOpt = Persistence.Settings.getSetting "ynab_default_account_id"
-
-                match tokenOpt, defaultBudgetIdOpt, defaultAccountIdOpt with
-                | None, _, _ | _, None, _ | _, _, None ->
-                    return Error (SyncError.YnabImportFailed (0, "YNAB not fully configured"))
-                | Some token, Some budgetId, Some accountIdText ->
-                    let ynabAccountId = YnabAccountId (Guid.Parse(accountIdText: string))
-
-                    // Wie der normale Import-Push (ADR 0021): ohne ein gespiegeltes
-                    // Kassenbuch-Konto für das Import-Konto kann Force-Import die schon
-                    // bestehende Buchung weder finden noch verknüpfen.
-                    match! Ledger.Persistence.findAccountByYnabAccountId ynabAccountId with
-                    | None ->
-                        return
-                            Error (
-                                SyncError.YnabImportFailed (
-                                    transactionsToForce.Length,
-                                    "Kein gespiegeltes Kassenbuch-Konto für das Import-Konto. Einmal \"Jetzt spiegeln\" ausführen, dann erneut versuchen."
-                                )
-                            )
-                    | Some ledgerAccount ->
+                // ADR 0021: erst Kassenbuch, dann Push. Ohne gespiegeltes Kassenbuch-Konto
+                // für das Import-Konto kein Ereignis und kein YNAB-Aufruf (`importTargetWith`).
+                match! importTargetWith Persistence.Settings.getSetting transactionsToForce.Length with
+                | Error err -> return Error err
+                | Ok (token, YnabBudgetId budgetId, ynabAccountId, ledgerAccount) ->
                         match! resolveTransferPayees token (YnabBudgetId budgetId) transactionsToForce with
                         | Error ynabError ->
                             return Error (SyncError.YnabImportFailed (transactionsToForce.Length, ynabErrorText ynabError))
@@ -1374,40 +1351,29 @@ let private flagBatchPush () : Async<Ledger.CommandHandlers.FlagBatchPush> =
                 async { return Error (YnabError.BudgetNotFound "Kein Standard-Budget konfiguriert (Settings)") }
     }
 
+/// Der YNAB-Aufruf des Einzel-Pushs: `import_id`, Flag-Farbe, Token, Budget, Konto, Request.
+type EntryPushCreate =
+    string option -> string option -> string -> YnabBudgetId -> YnabAccountId -> ManualTransactionRequest -> Async<YnabResult<string>>
+
 /// Der Einzel-Push einer nicht verknüpften Buchung (ledger-cks06) mit Token und
-/// Standard-Budget aus den Settings. Die Buchung geht mit ihrem aktuellen Stand und, wenn
-/// sie eine `import_id` trägt, mit dieser hinaus. Fehlt Token, Budget oder die
-/// YNAB-Verknüpfung des Kontos, liefert der Push einen Fehler statt zu werfen.
-let private entryPush () : Async<Ledger.CommandHandlers.EntryPush> =
+/// Standard-Budget aus `setting`. Was hinausgeht, baut die reine Funktion
+/// `Ledger.CommandHandlers.planEntryPush` (ledger-bk3q8); hier werden nur Token, Budget und
+/// `create` angebunden. Fehlt Token, Budget oder die YNAB-Verknüpfung des Kontos, liefert
+/// der Push einen Fehler statt zu werfen.
+let entryPushWith (setting: string -> Async<string option>) (create: EntryPushCreate) : Async<Ledger.CommandHandlers.EntryPush> =
     async {
-        let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
-        let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
+        let! tokenOpt = setting "ynab_token"
+        let! budgetOpt = setting "ynab_default_budget_id"
 
         match tokenOpt, budgetOpt with
         | Some token, Some budgetId ->
             return fun entry -> async {
                 let! accounts = Ledger.Persistence.loadAccounts ()
-                match accounts |> List.tryFind (fun a -> a.Id = entry.AccountId) with
-                | Some { Link = Ledger.Domain.YnabMirrored ynabAccountId } ->
-                    let! links = Ledger.Persistence.linksForEntry entry.Id
-                    let request : ManualTransactionRequest = {
-                        Amount = abs entry.Amount.Amount
-                        IsOutflow = entry.Amount.Amount < 0m
-                        PayeeName = entry.Payee |> Option.defaultValue ""
-                        CategoryId = entry.Category |> Option.map (fun c -> c.CategoryId)
-                        Date = entry.Date
-                        Memo = entry.Memo
-                    }
-                    return!
-                        YnabClient.createTransactionWithFlag
-                            (Ledger.CommandHandlers.currentImportId links)
-                            (Ledger.CommandHandlers.pushFlagColorOf entry)
-                            token
-                            (YnabBudgetId budgetId)
-                            ynabAccountId
-                            request
-                | _ ->
-                    return Error (YnabError.AccountNotFound Ledger.CommandHandlers.pushNotPossibleReason)
+                let! links = Ledger.Persistence.linksForEntry entry.Id
+                match Ledger.CommandHandlers.planEntryPush accounts links entry with
+                | Ok plan ->
+                    return! create plan.ImportId plan.FlagColor token (YnabBudgetId budgetId) plan.YnabAccountId plan.Request
+                | Error reason -> return Error (YnabError.AccountNotFound reason)
             }
         | None, _ ->
             return fun _ -> async { return Error (YnabError.Unauthorized "No YNAB token configured") }
@@ -1415,6 +1381,9 @@ let private entryPush () : Async<Ledger.CommandHandlers.EntryPush> =
             return fun _ ->
                 async { return Error (YnabError.BudgetNotFound "Kein Standard-Budget konfiguriert (Settings)") }
     }
+
+let private entryPush () : Async<Ledger.CommandHandlers.EntryPush> =
+    entryPushWith Persistence.Settings.getSetting YnabClient.createTransactionWithFlag
 
 /// Die YNAB-Aufrufe des Split-Schreibwegs (ledger-kxme4, ADR 0058) mit Token und
 /// Standard-Budget aus den Settings, mit denselben Fehlerfällen wie `categoryPush`.

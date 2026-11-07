@@ -106,6 +106,7 @@
     <Compile Include="LedgerReviewMarkClientTests.fs" />
     <Compile Include="LedgerPushFailureTests.fs" />
     <Compile Include="LedgerRetryPushTests.fs" />
+    <Compile Include="LedgerCashBookingTests.fs" />
     <Compile Include="BotValidationTests.fs" />
     <Compile Include="BotDomainTests.fs" />
     <Compile Include="BotApiTests.fs" />

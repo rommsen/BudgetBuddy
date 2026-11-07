@@ -116,6 +116,36 @@ let retryPushTests =
             Expect.isError (retry push (newEntryId ())) "abgelehnt"
             Expect.isEmpty calls "kein Push"
 
+        testCase "der Spiegel-Auslöser läuft einmal nach Erfolg, nie nach Fehlschlag oder Ablehnung" <| fun () ->
+            // ledger-bk3q8: der Auslöser war in diesen Tests nie gezählt (`noTrigger`).
+            let mutable triggers = 0
+            let trigger () = triggers <- triggers + 1
+            let run (push: EntryPush) (entryId: EntryId) =
+                retryPushToYnab (at.AddHours 2.0) push trigger entryId |> Async.RunSynchronously
+            let _, failing = countingPush (Error (YnabError.NetworkError "Timeout"))
+            Expect.equal (run failing (newEntry "auslöser-fehlschlag")) (Ok (PushToYnabFailed (ynabErrorText (YnabError.NetworkError "Timeout")))) "Fehlschlag"
+            Expect.equal triggers 0 "kein Auslöser nach Fehlschlag"
+            let _, ok = countingPush (Ok $"ynab-bk3q8-{Guid.NewGuid()}")
+            Expect.isError (run ok (newEntryId ())) "Ablehnung"
+            Expect.equal triggers 0 "kein Auslöser nach Ablehnung"
+            Expect.equal (run ok (newEntry "auslöser-erfolg")) (Ok PushToYnabSent) "Erfolg"
+            Expect.equal triggers 1 "genau ein Auslöser nach Erfolg"
+
+        testCase "Verknüpfung und Fehlschlag aus Erneut senden tragen den Actor Roman in BB" <| fun () ->
+            let actorsAfter (result: YnabResult<string>) =
+                let entryId = newEntry "actor"
+                let _, push = countingPush result
+                retry push entryId |> ignore
+                loadEventsForEntry entryId |> Async.RunSynchronously |> List.map (fun r -> r.EventType, r.Event.Actor)
+            Expect.equal
+                (actorsAfter (Ok $"ynab-bk3q8-{Guid.NewGuid()}"))
+                [ "CashExpenseAdded", QuickAdd; "EntryLinkedToYnab", UserInBb ]
+                "Verknüpfung mit UserInBb"
+            Expect.equal
+                (actorsAfter (Error (YnabError.NetworkError "Timeout")))
+                [ "CashExpenseAdded", QuickAdd; "EntryPushToYnabFailed", UserInBb ]
+                "Fehlschlag mit UserInBb"
+
         testCase "der nächste Spiegel-Lauf pusht nichts und lässt die Buchung unverknüpft" <| fun () ->
             // Der Lauf liest nur aus YNAB (`MirrorFetchers` kennt keinen Schreibaufruf); eine
             // Buchung ohne Verknüpfung bleibt danach unverknüpft. Der Satz der Leiste darf

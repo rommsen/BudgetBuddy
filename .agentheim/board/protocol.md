@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 09:37 -- Task verified and completed: ledger-bk3q8 - "Quick Add und Bob über einen gemeinsamen Barbuchungs-Befehl, Push-Bau als reine Funktion; ein Kategorien-Ladefehler bucht nicht mehr still ohne Kategorie"
+
+**Type:** Work / Task completion
+**Task:** ledger-bk3q8 - "Quick Add und Bob über einen gemeinsamen Barbuchungs-Befehl, Push-Bau als reine Funktion; ein Kategorien-Ladefehler bucht nicht mehr still ohne Kategorie"
+**Summary:** Quick Add und Bob buchen über einen gemeinsamen Barbuchungs-Befehl (addCashBooking), der Kassenbuch-Eingabe und YNAB-Request aus denselben Werten bildet. Der Push einer Buchung ist eine reine Funktion (planEntryPush). Quick Add löst die Kategorie vor dem Ereignis auf (Stammdaten, YNAB nur als Rückfall) und bricht sonst ohne Ereignis und ohne Push ab.
+**Duration:** (unknown)
+**Verification:** PASS (iteration 1)
+**Files changed:** 9
+**Tests added:** 35
+**ADRs written:** none
+
+---
+
 ## 2026-11-07 09:33 -- Task verified and completed: ledger-vq2g8 - "Kassenbuch zeigt bei gescheitertem Abruf 0,00 € oder lädt endlos; es soll Laden und Fehler sichtbar nennen"
 
 **Type:** Work / Task completion

@@ -672,7 +672,23 @@ let private apiWirings =
       @"\bSettings\s*=\s*fun\s*\(\)\s*->\s*ynabAccessWith\s+Persistence\.Settings\.getSetting\b"
       @"\bFetchMonths\s*=\s*fun\s+token\s+budgetId\s*->\s*YnabClient\.getMonths\s+token\s+budgetId\s*\n\s*FetchMonth\s*=\s*fun\s+token\s+budgetId\s+monthKey\s*->\s*YnabClient\.getMonth\s+token\s+budgetId\s+monthKey\b"
       @"\bLoadTakenOver\s*=\s*Budgeting\.Persistence\.loadTakenOverMonths\b"
-      @"\bEnsureTakenOver\s*=\s*Server\.Budgeting\.CommandHandlers\.ensureTakenOver\b" ]
+      @"\bEnsureTakenOver\s*=\s*Server\.Budgeting\.CommandHandlers\.ensureTakenOver\b"
+      // Quick Add, Erneut senden und Import-Ziel (ledger-bk3q8): die `*With`-Wege sind mit Fake-Ports getestet,
+      // die Ports des Servers erreichen YNAB nur im laufenden Dienst.
+      @"\bOk\s+validRequest\s*->\s*return!\s+addManualTransactionWith\s+liveQuickAddPorts\s+DateTime\.UtcNow\s+validRequest\s*\}"
+      @"\bliveQuickAddPorts\s*:\s*QuickAddPorts\s*=\s*\{\s*Setting\s*=\s*Persistence\.Settings\.getSetting\s+LoadYnabCategories\s*=\s*YnabClient\.getCategories\s+Push\s*=\s*YnabClient\.createManualTransaction\s+NewEntryId\s*=\s*Ledger\.Events\.newEntryId\s+TriggerMirror\s*=\s*Ledger\.CommandHandlers\.triggerMirrorInBackground\s*\}"
+      @"\bentryPush\s*\(\)\s*:\s*Async<Ledger\.CommandHandlers\.EntryPush>\s*=\s*entryPushWith\s+Persistence\.Settings\.getSetting\s+YnabClient\.createTransactionWithFlag\s*(?:\n\s*\n|\z)"
+      @"\bimportTargetWith\s+Persistence\.Settings\.getSetting\s+toImport\.Length\s+with\b"
+      @"\bimportTargetWith\s+Persistence\.Settings\.getSetting\s+transactionsToForce\.Length\s+with\b" ]
+
+/// Bobs Push in `BotApi.liveDeps` (ledger-bk3q8): bekommt Konto und Request der Barbuchung und reicht beide
+/// unverändert an YNAB. Ein Ersatz kompilierte, der Testlauf kann den echten Push nicht ausführen.
+let isBotPushWired (bot: string) : bool =
+    let code = fst (lex bot)
+    Regex.IsMatch(
+        code,
+        @"\bPush\s*=\s*fun\s*\(ynabAccountId,\s*request\)\s*->\s*async\s*\{\s*match!\s+ynabContext\s*\(\)\s+with\s*\|\s*Error\s+reason\s*->\s*return\s+Error\s+\(YnabError\.Unauthorized\s+reason\)\s*\|\s*Ok\s+\(token,\s*budgetId\)\s*->\s*return!\s+Server\.YnabClient\.createManualTransaction\s+token\s+budgetId\s+ynabAccountId\s+request\s*\}"
+    )
 
 /// Die Muster aus `apiWirings`, die im Quelltext fehlen.
 let findMissingApiWirings (api: string) : string list =
@@ -770,6 +786,11 @@ let hostedServiceGuardTests =
                   "let liveBudgetApi (setting: string -> Async<string option>) (berlinZone: TimeZoneInfo) : BudgetApi =\n    budgetApiWith setting livePort liveFramePort (fun () -> DateTime.UtcNow) berlinZone\n\n"
                   "let budgetApi (berlinZone: TimeZoneInfo) : BudgetApi =\n    liveBudgetApi Persistence.Settings.getSetting berlinZone\n\n"
                   "|> Remoting.fromValue (budgetApi berlinZone)\n"
+                  "| Ok validRequest -> return! addManualTransactionWith liveQuickAddPorts DateTime.UtcNow validRequest\n    }\n"
+                  "let liveQuickAddPorts : QuickAddPorts = {\n    Setting = Persistence.Settings.getSetting\n    LoadYnabCategories = YnabClient.getCategories\n    Push = YnabClient.createManualTransaction\n    NewEntryId = Ledger.Events.newEntryId\n    TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground\n}\n"
+                  "let private entryPush () : Async<Ledger.CommandHandlers.EntryPush> =\n    entryPushWith Persistence.Settings.getSetting YnabClient.createTransactionWithFlag\n\n"
+                  "match! importTargetWith Persistence.Settings.getSetting toImport.Length with\n"
+                  "match! importTargetWith Persistence.Settings.getSetting transactionsToForce.Length with\n"
                   "{ Settings = fun () -> ynabAccessWith Persistence.Settings.getSetting\n  FetchMonths = fun token budgetId -> YnabClient.getMonths token budgetId\n  FetchMonth = fun token budgetId monthKey -> YnabClient.getMonth token budgetId monthKey\n  LoadTakenOver = Budgeting.Persistence.loadTakenOverMonths\n  EnsureTakenOver = Server.Budgeting.CommandHandlers.ensureTakenOver }\n" ]
                 |> String.concat "\n"
             let replaced (original: string) (replacement: string) = real.Replace(original, replacement)
@@ -808,9 +829,36 @@ let hostedServiceGuardTests =
                   "YnabClient.getMonths token budgetId", "async.Return (Ok [])", "Übernahme ohne Fenster"
                   "fun token budgetId monthKey -> YnabClient.getMonth", "fun token budgetId monthKey -> fakeMonth", "Übernahme-Monat ohne YNAB"
                   "Budgeting.Persistence.loadTakenOverMonths", "(fun () -> async.Return (Ok Set.empty))", "nichts gilt als übernommen"
-                  "Server.Budgeting.CommandHandlers.ensureTakenOver", "(fun _ _ _ -> async.Return (Ok AlreadyTakenOver))", "Übernahme ohne Übernahme" ] do
+                  "Server.Budgeting.CommandHandlers.ensureTakenOver", "(fun _ _ _ -> async.Return (Ok AlreadyTakenOver))", "Übernahme ohne Übernahme"
+                  "addManualTransactionWith liveQuickAddPorts", "addManualTransactionWith fakeQuickAddPorts", "Quick Add mit anderen Ports"
+                  "DateTime.UtcNow validRequest", "DateTime.MinValue validRequest", "Quick Add mit fester Uhr"
+                  "    Setting = Persistence.Settings.getSetting\n    LoadYnabCategories", "    Setting = (fun _ -> async.Return None)\n    LoadYnabCategories", "Quick Add ohne Settings"
+                  "LoadYnabCategories = YnabClient.getCategories", "LoadYnabCategories = (fun _ _ -> async.Return (Ok []))", "Quick Add ohne YNAB-Kategorien"
+                  "Push = YnabClient.createManualTransaction", "Push = (fun _ _ _ _ -> async.Return (Ok \"x\"))", "Quick Add ohne Push"
+                  "NewEntryId = Ledger.Events.newEntryId", "NewEntryId = (fun () -> festeId)", "Quick Add mit fester Id"
+                  "TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground", "TriggerMirror = ignore", "Quick Add ohne Spiegel"
+                  "entryPushWith Persistence.Settings.getSetting YnabClient.createTransactionWithFlag", "entryPushWith Persistence.Settings.getSetting fakeCreate", "Erneut senden ohne YNAB"
+                  "entryPushWith Persistence.Settings.getSetting", "entryPushWith (fun _ -> async.Return None)", "Erneut senden ohne Settings"
+                  "importTargetWith Persistence.Settings.getSetting toImport.Length", "importTargetWith (fun _ -> async.Return None) toImport.Length", "Import ohne Settings"
+                  "importTargetWith Persistence.Settings.getSetting transactionsToForce.Length", "importTargetWith Persistence.Settings.getSetting 0", "erzwungener Import mit falscher Zahl" ] do
                 Expect.isNonEmpty (findMissingApiWirings (replaced original replacement)) label
             Expect.isNonEmpty (findMissingApiWirings $"// {real}") "nur im Kommentar"
+
+        testCase "Bobs Push des Servers reicht Konto und Request der Barbuchung an YNAB" <| fun () ->
+            let bot = serverSources "BotApi.fs" |> List.exactlyOne |> snd
+            Expect.isTrue (isBotPushWired bot) "sonst pusht Bob nichts oder etwas anderes"
+
+        testCase "Gegenbeweis: ein falsch verdrahteter Push für Bob wird gemeldet" <| fun () ->
+            let real =
+                "        Push =\n            fun (ynabAccountId, request) ->\n                async {\n                    match! ynabContext () with\n                    | Error reason -> return Error (YnabError.Unauthorized reason)\n                    | Ok (token, budgetId) -> return! Server.YnabClient.createManualTransaction token budgetId ynabAccountId request\n                }\n"
+            Expect.isTrue (isBotPushWired real) "richtig"
+            for original, replacement, label in
+                [ "createManualTransaction token budgetId ynabAccountId request", "createManualTransaction token budgetId festesKonto request", "anderes Konto"
+                  "createManualTransaction token budgetId ynabAccountId request", "createManualTransaction token budgetId ynabAccountId { request with Amount = 0m }", "veränderter Request"
+                  "return! Server.YnabClient.createManualTransaction token budgetId ynabAccountId request", "return Ok \"x\"", "kein Push"
+                  "match! ynabContext ()", "match! fakeContext ()", "andere Einstellungen" ] do
+                Expect.isFalse (isBotPushWired (real.Replace(original, replacement))) label
+            Expect.isFalse (isBotPushWired $"// {real}") "nur im Kommentar"
 
         testCase "Gegenbeweis: ein Speicher ohne echte Umgebung wird gemeldet" <| fun () ->
             let bound (body: string) = $"let liveConnectionStore: ConnectionStore =\n    {body}\n\nlet weiter = 1\n"
