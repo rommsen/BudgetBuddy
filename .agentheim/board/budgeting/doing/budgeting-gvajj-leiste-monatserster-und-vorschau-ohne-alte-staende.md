@@ -1,7 +1,7 @@
 ---
 id: budgeting-gvajj
 title: "Leiste Monatserster: Targets prüfen liest nach einer Target-Änderung neu, die Vorschau von Targets anwenden nimmt keine späte Antwort mehr ein"
-status: todo
+status: doing
 type: bug
 context: budgeting
 created: 2026-11-07

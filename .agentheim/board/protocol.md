@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 08:29 -- Batch started: [budgeting-gvajj]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-gvajj - "Leiste Monatserster: Targets prüfen liest nach einer Target-Änderung neu, die Vorschau von Targets anwenden nimmt keine späte Antwort mehr ein"
+**Parallel:** yes (nachgeschoben, als infrastructure-k84s2 in die Verifikation ging; ledger-vq2g8 wartet auf die Integration von k84s2, gleiche Geldformatierung)
+
+---
+
 ## 2026-11-07 08:21 -- Batch started: [ledger-kfd5m, budgeting-my8p8, infrastructure-k84s2]
 
 **Type:** Work / Batch start
