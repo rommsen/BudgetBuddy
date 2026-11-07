@@ -155,20 +155,15 @@ test("[flow:budget-zur-buchung] Handy: Zeile tippen, Tab Buchungen, Buchung tipp
 
 // Der Kontowechsel auf der Route stand vorher in einem eigenen Test mit demselben Sprung
 // (infrastructure-b3t9k): der Schritt in die Liste lädt nicht neu, Browser-Zurück öffnet die
-// Buchung nicht erneut.
-test("[layout] PC: der Inspektor steht als Panel, der Sprung geht zum Panel im Kassenbuch und zurück, ein Kontowechsel dort lädt nicht neu und Browser-Zurück öffnet die Buchung nicht erneut", async () => {
+// Buchung nicht erneut. Bis infrastructure-jc1y1 trug der Test `[layout]`; Beträge und Texte im Panel
+// prüft BudgetPageTests, hier bleibt der Weg mit Esc zurück und über die Kontoleiste.
+test("[tastatur] PC: aus dem Panel zur Buchung im Kassenbuch, Esc führt zurück, ein Kontowechsel dort lädt nicht neu und Browser-Zurück öffnet die Buchung nicht erneut", async () => {
   const { context, page, calls } = await openPage(1440, 900);
   try {
     await row(page, "Lebensmittel m1bce").click();
-    // Fixture: Zugewiesen 100, Aktivität -50, Verfügbar 50. Jeder Betrag steht unter seinem Titel.
-    assert.equal(await page.locator('[data-testid="assign-field"] input').inputValue(), "100,00");
-    assert.match(await text(page.locator('[data-testid="detail-activity"]')), /^Aktivität -50,00/i);
-    assert.match(await text(page.locator('[data-testid="detail-available"]')), /^Verfügbar 50,00/i);
     await openTab(page, "Buchungen");
     await page.locator('[data-testid="detail-entry"]').first().waitFor();
-    assert.match(await text(page.locator('[data-testid="detail-total"]')), /-40,00/);
     await page.locator("aside").getByRole("heading", { name: "Lebensmittel m1bce" }).waitFor();
-    await page.getByText(/Alltag m1bce · .*2026/).waitFor();
     await page.locator('[data-testid="detail-entry"]').first().click();
     await page.waitForURL(/#\/ledger\/entry\//);
     await page.getByLabel("Detail Sprung m1bce").waitFor();
@@ -184,36 +179,6 @@ test("[layout] PC: der Inspektor steht als Panel, der Sprung geht zum Panel im K
     assert.equal(calls.accounts, accountLoads, "der Schritt in die Liste lädt die Seite nicht neu");
     await page.goBack();
     await page.waitForURL(/#\/budget$/);
-  } finally {
-    await context.close();
-  }
-});
-
-test("[layout] Handy: der Rand im Sheet ist einfach, ein großer Betrag überlappt bei 360 px nicht", async () => {
-  const lines = [{ ...detailLines[0], Payee: "Ein sehr langer Empfängername, der abgeschnitten wird", Amount: eur(-11234.56) }];
-  const { context, page } = await openPage(360, 740, { lines });
-  try {
-    await openDetail(page);
-    const row = page.locator('[data-testid="detail-entry"]').first();
-    const measured = await row.evaluate((el) => {
-      const [payee, amount] = el.querySelector("span").children;
-      const box = (n) => n.getBoundingClientRect();
-      return {
-        rowLeft: box(el).left,
-        rowRight: box(el).right,
-        payeeLeft: box(payee).left,
-        payeeRight: box(payee).right,
-        amountLeft: box(amount).left,
-        amountRight: box(amount).right,
-        width: window.innerWidth,
-      };
-    });
-    assert.equal(measured.rowLeft, 0, "die Zeile reicht bis an den Rand");
-    assert.equal(measured.rowRight, measured.width);
-    assert.equal(measured.payeeLeft, 16, "ein Rand von 16 px");
-    assert.ok(measured.payeeRight <= measured.amountLeft, "Empfänger und Betrag überlappen nicht");
-    assert.ok(measured.amountRight <= measured.width - 16, "der Betrag bleibt im Rand");
-    assert.match(await text(row), /-11\.234,56/);
   } finally {
     await context.close();
   }

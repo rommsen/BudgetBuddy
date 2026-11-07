@@ -142,47 +142,18 @@ test("[flow:mehrfachauswahl] Handy 390x844: langes Drücken, Tippen, Alle und Au
     assert.match(barText, /1 ausgewählt/, "Reihe 1: Anzahl");
     assert.ok(barText.includes("-10,00"), `Reihe 1: Summe der Zeile, war: ${barText}`);
     assert.ok(barText.includes("Alle") && barText.includes("Auswahl aufheben"), "Reihe 2: Alle und Auswahl aufheben");
-    // Geprüft ist die primäre Aktion (ledger-nhwrt, Orange), in Reihe 2 neben Alle und Auswahl aufheben.
-    // Die Lena-Aktionen (ledger-y54gr) stehen in Reihe 3; ohne Farbe nennt die Leiste den Grund
+    // Geprüft ist die primäre Aktion (ledger-nhwrt), daneben Alle und Auswahl aufheben.
+    // Die Lena-Aktionen (ledger-y54gr): ohne Farbe nennt die Leiste den Grund
     // (mit dem Wort Flag), deshalb steht 'Flag' hier nicht mehr in der Verbotsliste.
     for (const word of ["Kategorie ändern", "Ungeprüft"]) {
       assert.ok(!barText.includes(word), `keine weitere schreibende Aktion '${word}' in der Leiste`);
     }
     const reviewedButton = bar.getByRole("button", { name: "Geprüft", exact: true });
     assert.equal(await reviewedButton.count(), 1, "Geprüft steht in der Leiste");
-    assert.ok(
-      (await reviewedButton.getAttribute("class")).includes("from-neon-orange"),
-      "Geprüft ist die primäre Aktion (Orange)"
-    );
-    // Kategorie setzen (ledger-w29y6): die zweite, sekundäre Sammelaktion neben Geprüft.
+    // Kategorie setzen (ledger-w29y6): die zweite Sammelaktion neben Geprüft.
     const categoryButton = bar.getByRole("button", { name: "Kategorie setzen", exact: true });
     assert.equal(await categoryButton.count(), 1, "Kategorie setzen steht in der Leiste");
-    assert.ok(
-      !(await categoryButton.getAttribute("class")).includes("from-neon-orange"),
-      "Kategorie setzen ist sekundär, nicht orange"
-    );
-    const centers = [];
-    for (const name of ["Alle", "Geprüft", "Kategorie setzen", "Auswahl aufheben"]) {
-      const box = await bar.getByRole("button", { name, exact: true }).boundingBox();
-      centers.push({ name, x: box.x, mid: box.y + box.height / 2 });
-    }
-    assert.ok(
-      centers.every((c) => Math.abs(c.mid - centers[0].mid) <= 3),
-      `Alle, Geprüft, Kategorie setzen und Auswahl aufheben stehen in einer Reihe: ${JSON.stringify(centers)}`
-    );
-    assert.ok(
-      centers[0].x < centers[1].x && centers[1].x < centers[2].x && centers[2].x < centers[3].x,
-      "Reihenfolge: Alle, Geprüft, Kategorie setzen, Auswahl aufheben"
-    );
-    // Die Reihe läuft bei 390 px nicht über: kein Knopf ragt über den Rand, die Seite scrollt nicht seitwärts.
-    for (const name of ["Alle", "Geprüft", "Kategorie setzen", "Auswahl aufheben"]) {
-      const box = await bar.getByRole("button", { name, exact: true }).boundingBox();
-      assert.ok(box.x >= 0 && box.x + box.width <= 390, `${name} liegt im Bildschirm: ${JSON.stringify(box)}`);
-    }
-    assert.ok(
-      await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
-      "kein seitliches Scrollen"
-    );
+    // Dass die Leiste bei 390 px nicht überläuft, prüft der Layout-Sweep (Zustand kassenbuch-auswahl-handy).
     assert.equal(await page.locator("nav.fixed").filter({ visible: true }).count(), 0, "die Tab-Bar ist weg");
     assert.ok(
       (await page.getByText("Auswahl: 1 von 34 Buchungen").filter({ visible: true }).count()) === 1,
@@ -213,8 +184,6 @@ test("[flow:mehrfachauswahl] Handy 390x844: langes Drücken, Tippen, Alle und Au
     assert.match(all, /34 ausgewählt/, "Anzahl des ganzen Treffers");
     assert.ok(all.includes(TOTAL_TEXT), `Summe des ganzen Treffers, war: ${all}`);
     assert.equal(await page.getByText("Auswahl: 34 von 34 Buchungen").filter({ visible: true }).count(), 1, "Summenzeile");
-    const allButtonClass = await visibleBar(page).getByRole("button", { name: "Alle", exact: true }).evaluate((el) => el.parentElement.className);
-    assert.ok(allButtonClass.includes("border-neon-teal"), `Alle trägt den Teal-Aktivzustand: ${allButtonClass}`);
     await screenshotIfRequested(page, "handy-390x844-3.3-alle");
 
     // Alle noch einmal leert, der Modus bleibt.
@@ -250,9 +219,6 @@ test("[tastatur] PC 1440x900: Kästchen, Shift-Spanne mit Anker, Kopfzeilen-Käs
     assert.equal(await visibleBar(page).count(), 0, "ohne Auswahl keine Leiste");
     assert.equal(await header.getAttribute("aria-checked"), "false", "Kopfzeilen-Kästchen leer");
 
-    const size = await box(1).locator("span").first().evaluate((el) => el.getBoundingClientRect().width);
-    assert.equal(Math.round(size), 17, "Kästchen 17px");
-
     await box(1).click();
     const bar = visibleBar(page);
     await bar.waitFor();
@@ -266,31 +232,12 @@ test("[tastatur] PC 1440x900: Kästchen, Shift-Spanne mit Anker, Kopfzeilen-Käs
     // Geprüft (ledger-nhwrt): die einzige primäre Aktion, rechts in der einreihigen Leiste.
     const reviewedButton = bar.getByRole("button", { name: "Geprüft", exact: true });
     assert.equal(await reviewedButton.count(), 1, "Geprüft steht in der PC-Leiste");
-    assert.ok(
-      (await reviewedButton.getAttribute("class")).includes("from-neon-orange"),
-      "Geprüft ist die primäre Aktion (Orange)"
-    );
-    const reviewedBox = await reviewedButton.boundingBox();
-    const clearBox = await bar.getByRole("button", { name: "Auswahl aufheben", exact: true }).boundingBox();
-    const barBox = await bar.boundingBox();
-    assert.ok(reviewedBox.x > barBox.x + barBox.width / 2, "Geprüft sitzt rechts in der Leiste");
-    assert.ok(Math.abs(reviewedBox.y + reviewedBox.height / 2 - (clearBox.y + clearBox.height / 2)) <= 3, "eine Reihe");
-    // Kategorie setzen (ledger-w29y6): sekundär, in derselben Reihe, links von Geprüft.
-    const categoryButton = bar.getByRole("button", { name: "Kategorie setzen", exact: true });
-    const categoryBox = await categoryButton.boundingBox();
-    assert.ok(!(await categoryButton.getAttribute("class")).includes("from-neon-orange"), "sekundär, nicht orange");
-    assert.ok(categoryBox.x < reviewedBox.x && categoryBox.x > clearBox.x, "zwischen Auswahl aufheben und Geprüft");
-    assert.ok(Math.abs(categoryBox.y + categoryBox.height / 2 - (clearBox.y + clearBox.height / 2)) <= 3, "Kategorie setzen in derselben Reihe");
+    assert.equal(await bar.getByRole("button", { name: "Kategorie setzen", exact: true }).count(), 1, "Kategorie setzen steht in der PC-Leiste");
     assert.equal(await header.getAttribute("aria-checked"), "mixed", "Teilauswahl: Strich");
 
     await box(5).click({ modifiers: ["Shift"] });
     assert.match(await visibleBar(page).innerText(), /5 ausgewählt/, "Spanne von 1 bis 5");
 
-    // Der Anker (Zeile 1) trägt die Teal-Kante, die anderen gewählten Zeilen nicht.
-    const shadowOf = (n) =>
-      page.locator("tr", { hasText: `Auswahlzeile ${String(n).padStart(2, "0")}` }).filter({ visible: true }).first().evaluate((el) => getComputedStyle(el).boxShadow);
-    assert.ok((await shadowOf(1)).includes("rgb(0, 212, 170)"), `Anker mit Teal-Kante, war: ${await shadowOf(1)}`);
-    assert.ok(!(await shadowOf(3)).includes("rgb(0, 212, 170)"), "eine andere gewählte Zeile ohne Kante");
     await screenshotIfRequested(page, "pc-1440x900-3.7-spanne");
 
     // Kopfzeilen-Kästchen: Strich wählt den ganzen Treffer, Haken leert.
@@ -337,11 +284,8 @@ test("[tastatur] PC 1440x900: Leertaste wählt genau einmal, schließt das Panel
     assert.equal(await countIn(page), 2, "zwei gewählt");
     const heightWithBar = await row(3).evaluate((el) => el.getBoundingClientRect().height);
     assert.equal(await reviewButtons(3).count(), 0, "bei laufender Auswahl keine Prüf-Schaltfläche in der Zeile");
-    const placeholder = await row(3).locator("td").last().locator('span[aria-hidden="true"]').evaluate((el) => {
-      const r = el.getBoundingClientRect();
-      return { w: Math.round(r.width), h: Math.round(r.height) };
-    });
-    assert.deepEqual(placeholder, { w: 28, h: 28 }, "unsichtbarer Platzhalter in der Größe der Schaltfläche");
+    // Ein unsichtbarer Platzhalter hält die Stelle der Schaltfläche, die Zeile springt nicht.
+    assert.equal(await row(3).locator("td").last().locator('span[aria-hidden="true"]').count(), 1, "unsichtbarer Platzhalter statt der Schaltfläche");
     assert.ok(heightWithBar > 0, "Zeile steht");
     await page.keyboard.press("Space");
     assert.equal(await countIn(page), 1, "Maus plus Leertaste kippt genau einmal (nicht zweimal)");
@@ -397,12 +341,8 @@ async function categorySetup(page) {
   );
 }
 
-const rect = (locator) => locator.evaluate((el) => {
-  const r = el.getBoundingClientRect();
-  return { top: r.top, bottom: r.bottom, left: r.left, right: r.right };
-});
-
-test("[layout] PC 1440x900: Kategorie setzen öffnet das Popover ganz im Bild über der Leiste, Esc schließt nur den Picker (ledger-w29y6)", async () => {
+// Die Lage des Popovers prüft der Layout-Sweep (Zustand kassenbuch-auswahl-popover, ledger-w29y6).
+test("[tastatur] PC 1440x900: bei offenem Popover Kategorie setzen schließt Esc nur den Picker, die Auswahl bleibt", async () => {
   const { page, context } = await openLedger({ width: 1440, height: 900 }, false, categorySetup);
   try {
     const box = (n) =>
@@ -412,18 +352,9 @@ test("[layout] PC 1440x900: Kategorie setzen öffnet das Popover ganz im Bild ü
     await box(3).click();
     const bar = visibleBar(page);
     await bar.waitFor();
-    const categoryButton = bar.getByRole("button", { name: "Kategorie setzen", exact: true });
-
-    // Das Popover liegt ganz im Bildschirm, über der Leiste, und markiert keine Zeile.
-    await categoryButton.click();
+    await bar.getByRole("button", { name: "Kategorie setzen", exact: true }).click();
     const listbox = page.locator('[role="listbox"]').filter({ visible: true });
     await listbox.waitFor();
-    const popover = listbox.locator("xpath=ancestor::div[contains(@class,'absolute')][1]");
-    const popoverRect = await rect(popover);
-    const barRect = await rect(bar);
-    assert.ok(popoverRect.left >= 0 && popoverRect.right <= 1440, `Popover liegt waagerecht im Bildschirm: ${JSON.stringify(popoverRect)}`);
-    assert.ok(popoverRect.top >= 0, `Popover ragt nicht oben heraus: ${JSON.stringify(popoverRect)}`);
-    assert.ok(popoverRect.bottom <= barRect.top + 1, `Popover liegt über der Leiste: ${popoverRect.bottom} <= ${barRect.top}`);
     assert.equal(await listbox.locator('[aria-selected="true"]').count(), 0, "keine Zeile mit Haken, auch nicht Ohne Kategorie");
     await screenshotIfRequested(page, "pc-1440x900-kategorie-setzen-popover");
 

@@ -1,9 +1,10 @@
 // scripts/target-check.test.mjs
 //
 // Wächter für `budgeting-q4v8n` und `budgeting-c4ve4` (Form nach der Skizze): die Seite Targets prüfen
-// `#/budget/target-check`. Nur der Happy Path des Nutzerflusses und was nur der Browser messen kann (Maße,
-// Spalten, Überlauf, Trefferflächen, berechnete Farben, Panel oder Sheet), gegen eine gemockte BudgetApi. Die Regeln (Gruppen, übernehmen, Panel, Sperre, Rückkehr) liegen in
-// `src/Tests/TargetCheckClientTests.fs`. Namen und Beträge sind erfunden.
+// `#/budget/target-check`. Nur der Happy Path des Nutzerflusses und die Rundung im Fable-Kompilat, gegen eine
+// gemockte BudgetApi. Überlauf und Trefferflächen prüft der Layout-Sweep (Zustände targets-pruefen*), die Regeln
+// (Gruppen, Töne der Balken, übernehmen, Panel, Sperre, Rückkehr) liegen in `src/Tests/TargetCheckClientTests.fs`.
+// Namen und Beträge sind erfunden.
 //
 // Ausführen: node --test scripts/target-check.test.mjs
 // (Teil von `npm run test:scripts`.)
@@ -12,15 +13,6 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
 import { getFreePort, startFrontend, stopServer, waitForPageLoaded } from "./screenshot-route.mjs";
-
-/// Die Farben der Tokens in `src/Client/styles.css` als berechnete Werte.
-const ORANGE = "rgb(255, 107, 44)"; // --color-neon-orange #ff6b2c
-const CALM_BLUE = "rgb(122, 184, 255)"; // --color-calm-blue #7ab8ff
-const CALM_VIOLET = "rgb(201, 167, 255)"; // --color-calm-violet #c9a7ff
-
-/// Die Höhe einer Zeile der Skizze (`Main.dc.html` `.row`: `min-height:56px` plus 2 × 10 px Rand und 1 px Linie),
-/// gemessen bei 1280 px mit und ohne Panel.
-const SKETCH_ROW_HEIGHT = 77;
 
 let frontend;
 let frontendPort;
@@ -126,13 +118,6 @@ async function mockedPage(width, height) {
   return { context, page, calls };
 }
 
-const openCheck = async (width, height) => {
-  const opened = await mockedPage(width, height);
-  await opened.page.goto(`http://127.0.0.1:${frontendPort}/#/budget/target-check`, { waitUntil: "load" });
-  await opened.page.locator('[data-testid="target-check-row"]').first().waitFor();
-  return opened;
-};
-
 const rowOf = (page, name) => page.locator('[data-testid="target-check-row"]').filter({ hasText: name });
 
 before(async () => {
@@ -169,211 +154,6 @@ test("[flow:targets-pruefen] Handy: über das Feld Targets prüfen der Leiste Mo
     await page.getByRole("button", { name: "Zurück zum Budget" }).click();
     await page.waitForURL(/#\/budget$/);
     await page.locator('[data-testid="budget-to-be-budgeted"]').first().waitFor();
-  } finally {
-    await context.close();
-  }
-});
-
-test("[layout] Handy 375 px: der Kopf der Budget-Seite trägt Historie und Monatserster mit 48 px, auf der Seite stehen Kopf und Zeilen ohne Überlauf, die Knöpfe einer Zeile nebeneinander, ungekürzt und 48 px hoch, die Mini-Balken mit Ecken 2 px und 4 px Abstand wie Handy.dc.html", async () => {
-  const { context, page } = await mockedPage(375, 812);
-  try {
-    await page.goto(`http://127.0.0.1:${frontendPort}/#/budget`, { waitUntil: "load" });
-    await waitForPageLoaded(page, "/budget");
-    const head = await page.evaluate(() => {
-      const box = (testId) => document.querySelector(`[data-testid="${testId}"] button`).getBoundingClientRect();
-      const history = box("budget-history-button");
-      const check = box("budget-month-start-button");
-      return {
-        scrollWidth: document.documentElement.scrollWidth,
-        history: { w: history.width, h: history.height, right: history.right },
-        check: { w: check.width, h: check.height, right: check.right, top: check.top },
-        historyTop: history.top,
-      };
-    });
-    const facts = JSON.stringify(head);
-    assert.ok(head.scrollWidth <= 375, `kein waagerechter Überlauf (${facts})`);
-    for (const key of ["history", "check"]) {
-      assert.ok(head[key].w >= 47.5 && head[key].h >= 47.5, `${key}: 48 px (${facts})`);
-      assert.ok(head[key].right <= 375, `${key}: im Bild (${facts})`);
-    }
-    assert.equal(Math.round(head.check.top), Math.round(head.historyTop), `nebeneinander in einer Zeile (${facts})`);
-
-    await page.locator('[data-testid="month-start-check"]').click();
-    await page.locator('[data-testid="target-check-row"]').first().waitFor();
-    const result = await page.evaluate(() => {
-      const clipped = (node) => node.scrollWidth > node.clientWidth + 0.5;
-      const within = (node, box) => {
-        const b = node.getBoundingClientRect();
-        return b.left >= box.left - 0.5 && b.right <= box.right + 0.5;
-      };
-      const headNarrow = document.querySelector('[data-testid="target-check-head-narrow"]');
-      const rows = [...document.querySelectorAll('[data-testid="target-check-row"]')].map((el) => {
-        const rowBox = el.getBoundingClientRect();
-        const buttons = [...el.querySelectorAll("button")].map((b) => {
-          const r = b.getBoundingClientRect();
-          return { text: b.textContent, clipped: clipped(b), inside: within(b, rowBox), h: r.height, top: r.top };
-        });
-        const barsEl = el.querySelector('[data-testid="spark-bars"]');
-        const bars = barsEl.getBoundingClientRect();
-        return {
-          name: el.querySelector('[data-testid="target-check-name"]').textContent,
-          buttons,
-          bars: { h: bars.height, w: bars.width, rowW: rowBox.width },
-          shape: {
-            radius: getComputedStyle(barsEl.querySelector('[data-testid="spark-bar"]')).borderTopLeftRadius,
-            gap: getComputedStyle(barsEl).columnGap,
-          },
-          texts: [...el.querySelectorAll("span, p")].filter((t) => t.getBoundingClientRect().width > 0).every((t) => within(t, rowBox)),
-        };
-      });
-      return {
-        head: { clipped: clipped(headNarrow), visible: headNarrow.getBoundingClientRect().height > 0 },
-        rows,
-        scrollWidth: document.documentElement.scrollWidth,
-      };
-    });
-    const rowFacts = JSON.stringify(result);
-    assert.ok(result.head.visible && !result.head.clipped, `der Kopf am Handy steht ohne Überlauf (${rowFacts})`);
-    assert.ok(result.rows.length >= 4, `die offenen Zeilen (${rowFacts})`);
-    for (const row of result.rows) {
-      assert.ok(row.texts, `${row.name}: die Texte stehen in der Zeile (${rowFacts})`);
-      assert.equal(Math.round(row.bars.h), 28, `${row.name}: Mini-Balken 28 px hoch (${rowFacts})`);
-      assert.ok(row.bars.w >= row.bars.rowW - 2 * 12 - 1, `${row.name}: Mini-Balken über die volle Breite (${rowFacts})`);
-      assert.deepEqual(row.shape, { radius: "2px", gap: "4px" }, `${row.name}: Ecken 2 px, Abstand 4 px wie Handy.dc.html (${rowFacts})`);
-      for (const b of row.buttons) {
-        assert.ok(!b.clipped && b.inside && b.h >= 47.5, `${row.name}, ${b.text}: ungekürzt, im Bild, 48 px (${rowFacts})`);
-      }
-      if (row.buttons.length === 2) {
-        assert.equal(Math.round(row.buttons[0].top), Math.round(row.buttons[1].top), `${row.name}: die Knöpfe nebeneinander (${rowFacts})`);
-      }
-    }
-    const yearly = result.rows.find((r) => r.name === "Versicherung q4v8n");
-    assert.deepEqual(yearly.buttons.map((b) => b.text), ["1.260 € jährlich übernehmen", "Anpassen …"], "beide Knöpfe");
-    assert.ok(result.scrollWidth <= 375, "kein waagerechter Überlauf");
-  } finally {
-    await context.close();
-  }
-});
-
-test("[layout] PC 1280 px: eine Zeile mit Werten ist so hoch wie in der Skizze und steht in vier Spalten nebeneinander, die Mini-Balken haben Ecken 2 px, 3 px Abstand und keinen Tab-Stopp, Anpassen öffnet das Panel rechts mit Balken mit Ecken 3 px; bei 375 px ein BottomSheet", async () => {
-  const wide = await openCheck(1280, 900);
-  try {
-    await rowOf(wide.page, "Strom q4v8n").getByRole("button", { name: "Anpassen …" }).click();
-    const panel = wide.page.locator('[data-testid="target-check-panel"]');
-    await panel.waitFor();
-    const at = await wide.page.evaluate(() => {
-      const list = document.querySelector('[data-testid="target-check-list"]').getBoundingClientRect();
-      const box = document.querySelector('[data-testid="target-check-panel"]').getBoundingClientRect();
-      const row = [...document.querySelectorAll('[data-testid="target-check-row"]')].find((el) => el.textContent.includes("Strom q4v8n"));
-      const rect = (el) => {
-        const r = el.getBoundingClientRect();
-        return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
-      };
-      const columns = [
-        rect(row.querySelector('[data-testid="target-check-name"]').parentElement),
-        rect(row.querySelector('[data-testid="spark-bars"]')),
-        rect(row.querySelector('[data-testid="target-check-average"]')),
-        rect(row.querySelector('[data-testid="target-check-adjust"]').parentElement),
-      ];
-      const focusable = [...document.querySelectorAll('[data-testid="spark-bars"], [data-testid="spark-bars"] *')].filter(
-        (el) => el.tabIndex >= 0 || el.hasAttribute("tabindex")
-      ).length;
-      const barsEl = row.querySelector('[data-testid="spark-bars"]');
-      const large = document.querySelector('[data-testid="spark-bars-labelled"] [data-testid="spark-bar"]');
-      return {
-        listRight: list.right,
-        panelLeft: box.left,
-        panelWidth: box.width,
-        rowHeight: row.getBoundingClientRect().height,
-        rowTop: row.getBoundingClientRect().top,
-        rowBottom: row.getBoundingClientRect().bottom,
-        barsHeight: row.querySelector('[data-testid="spark-bars"]').getBoundingClientRect().height,
-        columns,
-        focusable,
-        shape: { radius: getComputedStyle(barsEl.querySelector('[data-testid="spark-bar"]')).borderTopLeftRadius, gap: getComputedStyle(barsEl).columnGap },
-        largeRadius: getComputedStyle(large).borderTopLeftRadius,
-      };
-    });
-    const facts = JSON.stringify(at);
-    // Die Zeile der Skizze (Main.dc.html `.row`, gemessen bei 1280 px mit Panel) ist 77 px hoch.
-    assert.ok(at.rowHeight <= SKETCH_ROW_HEIGHT + 3, `die Zeile ist höchstens ${SKETCH_ROW_HEIGHT + 3} px hoch (${facts})`);
-    assert.deepEqual(at.shape, { radius: "2px", gap: "3px" }, `Mini-Balken mit Ecken 2 px und 3 px Abstand wie Main.dc.html (${facts})`);
-    assert.equal(at.largeRadius, "3px", `die Panel-Balken mit Ecken 3 px (${facts})`);
-    assert.equal(Math.round(at.barsHeight), 32, `Mini-Balken 32 px hoch (${facts})`);
-    for (let i = 1; i < at.columns.length; i++) {
-      assert.ok(at.columns[i].left >= at.columns[i - 1].right, `Spalte ${i + 1} steht rechts neben Spalte ${i} (${facts})`);
-    }
-    for (const c of at.columns) {
-      assert.ok(c.top >= at.rowTop - 0.5 && c.bottom <= at.rowBottom + 0.5, `jede Spalte in derselben Zeile (${facts})`);
-    }
-    assert.equal(at.focusable, 0, `die Mini-Balken haben keinen Tab-Stopp (${facts})`);
-    assert.ok(at.panelLeft >= at.listRight, `rechts neben der Liste (${facts})`);
-    assert.equal(Math.round(at.panelWidth), 360, "360 px wie die Skizze");
-    assert.equal(await wide.page.locator(".bottom-sheet.active").count(), 0, "kein Sheet");
-  } finally {
-    await wide.context.close();
-  }
-  const phone = await openCheck(375, 812);
-  try {
-    await rowOf(phone.page, "Strom q4v8n").getByRole("button", { name: "Anpassen …" }).click();
-    const sheet = phone.page.locator(".bottom-sheet.fixed-height.active");
-    await sheet.locator('[data-testid="target-amount"] input').waitFor();
-    // Das Sheet fährt ein: warten, bis es unten anliegt.
-    await phone.page.waitForFunction(() => {
-      const el = document.querySelector(".bottom-sheet.fixed-height.active");
-      return el && Math.abs(el.getBoundingClientRect().bottom - window.innerHeight) <= 1;
-    });
-    const box = await sheet.evaluate((el) => {
-      const b = el.getBoundingClientRect();
-      return { bottom: b.bottom, width: b.width, height: window.innerHeight };
-    });
-    assert.ok(Math.abs(box.bottom - box.height) <= 1 && box.width >= 374, `unten über die volle Breite (${JSON.stringify(box)})`);
-    assert.equal(await phone.page.locator('[data-testid="target-check-panel"]').count(), 0, "kein Panel");
-  } finally {
-    await phone.context.close();
-  }
-});
-
-test("[layout] Berechnete Farben und Schrift: die Gruppentitel mehr orange, weniger blau, nie hell violett, der Regelsatz in normaler Schrift der Liste, ein Balken über dem Target orange, einer darunter nicht, ein nicht gezählter anders als ein gezählter", async () => {
-  const { context, page } = await openCheck(1280, 900);
-  try {
-    const colors = await page.evaluate(() => {
-      const title = (text) =>
-        getComputedStyle([...document.querySelectorAll('[data-testid="target-check-group-title"]')].find((el) => el.textContent === text)).color;
-      const barsOf = (name) => {
-        const row = [...document.querySelectorAll('[data-testid="target-check-row"]')].find((el) => el.textContent.includes(name));
-        return [...row.querySelectorAll('[data-testid="spark-bar"]')].map((bar) => getComputedStyle(bar).backgroundColor);
-      };
-      const repair = barsOf("Reparatur q4v8n");
-      // Die globale Regel für h2 gab dem Regelsatz Display-Schrift und Gewicht 600 (Durchsicht c4ve4).
-      const rule = [...document.querySelectorAll('[data-testid="target-check-group-heading"] span')].find((el) =>
-        el.textContent.startsWith("Ø mehr als 10 %")
-      );
-      const rowName = document.querySelector('[data-testid="target-check-row"]');
-      return {
-        ruleWeight: getComputedStyle(rule).fontWeight,
-        ruleFont: getComputedStyle(rule).fontFamily,
-        rowFont: getComputedStyle(rowName).fontFamily,
-        more: title("Gibst du mehr aus?"),
-        less: title("Gibst du weniger aus?"),
-        never: title("Gibst du nie aus?"),
-        over: barsOf("Strom q4v8n")[0],
-        under: barsOf("Kantine q4v8n")[0],
-        notCounted: repair[0],
-        repairCounted: repair[11],
-      };
-    });
-    const facts = JSON.stringify(colors);
-    assert.equal(colors.ruleWeight, "400", `der Regelsatz steht in normalem Gewicht (${facts})`);
-    assert.equal(colors.ruleFont, colors.rowFont, `der Regelsatz steht in der Schrift der Liste (${facts})`);
-    assert.equal(colors.more, ORANGE, `der Titel mehr ist orange (${facts})`);
-    assert.equal(colors.less, CALM_BLUE, `der Titel weniger ist das ruhige Blau (${facts})`);
-    assert.equal(colors.never, CALM_VIOLET, `der Titel nie ist das helle Violett (${facts})`);
-    assert.equal(colors.over, ORANGE, `ein Balken über dem Target ist orange (${facts})`);
-    assert.equal(colors.repairCounted, ORANGE, `bei Reparatur zählt Oktober und liegt über dem Target (${facts})`);
-    assert.notEqual(colors.under, ORANGE, `ein Balken darunter ist nicht orange (${facts})`);
-    assert.notEqual(colors.notCounted, ORANGE, `ein nicht gezählter Monat über dem Monatswert ist nicht orange (${facts})`);
-    assert.notEqual(colors.notCounted, colors.under, `ein nicht gezählter Balken sieht anders aus als ein gezählter darunter (${facts})`);
   } finally {
     await context.close();
   }

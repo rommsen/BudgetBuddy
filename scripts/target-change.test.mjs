@@ -1,9 +1,9 @@
 // scripts/target-change.test.mjs
 //
 // Wächter für `budgeting-k8wq3`, `budgeting-xp46a` und `budgeting-g2ty9`: Target ändern und anlegen im Tab
-// Target. Die Hauptabläufe gegen eine gemockte BudgetApi und, was nur der Browser messen kann: "Target
-// speichern", "Target anlegen" und die Warnung vor dem Wechsel der Art liegen im 500-px-Sheet ohne Scrollen
-// im Bild, der Fokus nach einer Rückfrage im Sheet, das Datumsfeld im 340-px-Panel am PC.
+// Target. Die Hauptabläufe gegen eine gemockte BudgetApi und der Fokus nach einer Rückfrage im Sheet. Dass
+// Speichern, Anlegen und die Warnung ohne Scrollen im Bild liegen und der Platzhalter des Datums ganz im Feld
+// steht, prüft der Layout-Sweep (`scripts/layout-states.mjs`, Zustände budget-target*).
 // Die Regeln selbst liegen in `src/Tests/TargetChangeClientTests.fs`.
 //
 // Ausführen: node --test scripts/target-change.test.mjs
@@ -126,19 +126,6 @@ test("[flow:target-aendern] Handy: im Tab Target 60 tippen und speichern, der Au
   }
 });
 
-test("[layout] Handy: Target speichern liegt im 500-px-Sheet ohne Scrollen im Bild", async () => {
-  const { context, page } = await openPage(390, 844);
-  try {
-    await openTargetTab(page);
-    const button = await sheet(page).locator('[data-testid="target-save"] button').boundingBox();
-    const body = await sheet(page).locator(".sheet-body").boundingBox();
-    assert.ok(button && body, "Knopf und Sheet sind da");
-    assert.ok(button.y + button.height <= body.y + body.height, `Knopf im Bild: ${button.y + button.height} gegen ${body.y + body.height}`);
-  } finally {
-    await context.close();
-  }
-});
-
 // budgeting-g2ty9 (F3): nach Abbrechen und nach dem Bestätigen lag der Fokus auf `body`, Escape schloss
 // die Rückfrage nicht.
 test("[fokus] Handy: die Rückfrage zu Target entfernen fokussiert Abbrechen, danach geht der Fokus zurück auf Target entfernen", async () => {
@@ -212,33 +199,6 @@ test("[fokus] Handy: bei offener Warnung bleibt der Fokus beim Tippen im Betrags
   }
 });
 
-// budgeting-g2ty9 (X6): im 340-px-Panel schnitt das Datumsfeld neben dem Betrag den Platzhalter ab.
-test("[layout] PC: im Panel steht der Platzhalter des Datumsfelds beim Anlegen ganz im Feld", async () => {
-  const { context, page } = await openPage(1440, 900, null);
-  try {
-    await row(page).click();
-    const panel = page.locator('[data-testid="budget-inspector"]');
-    await panel.getByRole("tab", { name: "Target" }).click();
-    const input = panel.locator('[data-testid="target-date"] input[placeholder]');
-    await input.waitFor();
-    const measured = await input.evaluate((el) => {
-      const style = getComputedStyle(el);
-      const ctx = document.createElement("canvas").getContext("2d");
-      ctx.font = style.font;
-      return {
-        text: ctx.measureText(el.placeholder).width,
-        room: el.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
-        scrollWidth: el.scrollWidth,
-        clientWidth: el.clientWidth,
-      };
-    });
-    assert.ok(measured.scrollWidth <= measured.clientWidth, `kein Überlauf: ${measured.scrollWidth} gegen ${measured.clientWidth}`);
-    assert.ok(measured.text <= measured.room, `Platzhalter passt: ${measured.text} gegen ${measured.room}`);
-  } finally {
-    await context.close();
-  }
-});
-
 test("[flow:target-anlegen] Handy: für eine Kategorie ohne Target 50 € monatlich anlegen", async () => {
   const { context, page, calls } = await openPage(390, 844, null);
   try {
@@ -254,33 +214,5 @@ test("[flow:target-anlegen] Handy: für eine Kategorie ohne Target 50 € monatl
     await sheet(page).getByRole("button", { name: "Target speichern" }).waitFor();
   } finally {
     await context.close();
-  }
-});
-
-test("[layout] Handy: Target anlegen und die Warnung vor dem Wechsel der Art liegen im 500-px-Sheet ohne Scrollen im Bild", async () => {
-  const inView = async (page, locator, what) => {
-    const box = await locator.boundingBox();
-    const body = await sheet(page).locator(".sheet-body").boundingBox();
-    assert.ok(box && body, `${what} und Sheet sind da`);
-    assert.ok(box.y >= body.y, `${what} nicht über dem Bild: ${box.y} gegen ${body.y}`);
-    assert.ok(box.y + box.height <= body.y + body.height, `${what} im Bild: ${box.y + box.height} gegen ${body.y + body.height}`);
-  };
-  const created = await openPage(390, 844, null);
-  try {
-    await openTargetTab(created.page);
-    await inView(created.page, sheet(created.page).getByRole("button", { name: "Target anlegen" }), "Target anlegen");
-  } finally {
-    await created.context.close();
-  }
-  const changed = await openPage(390, 844);
-  try {
-    await openTargetTab(changed.page);
-    await sheet(changed.page).getByRole("button", { name: "Jahr" }).click();
-    await sheet(changed.page).getByRole("button", { name: "Target speichern" }).click();
-    const dialog = sheet(changed.page).getByRole("alertdialog", { name: "Rhythmus wechseln?" });
-    await dialog.waitFor();
-    await inView(changed.page, dialog.getByRole("button", { name: "Wechseln" }), "Wechseln");
-  } finally {
-    await changed.context.close();
   }
 });

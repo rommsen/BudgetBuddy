@@ -5,7 +5,7 @@
 // die Tagesköpfe weg, der Kopf trägt `aria-sort`, der Sortier-Chip fehlt. Welche Köpfe
 // sortierbar sind, prüft `LedgerSortClientTests` (infrastructure-t5m2b). Gemessen am echten, per
 // Vite gestarteten Fable-Client gegen gemockte Ledger-Antworten (Muster wie
-// `ledger-table-columns.test.mjs`). Der Mock sortiert die Fixture nach der gesendeten
+// `ledger-detail.test.mjs`). Der Mock sortiert die Fixture nach der gesendeten
 // Sortierung, damit die Reihenfolge in der Tabelle den Weg über die Anfrage prüft.
 //
 // Ausführen: node --test scripts/ledger-sort-headers.test.mjs
@@ -107,7 +107,7 @@ test("[flow:kassenbuch-sortieren] Klick auf Betrag sortiert aufsteigend, ohne Ta
   await page.waitForFunction(() => document.querySelectorAll("table tbody tr td[colspan]").length > 0);
   const before = await snapshot();
   assert.ok(before.groups > 0, "Standard: Tagesköpfe stehen");
-  // Am PC sortieren die Köpfe, der Sortier-Chip der Handy-Liste fehlt (aus ledger-sort-chip gezogen).
+  // Am PC sortieren die Köpfe, der Sortier-Chip der Handy-Liste fehlt.
   const sortChip = page.locator(".ledger-filter-bar button").filter({ hasText: /^(Datum|Betrag|Payee|Kategorie|Konto) [↑↓]$/ });
   assert.equal(await sortChip.count(), 0, "Köpfe sortieren, der Chip fehlt");
 

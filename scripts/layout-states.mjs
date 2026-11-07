@@ -12,8 +12,8 @@
 // `height` (Höhe des Viewports), `checks` (nur diese Invarianten). Die Fixtures tragen lange Namen und große
 // Beträge (Invariante 4).
 
-import { HANDY_WIDTHS, PAGE_WIDTHS, TABLE_WIDTHS } from "./layout-invariants.mjs";
-import { buildAccountsFixture, buildBalancesFixture, buildCategoriesFixture, buildEntryFixture, CATEGORY_IDS, fixtureGuid, mockFilterBarApi } from "./ledger-filter-bar.mjs";
+import { HANDY_WIDTHS, PAGE_WIDTHS, TABLE_WIDTHS, settle } from "./layout-invariants.mjs";
+import { buildAccountsFixture, buildBalancesFixture, buildCategoriesFixture, buildEntryFixture, CATEGORY_IDS, fixtureGuid, mockFilterBarApi, mockRunningMirror } from "./ledger-filter-bar.mjs";
 
 const eur = (amount) => ({ Amount: amount, Currency: "EUR" });
 const guid = (n) => `00000000-0000-0000-0000-${String(n).padStart(12, "0")}`;
@@ -82,7 +82,8 @@ const budgetMonth = (key) => ({
           Target: { Goal: eur(12160), Rhythm: { Months: 11 }, Kind: "Need", Date: null, NeedsWholeAmount: true, Day: null, CreatedIn: null },
           Underfunded: eur(12160),
         }),
-        category(3, "Kleidung", 1600, 0, 1600, { Target: monthly(1600), Underfunded: eur(0) }),
+        // budgeting-dgrp7: die Markierung "noch nicht in YNAB" neben vierstelligen Beträgen.
+        category(3, "Kleidung", 1600, 0, 1600, { Target: monthly(1600), Underfunded: eur(0), OpenWriteBack: guid(77) }),
         category(4, "Reise", 0, 0, 0, { Target: monthly(1600), Underfunded: eur(1600), Pause: "PausedInBb" }),
         category(5, "Urlaub", 0, 0, 0),
       ],
@@ -150,6 +151,32 @@ const targetsPreview = {
   CommandId: null,
 };
 
+// Fix 5850313 (budgeting-p4n6r, ADR 0075): die Antworten auf Anwenden. Vorher standen dort `ErrorDisplay.warning`
+// und `Badge.warning`, die Pink zeichneten. Eine Zeile steht in YNAB anders, Zu verteilen weicht ab.
+const targetsReport = {
+  ApplicationId: guid(90),
+  Month: CURRENT,
+  Lines: targetsPreview.Lines.map((l, i) => ({
+    CategoryId: l.CategoryId,
+    CategoryName: l.CategoryName,
+    OldAssigned: l.OldAssigned,
+    NewAssigned: l.NewAssigned,
+    Outcome: i === 0 ? "ChangedInYnab" : "Written",
+  })),
+  ActualToBeBudgeted: eur(-469000),
+};
+const mockTargetsAnswer = (answer) => async (page) => {
+  await mockBudget(page);
+  await page.route("**/api/BudgetApi/applyTargets", (r) => json(r, { Ok: answer }));
+};
+const openTargetsAndApply = (shown) => async (page) => {
+  await openBudget(page);
+  await page.locator('[data-testid="month-start-apply"]:visible').click();
+  await page.locator('[data-testid="targets-total"]:visible').waitFor();
+  await page.getByRole("button", { name: "Anwenden", exact: true }).locator("visible=true").click();
+  await page.locator(`[data-testid="${shown}"]:visible`).first().waitFor();
+};
+
 const generalMovement = (n, group, origin, name, latest, counterpart = null) => ({
   Movement: {
     MovementId: guid(500 + n),
@@ -190,6 +217,40 @@ async function mockBudget(page) {
   await page.route("**/api/BudgetApi/getBudgetHistory", (r) => json(r, { Ok: budgetHistory }));
   await page.route("**/api/BudgetApi/assignMoney", (r) => json(r, { Ok: emptyReport(CURRENT) }));
   await page.route("**/api/BudgetApi/moveMoney", (r) => json(r, { Ok: emptyReport(CURRENT) }));
+}
+
+// Targets prüfen: je Gruppe eine Kategorie, lange Namen und große Beträge, zwölf volle Monate Ausgaben.
+const checkSpending = (amount) =>
+  Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(Date.UTC(2025, 10 + i, 1));
+    return { Month: `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-01`, Activity: eur(-amount) };
+  });
+const checkTarget = (goal, rhythm) => ({ Goal: eur(goal), Rhythm: rhythm, Kind: "Need", Date: null, NeedsWholeAmount: true, Day: null, CreatedIn: null });
+const checkSource = (n, name, goal, spent, rhythm = { Months: 1 }) => ({
+  CategoryId: guid(n),
+  Name: name,
+  GroupName: "Alltag",
+  Target: goal === null ? null : checkTarget(goal, rhythm),
+  Spending: checkSpending(spent),
+  LastChange: null,
+  FirstBooking: null,
+});
+const targetCheck = {
+  Month: CURRENT,
+  Today: "2026-11-06",
+  Categories: [
+    checkSource(1, "Essen", 100, 150),
+    checkSource(2, LONG_CATEGORY, 600, 1050, { Years: 1 }),
+    checkSource(3, "Kleidung", 100, 100),
+    checkSource(4, "Reise", 50, 100, { Weeks: 1 }),
+    checkSource(5, "Urlaub", null, 12345.67),
+    checkSource(10, "Kategorie 1", 60, 0),
+  ],
+};
+
+async function mockTargetCheck(page) {
+  await mockBudget(page);
+  await page.route("**/api/BudgetApi/getTargetCheck", (r) => json(r, { Ok: targetCheck }));
 }
 
 const budgetRow = (page, name) => page.locator('[data-testid="budget-category-row"]:visible').filter({ has: page.getByText(name, { exact: true }) });
@@ -243,9 +304,9 @@ function ledgerEntries(accountId) {
   ];
 }
 
-async function mockLedger(page) {
+async function mockLedger(page, { accounts = 3 } = {}) {
   await mockApp(page);
-  const accountsFixture = buildAccountsFixture(3);
+  const accountsFixture = buildAccountsFixture(accounts);
   accountsFixture.Accounts[2].Name = "Gemeinschaftskonto mit einem sehr langen Kontonamen";
   await mockFilterBarApi(page, {
     accountsFixture,
@@ -404,6 +465,31 @@ export const STATES = [
       await page.locator('[data-testid="month-bar"]:visible').last().click();
     },
   },
+  // budgeting-v6m3z: die Wertzeile des ersten Balkens bleibt am Handy im Sheet (der letzte steht oben).
+  {
+    name: "budget-historie-erster-balken",
+    route: "/budget",
+    widths: HANDY_WIDTHS,
+    mock: mockBudget,
+    open: async (page, { mobile }) => {
+      await openInspector(page, mobile, LONG_CATEGORY, "Historie");
+      await page.locator('[data-testid="month-bar"]:visible').first().waitFor();
+      await page.locator('[data-testid="month-bar"]:visible').first().click();
+    },
+  },
+  // Aus dem früheren Layout-Test der Budget-Seite: bei 20 px Grundschrift haftet der Kopf am PC, ohne Panel
+  // oder Spaltenkopf zu überdecken.
+  {
+    name: "budget-grosse-schrift",
+    route: "/budget",
+    widths: [1440],
+    mock: mockBudget,
+    open: async (page) => {
+      await openBudget(page);
+      await page.addStyleTag({ content: "html { font-size: 20px; }" });
+      await openInspector(page, false, "Kategorie 1");
+    },
+  },
   // budgeting-k8wq3: Tab Target einer Kategorie mit Target, Target speichern ohne Scrollen im 500-px-Sheet.
   {
     name: "budget-target",
@@ -464,6 +550,27 @@ export const STATES = [
     primary: (page) => page.getByRole("button", { name: "Anwenden", exact: true }).locator("visible=true"),
     reach: (page) => page.locator('[data-testid="targets-total"]:visible, [data-testid="targets-after"]:visible'),
   },
+  // Fix 5850313 (ADR 0075): Anwenden meldet, dass sich der Stand geändert hat. Der Hinweis zeichnete vorher Pink
+  // (`ErrorDisplay.warning`), die Farbregel des Sweeps hält ihn gelb.
+  {
+    name: "budget-targets-stand-geaendert",
+    route: "/budget",
+    widths: [...HANDY_WIDTHS, 1440],
+    mock: mockTargetsAnswer({ PreviewChanged: targetsPreview }),
+    open: openTargetsAndApply("targets-changed"),
+  },
+  // Fix 5850313 (ADR 0075): der Bericht mit einer Zeile „in YNAB geändert“ (vorher `Badge.warning`) und dem Hinweis,
+  // dass Zu verteilen von der Vorschau abweicht (vorher `ErrorDisplay.warning`). Beides zeichnete Pink.
+  {
+    name: "budget-targets-bericht",
+    route: "/budget",
+    widths: [...HANDY_WIDTHS, 1440],
+    mock: mockTargetsAnswer({ Applied: targetsReport }),
+    open: async (page) => {
+      await openTargetsAndApply("targets-differs")(page);
+      await page.getByText("in YNAB geändert").locator("visible=true").first().waitFor();
+    },
+  },
   // budgeting-c6vn4, budgeting-a3k7m: die allgemeine Historie, Kopf einer Verschiebung bricht um statt abzuschneiden.
   {
     name: "budget-historie",
@@ -474,6 +581,26 @@ export const STATES = [
       const run = page.locator('[data-testid="general-history-run"]').first();
       await run.waitFor();
       await page.locator('[data-testid="general-history-toggle"]:visible, [data-testid="general-history-run"] button[aria-expanded]:visible').first().click();
+    },
+  },
+  // budgeting-q4v8n, budgeting-c4ve4: die Seite Targets prüfen mit langen Namen, Knöpfen je Zeile und Mini-Balken.
+  {
+    name: "targets-pruefen",
+    route: "/budget/target-check",
+    widths: PAGE_WIDTHS,
+    mock: mockTargetCheck,
+    open: async (page) => page.locator('[data-testid="target-check-row"]').first().waitFor(),
+  },
+  // budgeting-c4ve4: Anpassen öffnet am PC das Panel rechts, am Handy ein Sheet.
+  {
+    name: "targets-pruefen-anpassen",
+    route: "/budget/target-check",
+    widths: [...HANDY_WIDTHS, 1280],
+    mock: mockTargetCheck,
+    open: async (page) => {
+      const row = page.locator('[data-testid="target-check-row"]').filter({ hasText: "Essen" });
+      await row.getByRole("button", { name: "Anpassen …" }).click();
+      await page.locator('[data-testid="target-check-form"]:visible').first().waitFor();
     },
   },
   // ledger-qh9qx, ledger-qns4j (AC5), Regression ledger-filter-bar: Spaltenköpfe, Statuszelle mit zwei
@@ -568,6 +695,94 @@ export const STATES = [
       await page.locator('[data-layer] [role="option"]').first().waitFor();
     },
   },
+  // ledger-skpcx: das Sortier-Sheet am Handy mit allen Optionen.
+  {
+    name: "kassenbuch-sortieren",
+    route: "/ledger",
+    widths: HANDY_WIDTHS,
+    mock: mockLedger,
+    open: async (page) => {
+      await openLedger(page);
+      await page.locator(".ledger-filter-bar button").filter({ hasText: /^(Datum|Betrag|Payee|Kategorie|Konto) [↑↓]$/ }).click();
+      await page.locator(".bottom-sheet.active button.category-item").first().waitFor();
+    },
+  },
+  // ledger-qns4j (AC1, AC2): bei vielen Konten haftet die Konten-Spalte und scrollt in sich, späte Konten
+  // werden nicht abgeschnitten.
+  {
+    name: "kassenbuch-viele-konten",
+    route: "/ledger",
+    widths: [1024, 1440],
+    mock: (page) => mockLedger(page, { accounts: 30 }),
+    open: openLedger,
+  },
+  // Regression ledger-filter-bar (feste Höhenschätzung): bei 1024 px bricht die Leiste mit zwei Kategorien um,
+  // der Tabellenkopf haftet trotzdem darunter.
+  {
+    name: "kassenbuch-gefiltert",
+    route: "/ledger",
+    widths: [1024],
+    mock: mockLedger,
+    open: async (page) => {
+      await openLedger(page);
+      await page.getByRole("button", { name: /^Kategorie/ }).first().click();
+      const popover = page.locator('[data-layer="popover"]');
+      await popover.getByText("Lebensmittel", { exact: true }).click();
+      await popover.getByText("Bahn", { exact: true }).click();
+      await page.getByRole("button", { name: "Übernehmen (2)" }).click();
+      await popover.waitFor({ state: "detached" });
+    },
+  },
+  // Regression ledger-filter-bar: lief der Spiegel, maß der Observer den Hinweis statt der Leiste. Während
+  // und nach dem Lauf haftet die Leiste, ohne den Tabellenkopf zu überdecken.
+  {
+    name: "kassenbuch-spiegel-laeuft",
+    route: "/ledger",
+    widths: [1024, 1440],
+    mock: async (page) => {
+      await mockLedger(page);
+      await mockRunningMirror(page);
+    },
+    open: async (page) => page.getByText("Spiegel läuft — die Liste bleibt so lange stehen.").waitFor(),
+  },
+  {
+    name: "kassenbuch-nach-spiegel",
+    route: "/ledger",
+    widths: [1024],
+    mock: async (page) => {
+      await mockLedger(page);
+      page.sweepMirror = await mockRunningMirror(page);
+    },
+    open: async (page) => {
+      const hint = page.getByText("Spiegel läuft — die Liste bleibt so lange stehen.");
+      await hint.waitFor();
+      await page.sweepMirror.finishMirror();
+      await hint.waitFor({ state: "detached" });
+    },
+  },
+  // ledger-y54gr: die Auswahl-Leiste am Handy mit beiden Lena-Aktionen und dem Grund als Zeile.
+  {
+    name: "kassenbuch-auswahl-handy",
+    route: "/ledger",
+    widths: HANDY_WIDTHS,
+    mock: async (page) => {
+      await mockLedger(page);
+      await page.route("**/api/SettingsApi/getLenaFlagSettings", (r) => json(r, { SavedColor: null, SuggestedColor: null }));
+    },
+    open: async (page) => {
+      await openLedger(page);
+      // Langes Drücken wie in ledger-selection.test.mjs: gehalten, bis die Leiste erscheint.
+      const row = page.locator("button", { hasText: "Bauhaus" }).filter({ visible: true }).first();
+      const b = await row.boundingBox();
+      const init = { pointerType: "touch", pointerId: 7, isPrimary: true, bubbles: true, clientX: b.x + b.width / 2, clientY: b.y + b.height / 2 };
+      await row.dispatchEvent("pointerdown", init);
+      const bar = page.locator(".selection-bar").filter({ visible: true });
+      await bar.waitFor();
+      await row.dispatchEvent("pointerup", init);
+      await row.dispatchEvent("click", { bubbles: true, clientX: init.clientX, clientY: init.clientY });
+      await bar.getByRole("button", { name: /^Lena fragen/ }).waitFor();
+    },
+  },
   // categorization-cgq35: Prioritätspfeile und Overflow-Knopf am Handy, Regeln mit langen Namen.
   {
     name: "regeln",
@@ -598,6 +813,9 @@ export const STATES = [
       await openRules(page);
       await page.locator('[data-testid="rule-row"]:visible').filter({ hasText: "Regel eins" }).getByText("Regel eins").click();
       await page.locator('[data-testid="rule-dialog"]').waitFor();
+      // Erst wenn der Dialog eingefahren ist: öffnet das Popover mitten in der Einfahrt, rechnet sein
+      // scrollIntoView mit der noch skalierten Lage, und unter Last stand es danach halb unter dem Rand.
+      await settle(page, { where: "regeln-dialog-picker, Dialog offen" });
       await page.locator('[data-testid="rule-category"] button').click();
       await page.locator('[role="option"]').first().waitFor();
       await frames(page);

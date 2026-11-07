@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // scripts/ledger-status-column.mjs
 //
-// Fixture-Bausteine für `scripts/ledger-status-column.test.mjs` (ledger-qns4j,
+// Fixture-Bausteine der Kassenbuch-Wächter, zuerst für die Statusspalte (ledger-qns4j,
 // Iteration 2 des Verifier-Rückläufers): rein synthetische, erfundene
 // Fable.Remoting-Antworten für die Kassenbuch-API (`ILedgerApi`/`LedgerApi`), damit
 // der Test die echte, per Vite gebaute Client-App (echtes Tailwind-CSS, echtes

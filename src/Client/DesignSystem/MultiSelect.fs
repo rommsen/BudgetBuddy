@@ -114,7 +114,7 @@ let private clearButton (label: string) (onClick: unit -> unit) (fill: bool) : R
     Html.button [
         prop.type' "button"
         prop.className (
-            (if fill then "flex-1 min-h-[44px] px-2 " else "py-2.5 px-3.5 ") +
+            (if fill then "flex-1 min-h-12 md:min-h-[44px] px-2 whitespace-nowrap " else "py-2.5 px-3.5 ") +
             $"inline-flex items-center justify-center rounded-lg font-semibold {FontSizes.sm} " +
             $"{Colors.textSecondary} hover:text-text-primary hover:bg-surface-hover transition-colors touch-manipulation"
         )
@@ -238,7 +238,8 @@ let barMobile
                 prop.children (countAndSum countText amount)
             ]
             Html.div [
-                prop.className "flex items-center gap-2"
+                // Bei 320 px bricht "Auswahl aufheben" in eine eigene Zeile um, statt aus dem Bild zu ragen.
+                prop.className "flex flex-wrap items-center gap-2"
                 prop.children [
                     ChipBar.chip { Label = allLabel; IsActive = allActive; OnClick = onAll; OnRemove = None }
                     // Kleine Knöpfe, damit vier Elemente bei 390 px in eine Reihe passen.

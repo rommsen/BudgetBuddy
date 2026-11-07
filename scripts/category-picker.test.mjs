@@ -2,7 +2,8 @@
 //
 // Wächter für `design-system-gffps`: der Kategorie-Picker mit Einfachauswahl und die Karte
 // "Budget nach dem Wechsel", gemessen am echten, von der App gerenderten Element in der
-// Galerie `/styleguide` (Sektion 26). Popover am PC, Sheet am Handy, derselbe Inhalt.
+// Galerie `/styleguide` (Sektion 26): Tastatur und Fokus im Popover am PC. Inhalt, Auswahl und Abschnitte
+// prüft `CategoryPickerTests.fs`, das Sheet am Handy der Layout-Sweep (Zustand budget-picker).
 //
 // Ausführen: node --test scripts/category-picker.test.mjs
 // (Teil von `npm run test:scripts`.)
@@ -37,44 +38,10 @@ async function openGallery(contextOptions) {
 const section = (page) => page.locator("section", { hasText: "26. Kategorie-Picker (Einfachauswahl)" });
 const options = (scope) => scope.locator('[role="option"]');
 
-test("[layout] PC: Popover mit Suche, Ohne Kategorie, Vorgeschlagen, Beträgen rechts und Stand-Zeile", async () => {
-  const page = await openGallery({ viewport: { width: 1440, height: 900 } });
-  await page.locator('[data-ds-demo="category-picker-popover-trigger"] button').click();
-  const sec = section(page);
-  const listbox = sec.locator('[role="listbox"]');
-  await listbox.waitFor();
-  assert.equal(await sec.locator('input[placeholder="Kategorie suchen…"]').evaluate((el) => el === document.activeElement), true, "Fokus im Suchfeld");
-  assert.equal(await options(sec).first().textContent(), "Ohne Kategorie");
-  assert.match(await listbox.textContent(), /Vorgeschlagen/i);
-  assert.equal(await sec.getByText("Alle Kategorien", { exact: true }).count(), 1, "Kopf Alle Kategorien über der Liste");
-  assert.equal(await sec.getByText("Stand 14:02").count(), 1, "Stand-Zeile");
-  assert.equal(await sec.getByRole("button", { name: /Übernehmen/ }).count(), 0, "kein Übernehmen-Knopf");
-  // Beträge stehen bündig rechts: alle Betragsslots enden an derselben Kante.
-  const rights = await sec.evaluate((el) => {
-    const slots = [...el.querySelectorAll('[role="option"] .w-24')];
-    return slots.map((s) => Math.round(s.getBoundingClientRect().right));
-  });
-  assert.ok(rights.length > 3, "Beträge vorhanden");
-  assert.equal(new Set(rights).size, 1, `Betragsslots rechtsbündig: ${rights}`);
-  // Aktuelle Kategorie trägt aria-selected.
-  assert.equal(await sec.locator('[role="option"][aria-selected="true"]').count() >= 1, true);
-  // Versteckt aufklappen: eine Kategorie ohne Available hat keinen Betragsslot.
-  await sec.getByRole("button", { name: "Versteckt (1)" }).click();
-  const hiddenRow = options(sec).filter({ hasText: "Altes Sparziel" });
-  await hiddenRow.waitFor();
-  assert.equal(await hiddenRow.locator(".w-24").count(), 0, "kein Betragsslot");
-  // Die Variante ohne Beschriftung hat keine Stand-Zeile.
-  await sec.locator('[data-ds-demo="category-picker-plain-trigger"] button').click();
-  const plain = sec.locator('[data-ds-demo="category-picker-plain"]');
-  await plain.locator('[role="listbox"]').waitFor();
-  assert.equal(await plain.getByText(/^Stand /).count(), 0, "ohne Beschriftung keine Stand-Zeile");
-  await page.close();
-});
-
 const selectCount = async (sec) =>
   Number(await sec.locator('[data-ds-demo="category-picker-select-count"]').textContent());
 
-test("[tastatur] PC: ein Mausklick wählt genau einmal und schließt; Pfeile, Enter und Esc", async () => {
+test("[tastatur] PC: beim Öffnen steht der Fokus im Suchfeld, ein Mausklick wählt genau einmal und schließt; Pfeile, Enter und Esc", async () => {
   const page = await openGallery({ viewport: { width: 1440, height: 900 } });
   const sec = section(page);
   const trigger = page.locator('[data-ds-demo="category-picker-popover-trigger"] button');
@@ -82,6 +49,7 @@ test("[tastatur] PC: ein Mausklick wählt genau einmal und schließt; Pfeile, En
   assert.equal(await selectCount(sec), 0);
   await trigger.click();
   await listbox.waitFor();
+  assert.equal(await sec.locator('input[placeholder="Kategorie suchen…"]').evaluate((el) => el === document.activeElement), true, "Fokus im Suchfeld");
   await options(sec).filter({ hasText: "Versicherung" }).last().click();
   assert.equal(await listbox.count(), 0, "Popover geschlossen");
   assert.match(await sec.textContent(), /Versicherung/, "Auswahl übernommen");
@@ -101,40 +69,6 @@ test("[tastatur] PC: ein Mausklick wählt genau einmal und schließt; Pfeile, En
   await listbox.waitFor();
   await page.keyboard.press("Escape");
   assert.equal(await listbox.count(), 0, "Esc schließt");
-  await page.close();
-});
-
-test("[layout] Handy (390): Sheet mit denselben Zeilen, 16 px Suchschrift, Betragsslots bündig", async () => {
-  const page = await openGallery({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
-  await page.locator('[data-ds-demo="category-picker-sheet-trigger"] button').evaluate((el) => el.click());
-  const sheet = page.locator(".bottom-sheet.active");
-  await sheet.waitFor();
-  assert.match(await sheet.locator("h3").textContent(), /Kategorie wählen/);
-  assert.equal(await sheet.locator('[role="option"]').first().textContent(), "Ohne Kategorie");
-  // Das Sheet fährt mit einer 450 ms langen Feder ein. Gemessen wird erst, wenn seine Lage
-  // über mehrere Frames unverändert ist.
-  await page.waitForFunction(() => {
-    const el = document.querySelector(".bottom-sheet.active");
-    if (!el) return false;
-    const key = () => JSON.stringify(el.getBoundingClientRect());
-    window.__sheetRect ??= { key: key(), stable: 0 };
-    const now = key();
-    if (now === window.__sheetRect.key) window.__sheetRect.stable += 1;
-    else window.__sheetRect = { key: now, stable: 0 };
-    return window.__sheetRect.stable >= 5;
-  }, null, { polling: "raf" });
-  const geometry = await sheet.evaluate((el) => {
-    const input = el.querySelector("input");
-    const slots = [...el.querySelectorAll('[role="option"] .w-24')].map((s) => Math.round(s.getBoundingClientRect().right));
-    const rowHeights = [...el.querySelectorAll('[role="option"]')].map((r) => r.getBoundingClientRect().height);
-    return { fontSize: getComputedStyle(input).fontSize, slots, minRow: Math.min(...rowHeights) };
-  });
-  assert.equal(geometry.fontSize, "16px");
-  assert.equal(new Set(geometry.slots).size, 1, `rechtsbündig: ${geometry.slots}`);
-  // 44 px Trefferfläche; 0,5 px Toleranz für Subpixel-Rundung der Höhe.
-  assert.ok(geometry.minRow >= 43.5, `Trefferfläche ${geometry.minRow}`);
-  await sheet.locator('[role="option"]').filter({ hasText: "Miete" }).first().tap();
-  await page.locator(".bottom-sheet.active").waitFor({ state: "detached" });
   await page.close();
 });
 

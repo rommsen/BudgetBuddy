@@ -2,7 +2,7 @@ module LedgerReviewButtonVisibilityTests
 
 // ledger-mhe2s: Die Prüf-Schaltfläche der PC-Zeile ist nur bei Hover oder Fokus sichtbar
 // und immer neutral. Sichtbarkeit, Breite, Farbe und Trefferfläche misst der Browser
-// (`scripts/ledger-review-button-visibility.test.mjs`, `scripts/ledger-compact-mouse.test.mjs`,
+// (Trefferfläche im Layout-Sweep, `scripts/layout-states.mjs`; Bedienung in
 // `scripts/ledger-review-mark.test.mjs`); hier bleibt der Text der Schaltfläche.
 
 open Expecto

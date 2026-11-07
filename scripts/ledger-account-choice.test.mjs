@@ -4,7 +4,7 @@
 // komplettem Neuladen, gemerkt je Gerät in localStorage), und am Handy (390x844) steht der
 // Kontoname als Titel mit Chevron, der ein BottomSheet "Konto wechseln" mit "Alle Konten" und
 // allen Konten öffnet. Gemessen am echten, per Vite gestarteten Fable-Client gegen gemockte
-// Ledger-Antworten (Muster wie `ledger-sort-chip.test.mjs`).
+// Ledger-Antworten (Muster wie `ledger-sort-headers.test.mjs`).
 //
 // Ausführen: node --test scripts/ledger-account-choice.test.mjs
 // (Teil von `npm run test:scripts`.)

@@ -1,7 +1,7 @@
 module LedgerSortSheetTests
 
 // ledger-skpcx: Sortier-Chip und Sheet am Handy. Reine Funktionen und der Reducer ohne
-// DOM. Chip und Sheet im echten Browser prüft `scripts/ledger-sort-chip.test.mjs`.
+// DOM. Das offene Sheet im echten Browser prüft der Layout-Sweep (Zustand kassenbuch-sortieren).
 
 open System
 open Expecto

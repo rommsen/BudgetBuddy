@@ -3,7 +3,8 @@
 // Wächter für `ledger-q1hw2` (ADR 0053): das Buchungs-Detail im Kassenbuch. Ein Klick auf die
 // Zeile (auch auf Payee oder Kategorie) markiert sie und öffnet das Detail: Seitenpanel am PC,
 // Sheet am Handy und in der Kompaktliste. Das Zellmenü aus `ledger-rfq5p` gibt es nicht mehr;
-// die Filter-Knöpfe sitzen an den Feldern im Detail und lassen es offen. Gemessen wird am
+// die Filter-Knöpfe sitzen an den Feldern im Detail und lassen es offen (`LedgerFilterButtonTests`,
+// das Sheet am Handy im Layout-Sweep, Zustand kassenbuch-detail). Gemessen wird am
 // echten, per Vite gestarteten Fable-Client gegen gemockte Ledger-Antworten (Muster wie
 // `ledger-filter-bar.test.mjs`, nie die echte Entwicklungsdatenbank).
 //
@@ -13,7 +14,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
-import { getFreePort, startFrontend, stopServer, waitForPageLoaded, pollUntil } from "./screenshot-route.mjs";
+import { getFreePort, startFrontend, stopServer, waitForPageLoaded } from "./screenshot-route.mjs";
 import {
   CATEGORY_IDS,
   buildAccountsFixture,
@@ -26,7 +27,6 @@ let frontend;
 let frontendPort;
 let browser;
 let page;
-let mobilePage;
 const queries = [];
 
 const PAYEE = "REWE Mitte";
@@ -81,9 +81,6 @@ before(async () => {
   frontend = await startFrontend(frontendPort, undefined);
   browser = await chromium.launch();
   page = await open(await browser.newContext({ viewport: { width: 1440, height: 900 } }));
-  mobilePage = await open(
-    await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
-  );
 });
 
 after(async () => {
@@ -93,7 +90,6 @@ after(async () => {
 
 const row = (p, text) => p.locator("table tbody tr", { hasText: text }).first();
 const panel = (p) => p.locator('[data-testid="ledger-detail-panel"]');
-const sheet = (p) => p.locator(".bottom-sheet.active");
 const title = (p) => p.locator('[data-testid="detail-title"]');
 
 test("[flow:buchung-oeffnen] PC (1440): Klick auf die Payee-Zelle öffnet das Panel, kein Menü; Liste bleibt, Memo fehlt, Zeile markiert", async () => {
@@ -107,36 +103,10 @@ test("[flow:buchung-oeffnen] PC (1440): Klick auf die Payee-Zelle öffnet das Pa
   const geometry = await page.evaluate(() => {
     const table = document.querySelector("table").getBoundingClientRect();
     const aside = document.querySelector('[data-testid="ledger-detail-panel"]').getBoundingClientRect();
-    return { tableRight: table.right, panelLeft: aside.left, panelWidth: aside.width, rows: document.querySelectorAll("table tbody tr").length };
+    return { tableRight: table.right, panelLeft: aside.left, rows: document.querySelectorAll("table tbody tr").length };
   });
   assert.ok(geometry.rows >= 4, "die Liste bleibt sichtbar");
   assert.ok(geometry.tableRight <= geometry.panelLeft + 1, `Tabelle (${geometry.tableRight}) überlappt das Panel (${geometry.panelLeft}) nicht`);
-  assert.equal(Math.round(geometry.panelWidth), 420, "das Panel ist 420 px breit");
   assert.equal(await page.locator('table tbody tr button[aria-haspopup="menu"]').count(), 0, "keine Auslöser in den Zellen");
-  // Der Payee hat eine eigene Feldzeile, beide Filter-Knöpfe enden an derselben rechten Kante.
-  const rightEdge = (field) =>
-    panel(page).locator(`[data-testid="${field}"] [data-testid="detail-filter"]`).evaluate((el) => el.getBoundingClientRect().right);
-  const [payeeRight, categoryRight] = [await rightEdge("detail-payee"), await rightEdge("detail-category")];
-  assert.ok(Math.abs(payeeRight - categoryRight) < 1, `Filter-Knöpfe bündig rechts (${payeeRight} gegen ${categoryRight})`);
-});
-
-test("[layout] Handy (390x844): Tipp öffnet das Sheet mit Filter-Knöpfen an den Feldern, kein Block oben", async () => {
-  await mobilePage.getByText("Deutsche Bahn").first().tap();
-  await sheet(mobilePage).waitFor();
-  assert.equal(await mobilePage.locator('[data-testid="row-filter-actions"]').count(), 0, "kein Aktionsblock");
-  const buttons = sheet(mobilePage).locator('[data-testid="detail-filter"]');
-  assert.deepEqual(
-    await buttons.evaluateAll((els) => els.map((e) => e.getAttribute("aria-label"))),
-    ["Nur Buchungen von Deutsche Bahn zeigen", "Nur Buchungen in Alltag: Bahn zeigen"]
-  );
-  // Jeder Knopf sitzt in der Zeile seines Felds.
-  assert.equal(await sheet(mobilePage).locator('[data-testid="detail-payee"] [data-testid="detail-filter"]').count(), 1);
-  assert.equal(await sheet(mobilePage).locator('[data-testid="detail-category"] [data-testid="detail-filter"]').count(), 1);
-  const before = queries.length;
-  await buttons.first().tap();
-  await pollUntil(() => queries.length > before);
-  assert.ok(queries.length > before, "ein Neuladen lief");
-  assert.equal(queries[queries.length - 1].Payee, "Deutsche Bahn");
-  assert.equal(await sheet(mobilePage).count(), 1, "das Sheet bleibt offen");
 });
 

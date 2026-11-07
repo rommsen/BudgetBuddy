@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 23:55 -- Task verified and completed: infrastructure-jc1y1 - "Die 61 [layout]-Tests aufräumen: Designwert-Assertions löschen, Invarianten dem Sweep überlassen, Verhaltens-Assertions in passende Tests oder nach .NET verschieben"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-jc1y1 - "Die 61 [layout]-Tests aufräumen: Designwert-Assertions löschen, Invarianten dem Sweep überlassen, Verhaltens-Assertions in passende Tests oder nach .NET verschieben"
+**Summary:** [layout]-Einzeltests von 85 auf 21 aufgeräumt, Designwerte gelöscht, Invarianten im Sweep (12 neue Zustände, vier echte UI-Verstöße behoben), Verhaltensaussagen in [fokus]/[tastatur]/Flow oder .NET. Kein Pink auf der Budget-Seite prüft der Sweep im DOM, belegt per Rückdrehung von 5850313.
+**Duration:** ca. 3h
+**Verification:** PASS (iteration 4, nach Eskalation von Roman erlaubt)
+**Files changed:** 44
+**Tests added:** 8
+**ADRs written:** none
+
+---
+
 ## 2026-11-07 21:44 -- Verification failed: infrastructure-jc1y1 - Designwert-Tests aufräumen
 
 **Type:** Work / Verification failure

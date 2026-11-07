@@ -8,6 +8,10 @@
 //   - Inline-Stile `style.color`, `style.backgroundColor`, `style.borderColor`,
 //     `style.fontSize`
 //   - Arbitrary-Schriftgrößen `text-[13px]`, `text-[1.2rem]`
+//   - unter Components/Budget/ das wörtliche Pink (`neon-pink`, `neonPink`, `NeonPink`, `Stats.Pink`): auf
+//     der Budget-Seite gibt es kein Pink (ADR 0075 Punkt 5). Pink, das ein DS-Baustein setzt, ohne dass der
+//     Aufrufer es nennt (Fix 5850313: `Badge.warning`, `ErrorDisplay.warning`), prüft die Farbregel des
+//     Layout-Sweeps im gerenderten DOM (`measurePink` in scripts/layout-invariants.mjs).
 //
 // Außerhalb von src/Client/DesignSystem/ gilt null Toleranz. Innerhalb (der
 // Definitionsschicht) sind Treffer nur erlaubt, wenn sie in
@@ -58,13 +62,26 @@ export const PATTERNS = [
   },
 ];
 
+// Muster, die nur unter einem Ordner von src/Client/ gelten. Sie liegen außerhalb von DesignSystem/
+// und haben darum keine Ausnahmen.
+export const SCOPED_PATTERNS = [
+  {
+    name: "budget-ohne-pink",
+    dir: "Components/Budget/",
+    re: /neon-pink|[Nn]eonPink|\b(?:Stats\.)?Pink\b/g,
+  },
+];
+
+/** Die Muster für eine Datei, `rel` relativ zu src/Client/ mit `/`. */
+export const patternsFor = (rel) => [...PATTERNS, ...SCOPED_PATTERNS.filter((p) => rel.startsWith(p.dir))];
+
 /** Alle Treffer einer Quelle: [{ line, pattern, match }]. Kommentarzeilen (`//`) zählen nicht. */
-export function findViolations(source) {
+export function findViolations(source, patterns = PATTERNS) {
   const hits = [];
   const lines = source.split(/\r?\n/);
   lines.forEach((line, idx) => {
     if (line.trimStart().startsWith("//")) return;
-    for (const { name, re } of PATTERNS) {
+    for (const { name, re } of patterns) {
       re.lastIndex = 0;
       for (const m of line.matchAll(re)) {
         hits.push({ line: idx + 1, pattern: name, match: m[0] });
@@ -136,7 +153,8 @@ export function checkTree({ clientDir, exceptions, relativeTo = clientDir }) {
   for (const file of listFsFiles(clientDir)) {
     const rel = path.relative(relativeTo, file).split(path.sep).join("/");
     const inDs = file.startsWith(dsDir);
-    for (const hit of findViolations(fs.readFileSync(file, "utf8"))) {
+    const inClient = path.relative(clientDir, file).split(path.sep).join("/");
+    for (const hit of findViolations(fs.readFileSync(file, "utf8"), patternsFor(inClient))) {
       if (inDs) {
         const key = `${rel}|${hit.pattern}`;
         seen.set(key, (seen.get(key) ?? 0) + 1);

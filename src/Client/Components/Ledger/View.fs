@@ -331,12 +331,9 @@ let private flagBadge (flag: LedgerFlag) : ReactElement =
 /// etablierten Muster. `withAccessibleName` trägt "Markiert" als `title`/
 /// `aria-label` nach, weil das Symbol allein keinen Text mehr zeigt.
 ///
-/// Gemessen gegen die echte, tatsächlich gerenderte PC-Tabelle
-/// (Vite-Entwicklungsserver, echtes Tailwind-CSS) in
-/// `scripts/ledger-status-column.test.mjs`: zwei Kennzeichen nebeneinander in der
-/// 128px breiten Statuszelle, ohne Umbruch und ohne höhere Zeile, für jede der drei
-/// Kombinationen "Zu prüfen"+"Lena?", "Zu prüfen"+Ausnahme-Symbol und
-/// "Zu prüfen"+"Markiert"-Symbol.
+/// Dass zwei Kennzeichen in der Statuszelle nichts abschneiden, prüft der Layout-Sweep
+/// (`scripts/layout-states.mjs`, Zustand kassenbuch mit den Kombinationen "Zu prüfen"+"Lena?",
+/// "Zu prüfen"+Ausnahme-Symbol und "Zu prüfen"+"Markiert"-Symbol).
 let private flagStatusBadge (flag: LedgerFlag) : ReactElement =
     match flag with
     | NoFlag -> Html.none

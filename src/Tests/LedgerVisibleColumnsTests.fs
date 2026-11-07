@@ -2,7 +2,7 @@ module LedgerVisibleColumnsTests
 
 // ledger-qh9qx: Welche Spalten die PC-Tabelle bei welcher Tabellenbreite zeigt, ist eine
 // reine Funktion (`visibleColumns`) und läuft ohne Browser. Die Köpfe im echten Browser
-// misst `scripts/ledger-table-columns.test.mjs`.
+// misst der Layout-Sweep (Invariante 8, Zustand kassenbuch in `scripts/layout-states.mjs`).
 
 open Expecto
 open Components.Ledger.View

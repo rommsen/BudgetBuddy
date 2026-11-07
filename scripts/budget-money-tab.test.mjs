@@ -1,9 +1,11 @@
 // scripts/budget-money-tab.test.mjs
 //
 // Wächter für `budgeting-c5w2n`: was nur der Browser messen kann am Tab Geld. Fokus, Markieren,
-// Fensterwechsel, Höhe und Trefferflächen, sichtbarer Bereich mit offener Tastatur, lange Namen,
-// der Picker über dem Inspektor und der Hauptablauf gegen eine gemockte BudgetApi. Die Regeln
-// selbst liegen in `src/Tests/MoveMoneyClientTests.fs`.
+// Fensterwechsel und der Hauptablauf gegen eine gemockte BudgetApi. Feld und Knopf ohne Scrollen
+// (auch bei offener Tastatur) und lange Namen prüft der Layout-Sweep (Zustände budget-geld-*,
+// budget-picker), den Hinweis einer offenen Verschiebung in jedem Tab der Flow
+// verschiebung-erneut-senden in `move-money.test.mjs`. Die Regeln selbst liegen in
+// `src/Tests/MoveMoneyClientTests.fs`.
 //
 // Ausführen: node --test scripts/budget-money-tab.test.mjs
 // (Teil von `npm run test:scripts`.)
@@ -103,21 +105,6 @@ const until = async (page, condition) => {
 };
 const twoFrames = (page) =>
   page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
-const sheetBody = (page) => page.locator(".bottom-sheet.fixed-height.active .sheet-body");
-
-/// Weder das Element noch ein Kind darin kürzt seinen Text: ein Kind kann in sich überlaufen.
-const nothingCut = (el) =>
-  [el, ...el.querySelectorAll("span")]
-    .filter((e) => getComputedStyle(e).display !== "inline")
-    .every((e) => e.scrollWidth <= e.clientWidth);
-
-/// Liegt das Element ganz im sichtbaren Teil von `.sheet-body`, ohne zu scrollen?
-const insideBody = async (page, locator, label) => {
-  const box = await locator.boundingBox();
-  const body = await sheetBody(page).boundingBox();
-  assert.ok(box && body, `${label} ist da`);
-  assert.ok(box.y >= body.y && box.y + box.height <= body.y + body.height, `${label} liegt im Bild: ${box.y + box.height} gegen ${body.y + body.height}`);
-};
 
 before(async () => {
   frontendPort = await getFreePort();
@@ -180,26 +167,6 @@ test("[fokus] Der Wechsel in ein anderes Programm speichert nicht: das Feld blei
   }
 });
 
-test("[layout] Handy: das Sheet ist in allen drei Modi 500 px hoch, Zuweisen zeigt Feld, sechs Schritte und Knopf ohne Scrollen", async () => {
-  const { context, page } = await openPage(390, 844);
-  try {
-    await row(page, "Rot c5w2n").click();
-    const sheet = page.locator(".bottom-sheet.fixed-height.active");
-    await mode(page, "Zuweisen").click();
-    await field(page).waitFor();
-    await insideBody(page, field(page), "Feld");
-    assert.equal(await page.locator('[data-testid="assign-step"]').count(), 6, "sechs Schritte");
-    for (const label of ["-50", "+50"]) await insideBody(page, step(page, label), `Schritt ${label}`);
-    await insideBody(page, page.locator('[data-testid="assign-missing"] button'), "Knopf");
-    for (const name of ["Zuweisen", "Holen", "Abgeben"]) {
-      await mode(page, name).click();
-      assert.equal((await sheet.boundingBox()).height, 500, name);
-    }
-  } finally {
-    await context.close();
-  }
-});
-
 test("[flow:geld-zuweisen] Handy, Hauptablauf: Zeile wählen, +20 tippen, weiter mit dem Pfeil; die Zuweisung trägt Monat und Wert der Eingabe", async () => {
   const { context, page, calls } = await openPage(390, 844);
   try {
@@ -217,22 +184,8 @@ test("[flow:geld-zuweisen] Handy, Hauptablauf: Zeile wählen, +20 tippen, weiter
   }
 });
 
-test("[layout] Handy mit offener Tastatur: das Sheet schrumpft, Feld und Verfügbar danach liegen im sichtbaren Bereich", async () => {
-  const { context, page } = await openPage(390, 844);
-  try {
-    await row(page, "Lebensmittel c5w2n").click();
-    await field(page).fill("+20");
-    // Wie die Tastatur: der sichtbare Bereich wird kleiner. `Viewport` schreibt daraus `--vvh`.
-    await page.setViewportSize({ width: 390, height: 420 });
-    await page.waitForFunction(() => document.querySelector(".bottom-sheet.fixed-height.active").getBoundingClientRect().height === 408);
-    await insideBody(page, field(page), "Feld");
-    await insideBody(page, page.locator('[data-testid="assign-available-after"]'), "Verfügbar danach");
-  } finally {
-    await context.close();
-  }
-});
-
-test("[fokus] Handy: ein Tipp auf Schritt, Fehlbetrag- oder Pause-Knopf lässt den Fokus im Feld, alles misst 48 px, die Schritte passen in 360 px", async () => {
+// Trefferflächen, Feldschrift und dass die Schritte passen, prüft der Layout-Sweep (Zustände budget-geld-*).
+test("[fokus] Handy: ein Tipp auf Schritt, Fehlbetrag- oder Pause-Knopf lässt den Fokus im Feld", async () => {
   const { context, page, calls } = await openPage(360, 800);
   try {
     await row(page, "Rot c5w2n").click();
@@ -242,20 +195,6 @@ test("[fokus] Handy: ein Tipp auf Schritt, Fehlbetrag- oder Pause-Knopf lässt d
     assert.ok(await isFieldActive(page), "Schritt: der Fokus bleibt");
     assert.equal(await field(page).inputValue(), "10,00", "der Schritt wirkt");
 
-    const sizes = [
-      ...(await page.locator('[data-testid="money-mode"]').all()),
-      ...(await page.locator('[data-testid="assign-step"]').all()),
-      page.locator('[data-testid="assign-missing"] button'),
-      field(page),
-    ];
-    for (const element of sizes) {
-      assert.ok((await element.boundingBox()).height >= 48, "48 px");
-    }
-    const steps = await Promise.all((await page.locator('[data-testid="assign-step"]').all()).map((s) => s.boundingBox()));
-    assert.ok(steps.at(-1).x + steps.at(-1).width <= 360, "die Schritte passen");
-    assert.ok(await page.locator('[data-testid="assign-steps"]').evaluate((el) => el.scrollWidth <= el.clientWidth), "nichts läuft über");
-    assert.equal(await field(page).evaluate((el) => getComputedStyle(el).fontSize), "16px", "Feldschrift");
-
     await page.locator('[data-testid="assign-missing"] button').tap();
     await until(page, () => calls.move.length === 1);
     assert.ok(await isFieldActive(page), "Knopf: der Fokus bleibt");
@@ -263,11 +202,6 @@ test("[fokus] Handy: ein Tipp auf Schritt, Fehlbetrag- oder Pause-Knopf lässt d
     await page.locator('[data-testid="target-pause"] button').tap();
     await until(page, () => calls.pause.length === 1);
     assert.ok(await isFieldActive(page), "Pause-Knopf: der Fokus bleibt");
-
-    await mode(page, "Holen").click();
-    const amountSize = await page.locator('[data-testid="transfer-amount"] input').evaluate((el) => getComputedStyle(el).fontSize);
-    assert.ok(parseFloat(amountSize) >= 16, "Betrag: iOS zoomt nicht");
-    assert.ok((await page.locator('[data-testid="transfer-from"]').boundingBox()).height >= 48, "von");
   } finally {
     await context.close();
   }
@@ -298,78 +232,6 @@ test("[tastatur] PC, Panel: Feld tippen, Enter, Pfeil runter wählt die nächste
     await page.locator('[data-testid="transfer-amount"] input').click();
     await page.keyboard.press("Enter");
     await fieldLeft();
-  } finally {
-    await context.close();
-  }
-});
-
-test("[layout] Lange Kategorienamen stehen in von, nach und im Knopf vollständig, am Handy und im Panel", async () => {
-  for (const [width, height] of [[390, 844], [1280, 800]]) {
-    const { context, page } = await openPage(width, height);
-    try {
-      await row(page, "Lebensmittel c5w2n").click();
-      await mode(page, "Abgeben").click();
-      await page.locator('[data-testid="transfer-amount"] input').fill("5");
-      await page.locator('[data-testid="transfer-to"]').click();
-      await page.locator('[role="option"]:visible').filter({ hasText: LONG }).last().click();
-      await page.locator('[data-testid="transfer-to"]').getByText(LONG).waitFor();
-      for (const selector of ['[data-testid="transfer-to"]', '[data-testid="transfer-submit"] button']) {
-        assert.ok(await page.locator(selector).evaluate(nothingCut), `${width}: ${selector} kürzt nichts`);
-        assert.ok((await page.locator(selector).innerText()).includes(LONG), `${width}: ${selector} zeigt den Namen ganz`);
-      }
-      // Das Sheet des Pickers schluckt den nächsten Klick (ADR 0005), am PC gibt es die Sperre nicht.
-      await page.locator('[data-testid="detail-activity"]').first().click();
-      await mode(page, "Holen").click();
-      const from = page.locator('[data-testid="transfer-from"]');
-      await from.getByText(LONG).waitFor();
-      assert.ok(await from.evaluate(nothingCut), `${width}: von kürzt nichts`);
-    } finally {
-      await context.close();
-    }
-  }
-});
-
-test("[layout] Handy: der Picker geht über dem Inspektor auf, zeigt Zuletzt verwendet, schließt ohne Ghost-Click, das Sheet bleibt offen", async () => {
-  const { context, page, calls } = await openPage(390, 844);
-  try {
-    await row(page, "Lebensmittel c5w2n").click();
-    await mode(page, "Holen").click();
-    await page.locator('[data-testid="transfer-from"]').click();
-    const layered = page.locator(".bottom-sheet.layer-2");
-    await layered.getByText("Zuletzt verwendet").waitFor();
-    const inspector = page.locator(".bottom-sheet.fixed-height.active");
-    assert.ok(await inspector.isVisible(), "der Inspektor steht darunter");
-    await layered.locator('[data-testid="category-picker-to-be-budgeted"]').tap();
-    await page.locator('[data-testid="transfer-from"]').getByText("Zu verteilen").waitFor();
-    await twoFrames(page);
-    assert.ok(await inspector.isVisible(), "der Inspektor bleibt offen");
-    assert.equal(await mode(page, "Holen").getAttribute("aria-pressed"), "true", "kein Ghost-Click");
-  } finally {
-    await context.close();
-  }
-});
-
-test("[layout] Handy: der Hinweis einer offenen Verschiebung steht im festen Bereich des Sheets, in jedem Tab sichtbar", async () => {
-  const { context, page } = await openPage(390, 844);
-  try {
-    const failed = {
-      ApplicationId: guid(8),
-      Month: "2026-11-01",
-      Lines: [{ CategoryId: guid(2), CategoryName: "Rot c5w2n", OldAssigned: eur(0), NewAssigned: eur(12.3), Outcome: { Failed: "Rate-Limit" } }],
-      ActualToBeBudgeted: null,
-    };
-    await page.route("**/api/BudgetApi/moveMoney", (route) =>
-      route.fulfill({ contentType: "application/json", body: JSON.stringify({ Ok: failed }) })
-    );
-    await row(page, "Rot c5w2n").click();
-    await mode(page, "Zuweisen").click();
-    await page.locator('[data-testid="assign-missing"] button').click();
-    const hint = page.locator('.bottom-sheet.fixed-height.active .sheet-pinned [data-testid="move-retry"]');
-    await hint.waitFor();
-    for (const tab of await page.locator(".bottom-sheet.fixed-height.active").getByRole("tab").all()) {
-      await tab.click();
-      assert.ok(await hint.isVisible(), "der Hinweis steht in jedem Tab");
-    }
   } finally {
     await context.close();
   }

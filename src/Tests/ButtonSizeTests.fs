@@ -2,7 +2,7 @@ module ButtonSizeTests
 
 // design-system-j6dnj: Button.Small ist am Handy mindestens 48 px hoch (Styleguide §4, Touch-Fläche),
 // ab md ohne Mindesthöhe. Icon-only-Knöpfe sind mobil auch 48 px breit.
-// Die Höhe misst der Browser-Wächter scripts/touch-target-small-button.test.mjs; hier steht nur
+// Die Höhe misst der Layout-Sweep (scripts/layout-states.mjs, Zustand kassenbuch-aufteilen); hier steht nur
 // die Verzweigung von iconOnlyClass (welche Knöpfe als Icon-only gelten), infrastructure-hdf7j.
 
 open Expecto

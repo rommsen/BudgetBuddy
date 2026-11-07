@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 5
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 48
+- **Doing:** 0
+- **Done:** 49
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **infrastructure-jc1y1** — "Die 61 [layout]-Tests aufräumen: Designwert-Assertions löschen, Invarianten dem Sweep überlassen, Verhaltens-Assertions in passende Tests oder nach .NET verschieben" (chore) — `doing/infrastructure-jc1y1-layouttests-aufraeumen.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **infrastructure-jc1y1** — "Die 61 [layout]-Tests aufräumen: Designwert-Assertions löschen, Invarianten dem Sweep überlassen, Verhaltens-Assertions in passende Tests oder nach .NET verschieben" (chore) — `done/infrastructure-jc1y1-layouttests-aufraeumen.md`
 - **infrastructure-nx14s** — "Layout-Invarianten als ein generischer Sweep über alle Routen und Breiten statt als Designwerte je Komponente, mit Doktrin-Regel für Layout-Regressionen" (chore) — `done/infrastructure-nx14s-layout-invarianten-sweep.md`
 - **infrastructure-vp308** — "Fehler über die Grenze: kein Stacktrace an den Client, kein YNAB-Rohtext an Client, Bob und in events" (bug) — `done/infrastructure-vp308-fehler-ueber-die-grenze-ohne-stacktrace-und-ynab-rohtext.md`
 - **infrastructure-k84s2** — "Geldanzeige und Vorbelegung runden halbe Cent kaufmännisch über roundHalfUp" (bug) — `done/infrastructure-k84s2-geldanzeige-rundet-halbe-cent-kaufmaennisch.md`

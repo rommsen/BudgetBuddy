@@ -118,11 +118,8 @@ test("[flow:barabhebung-aufteilen] Handy (390x844): Barabhebung im Editor-Sheet,
   await sheet.locator('[data-testid="split-summary"]').waitFor();
   await loaded;
   const button = sheet.getByRole("button", { name: "Barabhebung", exact: true });
+  // Trefferfläche und Lage im Sheet prüft der Layout-Sweep (Zustand kassenbuch-aufteilen).
   await button.scrollIntoViewIfNeeded();
-  const box = await button.boundingBox();
-  const add = await sheet.getByRole("button", { name: "Zeile hinzufügen" }).boundingBox();
-  assert.equal(box.height, add.height, "gleiche Höhe wie der Nachbarknopf");
-  assert.ok(box.x + box.width <= 390, "Knopf liegt im Sheet");
   await button.tap();
   assert.match(await sheet.locator('[data-testid="split-target-1"]').textContent(), /→ Bargeld s8t3s/);
   await context.close();

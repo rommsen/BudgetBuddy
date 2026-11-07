@@ -154,8 +154,6 @@ test("[flow:geld-verschieben] Handy: Zeile wählen, Abgeben, Gegenseite suchen, 
     await page.locator('[data-testid="transfer-amount"] input').fill("20");
     assert.match(await text(page.locator('[data-testid="transfer-from"]')), /von Lebensmittel afd8h 60,00 €/);
     assert.match(await text(page.locator('[data-testid="transfer-to"]')), /nach Urlaub afd8h -10,00 €/);
-    const negative = page.locator('[data-testid="transfer-to"] span.font-mono');
-    assert.match(await negative.getAttribute("class"), /text-neon-red/, "negatives Ergebnis ist rot");
     assert.equal(await text(submit), "20,00 € an Urlaub afd8h abgeben");
 
     await afterPicker(page);
@@ -174,7 +172,7 @@ test("[flow:geld-verschieben] Handy: Zeile wählen, Abgeben, Gegenseite suchen, 
   }
 });
 
-test("[flow:verschiebung-erneut-senden] Fehlgeschlagener PATCH: der Toast bietet Erneut senden an, der Klick sendet dieselbe Anwendung", async () => {
+test("[flow:verschiebung-erneut-senden] Fehlgeschlagener PATCH: der Hinweis steht in jedem Tab, der Toast bietet Erneut senden an, der Klick sendet dieselbe Anwendung", async () => {
   const { context, page, calls } = await openPage(390, 844, {
     move: () => ({ Ok: report({ Failed: "Rate-Limit" }) }),
     retry: () => ({ Ok: report("Written") }),
@@ -187,6 +185,14 @@ test("[flow:verschiebung-erneut-senden] Fehlgeschlagener PATCH: der Toast bietet
     await afterPicker(page);
     await page.locator('[data-testid="transfer-submit"] button').click();
     await page.getByText(/Nicht vollständig verschoben: Rate-Limit/).first().waitFor();
+    // Der Hinweis der offenen Verschiebung steht in jedem Tab des Sheets (aus dem früheren Layout-Test in
+    // budget-money-tab.test.mjs hierher gezogen).
+    const hint = page.locator('.bottom-sheet.fixed-height.active [data-testid="move-retry"]');
+    const tabs = await page.locator(".bottom-sheet.fixed-height.active").getByRole("tab").all();
+    for (const tab of [...tabs, tabs[0]]) {
+      await tab.click();
+      await hint.waitFor();
+    }
     await page.locator('button:has-text("Erneut senden"):not([data-testid="move-retry"] button)').click();
     await page.locator('[data-testid="move-retry"]').waitFor({ state: "detached" });
     await page.getByText("20,00 € von Lebensmittel afd8h nach Urlaub afd8h").first().waitFor();
@@ -196,36 +202,26 @@ test("[flow:verschiebung-erneut-senden] Fehlgeschlagener PATCH: der Toast bietet
   }
 });
 
-test("[layout] Panel 1280 × 800: der Auslöser schließt das offene Popover, es ist ganz sichtbar und wird vom Panel nicht abgeschnitten", async () => {
+// Bug budgeting-nfrds: der Mausdruck zählte als Klick außerhalb und schloss das Popover, der Klick öffnete
+// es wieder. Der Filter kürzt das Popover, der Auslöser bleibt liegen. Dass das Popover ganz im Panel liegt
+// und sein Fuß nicht verdeckt ist, prüft der Layout-Sweep (Zustand budget-picker).
+test("[tastatur] Panel 1280 × 800: ein Mausklick auf den Auslöser schließt das offene Kategorie-Popover", async () => {
   const { context, page } = await openPage(1280, 800, {
     move: () => ({ Error: "nicht erwartet" }),
     retry: () => ({ Error: "nicht erwartet" }),
   });
   try {
     await openMoveFor(page, "Lebensmittel afd8h");
-    assert.equal(await page.locator(".bottom-sheet.active").count(), 0, "kein Sheet am PC");
     const trigger = page.locator('[data-testid="transfer-to"]');
     await trigger.click();
     const hint = page.locator('[data-testid="category-picker-footer-hint"]');
     await hint.waitFor();
-    await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
-    const panel = await page.locator('aside[data-testid="budget-inspector"]').boundingBox();
-    const popover = await page.locator(".rounded-2xl.bg-surface-elevated.shadow-2xl").last().boundingBox();
-    assert.ok(panel && popover, "beide da");
-    assert.ok(popover.x >= panel.x && popover.x + popover.width <= panel.x + panel.width, "seitlich im Panel");
-    assert.ok(popover.y >= panel.y && popover.y + popover.height <= panel.y + panel.height, `in der Höhe im Panel (${popover.y + popover.height} gegen ${panel.y + panel.height})`);
-    const footerInView = await hint.evaluate((el) => {
-      const box = el.getBoundingClientRect();
-      const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
-      return el === hit || el.contains(hit);
-    });
-    assert.ok(footerInView, "der Fuß des Popovers ist nicht verdeckt");
-    // Bug budgeting-nfrds: der Mausdruck zählte als Klick außerhalb und schloss das Popover, der
-    // Klick öffnete es wieder. Der Filter kürzt das Popover, der Auslöser bleibt liegen.
     await page.keyboard.type("zzzz");
     await page.locator('[data-testid="category-picker-to-be-budgeted"]').waitFor({ state: "detached" });
+    // Gewartet wird auf das Ende des Klicks und zwei Bilder danach: ein Wiederöffnen wäre dann gerendert.
+    const clicked = page.evaluate(() => new Promise((done) => window.addEventListener("click", () => requestAnimationFrame(() => requestAnimationFrame(done)), { once: true, capture: true })));
     await trigger.click();
-    await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+    await clicked;
     assert.equal(await hint.count(), 0, "bleibt zu");
   } finally {
     await context.close();

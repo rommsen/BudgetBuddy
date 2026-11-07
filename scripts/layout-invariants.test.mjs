@@ -213,6 +213,35 @@ test("[layout] Gegenbeweis Invariante 9: eine Zeile, die erst nach der Antwort w
   assert.ok(hits.some((v) => v.selector.includes("Sync starten")), hits.map(formatViolation).join("\n"));
 });
 
+// ADR 0075 Punkt 5, Fix 5850313: vor dem Fix kam Pink über `Badge.warning` und `ErrorDisplay.warning` auf die
+// Budget-Seite, im Budget-Quelltext stand kein "pink". Die Farbregel prüft darum das gerenderte DOM in jedem
+// Budget-Zustand des Sweeps. Gegenbeweis: ein eingefügtes Element mit den Klassen von `Badge.warning` und eines
+// mit Pink nur als berechneter Farbe werden gemeldet, derselbe Zustand ohne sie und ein Kassenbuch-Zustand nicht.
+const insertPink = (html) => (page) =>
+  page.evaluate((markup) => document.querySelector('[data-testid="budget-to-be-budgeted"], [data-testid="target-check-page"], main').insertAdjacentHTML("afterend", markup), html);
+
+test("[layout] Gegenbeweis Farbregel ADR 0075: Pink auf der Budget-Seite wird mit Zustand, Breite und Selektor gemeldet", async () => {
+  const badge = await runState(browser, baseUrl, stateNamed("budget"), 390, {
+    checks: ["pink"],
+    prepare: insertPink('<span data-testid="pink-probe" class="inline-flex px-2 bg-neon-pink/10 text-neon-pink border border-neon-pink/30">in YNAB geändert</span>'),
+  });
+  assert.ok(badge.some((v) => v.state === "budget" && v.width === 390 && v.selector.includes("pink-probe") && /neon-pink/.test(v.value)), badge.map(formatViolation).join("\n"));
+  assert.match(formatViolation(badge[0]), /^budget @ 390 px, Farbregel ADR 0075/);
+
+  const computed = await runState(browser, baseUrl, stateNamed("targets-pruefen"), 1440, {
+    checks: ["pink"],
+    prepare: insertPink('<p data-testid="pink-probe" style="color: var(--color-neon-pink)">Hinweis</p>'),
+  });
+  assert.ok(computed.some((v) => v.selector.includes("pink-probe") && /color ist Pink/.test(v.value)), computed.map(formatViolation).join("\n"));
+
+  assert.deepEqual(await runState(browser, baseUrl, stateNamed("budget"), 390, { checks: ["pink"] }), [], "ohne Pink grün");
+  const ledger = await runState(browser, baseUrl, stateNamed("kassenbuch"), 390, {
+    checks: ["pink"],
+    prepare: insertPink('<span data-testid="pink-probe" class="text-neon-pink">zu prüfen</span>'),
+  });
+  assert.deepEqual(ledger, [], "das Kassenbuch behält sein Pink");
+});
+
 test("[layout] settle wartet nicht auf eine pausierte Animation", { timeout: 30000 }, async () => {
   const css = '[data-testid="budget-page"] { animation: sweep-paused 1s paused; } @keyframes sweep-paused { to { opacity: 0.5; } }';
   assert.deepEqual(await brokenRun("budget", 390, 1, css), []);

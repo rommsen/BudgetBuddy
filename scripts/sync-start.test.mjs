@@ -7,8 +7,9 @@
 // "Ich habe bestätigt" führt in die Prüfung. `initiateComdirectAuth` gibt es nicht mehr: der
 // Catch-all antwortet darauf mit 500, und der Test merkt sich jeden solchen Aufruf.
 //
-// infrastructure-t5m2b: hier bleiben die Höhe der Statuszeile (Layout), der TAN-Fluss als Happy Path
-// und eine verlorene Antwort mit abgebrochenem Neulesen (Status 0 gibt es nur im Fable-Kompilat).
+// infrastructure-t5m2b: hier bleiben der TAN-Fluss als Happy Path und eine verlorene Antwort mit
+// abgebrochenem Neulesen (Status 0 gibt es nur im Fable-Kompilat). Dass die Zeile zum Bankstand beim
+// Laden nicht springt, prüft der Layout-Sweep (Zustand sync-start, Invariante 9).
 // Die Texte zum Stand prüft `ClientCommandTests.fs` ("Hinweis zur Bankverbindung"), die übrigen
 // Ausgänge nach verlorener Antwort und ReviewReady ohne TAN `SyncFlowStateTests.fs`, dass die
 // TAN-Bestätigung nie wiederholt wird, das Inventar in `RetryTests.fs`.
@@ -88,29 +89,6 @@ async function open(startAnswer, lost) {
   await page.getByRole("button", { name: "Sync starten" }).click();
   return { ctx, page, calls };
 }
-
-test("[layout] die Zeile zum Stand der Bank nimmt beim Laden schon ihre Höhe ein", async () => {
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
-  const page = await ctx.newPage();
-  page.setDefaultTimeout(15000);
-  const { promise: released, resolve: answer } = Promise.withResolvers();
-  await page.route("**/api/**", (r) => r.fulfill({ status: 500, body: "x" }));
-  await page.route("**/api/SyncApi/getCurrentSession", (r) => r.fulfill(json(null)));
-  await page.route("**/api/SyncApi/getBankConnectionStatus", async (r) => {
-    await released;
-    await r.fulfill(json("BankConnected"));
-  });
-  await page.goto(`http://localhost:${port}/#/`);
-  const start = page.getByRole("button", { name: "Sync starten" });
-  await start.waitFor();
-  // Die Einblendung der Ansicht verschiebt den Knopf selbst, gemessen wird danach.
-  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
-  const before = (await start.boundingBox()).y;
-  answer();
-  await page.getByText("Nächster Sync ohne TAN").waitFor();
-  assert.equal((await start.boundingBox()).y, before, "kein Layout-Sprung");
-  await ctx.close();
-});
 
 test("[flow:sync-starten] ohne Bankverbindung: erst der TAN-Schritt, dann die Prüfung", async () => {
   const { ctx, page, calls } = await open(["TanRequired", "AwaitingTan"]);

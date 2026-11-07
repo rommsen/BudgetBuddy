@@ -2,9 +2,9 @@
 //
 // Wächter für `budgeting-h2zfn`: der Dialog "Targets anwenden" auf der Budget-Seite, seit budgeting-m3x7f
 // geöffnet über das Feld Targets anwenden der Leiste Monatserster, mit abwählbaren Zeilen. Gemessen am echten,
-// per Vite gestarteten Fable-Client gegen gemockte BudgetApi-Antworten: Summe und "Zu verteilen danach" am
-// Handy ohne Scrollen sichtbar, Anwenden erreichbar auch bei langer Liste, Farben der Hinweise, und der Flow
-// über die Leiste mit einer abgewählten Zeile bis zum Bericht.
+// per Vite gestarteten Fable-Client gegen gemockte BudgetApi-Antworten: der Flow über die Leiste mit einer
+// abgewählten Zeile bis zum Bericht. Summe und Anwenden ohne Scrollen prüft der Layout-Sweep (Zustand
+// budget-targets-anwenden), "kein Pink auf der Budget-Seite" (ADR 0075) die Farbregel desselben Sweeps.
 //
 // Ausführen: node --test scripts/targets-apply.test.mjs
 // (Teil von `npm run test:scripts`.)
@@ -123,70 +123,6 @@ before(async () => {
 after(async () => {
   if (browser) await browser.close();
   await stopServer(frontend, frontendPort);
-});
-
-test("[layout] Handy: Summe und Zu verteilen danach sichtbar, Anwenden ohne Scrollen erreichbar, auch bei langer Liste", async () => {
-  const preview = previewFixture(40);
-  const { context, page, calls } = await openPage(390, 844, { preview, apply: () => ({ Error: "nicht erwartet" }), retry: () => ({ Error: "x" }) });
-  try {
-    await open(page);
-    assert.deepEqual(calls.preview, [["2026-11-01"]], "Vorschau für den laufenden Monat");
-    assert.match(await text(page.locator('[data-testid="targets-total"]')), /^400,00$/);
-    assert.match(await text(page.locator('[data-testid="targets-after"]')), /^4\.600,00$/);
-    for (const id of ["targets-total", "targets-after"]) {
-      const box = await page.locator(`[data-testid="${id}"]`).boundingBox();
-      assert.ok(box && box.y >= 0 && box.y + box.height <= 844, `${id} liegt im sichtbaren Bereich`);
-    }
-    const apply = page.getByRole("button", { name: "Anwenden", exact: true });
-    const box = await apply.boundingBox();
-    assert.ok(box && box.y >= 0 && box.y + box.height <= 844, "Anwenden liegt ohne Scrollen im Bild");
-    assert.equal(await page.locator('[data-testid="targets-line"]').count(), 40);
-    const overflow = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
-    assert.ok(overflow, "kein horizontales Scrollen");
-    assert.equal(calls.apply.length, 0, "die Vorschau schreibt nicht");
-  } finally {
-    await context.close();
-  }
-});
-
-test("[layout] Hinweise im Dialog stehen in Gelb, auf der Budget-Seite gibt es kein Pink (ADR 0075)", async () => {
-  const preview = previewFixture(2);
-  const answers = [
-    { Ok: { PreviewChanged: preview } },
-    { Ok: { Applied: reportFixture(preview, ["ChangedInYnab", "Written"], eur(1)) } },
-  ];
-  const { context, page } = await openPage(1440, 900, {
-    preview,
-    apply: (n) => answers[n - 1],
-    retry: () => ({ Error: "ungenutzt" }),
-  });
-  const yellow = () =>
-    page.evaluate(() => {
-      const probe = document.createElement("span");
-      probe.style.color = "var(--color-calm-yellow)";
-      document.body.append(probe);
-      const color = getComputedStyle(probe).color;
-      probe.remove();
-      return color;
-    });
-  const pinkCount = () => page.locator('[class*="neon-pink"]').count();
-  try {
-    await open(page);
-    assert.equal(await pinkCount(), 0, "kein Pink in der Vorschau");
-    await page.getByRole("button", { name: "Anwenden", exact: true }).click();
-    const changed = page.locator('[data-testid="targets-changed"]');
-    await changed.waitFor();
-    assert.equal(await pinkCount(), 0, "kein Pink beim Hinweis Stand geändert");
-    assert.equal(await changed.locator("svg").first().evaluate((el) => getComputedStyle(el).color), await yellow());
-
-    await page.getByRole("button", { name: "Anwenden", exact: true }).click();
-    await page.locator('[data-testid="targets-differs"]').waitFor();
-    assert.equal(await pinkCount(), 0, "kein Pink bei Abweichung und in YNAB geändert");
-    const badge = page.getByText("in YNAB geändert").first();
-    assert.equal(await badge.evaluate((el) => getComputedStyle(el).color), await yellow());
-  } finally {
-    await context.close();
-  }
 });
 
 test("[flow:targets-anwenden] Handy: über die Leiste die Vorschau öffnen, eine Zeile abwählen, anwenden, X von N, erneutes Senden holt den Rest", async () => {

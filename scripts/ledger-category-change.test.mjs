@@ -190,16 +190,8 @@ test("[flow:kategorie-aendern] PC (1440): Pfeil öffnet den Picker im Panel, Aus
   assert.equal(await panel(page).locator('[role="listbox"]').count(), 0, "Picker zu");
   assert.match(await categoryRow(panel(page)).textContent(), /Wohnen: Nebenkosten/, "Detail zeigt die neue Kategorie");
   assert.match(await row(page, "REWE Mitte").textContent(), /Wohnen: Nebenkosten/, "Liste ebenso");
-  // Die Karte steht unter dem Kategorie-Feld, mit durchgestrichenem altem Wert.
   const card = panel(page).locator('[data-testid="category-change-card"]');
-  const order = await page.evaluate(() => {
-    const row = document.querySelector('[data-testid="ledger-detail-panel"] [data-testid="detail-category"]').getBoundingClientRect();
-    const card = document.querySelector('[data-testid="category-change-card"]').getBoundingClientRect();
-    return { rowBottom: row.bottom, cardTop: card.top };
-  });
-  assert.ok(order.cardTop >= order.rowBottom - 1, "Karte unter dem Kategorie-Feld");
   assert.match(await card.textContent(), /Budget nach dem Wechsel/);
-  assert.equal(await card.locator(".line-through").count(), 2, "alter Wert je Zeile durchgestrichen");
   assert.match(await card.textContent(), /120,50/, "alter Wert der alten Kategorie");
   // Toast mit Rückgängig, ohne Beträge.
   const toastText = page.getByText("Kategorie geändert: Nebenkosten", { exact: true });
@@ -210,62 +202,5 @@ test("[flow:kategorie-aendern] PC (1440): Pfeil öffnet den Picker im Panel, Aus
   assert.deepEqual(state.setCalls[1].choice, { YnabCategoryId: CAT.lebensmittel.id }, "Rückgängig sendet die alte Kategorie");
   await page.waitForFunction(() => /Alltag: Lebensmittel/.test(document.querySelector('[data-testid="detail-category"]')?.textContent ?? ""));
   assert.equal(await page.locator('[data-testid="category-change-card"]').count(), 0, "Rücknahme zeigt keine neue Karte");
-  await context.close();
-});
-
-test("[layout] Handy (390x844): Der Picker öffnet als zweites Sheet über dem Detail, die Karte steht unter dem Kategorie-Feld", async () => {
-  resetState();
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
-  const page = await open(context);
-  await page.getByText("REWE Mitte").first().tap();
-  const detailSheet = page.locator(".bottom-sheet.active").first();
-  await detailSheet.waitFor();
-  await arrow(detailSheet).tap();
-  const pickerSheet = page.locator(".bottom-sheet.active", { hasText: "Kategorie wählen" });
-  await pickerSheet.waitFor();
-  assert.equal(await page.locator(".bottom-sheet.active").count(), 2, "beide Sheets stehen");
-  const z = await page.evaluate(() => {
-    const sheets = [...document.querySelectorAll(".bottom-sheet.active")];
-    const rank = (el) => {
-      let node = el;
-      while (node && node !== document.body) {
-        const z = parseInt(getComputedStyle(node).zIndex, 10);
-        if (!Number.isNaN(z)) return z;
-        node = node.parentElement;
-      }
-      return 0;
-    };
-    return sheets.map((s) => ({ text: s.textContent.includes("Kategorie wählen"), z: rank(s), top: s.getBoundingClientRect().top }));
-  });
-  const picker = z.find((s) => s.text);
-  const detail = z.find((s) => !s.text);
-  assert.ok(picker.z > detail.z, `Picker liegt über dem Detail (${picker.z} gegen ${detail.z})`);
-  await pickerSheet.locator('[role="option"]', { hasText: "Nebenkosten" }).last().tap();
-  await page.locator('[data-testid="category-change-card"]').waitFor();
-  const order = await page.evaluate(() => {
-    const row = document.querySelector('.bottom-sheet.active [data-testid="detail-category"]').getBoundingClientRect();
-    const card = document.querySelector('.bottom-sheet.active [data-testid="category-change-card"]').getBoundingClientRect();
-    return { rowBottom: row.bottom, cardTop: card.top };
-  });
-  assert.ok(order.cardTop >= order.rowBottom - 1, "Karte unter dem Kategorie-Feld im Detail-Sheet");
-  assert.equal(await page.locator(".bottom-sheet.active", { hasText: "Kategorie wählen" }).count(), 0, "Picker-Sheet zu");
-  // Regression (2026-10-24, Live-Befund): Der Toast lag am Handy hinter dem Detail-Sheet
-  // (Toast z-50, .bottom-sheet z-60) und war samt "Rückgängig" unsichtbar. Er muss über
-  // dem offenen Detail-Sheet das oberste Element sein und sich antippen lassen.
-  const undo = page.locator('[data-toast-action="true"]', { hasText: "Rückgängig" });
-  await undo.waitFor();
-  const topmost = await undo.evaluate((el) => {
-    const r = el.getBoundingClientRect();
-    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-    return hit === el || el.contains(hit);
-  });
-  assert.ok(topmost, "Rückgängig im Toast liegt über dem Detail-Sheet");
-  // Das Picker-Sheet schluckt nach der Wahl bis zu 350 ms lang genau einen Klick (ADR 0005):
-  // ein geschluckter Tipp ändert nichts, also bis zur Wirkung wiederholen.
-  for (let attempt = 0; attempt < 5 && state.setCalls.length < 2; attempt += 1) {
-    await undo.tap();
-    await pollUntil(() => state.setCalls.length >= 2, 500);
-  }
-  assert.deepEqual(state.setCalls[1]?.choice, { YnabCategoryId: CAT.lebensmittel.id }, "Rückgängig im Toast sendet am Handy die alte Kategorie");
   await context.close();
 });

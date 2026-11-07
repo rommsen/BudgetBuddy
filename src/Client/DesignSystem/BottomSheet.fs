@@ -105,12 +105,12 @@ let chipButton (text: string) (isSuggested: bool) (onClick: unit -> unit) : Reac
     ]
 
 /// Options-Zeile für Sortier- und Auswahl-Sheets (ledger-skpcx, ADR 0049): Beschriftung
-/// links, ein Haken rechts bei der gewählten Option, 44px Trefferfläche. Der Tipp
+/// links, ein Haken rechts bei der gewählten Option, 48 px Trefferfläche am Handy, 44 px ab md. Der Tipp
 /// committet auf dem echten `click`, nicht auf `pointerdown` (siehe `chipButton`).
 let optionRow (label: string) (isSelected: bool) (onClick: unit -> unit) : ReactElement =
     Html.button [
         prop.type' "button"
-        prop.className "w-full text-left category-item min-h-[44px] flex items-center justify-between gap-3 min-w-0"
+        prop.className "w-full text-left category-item min-h-12 md:min-h-[44px] flex items-center justify-between gap-3 min-w-0"
         prop.custom ("aria-pressed", isSelected)
         prop.onClick (fun e ->
             e.stopPropagation()

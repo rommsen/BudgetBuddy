@@ -1189,9 +1189,13 @@ nav a:focus-visible {
   -webkit-backdrop-filter: blur(12px);
 }
 @media (min-width: 768px) {
-  .ledger-filter-bar,
-  .budget-month-bar {
+  .ledger-filter-bar {
     top: 64px;
+  }
+  /* Die Navbar ist `h-16` (4rem): mit größerer Grundschrift wächst sie, der Kopf rückt mit
+     (Layout-Sweep, Zustand budget-grosse-schrift). */
+  .budget-month-bar {
+    top: 4rem;
   }
 }
 
@@ -1216,7 +1220,7 @@ nav a:focus-visible {
 }
 @media (min-width: 768px) {
   .budget-page {
-    --budget-nav-height: 64px;
+    --budget-nav-height: 4rem;
   }
   .budget-filter-chips {
     position: static;
@@ -1279,7 +1283,10 @@ nav a:focus-visible {
     position: sticky;
     top: 64px;
     align-self: flex-start;
-    max-height: calc(100vh - 64px);
+    /* Unten 3rem frei, so hoch wie der Abstandshalter der festen Tastatur-Hinweisleiste (`h-12`): sonst
+       verdeckte die Leiste das Ende der Spalte, und am Seitenende schob `md:pb-8` von `main` die Spalte
+       unter die Navbar (Layout-Sweep, Zustand kassenbuch-viele-konten). */
+    max-height: calc(100vh - 64px - 3rem);
     overflow-y: auto;
   }
 }

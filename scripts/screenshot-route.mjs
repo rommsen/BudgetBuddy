@@ -217,7 +217,7 @@ export function resolveSourceDataDir(env = process.env) {
   return env.DATA_DIR && env.DATA_DIR !== "" ? env.DATA_DIR : path.join(os.homedir(), "my_apps", "budgetbuddy-dev");
 }
 
-// Exportiert (ledger-qns4j, `scripts/ledger-status-column.test.mjs`): dieselbe
+// Exportiert (ledger-qns4j, erst für den Wächter der Statusspalte): dieselbe
 // Port-/Prozess-Verwaltung wird dort wiederverwendet, um den echten
 // Vite-Entwicklungsserver zu starten (echtes Tailwind-CSS, echtes Fable-Bundle),
 // ohne ein zweites Mal ~150 Zeilen Prozess-Handling nachzubauen. Reines

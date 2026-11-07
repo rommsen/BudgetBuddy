@@ -2,8 +2,9 @@
 //
 // Gerenderter Beleg für `ledger-m6zpd` (Kompaktliste nach Eingabegerät, ADR 0053 Punkt 6).
 // Maus in einem Fenster, in dem die Kompaktliste steht (kein `table`): Kästchen, Umschalt-Klick,
-// markierte Zeile (`data-keyboard-focus`), G, Leertaste, Enter als Sheet, Hover-Schaltfläche,
-// Fußzeilen-Hinweis und PC-Leiste. Touch-Emulation: langes Drücken wie bisher, ohne Kästchen
+// markierte Zeile (`data-keyboard-focus`), G, Leertaste, Enter als Sheet, Fußzeilen-Hinweis und
+// PC-Leiste. Ob die Prüf-Schaltfläche bei Hover erscheint, ist Optik (Doktrin Punkt 5), die Klassen
+// prüft `LedgerReviewButtonVisibilityTests`. Touch-Emulation: langes Drücken wie bisher, ohne Kästchen
 // und Hinweis davor. Ein echter, per Vite gestarteter Fable-Client gegen gemockte Ledger-Antworten.
 //
 // Ausführen: node --test scripts/ledger-compact-mouse.test.mjs
@@ -98,7 +99,6 @@ const visibleBar = (page) => page.locator(".selection-bar").filter({ visible: tr
 const box = (page, n) => page.getByRole("checkbox", { name: `${label(n)} auswählen` });
 const rowOf = (page, n) => page.locator("div.group").filter({ has: box(page, n) });
 const hint = (page) => page.getByText("Leertaste auswählen").filter({ visible: true });
-const opacityOf = (locator) => locator.evaluate((el) => Number(getComputedStyle(el).opacity));
 
 before(async () => {
   frontendPort = await getFreePort();
@@ -111,13 +111,12 @@ after(async () => {
   await stopServer(frontend, frontendPort);
 });
 
-test("[layout] Maus 900 px: Kästchen ohne Hover, Umschalt-Klick, Tasten, Markierung, Hover-Schaltfläche, Sheet", async () => {
+test("[tastatur] Maus 900 px: Klick und Umschalt-Klick wählen, Esc hebt auf, Pfeil markiert, G prüft und springt weiter, Leertaste wählt, Enter öffnet das Detail", async () => {
   const { page, context, calls, entries } = await openLedger({ viewport: { width: 900, height: 800 } });
   try {
     assert.equal(await page.locator("table").filter({ visible: true }).count(), 0, "bei dieser Breite steht die Kompaktliste");
     assert.equal(await page.evaluate(() => matchMedia("(pointer: fine)").matches), true, "die Maus meldet pointer: fine");
     await hint(page).waitFor();
-    assert.ok(await box(page, 1).isVisible(), "das Kästchen steht ohne Hover da");
 
     await box(page, 1).click();
     const bar = visibleBar(page);
@@ -144,18 +143,6 @@ test("[layout] Maus 900 px: Kästchen ohne Hover, Umschalt-Klick, Tasten, Markie
     assert.equal(await marked.count(), 1, "genau eine markierte Zeile");
     assert.ok((await marked.innerText()).includes(label(1)), "die erste Zeile ist markiert");
     assert.equal(await marked.getAttribute("aria-selected"), "true");
-    assert.equal(await opacityOf(marked.getByRole("button", { name: "Geprüft", exact: true })), 1, "markierte Zeile zeigt die Schaltfläche");
-
-    // Hover: eine nicht markierte Zeile zeigt die Schaltfläche erst beim Darüberfahren.
-    const other = rowOf(page, 3).getByRole("button", { name: "Geprüft", exact: true });
-    assert.equal(await opacityOf(other), 0, "ohne Hover unsichtbar");
-    await rowOf(page, 3).hover();
-    await other.evaluate((el) => new Promise((resolve) => {
-      const done = () => (Number(getComputedStyle(el).opacity) === 1 ? resolve() : requestAnimationFrame(done));
-      done();
-    }));
-    assert.equal(await opacityOf(other), 1, "bei Hover sichtbar");
-    await page.mouse.move(0, 0);
 
     await page.keyboard.press("g");
     await rowOf(page, 1).getByRole("button", { name: "Ungeprüft", exact: true }).waitFor();

@@ -369,8 +369,8 @@ let private payeeLabelTests =
 
 /// PC-Statusspalte (AC4/AC5, ledger-qns4j, ledger-cks06): nur Status, nie Herkunft, Quelle
 /// bleibt `entry.NeedsReview`. Die Zelle rendert nur `tableStatusMarks` (ledger-r8h19, vorher
-/// Funktionsrumpf-Wächter). Breite, Umbruch und Hover-Text misst
-/// `scripts/ledger-status-column.test.mjs`.
+/// Funktionsrumpf-Wächter). Abschneiden und Hover-Text misst der Layout-Sweep
+/// (Invariante 4, Zustand kassenbuch in `scripts/layout-states.mjs`).
 let private statusColumnTests =
     testList "PC-Statusspalte zeigt Status statt Herkunft (ledger-qns4j)" [
 

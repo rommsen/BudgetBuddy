@@ -9,7 +9,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-import { findViolations, run } from "./token-guard.mjs";
+import { findViolations, patternsFor, run } from "./token-guard.mjs";
 
 const scriptPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "token-guard.mjs");
 
@@ -104,6 +104,38 @@ test("Ausnahmeliste ungültig: Exit 2 (der Wächter kann nicht urteilen)", () =>
   assert.equal(runGuard(fx2).code, 2);
   const fx3 = makeFixture({ "Components/A.fs": "let x = 1\n" }, [{ file: "x.fs", pattern: "hex-arbitrary", count: 1, reason: "" }]);
   assert.equal(runGuard(fx3).code, 2);
+});
+
+// ADR 0075 Punkt 5: unter Components/Budget/ steht kein wörtliches Pink. Pink über DS-Bausteine (Fix 5850313)
+// prüft die Farbregel des Layout-Sweeps im gerenderten DOM. Gegenbeweis: dieselbe Zeile im Kassenbuch und als
+// Kommentar besteht.
+const PINK_LINES = [
+  "prop.className Tokens.Text.neonPink",
+  'prop.className "text-neon-pink"',
+  "Icons.view Icons.Alert Icons.NeonPink",
+  "Stats.statCard { Accent = Stats.Pink }",
+];
+for (const line of PINK_LINES) {
+  test(`unter Components/Budget/: ${line} scheitert als budget-ohne-pink, im Kassenbuch und als Kommentar nicht`, () => {
+    const budget = runGuard(makeFixture({ "Components/Budget/View.fs": `module View\n\nlet v =\n    ${line}\n` }));
+    assert.equal(budget.code, 1, budget.out);
+    assert.match(budget.out, /src\/Client\/Components\/Budget\/View\.fs:4\s+\[budget-ohne-pink\]/);
+
+    const ledger = runGuard(makeFixture({ "Components/Ledger/View.fs": `module View\n\nlet v =\n    ${line}\n` }));
+    assert.equal(ledger.code, 0, ledger.out);
+    const comment = runGuard(makeFixture({ "Components/Budget/View.fs": `module View\n\n// ${line}\n` }));
+    assert.equal(comment.code, 0, comment.out);
+  });
+}
+
+test("unter Components/Budget/: die echten Budget-Dateien tragen kein wörtliches Pink", () => {
+  const budgetDir = path.join(path.dirname(scriptPath), "..", "src", "Client", "Components", "Budget");
+  const files = fs.readdirSync(budgetDir).filter((n) => n.endsWith(".fs"));
+  assert.ok(files.length > 5, "die Budget-Dateien sind da");
+  for (const name of files) {
+    const hits = findViolations(fs.readFileSync(path.join(budgetDir, name), "utf8"), patternsFor(`Components/Budget/${name}`));
+    assert.deepEqual(hits, [], name);
+  }
 });
 
 test("obj/ und bin/ werden nicht geprüft", () => {

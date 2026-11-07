@@ -2,8 +2,9 @@
 //
 // Die Filterleiste des Kassenbuchs im echten Fable-Client gegen gemockte Antworten
 // (`scripts/ledger-filter-bar.mjs`). Hier steht nur, was der Browser allein messen kann:
-// je ein Happy Path für PC (Popover) und Handy (BottomSheet), die Datumsrechnung im
-// Fable-Kompilat, Schriftgrößen, der native Kalender und die sticky Leiste. Entwurf,
+// der Happy Path am PC (Popover), die Datumsrechnung im Fable-Kompilat und der native Kalender.
+// Sheet am Handy, Feldschrift und die sticky Leiste prüft der Layout-Sweep (`scripts/layout-states.mjs`,
+// Zustände kassenbuch, kassenbuch-filter-*, kassenbuch-spiegel-*, kassenbuch-gefiltert). Entwurf,
 // Übernehmen, Sperren, Summenzeile, Leerzustand und Chip-Reihenfolge prüft `dotnet test`
 // (`LedgerPageTests.fs`, `LedgerViewTests.fs`, `LedgerReviewStateTests.fs`).
 
@@ -14,19 +15,16 @@ import { getFreePort, startFrontend, stopServer, waitForPageLoaded, pollUntil } 
 import {
   buildAccountsFixture,
   buildBalancesFixture,
-  buildEntryFixture,
   mockFilterBarApi,
-  mockRunningMirror,
 } from "./ledger-filter-bar.mjs";
 
 let frontend;
 let frontendPort;
 let browser;
 let page;
-let mobilePage;
 
 /// Öffnet das Kassenbuch in einem frischen Kontext gegen die Filterleisten-Mocks.
-async function openLedger(viewport, { resolveEntries, setup } = {}) {
+async function openLedger(viewport) {
   const accountsFixture = buildAccountsFixture(2);
   const balancesFixture = buildBalancesFixture(accountsFixture.Accounts);
   const context = await browser.newContext({ viewport });
@@ -38,12 +36,10 @@ async function openLedger(viewport, { resolveEntries, setup } = {}) {
   await mockFilterBarApi(target, {
     accountsFixture,
     balancesFixture,
-    ...(resolveEntries ? { resolveEntries: () => resolveEntries(accountsFixture.DefaultAccountId) } : {}),
   });
-  const extra = setup ? await setup(target) : undefined;
   await target.goto(`http://127.0.0.1:${frontendPort}/#/ledger`, { waitUntil: "load" });
   await waitForPageLoaded(target, "/ledger");
-  return { context, page: target, extra };
+  return { context, page: target };
 }
 
 before(async () => {
@@ -51,7 +47,6 @@ before(async () => {
   frontend = await startFrontend(frontendPort, undefined);
   browser = await chromium.launch();
   ({ page } = await openLedger({ width: 1440, height: 900 }));
-  ({ page: mobilePage } = await openLedger({ width: 390, height: 844 }));
 });
 
 after(async () => {
@@ -72,9 +67,6 @@ const categoryChip = () => page.getByRole("button", { name: /^Kategorie/ }).firs
 const popover = () => page.locator(".shadow-2xl");
 // Die Handy-Liste bleibt per `md:hidden` im DOM, Payee-Texte kämen sonst doppelt vor.
 const table = () => page.locator("table");
-const mobileCategoryChip = () => mobilePage.getByRole("button", { name: /^Kategorie/ }).first();
-// `BottomSheet.view` steht immer im DOM, offen ist es nur mit der Klasse `active`.
-const mobileSheet = () => mobilePage.locator(".bottom-sheet.active");
 
 // Jeder Testfall startet ohne Filter und ohne offene Chrome.
 beforeEach(async () => {
@@ -82,11 +74,6 @@ beforeEach(async () => {
   if (await clearAll.count()) await clearAll.click();
   if (await popover().count()) await page.getByRole("heading", { name: "Kassenbuch" }).click();
   await popover().waitFor({ state: "detached" });
-
-  const mobileClearAll = mobilePage.getByRole("button", { name: "Alle Filter löschen" });
-  if (await mobileClearAll.count()) await mobileClearAll.click();
-  if (await mobileSheet().count()) await mobilePage.locator(".overlay.active").click({ position: { x: 5, y: 5 } });
-  await mobileSheet().waitFor({ state: "detached" });
 });
 
 test("[flow:kassenbuch-filtern] PC: Kategorien im Popover wählen, Übernehmen filtert Liste und Summe, × nimmt den Filter zurück", async () => {
@@ -155,55 +142,6 @@ test("[fable] PC: Zeitraum mit Schnellwahl, ungültigem Datum und Eingabe geht a
   }
 });
 
-test("[layout] Input.Small misst am Handy 16px und am PC 14px, auch in Datumsfeld und Kategorie-Suche, Medium 16px, Large 18px (btwhg, m7z9q, iOS-Zoom)", async () => {
-  // Misst die Kaskade von `.input-field` gegen die Klassen aus `Input.sizeToClass`:
-  // `.input-field` stand ohne Layer in styles.css und überstimmte `text-base` von Small.
-  // Medium trägt zusätzlich das Inline-fontSize 16 (`Input.usesInlineFontSize`).
-  const measure = (p) =>
-    p.evaluate(() => {
-      const make = (classes, inline) => {
-        const el = document.createElement("input");
-        el.className = "input-field " + classes;
-        if (inline) el.style.fontSize = "16px";
-        document.body.appendChild(el);
-        const size = getComputedStyle(el).fontSize;
-        el.remove();
-        return size;
-      };
-      return {
-        small: make("text-base md:text-sm px-3 py-2 min-h-[36px]", false),
-        medium: make("text-base px-4 py-3 min-h-[48px] md:min-h-[44px]", true),
-        large: make("text-lg px-4 py-3.5 min-h-[52px]", false),
-      };
-    });
-  assert.deepEqual(await measure(page), { small: "14px", medium: "16px", large: "18px" }, "PC 1440x900");
-  assert.deepEqual(await measure(mobilePage), { small: "16px", medium: "16px", large: "18px" }, "Handy 390x844");
-
-  const size = (loc) => loc.evaluate((e) => getComputedStyle(e).fontSize);
-  await page.getByRole("button", { name: /^Zeitraum/ }).first().click();
-  assert.equal(await size(popover().getByPlaceholder("TT.MM.JJJJ").first()), "14px", "Datumsfeld PC");
-  await page.keyboard.press("Escape");
-  await mobilePage.getByRole("button", { name: /^Zeitraum/ }).first().click();
-  const field = mobileSheet().getByPlaceholder("TT.MM.JJJJ").first();
-  await field.waitFor();
-  assert.equal(await size(field), "16px", "Datumsfeld Handy");
-  await mobilePage.locator(".overlay.active").click({ position: { x: 5, y: 5 } });
-  await mobileSheet().waitFor({ state: "detached" });
-
-  // Ein echtes Input.Small-Feld: die Kategorie-Suche im Popover am PC.
-  await categoryChip().click();
-  const search = popover().getByPlaceholder("Kategorie suchen…");
-  assert.equal(await search.evaluate((e) => getComputedStyle(e).fontSize), "14px", "Kategorie-Suche PC: 14px");
-  await page.keyboard.press("Escape");
-
-  // Dasselbe echte Feld am Handy (BottomSheet): 16px gegen den iOS-Zoom (ADR 0005).
-  await mobileCategoryChip().click();
-  const mobileSearch = mobileSheet().getByPlaceholder("Kategorie suchen…");
-  await mobileSearch.waitFor();
-  assert.equal(await mobileSearch.evaluate((e) => getComputedStyle(e).fontSize), "16px", "Kategorie-Suche Handy: 16px");
-  await mobilePage.locator(".overlay.active").click({ position: { x: 5, y: 5 } });
-});
-
 test("[fokus] Der Kalender-Knopf wirft keinen Konsolenfehler und lässt das Textfeld bedienbar (m7z9q)", async () => {
   const errors = [];
   const onConsole = (m) => { if (m.type() === "error") errors.push(m.text()); };
@@ -223,100 +161,4 @@ test("[fokus] Der Kalender-Knopf wirft keinen Konsolenfehler und lässt das Text
   const relevant = errors.filter((e) => !/not mocked in this test|Failed to load resource/.test(e));
   assert.deepEqual(relevant, [], "Kein Konsolenfehler");
   await page.keyboard.press("Escape");
-});
-
-test("[layout] Am Handy öffnet der Chip ein BottomSheet statt eines Popovers", async () => {
-  // ledger-r8h19: Schließen ohne Übernehmen, Chip-Text, Seitenanfrage und Trefferzahl prüft
-  // `LedgerPageTests` ("Esc/Schließen verwirft den Entwurf …", "'Übernehmen' schreibt den Entwurf …"),
-  // die Summenzeile `LedgerReviewStateTests`, die Chip-Reihenfolge `LedgerViewTests` (Chip-Reihenfolge).
-  await mobileCategoryChip().click();
-  await mobileSheet().getByText("Lebensmittel", { exact: true }).waitFor();
-  assert.equal(await mobilePage.locator(".shadow-2xl").count(), 0, "kein Popover am Handy");
-  await mobilePage.locator(".overlay.active").click({ position: { x: 5, y: 5 } });
-  await mobileSheet().waitFor({ state: "detached" });
-});
-
-// ---------------------------------------------------------------------------
-// Sticky: die Leiste haftet unter der Navbar, ihre Höhe misst ein `ResizeObserver` und schreibt sie
-// nach `--ledger-filter-bar-height`. Eine feste Schätzung ließ bei 1440 px eine Lücke und überlappte
-// bei 1024 px mit umbrechenden Chips. Wird `model.MirrorRunning` wahr, rendert die keylose Kinderliste
-// einen Hinweis an Index 0 und die Leiste auf einem neuen Knoten: der Observer maß dann den Hinweis.
-// ---------------------------------------------------------------------------
-
-const manyEntries = (accountId) => Array.from({ length: 40 }, (_, i) => buildEntryFixture(accountId, i + 1));
-const mirrorHint = (target) => target.getByText("Spiegel läuft — die Liste bleibt so lange stehen.");
-
-/// Springt ohne Animation (`html { scroll-behavior: smooth }`) bis in den Haft-Zustand und wartet
-/// zwei Bilder: der `ResizeObserver` schreibt die Höhe vor dem nächsten Zeichnen.
-async function scrollIntoStickyState(target) {
-  await target.locator("tbody tr").nth(30).waitFor();
-  // Die Seite fährt beim Betreten ein (`animate-page-enter`), mitten darin steht die Leiste versetzt.
-  // Endlose Animationen (Spinner, Puls) enden nie und zählen nicht.
-  await target.evaluate(() =>
-    Promise.all(
-      document
-        .getAnimations()
-        .filter((a) => a.effect?.getTiming().iterations !== Infinity)
-        .map((a) => a.finished.catch(() => {}))
-    )
-  );
-  await target.evaluate(() => window.scrollTo({ top: 1200, behavior: "instant" }));
-  await target.waitForFunction(() => window.scrollY >= 1199);
-  await target.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-}
-
-async function assertStickyWithoutCollision(target, label, expectedTop) {
-  const at = await target.evaluate(() => {
-    const bar = document.querySelector(".ledger-filter-bar");
-    return {
-      top: Math.round(bar.getBoundingClientRect().top),
-      position: getComputedStyle(bar).position,
-      barBottom: bar.getBoundingClientRect().bottom,
-      theadTop: document.querySelector("table thead").getBoundingClientRect().top,
-    };
-  });
-  assert.equal(at.position, "sticky", label);
-  assert.equal(at.top, expectedTop, `${label}: die Leiste haftet unter der Navbar`);
-  assert.ok(at.theadTop >= at.barBottom - 1, `${label}: der Tabellenkopf überlappt die Leiste nicht (${JSON.stringify(at)})`);
-  assert.ok(at.theadTop - at.barBottom <= 2, `${label}: höchstens 2 px Abstand (${JSON.stringify(at)})`);
-}
-
-test("[layout] Die Leiste haftet unter der Navbar und der Tabellenkopf direkt darunter: 1440 px, umbrechend, mit und nach dem Spiegel-Lauf", async () => {
-  const wide = await openLedger({ width: 1440, height: 900 }, { resolveEntries: manyEntries });
-  try {
-    await scrollIntoStickyState(wide.page);
-    await assertStickyWithoutCollision(wide.page, "1440 px", 64);
-  } finally {
-    await wide.context.close();
-  }
-
-  const wrapped = await openLedger({ width: 1024, height: 900 }, { resolveEntries: manyEntries });
-  try {
-    // Zwei Kategorien lassen den Chip wachsen, die Leiste bricht bei 1024 px um.
-    await wrapped.page.getByRole("button", { name: /^Kategorie/ }).first().click();
-    await wrapped.page.locator(".shadow-2xl").getByText("Lebensmittel", { exact: true }).click();
-    await wrapped.page.locator(".shadow-2xl").getByText("Bahn", { exact: true }).click();
-    await wrapped.page.getByRole("button", { name: "Übernehmen (2)" }).click();
-    await wrapped.page.locator(".shadow-2xl").waitFor({ state: "detached" });
-    await scrollIntoStickyState(wrapped.page);
-    await assertStickyWithoutCollision(wrapped.page, "1024 px, umbrechend", 64);
-  } finally {
-    await wrapped.context.close();
-  }
-
-  const mirrored = await openLedger({ width: 1024, height: 900 }, { resolveEntries: manyEntries, setup: mockRunningMirror });
-  try {
-    const hint = mirrorHint(mirrored.page);
-    await hint.waitFor();
-    await scrollIntoStickyState(mirrored.page);
-    await assertStickyWithoutCollision(mirrored.page, "während des Spiegel-Laufs", 64);
-
-    await mirrored.page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
-    await mirrored.extra.finishMirror();
-    await hint.waitFor({ state: "detached" });
-    await scrollIntoStickyState(mirrored.page);
-    await assertStickyWithoutCollision(mirrored.page, "nach dem Spiegel-Lauf", 64);
-  } finally {
-    await mirrored.context.close();
-  }
 });
