@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 07:24 -- Modeling / Captured: budgeting-r5h2n - "Allgemeine Historie zeigt alles, was das Budget betrifft, auch Target-Änderungen und Pausen"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Roman wünscht, dass die allgemeine Historie alles zum Budget zeigt, auch Target-Änderungen und Pausen. Roh im Backlog, offene Fragen für refine stehen in der Task.
+
+---
+
 ## 2026-11-07 07:10 -- Batch started: [budgeting-j8r4t]
 
 **Type:** Work / Batch start
