@@ -298,7 +298,7 @@ let transferTargetTests =
         // Regression ledger-vq2g8: bei `TransferTargets = Failure` lieferte der Split-Editor
         // eine stille leere Liste, ohne Hinweis. Jetzt meldet die Entscheidung den Fehler.
         testCase "gescheiterte Übertrag-Ziele melden den Fehler, ladende den Ladezustand" <| fun () ->
-            Expect.equal (Components.Ledger.View.transferTargetsLoadState (Failure "Http error (0)")) CategoryPicker.PickerFailed "Fehler"
+            Expect.equal (Components.Ledger.View.transferTargetsLoadState (Failure "Http error (0)")) (CategoryPicker.PickerFailed None) "Fehler"
             Expect.equal (Components.Ledger.View.transferTargetsLoadState Loading) CategoryPicker.PickerLoading "lädt"
             Expect.equal (Components.Ledger.View.transferTargetsLoadState NotAsked) CategoryPicker.PickerLoading "noch nicht angefragt"
             Expect.equal (Components.Ledger.View.transferTargetsLoadState (Success [])) CategoryPicker.PickerReady "geladen"

@@ -928,14 +928,14 @@ type TableLayout =
     | CompactList
     | Columns of (LedgerColumn * ColumnWidth) list
 
-/// Die Payee-Zelle der PC-Tabelle. Ist die Konto-Spalte ausgeblendet (schmales Fenster
-/// in der Gesamtsicht), steht das Kontokürzel klein vor dem Payee in derselben Zelle,
-/// als eigenes Element neben dem Payee-Text (ledger-qh9qx). Reiner Text, kein eigenes
-/// Klickziel (ADR 0053 Punkt 3).
 /// Kürzel des Kontos vor dem Payee: nur in der Gesamtsicht und nur, wenn die Konto-Spalte fehlt.
 let payeeAccountAbbreviation (isAllAccounts: bool) (columns: LedgerColumn list) (abbreviation: string) : string option =
     if isAllAccounts && not (List.contains AccountColumn columns) then Some abbreviation else None
 
+/// Die Payee-Zelle der PC-Tabelle. Ist die Konto-Spalte ausgeblendet (schmales Fenster
+/// in der Gesamtsicht), steht das Kontokürzel klein vor dem Payee in derselben Zelle,
+/// als eigenes Element neben dem Payee-Text (ledger-qh9qx). Reiner Text, kein eigenes
+/// Klickziel (ADR 0053 Punkt 3).
 let private payeeCell (accountAbbreviation: string option) (entry: LedgerEntryView) =
     let abbreviation =
         match accountAbbreviation with
@@ -1058,11 +1058,6 @@ let private dateGroupRow (columnsBeforeAmount: int) (date: DateTime) (sum: Money
         (formatDate date)
         (daySumText sum)
 
-/// Eine Karte der Handy-Kontostaende-Leiste (AC6): waagerecht scrollbare
-/// `Stats`-Kachel, Betrag ueber `Money.accountBalance` (Farbsemantik + Ziffernschrift
-/// statt reinem Text). Die PC-Ansicht nutzt seit `ledger-x0yga` `Money.accountListRow`
-/// statt dieser Karte — eine hohe Kachel mit Farbstreifen passt fuer eine Kennzahl,
-/// nicht fuer eine scanbare Kontoliste.
 /// Was an der Stelle des Betrags steht (ledger-vq2g8): der Stand, ein Platzhalter beim Laden
 /// oder ein Strich nach einem Fehler.
 let private cardBalanceElement (isActive: bool) (balance: CardBalance) : ReactElement =
@@ -1071,6 +1066,11 @@ let private cardBalanceElement (isActive: bool) (balance: CardBalance) : ReactEl
     | BalancePending -> Loading.amountSkeleton ()
     | BalanceUnavailable -> Money.balanceUnavailable ()
 
+/// Eine Karte der Handy-Kontostaende-Leiste (AC6): waagerecht scrollbare
+/// `Stats`-Kachel, Betrag ueber `Money.accountBalance` (Farbsemantik + Ziffernschrift
+/// statt reinem Text). Die PC-Ansicht nutzt seit `ledger-x0yga` `Money.accountListRow`
+/// statt dieser Karte: eine hohe Kachel mit Farbstreifen passt für eine Kennzahl,
+/// nicht fuer eine scanbare Kontoliste.
 let private accountCardView (dispatch: Msg -> unit) (selected: AccountFilter option) (card: AccountCard) =
     Stats.view {
         Stats.defaultProps with
@@ -1497,11 +1497,14 @@ let categoryStandLabel (model: Model) (now: DateTime) : string option =
     model.CategoriesLoadedAt |> Option.map (fun at -> availableAgeLabel at now)
 
 /// Ladezustand des Pickers aus dem Abruf der Kategorien (ledger-dmw83): ohne Liste lädt er
-/// (auch vor dem ersten Abruf), nach einem Fehler bietet er "Erneut versuchen".
+/// (auch vor dem ersten Abruf), nach einem Fehler bietet er "Erneut versuchen". Fehlt die
+/// Einrichtung in den Settings, reicht er ihren Satz an den Picker weiter; jeder andere
+/// Fehler zeigt den allgemeinen Satz.
 let categoryLoadState (categories: RemoteData<YnabCategory list>) : CategoryPicker.PickerLoadState =
     match categories with
     | NotAsked | Loading -> CategoryPicker.PickerLoading
-    | Failure _ -> CategoryPicker.PickerFailed
+    | Failure reason when isCategoriesSetupGap reason -> CategoryPicker.PickerFailed (Some reason)
+    | Failure _ -> CategoryPicker.PickerFailed None
     | Success _ -> CategoryPicker.PickerReady
 
 /// Die Zeilen der Karte "Budget nach dem Wechsel" für diese Buchung; leer, wenn die Karte
@@ -1854,7 +1857,7 @@ let transferTargetsFor (model: Model) (entry: LedgerEntryView) : YnabAccount lis
 let transferTargetsLoadState (targets: RemoteData<YnabAccount list>) : CategoryPicker.PickerLoadState =
     match targets with
     | Success _ -> CategoryPicker.PickerReady
-    | Failure _ -> CategoryPicker.PickerFailed
+    | Failure _ -> CategoryPicker.PickerFailed None
     | NotAsked | Loading -> CategoryPicker.PickerLoading
 
 let private isSavingSplit (model: Model) (editor: SplitLogic.SplitEditorState) : bool =
@@ -2242,9 +2245,6 @@ let private LongPressRow (enabled: bool) (onLongPress: unit -> unit) (child: Rea
         prop.children [ child ]
     ]
 
-/// Eine Zeile der Handy-Liste: im Normalbetrieb mit Wisch-Geste, im Auswahl-Modus mit
-/// Kästchen und ohne Wisch (ein Wisch wäre dort überraschend, ledger-r1d2f). In beiden Fällen
-/// unter derselben Hülle für das lange Drücken.
 /// Wie eine Zeile der Handy-Liste bedient wird. Im Auswahl-Modus mit Kästchen; mit Maus
 /// (ledger-m6zpd) mit Kästchen, Markierung und Hover-Schaltfläche, ohne Wisch; mit einer
 /// Auswahl ohne Modus (das Fenster ist mit bestehender Auswahl von der Tabelle auf die
@@ -2265,6 +2265,9 @@ let mobileRowMode (selectionMode: bool) (mouse: bool) (selectionActive: bool) : 
 /// (auch nicht am Touchscreen eines Laptops).
 let mobileRowLongPress (selectionMode: bool) (mouse: bool) : bool = not selectionMode && not mouse
 
+/// Eine Zeile der Handy-Liste: im Normalbetrieb mit Wisch-Geste, im Auswahl-Modus mit
+/// Kästchen und ohne Wisch (ein Wisch wäre dort überraschend, ledger-r1d2f). In beiden Fällen
+/// unter derselben Hülle für das lange Drücken.
 let private mobileEntryRow
     (dispatch: Msg -> unit)
     (accountAbbreviationOf: (Guid -> string) option)
@@ -3153,8 +3156,7 @@ let private selectionSummaryRow (model: Model) : ReactElement =
     let totals = selectionTotals model
     MultiSelect.summaryRow (selectionSummaryText totals.Count model.TotalCount) totals.Amount
 
-/// Summenzeile über der Liste: die Auswahl, wenn eine läuft, sonst der Treffer.
-/// Über der Liste steht die Auswahl, solange sie nicht leer ist, sonst der Treffer.
+/// Welche Summenzeile über der Liste steht.
 type SummaryRowKind =
     | SelectionSummary
     | HitSummary
@@ -3162,6 +3164,7 @@ type SummaryRowKind =
 let summaryRowKind (model: Model) : SummaryRowKind =
     if hasSelection model then SelectionSummary else HitSummary
 
+/// Summenzeile über der Liste: die Auswahl, solange sie nicht leer ist, sonst der Treffer.
 let private summaryOrSelectionRow (accounts: LedgerAccountView list) (categories: YnabCategory list) (model: Model) : ReactElement =
     match summaryRowKind model with
     | SelectionSummary -> selectionSummaryRow model

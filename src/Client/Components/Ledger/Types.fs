@@ -208,6 +208,16 @@ let emptyListKind (onlyNeedsReview: bool) (f: Filters) : EmptyListKind =
     elif f.WithoutCategory then EmptyListKind.AllCategorized
     else EmptyListKind.NoEntries
 
+/// Gründe, aus denen die Kategorien mit diesen Settings gar nicht geladen werden (ledger-vq2g8).
+/// `Client.State` legt sie in `Categories = Failure`, der Picker zeigt sie statt des
+/// allgemeinen Fehlersatzes.
+let categoriesNoYnab = "YNAB ist in den Settings nicht eingerichtet"
+let categoriesNoBudget = "Kein Standard-Budget in den Settings gewählt"
+
+/// Ist dieser Fehlergrund eine fehlende Einrichtung in den Settings?
+let isCategoriesSetupGap (reason: string) : bool =
+    reason = categoriesNoYnab || reason = categoriesNoBudget
+
 /// "Zuletzt verwendet" im Kategorie-Filter: höchstens so viele Kategorien, je Gerät gemerkt.
 let maxRecentCategories = 5
 

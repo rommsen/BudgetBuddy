@@ -563,8 +563,18 @@ let viewTests =
             let derive = Components.Ledger.View.categoryLoadState
             Expect.equal (derive NotAsked) Client.DesignSystem.CategoryPicker.PickerLoading "NotAsked lädt"
             Expect.equal (derive Loading) Client.DesignSystem.CategoryPicker.PickerLoading "Loading lädt"
-            Expect.equal (derive (Failure "x")) Client.DesignSystem.CategoryPicker.PickerFailed "Failure fehlgeschlagen"
+            Expect.equal (derive (Failure "x")) (Client.DesignSystem.CategoryPicker.PickerFailed None) "Failure fehlgeschlagen"
             Expect.equal (derive (Success categories)) Client.DesignSystem.CategoryPicker.PickerReady "Success bereit"
+
+        // Regression (Review 2026-11): fehlte YNAB oder das Standard-Budget in den Settings, zeigte
+        // der Picker trotzdem "Kategorien konnten nicht geladen werden"; der Grund ging verloren.
+        testCase "Fehlt die Einrichtung in den Settings, zeigt der Picker ihren Satz, sonst den allgemeinen" <| fun () ->
+            let notice categoriesState =
+                Client.DesignSystem.CategoryPicker.noticeFor (Components.Ledger.View.categoryLoadState categoriesState) []
+            let failedWith text = Some (Client.DesignSystem.CategoryPicker.FailedNotice text)
+            Expect.equal (notice (Failure categoriesNoYnab)) (failedWith "YNAB ist in den Settings nicht eingerichtet") "YNAB fehlt"
+            Expect.equal (notice (Failure categoriesNoBudget)) (failedWith "Kein Standard-Budget in den Settings gewählt") "Budget fehlt"
+            Expect.equal (notice (Failure "Http error (500)")) (failedWith "Kategorien konnten nicht geladen werden") "sonstiger Fehler"
 
         testCase "LoadCategories nach einem Fehlschlag schaltet auf Loading (dmw83)" <| fun () ->
             let failed = { defaultModel () with Categories = Failure "x" }

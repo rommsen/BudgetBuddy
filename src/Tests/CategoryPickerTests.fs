@@ -127,15 +127,15 @@ let private targetTests =
             Expect.equal ((layoutForPicker konto "konto:").Groups |> List.collect snd |> names) [ "Konto: Gebühren" ] "sucht weiter in Kategorien"
         }
         test "ein Ladehinweis nimmt die Kategorien, die Konten bleiben wählbar" {
-            let l = layoutForPicker { targetProps with Categories = []; LoadState = PickerFailed } ""
-            Expect.equal l.Notice (Some FailedNotice) "Hinweis"
+            let l = layoutForPicker { targetProps with Categories = []; LoadState = PickerFailed None } ""
+            Expect.equal l.Notice (Some (FailedNotice failedText)) "Hinweis"
             Expect.equal (accountNames l) [ "Bar"; "Tagesgeld" ] "Konten"
         }
         // Regression ledger-vq2g8: scheiterte der Abruf der Übertrag-Ziele, fehlte der Abschnitt
         // "Übertrag auf Konto" im Split-Editor ohne Hinweis.
         test "gescheiterte Übertrag-Ziele zeigen einen Hinweis im Konten-Abschnitt, laden zeigt den Ladezustand" {
-            let failed = layoutForPicker { targetProps with Accounts = []; AccountsLoad = PickerFailed } ""
-            Expect.equal failed.AccountsNotice (Some FailedNotice) "Fehlerhinweis"
+            let failed = layoutForPicker { targetProps with Accounts = []; AccountsLoad = PickerFailed None } ""
+            Expect.equal failed.AccountsNotice (Some (FailedNotice accountsFailedText)) "Fehlerhinweis"
             Expect.equal accountsFailedText "Übertrag-Ziele konnten nicht geladen werden" "Wortlaut"
             Expect.isNone failed.Notice "die Kategorien bleiben"
             let loading = layoutForPicker { targetProps with Accounts = []; AccountsLoad = PickerLoading } ""
@@ -391,9 +391,9 @@ let private tests =
                 Expect.equal l.Notice (Some LoadingNotice) "Ladehinweis"
             }
             test "fehlgeschlagen: keine Zeilen, Fehlerhinweis mit Erneut versuchen" {
-                let l = layoutFor PickerFailed "" None [] []
+                let l = layoutFor (PickerFailed None) "" None [] []
                 Expect.isTrue (noRows l) "keine Zeilen"
-                Expect.equal l.Notice (Some FailedNotice) "Fehlerhinweis"
+                Expect.equal l.Notice (Some (FailedNotice failedText)) "Fehlerhinweis"
                 Expect.equal failedText "Kategorien konnten nicht geladen werden" "Text"
                 Expect.equal retryLabel "Erneut versuchen" "Knopf"
             }

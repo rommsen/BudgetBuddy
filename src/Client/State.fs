@@ -485,8 +485,8 @@ let init () : Model * Cmd<Msg> =
 /// Warum die Kassenbuch-Kategorien mit diesen Settings nicht geladen werden können, oder
 /// `None`, wenn YNAB samt Standard-Budget eingerichtet ist (ledger-vq2g8). Vorher blieben
 /// die Kategorien in beiden Fällen für immer `Loading`, die Auswahl drehte sich.
-let ledgerCategoriesNoYnab = "YNAB ist in den Settings nicht eingerichtet"
-let ledgerCategoriesNoBudget = "Kein Standard-Budget in den Settings gewählt"
+let ledgerCategoriesNoYnab = Components.Ledger.Types.categoriesNoYnab
+let ledgerCategoriesNoBudget = Components.Ledger.Types.categoriesNoBudget
 
 let ledgerCategoriesSetupGap (settings: AppSettingsView) : string option =
     match settings.Ynab with

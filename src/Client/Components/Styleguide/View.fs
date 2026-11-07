@@ -1442,7 +1442,7 @@ let private CategoryPickerSingleDemo () =
                         failedOpen
                         { pickerProps (fun () -> setFailedOpen false) with
                             Categories = []
-                            LoadState = CategoryPicker.PickerFailed
+                            LoadState = CategoryPicker.PickerFailed None
                             OnRetry = fun () -> setRetryCount (retryCount + 1) }
                 ]
             ]

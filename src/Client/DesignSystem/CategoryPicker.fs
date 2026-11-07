@@ -30,11 +30,13 @@ open Client.DesignSystem.Tokens
 // ============================================
 
 /// Ladezustand der Kategorien aus Sicht des Pickers (ledger-dmw83). `PickerLoading` zählt nur
-/// ohne vorhandene Liste; mit Liste (Nachladen) bleibt der Picker unverändert.
+/// ohne vorhandene Liste; mit Liste (Nachladen) bleibt der Picker unverändert. `PickerFailed`
+/// trägt einen Grund, den der Hinweis statt des allgemeinen Satzes zeigt (etwa eine fehlende
+/// Einrichtung in den Settings); `None` zeigt den allgemeinen Satz.
 type PickerLoadState =
     | PickerReady
     | PickerLoading
-    | PickerFailed
+    | PickerFailed of reason: string option
 
 /// Was die Wahl einer Zeile an den Aufrufer meldet
 type PickerChoice =
@@ -84,10 +86,10 @@ type PickerRow =
     | Account of YnabAccount
     | ToBeBudgetedRow
 
-/// Hinweis, der die Liste ersetzt
+/// Hinweis, der die Liste ersetzt. `FailedNotice` trägt den Satz, der angezeigt wird.
 type PickerNotice =
     | LoadingNotice
-    | FailedNotice
+    | FailedNotice of text: string
 
 /// Aufbau der Liste für einen Suchtext
 type Layout = {
@@ -194,7 +196,7 @@ let accountsFailedText = "Übertrag-Ziele konnten nicht geladen werden"
 /// Welcher Hinweis die Liste ersetzt. Beim Nachladen mit vorhandener Liste keiner.
 let noticeFor (loadState: PickerLoadState) (categories: YnabCategory list) : PickerNotice option =
     match loadState with
-    | PickerFailed -> Some FailedNotice
+    | PickerFailed reason -> Some (FailedNotice (reason |> Option.defaultValue failedText))
     | PickerLoading when List.isEmpty categories -> Some LoadingNotice
     | _ -> None
 
@@ -202,7 +204,7 @@ let noticeFor (loadState: PickerLoadState) (categories: YnabCategory list) : Pic
 /// `noticeFor`: Fehler immer, Laden nur ohne vorhandene Konten.
 let accountsNoticeFor (loadState: PickerLoadState) (accounts: YnabAccount list) : PickerNotice option =
     match loadState with
-    | PickerFailed -> Some FailedNotice
+    | PickerFailed reason -> Some (FailedNotice (reason |> Option.defaultValue accountsFailedText))
     | PickerLoading when List.isEmpty accounts -> Some LoadingNotice
     | _ -> None
 
@@ -585,13 +587,13 @@ let private Content (input: ContentProps) =
                                 Html.span [ prop.text loadingText ]
                             ]
                         ]
-                    | Some FailedNotice ->
+                    | Some (FailedNotice text) ->
                         Html.div [
                             prop.key "notice-failed"
                             prop.role "alert"
                             prop.className "flex flex-col items-start gap-2 py-3"
                             prop.children [
-                                Html.span [ prop.className ListRoles.muted; prop.text failedText ]
+                                Html.span [ prop.className ListRoles.muted; prop.text text ]
                                 Button.secondary retryLabel (fun () -> props.OnRetry ())
                             ]
                         ]
@@ -695,11 +697,11 @@ let private Content (input: ContentProps) =
                                             Html.span [ prop.text accountsLoadingText ]
                                         ]
                                     ]
-                                | Some FailedNotice ->
+                                | Some (FailedNotice text) ->
                                     Html.div [
                                         prop.role "alert"
                                         prop.className $"py-2 {ListRoles.muted}"
-                                        prop.text accountsFailedText
+                                        prop.text text
                                     ]
                                 | None -> ()
                                 Html.div [
