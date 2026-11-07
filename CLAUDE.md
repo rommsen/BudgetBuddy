@@ -103,6 +103,9 @@ beheben, nicht umgehen.
   `node_modules`).
 - Commits scoped mit expliziten Pfaden. Der Hook `.claude/hooks/git-guard.sh` sperrt
   Sammel-Staging und `commit -a` und fragt bei jedem Push.
+- Agents (Worker, Verifier, Reviewer) ohne `name` starten. Der Hook `.claude/hooks/agent-guard.sh`
+  lehnt `name` ab, weil ein Teammate nach seiner Arbeit als Prozess stehen bleibt. Fortsetzen per
+  SendMessage an die Agent-Id.
 - Push nur auf ausdrückliche Anweisung. `git push deploy` (oder `scripts/deploy.sh`) baut und
   startet die Produktion; das passiert nie ohne Auftrag.
 - `scripts/deploy-rules.sh --clear` löscht alle Regeln der Live-Datenbank und importiert neu:
