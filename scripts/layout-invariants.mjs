@@ -19,9 +19,11 @@
 //   8 Spaltenköpfe einer Tabelle überlappen nicht und tragen ihren Text ganz
 //   9 kein Layout-Sprung beim Nachladen
 //
-// Messregeln gegen Flackern: gemessen wird erst, wenn alle endlichen Animationen fertig sind (unendliche wie
-// Spinner zählen nicht), gescrollt wird bis zum Stillstand, verglichen wird mit einer Toleranz von einem Pixel.
-// Eine Verletzung nennt Zustand, Breite, Invariante, Selektor und Messwert.
+// Messregeln gegen Flackern: gemessen wird erst, wenn alle laufenden endlichen Animationen fertig sind
+// (unendliche wie Spinner und pausierte zählen nicht) und die Lage steht, gescrollt wird bis zum Stillstand.
+// Steht die Lage nicht, wirft `settle`, statt still zu messen. Toleranzen: ein Pixel für Lage und Überlappung
+// (Invarianten 1, 4 bis 9), ein halber Pixel für die Trefferfläche (Invariante 2), keine für die Schrift
+// (Invariante 3). Eine Verletzung nennt Zustand, Breite, Invariante, Selektor und Messwert.
 
 /// Styleguide-Schwellen.
 export const TOUCH_MIN = 48;
@@ -41,44 +43,65 @@ export const heightFor = (width) => (width < MOBILE_BELOW ? 844 : width < 1024 ?
 /// `--vvh`, die Sheets schrumpfen mit.
 export const keyboardHeight = (height) => Math.round(height / 2);
 
-/// Wartet, bis alle endlichen Animationen fertig sind und die Lage steht. Unendliche Animationen (Spinner,
-/// Puls) haben kein Ende und werden übergangen (Vorbild `scrollIntoStickyState` in ledger-filter-bar.test.mjs).
-export async function settle(page) {
-  await page.evaluate(async () => {
-    const finite = () =>
-      document.getAnimations().filter((a) => {
-        if (a.playState === "finished" || a.playState === "idle") return false;
-        const end = a.effect?.getComputedTiming?.().endTime;
-        return Number.isFinite(end);
-      });
-    for (let round = 0; round < 20; round++) {
-      const running = finite();
-      if (running.length === 0) break;
-      await Promise.all(running.map((a) => a.finished.catch(() => {})));
-    }
-    // Dann steht die Lage: die Ebenen und die Seitenhöhe ändern sich fünf Frames lang nicht mehr (ein Popover wächst
-    // etwa noch, wenn eine späte Antwort seine Liste füllt).
-    const layout = () =>
-      JSON.stringify([
-        document.documentElement.scrollHeight,
-        ...[...document.querySelectorAll(".bottom-sheet.active, [data-layer]")].map((el) => {
-          const r = el.getBoundingClientRect();
-          return [Math.round(r.top), Math.round(r.bottom), Math.round(r.left), Math.round(r.right)];
-        }),
-      ]);
-    let last = null;
-    let still = 0;
-    for (let frame = 0; frame < 300 && still < 5; frame++) {
-      await new Promise((done) => requestAnimationFrame(done));
-      const now = layout();
-      still = now === last ? still + 1 : 0;
-      last = now;
-    }
-  });
+/// Wartet, bis alle laufenden endlichen Animationen fertig sind und die Lage steht. Unendliche Animationen
+/// (Spinner, Puls) haben kein Ende, pausierte kommen nie an: beide werden übergangen (Vorbild
+/// `scrollIntoStickyState` in ledger-filter-bar.test.mjs). Auf eine Animation wird je Runde höchstens
+/// `waitMs` gewartet. Laufen nach `rounds` Runden noch Animationen oder steht die Lage nach `frames` Frames
+/// nicht, wirft `settle` mit `where` (Zustand und Breite) und dem, was noch läuft: gemessen würde sonst mitten
+/// in der Bewegung.
+export async function settle(page, { where = "", rounds = 20, frames = 300, waitMs = 1000 } = {}) {
+  const problem = await page.evaluate(
+    async ({ rounds, frames, waitMs }) => {
+      const finite = () =>
+        document.getAnimations().filter((a) => {
+          if (a.playState !== "running") return false;
+          const end = a.effect?.getComputedTiming?.().endTime;
+          return Number.isFinite(end);
+        });
+      const name = (a) => {
+        const target = a.effect?.target;
+        const holder = target?.closest?.("[data-testid]");
+        const what = a.animationName ?? a.transitionProperty ?? a.id ?? "Animation";
+        return `${what} an ${holder ? `[data-testid="${holder.getAttribute("data-testid")}"] ` : ""}${target?.tagName?.toLowerCase() ?? "?"}`;
+      };
+      let running = finite();
+      for (let round = 0; round < rounds && running.length > 0; round++) {
+        const timeout = new Promise((done) => setTimeout(done, waitMs));
+        await Promise.race([Promise.all(running.map((a) => a.finished.catch(() => {}))), timeout]);
+        running = finite();
+      }
+      if (running.length > 0) return `nach ${rounds} Runden laufen noch: ${running.map(name).join(", ")}`;
+      // Dann steht die Lage: die Ebenen und die Seitenhöhe ändern sich fünf Frames lang nicht mehr (ein Popover
+      // wächst etwa noch, wenn eine späte Antwort seine Liste füllt).
+      const layout = () =>
+        JSON.stringify([
+          document.documentElement.scrollHeight,
+          ...[...document.querySelectorAll(".bottom-sheet.active, [data-layer]")].map((el) => {
+            const r = el.getBoundingClientRect();
+            return [Math.round(r.top), Math.round(r.bottom), Math.round(r.left), Math.round(r.right)];
+          }),
+        ]);
+      let last = null;
+      let still = 0;
+      for (let frame = 0; frame < frames && still < 5; frame++) {
+        await new Promise((done) => requestAnimationFrame(done));
+        const now = layout();
+        still = now === last ? still + 1 : 0;
+        last = now;
+      }
+      if (still < 5) {
+        const moving = document.getAnimations().filter((a) => a.playState === "running").map(name);
+        return `Lage steht nach ${frames} Frames nicht (zuletzt ${last})${moving.length ? `, es laufen: ${moving.join(", ")}` : ""}`;
+      }
+      return null;
+    },
+    { rounds, frames, waitMs }
+  );
+  if (problem) throw new Error(`settle${where ? ` (${where})` : ""}: ${problem}`);
 }
 
 /// Scrollt das Fenster ans Ende und wartet, bis die Lage fünf Frames lang steht.
-export async function scrollToEndAndRest(page) {
+export async function scrollToEndAndRest(page, { where = "" } = {}) {
   await page.evaluate(async () => {
     window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" });
     let last = -1;
@@ -90,7 +113,7 @@ export async function scrollToEndAndRest(page) {
       last = y;
     }
   });
-  await settle(page);
+  await settle(page, { where });
 }
 
 /// Markiert die Elemente eines Locators, damit die Messung im Browser sie findet.
@@ -227,7 +250,8 @@ function measureInPage({ mobile, touchMin, inputFontMin, checks, reachSelector }
       return ellipsis && title;
     };
     for (const el of document.body.querySelectorAll("*")) {
-      if (["SCRIPT", "STYLE", "OPTION", "TEXTAREA", "SVG"].includes(el.tagName)) continue;
+      // Text in einer Grafik (svg ist im HTML-DOM klein geschrieben) misst diese Regel nicht.
+      if (["SCRIPT", "STYLE", "OPTION", "TEXTAREA"].includes(el.tagName) || el.closest("svg")) continue;
       if (!shown(el) || parked(el)) continue;
       const text = textRect(el);
       if (!text) continue;
@@ -349,8 +373,8 @@ export const hasOpenLayer = (page) =>
   page.evaluate(() => [...document.querySelectorAll(".bottom-sheet.active, [data-layer]")].some((el) => el.checkVisibility()));
 
 /// Invariante 6: nach dem Scrollen überlappt kein Sticky- oder fester Kopf einen anderen.
-export async function measureSticky(page) {
-  await scrollToEndAndRest(page);
+export async function measureSticky(page, { where = "" } = {}) {
+  await scrollToEndAndRest(page, { where });
   return page.evaluate(() => {
     const out = [];
     const tol = 1;
@@ -431,9 +455,9 @@ export async function measureJump(page) {
 }
 
 /// Ein Zustand bei einer Breite: neue Seite, Mocks, Zustand herstellen, alle Invarianten messen. Liefert die
-/// Verletzungen mit Zustand und Breite. `inject` (nur für Gegenbeweise) setzt zusätzliches CSS, bevor
-/// gemessen wird.
-export async function runState(browser, baseUrl, state, width, { inject = null, checks = null } = {}) {
+/// Verletzungen mit Zustand und Breite. Nur für Gegenbeweise: `inject` setzt zusätzliches CSS, `prepare(page)`
+/// ändert die Seite, beides bevor gemessen wird.
+export async function runState(browser, baseUrl, state, width, { inject = null, prepare = null, checks = null } = {}) {
   const height = state.height ?? heightFor(width);
   const mobile = width < MOBILE_BELOW;
   const context = await browser.newContext({ viewport: { width, height }, hasTouch: mobile, isMobile: mobile });
@@ -461,13 +485,15 @@ export async function runState(browser, baseUrl, state, width, { inject = null, 
     await page.goto(`${baseUrl}/#${state.route}`, { waitUntil: "load" });
     await state.open(page, { width, mobile });
     if (inject) await page.addStyleTag({ content: inject });
-    await settle(page);
+    if (prepare) await prepare(page);
+    const where = `${state.name} @ ${width} px`;
+    await settle(page, { where });
 
     if (release) {
       await snapshotPositions(page);
       release();
       await state.deferred.loaded(page).waitFor();
-      await settle(page);
+      await settle(page, { where });
       found.push(...(await measureJump(page)));
     }
 
@@ -487,25 +513,26 @@ export async function runState(browser, baseUrl, state, width, { inject = null, 
       if ((await mark(state.keyboard.reach(page), "data-sweep-keyboard")) === 0) throw new Error("keyboard.reach nicht gefunden");
       await page.setViewportSize({ width, height: keyboardHeight(height) });
       // Wie das Handy beim Öffnen der Tastatur: das fokussierte Feld rückt in seinem Scrollbereich ins Bild.
-      await settle(page);
+      await settle(page, { where: `${where}, offene Tastatur` });
       await field.evaluate((el) => el.scrollIntoView({ block: "nearest" }));
-      await settle(page);
+      await settle(page, { where: `${where}, offene Tastatur` });
       for (const v of await measure(page, { width, checks: [7], reachSelector: "[data-sweep-keyboard]" })) found.push({ ...v, value: `bei offener Tastatur: ${v.value}` });
       await page.setViewportSize({ width, height });
-      await settle(page);
+      await settle(page, { where });
     }
 
     // Sticky-Köpfe der Seite zählen nur ohne offene Ebene: mit Sheet ist die Seite dahinter gesperrt.
-    if (want(6) && !(await hasOpenLayer(page))) found.push(...(await measureSticky(page)));
+    if (want(6) && !(await hasOpenLayer(page))) found.push(...(await measureSticky(page, { where })));
   } finally {
     await context.close();
   }
   if (unmocked.size > 0) throw new Error(`nicht gemockt: ${[...unmocked].sort().join(", ")}`);
-  // Eine benannte Ausnahme eines Zustands gilt nur für ihre Breite, ihre Invariante und ihren Selektor.
-  const excepted = (v) =>
-    (state.exceptions ?? []).some((e) => e.width === width && e.inv === v.inv && v.selector.startsWith(e.selector));
-  return found.filter((v) => !excepted(v)).map((v) => ({ state: state.name, width, ...v }));
+  return withoutExceptions(state.exceptions, width, found).map((v) => ({ state: state.name, width, ...v }));
 }
+
+/// Eine benannte Ausnahme eines Zustands gilt nur für ihre Breite, ihre Invariante und ihren Selektor.
+export const withoutExceptions = (exceptions, width, found) =>
+  found.filter((v) => !(exceptions ?? []).some((e) => e.width === width && e.inv === v.inv && v.selector.startsWith(e.selector)));
 
 /// Alle Zustände bei allen ihren Breiten, mit mehreren Seiten zugleich.
 export async function sweep(browser, baseUrl, states, { concurrency = 4 } = {}) {
