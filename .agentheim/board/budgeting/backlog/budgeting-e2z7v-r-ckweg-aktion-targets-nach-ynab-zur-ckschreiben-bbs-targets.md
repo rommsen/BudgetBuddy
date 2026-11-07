@@ -8,7 +8,7 @@ created: 2026-11-05
 completed:
 depends_on: [budgeting-eh8xe]
 blocks: []
-tags: [targets, rueckweg, ynab-spiegel]
+tags: [danach, targets, rueckweg, ynab-spiegel]
 related_adrs: [0072, 0084]
 related_research: [ynab-reihenfolge-monate-target-schreiben-2026-11-02]
 prior_art: [budgeting-k8wq3]

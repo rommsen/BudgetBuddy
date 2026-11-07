@@ -8,7 +8,7 @@ created: 2026-10-31
 completed:
 depends_on: [banking-import-cyg94]
 blocks: []
-tags: [frontend, sync]
+tags: [etappe-3, frontend, sync]
 related_adrs: [0071]
 related_research: []
 prior_art: [banking-import-cyg94]

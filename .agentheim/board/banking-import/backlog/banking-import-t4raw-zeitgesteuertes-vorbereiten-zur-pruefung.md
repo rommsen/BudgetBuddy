@@ -8,7 +8,7 @@ created: 2026-10-30
 completed:
 depends_on: [banking-import-bftq0, banking-import-cyg94]
 blocks: []
-tags: [backend, frontend, sync, zeitplan]
+tags: [etappe-3, backend, frontend, sync, zeitplan]
 related_adrs: [0071]
 related_research: []
 prior_art: []

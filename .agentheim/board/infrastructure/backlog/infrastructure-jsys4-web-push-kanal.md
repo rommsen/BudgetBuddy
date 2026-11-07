@@ -8,7 +8,7 @@ created: 2026-10-30
 completed:
 depends_on: [banking-import-p5mcp]
 blocks: [banking-import-r9tfx]
-tags: [backend, frontend, pwa, web-push, benachrichtigung, secrets]
+tags: [danach, backend, frontend, pwa, web-push, benachrichtigung, secrets]
 related_adrs: [0071, 0010, 0057]
 related_research: []
 prior_art: []

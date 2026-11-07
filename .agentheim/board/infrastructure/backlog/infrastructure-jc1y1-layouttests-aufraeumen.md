@@ -8,7 +8,7 @@ created: 2026-11-05
 completed:
 depends_on: [infrastructure-nx14s]
 blocks: []
-tags: [tests, browser, layout, doktrin]
+tags: [etappe-1, tests, browser, layout, doktrin]
 related_adrs: []
 related_research: []
 prior_art: [infrastructure-t5m2b, infrastructure-b3t9k]

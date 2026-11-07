@@ -8,7 +8,7 @@ created: 2026-10-24
 completed:
 depends_on: [ledger-xfjcp]
 blocks: []
-tags: [frontend, kassenbuch, flags, lena, ux]
+tags: [etappe-3, frontend, kassenbuch, flags, lena, ux]
 related_adrs: [0056]
 related_research: []
 prior_art: [ledger-xfjcp]

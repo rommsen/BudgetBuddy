@@ -8,7 +8,7 @@ created: 2026-10-31
 completed:
 depends_on: []
 blocks: []
-tags: [netzwerk, firefox, tailscale, service-worker, pwa]
+tags: [laufend, netzwerk, firefox, tailscale, service-worker, pwa]
 related_adrs: [0010, 0057]
 related_research: []
 prior_art: [infrastructure-y6atr, infrastructure-awstw, infrastructure-bnbdc]

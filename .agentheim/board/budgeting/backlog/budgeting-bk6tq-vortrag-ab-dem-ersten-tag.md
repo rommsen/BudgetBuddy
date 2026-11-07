@@ -8,7 +8,7 @@ created: 2026-10-29
 completed:
 depends_on: []
 blocks: []
-tags: [budget, monatswechsel, vorgemerkt, import]
+tags: [danach, budget, monatswechsel, vorgemerkt, import]
 related_adrs: [0063, 0065]
 related_research: [ynab-api-targets-zuweisung-2026-10-25]
 prior_art: []

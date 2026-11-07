@@ -37,9 +37,9 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **banking-import-asr13** — "Kann-Sammlung banking-import" (chore) — `backlog/banking-import-asr13-kann-sammlung-banking-import.md`
 - **banking-import-r9tfx** — "Verlust der Bankverbindung per Web-Push melden" (feature) — `backlog/banking-import-r9tfx-verlust-der-bankverbindung-per-web-push-melden.md`
 - **banking-import-q7vd2** — "confirmTan: Transportfehler vom fachlichen Fehler trennen und den Serverzustand bis zum Ende nachlesen" (bug) — `backlog/banking-import-q7vd2-confirmtan-transportfehler-vom-fachlichen-fehler-trennen-und.md`
-- **banking-import-w7k3m** — "Integrationstest mit echten Schlüsseln und falschem Passwort entfernen" (chore) — `backlog/banking-import-w7k3m-integrationstest-mit-echten-schl-sseln-und-falschem-passwort.md`
 - **banking-import-t4raw** — "Zeitgesteuertes Vorbereiten zur Prüfung, per Setting an und aus, Default aus" (feature) — `backlog/banking-import-t4raw-zeitgesteuertes-vorbereiten-zur-pruefung.md`
 <!-- backlog-list:end -->
 

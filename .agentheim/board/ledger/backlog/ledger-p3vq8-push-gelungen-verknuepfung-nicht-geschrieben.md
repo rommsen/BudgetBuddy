@@ -8,7 +8,7 @@ created: 2026-11-06
 completed:
 depends_on: []
 blocks: []
-tags: [ynab, quick-add, bot]
+tags: [etappe-2, ynab, quick-add, bot]
 related_adrs: [0021, 0004]
 related_research: []
 prior_art: [ledger-z71ka]

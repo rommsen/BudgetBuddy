@@ -8,7 +8,7 @@ created: 2026-11-01
 completed:
 depends_on: [banking-import-bftq0, infrastructure-jsys4]
 blocks: []
-tags: [backend, comdirect, session, benachrichtigung, tests]
+tags: [danach, backend, comdirect, session, benachrichtigung, tests]
 related_adrs: [0071]
 related_research: []
 prior_art: []

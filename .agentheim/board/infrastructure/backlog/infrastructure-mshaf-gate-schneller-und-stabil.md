@@ -8,7 +8,7 @@ created: 2026-11-06
 completed:
 depends_on: []
 blocks: []
-tags: [verify, gate, laufzeit, worktree, test-scripts, build, test, tests, playwright, flackern, captured]
+tags: [laufend, verify, gate, laufzeit, worktree, test-scripts, build, test, tests, playwright, flackern, captured]
 related_adrs: []
 related_research: []
 prior_art: []

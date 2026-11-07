@@ -8,7 +8,7 @@ created: 2026-10-30
 completed:
 depends_on: []
 blocks: []
-tags: [captured, bestandsreview, client, retry, frontend, tests]
+tags: [etappe-3, captured, bestandsreview, client, retry, frontend, tests]
 related_adrs: []
 related_research: []
 prior_art: []

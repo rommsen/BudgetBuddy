@@ -5,6 +5,32 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 13:29 -- Modeling / Fahrplan-Zuordnung nach ADR 0086
+
+**Type:** Modeling / Refine
+**BC:** alle
+**Summary:** 20 Backlog-Tasks mit Etappen-Tag versehen (etappe-1, etappe-2, etappe-3, laufend, danach). banking-import-w7k3m in die neue Kann-Sammlung banking-import-asr13 übernommen. Überblick in knowledge/fahrplan.md.
+**ADRs written:** none
+
+---
+
+## 2026-11-07 13:29 -- Modeling / Dismissed: banking-import-w7k3m
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- banking-import-w7k3m - "Integrationstest mit echten Schlüsseln und falschem Passwort entfernen" (banking-import)
+
+---
+
+## 2026-11-07 13:29 -- Modeling / Captured: banking-import-asr13 - "Kann-Sammlung banking-import"
+
+**Type:** Modeling / Capture
+**BC:** banking-import
+**Filed to:** backlog
+**Summary:** Kann-Sammlung banking-import angelegt, nimmt banking-import-w7k3m auf (Fahrplan-Zuordnung, ADR 0086).
+
+---
+
 ## 2026-11-07 11:55 -- Deploy: 9 Tasks aus den Bestandsreviews ledger und budgeting
 
 **Type:** Deploy

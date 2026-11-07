@@ -8,7 +8,7 @@ created: 2026-10-24
 completed:
 depends_on: [design-system-001, ledger-sfab0]
 blocks: []
-tags: [frontend, kassenbuch, kategorie, regeln, entwurf]
+tags: [etappe-3, frontend, kassenbuch, kategorie, regeln, entwurf]
 related_adrs: [0055]
 related_research: []
 prior_art: [ledger-k2rbn]

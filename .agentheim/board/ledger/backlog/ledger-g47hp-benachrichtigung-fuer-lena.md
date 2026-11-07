@@ -8,7 +8,7 @@ created: 2026-10-24
 completed:
 depends_on: [ledger-xfjcp]
 blocks: []
-tags: [backend, kassenbuch, flags, lena, benachrichtigung]
+tags: [danach, backend, kassenbuch, flags, lena, benachrichtigung]
 related_adrs: [0056]
 related_research: []
 prior_art: [ledger-xfjcp]
