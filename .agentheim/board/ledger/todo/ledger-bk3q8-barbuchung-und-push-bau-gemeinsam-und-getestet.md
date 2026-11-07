@@ -1,7 +1,7 @@
 ---
 id: ledger-bk3q8
 title: "Quick Add und Bob über einen gemeinsamen Barbuchungs-Befehl, Push-Bau als reine Funktion; ein Kategorien-Ladefehler bucht nicht mehr still ohne Kategorie"
-status: backlog
+status: todo
 type: bug
 context: ledger
 created: 2026-11-07
