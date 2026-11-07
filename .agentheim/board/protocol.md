@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 19:52 -- Review-Lauf: 2585728a..d744a824
+
+**Type:** Review / Review-Lauf
+**Bereich:** 2585728a..d744a824 (infrastructure-nx14s, design-system-bcdqy)
+**Agents:** qa-milestone-reviewer, frontend-architecture, design-quality
+**Funde:** behoben 31, verworfen 3, Rückfrage 1, Ticket 0, Kann-Sammlung 5 (design-system-k8s2m)
+**Commits:** 3dfcb79b (Styleguide, Fahrplan), f7e360a0 (Truncate, TouchTargets, Zugänglichkeit), 45656bd7 (Sweep-Gegenbeweise, settle)
+**Verworfen:** statTile in StatusViews (alter Bestand, kein Nutzen im Rahmen); data-layer als Konvention (zwei Ebenen, erst bei einer dritten); title an den Sync-Kacheln entfernen (ÜBERSPRUNGEN kann bei 320 px gekürzt werden)
+**Rückfrage:** Breakpoints 600 und 840 px gegen md und lg im Code, hängt an Romans Panel-Entscheidung; als Zeile in Etappe 3
+**Verifikation:** VERIFY: PASS (dotnet 4286 grün, node 336 grün, dotnet build, npm run build, guard:classes, guard:tokens grün)
+
+---
+
 ## 2026-11-07 19:31 -- Capture / Captured: design-system-k8s2m - "Kann-Sammlung design-system"
 
 **Type:** Capture

@@ -3,13 +3,16 @@
 Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success looks like“.
 
 ## Stand
-Zuletzt aktualisiert: 2026-11-07, nach dem Verfeinern von Etappe 1.
+Zuletzt aktualisiert: 2026-11-07, nach work und Review von nx14s und bcdqy.
 
-- **Etappe 1 · Bedeutungen:** läuft, 1 von 5 erledigt (Skizze und Prototyp).
+- **Etappe 1 · Bedeutungen:** läuft, 3 von 5 erledigt (Skizze und Prototyp, Layout-Sweep,
+  Muster im Styleguide). Offen bei bcdqy: Freigabe der Styleguide-Abschnitte §7.4 bis §7.15
+  durch Roman, dazu seine Entscheidung, ob das Panel ab 840 px (Styleguide) oder ab 1024 px
+  (Prototyp) kommt.
 - **Etappe 2 · Lücken schließen:** noch nicht verfeinert.
-- **Etappe 3 · Ein Produkt:** noch nicht verfeinert.
-- **Nächster Schritt:** `/agentheim:work` für `infrastructure-nx14s` und `design-system-bcdqy`.
-- **Danach:** `infrastructure-jc1y1` promoten, dann `design-system-dak16`.
+- **Etappe 3 · Ein Produkt:** noch nicht verfeinert, Zeilen wachsen.
+- **Nächster Schritt:** `infrastructure-jc1y1` promoten, `/agentheim:work`, Review.
+- **Danach:** `design-system-dak16`, dann Etappe 2 verfeinern.
 
 ## Ablauf je Schritt
 1. Nächsten Schritt aus „Stand“ nennen.
@@ -39,10 +42,10 @@ Reihenfolge: `infrastructure-nx14s` → `infrastructure-jc1y1` → `design-syste
 `backlog/`, bis ihr Vorgänger erledigt ist; dann promoten.
 
 - [x] Skizze und Prototyp der drei Orte, von Roman freigegeben (2026-11-07)
-- `infrastructure-nx14s` Layout-Invarianten als ein Sweep (todo)
-- `infrastructure-jc1y1` Designwert-Tests aufräumen (wartet auf nx14s)
+- [x] `infrastructure-nx14s` Layout-Invarianten als ein Sweep (2026-11-07)
+- `infrastructure-jc1y1` Designwert-Tests aufräumen (bereit zum Promoten)
 - `design-system-dak16` Palette 2 im Token-Layer, Kontrast-Wächter (wartet auf jc1y1)
-- `design-system-bcdqy` Muster im Styleguide (todo)
+- [x] `design-system-bcdqy` Muster im Styleguide (2026-11-07, Freigabe Roman offen)
 
 ## Etappe 2 · Lücken schließen
 Ziel: Nichts zwingt mehr zu YNAB außer Reports.
