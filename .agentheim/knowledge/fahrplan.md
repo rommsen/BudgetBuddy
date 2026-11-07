@@ -75,6 +75,17 @@ Ziel: Drei Orte, eine Sprache, Seite für Seite an der Skizze.
 - Budget an die Bedeutungen angleichen (Targets prüfen: zu viel Orange).
 - Kassenbuch: Seitenpanel ordnen, Historie wie im Budget.
 - Am PC große Leerflächen, am Handy Kontowahl mal Pillenleiste, mal Selectbox: vereinheitlichen.
+- Navigation nur mit den drei Orten, Einstellungen hinter einem Symbol (heute sechs Punkte;
+  Styleguide §7.4).
+- Kassenbuch am Handy: die zwei wischenden Leisten entfallen, Filter-Knopf mit Sheet und gesetzte
+  Filter als Chips (Styleguide §7.5).
+- Wochentag eines Targets als Auswahlfeld statt sieben Knöpfe im `Segmented` (Styleguide §7.5).
+- Panel rund 30 % der Breite und ab 840 px (heute fest 340, 360 und 420 px, Targets prüfen erst ab
+  1024 px; Styleguide §7.6).
+- Kategorie-Picker nicht mehr über einem Sheet stapeln (`CategoryPicker.sheetLayered`); die Auswahl
+  ersetzt den Inhalt des Sheets und führt zurück (Styleguide §7.15).
+- Rückmeldung am PC über der Auswahl-Leiste des Kassenbuchs statt auf ihr (Styleguide §7.13).
+- Budget-Historie: Filter nach Art als Auswahlfeld „Zeigen“ statt `ChipBar` (Styleguide §7.11).
 - Logo und Icon: Vorlage Buddy in `standards/frontend/brand/` (Entwurf 2026-11-07, Palette 2).
 - `banking-import-t4raw` zeitgesteuertes Vorbereiten
 - `banking-import-q7vd2` confirmTan-Fehlerzweig

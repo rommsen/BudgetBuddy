@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 2
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 43
+- **Doing:** 0
+- **Done:** 44
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **design-system-bcdqy** — "Muster im Styleguide: Orte, Auswahl, Liste mit Panel, Tastatur, Dialoge und Layout-Regeln für Handy und PC" (feature) — `doing/design-system-bcdqy-muster-im-styleguide.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **design-system-bcdqy** — "Muster im Styleguide: Orte, Auswahl, Liste mit Panel, Tastatur, Dialoge und Layout-Regeln für Handy und PC" (feature) — `done/design-system-bcdqy-muster-im-styleguide.md`
 - **design-system-w7c2h** — "Fokus ohne Kasten: Tabs zeigen den Tastatur-Fokus als helle Fläche, Filter-Chips als Ring direkt auf dem Rand" (bug) — `done/design-system-w7c2h-fokus-ohne-kasten-tabs-zeigen-den-tastatur-fokus-als-helle-f.md`
 - **design-system-k4f9t** — "Fokus-Ring folgt der Form: Filter-Chips mit runder Kontur statt eckigem Rahmen, Tabs mit Ring nach innen statt abgeschnitten im Inspektor" (bug) — `done/design-system-k4f9t-fokus-ring-folgt-der-form-filter-chips-mit-runder-kontur-sta.md`
 - **design-system-t7kqz** — "Der Wiederholen-Knopf der Fehlerkarten heißt Erneut versuchen statt Try Again" (bug) — `done/design-system-t7kqz-der-wiederholen-knopf-der-fehlerkarten-hei-t-erneut-versuche.md`

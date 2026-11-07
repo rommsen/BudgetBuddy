@@ -278,12 +278,13 @@ nutzt die zweite Variante über `CategoryPicker.popoverInDialog`.
   Zwischen `xs` (12px) und `sm` (14px) liegt `FontSizes.compact` (13px), für Kopf und Werte der Leiste
   Monatserster auf der Budget-Seite (Skizze, budgeting-m3x7f); `FontSizes.microPlus` (11px) trägt dort die Bezeichnungen.
 - **Touch-Targets ≥ 48px** auf Mobile (`TouchTargets.minSize`). Tappables bekommen
-  außerdem `touch-action: manipulation`.
+  außerdem `touch-action: manipulation`. Am PC dürfen Zeilen dichter sein (§7.15).
+- **Je Ansicht** höchstens drei Größen aus dieser Skala (§7.14).
 - **Zahlen** immer `tabular-nums` (über `Presets.monoNumber` / `Money`).
 
 ---
 
-## 5. Komponenten-Inventar (22 DS-Komponenten)
+## 5. Komponenten-Inventar (23 DS-Komponenten)
 
 Alle Komponenten liegen unter
 [`src/Client/DesignSystem/`](../../src/Client/DesignSystem/). Konkrete API/Props stehen dort in den
@@ -295,26 +296,27 @@ steht nur **wann welche / wann nicht**.
 
 | Komponente | Wann nutzen | Wann **nicht** |
 |------------|-------------|----------------|
-| **Button** | Jede klickbare Aktion (dazu `amountStep` für Schritte neben einem Feld, hält den Fokus; `sideRow` und `sideRowFixed` für die Zeilen `von` und `nach`): `primary` (Orange-CTA), `secondary` (neutral mit grauem Rand, ADR 0075), `ghost`, `danger`, `hero`/`heroTeal` (große CTAs), `*Loading`, `IsBusy` (der eigene Aufruf läuft auf einem Knopf, der den Fokus haben kann: Spinner, `aria-disabled` und `aria-busy`, kein `disabled`, der Fokus bleibt), `*WithIcon`, `group`, in Listen `selectableListRow` (Zeile, die etwas wählt, gewählt mit `aria-current` und Teal), `stepArrow`/`stepArrowGap` (`‹ ›`, der Platz bleibt am Rand frei), `homeLabel` (Name, der nach Hause führt und teal ist, wenn man woanders steht; `homeLabelCompact` schmal für ein kurzes Wort wie „Nov 2026“ im Kopf der Budget-Seite am Handy), `listName` (Name einer Zeile als Knopf, sieht aus wie der Name, am Handy 48 px Trefferfläche ohne höhere Zeile) `listRow` (ganze zweizeilige Listenzeile als Knopf) und `disclosureListRow` (Zeile, die einen Block darunter aufklappt: Chevron in `text-muted` rechts, dreht sich beim Öffnen, `aria-expanded` und `aria-controls`, der Block bleibt zu `hidden` im DOM), `tile` (Kachel mit Wert in Mono 13 px und Bezeichnung 11 px, Radius 10 px, mindestens 52 px hoch, Zustand offen, erledigt oder aktiv mit Teal-Rand; Leiste Monatserster) und `quietText` (leiser Textknopf 12 px gedämpft, „Ausblenden“) | Navigation zwischen Seiten → `Navigation`; Link nach extern → eigener Anker mit `Icons.externalLink` |
+| **Button** | Jede klickbare Aktion (dazu `amountStep` für Schritte neben einem Feld, hält den Fokus; `sideRow` und `sideRowFixed` für die Zeilen `von` und `nach`): `primary` (Hauptaktion, gefüllt im Akzent, ADR 0087), `secondary` (neutral mit grauem Rand, ADR 0075), `ghost`, `danger`, `hero`/`heroTeal` (große CTAs), `*Loading`, `IsBusy` (der eigene Aufruf läuft auf einem Knopf, der den Fokus haben kann: Spinner, `aria-disabled` und `aria-busy`, kein `disabled`, der Fokus bleibt), `*WithIcon`, `group`, in Listen `selectableListRow` (Zeile, die etwas wählt, gewählt mit `aria-current` und Akzent), `stepArrow`/`stepArrowGap` (`‹ ›`, der Platz bleibt am Rand frei), `homeLabel` (Name, der nach Hause führt und im Akzent steht, wenn man woanders ist; `homeLabelCompact` schmal für ein kurzes Wort wie „Nov 2026“ im Kopf der Budget-Seite am Handy), `listName` (Name einer Zeile als Knopf, sieht aus wie der Name, am Handy 48 px Trefferfläche ohne höhere Zeile) `listRow` (ganze zweizeilige Listenzeile als Knopf) und `disclosureListRow` (Zeile, die einen Block darunter aufklappt: Chevron in `text-muted` rechts, dreht sich beim Öffnen, `aria-expanded` und `aria-controls`, der Block bleibt zu `hidden` im DOM), `tile` (Kachel mit Wert in Mono 13 px und Bezeichnung 11 px, Radius 10 px, mindestens 52 px hoch, Zustand offen, erledigt oder aktiv mit Rand im Akzent; Leiste Monatserster) und `quietText` (leiser Textknopf 12 px gedämpft, „Ausblenden“) | Navigation zwischen Seiten → `Navigation`; Link nach extern → eigener Anker mit `Icons.externalLink` |
 | **Card** | Inhaltsblöcke: `standard`, `glass`, `glow` (featured), `withAccent`, `emptyState`, plus `header`/`body`/`footer` | Volle Seiten-Layouts → `Primitives`; modale Inhalte → `Modal` |
-| **Badge** | Kompakter Status/Label: semantisch (`success`/`warning`/`error`/`info`, `notice` in Gelb für die Budget-Seite, ADR 0075), Domänen-Status (`imported`, `pendingReview`, `autoCategorized`, `uncategorized`), `count` | Klickbare Filter → `Button.ghost`/Pills; lange Texte |
+| **Badge** | Kompakter Status/Label: semantisch (`success`/`warning`/`error`/`info`, `notice` in Gelb für „braucht dich, kein Fehler“, immer mit Wort, ADR 0087 Punkt 3), Domänen-Status (`imported`, `pendingReview`, `autoCategorized`, `uncategorized`), `count` | Klickbare Filter → `Button.ghost`/Pills; lange Texte |
 | **Input** | Alle Formularelemente: `text`/`password`/`email`/`number`, `textarea`, `select`/`selectSimple`, `checkbox`, `checkboxNative` (die native Checkbox des Browsers ohne eigene Gestalt, in einem `label` mit der Zeile; Vorschau Targets anwenden nach der Skizze), `toggle`, `searchableSelect`, plus `group`/`groupWithError`/`formSection` | Reine Anzeige; mobiles Kategorie-/Konto-Auswählen → `BottomSheet` (§7) |
-| **Modal** | Zentrierte Dialoge auf **Desktop**: `simple`, `custom`, `fullScreen`, `confirm`/`confirmDanger` (beide mit "Abbrechen"), `alert`, `loading` | Mobile Auswahl-Flows → `BottomSheet` (keyboard-fest); persistente Inhalte |
+| **Modal** | Zentrierte Dialoge auf **Desktop**, nur für eine kurze Frage oder eine Auswahl (§7.6): `simple`, `custom`, `fullScreen`, `confirm`/`confirmDanger` (beide mit "Abbrechen"), `alert`, `loading`. Ein offenes Modal bekommt die Tasten zuerst, Esc schließt nur es (§7.8) | Anzeigen, Bearbeiten oder Neuanlegen eines Dings aus einer Liste → Panel (§7.6); mobile Auswahl-Flows → `BottomSheet` (keyboard-fest); persistente Inhalte |
 | **Toast** | Flüchtiges Feedback nach Aktion: `success`/`error`/`warning'`/`info'`, `renderList` | Blockierende Fehler → `ErrorDisplay`/`Modal`; persistenter Status → `Badge` |
 | **Stats** | KPI-/Kennzahl-Kacheln: `withIcon`, `withTrend`, `transactionCount`, `syncCount`, `grid*`, `withAccent` (Akzentfarbe wählen, inkl. `NoAccent` für gar keinen Streifen, z. B. Kontostände-Karten); Monatsbalken `monthBars`, `monthBarsChosen` (vorgewählter Balken, nur im Styleguide) und `monthBarsPlaceholder` (beim Laden, gleich hoch); Mini-Balken `sparkBars`, `sparkBarsLabelled` und `sparkBarsPlaceholder` (Seite Targets prüfen); Regeln in §2 Monatsbalken | Vollständige Tabellen → `Table`; einzelner Betrag im Fließtext → `Money` |
-| **Money** | **Jede** Geldanzeige — setzt Vorzeichen-Farbe + Glow automatisch: `available` (Auswahl, §2), `afterAmount` (Verfügbar danach: fett, rot unter 0, grün bei genau 0), `simple`, `large`, `hero`, `noSign`, `fromMoney`, `accountBalance` (Kontostand ohne führendes Plus, für Kontostände-Leiste und -Liste), `accountListRow` (klickbare Kontozeile: Name links, farbcodierter Betrag rechts, aktiver Zustand mit Teal-Akzentlinie), `accountListRowWith` (dieselbe Zeile mit eigenem Wert, etwa `Loading.amountSkeleton` beim Laden oder `balanceUnavailable`, ein gedämpfter Strich nach einem Ladefehler) | Nicht-monetäre Zahlen → `Presets.monoNumber` |
+| **Money** | **Jede** Geldanzeige, setzt Vorzeichen-Farbe + Glow automatisch: `available` (Auswahl, §2), `afterAmount` (Verfügbar danach: fett, rot unter 0, grün bei genau 0), `simple`, `large`, `hero`, `noSign`, `fromMoney`, `accountBalance` (Kontostand ohne führendes Plus, für Kontostände-Leiste und -Liste), `accountListRow` (klickbare Kontozeile: Name links, farbcodierter Betrag rechts, aktiver Zustand mit Akzentlinie), `accountListRowWith` (dieselbe Zeile mit eigenem Wert, etwa `Loading.amountSkeleton` beim Laden oder `balanceUnavailable`, ein gedämpfter Strich nach einem Ladefehler) | Nicht-monetäre Zahlen → `Presets.monoNumber` |
 | **Table** | Dichte tabellarische Daten (Desktop), inkl. `headerCell`/sortierbar/`sticky` | Mobile Listen mit Zeilen-Aktionen → Card-Liste + `Swipe`; einfache Key-Value-Paare → `Card` |
 | **Loading** | Ladezustände: `spinner`, `centered`, `neonPulse`, Skeletons (`txListSkeleton`, `tableSkeleton`, `statsGridSkeleton`, `cardSkeleton`, `amountSkeleton` für einen Betrag) | Inhalt da → echten Inhalt zeigen; Fehler → `ErrorDisplay` |
-| **ErrorDisplay** | Fehlerdarstellung: `inline'` (Feldfehler), `cardCompact`/`card`, `hero` (große Operation), `fullPage`, `forRemoteData`, `warning`, `notice` (Gelb, für die Budget-Seite statt `warning`, ADR 0075) | Kurzes Erfolgs-/Info-Feedback → `Toast`; Pflichtfeld-Hinweis → `Input.group*` |
+| **ErrorDisplay** | Fehlerdarstellung: `inline'` (Feldfehler), `cardCompact`/`card`, `hero` (große Operation), `fullPage`, `forRemoteData`, `warning`, `notice` (Gelb, braucht dich, kein Fehler, ADR 0087 Punkt 3) | Kurzes Erfolgs-/Info-Feedback → `Toast`; Pflichtfeld-Hinweis → `Input.group*` |
 | **Icons** | SVG-Icons mit `Size`×`Color`-Tokens (`Icons.sync MD Teal`, …) | Eigene rohe `<svg>` inline (Drift) — fehlt ein Icon, hier ergänzen |
 | **Navigation** | Top-/Bottom-Nav, App-Wrapper, Page-Content-Container — einmal in der Haupt-`View.fs` | Aktionen innerhalb einer Seite → `Button` |
 | **PageHeader** | Seitentitel: `simple`, `withSubtitle`, `gradient*`, `withActions`, `gradientWithActions` | Karten-Titel → `Card.header`; Abschnittstitel → `Card.headerSimple`/`Presets.sectionHeader` |
 | **Primitives** | Layout-Bausteine: `Container`, `Stack`/`HStack`, `Grid`, `Spacer`, responsive Sichtbarkeit (`mobileOnly`/`desktopOnly`) | Visuell gestylte Blöcke → `Card`; Token-Klassen reichen für Spacing |
 | **Tokens** | Quelle aller Klassen-Konstanten (§3) — überall referenzieren | Niemals umgehen: rohe Tailwind-/Hex-Klassen sind Drift |
 | **Form** | Submit-Buttons mit Required-Field-Gating: `submitButton(WithIcon/Secondary)` deaktivieren bei fehlenden Pflichtfeldern | Reine Felder → `Input`; freie Buttons → `Button` |
-| **BottomSheet** | **Mobile** Auswahl-/Picker-Flows (keyboard-aware): `view`, `inspector` (immer gerendert, fährt über `IsOpen` ein und aus und hält dabei seinen Inhalt, feste Höhe 500 px, fester Bereich zwischen Kopf und Inhalt, der ab 55 % Höhe in sich scrollt, wird mit Tastatur kleiner), `categoryPicker`, `categoryPickerLayered`, `chipButton`, `sectionTitle`, `confirmDanger` (Rückfrage vor einer zerstörenden Aktion als Block im Sheet, Gegenstück zu `Modal.confirmDanger`: Titel, Text, "Abbrechen" und der rote Knopf, `role "alertdialog"` mit `aria-labelledby`, ohne `aria-modal`, weil sie im Fluss des Sheets steht und den Fokus nicht fängt, beim Öffnen hat "Abbrechen" den Fokus, Escape bricht ab, nach dem Schließen geht der Fokus über `ReturnFocus` auf den Knopf, der sie geöffnet hat: nach "Abbrechen" wieder bedienbar, nach dem Bestätigen mit dem laufenden Aufruf (`IsBusy`). Das nur, wenn der Fokus beim Schließen noch in der Rückfrage lag oder auf `body` gefallen ist (Abbrechen, Escape, Bestätigen); schließt sie, weil im Feld darüber getippt wurde, bleibt der Fokus im Feld; höchstens eine Rückfrage zugleich, solange sie offen ist, warten die übrigen Aktionen des Tabs), `confirm` (dasselbe mit dem Orange-Knopf vor einer Aktion mit Folgen, Gegenstück zu `Modal.confirm`, etwa der Wechsel der Art eines Targets im Tab Target und im Sheet der Seite Targets prüfen) | Desktop-Dialog → `Modal`; einfaches Dropdown → `Input.select` |
-| **Tabs** | Gleich breite Segmente mit `role=tablist`, aktiv in Teal, am Handy 48 px Trefferfläche, Pfeiltasten (am Rand bleiben sie stehen) und roving `tabindex`: `bar`, dazu `panel` für `role=tabpanel`. Fokus: Tabs zeigen Auswahl und Tastatur-Fokus mit demselben teal Strich, ohne Ring und ohne Fläche, Filter-Chips (`ChipBar`) zeigen den Fokus als Ring direkt auf dem Rand der Pille, ohne Abstand (beides ungelayert in `styles.css`) | Filter über einer Liste → `ChipBar` |
-| **Segmented** | Umschalter zwischen Ansichten derselben Sache: Knöpfe mit `aria-pressed`, aktiv in Teal (ADR 0075), 48 px, erster Nutzer ist der Tab Geld, dazu der Rhythmus und der Wochentag im Tab Target. `Segment.Disabled` sperrt einen Knopf (`disabled`, `opacity-50 cursor-not-allowed`, kein Hover), etwa den Rhythmus, solange das Speichern läuft | Bereiche mit eigenem Panel → `Tabs`; zwei Tab-Leisten übereinander stören sich bei den Pfeiltasten |
+| **BottomSheet** | **Mobile** Auswahl-/Picker-Flows (keyboard-aware): `view`, `inspector` (immer gerendert, fährt über `IsOpen` ein und aus und hält dabei seinen Inhalt, feste Höhe 500 px, fester Bereich zwischen Kopf und Inhalt, der ab 55 % Höhe in sich scrollt, wird mit Tastatur kleiner), `categoryPicker`, `categoryPickerLayered`, `chipButton`, `sectionTitle`, `confirmDanger` (Rückfrage vor einer zerstörenden Aktion als Block im Sheet, Gegenstück zu `Modal.confirmDanger`: Titel, Text, "Abbrechen" und der rote Knopf, `role "alertdialog"` mit `aria-labelledby`, ohne `aria-modal`, weil sie im Fluss des Sheets steht und den Fokus nicht fängt, beim Öffnen hat "Abbrechen" den Fokus, Escape bricht ab, nach dem Schließen geht der Fokus über `ReturnFocus` auf den Knopf, der sie geöffnet hat: nach "Abbrechen" wieder bedienbar, nach dem Bestätigen mit dem laufenden Aufruf (`IsBusy`). Das nur, wenn der Fokus beim Schließen noch in der Rückfrage lag oder auf `body` gefallen ist (Abbrechen, Escape, Bestätigen); schließt sie, weil im Feld darüber getippt wurde, bleibt der Fokus im Feld; höchstens eine Rückfrage zugleich, solange sie offen ist, warten die übrigen Aktionen des Tabs), `confirm` (dasselbe mit dem Knopf der Hauptaktion vor einer Aktion mit Folgen, Gegenstück zu `Modal.confirm`, etwa der Wechsel der Art eines Targets im Tab Target und im Sheet der Seite Targets prüfen). Tasten: ein offenes Sheet bekommt sie zuerst und verbraucht sie, Esc und die Zurück-Geste schließen nur das Sheet (§7.8); eine Auswahl im Sheet folgt §7.9, am Handy ohne Autofokus | Desktop-Dialog → `Modal`; einfaches Dropdown → `Input.select`; ein zweites Sheet über einem offenen Sheet (§7.15) |
+| **CategoryPicker** | Jede Wahl genau einer Kategorie, als Split-Ziel mit Konten (§2 „Auswahl“): am PC `popover` und seine Varianten, am Handy `sheet`. Tasten nach §7.9: am PC steht der Fokus beim Öffnen in der Suche, ↑↓ bewegen die Markierung ohne Neuaufbau der Liste, Enter wählt, Esc schließt nur den Picker; am Handy kein Autofokus. Ein Klick übernimmt sofort (§7.1) | Mehrere Kategorien wählen → `CategoryMultiSelect`; Freitext für eine Kategorie (§7.2); über einem offenen Sheet gestapelt (`sheetLayered`, Abweichung bis Etappe 3, §7.15) |
+| **Tabs** | Gleich breite Segmente mit `role=tablist`, aktiv im Akzent, am Handy 48 px Trefferfläche, Pfeiltasten (am Rand bleiben sie stehen) und roving `tabindex`: `bar`, dazu `panel` für `role=tabpanel`. Fokus: Tabs zeigen Auswahl und Tastatur-Fokus mit demselben Strich im Akzent, ohne Ring und ohne Fläche, Filter-Chips (`ChipBar`) zeigen den Fokus als Ring direkt auf dem Rand der Pille, ohne Abstand (beides ungelayert in `styles.css`) | Filter über einer Liste → `ChipBar` |
+| **Segmented** | Umschalter zwischen Ansichten derselben Sache, nur für eine feste Menge von höchstens vier Optionen (§7.5): Knöpfe mit `aria-pressed`, aktiv im Akzent (ADR 0087), 48 px, erster Nutzer ist der Tab Geld, dazu der Rhythmus im Tab Target. Der Wochentag im Tab Target hat heute sieben Knöpfe und weicht damit ab (Fahrplan Etappe 3). `Segment.Disabled` sperrt einen Knopf (`disabled`, `opacity-50 cursor-not-allowed`, kein Hover), etwa den Rhythmus, solange das Speichern läuft | Fünf oder mehr Optionen und alles, was der Nutzer anlegt (Konten, Kategorien, Gruppen, Flags) → Auswahlfeld (§7.5); Bereiche mit eigenem Panel → `Tabs`; zwei Tab-Leisten übereinander stören sich bei den Pfeiltasten |
 | **Swipe** | Wischbare Listenzeilen mit enthüllter Aktion (mobile) | Statische Zeilen → Card/`Table`; Desktop-Hover-Aktionen → `Button.iconButton` |
 | **Viewport** | Infrastruktur für mobile Sheets (visualViewport→CSS-Vars, Scroll-Lock, Click-Swallow, Haptik) — von `BottomSheet` genutzt | Direkt nur, wenn du ein **neues** Sheet/Overlay baust (dann die Muster aus §7 erben) |
 
@@ -372,6 +374,13 @@ Bewegung ist subtil, schnell und respektiert Nutzerpräferenzen. Quelle:
 Muster stehen **oberhalb** einzelner Komponenten: verbindliche Konventionen, die jede
 neue Overlay-/Auswahl-UI erbt.
 
+Die Abschnitte 7.4 bis 7.15 setzen ADR 0087 (Punkte 9 bis 24) und die Layout-Regeln der Recherche
+`seitenlayout-liste-detail-2026-11-07` (Abschnitt 6) um. Jeder hat eine Regel, ein „Wann“, ein „Wann
+nicht“ und eine Quelle. Sie gelten für jede neue und jede umgebaute Ansicht. Wo der Code heute
+abweicht, steht das als Zeile im Fahrplan Etappe 3 (`.agentheim/knowledge/fahrplan.md`); diese
+Abweichungen sind bekannt und kein Grund, die Regel aufzuweichen. Vorlage für Form und Verhalten ist
+der Prototyp (Version 14), den Roman am Handy und am PC freigegeben hat.
+
 ### 7.1 Visual-Viewport-Sheet + Click-Commit (ADR 0005)
 
 Das zentrale Mobile-Muster für **alle** Bottom Sheets / Overlays. Quelle:
@@ -395,8 +404,10 @@ Das zentrale Mobile-Muster für **alle** Bottom Sheets / Overlays. Quelle:
    Scrollen sichtbar); `touch-action: manipulation` auf
    Tappables; expliziter Close-Button; `autoFocus` **nur bei feinem Pointer**
    (`Viewport.isFinePointer()`).
-4. **Stacking nur über Layer-Klasse** (`.layer-2`, z-index 70/80), maximal eine Ebene
-   tief (`categoryPickerLayered`).
+4. **Stacking:** Ziel sind Sheets ohne Stapel (§7.15). Wo heute noch ein Sheet über einem
+   anderen liegt (`categoryPickerLayered`, `CategoryPicker.sheetLayered`), läuft das nur über die
+   Layer-Klasse (`.layer-2`, z-index 70/80) und höchstens eine Ebene tief; es wird in Etappe 3
+   abgebaut.
 
 > Baust du ein neues Sheet/Overlay, baue es über `BottomSheet`/`Viewport` — erfinde den
 > Anker- und Commit-Mechanismus nicht neu. Begründung & Root-Causes: **ADR 0005**;
@@ -447,9 +458,254 @@ Breite der Liste (Container-Abfrage) in vier Spalten wie die Skizze (Name und Ta
 Monate, Knöpfe; Verhältnis 1,3 zu 1), schmaler wie am Handy untereinander. "<Betrag> übernehmen" und "Anpassen …"
 sind neutrale Knöpfe (`Button.Secondary`, ADR 0075 Punkt 3). "Anpassen …" öffnet das Target-Formular ab 1024 px als
 Panel rechts, 360 px breit wie die Skizze (`.target-check-panel`), darunter als `BottomSheet.inspector`. In der Budget-Historie `#/budget/history` stehen die Filter nach Art
-als `ChipBar.barWithTestId` in einer eigenen, haftenden Zeile unter Zurück und Titel. Die Höhe des Kopfs ist
+heute als `ChipBar.barWithTestId` in einer eigenen, haftenden Zeile unter Zurück und Titel (Ziel: §7.11). Die Höhe des Kopfs ist
 gemessen (`ResizeObserver`, `--budget-month-bar-height`), weil er umbricht. Ein Halter mit
 `overflow-hidden` nimmt dem Spaltenkopf das Haften: dort `overflow-clip`.
+
+
+### 7.4 Drei Orte und Navigation
+
+**Regel:** BB hat drei Orte: Übersicht, Kassenbuch, Budget. Die Leiste unten am Handy und die
+Seitenleiste links am PC zeigen nur diese Orte, keine Aktionen; ein Ort darf einen Zähler tragen
+(offene Buchungen an der Übersicht). Die Einstellungen liegen hinter einem Symbol (Zahnrad). Regeln
+sind ein Tab im Kassenbuch neben den Buchungen. Quick Add ist kein Ort; sein Versprechen (wenige
+Klicks, kluge Vorbelegung) gilt für den Knopf „+ Buchung“ im Kassenbuch und in der Übersicht.
+Weitere Seiten hängen unter einem Ort und haben im Kopf „Zurück“ (etwa Targets prüfen unter Budget).
+
+Was an den Orten steht:
+
+- **Übersicht (Variante A):** zuerst „Zu tun“ als geordnete Liste mit genau einem Hauptknopf, dann
+  der Monat mit fester Höhe, dann Angepinnt (wächst mit), am Handy danach die Konten.
+- **Durchgehen:** Neue Buchungen geht man von der Übersicht aus durch, Karte für Karte.
+- **Import direkt:** Abgerufene Umsätze gehen sofort ins Kassenbuch und nach YNAB, markiert als „zu
+  prüfen“. Nur unsichere Duplikate warten; sie erscheinen beim Durchgehen als eigene Karte. Abrufen
+  geht jederzeit von Hand.
+- **Angepinnt:** Angepinnte Kategorien stehen auf der Übersicht. Anpinnen und Lösen geht dort und im
+  Kategorie-Detail. Das Anpinnen wird als Zustand gespeichert (ADR 0083).
+
+**Wann:** jede neue Seite, jeder Eintrag in der Navigation, jeder Einstieg in einen Ablauf.
+
+**Wann nicht:** Aktionen (Erfassen, Abrufen, Sync) stehen als Knopf in der Ansicht und haben in der
+Navigation keinen Platz. Ein vierter Ort braucht eine neue ADR.
+
+**Quelle:** ADR 0087 Punkte 9, 10, 11, 12 und 14; Recherche Abschnitt 6, Handy 1 und 10.
+
+### 7.5 Auswahl
+
+**Regel:**
+
+- Ein Umschalter (`Segmented`) steht nur für eine feste Menge von höchstens vier Optionen, die das
+  Programm vorgibt (Monat, Woche, Jahr; Zuweisen, Holen, Abgeben).
+- Alles, was der Nutzer anlegt (Konten, Kategorien, Gruppen, Flags), wählt man in einem Auswahlfeld
+  mit Liste (`Input.searchableSelect`, `CategoryPicker`, am Handy im `BottomSheet`). Das Feld zeigt
+  den gewählten Wert, eine Kontowahl zusätzlich den Saldo.
+- Höchstens eine seitlich wischende Leiste je Ansicht, nur für Zweitrangiges (etwa die Vorschläge
+  „Zuletzt“ beim Erfassen). Ihr Anfang ist nie abgeschnitten, das Ende darf angeschnitten sein, das
+  letzte Element ist mit drei bis vier Wischern erreichbar.
+- Was den Zustand einer Liste bestimmt (Konto, gesetzte Filter), ist ohne Öffnen eines Menüs
+  sichtbar. Gesetzte Filter stehen als Chips mit „×“ über der Liste; eine Zahl am Filter-Knopf allein
+  reicht nicht.
+- **Kassenbuch am Handy:** oben die Kontowahl als Auswahlfeld mit Saldo, darunter die Suche und ein
+  Filter-Knopf, der ein Sheet öffnet; gesetzte Filter als Chips. Das Kassenbuch hat am Handy keine
+  seitlich wischende Leiste.
+
+**Wann:** jede Wahl aus einer Menge, jede Filterzeile über einer Liste.
+
+**Wann nicht:** Fünf oder mehr feste Optionen (etwa sieben Wochentage) sind ein Auswahlfeld.
+Bereiche mit eigenem Inhalt sind `Tabs` (§5). Freitext, wo es eine endliche Menge gibt, ist Drift
+(§7.2).
+
+**Quelle:** ADR 0087 Punkte 13 und 15; Recherche Abschnitt 6, Handy 4 und 5.
+
+### 7.6 Liste mit Panel (PC)
+
+**Regel:** Ab 840 px Breite stehen Liste und Panel nebeneinander, darunter nur eins von beiden. Das
+Panel ist eine feste Spalte rechts mit rund 30 % der Breite (im Prototyp 30 % der Fensterbreite,
+mindestens 380 px, höchstens 520 px). Was ein Ding der Liste zeigt, bearbeitet oder neu anlegt, steht
+im Panel: Buchung, Regel, Kategorie, Target, die neue Buchung. Nach dem Anlegen zeigt das Panel das
+neue Ding. Ein Dialog (`Modal`) ist nur eine kurze Frage (Rückfrage vor dem Löschen) oder eine Auswahl
+(Kategorie, Konto, Targets anwenden).
+
+**Wann:** jede Liste am PC, deren Zeilen ein Detail haben (Kassenbuch mit Buchungen und Regeln,
+Budget, Targets prüfen, Kategorien).
+
+**Wann nicht:** Unter 840 px öffnet das Detail als `BottomSheet` (§7.1). Eine Rückfrage oder eine
+Auswahl wird kein Panel.
+
+**Quelle:** ADR 0087 Punkt 16; Recherche Abschnitt 6, PC 1 und 2.
+
+### 7.7 Mehrfachauswahl
+
+**Regel:** Am PC wählt Umschalt-Klick einen Bereich ab der zuletzt gewählten Zeile, Strg- oder
+Cmd-Klick nimmt eine Zeile dazu oder heraus, Umschalt+↑↓ erweitert die Auswahl um die nächste Zeile,
+die Leertaste schaltet die aktuelle Zeile. Am Handy startet langes Drücken auf eine Zeile die
+Auswahl, danach schaltet Tippen; die Leiste unten zeigt anstelle der Navigation Anzahl, Summe und die
+Sammelaktionen.
+
+Ab zwei Einträgen wird das Panel zur Zusammenfassung: Kopf „n Buchungen ausgewählt“ mit einem Knopf
+zum Aufheben, die Summe groß, darunter Ausgaben und Einnahmen, die Aufteilung nach Kategorie (Splits
+nach ihren Zeilen) und die Sammelaktionen. Eine Sammelaktion ist die Hauptaktion (etwa „Alle
+geprüft“), die übrigen (Kategorie setzen, Lena fragen) sind neutral (§7.14).
+
+**Wann:** Listen, auf deren Zeilen eine Aktion für viele Einträge zugleich sinnvoll ist (Kassenbuch).
+
+**Wann nicht:** Listen ohne Sammelaktion bekommen keine Mehrfachauswahl. Bei einer einzigen gewählten
+Zeile zeigt das Panel ihr Detail.
+
+**Quelle:** ADR 0087 Punkt 17.
+
+### 7.8 Tastatur
+
+**Regel** (am PC, für jede Liste mit Panel; Vorbild ist `pageKeyAction` in
+[`Inspector.fs`](../../src/Client/Components/Budget/Inspector.fs)):
+
+1. **Pfeile gehören der Liste**, auch wenn der Fokus im Suchfeld der Liste steht: ↑↓ wechseln die
+   Zeile, ←→ den Tab im Panel. Ohne Auswahl wählt ↓ die erste und ↑ die letzte sichtbare Zeile;
+   ←→ bleiben dann beim Cursor im Suchfeld.
+2. In allen anderen Feldern (Betrag, Zugewiesen, Text) gehören die Pfeile dem Cursor.
+3. Mit Alt, Strg oder Cmd gehört der Pfeil dem Browser (Alt+← zurück). Umschalt+↑↓ erweitert in
+   Listen mit Mehrfachauswahl die Auswahl (§7.7), sonst markiert es im Feld.
+4. Ein Druck ist ein Schritt. Hat `Tabs` die Taste schon genommen (`defaultPrevented`), reagiert die
+   Seite nicht noch einmal.
+5. Ein druckbares Zeichen, während kein Feld den Fokus hat, geht in die Suche der Liste
+   (`typesIntoSearch`); die Leertaste bleibt beim Knopf mit Fokus und beim Scrollen.
+6. **Oberster Dialog zuerst:** Ist ein Dialog, ein Picker oder ein Sheet offen, bekommt er die Tasten
+   zuerst und verbraucht sie; die Liste darunter reagiert nicht (`pageKeyActionFor`). Esc schließt nur
+   den obersten Dialog und führt dorthin zurück, wo man herkam: der Fokus geht auf den Auslöser, aus
+   dem Picker zurück ins Detail. Ohne Dialog hebt Esc zuerst eine Mehrfachauswahl auf und schließt
+   danach das Panel.
+
+**Wann:** Kassenbuch (Buchungen und Regeln), Budget, Targets prüfen, Kategorien, jede neue Liste
+mit Panel.
+
+**Wann nicht:** Am Handy gibt es keine Seitentasten; dort schließt Esc nur ein offenes Sheet.
+
+**Quelle:** ADR 0087 Punkte 18 und 19; Code `pageKeyAction`, `pageKeyActionFor` und
+`typesIntoSearch` in `src/Client/Components/Budget/Inspector.fs`.
+
+### 7.9 Auswahl-Dialog
+
+**Regel:** Ein Auswahl-Dialog (Kategorie, Konto, Filter, Gruppe, Flag) hat oben ein Suchfeld. Am PC
+steht der Fokus beim Öffnen sofort in der Suche. ↑↓ bewegen die Markierung durch die Optionen, ohne
+die Liste neu aufzubauen; die markierte Option rückt ins Bild. Enter wählt die markierte Option, Esc
+schließt nur den Dialog (§7.8). Ein Klick übernimmt sofort (Click-Commit, §7.1). Am Handy gibt es
+keinen Autofokus, die Tastatur kommt erst beim Tippen ins Suchfeld (`Viewport.isFinePointer()`).
+
+**Wann:** `CategoryPicker`, `BottomSheet.categoryPicker`, `Input.searchableSelect` und jede neue
+Auswahl aus einer Liste.
+
+**Wann nicht:** Ein Formular mit mehreren Feldern ist kein Auswahl-Dialog und steht im Panel (§7.6).
+
+**Quelle:** ADR 0087 Punkt 20; ADR 0005.
+
+### 7.10 Bewegung
+
+**Regel:** Eine Animation hängt am Öffnen: Sheet und Dialog fahren einmal ein, wenn sie aufgehen.
+Zeichnet die Seite neu (neuer Wert, Tippen in der Suche, Markierung bewegt), läuft keine Animation
+erneut. Die Scrollposition eines offenen Dialogs bleibt beim Neuzeichnen erhalten, ebenso die der
+Liste neben dem Panel.
+
+**Wann:** jede Einblendung von Sheet, Dialog, Panel-Inhalt und Rückmeldung.
+
+**Wann nicht:** Eine Animationsklasse, die bei jedem Rendern neu gesetzt wird, ist Drift. Kurven,
+Dauer und `prefers-reduced-motion` regelt §6.
+
+**Quelle:** ADR 0087 Punkt 21.
+
+### 7.11 Historie
+
+**Regel:** Buchung und Kategorie zeigen ihre Historie in derselben Form, je Eintrag eine Zeile mit
+drei Spalten: links der Zeitpunkt (`TT.MM. HH:MM`, Mono, gedämpft), in der Mitte die Herkunft als
+neutrales Kürzel (etwa ROMAN, BOB, YNAB; Mono, Großbuchstaben, dünner Rand, ohne Farbe) und der Text,
+rechts der Betrag, falls es einen gibt. Der neueste Eintrag steht oben. Ein Filter nach Art ist ein
+Auswahlfeld („Zeigen: Alle“).
+
+**Wann:** jede Ansicht, die zeigt, was mit einem Ding passiert ist (Buchung, Kategorie,
+Budget-Historie).
+
+**Wann nicht:** Farbe für die Herkunft; eine eigene Form je Seite.
+
+**Quelle:** Prototyp Version 14 (Grundlage von ADR 0087, Abschnitt Context), Historie in Buchung und
+Kategorie.
+
+### 7.12 Leerer Zustand
+
+**Regel:** Ein leerer Zustand hat einen kurzen Kopf und einen Satz, was hier erscheinen wird, und
+bietet höchstens eine Aktion an. Beispiele aus dem Prototyp: „Keine Buchungen“ mit „Buchungen
+erscheinen hier nach dem nächsten Import.“ und „Abrufen“; nach Suche oder Filter „Kein Treffer“ mit
+„Keine Buchung passt zu Suche und Filtern.“ und „Filter löschen“; das leere Panel „Buchung wählen, um
+Details zu sehen.“ ohne Aktion.
+
+**Wann:** jede Liste, jedes Panel und jede Suche ohne Ergebnis (`Card.emptyState`).
+
+**Wann nicht:** Ein Ladefehler ist kein leerer Zustand (`ErrorDisplay`); beim Laden steht ein
+Skeleton (§6).
+
+**Quelle:** Prototyp Version 14 (Grundlage von ADR 0087, Abschnitt Context); §8 Empty States.
+
+### 7.13 Rückmeldung
+
+**Regel:** Eine Rückmeldung (`Toast`) verdeckt nie ein Bedienelement. Am Handy steht sie oben, auch
+bei offenem Sheet. Am PC steht sie unten rechts; liegt dort eine Leiste (Auswahl-Leiste, Fußzeile),
+steht sie darüber. Lässt sich die Änderung zurücknehmen, bietet die Rückmeldung „Rückgängig“. Der
+Text sagt knapp, was passiert ist („3 Buchungen geprüft“).
+
+**Wann:** nach jeder Aktion, deren Ergebnis man sonst nicht sofort sieht oder die man zurücknehmen
+können soll.
+
+**Wann nicht:** Blockierende Fehler gehören in `ErrorDisplay` oder `Modal` (§5). Platzierung im Detail
+und Animation regelt §6.
+
+**Quelle:** ADR 0087 Punkt 22.
+
+### 7.14 Seitenaufbau
+
+**Regel:**
+
+- **Eine Hauptaktion je Ansicht**, als gefüllter Knopf im Akzent; alles andere ist neutral.
+- Höchstens drei Schriftgrößen je Ansicht und höchstens zwei große Elemente (etwa Seitentitel und
+  Saldo).
+- **Feste Höhe vor variabler Höhe:** Blöcke mit fester Höhe stehen über Blöcken, die wachsen, damit
+  ein fester Block immer an derselben Stelle steht.
+- Gleiches steht nur einmal da: eine Kontowahl je Ansicht (Auswahlfeld oder Seitenleiste, nie beides).
+- Das Wichtigste steht oben und links. Zahlen, die eine Entscheidung tragen, sind größer als Zahlen,
+  die nur informieren.
+
+**Wann:** jede Ansicht, auch Panel und Sheet für sich genommen.
+
+**Wann nicht:** eine zweite Hauptaktion „für den Fall“; ein großer Wert ohne Entscheidung dahinter.
+
+**Quelle:** ADR 0087 Punkte 23 und 24; Recherche Abschnitt 6, Handy 3, 6 und 8, PC 9.
+
+### 7.15 Layout-Regeln Handy und PC
+
+**Regel am Handy** (unter 600 px):
+
+- Trefferfläche jeder Zeile und jedes Knopfs mindestens 48 × 48 px, 8 px Abstand zwischen Zielen
+  (`TouchTargets.minSize`, §4).
+- Seitenrand 16 px.
+- Sheets haben einen sichtbaren Schließen-Knopf, die Zurück-Geste schließt das Sheet. Sheets werden
+  nicht gestapelt: eine Auswahl aus einem Sheet heraus ersetzt dessen Inhalt und führt nach der Wahl
+  dorthin zurück.
+
+**Regel am PC** (ab 840 px):
+
+- Freie Breite geht an Spalten und Panel, die Ränder bleiben gleich. Ab etwa 1600 px bekommt die
+  Liste eine Höchstbreite oder es kommt eine Spalte dazu.
+- Was am Handy hinter einem Menü liegt, steht am PC offen da: die Konten in der Seitenleiste, die
+  Filter als sichtbare Zeile über der Liste. Die Funktion bleibt gleich.
+- Ab 600 px steht die Navigation links als Seitenleiste oder Rail.
+- Zeilen dürfen dichter als 44 px sein, weil der Zeiger kleinere Ziele trifft; Untergrenze ist die
+  Lesbarkeit.
+- Fließtext im Panel hat höchstens 75 Zeichen je Zeile.
+- Gruppen trennt man über Leerraum und Nähe; Rahmen und Karten nur, wo Leerraum nicht reicht.
+
+**Wann:** jede Seite, beim Bauen und beim Vergleich mit Skizze und Prototyp.
+
+**Wann nicht:** Die dichteren Zeilen des PCs gelten unter 840 px nicht, dort bleiben es 48 px.
+
+**Quelle:** Recherche `seitenlayout-liste-detail-2026-11-07` Abschnitt 6, Handy 2, 7 und 9, PC 3 bis
+8; ADR 0005 für die Sheets.
 
 ---
 
@@ -482,7 +738,7 @@ Die UI spricht **Deutsch, direkt, knapp, ohne Füllwörter** — wie Roman selbs
   Token-Wächter in `npm run test:scripts`.
 
 - [`src/Client/DesignSystem/Tokens.fs`](../../src/Client/DesignSystem/Tokens.fs) — Farb-/Glow-/Spacing-/Preset-Tokens.
-- [`src/Client/DesignSystem/`](../../src/Client/DesignSystem/) — die 22 Komponenten.
+- [`src/Client/DesignSystem/`](../../src/Client/DesignSystem/): die 23 Komponenten aus §5.
 - [`src/Client/styles.css`](../../src/Client/styles.css) / [`index.html`](../../src/Client/index.html) — Spring-Easing, `prefers-reduced-motion`, visualViewport-Anker, Viewport-Meta.
 - Route `/styleguide`: die echten DS-Komponenten als Live-Beispiele, die API steht in deren Doc-Kommentaren.
 - `.claude/rules/design-tokens.md` — die harte Token-only-Regel + Grep-Checks.

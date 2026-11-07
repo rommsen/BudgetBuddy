@@ -39,6 +39,15 @@ First-class BC für Frontend-Infrastruktur (analog `infrastructure` für Backend
   **Konto-/Picker-Auswahl** (ADR 0004), Spring-Easing/Skeleton (Mobile-Polish),
   **Toast-Platzierung + sanfter Zwei-Phasen-Abgang** (ADR 0007: Desktop unten-rechts /
   Mobile oben über der Bottom-Nav; *exiting*-markieren → nach Exit-Animation entfernen).
+  Dazu die Muster aus ADR 0087 in Styleguide §7.4 bis §7.15 (design-system-bcdqy), je mit Regel,
+  Wann, Wann nicht und Quelle: **drei Orte** (Übersicht, Kassenbuch, Budget; Navigation nur Orte),
+  **Auswahl** (Umschalter nur für höchstens vier feste Optionen, Angelegtes als Auswahlfeld,
+  gesetzte Filter als Chips), **Liste mit Panel** (ab 840 px, Panel rund 30 %, Dialog nur für kurze
+  Frage oder Auswahl), **Mehrfachauswahl** mit Zusammenfassung im Panel, **Tastatur** (Pfeile
+  gehören der Liste nach `pageKeyAction`, oberster Dialog zuerst), **Auswahl-Dialog** (Fokus in der
+  Suche am PC), **Bewegung** am Öffnen, eine Form der **Historie**, **leerer Zustand**,
+  **Rückmeldung** ohne Verdecken, **Seitenaufbau** (eine Hauptaktion, feste Höhe vor variabler) und
+  die **Layout-Regeln** für Handy und PC aus der Recherche `seitenlayout-liste-detail-2026-11-07`.
 - **Drift** — Abweichung des realen View-Codes vom Styleguide: hartkodierte Farben statt
   Tokens, inline-Feliz statt DS-Komponente, abweichende Muster.
 - **Eager ausgewertete Top-Level-Werte** — ein parameterloses `let` auf Modulebene, das sofort eine Feliz-Komponente rendert statt eine Funktion zu sein, gilt als **Drift**: unter `dotnet test` (echtes .NET, kein Fable/Feliz-Laufzeitkontext) lässt sich ein `(string, obj)`-Tupel nicht auf `Feliz.IReactProperty`/`Feliz.ISvgAttribute` casten, und der erste Feldzugriff löst .NETs Modul-Startup-Code aus, der ALLE Top-Level-Werte initialisiert. Betrifft auch Werte in verschachtelten Modulen (`module Spacer =`, `module Divider =`), die ein an Spalte 0 verankerter Grep nicht findet. Für alle 23 DS-Komponenten unter `src/Client/DesignSystem/` mechanisch durchgesetzt, nicht nur dokumentiert: `src/Tests/DesignSystemStartupTests.fs` erzwingt per Reflection jeden `<StartupCode$Client>.$Client.DesignSystem.*`-Typinitialisierer plus den einen Sonderfall `<StartupCode$Client>.$ErrorDisplay` (ErrorDisplay.fs nutzt ein inneres `module ErrorDisplay =` statt `module Client.DesignSystem.ErrorDisplay` und trägt deshalb nicht den sonst üblichen Namenspräfix) und scheitert mit dem betroffenen Modulnamen, sobald ein neuer eager Wert dazukommt (design-system-bq4tz).
