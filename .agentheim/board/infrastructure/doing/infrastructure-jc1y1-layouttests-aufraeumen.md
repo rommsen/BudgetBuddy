@@ -1,7 +1,7 @@
 ---
 id: infrastructure-jc1y1
 title: "Die 61 [layout]-Tests aufräumen: Designwert-Assertions löschen, Invarianten dem Sweep überlassen, Verhaltens-Assertions in passende Tests oder nach .NET verschieben"
-status: todo
+status: doing
 type: chore
 context: infrastructure
 created: 2026-11-05

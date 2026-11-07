@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 19:53 -- Batch started: [infrastructure-jc1y1]
+
+**Type:** Work / Batch start
+**Tasks:** infrastructure-jc1y1 - "Die 61 [layout]-Tests aufräumen: Designwert-Assertions löschen, Invarianten dem Sweep überlassen, Verhaltens-Assertions in passende Tests oder nach .NET verschieben"
+**Parallel:** 1 Task, allein
+
+---
+
 ## 2026-11-07 19:53 -- Modeling / Promoted: infrastructure-jc1y1 - "Die 61 [layout]-Tests aufräumen: Designwert-Assertions löschen, Invarianten dem Sweep überlassen, Verhaltens-Assertions in passende Tests oder nach .NET verschieben"
 
 **Type:** Modeling / Promote
