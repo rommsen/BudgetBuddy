@@ -305,10 +305,68 @@ let moreTests =
             Expect.equal row.Group Fits "5 von 12 reicht nicht"
         }
 
-        test "Bei P > 1 gilt die Zahl der Monate nicht: jährlich 240 € mit zwei Zahlungen von 240 € ist mehr" {
-            let row = rowOf (Some (target Need (Years 1) 240m)) [ 240m; 0m; 0m; 0m; 0m; 240m ] None
+        test "Bei P > 1 gilt die Zahl der Monate nicht: jährlich 240 € mit zwei Zahlungen von 300 € ist mehr" {
+            let row = rowOf (Some (target Need (Years 1) 240m)) [ 300m; 0m; 0m; 0m; 0m; 300m ] None
             Expect.equal row.MonthsOver 2 "2 von 12 Monaten darüber"
-            Expect.equal row.Group SpendsMore "Ø 40 € gegen 20 €"
+            Expect.equal row.Group SpendsMore "Ø 50 € gegen 20 €, je Zahlung 300 € gegen 240 €"
+        }
+    ]
+
+/// Bei einer Periode P > 1 zählt bei einzelnen Zahlungen zusätzlich der Betrag je Zahlung (budgeting-j8r4t).
+[<Tests>]
+let perPaymentTests =
+    let yearly = Some (target Need (Years 1) 300m)
+    let quarterly = Some (target Need (Months 3) 300m)
+    testList "Targets prüfen: je Zahlung bei langem Rhythmus" [
+        // Regression budgeting-j8r4t: Die Jahresabbuchung kam einen Monat früher als im Vorjahr, so lagen zwei
+        // Zahlungen im Fenster. Ø 50 € gegen 25 € stand bei "mehr" mit dem doppelten Target als Vorschlag.
+        test "Verschobene Jahresabbuchung: jährlich 300 €, je 300 € im ersten und zwölften Monat, ist Passt ohne Vorschlag" {
+            let row = rowOf yearly ([ 300m ] @ every 10 0m @ [ 300m ]) None
+            Expect.equal row.Group Fits "je Zahlung 300 € = Target je Rhythmus"
+            Expect.equal row.Note None "ohne Zusatz"
+            Expect.equal row.Suggestion None "kein Vorschlag"
+        }
+
+        test "Jährlich 300 €: zwei Zahlungen je 400 € sind mehr" {
+            Expect.equal (groupOf yearly ([ 400m ] @ every 10 0m @ [ 400m ]) None) SpendsMore "je Zahlung 400 € gegen 300 €"
+        }
+
+        test "Jährlich 300 €: eine Zahlung von 500 € ist mehr wie bisher" {
+            Expect.equal (groupOf yearly (every 5 0m @ [ 500m ] @ every 6 0m) None) SpendsMore "Ø 41,67 € gegen 25 €"
+        }
+
+        test "Alle 3 Monate 300 €: jeden Monat 150 € ist verteilt und mehr wie bisher" {
+            let row = rowOf quarterly (every 12 150m) None
+            Expect.equal row.MonthsWithSpending 12 "12 Monate mit Ausgaben"
+            Expect.equal row.Group SpendsMore "Ø 150 € gegen 100 €"
+        }
+
+        test "Alle 3 Monate 300 €: fünf Zahlungen je 300 € (verschobene Quartalsabbuchung) sind Passt" {
+            let amounts = [ 300m; 0m; 300m; 0m; 0m; 300m; 0m; 0m; 300m; 0m; 0m; 300m ]
+            Expect.equal (groupOf quarterly amounts None) Fits "5 = ⌈12 ÷ 3⌉ + 1 Monate, je Zahlung 300 €"
+        }
+
+        test "Grenze: ⌈n ÷ P⌉ + 1 Monate mit Ausgaben prüft je Zahlung, einer mehr nur den Ø" {
+            let five = every 5 300m @ every 7 0m
+            let six = every 6 300m @ every 6 0m
+            Expect.equal (groupOf quarterly five None) Fits "5 Monate: je Zahlung 300 €, Ø 125 € allein wäre mehr"
+            Expect.equal (groupOf quarterly six None) SpendsMore "6 Monate: nur Ø 150 € gegen 100 €"
+            Expect.equal (groupOf yearly (every 2 300m @ every 10 0m) None) Fits "jährlich, 2 Monate: je Zahlung"
+            Expect.equal (groupOf yearly (every 3 200m @ every 9 0m) None) SpendsMore "jährlich, 3 Monate: nur Ø 50 €"
+        }
+
+        test "Grenze beim Betrag je Zahlung: 1,1 × Target je Rhythmus ist nicht mehr, 1 Cent darüber ist mehr" {
+            Expect.equal (groupOf yearly ([ 330m ] @ every 10 0m @ [ 330m ]) None) Fits "je Zahlung 330,00 €"
+            Expect.equal (groupOf yearly ([ 330m ] @ every 10 0m @ [ 330.02m ]) None) SpendsMore "je Zahlung 330,01 €"
+        }
+
+        test "Betrag je Zahlung 9,99 € über dem Target je Rhythmus ist nicht mehr, 10,00 € ist mehr" {
+            // Alle 2 Monate 90 €: bis 7 Monate mit Ausgaben zählen als Zahlungen, der Ø liegt in beiden Fällen
+            // über 1,1 × 45 € und mindestens 10 € darüber.
+            let small = Some (target Need (Months 2) 90m)
+            let paid amount = List.replicate 7 amount @ every 5 0m
+            Expect.equal (groupOf small (paid 99.99m) None) Fits "9,99 € darüber"
+            Expect.equal (groupOf small (paid 100m) None) SpendsMore "10,00 € darüber"
         }
     ]
 

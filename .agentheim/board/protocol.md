@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-07 07:26 -- Task verified and completed: budgeting-j8r4t - "Targets prüfen: bei Rhythmus über einen Monat gilt mehr nur, wenn auch die Zahlung über dem Target liegt (verschobene Jahresabbuchung)"
+
+**Type:** Work / Task completion
+**Task:** budgeting-j8r4t - "Targets prüfen: bei Rhythmus über einen Monat gilt mehr nur, wenn auch die Zahlung über dem Target liegt (verschobene Jahresabbuchung)"
+**Summary:** Targets prüfen: bei Rhythmus über einem Monat gilt mehr mit einzelnen Zahlungen nur, wenn auch der Betrag je Zahlung über dem Target je Rhythmus liegt. Verifier Iteration 1 FAIL nur am ADR-Text, vom Conductor bei der Integration korrigiert.
+**Duration:** (unknown)
+**Verification:** PASS (iteration 1)
+**Files changed:** 0
+**Tests added:** 0
+**ADRs written:** none
+
+---
+
 ## 2026-11-07 07:24 -- Modeling / Captured: budgeting-r5h2n - "Allgemeine Historie zeigt alles, was das Budget betrifft, auch Target-Änderungen und Pausen"
 
 **Type:** Modeling / Capture

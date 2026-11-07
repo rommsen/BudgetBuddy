@@ -1455,10 +1455,21 @@ let targetCheckRow (today: string) (source: TargetCheckSource) : TargetCheckRow 
             match monthly with
             | Some m ->
                 let never = if period = 1 then monthsWithSpending <= 1 else monthsWithSpending = 0
+                // Bei P > 1 und einzelnen Zahlungen (höchstens ⌈n ÷ P⌉ + 1 Monate mit Ausgaben) muss auch der Betrag je
+                // Zahlung über dem Target je Rhythmus liegen (budgeting-j8r4t). Sonst ergibt eine verschobene
+                // Abbuchung, also zwei Zahlungen im Fenster, schon den doppelten Ø.
+                let perPaymentFits =
+                    period > 1
+                    && monthsWithSpending > 0
+                    && monthsWithSpending <= (n + period - 1) / period + 1
+                    && (let perPayment = (counted |> List.sumBy netSpending) / decimal monthsWithSpending
+                        let perRhythm = m.Amount * decimal period
+                        not (perPayment > 1.1m * perRhythm && perPayment - perRhythm >= 10m))
                 let more =
                     avg > 1.1m * m.Amount
                     && avg - m.Amount >= 10m
                     && (period > 1 || 2 * monthsOver >= n)
+                    && not perPaymentFits
                 let less = avg < 0.7m * m.Amount && m.Amount - avg >= 10m
                 if never then NeverSpends, None
                 elif more then SpendsMore, None

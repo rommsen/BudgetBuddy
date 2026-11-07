@@ -94,3 +94,30 @@ Das Gesamtkonzept sah "Passt das Target noch?" als Hinweis in Gelb an der Katego
   gleichem Tag gilt die Änderung.
 - **Balken:** Monate vor der ersten Buchung sind wie Monate vor einer Änderung dunkler
   (`NotCounted`). Die Zahl der Balken bleibt gleich.
+
+## Nachtrag 2026-11-07 (budgeting-j8r4t)
+
+- **Punkt 8, Regel 3, "mehr" bei langem Rhythmus je Zahlung:** Bei einer Periode P > 1 gilt
+  "Gibst du mehr aus?" nur, wenn zusätzlich zur Regel über den Ø die durchschnittliche Zahlung
+  über dem Target je Rhythmus liegt, sofern die Ausgaben als einzelne Zahlungen kommen.
+  Einzelne Zahlungen heißt: höchstens ⌈N ÷ P⌉ + 1 Monate mit Ausgaben bei N gezählten Monaten
+  (jährlich und 12 Monate: höchstens 2, alle 3 Monate und 12 Monate: höchstens 5). Betrag je
+  Zahlung = Summe der gezählten Monate ÷ Monate mit Ausgaben, Target je Rhythmus = M × P. Die
+  Zahlung muss über 1,1 × Target je Rhythmus und mindestens 10 € darüber liegen. Bei mehr
+  Monaten mit Ausgaben (verteilte Ausgaben) bleibt die Regel über den Ø allein.
+- **Erklärung unter Punkt 8 eingeschränkt:** Der Satz "Bei P > 1 entscheidet deshalb nur der Ø
+  über die gezählten Monate" gilt seitdem nur für verteilte Ausgaben. Bei einzelnen Zahlungen
+  entscheidet zusätzlich der Betrag je Zahlung. Das Beispiel "doppelte Zahlung" dort meint
+  eine Zahlung über dem Target je Rhythmus; zwei Zahlungen in Höhe des Targets stehen jetzt
+  bei "Passt".
+- **Grund:** Kommt eine Jahresabbuchung etwas früher als im Vorjahr, liegen zwei Zahlungen in
+  den 12 gezählten Monaten. Der Ø verdoppelt sich, die Kategorie stand bei "mehr" mit dem
+  doppelten Target als Vorschlag, obwohl das Target stimmt (Beispiel: 300 € jährlich, zwei
+  Zahlungen je 300 €, Ø 50 € gegen 25 €). Die Grenze für einzelne Zahlungen sorgt dafür, dass
+  verteilte Ausgaben (etwa 150 € jeden Monat bei 300 € je Quartal) weiter als "mehr" erkannt
+  werden.
+- **In Kauf genommen:** Zwei echte Zahlungen im Jahr mit dem Betrag des Targets sehen aus wie
+  eine verschobene Abbuchung und stehen bei "Passt".
+- Weniger, nie, Kein Target, Zählbeginn, Vorschlag und P = 1 bleiben unverändert. Der
+  Regelsatz der Gruppe nennt die Bedingung ("bei längerem mit einzelnen Zahlungen auch je
+  Zahlung").

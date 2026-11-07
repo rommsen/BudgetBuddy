@@ -148,7 +148,7 @@ let checkCountsText (counts: CheckCounts) : string * string =
 /// Der Regelsatz unter dem Titel einer Gruppe (ADR 0082 Punkt 8).
 let checkGroupRule (group: CheckGroup) : string =
     match group with
-    | SpendsMore -> "Ø mehr als 10 % und 10 € über dem Target, bei monatlichem oder wöchentlichem Rhythmus in mindestens der Hälfte der Monate."
+    | SpendsMore -> "Ø mehr als 10 % und 10 € über dem Target, bei monatlichem oder wöchentlichem Rhythmus in mindestens der Hälfte der Monate, bei längerem mit einzelnen Zahlungen auch je Zahlung."
     | SpendsLess -> "Ø mehr als 30 % und 10 € unter dem Target."
     | NeverSpends -> "Höchstens ein Monat mit Ausgaben, bei längerem Rhythmus keiner. Für eine Rücklage ist das richtig."
     | WithoutTarget -> "Regelmäßige Ausgaben, aber kein Target."
