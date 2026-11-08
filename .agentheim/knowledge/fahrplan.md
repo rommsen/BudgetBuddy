@@ -35,7 +35,7 @@ Ziel: Jede Farbe und jedes Muster heißt überall dasselbe, und die drei Orte si
 freigegeben. Klein halten.
 
 Entschieden in ADR 0087 (Palette 2, Lena als Flag, drei Orte, Panel statt Dialog, Tastenregeln).
-Vorlage für alles Weitere: Prototyp https://claude.ai/artifact/CE3WJZHhPX6NABosJaviRg (Version 15,
+Vorlage für alles Weitere: Prototyp https://claude.ai/artifact/CE3WJZHhPX6NABosJaviRg (Version 16,
 Handy und PC), Skizze https://claude.ai/artifact/HPpe24Y1owgpSZLWvtdGWd (Version 2).
 
 Reihenfolge: `infrastructure-nx14s` → `infrastructure-jc1y1` → `design-system-dak16`;
@@ -66,9 +66,10 @@ Ziel: Nichts zwingt mehr zu YNAB außer Reports.
 ## Etappe 3 · Ein Produkt
 Ziel: Drei Orte, eine Sprache, Seite für Seite an der Skizze.
 
-Prototyp Version 15 (Roman, 2026-11-08, am Handy durchgegangen) korrigiert gegenüber Version 14:
+Prototyp Version 15 und 16 (Roman, 2026-11-08, am Handy durchgegangen) korrigieren Version 14:
 Budget-Tabs mit fester Höhe, Monatsbalken in der Historie mit Beträgen (Styleguide „Monatsbalken“),
-Split-Beträge ohne Vorzeichen und Tastatur bleibt beim Feldwechsel offen, Konten als Split-Ziel,
+Split-Beträge ohne Vorzeichen und Tastatur bleibt beim Feldwechsel offen, Konten als Ziel in jeder
+Kategorieauswahl einer Buchung (Detail, Durchgehen, Erfassen, Split; Übertrag mit Gegenbuchung),
 Betrag im Buchungsdetail bearbeiten, Amazon nur als Link mit Bestellnummer (keine API).
 
 - Übersicht als Einstieg statt Sync, Variante A: Zu tun (eine Hauptaktion), Monat mit Balken und
