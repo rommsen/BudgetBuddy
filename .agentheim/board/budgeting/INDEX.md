@@ -11,18 +11,18 @@ Catalog of this bounded context's tasks by status.
 
 <!-- task-counts:start -->
 - **Backlog:** 2
-- **Todo:** 1
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 1
 - **Done:** 64
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **budgeting-t7dka** — "Targets anwenden übergeht in BB deaktivierte Kategorien" (bug) — `todo/budgeting-t7dka-targets-anwenden-bergeht-in-bb-deaktivierte-kategorien.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **budgeting-t7dka** — "Targets anwenden übergeht in BB deaktivierte Kategorien" (bug) — `doing/budgeting-t7dka-targets-anwenden-bergeht-in-bb-deaktivierte-kategorien.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)

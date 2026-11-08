@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-08 21:27 -- Batch started: [budgeting-t7dka]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-t7dka - "Targets anwenden übergeht in BB deaktivierte Kategorien"
+**Parallel:** no (1 worker, einziger bereiter Task)
+
+---
+
 ## 2026-11-08 21:24 -- Modeling / Promoted: budgeting-t7dka - "Targets anwenden übergeht in BB deaktivierte Kategorien"
 
 **Type:** Modeling / Promote

@@ -1,7 +1,7 @@
 ---
 id: budgeting-t7dka
 title: "Targets anwenden übergeht in BB deaktivierte Kategorien"
-status: todo
+status: doing
 type: bug
 context: budgeting
 created: 2026-11-08
