@@ -1,7 +1,7 @@
 ---
 id: ledger-qvjvs
 title: "Buchung zum Übertrag machen: Konten im Kategorie-Picker des Kassenbuch-Details, Schreibweg nach YNAB"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-11-08

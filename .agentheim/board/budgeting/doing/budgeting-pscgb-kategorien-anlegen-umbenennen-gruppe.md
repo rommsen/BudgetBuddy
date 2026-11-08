@@ -1,7 +1,7 @@
 ---
 id: budgeting-pscgb
 title: "Kategorien verwalten: Seite mit Anlegen, Umbenennen und Gruppe wechseln, Gruppen anlegen und umbenennen, Schreibweg nach YNAB"
-status: todo
+status: doing
 type: feature
 context: budgeting
 created: 2026-11-08

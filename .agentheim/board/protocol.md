@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-08 15:13 -- Batch started: [ledger-p3vq8, ledger-qvjvs, budgeting-pscgb]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-p3vq8 - "addCashExpense: gelingt der Push und scheitert danach das Schreiben der Verknüpfung, legt der Spiegel eine zweite Buchung an", ledger-qvjvs - "Buchung zum Übertrag machen: Konten im Kategorie-Picker des Kassenbuch-Details, Schreibweg nach YNAB", budgeting-pscgb - "Kategorien verwalten: Seite mit Anlegen, Umbenennen und Gruppe wechseln, Gruppen anlegen und umbenennen, Schreibweg nach YNAB"
+**Parallel:** yes (3 workers; budgeting-e2z7v held to next wave by MAX_PARALLEL 3; all three touch src/Server/Ledger/CommandHandlers.fs and src/Server/YnabClient.fs, merge sequentially)
+
+---
+
 ## 2026-11-08 15:08 -- Modeling / Refined: budgeting-e2z7v - Targets beim Speichern direkt nach YNAB
 
 **Type:** Modeling / Refine

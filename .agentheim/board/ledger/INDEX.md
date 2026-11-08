@@ -11,20 +11,20 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 6
-- **Todo:** 3
-- **Doing:** 0
+- **Todo:** 1
+- **Doing:** 2
 - **Done:** 109
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
 - **ledger-at63w** — "Buchung im Kassenbuch erfassen für jedes Konto ohne Import, mit Vorbelegung (Konto, Datum, Zuletzt, Kategorie zum Payee)" (feature) — `todo/ledger-at63w-buchung-im-kassenbuch-erfassen.md`
-- **ledger-qvjvs** — "Buchung zum Übertrag machen: Konten im Kategorie-Picker des Kassenbuch-Details, Schreibweg nach YNAB" (feature) — `todo/ledger-qvjvs-buchung-zum-uebertrag-machen.md`
-- **ledger-p3vq8** — "addCashExpense: gelingt der Push und scheitert danach das Schreiben der Verknüpfung, legt der Spiegel eine zweite Buchung an" (bug) — `todo/ledger-p3vq8-push-gelungen-verknuepfung-nicht-geschrieben.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **ledger-qvjvs** — "Buchung zum Übertrag machen: Konten im Kategorie-Picker des Kassenbuch-Details, Schreibweg nach YNAB" (feature) — `doing/ledger-qvjvs-buchung-zum-uebertrag-machen.md`
+- **ledger-p3vq8** — "addCashExpense: gelingt der Push und scheitert danach das Schreiben der Verknüpfung, legt der Spiegel eine zweite Buchung an" (bug) — `doing/ledger-p3vq8-push-gelungen-verknuepfung-nicht-geschrieben.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
