@@ -3,15 +3,16 @@
 Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success looks like“.
 
 ## Stand
-Zuletzt aktualisiert: 2026-11-08, nach work und Review von jc1y1.
+Zuletzt aktualisiert: 2026-11-08, nach work und Review von dak16.
 
-- **Etappe 1 · Bedeutungen:** läuft, 4 von 5 erledigt (Skizze und Prototyp, Layout-Sweep,
-  Muster im Styleguide, Designwert-Tests aufgeräumt). Offen: `design-system-dak16`.
+- **Etappe 1 · Bedeutungen:** erledigt, 5 von 5 (Skizze und Prototyp, Layout-Sweep, Muster im
+  Styleguide, Designwert-Tests aufgeräumt, Palette 2 im Token-Layer). Offen nur Romans Blick auf
+  dak16 (Seiten neben dem Prototyp) und vier Fragen dazu (Fokusring, Links, Schriftzug, gescheiterter Push).
   Panel ab 1024 px (Roman, 2026-11-07).
 - **Etappe 2 · Lücken schließen:** noch nicht verfeinert.
 - **Etappe 3 · Ein Produkt:** noch nicht verfeinert, Zeilen wachsen.
-- **Nächster Schritt:** `design-system-dak16` promoten, `/agentheim:work`, Review (Roman: selbständig).
-- **Danach:** `design-system-dak16`, dann Etappe 2 verfeinern.
+- **Nächster Schritt:** Etappe 2 verfeinern (`/agentheim:modeling` mit Roman).
+- **Danach:** Etappe 2 Schritt für Schritt nach „Ablauf je Schritt“.
 
 ## Ablauf je Schritt
 1. Nächsten Schritt aus „Stand“ nennen.
@@ -28,7 +29,7 @@ Regeln:
 - Bestehende Tasks tragen einen Tag: `etappe-1`, `etappe-2`, `etappe-3`, `laufend`, `danach`.
 - Funde ohne Geld-, Daten-, Sicherheits- oder Alltagsfehler gehen in die Kann-Sammlung des BC.
 
-## Etappe 1 · Bedeutungen festlegen (läuft)
+## Etappe 1 · Bedeutungen festlegen (erledigt 2026-11-08)
 Ziel: Jede Farbe und jedes Muster heißt überall dasselbe, und die drei Orte sind als Skizze
 freigegeben. Klein halten.
 
@@ -43,7 +44,7 @@ Reihenfolge: `infrastructure-nx14s` → `infrastructure-jc1y1` → `design-syste
 - [x] Skizze und Prototyp der drei Orte, von Roman freigegeben (2026-11-07)
 - [x] `infrastructure-nx14s` Layout-Invarianten als ein Sweep (2026-11-07)
 - [x] `infrastructure-jc1y1` Designwert-Tests aufräumen (2026-11-08, Verifier PASS in Iteration 4)
-- `design-system-dak16` Palette 2 im Token-Layer, Kontrast-Wächter (wartet auf jc1y1)
+- [x] `design-system-dak16` Palette 2 im Token-Layer, Kontrast-Wächter (2026-11-08, Verifier PASS in Iteration 2, Blick Roman offen)
 - [x] `design-system-bcdqy` Muster im Styleguide (2026-11-07, von Roman freigegeben)
 
 ## Etappe 2 · Lücken schließen
