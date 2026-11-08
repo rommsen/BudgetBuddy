@@ -110,8 +110,10 @@ let private reportGroup (testId: string) (title: string) (tone: ReportTone) (row
             prop.className "flex flex-col gap-1"
             prop.children [
                 Html.p [ prop.className titleClass; prop.text $"{title} ({List.length rows})" ]
-                for name, detail in rows do
+                // Der Name allein ist kein Schlüssel: zwei Gruppen können eine Kategorie gleichen Namens haben.
+                for index, (name, detail) in List.indexed rows do
                     Html.div [
+                        prop.key $"{index}-{name}"
                         prop.className "flex flex-col"
                         prop.children [
                             Html.span [ prop.className ListRoles.primary; prop.text name ]
@@ -134,11 +136,11 @@ let private targetsToYnabDialog (model: Model) (dispatch: Msg -> unit) =
         Modal.confirm
             true
             "Targets nach YNAB schreiben"
-            "BB schreibt alle Targets als Goals nach YNAB, nur was abweicht. Ein Wochentag und Tag lassen sich in YNAB nicht setzen und können dort verloren gehen."
+            "BB schreibt jedes Target nach YNAB, das dort abweicht. Wochentag und Tag im Monat kann BB in YNAB nicht setzen: Ändern sich Art oder Rhythmus, gehen sie dort verloren."
             "Schreiben"
             (fun () -> dispatch ConfirmWriteAllTargets)
             close
-    | TargetsToYnabRunning -> Modal.loading true "Targets werden nach YNAB geschrieben ..."
+    | TargetsToYnabRunning -> Modal.loading true "Targets werden nach YNAB geschrieben …"
     | TargetsToYnabFailed message -> Modal.alert true "Targets nach YNAB schreiben" $"Nichts geschrieben: {message}" "Schließen" close
     | TargetsToYnabDone report ->
         let groups = Components.Budget.TargetEdit.targetsToYnabGroups report

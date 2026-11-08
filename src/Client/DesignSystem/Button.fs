@@ -586,20 +586,28 @@ let heroLoading (text: string) (isLoading: bool) (onClick: unit -> unit) =
     ]
 
 /// Ein Pfeil für die Reihenfolge an einer Listenzeile (Seite Kategorien, Prototyp Version 17): schlichter Knopf ohne
-/// Rand mit Chevron in `text-secondary`, am Handy 48 px Trefferfläche, ab md 40 px wie im Prototyp.
-let orderArrow (testId: string) (ariaLabel: string) (icon: ReactElement) (onClick: unit -> unit) =
+/// Rand mit Chevron in `text-secondary`, am Handy 48 px Trefferfläche, ab md 40 px wie im Prototyp. Ohne Wirkung
+/// (`enabled = false`, erste Zeile nach oben, letzte nach unten) gedämpft (`opacity-40`), `aria-disabled`, ohne
+/// Hover; er behält den Fokus.
+let orderArrow (testId: string) (ariaLabel: string) (icon: ReactElement) (enabled: bool) (onClick: unit -> unit) =
+    let orderArrowState =
+        match enabled with
+        | true -> "cursor-pointer hover:bg-surface-hover hover:text-text-primary"
+        | false -> "opacity-40 cursor-default"
     Html.button [
         prop.type' "button"
         prop.custom ("data-testid", testId)
         prop.ariaLabel ariaLabel
         prop.title ariaLabel
-        prop.className $"inline-flex shrink-0 items-center justify-center {TouchTargets.minSize} md:min-h-[40px] md:min-w-[40px] rounded-md {Colors.textSecondary} cursor-pointer touch-manipulation hover:bg-surface-hover hover:text-text-primary"
-        prop.onClick (fun _ -> onClick ())
+        if not enabled then prop.ariaDisabled true
+        prop.className $"inline-flex shrink-0 items-center justify-center {TouchTargets.minSize} md:min-h-[40px] md:min-w-[40px] rounded-md {Colors.textSecondary} touch-manipulation {orderArrowState}"
+        prop.onClick (fun _ -> if enabled then onClick ())
         prop.children [ icon ]
     ]
 
 /// Eine Listenzeile mit Namen und Pfeilen für die Reihenfolge (Seite Kategorien, budgeting-sn2sn): links der Name als
-/// Knopf, der das Formular öffnet (mindestens 48 px hoch, gekürzt mit `title`), rechts hoch und runter. Am PC
+/// Knopf, der das Formular öffnet (mindestens 48 px hoch, gekürzt mit `title`), rechts hoch und runter mit 8 px
+/// Abstand (§7.15); `canUp`/`canDown` falsch dämpft den Pfeil ohne Wirkung (`orderArrow`). Am PC
 /// verschiebt eine Taste auf dem Namen (`onKeyDown`, etwa Alt+↑/↓). Die Linie zwischen Zeilen fällt an der letzten
 /// weg.
 let orderNameRow
@@ -609,6 +617,8 @@ let orderNameRow
     (name: string)
     (onClick: unit -> unit)
     (onKeyDown: Browser.Types.KeyboardEvent -> unit)
+    (canUp: bool)
+    (canDown: bool)
     (onUp: unit -> unit)
     (onDown: unit -> unit)
     =
@@ -626,7 +636,12 @@ let orderNameRow
                 prop.onKeyDown onKeyDown
                 prop.children [ Truncate.text $"block {ListRoles.primary}" name ]
             ]
-            orderArrow $"{testId}-up" $"{name} nach oben" (chevronUp SM Default) onUp
-            orderArrow $"{testId}-down" $"{name} nach unten" (chevronDown SM Default) onDown
+            Html.div [
+                prop.className "flex shrink-0 items-center gap-2"
+                prop.children [
+                    orderArrow $"{testId}-up" $"{name} nach oben" (chevronUp SM Default) canUp onUp
+                    orderArrow $"{testId}-down" $"{name} nach unten" (chevronDown SM Default) canDown onDown
+                ]
+            ]
         ]
     ]

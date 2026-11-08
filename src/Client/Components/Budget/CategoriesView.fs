@@ -78,6 +78,8 @@ let private groupSection (group: ManagedCategoryGroup) (dispatch: Msg -> unit) =
                                         e.preventDefault ()
                                         dispatch (MoveCategory (category.Id, step))
                                     | None -> ())
+                                (canMove StepUp category.Id group)
+                                (canMove StepDown category.Id group)
                                 (fun () -> dispatch (MoveCategory (category.Id, StepUp)))
                                 (fun () -> dispatch (MoveCategory (category.Id, StepDown)))
                     ]
@@ -185,7 +187,7 @@ let private formBody (groups: ManagedCategoryGroup list) (form: Form) (dispatch:
                         OnChange = fun (value: string) -> dispatch (NameChanged value)
                         Placeholder = placeholder
                         AriaLabel = Some "Name"
-                        Disabled = form.Saving
+                        Disabled = form.IsSaving
                         OnKeyDown = Some (fun e -> if e.key = "Enter" then dispatch Save) })
             match form.Editor with
             | EditingCategory editor ->
@@ -197,7 +199,7 @@ let private formBody (groups: ManagedCategoryGroup list) (form: Form) (dispatch:
                             Placeholder = if editor.GroupId.IsNone then Some "Gruppe wählen" else None
                             OnChange = fun (value: string) -> dispatch (GroupChosen value)
                             Options = groupOptions groups
-                            Disabled = form.Saving
+                            Disabled = form.IsSaving
                             ClassName = Some "w-full" })
                 if editor.CategoryId.IsSome then
                     Input.switchRow
@@ -205,7 +207,7 @@ let private formBody (groups: ManagedCategoryGroup list) (form: Form) (dispatch:
                         "Aktiv"
                         ActiveSwitchText
                         editor.Active
-                        form.Saving
+                        form.IsSaving
                         (fun active -> dispatch (ActiveToggled active))
                 Html.p [ prop.className ListRoles.muted; prop.text "Wird nach YNAB übertragen." ]
             | EditingGroup _ -> ()
@@ -227,14 +229,15 @@ let private formButtons (form: Form) (dispatch: Msg -> unit) =
               Text = "Abbrechen"
               Variant = Button.Secondary
               FullWidth = true
+              IsDisabled = form.IsSaving
               OnClick = fun () -> dispatch CloseForm }
       Button.view
           { Button.defaultProps with
               Text = saveLabel form.Editor
               Variant = Button.Primary
               FullWidth = true
-              IsBusy = form.Saving
-              IsDisabled = not form.Saving && not (canSave form)
+              IsBusy = form.IsSaving
+              IsDisabled = not form.IsSaving && not (canSave form)
               OnClick = fun () -> dispatch Save } ]
 
 let private sidePanel (groups: ManagedCategoryGroup list) (form: Form) (dispatch: Msg -> unit) =
@@ -254,6 +257,7 @@ let private sidePanel (groups: ManagedCategoryGroup list) (form: Form) (dispatch
                             Icon = Some (Icons.x Icons.SM Icons.Default)
                             AriaLabel = Some "Schließen"
                             Title = Some "Schließen"
+                            IsDisabled = form.IsSaving
                             OnClick = fun () -> dispatch CloseForm }
                 ]
             ]
@@ -276,7 +280,28 @@ let private sheet (groups: ManagedCategoryGroup list) (form: Form option) (dispa
     | None ->
         BottomSheet.view { IsOpen = false; OnClose = ignore; Title = ""; Subtitle = None; Footer = None } []
 
-let private skeleton () = Loading.centered "Lade Kategorien ..."
+/// Beim Laden eine Gruppe als Platzhalter: Kopfzeile und eine Karte mit Zeilen in der Höhe der echten (§6, kein
+/// Sprung, wenn die Liste kommt).
+let private skeleton () =
+    Html.div [
+        prop.custom ("data-testid", "categories-skeleton")
+        prop.role "status"
+        prop.ariaLabel "Kategorien werden geladen…"
+        prop.className "flex flex-col gap-2"
+        prop.children [
+            Html.div [ prop.className "w-32 py-1"; prop.children [ Loading.line "100" ] ]
+            Html.div [
+                prop.className cardClass
+                prop.children [
+                    for width in [ "50"; "70"; "40"; "60" ] ->
+                        Html.div [
+                            prop.className "flex items-center px-4 min-h-[48px] border-b border-border-subtle last:border-b-0"
+                            prop.children [ Html.div [ prop.className "flex-1"; prop.children [ Loading.line width ] ] ]
+                        ]
+                ]
+            ]
+        ]
+    ]
 
 let view (model: Model) (dispatch: Msg -> unit) =
     let isPanel = Viewport.isInspectorPanelViewport ()

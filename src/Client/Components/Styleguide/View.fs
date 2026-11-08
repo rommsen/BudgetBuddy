@@ -350,8 +350,9 @@ let private buttonSection =
                         Button.accentText "styleguide-accent-text" "Gruppe umbenennen" "Umbenennen" ignore
                         // disclosureSectionHead: Kopf eines eingeklappten Abschnitts ("Deaktiviert (n)", Seite Kategorien).
                         Button.disclosureSectionHead "styleguide-section-head" "styleguide-section-block" "Deaktiviert (2)" false ignore
-                        // orderNameRow: Zeile mit Pfeilen für die Reihenfolge (Seite Kategorien, budgeting-sn2sn).
-                        Button.orderNameRow "styleguide-order-row" "styleguide-order-row" "Drogerie bearbeiten" "Drogerie" ignore ignore ignore ignore
+                        // orderNameRow: Zeile mit Pfeilen für die Reihenfolge (Seite Kategorien, budgeting-sn2sn), als erste Zeile mit
+                        // gedämpftem Pfeil nach oben.
+                        Button.orderNameRow "styleguide-order-row" "styleguide-order-row" "Drogerie bearbeiten" "Drogerie" ignore ignore false true ignore ignore
                     ]
                 ]
             ]

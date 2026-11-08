@@ -27,10 +27,25 @@ type Editor =
     | EditingCategory of CategoryEditor
     | EditingGroup of GroupEditor
 
-/// Das offene Formular. `Saving`: der Aufruf läuft, Speichern ist gesperrt. `Error`: die Meldung des Servers,
-/// sie bleibt im Formular, bis etwas geändert wird. `Notice`: der Hinweis nach gelungenem Deaktivieren oder
-/// Aktivieren, er kommt als Toast, wenn das Formular schließt.
-type Form = { Editor: Editor; Saving: bool; Error: string option; Notice: string option }
+/// Der Aufruf, auf dessen Antwort das Formular wartet. Nur seine Antwort gibt die Sperre frei.
+type SaveCall =
+    | SavingCategory
+    | SavingGroup
+    | SavingActive
+
+/// Das offene Formular. `Saving`: der Aufruf läuft, Speichern und Schließen sind gesperrt. `Error`: die Meldung
+/// des Servers, sie bleibt im Formular, bis etwas geändert wird. `Notice`: der Hinweis nach gelungenem
+/// Deaktivieren oder Aktivieren, er kommt als Toast, wenn das Formular schließt.
+type Form =
+    { Editor: Editor
+      Saving: SaveCall option
+      Error: string option
+      Notice: string option }
+    member form.IsSaving = form.Saving.IsSome
+
+/// Der Aufruf für die Reihenfolge einer Gruppe, der gerade läuft. `Next`: die zuletzt gewünschte Reihenfolge, die
+/// nach der Antwort hinausgeht. Je Gruppe läuft höchstens ein Aufruf, sonst könnten sich die Antworten überholen.
+type OrderCall = { Next: Guid list option }
 
 type Model = {
     Groups: RemoteData<ManagedCategoryGroup list>
@@ -39,6 +54,8 @@ type Model = {
     Generation: int
     /// Der Abschnitt "Deaktiviert (n)" ist aufgeklappt.
     InactiveOpen: bool
+    /// Je Gruppe der laufende Aufruf für die Reihenfolge.
+    OrderCalls: Map<Guid, OrderCall>
 }
 
 type Msg =
@@ -73,7 +90,7 @@ type Msg =
     | ActiveSaved of Result<unit, string>
     /// Pfeil hoch oder runter (oder Alt+↑/↓ am PC) an einer Kategorie.
     | MoveCategory of Guid * OrderStep
-    | OrderSaved of Result<unit, string>
+    | OrderSaved of groupId: Guid * Result<unit, string>
     /// Den Abschnitt "Deaktiviert (n)" auf- oder zuklappen.
     | ToggleInactive
     /// "Aktivieren" im Abschnitt Deaktiviert.
@@ -85,7 +102,7 @@ type ExternalMsg =
     | ShowToast of string * ToastType
     | BackToBudget
 
-let init () : Model = { Groups = NotAsked; Form = None; Generation = 0; InactiveOpen = false }
+let init () : Model = { Groups = NotAsked; Form = None; Generation = 0; InactiveOpen = false; OrderCalls = Map.empty }
 
 let private loadCmd (generation: int) (answer: int * Result<ManagedCategoryGroup list, string> -> Msg) : Cmd<Msg> =
     Cmd.OfAsync.either
@@ -108,14 +125,18 @@ let private setActiveCmd (save: CategoryActiveSave) (answer: Result<unit, string
     Cmd.OfAsync.either (fun s -> Api.categories.setCategoryActive s) save answer (fun ex -> answer (Error ex.Message))
 
 let private saveOrderCmd (save: CategoryOrderSave) : Cmd<Msg> =
-    Cmd.OfAsync.either (fun s -> Api.categories.setCategoryOrder s) save OrderSaved (fun ex -> OrderSaved (Error ex.Message))
+    Cmd.OfAsync.either
+        (fun s -> Api.categories.setCategoryOrder s)
+        save
+        (fun result -> OrderSaved (save.GroupId, result))
+        (fun ex -> OrderSaved (save.GroupId, Error ex.Message))
 
 let private groupsOf (model: Model) : ManagedCategoryGroup list =
     match model.Groups with
     | Success groups -> groups
     | _ -> []
 
-let private opened (editor: Editor) : Form option = Some { Editor = editor; Saving = false; Error = None; Notice = None }
+let private opened (editor: Editor) : Form option = Some { Editor = editor; Saving = None; Error = None; Notice = None }
 
 /// Der Hinweis nach dem Deaktivieren: die YNAB-API kann nicht ausblenden (ADR 0088 Punkt 2).
 let deactivatedNotice (name: string) : string = $"{name} deaktiviert. In YNAB noch sichtbar, dort ausblenden."
@@ -148,6 +169,11 @@ let movedOrder (step: OrderStep) (categoryId: Guid) (group: ManagedCategoryGroup
     else
         Some (moved @ (group.Categories |> List.filter (fun c -> not c.Active) |> List.map (fun c -> c.Id)))
 
+/// Hat der Pfeil `step` an der Kategorie eine Wirkung? In der ersten Zeile nicht nach oben, in der letzten nicht
+/// nach unten; der View dämpft den Pfeil dann.
+let canMove (step: OrderStep) (categoryId: Guid) (group: ManagedCategoryGroup) : bool =
+    (movedOrder step categoryId group).IsSome
+
 /// Die Gruppe mit ihren Kategorien in der Reihenfolge `order`.
 let private reordered (order: Guid list) (group: ManagedCategoryGroup) : ManagedCategoryGroup =
     let byId = group.Categories |> List.map (fun c -> c.Id, c) |> Map.ofList
@@ -177,7 +203,7 @@ let saveLabel (editor: Editor) : string =
 
 /// Darf "Speichern" gedrückt werden? Nicht, solange der Aufruf läuft, und nicht ohne Gruppe.
 let canSave (form: Form) : bool =
-    not form.Saving
+    not form.IsSaving
     && (match form.Editor with
         | EditingCategory editor -> editor.GroupId.IsSome
         | EditingGroup _ -> true)
@@ -196,19 +222,22 @@ let private fieldsChanged (groups: ManagedCategoryGroup list) (editor: CategoryE
 /// Der Auftrag aus dem Formular, `None` ohne Gruppe. Ändert sich der Schalter "Aktiv" einer bestehenden
 /// Kategorie, geht zuerst das an BB; Name und Gruppe folgen nach der Antwort (`ActiveSaved`). So bleibt bei einer
 /// Ablehnung alles unverändert.
-let private request (editor: Editor) : Cmd<Msg> option =
+let private request (editor: Editor) : (SaveCall * Cmd<Msg>) option =
     match editor with
     | EditingCategory ({ CategoryId = Some id; GroupId = Some _ } as e) when e.Active <> e.WasActive ->
-        Some (setActiveCmd { CategoryId = id; Active = e.Active } ActiveSaved)
+        Some (SavingActive, setActiveCmd { CategoryId = id; Active = e.Active } ActiveSaved)
     | EditingCategory { CategoryId = id; Name = name; GroupId = Some groupId } ->
-        Some (saveCategoryCmd { CategoryId = id; Name = name; GroupId = groupId })
+        Some (SavingCategory, saveCategoryCmd { CategoryId = id; Name = name; GroupId = groupId })
     | EditingCategory _ -> None
-    | EditingGroup group -> Some (saveGroupCmd { GroupId = group.GroupId; Name = group.Name })
+    | EditingGroup group -> Some (SavingGroup, saveGroupCmd { GroupId = group.GroupId; Name = group.Name })
 
 let private withEditor (change: Editor -> Editor) (model: Model) : Model =
     match model.Form with
-    | Some form when not form.Saving -> { model with Form = Some { form with Editor = change form.Editor; Error = None } }
+    | Some form when not form.IsSaving -> { model with Form = Some { form with Editor = change form.Editor; Error = None } }
     | _ -> model
+
+/// Eine neue Generation: eine laufende Antwort beim Laden ist danach überholt und ersetzt die Liste nicht.
+let private bumped (model: Model) : Model = { model with Generation = model.Generation + 1 }
 
 /// Nach einem gelungenen Speichern die Liste still neu holen.
 let private reload (model: Model) : Model * Cmd<Msg> =
@@ -297,18 +326,21 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         match model.Form with
         | Some form when canSave form ->
             match request form.Editor with
-            | Some cmd -> { model with Form = Some { form with Saving = true; Error = None } }, cmd, NoOp
+            | Some (call, cmd) -> { model with Form = Some { form with Saving = Some call; Error = None } }, cmd, NoOp
             | None -> model, Cmd.none, NoOp
         | _ -> model, Cmd.none, NoOp
     | CloseForm ->
         match model.Form with
-        | Some { Editor = EditingGroup { ReturnTo = Some editor }; Saving = false } ->
+        // Während der Aufruf läuft, bleibt das Formular offen: sonst gingen ein Fehler oder nach dem Deaktivieren
+        // Name und Gruppe verloren.
+        | Some form when form.IsSaving -> model, Cmd.none, NoOp
+        | Some { Editor = EditingGroup { ReturnTo = Some editor } } ->
             { model with Form = opened (EditingCategory editor) }, Cmd.none, NoOp
         | _ -> { model with Form = None }, Cmd.none, NoOp
     | CategorySaved result ->
         let isOwn =
             match model.Form with
-            | Some { Editor = EditingCategory _; Saving = true } -> true
+            | Some { Editor = EditingCategory _; Saving = Some SavingCategory } -> true
             | _ -> false
         match result with
         | Ok _ ->
@@ -320,12 +352,12 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             let reloaded, cmd = reload { model with Form = if isOwn then None else model.Form }
             reloaded, cmd, ShowToast (toast, ToastSuccess)
         | Error message when isOwn ->
-            { model with Form = model.Form |> Option.map (fun f -> { f with Saving = false; Error = Some message }) }, Cmd.none, NoOp
+            { model with Form = model.Form |> Option.map (fun f -> { f with Saving = None; Error = Some message }) }, Cmd.none, NoOp
         | Error message -> model, Cmd.none, ShowToast ($"Nicht gespeichert: {message}", ToastError)
     | GroupSaved (name, result) ->
         let own =
             match model.Form with
-            | Some { Editor = EditingGroup editor; Saving = true } -> Some editor
+            | Some { Editor = EditingGroup editor; Saving = Some SavingGroup } -> Some editor
             | _ -> None
         match result, own with
         | Ok id, Some { ReturnTo = Some editor } ->
@@ -336,7 +368,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             let reloaded, cmd = reload (withGroup id name { model with Form = if own.IsSome then None else model.Form })
             reloaded, cmd, ShowToast ("Gruppe gespeichert", ToastSuccess)
         | Error message, Some _ ->
-            { model with Form = model.Form |> Option.map (fun f -> { f with Saving = false; Error = Some message }) }, Cmd.none, NoOp
+            { model with Form = model.Form |> Option.map (fun f -> { f with Saving = None; Error = Some message }) }, Cmd.none, NoOp
         | Error message, None -> model, Cmd.none, ShowToast ($"Nicht gespeichert: {message}", ToastError)
     | Leave -> { model with Form = None }, Cmd.none, BackToBudget
     | ActiveToggled active ->
@@ -347,7 +379,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         withEditor toggled model, Cmd.none, NoOp
     | ActiveSaved result ->
         match model.Form with
-        | Some ({ Editor = EditingCategory editor; Saving = true } as form) ->
+        | Some ({ Editor = EditingCategory editor; Saving = Some SavingActive } as form) ->
             match result with
             | Ok () ->
                 let name = editor.Name.Trim()
@@ -357,7 +389,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                     match editor.CategoryId with
                     | Some id -> withActive id editor.Active model
                     | None -> model
-                let form' = { form with Editor = EditingCategory settled; Notice = Some notice }
+                let form' = { form with Editor = EditingCategory settled; Notice = Some notice; Saving = Some SavingCategory }
                 match settled.GroupId with
                 | Some groupId when fieldsChanged (groupsOf model) settled ->
                     { marked with Form = Some form' },
@@ -366,10 +398,13 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                 | _ ->
                     let reloaded, cmd = reload { marked with Form = None }
                     reloaded, cmd, ShowToast (notice, ToastSuccess)
-            | Error message -> { model with Form = Some { form with Saving = false; Error = Some message } }, Cmd.none, NoOp
+            | Error message -> { model with Form = Some { form with Saving = None; Error = Some message } }, Cmd.none, NoOp
         | _ ->
             match result with
-            | Ok () -> model, Cmd.none, NoOp
+            // Ohne eigenes Formular (etwa nach "Zurück"): BB hat geändert, die Liste holt den Stand.
+            | Ok () ->
+                let reloaded, cmd = reload model
+                reloaded, cmd, NoOp
             | Error message -> model, Cmd.none, ShowToast ($"Nicht gespeichert: {message}", ToastError)
     | MoveCategory (categoryId, step) ->
         let target =
@@ -379,11 +414,24 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         match target, model.Groups with
         | Some (group, order), Success groups ->
             let groups' = groups |> List.map (fun g -> if g.Id = group.Id then reordered order g else g)
-            { model with Groups = Success groups' }, saveOrderCmd { GroupId = group.Id; CategoryIds = order }, NoOp
+            let moved = bumped { model with Groups = Success groups' }
+            match Map.tryFind group.Id model.OrderCalls with
+            | Some _ -> { moved with OrderCalls = Map.add group.Id { Next = Some order } model.OrderCalls }, Cmd.none, NoOp
+            | None ->
+                { moved with OrderCalls = Map.add group.Id { Next = None } model.OrderCalls },
+                saveOrderCmd { GroupId = group.Id; CategoryIds = order },
+                NoOp
         | _ -> model, Cmd.none, NoOp
-    | OrderSaved (Ok ()) -> model, Cmd.none, NoOp
-    | OrderSaved (Error message) ->
-        let reloaded, cmd = reload model
+    | OrderSaved (groupId, Ok ()) ->
+        match Map.tryFind groupId model.OrderCalls with
+        | Some { Next = Some order } ->
+            { model with OrderCalls = Map.add groupId { Next = None } model.OrderCalls },
+            saveOrderCmd { GroupId = groupId; CategoryIds = order },
+            NoOp
+        | _ -> { model with OrderCalls = Map.remove groupId model.OrderCalls }, Cmd.none, NoOp
+    | OrderSaved (groupId, Error message) ->
+        // Die wartende Reihenfolge fällt weg, das Neuladen zeigt den Stand von BB.
+        let reloaded, cmd = reload { model with OrderCalls = Map.remove groupId model.OrderCalls }
         reloaded, cmd, ShowToast ($"Reihenfolge nicht gespeichert: {message}", ToastError)
     | ToggleInactive -> { model with InactiveOpen = not model.InactiveOpen }, Cmd.none, NoOp
     | Reactivate categoryId ->
@@ -393,7 +441,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             |> Option.map (fun c -> c.Name)
         match name with
         | Some name ->
-            withActive categoryId true model,
+            bumped (withActive categoryId true model),
             setActiveCmd { CategoryId = categoryId; Active = true } (fun result -> Reactivated (name, result)),
             NoOp
         | None -> model, Cmd.none, NoOp

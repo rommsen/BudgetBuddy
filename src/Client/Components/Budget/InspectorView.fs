@@ -299,7 +299,7 @@ let private targetYnabView (model: Model) (category: BudgetCategory) (dispatch: 
                 ]
             | None -> ()
             for gap in hints.Gaps do
-                Html.p [ prop.className ListRoles.muted; prop.text gap ]
+                Html.p [ prop.key gap; prop.className ListRoles.muted; prop.text gap ]
             if hints.NotSnoozed then
                 Html.p [ prop.className ListRoles.muted; prop.text TargetNotSnoozedText ]
         ]
