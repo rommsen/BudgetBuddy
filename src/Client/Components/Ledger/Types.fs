@@ -741,6 +741,12 @@ let transferSetToastText (name: string option) : string =
     | Some n -> $"Übertrag auf {n}"
     | None -> "Übertrag gesetzt"
 
+/// Der Toast nach "Rückgängig" eines Übertrags; ohne bekannten Kontonamen nur der Satz.
+let transferUndoneToastText (name: string option) : string =
+    match name with
+    | Some n -> $"Übertrag zurückgesetzt: {n}"
+    | None -> "Übertrag zurückgesetzt"
+
 /// Der Toast nach "Rückgängig".
 let categoryRestoredToastText (name: string option) : string =
     let label = name |> Option.defaultValue "ohne Kategorie"
@@ -1036,6 +1042,9 @@ type Model = {
     /// Das offene Formular "Neue Buchung" (ledger-at63w), `None` wenn zu. Am PC im Panel, am Handy
     /// als Sheet (dieselbe Form wie das Detail, `DetailForm`). Höchstens eines von Detail und Formular.
     Capture: Capture.CaptureState option
+
+    /// Buchungen, deren "Rückgängig" nach dem Anlegen gerade läuft: ein zweiter Tipp schickt nichts.
+    DiscardingCaptured: Set<Guid>
 
     /// Die Vorschläge zum Payee für den offenen Picker (höchstens drei, häufigste zuerst).
     /// Leer, bis die Antwort da ist, bei einem Fehler und ohne Payee.
@@ -1723,6 +1732,8 @@ type Msg =
     | OpenCapture
     | CloseCapture
     | RunLoadCaptureDefaults
+    /// "Erneut versuchen" nach einer gescheiterten Vorbelegung.
+    | RetryCaptureDefaults
     | CaptureDefaultsLoaded of Result<LedgerBookingDefaults, string>
     | SetCaptureDirection of isOutflow: bool
     | SetCaptureAmount of string

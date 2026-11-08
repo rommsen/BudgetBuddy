@@ -193,6 +193,13 @@ test("[layout] Gegenbeweis Invariante 5: eine Liste, deren Ende unter der Auswah
   assert.ok(hits.some((v) => v.value.startsWith("am Ende gescrollt verdeckt") && v.value.includes("selection-bar")), hits.map(formatViolation).join("\n"));
 });
 
+test("[layout] Gegenbeweis Invariante 5: eine Liste, deren letzte Buchung unter + Buchung liegt, meldet das Verdecken", async () => {
+  // Review ledger-at63w: der schwebende Knopf "+ Buchung" verdeckte am Handy Betrag und Symbol der letzten Zeile,
+  // weil unter der Liste nur der Platz für die Navigation frei war. Ohne den Abstandshalter tritt das wieder auf.
+  const hits = await brokenFinds("kassenbuch", 390, 5, '[data-testid="ledger-capture-fab-spacer"] { display: none !important; }');
+  assert.ok(hits.some((v) => v.value.startsWith("am Ende gescrollt verdeckt") && v.value.includes("ledger-capture-fab")), hits.map(formatViolation).join("\n"));
+});
+
 test("[layout] Gegenbeweis Invariante 6: ein Sheet, das als Ganzes scrollt, meldet Kopf und Tabs als mitgerückt", async () => {
   // Früher in budget-page.test.mjs: Kopf und Tabs des Sheets bleiben stehen, wenn der Inhalt scrollt.
   const hits = await brokenFinds(

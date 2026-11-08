@@ -678,6 +678,17 @@ let transferClientTests =
                 Expect.equal msg (StartSetEntryTransfer (idOf 1, YnabAccountId targetId, true)) "die Rücknahme geht über setEntryTransfer, ohne neues Rückgängig"
             | other -> failtestf "unerwartete Nachricht: %A" other
 
+        // Regression (Review ledger-qvjvs): ohne bekannten Kontonamen hieß es "Übertrag zurückgesetzt: Übertrag gesetzt".
+        testCase "Rückgängig eines Übertrags ohne bekannten Kontonamen meldet nur Übertrag zurückgesetzt" <| fun () ->
+            let _, _, external =
+                run (EntryTransferSet (idOf 1, YnabAccountId targetId, true, Ok (transferOutcome (Some lebensmittel) None CategorySent))) (defaultModel ())
+            Expect.equal external (ShowToast ("Übertrag zurückgesetzt", ToastSuccess)) "Toast"
+
+        testCase "Rückgängig eines Übertrags nennt das Konto, wenn es bekannt ist" <| fun () ->
+            let _, _, external =
+                run (EntryTransferSet (idOf 1, YnabAccountId targetId, true, Ok (transferOutcome (Some lebensmittel) None CategorySent))) (withTargets (defaultModel ()))
+            Expect.equal external (ShowToast ("Übertrag zurückgesetzt: Tagesgeld ING", ToastSuccess)) "Toast"
+
         testCase "ein abgelehnter Übertrag nennt den Grund und lässt die Zeile stehen" <| fun () ->
             let account = YnabAccountId targetId
             let model, _, external = run (EntryTransferSet (idOf 1, account, false, Error "Ein Übertrag auf das eigene Konto geht nicht")) (defaultModel ())

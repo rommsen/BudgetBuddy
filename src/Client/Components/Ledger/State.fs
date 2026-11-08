@@ -138,6 +138,7 @@ let init () : Model * Cmd<Msg> =
         QuickAddAccountId = None
         TransferTargets = NotAsked
         Capture = None
+        DiscardingCaptured = Set.empty
         CategorySuggestions = []
         CategoryRows = Map.empty
         FlagRows = Map.empty
@@ -1016,6 +1017,15 @@ let private updateCaptureForm (change: Capture.CaptureForm -> Capture.CaptureFor
     | Some capture -> { model with Capture = Some { capture with Form = change capture.Form } }
     | None -> model
 
+/// Startet "Buchung anlegen" aus dem Formular, oder zeigt die Fehler, die der Client schon kennt.
+let private submitCapture (capture: Capture.CaptureState) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
+    match Capture.captureRequest capture.Form with
+    | Ok request ->
+        { model with Capture = Some { capture with Saving = true; Errors = [] } },
+        Cmd.ofMsg (RunSubmitCapture request),
+        NoOp
+    | Error errors -> { model with Capture = Some { capture with Errors = errors } }, Cmd.none, NoOp
+
 let captureUndoLabel = "Rückgängig"
 let capturedDiscardedText = "Buchung zurückgenommen"
 
@@ -1069,7 +1079,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         // Beim ersten Öffnen kommt die gemerkte Sicht des Geräts vor dem Standardkonto
         // (ledger-ybmqc); ist das gemerkte Konto weg, gilt das Standardkonto.
         let filter = resolveInitialFilter model.SelectedFilter model.RememberedFilter accounts
-        let model' = { model with Accounts = Success accounts; SelectedFilter = filter }
+        // Kommen die Konten nach der Vorbelegung (Deep Link), wird das Konto des Formulars nachgesetzt.
+        let model' = withCaptureDefaultAccount { model with Accounts = Success accounts; SelectedFilter = filter }
         match filter with
         | Some _ -> resetEntries model', Cmd.ofMsg LoadEntries, NoOp
         | None -> { resetEntries model' with Entries = NotAsked }, Cmd.none, NoOp
@@ -1939,8 +1950,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             | CategoryUnchanged, None -> NoOp
             | CategoryChanged, _ ->
                 let text =
-                    if undo then $"Übertrag zurückgesetzt: {name |> Option.defaultValue (transferSetToastText None)}"
-                    else transferSetToastText name
+                    if undo then transferUndoneToastText name else transferSetToastText name
                 let text, toastType =
                     match failed with
                     | Some reason -> $"{text}. {categoryHintTitle}: {reason}", ToastWarning
@@ -2326,8 +2336,18 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             (fun ex -> CaptureDefaultsLoaded (Error ex.Message)),
         NoOp
 
+    | RetryCaptureDefaults ->
+        // Nur nach einem Fehler, und sichtbar als Laden: ein zweiter Tipp schickt keine zweite Anfrage.
+        match model.Capture with
+        | Some capture when RemoteData.isFailure capture.Defaults ->
+            { model with Capture = Some { capture with Defaults = Loading } }, Cmd.ofMsg RunLoadCaptureDefaults, NoOp
+        | _ -> model, Cmd.none, NoOp
+
     | CaptureDefaultsLoaded result ->
         match model.Capture, result with
+        // Steht die Vorbelegung schon, ist die Antwort zu spät (Öffnen, Schließen, Öffnen): sonst
+        // baute sie das Formular neu und leerte die Eingaben.
+        | Some capture, _ when RemoteData.isSuccess capture.Defaults -> model, Cmd.none, NoOp
         | Some capture, Ok defaults ->
             let form = Capture.formFromDefaults defaults (captureFilterAccount model) (captureAccountIds model defaults)
             { model with Capture = Some { capture with Defaults = Success defaults; Form = form } }, Cmd.none, NoOp
@@ -2344,7 +2364,10 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | CommitCapturePayee ->
         match model.Capture with
         | Some capture when not capture.Form.TargetChosen && not (String.IsNullOrWhiteSpace capture.Form.Payee) ->
-            model, Cmd.ofMsg (RunLoadCapturePayeeCategory (capture.Form.Payee.Trim())), NoOp
+            let payee = capture.Form.Payee.Trim()
+            { model with Capture = Some { capture with PayeeLookup = Some payee } },
+            Cmd.ofMsg (RunLoadCapturePayeeCategory payee),
+            NoOp
         | _ -> model, Cmd.none, NoOp
 
     | RunLoadCapturePayeeCategory payee ->
@@ -2357,7 +2380,17 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         NoOp
 
     | CapturePayeeCategoryLoaded (payee, category) ->
-        updateCaptureForm (Capture.applyPayeeCategory payee category) model, Cmd.none, NoOp
+        match model.Capture with
+        | Some capture ->
+            let lookup = if capture.PayeeLookup = Some payee then None else capture.PayeeLookup
+            let capture' =
+                { capture with Form = Capture.applyPayeeCategory payee category capture.Form; PayeeLookup = lookup }
+            // Wartete "Buchung anlegen" auf diese Antwort, startet der Aufruf jetzt, mit der Kategorie.
+            if capture'.SubmitWhenLookedUp && not (Capture.awaitsPayeeCategory capture') then
+                submitCapture { capture' with Saving = false; SubmitWhenLookedUp = false } model
+            else
+                { model with Capture = Some capture' }, Cmd.none, NoOp
+        | None -> model, Cmd.none, NoOp
 
     | ApplyCaptureTemplate template -> updateCaptureForm (Capture.applyTemplate template) model, Cmd.none, NoOp
 
@@ -2394,11 +2427,13 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         match model.Capture with
         | Some capture when not capture.Saving ->
             match Capture.captureRequest capture.Form with
-            | Ok request ->
-                { model with Capture = Some { capture with Saving = true; Errors = [] } },
-                Cmd.ofMsg (RunSubmitCapture request),
+            // Lädt die Kategorie zum Payee noch (Tipp direkt nach dem Payee-Feld), wartet der Aufruf
+            // auf die Antwort; der Knopf ist so lange belegt.
+            | Ok _ when Capture.awaitsPayeeCategory capture ->
+                { model with Capture = Some { capture with Saving = true; SubmitWhenLookedUp = true; Errors = [] } },
+                Cmd.none,
                 NoOp
-            | Error errors -> { model with Capture = Some { capture with Errors = errors } }, Cmd.none, NoOp
+            | _ -> submitCapture capture model
         | _ -> model, Cmd.none, NoOp
 
     | RunSubmitCapture request ->
@@ -2432,7 +2467,14 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         | Some capture -> { model with Capture = Some { capture with Saving = false; Errors = [ message ] } }, Cmd.none, NoOp
         | None -> model, Cmd.none, ShowToast (message, ToastError)
 
-    | StartDiscardCaptured entryId -> model, Cmd.ofMsg (RunDiscardCaptured entryId), NoOp
+    | StartDiscardCaptured entryId ->
+        // Ein zweiter Tipp auf "Rückgängig" schickt nichts, solange die Rücknahme läuft.
+        if model.DiscardingCaptured.Contains entryId then
+            model, Cmd.none, NoOp
+        else
+            { model with DiscardingCaptured = model.DiscardingCaptured.Add entryId },
+            Cmd.ofMsg (RunDiscardCaptured entryId),
+            NoOp
 
     | RunDiscardCaptured entryId ->
         model,
@@ -2444,6 +2486,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         NoOp
 
     | CapturedDiscarded (entryId, Ok ()) ->
+        let model = { model with DiscardingCaptured = model.DiscardingCaptured.Remove entryId }
         let model' =
             if model.DetailFor |> Option.exists (fun d -> d.Id = entryId) then
                 { model with DetailFor = None; History = NotAsked; MemoEdit = None }
@@ -2451,8 +2494,9 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 model
         model', Cmd.batch [ Cmd.ofMsg LoadEntries; Cmd.ofMsg LoadBalances ], ShowToast (capturedDiscardedText, ToastSuccess)
 
-    | CapturedDiscarded (_, Error message) ->
-        model, Cmd.none, ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
+    | CapturedDiscarded (entryId, Error message) ->
+        { model with DiscardingCaptured = model.DiscardingCaptured.Remove entryId },
+        Cmd.none, ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
 
     | RunLoadTransferTargets ->
         { model with TransferTargets = Loading },

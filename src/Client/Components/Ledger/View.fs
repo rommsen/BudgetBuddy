@@ -1523,9 +1523,15 @@ let detailPickerMsg (entryId: Guid) (choice: CategoryPicker.PickerChoice) : Msg 
     | CategoryPicker.ChoseCategory id -> Some (StartSetEntryCategory (entryId, id))
     | CategoryPicker.ChoseToBeBudgeted -> None
 
-/// Die wählbaren Übertrag-Ziele einer Zeile: die offenen Budget-Konten des Budgets
-/// (`openOnBudgetAccounts`), ohne das eigene Konto der Buchung. Solange die Liste nicht geladen
-/// ist, ist sie leer; den Grund dafür zeigt `transferTargetsLoadState`.
+/// Die wählbaren Übertrag-Ziele: die offenen Budget-Konten des Budgets (`openOnBudgetAccounts`),
+/// ohne das eigene Konto. Solange die Liste nicht geladen ist, ist sie leer; den Grund dafür zeigt
+/// `transferTargetsLoadState`.
+let transferTargetsExcluding (own: YnabAccountId option) (model: Model) : YnabAccount list =
+    match model.TransferTargets with
+    | Success accounts -> openOnBudgetAccounts accounts |> List.filter (fun a -> Some a.Id <> own)
+    | _ -> []
+
+/// Die Übertrag-Ziele einer Buchung: ohne das Konto, auf dem sie steht.
 let transferTargetsFor (model: Model) (entry: LedgerEntryView) : YnabAccount list =
     let own =
         match model.Accounts with
@@ -1534,9 +1540,7 @@ let transferTargetsFor (model: Model) (entry: LedgerEntryView) : YnabAccount lis
             |> List.tryFind (fun a -> a.Id = entry.AccountId)
             |> Option.bind (fun a -> a.YnabAccountId)
         | _ -> None
-    match model.TransferTargets with
-    | Success accounts -> openOnBudgetAccounts accounts |> List.filter (fun a -> Some a.Id <> own)
-    | _ -> []
+    transferTargetsExcluding own model
 
 /// Der Ladezustand der Übertrag-Ziele für den Picker im Split-Editor (ledger-vq2g8): bei
 /// `Failure` meldet der Konten-Abschnitt den Fehler, beim Laden den Ladezustand. Vorher war die
@@ -1547,23 +1551,36 @@ let transferTargetsLoadState (targets: RemoteData<YnabAccount list>) : CategoryP
     | Failure _ -> CategoryPicker.PickerFailed None
     | NotAsked | Loading -> CategoryPicker.PickerLoading
 
-/// Die Props des Pickers im Detail: Kategorien und, wie im Split, die Konten des Budgets im
-/// Abschnitt "Übertrag auf Konto" (ledger-qvjvs). Bei einem Übertrag ist sein Ziel angehakt.
-let detailPickerProps (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) : CategoryPicker.CategoryPickerProps =
+/// Was alle Picker im Kassenbuch teilen (Detail, Split, Auswahl-Leiste, Neue Buchung): die Kategorien
+/// ohne interne, "Ohne Kategorie", Stand, Laden und "Erneut versuchen"; ohne Konten, ohne Auswahl.
+/// Jeder Ort setzt mit `with`, was er anders braucht.
+let private basePickerProps (dispatch: Msg -> unit) (model: Model) : CategoryPicker.CategoryPickerProps =
     { Categories = model.Categories |> RemoteData.toOption |> Option.defaultValue [] |> withoutInternalCategories
-      Current = entry.CategoryId |> Option.map YnabCategoryId
-      Suggested = model.CategorySuggestions
+      Current = None
+      Suggested = []
       Recent = recentPickerIds model.RecentCategories
-      Accounts = transferTargetsFor model entry
-      CurrentAccount = entry.TransferAccountId |> Option.map YnabAccountId
-      AccountsLoad = transferTargetsLoadState model.TransferTargets
+      Accounts = []
+      CurrentAccount = None
+      AccountsLoad = CategoryPicker.PickerReady
       OfferWithout = true
       ToBeBudgeted = None
       StandLabel = categoryStandLabel model DateTime.Now
       LoadState = categoryLoadState model.Categories
       OnRetry = fun () -> dispatch LoadCategories
-      OnSelect = fun choice -> detailPickerMsg entry.Id choice |> Option.iter dispatch
-      OnClose = fun () -> dispatch CloseCategoryPicker }
+      OnSelect = ignore
+      OnClose = ignore }
+
+/// Die Props des Pickers im Detail: Kategorien und, wie im Split, die Konten des Budgets im
+/// Abschnitt "Übertrag auf Konto" (ledger-qvjvs). Bei einem Übertrag ist sein Ziel angehakt.
+let detailPickerProps (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) : CategoryPicker.CategoryPickerProps =
+    { basePickerProps dispatch model with
+        Current = entry.CategoryId |> Option.map YnabCategoryId
+        Suggested = model.CategorySuggestions
+        Accounts = transferTargetsFor model entry
+        CurrentAccount = entry.TransferAccountId |> Option.map YnabAccountId
+        AccountsLoad = transferTargetsLoadState model.TransferTargets
+        OnSelect = fun choice -> detailPickerMsg entry.Id choice |> Option.iter dispatch
+        OnClose = fun () -> dispatch CloseCategoryPicker }
 
 /// Die Kategorie-Zeile mit Pfeil, Picker (Popover oder Sheet) und, nach einer Änderung,
 /// der Karte "Budget nach dem Wechsel" darunter.
@@ -1886,25 +1903,19 @@ let private splitTargetPickerProps
     (index: int)
     (line: SplitLogic.SplitDraftLine)
     : CategoryPicker.CategoryPickerProps =
-    { Categories = model.Categories |> RemoteData.toOption |> Option.defaultValue [] |> withoutInternalCategories
-      Current = lineCategoryId line
-      Suggested = []
-      Recent = []
-      Accounts = transferTargetsFor model entry
-      CurrentAccount = lineAccountId line
-      AccountsLoad = transferTargetsLoadState model.TransferTargets
-      OfferWithout = true
-      ToBeBudgeted = None
-      StandLabel = categoryStandLabel model DateTime.Now
-      LoadState = categoryLoadState model.Categories
-      OnRetry = fun () -> dispatch LoadCategories
-      OnSelect =
-        fun choice ->
-            match choice with
-            | CategoryPicker.ChoseCategory id -> dispatch (SelectSplitCategory (index, id))
-            | CategoryPicker.ChoseAccount id -> dispatch (SelectSplitAccount (index, id))
-            | CategoryPicker.ChoseToBeBudgeted -> ()
-      OnClose = fun () -> dispatch CloseSplitPicker }
+    { basePickerProps dispatch model with
+        Current = lineCategoryId line
+        Recent = []
+        Accounts = transferTargetsFor model entry
+        CurrentAccount = lineAccountId line
+        AccountsLoad = transferTargetsLoadState model.TransferTargets
+        OnSelect =
+            fun choice ->
+                match choice with
+                | CategoryPicker.ChoseCategory id -> dispatch (SelectSplitCategory (index, id))
+                | CategoryPicker.ChoseAccount id -> dispatch (SelectSplitAccount (index, id))
+                | CategoryPicker.ChoseToBeBudgeted -> ()
+        OnClose = fun () -> dispatch CloseSplitPicker }
 
 /// Der Inhalt des Editors, für Panel und Sheet derselbe: Summe, Zeilen, "Zeile hinzufügen". Der
 /// Ziel-Picker je Zeile (Kategorie oder Konto) ist am PC ein Popover unter der Zeile, am Handy ein
@@ -3196,20 +3207,9 @@ let private MeasuredBottomBar (bar: ReactElement) =
 /// Die Props des Pickers der Auswahl-Leiste ("Kategorie setzen" für mehrere): nur Kategorien,
 /// keine Konten (Roman, ledger-qvjvs: ein Übertrag geht nur einzeln im Detail).
 let batchPickerProps (dispatch: Msg -> unit) (model: Model) : CategoryPicker.CategoryPickerProps =
-    { Categories = model.Categories |> RemoteData.toOption |> Option.defaultValue [] |> withoutInternalCategories
-      Current = None
-      Suggested = []
-      Recent = recentPickerIds model.RecentCategories
-      Accounts = []
-      CurrentAccount = None
-      AccountsLoad = CategoryPicker.PickerReady
-      OfferWithout = true
-      ToBeBudgeted = None
-      StandLabel = categoryStandLabel model DateTime.Now
-      LoadState = categoryLoadState model.Categories
-      OnRetry = fun () -> dispatch LoadCategories
-      OnSelect = CategoryPicker.categoryChoice (fun choice -> dispatch (StartCategoryBatch choice))
-      OnClose = fun () -> dispatch CloseBatchCategoryPicker }
+    { basePickerProps dispatch model with
+        OnSelect = CategoryPicker.categoryChoice (fun choice -> dispatch (StartCategoryBatch choice))
+        OnClose = fun () -> dispatch CloseBatchCategoryPicker }
 
 /// Die Auswahl-Leiste am unteren Rand (ledger-r1d2f), mit der einen primären Aktion
 /// "Geprüft" (ledger-nhwrt). Am Handy
@@ -3305,6 +3305,16 @@ let private selectionBarSpacers (model: Model) : ReactElement =
         elif keyboardHintVisible model then Html.div [ prop.className "hidden md:block h-12"; prop.ariaHidden true ]
     ]
 
+/// Steht "+ Buchung" am Handy? Nicht bei offenem Formular und nicht im Auswahl-Modus (dort steht die
+/// Auswahl-Leiste).
+let captureFabVisible (model: Model) : bool =
+    model.Capture.IsNone && not model.SelectionMode
+
+/// Am Handy, solange "+ Buchung" schwebt: unter der Liste Platz für den Knopf (48 px) und seinen
+/// Abstand (16 px), sonst verdeckt er am Ende Betrag und Symbol der letzten Buchung.
+let private captureFabSpacer (model: Model) : ReactElement =
+    if captureFabVisible model then Html.div [ prop.custom ("data-testid", "ledger-capture-fab-spacer"); prop.className "md:hidden h-16"; prop.ariaHidden true ] else Html.none
+
 /// Die Hinweisleiste über der Liste, wenn eine Kategorieänderung den Sortierschlüssel verschoben
 /// hat (ADR 0055, Punkt 9). Sie steht nur bei `OrderStale`; "Neu laden" setzt die Liste ab
 /// Seite 1 mit der aktiven Sortierung neu auf.
@@ -3388,28 +3398,15 @@ let capturePickerMsg (choice: CategoryPicker.PickerChoice) : Msg option =
     | CategoryPicker.ChoseCategory id -> Some (ChooseCaptureTarget (id |> Option.map BookOnCategory))
     | CategoryPicker.ChoseToBeBudgeted -> None
 
-/// Die Ziel-Konten im Picker des Formulars: offene Budget-Konten ohne das gewählte Konto.
-let captureTransferTargets (model: Model) (form: Capture.CaptureForm) : YnabAccount list =
-    let own = captureAccountOf model form |> Option.bind (fun a -> a.YnabAccountId)
-    match model.TransferTargets with
-    | Success accounts -> openOnBudgetAccounts accounts |> List.filter (fun a -> Some a.Id <> own)
-    | _ -> []
-
+/// Der Picker des Formulars: die Ziel-Konten sind die offenen Budget-Konten ohne das gewählte Konto.
 let private capturePickerProps (dispatch: Msg -> unit) (model: Model) (form: Capture.CaptureForm) : CategoryPicker.CategoryPickerProps =
-    { Categories = model.Categories |> RemoteData.toOption |> Option.defaultValue [] |> withoutInternalCategories
-      Current = (match form.Target with Some (BookOnCategory id) -> Some id | _ -> None)
-      Suggested = []
-      Recent = recentPickerIds model.RecentCategories
-      Accounts = captureTransferTargets model form
-      CurrentAccount = (match form.Target with Some (BookAsTransfer a) -> Some a | _ -> None)
-      AccountsLoad = transferTargetsLoadState model.TransferTargets
-      OfferWithout = true
-      ToBeBudgeted = None
-      StandLabel = categoryStandLabel model DateTime.Now
-      LoadState = categoryLoadState model.Categories
-      OnRetry = fun () -> dispatch LoadCategories
-      OnSelect = fun choice -> capturePickerMsg choice |> Option.iter dispatch
-      OnClose = fun () -> dispatch CloseCapturePicker }
+    { basePickerProps dispatch model with
+        Current = (match form.Target with Some (BookOnCategory id) -> Some id | _ -> None)
+        Accounts = transferTargetsExcluding (captureAccountOf model form |> Option.bind (fun a -> a.YnabAccountId)) model
+        CurrentAccount = (match form.Target with Some (BookAsTransfer a) -> Some a | _ -> None)
+        AccountsLoad = transferTargetsLoadState model.TransferTargets
+        OnSelect = fun choice -> capturePickerMsg choice |> Option.iter dispatch
+        OnClose = fun () -> dispatch CloseCapturePicker }
 
 /// Der Saldo eines Kontos für das Konto-Feld und die Konto-Auswahl.
 let private captureBalanceOf (model: Model) (accountId: Guid) : Money option =
@@ -3486,8 +3483,9 @@ let private captureFields (dispatch: Msg -> unit) (model: Model) (capture: Captu
                         prop.className "flex flex-wrap gap-2"
                         prop.children [
                             for template in defaults.Recent ->
+                                // Gleicher Payee und Betrag auf zwei Konten ergibt denselben Text: das Konto gehört in den Key.
                                 React.keyedFragment (
-                                    Capture.templateLabel template,
+                                    $"{template.AccountId}|{Capture.templateLabel template}",
                                     [ BottomSheet.chipButtonTouch
                                           (Capture.templateLabel template)
                                           (fun () -> dispatch (ApplyCaptureTemplate template)) ]
@@ -3620,7 +3618,7 @@ let private captureBody (dispatch: Msg -> unit) (model: Model) (capture: Capture
     match capture.Defaults with
     | Success _ -> captureFields dispatch model capture inPanel
     | Failure message ->
-        [ ErrorDisplay.cardWithTitle "Vorbelegung konnte nicht geladen werden" message (Some (fun () -> dispatch RunLoadCaptureDefaults)) ]
+        [ ErrorDisplay.cardWithTitle "Vorbelegung konnte nicht geladen werden" message (Some (fun () -> dispatch RetryCaptureDefaults)) ]
     | NotAsked | Loading -> [ Loading.centered "Formular wird vorbereitet…" ]
 
 let private captureSubmitButton (dispatch: Msg -> unit) (capture: Capture.CaptureState) (fullWidth: bool) : ReactElement =
@@ -3628,8 +3626,10 @@ let private captureSubmitButton (dispatch: Msg -> unit) (capture: Capture.Captur
         { Button.defaultProps with
             Text = captureSubmitLabel
             Variant = Button.Primary
-            IsLoading = capture.Saving
-            IsDisabled = capture.Saving || not (RemoteData.isSuccess capture.Defaults)
+            // Beschäftigt statt gesperrt, damit der Fokus am Knopf bleibt (Styleguide §5); ein zweiter
+            // Tipp tut nichts (`SubmitCapture` prüft `Saving`).
+            IsBusy = capture.Saving
+            IsDisabled = not (RemoteData.isSuccess capture.Defaults)
             ClassName = (if fullWidth then Some "w-full" else None)
             OnClick = fun () -> dispatch SubmitCapture }
 
@@ -3717,9 +3717,10 @@ let private captureSheetView (dispatch: Msg -> unit) (model: Model) (capture: Ca
     ]
 
 /// Der schwebende Knopf "+ Buchung" am Handy, unten rechts über der Navigation. Er fehlt bei
-/// offenem Formular und im Auswahl-Modus (dort steht die Auswahl-Leiste).
-let private captureFab (dispatch: Msg -> unit) (model: Model) : ReactElement =
-    if model.Capture.IsSome || model.SelectionMode then
+/// offenem Formular und im Auswahl-Modus (dort steht die Auswahl-Leiste). `fixed`, deshalb rendert ihn
+/// der Haupt-`View.fs` außerhalb der Seitenhülle mit der Eintrittsanimation (wie `selectionBars`).
+let captureFab (dispatch: Msg -> unit) (model: Model) : ReactElement =
+    if not (captureFabVisible model) then
         Html.none
     else
         Html.div [
@@ -3845,7 +3846,6 @@ let private FilterBarColumn
             | Some capture, _ when panelOpen -> capturePanelView dispatch model capture
             | None, Some entry when panelOpen -> detailPanelView dispatch model entry
             | _ -> ()
-            captureFab dispatch model
             Html.div [
                 // Neben dem Panel macht die Spalte Platz; die Mindesthöhe hält das haftende
                 // Panel auch bei kurzer Liste im Bild.
@@ -3863,6 +3863,7 @@ let private FilterBarColumn
                 orderStaleBar dispatch model
                 entryList dispatch accounts isAllAccounts tableWidth panelOpen model
                 selectionBarSpacers model
+                captureFabSpacer model
             ]
                 ]
             ]

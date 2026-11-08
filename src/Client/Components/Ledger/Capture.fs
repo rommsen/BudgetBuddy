@@ -33,7 +33,13 @@ type CaptureState = {
     Form: CaptureForm
     Picker: CapturePicker option
     /// Läuft "Buchung anlegen"? Dann ist der Knopf gesperrt (kein Doppel-Tipp mit zwei Buchungen).
+    /// Auch gesetzt, solange "Buchung anlegen" auf die Kategorie zum Payee wartet.
     Saving: bool
+    /// Der Payee, zu dem die Kategorie gerade geholt wird (nach dem Verlassen des Felds).
+    PayeeLookup: string option
+    /// "Buchung anlegen" wurde getippt, während die Kategorie zum Payee lud: der Aufruf startet mit
+    /// der Antwort, damit die vorgeschlagene Kategorie nicht fehlt.
+    SubmitWhenLookedUp: bool
     /// Fehler aus der Prüfung im Client oder vom Server; sie bleiben im Formular stehen.
     Errors: string list
 }
@@ -60,6 +66,8 @@ let opening : CaptureState = {
     Form = emptyForm DateTime.MinValue
     Picker = None
     Saving = false
+    PayeeLookup = None
+    SubmitWhenLookedUp = false
     Errors = []
 }
 
@@ -136,6 +144,11 @@ let captureRequest (form: CaptureForm) : Result<LedgerBookingRequest, string lis
             Memo = if String.IsNullOrWhiteSpace form.Memo then None else Some (form.Memo.Trim())
         }
     | _ -> Error errors
+
+/// Wartet "Buchung anlegen" auf die Kategorie zum Payee? Nur, wenn die Abfrage zum Payee im Feld
+/// läuft; eine Abfrage zu einem alten Payee wird ohnehin verworfen. Rein.
+let awaitsPayeeCategory (capture: CaptureState) : bool =
+    capture.PayeeLookup |> Option.exists (fun p -> p = capture.Form.Payee.Trim())
 
 /// Der Text eines Zuletzt-Chips: "Bäckerei Lange · 8,60". Rein.
 let templateLabel (template: LedgerBookingTemplate) : string =

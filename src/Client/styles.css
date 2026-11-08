@@ -2921,12 +2921,14 @@ nav a:focus-visible {
   box-shadow: 0 -14px 40px rgba(0, 0, 0, 0.45);
 }
 /* "+ Buchung" am Handy (ledger-at63w): schwebt unten rechts über der Navigation, mit dem
-   Seitenrand von 16 px (Styleguide §7.15) und Abstand zur sicheren Zone unten. */
+   Seitenrand von 16 px (Styleguide §7.15) als Abstand zur Navigation und zur sicheren Zone unten.
+   Ebene wie `ZIndex.fixed'` (30), damit Sheets und Modals (40) darüber liegen. Den Platz unter der
+   Liste hält `captureFabSpacer` frei. */
 .ledger-capture-fab {
   position: fixed;
   right: 16px;
-  bottom: calc(80px + env(safe-area-inset-bottom, 0px));
-  z-index: 40;
+  bottom: calc(var(--bottom-nav-height) + 16px + env(safe-area-inset-bottom, 0px));
+  z-index: 30;
 }
 .row-longpress {
   -webkit-touch-callout: none;

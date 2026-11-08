@@ -287,8 +287,12 @@ let private targetYnabView (model: Model) (category: BudgetCategory) (dispatch: 
                                 Text = "Erneut senden"
                                 Variant = Button.Ghost
                                 Size = Button.Small
-                                IsLoading = Components.Budget.TargetEdit.targetRetryRunning category.Id model
-                                IsDisabled = model.TargetYnabRetry.IsSome
+                                // Beschäftigt statt gesperrt, damit der Fokus am Knopf bleibt (Styleguide §5);
+                                // gesperrt nur, solange eine andere Kategorie sendet.
+                                IsBusy = Components.Budget.TargetEdit.targetRetryRunning category.Id model
+                                IsDisabled =
+                                    model.TargetYnabRetry.IsSome
+                                    && not (Components.Budget.TargetEdit.targetRetryRunning category.Id model)
                                 ClassName = Some "shrink-0"
                                 OnClick = fun () -> dispatch (RetryTargetToYnab category.Id) }
                     ]

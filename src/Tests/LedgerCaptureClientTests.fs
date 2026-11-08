@@ -69,6 +69,20 @@ let private captureOf (model: Model) : Components.Ledger.Capture.CaptureState =
     | Some c -> c
     | None -> failtest "Formular erwartet"
 
+/// Alle Reihenfolgen einer Liste (für die Zustandsregeln, Doktrin Punkt 20).
+let rec private permutations (xs: 'a list) : 'a list list =
+    match xs with
+    | [] -> [ [] ]
+    | _ ->
+        xs
+        |> List.indexed
+        |> List.collect (fun (i, x) ->
+            let rest = xs |> List.indexed |> List.filter (fun (j, _) -> j <> i) |> List.map snd
+            permutations rest |> List.map (fun p -> x :: p))
+
+let private submitCalls (sent: Msg list) : LedgerBookingRequest list =
+    sent |> List.choose (function RunSubmitCapture r -> Some r | _ -> None)
+
 let private created (pushFailure: string option) : LedgerBookingCreated =
     { EntryId = Guid.Parse "0195c000-0000-7000-8000-0000000000e1"; AccountName = "Bar"; PushFailure = pushFailure }
 
@@ -100,6 +114,20 @@ let openTests =
             Expect.isNone (formOf model).AccountId "noch keine wählbaren Konten"
             let model' = step (TransferTargetsLoaded (Ok budget)) model
             Expect.equal (formOf model').AccountId (Some bar) "nachgesetzt"
+
+        // Regression (Review ledger-at63w): kamen die Kassenbuch-Konten zuletzt (Deep Link), blieb das Konto leer.
+        testCase "kommen die Kassenbuch-Konten nach der Vorbelegung, wird das Konto nachgesetzt" <| fun () ->
+            let accounts = (baseModel None).Accounts
+            let model =
+                { baseModel (Some (OneAccount bar)) with Accounts = NotAsked }
+                |> step OpenCapture
+                |> step (CaptureDefaultsLoaded (Ok defaults))
+            Expect.isNone (formOf model).AccountId "noch keine Konten"
+            match accounts with
+            | Success view ->
+                let model' = step (AccountsLoaded (Ok view)) model
+                Expect.equal (formOf model').AccountId (Some bar) "nachgesetzt"
+            | _ -> failtest "Konten erwartet"
 
         testCase "ein Detail schließt das Formular" <| fun () ->
             let entry = LedgerSelectionTests.entryOf 1 -5m false false
@@ -232,22 +260,13 @@ let submitTests =
 /// ein Erfolg schließt das Formular, ein Fehler gibt es wieder frei (Doktrin Punkt 20).
 [<Tests>]
 let lockOrderTests =
-    let rec permutations (xs: 'a list) : 'a list list =
-        match xs with
-        | [] -> [ [] ]
-        | _ ->
-            xs
-            |> List.indexed
-            |> List.collect (fun (i, x) ->
-                let rest = xs |> List.indexed |> List.filter (fun (j, _) -> j <> i) |> List.map snd
-                permutations rest |> List.map (fun p -> x :: p))
     let ways =
         [ for answer in [ CaptureSubmitted (Ok (created None)); CaptureSubmitted (Error "kaputt") ] do
               yield! permutations [ SubmitCapture; SubmitCapture; answer ] ]
         |> List.distinct
-    testList "Neue Buchung: Sperre während Buchung anlegen, alle Reihenfolgen (ledger-at63w)" [
-        for way in ways ->
-            testCase $"%A{way}" <| fun () ->
+    testList "Neue Buchung: Sperre während Buchung anlegen (ledger-at63w)" [
+        testCase "Jede Reihenfolge aus zwei Tipps und der Antwort sendet höchstens einen Aufruf" <| fun () ->
+            for way in ways do
                 let start = opened (Some (OneAccount bar)) |> step (SetCaptureAmount "8,60")
                 // Orakel ohne den getesteten Code.
                 let mutable isOpen, sending, expectedCalls = true, false, 0
@@ -265,8 +284,145 @@ let lockOrderTests =
                     | _ -> ()
                     let model', sent, _ = run msg model
                     model <- model'
-                    calls <- calls + (sent |> List.filter (function RunSubmitCapture _ -> true | _ -> false) |> List.length)
-                Expect.equal calls expectedCalls "Aufrufe"
-                Expect.equal model.Capture.IsSome isOpen "offen oder zu"
-                Expect.equal (model.Capture |> Option.exists (fun c -> c.Saving)) sending "Sperre"
+                    calls <- calls + List.length (submitCalls sent)
+                Expect.equal calls expectedCalls $"Aufrufe bei {way}"
+                Expect.equal model.Capture.IsSome isOpen $"offen oder zu bei {way}"
+                Expect.equal (model.Capture |> Option.exists (fun c -> c.Saving)) sending $"Sperre bei {way}"
+    ]
+
+/// Regression (Review ledger-at63w): eine späte Antwort der Vorbelegung baute das Formular neu und
+/// leerte Romans Eingaben (Öffnen, Schließen, Öffnen; die erste Antwort kommt, Roman tippt, die zweite
+/// kommt). Dazu zeigte "Erneut versuchen" kein Laden, und zwei Tipps schickten zwei Anfragen.
+[<Tests>]
+let defaultsOrderTests =
+    testList "Neue Buchung: späte Antworten der Vorbelegung (ledger-at63w)" [
+        testCase "eine zweite Antwort der Vorbelegung lässt die Eingaben stehen" <| fun () ->
+            let model =
+                baseModel (Some (OneAccount bar))
+                |> step OpenCapture
+                |> step CloseCapture
+                |> step OpenCapture
+                |> step (CaptureDefaultsLoaded (Ok defaults))
+                |> step (SetCaptureAmount "8,60")
+                |> step (ChooseCaptureAccount tagesgeld)
+                |> step (CaptureDefaultsLoaded (Ok defaults))
+            Expect.equal (formOf model).AmountText "8,60" "Betrag bleibt"
+            Expect.equal (formOf model).AccountId (Some tagesgeld) "Konto bleibt"
+
+        testCase "ein später Fehler nach geladener Vorbelegung lässt das Formular stehen" <| fun () ->
+            let model = opened None |> step (SetCaptureAmount "8,60") |> step (CaptureDefaultsLoaded (Error "weg"))
+            Expect.isTrue (RemoteData.isSuccess (captureOf model).Defaults) "Vorbelegung bleibt"
+            Expect.equal (formOf model).AmountText "8,60" "Betrag bleibt"
+
+        testCase "Jede Reihenfolge aus zwei Tipps auf Erneut versuchen und der Antwort lädt höchstens einmal" <| fun () ->
+            let failed = baseModel None |> step OpenCapture |> step (CaptureDefaultsLoaded (Error "kaputt"))
+            let ways =
+                [ for answer in [ CaptureDefaultsLoaded (Ok defaults); CaptureDefaultsLoaded (Error "wieder kaputt") ] do
+                      yield! permutations [ RetryCaptureDefaults; RetryCaptureDefaults; answer ] ]
+                |> List.distinct
+            for way in ways do
+                // Orakel: "fehlgeschlagen", "lädt" oder "geladen"; nur aus "fehlgeschlagen" startet ein Aufruf.
+                let mutable oracle, expectedCalls = "fehlgeschlagen", 0
+                let mutable model, calls = failed, 0
+                for msg in way do
+                    match msg with
+                    | RetryCaptureDefaults when oracle = "fehlgeschlagen" ->
+                        oracle <- "lädt"
+                        expectedCalls <- expectedCalls + 1
+                    | CaptureDefaultsLoaded (Ok _) when oracle <> "geladen" -> oracle <- "geladen"
+                    | CaptureDefaultsLoaded (Error _) when oracle <> "geladen" -> oracle <- "fehlgeschlagen"
+                    | _ -> ()
+                    let model', sent, _ = run msg model
+                    model <- model'
+                    calls <- calls + (sent |> List.filter ((=) RunLoadCaptureDefaults) |> List.length)
+                let actual =
+                    match (captureOf model).Defaults with
+                    | Success _ -> "geladen"
+                    | Loading -> "lädt"
+                    | Failure _ -> "fehlgeschlagen"
+                    | NotAsked -> "nicht angefragt"
+                Expect.equal calls expectedCalls $"Aufrufe bei {way}"
+                Expect.equal actual oracle $"Zustand bei {way}"
+    ]
+
+/// Regression (Review ledger-at63w): ein zweiter Tipp auf "Rückgängig" schickte die Rücknahme noch
+/// einmal, die zweite scheiterte und meldete "Rückgängig nicht möglich".
+[<Tests>]
+let discardOrderTests =
+    let id = (created None).EntryId
+    let ways =
+        [ for answer in [ CapturedDiscarded (id, Ok ()); CapturedDiscarded (id, Error "kaputt") ] do
+              yield! permutations [ StartDiscardCaptured id; StartDiscardCaptured id; answer ] ]
+        |> List.distinct
+    testList "Neue Buchung: Sperre während Rückgängig (ledger-at63w)" [
+        testCase "Jede Reihenfolge aus zwei Tipps auf Rückgängig und der Antwort nimmt höchstens einmal zurück" <| fun () ->
+            for way in ways do
+                // Orakel: eine Rücknahme startet nur, wenn keine läuft; die Antwort gibt frei.
+                let mutable running, expectedCalls = false, 0
+                let mutable model, calls = baseModel None, 0
+                for msg in way do
+                    match msg with
+                    | StartDiscardCaptured _ when not running ->
+                        running <- true
+                        expectedCalls <- expectedCalls + 1
+                    | CapturedDiscarded _ -> running <- false
+                    | _ -> ()
+                    let model', sent, _ = run msg model
+                    model <- model'
+                    calls <- calls + (sent |> List.filter (function RunDiscardCaptured _ -> true | _ -> false) |> List.length)
+                Expect.equal calls expectedCalls $"Aufrufe bei {way}"
+    ]
+
+/// Regression (Review ledger-at63w): die Kategorie zum Payee kommt erst nach dem Verlassen des Felds.
+/// Wer danach direkt "Buchung anlegen" tippte, legte ohne die vorgeschlagene Kategorie an.
+[<Tests>]
+let payeeLookupOrderTests =
+    testList "Neue Buchung: Buchung anlegen wartet auf die Kategorie zum Payee (ledger-at63w)" [
+        testCase "Jede Reihenfolge aus zwei Tipps und der Antwort zum Payee legt einmal mit der Kategorie an" <| fun () ->
+            let start =
+                opened (Some (OneAccount bar))
+                |> step (SetCaptureAmount "8,60")
+                |> step (SetCapturePayee "Tankstelle")
+                |> step CommitCapturePayee
+            let ways = permutations [ SubmitCapture; SubmitCapture; CapturePayeeCategoryLoaded ("Tankstelle", Some fuel) ] |> List.distinct
+            for way in ways do
+                let mutable model, requests = start, []
+                for msg in way do
+                    let model', sent, _ = run msg model
+                    model <- model'
+                    requests <- requests @ submitCalls sent
+                match requests with
+                | [ request ] -> Expect.equal request.Target (Some (BookOnCategory fuel)) $"Kategorie im Aufruf bei {way}"
+                | other -> failtest $"genau ein Aufruf erwartet bei {way}: {other}"
+                Expect.isTrue (captureOf model).Saving $"läuft bei {way}"
+
+        testCase "solange die Kategorie zum Payee lädt, ist Buchung anlegen belegt, aber startet nichts" <| fun () ->
+            let model =
+                opened (Some (OneAccount bar))
+                |> step (SetCaptureAmount "8,60")
+                |> step (SetCapturePayee "Tankstelle")
+                |> step CommitCapturePayee
+            let model', sent, _ = run SubmitCapture model
+            Expect.isEmpty (submitCalls sent) "kein Aufruf vor der Antwort"
+            Expect.isTrue (captureOf model').Saving "Knopf belegt"
+
+        testCase "eine Abfrage zu einem alten Payee hält Buchung anlegen nicht auf" <| fun () ->
+            let model =
+                opened (Some (OneAccount bar))
+                |> step (SetCaptureAmount "8,60")
+                |> step (SetCapturePayee "Tankstelle")
+                |> step CommitCapturePayee
+                |> step (SetCapturePayee "Bäckerei")
+            let _, sent, _ = run SubmitCapture model
+            Expect.equal (submitCalls sent |> List.map (fun r -> r.PayeeName)) [ "Bäckerei" ] "sofort angelegt"
+
+        testCase "ein falscher Betrag meldet sich sofort, auch wenn die Kategorie noch lädt" <| fun () ->
+            let model =
+                opened (Some (OneAccount bar))
+                |> step (SetCapturePayee "Tankstelle")
+                |> step CommitCapturePayee
+            let model', sent, _ = run SubmitCapture model
+            Expect.isEmpty sent "kein Aufruf"
+            Expect.equal (captureOf model').Errors [ Components.Ledger.Capture.amountInvalidText ] "Fehler sichtbar"
+            Expect.isFalse (captureOf model').Saving "bedienbar"
     ]

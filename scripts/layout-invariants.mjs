@@ -14,7 +14,8 @@
 //   4 kein sichtbarer Text abgeschnitten (Ellipse mit `title` ist erlaubt)
 //   5 nichts verdeckt: ein offenes Sheet, Popover oder Dialog liegt ganz im Bild und in jedem Behälter, der
 //     abschneidet; sein Primärknopf und die Knöpfe der Toasts sind das oberste Element; Texte nebeneinander in
-//     einer Zeile überdecken sich nicht; am Ende gescrollt verdeckt keine feste Leiste unten ein Bedienelement
+//     einer Zeile überdecken sich nicht; am Ende gescrollt verdeckt keine feste Leiste unten und kein
+//     schwebender Knopf in der unteren Hälfte ein Bedienelement
 //   6 Sticky-Köpfe überlappen sich nach dem Scrollen nicht; in einer offenen Ebene bleiben Kopf, Tabs und
 //     angeheftete Zeilen stehen, wenn ihr Körper scrollt
 //   7 der Primärknopf eines Sheets ist ohne Scrollen erreichbar, auch bei offener Tastatur (kleinerer Viewport)
@@ -464,9 +465,11 @@ export async function measureSticky(page, { where = "" } = {}) {
 }
 
 /// Invariante 5 am Ende: Seite und jeder Scrollbereich der Seite stehen am Ende (`measureSticky` hat sie dorthin
-/// gescrollt). Dann verdeckt keine feste Leiste am unteren Rand (Auswahl-Leiste, Tastatur-Hinweis) ein
-/// Bedienelement: weiter scrollen geht nicht, es bliebe unerreichbar. Gemessen wird am unteren Rand des sichtbaren
-/// Teils (ein Pixel Toleranz), dort rückt eine Leiste von unten zuerst darüber.
+/// gescrollt). Dann verdeckt keine feste Leiste am unteren Rand (Auswahl-Leiste, Tastatur-Hinweis) und kein
+/// schwebender Knopf in der unteren Hälfte des Bilds ("+ Buchung" im Kassenbuch) ein Bedienelement: weiter scrollen
+/// geht nicht, es bliebe unerreichbar. Gemessen wird am unteren Rand des sichtbaren Teils (ein Pixel Toleranz),
+/// dort rückt eine Leiste von unten zuerst darüber, links, in der Mitte und rechts: ein schwebender Knopf steht
+/// am Rand, nicht in der Mitte einer Zeile.
 export async function measureBottomCover(page, { where = "" } = {}) {
   await page.evaluate(async () => {
     for (const el of document.body.querySelectorAll("*")) {
@@ -509,11 +512,17 @@ export async function measureBottomCover(page, { where = "" } = {}) {
         box = { left: Math.max(box.left, c.left), top: Math.max(box.top, c.top), right: Math.min(box.right, c.right), bottom: Math.min(box.bottom, c.bottom) };
       }
       if (box.right - box.left < tol || box.bottom - box.top < tol) continue;
-      const hit = document.elementFromPoint((box.left + box.right) / 2, Math.max(box.top, box.bottom - tol - 0.5));
-      if (!hit || hit === el || el.contains(hit)) continue;
-      const bar = fixedAncestor(hit);
-      if (!bar || bar.getBoundingClientRect().bottom < vh - tol) continue;
-      out.push({ inv: 5, selector: describe(el), value: `am Ende gescrollt verdeckt von ${describe(bar)}` });
+      const y = Math.max(box.top, box.bottom - tol - 0.5);
+      for (const x of [box.left + tol + 0.5, (box.left + box.right) / 2, box.right - tol - 0.5]) {
+        const hit = document.elementFromPoint(x, y);
+        if (!hit || hit === el || el.contains(hit)) continue;
+        const bar = fixedAncestor(hit);
+        if (!bar) continue;
+        const b = bar.getBoundingClientRect();
+        if (b.bottom < vh - tol && b.top < vh / 2) continue;
+        out.push({ inv: 5, selector: describe(el), value: `am Ende gescrollt verdeckt von ${describe(bar)}` });
+        break;
+      }
     }
     return out;
   });

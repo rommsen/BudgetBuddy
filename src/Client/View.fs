@@ -151,8 +151,11 @@ let view (model: Model) (dispatch: Msg -> unit) =
 
                 // Auswahl-Leiste des Kassenbuchs (ledger-r1d2f): `fixed`, deshalb außerhalb der
                 // Seitenhülle mit der Eintrittsanimation.
+                // Ebenso der schwebende Knopf "+ Buchung" (ledger-at63w): in der Hülle haftete er an ihr
+                // statt am Fenster und stand erst am Ende der Liste im Bild.
                 if isLedgerPage model.CurrentPage then
                     Components.Ledger.View.selectionBars (LedgerMsg >> dispatch) model.Ledger
+                    Components.Ledger.View.captureFab (LedgerMsg >> dispatch) model.Ledger
 
                 // Toast notifications using new Toast component
                 Toast.renderItems
