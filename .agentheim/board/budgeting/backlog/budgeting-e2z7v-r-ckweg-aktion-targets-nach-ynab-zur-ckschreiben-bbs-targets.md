@@ -8,8 +8,8 @@ created: 2026-11-05
 completed:
 depends_on: [budgeting-eh8xe]
 blocks: []
-tags: [danach, targets, rueckweg, ynab-spiegel]
-related_adrs: [0072, 0084]
+tags: [etappe-2, targets, rueckweg, ynab-spiegel]
+related_adrs: [0072, 0084, 0088]
 related_research: [ynab-reihenfolge-monate-target-schreiben-2026-11-02]
 prior_art: [budgeting-k8wq3]
 ---
@@ -41,7 +41,13 @@ BBs Targets dort wieder stehen. Zuweisungen brauchen keinen Rückweg, YNAB hat s
 ## Notes
 - Quelle: ADR 0084 Punkt 6. Nutzt `setCategoryTarget` (`src/Server/YnabClient.fs:553-577`), falls
   er nach budgeting-eh8xe noch existiert; sonst neu aus der Historie.
-- Ob die Aktion Ereignisse für ihre Ergebnisse festhält (Regel aus ADR 0083 Punkt 7), in der
-  Verfeinerung klären.
-- Ein UI-Task hängt am Styleguide-Gate (`design-system-001`); in der Verfeinerung ergänzen, wenn
-  die Aktion einen Knopf auf der Budget-Seite bekommt.
+- Nach Etappe 2 vorgezogen (Roman, 2026-11-08). Es bleibt die bewusste Aktion aus ADR 0084 Punkt 6,
+  kein laufendes Spiegeln (dort verworfen).
+- Kein Ereignis: die Aktion ändert weder Geld noch BBs Regeln, das Ergebnis steht nur in der Antwort
+  (ADR 0083).
+- Ort: Menü ⋯ der Budget-Seite, Eintrag "Targets nach YNAB zurückschreiben", davor `BottomSheet.confirm`
+  am Handy bzw. `Modal.confirm` am PC mit der Zahl der Kategorien; danach eine Liste "Geschrieben" und
+  "Nicht darstellbar" mit Grund je Kategorie. Der Styleguide gilt (design-system-001 ist erledigt).
+- YNAB-API laut OpenAPI-Spezifikation (ADR 0088 Context): `PATCH .../categories/{id}` mit `goal_target`,
+  `goal_target_date`, `goal_needs_whole_amount`, `goal_frequency` (`monthly`, `weekly`, `yearly`);
+  `goal_frequency` lässt sich nicht mit `goal_target_date` kombinieren.

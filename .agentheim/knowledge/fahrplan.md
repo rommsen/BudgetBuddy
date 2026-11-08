@@ -53,13 +53,13 @@ Ziel: Nichts zwingt mehr zu YNAB außer Reports.
 
 - `ledger-at63w` Buchung im Kassenbuch erfassen für jedes Konto ohne Import, mit Vorbelegung
   (Roman 2026-11-08: Import-Konto erst mit Abgleich, der kommt später).
-- Kategorien verwalten: anlegen, umbenennen, Gruppe wechseln, deaktivieren (nie löschen).
-  Neuer Schreibweg nach YNAB.
+- `budgeting-pscgb` Kategorien verwalten: anlegen, umbenennen, Gruppe wechseln, Gruppen (ADR 0088)
+- `budgeting-sn2sn` Kategorie deaktivieren und eigene Reihenfolge, nur in BB (ADR 0088)
+- `budgeting-e2z7v` Targets nach YNAB zurückschreiben (aus „Danach“ vorgezogen, Roman 2026-11-08)
 - `ledger-qvjvs` Buchung zum Übertrag machen (Konten im Picker des Details, Schreibweg nach YNAB)
 - `ledger-p3vq8` Push gelungen, Verknüpfung nicht geschrieben
 - `ledger-nb4tv` ETF-Konto und Abgleich
 - Buchung löschen im Detail (auch in YNAB), mit Rückgängig.
-- Kategorie deaktivieren nur ohne verfügbares Geld; Gruppe als Auswahlfeld mit „Neue Gruppe“.
 - Betrag einer Buchung bearbeiten im Detail (auch in YNAB). Heute geht das in BB nicht; im Prototyp
   ab Version 15 (Roman, 2026-11-08).
 
@@ -130,5 +130,4 @@ jede Arbeit bremst.
 - ETF-Bewertung, ING-Import.
 - Benachrichtigungen: `infrastructure-jsys4`, `banking-import-r9tfx`, `ledger-g47hp`
 - `budgeting-bk6tq` Spike Vortrag ab dem ersten Tag
-- `budgeting-e2z7v` Targets nach YNAB zurückschreiben
 - `infrastructure-phadg` Altlasten Test-Doktrin

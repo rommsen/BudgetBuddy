@@ -5,6 +5,34 @@ Newest entries on top.
 
 ---
 
+## 2026-11-08 15:00 -- Modeling / Refined: budgeting-e2z7v - Targets nach YNAB zurückschreiben
+
+**Type:** Modeling / Refine
+**BC:** budgeting
+**Status after:** todo
+**Summary:** Nach Etappe 2 vorgezogen (Roman). Bleibt bewusste Aktion, kein Ereignis, Ort im Budget-Menü mit Bestätigung, API-Felder aus der OpenAPI-Spezifikation ergänzt.
+**ADRs written:** 0088 (Kategorien verwalten, für budgeting-pscgb und budgeting-sn2sn)
+
+---
+
+## 2026-11-08 15:00 -- Modeling / Captured: budgeting-sn2sn - "Kategorie deaktivieren und eigene Reihenfolge, beides nur in BB (ADR 0088 Punkte 2 und 3)"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** todo
+**Summary:** Kategorie deaktivieren nur ohne verfügbares Geld und eigene Reihenfolge, beides nur in BB (ADR 0088 Punkte 2 und 3).
+
+---
+
+## 2026-11-08 15:00 -- Modeling / Captured: budgeting-pscgb - "Kategorien verwalten: Seite mit Anlegen, Umbenennen und Gruppe wechseln, Gruppen anlegen und umbenennen, Schreibweg nach YNAB"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** todo
+**Summary:** Seite Kategorien verwalten: Kategorien anlegen, umbenennen, Gruppe wechseln, Gruppen anlegen und umbenennen, Schreibweg nach YNAB (ADR 0088 Punkt 1).
+
+---
+
 ## 2026-11-08 14:53 -- Modeling / Captured: ledger-at63w - "Buchung im Kassenbuch erfassen für jedes Konto ohne Import, mit Vorbelegung (Konto, Datum, Zuletzt, Kategorie zum Payee)"
 
 **Type:** Modeling / Capture

@@ -11,13 +11,15 @@ Catalog of this bounded context's tasks by status.
 
 <!-- task-counts:start -->
 - **Backlog:** 3
-- **Todo:** 0
+- **Todo:** 2
 - **Doing:** 0
 - **Done:** 61
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **budgeting-sn2sn** — "Kategorie deaktivieren und eigene Reihenfolge, beides nur in BB (ADR 0088 Punkte 2 und 3)" (feature) — `todo/budgeting-sn2sn-kategorie-deaktivieren-und-reihenfolge.md`
+- **budgeting-pscgb** — "Kategorien verwalten: Seite mit Anlegen, Umbenennen und Gruppe wechseln, Gruppen anlegen und umbenennen, Schreibweg nach YNAB" (feature) — `todo/budgeting-pscgb-kategorien-anlegen-umbenennen-gruppe.md`
 <!-- todo-list:end -->
 
 ### Doing
