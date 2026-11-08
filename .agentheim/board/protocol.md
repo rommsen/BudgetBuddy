@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-08 19:05 -- Review-Lauf: e83f2d00..ad18f0c9
+
+**Type:** Review / Review-Lauf
+**Bereich:** e83f2d00..ad18f0c9 (ledger-p3vq8, budgeting-pscgb, ledger-qvjvs, budgeting-sn2sn, budgeting-e2z7v, ledger-at63w)
+**Agents:** backend-code-quality, frontend-architecture, design-quality, qa-milestone-reviewer
+**Funde:** behoben 36 (in fünf Worktrees parallel), Kann-Sammlung 15 (ledger-k4n2s Punkte 20 bis 28, budgeting-h9c3w Abschnitt Review-Lauf 2026-11-08), Rückfrage 2, Ticket 0
+**Commits:** 78348742 (Retry eines Übertrags prüft das Ziel, Regressionstest), 3b15f398 (Target-Endpoints über withYnabPortText, N+1 in futureAssignedOn), c674b463 (disclosureSectionHead, Textknopf-Kern, switchRow, pickerField), a153ea14 (Neue Buchung gegen späte Antworten und Doppel-Tipps, + Buchung außerhalb der animierten Hülle), 85a18fcb (Kategorien-Formular sperrt Schließen und fremde Antworten, Reihenfolge je Gruppe nacheinander)
+**Anders gelöst:** TransferPayeeId nicht in Entry gefaltet (neue Spalte wäre für Bestandsbuchungen leer, Retry würde scheitern), planEntryPush sucht die Payee im Log. Vorgeschlagener Dialogsatz "Wochentag und Tag im Monat kennt YNAB nicht" war falsch (ADR 0090), neuer Satz nennt, dass BB beides nicht setzen kann.
+**Rückfrage:** "Wird nach YNAB übertragen." unter dem Schalter Aktiv (CategoriesView.fs), "Umbenennen" je Gruppe im Akzent (accentText, Styleguide §2 und §7.14).
+**Verifikation:** VERIFY: PASS (dotnet 4528 grün, node 311 grün, dotnet build, npm run build, guard:classes, guard:tokens grün)
+
+---
+
 ## 2026-11-08 18:26 -- Work session ended
 
 **Type:** Work / Session end

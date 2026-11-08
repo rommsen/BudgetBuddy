@@ -124,3 +124,11 @@ Kaputt-Szenario (GIVEN/WHEN/THEN): GIVEN Wechsel hin und zurück, das Lesen des 
 
 ## Aus infrastructure-nx14s (2026-11-07, Layout-Sweep)
 - Tab Geld bei 320 px: die sechs Schritte messen 44,7 × 48 px statt 48. Zwei Zeilen schieben „Nur noch … zu verteilen“ aus dem 500-px-Sheet (budgeting-c5w2n); eine Lösung braucht einen kleinen Umbau des Tabs. Danach die Ausnahme in `scripts/layout-states.mjs` (Zustand `budget-geld-zuweisen`) und im Test „Ausnahmen sind einzeln benannt“ in `scripts/layout-invariants.test.mjs` streichen.
+
+## Review-Lauf 2026-11-08 (e83f2d00..ad18f0c9)
+- Fixtures: `BudgetCategory` mit `TargetInYnab = None; Deactivated = None` in 15 Testdateien, `YnabPort` mit `WriteGoal` in rund 27 Literalen; ein Modul `BudgetFixtures` mit `budgetCategory`, `ynabPortReadOnly`, `ynabPortOk`; `CategoryLayoutFixture.isolated` ist `BudgetEventsFixture.isolatedDb` plus eine Schema-Zeile.
+- Seite Kategorien: die Gruppe als `Input.pickerField` wie in der Skizze statt nativem Auswahlfeld (Styleguide §7.5); `cardClass` und der Unterseiten-Kopf sind aus `TargetCheckView.fs` kopiert (eine DS-Variante `Card.list` und ein Unterseiten-Kopf in `PageHeader`).
+- `TargetRules.fs` hängt an `YnabClient.GoalPatch` (Schreibform des Clients im reinen Regel-Modul); ein eigener kleiner Typ hielte die Richtung sauber. `categoryApiWith` und `Categories.checkedWrite` prüfen den Namen doppelt.
+- Deaktivieren prüft künftige Monate, die BB noch nicht übernommen hat, nicht; Filter im Kassenbuch und Bobs Kategorienliste bieten deaktivierte Kategorien weiter an bzw. nicht mehr an (aus budgeting-sn2sn).
+- Targets nach YNAB: ein vergangener Monat vergleicht Lücken gegen YNABs heutiges Goal; eine offene Entfernung zeigt "Kein Target" mit "Nicht in YNAB" ohne eigenen Satz; je Speichern ein `GET /categories` für alle Kategorien; der Bericht des einmaligen Laufs fehlt im Layout-Sweep (aus budgeting-e2z7v).
+- Am Handy hat der Kopf der Budget-Seite mit dem neuen ⋮ drei Symbol-Knöpfe; bei 390 px mit vierstelligem "Zu verteilen" prüfen, ob er in einer Zeile bleibt (Styleguide §7.3).
