@@ -250,6 +250,37 @@ let handlerTests =
                 "abgelehnt"
             Expect.isTrue (categoryIn (readGroups connect) restaurant).Active "bleibt aktiv"
 
+        testCase "mehrere künftige Monate: je Monat gefaltet, ein Monat ohne Zuweisung der Kategorie fehlt" <| fun () ->
+            let anchor, connect = CategoryLayoutFixture.isolated ()
+            use _ = anchor
+            // Dezember: Restaurant 0, eine andere Kategorie 40. Januar: Restaurant 20. Alle Monate kommen aus einer
+            // Abfrage; gemischt gefaltet stünde ein falscher Monat oder Betrag in der Meldung.
+            let january = "2027-01-01"
+            let raw =
+                Map.ofList [
+                    december, rawMonth december [ rawCategory restaurant "Restaurant" "Freizeit" 0m 0m 0m
+                                                  rawCategory lebensmittel "Lebensmittel" "Alltag" 40m 0m 40m ]
+                    january, rawMonth january [ rawCategory restaurant "Restaurant" "Freizeit" 20m 0m 20m ] ]
+            let ynab : CommandHandlers.YnabPort =
+                { FetchMonth = fun month -> async { return Ok raw[month] }
+                  SetAssigned = fun _ _ _ -> failwith "kein Schreiben"
+                  WriteGoal = (fun _ _ -> async { return Ok () })
+                  FetchCategoryGoals = fun () -> async { return Ok [] } }
+            for month in [ december; january ] do
+                match CommandHandlers.observeMonthWith connect ynab now month |> run with
+                | Ok _ -> ()
+                | Error e -> failtest $"Übernahme {month} erwartet: {e}"
+            let result = setCategoryActiveWith connect quietPort november now { CategoryId = restaurant; Active = false } |> run
+            Expect.equal
+                result
+                (Error (RefusedByBb "Restaurant hat im Januar 2027 20,00 € zugewiesen. Erst zurücknehmen, dann deaktivieren."))
+                "nur der Januar"
+            let others = setCategoryActiveWith connect quietPort november now { CategoryId = lebensmittel; Active = false } |> run
+            Expect.equal
+                others
+                (Error (RefusedByBb "Lebensmittel hat im Dezember 2026 40,00 € zugewiesen. Erst zurücknehmen, dann deaktivieren."))
+                "die andere Kategorie nur im Dezember"
+
         testCase "YNAB nicht lesbar: kein Deaktivieren" <| fun () ->
             let anchor, connect = CategoryLayoutFixture.isolated ()
             use _ = anchor

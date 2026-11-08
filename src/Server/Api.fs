@@ -1824,8 +1824,28 @@ let ledgerApi : LedgerApi = {
 // Budget (budgeting-k7wmd)
 // ============================================
 
+/// Die Meldung ohne YNAB-Token in den Settings.
 [<Literal>]
-let private NoYnabToken = "Kein YNAB-Token eingerichtet (Settings)"
+let NoYnabToken = "Kein YNAB-Token eingerichtet (Settings)"
+
+/// Die Meldung ohne Standard-Budget in den Settings.
+[<Literal>]
+let NoYnabBudgetText = "Kein Standard-Budget konfiguriert (Settings)"
+
+/// Wie `withYnabPort`, für einen Befehl, der seine Fehler schon als Satz meldet (Targets nach YNAB,
+/// budgeting-e2z7v): ohne Token oder Budget je ein fester Satz, sonst `run` mit dem Port.
+let withYnabPortText
+    (tokenOpt: string option)
+    (budgetOpt: string option)
+    (portFor: string -> YnabBudgetId -> 'port)
+    (run: 'port -> Async<Result<'a, string>>)
+    : Async<Result<'a, string>> =
+    async {
+        match tokenOpt, budgetOpt with
+        | None, _ -> return Error NoYnabToken
+        | _, None -> return Error NoYnabBudgetText
+        | Some token, Some budgetId -> return! run (portFor token (YnabBudgetId budgetId))
+    }
 
 /// Der Weg über Token und Budget ohne Settings und Netz: beide verlangen, den Port bauen
 /// (`portFor token budgetId`) und `run` damit ausführen. YNAB-Fehler werden lesbar
@@ -1837,15 +1857,12 @@ let withYnabPort
     (portFor: string -> YnabBudgetId -> 'port)
     (run: 'port -> Async<Result<'a, YnabError>>)
     : Async<Result<'a, string>> =
-    async {
-        match tokenOpt, budgetOpt with
-        | None, _ -> return Error NoYnabToken
-        | _, None -> return Error "Kein Standard-Budget konfiguriert (Settings)"
-        | Some token, Some budgetId ->
-            match! run (portFor token (YnabBudgetId budgetId)) with
+    withYnabPortText tokenOpt budgetOpt portFor (fun port ->
+        async {
+            match! run port with
             | Ok value -> return Ok value
             | Error e -> return Error (ynabErrorText e)
-    }
+        })
 
 /// Der Weg der Budget-Seite ohne Settings und Netz: Monat prüfen, dann lesen. Ein abgelehnter Monat
 /// fragt YNAB nicht. `now` stempelt Übernahme und Beobachtungen des Lesens (UTC, budgeting-dgrp7).
@@ -2054,10 +2071,6 @@ let hideMonthStartWith
         | Ok key -> return! Server.Budgeting.CommandHandlers.hideMonthStartWith connect now key
     }
 
-/// Die Meldung ohne Standard-Budget in den Settings.
-[<Literal>]
-let NoYnabBudgetText = "Kein Standard-Budget konfiguriert (Settings)"
-
 /// Der YNAB-Port ohne Einrichtung (budgeting-e2z7v): jeder Aufruf scheitert mit der Meldung, kein Netz. Target ändern
 /// hält damit BBs Target fest und den Fehlschlag nach YNAB.
 let unconfiguredPort : Server.Budgeting.CommandHandlers.YnabPort =
@@ -2164,20 +2177,16 @@ let budgetApiWith
 
       retryTargetToYnab = fun categoryId -> async {
         let! tokenOpt, budgetOpt = ynabSettings ()
-        match tokenOpt, budgetOpt with
-        | Some token, Some budgetId ->
-            return! Server.Budgeting.CommandHandlers.retryTargetWrite (portFor token (YnabBudgetId budgetId)) (utcNow ()) categoryId
-        | None, _ -> return Error NoYnabToken
-        | _, None -> return Error NoYnabBudgetText
+        return!
+            withYnabPortText tokenOpt budgetOpt portFor (fun port ->
+                Server.Budgeting.CommandHandlers.retryTargetWrite port (utcNow ()) categoryId)
       }
 
       writeAllTargetsToYnab = fun () -> async {
         let! tokenOpt, budgetOpt = ynabSettings ()
-        match tokenOpt, budgetOpt with
-        | Some token, Some budgetId ->
-            return! Server.Budgeting.CommandHandlers.writeAllTargets (portFor token (YnabBudgetId budgetId)) (utcNow ())
-        | None, _ -> return Error NoYnabToken
-        | _, None -> return Error NoYnabBudgetText
+        return!
+            withYnabPortText tokenOpt budgetOpt portFor (fun port ->
+                Server.Budgeting.CommandHandlers.writeAllTargets port (utcNow ()))
       }
 
       getRecentMoveCategories = fun () -> Server.Budgeting.QueryHandlers.recentMoveCategories ()

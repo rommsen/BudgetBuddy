@@ -1160,8 +1160,9 @@ let changeTargetWith
                         | Ok RemoveRule -> return! record (BudgetEvent.TargetRemoved { EffectiveFrom = monthId }) None
                 }))
             if recordedNew then
-                let! _ = sendOpenDecision connect goals now request.CategoryId
-                ()
+                // Bestes Bemühen: BBs Target gilt schon. Ein Fehlschlag nach YNAB steht als Ereignis fest, ein
+                // nicht lesbarer Target-Stream im Log; beides ändert die Antwort nicht.
+                do! sendOpenDecision connect goals now request.CategoryId |> Async.Ignore
             return result
         })
     | _ -> async { return Ok (Error (targetMonthRefusalText request)) }
@@ -1217,42 +1218,45 @@ let writeAllTargetsWith
                     |> List.filter (fun (_, events) -> (latestDecision events).IsSome)
                     |> List.map fst
                     |> List.sortBy nameOf
-                let mutable rateLimited = false
-                let lines = ResizeArray<TargetToYnabLine>()
-                for categoryId in candidates do
-                    let inYnab = byId |> Map.tryFind categoryId
-                    let line outcome = lines.Add { CategoryId = categoryId; CategoryName = nameOf categoryId; Outcome = outcome }
-                    if rateLimited then
-                        // Abgebrochen: nur wer etwas zu senden hätte, ist offen.
-                        let events = streams[categoryId]
-                        let pending =
-                            match latestDecision events, inYnab with
-                            | Some (_, rule), Some goal -> (openTargetWrite events).IsSome || not (List.isEmpty (planGoalWrite goal.Target rule).Calls)
-                            | _ -> true
-                        line (if pending then GoalNotAttempted else GoalAlreadyInYnab)
-                    else
-                        let! outcome =
-                            TargetGuard.exclusive categoryId (async {
-                                let stream =
-                                    try
-                                        use conn = connect ()
-                                        loadTargetStreamWithIdsOn conn categoryId
-                                    with ex ->
-                                        Error ex.Message
-                                match stream with
-                                | Error reason ->
-                                    logReadFailure "Target-Stream lesen" reason
-                                    return { Outcome = GoalWriteFailed TargetRulesUnreadableText; RateLimited = false }
-                                | Ok events ->
-                                    match latestDecision events with
-                                    | None -> return { Outcome = GoalAlreadyInYnab; RateLimited = false }
-                                    | Some (decisionEventId, rule) ->
-                                        let isOpen = (openTargetWrite events).IsSome
-                                        return! writeDecision connect goals now categoryId decisionEventId rule isOpen inYnab
-                            })
-                        if outcome.RateLimited then rateLimited <- true
-                        line outcome.Outcome
-                return Ok { Lines = List.ofSeq lines; RateLimited = rateLimited }
+                // Nacheinander je Kandidat; nach dem ersten 429 wird nichts mehr gesendet.
+                let rec go (rateLimited: bool) (lines: TargetToYnabLine list) (rest: Guid list) =
+                    async {
+                        match rest with
+                        | [] -> return Ok { Lines = List.rev lines; RateLimited = rateLimited }
+                        | categoryId :: tail ->
+                            let inYnab = byId |> Map.tryFind categoryId
+                            let line outcome = { CategoryId = categoryId; CategoryName = nameOf categoryId; Outcome = outcome }
+                            if rateLimited then
+                                // Abgebrochen: nur wer etwas zu senden hätte, ist offen.
+                                let events = streams[categoryId]
+                                let pending =
+                                    match latestDecision events, inYnab with
+                                    | Some (_, rule), Some goal -> (openTargetWrite events).IsSome || not (List.isEmpty (planGoalWrite goal.Target rule).Calls)
+                                    | _ -> true
+                                return! go true (line (if pending then GoalNotAttempted else GoalAlreadyInYnab) :: lines) tail
+                            else
+                                let! outcome =
+                                    TargetGuard.exclusive categoryId (async {
+                                        let stream =
+                                            try
+                                                use conn = connect ()
+                                                loadTargetStreamWithIdsOn conn categoryId
+                                            with ex ->
+                                                Error ex.Message
+                                        match stream with
+                                        | Error reason ->
+                                            logReadFailure "Target-Stream lesen" reason
+                                            return { Outcome = GoalWriteFailed TargetRulesUnreadableText; RateLimited = false }
+                                        | Ok events ->
+                                            match latestDecision events with
+                                            | None -> return { Outcome = GoalAlreadyInYnab; RateLimited = false }
+                                            | Some (decisionEventId, rule) ->
+                                                let isOpen = (openTargetWrite events).IsSome
+                                                return! writeDecision connect goals now categoryId decisionEventId rule isOpen inYnab
+                                    })
+                                return! go outcome.RateLimited (line outcome.Outcome :: lines) tail
+                    }
+                return! go false [] candidates
     }
 
 /// `writeAllTargetsWith` auf der Datenbank der Anwendung.

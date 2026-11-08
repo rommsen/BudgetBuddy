@@ -307,7 +307,6 @@ let private flowTests =
             let k = Guid.NewGuid()
             takeOver connect k fifty
             let f = FakeGoals [ k, "Urlaub", Some fifty ]
-            f.Port.WriteGoal |> ignore
             // Beim Aufruf muss das TargetSet schon im Stream stehen.
             let seenAtCall = ResizeArray<string list>()
             let port = { f.Port with WriteGoal = fun id patch -> async { seenAtCall.Add(types connect id); return! f.Port.WriteGoal id patch } }

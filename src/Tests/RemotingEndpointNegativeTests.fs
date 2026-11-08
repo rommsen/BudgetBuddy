@@ -107,6 +107,16 @@ let private reviewState = { IsApproved = true; ClearedState = ReviewCleared }
 
 let private budget = budgetApi (TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin")
 
+/// Die Budget-Seite mit festen Settings statt der geteilten Datenbank; jeder Port-Aufruf ist ein Fehler.
+let private budgetWithSettings (settings: (string * string) list) =
+    let known = Map.ofList settings
+    budgetApiWith
+        (fun key -> async { return known |> Map.tryFind key })
+        (fun _ _ -> failwith "ohne Einrichtung kein Port")
+        (fun _ _ -> failwith "ohne Einrichtung kein Rahmen")
+        (fun () -> DateTime(2026, 11, 5, 9, 0, 0, DateTimeKind.Utc))
+        (TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin")
+
 /// Die Seite Kategorien der laufenden App (budgeting-sn2sn: mit Berliner Monat).
 let private liveCategoryApi = categoryApi (TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin")
 
@@ -493,10 +503,23 @@ let private rows : Row list = [
     { Endpoint = "BudgetApi.retryFailedTargets"; Case = "keine gültige Anwendungs-Id: Fehler"
       Run = fun () -> budget.retryFailedTargets "keine-guid" |> run |> expectError "Wiederholen" }
     // budgeting-e2z7v: Targets nach YNAB.
-    { Endpoint = "BudgetApi.retryTargetToYnab"; Case = "unbekannte Kategorie ohne Einrichtung: Fehler statt Ausnahme, kein YNAB"
-      Run = fun () -> budget.retryTargetToYnab (Guid.NewGuid()) |> run |> expectError "Erneut senden" }
-    { Endpoint = "BudgetApi.writeAllTargetsToYnab"; Case = "ohne Einrichtung: Fehler statt Ausnahme, kein YNAB"
-      Run = fun () -> budget.writeAllTargetsToYnab () |> run |> expectError "Targets nach YNAB" }
+    // Ohne Token oder Budget je ein deutscher Satz (wie `withYnabPort`), kein Port, kein YNAB.
+    { Endpoint = "BudgetApi.retryTargetToYnab"; Case = "unbekannte Kategorie ohne Token oder Budget: der deutsche Satz, kein YNAB"
+      Run = fun () ->
+          Expect.equal
+              ((budgetWithSettings []).retryTargetToYnab (Guid.NewGuid()) |> run)
+              (Error "Kein YNAB-Token eingerichtet (Settings)") "ohne Token"
+          Expect.equal
+              ((budgetWithSettings [ "ynab_token", "t" ]).retryTargetToYnab (Guid.NewGuid()) |> run)
+              (Error "Kein Standard-Budget konfiguriert (Settings)") "ohne Budget" }
+    { Endpoint = "BudgetApi.writeAllTargetsToYnab"; Case = "ohne Token oder Budget: der deutsche Satz, kein YNAB"
+      Run = fun () ->
+          Expect.equal
+              ((budgetWithSettings []).writeAllTargetsToYnab () |> run)
+              (Error "Kein YNAB-Token eingerichtet (Settings)") "ohne Token"
+          Expect.equal
+              ((budgetWithSettings [ "ynab_token", "t" ]).writeAllTargetsToYnab () |> run)
+              (Error "Kein Standard-Budget konfiguriert (Settings)") "ohne Budget" }
     // ---------------- CategoryApi (budgeting-pscgb) ----------------
     { Endpoint = "CategoryApi.getCategoryGroups"; Case = "ohne Einrichtung: Fehler statt Ausnahme"
       Run = fun () ->

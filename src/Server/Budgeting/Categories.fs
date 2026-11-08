@@ -111,25 +111,19 @@ let saveCategoryGroup (port: CategoryPort) (save: CategoryGroupSave) : Async<Res
 // ============================================
 
 /// Was BB in künftigen Monaten zugewiesen hat: je übernommenem Monat nach `currentMonth` das Soll der Kategorie aus
-/// BBs Faltung (ADR 0084), nur Beträge ungleich 0. Liest nur die Datenbank, kein YNAB.
+/// BBs Faltung (ADR 0084), nur Beträge ungleich 0. Liest nur die Datenbank, alle Monate in einer Abfrage, kein YNAB.
 let futureAssignedOn (conn: SqliteConnection) (currentMonth: string) (categoryId: Guid) : Result<(string * Money) list, string> =
     match Budgeting.Persistence.queryTakenOverMonths conn with
     | Error message -> Error message
     | Ok months ->
-        months
-        |> Seq.filter (fun m -> m > currentMonth)
-        |> Seq.sort
-        |> Seq.fold
-            (fun acc month ->
-                match acc with
-                | Error _ -> acc
-                | Ok found ->
-                    match Budgeting.Persistence.loadMonthEventsOn conn month with
-                    | Error message -> Error message
-                    | Ok events ->
-                        let assigned = (Assignments.stateOf (Assignments.foldMonth events) categoryId).Assigned
-                        if assigned = 0L then Ok found else Ok (found @ [ month, euroOfMilliunits assigned ]))
-            (Ok [])
+        let future = months |> Seq.filter (fun m -> m > currentMonth) |> Seq.sort |> Seq.toList
+        Budgeting.Persistence.loadMonthsEventsOn conn future
+        |> Result.map (fun eventsByMonth ->
+            future
+            |> List.choose (fun month ->
+                let events = eventsByMonth |> Map.tryFind month |> Option.defaultValue []
+                let assigned = (Assignments.stateOf (Assignments.foldMonth events) categoryId).Assigned
+                if assigned = 0L then None else Some (month, euroOfMilliunits assigned)))
 
 /// Die Meldung, wenn BB das Zugewiesen künftiger Monate nicht lesen kann.
 [<Literal>]

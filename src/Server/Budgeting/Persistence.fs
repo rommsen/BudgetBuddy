@@ -242,6 +242,8 @@ let private toRecordedBudgetEvent (row: StoredEventRow) : Result<RecordedBudgetE
 type internal EventScope =
     /// Ein Stream, alle Typen.
     | InStream of streamId: string
+    /// Mehrere Streams in einer Abfrage, alle Typen.
+    | InStreams of streamIds: string list
     /// Der ganze Kontext, nur diese Typen (`Events.EventTypes`).
     | OfTypes of eventTypes: string list
     /// Der ganze Kontext, alle Typen.
@@ -261,6 +263,15 @@ let internal loadBudgetEventsOn (conn: SqliteConnection) (scope: EventScope) : R
                    WHERE context = @context AND stream_id = @stream_id
                    ORDER BY stream_id, stream_version""",
                 {| context = Context; stream_id = streamId |}
+            )
+        | InStreams streamIds ->
+            conn.Query<StoredEventRow>(
+                """SELECT position, event_id, context, stream_id, stream_version, occurred_at, actor_kind,
+                          actor_ref, event_type, schema_version, payload, command_id
+                   FROM events
+                   WHERE context = @context AND stream_id IN @stream_ids
+                   ORDER BY stream_id, stream_version""",
+                {| context = Context; stream_ids = List.toArray streamIds |}
             )
         | OfTypes eventTypes ->
             conn.Query<StoredEventRow>(
@@ -1068,6 +1079,37 @@ let internal loadMonthEventsOn (conn: SqliteConnection) (monthKey: string) : Res
     | Ok monthId ->
         loadBudgetEventsOn conn (InStream (streamIdOf (MonthStream monthId)))
         |> Result.map (List.map (fun e -> e.EventId, e.Event))
+
+/// Die Ereignisse mehrerer Monats-Streams zu "YYYY-MM-01" in einer Abfrage, je Monat wie `loadMonthEventsOn`. Ein Monat
+/// ohne Ereignisse steht mit leerer Liste in der Map.
+let internal loadMonthsEventsOn
+    (conn: SqliteConnection)
+    (monthKeys: string list)
+    : Result<Map<string, (Guid * BudgetEvent) list>, string> =
+    let ids =
+        monthKeys
+        |> List.fold
+            (fun acc key ->
+                match acc, monthIdOf key with
+                | Error message, _ -> Error message
+                | _, Error message -> Error message
+                | Ok found, Ok monthId -> Ok (found @ [ key, streamIdOf (MonthStream monthId) ]))
+            (Ok [])
+    match ids with
+    | Error message -> Error message
+    | Ok [] -> Ok Map.empty
+    | Ok pairs ->
+        loadBudgetEventsOn conn (InStreams (pairs |> List.map snd))
+        |> Result.map (fun events ->
+            let byStream = events |> List.groupBy (fun e -> e.StreamId) |> Map.ofList
+            pairs
+            |> List.map (fun (key, stream) ->
+                key,
+                byStream
+                |> Map.tryFind stream
+                |> Option.defaultValue []
+                |> List.map (fun e -> e.EventId, e.Event))
+            |> Map.ofList)
 
 /// Die übernommenen Monate als "YYYY-MM-01": jeder Monats-Stream mit einem `BudgetTakenOverFromYnab`, in einer
 /// Abfrage über `events` (budgeting-dkjc5). Gelesen wird nur `stream_id`, keine Payload.
