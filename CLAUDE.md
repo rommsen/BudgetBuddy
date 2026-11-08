@@ -155,7 +155,8 @@ Im Gespräch mit Roman steht hinter jeder Task-Id in Klammern, worum es geht, in
 ## README-Deltas (Agentheim)
 
 Vor dem Integrieren eines README_DELTA lokal gegen das echte Grammatik-Modul prüfen: `npm run check:readme-delta -- --bc <kontext> --delta <datei|->` (direkt: `node scripts/readme-delta-check.mjs --bc <kontext> --delta <datei|->`).
-Liegen zwischen RESULT und Integration Review-Fixes oder ein Merge (etwa bei einer geparkten Task), ist das Delta veraltet. Vor dem Gate jeden Satz am aktuellen Code prüfen: Verhalten, zitierte Nutzersätze (nicht Log-Sätze) und jeden Bullet, der dieselbe Regel nennt. Die bekannten Änderungen nur einzuarbeiten reicht nicht (budgeting-eh8xe, Verifier-FAIL in Iteration 2 und 3).
+Jedes Delta, das einen Bullet ersetzt, ist erst fertig, wenn die README auf `main` nach den alten Begriffen und Sätzen des ersetzten Bullets durchsucht ist (`grep -n` je Begriff in Backticks und je Satz in „…“): weitere Bullets, `## Ereignisse`, `## Key commands`, `## Key events`, Open questions und Verweise. Jeder Treffer wird im selben Schritt nachgezogen, Bullets ohne fetten Kopf von Hand (ledger-qvjvs, budgeting-e2z7v, ledger-at63w: vier Verifier-FAILs in einem Lauf).
+Liegen zwischen RESULT und Integration Review-Fixes oder ein Merge (etwa bei einer geparkten Task), ist das Delta zusätzlich veraltet: vor dem Gate jeden Satz am aktuellen Code prüfen, Verhalten und zitierte Nutzersätze (nicht Log-Sätze). Die bekannten Änderungen nur einzuarbeiten reicht nicht (budgeting-eh8xe, Verifier-FAIL in Iteration 2 und 3).
 Ein rotes Gate heißt: den README-Block von Hand platzieren, nicht das Delta blind anwenden.
 Exit 1: das Delta wurde inhaltlich abgelehnt, Grund in der Meldung.
 Exit 2: das Gate konnte gar nicht urteilen (Plugin-Modul nicht gefunden, Eingabe ungültig), das ist etwas anderes als "abgelehnt".
