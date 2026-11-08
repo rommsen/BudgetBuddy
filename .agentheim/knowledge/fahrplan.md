@@ -60,9 +60,24 @@ Ziel: Nichts zwingt mehr zu YNAB außer Reports.
 - `ledger-nb4tv` ETF-Konto und Abgleich
 - Buchung löschen im Detail (auch in YNAB), mit Rückgängig.
 - Kategorie deaktivieren nur ohne verfügbares Geld; Gruppe als Auswahlfeld mit „Neue Gruppe“.
+- Betrag einer Buchung bearbeiten im Detail (auch in YNAB). Heute geht das in BB nicht, der Prototyp
+  hat es auch nicht (Roman, 2026-11-08).
 
 ## Etappe 3 · Ein Produkt
 Ziel: Drei Orte, eine Sprache, Seite für Seite an der Skizze.
+
+Korrekturen am Prototyp (Roman, 2026-11-08, am Handy durchgegangen). Sie gehen dem Prototyp vor und
+gehören beim Verfeinern der jeweiligen Seite als Kriterium in die Task:
+
+- Budget: Die Tabs im Panel und im Sheet springen nicht in der Höhe, egal wie viel Inhalt ein Tab
+  hat (wie heute `BottomSheet.inspector` mit fester Höhe).
+- Budget-Historie zeigt die Beträge wie heute in BB (Styleguide §7.11: „rechts der Betrag, falls es
+  einen gibt“). Im Prototyp fehlen sie.
+- Split: Beträge der Teile lassen sich ändern. Beim Wechsel zwischen den Feldern bleibt die Tastatur
+  offen und springt nicht auf und zu.
+- Split: Ziel eines Teils kann auch ein Konto sein (Styleguide §2, `CategoryPicker` mit `Accounts`),
+  wie heute in BB. Im Prototyp fehlen die Konten.
+- Amazon: nur der Link zur Bestellung. Den Inhalt der Bestellung zeigt BB nicht, Amazon hat keine API.
 
 - Übersicht als Einstieg statt Sync, Variante A: Zu tun (eine Hauptaktion), Monat mit Balken und
   Marke „heute“, Angepinnt, am Handy Konten.
