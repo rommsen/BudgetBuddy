@@ -308,6 +308,20 @@ let listRow (key: string) (testId: string) (ariaLabel: string) (onClick: unit ->
         prop.children children
     ]
 
+/// Eine einzeilige Listenzeile als Knopf, nur ein Name (Seite Kategorien, Prototyp Version 17, budgeting-pscgb):
+/// mindestens 48 px hoch, der Name gekürzt mit `title`. Die Linie zwischen Zeilen fällt an der letzten weg.
+let nameRow (key: string) (testId: string) (ariaLabel: string) (name: string) (onClick: unit -> unit) =
+    Html.button [
+        prop.key key
+        prop.type' "button"
+        prop.custom ("data-testid", testId)
+        prop.ariaLabel ariaLabel
+        prop.className
+            $"flex w-full items-center text-left px-4 py-3 min-h-[48px] border-b border-border-subtle last:border-b-0 cursor-pointer touch-manipulation hover:bg-surface-hover"
+        prop.onClick (fun _ -> onClick ())
+        prop.children [ Truncate.text $"block {ListRoles.primary}" name ]
+    ]
+
 /// Wie `listRow`, die Zeile wählt etwas aus: die gewählte trägt `aria-current` und den Akzent (ADR 0087).
 /// `aria-selected` gilt nur in Rollen wie `option` oder `tab`, nicht an einem `button`.
 let selectableListRow (key: string) (testId: string) (ariaLabel: string) (isSelected: bool) (onClick: unit -> unit) (children: ReactElement list) =
@@ -488,6 +502,20 @@ let quietText (testId: string) (text: string) (onClick: unit -> unit) =
         prop.custom ("data-testid", testId)
         prop.className
             $"inline-flex items-center min-h-[48px] md:min-h-9 px-1 -mr-1 text-xs {Colors.textSecondary} cursor-pointer touch-manipulation hover:text-text-primary transition-colors"
+        prop.onClick (fun _ -> onClick ())
+        prop.text text
+    ]
+
+/// Ein Textknopf im Akzent an einem Abschnittskopf ("Umbenennen" an einer Gruppe der Seite Kategorien, Prototyp
+/// Version 17, budgeting-pscgb): 12 px Mono wie der Gruppenkopf, ohne Rand und Fläche. Trefferfläche 48 px am Handy,
+/// 36 px ab md. `ariaLabel` nennt, worauf er wirkt.
+let accentText (testId: string) (ariaLabel: string) (text: string) (onClick: unit -> unit) =
+    Html.button [
+        prop.type' "button"
+        prop.custom ("data-testid", testId)
+        prop.ariaLabel ariaLabel
+        prop.className
+            $"inline-flex items-center min-h-[48px] md:min-h-9 px-1 -mr-1 font-mono text-xs {Colors.accent} cursor-pointer touch-manipulation hover:underline"
         prop.onClick (fun _ -> onClick ())
         prop.text text
     ]

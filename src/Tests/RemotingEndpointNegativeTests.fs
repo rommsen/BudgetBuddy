@@ -461,6 +461,21 @@ let private rows : Row list = [
         | Ok () -> failtest "Ausblenden hätte abgelehnt werden müssen" }
     { Endpoint = "BudgetApi.retryFailedTargets"; Case = "keine gültige Anwendungs-Id: Fehler"
       Run = fun () -> budget.retryFailedTargets "keine-guid" |> run |> expectError "Wiederholen" }
+    // ---------------- CategoryApi (budgeting-pscgb) ----------------
+    { Endpoint = "CategoryApi.getCategoryGroups"; Case = "ohne Einrichtung: Fehler statt Ausnahme"
+      Run = fun () ->
+          let unconfigured = categoryApiWith (fun _ -> async { return None }) (fun _ _ -> failwith "ohne Einrichtung kein Port")
+          unconfigured.getCategoryGroups () |> run |> expectError "Gruppen" }
+    { Endpoint = "CategoryApi.saveCategory"; Case = "leerer Name und unbekannte Gruppe ohne Einrichtung: Fehler, kein YNAB"
+      Run = fun () ->
+          categoryApi.saveCategory { CategoryId = None; Name = " "; GroupId = Guid.NewGuid() } |> run |> expectError "leerer Name"
+          let unconfigured = categoryApiWith (fun _ -> async { return None }) (fun _ _ -> failwith "ohne Einrichtung kein Port")
+          unconfigured.saveCategory { CategoryId = Some (Guid.NewGuid()); Name = "Neu"; GroupId = Guid.NewGuid() } |> run |> expectError "unbekannt" }
+    { Endpoint = "CategoryApi.saveCategoryGroup"; Case = "Name über 50 Zeichen und unbekannte Gruppe ohne Einrichtung: Fehler, kein YNAB"
+      Run = fun () ->
+          categoryApi.saveCategoryGroup { GroupId = None; Name = String('x', 51) } |> run |> expectError "zu lang"
+          let unconfigured = categoryApiWith (fun _ -> async { return None }) (fun _ _ -> failwith "ohne Einrichtung kein Port")
+          unconfigured.saveCategoryGroup { GroupId = Some (Guid.NewGuid()); Name = "Neu" } |> run |> expectError "unbekannt" }
 ]
 
 /// Endpoints aus der Reflection, als "Interface.methode".

@@ -253,6 +253,18 @@ async function mockTargetCheck(page) {
   await page.route("**/api/BudgetApi/getTargetCheck", (r) => json(r, { Ok: targetCheck }));
 }
 
+// budgeting-pscgb: die Seite Kategorien mit langen Namen von Gruppe und Kategorie.
+const categoryGroups = [
+  { Id: guid(901), Name: "Alltag", Categories: [{ Id: guid(1), Name: "Essen" }, { Id: guid(2), Name: LONG_CATEGORY }] },
+  { Id: guid(902), Name: "Eine Gruppe mit einem langen Namen bis an die Grenze", Categories: [{ Id: guid(3), Name: "Kinderkram" }] },
+  { Id: guid(903), Name: "Leer", Categories: [] },
+];
+
+async function mockCategoryAdmin(page) {
+  await mockBudget(page);
+  await page.route("**/api/CategoryApi/getCategoryGroups", (r) => json(r, { Ok: categoryGroups }));
+}
+
 const budgetRow = (page, name) => page.locator('[data-testid="budget-category-row"]:visible').filter({ has: page.getByText(name, { exact: true }) });
 const openBudget = async (page) => page.locator('[data-testid="budget-to-be-budgeted"]').waitFor();
 const inspector = (page, mobile) => (mobile ? page.locator(".bottom-sheet.fixed-height.active") : page.locator('[data-testid="budget-inspector"]'));
@@ -624,6 +636,25 @@ export const STATES = [
       const row = page.locator('[data-testid="target-check-row"]').filter({ hasText: "Essen" });
       await row.getByRole("button", { name: "Anpassen …" }).click();
       await page.locator('[data-testid="target-check-form"]:visible').first().waitFor();
+    },
+  },
+  // budgeting-pscgb: die Seite Kategorien (Budget, Menü "Kategorien verwalten").
+  {
+    name: "kategorien",
+    route: "/budget/categories",
+    widths: PAGE_WIDTHS,
+    mock: mockCategoryAdmin,
+    open: async (page) => page.locator('[data-testid="categories-row"]').first().waitFor(),
+  },
+  // budgeting-pscgb: Tipp auf eine Kategorie öffnet das Formular, am PC als Panel rechts, am Handy im Sheet.
+  {
+    name: "kategorien-bearbeiten",
+    route: "/budget/categories",
+    widths: [...HANDY_WIDTHS, 1280],
+    mock: mockCategoryAdmin,
+    open: async (page) => {
+      await page.locator('[data-testid="categories-row"]').filter({ hasText: "Essen" }).click();
+      await page.locator('[data-testid="categories-form"]:visible').first().waitFor();
     },
   },
   // ledger-qh9qx, ledger-qns4j (AC5), Regression ledger-filter-bar: Spaltenköpfe, Statuszelle mit zwei

@@ -12,8 +12,8 @@ Catalog of this bounded context's tasks by status.
 <!-- task-counts:start -->
 - **Backlog:** 2
 - **Todo:** 2
-- **Doing:** 1
-- **Done:** 61
+- **Doing:** 0
+- **Done:** 62
 <!-- task-counts:end -->
 
 ### Todo
@@ -24,11 +24,11 @@ Catalog of this bounded context's tasks by status.
 
 ### Doing
 <!-- doing-list:start -->
-- **budgeting-pscgb** — "Kategorien verwalten: Seite mit Anlegen, Umbenennen und Gruppe wechseln, Gruppen anlegen und umbenennen, Schreibweg nach YNAB" (feature) — `doing/budgeting-pscgb-kategorien-anlegen-umbenennen-gruppe.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **budgeting-pscgb** — "Kategorien verwalten: Seite mit Anlegen, Umbenennen und Gruppe wechseln, Gruppen anlegen und umbenennen, Schreibweg nach YNAB" (feature) — `done/budgeting-pscgb-kategorien-anlegen-umbenennen-gruppe.md`
 - **budgeting-r5h2n** — "Allgemeine Historie zeigt alles, was das Budget betrifft, auch Target-Änderungen und Pausen" (feature) — `done/budgeting-r5h2n-allgemeine-historie-zeigt-alles-zum-budget.md`
 - **budgeting-gvajj** — "Leiste Monatserster: Targets prüfen liest nach einer Target-Änderung neu, die Vorschau von Targets anwenden nimmt keine späte Antwort mehr ein" (bug) — `done/budgeting-gvajj-leiste-monatserster-und-vorschau-ohne-alte-staende.md`
 - **budgeting-my8p8** — "Erneut senden: eine von BB zurückgezogene Zeile heißt nicht mehr \"in YNAB geändert\", und Erneut senden im Folgemonat ist getestet" (bug) — `done/budgeting-my8p8-zurueckgezogene-zeile-eigener-stand-erneut-senden-im-folgemonat.md`

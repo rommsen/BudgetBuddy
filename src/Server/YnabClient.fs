@@ -2288,3 +2288,170 @@ let getAccountsDelta
         $"{baseUrl}/budgets/{budgetId}/accounts{knowledgeQuery lastKnowledge}"
         Server.YnabObservations.Decoders.accountObservationBatchDecoder
         "accounts delta"
+
+// ============================================
+// Kategorien verwalten (budgeting-pscgb, ADR 0088 Punkt 1)
+// ============================================
+
+/// Was beim Bearbeiten einer Kategorie nach YNAB geht: nur die geänderten Felder.
+type CategoryPatch = { Name: string option; GroupId: Guid option }
+
+/// YNABs Gruppe der Kreditkarten-Zahlungen: ihre Kategorien hängen an Konten, BB legt dort nichts an.
+[<Literal>]
+let CreditCardPaymentsGroupName = "Credit Card Payments"
+
+/// Die Gruppen mit Id aus `GET /budgets/{id}/categories` für die Seite Kategorien. Gelöschte und
+/// ausgeblendete Gruppen und Kategorien fallen weg, ebenso YNABs interne Gruppe und die Gruppe der
+/// Kreditkarten-Zahlungen.
+let interpretCategoryGroupsResponse (budgetId: string) (status: int) (bodyText: string) : YnabResult<Shared.Budgeting.ManagedCategoryGroup list> =
+    let flag (get: Decode.IGetters) name = get.Optional.Field name Decode.bool |> Option.defaultValue false
+    let category =
+        Decode.object (fun get ->
+            let shown = not (flag get "deleted" || flag get "hidden")
+            shown, ({ Id = get.Required.Field "id" Decode.guid; Name = get.Required.Field "name" Decode.string } : Shared.Budgeting.ManagedCategory))
+    let group =
+        Decode.object (fun get ->
+            let name = get.Required.Field "name" Decode.string
+            let shown =
+                not (flag get "deleted" || flag get "hidden")
+                && name <> internalMasterGroupName
+                && name <> CreditCardPaymentsGroupName
+            let categories =
+                get.Optional.Field "categories" (Decode.list category)
+                |> Option.defaultValue []
+                |> List.filter fst
+                |> List.map snd
+            shown, ({ Id = get.Required.Field "id" Decode.guid; Name = name; Categories = categories } : Shared.Budgeting.ManagedCategoryGroup))
+    match status with
+    | 200 ->
+        match Decode.fromString (Decode.field "data" (Decode.field "category_groups" (Decode.list group))) bodyText with
+        | Ok groups -> Ok (groups |> List.filter fst |> List.map snd)
+        | Error err -> Error (unreadableResponse "category groups" err)
+    | 401 -> Error (YnabError.Unauthorized "Invalid YNAB token")
+    | 404 -> Error (YnabError.BudgetNotFound budgetId)
+    | 429 -> Error (YnabError.RateLimitExceeded 60)
+    | other -> Error (statusFailure "category groups" other bodyText)
+
+/// Naht für Tests wie `getCategoriesWith`.
+let getCategoryGroupsWith (fetch: unit -> Async<int * string>) (budgetId: string) : Async<YnabResult<Shared.Budgeting.ManagedCategoryGroup list>> =
+    async {
+        try
+            let! status, bodyText = fetch ()
+            return interpretCategoryGroupsResponse budgetId status bodyText
+        with ex ->
+            return Error (fetchFailure "category groups" ex)
+    }
+
+/// Die Gruppen mit ihren Kategorien für die Seite Kategorien (ein Aufruf).
+let getCategoryGroups (token: string) (YnabBudgetId budgetId: YnabBudgetId) : Async<YnabResult<Shared.Budgeting.ManagedCategoryGroup list>> =
+    getCategoryGroupsWith (fetchCategoriesText token budgetId) budgetId
+
+/// Der Pfad der Kategorien (`POST`) oder einer Kategorie (`PATCH`), wie der übrige Client unter `/budgets/`.
+let categoriesUrl (budgetId: string) (categoryId: Guid option) : string =
+    match categoryId with
+    | Some id -> $"{baseUrl}/budgets/{budgetId}/categories/{id}"
+    | None -> $"{baseUrl}/budgets/{budgetId}/categories"
+
+/// Der Pfad der Gruppen (`POST`) oder einer Gruppe (`PATCH`).
+let categoryGroupsUrl (budgetId: string) (groupId: Guid option) : string =
+    match groupId with
+    | Some id -> $"{baseUrl}/budgets/{budgetId}/category_groups/{id}"
+    | None -> $"{baseUrl}/budgets/{budgetId}/category_groups"
+
+/// `{"category":{"name":…,"category_group_id":…}}` zum Anlegen.
+let buildCreateCategoryBody (groupId: Guid) (name: string) : string =
+    Encode.object [ "category", Encode.object [ "name", Encode.string name; "category_group_id", Encode.guid groupId ] ]
+    |> Encode.toString 0
+
+/// Der Rumpf zum Bearbeiten: nur die Felder aus `patch`, die gesetzt sind.
+let buildPatchCategoryBody (patch: CategoryPatch) : string =
+    let fields =
+        [ match patch.Name with
+          | Some name -> "name", Encode.string name
+          | None -> ()
+          match patch.GroupId with
+          | Some groupId -> "category_group_id", Encode.guid groupId
+          | None -> () ]
+    Encode.object [ "category", Encode.object fields ] |> Encode.toString 0
+
+/// `{"category_group":{"name":…}}` zum Anlegen und Umbenennen einer Gruppe.
+let buildCategoryGroupBody (name: string) : string =
+    Encode.object [ "category_group", Encode.object [ "name", Encode.string name ] ] |> Encode.toString 0
+
+/// Ordnet die Antwort eines Schreibens auf Kategorien oder Gruppen zu. `field` ist `category` oder
+/// `category_group`: Ok trägt dessen Id aus `data`. `what` nennt das Ding in der Meldung bei 400.
+let interpretCategoryWriteResponse (field: string) (what: string) (status: int) (bodyText: string) : YnabResult<Guid> =
+    match status with
+    | 200
+    | 201 ->
+        match Decode.fromString (Decode.field "data" (Decode.field field (Decode.field "id" Decode.guid))) bodyText with
+        | Ok id -> Ok id
+        | Error err -> Error (unreadableResponseOf "WRITE" field err)
+    | 400 -> Error (badRequestOf "WRITE" field what bodyText)
+    | 401 -> Error (YnabError.Unauthorized "Invalid YNAB token")
+    | 404 -> Error (YnabError.InvalidResponse $"{what} in YNAB nicht gefunden (HTTP 404)")
+    | 429 -> Error (YnabError.RateLimitExceeded 60)
+    | other -> Error (statusFailureOf "WRITE" field other bodyText)
+
+/// Ein Sender mit Methode, Token, Pfad und JSON-Rumpf; liefert Status und Antworttext.
+let private jsonSender (method: System.Net.Http.HttpMethod) (token: string) (url: string) (body: string) : Async<int * string> =
+    async {
+        use client = new System.Net.Http.HttpClient()
+        use content = new System.Net.Http.StringContent(body, System.Text.Encoding.UTF8, "application/json")
+        use request = new System.Net.Http.HttpRequestMessage(method, url)
+        request.Headers.Authorization <- System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token)
+        request.Content <- content
+        let! response = client.SendAsync(request) |> Async.AwaitTask
+        let! bodyText = response.Content.ReadAsStringAsync() |> Async.AwaitTask
+        return int response.StatusCode, bodyText
+    }
+
+/// Naht für Tests: `send` bekommt Methode ("POST" oder "PATCH"), Pfad und Rumpf. Eine Ausnahme
+/// (Netzfehler) wird zu `NetworkError`.
+let private categoryWriteWith
+    (send: string -> string -> string -> Async<int * string>)
+    (method: string)
+    (url: string)
+    (body: string)
+    (field: string)
+    (what: string)
+    : Async<YnabResult<Guid>> =
+    async {
+        try
+            let! status, bodyText = send method url body
+            return interpretCategoryWriteResponse field what status bodyText
+        with ex ->
+            return Error (fetchFailureOf method field ex)
+    }
+
+/// Kategorie anlegen: `POST /budgets/{id}/categories`.
+let createCategoryWith send (budgetId: string) (groupId: Guid) (name: string) : Async<YnabResult<Guid>> =
+    categoryWriteWith send "POST" (categoriesUrl budgetId None) (buildCreateCategoryBody groupId name) "category" "Kategorie"
+
+/// Kategorie bearbeiten: `PATCH /budgets/{id}/categories/{id}` mit den geänderten Feldern.
+let patchCategoryWith send (budgetId: string) (categoryId: Guid) (patch: CategoryPatch) : Async<YnabResult<Guid>> =
+    categoryWriteWith send "PATCH" (categoriesUrl budgetId (Some categoryId)) (buildPatchCategoryBody patch) "category" "Kategorie"
+
+/// Gruppe anlegen: `POST /budgets/{id}/category_groups`.
+let createCategoryGroupWith send (budgetId: string) (name: string) : Async<YnabResult<Guid>> =
+    categoryWriteWith send "POST" (categoryGroupsUrl budgetId None) (buildCategoryGroupBody name) "category_group" "Gruppe"
+
+/// Gruppe umbenennen: `PATCH /budgets/{id}/category_groups/{id}`.
+let updateCategoryGroupWith send (budgetId: string) (groupId: Guid) (name: string) : Async<YnabResult<Guid>> =
+    categoryWriteWith send "PATCH" (categoryGroupsUrl budgetId (Some groupId)) (buildCategoryGroupBody name) "category_group" "Gruppe"
+
+/// Der echte Sender für die Schreibwege der Kategorien.
+let private categorySender (token: string) (method: string) (url: string) (body: string) : Async<int * string> =
+    jsonSender (System.Net.Http.HttpMethod method) token url body
+
+let createCategory (token: string) (YnabBudgetId budgetId: YnabBudgetId) (groupId: Guid) (name: string) =
+    createCategoryWith (categorySender token) budgetId groupId name
+
+let patchCategory (token: string) (YnabBudgetId budgetId: YnabBudgetId) (categoryId: Guid) (patch: CategoryPatch) =
+    patchCategoryWith (categorySender token) budgetId categoryId patch
+
+let createCategoryGroup (token: string) (YnabBudgetId budgetId: YnabBudgetId) (name: string) =
+    createCategoryGroupWith (categorySender token) budgetId name
+
+let updateCategoryGroup (token: string) (YnabBudgetId budgetId: YnabBudgetId) (groupId: Guid) (name: string) =
+    updateCategoryGroupWith (categorySender token) budgetId groupId name

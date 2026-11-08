@@ -337,7 +337,7 @@ let private buttonSection =
                             ]
                         ]
                         subTitle "Kachel und leiser Textknopf"
-                        note "tile: Wert in Mono, Bezeichnung gedämpft, offen, erledigt (✓) oder aktiv (Akzent). quietText: leiser Textknopf. Leiste Monatserster der Budget-Seite."
+                        note "tile: Wert in Mono, Bezeichnung gedämpft, offen, erledigt (✓) oder aktiv (Akzent). quietText: leiser Textknopf. Leiste Monatserster der Budget-Seite. accentText: Textknopf im Akzent am Abschnittskopf (Umbenennen einer Gruppe, Seite Kategorien)."
                         Html.div [
                             prop.className "grid grid-cols-3 gap-1.5 max-w-sm"
                             prop.children [
@@ -347,6 +347,8 @@ let private buttonSection =
                             ]
                         ]
                         Button.quietText "styleguide-quiet-text" "Ausblenden" ignore
+                        Button.accentText "styleguide-accent-text" "Gruppe umbenennen" "Umbenennen" ignore
+                        Button.nameRow "styleguide-name-row" "styleguide-name-row" "Lebensmittel bearbeiten" "Lebensmittel" ignore
                     ]
                 ]
             ]

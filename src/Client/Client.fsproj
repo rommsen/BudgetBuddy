@@ -76,6 +76,7 @@
     <Compile Include="Components/Ledger/View.fs" />
     <Compile Include="Components/Budget/AmountMath.fs" />
     <Compile Include="Components/Budget/TargetFormCore.fs" />
+    <Compile Include="Components/Budget/Categories.fs" />
     <Compile Include="Components/Budget/Types.fs" />
     <Compile Include="Components/Budget/Month.fs" />
     <Compile Include="Components/Budget/Targets.fs" />
@@ -97,6 +98,7 @@
     <Compile Include="Components/Budget/InspectorView.fs" />
     <Compile Include="Components/Budget/HistoryView.fs" />
     <Compile Include="Components/Budget/TargetCheckView.fs" />
+    <Compile Include="Components/Budget/CategoriesView.fs" />
     <Compile Include="Components/Budget/View.fs" />
 
     <!-- Component: Styleguide (living component gallery — presentational) -->

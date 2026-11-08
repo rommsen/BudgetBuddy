@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-08 16:12 -- Task verified and completed: budgeting-pscgb - "Kategorien verwalten: Seite mit Anlegen, Umbenennen und Gruppe wechseln, Gruppen anlegen und umbenennen, Schreibweg nach YNAB"
+
+**Type:** Work / Task completion
+**Task:** budgeting-pscgb - "Kategorien verwalten: Seite mit Anlegen, Umbenennen und Gruppe wechseln, Gruppen anlegen und umbenennen, Schreibweg nach YNAB"
+**Summary:** Seite Kategorien verwalten mit Schreibweg nach YNAB
+**Duration:** 62m
+**Verification:** PASS (iteration 1)
+**Files changed:** 28
+**Tests added:** 30
+**ADRs written:** none
+
+---
+
 ## 2026-11-08 15:41 -- Task verified and completed: ledger-p3vq8 - "addCashExpense: gelingt der Push und scheitert danach das Schreiben der Verknüpfung, legt der Spiegel eine zweite Buchung an"
 
 **Type:** Work / Task completion

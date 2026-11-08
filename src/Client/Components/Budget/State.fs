@@ -352,6 +352,17 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
             | call -> call
         leaveMonthStart { model with MoveInFlight = away }, Cmd.none, NoOp
     | OpenGeneralHistory -> openGeneralHistory model, Cmd.none, ShowGeneralHistory
+    | ToggleBudgetMenu -> { model with MenuOpen = not model.MenuOpen }, Cmd.none, NoOp
+    | CloseBudgetMenu -> { model with MenuOpen = false }, Cmd.none, NoOp
+    | OpenCategoryAdmin -> { model with MenuOpen = false }, Cmd.none, ShowCategoryAdmin
+    | CategoryAdminMsg inner ->
+        let admin, cmd, external = Components.Budget.Categories.update inner model.CategoryAdmin
+        let outward =
+            match external with
+            | Components.Budget.Categories.NoOp -> NoOp
+            | Components.Budget.Categories.ShowToast (message, toastType) -> ShowToast (message, toastType)
+            | Components.Budget.Categories.BackToBudget -> ShowBudgetPage
+        { model with CategoryAdmin = admin }, Cmd.map CategoryAdminMsg cmd, outward
     | GeneralHistoryEntered ->
         let entered = enterGeneralHistory model
         entered, generalHistoryCmd entered.GeneralHistory.Generation, NoOp
@@ -601,6 +612,10 @@ let private routeOf (msg: Msg) (model: Model) : MsgRoute =
     | AssignDiscarded -> MsgRoute.TouchesField
     | PageEntered
     | OpenGeneralHistory
+    | ToggleBudgetMenu
+    | CloseBudgetMenu
+    | OpenCategoryAdmin
+    | CategoryAdminMsg _
     | GeneralHistoryEntered
     | RetryGeneralHistory
     | GeneralHistoryLoaded _

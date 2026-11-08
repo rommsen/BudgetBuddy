@@ -578,3 +578,20 @@ type BudgetApi = {
     /// `getBudgetFrame` (`MonthStartHidden`). Ein ungültiger Monat wird abgelehnt. Kein YNAB.
     hideMonthStart: string -> Async<Result<unit, string>>
 }
+
+/// Kategorien verwalten (budgeting-pscgb, ADR 0088 Punkt 1): die Seite Kategorien unter Budget. Anlegen,
+/// Umbenennen, Gruppe wechseln und Gruppen anlegen oder umbenennen gehen nach YNAB, danach zieht der
+/// Kategorie-Spiegel die Liste nach. Kein eigenes Ereignis. Ein Fehler aus YNAB kommt als Meldung zurück,
+/// dann ist nichts geändert.
+type CategoryApi = {
+    /// Die Gruppen mit ihren Kategorien, live aus YNAB. Error mit lesbarer Meldung bei fehlender
+    /// Einrichtung und bei YNAB-Fehlern.
+    getCategoryGroups: unit -> Async<Result<Shared.Budgeting.ManagedCategoryGroup list, string>>
+
+    /// Kategorie anlegen oder bearbeiten. Ok trägt die Id der Kategorie. Error nennt alle Gründe
+    /// (leerer Name, Name schon in der Gruppe, unbekannte Gruppe oder Kategorie) oder den YNAB-Fehler.
+    saveCategory: Shared.Budgeting.CategorySave -> Async<Result<System.Guid, string>>
+
+    /// Gruppe anlegen oder umbenennen (Name höchstens 50 Zeichen). Ok trägt die Id der Gruppe.
+    saveCategoryGroup: Shared.Budgeting.CategoryGroupSave -> Async<Result<System.Guid, string>>
+}

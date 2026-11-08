@@ -2026,6 +2026,47 @@ let budgetApi (berlinZone: TimeZoneInfo) : BudgetApi =
     liveBudgetApi Persistence.Settings.getSetting berlinZone
 
 // ============================================
+// Kategorien verwalten (budgeting-pscgb, ADR 0088 Punkt 1)
+// ============================================
+
+/// Der YNAB-Port der Seite Kategorien: echter Client für Lesen und Schreiben, danach der echte Kategorie-Spiegel.
+/// `internal` für den Strukturwächter der Verdrahtung (ohne YNAB-Aufruf).
+let internal liveCategoryAdminPort (token: string) (budgetId: YnabBudgetId) : Server.Budgeting.Categories.CategoryPort =
+    { FetchGroups = fun () -> YnabClient.getCategoryGroups token budgetId
+      CreateCategory = fun groupId name -> YnabClient.createCategory token budgetId groupId name
+      UpdateCategory = fun categoryId patch -> YnabClient.patchCategory token budgetId categoryId patch
+      CreateGroup = fun name -> YnabClient.createCategoryGroup token budgetId name
+      UpdateGroup = fun groupId name -> YnabClient.updateCategoryGroup token budgetId groupId name
+      RefreshMirror = fun () -> Server.Budgeting.Categories.refreshMirrorWith (fun () -> YnabClient.getCategories token budgetId) Ledger.Persistence.upsertCategories }
+
+/// Die Seite Kategorien ohne Settings und Netz. Ein leerer oder zu langer Name wird an der Grenze abgelehnt,
+/// bevor Settings oder YNAB gefragt werden.
+let categoryApiWith
+    (setting: string -> Async<string option>)
+    (portFor: string -> YnabBudgetId -> Server.Budgeting.Categories.CategoryPort)
+    : CategoryApi =
+    let withPort run =
+        async {
+            let! tokenOpt, budgetOpt = ynabSettingsWith setting
+            return! withYnabPort tokenOpt budgetOpt portFor run
+        }
+    let refused (errors: string list) = async { return Error (String.concat " " errors) }
+    { getCategoryGroups = fun () -> withPort Server.Budgeting.Categories.groups
+      saveCategory =
+        fun save ->
+            match Validation.validateCategoryName save.Name with
+            | Error errors -> refused errors
+            | Ok _ -> withPort (fun port -> Server.Budgeting.Categories.saveCategory port save)
+      saveCategoryGroup =
+        fun save ->
+            match Validation.validateCategoryGroupName save.Name with
+            | Error errors -> refused errors
+            | Ok _ -> withPort (fun port -> Server.Budgeting.Categories.saveCategoryGroup port save) }
+
+/// Die Seite Kategorien der laufenden App.
+let categoryApi : CategoryApi = categoryApiWith Persistence.Settings.getSetting liveCategoryAdminPort
+
+// ============================================
 // HTTP Handler
 // ============================================
 
@@ -2091,5 +2132,11 @@ let webApp (berlinZone: System.TimeZoneInfo) =
         |> Remoting.withRouteBuilder routeBuilder
         |> Remoting.withErrorHandler errorHandler
         |> Remoting.fromValue (budgetApi berlinZone)
+        |> Remoting.buildHttpHandler
+
+        Remoting.createApi()
+        |> Remoting.withRouteBuilder routeBuilder
+        |> Remoting.withErrorHandler errorHandler
+        |> Remoting.fromValue categoryApi
         |> Remoting.buildHttpHandler
     ]

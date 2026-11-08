@@ -679,7 +679,17 @@ let private apiWirings =
       @"\bliveQuickAddPorts\s*:\s*QuickAddPorts\s*=\s*\{\s*Setting\s*=\s*Persistence\.Settings\.getSetting\s+LoadYnabCategories\s*=\s*YnabClient\.getCategories\s+Push\s*=\s*YnabClient\.createTransactionWith\s+NewEntryId\s*=\s*Ledger\.Events\.newEntryId\s+TriggerMirror\s*=\s*Ledger\.CommandHandlers\.triggerMirrorInBackground\s*\}"
       @"\bentryPush\s*\(\)\s*:\s*Async<Ledger\.CommandHandlers\.EntryPush>\s*=\s*entryPushWith\s+Persistence\.Settings\.getSetting\s+YnabClient\.createTransactionWithFlag\s*(?:\n\s*\n|\z)"
       @"\bimportTargetWith\s+Persistence\.Settings\.getSetting\s+toImport\.Length\s+with\b"
-      @"\bimportTargetWith\s+Persistence\.Settings\.getSetting\s+transactionsToForce\.Length\s+with\b" ]
+      @"\bimportTargetWith\s+Persistence\.Settings\.getSetting\s+transactionsToForce\.Length\s+with\b"
+      // Kategorien verwalten (budgeting-pscgb): `categoryApiWith` und der Befehl sind mit Fake-Ports getestet, der Port des
+      // Servers erreicht YNAB nur im laufenden Dienst.
+      @"\bFetchGroups\s*=\s*fun\s*\(\)\s*->\s*YnabClient\.getCategoryGroups\s+token\s+budgetId\b"
+      @"\bCreateCategory\s*=\s*fun\s+groupId\s+name\s*->\s*YnabClient\.createCategory\s+token\s+budgetId\s+groupId\s+name\b"
+      @"\bUpdateCategory\s*=\s*fun\s+categoryId\s+patch\s*->\s*YnabClient\.patchCategory\s+token\s+budgetId\s+categoryId\s+patch\b"
+      @"\bCreateGroup\s*=\s*fun\s+name\s*->\s*YnabClient\.createCategoryGroup\s+token\s+budgetId\s+name\b"
+      @"\bUpdateGroup\s*=\s*fun\s+groupId\s+name\s*->\s*YnabClient\.updateCategoryGroup\s+token\s+budgetId\s+groupId\s+name\b"
+      @"\bRefreshMirror\s*=\s*fun\s*\(\)\s*->\s*Server\.Budgeting\.Categories\.refreshMirrorWith\s+\(fun\s*\(\)\s*->\s*YnabClient\.getCategories\s+token\s+budgetId\)\s+Ledger\.Persistence\.upsertCategories\b"
+      @"\bcategoryApi\s*:\s*CategoryApi\s*=\s*categoryApiWith\s+Persistence\.Settings\.getSetting\s+liveCategoryAdminPort\s*(?:\n\s*\n|\z)"
+      @"\bRemoting\.fromValue\s+categoryApi\b" ]
 
 /// Bobs Push in `BotApi.liveDeps` (ledger-bk3q8): bekommt Konto, `import_id` (ledger-p3vq8) und Request der
 /// Barbuchung und reicht alle drei unverändert an YNAB. Ein Ersatz kompilierte, der Testlauf kann den echten Push nicht ausführen.
@@ -791,6 +801,9 @@ let hostedServiceGuardTests =
                   "let private entryPush () : Async<Ledger.CommandHandlers.EntryPush> =\n    entryPushWith Persistence.Settings.getSetting YnabClient.createTransactionWithFlag\n\n"
                   "match! importTargetWith Persistence.Settings.getSetting toImport.Length with\n"
                   "match! importTargetWith Persistence.Settings.getSetting transactionsToForce.Length with\n"
+                  "{ FetchGroups = fun () -> YnabClient.getCategoryGroups token budgetId\n  CreateCategory = fun groupId name -> YnabClient.createCategory token budgetId groupId name\n  UpdateCategory = fun categoryId patch -> YnabClient.patchCategory token budgetId categoryId patch\n  CreateGroup = fun name -> YnabClient.createCategoryGroup token budgetId name\n  UpdateGroup = fun groupId name -> YnabClient.updateCategoryGroup token budgetId groupId name\n  RefreshMirror = fun () -> Server.Budgeting.Categories.refreshMirrorWith (fun () -> YnabClient.getCategories token budgetId) Ledger.Persistence.upsertCategories }\n"
+                  "let categoryApi : CategoryApi = categoryApiWith Persistence.Settings.getSetting liveCategoryAdminPort\n\n"
+                  "|> Remoting.fromValue categoryApi\n"
                   "{ Settings = fun () -> ynabAccessWith Persistence.Settings.getSetting\n  FetchMonths = fun token budgetId -> YnabClient.getMonths token budgetId\n  FetchMonth = fun token budgetId monthKey -> YnabClient.getMonth token budgetId monthKey\n  LoadTakenOver = Budgeting.Persistence.loadTakenOverMonths\n  EnsureTakenOver = Server.Budgeting.CommandHandlers.ensureTakenOver }\n" ]
                 |> String.concat "\n"
             let replaced (original: string) (replacement: string) = real.Replace(original, replacement)
@@ -818,6 +831,14 @@ let hostedServiceGuardTests =
                   "YnabClient.getMonth token budgetId monthKey", "async.Return (Error fehler)", "Monat ohne YNAB"
                   "YnabClient.setAssigned token budgetId monthKey categoryId milliunits", "async.Return (Ok ())", "Zuweisen ohne YNAB"
                   "YnabClient.getCategoryGoals token budgetId", "async.Return (Ok [])", "Übernahme ohne Goals"
+                  "YnabClient.getCategoryGroups token budgetId", "async.Return (Ok [])", "Kategorien-Seite ohne YNAB"
+                  "YnabClient.createCategory token budgetId groupId name", "async.Return (Ok groupId)", "Anlegen ohne YNAB"
+                  "YnabClient.patchCategory token budgetId categoryId patch", "async.Return (Ok categoryId)", "Bearbeiten ohne YNAB"
+                  "YnabClient.createCategoryGroup token budgetId name", "async.Return (Ok Guid.Empty)", "Gruppe anlegen ohne YNAB"
+                  "YnabClient.updateCategoryGroup token budgetId groupId name", "async.Return (Ok groupId)", "Gruppe umbenennen ohne YNAB"
+                  "Ledger.Persistence.upsertCategories", "(fun _ -> async.Return ())", "Spiegel schreibt nichts"
+                  "categoryApiWith Persistence.Settings.getSetting", "categoryApiWith (fun _ -> async.Return None)", "Kategorien ohne Settings"
+                  "Remoting.fromValue categoryApi", "Remoting.fromValue fakeCategoryApi", "anderer Kategorien-Server"
                   "budgetApiWith setting livePort", "budgetApiWith (fun _ -> async.Return None) livePort", "Budget-Seite ohne Settings"
                   "setting livePort liveFramePort", "setting emptyPort liveFramePort", "anderer YNAB-Port"
                   "setting livePort liveFramePort", "setting livePort emptyFramePort", "anderer Rahmen-Port"

@@ -89,6 +89,50 @@ let private historyButton (dispatch: Msg -> unit) =
         ]
     ]
 
+/// Das Menü ⋮ im Seitenkopf (budgeting-pscgb, Prototyp Version 17 "⋯"): am PC `FilterPopover`, am Handy
+/// `BottomSheet` (ADR 0043, Vorbild das Menü der Regeln). Heute ein Eintrag: "Kategorien verwalten".
+let private budgetMenu (model: Model) (dispatch: Msg -> unit) =
+    let close = fun () -> dispatch CloseBudgetMenu
+    let open' inSheet =
+        fun () ->
+            dispatch OpenCategoryAdmin
+            if inSheet then Viewport.swallowNextClick 350
+    let items inSheet =
+        let first = if Viewport.isFinePointer () then FilterPopover.menuItemAutoFocus else FilterPopover.menuItem
+        [ first "Kategorien verwalten" (open' inSheet) ]
+    Html.div [
+        prop.className "relative shrink-0"
+        prop.onKeyDown (fun e -> if e.key = "Escape" then close ())
+        prop.children [
+            Html.span [
+                prop.custom ("data-testid", "budget-menu-button")
+                // Ohne das wertet das Popover den Mausdruck als Klick außerhalb und öffnete gleich wieder.
+                prop.onMouseDown (fun e -> e.stopPropagation ())
+                prop.children [
+                    Button.view
+                        { Button.defaultProps with
+                            Variant = Button.Ghost
+                            Size = Button.Small
+                            Icon = Some (Icons.ellipsisVertical Icons.MD Icons.Default)
+                            AriaLabel = Some "Weitere Aktionen"
+                            Title = Some "Weitere Aktionen"
+                            AriaExpanded = Some model.MenuOpen
+                            OnClick = fun () -> dispatch ToggleBudgetMenu }
+                ]
+            ]
+            if Viewport.isDesktopViewport () then
+                FilterPopover.viewEnd
+                    { IsOpen = model.MenuOpen; OnClose = close; WidthClassName = FilterPopover.menuWidthClass }
+                    (items false)
+            // Am Handy nur offen gerendert: das zu Sheet trüge sonst einen zweiten Kopf "Budget" und ein zweites
+            // "Schließen" auf der Seite.
+            elif model.MenuOpen then
+                BottomSheet.view
+                    { IsOpen = true; OnClose = close; Title = "Budget"; Subtitle = None; Footer = None }
+                    (items true)
+        ]
+    ]
+
 /// Der Kopf wie die Skizze (budgeting-m3x7f): `‹ Monat ›`, Historie und Monatserster links, Zu verteilen rechts.
 /// Suche und Chips stehen darunter in eigener Zeile (`searchRow`). Am Handy der kurze Monatsname, damit alles in eine
 /// Zeile passt (Zu verteilen dort ohne €); erst schmaler oder mit fünfstelligem Betrag bricht Zu verteilen um.
@@ -101,6 +145,7 @@ let private head (wide: bool) (barStands: bool) (model: Model) (dispatch: Msg ->
         prop.children [
             headStepper (not wide) model dispatch
             historyButton dispatch
+            budgetMenu model dispatch
             monthStartButton barStands model dispatch
             assignFigure (not wide) model
         ]

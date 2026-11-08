@@ -346,6 +346,11 @@ type Model = {
     /// Zählt das Öffnen der Vorschau von Targets anwenden (budgeting-gvajj): nur die Antwort der jüngsten Öffnung
     /// füllt den Dialog.
     TargetsPreviewGeneration: int
+    /// Das Menü ⋮ im Seitenkopf ist offen (budgeting-pscgb).
+    MenuOpen: bool
+    /// Die Seite Kategorien `#/budget/categories` (budgeting-pscgb). Liegt auf der Budget-Seite wie
+    /// `GeneralHistory`.
+    CategoryAdmin: Components.Budget.Categories.Model
 }
 
 type Msg =
@@ -530,6 +535,13 @@ type Msg =
     | AskRemoveCheckTarget
     | ConfirmRemoveCheckTarget
     | CancelRemoveCheckTarget
+    /// Der Knopf ⋮ im Seitenkopf: das Menü öffnen oder schließen (budgeting-pscgb).
+    | ToggleBudgetMenu
+    | CloseBudgetMenu
+    /// "Kategorien verwalten" im Menü.
+    | OpenCategoryAdmin
+    /// Nachrichten der Seite Kategorien.
+    | CategoryAdminMsg of Components.Budget.Categories.Msg
 
 /// Was die Seite an die App meldet (wie im Kassenbuch).
 type ExternalMsg =
@@ -548,6 +560,8 @@ type ExternalMsg =
     /// Knopf Historie, die Budget-Seite liegt direkt davor (budgeting-c6vn4, A9; Vorbild die Rückkehr aus
     /// dem Kassenbuch, `BackToBudget`).
     | StepBackToBudgetPage
+    /// Zur Seite Kategorien `#/budget/categories` (budgeting-pscgb).
+    | ShowCategoryAdmin
 
 let init () : Model =
     { Frame = NotAsked
@@ -577,4 +591,6 @@ let init () : Model =
       MonthStartHidden = Set.empty
       MonthStartCheck = NotAsked
       MonthStartCheckGeneration = 0
-      TargetsPreviewGeneration = 0 }
+      TargetsPreviewGeneration = 0
+      MenuOpen = false
+      CategoryAdmin = Components.Budget.Categories.init () }

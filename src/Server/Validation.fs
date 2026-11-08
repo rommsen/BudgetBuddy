@@ -487,3 +487,97 @@ let checkBotAmount (maxAmountEur: decimal) (amountEur: decimal) : Result<unit, s
     elif amountEur > maxAmountEur then
         Error $"Der Betrag {amountEur.ToString(Globalization.CultureInfo.InvariantCulture)} EUR liegt über der Obergrenze von {maxAmountEur.ToString(Globalization.CultureInfo.InvariantCulture)} EUR"
     else Ok ()
+
+// ============================================
+// Kategorien verwalten (budgeting-pscgb, ADR 0088 Punkt 1)
+// ============================================
+
+/// Was nach dem Prüfen einer Kategorie nach YNAB geht.
+type CategoryWrite =
+    /// `POST` in die Gruppe.
+    | CreateCategoryIn of groupId: Guid * name: string
+    /// `PATCH` nur mit den geänderten Feldern.
+    | PatchCategory of categoryId: Guid * name: string option * groupId: Guid option
+    /// Nichts geändert: kein Aufruf.
+    | CategoryUnchanged of categoryId: Guid
+
+/// Was nach dem Prüfen einer Gruppe nach YNAB geht.
+type CategoryGroupWrite =
+    | CreateGroup of name: string
+    | RenameGroup of groupId: Guid * name: string
+    | GroupUnchanged of groupId: Guid
+
+let CategoryNameMissingText = "Bitte einen Namen eingeben."
+let GroupNameTooLongText = $"Der Name einer Gruppe hat höchstens {Shared.Budgeting.CategoryGroupNameMaxLength} Zeichen (YNAB-Grenze)."
+let UnknownGroupText = "Die Gruppe gibt es in YNAB nicht mehr. Seite neu laden."
+let UnknownCategoryText = "Die Kategorie gibt es in YNAB nicht mehr. Seite neu laden."
+
+let private sameName (a: string) (b: string) =
+    String.Equals(a.Trim(), b.Trim(), StringComparison.CurrentCultureIgnoreCase)
+
+/// Der Name einer Kategorie ohne Liste: nicht leer. Ok trägt ihn ohne Leerraum am Rand.
+let validateCategoryName (name: string) : Result<string, string list> =
+    if String.IsNullOrWhiteSpace name then Error [ CategoryNameMissingText ] else Ok (name.Trim())
+
+/// Der Name einer Gruppe ohne Liste: nicht leer, höchstens 50 Zeichen.
+let validateCategoryGroupName (name: string) : Result<string, string list> =
+    if String.IsNullOrWhiteSpace name then Error [ CategoryNameMissingText ]
+    elif name.Trim().Length > Shared.Budgeting.CategoryGroupNameMaxLength then Error [ GroupNameTooLongText ]
+    else Ok (name.Trim())
+
+/// Kategorie anlegen oder bearbeiten gegen die Liste aus YNAB. Sammelt alle Gründe: leerer Name, unbekannte
+/// Kategorie, unbekannte Gruppe, Name schon in derselben Gruppe. Ok trägt, was nach YNAB geht.
+let validateCategorySave
+    (groups: Shared.Budgeting.ManagedCategoryGroup list)
+    (save: Shared.Budgeting.CategorySave)
+    : Result<CategoryWrite, string list> =
+    let name = save.Name.Trim()
+    let target = groups |> List.tryFind (fun g -> g.Id = save.GroupId)
+    let current =
+        save.CategoryId
+        |> Option.map (fun id ->
+            groups
+            |> List.tryPick (fun g -> g.Categories |> List.tryFind (fun c -> c.Id = id) |> Option.map (fun c -> g, c)))
+    let errors =
+        [ if String.IsNullOrWhiteSpace save.Name then CategoryNameMissingText
+          match current with
+          | Some None -> UnknownCategoryText
+          | _ -> ()
+          match target with
+          | None -> UnknownGroupText
+          | Some group ->
+              let taken =
+                  group.Categories
+                  |> List.exists (fun c -> Some c.Id <> save.CategoryId && not (String.IsNullOrWhiteSpace name) && sameName c.Name name)
+              if taken then $"In der Gruppe {group.Name} gibt es schon eine Kategorie {name}." ]
+    match errors, current with
+    | [], None -> Ok (CreateCategoryIn (save.GroupId, name))
+    | [], Some (Some (group, category)) ->
+        let newName = if category.Name = name then None else Some name
+        let newGroup = if group.Id = save.GroupId then None else Some save.GroupId
+        if newName.IsNone && newGroup.IsNone then Ok (CategoryUnchanged category.Id)
+        else Ok (PatchCategory (category.Id, newName, newGroup))
+    | _ -> Error errors
+
+/// Gruppe anlegen oder umbenennen gegen die Liste aus YNAB: Name nicht leer und höchstens 50 Zeichen, keine
+/// zweite Gruppe mit dem Namen, beim Umbenennen eine bekannte Gruppe.
+let validateCategoryGroupSave
+    (groups: Shared.Budgeting.ManagedCategoryGroup list)
+    (save: Shared.Budgeting.CategoryGroupSave)
+    : Result<CategoryGroupWrite, string list> =
+    let name = save.Name.Trim()
+    let current = save.GroupId |> Option.map (fun id -> groups |> List.tryFind (fun g -> g.Id = id))
+    let errors =
+        [ match validateCategoryGroupName save.Name with
+          | Error own -> yield! own
+          | Ok _ -> ()
+          match current with
+          | Some None -> UnknownGroupText
+          | _ -> ()
+          if not (String.IsNullOrWhiteSpace name)
+             && groups |> List.exists (fun g -> Some g.Id <> save.GroupId && sameName g.Name name) then
+              $"Eine Gruppe {name} gibt es schon." ]
+    match errors, current with
+    | [], None -> Ok (CreateGroup name)
+    | [], Some (Some group) -> if group.Name = name then Ok (GroupUnchanged group.Id) else Ok (RenameGroup (group.Id, name))
+    | _ -> Error errors

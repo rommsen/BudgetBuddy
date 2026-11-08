@@ -157,6 +157,8 @@ type Page =
     | BudgetHistory
     /// Targets prüfen: passt das Target zu den Ausgaben, für den laufenden Monat (budgeting-q4v8n, ADR 0082).
     | BudgetTargetCheck
+    /// Kategorien verwalten: anlegen, umbenennen, Gruppe wechseln, Gruppen (budgeting-pscgb, ADR 0088).
+    | BudgetCategories
 
 
 /// Zeigt die Seite das Kassenbuch, mit oder ohne offene Buchung?
@@ -194,6 +196,7 @@ module Routing =
         | ["budget"] -> Budget
         | ["budget"; "history"] -> BudgetHistory
         | ["budget"; "target-check"] -> BudgetTargetCheck
+        | ["budget"; "categories"] -> BudgetCategories
         | _ -> SyncFlow  // Fallback to SyncFlow for unknown routes
 
     /// Convert Page to URL segments (for navigation)
@@ -209,6 +212,7 @@ module Routing =
         | Budget -> ["budget"]
         | BudgetHistory -> ["budget"; "history"]
         | BudgetTargetCheck -> ["budget"; "target-check"]
+        | BudgetCategories -> ["budget"; "categories"]
 
     /// Get current page from URL (for initialization)
     let currentPage () : Page =

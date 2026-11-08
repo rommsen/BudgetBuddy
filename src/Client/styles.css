@@ -792,7 +792,8 @@ nav a:focus-visible {
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   color: var(--text-primary);
-  font-size: 14px;
+  /* Am Handy 16 px wie jedes Feld (Layout-Invariante 3, kein Zoom beim Fokus), ab md 14 px (budgeting-pscgb). */
+  font-size: 16px;
   font-family: var(--font-sans);
   transition: border-color var(--duration-fast) ease,
               box-shadow var(--duration-fast) ease;
@@ -801,6 +802,11 @@ nav a:focus-visible {
   background-repeat: no-repeat;
   background-position: right 12px center;
   cursor: pointer;
+}
+@media (min-width: 768px) {
+  .select-field {
+    font-size: 14px;
+  }
 }
 .select-field:focus {
   border-color: var(--color-accent);
@@ -1240,6 +1246,13 @@ nav a:focus-visible {
 }
 /* Das Panel der Seite Targets prüfen (budgeting-c4ve4): haftet wie der Inspektor, so hoch wie sein Inhalt. */
 .target-check-panel {
+  position: sticky;
+  top: calc(var(--budget-nav-height) + 8px);
+  max-height: calc(100dvh - var(--budget-nav-height) - 24px);
+}
+
+/* Das Panel der Seite Kategorien (budgeting-pscgb): haftet wie das Panel von Targets prüfen. */
+.category-admin-panel {
   position: sticky;
   top: calc(var(--budget-nav-height) + 8px);
   max-height: calc(100dvh - var(--budget-nav-height) - 24px);

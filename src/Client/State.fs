@@ -213,6 +213,9 @@ let rec pageLoadCmd (page: Page) : Cmd<Msg> =
     | BudgetTargetCheck ->
         // Targets prüfen rechnet bei jedem Betreten neu (budgeting-q4v8n, ADR 0082 Punkt 2).
         Cmd.map BudgetMsg (Cmd.ofMsg Components.Budget.Types.TargetCheckEntered)
+    | BudgetCategories ->
+        // Die Liste kommt bei jedem Betreten live aus YNAB (budgeting-pscgb).
+        Cmd.map BudgetMsg (Cmd.ofMsg (Components.Budget.Types.CategoryAdminMsg Components.Budget.Categories.Entered))
     | QuickAdd ->
         // Open a fresh form and make sure the category picker has data
         // (categories are loaded into SyncFlow at startup; retry in
@@ -350,6 +353,7 @@ let isPageReady (model: Model) : bool =
     | Budget -> notLoading model.Budget.Month
     | BudgetHistory -> notLoading model.Budget.GeneralHistory.Rows
     | BudgetTargetCheck -> notLoading model.Budget.TargetCheck.Data
+    | BudgetCategories -> notLoading model.Budget.CategoryAdmin.Groups
 
 /// Die Auswahl-Leiste des Kassenbuchs ersetzt am Handy die Tab-Bar (ledger-r1d2f).
 let hideBottomNav (model: Model) : bool =
@@ -827,6 +831,7 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
             | Components.Budget.Types.ShowTargetCheck -> Cmd.ofMsg (NavigateTo BudgetTargetCheck)
             | Components.Budget.Types.ShowBudgetPage -> Cmd.ofMsg (NavigateTo Budget)
             | Components.Budget.Types.StepBackToBudgetPage -> Cmd.navigateBack ()
+            | Components.Budget.Types.ShowCategoryAdmin -> Cmd.ofMsg (NavigateTo BudgetCategories)
 
         { model with Budget = budgetModel' }, Cmd.batch [ Cmd.map BudgetMsg budgetCmd; externalCmd ]
 

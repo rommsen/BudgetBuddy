@@ -54,6 +54,8 @@ let private pipelineCalls : Map<string, HttpMethod * string * string option> =
         "SyncApi", (HttpMethod.Post, "/api/SyncApi/getSyncHistory", Some "[3]")
         "LedgerApi", (HttpMethod.Post, "/api/LedgerApi/getLedgerAccounts", Some "[]")
         "BudgetApi", (HttpMethod.Post, "/api/BudgetApi/getBudgetMonth", Some "[\"kein-monat\"]")
+        // budgeting-pscgb: ein leerer Name wird an der Grenze abgelehnt, ohne Settings und YNAB.
+        "CategoryApi", (HttpMethod.Post, "/api/CategoryApi/saveCategoryGroup", Some "[{\"GroupId\":null,\"Name\":\"\"}]")
     ]
 
 let private withTestHost (body: HttpClient -> unit) =

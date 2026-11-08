@@ -1642,3 +1642,25 @@ let checkBars (row: TargetCheckRow) : CheckBars =
                     | _ -> Counted
             { Month = s.Month; Percent = percent (netSpending s); Tone = tone })
       LinePercent = monthly |> Option.map percent }
+
+// ============================================
+// Kategorien verwalten (budgeting-pscgb, ADR 0088 Punkt 1)
+// ============================================
+
+/// Eine Kategorie auf der Seite Kategorien: Id und Name aus YNAB.
+type ManagedCategory = { Id: Guid; Name: string }
+
+/// Eine Gruppe auf der Seite Kategorien mit ihren Kategorien in YNABs Reihenfolge. YNAB bleibt die Quelle der
+/// Liste und der Namen (ADR 0088 Punkt 1). Ausgeblendete, gelöschte und interne Gruppen und Kategorien fehlen.
+type ManagedCategoryGroup = { Id: Guid; Name: string; Categories: ManagedCategory list }
+
+/// Kategorie anlegen oder bearbeiten. `CategoryId = None` legt an, sonst gehen nur die geänderten Felder
+/// (Name, Gruppe) nach YNAB.
+type CategorySave = { CategoryId: Guid option; Name: string; GroupId: Guid }
+
+/// Gruppe anlegen (`GroupId = None`) oder umbenennen.
+type CategoryGroupSave = { GroupId: Guid option; Name: string }
+
+/// Höchstlänge eines Gruppennamens, die Grenze der YNAB-API.
+[<Literal>]
+let CategoryGroupNameMaxLength = 50

@@ -38,3 +38,9 @@ let budget : BudgetApi =
     Remoting.createApi()
     |> Remoting.withRouteBuilder (fun typeName methodName -> $"/api/{typeName}/{methodName}")
     |> Remoting.buildProxy<BudgetApi>
+
+/// Fable.Remoting proxy for Category API (Kategorien verwalten, budgeting-pscgb)
+let categories : CategoryApi =
+    Remoting.createApi()
+    |> Remoting.withRouteBuilder (fun typeName methodName -> $"/api/{typeName}/{methodName}")
+    |> Remoting.buildProxy<CategoryApi>
