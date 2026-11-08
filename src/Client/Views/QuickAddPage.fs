@@ -112,7 +112,7 @@ let view
         Html.div [
             prop.className "max-w-lg mx-auto animate-fade-in"
             prop.children [
-                PageHeader.gradientWithSubtitle "Quick Add" "Bar-Ausgabe direkt in YNAB erfassen"
+                PageHeader.withSubtitle "Quick Add" "Bar-Ausgabe direkt in YNAB erfassen"
 
                 // Recurring-booking templates: one tap prefills the whole form.
                 templatesSection templates dispatch

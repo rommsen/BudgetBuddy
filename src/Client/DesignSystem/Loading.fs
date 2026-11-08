@@ -20,7 +20,6 @@ type SpinnerSize =
 type SpinnerColor =
     | Default   // Base content color
     | Accent    // Akzent (ADR 0087)
-    | Success   // Grün: gelungen
 
 /// Skeleton shape variants
 type SkeletonShape =
@@ -44,7 +43,6 @@ let private spinnerSizeToClass = function
 let private spinnerColorToClass = function
     | Default -> "text-text-secondary"
     | Accent -> "text-accent"
-    | Success -> "text-success"
 
 /// Create a loading spinner
 let spinner (size: SpinnerSize) (color: SpinnerColor) =
@@ -115,7 +113,6 @@ let neonPulse (color: SpinnerColor) =
     let glowClass =
         match color with
         | Accent -> "shadow-glow-accent"
-        | Success -> "shadow-glow-success"
         | Default -> ""
 
     Html.div [
@@ -435,13 +432,11 @@ let progressBar (percent: int) (color: SpinnerColor) =
     let colorClass =
         match color with
         | Accent -> "bg-accent"
-        | Success -> "bg-success"
         | Default -> "bg-text-primary"
 
     let glowClass =
         match color with
         | Accent -> "shadow-[0_0_10px_var(--color-accent)]"
-        | Success -> "shadow-[0_0_10px_var(--color-success)]"
         | Default -> ""
 
     Html.div [
@@ -481,7 +476,6 @@ let progressIndeterminate (color: SpinnerColor) =
     let colorClass =
         match color with
         | Accent -> "bg-accent"
-        | Success -> "bg-success"
         | Default -> "bg-text-primary"
 
     Html.div [

@@ -11,7 +11,6 @@ open Client.DesignSystem.Tokens
 type CardVariant =
     | Standard   // Dark background, subtle border
     | Glass      // Glassmorphism effect with blur
-    | Glow       // Neon border with glow effect
     | Elevated   // Higher elevation with stronger shadow
 
 /// Card size variants (affects padding)
@@ -47,8 +46,6 @@ let private variantToClass = function
         "bg-surface-card border border-border-default"
     | Glass ->
         "bg-surface-card/80 backdrop-blur-xl border border-border-default"
-    | Glow ->
-        "bg-surface-card border border-accent/50"
     | Elevated ->
         "bg-surface-elevated border border-border-subtle shadow-lg"
 
@@ -64,8 +61,6 @@ let private hoverClass hoverable variant =
             "hover:border-border-default hover:-translate-y-0.5 hover:shadow-lg"
         | Glass ->
             "hover:border-border-default hover:-translate-y-0.5"
-        | Glow ->
-            "hover:border-accent/50 hover:-translate-y-0.5"
     else ""
 
 /// Create a card with children
@@ -87,10 +82,6 @@ let standard (children: ReactElement list) =
 /// Glass card with blur effect
 let glass (children: ReactElement list) =
     view { defaultProps with Variant = Glass } children
-
-/// Glowing card (for featured content)
-let glow (children: ReactElement list) =
-    view { defaultProps with Variant = Glow } children
 
 /// Elevated card
 let elevated (children: ReactElement list) =
@@ -163,82 +154,6 @@ let footerRight (children: ReactElement list) =
 // ============================================
 // Specialized Cards
 // ============================================
-
-/// Card with gradient accent line at top
-let withAccent (children: ReactElement list) =
-    Html.div [
-        prop.className "rounded-xl bg-surface-card border border-border-subtle overflow-hidden hover:border-border-default hover:-translate-y-0.5 hover:shadow-lg transition-all duration-200"
-        prop.children [
-            // Gradient accent line
-            Html.div [
-                prop.className "h-1 bg-gradient-to-r from-accent to-success"
-            ]
-            // Content
-            Html.div [
-                prop.className "p-4 md:p-6"
-                prop.children children
-            ]
-        ]
-    ]
-
-/// Action card (Akzentrand; der Glow gehört nur dem Hauptknopf darin, ADR 0087 Punkt 6)
-let action (title: string) (description: string) (actionButton: ReactElement) =
-    Html.div [
-        prop.className "rounded-xl bg-surface-card border border-accent/30 p-4 md:p-6 transition-all duration-200"
-        prop.children [
-            Html.h3 [
-                prop.className "text-lg md:text-xl font-semibold font-display text-text-primary mb-2"
-                prop.text title
-            ]
-            Html.p [
-                prop.className "text-sm md:text-base text-text-muted mb-4"
-                prop.text description
-            ]
-            actionButton
-        ]
-    ]
-
-/// Stat card with icon
-let stat (icon: ReactElement) (label: string) (value: string) (trend: ReactElement option) =
-    Html.div [
-        prop.className "rounded-xl bg-surface-card border border-border-subtle p-4 md:p-5 overflow-hidden relative group hover:border-border-default transition-all duration-200"
-        prop.children [
-            // Gradient accent (visible on hover)
-            Html.div [
-                prop.className "absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-accent to-success opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-            ]
-            Html.div [
-                prop.className "flex items-start gap-3"
-                prop.children [
-                    Html.div [
-                        prop.className "flex-shrink-0 p-2 rounded-lg bg-accent/10"
-                        prop.children [ icon ]
-                    ]
-                    Html.div [
-                        prop.className "flex-1 min-w-0"
-                        prop.children [
-                            Html.p [
-                                prop.className "text-xs font-medium uppercase tracking-wide text-text-muted/70"
-                                prop.text label
-                            ]
-                            Html.div [
-                                prop.className "flex items-baseline gap-2 mt-1"
-                                prop.children [
-                                    Html.p [
-                                        prop.className "text-xl md:text-2xl font-bold font-mono text-text-primary"
-                                        prop.text value
-                                    ]
-                                    match trend with
-                                    | Some t -> t
-                                    | None -> ()
-                                ]
-                            ]
-                        ]
-                    ]
-                ]
-            ]
-        ]
-    ]
 
 /// Empty state card
 let emptyState (icon: ReactElement) (title: string) (description: string) (action: ReactElement option) =

@@ -158,9 +158,7 @@
     <Compile Include="TargetFormCoreTests.fs" />
     <Compile Include="BudgetGeneralHistoryClientTests.fs" />
     <Compile Include="TargetCheckClientTests.fs" />
-    <Compile Include="StatsAccentTests.fs" />
     <Compile Include="DesignSystemStartupTests.fs" />
-    <Compile Include="TextGlowTokenTests.fs" />
     <Compile Include="RuhigeListenTests.fs" />
     <Compile Include="AuswahlTests.fs" />
     <Compile Include="RulesListTests.fs" />

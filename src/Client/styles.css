@@ -1417,9 +1417,10 @@ nav a:focus-visible {
   background: color-mix(in srgb, var(--color-success) 14%, transparent);
   color: var(--color-success);
 }
+/* Überspringen ist kein Fehler: neutral (ADR 0087 Punkt 4) */
 .tx-swipe-action.skip {
-  background: color-mix(in srgb, var(--color-error) 16%, transparent);
-  color: var(--color-error);
+  background: var(--color-surface-hover);
+  color: var(--color-text-secondary);
 }
 .tx-swipe-action.include {
   background: color-mix(in srgb, var(--color-accent) 14%, transparent);
@@ -2067,7 +2068,8 @@ nav a:focus-visible {
 .setting-value {
   font-family: var(--font-mono, 'JetBrains Mono', monospace);
   font-size: 13px;
-  color: var(--color-accent);
+  /* Ein Wert ist kein Bedienelement: neutral (ADR 0087) */
+  color: var(--color-text-primary);
   flex-shrink: 0;
 }
 
@@ -2234,17 +2236,12 @@ nav a:focus-visible {
   font-weight: 700;
   flex-shrink: 0;
 }
-.flow-label-icon.step1 {
-  background: var(--sf-accent-dim);
-  color: var(--color-accent);
-}
-.flow-label-icon.step2 {
-  background: var(--sf-accent-dim);
-  color: var(--color-accent);
-}
+/* Schrittnummern neutral: Farbe ist keine Deko (ADR 0087) */
+.flow-label-icon.step1,
+.flow-label-icon.step2,
 .flow-label-icon.step3 {
-  background: color-mix(in srgb, var(--color-accent) 15%, transparent);
-  color: var(--color-accent);
+  background: var(--color-surface-hover);
+  color: var(--color-text-secondary);
 }
 
 .pattern-input {
@@ -2329,16 +2326,16 @@ nav a:focus-visible {
   line-height: 1.5;
 }
 .rule-preview-highlight {
-  color: var(--color-accent);
+  color: var(--color-text-primary);
   font-style: normal;
   font-family: var(--font-mono);
   font-size: 12px;
-  background: var(--sf-accent-dim);
+  background: var(--color-surface-hover);
   padding: 1px 6px;
   border-radius: 4px;
 }
 .rule-preview-category {
-  color: var(--color-accent);
+  color: var(--color-text-primary);
   font-weight: 500;
 }
 
@@ -2472,16 +2469,17 @@ nav a:focus-visible {
   padding: 2px 7px;
   border-radius: 8px;
   white-space: nowrap;
-  background: color-mix(in srgb, var(--color-accent) 15%, transparent);
-  color: var(--color-accent);
-  border: 1px solid color-mix(in srgb, var(--color-accent) 25%, transparent);
+  /* Knopf ohne Füllung: neutral mit Rand border-strong (ADR 0087 Punkt 5) */
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-strong);
   cursor: pointer;
   transition: all 150ms ease;
   font-family: var(--font-sans);
 }
 .tx-create-rule-btn:active {
   transform: scale(0.95);
-  background: color-mix(in srgb, var(--color-accent) 25%, transparent);
+  background: var(--color-surface-hover);
 }
 
 /* ============================================================
@@ -2779,8 +2777,9 @@ nav a:focus-visible {
   font-weight: 600;
   color: var(--sf-text-primary);
 }
-.qa-template-chip.outflow .qa-template-amount { color: var(--color-text-primary); }
-.qa-template-chip.inflow .qa-template-amount { color: var(--color-accent); }
+/* Betrag neutral in beide Richtungen, das Vorzeichen sagt sie (ADR 0087 Punkt 2) */
+.qa-template-chip.outflow .qa-template-amount,
+.qa-template-chip.inflow .qa-template-amount { color: var(--color-text-primary); }
 
 .qa-submit {
   flex: 1;

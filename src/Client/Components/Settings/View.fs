@@ -217,16 +217,7 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
                         Html.div [
                             prop.className "space-y-4 pt-4 border-t border-border-subtle"
                             prop.children [
-                                Html.div [
-                                    prop.className "flex items-center gap-2 p-3 rounded-lg bg-success/10 border border-success/30"
-                                    prop.children [
-                                        Icons.checkCircle Icons.SM Icons.Success
-                                        Html.span [
-                                            prop.className "text-sm text-success"
-                                            prop.text $"Verbunden! {budgets.Length} Budget(s) gefunden"
-                                        ]
-                                    ]
-                                ]
+                                ErrorDisplay.success $"Verbunden! {budgets.Length} Budget(s) gefunden"
 
                                 // Budget selection
                                 Html.div [
@@ -345,30 +336,24 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
 // Comdirect Settings Card
 // ============================================
 
-let private tanWaitingBlock (dispatch: Msg -> unit) =
+/// "TAN bestätigt" ist die Hauptaktion, solange kein Formular offen ist. Ist eines offen, trägt
+/// dessen Speichern den Akzent, und dieser Knopf wird sekundär (ADR 0087 Punkt 24).
+let tanConfirmVariant (editing: SettingsSection option) : Button.ButtonVariant =
+    match editing with
+    | None -> Button.Primary
+    | Some _ -> Button.Secondary
+
+let private tanWaitingBlock (editing: SettingsSection option) (dispatch: Msg -> unit) =
     Html.div [
         prop.className "space-y-3"
         prop.children [
-            Html.div [
-                prop.className "flex items-center gap-3 p-4 rounded-lg bg-attention/10 border border-attention/30"
-                prop.children [
-                    Loading.spinner Loading.MD Loading.Default
-                    Html.div [
-                        prop.className "flex-1"
-                        prop.children [
-                            Html.p [
-                                prop.className "text-sm font-medium text-attention"
-                                prop.text "Warte auf TAN-Best\u00e4tigung..."
-                            ]
-                            Html.p [
-                                prop.className "text-xs text-text-muted"
-                                prop.text "Bitte best\u00e4tige die Push-TAN in deiner Comdirect App"
-                            ]
-                        ]
-                    ]
-                ]
-            ]
-            Button.primary "TAN best\u00e4tigt" (fun () -> dispatch ConfirmComdirectTan)
+            ErrorDisplay.notice "Warte auf die TAN-Best\u00e4tigung: bitte best\u00e4tige die Push-TAN in deiner Comdirect App."
+            Button.view {
+                Button.defaultProps with
+                    Text = "TAN best\u00e4tigt"
+                    Variant = tanConfirmVariant editing
+                    OnClick = fun () -> dispatch ConfirmComdirectTan
+            }
         ]
     ]
 
@@ -398,7 +383,7 @@ let private bankConnectionBlock (model: Model) (dispatch: Msg -> unit) =
             | _ -> ()
 
             if isTanPending model then
-                tanWaitingBlock dispatch
+                tanWaitingBlock model.EditingSection dispatch
         ]
     ]
 
@@ -506,9 +491,10 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
 
                     // Info tip
                     Html.div [
-                        prop.className "flex items-start gap-3 p-3 rounded-lg bg-accent/5 border border-accent/20"
+                        // Hinweis: Blau (ADR 0087 Punkt 4)
+                        prop.className "flex items-start gap-3 p-3 rounded-lg bg-info/5 border border-info/20"
                         prop.children [
-                            Icons.info Icons.MD Icons.Accent
+                            Icons.info Icons.MD Icons.Info
                             Html.p [
                                 prop.className "text-xs md:text-sm text-text-muted"
                                 prop.children [
@@ -539,16 +525,7 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
                                     Loading.inlineWithText "Verbindung wird getestet..."
                                 | Success _ ->
                                     // Connection verified successfully
-                                    Html.div [
-                                        prop.className "flex items-center gap-2 p-3 rounded-lg bg-success/10 border border-success/30"
-                                        prop.children [
-                                            Icons.checkCircle Icons.SM Icons.Success
-                                            Html.span [
-                                                prop.className "text-sm text-success"
-                                                prop.text "Zugangsdaten erfolgreich verifiziert!"
-                                            ]
-                                        ]
-                                    ]
+                                    ErrorDisplay.success "Zugangsdaten erfolgreich verifiziert!"
                                 | Failure error ->
                                     Html.div [
                                         prop.className "space-y-3"
@@ -621,7 +598,7 @@ let private syncSettingsCard (model: Model) (dispatch: Msg -> unit) =
                                         prop.text "Transaktionszeitraum"
                                     ]
                                     Html.span [
-                                        prop.className "text-xl md:text-2xl font-bold font-mono text-accent"
+                                        prop.className "text-xl md:text-2xl font-bold font-mono text-text-primary"
                                         prop.text $"{model.SyncDaysInput}"
                                     ]
                                 ]
@@ -737,7 +714,7 @@ let private lenaFlagCard (model: Model) (dispatch: Msg -> unit) =
 // ============================================
 
 let private pageHeader (dispatch: Msg -> unit) =
-    PageHeader.gradientWithActions
+    PageHeader.withActions
         "Einstellungen"
         (Some "Verbindungen und Konfiguration")
         [

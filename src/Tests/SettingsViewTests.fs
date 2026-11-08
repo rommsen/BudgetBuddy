@@ -8,7 +8,7 @@ open Shared.Domain
 
 [<Tests>]
 let settingsViewTests =
-    testList "Settings: Konto-Auswahl" [
+    testList "Settings: reine Bausteine" [
 
         // Regression ledger-vq2g8 (Bestandsreview 2026-11-06): die Auswahl des Quick-Add-Kontos
         // zeigte den Stand per `sprintf "%.2f"` englisch als "Bar (1234.50 EUR)".
@@ -24,5 +24,14 @@ let settingsViewTests =
                 (Components.Settings.View.accountOptionLabel { account with Balance = { Amount = -7.05m; Currency = "EUR" } })
                 "Bar (-7,05 €)"
                 "negativer Stand"
+        }
+
+        // ADR 0087 Punkt 24: eine Hauptaktion je Ansicht. Die TAN-Box steht über Lesen und Bearbeiten;
+        // ist ein Formular offen, trägt dessen Speichern den Akzent.
+        test "TAN bestätigt ist die Hauptaktion nur ohne offenes Formular" {
+            let variant = Components.Settings.View.tanConfirmVariant
+            Expect.equal (variant None) Client.DesignSystem.Button.Primary "kein Formular offen"
+            for section in [ Components.Settings.Types.ComdirectSection; Components.Settings.Types.SyncSection ] do
+                Expect.equal (variant (Some section)) Client.DesignSystem.Button.Secondary $"{section} offen"
         }
     ]

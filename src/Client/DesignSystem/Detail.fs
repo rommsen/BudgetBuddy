@@ -521,7 +521,7 @@ let sectionLabel (text: string) : ReactElement =
     ]
 
 /// Die Herkunft-Zeile: Überschrift links, das Badge der Art rechts. Das Badge baut der
-/// Aufrufer (Akzent, `Badge.Info`), weil die Wörter zur Domäne gehören.
+/// Aufrufer (Blau, `Badge.Info`), weil die Wörter zur Domäne gehören.
 let originRow (badge: ReactElement) : ReactElement =
     Html.div [
         prop.custom ("data-testid", "detail-origin")

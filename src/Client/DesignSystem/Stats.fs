@@ -14,18 +14,6 @@ type Trend =
     | Down of percentChange: decimal
     | Neutral
 
-/// Accent color for the gradient line at top of stat card
-type StatAccent =
-    | Accent
-    | Success
-    | Error
-    | Gradient  // Default: Akzent -> Grün
-    /// No accent line at all (ledger-w9skm): unlike the coloured variants above,
-    /// this suppresses the decorative bar entirely instead of just recolouring
-    /// it — needed for the mobile account cards, which must show no colour
-    /// stripe per the Kassenbuch mockup.
-    | NoAccent
-
 /// Size variants for stat cards
 type StatSize =
     | Compact   // Tighter padding, smaller text
@@ -46,7 +34,6 @@ type StatProps = {
     ValueElement: ReactElement option
     Icon: ReactElement option
     Trend: Trend option
-    Accent: StatAccent
     Size: StatSize
     Description: string option
     ClassName: string option
@@ -60,7 +47,6 @@ let defaultProps = {
     ValueElement = None
     Icon = None
     Trend = None
-    Accent = Gradient
     Size = Normal
     Description = None
     ClassName = None
@@ -71,28 +57,6 @@ let defaultProps = {
 // ============================================
 // Stat Implementation
 // ============================================
-
-/// Baut den vollständigen Klassen-String des Streifen-`div`s aus dem Gradient-Fragment.
-let private bar (gradient: string) : string option =
-    Some $"absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r {gradient}"
-
-/// Die Akzentstreifen-Entscheidung als reine Funktion (ADR 0035, design-system-j9xnd):
-/// `NoAccent` unterdrückt den dekorativen Streifen vollständig (`None`), jeder andere
-/// Fall liefert den vollständigen Klassen-String des Streifen-`div`s (`Some`). `view`
-/// trifft diese Entscheidung nicht mehr selbst, sondern konsumiert nur noch das Ergebnis
-/// dieser einen Stelle. Die frühere separate `accentToGradient`-Funktion ist hier
-/// hineingefaltet: mit nur diesem einen Aufrufer wäre ihr eigener Pattern-Match sonst nur
-/// über einen Wildcard-Fall vollständig zu halten gewesen, der einen künftigen achten
-/// `StatAccent`-Fall stillschweigend als farblosen Streifen gerendert hätte (ADR 0035s
-/// Begründung für den benannten `NoAccent`-Fall wäre damit unterlaufen worden). Ein
-/// einziger benannter Match hier hält `FS0025` als Warnschuss für jeden künftigen Fall.
-let accentBarClassName (accent: StatAccent) : string option =
-    match accent with
-    | NoAccent -> None
-    | Accent -> bar "from-accent to-accent"
-    | Success -> bar "from-success to-success"
-    | Error -> bar "from-error to-error"
-    | Gradient -> bar "from-accent to-success"
 
 let private sizeToClasses = function
     | Compact -> "p-3 md:p-4", "text-lg md:text-xl", $"{FontSizes.micro} md:text-xs"
@@ -163,13 +127,7 @@ let view (props: StatProps) =
         | Some onClick -> prop.onClick (fun _ -> onClick ())
         | None -> ()
         prop.children [
-            // Decorative gradient accent line at top: die Entscheidung, ob und mit
-            // welcher Klasse gerendert wird, steht nur noch in `accentBarClassName`
-            // (design-system-j9xnd).
-            match accentBarClassName props.Accent with
-            | None -> Html.none
-            | Some cls -> Html.div [ prop.className cls ]
-
+            // Kein Farbstreifen: Farbe ist keine Deko (ADR 0087).
             // Main content
             Html.div [
                 prop.className "flex flex-col gap-2"
@@ -256,10 +214,6 @@ let compact label value =
 let hero label value =
     view { defaultProps with Label = label; Value = value; Size = Large }
 
-/// Stat with specific accent color
-let withAccent label value accent =
-    view { defaultProps with Label = label; Value = value; Accent = accent }
-
 // ============================================
 // Stat Grid Layout
 // ============================================
@@ -303,22 +257,6 @@ let transactionCount count =
 /// Sync count stat
 let syncCount count =
     withIcon "Syncs" (string count) (Icons.sync MD Default)
-
-/// Money stat (positiv Grün, negativ Rot: Minus, ADR 0087)
-let moneyStat label (amount: decimal) currency =
-    let formatted = sprintf "%+.2f %s" amount currency
-    let accent = if amount >= 0m then Success else Error
-    withAccent label formatted accent
-
-/// Category stat
-let categoryStat label count =
-    view {
-        defaultProps with
-            Label = label
-            Value = string count
-            Accent = Accent
-            Icon = Some (Icons.rules MD Default)
-    }
 
 /// Rules count stat
 let rulesCount count =

@@ -30,7 +30,6 @@ let private tests =
             test "null: text-primary" {
                 let cls = Money.listAmountClass 0m
                 Expect.isTrue (has Colors.textPrimary cls) cls
-                Expect.isFalse (cls.Contains "neon-") cls
             }
             // ADR 0087 Punkt 2: der Akzent heißt Hauptaktion und Auswahl, ein Eingang ist neutral wie im Prototyp.
             test "positiv: text-primary, weder Akzent noch Grün noch Glow" {
@@ -53,13 +52,12 @@ let private tests =
         // budgeting-v6m3z, budgeting-r3wq8: der Betrag einer Bewegung ist neutral, das Vorzeichen sagt die
         // Richtung. Schrift wie `listAmountClass`, ohne Akzent.
         testList "Money.signedListAmountClass" [
-            test "Eine Bewegung ist immer text-primary, ohne Teal und ohne Leuchtfarbe, Schrift wie ein Listenbetrag" {
+            test "Eine Bewegung ist immer text-primary ohne Rollenfarbe, Schrift wie ein Listenbetrag" {
                 let cls = Money.signedListAmountClass
                 Expect.equal cls (Money.listAmountClass 0m) "wie der neutrale Listenbetrag"
                 // budgeting-c6vn4 (Q2): der Name verspricht text-primary, also wird es geprüft.
                 Expect.isTrue (has Colors.textPrimary cls) cls
-                Expect.isFalse (cls.Contains "teal") cls
-                Expect.isFalse (cls.Contains "neon-") cls
+                Expect.isFalse (has Colors.accent cls) cls
             }
         ]
 
@@ -76,8 +74,7 @@ let private tests =
             test "Der Balkenbetrag ist immer text-secondary, nie Rot" {
                 let cls = Stats.monthBarAmountClass
                 Expect.isTrue (has Colors.textSecondary cls) cls
-                Expect.isFalse (cls.Contains "red") cls
-                Expect.isFalse (cls.Contains "neon-") cls
+                Expect.isFalse (has Colors.error cls) cls
             }
         ]
 
@@ -92,7 +89,7 @@ let private tests =
                 Expect.isTrue (has Colors.textPrimary (Money.accountBalanceClass true 10m)) "aktiv"
                 Expect.isTrue (has Colors.textSecondary (Money.accountBalanceClass false 10m)) "inaktiv"
             }
-            test "negativer Saldo ist Red, aktiv wie inaktiv" {
+            test "negativer Saldo ist Rot, aktiv wie inaktiv" {
                 for isActive in [ true; false ] do
                     let cls = Money.accountBalanceClass isActive -173.28m
                     Expect.isTrue (has Colors.error cls) cls
@@ -196,12 +193,6 @@ let private tests =
             test "PageHeader Calm: Fußabstand mb-4 zur Liste (ledger-m23nz)" {
                 Expect.isTrue ((PageHeader.containerClass PageHeader.Calm).Contains "mb-4") "mb-4"
                 Expect.isFalse ((PageHeader.containerClass PageHeader.Standard).Contains "mb-4") "Standard unverändert"
-            }
-            test "PageHeader Gradient und Standard bleiben unverändert" {
-                Expect.equal (PageHeader.titleClass PageHeader.Gradient)
-                    "text-2xl md:text-4xl font-bold font-display bg-gradient-to-br from-accent to-success bg-clip-text text-transparent" "Gradient"
-                Expect.equal (PageHeader.titleClass PageHeader.Standard)
-                    "text-2xl md:text-4xl font-bold font-display text-text-primary" "Standard"
             }
         ]
         testList "Button.callerSetsDisplay (design-system-qz7b6)" [

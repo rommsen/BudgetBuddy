@@ -207,12 +207,6 @@ module Divider =
             prop.className "border-t border-border-subtle my-6 md:my-8"
         ]
 
-    /// Divider with gradient accent
-    let gradient () =
-        Html.div [
-            prop.className "h-px bg-gradient-to-r from-transparent via-accent/30 to-transparent my-4"
-        ]
-
     /// Vertical divider (for horizontal layouts)
     let vertical () =
         Html.div [

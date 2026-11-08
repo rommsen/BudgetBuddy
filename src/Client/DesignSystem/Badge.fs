@@ -15,12 +15,6 @@ type BadgeVariant =
     | Info      // Blau: Hinweis
     | Neutral   // Grau: ein Stand ohne Wertung
 
-/// Badge style variants
-type BadgeStyle =
-    | Filled    // Solid background
-    | Outline   // Border only
-    | Soft      // Subtle background with colored text
-
 /// Badge size variants
 type BadgeSize =
     | Small   // Smaller text and padding
@@ -34,7 +28,6 @@ type BadgeSize =
 type BadgeProps = {
     Text: string
     Variant: BadgeVariant
-    Style: BadgeStyle
     Size: BadgeSize
     Icon: ReactElement option
     ClassName: string option
@@ -43,7 +36,6 @@ type BadgeProps = {
 let defaultProps = {
     Text = ""
     Variant = Neutral
-    Style = Soft
     Size = Medium
     Icon = None
     ClassName = None
@@ -53,32 +45,14 @@ let defaultProps = {
 // Badge Implementation
 // ============================================
 
-let private variantToSoftClass = function
+/// Die Farb- und Rahmenklassen einer Variante: zarte Fläche, Text und Rand in der Rollenfarbe
+/// (öffentlich für Tests der Farbrollen, ADR 0087).
+let variantClass = function
     | Success -> "bg-success/10 text-success border-success/30"
     | Warning -> "bg-attention/10 text-attention border-attention/30"
     | Error -> "bg-error/10 text-error border-error/30"
     | Info -> "bg-info/10 text-info border-info/30"
     | Neutral -> "bg-text-muted/10 text-text-secondary border-text-muted/20"
-
-let private variantToFilledClass = function
-    | Success -> $"bg-success {Colors.onAccent} border-transparent"
-    | Warning -> $"bg-attention {Colors.onAccent} border-transparent"
-    | Error -> $"bg-error {Colors.onAccent} border-transparent"
-    | Info -> $"bg-info {Colors.onAccent} border-transparent"
-    | Neutral -> "bg-text-muted/20 text-text-primary border-transparent"
-
-let private variantToOutlineClass = function
-    | Success -> "bg-transparent text-success border-success"
-    | Warning -> "bg-transparent text-attention border-attention"
-    | Error -> "bg-transparent text-error border-error"
-    | Info -> "bg-transparent text-info border-info"
-    | Neutral -> "bg-transparent text-text-secondary border-text-muted/30"
-
-/// Die Farb- und Rahmenklassen einer Variante je Stil (öffentlich für Tests der Farbrollen, ADR 0087).
-let variantClass variant = function
-    | Soft -> variantToSoftClass variant
-    | Filled -> variantToFilledClass variant
-    | Outline -> variantToOutlineClass variant
 
 let private sizeToClass = function
     | Small -> $"{FontSizes.micro} px-1.5 py-0.5"
@@ -87,7 +61,7 @@ let private sizeToClass = function
 
 /// Create a badge with the specified props
 let view (props: BadgeProps) =
-    let styleClass = variantClass props.Variant props.Style
+    let styleClass = variantClass props.Variant
     let sizeClass = sizeToClass props.Size
     let extraClass = props.ClassName |> Option.defaultValue ""
 
@@ -126,52 +100,14 @@ let neutral text =
     view { defaultProps with Text = text; Variant = Neutral }
 
 // ============================================
-// Outline Variants
-// ============================================
-
-let successOutline text =
-    view { defaultProps with Text = text; Variant = Success; Style = Outline }
-
-let warningOutline text =
-    view { defaultProps with Text = text; Variant = Warning; Style = Outline }
-
-let errorOutline text =
-    view { defaultProps with Text = text; Variant = Error; Style = Outline }
-
-let infoOutline text =
-    view { defaultProps with Text = text; Variant = Info; Style = Outline }
-
-// ============================================
-// Filled Variants
-// ============================================
-
-let successFilled text =
-    view { defaultProps with Text = text; Variant = Success; Style = Filled }
-
-let warningFilled text =
-    view { defaultProps with Text = text; Variant = Warning; Style = Filled }
-
-let errorFilled text =
-    view { defaultProps with Text = text; Variant = Error; Style = Filled }
-
-let infoFilled text =
-    view { defaultProps with Text = text; Variant = Info; Style = Filled }
-
-// ============================================
 // Small Variants
 // ============================================
-
-let successSmall text =
-    view { defaultProps with Text = text; Variant = Success; Size = Small }
 
 let warningSmall text =
     view { defaultProps with Text = text; Variant = Warning; Size = Small }
 
 let errorSmall text =
     view { defaultProps with Text = text; Variant = Error; Size = Small }
-
-let infoSmall text =
-    view { defaultProps with Text = text; Variant = Info; Size = Small }
 
 /// Klein und neutral: ein Stand ohne Wertung.
 let neutralSmall text =
@@ -181,9 +117,27 @@ let neutralSmall text =
 // Lena (ADR 0087 Punkt 8)
 // ============================================
 
+/// Die Flag-Farben, die styles.css über `data-lena-flag` kennt (YNABs Flag-Farben).
+let private lenaFlagColors = set [ "red"; "orange"; "yellow"; "green"; "blue"; "purple" ]
+
+/// Wert für `data-lena-flag` aus der gespeicherten `lena_flag_color`: klein geschrieben, wenn styles.css
+/// die Farbe kennt, sonst `None` (dann bleibt das Flag-Symbol gedämpft).
+let lenaFlagAttr (color: string option) : string option =
+    color
+    |> Option.map (fun c -> c.Trim().ToLowerInvariant())
+    |> Option.filter lenaFlagColors.Contains
+
+/// Setzt `data-lena-flag` auf einem Vorfahren von `lenaMark`, ohne bekannte Farbe nichts.
+let lenaFlagScope (color: string option) : IReactProperty list =
+    match lenaFlagAttr color with
+    | Some value -> [ prop.custom ("data-lena-flag", value) ]
+    | None -> []
+
 /// Das Kennzeichen *Rückfrage Lena*: Flag-Symbol und Name, ohne farbiges Badge. Die Farbe aus
 /// `lena_flag_color` steht nur im Symbol (`Icons.LenaFlag`, `data-lena-flag` in styles.css), der
 /// Text bleibt neutral. `text` enthält immer den Namen "Lena".
+/// Die Farbe kommt von einem Vorfahren mit `data-lena-flag` (`lenaFlagScope`). In einem Portal
+/// (Modal, BottomSheet) fehlt dieser Vorfahr, dort bleibt das Symbol gedämpft.
 let lenaMark (text: string) =
     Html.span [
         prop.className $"inline-flex items-center gap-0.5 {FontSizes.micro} {Colors.textSecondary} whitespace-nowrap"
@@ -200,13 +154,6 @@ let lenaMark (text: string) =
     ]
 
 // ============================================
-// With Icon
-// ============================================
-
-let withIcon icon variant text =
-    view { defaultProps with Text = text; Variant = variant; Icon = Some icon }
-
-// ============================================
 // Status-specific Badges (for transactions)
 // ============================================
 
@@ -219,17 +166,8 @@ let pendingReview () = warning "Review"
 /// Status badge for auto-categorized transactions
 let autoCategorized () = info "Auto"
 
-/// Status badge for manual categorized transactions
-let manual () = neutral "Manual"
-
 /// Status badge for uncategorized transactions
 let uncategorized () = warning "Uncategorized"
-
-/// Status badge for skipped transactions
-let skipped () = neutral "Skipped"
-
-/// Status badge for error state
-let failed () = error "Failed"
 
 // ============================================
 // Count Badge (for notifications)
@@ -244,39 +182,3 @@ let count (value: int) =
         ]
     else
         Html.none
-
-/// Dot badge (simple indicator)
-let dot variant =
-    let colorClass =
-        match variant with
-        | Success -> "bg-success"
-        | Warning -> "bg-attention"
-            | Error -> "bg-error"
-        | Info -> "bg-info"
-        | Neutral -> "bg-text-muted/30"
-        
-    Html.span [
-        prop.className $"inline-block w-2 h-2 rounded-full {colorClass}"
-    ]
-
-/// Pulsing dot badge (for live/active status)
-let pulsingDot variant =
-    let colorClass =
-        match variant with
-        | Success -> "bg-success"
-        | Warning -> "bg-attention"
-            | Error -> "bg-error"
-        | Info -> "bg-info"
-        | Neutral -> "bg-text-muted/30"
-        
-    Html.span [
-        prop.className "relative inline-flex h-2 w-2"
-        prop.children [
-            Html.span [
-                prop.className $"animate-ping absolute inline-flex h-full w-full rounded-full {colorClass} opacity-75"
-            ]
-            Html.span [
-                prop.className $"relative inline-flex rounded-full h-2 w-2 {colorClass}"
-            ]
-        ]
-    ]

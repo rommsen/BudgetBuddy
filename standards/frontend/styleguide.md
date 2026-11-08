@@ -63,7 +63,7 @@ in `Tokens.fs` (Module `Colors`, `Backgrounds`, `Borders`, `Glows`).
 | **Grün** `#5be479` | gelungen: Rückmeldung, alles erledigt | `--color-success`, `Colors.success`, `Glows.success` |
 | **Blau** `#7ab8ff` | Hinweis | `--color-info`, `Colors.info` |
 | **border-strong** `#6a6c86` | Rand, der ein Bedienelement erkennbar macht (Eingabefeld, Auswahlfeld, Knopf ohne Füllung), und Fokusring | `--color-border-strong`, `Borders.strong` |
-| **Flag-Farbe** | die Farbe aus `lena_flag_color`, nur im Flag-Symbol und immer mit dem Namen „Lena“ | `--color-flag-*`, `Icons.LenaFlag`, `Badge.lenaMark` |
+| **Flag-Farbe** | die Farbe aus `lena_flag_color`, nur im Flag-Symbol und immer mit dem Namen „Lena“ | `--color-flag-*`, `Icons.LenaFlag`, `Badge.lenaMark`, `Badge.lenaFlagScope` (setzt `data-lena-flag` auf einem Vorfahren) |
 
 Flächen (`bg-*`), Textstufen (`text-*`), `border` und `border-subtle` bleiben neutral. Orange, Pink,
 Lila und `calm-violet` gibt es nicht mehr; `npm run guard:tokens` meldet sie überall unter
@@ -109,7 +109,7 @@ am Verfügbar-Betrag im Minus und `fehlt` in Gelb.
 | Datumskopf | Mono 600 10px, `letter-spacing:.16em`, `text-muted`, Tagessumme rechts | gleich |
 | Spaltenkopf | Mono 600 10px, `letter-spacing:.12em`, `text-muted`, Höhe 42px | entfällt |
 | Zeilenhöhe | 44px | zweizeilig, `padding:11px 16px` |
-| Kontostand | `text-primary` (aktiv) oder `text-secondary`; negativ Red | gleich |
+| Kontostand | `text-primary` (aktiv) oder `text-secondary`; negativ Rot | gleich |
 
 Die Budget-Liste hat zwei Besonderheiten im Aufbau (keine Farbe):
 
@@ -134,7 +134,7 @@ Gemeinsame Bausteine in `DesignSystem/PickerParts.fs`, benutzt von `CategoryMult
 |---------|-------|
 | Zeile | einzeilig, Name `ListRoles.primary` (15px Handy, 14px PC, 500) mit `truncate`, Betrag rechts in fester Breite |
 | Gruppenkopf | `ListRoles.groupHeader`; „Alle Kategorien“ steht im Sheet nur über „Vorgeschlagen“ oder „Zuletzt verwendet“, nicht bei Suche |
-| Verfügbar-Betrag | `Money.available`: Mono 500, `tabular-nums`, kein Glow; positiv `text-primary`, 0 `text-muted`, negativ Red |
+| Verfügbar-Betrag | `Money.available`: Mono 500, `tabular-nums`, kein Glow; positiv `text-primary`, 0 `text-muted`, negativ Rot |
 | Zu verteilen | Optional erste Zeile im Kategorie-Picker (`ToBeBudgeted`), mit Betrag rechts in `Money.available`; die Suche findet sie. Gewählt liefert sie `ChoseToBeBudgeted`. Wer die Prop nicht setzt, sieht die Zeile nicht |
 | Suchfeld | `Input.Small`: 16px unterhalb `md`, 14px ab `md`, 36px hoch, ein Fokusrand |
 | Footer | „Zurücksetzen“ Ghost, „Übernehmen“ kompakt ohne Glow, einzeilig; Zahl nur bei Auswahl („Übernehmen (3)“) |
@@ -239,8 +239,8 @@ sich der Look, ändert sich der Token — nicht hunderte Call-Sites.
 
 Module in [`Tokens.fs`](../../src/Client/DesignSystem/Tokens.fs):
 
-- `Colors`, `Backgrounds`, `Borders`, `Glows`, `TextGlows` — Farbrollen aus §2: `accent`, `attention`,
-  `error`, `success`, `info`, dazu `Colors.onAccent` (Text auf dem Akzent), `Borders.strong`
+- `Colors`, `Backgrounds`, `Borders`, `Glows` — Farbrollen aus §2: `accent`, `attention`,
+  `error`, `success`, `info`, dazu `Colors.onAccent` (Text auf dem Akzent) und `Colors.onAccentSvg` (Symbole darauf), `Borders.strong`
   (`border-strong`). Jeder Wert ist ein Theme-Token in `styles.css`; die Klassen in `Tokens.fs` nennen nur
   den Token, nie einen Hex- oder rgba-Wert. Abgeschwächte Varianten über Deckkraft (`bg-accent/10`) oder
   `color-mix` auf den Token.
@@ -256,11 +256,10 @@ Module in [`Tokens.fs`](../../src/Client/DesignSystem/Tokens.fs):
 
 **Presets sind der bevorzugte Einstieg** (Beispiele aus `Tokens.fs`):
 
-- `Presets.card`, `Presets.glassCard`, `Presets.glowCard` — Karten-Looks.
+- `Presets.card`, `Presets.glassCard` — Karten-Looks.
 - `Presets.pageHeader`, `Presets.sectionHeader` — Header-Typografie.
 - `Presets.monoNumber` (`"font-mono font-semibold tabular-nums"`) — Zahlen.
-- `Presets.moneyPositive` / `Presets.moneyNegative` — Geld-Farbe (Grün mit Glow, Rot).
-- `Presets.gradientText` — Verlaufstext Akzent→Grün für Hero-Titel.
+- `Presets.moneyPositive` / `Presets.moneyNegative` — Geld-Farbe (Grün, Rot), ohne Glow.
 
 **Reihenfolge der Wahl:**
 1. Gibt es eine **DS-Komponente** für das Ding? → Komponente nutzen (§5).
@@ -307,13 +306,13 @@ eigene Zeile; §2 und §7 nennen sie, wo sie gelten.
 | Komponente | Wann nutzen | Wann **nicht** |
 |------------|-------------|----------------|
 | **Button** | Jede klickbare Aktion (dazu `amountStep` für Schritte neben einem Feld, hält den Fokus; `sideRow` und `sideRowFixed` für die Zeilen `von` und `nach`): `primary` (Hauptaktion, gefüllt im Akzent, ADR 0087), `secondary` (neutral mit grauem Rand, ADR 0075), `ghost`, `danger`, `hero`/`heroTeal` (große CTAs), `*Loading`, `IsBusy` (der eigene Aufruf läuft auf einem Knopf, der den Fokus haben kann: Spinner, `aria-disabled` und `aria-busy`, kein `disabled`, der Fokus bleibt), `*WithIcon`, `group`, in Listen `selectableListRow` (Zeile, die etwas wählt, gewählt mit `aria-current` und Akzent), `stepArrow`/`stepArrowGap` (`‹ ›`, der Platz bleibt am Rand frei), `homeLabel` (Name, der nach Hause führt und im Akzent steht, wenn man woanders ist; `homeLabelCompact` schmal für ein kurzes Wort wie „Nov 2026“ im Kopf der Budget-Seite am Handy), `listName` (Name einer Zeile als Knopf, sieht aus wie der Name, am Handy 48 px Trefferfläche ohne höhere Zeile) `listRow` (ganze zweizeilige Listenzeile als Knopf) und `disclosureListRow` (Zeile, die einen Block darunter aufklappt: Chevron in `text-muted` rechts, dreht sich beim Öffnen, `aria-expanded` und `aria-controls`, der Block bleibt zu `hidden` im DOM), `tile` (Kachel mit Wert in Mono 13 px und Bezeichnung 11 px, Radius 10 px, mindestens 52 px hoch, Zustand offen, erledigt oder aktiv mit Rand im Akzent; Leiste Monatserster) und `quietText` (leiser Textknopf 12 px gedämpft, „Ausblenden“) | Navigation zwischen Seiten → `Navigation`; Link nach extern → eigener Anker mit `Icons.externalLink` |
-| **Card** | Inhaltsblöcke: `standard`, `glass`, `glow` (featured), `withAccent`, `emptyState`, plus `header`/`body`/`footer` | Volle Seiten-Layouts → `Primitives`; modale Inhalte → `Modal` |
+| **Card** | Inhaltsblöcke: `standard`, `glass`, `emptyState`, plus `header`/`body`/`footer` | Volle Seiten-Layouts → `Primitives`; modale Inhalte → `Modal` |
 | **Badge** | Kompakter Status/Label: semantisch (`success`/`warning`/`error`/`info`, `notice` in Gelb für „braucht dich, kein Fehler“, immer mit Wort, ADR 0087 Punkt 3), Domänen-Status (`imported`, `pendingReview`, `autoCategorized`, `uncategorized`), `count` | Klickbare Filter → `Button.ghost`/Pills; lange Texte |
 | **Input** | Alle Formularelemente: `text`/`password`/`email`/`number`, `textarea`, `select`/`selectSimple`, `checkbox`, `checkboxNative` (die native Checkbox des Browsers ohne eigene Gestalt, in einem `label` mit der Zeile; Vorschau Targets anwenden nach der Skizze), `toggle`, `searchableSelect`, plus `group`/`groupWithError`/`formSection` | Reine Anzeige; mobiles Kategorie-/Konto-Auswählen → `BottomSheet` (§7) |
 | **Modal** | Zentrierte Dialoge auf **Desktop**, nur für eine kurze Frage oder eine Auswahl (§7.6): `simple`, `custom`, `fullScreen`, `confirm`/`confirmDanger` (beide mit "Abbrechen"), `alert`, `loading`. Ein offenes Modal bekommt die Tasten zuerst, Esc schließt nur es (§7.8) | Anzeigen, Bearbeiten oder Neuanlegen eines Dings aus einer Liste → Panel (§7.6); mobile Auswahl-Flows → `BottomSheet` (keyboard-fest); persistente Inhalte |
 | **Toast** | Flüchtiges Feedback nach Aktion: `success`/`error`/`warning'`/`info'`, `renderList` | Blockierende Fehler → `ErrorDisplay`/`Modal`; persistenter Status → `Badge` |
-| **Stats** | KPI-/Kennzahl-Kacheln: `withIcon`, `withTrend`, `transactionCount`, `syncCount`, `grid*`, `withAccent` (Akzentfarbe wählen, inkl. `NoAccent` für gar keinen Streifen, z. B. Kontostände-Karten); Monatsbalken `monthBars`, `monthBarsChosen` (vorgewählter Balken, nur im Styleguide) und `monthBarsPlaceholder` (beim Laden, gleich hoch); Mini-Balken `sparkBars`, `sparkBarsLabelled` und `sparkBarsPlaceholder` (Seite Targets prüfen); Regeln in §2 Monatsbalken | Vollständige Tabellen → `Table`; einzelner Betrag im Fließtext → `Money` |
-| **Money** | **Jede** Geldanzeige, setzt Vorzeichen-Farbe + Glow automatisch: `available` (Auswahl, §2), `afterAmount` (Verfügbar danach: fett, rot unter 0, grün bei genau 0), `simple`, `large`, `hero`, `noSign`, `fromMoney`, `accountBalance` (Kontostand ohne führendes Plus, für Kontostände-Leiste und -Liste), `accountListRow` (klickbare Kontozeile: Name links, farbcodierter Betrag rechts, aktiver Zustand mit Akzentlinie), `accountListRowWith` (dieselbe Zeile mit eigenem Wert, etwa `Loading.amountSkeleton` beim Laden oder `balanceUnavailable`, ein gedämpfter Strich nach einem Ladefehler) | Nicht-monetäre Zahlen → `Presets.monoNumber` |
+| **Stats** | KPI-/Kennzahl-Kacheln: `withIcon`, `withTrend`, `transactionCount`, `syncCount`, `grid*`, ohne Farbstreifen; Monatsbalken `monthBars`, `monthBarsChosen` (vorgewählter Balken, nur im Styleguide) und `monthBarsPlaceholder` (beim Laden, gleich hoch); Mini-Balken `sparkBars`, `sparkBarsLabelled` und `sparkBarsPlaceholder` (Seite Targets prüfen); Regeln in §2 Monatsbalken | Vollständige Tabellen → `Table`; einzelner Betrag im Fließtext → `Money` |
+| **Money** | **Jede** Geldanzeige, setzt die Vorzeichen-Farbe automatisch, ohne Glow: `available` (Auswahl, §2), `afterAmount` (Verfügbar danach: fett, rot unter 0, grün bei genau 0), `simple`, `large`, `hero`, `noSign`, `fromMoney`, `accountBalance` (Kontostand ohne führendes Plus, für Kontostände-Leiste und -Liste), `accountListRow` (klickbare Kontozeile: Name links, farbcodierter Betrag rechts, aktiver Zustand mit Akzentlinie), `accountListRowWith` (dieselbe Zeile mit eigenem Wert, etwa `Loading.amountSkeleton` beim Laden oder `balanceUnavailable`, ein gedämpfter Strich nach einem Ladefehler) | Nicht-monetäre Zahlen → `Presets.monoNumber` |
 | **Table** | Dichte tabellarische Daten (Desktop), inkl. `headerCell`/sortierbar/`sticky` | Mobile Listen mit Zeilen-Aktionen → Card-Liste + `Swipe`; einfache Key-Value-Paare → `Card` |
 | **Loading** | Ladezustände: `spinner`, `centered`, `neonPulse`, Skeletons (`txListSkeleton`, `tableSkeleton`, `statsGridSkeleton`, `cardSkeleton`, `amountSkeleton` für einen Betrag) | Inhalt da → echten Inhalt zeigen; Fehler → `ErrorDisplay` |
 | **ErrorDisplay** | Fehlerdarstellung: `inline'` (Feldfehler), `cardCompact`/`card`, `hero` (große Operation), `fullPage`, `forRemoteData`, `warning`, `notice` (Gelb, braucht dich, kein Fehler, ADR 0087 Punkt 3) | Kurzes Erfolgs-/Info-Feedback → `Toast`; Pflichtfeld-Hinweis → `Input.group*` |
@@ -375,7 +374,7 @@ Bewegung ist subtil, schnell und respektiert Nutzerpräferenzen. Quelle:
   durchscheint; `backdrop-blur` bleibt für den Glas-Charakter. Container ist
   `fixed … pointer-events-none`; nur die Toasts selbst sind klickbar.
   (ADR 0007; mobiler Sitz korrigiert in design-system-005.)
-- `neonPulse`/`text-glow-*` sparsam — Glow markiert, es dekoriert nicht (§1).
+- `neonPulse` sparsam — Glow markiert, es dekoriert nicht (§1).
 
 ---
 
@@ -733,7 +732,7 @@ Die UI spricht **Deutsch, direkt, knapp, ohne Füllwörter** — wie Roman selbs
 - **Direkt & ehrlich.** Fehlertexte benennen, was passiert ist und was zu tun ist —
   kein Beschönigen, kein generisches "Etwas ist schiefgelaufen", wenn die Ursache
   bekannt ist.
-- **Beträge sprechen für sich.** Vorzeichen + Farbe (Green/Red) tragen die Bedeutung;
+- **Beträge sprechen für sich.** Vorzeichen + Farbe (Grün/Rot) tragen die Bedeutung;
   kein "Sie haben X ausgegeben" drumherum nötig.
 - **Empty States** sagen, was als Nächstes zu tun ist (`Card.emptyState` mit
   Aktion-Button), statt nur "Keine Daten".

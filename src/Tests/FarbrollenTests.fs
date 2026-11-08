@@ -47,12 +47,11 @@ let private carries (role: string) (cls: string) =
 let private warningTests =
     let attention = roleOf Colors.attention
     testList "Farbrollen: braucht dich" [
-        test "Badge.Warning trägt in jedem Stil Gelb und keine andere Rollenfarbe" {
-            for style in [ Badge.Soft; Badge.Filled; Badge.Outline ] do
-                let cls = Badge.variantClass Badge.Warning style
-                Expect.isTrue (carries attention cls) $"{style}: {cls}"
-                for other in [ Colors.accent; Colors.error; Colors.success; Colors.info ] do
-                    Expect.isFalse (carries (roleOf other) cls) $"{style} ohne {other}: {cls}"
+        test "Badge.Warning trägt Gelb und keine andere Rollenfarbe" {
+            let cls = Badge.variantClass Badge.Warning
+            Expect.isTrue (carries attention cls) cls
+            for other in [ Colors.accent; Colors.error; Colors.success; Colors.info ] do
+                Expect.isFalse (carries (roleOf other) cls) $"ohne {other}: {cls}"
         }
 
         test "ErrorDisplay.warning und notice: Fläche und Rand in Gelb, das Symbol in Gelb" {
@@ -67,11 +66,28 @@ let private warningTests =
         }
 
         test "Gegenprobe: eine Variante in Rot erkennt die Prüfung nicht als Gelb" {
-            Expect.isFalse (carries attention (Badge.variantClass Badge.Error Badge.Soft)) "Badge.Error"
+            Expect.isFalse (carries attention (Badge.variantClass Badge.Error)) "Badge.Error"
             Expect.isFalse (carries attention (Toast.variantClass Toast.Error)) "Toast.Error"
-            Expect.isTrue (carries (roleOf Colors.error) (Badge.variantClass Badge.Error Badge.Soft)) "Rot erkannt"
+            Expect.isTrue (carries (roleOf Colors.error) (Badge.variantClass Badge.Error)) "Rot erkannt"
+        }
+    ]
+
+// design-system-dak16 (ADR 0087 Punkt 8): die Lena-Farbe erreicht das Flag-Symbol nur über `data-lena-flag`,
+// und styles.css kennt dort nur klein geschriebene YNAB-Farben.
+let private lenaTests =
+    testList "Farbrollen: Lena-Flag" [
+        test "Eine bekannte Flag-Farbe wird klein geschrieben zum Attributwert" {
+            Expect.equal (Badge.lenaFlagAttr (Some "purple")) (Some "purple") "klein"
+            Expect.equal (Badge.lenaFlagAttr (Some "Blue")) (Some "blue") "gemischt"
+            Expect.equal (Badge.lenaFlagAttr (Some "RED")) (Some "red") "groß"
+        }
+
+        test "Ohne gespeicherte oder mit unbekannter Farbe gibt es kein Attribut" {
+            Expect.equal (Badge.lenaFlagAttr None) None "keine Farbe"
+            Expect.equal (Badge.lenaFlagAttr (Some "")) None "leer"
+            Expect.equal (Badge.lenaFlagAttr (Some "pink")) None "unbekannt"
         }
     ]
 
 [<Tests>]
-let allTests = testList "Farbrollen" [ tests; warningTests ]
+let allTests = testList "Farbrollen" [ tests; warningTests; lenaTests ]

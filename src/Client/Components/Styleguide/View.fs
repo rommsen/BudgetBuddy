@@ -32,7 +32,7 @@ let private section (title: string) (children: ReactElement list) =
         prop.className "space-y-4 md:space-y-6 pt-8 md:pt-10 border-t border-border-subtle first:border-t-0 first:pt-0"
         prop.children [
             Html.h2 [
-                prop.className (Tokens.Presets.sectionHeader + " " + Tokens.Colors.accent)
+                prop.className (Tokens.Presets.sectionHeader + " " + Tokens.Colors.textPrimary)
                 prop.text title
             ]
             yield! children
@@ -169,6 +169,23 @@ let private colorSection =
         ]
         note "Glow nur an der Hauptaktion und an Rückmeldungen (ADR 0087 Punkt 6). \
               Lena: die Flag-Farbe aus den Settings steht nur im Flag-Symbol, immer mit dem Namen (Punkt 8)."
+
+        subTitle "Lena (Badge.lenaMark)"
+        row [
+            Html.div [
+                yield! Badge.lenaFlagScope (Some "purple")
+                prop.className "flex items-center gap-3"
+                prop.children [ Badge.lenaMark "Rückfrage Lena"; Badge.lenaMark "Lena" ]
+            ]
+            caption "mit data-lena-flag (Badge.lenaFlagScope, hier Lila)"
+        ]
+        row [
+            Html.div [
+                prop.className "flex items-center gap-3"
+                prop.children [ Badge.lenaMark "Rückfrage Lena"; Badge.lenaMark "Lena" ]
+            ]
+            caption "ohne Vorfahr mit data-lena-flag: Symbol gedämpft"
+        ]
     ]
 
 // ============================================
@@ -201,12 +218,6 @@ let private typographySection =
                 Html.p [ prop.className Tokens.FontSizes.body; prop.text ("Body: " + Tokens.FontSizes.body) ]
                 Html.p [ prop.className (Tokens.FontSizes.xs + " " + Tokens.Colors.textMuted); prop.text "Label / Caption — text-xs" ]
             ]
-        ]
-
-        subTitle "Gradient-Text (Hero-Titel)"
-        Html.p [
-            prop.className (Tokens.Presets.gradientText + " " + Tokens.FontSizes.hero + " " + Tokens.FontWeights.bold + " " + Tokens.Fonts.display)
-            prop.text "BudgetBuddy"
         ]
     ]
 
@@ -344,7 +355,7 @@ let private buttonSection =
 
 let private cardSection =
     section "4. Card" [
-        note "Inhaltsblöcke. glow für featured, withAccent für Akzentlinie, emptyState sagt was als Nächstes zu tun ist. styleguide.md §5."
+        note "Inhaltsblöcke. emptyState sagt was als Nächstes zu tun ist. styleguide.md §5."
         // data-ds-card markiert die Sektion für den Export-Bundle-Build
         // (scripts/export-design-system.mjs, design-system-t82sg): das Skript
         // schneidet dieses Element aus der gerenderten Route heraus und schreibt es
@@ -352,7 +363,7 @@ let private cardSection =
         Html.div [
             prop.custom ("data-ds-card", "components-card")
             prop.custom ("data-ds-card-name", "Card")
-            prop.custom ("data-ds-card-subtitle", "Standard-, Glas-, Glow-, Akzent- und Leerzustand-Karten")
+            prop.custom ("data-ds-card-subtitle", "Standard-, Glas- und Leerzustand-Karten")
             prop.custom ("data-ds-group", "Components")
             prop.className "space-y-4"
             prop.children [
@@ -364,14 +375,6 @@ let private cardSection =
                     Card.glass [
                         Card.headerSimple "Glass"
                         Card.body [ Html.p [ prop.className "text-sm text-text-secondary"; prop.text "Blur-Hintergrund." ] ]
-                    ]
-                    Card.glow [
-                        Card.headerSimple "Glow (featured)"
-                        Card.body [ Html.p [ prop.className "text-sm text-text-secondary"; prop.text "Akzent-Rand, hervorgehoben." ] ]
-                    ]
-                    Card.withAccent [
-                        Card.headerSimple "With Accent"
-                        Card.body [ Html.p [ prop.className "text-sm text-text-secondary"; prop.text "Akzentlinie links." ] ]
                     ]
                 ]
                 Card.emptyState
@@ -434,7 +437,7 @@ let private badgeSection =
 
 let private moneySection =
     section "6. Money" [
-        note "Jede Geldanzeige. Vorzeichen-Farbe + Glow werden automatisch gesetzt (positiv=Green, negativ=Red) — nicht manuell überschreiben. styleguide.md §2/§5."
+        note "Jede Geldanzeige. Die Vorzeichen-Farbe wird automatisch gesetzt (positiv Grün, negativ Rot), ohne Glow; nicht manuell überschreiben. styleguide.md §2/§5."
         // data-ds-card (s. cardSection) ist der Export-Marker für components-money.html.
         Html.div [
             prop.custom ("data-ds-card", "components-money")
@@ -491,16 +494,9 @@ let private statsSection =
             prop.custom ("data-ds-group", "Components")
             prop.children [
                 Stats.grid [
-                    Stats.withIcon "Transaktionen" "1.234" (Icons.banknotes Icons.MD Icons.Accent)
+                    Stats.withIcon "Transaktionen" "1.234" (Icons.banknotes Icons.MD Icons.Default)
                     Stats.withTrend "Importe" "42" (Stats.Trend.Up 12.5m)
                     Stats.syncCount 8
-                ]
-                Html.div [
-                    prop.className "max-w-xs"
-                    prop.children [
-                        Stats.withAccent "Kontostand" "1.250,40 €" Stats.NoAccent
-                        caption "withAccent NoAccent (kein Akzentstreifen, ledger-w9skm/ADR 0035)"
-                    ]
                 ]
                 subTitle "Monatsbalken"
                 note "Stats.monthBars: je Monat ein Balken mit Monat und Betrag, ohne waagrechtes Scrollen. Der laufende Monat ist neutral gestrichelt und trägt \"läuft\", der Akzent bleibt für Ausgewähltes (ADR 0087). Ein Monat ohne Wert zeigt einen flachen Balken. Überwiegen Erstattungen, steht der Betrag neutral mit Plus da, Rot heißt auf der Budget-Seite \"im Minus\". Darüber die Wertzeile: Maus, Tipp oder Tab-Taste wählen einen Balken, die Zeile zeigt Monat und genauen Betrag und der Balken wird etwas heller, ohne Fokus-Ring. Ohne Auswahl bleibt die Zeile leer und hält ihre Höhe. Für Screenreader eine Liste, je Balken ein Label mit demselben Inhalt, getrennt mit Komma statt \"·\". Der gewählte Balken hebt zusätzlich seinen Monatsnamen hervor."
@@ -918,7 +914,6 @@ let private loadingSection =
             prop.children [
                 row [
                     Loading.spinner Loading.MD Loading.Accent
-                    Loading.spinner Loading.LG Loading.Success
                     Loading.neonPulse Loading.Accent
                 ]
                 subTitle "Skeletons"
@@ -934,7 +929,7 @@ let private errorSection =
         Html.div [
             prop.custom ("data-ds-card", "components-errordisplay")
             prop.custom ("data-ds-card-name", "ErrorDisplay")
-            prop.custom ("data-ds-card-subtitle", "Inline-Fehler, Fehlerkarten und Warnung")
+            prop.custom ("data-ds-card-subtitle", "Inline-Fehler, Fehlerkarten, Warnung und Erfolg")
             prop.custom ("data-ds-group", "Feedback")
             prop.className "space-y-3"
             prop.children [
@@ -942,6 +937,7 @@ let private errorSection =
                 ErrorDisplay.cardCompact "Einstellungen konnten nicht geladen werden" (Some ignore)
                 ErrorDisplay.warning "Diese Aktion kann nicht rückgängig gemacht werden." None
                 ErrorDisplay.notice "Stand hat sich geändert, es wurde nichts geschrieben."
+                ErrorDisplay.success "Zugangsdaten erfolgreich verifiziert!"
             ]
         ]
     ]
@@ -982,12 +978,12 @@ let private pageHeaderSection =
         Html.div [
             prop.custom ("data-ds-card", "components-pageheader")
             prop.custom ("data-ds-card-name", "PageHeader")
-            prop.custom ("data-ds-card-subtitle", "Seitenkopf mit Untertitel, Verlauf und Aktionen")
+            prop.custom ("data-ds-card-subtitle", "Seitenkopf mit Untertitel und Aktionen")
             prop.custom ("data-ds-group", "Components")
             prop.className "space-y-4"
             prop.children [
                 PageHeader.withSubtitle "Einstellungen" "Verbindungen und Präferenzen konfigurieren."
-                PageHeader.gradient "Kategorisierungs-Regeln"
+                PageHeader.calm "Kassenbuch" (Some "Zuletzt gespiegelt vor 5 Minuten") []
             ]
         ]
     ]
@@ -2317,7 +2313,7 @@ let view () =
     Html.div [
         prop.className "space-y-2 max-w-4xl mx-auto pb-16"
         prop.children [
-            PageHeader.gradientWithSubtitle
+            PageHeader.withSubtitle
                 "Styleguide"
                 "Lebende Galerie der echten Design-System-Komponenten & Tokens. Geschriebener Begleiter: standards/frontend/styleguide.md."
 

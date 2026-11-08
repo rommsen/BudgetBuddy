@@ -283,8 +283,6 @@ let private categoryColorTests =
             let entry = { entryView (accountId 1) (DateTime(2026, 3, 10)) "Rewe" with CategoryName = Some "Essen" }
             Expect.equal (categoryClassName entry) Client.DesignSystem.Tokens.ListRoles.secondary
                 "Kategorie in text-secondary, 12px"
-            Expect.isFalse ((categoryClassName entry).Contains Client.DesignSystem.Tokens.Colors.attention)
-                "Gelb nur bei ohne Kategorie"
         }
 
         test "Ohne Kategorie ist Gelb (ADR 0087 Punkt 3)" {
@@ -507,18 +505,11 @@ let private mirrorRunSubtitleTests =
 let private calmListSourceTests =
     testList "Kassenbuch als ruhige Liste (ledger-n4vte, ADR 0049)" [
 
-        test "Negativer Kontostand ist Red, positiver neutral" {
+        test "Negativer Kontostand ist Rot, positiver neutral" {
             Expect.stringContains (Client.DesignSystem.Money.accountBalanceClass false -173.28m) Client.DesignSystem.Tokens.Colors.error "negativ"
             Expect.isFalse
                 ((Client.DesignSystem.Money.accountBalanceClass false 5040.62m).Contains Client.DesignSystem.Tokens.Colors.error)
-                "positiv nicht Red"
-        }
-
-        // ADR 0087 Punkt 2 und Prototyp: ein Eingang ist neutral, der Akzent gehört Hauptaktion und Auswahl.
-        test "Ein positiver und ein negativer Listenbetrag sind beide text-primary, ohne Akzent" {
-            Expect.stringContains (Client.DesignSystem.Money.listAmountClass 4000m) Client.DesignSystem.Tokens.Colors.textPrimary "Eingang"
-            Expect.isFalse ((Client.DesignSystem.Money.listAmountClass 4000m).Contains Client.DesignSystem.Tokens.Colors.accent) "Eingang ohne Akzent"
-            Expect.stringContains (Client.DesignSystem.Money.listAmountClass -48.12m) Client.DesignSystem.Tokens.Colors.textPrimary "Ausgabe"
+                "positiv nicht Rot"
         }
     ]
 
@@ -839,13 +830,6 @@ let private filterBarRuhigTests =
             Expect.equal (summaryCountText 0) "0 Buchungen" "0"
             Expect.equal (summaryCountText 1) "1 Buchung" "1"
             Expect.equal (summaryCountText 12116) "12.116 Buchungen" "12.116"
-        }
-
-        test "Summenzeile: Summe 0 und negative Summe ohne Rot und Grün" {
-            for amount in [ 0m; -125.40m; 300m ] do
-                let cls = Client.DesignSystem.Money.listAmountClass amount
-                Expect.isFalse (cls.Contains "error") $"{amount}: {cls}"
-                Expect.isFalse (cls.Contains "success") $"{amount}: {cls}"
         }
     ]
 

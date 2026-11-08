@@ -241,7 +241,7 @@ let transactionRow (props: TransactionRowProps) =
     let pendingCategorySaveIndicator =
         if isPendingCategorySave then
             Html.span [
-                prop.className "ml-1 text-xs text-accent animate-pulse"
+                prop.className "ml-1 text-xs text-text-muted animate-pulse"
                 prop.title "Kategorie wird gespeichert..."
                 prop.text "\u25CF"
             ]
@@ -296,7 +296,9 @@ let transactionRow (props: TransactionRowProps) =
                                     Html.text categoryDisplayText
                                     if hasOrderIdSuggestion then
                                         Html.span [
-                                            prop.className "ml-1 text-accent"
+                                            // Hinweis: Vorschlag aus der Bestellnummer (Blau, ADR 0087)
+                                            prop.className "ml-1 text-info"
+                                            prop.title "Vorschlag aus Bestellnummer"
                                             prop.text "\u2606"
                                         ]
                                     pendingCategorySaveIndicator

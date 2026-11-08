@@ -13,36 +13,18 @@ let tanWaitingView (isConfirming: bool) (dispatch: Msg -> unit) =
     Html.div [
         prop.className "max-w-lg mx-auto px-4 animate-fade-in"
         prop.children [
-            Card.view { Card.defaultProps with Variant = Card.Glow; Size = Card.Spacious } [
+            Card.view { Card.defaultProps with Size = Card.Spacious } [
                 Html.div [
                     prop.className "flex flex-col items-center text-center"
                     prop.children [
-                        // Animated phone icon with neon glow
+                        // Symbolkachel neutral: Farbe trägt nur die Hauptaktion darunter (ADR 0087).
+                        // Was zu tun ist, sagt der Satz unter der Überschrift.
                         Html.div [
-                            prop.className "relative"
+                            prop.className "w-24 h-24 rounded-2xl bg-surface-elevated flex items-center justify-center"
                             prop.children [
-                                Html.div [
-                                    prop.className "w-24 h-24 rounded-2xl bg-gradient-to-br from-accent to-success flex items-center justify-center shadow-glow-accent animate-neon-pulse"
-                                    prop.children [
-                                        Html.span [
-                                            prop.className "text-5xl"
-                                            prop.text "📱"
-                                        ]
-                                    ]
-                                ]
-                                // Pulsing notification dot
-                                Html.div [
-                                    prop.className "absolute -top-1 -right-1"
-                                    prop.children [ Badge.pulsingDot Badge.Warning ]
-                                ]
-                                Html.div [
-                                    prop.className "absolute -top-2 -right-2 w-6 h-6 bg-attention rounded-full flex items-center justify-center animate-bounce"
-                                    prop.children [
-                                        Html.span [
-                                            prop.className $"{Tokens.Colors.onAccent} text-xs font-bold"
-                                            prop.text "1"
-                                        ]
-                                    ]
+                                Html.span [
+                                    prop.className "text-5xl"
+                                    prop.text "📱"
                                 ]
                             ]
                         ]
@@ -117,22 +99,17 @@ let fetchingView () =
     Html.div [
         prop.className "max-w-lg mx-auto px-4 animate-fade-in"
         prop.children [
-            Card.view { Card.defaultProps with Variant = Card.Glow; Size = Card.Spacious } [
+            Card.view { Card.defaultProps with Size = Card.Spacious } [
                 Html.div [
                     prop.className "flex flex-col items-center text-center"
                     prop.children [
-                        // Animated sync icon with neon glow
+                        // Symbolkachel neutral, das drehende Symbol zeigt den Abruf (ADR 0087).
                         Html.div [
-                            prop.className "relative"
+                            prop.className "w-24 h-24 rounded-2xl bg-surface-elevated flex items-center justify-center"
                             prop.children [
                                 Html.div [
-                                    prop.className "w-24 h-24 rounded-2xl bg-gradient-to-br from-accent to-success flex items-center justify-center shadow-glow-accent animate-neon-pulse"
-                                    prop.children [
-                                        Html.div [
-                                            prop.className "animate-spin"
-                                            prop.children [ Icons.sync Icons.XL Icons.Primary ]
-                                        ]
-                                    ]
+                                    prop.className "animate-spin"
+                                    prop.children [ Icons.sync Icons.XL Icons.Primary ]
                                 ]
                             ]
                         ]
@@ -231,20 +208,20 @@ let completedView (session: SyncSession) (dispatch: Msg -> unit) =
             Html.div [
                 prop.className "rounded-xl bg-surface-card border border-border-subtle overflow-hidden"
                 prop.children [
-                    // Success header with neon gradient
+                    // Erfolgskopf in Grün: gelungen (ADR 0087 Punkt 4), Glow als Rückmeldung
                     Html.div [
-                        prop.className "bg-gradient-to-br from-accent to-success p-8 text-center"
+                        prop.className "bg-success/10 border-b border-success/30 p-8 text-center"
                         prop.children [
                             Html.div [
-                                prop.className "w-20 h-20 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-4 shadow-glow-success"
-                                prop.children [ Icons.checkCircle Icons.XL Icons.Primary ]
+                                prop.className $"w-20 h-20 rounded-full bg-success/15 flex items-center justify-center mx-auto mb-4 {Tokens.Glows.success}"
+                                prop.children [ Icons.checkCircle Icons.XL Icons.Success ]
                             ]
                             Html.h2 [
-                                prop.className $"text-2xl md:text-3xl font-bold font-display {Tokens.Colors.onAccent}"
+                                prop.className $"text-2xl md:text-3xl font-bold font-display {Tokens.Colors.textPrimary}"
                                 prop.text "Synchronisierung abgeschlossen!"
                             ]
                             Html.p [
-                                prop.className $"{Tokens.Colors.onAccentMuted} mt-2"
+                                prop.className $"{Tokens.Colors.textSecondary} mt-2"
                                 prop.text "Deine Transaktionen wurden in YNAB importiert."
                             ]
                         ]
@@ -320,9 +297,9 @@ let startSyncView (bankStatus: Types.RemoteData<BankConnectionStatus>) (dispatch
             Html.div [
                 prop.className "rounded-xl bg-surface-card border border-border-subtle overflow-hidden"
                 prop.children [
-                    // Kopf ruhig mit Akzent-Tönung; die Hauptaktion darunter trägt den Akzent (ADR 0087)
+                    // Kopf neutral; nur die Hauptaktion darunter trägt den Akzent (ADR 0087)
                     Html.div [
-                        prop.className "bg-accent/10 border-b border-accent/30 p-8 text-center"
+                        prop.className "border-b border-border-subtle p-8 text-center"
                         prop.children [
                             Html.div [
                                 prop.className "w-20 h-20 rounded-full bg-surface-elevated flex items-center justify-center mx-auto mb-4"
@@ -342,7 +319,7 @@ let startSyncView (bankStatus: Types.RemoteData<BankConnectionStatus>) (dispatch
                     Html.div [
                         prop.className "p-6"
                         prop.children [
-                            // Features list with neon accents
+                            // Merkmale neutral: Farbe ist keine Deko (ADR 0087)
                             Html.div [
                                 prop.className "space-y-4 mb-6"
                                 prop.children [
@@ -350,8 +327,8 @@ let startSyncView (bankStatus: Types.RemoteData<BankConnectionStatus>) (dispatch
                                         prop.className "flex items-center gap-3"
                                         prop.children [
                                             Html.div [
-                                                prop.className "w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center flex-shrink-0"
-                                                prop.children [ Icons.creditCard Icons.MD Icons.Accent ]
+                                                prop.className "w-10 h-10 rounded-full bg-surface-elevated flex items-center justify-center flex-shrink-0"
+                                                prop.children [ Icons.creditCard Icons.MD Icons.Default ]
                                             ]
                                             Html.div [
                                                 prop.children [
@@ -365,8 +342,8 @@ let startSyncView (bankStatus: Types.RemoteData<BankConnectionStatus>) (dispatch
                                         prop.className "flex items-center gap-3"
                                         prop.children [
                                             Html.div [
-                                                prop.className "w-10 h-10 rounded-full bg-success/10 flex items-center justify-center flex-shrink-0"
-                                                prop.children [ Icons.rules Icons.MD Icons.Success ]
+                                                prop.className "w-10 h-10 rounded-full bg-surface-elevated flex items-center justify-center flex-shrink-0"
+                                                prop.children [ Icons.rules Icons.MD Icons.Default ]
                                             ]
                                             Html.div [
                                                 prop.children [
@@ -380,8 +357,8 @@ let startSyncView (bankStatus: Types.RemoteData<BankConnectionStatus>) (dispatch
                                         prop.className "flex items-center gap-3"
                                         prop.children [
                                             Html.div [
-                                                prop.className "w-10 h-10 rounded-full bg-info/10 flex items-center justify-center flex-shrink-0"
-                                                prop.children [ Icons.upload Icons.MD Icons.Info ]
+                                                prop.className "w-10 h-10 rounded-full bg-surface-elevated flex items-center justify-center flex-shrink-0"
+                                                prop.children [ Icons.upload Icons.MD Icons.Default ]
                                             ]
                                             Html.div [
                                                 prop.children [

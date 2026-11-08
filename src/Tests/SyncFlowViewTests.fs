@@ -572,11 +572,6 @@ let ruhigeListeTests =
                 let a = src.IndexOf "let pageShell"
                 let shell = src.Substring(a, 300)
                 Expect.isTrue (shell.Contains "SyncFlow -> Navigation.pageContentFull") shell
-            testCase "Beide Importieren-Knöpfe sind Button.Primary" <| fun () ->
-                let src = Quelltext.views "TransactionList.fs"
-                let count = src.Split("Text = \"Importieren\"").Length - 1
-                Expect.equal count 2 "zwei Knöpfe"
-                Expect.equal (src.Split("Variant = Button.Primary").Length - 1) 2 "beide Primary"
             testCase "SplitSheet ruft für Gesamt und Rest kein Money.simple" <| fun () ->
                 Expect.isFalse ((Quelltext.views "SplitSheet.fs").Contains "Money.simple") "kein Money.simple"
         ]

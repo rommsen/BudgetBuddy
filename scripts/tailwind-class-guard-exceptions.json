@@ -39,11 +39,6 @@
     "locations": ["src/Client/DesignSystem/Primitives.fs"]
   },
   {
-    "token": "cls",
-    "reason": "Stats.fs' view bindet `cls` per `Some cls ->` aus dem Ergebnis von accentBarClassName props.Accent (string option). Der Wert entsteht durch einen Aufruf der Hilfsfunktion `bar` mit einem literalen Argument pro Fall: Auflösung würde Argumentsubstitution durch eine parametrisierte Funktion erfordern, die über reine Textanalyse ohne F#-Symbolauswertung hinausgeht (siehe Aufgaben-Stolperstein 3).",
-    "locations": ["src/Client/DesignSystem/Stats.fs"]
-  },
-  {
     "token": "{alignClass}",
     "reason": "Table.fs' headerCell/cell leiten die Ausrichtungsklasse aus `props.Align: string option` über `headerAlignClass`/`cellAlignClass` her (je ein Match auf wörtliche Klassen, design-system-q7rkm). Der Wächter folgt dem Funktionsaufruf nicht; die möglichen Werte stehen als Literale in Table.fs.",
     "locations": ["src/Client/DesignSystem/Table.fs"]

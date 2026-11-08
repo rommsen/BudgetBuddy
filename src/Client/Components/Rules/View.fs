@@ -308,11 +308,15 @@ let private emptyState (dispatch: Msg -> unit) =
         (Icons.rules XL Icons.Default)
         "Keine Regeln"
         "Erstelle deine erste Regel, um Transaktionen beim Sync automatisch zu kategorisieren."
+        // Sekundär: die Hauptaktion "Neue Regel" steht schon im Kopf (ADR 0087 Punkt 24)
         (Some (
-            Button.primaryWithIcon
-                "Erstelle deine erste Regel"
-                (Icons.plus SM Icons.IconColor.Primary)
-                (fun () -> dispatch OpenNewRuleModal)
+            Button.view {
+                Button.defaultProps with
+                    Text = "Erstelle deine erste Regel"
+                    Variant = Button.Secondary
+                    Icon = Some (Icons.plus SM Icons.IconColor.Default)
+                    OnClick = fun () -> dispatch OpenNewRuleModal
+            }
         ))
 
 // ============================================
@@ -506,7 +510,7 @@ let private ruleFields (model: Model) (dispatch: Msg -> unit) =
                     Html.div [
                         prop.className "flex items-center gap-2 mb-4"
                         prop.children [
-                            Icons.search SM Icons.Accent
+                            Icons.search SM Icons.Muted
                             Html.span [ prop.className "font-medium text-text-primary"; prop.text "Muster testen" ]
                         ]
                     ]

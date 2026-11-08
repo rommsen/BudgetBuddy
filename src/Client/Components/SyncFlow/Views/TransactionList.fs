@@ -101,10 +101,12 @@ let transactionListView (model: Model) (dispatch: Msg -> unit) =
                                     prop.className "top-action-bar-count"
                                     prop.text (sprintf "%d/%d importieren" counts.ToImport counts.Total)
                                 ]
+                                // Sekundär: bei kurzer Liste steht die Leiste unten mit dem Hauptknopf
+                                // "Importieren" zugleich im Bild (ADR 0087 Punkt 24).
                                 Button.view {
                                     Button.defaultProps with
                                         Text = "Importieren"
-                                        Variant = Button.Primary
+                                        Variant = Button.Secondary
                                         Size = Button.Small
                                         IsDisabled = (counts.ToImport = 0)
                                         OnClick = fun () -> dispatch ImportToYnab

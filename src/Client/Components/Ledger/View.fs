@@ -1053,7 +1053,7 @@ let private cardBalanceElement (isActive: bool) (balance: CardBalance) : ReactEl
 /// Eine Karte der Handy-Kontostaende-Leiste (AC6): waagerecht scrollbare
 /// `Stats`-Kachel, Betrag ueber `Money.accountBalance` (Farbsemantik + Ziffernschrift
 /// statt reinem Text). Die PC-Ansicht nutzt seit `ledger-x0yga` `Money.accountListRow`
-/// statt dieser Karte: eine hohe Kachel mit Farbstreifen passt für eine Kennzahl,
+/// statt dieser Karte: eine hohe Kachel passt für eine Kennzahl,
 /// nicht fuer eine scanbare Kontoliste.
 let private accountCardView (dispatch: Msg -> unit) (selected: AccountFilter option) (card: AccountCard) =
     Stats.view {
@@ -1061,10 +1061,6 @@ let private accountCardView (dispatch: Msg -> unit) (selected: AccountFilter opt
             Label = card.Label
             ValueElement = Some (cardBalanceElement true card.Balance)
             Size = Stats.Compact
-            // AC4 (ledger-w9skm): keine Farbverlaufsstreifen mehr — `Stats.view`
-            // zeichnet ihn sonst per `defaultProps.Accent = Gradient` (siehe
-            // `Stats.fs`), unabhaengig davon, was die Seite hier setzt.
-            Accent = Stats.NoAccent
             IsActive = selected = Some card.Filter
             OnClick = Some (fun () -> dispatch (SelectFilter card.Filter))
     }
@@ -3523,9 +3519,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
     // Rahmen ist `contents`, er ändert das Layout nicht.
     Html.div [
       prop.className "contents"
-      match lenaColorOf model.LenaFlagColor with
-      | Some color -> prop.custom ("data-lena-flag", color.ToLowerInvariant())
-      | None -> ()
+      yield! Badge.lenaFlagScope (lenaColorOf model.LenaFlagColor)
       prop.children [
        Primitives.Container.full [
         PageHeader.calm

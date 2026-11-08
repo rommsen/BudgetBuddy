@@ -15,12 +15,6 @@ type MoneySize =
     | Large     // Featured/highlighted amounts
     | Hero      // Large hero displays
 
-/// Whether to show glow effect for positive amounts
-type GlowStyle =
-    | NoGlow
-    | GlowPositive      // Only positive amounts glow
-    | GlowAll           // Both positive and negative glow
-
 // ============================================
 // Money Props
 // ============================================
@@ -29,7 +23,6 @@ type MoneyProps = {
     Amount: decimal
     Currency: string
     Size: MoneySize
-    Glow: GlowStyle
     ShowSign: bool          // Show +/- sign
     ShowCurrency: bool      // Show currency code
     ClassName: string option
@@ -39,7 +32,6 @@ let defaultProps = {
     Amount = 0m
     Currency = "EUR"
     Size = Medium
-    Glow = GlowPositive
     ShowSign = true
     ShowCurrency = true
     ClassName = None
@@ -59,20 +51,7 @@ let private getColorClass amount =
     if amount >= 0m then "text-success"
     else "text-error"
 
-// design-system-thtpp: "text-glow-success" war keine echte Tailwind-Utility und
-// in styles.css nicht definiert (stiller Ausfall wie die DaisyUI-Klassen aus
-// ADR 0031): anders als "shadow-glow-*" gibt es für "text-*" kein Theme-Token,
-// das Tailwind automatisch in eine Utility auflöst. Der negative Fall (Zeile
-// unten, GlowAll bei negativem Betrag) nutzte bereits die funktionierende
-// Arbitrary-Property-Syntax; der positive Fall folgt jetzt demselben Muster,
-// mit derselben Theme-Farbe wie --shadow-glow-success in styles.css (ADR 0087).
-let private getGlowClass amount glow =
-    match glow with
-    | NoGlow -> ""
-    | GlowPositive when amount >= 0m -> Tokens.TextGlows.success
-    | GlowAll when amount >= 0m -> Tokens.TextGlows.success
-    | GlowAll when amount < 0m -> "[text-shadow:0_0_10px_var(--color-error),0_0_20px_color-mix(in_srgb,var(--color-error)_50%,transparent)]"
-    | _ -> ""
+// Geld trägt keinen Glow: Glow gibt es nur an der Hauptaktion und an Rückmeldungen (ADR 0087 Punkt 6).
 
 /// Groups the digits of a (non-negative, integer-only) numeric string with `.`
 /// every three digits from the right (`21388` -> `21.388`). Deliberately written
@@ -137,22 +116,20 @@ let formatAmountText (showSign: bool) (showCurrency: bool) (amount: decimal) (cu
 let view (props: MoneyProps) =
     let sizeClass = sizeToClass props.Size
     let colorClass = getColorClass props.Amount
-    let glowClass = getGlowClass props.Amount props.Glow
     let extraClass = props.ClassName |> Option.defaultValue ""
     let formatted = formatAmountText props.ShowSign props.ShowCurrency props.Amount props.Currency
 
     Html.span [
-        prop.className $"font-mono font-semibold tabular-nums whitespace-nowrap {sizeClass} {colorClass} {glowClass} {extraClass}"
+        prop.className $"font-mono font-semibold tabular-nums whitespace-nowrap {sizeClass} {colorClass} {extraClass}"
         prop.text formatted
     ]
 
 /// Create from Money domain type
-let fromMoney (money: Money) (glow: GlowStyle) =
+let fromMoney (money: Money) =
     view {
         defaultProps with
             Amount = money.Amount
             Currency = money.Currency
-            Glow = glow
     }
 
 // ============================================
@@ -180,14 +157,13 @@ let small amount currency =
             Size = Small
     }
 
-/// Large featured money display with glow
+/// Large featured money display
 let large amount currency =
     view {
         defaultProps with
             Amount = amount
             Currency = currency
             Size = Large
-            Glow = GlowPositive
     }
 
 /// Hero-sized money display
@@ -197,7 +173,6 @@ let hero amount currency =
             Amount = amount
             Currency = currency
             Size = Hero
-            Glow = GlowPositive
     }
 
 /// Money display without sign prefix
@@ -209,18 +184,9 @@ let noSign amount currency =
             ShowSign = false
     }
 
-/// Money display without glow effect
-let noGlow amount currency =
-    view {
-        defaultProps with
-            Amount = amount
-            Currency = currency
-            Glow = NoGlow
-    }
-
 /// Money display from domain Money type
 let money (m: Money) =
-    fromMoney m GlowPositive
+    fromMoney m
 
 /// Klassen des Verfügbar-Betrags in einer Auswahlzeile (ADR 0049): Mono 500,
 /// `tabular-nums`, Größe wie der Zeilenname, kein Glow. Positiv neutral,
@@ -250,10 +216,6 @@ let afterAmount (amount: decimal) (currency: string) =
         prop.className $"font-mono font-semibold tabular-nums whitespace-nowrap {ListRoles.primarySize} {color}"
         prop.text (formatAmountText false true amount currency)
     ]
-
-/// Money display from domain Money type with glow control
-let moneyWithGlow (m: Money) showGlow =
-    fromMoney m (if showGlow then GlowPositive else NoGlow)
 
 // ============================================
 // Money in Context
@@ -313,7 +275,6 @@ let netChange income expenses currency =
                             Amount = income
                             Currency = currency
                             Size = Small
-                            Glow = NoGlow
                     }
                 ]
             ]
@@ -327,7 +288,6 @@ let netChange income expenses currency =
                             Currency = currency
                             Size = Small
                             ShowSign = false
-                            Glow = NoGlow
                     }
                 ]
             ]
@@ -340,7 +300,6 @@ let netChange income expenses currency =
                             Amount = net
                             Currency = currency
                             Size = Medium
-                            Glow = GlowPositive
                     }
                 ]
             ]
@@ -386,7 +345,6 @@ let transaction amount =
             Amount = amount
             Size = Small
             ShowCurrency = false
-            Glow = NoGlow
     }
 
 /// Format amount for transaction lists with currency
@@ -396,7 +354,6 @@ let transactionWithCurrency amount currency =
             Amount = amount
             Currency = currency
             Size = Small
-            Glow = NoGlow
     }
 
 /// Betrag einer in YNAB gelöschten Buchung (ledger-p3n8k): gedämpft und

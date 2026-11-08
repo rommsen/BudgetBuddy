@@ -254,7 +254,6 @@ let tbody (rows: ReactElement list) =
 
 type RowProps = {
     IsSelected: bool
-    IsHighlighted: bool
     /// 3px-Kante in Gelb links ("zu prüfen", ADR 0087 Punkt 3), ohne Zellinhalte zu verschieben
     StatusEdge: bool
     /// Fokuszeile der Tastaturnavigation (`keyboardCursor`, ledger-rjb8w): ruhiger Grund
@@ -266,7 +265,6 @@ type RowProps = {
 
 let defaultRowProps = {
     IsSelected = false
-    IsHighlighted = false
     StatusEdge = false
     IsFocused = false
     OnClick = None
@@ -280,12 +278,11 @@ let focusedRowClass = "bg-surface-hover scroll-mt-40 scroll-mb-16"
 /// Klassen einer Tabellenzeile
 let rowClass (props: RowProps) : string =
     let selectedClass = if props.IsSelected then "bg-accent/10 border-l-2 border-l-accent" else ""
-    let highlightClass = if props.IsHighlighted then "bg-accent/5" else ""
     let clickableClass = if props.OnClick.IsSome then "cursor-pointer" else ""
     let edgeClass = if props.StatusEdge then ListRoles.statusEdge else ""
     let focusClass = if props.IsFocused then focusedRowClass else ""
     let extraClass = props.ClassName |> Option.defaultValue ""
-    $"transition-colors {selectedClass} {highlightClass} {edgeClass} {focusClass} {clickableClass} {extraClass}"
+    $"transition-colors {selectedClass} {edgeClass} {focusClass} {clickableClass} {extraClass}"
 
 /// Create a table row
 let row (props: RowProps) (cells: ReactElement list) =
@@ -311,10 +308,6 @@ let trClickable onClick (cells: ReactElement list) =
 /// Selected table row
 let trSelected (cells: ReactElement list) =
     row { defaultRowProps with IsSelected = true } cells
-
-/// Highlighted table row
-let trHighlighted (cells: ReactElement list) =
-    row { defaultRowProps with IsHighlighted = true } cells
 
 // ============================================
 // Table Cell Component

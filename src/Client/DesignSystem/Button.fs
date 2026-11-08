@@ -83,7 +83,7 @@ let iconOnlyClass (size: ButtonSize) (text: string) =
 /// Primary: `[&_svg]` macht ein Symbol im Knopf dunkel wie den Text, gleich welche Farbe der Aufrufer nennt.
 let private variantToClass = function
     | Primary ->
-        $"{Backgrounds.accent} {Colors.onAccent} [&_svg]:text-on-accent border-none {Glows.accent} hover:brightness-110 hover:-translate-y-0.5 active:scale-[0.98]"
+        $"{Backgrounds.accent} {Colors.onAccent} {Colors.onAccentSvg} border-none {Glows.accent} hover:brightness-110 hover:-translate-y-0.5 active:scale-[0.98]"
     | Secondary ->
         $"bg-surface-elevated border {Borders.strong} text-text-primary hover:bg-surface-hover active:scale-[0.98]"
     | Ghost ->
@@ -499,7 +499,7 @@ let quietText (testId: string) (text: string) (onClick: unit -> unit) =
 /// Klassen des Hero-Knopfs: Akzent gefüllt, Text dunkel (`bg-app`), Glow der Hauptaktion (ADR 0087).
 /// Eine Variante; der frühere `heroTeal` ist hier aufgegangen.
 let heroClass =
-    $"group relative px-12 py-5 rounded-xl {Backgrounds.accent} {Colors.onAccent} [&_svg]:text-on-accent font-bold text-lg md:text-xl font-display {Glows.accentLg} {Glows.accentHoverLg} hover:scale-105 transition-all duration-300"
+    $"group relative px-12 py-5 rounded-xl {Backgrounds.accent} {Colors.onAccent} {Colors.onAccentSvg} font-bold text-lg md:text-xl font-display {Glows.accentLg} {Glows.accentHoverLg} hover:scale-105 transition-all duration-300"
 
 /// Large hero button with prominent glow effect for main CTAs
 /// Use sparingly - typically one per page for the primary action

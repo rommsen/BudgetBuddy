@@ -365,3 +365,17 @@ module ErrorDisplay =
                 ]
             ]
         ]
+
+    /// Rückmeldung in Grün: etwas ist gelungen (ADR 0087 Punkt 4), etwa eine geprüfte Verbindung.
+    let success (message: string) =
+        Html.div [
+            prop.className "rounded-lg bg-success/10 border border-success/30 px-4 py-3 flex items-start gap-3"
+            prop.role "status"
+            prop.children [
+                Icons.checkCircle SM Success
+                Html.p [
+                    prop.className "flex-1 text-success text-sm"
+                    prop.text message
+                ]
+            ]
+        ]

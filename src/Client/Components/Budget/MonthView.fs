@@ -101,7 +101,6 @@ let toBeBudgeted (compact: bool) (m: Money) =
                     Amount = m.Amount
                     Currency = m.Currency
                     Size = Money.Large
-                    Glow = Money.NoGlow
                     ShowSign = false
                     ShowCurrency = not compact }
         ]

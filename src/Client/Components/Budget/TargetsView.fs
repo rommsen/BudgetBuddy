@@ -157,7 +157,6 @@ let private doneBody (preview: TargetPreview) (report: ApplyReport) (retryError:
                                   Amount = actual.Amount
                                   Currency = actual.Currency
                                   Size = Money.Medium
-                                  Glow = Money.NoGlow
                                   ShowSign = false }
                       ]
                   ]

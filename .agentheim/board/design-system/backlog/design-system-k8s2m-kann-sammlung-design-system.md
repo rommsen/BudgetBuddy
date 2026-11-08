@@ -34,3 +34,8 @@ Geschnitten und priorisiert wird im Refinement.
 - Styleguide §1 („Glow … positive Beträge, fokussierte Karten“, „Neon-Akzente“) auf ADR 0087 bringen.
 - App-Icons (`src/Client/public/icon-master.svg`, `favicon.svg`, Raster unter `public/icons/`) tragen noch den alten Verlauf Teal→Grün→Orange.
 - `Detail.amount` und `MultiSelect.amountClassName` haben keinen eigenen Test auf die neutrale Betragsfarbe (Verifier dak16).
+
+## Aus dem Review-Lauf nach design-system-dak16 (2026-11-08)
+- Settings „Nicht konfiguriert“: roter Punkt mit gelbem Text, zwei Rollen für einen Zustand (ADR 0087).
+- Settings: Ist Comdirect nicht eingerichtet, steht dessen Formular offen, und „Zugangsdaten speichern“ ist primär, auch wenn eine andere Karte bearbeitet wird (zwei Hauptaktionen).
+- `TextGlowTokenTests.fs` ist mit dem Modul `TextGlows` gelöscht (Bugbezug design-system-tg2wn); ein Rückdreh-Beleg nach Doktrin Punkt 8 fehlt, weil es den Code nicht mehr gibt.

@@ -12,7 +12,6 @@ open Feliz
 /// Title style options
 type TitleStyle =
     | Standard
-    | Gradient
     /// Schlank für Listen-Seiten (ADR 0049): 20px, 600, ohne Verlauf
     | Calm
 
@@ -36,8 +35,6 @@ let titleClass (style: TitleStyle) : string =
     match style with
     | Standard ->
         "text-2xl md:text-4xl font-bold font-display text-text-primary"
-    | Gradient ->
-        "text-2xl md:text-4xl font-bold font-display bg-gradient-to-br from-accent to-success bg-clip-text text-transparent"
     | Calm ->
         "text-xl font-semibold font-display text-text-primary"
 
@@ -97,21 +94,9 @@ let simple (title: string) =
 let withSubtitle (title: string) (subtitle: string) =
     view { defaultProps with Title = title; Subtitle = Some subtitle }
 
-/// Header with gradient title
-let gradient (title: string) =
-    view { defaultProps with Title = title; TitleStyle = Gradient }
-
-/// Header with gradient title and subtitle
-let gradientWithSubtitle (title: string) (subtitle: string) =
-    view { defaultProps with Title = title; Subtitle = Some subtitle; TitleStyle = Gradient }
-
 /// Full header with actions
 let withActions (title: string) (subtitle: string option) (actions: ReactElement list) =
     view { defaultProps with Title = title; Subtitle = subtitle; Actions = actions }
-
-/// Full header with gradient title and actions
-let gradientWithActions (title: string) (subtitle: string option) (actions: ReactElement list) =
-    view { defaultProps with Title = title; Subtitle = subtitle; Actions = actions; TitleStyle = Gradient }
 
 /// Schlanker Kopf für Listen-Seiten: Titel, gedämpfter Untertitel, Aktionen rechts
 let calm (title: string) (subtitle: string option) (actions: ReactElement list) =

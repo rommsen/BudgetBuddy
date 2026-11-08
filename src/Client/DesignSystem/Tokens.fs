@@ -35,7 +35,8 @@ module Colors =
     // Dunkler Text auf dem Akzent und auf gefüllten Rollenfarben (Badge-Zahlen, Schrittkreise,
     // Hauptknopf). Der Token `on-accent` ist `bg-app` (styles.css).
     let onAccent = "text-on-accent"
-    let onAccentMuted = "text-on-accent/70"
+    // Symbole in einem Knopf auf dem Akzent: dieselbe dunkle Farbe wie der Text.
+    let onAccentSvg = "[&_svg]:text-on-accent"
 
 /// Background color tokens
 module Backgrounds =
@@ -53,7 +54,6 @@ module Backgrounds =
     let accentSubtle = "bg-accent/10"
     let attentionSubtle = "bg-attention/10"
     let successSubtle = "bg-success/10"
-    let errorSubtle = "bg-error/10"
 
 /// Border color tokens
 module Borders =
@@ -64,28 +64,16 @@ module Borders =
 
     // Rollenränder
     let accent = "border-accent"
-    let attention = "border-attention"
-    let success = "border-success"
     let error = "border-error"
 
 /// Glow nur an der Hauptaktion und an Rückmeldungen (ADR 0087 Punkt 6).
 module Glows =
     let accent = "shadow-glow-accent"
-    let accentHover = "hover:shadow-glow-accent"
     let success = "shadow-glow-success"
-    let error = "shadow-glow-error"
 
     // Große Variante für den Hero-Knopf
     let accentLg = "shadow-[0_0_30px_color-mix(in_srgb,var(--color-accent)_40%,transparent)]"
     let accentHoverLg = "hover:shadow-[0_0_50px_color-mix(in_srgb,var(--color-accent)_60%,transparent)]"
-
-/// Text glow effects (text-shadow)
-module TextGlows =
-    // design-system-thtpp: "text-glow-green" war keine echte Tailwind-Utility
-    // (nicht in styles.css definiert), ebenso orange/teal (design-system-tg2wn): Arbitrary-Property-Syntax.
-    // Die Farbe kommt aus dem Theme-Token, kein eigener rgba-Wert (ADR 0087).
-    let success = "[text-shadow:0_0_10px_var(--color-success),0_0_20px_color-mix(in_srgb,var(--color-success)_50%,transparent)]"
-    let accent = "[text-shadow:0_0_10px_var(--color-accent),0_0_20px_color-mix(in_srgb,var(--color-accent)_50%,transparent)]"
 
 // ============================================
 // Typography Tokens
@@ -322,9 +310,6 @@ module Presets =
     /// Glass card effect
     let glassCard = "bg-surface-card/80 backdrop-blur-xl border border-border-default rounded-xl p-4 md:p-6"
 
-    /// Glowing card (featured)
-    let glowCard = "bg-surface-card border border-accent/50 rounded-xl p-4 md:p-6"
-
     /// Page header styling
     let pageHeader = "text-xl md:text-3xl font-bold font-display mb-4 md:mb-6"
 
@@ -335,10 +320,8 @@ module Presets =
     let monoNumber = "font-mono font-semibold tabular-nums"
 
     /// Positive money amount
-    let moneyPositive = $"font-mono font-semibold text-success {TextGlows.success}"
+    let moneyPositive = "font-mono font-semibold text-success"
 
     /// Negative money amount
     let moneyNegative = "font-mono font-semibold text-error"
 
-    /// Gradient text effect
-    let gradientText = "bg-gradient-to-r from-accent to-success bg-clip-text text-transparent"
