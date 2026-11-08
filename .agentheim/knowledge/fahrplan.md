@@ -3,12 +3,12 @@
 Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success looks like“.
 
 ## Stand
-Zuletzt aktualisiert: 2026-11-08, nach work und Review von dak16.
+Zuletzt aktualisiert: 2026-11-08, nach Romans Freigabe von dak16.
 
 - **Etappe 1 · Bedeutungen:** erledigt, 5 von 5 (Skizze und Prototyp, Layout-Sweep, Muster im
-  Styleguide, Designwert-Tests aufgeräumt, Palette 2 im Token-Layer). Offen nur Romans Blick auf
-  dak16 (Seiten neben dem Prototyp). Entschieden (Roman, 2026-11-08): Fokusring, Textlinks und Marke im
-  Akzent, gescheiterter Push bleibt Gelb (Nachtrag ADR 0087).
+  Styleguide, Designwert-Tests aufgeräumt, Palette 2 im Token-Layer). Romans Blick auf dak16 neben
+  dem Prototyp: freigegeben (2026-11-08). Entschieden (Roman, 2026-11-08): Fokusring, Textlinks und
+  Marke im Akzent, gescheiterter Push bleibt Gelb (Nachtrag ADR 0087).
   Panel ab 1024 px (Roman, 2026-11-07).
 - **Etappe 2 · Lücken schließen:** noch nicht verfeinert.
 - **Etappe 3 · Ein Produkt:** noch nicht verfeinert, Zeilen wachsen.
@@ -45,7 +45,7 @@ Reihenfolge: `infrastructure-nx14s` → `infrastructure-jc1y1` → `design-syste
 - [x] Skizze und Prototyp der drei Orte, von Roman freigegeben (2026-11-07)
 - [x] `infrastructure-nx14s` Layout-Invarianten als ein Sweep (2026-11-07)
 - [x] `infrastructure-jc1y1` Designwert-Tests aufräumen (2026-11-08, Verifier PASS in Iteration 4)
-- [x] `design-system-dak16` Palette 2 im Token-Layer, Kontrast-Wächter (2026-11-08, Verifier PASS in Iteration 2, Blick Roman offen)
+- [x] `design-system-dak16` Palette 2 im Token-Layer, Kontrast-Wächter (2026-11-08, Verifier PASS in Iteration 2, Blick Roman freigegeben)
 - [x] `design-system-bcdqy` Muster im Styleguide (2026-11-07, von Roman freigegeben)
 
 ## Etappe 2 · Lücken schließen
