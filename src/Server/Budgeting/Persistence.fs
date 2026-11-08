@@ -872,6 +872,39 @@ let internal loadTargetStreamOn (conn: SqliteConnection) (categoryId: Guid) : Re
     loadBudgetEventsOn conn (InStream (streamIdOf (TargetStream categoryId)))
     |> Result.map (List.map (fun e -> e.Event))
 
+/// Die Ereignisse des Target-Streams einer Kategorie mit `event_id`, in Stream-Reihenfolge (budgeting-e2z7v): das
+/// Schreiben nach YNAB verweist auf die Entscheidung.
+let internal loadTargetStreamWithIdsOn (conn: SqliteConnection) (categoryId: Guid) : Result<(Guid * BudgetEvent) list, string> =
+    loadBudgetEventsOn conn (InStream (streamIdOf (TargetStream categoryId)))
+    |> Result.map (List.map (fun e -> e.EventId, e.Event))
+
+/// Je Kategorie mit Target-Stream die Entscheidungen und Schreib-Ergebnisse mit `event_id`, in Stream-Reihenfolge,
+/// in einer Abfrage (budgeting-e2z7v).
+let internal queryTargetWriteStreams (conn: SqliteConnection) : Result<Map<Guid, (Guid * BudgetEvent) list>, string> =
+    loadBudgetEventsOn conn (OfTypes (EventTypes.targetRules @ EventTypes.targetWrites))
+    |> Result.map (fun events ->
+        events
+        |> List.groupBy (fun e -> e.StreamId)
+        |> List.choose (fun (streamId, inStream) ->
+            categoryOfTargetStream streamId
+            |> Option.map (fun categoryId -> categoryId, inStream |> List.map (fun e -> e.EventId, e.Event)))
+        |> Map.ofList)
+
+/// Die Meldung, wenn sich der Stand der Targets gegenüber YNAB nicht lesen lässt.
+[<Literal>]
+let TargetWritesUnreadableText = "Stand der Targets in YNAB nicht lesbar"
+
+/// Je Kategorie die offene Schreibung nach YNAB (`TargetRules.openTargetWrite`), nur Kategorien mit offener.
+let loadOpenTargetWritesWith (connect: unit -> SqliteConnection) : Async<Result<Map<Guid, Server.Budgeting.TargetRules.OpenTargetWrite>, string>> =
+    readWith connect "Offene Target-Schreibungen lesen" TargetWritesUnreadableText (fun conn ->
+        queryTargetWriteStreams conn
+        |> Result.map (Map.toList >> List.choose (fun (categoryId, events) ->
+            Server.Budgeting.TargetRules.openTargetWrite events |> Option.map (fun o -> categoryId, o)) >> Map.ofList))
+
+/// `queryTargetWriteStreams` über `connect`, für den einmaligen Lauf.
+let loadTargetWriteStreamsWith (connect: unit -> SqliteConnection) : Async<Result<Map<Guid, (Guid * BudgetEvent) list>, string>> =
+    readWith connect "Target-Streams lesen" TargetRulesUnreadableText queryTargetWriteStreams
+
 // ============================================
 // Schreiben
 // ============================================
@@ -1155,6 +1188,13 @@ let internal recordTargetChangeOn
     match appendCommandOn conn commandId (TargetStream categoryId) [ at, event ] with
     | Recorded recorded -> Recorded (List.exactlyOne recorded).EventId
     | CommandAlreadyProcessed (id, firstPosition) -> CommandAlreadyProcessed (id, firstPosition)
+
+/// Hält ein Ergebnis des Schreibens nach YNAB (`TargetWrittenToYnab`, `TargetWriteToYnabFailed`) im Target-Stream
+/// fest, ohne Befehls-Id (ADR 0084 Punkt 8: das Senden bekommt keine).
+let internal recordTargetWriteOn (conn: SqliteConnection) (at: DateTime) (categoryId: Guid) (event: BudgetEvent) : unit =
+    match appendCommandOn conn None (TargetStream categoryId) [ at, event ] with
+    | Recorded _ -> ()
+    | CommandAlreadyProcessed _ -> failwith "Ein Ergebnis ohne Befehls-Id kann nicht schon festgehalten sein"
 
 /// Hält die Übernahme der Targets fest (ADR 0084 Punkt 5): je Kategorie ein Ereignis in ihrem Target-Stream, alle
 /// in einer Transaktion. Eine leere Liste hängt nichts an.

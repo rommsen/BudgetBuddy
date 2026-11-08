@@ -74,7 +74,7 @@ let deactivationCheckTests =
 
 let private budgetCategory (id: Guid) (name: string) (activity: decimal) (available: decimal) : BudgetCategory =
     { Id = id; Name = name; Assigned = eur 0m; Activity = eur activity; Available = eur available
-      Underfunded = None; Target = None; Pause = None; OpenWriteBack = None; Deactivated = None }
+      Underfunded = None; Target = None; Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None }
 
 let private monthOf (groups: (string * BudgetCategory list) list) : BudgetMonth =
     { Month = november; ToBeBudgeted = eur 0m; Groups = groups |> List.map (fun (name, cs) -> { Name = name; Categories = cs }) }
@@ -238,6 +238,7 @@ let handlerTests =
             let ynab : CommandHandlers.YnabPort =
                 { FetchMonth = fun _ -> async { return Ok decemberRaw }
                   SetAssigned = fun _ _ _ -> failwith "kein Schreiben"
+                  WriteGoal = (fun _ _ -> async { return Ok () })
                   FetchCategoryGoals = fun () -> async { return Ok [] } }
             match CommandHandlers.observeMonthWith connect ynab now december |> run with
             | Ok _ -> ()
@@ -312,6 +313,7 @@ let handlerTests =
             let ynab : CommandHandlers.YnabPort =
                 { FetchMonth = fun _ -> async { return Ok raw }
                   SetAssigned = fun _ _ _ -> failwith "kein Schreiben"
+                  WriteGoal = (fun _ _ -> async { return Ok () })
                   FetchCategoryGoals = fun () -> async { return Ok [] } }
             let ledger : CommandHandlers.LedgerActivityPort =
                 { LoadMonthlyActivity = fun _ _ -> async { return Map.empty }

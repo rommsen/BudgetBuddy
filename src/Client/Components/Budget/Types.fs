@@ -186,6 +186,15 @@ type TargetCall =
     | TargetIdle
     | TargetSaving of categoryId: System.Guid * month: string * action: TargetAction * origin: TargetOrigin
 
+/// Der einmalige Lauf "Targets nach YNAB schreiben" im Menü ⋮ (budgeting-e2z7v).
+type TargetsToYnabRun =
+    | TargetsToYnabClosed
+    /// Die Bestätigung steht offen.
+    | TargetsToYnabAsking
+    | TargetsToYnabRunning
+    | TargetsToYnabDone of TargetsToYnabReport
+    | TargetsToYnabFailed of message: string
+
 /// Der Filter nach Art in der allgemeinen Historie (budgeting-h7q4v).
 type RunFilter =
     | AllRuns
@@ -316,6 +325,10 @@ type Model = {
     TargetForm: TargetForm option
     /// Target ändern oder entfernen.
     TargetCall: TargetCall
+    /// "Erneut senden" am Hinweis "Nicht in YNAB" des Targets läuft für diese Kategorie (budgeting-e2z7v).
+    TargetYnabRetry: System.Guid option
+    /// Der einmalige Lauf "Targets nach YNAB schreiben" (budgeting-e2z7v).
+    TargetsToYnab: TargetsToYnabRun
     /// Die gewählte Kategorie. Filter und Suche wirken nur auf die Liste, sie bleibt gewählt.
     Selected: SelectedCategory option
     /// Der Tab des Inspektors. Bleibt bei Kategorie- und Monatswechsel stehen.
@@ -540,6 +553,15 @@ type Msg =
     | CloseBudgetMenu
     /// "Kategorien verwalten" im Menü.
     | OpenCategoryAdmin
+    /// "Erneut senden" am Hinweis "Nicht in YNAB" des Targets (budgeting-e2z7v).
+    | RetryTargetToYnab of categoryId: System.Guid
+    | TargetToYnabRetried of categoryId: System.Guid * Result<unit, string>
+    /// "Targets nach YNAB schreiben" im Menü: die Bestätigung öffnen.
+    | AskWriteAllTargets
+    | ConfirmWriteAllTargets
+    | AllTargetsWritten of Result<TargetsToYnabReport, string>
+    /// Bestätigung abbrechen oder den Bericht schließen.
+    | CloseWriteAllTargets
     /// Nachrichten der Seite Kategorien.
     | CategoryAdminMsg of Components.Budget.Categories.Msg
 
@@ -580,6 +602,8 @@ let init () : Model =
       PauseCall = PauseIdle
       TargetForm = None
       TargetCall = TargetIdle
+      TargetYnabRetry = None
+      TargetsToYnab = TargetsToYnabClosed
       Selected = None
       Tab = MoneyTab
       GeneralHistory = { Rows = NotAsked; Filter = AllRuns; Expanded = Set.empty; ReturnPending = false; Generation = 0 }

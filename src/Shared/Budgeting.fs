@@ -127,6 +127,30 @@ type YnabCategoryGoal = {
 type PauseSource =
     | PausedInBb
 
+/// Was YNAB von BBs Target nicht zeigen kann (budgeting-e2z7v, Nachtrag ADR 0084 vom 2026-11-08, ADR 0072
+/// Punkt 4): BB schreibt das nächste Passende, BBs Target bleibt genau. Abgeleitet aus BBs Regel und YNABs
+/// Goal, nie gespeichert.
+type YnabGoalGap =
+    /// BBs wöchentliches Target hat einen Wochentag, YNABs Goal keinen (`goal_day` ist nicht schreibbar).
+    | WeekdayMissing
+    /// YNABs Goal hat einen anderen Wochentag als BB.
+    | WeekdayDiffers of inYnab: int
+    /// BBs Target trägt einen Tag (aus der Übernahme), YNABs Goal nicht mehr.
+    | DayMissing
+    /// YNAB hat einen anderen Rhythmus, weil sich BBs Rhythmus über die API nicht anlegen lässt.
+    | RhythmDiffers of inBb: TargetRhythm * inYnab: TargetRhythm
+    /// YNAB hat eine andere Art, weil sich BBs Art über die API nicht anlegen lässt (nur NEED).
+    | KindDiffers of inBb: TargetKind * inYnab: TargetKind
+
+/// Das Target einer Kategorie gegenüber YNAB (budgeting-e2z7v).
+type TargetYnabState = {
+    /// Die letzte Target-Entscheidung ist nicht in YNAB: der Grund des Fehlschlags oder "noch nicht gesendet".
+    /// Die Seite zeigt gelb "Nicht in YNAB" mit "Erneut senden". `None`: in YNAB.
+    NotInYnab: string option
+    /// Was YNABs Goal nicht zeigt. Leer, solange `NotInYnab` gesetzt ist.
+    Gaps: YnabGoalGap list
+}
+
 /// Eine angezeigte Kategorie. Felder wie `YnabMonthCategory`, ohne die Filter-Flags.
 /// `Underfunded` (Fehlbetrag) und `Pause` braucht "Targets anwenden" (budgeting-h2zfn); die Seite
 /// zeigt sie zusammen mit dem Target an (budgeting-kjsht). Der Fehlbetrag ist BBs, gerechnet gegen das Soll
@@ -145,6 +169,9 @@ type BudgetCategory = {
     /// YNAB. Trägt die Gruppen-Id der Entscheidung, über sie läuft "erneut senden". `None`: Soll und YNAB
     /// stimmen überein. Optional, damit ein älterer Client oder Server ohne das Feld weiter liest.
     OpenWriteBack: Guid option
+    /// Das Target gegenüber YNAB (budgeting-e2z7v): "Nicht in YNAB" und was YNAB nicht zeigt. `None` ohne
+    /// Target oder ohne etwas zu melden. Optional, damit ein älterer Client oder Server ohne das Feld weiter liest.
+    TargetInYnab: TargetYnabState option
     /// In BB deaktiviert (budgeting-sn2sn, ADR 0088 Punkt 2): `Some true` steht nur im Monat, weil die Kategorie
     /// darin Aktivität oder Verfügbares hat. Optional, damit ein älterer Client oder Server ohne das Feld weiter
     /// liest; `None` heißt aktiv.
@@ -632,6 +659,71 @@ let targetAfter (shown: Target option) (draft: TargetDraft) : Result<Target, str
     | Ok target, Some day when day < 0 || day > 6 || not (weekly target.Rhythm) -> Error TargetWeekdayText
     | Ok target, Some day -> Ok { target with Day = Some day }
     | Ok target, None -> Ok target
+
+// ============================================
+// Targets nach YNAB (budgeting-e2z7v, Nachtrag ADR 0084 vom 2026-11-08)
+// ============================================
+
+/// Die gelbe Marke am Target, wenn die letzte Target-Entscheidung nicht in YNAB ist (ADR 0087 Nachtrag).
+[<Literal>]
+let TargetNotInYnabText = "Nicht in YNAB"
+
+/// Der Hinweis an einem pausierten Target: YNABs Snooze lässt sich über die API nicht schreiben.
+[<Literal>]
+let TargetNotSnoozedText = "In YNAB nicht gesnoozt"
+
+/// Der Grund einer Entscheidung ohne Ergebnis (Absturz zwischen Festhalten und Senden, oder vor dem einmaligen Lauf).
+[<Literal>]
+let TargetNotSentText = "noch nicht gesendet"
+
+/// Die Art als Wort für die Hinweise.
+let private kindWord (kind: TargetKind) : string =
+    match kind with
+    | Need -> "Bedarf"
+    | TargetBalance -> "Zielstand"
+    | TargetBalanceByDate -> "Zielstand mit Datum"
+    | MonthlyFunding -> "monatliches Ansparen"
+    | Debt -> "Schulden"
+    | OtherKind goalType -> goalType
+
+/// Ein Rhythmus ohne Kadenz heißt in den Hinweisen "einmalig".
+let private gapRhythmWord (rhythm: TargetRhythm) : string =
+    match rhythm with
+    | NoRhythm -> "einmalig"
+    | r -> rhythmWordText r
+
+/// Der Hinweis je Lücke: "In YNAB ohne Wochentag", "In YNAB monatlich statt alle 3 Monate".
+let ynabGoalGapText (gap: YnabGoalGap) : string =
+    match gap with
+    | WeekdayMissing -> "In YNAB ohne Wochentag"
+    | WeekdayDiffers day -> $"In YNAB mit anderem Wochentag ({weekdayText day})"
+    | DayMissing -> "In YNAB ohne Tag"
+    | RhythmDiffers (inBb, inYnab) -> $"In YNAB {gapRhythmWord inYnab} statt {gapRhythmWord inBb}"
+    | KindDiffers (inBb, inYnab) -> $"In YNAB als {kindWord inYnab} statt {kindWord inBb}"
+
+/// Was der einmalige Lauf mit einem Target tat.
+type TargetToYnabOutcome =
+    /// YNABs Goal stand schon auf BBs Target, nichts gesendet.
+    | GoalAlreadyInYnab
+    /// Geschrieben; die Liste nennt, was YNAB nicht zeigt ("Mit Abweichung", wenn nicht leer).
+    | GoalWritten of gaps: YnabGoalGap list
+    | GoalWriteFailed of reason: string
+    /// Nach einem 429 nicht mehr versucht: bleibt "Nicht in YNAB", wenn es offen war.
+    | GoalNotAttempted
+
+/// Eine Zeile des einmaligen Laufs.
+type TargetToYnabLine = {
+    CategoryId: Guid
+    CategoryName: string
+    Outcome: TargetToYnabOutcome
+}
+
+/// Der Bericht des einmaligen Laufs "Targets nach YNAB schreiben".
+type TargetsToYnabReport = {
+    Lines: TargetToYnabLine list
+    /// YNAB meldete 429, der Lauf brach ab; die übrigen stehen als `GoalNotAttempted`.
+    RateLimited: bool
+}
 
 /// Ziffern mit Tausenderpunkt: "1234567" wird "1.234.567". Für `euroText` und `wholeEuroText`.
 let rec private groupThousands (digits: string) : string =

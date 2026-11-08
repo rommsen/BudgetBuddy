@@ -282,11 +282,23 @@ let private takeoverTests =
 let private current = "2026-11-01"
 let private now = DateTime(2026, 11, 4, 9, 0, 0, DateTimeKind.Utc)
 
-/// Die Ereignistypen im Target-Stream der Kategorie.
+/// Ein YNAB, das jeden Aufruf ablehnt: diese Abläufe prüfen nur BBs Teil, das Schreiben nach YNAB prüft
+/// `TargetToYnabTests` (budgeting-e2z7v).
+let private noYnab : CommandHandlers.YnabPort =
+    let refused () = async { return Error (YnabError.RefusedByBb "kein YNAB im Test") }
+    { FetchMonth = fun _ -> refused ()
+      SetAssigned = fun _ _ _ -> refused ()
+      WriteGoal = fun _ _ -> refused ()
+      FetchCategoryGoals = fun () -> refused () }
+
+/// Die Ereignistypen im Target-Stream der Kategorie, ohne die Ergebnisse des Schreibens nach YNAB.
 let private streamTypes (k: Guid) : string list =
     use conn = global.Persistence.getConnection ()
     match Budgeting.Persistence.loadBudgetEventsOn conn (Budgeting.Persistence.InStream (streamIdOf (TargetStream k))) with
-    | Ok events -> events |> List.map (fun e -> eventTypeName e.Event)
+    | Ok events ->
+        events
+        |> List.map (fun e -> eventTypeName e.Event)
+        |> List.filter (fun t -> not (List.contains t EventTypes.targetWrites))
     | Error e -> failtest e
 
 let private takeOver (k: Guid) (target: Target) =
@@ -297,7 +309,7 @@ let private takeOver (k: Guid) (target: Target) =
         [ k, BudgetEvent.TargetTakenOverFromYnab { CategoryName = "Urlaub"; Rule = target; YnabGoalType = goalTypeText target.Kind } ]
 
 let private change (month: string) (r: TargetChangeRequest) =
-    CommandHandlers.changeTargetWith global.Persistence.getConnection now current month r |> run
+    CommandHandlers.changeTargetWith global.Persistence.getConnection noYnab now current month r |> run
 
 let private changeOk month r : Target option =
     match change month r with
@@ -402,8 +414,8 @@ let private flowTests =
                 })
                 |> Async.StartAsTask
             holder.Wait()
-            let sixty = CommandHandlers.changeTargetWith global.Persistence.getConnection now current current (request k (Some fifty) (Some (draft 60m None))) |> Async.StartAsTask
-            let seventy = CommandHandlers.changeTargetWith global.Persistence.getConnection now current current (request k (Some fifty) (Some (draft 70m None))) |> Async.StartAsTask
+            let sixty = CommandHandlers.changeTargetWith global.Persistence.getConnection noYnab now current current (request k (Some fifty) (Some (draft 60m None))) |> Async.StartAsTask
+            let seventy = CommandHandlers.changeTargetWith global.Persistence.getConnection noYnab now current current (request k (Some fifty) (Some (draft 70m None))) |> Async.StartAsTask
             Expect.isFalse (sixty.Wait 200 || seventy.Wait 0) "beide warten an der Sperre"
             release.Release() |> ignore
             held.Wait()
@@ -426,9 +438,9 @@ let private flowTests =
                 })
                 |> Async.StartAsTask
             holder.Wait()
-            let blocked = CommandHandlers.changeTargetWith global.Persistence.getConnection now current current (request a (Some fifty) (Some (draft 60m None))) |> Async.StartAsTask
+            let blocked = CommandHandlers.changeTargetWith global.Persistence.getConnection noYnab now current current (request a (Some fifty) (Some (draft 60m None))) |> Async.StartAsTask
             // Mit Zeitgrenze: eine globale Sperre macht den Test rot, statt ihn hängen zu lassen.
-            let free = CommandHandlers.changeTargetWith global.Persistence.getConnection now current current (request b (Some fifty) (Some (draft 60m None))) |> Async.StartAsTask
+            let free = CommandHandlers.changeTargetWith global.Persistence.getConnection noYnab now current current (request b (Some fifty) (Some (draft 60m None))) |> Async.StartAsTask
             let finished = free.Wait(TimeSpan.FromSeconds 10.0)
             if not finished then release.Release() |> ignore
             Expect.isTrue finished "b endet, obwohl a gesperrt ist"
@@ -456,7 +468,7 @@ let private flowTests =
             let k = Guid.NewGuid()
             Dapper.SqlMapper.Execute(anchor, "CREATE TRIGGER no_events BEFORE INSERT ON events BEGIN SELECT RAISE(ABORT, 'Platte voll'); END") |> ignore
             let result =
-                CommandHandlers.changeTargetWith connect now current current
+                CommandHandlers.changeTargetWith connect noYnab now current current
                     { request k None (Some (created Monthly 50m None)) with CommandId = Some (Guid.NewGuid()) }
                 |> run
             Expect.equal result (Error (YnabError.LocalWriteFailed CommandHandlers.TargetChangeNotRecordedText)) "sauberer Fehler"
@@ -468,7 +480,7 @@ let private flowTests =
             use _ = anchor
             let k = Guid.NewGuid()
             BudgetEventsFixture.appendUnreadable anchor (TargetStream k) "TargetSet"
-            let result = CommandHandlers.changeTargetWith connect now current current (request k None (Some (created Monthly 50m None))) |> run
+            let result = CommandHandlers.changeTargetWith connect noYnab now current current (request k None (Some (created Monthly 50m None))) |> run
             Expect.equal result (Error (YnabError.LocalReadFailed Budgeting.Persistence.TargetRulesUnreadableText)) "gemeldet"
             Expect.equal (Dapper.SqlMapper.ExecuteScalar<int64>(anchor, "SELECT COUNT(*) FROM events")) 1L "nichts angehängt"
     ]
@@ -527,6 +539,7 @@ let private takeoverFlowTests =
             let port : CommandHandlers.YnabPort =
                 { FetchMonth = fun _ -> async { return Ok raw }
                   SetAssigned = fun _ _ _ -> async { return failwith "kein Schreiben" }
+                  WriteGoal = (fun _ _ -> async { return Ok () })
                   FetchCategoryGoals = probe.Fetch }
             let read () =
                 match QueryHandlers.budgetMonthWith global.Persistence.getConnection port now monthKey |> run with
@@ -553,6 +566,7 @@ let private takeoverFlowTests =
             let port : CommandHandlers.YnabPort =
                 { FetchMonth = fun _ -> async { return Ok raw }
                   SetAssigned = fun _ _ _ -> async { return failwith "kein Schreiben" }
+                  WriteGoal = (fun _ _ -> async { return Ok () })
                   FetchCategoryGoals = fun () -> async { return Error (YnabError.RateLimitExceeded 60) } }
             match QueryHandlers.budgetMonthWith global.Persistence.getConnection port now monthKey |> run with
             | Ok m -> Expect.equal m.Groups.Head.Categories.Head.Target None "ohne Übernahme kein Target"
@@ -594,7 +608,7 @@ let private takeoverFlowTests =
                 }
             let takeover = CommandHandlers.takeOverTargetsWith connect slowGoals now |> Async.StartAsTask
             let set =
-                CommandHandlers.changeTargetWith connect now current current (request k None (Some (created Monthly 70m None)))
+                CommandHandlers.changeTargetWith connect noYnab now current current (request k None (Some (created Monthly 70m None)))
                 |> Async.StartAsTask
             takeover.Wait()
             set.Wait()
@@ -629,6 +643,7 @@ let private takeoverFlowTests =
             let port : CommandHandlers.YnabPort =
                 { FetchMonth = fun _ -> async { return Ok raw }
                   SetAssigned = fun _ _ _ -> async { return failwith "kein Schreiben" }
+                  WriteGoal = (fun _ _ -> async { return Ok () })
                   FetchCategoryGoals = probe.Fetch }
             for _ in 1..2 do
                 match QueryHandlers.budgetMonthWith connect port now current |> run with
@@ -650,6 +665,7 @@ let private takeoverFlowTests =
             let port : CommandHandlers.YnabPort =
                 { FetchMonth = fun _ -> async { return Ok raw }
                   SetAssigned = fun _ _ _ -> async { return failwith "kein Schreiben" }
+                  WriteGoal = (fun _ _ -> async { return Ok () })
                   FetchCategoryGoals = probe.Fetch }
             Expect.isOk (QueryHandlers.budgetMonthWith connect port now "2026-10-01" |> run) "gelesen"
             Expect.equal probe.Calls 0 "kein Abruf"
@@ -670,6 +686,7 @@ let private takeoverFlowTests =
             let port : CommandHandlers.YnabPort =
                 { FetchMonth = fun _ -> async { return Ok raw }
                   SetAssigned = fun _ id _ -> async { patches.Add id; return Ok () }
+                  WriteGoal = (fun _ _ -> async { return Ok () })
                   FetchCategoryGoals = fun () -> async { return Error (YnabError.RateLimitExceeded 60) } }
             let assigned =
                 CommandHandlers.assignMoneyWith connect port now monthKey { CategoryId = k; Assigned = eur 20m; CommandId = None } |> run
@@ -702,6 +719,7 @@ let private takeoverFlowTests =
             let port : CommandHandlers.YnabPort =
                 { FetchMonth = fun _ -> async { return Ok raw }
                   SetAssigned = fun _ _ _ -> async { return failwith "kein Schreiben" }
+                  WriteGoal = (fun _ _ -> async { return Ok () })
                   FetchCategoryGoals = fun () -> async { return Ok [] } }
             Expect.equal
                 (QueryHandlers.budgetMonthWith connect port now current |> run)
@@ -716,7 +734,7 @@ let private takeoverFlowTests =
             Budgeting.Persistence.appendTargetTakeoverOn anchor now [ k, BudgetEvent.TargetTakenOverFromYnab { CategoryName = "Urlaub"; Rule = fifty; YnabGoalType = "NEED" } ]
             let sixty = { fifty with Goal = eur 60m }
             Expect.equal
-                (CommandHandlers.changeTargetWith connect now current current (request k (Some fifty) (Some (draft 60m None))) |> run)
+                (CommandHandlers.changeTargetWith connect noYnab now current current (request k (Some fifty) (Some (draft 60m None))) |> run)
                 (Ok (Ok (TargetWritten (Some sixty))))
                 "ab November 60"
             let port : CommandHandlers.YnabPort =
@@ -733,6 +751,7 @@ let private takeoverFlowTests =
                                             Hidden = false; Deleted = false; Internal = false } ] }
                         }
                   SetAssigned = fun _ _ _ -> async { return failwith "kein Schreiben" }
+                  WriteGoal = (fun _ _ -> async { return Ok () })
                   FetchCategoryGoals = fun () -> async { return failwith "geführt, kein Abruf" } }
             let targetIn monthKey =
                 match QueryHandlers.budgetMonthWith connect port now monthKey |> run with

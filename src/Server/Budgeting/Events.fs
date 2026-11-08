@@ -177,6 +177,11 @@ type TargetSetting = {
 /// Ein Target, in BB entfernt, ab `EffectiveFrom` ("YYYY-MM").
 type TargetRemoval = { EffectiveFrom: string }
 
+/// Verweis eines Schreib-Ergebnisses auf die Target-Entscheidung, deren Regel nach YNAB ging (budgeting-e2z7v,
+/// Nachtrag ADR 0084 vom 2026-11-08): die `event_id` eines `TargetSet`, `TargetRemoved` oder
+/// `TargetTakenOverFromYnab`. Der Stream nennt die Kategorie.
+type TargetWriteRef = { DecisionEventId: Guid }
+
 /// Ein Budget-Ereignis. Qualifiziert zu benutzen: die Namen gleichen Fällen in `Shared.Budgeting`.
 [<RequireQualifiedAccess>]
 type BudgetEvent =
@@ -198,6 +203,8 @@ type BudgetEvent =
     | TargetTakenOverFromYnab of TargetTakeover
     | TargetSet of TargetSetting
     | TargetRemoved of TargetRemoval
+    | TargetWrittenToYnab of TargetWriteRef
+    | TargetWriteToYnabFailed of TargetWriteRef * reason: string
 
 /// Der Typname in `events.event_type` (ADR 0083 Punkt 9).
 let eventTypeName (event: BudgetEvent) : string =
@@ -220,6 +227,8 @@ let eventTypeName (event: BudgetEvent) : string =
     | BudgetEvent.TargetTakenOverFromYnab _ -> "TargetTakenOverFromYnab"
     | BudgetEvent.TargetSet _ -> "TargetSet"
     | BudgetEvent.TargetRemoved _ -> "TargetRemoved"
+    | BudgetEvent.TargetWrittenToYnab _ -> "TargetWrittenToYnab"
+    | BudgetEvent.TargetWriteToYnabFailed _ -> "TargetWriteToYnabFailed"
 
 /// Typnamen für Leser, die nicht den ganzen Kontext brauchen (Filter auf `event_type`, Index
 /// `idx_events_context_type`). Aus `eventTypeName` abgeleitet, damit es keine zweite Schreibweise gibt;
@@ -274,6 +283,11 @@ module EventTypes =
     /// führt BB das Target der Kategorie.
     let targetRules : string list = targetTakenOver :: targetChanges
 
+    /// Die Ergebnisse des Schreibens eines Targets nach YNAB (budgeting-e2z7v). Nicht in `targetRules`: sie ändern
+    /// BBs Regel nicht und führen kein Target.
+    let targetWrites : string list =
+        [ BudgetEvent.TargetWrittenToYnab none; BudgetEvent.TargetWriteToYnabFailed (none, none) ] |> List.map eventTypeName
+
 /// Alle Budget-Ereignisse tragen heute Schema-Version 1.
 [<Literal>]
 let SchemaVersion = 1
@@ -299,7 +313,9 @@ let actorKindOf (event: BudgetEvent) : string =
     | BudgetEvent.YnabGoalStepSupersededInYnab _
     | BudgetEvent.BudgetTakenOverFromYnab _
     | BudgetEvent.AssignmentChangeObservedInYnab _
-    | BudgetEvent.TargetTakenOverFromYnab _ -> "YnabMirror"
+    | BudgetEvent.TargetTakenOverFromYnab _
+    | BudgetEvent.TargetWrittenToYnab _
+    | BudgetEvent.TargetWriteToYnabFailed _ -> "YnabMirror"
 
 // ============================================
 // Ausgang einer Rückschreibung
@@ -666,6 +682,17 @@ module Codec =
     let decodeTargetRemoved : Decoder<TargetRemoval> =
         Decode.object (fun get -> { EffectiveFrom = get.Required.Field "effectiveFrom" decodeMonth })
 
+    let encodeTargetWrite (r: TargetWriteRef) = Encode.object [ "decisionEventId", encodeGuid r.DecisionEventId ]
+
+    let encodeTargetWriteFailed (r: TargetWriteRef, reason: string) =
+        Encode.object [ "decisionEventId", encodeGuid r.DecisionEventId; "reason", Encode.string reason ]
+
+    let decodeTargetWrite : Decoder<TargetWriteRef> =
+        Decode.object (fun get -> { DecisionEventId = get.Required.Field "decisionEventId" decodeGuid })
+
+    let decodeTargetWriteFailed : Decoder<TargetWriteRef * string> =
+        Decode.map2 (fun r reason -> r, reason) decodeTargetWrite (Decode.field "reason" Decode.string)
+
 /// Die Payload als JSON-Text, Felder in camelCase.
 let encodePayload (event: BudgetEvent) : string =
     let json =
@@ -688,6 +715,8 @@ let encodePayload (event: BudgetEvent) : string =
         | BudgetEvent.TargetTakenOverFromYnab p -> Codec.encodeTargetTakeover p
         | BudgetEvent.TargetSet p -> Codec.encodeTargetSet p
         | BudgetEvent.TargetRemoved p -> Codec.encodeTargetRemoved p
+        | BudgetEvent.TargetWrittenToYnab r -> Codec.encodeTargetWrite r
+        | BudgetEvent.TargetWriteToYnabFailed (r, reason) -> Codec.encodeTargetWriteFailed (r, reason)
     Encode.toString 0 json
 
 /// Liest eine gespeicherte Payload. Typname und Schema-Version bestimmen den Decoder; ein unbekannter
@@ -714,6 +743,8 @@ let decodePayload (eventType: string) (version: int) (payload: string) : Result<
     | "TargetTakenOverFromYnab", 1 -> decode Codec.decodeTargetTakeover BudgetEvent.TargetTakenOverFromYnab
     | "TargetSet", 1 -> decode Codec.decodeTargetSet BudgetEvent.TargetSet
     | "TargetRemoved", 1 -> decode Codec.decodeTargetRemoved BudgetEvent.TargetRemoved
+    | "TargetWrittenToYnab", 1 -> decode Codec.decodeTargetWrite BudgetEvent.TargetWrittenToYnab
+    | "TargetWriteToYnabFailed", 1 -> decode Codec.decodeTargetWriteFailed BudgetEvent.TargetWriteToYnabFailed
     | t, v -> Error $"Unbekannter Budget-Ereignistyp '{t}' in Schema-Version {v}"
 
 /// Ein Ereignis für `EventStore.append`. Der Zeitpunkt muss UTC sein (`EventStore.validate`).

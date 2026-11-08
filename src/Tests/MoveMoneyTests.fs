@@ -26,7 +26,7 @@ let private budgetCategory name (assigned: int64) : BudgetCategory =
       Available = eur assigned
       Underfunded = None
       Target = None
-      Pause = None; OpenWriteBack = None; Deactivated = None }
+      Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None }
 
 let private monthWith (cats: BudgetCategory list) : BudgetMonth =
     { Month = "2026-11-01"
@@ -174,6 +174,7 @@ type private FakeYnab(categories: (Guid * string * int64) list) =
                         assigned[id] <- milliunits
                         return Ok ()
                 }
+          WriteGoal = (fun _ _ -> async { return Ok () })
           FetchCategoryGoals = fun () -> async { return Ok [] } }
 
 let private monthKey = "2026-11-01"

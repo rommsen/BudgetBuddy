@@ -249,6 +249,7 @@ let private ensureTests =
             let reader : YnabPort =
                 { FetchMonth = fake.FetchMonth
                   SetAssigned = fun _ _ _ -> failwith "schreibt nicht"
+                  WriteGoal = (fun _ _ -> async { return Ok () })
                   FetchCategoryGoals = fun () -> async { return Ok [] } }
             match observeMonthWith global.Persistence.getConnection reader (juneOf year) month |> run with
             | Ok _ -> ()
@@ -338,6 +339,7 @@ let private loopTests =
             let reader : YnabPort =
                 { FetchMonth = fake.FetchMonth
                   SetAssigned = fun _ _ _ -> failwith "schreibt nicht"
+                  WriteGoal = (fun _ _ -> async { return Ok () })
                   FetchCategoryGoals = fun () -> async { return Ok [] } }
             match observeMonthWith global.Persistence.getConnection reader (juneOf year) (key year 7) |> run with
             | Ok _ -> ()

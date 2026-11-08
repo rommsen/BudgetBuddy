@@ -26,7 +26,7 @@ let private budgetCategory (id: Guid) (name: string) : BudgetCategory =
       Available = eur 70m
       Underfunded = None
       Target = None
-      Pause = None; OpenWriteBack = None; Deactivated = None }
+      Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None }
 
 let private october : BudgetMonth =
     { Month = "2026-10-01"

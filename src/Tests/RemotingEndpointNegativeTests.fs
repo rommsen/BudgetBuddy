@@ -375,6 +375,7 @@ let private rows : Row list = [
           let empty : Server.Budgeting.CommandHandlers.YnabPort =
               { FetchMonth = fun month -> async { return Ok { Month = month; ToBeBudgeted = { Amount = 0m; Currency = "EUR" }; Categories = [] } }
                 SetAssigned = fun _ _ _ -> async { return failwith "Pausieren schreibt nicht nach YNAB" }
+                WriteGoal = (fun _ _ -> async { return Ok () })
                 FetchCategoryGoals = fun () -> async { return Ok [] } }
           let frame _ _ : Server.Budgeting.QueryHandlers.BudgetFramePort =
               { FetchMonths = (fun () -> async { return Ok [] }); FetchCategoryOrder = (fun () -> async { return Ok [] }); LoadMonthStartHidden = (fun _ -> async { return Ok [] }) }
@@ -400,6 +401,7 @@ let private rows : Row list = [
           let empty : Server.Budgeting.CommandHandlers.YnabPort =
               { FetchMonth = fun month -> async { return Ok { Month = month; ToBeBudgeted = { Amount = 0m; Currency = "EUR" }; Categories = [] } }
                 SetAssigned = fun _ _ _ -> async { return failwith "kein Zuweisen erwartet" }
+                WriteGoal = (fun _ _ -> async { return Ok () })
                 FetchCategoryGoals = fun () -> async { return Ok [] } }
           let frame _ _ : Server.Budgeting.QueryHandlers.BudgetFramePort =
               { FetchMonths = (fun () -> async { return Ok [] }); FetchCategoryOrder = (fun () -> async { return Ok [] }); LoadMonthStartHidden = (fun _ -> async { return Ok [] }) }
@@ -475,6 +477,11 @@ let private rows : Row list = [
         | Ok () -> failtest "Ausblenden hätte abgelehnt werden müssen" }
     { Endpoint = "BudgetApi.retryFailedTargets"; Case = "keine gültige Anwendungs-Id: Fehler"
       Run = fun () -> budget.retryFailedTargets "keine-guid" |> run |> expectError "Wiederholen" }
+    // budgeting-e2z7v: Targets nach YNAB.
+    { Endpoint = "BudgetApi.retryTargetToYnab"; Case = "unbekannte Kategorie ohne Einrichtung: Fehler statt Ausnahme, kein YNAB"
+      Run = fun () -> budget.retryTargetToYnab (Guid.NewGuid()) |> run |> expectError "Erneut senden" }
+    { Endpoint = "BudgetApi.writeAllTargetsToYnab"; Case = "ohne Einrichtung: Fehler statt Ausnahme, kein YNAB"
+      Run = fun () -> budget.writeAllTargetsToYnab () |> run |> expectError "Targets nach YNAB" }
     // ---------------- CategoryApi (budgeting-pscgb) ----------------
     { Endpoint = "CategoryApi.getCategoryGroups"; Case = "ohne Einrichtung: Fehler statt Ausnahme"
       Run = fun () ->

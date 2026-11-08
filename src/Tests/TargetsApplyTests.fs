@@ -27,7 +27,7 @@ let private category name (assigned: int64) (under: int64 option) (snoozed: bool
       Available = eur assigned
       Underfunded = under |> Option.map eur
       Target = None
-      Pause = (if snoozed then Some PausedInBb else None); OpenWriteBack = None; Deactivated = None }
+      Pause = (if snoozed then Some PausedInBb else None); OpenWriteBack = None; TargetInYnab = None; Deactivated = None }
 
 let private monthOf (tbb: int64) (cats: BudgetCategory list) : BudgetMonth =
     { Month = "2026-11-01"
@@ -190,6 +190,7 @@ let private ynabTests =
 let private fakePortWith (result: YnabResult<unit>) : YnabPort =
     { FetchMonth = fun _ -> async { return Error (YnabError.RateLimitExceeded 60) }
       SetAssigned = fun _ _ _ -> async { return result }
+      WriteGoal = (fun _ _ -> async { return Ok () })
       FetchCategoryGoals = fun () -> async { return Ok [] } }
 
 let private apiTests =
@@ -293,6 +294,7 @@ type private FakeYnab(initial: (Guid * string * int64 * int64 * bool) list, tbb0
                         assigned[id] <- milliunits
                         return Ok ()
                 }
+          WriteGoal = (fun _ _ -> async { return Ok () })
           FetchCategoryGoals =
             fun () ->
                 async {
@@ -374,7 +376,7 @@ let private flowTests =
             // Das erste Lesen übernimmt das Target 50 aus YNABs Goal, danach ändert Roman es in BB auf 80.
             previewOf f |> ignore
             let wanted = { NewGoal = eur 80000L; NewDate = None; NewRhythm = KeepRhythm; NewDay = None }
-            match changeTarget now monthKey monthKey { CategoryId = a; Shown = Some (goalOf 50000L); Wanted = Some wanted; CommandId = None } |> run with
+            match changeTarget f.Port now monthKey monthKey { CategoryId = a; Shown = Some (goalOf 50000L); Wanted = Some wanted; CommandId = None } |> run with
             | Ok (Ok (TargetWritten _)) -> ()
             | other -> failtest $"Target geändert erwartet: {other}"
             let shown = previewOf f

@@ -554,10 +554,20 @@ type BudgetApi = {
     setTargetPause: string -> Shared.Budgeting.TargetPauseRequest -> Async<Result<Shared.Budgeting.PauseSource option, string>>
 
     /// Target ändern oder entfernen (budgeting-k8wq3, ADR 0080, budgeting-eh8xe) im Monat ("YYYY-MM-01"), nur
-    /// im laufenden. Nur in BB, YNAB wird nicht aufgerufen. Unter der Sperre je Kategorie: weicht das gezeigte
-    /// Target von BBs Stand ab, wird abgelehnt. Sonst ein `TargetSet` oder `TargetRemoved`. Eine Wiederholung
-    /// mit derselben Befehls-Id antwortet wie beim ersten Mal. Error mit konkreter Meldung.
+    /// im laufenden. Unter der Sperre je Kategorie: weicht das gezeigte Target von BBs Stand ab, wird abgelehnt.
+    /// Sonst ein `TargetSet` oder `TargetRemoved`, danach geht das Goal nach YNAB (budgeting-e2z7v); ein Fehlschlag
+    /// dort ändert die Antwort nicht, er steht am Target ("Nicht in YNAB", `BudgetCategory.TargetInYnab`). Eine
+    /// Wiederholung mit derselben Befehls-Id antwortet wie beim ersten Mal und sendet nichts. Error mit konkreter
+    /// Meldung.
     changeCategoryTarget: string -> Shared.Budgeting.TargetChangeRequest -> Async<Result<Shared.Budgeting.TargetChangeResult, string>>
+
+    /// "Erneut senden" am Target (budgeting-e2z7v): schickt die offene Target-Entscheidung der Kategorie noch einmal
+    /// nach YNAB. Ok: in YNAB. Error: der Grund, warum sie weiter nicht in YNAB ist.
+    retryTargetToYnab: System.Guid -> Async<Result<unit, string>>
+
+    /// Der einmalige Lauf "Targets nach YNAB schreiben" (budgeting-e2z7v): bringt alle BB-Targets nach YNAB, bricht bei
+    /// 429 ab. Ändert BBs Targets nicht. Error: YNAB oder BBs Targets nicht lesbar, nichts gesendet.
+    writeAllTargetsToYnab: unit -> Async<Result<Shared.Budgeting.TargetsToYnabReport, string>>
 
     /// "Zuletzt verwendet" im Picker der Gegenseite: Kategorien aus den Bewegungen mit Herkunft
     /// Verschieben, neueste zuerst, höchstens zehn. Liest nur die Datenbank, kein YNAB.

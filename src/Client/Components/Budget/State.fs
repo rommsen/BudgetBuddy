@@ -160,6 +160,19 @@ let targetChangeCmdWith
 let private targetChangeCmd (monthKey: string) (request: TargetChangeRequest) : Cmd<Msg> =
     targetChangeCmdWith (fun month request -> Api.budget.changeCategoryTarget month request) monthKey request
 
+/// "Erneut senden" am Target (budgeting-e2z7v). Das Senden plant gegen YNABs Stand, eine Wiederholung nach Status 0
+/// schreibt nichts doppelt (ein zweiter Versuch wie `Retry.writingDelaysMs`).
+let targetRetryCmdWith (call: System.Guid -> Async<Result<unit, string>>) (categoryId: System.Guid) : Cmd<Msg> =
+    Cmd.OfAsync.either
+        (fun () -> Retry.withRetry Retry.isNetworkError Retry.writingDelaysMs Async.Sleep (fun () -> call categoryId))
+        ()
+        (fun result -> TargetToYnabRetried (categoryId, result))
+        (fun ex -> TargetToYnabRetried (categoryId, Error ex.Message))
+
+/// Der einmalige Lauf "Targets nach YNAB schreiben" (budgeting-e2z7v), ohne Wiederholung: er kann lange laufen.
+let writeAllTargetsCmdWith (call: unit -> Async<Result<TargetsToYnabReport, string>>) : Cmd<Msg> =
+    Cmd.OfAsync.either call () AllTargetsWritten (fun ex -> AllTargetsWritten (Error ex.Message))
+
 let private recentCmd () : Cmd<Msg> =
     Cmd.OfAsync.either
         (fun () -> Retry.reading Api.budget.getRecentMoveCategories ())
@@ -355,6 +368,23 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
     | ToggleBudgetMenu -> { model with MenuOpen = not model.MenuOpen }, Cmd.none, NoOp
     | CloseBudgetMenu -> { model with MenuOpen = false }, Cmd.none, NoOp
     | OpenCategoryAdmin -> { model with MenuOpen = false }, Cmd.none, ShowCategoryAdmin
+    | RetryTargetToYnab categoryId ->
+        match startTargetRetry categoryId model with
+        | model', true -> model', targetRetryCmdWith (fun id -> Api.budget.retryTargetToYnab id) categoryId, NoOp
+        | model', false -> model', Cmd.none, NoOp
+    | TargetToYnabRetried (categoryId, result) ->
+        let answered, external = applyTargetRetried categoryId result model
+        let rereading, how = rereadMonth answered
+        rereading, rereadCmd how rereading, external
+    | AskWriteAllTargets -> askWriteAllTargets model, Cmd.none, NoOp
+    | ConfirmWriteAllTargets ->
+        match startWriteAllTargets model with
+        | model', true -> model', writeAllTargetsCmdWith (fun () -> Api.budget.writeAllTargetsToYnab ()), NoOp
+        | model', false -> model', Cmd.none, NoOp
+    | AllTargetsWritten result ->
+        let rereading, how = rereadMonth (applyAllTargetsWritten result model)
+        rereading, rereadCmd how rereading, NoOp
+    | CloseWriteAllTargets -> closeWriteAllTargets model, Cmd.none, NoOp
     | CategoryAdminMsg inner ->
         let admin, cmd, external = Components.Budget.Categories.update inner model.CategoryAdmin
         let outward =
@@ -615,6 +645,12 @@ let private routeOf (msg: Msg) (model: Model) : MsgRoute =
     | ToggleBudgetMenu
     | CloseBudgetMenu
     | OpenCategoryAdmin
+    | RetryTargetToYnab _
+    | TargetToYnabRetried _
+    | AskWriteAllTargets
+    | ConfirmWriteAllTargets
+    | AllTargetsWritten _
+    | CloseWriteAllTargets
     | CategoryAdminMsg _
     | GeneralHistoryEntered
     | RetryGeneralHistory

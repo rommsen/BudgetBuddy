@@ -58,6 +58,7 @@
     <Compile Include="BudgetLeadTests.fs" />
     <Compile Include="BudgetTakeoverTests.fs" />
     <Compile Include="TargetChangeTests.fs" />
+    <Compile Include="TargetToYnabTests.fs" />
     <Compile Include="TargetCheckTests.fs" />
     <Compile Include="TargetCheckQueryTests.fs" />
     <Compile Include="UnderfundedTests.fs" />
@@ -159,6 +160,7 @@
     <Compile Include="MoveMoneyClientTests.fs" />
     <Compile Include="TargetPauseClientTests.fs" />
     <Compile Include="TargetChangeClientTests.fs" />
+    <Compile Include="TargetToYnabClientTests.fs" />
     <Compile Include="TargetFormCoreTests.fs" />
     <Compile Include="BudgetGeneralHistoryClientTests.fs" />
     <Compile Include="TargetCheckClientTests.fs" />

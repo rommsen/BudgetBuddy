@@ -489,6 +489,7 @@ let private countingPort (monthOf: string -> YnabMonth) : CommandHandlers.YnabPo
                 return Ok month
             }
       SetAssigned = fun _ id milliunits -> async { lock writes (fun () -> writes.Add((id, milliunits))); return Ok () }
+      WriteGoal = (fun _ _ -> async { return Ok () })
       FetchCategoryGoals =
         fun () ->
             async {

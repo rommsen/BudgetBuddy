@@ -28,6 +28,19 @@ let private periodActivityForPage
             return Some Map.empty
     }
 
+/// Trägt in jede Kategorie ihr Target gegenüber YNAB ein (budgeting-e2z7v, `TargetRules.targetYnabState`): die offene
+/// Schreibung aus `openWrites` und die Lücken gegen YNABs Goal aus dem gelesenen Monat `raw`. Rein.
+let withTargetInYnab
+    (openWrites: Map<Guid, Server.Budgeting.TargetRules.OpenTargetWrite>)
+    (raw: YnabMonth)
+    (month: BudgetMonth)
+    : BudgetMonth =
+    let goals = raw.Categories |> List.map (fun c -> c.Id, c.Target) |> Map.ofList
+    let withState (c: BudgetCategory) =
+        let inYnab = goals |> Map.tryFind c.Id |> Option.flatten
+        { c with TargetInYnab = Server.Budgeting.TargetRules.targetYnabState c.Target inYnab (openWrites |> Map.tryFind c.Id) }
+    { month with Groups = month.Groups |> List.map (fun g -> { g with Categories = g.Categories |> List.map withState }) }
+
 /// Die in BB deaktivierten Kategorien für das Lesen eines Monats (budgeting-sn2sn). Ist BBs Zustand nicht lesbar,
 /// gilt keine als deaktiviert: die Liste zeigt dann eine zu viel, aber kein Geld wird unsichtbar. Der Grund steht
 /// im Server-Log.
@@ -73,8 +86,13 @@ let budgetMonthWithLedger
                 | Error message -> return Error (YnabError.LocalReadFailed message)
                 | Ok targets ->
                     let! activity = periodActivityForPage ledger targets monthKey
+                    // Nach bestem Bemühen: ist der Stand gegenüber YNAB nicht lesbar, fehlt nur der Hinweis (Grund im Log).
+                    let! openWrites = Budgeting.Persistence.loadOpenTargetWritesWith connect
                     let! deactivated = deactivatedForPage connect
-                    return Ok (toBudgetMonthWith assignments activity targets paused raw |> applyDeactivation deactivated)
+                    // Erst deaktivieren (budgeting-sn2sn), dann den Stand gegenüber YNAB eintragen: beide ändern nur ihr
+                    // eigenes Feld, die Folge ändert nichts am Ergebnis; so bekommt eine weggelassene Kategorie keinen Stand.
+                    let month = toBudgetMonthWith assignments activity targets paused raw |> applyDeactivation deactivated
+                    return Ok (withTargetInYnab (openWrites |> Result.defaultValue Map.empty) raw month)
     }
 
 /// `budgetMonthWithLedger` mit dem Kassenbuch der Anwendung (`CommandHandlers.liveLedgerActivityPort`).

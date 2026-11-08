@@ -262,6 +262,45 @@ let private targetStatus (category: BudgetCategory) =
         | None -> ()
     ]
 
+/// Das Target gegenüber YNAB (budgeting-e2z7v): gelb "Nicht in YNAB" mit Grund und "Erneut senden" (ADR 0087
+/// Nachtrag), darunter gedämpft, was YNAB nicht zeigt, und an einem pausierten Target "In YNAB nicht gesnoozt".
+/// Was erscheint, sagt `targetYnabHints`.
+let private targetYnabView (model: Model) (category: BudgetCategory) (dispatch: Msg -> unit) =
+    let hints = Components.Budget.TargetEdit.targetYnabHints category
+    Html.div [
+        prop.custom ("data-testid", "target-ynab")
+        prop.className "flex flex-col gap-1"
+        prop.children [
+            match hints.NotInYnab with
+            | Some reason ->
+                Html.div [
+                    prop.role "status"
+                    prop.className "flex items-center gap-2 min-w-0"
+                    prop.children [
+                        Html.span [
+                            prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.attention} font-medium shrink-0"
+                            prop.text TargetNotInYnabText
+                        ]
+                        Truncate.text ListRoles.muted reason
+                        Button.view
+                            { Button.defaultProps with
+                                Text = "Erneut senden"
+                                Variant = Button.Ghost
+                                Size = Button.Small
+                                IsLoading = Components.Budget.TargetEdit.targetRetryRunning category.Id model
+                                IsDisabled = model.TargetYnabRetry.IsSome
+                                ClassName = Some "shrink-0"
+                                OnClick = fun () -> dispatch (RetryTargetToYnab category.Id) }
+                    ]
+                ]
+            | None -> ()
+            for gap in hints.Gaps do
+                Html.p [ prop.className ListRoles.muted; prop.text gap ]
+            if hints.NotSnoozed then
+                Html.p [ prop.className ListRoles.muted; prop.text TargetNotSnoozedText ]
+        ]
+    ]
+
 /// Tab Target: im laufenden Monat das Formular (budgeting-k8wq3), sonst das Target als Text, dazu Status mit
 /// Quelle der Pause, Fehlbetrag und derselbe Pause-Knopf wie im Tab Geld.
 let private targetTab (model: Model) (category: BudgetCategory) (dispatch: Msg -> unit) =
@@ -280,6 +319,7 @@ let private targetTab (model: Model) (category: BudgetCategory) (dispatch: Msg -
                 Components.Budget.TargetEditView.readOnlyTarget model category target
                 targetStatus category
                 pause
+            targetYnabView model category dispatch
         ]
     ]
 

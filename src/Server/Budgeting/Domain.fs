@@ -597,6 +597,8 @@ let private toBudgetCategory
       // nicht (budgeting-eh8xe, Nachtrag ADR 0079).
       Pause = (if target.IsSome && pausedInBb.Contains c.Id then Some PausedInBb else None)
       OpenWriteBack = state |> Option.bind (fun s -> s.Open)
+      // Das Target gegenüber YNAB setzt `withTargetInYnab` (budgeting-e2z7v).
+      TargetInYnab = None
       Deactivated = None }
 
 /// Gruppiert die sichtbaren Kategorien nach Kategoriegruppe. Die Folge ist die der Monatsantwort

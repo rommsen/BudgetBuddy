@@ -170,3 +170,145 @@ let planTargetChange (month: string) (current: Target option) (request: TargetCh
             targetAfter current draft
             |> Result.map (fun after -> if isNew then { after with CreatedIn = Some month } else after)
             |> Result.map (fun after -> if Some after = current then TargetUnchanged current else SetRule after)
+
+// ============================================
+// Targets nach YNAB (budgeting-e2z7v, Nachtrag ADR 0084 vom 2026-11-08, ADR 0072)
+// ============================================
+
+/// Die Aufrufe eines Schreibens nach YNAB und was YNABs Goal danach nicht zeigt.
+type GoalWritePlan = {
+    /// In dieser Reihenfolge zu senden; leer heißt, YNAB steht schon auf BBs Target.
+    Calls: Server.YnabClient.GoalPatch list
+    Gaps: YnabGoalGap list
+}
+
+/// Der Rhythmus, den BB in YNAB anlegen kann, am nächsten an BBs Rhythmus: alle n Wochen wöchentlich, alle n Jahre
+/// jährlich, alle n Monate und einmalig monatlich (über die API entsteht weder ein Abstand über 1 noch ein Ziel
+/// ohne Wiederholung, ADR 0072 Nachtrag 2026-11-04).
+let private nearestFrequency (rhythm: TargetRhythm) : TargetFrequency =
+    match rhythm with
+    | Weeks _ -> Weekly
+    | Years _ -> Yearly
+    | Months _
+    | NoRhythm -> Monthly
+
+/// Was YNABs Goal `inYnab` von BBs Regel nicht zeigt. Verglichen werden nur Felder, die BB nicht schreiben kann:
+/// Art, Rhythmus, Wochentag und Tag (ADR 0072 Punkte 2 und 4). Betrag, Datum und "Auffüllen bis" schreibt BB,
+/// eine Abweichung dort ist keine Lücke. Ohne Goal in YNAB keine Lücke. Rein.
+let goalGaps (rule: Target) (inYnab: Target option) : YnabGoalGap list =
+    match inYnab with
+    | None -> []
+    | Some ynab ->
+        [ if rule.Kind <> ynab.Kind then KindDiffers (rule.Kind, ynab.Kind)
+          if rule.Rhythm <> ynab.Rhythm then RhythmDiffers (rule.Rhythm, ynab.Rhythm)
+          match rule.Rhythm, rule.Day, ynab.Day with
+          | Weeks _, Some _, None -> WeekdayMissing
+          | Weeks _, Some day, Some other when other <> day -> WeekdayDiffers other
+          | Weeks _, _, _ -> ()
+          | _, Some _, None -> DayMissing
+          | _ -> () ]
+
+/// Plant das Schreiben von BBs Regel `rule` (`None`: kein Target) nach YNAB, gegen YNABs Goal `inYnab` (`None`: kein
+/// Goal). Rein.
+///
+/// - Ohne Target: `goal_target: null`, wenn YNAB ein Goal hat, sonst nichts.
+/// - Gleiche Art und gleicher Rhythmus wie in YNAB: nur die geänderten Felder `goal_target`, `goal_target_date`
+///   und `goal_needs_whole_amount` in einem Aufruf, ohne `goal_frequency` (ADR 0072 Punkt 3). So bleiben Tag,
+///   Wochentag und eine Art, die BB nicht anlegen kann, in YNAB erhalten.
+/// - Sonst ersetzt `goal_frequency` YNABs Goal (NEED mit dem nächsten Rhythmus, `nearestFrequency`): Aufruf 1 mit
+///   `goal_target`, `goal_frequency` und `goal_needs_whole_amount`, bei einem Datum Aufruf 2 mit `goal_target_date`
+///   (ADR 0072 Punkt 5, beides in einem Aufruf lehnt YNAB ab). Tag und Wochentag gehen in YNAB dabei verloren.
+///
+/// `Gaps` vergleicht BBs Regel mit dem Goal, das YNAB danach zeigt (`goalGaps`).
+let planGoalWrite (inYnab: Target option) (rule: Target option) : GoalWritePlan =
+    let empty = Server.YnabClient.emptyGoalPatch
+    match rule, inYnab with
+    | None, None -> { Calls = []; Gaps = [] }
+    | None, Some _ -> { Calls = [ { empty with GoalTarget = Server.YnabClient.SendNull } ]; Gaps = [] }
+    | Some r, Some y when y.Kind = r.Kind && y.Rhythm = r.Rhythm ->
+        let whole =
+            match r.NeedsWholeAmount with
+            | Some w when y.NeedsWholeAmount <> Some w -> Some w
+            | _ -> None
+        let patch =
+            { empty with
+                GoalTarget = (if y.Goal.Amount <> r.Goal.Amount then Server.YnabClient.SendValue (toMilliunits r.Goal) else Server.YnabClient.Unsent)
+                TargetDate =
+                    match r.Date with
+                    | _ when y.Date = r.Date -> Server.YnabClient.Unsent
+                    | Some date -> Server.YnabClient.SendValue date
+                    | None -> Server.YnabClient.SendNull
+                NeedsWholeAmount = whole }
+        let after = { y with Goal = r.Goal; Date = r.Date; NeedsWholeAmount = (if whole.IsSome then whole else y.NeedsWholeAmount) }
+        { Calls = (if patch = empty then [] else [ patch ]); Gaps = goalGaps r (Some after) }
+    | Some r, _ ->
+        let frequency = nearestFrequency r.Rhythm
+        let first =
+            { empty with
+                GoalTarget = Server.YnabClient.SendValue (toMilliunits r.Goal)
+                Frequency = Some frequency
+                NeedsWholeAmount = r.NeedsWholeAmount }
+        let dated = r.Date |> Option.map (fun date -> { empty with TargetDate = Server.YnabClient.SendValue date }) |> Option.toList
+        let after =
+            { Goal = r.Goal
+              Rhythm = rhythmOfFrequency frequency
+              Kind = Need
+              Date = r.Date
+              NeedsWholeAmount = r.NeedsWholeAmount
+              Day = None
+              CreatedIn = r.CreatedIn }
+        { Calls = first :: dated; Gaps = goalGaps r (Some after) }
+
+/// Die letzte Target-Entscheidung eines Streams: Übernahme, gesetzt oder entfernt, mit ihrer `event_id` und der Regel
+/// danach (`None` nach dem Entfernen). `None` ohne Entscheidung (etwa nur Altbestand).
+let latestDecision (events: (Guid * BudgetEvent) list) : (Guid * Target option) option =
+    events
+    |> List.fold
+        (fun state (eventId, event) ->
+            match event with
+            | BudgetEvent.TargetTakenOverFromYnab p -> Some (eventId, Some p.Rule)
+            | BudgetEvent.TargetSet p -> Some (eventId, Some p.Rule)
+            | BudgetEvent.TargetRemoved _ -> Some (eventId, None)
+            | _ -> state)
+        None
+
+/// Eine Target-Entscheidung, die noch nicht in YNAB ist.
+type OpenTargetWrite = {
+    DecisionEventId: Guid
+    /// Die Regel der Entscheidung, `None` bei einem entfernten Target.
+    Rule: Target option
+    /// Grund des letzten Fehlschlags, ohne Ergebnis `TargetNotSentText`.
+    Reason: string
+}
+
+/// Die offene Schreibung eines Target-Streams (Ereignisse mit `event_id` in Stream-Reihenfolge): die letzte
+/// Entscheidung `TargetSet` oder `TargetRemoved`, solange kein `TargetWrittenToYnab` auf sie verweist. Die letzte
+/// Entscheidung gewinnt, ein Ergebnis zu einer älteren zählt nicht. Die Übernahme ist aus YNAB gelesen und gilt als
+/// in YNAB. Eine Entscheidung ohne Ergebnis ist offen ("noch nicht gesendet"), wie eine fehlgeschlagene. Rein.
+let openTargetWrite (events: (Guid * BudgetEvent) list) : OpenTargetWrite option =
+    let openFor (decisionEventId: Guid) (rule: Target option) =
+        Some { DecisionEventId = decisionEventId; Rule = rule; Reason = TargetNotSentText }
+    events
+    |> List.fold
+        (fun (state: OpenTargetWrite option) (eventId, event) ->
+            match event, state with
+            | BudgetEvent.TargetTakenOverFromYnab _, _ -> None
+            | BudgetEvent.TargetSet p, _ -> openFor eventId (Some p.Rule)
+            | BudgetEvent.TargetRemoved _, _ -> openFor eventId None
+            | BudgetEvent.TargetWrittenToYnab r, Some o when o.DecisionEventId = r.DecisionEventId -> None
+            | BudgetEvent.TargetWriteToYnabFailed (r, reason), Some o when o.DecisionEventId = r.DecisionEventId ->
+                Some { o with Reason = reason }
+            | _ -> state)
+        None
+
+/// Das Target einer Kategorie gegenüber YNAB für die Seite: offen heißt "Nicht in YNAB" ohne Lücken (gegen ein
+/// veraltetes Goal sagten sie nichts); sonst die Lücken gegen YNABs Goal aus dem gelesenen Monat. `None`, wenn
+/// nichts zu melden ist. Rein.
+let targetYnabState (rule: Target option) (inYnab: Target option) (openWrite: OpenTargetWrite option) : TargetYnabState option =
+    match openWrite, rule with
+    | Some o, _ -> Some { NotInYnab = Some o.Reason; Gaps = [] }
+    | None, Some r ->
+        match goalGaps r inYnab with
+        | [] -> None
+        | gaps -> Some { NotInYnab = None; Gaps = gaps }
+    | None, None -> None

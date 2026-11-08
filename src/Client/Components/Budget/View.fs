@@ -89,8 +89,85 @@ let private historyButton (dispatch: Msg -> unit) =
         ]
     ]
 
+/// Die Farbe eines Gruppenkopfs im Bericht: Rot Fehler, Gelb braucht dich, Grün gelungen (ADR 0087).
+type private ReportTone =
+    | ToneError
+    | ToneAttention
+    | ToneSuccess
+
+/// Eine Gruppe des Berichts: Kopf und je Kategorie eine Zeile, leer fällt sie weg.
+let private reportGroup (testId: string) (title: string) (tone: ReportTone) (rows: (string * string option) list) =
+    let titleClass =
+        match tone with
+        | ToneError -> $"{Tokens.FontSizes.xs} font-medium {Tokens.Colors.error}"
+        | ToneAttention -> $"{Tokens.FontSizes.xs} font-medium {Tokens.Colors.attention}"
+        | ToneSuccess -> $"{Tokens.FontSizes.xs} font-medium {Tokens.Colors.success}"
+    if List.isEmpty rows then
+        Html.none
+    else
+        Html.div [
+            prop.custom ("data-testid", testId)
+            prop.className "flex flex-col gap-1"
+            prop.children [
+                Html.p [ prop.className titleClass; prop.text $"{title} ({List.length rows})" ]
+                for name, detail in rows do
+                    Html.div [
+                        prop.className "flex flex-col"
+                        prop.children [
+                            Html.span [ prop.className ListRoles.primary; prop.text name ]
+                            match detail with
+                            | Some text -> Html.span [ prop.className ListRoles.muted; prop.text text ]
+                            | None -> ()
+                        ]
+                    ]
+            ]
+        ]
+
+/// Der einmalige Lauf "Targets nach YNAB schreiben" (budgeting-e2z7v): Bestätigung, Warten, Bericht mit "Geschrieben",
+/// "Mit Abweichung" und "Fehlgeschlagen", nach einem 429 auch die offenen Kategorien. Die Gruppen bildet
+/// `targetsToYnabGroups`.
+let private targetsToYnabDialog (model: Model) (dispatch: Msg -> unit) =
+    let close () = dispatch CloseWriteAllTargets
+    match model.TargetsToYnab with
+    | TargetsToYnabClosed -> Html.none
+    | TargetsToYnabAsking ->
+        Modal.confirm
+            true
+            "Targets nach YNAB schreiben"
+            "BB schreibt alle Targets als Goals nach YNAB, nur was abweicht. Ein Wochentag und Tag lassen sich in YNAB nicht setzen und können dort verloren gehen."
+            "Schreiben"
+            (fun () -> dispatch ConfirmWriteAllTargets)
+            close
+    | TargetsToYnabRunning -> Modal.loading true "Targets werden nach YNAB geschrieben ..."
+    | TargetsToYnabFailed message -> Modal.alert true "Targets nach YNAB schreiben" $"Nichts geschrieben: {message}" "Schließen" close
+    | TargetsToYnabDone report ->
+        let groups = Components.Budget.TargetEdit.targetsToYnabGroups report
+        Modal.view
+            { Modal.defaultProps with IsOpen = true; Title = Some "Targets nach YNAB"; OnClose = close; Size = Modal.Small }
+            [ Modal.body [
+                  Html.div [
+                      prop.custom ("data-testid", "targets-to-ynab-report")
+                      prop.className "flex flex-col gap-4"
+                      prop.children [
+                          if report.RateLimited then
+                              Html.p [
+                                  prop.className ListRoles.missing
+                                  prop.text "YNAB hat zu viele Anfragen gemeldet, der Lauf brach ab. Die offenen Kategorien später erneut senden."
+                              ]
+                          reportGroup "targets-to-ynab-failed" "Fehlgeschlagen" ToneError (groups.Failed |> List.map (fun (n, r) -> n, Some r))
+                          reportGroup "targets-to-ynab-open" "Nicht versucht" ToneAttention (groups.NotAttempted |> List.map (fun n -> n, None))
+                          reportGroup "targets-to-ynab-gaps" "Mit Abweichung" ToneAttention (groups.WithGaps |> List.map (fun (n, gaps) -> n, Some (String.concat ", " gaps)))
+                          reportGroup "targets-to-ynab-written" "Geschrieben" ToneSuccess (groups.Written |> List.map (fun n -> n, None))
+                          if groups.Unchanged > 0 then
+                              Html.p [ prop.className ListRoles.muted; prop.text $"{groups.Unchanged} schon gleich in YNAB" ]
+                      ]
+                  ]
+              ]
+              Modal.footer [ Button.primary "Schließen" close ] ]
+
 /// Das Menü ⋮ im Seitenkopf (budgeting-pscgb, Prototyp Version 17 "⋯"): am PC `FilterPopover`, am Handy
-/// `BottomSheet` (ADR 0043, Vorbild das Menü der Regeln). Heute ein Eintrag: "Kategorien verwalten".
+/// `BottomSheet` (ADR 0043, Vorbild das Menü der Regeln). Einträge: "Kategorien verwalten" und "Targets nach YNAB
+/// schreiben" (budgeting-e2z7v).
 let private budgetMenu (model: Model) (dispatch: Msg -> unit) =
     let close = fun () -> dispatch CloseBudgetMenu
     let open' inSheet =
@@ -99,7 +176,10 @@ let private budgetMenu (model: Model) (dispatch: Msg -> unit) =
             if inSheet then Viewport.swallowNextClick 350
     let items inSheet =
         let first = if Viewport.isFinePointer () then FilterPopover.menuItemAutoFocus else FilterPopover.menuItem
-        [ first "Kategorien verwalten" (open' inSheet) ]
+        [ first "Kategorien verwalten" (open' inSheet)
+          FilterPopover.menuItem "Targets nach YNAB schreiben" (fun () ->
+              dispatch AskWriteAllTargets
+              if inSheet then Viewport.swallowNextClick 350) ]
     Html.div [
         prop.className "relative shrink-0"
         prop.onKeyDown (fun e -> if e.key = "Escape" then close ())
@@ -209,6 +289,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
             prop.children [
                 PageHeader.screenReaderTitle "Budget"
                 targetsDialog model dispatch
+                targetsToYnabDialog model dispatch
                 head wide bar.IsSome model dispatch
                 // Die Leiste Monatserster steht zwischen Kopf und Suche (budgeting-m3x7f), an PC und Handy wie die Skizze.
                 belowHead bar model isPanel wide dispatch

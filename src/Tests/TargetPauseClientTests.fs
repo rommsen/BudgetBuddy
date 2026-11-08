@@ -33,7 +33,7 @@ let private trip : BudgetCategory =
       Available = eur 0m
       Underfunded = Some (eur 50m)
       Target = Some target
-      Pause = None; OpenWriteBack = None; Deactivated = None }
+      Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None }
 
 let private holiday : BudgetCategory =
     { trip with Id = other; Name = "Urlaub"; Underfunded = None; Target = None; Available = eur 10m }

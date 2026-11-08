@@ -101,6 +101,7 @@ type private FakeYnab(categories: (Guid * string * int64) list) =
                         if this.LostAnswers.Contains id then return Error (YnabError.NetworkError "Antwort verloren")
                         else return Ok ()
                 }
+          WriteGoal = (fun _ _ -> async { return Ok () })
           FetchCategoryGoals =
             fun () ->
                 async {

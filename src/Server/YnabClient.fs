@@ -2611,3 +2611,61 @@ let createCategoryGroup (token: string) (YnabBudgetId budgetId: YnabBudgetId) (n
 
 let updateCategoryGroup (token: string) (YnabBudgetId budgetId: YnabBudgetId) (groupId: Guid) (name: string) =
     updateCategoryGroupWith (categorySender token) budgetId groupId name
+
+// ============================================
+// Targets nach YNAB (budgeting-e2z7v, Nachtrag ADR 0084 vom 2026-11-08, ADR 0072)
+// ============================================
+
+/// Ein Goal-Feld im Rumpf: nicht gesendet, mit Wert oder als `null`.
+type GoalField<'T> =
+    | Unsent
+    | SendValue of 'T
+    | SendNull
+
+/// Ein Aufruf `PATCH .../categories/{id}` mit Goal-Feldern. `goal_frequency` ersetzt YNABs Goal und lässt sich
+/// nicht mit `goal_target_date` in einem Aufruf senden (ADR 0072 Punkt 5); das prüft die Planung.
+type GoalPatch = {
+    /// `goal_target` in Milliunits, `SendNull` entfernt das Goal.
+    GoalTarget: GoalField<int64>
+    Frequency: Shared.Budgeting.TargetFrequency option
+    /// `goal_target_date` als "YYYY-MM-DD", `SendNull` entfernt das Datum.
+    TargetDate: GoalField<string>
+    NeedsWholeAmount: bool option
+}
+
+/// Ein leerer Aufruf, Ausgangspunkt der Planung.
+let emptyGoalPatch : GoalPatch =
+    { GoalTarget = Unsent; Frequency = None; TargetDate = Unsent; NeedsWholeAmount = None }
+
+/// YNABs Text zu `goal_frequency`.
+let goalFrequencyText (frequency: Shared.Budgeting.TargetFrequency) : string =
+    match frequency with
+    | Shared.Budgeting.Weekly -> "weekly"
+    | Shared.Budgeting.Monthly -> "monthly"
+    | Shared.Budgeting.Yearly -> "yearly"
+
+/// `{"category":{…}}` mit den gesetzten Goal-Feldern. `goal_target` geht als JSON-Zahl: `Encode.int64` schriebe
+/// einen String, und YNAB verwirft Beträge als String (CLAUDE.md, Milliunits an der Grenze).
+let buildGoalBody (patch: GoalPatch) : string =
+    let field (name: string) (encode: 'T -> JsonValue) (value: GoalField<'T>) =
+        match value with
+        | Unsent -> []
+        | SendValue v -> [ name, encode v ]
+        | SendNull -> [ name, Encode.nil ]
+    let fields =
+        field "goal_target" (fun (milliunits: int64) -> Newtonsoft.Json.Linq.JValue(milliunits) :> JsonValue) patch.GoalTarget
+        @ (patch.Frequency |> Option.map (fun f -> "goal_frequency", Encode.string (goalFrequencyText f)) |> Option.toList)
+        @ field "goal_target_date" Encode.string patch.TargetDate
+        @ (patch.NeedsWholeAmount |> Option.map (fun whole -> "goal_needs_whole_amount", Encode.bool whole) |> Option.toList)
+    Encode.object [ "category", Encode.object fields ] |> Encode.toString 0
+
+/// Goal einer Kategorie schreiben: `PATCH /budgets/{id}/categories/{id}` über die Naht der Kategorien.
+let patchCategoryGoalWith send (budgetId: string) (categoryId: Guid) (patch: GoalPatch) : Async<YnabResult<unit>> =
+    async {
+        let! result =
+            categoryWriteWith send "PATCH" (categoriesUrl budgetId (Some categoryId)) (buildGoalBody patch) "category" "Kategorie"
+        return result |> Result.map ignore
+    }
+
+let patchCategoryGoal (token: string) (YnabBudgetId budgetId: YnabBudgetId) (categoryId: Guid) (patch: GoalPatch) =
+    patchCategoryGoalWith (categorySender token) budgetId categoryId patch

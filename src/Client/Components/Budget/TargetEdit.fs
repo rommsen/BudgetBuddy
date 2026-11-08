@@ -306,3 +306,93 @@ let applyTargetCallLost (categoryId: System.Guid) (month: string) (message: stri
 /// Der Toast, wenn eine Ablehnung kam, während ihre Kategorie nicht mehr gezeigt wird.
 let targetRejectedAwayText (message: string) : string =
     $"Target nicht gespeichert: {message}"
+
+// ============================================
+// Targets nach YNAB (budgeting-e2z7v, Nachtrag ADR 0084 vom 2026-11-08)
+// ============================================
+
+/// Was am Target über YNAB steht: gelb "Nicht in YNAB" mit Grund und "Erneut senden", die Lücken als Sätze und
+/// "In YNAB nicht gesnoozt" an einem pausierten Target.
+type TargetYnabHints = {
+    /// Der Grund, wenn die letzte Target-Entscheidung nicht in YNAB ist.
+    NotInYnab: string option
+    Gaps: string list
+    NotSnoozed: bool
+}
+
+/// Die Hinweise aus dem Zustand der Kategorie (`BudgetCategory.TargetInYnab`, `Pause`). Rein.
+let targetYnabHints (category: BudgetCategory) : TargetYnabHints =
+    let state = category.TargetInYnab
+    { NotInYnab = state |> Option.bind (fun s -> s.NotInYnab)
+      Gaps = state |> Option.map (fun s -> s.Gaps |> List.map ynabGoalGapText) |> Option.defaultValue []
+      NotSnoozed = category.Target.IsSome && isPaused category }
+
+/// Läuft "Erneut senden" am Target dieser Kategorie? Dann ist der Knopf gesperrt.
+let targetRetryRunning (categoryId: System.Guid) (model: Model) : bool =
+    model.TargetYnabRetry = Some categoryId
+
+/// "Erneut senden" am Target. `true` heißt: der Aufrufer muss senden. Läuft schon eins (für irgendeine
+/// Kategorie) oder ist die Kategorie im geladenen Monat nicht "Nicht in YNAB", geschieht nichts.
+let startTargetRetry (categoryId: System.Guid) (model: Model) : Model * bool =
+    let notInYnab =
+        match model.Month with
+        | Success month ->
+            categoriesOf month |> List.exists (fun c -> c.Id = categoryId && (targetYnabHints c).NotInYnab.IsSome)
+        | _ -> false
+    if model.TargetYnabRetry.IsNone && notInYnab then { model with TargetYnabRetry = Some categoryId }, true
+    else model, false
+
+/// Antwort auf "Erneut senden" am Target: gibt den Knopf frei; ein Fehler nennt den Grund als Toast. Der Aufrufer
+/// liest den Monat danach still neu, der Hinweis kommt aus dem Server.
+let applyTargetRetried (categoryId: System.Guid) (result: Result<unit, string>) (model: Model) : Model * ExternalMsg =
+    let released = if model.TargetYnabRetry = Some categoryId then { model with TargetYnabRetry = None } else model
+    match result with
+    | Ok () -> released, ShowToast ("Target in YNAB geschrieben", ToastSuccess)
+    | Error message -> released, ShowToast ($"Target weiter nicht in YNAB: {message}", ToastError)
+
+/// "Targets nach YNAB schreiben" im Menü: schließt das Menü und öffnet die Bestätigung, außer ein Lauf läuft.
+let askWriteAllTargets (model: Model) : Model =
+    match model.TargetsToYnab with
+    | TargetsToYnabRunning -> { model with MenuOpen = false }
+    | _ -> { model with MenuOpen = false; TargetsToYnab = TargetsToYnabAsking }
+
+/// Bestätigt: `true` heißt senden. Nur aus der offenen Bestätigung, ein zweiter Tipp sendet nicht noch einmal.
+let startWriteAllTargets (model: Model) : Model * bool =
+    match model.TargetsToYnab with
+    | TargetsToYnabAsking -> { model with TargetsToYnab = TargetsToYnabRunning }, true
+    | _ -> model, false
+
+/// Die Antwort des Laufs: der Bericht oder der Fehler. Der Aufrufer liest den Monat still neu.
+let applyAllTargetsWritten (result: Result<TargetsToYnabReport, string>) (model: Model) : Model =
+    match model.TargetsToYnab, result with
+    | TargetsToYnabRunning, Ok report -> { model with TargetsToYnab = TargetsToYnabDone report }
+    | TargetsToYnabRunning, Error message -> { model with TargetsToYnab = TargetsToYnabFailed message }
+    | _ -> model
+
+/// Bestätigung abbrechen oder den Bericht schließen. Ein laufender Lauf bleibt sichtbar, bis er antwortet.
+let closeWriteAllTargets (model: Model) : Model =
+    match model.TargetsToYnab with
+    | TargetsToYnabRunning -> model
+    | _ -> { model with TargetsToYnab = TargetsToYnabClosed }
+
+/// Der Bericht nach Gruppen, wie die Liste ihn zeigt: "Geschrieben", "Mit Abweichung" (mit den Sätzen),
+/// "Fehlgeschlagen" (mit Grund), "Nicht versucht" nach einem 429 und die Zahl der schon gleichen.
+type TargetsToYnabGroups = {
+    Written: string list
+    WithGaps: (string * string list) list
+    Failed: (string * string) list
+    NotAttempted: string list
+    Unchanged: int
+}
+
+let targetsToYnabGroups (report: TargetsToYnabReport) : TargetsToYnabGroups =
+    let pick f = report.Lines |> List.choose f
+    { Written = pick (fun l -> match l.Outcome with GoalWritten [] -> Some l.CategoryName | _ -> None)
+      WithGaps =
+        pick (fun l ->
+            match l.Outcome with
+            | GoalWritten (_ :: _ as gaps) -> Some (l.CategoryName, gaps |> List.map ynabGoalGapText)
+            | _ -> None)
+      Failed = pick (fun l -> match l.Outcome with GoalWriteFailed reason -> Some (l.CategoryName, reason) | _ -> None)
+      NotAttempted = pick (fun l -> match l.Outcome with GoalNotAttempted -> Some l.CategoryName | _ -> None)
+      Unchanged = report.Lines |> List.filter (fun l -> l.Outcome = GoalAlreadyInYnab) |> List.length }

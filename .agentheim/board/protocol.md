@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-08 17:38 -- Task verified and completed: budgeting-e2z7v - "Targets beim Speichern direkt nach YNAB schreiben (Nachtrag ADR 0084), mit Hinweis bei nicht Darstellbarem und Erneut senden"
+
+**Type:** Work / Task completion
+**Task:** budgeting-e2z7v - "Targets beim Speichern direkt nach YNAB schreiben (Nachtrag ADR 0084), mit Hinweis bei nicht Darstellbarem und Erneut senden"
+**Summary:** Targets beim Speichern nach YNAB schreiben, mit Hinweis und Erneut senden
+**Duration:** 1h21m
+**Verification:** PASS (iteration 3, nach Merge-Konflikt)
+**Files changed:** 42
+**Tests added:** 43
+**ADRs written:** 0090-targets-nach-ynab-schreiben-gegen-ynabs-goal.md
+
+---
+
 ## 2026-11-08 17:12 -- Task verified and completed: budgeting-sn2sn - "Kategorie deaktivieren und eigene Reihenfolge, beides nur in BB (ADR 0088 Punkte 2 und 3)"
 
 **Type:** Work / Task completion

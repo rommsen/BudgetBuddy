@@ -1919,6 +1919,7 @@ let targetCheckWith
 let private livePort (token: string) (budgetId: YnabBudgetId) : Server.Budgeting.CommandHandlers.YnabPort =
     { FetchMonth = fun monthKey -> YnabClient.getMonth token budgetId monthKey
       SetAssigned = fun monthKey categoryId milliunits -> YnabClient.setAssigned token budgetId monthKey categoryId milliunits
+      WriteGoal = fun categoryId patch -> YnabClient.patchCategoryGoal token budgetId categoryId patch
       FetchCategoryGoals = fun () -> YnabClient.getCategoryGoals token budgetId }
 
 /// Die Lese-Quellen des Rahmens (budgeting-g8s3w): echter Client für Monatsfenster und Reihenfolge, das Ausblenden der
@@ -1946,6 +1947,19 @@ let hideMonthStartWith
         | Error message -> return Error message
         | Ok key -> return! Server.Budgeting.CommandHandlers.hideMonthStartWith connect now key
     }
+
+/// Die Meldung ohne Standard-Budget in den Settings.
+[<Literal>]
+let NoYnabBudgetText = "Kein Standard-Budget konfiguriert (Settings)"
+
+/// Der YNAB-Port ohne Einrichtung (budgeting-e2z7v): jeder Aufruf scheitert mit der Meldung, kein Netz. Target ändern
+/// hält damit BBs Target fest und den Fehlschlag nach YNAB.
+let unconfiguredPort : Server.Budgeting.CommandHandlers.YnabPort =
+    let refused () = async { return Error (YnabError.RefusedByBb "YNAB nicht eingerichtet (Settings)") }
+    { FetchMonth = fun _ -> refused ()
+      SetAssigned = fun _ _ _ -> refused ()
+      WriteGoal = fun _ _ -> refused ()
+      FetchCategoryGoals = fun () -> refused () }
 
 /// Token und Standard-Budget aus den Settings, je `None`, wenn nicht eingerichtet. Budget-Seite und Übernahme im
 /// Hintergrund lesen dieselben Schlüssel.
@@ -2032,8 +2046,33 @@ let budgetApiWith
         return! setTargetPauseWith tokenOpt budgetOpt portFor (today ()) (utcNow ()) monthKeyText request
       }
 
-      changeCategoryTarget = fun monthKeyText request ->
-        changeCategoryTargetWith Server.Budgeting.CommandHandlers.changeTarget (today ()) (utcNow ()) monthKeyText request
+      changeCategoryTarget = fun monthKeyText request -> async {
+        // BB führt: auch ohne Einrichtung gilt das Target in BB, der Fehlschlag nach YNAB steht dann fest.
+        let! tokenOpt, budgetOpt = ynabSettings ()
+        let port =
+            match tokenOpt, budgetOpt with
+            | Some token, Some budgetId -> portFor token (YnabBudgetId budgetId)
+            | _ -> unconfiguredPort
+        return! changeCategoryTargetWith (Server.Budgeting.CommandHandlers.changeTarget port) (today ()) (utcNow ()) monthKeyText request
+      }
+
+      retryTargetToYnab = fun categoryId -> async {
+        let! tokenOpt, budgetOpt = ynabSettings ()
+        match tokenOpt, budgetOpt with
+        | Some token, Some budgetId ->
+            return! Server.Budgeting.CommandHandlers.retryTargetWrite (portFor token (YnabBudgetId budgetId)) (utcNow ()) categoryId
+        | None, _ -> return Error NoYnabToken
+        | _, None -> return Error NoYnabBudgetText
+      }
+
+      writeAllTargetsToYnab = fun () -> async {
+        let! tokenOpt, budgetOpt = ynabSettings ()
+        match tokenOpt, budgetOpt with
+        | Some token, Some budgetId ->
+            return! Server.Budgeting.CommandHandlers.writeAllTargets (portFor token (YnabBudgetId budgetId)) (utcNow ())
+        | None, _ -> return Error NoYnabToken
+        | _, None -> return Error NoYnabBudgetText
+      }
 
       getRecentMoveCategories = fun () -> Server.Budgeting.QueryHandlers.recentMoveCategories ()
 

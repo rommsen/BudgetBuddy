@@ -48,7 +48,7 @@ let private budgetCategory (available: decimal) (under: decimal option) (pause: 
       Available = eur available
       Underfunded = under |> Option.map eur
       Target = Some target
-      Pause = pause; OpenWriteBack = None; Deactivated = None }
+      Pause = pause; OpenWriteBack = None; TargetInYnab = None; Deactivated = None }
 
 let private pauseEvent (id: Guid) : HistoryPause =
     { EventId = id
@@ -133,6 +133,8 @@ let private domainTests =
 type private FakeYnab(categories: (Guid * string * decimal * bool * bool) list) =
     member val Reads = 0 with get, set
     member val Writes = ResizeArray<Guid * int64>()
+    /// Jeder Aufruf, der ein Goal schreiben will (budgeting-e2z7v).
+    member val GoalWrites = ResizeArray<Guid>()
     /// Läuft bei jedem Lesen des Monats, vor der Antwort.
     member val OnRead : unit -> unit = ignore with get, set
     member this.Port : YnabPort =
@@ -158,6 +160,7 @@ type private FakeYnab(categories: (Guid * string * decimal * bool * bool) list) 
                     this.Writes.Add((id, milliunits))
                     return Ok ()
                 }
+          WriteGoal = (fun id _ -> async { this.GoalWrites.Add id; return Ok () })
           FetchCategoryGoals =
             fun () ->
                 async {
@@ -223,6 +226,13 @@ let private flowTests =
             Expect.equal shown.Pause (Some PausedInBb) "getBudgetMonth"
             Expect.equal (missingAmount shown) None "Fehlt ohne Fehlbetrag"
             Expect.isEmpty f.Writes "kein Schreibaufruf an YNAB"
+
+        // budgeting-e2z7v: YNABs Snooze ist über die API nicht schreibbar, die Pause bleibt in BB.
+        testCase "Pausieren und Aufheben schreiben kein Goal nach YNAB" <| fun () ->
+            let f, k = fakeWith ()
+            pauseOk f current k PauseTarget |> ignore
+            pauseOk f current k LiftPause |> ignore
+            Expect.isEmpty f.GoalWrites "kein Goal-Aufruf"
 
         testCase "GIVEN BB-Pause im Monat M WHEN der Folgemonat gelesen wird THEN gilt sie dort nicht" <| fun () ->
             let f, k = fakeWith ()

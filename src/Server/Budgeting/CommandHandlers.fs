@@ -19,11 +19,13 @@ open Server.Budgeting.TargetRules
 
 /// Was die Abläufe von YNAB brauchen. `FetchMonth` liest den Monat roh (`YnabMonth`),
 /// `SetAssigned month categoryId milliunits` setzt das Zugewiesen absolut (ein PATCH),
-/// `FetchCategoryGoals` liest die Goals aller Kategorien aus `/categories`, nur für die Target-Übernahme
-/// (budgeting-eh8xe). Nach YNAB geht kein Goal mehr (ADR 0084 Punkt 6).
+/// `FetchCategoryGoals` liest die Goals aller Kategorien aus `/categories`: für die Target-Übernahme
+/// (budgeting-eh8xe) und als YNABs Stand, gegen den das Schreiben eines Targets plant. `WriteGoal categoryId patch`
+/// schreibt Goal-Felder (`PATCH .../categories/{id}`, budgeting-e2z7v, Nachtrag ADR 0084 vom 2026-11-08).
 type YnabPort = {
     FetchMonth: string -> Async<YnabResult<YnabMonth>>
     SetAssigned: string -> Guid -> int64 -> Async<YnabResult<unit>>
+    WriteGoal: Guid -> Server.YnabClient.GoalPatch -> Async<YnabResult<unit>>
     FetchCategoryGoals: unit -> Async<YnabResult<YnabCategoryGoal list>>
 }
 
@@ -995,15 +997,123 @@ let private storedTargetAnswer
 [<Literal>]
 let TargetChangeNotRecordedText = "Target nicht gespeichert: BB konnte die Änderung nicht festhalten."
 
-/// Target anlegen, ändern, die Art wechseln oder entfernen, nur in BB (ADR 0080 mit Nachtrag ADR 0084,
-/// budgeting-eh8xe). Außerhalb des laufenden Monats wird vor allem anderen abgelehnt. Sonst unter `TargetGuard`:
-/// zuerst die Befehls-Id (eine Wiederholung antwortet aus dem festgehaltenen Ereignis und hängt nichts an), dann
-/// BBs Stand aus dem Target-Stream falten und gegen das gezeigte Target planen (`planTargetChange`). Weicht es
-/// ab, hängt nichts an und die Antwort trägt BBs Stand (`TargetChangedMeanwhile`). Sonst höchstens ein Ereignis: `TargetSet` mit der vollständigen Regel, gültig ab dem
-/// laufenden Monat, oder `TargetRemoved`. YNAB wird nicht aufgerufen. Außen `Error`: BBs Stand war nicht lesbar
-/// (`LocalReadFailed`) oder das Ereignis ließ sich nicht festhalten (`LocalWriteFailed`). Innen `Error`: abgelehnt. `currentMonth` ist der laufende Monat ("YYYY-MM-01"), `now` stempelt das Ereignis.
+// ============================================
+// Targets nach YNAB (budgeting-e2z7v, Nachtrag ADR 0084 vom 2026-11-08)
+// ============================================
+
+/// Der Grund, wenn YNAB die Kategorie nicht kennt (gelöscht, oder ein anderes Budget).
+[<Literal>]
+let GoalCategoryMissingText = "Kategorie in YNAB nicht gefunden"
+
+/// Ausgang eines Schreibens: `rateLimited` sagt einem Lauf, dass er abbrechen soll.
+type private GoalWriteOutcome = { Outcome: TargetToYnabOutcome; RateLimited: bool }
+
+/// Hält ein Schreib-Ergebnis fest. Scheitert das, steht es im Log: die Entscheidung bleibt dann offen, und
+/// "Erneut senden" schreibt sie noch einmal, ohne Schaden (die Planung gegen YNABs Stand sendet dann nichts).
+let private recordGoalResult (connect: unit -> SqliteConnection) (now: DateTime) (categoryId: Guid) (event: BudgetEvent) =
+    try
+        use conn = connect ()
+        recordTargetWriteOn conn now categoryId event
+    with ex ->
+        logReadFailure "Ergebnis des Target-Schreibens festhalten" ex.Message
+
+/// Sendet die Aufrufe der Reihe nach; der erste Fehler bricht ab. Bei zwei Aufrufen nennt der Grund den Aufruf.
+let private sendGoalCalls (goals: YnabPort) (categoryId: Guid) (calls: Server.YnabClient.GoalPatch list) : Async<Result<unit, YnabError * string>> =
+    let total = List.length calls
+    let rec go (index: int) (rest: Server.YnabClient.GoalPatch list) =
+        async {
+            match rest with
+            | [] -> return Ok ()
+            | call :: tail ->
+                match! goals.WriteGoal categoryId call with
+                | Ok () -> return! go (index + 1) tail
+                | Error e ->
+                    let reason = if total > 1 then $"Aufruf {index} von {total}: {ynabErrorText e}" else ynabErrorText e
+                    return Error (e, reason)
+        }
+    go 1 calls
+
+/// Schreibt die Entscheidung `decisionEventId` mit ihrer Regel gegen YNABs Goal `inYnab` (`TargetRules.planGoalWrite`)
+/// und hält das Ergebnis fest, wenn `isOpen` (oder wenn gesendet wurde). Ohne Aufruf ist YNAB schon auf BBs Target.
+/// Unter `TargetGuard` aufzurufen.
+let private writeDecision
+    (connect: unit -> SqliteConnection)
+    (goals: YnabPort)
+    (now: DateTime)
+    (categoryId: Guid)
+    (decisionEventId: Guid)
+    (rule: Target option)
+    (isOpen: bool)
+    (inYnab: YnabCategoryGoal option)
+    : Async<GoalWriteOutcome> =
+    async {
+        let reference = { DecisionEventId = decisionEventId }
+        let failed reason rateLimited =
+            recordGoalResult connect now categoryId (BudgetEvent.TargetWriteToYnabFailed (reference, reason))
+            { Outcome = GoalWriteFailed reason; RateLimited = rateLimited }
+        match inYnab with
+        | None -> return failed GoalCategoryMissingText false
+        | Some goal ->
+            let plan = planGoalWrite goal.Target rule
+            match plan.Calls with
+            | [] ->
+                if isOpen then recordGoalResult connect now categoryId (BudgetEvent.TargetWrittenToYnab reference)
+                return { Outcome = GoalAlreadyInYnab; RateLimited = false }
+            | calls ->
+                match! sendGoalCalls goals categoryId calls with
+                | Ok () ->
+                    recordGoalResult connect now categoryId (BudgetEvent.TargetWrittenToYnab reference)
+                    return { Outcome = GoalWritten plan.Gaps; RateLimited = false }
+                | Error (e, reason) -> return failed reason (isRateLimit e)
+    }
+
+/// Sendet die offene Target-Entscheidung der Kategorie nach YNAB, wenn es eine gibt (`openTargetWrite`). Liest
+/// dafür YNABs Goals; scheitert das, hält es den Fehlschlag fest. `Ok None`: nichts offen. Unter `TargetGuard`.
+let private sendOpenDecision
+    (connect: unit -> SqliteConnection)
+    (goals: YnabPort)
+    (now: DateTime)
+    (categoryId: Guid)
+    : Async<Result<GoalWriteOutcome option, string>> =
+    async {
+        let stream =
+            try
+                use conn = connect ()
+                loadTargetStreamWithIdsOn conn categoryId
+            with ex ->
+                Error ex.Message
+        match stream with
+        | Error reason ->
+            logReadFailure "Target-Stream lesen" reason
+            return Error TargetRulesUnreadableText
+        | Ok events ->
+            match openTargetWrite events with
+            | None -> return Ok None
+            | Some o ->
+                match! goals.FetchCategoryGoals () with
+                | Error e ->
+                    let reason = ynabErrorText e
+                    recordGoalResult connect now categoryId (BudgetEvent.TargetWriteToYnabFailed ({ DecisionEventId = o.DecisionEventId }, reason))
+                    return Ok (Some { Outcome = GoalWriteFailed reason; RateLimited = isRateLimit e })
+                | Ok all ->
+                    let inYnab = all |> List.tryFind (fun g -> g.Id = categoryId)
+                    let! outcome = writeDecision connect goals now categoryId o.DecisionEventId o.Rule true inYnab
+                    return Ok (Some outcome)
+    }
+
+/// Target anlegen, ändern, die Art wechseln oder entfernen (ADR 0080 mit Nachtrag ADR 0084, budgeting-eh8xe,
+/// budgeting-e2z7v). Außerhalb des laufenden Monats wird vor allem anderen abgelehnt. Sonst unter `TargetGuard`:
+/// zuerst die Befehls-Id (eine Wiederholung antwortet aus dem festgehaltenen Ereignis, hängt nichts an und sendet
+/// nichts), dann BBs Stand aus dem Target-Stream falten und gegen das gezeigte Target planen (`planTargetChange`).
+/// Weicht es ab, hängt nichts an und die Antwort trägt BBs Stand (`TargetChangedMeanwhile`). Sonst höchstens ein
+/// Ereignis: `TargetSet` mit der vollständigen Regel, gültig ab dem laufenden Monat, oder `TargetRemoved`. Danach,
+/// noch unter derselben Sperre, geht die Entscheidung nach YNAB (`sendOpenDecision`): BBs Target gilt sofort, ein
+/// Fehlschlag steht als `TargetWriteToYnabFailed` fest und ändert die Antwort nicht. Außen `Error`: BBs Stand war
+/// nicht lesbar (`LocalReadFailed`) oder das Ereignis ließ sich nicht festhalten (`LocalWriteFailed`). Innen
+/// `Error`: abgelehnt. `currentMonth` ist der laufende Monat ("YYYY-MM-01"), `now` stempelt die Ereignisse.
 let changeTargetWith
     (connect: unit -> SqliteConnection)
+    (goals: YnabPort)
     (now: DateTime)
     (currentMonth: string)
     (monthKey: string)
@@ -1011,47 +1121,143 @@ let changeTargetWith
     : Async<Result<Result<TargetChangeResult, string>, YnabError>> =
     match monthIdOf monthKey with
     | Ok monthId when targetEditAllowed (monthKind currentMonth monthKey) ->
-        let answer (recorded: EventStore.RecordedEvent) = async { return Ok (storedTargetAnswer request.CategoryId recorded) }
-        TargetGuard.exclusive request.CategoryId (onceFor connect request.CommandId answer (TargetTakeoverGuard.exclusive (async {
-            let stream =
-                try
-                    use conn = connect ()
-                    loadTargetStreamOn conn request.CategoryId
-                with ex ->
-                    Error ex.Message
-            match stream with
-            | Error reason ->
-                logReadFailure "Target-Stream lesen" reason
-                return Error (YnabError.LocalReadFailed TargetRulesUnreadableText)
-            | Ok events ->
-                // Hält das Ereignis fest; scheitert das Anhängen, kommt ein sauberer Fehler, nichts ist angehängt.
-                let record (event: BudgetEvent) (after: Target option) =
-                    async {
-                        let recorded =
-                            try
-                                use conn = connect ()
-                                Ok (recordTargetChangeOn conn request.CommandId now request.CategoryId event)
-                            with ex ->
-                                Error ex.Message
-                        match recorded with
-                        | Error reason ->
-                            logReadFailure "Target-Änderung festhalten" reason
-                            return Error (YnabError.LocalWriteFailed TargetChangeNotRecordedText)
-                        | Ok (CommandAlreadyProcessed (id, _)) -> return! answerAgain connect id answer
-                        | Ok (Recorded _) -> return Ok (Ok (TargetWritten after))
-                    }
-                match planTargetChange (monthKeyOfId monthId) (ruleAt monthId events) request with
-                | Error message -> return Ok (Error message)
-                | Ok (TargetUnchanged current) -> return Ok (Ok (TargetWritten current))
-                | Ok (ShownOutdated current) -> return Ok (Ok (TargetChangedMeanwhile current))
-                | Ok (SetRule rule) -> return! record (BudgetEvent.TargetSet { Rule = rule; EffectiveFrom = monthId }) (Some rule)
-                | Ok RemoveRule -> return! record (BudgetEvent.TargetRemoved { EffectiveFrom = monthId }) None
-        })))
+        let answer (recorded: EventStore.RecordedEvent) = async { return Ok (storedTargetAnswer request.CategoryId recorded), false }
+        TargetGuard.exclusive request.CategoryId (async {
+            let! result, recordedNew =
+                onceFor connect request.CommandId answer (TargetTakeoverGuard.exclusive (async {
+                    let stream =
+                        try
+                            use conn = connect ()
+                            loadTargetStreamOn conn request.CategoryId
+                        with ex ->
+                            Error ex.Message
+                    match stream with
+                    | Error reason ->
+                        logReadFailure "Target-Stream lesen" reason
+                        return Error (YnabError.LocalReadFailed TargetRulesUnreadableText), false
+                    | Ok events ->
+                        // Hält das Ereignis fest; scheitert das Anhängen, kommt ein sauberer Fehler, nichts ist angehängt.
+                        let record (event: BudgetEvent) (after: Target option) =
+                            async {
+                                let recorded =
+                                    try
+                                        use conn = connect ()
+                                        Ok (recordTargetChangeOn conn request.CommandId now request.CategoryId event)
+                                    with ex ->
+                                        Error ex.Message
+                                match recorded with
+                                | Error reason ->
+                                    logReadFailure "Target-Änderung festhalten" reason
+                                    return Error (YnabError.LocalWriteFailed TargetChangeNotRecordedText), false
+                                | Ok (CommandAlreadyProcessed (id, _)) -> return! answerAgain connect id answer
+                                | Ok (Recorded _) -> return Ok (Ok (TargetWritten after)), true
+                            }
+                        match planTargetChange (monthKeyOfId monthId) (ruleAt monthId events) request with
+                        | Error message -> return Ok (Error message), false
+                        | Ok (TargetUnchanged current) -> return Ok (Ok (TargetWritten current)), false
+                        | Ok (ShownOutdated current) -> return Ok (Ok (TargetChangedMeanwhile current)), false
+                        | Ok (SetRule rule) -> return! record (BudgetEvent.TargetSet { Rule = rule; EffectiveFrom = monthId }) (Some rule)
+                        | Ok RemoveRule -> return! record (BudgetEvent.TargetRemoved { EffectiveFrom = monthId }) None
+                }))
+            if recordedNew then
+                let! _ = sendOpenDecision connect goals now request.CategoryId
+                ()
+            return result
+        })
     | _ -> async { return Ok (Error (targetMonthRefusalText request)) }
 
 /// `changeTargetWith` auf der Datenbank der Anwendung.
-let changeTarget (now: DateTime) (currentMonth: string) (monthKey: string) (request: TargetChangeRequest) =
-    changeTargetWith global.Persistence.getConnection now currentMonth monthKey request
+let changeTarget (goals: YnabPort) (now: DateTime) (currentMonth: string) (monthKey: string) (request: TargetChangeRequest) =
+    changeTargetWith global.Persistence.getConnection goals now currentMonth monthKey request
+
+/// "Erneut senden" am Target (budgeting-e2z7v): sendet die offene Target-Entscheidung der Kategorie unter
+/// `TargetGuard` noch einmal, gegen YNABs heutigen Goal-Stand. `Ok ()`: in YNAB (auch wenn nichts offen war).
+/// `Error`: der Grund, warum sie weiter nicht in YNAB ist, oder BBs Stand war nicht lesbar.
+let retryTargetWriteWith
+    (connect: unit -> SqliteConnection)
+    (goals: YnabPort)
+    (now: DateTime)
+    (categoryId: Guid)
+    : Async<Result<unit, string>> =
+    TargetGuard.exclusive categoryId (async {
+        match! sendOpenDecision connect goals now categoryId with
+        | Error message -> return Error message
+        | Ok (Some { Outcome = GoalWriteFailed reason }) -> return Error reason
+        | Ok _ -> return Ok ()
+    })
+
+/// `retryTargetWriteWith` auf der Datenbank der Anwendung.
+let retryTargetWrite (goals: YnabPort) (now: DateTime) (categoryId: Guid) =
+    retryTargetWriteWith global.Persistence.getConnection goals now categoryId
+
+/// Der einmalige Lauf "Targets nach YNAB schreiben" (budgeting-e2z7v): bringt BBs Targets aller Kategorien mit einer
+/// Target-Entscheidung nach YNAB. Ein `GET /categories` liefert YNABs Goals, geplant wird je Kategorie dagegen
+/// (`planGoalWrite`), so geht nur, was abweicht. Je Kategorie unter ihrer `TargetGuard`, nacheinander, nie unter
+/// `MonthGuard`. Eine offene Entscheidung, bei der nichts abweicht, wird ohne Aufruf als geschrieben festgehalten. Bei
+/// 429 bricht der Lauf ab: die übrigen, die etwas zu senden hätten, stehen als `GoalNotAttempted` und bekommen kein
+/// Ereignis. BBs Regeln ändert der Lauf nicht, er hängt nur Schreib-Ergebnisse an.
+let writeAllTargetsWith
+    (connect: unit -> SqliteConnection)
+    (goals: YnabPort)
+    (now: DateTime)
+    : Async<Result<TargetsToYnabReport, string>> =
+    async {
+        match! loadTargetWriteStreamsWith connect with
+        | Error message -> return Error message
+        | Ok streams ->
+            match! goals.FetchCategoryGoals () with
+            | Error e -> return Error (ynabErrorText e)
+            | Ok all ->
+                let byId = all |> List.map (fun g -> g.Id, g) |> Map.ofList
+                let nameOf (categoryId: Guid) =
+                    byId |> Map.tryFind categoryId |> Option.map (fun g -> g.Name.Trim()) |> Option.defaultValue UnknownCategoryText
+                let candidates =
+                    streams
+                    |> Map.toList
+                    |> List.filter (fun (_, events) -> (latestDecision events).IsSome)
+                    |> List.map fst
+                    |> List.sortBy nameOf
+                let mutable rateLimited = false
+                let lines = ResizeArray<TargetToYnabLine>()
+                for categoryId in candidates do
+                    let inYnab = byId |> Map.tryFind categoryId
+                    let line outcome = lines.Add { CategoryId = categoryId; CategoryName = nameOf categoryId; Outcome = outcome }
+                    if rateLimited then
+                        // Abgebrochen: nur wer etwas zu senden hätte, ist offen.
+                        let events = streams[categoryId]
+                        let pending =
+                            match latestDecision events, inYnab with
+                            | Some (_, rule), Some goal -> (openTargetWrite events).IsSome || not (List.isEmpty (planGoalWrite goal.Target rule).Calls)
+                            | _ -> true
+                        line (if pending then GoalNotAttempted else GoalAlreadyInYnab)
+                    else
+                        let! outcome =
+                            TargetGuard.exclusive categoryId (async {
+                                let stream =
+                                    try
+                                        use conn = connect ()
+                                        loadTargetStreamWithIdsOn conn categoryId
+                                    with ex ->
+                                        Error ex.Message
+                                match stream with
+                                | Error reason ->
+                                    logReadFailure "Target-Stream lesen" reason
+                                    return { Outcome = GoalWriteFailed TargetRulesUnreadableText; RateLimited = false }
+                                | Ok events ->
+                                    match latestDecision events with
+                                    | None -> return { Outcome = GoalAlreadyInYnab; RateLimited = false }
+                                    | Some (decisionEventId, rule) ->
+                                        let isOpen = (openTargetWrite events).IsSome
+                                        return! writeDecision connect goals now categoryId decisionEventId rule isOpen inYnab
+                            })
+                        if outcome.RateLimited then rateLimited <- true
+                        line outcome.Outcome
+                return Ok { Lines = List.ofSeq lines; RateLimited = rateLimited }
+    }
+
+/// `writeAllTargetsWith` auf der Datenbank der Anwendung.
+let writeAllTargets (goals: YnabPort) (now: DateTime) =
+    writeAllTargetsWith global.Persistence.getConnection goals now
 
 // ============================================
 // Fehlgeschlagene erneut senden

@@ -130,6 +130,7 @@ let ledgerTests =
                 let ynab : Server.Budgeting.CommandHandlers.YnabPort =
                     { FetchMonth = fun month -> async { return Ok (monthWith [ category ] month) }
                       SetAssigned = fun _ _ _ -> async { return failwith "Targets prüfen schreibt nicht" }
+                      WriteGoal = (fun _ _ -> async { return Ok () })
                       FetchCategoryGoals = fun () -> async { return Ok [] } }
                 { Server.Budgeting.QueryHandlers.liveTargetCheckPort ynab (fun () -> DateTime(2026, 11, 5, 8, 0, 0, DateTimeKind.Utc)) with
                     LoadLastTargetChanges = fun () -> async { return Ok Map.empty } }
@@ -426,6 +427,7 @@ let handlerTests =
                     connect
                     { FetchMonth = p.Port.FetchMonth
                       SetAssigned = fun _ _ _ -> async { return failwith "kein Schreiben" }
+                      WriteGoal = (fun _ _ -> async { return Ok () })
                       FetchCategoryGoals = fun () -> async { return Ok [] } }
                     (DateTime(2093, 4, 15, 8, 0, 0, DateTimeKind.Utc))
                     monthKey
@@ -481,6 +483,7 @@ let endpointTests =
             let ynab : Server.Budgeting.CommandHandlers.YnabPort =
                 { FetchMonth = fun month -> async { fetched.Add month; return Ok (monthWith [ category ] month) }
                   SetAssigned = fun _ _ _ -> async { return failwith "Targets prüfen schreibt nicht" }
+                  WriteGoal = (fun _ _ -> async { return Ok () })
                   FetchCategoryGoals = fun () -> async { return Ok [] } }
             let api =
                 Server.Api.budgetApiWith

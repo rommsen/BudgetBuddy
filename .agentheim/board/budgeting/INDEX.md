@@ -12,8 +12,8 @@ Catalog of this bounded context's tasks by status.
 <!-- task-counts:start -->
 - **Backlog:** 3
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 63
+- **Doing:** 0
+- **Done:** 64
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ Catalog of this bounded context's tasks by status.
 
 ### Doing
 <!-- doing-list:start -->
-- **budgeting-e2z7v** — "Targets beim Speichern direkt nach YNAB schreiben (Nachtrag ADR 0084), mit Hinweis bei nicht Darstellbarem und Erneut senden" (feature) — `doing/budgeting-e2z7v-r-ckweg-aktion-targets-nach-ynab-zur-ckschreiben-bbs-targets.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **budgeting-e2z7v** — "Targets beim Speichern direkt nach YNAB schreiben (Nachtrag ADR 0084), mit Hinweis bei nicht Darstellbarem und Erneut senden" (feature) — `done/budgeting-e2z7v-r-ckweg-aktion-targets-nach-ynab-zur-ckschreiben-bbs-targets.md`
 - **budgeting-sn2sn** — "Kategorie deaktivieren und eigene Reihenfolge, beides nur in BB (ADR 0088 Punkte 2 und 3)" (feature) — `done/budgeting-sn2sn-kategorie-deaktivieren-und-reihenfolge.md`
 - **budgeting-pscgb** — "Kategorien verwalten: Seite mit Anlegen, Umbenennen und Gruppe wechseln, Gruppen anlegen und umbenennen, Schreibweg nach YNAB" (feature) — `done/budgeting-pscgb-kategorien-anlegen-umbenennen-gruppe.md`
 - **budgeting-r5h2n** — "Allgemeine Historie zeigt alles, was das Budget betrifft, auch Target-Änderungen und Pausen" (feature) — `done/budgeting-r5h2n-allgemeine-historie-zeigt-alles-zum-budget.md`

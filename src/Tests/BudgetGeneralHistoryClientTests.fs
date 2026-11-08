@@ -29,7 +29,7 @@ let private october : BudgetMonth =
                   Available = eur 70m
                   Underfunded = None
                   Target = None
-                  Pause = None; OpenWriteBack = None; Deactivated = None } ] } ] }
+                  Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None } ] } ] }
 
 let private frame : BudgetFrame =
     { CurrentMonth = "2026-10-01"

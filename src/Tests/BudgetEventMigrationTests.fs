@@ -736,6 +736,7 @@ let private retryPort (month: string) (categories: (Guid * decimal) list) (sent:
                 if key = month then sent.Add((id, value))
                 return Ok ()
             }
+      WriteGoal = (fun _ _ -> async { return Ok () })
       FetchCategoryGoals = fun () -> async { return Ok [] } }
 
 [<Tests>]

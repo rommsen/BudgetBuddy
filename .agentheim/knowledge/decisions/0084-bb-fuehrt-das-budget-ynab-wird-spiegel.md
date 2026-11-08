@@ -7,7 +7,7 @@ date: 2026-11-05
 supersedes: []
 superseded_by: []
 related_tasks: [budgeting-zkbbd, budgeting-v7kfw, budgeting-hyn77, budgeting-qm5x9, budgeting-dgrp7, budgeting-dkjc5, budgeting-eh8xe, budgeting-e2z7v]
-related_adrs: [0012, 0013, 0065, 0072, 0074, 0079, 0080, 0082, 0083]
+related_adrs: [0012, 0013, 0065, 0072, 0074, 0079, 0080, 0082, 0083, 0090]
 related_research: []
 ---
 
@@ -486,3 +486,6 @@ zeigt. Das damals verworfene laufende Spiegeln der Targets wird damit gewählt, 
 
 Der Grund von damals (Teilfehler beim Schreiben in zwei Schritten) bleibt bestehen und wird über die
 gelbe Rückmeldung mit "Erneut senden" sichtbar statt vermieden.
+
+## Nachtrag 2026-11-08, umgesetzt (budgeting-e2z7v)
+Erfolg und Fehlschlag des Goal-Schreibens sind Ereignisse im Target-Stream (`TargetWrittenToYnab`, `TargetWriteToYnabFailed`, Actor `YnabMirror`), die letzte Entscheidung gewinnt, kein Zurückziehen-Ereignis. Geplant wird gegen YNABs heutiges Goal (ein `GET /categories` je Senden), gesendet nur, was abweicht (ADR 0072 Punkt 3); `goal_frequency` nur bei anderer Art oder anderem Rhythmus, ein Datum dann im zweiten Aufruf. Eine Änderung direkt in YNAB beobachtet BB nicht. Einzelheiten in ADR 0090.

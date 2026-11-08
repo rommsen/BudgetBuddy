@@ -39,7 +39,7 @@ let private guardCategory : BudgetCategory =
       Available = eur 1m
       Underfunded = None
       Target = None
-      Pause = None; OpenWriteBack = None; Deactivated = None }
+      Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None }
 
 let private detailMonthForGuard : BudgetMonth =
     { monthK7wmd with Groups = [ { Name = "Alltag"; Categories = [ guardCategory ] } ] }
@@ -274,7 +274,7 @@ let private labelTests =
         test "Kategorien werden über alle Gruppen gezählt" {
             let cat n : BudgetCategory =
                 { Id = System.Guid.NewGuid(); Name = n; Assigned = eur 0m; Activity = eur 0m
-                  Available = eur 0m; Underfunded = None; Target = None; Pause = None; OpenWriteBack = None; Deactivated = None }
+                  Available = eur 0m; Underfunded = None; Target = None; Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None }
             let month =
                 { monthK7wmd with
                     Groups = [ { Name = "A"; Categories = [ cat "a"; cat "b" ] }; { Name = "B"; Categories = [ cat "c" ] } ] }
@@ -325,7 +325,7 @@ let private cat (n: int) (name: string) : BudgetCategory =
       Available = rxxb4Money
       Underfunded = None
       Target = None
-      Pause = None; OpenWriteBack = None; Deactivated = None }
+      Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None }
 
 let private groupsRxxb4 : BudgetGroup list =
     [ { Name = "Alltag"; Categories = [ cat 1 "Lebensmittel"; cat 2 "Kino" ] }
@@ -409,7 +409,7 @@ let private detailCategoryFixture : BudgetCategory =
       Available = eur 70m
       Underfunded = None
       Target = None
-      Pause = None; OpenWriteBack = None; Deactivated = None }
+      Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None }
 
 let private detailMonth : BudgetMonth =
     { Month = "2026-10-01"
@@ -901,7 +901,7 @@ let private targetCategory (target: Target) (under: decimal option) (snoozed: bo
     { detailCategoryFixture with
         Target = Some target
         Underfunded = under |> Option.map eur
-        Pause = (if snoozed then Some PausedInBb else None); OpenWriteBack = None; Deactivated = None }
+        Pause = (if snoozed then Some PausedInBb else None); OpenWriteBack = None; TargetInYnab = None; Deactivated = None }
 
 let private targetTextTests =
     testList "Rhythmus-Text (kjsht)" [
