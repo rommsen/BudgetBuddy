@@ -11,19 +11,19 @@ Catalog of this bounded context's tasks by status.
 
 <!-- task-counts:start -->
 - **Backlog:** 2
-- **Todo:** 2
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 2
 - **Done:** 62
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **budgeting-e2z7v** — Targets beim Speichern direkt nach YNAB schreiben (Nachtrag ADR 0084), mit Hinweis bei nicht Darstellbarem und Erneut senden (feature) — `todo/budgeting-e2z7v-r-ckweg-aktion-targets-nach-ynab-zur-ckschreiben-bbs-targets.md`
-- **budgeting-sn2sn** — "Kategorie deaktivieren und eigene Reihenfolge, beides nur in BB (ADR 0088 Punkte 2 und 3)" (feature) — `todo/budgeting-sn2sn-kategorie-deaktivieren-und-reihenfolge.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **budgeting-sn2sn** — "Kategorie deaktivieren und eigene Reihenfolge, beides nur in BB (ADR 0088 Punkte 2 und 3)" (feature) — `doing/budgeting-sn2sn-kategorie-deaktivieren-und-reihenfolge.md`
+- **budgeting-e2z7v** — "Targets beim Speichern direkt nach YNAB schreiben (Nachtrag ADR 0084), mit Hinweis bei nicht Darstellbarem und Erneut senden" (feature) — `doing/budgeting-e2z7v-r-ckweg-aktion-targets-nach-ynab-zur-ckschreiben-bbs-targets.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)

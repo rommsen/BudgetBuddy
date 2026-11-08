@@ -1,7 +1,7 @@
 ---
 id: budgeting-e2z7v
 title: "Targets beim Speichern direkt nach YNAB schreiben (Nachtrag ADR 0084), mit Hinweis bei nicht Darstellbarem und Erneut senden"
-status: todo
+status: doing
 type: feature
 context: budgeting
 created: 2026-11-05

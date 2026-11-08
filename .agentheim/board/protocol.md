@@ -5,6 +5,25 @@ Newest entries on top.
 
 ---
 
+## 2026-11-08 16:17 -- Batch started: [budgeting-e2z7v, budgeting-sn2sn]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-e2z7v - "Targets beim Speichern direkt nach YNAB schreiben (Nachtrag ADR 0084), mit Hinweis bei nicht Darstellbarem und Erneut senden", budgeting-sn2sn - "Kategorie deaktivieren und eigene Reihenfolge, beides nur in BB (ADR 0088 Punkte 2 und 3)"
+**Parallel:** yes (2 workers, wave 2; ledger-qvjvs still in iteration 2; both touch the Budget client and YnabClient, merge sequentially)
+
+---
+
+## 2026-11-08 16:17 -- Verification failed: ledger-qvjvs - Buchung zum Übertrag machen
+
+**Type:** Work / Verification failure
+**Task:** ledger-qvjvs - Buchung zum Übertrag machen
+**Iteration:** 1 of 3
+**Reasons:** README-Bullet KategorieÄndern widerspricht dem neuen Verhalten, Nachtrag an ADR 0055 Punkt 7 fehlt
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-08 16:12 -- Task verified and completed: budgeting-pscgb - "Kategorien verwalten: Seite mit Anlegen, Umbenennen und Gruppe wechseln, Gruppen anlegen und umbenennen, Schreibweg nach YNAB"
 
 **Type:** Work / Task completion

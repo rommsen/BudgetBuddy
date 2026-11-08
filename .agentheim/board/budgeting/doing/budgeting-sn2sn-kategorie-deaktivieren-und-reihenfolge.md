@@ -1,7 +1,7 @@
 ---
 id: budgeting-sn2sn
 title: "Kategorie deaktivieren und eigene Reihenfolge, beides nur in BB (ADR 0088 Punkte 2 und 3)"
-status: todo
+status: doing
 type: feature
 context: budgeting
 created: 2026-11-08
