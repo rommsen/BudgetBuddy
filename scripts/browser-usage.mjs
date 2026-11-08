@@ -103,6 +103,7 @@ export const FLOWS = {
   "budget-zur-buchung": "Aus einer Kategorie im Budget in eine Buchung im Kassenbuch springen und zurück.",
   "kategorien-neu-laden": "Nach einem Ladefehler im Kategorie-Picker die Kategorien erneut laden.",
   "buchung-oeffnen": "Im Kassenbuch eine Buchung im Detail öffnen.",
+  "buchung-erfassen": "Im Kassenbuch am Handy über + Buchung eine Buchung mit einem Zuletzt-Chip erfassen.",
   "konto-wechseln": "Im Kassenbuch am Handy das Konto wechseln.",
   "kassenbuch-filtern": "Im Kassenbuch nach Kategorien filtern und den Filter zurücknehmen.",
   "kassenbuch-sortieren": "Im Kassenbuch nach Betrag sortieren, umkehren und zurück nach Datum.",

@@ -3344,6 +3344,397 @@ let private deletedToggleRow (dispatch: Msg -> unit) (model: Model) =
             ]
         ]
 
+// ============================================
+// Neue Buchung (ledger-at63w)
+// ============================================
+
+let captureTitle = "Neue Buchung"
+let captureSubmitLabel = "Buchung anlegen"
+let captureCancelLabel = "Abbrechen"
+let captureOpenLabel = "Buchung"
+let captureRecentLabel = "Zuletzt"
+let captureAccountPickerTitle = "Konto wählen"
+
+/// Das Konto des Formulars als Kassenbuch-Konto, wenn es bekannt ist.
+let captureAccountOf (model: Model) (form: Capture.CaptureForm) : LedgerAccountView option =
+    match model.Accounts, form.AccountId with
+    | Success view, Some id -> view.Accounts |> List.tryFind (fun a -> a.Id = id)
+    | _ -> None
+
+/// Der Text im Feld "Kategorie": der Name der Kategorie oder "Übertrag → Konto", `None` ohne Ziel.
+let captureTargetLabel (model: Model) (target: LedgerBookingTarget option) : string option =
+    match target with
+    | Some (BookOnCategory id) ->
+        model.Categories
+        |> RemoteData.toOption
+        |> Option.bind (List.tryFind (fun c -> c.Id = id))
+        |> Option.map (fun c -> c.Name)
+        |> Option.orElse (Some "Kategorie")
+    | Some (BookAsTransfer account) ->
+        let name =
+            model.TransferTargets
+            |> RemoteData.toOption
+            |> Option.bind (List.tryFind (fun a -> a.Id = account))
+            |> Option.map (fun a -> a.Name)
+            |> Option.defaultValue "Konto"
+        Some $"Übertrag → {name}"
+    | None -> None
+
+/// Die Nachricht einer Wahl im Picker des Formulars: eine Kategorie, "Ohne Kategorie" oder ein
+/// Konto (Übertrag). "Zu verteilen" bietet das Formular nicht an.
+let capturePickerMsg (choice: CategoryPicker.PickerChoice) : Msg option =
+    match choice with
+    | CategoryPicker.ChoseAccount account -> Some (ChooseCaptureTarget (Some (BookAsTransfer account)))
+    | CategoryPicker.ChoseCategory id -> Some (ChooseCaptureTarget (id |> Option.map BookOnCategory))
+    | CategoryPicker.ChoseToBeBudgeted -> None
+
+/// Die Ziel-Konten im Picker des Formulars: offene Budget-Konten ohne das gewählte Konto.
+let captureTransferTargets (model: Model) (form: Capture.CaptureForm) : YnabAccount list =
+    let own = captureAccountOf model form |> Option.bind (fun a -> a.YnabAccountId)
+    match model.TransferTargets with
+    | Success accounts -> openOnBudgetAccounts accounts |> List.filter (fun a -> Some a.Id <> own)
+    | _ -> []
+
+let private capturePickerProps (dispatch: Msg -> unit) (model: Model) (form: Capture.CaptureForm) : CategoryPicker.CategoryPickerProps =
+    { Categories = model.Categories |> RemoteData.toOption |> Option.defaultValue [] |> withoutInternalCategories
+      Current = (match form.Target with Some (BookOnCategory id) -> Some id | _ -> None)
+      Suggested = []
+      Recent = recentPickerIds model.RecentCategories
+      Accounts = captureTransferTargets model form
+      CurrentAccount = (match form.Target with Some (BookAsTransfer a) -> Some a | _ -> None)
+      AccountsLoad = transferTargetsLoadState model.TransferTargets
+      OfferWithout = true
+      ToBeBudgeted = None
+      StandLabel = categoryStandLabel model DateTime.Now
+      LoadState = categoryLoadState model.Categories
+      OnRetry = fun () -> dispatch LoadCategories
+      OnSelect = fun choice -> capturePickerMsg choice |> Option.iter dispatch
+      OnClose = fun () -> dispatch CloseCapturePicker }
+
+/// Der Saldo eines Kontos für das Konto-Feld und die Konto-Auswahl.
+let private captureBalanceOf (model: Model) (accountId: Guid) : Money option =
+    match model.Balances with
+    | Success balances -> balances |> List.tryFind (fun b -> b.AccountId = accountId) |> Option.map (fun b -> b.Balance)
+    | _ -> None
+
+/// Die Konto-Auswahl: jedes wählbare Konto mit Saldo, das gewählte markiert.
+let private captureAccountList (dispatch: Msg -> unit) (model: Model) (capture: Capture.CaptureState) : ReactElement =
+    let accounts =
+        match capture.Defaults with
+        | Success defaults -> State.captureAccounts model defaults
+        | _ -> []
+    Html.div [
+        prop.className "flex flex-col gap-0.5"
+        prop.custom ("data-testid", "capture-account-list")
+        prop.children [
+            if List.isEmpty accounts then
+                Html.p [ prop.className $"px-3 py-2 {Tokens.FontSizes.sm} {Tokens.Colors.textMuted}"; prop.text "Konten werden geladen" ]
+            for account in accounts ->
+                let isActive = capture.Form.AccountId = Some account.Id
+                let pick = fun () -> dispatch (ChooseCaptureAccount account.Id)
+                React.keyedFragment (
+                    account.Id,
+                    [ match captureBalanceOf model account.Id with
+                      | Some balance -> Money.accountListRow account.Name balance.Amount balance.Currency isActive pick
+                      | None -> Money.accountListRowWith account.Name Html.none isActive pick ]
+                )
+        ]
+    ]
+
+/// Die Felder des Formulars von oben nach unten wie im Prototyp: Ausgabe/Einnahme, Betrag,
+/// Zuletzt, Konto, Kategorie oder Konto, Payee, Datum und Memo, dazu Fehler. `inPanel`: am PC
+/// öffnen die Auswahlen im Panel, am Handy als Sheet über dem Formular.
+let private captureFields (dispatch: Msg -> unit) (model: Model) (capture: Capture.CaptureState) (inPanel: bool) : ReactElement list =
+    let form = capture.Form
+    let account = captureAccountOf model form
+    let accountOpen = capture.Picker = Some Capture.CaptureAccountPicker
+    let targetOpen = capture.Picker = Some Capture.CaptureTargetPicker
+    let label (text: string) =
+        Html.span [ prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.textMuted}"; prop.text text ]
+    [
+        Segmented.view
+            "capture-direction"
+            "Ausgabe oder Einnahme"
+            [ { Label = "Ausgabe"; IsActive = form.IsOutflow; Disabled = false; OnClick = fun () -> dispatch (SetCaptureDirection true) }
+              { Label = "Einnahme"; IsActive = not form.IsOutflow; Disabled = false; OnClick = fun () -> dispatch (SetCaptureDirection false) } ]
+
+        // Betrag ohne Vorzeichen: die Zifferntastatur zu `decimal` hat je nach App kein Minus, die
+        // Richtung kommt aus Ausgabe oder Einnahme.
+        Html.div [
+            prop.custom ("data-testid", "capture-amount")
+            prop.children [
+                Input.text
+                    { Input.textInputDefaults with
+                        Value = form.AmountText
+                        OnChange = fun text -> dispatch (SetCaptureAmount text)
+                        Placeholder = "0,00 €"
+                        Size = Input.Large
+                        InputMode = Some "decimal"
+                        AriaLabel = Some "Betrag"
+                        ClassName = Some "w-full input-amount input-amount-hero tabular-nums" }
+            ]
+        ]
+
+        match capture.Defaults with
+        | Success defaults when not (List.isEmpty defaults.Recent) ->
+            Html.div [
+                prop.className "flex flex-col gap-1.5"
+                prop.custom ("data-testid", "capture-recent")
+                prop.children [
+                    label captureRecentLabel
+                    Html.div [
+                        prop.className "flex flex-wrap gap-2"
+                        prop.children [
+                            for template in defaults.Recent ->
+                                React.keyedFragment (
+                                    Capture.templateLabel template,
+                                    [ BottomSheet.chipButtonTouch
+                                          (Capture.templateLabel template)
+                                          (fun () -> dispatch (ApplyCaptureTemplate template)) ]
+                                )
+                        ]
+                    ]
+                ]
+            ]
+        | _ -> ()
+
+        Html.div [
+            prop.className "relative"
+            prop.children [
+                Input.pickerField
+                    "capture-account"
+                    "Konto"
+                    (account |> Option.map (fun a -> a.Name))
+                    "wählen"
+                    (account
+                     |> Option.bind (fun a -> captureBalanceOf model a.Id)
+                     |> Option.map (fun b -> Money.accountBalance b.Amount b.Currency))
+                    accountOpen
+                    (fun () -> dispatch (if accountOpen then CloseCapturePicker else OpenCapturePicker Capture.CaptureAccountPicker))
+                if inPanel && accountOpen then
+                    Html.div [
+                        prop.className $"mt-1 rounded-lg border {Tokens.Borders.default'} {Tokens.Backgrounds.elevated} p-1"
+                        prop.children [ captureAccountList dispatch model capture ]
+                    ]
+            ]
+        ]
+
+        Html.div [
+            prop.className "relative"
+            prop.children [
+                Input.pickerField
+                    "capture-target"
+                    "Kategorie"
+                    (captureTargetLabel model form.Target)
+                    "wählen"
+                    None
+                    targetOpen
+                    (fun () -> dispatch (if targetOpen then CloseCapturePicker else OpenCapturePicker Capture.CaptureTargetPicker))
+                if inPanel then CategoryPicker.popoverInPanel targetOpen (capturePickerProps dispatch model form)
+            ]
+        ]
+
+        Html.label [
+            prop.className "flex flex-col gap-1.5"
+            prop.children [
+                label "Payee"
+                Input.text
+                    { Input.textInputDefaults with
+                        Value = form.Payee
+                        OnChange = fun text -> dispatch (SetCapturePayee text)
+                        OnBlur = Some (fun _ -> dispatch CommitCapturePayee)
+                        Placeholder = "z. B. Bäckerei"
+                        ClassName = Some "w-full" }
+            ]
+        ]
+
+        Html.div [
+            prop.className "grid grid-cols-2 gap-3"
+            prop.children [
+                Html.div [
+                    prop.className "flex min-w-0 flex-col gap-1.5"
+                    prop.custom ("data-testid", "capture-date")
+                    prop.children [
+                        // "Heute" und "Gestern" stehen in der Zeile der Bezeichnung: ein Tipp setzt das Datum.
+                        Html.div [
+                            prop.className "flex items-center justify-between gap-2"
+                            prop.children [
+                                label "Datum"
+                                match capture.Defaults with
+                                | Success defaults ->
+                                    Html.div [
+                                        prop.className "flex items-center gap-3"
+                                        prop.children [
+                                            Button.quietText "capture-date-today" "Heute" (fun () -> dispatch (SetCaptureDate defaults.Today))
+                                            Button.quietText
+                                                "capture-date-yesterday"
+                                                "Gestern"
+                                                (fun () -> dispatch (SetCaptureDate (defaults.Today.AddDays -1.0)))
+                                        ]
+                                    ]
+                                | _ -> ()
+                            ]
+                        ]
+                        DateField.view
+                            { Value = Some form.Date
+                              OnChange =
+                                fun entry ->
+                                    match entry with
+                                    | DateField.ValidDate d -> dispatch (SetCaptureDate d)
+                                    | _ -> ()
+                              Invalid = false
+                              Disabled = false
+                              ReadOnly = false
+                              Label = "Datum" }
+                    ]
+                ]
+                Html.label [
+                    prop.className "flex min-w-0 flex-col gap-1.5"
+                    prop.children [
+                        // Gleich hoch wie die Zeile "Datum" mit "Heute" und "Gestern", damit die Felder bündig stehen.
+                        Html.div [ prop.className "flex items-center min-h-[48px] md:min-h-9"; prop.children [ label "Memo" ] ]
+                        Input.text
+                            { Input.textInputDefaults with
+                                Value = form.Memo
+                                OnChange = fun text -> dispatch (SetCaptureMemo text)
+                                Placeholder = "optional"
+                                ClassName = Some "w-full" }
+                    ]
+                ]
+            ]
+        ]
+
+        match capture.Errors with
+        | [] -> ()
+        | errors ->
+            Html.div [
+                prop.custom ("data-testid", "capture-errors")
+                prop.role "alert"
+                prop.className "flex flex-col gap-1"
+                prop.children [ for e in errors -> ErrorDisplay.inline' e ]
+            ]
+    ]
+
+/// Der Inhalt des Formulars je nach Ladezustand der Vorbelegung.
+let private captureBody (dispatch: Msg -> unit) (model: Model) (capture: Capture.CaptureState) (inPanel: bool) : ReactElement list =
+    match capture.Defaults with
+    | Success _ -> captureFields dispatch model capture inPanel
+    | Failure message ->
+        [ ErrorDisplay.cardWithTitle "Vorbelegung konnte nicht geladen werden" message (Some (fun () -> dispatch RunLoadCaptureDefaults)) ]
+    | NotAsked | Loading -> [ Loading.centered "Formular wird vorbereitet…" ]
+
+let private captureSubmitButton (dispatch: Msg -> unit) (capture: Capture.CaptureState) (fullWidth: bool) : ReactElement =
+    Button.view
+        { Button.defaultProps with
+            Text = captureSubmitLabel
+            Variant = Button.Primary
+            IsLoading = capture.Saving
+            IsDisabled = capture.Saving || not (RemoteData.isSuccess capture.Defaults)
+            ClassName = (if fullWidth then Some "w-full" else None)
+            OnClick = fun () -> dispatch SubmitCapture }
+
+let private captureCancelButton (dispatch: Msg -> unit) (capture: Capture.CaptureState) (fullWidth: bool) : ReactElement =
+    Button.view
+        { Button.defaultProps with
+            Text = captureCancelLabel
+            Variant = Button.Secondary
+            IsDisabled = capture.Saving
+            ClassName = (if fullWidth then Some "w-full" else None)
+            OnClick = fun () -> dispatch CloseCapture }
+
+/// Das Formular im Panel rechts (PC): Kopf mit Titel und Schließen, die Felder, unten haftend
+/// "Abbrechen" und "Buchung anlegen".
+let private capturePanelView (dispatch: Msg -> unit) (model: Model) (capture: Capture.CaptureState) : ReactElement =
+    Detail.panel
+        captureTitle
+        [ Html.div [
+              prop.className $"flex items-center justify-between gap-3 px-4 py-3 border-b {Tokens.Borders.subtle}"
+              prop.children [
+                  Html.h2 [ prop.className $"{Tokens.FontSizes.lg} font-semibold {Tokens.Colors.textPrimary}"; prop.text captureTitle ]
+                  Button.view
+                      { Button.defaultProps with
+                          Icon = Some (Icons.x Icons.SM Icons.Default)
+                          Variant = Button.Secondary
+                          AriaLabel = Some "Formular schließen"
+                          Title = Some "Schließen"
+                          IsDisabled = capture.Saving
+                          OnClick = fun () -> dispatch CloseCapture }
+              ]
+          ]
+          Detail.scrollBody [
+              Html.div [
+                  prop.custom ("data-testid", "capture-form")
+                  prop.className "flex flex-col gap-3 px-4 py-3"
+                  prop.children (captureBody dispatch model capture true)
+              ]
+              // Wie im Prototyp direkt unter den Feldern, nicht am unteren Rand des Panels: das Panel reicht
+              // ohne Scrollen der Seite unter den Fensterrand.
+              Html.div [
+                  prop.className $"grid grid-cols-2 gap-3 border-t {Tokens.Borders.default'} px-4 py-3"
+                  prop.children [ captureCancelButton dispatch capture true; captureSubmitButton dispatch capture true ]
+              ]
+          ] ]
+
+/// Das Formular als Sheet (Handy, schmales Fenster). Die Auswahl von Konto und Kategorie liegt als
+/// Sheet darüber (eine Ebene, wie der Picker im Detail).
+let private captureSheetView (dispatch: Msg -> unit) (model: Model) (capture: Capture.CaptureState option) (open': bool) : ReactElement =
+    let isOpen = open' && capture.IsSome
+    React.fragment [
+        BottomSheet.view
+            { IsOpen = isOpen
+              OnClose = fun () -> dispatch CloseCapture
+              Title = captureTitle
+              Subtitle = None
+              Footer =
+                capture
+                |> Option.map (fun c ->
+                    [ Html.div [
+                          prop.className "grid w-full grid-cols-2 gap-3"
+                          prop.children [ captureCancelButton dispatch c true; captureSubmitButton dispatch c true ]
+                      ] ]) }
+            [ match capture with
+              | Some c when isOpen ->
+                  Html.div [
+                      prop.custom ("data-testid", "capture-form")
+                      prop.className "flex flex-col gap-4"
+                      prop.children (captureBody dispatch model c false)
+                  ]
+              | _ -> () ]
+        match capture with
+        | Some c when isOpen ->
+            BottomSheet.viewLayered
+                { IsOpen = (c.Picker = Some Capture.CaptureAccountPicker)
+                  OnClose = fun () -> dispatch CloseCapturePicker
+                  Title = captureAccountPickerTitle
+                  Subtitle = None
+                  Footer = None }
+                [ if c.Picker = Some Capture.CaptureAccountPicker then captureAccountList dispatch model c ]
+            CategoryPicker.sheetLayered
+                (c.Picker = Some Capture.CaptureTargetPicker)
+                None
+                (capturePickerProps dispatch model c.Form)
+        | _ -> ()
+    ]
+
+/// Der schwebende Knopf "+ Buchung" am Handy, unten rechts über der Navigation. Er fehlt bei
+/// offenem Formular und im Auswahl-Modus (dort steht die Auswahl-Leiste).
+let private captureFab (dispatch: Msg -> unit) (model: Model) : ReactElement =
+    if model.Capture.IsSome || model.SelectionMode then
+        Html.none
+    else
+        Html.div [
+            prop.className "md:hidden ledger-capture-fab"
+            prop.children [
+                Button.view
+                    { Button.defaultProps with
+                        Text = captureOpenLabel
+                        Icon = Some (Icons.plus Icons.SM Icons.Default)
+                        Variant = Button.Primary
+                        AriaLabel = Some captureTitle
+                        OnClick = fun () -> dispatch OpenCapture }
+            ]
+        ]
+
 // Wie `Viewport.observeHeight`, nur für die Breite: die Tabellenbreite entscheidet, welche
 // Spalten sichtbar sind (`visibleColumns`, ledger-qh9qx).
 [<Emit(
@@ -3397,7 +3788,7 @@ let private FilterBarColumn
     // Die Form des Details hängt nur von der Breite OHNE Panel ab (`detailFormFor`): das
     // Panel reserviert seinen Platz als Innenabstand, die gemessene Außenbreite bleibt gleich.
     let detailForm = detailFormFor tableWidth isAllAccounts
-    let panelOpen = model.DetailFor.IsSome && detailForm = DetailPanel
+    let panelOpen = (model.DetailFor.IsSome || model.Capture.IsSome) && detailForm = DetailPanel
     React.useEffect (
         (fun () -> if model.DetailForm <> detailForm then dispatch (DetailFormChanged detailForm)),
         [| box detailForm; box model.DetailForm |]
@@ -3449,9 +3840,12 @@ let private FilterBarColumn
         prop.children [
             // Das Sheet portalt nach `document.body`; es steht hier, weil die Form hier bekannt ist.
             detailSheetView dispatch model (model.DetailFor.IsSome && detailForm = DetailSheet)
-            match detailEntryOf model with
-            | Some entry when panelOpen -> detailPanelView dispatch model entry
+            captureSheetView dispatch model model.Capture (detailForm = DetailSheet)
+            match model.Capture, detailEntryOf model with
+            | Some capture, _ when panelOpen -> capturePanelView dispatch model capture
+            | None, Some entry when panelOpen -> detailPanelView dispatch model entry
             | _ -> ()
+            captureFab dispatch model
             Html.div [
                 // Neben dem Panel macht die Spalte Platz; die Mindesthöhe hält das haftende
                 // Panel auch bei kurzer Liste im Bild.
@@ -3560,6 +3954,15 @@ let view (model: Model) (dispatch: Msg -> unit) =
                         IsLoading = model.MirrorRunning
                         ClassName = Some "hidden md:inline-flex"
                         OnClick = (fun () -> dispatch StartMirror)
+                }
+                Button.view {
+                    Button.defaultProps with
+                        Text = captureOpenLabel
+                        Icon = Some (Icons.plus Icons.SM Icons.Default)
+                        Variant = Button.Primary
+                        AriaLabel = Some captureTitle
+                        ClassName = Some "hidden md:inline-flex"
+                        OnClick = (fun () -> dispatch OpenCapture)
                 }
             ]
 

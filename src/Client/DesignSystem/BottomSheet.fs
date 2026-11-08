@@ -104,6 +104,20 @@ let chipButton (text: string) (isSuggested: bool) (onClick: unit -> unit) : Reac
         prop.text text
     ]
 
+/// Wie `chipButton`, mit 48 px Trefferfläche am Handy und 36 px ab md (ledger-at63w, Zuletzt-Chips im
+/// Formular "Neue Buchung"). Hält wie `chipButton` den Fokus im Eingabefeld, die Tastatur bleibt offen.
+let chipButtonTouch (text: string) (onClick: unit -> unit) : ReactElement =
+    Html.button [
+        prop.type' "button"
+        prop.className "chip chip-touch"
+        prop.onMouseDown (fun e -> e.preventDefault())
+        prop.onClick (fun e ->
+            e.stopPropagation()
+            onClick()
+        )
+        prop.text text
+    ]
+
 /// Options-Zeile für Sortier- und Auswahl-Sheets (ledger-skpcx, ADR 0049): Beschriftung
 /// links, ein Haken rechts bei der gewählten Option, 48 px Trefferfläche am Handy, 44 px ab md. Der Tipp
 /// committet auf dem echten `click`, nicht auf `pointerdown` (siehe `chipButton`).

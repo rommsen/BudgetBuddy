@@ -1,6 +1,7 @@
 ## ADRs scoped to this BC
 
 <!-- adr-local:start -->
+- **0091**: Erfasste Buchung verwerfen (Rückgängig nach Neue Buchung): zuerst das DELETE in YNAB, nur bei Erfolg EntryDiscardedInBb im Kassenbuch, nur für verknüpfte, in BB erfasste, nicht abgeglichene Buchungen; Ausnahme von ADR 0021 · 2026-11-08 · `../../decisions/0091-erfasste-buchung-verwerfen-ynab-zuerst.md`
 - **0089**: Buchung in BB zum Übertrag machen und zurück: zwei Ereignisse (EntryTransferTargetSetInBb, EntryTransferTargetClearedInBb), Payee vor dem Übertrag als Zustand, Fehlschlag-Baseline mit Ziel; schränkt ADR 0055 Punkt 7 auf die Sammelaktion ein · 2026-11-08 · `../../decisions/0089-buchung-zum-uebertrag-in-bb.md`
 - **0068**: Bob-Grenzen über den Tag (500 € Summe, 10 Commits je Kalendertag), Datumsfenster 31 Tage, harter Deckel 500 € je Buchung, Drosselung 10 Anfragen pro Minute und 5 Minuten Kategorien-Cache; keine eigene Meldung, kein Flag · 2026-10-28 · `../../decisions/0068-bob-tagesgrenze-datumsfenster-und-drosselung.md`
 - **0067**: Bob darf auf dem Quick-Add-Konto auch Einnahmen buchen (direction inflow), unter derselben Obergrenze, ohne Konto-Feld und ohne Lese-Route; ergänzt ADR 0066 Entscheidung 5 · 2026-10-28 · `../../decisions/0067-bob-darf-auch-einnahmen-buchen.md`

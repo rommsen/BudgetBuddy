@@ -779,6 +779,14 @@ nav a:focus-visible {
 .input-field.input-amount {
   font-family: var(--font-mono);
 }
+/* Der große Betrag im Formular "Neue Buchung" (ledger-at63w, Prototyp Version 17): Mono, rechtsbündig,
+   ohne Layer wie `.input-field`, damit die Größe von `Input.Large` (`text-lg`) sie nicht überstimmt. */
+.input-field.input-amount-hero {
+  font-size: 1.875rem;
+  line-height: 2.25rem;
+  text-align: right;
+  min-height: 64px;
+}
 .input-field:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -1925,6 +1933,8 @@ nav a:focus-visible {
   touch-action: manipulation;
 }
 .chip:active { transform: scale(0.97); background: var(--sf-bg-hover); }
+.chip.chip-touch { min-height: 48px; }
+@media (min-width: 768px) { .chip.chip-touch { min-height: 36px; } }
 .chip.suggested {
   border-color: color-mix(in srgb, var(--color-accent) 30%, transparent);
   background: var(--sf-accent-dim);
@@ -2909,6 +2919,14 @@ nav a:focus-visible {
    langen Drücken auf eine Zeile sonst aufgeht. */
 .selection-bar {
   box-shadow: 0 -14px 40px rgba(0, 0, 0, 0.45);
+}
+/* "+ Buchung" am Handy (ledger-at63w): schwebt unten rechts über der Navigation, mit dem
+   Seitenrand von 16 px (Styleguide §7.15) und Abstand zur sicheren Zone unten. */
+.ledger-capture-fab {
+  position: fixed;
+  right: 16px;
+  bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  z-index: 40;
 }
 .row-longpress {
   -webkit-touch-callout: none;

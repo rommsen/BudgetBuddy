@@ -428,6 +428,25 @@ type LedgerApi = {
     /// Buchung wird abgelehnt, ohne Push.
     retryPushToYnab: Guid -> Async<Result<PushToYnabWriteBack, string>>
 
+    /// "Neue Buchung" im Kassenbuch (ledger-at63w): erfasst eine Buchung auf einem offenen
+    /// Budget-Konto ohne Import, Kassenbuch zuerst, dann der Push (ADR 0021). Ein Konto als Ziel
+    /// bucht einen Übertrag. Error ohne Ereignis und ohne Push bei ungültiger Eingabe, dem
+    /// Import-Konto, einem geschlossenen oder unbekannten Konto oder Ziel. Ein gescheiterter Push
+    /// ist kein Error: die Buchung steht, `PushFailure` nennt den Grund.
+    addLedgerBooking: LedgerBookingRequest -> Async<Result<LedgerBookingCreated, string>>
+
+    /// "Rückgängig" nach dem Erfassen (ledger-at63w): löscht die Buchung in YNAB, danach gilt
+    /// sie im Kassenbuch als gelöscht. Nur für eine in BB erfasste, mit YNAB verknüpfte Buchung.
+    discardCapturedBooking: Guid -> Async<Result<unit, string>>
+
+    /// Die Vorbelegung des Formulars "Neue Buchung": heute (Berliner Kalender), das Import-Konto,
+    /// das zuletzt genutzte Konto und die Zuletzt-Chips.
+    getLedgerBookingDefaults: unit -> Async<LedgerBookingDefaults>
+
+    /// Die vorbelegte Kategorie zu einem Payee beim Erfassen: die letzte Kategorie dieses Payees,
+    /// sonst die passende Regel, sonst keine.
+    getBookingCategoryForPayee: string -> Async<YnabCategoryId option>
+
     /// The categories this payee had so far in the Kassenbuch, most frequent first, at most
     /// three (ledger-sfab0, ADR 0055 Nachtrag): the picker's VORGESCHLAGEN section. Payee
     /// match ignores case; bookings deleted in YNAB and bookings without a category do not

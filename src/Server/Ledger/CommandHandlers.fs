@@ -733,7 +733,11 @@ let describeNotCreatedReason (importId: string) (result: Ynab.TransactionCreateR
 /// Dann steht die Buchung unter genau dieser Id im Kassenbuch, und `Error` meldet nur den
 /// Push-Fehler. So kann ein Aufrufer nach einem Abbruch im Kassenbuch nachsehen, ob die
 /// Buchung schon steht.
-let addCashExpense
+///
+/// `followUps` (ledger-at63w): Ereignisse, die mit `CashExpenseAdded` im selben Schritt vor dem
+/// Push stehen, etwa `EntryTransferTargetSetInBb` für eine erfasste Buchung auf ein anderes Konto.
+let private addCashExpenseWith
+    (followUps: LedgerEventBody list)
     (actor: Actor)
     (now: DateTime)
     (entryId: EntryId)
@@ -768,7 +772,9 @@ let addCashExpense
                                 ImportId = Some (cashEntryImportId entryId)
                             }
                     }
-                    do! Ledger.Persistence.appendAndApply [ cashExpenseAdded ]
+                    let followUpEvents =
+                        followUps |> List.map (fun body -> { EntryId = entryId; OccurredAt = now; Actor = actor; Body = body })
+                    do! Ledger.Persistence.appendAndApply (cashExpenseAdded :: followUpEvents)
 
                     match! push () with
                     | Ok ynabTransactionId ->
@@ -798,6 +804,17 @@ let addCashExpense
         if Result.isOk result then triggerMirror ()
         return result
     }
+
+/// Die Barbuchung ohne Folge-Ereignisse (Quick Add, Bob, Erfassen auf eine Kategorie).
+let addCashExpense
+    (actor: Actor)
+    (now: DateTime)
+    (entryId: EntryId)
+    (push: unit -> Async<YnabResult<string>>)
+    (triggerMirror: unit -> unit)
+    (input: CashExpenseInput)
+    : Async<YnabResult<EntryId>> =
+    addCashExpenseWith [] actor now entryId push triggerMirror input
 
 // ============================================
 // Barbuchung: gemeinsamer Befehl für Quick Add und Bob (ledger-bk3q8)
@@ -2023,6 +2040,150 @@ let setEntryTransfer
         }
     )
 
+// ============================================
+// Buchung im Kassenbuch erfassen (ledger-at63w)
+// ============================================
+
+/// Die Umgebung des Erfassens: Kassenbuch-Konten, das Import-Konto, die Konten des
+/// YNAB-Budgets (offen, Budget-Konto, Übertrags-Payee), die Kategorie-Auflösung, der Einzel-Post
+/// und der Spiegel-Auslöser. Tests setzen Fälschungen ein.
+type LedgerBookingTools = {
+    LedgerAccounts: unit -> Async<LedgerAccount list>
+    ImportAccount: unit -> Async<YnabAccountId option>
+    BudgetAccounts: unit -> Async<YnabResult<Ynab.TransferAccount list>>
+    ResolveCategory: YnabCategoryId -> Async<Result<CategoryRef, string>>
+    /// Der Einzel-Post: `import_id`, YNAB-Konto, Übertrags-Payee (`None` ohne Übertrag), Request.
+    Push: string -> YnabAccountId -> string option -> ManualTransactionRequest -> Async<YnabResult<string>>
+    TriggerMirror: unit -> unit
+}
+
+let bookingAccountsFailedText (error: YnabError) =
+    $"Die Konten konnten nicht geladen werden: {ynabErrorText error}"
+
+/// Der Befehl "Buchung erfassen" (ledger-at63w): eine Buchung auf einem Konto ohne Import, mit
+/// Actor `UserInBb`. `request` ist an der API-Grenze geprüft (`Validation.validateLedgerBooking`).
+/// Konto und Ziel prüft `Validation.resolveLedgerBookingAccounts`; jede Ablehnung ohne Ereignis
+/// und ohne Push. Dann derselbe Weg wie Quick Add und Bob (`addCashExpense`, ADR 0021):
+/// `CashExpenseAdded` mit der festen `import_id`, der Push, `EntryLinkedToYnab`. Ist das Ziel
+/// ein Konto, steht `EntryTransferTargetSetInBb` im selben Schritt hinter `CashExpenseAdded`, und
+/// der Push trägt `payee_id` gleich der Übertrags-Payee, ohne `category_id`. Ein gescheiterter
+/// Push ist kein Fehler: die Buchung steht im Kassenbuch, `PushFailure` nennt den Grund.
+let addLedgerBooking
+    (now: DateTime)
+    (entryId: EntryId)
+    (tools: LedgerBookingTools)
+    (request: LedgerBookingRequest)
+    : Async<Result<LedgerBookingCreated, string>> =
+    async {
+        let! ledgerAccounts = tools.LedgerAccounts ()
+        let! importAccount = tools.ImportAccount ()
+        match! tools.BudgetAccounts () with
+        | Error err -> return Error (bookingAccountsFailedText err)
+        | Ok budget ->
+            match Server.Validation.resolveLedgerBookingAccounts ledgerAccounts budget importAccount request with
+            | Error reason -> return Error reason
+            | Ok (account, transfer) ->
+                let! category =
+                    match request.Target with
+                    | Some (BookOnCategory categoryId) ->
+                        async {
+                            let! resolved = tools.ResolveCategory categoryId
+                            return resolved |> Result.map Some
+                        }
+                    | _ -> async.Return (Ok None)
+                match category with
+                | Error reason -> return Error reason
+                | Ok category ->
+                    let booking : CashBooking = {
+                        AccountId = account.LedgerAccountId
+                        Date = request.Date
+                        Amount = request.Amount
+                        IsOutflow = request.IsOutflow
+                        Payee = request.PayeeName
+                        Memo = request.Memo
+                        Category = category
+                    }
+                    let input, manualRequest = cashBookingParts booking
+                    let followUps =
+                        match transfer with
+                        | None -> []
+                        | Some t ->
+                            [ EntryTransferTargetSetInBb {
+                                  OldCategory = None
+                                  OldPayee = input.Payee
+                                  OldTransferAccountId = None
+                                  NewTransferAccountId = t.TargetAccountId
+                                  NewTransferAccountName = t.TargetName
+                                  TransferPayeeId = t.TransferPayeeId
+                                  NewPayee = Some (transferPayeeName t.TargetName) } ]
+                    let transferPayee = transfer |> Option.map (fun t -> t.TransferPayeeId)
+                    let push () = tools.Push (cashEntryImportId entryId) account.YnabAccountId transferPayee manualRequest
+                    let! result = addCashExpenseWith followUps UserInBb now entryId push tools.TriggerMirror input
+                    let (EntryId id) = entryId
+                    return
+                        Ok {
+                            EntryId = id
+                            AccountName = account.Name
+                            PushFailure =
+                                match result with
+                                | Ok _ -> None
+                                | Error err -> Some (ynabErrorText err)
+                        }
+    }
+
+let discardNotCapturedText = "Nur eine in BB erfasste Buchung lässt sich so zurücknehmen"
+let discardNotLinkedText = "Die Buchung ist noch nicht in YNAB"
+let discardDeletedText = "Die Buchung ist in YNAB gelöscht"
+let discardReconciledText = "Die Buchung ist abgeglichen"
+
+/// "Rückgängig" nach dem Erfassen (ledger-at63w, ADR "Erfasste Buchung verwerfen"): löscht die
+/// Buchung zuerst in YNAB und schreibt erst danach `EntryDiscardedInBb` (Actor `UserInBb`). Nur
+/// für eine Buchung, die mit `CashExpenseAdded` durch `UserInBb` entstand, mit YNAB verknüpft,
+/// nicht gelöscht und nicht abgeglichen ist; sonst Ablehnung ohne Aufruf und ohne Ereignis.
+/// Scheitert das Löschen, bleibt alles, wie es war. Unter der Schreib-Sperre, der Spiegel danach.
+/// `origin` liefert den Actor des ersten Ereignisses der Buchung.
+let discardCapturedBooking
+    (now: DateTime)
+    (origin: EntryId -> Async<(Actor * LedgerEventBody) option>)
+    (deleteInYnab: string -> Async<YnabResult<unit>>)
+    (triggerMirror: unit -> unit)
+    (entryId: EntryId)
+    : Async<Result<unit, string>> =
+    async {
+        let! result =
+            WriteGuard.exclusive (
+                async {
+                    match! Ledger.Persistence.loadEntry entryId with
+                    | None -> return Error "Buchung nicht gefunden"
+                    | Some entry when entry.DeletedInYnab -> return Error discardDeletedText
+                    | Some entry ->
+                        match! origin entryId with
+                        | Some (UserInBb, CashExpenseAdded _) ->
+                            if entry.Cleared = Reconciled then
+                                return Error discardReconciledText
+                            else
+                                let! links = Ledger.Persistence.linksForEntry entryId
+                                match currentYnabTransactionId links with
+                                | None -> return Error discardNotLinkedText
+                                | Some ynabTransactionId ->
+                                    match! deleteInYnab ynabTransactionId with
+                                    | Error err -> return Error (ynabErrorText err)
+                                    | Ok () ->
+                                        do!
+                                            Ledger.Persistence.appendAndApply [
+                                                { EntryId = entryId
+                                                  OccurredAt = now
+                                                  Actor = UserInBb
+                                                  Body = EntryDiscardedInBb { YnabTransactionId = ynabTransactionId } }
+                                            ]
+                                        return Ok ()
+                        | _ -> return Error discardNotCapturedText
+                }
+            )
+        if Result.isOk result then triggerMirror ()
+        return result
+    }
+
 /// Der Weg zurück (ledger-qvjvs): ein Übertrag zwischen Budget-Konten wird wieder eine
 /// normale Buchung mit Kategorie und dem Payee aus BB vor dem Übertrag. Ohne diesen Payee
 /// (ein Übertrag aus YNAB) lehnt der Befehl ab. Läuft innerhalb von `setEntryCategory`.
@@ -2339,7 +2500,22 @@ type EntryPushPlan = {
     Request: ManualTransactionRequest
     ImportId: string option
     FlagColor: string option
+    /// Das Übertrags-Ziel einer Buchung ohne Kategorie und ohne Split (ledger-at63w): der Push
+    /// geht dann mit der Übertrags-Payee hinaus (`transferPayeeIdFor`), nicht mit dem Payee-Namen.
+    TransferAccountId: YnabAccountId option
 }
+
+/// Die Übertrags-Payee eines in BB gesetzten Übertrags auf `target`: aus dem letzten
+/// `EntryTransferTargetSetInBb` mit diesem Ziel im Log der Buchung (ledger-at63w). Rein.
+let transferPayeeIdFor (events: LedgerEvent list) (target: YnabAccountId) : string option =
+    events
+    |> List.choose (fun e ->
+        match e.Body with
+        | EntryTransferTargetSetInBb p when p.NewTransferAccountId = target -> Some p.TransferPayeeId
+        | _ -> None)
+    |> List.tryLast
+
+let transferPayeeUnknownReason = "Für das Übertrags-Ziel kennt BB keinen Übertrags-Payee"
 
 /// Der Push einer Kassenbuch-Buchung (ledger-bk3q8, vorher inline in `Server.Api.entryPush`):
 /// Betrag ohne Vorzeichen, die Richtung als `IsOutflow`, ein fehlender Payee als leerer
@@ -2362,6 +2538,8 @@ let planEntryPush (accounts: LedgerAccount list) (links: EntryLink list) (entry:
             }
             ImportId = currentImportId links
             FlagColor = pushFlagColorOf entry
+            TransferAccountId =
+                if entry.Category.IsNone && List.isEmpty entry.Splits then entry.TransferAccountId else None
         }
     | _ -> Error pushNotPossibleReason
 

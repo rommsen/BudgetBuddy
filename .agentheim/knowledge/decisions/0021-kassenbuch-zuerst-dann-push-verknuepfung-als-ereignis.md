@@ -6,8 +6,8 @@ status: accepted
 date: 2026-09-11
 supersedes: []
 superseded_by: []
-related_tasks: [ledger-cscw1, categorization-gdrx8, ledger-qvt84, ledger-tdnpk, ledger-r6wn3]
-related_adrs: [0004, 0013, 0015]
+related_tasks: [ledger-cscw1, categorization-gdrx8, ledger-qvt84, ledger-tdnpk, ledger-r6wn3, ledger-at63w]
+related_adrs: [0004, 0013, 0015, 0091]
 related_research: []
 ---
 
@@ -107,3 +107,6 @@ Zeitpunkt des Startschritts als `occurred_at`. Das Ereignis hält also fest, wan
 Verknüpfung ins Log aufgenommen hat, nicht wann der Spiegel sie gefunden hat; dieser Zeitpunkt
 ist nicht mehr bekannt. Gespeicherte Ereignisse bleiben unverändert (ADR 0013 Punkt 7), es kommen
 nur neue dazu.
+
+## Nachtrag 2026-11-08, Rückgängig nach dem Erfassen (ledger-at63w)
+Die Reihenfolge "Kassenbuch zuerst, dann YNAB" gilt nicht für das Verwerfen einer eben in BB erfassten Buchung (ADR 0091): dort geht zuerst das DELETE an YNAB und erst bei Erfolg `EntryDiscardedInBb` ins Kassenbuch, nur für eine mit YNAB verknüpfte Buchung. Scheitert das DELETE, ändert sich nichts. Das Erfassen selbst (`addLedgerBooking`) folgt weiter dieser ADR: `CashExpenseAdded`, bei einem Übertrag `EntryTransferTargetSetInBb` im selben Schritt, dann der Push, dann `EntryLinkedToYnab`.

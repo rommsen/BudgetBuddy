@@ -5,6 +5,41 @@ Newest entries on top.
 
 ---
 
+## 2026-11-08 18:21 -- Task verified and completed: ledger-at63w - "Buchung im Kassenbuch erfassen für jedes Konto ohne Import, mit Vorbelegung (Konto, Datum, Zuletzt, Kategorie zum Payee)"
+
+**Type:** Work / Task completion
+**Task:** ledger-at63w - "Buchung im Kassenbuch erfassen für jedes Konto ohne Import, mit Vorbelegung (Konto, Datum, Zuletzt, Kategorie zum Payee)"
+**Summary:** Buchung im Kassenbuch erfassen für jedes Konto ohne Import, mit Vorbelegung und Rückgängig
+**Duration:** 1h34m
+**Verification:** PASS (iteration 3)
+**Files changed:** 34
+**Tests added:** 81
+**ADRs written:** 0091-erfasste-buchung-verwerfen-ynab-zuerst.md
+
+---
+
+## 2026-11-08 18:14 -- Verification failed: ledger-at63w - Buchung im Kassenbuch erfassen
+
+**Type:** Work / Verification failure
+**Task:** ledger-at63w - Buchung im Kassenbuch erfassen
+**Iteration:** 2 of 3
+**Reasons:** README-Bullets Push-Fehlschlag und Schreib-Sperre nennen dieselbe Regel und sind nicht nachgezogen
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
+## 2026-11-08 17:55 -- Verification failed: ledger-at63w - Buchung im Kassenbuch erfassen
+
+**Type:** Work / Verification failure
+**Task:** ledger-at63w - Buchung im Kassenbuch erfassen
+**Iteration:** 1 of 3
+**Reasons:** EntryDiscardedInBb fehlt im Ereigniskatalog der README, Bullets PushErneutSenden und Erneut senden nicht nachgezogen
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-08 17:38 -- Task verified and completed: budgeting-e2z7v - "Targets beim Speichern direkt nach YNAB schreiben (Nachtrag ADR 0084), mit Hinweis bei nicht Darstellbarem und Erneut senden"
 
 **Type:** Work / Task completion

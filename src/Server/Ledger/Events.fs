@@ -310,6 +310,13 @@ type EntryTransferTargetClearedInBbPayload = {
     NewPayee: string option
 }
 
+/// Roman hat eine in BB erfasste Buchung mit "Rückgängig" verworfen (ledger-at63w, Actor
+/// `UserInBb`). Erst nachdem YNAB sie gelöscht hat, steht das Ereignis im Log; die Buchung gilt
+/// danach als gelöscht. Trägt die gelöschte YNAB-Id für die Nachvollziehbarkeit.
+type EntryDiscardedInBbPayload = {
+    YnabTransactionId: string
+}
+
 /// Das Flag wurde in BB geändert (ADR 0056, Punkt 2): "Lena fragen", "Rückfrage zurücknehmen"
 /// und "Rückgängig" erzeugen denselben Typ. Die Absicht steht nicht im Log, nur der Übergang
 /// (Alt und Neu, roh wie YNAB sie liefert). Actor `UserInBb`.
@@ -423,6 +430,9 @@ type LedgerEventBody =
     | EntryTransferTargetSetInBb of EntryTransferTargetSetInBbPayload
     /// Übertrag in BB wieder zur normalen Buchung gemacht (ledger-qvjvs). Entscheidung.
     | EntryTransferTargetClearedInBb of EntryTransferTargetClearedInBbPayload
+    /// In BB erfasste Buchung mit "Rückgängig" verworfen, nachdem YNAB sie gelöscht hat
+    /// (ledger-at63w). Entscheidung.
+    | EntryDiscardedInBb of EntryDiscardedInBbPayload
 
 // ============================================
 // Entscheidungs-Familie: noch reservierter Name
@@ -490,6 +500,7 @@ let eventTypeName (body: LedgerEventBody) : string =
     | EntryPushToYnabFailed _ -> "EntryPushToYnabFailed"
     | EntryTransferTargetSetInBb _ -> "EntryTransferTargetSetInBb"
     | EntryTransferTargetClearedInBb _ -> "EntryTransferTargetClearedInBb"
+    | EntryDiscardedInBb _ -> "EntryDiscardedInBb"
 
 /// Die Schema-Version, mit der ein Ereignis heute geschrieben wird. Aendert sich die
 /// Payload-Form eines Typs, kommt eine neue Version dazu; alte gespeicherte Ereignisse
@@ -528,6 +539,7 @@ let schemaVersion (body: LedgerEventBody) : int =
     | EntryPushToYnabFailed _ -> 1
     | EntryTransferTargetSetInBb _ -> 1
     | EntryTransferTargetClearedInBb _ -> 1
+    | EntryDiscardedInBb _ -> 1
 
 // ============================================
 // JSON-Codecs
@@ -1075,6 +1087,12 @@ module Codec =
             NewPayee = get.Optional.Field "newPayee" Decode.string
         })
 
+    let encodeDiscardedInBb (p: EntryDiscardedInBbPayload) =
+        Encode.object [ "ynabTransactionId", Encode.string p.YnabTransactionId ]
+
+    let decodeDiscardedInBb : Decoder<EntryDiscardedInBbPayload> =
+        Decode.object (fun get -> { YnabTransactionId = get.Required.Field "ynabTransactionId" Decode.string })
+
     let encodeFlagChangedInBb (p: EntryFlagChangedInBbPayload) =
         Encode.object [
             "oldFlagColor", encodeOptionalString p.OldFlagColor
@@ -1182,6 +1200,7 @@ let encodePayload (body: LedgerEventBody) : string =
         | EntryPushToYnabFailed p -> Codec.encodePushToYnabFailed p
         | EntryTransferTargetSetInBb p -> Codec.encodeTransferTargetSetInBb p
         | EntryTransferTargetClearedInBb p -> Codec.encodeTransferTargetClearedInBb p
+        | EntryDiscardedInBb p -> Codec.encodeDiscardedInBb p
     Encode.toString 0 json
 
 /// Liest eine gespeicherte Payload zurueck. Typname und Schema-Version zusammen
@@ -1252,6 +1271,8 @@ let decodePayload (eventType: string) (version: int) (payload: string) : Result<
         Decode.fromString Codec.decodeTransferTargetSetInBb payload |> Result.map EntryTransferTargetSetInBb
     | "EntryTransferTargetClearedInBb", 1 ->
         Decode.fromString Codec.decodeTransferTargetClearedInBb payload |> Result.map EntryTransferTargetClearedInBb
+    | "EntryDiscardedInBb", 1 ->
+        Decode.fromString Codec.decodeDiscardedInBb payload |> Result.map EntryDiscardedInBb
     | t, v -> Error $"Unbekannter Ereignistyp '{t}' in Schema-Version {v}"
 
 // ============================================

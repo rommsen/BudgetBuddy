@@ -1033,6 +1033,10 @@ type Model = {
     /// Budget-Konten (`openOnBudgetAccounts`).
     TransferTargets: RemoteData<YnabAccount list>
 
+    /// Das offene Formular "Neue Buchung" (ledger-at63w), `None` wenn zu. Am PC im Panel, am Handy
+    /// als Sheet (dieselbe Form wie das Detail, `DetailForm`). Höchstens eines von Detail und Formular.
+    Capture: Capture.CaptureState option
+
     /// Die Vorschläge zum Payee für den offenen Picker (höchstens drei, häufigste zuerst).
     /// Leer, bis die Antwort da ist, bei einem Fehler und ohne Payee.
     CategorySuggestions: YnabCategoryId list
@@ -1712,6 +1716,36 @@ type Msg =
     /// "Abbrechen", Esc oder Schließen des Details: verwirft den Entwurf.
     | CloseSplitEditor
     | RunLoadTransferTargets
+    // ============================================
+    // Neue Buchung (ledger-at63w)
+    // ============================================
+    /// "+ Buchung": öffnet das Formular und lädt die Vorbelegung.
+    | OpenCapture
+    | CloseCapture
+    | RunLoadCaptureDefaults
+    | CaptureDefaultsLoaded of Result<LedgerBookingDefaults, string>
+    | SetCaptureDirection of isOutflow: bool
+    | SetCaptureAmount of string
+    | SetCapturePayee of string
+    /// Das Payee-Feld verliert den Fokus: die Kategorie zum Payee wird geholt.
+    | CommitCapturePayee
+    | RunLoadCapturePayeeCategory of payee: string
+    | CapturePayeeCategoryLoaded of payee: string * YnabCategoryId option
+    | SetCaptureDate of DateTime
+    | SetCaptureMemo of string
+    | ApplyCaptureTemplate of LedgerBookingTemplate
+    | OpenCapturePicker of Capture.CapturePicker
+    | CloseCapturePicker
+    | ChooseCaptureAccount of Guid
+    | ChooseCaptureTarget of LedgerBookingTarget option
+    /// "Buchung anlegen": prüft im Client und startet den Aufruf, gesperrt solange er läuft.
+    | SubmitCapture
+    | RunSubmitCapture of LedgerBookingRequest
+    | CaptureSubmitted of Result<LedgerBookingCreated, string>
+    /// "Rückgängig" an der Rückmeldung nach dem Anlegen.
+    | StartDiscardCaptured of Guid
+    | RunDiscardCaptured of Guid
+    | CapturedDiscarded of Guid * Result<unit, string>
     | TransferTargetsLoaded of Result<YnabAccount list, string>
     | AddSplitLine
     | RemoveSplitLine of int

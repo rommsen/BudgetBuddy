@@ -150,7 +150,9 @@ let tests =
                   [ "getLedgerAccounts"; "getLastMirrorRun"; "getLenaFlagSettings"
                     "getLedgerAccountBalances"; "getLedgerEntriesPage"; "getLedgerEntriesPage"
                     "getEntryHistory"; "getLedgerPayeeSuggestions"; "getPayeeCategorySuggestions"
-                    "getBudgetAccounts"; "getSettings"; "getLedgerEntry"; "getLedgerEntry" ]
+                    "getBudgetAccounts"; "getSettings"; "getLedgerEntry"; "getLedgerEntry"
+                    // ledger-at63w: Vorbelegung und Kategorie zum Payee beim Erfassen.
+                    "getLedgerBookingDefaults"; "getBookingCategoryForPayee" ]
                   // infrastructure-t5m2b: der Import kam dazu, als seine Browser-Wächter je Abbruch
                   // (getSettings, getTransactions, getCategories, getPayees, getBudgetAccounts) fielen.
                   "Components/SyncFlow/State.fs",

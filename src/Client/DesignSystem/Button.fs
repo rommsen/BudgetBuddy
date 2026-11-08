@@ -495,13 +495,14 @@ let tile (testId: string) (value: string) (label: string) (title: string option)
         ]
     ]
 
-/// Ein leiser Textknopf, 12 px gedämpft, ohne Rand und Fläche ("Ausblenden"). Trefferfläche 48 px am Handy, 36 px ab md.
+/// Ein leiser Textknopf, 12 px gedämpft, ohne Rand und Fläche ("Ausblenden"). Trefferfläche 48 × 48 px am Handy
+/// (auch ein kurzes Wort wie "Heute", ledger-at63w), 36 px hoch ab md.
 let quietText (testId: string) (text: string) (onClick: unit -> unit) =
     Html.button [
         prop.type' "button"
         prop.custom ("data-testid", testId)
         prop.className
-            $"inline-flex items-center min-h-[48px] md:min-h-9 px-1 -mr-1 text-xs {Colors.textSecondary} cursor-pointer touch-manipulation hover:text-text-primary transition-colors"
+            $"inline-flex items-center justify-center min-h-[48px] min-w-[48px] md:min-h-9 md:min-w-0 px-1 -mr-1 text-xs {Colors.textSecondary} cursor-pointer touch-manipulation hover:text-text-primary transition-colors"
         prop.onClick (fun _ -> onClick ())
         prop.text text
     ]

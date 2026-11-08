@@ -1136,9 +1136,14 @@ let sendPrepared
 /// Quick Add and Bob pass BB's fixed import_id (`BB:` plus the EntryId, ADR 0004 Nachtrag,
 /// ledger-p3vq8), a re-send passes the import_id the booking carries. Bookings pushed before
 /// that carry none (`None`): the key is omitted, they stay user-entered in YNAB.
-let buildManualTransactionBodyWithFlag
+///
+/// `transferPayeeId` (ledger-at63w): eine im Kassenbuch erfasste Buchung auf ein anderes Konto geht
+/// als Übertrag hinaus, mit `payee_id` gleich der Übertrags-Payee des Zielkontos und ohne
+/// `category_id` und `payee_name` (wie `buildTransferBody`). YNAB legt die Gegenbuchung an.
+let buildNewTransactionBody
     (importId: string option)
     (flagColor: string option)
+    (transferPayeeId: string option)
     (YnabAccountId accountId: YnabAccountId)
     (request: ManualTransactionRequest)
     : string =
@@ -1149,20 +1154,23 @@ let buildManualTransactionBodyWithFlag
             "account_id", Encode.string (accountId.ToString())
             "date", Encode.string (request.Date.ToString("yyyy-MM-dd"))
             "amount", Encode.int amount
-            // Payee is optional — omit instead of sending an empty string,
-            // which YNAB would otherwise create as a payee named ""
-            match request.PayeeName with
-            | p when not (System.String.IsNullOrWhiteSpace p) ->
-                "payee_name", Encode.string (p.Trim())
-            | _ -> ()
+            match transferPayeeId with
+            | Some payeeId -> "payee_id", Encode.string payeeId
+            | None ->
+                // Payee is optional — omit instead of sending an empty string,
+                // which YNAB would otherwise create as a payee named ""
+                match request.PayeeName with
+                | p when not (System.String.IsNullOrWhiteSpace p) ->
+                    "payee_name", Encode.string (p.Trim())
+                | _ -> ()
             "cleared", Encode.string "uncleared"
             match request.Memo with
             | Some memo when not (System.String.IsNullOrWhiteSpace memo) ->
                 "memo", Encode.string (memo.Trim())
             | _ -> ()
-            match request.CategoryId with
-            | Some (YnabCategoryId catId) -> "category_id", Encode.string (catId.ToString())
-            | None -> ()
+            match transferPayeeId, request.CategoryId with
+            | None, Some (YnabCategoryId catId) -> "category_id", Encode.string (catId.ToString())
+            | _ -> ()
             // Die import_id der Buchung (ledger-cks06, ledger-p3vq8): YNAB dedupliziert
             // über sie. Ohne import_id fehlt der Schlüssel.
             match importId with
@@ -1176,6 +1184,14 @@ let buildManualTransactionBodyWithFlag
         ]
     ]
     |> Encode.toString 2
+
+let buildManualTransactionBodyWithFlag
+    (importId: string option)
+    (flagColor: string option)
+    (accountId: YnabAccountId)
+    (request: ManualTransactionRequest)
+    : string =
+    buildNewTransactionBody importId flagColor None accountId request
 
 let buildManualTransactionBodyWith
     (importId: string option)
@@ -1232,9 +1248,10 @@ let createTransactionVia (send: string -> Async<int * string>) (requestBody: str
 /// Creates a single manually entered transaction (Quick Add) in YNAB.
 /// Returns the YNAB transaction id from the response so the caller can link the
 /// Kassenbuch-Buchung to it (`EntryLinkedToYnab`, ADR 0021).
-let createTransactionWithFlag
+let createTransactionFor
     (importId: string option)
     (flagColor: string option)
+    (transferPayeeId: string option)
     (token: string)
     (YnabBudgetId budgetId: YnabBudgetId)
     (accountId: YnabAccountId)
@@ -1256,11 +1273,22 @@ let createTransactionWithFlag
         }
     async {
         try
-            let requestBody = buildManualTransactionBodyWithFlag importId flagColor accountId request
+            let requestBody = buildNewTransactionBody importId flagColor transferPayeeId accountId request
             return! createTransactionVia send requestBody
         with ex ->
             return Error (fetchFailureOf "POST" "transactions" ex)
     }
+
+/// Wie `createTransactionFor`, ohne Übertrag (Quick Add, Bob, Import-Rückfrage).
+let createTransactionWithFlag
+    (importId: string option)
+    (flagColor: string option)
+    (token: string)
+    (budgetId: YnabBudgetId)
+    (accountId: YnabAccountId)
+    (request: ManualTransactionRequest)
+    : Async<YnabResult<string>> =
+    createTransactionFor importId flagColor None token budgetId accountId request
 
 let createTransactionWith
     (importId: string option)

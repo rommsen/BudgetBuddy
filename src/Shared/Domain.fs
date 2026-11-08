@@ -1107,6 +1107,92 @@ type PushToYnabWriteBack =
     /// Der Push ist gescheitert; Grund und Zeitpunkt stehen an der Buchung.
     | PushToYnabFailed of reason: string
 
+// ============================================
+// Buchung im Kassenbuch erfassen (ledger-at63w)
+// ============================================
+
+/// Das Ziel einer erfassten Buchung: eine Kategorie oder ein anderes Budget-Konto (Übertrag).
+type LedgerBookingTarget =
+    | BookOnCategory of YnabCategoryId
+    | BookAsTransfer of YnabAccountId
+
+/// Eine im Kassenbuch erfasste Buchung. `AccountId` ist das Kassenbuch-Konto, `Amount` ist
+/// ohne Vorzeichen, die Richtung steht in `IsOutflow` (Ausgabe oder Einnahme).
+type LedgerBookingRequest = {
+    AccountId: Guid
+    Amount: decimal
+    IsOutflow: bool
+    PayeeName: string
+    Target: LedgerBookingTarget option
+    Date: DateTime
+    Memo: string option
+}
+
+/// Antwort auf eine erfasste Buchung: sie steht im Kassenbuch. `PushFailure` nennt den Grund,
+/// wenn der Push nach YNAB scheiterte (die Buchung zeigt dann "Noch nicht in YNAB").
+type LedgerBookingCreated = {
+    EntryId: Guid
+    AccountName: string
+    PushFailure: string option
+}
+
+/// Eine zuletzt erfasste Kombination für die Zuletzt-Chips: ein Tipp füllt alles.
+type LedgerBookingTemplate = {
+    AccountId: Guid
+    Payee: string
+    Target: LedgerBookingTarget option
+    Amount: decimal
+    IsOutflow: bool
+}
+
+/// Die Vorbelegung des Formulars "Neue Buchung".
+type LedgerBookingDefaults = {
+    /// Heute im Berliner Kalender (Mitternacht, ohne Uhrzeit).
+    Today: DateTime
+    /// Das Kassenbuch-Konto des Comdirect-Imports; im Formular nicht wählbar.
+    ImportAccountId: Guid option
+    /// Das Konto der zuletzt erfassten Buchung.
+    LastUsedAccountId: Guid option
+    /// Die letzten drei Kombinationen, neueste zuerst, ohne Doppelte.
+    Recent: LedgerBookingTemplate list
+}
+
+/// Wie viele Zuletzt-Chips das Formular zeigt.
+[<Literal>]
+let LedgerBookingRecentCount = 3
+
+/// Die Zuletzt-Chips aus den erfassten Kombinationen, neueste zuerst: Doppelte fallen weg
+/// (Payee ohne Rand und ohne Groß-/Kleinschreibung), höchstens drei bleiben. Rein.
+let recentBookingTemplates (newestFirst: LedgerBookingTemplate list) : LedgerBookingTemplate list =
+    newestFirst
+    |> List.filter (fun t -> not (String.IsNullOrWhiteSpace t.Payee) && t.Amount > 0m)
+    |> List.distinctBy (fun t -> t.AccountId, t.Payee.Trim().ToLowerInvariant(), t.Target, t.Amount, t.IsOutflow)
+    |> List.truncate LedgerBookingRecentCount
+
+/// Die Konten, auf denen das Formular erfasst: gespiegelte, offene Budget-Konten, ohne das
+/// Import-Konto. `budget` sind die Konten des YNAB-Budgets (für "Budget-Konto"). Rein.
+let bookingAccounts
+    (accounts: LedgerAccountView list)
+    (budget: YnabAccount list)
+    (importAccountId: Guid option)
+    : LedgerAccountView list =
+    let openBudget = openOnBudgetAccounts budget |> List.map (fun a -> a.Id) |> Set.ofList
+    accounts
+    |> List.filter (fun a ->
+        not a.Closed
+        && Some a.Id <> importAccountId
+        && (match a.YnabAccountId with
+            | Some id -> openBudget.Contains id
+            | None -> false))
+
+/// Das vorbelegte Konto: das Konto des Kassenbuch-Filters, sonst das zuletzt beim Erfassen
+/// genutzte, sonst keines. Nur ein wählbares Konto zählt, das Import-Konto also nie. Rein.
+let defaultBookingAccount (filterAccount: Guid option) (lastUsed: Guid option) (selectable: Guid list) : Guid option =
+    let usable id = id |> Option.filter (fun i -> List.contains i selectable)
+    match usable filterAccount with
+    | Some id -> Some id
+    | None -> usable lastUsed
+
 /// Antwort von `setReviewMark` und `restoreReviewMark` (ADR 0050, Punkt 10).
 type ReviewMarkOutcome = {
     /// Der Prüfvermerk vor der Geste, Grundlage für "Rückgängig".

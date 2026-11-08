@@ -312,6 +312,21 @@ let private rows : Row list = [
       Run = fun () -> ledgerApi.retryCategorizationWriteBack (Guid.NewGuid()) |> run |> expectError "Kategorie erneut" }
     { Endpoint = "LedgerApi.retryPushToYnab"; Case = "unbekannte Buchung: Fehler"
       Run = fun () -> ledgerApi.retryPushToYnab (Guid.NewGuid()) |> run |> expectError "Push erneut" }
+    { Endpoint = "LedgerApi.addLedgerBooking"; Case = "Betrag 0 ohne Konto: Fehler ohne YNAB"
+      Run = fun () ->
+        ledgerApi.addLedgerBooking
+            { AccountId = Guid.Empty; Amount = 0m; IsOutflow = true; PayeeName = ""; Target = None
+              Date = DateTime(2026, 1, 1); Memo = None }
+        |> run |> expectError "Buchung erfassen" }
+    { Endpoint = "LedgerApi.discardCapturedBooking"; Case = "leere Buchungs-Id: Fehler"
+      Run = fun () -> ledgerApi.discardCapturedBooking Guid.Empty |> run |> expectError "Rückgängig" }
+    { Endpoint = "LedgerApi.getLedgerBookingDefaults"; Case = "ohne Einrichtung: heute ohne Uhrzeit, höchstens drei Chips"
+      Run = fun () ->
+        let defaults = ledgerApi.getLedgerBookingDefaults () |> run
+        Expect.equal defaults.Today defaults.Today.Date "nur das Datum"
+        Expect.isLessThanOrEqual defaults.Recent.Length 3 "höchstens drei" }
+    { Endpoint = "LedgerApi.getBookingCategoryForPayee"; Case = "leerer Payee: keine Kategorie"
+      Run = fun () -> Expect.isNone (ledgerApi.getBookingCategoryForPayee "  " |> run) "keine Kategorie" }
     { Endpoint = "LedgerApi.getPayeeCategorySuggestions"; Case = "unbekannter Empfänger: keine Vorschläge"
       Run = fun () ->
         Expect.isEmpty (ledgerApi.getPayeeCategorySuggestions "unbekannter empfänger am805" None |> run) "keine Vorschläge" }

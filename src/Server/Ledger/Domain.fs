@@ -466,6 +466,12 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
         let e = requireExisting ()
         { e with DeletedInYnab = true }
 
+    | EntryDiscardedInBb _ ->
+        // ledger-at63w: YNAB hat die Buchung schon gelöscht, BB verwirft sie danach. Sie gilt wie
+        // eine in YNAB gelöschte; eine spätere Lösch-Beobachtung des Spiegels ändert nichts mehr.
+        let e = requireExisting ()
+        { e with DeletedInYnab = true }
+
     | EntryImportedFromComdirect p ->
         {
             Id = event.EntryId

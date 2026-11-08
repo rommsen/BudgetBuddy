@@ -521,6 +521,52 @@ let groupWithError label error children =
     }
 
 // ============================================
+// Auswahlfeld (Styleguide §7.5)
+// ============================================
+
+/// Ein Auswahlfeld als Knopf (ledger-at63w, Formular "Neue Buchung"): die Bezeichnung klein oben,
+/// darunter der gewählte Wert (oder gedämpft der Platzhalter), rechts optional ein Zusatz (etwa der
+/// Saldo eines Kontos) und der Pfeil. Ein Tipp öffnet die Auswahl (`CategoryPicker`, Sheet am
+/// Handy). Der Knopf nimmt den Fokus beim Tippen nicht weg (`preventDefault` auf `mousedown`),
+/// damit eine offene Tastatur bei einem Wechsel zwischen Feldern nicht zuklappt.
+let pickerField
+    (testId: string)
+    (label: string)
+    (value: string option)
+    (placeholder: string)
+    (extra: ReactElement option)
+    (isOpen: bool)
+    (onClick: unit -> unit)
+    : ReactElement =
+    Html.button [
+        prop.type' "button"
+        prop.custom ("data-testid", testId)
+        prop.custom ("aria-haspopup", "dialog")
+        prop.custom ("aria-expanded", (if isOpen then "true" else "false"))
+        prop.className (
+            $"input-field w-full flex items-center gap-3 px-4 py-2 min-h-[52px] text-left touch-manipulation "
+            + "hover:border-accent transition-colors"
+        )
+        prop.onMouseDown (fun e -> e.preventDefault ())
+        prop.onClick (fun _ -> onClick ())
+        prop.children [
+            Html.span [
+                prop.className "flex min-w-0 flex-1 flex-col"
+                prop.children [
+                    Html.span [ prop.className $"{FontSizes.xs} {Colors.textMuted}"; prop.text label ]
+                    match value with
+                    | Some v -> Truncate.text $"text-base {Colors.textPrimary}" v
+                    | None -> Html.span [ prop.className $"text-base {Colors.textMuted}"; prop.text placeholder ]
+                ]
+            ]
+            match extra with
+            | Some e -> e
+            | None -> ()
+            Icons.chevronRight Icons.SM Icons.Default
+        ]
+    ]
+
+// ============================================
 // Form Sections
 // ============================================
 

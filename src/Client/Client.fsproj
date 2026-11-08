@@ -71,6 +71,7 @@
 
     <!-- Component: Ledger (Kassenbuch) -->
     <Compile Include="Components/Ledger/SplitEditor.fs" />
+    <Compile Include="Components/Ledger/Capture.fs" />
     <Compile Include="Components/Ledger/Types.fs" />
     <Compile Include="Components/Ledger/State.fs" />
     <Compile Include="Components/Ledger/View.fs" />

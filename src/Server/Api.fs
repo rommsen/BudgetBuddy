@@ -427,6 +427,106 @@ let liveQuickAddPorts : QuickAddPorts = {
 }
 
 // ============================================
+// Buchung im Kassenbuch erfassen (ledger-at63w)
+// ============================================
+
+/// Die Umgebung von "Neue Buchung" und "Rückgängig": Einstellungen, die YNAB-Aufrufe
+/// (Kategorien als Rückfall, Konten, Einzel-Post, Löschen), die Id der neuen Buchung und der
+/// Spiegel-Auslöser. Tests setzen hier Fälschungen ein, damit kein Fall YNAB erreicht.
+type LedgerBookingPorts = {
+    Setting: string -> Async<string option>
+    LoadYnabCategories: string -> YnabBudgetId -> Async<YnabResult<YnabCategory list>>
+    BudgetAccounts: string -> YnabBudgetId -> Async<YnabResult<YnabClient.TransferAccount list>>
+    /// Der Einzel-Post: `import_id`, Flag-Farbe, Übertrags-Payee, Token, Budget, Konto, Request.
+    Push: string option -> string option -> string option -> string -> YnabBudgetId -> YnabAccountId -> ManualTransactionRequest -> Async<YnabResult<string>>
+    Delete: string -> YnabBudgetId -> string -> Async<YnabResult<unit>>
+    NewEntryId: unit -> Ledger.Events.EntryId
+    TriggerMirror: unit -> unit
+}
+
+let bookingYnabMissingText = "YNAB ist nicht vollständig eingerichtet. Token und Budget in den Settings unter YNAB setzen."
+
+/// Token und Budget aus den Settings, sonst der feste Satz.
+let private bookingYnabAccess (setting: string -> Async<string option>) : Async<Result<string * YnabBudgetId, string>> =
+    async {
+        let! tokenOpt = setting "ynab_token"
+        let! budgetOpt = setting "ynab_default_budget_id"
+        match tokenOpt, budgetOpt with
+        | Some token, Some budgetId -> return Ok (token, YnabBudgetId budgetId)
+        | _ -> return Error bookingYnabMissingText
+    }
+
+/// "Neue Buchung" nach der Prüfung an der API-Grenze (`Validation.validateLedgerBooking`, alle
+/// Fehler gesammelt): Token und Budget, dann `Ledger.CommandHandlers.addLedgerBooking` mit der
+/// Kategorie-Auflösung aus den gespiegelten Stammdaten (YNAB nur als Rückfall, wie Quick Add).
+let addLedgerBookingWith
+    (ports: LedgerBookingPorts)
+    (today: DateTime)
+    (now: DateTime)
+    (request: LedgerBookingRequest)
+    : Async<Result<LedgerBookingCreated, string>> =
+    async {
+        match Validation.validateLedgerBooking today request with
+        | Error errors -> return Error (String.concat ", " errors)
+        | Ok valid ->
+            match! bookingYnabAccess ports.Setting with
+            | Error reason -> return Error reason
+            | Ok (token, budget) ->
+                let tools : Ledger.CommandHandlers.LedgerBookingTools = {
+                    LedgerAccounts = Ledger.Persistence.loadAccounts
+                    ImportAccount =
+                        fun () ->
+                            async {
+                                let! text = ports.Setting Ledger.QueryHandlers.importAccountSettingKey
+                                return
+                                    match text |> Option.map (fun (t: string) -> Guid.TryParse t) with
+                                    | Some (true, guid) -> Some (YnabAccountId guid)
+                                    | _ -> None
+                            }
+                    BudgetAccounts = fun () -> ports.BudgetAccounts token budget
+                    ResolveCategory =
+                        Ledger.QueryHandlers.resolveCategoryRefWith
+                            Ledger.Persistence.loadCategoryNames
+                            (fun () -> ports.LoadYnabCategories token budget)
+                    Push =
+                        fun importId account transferPayee request ->
+                            ports.Push (Some importId) None transferPayee token budget account request
+                    TriggerMirror = ports.TriggerMirror
+                }
+                return! Ledger.CommandHandlers.addLedgerBooking now (ports.NewEntryId ()) tools valid
+    }
+
+/// "Rückgängig" nach dem Erfassen: `Ledger.CommandHandlers.discardCapturedBooking` mit dem
+/// YNAB-Löschen aus Token und Budget der Settings.
+let discardCapturedBookingWith (ports: LedgerBookingPorts) (now: DateTime) (entryId: Guid) : Async<Result<unit, string>> =
+    async {
+        if entryId = Guid.Empty then
+            return Error "Die Buchung fehlt."
+        else
+            match! bookingYnabAccess ports.Setting with
+            | Error reason -> return Error reason
+            | Ok (token, budget) ->
+                return!
+                    Ledger.CommandHandlers.discardCapturedBooking
+                        now
+                        Ledger.Persistence.loadEntryOrigin
+                        (ports.Delete token budget)
+                        ports.TriggerMirror
+                        (Ledger.Events.EntryId entryId)
+    }
+
+/// Die Umgebung des laufenden Servers für "Neue Buchung" und "Rückgängig".
+let liveLedgerBookingPorts : LedgerBookingPorts = {
+    Setting = Persistence.Settings.getSetting
+    LoadYnabCategories = YnabClient.getCategories
+    BudgetAccounts = YnabClient.fetchTransferAccounts
+    Push = YnabClient.createTransactionFor
+    Delete = YnabClient.deleteTransaction
+    NewEntryId = Ledger.Events.newEntryId
+    TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground
+}
+
+// ============================================
 // Import-Push: Ziel aus den Settings (ledger-bk3q8)
 // ============================================
 
@@ -1360,9 +1460,10 @@ let private flagBatchPush () : Async<Ledger.CommandHandlers.FlagBatchPush> =
                 async { return Error (YnabError.BudgetNotFound "Kein Standard-Budget konfiguriert (Settings)") }
     }
 
-/// Der YNAB-Aufruf des Einzel-Pushs: `import_id`, Flag-Farbe, Token, Budget, Konto, Request.
+/// Der YNAB-Aufruf des Einzel-Pushs: `import_id`, Flag-Farbe, Übertrags-Payee, Token, Budget,
+/// Konto, Request.
 type EntryPushCreate =
-    string option -> string option -> string -> YnabBudgetId -> YnabAccountId -> ManualTransactionRequest -> Async<YnabResult<string>>
+    string option -> string option -> string option -> string -> YnabBudgetId -> YnabAccountId -> ManualTransactionRequest -> Async<YnabResult<string>>
 
 /// Der Einzel-Push einer nicht verknüpften Buchung (ledger-cks06) mit Token und
 /// Standard-Budget aus `setting`. Was hinausgeht, baut die reine Funktion
@@ -1381,7 +1482,22 @@ let entryPushWith (setting: string -> Async<string option>) (create: EntryPushCr
                 let! links = Ledger.Persistence.linksForEntry entry.Id
                 match Ledger.CommandHandlers.planEntryPush accounts links entry with
                 | Ok plan ->
-                    return! create plan.ImportId plan.FlagColor token (YnabBudgetId budgetId) plan.YnabAccountId plan.Request
+                    // Ein Übertrag geht mit der Übertrags-Payee aus dem Log hinaus (ledger-at63w).
+                    let! transferPayee =
+                        match plan.TransferAccountId with
+                        | None -> async.Return (Ok None)
+                        | Some target ->
+                            async {
+                                let! events = Ledger.Persistence.loadEventsForEntry entry.Id
+                                return
+                                    match Ledger.CommandHandlers.transferPayeeIdFor (events |> List.map (fun r -> r.Event)) target with
+                                    | Some payeeId -> Ok (Some payeeId)
+                                    | None -> Error Ledger.CommandHandlers.transferPayeeUnknownReason
+                            }
+                    match transferPayee with
+                    | Error reason -> return Error (YnabError.RefusedByBb reason)
+                    | Ok transferPayee ->
+                        return! create plan.ImportId plan.FlagColor transferPayee token (YnabBudgetId budgetId) plan.YnabAccountId plan.Request
                 // Der Satz der Push-Planung geht unverändert als Grund in `EntryPushToYnabFailed`.
                 | Error reason -> return Error (YnabError.RefusedByBb reason)
             }
@@ -1393,7 +1509,7 @@ let entryPushWith (setting: string -> Async<string option>) (create: EntryPushCr
     }
 
 let private entryPush () : Async<Ledger.CommandHandlers.EntryPush> =
-    entryPushWith Persistence.Settings.getSetting YnabClient.createTransactionWithFlag
+    entryPushWith Persistence.Settings.getSetting YnabClient.createTransactionFor
 
 /// Die YNAB-Aufrufe des Split-Schreibwegs (ledger-kxme4, ADR 0058) mit Token und
 /// Standard-Budget aus den Settings, mit denselben Fehlerfällen wie `categoryPush`.
@@ -1640,6 +1756,20 @@ let ledgerApi : LedgerApi = {
 
     // "Erneut senden" am Hinweis "Noch nicht in YNAB" (ledger-cks06): sofortiger Push
     // dieser einen Buchung, danach der Spiegel.
+    // Buchung im Kassenbuch erfassen (ledger-at63w).
+    addLedgerBooking = fun request -> addLedgerBookingWith liveLedgerBookingPorts (liveBerlinDay ()) DateTime.UtcNow request
+
+    discardCapturedBooking = fun entryId -> discardCapturedBookingWith liveLedgerBookingPorts DateTime.UtcNow entryId
+
+    getLedgerBookingDefaults = fun () ->
+        Ledger.QueryHandlers.getLedgerBookingDefaultsWith Persistence.Settings.getSetting liveBerlinZone.Value DateTime.UtcNow
+
+    getBookingCategoryForPayee = fun payee ->
+        Ledger.QueryHandlers.getBookingCategoryForPayeeWith
+            Ledger.Persistence.loadLastPayeeCategory
+            Persistence.Rules.getAllRules
+            payee
+
     retryPushToYnab = fun entryId -> async {
         let! push = entryPush ()
         return!

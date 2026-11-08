@@ -426,6 +426,7 @@ module ReadModel =
             match p.NewCategory with
             | Some c -> $"Übertrag in BB aufgehoben: Kategorie {c.CategoryName}"
             | None -> "Übertrag in BB aufgehoben: ohne Kategorie"
+        | EntryDiscardedInBb _ -> "In BB verworfen (Rückgängig), in YNAB gelöscht"
 
     /// Ein gespeichertes Ereignis als Historien-Zeile.
     let toHistoryLine (recorded: RecordedLedgerEvent) : LedgerHistoryLine = {
@@ -836,6 +837,109 @@ let resolveQuickAddAccountWith (setting: string -> Async<string option>) : Async
 /// `resolveQuickAddAccountWith` mit den echten Einstellungen.
 let resolveQuickAddAccount () : Async<Result<QuickAddAccount, string>> =
     resolveQuickAddAccountWith Core.Settings.getSetting
+
+// ============================================
+// Buchung erfassen: Vorbelegung (ledger-at63w)
+// ============================================
+
+/// Der Settings-Schlüssel des Import-Kontos (YNAB-Konto-Id als Guid).
+let importAccountSettingKey = "ynab_default_account_id"
+
+/// Wie viele erfasste Buchungen die Vorbelegung liest, um drei verschiedene Kombinationen zu finden.
+let capturedLookback = 50
+
+/// Die Kombination einer erfassten Buchung für einen Zuletzt-Chip: Konto, Payee, Ziel und
+/// Betrag ohne Vorzeichen mit Richtung. Bei einem Übertrag zählt der Payee vor dem Übertrag.
+/// Gelöschte und aufgeteilte Buchungen liefern keine. Rein.
+let bookingTemplateOf (entry: Entry) : LedgerBookingTemplate option =
+    if entry.DeletedInYnab || not (List.isEmpty entry.Splits) then
+        None
+    else
+        let target, payee =
+            match entry.Category, entry.TransferAccountId with
+            | Some c, _ -> Some (BookOnCategory c.CategoryId), entry.Payee
+            | None, Some account -> Some (BookAsTransfer account), entry.PayeeBeforeTransfer
+            | None, None -> None, entry.Payee
+        let (LedgerAccountId accountId) = entry.AccountId
+        payee
+        |> Option.map (fun p ->
+            { AccountId = accountId
+              Payee = p
+              Target = target
+              Amount = abs entry.Amount.Amount
+              IsOutflow = entry.Amount.Amount < 0m })
+
+/// Die Vorbelegung aus den erfassten Buchungen (neueste zuerst): das Konto der jüngsten nicht
+/// gelöschten, die Zuletzt-Chips (`recentBookingTemplates`), dazu heute und das Import-Konto. Rein.
+let bookingDefaultsOf (today: DateTime) (importAccountId: Guid option) (capturedNewestFirst: Entry list) : LedgerBookingDefaults =
+    { Today = today.Date
+      ImportAccountId = importAccountId
+      LastUsedAccountId =
+        capturedNewestFirst
+        |> List.tryFind (fun e -> not e.DeletedInYnab)
+        |> Option.map (fun e -> let (LedgerAccountId id) = e.AccountId in id)
+      Recent = capturedNewestFirst |> List.choose bookingTemplateOf |> recentBookingTemplates }
+
+/// Das Kassenbuch-Konto zum Import-Konto aus den Settings, `None` ohne Einstellung oder Spiegel.
+let importLedgerAccountWith (setting: string -> Async<string option>) : Async<LedgerAccount option> =
+    async {
+        let! text = setting importAccountSettingKey
+        match text |> Option.map (fun (t: string) -> Guid.TryParse t) with
+        | Some (true, guid) -> return! Ledger.Persistence.findAccountByYnabAccountId (YnabAccountId guid)
+        | _ -> return None
+    }
+
+/// Die Vorbelegung des Formulars "Neue Buchung". Heute ist der Kalendertag von `utcNow` in
+/// `berlinZone`, nicht der Tag des Servers (der Container läuft auf UTC).
+let getLedgerBookingDefaultsWith
+    (setting: string -> Async<string option>)
+    (berlinZone: TimeZoneInfo)
+    (utcNow: DateTime)
+    : Async<LedgerBookingDefaults> =
+    async {
+        let today = Ledger.Bot.Domain.berlinDayOf berlinZone utcNow
+        let! importAccount = importLedgerAccountWith setting
+        let! ids = Ledger.Persistence.loadCapturedEntryIds capturedLookback
+        let! entries = Ledger.Persistence.loadEntries ids
+        let captured = ids |> List.choose (fun id -> Map.tryFind id entries)
+        let importId = importAccount |> Option.map (fun a -> let (LedgerAccountId id) = a.Id in id)
+        return bookingDefaultsOf today importId captured
+    }
+
+/// Die Kategorie einer Regel für diesen Payee (Payee-Text, Memo leer), wie beim Import die erste
+/// passende aktive Regel. Ungültige Regeln liefern keine. Rein.
+let ruleCategoryForPayee (rules: Rule list) (payee: string) : YnabCategoryId option =
+    match Server.RulesEngine.compileRules rules with
+    | Error _ -> None
+    | Ok compiled ->
+        let probe : BankTransaction = {
+            Id = TransactionId ""
+            BookingDate = DateTime.MinValue
+            Amount = { Amount = 0m; Currency = "EUR" }
+            Payee = Some payee
+            Memo = ""
+            Reference = ""
+            RawData = ""
+        }
+        Server.RulesEngine.classify compiled probe |> Option.map snd
+
+/// Die vorbelegte Kategorie zum Payee beim Erfassen: die Kategorie, die dieser Payee zuletzt
+/// hatte, sonst die passende Regel, sonst keine. Leerer Payee: keine.
+let getBookingCategoryForPayeeWith
+    (lastCategory: string -> Async<Guid option>)
+    (rules: unit -> Async<Rule list>)
+    (payee: string)
+    : Async<YnabCategoryId option> =
+    async {
+        if String.IsNullOrWhiteSpace payee then
+            return None
+        else
+            match! lastCategory (payee.Trim()) with
+            | Some id -> return Some (YnabCategoryId id)
+            | None ->
+                let! all = rules ()
+                return ruleCategoryForPayee all (payee.Trim())
+    }
 
 let categoryLoadFailedText = "Die Kategorie konnte nicht geladen werden, bitte erneut versuchen"
 let categoryUnknownText = "Die Kategorie gibt es in YNAB nicht mehr"

@@ -251,6 +251,9 @@ type ToastActionKind =
     /// "Rückgängig" nach dem Speichern eines Memos (ledger-fa1fp, ADR 0062): das Memo vor dem
     /// Speichern kommt aus der Antwort des Befehls (`None`: kein Memo).
     | UndoMemo of entryId: Guid * previous: string option
+    /// "Rückgängig" nach "Buchung anlegen" im Kassenbuch (ledger-at63w): die Buchung wird in YNAB
+    /// gelöscht und im Kassenbuch verworfen.
+    | UndoCapturedBooking of entryId: Guid
     /// "Neu laden" am Hinweis "Neue Version" der installierten PWA (infrastructure-bnbdc,
     /// ADR 0057): gibt den wartenden Service Worker frei, die Seite lädt neu.
     | ReloadForUpdate

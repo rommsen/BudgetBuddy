@@ -13,6 +13,7 @@
 // Beträge (Invariante 4).
 
 import { HANDY_WIDTHS, PAGE_WIDTHS, TABLE_WIDTHS, settle } from "./layout-invariants.mjs";
+import { mockCapture } from "./ledger-capture-fixture.mjs";
 import { buildAccountsFixture, buildBalancesFixture, buildCategoriesFixture, buildEntryFixture, CATEGORY_IDS, fixtureGuid, mockFilterBarApi, mockRunningMirror } from "./ledger-filter-bar.mjs";
 
 const eur = (amount) => ({ Amount: amount, Currency: "EUR" });
@@ -767,6 +768,48 @@ export const STATES = [
       focus: (page) => page.locator('.bottom-sheet.active [data-testid="split-amount-0"]'),
       reach: (page) => page.locator('.bottom-sheet.active [data-testid="split-amount-0"]').or(page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Speichern", exact: true })),
     },
+  },
+  // ledger-at63w: "Neue Buchung" am Handy als Sheet. "Buchung anlegen" klebt unten und bleibt auch bei
+  // offener Tastatur im Betragsfeld erreichbar.
+  {
+    name: "kassenbuch-erfassen",
+    route: "/ledger",
+    widths: HANDY_WIDTHS,
+    mock: async (page) => {
+      await mockApp(page);
+      await mockCapture(page, { catchAll: false });
+    },
+    open: async (page) => {
+      await page.locator(".ledger-capture-fab").getByRole("button").waitFor();
+      await page.locator(".ledger-capture-fab").getByRole("button").tap();
+      await page.locator('.bottom-sheet.active [data-testid="capture-recent"]').waitFor();
+    },
+    primary: (page) => page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Buchung anlegen", exact: true }),
+    keyboard: {
+      focus: (page) => page.locator('.bottom-sheet.active [data-testid="capture-amount"] input'),
+      reach: (page) => page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Buchung anlegen", exact: true }),
+    },
+  },
+  // ledger-at63w: "Neue Buchung" am PC im Panel rechts neben der Liste, "Buchung anlegen" ohne Scrollen im Bild.
+  {
+    name: "kassenbuch-erfassen-panel",
+    route: "/ledger",
+    // Unter der Panel-Breite der Tabelle öffnet das Formular als Sheet wie das Detail (`detailFormFor`).
+    widths: [1440],
+    mock: async (page) => {
+      await mockApp(page);
+      await mockCapture(page, { catchAll: false });
+    },
+    open: async (page) => {
+      await page.getByRole("button", { name: "Neue Buchung" }).locator("visible=true").first().click();
+      const panel = page.locator('[data-testid="ledger-detail-panel"]');
+      await panel.locator('[data-testid="capture-recent"]').waitFor();
+    },
+    primary: (page) => page.locator('[data-testid="ledger-detail-panel"]').getByRole("button", { name: "Buchung anlegen", exact: true }),
+    // Das DS-Panel (`Detail.panel`, unverändert, gilt auch für das Buchungs-Detail) überlappt nach dem Scrollen ans
+    // Ende den haftenden Tabellenkopf um 4 px und die feste Tastatur-Leiste um 9 px. Erster Zustand mit dem Panel am
+    // PC; Kann-Sammlung ledger (ledger-at63w).
+    exceptions: [{ width: 1440, inv: 6, selector: '[data-testid="ledger-detail-panel"] und div' }],
   },
   // Regression c819eeb (Toast hinter dem Detail-Sheet): nach dem Kategoriewechsel liegt der Toast oben.
   {

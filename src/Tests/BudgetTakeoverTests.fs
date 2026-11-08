@@ -526,7 +526,9 @@ let private workerTests =
         testCase "die Wartefunktion des Servers wartet wirklich" <| fun () ->
             let watch = Diagnostics.Stopwatch.StartNew()
             sleep (TimeSpan.FromMilliseconds 50.0) |> run
-            Expect.isGreaterThanOrEqual watch.Elapsed.TotalMilliseconds 50.0 "mindestens 50 ms"
+            // Der Zeitgeber des Systems darf knapp vor der Frist auslösen (gemessen 49,75 ms in ./verify.sh,
+            // ledger-at63w). Die Aussage "wartet wirklich" hält auch mit 5 ms Spielraum.
+            Expect.isGreaterThanOrEqual watch.Elapsed.TotalMilliseconds 45.0 "mindestens rund 50 ms"
     ]
 
 // budgeting-dkjc5

@@ -1837,6 +1837,55 @@ let loadPayeeCategorySuggestions (payee: string) (exclude: Guid option) (limit: 
     }
 
 [<CLIMutable>]
+type private LastCategoryRow = { category_id: string }
+
+/// Die Kategorie der jüngsten Buchung dieses Payees (ledger-at63w, Vorbelegung beim Erfassen):
+/// Payee ohne Groß-/Kleinschreibung, ohne gelöschte Buchungen und ohne Buchungen ohne
+/// Kategorie; jüngste nach Buchungsdatum. `None`, wenn es keine gibt.
+let loadLastPayeeCategory (payee: string) : Async<Guid option> =
+    async {
+        use conn = Core.getConnection ()
+        let! rows =
+            conn.QueryAsync<LastCategoryRow>(
+                "SELECT category_id FROM ledger_entries WHERE bb_lower(payee) = @payee AND deleted_in_ynab = 0 AND category_id IS NOT NULL ORDER BY date DESC, rowid DESC LIMIT 1",
+                {| payee = Core.searchFold payee |}
+            )
+            |> Async.AwaitTask
+        return rows |> Seq.tryHead |> Option.map (fun r -> Guid.Parse r.category_id)
+    }
+
+[<CLIMutable>]
+type private CapturedRow = { stream_id: string }
+
+/// Die Buchungen, die Roman selbst erfasst hat (`CashExpenseAdded` mit Actor `UserInBb` oder
+/// `QuickAdd`), neueste zuerst, höchstens `limit` (ledger-at63w, Zuletzt-Chips und zuletzt
+/// genutztes Konto). Bob zählt nicht.
+let internal loadCapturedEntryIdsOn (conn: SqliteConnection) (limit: int) : EntryId list =
+    conn.Query<CapturedRow>(
+        """SELECT stream_id FROM events
+           WHERE context = @context AND event_type = 'CashExpenseAdded' AND actor_kind IN ('UserInBb', 'QuickAdd')
+           ORDER BY position DESC LIMIT @limit""",
+        {| context = ledgerContext; limit = limit |}
+    )
+    |> Seq.map (fun r -> EntryId (entryGuidOfStream r.stream_id))
+    |> Seq.toList
+
+/// Wie `loadCapturedEntryIdsOn`, auf der Standard-Verbindung.
+let loadCapturedEntryIds (limit: int) : Async<EntryId list> =
+    async {
+        use conn = Core.getConnection ()
+        return loadCapturedEntryIdsOn conn limit
+    }
+
+/// Actor und Körper des ersten Ereignisses einer Buchung (ledger-at63w: "Rückgängig" nur für
+/// eine in BB erfasste Buchung). `None` für eine unbekannte Buchung.
+let loadEntryOrigin (entryId: EntryId) : Async<(Actor * LedgerEventBody) option> =
+    async {
+        let! events = loadEventsForEntry entryId
+        return events |> List.tryHead |> Option.map (fun r -> r.Event.Actor, r.Event.Body)
+    }
+
+[<CLIMutable>]
 type private BalanceRow = { account_id: string; amount: string; currency: string; deleted_in_ynab: int64 }
 
 /// Die Rohdaten fuer die Kontostaende aller Konten in einem Durchlauf (ledger-b1xwe

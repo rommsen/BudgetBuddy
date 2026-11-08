@@ -499,6 +499,107 @@ let validateTransferRequest (entryId: Guid) (YnabAccountId target: YnabAccountId
     if List.isEmpty errors then Ok () else Error errors
 
 // ============================================
+// Buchung im Kassenbuch erfassen (ledger-at63w)
+// ============================================
+
+let bookingAccountMissingText = "Bitte ein Konto wählen."
+let bookingTargetMissingText = "Das Ziel der Buchung fehlt."
+let bookingAccountUnknownText = "Das Konto gibt es im Kassenbuch nicht."
+let bookingAccountClosedText = "Das Konto ist geschlossen."
+let bookingAccountNotInYnabText = "Das Konto ist nicht mit YNAB verbunden."
+let bookingImportAccountText =
+    "Auf dem Import-Konto erfasst BB noch nicht, diese Buchungen kommen mit dem Comdirect-Import."
+let bookingAccountNotBudgetText = "Das Konto ist kein offenes Budget-Konto."
+let bookingTransferOwnAccountText = "Ein Übertrag auf das eigene Konto geht nicht."
+let bookingTransferTargetText = "Das Zielkonto ist kein offenes Budget-Konto."
+let bookingTransferNoPayeeText = "Für das Zielkonto gibt es in YNAB keinen Übertrags-Payee."
+
+/// Der Quick-Add-Request, auf den eine erfasste Buchung abgebildet wird: dieselben Felder, die
+/// Kategorie nur bei einer Kategorie als Ziel. Rein.
+let ledgerBookingManualRequest (request: LedgerBookingRequest) : ManualTransactionRequest = {
+    Amount = request.Amount
+    IsOutflow = request.IsOutflow
+    PayeeName = request.PayeeName
+    CategoryId =
+        match request.Target with
+        | Some (BookOnCategory categoryId) -> Some categoryId
+        | _ -> None
+    Date = request.Date
+    Memo = request.Memo
+}
+
+/// Prüft die Form einer erfassten Buchung an der API-Grenze: ein Konto ist gewählt, ein Ziel
+/// trägt eine Id, und Betrag, Payee, Datum und Memo folgen denselben Regeln wie Quick Add
+/// (`validateManualTransaction`). Sammelt alle Fehler. Konto und Ziel gegen den Bestand prüft
+/// `resolveLedgerBookingAccounts`.
+let validateLedgerBooking (today: DateTime) (request: LedgerBookingRequest) : Result<LedgerBookingRequest, string list> =
+    let ownErrors =
+        [
+            if request.AccountId = Guid.Empty then bookingAccountMissingText
+            match request.Target with
+            | Some (BookOnCategory (YnabCategoryId id)) when id = Guid.Empty -> bookingTargetMissingText
+            | Some (BookAsTransfer (YnabAccountId id)) when id = Guid.Empty -> bookingTargetMissingText
+            | _ -> ()
+        ]
+    let quickAddErrors =
+        match validateManualTransaction today (ledgerBookingManualRequest request) with
+        | Ok _ -> []
+        | Error errors -> errors
+    match ownErrors @ quickAddErrors with
+    | [] -> Ok request
+    | errors -> Error errors
+
+/// Das Konto einer erfassten Buchung nach der Prüfung gegen den Bestand.
+type LedgerBookingAccount = {
+    LedgerAccountId: Ledger.Events.LedgerAccountId
+    YnabAccountId: YnabAccountId
+    Name: string
+}
+
+/// Das Ziel eines Übertrags nach der Prüfung: Konto, Name in YNAB und Übertrags-Payee.
+type LedgerBookingTransfer = {
+    TargetAccountId: YnabAccountId
+    TargetName: string
+    TransferPayeeId: string
+}
+
+/// Prüft Konto und Übertrags-Ziel einer erfassten Buchung gegen die Kassenbuch-Konten und die
+/// Konten des YNAB-Budgets: das Konto ist bekannt, offen, mit YNAB verbunden, nicht das
+/// Import-Konto und ein offenes Budget-Konto; ein Ziel-Konto ist nicht das eigene, ein offenes
+/// Budget-Konto und hat eine Übertrags-Payee. Die erste verletzte Regel ist der Fehler. Rein.
+let resolveLedgerBookingAccounts
+    (ledgerAccounts: Ledger.Domain.LedgerAccount list)
+    (budget: Server.YnabClient.TransferAccount list)
+    (importAccount: YnabAccountId option)
+    (request: LedgerBookingRequest)
+    : Result<LedgerBookingAccount * LedgerBookingTransfer option, string> =
+    let openBudget (id: YnabAccountId) =
+        budget |> List.tryFind (fun a -> a.Id = id && a.OnBudget && not a.Closed)
+    match ledgerAccounts |> List.tryFind (fun a -> a.Id = Ledger.Events.LedgerAccountId request.AccountId) with
+    | None -> Error bookingAccountUnknownText
+    | Some account when account.Closed -> Error bookingAccountClosedText
+    | Some account ->
+        match account.Link with
+        | Ledger.Domain.BbOwned -> Error bookingAccountNotInYnabText
+        | Ledger.Domain.YnabMirrored ynabId when Some ynabId = importAccount -> Error bookingImportAccountText
+        | Ledger.Domain.YnabMirrored ynabId ->
+            match openBudget ynabId with
+            | None -> Error bookingAccountNotBudgetText
+            | Some _ ->
+                let resolved = { LedgerAccountId = account.Id; YnabAccountId = ynabId; Name = account.Name }
+                match request.Target with
+                | Some (BookAsTransfer target) when target = ynabId -> Error bookingTransferOwnAccountText
+                | Some (BookAsTransfer target) ->
+                    match openBudget target with
+                    | None -> Error bookingTransferTargetText
+                    | Some targetAccount ->
+                        match targetAccount.TransferPayeeId with
+                        | None -> Error bookingTransferNoPayeeText
+                        | Some payeeId ->
+                            Ok (resolved, Some { TargetAccountId = target; TargetName = targetAccount.Name; TransferPayeeId = payeeId })
+                | _ -> Ok (resolved, None)
+
+// ============================================
 // Kategorien verwalten (budgeting-pscgb, ADR 0088 Punkt 1)
 // ============================================
 

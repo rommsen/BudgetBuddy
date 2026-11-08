@@ -137,6 +137,7 @@ let init () : Model * Cmd<Msg> =
         SplitEditor = None
         QuickAddAccountId = None
         TransferTargets = NotAsked
+        Capture = None
         CategorySuggestions = []
         CategoryRows = Map.empty
         FlagRows = Map.empty
@@ -977,6 +978,47 @@ let private keyboardBlocked (model: Model) : bool =
 /// Öffnet das Detail für `entry`: markiert die Zeile, setzt die Historie auf "lädt" und
 /// stößt ihren Abruf an. Wechselt ein offenes Panel auf eine andere Buchung, läuft derselbe
 /// Weg.
+// ============================================
+// Neue Buchung (ledger-at63w)
+// ============================================
+
+/// Das Konto des Kassenbuch-Filters, wenn genau eines gewählt ist.
+let captureFilterAccount (model: Model) : Guid option =
+    match model.SelectedFilter with
+    | Some (OneAccount id) -> Some id
+    | _ -> None
+
+/// Die Konten, auf denen das Formular erfasst: gespiegelte, offene Budget-Konten ohne das
+/// Import-Konto. Leer, solange Konten oder Budget-Konten fehlen.
+let captureAccounts (model: Model) (defaults: LedgerBookingDefaults) : LedgerAccountView list =
+    match model.Accounts, model.TransferTargets with
+    | Success view, Success budget -> bookingAccounts view.Accounts budget defaults.ImportAccountId
+    | _ -> []
+
+let private captureAccountIds (model: Model) (defaults: LedgerBookingDefaults) : Guid list =
+    captureAccounts model defaults |> List.map (fun a -> a.Id)
+
+/// Setzt das vorbelegte Konto nach, sobald Vorbelegung und Konten da sind.
+let private withCaptureDefaultAccount (model: Model) : Model =
+    match model.Capture with
+    | Some capture ->
+        match capture.Defaults with
+        | Success defaults ->
+            let form =
+                Capture.withDefaultAccount defaults (captureFilterAccount model) (captureAccountIds model defaults) capture.Form
+            { model with Capture = Some { capture with Form = form } }
+        | _ -> model
+    | None -> model
+
+/// Ändert das offene Formular; ohne Formular bleibt alles, wie es ist.
+let private updateCaptureForm (change: Capture.CaptureForm -> Capture.CaptureForm) (model: Model) : Model =
+    match model.Capture with
+    | Some capture -> { model with Capture = Some { capture with Form = change capture.Form } }
+    | None -> model
+
+let captureUndoLabel = "Rückgängig"
+let capturedDiscardedText = "Buchung zurückgenommen"
+
 let private showDetail (entry: LedgerEntryView) (model: Model) : Model * Cmd<Msg> =
     { model with DetailFor = Some entry; FocusedRow = Some entry.Id; History = Loading; MemoEdit = None },
     Cmd.ofMsg (LoadHistory entry.Id)
@@ -2250,6 +2292,168 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         | Some editor when not (splitBusy model editor.EntryId) -> { model with SplitEditor = None }, Cmd.none, NoOp
         | _ -> model, Cmd.none, NoOp
 
+    | OpenCapture ->
+        match model.Capture with
+        | Some _ -> model, Cmd.none, NoOp
+        | None ->
+            let loadTargets =
+                match model.TransferTargets with
+                | Success _ | Loading -> Cmd.none
+                | _ -> Cmd.ofMsg RunLoadTransferTargets
+            { model with
+                Capture = Some Capture.opening
+                DetailFor = None
+                History = NotAsked
+                MemoEdit = None
+                CategoryPickerFor = None
+                CategorySuggestions = []
+                CategoryCard = None },
+            Cmd.batch [ Cmd.ofMsg RunLoadCaptureDefaults; loadTargets; Cmd.ofMsg EnsureCategoriesFresh ],
+            NoOp
+
+    | CloseCapture ->
+        match model.Capture with
+        // Während "Buchung anlegen" läuft, bleibt das Formular offen: sonst ginge ein Fehler verloren.
+        | Some capture when capture.Saving -> model, Cmd.none, NoOp
+        | _ -> { model with Capture = None }, Cmd.none, NoOp
+
+    | RunLoadCaptureDefaults ->
+        model,
+        Cmd.OfAsync.either
+            (Retry.reading Api.ledger.getLedgerBookingDefaults)
+            ()
+            (fun defaults -> CaptureDefaultsLoaded (Ok defaults))
+            (fun ex -> CaptureDefaultsLoaded (Error ex.Message)),
+        NoOp
+
+    | CaptureDefaultsLoaded result ->
+        match model.Capture, result with
+        | Some capture, Ok defaults ->
+            let form = Capture.formFromDefaults defaults (captureFilterAccount model) (captureAccountIds model defaults)
+            { model with Capture = Some { capture with Defaults = Success defaults; Form = form } }, Cmd.none, NoOp
+        | Some capture, Error message ->
+            { model with Capture = Some { capture with Defaults = Failure message } }, Cmd.none, NoOp
+        | None, _ -> model, Cmd.none, NoOp
+
+    | SetCaptureDirection isOutflow -> updateCaptureForm (fun f -> { f with IsOutflow = isOutflow }) model, Cmd.none, NoOp
+    | SetCaptureAmount text -> updateCaptureForm (fun f -> { f with AmountText = text }) model, Cmd.none, NoOp
+    | SetCapturePayee text -> updateCaptureForm (fun f -> { f with Payee = text }) model, Cmd.none, NoOp
+    | SetCaptureDate date -> updateCaptureForm (fun f -> { f with Date = date.Date }) model, Cmd.none, NoOp
+    | SetCaptureMemo text -> updateCaptureForm (fun f -> { f with Memo = text }) model, Cmd.none, NoOp
+
+    | CommitCapturePayee ->
+        match model.Capture with
+        | Some capture when not capture.Form.TargetChosen && not (String.IsNullOrWhiteSpace capture.Form.Payee) ->
+            model, Cmd.ofMsg (RunLoadCapturePayeeCategory (capture.Form.Payee.Trim())), NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | RunLoadCapturePayeeCategory payee ->
+        model,
+        Cmd.OfAsync.either
+            (Retry.reading Api.ledger.getBookingCategoryForPayee)
+            payee
+            (fun category -> CapturePayeeCategoryLoaded (payee, category))
+            (fun _ -> CapturePayeeCategoryLoaded (payee, None)),
+        NoOp
+
+    | CapturePayeeCategoryLoaded (payee, category) ->
+        updateCaptureForm (Capture.applyPayeeCategory payee category) model, Cmd.none, NoOp
+
+    | ApplyCaptureTemplate template -> updateCaptureForm (Capture.applyTemplate template) model, Cmd.none, NoOp
+
+    | OpenCapturePicker picker ->
+        match model.Capture with
+        | Some capture -> { model with Capture = Some { capture with Picker = Some picker } }, Cmd.none, NoOp
+        | None -> model, Cmd.none, NoOp
+
+    | CloseCapturePicker ->
+        match model.Capture with
+        | Some capture -> { model with Capture = Some { capture with Picker = None } }, Cmd.none, NoOp
+        | None -> model, Cmd.none, NoOp
+
+    | ChooseCaptureAccount accountId ->
+        match model.Capture with
+        | Some capture ->
+            { model with
+                Capture = Some { capture with Picker = None; Form = { capture.Form with AccountId = Some accountId } } },
+            Cmd.none,
+            NoOp
+        | None -> model, Cmd.none, NoOp
+
+    | ChooseCaptureTarget target ->
+        match model.Capture with
+        | Some capture ->
+            { model with
+                Capture =
+                    Some { capture with Picker = None; Form = { capture.Form with Target = target; TargetChosen = true } } },
+            Cmd.none,
+            NoOp
+        | None -> model, Cmd.none, NoOp
+
+    | SubmitCapture ->
+        match model.Capture with
+        | Some capture when not capture.Saving ->
+            match Capture.captureRequest capture.Form with
+            | Ok request ->
+                { model with Capture = Some { capture with Saving = true; Errors = [] } },
+                Cmd.ofMsg (RunSubmitCapture request),
+                NoOp
+            | Error errors -> { model with Capture = Some { capture with Errors = errors } }, Cmd.none, NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | RunSubmitCapture request ->
+        model,
+        Cmd.OfAsync.either
+            Api.ledger.addLedgerBooking
+            request
+            CaptureSubmitted
+            (fun ex -> CaptureSubmitted (Error ex.Message)),
+        NoOp
+
+    | CaptureSubmitted (Ok created) ->
+        // Am PC zeigt das Panel danach die neue Buchung (Styleguide §7.6).
+        let openDetail =
+            if model.DetailForm = DetailPanel then Cmd.ofMsg (OpenRouteEntry created.EntryId) else Cmd.none
+        let toast =
+            match created.PushFailure with
+            | None ->
+                ShowToastWithAction (
+                    Capture.createdText created,
+                    ToastSuccess,
+                    { Label = captureUndoLabel; Kind = UndoCapturedBooking created.EntryId }
+                )
+            | Some _ -> ShowToast (Capture.createdText created, ToastWarning)
+        { model with Capture = None },
+        Cmd.batch [ Cmd.ofMsg LoadEntries; Cmd.ofMsg LoadBalances; openDetail ],
+        toast
+
+    | CaptureSubmitted (Error message) ->
+        match model.Capture with
+        | Some capture -> { model with Capture = Some { capture with Saving = false; Errors = [ message ] } }, Cmd.none, NoOp
+        | None -> model, Cmd.none, ShowToast (message, ToastError)
+
+    | StartDiscardCaptured entryId -> model, Cmd.ofMsg (RunDiscardCaptured entryId), NoOp
+
+    | RunDiscardCaptured entryId ->
+        model,
+        Cmd.OfAsync.either
+            Api.ledger.discardCapturedBooking
+            entryId
+            (fun result -> CapturedDiscarded (entryId, result))
+            (fun ex -> CapturedDiscarded (entryId, Error ex.Message)),
+        NoOp
+
+    | CapturedDiscarded (entryId, Ok ()) ->
+        let model' =
+            if model.DetailFor |> Option.exists (fun d -> d.Id = entryId) then
+                { model with DetailFor = None; History = NotAsked; MemoEdit = None }
+            else
+                model
+        model', Cmd.batch [ Cmd.ofMsg LoadEntries; Cmd.ofMsg LoadBalances ], ShowToast (capturedDiscardedText, ToastSuccess)
+
+    | CapturedDiscarded (_, Error message) ->
+        model, Cmd.none, ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
+
     | RunLoadTransferTargets ->
         { model with TransferTargets = Loading },
         Cmd.OfAsync.either
@@ -2259,7 +2463,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             (fun ex -> TransferTargetsLoaded (Error ex.Message)),
         NoOp
 
-    | TransferTargetsLoaded (Ok accounts) -> { model with TransferTargets = Success accounts }, Cmd.none, NoOp
+    | TransferTargetsLoaded (Ok accounts) ->
+        withCaptureDefaultAccount { model with TransferTargets = Success accounts }, Cmd.none, NoOp
     | TransferTargetsLoaded (Error message) ->
         { model with TransferTargets = RemoteData.lateFailure message model.TransferTargets }, Cmd.none, NoOp
 
@@ -2875,6 +3080,11 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 /// Drücken am Handy.
 let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     let model', cmd, external = updateCore msg model
+    // Detail und Formular teilen sich Panel und Sheet: öffnet eine Buchung, schließt das Formular.
+    let model' =
+        match model'.Capture, model'.DetailFor with
+        | Some capture, Some detail when model.DetailFor <> Some detail && not capture.Saving -> { model' with Capture = None }
+        | _ -> model'
     let selectionBegan = not (hasSelection model) && hasSelection model'
     let model' =
         if model'.DetailFor.IsSome && selectionBegan then

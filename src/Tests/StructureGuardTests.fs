@@ -679,7 +679,14 @@ let private apiWirings =
       // die Ports des Servers erreichen YNAB nur im laufenden Dienst.
       @"\bOk\s+validRequest\s*->\s*return!\s+addManualTransactionWith\s+liveQuickAddPorts\s+DateTime\.UtcNow\s+validRequest\s*\}"
       @"\bliveQuickAddPorts\s*:\s*QuickAddPorts\s*=\s*\{\s*Setting\s*=\s*Persistence\.Settings\.getSetting\s+LoadYnabCategories\s*=\s*YnabClient\.getCategories\s+Push\s*=\s*YnabClient\.createTransactionWith\s+NewEntryId\s*=\s*Ledger\.Events\.newEntryId\s+TriggerMirror\s*=\s*Ledger\.CommandHandlers\.triggerMirrorInBackground\s*\}"
-      @"\bentryPush\s*\(\)\s*:\s*Async<Ledger\.CommandHandlers\.EntryPush>\s*=\s*entryPushWith\s+Persistence\.Settings\.getSetting\s+YnabClient\.createTransactionWithFlag\s*(?:\n\s*\n|\z)"
+      @"\bentryPush\s*\(\)\s*:\s*Async<Ledger\.CommandHandlers\.EntryPush>\s*=\s*entryPushWith\s+Persistence\.Settings\.getSetting\s+YnabClient\.createTransactionFor\s*(?:\n\s*\n|\z)"
+      // Buchung erfassen und Rückgängig (ledger-at63w): `addLedgerBookingWith`, `discardCapturedBookingWith` und die
+      // Abfragen sind mit Fake-Ports getestet, die Ports des Servers erreichen YNAB nur im laufenden Dienst.
+      @"\baddLedgerBooking\s*=\s*fun\s+request\s*->\s*addLedgerBookingWith\s+liveLedgerBookingPorts\s+\(liveBerlinDay\s*\(\)\)\s+DateTime\.UtcNow\s+request\b"
+      @"\bdiscardCapturedBooking\s*=\s*fun\s+entryId\s*->\s*discardCapturedBookingWith\s+liveLedgerBookingPorts\s+DateTime\.UtcNow\s+entryId\b"
+      @"\bliveLedgerBookingPorts\s*:\s*LedgerBookingPorts\s*=\s*\{\s*Setting\s*=\s*Persistence\.Settings\.getSetting\s+LoadYnabCategories\s*=\s*YnabClient\.getCategories\s+BudgetAccounts\s*=\s*YnabClient\.fetchTransferAccounts\s+Push\s*=\s*YnabClient\.createTransactionFor\s+Delete\s*=\s*YnabClient\.deleteTransaction\s+NewEntryId\s*=\s*Ledger\.Events\.newEntryId\s+TriggerMirror\s*=\s*Ledger\.CommandHandlers\.triggerMirrorInBackground\s*\}"
+      @"\bgetLedgerBookingDefaultsWith\s+Persistence\.Settings\.getSetting\s+liveBerlinZone\.Value\s+DateTime\.UtcNow\b"
+      @"\bgetBookingCategoryForPayeeWith\s+Ledger\.Persistence\.loadLastPayeeCategory\s+Persistence\.Rules\.getAllRules\s+payee\b"
       @"\bimportTargetWith\s+Persistence\.Settings\.getSetting\s+toImport\.Length\s+with\b"
       @"\bimportTargetWith\s+Persistence\.Settings\.getSetting\s+transactionsToForce\.Length\s+with\b"
       // Kategorien verwalten (budgeting-pscgb): `categoryApiWith` und der Befehl sind mit Fake-Ports getestet, der Port des
@@ -805,7 +812,12 @@ let hostedServiceGuardTests =
                   "|> Remoting.fromValue (budgetApi berlinZone)\n"
                   "| Ok validRequest -> return! addManualTransactionWith liveQuickAddPorts DateTime.UtcNow validRequest\n    }\n"
                   "let liveQuickAddPorts : QuickAddPorts = {\n    Setting = Persistence.Settings.getSetting\n    LoadYnabCategories = YnabClient.getCategories\n    Push = YnabClient.createTransactionWith\n    NewEntryId = Ledger.Events.newEntryId\n    TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground\n}\n"
-                  "let private entryPush () : Async<Ledger.CommandHandlers.EntryPush> =\n    entryPushWith Persistence.Settings.getSetting YnabClient.createTransactionWithFlag\n\n"
+                  "let private entryPush () : Async<Ledger.CommandHandlers.EntryPush> =\n    entryPushWith Persistence.Settings.getSetting YnabClient.createTransactionFor\n\n"
+                  "addLedgerBooking = fun request -> addLedgerBookingWith liveLedgerBookingPorts (liveBerlinDay ()) DateTime.UtcNow request\n"
+                  "discardCapturedBooking = fun entryId -> discardCapturedBookingWith liveLedgerBookingPorts DateTime.UtcNow entryId\n"
+                  "let liveLedgerBookingPorts : LedgerBookingPorts = {\n    Setting = Persistence.Settings.getSetting\n    LoadYnabCategories = YnabClient.getCategories\n    BudgetAccounts = YnabClient.fetchTransferAccounts\n    Push = YnabClient.createTransactionFor\n    Delete = YnabClient.deleteTransaction\n    NewEntryId = Ledger.Events.newEntryId\n    TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground\n}\n"
+                  "Ledger.QueryHandlers.getLedgerBookingDefaultsWith Persistence.Settings.getSetting liveBerlinZone.Value DateTime.UtcNow\n"
+                  "Ledger.QueryHandlers.getBookingCategoryForPayeeWith\n            Ledger.Persistence.loadLastPayeeCategory\n            Persistence.Rules.getAllRules\n            payee\n"
                   "match! importTargetWith Persistence.Settings.getSetting toImport.Length with\n"
                   "match! importTargetWith Persistence.Settings.getSetting transactionsToForce.Length with\n"
                   "{ FetchGroups = fun () -> YnabClient.getCategoryGroups token budgetId\n  CreateCategory = fun groupId name -> YnabClient.createCategory token budgetId groupId name\n  UpdateCategory = fun categoryId patch -> YnabClient.patchCategory token budgetId categoryId patch\n  CreateGroup = fun name -> YnabClient.createCategoryGroup token budgetId name\n  UpdateGroup = fun groupId name -> YnabClient.updateCategoryGroup token budgetId groupId name\n  RefreshMirror = fun () -> Server.Budgeting.Categories.refreshMirrorWith (fun () -> YnabClient.getCategories token budgetId) Ledger.Persistence.upsertCategories\n  FetchMonth = fun month -> YnabClient.getMonth token budgetId month }\n"
@@ -877,10 +889,18 @@ let hostedServiceGuardTests =
                   "Push = YnabClient.createTransactionWith", "Push = (fun _ _ _ _ _ -> async.Return (Ok \"x\"))", "Quick Add ohne Push"
                   "NewEntryId = Ledger.Events.newEntryId", "NewEntryId = (fun () -> festeId)", "Quick Add mit fester Id"
                   "TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground", "TriggerMirror = ignore", "Quick Add ohne Spiegel"
-                  "entryPushWith Persistence.Settings.getSetting YnabClient.createTransactionWithFlag", "entryPushWith Persistence.Settings.getSetting fakeCreate", "Erneut senden ohne YNAB"
+                  "entryPushWith Persistence.Settings.getSetting YnabClient.createTransactionFor", "entryPushWith Persistence.Settings.getSetting fakeCreate", "Erneut senden ohne YNAB"
                   "entryPushWith Persistence.Settings.getSetting", "entryPushWith (fun _ -> async.Return None)", "Erneut senden ohne Settings"
                   "importTargetWith Persistence.Settings.getSetting toImport.Length", "importTargetWith (fun _ -> async.Return None) toImport.Length", "Import ohne Settings"
-                  "importTargetWith Persistence.Settings.getSetting transactionsToForce.Length", "importTargetWith Persistence.Settings.getSetting 0", "erzwungener Import mit falscher Zahl" ] do
+                  "importTargetWith Persistence.Settings.getSetting transactionsToForce.Length", "importTargetWith Persistence.Settings.getSetting 0", "erzwungener Import mit falscher Zahl"
+                  "addLedgerBookingWith liveLedgerBookingPorts", "addLedgerBookingWith fakeBookingPorts", "Erfassen mit anderen Ports"
+                  "(liveBerlinDay ()) DateTime.UtcNow request", "DateTime.UtcNow DateTime.UtcNow request", "Erfassen mit UTC-Tag"
+                  "discardCapturedBookingWith liveLedgerBookingPorts", "discardCapturedBookingWith fakeBookingPorts", "Rückgängig mit anderen Ports"
+                  "BudgetAccounts = YnabClient.fetchTransferAccounts", "BudgetAccounts = (fun _ _ -> async.Return (Ok []))", "Erfassen ohne Konten"
+                  "Push = YnabClient.createTransactionFor\n    Delete", "Push = fakeCreate\n    Delete", "Erfassen ohne Push"
+                  "Delete = YnabClient.deleteTransaction", "Delete = (fun _ _ _ -> async.Return (Ok ()))", "Rückgängig ohne Löschen"
+                  "getLedgerBookingDefaultsWith Persistence.Settings.getSetting liveBerlinZone.Value", "getLedgerBookingDefaultsWith Persistence.Settings.getSetting TimeZoneInfo.Utc", "Vorbelegung in UTC"
+                  "Persistence.Rules.getAllRules\n            payee", "(fun () -> async.Return [])\n            payee", "Kategorie zum Payee ohne Regeln" ] do
                 Expect.isNonEmpty (findMissingApiWirings (replaced original replacement)) label
             Expect.isNonEmpty (findMissingApiWirings $"// {real}") "nur im Kommentar"
 
