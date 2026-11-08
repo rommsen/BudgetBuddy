@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-08 20:16 -- Capture / Captured: infrastructure-ewasy - README-Delta-Gate meldet alten Wortlaut, der nach einem replace anderswo in der README stehen bleibt
+
+**Type:** Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** README-Delta-Gate soll alten Wortlaut melden, der nach einem replace anderswo in der README stehen bleibt (learn nach vier Verifier-FAILs)
+
+---
+
 ## 2026-11-08 19:05 -- Review-Lauf: e83f2d00..ad18f0c9
 
 **Type:** Review / Review-Lauf

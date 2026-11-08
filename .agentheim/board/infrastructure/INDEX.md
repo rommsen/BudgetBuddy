@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 5
+- **Backlog:** 6
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 49
@@ -43,6 +43,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **infrastructure-ewasy** — README-Delta-Gate meldet alten Wortlaut, der nach einem replace anderswo in der README stehen bleibt (chore) — `backlog/infrastructure-ewasy-readme-delta-alter-wortlaut.md`
 - **infrastructure-hgbey** — "Kann-Sammlung infrastructure" (chore) — `backlog/infrastructure-hgbey-kann-sammlung-infrastructure.md`
 - **infrastructure-phadg** — "Altlasten nach der Test-Doktrin: nachgebaute Tests und Quelltext-Tests auf View-Verdrahtung ersetzen" (chore) — `backlog/infrastructure-phadg-altlasten-test-doktrin.md`
 - **infrastructure-mshaf** — "Gate schneller und stabil: parallele Stränge, gezielter Lauf, Kernbudget, flackernde Wächter, veraltete Referenz-Assembly" (chore) — `backlog/infrastructure-mshaf-gate-schneller-und-stabil.md`
