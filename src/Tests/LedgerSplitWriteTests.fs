@@ -344,6 +344,7 @@ let splitCommandTests =
                         Category = None
                         Cleared = Uncleared
                         Approved = false
+                        ImportId = None
                     }
                 )
             ]

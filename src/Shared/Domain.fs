@@ -664,6 +664,10 @@ type YnabError =
     /// 10-Milliunits-Rasters oder eine unbekannte Anwendung. Kein YNAB-Fehler, die Meldung ist schon
     /// konkret und geht unverändert an den Nutzer.
     | RefusedByBb of message: string
+    /// 409 auf den Einzel-Post: auf dem Konto steht schon eine Buchung mit derselben `import_id`
+    /// (ledger-p3vq8, Probelauf ADR 0058). Bei BBs fester `import_id` heißt das: die Buchung ist
+    /// schon in YNAB, der Spiegel verknüpft sie.
+    | ImportIdAlreadyInYnab
 
 /// Der YNAB-Fehler als deutscher Satz. Die einzige Übersetzung, Server und Client nutzen sie. Der
 /// Text landet auch im Ereignis-Log und in der Antwort an Bob (`push_error`), deshalb stehen keine
@@ -681,6 +685,7 @@ let ynabErrorText (error: YnabError) : string =
     | LocalReadFailed message -> $"BB-Daten nicht lesbar: {message}"
     | LocalWriteFailed message -> message
     | RefusedByBb message -> message
+    | ImportIdAlreadyInYnab -> "Die Buchung steht schon in YNAB (gleiche import_id, HTTP 409)"
 
 /// Errors during rules operations.
 /// Purpose: Provides clear feedback for rule validation and compilation failures.

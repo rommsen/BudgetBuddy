@@ -158,6 +158,7 @@ let private cashExpenseAddedPayload : CashExpenseAddedPayload = {
     Category = None
     Cleared = Uncleared
     Approved = false
+    ImportId = None
 }
 
 let private categorizedByRule = EntryCategorizedByRule {
@@ -650,8 +651,8 @@ let ledgerDomainTests =
                 "EntryImportedFromComdirect schreibt seit ADR 0032 Schema-Version 2"
             Expect.equal
                 (schemaVersion (CashExpenseAdded cashExpenseAddedPayload))
-                2
-                "CashExpenseAdded schreibt seit ADR 0032 Schema-Version 2"
+                3
+                "CashExpenseAdded schreibt seit ledger-p3vq8 Schema-Version 3 (importId)"
 
         testCase "Payloads ueberstehen den JSON-Roundtrip verlustfrei" <| fun () ->
             let bodies = [
@@ -778,12 +779,34 @@ let ledgerDomainTests =
                 Expect.isTrue payload.Approved "Bestand ohne das Feld gilt als genehmigt"
             | other -> failtestf "CashExpenseAdded in Version 1 sollte lesbar sein, war %A" other
 
-        testCase "Neu geschriebene Entstehungs-Ereignisse tragen Schema-Version 2" <| fun () ->
+        testCase "CashExpenseAdded in Schema-Version 2 dekodiert ohne import_id" <| fun () ->
+            // ledger-p3vq8: Buchungen vor der festen import_id bleiben lesbar und pushen ohne sie.
+            let v2Json =
+                """{"accountId":"0195c000-0000-7000-8000-000000000001","date":"2026-02-05T00:00:00.0000000Z","amount":{"amount":-8.0,"currency":"EUR"},"payee":"Baecker","memo":null,"category":null,"cleared":"Uncleared","approved":false}"""
+
+            match decodePayload "CashExpenseAdded" 2 v2Json with
+            | Ok (CashExpenseAdded payload) ->
+                Expect.isNone payload.ImportId "ohne import_id"
+                Expect.isFalse payload.Approved "approved wie gespeichert"
+            | other -> failtestf "CashExpenseAdded in Version 2 sollte lesbar sein, war %A" other
+
+        testCase "CashExpenseAdded mit import_id übersteht den Roundtrip und stiftet die ImportId-Verknüpfung" <| fun () ->
+            // ledger-p3vq8: über diese Verknüpfung findet der Spiegel die YNAB-Buchung.
+            let entryId = newEntryId ()
+            let body = CashExpenseAdded { cashExpenseAddedPayload with ImportId = Some "BB:p3vq8" }
+            Expect.equal (decodePayload "CashExpenseAdded" 3 (encodePayload body)) (Ok body) "Roundtrip"
+            Expect.equal
+                (linksFrom (eventOn entryId QuickAdd body))
+                [ { EntryId = entryId; System = ImportIdSystem; Value = "BB:p3vq8" } ]
+                "ImportId-Verknüpfung"
+            Expect.isEmpty (linksFrom (eventOn entryId QuickAdd (CashExpenseAdded cashExpenseAddedPayload))) "ohne import_id keine"
+
+        testCase "Neu geschriebene Entstehungs-Ereignisse tragen ihre Schema-Version" <| fun () ->
             // AC5: eine neue Comdirect- oder Quick-Add-Buchung hat Approved = false.
             let comdirect = EntryImportedFromComdirect (importedFromComdirectPayload "import-neu" "comdirect-neu")
             let cash = CashExpenseAdded cashExpenseAddedPayload
             Expect.equal (schemaVersion comdirect) 2 "EntryImportedFromComdirect schreibt Version 2"
-            Expect.equal (schemaVersion cash) 2 "CashExpenseAdded schreibt Version 2"
+            Expect.equal (schemaVersion cash) 3 "CashExpenseAdded schreibt Version 3"
             match comdirect, cash with
             | EntryImportedFromComdirect p1, CashExpenseAdded p2 ->
                 Expect.isFalse p1.Approved "der Push sendet kein approved"

@@ -73,6 +73,7 @@ let private seedUnlinked (account: LedgerAccountId) : EntryId =
                 Category = None
                 Cleared = Uncleared
                 Approved = false
+                ImportId = None
             }
         )
     ]

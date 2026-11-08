@@ -10,10 +10,10 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 6
+- **Backlog:** 7
 - **Todo:** 1
-- **Doing:** 2
-- **Done:** 109
+- **Doing:** 1
+- **Done:** 110
 <!-- task-counts:end -->
 
 ### Todo
@@ -24,11 +24,11 @@ research touching this BC, and concept synthesis pages.
 ### Doing
 <!-- doing-list:start -->
 - **ledger-qvjvs** — "Buchung zum Übertrag machen: Konten im Kategorie-Picker des Kassenbuch-Details, Schreibweg nach YNAB" (feature) — `doing/ledger-qvjvs-buchung-zum-uebertrag-machen.md`
-- **ledger-p3vq8** — "addCashExpense: gelingt der Push und scheitert danach das Schreiben der Verknüpfung, legt der Spiegel eine zweite Buchung an" (bug) — `doing/ledger-p3vq8-push-gelungen-verknuepfung-nicht-geschrieben.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **ledger-p3vq8** — "addCashExpense: gelingt der Push und scheitert danach das Schreiben der Verknüpfung, legt der Spiegel eine zweite Buchung an" (bug) — `done/ledger-p3vq8-push-gelungen-verknuepfung-nicht-geschrieben.md`
 - **ledger-r8h19** — "Aufräum-Lauf ledger: Quelltext-, Klassenstring- und Konstanten-Tests ersetzen oder löschen, Logik aus [layout]-Tests nach .NET, N+1 in Sammelbefehlen und Spiegel-Lauf" (chore) — `done/ledger-r8h19-aufraeum-lauf-test-altlasten-und-n-plus-1.md`
 - **ledger-bk3q8** — "Quick Add und Bob über einen gemeinsamen Barbuchungs-Befehl, Push-Bau als reine Funktion; ein Kategorien-Ladefehler bucht nicht mehr still ohne Kategorie" (bug) — `done/ledger-bk3q8-barbuchung-und-push-bau-gemeinsam-und-getestet.md`
 - **ledger-vq2g8** — "Kassenbuch zeigt bei gescheitertem Abruf 0,00 € oder lädt endlos; es soll Laden und Fehler sichtbar nennen" (bug) — `done/ledger-vq2g8-kassenbuch-nennt-ladefehler-statt-null-und-dauer-laden.md`
@@ -42,6 +42,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ledger-m7k2d** — "Split einer Barbuchung lässt sich nicht ändern: Ersatz-import_id wäre länger als 36 Zeichen" (bug) — `backlog/ledger-m7k2d-split-einer-barbuchung-l-sst-sich-nicht-ndern-ersatz-import.md`
 - **ledger-k4n2s** — "Kann-Sammlung ledger" (chore) — `backlog/ledger-k4n2s-kann-sammlung-ledger.md`
 - **ledger-mj3a9** — "BOT_MAX_AMOUNT_EUR: ungültiger Wert fällt auf das Maximum zurück statt auf einen sicheren Wert" (bug) — `backlog/ledger-mj3a9-bot-betragsdeckel-faellt-sicher.md`
 - **ledger-g47hp** — "Benachrichtigung für Lena bei neuer Rückfrage" (feature) — `backlog/ledger-g47hp-benachrichtigung-fuer-lena.md`

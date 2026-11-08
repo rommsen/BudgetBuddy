@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-08 15:41 -- Task verified and completed: ledger-p3vq8 - "addCashExpense: gelingt der Push und scheitert danach das Schreiben der Verknüpfung, legt der Spiegel eine zweite Buchung an"
+
+**Type:** Work / Task completion
+**Task:** ledger-p3vq8 - "addCashExpense: gelingt der Push und scheitert danach das Schreiben der Verknüpfung, legt der Spiegel eine zweite Buchung an"
+**Summary:** Barbuchungen pushen mit fester import_id, kein Duplikat nach verlorener Push-Antwort
+**Duration:** 28m
+**Verification:** PASS (iteration 1)
+**Files changed:** 24
+**Tests added:** 10
+**ADRs written:** none
+
+---
+
 ## 2026-11-08 15:13 -- Batch started: [ledger-p3vq8, ledger-qvjvs, budgeting-pscgb]
 
 **Type:** Work / Batch start

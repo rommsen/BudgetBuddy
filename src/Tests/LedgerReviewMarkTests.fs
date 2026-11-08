@@ -76,6 +76,7 @@ let private seedUnlinked () : EntryId =
                 Category = None
                 Cleared = Uncleared
                 Approved = false
+                ImportId = None
             }
         )
     ]

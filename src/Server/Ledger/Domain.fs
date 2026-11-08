@@ -613,6 +613,14 @@ let linksFrom (event: LedgerEvent) : EntryLink list =
             { EntryId = event.EntryId; System = ImportIdSystem; Value = p.ImportId }
             { EntryId = event.EntryId; System = ComdirectSystem; Value = p.ComdirectReference }
         ]
+    | CashExpenseAdded p ->
+        [
+            // Die feste `import_id` einer Barbuchung (ADR 0004 Nachtrag, ledger-p3vq8): über
+            // sie findet der Spiegel die YNAB-Buchung, wenn die Push-Antwort verloren ging.
+            match p.ImportId with
+            | Some importId -> { EntryId = event.EntryId; System = ImportIdSystem; Value = importId }
+            | None -> ()
+        ]
     | EntryLinkedToYnab p ->
         [ { EntryId = event.EntryId; System = YnabSystem; Value = p.YnabTransactionId } ]
     | EntryReplacedInYnab p ->

@@ -1132,11 +1132,10 @@ let sendPrepared
     }
 
 /// Builds the JSON body for a single transaction created from the Kassenbuch (Quick Add,
-/// and "Erneut senden" for a booking that is not yet in YNAB, ledger-cks06).
-/// A manual entry sets no import_id (`importId = None`): it is user-entered (like
-/// YNAB's own mobile quick add) and must never collide with the bank-import
-/// deduplication that keys on import_id. Only a re-send of a booking that already carries
-/// an import_id passes it (`Some`), so YNAB deduplicates the re-send.
+/// Bob, and "Erneut senden" for a booking that is not yet in YNAB, ledger-cks06).
+/// Quick Add and Bob pass BB's fixed import_id (`BB:` plus the EntryId, ADR 0004 Nachtrag,
+/// ledger-p3vq8), a re-send passes the import_id the booking carries. Bookings pushed before
+/// that carry none (`None`): the key is omitted, they stay user-entered in YNAB.
 let buildManualTransactionBodyWithFlag
     (importId: string option)
     (flagColor: string option)
@@ -1164,8 +1163,8 @@ let buildManualTransactionBodyWithFlag
             match request.CategoryId with
             | Some (YnabCategoryId catId) -> "category_id", Encode.string (catId.ToString())
             | None -> ()
-            // Nur beim erneuten Senden einer Buchung, die schon eine import_id trägt
-            // (ledger-cks06): YNAB dedupliziert dann über sie.
+            // Die import_id der Buchung (ledger-cks06, ledger-p3vq8): YNAB dedupliziert
+            // über sie. Ohne import_id fehlt der Schlüssel.
             match importId with
             | Some id -> "import_id", Encode.string id
             | None -> ()
@@ -1199,7 +1198,9 @@ let manualTransactionIdDecoder : Decoder<string> =
     Decode.field "data" (Decode.field "transaction" (Decode.field "id" Decode.string))
 
 /// Ordnet die Antwort von `POST /budgets/{id}/transactions` (Einzelbuchung) zu. 201 liefert
-/// die YNAB-Transaction-Id aus der Antwort.
+/// die YNAB-Transaction-Id aus der Antwort. 409 heißt: auf dem Konto steht schon eine Buchung
+/// mit derselben `import_id` (Probelauf ADR 0058: "a transaction with the same import_id
+/// already exists on the specified account"), das wird `ImportIdAlreadyInYnab` (ledger-p3vq8).
 let interpretCreateTransactionResponse (status: int) (bodyText: string) : YnabResult<string> =
     match status with
     | 201 ->
@@ -1211,6 +1212,9 @@ let interpretCreateTransactionResponse (status: int) (bodyText: string) : YnabRe
     | 404 ->
         printfn "[YNAB] POST transactions: HTTP 404: %s" bodyText
         Error (YnabError.InvalidResponse "Budget oder Konto nicht gefunden (HTTP 404)")
+    | 409 ->
+        printfn "[YNAB] POST transactions: HTTP 409: %s" bodyText
+        Error YnabError.ImportIdAlreadyInYnab
     | 429 -> Error (YnabError.RateLimitExceeded 60)
     | _ -> Error (statusFailureOf "POST" "transactions" status bodyText)
 
@@ -1267,14 +1271,6 @@ let createTransactionWith
     : Async<YnabResult<string>> =
     createTransactionWithFlag importId None token budgetId accountId request
 
-let createManualTransaction
-    (token: string)
-    (budget: YnabBudgetId)
-    (accountId: YnabAccountId)
-    (request: ManualTransactionRequest)
-    : Async<YnabResult<string>> =
-    createTransactionWith None token budget accountId request
-
 // ============================================
 // Prüfvermerk zurückschreiben (ADR 0050)
 // ============================================
@@ -1305,7 +1301,7 @@ let buildReviewMarkBody (approved: bool) (cleared: ReviewMarkCleared option) : s
 /// Test gegen einen Fake-Handler läuft, nie gegen YNAB). Einzelne Buchung ändern ist
 /// laut YNAB-OpenAPI `PUT .../transactions/{transaction_id}` (`updateTransaction`,
 /// alle Felder des Bodys optional); der Pfad bleibt bei `/budgets/`, wie in den
-/// übrigen Aufrufen dieser Datei. Fehlerzuordnung wie `createManualTransaction`.
+/// übrigen Aufrufen dieser Datei. Fehlerzuordnung wie `createTransactionWithFlag`.
 let sendReviewMark
     (httpClient: System.Net.Http.HttpClient)
     (YnabBudgetId budgetId: YnabBudgetId)

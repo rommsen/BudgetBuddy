@@ -224,8 +224,8 @@ type EntryRecategorizedPayload = {
     NewPayee: string option
 }
 
-/// Quick-Add-Buchung angelegt, vor dem Push (Actor `QuickAdd`). Keine ImportId
-/// (ADR 0004): Quick Add wird ueber die Push-Antwort verknuepft, nicht ueber Dedup.
+/// Barbuchung angelegt, vor dem Push (Actor `QuickAdd` oder `Bob`). Verknüpft wird über die
+/// Push-Antwort, sonst über die `ImportId` (ADR 0004 Nachtrag 2026-11-08, ledger-p3vq8).
 type CashExpenseAddedPayload = {
     AccountId: LedgerAccountId
     Date: DateTime
@@ -238,6 +238,12 @@ type CashExpenseAddedPayload = {
     /// kein `approved` an YNAB. Version 1 ohne dieses Feld gilt beim Lesen als `true`
     /// (`Codec.decodeCashExpenseAddedV1`).
     Approved: bool
+    /// Die feste `import_id`, mit der der Push hinausgeht: `BB:` und die EntryId ohne
+    /// Bindestriche (ADR 0004 Nachtrag, ledger-p3vq8). Stiftet die ImportId-Verknüpfung,
+    /// über die der Spiegel die YNAB-Buchung findet, wenn die Push-Antwort verloren ging.
+    /// Schema-Version 3; ältere Ereignisse ohne sie lesen sich als `None` und pushen weiter
+    /// ohne `import_id`.
+    ImportId: string option
 }
 
 /// Die YNAB-Id ist bekannt geworden: aus der Push-Antwort (Actor `ComdirectImport`
@@ -457,6 +463,7 @@ let eventTypeName (body: LedgerEventBody) : string =
 /// bleiben unangetastet lesbar (ADR 0013, Punkt 7). `EntryObservedInYnab`,
 /// `EntryImportedFromComdirect` und `CashExpenseAdded` schreiben seit ADR 0032 Version 2
 /// (`approved`, bei `EntryObservedInYnab` zusätzlich Flag); Version 1 bleibt lesbar.
+/// `CashExpenseAdded` schreibt seit ledger-p3vq8 Version 3 (`importId`).
 let schemaVersion (body: LedgerEventBody) : int =
     match body with
     | EntryObservedInYnab _ -> 2
@@ -471,7 +478,7 @@ let schemaVersion (body: LedgerEventBody) : int =
     | EntryImportedFromComdirect _ -> 2
     | EntryCategorizedByRule _ -> 1
     | EntryRecategorized _ -> 1
-    | CashExpenseAdded _ -> 2
+    | CashExpenseAdded _ -> 3
     | EntryLinkedToYnab _ -> 1
     | EntryReviewMarkChangedInBb _ -> 1
     | EntryReviewMarkWriteBackFailed _ -> 1
@@ -894,9 +901,10 @@ module Codec =
             "category", encodeOption encodeCategory p.Category
             "cleared", encodeClearedState p.Cleared
             "approved", Encode.bool p.Approved
+            "importId", encodeOptionalString p.ImportId
         ]
 
-    /// Schema-Version 2 (ADR 0032): mit `approved`.
+    /// Schema-Version 3 (ledger-p3vq8): mit `importId`.
     let decodeCashExpenseAdded : Decoder<CashExpenseAddedPayload> =
         Decode.object (fun get -> {
             AccountId = get.Required.Field "accountId" decodeAccountId
@@ -907,6 +915,21 @@ module Codec =
             Category = get.Optional.Field "category" decodeCategory
             Cleared = get.Required.Field "cleared" decodeClearedState
             Approved = get.Required.Field "approved" Decode.bool
+            ImportId = get.Optional.Field "importId" Decode.string
+        })
+
+    /// Schema-Version 2 (ADR 0032): mit `approved`, ohne `importId`.
+    let decodeCashExpenseAddedV2 : Decoder<CashExpenseAddedPayload> =
+        Decode.object (fun get -> {
+            AccountId = get.Required.Field "accountId" decodeAccountId
+            Date = get.Required.Field "date" decodeDate
+            Amount = get.Required.Field "amount" decodeMoney
+            Payee = get.Optional.Field "payee" Decode.string
+            Memo = get.Optional.Field "memo" Decode.string
+            Category = get.Optional.Field "category" decodeCategory
+            Cleared = get.Required.Field "cleared" decodeClearedState
+            Approved = get.Required.Field "approved" Decode.bool
+            ImportId = None
         })
 
     /// Schema-Version 1: ohne `approved`. Gilt beim Lesen als genehmigt (ADR 0032).
@@ -920,6 +943,7 @@ module Codec =
             Category = get.Optional.Field "category" decodeCategory
             Cleared = get.Required.Field "cleared" decodeClearedState
             Approved = true
+            ImportId = None
         })
 
     let encodeLinkedToYnab (p: EntryLinkedToYnabPayload) =
@@ -1112,6 +1136,8 @@ let decodePayload (eventType: string) (version: int) (payload: string) : Result<
     | "CashExpenseAdded", 1 ->
         Decode.fromString Codec.decodeCashExpenseAddedV1 payload |> Result.map CashExpenseAdded
     | "CashExpenseAdded", 2 ->
+        Decode.fromString Codec.decodeCashExpenseAddedV2 payload |> Result.map CashExpenseAdded
+    | "CashExpenseAdded", 3 ->
         Decode.fromString Codec.decodeCashExpenseAdded payload |> Result.map CashExpenseAdded
     | "EntryLinkedToYnab", 1 ->
         Decode.fromString Codec.decodeLinkedToYnab payload |> Result.map EntryLinkedToYnab

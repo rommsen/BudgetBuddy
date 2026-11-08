@@ -33,6 +33,7 @@ let private newEntry (label: string) : EntryId =
         Category = None
         Cleared = Uncleared
         Approved = false
+        ImportId = None
     }
     appendAndApply [ { EntryId = entryId; OccurredAt = at; Actor = QuickAdd; Body = CashExpenseAdded payload } ]
     |> Async.RunSynchronously

@@ -370,7 +370,8 @@ let settingsApi : SettingsApi = {
 type QuickAddPorts = {
     Setting: string -> Async<string option>
     LoadYnabCategories: string -> YnabBudgetId -> Async<YnabResult<YnabCategory list>>
-    Push: string -> YnabBudgetId -> YnabAccountId -> ManualTransactionRequest -> Async<YnabResult<string>>
+    /// Der Einzel-Post: `import_id`, Token, Budget, Konto, Request.
+    Push: string option -> string -> YnabBudgetId -> YnabAccountId -> ManualTransactionRequest -> Async<YnabResult<string>>
     NewEntryId: unit -> Ledger.Events.EntryId
     TriggerMirror: unit -> unit
 }
@@ -400,7 +401,7 @@ let addManualTransactionWith (ports: QuickAddPorts) (now: DateTime) (validReques
                     Ledger.QueryHandlers.resolveCategoryRefWith
                         Ledger.Persistence.loadCategoryNames
                         (fun () -> ports.LoadYnabCategories token budget)
-                let push request = ports.Push token budget account.YnabAccountId request
+                let push importId request = ports.Push (Some importId) token budget account.YnabAccountId request
 
                 match!
                     Ledger.CommandHandlers.addQuickAdd
@@ -420,7 +421,7 @@ let addManualTransactionWith (ports: QuickAddPorts) (now: DateTime) (validReques
 let liveQuickAddPorts : QuickAddPorts = {
     Setting = Persistence.Settings.getSetting
     LoadYnabCategories = YnabClient.getCategories
-    Push = YnabClient.createManualTransaction
+    Push = YnabClient.createTransactionWith
     NewEntryId = Ledger.Events.newEntryId
     TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground
 }

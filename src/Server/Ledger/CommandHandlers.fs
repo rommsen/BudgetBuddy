@@ -692,6 +692,12 @@ type CashExpenseInput = {
     Category: CategoryRef option
 }
 
+/// Die feste `import_id` einer Buchung, die BB anlegt und pusht: `BB:` und die EntryId als
+/// Guid ohne Bindestriche, 35 Zeichen (ADR 0004 Nachtrag, ledger-p3vq8). Der Aufrufer legt
+/// die EntryId vor dem Push fest (ledger-z71ka), die `import_id` ist darum über
+/// Wiederholungen gleich. Rein.
+let cashEntryImportId (EntryId id: EntryId) : string = $"{ImportIdPrefix}:{id:N}"
+
 /// Der Grund, wenn YNAB den Versand beantwortet hat, die Buchung aber nicht in der
 /// Antwort angelegt war: nicht auswertbare Antwort, Duplikat oder sonst nicht angelegt.
 let describeNotCreatedReason (importId: string) (result: Ynab.TransactionCreateResult) : string =
@@ -702,16 +708,18 @@ let describeNotCreatedReason (importId: string) (result: Ynab.TransactionCreateR
 /// Schreibt zuerst die Kassenbuch-Buchung (`CashExpenseAdded`, Actor `actor`: `QuickAdd`
 /// für die eigene Seite, `Bob` für die `/bot/`-Schnittstelle, ADR 0066), ruft
 /// danach `push` auf und verknüpft bei Erfolg mit `EntryLinkedToYnab` (ADR 0021): `push`
-/// liefert die YNAB-Transaction-Id aus der Antwort des Einzel-Posts, die einzige Stelle,
-/// an der eine Quick-Add-Buchung ohne ImportId verknüpft werden kann (ADR 0004, ADR
-/// 0015). Scheitert der Push, bleibt die Kassenbuch-Buchung unverändert stehen, kein
+/// liefert die YNAB-Transaction-Id aus der Antwort des Einzel-Posts. Das Ereignis trägt die
+/// feste `import_id` (`cashEntryImportId`, ADR 0004 Nachtrag): geht die Antwort verloren oder
+/// scheitert das Schreiben der Verknüpfung, findet der Spiegel die YNAB-Buchung über sie
+/// (ledger-p3vq8). Scheitert der Push, bleibt die Kassenbuch-Buchung unverändert stehen, kein
 /// Rollback (ADR 0021, Punkt 2); der Fehler wird durchgereicht, die Buchung bleibt ohne
 /// YNAB-Verknüpfung bis zu einem erneuten Push oder dem nächsten Spiegel-Lauf. Der
 /// Fehlschlag steht danach als `EntryPushToYnabFailed` mit Grund im Log (ledger-rynk5).
 ///
 /// Ereignis, Push und Verknüpfung laufen unter der Schreib-Sperre (`WriteGuard`,
-/// ledger-kfd5m): ein Lauf zwischen Push und `EntryLinkedToYnab` sähe die YNAB-Buchung
-/// ungematcht und legte eine zweite Buchung an (Quick Add trägt keine ImportId, ADR 0004).
+/// ledger-kfd5m): ein Lauf zwischen Push und `EntryLinkedToYnab` hängte sonst die
+/// Verknüpfung über die ImportId an, und das Schreiben der Verknüpfung durch den Befehl
+/// scheiterte danach an der schon bestehenden.
 /// Nach erfolgreichem Push stößt `triggerMirror` den Spiegel an (ADR 0014 Punkt 2): erst
 /// wenn `EntryLinkedToYnab` geschrieben und die Sperre wieder frei ist, nie davor
 /// (Task-Nachtrag, ADR 0021; der Lauf nimmt dieselbe Sperre).
@@ -756,6 +764,8 @@ let addCashExpense
                                 // Quick Add sendet kein `approved`; YNAB legt die Buchung
                                 // unbestätigt an (ADR 0032).
                                 Approved = false
+                                // Dieselbe `import_id`, mit der `addCashBookingWith` pusht.
+                                ImportId = Some (cashEntryImportId entryId)
                             }
                     }
                     do! Ledger.Persistence.appendAndApply [ cashExpenseAdded ]
@@ -856,24 +866,25 @@ let addCashBookingWith
     (actor: Actor)
     (now: DateTime)
     (entryId: EntryId)
-    (push: ManualTransactionRequest -> Async<YnabResult<string>>)
+    (push: string -> ManualTransactionRequest -> Async<YnabResult<string>>)
     (triggerMirror: unit -> unit)
     (booking: CashBooking)
     : Async<YnabResult<EntryId>> =
     let input, request = cashBookingParts booking
-    addExpense actor now entryId (fun () -> push request) triggerMirror input
+    // Die `import_id` des Pushs ist die aus `CashExpenseAdded` (ledger-p3vq8).
+    addExpense actor now entryId (fun () -> push (cashEntryImportId entryId) request) triggerMirror input
 
 /// Barbuchung (Quick Add mit Actor `QuickAdd`, Bob mit Actor `Bob`): bildet Kassenbuch-
 /// Eingabe und YNAB-Request aus denselben Werten (`cashBookingParts`) und bucht über
 /// `addCashExpense`, das die Schreib-Sperre hält (ledger-kfd5m). Der Befehl nimmt die
-/// Sperre nicht selbst. `push` bekommt den Request und bindet Token, Budget und das
-/// YNAB-Konto an. Die `entryId` gilt wie bei `addCashExpense` auch nach einem
+/// Sperre nicht selbst. `push` bekommt die `import_id` (`cashEntryImportId`) und den Request
+/// und bindet Token, Budget und das YNAB-Konto an. Die `entryId` gilt wie bei `addCashExpense` auch nach einem
 /// Push-Fehler (ledger-z71ka).
 let addCashBooking
     (actor: Actor)
     (now: DateTime)
     (entryId: EntryId)
-    (push: ManualTransactionRequest -> Async<YnabResult<string>>)
+    (push: string -> ManualTransactionRequest -> Async<YnabResult<string>>)
     (triggerMirror: unit -> unit)
     (booking: CashBooking)
     : Async<YnabResult<EntryId>> =
@@ -888,7 +899,7 @@ let addQuickAdd
     (now: DateTime)
     (entryId: EntryId)
     (resolveCategory: YnabCategoryId -> Async<Result<CategoryRef, string>>)
-    (push: ManualTransactionRequest -> Async<YnabResult<string>>)
+    (push: string -> ManualTransactionRequest -> Async<YnabResult<string>>)
     (triggerMirror: unit -> unit)
     (accountId: LedgerAccountId)
     (request: ManualTransactionRequest)
@@ -943,6 +954,11 @@ let pushNotPossibleReason = "Das Konto der Buchung ist nicht mit YNAB verbunden"
 /// Eine unbekannte, in YNAB gelöschte oder schon verknüpfte Buchung wird abgelehnt, ohne
 /// dass `push` aufgerufen wird (eine zweite YNAB-Buchung wäre die Folge). Läuft unter der
 /// Schreib-Sperre (`WriteGuard`, ledger-kfd5m), der Auslöser erst nach der Freigabe.
+///
+/// Meldet YNAB die `import_id` als schon vorhanden (409, `ImportIdAlreadyInYnab`), ist das kein
+/// Fehlschlag (ledger-p3vq8): ein früherer Push kam an, nur seine Antwort nicht. Kein Ereignis,
+/// das Ergebnis ist `PushToYnabSent`, und der Spiegel verknüpft die Buchung über die
+/// `import_id`.
 let retryPushToYnab
     (now: DateTime)
     (push: EntryPush)
@@ -971,6 +987,7 @@ let retryPushToYnab
                                     }
                                 ]
                             return Ok PushToYnabSent
+                        | Error ImportIdAlreadyInYnab -> return Ok PushToYnabSent
                         | Error err ->
                             let reason = ynabErrorText err
                             do!

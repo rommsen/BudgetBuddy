@@ -76,6 +76,7 @@ let private cashExpense (amount: decimal) : LedgerEventBody =
         Category = None
         Cleared = Uncleared
         Approved = false
+        ImportId = None
     }
 
 let private byRule : LedgerEventBody =

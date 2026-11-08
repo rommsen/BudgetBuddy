@@ -199,14 +199,24 @@ let jsonBodyTests =
             Expect.equal amount -4500 "Amount should be a signed milliunit number"
         }
 
-        test "no import_id is set for manual entries" {
-            // Manual entries must never collide with the bank-import deduplication,
-            // which keys on import_id. YNAB treats transactions without import_id
-            // as user-entered (like its own mobile quick add).
-            let accountId = YnabAccountId (Guid.NewGuid())
-            let json = buildManualTransactionBody accountId validRequest
-            let keys = transactionKeys json
-            Expect.isFalse (keys |> List.contains "import_id") "import_id must be absent"
+        test "Quick Add und Bob senden die feste import_id aus BB: und der EntryId (ADR 0004 Nachtrag)" {
+            // ledger-p3vq8: ersetzt "import_id abwesend". Mit der festen import_id findet der
+            // Spiegel eine Buchung, deren Push-Antwort verloren ging, und YNAB lehnt ein zweites
+            // Senden ab.
+            let guid = Guid.Parse "0195c000-1234-7000-8000-00000000abcd"
+            let importId = Ledger.CommandHandlers.cashEntryImportId (Ledger.Events.EntryId guid)
+            let json = buildManualTransactionBodyWith (Some importId) (YnabAccountId (Guid.NewGuid())) validRequest
+            Expect.equal
+                (decodeAt [ "transaction"; "import_id" ] Decode.string json)
+                "BB:0195c00012347000800000000000abcd"
+                "BB: und die EntryId ohne Bindestriche"
+            Expect.equal importId.Length 35 "35 Zeichen, YNAB erlaubt 36"
+        }
+
+        test "eine Buchung ohne import_id geht ohne den Schlüssel hinaus" {
+            // Buchungen, die vor ledger-p3vq8 ohne import_id gepusht wurden, senden weiter ohne sie.
+            let json = buildManualTransactionBody (YnabAccountId (Guid.NewGuid())) validRequest
+            Expect.isFalse (transactionKeys json |> List.contains "import_id") "import_id abwesend"
         }
 
         test "category_id is included when a category is selected" {

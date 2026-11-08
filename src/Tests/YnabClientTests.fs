@@ -1586,4 +1586,14 @@ let fixedErrorTextTests =
                 (Ok "ynab-1")
                 "201"
             Expect.equal (interpretCreateTransactionResponse 429 "x") (Error (YnabError.RateLimitExceeded 60)) "429"
+
+        testCase "Buchung anlegen: 409 (import_id schon auf dem Konto) wird ImportIdAlreadyInYnab mit festem Satz" <| fun () ->
+            // ledger-p3vq8: Antwort laut Probelauf ADR 0058 (Fall 3). "Erneut senden" behandelt
+            // sie als schon in YNAB, nicht als Fehlschlag.
+            let body = """{"error":{"id":"409","name":"conflict","detail":"a transaction with the same import_id already exists on the specified account"}}"""
+            let result = interpretCreateTransactionResponse 409 body
+            Expect.equal result (Error YnabError.ImportIdAlreadyInYnab) "409"
+            let reason = reasonOf result
+            expectFixedGerman reason "409"
+            Expect.equal reason "Die Buchung steht schon in YNAB (gleiche import_id, HTTP 409)" "Satz"
     ]

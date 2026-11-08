@@ -60,6 +60,7 @@ let private cashAdded : CashExpenseAddedPayload = {
     Category = None
     Cleared = Uncleared
     Approved = false
+    ImportId = None
 }
 
 /// Eine Comdirect-Buchung vor der Verknüpfung (Zustand per `apply`).

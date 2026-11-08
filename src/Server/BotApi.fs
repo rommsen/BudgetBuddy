@@ -194,8 +194,9 @@ type BotDeps = {
     ResolveTarget: unit -> Async<Result<BotTarget, string>>
     /// Der Push nach YNAB auf das Konto der Vorschau, mit dem Request, den die Barbuchung
     /// (`Ledger.CommandHandlers.addCashBookingWith`) aus denselben Werten wie die
-    /// Kassenbuch-Eingabe baut (ledger-bk3q8).
-    Push: YnabAccountId * ManualTransactionRequest -> Async<YnabResult<string>>
+    /// Kassenbuch-Eingabe baut (ledger-bk3q8), und der festen `import_id` aus
+    /// `CashExpenseAdded` (ledger-p3vq8).
+    Push: YnabAccountId * string * ManualTransactionRequest -> Async<YnabResult<string>>
     /// Das Buchen ins Kassenbuch mit anschließendem Push. Live ist das
     /// `Ledger.CommandHandlers.addCashExpense`; Tests lösen hier Ausnahmen vor und nach dem
     /// Schreiben aus (ledger-z71ka).
@@ -394,7 +395,7 @@ let private bookWithinLimit (deps: BotDeps) (p: BotPreview) (entryId: Ledger.Eve
                     Ledger.Events.Bob
                     (deps.Now())
                     entryId
-                    (fun request -> deps.Push (p.Target.YnabAccountId, request))
+                    (fun importId request -> deps.Push (p.Target.YnabAccountId, importId, request))
                     deps.TriggerMirror
                     booking
             with
@@ -545,11 +546,11 @@ let liveDeps (berlinZone: TimeZoneInfo) : BotDeps =
                             Ok { LedgerAccountId = account.LedgerAccountId; YnabAccountId = account.YnabAccountId; AccountName = account.AccountName }
                 }
         Push =
-            fun (ynabAccountId, request) ->
+            fun (ynabAccountId, importId, request) ->
                 async {
                     match! ynabContext () with
                     | Error reason -> return Error (YnabError.Unauthorized reason)
-                    | Ok (token, budgetId) -> return! Server.YnabClient.createManualTransaction token budgetId ynabAccountId request
+                    | Ok (token, budgetId) -> return! Server.YnabClient.createTransactionWith (Some importId) token budgetId ynabAccountId request
                 }
         AddCashExpense = Ledger.CommandHandlers.addCashExpense
         TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground

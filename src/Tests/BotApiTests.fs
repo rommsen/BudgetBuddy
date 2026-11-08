@@ -662,7 +662,8 @@ let botApiTests =
                           Memo = None
                           Category = None
                           Cleared = Uncleared
-                          Approved = false } }
+                          Approved = false
+                          ImportId = None } }
             appendAndApply [ quickAdd ] |> Async.RunSynchronously
             Expect.equal (fst (previewOn env.Deps (env.DateText 0) "500" "outflow")) 200 "weder gestern noch Quick Add zählen"
 
