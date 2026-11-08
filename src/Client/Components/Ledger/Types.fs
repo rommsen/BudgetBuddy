@@ -667,8 +667,6 @@ let memoRestoredToastText : string = "Memo zurückgesetzt"
 type CategoryLock =
     | CategoryEditable
     | CategoryLockedDeleted
-    /// Übertrag zwischen Budget-Konten ohne Kategorie: YNAB lässt keine zu.
-    | CategoryLockedTransfer
     /// Split-Buchung: der Pfeil öffnet den Split-Editor (ledger-pafkp).
     | CategoryOpensSplitEditor
     /// Split-Buchung, deren Zeilen sich nicht ändern lassen (abgeglichen, Tracking-Konto,
@@ -681,7 +679,8 @@ let categoryLockFor (entry: LedgerEntryView) : CategoryLock =
         match Components.Ledger.SplitEditor.lockReasonFor entry with
         | Some reason -> CategoryLockedSplit reason
         | None -> CategoryOpensSplitEditor
-    elif entry.IsTransfer && entry.CategoryId.IsNone then CategoryLockedTransfer
+    // Ein Übertrag zwischen Budget-Konten ist änderbar (ledger-qvjvs): ein Konto wechselt das
+    // Ziel, eine Kategorie macht ihn wieder zur normalen Buchung.
     else CategoryEditable
 
 /// Der Hinweistext am gesperrten Pfeil; `None`, wenn die Kategorie änderbar ist.
@@ -689,7 +688,6 @@ let categoryLockHint (lock: CategoryLock) : string option =
     match lock with
     | CategoryEditable -> None
     | CategoryLockedDeleted -> Some "In YNAB gelöscht, die Kategorie lässt sich nicht ändern"
-    | CategoryLockedTransfer -> Some "Übertrag zwischen Budget-Konten, YNAB lässt hier keine Kategorie zu"
     | CategoryOpensSplitEditor -> None
     | CategoryLockedSplit reason -> Some reason
 
@@ -736,6 +734,12 @@ let categoryChangedToastText (newName: string option) (previous: CategoryChoice 
     | Some name, _ -> $"Kategorie geändert: {name}"
     | None, Some old -> $"Kategorie entfernt: {old.CategoryName}"
     | None, None -> "Kategorie entfernt"
+
+/// Der Toast nach "Übertrag auf ein Konto" (ledger-qvjvs).
+let transferSetToastText (name: string option) : string =
+    match name with
+    | Some n -> $"Übertrag auf {n}"
+    | None -> "Übertrag gesetzt"
 
 /// Der Toast nach "Rückgängig".
 let categoryRestoredToastText (name: string option) : string =
@@ -1689,6 +1693,11 @@ type Msg =
     | StartUndoCategory of Guid * CategoryChoice option
     | RunUndoCategory of Guid * CategoryChoice option
     | EntryCategoryRestored of Guid * CategoryChoice option * Result<CategoryChangeOutcome, string>
+    /// Ein Konto im Picker des Details (ledger-qvjvs): die Buchung wird ein Übertrag auf dieses
+    /// Konto. `undo` heißt: der Aufruf ist die Rücknahme aus dem Toast, ohne neues "Rückgängig".
+    | StartSetEntryTransfer of Guid * YnabAccountId * undo: bool
+    | RunSetEntryTransfer of Guid * YnabAccountId * undo: bool
+    | EntryTransferSet of Guid * YnabAccountId * undo: bool * Result<CategoryChangeOutcome, string>
     /// "Erneut senden" an der Hinweisleiste "Kategorie nicht in YNAB".
     | StartRetryCategorization of Guid
 
@@ -1982,3 +1991,29 @@ let availableAgeLabel (loadedAt: DateTime) (now: DateTime) : string =
     if age < TimeSpan.FromMinutes 1.0 then "Stand gerade eben"
     elif age < TimeSpan.FromHours 1.0 then $"Stand vor {int age.TotalMinutes} Min"
     else $"Stand {two loadedAt.Hour}:{two loadedAt.Minute}"
+
+/// Der Name des Übertrags-Ziels für Detail und Toast (ledger-qvjvs): aus den Konten des Budgets,
+/// sonst aus den Kassenbuch-Konten. `None`, wenn keine Liste das Konto kennt.
+let transferAccountName (model: Model) (accountId: Guid) : string option =
+    let fromTargets =
+        match model.TransferTargets with
+        | Success accounts -> accounts |> List.tryFind (fun a -> a.Id = YnabAccountId accountId) |> Option.map (fun a -> a.Name)
+        | _ -> None
+    let fromLedger () =
+        match model.Accounts with
+        | Success view ->
+            view.Accounts
+            |> List.tryFind (fun a -> a.YnabAccountId = Some (YnabAccountId accountId))
+            |> Option.map (fun a -> a.Name)
+        | _ -> None
+    fromTargets |> Option.orElseWith fromLedger
+
+/// Die Kategorie-Zeile eines Übertrags im Detail: "Übertrag → <Konto>", ohne bekannten Namen
+/// nur "Übertrag" (ledger-qvjvs, Prototyp Version 17).
+let transferCategoryLabel (model: Model) (entry: LedgerEntryView) : string option =
+    if entry.CategoryId.IsSome || not (List.isEmpty entry.Splits) || not entry.IsTransfer then
+        None
+    else
+        match entry.TransferAccountId |> Option.bind (transferAccountName model) with
+        | Some name -> Some $"Übertrag → {name}"
+        | None -> Some "Übertrag"

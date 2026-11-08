@@ -1515,6 +1515,56 @@ let detailCategoryLabel (form: DetailForm) (entry: LedgerEntryView) : string =
     | DetailPanel -> categoryLabelQualified entry
     | DetailSheet -> categoryLabel entry
 
+/// Die Nachricht einer Wahl im Picker des Details (ledger-qvjvs): ein Konto macht die Buchung
+/// zum Übertrag (`setEntryTransfer`), eine Kategorie geht weiter über `setEntryCategory`.
+let detailPickerMsg (entryId: Guid) (choice: CategoryPicker.PickerChoice) : Msg option =
+    match choice with
+    | CategoryPicker.ChoseAccount account -> Some (StartSetEntryTransfer (entryId, account, false))
+    | CategoryPicker.ChoseCategory id -> Some (StartSetEntryCategory (entryId, id))
+    | CategoryPicker.ChoseToBeBudgeted -> None
+
+/// Die wählbaren Übertrag-Ziele einer Zeile: die offenen Budget-Konten des Budgets
+/// (`openOnBudgetAccounts`), ohne das eigene Konto der Buchung. Solange die Liste nicht geladen
+/// ist, ist sie leer; den Grund dafür zeigt `transferTargetsLoadState`.
+let transferTargetsFor (model: Model) (entry: LedgerEntryView) : YnabAccount list =
+    let own =
+        match model.Accounts with
+        | Success view ->
+            view.Accounts
+            |> List.tryFind (fun a -> a.Id = entry.AccountId)
+            |> Option.bind (fun a -> a.YnabAccountId)
+        | _ -> None
+    match model.TransferTargets with
+    | Success accounts -> openOnBudgetAccounts accounts |> List.filter (fun a -> Some a.Id <> own)
+    | _ -> []
+
+/// Der Ladezustand der Übertrag-Ziele für den Picker im Split-Editor (ledger-vq2g8): bei
+/// `Failure` meldet der Konten-Abschnitt den Fehler, beim Laden den Ladezustand. Vorher war die
+/// leere Liste von `transferTargetsFor` still, Übertrag-Ziele fehlten ohne Hinweis.
+let transferTargetsLoadState (targets: RemoteData<YnabAccount list>) : CategoryPicker.PickerLoadState =
+    match targets with
+    | Success _ -> CategoryPicker.PickerReady
+    | Failure _ -> CategoryPicker.PickerFailed None
+    | NotAsked | Loading -> CategoryPicker.PickerLoading
+
+/// Die Props des Pickers im Detail: Kategorien und, wie im Split, die Konten des Budgets im
+/// Abschnitt "Übertrag auf Konto" (ledger-qvjvs). Bei einem Übertrag ist sein Ziel angehakt.
+let detailPickerProps (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) : CategoryPicker.CategoryPickerProps =
+    { Categories = model.Categories |> RemoteData.toOption |> Option.defaultValue [] |> withoutInternalCategories
+      Current = entry.CategoryId |> Option.map YnabCategoryId
+      Suggested = model.CategorySuggestions
+      Recent = recentPickerIds model.RecentCategories
+      Accounts = transferTargetsFor model entry
+      CurrentAccount = entry.TransferAccountId |> Option.map YnabAccountId
+      AccountsLoad = transferTargetsLoadState model.TransferTargets
+      OfferWithout = true
+      ToBeBudgeted = None
+      StandLabel = categoryStandLabel model DateTime.Now
+      LoadState = categoryLoadState model.Categories
+      OnRetry = fun () -> dispatch LoadCategories
+      OnSelect = fun choice -> detailPickerMsg entry.Id choice |> Option.iter dispatch
+      OnClose = fun () -> dispatch CloseCategoryPicker }
+
 /// Die Kategorie-Zeile mit Pfeil, Picker (Popover oder Sheet) und, nach einer Änderung,
 /// der Karte "Budget nach dem Wechsel" darunter.
 let private categoryField (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) (valueColor: string) : ReactElement =
@@ -1522,21 +1572,7 @@ let private categoryField (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
     let lock = categoryLockFor entry
     let arrowMsg = categoryArrowMsg model entry
     let onArrow = fun () -> arrowMsg |> Option.iter dispatch
-    let pickerProps : CategoryPicker.CategoryPickerProps =
-        { Categories = model.Categories |> RemoteData.toOption |> Option.defaultValue [] |> withoutInternalCategories
-          Current = entry.CategoryId |> Option.map YnabCategoryId
-          Suggested = model.CategorySuggestions
-          Recent = recentPickerIds model.RecentCategories
-          Accounts = []
-          CurrentAccount = None
-          AccountsLoad = CategoryPicker.PickerReady
-          OfferWithout = true
-          ToBeBudgeted = None
-          StandLabel = categoryStandLabel model DateTime.Now
-          LoadState = categoryLoadState model.Categories
-          OnRetry = fun () -> dispatch LoadCategories
-          OnSelect = CategoryPicker.categoryChoice (fun choice -> dispatch (StartSetEntryCategory (entry.Id, choice)))
-          OnClose = fun () -> dispatch CloseCategoryPicker }
+    let pickerProps = detailPickerProps dispatch model entry
     let sheetSubtitle =
         $"{payeeLabel entry} · {Money.formatAmountText false true entry.Amount.Amount entry.Amount.Currency}"
     React.fragment [
@@ -1548,7 +1584,9 @@ let private categoryField (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
                     (if arrowMsg.IsSome then Some onArrow else None)
                     "detail-category"
                     "Kategorie"
-                    (Detail.valueText valueColor (detailCategoryLabel model.DetailForm entry))
+                    (Detail.valueText
+                        valueColor
+                        (transferCategoryLabel model entry |> Option.defaultValue (detailCategoryLabel model.DetailForm entry)))
                     (Some (
                         React.fragment [
                             match categoryFilterLabel entry, entry.CategoryId with
@@ -1815,30 +1853,6 @@ let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
 // ============================================
 // Split-Editor (ledger-pafkp, ADR 0058, Handoff Ablauf 4)
 // ============================================
-
-/// Die wählbaren Übertrag-Ziele einer Zeile: die offenen Budget-Konten des Budgets
-/// (`openOnBudgetAccounts`), ohne das eigene Konto der Buchung. Solange die Liste nicht geladen
-/// ist, ist sie leer; den Grund dafür zeigt `transferTargetsLoadState`.
-let transferTargetsFor (model: Model) (entry: LedgerEntryView) : YnabAccount list =
-    let own =
-        match model.Accounts with
-        | Success view ->
-            view.Accounts
-            |> List.tryFind (fun a -> a.Id = entry.AccountId)
-            |> Option.bind (fun a -> a.YnabAccountId)
-        | _ -> None
-    match model.TransferTargets with
-    | Success accounts -> openOnBudgetAccounts accounts |> List.filter (fun a -> Some a.Id <> own)
-    | _ -> []
-
-/// Der Ladezustand der Übertrag-Ziele für den Picker im Split-Editor (ledger-vq2g8): bei
-/// `Failure` meldet der Konten-Abschnitt den Fehler, beim Laden den Ladezustand. Vorher war die
-/// leere Liste von `transferTargetsFor` still, Übertrag-Ziele fehlten ohne Hinweis.
-let transferTargetsLoadState (targets: RemoteData<YnabAccount list>) : CategoryPicker.PickerLoadState =
-    match targets with
-    | Success _ -> CategoryPicker.PickerReady
-    | Failure _ -> CategoryPicker.PickerFailed None
-    | NotAsked | Loading -> CategoryPicker.PickerLoading
 
 let private isSavingSplit (model: Model) (editor: SplitLogic.SplitEditorState) : bool =
     (model.CategoryRows |> Map.tryFind editor.EntryId) = Some CategorySending
@@ -3179,6 +3193,24 @@ let private MeasuredBottomBar (bar: ReactElement) =
         )
     Html.div [ prop.ref measure; prop.children [ bar ] ]
 
+/// Die Props des Pickers der Auswahl-Leiste ("Kategorie setzen" für mehrere): nur Kategorien,
+/// keine Konten (Roman, ledger-qvjvs: ein Übertrag geht nur einzeln im Detail).
+let batchPickerProps (dispatch: Msg -> unit) (model: Model) : CategoryPicker.CategoryPickerProps =
+    { Categories = model.Categories |> RemoteData.toOption |> Option.defaultValue [] |> withoutInternalCategories
+      Current = None
+      Suggested = []
+      Recent = recentPickerIds model.RecentCategories
+      Accounts = []
+      CurrentAccount = None
+      AccountsLoad = CategoryPicker.PickerReady
+      OfferWithout = true
+      ToBeBudgeted = None
+      StandLabel = categoryStandLabel model DateTime.Now
+      LoadState = categoryLoadState model.Categories
+      OnRetry = fun () -> dispatch LoadCategories
+      OnSelect = CategoryPicker.categoryChoice (fun choice -> dispatch (StartCategoryBatch choice))
+      OnClose = fun () -> dispatch CloseBatchCategoryPicker }
+
 /// Die Auswahl-Leiste am unteren Rand (ledger-r1d2f), mit der einen primären Aktion
 /// "Geprüft" (ledger-nhwrt). Am Handy
 /// erscheint sie im Auswahl-Modus und ersetzt die Tab-Bar (zwei Reihen), am PC, solange die
@@ -3191,21 +3223,7 @@ let selectionBars (dispatch: Msg -> unit) (model: Model) : ReactElement =
     let countText = selectionBarCountText totals.Count
     // Läuft einer der beiden Sammelaufrufe, sind beide Aktionen gesperrt.
     let locked = model.ReviewMarkBatchRunning || model.CategoryBatchRunning || model.LenaBatchRunning
-    let pickerProps : CategoryPicker.CategoryPickerProps =
-        { Categories = model.Categories |> RemoteData.toOption |> Option.defaultValue [] |> withoutInternalCategories
-          Current = None
-          Suggested = []
-          Recent = recentPickerIds model.RecentCategories
-          Accounts = []
-          CurrentAccount = None
-          AccountsLoad = CategoryPicker.PickerReady
-          OfferWithout = true
-          ToBeBudgeted = None
-          StandLabel = categoryStandLabel model DateTime.Now
-          LoadState = categoryLoadState model.Categories
-          OnRetry = fun () -> dispatch LoadCategories
-          OnSelect = CategoryPicker.categoryChoice (fun choice -> dispatch (StartCategoryBatch choice))
-          OnClose = fun () -> dispatch CloseBatchCategoryPicker }
+    let pickerProps = batchPickerProps dispatch model
     // Popover am PC, Sheet am Handy: nie beide, denn das Sheet portalt in den Body (ADR 0043).
     let desktop = Viewport.isDesktopViewport ()
     let category : MultiSelect.CategoryAction =

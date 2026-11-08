@@ -28,6 +28,11 @@ open Server.YnabObservations
 
 module Ynab = Server.YnabClient
 
+/// Übertrags-Werkzeuge, die in diesen Tests nie gebraucht werden (ledger-qvjvs).
+let private noTransfer : TransferWriteTools =
+    { Accounts = fun () -> async { return Error (YnabError.NetworkError "kein Übertrag im Test") }
+      Push = fun _ _ -> async { return Error (YnabError.NetworkError "kein Übertrag im Test") } }
+
 let private eur (amount: decimal) = { Amount = amount; Currency = "EUR" }
 
 let private accountId = LedgerAccountId (Guid.Parse "0195c000-0000-7000-8000-0000000000c1")
@@ -97,7 +102,7 @@ let splitDomainTests =
                     Reason = "POST gescheitert"
                     BaselineCategory = None
                     BaselineSplits = twoLines
-                    YnabDeletedTransactionId = Some "alt"
+                    YnabDeletedTransactionId = Some "alt"; BaselineTransferAccountId = None
                 }
             ]
             for body in bodies do
@@ -453,7 +458,7 @@ let splitCommandTests =
                 "Log"
 
             probe.PutResult <- Ok ()
-            let retry = retryCategorizationOrSplitWriteBack at (fun _ _ -> async { return Ok () }) probe.Tools entryId |> Async.RunSynchronously |> unwrap
+            let retry = retryCategorizationOrSplitWriteBack at (fun _ _ -> async { return Ok () }) probe.Tools noTransfer entryId |> Async.RunSynchronously |> unwrap
             Expect.equal retry CategorySent "erneut gesendet"
             Expect.equal probe.Puts [ ynabId, twoLines; ynabId, twoLines ] "zweiter PUT"
             Expect.isNone (entryOf entryId).CategorizationWriteBackFailure "Fehlschlag beendet"
@@ -627,7 +632,7 @@ let splitCommandTests =
             retryProbe.DeleteResult <- Error (YnabError.NetworkError "darf nicht aufgerufen werden")
             retryProbe.CreateResult <- Some (Ok "ynab-recreated")
             let retry =
-                retryCategorizationOrSplitWriteBack at (fun _ _ -> async { return Ok () }) retryProbe.Tools entryId
+                retryCategorizationOrSplitWriteBack at (fun _ _ -> async { return Ok () }) retryProbe.Tools noTransfer entryId
                 |> Async.RunSynchronously
                 |> unwrap
             Expect.equal retry CategorySent "gesendet"
@@ -657,7 +662,7 @@ let splitCommandTests =
             Expect.equal failure.BaselineSplits twoLines "Baseline"
 
             probe.DeleteResult <- Ok ()
-            let retry = retryCategorizationOrSplitWriteBack at (fun _ _ -> async { return Ok () }) probe.Tools entryId |> Async.RunSynchronously |> unwrap
+            let retry = retryCategorizationOrSplitWriteBack at (fun _ _ -> async { return Ok () }) probe.Tools noTransfer entryId |> Async.RunSynchronously |> unwrap
             Expect.equal retry CategorySent "gesendet"
             Expect.equal probe.Deletes [ oldId; oldId ] "DELETE wiederholt"
             Expect.equal probe.Creates.Length 1 "ein POST"
@@ -669,7 +674,7 @@ let splitCommandTests =
             setSplits probe entryId [ line catC -12.00m ] |> unwrap |> ignore
             Expect.isEmpty (entryOf entryId).Splits "BB hat keinen Split mehr"
             let result =
-                setEntryCategory at (fun _ _ -> async { return Ok () }) entryId (Some catA.CategoryId)
+                setEntryCategory at (fun _ _ -> async { return Ok () }) noTransfer entryId (Some catA.CategoryId)
                 |> Async.RunSynchronously
             match result with
             | Error msg -> Expect.stringContains msg "erneut senden" "Hinweis"
@@ -806,7 +811,7 @@ let splitWriteGuardTests =
                 waitsForMirror
                     entryId
                     probe
-                    (retryCategorizationOrSplitWriteBack at (fun _ _ -> async { return Ok () }) probe.Tools entryId)
+                    (retryCategorizationOrSplitWriteBack at (fun _ _ -> async { return Ok () }) probe.Tools noTransfer entryId)
             Expect.equal (unwrap result) CategorySent "gesendet"
             Expect.equal (eventTypesOf entryId |> List.last) "EntryCategorizationWrittenBackToYnab" "Ereignis erst nach dem Lauf"
             Expect.equal probe.Puts.Length 2 "zweiter PUT erst nach dem Lauf"

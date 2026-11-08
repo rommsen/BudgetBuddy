@@ -283,6 +283,8 @@ let private rows : Row list = [
       Run = fun () -> ledgerApi.retryReviewMarkWriteBack (Guid.NewGuid()) |> run |> expectError "Prüfvermerk erneut" }
     { Endpoint = "LedgerApi.setEntryCategory"; Case = "unbekannte Buchung: Fehler"
       Run = fun () -> ledgerApi.setEntryCategory (Guid.NewGuid()) None |> run |> expectError "Kategorie" }
+    { Endpoint = "LedgerApi.setEntryTransfer"; Case = "leeres Zielkonto: Fehler"
+      Run = fun () -> ledgerApi.setEntryTransfer (Guid.NewGuid()) (YnabAccountId Guid.Empty) |> run |> expectError "Zielkonto" }
     { Endpoint = "LedgerApi.setEntrySplits"; Case = "unbekannte Buchung: Fehler"
       Run = fun () -> ledgerApi.setEntrySplits (Guid.NewGuid()) [] |> run |> expectError "Aufteilung" }
     { Endpoint = "LedgerApi.getBudgetAccounts"; Case = "ohne Token Fehler"

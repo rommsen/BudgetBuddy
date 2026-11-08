@@ -118,6 +118,7 @@
     <Compile Include="RemotingEndpointNegativeTests.fs" />
     <Compile Include="NetworkCallGuardTests.fs" />
     <Compile Include="LedgerMemoTests.fs" />
+    <Compile Include="LedgerTransferTests.fs" />
     <Compile Include="ForceImportCandidateTests.fs" />
     <Compile Include="PushOutcomeClassificationTests.fs" />
     <Compile Include="LedgerPageTests.fs" />

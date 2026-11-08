@@ -218,6 +218,9 @@ let migrateLedgerEntryColumns (conn: SqliteConnection) =
     migrateColumn "ALTER TABLE ledger_entries ADD COLUMN push_failure_at TEXT" |> ignore
     if migrateColumn "ALTER TABLE ledger_entries ADD COLUMN linked_to_ynab INTEGER NOT NULL DEFAULT 0" then
         backfillLinkedToYnab conn
+    // ledger-qvjvs: der Payee aus BB vor einem in BB gesetzten Übertrag. NULL ist für jede
+    // Bestandsbuchung richtig, vor dieser Spalte gab es keinen in BB gesetzten Übertrag.
+    migrateColumn "ALTER TABLE ledger_entries ADD COLUMN payee_before_transfer TEXT" |> ignore
 
 // ============================================
 // Übergang des Kassenbuch-Logs nach `events` (ADR 0083 Abschnitt 6, ledger-k9tm2)
@@ -391,7 +394,8 @@ let internal createLedgerSchemaOn (conn: SqliteConnection) =
             memo_write_back_failure TEXT,
             push_failure_reason TEXT,
             push_failure_at TEXT,
-            linked_to_ynab INTEGER NOT NULL DEFAULT 0
+            linked_to_ynab INTEGER NOT NULL DEFAULT 0,
+            payee_before_transfer TEXT
         );
 
         CREATE INDEX IF NOT EXISTS idx_ledger_entries_account ON ledger_entries(account_id);
@@ -474,6 +478,7 @@ type private EntryRow = {
     push_failure_reason: string
     push_failure_at: string
     linked_to_ynab: int64
+    payee_before_transfer: string
 }
 
 [<CLIMutable>]
@@ -605,7 +610,8 @@ let private rowToEntry (row: EntryRow) : Entry =
                     { Reason = p.Reason
                       BaselineCategory = p.BaselineCategory
                       BaselineSplits = p.BaselineSplits
-                      YnabDeletedTransactionId = p.YnabDeletedTransactionId }
+                      YnabDeletedTransactionId = p.YnabDeletedTransactionId
+                      BaselineTransferAccountId = p.BaselineTransferAccountId }
                 | Error e -> failwith $"Kategorie-Fehlschlag der Buchung {row.id} nicht lesbar: {e}")
         FlagWriteBackFailure =
             toOption row.flag_write_back_failure
@@ -628,6 +634,7 @@ let private rowToEntry (row: EntryRow) : Entry =
             |> Option.map (fun reason ->
                 { Reason = reason; FailedAt = dateFromText row.push_failure_at })
         TransferAccountId = toOption row.transfer_account_id |> Option.map (Guid.Parse >> YnabAccountId)
+        PayeeBeforeTransfer = toOption row.payee_before_transfer
     }
 
 let private rowToAccount (row: AccountRow) : LedgerAccount =
@@ -688,7 +695,8 @@ let private entryParams (entry: Entry) =
                             { Reason = f.Reason
                               BaselineCategory = f.BaselineCategory
                               BaselineSplits = f.BaselineSplits
-                              YnabDeletedTransactionId = f.YnabDeletedTransactionId }
+                              YnabDeletedTransactionId = f.YnabDeletedTransactionId
+                              BaselineTransferAccountId = f.BaselineTransferAccountId }
                     )
                 )
             | None -> null
@@ -716,6 +724,7 @@ let private entryParams (entry: Entry) =
         push_failure_reason = orNull (entry.PushToYnabFailure |> Option.map (fun f -> f.Reason))
         push_failure_at = orNull (entry.PushToYnabFailure |> Option.map (fun f -> dateToText f.FailedAt))
         linked_to_ynab = (if entry.LinkedToYnab then 1 else 0)
+        payee_before_transfer = orNull entry.PayeeBeforeTransfer
         transfer_account_id =
             match entry.TransferAccountId with
             | Some (YnabAccountId a) -> box (a.ToString())
@@ -730,12 +739,12 @@ let private upsertEntrySql =
          (id, account_id, date, amount, currency, payee, memo, category_id, category_name,
           splits, cleared, transfer_entry_id, deleted_in_ynab, approved, flag_color, flag_name,
           transfer_account_id, split_transfer_counterparts, review_mark_write_back_failure,
-          categorization_write_back_failure, flag_write_back_failure, memo_write_back_failure, push_failure_reason, push_failure_at, linked_to_ynab)
+          categorization_write_back_failure, flag_write_back_failure, memo_write_back_failure, push_failure_reason, push_failure_at, linked_to_ynab, payee_before_transfer)
        VALUES
          (@id, @account_id, @date, @amount, @currency, @payee, @memo, @category_id,
           @category_name, @splits, @cleared, @transfer_entry_id, @deleted_in_ynab, @approved,
           @flag_color, @flag_name, @transfer_account_id, @split_transfer_counterparts,
-          @review_mark_write_back_failure, @categorization_write_back_failure, @flag_write_back_failure, @memo_write_back_failure, @push_failure_reason, @push_failure_at, @linked_to_ynab)
+          @review_mark_write_back_failure, @categorization_write_back_failure, @flag_write_back_failure, @memo_write_back_failure, @push_failure_reason, @push_failure_at, @linked_to_ynab, @payee_before_transfer)
        ON CONFLICT(id) DO UPDATE SET
           account_id = excluded.account_id,
           date = excluded.date,
@@ -760,7 +769,8 @@ let private upsertEntrySql =
           memo_write_back_failure = excluded.memo_write_back_failure,
           push_failure_reason = excluded.push_failure_reason,
           push_failure_at = excluded.push_failure_at,
-          linked_to_ynab = excluded.linked_to_ynab"""
+          linked_to_ynab = excluded.linked_to_ynab,
+          payee_before_transfer = excluded.payee_before_transfer"""
 
 /// Führt die abgeleitete Indextabelle `ledger_entry_split_categories` einer Buchung
 /// nach (ADR 0038): erst `DELETE` aller Zeilen dieser Buchung, dann `INSERT` je

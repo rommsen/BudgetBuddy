@@ -32,6 +32,7 @@ let private entryOf (n: int) : LedgerEntryView =
       NeedsReview = false
       Flag = NoFlag
       IsTransfer = false
+      TransferAccountId = None
       ReviewMarkWriteBackFailure = None
       CategorizationWriteBackFailure = None
       FlagWriteBackFailure = None

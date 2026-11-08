@@ -45,6 +45,7 @@ let private entryOf (n: int) : LedgerEntryView =
       NeedsReview = true
       Flag = NoFlag
       IsTransfer = false
+      TransferAccountId = None
       ReviewMarkWriteBackFailure = None
       CategorizationWriteBackFailure = None
       FlagWriteBackFailure = None
@@ -104,7 +105,7 @@ let private entriesOf (model: Model) =
 let private rowOf (n: int) (model: Model) = entriesOf model |> List.find (fun e -> e.Id = idOf n)
 
 let private changedOutcome (previous: CategoryChoice option) (writeBack: CategoryWriteBack) : CategoryChangeOutcome =
-    { Previous = previous; Change = CategoryChanged; WriteBack = writeBack }
+    { Previous = previous; Change = CategoryChanged; WriteBack = writeBack; PreviousTransferAccountId = None }
 
 let private haushaltChoice : CategoryChoice = { CategoryId = catId 1; CategoryName = "Haushalt" }
 
@@ -613,7 +614,7 @@ let reducerTests =
 
         testCase "Ziel gleich Ist: keine Änderung, Editor zu, kein Toast" <| fun () ->
             let model = { opened (splitEntry 1) with CategoryRows = Map.ofList [ idOf 1, CategorySending ] }
-            let unchanged : CategoryChangeOutcome = { Previous = None; Change = CategoryUnchanged; WriteBack = CategoryNotSent }
+            let unchanged : CategoryChangeOutcome = { Previous = None; Change = CategoryUnchanged; WriteBack = CategoryNotSent; PreviousTransferAccountId = None }
             let after, _, external = update (SplitsSaved (idOf 1, [ moebel; haushalt ], Ok unchanged)) model
             Expect.isNone after.SplitEditor "zu"
             Expect.equal (rowOf 1 after).Splits [ moebel; haushalt ] "unverändert"

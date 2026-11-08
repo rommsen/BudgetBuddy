@@ -1426,6 +1426,31 @@ let private splitWriteTools () : Async<Ledger.CommandHandlers.SplitWriteTools> =
             }
     }
 
+/// Die YNAB-Aufrufe des Übertrags-Schreibwegs (ledger-qvjvs) mit Token und Standard-Budget aus
+/// den Settings, mit denselben Fehlerfällen wie `splitWriteTools`.
+let private transferWriteTools () : Async<Ledger.CommandHandlers.TransferWriteTools> =
+    async {
+        let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
+        let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
+
+        match tokenOpt, budgetOpt with
+        | Some token, Some budgetId ->
+            let budget = YnabBudgetId budgetId
+            return {
+                Accounts = fun () -> YnabClient.fetchTransferAccounts token budget
+                Push = fun ynabTransactionId write -> YnabClient.updateTransfer token budget ynabTransactionId write
+            }
+        | _ ->
+            let error =
+                match tokenOpt with
+                | None -> YnabError.Unauthorized "No YNAB token configured"
+                | Some _ -> YnabError.BudgetNotFound "Kein Standard-Budget konfiguriert (Settings)"
+            return {
+                Accounts = fun () -> async { return Error error }
+                Push = fun _ _ -> async { return Error error }
+            }
+    }
+
 /// Der Sammel-Push des Prüfvermerks (ledger-nhwrt), mit denselben Fehlerfällen wie
 /// `reviewMarkPush`.
 let private reviewMarkBatchPush () : Async<Ledger.CommandHandlers.ReviewMarkBatchPush> =
@@ -1558,8 +1583,20 @@ let ledgerApi : LedgerApi = {
     // zuerst, dann der Push, beides unter der Schreib-Sperre gegen den Spiegel-Lauf.
     setEntryCategory = fun entryId target -> async {
         let! push = categoryPush ()
+        let! transfer = transferWriteTools ()
         return!
-            Ledger.CommandHandlers.setEntryCategory DateTime.UtcNow push (Ledger.Events.EntryId entryId) target
+            Ledger.CommandHandlers.setEntryCategory DateTime.UtcNow push transfer (Ledger.Events.EntryId entryId) target
+    }
+
+    // Buchung zum Übertrag machen oder das Ziel wechseln (ledger-qvjvs): Kassenbuch zuerst,
+    // dann der PUT, unter der Schreib-Sperre.
+    setEntryTransfer = fun entryId target -> async {
+        match Validation.validateTransferRequest entryId target with
+        | Error errors -> return Error (String.concat " " errors)
+        | Ok () ->
+            let! transfer = transferWriteTools ()
+            return!
+                Ledger.CommandHandlers.setEntryTransfer DateTime.UtcNow transfer (Ledger.Events.EntryId entryId) target
     }
 
     // Split setzen oder aufheben und nach YNAB zurückschreiben (ledger-kxme4, ADR 0058).
@@ -1591,11 +1628,13 @@ let ledgerApi : LedgerApi = {
     retryCategorizationWriteBack = fun entryId -> async {
         let! push = categoryPush ()
         let! tools = splitWriteTools ()
+        let! transfer = transferWriteTools ()
         return!
             Ledger.CommandHandlers.retryCategorizationOrSplitWriteBack
                 DateTime.UtcNow
                 push
                 tools
+                transfer
                 (Ledger.Events.EntryId entryId)
     }
 

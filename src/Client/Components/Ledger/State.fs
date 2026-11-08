@@ -552,6 +552,56 @@ let private applyCategoryResult
         let refresh = if orderChanged then Cmd.ofMsg RunRefreshTotals else Cmd.none
         finalModel, Cmd.batch [ timer; refresh ]
 
+/// Nach dem Weg zurück vom Übertrag zur normalen Buchung (ledger-qvjvs): die Zeile ist lokal
+/// kein Übertrag mehr, den Payee aus BB liefert das Nachladen der Buchung.
+let private afterTransferCleared (entryId: Guid) (outcome: CategoryChangeOutcome) (model: Model, cmd: Cmd<Msg>) : Model * Cmd<Msg> =
+    match outcome.PreviousTransferAccountId, outcome.Change with
+    | Some _, CategoryChanged ->
+        let model' =
+            match findEntry model entryId with
+            | Some entry -> replaceEntry { entry with IsTransfer = false; TransferAccountId = None } model
+            | None -> model
+        model', Cmd.batch [ cmd; Cmd.ofMsg (RunRefreshEntry entryId) ]
+    | _ -> model, cmd
+
+/// Die Rücknahme im Toast nach einem Befehl auf der Kategorie-Zeile (ledger-qvjvs): war die
+/// Buchung vorher ein Übertrag, wird sie wieder einer, sonst geht die alte Kategorie zurück.
+let undoKindFor (entryId: Guid) (outcome: CategoryChangeOutcome) : ToastActionKind =
+    match outcome.PreviousTransferAccountId with
+    | Some account -> UndoTransfer (entryId, account)
+    | None -> UndoCategory (entryId, outcome.Previous)
+
+/// Trägt das Ergebnis von `setEntryTransfer` lokal ein (ledger-qvjvs): Übertrag auf das Konto,
+/// ohne Kategorie, Payee wie YNAB ihn nennt. Das Nachladen der Buchung bestätigt den Stand.
+let applyTransferResult (entryId: Guid) (YnabAccountId account) (outcome: CategoryChangeOutcome) (model: Model) : Model =
+    let cleared =
+        { model with
+            CategoryRows = model.CategoryRows |> Map.remove entryId
+            CategoryPickerFor = None
+            CategorySuggestions = [] }
+    match findEntry cleared entryId with
+    | None -> cleared
+    | Some entry ->
+        let failure =
+            match outcome.WriteBack with
+            | CategorySendFailed reason -> Some reason
+            | CategorySent -> None
+            | CategoryNotSent -> entry.CategorizationWriteBackFailure
+        match outcome.Change with
+        | CategoryUnchanged -> replaceEntry { entry with CategorizationWriteBackFailure = failure } cleared
+        | CategoryChanged ->
+            let name = transferAccountName cleared account
+            replaceEntry
+                { entry with
+                    IsTransfer = true
+                    TransferAccountId = Some account
+                    CategoryId = None
+                    CategoryName = None
+                    CategoryGroupName = None
+                    Payee = name |> Option.map (fun n -> $"Transfer : {n}") |> Option.orElse entry.Payee
+                    CategorizationWriteBackFailure = failure }
+                cleared
+
 /// Der offene Fehlschlag der Buchung nach einem Flag-Befehl: der Grund aus der Antwort,
 /// `None` nach erfolgreichem Versand; ohne Änderung und ohne Versand bleibt ein bisheriger
 /// Fehlschlag stehen.
@@ -1701,10 +1751,15 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 | Some payee when not (String.IsNullOrWhiteSpace payee) ->
                     Cmd.ofMsg (RunLoadCategorySuggestions (entryId, payee, current))
                 | _ -> Cmd.none
+            // Die Konten des Budgets für den Abschnitt "Übertrag auf Konto" (ledger-qvjvs).
+            let loadTargets =
+                match model.TransferTargets with
+                | Success _ | Loading -> Cmd.none
+                | _ -> Cmd.ofMsg RunLoadTransferTargets
             { model with CategoryPickerFor = Some entryId; CategorySuggestions = []; CategoryCard = None },
             // Der Aufruf je Öffnung lädt die Kategorien nur bei Stand über zwei Minuten nach
             // (ledger-kwwxz) und holt die Vorschläge zum Payee.
-            Cmd.batch [ Cmd.ofMsg EnsureCategoriesFresh; suggestions ],
+            Cmd.batch [ Cmd.ofMsg EnsureCategoriesFresh; suggestions; loadTargets ],
             NoOp
         | _ -> model, Cmd.none, NoOp
 
@@ -1754,7 +1809,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         model, cmd, NoOp
 
     | EntryCategorySet (entryId, newId, Ok outcome) ->
-        let model', cmd = applyCategoryResult entryId newId None true outcome model
+        let model', cmd = applyCategoryResult entryId newId None true outcome model |> afterTransferCleared entryId outcome
         let newName = categoryOfId model newId |> Option.map (fun c -> c.Name)
         let external =
             match outcome.Change, outcome.WriteBack with
@@ -1762,7 +1817,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             | CategoryUnchanged, _ -> NoOp
             | CategoryChanged, writeBack ->
                 let text = categoryChangedToastText newName outcome.Previous
-                let action = { Label = undoToastLabel; Kind = UndoCategory (entryId, outcome.Previous) }
+                let action = { Label = undoToastLabel; Kind = undoKindFor entryId outcome }
                 match writeBack with
                 | CategorySendFailed reason ->
                     ShowToastWithAction ($"{text}. {categoryHintTitle}: {reason}", ToastWarning, action)
@@ -1794,7 +1849,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         // kein "Rückgängig" (eine Aktion, ein Toast, eine Rücknahme).
         let newId = previous |> Option.map (fun p -> p.CategoryId)
         let fallback = previous |> Option.map (fun p -> p.CategoryName)
-        let model', cmd = applyCategoryResult entryId newId fallback false outcome model
+        let model', cmd = applyCategoryResult entryId newId fallback false outcome model |> afterTransferCleared entryId outcome
         let name = categoryOfId model newId |> Option.map (fun c -> c.Name) |> Option.orElse fallback
         let external =
             match outcome.WriteBack with
@@ -1808,6 +1863,56 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             CategoryRows = model.CategoryRows |> Map.add entryId (CategoryCommandFailed message) },
         Cmd.none,
         ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
+
+    | StartSetEntryTransfer (entryId, account, undo) ->
+        match findEntry model entryId with
+        | Some entry when categoryLockFor entry = CategoryEditable
+                          && (model.CategoryRows |> Map.tryFind entryId) <> Some CategorySending ->
+            { model with
+                CategoryRows = model.CategoryRows |> Map.add entryId CategorySending
+                CategoryPickerFor = None
+                CategorySuggestions = []
+                CategoryCard = None },
+            Cmd.ofMsg (RunSetEntryTransfer (entryId, account, undo)),
+            NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | RunSetEntryTransfer (entryId, account, undo) ->
+        let cmd =
+            Cmd.OfAsync.either
+                (Api.ledger.setEntryTransfer entryId)
+                account
+                (fun result -> EntryTransferSet (entryId, account, undo, result))
+                (fun ex -> EntryTransferSet (entryId, account, undo, Error ex.Message))
+        model, cmd, NoOp
+
+    | EntryTransferSet (entryId, account, undo, Ok outcome) ->
+        let model' = applyTransferResult entryId account outcome model
+        let (YnabAccountId accountGuid) = account
+        let name = transferAccountName model accountGuid
+        let failed = match outcome.WriteBack with CategorySendFailed reason -> Some reason | _ -> None
+        let external =
+            match outcome.Change, failed with
+            | CategoryUnchanged, Some reason -> ShowToast ($"{categoryHintTitle}: {reason}", ToastWarning)
+            | CategoryUnchanged, None -> NoOp
+            | CategoryChanged, _ ->
+                let text =
+                    if undo then $"Übertrag zurückgesetzt: {name |> Option.defaultValue (transferSetToastText None)}"
+                    else transferSetToastText name
+                let text, toastType =
+                    match failed with
+                    | Some reason -> $"{text}. {categoryHintTitle}: {reason}", ToastWarning
+                    | None -> text, ToastSuccess
+                if undo then ShowToast (text, toastType)
+                else ShowToastWithAction (text, toastType, { Label = undoToastLabel; Kind = undoKindFor entryId outcome })
+        let refresh = if outcome.Change = CategoryChanged then Cmd.ofMsg (RunRefreshEntry entryId) else Cmd.none
+        model', refresh, external
+
+    | EntryTransferSet (entryId, _, undo, Error message) ->
+        { model with
+            CategoryRows = model.CategoryRows |> Map.add entryId (CategoryCommandFailed message) },
+        Cmd.none,
+        ShowToast ((if undo then $"Rückgängig nicht möglich: {message}" else $"Übertrag nicht gesetzt: {message}"), ToastError)
 
     | StartRetryCategorization entryId ->
         { model with CategoryRows = model.CategoryRows |> Map.add entryId CategorySending },

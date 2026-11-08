@@ -1017,6 +1017,10 @@ type LedgerEntryView = {
     /// Gegenbuchung, ADR 0048). Ein Übertrag trägt ein Ziel und ist darum nicht
     /// "ohne Kategorie".
     IsTransfer: bool
+    /// Das YNAB-Konto, auf das der Übertrag geht (`transfer_account_id`, ledger-qvjvs): das
+    /// Detail zeigt "Übertrag → <Konto>" und der Picker hakt das Konto an. `None` ohne Übertrag
+    /// und für Antworten eines älteren Servers, der das Feld nicht kennt.
+    TransferAccountId: Guid option
     /// Grund des offenen Fehlschlags beim Zurückschreiben des Prüfvermerks nach YNAB
     /// (ADR 0050, Punkt 11): die Zeile zeigt dann "Prüfvermerk nicht in YNAB" mit
     /// diesem Grund und "Erneut senden". `None`, wenn nichts offen ist. Ändert die
@@ -1276,6 +1280,10 @@ type CategoryChangeOutcome = {
     Previous: CategoryChoice option
     Change: CategoryChange
     WriteBack: CategoryWriteBack
+    /// War die Buchung vor dem Befehl ein Übertrag, das Zielkonto von damals (ledger-qvjvs).
+    /// "Rückgängig" macht sie dann wieder zum Übertrag auf dieses Konto (`setEntryTransfer`).
+    /// `None` sonst, auch für Antworten eines älteren Servers.
+    PreviousTransferAccountId: YnabAccountId option
 }
 
 /// Warum `setEntryCategoryBatch` eine Buchung übersprungen hat (kein Ereignis, nicht im

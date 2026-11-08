@@ -1752,6 +1752,7 @@ let private categoryFailureEventWith
             BaselineCategory = baselineCategory
             BaselineSplits = baselineSplits
             YnabDeletedTransactionId = ynabDeleted
+            BaselineTransferAccountId = None
         }
     )
 
@@ -1834,14 +1835,245 @@ let private categoryNotChangeableText (reason: CategorySkipReason) : string =
 let private categoryNotChangeableReason (entry: Entry) : string option =
     categoryNotChangeable entry |> Option.map categoryNotChangeableText
 
+// ============================================
+// Buchung zum Übertrag machen und zurück (ledger-qvjvs)
+// ============================================
+
+/// Die YNAB-Seite des Übertrags-Schreibwegs, injiziert wie `SplitWriteTools`: die Konten des
+/// Budgets mit ihrer Übertrags-Payee und der PUT einer Buchung (`Ynab.updateTransfer`).
+type TransferWriteTools = {
+    Accounts: unit -> Async<YnabResult<Ynab.TransferAccount list>>
+    Push: string -> Ynab.TransferWrite -> Async<YnabResult<unit>>
+}
+
+/// Der Payee, den YNAB einem Übertrag gibt: "Transfer : <Kontoname>". BB schreibt ihn mit dem
+/// Ereignis, damit der Spiegel nach dem Push keine Payee-Änderung sieht.
+let transferPayeeName (accountName: string) : string = $"Transfer : {accountName}"
+
+let transferSplitReason = "Die Buchung ist aufgeteilt, ein Übertrag geht nur für eine einzelne Buchung"
+let transferNotLinkedReason = "Die Buchung ist noch nicht mit YNAB verknüpft"
+let transferOwnAccountReason = "Ein Übertrag auf das eigene Konto geht nicht"
+let transferTargetNotBudgetReason = "Das Zielkonto ist kein offenes Budget-Konto"
+let transferNoPayeeReason = "Für das Zielkonto gibt es in YNAB keinen Übertrags-Payee"
+let transferUnknownPayeeReason = "BB kennt den Payee vor dem Übertrag nicht, bitte in YNAB ändern"
+
+/// Der Grund-Text für den Hinweis "Kategorie nicht in YNAB" beim Übertrag.
+let describeTransferPushError (error: YnabError) : string =
+    match error with
+    | YnabError.InvalidResponse msg -> $"YNAB hat den Übertrag abgelehnt: {msg}"
+    | other -> ynabErrorText other
+
+/// Ein Übertrag zwischen Budget-Konten: ohne Kategorie, ohne Split, mit Ziel.
+let private isBudgetTransfer (entry: Entry) : bool =
+    entry.Category.IsNone
+    && List.isEmpty entry.Splits
+    && (entry.TransferAccountId.IsSome || entry.TransferEntryId.IsSome)
+
+/// Die Baseline eines Übertrags-Fehlschlags: bei einem offenen die erste, sonst der Stand vor
+/// der Änderung samt Übertrags-Ziel.
+let private transferBaseline (entry: Entry) =
+    match entry.CategorizationWriteBackFailure with
+    | Some failure -> failure.BaselineCategory, failure.BaselineSplits, failure.BaselineTransferAccountId
+    | None -> entry.Category, entry.Splits, entry.TransferAccountId
+
+/// Schickt den Übertrag (oder den Weg zurück) nach YNAB. Fehlschlag wie beim Kategorie-Push:
+/// `EntryCategorizationWriteBackFailed` mit Baseline samt Übertrags-Ziel; ein Erfolg beendet
+/// einen vorher offenen Fehlschlag (`EntryCategorizationWrittenBackToYnab`).
+let private pushTransfer
+    (now: DateTime)
+    (tools: TransferWriteTools)
+    (entryId: EntryId)
+    (baseline: CategoryRef option * TransactionSplit list * YnabAccountId option)
+    (hadOpenFailure: bool)
+    (write: Ynab.TransferWrite)
+    : Async<CategoryWriteBack> =
+    async {
+        let baselineCategory, baselineSplits, baselineTransfer = baseline
+
+        let fail (reason: string) =
+            async {
+                do!
+                    Ledger.Persistence.appendAndApply [
+                        reviewMarkEvent entryId now UserInBb (
+                            EntryCategorizationWriteBackFailed {
+                                Reason = reason
+                                BaselineCategory = baselineCategory
+                                BaselineSplits = baselineSplits
+                                YnabDeletedTransactionId = None
+                                BaselineTransferAccountId = baselineTransfer
+                            }
+                        )
+                    ]
+                return CategorySendFailed reason
+            }
+
+        match! tryYnabTransactionId entryId with
+        | None -> return! fail categoryNotLinkedReason
+        | Some ynabTransactionId ->
+            match! tools.Push ynabTransactionId write with
+            | Ok () ->
+                if hadOpenFailure then
+                    do!
+                        Ledger.Persistence.appendAndApply [
+                            reviewMarkEvent entryId now UserInBb EntryCategorizationWrittenBackToYnab
+                        ]
+                return CategorySent
+            | Error err -> return! fail (describeTransferPushError err)
+    }
+
+/// Das YNAB-Konto eines Kassenbuch-Kontos, wenn es ein gespiegeltes ist.
+let private ynabAccountOf (accountId: LedgerAccountId) : Async<YnabAccountId option> =
+    async {
+        let! accounts = Ledger.Persistence.loadAccounts ()
+        return
+            accounts
+            |> List.tryFind (fun a -> a.Id = accountId)
+            |> Option.bind (fun a ->
+                match a.Link with
+                | YnabMirrored id -> Some id
+                | BbOwned -> None)
+    }
+
+/// Sucht das Ziel in den Konten von YNAB und prüft es: nicht das eigene Konto, ein offenes
+/// Budget-Konto, mit Übertrags-Payee. Liefert Name und `transfer_payee_id`.
+let private resolveTransferTarget
+    (tools: TransferWriteTools)
+    (entry: Entry)
+    (target: YnabAccountId)
+    : Async<Result<string * string, string>> =
+    async {
+        let! ownAccount = ynabAccountOf entry.AccountId
+        if ownAccount = Some target then
+            return Error transferOwnAccountReason
+        else
+            match! tools.Accounts () with
+            | Error err -> return Error $"Die Konten konnten nicht geladen werden: {describeTransferPushError err}"
+            | Ok accounts ->
+                match accounts |> List.tryFind (fun a -> a.Id = target) with
+                | Some account when account.OnBudget && not account.Closed ->
+                    match account.TransferPayeeId with
+                    | Some payeeId -> return Ok (account.Name, payeeId)
+                    | None -> return Error transferNoPayeeReason
+                | _ -> return Error transferTargetNotBudgetReason
+    }
+
+/// Der Befehl `setEntryTransfer` (ledger-qvjvs): macht eine Buchung zum Übertrag auf ein
+/// anderes Budget-Konto oder wechselt das Ziel. Dieselben Ablehnungen wie `setEntryCategory`
+/// (unbekannt, in YNAB gelöscht, Split), dazu: nicht verknüpft, das eigene Konto, kein offenes
+/// Budget-Konto. Jede Ablehnung ohne Ereignis und ohne Push. Ziel gleich Ist: kein Ereignis,
+/// kein Push. Sonst zuerst `EntryTransferTargetSetInBb`, dann der PUT mit der
+/// `transfer_payee_id` des Ziels und ohne `category_id`. Unter der Schreib-Sperre.
+let setEntryTransfer
+    (now: DateTime)
+    (tools: TransferWriteTools)
+    (entryId: EntryId)
+    (target: YnabAccountId)
+    : Async<Result<CategoryChangeOutcome, string>> =
+    WriteGuard.exclusive (
+        async {
+            match! Ledger.Persistence.loadEntry entryId with
+            | None -> return Error "Buchung nicht gefunden"
+            | Some entry ->
+                match categoryNotChangeable entry with
+                | Some SkipSplit -> return Error transferSplitReason
+                | Some SkipTransfer
+                | None ->
+                    let! links = Ledger.Persistence.linksForEntry entryId
+                    if (currentYnabTransactionId links).IsNone then
+                        return Error transferNotLinkedReason
+                    else
+                        match! resolveTransferTarget tools entry target with
+                        | Error reason -> return Error reason
+                        | Ok (accountName, payeeId) ->
+                            let! names = Ledger.Persistence.loadCategoryNames ()
+                            let previous = entry.Category |> Option.map (categoryChoiceOf names)
+                            let outcome change writeBack =
+                                { Previous = previous
+                                  Change = change
+                                  WriteBack = writeBack
+                                  PreviousTransferAccountId = entry.TransferAccountId }
+                            if entry.TransferAccountId = Some target && isBudgetTransfer entry then
+                                return Ok (outcome CategoryUnchanged CategoryNotSent)
+                            else
+                                let baseline = transferBaseline entry
+                                do!
+                                    Ledger.Persistence.appendAndApply [
+                                        reviewMarkEvent entryId now UserInBb (
+                                            EntryTransferTargetSetInBb {
+                                                OldCategory = entry.Category
+                                                OldPayee = entry.Payee
+                                                OldTransferAccountId = entry.TransferAccountId
+                                                NewTransferAccountId = target
+                                                NewTransferAccountName = accountName
+                                                TransferPayeeId = payeeId
+                                                NewPayee = Some (transferPayeeName accountName)
+                                            }
+                                        )
+                                    ]
+                                let! writeBack =
+                                    pushTransfer
+                                        now
+                                        tools
+                                        entryId
+                                        baseline
+                                        entry.CategorizationWriteBackFailure.IsSome
+                                        (Ynab.MakeTransfer payeeId)
+                                return Ok (outcome CategoryChanged writeBack)
+                | Some reason -> return Error (categoryNotChangeableText reason)
+        }
+    )
+
+/// Der Weg zurück (ledger-qvjvs): ein Übertrag zwischen Budget-Konten wird wieder eine
+/// normale Buchung mit Kategorie und dem Payee aus BB vor dem Übertrag. Ohne diesen Payee
+/// (ein Übertrag aus YNAB) lehnt der Befehl ab. Läuft innerhalb von `setEntryCategory`.
+let private clearTransfer
+    (now: DateTime)
+    (tools: TransferWriteTools)
+    (entry: Entry)
+    (names: Map<Guid, string>)
+    (newCategory: CategoryRef option)
+    : Async<Result<CategoryChangeOutcome, string>> =
+    async {
+        match entry.TransferAccountId, entry.PayeeBeforeTransfer with
+        | Some oldTarget, Some payee ->
+            let! links = Ledger.Persistence.linksForEntry entry.Id
+            if (currentYnabTransactionId links).IsNone then
+                return Error transferNotLinkedReason
+            else
+                let baseline = transferBaseline entry
+                do!
+                    Ledger.Persistence.appendAndApply [
+                        reviewMarkEvent entry.Id now UserInBb (
+                            EntryTransferTargetClearedInBb {
+                                OldTransferAccountId = oldTarget
+                                NewCategory = newCategory
+                                OldPayee = entry.Payee
+                                NewPayee = Some payee
+                            }
+                        )
+                    ]
+                let write = Ynab.BackToCategory (newCategory |> Option.map (fun c -> c.CategoryId), Some payee)
+                let! writeBack =
+                    pushTransfer now tools entry.Id baseline entry.CategorizationWriteBackFailure.IsSome write
+                return
+                    Ok
+                        { Previous = entry.Category |> Option.map (categoryChoiceOf names)
+                          Change = CategoryChanged
+                          WriteBack = writeBack
+                          PreviousTransferAccountId = Some oldTarget }
+        | _ -> return Error transferUnknownPayeeReason
+    }
+
 /// Der Befehl `setEntryCategory` (ADR 0055): lädt die Buchung, lehnt Unzulässiges ab
 /// (Fehler, kein Ereignis), schreibt bei einer Änderung zuerst `EntryRecategorized`
 /// (Actor `UserInBb`) und ruft danach den Push. Ziel gleich Ist (`categorizationIdentity`):
 /// kein Ereignis, kein Push, `CategoryUnchanged`. Läuft unter der Schreib-Sperre
-/// (`WriteGuard`), nie während eines Spiegel-Laufs.
+/// (`WriteGuard`), nie während eines Spiegel-Laufs. Bei einem Übertrag zwischen
+/// Budget-Konten ist es der Weg zurück zur normalen Buchung (`clearTransfer`, ledger-qvjvs).
 let setEntryCategory
     (now: DateTime)
     (push: CategoryPush)
+    (transfer: TransferWriteTools)
     (entryId: EntryId)
     (target: YnabCategoryId option)
     : Async<Result<CategoryChangeOutcome, string>> =
@@ -1850,9 +2082,9 @@ let setEntryCategory
             match! Ledger.Persistence.loadEntry entryId with
             | None -> return Error "Buchung nicht gefunden"
             | Some entry ->
-                match categoryNotChangeableReason entry with
-                | Some reason -> return Error reason
-                | None ->
+                match categoryNotChangeable entry with
+                | Some reason when reason <> SkipTransfer -> return Error (categoryNotChangeableText reason)
+                | blocked ->
                     let! names = Ledger.Persistence.loadCategoryNames ()
 
                     let targetRef : Result<CategoryRef option, string> =
@@ -1866,11 +2098,13 @@ let setEntryCategory
 
                     match targetRef with
                     | Error reason -> return Error reason
+                    | Ok newCategory when blocked = Some SkipTransfer ->
+                        return! clearTransfer now transfer entry names newCategory
                     | Ok newCategory ->
                         let previous = entry.Category |> Option.map (categoryChoiceOf names)
 
                         if categorizationIdentity entry.Category entry.Splits = categorizationIdentity newCategory [] then
-                            return Ok { Previous = previous; Change = CategoryUnchanged; WriteBack = CategoryNotSent }
+                            return Ok { Previous = previous; Change = CategoryUnchanged; WriteBack = CategoryNotSent; PreviousTransferAccountId = None }
                         else
                             do!
                                 Ledger.Persistence.appendAndApply [
@@ -1888,7 +2122,7 @@ let setEntryCategory
 
                             let baseline = categoryBaseline entry (entry.Category, entry.Splits)
                             let! writeBack = pushCategory now push entry baseline target
-                            return Ok { Previous = previous; Change = CategoryChanged; WriteBack = writeBack }
+                            return Ok { Previous = previous; Change = CategoryChanged; WriteBack = writeBack; PreviousTransferAccountId = None }
         }
     )
 
@@ -2269,19 +2503,6 @@ let private clearedToYnab (cleared: ClearedState) : string =
     | Cleared -> "cleared"
     | Reconciled -> "reconciled"
 
-/// Das YNAB-Konto eines Kassenbuch-Kontos, wenn es ein gespiegeltes ist.
-let private ynabAccountOf (accountId: LedgerAccountId) : Async<YnabAccountId option> =
-    async {
-        let! accounts = Ledger.Persistence.loadAccounts ()
-        return
-            accounts
-            |> List.tryFind (fun a -> a.Id = accountId)
-            |> Option.bind (fun a ->
-                match a.Link with
-                | YnabMirrored id -> Some id
-                | BbOwned -> None)
-    }
-
 /// Schickt den BB-Stand einer Buchung (`entry`, nach dem Ereignis) nach YNAB. Der Weg
 /// folgt dem, was YNAB vermutlich hält (die Baseline, ADR 0055 Punkt 4): ohne Split dort
 /// ein PUT (Kategorie oder Aufteilen), mit Split dort DELETE und POST (ADR 0058). Scheitert
@@ -2421,7 +2642,7 @@ let setEntrySplits
 
                                 if categorizationIdentity entry.Category entry.Splits
                                    = categorizationIdentity newCategory newSplits then
-                                    return Ok { Previous = previous; Change = CategoryUnchanged; WriteBack = CategoryNotSent }
+                                    return Ok { Previous = previous; Change = CategoryUnchanged; WriteBack = CategoryNotSent; PreviousTransferAccountId = None }
                                 else
                                     let foreignImportId =
                                         match currentImportId links with
@@ -2474,7 +2695,7 @@ let setEntrySplits
                                                     baseline
                                                     entry.CategorizationWriteBackFailure.IsSome
                                                     pendingDeleted
-                                            return Ok { Previous = previous; Change = CategoryChanged; WriteBack = writeBack }
+                                            return Ok { Previous = previous; Change = CategoryChanged; WriteBack = writeBack; PreviousTransferAccountId = None }
         }
     )
 
@@ -2487,6 +2708,7 @@ let retryCategorizationOrSplitWriteBack
     (now: DateTime)
     (categoryPush: CategoryPush)
     (tools: SplitWriteTools)
+    (transfer: TransferWriteTools)
     (entryId: EntryId)
     : Async<Result<CategoryWriteBack, string>> =
     WriteGuard.exclusive (
@@ -2497,6 +2719,24 @@ let retryCategorizationOrSplitWriteBack
             | Some entry ->
                 match entry.CategorizationWriteBackFailure with
                 | None -> return Ok CategoryNotSent
+                // Ein Übertrag betrifft den Fehlschlag (ledger-qvjvs): gesendet wird der BB-Stand,
+                // der Übertrag mit der Payee des Ziels oder der Weg zurück mit Kategorie und Payee.
+                | Some failure when failure.BaselineTransferAccountId.IsSome || entry.PayeeBeforeTransfer.IsSome ->
+                    let baseline = transferBaseline entry
+                    match entry.TransferAccountId with
+                    | Some target when isBudgetTransfer entry ->
+                        match! transfer.Accounts () with
+                        | Error err -> return Error $"Die Konten konnten nicht geladen werden: {describeTransferPushError err}"
+                        | Ok accounts ->
+                            match accounts |> List.tryFind (fun a -> a.Id = target) |> Option.bind (fun a -> a.TransferPayeeId) with
+                            | None -> return Error transferNoPayeeReason
+                            | Some payeeId ->
+                                let! writeBack = pushTransfer now transfer entryId baseline true (Ynab.MakeTransfer payeeId)
+                                return Ok writeBack
+                    | _ ->
+                        let write = Ynab.BackToCategory (entry.Category |> Option.map (fun c -> c.CategoryId), entry.Payee)
+                        let! writeBack = pushTransfer now transfer entryId baseline true write
+                        return Ok writeBack
                 | Some failure ->
                     let baseline = categoryBaseline entry (entry.Category, entry.Splits)
                     if List.isEmpty failure.BaselineSplits && List.isEmpty entry.Splits then

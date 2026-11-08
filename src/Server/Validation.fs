@@ -488,6 +488,16 @@ let checkBotAmount (maxAmountEur: decimal) (amountEur: decimal) : Result<unit, s
         Error $"Der Betrag {amountEur.ToString(Globalization.CultureInfo.InvariantCulture)} EUR liegt über der Obergrenze von {maxAmountEur.ToString(Globalization.CultureInfo.InvariantCulture)} EUR"
     else Ok ()
 
+/// Prüft die Anfrage von `setEntryTransfer` (ledger-qvjvs): Buchung und Zielkonto brauchen eine
+/// Id. Alle Fehler gesammelt.
+let validateTransferRequest (entryId: Guid) (YnabAccountId target: YnabAccountId) : Result<unit, string list> =
+    let errors =
+        [
+            if entryId = Guid.Empty then "Die Buchung fehlt."
+            if target = Guid.Empty then "Das Zielkonto fehlt."
+        ]
+    if List.isEmpty errors then Ok () else Error errors
+
 // ============================================
 // Kategorien verwalten (budgeting-pscgb, ADR 0088 Punkt 1)
 // ============================================

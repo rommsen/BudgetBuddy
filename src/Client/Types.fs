@@ -238,6 +238,9 @@ type ToastActionKind =
     /// "Rückgängig" nach einer Kategorieänderung im Detail (ledger-sfab0, ADR 0055 Nachtrag):
     /// die vorherige Kategorie kommt aus der Antwort des Befehls (`None`: ohne Kategorie).
     | UndoCategory of entryId: Guid * previous: Shared.Domain.CategoryChoice option
+    /// "Rückgängig" nach einer Änderung, vor der die Buchung ein Übertrag war (ledger-qvjvs):
+    /// sie wird wieder ein Übertrag auf das Konto von damals.
+    | UndoTransfer of entryId: Guid * account: Shared.Domain.YnabAccountId
     /// "Rückgängig" nach dem Aufteilen, Ändern oder Aufheben (ledger-pafkp, ADR 0058): die Zeilen
     /// vor dem Speichern gehen über `setEntrySplits` zurück (eine Zeile der alten Kategorie, wenn
     /// die Buchung unaufgeteilt war).

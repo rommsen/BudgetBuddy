@@ -46,6 +46,7 @@ let private entryOf (n: int) : LedgerEntryView =
       NeedsReview = false
       Flag = NoFlag
       IsTransfer = false
+      TransferAccountId = None
       ReviewMarkWriteBackFailure = None
       CategorizationWriteBackFailure = None
       FlagWriteBackFailure = None
@@ -95,7 +96,7 @@ let private availableOf (n: int) (model: Model) : decimal =
     | _ -> failtest "Kategorien sollten geladen sein"
 
 let private changed (previous: CategoryChoice option) (writeBack: CategoryWriteBack) : CategoryChangeOutcome =
-    { Previous = previous; Change = CategoryChanged; WriteBack = writeBack }
+    { Previous = previous; Change = CategoryChanged; WriteBack = writeBack; PreviousTransferAccountId = None }
 
 let private lebensmittel : CategoryChoice = { CategoryId = catId 1; CategoryName = "Lebensmittel" }
 
@@ -121,10 +122,13 @@ let openingTests =
             Expect.isNone model.CategoryPickerFor "zu"
             Expect.isEmpty sent "kein Folgebefehl"
 
-        testCase "Bei einem Übertrag ohne Kategorie bleibt der Picker zu, mit Kategorie öffnet er" <| fun () ->
+        // ledger-qvjvs: ein Übertrag zwischen Budget-Konten ist nicht mehr gesperrt. Der Picker
+        // öffnet und lädt die Konten des Budgets für den Abschnitt "Übertrag auf Konto".
+        testCase "Bei einem Übertrag ohne Kategorie öffnet der Picker und lädt die Konten, mit Kategorie ebenso" <| fun () ->
             let transfer = { entryOf 1 with IsTransfer = true; CategoryId = None; CategoryName = None; CategoryGroupName = None }
-            let closed, _, _ = run (OpenCategoryPicker (idOf 1)) (modelWith [ transfer; entryOf 2 ])
-            Expect.isNone closed.CategoryPickerFor "Übertrag ohne Kategorie ist gesperrt"
+            let opened', sent, _ = run (OpenCategoryPicker (idOf 1)) (modelWith [ transfer; entryOf 2 ])
+            Expect.equal opened'.CategoryPickerFor (Some (idOf 1)) "Übertrag ohne Kategorie öffnet den Picker"
+            Expect.contains sent RunLoadTransferTargets "lädt die Konten"
             let tracking = { entryOf 1 with IsTransfer = true }
             let opened, _, _ = run (OpenCategoryPicker (idOf 1)) (modelWith [ tracking; entryOf 2 ])
             Expect.isSome opened.CategoryPickerFor "Übertrag mit Kategorie bleibt änderbar"
@@ -148,7 +152,7 @@ let openingTests =
             let transfer = categoryLockHint (categoryLockFor { entryOf 1 with IsTransfer = true; CategoryId = None })
             let splitEntry = { entryOf 1 with Splits = [ { Target = Uncategorized; Amount = eur -1m; Memo = None } ] }
             Expect.isSome deleted "gelöscht"
-            Expect.equal transfer (Some "Übertrag zwischen Budget-Konten, YNAB lässt hier keine Kategorie zu") "Übertrag"
+            Expect.isNone transfer "Übertrag: änderbar, kein Hinweis (ledger-qvjvs)"
             // Seit ledger-pafkp öffnet der Pfeil bei einer Split-Buchung den Editor, der Hinweis "Split bearbeiten folgt" entfällt.
             Expect.isNone (categoryLockHint (categoryLockFor splitEntry)) "Split: der Pfeil wirkt, kein Hinweis"
             Expect.equal (categoryLockFor splitEntry) CategoryOpensSplitEditor "Split öffnet den Editor"
@@ -231,7 +235,7 @@ let changeTests =
             | other -> failtestf "unerwarteter Toast: %A" other
 
         testCase "CategoryUnchanged erzeugt weder Karte noch Toast und lässt Available stehen" <| fun () ->
-            let outcome = { Previous = Some lebensmittel; Change = CategoryUnchanged; WriteBack = CategoryNotSent }
+            let outcome = { Previous = Some lebensmittel; Change = CategoryUnchanged; WriteBack = CategoryNotSent; PreviousTransferAccountId = None }
             let model, _, external = update (EntryCategorySet (idOf 1, Some (catId 1), Ok outcome)) (defaultModel ())
             Expect.isNone model.CategoryCard "keine Karte"
             Expect.equal external NoOp "kein Toast"
@@ -580,4 +584,103 @@ let viewTests =
             let failed = { defaultModel () with Categories = Failure "x" }
             let model, _, _ = update LoadCategories failed
             Expect.equal model.Categories Loading "der Abruf beginnt, der Picker zeigt den Ladehinweis"
+    ]
+
+// ============================================
+// Übertrag im Detail (ledger-qvjvs)
+// ============================================
+
+let private targetId = Guid.Parse "0195e500-0000-7000-8000-0000000000aa"
+let private ownYnabId = Guid.Parse "0195e500-0000-7000-8000-0000000000bb"
+
+let private budgetAccounts : YnabAccount list =
+    [ { Id = YnabAccountId ownYnabId; Name = "Girokonto"; Balance = eur 0m; OnBudget = true; Closed = false }
+      { Id = YnabAccountId targetId; Name = "Tagesgeld ING"; Balance = eur 1950m; OnBudget = true; Closed = false } ]
+
+let private withTargets (model: Model) : Model =
+    let ledgerAccounts : LedgerAccountsView =
+        { Accounts =
+            [ { Id = (entryOf 1).AccountId; Name = "Girokonto"; Kind = LedgerBankAccount
+                YnabAccountId = Some (YnabAccountId ownYnabId); Closed = false } ]
+          DefaultAccountId = Some (entryOf 1).AccountId }
+    { model with TransferTargets = Success budgetAccounts; Accounts = Success ledgerAccounts }
+
+let private transferOutcome (previous: CategoryChoice option) (previousAccount: Guid option) (writeBack: CategoryWriteBack) =
+    { Previous = previous
+      Change = CategoryChanged
+      WriteBack = writeBack
+      PreviousTransferAccountId = previousAccount |> Option.map YnabAccountId }
+
+[<Tests>]
+let transferClientTests =
+    testList "Übertrag im Detail: Picker, Befehl, Toast (ledger-qvjvs)" [
+
+        testCase "ein Konto im Picker des Details schickt setEntryTransfer, eine Kategorie weiter setEntryCategory" <| fun () ->
+            let account = YnabAccountId targetId
+            Expect.equal
+                (Components.Ledger.View.detailPickerMsg (idOf 1) (CategoryPicker.ChoseAccount account))
+                (Some (StartSetEntryTransfer (idOf 1, account, false)))
+                "Konto: Übertrag"
+            Expect.equal
+                (Components.Ledger.View.detailPickerMsg (idOf 1) (CategoryPicker.ChoseCategory (Some (catId 2))))
+                (Some (StartSetEntryCategory (idOf 1, Some (catId 2))))
+                "Kategorie: setEntryCategory"
+            let model, sent, _ = run (StartSetEntryTransfer (idOf 1, account, false)) (withTargets (defaultModel ()))
+            Expect.equal (model.CategoryRows |> Map.tryFind (idOf 1)) (Some CategorySending) "sendet"
+            Expect.equal sent [ RunSetEntryTransfer (idOf 1, account, false) ] "genau ein Aufruf"
+            let again, sentAgain, _ = run (StartSetEntryTransfer (idOf 1, account, false)) model
+            Expect.equal again model "zweiter Klick tut nichts"
+            Expect.isEmpty sentAgain "kein zweiter Aufruf"
+
+        testCase "der Picker des Details bietet die Konten ohne das eigene, die Auswahl-Leiste keine" <| fun () ->
+            let model = withTargets (defaultModel ())
+            let detail = Components.Ledger.View.detailPickerProps ignore model (entryOf 1)
+            Expect.equal (detail.Accounts |> List.map (fun a -> a.Name)) [ "Tagesgeld ING" ] "Ziel ohne das eigene Konto"
+            let batch = Components.Ledger.View.batchPickerProps ignore model
+            Expect.isEmpty batch.Accounts "Auswahl-Leiste: keine Konten"
+
+        testCase "nach dem Übertrag: Zeile ist ein Übertrag, Detail zeigt Übertrag → Konto, Toast mit Rückgängig auf die alte Kategorie" <| fun () ->
+            let account = YnabAccountId targetId
+            let model, sent, external =
+                run (EntryTransferSet (idOf 1, account, false, Ok (transferOutcome (Some lebensmittel) None CategorySent))) (withTargets (defaultModel ()))
+            let row = rowOf 1 model
+            Expect.isTrue row.IsTransfer "Übertrag"
+            Expect.isNone row.CategoryId "ohne Kategorie"
+            Expect.equal (transferCategoryLabel model row) (Some "Übertrag → Tagesgeld ING") "Zeile Kategorie im Detail"
+            Expect.contains sent (RunRefreshEntry (idOf 1)) "lädt die Buchung nach"
+            match external with
+            | ShowToastWithAction (text, ToastSuccess, action) ->
+                Expect.equal text "Übertrag auf Tagesgeld ING" "Toast"
+                Expect.equal action.Kind (UndoCategory (idOf 1, Some lebensmittel)) "Rückgängig setzt die Kategorie zurück"
+            | other -> failtestf "unerwarteter Toast: %A" other
+
+        testCase "ein gescheiterter Push bleibt sichtbar: Fehlschlag an der Zeile, Toast als Warnung" <| fun () ->
+            let account = YnabAccountId targetId
+            let model, _, external =
+                run (EntryTransferSet (idOf 1, account, false, Ok (transferOutcome (Some lebensmittel) None (CategorySendFailed "Timeout")))) (withTargets (defaultModel ()))
+            Expect.equal (rowOf 1 model).CategorizationWriteBackFailure (Some "Timeout") "Fehlschlag an der Zeile"
+            match external with
+            | ShowToastWithAction (text, ToastWarning, _) -> Expect.stringContains text "Timeout" "Grund im Toast"
+            | other -> failtestf "unerwarteter Toast: %A" other
+
+        testCase "zurück auf eine Kategorie: Rückgängig macht wieder den Übertrag, die Zeile ist kein Übertrag mehr" <| fun () ->
+            let transfer =
+                { entryOf 1 with IsTransfer = true; TransferAccountId = Some targetId; CategoryId = None; CategoryName = None; CategoryGroupName = None }
+            let model, sent, external =
+                run (EntryCategorySet (idOf 1, Some (catId 2), Ok (transferOutcome None (Some targetId) CategorySent))) (withTargets (modelWith [ transfer; entryOf 2 ]))
+            Expect.isFalse (rowOf 1 model).IsTransfer "kein Übertrag mehr"
+            Expect.contains sent (RunRefreshEntry (idOf 1)) "lädt die Buchung nach (Payee aus BB)"
+            match external with
+            | ShowToastWithAction (_, _, action) -> Expect.equal action.Kind (UndoTransfer (idOf 1, YnabAccountId targetId)) "Rückgängig: Übertrag"
+            | other -> failtestf "unerwarteter Toast: %A" other
+            match State.toastActionMsg (UndoTransfer (idOf 1, YnabAccountId targetId)) with
+            | State.LedgerMsg msg ->
+                Expect.equal msg (StartSetEntryTransfer (idOf 1, YnabAccountId targetId, true)) "die Rücknahme geht über setEntryTransfer, ohne neues Rückgängig"
+            | other -> failtestf "unerwartete Nachricht: %A" other
+
+        testCase "ein abgelehnter Übertrag nennt den Grund und lässt die Zeile stehen" <| fun () ->
+            let account = YnabAccountId targetId
+            let model, _, external = run (EntryTransferSet (idOf 1, account, false, Error "Ein Übertrag auf das eigene Konto geht nicht")) (defaultModel ())
+            Expect.equal (rowOf 1 model) (entryOf 1) "Zeile unverändert"
+            Expect.equal external (ShowToast ("Übertrag nicht gesetzt: Ein Übertrag auf das eigene Konto geht nicht", ToastError)) "Toast"
     ]

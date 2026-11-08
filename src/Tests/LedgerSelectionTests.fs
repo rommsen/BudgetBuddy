@@ -30,6 +30,7 @@ let entryOf (n: int) (amount: decimal) (needsReview: bool) (deleted: bool) : Led
     NeedsReview = needsReview
     Flag = NoFlag
     IsTransfer = false
+    TransferAccountId = None
     ReviewMarkWriteBackFailure = None
     CategorizationWriteBackFailure = None
     FlagWriteBackFailure = None

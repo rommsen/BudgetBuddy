@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-08 16:46 -- Task verified and completed: ledger-qvjvs - "Buchung zum Übertrag machen: Konten im Kategorie-Picker des Kassenbuch-Details, Schreibweg nach YNAB"
+
+**Type:** Work / Task completion
+**Task:** ledger-qvjvs - "Buchung zum Übertrag machen: Konten im Kategorie-Picker des Kassenbuch-Details, Schreibweg nach YNAB"
+**Summary:** Buchung im Kassenbuch-Detail zum Übertrag machen und zurück, mit Schreibweg nach YNAB
+**Duration:** 1h33m
+**Verification:** PASS (iteration 3, nach Merge-Konflikt)
+**Files changed:** 41
+**Tests added:** 24
+**ADRs written:** 0089-buchung-zum-uebertrag-in-bb.md
+
+---
+
 ## 2026-11-08 16:17 -- Batch started: [budgeting-e2z7v, budgeting-sn2sn]
 
 **Type:** Work / Batch start

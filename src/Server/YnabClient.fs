@@ -2137,6 +2137,129 @@ let isTrackingAccount
             return Error (YnabError.NetworkError $"Failed to fetch accounts: {ex.Message}")
     }
 
+// ============================================
+// Buchung zum Übertrag machen und zurück (ledger-qvjvs)
+// ============================================
+
+/// Ein YNAB-Konto als mögliches Übertrags-Ziel: mit `on_budget`, `closed` und der Payee,
+/// über die eine Buchung zum Übertrag auf dieses Konto wird (`transfer_payee_id`).
+type TransferAccount = {
+    Id: YnabAccountId
+    Name: string
+    OnBudget: bool
+    Closed: bool
+    TransferPayeeId: string option
+}
+
+let private transferAccountDecoder : Decoder<TransferAccount> =
+    Decode.object (fun get -> {
+        Id = get.Required.Field "id" Decode.guid |> YnabAccountId
+        Name = get.Required.Field "name" Decode.string
+        OnBudget = get.Optional.Field "on_budget" Decode.bool |> Option.defaultValue true
+        Closed = get.Optional.Field "closed" Decode.bool |> Option.defaultValue false
+        TransferPayeeId = get.Optional.Field "transfer_payee_id" Decode.string
+    })
+
+/// Liest `data.accounts` einer Konten-Antwort samt `transfer_payee_id`.
+let parseTransferAccountsResponse (bodyText: string) : Result<TransferAccount list, string> =
+    Decode.fromString (Decode.field "data" (Decode.field "accounts" (Decode.list transferAccountDecoder))) bodyText
+
+/// Alle Konten des Budgets mit ihrer Übertrags-Payee (`GET .../accounts`).
+let fetchTransferAccounts (token: string) (YnabBudgetId budgetId: YnabBudgetId) : Async<YnabResult<TransferAccount list>> =
+    async {
+        try
+            use httpClient = new System.Net.Http.HttpClient()
+            httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}")
+            let! httpResponse = httpClient.GetAsync($"{baseUrl}/budgets/{budgetId}/accounts") |> Async.AwaitTask
+            let! bodyText = httpResponse.Content.ReadAsStringAsync() |> Async.AwaitTask
+            match mapSplitStatus (int httpResponse.StatusCode) bodyText [ 200 ] with
+            | Error e -> return Error e
+            | Ok () ->
+                match parseTransferAccountsResponse bodyText with
+                | Error err -> return Error (YnabError.InvalidResponse $"Failed to parse accounts: {err}")
+                | Ok accounts -> return Ok accounts
+        with ex ->
+            return Error (YnabError.NetworkError $"Failed to fetch accounts: {ex.Message}")
+    }
+
+/// Was der PUT einer Buchung ändert. `MakeTransfer`: `payee_id` ist die Übertrags-Payee des
+/// Zielkontos, keine `category_id` (wie `encodeSubtransaction` für Split-Ziele). YNAB legt
+/// die Gegenbuchung an. `BackToCategory`: `category_id` (`null` für ohne Kategorie),
+/// `payee_id` ausdrücklich `null` und `payee_name`, damit YNAB den Übertrag aufhebt und die
+/// Gegenbuchung entfernt.
+type TransferWrite =
+    | MakeTransfer of transferPayeeId: string
+    | BackToCategory of categoryId: YnabCategoryId option * payeeName: string option
+
+/// Baut den Body des PUT für `TransferWrite`. Non-private, damit der JSON-Vertrag direkt
+/// testbar ist.
+let buildTransferBody (write: TransferWrite) : string =
+    Encode.object [
+        "transaction", Encode.object [
+            match write with
+            | MakeTransfer payeeId -> "payee_id", Encode.string payeeId
+            | BackToCategory (categoryId, payeeName) ->
+                match categoryId with
+                | Some (YnabCategoryId id) -> "category_id", Encode.guid id
+                | None -> "category_id", Encode.nil
+                "payee_id", Encode.nil
+                match payeeName with
+                | Some name -> "payee_name", Encode.string name
+                | None -> "payee_name", Encode.nil
+        ]
+    ]
+    |> Encode.toString 2
+
+/// Sendet `TransferWrite` mit dem übergebenen `HttpClient` (injizierbar für Tests):
+/// `PUT .../transactions/{transaction_id}`. Ein 200, dessen Antwort beim Übertrag kein
+/// `transfer_account_id` trägt, gilt als Fehlschlag: YNAB hat den Übertrag dann nicht angelegt.
+let sendTransfer
+    (httpClient: System.Net.Http.HttpClient)
+    (YnabBudgetId budgetId: YnabBudgetId)
+    (ynabTransactionId: string)
+    (write: TransferWrite)
+    : Async<YnabResult<unit>> =
+    async {
+        try
+            let requestBody = buildTransferBody write
+            use content = new System.Net.Http.StringContent(requestBody, System.Text.Encoding.UTF8, "application/json")
+            let! httpResponse =
+                httpClient.PutAsync($"{baseUrl}/budgets/{budgetId}/transactions/{ynabTransactionId}", content)
+                |> Async.AwaitTask
+            let! bodyText = httpResponse.Content.ReadAsStringAsync() |> Async.AwaitTask
+            let statusCode = int httpResponse.StatusCode
+            printfn "[YNAB] PUT /budgets/%s/transactions/%s - Übertrag" budgetId ynabTransactionId
+            printfn "[YNAB] Response Status: %d" statusCode
+            match mapSplitStatus statusCode bodyText [ 200 ] with
+            | Error e -> return Error e
+            | Ok () ->
+                match write with
+                | BackToCategory _ -> return Ok ()
+                | MakeTransfer _ ->
+                    let transferAccount =
+                        Decode.fromString
+                            (Decode.at [ "data"; "transaction"; "transfer_account_id" ] (Decode.option Decode.string))
+                            bodyText
+                    match transferAccount with
+                    | Ok (Some _) -> return Ok ()
+                    | _ -> return Error (YnabError.InvalidResponse "YNAB hat den Übertrag nicht angelegt")
+        with ex ->
+            return Error (YnabError.NetworkError $"Failed to update transfer: {ex.Message}")
+    }
+
+/// Macht eine Buchung in YNAB zum Übertrag oder wieder zur normalen Buchung (ledger-qvjvs).
+let updateTransfer
+    (token: string)
+    (budgetId: YnabBudgetId)
+    (ynabTransactionId: string)
+    (write: TransferWrite)
+    : Async<YnabResult<unit>> =
+    async {
+        use httpClient = new System.Net.Http.HttpClient()
+        httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}")
+        return! sendTransfer httpClient budgetId ynabTransactionId write
+    }
+
 /// Validates a YNAB token by attempting to fetch budgets
 let validateToken (token: string) : Async<YnabResult<unit>> =
     async {

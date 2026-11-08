@@ -281,6 +281,33 @@ type EntryCategorizationWriteBackFailedPayload = {
     BaselineCategory: CategoryRef option
     BaselineSplits: TransactionSplit list
     YnabDeletedTransactionId: string option
+    /// Das Übertrags-Ziel, das YNAB vermutlich noch hat (ledger-qvjvs): gesetzt, wenn die
+    /// gescheiterte Änderung einen Übertrag betraf. Fehlt in älteren Ereignissen und wird nur
+    /// geschrieben, wenn es gesetzt ist; Version 1 bleibt lesbar.
+    BaselineTransferAccountId: YnabAccountId option
+}
+
+/// Roman hat in BB eine Buchung zum Übertrag gemacht oder ihr Übertrags-Ziel gewechselt
+/// (ledger-qvjvs, Actor `UserInBb`). Trägt, was der Push braucht: das Zielkonto, seinen
+/// Namen in YNAB und dessen `transfer_payee_id`. `NewPayee` ist "Transfer : <Kontoname>",
+/// so wie YNAB den Payee eines Übertrags nennt, damit der Spiegel danach keine Änderung sieht.
+type EntryTransferTargetSetInBbPayload = {
+    OldCategory: CategoryRef option
+    OldPayee: string option
+    OldTransferAccountId: YnabAccountId option
+    NewTransferAccountId: YnabAccountId
+    NewTransferAccountName: string
+    TransferPayeeId: string
+    NewPayee: string option
+}
+
+/// Roman hat einen Übertrag in BB wieder zur normalen Buchung gemacht (ledger-qvjvs, Actor
+/// `UserInBb`): Kategorie (oder ohne Kategorie) und der Payee aus BB vor dem Übertrag.
+type EntryTransferTargetClearedInBbPayload = {
+    OldTransferAccountId: YnabAccountId
+    NewCategory: CategoryRef option
+    OldPayee: string option
+    NewPayee: string option
 }
 
 /// Das Flag wurde in BB geändert (ADR 0056, Punkt 2): "Lena fragen", "Rückfrage zurücknehmen"
@@ -392,6 +419,10 @@ type LedgerEventBody =
     /// Push der Buchung nach YNAB gescheitert, Grund im Payload. Aufgelöst durch
     /// `EntryLinkedToYnab` (ADR 0021, Nachtrag ledger-rynk5).
     | EntryPushToYnabFailed of EntryPushToYnabFailedPayload
+    /// Buchung in BB zum Übertrag gemacht oder Ziel gewechselt (ledger-qvjvs). Entscheidung.
+    | EntryTransferTargetSetInBb of EntryTransferTargetSetInBbPayload
+    /// Übertrag in BB wieder zur normalen Buchung gemacht (ledger-qvjvs). Entscheidung.
+    | EntryTransferTargetClearedInBb of EntryTransferTargetClearedInBbPayload
 
 // ============================================
 // Entscheidungs-Familie: noch reservierter Name
@@ -457,6 +488,8 @@ let eventTypeName (body: LedgerEventBody) : string =
     | EntryMemoWrittenBackToYnab -> "EntryMemoWrittenBackToYnab"
     | EntryReplacedInYnab _ -> "EntryReplacedInYnab"
     | EntryPushToYnabFailed _ -> "EntryPushToYnabFailed"
+    | EntryTransferTargetSetInBb _ -> "EntryTransferTargetSetInBb"
+    | EntryTransferTargetClearedInBb _ -> "EntryTransferTargetClearedInBb"
 
 /// Die Schema-Version, mit der ein Ereignis heute geschrieben wird. Aendert sich die
 /// Payload-Form eines Typs, kommt eine neue Version dazu; alte gespeicherte Ereignisse
@@ -493,6 +526,8 @@ let schemaVersion (body: LedgerEventBody) : int =
     | EntryMemoWrittenBackToYnab -> 1
     | EntryReplacedInYnab _ -> 1
     | EntryPushToYnabFailed _ -> 1
+    | EntryTransferTargetSetInBb _ -> 1
+    | EntryTransferTargetClearedInBb _ -> 1
 
 // ============================================
 // JSON-Codecs
@@ -984,6 +1019,9 @@ module Codec =
             match p.YnabDeletedTransactionId with
             | Some id -> "ynabDeletedTransactionId", Encode.string id
             | None -> ()
+            match p.BaselineTransferAccountId with
+            | Some (YnabAccountId id) -> "baselineTransferAccountId", Encode.guid id
+            | None -> ()
         ]
 
     let decodeCategorizationWriteBackFailed : Decoder<EntryCategorizationWriteBackFailedPayload> =
@@ -992,6 +1030,49 @@ module Codec =
             BaselineCategory = get.Optional.Field "baselineCategory" decodeCategory
             BaselineSplits = get.Optional.Field "baselineSplits" decodeSplits |> Option.defaultValue []
             YnabDeletedTransactionId = get.Optional.Field "ynabDeletedTransactionId" Decode.string
+            BaselineTransferAccountId =
+                get.Optional.Field "baselineTransferAccountId" Decode.guid |> Option.map YnabAccountId
+        })
+
+    let private encodeYnabAccountId (YnabAccountId id) = Encode.guid id
+    let private decodeYnabAccountId : Decoder<YnabAccountId> = Decode.guid |> Decode.map YnabAccountId
+
+    let encodeTransferTargetSetInBb (p: EntryTransferTargetSetInBbPayload) =
+        Encode.object [
+            "oldCategory", encodeOption encodeCategory p.OldCategory
+            "oldPayee", encodeOptionalString p.OldPayee
+            "oldTransferAccountId", encodeOption encodeYnabAccountId p.OldTransferAccountId
+            "newTransferAccountId", encodeYnabAccountId p.NewTransferAccountId
+            "newTransferAccountName", Encode.string p.NewTransferAccountName
+            "transferPayeeId", Encode.string p.TransferPayeeId
+            "newPayee", encodeOptionalString p.NewPayee
+        ]
+
+    let decodeTransferTargetSetInBb : Decoder<EntryTransferTargetSetInBbPayload> =
+        Decode.object (fun get -> {
+            OldCategory = get.Optional.Field "oldCategory" decodeCategory
+            OldPayee = get.Optional.Field "oldPayee" Decode.string
+            OldTransferAccountId = get.Optional.Field "oldTransferAccountId" decodeYnabAccountId
+            NewTransferAccountId = get.Required.Field "newTransferAccountId" decodeYnabAccountId
+            NewTransferAccountName = get.Required.Field "newTransferAccountName" Decode.string
+            TransferPayeeId = get.Required.Field "transferPayeeId" Decode.string
+            NewPayee = get.Optional.Field "newPayee" Decode.string
+        })
+
+    let encodeTransferTargetClearedInBb (p: EntryTransferTargetClearedInBbPayload) =
+        Encode.object [
+            "oldTransferAccountId", encodeYnabAccountId p.OldTransferAccountId
+            "newCategory", encodeOption encodeCategory p.NewCategory
+            "oldPayee", encodeOptionalString p.OldPayee
+            "newPayee", encodeOptionalString p.NewPayee
+        ]
+
+    let decodeTransferTargetClearedInBb : Decoder<EntryTransferTargetClearedInBbPayload> =
+        Decode.object (fun get -> {
+            OldTransferAccountId = get.Required.Field "oldTransferAccountId" decodeYnabAccountId
+            NewCategory = get.Optional.Field "newCategory" decodeCategory
+            OldPayee = get.Optional.Field "oldPayee" Decode.string
+            NewPayee = get.Optional.Field "newPayee" Decode.string
         })
 
     let encodeFlagChangedInBb (p: EntryFlagChangedInBbPayload) =
@@ -1099,6 +1180,8 @@ let encodePayload (body: LedgerEventBody) : string =
         | EntryMemoWrittenBackToYnab -> Encode.object []
         | EntryReplacedInYnab p -> Codec.encodeReplacedInYnab p
         | EntryPushToYnabFailed p -> Codec.encodePushToYnabFailed p
+        | EntryTransferTargetSetInBb p -> Codec.encodeTransferTargetSetInBb p
+        | EntryTransferTargetClearedInBb p -> Codec.encodeTransferTargetClearedInBb p
     Encode.toString 0 json
 
 /// Liest eine gespeicherte Payload zurueck. Typname und Schema-Version zusammen
@@ -1165,6 +1248,10 @@ let decodePayload (eventType: string) (version: int) (payload: string) : Result<
         Decode.fromString Codec.decodeReplacedInYnab payload |> Result.map EntryReplacedInYnab
     | "EntryPushToYnabFailed", 1 ->
         Decode.fromString Codec.decodePushToYnabFailed payload |> Result.map EntryPushToYnabFailed
+    | "EntryTransferTargetSetInBb", 1 ->
+        Decode.fromString Codec.decodeTransferTargetSetInBb payload |> Result.map EntryTransferTargetSetInBb
+    | "EntryTransferTargetClearedInBb", 1 ->
+        Decode.fromString Codec.decodeTransferTargetClearedInBb payload |> Result.map EntryTransferTargetClearedInBb
     | t, v -> Error $"Unbekannter Ereignistyp '{t}' in Schema-Version {v}"
 
 // ============================================

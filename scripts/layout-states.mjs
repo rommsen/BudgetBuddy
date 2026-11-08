@@ -750,7 +750,8 @@ export const STATES = [
     open: async (page) => {
       const sheet = await openLedgerDetail(page, "Bauhaus");
       await sheet.locator('[data-testid="detail-category-arrow"]').tap();
-      const picker = page.locator(".bottom-sheet.active", { hasText: "Kategorie wählen" });
+      // ledger-qvjvs: der Picker im Detail bietet auch die Konten an und heißt dann "Ziel wählen".
+      const picker = page.locator(".bottom-sheet.active", { hasText: "Ziel wählen" });
       await picker.waitFor();
       await picker.locator('[role="option"]', { hasText: "Nebenkosten" }).last().tap();
       await page.locator('[data-toast-action="true"]').first().waitFor();

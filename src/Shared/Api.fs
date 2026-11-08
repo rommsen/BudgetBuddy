@@ -381,6 +381,16 @@ type LedgerApi = {
     /// unknown. Undo is this call with the previous category.
     setEntryCategory: Guid -> YnabCategoryId option -> Async<Result<CategoryChangeOutcome, string>>
 
+    /// Makes one booking a transfer to another open budget account, or changes its target
+    /// (ledger-qvjvs). The ledger event comes first, then the YNAB PUT with the target's
+    /// transfer payee and without category; YNAB creates the counterpart. Same outcome and
+    /// write-back failure state as setEntryCategory; `PreviousTransferAccountId` names the
+    /// previous target for undo. Error without event and without YNAB call for an unknown
+    /// booking, a booking deleted in YNAB, a split, a booking not linked to YNAB, the own
+    /// account or an account that is not an open budget account. Choosing a category on such
+    /// a transfer goes through setEntryCategory and turns it back into a normal booking.
+    setEntryTransfer: Guid -> YnabAccountId -> Async<Result<CategoryChangeOutcome, string>>
+
     /// Sets the split lines of one booking in BB, then writes them back to YNAB
     /// (ledger-kxme4, ADR 0058). Two or more lines split the booking or replace its lines;
     /// exactly one line (a category line or an uncategorized line for the full amount)

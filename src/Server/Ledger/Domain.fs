@@ -92,6 +92,8 @@ type CategorizationWriteBackFailure = {
     /// Beim Ersetzen einer Split-Buchung (ADR 0058, Punkt 3): das DELETE ist gelungen, das
     /// POST nicht. Die gelöschte YNAB-Id; "Erneut senden" führt dann nur das POST aus.
     YnabDeletedTransactionId: string option
+    /// Das Übertrags-Ziel, das YNAB vermutlich noch hat (ledger-qvjvs), `None` ohne Übertrag.
+    BaselineTransferAccountId: YnabAccountId option
 }
 
 /// Der offene Fehlschlag beim Zurückschreiben des Flags nach YNAB (ADR 0056, Punkt 5 und
@@ -162,6 +164,10 @@ type Entry = {
     /// Grund und Zeitpunkt des letzten `EntryPushToYnabFailed`. `EntryLinkedToYnab`
     /// löst ihn auf, ein zweiter Fehlschlag ersetzt ihn.
     PushToYnabFailure: LedgerPushFailure option
+    /// Der Payee aus BB, bevor Roman die Buchung in BB zum Übertrag gemacht hat (ledger-qvjvs).
+    /// Macht er sie wieder zur normalen Buchung, geht dieser Payee nach YNAB. `None`, solange
+    /// die Buchung kein in BB gesetzter Übertrag ist; ein Übertrag aus YNAB hat keinen.
+    PayeeBeforeTransfer: string option
 }
 
 /// Deutet der rohe Flag-Name als *Rückfrage Lena*? "Lena" nach Trim, ohne Beachtung der
@@ -340,6 +346,7 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             MemoWriteBackFailure = None
             LinkedToYnab = true
             PushToYnabFailure = None
+            PayeeBeforeTransfer = None
         }
 
     | EntryDetailsChangeObservedInYnab p ->
@@ -486,6 +493,7 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             MemoWriteBackFailure = None
             LinkedToYnab = false
             PushToYnabFailure = None
+            PayeeBeforeTransfer = None
         }
 
     | EntryCategorizedByRule p ->
@@ -531,6 +539,7 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             MemoWriteBackFailure = None
             LinkedToYnab = false
             PushToYnabFailure = None
+            PayeeBeforeTransfer = None
         }
 
     | EntryLinkedToYnab _ ->
@@ -575,6 +584,11 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
         let deleted =
             p.YnabDeletedTransactionId
             |> Option.orElse (e.CategorizationWriteBackFailure |> Option.bind (fun f -> f.YnabDeletedTransactionId))
+        // Das Übertrags-Ziel der Baseline gehört zur ersten Baseline (ledger-qvjvs).
+        let baselineTransfer =
+            match e.CategorizationWriteBackFailure with
+            | Some open' -> open'.BaselineTransferAccountId
+            | None -> p.BaselineTransferAccountId
         { e with
             CategorizationWriteBackFailure =
                 Some {
@@ -582,11 +596,38 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
                     BaselineCategory = baselineCategory
                     BaselineSplits = baselineSplits
                     YnabDeletedTransactionId = deleted
+                    BaselineTransferAccountId = baselineTransfer
                 } }
 
     | EntryCategorizationWrittenBackToYnab ->
         let e = requireExisting ()
         { e with CategorizationWriteBackFailure = None }
+
+    | EntryTransferTargetSetInBb p ->
+        // ledger-qvjvs: die Buchung wird ein Übertrag zwischen Budget-Konten, ohne Kategorie
+        // und ohne Split. Die Gegenbuchung legt YNAB an, der Spiegel verknüpft sie neu. Nur eine
+        // Buchung, die noch kein Übertrag ist, liefert einen Payee "davor"; ein Zielwechsel
+        // behält ihn.
+        let e = requireExisting ()
+        let before = if e.TransferAccountId.IsNone && e.TransferEntryId.IsNone then e.Payee else e.PayeeBeforeTransfer
+        { e with
+            Category = None
+            Splits = []
+            TransferAccountId = Some p.NewTransferAccountId
+            TransferEntryId = None
+            Payee = p.NewPayee
+            PayeeBeforeTransfer = before }
+
+    | EntryTransferTargetClearedInBb p ->
+        // ledger-qvjvs: zurück zur normalen Buchung, mit Kategorie und dem Payee aus BB.
+        let e = requireExisting ()
+        { e with
+            Category = p.NewCategory
+            Splits = []
+            TransferAccountId = None
+            TransferEntryId = None
+            Payee = p.NewPayee
+            PayeeBeforeTransfer = None }
 
     | EntryReplacedInYnab _ ->
         // ADR 0058, Punkt 5: YNAB hat die Subtransactions und die Gegenbuchungen neu
@@ -913,12 +954,25 @@ let observe (ctx: ObservationContext) (existing: Entry option) (obs: YnabObserva
         let current = categorizationIdentity entry.Category entry.Splits
         let observed = categorizationIdentity obs.Category obs.Splits
 
+        // ledger-qvjvs: mit offenem Fehlschlag zählt auch das Übertrags-Ziel. Ein Zielwechsel A
+        // nach B lässt Kategorie und Split auf beiden Seiten leer; ohne das Ziel läse sich YNABs
+        // alter Stand A als "angekommen". Ohne offenen Fehlschlag bleibt der Vergleich, wie er
+        // war: `TransferAccountId` zieht `observe` auf bestehenden Buchungen nicht nach.
         let categorizationChanged, categorizationWrittenBack =
             match entry.CategorizationWriteBackFailure with
             | None -> current <> observed, false
             | Some failure ->
-                if observed = current then false, true
-                elif observed = categorizationIdentity failure.BaselineCategory failure.BaselineSplits then false, false
+                // Das Ziel zählt nur, wenn der Fehlschlag einen Übertrag betrifft: die Baseline
+                // war einer, oder der BB-Stand ist ein in BB gesetzter Übertrag. Sonst (etwa ein
+                // Übertrag ins Tracking-Konto mit Kategorie) bleibt es beim Kategorie-Vergleich.
+                let withTransfer = failure.BaselineTransferAccountId.IsSome || entry.PayeeBeforeTransfer.IsSome
+                let transferOf (account: YnabAccountId option) = if withTransfer then account else None
+                let observedFull = observed, transferOf obs.TransferAccountId
+                let baseline =
+                    categorizationIdentity failure.BaselineCategory failure.BaselineSplits,
+                    transferOf failure.BaselineTransferAccountId
+                if observedFull = (current, transferOf entry.TransferAccountId) then false, true
+                elif observedFull = baseline then false, false
                 else true, false
 
         let clearedChanged = entry.Cleared <> obs.Cleared

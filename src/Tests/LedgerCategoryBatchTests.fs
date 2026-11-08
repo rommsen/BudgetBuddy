@@ -167,7 +167,7 @@ let categoryBatchCommandTests =
                         Reason = "x"
                         BaselineCategory = None
                         BaselineSplits = [ line catA -5.00m; line catC -7.00m ]
-                        YnabDeletedTransactionId = None
+                        YnabDeletedTransactionId = None; BaselineTransferAccountId = None
                     }
                 )
             ]

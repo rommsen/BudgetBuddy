@@ -126,6 +126,8 @@ let toastActionMsg (kind: ToastActionKind) : Msg =
         LedgerMsg (Components.Ledger.Types.StartUndoReviewMarkBatch items)
     | UndoCategory (entryId, previous) ->
         LedgerMsg (Components.Ledger.Types.StartUndoCategory (entryId, previous))
+    | UndoTransfer (entryId, account) ->
+        LedgerMsg (Components.Ledger.Types.StartSetEntryTransfer (entryId, account, true))
     | UndoSplit (entryId, restore) ->
         LedgerMsg (Components.Ledger.Types.StartUndoSplit (entryId, restore))
     | UndoFlag (entryId, previous) ->

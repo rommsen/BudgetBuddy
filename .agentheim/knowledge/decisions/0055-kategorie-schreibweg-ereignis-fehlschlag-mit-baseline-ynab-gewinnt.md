@@ -6,8 +6,8 @@ status: accepted
 date: 2026-10-24
 supersedes: []
 superseded_by: []
-related_tasks: [ledger-k2rbn, ledger-kwwxz, ledger-w4vte, ledger-sfab0, ledger-w29y6, ledger-pafkp, design-system-gffps]
-related_adrs: [0014, 0021, 0028, 0044, 0050, 0051, 0053, 0054]
+related_tasks: [ledger-k2rbn, ledger-kwwxz, ledger-w4vte, ledger-sfab0, ledger-w29y6, ledger-pafkp, design-system-gffps, ledger-qvjvs]
+related_adrs: [0014, 0021, 0028, 0044, 0050, 0051, 0053, 0054, 0089]
 related_research: []
 ---
 
@@ -174,3 +174,6 @@ Lärm. Tafel Ablauf 5 (Screen 5.8) sieht ausgegraut ohnehin vor.
 
 ## Nachtrag 2026-11-07, Schreib-Sperre für alle Schreibbefehle (ledger-kfd5m)
 Punkt 6 gilt für jeden Kassenbuch-Befehl, der ein Ereignis schreibt und danach zu YNAB pusht, nicht nur für Kategorie und Split. Dazu gehören jetzt auch Quick Add und Bob (`addCashExpense`), Erneut senden (`retryPushToYnab`) und der Prüfvermerk (`setReviewMark`, `restoreReviewMark`, `retryReviewMarkWriteBack`, `setReviewMarkBatch`, `restoreReviewMarkBatch`). Memo und Lena fragen waren schon gesperrt. Ohne Sperre dreht ein Lauf zwischen Ereignis und PATCH `approved` zurück. Bei Quick Add, Bob und Erneut senden sieht ein Lauf zwischen Push und `EntryLinkedToYnab` die neue YNAB-Buchung ohne Partner und legt eine zweite an. Der Spiegel-Auslöser nach einem Push läuft erst nach der Freigabe, weil der Lauf dieselbe Sperre nimmt. Kein gesperrter Befehl ruft einen anderen gesperrten Befehl (`SemaphoreSlim` ist nicht wiedereintrittsfähig). Bobs `bookingGate` wird vor der Schreib-Sperre genommen. Die Auflösung einer Auswahl darf vor der Sperre liegen. Laden, Ereignisse und Push liegen darunter. Ausgenommen bleibt der Comdirect-Import-Push: seine Buchungen tragen eine ImportId, über die der Spiegel sie findet. Folge: Quick Add, Bob und der Prüfvermerk warten im seltenen Fall einige Sekunden auf einen laufenden Spiegel. Der Fall „Push gelungen, Schreiben der Verknüpfung wirft“ (ledger-p3vq8) ist damit nicht gelöst.
+
+## Nachtrag 2026-11-08, Übertrag in BB setzen (ledger-qvjvs)
+Punkt 7 ist eingeschränkt (ADR 0089). Ein Übertrag zwischen Budget-Konten ohne Kategorie und ohne Split-Zeilen ist nur noch in der Sammelaktion gesperrt (`setEntryCategoryBatch` überspringt ihn weiter, `SkipTransfer`). Im Buchungs-Detail ist er änderbar: ein Konto im Picker wechselt das Ziel (`setEntryTransfer`), eine Kategorie macht ihn über `setEntryCategory` wieder zur normalen Buchung mit dem Payee aus BB vor dem Übertrag (`EntryTransferTargetClearedInBb`, PUT mit `category_id`, `payee_id` null und `payee_name`). Abgelehnt bleibt ein Übertrag aus YNAB, dessen Payee davor BB nicht kennt ("BB kennt den Payee vor dem Übertrag nicht, bitte in YNAB ändern"). Der Fehlschlag aus Punkt 4 trägt dafür das optionale Feld `BaselineTransferAccountId`; der Vergleich aus Punkt 5 nimmt bei offenem Fehlschlag das Übertrags-Ziel hinzu, wenn die Baseline ein Ziel trägt oder der BB-Stand ein in BB gesetzter Übertrag ist. Ein Übertrag in ein Tracking-Konto mit Kategorie bleibt wie bisher über `setEntryCategory` änderbar.

@@ -2012,7 +2012,7 @@ let private DetailDemo () =
                 "styleguide-detail-category-locked"
                 "Kategorie"
                 (Detail.valueText Tokens.Colors.textMuted "Keine Kategorie")
-                (Some (Detail.pickerArrow "Kategorie ändern" false (Some "Übertrag zwischen Budget-Konten, YNAB lässt hier keine Kategorie zu") ignore))
+                (Some (Detail.pickerArrow "Kategorie ändern" false (Some "In YNAB gelöscht, die Kategorie lässt sich nicht ändern") ignore))
             Detail.fieldRow
                 "styleguide-detail-split"
                 "Split"

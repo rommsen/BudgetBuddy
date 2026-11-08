@@ -157,6 +157,7 @@ module ReadModel =
             NeedsReview = needsReview entry
             Flag = flagOf entry.FlagColor entry.FlagName
             IsTransfer = entry.TransferAccountId.IsSome || entry.TransferEntryId.IsSome
+            TransferAccountId = entry.TransferAccountId |> Option.map (fun (YnabAccountId a) -> a)
             ReviewMarkWriteBackFailure = entry.ReviewMarkWriteBackFailure
             CategorizationWriteBackFailure = entry.CategorizationWriteBackFailure |> Option.map (fun f -> f.Reason)
             FlagWriteBackFailure = entry.FlagWriteBackFailure |> Option.map (fun f -> f.Reason)
@@ -417,6 +418,14 @@ module ReadModel =
         | EntryMemoWrittenBackToYnab -> "Memo in YNAB angekommen"
         | EntryReplacedInYnab _ -> "In YNAB neu angelegt (Split-Buchung ersetzt)"
         | EntryPushToYnabFailed p -> $"Push nach YNAB gescheitert: {p.Reason}"
+        | EntryTransferTargetSetInBb p ->
+            match p.OldTransferAccountId with
+            | None -> $"In BB zum Übertrag gemacht: Übertrag → {p.NewTransferAccountName}"
+            | Some _ -> $"Übertrags-Ziel in BB geändert: Übertrag → {p.NewTransferAccountName}"
+        | EntryTransferTargetClearedInBb p ->
+            match p.NewCategory with
+            | Some c -> $"Übertrag in BB aufgehoben: Kategorie {c.CategoryName}"
+            | None -> "Übertrag in BB aufgehoben: ohne Kategorie"
 
     /// Ein gespeichertes Ereignis als Historien-Zeile.
     let toHistoryLine (recorded: RecordedLedgerEvent) : LedgerHistoryLine = {
