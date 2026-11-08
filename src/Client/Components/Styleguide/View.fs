@@ -337,7 +337,7 @@ let private buttonSection =
                             ]
                         ]
                         subTitle "Kachel und leiser Textknopf"
-                        note "tile: Wert in Mono, Bezeichnung gedämpft, offen, erledigt (✓) oder aktiv (Akzent). quietText: leiser Textknopf. Leiste Monatserster der Budget-Seite. accentText: Textknopf im Akzent am Abschnittskopf (Umbenennen einer Gruppe, Seite Kategorien). disclosureSectionHead: Kopf eines eingeklappten Abschnitts. orderNameRow: Name mit Pfeilen für die Reihenfolge."
+                        note "tile: Wert in Mono, Bezeichnung gedämpft, offen, erledigt (✓) oder aktiv (Akzent). quietText: leiser Textknopf. Leiste Monatserster der Budget-Seite. quietTextFor: dasselbe mit aria-label, wenn der Text mehrfach steht (Umbenennen je Gruppe, Seite Kategorien). disclosureSectionHead: Kopf eines eingeklappten Abschnitts. orderNameRow: Name mit Pfeilen für die Reihenfolge."
                         Html.div [
                             prop.className "grid grid-cols-3 gap-1.5 max-w-sm"
                             prop.children [
@@ -347,7 +347,7 @@ let private buttonSection =
                             ]
                         ]
                         Button.quietText "styleguide-quiet-text" "Ausblenden" ignore
-                        Button.accentText "styleguide-accent-text" "Gruppe umbenennen" "Umbenennen" ignore
+                        Button.quietTextFor "styleguide-quiet-text-for" "Gruppe umbenennen" "Umbenennen" ignore
                         // disclosureSectionHead: Kopf eines eingeklappten Abschnitts ("Deaktiviert (n)", Seite Kategorien).
                         Button.disclosureSectionHead "styleguide-section-head" "styleguide-section-block" "Deaktiviert (2)" false ignore
                         // orderNameRow: Zeile mit Pfeilen für die Reihenfolge (Seite Kategorien, budgeting-sn2sn), als erste Zeile mit

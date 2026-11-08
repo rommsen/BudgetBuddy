@@ -19,7 +19,7 @@ let IntroText =
     "Antippen zum Umbenennen, Verschieben oder Deaktivieren. Deaktivierte Kategorien verschwinden aus Auswahl und Budget, ihre Buchungen und Historie bleiben."
 
 /// Der Satz unter dem Schalter "Aktiv", wie im Prototyp.
-let ActiveSwitchText = "Deaktiviert verschwindet sie aus Auswahl und Budget. Buchungen und Historie bleiben."
+let ActiveSwitchText = "Deaktiviert verschwindet sie aus Auswahl und Budget. Buchungen und Historie bleiben. Nur in BB, YNAB bleibt unverändert."
 
 let private header (dispatch: Msg -> unit) =
     Html.div [
@@ -51,7 +51,7 @@ let private groupSection (group: ManagedCategoryGroup) (dispatch: Msg -> unit) =
                     Html.div [
                         prop.className "shrink-0"
                         prop.children [
-                            Button.accentText
+                            Button.quietTextFor
                                 "categories-rename-group"
                                 $"Gruppe {group.Name} umbenennen"
                                 "Umbenennen"
@@ -201,6 +201,7 @@ let private formBody (groups: ManagedCategoryGroup list) (form: Form) (dispatch:
                             Options = groupOptions groups
                             Disabled = form.IsSaving
                             ClassName = Some "w-full" })
+                Html.p [ prop.className ListRoles.muted; prop.text "Name und Gruppe werden nach YNAB übertragen." ]
                 if editor.CategoryId.IsSome then
                     Input.switchRow
                         "categories-active"
@@ -209,7 +210,6 @@ let private formBody (groups: ManagedCategoryGroup list) (form: Form) (dispatch:
                         editor.Active
                         form.IsSaving
                         (fun active -> dispatch (ActiveToggled active))
-                Html.p [ prop.className ListRoles.muted; prop.text "Wird nach YNAB übertragen." ]
             | EditingGroup _ -> ()
             match form.Error with
             | Some message ->

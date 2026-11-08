@@ -504,17 +504,9 @@ let tile (testId: string) (value: string) (label: string) (title: string option)
         ]
     ]
 
-type private TextTone =
-    | Quiet
-    | AccentTone
-
-/// Gemeinsamer Kern von `quietText` und `accentText`: Textknopf ohne Rand und Fläche, 12 px, Trefferfläche
+/// Gemeinsamer Kern von `quietText` und `quietTextFor`: Textknopf ohne Rand und Fläche, 12 px gedämpft, Trefferfläche
 /// 48 × 48 px am Handy (auch ein kurzes Wort wie "Heute", ledger-at63w), 36 px hoch ab md.
-let private textButton (tone: TextTone) (testId: string) (ariaLabel: string option) (text: string) (onClick: unit -> unit) =
-    let toneClass =
-        match tone with
-        | Quiet -> $"{Colors.textSecondary} hover:text-text-primary transition-colors"
-        | AccentTone -> $"font-mono {Colors.accent} hover:underline"
+let private textButton (testId: string) (ariaLabel: string option) (text: string) (onClick: unit -> unit) =
     Html.button [
         prop.type' "button"
         prop.custom ("data-testid", testId)
@@ -522,18 +514,19 @@ let private textButton (tone: TextTone) (testId: string) (ariaLabel: string opti
         | Some label -> prop.ariaLabel label
         | None -> ()
         prop.className
-            $"inline-flex items-center justify-center min-h-[48px] min-w-[48px] md:min-h-9 md:min-w-0 px-1 -mr-1 text-xs cursor-pointer touch-manipulation {toneClass}"
+            $"inline-flex items-center justify-center min-h-[48px] min-w-[48px] md:min-h-9 md:min-w-0 px-1 -mr-1 text-xs cursor-pointer touch-manipulation {Colors.textSecondary} hover:text-text-primary transition-colors"
         prop.onClick (fun _ -> onClick ())
         prop.text text
     ]
 
 /// Ein leiser Textknopf, 12 px gedämpft, ohne Rand und Fläche ("Ausblenden").
-let quietText (testId: string) (text: string) (onClick: unit -> unit) = textButton Quiet testId None text onClick
+let quietText (testId: string) (text: string) (onClick: unit -> unit) = textButton testId None text onClick
 
-/// Ein Textknopf im Akzent an einem Abschnittskopf ("Umbenennen" an einer Gruppe der Seite Kategorien, Prototyp
-/// Version 17, budgeting-pscgb): 12 px Mono wie der Gruppenkopf. `ariaLabel` nennt, worauf er wirkt.
-let accentText (testId: string) (ariaLabel: string) (text: string) (onClick: unit -> unit) =
-    textButton AccentTone testId (Some ariaLabel) text onClick
+/// `quietText` mit `ariaLabel`, wenn derselbe Text mehrfach auf der Seite steht und erst das Label sagt, worauf er
+/// wirkt ("Umbenennen" je Gruppe der Seite Kategorien). Der Akzent bleibt der Hauptaktion (Styleguide §2, §7.14,
+/// Entscheidung Roman im Review-Lauf e83f2d00..ad18f0c9, Abweichung von Prototyp Version 17).
+let quietTextFor (testId: string) (ariaLabel: string) (text: string) (onClick: unit -> unit) =
+    textButton testId (Some ariaLabel) text onClick
 
 // ============================================
 // Hero Button
