@@ -21,8 +21,8 @@ let private kinderkram = Guid.Parse "22222222-0000-0000-0000-000000000003"
 let private groupsFixture : ManagedCategoryGroup list =
     [ { Id = alltag
         Name = "Alltag"
-        Categories = [ { Id = lebensmittel; Name = "Lebensmittel" }; { Id = drogerie; Name = "Drogerie" } ] }
-      { Id = kinder; Name = "Kinder"; Categories = [ { Id = kinderkram; Name = "Kinderkram" } ] } ]
+        Categories = [ { Id = lebensmittel; Name = "Lebensmittel"; Active = true }; { Id = drogerie; Name = "Drogerie"; Active = true } ] }
+      { Id = kinder; Name = "Kinder"; Categories = [ { Id = kinderkram; Name = "Kinderkram"; Active = true } ] } ]
 
 let private run (a: Async<'T>) = Async.RunSynchronously a
 
@@ -38,7 +38,8 @@ type private Probe(answer: unit -> YnabResult<Guid>, ?fetched: YnabResult<Manage
             fun categoryId patch -> async { calls.Add $"patch-category {categoryId} {patch.Name} {patch.GroupId}"; return answer () }
           CreateGroup = fun name -> async { calls.Add $"create-group {name}"; return answer () }
           UpdateGroup = fun groupId name -> async { calls.Add $"patch-group {groupId} {name}"; return answer () }
-          RefreshMirror = fun () -> async { calls.Add "mirror" } }
+          RefreshMirror = fun () -> async { calls.Add "mirror" }
+          FetchMonth = fun month -> async { calls.Add $"month {month}"; return Error (BudgetNotFound "kein Monat im Fake") } }
 
 let private newId = Guid.Parse "33333333-0000-0000-0000-000000000001"
 let private okProbe () = Probe(fun () -> Ok newId)
@@ -117,7 +118,7 @@ let decoderTests =
                       group (Guid.NewGuid()) "Credit Card Payments" "" [ category (Guid.NewGuid()) "Visa" "" ] ]
                 $"""{{"data":{{"category_groups":[{String.Join(",", groups)}]}}}}"""
             let expected : ManagedCategoryGroup list =
-                [ { Id = alltag; Name = "Alltag"; Categories = [ { Id = lebensmittel; Name = "Lebensmittel" } ] } ]
+                [ { Id = alltag; Name = "Alltag"; Categories = [ { Id = lebensmittel; Name = "Lebensmittel"; Active = true } ] } ]
             Expect.equal (Server.YnabClient.interpretCategoryGroupsResponse "bud" 200 body) (Ok expected) "nur das Sichtbare"
 
         testCase "Fehler beim Lesen kommen als YNAB-Fehler" <| fun () ->
@@ -245,12 +246,23 @@ let apiTests =
                 Server.Api.categoryApiWith
                     (fun _ -> failwith "Settings nicht fragen")
                     (fun _ _ -> failwith "kein Port")
+                    (fun () -> failwith "keine Datenbank")
+                    (fun () -> DateTime.UtcNow)
+                    TimeZoneInfo.Utc
             Expect.equal (api.saveCategory { CategoryId = None; Name = ""; GroupId = alltag } |> run) (Error CategoryNameMissingText) "Kategorie"
             Expect.equal (api.saveCategoryGroup { GroupId = None; Name = String('x', 51) } |> run) (Error GroupNameTooLongText) "Gruppe"
 
         testCase "mit Einrichtung geht der Auftrag an den Port, der YNAB-Fehler kommt als Satz zurück" <| fun () ->
             let probe = Probe(fun () -> Error (RateLimitExceeded 60))
-            let api = Server.Api.categoryApiWith (fun _ -> async { return Some "eingerichtet" }) (fun _ _ -> probe.Port)
+            let anchor, connect = CategoryLayoutFixture.isolated ()
+            use _ = anchor
+            let api =
+                Server.Api.categoryApiWith
+                    (fun _ -> async { return Some "eingerichtet" })
+                    (fun _ _ -> probe.Port)
+                    connect
+                    (fun () -> DateTime.UtcNow)
+                    TimeZoneInfo.Utc
             Expect.equal (api.getCategoryGroups () |> run) (Ok groupsFixture) "Liste"
             Expect.equal
                 (api.saveCategory { CategoryId = None; Name = "Haustier"; GroupId = kinder } |> run)

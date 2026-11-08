@@ -349,6 +349,9 @@ let private buttonSection =
                         Button.quietText "styleguide-quiet-text" "Ausblenden" ignore
                         Button.accentText "styleguide-accent-text" "Gruppe umbenennen" "Umbenennen" ignore
                         Button.nameRow "styleguide-name-row" "styleguide-name-row" "Lebensmittel bearbeiten" "Lebensmittel" ignore
+                        // orderNameRow: Zeile mit Pfeilen für die Reihenfolge (Seite Kategorien, budgeting-sn2sn).
+                        Button.sectionToggle "styleguide-section-toggle" "styleguide-section-block" "Deaktiviert (2)" false ignore
+                        Button.orderNameRow "styleguide-order-row" "styleguide-order-row" "Drogerie bearbeiten" "Drogerie" ignore ignore ignore ignore
                     ]
                 ]
             ]
@@ -1059,6 +1062,8 @@ let private InputDemo () =
                 ]
                 Input.groupSimple "Searchable Select" (Input.searchableSelect searchValue setSearchValue "Kategorie suchen…" groupedOptions)
                 Input.toggle toggleValue setToggleValue (Some "Auto-Kategorisierung aktiv")
+                // switchRow: Schalter als Zeile mit Erklärung (Schalter "Aktiv" der Seite Kategorien, budgeting-sn2sn).
+                Input.switchRow "styleguide-switch-row" "Aktiv" "Deaktiviert verschwindet sie aus Auswahl und Budget. Buchungen und Historie bleiben." toggleValue false setToggleValue
                 Input.checkbox checkValue setCheckValue "Bestätigt"
                 // checkboxNative: die native Checkbox, in einem label mit der Zeile (Vorschau Targets anwenden).
                 Html.label [

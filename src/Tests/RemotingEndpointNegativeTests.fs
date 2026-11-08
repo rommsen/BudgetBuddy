@@ -107,6 +107,18 @@ let private reviewState = { IsApproved = true; ClearedState = ReviewCleared }
 
 let private budget = budgetApi (TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin")
 
+/// Die Seite Kategorien der laufenden App (budgeting-sn2sn: mit Berliner Monat).
+let private liveCategoryApi = categoryApi (TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin")
+
+/// Die Seite Kategorien ohne Einrichtung: Settings leer, ein Port wäre ein Fehler.
+let private unconfiguredCategoryApi () =
+    categoryApiWith
+        (fun _ -> async { return None })
+        (fun _ _ -> failwith "ohne Einrichtung kein Port")
+        Persistence.getConnection
+        (fun () -> DateTime.UtcNow)
+        (TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin")
+
 let private rows : Row list = [
     // ---------------- SettingsApi ----------------
     { Endpoint = "SettingsApi.getSettings"; Case = "ohne Einrichtung kein YNAB und kein Comdirect"
@@ -466,18 +478,31 @@ let private rows : Row list = [
     // ---------------- CategoryApi (budgeting-pscgb) ----------------
     { Endpoint = "CategoryApi.getCategoryGroups"; Case = "ohne Einrichtung: Fehler statt Ausnahme"
       Run = fun () ->
-          let unconfigured = categoryApiWith (fun _ -> async { return None }) (fun _ _ -> failwith "ohne Einrichtung kein Port")
+          let unconfigured = unconfiguredCategoryApi ()
           unconfigured.getCategoryGroups () |> run |> expectError "Gruppen" }
     { Endpoint = "CategoryApi.saveCategory"; Case = "leerer Name und unbekannte Gruppe ohne Einrichtung: Fehler, kein YNAB"
       Run = fun () ->
-          categoryApi.saveCategory { CategoryId = None; Name = " "; GroupId = Guid.NewGuid() } |> run |> expectError "leerer Name"
-          let unconfigured = categoryApiWith (fun _ -> async { return None }) (fun _ _ -> failwith "ohne Einrichtung kein Port")
+          liveCategoryApi.saveCategory { CategoryId = None; Name = " "; GroupId = Guid.NewGuid() } |> run |> expectError "leerer Name"
+          let unconfigured = unconfiguredCategoryApi ()
           unconfigured.saveCategory { CategoryId = Some (Guid.NewGuid()); Name = "Neu"; GroupId = Guid.NewGuid() } |> run |> expectError "unbekannt" }
     { Endpoint = "CategoryApi.saveCategoryGroup"; Case = "Name über 50 Zeichen und unbekannte Gruppe ohne Einrichtung: Fehler, kein YNAB"
       Run = fun () ->
-          categoryApi.saveCategoryGroup { GroupId = None; Name = String('x', 51) } |> run |> expectError "zu lang"
-          let unconfigured = categoryApiWith (fun _ -> async { return None }) (fun _ _ -> failwith "ohne Einrichtung kein Port")
+          liveCategoryApi.saveCategoryGroup { GroupId = None; Name = String('x', 51) } |> run |> expectError "zu lang"
+          let unconfigured = unconfiguredCategoryApi ()
           unconfigured.saveCategoryGroup { GroupId = Some (Guid.NewGuid()); Name = "Neu" } |> run |> expectError "unbekannt" }
+    // ---------------- CategoryApi (budgeting-sn2sn) ----------------
+    { Endpoint = "CategoryApi.setCategoryActive"; Case = "ohne Einrichtung: Fehler statt Ausnahme, nichts gespeichert"
+      Run = fun () ->
+          let unconfigured = unconfiguredCategoryApi ()
+          unconfigured.setCategoryActive { CategoryId = Guid.NewGuid(); Active = false } |> run |> expectError "deaktivieren" }
+    { Endpoint = "CategoryApi.setCategoryOrder"; Case = "Reihenfolge ohne Gruppe und mit doppelter Kategorie: Fehler mit beiden Gründen"
+      Run = fun () ->
+          let twice = Guid.NewGuid()
+          match liveCategoryApi.setCategoryOrder { GroupId = Guid.Empty; CategoryIds = [ twice; twice ] } |> run with
+          | Error message ->
+              Expect.stringContains message Server.Validation.OrderGroupMissingText "Gruppe"
+              Expect.stringContains message Server.Validation.OrderCategoryInvalidText "doppelt"
+          | Ok () -> failtest "Reihenfolge hätte abgelehnt werden müssen" }
 ]
 
 /// Endpoints aus der Reflection, als "Interface.methode".

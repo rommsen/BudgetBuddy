@@ -569,3 +569,66 @@ let heroLoading (text: string) (isLoading: bool) (onClick: unit -> unit) =
                 Html.span [ prop.text text ]
         ]
     ]
+
+/// Ein Pfeil für die Reihenfolge an einer Listenzeile (Seite Kategorien, Prototyp Version 17): schlichter Knopf ohne
+/// Rand mit Chevron in `text-secondary`, am Handy 48 px Trefferfläche, ab md 40 px wie im Prototyp.
+let orderArrow (testId: string) (ariaLabel: string) (icon: ReactElement) (onClick: unit -> unit) =
+    Html.button [
+        prop.type' "button"
+        prop.custom ("data-testid", testId)
+        prop.ariaLabel ariaLabel
+        prop.title ariaLabel
+        prop.className $"inline-flex shrink-0 items-center justify-center {TouchTargets.minSize} md:min-h-[40px] md:min-w-[40px] rounded-md {Colors.textSecondary} cursor-pointer touch-manipulation hover:bg-surface-hover hover:text-text-primary"
+        prop.onClick (fun _ -> onClick ())
+        prop.children [ icon ]
+    ]
+
+/// Eine Listenzeile mit Namen und Pfeilen für die Reihenfolge (Seite Kategorien, budgeting-sn2sn): links der Name als
+/// Knopf, der das Formular öffnet (mindestens 48 px hoch, gekürzt mit `title`), rechts hoch und runter. Am PC
+/// verschiebt eine Taste auf dem Namen (`onKeyDown`, etwa Alt+↑/↓). Die Linie zwischen Zeilen fällt an der letzten
+/// weg.
+let orderNameRow
+    (key: string)
+    (testId: string)
+    (ariaLabel: string)
+    (name: string)
+    (onClick: unit -> unit)
+    (onKeyDown: Browser.Types.KeyboardEvent -> unit)
+    (onUp: unit -> unit)
+    (onDown: unit -> unit)
+    =
+    Html.div [
+        prop.key key
+        prop.custom ("data-testid", testId)
+        prop.className "flex items-center pr-1 border-b border-border-subtle last:border-b-0 hover:bg-surface-hover"
+        prop.children [
+            Html.button [
+                prop.type' "button"
+                prop.custom ("data-testid", $"{testId}-name")
+                prop.ariaLabel ariaLabel
+                prop.className "flex flex-1 min-w-0 items-center text-left pl-4 pr-2 py-3 min-h-[48px] cursor-pointer touch-manipulation"
+                prop.onClick (fun _ -> onClick ())
+                prop.onKeyDown onKeyDown
+                prop.children [ Truncate.text $"block {ListRoles.primary}" name ]
+            ]
+            orderArrow $"{testId}-up" $"{name} nach oben" (chevronUp SM Default) onUp
+            orderArrow $"{testId}-down" $"{name} nach unten" (chevronDown SM Default) onDown
+        ]
+    ]
+
+/// Der Kopf eines eingeklappten Abschnitts (Seite Kategorien, "Deaktiviert (n)", Prototyp Version 17): eine Zeile von
+/// mindestens 52 px mit der Beschriftung in `text-secondary` links, rechts der Chevron (zu runter, offen hoch) und
+/// der Linie darunter. `aria-expanded` und `aria-controls` auf den Block, der Block steht immer im DOM.
+let sectionToggle (testId: string) (controlsId: string) (label: string) (isOpen: bool) (onClick: unit -> unit) =
+    Html.button [
+        prop.type' "button"
+        prop.custom ("data-testid", testId)
+        prop.ariaExpanded isOpen
+        prop.ariaControls controlsId
+        prop.className $"flex w-full min-h-[52px] items-center justify-between gap-3 px-0.5 text-left border-b border-border-subtle cursor-pointer touch-manipulation text-sm {Colors.textSecondary} hover:text-text-primary"
+        prop.onClick (fun _ -> onClick ())
+        prop.children [
+            Html.span [ prop.text label ]
+            if isOpen then chevronUp SM Muted else chevronDown SM Muted
+        ]
+    ]

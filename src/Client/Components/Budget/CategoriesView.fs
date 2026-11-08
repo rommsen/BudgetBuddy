@@ -1,6 +1,8 @@
 /// Die Seite Kategorien `#/budget/categories` (budgeting-pscgb, Form nach Prototyp Version 17): Kopf mit Zurück und
 /// Titel, ein Satz Erklärung, je Gruppe ein Abschnitt mit "Umbenennen" und einer Karte mit den Kategorien, darunter
-/// "+ Kategorie" und "+ Gruppe". Das Formular steht am Handy im Sheet, ab 1024 px als Panel rechts (§7.6).
+/// "+ Kategorie" und "+ Gruppe", darunter der eingeklappte Abschnitt "Deaktiviert (n)" (budgeting-sn2sn). Jede
+/// Kategorie hat Pfeile hoch und runter für BBs Reihenfolge. Das Formular steht am Handy im Sheet, ab 1024 px als
+/// Panel rechts (§7.6).
 module Components.Budget.CategoriesView
 
 open Feliz
@@ -12,8 +14,12 @@ open Client.DesignSystem.Tokens
 
 let private cardClass = "rounded-2xl border border-border-subtle bg-surface-card overflow-clip"
 
-/// Der Satz unter dem Titel. Deaktivieren kommt erst mit budgeting-sn2sn, der Satz nennt es deshalb nicht.
-let IntroText = "Antippen zum Umbenennen oder Verschieben. Änderungen gehen nach YNAB."
+/// Der Satz unter dem Titel, wie im Prototyp.
+let IntroText =
+    "Antippen zum Umbenennen, Verschieben oder Deaktivieren. Deaktivierte Kategorien verschwinden aus Auswahl und Budget, ihre Buchungen und Historie bleiben."
+
+/// Der Satz unter dem Schalter "Aktiv", wie im Prototyp.
+let ActiveSwitchText = "Deaktiviert verschwindet sie aus Auswahl und Budget. Buchungen und Historie bleiben."
 
 let private header (dispatch: Msg -> unit) =
     Html.div [
@@ -54,17 +60,26 @@ let private groupSection (group: ManagedCategoryGroup) (dispatch: Msg -> unit) =
                     ]
                 ]
             ]
-            if not group.Categories.IsEmpty then
+            let active = activeCategories group
+            if not active.IsEmpty then
                 Html.div [
                     prop.className cardClass
                     prop.children [
-                        for category in group.Categories do
-                            Button.nameRow
+                        for category in active do
+                            Button.orderNameRow
                                 (string category.Id)
                                 "categories-row"
                                 $"{category.Name} bearbeiten"
                                 category.Name
                                 (fun () -> dispatch (EditCategory category.Id))
+                                (fun e ->
+                                    match moveKey e.key e.altKey with
+                                    | Some step ->
+                                        e.preventDefault ()
+                                        dispatch (MoveCategory (category.Id, step))
+                                    | None -> ())
+                                (fun () -> dispatch (MoveCategory (category.Id, StepUp)))
+                                (fun () -> dispatch (MoveCategory (category.Id, StepDown)))
                     ]
                 ]
         ]
@@ -92,6 +107,56 @@ let private addButtons (dispatch: Msg -> unit) =
                     OnClick = fun () -> dispatch NewGroup }
         ]
     ]
+
+/// Der Abschnitt "Deaktiviert (n)": eingeklappt eine Zeile mit Chevron, aufgeklappt eine Karte mit Name (gedämpft),
+/// Gruppe und "Aktivieren" je Kategorie. Ohne deaktivierte Kategorie fehlt er.
+let private inactiveSection (groups: ManagedCategoryGroup list) (isOpen: bool) (dispatch: Msg -> unit) =
+    let inactive = inactiveCategories groups
+    if inactive.IsEmpty then
+        Html.none
+    else
+        Html.section [
+            prop.custom ("data-testid", "categories-inactive")
+            prop.className "flex flex-col gap-2"
+            prop.children [
+                Button.sectionToggle
+                    "categories-inactive-toggle"
+                    "categories-inactive-list"
+                    $"Deaktiviert ({inactive.Length})"
+                    isOpen
+                    (fun () -> dispatch ToggleInactive)
+                Html.div [
+                    prop.id "categories-inactive-list"
+                    prop.className cardClass
+                    prop.hidden (not isOpen)
+                    prop.children [
+                        for group, category in inactive do
+                            Html.div [
+                                prop.key (string category.Id)
+                                prop.custom ("data-testid", "categories-inactive-row")
+                                prop.className "flex items-center justify-between gap-3 px-4 py-2.5 min-h-[56px] border-b border-border-subtle last:border-b-0"
+                                prop.children [
+                                    Html.div [
+                                        prop.className "flex flex-col min-w-0"
+                                        prop.children [
+                                            Truncate.text $"block {ListRoles.primarySize} {FontWeights.medium} {Colors.textMuted}" category.Name
+                                            Truncate.text $"block {ListRoles.secondary}" group.Name
+                                        ]
+                                    ]
+                                    Button.view
+                                        { Button.defaultProps with
+                                            Text = "Aktivieren"
+                                            Variant = Button.Secondary
+                                            Size = Button.Small
+                                            AriaLabel = Some $"{category.Name} aktivieren"
+                                            ClassName = Some "shrink-0"
+                                            OnClick = fun () -> dispatch (Reactivate category.Id) }
+                                ]
+                            ]
+                    ]
+                ]
+            ]
+        ]
 
 let private groupOptions (groups: ManagedCategoryGroup list) : Input.SelectOption list =
     [ for group in groups do
@@ -134,6 +199,14 @@ let private formBody (groups: ManagedCategoryGroup list) (form: Form) (dispatch:
                             Options = groupOptions groups
                             Disabled = form.Saving
                             ClassName = Some "w-full" })
+                if editor.CategoryId.IsSome then
+                    Input.switchRow
+                        "categories-active"
+                        "Aktiv"
+                        ActiveSwitchText
+                        editor.Active
+                        form.Saving
+                        (fun active -> dispatch (ActiveToggled active))
                 Html.p [ prop.className ListRoles.muted; prop.text "Wird nach YNAB übertragen." ]
             | EditingGroup _ -> ()
             match form.Error with
@@ -223,6 +296,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                     for group in groups do
                         groupSection group dispatch
                     addButtons dispatch
+                    inactiveSection groups model.InactiveOpen dispatch
                 | NotAsked
                 | Loading -> skeleton ()
             ]

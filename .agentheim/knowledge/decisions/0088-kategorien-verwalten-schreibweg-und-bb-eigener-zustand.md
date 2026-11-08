@@ -49,3 +49,6 @@ Entschieden von Roman am 2026-11-08.
 - **Reihenfolge aus YNAB übernehmen**, Pfeile weglassen: abgelehnt, Roman will die eigene Reihenfolge in BB.
 - **Kategorien als BB-eigene Ereignisse führen:** abgelehnt, YNAB bleibt Quelle der Liste, solange die API Anlegen
   und Umbenennen kann.
+
+## Nachtrag 2026-11-08, Deaktivieren umgesetzt (budgeting-sn2sn)
+Zu Punkt 2: Künftige Zuweisungen prüft BB über sein Soll in den übernommenen Monaten (Faltung aus `events`), nicht über weitere YNAB-Aufrufe; das Verfügbare des laufenden Monats kommt aus YNAB. Deaktiviert und in YNAB ausgeblendet bleiben getrennt: deaktivierte Kategorien fehlen im Picker ganz, ausgeblendete stehen weiter unter "Versteckt".

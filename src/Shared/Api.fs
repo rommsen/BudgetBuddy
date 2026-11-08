@@ -604,4 +604,12 @@ type CategoryApi = {
 
     /// Gruppe anlegen oder umbenennen (Name höchstens 50 Zeichen). Ok trägt die Id der Gruppe.
     saveCategoryGroup: Shared.Budgeting.CategoryGroupSave -> Async<Result<System.Guid, string>>
+
+    /// Kategorie in BB aktivieren oder deaktivieren (budgeting-sn2sn, ADR 0088 Punkt 2), nur in BB. Deaktivieren
+    /// lehnt BB mit Betrag ab, wenn die Kategorie im laufenden Monat Verfügbares oder in einem künftigen Monat
+    /// Zugewiesenes hat.
+    setCategoryActive: Shared.Budgeting.CategoryActiveSave -> Async<Result<unit, string>>
+
+    /// BBs Reihenfolge einer Gruppe merken (budgeting-sn2sn, ADR 0088 Punkt 3), nur in BB, kein YNAB.
+    setCategoryOrder: Shared.Budgeting.CategoryOrderSave -> Async<Result<unit, string>>
 }

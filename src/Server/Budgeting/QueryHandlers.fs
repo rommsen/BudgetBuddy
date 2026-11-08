@@ -28,6 +28,16 @@ let private periodActivityForPage
             return Some Map.empty
     }
 
+/// Die in BB deaktivierten Kategorien für das Lesen eines Monats (budgeting-sn2sn). Ist BBs Zustand nicht lesbar,
+/// gilt keine als deaktiviert: die Liste zeigt dann eine zu viel, aber kein Geld wird unsichtbar. Der Grund steht
+/// im Server-Log.
+let private deactivatedForPage (connect: unit -> Microsoft.Data.Sqlite.SqliteConnection) : Async<Set<Guid>> =
+    async {
+        match! Budgeting.Persistence.loadCategoryLayoutWith connect with
+        | Ok layout -> return layout.Deactivated
+        | Error _ -> return Set.empty
+    }
+
 /// Liest einen Monat für die Budget-Seite (budgeting-dgrp7, ADR 0084 Punkt 3, Nachtrag): `observeMonth` liest
 /// YNAB unter der Monatssperre (ein Aufruf), hält Übernahme und Beobachtungen fest, und die Antwort entsteht aus
 /// dessen YNAB-Stand und der Faltung. Zugewiesen ist BBs Soll, eine offene Rückschreibung trägt ihre Markierung;
@@ -36,6 +46,8 @@ let private periodActivityForPage
 /// Regeln im Monat; wartet eine Kategorie noch auf die Target-Übernahme, läuft sie vorher (budgeting-eh8xe).
 /// Der Fehlbetrag ist BBs (budgeting-hbhzf), die Ausgaben der Periode dafür kommen aus dem Kassenbuch (`ledger`,
 /// budgeting-k5q2w), nie aus YNAB. Ist es nicht lesbar, kommt der Monat ohne Fehlbetrag und der Grund steht im Log.
+/// In BB deaktivierte Kategorien fehlen, außer sie haben im Monat Aktivität oder Verfügbares (`applyDeactivation`,
+/// budgeting-sn2sn).
 /// `connect` ist die Datenbank für Stream, Pausen und Anhängen, `now` der Zeitpunkt der Ereignisse (UTC).
 let budgetMonthWithLedger
     (ledger: CommandHandlers.LedgerActivityPort)
@@ -61,7 +73,8 @@ let budgetMonthWithLedger
                 | Error message -> return Error (YnabError.LocalReadFailed message)
                 | Ok targets ->
                     let! activity = periodActivityForPage ledger targets monthKey
-                    return Ok (toBudgetMonthWith assignments activity targets paused raw)
+                    let! deactivated = deactivatedForPage connect
+                    return Ok (toBudgetMonthWith assignments activity targets paused raw |> applyDeactivation deactivated)
     }
 
 /// `budgetMonthWithLedger` mit dem Kassenbuch der Anwendung (`CommandHandlers.liveLedgerActivityPort`).

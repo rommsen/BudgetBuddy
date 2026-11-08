@@ -26,7 +26,7 @@ let private budgetCategory name (assigned: int64) : BudgetCategory =
       Available = eur assigned
       Underfunded = None
       Target = None
-      Pause = None; OpenWriteBack = None }
+      Pause = None; OpenWriteBack = None; Deactivated = None }
 
 let private monthWith (cats: BudgetCategory list) : BudgetMonth =
     { Month = "2026-11-01"

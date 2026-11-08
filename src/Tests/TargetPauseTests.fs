@@ -48,7 +48,7 @@ let private budgetCategory (available: decimal) (under: decimal option) (pause: 
       Available = eur available
       Underfunded = under |> Option.map eur
       Target = Some target
-      Pause = pause; OpenWriteBack = None }
+      Pause = pause; OpenWriteBack = None; Deactivated = None }
 
 let private pauseEvent (id: Guid) : HistoryPause =
     { EventId = id

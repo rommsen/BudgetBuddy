@@ -160,7 +160,7 @@ let private category assigned activity available : BudgetCategory =
       Available = eur available
       Underfunded = None
       Target = None
-      Pause = None; OpenWriteBack = None }
+      Pause = None; OpenWriteBack = None; Deactivated = None }
 
 [<Tests>]
 let buildupTests =

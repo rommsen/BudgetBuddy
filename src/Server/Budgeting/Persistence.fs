@@ -89,15 +89,116 @@ let loadMonthStartHiddenOn (conn: SqliteConnection) (fromMonth: string) : string
     )
     |> List.ofSeq
 
+// ============================================
+// Kategorie deaktivieren und eigene Reihenfolge (budgeting-sn2sn, ADR 0088 Punkte 2 und 3)
+// ============================================
+
+/// BBs eigener Zustand je Kategorie: deaktiviert und die Stelle in BBs Reihenfolge ihrer Gruppe. Zustand, kein
+/// Ereignis (ADR 0083, ADR 0088): beides bewegt kein Geld. Eine eigene Tabelle neben dem Kategorie-Spiegel
+/// (`ledger_categories`), damit der Spiegel sie nie überschreibt. `group_id` und `position` gehören zusammen und
+/// fehlen, solange die Kategorie nie umsortiert wurde. Wiederholbar.
+let createCategoryLayoutSchemaOn (conn: SqliteConnection) : unit =
+    conn.Execute(
+        """CREATE TABLE IF NOT EXISTS budget_category_layout (
+               category_id TEXT    NOT NULL PRIMARY KEY,
+               deactivated INTEGER NOT NULL DEFAULT 0,
+               group_id    TEXT,
+               position    INTEGER,
+               updated_at  TEXT    NOT NULL
+           )"""
+    )
+    |> ignore
+
+/// Eine gemerkte Stelle: Gruppe, Kategorie, Position.
+[<CLIMutable>]
+type CategoryPositionRow = { group_id: string; category_id: string; position: int64 }
+
+/// Deaktiviert (`active = false`) oder aktiviert die Kategorie. Die gemerkte Stelle bleibt.
+let setCategoryActiveOn (conn: SqliteConnection) (categoryId: Guid) (active: bool) (at: DateTime) : unit =
+    conn.Execute(
+        """INSERT INTO budget_category_layout (category_id, deactivated, updated_at)
+           VALUES (@category_id, @deactivated, @at)
+           ON CONFLICT(category_id) DO UPDATE SET deactivated = excluded.deactivated, updated_at = excluded.updated_at""",
+        {| category_id = string categoryId
+           deactivated = (if active then 0 else 1)
+           at = at.ToString("o", CultureInfo.InvariantCulture) |}
+    )
+    |> ignore
+
+/// Merkt BBs Reihenfolge einer Gruppe, in einer Transaktion: jede genannte Kategorie bekommt Gruppe und Stelle,
+/// eine früher in der Gruppe gemerkte, die nicht mehr genannt ist, verliert ihre Stelle. Der Zustand deaktiviert
+/// bleibt.
+let saveCategoryOrderOn (conn: SqliteConnection) (groupId: Guid) (categoryIds: Guid list) (at: DateTime) : unit =
+    if conn.State <> Data.ConnectionState.Open then
+        conn.Open()
+    use tx = conn.BeginTransaction()
+    let stamp = at.ToString("o", CultureInfo.InvariantCulture)
+    conn.Execute(
+        "UPDATE budget_category_layout SET group_id = NULL, position = NULL, updated_at = @at WHERE group_id = @group_id",
+        {| group_id = string groupId; at = stamp |},
+        tx
+    )
+    |> ignore
+    categoryIds
+    |> List.iteri (fun index categoryId ->
+        conn.Execute(
+            """INSERT INTO budget_category_layout (category_id, deactivated, group_id, position, updated_at)
+               VALUES (@category_id, 0, @group_id, @position, @at)
+               ON CONFLICT(category_id) DO UPDATE SET
+                   group_id = excluded.group_id, position = excluded.position, updated_at = excluded.updated_at""",
+            {| category_id = string categoryId; group_id = string groupId; position = int64 index; at = stamp |},
+            tx
+        )
+        |> ignore)
+    tx.Commit()
+
+/// Liest BBs Zustand der Kategorien: die deaktivierten und je Gruppe die gemerkte Reihenfolge.
+let loadCategoryLayoutOn (conn: SqliteConnection) : CategoryLayout =
+    let deactivated =
+        conn.Query<string>("SELECT category_id FROM budget_category_layout WHERE deactivated = 1")
+        |> Seq.map Guid.Parse
+        |> Set.ofSeq
+    let orders =
+        conn.Query<CategoryPositionRow>(
+            """SELECT group_id, category_id, position FROM budget_category_layout
+               WHERE group_id IS NOT NULL AND position IS NOT NULL
+               ORDER BY group_id, position"""
+        )
+        |> Seq.groupBy (fun row -> Guid.Parse row.group_id)
+        |> Seq.map (fun (groupId, rows) -> groupId, rows |> Seq.map (fun row -> Guid.Parse row.category_id) |> List.ofSeq)
+        |> Map.ofSeq
+    { Deactivated = deactivated; Orders = orders }
+
+/// Die Meldung, wenn BBs Zustand der Kategorien nicht lesbar ist.
+[<Literal>]
+let CategoryLayoutUnreadableText = "Deaktivieren und Reihenfolge der Kategorien nicht lesbar"
+
+/// `loadCategoryLayoutOn` über `connect`. Ein Fehler wird geloggt und zu `CategoryLayoutUnreadableText`.
+let loadCategoryLayoutWith (connect: unit -> SqliteConnection) : Async<Result<CategoryLayout, string>> =
+    async {
+        try
+            use conn = connect ()
+            return Ok (loadCategoryLayoutOn conn)
+        with ex ->
+            eprintfn "Zustand der Kategorien lesen gescheitert: %s" ex.Message
+            return Error CategoryLayoutUnreadableText
+    }
+
+/// `loadCategoryLayoutWith` auf der Datenbank der Anwendung.
+let loadCategoryLayout () : Async<Result<CategoryLayout, string>> =
+    loadCategoryLayoutWith Core.getConnection
+
 /// Legt `events` (ADR 0083) an und überführt die früheren Budget-Tabellen nach `events` (budgeting-hyn77). Entfernt
 /// `category_month_activity` (budgeting-k5q2w: die Ausgaben der Periode kommen aus dem Kassenbuch) und
 /// `underfunded_comparisons` (budgeting-hbhzf: BB rechnet den Fehlbetrag selbst, die Parallelrechnung entfällt),
-/// beides abgeleiteter Zustand ohne Geldentscheidung. Legt `budget_month_start_hidden` an (budgeting-m3x7f).
+/// beides abgeleiteter Zustand ohne Geldentscheidung. Legt `budget_month_start_hidden` an (budgeting-m3x7f) und
+/// `budget_category_layout` (budgeting-sn2sn).
 /// Wiederholbar. Läuft beim Start hinter `Ledger.Persistence.initializeLedgerSchema`. Bricht die Migration ab, wirft der Aufruf und BB startet nicht.
 let initializeBudgetingSchema () =
     use conn = Core.getConnection ()
     EventStore.createSchemaOn conn
     createMonthStartHiddenSchemaOn conn
+    createCategoryLayoutSchemaOn conn
     dropMonthActivityOn conn
     dropUnderfundedComparisonsOn conn
     Budgeting.EventMigration.migrateBudgetEventsOn conn |> ignore

@@ -591,3 +591,22 @@ let validateCategoryGroupSave
     | [], None -> Ok (CreateGroup name)
     | [], Some (Some group) -> if group.Name = name then Ok (GroupUnchanged group.Id) else Ok (RenameGroup (group.Id, name))
     | _ -> Error errors
+
+/// Die Meldung, wenn die Reihenfolge keine Gruppe nennt.
+[<Literal>]
+let OrderGroupMissingText = "Die Reihenfolge nennt keine Gruppe."
+
+/// Die Meldung, wenn eine Kategorie in der Reihenfolge fehlt oder doppelt steht.
+[<Literal>]
+let OrderCategoryInvalidText = "Die Reihenfolge nennt eine Kategorie doppelt oder ohne Id."
+
+/// BBs Reihenfolge einer Gruppe (budgeting-sn2sn): eine Gruppe, jede Kategorie höchstens einmal und keine leere Id.
+/// Alle Gründe gesammelt.
+let validateCategoryOrderSave (save: Shared.Budgeting.CategoryOrderSave) : Result<unit, string list> =
+    let errors =
+        [ if save.GroupId = Guid.Empty then
+              OrderGroupMissingText
+          if save.CategoryIds |> List.contains Guid.Empty
+             || List.length (List.distinct save.CategoryIds) <> List.length save.CategoryIds then
+              OrderCategoryInvalidText ]
+    if errors.IsEmpty then Ok () else Error errors

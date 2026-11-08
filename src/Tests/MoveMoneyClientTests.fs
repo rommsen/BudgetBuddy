@@ -25,7 +25,7 @@ let private category name (assigned: decimal) (available: decimal) : BudgetCateg
       Available = eur available
       Underfunded = None
       Target = None
-      Pause = None; OpenWriteBack = None }
+      Pause = None; OpenWriteBack = None; Deactivated = None }
 
 let private food = category "Lebensmittel" 900m 80m
 let private trip = category "Urlaub" 0m -30.5m

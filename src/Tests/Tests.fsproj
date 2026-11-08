@@ -113,7 +113,9 @@
     <Compile Include="BotValidationTests.fs" />
     <Compile Include="BotDomainTests.fs" />
     <Compile Include="BotApiTests.fs" />
+    <Compile Include="CategoryLayoutFixture.fs" />
     <Compile Include="CategoryAdminTests.fs" />
+    <Compile Include="CategoryLayoutTests.fs" />
     <Compile Include="RemotingPipelineTests.fs" />
     <Compile Include="RemotingEndpointNegativeTests.fs" />
     <Compile Include="NetworkCallGuardTests.fs" />

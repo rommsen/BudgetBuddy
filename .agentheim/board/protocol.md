@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-08 17:12 -- Task verified and completed: budgeting-sn2sn - "Kategorie deaktivieren und eigene Reihenfolge, beides nur in BB (ADR 0088 Punkte 2 und 3)"
+
+**Type:** Work / Task completion
+**Task:** budgeting-sn2sn - "Kategorie deaktivieren und eigene Reihenfolge, beides nur in BB (ADR 0088 Punkte 2 und 3)"
+**Summary:** Kategorie deaktivieren und eigene Reihenfolge, beides nur in BB
+**Duration:** 49m
+**Verification:** PASS (iteration 1)
+**Files changed:** 37
+**Tests added:** 33
+**ADRs written:** none
+
+---
+
+## 2026-11-08 17:06 -- Verification failed: budgeting-e2z7v - Targets beim Speichern nach YNAB schreiben
+
+**Type:** Work / Verification failure
+**Task:** budgeting-e2z7v - Targets beim Speichern nach YNAB schreiben
+**Iteration:** 1 of 3
+**Reasons:** README-Begriff Target ändern (nur BB) und seine Grenze widersprechen dem Code, Verweise in Target-Änderung und TargetÄndern nicht nachgezogen, Open question ohne datierte Notiz
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-08 16:47 -- Batch started: [ledger-at63w]
 
 **Type:** Work / Batch start

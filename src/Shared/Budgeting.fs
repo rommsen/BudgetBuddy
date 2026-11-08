@@ -145,6 +145,10 @@ type BudgetCategory = {
     /// YNAB. Trägt die Gruppen-Id der Entscheidung, über sie läuft "erneut senden". `None`: Soll und YNAB
     /// stimmen überein. Optional, damit ein älterer Client oder Server ohne das Feld weiter liest.
     OpenWriteBack: Guid option
+    /// In BB deaktiviert (budgeting-sn2sn, ADR 0088 Punkt 2): `Some true` steht nur im Monat, weil die Kategorie
+    /// darin Aktivität oder Verfügbares hat. Optional, damit ein älterer Client oder Server ohne das Feld weiter
+    /// liest; `None` heißt aktiv.
+    Deactivated: bool option
 }
 
 /// Ist das Target der Kategorie in diesem Monat pausiert? Die einzige Frage der Fachregeln (Fehlt, Frei,
@@ -1647,11 +1651,13 @@ let checkBars (row: TargetCheckRow) : CheckBars =
 // Kategorien verwalten (budgeting-pscgb, ADR 0088 Punkt 1)
 // ============================================
 
-/// Eine Kategorie auf der Seite Kategorien: Id und Name aus YNAB.
-type ManagedCategory = { Id: Guid; Name: string }
+/// Eine Kategorie auf der Seite Kategorien: Id und Name aus YNAB. `Active` ist BBs eigener Zustand
+/// (budgeting-sn2sn, ADR 0088 Punkt 2): `false` heißt in BB deaktiviert.
+type ManagedCategory = { Id: Guid; Name: string; Active: bool }
 
-/// Eine Gruppe auf der Seite Kategorien mit ihren Kategorien in YNABs Reihenfolge. YNAB bleibt die Quelle der
-/// Liste und der Namen (ADR 0088 Punkt 1). Ausgeblendete, gelöschte und interne Gruppen und Kategorien fehlen.
+/// Eine Gruppe auf der Seite Kategorien mit ihren Kategorien in BBs Reihenfolge (budgeting-sn2sn, ADR 0088
+/// Punkt 3). YNAB bleibt die Quelle der Liste und der Namen (ADR 0088 Punkt 1). Ausgeblendete, gelöschte und
+/// interne Gruppen und Kategorien fehlen, deaktivierte stehen mit `Active = false` darin.
 type ManagedCategoryGroup = { Id: Guid; Name: string; Categories: ManagedCategory list }
 
 /// Kategorie anlegen oder bearbeiten. `CategoryId = None` legt an, sonst gehen nur die geänderten Felder
@@ -1664,3 +1670,127 @@ type CategoryGroupSave = { GroupId: Guid option; Name: string }
 /// Höchstlänge eines Gruppennamens, die Grenze der YNAB-API.
 [<Literal>]
 let CategoryGroupNameMaxLength = 50
+
+// ============================================
+// Kategorie deaktivieren und eigene Reihenfolge (budgeting-sn2sn, ADR 0088 Punkte 2 und 3)
+// ============================================
+
+/// Kategorie in BB aktivieren oder deaktivieren. Zustand, kein Ereignis (ADR 0083).
+type CategoryActiveSave = { CategoryId: Guid; Active: bool }
+
+/// BBs Reihenfolge einer Gruppe: alle Kategorien der Gruppe von oben nach unten. Zustand, kein Ereignis.
+type CategoryOrderSave = { GroupId: Guid; CategoryIds: Guid list }
+
+/// Ein Schritt mit den Pfeilen auf der Seite Kategorien.
+type OrderStep =
+    | StepUp
+    | StepDown
+
+/// BBs eigener Zustand der Kategorien: welche deaktiviert sind und je Gruppe (Id aus YNAB) die gemerkte
+/// Reihenfolge.
+type CategoryLayout = { Deactivated: Set<Guid>; Orders: Map<Guid, Guid list> }
+
+/// Nichts deaktiviert, keine Reihenfolge gemerkt: alles wie in YNAB.
+let emptyCategoryLayout : CategoryLayout = { Deactivated = Set.empty; Orders = Map.empty }
+
+/// BBs Reihenfolge einer Gruppe: zuerst die gemerkten Ids, die heute in der Gruppe stehen, danach die übrigen der
+/// Gruppe in YNABs Folge. So steht eine neue Kategorie aus YNAB und eine aus einer anderen Gruppe am Ende, und eine
+/// gemerkte Id, die nicht mehr in der Gruppe steht, fällt weg.
+let orderWithin (stored: Guid list) (current: Guid list) : Guid list =
+    let present = Set.ofList current
+    let kept = stored |> List.distinct |> List.filter present.Contains
+    let known = Set.ofList kept
+    kept @ (current |> List.filter (fun id -> not (known.Contains id)))
+
+/// Ein Pfeil: die Kategorie tauscht mit ihrer Nachbarin. Oben "hoch" und unten "runter" ändern nichts, eine
+/// unbekannte Id auch nicht.
+let moveWithin (step: OrderStep) (id: Guid) (order: Guid list) : Guid list =
+    match order |> List.tryFindIndex ((=) id) with
+    | None -> order
+    | Some index ->
+        let other =
+            match step with
+            | StepUp -> index - 1
+            | StepDown -> index + 1
+        if other < 0 || other >= List.length order then
+            order
+        else
+            order
+            |> List.mapi (fun i x ->
+                if i = index then order.[other]
+                elif i = other then id
+                else x)
+
+/// Die Gruppen der Seite Kategorien in BBs Reihenfolge, jede Kategorie mit ihrem Zustand `Active`.
+let arrangeGroups (layout: CategoryLayout) (groups: ManagedCategoryGroup list) : ManagedCategoryGroup list =
+    groups
+    |> List.map (fun group ->
+        let byId = group.Categories |> List.map (fun c -> c.Id, c) |> Map.ofList
+        let stored = layout.Orders |> Map.tryFind group.Id |> Option.defaultValue []
+        let ordered = orderWithin stored (group.Categories |> List.map (fun c -> c.Id))
+        { group with
+            Categories =
+                ordered
+                |> List.map (fun id -> { byId.[id] with Active = not (layout.Deactivated.Contains id) }) })
+
+/// Alle Kategorie-Ids flach in BBs Reihenfolge. `placements` sind Gruppe und Kategorie in YNABs Folge (aus
+/// `GET /categories`); die Gruppen bleiben in YNABs Folge, innerhalb jeder Gruppe gilt `orderWithin`.
+let flatCategoryOrder (layout: CategoryLayout) (placements: (Guid * Guid) list) : Guid list =
+    placements
+    |> List.map fst
+    |> List.distinct
+    |> List.collect (fun groupId ->
+        let current = placements |> List.filter (fun (g, _) -> g = groupId) |> List.map snd
+        let stored = layout.Orders |> Map.tryFind groupId |> Option.defaultValue []
+        orderWithin stored current)
+
+/// Die Optionen der Kategorie-Picker: ohne deaktivierte Kategorien, in BBs Reihenfolge (`order` aus
+/// `flatCategoryOrder`). Eine Kategorie ohne Rang behält ihre Stelle hinter den gereihten, die Gruppen bleiben
+/// beisammen, weil `order` Gruppe für Gruppe läuft. In YNAB ausgeblendete bleiben drin, der Picker zeigt sie unter
+/// "Versteckt".
+let pickerCategories (layout: CategoryLayout) (order: Guid list) (categories: YnabCategory list) : YnabCategory list =
+    let ranks = order |> List.mapi (fun index id -> id, index) |> Map.ofList
+    let idOf (c: YnabCategory) =
+        let (YnabCategoryId id) = c.Id
+        id
+    categories
+    |> List.filter (fun c -> not (layout.Deactivated.Contains (idOf c)))
+    |> List.sortBy (fun c -> ranks |> Map.tryFind (idOf c) |> Option.defaultValue Int32.MaxValue)
+
+/// Darf die Kategorie deaktiviert werden (ADR 0088 Punkt 2)? Nur ohne Verfügbares im laufenden Monat und ohne
+/// Zugewiesen in einem künftigen Monat (`futureAssigned`: Monat "YYYY-MM-01" und Betrag). Sonst nennt die
+/// Meldung jeden Grund mit Betrag.
+let deactivationCheck (name: string) (available: Money) (futureAssigned: (string * Money) list) : Result<unit, string> =
+    let availableReason =
+        if available.Amount > 0m then
+            [ $"{name} hat noch {euroText available}. Erst verschieben, dann deaktivieren." ]
+        elif available.Amount < 0m then
+            [ $"{name} ist mit {euroText { available with Amount = -available.Amount }} überzogen. Erst ausgleichen, dann deaktivieren." ]
+        else
+            []
+    let futureReasons =
+        futureAssigned
+        |> List.filter (fun (_, m) -> m.Amount <> 0m)
+        |> List.sortBy fst
+        |> List.map (fun (month, m) ->
+            $"{name} hat im {monthLabel month} {euroText m} zugewiesen. Erst zurücknehmen, dann deaktivieren.")
+    match availableReason @ futureReasons with
+    | [] -> Ok ()
+    | reasons -> Error (String.concat " " reasons)
+
+/// Ist die Kategorie in BB deaktiviert und steht nur wegen Aktivität oder Verfügbarem im Monat?
+let isDeactivated (c: BudgetCategory) : bool = c.Deactivated = Some true
+
+/// Die Budget-Liste eines Monats mit BBs Deaktivieren (ADR 0088 Punkt 2): eine deaktivierte Kategorie ohne
+/// Aktivität und ohne Verfügbares fehlt. Hat sie im Monat eines davon, bleibt sie mit `Deactivated = Some true`,
+/// damit kein Geld unsichtbar wird. Eine Gruppe ohne Kategorie fällt weg.
+let applyDeactivation (deactivated: Set<Guid>) (month: BudgetMonth) : BudgetMonth =
+    let shown (c: BudgetCategory) =
+        if not (deactivated.Contains c.Id) then Some c
+        elif c.Activity.Amount <> 0m || c.Available.Amount <> 0m then Some { c with Deactivated = Some true }
+        else None
+    { month with
+        Groups =
+            month.Groups
+            |> List.map (fun g -> { g with Categories = g.Categories |> List.choose shown })
+            |> List.filter (fun g -> not g.Categories.IsEmpty) }

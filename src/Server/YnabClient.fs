@@ -2431,7 +2431,7 @@ let interpretCategoryGroupsResponse (budgetId: string) (status: int) (bodyText: 
     let category =
         Decode.object (fun get ->
             let shown = not (flag get "deleted" || flag get "hidden")
-            shown, ({ Id = get.Required.Field "id" Decode.guid; Name = get.Required.Field "name" Decode.string } : Shared.Budgeting.ManagedCategory))
+            shown, ({ Id = get.Required.Field "id" Decode.guid; Name = get.Required.Field "name" Decode.string; Active = true } : Shared.Budgeting.ManagedCategory))
     let group =
         Decode.object (fun get ->
             let name = get.Required.Field "name" Decode.string
@@ -2468,6 +2468,39 @@ let getCategoryGroupsWith (fetch: unit -> Async<int * string>) (budgetId: string
 /// Die Gruppen mit ihren Kategorien für die Seite Kategorien (ein Aufruf).
 let getCategoryGroups (token: string) (YnabBudgetId budgetId: YnabBudgetId) : Async<YnabResult<Shared.Budgeting.ManagedCategoryGroup list>> =
     getCategoryGroupsWith (fetchCategoriesText token budgetId) budgetId
+
+/// Gruppe und Kategorie je Kategorie in YNABs Folge aus `GET /budgets/{id}/categories` (budgeting-sn2sn): daran
+/// hängt BBs Reihenfolge je Gruppe (ADR 0088 Punkt 3). Alle Gruppen und Kategorien, auch ausgeblendete.
+let categoryPlacementsDecoder : Decoder<(Guid * Guid) list> =
+    let group =
+        Decode.object (fun get ->
+            let groupId = get.Required.Field "id" Decode.guid
+            get.Optional.Field "categories" (Decode.list (Decode.field "id" Decode.guid))
+            |> Option.defaultValue []
+            |> List.map (fun categoryId -> groupId, categoryId))
+    Decode.field "data" (Decode.field "category_groups" (Decode.list group)) |> Decode.map List.concat
+
+/// Die Kategorien wie `getCategoriesWith` und dazu ihre Gruppen-Ids, aus einem Aufruf (budgeting-sn2sn).
+let getCategoriesPlacedWith
+    (fetch: unit -> Async<int * string>)
+    (budgetId: string)
+    : Async<YnabResult<YnabCategory list * (Guid * Guid) list>> =
+    async {
+        try
+            let! status, bodyText = fetch ()
+            match interpretCategoriesResponse budgetId status bodyText with
+            | Error e -> return Error e
+            | Ok categories ->
+                match Decode.fromString categoryPlacementsDecoder bodyText with
+                | Ok placements -> return Ok (categories, placements)
+                | Error err -> return Error (unreadableResponse "categories" err)
+        with ex ->
+            return Error (fetchFailure "categories" ex)
+    }
+
+/// Kategorien mit Gruppen-Ids für Picker und Budget-Liste in BBs Reihenfolge (ein Aufruf).
+let getCategoriesPlaced (token: string) (YnabBudgetId budgetId: YnabBudgetId) : Async<YnabResult<YnabCategory list * (Guid * Guid) list>> =
+    getCategoriesPlacedWith (fetchCategoriesText token budgetId) budgetId
 
 /// Der Pfad der Kategorien (`POST`) oder einer Kategorie (`PATCH`), wie der übrige Client unter `/budgets/`.
 let categoriesUrl (budgetId: string) (categoryId: Guid option) : string =

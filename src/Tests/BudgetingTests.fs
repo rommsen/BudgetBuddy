@@ -469,7 +469,7 @@ let private euro amount : Shared.Domain.Money = { Amount = amount; Currency = "E
 
 let private budgetCategory (id: Guid) (name: string) : BudgetCategory =
     { Id = id; Name = name; Assigned = euro 0m; Activity = euro 0m; Available = euro 0m
-      Underfunded = None; Target = None; Pause = None; OpenWriteBack = None }
+      Underfunded = None; Target = None; Pause = None; OpenWriteBack = None; Deactivated = None }
 
 let private orderTests =
     let ids = List.init 5 (fun _ -> Guid.NewGuid())
@@ -512,7 +512,7 @@ let private missingTests =
             Available = euro available
             Underfunded = under |> Option.map euro
             Target = under |> Option.map (fun _ -> target)
-            Pause = (if snoozed then Some PausedInBb else None); OpenWriteBack = None }
+            Pause = (if snoozed then Some PausedInBb else None); OpenWriteBack = None; Deactivated = None }
     let missing c = missingAmount c |> Option.map (fun m -> m.Amount)
     testList "Fehlt" [
         test "Negatives Verfügbar ohne Target fehlt" {

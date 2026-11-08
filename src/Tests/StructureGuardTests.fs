@@ -688,8 +688,13 @@ let private apiWirings =
       @"\bCreateGroup\s*=\s*fun\s+name\s*->\s*YnabClient\.createCategoryGroup\s+token\s+budgetId\s+name\b"
       @"\bUpdateGroup\s*=\s*fun\s+groupId\s+name\s*->\s*YnabClient\.updateCategoryGroup\s+token\s+budgetId\s+groupId\s+name\b"
       @"\bRefreshMirror\s*=\s*fun\s*\(\)\s*->\s*Server\.Budgeting\.Categories\.refreshMirrorWith\s+\(fun\s*\(\)\s*->\s*YnabClient\.getCategories\s+token\s+budgetId\)\s+Ledger\.Persistence\.upsertCategories\b"
-      @"\bcategoryApi\s*:\s*CategoryApi\s*=\s*categoryApiWith\s+Persistence\.Settings\.getSetting\s+liveCategoryAdminPort\s*(?:\n\s*\n|\z)"
-      @"\bRemoting\.fromValue\s+categoryApi\b" ]
+      @"\bcategoryApi\s*\(berlinZone:[^)]*\)\s*:\s*CategoryApi\s*=\s*categoryApiWith\s+Persistence\.Settings\.getSetting\s+liveCategoryAdminPort\s+Persistence\.getConnection\s+\(fun\s*\(\)\s*->\s*DateTime\.UtcNow\)\s+berlinZone\s*(?:\n\s*\n|\z)"
+      @"\bRemoting\.fromValue\s+\(categoryApi\s+berlinZone\)"
+      // Deaktivieren und Reihenfolge (budgeting-sn2sn): die `*With`-Wege sind mit Fake-Ports und In-Memory-SQLite
+      // getestet, die Live-Verdrahtung erreicht YNAB und die echte Datenbank nur im laufenden Dienst.
+      @"\bFetchMonth\s*=\s*fun\s+month\s*->\s*YnabClient\.getMonth\s+token\s+budgetId\s+month\b"
+      @"\bpickerOptionsWith\s+\(fun\s*\(\)\s*->\s*YnabClient\.getCategoriesPlaced\s+token\s+budgetId\)\s+\(fun\s*\(\)\s*->\s*YnabClient\.getReadyToAssign\s+token\s+budgetId\)\s+Budgeting\.Persistence\.loadCategoryLayout\b"
+      @"\bFetchCategoryOrder\s*=\s*fun\s*\(\)\s*->\s*Server\.Budgeting\.Categories\.bbCategoryOrderWith\s+\(fun\s*\(\)\s*->\s*YnabClient\.getCategoriesPlaced\s+token\s+budgetId\)\s+Budgeting\.Persistence\.loadCategoryLayout\b" ]
 
 /// Bobs Push in `BotApi.liveDeps` (ledger-bk3q8): bekommt Konto, `import_id` (ledger-p3vq8) und Request der
 /// Barbuchung und reicht alle drei unverändert an YNAB. Ein Ersatz kompilierte, der Testlauf kann den echten Push nicht ausführen.
@@ -801,9 +806,11 @@ let hostedServiceGuardTests =
                   "let private entryPush () : Async<Ledger.CommandHandlers.EntryPush> =\n    entryPushWith Persistence.Settings.getSetting YnabClient.createTransactionWithFlag\n\n"
                   "match! importTargetWith Persistence.Settings.getSetting toImport.Length with\n"
                   "match! importTargetWith Persistence.Settings.getSetting transactionsToForce.Length with\n"
-                  "{ FetchGroups = fun () -> YnabClient.getCategoryGroups token budgetId\n  CreateCategory = fun groupId name -> YnabClient.createCategory token budgetId groupId name\n  UpdateCategory = fun categoryId patch -> YnabClient.patchCategory token budgetId categoryId patch\n  CreateGroup = fun name -> YnabClient.createCategoryGroup token budgetId name\n  UpdateGroup = fun groupId name -> YnabClient.updateCategoryGroup token budgetId groupId name\n  RefreshMirror = fun () -> Server.Budgeting.Categories.refreshMirrorWith (fun () -> YnabClient.getCategories token budgetId) Ledger.Persistence.upsertCategories }\n"
-                  "let categoryApi : CategoryApi = categoryApiWith Persistence.Settings.getSetting liveCategoryAdminPort\n\n"
-                  "|> Remoting.fromValue categoryApi\n"
+                  "{ FetchGroups = fun () -> YnabClient.getCategoryGroups token budgetId\n  CreateCategory = fun groupId name -> YnabClient.createCategory token budgetId groupId name\n  UpdateCategory = fun categoryId patch -> YnabClient.patchCategory token budgetId categoryId patch\n  CreateGroup = fun name -> YnabClient.createCategoryGroup token budgetId name\n  UpdateGroup = fun groupId name -> YnabClient.updateCategoryGroup token budgetId groupId name\n  RefreshMirror = fun () -> Server.Budgeting.Categories.refreshMirrorWith (fun () -> YnabClient.getCategories token budgetId) Ledger.Persistence.upsertCategories\n  FetchMonth = fun month -> YnabClient.getMonth token budgetId month }\n"
+                  "let categoryApi (berlinZone: TimeZoneInfo) : CategoryApi =\n    categoryApiWith Persistence.Settings.getSetting liveCategoryAdminPort Persistence.getConnection (fun () -> DateTime.UtcNow) berlinZone\n\n"
+                  "|> Remoting.fromValue (categoryApi berlinZone)\n"
+                  "return!\n    Server.Budgeting.Categories.pickerOptionsWith\n        (fun () -> YnabClient.getCategoriesPlaced token budgetId)\n        (fun () -> YnabClient.getReadyToAssign token budgetId)\n        Budgeting.Persistence.loadCategoryLayout\n"
+                  "FetchCategoryOrder =\n    fun () ->\n        Server.Budgeting.Categories.bbCategoryOrderWith\n            (fun () -> YnabClient.getCategoriesPlaced token budgetId)\n            Budgeting.Persistence.loadCategoryLayout\n"
                   "{ Settings = fun () -> ynabAccessWith Persistence.Settings.getSetting\n  FetchMonths = fun token budgetId -> YnabClient.getMonths token budgetId\n  FetchMonth = fun token budgetId monthKey -> YnabClient.getMonth token budgetId monthKey\n  LoadTakenOver = Budgeting.Persistence.loadTakenOverMonths\n  EnsureTakenOver = Server.Budgeting.CommandHandlers.ensureTakenOver }\n" ]
                 |> String.concat "\n"
             let replaced (original: string) (replacement: string) = real.Replace(original, replacement)
@@ -838,7 +845,16 @@ let hostedServiceGuardTests =
                   "YnabClient.updateCategoryGroup token budgetId groupId name", "async.Return (Ok groupId)", "Gruppe umbenennen ohne YNAB"
                   "Ledger.Persistence.upsertCategories", "(fun _ -> async.Return ())", "Spiegel schreibt nichts"
                   "categoryApiWith Persistence.Settings.getSetting", "categoryApiWith (fun _ -> async.Return None)", "Kategorien ohne Settings"
-                  "Remoting.fromValue categoryApi", "Remoting.fromValue fakeCategoryApi", "anderer Kategorien-Server"
+                  "Remoting.fromValue (categoryApi berlinZone)", "Remoting.fromValue fakeCategoryApi", "anderer Kategorien-Server"
+                  "liveCategoryAdminPort Persistence.getConnection", "liveCategoryAdminPort fakeConnect", "Kategorien auf anderer Datenbank"
+                  "Persistence.getConnection (fun () -> DateTime.UtcNow)", "Persistence.getConnection (fun () -> DateTime.MinValue)", "Kategorien mit fester Uhr"
+                  "Persistence.getConnection (fun () -> DateTime.UtcNow) berlinZone", "Persistence.getConnection (fun () -> DateTime.UtcNow) TimeZoneInfo.Utc", "Kategorien in UTC"
+                  "fun month -> YnabClient.getMonth token budgetId month", "fun month -> async.Return (Error fehler)", "Deaktivieren ohne YNAB-Monat"
+                  "(fun () -> YnabClient.getCategoriesPlaced token budgetId)\n        (fun () -> YnabClient.getReadyToAssign", "(fun () -> async.Return (Ok ([], [])))\n        (fun () -> YnabClient.getReadyToAssign", "Picker ohne YNAB"
+                  "(fun () -> YnabClient.getReadyToAssign token budgetId)", "(fun () -> async.Return None)", "Picker ohne Zu verteilen"
+                  "        Budgeting.Persistence.loadCategoryLayout\n\nFetchCategoryOrder", "        (fun () -> async.Return (Ok emptyCategoryLayout))\n\nFetchCategoryOrder", "Picker ohne BBs Zustand"
+                  "bbCategoryOrderWith\n            (fun () -> YnabClient.getCategoriesPlaced token budgetId)", "bbCategoryOrderWith\n            (fun () -> async.Return (Ok ([], [])))", "Rahmen ohne YNAB"
+                  "            Budgeting.Persistence.loadCategoryLayout\n", "            (fun () -> async.Return (Ok emptyCategoryLayout))\n", "Rahmen ohne BBs Zustand"
                   "budgetApiWith setting livePort", "budgetApiWith (fun _ -> async.Return None) livePort", "Budget-Seite ohne Settings"
                   "setting livePort liveFramePort", "setting emptyPort liveFramePort", "anderer YNAB-Port"
                   "setting livePort liveFramePort", "setting livePort emptyFramePort", "anderer Rahmen-Port"

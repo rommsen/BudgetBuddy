@@ -203,6 +203,18 @@ let private writeBackBadge (testId: string) (c: BudgetCategory) =
         ]
     | None -> Html.none
 
+/// Das Wort "deaktiviert" an einer in BB deaktivierten Kategorie, die nur wegen Aktivität oder Verfügbarem im Monat
+/// steht (budgeting-sn2sn, ADR 0088 Punkt 2). Neutral wie die Rückschreibung, es kürzt nie.
+let private deactivatedBadge (testId: string) (c: BudgetCategory) =
+    if isDeactivated c then
+        Html.span [
+            prop.custom ("data-testid", testId)
+            prop.className "shrink-0"
+            prop.children [ Badge.neutralSmall "deaktiviert" ]
+        ]
+    else
+        Html.none
+
 /// Die dritte Zeile am Handy: Target und Status, fehlt im Statusplatz. Wird es eng, kürzt das
 /// Target, nie der Status: er ist die Aussage der Zeile.
 let private mobileStatusLine (c: BudgetCategory) =
@@ -266,6 +278,7 @@ let private mobileGroup (selectedId: System.Guid option) (dispatch: Msg -> unit)
                           prop.children [
                               Truncate.text $"{ListRoles.muted} tabular-nums" (mobileFiguresText c)
                               writeBackBadge "budget-not-in-ynab-mobile" c
+                              deactivatedBadge "budget-deactivated-mobile" c
                           ]
                       ]
                       mobileStatusLine c ]
@@ -325,6 +338,7 @@ let private desktopRow (selectedId: System.Guid option) (dispatch: Msg -> unit) 
                         | Some text -> missingBadge "budget-missing" text
                         | None -> ()
                         writeBackBadge "budget-not-in-ynab" c
+                        deactivatedBadge "budget-deactivated" c
                     ]
                 ]
             ]

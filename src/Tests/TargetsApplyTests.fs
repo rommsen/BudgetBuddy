@@ -27,7 +27,7 @@ let private category name (assigned: int64) (under: int64 option) (snoozed: bool
       Available = eur assigned
       Underfunded = under |> Option.map eur
       Target = None
-      Pause = (if snoozed then Some PausedInBb else None); OpenWriteBack = None }
+      Pause = (if snoozed then Some PausedInBb else None); OpenWriteBack = None; Deactivated = None }
 
 let private monthOf (tbb: int64) (cats: BudgetCategory list) : BudgetMonth =
     { Month = "2026-11-01"

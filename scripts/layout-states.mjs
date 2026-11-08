@@ -254,9 +254,25 @@ async function mockTargetCheck(page) {
 }
 
 // budgeting-pscgb: die Seite Kategorien mit langen Namen von Gruppe und Kategorie.
+// budgeting-sn2sn: je Kategorie `Active`, zwei deaktivierte (eine mit langem Namen) für den Abschnitt "Deaktiviert".
 const categoryGroups = [
-  { Id: guid(901), Name: "Alltag", Categories: [{ Id: guid(1), Name: "Essen" }, { Id: guid(2), Name: LONG_CATEGORY }] },
-  { Id: guid(902), Name: "Eine Gruppe mit einem langen Namen bis an die Grenze", Categories: [{ Id: guid(3), Name: "Kinderkram" }] },
+  {
+    Id: guid(901),
+    Name: "Alltag",
+    Categories: [
+      { Id: guid(1), Name: "Essen", Active: true },
+      { Id: guid(2), Name: LONG_CATEGORY, Active: true },
+      { Id: guid(4), Name: "Fitnessstudio", Active: false },
+    ],
+  },
+  {
+    Id: guid(902),
+    Name: "Eine Gruppe mit einem langen Namen bis an die Grenze",
+    Categories: [
+      { Id: guid(3), Name: "Kinderkram", Active: true },
+      { Id: guid(5), Name: `Alter Kredit ${LONG_CATEGORY}`, Active: false },
+    ],
+  },
   { Id: guid(903), Name: "Leer", Categories: [] },
 ];
 
@@ -645,6 +661,17 @@ export const STATES = [
     widths: PAGE_WIDTHS,
     mock: mockCategoryAdmin,
     open: async (page) => page.locator('[data-testid="categories-row"]').first().waitFor(),
+  },
+  // budgeting-sn2sn: der Abschnitt "Deaktiviert (n)" aufgeklappt, mit "Aktivieren" je Kategorie.
+  {
+    name: "kategorien-deaktiviert",
+    route: "/budget/categories",
+    widths: PAGE_WIDTHS,
+    mock: mockCategoryAdmin,
+    open: async (page) => {
+      await page.locator('[data-testid="categories-inactive-toggle"]').click();
+      await page.locator('[data-testid="categories-inactive-row"]').first().waitFor();
+    },
   },
   // budgeting-pscgb: Tipp auf eine Kategorie öffnet das Formular, am PC als Panel rechts, am Handy im Sheet.
   {

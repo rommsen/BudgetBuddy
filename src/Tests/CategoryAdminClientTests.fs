@@ -15,7 +15,7 @@ let private drogerie = Guid.Parse "22222222-0000-0000-0000-000000000002"
 let private tiere = Guid.Parse "11111111-0000-0000-0000-000000000009"
 
 let private groups : ManagedCategoryGroup list =
-    [ { Id = alltag; Name = "Alltag"; Categories = [ { Id = drogerie; Name = "Drogerie" } ] }
+    [ { Id = alltag; Name = "Alltag"; Categories = [ { Id = drogerie; Name = "Drogerie"; Active = true } ] }
       { Id = kinder; Name = "Kinder"; Categories = [] } ]
 
 let private loaded : Model = { init () with Groups = Success groups }
@@ -41,8 +41,10 @@ let tests =
                 [ run loaded [ NewCategory; NameChanged "Haustier" ]
                   run loaded [ EditCategory drogerie; NameChanged "Bad" ]
                   run loaded [ RenameGroup kinder; NameChanged "Familie" ]
-                  run loaded [ NewCategory; GroupChosen NewGroupChoice; NameChanged "Tiere" ] ]
-            let alphabet = [ Save; NameChanged "X"; GroupChosen (string kinder); GroupChosen NewGroupChoice ]
+                  run loaded [ NewCategory; GroupChosen NewGroupChoice; NameChanged "Tiere" ]
+                  // budgeting-sn2sn: Deaktivieren aus dem Formular sperrt ebenso.
+                  run loaded [ EditCategory drogerie; ActiveToggled false ] ]
+            let alphabet = [ Save; NameChanged "X"; GroupChosen (string kinder); GroupChosen NewGroupChoice; ActiveToggled true; ActiveToggled false ]
             for start in forms do
                 let saving, firstCmd, _ = update Save start
                 Expect.isNonEmpty firstCmd "der erste Druck sendet"
@@ -73,12 +75,12 @@ let tests =
             | Some { Editor = EditingGroup { GroupId = None; ReturnTo = Some { Name = "Haustier" } } } -> ()
             | other -> failtestf "Gruppen-Formular erwartet, bekam %A" other
             let back, cmd, external = update (GroupSaved ("Tiere", Ok tiere)) (run inGroupForm [ NameChanged "Tiere"; Save ])
-            Expect.equal back.Form.Value.Editor (EditingCategory { CategoryId = None; Name = "Haustier"; GroupId = Some tiere }) "zurück mit neuer Gruppe"
+            Expect.equal back.Form.Value.Editor (EditingCategory { CategoryId = None; Name = "Haustier"; GroupId = Some tiere; Active = true; WasActive = true }) "zurück mit neuer Gruppe"
             Expect.isTrue (match back.Groups with Success gs -> gs |> List.exists (fun g -> g.Id = tiere && g.Name = "Tiere") | _ -> false) "die Gruppe steht im Auswahlfeld"
             Expect.isNonEmpty cmd "die Liste lädt still neu"
             Expect.equal external (ShowToast ("Gruppe Tiere angelegt", ToastSuccess)) "Rückmeldung"
             let cancelled = run inGroupForm [ CloseForm ]
-            Expect.equal cancelled.Form.Value.Editor (EditingCategory { CategoryId = None; Name = "Haustier"; GroupId = Some alltag }) "Abbrechen kehrt unverändert zurück"
+            Expect.equal cancelled.Form.Value.Editor (EditingCategory { CategoryId = None; Name = "Haustier"; GroupId = Some alltag; Active = true; WasActive = true }) "Abbrechen kehrt unverändert zurück"
 
         testCase "gespeichert: das Formular schließt, die Liste lädt neu, eine späte Antwort ohne Formular wird ein Toast" <| fun () ->
             let saved, cmd, external = update (CategorySaved (Ok drogerie)) (run loaded [ EditCategory drogerie; NameChanged "Bad"; Save ])
@@ -113,4 +115,95 @@ let tests =
             Expect.equal external Components.Budget.Types.ShowCategoryAdmin "Sprung"
             Expect.equal (Routing.parseUrl [ "budget"; "categories" ]) BudgetCategories "Route"
             Expect.equal (Routing.toUrlSegments BudgetCategories) [ "budget"; "categories" ] "Rückweg"
+    
+        // ---------------- budgeting-sn2sn: Deaktivieren und Reihenfolge ----------------
+
+        testCase "Deaktivieren im Formular: zuerst BB, dann zu, die Kategorie wandert in Deaktiviert, mit Hinweis auf YNAB" <| fun () ->
+            let toggled = run loaded [ EditCategory drogerie; ActiveToggled false ]
+            let saving, cmd, _ = update Save toggled
+            Expect.isNonEmpty cmd "sendet"
+            Expect.isTrue saving.Form.Value.Saving "läuft"
+            let done', reload, toast = update (ActiveSaved (Ok ())) saving
+            Expect.isNone done'.Form "zu"
+            Expect.isNonEmpty reload "lädt still neu"
+            Expect.equal toast (ShowToast ("Drogerie deaktiviert. In YNAB noch sichtbar, dort ausblenden.", ToastSuccess)) "Hinweis"
+            match done'.Groups with
+            | Success gs ->
+                Expect.isEmpty (activeCategories (gs |> List.find (fun g -> g.Id = alltag))) "nicht mehr in der Karte"
+                Expect.equal (inactiveCategories gs |> List.map (fun (g, c) -> g.Name, c.Name)) [ "Alltag", "Drogerie" ] "im Abschnitt"
+            | other -> failtestf "Liste erwartet, bekam %A" other
+
+        testCase "Deaktivieren und Umbenennen: erst BB, dann YNAB, am Ende der Hinweis auf YNAB" <| fun () ->
+            let saving = run loaded [ EditCategory drogerie; ActiveToggled false; NameChanged "Bad"; Save ]
+            let between, cmd, external = update (ActiveSaved (Ok ())) saving
+            Expect.isNonEmpty cmd "jetzt Name nach YNAB"
+            Expect.equal external NoOp "noch kein Toast"
+            Expect.isTrue between.Form.Value.Saving "läuft weiter"
+            let _, _, toast = update (CategorySaved (Ok drogerie)) between
+            Expect.equal toast (ShowToast ("Bad deaktiviert. In YNAB noch sichtbar, dort ausblenden.", ToastSuccess)) "Hinweis"
+
+        testCase "abgelehntes Deaktivieren: die Meldung mit Betrag bleibt im Formular, nichts ändert sich" <| fun () ->
+            let saving = run loaded [ EditCategory drogerie; ActiveToggled false; Save ]
+            let message = "Drogerie hat noch 24,50 €. Erst verschieben, dann deaktivieren."
+            let failed, cmd, external = update (ActiveSaved (Error message)) saving
+            Expect.isEmpty cmd "kein weiterer Aufruf"
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal failed.Form.Value.Error (Some message) "im Formular"
+            Expect.isFalse failed.Form.Value.Saving "wieder bedienbar"
+            Expect.equal failed.Groups loaded.Groups "Liste unverändert"
+
+        testCase "eine neue Kategorie hat keinen Schalter Aktiv" <| fun () ->
+            let created = run loaded [ NewCategory; ActiveToggled false ]
+            match created.Form.Value.Editor with
+            | EditingCategory editor -> Expect.isTrue editor.Active "bleibt aktiv"
+            | other -> failtestf "Kategorie-Formular erwartet, bekam %A" other
+
+        testCase "Pfeile: am Rand nichts, sonst neue Reihenfolge sofort und an BB, deaktivierte bleiben dahinter" <| fun () ->
+            let a, b, c, off = Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()
+            let start =
+                { init () with
+                    Groups =
+                        Success
+                            [ { Id = alltag
+                                Name = "Alltag"
+                                Categories =
+                                  [ { Id = a; Name = "A"; Active = true }
+                                    { Id = off; Name = "Aus"; Active = false }
+                                    { Id = b; Name = "B"; Active = true }
+                                    { Id = c; Name = "C"; Active = true } ] } ] }
+            let order (m: Model) = match m.Groups with Success [ g ] -> g.Categories |> List.map (fun x -> x.Id) | _ -> []
+            let top, topCmd, _ = update (MoveCategory (a, StepUp)) start
+            Expect.isEmpty topCmd "oben hoch sendet nichts"
+            Expect.equal top start "oben hoch ändert nichts"
+            let bottom, bottomCmd, _ = update (MoveCategory (c, StepDown)) start
+            Expect.isEmpty bottomCmd "unten runter sendet nichts"
+            Expect.equal bottom start "unten runter ändert nichts"
+            let moved, cmd, _ = update (MoveCategory (b, StepUp)) start
+            Expect.isNonEmpty cmd "an BB"
+            Expect.equal (order moved) [ b; a; c; off ] "B vor A, die deaktivierte am Ende"
+            Expect.equal (movedOrder StepDown a (match start.Groups with Success [ g ] -> g | _ -> failwith "Gruppe")) (Some [ b; a; c; off ]) "Auftrag"
+            let failed, reload, toast = update (OrderSaved (Error "weg")) moved
+            Expect.isNonEmpty reload "lädt den Stand neu"
+            Expect.equal toast (ShowToast ("Reihenfolge nicht gespeichert: weg", ToastError)) "Meldung"
+            Expect.equal (order failed) (order moved) "bis zum Neuladen bleibt die Liste"
+
+        testCase "am PC verschiebt Alt mit Pfeil hoch oder runter, ohne Alt nicht" <| fun () ->
+            Expect.equal (moveKey "ArrowUp" true) (Some StepUp) "hoch"
+            Expect.equal (moveKey "ArrowDown" true) (Some StepDown) "runter"
+            Expect.isNone (moveKey "ArrowUp" false) "ohne Alt"
+            Expect.isNone (moveKey "Enter" true) "andere Taste"
+
+        testCase "Aktivieren im Abschnitt Deaktiviert: sofort zurück in der Karte, an BB, Rückmeldung wie im Prototyp" <| fun () ->
+            let withOff =
+                { init () with Groups = Success [ { Id = alltag; Name = "Alltag"; Categories = [ { Id = drogerie; Name = "Drogerie"; Active = false } ] } ] }
+            let opened = model' (update ToggleInactive withOff)
+            Expect.isTrue opened.InactiveOpen "aufgeklappt"
+            let active, cmd, _ = update (Reactivate drogerie) opened
+            Expect.isNonEmpty cmd "an BB"
+            Expect.isEmpty (match active.Groups with Success gs -> inactiveCategories gs | _ -> []) "nicht mehr deaktiviert"
+            let _, reload, toast = update (Reactivated ("Drogerie", Ok ())) active
+            Expect.isNonEmpty reload "lädt still neu"
+            Expect.equal toast (ShowToast ("Drogerie ist wieder aktiv", ToastSuccess)) "Rückmeldung"
+            let _, _, failed = update (Reactivated ("Drogerie", Error "weg")) active
+            Expect.equal failed (ShowToast ("Drogerie nicht aktiviert: weg", ToastError)) "Fehler"
     ]

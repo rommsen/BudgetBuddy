@@ -596,7 +596,8 @@ let private toBudgetCategory
       // Eine BB-Pause ohne Target wirkt nicht und wird nicht gemeldet (budgeting-r3wq8). Eine Pause in YNAB wirkt
       // nicht (budgeting-eh8xe, Nachtrag ADR 0079).
       Pause = (if target.IsSome && pausedInBb.Contains c.Id then Some PausedInBb else None)
-      OpenWriteBack = state |> Option.bind (fun s -> s.Open) }
+      OpenWriteBack = state |> Option.bind (fun s -> s.Open)
+      Deactivated = None }
 
 /// Gruppiert die sichtbaren Kategorien nach Kategoriegruppe. Die Folge ist die der Monatsantwort
 /// und damit ungeordnet (ADR 0074 Punkt 6): `toBudgetMonth` dient den Server-Abläufen, die Seite

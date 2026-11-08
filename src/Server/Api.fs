@@ -492,13 +492,13 @@ let ynabApi : YnabApi = {
         match tokenOpt with
         | None -> return Error (YnabError.Unauthorized "No YNAB token configured")
         | Some token ->
-            match! YnabClient.getCategories token budgetId with
-            | Error e -> return Error e
-            | Ok categories ->
-                // The internal "Inflow: Ready to Assign" category's own balance is a
-                // garbage accumulator; override it with the month's real to_be_budgeted.
-                let! toBeBudgeted = YnabClient.getReadyToAssign token budgetId
-                return Ok (categoriesForPicker toBeBudgeted categories)
+            // Ready to Assign bekommt den echten Monatswert, deaktivierte Kategorien fehlen, BBs Reihenfolge gilt
+            // (budgeting-sn2sn, ADR 0088).
+            return!
+                Server.Budgeting.Categories.pickerOptionsWith
+                    (fun () -> YnabClient.getCategoriesPlaced token budgetId)
+                    (fun () -> YnabClient.getReadyToAssign token budgetId)
+                    Budgeting.Persistence.loadCategoryLayout
     }
 
     getPayees = fun budgetId -> async {
@@ -1927,14 +1927,9 @@ let internal liveFramePort (token: string) (budgetId: YnabBudgetId) : Server.Bud
     { FetchMonths = fun () -> YnabClient.getMonths token budgetId
       FetchCategoryOrder =
         fun () ->
-            async {
-                let! categories = YnabClient.getCategories token budgetId
-                return
-                    categories
-                    |> Result.map (List.map (fun c ->
-                        let (YnabCategoryId id) = c.Id
-                        id))
-            }
+            Server.Budgeting.Categories.bbCategoryOrderWith
+                (fun () -> YnabClient.getCategoriesPlaced token budgetId)
+                Budgeting.Persistence.loadCategoryLayout
       LoadMonthStartHidden = Server.Budgeting.QueryHandlers.loadMonthStartHidden }
 
 /// "Ausblenden" an der Leiste Monatserster ohne Netz (budgeting-m3x7f): Monat prüfen (laufender oder kommender, gemessen
@@ -2076,13 +2071,18 @@ let internal liveCategoryAdminPort (token: string) (budgetId: YnabBudgetId) : Se
       UpdateCategory = fun categoryId patch -> YnabClient.patchCategory token budgetId categoryId patch
       CreateGroup = fun name -> YnabClient.createCategoryGroup token budgetId name
       UpdateGroup = fun groupId name -> YnabClient.updateCategoryGroup token budgetId groupId name
-      RefreshMirror = fun () -> Server.Budgeting.Categories.refreshMirrorWith (fun () -> YnabClient.getCategories token budgetId) Ledger.Persistence.upsertCategories }
+      RefreshMirror = fun () -> Server.Budgeting.Categories.refreshMirrorWith (fun () -> YnabClient.getCategories token budgetId) Ledger.Persistence.upsertCategories
+      FetchMonth = fun month -> YnabClient.getMonth token budgetId month }
 
 /// Die Seite Kategorien ohne Settings und Netz. Ein leerer oder zu langer Name wird an der Grenze abgelehnt,
-/// bevor Settings oder YNAB gefragt werden.
+/// bevor Settings oder YNAB gefragt werden. `connect` ist die Datenbank für BBs Deaktivieren und Reihenfolge
+/// (budgeting-sn2sn), `utcNow` die Uhr, `berlinZone` bestimmt den laufenden Monat.
 let categoryApiWith
     (setting: string -> Async<string option>)
     (portFor: string -> YnabBudgetId -> Server.Budgeting.Categories.CategoryPort)
+    (connect: unit -> Microsoft.Data.Sqlite.SqliteConnection)
+    (utcNow: unit -> DateTime)
+    (berlinZone: TimeZoneInfo)
     : CategoryApi =
     let withPort run =
         async {
@@ -2090,7 +2090,9 @@ let categoryApiWith
             return! withYnabPort tokenOpt budgetOpt portFor run
         }
     let refused (errors: string list) = async { return Error (String.concat " " errors) }
-    { getCategoryGroups = fun () -> withPort Server.Budgeting.Categories.groups
+    let currentMonth () =
+        Server.Budgeting.Domain.currentMonthKey (Server.Budgeting.Domain.berlinToday berlinZone (utcNow ()))
+    { getCategoryGroups = fun () -> withPort (Server.Budgeting.Categories.groupsWith connect)
       saveCategory =
         fun save ->
             match Validation.validateCategoryName save.Name with
@@ -2100,10 +2102,21 @@ let categoryApiWith
         fun save ->
             match Validation.validateCategoryGroupName save.Name with
             | Error errors -> refused errors
-            | Ok _ -> withPort (fun port -> Server.Budgeting.Categories.saveCategoryGroup port save) }
+            | Ok _ -> withPort (fun port -> Server.Budgeting.Categories.saveCategoryGroup port save)
+      setCategoryActive =
+        fun save ->
+            withPort (fun port -> Server.Budgeting.Categories.setCategoryActiveWith connect port (currentMonth ()) (utcNow ()) save)
+      setCategoryOrder =
+        fun save ->
+            async {
+                match! Server.Budgeting.Categories.setCategoryOrderWith connect (utcNow ()) save with
+                | Ok () -> return Ok ()
+                | Error e -> return Error (ynabErrorText e)
+            } }
 
 /// Die Seite Kategorien der laufenden App.
-let categoryApi : CategoryApi = categoryApiWith Persistence.Settings.getSetting liveCategoryAdminPort
+let categoryApi (berlinZone: TimeZoneInfo) : CategoryApi =
+    categoryApiWith Persistence.Settings.getSetting liveCategoryAdminPort Persistence.getConnection (fun () -> DateTime.UtcNow) berlinZone
 
 // ============================================
 // HTTP Handler
@@ -2176,6 +2189,6 @@ let webApp (berlinZone: System.TimeZoneInfo) =
         Remoting.createApi()
         |> Remoting.withRouteBuilder routeBuilder
         |> Remoting.withErrorHandler errorHandler
-        |> Remoting.fromValue categoryApi
+        |> Remoting.fromValue (categoryApi berlinZone)
         |> Remoting.buildHttpHandler
     ]

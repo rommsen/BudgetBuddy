@@ -1204,3 +1204,43 @@ let comboBoxGrouped value onChange placeholder (options: ComboBoxOption list) =
             Placeholder = placeholder
             Options = options
     }
+
+// ============================================
+// Schalter als Zeile (budgeting-sn2sn)
+// ============================================
+
+/// Ein Schalter als eigene Zeile mit Titel und Erklärung (Seite Kategorien, Schalter "Aktiv", Prototyp Version 17):
+/// links Titel und darunter der Satz in `muted`, rechts die Schiene 46 × 28 px, an im Akzent mit dunklem Knopf,
+/// aus in der Randfarbe mit hellem Knopf. Die ganze Zeile ist der Knopf (`role switch`, `aria-checked`), am Handy
+/// mindestens 48 px hoch; die Linie darunter wie eine Zeile im Prototyp. `Disabled` sperrt ihn, etwa während des
+/// Speicherns.
+let switchRow (testId: string) (title: string) (description: string) (isOn: bool) (disabled: bool) (onToggle: bool -> unit) =
+    let track = if isOn then "bg-accent" else "bg-border-default"
+    let knob = if isOn then "translate-x-[18px] bg-on-accent" else "translate-x-0 bg-text-primary"
+    Html.button [
+        prop.type'.button
+        prop.custom ("data-testid", testId)
+        prop.role "switch"
+        prop.ariaLabel title
+        prop.custom ("aria-checked", (if isOn then "true" else "false"))
+        prop.disabled disabled
+        prop.className
+            "flex w-full min-h-[52px] items-center justify-between gap-3 py-2 text-left border-b border-border-subtle cursor-pointer touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed"
+        prop.onClick (fun _ -> onToggle (not isOn))
+        prop.children [
+            Html.span [
+                prop.className "flex flex-col gap-0.5 min-w-0"
+                prop.children [
+                    Html.span [ prop.className $"text-base md:text-sm {FontWeights.medium} {Colors.textPrimary}"; prop.text title ]
+                    Html.span [ prop.className ListRoles.muted; prop.text description ]
+                ]
+            ]
+            Html.span [
+                prop.ariaHidden true
+                prop.className $"relative inline-flex h-7 w-[46px] shrink-0 items-center rounded-full px-[3px] transition-colors {track}"
+                prop.children [
+                    Html.span [ prop.className $"inline-block h-[22px] w-[22px] rounded-full transition-transform motion-reduce:transition-none {knob}" ]
+                ]
+            ]
+        ]
+    ]
