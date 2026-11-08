@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-11-08 21:21 -- Abnahme: Etappe 2 in der Produktion
+
+**Type:** Abnahme
+**Stand:** Deploy 9cc7550e
+**[human-eye] (Roman, 2026-11-08):** Seiten neben Prototyp Version 17 auf den ersten Blick gut (budgeting-pscgb, budgeting-sn2sn, ledger-qvjvs, ledger-at63w). Neue Buchung am Galaxy S25 Ultra gut.
+**Targets nach YNAB schreiben (budgeting-e2z7v):** einmaliger Lauf in Romans Budget: 100 gleich, eins neu (Geschenke, von Roman in BB gesetzt, stimmt).
+**Offen:** budgeting-t7dka (Targets anwenden übergeht deaktivierte Kategorien), ledger-m7k2d (Split einer Barbuchung, Entscheidung zu ADR 0058).
+
+---
+
 ## 2026-11-08 20:16 -- Capture / Captured: infrastructure-ewasy - README-Delta-Gate meldet alten Wortlaut, der nach einem replace anderswo in der README stehen bleibt
 
 **Type:** Capture

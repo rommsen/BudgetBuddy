@@ -17,10 +17,10 @@ Zuletzt aktualisiert: 2026-11-08, nach dem work-Lauf mit sechs Tasks aus Etappe 
   ledger-m7k2d (Split einer Barbuchung nicht änderbar, Entscheidung zu ADR 0058) und budgeting-t7dka
   (Targets anwenden übergeht deaktivierte Kategorien, betrifft Geld).
 - **Etappe 3 · Ein Produkt:** noch nicht verfeinert, Zeilen wachsen.
-- **Nächster Schritt:** Erster Blick auf die Seiten gut (Roman, 2026-11-08), deployt mit `9cc7550e`
-  (inkl. Review-Lauf e83f2d00..ad18f0c9). Offen: Eingabe von „Neue Buchung“ am Galaxy S25 Ultra,
-  „Targets nach YNAB schreiben“ erst im Test-Budget, dann in Romans Budget. Bis budgeting-t7dka erledigt
-  ist, keine Kategorie mit aktivem Target deaktivieren.
+- **Nächster Schritt:** Etappe 2 (6 Tasks) deployt mit `9cc7550e` und von Roman abgenommen (2026-11-08):
+  Seiten neben Prototyp Version 17 gut, Neue Buchung am Galaxy S25 Ultra gut, „Targets nach YNAB
+  schreiben“ gelaufen (100 gleich, Geschenke neu). Jetzt budgeting-t7dka verfeinern (betrifft Geld); bis
+  dahin keine Kategorie mit aktivem Target deaktivieren.
 - **Danach:** ledger-m7k2d und budgeting-t7dka verfeinern, dann die übrigen Zeilen von Etappe 2.
 
 ## Ablauf je Schritt
