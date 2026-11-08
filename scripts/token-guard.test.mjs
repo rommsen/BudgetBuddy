@@ -9,7 +9,13 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-import { findCssColorLiterals, findViolations, run } from "./token-guard.mjs";
+import {
+  findCssColorLiterals,
+  findHtmlColorLiterals,
+  findViolations,
+  offlineTokenMismatches,
+  run,
+} from "./token-guard.mjs";
 
 const scriptPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "token-guard.mjs");
 
@@ -183,6 +189,127 @@ test("css-farbliteral: der Lauf scheitert mit Datei und Zeile, wenn styles.css e
   const r = runGuard(fx);
   assert.equal(r.code, 1, r.out);
   assert.match(r.out, /src\/Client\/styles\.css:2\s+\[css-farbliteral\]/);
+});
+
+// Review 88e6e9e3: Farbnamen und die neueren Farbfunktionen fielen durch `css-farbliteral`.
+test("css-farbliteral: Farbnamen und oklch/oklab/lab/lch/hwb/color() werden gemeldet", () => {
+  const css = [
+    ".info-banner.warning { color: orange }",
+    ".a { background: color-mix(in oklab, Red 10%, transparent); }",
+    ".b { color: oklch(0.7 0.1 30); border-color: oklab(0.5 0.1 0.1); }",
+    ".c { fill: lab(50 20 30); stroke: lch(50 20 30); outline-color: hwb(10 20% 30%); }",
+    ".d { --x: color(display-p3 1 0 0); }",
+    ".e { color: white; }",
+  ].join("\n");
+  assert.deepEqual(findCssColorLiterals(css).map((h) => [h.line, h.match]), [
+    [1, "orange"],
+    [2, "Red"],
+    [3, "oklch(0.7 0.1 30)"],
+    [3, "oklab(0.5 0.1 0.1)"],
+    [4, "lab(50 20 30)"],
+    [4, "lch(50 20 30)"],
+    [4, "hwb(10 20% 30%)"],
+    [5, "color(display-p3 1 0 0)"],
+    [6, "white"],
+  ]);
+});
+
+test("css-farbliteral: Schlüsselwörter, Druckblock und Wörter außerhalb von Farbwerten sind erlaubt", () => {
+  const css = [
+    ".red-banner, #orange > .pink:hover { color: transparent; fill: currentColor; stroke: inherit; }",
+    ".a { border-color: initial; background: unset; }",
+    "@media print { body { background: white; color: black; } }",
+    ".b { content: \"red\"; font-family: 'Orange Sans', sans-serif; animation: tomato 1s; grid-area: navy; }",
+    ".c { background-image: url(\"data:image/svg+xml,%3Csvg fill='red'/%3E\"); }",
+    "/* früher: color: orange */",
+    ".d { color-scheme: dark; transition: color 0.2s, background-color 0.2s; }",
+    "@keyframes gold { from { opacity: 0 } }",
+  ].join("\n");
+  assert.deepEqual(findCssColorLiterals(css), []);
+});
+
+test("css-farbliteral: white und black außerhalb des Druckblocks werden gemeldet", () => {
+  const css = "@media screen { body { color: black; } }\n.x { background: white; }\n";
+  assert.deepEqual(findCssColorLiterals(css).map((h) => h.match), ["black", "white"]);
+});
+
+// Review 88e6e9e3: offline.html hatte eigene Hex-Werte und wurde von keinem Wächter gelesen.
+const STYLES = [
+  "@theme { --color-accent: #28d6df; --color-success: #5be479; }",
+  ":root { --bg-app: #08081a; --text-primary: #e8e8f0; }",
+].join("\n");
+const offline = (rootBody, rest = "") =>
+  [
+    '<meta name="theme-color" content="#08081a">',
+    "<!-- Farben: --accent #ff0000 -->",
+    "<style>",
+    `  :root { ${rootBody} }`,
+    `  ${rest}`,
+    "</style>",
+  ].join("\n");
+
+test("offline.html: Literale außerhalb ihres :root werden gemeldet, Kommentare nicht", () => {
+  const html = offline("--accent: #28d6df;", ".retry { color: #ff6b2c; background: var(--accent); }") +
+    '\n<p style="color: orange">x</p>';
+  assert.deepEqual(findHtmlColorLiterals(html).map((h) => [h.line, h.match]), [
+    [5, "#ff6b2c"],
+    [7, "orange"],
+  ]);
+});
+
+test("offline.html: :root und theme-color stimmen mit styles.css überein, eine Abweichung wird gemeldet", () => {
+  const same = offline("--bg-app: #08081a; --text-primary: #E8E8F0; --accent: #28d6df; --success: #5be479; --font-mono: 'X';");
+  assert.deepEqual(offlineTokenMismatches(same, STYLES), []);
+
+  const drift = offline("--accent: #ff6b2c; --lila: #c9a7ff;").replace('content="#08081a"', 'content="#000000"');
+  assert.deepEqual(offlineTokenMismatches(drift, STYLES).map((h) => [h.line, h.match]), [
+    [4, "--accent: #ff6b2c (styles.css --color-accent: #28d6df)"],
+    [4, "--lila: #c9a7ff (kein --color-lila in styles.css)"],
+    [1, "theme-color: #000000 (styles.css --bg-app: #08081a)"],
+  ]);
+});
+
+test("offline.html: der Lauf scheitert mit Datei und Zeile", () => {
+  const fx = makeFixture({ "styles.css": STYLES, "public/offline.html": offline("--accent: #ff6b2c;") });
+  const r = runGuard(fx);
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /src\/Client\/public\/offline\.html:4\s+\[offline-abgleich\]\s+--accent/);
+});
+
+// Review 88e6e9e3: die Flag-Farben waren als Rolle frei nutzbar. Erlaubt sind sie nur dort, wo das
+// Flag-Symbol gezeichnet wird (ADR 0087 Punkt 8).
+test("flag-farbe: in einer Budget-View gemeldet, in Badge.lenaMark nicht, in einer anderen Badge-Funktion schon", () => {
+  const budget = runGuard(makeFixture({ "Components/Budget/View.fs": 'module V\n\nlet v =\n    prop.className "text-flag-orange"\n' }));
+  assert.equal(budget.code, 1, budget.out);
+  assert.match(budget.out, /src\/Client\/Components\/Budget\/View\.fs:4\s+\[flag-farbe\]\s+text-flag-orange/);
+
+  const badge = [
+    "module Badge",
+    "",
+    "let lenaMark (text: string) =",
+    '    Html.span [ prop.className "text-flag-purple bg-(--color-flag-red)" ]',
+    "",
+    "let warning text =",
+    '    Html.span [ prop.className "bg-flag-purple" ]',
+  ].join("\n");
+  const ds = runGuard(makeFixture({ "DesignSystem/Badge.fs": badge }));
+  assert.equal(ds.code, 1, ds.out);
+  assert.match(ds.out, /Badge\.fs:7\s+\[flag-farbe\]\s+bg-flag-purple/);
+  assert.doesNotMatch(ds.out, /Badge\.fs:4/);
+});
+
+test("flag-farbe: in styles.css nur in @theme und den Regeln für data-lena-flag und .lena-flag-icon", () => {
+  const css = [
+    "@theme { --color-flag-red: #ff6b6b; }",
+    '[data-lena-flag="red"] { --lena-flag: var(--color-flag-red); }',
+    ".lena-flag-icon { color: var(--color-flag-red); }",
+    ".budget-warn { color: var(--color-flag-red); }",
+    ".x { @apply text-flag-red; }",
+  ].join("\n");
+  assert.deepEqual(findCssColorLiterals(css).map((h) => [h.line, h.pattern, h.match]), [
+    [4, "flag-farbe", "--color-flag-red"],
+    [5, "flag-farbe", "text-flag-red"],
+  ]);
 });
 
 test("obj/ und bin/ werden nicht geprüft", () => {

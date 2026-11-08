@@ -35,3 +35,6 @@ Den Testfall entfernen. Falls das Verhalten bei abgelehnter Anmeldung abgesicher
 ### Acceptance criteria
 - [ ] GIVEN `src/Tests` THEN kein Testfall meldet sich mit echten Schlüsseln und falschem Passwort an.
 - [ ] `./verify.sh` zeigt `VERIFY: PASS`.
+
+## Aus dem Review-Lauf nach design-system-dak16 (2026-11-08)
+- Import prüfen: `src/Client/Components/SyncFlow/State.fs:569` schluckt einen Ladefehler der Lena-Flag-Farbe (`fun _ -> LenaFlagColorLoaded None`), und `SyncFlow.Types.LenaFlagColor` ist `string option` statt `RemoteData`. Das Kassenbuch macht es richtig (`RemoteData` plus `lenaColorLoadFailedReason`); hier nachziehen.

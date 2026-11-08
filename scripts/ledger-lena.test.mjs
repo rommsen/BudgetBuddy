@@ -187,23 +187,11 @@ test("[flow:lena-fragen] PC: Lena fragen setzt das Kennzeichen, der Knopf wechse
   assert.deepEqual(state.setCalls, [{ entryId: idOf(1), flagTarget: "AssignLena" }]);
   assert.ok((await flagField(panel(page)).textContent()).includes("Rückfrage Lena"), "Wert: Rückfrage Lena");
   assert.ok((await row(page, "Rewe Lena").getByTestId("lena-mark").textContent()).includes("Lena"), "Kennzeichen in der Zeile");
-  // ADR 0087 Punkt 8 (design-system-dak16): das Kennzeichen ist Flag-Symbol und Name, kein farbiges Badge; die
-  // Farbe aus lena_flag_color steht nur im Symbol.
+  // ADR 0087 Punkt 8 (design-system-dak16): das Kennzeichen ist Flag-Symbol und Name. Welche Farbe das Symbol
+  // trägt, prüft der .NET-Test der Abbildung lena_flag_color -> data-lena-flag.
   const mark = row(page, "Rewe Lena").getByTestId("lena-mark");
   await mark.getByRole("img", { name: "Flag" }).waitFor();
   assert.ok((await mark.textContent()).includes("Lena"), "Name am Flag");
-  const look = await mark.evaluate((el) => {
-    const probe = document.createElement("span");
-    probe.style.color = "var(--color-flag-purple)";
-    document.body.append(probe);
-    const purple = getComputedStyle(probe).color;
-    probe.remove();
-    const badge = el.closest(".rounded-full");
-    return { icon: getComputedStyle(el.querySelector("svg")).color, text: getComputedStyle(el).color, purple, badge: !!badge };
-  });
-  assert.equal(look.icon, look.purple, "Symbol in der Lena-Farbe");
-  assert.notEqual(look.text, look.purple, "der Text bleibt neutral");
-  assert.equal(look.badge, false, "kein Badge um das Kennzeichen");
   const toast = page.getByText("Lena gefragt", { exact: true });
   await toast.waitFor();
 
