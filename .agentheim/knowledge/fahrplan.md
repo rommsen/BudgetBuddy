@@ -51,8 +51,8 @@ Reihenfolge: `infrastructure-nx14s` → `infrastructure-jc1y1` → `design-syste
 ## Etappe 2 · Lücken schließen
 Ziel: Nichts zwingt mehr zu YNAB außer Reports.
 
-- Buchung erfassen im Kassenbuch für jedes Konto, wenige Klicks, kluge Vorbelegung
-  (das Quick-Add-Versprechen für alle Konten; ING-Tagesgeld).
+- `ledger-at63w` Buchung im Kassenbuch erfassen für jedes Konto ohne Import, mit Vorbelegung
+  (Roman 2026-11-08: Import-Konto erst mit Abgleich, der kommt später).
 - Kategorien verwalten: anlegen, umbenennen, Gruppe wechseln, deaktivieren (nie löschen).
   Neuer Schreibweg nach YNAB.
 - `ledger-qvjvs` Buchung zum Übertrag machen (Konten im Picker des Details, Schreibweg nach YNAB)

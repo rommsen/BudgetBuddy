@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-08 14:53 -- Modeling / Captured: ledger-at63w - "Buchung im Kassenbuch erfassen für jedes Konto ohne Import, mit Vorbelegung (Konto, Datum, Zuletzt, Kategorie zum Payee)"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** todo
+**Summary:** Buchung im Kassenbuch erfassen auf jedem Konto ohne Import, mit Vorbelegung (Konto aus Filter, Datum heute, Zuletzt-Chips, Kategorie zum Payee). Quick-Add-Seite bleibt bis Etappe 3.
+
+---
+
 ## 2026-11-08 14:45 -- Modeling / Captured: ledger-qvjvs - "Buchung zum Übertrag machen: Konten im Kategorie-Picker des Kassenbuch-Details, Schreibweg nach YNAB"
 
 **Type:** Modeling / Capture
