@@ -3,17 +3,25 @@
 Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success looks like“.
 
 ## Stand
-Zuletzt aktualisiert: 2026-11-08, nach Romans Freigabe von dak16.
+Zuletzt aktualisiert: 2026-11-08, nach dem work-Lauf mit sechs Tasks aus Etappe 2.
 
 - **Etappe 1 · Bedeutungen:** erledigt, 5 von 5 (Skizze und Prototyp, Layout-Sweep, Muster im
   Styleguide, Designwert-Tests aufgeräumt, Palette 2 im Token-Layer). Romans Blick auf dak16 neben
   dem Prototyp: freigegeben (2026-11-08). Entschieden (Roman, 2026-11-08): Fokusring, Textlinks und
   Marke im Akzent, gescheiterter Push bleibt Gelb (Nachtrag ADR 0087).
   Panel ab 1024 px (Roman, 2026-11-07).
-- **Etappe 2 · Lücken schließen:** noch nicht verfeinert.
+- **Etappe 2 · Lücken schließen:** 6 von 9 gebaut und in main (2026-11-08): ledger-p3vq8,
+  budgeting-pscgb, ledger-qvjvs, budgeting-sn2sn, budgeting-e2z7v, ledger-at63w. Neue ADRs 0089
+  (Übertrag in BB), 0090 (Targets nach YNAB), 0091 (Erfasste Buchung verwerfen). Offen in Etappe 2:
+  ledger-nb4tv (ETF-Konto), Buchung löschen im Detail, Betrag bearbeiten im Detail; dazu die Bugs
+  ledger-m7k2d (Split einer Barbuchung nicht änderbar, Entscheidung zu ADR 0058) und budgeting-t7dka
+  (Targets anwenden übergeht deaktivierte Kategorien, betrifft Geld).
 - **Etappe 3 · Ein Produkt:** noch nicht verfeinert, Zeilen wachsen.
-- **Nächster Schritt:** Etappe 2 verfeinern (`/agentheim:modeling` mit Roman).
-- **Danach:** Etappe 2 Schritt für Schritt nach „Ablauf je Schritt“.
+- **Nächster Schritt:** Roman prüft die `[human-eye]`-Kriterien: Seiten neben Prototyp Version 17
+  (Screenshots und Abweichungslisten in den Outcomes von budgeting-pscgb, budgeting-sn2sn,
+  ledger-qvjvs, ledger-at63w) und die Eingabe von „Neue Buchung“ am Galaxy S25 Ultra. Vor dem
+  ersten Lauf „Targets nach YNAB schreiben“ in Romans Budget: erst deployen, dann im Budget Test.
+- **Danach:** ledger-m7k2d und budgeting-t7dka verfeinern, dann die übrigen Zeilen von Etappe 2.
 
 ## Ablauf je Schritt
 1. Nächsten Schritt aus „Stand“ nennen.
@@ -51,13 +59,13 @@ Reihenfolge: `infrastructure-nx14s` → `infrastructure-jc1y1` → `design-syste
 ## Etappe 2 · Lücken schließen
 Ziel: Nichts zwingt mehr zu YNAB außer Reports.
 
-- `ledger-at63w` Buchung im Kassenbuch erfassen für jedes Konto ohne Import, mit Vorbelegung
+- ✓ `ledger-at63w` Buchung im Kassenbuch erfassen für jedes Konto ohne Import, mit Vorbelegung
   (Roman 2026-11-08: Import-Konto erst mit Abgleich, der kommt später).
-- `budgeting-pscgb` Kategorien verwalten: anlegen, umbenennen, Gruppe wechseln, Gruppen (ADR 0088)
-- `budgeting-sn2sn` Kategorie deaktivieren und eigene Reihenfolge, nur in BB (ADR 0088)
-- `budgeting-e2z7v` Targets beim Speichern direkt nach YNAB (Nachtrag ADR 0084, Roman 2026-11-08)
-- `ledger-qvjvs` Buchung zum Übertrag machen (Konten im Picker des Details, Schreibweg nach YNAB)
-- `ledger-p3vq8` Push gelungen, Verknüpfung nicht geschrieben
+- ✓ `budgeting-pscgb` Kategorien verwalten: anlegen, umbenennen, Gruppe wechseln, Gruppen (ADR 0088)
+- ✓ `budgeting-sn2sn` Kategorie deaktivieren und eigene Reihenfolge, nur in BB (ADR 0088)
+- ✓ `budgeting-e2z7v` Targets beim Speichern direkt nach YNAB (Nachtrag ADR 0084, Roman 2026-11-08)
+- ✓ `ledger-qvjvs` Buchung zum Übertrag machen (Konten im Picker des Details, Schreibweg nach YNAB)
+- ✓ `ledger-p3vq8` Push gelungen, Verknüpfung nicht geschrieben
 - `ledger-nb4tv` ETF-Konto und Abgleich
 - Buchung löschen im Detail (auch in YNAB), mit Rückgängig.
 - Betrag einer Buchung bearbeiten im Detail (auch in YNAB). Heute geht das in BB nicht; im Prototyp

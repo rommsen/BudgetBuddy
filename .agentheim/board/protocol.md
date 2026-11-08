@@ -5,6 +5,26 @@ Newest entries on top.
 
 ---
 
+## 2026-11-08 18:26 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** 3h15m
+**Completed:** 6 (first-try PASS: 3, re-dispatched: 3, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Lost-result re-dispatches:** 0
+**Lost-result escalations:** 0
+**Dispatches:** ledger-p3vq8: 1, budgeting-pscgb: 1, budgeting-sn2sn: 1, ledger-qvjvs: 3, budgeting-e2z7v: 3, ledger-at63w: 3
+**Commits:** 10
+**Vision-conformance:** none — batch aligns with vision (Etappe 2, Lücken schließen: weniger Gründe, nach YNAB zu gehen)
+**Batch mix:** 100% product-facing / 0% harness / 0% bookkeeping (6 tasks)
+**Carry-over:** .agentheim/knowledge/fahrplan.md: committed (Stand nach dem Lauf); .worktrees/budgeting-e6p4r: left behind (owner: alter Lauf, kein git-Worktree, nur ein ignorierter dist-Ordner; Entscheidung bei Roman)
+**Merge-Konflikte:** ledger-qvjvs (Validation.fs gegen budgeting-pscgb) und budgeting-e2z7v (17 Dateien gegen budgeting-sn2sn), beide im Worktree gelöst und nachgeprüft; Patches unter .agentheim/salvage/
+**Verifikation main:** VERIFY: PASS (dotnet 4512, node 310)
+
+---
+
 ## 2026-11-08 18:21 -- Task verified and completed: ledger-at63w - "Buchung im Kassenbuch erfassen für jedes Konto ohne Import, mit Vorbelegung (Konto, Datum, Zuletzt, Kategorie zum Payee)"
 
 **Type:** Work / Task completion
