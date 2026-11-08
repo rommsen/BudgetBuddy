@@ -1,7 +1,7 @@
 ---
 id: ledger-p3vq8
 title: "addCashExpense: gelingt der Push und scheitert danach das Schreiben der Verknüpfung, legt der Spiegel eine zweite Buchung an"
-status: backlog
+status: todo
 type: bug
 context: ledger
 created: 2026-11-06

@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-08 14:10 -- Modeling / Promoted: ledger-p3vq8 - "addCashExpense: gelingt der Push und scheitert danach das Schreiben der Verknüpfung, legt der Spiegel eine zweite Buchung an"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-08 14:10 -- Modeling / Refined: ledger-p3vq8 - Push gelungen, Verknüpfung nicht geschrieben
 
 **Type:** Modeling / Refine
