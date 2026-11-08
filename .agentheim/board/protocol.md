@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-08 21:24 -- Modeling / Refined: budgeting-t7dka - Targets anwenden übergeht in BB deaktivierte Kategorien
+
+**Type:** Modeling / Refine
+**BC:** budgeting
+**Status after:** todo
+**Summary:** Roman: deaktivierte Kategorien ganz weglassen, nicht unter übersprungen. Regel in targetApplicationLines (gilt auch für das Feld der Leiste Monatserster, das ebenfalls betroffen war), Vorschau und Anwenden legen den Deaktivieren-Zustand an, Lesefehler hält beide auf. Verschieben, Zuweisen und Pausieren bleiben unverändert.
+
+---
+
 ## 2026-11-08 21:21 -- Abnahme: Etappe 2 in der Produktion
 
 **Type:** Abnahme
