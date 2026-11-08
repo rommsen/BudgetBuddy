@@ -55,7 +55,7 @@ Ziel: Nichts zwingt mehr zu YNAB außer Reports.
   (Roman 2026-11-08: Import-Konto erst mit Abgleich, der kommt später).
 - `budgeting-pscgb` Kategorien verwalten: anlegen, umbenennen, Gruppe wechseln, Gruppen (ADR 0088)
 - `budgeting-sn2sn` Kategorie deaktivieren und eigene Reihenfolge, nur in BB (ADR 0088)
-- `budgeting-e2z7v` Targets nach YNAB zurückschreiben (aus „Danach“ vorgezogen, Roman 2026-11-08)
+- `budgeting-e2z7v` Targets beim Speichern direkt nach YNAB (Nachtrag ADR 0084, Roman 2026-11-08)
 - `ledger-qvjvs` Buchung zum Übertrag machen (Konten im Picker des Details, Schreibweg nach YNAB)
 - `ledger-p3vq8` Push gelungen, Verknüpfung nicht geschrieben
 - `ledger-nb4tv` ETF-Konto und Abgleich

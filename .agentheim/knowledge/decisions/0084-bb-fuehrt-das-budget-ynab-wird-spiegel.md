@@ -467,3 +467,22 @@ Entschieden von Roman am 2026-11-05.
 - **Laufendes Spiegeln der Targets** und **Goals in YNAB entfernen:** verworfen, siehe Punkt 6.
 - **Befehls-Id nur für `moveMoney`:** verworfen. Auch ein wiederholtes absolutes Zuweisen kann
   einen späteren Wert zurücksetzen.
+
+## Nachtrag 2026-11-08 (Roman, budgeting-e2z7v): Targets direkt nach YNAB
+
+Punkt 6 "YNAB-Goals einfrieren" und die Rückweg-Aktion gelten nicht mehr. Roman will Targets wie die
+Kategorien (ADR 0088) beim Speichern direkt nach YNAB schreiben, damit YNAB als Fallback dieselben Ziele
+zeigt. Das damals verworfene laufende Spiegeln der Targets wird damit gewählt, mit diesen Regeln:
+
+- **BB führt.** Das Target gilt in BB sofort; danach geht der `PATCH .../categories/{id}` mit den
+  `goal_*`-Feldern hinaus. Scheitert er ganz oder zur Hälfte (zwei Aufrufe bei "jährlich mit Datum",
+  ADR 0072 Punkt 5), steht am Target gelb "Nicht in YNAB" mit "Erneut senden" (ADR 0087 Nachtrag).
+- **Nicht Darstellbares:** BB schreibt das nächste Passende (etwa wöchentlich ohne Wochentag, ADR 0072
+  Punkt 4) und zeigt am Target, was in YNAB fehlt. BBs Target bleibt genau.
+- **Pause:** fachlich YNABs Snooze. Die API kann Snooze nur lesen (`goal_snoozed_at`), nicht schreiben;
+  das Goal in YNAB bleibt bei einer Pause unverändert, BB zeigt "In YNAB nicht gesnoozt".
+- **Entfernen** eines Targets in BB entfernt das Goal in YNAB (`goal_target: null`).
+- Ein einmaliger Lauf bringt alle bestehenden BB-Targets nach YNAB, danach geht jede Änderung einzeln.
+
+Der Grund von damals (Teilfehler beim Schreiben in zwei Schritten) bleibt bestehen und wird über die
+gelbe Rückmeldung mit "Erneut senden" sichtbar statt vermieden.

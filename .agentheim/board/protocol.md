@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-11-08 15:08 -- Modeling / Refined: budgeting-e2z7v - Targets beim Speichern direkt nach YNAB
+
+**Type:** Modeling / Refine
+**BC:** budgeting
+**Status after:** todo
+**Summary:** Roman: Targets wie Kategorien direkt nach YNAB schreiben. Nicht Darstellbares als nächstes Passende mit Hinweis, Pause bleibt in YNAB unverändert (Snooze per API nicht schreibbar), Fehlschlag gelb mit Erneut senden, einmaliger Lauf für den Bestand.
+**ADRs written:** Nachtrag ADR 0084 (ersetzt Punkt 6)
+
+---
+
 ## 2026-11-08 15:00 -- Modeling / Promoted: budgeting-e2z7v - "Rückweg-Aktion \"Targets nach YNAB zurückschreiben\": BBs Targets bewusst als Goals nach YNAB schreiben, soweit darstellbar, und listen, was YNAB nicht darstellen kann"
 
 **Type:** Modeling / Promote
