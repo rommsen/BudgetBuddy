@@ -212,10 +212,10 @@ let resolveTests =
         Server.Validation.resolveLedgerBookingAccounts ledgerAccounts budget (Some impY) { request bar with Target = target }
     testList "Buchung erfassen: Konto und Ziel gegen den Bestand (ledger-at63w)" [
         testCase "ein Ziel-Konto ohne Übertrags-Payee wird abgelehnt" <| fun () ->
-            Expect.equal (resolve (Some (BookAsTransfer tagY))) (Error Server.Validation.bookingTransferNoPayeeText) "ohne Payee"
+            Expect.equal (resolve (Some (BookAsTransfer tagY))) (Error Server.Validation.transferNoPayeeText) "ohne Payee"
 
         testCase "ein unbekanntes Ziel-Konto wird abgelehnt" <| fun () ->
-            Expect.equal (resolve (Some (BookAsTransfer (ynab ())))) (Error Server.Validation.bookingTransferTargetText) "unbekannt"
+            Expect.equal (resolve (Some (BookAsTransfer (ynab ())))) (Error Server.Validation.transferTargetNotBudgetText) "unbekannt"
 
         testCase "eine Kategorie als Ziel liefert das Konto ohne Übertrag" <| fun () ->
             match resolve (Some (BookOnCategory food.CategoryId)) with
@@ -291,13 +291,12 @@ let commandTests =
             Expect.equal entry.Payee (Some "Transfer : Tagesgeld ING") "Payee wie YNAB ihn nennt"
             Expect.equal entry.PayeeBeforeTransfer (Some "Bäckerei Lange") "Payee davor bleibt"
             match probe.Pushes with
+            // Den Rumpf mit payee_id und ohne category_id prüft `jsonBodyTests` in QuickAddTests.fs.
             | [ importId, account, transferPayee, req ] ->
+                Expect.equal importId (cashEntryImportId entryId) "feste import_id"
+                Expect.equal account accounts.BarYnab "YNAB-Konto der Buchung"
                 Expect.equal transferPayee (Some "payee-tagesgeld") "Übertrags-Payee"
                 Expect.isNone req.CategoryId "keine Kategorie im Request"
-                let body = buildNewTransactionBody (Some importId) None transferPayee account req
-                Expect.stringContains body "\"payee_id\": \"payee-tagesgeld\"" "payee_id im Rumpf"
-                Expect.isFalse (body.Contains "category_id") "keine category_id im Rumpf"
-                Expect.isFalse (body.Contains "payee_name") "kein payee_name im Rumpf"
             | other -> failtest $"genau ein Push erwartet: {other}"
 
         testCase "ein gescheiterter Push lässt die Buchung stehen und nennt den Grund" <| fun () ->
@@ -321,8 +320,8 @@ let commandTests =
               "ein unbekanntes Konto", (fun _ r -> { r with AccountId = Guid.NewGuid() }), Server.Validation.bookingAccountUnknownText
               "ein Tracking-Konto", (fun a r -> { r with AccountId = guidOf a.Tracking }), Server.Validation.bookingAccountNotBudgetText
               "ein BB-eigenes Konto", (fun a r -> { r with AccountId = guidOf a.BbOwned }), Server.Validation.bookingAccountNotInYnabText
-              "ein Übertrag auf das eigene Konto", (fun a r -> { r with Target = Some (BookAsTransfer a.BarYnab) }), Server.Validation.bookingTransferOwnAccountText
-              "ein Übertrag auf ein Tracking-Konto", (fun a r -> { r with Target = Some (BookAsTransfer a.TrackingYnab) }), Server.Validation.bookingTransferTargetText ] do
+              "ein Übertrag auf das eigene Konto", (fun a r -> { r with Target = Some (BookAsTransfer a.BarYnab) }), Server.Validation.transferOwnAccountText
+              "ein Übertrag auf ein Tracking-Konto", (fun a r -> { r with Target = Some (BookAsTransfer a.TrackingYnab) }), Server.Validation.transferTargetNotBudgetText ] do
             testCase $"Ablehnung ohne Ereignis und ohne Push: {label}" <| fun () ->
                 setup ()
                 let accounts = freshAccounts ()

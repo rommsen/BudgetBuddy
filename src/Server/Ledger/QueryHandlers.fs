@@ -880,13 +880,23 @@ let bookingDefaultsOf (today: DateTime) (importAccountId: Guid option) (captured
         |> Option.map (fun e -> let (LedgerAccountId id) = e.AccountId in id)
       Recent = capturedNewestFirst |> List.choose bookingTemplateOf |> recentBookingTemplates }
 
+/// Das YNAB-Konto des Imports aus den Settings, `None` ohne Einstellung oder bei einem Wert,
+/// der keine Guid ist. Die eine Stelle, die `importAccountSettingKey` liest.
+let importYnabAccountWith (setting: string -> Async<string option>) : Async<YnabAccountId option> =
+    async {
+        let! text = setting importAccountSettingKey
+        return
+            match text |> Option.map (fun (t: string) -> Guid.TryParse t) with
+            | Some (true, guid) -> Some (YnabAccountId guid)
+            | _ -> None
+    }
+
 /// Das Kassenbuch-Konto zum Import-Konto aus den Settings, `None` ohne Einstellung oder Spiegel.
 let importLedgerAccountWith (setting: string -> Async<string option>) : Async<LedgerAccount option> =
     async {
-        let! text = setting importAccountSettingKey
-        match text |> Option.map (fun (t: string) -> Guid.TryParse t) with
-        | Some (true, guid) -> return! Ledger.Persistence.findAccountByYnabAccountId (YnabAccountId guid)
-        | _ -> return None
+        match! importYnabAccountWith setting with
+        | Some account -> return! Ledger.Persistence.findAccountByYnabAccountId account
+        | None -> return None
     }
 
 /// Die Vorbelegung des Formulars "Neue Buchung". Heute ist der Kalendertag von `utcNow` in

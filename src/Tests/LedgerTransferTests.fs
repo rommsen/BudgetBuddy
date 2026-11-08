@@ -343,11 +343,11 @@ let transferCommandTests =
 
             // das eigene Konto, Tracking, geschlossen, unbekannt, ohne Übertrags-Payee
             let linked, _ = seedLinked accounts
-            expectRejected linked accounts.Own transferOwnAccountReason
-            expectRejected linked accounts.Tracking transferTargetNotBudgetReason
-            expectRejected linked accounts.Closed transferTargetNotBudgetReason
-            expectRejected linked (YnabAccountId (Guid.NewGuid())) transferTargetNotBudgetReason
-            expectRejected linked accounts.NoPayee transferNoPayeeReason
+            expectRejected linked accounts.Own Server.Validation.transferOwnAccountText
+            expectRejected linked accounts.Tracking Server.Validation.transferTargetNotBudgetText
+            expectRejected linked accounts.Closed Server.Validation.transferTargetNotBudgetText
+            expectRejected linked (YnabAccountId (Guid.NewGuid())) Server.Validation.transferTargetNotBudgetText
+            expectRejected linked accounts.NoPayee Server.Validation.transferNoPayeeText
 
             // Split: die Kategorie ist nicht änderbar
             let split, _ = seedLinked accounts
@@ -403,6 +403,28 @@ let transferCommandTests =
             Expect.equal ok.Calls [ ynabId, MakeTransfer "payee-tagesgeld" ] "Erneut senden schickt den Übertrag"
             Expect.isNone (entryOf entryId).CategorizationWriteBackFailure "aufgelöst"
             Expect.equal (eventTypesOf entryId |> List.last) "EntryCategorizationWrittenBackToYnab" "Erfolg im Log"
+
+        // Regressionstest (Review nach ledger-qvjvs): "Erneut senden" nach einem gescheiterten
+        // Übertrag prüfte nur die Übertrags-Payee. Ein inzwischen geschlossenes oder nicht mehr
+        // budgetiertes Zielkonto ging ungeprüft als PUT hinaus.
+        testCase "Erneut senden prüft das Ziel wie beim Setzen: geschlossen oder Tracking geht nicht hinaus" <| fun () ->
+            let accounts = freshAccounts ()
+            for (label, changed) in
+                [ "geschlossen", (fun (a: TransferAccount) -> { a with Closed = true })
+                  "Tracking", (fun (a: TransferAccount) -> { a with OnBudget = false }) ] do
+                let entryId, _ = seedLinked accounts
+                let failing = TransferProbe(accounts.List, Error (YnabError.InvalidResponse "kaputt"))
+                setTransfer failing entryId accounts.Target |> unwrap |> ignore
+                let later = accounts.List |> List.map (fun a -> if a.Id = accounts.Target then changed a else a)
+                let probe = TransferProbe(later, Ok ())
+                let before = eventTypesOf entryId
+                let retried =
+                    retryCategorizationOrSplitWriteBack at okCategoryPush noSplit probe.Tools entryId
+                    |> Async.RunSynchronously
+                Expect.equal retried (Error Server.Validation.transferTargetNotBudgetText) $"abgelehnt ({label})"
+                Expect.isEmpty probe.Calls $"kein PUT ({label})"
+                Expect.equal (eventTypesOf entryId) before $"kein Ereignis ({label})"
+                Expect.isSome (entryOf entryId).CategorizationWriteBackFailure $"Fehlschlag bleibt offen ({label})"
 
         testCase "zurück auf eine Kategorie: category_id und der Payee aus BB, kein Übertrags-Payee" <| fun () ->
             let accounts = freshAccounts ()
@@ -536,6 +558,11 @@ type private FakeHandler(status: HttpStatusCode, responseBody: string) =
             return new HttpResponseMessage(status, Content = new StringContent(responseBody))
         }
 
+type private ThrowingHandler() =
+    inherit HttpMessageHandler()
+    override _.SendAsync(_request: HttpRequestMessage, _ct: Threading.CancellationToken) =
+        raise (HttpRequestException "Verbindung abgebrochen")
+
 let private transactionKeys (body: string) : string list =
     match
         Thoth.Json.Net.Decode.fromString
@@ -572,6 +599,15 @@ let transferYnabClientTests =
             Expect.stringContains handler.Url "/budgets/budget-1/transactions/tx-1" "PUT auf die Buchung"
             let _, ignored = send """{"data":{"transaction":{"id":"tx-1","transfer_account_id":null}}}"""
             Expect.isError ignored "YNAB hat den Übertrag nicht angelegt"
+
+        testCase "ein Netzfehler beim PUT nennt den Übertrag in einem deutschen Satz" <| fun () ->
+            // Der Grund landet im Hinweis "Kategorie nicht in YNAB" (vorher "Failed to update transfer").
+            use client = new HttpClient(new ThrowingHandler())
+            match sendTransfer client (YnabBudgetId "budget-1") "tx-1" (MakeTransfer "p") |> Async.RunSynchronously with
+            | Error (YnabError.NetworkError message) ->
+                Expect.stringStarts message "Der Übertrag konnte nicht an YNAB gesendet werden" "deutscher Satz"
+                Expect.stringContains message "Verbindung abgebrochen" "Ursache"
+            | other -> failtest $"NetworkError erwartet, war {other}"
 
         testCase "die Konten tragen ihre transfer_payee_id" <| fun () ->
             let json =

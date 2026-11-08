@@ -474,15 +474,7 @@ let addLedgerBookingWith
             | Ok (token, budget) ->
                 let tools : Ledger.CommandHandlers.LedgerBookingTools = {
                     LedgerAccounts = Ledger.Persistence.loadAccounts
-                    ImportAccount =
-                        fun () ->
-                            async {
-                                let! text = ports.Setting Ledger.QueryHandlers.importAccountSettingKey
-                                return
-                                    match text |> Option.map (fun (t: string) -> Guid.TryParse t) with
-                                    | Some (true, guid) -> Some (YnabAccountId guid)
-                                    | _ -> None
-                            }
+                    ImportAccount = fun () -> Ledger.QueryHandlers.importYnabAccountWith ports.Setting
                     BudgetAccounts = fun () -> ports.BudgetAccounts token budget
                     ResolveCategory =
                         Ledger.QueryHandlers.resolveCategoryRefWith
@@ -1467,7 +1459,8 @@ type EntryPushCreate =
 
 /// Der Einzel-Push einer nicht verknüpften Buchung (ledger-cks06) mit Token und
 /// Standard-Budget aus `setting`. Was hinausgeht, baut die reine Funktion
-/// `Ledger.CommandHandlers.planEntryPush` (ledger-bk3q8); hier werden nur Token, Budget und
+/// `Ledger.CommandHandlers.planEntryPush` (ledger-bk3q8), geladen über `loadEntryPushPlan`
+/// samt Übertrags-Payee (ledger-at63w); hier werden nur Token, Budget und
 /// `create` angebunden. Fehlt Token, Budget oder die YNAB-Verknüpfung des Kontos, liefert
 /// der Push einen Fehler statt zu werfen.
 let entryPushWith (setting: string -> Async<string option>) (create: EntryPushCreate) : Async<Ledger.CommandHandlers.EntryPush> =
@@ -1478,26 +1471,9 @@ let entryPushWith (setting: string -> Async<string option>) (create: EntryPushCr
         match tokenOpt, budgetOpt with
         | Some token, Some budgetId ->
             return fun entry -> async {
-                let! accounts = Ledger.Persistence.loadAccounts ()
-                let! links = Ledger.Persistence.linksForEntry entry.Id
-                match Ledger.CommandHandlers.planEntryPush accounts links entry with
+                match! Ledger.CommandHandlers.loadEntryPushPlan entry with
                 | Ok plan ->
-                    // Ein Übertrag geht mit der Übertrags-Payee aus dem Log hinaus (ledger-at63w).
-                    let! transferPayee =
-                        match plan.TransferAccountId with
-                        | None -> async.Return (Ok None)
-                        | Some target ->
-                            async {
-                                let! events = Ledger.Persistence.loadEventsForEntry entry.Id
-                                return
-                                    match Ledger.CommandHandlers.transferPayeeIdFor (events |> List.map (fun r -> r.Event)) target with
-                                    | Some payeeId -> Ok (Some payeeId)
-                                    | None -> Error Ledger.CommandHandlers.transferPayeeUnknownReason
-                            }
-                    match transferPayee with
-                    | Error reason -> return Error (YnabError.RefusedByBb reason)
-                    | Ok transferPayee ->
-                        return! create plan.ImportId plan.FlagColor transferPayee token (YnabBudgetId budgetId) plan.YnabAccountId plan.Request
+                    return! create plan.ImportId plan.FlagColor plan.TransferPayeeId token (YnabBudgetId budgetId) plan.YnabAccountId plan.Request
                 // Der Satz der Push-Planung geht unverändert als Grund in `EntryPushToYnabFailed`.
                 | Error reason -> return Error (YnabError.RefusedByBb reason)
             }

@@ -1869,9 +1869,6 @@ let transferPayeeName (accountName: string) : string = $"Transfer : {accountName
 
 let transferSplitReason = "Die Buchung ist aufgeteilt, ein Übertrag geht nur für eine einzelne Buchung"
 let transferNotLinkedReason = "Die Buchung ist noch nicht mit YNAB verknüpft"
-let transferOwnAccountReason = "Ein Übertrag auf das eigene Konto geht nicht"
-let transferTargetNotBudgetReason = "Das Zielkonto ist kein offenes Budget-Konto"
-let transferNoPayeeReason = "Für das Zielkonto gibt es in YNAB keinen Übertrags-Payee"
 let transferUnknownPayeeReason = "BB kennt den Payee vor dem Übertrag nicht, bitte in YNAB ändern"
 
 /// Der Grund-Text für den Hinweis "Kategorie nicht in YNAB" beim Übertrag.
@@ -1951,8 +1948,9 @@ let private ynabAccountOf (accountId: LedgerAccountId) : Async<YnabAccountId opt
                 | BbOwned -> None)
     }
 
-/// Sucht das Ziel in den Konten von YNAB und prüft es: nicht das eigene Konto, ein offenes
-/// Budget-Konto, mit Übertrags-Payee. Liefert Name und `transfer_payee_id`.
+/// Lädt die Konten von YNAB und prüft das Ziel mit `Validation.checkTransferTarget`: nicht das
+/// eigene Konto, ein offenes Budget-Konto, mit Übertrags-Payee. Liefert Name und
+/// `transfer_payee_id`. Beim Setzen und beim Erneut senden dieselbe Prüfung.
 let private resolveTransferTarget
     (tools: TransferWriteTools)
     (entry: Entry)
@@ -1961,17 +1959,14 @@ let private resolveTransferTarget
     async {
         let! ownAccount = ynabAccountOf entry.AccountId
         if ownAccount = Some target then
-            return Error transferOwnAccountReason
+            return Error Server.Validation.transferOwnAccountText
         else
             match! tools.Accounts () with
             | Error err -> return Error $"Die Konten konnten nicht geladen werden: {describeTransferPushError err}"
             | Ok accounts ->
-                match accounts |> List.tryFind (fun a -> a.Id = target) with
-                | Some account when account.OnBudget && not account.Closed ->
-                    match account.TransferPayeeId with
-                    | Some payeeId -> return Ok (account.Name, payeeId)
-                    | None -> return Error transferNoPayeeReason
-                | _ -> return Error transferTargetNotBudgetReason
+                return
+                    Server.Validation.checkTransferTarget accounts ownAccount target
+                    |> Result.map (fun t -> t.TargetName, t.TransferPayeeId)
     }
 
 /// Der Befehl `setEntryTransfer` (ledger-qvjvs): macht eine Buchung zum Übertrag auf ein
@@ -2500,9 +2495,10 @@ type EntryPushPlan = {
     Request: ManualTransactionRequest
     ImportId: string option
     FlagColor: string option
-    /// Das Übertrags-Ziel einer Buchung ohne Kategorie und ohne Split (ledger-at63w): der Push
-    /// geht dann mit der Übertrags-Payee hinaus (`transferPayeeIdFor`), nicht mit dem Payee-Namen.
-    TransferAccountId: YnabAccountId option
+    /// Die Übertrags-Payee einer Buchung ohne Kategorie und ohne Split mit Übertrags-Ziel
+    /// (ledger-at63w): der Push geht dann mit ihr hinaus (`transferPayeeIdFor`), nicht mit dem
+    /// Payee-Namen. `None` ohne Übertrag.
+    TransferPayeeId: string option
 }
 
 /// Die Übertrags-Payee eines in BB gesetzten Übertrags auf `target`: aus dem letzten
@@ -2520,12 +2516,26 @@ let transferPayeeUnknownReason = "Für das Übertrags-Ziel kennt BB keinen Über
 /// Der Push einer Kassenbuch-Buchung (ledger-bk3q8, vorher inline in `Server.Api.entryPush`):
 /// Betrag ohne Vorzeichen, die Richtung als `IsOutflow`, ein fehlender Payee als leerer
 /// Text, die Kategorie als Id, die aktuelle `import_id` aus den Verknüpfungen
-/// (`currentImportId`, auch nach einem Ersatz) und die Flag-Farbe des BB-Stands. Gehört
-/// das Konto zu keinem YNAB-Konto, gibt es keinen Request, sondern
-/// `pushNotPossibleReason`. Rein.
-let planEntryPush (accounts: LedgerAccount list) (links: EntryLink list) (entry: Entry) : Result<EntryPushPlan, string> =
-    match accounts |> List.tryFind (fun a -> a.Id = entry.AccountId) with
-    | Some { Link = YnabMirrored ynabAccountId } ->
+/// (`currentImportId`, auch nach einem Ersatz) und die Flag-Farbe des BB-Stands. Ein
+/// Übertrag ohne Kategorie und ohne Split geht mit der Übertrags-Payee aus `events` (dem Log
+/// der Buchung); kennt das Log keine, ist das `transferPayeeUnknownReason`. Gehört das Konto
+/// zu keinem YNAB-Konto, gibt es keinen Request, sondern `pushNotPossibleReason`. Rein.
+let planEntryPush
+    (accounts: LedgerAccount list)
+    (links: EntryLink list)
+    (events: LedgerEvent list)
+    (entry: Entry)
+    : Result<EntryPushPlan, string> =
+    let transferPayee =
+        match entry.TransferAccountId with
+        | Some target when entry.Category.IsNone && List.isEmpty entry.Splits ->
+            match transferPayeeIdFor events target with
+            | Some payeeId -> Ok (Some payeeId)
+            | None -> Error transferPayeeUnknownReason
+        | _ -> Ok None
+    match accounts |> List.tryFind (fun a -> a.Id = entry.AccountId), transferPayee with
+    | Some { Link = YnabMirrored _ }, Error reason -> Error reason
+    | Some { Link = YnabMirrored ynabAccountId }, Ok transferPayeeId ->
         Ok {
             YnabAccountId = ynabAccountId
             Request = {
@@ -2538,10 +2548,26 @@ let planEntryPush (accounts: LedgerAccount list) (links: EntryLink list) (entry:
             }
             ImportId = currentImportId links
             FlagColor = pushFlagColorOf entry
-            TransferAccountId =
-                if entry.Category.IsNone && List.isEmpty entry.Splits then entry.TransferAccountId else None
+            TransferPayeeId = transferPayeeId
         }
     | _ -> Error pushNotPossibleReason
+
+/// Lädt, was `planEntryPush` braucht (Konten, Verknüpfungen, bei einem Übertrag das Log der
+/// Buchung), und plant den Push (ledger-at63w, vorher inline in `Server.Api.entryPushWith`).
+let loadEntryPushPlan (entry: Entry) : Async<Result<EntryPushPlan, string>> =
+    async {
+        let! accounts = Ledger.Persistence.loadAccounts ()
+        let! links = Ledger.Persistence.linksForEntry entry.Id
+        let! events =
+            if entry.TransferAccountId.IsSome then
+                async {
+                    let! recorded = Ledger.Persistence.loadEventsForEntry entry.Id
+                    return recorded |> List.map (fun r -> r.Event)
+                }
+            else
+                async.Return []
+        return planEntryPush accounts links events entry
+    }
 
 /// Die `import_id` der Ersatzbuchung: die aktuelle plus `:r<n>`, n ist die Zahl der
 /// bisherigen Ersätze plus 1 (ADR 0058, Punkt 2). Ohne `import_id` keine. Rein.
@@ -2903,14 +2929,11 @@ let retryCategorizationOrSplitWriteBack
                     let baseline = transferBaseline entry
                     match entry.TransferAccountId with
                     | Some target when isBudgetTransfer entry ->
-                        match! transfer.Accounts () with
-                        | Error err -> return Error $"Die Konten konnten nicht geladen werden: {describeTransferPushError err}"
-                        | Ok accounts ->
-                            match accounts |> List.tryFind (fun a -> a.Id = target) |> Option.bind (fun a -> a.TransferPayeeId) with
-                            | None -> return Error transferNoPayeeReason
-                            | Some payeeId ->
-                                let! writeBack = pushTransfer now transfer entryId baseline true (Ynab.MakeTransfer payeeId)
-                                return Ok writeBack
+                        match! resolveTransferTarget transfer entry target with
+                        | Error reason -> return Error reason
+                        | Ok (_, payeeId) ->
+                            let! writeBack = pushTransfer now transfer entryId baseline true (Ynab.MakeTransfer payeeId)
+                            return Ok writeBack
                     | _ ->
                         let write = Ynab.BackToCategory (entry.Category |> Option.map (fun c -> c.CategoryId), entry.Payee)
                         let! writeBack = pushTransfer now transfer entryId baseline true write

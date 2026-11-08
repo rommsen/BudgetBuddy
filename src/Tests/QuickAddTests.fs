@@ -277,6 +277,17 @@ let jsonBodyTests =
             Expect.isFalse (transactionKeys jsonBlank |> List.contains "payee_name") "payee_name must be absent for whitespace payee"
         }
 
+        test "ein Übertrag geht mit payee_id der Übertrags-Payee, ohne category_id und payee_name" {
+            // ledger-at63w: eine erfasste Buchung auf ein anderes Konto. Auch wenn der Request eine
+            // Kategorie und einen Payee trägt, geht nur die Übertrags-Payee hinaus.
+            let request = { validRequest with CategoryId = Some (YnabCategoryId (Guid.NewGuid())) }
+            let json = buildNewTransactionBody (Some "BB:x") None (Some "payee-tagesgeld") (YnabAccountId (Guid.NewGuid())) request
+            Expect.equal (decodeAt [ "transaction"; "payee_id" ] Decode.string json) "payee-tagesgeld" "payee_id"
+            let keys = transactionKeys json
+            Expect.isFalse (keys |> List.contains "category_id") "keine category_id"
+            Expect.isFalse (keys |> List.contains "payee_name") "kein payee_name"
+        }
+
         test "manual entries are uncleared" {
             // Project convention: imported/created transactions must never be cleared
             let json = buildManualTransactionBody (YnabAccountId (Guid.NewGuid())) validRequest

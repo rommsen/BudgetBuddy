@@ -114,7 +114,7 @@ let private accounts : LedgerAccount list = [
 ]
 
 let private planOk (links: EntryLink list) (e: Entry) : EntryPushPlan =
-    match planEntryPush accounts links e with
+    match planEntryPush accounts links [] e with
     | Ok plan -> plan
     | Error reason -> failtest $"Push sollte möglich sein, war: {reason}"
 
@@ -157,9 +157,31 @@ let planEntryPushTests =
             let plan = planOk [] { entry linkedAccountId -1m with FlagColor = Some "purple" }
             Expect.equal plan.FlagColor (Some "purple") "Farbe des BB-Stands"
 
+        // ledger-at63w: der Übertrag geht mit der Übertrags-Payee aus dem Log (vorher in Api.entryPushWith).
+        testCase "ein Übertrag geht mit der Übertrags-Payee des letzten gesetzten Ziels, mit Kategorie keiner" <| fun () ->
+            let target, other = YnabAccountId (Guid.NewGuid()), YnabAccountId (Guid.NewGuid())
+            let e = { entry linkedAccountId -5m with TransferAccountId = Some target }
+            let setTo (account: YnabAccountId) (payeeId: string) : LedgerEvent =
+                { EntryId = e.Id; OccurredAt = at; Actor = UserInBb
+                  Body =
+                    EntryTransferTargetSetInBb {
+                        OldCategory = None; OldPayee = None; OldTransferAccountId = None
+                        NewTransferAccountId = account; NewTransferAccountName = "Ziel"
+                        TransferPayeeId = payeeId; NewPayee = Some "Transfer : Ziel" } }
+            let events = [ setTo target "payee-alt"; setTo other "payee-anderes"; setTo target "payee-neu" ]
+            match planEntryPush accounts [] events e with
+            | Ok plan -> Expect.equal plan.TransferPayeeId (Some "payee-neu") "Payee des letzten Setzens auf dieses Ziel"
+            | Error reason -> failtest reason
+            Expect.equal
+                (planEntryPush accounts [] [ setTo other "payee-anderes" ] e)
+                (Error transferPayeeUnknownReason)
+                "ohne Setzen auf dieses Ziel kein Push"
+            let withCategory = { e with Category = Some (freshCategory "Sparen") }
+            Expect.isNone (planOk [] withCategory).TransferPayeeId "mit Kategorie keine Übertrags-Payee"
+
         testCase "ein Konto ohne YNAB-Verknüpfung ergibt keinen Request, sondern den Grund" <| fun () ->
-            Expect.equal (planEntryPush accounts [] (entry ownAccountId -1m)) (Error pushNotPossibleReason) "BB-eigenes Konto"
-            Expect.equal (planEntryPush accounts [] (entry (freshAccount ()) -1m)) (Error pushNotPossibleReason) "unbekanntes Konto"
+            Expect.equal (planEntryPush accounts [] [] (entry ownAccountId -1m)) (Error pushNotPossibleReason) "BB-eigenes Konto"
+            Expect.equal (planEntryPush accounts [] [] (entry (freshAccount ()) -1m)) (Error pushNotPossibleReason) "unbekanntes Konto"
     ]
 
 // ============================================
@@ -505,7 +527,7 @@ let adapterTests =
                 async.Return (Ok "ynab-neu")
             let push = Server.Api.entryPushWith (settingsFrom fakeYnab) create |> Async.RunSynchronously
             Expect.equal (push e |> Async.RunSynchronously) (Ok "ynab-neu") "gesendet"
-            let expected = (planEntryPush [ account ] [] e) |> Result.map (fun p -> p.ImportId, p.FlagColor, p.YnabAccountId, p.Request)
+            let expected = (planEntryPush [ account ] [] [] e) |> Result.map (fun p -> p.ImportId, p.FlagColor, p.YnabAccountId, p.Request)
             Expect.equal (calls |> List.ofSeq |> List.map Ok) [ expected ] "genau der geplante Push"
     ]
 

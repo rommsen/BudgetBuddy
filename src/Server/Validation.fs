@@ -510,9 +510,6 @@ let bookingAccountNotInYnabText = "Das Konto ist nicht mit YNAB verbunden."
 let bookingImportAccountText =
     "Auf dem Import-Konto erfasst BB noch nicht, diese Buchungen kommen mit dem Comdirect-Import."
 let bookingAccountNotBudgetText = "Das Konto ist kein offenes Budget-Konto."
-let bookingTransferOwnAccountText = "Ein Übertrag auf das eigene Konto geht nicht."
-let bookingTransferTargetText = "Das Zielkonto ist kein offenes Budget-Konto."
-let bookingTransferNoPayeeText = "Für das Zielkonto gibt es in YNAB keinen Übertrags-Payee."
 
 /// Der Quick-Add-Request, auf den eine erfasste Buchung abgebildet wird: dieselben Felder, die
 /// Kategorie nur bei einer Kategorie als Ziel. Rein.
@@ -563,6 +560,30 @@ type LedgerBookingTransfer = {
     TransferPayeeId: string
 }
 
+// Die drei Regeln für das Ziel eines Übertrags (ledger-qvjvs, ledger-at63w): gelten beim Setzen
+// (`setEntryTransfer`), beim Erfassen (`resolveLedgerBookingAccounts`) und beim Erneut senden.
+let transferOwnAccountText = "Ein Übertrag auf das eigene Konto geht nicht"
+let transferTargetNotBudgetText = "Das Zielkonto ist kein offenes Budget-Konto"
+let transferNoPayeeText = "Für das Zielkonto gibt es in YNAB keinen Übertrags-Payee"
+
+/// Prüft das Ziel eines Übertrags gegen die Konten des YNAB-Budgets: nicht das eigene Konto
+/// (`own`), ein offenes Budget-Konto, mit Übertrags-Payee. Die erste verletzte Regel ist der
+/// Fehler. Rein.
+let checkTransferTarget
+    (budget: Server.YnabClient.TransferAccount list)
+    (own: YnabAccountId option)
+    (target: YnabAccountId)
+    : Result<LedgerBookingTransfer, string> =
+    if own = Some target then
+        Error transferOwnAccountText
+    else
+        match budget |> List.tryFind (fun a -> a.Id = target && a.OnBudget && not a.Closed) with
+        | None -> Error transferTargetNotBudgetText
+        | Some account ->
+            match account.TransferPayeeId with
+            | None -> Error transferNoPayeeText
+            | Some payeeId -> Ok { TargetAccountId = target; TargetName = account.Name; TransferPayeeId = payeeId }
+
 /// Prüft Konto und Übertrags-Ziel einer erfassten Buchung gegen die Kassenbuch-Konten und die
 /// Konten des YNAB-Budgets: das Konto ist bekannt, offen, mit YNAB verbunden, nicht das
 /// Import-Konto und ein offenes Budget-Konto; ein Ziel-Konto ist nicht das eigene, ein offenes
@@ -588,15 +609,8 @@ let resolveLedgerBookingAccounts
             | Some _ ->
                 let resolved = { LedgerAccountId = account.Id; YnabAccountId = ynabId; Name = account.Name }
                 match request.Target with
-                | Some (BookAsTransfer target) when target = ynabId -> Error bookingTransferOwnAccountText
                 | Some (BookAsTransfer target) ->
-                    match openBudget target with
-                    | None -> Error bookingTransferTargetText
-                    | Some targetAccount ->
-                        match targetAccount.TransferPayeeId with
-                        | None -> Error bookingTransferNoPayeeText
-                        | Some payeeId ->
-                            Ok (resolved, Some { TargetAccountId = target; TargetName = targetAccount.Name; TransferPayeeId = payeeId })
+                    checkTransferTarget budget (Some ynabId) target |> Result.map (fun t -> resolved, Some t)
                 | _ -> Ok (resolved, None)
 
 // ============================================

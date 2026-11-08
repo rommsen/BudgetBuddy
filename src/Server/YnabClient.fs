@@ -2114,9 +2114,13 @@ let replaceSplitTransaction
 let parseAccountsResponse (bodyText: string) : Result<YnabAccount list, string> =
     Decode.fromString (Decode.field "data" (Decode.field "accounts" (Decode.list Decoders.accountDecoder))) bodyText
 
-/// Alle Konten des Budgets mit `on_budget` und `closed` (ledger-pafkp): speist im Kassenbuch die
-/// Sperre für Tracking-Konten und die Ziel-Liste der Übertrags-Zeilen im Split-Editor.
-let fetchBudgetAccounts (token: string) (YnabBudgetId budgetId: YnabBudgetId) : Async<YnabResult<YnabAccount list>> =
+/// Der eine Abruf `GET .../accounts`; `parse` liest die Antwort in die Form, die der Aufrufer
+/// braucht (`parseAccountsResponse` oder `parseTransferAccountsResponse`).
+let private getAccountsWith
+    (parse: string -> Result<'Account list, string>)
+    (token: string)
+    (YnabBudgetId budgetId: YnabBudgetId)
+    : Async<YnabResult<'Account list>> =
     async {
         try
             use httpClient = new System.Net.Http.HttpClient()
@@ -2128,41 +2132,34 @@ let fetchBudgetAccounts (token: string) (YnabBudgetId budgetId: YnabBudgetId) : 
             match mapSplitStatus statusCode bodyText [ 200 ] with
             | Error e -> return Error e
             | Ok () ->
-                match parseAccountsResponse bodyText with
+                match parse bodyText with
                 | Error err -> return Error (YnabError.InvalidResponse $"Failed to parse accounts: {err}")
                 | Ok accounts -> return Ok accounts
         with ex ->
             return Error (YnabError.NetworkError $"Failed to fetch accounts: {ex.Message}")
     }
 
+/// Alle Konten des Budgets mit `on_budget` und `closed` (ledger-pafkp): speist im Kassenbuch die
+/// Sperre für Tracking-Konten und die Ziel-Liste der Übertrags-Zeilen im Split-Editor.
+let fetchBudgetAccounts (token: string) (budgetId: YnabBudgetId) : Async<YnabResult<YnabAccount list>> =
+    getAccountsWith parseAccountsResponse token budgetId
+
 /// Ist das Konto ein Tracking-Konto (`on_budget` falsch)? Spec: auf Tracking-Konten gibt es
 /// keine Splits (ADR 0058, Punkt 6). Leichter Abruf `GET .../accounts`, nicht das ganze Budget.
 let isTrackingAccount
     (token: string)
-    (YnabBudgetId budgetId: YnabBudgetId)
+    (budgetId: YnabBudgetId)
     (accountId: YnabAccountId)
     : Async<YnabResult<bool>> =
     async {
-        try
-            use httpClient = new System.Net.Http.HttpClient()
-            httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}")
-            let! httpResponse = httpClient.GetAsync($"{baseUrl}/budgets/{budgetId}/accounts") |> Async.AwaitTask
-            let! bodyText = httpResponse.Content.ReadAsStringAsync() |> Async.AwaitTask
-            let statusCode = int httpResponse.StatusCode
-
-            match mapSplitStatus statusCode bodyText [ 200 ] with
-            | Error e -> return Error e
-            | Ok () ->
-                match parseAccountsResponse bodyText with
-                | Error err -> return Error (YnabError.InvalidResponse $"Failed to parse accounts: {err}")
-                | Ok accounts ->
-                    match accounts |> List.tryFind (fun a -> a.Id = accountId) with
-                    | Some account -> return Ok (not account.OnBudget)
-                    | None ->
-                        let (YnabAccountId g) = accountId
-                        return Error (YnabError.AccountNotFound (g.ToString()))
-        with ex ->
-            return Error (YnabError.NetworkError $"Failed to fetch accounts: {ex.Message}")
+        match! fetchBudgetAccounts token budgetId with
+        | Error e -> return Error e
+        | Ok accounts ->
+            match accounts |> List.tryFind (fun a -> a.Id = accountId) with
+            | Some account -> return Ok (not account.OnBudget)
+            | None ->
+                let (YnabAccountId g) = accountId
+                return Error (YnabError.AccountNotFound (g.ToString()))
     }
 
 // ============================================
@@ -2193,22 +2190,8 @@ let parseTransferAccountsResponse (bodyText: string) : Result<TransferAccount li
     Decode.fromString (Decode.field "data" (Decode.field "accounts" (Decode.list transferAccountDecoder))) bodyText
 
 /// Alle Konten des Budgets mit ihrer Übertrags-Payee (`GET .../accounts`).
-let fetchTransferAccounts (token: string) (YnabBudgetId budgetId: YnabBudgetId) : Async<YnabResult<TransferAccount list>> =
-    async {
-        try
-            use httpClient = new System.Net.Http.HttpClient()
-            httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}")
-            let! httpResponse = httpClient.GetAsync($"{baseUrl}/budgets/{budgetId}/accounts") |> Async.AwaitTask
-            let! bodyText = httpResponse.Content.ReadAsStringAsync() |> Async.AwaitTask
-            match mapSplitStatus (int httpResponse.StatusCode) bodyText [ 200 ] with
-            | Error e -> return Error e
-            | Ok () ->
-                match parseTransferAccountsResponse bodyText with
-                | Error err -> return Error (YnabError.InvalidResponse $"Failed to parse accounts: {err}")
-                | Ok accounts -> return Ok accounts
-        with ex ->
-            return Error (YnabError.NetworkError $"Failed to fetch accounts: {ex.Message}")
-    }
+let fetchTransferAccounts (token: string) (budgetId: YnabBudgetId) : Async<YnabResult<TransferAccount list>> =
+    getAccountsWith parseTransferAccountsResponse token budgetId
 
 /// Was der PUT einer Buchung ändert. `MakeTransfer`: `payee_id` ist die Übertrags-Payee des
 /// Zielkontos, keine `category_id` (wie `encodeSubtransaction` für Split-Ziele). YNAB legt
@@ -2238,41 +2221,59 @@ let buildTransferBody (write: TransferWrite) : string =
     ]
     |> Encode.toString 2
 
+/// Der PUT über einen `HttpClient`: Pfad und JSON-Rumpf hinein, Status und Antworttext heraus.
+let private putSender (httpClient: System.Net.Http.HttpClient) (url: string) (body: string) : Async<int * string> =
+    async {
+        use content = new System.Net.Http.StringContent(body, System.Text.Encoding.UTF8, "application/json")
+        let! httpResponse = httpClient.PutAsync(url, content) |> Async.AwaitTask
+        let! bodyText = httpResponse.Content.ReadAsStringAsync() |> Async.AwaitTask
+        return int httpResponse.StatusCode, bodyText
+    }
+
+/// Der eine PUT auf eine Buchung (`PUT .../transactions/{transaction_id}`), Naht `send` wie bei
+/// `categoryWriteWith`. Ok trägt den Antworttext eines 200, den der Aufrufer auswertet; ein
+/// anderer Status geht über `mapSplitStatus`, eine Ausnahme wird zu `NetworkError` mit `what`
+/// im Satz.
+let private putTransactionWith
+    (send: string -> string -> Async<int * string>)
+    (YnabBudgetId budgetId: YnabBudgetId)
+    (ynabTransactionId: string)
+    (body: string)
+    (what: string)
+    : Async<YnabResult<string>> =
+    async {
+        try
+            let! statusCode, bodyText = send $"{baseUrl}/budgets/{budgetId}/transactions/{ynabTransactionId}" body
+            printfn "[YNAB] PUT /budgets/%s/transactions/%s - %s" budgetId ynabTransactionId what
+            printfn "[YNAB] Response Status: %d" statusCode
+            return mapSplitStatus statusCode bodyText [ 200 ] |> Result.map (fun () -> bodyText)
+        with ex ->
+            return Error (YnabError.NetworkError $"{what} konnte nicht an YNAB gesendet werden: {ex.Message}")
+    }
+
 /// Sendet `TransferWrite` mit dem übergebenen `HttpClient` (injizierbar für Tests):
 /// `PUT .../transactions/{transaction_id}`. Ein 200, dessen Antwort beim Übertrag kein
 /// `transfer_account_id` trägt, gilt als Fehlschlag: YNAB hat den Übertrag dann nicht angelegt.
 let sendTransfer
     (httpClient: System.Net.Http.HttpClient)
-    (YnabBudgetId budgetId: YnabBudgetId)
+    (budgetId: YnabBudgetId)
     (ynabTransactionId: string)
     (write: TransferWrite)
     : Async<YnabResult<unit>> =
     async {
-        try
-            let requestBody = buildTransferBody write
-            use content = new System.Net.Http.StringContent(requestBody, System.Text.Encoding.UTF8, "application/json")
-            let! httpResponse =
-                httpClient.PutAsync($"{baseUrl}/budgets/{budgetId}/transactions/{ynabTransactionId}", content)
-                |> Async.AwaitTask
-            let! bodyText = httpResponse.Content.ReadAsStringAsync() |> Async.AwaitTask
-            let statusCode = int httpResponse.StatusCode
-            printfn "[YNAB] PUT /budgets/%s/transactions/%s - Übertrag" budgetId ynabTransactionId
-            printfn "[YNAB] Response Status: %d" statusCode
-            match mapSplitStatus statusCode bodyText [ 200 ] with
-            | Error e -> return Error e
-            | Ok () ->
-                match write with
-                | BackToCategory _ -> return Ok ()
-                | MakeTransfer _ ->
-                    let transferAccount =
-                        Decode.fromString
-                            (Decode.at [ "data"; "transaction"; "transfer_account_id" ] (Decode.option Decode.string))
-                            bodyText
-                    match transferAccount with
-                    | Ok (Some _) -> return Ok ()
-                    | _ -> return Error (YnabError.InvalidResponse "YNAB hat den Übertrag nicht angelegt")
-        with ex ->
-            return Error (YnabError.NetworkError $"Failed to update transfer: {ex.Message}")
+        match! putTransactionWith (putSender httpClient) budgetId ynabTransactionId (buildTransferBody write) "Der Übertrag" with
+        | Error e -> return Error e
+        | Ok bodyText ->
+            match write with
+            | BackToCategory _ -> return Ok ()
+            | MakeTransfer _ ->
+                let transferAccount =
+                    Decode.fromString
+                        (Decode.at [ "data"; "transaction"; "transfer_account_id" ] (Decode.option Decode.string))
+                        bodyText
+                match transferAccount with
+                | Ok (Some _) -> return Ok ()
+                | _ -> return Error (YnabError.InvalidResponse "YNAB hat den Übertrag nicht angelegt")
     }
 
 /// Macht eine Buchung in YNAB zum Übertrag oder wieder zur normalen Buchung (ledger-qvjvs).
