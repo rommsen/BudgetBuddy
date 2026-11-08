@@ -96,6 +96,13 @@ beheben, nicht umgehen.
   Texte, Kopf, Panel). Jede Abweichung steht ausdrücklich in der Task, mit Grund, sonst gilt die Skizze. Ein
   Baustein aus dem DS ersetzt ein Element der Skizze nur, wenn er gleich aussieht. Sonst wird er eine neue
   DS-Variante.
+  Kann BB heute etwas, das in der Skizze fehlt oder schlechter gelöst ist, gilt BB, bis Roman es ausdrücklich
+  streicht (Prototyp Version 14: Split ohne Konten, Historie ohne Beträge, springende Tabs).
+- Bevor Roman eine Skizze oder einen Prototyp freigibt, gleicht der Conductor jede Ansicht Funktion für Funktion
+  mit der heutigen Seite in BB ab (Screenshot von BB daneben) und nennt jede Funktion, die fehlt oder schlechter
+  gelöst ist. Eingaben prüft er mit Touch bei 412 px (Romans Galaxy S25 Ultra): Betragsfelder ohne Vorzeichen,
+  weil die Zifferntastatur zu `inputmode="decimal"` je nach Tastatur-App kein Minus hat (die Richtung kommt aus
+  Ausgabe/Einnahme oder der Buchung). Der Wechsel zwischen zwei Feldern darf die Tastatur nicht schließen.
 - Worker und Verifier können claude.ai-Artifacts nicht öffnen. Der Conductor liest die Skizze (`Artifact`
   read), legt ihre Dateien und einen Screenshot je Ansicht in den Scratchpad und gibt Worker, Verifier und
   `design-quality` die Pfade mit. Die Task trägt ein Kriterium „Seite neben der Skizze verglichen, Abweichungen
