@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-08 14:45 -- Modeling / Captured: ledger-qvjvs - "Buchung zum Übertrag machen: Konten im Kategorie-Picker des Kassenbuch-Details, Schreibweg nach YNAB"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** todo
+**Summary:** Buchung im Kassenbuch-Detail zum Übertrag auf ein anderes Konto machen und zurück, mit Schreibweg nach YNAB. Ersetzt den Kategorie-Teil von design-system-taytp in Etappe 2.
+
+---
+
 ## 2026-11-08 14:10 -- Modeling / Promoted: ledger-p3vq8 - "addCashExpense: gelingt der Push und scheitert danach das Schreiben der Verknüpfung, legt der Spiegel eine zweite Buchung an"
 
 **Type:** Modeling / Promote

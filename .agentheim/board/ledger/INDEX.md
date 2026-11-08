@@ -11,13 +11,14 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 6
-- **Todo:** 1
+- **Todo:** 2
 - **Doing:** 0
 - **Done:** 109
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **ledger-qvjvs** — "Buchung zum Übertrag machen: Konten im Kategorie-Picker des Kassenbuch-Details, Schreibweg nach YNAB" (feature) — `todo/ledger-qvjvs-buchung-zum-uebertrag-machen.md`
 - **ledger-p3vq8** — "addCashExpense: gelingt der Push und scheitert danach das Schreiben der Verknüpfung, legt der Spiegel eine zweite Buchung an" (bug) — `todo/ledger-p3vq8-push-gelungen-verknuepfung-nicht-geschrieben.md`
 <!-- todo-list:end -->
 

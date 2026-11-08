@@ -55,7 +55,7 @@ Ziel: Nichts zwingt mehr zu YNAB außer Reports.
   (das Quick-Add-Versprechen für alle Konten; ING-Tagesgeld).
 - Kategorien verwalten: anlegen, umbenennen, Gruppe wechseln, deaktivieren (nie löschen).
   Neuer Schreibweg nach YNAB.
-- `design-system-taytp` Kategorie-Picker vereinheitlichen
+- `ledger-qvjvs` Buchung zum Übertrag machen (Konten im Picker des Details, Schreibweg nach YNAB)
 - `ledger-p3vq8` Push gelungen, Verknüpfung nicht geschrieben
 - `ledger-nb4tv` ETF-Konto und Abgleich
 - Buchung löschen im Detail (auch in YNAB), mit Rückgängig.
@@ -110,6 +110,8 @@ Betrag im Buchungsdetail bearbeiten, Amazon nur als Link mit Bestellnummer (kein
 - `banking-import-t4raw` zeitgesteuertes Vorbereiten
 - `banking-import-q7vd2` confirmTan-Fehlerzweig
 - `categorization-hz6vj` Kategorisieren im Import
+- `design-system-taytp` Kategorie-Picker vereinheitlichen: Import und Erfassen nutzen nur `CategoryPicker`,
+  `BottomSheet.categoryPicker` entfällt (aus Etappe 2 verschoben, Roman 2026-11-08)
 - `categorization-krscs` Regel-Dialog
 - `ledger-hg5m5` Regel-Angebot nach Kategorie-Änderung
 - `ledger-ayjzq` Sicht „Für mich“ (Lena-Filter)

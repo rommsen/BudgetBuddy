@@ -8,7 +8,7 @@ created: 2026-10-30
 completed:
 depends_on: []
 blocks: []
-tags: [etappe-2, captured, bestandsreview]
+tags: [etappe-3, captured, bestandsreview]
 related_adrs: []
 related_research: []
 prior_art: []
@@ -42,6 +42,8 @@ Alle Befunde der Gruppe, je Zeile Fundstelle | Regel | Schwere | Vorschlag. Beri
 - [ ] To be defined during refinement.
 
 ## Notes
+Verschoben nach Etappe 3 (Roman, 2026-11-08): Die zweite Kategorieauswahl lebt nur noch im Import und auf der Quick-Add-Seite, beide werden in Etappe 3 neu gebaut. Beim Umbau nutzen sie nur `CategoryPicker`, `BottomSheet.categoryPicker` entfällt; die Funde zu den alten Seiten nicht einzeln abarbeiten. Den Übertrag aus dem Detail übernimmt ledger-qvjvs in Etappe 2.
+
 Captured via `quick-capture` on 2026-10-30, raw, unrefined. Bewusst groß; im Refinement (`agentheim:modeling`) kleiner schneiden, wenn der Owner das will.
 
 ## Aufgenommen aus banking-import-wp7js (Triage 2026-11-06)
