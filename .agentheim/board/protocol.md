@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-08 21:24 -- Modeling / Promoted: budgeting-t7dka - "Targets anwenden übergeht in BB deaktivierte Kategorien"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-08 21:24 -- Modeling / Refined: budgeting-t7dka - Targets anwenden übergeht in BB deaktivierte Kategorien
 
 **Type:** Modeling / Refine

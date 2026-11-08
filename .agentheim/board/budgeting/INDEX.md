@@ -10,14 +10,15 @@ Catalog of this bounded context's tasks by status.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 3
-- **Todo:** 0
+- **Backlog:** 2
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 64
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **budgeting-t7dka** — "Targets anwenden übergeht in BB deaktivierte Kategorien" (bug) — `todo/budgeting-t7dka-targets-anwenden-bergeht-in-bb-deaktivierte-kategorien.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -99,7 +100,6 @@ prior-art matcher additionally checks `done-archive/` when present.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **budgeting-t7dka** — "Targets anwenden übergeht in BB deaktivierte Kategorien" (bug) — `backlog/budgeting-t7dka-targets-anwenden-bergeht-in-bb-deaktivierte-kategorien.md`
 - **budgeting-h9c3w** — "Kann-Sammlung budgeting" (chore) — `backlog/budgeting-h9c3w-review-befunde-sammlung.md`
 - **budgeting-bk6tq** — "Spike: Ausgaben am Monatswechsel. Wann kommen Buchungen bei Comdirect und ING an (vorgemerkt, gebucht, welches Datum), und was heißt das für Auffüllen auf einen festen Betrag am Monatsersten?" (spike) — `backlog/budgeting-bk6tq-vortrag-ab-dem-ersten-tag.md`
 <!-- backlog-list:end -->
