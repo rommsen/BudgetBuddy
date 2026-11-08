@@ -1,7 +1,7 @@
 ---
 id: ledger-at63w
 title: "Buchung im Kassenbuch erfassen für jedes Konto ohne Import, mit Vorbelegung (Konto, Datum, Zuletzt, Kategorie zum Payee)"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-11-08

@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-08 16:47 -- Batch started: [ledger-at63w]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-at63w - "Buchung im Kassenbuch erfassen für jedes Konto ohne Import, mit Vorbelegung (Konto, Datum, Zuletzt, Kategorie zum Payee)"
+**Parallel:** yes (1 worker joins wave 2; budgeting-e2z7v and budgeting-sn2sn still running; unblocked by ledger-p3vq8 and ledger-qvjvs)
+
+---
+
 ## 2026-11-08 16:46 -- Task verified and completed: ledger-qvjvs - "Buchung zum Übertrag machen: Konten im Kategorie-Picker des Kassenbuch-Details, Schreibweg nach YNAB"
 
 **Type:** Work / Task completion
