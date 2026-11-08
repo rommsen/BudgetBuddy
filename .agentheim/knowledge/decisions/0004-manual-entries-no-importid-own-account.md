@@ -9,6 +9,7 @@ superseded_by: []
 related_tasks:
   - contexts/ynab-sync/done/2026-06-11-quick-add-manual-entry.md
   - contexts/ynab-sync/done/2026-06-12-quick-add-feedback-round.md
+  - ledger-p3vq8
 related_research: []
 ---
 
@@ -67,3 +68,22 @@ Android-Test: "macht nur Sinn, wenn es auf den Bar-Account geht".
 - `src/Server/Api.fs` (`addManualTransaction`), `src/Server/Validation.fs`
 - `src/Tests/QuickAddTests.fs` (Vertragstests)
 - ADR 0003 (Scope-Entscheidung)
+
+## Nachtrag (2026-11-08, ledger-p3vq8, Roman)
+
+Punkt 1 gilt nicht mehr für Buchungen, die BB anlegt und pusht (Quick Add, Bob, später das Erfassen
+im Kassenbuch). Sie gehen mit einer festen `import_id` nach YNAB: `BB:` und die EntryId als Guid
+ohne Bindestriche (35 Zeichen, YNAB erlaubt 36).
+
+Grund: Geht die Antwort auf den Push verloren (Zeitüberschreitung nach dem Anlegen in YNAB, oder
+das Schreiben von `EntryLinkedToYnab` scheitert), fand der Spiegel die YNAB-Buchung nicht und legte
+eine zweite Kassenbuch-Buchung an; "Erneut senden" buchte in YNAB doppelt (ADR 0021, Negative). Mit
+der festen `import_id` verknüpft der Spiegel über sie, und YNAB lehnt ein zweites Senden ab. Der
+abgelehnte Vorschlag unter "Alternatives considered" (Präfix `BB:QA:`) scheiterte an der frischen
+UUID je Aufruf. Seit ledger-z71ka legt der Aufrufer die EntryId vor dem Push fest, die `import_id`
+ist damit über Wiederholungen stabil.
+
+Folge: YNAB behandelt diese Buchungen als importiert und gleicht sie nicht mehr selbst mit einem
+späteren Bankimport ab. Diesen Abgleich macht BB ("BB entscheidet"). Buchungen, die vor dem
+Nachtrag ohne `import_id` gepusht wurden, senden weiter ohne sie: ob eine davon schon in YNAB
+steht, weiß BB nicht, und eine `import_id` beim Neusenden ergäbe dann eine zweite YNAB-Buchung.

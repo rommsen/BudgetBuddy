@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-11-08 14:10 -- Modeling / Refined: ledger-p3vq8 - Push gelungen, Verknüpfung nicht geschrieben
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** todo
+**Summary:** Roman hat entschieden: Buchungen, die BB anlegt und pusht, gehen mit fester import_id BB:<EntryId> nach YNAB. Der Spiegel verknüpft darüber, Erneut senden bucht nicht doppelt. Ältere Buchungen ohne import_id senden weiter ohne sie.
+**ADRs written:** Nachtrag ADR 0004
+
+---
+
 ## 2026-11-08 02:37 -- Review-Lauf: design-system-dak16
 
 **Type:** Review / Review-Lauf
