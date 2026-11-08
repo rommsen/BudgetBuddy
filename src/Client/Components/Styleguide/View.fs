@@ -337,7 +337,7 @@ let private buttonSection =
                             ]
                         ]
                         subTitle "Kachel und leiser Textknopf"
-                        note "tile: Wert in Mono, Bezeichnung gedämpft, offen, erledigt (✓) oder aktiv (Akzent). quietText: leiser Textknopf. Leiste Monatserster der Budget-Seite. accentText: Textknopf im Akzent am Abschnittskopf (Umbenennen einer Gruppe, Seite Kategorien)."
+                        note "tile: Wert in Mono, Bezeichnung gedämpft, offen, erledigt (✓) oder aktiv (Akzent). quietText: leiser Textknopf. Leiste Monatserster der Budget-Seite. accentText: Textknopf im Akzent am Abschnittskopf (Umbenennen einer Gruppe, Seite Kategorien). disclosureSectionHead: Kopf eines eingeklappten Abschnitts. orderNameRow: Name mit Pfeilen für die Reihenfolge."
                         Html.div [
                             prop.className "grid grid-cols-3 gap-1.5 max-w-sm"
                             prop.children [
@@ -348,9 +348,9 @@ let private buttonSection =
                         ]
                         Button.quietText "styleguide-quiet-text" "Ausblenden" ignore
                         Button.accentText "styleguide-accent-text" "Gruppe umbenennen" "Umbenennen" ignore
-                        Button.nameRow "styleguide-name-row" "styleguide-name-row" "Lebensmittel bearbeiten" "Lebensmittel" ignore
+                        // disclosureSectionHead: Kopf eines eingeklappten Abschnitts ("Deaktiviert (n)", Seite Kategorien).
+                        Button.disclosureSectionHead "styleguide-section-head" "styleguide-section-block" "Deaktiviert (2)" false ignore
                         // orderNameRow: Zeile mit Pfeilen für die Reihenfolge (Seite Kategorien, budgeting-sn2sn).
-                        Button.sectionToggle "styleguide-section-toggle" "styleguide-section-block" "Deaktiviert (2)" false ignore
                         Button.orderNameRow "styleguide-order-row" "styleguide-order-row" "Drogerie bearbeiten" "Drogerie" ignore ignore ignore ignore
                     ]
                 ]
@@ -1061,6 +1061,19 @@ let private InputDemo () =
                     Input.groupSimple "Select" (Input.selectWithPlaceholder selectValue setSelectValue "Kategorie wählen…" categoryOptions)
                 ]
                 Input.groupSimple "Searchable Select" (Input.searchableSelect searchValue setSearchValue "Kategorie suchen…" groupedOptions)
+                // pickerField: Auswahlfeld als Knopf (Formular "Neue Buchung", ledger-at63w), leer, mit Wert, mit Saldo.
+                Input.pickerField "styleguide-picker-empty" "Kategorie" None "wählen" None false ignore
+                Input.pickerField "styleguide-picker-value" "Kategorie" (Some "Lebensmittel") "wählen" None false ignore
+                Input.pickerField "styleguide-picker-balance" "Konto" (Some "Girokonto") "wählen" (Some (Money.accountBalance 1250.40m "EUR")) false ignore
+                // input-amount-hero: der große Betrag im Formular "Neue Buchung" (Mono, rechtsbündig, 30 px).
+                Input.text
+                    { Input.textInputDefaults with
+                        Value = "12,50"
+                        Placeholder = "0,00 €"
+                        Size = Input.Large
+                        InputMode = Some "decimal"
+                        AriaLabel = Some "Betrag"
+                        ClassName = Some "w-full input-amount input-amount-hero tabular-nums" }
                 Input.toggle toggleValue setToggleValue (Some "Auto-Kategorisierung aktiv")
                 // switchRow: Schalter als Zeile mit Erklärung (Schalter "Aktiv" der Seite Kategorien, budgeting-sn2sn).
                 Input.switchRow "styleguide-switch-row" "Aktiv" "Deaktiviert verschwindet sie aus Auswahl und Budget. Buchungen und Historie bleiben." toggleValue false setToggleValue
@@ -1263,6 +1276,15 @@ let private BottomSheetDemo () =
                           ReturnFocus = Some "[data-ds-card-name='BottomSheet.confirm'] button" }
                 else
                     Button.primary "Target speichern" (fun () -> setChangeOpen true)
+            ]
+        ]
+        subTitle "Chip mit Trefferfläche (BottomSheet.chipButtonTouch)"
+        note "Wie chipButton, am Handy 48 px hoch, ab md 36 px. Hält den Fokus im Feld, die Tastatur bleibt offen. Zuletzt-Chips im Formular \"Neue Buchung\"."
+        Html.div [
+            prop.className "flex flex-wrap gap-2"
+            prop.children [
+                for label in [ "REWE · Lebensmittel"; "Bäcker · Lebensmittel" ] ->
+                    React.keyedFragment (label, [ BottomSheet.chipButtonTouch label ignore ])
             ]
         ]
         subTitle "Feste Höhe (BottomSheet.inspector)"

@@ -544,8 +544,7 @@ let pickerField
         prop.custom ("aria-haspopup", "dialog")
         prop.custom ("aria-expanded", (if isOpen then "true" else "false"))
         prop.className (
-            $"input-field w-full flex items-center gap-3 px-4 py-2 min-h-[52px] text-left touch-manipulation "
-            + "hover:border-accent transition-colors"
+            "input-field w-full flex items-center gap-3 px-4 py-2 min-h-[52px] text-left touch-manipulation"
         )
         prop.onMouseDown (fun e -> e.preventDefault ())
         prop.onClick (fun _ -> onClick ())
@@ -555,8 +554,8 @@ let pickerField
                 prop.children [
                     Html.span [ prop.className $"{FontSizes.xs} {Colors.textMuted}"; prop.text label ]
                     match value with
-                    | Some v -> Truncate.text $"text-base {Colors.textPrimary}" v
-                    | None -> Html.span [ prop.className $"text-base {Colors.textMuted}"; prop.text placeholder ]
+                    | Some v -> Truncate.text $"text-base md:text-sm {Colors.textPrimary}" v
+                    | None -> Html.span [ prop.className $"text-base md:text-sm {Colors.textMuted}"; prop.text placeholder ]
                 ]
             ]
             match extra with
@@ -1257,17 +1256,20 @@ let comboBoxGrouped value onChange placeholder (options: ComboBoxOption list) =
 
 /// Ein Schalter als eigene Zeile mit Titel und Erklärung (Seite Kategorien, Schalter "Aktiv", Prototyp Version 17):
 /// links Titel und darunter der Satz in `muted`, rechts die Schiene 46 × 28 px, an im Akzent mit dunklem Knopf,
-/// aus in der Randfarbe mit hellem Knopf. Die ganze Zeile ist der Knopf (`role switch`, `aria-checked`), am Handy
-/// mindestens 48 px hoch; die Linie darunter wie eine Zeile im Prototyp. `Disabled` sperrt ihn, etwa während des
-/// Speicherns.
+/// aus in `border-strong` (3:1 gegen Karte und Fläche, §2) mit hellem Knopf. Die ganze Zeile ist der Knopf
+/// (`role switch`, `aria-checked`), am Handy mindestens 48 px hoch; der Titel ist der Name, der Satz die
+/// Beschreibung (`aria-describedby`). Die Linie darunter wie eine Zeile im Prototyp. `Disabled` sperrt ihn, etwa
+/// während des Speicherns.
 let switchRow (testId: string) (title: string) (description: string) (isOn: bool) (disabled: bool) (onToggle: bool -> unit) =
-    let track = if isOn then "bg-accent" else "bg-border-default"
+    let track = if isOn then "bg-accent" else "bg-border-strong"
+    let descriptionId = $"{testId}-description"
     let knob = if isOn then "translate-x-[18px] bg-on-accent" else "translate-x-0 bg-text-primary"
     Html.button [
         prop.type'.button
         prop.custom ("data-testid", testId)
         prop.role "switch"
         prop.ariaLabel title
+        prop.ariaDescribedBy descriptionId
         prop.custom ("aria-checked", (if isOn then "true" else "false"))
         prop.disabled disabled
         prop.className
@@ -1278,7 +1280,7 @@ let switchRow (testId: string) (title: string) (description: string) (isOn: bool
                 prop.className "flex flex-col gap-0.5 min-w-0"
                 prop.children [
                     Html.span [ prop.className $"text-base md:text-sm {FontWeights.medium} {Colors.textPrimary}"; prop.text title ]
-                    Html.span [ prop.className ListRoles.muted; prop.text description ]
+                    Html.span [ prop.id descriptionId; prop.className ListRoles.muted; prop.text description ]
                 ]
             ]
             Html.span [

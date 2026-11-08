@@ -308,20 +308,6 @@ let listRow (key: string) (testId: string) (ariaLabel: string) (onClick: unit ->
         prop.children children
     ]
 
-/// Eine einzeilige Listenzeile als Knopf, nur ein Name (Seite Kategorien, Prototyp Version 17, budgeting-pscgb):
-/// mindestens 48 px hoch, der Name gekürzt mit `title`. Die Linie zwischen Zeilen fällt an der letzten weg.
-let nameRow (key: string) (testId: string) (ariaLabel: string) (name: string) (onClick: unit -> unit) =
-    Html.button [
-        prop.key key
-        prop.type' "button"
-        prop.custom ("data-testid", testId)
-        prop.ariaLabel ariaLabel
-        prop.className
-            $"flex w-full items-center text-left px-4 py-3 min-h-[48px] border-b border-border-subtle last:border-b-0 cursor-pointer touch-manipulation hover:bg-surface-hover"
-        prop.onClick (fun _ -> onClick ())
-        prop.children [ Truncate.text $"block {ListRoles.primary}" name ]
-    ]
-
 /// Wie `listRow`, die Zeile wählt etwas aus: die gewählte trägt `aria-current` und den Akzent (ADR 0087).
 /// `aria-selected` gilt nur in Rollen wie `option` oder `tab`, nicht an einem `button`.
 let selectableListRow (key: string) (testId: string) (ariaLabel: string) (isSelected: bool) (onClick: unit -> unit) (children: ReactElement list) =
@@ -339,20 +325,27 @@ let selectableListRow (key: string) (testId: string) (ariaLabel: string) (isSele
 /// Wie `listRow`, die Zeile klappt einen Block darunter auf (budgeting-c6vn4): rechts ein Chevron in
 /// `text-muted`, der sich beim Öffnen dreht (`Transitions.fast`, aus unter `prefers-reduced-motion`),
 /// `aria-expanded` und `aria-controls` auf die Id des Blocks. Der Block steht immer im DOM, zu ist er
-/// `hidden`. Den Namen liest der Screenreader aus dem Inhalt der Zeile. Die Linie unter Zeile und Block
-/// setzt der Aufrufer an die Hülle um beide.
-let disclosureListRow (key: string) (testId: string) (controlsId: string) (isOpen: bool) (onClick: unit -> unit) (children: ReactElement list) =
+/// `hidden`. Den Namen liest der Screenreader aus dem Inhalt der Zeile.
+type private DisclosureKind =
+    | ListRowKind
+    | SectionHeadKind
+
+let private disclosureRow (kind: DisclosureKind) (key: string) (testId: string) (controlsId: string) (isOpen: bool) (onClick: unit -> unit) (content: ReactElement) =
     let turned = if isOpen then "rotate-180" else "rotate-0"
+    let kindClass =
+        match kind with
+        | ListRowKind -> $"{ListRoles.mobileRowPadding} hover:bg-surface-hover"
+        | SectionHeadKind -> $"min-h-[52px] px-0.5 border-b border-border-subtle text-sm {Colors.textSecondary} hover:text-text-primary"
     Html.button [
         prop.key key
         prop.type' "button"
         prop.custom ("data-testid", testId)
         prop.ariaExpanded isOpen
         prop.ariaControls controlsId
-        prop.className $"flex w-full items-center gap-2 text-left cursor-pointer touch-manipulation {ListRoles.mobileRowPadding} hover:bg-surface-hover"
+        prop.className $"flex w-full items-center gap-2 text-left cursor-pointer touch-manipulation {kindClass}"
         prop.onClick (fun _ -> onClick ())
         prop.children [
-            Html.span [ prop.className "flex flex-col flex-1 min-w-0"; prop.children children ]
+            content
             Html.span [
                 prop.custom ("data-testid", "disclosure-chevron")
                 prop.className $"inline-flex shrink-0 {Transitions.fast} motion-reduce:transition-none {turned}"
@@ -360,6 +353,22 @@ let disclosureListRow (key: string) (testId: string) (controlsId: string) (isOpe
             ]
         ]
     ]
+
+/// Eine Listenzeile, die einen Block darunter aufklappt (Durchlauf in der Budget-Historie, Gruppe in Targets
+/// prüfen). Die Linie unter Zeile und Block setzt der Aufrufer an die Hülle um beide.
+let disclosureListRow (key: string) (testId: string) (controlsId: string) (isOpen: bool) (onClick: unit -> unit) (children: ReactElement list) =
+    disclosureRow
+        ListRowKind
+        key testId controlsId isOpen onClick
+        (Html.span [ prop.className "flex flex-col flex-1 min-w-0"; prop.children children ])
+
+/// Wie `disclosureListRow` als Kopf eines eingeklappten Abschnitts (Seite Kategorien, "Deaktiviert (n)", Prototyp
+/// Version 17): mindestens 52 px hoch, die Beschriftung in `text-secondary`, die Linie darunter an der Zeile.
+let disclosureSectionHead (testId: string) (controlsId: string) (label: string) (isOpen: bool) (onClick: unit -> unit) =
+    disclosureRow
+        SectionHeadKind
+        testId testId controlsId isOpen onClick
+        (Html.span [ prop.className "flex-1 min-w-0"; prop.text label ])
 
 /// Ein Pfeil zum Blättern (`‹ ›`): schlichter Knopf mit 48 px Trefferfläche am Handy.
 let stepArrow (testId: string) (ariaLabel: string) (arrow: string) (onClick: unit -> unit) =
@@ -495,31 +504,36 @@ let tile (testId: string) (value: string) (label: string) (title: string option)
         ]
     ]
 
-/// Ein leiser Textknopf, 12 px gedämpft, ohne Rand und Fläche ("Ausblenden"). Trefferfläche 48 × 48 px am Handy
-/// (auch ein kurzes Wort wie "Heute", ledger-at63w), 36 px hoch ab md.
-let quietText (testId: string) (text: string) (onClick: unit -> unit) =
+type private TextTone =
+    | Quiet
+    | AccentTone
+
+/// Gemeinsamer Kern von `quietText` und `accentText`: Textknopf ohne Rand und Fläche, 12 px, Trefferfläche
+/// 48 × 48 px am Handy (auch ein kurzes Wort wie "Heute", ledger-at63w), 36 px hoch ab md.
+let private textButton (tone: TextTone) (testId: string) (ariaLabel: string option) (text: string) (onClick: unit -> unit) =
+    let toneClass =
+        match tone with
+        | Quiet -> $"{Colors.textSecondary} hover:text-text-primary transition-colors"
+        | AccentTone -> $"font-mono {Colors.accent} hover:underline"
     Html.button [
         prop.type' "button"
         prop.custom ("data-testid", testId)
+        match ariaLabel with
+        | Some label -> prop.ariaLabel label
+        | None -> ()
         prop.className
-            $"inline-flex items-center justify-center min-h-[48px] min-w-[48px] md:min-h-9 md:min-w-0 px-1 -mr-1 text-xs {Colors.textSecondary} cursor-pointer touch-manipulation hover:text-text-primary transition-colors"
+            $"inline-flex items-center justify-center min-h-[48px] min-w-[48px] md:min-h-9 md:min-w-0 px-1 -mr-1 text-xs cursor-pointer touch-manipulation {toneClass}"
         prop.onClick (fun _ -> onClick ())
         prop.text text
     ]
 
+/// Ein leiser Textknopf, 12 px gedämpft, ohne Rand und Fläche ("Ausblenden").
+let quietText (testId: string) (text: string) (onClick: unit -> unit) = textButton Quiet testId None text onClick
+
 /// Ein Textknopf im Akzent an einem Abschnittskopf ("Umbenennen" an einer Gruppe der Seite Kategorien, Prototyp
-/// Version 17, budgeting-pscgb): 12 px Mono wie der Gruppenkopf, ohne Rand und Fläche. Trefferfläche 48 px am Handy,
-/// 36 px ab md. `ariaLabel` nennt, worauf er wirkt.
+/// Version 17, budgeting-pscgb): 12 px Mono wie der Gruppenkopf. `ariaLabel` nennt, worauf er wirkt.
 let accentText (testId: string) (ariaLabel: string) (text: string) (onClick: unit -> unit) =
-    Html.button [
-        prop.type' "button"
-        prop.custom ("data-testid", testId)
-        prop.ariaLabel ariaLabel
-        prop.className
-            $"inline-flex items-center min-h-[48px] md:min-h-9 px-1 -mr-1 font-mono text-xs {Colors.accent} cursor-pointer touch-manipulation hover:underline"
-        prop.onClick (fun _ -> onClick ())
-        prop.text text
-    ]
+    textButton AccentTone testId (Some ariaLabel) text onClick
 
 // ============================================
 // Hero Button
@@ -614,22 +628,5 @@ let orderNameRow
             ]
             orderArrow $"{testId}-up" $"{name} nach oben" (chevronUp SM Default) onUp
             orderArrow $"{testId}-down" $"{name} nach unten" (chevronDown SM Default) onDown
-        ]
-    ]
-
-/// Der Kopf eines eingeklappten Abschnitts (Seite Kategorien, "Deaktiviert (n)", Prototyp Version 17): eine Zeile von
-/// mindestens 52 px mit der Beschriftung in `text-secondary` links, rechts der Chevron (zu runter, offen hoch) und
-/// der Linie darunter. `aria-expanded` und `aria-controls` auf den Block, der Block steht immer im DOM.
-let sectionToggle (testId: string) (controlsId: string) (label: string) (isOpen: bool) (onClick: unit -> unit) =
-    Html.button [
-        prop.type' "button"
-        prop.custom ("data-testid", testId)
-        prop.ariaExpanded isOpen
-        prop.ariaControls controlsId
-        prop.className $"flex w-full min-h-[52px] items-center justify-between gap-3 px-0.5 text-left border-b border-border-subtle cursor-pointer touch-manipulation text-sm {Colors.textSecondary} hover:text-text-primary"
-        prop.onClick (fun _ -> onClick ())
-        prop.children [
-            Html.span [ prop.text label ]
-            if isOpen then chevronUp SM Muted else chevronDown SM Muted
         ]
     ]

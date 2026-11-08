@@ -119,7 +119,7 @@ let private inactiveSection (groups: ManagedCategoryGroup list) (isOpen: bool) (
             prop.custom ("data-testid", "categories-inactive")
             prop.className "flex flex-col gap-2"
             prop.children [
-                Button.sectionToggle
+                Button.disclosureSectionHead
                     "categories-inactive-toggle"
                     "categories-inactive-list"
                     $"Deaktiviert ({inactive.Length})"
