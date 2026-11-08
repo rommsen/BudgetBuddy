@@ -48,7 +48,7 @@ let private variantToClass = function
     | Glass ->
         "bg-surface-card/80 backdrop-blur-xl border border-border-default"
     | Glow ->
-        "bg-surface-card border border-neon-teal/50 shadow-glow-teal/30"
+        "bg-surface-card border border-accent/50"
     | Elevated ->
         "bg-surface-elevated border border-border-subtle shadow-lg"
 
@@ -65,7 +65,7 @@ let private hoverClass hoverable variant =
         | Glass ->
             "hover:border-border-default hover:-translate-y-0.5"
         | Glow ->
-            "hover:shadow-[0_0_30px_rgba(0,212,170,0.4)] hover:-translate-y-0.5"
+            "hover:border-accent/50 hover:-translate-y-0.5"
     else ""
 
 /// Create a card with children
@@ -171,7 +171,7 @@ let withAccent (children: ReactElement list) =
         prop.children [
             // Gradient accent line
             Html.div [
-                prop.className "h-1 bg-gradient-to-r from-neon-teal via-neon-green to-neon-orange"
+                prop.className "h-1 bg-gradient-to-r from-accent to-success"
             ]
             // Content
             Html.div [
@@ -181,10 +181,10 @@ let withAccent (children: ReactElement list) =
         ]
     ]
 
-/// Action card (featured with glow, typically for main CTA)
+/// Action card (Akzentrand; der Glow gehört nur dem Hauptknopf darin, ADR 0087 Punkt 6)
 let action (title: string) (description: string) (actionButton: ReactElement) =
     Html.div [
-        prop.className "rounded-xl bg-surface-card border border-neon-orange/30 p-4 md:p-6 shadow-[0_0_15px_rgba(255,107,44,0.2)] hover:shadow-[0_0_25px_rgba(255,107,44,0.3)] transition-all duration-200"
+        prop.className "rounded-xl bg-surface-card border border-accent/30 p-4 md:p-6 transition-all duration-200"
         prop.children [
             Html.h3 [
                 prop.className "text-lg md:text-xl font-semibold font-display text-text-primary mb-2"
@@ -205,13 +205,13 @@ let stat (icon: ReactElement) (label: string) (value: string) (trend: ReactEleme
         prop.children [
             // Gradient accent (visible on hover)
             Html.div [
-                prop.className "absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-neon-teal via-neon-green to-neon-orange opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                prop.className "absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-accent to-success opacity-0 group-hover:opacity-100 transition-opacity duration-200"
             ]
             Html.div [
                 prop.className "flex items-start gap-3"
                 prop.children [
                     Html.div [
-                        prop.className "flex-shrink-0 p-2 rounded-lg bg-neon-teal/10"
+                        prop.className "flex-shrink-0 p-2 rounded-lg bg-accent/10"
                         prop.children [ icon ]
                     ]
                     Html.div [

@@ -9,7 +9,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-import { findViolations, run } from "./token-guard.mjs";
+import { findCssColorLiterals, findViolations, run } from "./token-guard.mjs";
 
 const scriptPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "token-guard.mjs");
 
@@ -85,10 +85,10 @@ test("Ausnahme mit zu kleiner Anzahl lässt weitere Treffer nicht durch", () => 
 
 test("Token-Klassen und nicht-farbige Arbitrary-Werte lösen keinen Treffer aus", () => {
   const source = [
-    'prop.className "text-neon-teal bg-surface from-neon-orange shadow-glow-orange"',
+    'prop.className "text-accent bg-surface from-neon-orange shadow-glow-orange"',
     'prop.className "min-h-[36px] w-[420px] md:w-[268px] tracking-[0.16em] h-[42px]"',
     'prop.className "text-xs text-text-muted md:text-sm"',
-    'prop.className "bg-neon-green/10 border-border-default"',
+    'prop.className "bg-success/10 border-border-default"',
   ].join("\n");
   assert.deepEqual(findViolations(source), []);
 });
@@ -106,27 +106,84 @@ test("Ausnahmeliste ungültig: Exit 2 (der Wächter kann nicht urteilen)", () =>
   assert.equal(runGuard(fx3).code, 2);
 });
 
-// ADR 0075 Punkt 5: unter Components/Budget/ steht kein wörtliches Pink. Pink über DS-Bausteine (Fix 5850313)
-// prüft die Farbregel des Layout-Sweeps im gerenderten DOM. Gegenbeweis: dieselbe Zeile im Kassenbuch und als
-// Kommentar besteht.
-const PINK_LINES = [
+// ADR 0087: die entfallenen Farben stehen nirgends unter src/Client/, auch nicht im DesignSystem und auch nicht
+// über die Ausnahmeliste. Regression für Fix 5850313 (Pink als Warnung auf der Budget-Seite über
+// `Badge.warning`/`ErrorDisplay.warning`): der Fall "DS-Baustein setzt Pink" ist die Zeile in DesignSystem/Badge.fs.
+// Gegenbeweis: dieselbe Zeile als Kommentar besteht.
+const REMOVED_COLOR_LINES = [
   "prop.className Tokens.Text.neonPink",
   'prop.className "text-neon-pink"',
   "Icons.view Icons.Alert Icons.NeonPink",
   "Stats.statCard { Accent = Stats.Pink }",
+  '| Warning -> "bg-neon-pink/10 text-neon-pink border-neon-pink/30"',
+  'prop.className "bg-neon-orange"',
+  "Tokens.Colors.neonPurple",
+  'prop.className "text-calm-violet"',
 ];
-for (const line of PINK_LINES) {
-  test(`unter Components/Budget/: ${line} scheitert als budget-ohne-pink, im Kassenbuch und als Kommentar nicht`, () => {
-    const budget = runGuard(makeFixture({ "Components/Budget/View.fs": `module View\n\nlet v =\n    ${line}\n` }));
-    assert.equal(budget.code, 1, budget.out);
-    assert.match(budget.out, /src\/Client\/Components\/Budget\/View\.fs:4\s+\[budget-ohne-pink\]/);
-
-    const ledger = runGuard(makeFixture({ "Components/Ledger/View.fs": `module View\n\nlet v =\n    ${line}\n` }));
-    assert.equal(ledger.code, 0, ledger.out);
-    const comment = runGuard(makeFixture({ "Components/Budget/View.fs": `module View\n\n// ${line}\n` }));
+for (const line of REMOVED_COLOR_LINES) {
+  test(`überall unter src/Client: ${line} scheitert als entfallene-farbe, als Kommentar nicht`, () => {
+    for (const rel of ["Components/Budget/View.fs", "Components/Ledger/View.fs", "DesignSystem/Badge.fs"]) {
+      const hit = runGuard(makeFixture({ [rel]: `module View\n\nlet v =\n    ${line}\n` }));
+      assert.equal(hit.code, 1, hit.out);
+      assert.match(hit.out, new RegExp(`src/Client/${rel.replace(/[./]/g, "\\$&")}:4\\s+\\[entfallene-farbe\\]`));
+    }
+    const comment = runGuard(makeFixture({ "DesignSystem/Badge.fs": `module View\n\n// ${line}\n` }));
     assert.equal(comment.code, 0, comment.out);
   });
 }
+
+test("entfallene-farbe lässt sich im DesignSystem nicht per Ausnahmeliste erlauben", () => {
+  const fx = makeFixture(
+    { "DesignSystem/Badge.fs": 'let v = "text-neon-pink"\n' },
+    [{ file: "src/Client/DesignSystem/Badge.fs", pattern: "entfallene-farbe", count: 1, reason: "r" }]
+  );
+  assert.equal(runGuard(fx).code, 2, "die Ausnahmeliste kennt das Muster nicht");
+});
+
+// design-system-dak16: Farbliterale in styles.css außerhalb von @theme und :root. Regression für den Fund aus
+// Iteration 1: `.info-banner.warning` zeichnete mit `rgba(255, 138, 36, …)` Orange als Warnung, obwohl es seit
+// ADR 0087 kein Orange mehr gibt.
+test("css-farbliteral: ein Orange in einer Klasse wird gemeldet, in @theme und :root nicht", () => {
+  const css = [
+    "@theme {",
+    "  --color-attention: #cdb27a;",
+    "}",
+    ":root {",
+    "  --bg-app: #08081a;",
+    "}",
+    "@media (min-width: 768px) {",
+    "  :root { --x: #ffffff; }",
+    "}",
+    ".info-banner.warning {",
+    "  background: rgba(255, 138, 36, 0.08);",
+    "  border-color: #ff8a24;",
+    "  color: hsl(30, 100%, 50%);",
+    "}",
+  ].join("\n");
+  assert.deepEqual(findCssColorLiterals(css).map((h) => [h.line, h.match]), [
+    [11, "rgba(255, 138, 36, 0.08)"],
+    [12, "#ff8a24"],
+    [13, "hsl(30, 100%, 50%)"],
+  ]);
+});
+
+test("css-farbliteral: Tokens, color-mix, Schwarz für Schatten, Kommentare und Daten-URLs sind erlaubt", () => {
+  const css = [
+    "/* früher: rgba(255, 138, 36, 0.08) und #ff6b2c */",
+    ".a { background: color-mix(in srgb, var(--color-attention) 8%, transparent); }",
+    ".b { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45); background: rgba(0,0,0,.6); }",
+    ".c { background-image: url(\"data:image/svg+xml,%3Csvg stroke='%23a3a3bd'/%3E\"); color: currentColor; }",
+    ".d { color: var(--text-primary); }",
+  ].join("\n");
+  assert.deepEqual(findCssColorLiterals(css), []);
+});
+
+test("css-farbliteral: der Lauf scheitert mit Datei und Zeile, wenn styles.css ein Farbliteral trägt", () => {
+  const fx = makeFixture({ "styles.css": ":root { --a: #000; }\n.x { color: rgba(255, 138, 36, 0.25); }\n" });
+  const r = runGuard(fx);
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /src\/Client\/styles\.css:2\s+\[css-farbliteral\]/);
+});
 
 test("obj/ und bin/ werden nicht geprüft", () => {
   const fx = makeFixture({ "obj/Gen.fs": 'let v = "text-red-500"\n', "bin/Gen.fs": 'let v = "text-red-500"\n' });

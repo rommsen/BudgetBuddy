@@ -223,12 +223,12 @@ let private deletedBadge () =
     }
 
 /// Kennzeichen einer Buchung, die in BB steht, aber nicht in YNAB (`LinkedToYnab = false`,
-/// ledger-cks06): orange nach ADR 0049, Handy-Zeile und PC-Statusspalte.
+/// ledger-cks06): Gelb, braucht dich (ADR 0087 Punkt 3), Handy-Zeile und PC-Statusspalte.
 let private notInYnabBadge () =
     Badge.view {
         Badge.defaultProps with
             Text = "Nicht in YNAB"
-            Variant = Badge.Orange
+            Variant = Badge.Warning
             Size = Badge.Small
     }
 
@@ -263,12 +263,12 @@ let tableStatusMarks (entry: LedgerEntryView) : TableStatusMark list =
           if mark = RowDeleted then StatusDeleted ]
 
 /// Das Status-Kennzeichen "zu prüfen" der PC-Statusspalte (ADR 0032, ADR 0049 Punkt
-/// 7): ein kleines Wort in Pink statt eines Badges. Die eigentliche Markierung ist
+/// 7, ADR 0087 Punkt 3): ein kleines Wort in Gelb statt eines Badges. Die eigentliche Markierung ist
 /// die Statuskante am Zeilenrand (`Table.RowProps.StatusEdge`); das Wort ist der
 /// Zusatz, der sie benennt. Quelle bleibt `entry.NeedsReview`.
 let private needsReviewStatusBadge () =
     Html.span [
-        prop.className $"{Tokens.FontSizes.microPlus} {Tokens.Colors.neonPink} whitespace-nowrap"
+        prop.className $"{Tokens.FontSizes.microPlus} {Tokens.Colors.attention} whitespace-nowrap"
         prop.text "zu prüfen"
     ]
 
@@ -304,29 +304,30 @@ let private deletedStatusIcon () =
                 Size = Badge.Small
         })
 
-/// Das Kennzeichen eines gesetzten Flags (ADR 0032): *Rückfrage Lena* violett,
-/// *Markiert* orange. `NoFlag` zeigt nichts. Voller Wortlaut, für die Handy-Zeile
-/// (`entryRow`), dort ist keine Spaltenbreite zu wahren.
+/// Das Kennzeichen eines gesetzten Flags (ADR 0032): *Rückfrage Lena* als Flag-Symbol in der
+/// Lena-Farbe mit dem Namen, ohne farbiges Badge (ADR 0087 Punkt 8); *Markiert* neutral.
+/// `NoFlag` zeigt nichts. Voller Wortlaut, für die Handy-Zeile (`entryRow`), dort ist keine
+/// Spaltenbreite zu wahren.
 let private flagBadge (flag: LedgerFlag) : ReactElement =
-    match flagLabel flag with
-    | None -> Html.none
-    | Some label ->
-        let variant = match flag with AskLena -> Badge.Purple | _ -> Badge.Orange
-        Badge.view { Badge.defaultProps with Text = label; Variant = variant; Size = Badge.Small }
+    match flag, flagLabel flag with
+    | _, None -> Html.none
+    | AskLena, Some label -> Badge.lenaMark label
+    | _, Some label -> Badge.view { Badge.defaultProps with Text = label; Variant = Badge.Neutral; Size = Badge.Small }
 
 /// Das Kennzeichen eines gesetzten Flags in der PC-Statusspalte (Entscheidung Roman
 /// 2026-09-19, `ledger-qns4j`): derselbe volle Wortlaut aus `flagBadge` ("Rückfrage
 /// Lena") passt zusammen mit `needsReviewStatusBadge` ("Zu prüfen") nicht mehr in die
 /// auf 128px zurückgesetzte Spalte (`statusColumnWidth`), genau der Rückfall auf das
 /// Pflaster-Verhalten aus `What`, Punkt 3, den der Verifier von Iteration 1
-/// zurecht bemängelt hat. *Rückfrage Lena* bekommt hier die gekürzte Fassung "Lena?"
+/// zurecht bemängelt hat. *Rückfrage Lena* bekommt hier die gekürzte Fassung: Flag-Symbol und "Lena"
+/// (ADR 0087 Punkt 8; vorher das Badge "Lena?")
 /// (Romans Vorgabe: "Beschriftungen gekürzt oder durch Symbole ersetzt").
 ///
 /// *Markiert* (Iteration 3: der Verifier von Iteration 2 hat vorgerechnet, dass
 /// "Zu prüfen" + der Text "Markiert" die 128px-Zelle noch um 3px waagerecht
 /// überläuft, scrollWidth 131 gegen clientWidth 128) wird deshalb, statt weiter
-/// gekürzt, komplett zum Symbol wie `deletedStatusIcon` (`Icons.flag`, orange,
-/// dieselbe Farbrolle wie der bisherige Text-Badge): das schafft deutlich mehr
+/// gekürzt, komplett zum Symbol wie `deletedStatusIcon` (`Icons.flag`, neutral,
+/// ADR 0087): das schafft deutlich mehr
 /// Reserve als eine weitere Kürzung des Wortlauts und folgt demselben, schon
 /// etablierten Muster. `withAccessibleName` trägt "Markiert" als `title`/
 /// `aria-label` nach, weil das Symbol allein keinen Text mehr zeigt.
@@ -338,19 +339,18 @@ let private flagStatusBadge (flag: LedgerFlag) : ReactElement =
     match flag with
     | NoFlag -> Html.none
     | AskLena ->
-        withAccessibleName "Rückfrage Lena" (
-            Badge.view { Badge.defaultProps with Text = "Lena?"; Variant = Badge.Purple; Size = Badge.Small })
+        withAccessibleName "Rückfrage Lena" (Badge.lenaMark "Lena")
     | Marked ->
         withAccessibleName "Markiert" (
             Badge.view {
                 Badge.defaultProps with
                     Text = ""
-                    Icon = Some (Icons.flag Icons.XS Icons.Warning)
-                    Variant = Badge.Orange
+                    Icon = Some (Icons.flag Icons.XS Icons.Muted)
+                    Variant = Badge.Neutral
                     Size = Badge.Small
             })
 
-/// Der Betrag einer Zeile über die Listenvariante (ADR 0049): neutral, Eingang Teal,
+/// Der Betrag einer Zeile über die Listenvariante (ADR 0049, ADR 0087): neutral, auch ein Eingang,
 /// ohne Glow. Gedämpft und durchgestrichen, wenn die Buchung in YNAB gelöscht ist
 /// (AC3, ledger-p3n8k).
 let private entryMoney (entry: LedgerEntryView) =
@@ -389,7 +389,7 @@ let categoryLabel (entry: LedgerEntryView) : string =
 
 /// Ob eine Buchung wirklich "ohne Kategorie" ist, also ein offener Fall (ADR 0048):
 /// weder Kategorie noch Split noch Übertrag. Nur dann färbt die Liste die Kategorie
-/// Orange (ADR 0049 Punkt 4); ein Übertrag trägt ein Ziel und bleibt neutral.
+/// Gelb (ADR 0087 Punkt 3); ein Übertrag trägt ein Ziel und bleibt neutral.
 let isWithoutCategory (entry: LedgerEntryView) : bool =
     entry.CategoryName.IsNone && List.isEmpty entry.Splits && not entry.IsTransfer
 
@@ -456,11 +456,11 @@ let categoryMenuLabel (entry: LedgerEntryView) : string option =
 
 /// Die Klassen der Kategorie in einer Listenzeile (ADR 0049 Punkt 4): die
 /// sekundäre Rolle (12px, `text-secondary`), nicht mehr violett. Nur "ohne
-/// Kategorie" bleibt Orange, weil es ein offener Fall ist. Geteilt zwischen
+/// Kategorie" ist Gelb, weil es ein offener Fall ist (ADR 0087 Punkt 3). Geteilt zwischen
 /// Handy-Zeile und PC-Tabelle.
 let categoryClassName (entry: LedgerEntryView) : string =
     if isWithoutCategory entry then
-        $"{Tokens.FontSizes.xs} {Tokens.Colors.neonOrange}"
+        $"{Tokens.FontSizes.xs} {Tokens.Colors.attention}"
     else
         Tokens.ListRoles.secondary
 
@@ -484,11 +484,11 @@ let entryRowReviewClassName : string =
     $"{entryRowClassName} {Tokens.ListRoles.statusEdge}"
 
 /// Die Handy-Zeile im Auswahl-Modus, wenn sie gewählt ist (ledger-r1d2f): derselbe Zuschnitt,
-/// aber mit blassem Teal als Grund statt der Kartenfarbe. Der Karten-Grund liegt im Rahmen
-/// der Zeile, das Teal darüber bleibt durchscheinend.
+/// aber mit blassem Akzent als Grund statt der Kartenfarbe. Der Karten-Grund liegt im Rahmen
+/// der Zeile, der Akzent darüber bleibt durchscheinend.
 let entryRowSelectedClassName : string =
     $"w-full text-left {Tokens.ListRoles.mobileRowPadding} transition-colors touch-manipulation " +
-    $"bg-neon-teal/[0.07] border-b {Tokens.Borders.subtle}"
+    $"bg-accent/[0.07] border-b {Tokens.Borders.subtle}"
 
 /// Der Zustand einer Kompaktzeile mit Maus (ledger-m6zpd): gewählt, Anker der Spanne, von der
 /// Tastatur markiert.
@@ -496,16 +496,16 @@ type MouseRowInfo = { Selected: bool; IsAnchor: bool; IsFocused: bool }
 
 /// Klassen des Containers einer Kompaktzeile mit Maus. Er trägt Grund, Unterkante und die
 /// Kanten, damit Kästchen, Zeile und Schaltfläche gemeinsam hervorgehoben sind: gewählt
-/// blasses Teal, markiert die Fokus-Darstellung der Tabellenzeile (`Table.focusedRowClass`),
-/// sonst der Kartengrund mit Hover. Der Anker trägt die Teal-Kante und gewinnt gegen die
+/// blasser Akzent, markiert die Fokus-Darstellung der Tabellenzeile (`Table.focusedRowClass`),
+/// sonst der Kartengrund mit Hover. Der Anker trägt die Akzent-Kante und gewinnt gegen die
 /// Statuskante "zu prüfen" (wie `selectableRowClassName` in der Tabelle).
 let mouseRowContainerClassName (info: MouseRowInfo) (needsReview: bool) : string =
     [ "group flex items-stretch transition-colors"
       $"border-b {Tokens.Borders.subtle}"
-      if info.Selected then "bg-neon-teal/[0.07]"
+      if info.Selected then "bg-accent/[0.07]"
       elif info.IsFocused then Table.focusedRowClass
       else $"{Tokens.Backgrounds.dark} hover:bg-surface-hover"
-      if info.IsAnchor then "shadow-[inset_2px_0_0_0_var(--color-neon-teal)]"
+      if info.IsAnchor then "shadow-[inset_2px_0_0_0_var(--color-accent)]"
       elif needsReview then Tokens.ListRoles.statusEdge ]
     |> String.concat " "
 
@@ -520,7 +520,7 @@ let reviewMarkTooltip (target: ReviewMarkTarget) : string =
     | Unreviewed -> "Als ungeprüft markieren"
 
 /// Die Klassen der Prüf-Schaltfläche (ledger-mhe2s). Immer neutral (`text-text-secondary`,
-/// bei Hover `text-text-primary`), nie Teal: Grün ist ein Signal (ADR 0049), und der Haken
+/// bei Hover `text-text-primary`), nie Akzent: Grün ist ein Signal (ADR 0049), und der Haken
 /// neben "zu prüfen" las sich wie "erledigt". Mit `hoverOnly` (PC-Zeile) ist sie ohne
 /// Zeilen-Hover, Fokus in der Zeile oder eigenen Tastaturfokus unsichtbar, behält aber
 /// ihre Breite (`opacity-0`, kein `hidden`). `rowFocused` ist die Zeile des Tastaturcursors
@@ -569,7 +569,7 @@ let private reviewMarkButton
     ]
 
 /// Der Hinweis "Prüfvermerk nicht in YNAB" mit Grund und "Erneut senden" (ADR 0050,
-/// Punkt 11). Ein Wort in Orange und der Grund gedämpft: er fällt auf, ohne die ruhige
+/// Punkt 11). Ein Wort in Gelb und der Grund gedämpft: er fällt auf, ohne die ruhige
 /// Liste (ADR 0049) zu stören. Die Schaltfläche sendet den aktuellen Stand erneut.
 let private reviewMarkHintView
     (dispatch: Msg -> unit)
@@ -584,7 +584,7 @@ let private reviewMarkHintView
         prop.className "flex items-center gap-2 min-w-0"
         prop.children [
             Html.span [
-                prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.neonOrange} font-medium shrink-0"
+                prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.attention} font-medium shrink-0"
                 prop.text hint.Title
             ]
             Truncate.text Tokens.ListRoles.muted hint.Reason
@@ -622,7 +622,7 @@ let private entryRow
     // DOM-Fokus, und Enter und Leertaste wären dann seine eigene Aktivierung (`isActivatable`)
     // statt der Tasten der markierten Zeile. Grund und Kanten trägt der Container.
     // `selected`: `None` im Normalbetrieb, `Some` im Auswahl-Modus (die Zeile schaltet dann
-    // die Auswahl, ledger-r1d2f). Eine gewählte Zeile tauscht den Grund gegen blasses Teal.
+    // die Auswahl, ledger-r1d2f). Eine gewählte Zeile tauscht den Grund gegen blasser Akzent.
     let rowClass =
         match selected, entry.NeedsReview with
         | Some true, true -> $"{entryRowSelectedClassName} {Tokens.ListRoles.statusEdge}"
@@ -749,7 +749,7 @@ let private entryRowWithReviewMark
                             prop.className (
                                 "shrink-0 flex items-center min-w-11 pl-4 pr-3 border-b " +
                                 $"{Tokens.Borders.subtle} " +
-                                (if isOn then "bg-neon-teal/[0.07]" else Tokens.Backgrounds.dark)
+                                (if isOn then "bg-accent/[0.07]" else Tokens.Backgrounds.dark)
                             )
                             prop.children [ MultiSelect.box (if isOn then MultiSelect.Checked else MultiSelect.Unchecked) true ]
                         ]
@@ -824,7 +824,7 @@ let private truncatedTextRoleCell (role: Table.CellRole) (text: string) =
     Table.roleCell role [ Html.div (Truncate.textProps "" text) ]
 
 /// Die Kategorie-Zelle der PC-Tabelle (ADR 0049 Punkt 4): sekundäre Rolle, nur "ohne
-/// Kategorie" in Orange. Der `span` mit eigener Farbklasse gewinnt gegenüber der
+/// Kategorie" in Gelb. Der `span` mit eigener Farbklasse gewinnt gegenüber der
 /// Zellfarbe, unabhängig von der Reihenfolge im kompilierten CSS (ADR 0031). Reiner Text:
 /// die Zellen sind keine eigenen Klickziele, ein Klick ist ein Zeilenklick (ADR 0053
 /// Punkt 3); das Filtern liegt als Knopf im Detail.
@@ -840,14 +840,14 @@ let private tdMoney (entry: LedgerEntryView) =
     else
         Table.amountCell entry.Amount.Amount entry.Amount.Currency
 
-/// Klassen einer PC-Zeile mit Auswahl: gewählt trägt blasses Teal als Grund, der Anker der
-/// Spanne zusätzlich die Teal-Kante links. Die Kante teilt sich den Schatten mit der
+/// Klassen einer PC-Zeile mit Auswahl: gewählt trägt blasser Akzent als Grund, der Anker der
+/// Spanne zusätzlich die Akzent-Kante links. Die Kante teilt sich den Schatten mit der
 /// Statuskante "zu prüfen": der Anker gewinnt (er ist die Zeile, auf die der Blick
 /// gerade zielt).
 let selectableRowClassName (selected: bool) (isAnchor: bool) : string =
     [ Tokens.ListRoles.rowHeight
-      if selected then "bg-neon-teal/[0.07]"
-      if isAnchor then "shadow-[inset_2px_0_0_0_var(--color-neon-teal)]" ]
+      if selected then "bg-accent/[0.07]"
+      if isAnchor then "shadow-[inset_2px_0_0_0_var(--color-accent)]" ]
     |> String.concat " "
 
 /// Die Kästchen-Zelle einer PC-Zeile: ein Klick schaltet die Auswahl (mit Shift die
@@ -1193,20 +1193,20 @@ let isFailureOrDeletionLine (line: LedgerHistoryLine) : bool =
     || text.StartsWith("Prüfvermerk nicht in YNAB", StringComparison.Ordinal)
     || text.StartsWith("Push nach YNAB gescheitert", StringComparison.Ordinal)
 
-/// Die Punktfarbe einer Zeile der Zeitleiste, nach Urheber (Handoff Ablauf 7): Teal Import,
-/// Violett Regel, Grau YNAB-Spiegel, Grün eigene Prüfung in BB, Rot Fehlschläge und Löschung.
+/// Die Punktfarbe einer Zeile der Zeitleiste nach Farbrolle (ADR 0087): Blau Import und Regel,
+/// Grau YNAB-Spiegel, Quick Add und Bob, Grün eigene Prüfung in BB, Rot Fehlschläge und Löschung.
 let historyDotFor (line: LedgerHistoryLine) : Detail.DotColor =
     if isFailureOrDeletionLine line then
         Detail.DotRed
     else
         match line.Origin with
-        | ImportedFromComdirect -> Detail.DotTeal
+        | ImportedFromComdirect
         | DecidedByRule
-        | MatchedByOrderId -> Detail.DotPurple
-        | MirroredFromYnab -> Detail.DotGrey
-        | DecidedInBb -> Detail.DotGreen
+        | MatchedByOrderId -> Detail.DotInfo
+        | MirroredFromYnab
         | AddedViaQuickAdd
-        | AddedByBob -> Detail.DotOrange
+        | AddedByBob -> Detail.DotGrey
+        | DecidedInBb -> Detail.DotGreen
 
 /// Die Zeitleiste aus den Zeilen der Historie, neueste oben.
 let historyTimelineItems (lines: LedgerHistoryLine list) : Detail.TimelineItem list =
@@ -1236,17 +1236,17 @@ let categoryFilterLabel (entry: LedgerEntryView) : string option =
 type DetailNotice =
     /// Rot, ohne Aktion. Der Satz trägt den Löschzeitpunkt aus der Historie, wenn sie da ist.
     | DeletedNotice of reason: string
-    /// Orange, mit "Erneut senden" (sofortiger Push): der Push nach YNAB steht aus oder scheiterte.
+    /// Gelb, mit "Erneut senden" (sofortiger Push): der Push nach YNAB steht aus oder scheiterte.
     | NotInYnabNotice of reason: string
-    /// Orange, mit "Erneut senden", wenn etwas zu senden ist.
+    /// Gelb, mit "Erneut senden", wenn etwas zu senden ist.
     | ReviewMarkNotice of ReviewMarkHint
-    /// Orange, mit "Erneut senden": die Kategorie ist in BB gesetzt, aber nicht in YNAB
+    /// Gelb, mit "Erneut senden": die Kategorie ist in BB gesetzt, aber nicht in YNAB
     /// (ADR 0055, Punkt 4).
     | CategoryNotice of CategoryHint
-    /// Orange, mit "Erneut senden": das Flag ist in BB gesetzt, aber nicht in YNAB (ADR 0056,
+    /// Gelb, mit "Erneut senden": das Flag ist in BB gesetzt, aber nicht in YNAB (ADR 0056,
     /// Punkt 5). `busy`: der Aufruf läuft.
     | FlagNotice of FlagHint * busy: bool
-    /// Orange, mit "Erneut senden": das Memo ist in BB gesetzt, aber nicht in YNAB (ADR 0062).
+    /// Gelb, mit "Erneut senden": das Memo ist in BB gesetzt, aber nicht in YNAB (ADR 0062).
     /// `busy`: der Aufruf läuft.
     | MemoNotice of MemoHint * busy: bool
 
@@ -1357,7 +1357,7 @@ let private noticeView
         Detail.notice { Tone = Detail.NoticeRed; Badge = "In YNAB gelöscht"; Reason = reason; Action = None }
     | NotInYnabNotice reason ->
         Detail.notice
-            { Tone = Detail.NoticeOrange
+            { Tone = Detail.NoticeYellow
               Badge = "Noch nicht in YNAB"
               Reason = reason
               Action =
@@ -1369,7 +1369,7 @@ let private noticeView
                       OnClick = fun () -> dispatch msg }) }
     | ReviewMarkNotice hint ->
         Detail.notice
-            { Tone = Detail.NoticeOrange
+            { Tone = Detail.NoticeYellow
               Badge = hint.Title
               Reason = hint.Reason
               Action =
@@ -1383,7 +1383,7 @@ let private noticeView
                 | _ -> None }
     | CategoryNotice hint ->
         Detail.notice
-            { Tone = Detail.NoticeOrange
+            { Tone = Detail.NoticeYellow
               Badge = hint.Title
               Reason = hint.Reason
               Action =
@@ -1397,7 +1397,7 @@ let private noticeView
                 | _ -> None }
     | FlagNotice (hint, busy) ->
         Detail.notice
-            { Tone = Detail.NoticeOrange
+            { Tone = Detail.NoticeYellow
               Badge = hint.Title
               Reason = hint.Reason
               Action =
@@ -1406,7 +1406,7 @@ let private noticeView
                 | _ -> None }
     | MemoNotice (hint, busy) ->
         Detail.notice
-            { Tone = Detail.NoticeOrange
+            { Tone = Detail.NoticeYellow
               Badge = hint.Title
               Reason = hint.Reason
               Action =
@@ -1782,7 +1782,7 @@ let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
           model
           entry
           (if muted then Tokens.Colors.textMuted
-           elif isWithoutCategory entry then Tokens.Colors.neonOrange
+           elif isWithoutCategory entry then Tokens.Colors.attention
            else Tokens.Colors.textPrimary)
 
       splitField dispatch entry
@@ -2748,7 +2748,7 @@ let private dateQuickButton (dispatch: Msg -> unit) (model: Model) (quick: DateQ
         prop.type' "button"
         prop.className (
             $"rounded-full py-2 {Tokens.TouchTargets.minHeight} text-xs font-semibold border transition-colors "
-            + (if isSelected then $"bg-neon-teal/10 border-neon-teal {Tokens.Colors.neonTeal}"
+            + (if isSelected then $"bg-accent/10 border-accent {Tokens.Colors.accent}"
                else $"{Tokens.Backgrounds.dark} {Tokens.Borders.default'} {Tokens.Colors.textSecondary}"))
         prop.onClick (fun _ -> dispatch (SetDateQuick quick))
         prop.text (dateQuickLabel quick)
@@ -3134,7 +3134,7 @@ let private summaryRow (accounts: LedgerAccountView list) (categories: YnabCateg
         ]
 
 /// Die Summenzeile im Auswahl-Zustand (ledger-r1d2f): "Auswahl: n von N Buchungen" mit der
-/// Summe der Auswahl und der Teal-Kante. Sie ersetzt den Treffer-Zustand, solange die Auswahl
+/// Summe der Auswahl und der Akzent-Kante. Sie ersetzt den Treffer-Zustand, solange die Auswahl
 /// nicht leer ist, und steht auch ohne aktiven Filter da. Anzahl und Summe liefert nur
 /// `selectionTotals`.
 let private selectionSummaryRow (model: Model) : ReactElement =
@@ -3303,7 +3303,7 @@ let private orderStaleBar (dispatch: Msg -> unit) (model: Model) : ReactElement 
             prop.className $"overflow-hidden rounded-xl border {Tokens.Borders.subtle}"
             prop.children [
                 Detail.notice
-                    { Tone = Detail.NoticeOrange
+                    { Tone = Detail.NoticeYellow
                       Badge = "Liste nicht mehr aktuell"
                       Reason = orderStaleText
                       Action =
@@ -3517,9 +3517,17 @@ let view (model: Model) (dispatch: Msg -> unit) =
     let categories = model.Categories |> RemoteData.toOption |> Option.defaultValue []
 
     // Ruhige Liste (ADR 0049 Punkt 9): schlanker Seitenkopf, Liste füllt die Breite.
-    // "Jetzt spiegeln" bleibt erreichbar, aber ohne den großen orangen Knopf: am
+    // "Jetzt spiegeln" bleibt erreichbar, aber ohne den großen Hauptknopf: am
     // Handy als Symbol-Knopf in der Kopfzeile, am PC als sekundärer Knopf.
-    Primitives.Container.full [
+    // Die Lena-Farbe steht nur im Flag-Symbol (ADR 0087 Punkt 8, `data-lena-flag` in styles.css). Der
+    // Rahmen ist `contents`, er ändert das Layout nicht.
+    Html.div [
+      prop.className "contents"
+      match lenaColorOf model.LenaFlagColor with
+      | Some color -> prop.custom ("data-lena-flag", color.ToLowerInvariant())
+      | None -> ()
+      prop.children [
+       Primitives.Container.full [
         PageHeader.calm
             "Kassenbuch"
             (lastRunSubtitle model.LastMirrorRun)
@@ -3559,4 +3567,6 @@ let view (model: Model) (dispatch: Msg -> unit) =
             ]
 
         KeyboardNavigation model.FocusedRow dispatch
+       ]
+      ]
     ]

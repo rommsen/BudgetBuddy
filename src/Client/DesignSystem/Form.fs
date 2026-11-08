@@ -20,7 +20,7 @@ let missingFieldsText (missingFields: string list) : string =
     $"Bitte ausfüllen: {fields}"
 
 /// Submit button with validation message below
-/// Shows orange warning when required fields are missing
+/// Shows yellow warning when required fields are missing
 let submitButton (text: string) (onClick: unit -> unit) (isLoading: bool) (requiredFields: (string * string) list) =
     let missingFields = getMissingFields requiredFields
     let isDisabled = isLoading || not (List.isEmpty missingFields)
@@ -42,9 +42,9 @@ let submitButton (text: string) (onClick: unit -> unit) (isLoading: bool) (requi
             // Validation message below button when disabled and fields are missing
             if isDisabled && not isLoading && not (List.isEmpty missingFields) then
                 Html.div [
-                    prop.className "flex items-center gap-2 text-sm text-neon-orange"
+                    prop.className "flex items-center gap-2 text-sm text-attention"
                     prop.children [
-                        Icons.warning SM NeonOrange
+                        Icons.warning SM Warning
                         Html.span [
                             prop.text (missingFieldsText missingFields)
                         ]
@@ -73,9 +73,9 @@ let submitButtonWithIcon (text: string) (icon: ReactElement) (onClick: unit -> u
 
             if isDisabled && not isLoading && not (List.isEmpty missingFields) then
                 Html.div [
-                    prop.className "flex items-center gap-2 text-sm text-neon-orange"
+                    prop.className "flex items-center gap-2 text-sm text-attention"
                     prop.children [
-                        Icons.warning SM NeonOrange
+                        Icons.warning SM Warning
                         Html.span [
                             prop.text (missingFieldsText missingFields)
                         ]
@@ -103,9 +103,9 @@ let submitButtonSecondary (text: string) (onClick: unit -> unit) (isLoading: boo
 
             if isDisabled && not isLoading && not (List.isEmpty missingFields) then
                 Html.div [
-                    prop.className "flex items-center gap-2 text-sm text-neon-orange"
+                    prop.className "flex items-center gap-2 text-sm text-attention"
                     prop.children [
-                        Icons.warning SM NeonOrange
+                        Icons.warning SM Warning
                         Html.span [
                             prop.text (missingFieldsText missingFields)
                         ]

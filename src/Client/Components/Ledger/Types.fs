@@ -1161,7 +1161,7 @@ let selectionForRows (model: Model) : Selection =
         | AllExcept excluded -> AllExcept (Set.union excluded model.FilteredOut)
 
 /// Zustand des Kopfzeilen-Kästchens am PC, abgeleitet aus der Anzahl der Auswahl gegen
-/// `TotalCount`: leer, Teal-Strich (Teilauswahl) oder Haken (ganzer Treffer).
+/// `TotalCount`: leer, Akzent-Strich (Teilauswahl) oder Haken (ganzer Treffer).
 type HeaderCheckState =
     | HeaderEmpty
     | HeaderPartial

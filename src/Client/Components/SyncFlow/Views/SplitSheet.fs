@@ -19,7 +19,7 @@ open Client.DesignSystem
 /// Betrag im Aufteilen-Kopf und in der Restzeile (ADR 0049): neutral, Mono, 500.
 /// `warn` färbt nur den Text rot (Speichern ist wegen eines Rests gesperrt).
 let splitAmountClass (warn: bool) : string =
-    let color = if warn then "text-neon-red" else "text-text-primary"
+    let color = if warn then "text-error" else "text-text-primary"
     $"font-mono font-medium tabular-nums whitespace-nowrap {color}"
 
 let private splitAmount (warn: bool) (amount: decimal) (currency: string) =

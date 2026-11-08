@@ -19,7 +19,7 @@ let private sectionHeaderLabeled (configuredLabel: string) (title: string) (isCo
                 prop.text title
             ]
             Html.span [
-                prop.className (sprintf "status-label %s" (if isConfigured then "text-neon-green" else "text-neon-orange"))
+                prop.className (sprintf "status-label %s" (if isConfigured then "text-success" else "text-attention"))
                 prop.children [
                     Html.span [
                         prop.className (if isConfigured then "status-dot connected" else "status-dot disconnected")
@@ -184,10 +184,10 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
                             Html.a [
                                 prop.href "https://app.youneedabudget.com/settings/developer"
                                 prop.target "_blank"
-                                prop.className "text-neon-teal hover:underline inline-flex items-center gap-1"
+                                prop.className "text-accent hover:underline inline-flex items-center gap-1"
                                 prop.children [
                                     Html.span [ prop.text "YNAB Entwicklereinstellungen" ]
-                                    Icons.externalLink Icons.XS Icons.NeonTeal
+                                    Icons.externalLink Icons.XS Icons.Accent
                                 ]
                             ]
                         ]
@@ -218,11 +218,11 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
                             prop.className "space-y-4 pt-4 border-t border-border-subtle"
                             prop.children [
                                 Html.div [
-                                    prop.className "flex items-center gap-2 p-3 rounded-lg bg-neon-green/10 border border-neon-green/30"
+                                    prop.className "flex items-center gap-2 p-3 rounded-lg bg-success/10 border border-success/30"
                                     prop.children [
-                                        Icons.checkCircle Icons.SM Icons.NeonGreen
+                                        Icons.checkCircle Icons.SM Icons.Success
                                         Html.span [
-                                            prop.className "text-sm text-neon-green"
+                                            prop.className "text-sm text-success"
                                             prop.text $"Verbunden! {budgets.Length} Budget(s) gefunden"
                                         ]
                                     ]
@@ -350,14 +350,14 @@ let private tanWaitingBlock (dispatch: Msg -> unit) =
         prop.className "space-y-3"
         prop.children [
             Html.div [
-                prop.className "flex items-center gap-3 p-4 rounded-lg bg-neon-orange/10 border border-neon-orange/30"
+                prop.className "flex items-center gap-3 p-4 rounded-lg bg-attention/10 border border-attention/30"
                 prop.children [
-                    Loading.spinner Loading.MD Loading.Orange
+                    Loading.spinner Loading.MD Loading.Default
                     Html.div [
                         prop.className "flex-1"
                         prop.children [
                             Html.p [
-                                prop.className "text-sm font-medium text-neon-orange"
+                                prop.className "text-sm font-medium text-attention"
                                 prop.text "Warte auf TAN-Best\u00e4tigung..."
                             ]
                             Html.p [
@@ -506,9 +506,9 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
 
                     // Info tip
                     Html.div [
-                        prop.className "flex items-start gap-3 p-3 rounded-lg bg-neon-teal/5 border border-neon-teal/20"
+                        prop.className "flex items-start gap-3 p-3 rounded-lg bg-accent/5 border border-accent/20"
                         prop.children [
-                            Icons.info Icons.MD Icons.NeonTeal
+                            Icons.info Icons.MD Icons.Accent
                             Html.p [
                                 prop.className "text-xs md:text-sm text-text-muted"
                                 prop.children [
@@ -516,10 +516,10 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
                                     Html.a [
                                         prop.href "https://www.comdirect.de/cms/kontakt-zugaenge-api.html"
                                         prop.target "_blank"
-                                        prop.className "text-neon-teal hover:underline inline-flex items-center gap-1"
+                                        prop.className "text-accent hover:underline inline-flex items-center gap-1"
                                         prop.children [
                                             Html.span [ prop.text "Comdirect API" ]
-                                            Icons.externalLink Icons.XS Icons.NeonTeal
+                                            Icons.externalLink Icons.XS Icons.Accent
                                         ]
                                     ]
                                     Html.text " um Zugang zu beantragen."
@@ -540,11 +540,11 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
                                 | Success _ ->
                                     // Connection verified successfully
                                     Html.div [
-                                        prop.className "flex items-center gap-2 p-3 rounded-lg bg-neon-green/10 border border-neon-green/30"
+                                        prop.className "flex items-center gap-2 p-3 rounded-lg bg-success/10 border border-success/30"
                                         prop.children [
-                                            Icons.checkCircle Icons.SM Icons.NeonGreen
+                                            Icons.checkCircle Icons.SM Icons.Success
                                             Html.span [
-                                                prop.className "text-sm text-neon-green"
+                                                prop.className "text-sm text-success"
                                                 prop.text "Zugangsdaten erfolgreich verifiziert!"
                                             ]
                                         ]
@@ -621,7 +621,7 @@ let private syncSettingsCard (model: Model) (dispatch: Msg -> unit) =
                                         prop.text "Transaktionszeitraum"
                                     ]
                                     Html.span [
-                                        prop.className "text-xl md:text-2xl font-bold font-mono text-neon-teal"
+                                        prop.className "text-xl md:text-2xl font-bold font-mono text-accent"
                                         prop.text $"{model.SyncDaysInput}"
                                     ]
                                 ]
@@ -630,10 +630,10 @@ let private syncSettingsCard (model: Model) (dispatch: Msg -> unit) =
                                 // `range`/`range-sm` waren DaisyUI-Klassen (DaisyUI ist
                                 // in diesem Projekt nicht geladen, ADR 0031); ohne
                                 // Stylesheet dafür taten sie nichts. Der native
-                                // Browser-Schieberegler mit `accent-neon-teal`
+                                // Browser-Schieberegler mit `accent-accent`
                                 // (Akzentfarbe für Spur/Griff) reicht für diesen
                                 // einzigen Slider im Projekt (design-system-fq8dn).
-                                prop.className "w-full accent-neon-teal"
+                                prop.className "w-full accent-accent"
                                 prop.type'.range
                                 prop.min 7
                                 prop.max 90
@@ -804,9 +804,9 @@ let view (model: Model) (dispatch: Msg -> unit) =
                             prop.children [
                                 Html.a [
                                     prop.href "#/styleguide"
-                                    prop.className "inline-flex items-center gap-2 text-sm text-neon-teal hover:underline"
+                                    prop.className "inline-flex items-center gap-2 text-sm text-accent hover:underline"
                                     prop.children [
-                                        Icons.externalLink Icons.XS Icons.NeonTeal
+                                        Icons.externalLink Icons.XS Icons.Accent
                                         Html.span [ prop.text "Styleguide ansehen (Design-System-Galerie)" ]
                                     ]
                                 ]

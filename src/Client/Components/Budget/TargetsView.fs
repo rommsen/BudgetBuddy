@@ -108,7 +108,7 @@ let outcomeLook (l: ApplyLineResult) : string * Badge.BadgeProps =
     match l.Outcome with
     | Written -> $"{moneyText l.OldAssigned} auf {moneyText l.NewAssigned}", badge Badge.Success Badge.Medium "geschrieben"
     | Failed reason -> reason, badge Badge.Error Badge.Medium "fehlgeschlagen"
-    | ChangedInYnab -> "YNAB steht anders als erwartet, nichts überschrieben", badge Badge.Notice Badge.Medium "in YNAB geändert"
+    | ChangedInYnab -> "YNAB steht anders als erwartet, nichts überschrieben", badge Badge.Warning Badge.Medium "in YNAB geändert"
     | WithdrawnInBb ->
         "Nicht gesendet, BB hat die Zeile zurückgezogen. YNAB blieb unverändert.",
         badge Badge.Neutral Badge.Small "in BB zurückgezogen"

@@ -210,7 +210,7 @@ module Divider =
     /// Divider with gradient accent
     let gradient () =
         Html.div [
-            prop.className "h-px bg-gradient-to-r from-transparent via-neon-teal/30 to-transparent my-4"
+            prop.className "h-px bg-gradient-to-r from-transparent via-accent/30 to-transparent my-4"
         ]
 
     /// Vertical divider (for horizontal layouts)

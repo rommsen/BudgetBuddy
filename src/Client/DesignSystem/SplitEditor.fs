@@ -16,7 +16,7 @@ open Client.DesignSystem.Tokens
 /// Betrag im Editor-Kopf und in der Restzeile (ADR 0049): neutral, Mono, 500. `warn` färbt nur
 /// den Text rot (der Rest ist nicht null, Speichern ist gesperrt).
 let amountClass (warn: bool) : string =
-    let color = if warn then "text-neon-red" else "text-text-primary"
+    let color = if warn then "text-error" else "text-text-primary"
     $"font-mono font-medium tabular-nums whitespace-nowrap {color}"
 
 let totalLabel = "Gesamt"
@@ -101,7 +101,7 @@ let private targetButton (props: LineProps) : ReactElement =
         prop.className (
             $"flex {TouchTargets.mobileMinHeight} md:min-h-11 w-full min-w-0 items-center rounded-lg border {Borders.default'} {Backgrounds.elevated} " +
             $"px-3 py-2 text-left {FontSizes.sm} {color} truncate transition-colors touch-manipulation " +
-            "hover:border-neon-teal disabled:opacity-50 disabled:cursor-not-allowed"
+            "hover:border-accent disabled:opacity-50 disabled:cursor-not-allowed"
         )
         prop.onClick (fun _ -> props.OnPickTarget ())
         // Der Knopf kürzt das Ziel (`truncate`), der title trägt es ganz.
@@ -183,7 +183,7 @@ let lineActions (addEnabled: bool) (onAdd: unit -> unit) (cashbackEnabled: bool)
                     Variant = Button.Secondary
                     Size = Button.Small
                     IsDisabled = not addEnabled
-                    Icon = Some (Icons.plus Icons.SM Icons.NeonTeal)
+                    Icon = Some (Icons.plus Icons.SM Icons.Accent)
                     OnClick = onAdd }
             Button.view
                 { Button.defaultProps with

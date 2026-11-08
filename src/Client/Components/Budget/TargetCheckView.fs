@@ -61,7 +61,7 @@ let private barsClass (hasNote: bool) =
     $"col-span-2 row-start-2 h-7 @min-[720px]:col-span-1 @min-[720px]:col-start-2 @min-[720px]:row-start-1 @min-[720px]:h-8 @min-[720px]:self-center {span}"
 
 let private noteClass =
-    $"col-span-2 row-start-3 {ListRoles.secondary} {Colors.neonTeal} @min-[720px]:col-span-1 @min-[720px]:col-start-1 @min-[720px]:row-start-2 @min-[720px]:self-start"
+    $"col-span-2 row-start-3 {ListRoles.secondary} @min-[720px]:col-span-1 @min-[720px]:col-start-1 @min-[720px]:row-start-2 @min-[720px]:self-start"
 
 let private actionsClass (hasNote: bool) =
     let row = if hasNote then "row-start-4 @min-[720px]:row-span-2" else "row-start-3"
@@ -156,15 +156,16 @@ let private rowView (dispatch: Msg -> unit) (view: RowView) =
         ]
     ]
 
-/// Die Farbe des Titels einer Gruppe (Nachtrag ADR 0075 vom 2026-11-06). Steht hier, damit
-/// der Klassen-Wächter die Klassen in derselben Datei findet.
+/// Die Farbe des Titels einer Gruppe nach Farbrolle (ADR 0087): mehr Gelb (braucht dich), weniger
+/// Blau (Hinweis), nie und Kein Target neutral, Passt Grün. Steht hier, damit der Klassen-Wächter
+/// die Klassen in derselben Datei findet.
 let checkGroupTitleClass (group: CheckGroup) : string =
     match group with
-    | SpendsMore -> Colors.neonOrange
-    | SpendsLess -> Colors.calmBlue
-    | NeverSpends -> Colors.calmViolet
+    | SpendsMore -> Colors.attention
+    | SpendsLess -> Colors.info
+    | NeverSpends -> Colors.textPrimary
     | WithoutTarget -> Colors.textPrimary
-    | Fits -> Colors.neonTeal
+    | Fits -> Colors.success
 
 let private cardClass = "rounded-2xl border border-border-subtle bg-surface-card overflow-clip"
 
@@ -285,7 +286,7 @@ let private panelBody (model: Model) (row: TargetCheckRow) (form: TargetForm) (i
                     prop.className $"flex flex-wrap gap-x-4 gap-y-1 {ListRoles.muted}"
                     prop.children [
                         Html.span "Balken: Ausgaben je Monat"
-                        Html.span [ prop.className Colors.neonOrange; prop.text "orange: über dem Target" ]
+                        Html.span [ prop.className Colors.attention; prop.text "gelb: über dem Target" ]
                         Html.span "Linie: Target"
                     ]
                 ]
@@ -385,7 +386,7 @@ let private backButton (dispatch: Msg -> unit) =
 
 let private counter (hints: bool) (count: int) =
     let testId, label = if hints then "target-check-hints", "Hinweise" else "target-check-fits", "Passt"
-    let toneClass = if hints then Colors.neonOrange else Colors.neonTeal
+    let toneClass = if hints then Colors.attention else Colors.success
     Html.div [
         prop.custom ("data-testid", testId)
         prop.className "flex flex-col"
@@ -444,9 +445,9 @@ let private header (data: (TargetCheckData * CheckCounts) option) (dispatch: Msg
                         prop.className ListRoles.muted
                         prop.children [
                             Html.text $"{monthLabel d.Month} · "
-                            Html.span [ prop.className Colors.neonOrange; prop.text hints ]
+                            Html.span [ prop.className Colors.attention; prop.text hints ]
                             Html.text " · "
-                            Html.span [ prop.className Colors.neonTeal; prop.text fits ]
+                            Html.span [ prop.className Colors.success; prop.text fits ]
                         ]
                     ]
                 | None -> ()

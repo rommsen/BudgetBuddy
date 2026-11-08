@@ -21,8 +21,9 @@
 //   8 Spaltenköpfe einer Tabelle überlappen nicht und tragen ihren Text ganz
 //   9 kein Layout-Sprung beim Nachladen
 //
-// Daneben, im selben Besuch und getrennt gemeldet: die Farbregel der Budget-Seite (ADR 0075, kein Pink im
-// gerenderten DOM der Zustände unter `/budget`, `measurePink`).
+// Farben prüft der Sweep nicht: seit ADR 0087 gibt es kein Pink und keine Seitenausnahme mehr, die entfallenen
+// Farben verbietet der Token-Wächter überall unter src/Client (`entfallene-farbe` in scripts/token-guard.mjs),
+// den Kontrast scripts/contrast-guard.test.mjs.
 //
 // Messregeln gegen Flackern: gemessen wird erst, wenn alle laufenden endlichen Animationen fertig sind
 // (unendliche wie Spinner und pausierte zählen nicht) und die Lage steht, gescrollt wird bis zum Stillstand.
@@ -567,48 +568,6 @@ export async function measureLayerSticky(page, { where = "" } = {}) {
   }, before);
 }
 
-/// Farbregel neben den Invarianten (ADR 0075 Punkt 5, Fix 5850313): auf der Budget-Seite gibt es kein Pink.
-/// Geprüft wird das gerenderte DOM, also auch Pink, das ein DS-Baustein setzt, ohne dass der Aufrufer es nennt
-/// (`Badge.warning`, `ErrorDisplay.warning` vor 5850313). Ein sichtbares Element trägt keine Klasse mit
-/// `neon-pink`, und keine berechnete Farbe (Schrift, Hintergrund, Verlauf, Rahmen, Schatten, Umriss, Füllung)
-/// ist der Wert von `--color-neon-pink`. Gilt für jeden Zustand mit einer Route unter `/budget`.
-export const PINK_RULE = "Farbregel ADR 0075 (kein Pink auf der Budget-Seite)";
-export const isBudgetPage = (state) => state.route === "/budget" || state.route.startsWith("/budget/");
-
-export async function measurePink(page) {
-  return page.evaluate((rule) => {
-    const probe = document.createElement("span");
-    probe.style.color = "var(--color-neon-pink)";
-    document.body.append(probe);
-    const pink = getComputedStyle(probe).color.match(/\d+/g).slice(0, 3).join(", ");
-    probe.remove();
-    // Berechnete Farben stehen als rgb(…) oder rgba(…). Mit Deckkraft setzt Tailwind color-mix, das
-    // Chromium als oklab ausgibt; diese Fälle fängt die Klasse.
-    const hasPink = (value) => typeof value === "string" && value.includes(`(${pink}`);
-    const props = ["color", "backgroundColor", "backgroundImage", "borderTopColor", "borderRightColor", "borderBottomColor", "borderLeftColor", "boxShadow", "outlineColor", "fill", "stroke"];
-    const describe = (el) => {
-      const holder = el.closest("[data-testid]");
-      const cls = [...el.classList].find((c) => c.includes("neon-pink"));
-      const text = (el.textContent ?? "").trim().slice(0, 30);
-      return `${holder ? `[data-testid="${holder.getAttribute("data-testid")}"] ` : ""}${el.tagName.toLowerCase()}${cls ? `.${cls}` : ""}${text ? ` "${text}"` : ""}`;
-    };
-    const out = [];
-    for (const el of document.body.querySelectorAll("*")) {
-      if (!el.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue;
-      const r = el.getBoundingClientRect();
-      if (r.width < 1 || r.height < 1) continue;
-      const cls = typeof el.className === "string" ? el.className : el.getAttribute("class") ?? "";
-      const style = getComputedStyle(el);
-      const prop = cls.includes("neon-pink") ? "Klasse" : props.find((p) => hasPink(style[p]));
-      if (!prop) continue;
-      // Ein Kind erbt die Schriftfarbe: gemeldet wird nur das äußerste Element.
-      if (out.some((o) => o.el.contains(el))) continue;
-      out.push({ el, value: prop === "Klasse" ? `Klasse ${cls.split(/\s+/).find((c) => c.includes("neon-pink"))}` : `${prop} ist Pink (${style[prop].slice(0, 60)})` });
-    }
-    return out.map((o) => ({ inv: "pink", rule, selector: describe(o.el), value: o.value }));
-  }, PINK_RULE);
-}
-
 /// Invariante 9: die Lage der sichtbaren Bedienelemente und Überschriften vor einer verzögerten Antwort.
 export async function snapshotPositions(page) {
   await page.evaluate(() => {
@@ -698,8 +657,6 @@ export async function runState(browser, baseUrl, state, width, { inject = null, 
     const reach = state.reach?.(page, { width, mobile });
     if (reach && (await mark(reach, "data-sweep-reach")) === 0) throw new Error("reach nicht gefunden");
     found.push(...(await measure(page, { width, checks: [1, 2, 3, 4, 5, 7, 8].filter(want) })));
-    // Neben den Invarianten, im selben Besuch: die Farbregel der Budget-Seite (ADR 0075).
-    if (isBudgetPage(state) && (checks ? checks.includes("pink") : true)) found.push(...(await measurePink(page)));
 
     // Mit offener Tastatur: das Feld hat den Fokus, der Viewport halbiert sich, was `keyboard.reach` nennt,
     // bleibt ohne Scrollen sichtbar.

@@ -123,13 +123,13 @@ test("buildDsCardMarker: fehlender oder leerer name/subtitle wird mit der Karten
   }
 });
 
-test("buildThumbnailHtml: Wortmarke in Space Grotesk auf bg-app und Streifen Gr체n/Teal/Orange/Violett", () => {
+test("buildThumbnailHtml: Wortmarke in Space Grotesk auf bg-app und Streifen Gr체n/Akzent/Gelb/Blau", () => {
   const html = buildThumbnailHtml({
     neonColors: [
-      { name: "purple", hex: "#a001" },
-      { name: "green", hex: "#a002" },
-      { name: "orange", hex: "#a003" },
-      { name: "teal", hex: "#a004" },
+      { name: "info", hex: "#a001" },
+      { name: "success", hex: "#a002" },
+      { name: "attention", hex: "#a003" },
+      { name: "accent", hex: "#a004" },
     ],
     backgroundVars: [{ name: "bg-app", value: "#010203" }],
   });
@@ -139,7 +139,7 @@ test("buildThumbnailHtml: Wortmarke in Space Grotesk auf bg-app und Streifen Gr�
   assert.ok(html.includes("#010203"));
   const order = ["#a002", "#a004", "#a003", "#a001"].map((h) => html.indexOf(`background: ${h}`));
   assert.ok(order.every((i) => i >= 0), "alle vier Farben m체ssen vorkommen");
-  assert.deepEqual([...order].sort((a, b) => a - b), order, "Reihenfolge Gr체n, Teal, Orange, Violett");
+  assert.deepEqual([...order].sort((a, b) => a - b), order, "Reihenfolge Gr체n, Akzent, Gelb, Blau");
 });
 
 test("expectedBundleFiles: mit weniger Karten schrumpft nur die preview-Liste, die festen Dateien bleiben", () => {

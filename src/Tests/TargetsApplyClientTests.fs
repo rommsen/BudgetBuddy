@@ -258,7 +258,7 @@ let private reportLineTests =
             Expect.equal (look (Failed "Rate-Limit")) ("Rate-Limit", "fehlgeschlagen", Badge.Error, Badge.Medium) "fehlgeschlagen"
             Expect.equal
                 (look ChangedInYnab)
-                ("YNAB steht anders als erwartet, nichts überschrieben", "in YNAB geändert", Badge.Notice, Badge.Medium)
+                ("YNAB steht anders als erwartet, nichts überschrieben", "in YNAB geändert", Badge.Warning, Badge.Medium)
                 "in YNAB geändert"
             Expect.equal
                 (look WithdrawnInBb)

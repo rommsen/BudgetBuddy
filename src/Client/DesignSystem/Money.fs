@@ -56,22 +56,22 @@ let private sizeToClass = function
     | Hero -> "text-2xl md:text-4xl"
 
 let private getColorClass amount =
-    if amount >= 0m then "text-neon-green"
-    else "text-neon-red"
+    if amount >= 0m then "text-success"
+    else "text-error"
 
-// design-system-thtpp: "text-glow-green" war keine echte Tailwind-Utility und
+// design-system-thtpp: "text-glow-success" war keine echte Tailwind-Utility und
 // in styles.css nicht definiert (stiller Ausfall wie die DaisyUI-Klassen aus
 // ADR 0031): anders als "shadow-glow-*" gibt es für "text-*" kein Theme-Token,
 // das Tailwind automatisch in eine Utility auflöst. Der negative Fall (Zeile
 // unten, GlowAll bei negativem Betrag) nutzte bereits die funktionierende
 // Arbitrary-Property-Syntax; der positive Fall folgt jetzt demselben Muster,
-// mit denselben rgba-Werten wie --shadow-glow-green in styles.css.
+// mit derselben Theme-Farbe wie --shadow-glow-success in styles.css (ADR 0087).
 let private getGlowClass amount glow =
     match glow with
     | NoGlow -> ""
-    | GlowPositive when amount >= 0m -> "[text-shadow:0_0_10px_theme(colors.neon-green),0_0_20px_rgba(0,255,136,0.5)]"
-    | GlowAll when amount >= 0m -> "[text-shadow:0_0_10px_theme(colors.neon-green),0_0_20px_rgba(0,255,136,0.5)]"
-    | GlowAll when amount < 0m -> "[text-shadow:0_0_10px_theme(colors.neon-red),0_0_20px_rgba(255,59,92,0.5)]"
+    | GlowPositive when amount >= 0m -> Tokens.TextGlows.success
+    | GlowAll when amount >= 0m -> Tokens.TextGlows.success
+    | GlowAll when amount < 0m -> "[text-shadow:0_0_10px_var(--color-error),0_0_20px_color-mix(in_srgb,var(--color-error)_50%,transparent)]"
     | _ -> ""
 
 /// Groups the digits of a (non-negative, integer-only) numeric string with `.`
@@ -228,7 +228,7 @@ let money (m: Money) =
 let availableClass (amount: decimal) : string =
     let color =
         if amount > 0m then Colors.textPrimary
-        elif amount < 0m then "text-neon-red"
+        elif amount < 0m then "text-error"
         else Colors.textMuted
     $"font-mono font-medium tabular-nums whitespace-nowrap {ListRoles.primarySize} {color}"
 
@@ -243,8 +243,8 @@ let available (amount: decimal) (currency: string) =
 /// "Verfügbar danach": fett, rot unter 0, grün bei genau 0, sonst neutral.
 let afterAmount (amount: decimal) (currency: string) =
     let color =
-        if amount < 0m then Colors.neonRed
-        elif amount = 0m then Colors.neonGreen
+        if amount < 0m then Colors.error
+        elif amount = 0m then Colors.success
         else Colors.textPrimary
     Html.span [
         prop.className $"font-mono font-semibold tabular-nums whitespace-nowrap {ListRoles.primarySize} {color}"
@@ -352,10 +352,10 @@ let netChange income expenses currency =
 // ============================================
 
 /// Klassen eines Betrags in einer Listenzeile: Mono 500, `tabular-nums`, kein Glow.
-/// Negativ und null neutral in `text-primary`, nur ein Eingang ist Teal.
-let listAmountClass (amount: decimal) : string =
-    let color = if amount > 0m then Colors.neonTeal else Colors.textPrimary
-    $"font-mono font-medium tabular-nums whitespace-nowrap {ListRoles.primarySize} {color}"
+/// Jeder Betrag neutral in `text-primary`, auch ein Eingang: der Akzent heißt Hauptaktion und Auswahl
+/// (ADR 0087 Punkt 2), die Richtung sagt das Vorzeichen.
+let listAmountClass (_amount: decimal) : string =
+    $"font-mono font-medium tabular-nums whitespace-nowrap {ListRoles.primarySize} {Colors.textPrimary}"
 
 /// Betrag für Listenzeilen und Tabellenzellen (ADR 0049).
 let listAmount (amount: decimal) (currency: string) =
@@ -365,9 +365,8 @@ let listAmount (amount: decimal) (currency: string) =
     ]
 
 /// Klassen einer Bewegung in einer ruhigen Liste (Historie der Budget-Seite, budgeting-v6m3z): wie
-/// `listAmountClass`, aber immer neutral in `text-primary`. Das Vorzeichen sagt die Richtung, kein Teal.
-let signedListAmountClass =
-    $"font-mono font-medium tabular-nums whitespace-nowrap {ListRoles.primarySize} {Colors.textPrimary}"
+/// `listAmountClass`, neutral in `text-primary`. Das Vorzeichen sagt die Richtung.
+let signedListAmountClass = listAmountClass 0m
 
 /// Der Text einer Bewegung mit Vorzeichen ("+20,00 €", "-20,00 €").
 let signedListAmountText (amount: decimal) (currency: string) : string = formatAmountText true true amount currency
@@ -419,7 +418,7 @@ let transactionDeleted (amount: decimal) (currency: string) =
 /// `text-secondary`; nur ein negativer Stand ist Red.
 let accountBalanceClass (isActive: bool) (amount: decimal) : string =
     let color =
-        if amount < 0m then Colors.neonRed
+        if amount < 0m then Colors.error
         elif isActive then Colors.textPrimary
         else Colors.textSecondary
     $"font-mono font-semibold tabular-nums whitespace-nowrap text-sm md:text-base {color}"
@@ -440,18 +439,18 @@ let accountBalance (amount: decimal) (currency: string) =
 /// left, colour-coded balance on the right, no card chrome. Replaces the tall
 /// gradient-topped `Stats` card the PC view used before — that shape is right for
 /// KPI tiles, not for a scannable list of accounts. Active account gets the same
-/// teal highlight as the desktop nav's active tab (`Navigation.desktopNavItem`).
+/// Akzent highlight as the desktop nav's active tab (`Navigation.desktopNavItem`).
 let accountListRowWith (label: string) (value: ReactElement) (isActive: bool) (onClick: unit -> unit) =
     Html.button [
         prop.onClick (fun _ -> onClick ())
         prop.className (
             "w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-left transition-colors border-l-2 "
-            // Aktiv: erhoehte Flaeche + Teal-Akzentlinie links, dieselbe Kombination
-            // wie `Table.row`s `IsSelected`-Zeile (`bg-neon-teal/10 border-l-2
-            // border-l-neon-teal`) — Tokens statt der Hex-Literale aus dem
-            // Claude-Design-Handoff (`#1a1a36` / `inset 2px 0 0 #00d4aa`).
+            // Aktiv: erhoehte Flaeche + Akzentlinie links, dieselbe Kombination
+            // wie `Table.row`s `IsSelected`-Zeile (`bg-accent/10 border-l-2
+            // border-l-accent`) — Tokens statt der Hex-Literale aus dem
+            // Claude-Design-Handoff (`#1a1a36` / `inset 2px 0 0` in Akzent).
             + if isActive then
-                  $"{Tokens.Backgrounds.surface} border-l-neon-teal"
+                  $"{Tokens.Backgrounds.surface} border-l-accent"
               else
                   // `hover:bg-surface-hover` steht als Literal (nicht interpoliert):
                   // Tailwind scannt den Quelltext nach ganzen Klassennamen, eine

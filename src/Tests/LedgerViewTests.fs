@@ -274,24 +274,24 @@ let private categoryLabelQualifiedTests =
 
 /// ADR 0049 Punkt 4 (`ledger-n4vte`): die Kategorie steht in der sekundären Rolle,
 /// nicht mehr violett (vorher `categoryColorClassName`, `ledger-w9skm`). Nur "ohne
-/// Kategorie" bleibt Orange; ein Übertrag (ADR 0048) trägt ein Ziel und bleibt
+/// Kategorie" ist Gelb (ADR 0087 Punkt 3); ein Übertrag (ADR 0048) trägt ein Ziel und bleibt
 /// neutral. Handy-Zeile und PC-Tabelle teilen `categoryClassName`.
 let private categoryColorTests =
     testList "categoryClassName (ledger-n4vte, ADR 0049)" [
 
-        test "Eine Buchung mit Kategorie nutzt die sekundäre Rolle, nicht Violett" {
+        test "Eine Buchung mit Kategorie nutzt die sekundäre Rolle, ohne Farbe" {
             let entry = { entryView (accountId 1) (DateTime(2026, 3, 10)) "Rewe" with CategoryName = Some "Essen" }
             Expect.equal (categoryClassName entry) Client.DesignSystem.Tokens.ListRoles.secondary
                 "Kategorie in text-secondary, 12px"
-            Expect.isFalse ((categoryClassName entry).Contains Client.DesignSystem.Tokens.Colors.neonPurple)
-                "Kein Violett mehr in der Liste"
+            Expect.isFalse ((categoryClassName entry).Contains Client.DesignSystem.Tokens.Colors.attention)
+                "Gelb nur bei ohne Kategorie"
         }
 
-        test "Ohne Kategorie bleibt Orange" {
+        test "Ohne Kategorie ist Gelb (ADR 0087 Punkt 3)" {
             let entry = entryView (accountId 1) (DateTime(2026, 3, 10)) "Amazon"
             Expect.isTrue (isWithoutCategory entry) "Weder Kategorie noch Split noch Übertrag"
-            Expect.stringContains (categoryClassName entry) Client.DesignSystem.Tokens.Colors.neonOrange
-                "Ein offener Fall bleibt Orange"
+            Expect.stringContains (categoryClassName entry) Client.DesignSystem.Tokens.Colors.attention
+                "Ein offener Fall ist Gelb: braucht dich"
         }
 
         test "Ein Übertrag ist nicht 'ohne Kategorie' (ADR 0048), in Label und Farbe" {
@@ -300,7 +300,7 @@ let private categoryColorTests =
             Expect.notEqual (categoryLabel entry) "ohne Kategorie" "Handy-Label"
             Expect.notEqual (categoryLabelQualified entry) "ohne Kategorie" "PC-Label"
             Expect.equal (categoryClassName entry) Client.DesignSystem.Tokens.ListRoles.secondary
-                "Neutral statt Orange"
+                "Neutral statt Gelb"
         }
 
         test "Eine Split-Buchung ist nicht 'ohne Kategorie'" {
@@ -324,9 +324,9 @@ let private stylesCssPath = Path.Combine(repoRoot, "src", "Client", "styles.css"
 
 let private readStylesCss () = File.ReadAllText(stylesCssPath)
 
-/// Leitet aus einem Farb-Token wie `"text-neon-purple"` den Namen der zugehörigen
-/// CSS-Variable ab (`"--color-neon-purple"`). Bewusst aus dem Token abgeleitet statt
-/// im Test hingeschrieben (Lücke 8): benennt jemand `Tokens.Colors.neonPurple` um,
+/// Leitet aus einem Farb-Token wie `"text-attention"` den Namen der zugehörigen
+/// CSS-Variable ab (`"--color-attention"`). Bewusst aus dem Token abgeleitet statt
+/// im Test hingeschrieben (Lücke 8): benennt jemand `Tokens.Colors.attention` um,
 /// ohne `styles.css` mitzuziehen, wird der Test rot, statt sich selbst zu bestätigen.
 let private cssVariableNameFromColorToken (token: string) : string =
     if not (token.StartsWith "text-") then
@@ -335,15 +335,15 @@ let private cssVariableNameFromColorToken (token: string) : string =
     $"--color-{suffix}"
 
 /// Regression für ledger-n3pqw, Lücke 8, fortgeführt für `ledger-n4vte`: nichts band
-/// die Orange-Rolle von "ohne Kategorie" an `--color-neon-orange`. Benennt jemand die
+/// die Rolle von "ohne Kategorie" (heute Gelb, `--color-attention`) an ihre CSS-Variable. Benennt jemand die
 /// CSS-Variable um, erzeugt Tailwind die Utility nicht mehr, und der offene Fall
 /// fiele still in die Grundfarbe zurück.
 let private categoryColorCssBindingTests =
-    testList "Farbrolle 'ohne Kategorie' an --color-neon-orange gebunden (ledger-n4vte)" [
+    testList "Farbrolle 'ohne Kategorie' an --color-attention gebunden (ledger-n4vte)" [
 
         test "styles.css deklariert die CSS-Variable, auf die der Token zeigt" {
             let css = readStylesCss ()
-            let variableName = cssVariableNameFromColorToken Client.DesignSystem.Tokens.Colors.neonOrange
+            let variableName = cssVariableNameFromColorToken Client.DesignSystem.Tokens.Colors.attention
 
             let declares (text: string) = Regex.Match(text, Regex.Escape(variableName) + @"\s*:\s*([^;]+);").Success
             // Gegenbeweis: die Prüfung erkennt die Deklaration und meldet ihr Fehlen.
@@ -508,14 +508,16 @@ let private calmListSourceTests =
     testList "Kassenbuch als ruhige Liste (ledger-n4vte, ADR 0049)" [
 
         test "Negativer Kontostand ist Red, positiver neutral" {
-            Expect.stringContains (Client.DesignSystem.Money.accountBalanceClass false -173.28m) Client.DesignSystem.Tokens.Colors.neonRed "negativ"
+            Expect.stringContains (Client.DesignSystem.Money.accountBalanceClass false -173.28m) Client.DesignSystem.Tokens.Colors.error "negativ"
             Expect.isFalse
-                ((Client.DesignSystem.Money.accountBalanceClass false 5040.62m).Contains Client.DesignSystem.Tokens.Colors.neonRed)
+                ((Client.DesignSystem.Money.accountBalanceClass false 5040.62m).Contains Client.DesignSystem.Tokens.Colors.error)
                 "positiv nicht Red"
         }
 
-        test "Ein positiver Listenbetrag ist Teal, ein negativer text-primary" {
-            Expect.stringContains (Client.DesignSystem.Money.listAmountClass 4000m) Client.DesignSystem.Tokens.Colors.neonTeal "Eingang"
+        // ADR 0087 Punkt 2 und Prototyp: ein Eingang ist neutral, der Akzent gehört Hauptaktion und Auswahl.
+        test "Ein positiver und ein negativer Listenbetrag sind beide text-primary, ohne Akzent" {
+            Expect.stringContains (Client.DesignSystem.Money.listAmountClass 4000m) Client.DesignSystem.Tokens.Colors.textPrimary "Eingang"
+            Expect.isFalse ((Client.DesignSystem.Money.listAmountClass 4000m).Contains Client.DesignSystem.Tokens.Colors.accent) "Eingang ohne Akzent"
             Expect.stringContains (Client.DesignSystem.Money.listAmountClass -48.12m) Client.DesignSystem.Tokens.Colors.textPrimary "Ausgabe"
         }
     ]
@@ -842,8 +844,8 @@ let private filterBarRuhigTests =
         test "Summenzeile: Summe 0 und negative Summe ohne Rot und Grün" {
             for amount in [ 0m; -125.40m; 300m ] do
                 let cls = Client.DesignSystem.Money.listAmountClass amount
-                Expect.isFalse (cls.Contains "neon-red") $"{amount}: {cls}"
-                Expect.isFalse (cls.Contains "neon-green") $"{amount}: {cls}"
+                Expect.isFalse (cls.Contains "error") $"{amount}: {cls}"
+                Expect.isFalse (cls.Contains "success") $"{amount}: {cls}"
         }
     ]
 

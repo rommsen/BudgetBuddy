@@ -1,5 +1,5 @@
 /// Gleich breite Tabs (budgeting-g8s3w, erster Nutzer: der Inspektor der Budget-Seite). Der aktive
-/// Tab ist teal (ADR 0075: Ausgewähltes und Navigation). Am Handy 48 px Trefferfläche. Tastatur und
+/// Tab ist Akzent (ADR 0087: Ausgewähltes und Navigation). Am Handy 48 px Trefferfläche. Tastatur und
 /// Rollen nach dem Tabs-Muster der WAI-ARIA (budgeting-p4n6r).
 module Client.DesignSystem.Tabs
 
@@ -16,7 +16,7 @@ type Tab = {
 let private tabClassName (isActive: bool) : string =
     let baseClasses =
         $"inline-flex items-center justify-center {TouchTargets.minHeight} px-2 md:py-2 text-xs font-semibold border-b-2 cursor-pointer touch-manipulation transition-colors"
-    if isActive then $"{baseClasses} {Colors.neonTeal} {Borders.teal}"
+    if isActive then $"{baseClasses} {Colors.accent} {Borders.accent}"
     else $"{baseClasses} {Colors.textSecondary} border-transparent hover:text-text-primary"
 
 let private tabId (idPrefix: string) (index: int) = $"{idPrefix}-tab-{index}"

@@ -466,8 +466,8 @@ let contentTests =
 
         testCase "die Punktfarbe folgt dem Urheber" <| fun () ->
             let dot origin description = historyDotFor (historyLine 1 origin description)
-            Expect.equal (dot ImportedFromComdirect "Comdirect-Import: Buchung erfasst") Detail.DotTeal "Import teal"
-            Expect.equal (dot DecidedByRule "Regel: Kategorie gesetzt") Detail.DotPurple "Regel violett"
+            Expect.equal (dot ImportedFromComdirect "Comdirect-Import: Buchung erfasst") Detail.DotInfo "Import blau"
+            Expect.equal (dot DecidedByRule "Regel: Kategorie gesetzt") Detail.DotInfo "Regel blau"
             Expect.equal (dot MirroredFromYnab "Kategorie in YNAB geändert") Detail.DotGrey "Spiegel grau"
             Expect.equal (dot DecidedInBb "In BB als geprüft markiert") Detail.DotGreen "eigene Prüfung grün"
 

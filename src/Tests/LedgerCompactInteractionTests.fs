@@ -87,9 +87,9 @@ let mouseRowContainerTests =
             let focused = mouseRowContainerClassName { Selected = false; IsAnchor = false; IsFocused = true } false
             Expect.stringContains focused Client.DesignSystem.Table.focusedRowClass "Fokus-Darstellung"
             let selected = mouseRowContainerClassName { Selected = true; IsAnchor = false; IsFocused = false } false
-            Expect.stringContains selected "bg-neon-teal/[0.07]" "gewählt"
+            Expect.stringContains selected "bg-accent/[0.07]" "gewählt"
             let anchorReview = mouseRowContainerClassName { Selected = true; IsAnchor = true; IsFocused = false } true
-            Expect.stringContains anchorReview "inset_2px_0_0_0_var(--color-neon-teal)" "Anker"
+            Expect.stringContains anchorReview "inset_2px_0_0_0_var(--color-accent)" "Anker"
             Expect.isFalse (anchorReview.Contains Client.DesignSystem.Tokens.ListRoles.statusEdge) "Anker gewinnt gegen die Statuskante"
             let review = mouseRowContainerClassName { Selected = false; IsAnchor = false; IsFocused = false } true
             Expect.stringContains review Client.DesignSystem.Tokens.ListRoles.statusEdge "Statuskante"

@@ -17,7 +17,7 @@ module ErrorDisplay =
     /// Compact, red text with icon
     let inline' (message: string) =
         Html.div [
-            prop.className "flex items-center gap-2 text-neon-red text-sm mt-1"
+            prop.className "flex items-center gap-2 text-error text-sm mt-1"
             prop.role "alert"
             prop.children [
                 Icons.xCircle SM Error
@@ -28,7 +28,7 @@ module ErrorDisplay =
     /// Inline error with custom icon
     let inlineWithIcon (icon: ReactElement) (message: string) =
         Html.div [
-            prop.className "flex items-center gap-2 text-neon-red text-sm mt-1"
+            prop.className "flex items-center gap-2 text-error text-sm mt-1"
             prop.role "alert"
             prop.children [
                 icon
@@ -43,19 +43,19 @@ module ErrorDisplay =
     /// Standard error card with icon, message, and optional retry button
     let card (message: string) (onRetry: (unit -> unit) option) =
         Html.div [
-            prop.className "rounded-xl bg-surface-card border border-neon-red/20 overflow-hidden"
+            prop.className "rounded-xl bg-surface-card border border-error/20 overflow-hidden"
             prop.role "alert"
             prop.children [
                 // Error header with gradient
                 Html.div [
-                    prop.className "bg-gradient-to-r from-neon-red/10 to-neon-red/5 px-6 py-4 flex items-center gap-3"
+                    prop.className "bg-gradient-to-r from-error/10 to-error/5 px-6 py-4 flex items-center gap-3"
                     prop.children [
                         Html.div [
-                            prop.className "w-10 h-10 rounded-full bg-neon-red/20 flex items-center justify-center flex-shrink-0"
+                            prop.className "w-10 h-10 rounded-full bg-error/20 flex items-center justify-center flex-shrink-0"
                             prop.children [ Icons.xCircle MD Error ]
                         ]
                         Html.span [
-                            prop.className "font-semibold text-neon-red"
+                            prop.className "font-semibold text-error"
                             prop.text "Fehler"
                         ]
                     ]
@@ -85,19 +85,19 @@ module ErrorDisplay =
     /// Error card with custom title
     let cardWithTitle (title: string) (message: string) (onRetry: (unit -> unit) option) =
         Html.div [
-            prop.className "rounded-xl bg-surface-card border border-neon-red/20 overflow-hidden"
+            prop.className "rounded-xl bg-surface-card border border-error/20 overflow-hidden"
             prop.role "alert"
             prop.children [
                 // Error header with gradient
                 Html.div [
-                    prop.className "bg-gradient-to-r from-neon-red/10 to-neon-red/5 px-6 py-4 flex items-center gap-3"
+                    prop.className "bg-gradient-to-r from-error/10 to-error/5 px-6 py-4 flex items-center gap-3"
                     prop.children [
                         Html.div [
-                            prop.className "w-10 h-10 rounded-full bg-neon-red/20 flex items-center justify-center flex-shrink-0"
+                            prop.className "w-10 h-10 rounded-full bg-error/20 flex items-center justify-center flex-shrink-0"
                             prop.children [ Icons.xCircle MD Error ]
                         ]
                         Html.span [
-                            prop.className "font-semibold text-neon-red"
+                            prop.className "font-semibold text-error"
                             prop.text title
                         ]
                     ]
@@ -128,7 +128,7 @@ module ErrorDisplay =
     /// Knopfs (etwa "Erneut laden" über der Kontostände-Leiste, ledger-vq2g8)
     let cardCompactWith (retryLabel: string) (message: string) (onRetry: (unit -> unit) option) =
         Html.div [
-            prop.className "rounded-lg bg-neon-red/5 border border-neon-red/20 px-4 py-3 flex items-start gap-3"
+            prop.className "rounded-lg bg-error/5 border border-error/20 px-4 py-3 flex items-start gap-3"
             prop.role "alert"
             prop.children [
                 Icons.xCircle MD Error
@@ -145,7 +145,7 @@ module ErrorDisplay =
                             // hält die Karte so hoch wie mit dem schmalen Text-Link.
                             Html.button [
                                 prop.type' "button"
-                                prop.className $"inline-flex items-center {TouchTargets.minSize} relative -my-3 cursor-pointer touch-manipulation text-neon-red hover:text-neon-red/80 text-sm font-medium mt-2 underline"
+                                prop.className $"inline-flex items-center {TouchTargets.minSize} relative -my-3 cursor-pointer touch-manipulation text-error hover:text-error/80 text-sm font-medium mt-2 underline"
                                 prop.onClick (fun _ -> retry())
                                 prop.text retryLabel
                             ]
@@ -173,16 +173,16 @@ module ErrorDisplay =
                     prop.className "rounded-xl bg-surface-card border border-border-subtle overflow-hidden"
                     prop.role "alert"
                     prop.children [
-                        // Error header with neon red gradient
+                        // Kopf in Rot: Fehler (ADR 0087 Punkt 4)
                         Html.div [
-                            prop.className "bg-gradient-to-br from-neon-red to-neon-pink p-6 text-center"
+                            prop.className "bg-error/10 border-b border-error/30 p-6 text-center"
                             prop.children [
                                 Html.div [
-                                    prop.className "w-16 h-16 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-3"
-                                    prop.children [ Icons.xCircle XL IconColor.Primary ]
+                                    prop.className "w-16 h-16 rounded-full bg-error/15 flex items-center justify-center mx-auto mb-3"
+                                    prop.children [ Icons.xCircle XL IconColor.Error ]
                                 ]
                                 Html.h2 [
-                                    prop.className "text-xl font-bold font-display text-white"
+                                    prop.className "text-xl font-bold font-display text-text-primary"
                                     prop.text title
                                 ]
                             ]
@@ -211,16 +211,16 @@ module ErrorDisplay =
                     prop.className "rounded-xl bg-surface-card border border-border-subtle overflow-hidden"
                     prop.role "alert"
                     prop.children [
-                        // Error header with neon red gradient
+                        // Kopf in Rot: Fehler (ADR 0087 Punkt 4)
                         Html.div [
-                            prop.className "bg-gradient-to-br from-neon-red to-neon-pink p-6 text-center"
+                            prop.className "bg-error/10 border-b border-error/30 p-6 text-center"
                             prop.children [
                                 Html.div [
-                                    prop.className "w-16 h-16 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-3"
-                                    prop.children [ Icons.xCircle XL IconColor.Primary ]
+                                    prop.className "w-16 h-16 rounded-full bg-error/15 flex items-center justify-center mx-auto mb-3"
+                                    prop.children [ Icons.xCircle XL IconColor.Error ]
                                 ]
                                 Html.h2 [
-                                    prop.className "text-xl font-bold font-display text-white"
+                                    prop.className "text-xl font-bold font-display text-text-primary"
                                     prop.text title
                                 ]
                             ]
@@ -256,7 +256,7 @@ module ErrorDisplay =
                     prop.children [
                         // Large error icon
                         Html.div [
-                            prop.className "w-20 h-20 rounded-full bg-neon-red/10 flex items-center justify-center mx-auto mb-6"
+                            prop.className "w-20 h-20 rounded-full bg-error/10 flex items-center justify-center mx-auto mb-6"
                             prop.children [ Icons.xCircle XL Error ]
                         ]
                         Html.h1 [
@@ -287,7 +287,7 @@ module ErrorDisplay =
                     prop.children [
                         // Large error icon
                         Html.div [
-                            prop.className "w-20 h-20 rounded-full bg-neon-red/10 flex items-center justify-center mx-auto mb-6"
+                            prop.className "w-20 h-20 rounded-full bg-error/10 flex items-center justify-center mx-auto mb-6"
                             prop.children [ Icons.xCircle XL Error ]
                         ]
                         Html.h1 [
@@ -317,13 +317,19 @@ module ErrorDisplay =
     let simple (message: string) =
         card message None
 
-    /// Hinweis in Gelb: offen, kein Fehler, für die Budget-Seite ohne Pink (ADR 0075).
+    /// Fläche und Rand der gelben Hinweise `notice` und `warning` (braucht dich, ADR 0087 Punkt 3).
+    let attentionBoxClass = "rounded-lg bg-attention/5 border border-attention/20 px-4 py-3 flex items-start gap-3"
+
+    /// Die Symbolfarbe der gelben Hinweise.
+    let attentionIconColor = Warning
+
+    /// Hinweis in Gelb: braucht dich, kein Fehler (ADR 0087 Punkt 3), ohne Aktion.
     let notice (message: string) =
         Html.div [
-            prop.className "rounded-lg bg-calm-yellow/5 border border-calm-yellow/20 px-4 py-3 flex items-start gap-3"
+            prop.className attentionBoxClass
             prop.role "alert"
             prop.children [
-                Icons.warning MD CalmYellow
+                Icons.warning MD attentionIconColor
                 Html.p [
                     prop.className "flex-1 text-text-secondary text-sm"
                     prop.text message
@@ -331,15 +337,15 @@ module ErrorDisplay =
             ]
         ]
 
-    /// Warning-style display (uses die Warn-Farbrolle Hot Pink, ADR 0031/design-system-thtpp:
-    /// vorher `bg-warning`/`border-warning`/`text-warning`, ohne `--color-warning` in
-    /// styles.css definiert und damit wirkungslos, wie die DaisyUI-Klassen aus ADR 0031)
+    /// Hinweis in Gelb wie `notice`, mit Aktion: braucht dich, kein Fehler (ADR 0087 Punkt 3).
+    /// Vorher `bg-warning`/`border-warning`/`text-warning`, ohne `--color-warning` in styles.css
+    /// definiert und damit wirkungslos (ADR 0031, design-system-thtpp).
     let warning (message: string) (onAction: (unit -> unit) option) =
         Html.div [
-            prop.className "rounded-lg bg-neon-pink/5 border border-neon-pink/20 px-4 py-3 flex items-start gap-3"
+            prop.className attentionBoxClass
             prop.role "alert"
             prop.children [
-                Icons.warning MD Warning
+                Icons.warning MD attentionIconColor
                 Html.div [
                     prop.className "flex-1"
                     prop.children [
@@ -350,7 +356,7 @@ module ErrorDisplay =
                         match onAction with
                         | Some action ->
                             Html.button [
-                                prop.className "text-neon-pink hover:text-neon-pink/80 text-sm font-medium mt-2 underline"
+                                prop.className "text-attention hover:text-attention/80 text-sm font-medium mt-2 underline"
                                 prop.onClick (fun _ -> action())
                                 prop.text "Dismiss"
                             ]

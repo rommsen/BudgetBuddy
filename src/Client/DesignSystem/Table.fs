@@ -157,11 +157,11 @@ let private sortIcon direction =
         Html.span [
             prop.className "rotate-180 transition-transform"
             prop.children [
-                Icons.chevronDown XS IconColor.NeonTeal
+                Icons.chevronDown XS IconColor.Accent
             ]
         ]
     | Descending ->
-        Icons.chevronDown XS IconColor.NeonTeal
+        Icons.chevronDown XS IconColor.Accent
 
 /// Ausrichtung als wörtliche Klasse. Tailwind erzeugt nur Klassen, die als ganze
 /// Zeichenkette im Quelltext stehen; eine zusammengesetzte Klasse fiel beim Scan durch.
@@ -255,7 +255,7 @@ let tbody (rows: ReactElement list) =
 type RowProps = {
     IsSelected: bool
     IsHighlighted: bool
-    /// 3px-Kante in Pink links ("zu prüfen", ADR 0049), ohne Zellinhalte zu verschieben
+    /// 3px-Kante in Gelb links ("zu prüfen", ADR 0087 Punkt 3), ohne Zellinhalte zu verschieben
     StatusEdge: bool
     /// Fokuszeile der Tastaturnavigation (`keyboardCursor`, ledger-rjb8w): ruhiger Grund
     /// `surface-hover` ohne Leuchtfarbe, dazu `aria-selected` und eine Marke zum Scrollen.
@@ -279,8 +279,8 @@ let focusedRowClass = "bg-surface-hover scroll-mt-40 scroll-mb-16"
 
 /// Klassen einer Tabellenzeile
 let rowClass (props: RowProps) : string =
-    let selectedClass = if props.IsSelected then "bg-neon-teal/10 border-l-2 border-l-neon-teal" else ""
-    let highlightClass = if props.IsHighlighted then "bg-neon-orange/5" else ""
+    let selectedClass = if props.IsSelected then "bg-accent/10 border-l-2 border-l-accent" else ""
+    let highlightClass = if props.IsHighlighted then "bg-accent/5" else ""
     let clickableClass = if props.OnClick.IsSome then "cursor-pointer" else ""
     let edgeClass = if props.StatusEdge then ListRoles.statusEdge else ""
     let focusClass = if props.IsFocused then focusedRowClass else ""
@@ -425,7 +425,7 @@ let calmSortableHeaderCell (text: string) (align: string option) (direction: Sor
                 prop.className (
                     "inline-flex items-center gap-1 uppercase cursor-pointer select-none "
                     + "hover:text-text-secondary transition-colors focus-visible:outline focus-visible:outline-1 "
-                    + "focus-visible:outline-neon-teal rounded-sm "
+                    + "focus-visible:outline-border-strong rounded-sm "
                     + (if direction = Unsorted then "" else "text-text-secondary")
                 )
                 prop.onClick (fun _ -> onSort ())
@@ -552,7 +552,7 @@ let emptyWithAction (message: string) (buttonText: string) onClick =
                             prop.text message
                         ]
                         Html.button [
-                            prop.className "px-3 py-1.5 text-sm rounded-lg border border-neon-teal text-neon-teal hover:bg-neon-teal/10 transition-colors"
+                            prop.className "px-3 py-1.5 text-sm rounded-lg border border-accent text-accent hover:bg-accent/10 transition-colors"
                             prop.onClick (fun _ -> onClick())
                             prop.text buttonText
                         ]

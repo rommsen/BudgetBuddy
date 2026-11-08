@@ -697,12 +697,12 @@ let private sketchTests =
         test "Regelsatz und Farbe je Gruppe" {
             let look group = checkGroupRule group, Components.Budget.TargetCheckView.checkGroupTitleClass group
             Expect.equal (look SpendsMore)
-                ("Ø mehr als 10 % und 10 € über dem Target, bei monatlichem oder wöchentlichem Rhythmus in mindestens der Hälfte der Monate. Bei längerem Rhythmus mit Zahlungen in wenigen Monaten liegt auch die Zahlung so weit über dem ganzen Target.", "text-neon-orange") "mehr"
-            Expect.equal (look SpendsLess) ("Ø mehr als 30 % und 10 € unter dem Target.", "text-calm-blue") "weniger"
+                ("Ø mehr als 10 % und 10 € über dem Target, bei monatlichem oder wöchentlichem Rhythmus in mindestens der Hälfte der Monate. Bei längerem Rhythmus mit Zahlungen in wenigen Monaten liegt auch die Zahlung so weit über dem ganzen Target.", "text-attention") "mehr"
+            Expect.equal (look SpendsLess) ("Ø mehr als 30 % und 10 € unter dem Target.", "text-info") "weniger"
             Expect.equal (look NeverSpends)
-                ("Höchstens ein Monat mit Ausgaben, bei längerem Rhythmus keiner. Für eine Rücklage ist das richtig.", "text-calm-violet") "nie"
+                ("Höchstens ein Monat mit Ausgaben, bei längerem Rhythmus keiner. Für eine Rücklage ist das richtig.", "text-text-primary") "nie"
             Expect.equal (look WithoutTarget) ("Regelmäßige Ausgaben, aber kein Target.", "text-text-primary") "Kein Target"
-            Expect.equal (look Fits) ("Keine Auffälligkeit. Übernommene und neu gesetzte Targets stehen hier.", "text-neon-teal") "Passt"
+            Expect.equal (look Fits) ("Keine Auffälligkeit. Übernommene und neu gesetzte Targets stehen hier.", "text-success") "Passt"
         }
         test "Mini-Balken: Höhe relativ zum größten Wert aus Ausgaben und Monatswert, genau auf dem Monatswert nicht orange" {
             let bars = checkBars (rowWith (Some (monthly 100m)) [ 150m; 100m; 50m; 0m; -20m; 101m ] None)

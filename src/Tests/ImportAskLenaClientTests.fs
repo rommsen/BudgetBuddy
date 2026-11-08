@@ -99,7 +99,7 @@ let askLenaClientTests =
         testCase "die Zeile zeigt Kennzeichen und Aktion, gesperrt mit Grund" <| fun () ->
             let src = rowSource ()
             Expect.stringContains src "\"Rückfrage Lena\"" "Kennzeichen im Wortlaut des Kassenbuchs"
-            Expect.stringContains src "Badge.Purple" "violett wie im Kassenbuch"
+            Expect.stringContains src "Badge.lenaMark" "Flag-Symbol und Name wie im Kassenbuch (ADR 0087 Punkt 8)"
             Expect.stringContains src "SetAskLena (tx.Transaction.Id, action.Target)" "Aktion löst den Befehl aus"
             Expect.stringContains src "prop.disabled action.DisabledReason.IsSome" "gesperrt ohne Farbe"
             Expect.stringContains src "prop.text blockedBecause" "Grund sichtbar"

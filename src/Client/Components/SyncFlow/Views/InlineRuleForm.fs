@@ -78,7 +78,7 @@ let inlineRuleForm (formState: InlineRuleFormState) (dispatch: Msg -> unit) =
                                     prop.className "test-result match"
                                     prop.style [ style.marginTop 6 ]
                                     prop.children [
-                                        check XS NeonGreen
+                                        check XS Success
                                         Html.span [ prop.text "Passt auf diese Transaktion" ]
                                     ]
                                 ]
@@ -87,16 +87,16 @@ let inlineRuleForm (formState: InlineRuleFormState) (dispatch: Msg -> unit) =
                                     prop.className "test-result no-match"
                                     prop.style [ style.marginTop 6 ]
                                     prop.children [
-                                        x XS NeonRed
+                                        x XS Error
                                         Html.span [ prop.text "Passt nicht auf diese Transaktion" ]
                                     ]
                                 ]
                             | RemoteData.Failure message ->
                                 Html.div [
-                                    prop.className "test-result text-neon-orange"
+                                    prop.className "test-result text-attention"
                                     prop.style [ style.marginTop 6 ]
                                     prop.children [
-                                        warning XS NeonOrange
+                                        warning XS Warning
                                         Html.span [ prop.text message ]
                                     ]
                                 ]

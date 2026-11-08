@@ -68,3 +68,6 @@ farbig, weil sie kurz und an eine Handlung gebunden sind.
 - Das Claude-Design-Projekt braucht einen Nachtrag in seiner CLAUDE.md, damit die Abläufe
   4 bis 6 in der neuen Grammatik gezeichnet werden.
 - Referenz für den Sichttest: Artefakt "Kassenbuch Sichttest", Fassung B.
+
+## Nachtrag 2026-11-08: Farben durch ADR 0087 ersetzt (design-system-dak16)
+Die Farbangaben dieses ADR folgen jetzt ADR 0087 (Palette 2). Punkt 4: „Keine Kategorie“ ist Gelb (`attention`), nicht Orange. Punkt 7: „Zu prüfen“ ist eine 3-px-Kante in Gelb mit dem Wort, nicht Pink; Pink gibt es nicht mehr. Punkt 2: Eingänge sind neutral in `text-primary` wie jeder Listenbetrag, nicht mehr Teal; der Akzent gehört nach ADR 0087 Punkt 2 der Hauptaktion und der Auswahl. Struktur, Größen und „ein Akzent pro Zeile“ gelten weiter.

@@ -47,5 +47,5 @@ let unreadable () : ReactElement = Badge.neutral "Stand unbekannt"
 let view (status: BankConnectionStatus) : ReactElement =
     match status with
     | BankConnected -> Badge.success (label status)
-    | BankChallengePending -> Badge.orange (label status)
+    | BankChallengePending -> Badge.warning (label status)
     | BankDisconnected -> Badge.neutral (label status)

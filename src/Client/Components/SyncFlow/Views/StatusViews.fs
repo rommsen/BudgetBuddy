@@ -22,7 +22,7 @@ let tanWaitingView (isConfirming: bool) (dispatch: Msg -> unit) =
                             prop.className "relative"
                             prop.children [
                                 Html.div [
-                                    prop.className "w-24 h-24 rounded-2xl bg-gradient-to-br from-neon-teal to-neon-green flex items-center justify-center shadow-glow-teal animate-neon-pulse"
+                                    prop.className "w-24 h-24 rounded-2xl bg-gradient-to-br from-accent to-success flex items-center justify-center shadow-glow-accent animate-neon-pulse"
                                     prop.children [
                                         Html.span [
                                             prop.className "text-5xl"
@@ -33,13 +33,13 @@ let tanWaitingView (isConfirming: bool) (dispatch: Msg -> unit) =
                                 // Pulsing notification dot
                                 Html.div [
                                     prop.className "absolute -top-1 -right-1"
-                                    prop.children [ Badge.pulsingDot Badge.Orange ]
+                                    prop.children [ Badge.pulsingDot Badge.Warning ]
                                 ]
                                 Html.div [
-                                    prop.className "absolute -top-2 -right-2 w-6 h-6 bg-neon-orange rounded-full flex items-center justify-center animate-bounce shadow-glow-orange"
+                                    prop.className "absolute -top-2 -right-2 w-6 h-6 bg-attention rounded-full flex items-center justify-center animate-bounce"
                                     prop.children [
                                         Html.span [
-                                            prop.className $"{Tokens.Colors.onNeon} text-xs font-bold"
+                                            prop.className $"{Tokens.Colors.onAccent} text-xs font-bold"
                                             prop.text "1"
                                         ]
                                     ]
@@ -61,22 +61,22 @@ let tanWaitingView (isConfirming: bool) (dispatch: Msg -> unit) =
                             prop.className "flex items-center gap-2 sm:gap-3 mt-6 text-xs sm:text-sm"
                             prop.children [
                                 Html.div [
-                                    prop.className "flex items-center gap-1 sm:gap-2 text-neon-green"
+                                    prop.className "flex items-center gap-1 sm:gap-2 text-success"
                                     prop.children [
                                         Html.div [
-                                            prop.className $"w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-neon-green {Tokens.Colors.onNeon} flex items-center justify-center text-xs font-bold"
+                                            prop.className $"w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-success {Tokens.Colors.onAccent} flex items-center justify-center text-xs font-bold"
                                             prop.children [ Icons.check Icons.XS Icons.Primary ]
                                         ]
                                         Html.span [ prop.className "hidden sm:inline"; prop.text "Verbunden" ]
                                     ]
                                 ]
-                                Html.div [ prop.className "w-4 sm:w-8 h-0.5 bg-neon-teal/30" ]
+                                Html.div [ prop.className "w-4 sm:w-8 h-0.5 bg-accent/30" ]
                                 Html.div [
-                                    prop.className "flex items-center gap-1 sm:gap-2 text-neon-teal"
+                                    prop.className "flex items-center gap-1 sm:gap-2 text-accent"
                                     prop.children [
                                         Html.div [
-                                            prop.className "w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-neon-teal/20 border border-neon-teal flex items-center justify-center"
-                                            prop.children [ Loading.spinner Loading.XS Loading.Teal ]
+                                            prop.className "w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-accent/20 border border-accent flex items-center justify-center"
+                                            prop.children [ Loading.spinner Loading.XS Loading.Accent ]
                                         ]
                                         Html.span [ prop.className "font-medium"; prop.text "TAN" ]
                                     ]
@@ -126,7 +126,7 @@ let fetchingView () =
                             prop.className "relative"
                             prop.children [
                                 Html.div [
-                                    prop.className "w-24 h-24 rounded-2xl bg-gradient-to-br from-neon-teal to-neon-green flex items-center justify-center shadow-glow-teal animate-neon-pulse"
+                                    prop.className "w-24 h-24 rounded-2xl bg-gradient-to-br from-accent to-success flex items-center justify-center shadow-glow-accent animate-neon-pulse"
                                     prop.children [
                                         Html.div [
                                             prop.className "animate-spin"
@@ -151,33 +151,33 @@ let fetchingView () =
                             prop.className "flex items-center gap-2 sm:gap-3 mt-6 text-xs sm:text-sm"
                             prop.children [
                                 Html.div [
-                                    prop.className "flex items-center gap-1 sm:gap-2 text-neon-green"
+                                    prop.className "flex items-center gap-1 sm:gap-2 text-success"
                                     prop.children [
                                         Html.div [
-                                            prop.className $"w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-neon-green {Tokens.Colors.onNeon} flex items-center justify-center text-xs font-bold"
+                                            prop.className $"w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-success {Tokens.Colors.onAccent} flex items-center justify-center text-xs font-bold"
                                             prop.children [ Icons.check Icons.XS Icons.Primary ]
                                         ]
                                         Html.span [ prop.className "hidden sm:inline"; prop.text "Verbunden" ]
                                     ]
                                 ]
-                                Html.div [ prop.className "w-4 sm:w-8 h-0.5 bg-neon-green" ]
+                                Html.div [ prop.className "w-4 sm:w-8 h-0.5 bg-success" ]
                                 Html.div [
-                                    prop.className "flex items-center gap-1 sm:gap-2 text-neon-green"
+                                    prop.className "flex items-center gap-1 sm:gap-2 text-success"
                                     prop.children [
                                         Html.div [
-                                            prop.className $"w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-neon-green {Tokens.Colors.onNeon} flex items-center justify-center text-xs font-bold"
+                                            prop.className $"w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-success {Tokens.Colors.onAccent} flex items-center justify-center text-xs font-bold"
                                             prop.children [ Icons.check Icons.XS Icons.Primary ]
                                         ]
                                         Html.span [ prop.className "hidden sm:inline"; prop.text "TAN" ]
                                     ]
                                 ]
-                                Html.div [ prop.className "w-4 sm:w-8 h-0.5 bg-neon-teal/30" ]
+                                Html.div [ prop.className "w-4 sm:w-8 h-0.5 bg-accent/30" ]
                                 Html.div [
-                                    prop.className "flex items-center gap-1 sm:gap-2 text-neon-teal"
+                                    prop.className "flex items-center gap-1 sm:gap-2 text-accent"
                                     prop.children [
                                         Html.div [
-                                            prop.className "w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-neon-teal/20 border border-neon-teal flex items-center justify-center"
-                                            prop.children [ Loading.spinner Loading.XS Loading.Teal ]
+                                            prop.className "w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-accent/20 border border-accent flex items-center justify-center"
+                                            prop.children [ Loading.spinner Loading.XS Loading.Accent ]
                                         ]
                                         Html.span [ prop.className "font-medium"; prop.text "Abruf" ]
                                     ]
@@ -202,7 +202,7 @@ let loadingView (message: string) =
                 Html.div [
                     prop.className "flex flex-col items-center text-center py-8"
                     prop.children [
-                        Loading.neonPulse Loading.Teal
+                        Loading.neonPulse Loading.Accent
                         Html.p [
                             prop.className "mt-6 font-medium text-text-secondary"
                             prop.text message
@@ -233,18 +233,18 @@ let completedView (session: SyncSession) (dispatch: Msg -> unit) =
                 prop.children [
                     // Success header with neon gradient
                     Html.div [
-                        prop.className "bg-gradient-to-br from-neon-teal to-neon-green p-8 text-center"
+                        prop.className "bg-gradient-to-br from-accent to-success p-8 text-center"
                         prop.children [
                             Html.div [
-                                prop.className "w-20 h-20 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-4 shadow-glow-green"
+                                prop.className "w-20 h-20 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-4 shadow-glow-success"
                                 prop.children [ Icons.checkCircle Icons.XL Icons.Primary ]
                             ]
                             Html.h2 [
-                                prop.className $"text-2xl md:text-3xl font-bold font-display {Tokens.Colors.onNeon}"
+                                prop.className $"text-2xl md:text-3xl font-bold font-display {Tokens.Colors.onAccent}"
                                 prop.text "Synchronisierung abgeschlossen!"
                             ]
                             Html.p [
-                                prop.className $"{Tokens.Colors.onNeonMuted} mt-2"
+                                prop.className $"{Tokens.Colors.onAccentMuted} mt-2"
                                 prop.text "Deine Transaktionen wurden in YNAB importiert."
                             ]
                         ]
@@ -265,9 +265,9 @@ let completedView (session: SyncSession) (dispatch: Msg -> unit) =
                                         ]
                                     ]
                                     Html.div [
-                                        prop.className "bg-surface-card rounded-xl border border-neon-green/30 shadow-lg p-4 text-center"
+                                        prop.className "bg-surface-card rounded-xl border border-success/30 shadow-lg p-4 text-center"
                                         prop.children [
-                                            Html.p [ prop.className "text-2xl font-bold font-mono text-neon-green"; prop.text (string session.ImportedCount) ]
+                                            Html.p [ prop.className "text-2xl font-bold font-mono text-success"; prop.text (string session.ImportedCount) ]
                                             Html.p [ prop.className $"{Tokens.FontSizes.micro} leading-tight text-text-muted uppercase tracking-wider truncate"; prop.title "Importiert"; prop.text "Importiert" ]
                                         ]
                                     ]
@@ -320,20 +320,20 @@ let startSyncView (bankStatus: Types.RemoteData<BankConnectionStatus>) (dispatch
             Html.div [
                 prop.className "rounded-xl bg-surface-card border border-border-subtle overflow-hidden"
                 prop.children [
-                    // Header with neon gradient
+                    // Kopf ruhig mit Akzent-Tönung; die Hauptaktion darunter trägt den Akzent (ADR 0087)
                     Html.div [
-                        prop.className "bg-gradient-to-br from-neon-orange to-neon-pink p-8 text-center"
+                        prop.className "bg-accent/10 border-b border-accent/30 p-8 text-center"
                         prop.children [
                             Html.div [
-                                prop.className "w-20 h-20 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-4 shadow-glow-orange"
+                                prop.className "w-20 h-20 rounded-full bg-surface-elevated flex items-center justify-center mx-auto mb-4"
                                 prop.children [ Icons.sync Icons.XL Icons.Primary ]
                             ]
                             Html.h2 [
-                                prop.className "text-2xl md:text-3xl font-bold font-display text-white"
+                                prop.className "text-2xl md:text-3xl font-bold font-display text-text-primary"
                                 prop.text "Bereit zur Synchronisierung"
                             ]
                             Html.p [
-                                prop.className "text-white/80 mt-2"
+                                prop.className "text-text-secondary mt-2"
                                 prop.text "Verbinde dich mit deiner Bank und importiere Transaktionen."
                             ]
                         ]
@@ -350,8 +350,8 @@ let startSyncView (bankStatus: Types.RemoteData<BankConnectionStatus>) (dispatch
                                         prop.className "flex items-center gap-3"
                                         prop.children [
                                             Html.div [
-                                                prop.className "w-10 h-10 rounded-full bg-neon-teal/10 flex items-center justify-center flex-shrink-0"
-                                                prop.children [ Icons.creditCard Icons.MD Icons.NeonTeal ]
+                                                prop.className "w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center flex-shrink-0"
+                                                prop.children [ Icons.creditCard Icons.MD Icons.Accent ]
                                             ]
                                             Html.div [
                                                 prop.children [
@@ -365,8 +365,8 @@ let startSyncView (bankStatus: Types.RemoteData<BankConnectionStatus>) (dispatch
                                         prop.className "flex items-center gap-3"
                                         prop.children [
                                             Html.div [
-                                                prop.className "w-10 h-10 rounded-full bg-neon-green/10 flex items-center justify-center flex-shrink-0"
-                                                prop.children [ Icons.rules Icons.MD Icons.NeonGreen ]
+                                                prop.className "w-10 h-10 rounded-full bg-success/10 flex items-center justify-center flex-shrink-0"
+                                                prop.children [ Icons.rules Icons.MD Icons.Success ]
                                             ]
                                             Html.div [
                                                 prop.children [
@@ -380,8 +380,8 @@ let startSyncView (bankStatus: Types.RemoteData<BankConnectionStatus>) (dispatch
                                         prop.className "flex items-center gap-3"
                                         prop.children [
                                             Html.div [
-                                                prop.className "w-10 h-10 rounded-full bg-neon-purple/10 flex items-center justify-center flex-shrink-0"
-                                                prop.children [ Icons.upload Icons.MD Icons.NeonPurple ]
+                                                prop.className "w-10 h-10 rounded-full bg-info/10 flex items-center justify-center flex-shrink-0"
+                                                prop.children [ Icons.upload Icons.MD Icons.Info ]
                                             ]
                                             Html.div [
                                                 prop.children [

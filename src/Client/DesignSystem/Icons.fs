@@ -32,33 +32,30 @@ let private sizeToTextClass = function
 // Icon Color Variants
 // ============================================
 
+/// Farbe eines Symbols nach Rolle (ADR 0087): Akzent für Auswahl und Aktion, Gelb (`Warning`)
+/// für braucht dich, Rot für Fehler, Grün für gelungen, Blau für Hinweis.
 type IconColor =
     | Default       // text-text-secondary
     | Primary       // text-text-primary
     | Muted         // text-text-muted, etwa der Chevron einer aufklappbaren Zeile
-    | NeonGreen     // text-neon-green
-    | NeonOrange    // text-neon-orange
-    | NeonTeal      // text-neon-teal
-    | NeonPurple    // text-neon-purple
-    | NeonPink      // text-neon-pink
-    | NeonRed       // text-neon-red
-    | CalmYellow    // text-calm-yellow
-    | Success       // same as NeonGreen
-    | Warning       // same as NeonOrange
-    | Error         // same as NeonRed
-    | Info          // same as NeonTeal
+    | Accent        // text-accent
+    | Success       // text-success
+    | Warning       // text-attention: braucht dich, kein Fehler
+    | Error         // text-error
+    | Info          // text-info
+    | LenaFlag      // die Farbe aus `lena_flag_color`, nur im Flag-Symbol (ADR 0087 Punkt 8)
 
-let private colorToClass = function
+/// Die Klasse einer Symbolfarbe (öffentlich für Tests der Farbrollen, ADR 0087).
+let colorToClass = function
     | Default -> "text-text-secondary"
     | Primary -> "text-text-primary"
     | Muted -> "text-text-muted"
-    | NeonGreen | Success -> "text-neon-green"
-    | NeonOrange | Warning -> "text-neon-orange"
-    | CalmYellow -> "text-calm-yellow"
-    | NeonTeal | Info -> "text-neon-teal"
-    | NeonPurple -> "text-neon-purple"
-    | NeonPink -> "text-neon-pink"
-    | NeonRed | Error -> "text-neon-red"
+    | Accent -> "text-accent"
+    | Success -> "text-success"
+    | Warning -> "text-attention"
+    | Error -> "text-error"
+    | Info -> "text-info"
+    | LenaFlag -> "lena-flag-icon"
 
 // ============================================
 // SVG Icon Component

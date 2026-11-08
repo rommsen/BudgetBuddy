@@ -470,7 +470,7 @@ let private Content (input: ContentProps) =
                 prop.className "flex items-center gap-2 min-w-0"
                 prop.children [
                     PickerParts.name label
-                    if isCurrent then Icons.check Icons.SM Icons.NeonTeal
+                    if isCurrent then Icons.check Icons.SM Icons.Accent
                 ]
             ])
             (c.Available |> Option.map (fun m -> m.Amount, m.Currency))
@@ -512,7 +512,7 @@ let private Content (input: ContentProps) =
                 prop.className "flex items-center gap-2 min-w-0"
                 prop.children [
                     PickerParts.name withoutCategoryLabel
-                    if isCurrent then Icons.check Icons.SM Icons.NeonTeal
+                    if isCurrent then Icons.check Icons.SM Icons.Accent
                 ]
             ])
             None
@@ -538,7 +538,7 @@ let private Content (input: ContentProps) =
                 prop.className "flex items-center gap-2 min-w-0"
                 prop.children [
                     PickerParts.name (accountLabel a)
-                    if isCurrent then Icons.check Icons.SM Icons.NeonTeal
+                    if isCurrent then Icons.check Icons.SM Icons.Accent
                 ]
             ])
             None

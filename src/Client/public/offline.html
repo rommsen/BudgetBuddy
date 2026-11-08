@@ -13,16 +13,15 @@
       is unreachable, so it cannot depend on anything that needs the server.
       Caches NO data — it is a static navigation fallback, nothing more.
       Colors/fonts mirror the design-system tokens (--bg-app #08081a,
-      --text-primary #e8e8f0, --text-secondary #a3a3bd, gradient teal->green->orange).
+      --text-primary #e8e8f0, --text-secondary #a3a3bd, gradient accent->success).
     -->
     <style>
         :root {
             --bg-app: #08081a;
             --text-primary: #e8e8f0;
             --text-secondary: #a3a3bd;
-            --neon-teal: #00d4aa;
-            --neon-green: #00ff88;
-            --neon-orange: #ff6b2c;
+            --accent: #28d6df;
+            --success: #5be479;
             --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, monospace;
             --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
@@ -52,7 +51,7 @@
             font-size: 1.5rem;
             font-weight: 700;
             margin: 0.5rem 0 0;
-            background: linear-gradient(135deg, var(--neon-teal) 0%, var(--neon-green) 50%, var(--neon-orange) 100%);
+            background: linear-gradient(135deg, var(--accent) 0%, var(--success) 100%);
             -webkit-background-clip: text;
             background-clip: text;
             -webkit-text-fill-color: transparent;
@@ -71,14 +70,14 @@
             font-weight: 600;
             letter-spacing: 0.03em;
             color: var(--bg-app);
-            background: var(--neon-green);
+            background: var(--accent);
             border: none;
             border-radius: 0.5rem;
             padding: 0.7rem 1.4rem;
             cursor: pointer;
-            box-shadow: 0 0 18px rgba(0, 255, 136, 0.35);
+            box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 35%, transparent);
         }
-        .retry:hover { background: var(--neon-teal); box-shadow: 0 0 18px rgba(0, 212, 170, 0.4); }
+        .retry:hover { filter: brightness(1.1); box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 45%, transparent); }
     </style>
 </head>
 <body>

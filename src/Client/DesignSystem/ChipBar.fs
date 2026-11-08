@@ -25,7 +25,7 @@ let private chipContainerClassName (isActive: bool) : string =
     // (design-system-w7c2h). Den Abstand zum Text tragen die Knöpfe selbst.
     let baseClasses = "filter-chip inline-flex items-center gap-1.5 shrink-0 rounded-full whitespace-nowrap"
     if isActive then
-        $"{baseClasses} bg-neon-teal/10 border border-neon-teal"
+        $"{baseClasses} bg-accent/10 border border-accent"
     else
         $"{baseClasses} {Backgrounds.dark} border {Borders.default'}"
 
@@ -40,7 +40,7 @@ let private chipLabelClassName (isActive: bool) (hasRemove: bool) : string =
     // nicht nur am Rahmen: der Fokus-Ring (`*:focus-visible`) folgt der Rundung des fokussierten
     // Knopfs, ohne sie stünde ein eckiger Ring um die Pille (design-system-k4f9t).
     let baseClasses = $"inline-flex items-center rounded-full {TouchTargets.minHeight} {chipLabelPadding hasRemove} md:py-1.5 text-xs font-semibold text-left"
-    if isActive then $"{baseClasses} {Colors.neonTeal}" else $"{baseClasses} {Colors.textSecondary}"
+    if isActive then $"{baseClasses} {Colors.accent}" else $"{baseClasses} {Colors.textSecondary}"
 
 /// Ein einzelner Chip.
 let chip (props: ChipProps) : ReactElement =
@@ -59,7 +59,7 @@ let chip (props: ChipProps) : ReactElement =
                 Html.button [
                     prop.type' "button"
                     prop.ariaLabel $"{props.Label} entfernen"
-                    prop.className $"inline-flex items-center self-stretch rounded-full pr-3.5 pl-0.5 {Colors.neonTeal} text-xs font-bold"
+                    prop.className $"inline-flex items-center self-stretch rounded-full pr-3.5 pl-0.5 {Colors.accent} text-xs font-bold"
                     prop.onClick (fun e ->
                         e.stopPropagation ()
                         onRemove ())
@@ -75,7 +75,7 @@ let chip (props: ChipProps) : ReactElement =
 let clearAllButton (onClick: unit -> unit) : ReactElement =
     Html.button [
         prop.type' "button"
-        prop.className $"shrink-0 whitespace-nowrap md:ml-auto min-h-[44px] md:min-h-0 px-2 {Colors.neonTeal} text-xs font-semibold"
+        prop.className $"shrink-0 whitespace-nowrap md:ml-auto min-h-[44px] md:min-h-0 px-2 {Colors.accent} text-xs font-semibold"
         prop.onClick (fun _ -> onClick ())
         prop.text "Alle Filter löschen"
     ]

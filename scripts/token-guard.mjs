@@ -8,10 +8,15 @@
 //   - Inline-Stile `style.color`, `style.backgroundColor`, `style.borderColor`,
 //     `style.fontSize`
 //   - Arbitrary-Schriftgrößen `text-[13px]`, `text-[1.2rem]`
-//   - unter Components/Budget/ das wörtliche Pink (`neon-pink`, `neonPink`, `NeonPink`, `Stats.Pink`): auf
-//     der Budget-Seite gibt es kein Pink (ADR 0075 Punkt 5). Pink, das ein DS-Baustein setzt, ohne dass der
-//     Aufrufer es nennt (Fix 5850313: `Badge.warning`, `ErrorDisplay.warning`), prüft die Farbregel des
-//     Layout-Sweeps im gerenderten DOM (`measurePink` in scripts/layout-invariants.mjs).
+//   - überall unter src/Client/, auch im DesignSystem und ohne Ausnahme, die entfallenen Farben (ADR 0087):
+//     Pink, Orange, Lila und calm-violet (`neon-pink`, `neonPink`, `NeonPink`, `Stats.Pink`, `neon-orange`, …).
+//     Es gibt dafür keinen Token mehr; jede Farbe hat eine Bedeutung auf jeder Seite. Das deckt auch den Bug
+//     aus Fix 5850313: damals kam Pink als Warnung über `Badge.warning` und `ErrorDisplay.warning` auf die
+//     Budget-Seite, ohne dass deren Quelltext "pink" nannte. Heute ist Pink in keinem DS-Baustein erlaubt.
+//   - in src/Client/styles.css Farbliterale (Hex, rgb/rgba, hsl/hsla) außerhalb der Token-Definitionen
+//     `@theme { … }` und `:root { … }` (Muster `css-farbliteral`, design-system-dak16): dort laufen Farben
+//     über `var(--…)` oder `color-mix` auf einen Token. Erlaubt bleibt nur reines Schwarz mit Deckkraft
+//     (`rgba(0, 0, 0, a)`) für Schatten und Scrims, das keine Farbrolle ist. Keine Ausnahmeliste.
 //
 // Außerhalb von src/Client/DesignSystem/ gilt null Toleranz. Innerhalb (der
 // Definitionsschicht) sind Treffer nur erlaubt, wenn sie in
@@ -62,13 +67,13 @@ export const PATTERNS = [
   },
 ];
 
-// Muster, die nur unter einem Ordner von src/Client/ gelten. Sie liegen außerhalb von DesignSystem/
-// und haben darum keine Ausnahmen.
+// Muster, die nur unter einem Ordner von src/Client/ gelten (`dir: ""` heißt überall). Sie haben keine
+// Ausnahmen, auch nicht im DesignSystem: die Ausnahmeliste kennt nur die Namen aus PATTERNS.
 export const SCOPED_PATTERNS = [
   {
-    name: "budget-ohne-pink",
-    dir: "Components/Budget/",
-    re: /neon-pink|[Nn]eonPink|\b(?:Stats\.)?Pink\b/g,
+    name: "entfallene-farbe",
+    dir: "",
+    re: /neon-(?:pink|orange|purple)|[Nn]eon(?:Pink|Orange|Purple)|calm-violet|[Cc]almViolet|\b(?:Stats\.)?Pink\b/g,
   },
 ];
 
@@ -85,6 +90,45 @@ export function findViolations(source, patterns = PATTERNS) {
       re.lastIndex = 0;
       for (const m of line.matchAll(re)) {
         hits.push({ line: idx + 1, pattern: name, match: m[0] });
+      }
+    }
+  });
+  return hits;
+}
+
+const CSS_COLOR_LITERAL = /#[0-9a-fA-F]{3,8}(?![0-9a-zA-Z_-])|\b(?:rgba?|hsla?)\([^)]*\)/g;
+const NEUTRAL_BLACK = /^rgba?\(\s*0\s*,\s*0\s*,\s*0\s*(?:,\s*[\d.]+\s*)?\)$/;
+
+/**
+ * Farbliterale in einem Stylesheet außerhalb von `@theme { … }` und `:root { … }`: [{ line, pattern, match }].
+ * Kommentare zählen nicht, reines Schwarz mit Deckkraft (Schatten, Scrims) ist erlaubt.
+ */
+export function findCssColorLiterals(css) {
+  const hits = [];
+  let depth = 0;
+  let tokenDepth = null; // Tiefe, auf der ein @theme/:root-Block offen ist
+  let inComment = false;
+  css.split(/\r?\n/).forEach((raw, idx) => {
+    let line = "";
+    for (let i = 0; i < raw.length; i++) {
+      if (inComment) {
+        if (raw[i] === "*" && raw[i + 1] === "/") { inComment = false; i++; }
+      } else if (raw[i] === "/" && raw[i + 1] === "*") { inComment = true; i++; }
+      else line += raw[i];
+    }
+    const opensToken = /(?:@theme|:root)\s*\{/.test(line);
+    if (tokenDepth === null && !opensToken) {
+      for (const m of line.matchAll(CSS_COLOR_LITERAL)) {
+        if (!NEUTRAL_BLACK.test(m[0])) hits.push({ line: idx + 1, pattern: "css-farbliteral", match: m[0] });
+      }
+    }
+    for (const ch of line) {
+      if (ch === "{") {
+        if (opensToken && tokenDepth === null) tokenDepth = depth;
+        depth++;
+      } else if (ch === "}") {
+        depth--;
+        if (tokenDepth !== null && depth === tokenDepth) tokenDepth = null;
       }
     }
   });
@@ -162,6 +206,14 @@ export function checkTree({ clientDir, exceptions, relativeTo = clientDir }) {
       } else {
         violations.push({ file: rel, ...hit, inDs: false });
       }
+    }
+  }
+
+  const stylesPath = path.join(clientDir, "styles.css");
+  if (fs.existsSync(stylesPath)) {
+    const rel = path.relative(relativeTo, stylesPath).split(path.sep).join("/");
+    for (const hit of findCssColorLiterals(fs.readFileSync(stylesPath, "utf8"))) {
+      violations.push({ file: rel, ...hit, inDs: false });
     }
   }
 

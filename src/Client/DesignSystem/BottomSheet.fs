@@ -117,9 +117,9 @@ let optionRow (label: string) (isSelected: bool) (onClick: unit -> unit) : React
             onClick ()
         )
         prop.children [
-            Truncate.text (if isSelected then "text-sm font-semibold text-neon-teal" else "text-sm") label
+            Truncate.text (if isSelected then "text-sm font-semibold text-accent" else "text-sm") label
             if isSelected then
-                Client.DesignSystem.Icons.check Client.DesignSystem.Icons.SM Client.DesignSystem.Icons.NeonTeal
+                Client.DesignSystem.Icons.check Client.DesignSystem.Icons.SM Client.DesignSystem.Icons.Accent
         ]
     ]
 
@@ -574,7 +574,7 @@ let categoryPickerLayered
 
 type private ConfirmBlockProps = {
     Props: ConfirmDangerProps
-    /// Roter Knopf (`confirmDanger`) oder Orange (`confirm`).
+    /// Roter Knopf (`confirmDanger`) oder Akzent (`confirm`).
     Danger: bool
 }
 
@@ -627,7 +627,7 @@ let private ConfirmBlock (input: ConfirmBlockProps) =
                 | _ -> ())),
         [||]
     )
-    let border = if input.Danger then "border-neon-red/20" else Tokens.Borders.default'
+    let border = if input.Danger then "border-error/20" else Tokens.Borders.default'
     Html.div [
         prop.ref container
         prop.onKeyDown (fun e ->
@@ -672,6 +672,6 @@ let private ConfirmBlock (input: ConfirmBlockProps) =
 /// `Modal.confirmDanger`.
 let confirmDanger (props: ConfirmDangerProps) = ConfirmBlock { Props = props; Danger = true }
 
-/// Rückfrage vor einer Aktion mit Folgen im Sheet, der Knopf Orange (budgeting-xp46a, erster Nutzer: der
+/// Rückfrage vor einer Aktion mit Folgen im Sheet, der Knopf im Akzent (budgeting-xp46a, erster Nutzer: der
 /// Wechsel der Art eines Targets). Gegenstück zu `Modal.confirm`. Dieselben Felder wie `confirmDanger`.
 let confirm (props: ConfirmDangerProps) = ConfirmBlock { Props = props; Danger = false }

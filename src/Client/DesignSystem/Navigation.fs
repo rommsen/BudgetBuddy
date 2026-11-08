@@ -46,13 +46,13 @@ let private desktopNavItem (item: NavItem) (currentPage: NavPage) (onClick: NavP
         prop.className (
             "flex items-center gap-2.5 px-4 py-2.5 rounded-lg transition-all duration-200 cursor-pointer " +
             if isActive then
-                "bg-neon-teal/15 text-neon-teal shadow-sm"
+                "bg-accent/15 text-accent shadow-sm"
             else
                 "text-text-muted hover:text-text-primary hover:bg-surface-hover"
         )
         prop.onClick (fun _ -> onClick item.Page)
         prop.children [
-            item.Icon SM (if isActive then NeonTeal else Default)
+            item.Icon SM (if isActive then Accent else Default)
             Html.span [
                 prop.className "font-medium text-sm"
                 prop.text item.Label
@@ -70,21 +70,25 @@ let private brand (onClick: unit -> unit) =
             Html.div [
                 prop.ariaHidden true
                 prop.className (
-                    "w-10 h-10 rounded-xl bg-gradient-to-br from-neon-orange to-neon-teal " +
-                    "flex items-center justify-center shadow-lg group-hover:shadow-glow-orange/30 transition-shadow"
+                    "w-10 h-10 rounded-xl bg-surface-elevated border border-accent " +
+                    "flex items-center justify-center"
                 )
                 prop.children [
                     Html.span [
-                        prop.className "text-xl font-bold text-white font-display"
+                        prop.className "text-xl font-bold text-accent font-display"
                         prop.text "B"
                     ]
                 ]
             ]
             // Brand text: sichtbar erst ab lg, zwischen md und lg passen Marke und sechs Einträge sonst nicht in die
             // Leiste (infrastructure-nx14s). Darunter bleibt er für den Screenreader stehen, der Link heißt sonst nur „B“.
+            // Farbe wie im Prototyp: "Budget" hell, "Buddy" im Akzent (ADR 0087).
             Html.span [
-                prop.className "max-lg:sr-only text-lg font-bold font-display gradient-text"
-                prop.text "BudgetBuddy"
+                prop.className "max-lg:sr-only text-lg font-bold font-display text-text-primary"
+                prop.children [
+                    Html.text "Budget"
+                    Html.span [ prop.className "text-accent"; prop.text "Buddy" ]
+                ]
             ]
         ]
     ]
@@ -128,17 +132,17 @@ let private mobileNavItem (item: NavItem) (currentPage: NavPage) (onClick: NavPa
             "rounded-lg transition-all duration-200 cursor-pointer min-w-12 min-h-[52px] " +
             "whitespace-nowrap " +
             if isActive then
-                "text-neon-teal"
+                "text-accent"
             else
                 "text-text-muted/70 active:text-text-secondary"
         )
         prop.onClick (fun _ -> onClick item.Page)
         prop.children [
-            item.Icon MD (if isActive then NeonTeal else Default)
+            item.Icon MD (if isActive then Accent else Default)
             Html.span [
                 prop.className (
                     $"{FontSizes.micro} font-medium " +
-                    if isActive then "text-neon-teal" else "text-text-muted/70"
+                    if isActive then "text-accent" else "text-text-muted/70"
                 )
                 prop.text item.Label
             ]
@@ -230,19 +234,22 @@ let mobileHeader (onNavigate: NavPage -> unit) =
                     // Small logo icon
                     Html.div [
                         prop.className (
-                            "w-8 h-8 rounded-lg bg-gradient-to-br from-neon-orange to-neon-teal " +
+                            "w-8 h-8 rounded-lg bg-surface-elevated border border-accent " +
                             "flex items-center justify-center"
                         )
                         prop.children [
                             Html.span [
-                                prop.className "text-sm font-bold text-white font-display"
+                                prop.className "text-sm font-bold text-accent font-display"
                                 prop.text "B"
                             ]
                         ]
                     ]
                     Html.span [
-                        prop.className "text-lg font-bold font-display"
-                        prop.text "BudgetBuddy"
+                        prop.className "text-lg font-bold font-display text-text-primary"
+                        prop.children [
+                            Html.text "Budget"
+                            Html.span [ prop.className "text-accent"; prop.text "Buddy" ]
+                        ]
                     ]
                 ]
             ]

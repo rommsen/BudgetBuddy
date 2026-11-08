@@ -32,7 +32,7 @@ let private section (title: string) (children: ReactElement list) =
         prop.className "space-y-4 md:space-y-6 pt-8 md:pt-10 border-t border-border-subtle first:border-t-0 first:pt-0"
         prop.children [
             Html.h2 [
-                prop.className (Tokens.Presets.sectionHeader + " " + Tokens.Colors.neonTeal)
+                prop.className (Tokens.Presets.sectionHeader + " " + Tokens.Colors.accent)
                 prop.text title
             ]
             yield! children
@@ -75,7 +75,7 @@ let private caption (text: string) =
 // 1.–3. Farb- und Token-Swatches
 // ============================================
 
-/// Ein Farb-Swatch: Hintergrundfläche in der Neon-Farbe + semantisches Label.
+/// Ein Farb-Swatch: Hintergrundfläche in der Rollenfarbe + semantisches Label.
 let private colorSwatch (bgClass: string) (label: string) (meaning: string) =
     Html.div [
         prop.className "flex flex-col gap-1"
@@ -89,19 +89,61 @@ let private colorSwatch (bgClass: string) (label: string) (meaning: string) =
     ]
 
 let private colorSection =
-    section "1. Farbsemantik — Neon-on-Dark" [
-        note "Jede Neon-Farbe trägt eine feste Bedeutung — Farbe ist nie rein dekorativ. \
-              Quelle: Tokens.fs (Colors/Backgrounds/Borders/Glows). Ausführliche Semantik & \
-              harte Token-Regel: standards/frontend/styleguide.md §2."
+    section "1. Farbsemantik: eine Farbe, eine Bedeutung (ADR 0087)" [
+        note "Jede Farbe trägt auf jeder Seite dieselbe Bedeutung, Seitenausnahmen gibt es nicht. \
+              Quelle: styles.css (@theme) und Tokens.fs (Colors/Backgrounds/Borders/Glows). Tabelle und \
+              Regeln: standards/frontend/styleguide.md §2. Kontrast prüft scripts/contrast-guard.test.mjs."
         Primitives.Grid.three [
-            // Volle Neon-Hintergründe (über bg-neon-* Klassen, nicht über text-Tokens)
-            colorSwatch "bg-neon-orange" "Orange" "primär / CTA / Action"
-            colorSwatch "bg-neon-teal" "Teal" "Ausgewähltes / Navigation"
-            colorSwatch "bg-neon-green" "Green" "Erfolg / positiv"
-            colorSwatch "bg-neon-red" "Red" "Fehler / negativ"
-            colorSwatch "bg-neon-purple" "Purple" "Akzent / Kategorie"
-            colorSwatch "bg-neon-pink" "Pink" "Akzent / attention"
-            colorSwatch "bg-calm-yellow" "Gelb" "offen, kein Fehler"
+            colorSwatch Tokens.Backgrounds.accent "Akzent" "Hauptaktion und Auswahl/Navigation"
+            colorSwatch "bg-attention" "Gelb" "braucht dich, kein Fehler"
+            colorSwatch "bg-error" "Rot" "Fehler und Minus"
+            colorSwatch "bg-success" "Grün" "gelungen"
+            colorSwatch "bg-info" "Blau" "Hinweis"
+            colorSwatch "bg-border-strong" "border-strong" "Rand eines Bedienelements"
+        ]
+
+        subTitle "Farbrollen im Einsatz"
+        Html.div [
+            prop.custom ("data-testid", "farbrollen-beispiele")
+            prop.className "flex flex-col gap-4"
+            prop.children [
+                row [
+                    Button.primary "Übernehmen" ignore
+                    caption "Hauptaktion: Akzent gefüllt, Text dunkel"
+                ]
+                row [
+                    Html.div [
+                        prop.className "w-64"
+                        prop.children [
+                            Tabs.bar "farbrollen-tabs" "Beispiel Auswahl" [
+                                { Label = "Buchungen"; IsActive = true; OnClick = ignore }
+                                { Label = "Regeln"; IsActive = false; OnClick = ignore }
+                            ]
+                        ]
+                    ]
+                    caption "Auswahl: Akzent als Strich"
+                ]
+                Html.div [
+                    prop.className $"flex items-center justify-between gap-3 rounded-lg bg-surface-card px-4 h-11 {Tokens.ListRoles.statusEdge}"
+                    prop.children [
+                        Html.span [ prop.className Tokens.ListRoles.primary; prop.text "Rewe" ]
+                        Html.span [ prop.className $"{Tokens.FontSizes.microPlus} {Tokens.Colors.attention}"; prop.text "zu prüfen" ]
+                    ]
+                ]
+                caption "Zeile zu prüfen: 3-px-Kante in Gelb, mit dem Wort"
+                row [
+                    Html.span [ prop.className $"font-mono tabular-nums {Tokens.Colors.error}"; prop.text "−42,10 €" ]
+                    caption "Minus und Fehler: Rot"
+                ]
+                row [
+                    Html.span [ prop.className $"text-sm {Tokens.Colors.success}"; prop.text "Gespeichert" ]
+                    caption "Rückmeldung: Grün"
+                ]
+                row [
+                    Html.input [ prop.className "input-field max-w-xs"; prop.placeholder "Suchen…"; prop.ariaLabel "Beispielfeld" ]
+                    caption "Eingabefeld: Rand border-strong, Fokusring border-strong"
+                ]
+            ]
         ]
 
         subTitle "Backgrounds (gestaffelte Tiefe)"
@@ -109,28 +151,24 @@ let private colorSection =
             colorSwatch Tokens.Backgrounds.void' "surface-app" "Grund-Ebene"
             colorSwatch Tokens.Backgrounds.dark "surface-card" "Karten"
             colorSwatch Tokens.Backgrounds.surface "surface-elevated" "erhöht"
-            colorSwatch Tokens.Backgrounds.greenSubtle "green/10" "Erfolg subtle"
-            colorSwatch Tokens.Backgrounds.orangeSubtle "orange/10" "primär subtle"
-            colorSwatch Tokens.Backgrounds.tealSubtle "teal/10" "info subtle"
+            colorSwatch Tokens.Backgrounds.accentSubtle "accent/10" "Auswahl subtle"
+            colorSwatch Tokens.Backgrounds.attentionSubtle "attention/10" "braucht dich subtle"
+            colorSwatch Tokens.Backgrounds.successSubtle "success/10" "gelungen subtle"
         ]
 
-        subTitle "Glows (Hervorhebung, nicht Deko)"
+        subTitle "Glows (nur Hauptaktion und Rückmeldung)"
         row [
             Html.div [
-                prop.className ("bg-surface-card h-16 w-32 rounded-lg border border-neon-orange " + Tokens.Glows.orange)
-                prop.children [ Html.div [ prop.className "flex h-full items-center justify-center"; prop.children [ caption "glow-orange" ] ] ]
+                prop.className ("bg-surface-card h-16 w-32 rounded-lg border border-accent " + Tokens.Glows.accent)
+                prop.children [ Html.div [ prop.className "flex h-full items-center justify-center"; prop.children [ caption "glow-accent" ] ] ]
             ]
             Html.div [
-                prop.className ("bg-surface-card h-16 w-32 rounded-lg border border-neon-teal " + Tokens.Glows.teal)
-                prop.children [ Html.div [ prop.className "flex h-full items-center justify-center"; prop.children [ caption "glow-teal" ] ] ]
-            ]
-            Html.div [
-                prop.className ("bg-surface-card h-16 w-32 rounded-lg border border-neon-green " + Tokens.Glows.green)
-                prop.children [ Html.div [ prop.className "flex h-full items-center justify-center"; prop.children [ caption "glow-green" ] ] ]
+                prop.className ("bg-surface-card h-16 w-32 rounded-lg border border-success " + Tokens.Glows.success)
+                prop.children [ Html.div [ prop.className "flex h-full items-center justify-center"; prop.children [ caption "glow-success" ] ] ]
             ]
         ]
-        note "Glow markiert das Aktive/Wichtige (CTA, positiver Betrag, fokussierte Karte) — \
-              sparsam: alles glüht = nichts glüht. Quelle: Tokens.fs Glows, styleguide.md §1."
+        note "Glow nur an der Hauptaktion und an Rückmeldungen (ADR 0087 Punkt 6). \
+              Lena: die Flag-Farbe aus den Settings steht nur im Flag-Symbol, immer mit dem Namen (Punkt 8)."
     ]
 
 // ============================================
@@ -178,7 +216,7 @@ let private typographySection =
 
 let private buttonSection =
     section "3. Button" [
-        note "Jede klickbare Aktion. Primär (Orange) max. eine pro Screen-Kontext. \
+        note "Jede klickbare Aktion. Primär (Akzent) max. eine pro Ansicht (ADR 0087 Punkt 24). \
               Navigation zwischen Seiten → Navigation. styleguide.md §5."
         // data-ds-card (s. cardSection) ist der Export-Marker für components-button.html.
         Html.div [
@@ -194,7 +232,7 @@ let private buttonSection =
                     Button.ghost "Ghost" ignore
                     Button.danger "Löschen" ignore
                 ]
-                note "Sekundär ist neutral mit grauem Rand, auch im Hover (ADR 0075). Teal steht für Ausgewähltes und Navigation."
+                note "Sekundär ist neutral mit dem Rand border-strong, auch im Hover. Der Akzent steht für Hauptaktion und Auswahl (ADR 0087)."
                 row [
                     Button.primaryWithIcon "Hinzufügen" (Icons.plus Icons.SM Icons.Primary) ignore
                     Button.primaryLoading "Speichern…" true ignore
@@ -207,7 +245,6 @@ let private buttonSection =
                 subTitle "Hero-CTAs"
                 row [
                     Button.hero "Sync starten" ignore
-                    Button.heroTeal "Weiter" ignore
                     Button.heroWithIcon "Sync starten" (Icons.sync Icons.MD Icons.Primary) ignore
                 ]
                 subTitle "Button-Gruppe"
@@ -247,7 +284,7 @@ let private buttonSection =
                             ]
                         ]
                         subTitle "Wählbare Zeile"
-                        note "Selectable: die gewählte Zeile trägt aria-current und Teal (ADR 0075). fehlt steht in ListRoles.missing."
+                        note "Selectable: die gewählte Zeile trägt aria-current und den Akzent (ADR 0087). fehlt steht in ListRoles.missing."
                         for selected, name in [ false, "Lebensmittel"; true, "Urlaub" ] do
                             Button.selectableListRow $"styleguide-selectable-{name}" "styleguide-selectable-row" $"{name} wählen" selected ignore [
                                 Html.span [
@@ -263,7 +300,7 @@ let private buttonSection =
                                 ]
                             ]
                         subTitle "Blättern"
-                        note "stepArrow mit 48 px Trefferfläche am Handy. stepArrowGap hält den Platz, wenn am Rand der Pfeil fehlt. homeLabel führt nach Hause und ist teal, solange woanders. homeLabelCompact ist schmal für ein kurzes Wort (Kopf der Budget-Seite am Handy: Nov 2026)."
+                        note "stepArrow mit 48 px Trefferfläche am Handy. stepArrowGap hält den Platz, wenn am Rand der Pfeil fehlt. homeLabel führt nach Hause und trägt den Akzent, solange woanders. homeLabelCompact ist schmal für ein kurzes Wort (Kopf der Budget-Seite am Handy: Nov 2026)."
                         Html.div [
                             prop.className "flex items-center"
                             prop.children [
@@ -289,7 +326,7 @@ let private buttonSection =
                             ]
                         ]
                         subTitle "Kachel und leiser Textknopf"
-                        note "tile: Wert in Mono, Bezeichnung gedämpft, offen, erledigt (✓) oder aktiv (Teal). quietText: leiser Textknopf. Leiste Monatserster der Budget-Seite."
+                        note "tile: Wert in Mono, Bezeichnung gedämpft, offen, erledigt (✓) oder aktiv (Akzent). quietText: leiser Textknopf. Leiste Monatserster der Budget-Seite."
                         Html.div [
                             prop.className "grid grid-cols-3 gap-1.5 max-w-sm"
                             prop.children [
@@ -330,7 +367,7 @@ let private cardSection =
                     ]
                     Card.glow [
                         Card.headerSimple "Glow (featured)"
-                        Card.body [ Html.p [ prop.className "text-sm text-text-secondary"; prop.text "Neon-Border, hervorgehoben." ] ]
+                        Card.body [ Html.p [ prop.className "text-sm text-text-secondary"; prop.text "Akzent-Rand, hervorgehoben." ] ]
                     ]
                     Card.withAccent [
                         Card.headerSimple "With Accent"
@@ -360,7 +397,7 @@ let private badgeSection =
                 row [
                     Badge.success "Aktiv"
                     Badge.warning "Review"
-                    Badge.notice "in YNAB geändert"
+                    Badge.warning "in YNAB geändert"
                     Badge.error "Fehler"
                     Badge.info "Neu"
                 ]
@@ -375,11 +412,11 @@ let private badgeSection =
                 row [
                     Badge.neutral "Neutral"
                 ]
-                note "Klein, für den Stand in einer Listenzeile (Tab Historie). Auf der Budget-Seite Gelb statt Pink (ADR 0075). Teilweise geschrieben: eine Target-Änderung, deren Datum in Schritt 2 nicht gesetzt ist."
+                note "Klein, für den Stand in einer Listenzeile (Tab Historie). In YNAB geändert und teilweise geschrieben in Gelb: braucht dich (ADR 0087). Teilweise geschrieben: eine Target-Änderung, deren Datum in Schritt 2 nicht gesetzt ist."
                 row [
                     Badge.errorSmall "fehlgeschlagen"
-                    Badge.noticeSmall "in YNAB geändert"
-                    Badge.noticeSmall "teilweise geschrieben"
+                    Badge.warningSmall "in YNAB geändert"
+                    Badge.warningSmall "teilweise geschrieben"
                     Badge.neutralSmall "noch offen"
                     Badge.neutralSmall "in BB ersetzt"
                 ]
@@ -454,7 +491,7 @@ let private statsSection =
             prop.custom ("data-ds-group", "Components")
             prop.children [
                 Stats.grid [
-                    Stats.withIcon "Transaktionen" "1.234" (Icons.banknotes Icons.MD Icons.NeonTeal)
+                    Stats.withIcon "Transaktionen" "1.234" (Icons.banknotes Icons.MD Icons.Accent)
                     Stats.withTrend "Importe" "42" (Stats.Trend.Up 12.5m)
                     Stats.syncCount 8
                 ]
@@ -466,7 +503,7 @@ let private statsSection =
                     ]
                 ]
                 subTitle "Monatsbalken"
-                note "Stats.monthBars: je Monat ein Balken mit Monat und Betrag, ohne waagrechtes Scrollen. Der laufende Monat ist neutral gestrichelt und trägt \"läuft\", Teal bleibt für Ausgewähltes (ADR 0075). Ein Monat ohne Wert zeigt einen flachen Balken. Überwiegen Erstattungen, steht der Betrag neutral mit Plus da, Rot heißt auf der Budget-Seite \"im Minus\". Darüber die Wertzeile: Maus, Tipp oder Tab-Taste wählen einen Balken, die Zeile zeigt Monat und genauen Betrag und der Balken wird etwas heller, ohne Fokus-Ring. Ohne Auswahl bleibt die Zeile leer und hält ihre Höhe. Für Screenreader eine Liste, je Balken ein Label mit demselben Inhalt, getrennt mit Komma statt \"·\". Der gewählte Balken hebt zusätzlich seinen Monatsnamen hervor."
+                note "Stats.monthBars: je Monat ein Balken mit Monat und Betrag, ohne waagrechtes Scrollen. Der laufende Monat ist neutral gestrichelt und trägt \"läuft\", der Akzent bleibt für Ausgewähltes (ADR 0087). Ein Monat ohne Wert zeigt einen flachen Balken. Überwiegen Erstattungen, steht der Betrag neutral mit Plus da, Rot heißt auf der Budget-Seite \"im Minus\". Darüber die Wertzeile: Maus, Tipp oder Tab-Taste wählen einen Balken, die Zeile zeigt Monat und genauen Betrag und der Balken wird etwas heller, ohne Fokus-Ring. Ohne Auswahl bleibt die Zeile leer und hält ihre Höhe. Für Screenreader eine Liste, je Balken ein Label mit demselben Inhalt, getrennt mit Komma statt \"·\". Der gewählte Balken hebt zusätzlich seinen Monatsnamen hervor."
                 Html.div [
                     prop.className "max-w-sm space-y-4"
                     prop.children [
@@ -518,7 +555,7 @@ let private statsSection =
                                 ]
                             ]
                         ]
-                        caption "Stats.sparkBars am PC: Mini-Balken einer Listenzeile (Seite Targets prüfen), 32 px hoch in einer Spalte von 132 px, in einem Container ab 720 px mit 3 px Abstand. Orange über dem Target, gedämpft darunter, dunkler vor der letzten Änderung, gestrichelt die Target-Linie. Ein Bild ohne Tab-Stopp"
+                        caption "Stats.sparkBars am PC: Mini-Balken einer Listenzeile (Seite Targets prüfen), 32 px hoch in einer Spalte von 132 px, in einem Container ab 720 px mit 3 px Abstand. Gelb über dem Target, gedämpft darunter, dunkler vor der letzten Änderung, gestrichelt die Target-Linie. Ein Bild ohne Tab-Stopp"
                         Html.div [
                             prop.className "@container h-7 w-full"
                             prop.children [ Stats.sparkBars "Ausgaben der letzten 12 Monate, 8 über dem Target" (Some 42) sparks ]
@@ -588,11 +625,11 @@ let private calmListSection =
     let groupRow (title: string) (sum: string) = Table.calmGroupRow title 4 title sum
     let statusWord (text: string) =
         Html.td [
-            prop.className $"px-3 text-right {Tokens.FontSizes.microPlus} {Tokens.Colors.neonPink}"
+            prop.className $"px-3 text-right {Tokens.FontSizes.microPlus} {Tokens.Colors.attention}"
             prop.text text
         ]
     let noCategory =
-        Table.tdContent [ Html.span [ prop.className $"text-xs {Tokens.Colors.neonOrange}"; prop.text "Keine Kategorie" ] ]
+        Table.tdContent [ Html.span [ prop.className $"text-xs {Tokens.Colors.attention}"; prop.text "Keine Kategorie" ] ]
     let emptyCell = Table.tdContent []
     let dataRow (edge: bool) (date: string) (payee: string) (category: ReactElement) (memo: string) (amount: decimal) (status: string) =
         Table.calmRow edge (keyed [
@@ -623,7 +660,7 @@ let private calmListSection =
             ]
         ]
     section "8a. Ruhige Listen" [
-        note "Farbe ist ein Signal: Payee hell, Rest gedämpft, Kante in Pink nur bei zu prüfen, Teal nur bei Eingang, Orange nur bei Keine Kategorie. ADR 0049, styleguide.md §2."
+        note "Farbe ist ein Signal: Payee hell, Rest gedämpft, Kante in Gelb nur bei zu prüfen, Gelb bei Keine Kategorie, Beträge neutral. ADR 0049, ADR 0087, styleguide.md §2."
         Html.div [
             prop.custom ("data-ds-card", "components-ruhige-listen")
             prop.custom ("data-ds-card-name", "Ruhige Listen")
@@ -814,7 +851,7 @@ let private calmListSection =
                         mobileRow false "Arbeitgeber GmbH" 3412.80m (
                             Html.span [ prop.className Tokens.ListRoles.secondary; prop.text "Ready to Assign" ])
                         mobileRow true "Amazon Marketplace" -37.45m (
-                            Html.span [ prop.className $"text-xs {Tokens.Colors.neonOrange}"; prop.text "Keine Kategorie" ])
+                            Html.span [ prop.className $"text-xs {Tokens.Colors.attention}"; prop.text "Keine Kategorie" ])
                     ])
                 ]
                 Html.div [
@@ -823,7 +860,7 @@ let private calmListSection =
                         Money.listAmount -48.12m "EUR"
                         Money.listAmount 0m "EUR"
                         Money.listAmount 4000m "EUR"
-                        caption "Money.listAmount: negativ und null neutral, Eingang Teal"
+                        caption "Money.listAmount: jeder Betrag neutral, das Vorzeichen sagt die Richtung"
                     ]
                 ]
                 Html.div [
@@ -880,9 +917,9 @@ let private loadingSection =
             prop.className "space-y-3"
             prop.children [
                 row [
-                    Loading.spinner Loading.MD Loading.Teal
-                    Loading.spinner Loading.LG Loading.Green
-                    Loading.neonPulse Loading.Teal
+                    Loading.spinner Loading.MD Loading.Accent
+                    Loading.spinner Loading.LG Loading.Success
+                    Loading.neonPulse Loading.Accent
                 ]
                 subTitle "Skeletons"
                 Loading.tableSkeleton 3 3
@@ -920,19 +957,19 @@ let private iconsSection =
             prop.custom ("data-ds-group", "Components")
             prop.children [
                 row [
-                    Icons.sync Icons.MD Icons.NeonTeal
+                    Icons.sync Icons.MD Icons.Accent
                     Icons.plus Icons.MD Icons.Primary
-                    Icons.check Icons.MD Icons.NeonGreen
+                    Icons.check Icons.MD Icons.Success
                     Icons.x Icons.MD Icons.Default
                     Icons.trash Icons.MD Icons.Error
                     Icons.edit Icons.MD Icons.Default
                     Icons.settings Icons.MD Icons.Default
                     Icons.warning Icons.MD Icons.Warning
                     Icons.info Icons.MD Icons.Info
-                    Icons.banknotes Icons.MD Icons.NeonGreen
-                    Icons.creditCard Icons.MD Icons.NeonPurple
+                    Icons.banknotes Icons.MD Icons.Success
+                    Icons.creditCard Icons.MD Icons.Primary
                     Icons.search Icons.MD Icons.Default
-                    Icons.externalLink Icons.MD Icons.NeonTeal
+                    Icons.externalLink Icons.MD Icons.Accent
                 ]
             ]
         ]
@@ -1208,7 +1245,7 @@ let private BottomSheetDemo () =
             ]
         ]
         subTitle "Rückfrage im Sheet (BottomSheet.confirm)"
-        note "Vor einer Aktion mit Folgen am Handy, das Gegenstück zu Modal.confirm: wie confirmDanger, der Knopf in Orange. Beispiel: der Wechsel der Art eines Targets."
+        note "Vor einer Aktion mit Folgen am Handy, das Gegenstück zu Modal.confirm: wie confirmDanger, der Knopf im Akzent. Beispiel: der Wechsel der Art eines Targets."
         Html.div [
             prop.custom ("data-ds-card-name", "BottomSheet.confirm")
             prop.className "max-w-sm"
@@ -1730,7 +1767,7 @@ let private voiceSection =
 // Filterleiste (ledger-j8xq4, design-system-bz0gn)
 // ============================================
 
-/// Tabs: gleich breite Segmente, der aktive in Teal. Hält den gewählten Tab selbst, damit die Karte
+/// Tabs: gleich breite Segmente, der aktive im Akzent. Hält den gewählten Tab selbst, damit die Karte
 /// ohne Msg-Fälle bedienbar ist.
 [<ReactComponent>]
 let private TabsDemo () =
@@ -1738,11 +1775,11 @@ let private TabsDemo () =
     let tab label : Tabs.Tab =
         { Label = label; IsActive = (active = label); OnClick = fun () -> setActive label }
     section "23a. Tabs" [
-        note "Bereiche einer Sache in fester Höhe, erster Nutzer ist der Inspektor der Budget-Seite. Auswahl und Tastatur-Fokus zeigt derselbe teal Strich, ohne Ring und ohne Fläche: Pfeiltasten wählen sofort. styleguide.md §5."
+        note "Bereiche einer Sache in fester Höhe, erster Nutzer ist der Inspektor der Budget-Seite. Auswahl und Tastatur-Fokus zeigt derselbe Akzent-Strich, ohne Ring und ohne Fläche: Pfeiltasten wählen sofort. styleguide.md §5."
         Html.div [
             prop.custom ("data-ds-card", "components-tabs")
             prop.custom ("data-ds-card-name", "Tabs")
-            prop.custom ("data-ds-card-subtitle", "Gleich breite Segmente, aktiv in Teal")
+            prop.custom ("data-ds-card-subtitle", "Gleich breite Segmente, aktiv im Akzent")
             prop.className "max-w-sm"
             prop.children [
                 Tabs.bar "demo-tabs" "Beispiel" [ tab "Geld"; tab "Buchungen"; tab "Historie"; tab "Target" ]
@@ -1758,7 +1795,7 @@ let private SegmentedDemo () =
     let segment label : Segmented.Segment =
         { Label = label; IsActive = (active = label); Disabled = false; OnClick = fun () -> setActive label }
     section "23b. Segmented, Schritte und Zeilen von und nach" [
-        note "Umschalter mit aria-pressed, aktiv in Teal. Schritte halten den Fokus im Feld daneben. Die wählbare Zeile öffnet am Handy sheetLayered, im Panel CategoryPicker.popoverInPanelRevealed. styleguide.md §5."
+        note "Umschalter mit aria-pressed, aktiv im Akzent. Schritte halten den Fokus im Feld daneben. Die wählbare Zeile öffnet am Handy sheetLayered, im Panel CategoryPicker.popoverInPanelRevealed. styleguide.md §5."
         Html.div [
             prop.custom ("data-ds-card", "components-segmented")
             prop.custom ("data-ds-card-name", "Segmented")
@@ -1813,10 +1850,10 @@ let private SegmentedDemo () =
 let private chipBarSection =
     section "23. ChipBar" [
         note "Filterleiste des Kassenbuchs: jeder Chip ist ein Rahmen mit zwei Knöpfen \
-              (Auswahl öffnen, Filter entfernen mit ×). Aktive Chips in Teal, inaktive \
+              (Auswahl öffnen, Filter entfernen mit ×). Aktive Chips im Akzent, inaktive \
               gedämpft. \"Alle Filter löschen\" steht am Ende und erscheint nur bei aktivem \
               Filter. Der Tastatur-Fokus liegt als Ring direkt auf dem Rand der Pille, \
-              am aktiven Chip als eine dickere teal Linie. ADR 0043, styleguide.md §5 und §7.3."
+              am aktiven Chip als eine dickere Akzent-Linie. ADR 0043, styleguide.md §5 und §7.3."
         Html.div [
             prop.custom ("data-ds-card", "components-chipbar")
             prop.custom ("data-ds-card-name", "ChipBar")
@@ -1930,24 +1967,24 @@ let private DetailDemo () =
               Herkunft und Zeitleiste der Historie. Farbe nur für den Hinweis und den Punkt der \
               Zeitleiste (ADR 0049, ADR 0053)."
 
-        card "components-detail-notice" "Detail: Hinweisleiste" "Rot ohne Aktion, Orange ohne Aktion, Orange mit Aktion, Gelb auf der Budget-Seite" [
+        card "components-detail-notice" "Detail: Hinweisleiste" "Rot ohne Aktion, Gelb ohne Aktion, Gelb mit Aktion" [
             Detail.notice
                 { Tone = Detail.NoticeRed
                   Badge = "In YNAB gelöscht"
                   Reason = "Gelöscht in YNAB am 11.09.2026 08:20. Zählt nicht zum Kontostand."
                   Action = None }
             Detail.notice
-                { Tone = Detail.NoticeOrange
+                { Tone = Detail.NoticeYellow
                   Badge = "Noch nicht in YNAB"
                   Reason = "Push gescheitert am 10.09.2026 18:02: Netzwerkfehler. BB versucht es beim nächsten Lauf erneut."
                   Action = None }
             Detail.notice
-                { Tone = Detail.NoticeOrange
+                { Tone = Detail.NoticeYellow
                   Badge = "Prüfvermerk nicht in YNAB"
                   Reason = "YNAB hat den Prüfvermerk nicht angenommen (Fehler 500)."
                   Action = Some { Label = "Erneut senden"; Busy = false; Disabled = false; OnClick = ignore } }
-            // Gelb (NoticeYellow): auf der Budget-Seite für "offen, kein Fehler" statt Orange (ADR 0075),
-            // im Tab Geld bei einer offenen Rückschreibung (budgeting-dgrp7).
+            // Gelb (NoticeYellow): braucht dich, etwa im Tab Geld bei einer offenen Rückschreibung
+            // (budgeting-dgrp7, ADR 0087).
             Detail.notice
                 { Tone = Detail.NoticeYellow
                   Badge = "noch nicht in YNAB"
@@ -2075,7 +2112,7 @@ let private DetailDemo () =
                   MaxLength = ynabMemoMaxLength
                   SaveDisabled = true }
             Detail.notice
-                { Tone = Detail.NoticeOrange
+                { Tone = Detail.NoticeYellow
                   Badge = "Memo nicht in YNAB"
                   Reason = "Keine Verbindung zu YNAB: Zeitüberschreitung."
                   Action = Some { Label = "Erneut senden"; Busy = false; Disabled = false; OnClick = ignore } }
@@ -2086,8 +2123,8 @@ let private DetailDemo () =
             Detail.timeline
                 [ { Key = "4"; Dot = Detail.DotRed; Text = "In YNAB gelöscht"; Stamp = "11.09.2026 08:20 · YNAB-Spiegel" }
                   { Key = "3"; Dot = Detail.DotGreen; Text = "In BB als geprüft markiert"; Stamp = "10.09.2026 18:10 · In BB entschieden" }
-                  { Key = "2"; Dot = Detail.DotPurple; Text = "Regel: Kategorie Lebensmittel gesetzt"; Stamp = "10.09.2026 17:55 · Regel" }
-                  { Key = "1"; Dot = Detail.DotTeal; Text = "Comdirect-Import: Buchung erfasst"; Stamp = "10.09.2026 17:55 · Comdirect-Import" }
+                  { Key = "2"; Dot = Detail.DotInfo; Text = "Regel: Kategorie Lebensmittel gesetzt"; Stamp = "10.09.2026 17:55 · Regel" }
+                  { Key = "1"; Dot = Detail.DotInfo; Text = "Comdirect-Import: Buchung erfasst"; Stamp = "10.09.2026 17:55 · Comdirect-Import" }
                   { Key = "0"; Dot = Detail.DotGrey; Text = "Kategorie in YNAB geändert"; Stamp = "10.09.2026 17:50 · YNAB-Spiegel" } ]
         ]
 
@@ -2259,7 +2296,7 @@ let private multiSelectSection =
             ]
         ]
 
-        card "components-multiselect-summary" "Mehrfachauswahl: Summenzeile" "Teal-Kante links, Beschriftung in Teal, Summe der Auswahl rechts" [
+        card "components-multiselect-summary" "Mehrfachauswahl: Summenzeile" "Akzent-Kante links, Beschriftung im Akzent, Summe der Auswahl rechts" [
             MultiSelect.summaryRow "Auswahl: 3 von 34 Buchungen" sum
         ]
 

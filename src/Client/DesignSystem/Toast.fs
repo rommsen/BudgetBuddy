@@ -63,19 +63,20 @@ type ToastProps = {
 // Helper Functions
 // ============================================
 
-let private variantToClasses variant =
+/// Rand und Fläche einer Variante (öffentlich für Tests der Farbrollen, ADR 0087).
+let variantClass variant =
     match variant with
-    | Success -> "border-l-neon-green bg-neon-green/5"
-    | Error -> "border-l-neon-red bg-neon-red/5"
-    | Warning -> "border-l-neon-orange bg-neon-orange/5"
-    | Info -> "border-l-neon-teal bg-neon-teal/5"
+    | Success -> "border-l-success bg-success/5"
+    | Error -> "border-l-error bg-error/5"
+    | Warning -> "border-l-attention bg-attention/5"
+    | Info -> "border-l-info bg-info/5"
 
 let private variantToIcon variant =
     match variant with
-    | Success -> checkCircle SM IconColor.NeonGreen
-    | Error -> xCircle SM IconColor.NeonRed
-    | Warning -> warning SM IconColor.NeonOrange
-    | Info -> info SM IconColor.NeonTeal
+    | Success -> checkCircle SM IconColor.Success
+    | Error -> xCircle SM IconColor.Error
+    | Warning -> warning SM IconColor.Warning
+    | Info -> info SM IconColor.Info
 
 let private variantToTitle variant =
     match variant with
@@ -118,7 +119,7 @@ let toast (props: ToastProps) =
             // surfaces; the opaque fill guarantees the toast stays legible.
             "bg-surface-card backdrop-blur-md shadow-lg " +
             motionClass + " " +
-            variantToClasses props.Variant
+            variantClass props.Variant
         )
         prop.children [
             // Icon
@@ -148,7 +149,7 @@ let toast (props: ToastProps) =
                 ]
             ]
 
-            // Aktion (z. B. "Rückgängig"), Teal wie in Handoff 1.3
+            // Aktion (z. B. "Rückgängig"), Akzent wie in Handoff 1.3
             match props.Action with
             | Some action ->
                 Html.button [
@@ -156,7 +157,7 @@ let toast (props: ToastProps) =
                         // Am Handy 48 px Trefferfläche, der negative Rand hält den Toast so hoch wie bisher.
                         $"flex-shrink-0 inline-flex items-center justify-center {TouchTargets.mobileOverlap} " +
                         "px-2 py-1 rounded-md text-sm font-semibold transition-colors " +
-                        "text-neon-teal hover:bg-surface-hover"
+                        "text-accent hover:bg-surface-hover"
                     )
                     prop.custom ("data-toast-action", "true")
                     prop.onClick (fun _ -> props.OnAction props.Id)

@@ -35,7 +35,7 @@ let amountFieldClass (invalid: bool) : string =
 /// Der Hinweis unter einem Betragsfeld mit ungültiger Eingabe. Das Feld verweist per `aria-describedby` auf
 /// `id` (budgeting-g2ty9, F5).
 let invalidHint (id: string) (text: string) =
-    Html.span [ prop.id id; prop.className $"{ListRoles.primarySize} {Colors.neonRed}"; prop.text text ]
+    Html.span [ prop.id id; prop.className $"{ListRoles.primarySize} {Colors.error}"; prop.text text ]
 
 /// Ein Betrag in Listenschrift, neutral eingefärbt: Zugewiesen, Aktivität, Target und der neue
 /// Betrag der Vorschau sind keine Warnsignale, nur Verfügbar färbt ein Minus (`Money.available`).
@@ -108,7 +108,7 @@ let toBeBudgeted (compact: bool) (m: Money) =
     ]
 
 /// `‹ Monat ›`. Am Rand fehlt der Pfeil, sein Platz bleibt frei. Der Name führt zum laufenden Monat
-/// und ist teal, sobald ein anderer gezeigt wird. Bleibt auch stehen, wenn der Monat nicht offen ist.
+/// und trägt den Akzent, sobald ein anderer gezeigt wird. Bleibt auch stehen, wenn der Monat nicht offen ist.
 /// "2026-11-01" als "Nov 2026" wie im Kopf der Skizze am Handy. Ein unlesbarer Wert bleibt, wie er ist.
 let compactMonthLabel (month: string) : string =
     match month.Split '-' with
@@ -298,7 +298,7 @@ let private targetCell (c: BudgetCategory) =
 
 let private desktopRow (selectedId: System.Guid option) (dispatch: Msg -> unit) (c: BudgetCategory) =
     let isSelected = selectedId = Some c.Id
-    let rowColor = if isSelected then Backgrounds.tealSubtle else "hover:bg-surface-hover"
+    let rowColor = if isSelected then Backgrounds.accentSubtle else "hover:bg-surface-hover"
     Html.tr [
         prop.key (string c.Id)
         prop.custom ("data-testid", "budget-category-row")

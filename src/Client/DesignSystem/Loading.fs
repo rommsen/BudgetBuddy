@@ -19,10 +19,8 @@ type SpinnerSize =
 /// Spinner color variants
 type SpinnerColor =
     | Default   // Base content color
-    | Teal      // Neon teal
-    | Orange    // Neon orange
-    | Green     // Neon green
-    | Purple    // Neon purple
+    | Accent    // Akzent (ADR 0087)
+    | Success   // Grün: gelungen
 
 /// Skeleton shape variants
 type SkeletonShape =
@@ -45,10 +43,8 @@ let private spinnerSizeToClass = function
 
 let private spinnerColorToClass = function
     | Default -> "text-text-secondary"
-    | Teal -> "text-neon-teal"
-    | Orange -> "text-neon-orange"
-    | Green -> "text-neon-green"
-    | Purple -> "text-neon-purple"
+    | Accent -> "text-accent"
+    | Success -> "text-success"
 
 /// Create a loading spinner
 let spinner (size: SpinnerSize) (color: SpinnerColor) =
@@ -64,14 +60,14 @@ let spinner (size: SpinnerSize) (color: SpinnerColor) =
         prop.className $"{spinnerClass} {spinnerColorToClass color}"
     ]
 
-/// Default medium teal spinner
-let spinnerDefault () = spinner MD Teal
+/// Default medium accent spinner
+let spinnerDefault () = spinner MD Accent
 
 /// Small inline spinner
 let spinnerInline () = spinner SM Default
 
 /// Large page spinner
-let spinnerLarge () = spinner XL Teal
+let spinnerLarge () = spinner XL Accent
 
 // ============================================
 // Ring Spinner (alternative style)
@@ -118,10 +114,8 @@ let neonPulse (color: SpinnerColor) =
     let colorClass = spinnerColorToClass color
     let glowClass =
         match color with
-        | Teal -> "shadow-glow-teal"
-        | Orange -> "shadow-glow-orange"
-        | Green -> "shadow-glow-green"
-        | Purple -> "shadow-glow-purple"
+        | Accent -> "shadow-glow-accent"
+        | Success -> "shadow-glow-success"
         | Default -> ""
 
     Html.div [
@@ -386,12 +380,12 @@ let centered (message: string) =
 /// Full page loading overlay
 let pageOverlay (message: string option) =
     Html.div [
-        prop.className "fixed inset-0 bg-[#0a0a0f]/80 backdrop-blur-sm flex items-center justify-center z-50"
+        prop.className "fixed inset-0 bg-surface-app/80 backdrop-blur-sm flex items-center justify-center z-50"
         prop.children [
             Html.div [
                 prop.className "flex flex-col items-center gap-4"
                 prop.children [
-                    neonPulse Teal
+                    neonPulse Accent
                     match message with
                     | Some msg ->
                         Html.p [
@@ -440,18 +434,14 @@ let buttonSpinner () =
 let progressBar (percent: int) (color: SpinnerColor) =
     let colorClass =
         match color with
-        | Teal -> "bg-neon-teal"
-        | Orange -> "bg-neon-orange"
-        | Green -> "bg-neon-green"
-        | Purple -> "bg-neon-purple"
+        | Accent -> "bg-accent"
+        | Success -> "bg-success"
         | Default -> "bg-text-primary"
 
     let glowClass =
         match color with
-        | Teal -> "shadow-[0_0_10px_theme(colors.neon-teal)]"
-        | Orange -> "shadow-[0_0_10px_theme(colors.neon-orange)]"
-        | Green -> "shadow-[0_0_10px_theme(colors.neon-green)]"
-        | Purple -> "shadow-[0_0_10px_theme(colors.neon-purple)]"
+        | Accent -> "shadow-[0_0_10px_var(--color-accent)]"
+        | Success -> "shadow-[0_0_10px_var(--color-success)]"
         | Default -> ""
 
     Html.div [
@@ -490,10 +480,8 @@ let progressBarWithLabel (label: string) (percent: int) (color: SpinnerColor) =
 let progressIndeterminate (color: SpinnerColor) =
     let colorClass =
         match color with
-        | Teal -> "bg-neon-teal"
-        | Orange -> "bg-neon-orange"
-        | Green -> "bg-neon-green"
-        | Purple -> "bg-neon-purple"
+        | Accent -> "bg-accent"
+        | Success -> "bg-success"
         | Default -> "bg-text-primary"
 
     Html.div [
@@ -563,7 +551,7 @@ let successCheckmark (size: SpinnerSize) =
         prop.className "animate-success-pop"
         prop.children [
             Svg.svg [
-                svg.className $"{sizeClass} text-neon-green"
+                svg.className $"{sizeClass} text-success"
                 svg.viewBox (0, 0, 24, 24)
                 svg.fill "none"
                 svg.stroke "currentColor"
@@ -593,7 +581,7 @@ let successBadge (size: SpinnerSize) =
         | XL -> "w-16 h-16"
 
     Html.div [
-        prop.className $"animate-success-pop {sizeClass} rounded-full bg-neon-green/20 flex items-center justify-center shadow-glow-green"
+        prop.className $"animate-success-pop {sizeClass} rounded-full bg-success/20 flex items-center justify-center shadow-glow-success"
         prop.children [
             successCheckmark size
         ]
@@ -602,11 +590,11 @@ let successBadge (size: SpinnerSize) =
 /// Success message with animated checkmark
 let successMessage (message: string) =
     Html.div [
-        prop.className "flex items-center gap-3 p-4 rounded-xl bg-neon-green/10 border border-neon-green/30 animate-scale-in"
+        prop.className "flex items-center gap-3 p-4 rounded-xl bg-success/10 border border-success/30 animate-scale-in"
         prop.children [
             successBadge SM
             Html.span [
-                prop.className "text-neon-green font-medium"
+                prop.className "text-success font-medium"
                 prop.text message
             ]
         ]
@@ -626,11 +614,11 @@ let withShake (isError: bool) (children: ReactElement list) =
 /// Error message with icon
 let errorMessage (message: string) =
     Html.div [
-        prop.className "flex items-center gap-3 p-4 rounded-xl bg-neon-red/10 border border-neon-red/30 animate-shake"
+        prop.className "flex items-center gap-3 p-4 rounded-xl bg-error/10 border border-error/30 animate-shake"
         prop.children [
             Icons.xCircle Icons.MD Icons.Error
             Html.span [
-                prop.className "text-neon-red font-medium"
+                prop.className "text-error font-medium"
                 prop.text message
             ]
         ]

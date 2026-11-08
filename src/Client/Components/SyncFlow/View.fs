@@ -37,6 +37,10 @@ let view (model: Model) (dispatch: Msg -> unit) =
 
         Html.div [
           prop.className "px-4 md:px-6"
+          // Die Lena-Farbe steht nur im Flag-Symbol (ADR 0087 Punkt 8, `data-lena-flag` in styles.css).
+          match model.LenaFlagColor with
+          | Some color -> prop.custom ("data-lena-flag", color.ToLowerInvariant())
+          | None -> ()
           prop.children [
             // Review header as normal flowing content
             Html.div [

@@ -157,13 +157,13 @@ let existingFunctionTests =
         ]
 
         testList "getCategoryBadgeClass" [
-            // ADR 0049: nur "ohne Kategorie" ist ein offener Fall und bleibt Orange.
+            // ADR 0049, ADR 0087: nur "ohne Kategorie" ist ein offener Fall und ist Gelb.
             // Alle anderen Chips sind neutral, ohne Teal-Fläche (ynab-sync-aj5tv).
             let neutral (cls: string) =
                 Expect.equal cls "tx-category badge-neutral" "neutraler Chip"
                 Expect.isFalse (cls.Contains "badge-ready") "kein badge-ready"
                 Expect.isFalse (cls.Contains "teal") "keine Teal-Klasse"
-                Expect.isFalse (cls.Contains "badge-attention") "kein Orange"
+                Expect.isFalse (cls.Contains "badge-attention") "kein Gelb"
 
             testCase "Kategorie gesetzt: neutral" <| fun () ->
                 let catId = Some (YnabCategoryId (Guid.NewGuid()))
@@ -194,7 +194,7 @@ let existingFunctionTests =
             testCase "ohne Kategorie: als einziger Fall badge-attention" <| fun () ->
                 let tx = mkTransaction "tx5" DateTime.Now -10.0m (Some "Shop") "" Pending None
                             (NotDuplicate defaultDuplicateDetails)
-                Expect.equal (getCategoryBadgeClass tx) "tx-category badge-attention" "offener Fall bleibt Orange"
+                Expect.equal (getCategoryBadgeClass tx) "tx-category badge-attention" "offener Fall ist Gelb"
         ]
 
         testList "categoryChipLabel" [
@@ -559,7 +559,7 @@ let ruhigeListeTests =
                     Expect.isFalse ((Quelltext.views f).Contains "badge-ready") f
             testCase "styles.css: Checkbox, Rest-Zeile, tx-date, Glow-Knöpfe" <| fun () ->
                 let css = Quelltext.css ()
-                Expect.isFalse ((Quelltext.cssRule ".tx-toggle input:checked + .toggle-track").Contains "neon-teal") "Checkbox neutral"
+                Expect.isFalse ((Quelltext.cssRule ".tx-toggle input:checked + .toggle-track").Contains "accent") "Checkbox neutral"
                 for sel in [ ".split-remainder"; ".split-remainder.balanced" ] do
                     let rule = Quelltext.cssRule sel
                     Expect.isFalse (rule.Contains "rgba(255, 59, 92") (sel + " ohne Rot")
@@ -586,11 +586,11 @@ let ruhigeListeTests =
                 let cls = SplitSheet.splitAmountClass false
                 for needle in [ "font-mono"; "font-medium"; "tabular-nums"; "text-text-primary" ] do
                     Expect.isTrue (cls.Contains needle) (needle + " in " + cls)
-                for verboten in [ "neon-green"; "neon-red"; "font-bold"; "font-semibold"; "glow"; "shadow" ] do
+                for verboten in [ "success"; "error"; "font-bold"; "font-semibold"; "glow"; "shadow" ] do
                     Expect.isFalse (cls.Contains verboten) (verboten + " in " + cls)
             testCase "Warnung färbt nur den Text rot" <| fun () ->
                 let cls = SplitSheet.splitAmountClass true
-                Expect.isTrue (cls.Contains "text-neon-red") cls
+                Expect.isTrue (cls.Contains "text-error") cls
                 Expect.isFalse (cls.Contains "glow") cls
         ]
     ]

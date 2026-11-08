@@ -185,14 +185,14 @@ test("extractTokensModuleLiterals: extrahiert let-Literale je Top-Level-Modul, q
     "module Client.DesignSystem.Tokens",
     "",
     "module Colors =",
-    '    let neonGreen = "text-neon-green"',
+    '    let success = "text-success"',
     "",
     "module FontSizes =",
     '    let micro = "text-[10px]"',
   ].join("\n");
 
   const map = extractTokensModuleLiterals(fakeTokens);
-  assert.equal(map.get("Colors.neonGreen"), "text-neon-green");
+  assert.equal(map.get("Colors.success"), "text-success");
   assert.equal(map.get("FontSizes.micro"), "text-[10px]");
 });
 

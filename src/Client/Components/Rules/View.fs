@@ -506,7 +506,7 @@ let private ruleFields (model: Model) (dispatch: Msg -> unit) =
                     Html.div [
                         prop.className "flex items-center gap-2 mb-4"
                         prop.children [
-                            Icons.search SM Icons.NeonTeal
+                            Icons.search SM Icons.Accent
                             Html.span [ prop.className "font-medium text-text-primary"; prop.text "Muster testen" ]
                         ]
                     ]
@@ -534,11 +534,11 @@ let private ruleFields (model: Model) (dispatch: Msg -> unit) =
                             | Some result ->
                                 let (bgClass, iconEl) =
                                     if result.StartsWith("✅") then
-                                        ("bg-neon-green/10 border-neon-green/30 text-neon-green", Icons.checkCircle SM Icons.NeonGreen)
+                                        ("bg-success/10 border-success/30 text-success", Icons.checkCircle SM Icons.Success)
                                     elif result.StartsWith("❌") then
-                                        ("bg-neon-red/10 border-neon-red/30 text-neon-red", Icons.xCircle SM Icons.NeonRed)
+                                        ("bg-error/10 border-error/30 text-error", Icons.xCircle SM Icons.Error)
                                     else
-                                        ("bg-neon-orange/10 border-neon-orange/30 text-neon-orange", Icons.warning SM Icons.NeonOrange)
+                                        ("bg-attention/10 border-attention/30 text-attention", Icons.warning SM Icons.Warning)
                                 Html.div [
                                     prop.className $"flex items-center gap-2 p-3 rounded-lg border {bgClass}"
                                     prop.children [

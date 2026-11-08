@@ -24,13 +24,13 @@ let private contains (needle: string) (text: string) = text.Contains needle
 let private tests =
     testList "Auswahlen (zahv9)" [
         testList "Money.availableClass" [
-            for amount, color in [ 125m, Colors.textPrimary; 0m, Colors.textMuted; -3m, "text-neon-red" ] do
+            for amount, color in [ 125m, Colors.textPrimary; 0m, Colors.textMuted; -3m, "text-error" ] do
                 test $"{amount}: genau die Farbe {color}, Mono 500, kein Glow" {
                     let cls = Money.availableClass amount
                     Expect.isTrue (has color cls) cls
                     for needed in [ "font-mono"; "font-medium"; "tabular-nums" ] do
                         Expect.isTrue (has needed cls) $"{needed} fehlt in {cls}"
-                    for forbidden in [ "neon-green"; "neon-teal"; "font-semibold"; "font-bold"; "glow"; "shadow" ] do
+                    for forbidden in [ "success"; "accent"; "font-semibold"; "font-bold"; "glow"; "shadow" ] do
                         Expect.isFalse (cls.Contains forbidden) $"{forbidden} in {cls}"
                 }
         ]

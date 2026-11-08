@@ -7,41 +7,24 @@ module Client.DesignSystem.Tokens
 // Color Tokens
 // ============================================
 
-/// Neon accent colors for the theme
+/// Farbrollen (ADR 0087, Palette 2): eine Farbe, eine Bedeutung, auf jeder Seite.
+/// Die Werte stehen in styles.css (`@theme`), der Kontrast-Wächter
+/// scripts/contrast-guard.test.mjs prüft sie gegen die Flächen.
 module Colors =
-    // Primary: Neon Green - Success, Growth, Positive
-    let neonGreen = "text-neon-green"
-    let neonGreenDim = "text-[#00cc6a]"
+    // Akzent: Hauptaktion (gefüllter Knopf) und Auswahl/Navigation (Kante, Strich, Fläche).
+    let accent = "text-accent"
 
-    // Secondary: Electric Orange - Energy, Action, Alerts
-    let neonOrange = "text-neon-orange"
-    let neonOrangeDim = "text-[#e55a1f]"
+    // Braucht dich, kein Fehler: zu prüfen, fehlt, ohne Kategorie. Immer mit Wort daneben.
+    let attention = "text-attention"
 
-    // Accent: Cyber Teal - Ausgewähltes und Navigation (ADR 0075)
-    let neonTeal = "text-neon-teal"
-    let neonTealDim = "text-[#00b894]"
+    // Fehler und Minus.
+    let error = "text-error"
 
-    // Supporting: Electric Purple - Special, Premium
-    let neonPurple = "text-neon-purple"
-    let neonPurpleDim = "text-[#9333ea]"
+    // Gelungen: Rückmeldung, alles erledigt.
+    let success = "text-success"
 
-    // Warning: Hot Pink - Attention needed
-    let neonPink = "text-neon-pink"
-    let neonPinkDim = "text-[#e6177f]"
-
-    // Offen, kein Fehler: fehlt und "Passt das Target noch?" (ADR 0075)
-    let calmYellow = "text-calm-yellow"
-
-    // Ruhiges Blau: nur "Gibst du weniger aus?" auf der Seite Targets prüfen (Nachtrag ADR 0075, budgeting-c4ve4)
-    let calmBlue = "text-calm-blue"
-
-    // Helles Violett: nur "Gibst du nie aus?" auf der Seite Targets prüfen (Nachtrag ADR 0075, budgeting-c4ve4).
-    // `neonPurple` fiele auf `bg-hover` unter 4,5:1.
-    let calmViolet = "text-calm-violet"
-
-    // Error: Neon Red
-    let neonRed = "text-neon-red"
-    let neonRedDim = "text-[#e6324f]"
+    // Hinweis.
+    let info = "text-info"
 
     // Text colors (using CSS variable tokens)
     let textPrimary = "text-text-primary"
@@ -49,12 +32,10 @@ module Colors =
     let textMuted = "text-text-muted"
     let textDisabled = "text-text-muted/70"  // Increased from 30 for accessibility
 
-    // Dark foreground for use ON bright neon surfaces (badge counts, step circles,
-    // text on neon gradients). Matches the app background (#0a0a0f, `bg-surface-app`)
-    // so it reads as "knocked-out" type on a glowing pill. Use this instead of the raw
-    // hex `text-[#0a0a0f]` at call sites (Token-Layer, styleguide §3).
-    let onNeon = "text-[#0a0a0f]"
-    let onNeonMuted = "text-[#0a0a0f]/70"  // Secondary text on neon gradients
+    // Dunkler Text auf dem Akzent und auf gefüllten Rollenfarben (Badge-Zahlen, Schrittkreise,
+    // Hauptknopf). Der Token `on-accent` ist `bg-app` (styles.css).
+    let onAccent = "text-on-accent"
+    let onAccentMuted = "text-on-accent/70"
 
 /// Background color tokens
 module Backgrounds =
@@ -65,54 +46,46 @@ module Backgrounds =
     let elevated = "bg-surface-input"
     let subtle = "bg-surface-input"
 
-    // Neon subtle backgrounds
-    let greenSubtle = "bg-neon-green/10"
-    let orangeSubtle = "bg-neon-orange/10"
-    let tealSubtle = "bg-neon-teal/10"
-    let purpleSubtle = "bg-neon-purple/10"
-    let pinkSubtle = "bg-neon-pink/10"
-    let redSubtle = "bg-neon-red/10"
+    /// Gefüllte Fläche der Hauptaktion (Text darauf `Colors.onAccent`)
+    let accent = "bg-accent"
+
+    // Abgeschwächte Rollenflächen
+    let accentSubtle = "bg-accent/10"
+    let attentionSubtle = "bg-attention/10"
+    let successSubtle = "bg-success/10"
+    let errorSubtle = "bg-error/10"
 
 /// Border color tokens
 module Borders =
     let subtle = "border-border-subtle"
     let default' = "border-border-default"
-    let strong = "border-white/15"
+    /// Rand, der ein Bedienelement erkennbar macht (Eingabe, Auswahl, Knopf ohne Füllung), 3:1 (ADR 0087 Punkt 5).
+    let strong = "border-border-strong"
 
-    // Neon borders
-    let green = "border-neon-green"
-    let orange = "border-neon-orange"
-    let teal = "border-neon-teal"
-    let purple = "border-neon-purple"
-    let pink = "border-neon-pink"
-    let red = "border-neon-red"
+    // Rollenränder
+    let accent = "border-accent"
+    let attention = "border-attention"
+    let success = "border-success"
+    let error = "border-error"
 
-/// Glow effect tokens
+/// Glow nur an der Hauptaktion und an Rückmeldungen (ADR 0087 Punkt 6).
 module Glows =
-    let green = "shadow-glow-green"
-    let greenHover = "hover:shadow-glow-green"
-    let orange = "shadow-glow-orange"
-    let orangeHover = "hover:shadow-glow-orange"
-    let teal = "shadow-glow-teal"
-    let tealHover = "hover:shadow-glow-teal"
-    let purpleHover = "hover:shadow-glow-purple"
+    let accent = "shadow-glow-accent"
+    let accentHover = "hover:shadow-glow-accent"
+    let success = "shadow-glow-success"
+    let error = "shadow-glow-error"
 
-    // Large glow variants for hero buttons
-    let orangeLg = "shadow-[0_0_30px_rgba(255,107,44,0.4)]"
-    let orangeHoverLg = "hover:shadow-[0_0_50px_rgba(255,107,44,0.6)]"
-    let tealLg = "shadow-[0_0_30px_rgba(45,212,191,0.4)]"
-    let tealHoverLg = "hover:shadow-[0_0_50px_rgba(45,212,191,0.6)]"
-    let greenLg = "shadow-[0_0_30px_rgba(74,222,128,0.4)]"
-    let greenHoverLg = "hover:shadow-[0_0_50px_rgba(74,222,128,0.6)]"
+    // Große Variante für den Hero-Knopf
+    let accentLg = "shadow-[0_0_30px_color-mix(in_srgb,var(--color-accent)_40%,transparent)]"
+    let accentHoverLg = "hover:shadow-[0_0_50px_color-mix(in_srgb,var(--color-accent)_60%,transparent)]"
 
 /// Text glow effects (text-shadow)
 module TextGlows =
     // design-system-thtpp: "text-glow-green" war keine echte Tailwind-Utility
-    // (nicht in styles.css definiert), ebenso orange/teal (design-system-tg2wn): Arbitrary-Property-Syntax wie in
-    // Money.fs' getGlowClass, dieselben rgba-Werte wie --shadow-glow-green.
-    let green = "[text-shadow:0_0_10px_theme(colors.neon-green),0_0_20px_rgba(0,255,136,0.5)]"
-    let orange = "[text-shadow:0_0_10px_theme(colors.neon-orange),0_0_20px_rgba(255,107,44,0.5)]"
-    let teal = "[text-shadow:0_0_10px_theme(colors.neon-teal),0_0_20px_rgba(0,212,170,0.5)]"
+    // (nicht in styles.css definiert), ebenso orange/teal (design-system-tg2wn): Arbitrary-Property-Syntax.
+    // Die Farbe kommt aus dem Theme-Token, kein eigener rgba-Wert (ADR 0087).
+    let success = "[text-shadow:0_0_10px_var(--color-success),0_0_20px_color-mix(in_srgb,var(--color-success)_50%,transparent)]"
+    let accent = "[text-shadow:0_0_10px_var(--color-accent),0_0_20px_color-mix(in_srgb,var(--color-accent)_50%,transparent)]"
 
 // ============================================
 // Typography Tokens
@@ -152,8 +125,8 @@ module ListRoles =
     let secondary = "text-xs text-text-secondary"
     /// Memo: 12px, noch stärker gedämpft
     let muted = "text-xs text-text-muted"
-    /// Klein in Gelb: offen, kein Fehler (`fehlt`, ADR 0075).
-    let missing = "text-xs text-calm-yellow"
+    /// Klein in Gelb: braucht dich, kein Fehler (`fehlt`, ADR 0087 Punkt 3).
+    let missing = "text-xs text-attention"
     /// Datum: Mono 12px
     let date = "font-mono text-xs font-normal text-text-muted"
     /// Datumsgruppen-Kopf: Mono 600 10px, gesperrt
@@ -171,9 +144,9 @@ module ListRoles =
     /// Zeile 2: Kategorie, Memo, Kennzeichen; gleiche feste Höhe und gleicher Abstand
     /// zu Zeile 1 in jeder Zeile, auch mit Kennzeichen
     let mobileLine2 = "flex items-center gap-2 h-5 mt-0.5 min-w-0"
-    /// Statuskante "zu prüfen": 3px in Pink links, als inset-Schatten, damit die
-    /// Zellinhalte nicht verrutschen. Gilt für Tabellenzeile und Handy-Zeile.
-    let statusEdge = "shadow-[inset_3px_0_0_0_var(--color-neon-pink)]"
+    /// Statuskante "zu prüfen": 3px in Gelb links (braucht dich, ADR 0087 Punkt 3), als inset-Schatten,
+    /// damit die Zellinhalte nicht verrutschen. Gilt für Tabellenzeile und Handy-Zeile.
+    let statusEdge = "shadow-[inset_3px_0_0_0_var(--color-attention)]"
     /// Waagerechter Zellabstand der Tabelle (liest die Variable von `Table.view`), für
     /// Zeilen, die keine `Table.cell` sind, etwa der Datumsgruppen-Kopf
     let cellPaddingX = "px-[var(--table-cell-px,0.75rem)]"
@@ -350,7 +323,7 @@ module Presets =
     let glassCard = "bg-surface-card/80 backdrop-blur-xl border border-border-default rounded-xl p-4 md:p-6"
 
     /// Glowing card (featured)
-    let glowCard = "bg-surface-card border border-neon-teal/50 rounded-xl p-4 md:p-6 shadow-glow-teal/30"
+    let glowCard = "bg-surface-card border border-accent/50 rounded-xl p-4 md:p-6"
 
     /// Page header styling
     let pageHeader = "text-xl md:text-3xl font-bold font-display mb-4 md:mb-6"
@@ -362,10 +335,10 @@ module Presets =
     let monoNumber = "font-mono font-semibold tabular-nums"
 
     /// Positive money amount
-    let moneyPositive = $"font-mono font-semibold text-neon-green {TextGlows.green}"
+    let moneyPositive = $"font-mono font-semibold text-success {TextGlows.success}"
 
     /// Negative money amount
-    let moneyNegative = "font-mono font-semibold text-neon-red"
+    let moneyNegative = "font-mono font-semibold text-error"
 
     /// Gradient text effect
-    let gradientText = "bg-gradient-to-r from-neon-teal via-neon-green to-neon-orange bg-clip-text text-transparent"
+    let gradientText = "bg-gradient-to-r from-accent to-success bg-clip-text text-transparent"

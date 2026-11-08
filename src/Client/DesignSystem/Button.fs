@@ -10,10 +10,10 @@ open Client.DesignSystem.Icons
 
 /// Button visual variants
 type ButtonVariant =
-    | Primary    // Neon orange gradient with glow
-    | Secondary  // Neutral mit grauem Rand (ADR 0075)
+    | Primary    // Akzent gefüllt, Text dunkel, Glow (ADR 0087 Punkt 2 und 6)
+    | Secondary  // Neutral mit Rand border-strong (ADR 0075 Punkt 2, ADR 0087 Punkt 5)
     | Ghost      // Transparent background
-    | Danger     // Neon red for destructive actions
+    | Danger     // Rot, Rand ohne Füllung, für Aktionen mit Folgen
 
 /// Button size variants
 type ButtonSize =
@@ -80,15 +80,16 @@ let private sizeToClass = function
 let iconOnlyClass (size: ButtonSize) (text: string) =
     if size = Small && System.String.IsNullOrEmpty text then "min-w-[48px] md:min-w-0" else ""
 
+/// Primary: `[&_svg]` macht ein Symbol im Knopf dunkel wie den Text, gleich welche Farbe der Aufrufer nennt.
 let private variantToClass = function
     | Primary ->
-        "bg-gradient-to-br from-neon-orange to-[#e55a1f] border-none text-white shadow-glow-orange hover:shadow-[0_0_25px_rgba(255,107,44,0.5),0_0_50px_rgba(255,107,44,0.3)] hover:-translate-y-0.5 active:scale-[0.98]"
+        $"{Backgrounds.accent} {Colors.onAccent} [&_svg]:text-on-accent border-none {Glows.accent} hover:brightness-110 hover:-translate-y-0.5 active:scale-[0.98]"
     | Secondary ->
-        "bg-surface-elevated border border-border-default text-text-primary hover:bg-surface-hover active:scale-[0.98]"
+        $"bg-surface-elevated border {Borders.strong} text-text-primary hover:bg-surface-hover active:scale-[0.98]"
     | Ghost ->
         "text-text-secondary hover:text-text-primary hover:bg-surface-hover"
     | Danger ->
-        "bg-neon-red/10 border border-neon-red/20 text-neon-red hover:bg-neon-red/20 active:scale-[0.98]"
+        $"bg-error/10 border {Borders.error} {Colors.error} hover:bg-error/20 active:scale-[0.98]"
 
 /// Setzt der Aufrufer in `ClassName` eine eigene Anzeige-Klasse ohne Breakpoint (z. B. `hidden` in `hidden md:inline-flex`)?
 /// Dann entfällt das feste `inline-flex`: Tailwind 4 ordnet Utilities im erzeugten CSS,
@@ -177,7 +178,7 @@ let view (props: ButtonProps) =
 // Convenience Functions
 // ============================================
 
-/// Primary button (orange gradient with glow)
+/// Primary button (Akzent gefüllt, Text dunkel)
 let primary text onClick =
     view { defaultProps with Text = text; OnClick = onClick; Variant = Primary }
 
@@ -307,7 +308,7 @@ let listRow (key: string) (testId: string) (ariaLabel: string) (onClick: unit ->
         prop.children children
     ]
 
-/// Wie `listRow`, die Zeile wählt etwas aus: die gewählte trägt `aria-current` und Teal (ADR 0075).
+/// Wie `listRow`, die Zeile wählt etwas aus: die gewählte trägt `aria-current` und den Akzent (ADR 0087).
 /// `aria-selected` gilt nur in Rollen wie `option` oder `tab`, nicht an einem `button`.
 let selectableListRow (key: string) (testId: string) (ariaLabel: string) (isSelected: bool) (onClick: unit -> unit) (children: ReactElement list) =
     Html.button [
@@ -316,7 +317,7 @@ let selectableListRow (key: string) (testId: string) (ariaLabel: string) (isSele
         prop.custom ("data-testid", testId)
         if isSelected then prop.custom ("aria-current", "true")
         prop.ariaLabel ariaLabel
-        prop.className $"""{listRowClass} {if isSelected then Backgrounds.tealSubtle else "hover:bg-surface-hover"}"""
+        prop.className $"""{listRowClass} {if isSelected then Backgrounds.accentSubtle else "hover:bg-surface-hover"}"""
         prop.onClick (fun _ -> onClick ())
         prop.children children
     ]
@@ -421,13 +422,13 @@ let sideRowFixed (testId: string) (children: ReactElement list) =
     ]
 
 /// Der Name einer Stelle als Knopf zurück nach Hause, etwa der Monat. `away` heißt: gerade woanders,
-/// dann ist er teal (ADR 0075: Navigation). Die feste Breite hält die Pfeile daneben an ihrem Platz.
+/// dann trägt er den Akzent (ADR 0087: Navigation). Die feste Breite hält die Pfeile daneben an ihrem Platz.
 let private homeLabelIn (width: string) (testId: string) (ariaLabel: string) (away: bool) (text: string) (onClick: unit -> unit) =
     Html.button [
         prop.type' "button"
         prop.custom ("data-testid", testId)
         prop.ariaLabel ariaLabel
-        prop.className $"""inline-flex items-center justify-center {width} {TouchTargets.minHeight} md:min-h-[36px] text-sm font-semibold whitespace-nowrap cursor-pointer touch-manipulation rounded-md hover:bg-surface-hover {if away then Colors.neonTeal else Colors.textPrimary}"""
+        prop.className $"""inline-flex items-center justify-center {width} {TouchTargets.minHeight} md:min-h-[36px] text-sm font-semibold whitespace-nowrap cursor-pointer touch-manipulation rounded-md hover:bg-surface-hover {if away then Colors.accent else Colors.textPrimary}"""
         prop.onClick (fun _ -> onClick ())
         prop.text text
     ]
@@ -443,7 +444,7 @@ let homeLabelCompact (testId: string) (ariaLabel: string) (away: bool) (text: st
 // Kachel und leiser Textknopf (Leiste Monatserster, budgeting-m3x7f)
 // ============================================
 
-/// Zustand einer Kachel wie in der Skizze der Leiste Monatserster: aktiv (Teal-Rand), erledigt (`border-subtle`,
+/// Zustand einer Kachel wie in der Skizze der Leiste Monatserster: aktiv (Akzent-Rand), erledigt (`border-subtle`,
 /// gedämpft) oder offen (`border`).
 type TileState =
     | TileOpen
@@ -452,7 +453,7 @@ type TileState =
 
 let private tileStateClass (state: TileState) =
     match state with
-    | TileActive -> "border-neon-teal text-text-primary"
+    | TileActive -> "border-accent text-text-primary"
     | TileDone -> "border-border-subtle text-text-secondary"
     | TileOpen -> "border-border-default text-text-primary"
 
@@ -495,20 +496,16 @@ let quietText (testId: string) (text: string) (onClick: unit -> unit) =
 // Hero Button
 // ============================================
 
+/// Klassen des Hero-Knopfs: Akzent gefüllt, Text dunkel (`bg-app`), Glow der Hauptaktion (ADR 0087).
+/// Eine Variante; der frühere `heroTeal` ist hier aufgegangen.
+let heroClass =
+    $"group relative px-12 py-5 rounded-xl {Backgrounds.accent} {Colors.onAccent} [&_svg]:text-on-accent font-bold text-lg md:text-xl font-display {Glows.accentLg} {Glows.accentHoverLg} hover:scale-105 transition-all duration-300"
+
 /// Large hero button with prominent glow effect for main CTAs
 /// Use sparingly - typically one per page for the primary action
 let hero (text: string) (onClick: unit -> unit) =
     Html.button [
-        prop.className (
-            [
-                "group relative px-12 py-5 rounded-xl"
-                "bg-gradient-to-r from-neon-orange to-neon-orange/80"
-                "text-surface-app font-bold text-lg md:text-xl font-display"
-                Glows.orangeLg
-                Glows.orangeHoverLg
-                "hover:scale-105 transition-all duration-300"
-            ] |> String.concat " "
-        )
+        prop.className heroClass
         prop.onClick (fun _ -> onClick())
         prop.children [
             Html.span [ prop.text text ]
@@ -518,16 +515,7 @@ let hero (text: string) (onClick: unit -> unit) =
 /// Hero button with icon (icon appears before text)
 let heroWithIcon (text: string) (icon: ReactElement) (onClick: unit -> unit) =
     Html.button [
-        prop.className (
-            [
-                "group relative px-12 py-5 rounded-xl"
-                "bg-gradient-to-r from-neon-orange to-neon-orange/80"
-                "text-surface-app font-bold text-lg md:text-xl font-display"
-                Glows.orangeLg
-                Glows.orangeHoverLg
-                "hover:scale-105 transition-all duration-300"
-            ] |> String.concat " "
-        )
+        prop.className heroClass
         prop.onClick (fun _ -> onClick())
         prop.children [
             Html.div [
@@ -543,17 +531,7 @@ let heroWithIcon (text: string) (icon: ReactElement) (onClick: unit -> unit) =
 /// Hero button with loading state
 let heroLoading (text: string) (isLoading: bool) (onClick: unit -> unit) =
     Html.button [
-        prop.className (
-            [
-                "group relative px-12 py-5 rounded-xl"
-                "bg-gradient-to-r from-neon-orange to-neon-orange/80"
-                "text-surface-app font-bold text-lg md:text-xl font-display"
-                Glows.orangeLg
-                Glows.orangeHoverLg
-                "hover:scale-105 transition-all duration-300"
-                "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-            ] |> String.concat " "
-        )
+        prop.className $"{heroClass} disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
         prop.disabled isLoading
         prop.onClick (fun _ -> onClick())
         prop.children [
@@ -561,49 +539,5 @@ let heroLoading (text: string) (isLoading: bool) (onClick: unit -> unit) =
                 Html.span [ prop.className "proto-spinner" ]
             else
                 Html.span [ prop.text text ]
-        ]
-    ]
-
-/// Teal variant hero button for secondary prominent actions
-let heroTeal (text: string) (onClick: unit -> unit) =
-    Html.button [
-        prop.className (
-            [
-                "group relative px-12 py-5 rounded-xl"
-                "bg-gradient-to-r from-neon-teal to-neon-teal/80"
-                "text-surface-app font-bold text-lg md:text-xl font-display"
-                Glows.tealLg
-                Glows.tealHoverLg
-                "hover:scale-105 transition-all duration-300"
-            ] |> String.concat " "
-        )
-        prop.onClick (fun _ -> onClick())
-        prop.children [
-            Html.span [ prop.text text ]
-        ]
-    ]
-
-/// Teal variant hero button with icon (icon appears before text)
-let heroTealWithIcon (text: string) (icon: ReactElement) (onClick: unit -> unit) =
-    Html.button [
-        prop.className (
-            [
-                "group relative px-12 py-5 rounded-xl"
-                "bg-gradient-to-r from-neon-teal to-neon-teal/80"
-                "text-surface-app font-bold text-lg md:text-xl font-display"
-                Glows.tealLg
-                Glows.tealHoverLg
-                "hover:scale-105 transition-all duration-300"
-            ] |> String.concat " "
-        )
-        prop.onClick (fun _ -> onClick())
-        prop.children [
-            Html.div [
-                prop.className "flex items-center gap-3"
-                prop.children [
-                    icon
-                    Html.span [ prop.text text ]
-                ]
-            ]
         ]
     ]

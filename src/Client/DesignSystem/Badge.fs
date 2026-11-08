@@ -7,16 +7,13 @@ open Client.DesignSystem.Tokens
 // Badge Types
 // ============================================
 
-/// Badge color/semantic variants
+/// Badge-Varianten nach Farbrolle (ADR 0087): eine Farbe, eine Bedeutung, auf jeder Seite.
 type BadgeVariant =
-    | Success   // Neon green - completed, imported, positive
-    | Warning   // Neon pink - needs attention, uncategorized
-    | Notice    // Calm Yellow - offen, kein Fehler, für die Budget-Seite ohne Pink (ADR 0075)
-    | Error     // Neon red - failed, errors, negative
-    | Info      // Neon teal - information, auto-categorized
-    | Neutral   // Gray - default, inactive
-    | Orange    // Neon orange - action needed
-    | Purple    // Neon purple - special, premium
+    | Success   // Grün: gelungen, importiert
+    | Warning   // Gelb: braucht dich, kein Fehler (zu prüfen, ohne Kategorie, in YNAB geändert)
+    | Error     // Rot: Fehler
+    | Info      // Blau: Hinweis
+    | Neutral   // Grau: ein Stand ohne Wertung
 
 /// Badge style variants
 type BadgeStyle =
@@ -57,36 +54,28 @@ let defaultProps = {
 // ============================================
 
 let private variantToSoftClass = function
-    | Success -> "bg-neon-green/10 text-neon-green border-neon-green/30"
-    | Warning -> "bg-neon-pink/10 text-neon-pink border-neon-pink/30"
-    | Notice -> "bg-calm-yellow/10 text-calm-yellow border-calm-yellow/30"
-    | Error -> "bg-neon-red/10 text-neon-red border-neon-red/30"
-    | Info -> "bg-neon-teal/10 text-neon-teal border-neon-teal/30"
+    | Success -> "bg-success/10 text-success border-success/30"
+    | Warning -> "bg-attention/10 text-attention border-attention/30"
+    | Error -> "bg-error/10 text-error border-error/30"
+    | Info -> "bg-info/10 text-info border-info/30"
     | Neutral -> "bg-text-muted/10 text-text-secondary border-text-muted/20"
-    | Orange -> "bg-neon-orange/10 text-neon-orange border-neon-orange/30"
-    | Purple -> "bg-neon-purple/10 text-neon-purple border-neon-purple/30"
 
 let private variantToFilledClass = function
-    | Success -> $"bg-neon-green {Colors.onNeon} border-transparent"
-    | Warning -> $"bg-neon-pink {Colors.onNeon} border-transparent"
-    | Notice -> $"bg-calm-yellow {Colors.onNeon} border-transparent"
-    | Error -> "bg-neon-red text-white border-transparent"
-    | Info -> $"bg-neon-teal {Colors.onNeon} border-transparent"
+    | Success -> $"bg-success {Colors.onAccent} border-transparent"
+    | Warning -> $"bg-attention {Colors.onAccent} border-transparent"
+    | Error -> $"bg-error {Colors.onAccent} border-transparent"
+    | Info -> $"bg-info {Colors.onAccent} border-transparent"
     | Neutral -> "bg-text-muted/20 text-text-primary border-transparent"
-    | Orange -> $"bg-neon-orange {Colors.onNeon} border-transparent"
-    | Purple -> $"bg-neon-purple {Colors.onNeon} border-transparent"
 
 let private variantToOutlineClass = function
-    | Success -> "bg-transparent text-neon-green border-neon-green"
-    | Warning -> "bg-transparent text-neon-pink border-neon-pink"
-    | Notice -> "bg-transparent text-calm-yellow border-calm-yellow"
-    | Error -> "bg-transparent text-neon-red border-neon-red"
-    | Info -> "bg-transparent text-neon-teal border-neon-teal"
+    | Success -> "bg-transparent text-success border-success"
+    | Warning -> "bg-transparent text-attention border-attention"
+    | Error -> "bg-transparent text-error border-error"
+    | Info -> "bg-transparent text-info border-info"
     | Neutral -> "bg-transparent text-text-secondary border-text-muted/30"
-    | Orange -> "bg-transparent text-neon-orange border-neon-orange"
-    | Purple -> "bg-transparent text-neon-purple border-neon-purple"
 
-let private styleToClass variant = function
+/// Die Farb- und Rahmenklassen einer Variante je Stil (öffentlich für Tests der Farbrollen, ADR 0087).
+let variantClass variant = function
     | Soft -> variantToSoftClass variant
     | Filled -> variantToFilledClass variant
     | Outline -> variantToOutlineClass variant
@@ -98,7 +87,7 @@ let private sizeToClass = function
 
 /// Create a badge with the specified props
 let view (props: BadgeProps) =
-    let styleClass = styleToClass props.Variant props.Style
+    let styleClass = variantClass props.Variant props.Style
     let sizeClass = sizeToClass props.Size
     let extraClass = props.ClassName |> Option.defaultValue ""
 
@@ -120,11 +109,7 @@ let view (props: BadgeProps) =
 let success text =
     view { defaultProps with Text = text; Variant = Success }
 
-/// Hinweis-Badge in Gelb: offen, kein Fehler (ADR 0075).
-let notice text =
-    view { defaultProps with Text = text; Variant = Notice }
-
-/// Warning badge (pink)
+/// Gelb: braucht dich, kein Fehler (ADR 0087 Punkt 3). Immer mit Wort.
 let warning text =
     view { defaultProps with Text = text; Variant = Warning }
 
@@ -132,21 +117,13 @@ let warning text =
 let error text =
     view { defaultProps with Text = text; Variant = Error }
 
-/// Info badge (teal)
+/// Blau: Hinweis
 let info text =
     view { defaultProps with Text = text; Variant = Info }
 
 /// Neutral badge (gray)
 let neutral text =
     view { defaultProps with Text = text; Variant = Neutral }
-
-/// Orange badge
-let orange text =
-    view { defaultProps with Text = text; Variant = Orange }
-
-/// Purple badge
-let purple text =
-    view { defaultProps with Text = text; Variant = Purple }
 
 // ============================================
 // Outline Variants
@@ -196,13 +173,31 @@ let errorSmall text =
 let infoSmall text =
     view { defaultProps with Text = text; Variant = Info; Size = Small }
 
-/// Klein und gelb: offen, kein Fehler, für die Budget-Seite ohne Pink (ADR 0075).
-let noticeSmall text =
-    view { defaultProps with Text = text; Variant = Notice; Size = Small }
-
 /// Klein und neutral: ein Stand ohne Wertung.
 let neutralSmall text =
     view { defaultProps with Text = text; Variant = Neutral; Size = Small }
+
+// ============================================
+// Lena (ADR 0087 Punkt 8)
+// ============================================
+
+/// Das Kennzeichen *Rückfrage Lena*: Flag-Symbol und Name, ohne farbiges Badge. Die Farbe aus
+/// `lena_flag_color` steht nur im Symbol (`Icons.LenaFlag`, `data-lena-flag` in styles.css), der
+/// Text bleibt neutral. `text` enthält immer den Namen "Lena".
+let lenaMark (text: string) =
+    Html.span [
+        prop.className $"inline-flex items-center gap-0.5 {FontSizes.micro} {Colors.textSecondary} whitespace-nowrap"
+        prop.custom ("data-testid", "lena-mark")
+        prop.children [
+            Html.span [
+                prop.role "img"
+                prop.ariaLabel "Flag"
+                prop.className "inline-flex"
+                prop.children [ Icons.flag Icons.XS Icons.LenaFlag ]
+            ]
+            Html.span [ prop.text text ]
+        ]
+    ]
 
 // ============================================
 // With Icon
@@ -228,7 +223,7 @@ let autoCategorized () = info "Auto"
 let manual () = neutral "Manual"
 
 /// Status badge for uncategorized transactions
-let uncategorized () = orange "Uncategorized"
+let uncategorized () = warning "Uncategorized"
 
 /// Status badge for skipped transactions
 let skipped () = neutral "Skipped"
@@ -244,7 +239,7 @@ let failed () = error "Failed"
 let count (value: int) =
     if value > 0 then
         Html.span [
-            prop.className $"inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 {FontSizes.micro} font-bold rounded-full bg-neon-orange {Colors.onNeon}"
+            prop.className $"inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 {FontSizes.micro} font-bold rounded-full bg-attention {Colors.onAccent}"
             prop.text (if value > 99 then "99+" else string value)
         ]
     else
@@ -254,15 +249,12 @@ let count (value: int) =
 let dot variant =
     let colorClass =
         match variant with
-        | Success -> "bg-neon-green"
-        | Warning -> "bg-neon-pink"
-        | Notice -> "bg-calm-yellow"
-        | Error -> "bg-neon-red"
-        | Info -> "bg-neon-teal"
+        | Success -> "bg-success"
+        | Warning -> "bg-attention"
+            | Error -> "bg-error"
+        | Info -> "bg-info"
         | Neutral -> "bg-text-muted/30"
-        | Orange -> "bg-neon-orange"
-        | Purple -> "bg-neon-purple"
-
+        
     Html.span [
         prop.className $"inline-block w-2 h-2 rounded-full {colorClass}"
     ]
@@ -271,15 +263,12 @@ let dot variant =
 let pulsingDot variant =
     let colorClass =
         match variant with
-        | Success -> "bg-neon-green"
-        | Warning -> "bg-neon-pink"
-        | Notice -> "bg-calm-yellow"
-        | Error -> "bg-neon-red"
-        | Info -> "bg-neon-teal"
+        | Success -> "bg-success"
+        | Warning -> "bg-attention"
+            | Error -> "bg-error"
+        | Info -> "bg-info"
         | Neutral -> "bg-text-muted/30"
-        | Orange -> "bg-neon-orange"
-        | Purple -> "bg-neon-purple"
-
+        
     Html.span [
         prop.className "relative inline-flex h-2 w-2"
         prop.children [

@@ -37,7 +37,7 @@ let titleClass (style: TitleStyle) : string =
     | Standard ->
         "text-2xl md:text-4xl font-bold font-display text-text-primary"
     | Gradient ->
-        "text-2xl md:text-4xl font-bold font-display bg-gradient-to-br from-neon-teal to-neon-green bg-clip-text text-transparent"
+        "text-2xl md:text-4xl font-bold font-display bg-gradient-to-br from-accent to-success bg-clip-text text-transparent"
     | Calm ->
         "text-xl font-semibold font-display text-text-primary"
 

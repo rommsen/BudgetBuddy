@@ -132,7 +132,7 @@ let calendarButtonClass (disabled: bool) (readOnly: bool) : string =
         $"shrink-0 inline-flex items-center justify-center rounded-lg {TouchTargets.minSize} md:min-w-[36px] md:min-h-[36px] {Backgrounds.dark} {Borders.default'} border transition-colors"
     if disabled then $"{baseClasses} opacity-50 cursor-not-allowed"
     elif readOnly then $"{baseClasses} opacity-60 cursor-default"
-    else $"{baseClasses} hover:border-neon-teal"
+    else $"{baseClasses} hover:border-accent"
 
 [<ReactComponent>]
 let view (props: DateFieldProps) =
@@ -206,7 +206,7 @@ let view (props: DateFieldProps) =
             ]
             if props.Invalid then
                 Html.div [
-                    prop.className $"{FontSizes.xs} {Colors.neonRed}"
+                    prop.className $"{FontSizes.xs} {Colors.error}"
                     prop.text invalidHint
                 ]
         ]

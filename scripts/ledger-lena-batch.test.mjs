@@ -169,16 +169,19 @@ test("[flow:lena-fragen-mehrere] PC: Lena fragen für zwei Buchungen, ein Aufruf
     assert.equal(state.setCalls[0].flagTarget, "AssignLena");
     assert.deepEqual([...state.setCalls[0].selection.BatchPicked].sort(), [idOf(1), idOf(2)].sort(), "die gewählten Ids");
     assert.equal(await visibleBar(page).count(), 0, "die Auswahl endet");
-    const lenaMark = (payee) => page.locator("table tbody tr", { hasText: payee }).first().textContent();
-    assert.ok((await lenaMark(PAYEES[0])).includes("Lena?"), "Kennzeichen in Zeile 1");
-    assert.ok((await lenaMark(PAYEES[1])).includes("Lena?"), "Kennzeichen in Zeile 2");
-    assert.ok(!(await lenaMark(PAYEES[2])).includes("Lena?"), "Zeile 3 unberührt");
+    const lenaMark = async (payee) => {
+      const mark = page.locator("table tbody tr", { hasText: payee }).first().getByTestId("lena-mark");
+      return (await mark.count()) > 0 ? await mark.textContent() : "";
+    };
+    assert.ok((await lenaMark(PAYEES[0])).includes("Lena"), "Kennzeichen in Zeile 1");
+    assert.ok((await lenaMark(PAYEES[1])).includes("Lena"), "Kennzeichen in Zeile 2");
+    assert.ok(!(await lenaMark(PAYEES[2])).includes("Lena"), "Zeile 3 unberührt");
 
     await page.getByRole("button", { name: "Rückgängig" }).click();
     await page.getByText("Flag bei 2 Buchungen zurückgesetzt", { exact: true }).waitFor();
     assert.equal(state.restoreCalls.length, 1, "ein Rückgängig-Aufruf für alle");
     assert.deepEqual(state.restoreCalls[0].map((i) => i.EntryId).sort(), [idOf(1), idOf(2)].sort());
-    assert.ok((await lenaMark(PAYEES[0])).includes("Lena?") === false, "Zeile 1 wieder ohne Kennzeichen");
+    assert.ok((await lenaMark(PAYEES[0])).includes("Lena") === false, "Zeile 1 wieder ohne Kennzeichen");
   } finally {
     await context.close();
   }

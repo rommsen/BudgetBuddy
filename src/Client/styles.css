@@ -5,19 +5,29 @@
    Custom Theme Variables (Tailwind CSS 4)
    ============================================ */
 @theme {
-  /* Neon Color Palette */
-  --color-neon-green: #00ff88;
-  --color-neon-orange: #ff6b2c;
-  --color-neon-teal: #00d4aa;
-  --color-neon-purple: #a855f7;
-  --color-neon-pink: #ff1f8f;
-  --color-neon-red: #ff3b5c;
-  /* Gelb heißt "offen, kein Fehler" (ADR 0075). Kein Neon: es soll neben Rot ruhig bleiben. */
-  --color-calm-yellow: #cdb27a;
-  /* Ruhiges Blau, nur "Gibst du weniger aus?" auf der Seite Targets prüfen (Nachtrag ADR 0075). 8,93:1 auf bg-card. */
-  --color-calm-blue: #7ab8ff;
-  /* Helles Violett, nur "Gibst du nie aus?" auf der Seite Targets prüfen (Nachtrag ADR 0075). 9,21:1 auf bg-card. */
-  --color-calm-violet: #c9a7ff;
+  /* Farbrollen (ADR 0087, Palette 2). Eine Farbe, eine Bedeutung, auf jeder Seite; keine Seitenausnahmen.
+     Kontrast gegen bg-card, bg-elevated und bg-hover prüft scripts/contrast-guard.test.mjs. */
+  /* Akzent: Hauptaktion (gefüllter Knopf) und Auswahl/Navigation (Kante, Strich, Fläche). */
+  --color-accent: #28d6df;
+  /* Text auf dem Akzent und auf gefüllten Rollenfarben: dunkel wie bg-app. */
+  --color-on-accent: var(--bg-app);
+  /* Gelb: braucht dich, kein Fehler (zu prüfen, fehlt, ohne Kategorie). Immer mit Wort daneben. */
+  --color-attention: #cdb27a;
+  /* Rot: Fehler und Minus. */
+  --color-error: #fd4f75;
+  /* Grün: gelungen (Rückmeldung, alles erledigt). */
+  --color-success: #5be479;
+  /* Blau: Hinweis. */
+  --color-info: #7ab8ff;
+
+  /* Die sechs YNAB-Flag-Farben (Wert von flag_color). Sie erscheinen nur im Flag-Symbol, immer mit
+     dem Namen daneben (ADR 0087 Punkt 8), nie als UI-Farbe. */
+  --color-flag-red: #ff6b6b;
+  --color-flag-orange: #ff9f43;
+  --color-flag-yellow: #f2d45c;
+  --color-flag-green: #5be479;
+  --color-flag-blue: #7ab8ff;
+  --color-flag-purple: #c9a7ff;
 
   /* Surface Colors (maps to CSS vars for Tailwind utilities) */
   --color-surface-app: var(--bg-app);
@@ -29,19 +39,18 @@
   /* Border Colors */
   --color-border-default: var(--border);
   --color-border-subtle: var(--border-subtle);
+  /* Rand, der ein Bedienelement erkennbar macht (Eingabe, Auswahl, Knopf ohne Füllung), und Fokusring: 3:1. */
+  --color-border-strong: var(--border-strong);
 
   /* Text Colors */
   --color-text-primary: var(--text-primary);
   --color-text-secondary: var(--text-secondary);
   --color-text-muted: var(--text-muted);
 
-  /* Glow Shadows */
-  --shadow-glow-green: 0 0 20px rgba(0, 255, 136, 0.5);
-  --shadow-glow-orange: 0 0 20px rgba(255, 107, 44, 0.5);
-  --shadow-glow-teal: 0 0 20px rgba(0, 212, 170, 0.5);
-  --shadow-glow-purple: 0 0 20px rgba(168, 85, 247, 0.5);
-  --shadow-glow-red: 0 0 20px rgba(255, 59, 92, 0.5);
-  --shadow-glow-pink: 0 0 20px rgba(255, 31, 143, 0.5);
+  /* Glow nur an der Hauptaktion und an Rückmeldungen (ADR 0087 Punkt 6). */
+  --shadow-glow-accent: 0 0 20px color-mix(in srgb, var(--color-accent) 50%, transparent);
+  --shadow-glow-success: 0 0 20px color-mix(in srgb, var(--color-success) 50%, transparent);
+  --shadow-glow-error: 0 0 20px color-mix(in srgb, var(--color-error) 50%, transparent);
 
   /* Custom Font Families */
   --font-display: 'Space Grotesk', 'Inter', sans-serif;
@@ -105,16 +114,17 @@
   /* Borders */
   --border: #2a2a4a;
   --border-subtle: #1c1c38;
+  --border-strong: #6a6c86;
 
   /* Text */
   --text-primary: #e8e8f0;
   --text-secondary: #a3a3bd;
   --text-muted: #8787a5;
 
-  /* Neon dim/glow variants */
-  --neon-teal-dim: rgba(0, 212, 170, 0.15);
-  --neon-teal-glow: rgba(0, 212, 170, 0.3);
-  --neon-orange-dim: rgba(255, 107, 44, 0.15);
+  /* Abgeschwächte Rollenfarben */
+  --accent-dim: color-mix(in srgb, var(--color-accent) 15%, transparent);
+  --accent-glow: color-mix(in srgb, var(--color-accent) 30%, transparent);
+  --attention-dim: color-mix(in srgb, var(--color-attention) 15%, transparent);
 
   /* Easing curves */
   --ease-out-quad: cubic-bezier(0.25, 0.46, 0.45, 0.94);
@@ -212,7 +222,7 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Glass morphism effect */
 .glass-card {
-  background: rgba(17, 17, 40, 0.8);
+  background: color-mix(in srgb, var(--bg-card) 80%, transparent);
   -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
   border: 1px solid var(--border);
@@ -229,45 +239,45 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Focus-visible for keyboard navigation */
 *:focus-visible {
-  outline: 2px solid var(--color-neon-teal);
+  outline: 2px solid var(--border-strong);
   outline-offset: 2px;
 }
 
 /* Button focus */
 .btn:focus-visible {
-  outline: 2px solid var(--color-neon-teal);
+  outline: 2px solid var(--border-strong);
   outline-offset: 2px;
-  box-shadow: 0 0 0 4px rgba(0, 212, 170, 0.3);
+  box-shadow: 0 0 0 4px var(--border-strong);
 }
 
 /* Link focus */
 a:focus-visible {
-  outline: 2px solid var(--color-neon-teal);
+  outline: 2px solid var(--border-strong);
   outline-offset: 2px;
 }
 
 /* Input focus - keep existing styles, enhance for keyboard */
 .input-field:focus-visible,
 .select-field:focus-visible {
-  border-color: var(--color-neon-teal);
-  box-shadow: 0 0 0 3px rgba(0, 212, 170, 0.3);
+  border-color: var(--border-strong);
+  box-shadow: 0 0 0 3px var(--border-strong);
 }
 
 /* Card focus */
 .card:focus-visible {
-  outline: 2px solid var(--color-neon-teal);
+  outline: 2px solid var(--border-strong);
   outline-offset: 2px;
 }
 
 /* Nav item focus */
 nav a:focus-visible {
-  outline: 2px solid var(--color-neon-teal);
+  outline: 2px solid var(--border-strong);
   outline-offset: -2px;
   border-radius: 0.5rem;
 }
 
 /* Tab focus (DesignSystem/Tabs.fs): kein Ring, keine Fläche. Pfeiltasten wählen sofort (roving
-   tabindex), der fokussierte Tab ist also immer der ausgewählte, und der teal Strich zeigt Auswahl
+   tabindex), der fokussierte Tab ist also immer der ausgewählte, und der Akzent-Strich zeigt Auswahl
    und Fokus zugleich. So sieht der Tab per Pfeiltaste aus wie per Klick oder Seiten-Kürzel
    (design-system-w7c2h, ersetzt den inneren Ring aus design-system-k4f9t). */
 [role="tab"]:focus-visible {
@@ -275,7 +285,7 @@ nav a:focus-visible {
 }
 
 /* Filter-Chip focus (DesignSystem/ChipBar.fs): der Ring liegt ohne Abstand auf dem Rand der Pille,
-   am aktiven Chip wird so der teal Rand eine dickere Linie statt zwei (design-system-w7c2h).
+   am aktiven Chip wird so der Akzent-Rand eine dickere Linie statt zwei (design-system-w7c2h).
    Ungelayert, weil die Tailwind-Utilities gegen `*:focus-visible` verlieren. */
 .filter-chip button:focus-visible {
   outline-offset: 0;
@@ -327,8 +337,8 @@ nav a:focus-visible {
   position: absolute;
   top: -40px;
   left: 0;
-  background: var(--color-neon-teal);
-  color: #0a0a0f;
+  background: var(--color-accent);
+  color: var(--bg-app);
   padding: 8px 16px;
   z-index: 100;
   font-weight: 500;
@@ -344,26 +354,6 @@ nav a:focus-visible {
    Custom Utility Classes
    ============================================ */
 
-/* Gradient Text */
-.gradient-text {
-  background: linear-gradient(135deg, var(--color-neon-teal) 0%, var(--color-neon-green) 50%, var(--color-neon-orange) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-/* Animated Gradient Background */
-.gradient-bg {
-  background: linear-gradient(-45deg, #667eea, #764ba2, #6B8DD6, #8E37D7);
-  background-size: 400% 400%;
-  animation: gradientShift 15s ease infinite;
-}
-
-@keyframes gradientShift {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
 
 /* Pulse animation for loading states */
 .pulse-subtle {
@@ -626,9 +616,9 @@ nav a:focus-visible {
 /* Neon glow shimmer (enhanced shimmer with neon gradient) */
 .shimmer-neon {
   background: linear-gradient(90deg,
-    rgba(0, 212, 170, 0) 0%,
-    rgba(0, 212, 170, 0.1) 50%,
-    rgba(0, 212, 170, 0) 100%);
+    color-mix(in srgb, var(--color-accent) 0%, transparent) 0%,
+    color-mix(in srgb, var(--color-accent) 10%, transparent) 50%,
+    color-mix(in srgb, var(--color-accent) 0%, transparent) 100%);
   background-size: 200% 100%;
   animation: shimmerNeon 1.5s infinite;
 }
@@ -642,13 +632,13 @@ nav a:focus-visible {
    Money Display
    ============================================ */
 .money-positive {
-  color: var(--color-neon-green);
+  color: var(--color-success);
   font-family: var(--font-mono);
   font-weight: 600;
 }
 
 .money-negative {
-  color: var(--color-neon-red);
+  color: var(--color-error);
   font-family: var(--font-mono);
   font-weight: 600;
 }
@@ -667,13 +657,13 @@ nav a:focus-visible {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(232, 232, 240, 0.2);
+  background: color-mix(in srgb, var(--text-primary) 20%, transparent);
   border-radius: var(--radius-full);
   transition: background var(--transition-fast);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(232, 232, 240, 0.4);
+  background: color-mix(in srgb, var(--text-primary) 40%, transparent);
 }
 
 /* ============================================
@@ -749,12 +739,23 @@ nav a:focus-visible {
    Custom component CSS classes matching the unified prototype design.
    ============================================================ */
 
+/* --- Lena-Flag (ADR 0087 Punkt 8) ---
+   Die Seite setzt `data-lena-flag` auf die gespeicherte Farbe aus `lena_flag_color`; das Flag-Symbol
+   (`Icons.LenaFlag`) nimmt sie an. Ohne gespeicherte Farbe bleibt es gedämpft. */
+.lena-flag-icon { color: var(--lena-flag, var(--text-muted)); }
+[data-lena-flag="red"] { --lena-flag: var(--color-flag-red); }
+[data-lena-flag="orange"] { --lena-flag: var(--color-flag-orange); }
+[data-lena-flag="yellow"] { --lena-flag: var(--color-flag-yellow); }
+[data-lena-flag="green"] { --lena-flag: var(--color-flag-green); }
+[data-lena-flag="blue"] { --lena-flag: var(--color-flag-blue); }
+[data-lena-flag="purple"] { --lena-flag: var(--color-flag-purple); }
+
 /* --- Input Fields --- */
 .input-field {
   width: 100%;
   padding: 10px 14px;
   background: var(--bg-input);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   color: var(--text-primary);
   /* Keine font-size hier: ein Wert ohne Layer überstimmt die Tailwind-Größen aus
@@ -764,16 +765,16 @@ nav a:focus-visible {
               box-shadow var(--duration-fast) ease;
 }
 .input-field:focus {
-  border-color: var(--color-neon-teal);
-  box-shadow: 0 0 0 2px var(--neon-teal-glow);
+  border-color: var(--border-strong);
+  box-shadow: 0 0 0 2px var(--border-strong);
   outline: none;
 }
 .input-field::placeholder {
   color: var(--text-muted);
 }
-/* Ohne Layer wie `.input-field`: Die Tailwind-Klassen `text-neon-red` und `font-mono` kämen nicht durch. */
+/* Ohne Layer wie `.input-field`: Die Tailwind-Klassen `text-error` und `font-mono` kämen nicht durch. */
 .input-field.input-invalid {
-  color: var(--color-neon-red);
+  color: var(--color-error);
 }
 .input-field.input-amount {
   font-family: var(--font-mono);
@@ -788,7 +789,7 @@ nav a:focus-visible {
   width: 100%;
   padding: 10px 14px;
   background: var(--bg-input);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   color: var(--text-primary);
   font-size: 14px;
@@ -802,8 +803,8 @@ nav a:focus-visible {
   cursor: pointer;
 }
 .select-field:focus {
-  border-color: var(--color-neon-teal);
-  box-shadow: 0 0 0 2px var(--neon-teal-glow);
+  border-color: var(--border-strong);
+  box-shadow: 0 0 0 2px var(--border-strong);
   outline: none;
 }
 .select-field:disabled {
@@ -831,7 +832,7 @@ nav a:focus-visible {
   width: 20px;
   height: 20px;
   border-radius: 6px;
-  border: 2px solid var(--border);
+  border: 2px solid var(--border-strong);
   background: transparent;
   transition: all var(--duration-fast) var(--ease-in-out-cubic);
   display: flex;
@@ -839,8 +840,8 @@ nav a:focus-visible {
   justify-content: center;
 }
 .proto-toggle input:checked + .toggle-track {
-  background: var(--color-neon-teal);
-  border-color: var(--color-neon-teal);
+  background: var(--color-accent);
+  border-color: var(--color-accent);
 }
 .proto-toggle .toggle-check {
   width: 10px;
@@ -1006,14 +1007,14 @@ nav a:focus-visible {
   margin-top: 8px;
 }
 .test-result.match {
-  background: rgba(0, 255, 136, 0.08);
-  border: 1px solid rgba(0, 255, 136, 0.2);
-  color: var(--color-neon-green);
+  background: color-mix(in srgb, var(--color-success) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-success) 20%, transparent);
+  color: var(--color-success);
 }
 .test-result.no-match {
-  background: rgba(255, 59, 92, 0.08);
-  border: 1px solid rgba(255, 59, 92, 0.2);
-  color: var(--color-neon-red);
+  background: color-mix(in srgb, var(--color-error) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-error) 20%, transparent);
+  color: var(--color-error);
 }
 
 /* --- Custom spinner --- */
@@ -1021,7 +1022,7 @@ nav a:focus-visible {
   width: 20px;
   height: 20px;
   border: 2px solid var(--border);
-  border-top-color: var(--color-neon-teal);
+  border-top-color: var(--color-accent);
   border-radius: 50%;
   animation: protoSpin 0.6s linear infinite;
 }
@@ -1041,7 +1042,7 @@ nav a:focus-visible {
    do NOT rename them without updating View.fs.
 
    Token strategy:
-     - Reuses existing @theme colours (--color-neon-*)
+     - Reuses existing @theme colours (Farbrollen --color-accent, --color-attention, --color-error, --color-success)
      - Adds SyncFlow-specific surface / text / easing tokens
        scoped under --sf-* to avoid collisions.
    ============================================================ */
@@ -1058,11 +1059,11 @@ nav a:focus-visible {
   --sf-text-primary: var(--text-primary);
   --sf-text-secondary: var(--text-secondary);
   --sf-text-muted: var(--text-muted);
-  --sf-neon-teal-dim: var(--neon-teal-dim);
-  --sf-neon-teal-glow: var(--neon-teal-glow);
-  --sf-neon-orange-dim: var(--neon-orange-dim);
-  --sf-status-ready: var(--color-neon-teal);
-  --sf-status-attention: var(--color-neon-orange);
+  --sf-accent-glow: var(--accent-glow);
+  --sf-attention-dim: var(--attention-dim);
+  --sf-accent-dim: var(--accent-dim);
+  --sf-status-ready: var(--color-accent);
+  --sf-status-attention: var(--color-attention);
   --sf-status-duplicate: var(--text-muted);
   --sf-ease-out-quint: var(--ease-out-quint);
   --sf-ease-out-cubic: var(--ease-out-cubic);
@@ -1154,7 +1155,7 @@ nav a:focus-visible {
   position: sticky;
   top: calc(56px + env(safe-area-inset-top, 0px));
   z-index: 20;
-  background: rgba(8, 8, 26, 0.85);
+  background: color-mix(in srgb, var(--bg-app) 85%, transparent);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
@@ -1187,7 +1188,7 @@ nav a:focus-visible {
   position: sticky;
   top: calc(56px + env(safe-area-inset-top, 0px));
   z-index: 20;
-  background: rgba(8, 8, 26, 0.85);
+  background: color-mix(in srgb, var(--bg-app) 85%, transparent);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
@@ -1308,9 +1309,9 @@ nav a:focus-visible {
 }
 .filter-btn:active { transform: scale(0.97); }
 .filter-btn.active {
-  background: var(--sf-neon-teal-dim);
-  color: var(--color-neon-teal);
-  border-color: rgba(0, 212, 170, 0.25);
+  background: var(--sf-accent-dim);
+  color: var(--color-accent);
+  border-color: color-mix(in srgb, var(--color-accent) 25%, transparent);
 }
 .filter-btn .count {
   font-size: 11px;
@@ -1320,11 +1321,11 @@ nav a:focus-visible {
   background: var(--sf-bg-elevated);
 }
 .filter-btn.active .count {
-  background: rgba(0, 212, 170, 0.2);
+  background: color-mix(in srgb, var(--color-accent) 20%, transparent);
 }
 .filter-btn.has-attention .count {
-  background: var(--sf-neon-orange-dim);
-  color: var(--color-neon-orange);
+  background: var(--sf-attention-dim);
+  color: var(--color-attention);
 }
 
 /* ============================================================
@@ -1351,7 +1352,7 @@ nav a:focus-visible {
   font-size: 10px;
   font-weight: 600;
   color: var(--sf-text-muted);
-  background: rgba(8, 8, 26, 0.85);
+  background: color-mix(in srgb, var(--bg-app) 85%, transparent);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   text-transform: uppercase;
@@ -1413,16 +1414,16 @@ nav a:focus-visible {
   padding-left: 22px;
 }
 .tx-swipe-action.reviewed {
-  background: rgba(0, 255, 136, 0.14);
-  color: var(--color-neon-green);
+  background: color-mix(in srgb, var(--color-success) 14%, transparent);
+  color: var(--color-success);
 }
 .tx-swipe-action.skip {
-  background: rgba(255, 59, 92, 0.16);
-  color: var(--color-neon-red);
+  background: color-mix(in srgb, var(--color-error) 16%, transparent);
+  color: var(--color-error);
 }
 .tx-swipe-action.include {
-  background: rgba(0, 212, 170, 0.14);
-  color: var(--color-neon-teal);
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  color: var(--color-accent);
 }
 .tx-swipe-content {
   position: relative;
@@ -1501,12 +1502,12 @@ nav a:focus-visible {
   padding-left: 0;
 }
 .badge-attention {
-  background: var(--sf-neon-orange-dim);
-  color: var(--color-neon-orange);
-  border: 1px dashed rgba(255, 107, 44, 0.35);
+  background: var(--sf-attention-dim);
+  color: var(--color-attention);
+  border: 1px dashed color-mix(in srgb, var(--color-attention) 35%, transparent);
 }
 .badge-duplicate {
-  background: rgba(74, 74, 104, 0.3);
+  background: color-mix(in srgb, var(--border-strong) 30%, transparent);
   color: var(--sf-text-muted);
   font-style: italic;
 }
@@ -1656,14 +1657,14 @@ nav a:focus-visible {
   transform: scale(0.97);
   background: var(--sf-bg-hover);
 }
-.action-chip.danger { color: var(--color-neon-red); }
+.action-chip.danger { color: var(--color-error); }
 
 /* ============================================================
    SF 12. BOTTOM ACTION BAR (glassmorphism)
    ============================================================ */
 .action-bar {
   padding: 12px 16px 16px;
-  background: rgba(10, 10, 28, 0.82);
+  background: color-mix(in srgb, var(--bg-app) 82%, transparent);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-top: 1px solid var(--sf-border-subtle);
@@ -1686,7 +1687,7 @@ nav a:focus-visible {
 }
 .action-bar-attention {
   font-size: 12px;
-  color: var(--color-neon-orange);
+  color: var(--color-attention);
   font-weight: 500;
 }
 
@@ -1703,8 +1704,8 @@ nav a:focus-visible {
   height: 100%;
   transition: width var(--sf-duration-slow) var(--sf-ease-in-out-cubic, cubic-bezier(0.645, 0.045, 0.355, 1));
 }
-.progress-ready { background: var(--color-neon-teal); }
-.progress-attention { background: var(--color-neon-orange); }
+.progress-ready { background: var(--color-accent); }
+.progress-attention { background: var(--color-attention); }
 .progress-skipped { background: var(--sf-status-duplicate); }
 
 /* Buttons */
@@ -1911,9 +1912,9 @@ nav a:focus-visible {
 }
 .chip:active { transform: scale(0.97); background: var(--sf-bg-hover); }
 .chip.suggested {
-  border-color: rgba(0, 212, 170, 0.3);
-  background: var(--sf-neon-teal-dim);
-  color: var(--color-neon-teal);
+  border-color: color-mix(in srgb, var(--color-accent) 30%, transparent);
+  background: var(--sf-accent-dim);
+  color: var(--color-accent);
 }
 
 /* Pinned between header and scrollable body (direct child of .bottom-sheet),
@@ -1938,10 +1939,10 @@ nav a:focus-visible {
   .sheet-search input { font-size: 14px; }
 }
 .sheet-search input::placeholder { color: var(--sf-text-muted); }
-/* Ein Fokusrand: der Rand wird teal, der globale focus-visible-Ring entfällt */
+/* Ein Fokusrand: der Rand wird Akzent, der globale focus-visible-Ring entfällt */
 .sheet-search input:focus,
 .sheet-search input:focus-visible {
-  border-color: var(--color-neon-teal);
+  border-color: var(--border-strong);
   outline: none;
   box-shadow: none;
 }
@@ -1970,8 +1971,8 @@ nav a:focus-visible {
   margin: 0 12px 8px;
   padding: 10px 14px;
   border-radius: var(--sf-radius-md);
-  background: rgba(74, 74, 104, 0.15);
-  border: 1px solid rgba(74, 74, 104, 0.25);
+  background: color-mix(in srgb, var(--border-strong) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-strong) 25%, transparent);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1984,7 +1985,7 @@ nav a:focus-visible {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: rgba(74, 74, 104, 0.3);
+  background: color-mix(in srgb, var(--border-strong) 30%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1996,13 +1997,13 @@ nav a:focus-visible {
   font-weight: 600;
 }
 .info-banner.warning {
-  background: rgba(255, 138, 36, 0.08);
-  border-color: rgba(255, 138, 36, 0.35);
+  background: color-mix(in srgb, var(--color-attention) 8%, transparent);
+  border-color: color-mix(in srgb, var(--color-attention) 35%, transparent);
   color: var(--sf-text-primary);
 }
 .info-banner-icon.warning {
-  background: rgba(255, 138, 36, 0.25);
-  color: var(--color-neon-orange);
+  background: color-mix(in srgb, var(--color-attention) 25%, transparent);
+  color: var(--color-attention);
   font-weight: 700;
 }
 .info-banner-text {
@@ -2012,8 +2013,8 @@ nav a:focus-visible {
 .info-banner-action {
   flex: 0 0 auto;
   background: transparent;
-  border: 1px solid var(--color-neon-orange);
-  color: var(--color-neon-orange);
+  border: 1px solid var(--color-accent);
+  color: var(--color-accent);
   border-radius: var(--sf-radius-sm);
   padding: 4px 10px;
   font-size: 12px;
@@ -2022,7 +2023,15 @@ nav a:focus-visible {
   transition: background var(--sf-duration-fast) var(--sf-ease-out-quart, ease);
 }
 .info-banner-action:hover {
-  background: rgba(255, 138, 36, 0.12);
+  background: var(--accent-dim);
+}
+/* Im Hinweis „braucht dich“ trägt die Aktion dieselbe Rolle wie der Hinweis (ADR 0087 Punkt 3). */
+.info-banner.warning .info-banner-action {
+  border-color: var(--color-attention);
+  color: var(--color-attention);
+}
+.info-banner.warning .info-banner-action:hover {
+  background: var(--attention-dim);
 }
 
 /* ============================================================
@@ -2034,7 +2043,7 @@ nav a:focus-visible {
   justify-content: space-between;
   gap: 16px;
   padding: 12px 0;
-  border-bottom: 1px solid var(--sf-border-subtle, #1c1c38);
+  border-bottom: 1px solid var(--sf-border-subtle);
 }
 
 .setting-row:last-child { border-bottom: none; }
@@ -2051,14 +2060,14 @@ nav a:focus-visible {
 
 .setting-description {
   font-size: 12px;
-  color: var(--sf-text-secondary, #a3a3bd);
+  color: var(--sf-text-secondary);
   margin-top: 2px;
 }
 
 .setting-value {
   font-family: var(--font-mono, 'JetBrains Mono', monospace);
   font-size: 13px;
-  color: var(--color-neon-teal, #00d4aa);
+  color: var(--color-accent);
   flex-shrink: 0;
 }
 
@@ -2069,8 +2078,8 @@ nav a:focus-visible {
   display: inline-block;
 }
 
-.status-dot.connected { background: var(--color-neon-green, #00ff88); }
-.status-dot.disconnected { background: var(--color-neon-red, #ff3b5c); }
+.status-dot.connected { background: var(--color-success); }
+.status-dot.disconnected { background: var(--color-error); }
 
 .status-label {
   font-size: 12px;
@@ -2186,7 +2195,7 @@ nav a:focus-visible {
                 border-color var(--sf-duration-fast) ease,
                 color var(--sf-duration-fast) ease;
   }
-  .chip:hover { background: var(--sf-bg-hover); border-color: var(--color-neon-teal); }
+  .chip:hover { background: var(--sf-bg-hover); border-color: var(--color-accent); }
   .category-item:hover { background: var(--sf-bg-hover); }
 }
 
@@ -2226,16 +2235,16 @@ nav a:focus-visible {
   flex-shrink: 0;
 }
 .flow-label-icon.step1 {
-  background: var(--sf-neon-orange-dim);
-  color: var(--color-neon-orange);
+  background: var(--sf-accent-dim);
+  color: var(--color-accent);
 }
 .flow-label-icon.step2 {
-  background: var(--sf-neon-teal-dim);
-  color: var(--color-neon-teal);
+  background: var(--sf-accent-dim);
+  color: var(--color-accent);
 }
 .flow-label-icon.step3 {
-  background: rgba(168, 85, 247, 0.15);
-  color: #a855f7;
+  background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+  color: var(--color-accent);
 }
 
 .pattern-input {
@@ -2250,7 +2259,7 @@ nav a:focus-visible {
   transition: border-color 150ms ease;
 }
 .pattern-input:focus {
-  border-color: var(--color-neon-teal);
+  border-color: var(--border-strong);
   outline: none;
 }
 .pattern-input::placeholder {
@@ -2268,7 +2277,7 @@ nav a:focus-visible {
   transition: border-color 150ms ease;
 }
 .rule-name-input:focus {
-  border-color: var(--color-neon-teal);
+  border-color: var(--border-strong);
   outline: none;
 }
 .rule-name-input::placeholder {
@@ -2281,14 +2290,14 @@ nav a:focus-visible {
   gap: 10px;
   padding: 10px 14px;
   border-radius: var(--sf-radius-md);
-  background: var(--sf-neon-teal-dim);
-  border: 1px solid rgba(0, 212, 170, 0.2);
+  background: var(--sf-accent-dim);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 20%, transparent);
 }
 .rule-category-check {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--color-neon-teal);
+  background: var(--color-accent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2297,7 +2306,7 @@ nav a:focus-visible {
 .rule-category-name {
   font-size: 14px;
   font-weight: 500;
-  color: var(--color-neon-teal);
+  color: var(--color-accent);
 }
 
 .rule-preview {
@@ -2320,16 +2329,16 @@ nav a:focus-visible {
   line-height: 1.5;
 }
 .rule-preview-highlight {
-  color: var(--color-neon-orange);
+  color: var(--color-accent);
   font-style: normal;
   font-family: var(--font-mono);
   font-size: 12px;
-  background: var(--sf-neon-orange-dim);
+  background: var(--sf-accent-dim);
   padding: 1px 6px;
   border-radius: 4px;
 }
 .rule-preview-category {
-  color: var(--color-neon-teal);
+  color: var(--color-accent);
   font-weight: 500;
 }
 
@@ -2429,7 +2438,7 @@ nav a:focus-visible {
   font-family: var(--font-sans);
 }
 .rule-select:focus {
-  border-color: var(--color-neon-teal);
+  border-color: var(--border-strong);
   outline: none;
 }
 
@@ -2463,16 +2472,16 @@ nav a:focus-visible {
   padding: 2px 7px;
   border-radius: 8px;
   white-space: nowrap;
-  background: rgba(168, 85, 247, 0.15);
-  color: #a855f7;
-  border: 1px solid rgba(168, 85, 247, 0.25);
+  background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+  color: var(--color-accent);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 25%, transparent);
   cursor: pointer;
   transition: all 150ms ease;
   font-family: var(--font-sans);
 }
 .tx-create-rule-btn:active {
   transform: scale(0.95);
-  background: rgba(168, 85, 247, 0.25);
+  background: color-mix(in srgb, var(--color-accent) 25%, transparent);
 }
 
 /* ============================================================
@@ -2494,7 +2503,7 @@ nav a:focus-visible {
   padding: 8px 12px !important;
 }
 .tx-payee-edit input:focus {
-  border-color: var(--sf-neon-teal) !important;
+  border-color: var(--border-strong) !important;
 }
 .tx-payee-edit input::placeholder {
   color: var(--sf-text-muted) !important;
@@ -2563,7 +2572,7 @@ nav a:focus-visible {
   font-family: var(--font-sans);
 }
 .bulk-action-link:active {
-  color: var(--color-neon-teal);
+  color: var(--color-accent);
 }
 
 .bulk-action-dot {
@@ -2613,7 +2622,7 @@ nav a:focus-visible {
   transition: border-color var(--sf-duration-fast) ease;
 }
 .qa-cat-field.selected { color: var(--sf-text-primary); }
-.qa-cat-field:active { border-color: var(--color-neon-teal); }
+.qa-cat-field:active { border-color: var(--color-accent); }
 .qa-cat-clear {
   flex-shrink: 0;
   width: 42px;
@@ -2646,14 +2655,14 @@ nav a:focus-visible {
   transition: all var(--sf-duration-fast) ease;
 }
 .qa-direction-btn.active.outflow {
-  border-color: rgba(255, 107, 44, 0.4);
-  background: var(--sf-neon-orange-dim);
-  color: var(--color-neon-orange);
+  border-color: color-mix(in srgb, var(--color-accent) 40%, transparent);
+  background: var(--sf-accent-dim);
+  color: var(--color-accent);
 }
 .qa-direction-btn.active.inflow {
-  border-color: rgba(0, 212, 170, 0.4);
-  background: var(--sf-neon-teal-dim);
-  color: var(--color-neon-teal);
+  border-color: color-mix(in srgb, var(--color-accent) 40%, transparent);
+  background: var(--sf-accent-dim);
+  color: var(--color-accent);
 }
 
 .qa-amount-wrap {
@@ -2675,7 +2684,7 @@ nav a:focus-visible {
   padding: 4px 0;
   transition: border-color var(--sf-duration-fast) ease;
 }
-.qa-amount:focus { border-color: var(--color-neon-teal); outline: none; }
+.qa-amount:focus { border-color: var(--border-strong); outline: none; }
 .qa-amount::placeholder { color: var(--sf-text-muted); }
 .qa-currency {
   font-family: var(--font-mono);
@@ -2709,7 +2718,7 @@ nav a:focus-visible {
   color: var(--sf-text-primary);
   transition: border-color var(--sf-duration-fast) ease;
 }
-.qa-input:focus, .qa-select:focus { border-color: var(--color-neon-teal); outline: none; }
+.qa-input:focus, .qa-select:focus { border-color: var(--border-strong); outline: none; }
 .qa-input::placeholder { color: var(--sf-text-muted); }
 .qa-select { appearance: none; -webkit-appearance: none; }
 
@@ -2717,9 +2726,9 @@ nav a:focus-visible {
   margin-top: 4px;
   padding: 10px 14px;
   border-radius: var(--sf-radius-md);
-  background: rgba(255, 59, 92, 0.12);
-  border: 1px solid rgba(255, 59, 92, 0.3);
-  color: var(--color-neon-red);
+  background: color-mix(in srgb, var(--color-error) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-error) 30%, transparent);
+  color: var(--color-error);
   font-size: 13px;
 }
 
@@ -2756,7 +2765,7 @@ nav a:focus-visible {
   transition: all var(--sf-duration-fast) ease;
 }
 .qa-template-chip:active {
-  border-color: var(--color-neon-teal);
+  border-color: var(--color-accent);
   background: var(--sf-bg-hover);
 }
 .qa-template-payee {
@@ -2770,8 +2779,8 @@ nav a:focus-visible {
   font-weight: 600;
   color: var(--sf-text-primary);
 }
-.qa-template-chip.outflow .qa-template-amount { color: var(--color-neon-orange); }
-.qa-template-chip.inflow .qa-template-amount { color: var(--color-neon-teal); }
+.qa-template-chip.outflow .qa-template-amount { color: var(--color-text-primary); }
+.qa-template-chip.inflow .qa-template-amount { color: var(--color-accent); }
 
 .qa-submit {
   flex: 1;
@@ -2779,7 +2788,7 @@ nav a:focus-visible {
   border-radius: var(--sf-radius-md);
   font-size: 14px;
   font-weight: 600;
-  background: var(--color-neon-teal);
+  background: var(--color-accent);
   color: var(--bg-app);
   border: none;
   cursor: pointer;
@@ -2828,13 +2837,13 @@ nav a:focus-visible {
   border-radius: var(--sf-radius-md);
   background: var(--sf-bg-card);
   border: 1px solid var(--sf-border);
-  color: var(--color-neon-teal);
+  color: var(--color-accent);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   touch-action: manipulation;
 }
-.split-rest-btn:active { background: var(--sf-bg-hover); border-color: var(--color-neon-teal); }
+.split-rest-btn:active { background: var(--sf-bg-hover); border-color: var(--color-accent); }
 .split-remove-btn {
   flex-shrink: 0;
   width: 38px;
@@ -2862,7 +2871,7 @@ nav a:focus-visible {
   touch-action: manipulation;
   transition: border-color var(--sf-duration-fast) ease, color var(--sf-duration-fast) ease;
 }
-.split-add-line:active { border-color: var(--color-neon-teal); color: var(--sf-text-primary); }
+.split-add-line:active { border-color: var(--color-accent); color: var(--sf-text-primary); }
 
 .split-remainder {
   display: flex;

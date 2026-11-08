@@ -345,9 +345,12 @@ async function buildColorsAndTypeCss() {
   if (!rootMatch) throw new Error(`Kein :root-Block in ${sourcePath} gefunden.`);
   const rootBlock = rootMatch[0];
 
-  const varNames = [...themeBlock.matchAll(/var\(--([a-zA-Z0-9-]+)\)/g)].map(
-    (m) => m[1]
-  );
+  // Verweise auf Variablen, die der @theme-Block selbst deklariert (etwa `--color-accent` im Glow per
+  // color-mix, ADR 0087), stehen schon im Block und sind keine Basis-Variablen aus :root.
+  const themeDeclared = new Set([...themeBlock.matchAll(/^\s*--([a-zA-Z0-9-]+)\s*:/gm)].map((m) => m[1]));
+  const varNames = [...themeBlock.matchAll(/var\(--([a-zA-Z0-9-]+)\)/g)]
+    .map((m) => m[1])
+    .filter((name) => !themeDeclared.has(name));
   // font-sans wird von @theme nicht per var() referenziert (--font-display/-mono
   // stehen dort als eigene Literalwerte), ist aber die Basis-Schrift für Fließtext
   // und wird für die Type-Vorschau gebraucht: deshalb zusätzlich aufgenommen.
@@ -384,8 +387,8 @@ ${FONT_FACE_CSS}
   await writeFile(path.join(OUT_DIR, "colors_and_type.css"), output, "utf8");
   log(`colors_and_type.css geschrieben (${uniqueNames.length} Basis-Variablen aufgelöst).`);
 
-  // Neon-Farben (Name + Hex) direkt aus dem @theme-Block parsen.
-  const neonColors = [...themeBlock.matchAll(/--color-neon-([a-z]+):\s*(#[0-9a-fA-F]{3,8});/g)].map(
+  // Farbrollen (ADR 0087, Name + Hex) direkt aus dem @theme-Block parsen.
+  const neonColors = [...themeBlock.matchAll(/--color-(accent|attention|error|success|info):\s*(#[0-9a-fA-F]{3,8});/g)].map(
     ([, name, hex]) => ({ name, hex })
   );
 
@@ -668,14 +671,14 @@ function swatch(bgClass, label, caption) {
 </div>`;
 }
 
-/// Token-Karte "Colors/Neon": Name + Hex je Neon-Farbe, aus denselben Werten wie
+/// Token-Karte "Colors/Neon": Name + Hex je Farbrolle (ADR 0087), aus denselben Werten wie
 /// colors_and_type.css (kein von Hand gepflegtes zweites Set).
 function buildColorNeonHtml(tokens) {
   const cards = tokens.neonColors
-    .map((c) => swatch(`bg-neon-${c.name}`, c.name[0].toUpperCase() + c.name.slice(1), c.hex))
+    .map((c) => swatch(`bg-${c.name}`, c.name[0].toUpperCase() + c.name.slice(1), c.hex))
     .join("\n");
   return `<div class="space-y-4">
-  <h2 class="text-lg font-semibold text-neon-teal">Neon-Palette</h2>
+  <h2 class="text-lg font-semibold text-accent">Farbrollen</h2>
   <div class="grid grid-cols-3 gap-4">
 ${cards}
   </div>
@@ -714,19 +717,19 @@ function buildColorSurfacesHtml(tokens) {
     .join("\n");
   return `<div class="space-y-6">
   <div class="space-y-4">
-    <h2 class="text-lg font-semibold text-neon-teal">Flächen</h2>
+    <h2 class="text-lg font-semibold text-accent">Flächen</h2>
     <div class="grid grid-cols-3 gap-4">
 ${bg}
     </div>
   </div>
   <div class="space-y-4">
-    <h2 class="text-lg font-semibold text-neon-teal">Ränder</h2>
+    <h2 class="text-lg font-semibold text-accent">Ränder</h2>
     <div class="grid grid-cols-3 gap-4">
 ${border}
     </div>
   </div>
   <div class="space-y-4">
-    <h2 class="text-lg font-semibold text-neon-teal">Text</h2>
+    <h2 class="text-lg font-semibold text-accent">Text</h2>
     <div class="grid grid-cols-3 gap-4">
 ${text}
     </div>
@@ -838,17 +841,16 @@ Inter, große Header optional in Space Grotesk.
 
 | Farbe | Bedeutung |
 |---|---|
-| Orange (\`--color-neon-orange\`) | primär / CTA / Action |
-| Teal (\`--color-neon-teal\`) | Ausgewähltes / Navigation |
-| Green (\`--color-neon-green\`) | Erfolg / positiv |
-| Red (\`--color-neon-red\`) | Fehler / negativ |
-| Purple (\`--color-neon-purple\`) | Akzent / Kategorie |
-| Pink (\`--color-neon-pink\`) | Akzent / attention |
-| Gelb (\`--color-calm-yellow\`) | offen, kein Fehler |
+| Akzent (\`--color-accent\`) | Hauptaktion und Auswahl/Navigation, Text darauf \`bg-app\` |
+| Gelb (\`--color-attention\`) | braucht dich, kein Fehler, immer mit Wort |
+| Rot (\`--color-error\`) | Fehler und Minus |
+| Grün (\`--color-success\`) | gelungen |
+| Blau (\`--color-info\`) | Hinweis |
+| border-strong (\`--color-border-strong\`) | Rand eines Bedienelements |
 
-Geld: positiv immer Green (mit Glow), negativ immer Red. Primäre Aktion pro Screen:
-höchstens eine, Orange. Sekundär/Abbrechen: neutral mit grauem Rand. Ausgewähltes und
-Navigation: Teal. Löschen/Zerstörendes: Red.
+Eine Farbe, eine Bedeutung, auf jeder Seite (ADR 0087). Geld als Einzelbetrag: positiv Grün,
+negativ Rot. Hauptaktion je Ansicht höchstens eine, im Akzent. Sekundär/Abbrechen: neutral mit
+Rand border-strong. Löschen/Zerstörendes: Rot.
 
 ## Tokens
 
@@ -908,17 +910,17 @@ Lies zuerst README.md in diesem Projekt.
 ## Kurzorientierung
 
 - Marke: BudgetBuddy, YNAB-Companion (Comdirect zu YNAB Sync).
-- Look: neon-on-dark. Dunkler Grund, Neon-Akzente (Orange/Teal/Green/Red/Purple/Pink),
-  Glow als Hervorhebung (sparsam, nicht dekorativ).
-- Farbsemantik: Orange = primär/CTA, Teal = sekundär/aktiv, Green = Erfolg,
-  Red = Fehler, Purple/Pink = Akzent.
+- Look: neon-on-dark. Dunkler Grund, Farbrollen (Akzent/Gelb/Rot/Grün/Blau),
+  Glow nur an Hauptaktion und Rückmeldung.
+- Farbsemantik: Akzent = Hauptaktion und Auswahl, Gelb = braucht dich, Rot = Fehler und
+  Minus, Grün = gelungen, Blau = Hinweis.
 - Schriften: Inter (Fließtext), Space Grotesk (Header, optional), JetBrains Mono
   (Zahlen/Beträge, tabular-nums).
 - Tokens liegen in \`colors_and_type.css\` (auch als Karten: \`preview/color-neon.html\`,
   \`preview/color-surfaces.html\`, \`preview/type-fonts.html\`); Komponenten-Vorschauen in
   \`preview/components-*.html\`.
 - Signatur-Muster: Beträge immer mit Vorzeichen-Farbe (positiv grün, negativ rot);
-  primäre Aktion pro Screen höchstens eine (Orange); \`Card\` für Inhaltsblöcke,
+  primäre Aktion pro Screen höchstens eine (Akzent); \`Card\` für Inhaltsblöcke,
   BottomSheet-Muster für mobile Auswahl-Flows statt Freitext.
 
 ## Typische Aufgaben
@@ -932,8 +934,8 @@ Lies zuerst README.md in diesem Projekt.
 
 - Kein Inline-Hex, keine Standard-Farben (z. B. \`red-500\`): nur die Tokens aus
   \`colors_and_type.css\`.
-- Keine neuen Neon-Farben erfinden: die sechs (Orange/Teal/Green/Red/Purple/Pink)
-  sind fest mit Bedeutung belegt.
+- Keine neuen Farben erfinden: die fünf Rollen (Akzent/Gelb/Rot/Grün/Blau) sind fest mit
+  Bedeutung belegt (ADR 0087).
 - Keine Höflichkeitsfloskeln in Microcopy ("Bitte klicken Sie ..."): direkt, knapp,
   Deutsch.
 - Änderungen nie hier vornehmen und erwarten, dass sie zurück ins Repo fließen: dieses
@@ -941,11 +943,11 @@ Lies zuerst README.md in diesem Projekt.
 `;
 
 /// `thumbnail.html` an der Bundle-Wurzel (design-system-an22r): Wortmarke in
-/// Space Grotesk auf App-Schwarz, rechts ein Streifen aus den vier Neon-Farben.
+/// Space Grotesk auf App-Schwarz, rechts ein Streifen aus vier Farbrollen.
 /// Farben kommen aus denselben Tokens wie colors_and_type.css.
 export function buildThumbnailHtml(tokens) {
   const bg = tokens.backgroundVars.find((v) => v.name === "bg-app").value;
-  const order = ["green", "teal", "orange", "purple"];
+  const order = ["success", "accent", "attention", "info"];
   const blocks = order
     .map((n) => {
       const c = tokens.neonColors.find((x) => x.name === n);

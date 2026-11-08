@@ -658,7 +658,7 @@ let viewTests =
             Expect.isTrue b.Balanced "Stimmt"
             Expect.isTrue o.RestWarn "Rest offen"
             Expect.stringContains (SplitEditor.amountClass b.RestWarn) "text-text-primary" "neutral"
-            Expect.stringContains (SplitEditor.amountClass o.RestWarn) "text-neon-red" "Warnfarbe"
+            Expect.stringContains (SplitEditor.amountClass o.RestWarn) "text-error" "Warnfarbe"
             Expect.equal o.RestText "58,50 €" "Rest als Betrag"
             Expect.equal o.TotalText "81,90 €" "Gesamtbetrag ohne Vorzeichen"
             Expect.equal (SplitEditor.restRowLabel true) "Stimmt" "ausgeglichen"

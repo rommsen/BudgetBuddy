@@ -38,8 +38,8 @@ let sizeToClass = function
 
 let private stateToClass = function
     | Normal -> ""
-    | Error _ -> "border-neon-red focus:border-neon-red focus:shadow-[0_0_0_2px_rgba(255,59,92,0.3)] animate-shake"
-    | Success -> "border-neon-green focus:border-neon-green focus:shadow-[0_0_0_2px_rgba(0,255,136,0.3)]"
+    | Error _ -> "border-error focus:border-error focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-error)_30%,transparent)] animate-shake"
+    | Success -> "border-success focus:border-success focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-success)_30%,transparent)]"
 
 // ============================================
 // Text Input
@@ -465,7 +465,7 @@ let group (props: InputGroupProps) =
                     Html.text props.Label
                     if props.Required then
                         Html.span [
-                            prop.className "text-neon-red ml-0.5"
+                            prop.className "text-error ml-0.5"
                             prop.text "*"
                         ]
                 ]
@@ -478,7 +478,7 @@ let group (props: InputGroupProps) =
             match props.HelpText, props.Error with
             | _, Some err ->
                 Html.p [
-                    prop.className "text-xs text-neon-red"
+                    prop.className "text-xs text-error"
                     prop.text err
                 ]
             | Some help, None ->
@@ -613,9 +613,9 @@ let groupOptions (options: (string * string) list) : (string * (string * string)
 /// Picker-Zeile), nur eine Farbklasse je Zustand.
 let searchableOptionClass (isHighlighted: bool) (isSelected: bool) : string =
     let color =
-        if isHighlighted then "bg-neon-teal/20 text-neon-teal"
-        elif isSelected then "bg-neon-teal/10 text-neon-teal"
-        else "text-text-primary hover:bg-neon-teal/10 hover:text-neon-teal"
+        if isHighlighted then "bg-accent/20 text-accent"
+        elif isSelected then "bg-accent/10 text-accent"
+        else "text-text-primary hover:bg-accent/10 hover:text-accent"
     $"w-full text-left px-4 py-2.5 {ListRoles.primarySize} font-medium transition-colors {color}"
 
 [<ReactComponent>]
@@ -833,7 +833,7 @@ let SearchableSelect (props: SearchableSelectProps) =
                                 Html.input [
                                     prop.ref inputRef
                                     prop.type' "text"
-                                    prop.className $"w-full bg-surface-card text-text-primary border border-border-default rounded-md px-3 py-2 min-h-[36px] focus:border-neon-teal focus:outline-none focus-visible:outline-none placeholder:text-text-muted/70 {searchFieldTextClass}"
+                                    prop.className $"w-full bg-surface-card text-text-primary border border-border-strong rounded-md px-3 py-2 min-h-[36px] focus:ring-1 focus:ring-border-strong focus:outline-none focus-visible:outline-none placeholder:text-text-muted/70 {searchFieldTextClass}"
                                     prop.placeholder searchPlaceholderText
                                     prop.value searchText
                                     prop.autoFocus true
@@ -852,9 +852,9 @@ let SearchableSelect (props: SearchableSelectProps) =
                                 let clearHighlighted = highlightedIndex = 0
                                 let clearClass =
                                     if clearHighlighted then
-                                        $"w-full text-left px-4 py-2.5 {ListRoles.primarySize} italic bg-neon-teal/20 text-neon-teal"
+                                        $"w-full text-left px-4 py-2.5 {ListRoles.primarySize} italic bg-accent/20 text-accent"
                                     else
-                                        $"w-full text-left px-4 py-2.5 {ListRoles.primarySize} text-text-muted/70 hover:bg-neon-teal/10 hover:text-neon-teal transition-colors italic"
+                                        $"w-full text-left px-4 py-2.5 {ListRoles.primarySize} text-text-muted/70 hover:bg-accent/10 hover:text-accent transition-colors italic"
                                 Html.button [
                                     prop.type' "button"
                                     prop.className clearClass
@@ -1159,9 +1159,9 @@ let ComboBox (props: ComboBoxProps) =
                                         let isHighlighted = highlightedIndex = i
                                         let optionClass =
                                             if isHighlighted then
-                                                "w-full text-left px-4 py-2 text-sm transition-colors bg-neon-teal/20 text-neon-teal"
+                                                "w-full text-left px-4 py-2 text-sm transition-colors bg-accent/20 text-accent"
                                             else
-                                                "w-full text-left px-4 py-2 text-sm transition-colors text-text-primary hover:bg-neon-teal/10 hover:text-neon-teal"
+                                                "w-full text-left px-4 py-2 text-sm transition-colors text-text-primary hover:bg-accent/10 hover:text-accent"
                                         Html.button [
                                             prop.key $"opt-{i}"
                                             prop.type' "button"

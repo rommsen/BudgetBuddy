@@ -388,7 +388,7 @@ let loading (isOpen: bool) (message: string) =
                         prop.children [
                             // Spinner
                             Html.div [
-                                prop.className "proto-spinner lg text-neon-teal"
+                                prop.className "proto-spinner lg text-accent"
                             ]
                             Html.p [
                                 prop.className "text-text-secondary text-center"

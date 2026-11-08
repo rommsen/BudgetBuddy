@@ -50,38 +50,43 @@ spiegeln die CSS-Custom-Properties in `src/Client/styles.css` und die Tailwind-C
 
 ## 2. Farbsemantik
 
-Jede Neon-Farbe hat **eine feste Bedeutung**. Farbe wird nie rein dekorativ gewählt —
-sie kommuniziert Zustand/Rolle. Belegt durch `Tokens.fs` (Modul `Colors`, `Glows`,
-`Borders`, `Backgrounds`) und die jeweiligen Token-Kommentare:
+Eine Farbe, eine Bedeutung, auf jeder Seite (ADR 0087, Palette 2). Farbe wird nie dekorativ gewählt,
+sie meldet eine Rolle oder einen Zustand. Braucht eine Ansicht eine neue Bedeutung, bekommt sie einen
+neuen Token oder bleibt neutral. Die Werte stehen in `src/Client/styles.css` (`@theme`), die Klassen
+in `Tokens.fs` (Module `Colors`, `Backgrounds`, `Borders`, `Glows`).
 
-| Farbe | Bedeutung | Token-Beispiele (`Tokens.fs`) |
-|-------|-----------|-------------------------------|
-| **Orange** | primär / CTA / Action / Energie; auf der Seite Targets prüfen zusätzlich der Titel "Gibst du mehr aus?" und die Monatsbalken über dem Target (Ausnahme, Nachtrag ADR 0075 vom 2026-11-06) | `Colors.neonOrange`, `Glows.orangeLg` (Hero-CTAs), `Borders.orange` |
-| **Teal** | Ausgewähltes und Navigation (ADR 0075); auf der Seite Targets prüfen zusätzlich der Titel "Passt" und die Zusätze einer Zeile darunter (alle aus `fitsNoteText`, etwa "neu gesetzt am …" und "neu seit …", Ausnahme, Nachtrag ADR 0075 vom 2026-11-06) | `Colors.neonTeal`, `Glows.teal`, `Presets.glowCard` (teal-Border) |
-| **Green** | Erfolg / positiv / Wachstum | `Colors.neonGreen`, `Glows.green`, `Presets.moneyPositive` |
-| **Red** | Fehler / Gefahr / negativ | `Colors.neonRed`, `Presets.moneyNegative`, `Borders.red` |
-| **Purple** | Akzent / "special/premium"; Kategorie nur außerhalb von Listen (ADR 0049) | `Colors.neonPurple`, `Backgrounds.purpleSubtle` |
-| **Violett hell** | nur der Titel "Gibst du nie aus?" auf der Seite Targets prüfen (Ausnahme, Nachtrag ADR 0075 vom 2026-11-06). Heller als `neonPurple`, das auf `bg-hover` unter 4,5:1 fällt; kontrastiert 9,21:1 auf `bg-card`, 8,40:1 auf `bg-elevated`, 8,00:1 auf `bg-hover` | `Colors.calmViolet` |
-| **Pink** | Akzent / "attention needed", nicht auf der Budget-Seite (ADR 0075) | `Colors.neonPink`, `Backgrounds.pinkSubtle` |
-| **Gelb** | offen, kein Fehler: `fehlt` und "Passt das Target noch?" (ADR 0075). Kein Neon, kontrastiert 9,03:1 auf `bg-card`, 8,23:1 auf `bg-elevated`, 7,84:1 auf `bg-hover` | `Colors.calmYellow` |
-| **Blau** | nur der Titel "Gibst du weniger aus?" auf der Seite Targets prüfen (Nachtrag ADR 0075, budgeting-c4ve4). Ruhig, kein Neon, kontrastiert 8,93:1 auf `bg-card`, 8,14:1 auf `bg-elevated`, 7,75:1 auf `bg-hover` | `Colors.calmBlue` |
+| Farbe | Bedeutung | Token |
+|-------|-----------|-------|
+| **Akzent** `#28d6df` | Hauptaktion (gefüllter Knopf, Text darauf `bg-app`) und Auswahl/Navigation (Kante, Strich, Fläche) | `--color-accent`, `Colors.accent`, `Backgrounds.accent`, `Borders.accent`, `Colors.onAccent` (`--color-on-accent` = `bg-app`) |
+| **Gelb** `#cdb27a` | braucht dich, kein Fehler: zu prüfen, fehlt, ohne Kategorie, unsicheres Duplikat, offene Aufgabe, über dem Target. Immer mit Wort daneben | `--color-attention`, `Colors.attention`, `ListRoles.missing`, `ListRoles.statusEdge` |
+| **Rot** `#fd4f75` | Fehler und Minus | `--color-error`, `Colors.error`, `Borders.error` |
+| **Grün** `#5be479` | gelungen: Rückmeldung, alles erledigt | `--color-success`, `Colors.success`, `Glows.success` |
+| **Blau** `#7ab8ff` | Hinweis | `--color-info`, `Colors.info` |
+| **border-strong** `#6a6c86` | Rand, der ein Bedienelement erkennbar macht (Eingabefeld, Auswahlfeld, Knopf ohne Füllung), und Fokusring | `--color-border-strong`, `Borders.strong` |
+| **Flag-Farbe** | die Farbe aus `lena_flag_color`, nur im Flag-Symbol und immer mit dem Namen „Lena“ | `--color-flag-*`, `Icons.LenaFlag`, `Badge.lenaMark` |
 
-Die Token-Kommentare in `Tokens.fs` sind die kanonische Begründung (z. B. *"Primary:
-Neon Green — Success, Growth, Positive"*, *"Accent: Cyber Teal - Ausgewähltes und
-Navigation (ADR 0075)"*).
+Flächen (`bg-*`), Textstufen (`text-*`), `border` und `border-subtle` bleiben neutral. Orange, Pink,
+Lila und `calm-violet` gibt es nicht mehr; `npm run guard:tokens` meldet sie überall unter
+`src/Client/` (Muster `entfallene-farbe`).
+
+**Kontrast** (WCAG 2, `scripts/contrast-guard.test.mjs`): Text und jede Rollenfarbe mindestens 4,5:1
+gegen `bg-card`, `bg-elevated` und `bg-hover`; `border-strong` und die Flag-Farben mindestens 3:1; der
+Text auf dem Akzent mindestens 4,5:1. Ein neuer Farbwert, der das unterschreitet, macht `npm run test:scripts` rot.
 
 **Praktische Konsequenzen:**
 
-- Geld als **Einzelbetrag mit Gewicht** (Hero-Saldo, Kennzahl, Detail-Kopf): positiv
-  Green mit Green-Glow (`Presets.moneyPositive`), negativ Red (`Presets.moneyNegative`).
-  `Money.view` setzt das automatisch anhand des Vorzeichens. Nicht manuell überschreiben.
+- Geld als **Einzelbetrag mit Gewicht** (Hero-Saldo, Kennzahl, Detail-Kopf): positiv Grün
+  (`Presets.moneyPositive`), negativ Rot (`Presets.moneyNegative`). `Money.view` setzt das anhand des
+  Vorzeichens. Nicht manuell überschreiben.
 - Geld **in Listen und Tabellen**: neutral, siehe „Ruhige Listen“ unten (ADR 0049).
-- Primäre Aktion eines Screens: Orange (`Button.primary` / `Button.hero`). Pro
-  Screen-Kontext höchstens eine primäre Aktion.
-- Sekundär/Abbrechen: neutral mit grauem Rand (`Button.secondary`, ADR 0075), auch im Hover.
-- Navigation und Ausgewähltes: Teal (aktiver Nav-Tab, aktiver Tab, gewählte Zeile).
-- Löschen/Zerstörendes: Red (`Button.danger`, `Modal.confirmDanger`).
-- Text-Tonwerte über `Colors.textPrimary/Secondary/Muted` — nicht über Neon-Farben.
+- Hauptaktion einer Ansicht: Akzent gefüllt (`Button.primary`, `Button.hero`). Je Ansicht höchstens eine.
+- Sekundär/Abbrechen: neutral mit Rand `border-strong` (`Button.secondary`), auch im Hover.
+- Navigation und Ausgewähltes: Akzent als Kante, Strich oder Fläche (aktiver Nav-Punkt, aktiver Tab,
+  gewählte Zeile).
+- Fokusring: `border-strong`, 2 px (`*:focus-visible` in `styles.css`), mindestens 3:1. Eingabefelder zeigen den Fokus mit einem Ring in `border-strong` um ihren Rand.
+- Löschen/Zerstörendes: Rot (`Button.danger`, `Modal.confirmDanger`).
+- Glow nur an der Hauptaktion und an Rückmeldungen.
+- Text-Tonwerte über `Colors.textPrimary/Secondary/Muted`, nicht über Rollenfarben.
 
 ### Ruhige Listen (ADR 0049)
 
@@ -90,23 +95,23 @@ der Budget-Historie).
 Vorbilder sind das Kassenbuch und der Abschnitt 8a in `/styleguide`. In jeder Zeile ist Farbe ein Signal, keine
 Dekoration: höchstens ein farbiger Akzent pro Zeile, und der meldet einen Zustand.
 
-**Ausnahme Budget-Seite (ADR 0075 Punkt 4):** Rot und Gelb dürfen in einer Budget-Zeile
-zusammenstehen, Rot am Verfügbar-Betrag im Minus, `fehlt` in Gelb. Die Ausnahme gilt nur dort.
+Trägt eine Zeile zwei Zustände zugleich, zeigen beide ihre Farbe, jeder mit Wort oder Betrag: etwa Rot
+am Verfügbar-Betrag im Minus und `fehlt` in Gelb.
 
 | Element | PC | Handy |
 |---------|----|-------|
 | Payee | Inter 500 14px `text-primary` | Inter 500 15px `text-primary` |
-| Betrag | Mono 500 14px `tabular-nums` `text-primary`, rechtsbündig; positiv Teal | Mono 500 15px, sonst gleich |
+| Betrag | Mono 500 14px `tabular-nums` `text-primary`, rechtsbündig, auch positiv; Eingänge mit „+“ | Mono 500 15px, sonst gleich |
 | Datum | Mono 400 12px `text-muted` | nur im Gruppenkopf |
-| Kategorie | 12px `text-secondary`; „Keine Kategorie“ Orange | gleich |
+| Kategorie | 12px `text-secondary`; „Keine Kategorie“ Gelb | gleich |
 | Memo | 12px `text-muted`, eine Zeile | gleich |
-| Zu prüfen | 3px-Kante Pink links, dazu kleines Wort „zu prüfen“ 11px Pink | 3px-Kante Pink links |
+| Zu prüfen | 3px-Kante Gelb links, dazu kleines Wort „zu prüfen“ 11px Gelb | 3px-Kante Gelb links |
 | Datumskopf | Mono 600 10px, `letter-spacing:.16em`, `text-muted`, Tagessumme rechts | gleich |
 | Spaltenkopf | Mono 600 10px, `letter-spacing:.12em`, `text-muted`, Höhe 42px | entfällt |
 | Zeilenhöhe | 44px | zweizeilig, `padding:11px 16px` |
 | Kontostand | `text-primary` (aktiv) oder `text-secondary`; negativ Red | gleich |
 
-Zwei Ausnahmen, beide nur für die Budget-Seite:
+Die Budget-Liste hat zwei Besonderheiten im Aufbau (keine Farbe):
 
 - **Dritte Zeile am Handy:** Die Kategorie-Zeile trägt das Target als dritte Zeile. Sie hat dieselbe
   Klasse wie die zweite (`ListRoles.mobileLine2`) und fehlt, wenn es weder Target noch `fehlt` gibt.
@@ -118,10 +123,6 @@ Zwei Ausnahmen, beide nur für die Budget-Seite:
   32 px. Die Spalte Target bleibt einzeilig: Betrag in Mono, Rhythmus als eigener Span in Inter,
   dahinter pausiert in `ListRoles.secondary`. Der Name kürzt zuerst. Erst wenn ihm neben `fehlt`
   weniger als 80 px blieben, rückt `fehlt` in eine zweite Zeile, die Zeile wird dann höher.
-
-**Bewegungslisten der Budget-Historie** (Tab Historie im Inspektor, allgemeine Historie): Der Betrag
-steht neutral in `text-primary` mit Vorzeichen ("+20,00 €", "-20,00 €", `Money.signedListAmount`),
-auch positiv ohne Teal. Das Stand-Badge ist der einzige Farbakzent der Zeile.
 
 #### Auswahl (Picker, `searchableSelect`)
 
@@ -199,13 +200,13 @@ Textfeld `readOnly`, Kalender-Knopf `aria-disabled`, beide behalten den Fokus, g
 > `npm run test:scripts`; baut den Client einmal, `scripts/run-guards.mjs`) scheitert bei Hex- und rgb-Arbitrary-Werten, Standard-Tailwind-Farben,
 > `style.color`/`backgroundColor`/`borderColor`/`fontSize` und `text-[Npx]` in jeder `.fs` unter
 > `src/Client/`. Nur die Definitionsschicht `src/Client/DesignSystem/` darf Treffer haben, und
-> nur mit Eintrag samt Grund in `scripts/token-guard-exceptions.json`. Feature-Code hat keine
-> Ausnahme: fehlt ein Wert, kommt er zuerst als Token ins Design-System.
+> nur mit Eintrag samt Grund in `scripts/token-guard-exceptions.json`. Feature-Code darf keinen
+> Treffer haben: fehlt ein Wert, kommt er zuerst als Token ins Design-System.
 
 ### Monatsbalken
 
 `Stats.monthBars` (Tab Historie): Der Betrag unter dem Balken steht immer in `text-secondary`. Überwiegen in
-einem Monat die Erstattungen, steht er mit Plus da ("+85") und nicht in Rot: Rot heißt auf der Budget-Seite
+einem Monat die Erstattungen, steht er mit Plus da ("+85") und nicht in Rot: Rot heißt
 "im Minus". Über den Balken liegt eine Wertzeile fester Höhe in `font-mono`. Maus, Tipp oder Tab-Taste wählen
 einen Balken, die Zeile zeigt dann Monat und genauen Betrag über die ganze Breite (läuft nie über den Rand,
 nimmt keinen Tipp an), der Balken wird etwas heller und sein Monatsname steht in `text-primary`, damit auch
@@ -220,12 +221,12 @@ Listenzeile, die Reihe füllt die Höhe ihres Elternelements (am PC 32 px in ein
 4 px und ab einem Container von 720 px (dieselbe Grenze, an der die Zeile auf vier Spalten wechselt) 3 px wie in
 der Skizze, jeder Balken mindestens 2 px hoch. Die Höhe ist relativ zum größten
 Wert aus Monatsausgaben und Monatswert des Targets (`checkBars` in `Shared.Budgeting`). Farben: über dem
-Monatswert `bg-neon-orange` (ADR 0082 Punkt 6, ohne Spielraum), gezählt und nicht darüber gedämpft
+Monatswert `bg-attention` (ADR 0082 Punkt 6, ohne Spielraum; Gelb: braucht dich), gezählt und nicht darüber gedämpft
 `bg-text-muted/45`, vor der letzten Änderung (nicht gezählt) dunkler `bg-text-muted/15`. Bei einem Target liegt
 eine gestrichelte Linie in `text-primary/60` auf Höhe des Monatswerts. Für den Screenreader ist die Reihe ein Bild
 mit zusammengefasstem `aria-label` ("Ausgaben der letzten 12 Monate, 11 über dem Target"), die Balken sind
-verborgen, es gibt keinen Tab-Stopp. Orange auf einer Listenzeile ist eine Ausnahme von §2 "Ruhige Listen", sie
-gilt nur für diese Seite (Nachtrag ADR 0075). `Stats.sparkBarsLabelled` ist dieselbe Reihe groß im Panel (56 px
+verborgen, es gibt keinen Tab-Stopp. Gelb steht hier für
+„braucht dich“ wie überall. `Stats.sparkBarsLabelled` ist dieselbe Reihe groß im Panel (56 px
 Balken, Ecken 3 px), darunter die Monatskürzel in Mono klein. `Stats.sparkBarsPlaceholder` steht beim Laden an ihrer Stelle, mit denselben Ecken von 2 px.
 
 ---
@@ -238,7 +239,11 @@ sich der Look, ändert sich der Token — nicht hunderte Call-Sites.
 
 Module in [`Tokens.fs`](../../src/Client/DesignSystem/Tokens.fs):
 
-- `Colors`, `Backgrounds`, `Borders`, `Glows`, `TextGlows` — Farbsemantik (s. o.).
+- `Colors`, `Backgrounds`, `Borders`, `Glows`, `TextGlows` — Farbrollen aus §2: `accent`, `attention`,
+  `error`, `success`, `info`, dazu `Colors.onAccent` (Text auf dem Akzent), `Borders.strong`
+  (`border-strong`). Jeder Wert ist ein Theme-Token in `styles.css`; die Klassen in `Tokens.fs` nennen nur
+  den Token, nie einen Hex- oder rgba-Wert. Abgeschwächte Varianten über Deckkraft (`bg-accent/10`) oder
+  `color-mix` auf den Token.
 - `Fonts` (`sans`/`display`/`mono`), `FontSizes` (mobile-first, z. B.
   `pageTitle = "text-xl md:text-4xl"`), `FontWeights`.
 - `Spacing`, `Padding`, `Margin` — alle mobile-first (z. B.
@@ -254,8 +259,8 @@ Module in [`Tokens.fs`](../../src/Client/DesignSystem/Tokens.fs):
 - `Presets.card`, `Presets.glassCard`, `Presets.glowCard` — Karten-Looks.
 - `Presets.pageHeader`, `Presets.sectionHeader` — Header-Typografie.
 - `Presets.monoNumber` (`"font-mono font-semibold tabular-nums"`) — Zahlen.
-- `Presets.moneyPositive` / `Presets.moneyNegative` — Geld-Farbe inkl. Glow.
-- `Presets.gradientText` — Teal→Green→Orange-Verlaufstext für Hero-Titel.
+- `Presets.moneyPositive` / `Presets.moneyNegative` — Geld-Farbe (Grün mit Glow, Rot).
+- `Presets.gradientText` — Verlaufstext Akzent→Grün für Hero-Titel.
 
 **Reihenfolge der Wahl:**
 1. Gibt es eine **DS-Komponente** für das Ding? → Komponente nutzen (§5).
@@ -312,7 +317,7 @@ eigene Zeile; §2 und §7 nennen sie, wo sie gelten.
 | **Table** | Dichte tabellarische Daten (Desktop), inkl. `headerCell`/sortierbar/`sticky` | Mobile Listen mit Zeilen-Aktionen → Card-Liste + `Swipe`; einfache Key-Value-Paare → `Card` |
 | **Loading** | Ladezustände: `spinner`, `centered`, `neonPulse`, Skeletons (`txListSkeleton`, `tableSkeleton`, `statsGridSkeleton`, `cardSkeleton`, `amountSkeleton` für einen Betrag) | Inhalt da → echten Inhalt zeigen; Fehler → `ErrorDisplay` |
 | **ErrorDisplay** | Fehlerdarstellung: `inline'` (Feldfehler), `cardCompact`/`card`, `hero` (große Operation), `fullPage`, `forRemoteData`, `warning`, `notice` (Gelb, braucht dich, kein Fehler, ADR 0087 Punkt 3) | Kurzes Erfolgs-/Info-Feedback → `Toast`; Pflichtfeld-Hinweis → `Input.group*` |
-| **Icons** | SVG-Icons mit `Size`×`Color`-Tokens (`Icons.sync MD Teal`, …) | Eigene rohe `<svg>` inline (Drift) — fehlt ein Icon, hier ergänzen |
+| **Icons** | SVG-Icons mit `Size`×`Color`-Tokens (`Icons.sync MD Accent`, …) | Eigene rohe `<svg>` inline (Drift) — fehlt ein Icon, hier ergänzen |
 | **Navigation** | Top-/Bottom-Nav, App-Wrapper, Page-Content-Container — einmal in der Haupt-`View.fs` | Aktionen innerhalb einer Seite → `Button` |
 | **PageHeader** | Seitentitel: `simple`, `withSubtitle`, `gradient*`, `withActions`, `gradientWithActions` | Karten-Titel → `Card.header`; Abschnittstitel → `Card.headerSimple`/`Presets.sectionHeader` |
 | **Primitives** | Layout-Bausteine: `Container`, `Stack`/`HStack`, `Grid`, `Spacer`, responsive Sichtbarkeit (`mobileOnly`/`desktopOnly`) | Visuell gestylte Blöcke → `Card`; Token-Klassen reichen für Spacing |
@@ -386,10 +391,8 @@ abweicht, steht das als Zeile im Fahrplan Etappe 3 (`.agentheim/knowledge/fahrpl
 Abweichungen sind bekannt und kein Grund, die Regel aufzuweichen. Vorlage für Form und Verhalten ist
 der Prototyp (Version 14), den Roman am Handy und am PC freigegeben hat.
 
-„Akzent“ meint in §5 und §7 den Akzent aus ADR 0087 Punkt 2, nicht die Zeilen Purple und Pink in §2. Bis
-design-system-dak16 (Palette 2 im Token-Layer) heißt das Orange für die Hauptaktion und Teal für Auswahl
-und Navigation. Gelb steht nach ADR 0087 Punkt 3 für „braucht dich, kein Fehler“; wo §2 Pink dafür nennt,
-hat ADR 0087 Vorrang.
+„Akzent“ meint in §5 und §7 den Akzent aus ADR 0087 Punkt 2 (`accent`, `#28d6df`, §2): Hauptaktion und
+Auswahl/Navigation zugleich. Gelb steht nach ADR 0087 Punkt 3 für „braucht dich, kein Fehler“ (`attention`).
 
 ### 7.1 Visual-Viewport-Sheet + Click-Commit (ADR 0005)
 

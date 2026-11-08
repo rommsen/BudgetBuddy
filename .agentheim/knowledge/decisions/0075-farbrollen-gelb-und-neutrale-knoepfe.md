@@ -58,6 +58,9 @@ wo sie den Farbrollen oben und ADR 0049 widersprechen (budgeting-c4ve4):
 Die Ausnahme gilt nur für diese Seite. Die Budget-Liste und alle anderen Listen folgen weiter
 ADR 0049 und den Farbrollen oben.
 
+## Nachtrag 2026-11-08: ersetzt durch ADR 0087 (design-system-dak16)
+Die Farbrollen dieses ADR und der Nachtrag „Ausnahme Seite Targets prüfen“ vom 2026-11-06 sind durch ADR 0087 (Palette 2) ersetzt. Es gibt keine Seitenausnahmen mehr: Gelb (`attention`) heißt auf jeder Seite „braucht dich, kein Fehler“, der Akzent (`accent`, `#28d6df`) steht für Hauptaktion und Auswahl/Navigation, Orange und Pink entfallen. Auf Targets prüfen ist „Gibst du mehr aus?“ Gelb, „weniger“ Blau, „nie“ und „Kein Target“ neutral, „Passt“ Grün, Monate über dem Target Gelb. Punkt 2 (Standard-Knöpfe neutral) gilt weiter, ihr Rand ist jetzt `border-strong`. Punkt 4 gilt allgemein: trägt eine Zeile zwei Zustände (Minus und `fehlt`), zeigen beide ihre Farbe. Token-Namen: `calm-yellow` heißt `attention`, `calm-blue` heißt `info`.
+
 ## Consequences
 ### Positive
 - Klickbares und Ausgewähltes sind unterscheidbar.

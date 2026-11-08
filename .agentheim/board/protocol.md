@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-08 02:01 -- Task verified and completed: design-system-dak16 - "Palette 2 im Token-Layer: ein Akzent für Aktion und Auswahl, Gelb für braucht dich, keine Seitenausnahmen, Kontrast-Wächter"
+
+**Type:** Work / Task completion
+**Task:** design-system-dak16 - "Palette 2 im Token-Layer: ein Akzent für Aktion und Auswahl, Gelb für braucht dich, keine Seitenausnahmen, Kontrast-Wächter"
+**Summary:** Palette 2 aus ADR 0087 im Token-Layer: Akzent für Hauptaktion und Auswahl, Gelb für braucht dich, Rot, Grün, Blau, border-strong (auch Fokusring); Orange, Pink, Lila aus Client und CSS entfernt, Eingänge neutral, Lena als Flag mit Namen; Wächter für Kontrast und Farbliterale im CSS.
+**Duration:** ca. 2h
+**Verification:** PASS (iteration 2)
+**Files changed:** 73
+**Tests added:** 25
+**ADRs written:** none (Nachträge zu 0075 und 0049)
+
+---
+
+## 2026-11-08 01:40 -- Verification failed: design-system-dak16 - Palette 2 im Token-Layer
+
+**Type:** Work / Verification failure
+**Task:** design-system-dak16 - Palette 2 im Token-Layer
+**Iteration:** 1 of 3
+**Reasons:** Orange als Warnung in styles.css (info-banner), Lila und alte Glows; Seitenregel in Styleguide §2; Eingänge im Akzent gegen Vorlage; Fokusring im Akzent gegen Task; kein Test für Warning-Farben
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-08 00:52 -- Batch started: [design-system-dak16]
 
 **Type:** Work / Batch start

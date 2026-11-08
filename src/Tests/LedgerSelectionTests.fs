@@ -298,23 +298,23 @@ let viewTests =
             Expect.equal (summaryRowKind { model with Selection = AllExcept (Set.singleton (idOf 1)) }) SelectionSummary "alle außer einer"
 
         testCase "Der Anker trägt die Teal-Kante, andere gewählte Zeilen nicht" <| fun () ->
-            let edge = "shadow-[inset_2px_0_0_0_var(--color-neon-teal)]"
+            let edge = "shadow-[inset_2px_0_0_0_var(--color-accent)]"
             let anchor = Components.Ledger.View.selectableRowClassName true true
             let picked = Components.Ledger.View.selectableRowClassName true false
             let plain = Components.Ledger.View.selectableRowClassName false false
             Expect.stringContains anchor edge "der Anker"
             Expect.isFalse (picked.Contains edge) "eine gewählte Zeile ohne Anker"
             Expect.isFalse (plain.Contains edge) "eine ungewählte Zeile"
-            Expect.stringContains picked "bg-neon-teal/[0.07]" "gewählt trägt blasses Teal"
-            Expect.isFalse (plain.Contains "bg-neon-teal") "ungewählt nicht"
+            Expect.stringContains picked "bg-accent/[0.07]" "gewählt trägt blasses Teal"
+            Expect.isFalse (plain.Contains "bg-accent") "ungewählt nicht"
 
         testCase "Kästchen: drei Zustände in Teal, blassem Teal und ohne Teal" <| fun () ->
             // ledger-r8h19: die Größen (20 px Handy, 17 px PC) misst der Browser
             // (`[tastatur] PC 1440x900: Kästchen, …` in scripts/ledger-selection.test.mjs).
             let cls = Client.DesignSystem.MultiSelect.boxClassName
-            Expect.stringContains (cls Client.DesignSystem.MultiSelect.Checked true) "bg-neon-teal" "gesetzt in Teal"
-            Expect.stringContains (cls Client.DesignSystem.MultiSelect.Partial false) "bg-neon-teal/20" "Teilauswahl auf blassem Teal"
-            Expect.isFalse ((cls Client.DesignSystem.MultiSelect.Unchecked true).Contains "neon-teal") "leer ohne Teal"
+            Expect.stringContains (cls Client.DesignSystem.MultiSelect.Checked true) "bg-accent" "gesetzt in Teal"
+            Expect.stringContains (cls Client.DesignSystem.MultiSelect.Partial false) "bg-accent/20" "Teilauswahl auf blassem Teal"
+            Expect.isFalse ((cls Client.DesignSystem.MultiSelect.Unchecked true).Contains "accent") "leer ohne Teal"
 
         testCase "Handy-Zeile: Kästchen im Modus, Maus ohne Wisch, Auswahl ohne Modus schlicht, sonst Wisch" <| fun () ->
             // ledger-r8h19: ersetzt die Quelltext-Tests zur Wisch-Geste (hier und in

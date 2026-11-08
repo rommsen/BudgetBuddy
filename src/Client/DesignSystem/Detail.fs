@@ -50,12 +50,11 @@ let scrollBody (children: ReactElement list) : ReactElement =
 // Kopf
 // ============================================
 
-/// Der Betrag im Kopf: Mono, ruhig neutral, nur ein Eingang ist Teal; gedämpft für eine
+/// Der Betrag im Kopf: Mono, ruhig neutral, auch ein Eingang (ADR 0087 Punkt 2); gedämpft für eine
 /// in YNAB gelöschte Buchung (Lesezustand).
 let amount (value: decimal) (currency: string) (muted: bool) : ReactElement =
     let color =
         if muted then Colors.textMuted
-        elif value > 0m then Colors.neonTeal
         else Colors.textPrimary
     Html.span [
         prop.custom ("data-testid", "detail-amount")
@@ -127,11 +126,11 @@ let head
 // Hinweisleiste mit Grund und Aktion
 // ============================================
 
+/// Ton der Hinweisleiste nach Farbrolle (ADR 0087): Gelb braucht dich, Rot Fehler.
 type NoticeTone =
-    | NoticeOrange
-    | NoticeRed
-    /// Gelb: offen, kein Fehler, für die Budget-Seite ohne Orange und Pink (ADR 0075).
+    /// Gelb: braucht dich, kein Fehler, auf jeder Seite.
     | NoticeYellow
+    | NoticeRed
 
 /// Die Aktion einer Hinweisleiste; `Busy` zeigt den eigenen Lauf und sperrt sie, `Disabled` sperrt sie
 /// ohne Spinner, etwa solange ein anderer Aufruf läuft.
@@ -156,9 +155,8 @@ type NoticeProps = {
 let notice (props: NoticeProps) : ReactElement =
     let surface, variant =
         match props.Tone with
-        | NoticeOrange -> "bg-neon-orange/[0.07]", Badge.Orange
-        | NoticeRed -> "bg-neon-red/[0.07]", Badge.Error
-        | NoticeYellow -> "bg-calm-yellow/[0.07]", Badge.Notice
+        | NoticeYellow -> "bg-attention/[0.07]", Badge.Warning
+        | NoticeRed -> "bg-error/[0.07]", Badge.Error
 
     Html.div [
         prop.role "status"
@@ -285,12 +283,12 @@ let externalLinksRow (links: (string * string) list) : ReactElement =
                         prop.target "_blank"
                         prop.rel "noopener noreferrer"
                         prop.className (
-                            $"inline-flex {TouchTargets.mobileMinHeight} md:min-h-11 min-w-0 items-center gap-2 {FontSizes.sm} {Colors.neonTeal} "
+                            $"inline-flex {TouchTargets.mobileMinHeight} md:min-h-11 min-w-0 items-center gap-2 {FontSizes.sm} {Colors.accent} "
                             + "hover:underline touch-manipulation"
                         )
                         prop.children [
                             Html.span [ prop.className "min-w-0 break-words"; prop.text label ]
-                            Icons.externalLink Icons.SM Icons.NeonTeal
+                            Icons.externalLink Icons.SM Icons.Accent
                         ]
                     ]
             ]
@@ -331,7 +329,7 @@ let splitActionButton (label: string) (lockedHint: string option) (onClick: unit
         prop.className (
             $"inline-flex {TouchTargets.mobileMinHeight} md:min-h-11 shrink-0 items-center justify-center rounded-lg border {Borders.default'} " +
             $"{Backgrounds.elevated} px-3 {FontSizes.sm} {Colors.textPrimary} transition-colors touch-manipulation " +
-            (if locked then "opacity-40 cursor-not-allowed" else "hover:border-neon-teal active:scale-[0.98]")
+            (if locked then "opacity-40 cursor-not-allowed" else "hover:border-accent active:scale-[0.98]")
         )
         prop.onMouseDown (fun e -> e.stopPropagation ())
         prop.onClick (fun e ->
@@ -368,7 +366,7 @@ let fieldActionButton
         prop.className (
             $"inline-flex {TouchTargets.mobileMinHeight} md:min-h-11 shrink-0 items-center justify-center rounded-lg border {Borders.default'} " +
             $"{Backgrounds.elevated} px-3 {FontSizes.sm} {Colors.textPrimary} transition-colors touch-manipulation " +
-            (if inactive then "opacity-40 cursor-not-allowed" else "hover:border-neon-teal active:scale-[0.98]")
+            (if inactive then "opacity-40 cursor-not-allowed" else "hover:border-accent active:scale-[0.98]")
         )
         prop.onMouseDown (fun e -> e.stopPropagation ())
         prop.onClick (fun e ->
@@ -462,7 +460,7 @@ let memoEditor (props: MemoEditorProps) : ReactElement =
                 Html.p [
                     prop.custom ("data-testid", "detail-memo-problem")
                     prop.role "alert"
-                    prop.className $"{FontSizes.sm} text-neon-red"
+                    prop.className $"{FontSizes.sm} text-error"
                     prop.text problem
                 ]
             | None -> ()
@@ -473,10 +471,10 @@ let memoEditor (props: MemoEditorProps) : ReactElement =
 /// `Busy` sperrt ihn, solange der Aufruf läuft. Rolle `switch`, Zustand in `aria-checked`.
 let reviewedSwitch (label: string) (isOn: bool) (busy: bool) (onToggle: bool -> unit) : ReactElement =
     let track =
-        if isOn then "border-neon-green/40 bg-neon-green/20"
+        if isOn then "border-success/40 bg-success/20"
         else $"{Borders.default'} {Backgrounds.elevated}"
     let knob =
-        if isOn then "translate-x-6 bg-neon-green"
+        if isOn then "translate-x-6 bg-success"
         else "translate-x-1 bg-text-muted"
 
     Html.div [
@@ -523,7 +521,7 @@ let sectionLabel (text: string) : ReactElement =
     ]
 
 /// Die Herkunft-Zeile: Überschrift links, das Badge der Art rechts. Das Badge baut der
-/// Aufrufer (Teal, `Badge.Info`), weil die Wörter zur Domäne gehören.
+/// Aufrufer (Akzent, `Badge.Info`), weil die Wörter zur Domäne gehören.
 let originRow (badge: ReactElement) : ReactElement =
     Html.div [
         prop.custom ("data-testid", "detail-origin")
@@ -534,32 +532,27 @@ let originRow (badge: ReactElement) : ReactElement =
         ]
     ]
 
-/// Die Punktfarbe eines Eintrags der Zeitleiste, nach Urheber (Handoff).
+/// Die Punktfarbe eines Eintrags der Zeitleiste nach Farbrolle (ADR 0087): Blau Hinweis
+/// (Import, Regel), Grau ohne Wertung, Grün gelungen, Rot Fehlschlag und Löschung.
 type DotColor =
-    | DotTeal
-    | DotPurple
+    | DotInfo
     | DotGrey
     | DotGreen
     | DotRed
-    | DotOrange
 
 let dotName (dot: DotColor) : string =
     match dot with
-    | DotTeal -> "teal"
-    | DotPurple -> "purple"
+    | DotInfo -> "info"
     | DotGrey -> "grey"
     | DotGreen -> "green"
     | DotRed -> "red"
-    | DotOrange -> "orange"
 
 let private dotClass (dot: DotColor) : string =
     match dot with
-    | DotTeal -> "bg-neon-teal"
-    | DotPurple -> "bg-neon-purple"
+    | DotInfo -> "bg-info"
     | DotGrey -> "bg-text-muted"
-    | DotGreen -> "bg-neon-green"
-    | DotRed -> "bg-neon-red"
-    | DotOrange -> "bg-neon-orange"
+    | DotGreen -> "bg-success"
+    | DotRed -> "bg-error"
 
 type TimelineItem = {
     Key: string

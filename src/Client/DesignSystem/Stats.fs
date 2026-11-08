@@ -16,12 +16,10 @@ type Trend =
 
 /// Accent color for the gradient line at top of stat card
 type StatAccent =
-    | Teal
-    | Green
-    | Orange
-    | Purple
-    | Pink
-    | Gradient  // Default: teal -> green -> orange
+    | Accent
+    | Success
+    | Error
+    | Gradient  // Default: Akzent -> Grün
     /// No accent line at all (ledger-w9skm): unlike the coloured variants above,
     /// this suppresses the decorative bar entirely instead of just recolouring
     /// it — needed for the mobile account cards, which must show no colour
@@ -91,12 +89,10 @@ let private bar (gradient: string) : string option =
 let accentBarClassName (accent: StatAccent) : string option =
     match accent with
     | NoAccent -> None
-    | Teal -> bar "from-neon-teal to-neon-teal"
-    | Green -> bar "from-neon-green to-neon-green"
-    | Orange -> bar "from-neon-orange to-neon-orange"
-    | Purple -> bar "from-neon-purple to-neon-purple"
-    | Pink -> bar "from-neon-pink to-neon-pink"
-    | Gradient -> bar "from-neon-teal via-neon-green to-neon-orange"
+    | Accent -> bar "from-accent to-accent"
+    | Success -> bar "from-success to-success"
+    | Error -> bar "from-error to-error"
+    | Gradient -> bar "from-accent to-success"
 
 let private sizeToClasses = function
     | Compact -> "p-3 md:p-4", "text-lg md:text-xl", $"{FontSizes.micro} md:text-xs"
@@ -108,7 +104,7 @@ let private trendView (trend: Trend) =
     | Neutral -> Html.none
     | Up pct ->
         Html.div [
-            prop.className "flex items-center gap-1 text-neon-green text-xs md:text-sm font-medium"
+            prop.className "flex items-center gap-1 text-success text-xs md:text-sm font-medium"
             prop.children [
                 Svg.svg [
                     svg.className "w-3 h-3 md:w-4 md:h-4"
@@ -129,7 +125,7 @@ let private trendView (trend: Trend) =
         ]
     | Down pct ->
         Html.div [
-            prop.className "flex items-center gap-1 text-neon-red text-xs md:text-sm font-medium"
+            prop.className "flex items-center gap-1 text-error text-xs md:text-sm font-medium"
             prop.children [
                 Svg.svg [
                     svg.className "w-3 h-3 md:w-4 md:h-4"
@@ -158,7 +154,7 @@ let view (props: StatProps) =
         | Some _ -> "cursor-pointer hover:scale-[1.02]"
         | None -> ""
     let activeClass =
-        if props.IsActive then "ring-2 ring-neon-teal ring-offset-2 ring-offset-surface-card"
+        if props.IsActive then "ring-2 ring-accent ring-offset-2 ring-offset-surface-card"
         else ""
 
     Html.div [
@@ -308,19 +304,19 @@ let transactionCount count =
 let syncCount count =
     withIcon "Syncs" (string count) (Icons.sync MD Default)
 
-/// Money stat (positive = green accent, negative = red-ish)
+/// Money stat (positiv Grün, negativ Rot: Minus, ADR 0087)
 let moneyStat label (amount: decimal) currency =
     let formatted = sprintf "%+.2f %s" amount currency
-    let accent = if amount >= 0m then Green else Pink
+    let accent = if amount >= 0m then Success else Error
     withAccent label formatted accent
 
-/// Category stat (purple accent)
+/// Category stat
 let categoryStat label count =
     view {
         defaultProps with
             Label = label
             Value = string count
-            Accent = Purple
+            Accent = Accent
             Icon = Some (Icons.rules MD Default)
     }
 
@@ -345,7 +341,7 @@ type MonthBar = {
     AmountText: string
     /// Höhe in Prozent des größten Balkens, 0 bis 100.
     Percent: int
-    /// Der laufende Monat: neutral gestrichelt, darunter "läuft". Teal bleibt für Ausgewähltes (ADR 0075).
+    /// Der laufende Monat: neutral gestrichelt, darunter "läuft". Der Akzent bleibt für Ausgewähltes (ADR 0087).
     Running: bool
 }
 
@@ -503,7 +499,7 @@ let monthBarsPlaceholder (count: int) =
 
 /// Der Ton eines Mini-Balkens.
 type SparkTone =
-    /// Über dem Target: orange.
+    /// Über dem Target: Gelb, braucht dich (ADR 0087).
     | SparkOver
     /// Gezählt, nicht darüber: gedämpft.
     | SparkWithin
@@ -521,7 +517,7 @@ type SparkBar = {
 
 let private sparkToneClass (tone: SparkTone) =
     match tone with
-    | SparkOver -> "bg-neon-orange"
+    | SparkOver -> "bg-attention"
     | SparkWithin -> "bg-text-muted/45"
     | SparkMuted -> "bg-text-muted/15"
 

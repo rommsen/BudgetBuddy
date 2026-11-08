@@ -1,5 +1,5 @@
 /// Umschalter zwischen Ansichten derselben Sache (budgeting-c5w2n, erster Nutzer: der Tab Geld).
-/// Knöpfe mit `aria-pressed`, aktiv teal (ADR 0075), 48 px. Anders als `Tabs` nimmt er keine
+/// Knöpfe mit `aria-pressed`, aktiv im Akzent (ADR 0087), 48 px. Anders als `Tabs` nimmt er keine
 /// Pfeiltasten: zwei Tab-Leisten übereinander stören sich.
 module Client.DesignSystem.Segmented
 
@@ -19,7 +19,7 @@ let segmentClass (isActive: bool) (disabled: bool) : string =
     let baseClasses =
         $"inline-flex items-center justify-center {TouchTargets.alwaysMinHeight} px-2 rounded-md text-sm font-semibold touch-manipulation transition-colors"
     let color =
-        if isActive then $"{Backgrounds.tealSubtle} {Colors.neonTeal}"
+        if isActive then $"{Backgrounds.accentSubtle} {Colors.accent}"
         elif disabled then Colors.textSecondary
         else $"{Colors.textSecondary} hover:text-text-primary"
     let cursor = if disabled then "opacity-50 cursor-not-allowed" else "cursor-pointer"

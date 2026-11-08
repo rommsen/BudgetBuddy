@@ -399,7 +399,7 @@ let filterChipLabel (filter: CategoryFilter) (groups: BudgetGroup list) : string
     | OverdrawnOnly -> $"Überzogen ({filterCount OverdrawnOnly groups})"
 
 /// Was `‹ Monat ›` zeigt: das Ziel jedes Pfeils (am Rand keins) und ob ein anderer als der laufende
-/// Monat gezeigt wird (dann ist der Name teal und führt zurück).
+/// Monat gezeigt wird (dann trägt der Name den Akzent und führt zurück).
 type MonthStepper =
     { Previous: string option
       Next: string option

@@ -23,8 +23,8 @@ let private tests =
             test "negativ: text-primary, kein Rot, kein Glow" {
                 let cls = Money.listAmountClass -48.12m
                 Expect.isTrue (has Colors.textPrimary cls) cls
-                Expect.isFalse (cls.Contains "neon-red") cls
-                Expect.isFalse (cls.Contains "neon-green") cls
+                Expect.isFalse (cls.Contains "error") cls
+                Expect.isFalse (cls.Contains "success") cls
                 Expect.isFalse (cls.Contains "text-shadow") cls
             }
             test "null: text-primary" {
@@ -32,12 +32,13 @@ let private tests =
                 Expect.isTrue (has Colors.textPrimary cls) cls
                 Expect.isFalse (cls.Contains "neon-") cls
             }
-            test "positiv: Teal, weder Grün noch Glow noch text-primary" {
+            // ADR 0087 Punkt 2: der Akzent heißt Hauptaktion und Auswahl, ein Eingang ist neutral wie im Prototyp.
+            test "positiv: text-primary, weder Akzent noch Grün noch Glow" {
                 let cls = Money.listAmountClass 4000m
-                Expect.isTrue (has "text-neon-teal" cls) cls
-                Expect.isFalse (cls.Contains "neon-green") cls
+                Expect.isTrue (has Colors.textPrimary cls) cls
+                Expect.isFalse (has Colors.accent cls) cls
+                Expect.isFalse (cls.Contains "success") cls
                 Expect.isFalse (cls.Contains "text-shadow") cls
-                Expect.isFalse (has Colors.textPrimary cls) cls
             }
             test "Mono, Gewicht 500, tabular-nums, Primär-Größe" {
                 let cls = Money.listAmountClass -1m
@@ -50,7 +51,7 @@ let private tests =
         // budgeting-v6m3z: Ein Monat mit Erstattungsüberschuss ist kein Problem, Rot heißt auf der
         // Budget-Seite "im Minus" (ADR 0075). Der Balkenbetrag kennt deshalb nur eine Farbe.
         // budgeting-v6m3z, budgeting-r3wq8: der Betrag einer Bewegung ist neutral, das Vorzeichen sagt die
-        // Richtung. Schrift wie `listAmountClass` eines nicht positiven Betrags, ohne Teal.
+        // Richtung. Schrift wie `listAmountClass`, ohne Akzent.
         testList "Money.signedListAmountClass" [
             test "Eine Bewegung ist immer text-primary, ohne Teal und ohne Leuchtfarbe, Schrift wie ein Listenbetrag" {
                 let cls = Money.signedListAmountClass
@@ -84,8 +85,8 @@ let private tests =
             test "positiver Saldo ist nicht mehr grün" {
                 for isActive in [ true; false ] do
                     let cls = Money.accountBalanceClass isActive 1250.40m
-                    Expect.isFalse (cls.Contains "neon-green") cls
-                    Expect.isFalse (cls.Contains "neon-red") cls
+                    Expect.isFalse (cls.Contains "success") cls
+                    Expect.isFalse (cls.Contains "error") cls
             }
             test "aktiv text-primary, inaktiv text-secondary" {
                 Expect.isTrue (has Colors.textPrimary (Money.accountBalanceClass true 10m)) "aktiv"
@@ -94,7 +95,7 @@ let private tests =
             test "negativer Saldo ist Red, aktiv wie inaktiv" {
                 for isActive in [ true; false ] do
                     let cls = Money.accountBalanceClass isActive -173.28m
-                    Expect.isTrue (has Colors.neonRed cls) cls
+                    Expect.isTrue (has Colors.error cls) cls
                     Expect.isFalse (has Colors.textPrimary cls) cls
             }
         ]
@@ -148,7 +149,8 @@ let private tests =
                 let cls = Table.amountCellClass -5m
                 Expect.isTrue (has "text-right" cls) cls
                 Expect.isTrue (cls.Contains (Money.listAmountClass -5m)) cls
-                Expect.isTrue (Table.amountCellClass 5m |> has "text-neon-teal") "positiv Teal"
+                Expect.isTrue (Table.amountCellClass 5m |> has Colors.textPrimary) "positiv neutral"
+                Expect.isFalse (Table.amountCellClass 5m |> has Colors.accent) "positiv ohne Akzent"
             }
             test "Kopfzelle: Mono 600 10px, gesperrt, text-muted, Höhe 42px" {
                 let cls = Table.calmHeaderClass (Some "right")
@@ -161,13 +163,13 @@ let private tests =
         ]
 
         testList "Statuskante" [
-            test "Table.rowClass mit StatusEdge: 3px-Kante in Pink als inset-Schatten, keine Spalte" {
+            test "Table.rowClass mit StatusEdge: 3px-Kante in Gelb als inset-Schatten, keine Spalte" {
                 let on = Table.rowClass { Table.defaultRowProps with StatusEdge = true }
                 let off = Table.rowClass Table.defaultRowProps
                 Expect.isTrue (on.Contains ListRoles.statusEdge) on
                 Expect.isFalse (off.Contains ListRoles.statusEdge) off
                 Expect.isTrue (ListRoles.statusEdge.Contains "inset_3px_0_0_0") ListRoles.statusEdge
-                Expect.isTrue (ListRoles.statusEdge.Contains "neon-pink") ListRoles.statusEdge
+                Expect.isTrue (ListRoles.statusEdge.Contains "var(--color-attention)") ListRoles.statusEdge
             }
         ]
 
@@ -197,7 +199,7 @@ let private tests =
             }
             test "PageHeader Gradient und Standard bleiben unverändert" {
                 Expect.equal (PageHeader.titleClass PageHeader.Gradient)
-                    "text-2xl md:text-4xl font-bold font-display bg-gradient-to-br from-neon-teal to-neon-green bg-clip-text text-transparent" "Gradient"
+                    "text-2xl md:text-4xl font-bold font-display bg-gradient-to-br from-accent to-success bg-clip-text text-transparent" "Gradient"
                 Expect.equal (PageHeader.titleClass PageHeader.Standard)
                     "text-2xl md:text-4xl font-bold font-display text-text-primary" "Standard"
             }

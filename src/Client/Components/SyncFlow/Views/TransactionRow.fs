@@ -39,7 +39,7 @@ let getRowStateClasses (tx: SyncTransaction) =
             | _ -> "tx-row status-attention"
 
 /// Kategorie-Chip (ADR 0049): leise und neutral, nur "ohne Kategorie" ist ein offener
-/// Fall und bleibt Orange. Die Zeile meldet ihren Zustand über die Statuskante.
+/// Fall und ist Gelb (ADR 0087). Die Zeile meldet ihren Zustand über die Statuskante.
 let getCategoryBadgeClass (tx: SyncTransaction) =
     if tx.Status = Skipped then
         "tx-category badge-neutral"
@@ -48,7 +48,7 @@ let getCategoryBadgeClass (tx: SyncTransaction) =
         | ConfirmedDuplicate (_, _) | PossibleDuplicate (_, _) -> "tx-category badge-duplicate"
         | NotDuplicate _ ->
             // A split transaction is a completed/ready state (it has no single
-            // category), so it gets the ready badge — not the orange "attention"
+            // category), so it gets the ready badge — not the yellow "attention"
             // badge that an uncategorized transaction shows (ynab-004).
             match tx.Splits with
             | Some splits when not (List.isEmpty splits) -> "tx-category badge-neutral"
@@ -241,7 +241,7 @@ let transactionRow (props: TransactionRowProps) =
     let pendingCategorySaveIndicator =
         if isPendingCategorySave then
             Html.span [
-                prop.className "ml-1 text-xs text-neon-orange animate-pulse"
+                prop.className "ml-1 text-xs text-accent animate-pulse"
                 prop.title "Kategorie wird gespeichert..."
                 prop.text "\u25CF"
             ]
@@ -296,7 +296,7 @@ let transactionRow (props: TransactionRowProps) =
                                     Html.text categoryDisplayText
                                     if hasOrderIdSuggestion then
                                         Html.span [
-                                            prop.className "ml-1 text-neon-purple"
+                                            prop.className "ml-1 text-accent"
                                             prop.text "\u2606"
                                         ]
                                     pendingCategorySaveIndicator
@@ -307,12 +307,7 @@ let transactionRow (props: TransactionRowProps) =
                             // (ynab-sync-d9e51). Nur bei gesetzter Rückfrage, sonst bleibt die
                             // ruhige Liste (ADR 0049) unverändert.
                             if tx.AskLena then
-                                Badge.view {
-                                    Badge.defaultProps with
-                                        Text = "Rückfrage Lena"
-                                        Variant = Badge.Purple
-                                        Size = Badge.Small
-                                }
+                                Badge.lenaMark "Rückfrage Lena"
 
                             if shouldShowCreateRule then
                                 Html.button [
@@ -495,7 +490,7 @@ let transactionRow (props: TransactionRowProps) =
                                                                 e.stopPropagation()
                                                                 dispatch ForceImportDuplicates)
                                                             prop.children [
-                                                                Icons.sync Icons.XS Icons.NeonTeal
+                                                                Icons.sync Icons.XS Icons.Accent
                                                                 Html.span [ prop.text "Erneut importieren" ]
                                                             ]
                                                         ]

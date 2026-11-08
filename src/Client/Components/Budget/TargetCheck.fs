@@ -127,7 +127,7 @@ let private rowOf (data: TargetCheckData) (categoryId: System.Guid) : TargetChec
     |> List.tryFind (fun c -> c.CategoryId = categoryId)
     |> Option.map (targetCheckRow data.Today)
 
-/// Die Zähler im Kopf: Zeilen außerhalb von "Passt" (Hinweise, orange) und in "Passt" (teal).
+/// Die Zähler im Kopf: Zeilen außerhalb von "Passt" (Hinweise, Gelb) und in "Passt" (Grün).
 type CheckCounts = { Hints: int; Fits: int }
 
 let checkCounts (groups: (CheckGroup * TargetCheckRow list) list) : CheckCounts =

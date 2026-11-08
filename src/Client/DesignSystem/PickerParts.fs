@@ -35,12 +35,12 @@ let applyLabel (selectedCount: int) : string =
 
 /// Übernehmen: kompakter Primärknopf ohne Glow, einzeilig
 let applyButtonClass =
-    $"inline-flex items-center justify-center whitespace-nowrap rounded-lg px-4 py-2 {TouchTargets.mobileMinHeight} md:min-h-[36px] text-sm font-semibold text-white bg-neon-orange transition-colors hover:brightness-110 active:scale-[0.98]"
+    $"inline-flex items-center justify-center whitespace-nowrap rounded-lg px-4 py-2 {TouchTargets.mobileMinHeight} md:min-h-[36px] text-sm font-semibold text-on-accent bg-accent transition-colors hover:brightness-110 active:scale-[0.98]"
 
 /// Übernehmen gesperrt (zum Beispiel bei ungültigem Datum): gedämpft, ohne Hover und
 /// ohne Druckeffekt
 let applyButtonDisabledClass =
-    $"inline-flex items-center justify-center whitespace-nowrap rounded-lg px-4 py-2 {TouchTargets.mobileMinHeight} md:min-h-[36px] text-sm font-semibold text-white bg-neon-orange opacity-50 cursor-not-allowed"
+    $"inline-flex items-center justify-center whitespace-nowrap rounded-lg px-4 py-2 {TouchTargets.mobileMinHeight} md:min-h-[36px] text-sm font-semibold text-on-accent bg-accent opacity-50 cursor-not-allowed"
 
 /// Klasse des Übernehmen-Knopfs je Zustand
 let applyButtonClassFor (disabled: bool) : string =

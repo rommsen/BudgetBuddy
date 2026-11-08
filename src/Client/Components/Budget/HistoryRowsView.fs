@@ -9,16 +9,16 @@ open Components.Budget.Inspector
 open Client.DesignSystem
 open Client.DesignSystem.Tokens
 
-/// Der Stand einer Bewegung: "geschrieben" schlicht, alle Badges klein (ADR 0075: Gelb statt Pink auf
-/// der Budget-Seite).
+/// Der Stand einer Bewegung: "geschrieben" schlicht, alle Badges klein (ADR 0087: Gelb heißt
+/// braucht dich, auf jeder Seite).
 let historyStatusView (status: HistoryStatus) =
     let text = historyStatusText status
     match status with
     | HistoryWritten -> Html.span [ prop.className ListRoles.muted; prop.text text ]
     | HistoryFailed _ -> Badge.errorSmall text
     | HistoryChangedInYnab
-    // Gelb wie "offen, kein Fehler" (ADR 0075): das Target steht, nur das Datum fehlt (budgeting-g2ty9, X7).
-    | HistoryPartlyWritten _ -> Badge.noticeSmall text
+    // Gelb: braucht dich, kein Fehler (ADR 0087): das Target steht, nur das Datum fehlt (budgeting-g2ty9, X7).
+    | HistoryPartlyWritten _ -> Badge.warningSmall text
     | HistoryOpen
     | HistoryReplacedInBb
     | HistoryWithdrawnInBb -> Badge.neutralSmall text
