@@ -57,12 +57,12 @@ in `Tokens.fs` (Module `Colors`, `Backgrounds`, `Borders`, `Glows`).
 
 | Farbe | Bedeutung | Token |
 |-------|-----------|-------|
-| **Akzent** `#28d6df` | Hauptaktion (gefüllter Knopf, Text darauf `bg-app`) und Auswahl/Navigation (Kante, Strich, Fläche) | `--color-accent`, `Colors.accent`, `Backgrounds.accent`, `Borders.accent`, `Colors.onAccent` (`--color-on-accent` = `bg-app`) |
+| **Akzent** `#28d6df` | Hauptaktion (gefüllter Knopf, Text darauf `bg-app`), Auswahl/Navigation (Kante, Strich, Fläche), Textlinks, Fokusring und die Marke (Schriftzug „Buddy“, Rand des Logos) | `--color-accent`, `Colors.accent`, `Backgrounds.accent`, `Borders.accent`, `Colors.onAccent` (`--color-on-accent` = `bg-app`) |
 | **Gelb** `#cdb27a` | braucht dich, kein Fehler: zu prüfen, fehlt, ohne Kategorie, unsicheres Duplikat, offene Aufgabe, über dem Target. Immer mit Wort daneben | `--color-attention`, `Colors.attention`, `ListRoles.missing`, `ListRoles.statusEdge` |
 | **Rot** `#fd4f75` | Fehler und Minus | `--color-error`, `Colors.error`, `Borders.error` |
 | **Grün** `#5be479` | gelungen: Rückmeldung, alles erledigt | `--color-success`, `Colors.success`, `Glows.success` |
 | **Blau** `#7ab8ff` | Hinweis | `--color-info`, `Colors.info` |
-| **border-strong** `#6a6c86` | Rand, der ein Bedienelement erkennbar macht (Eingabefeld, Auswahlfeld, Knopf ohne Füllung), und Fokusring | `--color-border-strong`, `Borders.strong` |
+| **border-strong** `#6a6c86` | Rand, der ein Bedienelement erkennbar macht (Eingabefeld, Auswahlfeld, Knopf ohne Füllung) | `--color-border-strong`, `Borders.strong` |
 | **Flag-Farbe** | die Farbe aus `lena_flag_color`, nur im Flag-Symbol und immer mit dem Namen „Lena“ | `--color-flag-*`, `Icons.LenaFlag`, `Badge.lenaMark`, `Badge.lenaFlagScope` (setzt `data-lena-flag` auf einem Vorfahren) |
 
 Flächen (`bg-*`), Textstufen (`text-*`), `border` und `border-subtle` bleiben neutral. Orange, Pink,
@@ -83,7 +83,9 @@ Text auf dem Akzent mindestens 4,5:1. Ein neuer Farbwert, der das unterschreitet
 - Sekundär/Abbrechen: neutral mit Rand `border-strong` (`Button.secondary`), auch im Hover.
 - Navigation und Ausgewähltes: Akzent als Kante, Strich oder Fläche (aktiver Nav-Punkt, aktiver Tab,
   gewählte Zeile).
-- Fokusring: `border-strong`, 2 px (`*:focus-visible` in `styles.css`), mindestens 3:1. Eingabefelder zeigen den Fokus mit einem Ring in `border-strong` um ihren Rand.
+- Fokusring: Akzent, 2 px (`*:focus-visible` in `styles.css`), wie im Prototyp. Eingabefelder zeigen den Fokus mit Rand im Akzent und einem Ring im Akzent mit 30 % Deckkraft (Roman, 2026-11-08).
+- Textlinks im Akzent: ein Link gilt als Navigation (Roman, 2026-11-08).
+- Die Marke (Schriftzug „Buddy“, Rand des Logos in der Navigation) steht im Akzent. Das ist die einzige Stelle, an der der Akzent nicht Aktion, Auswahl, Link oder Fokus heißt (Roman, 2026-11-08).
 - Löschen/Zerstörendes: Rot (`Button.danger`, `Modal.confirmDanger`).
 - Glow nur an der Hauptaktion und an Rückmeldungen.
 - Text-Tonwerte über `Colors.textPrimary/Secondary/Muted`, nicht über Rollenfarben.

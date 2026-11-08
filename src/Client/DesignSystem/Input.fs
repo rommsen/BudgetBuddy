@@ -833,7 +833,7 @@ let SearchableSelect (props: SearchableSelectProps) =
                                 Html.input [
                                     prop.ref inputRef
                                     prop.type' "text"
-                                    prop.className $"w-full bg-surface-card text-text-primary border border-border-strong rounded-md px-3 py-2 min-h-[36px] focus:ring-2 focus:ring-border-strong focus:outline-none focus-visible:outline-none placeholder:text-text-muted/70 {searchFieldTextClass}"
+                                    prop.className $"w-full bg-surface-card text-text-primary border border-border-strong rounded-md px-3 py-2 min-h-[36px] focus:ring-2 focus:ring-accent focus:outline-none focus-visible:outline-none placeholder:text-text-muted/70 {searchFieldTextClass}"
                                     prop.placeholder searchPlaceholderText
                                     prop.value searchText
                                     prop.autoFocus true

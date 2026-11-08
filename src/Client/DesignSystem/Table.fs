@@ -418,7 +418,7 @@ let calmSortableHeaderCell (text: string) (align: string option) (direction: Sor
                 prop.className (
                     "inline-flex items-center gap-1 uppercase cursor-pointer select-none "
                     + "hover:text-text-secondary transition-colors focus-visible:outline focus-visible:outline-1 "
-                    + "focus-visible:outline-border-strong rounded-sm "
+                    + "focus-visible:outline-accent rounded-sm "
                     + (if direction = Unsorted then "" else "text-text-secondary")
                 )
                 prop.onClick (fun _ -> onSort ())

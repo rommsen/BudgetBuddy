@@ -141,7 +141,7 @@ let private colorSection =
                 ]
                 row [
                     Html.input [ prop.className "input-field max-w-xs"; prop.placeholder "Suchen…"; prop.ariaLabel "Beispielfeld" ]
-                    caption "Eingabefeld: Rand border-strong, Fokusring border-strong"
+                    caption "Eingabefeld: Rand border-strong, Fokusring im Akzent"
                 ]
             ]
         ]

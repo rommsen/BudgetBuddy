@@ -5,7 +5,7 @@
 // Jeder `--color-*` aus `@theme` steht in genau einer Klasse (CLASSES unten), sonst ist der Lauf rot:
 //   - Fläche (`--color-surface-*`): Hintergrund, gegen den alle anderen Klassen geprüft werden,
 //   - Text/Rolle (`--color-text-*` und die Rollenfarben): mindestens 4,5:1 gegen jede Fläche,
-//   - Rand (border-strong, Rand eines Bedienelements, Fokusring): mindestens 3:1 gegen jede Fläche,
+//   - Rand (border-strong, Rand eines Bedienelements): mindestens 3:1 gegen jede Fläche,
 //   - Flag (`--color-flag-*`, nur im Flag-Symbol, ADR 0087 Punkt 8): mindestens 3:1 wie ein Bedienelement,
 //   - bewusst ausgenommen, je Token mit Grund.
 // Dazu: der Text auf dem Akzent (`on-accent`, also bg-app) hat mindestens 4,5:1 auf dem Akzent, und jeder
@@ -140,7 +140,7 @@ const CLASSES = {
       "--color-info": "Hinweis",
     },
   },
-  rand: { tokens: { "--color-border-strong": "Rand eines Bedienelements und Fokusring (WCAG 1.4.11)" } },
+  rand: { tokens: { "--color-border-strong": "Rand eines Bedienelements (WCAG 1.4.11)" } },
   flag: { prefix: "--color-flag-" },
   ausgenommen: {
     tokens: {

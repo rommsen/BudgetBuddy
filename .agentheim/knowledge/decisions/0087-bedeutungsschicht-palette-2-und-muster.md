@@ -95,3 +95,9 @@ Kassenbuch, Gelb nur im Budget. Am Handy liegen im Kassenbuch zwei seitlich wisc
 ### Neutral
 - Die Umsetzung der Orte und Abläufe (Punkte 9 bis 14) und der Muster in bestehenden Seiten gehört zu
   Etappe 3; Etappe 1 legt sie in Tokens und Styleguide fest.
+
+## Nachtrag 2026-11-08: Fokusring, Links und Marke (Roman, nach design-system-dak16)
+- Punkt 5 geändert: Der Fokusring ist Akzent wie im Prototyp, nicht `border-strong`. `border-strong` bleibt der Rand, der ein Bedienelement erkennbar macht.
+- Punkt 2 ergänzt: Textlinks stehen im Akzent, ein Link gilt als Navigation.
+- Punkt 2 ergänzt: Die Marke (Schriftzug „Buddy“, Rand des Logos) steht im Akzent; das ist die einzige dekorative Verwendung.
+- Bestätigt: Eine Buchung, deren Push zu YNAB gescheitert ist, bleibt Gelb mit „Erneut senden“ (braucht dich, kein Datenverlust).

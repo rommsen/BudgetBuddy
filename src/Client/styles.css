@@ -239,39 +239,39 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Focus-visible for keyboard navigation */
 *:focus-visible {
-  outline: 2px solid var(--border-strong);
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
 
 /* Button focus */
 .btn:focus-visible {
-  outline: 2px solid var(--border-strong);
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
-  box-shadow: 0 0 0 4px var(--border-strong);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-accent) 30%, transparent);
 }
 
 /* Link focus */
 a:focus-visible {
-  outline: 2px solid var(--border-strong);
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
 
 /* Input focus - keep existing styles, enhance for keyboard */
 .input-field:focus-visible,
 .select-field:focus-visible {
-  border-color: var(--border-strong);
-  box-shadow: 0 0 0 3px var(--border-strong);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 30%, transparent);
 }
 
 /* Card focus */
 .card:focus-visible {
-  outline: 2px solid var(--border-strong);
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
 
 /* Nav item focus */
 nav a:focus-visible {
-  outline: 2px solid var(--border-strong);
+  outline: 2px solid var(--color-accent);
   outline-offset: -2px;
   border-radius: 0.5rem;
 }
@@ -765,8 +765,8 @@ nav a:focus-visible {
               box-shadow var(--duration-fast) ease;
 }
 .input-field:focus {
-  border-color: var(--border-strong);
-  box-shadow: 0 0 0 2px var(--border-strong);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 30%, transparent);
   outline: none;
 }
 .input-field::placeholder {
@@ -803,8 +803,8 @@ nav a:focus-visible {
   cursor: pointer;
 }
 .select-field:focus {
-  border-color: var(--border-strong);
-  box-shadow: 0 0 0 2px var(--border-strong);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 30%, transparent);
   outline: none;
 }
 .select-field:disabled {
@@ -1943,7 +1943,7 @@ nav a:focus-visible {
 /* Ein Fokusrand: der Rand wird Akzent, der globale focus-visible-Ring entfällt */
 .sheet-search input:focus,
 .sheet-search input:focus-visible {
-  border-color: var(--border-strong);
+  border-color: var(--color-accent);
   outline: none;
   box-shadow: none;
 }
@@ -2256,7 +2256,7 @@ nav a:focus-visible {
   transition: border-color 150ms ease;
 }
 .pattern-input:focus {
-  border-color: var(--border-strong);
+  border-color: var(--color-accent);
   outline: none;
 }
 .pattern-input::placeholder {
@@ -2274,7 +2274,7 @@ nav a:focus-visible {
   transition: border-color 150ms ease;
 }
 .rule-name-input:focus {
-  border-color: var(--border-strong);
+  border-color: var(--color-accent);
   outline: none;
 }
 .rule-name-input::placeholder {
@@ -2435,7 +2435,7 @@ nav a:focus-visible {
   font-family: var(--font-sans);
 }
 .rule-select:focus {
-  border-color: var(--border-strong);
+  border-color: var(--color-accent);
   outline: none;
 }
 
@@ -2501,7 +2501,7 @@ nav a:focus-visible {
   padding: 8px 12px !important;
 }
 .tx-payee-edit input:focus {
-  border-color: var(--border-strong) !important;
+  border-color: var(--color-accent) !important;
 }
 .tx-payee-edit input::placeholder {
   color: var(--sf-text-muted) !important;
@@ -2682,7 +2682,7 @@ nav a:focus-visible {
   padding: 4px 0;
   transition: border-color var(--sf-duration-fast) ease;
 }
-.qa-amount:focus { border-color: var(--border-strong); outline: none; }
+.qa-amount:focus { border-color: var(--color-accent); outline: none; }
 .qa-amount::placeholder { color: var(--sf-text-muted); }
 .qa-currency {
   font-family: var(--font-mono);
@@ -2716,7 +2716,7 @@ nav a:focus-visible {
   color: var(--sf-text-primary);
   transition: border-color var(--sf-duration-fast) ease;
 }
-.qa-input:focus, .qa-select:focus { border-color: var(--border-strong); outline: none; }
+.qa-input:focus, .qa-select:focus { border-color: var(--color-accent); outline: none; }
 .qa-input::placeholder { color: var(--sf-text-muted); }
 .qa-select { appearance: none; -webkit-appearance: none; }
 
