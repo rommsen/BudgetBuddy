@@ -10,14 +10,15 @@ Catalog of this bounded context's tasks by status.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 3
-- **Todo:** 2
+- **Backlog:** 2
+- **Todo:** 3
 - **Doing:** 0
 - **Done:** 61
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **budgeting-e2z7v** — "Rückweg-Aktion \"Targets nach YNAB zurückschreiben\": BBs Targets bewusst als Goals nach YNAB schreiben, soweit darstellbar, und listen, was YNAB nicht darstellen kann" (feature) — `todo/budgeting-e2z7v-r-ckweg-aktion-targets-nach-ynab-zur-ckschreiben-bbs-targets.md`
 - **budgeting-sn2sn** — "Kategorie deaktivieren und eigene Reihenfolge, beides nur in BB (ADR 0088 Punkte 2 und 3)" (feature) — `todo/budgeting-sn2sn-kategorie-deaktivieren-und-reihenfolge.md`
 - **budgeting-pscgb** — "Kategorien verwalten: Seite mit Anlegen, Umbenennen und Gruppe wechseln, Gruppen anlegen und umbenennen, Schreibweg nach YNAB" (feature) — `todo/budgeting-pscgb-kategorien-anlegen-umbenennen-gruppe.md`
 <!-- todo-list:end -->
@@ -98,7 +99,6 @@ prior-art matcher additionally checks `done-archive/` when present.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **budgeting-e2z7v** — "Rückweg-Aktion \"Targets nach YNAB zurückschreiben\": BBs Targets bewusst als Goals nach YNAB schreiben, soweit darstellbar, und listen, was YNAB nicht darstellen kann" (feature) — `backlog/budgeting-e2z7v-r-ckweg-aktion-targets-nach-ynab-zur-ckschreiben-bbs-targets.md`
 - **budgeting-h9c3w** — "Kann-Sammlung budgeting" (chore) — `backlog/budgeting-h9c3w-review-befunde-sammlung.md`
 - **budgeting-bk6tq** — "Spike: Ausgaben am Monatswechsel. Wann kommen Buchungen bei Comdirect und ING an (vorgemerkt, gebucht, welches Datum), und was heißt das für Auffüllen auf einen festen Betrag am Monatsersten?" (spike) — `backlog/budgeting-bk6tq-vortrag-ab-dem-ersten-tag.md`
 <!-- backlog-list:end -->

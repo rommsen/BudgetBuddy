@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-08 15:00 -- Modeling / Promoted: budgeting-e2z7v - "Rückweg-Aktion \"Targets nach YNAB zurückschreiben\": BBs Targets bewusst als Goals nach YNAB schreiben, soweit darstellbar, und listen, was YNAB nicht darstellen kann"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-08 15:00 -- Modeling / Refined: budgeting-e2z7v - Targets nach YNAB zurückschreiben
 
 **Type:** Modeling / Refine

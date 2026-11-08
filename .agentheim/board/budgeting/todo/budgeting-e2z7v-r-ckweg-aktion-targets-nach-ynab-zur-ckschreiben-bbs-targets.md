@@ -1,7 +1,7 @@
 ---
 id: budgeting-e2z7v
 title: "Rückweg-Aktion \"Targets nach YNAB zurückschreiben\": BBs Targets bewusst als Goals nach YNAB schreiben, soweit darstellbar, und listen, was YNAB nicht darstellen kann"
-status: backlog
+status: todo
 type: feature
 context: budgeting
 created: 2026-11-05
