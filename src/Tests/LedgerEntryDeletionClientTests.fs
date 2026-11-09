@@ -101,6 +101,15 @@ let deleteUpdateTests =
             Expect.isEmpty sent "nichts neu geladen"
             Expect.equal external (ShowToast ("Löschen nicht möglich: YNAB nicht erreichbar", ToastError)) "Toast mit Grund"
 
+        // Bug: nach dem Löschen blieb ein offenes Sheet "Betrag" stehen und sperrte die Liste.
+        testCase "nach dem Löschen ist auch das Sheet Betrag zu" <| fun () ->
+            let opened, _, _ = run (OpenAmountEdit (idOf 1)) (modelWith [ entryOf 1 ])
+            Expect.isSome opened.AmountEdit "Sheet offen"
+            let started = { opened with DeletingEntries = opened.DeletingEntries.Add (idOf 1) }
+            let model, _, _ = run (EntryDeleteFinished (idOf 1, Ok ())) started
+            Expect.isNone model.DetailFor "Detail zu"
+            Expect.isNone model.AmountEdit "Sheet Betrag zu"
+
         testCase "Rückgängig im Toast ruft das Wiederherstellen" <| fun () ->
             match State.toastActionMsg (UndoDeleteEntry (idOf 1)) with
             | State.LedgerMsg msg ->

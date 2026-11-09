@@ -322,6 +322,36 @@ let amountReducerTests =
             Expect.equal (rowOf 1 restored).Amount (eur -42.80m) "alter Betrag"
             Expect.equal external (ShowToast (amountRestoredToastText, ToastSuccess)) "Toast ohne Aktion"
 
+        // Bug: bei offenem Split-Editor setzte der Betrags-Knopf `AmountEdit`, ohne dass ein Dialog erschien;
+        // die Liste war gesperrt, nach dem Schließen des Editors sprang der Dialog auf, im Sheet ersetzte
+        // "Speichern" den Split-Entwurf.
+        testCase "bei offenem Split-Editor öffnet der Betrags-Knopf nichts" <| fun () ->
+            let opened, _, _ = run (OpenSplitEditor (idOf 1)) (modelWith [ splitEntry 1 ])
+            Expect.isSome opened.SplitEditor "Editor offen"
+            let model, msgs, external = run (OpenAmountEdit (idOf 1)) opened
+            Expect.equal model opened "Modell unverändert"
+            Expect.isEmpty msgs "kein Aufruf"
+            Expect.equal external NoOp "kein Toast"
+            Expect.isNone (Components.Ledger.View.amountEditMsg opened (splitEntry 1)) "Knopf ohne Nachricht"
+
+        // Bug: wird die Buchung gerade gelöscht, öffnete der Betrags-Knopf trotzdem das Sheet.
+        testCase "während des Löschens öffnet der Betrags-Knopf nichts" <| fun () ->
+            let deleting, _, _ = run (StartDeleteEntry (idOf 1)) (modelWith [ entryOf 1 ])
+            let model, _, _ = run (OpenAmountEdit (idOf 1)) deleting
+            Expect.isNone model.AmountEdit "kein Sheet"
+            Expect.isNone (Components.Ledger.View.amountEditMsg deleting (entryOf 1)) "Knopf ohne Nachricht"
+
+        // Bug: ein Doppeltipp auf "Rückgängig" schickte zwei Anfragen, auch neben einem laufenden Speichern.
+        testCase "Rückgängig schickt nichts, solange für die Buchung ein Aufruf läuft" <| fun () ->
+            let started, _, _ = run (StartUndoAmount (idOf 1, -42.80m)) (modelWith [ { entryOf 1 with Amount = eur -45m } ])
+            let again, msgs, external = run (StartUndoAmount (idOf 1, -42.80m)) started
+            Expect.equal again started "Modell unverändert"
+            Expect.isEmpty msgs "kein zweiter Aufruf"
+            Expect.equal external NoOp "kein Toast"
+            let saving, _, _ = run (StartSaveAmount (idOf 1)) (typed [ entryOf 1 ] "45")
+            let _, msgs2, _ = run (StartUndoAmount (idOf 1, -42.80m)) saving
+            Expect.isEmpty msgs2 "nicht neben laufendem Speichern"
+
         testCase "Erneut senden: Erfolg löscht den Fehlschlag, ein erneuter Fehlschlag ersetzt den Grund" <| fun () ->
             let failing = { entryOf 1 with AmountWriteBackFailure = Some "weg" }
             let started, msgs, _ = run (StartRetryAmount (idOf 1)) (modelWith [ failing ])

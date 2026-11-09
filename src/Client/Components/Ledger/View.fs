@@ -1487,11 +1487,11 @@ let detailReadOnly (entry: LedgerEntryView) : bool = entry.DeletedInYnab
 let detailDeleteVisible (entry: LedgerEntryView) : bool =
     not entry.DeletedInYnab && not entry.Reconciled && entry.LinkedToYnab
 
-/// Die Nachricht des Betrags-Knopfs im Kopf, oder `None`: gesperrt (`amountLockFor`) oder ein
-/// Aufruf läuft (ledger-m7mye, ADR 0092).
+/// Die Nachricht des Betrags-Knopfs im Kopf, oder `None`, wenn er nichts öffnen darf
+/// (`State.amountEditOpenable`, ledger-m7mye, ADR 0092).
 let amountEditMsg (model: Model) (entry: LedgerEntryView) : Msg option =
-    if (amountLockFor entry).IsSome || (model.AmountRows |> Map.tryFind entry.Id) = Some AmountSending then None
-    else Some (OpenAmountEdit entry.Id)
+    if Components.Ledger.State.amountEditOpenable model entry then Some (OpenAmountEdit entry.Id)
+    else None
 
 /// Der Kopf des Details: Betrag, "Konto · Datum", Schließen. Der Betrag ist ein Knopf, der das
 /// Sheet "Betrag" öffnet; gesperrt steht er ohne Pfeil, mit dem Grund darunter (ADR 0092).
@@ -1506,6 +1506,19 @@ let private detailHead (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntr
                 amountEditLabel
                 (fun () -> amountEditMsg model entry |> Option.iter dispatch)
     Detail.head amountElement (detailSubtitle (accountNameOf model entry) entry) onClose
+
+/// Der Kopf über dem Split-Editor: der Gesamtbetrag des Editors ohne Knopf. Kommt der Editor aus
+/// dem Sheet "Betrag", steht dort schon der neue Betrag (ledger-m7mye).
+let private splitEditorHead
+    (model: Model)
+    (entry: LedgerEntryView)
+    (editor: SplitLogic.SplitEditorState)
+    (onClose: (unit -> unit) option)
+    =
+    Detail.head
+        (Detail.amount editor.Total.Amount editor.Total.Currency (detailReadOnly entry))
+        (detailSubtitle (accountNameOf model entry) entry)
+        onClose
 
 /// Wo der Kategorie-Picker aufgeht: am PC als Popover im Panel, am Handy und in der
 /// Kompaktliste als zweites Sheet über dem Detail-Sheet (Tafel 4.2 und 4.10).
@@ -2145,7 +2158,7 @@ let private detailPanelView (dispatch: Msg -> unit) (model: Model) (entry: Ledge
         let saving = isSavingSplit model editor
         Detail.panel
             $"Aufteilen {payeeLabel entry}"
-            [ detailHead dispatch model entry (Some (fun () -> dispatch CloseDetail))
+            [ splitEditorHead model entry editor (Some (fun () -> dispatch CloseDetail))
               // Die Fußleiste steht im scrollenden Bereich, am unteren Rand haftend: bei wenigen Zeilen
               // folgt sie dem Inhalt, bei vielen bleibt sie sichtbar. Als eigene Zeile unter dem
               // Panel läge sie bei einer kurzen Liste unterhalb des Fensters.

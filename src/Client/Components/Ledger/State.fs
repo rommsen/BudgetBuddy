@@ -1063,6 +1063,20 @@ let capturedDiscardedText = "Buchung zurückgenommen"
 let entryDeletedText = "Buchung gelöscht, auch in YNAB"
 let entryRestoredText = "Buchung wiederhergestellt"
 
+/// Schließt das Detail samt allem, was daran hängt: Historie, Sheet "Notiz" und Sheet "Betrag".
+/// Jede Stelle, die das Detail schließt, geht hier durch, damit kein offenes Sheet stehen bleibt.
+let closeDetail (model: Model) : Model =
+    { model with DetailFor = None; History = NotAsked; MemoEdit = None; AmountEdit = None }
+
+/// Darf der Betrags-Knopf im Kopf das Sheet "Betrag" öffnen? Nicht bei gesperrtem Betrag, nicht
+/// solange ein Aufruf zum Betrag läuft, nicht bei offenem Split-Editor (der Kopf zeigt dort den
+/// Gesamtbetrag des Editors) und nicht, solange die Buchung gelöscht wird (ledger-m7mye).
+let amountEditOpenable (model: Model) (entry: LedgerEntryView) : bool =
+    (amountLockFor entry).IsNone
+    && (model.AmountRows |> Map.tryFind entry.Id) <> Some AmountSending
+    && model.SplitEditor.IsNone
+    && not (model.DeletingEntries.Contains entry.Id)
+
 let private showDetail (entry: LedgerEntryView) (model: Model) : Model * Cmd<Msg> =
     { model with DetailFor = Some entry; FocusedRow = Some entry.Id; History = Loading; MemoEdit = None; AmountEdit = None },
     Cmd.ofMsg (LoadHistory entry.Id)
@@ -1156,14 +1170,10 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         // einer Buchung, die gleich nicht mehr in der Liste steht. Die
         // Scroll-Position wird bewusst NICHT gemerkt (Task-Notes) — alle anderen
         // Zustaende (Kontostaende, Lauf-Status) bleiben unangetastet stehen.
-        { (resetEntries model) with
+        { closeDetail (resetEntries model) with
             SelectedFilter = Some filter
             RememberedFilter = Some filter
-            AccountSheetOpen = false
-            DetailFor = None
-            MemoEdit = None
-            AmountEdit = None
-            History = NotAsked },
+            AccountSheetOpen = false },
         Cmd.batch [ Cmd.ofMsg LoadEntries; Cmd.ofEffect (fun _ -> writeRememberedFilter filter) ],
         NoOp
 
@@ -1296,8 +1306,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             let model', cmd = showDetail entry model
             model', cmd, NoOp
 
-    | CloseDetail ->
-        { model with DetailFor = None; History = NotAsked; MemoEdit = None; AmountEdit = None }, Cmd.none, NoOp
+    | CloseDetail -> closeDetail model, Cmd.none, NoOp
 
     | DetailFormChanged form ->
         { model with DetailForm = form }, Cmd.none, NoOp
@@ -2313,9 +2322,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 
     | OpenAmountEdit entryId ->
         match findEntry model entryId with
-        | Some entry when model.DetailFor |> Option.exists (fun d -> d.Id = entryId)
-                          && (amountLockFor entry).IsNone
-                          && (model.AmountRows |> Map.tryFind entryId) <> Some AmountSending ->
+        | Some entry when model.DetailFor |> Option.exists (fun d -> d.Id = entryId) && amountEditOpenable model entry ->
             { model with
                 AmountEdit = Some (amountEditFor entry)
                 AmountRows = model.AmountRows |> Map.remove entryId
@@ -2399,9 +2406,13 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         ShowToast ($"Betrag nicht geändert: {message}", ToastError)
 
     | StartUndoAmount (entryId, previous) ->
-        { model with AmountRows = model.AmountRows |> Map.add entryId AmountSending },
-        Cmd.ofMsg (RunUndoAmount (entryId, previous)),
-        NoOp
+        // Ein zweiter Tipp auf "Rückgängig" schickt nichts, solange ein Aufruf zum Betrag läuft.
+        if (model.AmountRows |> Map.tryFind entryId) = Some AmountSending then
+            model, Cmd.none, NoOp
+        else
+            { model with AmountRows = model.AmountRows |> Map.add entryId AmountSending },
+            Cmd.ofMsg (RunUndoAmount (entryId, previous)),
+            NoOp
 
     | RunUndoAmount (entryId, previous) ->
         let cmd =
@@ -2501,12 +2512,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 match model.TransferTargets with
                 | Success _ | Loading -> Cmd.none
                 | _ -> Cmd.ofMsg RunLoadTransferTargets
-            { model with
+            { closeDetail model with
                 Capture = Some Capture.opening
-                DetailFor = None
-                History = NotAsked
-                MemoEdit = None
-                AmountEdit = None
                 CategoryPickerFor = None
                 CategorySuggestions = []
                 CategoryCard = None },
@@ -2680,8 +2687,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | CapturedDiscarded (entryId, Ok ()) ->
         let model = { model with DiscardingCaptured = model.DiscardingCaptured.Remove entryId }
         let model' =
-            if model.DetailFor |> Option.exists (fun d -> d.Id = entryId) then
-                { model with DetailFor = None; History = NotAsked; MemoEdit = None; AmountEdit = None }
+            if model.DetailFor |> Option.exists (fun d -> d.Id = entryId) then closeDetail model
             else
                 model
         model', Cmd.batch [ Cmd.ofMsg LoadEntries; Cmd.ofMsg LoadBalances ], ShowToast (capturedDiscardedText, ToastSuccess)
@@ -2712,8 +2718,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         // Nach Erfolg schließt das Detail, der Toast bietet "Rückgängig" (ADR 0092 Punkt 2).
         let model = { model with DeletingEntries = model.DeletingEntries.Remove entryId }
         let model' =
-            if model.DetailFor |> Option.exists (fun d -> d.Id = entryId) then
-                { model with DetailFor = None; History = NotAsked; MemoEdit = None }
+            if model.DetailFor |> Option.exists (fun d -> d.Id = entryId) then closeDetail model
             else
                 model
         model',
@@ -2978,7 +2983,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | RouteEntryLoaded _ -> model, Cmd.none, NoOp
 
     | LeaveRouteEntry leftFor ->
-        let left = { model with PendingRouteEntry = None; DetailFor = None; History = NotAsked; MemoEdit = None; AmountEdit = None }
+        let left = { closeDetail model with PendingRouteEntry = None }
         match leftFor with
         | LedgerList -> left, Cmd.none, NoOp
         // Ohne Filter zieht `resolveInitialFilter` beim nächsten Besuch die gemerkte Sicht.
@@ -3404,7 +3409,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         elif model.MemoEdit.IsSome then
             updateCore CancelMemoEdit model
         elif model.DetailFor.IsSome then
-            { model with DetailFor = None; History = NotAsked; MemoEdit = None; AmountEdit = None }, Cmd.none, NoOp
+            closeDetail model, Cmd.none, NoOp
         elif model.SelectionMode || hasSelection model then
             updateCore ClearSelection model
         else
@@ -3423,8 +3428,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         | _ -> model'
     let selectionBegan = not (hasSelection model) && hasSelection model'
     let model' =
-        if model'.DetailFor.IsSome && selectionBegan then
-            { model' with DetailFor = None; History = NotAsked; MemoEdit = None; AmountEdit = None }
+        if model'.DetailFor.IsSome && selectionBegan then closeDetail model'
         else
             model'
     // Eine neuere Eingabe überholt den Sprung: die späte Antwort der Route darf sie nicht überschreiben.
