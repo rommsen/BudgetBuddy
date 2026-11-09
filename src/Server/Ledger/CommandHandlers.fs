@@ -2574,6 +2574,11 @@ let loadEntryPushPlan (entry: Entry) : Async<Result<EntryPushPlan, string>> =
 /// `ImportIdMaxLength`, wird der Stamm von hinten gekürzt (Nachtrag 2026-11-09, ledger-m7k2d:
 /// Barbuchungen und erzwungene Importe tragen 35 Zeichen). Der gekürzte Stamm ist ein Präfix
 /// des ursprünglichen; kurze `import_id`s bleiben ungekürzt. Ohne `import_id` keine. Rein.
+/// Gekürzt werden die letzten Hex-Stellen einer Guid (EntryId v7 oder Zufalls-Guid), also ihr
+/// Zufallsteil; von 32 bleiben 30 (ab `:r10` 29), zwei Buchungen fallen praktisch nie zusammen.
+/// Ungefährlich nur, solange keine Comdirect-`import_id` (`generateImportId`, `BB:` plus
+/// Reference) gekürzt wird: `matchesImportId` braucht `BB:<Reference>` voll, das gilt für
+/// References bis 30 Zeichen (ab `:r10` 29).
 let replacementImportId (current: string option) : string option =
     current
     |> Option.map (fun id ->
