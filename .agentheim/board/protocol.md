@@ -5,6 +5,24 @@ Newest entries on top.
 
 ---
 
+## 2026-11-09 20:33 -- Modeling / Captured: ledger-m7mye - "Betrag einer Buchung im Detail bearbeiten, auch in YNAB"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Fahrplan-Zeile Etappe 2 als Ticket, Fragen für die Verfeinerung gesammelt.
+
+---
+
+## 2026-11-09 20:33 -- Modeling / Captured: ledger-z6sya - "Buchung löschen im Detail, auch in YNAB, mit Rückgängig"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Fahrplan-Zeile Etappe 2 als Ticket, Fragen für die Verfeinerung gesammelt.
+
+---
+
 ## 2026-11-09 20:32 -- Modeling / Promoted: ledger-m7k2d - "Split einer Barbuchung lässt sich nicht ändern: Ersatz-import_id wäre länger als 36 Zeichen"
 
 **Type:** Modeling / Promote

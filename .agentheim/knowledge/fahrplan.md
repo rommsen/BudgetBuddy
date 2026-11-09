@@ -69,8 +69,8 @@ Ziel: Nichts zwingt mehr zu YNAB außer Reports.
 - ✓ `ledger-qvjvs` Buchung zum Übertrag machen (Konten im Picker des Details, Schreibweg nach YNAB)
 - ✓ `ledger-p3vq8` Push gelungen, Verknüpfung nicht geschrieben
 - `ledger-nb4tv` ETF-Konto und Abgleich
-- Buchung löschen im Detail (auch in YNAB), mit Rückgängig.
-- Betrag einer Buchung bearbeiten im Detail (auch in YNAB). Heute geht das in BB nicht; im Prototyp
+- `ledger-z6sya` Buchung löschen im Detail (auch in YNAB), mit Rückgängig.
+- `ledger-m7mye` Betrag einer Buchung bearbeiten im Detail (auch in YNAB). Heute geht das in BB nicht; im Prototyp
   ab Version 15 (Roman, 2026-11-08).
 
 ## Etappe 3 · Ein Produkt
