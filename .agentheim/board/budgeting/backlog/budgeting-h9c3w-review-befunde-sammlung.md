@@ -132,3 +132,4 @@ Kaputt-Szenario (GIVEN/WHEN/THEN): GIVEN Wechsel hin und zurück, das Lesen des 
 - Deaktivieren prüft künftige Monate, die BB noch nicht übernommen hat, nicht; Filter im Kassenbuch und Bobs Kategorienliste bieten deaktivierte Kategorien weiter an bzw. nicht mehr an (aus budgeting-sn2sn).
 - Targets nach YNAB: ein vergangener Monat vergleicht Lücken gegen YNABs heutiges Goal; eine offene Entfernung zeigt "Kein Target" mit "Nicht in YNAB" ohne eigenen Satz; je Speichern ein `GET /categories` für alle Kategorien; der Bericht des einmaligen Laufs fehlt im Layout-Sweep (aus budgeting-e2z7v).
 - Am Handy hat der Kopf der Budget-Seite mit dem neuen ⋮ drei Symbol-Knöpfe; bei 390 px mit vierstelligem "Zu verteilen" prüfen, ob er in einer Zeile bleibt (Styleguide §7.3).
+- Pausieren und Zuweisen einer deaktivierten Kategorie sind nicht eigens getestet; sie laufen über das unveränderte `preparedMonth None`, getestet ist nur Verschieben (aus budgeting-t7dka).

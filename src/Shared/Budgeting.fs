@@ -183,6 +183,9 @@ type BudgetCategory = {
 let isPaused (c: BudgetCategory) : bool =
     c.Pause.IsSome
 
+/// Ist die Kategorie in BB deaktiviert und steht nur wegen Aktivität oder Verfügbarem im Monat?
+let isDeactivated (c: BudgetCategory) : bool = c.Deactivated = Some true
+
 /// Eine Kategoriegruppe mit ihren sichtbaren Kategorien. Vom Server in der ungeordneten Folge der
 /// Monatsantwort, die Seite ordnet sie mit `orderGroups`.
 type BudgetGroup = {
@@ -306,11 +309,12 @@ type TargetPreview = {
 
 /// Die Zeilen von Targets anwenden aus dem Monat: jede Kategorie mit Fehlbetrag über 0 und ohne pausiertes Target,
 /// neu = Soll + Fehlbetrag; pausierte mit Fehlbetrag über 0 stehen getrennt. Fehlbetrag 0 oder unbekannt fällt weg.
+/// Eine in BB deaktivierte Kategorie (`isDeactivated`) fällt ganz weg, auch aus den übersprungenen (budgeting-t7dka).
 /// Eine Quelle für die Vorschau des Servers und das Feld Targets anwenden der Leiste (budgeting-m3x7f).
 let targetApplicationLines (month: BudgetMonth) : TargetLine list * SkippedLine list =
     let lines, skipped =
         month.Groups
-        |> List.collect (fun g -> g.Categories |> List.map (fun c -> g.Name, c))
+        |> List.collect (fun g -> g.Categories |> List.filter (isDeactivated >> not) |> List.map (fun c -> g.Name, c))
         |> List.fold
             (fun (lines, skipped) (groupName, c) ->
                 match c.Underfunded with
@@ -1869,9 +1873,6 @@ let deactivationCheck (name: string) (available: Money) (futureAssigned: (string
     match availableReason @ futureReasons with
     | [] -> Ok ()
     | reasons -> Error (String.concat " " reasons)
-
-/// Ist die Kategorie in BB deaktiviert und steht nur wegen Aktivität oder Verfügbarem im Monat?
-let isDeactivated (c: BudgetCategory) : bool = c.Deactivated = Some true
 
 /// Die Budget-Liste eines Monats mit BBs Deaktivieren (ADR 0088 Punkt 2): eine deaktivierte Kategorie ohne
 /// Aktivität und ohne Verfügbares fehlt. Hat sie im Monat eines davon, bleibt sie mit `Deactivated = Some true`,

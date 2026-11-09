@@ -46,7 +46,7 @@ let writeBackOf (outcome: LineOutcome) : WriteBackOutcome =
 let recordResult (m: Movement) (at: System.DateTime) (outcome: LineOutcome) : unit =
     recordWriteBack m at (writeBackOf outcome) |> Async.RunSynchronously
 
-/// Eine eigene In-Memory-Datenbank mit `events`, getrennt von der gemeinsamen Testdatenbank: für Fälle, die
+/// Eine eigene In-Memory-Datenbank mit `events` und `budget_category_layout`, getrennt von der gemeinsamen Testdatenbank: für Fälle, die
 /// ein nicht lesbares Budget-Ereignis brauchen (es träfe sonst jeden Leser über den ganzen Kontext). Die
 /// erste Verbindung hält die Datenbank am Leben, `connect` liefert je Aufruf eine neue.
 let isolatedDb () : Microsoft.Data.Sqlite.SqliteConnection * (unit -> Microsoft.Data.Sqlite.SqliteConnection) =
@@ -54,6 +54,8 @@ let isolatedDb () : Microsoft.Data.Sqlite.SqliteConnection * (unit -> Microsoft.
     let anchor = new Microsoft.Data.Sqlite.SqliteConnection(connectionString)
     anchor.Open()
     EventStore.createSchemaOn anchor
+    // Wie beim Start (`initializeBudgetingSchema`): Targets anwenden liest BBs Deaktivieren (budgeting-t7dka).
+    Budgeting.Persistence.createCategoryLayoutSchemaOn anchor
     anchor, (fun () -> new Microsoft.Data.Sqlite.SqliteConnection(connectionString))
 
 /// Hängt ein Ereignis mit Typname `eventType` und leerer Payload `{}` an einen Budget-Stream. Für einen

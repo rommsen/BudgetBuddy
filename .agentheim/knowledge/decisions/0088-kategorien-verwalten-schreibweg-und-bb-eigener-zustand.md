@@ -6,7 +6,7 @@ status: accepted
 date: 2026-11-08
 supersedes: []
 superseded_by: []
-related_tasks: [budgeting-pscgb, budgeting-sn2sn]
+related_tasks: [budgeting-pscgb, budgeting-sn2sn, budgeting-t7dka]
 related_adrs: [0083, 0084, 0086]
 related_research: []
 ---
@@ -52,3 +52,6 @@ Entschieden von Roman am 2026-11-08.
 
 ## Nachtrag 2026-11-08, Deaktivieren umgesetzt (budgeting-sn2sn)
 Zu Punkt 2: Künftige Zuweisungen prüft BB über sein Soll in den übernommenen Monaten (Faltung aus `events`), nicht über weitere YNAB-Aufrufe; das Verfügbare des laufenden Monats kommt aus YNAB. Deaktiviert und in YNAB ausgeblendet bleiben getrennt: deaktivierte Kategorien fehlen im Picker ganz, ausgeblendete stehen weiter unter "Versteckt".
+
+## Nachtrag 2026-11-09, Targets anwenden (budgeting-t7dka)
+Zu Punkt 2: Targets anwenden lässt in BB deaktivierte Kategorien ganz weg, auch wenn sie im Monat wegen Aktivität oder Verfügbarem in der Liste stehen (Vorschau, Anwenden und das Feld der Leiste Monatserster, über `targetApplicationLines`). Ist BBs Deaktivieren-Zustand nicht lesbar, halten Vorschau und Anwenden an und es geht nichts nach YNAB; anders als die Budget-Seite gilt hier kein bestes Bemühen, weil es um Geld geht. Verschieben, Zuweisen und Pausieren bleiben unverändert.

@@ -144,6 +144,15 @@ let private fieldTests =
             Expect.equal (fields |> List.map (fun f -> f.Field)) [ CheckField; ApplyField; OverdrawnField; DistributeField ] "Reihenfolge"
             Expect.equal (fields |> List.map (fun f -> f.Value)) [ "1"; "980,00"; "2"; "1.650,00" ] "Werte aus Prüfung und Monat"
         }
+        test "Targets anwenden zählt eine in BB deaktivierte Kategorie mit Fehlbetrag nicht mit" {
+            // Regressionstest budgeting-t7dka: vorher zählte die Leiste den Fehlbetrag der deaktivierten Drogerie mit.
+            let month =
+                monthOf current 1650m
+                    [ category foodId "Lebensmittel" -24.1m (Some 900m)
+                      { category drugstoreId "Drogerie" -12.3m (Some 80m) with Deactivated = Some true } ]
+            let fields = monthStartBar (pageWith (frameAt current) month (checkData true)) |> Option.defaultValue []
+            Expect.equal (fields |> List.map (fun f -> f.Field, f.Value) |> List.find (fun (f, _) -> f = ApplyField)) (ApplyField, "900,00") "ohne Drogerie"
+        }
         test "Filter Überzogen und offene Vorschau machen ihr Feld aktiv" {
             let states model = monthStartBar model |> Option.defaultValue [] |> List.map (fun f -> f.State)
             Expect.equal (states { page with Filter = OverdrawnOnly }) [ FieldOpen; FieldOpen; FieldActive; FieldOpen ] "Überzogen"

@@ -57,7 +57,8 @@ let unassigned : AssignmentState = { Assigned = 0L; Confirmed = 0L; Open = None 
 /// mit Fehlbetrag größer 0 und ohne pausiertes Target; neu = Soll + Fehlbetrag. Der Fehlbetrag ist BBs,
 /// gerechnet gegen das Soll (`toBudgetMonthWith`, budgeting-hbhzf), deshalb gilt das auch bei offener
 /// Rückschreibung. Pausierte Kategorien mit Fehlbetrag
-/// größer 0 stehen getrennt in `Skipped`. Fehlbetrag 0 oder unbekannt fällt weg. Zu verteilen
+/// größer 0 stehen getrennt in `Skipped`. Fehlbetrag 0 oder unbekannt fällt weg, eine in BB deaktivierte
+/// Kategorie auch (`targetApplicationLines`, budgeting-t7dka). Zu verteilen
 /// danach darf negativ sein. Liegt ein Betrag nicht auf 10 Milliunits, lehnt die Funktion ab,
 /// weil YNAB sonst still rundet. Rein, ohne I/O.
 let planTargetApplication (month: BudgetMonth) : Result<TargetPreview, string> =

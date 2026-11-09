@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-09 07:46 -- Task verified and completed: budgeting-t7dka - "Targets anwenden übergeht in BB deaktivierte Kategorien"
+
+**Type:** Work / Task completion
+**Task:** budgeting-t7dka - "Targets anwenden übergeht in BB deaktivierte Kategorien"
+**Summary:** Targets anwenden lässt in BB deaktivierte Kategorien weg, Lesefehler des Zustands hält Vorschau und Anwenden auf
+**Duration:** 10h18m (Wanduhr inkl. Pause über Nacht)
+**Verification:** PASS (iteration 2)
+**Files changed:** 6
+**Tests added:** 5
+**ADRs written:** none (Nachtrag ADR 0088)
+
+---
+
+## 2026-11-09 07:37 -- Verification failed: budgeting-t7dka - Targets anwenden übergeht in BB deaktivierte Kategorien
+
+**Type:** Work / Verification failure
+**Task:** budgeting-t7dka - Targets anwenden übergeht in BB deaktivierte Kategorien
+**Iteration:** 1 of 3
+**Reasons:** README-Delta deckt die Invariante des Aggregats Anwendung nicht ab, Key command Beobachten prüfen
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-08 21:27 -- Batch started: [budgeting-t7dka]
 
 **Type:** Work / Batch start

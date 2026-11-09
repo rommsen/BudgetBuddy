@@ -473,6 +473,16 @@ let private preparedMonth
 // Vorschau
 // ============================================
 
+/// Die in BB deaktivierten Kategorien für Targets anwenden (budgeting-t7dka, ADR 0088 Punkt 2). Anders als die
+/// Budget-Seite (`deactivatedForPage`) ohne bestes Bemühen: ein leeres Set wiese deaktivierten Kategorien Geld zu,
+/// deshalb hält ein Lesefehler Vorschau und Anwenden auf.
+let private deactivatedForTargets (connect: unit -> SqliteConnection) : Async<Result<Set<Guid>, YnabError>> =
+    async {
+        match! Budgeting.Persistence.loadCategoryLayoutWith connect with
+        | Ok layout -> return Ok layout.Deactivated
+        | Error message -> return Error (YnabError.LocalReadFailed message)
+    }
+
 let private planOf (month: BudgetMonth) : Result<TargetPreview, YnabError> =
     match planTargetApplication month with
     | Ok preview -> Ok preview
@@ -483,7 +493,8 @@ let private planOf (month: BudgetMonth) : Result<TargetPreview, YnabError> =
 /// Speicher; die Vorschau schreibt nicht nach YNAB und hält höchstens die einmalige Target-Übernahme fest, wenn
 /// eine Kategorie des Monats noch darauf wartet (budgeting-eh8xe, Best-Effort wie das Lesen: `targetRulesBestEffort`). Liest über `connect`, `now` stempelt sie.
 /// Der Fehlbetrag ist BBs, die Ausgaben der Periode kommen aus `ledger` (budgeting-hbhzf); ist es nicht lesbar,
-/// kommt `PeriodActivityUnreadableText` und keine Vorschau.
+/// kommt `PeriodActivityUnreadableText` und keine Vorschau. In BB deaktivierte Kategorien fehlen
+/// (`deactivatedForTargets`, budgeting-t7dka); ist ihr Zustand nicht lesbar, kommt keine Vorschau.
 let previewWithLedger
     (ledger: LedgerActivityPort)
     (connect: unit -> SqliteConnection)
@@ -508,7 +519,14 @@ let previewWithLedger
                     | Ok targets ->
                         match! periodActivityForCommand ledger targets monthKey with
                         | Error e -> return Error e
-                        | Ok activity -> return planOf (toBudgetMonthWith (Some fold.Categories) (Some activity) targets paused raw)
+                        | Ok activity ->
+                            match! deactivatedForTargets connect with
+                            | Error e -> return Error e
+                            | Ok deactivated ->
+                                return
+                                    toBudgetMonthWith (Some fold.Categories) (Some activity) targets paused raw
+                                    |> applyDeactivation deactivated
+                                    |> planOf
     })
 
 /// `previewWithLedger` mit dem Kassenbuch der Anwendung (`liveLedgerActivityPort`).
@@ -739,7 +757,8 @@ let private sendAll
 /// senden (ADR 0050/0055). Danach liest der Bericht Zu verteilen erneut. Geplant wird mit BBs Fehlbetrag, die
 /// Ausgaben der Periode kommen aus `ledger` (budgeting-hbhzf); ist es nicht lesbar, wird mit
 /// `PeriodActivityUnreadableText` abgelehnt: keine Entscheidung festgehalten, nichts gesendet (Übernahme und
-/// Beobachtung des Monats sind wie bei jedem Befehl schon festgehalten).
+/// Beobachtung des Monats sind wie bei jedem Befehl schon festgehalten). In BB deaktivierte Kategorien bekommen
+/// nichts (budgeting-t7dka); ist ihr Zustand nicht lesbar, wird abgelehnt wie bei einem unlesbaren Kassenbuch.
 let applyWithLedger
     (ledger: LedgerActivityPort)
     (connect: unit -> SqliteConnection)
@@ -760,32 +779,37 @@ let applyWithLedger
         match! preparedMonth (Some ledger) connect (loadPausedCategoriesWith connect) port now monthKey with
         | Error e -> return Error e
         | Ok (month, _, fold) ->
-            match planOf month |> Result.map (fun fresh -> fresh, chosenLinesIfCurrent shown fresh) with
+            match! deactivatedForTargets connect with
             | Error e -> return Error e
-            | Ok (fresh, None) -> return Ok (PreviewChanged fresh)
-            | Ok (fresh, Some chosen) ->
-                // Nur die gewählten Zeilen (budgeting-m3x7f); abgewählte werden nicht geschrieben.
-                let lines =
-                    chosen
-                    |> List.map (fun l ->
-                        { CategoryId = l.CategoryId
-                          CategoryName = l.CategoryName
-                          OldAssigned = toMilliunits l.OldAssigned
-                          NewAssigned = toMilliunits l.NewAssigned })
-                let skipped : SkippedPausedLine list =
-                    fresh.Skipped
-                    |> List.map (fun s ->
-                        { CategoryId = s.CategoryId
-                          CategoryName = s.CategoryName
-                          Underfunded = toMilliunits s.Underfunded })
-                let withdrawn = withdrawalsFor fold (lines |> List.map (fun l -> l.CategoryId))
-                match! recordDecisionWith connect shown.CommandId now fresh.Month TargetsApplied lines skipped withdrawn with
-                | CommandAlreadyProcessed (id, _) -> return! answerAgain connect id answer
-                | Recorded movements ->
-                    do! sendAll connect port now fresh.Month movements
-                    let applicationId = (List.head movements).ApplicationId
-                    let! report = reportOf connect port applicationId fresh.Month
-                    return report |> Result.map Applied
+            | Ok deactivated ->
+                // In BB deaktivierte Kategorien bekommen kein Geld über Targets (budgeting-t7dka): bleibt eine wegen
+                // Aktivität oder Verfügbarem stehen, ist sie markiert und `targetApplicationLines` lässt sie weg.
+                match planOf (applyDeactivation deactivated month) |> Result.map (fun fresh -> fresh, chosenLinesIfCurrent shown fresh) with
+                | Error e -> return Error e
+                | Ok (fresh, None) -> return Ok (PreviewChanged fresh)
+                | Ok (fresh, Some chosen) ->
+                    // Nur die gewählten Zeilen (budgeting-m3x7f); abgewählte werden nicht geschrieben.
+                    let lines =
+                        chosen
+                        |> List.map (fun l ->
+                            { CategoryId = l.CategoryId
+                              CategoryName = l.CategoryName
+                              OldAssigned = toMilliunits l.OldAssigned
+                              NewAssigned = toMilliunits l.NewAssigned })
+                    let skipped : SkippedPausedLine list =
+                        fresh.Skipped
+                        |> List.map (fun s ->
+                            { CategoryId = s.CategoryId
+                              CategoryName = s.CategoryName
+                              Underfunded = toMilliunits s.Underfunded })
+                    let withdrawn = withdrawalsFor fold (lines |> List.map (fun l -> l.CategoryId))
+                    match! recordDecisionWith connect shown.CommandId now fresh.Month TargetsApplied lines skipped withdrawn with
+                    | CommandAlreadyProcessed (id, _) -> return! answerAgain connect id answer
+                    | Recorded movements ->
+                        do! sendAll connect port now fresh.Month movements
+                        let applicationId = (List.head movements).ApplicationId
+                        let! report = reportOf connect port applicationId fresh.Month
+                        return report |> Result.map Applied
     }))
 
 /// `applyWithLedger` mit dem Kassenbuch der Anwendung (`liveLedgerActivityPort`).
