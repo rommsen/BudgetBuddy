@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-11-09 21:51 -- Modeling / Refined: ledger-z6sya, ledger-m7mye - Buchung löschen und Betrag bearbeiten im Detail
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** todo
+**Summary:** Roman: löschbar alles außer abgeglichen, Rückgängig per Neuanlage mit Ersatz-import_id; Betrag auch bei Importen änderbar, Split über den Split-Editor. Betrag bei Überträgen vorerst gesperrt (YNAB-Verhalten ungeprüft). Kriterien nach Prototyp Version 17 mit genannten Abweichungen.
+**ADRs written:** 0092
+
+---
+
 ## 2026-11-09 21:35 -- Review-Lauf: 518d4ac3..999df206
 
 **Type:** Review / Review-Lauf
