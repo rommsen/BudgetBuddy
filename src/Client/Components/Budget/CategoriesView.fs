@@ -18,7 +18,8 @@ let private cardClass = "rounded-2xl border border-border-subtle bg-surface-card
 let IntroText =
     "Antippen zum Umbenennen, Verschieben oder Deaktivieren. Deaktivierte Kategorien verschwinden aus Auswahl und Budget, ihre Buchungen und Historie bleiben."
 
-/// Der Satz unter dem Schalter "Aktiv", wie im Prototyp.
+/// Der Satz unter dem Schalter "Aktiv" nach dem Prototyp, ergänzt um "Nur in BB, YNAB bleibt unverändert." (Entscheidung
+/// Roman im Review-Lauf e83f2d00..ad18f0c9, Abweichung von Prototyp Version 17).
 let ActiveSwitchText = "Deaktiviert verschwindet sie aus Auswahl und Budget. Buchungen und Historie bleiben. Nur in BB, YNAB bleibt unverändert."
 
 let private header (dispatch: Msg -> unit) =
