@@ -5,6 +5,18 @@ Newest entries on top.
 
 ---
 
+## 2026-11-09 23:26 -- Review-Lauf: 01b989fc..8561beb8
+
+**Type:** Review / Review-Lauf
+**Bereich:** 01b989fc..8561beb8 (ledger-z6sya, ledger-m7mye)
+**Agents:** backend-code-quality, frontend-architecture, design-quality, qa-milestone-reviewer
+**Funde:** behoben 14, verworfen 2, Rückfrage 0, Ticket 0, Kann-Sammlung 8 (ledger-k4n2s Punkte 29 bis 36)
+**Commits:** fe515af6, f54c1886, 88a84f51, 66d6181a, fbfeeec9, 81b557c5, 2c808771
+**Verworfen:** Toast statt Feldfehler bei leerem Betrag (von der Task vorgegeben, als Frage an Roman in der Kann-Sammlung); Dialog statt Panel am PC (vom Prototyp Version 17 vorgegeben)
+**Verifikation:** VERIFY: PASS (dotnet 4643 grün, node 311 grün, dotnet build, npm run build, guard:classes, guard:tokens grün)
+
+---
+
 ## 2026-11-09 23:03 -- Work session ended
 
 **Type:** Work / Session end

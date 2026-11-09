@@ -3,26 +3,25 @@
 Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success looks like“.
 
 ## Stand
-Zuletzt aktualisiert: 2026-11-09, nach dem work-Lauf zu ledger-m7k2d samt Review.
+Zuletzt aktualisiert: 2026-11-09, nach dem work-Lauf zu ledger-z6sya und ledger-m7mye samt Review.
 
 - **Etappe 1 · Bedeutungen:** erledigt, 5 von 5 (Skizze und Prototyp, Layout-Sweep, Muster im
   Styleguide, Designwert-Tests aufgeräumt, Palette 2 im Token-Layer). Romans Blick auf dak16 neben
   dem Prototyp: freigegeben (2026-11-08). Entschieden (Roman, 2026-11-08): Fokusring, Textlinks und
   Marke im Akzent, gescheiterter Push bleibt Gelb (Nachtrag ADR 0087).
   Panel ab 1024 px (Roman, 2026-11-07).
-- **Etappe 2 · Lücken schließen:** 6 von 9 gebaut und in main (2026-11-08): ledger-p3vq8,
-  budgeting-pscgb, ledger-qvjvs, budgeting-sn2sn, budgeting-e2z7v, ledger-at63w. Neue ADRs 0089
-  (Übertrag in BB), 0090 (Targets nach YNAB), 0091 (Erfasste Buchung verwerfen). Offen in Etappe 2:
-  ledger-nb4tv (ETF-Konto), ledger-z6sya (Buchung löschen im Detail), ledger-m7mye (Betrag bearbeiten im
-  Detail). Bug ledger-m7k2d (Split einer Barbuchung nicht änderbar) in main (2026-11-09), noch nicht deployt.
-  Bug budgeting-t7dka (Targets anwenden übergeht deaktivierte Kategorien) in main (2026-11-09,
-  40631e3f, Review 518d4ac3, Nachtrag ADR 0088), von Roman deployt (2026-11-09).
+- **Etappe 2 · Lücken schließen:** 8 von 9 gebaut und in main. Neu (2026-11-09): ledger-z6sya (Buchung
+  löschen im Detail, mit Rückgängig, 67becce0) und ledger-m7mye (Betrag bearbeiten im Detail, ee0cc661),
+  beide nach ADR 0092; Review 01b989fc..8561beb8 mit Fixes fe515af6..2c808771 (unter anderem doppelte
+  Neuanlage nach halbem Split-Ersatz behoben). Romans `[human-eye]`-Blick auf beide steht aus (Seite neben
+  Prototyp Version 17, Touch bei 412 px). Folge-Spike ledger-m7a9q (Betrag eines Übertrags per Update) im
+  Backlog, danach kann die Sperre für Überträge fallen. Offen in Etappe 2: ledger-nb4tv (ETF-Konto).
+  Nicht deployt: ledger-m7k2d, ledger-z6sya, ledger-m7mye.
 - **Etappe 3 · Ein Produkt:** noch nicht verfeinert, Zeilen wachsen.
-- **Nächster Schritt:** ledger-m7k2d deployen (auf Romans Anweisung). Gebaut und in main (2026-11-09,
-  bc3c22ca, Review 2edff908..c40ee10c, Nachtrag ADR 0058): eine aufgeteilte Barbuchung lässt sich wieder
-  ändern. budgeting-t7dka ist deployt (2026-11-09).
-- **Danach:** ledger-z6sya (Buchung löschen) und ledger-m7mye (Betrag bearbeiten) mit dem Prototyp daneben
-  verfeinern, dann ledger-nb4tv (ETF-Konto und Abgleich).
+- **Nächster Schritt:** Roman prüft ledger-z6sya und ledger-m7mye am Handy und am PC gegen den Prototyp
+  (Abweichungen stehen in den Outcomes: roter Grund und Höhe des Lösch-Knopfs, Modal-Hintergrund,
+  Sperre "Aufteilung noch nicht in YNAB"), dann deployen auf Anweisung.
+- **Danach:** ledger-nb4tv (ETF-Konto und Abgleich) verfeinern.
 
 ## Ablauf je Schritt
 1. Nächsten Schritt aus „Stand“ nennen.
@@ -69,9 +68,9 @@ Ziel: Nichts zwingt mehr zu YNAB außer Reports.
 - ✓ `ledger-qvjvs` Buchung zum Übertrag machen (Konten im Picker des Details, Schreibweg nach YNAB)
 - ✓ `ledger-p3vq8` Push gelungen, Verknüpfung nicht geschrieben
 - `ledger-nb4tv` ETF-Konto und Abgleich
-- `ledger-z6sya` Buchung löschen im Detail (auch in YNAB), mit Rückgängig.
-- `ledger-m7mye` Betrag einer Buchung bearbeiten im Detail (auch in YNAB). Heute geht das in BB nicht; im Prototyp
-  ab Version 15 (Roman, 2026-11-08).
+- ✓ `ledger-z6sya` Buchung löschen im Detail (auch in YNAB), mit Rückgängig (gebaut, `[human-eye]` offen).
+- ✓ `ledger-m7mye` Betrag einer Buchung bearbeiten im Detail (auch in YNAB), im Prototyp ab Version 15
+  (Roman, 2026-11-08); gebaut, `[human-eye]` offen. Überträge gesperrt bis Spike `ledger-m7a9q`.
 
 ## Etappe 3 · Ein Produkt
 Ziel: Drei Orte, eine Sprache, Seite für Seite an der Skizze.
