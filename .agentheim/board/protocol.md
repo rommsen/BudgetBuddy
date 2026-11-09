@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-09 08:03 -- Review-Lauf: 019f94de..7502447e
+
+**Type:** Review / Review-Lauf
+**Bereich:** 019f94de..7502447e (budgeting-t7dka, dazu dad7aaeb budgeting-pscgb)
+**Agents:** backend-code-quality, qa-milestone-reviewer, frontend-architecture, design-quality
+**Funde:** behoben 4, verworfen 2, Rückfrage 1, Ticket 0, Kann-Sammlung 5
+**Commits:** 2b8c401f, 400f4ef3, b890905c
+**Verworfen:** kürzerer Satz unter dem Schalter Aktiv (Wortlaut hat Roman entschieden); Client-Test der Leiste Monatserster bleibt (eigene Aussage: Leiste umgeht targetApplicationTotal nicht)
+**Rückfrage:** YNAB-Hinweis auch in den Formularen Gruppe umbenennen und Neue Gruppe; Sichtprüfung des leisen Knopfs Umbenennen neben dem Gruppenkopf (412 px, 1280 px)
+**Verifikation:** VERIFY: PASS (dotnet 4533 grün, node 311 grün, dotnet build, npm run build, guard:classes, guard:tokens grün)
+
+---
+
 ## 2026-11-09 07:46 -- Work session ended
 
 **Type:** Work / Session end
