@@ -496,7 +496,8 @@ let targetsHandlerTests =
                 | Error e -> failtest $"Vorschau erwartet: {e}"
             Expect.equal (shown.Lines |> List.map (fun l -> l.CategoryId)) [ lebensmittel ] "nur Lebensmittel"
             Expect.isEmpty shown.Skipped "Restaurant steht nicht unter übersprungen"
-            Expect.equal shown.Total (shown.Lines |> List.sumBy (fun l -> l.Underfunded.Amount) |> eur) "Summe ohne Restaurant"
+            // Fester Wert statt Summe der Zeilen: `Total` ist selbst die Summe der Zeilen und bliebe sonst immer grün.
+            Expect.equal shown.Total (eur 50m) "Summe ohne Restaurant: nur der Fehlbetrag von Lebensmittel"
             match CommandHandlers.applyWithLedger quietLedger connect port now november { shown with CommandId = Some (Guid.NewGuid()) } |> run with
             | Ok (Applied _) -> ()
             | other -> failtest $"Applied erwartet: {other}"
@@ -505,6 +506,7 @@ let targetsHandlerTests =
             Expect.equal (decisionsFor connect lebensmittel |> List.length) 1 "für Lebensmittel die Entscheidung"
 
         testCase "ist der Deaktivieren-Zustand nicht lesbar, lehnen Vorschau und Anwenden ab und senden nichts" <| fun () ->
+            // Regressionstest budgeting-t7dka: ein leeres Set beim Lesefehler wiese deaktivierten Kategorien Geld zu.
             let anchor, connect = CategoryLayoutFixture.isolated ()
             use _ = anchor
             use conn = connect ()
