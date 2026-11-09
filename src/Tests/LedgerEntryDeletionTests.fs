@@ -192,6 +192,34 @@ let deletionDomainTests =
             Expect.isNone (pendingDeletionIn [ ev (EntryDeletedInBb deletedPayload); ev restored ]) "zurückgenommen"
             Expect.isNone (pendingDeletionIn [ ev EntryDeletionObservedInYnab ]) "in YNAB gelöscht ist kein BB-Löschen"
 
+        testCase "nach dem Wiederherstellen sind Übertrags-Gegenbuchung und Gegenbuchungen der Split-Zeilen gelöst" <| fun () ->
+            // Die Neuanlage bekommt in YNAB eine neue Gegenbuchung, der Spiegel verknüpft sie neu.
+            let entryId = newEntryId ()
+            let counterpart = newEntryId ()
+            let splitCounterpart = newEntryId ()
+            let ev actor body = { EntryId = entryId; OccurredAt = at; Actor = actor; Body = body }
+            let observedPayload : EntryObservedInYnabPayload = {
+                AccountId = LedgerAccountId (Guid.NewGuid()); YnabTransactionId = "ynab-alt"; ImportId = None
+                Date = deletedPayload.Date; Amount = eur -42.80m; Payee = Some "Transfer : Tagesgeld"; Memo = None
+                Category = None; Splits = []; Cleared = Cleared
+                TransferAccountId = Some (YnabAccountId (Guid.NewGuid())); TransferYnabTransactionId = Some "ynab-gegen"
+                Approved = true; FlagColor = None; FlagName = None
+            }
+            let entry =
+                replay [
+                    ev YnabMirror (EntryObservedInYnab observedPayload)
+                    ev YnabMirror (EntryTransferCounterpartObservedInYnab { CounterpartEntryId = counterpart; CounterpartYnabTransactionId = "ynab-gegen" })
+                    ev YnabMirror (EntrySplitTransferCounterpartObservedInYnab {
+                        YnabSubtransactionId = "sub-1"; CounterpartEntryId = splitCounterpart
+                        CounterpartYnabTransactionId = "ynab-gegen-split"; SplitAmount = eur -10m })
+                    ev UserInBb (EntryDeletedInBb deletedPayload)
+                    ev UserInBb (EntryRestoredInBb { OldYnabTransactionId = "ynab-alt"; NewYnabTransactionId = "ynab-neu"; NewImportId = None })
+                ]
+                |> Option.get
+            Expect.isNone entry.TransferEntryId "Gegenbuchung gelöst"
+            Expect.isEmpty entry.SplitTransferCounterparts "Gegenbuchungen der Split-Zeilen gelöst"
+            Expect.isFalse entry.DeletedInYnab "nicht mehr gelöscht"
+
         testCase "nach dem Wiederherstellen ist kein Fehlschlag beim Zurückschreiben mehr offen" <| fun () ->
             // Bug (Review ledger-z6sya): die Neuanlage schickt den ganzen BB-Stand. Blieb ein alter
             // Kategorie-/Split-Fehlschlag mit gelungenem DELETE stehen, legte "Erneut senden" danach

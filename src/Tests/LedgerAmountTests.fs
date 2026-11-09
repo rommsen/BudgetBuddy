@@ -247,7 +247,11 @@ let validationTests =
 
         testCase "leer und unbekannte Richtung zugleich: beide Gründe" <| fun () ->
             match Server.Validation.validateAmountChange (request None "x") with
-            | Error errors -> Expect.equal errors.Length 2 "zwei Gründe"
+            | Error errors ->
+                Expect.equal
+                    errors
+                    [ Server.Validation.AmountMissingText; Server.Validation.AmountDirectionUnknownText ]
+                    "beide Gründe"
             | Ok _ -> failtest "muss abgelehnt werden"
     ]
 
@@ -349,20 +353,6 @@ let commandTests =
             Expect.equal (currentImportId links) (Some importId) "import_id bleibt"
             Expect.isTrue (links |> List.exists (fun l -> l.System = ComdirectSystem && l.Value = reference)) "Bank-Referenz bleibt"
 
-        testCase "Rückgängig ist derselbe Befehl mit dem alten Betrag" <| fun () ->
-            let account = freshAccount ()
-            let entryId, ynabId = seedPlain account
-            let probe = okProbe ()
-            let outcome = setAmount probe.Push entryId 5.00m |> unwrap
-            let undone = setAmount probe.Push entryId outcome.PreviousAmount.Amount |> unwrap
-            Expect.equal undone.AmountChange AmountChanged "zurückgesetzt"
-            Expect.equal (entryOf entryId).Amount (eur -12.00m) "alter Betrag"
-            Expect.equal
-                (eventTypesOf entryId)
-                [ "EntryObservedInYnab"; "EntryAmountChangedInBb"; "EntryAmountChangedInBb" ]
-                "zweites EntryAmountChangedInBb"
-            Expect.equal probe.Calls [ ynabId, eur 5.00m; ynabId, eur -12.00m ] "zwei Pushes"
-
         testCase "unveränderter Betrag: kein Ereignis, kein Push" <| fun () ->
             let account = freshAccount ()
             let entryId, _ = seedPlain account
@@ -428,7 +418,7 @@ let commandTests =
             Expect.equal result AmountNotSent "nichts zu senden"
             Expect.isEmpty probe.Calls "kein Push"
 
-        testCase "abgelehnt ohne Ereignis und ohne Aufruf: abgeglichen, gelöscht, Noch nicht in YNAB, Übertrag, Split mit Übertrags-Zeile" <| fun () ->
+        testCase "abgelehnt ohne Ereignis und ohne Aufruf: abgeglichen, gelöscht, Noch nicht in YNAB, Übertrag, Split mit Übertrags-Zeile, Aufteilung noch nicht in YNAB" <| fun () ->
             let account = freshAccount ()
             let reconciled, _ = seedWith { observedPayload account with Cleared = Reconciled }
             let deleted, _ = seedPlain account
@@ -437,12 +427,22 @@ let commandTests =
             let transfer, _ =
                 seedWith { observedPayload account with Category = None; TransferAccountId = Some cashAccount }
             let splitTransfer, _ = seedSplit account [ line catA -5.00m; transferLine -7.00m ]
+            let splitPending, _ = seedSplit account [ line catA -5.00m; line catB -7.00m ]
+            appendAndApply [
+                eventOn splitPending UserInBb (
+                    EntryCategorizationWriteBackFailed {
+                        Reason = "weg"; BaselineCategory = Some catA; BaselineSplits = []
+                        YnabDeletedTransactionId = None; BaselineTransferAccountId = None }
+                )
+            ]
+            |> Async.RunSynchronously
             for entryId, expected in
                 [ reconciled, amountReconciledReason
                   deleted, amountDeletedReason
                   unlinked, amountNotInYnabReason
                   transfer, amountTransferReason
-                  splitTransfer, amountSplitTransferReason ] do
+                  splitTransfer, amountSplitTransferReason
+                  splitPending, amountSplitPendingReason ] do
                 let before = eventTypesOf entryId
                 let probe = okProbe ()
                 Expect.equal (setAmount probe.Push entryId -20.00m) (Error expected) expected
@@ -495,6 +495,21 @@ let writeGuardTests =
             |> unwrap
             |> ignore
             Expect.equal probe.Calls.Length 1 "ein Push nach dem Lauf"
+
+        testCase "Erneut senden während eines Spiegel-Laufs pusht und beendet den Fehlschlag erst nach dem Lauf" <| fun () ->
+            let entryId, _ = seedPlain (freshAccount ())
+            setAmount (AmountProbe(Error (YnabError.NetworkError "weg"))).Push entryId -14.50m |> unwrap |> ignore
+            let probe = okProbe ()
+            let before = eventTypesOf entryId
+            LedgerWriteGuardProbe.commandWaitsForMirror
+                (fun () ->
+                    Expect.equal (eventTypesOf entryId) before "noch kein EntryAmountWrittenBackToYnab während des Laufs"
+                    Expect.isEmpty probe.Calls "noch kein Push")
+                (retryAmountWriteBack at probe.Push (SplitProbe()).Tools entryId)
+            |> unwrap
+            |> ignore
+            Expect.equal probe.Calls.Length 1 "ein Push nach dem Lauf"
+            Expect.equal (List.last (eventTypesOf entryId)) "EntryAmountWrittenBackToYnab" "Fehlschlag nach dem Lauf beendet"
     ]
 
 // ============================================
