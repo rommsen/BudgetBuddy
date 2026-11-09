@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-09 20:32 -- Modeling / Promoted: ledger-m7k2d - "Split einer Barbuchung lässt sich nicht ändern: Ersatz-import_id wäre länger als 36 Zeichen"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-09 20:32 -- Modeling / Refined: ledger-m7k2d - Split einer Barbuchung lässt sich nicht ändern: Ersatz-import_id wäre länger als 36 Zeichen
 
 **Type:** Modeling / Refine

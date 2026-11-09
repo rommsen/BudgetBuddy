@@ -1,7 +1,7 @@
 ---
 id: ledger-m7k2d
 title: "Split einer Barbuchung lässt sich nicht ändern: Ersatz-import_id wäre länger als 36 Zeichen"
-status: backlog
+status: todo
 type: bug
 context: ledger
 created: 2026-11-08
