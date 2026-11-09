@@ -166,7 +166,8 @@ let private groupOptions (groups: ManagedCategoryGroup list) : Input.SelectOptio
           ({ Value = string group.Id; Label = group.Name; Disabled = false } : Input.SelectOption)
       ({ Value = NewGroupChoice; Label = "Neue Gruppe …"; Disabled = false } : Input.SelectOption) ]
 
-/// Der Inhalt des Formulars: Name, bei einer Kategorie das Auswahlfeld Gruppe und der Hinweis, darunter ein Fehler.
+/// Der Inhalt des Formulars: Name, bei einer Kategorie das Auswahlfeld Gruppe, in beiden Formularen der Hinweis zu
+/// YNAB, darunter ein Fehler.
 let private formBody (groups: ManagedCategoryGroup list) (form: Form) (dispatch: Msg -> unit) =
     let name =
         match form.Editor with

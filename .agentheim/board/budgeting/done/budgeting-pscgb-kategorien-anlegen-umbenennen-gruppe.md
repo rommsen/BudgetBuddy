@@ -96,7 +96,7 @@ Abweichungen:
 - Laut Task: keine Pfeile für die Reihenfolge, kein Schalter "Aktiv", kein Abschnitt "Deaktiviert" (kommt mit budgeting-sn2sn). Die Gruppe wird über ein natives Auswahlfeld mit "Neue Gruppe …" gewählt, im Prototyp ist es ein eigenes Sheet.
 - Der Erklärsatz lautet "Antippen zum Umbenennen oder Verschieben. Änderungen gehen nach YNAB.". Deaktivieren fehlt darin, weil es noch nicht geht.
 - Das Menü hat das Zeichen ⋮ wie das Menü der Regeln, im Prototyp steht ⋯. Es hat nur den Eintrag "Kategorien verwalten". Historie und Targets prüfen bleiben, wo sie heute sind.
-- Das Formular "Neue Gruppe" hat keinen Hinweis "Wird nach YNAB übertragen.", wie im Prototyp.
+- Das Gruppen-Formular (Gruppe umbenennen, Neue Gruppe) zeigt "Der Name wird nach YNAB übertragen." (Entscheidung Roman im Review-Lauf nach budgeting-t7dka, a770b6af, Abweichung von Prototyp Version 17).
 - Am PC ist die Liste ohne offenes Panel höchstens 860 px breit.
 
 Kann-Sammlung budgeting:
