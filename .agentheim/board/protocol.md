@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-11-09 20:32 -- Modeling / Refined: ledger-m7k2d - Split einer Barbuchung lässt sich nicht ändern: Ersatz-import_id wäre länger als 36 Zeichen
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** todo
+**Summary:** Roman: Stamm kürzen, dann :r<n> anhängen, höchstens 36 Zeichen; kurze import_ids unverändert. Duplikat-Erkennung unberührt, weil lange import_ids nie per Präfix geprüft werden. Ablehnung in setEntrySplits fällt weg.
+**ADRs written:** Nachtrag ADR 0058
+
+---
+
 ## 2026-11-09 08:03 -- Review-Lauf: 019f94de..7502447e
 
 **Type:** Review / Review-Lauf

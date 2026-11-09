@@ -4,7 +4,7 @@ title: Split-Schreibweg nach YNAB: bestehende Split-Buchungen werden gelöscht u
 scope: ledger
 status: accepted
 date: 2026-10-24
-related_tasks: [ledger-mas5g, ledger-kxme4, ledger-pafkp]
+related_tasks: [ledger-mas5g, ledger-kxme4, ledger-pafkp, ledger-m7k2d]
 related_adrs: [0006, 0028, 0046, 0054, 0055]
 ---
 
@@ -97,3 +97,6 @@ Rohdaten im Scratchpad der Modeling-Sitzung vom 2026-10-24 (nicht im Repo).
 ## Note on ADR numbering
 
 Minted provisionally as ADR-0059 in its worker worktree. A sibling task's ADR already claimed that number (or the guess overshot the true count) by the time this task's conductor finalized numbering at squash-merge integration (`lib/adr-allocation.mjs`'s `finalizeAdrNumbering`, ADR-0058) — this ADR was renumbered to **ADR-0058**, the true next-free number on `main` at that moment. No content besides this identity changed.
+
+## Nachtrag 2026-11-09, lange import_ids (ledger-m7k2d)
+Zu Punkt 2: Seit ledger-p3vq8 tragen Barbuchungen `BB:` plus EntryId (35 Zeichen), Comdirect-Buchungen aus einem erzwungenen Import `BB:` plus neue Guid (ebenfalls 35). Für sie passt `:r<n>` nicht mehr in 36 Zeichen. Entschieden von Roman: Die Ersatz-`import_id` ist der Stamm, von hinten so weit gekürzt, dass er mit `:r<n>` höchstens 36 Zeichen ergibt; kurze `import_id`s bleiben unverändert. Der gekürzte Stamm ist ein Präfix des ursprünglichen, die Ersatz-Zahl bleibt am Ende lesbar. Die Präfix-Prüfung der Duplikat-Erkennung betrifft das nicht: lange `import_id`s werden nie per Präfix gegen eine Bank-Buchung geprüft (Barbuchungen über Verknüpfungen, erzwungener Import mit Zufalls-Guid).
