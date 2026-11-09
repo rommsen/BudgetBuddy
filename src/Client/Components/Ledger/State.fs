@@ -1058,7 +1058,6 @@ let private submitCapture (capture: Capture.CaptureState) (model: Model) : Model
         NoOp
     | Error errors -> { model with Capture = Some { capture with Errors = errors } }, Cmd.none, NoOp
 
-let captureUndoLabel = "Rückgängig"
 let capturedDiscardedText = "Buchung zurückgenommen"
 let entryDeletedText = "Buchung gelöscht, auch in YNAB"
 let entryRestoredText = "Buchung wiederhergestellt"
@@ -2654,7 +2653,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 ShowToastWithAction (
                     Capture.createdText created,
                     ToastSuccess,
-                    { Label = captureUndoLabel; Kind = UndoCapturedBooking created.EntryId }
+                    { Label = undoToastLabel; Kind = UndoCapturedBooking created.EntryId }
                 )
             | Some _ -> ShowToast (Capture.createdText created, ToastWarning)
         { model with Capture = None },
@@ -2723,7 +2722,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 model
         model',
         Cmd.batch [ Cmd.ofMsg LoadEntries; Cmd.ofMsg LoadBalances ],
-        ShowToastWithAction (entryDeletedText, ToastSuccess, { Label = captureUndoLabel; Kind = UndoDeleteEntry entryId })
+        ShowToastWithAction (entryDeletedText, ToastSuccess, { Label = undoToastLabel; Kind = UndoDeleteEntry entryId })
 
     | EntryDeleteFinished (entryId, Error message) ->
         // Das Detail bleibt offen, der Toast nennt den Grund.
