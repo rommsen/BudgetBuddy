@@ -191,6 +191,40 @@ let deletionDomainTests =
             Expect.equal (pendingDeletionIn [ ev (EntryDeletedInBb deletedPayload) ]) (Some deletedPayload) "offen"
             Expect.isNone (pendingDeletionIn [ ev (EntryDeletedInBb deletedPayload); ev restored ]) "zurückgenommen"
             Expect.isNone (pendingDeletionIn [ ev EntryDeletionObservedInYnab ]) "in YNAB gelöscht ist kein BB-Löschen"
+
+        testCase "nach dem Wiederherstellen ist kein Fehlschlag beim Zurückschreiben mehr offen" <| fun () ->
+            // Bug (Review ledger-z6sya): die Neuanlage schickt den ganzen BB-Stand. Blieb ein alter
+            // Kategorie-/Split-Fehlschlag mit gelungenem DELETE stehen, legte "Erneut senden" danach
+            // per POST eine zweite Buchung in YNAB an; die übrigen Fehlschläge zeigten einen
+            // Hinweis "nicht in YNAB" für einen Stand, den YNAB schon hat.
+            let entryId = newEntryId ()
+            let ev actor body = { EntryId = entryId; OccurredAt = at; Actor = actor; Body = body }
+            let observedPayload : EntryObservedInYnabPayload = {
+                AccountId = LedgerAccountId (Guid.NewGuid()); YnabTransactionId = "ynab-alt"; ImportId = None
+                Date = deletedPayload.Date; Amount = eur -42.80m; Payee = Some "Rewe Markt"; Memo = None
+                Category = None; Splits = [ line food -20m; line drug -22.80m ]; Cleared = Cleared
+                TransferAccountId = None; TransferYnabTransactionId = None
+                Approved = true; FlagColor = None; FlagName = None
+            }
+            let entry =
+                replay [
+                    ev YnabMirror (EntryObservedInYnab observedPayload)
+                    ev UserInBb (EntryCategorizationWriteBackFailed {
+                        Reason = "POST gescheitert"; BaselineCategory = None; BaselineSplits = observedPayload.Splits
+                        YnabDeletedTransactionId = Some "ynab-alt"; BaselineTransferAccountId = None })
+                    ev UserInBb (EntryMemoWriteBackFailed { Reason = "weg"; BaselineMemo = None })
+                    ev UserInBb (EntryAmountWriteBackFailed { Reason = "weg"; BaselineAmount = eur -42.80m })
+                    ev UserInBb (EntryFlagWriteBackFailed { Reason = "weg"; BaselineFlagColor = None; BaselineFlagName = None })
+                    ev UserInBb (EntryReviewMarkWriteBackFailed { Reason = "weg" })
+                    ev UserInBb (EntryDeletedInBb deletedPayload)
+                    ev UserInBb (EntryRestoredInBb { OldYnabTransactionId = "ynab-alt"; NewYnabTransactionId = "ynab-neu"; NewImportId = None })
+                ]
+                |> Option.get
+            Expect.isNone entry.CategorizationWriteBackFailure "Kategorie/Split"
+            Expect.isNone entry.MemoWriteBackFailure "Memo"
+            Expect.isNone entry.AmountWriteBackFailure "Betrag"
+            Expect.isNone entry.FlagWriteBackFailure "Flag"
+            Expect.isNone entry.ReviewMarkWriteBackFailure "Prüfvermerk"
     ]
 
 // ============================================
@@ -237,6 +271,35 @@ let deletionCommandTests =
             let probe = Probe()
             delete probe entryId |> expectOk "Löschen"
             Expect.equal probe.Deletes [ "ynab-ersatz" ] "die aktuelle Id"
+
+        testCase "bei halbem Split-Ersatz geht kein DELETE an die in YNAB schon gelöschte Id, das Löschen gelingt" <| fun () ->
+            // Bug (Review ledger-z6sya): beim Ersatz einer Split-Buchung war das DELETE gelungen,
+            // das POST nicht (`YnabDeletedTransactionId` am offenen Fehlschlag). Das Löschen schickte
+            // trotzdem ein DELETE an die schon gelöschte Id und scheiterte dann an YNABs 404.
+            let account = freshAccount ()
+            let ynabId = freshYnabId ()
+            let splits = [ line food -20m; line drug -22.80m ]
+            let entryId = seed { observed account ynabId None with Category = None; Splits = splits }
+            appendAndApply [
+                { EntryId = entryId; OccurredAt = at; Actor = UserInBb
+                  Body =
+                    EntryCategorizationWriteBackFailed {
+                        Reason = "POST gescheitert"; BaselineCategory = None; BaselineSplits = splits
+                        YnabDeletedTransactionId = Some ynabId; BaselineTransferAccountId = None } }
+            ]
+            |> Async.RunSynchronously
+            let probe = Probe(DeleteResult = Error (YnabError.InvalidResponse "404 schon gelöscht"))
+            delete probe entryId |> expectOk "Löschen"
+            Expect.isEmpty probe.Deletes "kein DELETE"
+            match (eventsOf entryId |> List.last).Event.Body with
+            | EntryDeletedInBb p -> Expect.equal p.YnabTransactionId ynabId "gelöschte Id im Ereignis"
+            | other -> failtest $"EntryDeletedInBb erwartet, war {eventTypeName other}"
+            Expect.isTrue (entryOf entryId).DeletedInYnab "gilt als gelöscht"
+            Expect.equal probe.MirrorTriggers 1 "Spiegel angestoßen"
+            // Rückgängig legt den BB-Stand genau einmal an und beendet den alten Fehlschlag.
+            restore probe entryId |> expectOk "Wiederherstellen"
+            Expect.equal (List.exactlyOne probe.Creates).Splits splits "Neuanlage mit den BB-Zeilen"
+            Expect.isNone (entryOf entryId).CategorizationWriteBackFailure "Fehlschlag beendet"
 
         testCase "scheitert das DELETE, gibt es kein Ereignis und die Buchung bleibt unverändert" <| fun () ->
             let account = freshAccount ()

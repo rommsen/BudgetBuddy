@@ -516,9 +516,19 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
         // ledger-z6sya (ADR 0092 Punkt 2): YNAB hat die Buchung unter neuer Id neu angelegt, mit
         // neuen Subtransaction-Ids und neuer Übertrags-Gegenbuchung. Die alten Zuordnungen gelten
         // nicht mehr, der Spiegel verknüpft die neuen (ADR 0046, ADR 0058 Punkt 5). Die
-        // Verknüpfungen stiftet `linksFrom`.
+        // Verknüpfungen stiftet `linksFrom`. Die Neuanlage schickt den ganzen BB-Stand, damit ist
+        // jeder offene Fehlschlag beim Zurückschreiben beendet; ein stehender Split-Fehlschlag mit
+        // gelungenem DELETE legte bei "Erneut senden" sonst eine zweite Buchung in YNAB an.
         let e = requireExisting ()
-        { e with DeletedInYnab = false; TransferEntryId = None; SplitTransferCounterparts = Map.empty }
+        { e with
+            DeletedInYnab = false
+            TransferEntryId = None
+            SplitTransferCounterparts = Map.empty
+            CategorizationWriteBackFailure = None
+            MemoWriteBackFailure = None
+            AmountWriteBackFailure = None
+            FlagWriteBackFailure = None
+            ReviewMarkWriteBackFailure = None }
 
     | EntryImportedFromComdirect p ->
         {

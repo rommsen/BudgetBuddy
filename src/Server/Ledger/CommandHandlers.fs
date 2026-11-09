@@ -3158,7 +3158,9 @@ let pendingDeletionIn (events: LedgerEvent list) : EntryDeletedInBbPayload optio
 /// ohne Ereignis, ADR 0091 Punkt 3). Unter der Schreib-Sperre zuerst das YNAB-DELETE auf die
 /// aktuelle YNAB-Id, nur bei Erfolg danach `EntryDeletedInBb` (Actor `UserInBb`) mit dem Stand
 /// vor dem Löschen; der Spiegel-Auslöser nach der Freigabe. Scheitert das DELETE, schreibt BB
-/// nichts, der Fehler trägt den Grund.
+/// nichts, der Fehler trägt den Grund. Ist das DELETE eines Split-Ersatzes schon gelungen und nur
+/// das POST offen (`YnabDeletedTransactionId` am Kategorie-Fehlschlag), geht kein DELETE mehr
+/// hinaus: `EntryDeletedInBb` hält die schon gelöschte Id fest, Rückgängig legt den BB-Stand neu an.
 let deleteEntry
     (now: DateTime)
     (deleteInYnab: string -> Async<YnabResult<unit>>)
@@ -3175,12 +3177,8 @@ let deleteEntry
                     | Some entry when entry.Cleared = Reconciled -> return Error entryDeleteReconciledText
                     | Some entry ->
                         let! links = Ledger.Persistence.linksForEntry entryId
-                        match currentYnabTransactionId links with
-                        | None -> return Error entryDeleteNotLinkedText
-                        | Some ynabTransactionId ->
-                            match! deleteInYnab ynabTransactionId with
-                            | Error err -> return Error (ynabErrorText err)
-                            | Ok () ->
+                        let record (ynabTransactionId: string) =
+                            async {
                                 do!
                                     Ledger.Persistence.appendAndApply [
                                         { EntryId = entryId
@@ -3192,6 +3190,18 @@ let deleteEntry
                                             ) }
                                     ]
                                 return Ok ()
+                            }
+                        let alreadyDeleted =
+                            entry.CategorizationWriteBackFailure |> Option.bind (fun f -> f.YnabDeletedTransactionId)
+                        match alreadyDeleted, currentYnabTransactionId links with
+                        // Halber Split-Ersatz (ADR 0058 Punkt 3): das DELETE ist schon gelungen, in
+                        // YNAB ist die Buchung weg. Ein zweites DELETE scheiterte nur an YNABs 404.
+                        | Some deletedId, _ -> return! record deletedId
+                        | None, None -> return Error entryDeleteNotLinkedText
+                        | None, Some ynabTransactionId ->
+                            match! deleteInYnab ynabTransactionId with
+                            | Error err -> return Error (ynabErrorText err)
+                            | Ok () -> return! record ynabTransactionId
                 }
             )
         if Result.isOk result then triggerMirror ()
