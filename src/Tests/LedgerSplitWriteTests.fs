@@ -162,18 +162,23 @@ let splitDomainTests =
             Expect.stringEnds first ":r1" "endet auf :r1"
             Expect.isTrue (stem.StartsWith (first.Substring(0, first.Length - 3))) "Stamm ist Präfix des alten"
             Expect.notEqual first stem "anders als die alte"
+            // Fester Wert: nur so weit kürzen wie nötig. Zu starkes Kürzen ließe die Stämme verschiedener
+            // Buchungen mehr Zeichen teilen, und YNAB verwirft eine doppelte import_id still.
+            Expect.equal first ("BB:" + String.replicate 30 "a" + ":r1") "genau 36 Zeichen"
 
             let second = replacementImportId (Some first) |> Option.get
             Expect.isLessThanOrEqual second.Length ImportIdMaxLength "zweiter Ersatz höchstens 36 Zeichen"
             Expect.stringEnds second ":r2" "endet auf :r2"
             Expect.notEqual second first "anders als die erste Ersatz-Id"
             Expect.notEqual second stem "anders als die alte"
+            Expect.equal second ("BB:" + String.replicate 30 "a" + ":r2") "zweiter Ersatz genau 36 Zeichen"
 
             let ninth = $"{stem.Substring(0, 33)}:r9"
             let tenth = replacementImportId (Some ninth) |> Option.get
             Expect.isLessThanOrEqual tenth.Length ImportIdMaxLength "zehnter Ersatz höchstens 36 Zeichen"
             Expect.stringEnds tenth ":r10" "endet auf :r10"
             Expect.isTrue (stem.StartsWith (tenth.Substring(0, tenth.Length - 4))) "Stamm bleibt Präfix"
+            Expect.equal tenth ("BB:" + String.replicate 29 "a" + ":r10") "zehnter Ersatz genau 36 Zeichen"
 
         // ledger-m7k2d, intakt: GIVEN eine kurze import_id (`BB:` plus 20 Zeichen), WHEN die
         // Ersatz-import_id gebildet wird, THEN bleibt der Stamm voll erhalten.
