@@ -8,7 +8,7 @@ Newest entries on top.
 ## 2026-11-09 23:03 -- Work session ended
 
 **Type:** Work / Session end
-**Duration:** 1h33m (Batch-Start 22:08 bis 23:41)
+**Duration:** 56m (Batch-Start 22:07 bis 23:03)
 **Completed:** 2 (first-try PASS: 0, re-dispatched: 2, skipped: 0)
 **Bounced:** 0
 **Failed:** 0
@@ -29,7 +29,7 @@ Newest entries on top.
 **Type:** Work / Task completion
 **Task:** ledger-m7mye - "Betrag einer Buchung im Detail bearbeiten, auch in YNAB"
 **Summary:** Betrag einer Buchung im Detail bearbeiten, auch in YNAB
-**Duration:** 1h31m (Dispatch 22:08 bis Verdict 23:39)
+**Duration:** 53m (Dispatch 22:08 bis Verdict 23:01)
 **Verification:** PASS (iteration 2, nach Merge-Konflikt mit ledger-z6sya)
 **Files changed:** 42
 **Tests added:** 61
@@ -42,7 +42,7 @@ Newest entries on top.
 **Type:** Work / Task completion
 **Task:** ledger-z6sya - "Buchung löschen im Detail, auch in YNAB, mit Rückgängig"
 **Summary:** Buchung im Detail löschen, auch in YNAB, mit Rückgängig per Neuanlage
-**Duration:** 34m (Dispatch 22:08 bis Verdict 22:42)
+**Duration:** 37m (Dispatch 22:08 bis Verdict 22:45)
 **Verification:** PASS (iteration 2)
 **Files changed:** 35
 **Tests added:** 38
