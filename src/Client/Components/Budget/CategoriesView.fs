@@ -211,7 +211,9 @@ let private formBody (groups: ManagedCategoryGroup list) (form: Form) (dispatch:
                         editor.Active
                         form.IsSaving
                         (fun active -> dispatch (ActiveToggled active))
-            | EditingGroup _ -> ()
+            // Auch Gruppennamen gehen nach YNAB (Entscheidung Roman im Review-Lauf nach budgeting-t7dka, Abweichung
+            // von Prototyp Version 17).
+            | EditingGroup _ -> Html.p [ prop.className ListRoles.muted; prop.text "Der Name wird nach YNAB übertragen." ]
             match form.Error with
             | Some message ->
                 Html.p [
