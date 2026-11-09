@@ -136,6 +136,8 @@ let toastActionMsg (kind: ToastActionKind) : Msg =
         LedgerMsg (Components.Ledger.Types.StartUndoMemo (entryId, previous))
     | UndoCapturedBooking entryId ->
         LedgerMsg (Components.Ledger.Types.StartDiscardCaptured entryId)
+    | UndoDeleteEntry entryId ->
+        LedgerMsg (Components.Ledger.Types.StartRestoreDeletedEntry entryId)
     | ReloadForUpdate -> PwaApplyUpdate
     | UndoCategoryBatch changes ->
         LedgerMsg (Components.Ledger.Types.StartUndoCategoryBatch changes)

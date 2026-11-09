@@ -43,6 +43,7 @@ export function buildEntryFixture(accountId, n, overrides = {}) {
     Splits: [],
     Origin: "MirroredFromYnab",
     DeletedInYnab: false,
+    Reconciled: false,
     NeedsReview: false,
     Flag: "NoFlag",
     IsTransfer: false,

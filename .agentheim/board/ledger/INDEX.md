@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 6
 - **Todo:** 0
-- **Doing:** 2
-- **Done:** 113
+- **Doing:** 1
+- **Done:** 114
 <!-- task-counts:end -->
 
 ### Todo
@@ -23,11 +23,11 @@ research touching this BC, and concept synthesis pages.
 ### Doing
 <!-- doing-list:start -->
 - **ledger-m7mye** — "Betrag einer Buchung im Detail bearbeiten, auch in YNAB" (feature) — `doing/ledger-m7mye-betrag-bearbeiten-im-detail.md`
-- **ledger-z6sya** — "Buchung löschen im Detail, auch in YNAB, mit Rückgängig" (feature) — `doing/ledger-z6sya-buchung-loeschen-im-detail.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **ledger-z6sya** — "Buchung löschen im Detail, auch in YNAB, mit Rückgängig" (feature) — `done/ledger-z6sya-buchung-loeschen-im-detail.md`
 - **ledger-m7k2d** — "Split einer Barbuchung lässt sich nicht ändern: Ersatz-import_id wäre länger als 36 Zeichen" (bug) — `done/ledger-m7k2d-split-einer-barbuchung-l-sst-sich-nicht-ndern-ersatz-import.md`
 - **ledger-at63w** — "Buchung im Kassenbuch erfassen für jedes Konto ohne Import, mit Vorbelegung (Konto, Datum, Zuletzt, Kategorie zum Payee)" (feature) — `done/ledger-at63w-buchung-im-kassenbuch-erfassen.md`
 - **ledger-qvjvs** — "Buchung zum Übertrag machen: Konten im Kategorie-Picker des Kassenbuch-Details, Schreibweg nach YNAB" (feature) — `done/ledger-qvjvs-buchung-zum-uebertrag-machen.md`

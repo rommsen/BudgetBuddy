@@ -123,6 +123,7 @@
     <Compile Include="LedgerMemoTests.fs" />
     <Compile Include="LedgerTransferTests.fs" />
     <Compile Include="LedgerBookingCaptureTests.fs" />
+    <Compile Include="LedgerEntryDeletionTests.fs" />
     <Compile Include="ForceImportCandidateTests.fs" />
     <Compile Include="PushOutcomeClassificationTests.fs" />
     <Compile Include="LedgerPageTests.fs" />
@@ -148,6 +149,7 @@
     <Compile Include="LedgerNotInYnabClientTests.fs" />
     <Compile Include="LedgerCaptureClientTests.fs" />
     <Compile Include="LedgerMemoClientTests.fs" />
+    <Compile Include="LedgerEntryDeletionClientTests.fs" />
     <Compile Include="LedgerReviewMarkBatchClientTests.fs" />
     <Compile Include="LedgerCategoryBatchClientTests.fs" />
     <Compile Include="LedgerLenaFlagClientTests.fs" />

@@ -518,6 +518,59 @@ let liveLedgerBookingPorts : LedgerBookingPorts = {
     TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground
 }
 
+/// Die Ports von "Buchung löschen" und dessen "Rückgängig" (ledger-z6sya, ADR 0092): Settings,
+/// YNAB-DELETE und YNAB-POST der Neuanlage (Token, Budget, Anfrage) und der Spiegel-Auslöser.
+type EntryDeletionPorts = {
+    Setting: string -> Async<string option>
+    Delete: string -> YnabBudgetId -> string -> Async<YnabResult<unit>>
+    Create: string -> YnabBudgetId -> YnabClient.SplitReplacement -> Async<YnabResult<string>>
+    TriggerMirror: unit -> unit
+}
+
+/// "Buchung löschen" im Detail: `Ledger.CommandHandlers.deleteEntry` mit dem YNAB-Löschen aus
+/// Token und Budget der Settings. Eine leere Buchungs-Id ist ein Fehler ohne Aufruf.
+let deleteEntryWith (ports: EntryDeletionPorts) (now: DateTime) (entryId: Guid) : Async<Result<unit, string>> =
+    async {
+        if entryId = Guid.Empty then
+            return Error "Die Buchung fehlt."
+        else
+            match! bookingYnabAccess ports.Setting with
+            | Error reason -> return Error reason
+            | Ok (token, budget) ->
+                return!
+                    Ledger.CommandHandlers.deleteEntry
+                        now
+                        (ports.Delete token budget)
+                        ports.TriggerMirror
+                        (Ledger.Events.EntryId entryId)
+    }
+
+/// "Rückgängig" nach "Buchung löschen": `Ledger.CommandHandlers.restoreDeletedEntry` mit der
+/// Neuanlage in YNAB aus Token und Budget der Settings. Eine leere Buchungs-Id ist ein Fehler.
+let restoreDeletedEntryWith (ports: EntryDeletionPorts) (now: DateTime) (entryId: Guid) : Async<Result<unit, string>> =
+    async {
+        if entryId = Guid.Empty then
+            return Error "Die Buchung fehlt."
+        else
+            match! bookingYnabAccess ports.Setting with
+            | Error reason -> return Error reason
+            | Ok (token, budget) ->
+                return!
+                    Ledger.CommandHandlers.restoreDeletedEntry
+                        now
+                        (ports.Create token budget)
+                        ports.TriggerMirror
+                        (Ledger.Events.EntryId entryId)
+    }
+
+/// Die Umgebung des laufenden Servers für "Buchung löschen" und dessen "Rückgängig".
+let liveEntryDeletionPorts : EntryDeletionPorts = {
+    Setting = Persistence.Settings.getSetting
+    Delete = YnabClient.deleteTransaction
+    Create = YnabClient.createReplacement
+    TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground
+}
+
 // ============================================
 // Import-Push: Ziel aus den Settings (ledger-bk3q8)
 // ============================================
@@ -1736,6 +1789,11 @@ let ledgerApi : LedgerApi = {
     addLedgerBooking = fun request -> addLedgerBookingWith liveLedgerBookingPorts (liveBerlinDay ()) DateTime.UtcNow request
 
     discardCapturedBooking = fun entryId -> discardCapturedBookingWith liveLedgerBookingPorts DateTime.UtcNow entryId
+
+    // Buchung löschen im Detail und Rückgängig (ledger-z6sya, ADR 0092).
+    deleteEntry = fun entryId -> deleteEntryWith liveEntryDeletionPorts DateTime.UtcNow entryId
+
+    restoreDeletedEntry = fun entryId -> restoreDeletedEntryWith liveEntryDeletionPorts DateTime.UtcNow entryId
 
     getLedgerBookingDefaults = fun () ->
         Ledger.QueryHandlers.getLedgerBookingDefaultsWith Persistence.Settings.getSetting liveBerlinZone.Value DateTime.UtcNow

@@ -25,6 +25,7 @@ let private entryOn (n: int) (date: DateTime) (amount: decimal) : LedgerEntryVie
     CategoryName = None
     CategoryId = None
     CategoryGroupName = None
+    Reconciled = false
     SplitCategoryGroupNames = Map.empty
     Splits = []
     Origin = MirroredFromYnab

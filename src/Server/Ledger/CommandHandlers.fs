@@ -2797,6 +2797,7 @@ let private pushSplitState
                             ImportId = newImportId
                             CategoryId = entry.Category |> Option.map (fun c -> c.CategoryId)
                             Splits = entry.Splits
+                            TransferAccountId = None
                         }
 
                         match! tools.Create request with
@@ -2953,6 +2954,156 @@ let retryCategorizationOrSplitWriteBack
                         return Ok writeBack
         }
     )
+
+// ============================================
+// Buchung löschen und Rückgängig (ledger-z6sya, ADR 0092)
+// ============================================
+
+let entryDeleteNotLinkedText = discardNotLinkedText
+let entryDeleteDeletedText = "Die Buchung ist schon gelöscht"
+let entryDeleteReconciledText = discardReconciledText
+let entryRestoreNotDeletedInBbText = "Nur eine in BB gelöschte Buchung lässt sich wiederherstellen"
+
+/// Der Stand einer Buchung vor dem Löschen, wie ihn `EntryDeletedInBb` festhält. Rein.
+let deletedInBbPayloadOf (entry: Entry) (ynabTransactionId: string) (importId: string option) : EntryDeletedInBbPayload =
+    { YnabTransactionId = ynabTransactionId
+      Date = entry.Date
+      Amount = entry.Amount
+      Payee = entry.Payee
+      Memo = entry.Memo
+      Category = entry.Category
+      Splits = entry.Splits
+      TransferAccountId = entry.TransferAccountId
+      FlagColor = entry.FlagColor
+      Cleared = entry.Cleared
+      Approved = entry.Approved
+      ImportId = importId }
+
+/// Die Neuanlage in YNAB aus dem Stand vor dem Löschen (ADR 0092 Punkt 2): alle Felder des
+/// Ereignisses, die Ersatz-`import_id` (`replacementImportId`, ADR 0058 Punkt 2 und Nachtrag),
+/// ohne `import_id` keine. Ein Übertrag ohne Split geht mit seinem Ziel (`payee_id` der
+/// Übertrags-Payee), eine aufgeteilte Buchung mit ihren Zeilen samt Übertrags-Zeilen. Rein.
+let restoreRequestOf (ynabAccount: YnabAccountId) (deleted: EntryDeletedInBbPayload) : Ynab.SplitReplacement =
+    { AccountId = ynabAccount
+      Date = deleted.Date
+      Amount = deleted.Amount
+      Payee = deleted.Payee
+      Memo = deleted.Memo
+      FlagColor = deleted.FlagColor
+      Cleared = clearedToYnab deleted.Cleared
+      Approved = deleted.Approved
+      ImportId = replacementImportId deleted.ImportId
+      CategoryId =
+        if List.isEmpty deleted.Splits then deleted.Category |> Option.map (fun c -> c.CategoryId) else None
+      Splits = deleted.Splits
+      TransferAccountId = if List.isEmpty deleted.Splits then deleted.TransferAccountId else None }
+
+/// Das noch nicht zurückgenommene Löschen einer Buchung: das letzte `EntryDeletedInBb` im Log,
+/// wenn danach kein `EntryRestoredInBb` folgt. Rein.
+let pendingDeletionIn (events: LedgerEvent list) : EntryDeletedInBbPayload option =
+    events
+    |> List.choose (fun e ->
+        match e.Body with
+        | EntryDeletedInBb p -> Some (Some p)
+        | EntryRestoredInBb _ -> Some None
+        | _ -> None)
+    |> List.tryLast
+    |> Option.flatten
+
+/// Der Befehl *BuchungLöschen* (ledger-z6sya, ADR 0092 Punkt 1): für jede Buchung außer
+/// abgeglichenen, schon gelöschten und nicht mit YNAB verknüpften (dann Ablehnung ohne Aufruf und
+/// ohne Ereignis, ADR 0091 Punkt 3). Unter der Schreib-Sperre zuerst das YNAB-DELETE auf die
+/// aktuelle YNAB-Id, nur bei Erfolg danach `EntryDeletedInBb` (Actor `UserInBb`) mit dem Stand
+/// vor dem Löschen; der Spiegel-Auslöser nach der Freigabe. Scheitert das DELETE, schreibt BB
+/// nichts, der Fehler trägt den Grund.
+let deleteEntry
+    (now: DateTime)
+    (deleteInYnab: string -> Async<YnabResult<unit>>)
+    (triggerMirror: unit -> unit)
+    (entryId: EntryId)
+    : Async<Result<unit, string>> =
+    async {
+        let! result =
+            WriteGuard.exclusive (
+                async {
+                    match! Ledger.Persistence.loadEntry entryId with
+                    | None -> return Error "Buchung nicht gefunden"
+                    | Some entry when entry.DeletedInYnab -> return Error entryDeleteDeletedText
+                    | Some entry when entry.Cleared = Reconciled -> return Error entryDeleteReconciledText
+                    | Some entry ->
+                        let! links = Ledger.Persistence.linksForEntry entryId
+                        match currentYnabTransactionId links with
+                        | None -> return Error entryDeleteNotLinkedText
+                        | Some ynabTransactionId ->
+                            match! deleteInYnab ynabTransactionId with
+                            | Error err -> return Error (ynabErrorText err)
+                            | Ok () ->
+                                do!
+                                    Ledger.Persistence.appendAndApply [
+                                        { EntryId = entryId
+                                          OccurredAt = now
+                                          Actor = UserInBb
+                                          Body =
+                                            EntryDeletedInBb (
+                                                deletedInBbPayloadOf entry ynabTransactionId (currentImportId links)
+                                            ) }
+                                    ]
+                                return Ok ()
+                }
+            )
+        if Result.isOk result then triggerMirror ()
+        return result
+    }
+
+/// Der Befehl *GelöschteBuchungWiederherstellen* (ledger-z6sya, ADR 0092 Punkt 2), "Rückgängig"
+/// nach dem Löschen: unter der Schreib-Sperre ein POST mit dem Stand aus `EntryDeletedInBb`
+/// (`restoreRequestOf`), nur bei Erfolg danach `EntryRestoredInBb` (Actor `UserInBb`) mit der
+/// neuen YNAB-Id; die alte gilt dann als abgelöst (ADR 0058 Punkt 5). Nur für eine Buchung, deren
+/// letztes Löschen ein `EntryDeletedInBb` ist und die noch als gelöscht gilt. Scheitert der POST,
+/// bleibt die Buchung gelöscht, kein Ereignis.
+let restoreDeletedEntry
+    (now: DateTime)
+    (createInYnab: Ynab.SplitReplacement -> Async<YnabResult<string>>)
+    (triggerMirror: unit -> unit)
+    (entryId: EntryId)
+    : Async<Result<unit, string>> =
+    async {
+        let! result =
+            WriteGuard.exclusive (
+                async {
+                    match! Ledger.Persistence.loadEntry entryId with
+                    | None -> return Error "Buchung nicht gefunden"
+                    | Some entry when not entry.DeletedInYnab -> return Error entryRestoreNotDeletedInBbText
+                    | Some entry ->
+                        let! recorded = Ledger.Persistence.loadEventsForEntry entryId
+                        match pendingDeletionIn (recorded |> List.map (fun r -> r.Event)) with
+                        | None -> return Error entryRestoreNotDeletedInBbText
+                        | Some deleted ->
+                            match! ynabAccountOf entry.AccountId with
+                            | None -> return Error pushNotPossibleReason
+                            | Some ynabAccount ->
+                                let request = restoreRequestOf ynabAccount deleted
+                                match! createInYnab request with
+                                | Error err -> return Error (ynabErrorText err)
+                                | Ok newId ->
+                                    do!
+                                        Ledger.Persistence.appendAndApply [
+                                            { EntryId = entryId
+                                              OccurredAt = now
+                                              Actor = UserInBb
+                                              Body =
+                                                EntryRestoredInBb {
+                                                    OldYnabTransactionId = deleted.YnabTransactionId
+                                                    NewYnabTransactionId = newId
+                                                    NewImportId = request.ImportId
+                                                } }
+                                        ]
+                                    return Ok ()
+                }
+            )
+        if Result.isOk result then triggerMirror ()
+        return result
+    }
 
 // ============================================
 // Lena fragen: Flag setzen und nach YNAB zurückschreiben (ADR 0056, ledger-xfjcp)

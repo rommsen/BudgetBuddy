@@ -1046,6 +1046,12 @@ type Model = {
     /// Buchungen, deren "Rückgängig" nach dem Anlegen gerade läuft: ein zweiter Tipp schickt nichts.
     DiscardingCaptured: Set<Guid>
 
+    /// Buchungen, deren "Buchung löschen" gerade läuft (ledger-z6sya): ein zweiter Tipp schickt nichts.
+    DeletingEntries: Set<Guid>
+
+    /// Buchungen, deren "Rückgängig" nach dem Löschen gerade läuft: ein zweiter Tipp schickt nichts.
+    RestoringEntries: Set<Guid>
+
     /// Die Vorschläge zum Payee für den offenen Picker (höchstens drei, häufigste zuerst).
     /// Leer, bis die Antwort da ist, bei einem Fehler und ohne Payee.
     CategorySuggestions: YnabCategoryId list
@@ -1757,6 +1763,14 @@ type Msg =
     | StartDiscardCaptured of Guid
     | RunDiscardCaptured of Guid
     | CapturedDiscarded of Guid * Result<unit, string>
+    /// "Buchung löschen" im Detail (ledger-z6sya, ADR 0092).
+    | StartDeleteEntry of Guid
+    | RunDeleteEntry of Guid
+    | EntryDeleteFinished of Guid * Result<unit, string>
+    /// "Rückgängig" an der Rückmeldung nach dem Löschen.
+    | StartRestoreDeletedEntry of Guid
+    | RunRestoreDeletedEntry of Guid
+    | EntryRestoreFinished of Guid * Result<unit, string>
     | TransferTargetsLoaded of Result<YnabAccount list, string>
     | AddSplitLine
     | RemoveSplitLine of int

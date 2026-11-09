@@ -154,6 +154,7 @@ module ReadModel =
                     | _ -> s)
             Origin = origin
             DeletedInYnab = entry.DeletedInYnab
+            Reconciled = (entry.Cleared = Reconciled)
             NeedsReview = needsReview entry
             Flag = flagOf entry.FlagColor entry.FlagName
             IsTransfer = entry.TransferAccountId.IsSome || entry.TransferEntryId.IsSome
@@ -427,6 +428,8 @@ module ReadModel =
             | Some c -> $"Übertrag in BB aufgehoben: Kategorie {c.CategoryName}"
             | None -> "Übertrag in BB aufgehoben: ohne Kategorie"
         | EntryDiscardedInBb _ -> "In BB verworfen (Rückgängig), in YNAB gelöscht"
+        | EntryDeletedInBb _ -> "In BB gelöscht"
+        | EntryRestoredInBb _ -> "In BB wiederhergestellt"
 
     /// Ein gespeichertes Ereignis als Historien-Zeile.
     let toHistoryLine (recorded: RecordedLedgerEvent) : LedgerHistoryLine = {

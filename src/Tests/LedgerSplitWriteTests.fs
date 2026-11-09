@@ -912,6 +912,7 @@ let private replacement : Ynab.SplitReplacement = {
     ImportId = Some "BB:abc:r1"
     CategoryId = None
     Splits = [ line catA -5.00m; transferLine -7.00m ]
+    TransferAccountId = None
 }
 
 let private fieldOf (path: string list) (decoder: Decoder<'a>) (json: string) : 'a =

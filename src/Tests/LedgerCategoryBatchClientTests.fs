@@ -41,6 +41,7 @@ let private entryOf (n: int) (cat: int) : LedgerEntryView =
       CategoryName = if cat = 0 then None else Some (choice cat).CategoryName
       CategoryId = if cat = 0 then None else Some (catGuid cat)
       CategoryGroupName = if cat = 0 then None else Some "Alltag w29y6"
+      Reconciled = false
       SplitCategoryGroupNames = Map.empty
       Splits = []
       Origin = MirroredFromYnab

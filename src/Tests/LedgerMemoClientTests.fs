@@ -25,6 +25,7 @@ let private entryOf (n: int) : LedgerEntryView =
       CategoryName = Some "Haushalt"
       CategoryId = Some (Guid.Parse "0195d700-0000-7000-8000-000000000001")
       CategoryGroupName = Some "Alltag"
+      Reconciled = false
       SplitCategoryGroupNames = Map.empty
       Splits = []
       Origin = MirroredFromYnab

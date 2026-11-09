@@ -1840,6 +1840,10 @@ type SplitReplacement = {
     CategoryId: YnabCategoryId option
     /// Die neuen Split-Zeilen; leer beim Aufheben.
     Splits: TransactionSplit list
+    /// Das Übertrags-Ziel einer Buchung, die selbst ein Übertrag ist (Wiederherstellen nach dem
+    /// Löschen, ledger-z6sya): sie geht mit der `transfer_payee_id` des Zielkontos als `payee_id`
+    /// hinaus, ohne `payee_name`. `None` im Split-Schreibweg.
+    TransferAccountId: YnabAccountId option
 }
 
 let private milliunitsOf (money: Money) : int = int (money.Amount * 1000m)
@@ -1872,16 +1876,25 @@ let buildReplacementBody
     (replacement: SplitReplacement)
     : Result<string, YnabAccountId> =
     let (YnabAccountId accountGuid) = replacement.AccountId
-    resolveSplits transferPayees replacement.Splits
-    |> Result.map (fun subs ->
+    let transferPayee =
+        match replacement.TransferAccountId with
+        | None -> Ok None
+        | Some target ->
+            match Map.tryFind target transferPayees with
+            | Some (YnabPayeeId payeeGuid) -> Ok (Some payeeGuid)
+            | None -> Error target
+    transferPayee
+    |> Result.bind (fun payeeId -> resolveSplits transferPayees replacement.Splits |> Result.map (fun subs -> payeeId, subs))
+    |> Result.map (fun (transferPayeeId, subs) ->
         Encode.object [
             "transaction", Encode.object [
                 "account_id", Encode.guid accountGuid
                 "date", Encode.string (replacement.Date.ToString("yyyy-MM-dd"))
                 "amount", Encode.int (milliunitsOf replacement.Amount)
-                match replacement.Payee with
-                | Some payee -> "payee_name", Encode.string payee
-                | None -> ()
+                match transferPayeeId, replacement.Payee with
+                | Some payeeGuid, _ -> "payee_id", Encode.guid payeeGuid
+                | None, Some payee -> "payee_name", Encode.string payee
+                | None, None -> ()
                 match replacement.Memo with
                 | Some memo -> "memo", Encode.string memo
                 | None -> ()
@@ -2084,7 +2097,16 @@ let createReplacement
     (replacement: SplitReplacement)
     : Async<YnabResult<string>> =
     async {
-        match! transferPayeesFor token budgetId replacement.Splits with
+        let! payeesResult =
+            match replacement.TransferAccountId with
+            | Some _ ->
+                async {
+                    match! getPayees token budgetId with
+                    | Ok payees -> return Ok (transferPayeeByAccount payees)
+                    | Error e -> return Error e
+                }
+            | None -> transferPayeesFor token budgetId replacement.Splits
+        match payeesResult with
         | Error e -> return Error e
         | Ok payees ->
             match buildReplacementBody payees replacement with

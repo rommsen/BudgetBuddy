@@ -30,6 +30,7 @@ let private entryView (accId: Guid) (date: DateTime) (payee: string) : LedgerEnt
     CategoryName = None
     CategoryId = None
     CategoryGroupName = None
+    Reconciled = false
     SplitCategoryGroupNames = Map.empty
     Splits = []
     Origin = MirroredFromYnab

@@ -254,6 +254,9 @@ type ToastActionKind =
     /// "Rückgängig" nach "Buchung anlegen" im Kassenbuch (ledger-at63w): die Buchung wird in YNAB
     /// gelöscht und im Kassenbuch verworfen.
     | UndoCapturedBooking of entryId: Guid
+    /// "Rückgängig" nach "Buchung löschen" im Detail (ledger-z6sya, ADR 0092): die Buchung wird in
+    /// YNAB neu angelegt und gilt im Kassenbuch nicht mehr als gelöscht.
+    | UndoDeleteEntry of entryId: Guid
     /// "Neu laden" am Hinweis "Neue Version" der installierten PWA (infrastructure-bnbdc,
     /// ADR 0057): gibt den wartenden Service Worker frei, die Seite lädt neu.
     | ReloadForUpdate

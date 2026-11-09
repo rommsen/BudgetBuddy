@@ -472,6 +472,21 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
         let e = requireExisting ()
         { e with DeletedInYnab = true }
 
+    | EntryDeletedInBb _ ->
+        // ledger-z6sya (ADR 0092): YNAB hat die Buchung schon gelöscht, BB hält das Löschen danach
+        // fest. Sie gilt wie eine in YNAB gelöschte; eine spätere Lösch-Beobachtung des Spiegels
+        // ändert nichts mehr. Der übrige Zustand bleibt, der Stand steht zusätzlich im Ereignis.
+        let e = requireExisting ()
+        { e with DeletedInYnab = true }
+
+    | EntryRestoredInBb _ ->
+        // ledger-z6sya (ADR 0092 Punkt 2): YNAB hat die Buchung unter neuer Id neu angelegt, mit
+        // neuen Subtransaction-Ids und neuer Übertrags-Gegenbuchung. Die alten Zuordnungen gelten
+        // nicht mehr, der Spiegel verknüpft die neuen (ADR 0046, ADR 0058 Punkt 5). Die
+        // Verknüpfungen stiftet `linksFrom`.
+        let e = requireExisting ()
+        { e with DeletedInYnab = false; TransferEntryId = None; SplitTransferCounterparts = Map.empty }
+
     | EntryImportedFromComdirect p ->
         {
             Id = event.EntryId
@@ -671,6 +686,14 @@ let linksFrom (event: LedgerEvent) : EntryLink list =
     | EntryLinkedToYnab p ->
         [ { EntryId = event.EntryId; System = YnabSystem; Value = p.YnabTransactionId } ]
     | EntryReplacedInYnab p ->
+        [
+            { EntryId = event.EntryId; System = YnabSystem; Value = p.NewYnabTransactionId }
+            { EntryId = event.EntryId; System = YnabSupersededSystem; Value = p.OldYnabTransactionId }
+            match p.NewImportId with
+            | Some importId -> { EntryId = event.EntryId; System = ImportIdSystem; Value = importId }
+            | None -> ()
+        ]
+    | EntryRestoredInBb p ->
         [
             { EntryId = event.EntryId; System = YnabSystem; Value = p.NewYnabTransactionId }
             { EntryId = event.EntryId; System = YnabSupersededSystem; Value = p.OldYnabTransactionId }

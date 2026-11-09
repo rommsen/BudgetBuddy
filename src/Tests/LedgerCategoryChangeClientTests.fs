@@ -39,6 +39,7 @@ let private entryOf (n: int) : LedgerEntryView =
       CategoryName = Some "Lebensmittel"
       CategoryId = Some (catGuid 1)
       CategoryGroupName = Some "Alltag"
+      Reconciled = false
       SplitCategoryGroupNames = Map.empty
       Splits = []
       Origin = MirroredFromYnab

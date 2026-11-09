@@ -317,6 +317,40 @@ type EntryDiscardedInBbPayload = {
     YnabTransactionId: string
 }
 
+/// Roman hat im Buchungs-Detail "Buchung löschen" gewählt (ledger-z6sya, ADR 0092, Actor
+/// `UserInBb`). Erst nachdem YNAB die Buchung gelöscht hat, steht das Ereignis im Log; die
+/// Buchung gilt danach als gelöscht. Trägt die gelöschte YNAB-Id und den Stand vor dem Löschen,
+/// den "Rückgängig" (`EntryRestoredInBb`) für die Neuanlage in YNAB braucht. Das Konto ist das
+/// der Buchung, es ändert sich nie.
+type EntryDeletedInBbPayload = {
+    YnabTransactionId: string
+    Date: DateTime
+    Amount: Money
+    Payee: string option
+    Memo: string option
+    Category: CategoryRef option
+    Splits: TransactionSplit list
+    /// Das Übertrags-Ziel einer Buchung, die selbst ein Übertrag ist; `None` sonst.
+    TransferAccountId: YnabAccountId option
+    /// YNABs `flag_color`, roh.
+    FlagColor: string option
+    Cleared: ClearedState
+    Approved: bool
+    /// Die `import_id` der Buchung beim Löschen (`currentImportId`); `None`, wenn sie keine hatte.
+    ImportId: string option
+}
+
+/// Roman hat das Löschen mit "Rückgängig" zurückgenommen (ledger-z6sya, ADR 0092 Punkt 2, Actor
+/// `UserInBb`). YNAB hat die Buchung unter neuer Id neu angelegt; das Ereignis hebt die Löschung
+/// auf, stiftet die neue YNAB-Id (und die Ersatz-`import_id`) und hält die alte als abgelöst fest
+/// (ADR 0058 Punkt 5).
+type EntryRestoredInBbPayload = {
+    OldYnabTransactionId: string
+    NewYnabTransactionId: string
+    /// Die Ersatz-`import_id` (`replacementImportId`); `None`, wenn die Buchung keine hatte.
+    NewImportId: string option
+}
+
 /// Das Flag wurde in BB geändert (ADR 0056, Punkt 2): "Lena fragen", "Rückfrage zurücknehmen"
 /// und "Rückgängig" erzeugen denselben Typ. Die Absicht steht nicht im Log, nur der Übergang
 /// (Alt und Neu, roh wie YNAB sie liefert). Actor `UserInBb`.
@@ -433,6 +467,11 @@ type LedgerEventBody =
     /// In BB erfasste Buchung mit "Rückgängig" verworfen, nachdem YNAB sie gelöscht hat
     /// (ledger-at63w). Entscheidung.
     | EntryDiscardedInBb of EntryDiscardedInBbPayload
+    /// Buchung im Detail gelöscht, nachdem YNAB sie gelöscht hat (ledger-z6sya). Entscheidung.
+    | EntryDeletedInBb of EntryDeletedInBbPayload
+    /// Löschen mit "Rückgängig" aufgehoben, nachdem YNAB die Buchung neu angelegt hat
+    /// (ledger-z6sya). Entscheidung.
+    | EntryRestoredInBb of EntryRestoredInBbPayload
 
 // ============================================
 // Entscheidungs-Familie: noch reservierter Name
@@ -501,6 +540,8 @@ let eventTypeName (body: LedgerEventBody) : string =
     | EntryTransferTargetSetInBb _ -> "EntryTransferTargetSetInBb"
     | EntryTransferTargetClearedInBb _ -> "EntryTransferTargetClearedInBb"
     | EntryDiscardedInBb _ -> "EntryDiscardedInBb"
+    | EntryDeletedInBb _ -> "EntryDeletedInBb"
+    | EntryRestoredInBb _ -> "EntryRestoredInBb"
 
 /// Die Schema-Version, mit der ein Ereignis heute geschrieben wird. Aendert sich die
 /// Payload-Form eines Typs, kommt eine neue Version dazu; alte gespeicherte Ereignisse
@@ -540,6 +581,8 @@ let schemaVersion (body: LedgerEventBody) : int =
     | EntryTransferTargetSetInBb _ -> 1
     | EntryTransferTargetClearedInBb _ -> 1
     | EntryDiscardedInBb _ -> 1
+    | EntryDeletedInBb _ -> 1
+    | EntryRestoredInBb _ -> 1
 
 // ============================================
 // JSON-Codecs
@@ -1093,6 +1136,52 @@ module Codec =
     let decodeDiscardedInBb : Decoder<EntryDiscardedInBbPayload> =
         Decode.object (fun get -> { YnabTransactionId = get.Required.Field "ynabTransactionId" Decode.string })
 
+    let encodeDeletedInBb (p: EntryDeletedInBbPayload) =
+        Encode.object [
+            "ynabTransactionId", Encode.string p.YnabTransactionId
+            "date", encodeDate p.Date
+            "amount", encodeMoney p.Amount
+            "payee", encodeOptionalString p.Payee
+            "memo", encodeOptionalString p.Memo
+            "category", encodeOption encodeCategory p.Category
+            "splits", encodeSplits p.Splits
+            "transferAccountId", encodeOption encodeYnabAccountId p.TransferAccountId
+            "flagColor", encodeOptionalString p.FlagColor
+            "cleared", encodeClearedState p.Cleared
+            "approved", Encode.bool p.Approved
+            "importId", encodeOptionalString p.ImportId
+        ]
+
+    let decodeDeletedInBb : Decoder<EntryDeletedInBbPayload> =
+        Decode.object (fun get -> {
+            YnabTransactionId = get.Required.Field "ynabTransactionId" Decode.string
+            Date = get.Required.Field "date" decodeDate
+            Amount = get.Required.Field "amount" decodeMoney
+            Payee = get.Optional.Field "payee" Decode.string
+            Memo = get.Optional.Field "memo" Decode.string
+            Category = get.Optional.Field "category" decodeCategory
+            Splits = get.Optional.Field "splits" decodeSplits |> Option.defaultValue []
+            TransferAccountId = get.Optional.Field "transferAccountId" decodeYnabAccountId
+            FlagColor = get.Optional.Field "flagColor" Decode.string
+            Cleared = get.Required.Field "cleared" decodeClearedState
+            Approved = get.Required.Field "approved" Decode.bool
+            ImportId = get.Optional.Field "importId" Decode.string
+        })
+
+    let encodeRestoredInBb (p: EntryRestoredInBbPayload) =
+        Encode.object [
+            "oldYnabTransactionId", Encode.string p.OldYnabTransactionId
+            "newYnabTransactionId", Encode.string p.NewYnabTransactionId
+            "newImportId", encodeOptionalString p.NewImportId
+        ]
+
+    let decodeRestoredInBb : Decoder<EntryRestoredInBbPayload> =
+        Decode.object (fun get -> {
+            OldYnabTransactionId = get.Required.Field "oldYnabTransactionId" Decode.string
+            NewYnabTransactionId = get.Required.Field "newYnabTransactionId" Decode.string
+            NewImportId = get.Optional.Field "newImportId" Decode.string
+        })
+
     let encodeFlagChangedInBb (p: EntryFlagChangedInBbPayload) =
         Encode.object [
             "oldFlagColor", encodeOptionalString p.OldFlagColor
@@ -1201,6 +1290,8 @@ let encodePayload (body: LedgerEventBody) : string =
         | EntryTransferTargetSetInBb p -> Codec.encodeTransferTargetSetInBb p
         | EntryTransferTargetClearedInBb p -> Codec.encodeTransferTargetClearedInBb p
         | EntryDiscardedInBb p -> Codec.encodeDiscardedInBb p
+        | EntryDeletedInBb p -> Codec.encodeDeletedInBb p
+        | EntryRestoredInBb p -> Codec.encodeRestoredInBb p
     Encode.toString 0 json
 
 /// Liest eine gespeicherte Payload zurueck. Typname und Schema-Version zusammen
@@ -1273,6 +1364,10 @@ let decodePayload (eventType: string) (version: int) (payload: string) : Result<
         Decode.fromString Codec.decodeTransferTargetClearedInBb payload |> Result.map EntryTransferTargetClearedInBb
     | "EntryDiscardedInBb", 1 ->
         Decode.fromString Codec.decodeDiscardedInBb payload |> Result.map EntryDiscardedInBb
+    | "EntryDeletedInBb", 1 ->
+        Decode.fromString Codec.decodeDeletedInBb payload |> Result.map EntryDeletedInBb
+    | "EntryRestoredInBb", 1 ->
+        Decode.fromString Codec.decodeRestoredInBb payload |> Result.map EntryRestoredInBb
     | t, v -> Error $"Unbekannter Ereignistyp '{t}' in Schema-Version {v}"
 
 // ============================================

@@ -139,6 +139,8 @@ let init () : Model * Cmd<Msg> =
         TransferTargets = NotAsked
         Capture = None
         DiscardingCaptured = Set.empty
+        DeletingEntries = Set.empty
+        RestoringEntries = Set.empty
         CategorySuggestions = []
         CategoryRows = Map.empty
         FlagRows = Map.empty
@@ -1028,6 +1030,8 @@ let private submitCapture (capture: Capture.CaptureState) (model: Model) : Model
 
 let captureUndoLabel = "Rückgängig"
 let capturedDiscardedText = "Buchung zurückgenommen"
+let entryDeletedText = "Buchung gelöscht, auch in YNAB"
+let entryRestoredText = "Buchung wiederhergestellt"
 
 let private showDetail (entry: LedgerEntryView) (model: Model) : Model * Cmd<Msg> =
     { model with DetailFor = Some entry; FocusedRow = Some entry.Id; History = Loading; MemoEdit = None },
@@ -2497,6 +2501,67 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | CapturedDiscarded (entryId, Error message) ->
         { model with DiscardingCaptured = model.DiscardingCaptured.Remove entryId },
         Cmd.none, ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
+
+    | StartDeleteEntry entryId ->
+        // Ein zweiter Tipp auf "Buchung löschen" schickt nichts, solange das Löschen läuft.
+        if model.DeletingEntries.Contains entryId then
+            model, Cmd.none, NoOp
+        else
+            { model with DeletingEntries = model.DeletingEntries.Add entryId },
+            Cmd.ofMsg (RunDeleteEntry entryId),
+            NoOp
+
+    | RunDeleteEntry entryId ->
+        model,
+        Cmd.OfAsync.either
+            Api.ledger.deleteEntry
+            entryId
+            (fun result -> EntryDeleteFinished (entryId, result))
+            (fun ex -> EntryDeleteFinished (entryId, Error ex.Message)),
+        NoOp
+
+    | EntryDeleteFinished (entryId, Ok ()) ->
+        // Nach Erfolg schließt das Detail, der Toast bietet "Rückgängig" (ADR 0092 Punkt 2).
+        let model = { model with DeletingEntries = model.DeletingEntries.Remove entryId }
+        let model' =
+            if model.DetailFor |> Option.exists (fun d -> d.Id = entryId) then
+                { model with DetailFor = None; History = NotAsked; MemoEdit = None }
+            else
+                model
+        model',
+        Cmd.batch [ Cmd.ofMsg LoadEntries; Cmd.ofMsg LoadBalances ],
+        ShowToastWithAction (entryDeletedText, ToastSuccess, { Label = captureUndoLabel; Kind = UndoDeleteEntry entryId })
+
+    | EntryDeleteFinished (entryId, Error message) ->
+        // Das Detail bleibt offen, der Toast nennt den Grund.
+        { model with DeletingEntries = model.DeletingEntries.Remove entryId },
+        Cmd.none, ShowToast ($"Löschen nicht möglich: {message}", ToastError)
+
+    | StartRestoreDeletedEntry entryId ->
+        if model.RestoringEntries.Contains entryId then
+            model, Cmd.none, NoOp
+        else
+            { model with RestoringEntries = model.RestoringEntries.Add entryId },
+            Cmd.ofMsg (RunRestoreDeletedEntry entryId),
+            NoOp
+
+    | RunRestoreDeletedEntry entryId ->
+        model,
+        Cmd.OfAsync.either
+            Api.ledger.restoreDeletedEntry
+            entryId
+            (fun result -> EntryRestoreFinished (entryId, result))
+            (fun ex -> EntryRestoreFinished (entryId, Error ex.Message)),
+        NoOp
+
+    | EntryRestoreFinished (entryId, Ok ()) ->
+        { model with RestoringEntries = model.RestoringEntries.Remove entryId },
+        Cmd.batch [ Cmd.ofMsg LoadEntries; Cmd.ofMsg LoadBalances ],
+        ShowToast (entryRestoredText, ToastSuccess)
+
+    | EntryRestoreFinished (entryId, Error message) ->
+        { model with RestoringEntries = model.RestoringEntries.Remove entryId },
+        Cmd.none, ShowToast ($"Wiederherstellen nicht möglich: {message}", ToastError)
 
     | RunLoadTransferTargets ->
         { model with TransferTargets = Loading },

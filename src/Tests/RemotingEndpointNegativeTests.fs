@@ -330,6 +330,10 @@ let private rows : Row list = [
         |> run |> expectError "Buchung erfassen" }
     { Endpoint = "LedgerApi.discardCapturedBooking"; Case = "leere Buchungs-Id: Fehler"
       Run = fun () -> ledgerApi.discardCapturedBooking Guid.Empty |> run |> expectError "Rückgängig" }
+    { Endpoint = "LedgerApi.deleteEntry"; Case = "leere Buchungs-Id: Fehler"
+      Run = fun () -> ledgerApi.deleteEntry Guid.Empty |> run |> expectError "Buchung löschen" }
+    { Endpoint = "LedgerApi.restoreDeletedEntry"; Case = "leere Buchungs-Id: Fehler"
+      Run = fun () -> ledgerApi.restoreDeletedEntry Guid.Empty |> run |> expectError "Wiederherstellen" }
     { Endpoint = "LedgerApi.getLedgerBookingDefaults"; Case = "ohne Einrichtung: heute ohne Uhrzeit, höchstens drei Chips"
       Run = fun () ->
         let defaults = ledgerApi.getLedgerBookingDefaults () |> run

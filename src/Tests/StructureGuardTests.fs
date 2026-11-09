@@ -685,6 +685,11 @@ let private apiWirings =
       @"\baddLedgerBooking\s*=\s*fun\s+request\s*->\s*addLedgerBookingWith\s+liveLedgerBookingPorts\s+\(liveBerlinDay\s*\(\)\)\s+DateTime\.UtcNow\s+request\b"
       @"\bdiscardCapturedBooking\s*=\s*fun\s+entryId\s*->\s*discardCapturedBookingWith\s+liveLedgerBookingPorts\s+DateTime\.UtcNow\s+entryId\b"
       @"\bliveLedgerBookingPorts\s*:\s*LedgerBookingPorts\s*=\s*\{\s*Setting\s*=\s*Persistence\.Settings\.getSetting\s+LoadYnabCategories\s*=\s*YnabClient\.getCategories\s+BudgetAccounts\s*=\s*YnabClient\.fetchTransferAccounts\s+Push\s*=\s*YnabClient\.createTransactionFor\s+Delete\s*=\s*YnabClient\.deleteTransaction\s+NewEntryId\s*=\s*Ledger\.Events\.newEntryId\s+TriggerMirror\s*=\s*Ledger\.CommandHandlers\.triggerMirrorInBackground\s*\}"
+      // Buchung löschen und Rückgängig (ledger-z6sya): `deleteEntryWith` und `restoreDeletedEntryWith` sind mit Fake-Ports
+      // getestet, die Ports des Servers erreichen YNAB nur im laufenden Dienst.
+      @"\bdeleteEntry\s*=\s*fun\s+entryId\s*->\s*deleteEntryWith\s+liveEntryDeletionPorts\s+DateTime\.UtcNow\s+entryId\b"
+      @"\brestoreDeletedEntry\s*=\s*fun\s+entryId\s*->\s*restoreDeletedEntryWith\s+liveEntryDeletionPorts\s+DateTime\.UtcNow\s+entryId\b"
+      @"\bliveEntryDeletionPorts\s*:\s*EntryDeletionPorts\s*=\s*\{\s*Setting\s*=\s*Persistence\.Settings\.getSetting\s+Delete\s*=\s*YnabClient\.deleteTransaction\s+Create\s*=\s*YnabClient\.createReplacement\s+TriggerMirror\s*=\s*Ledger\.CommandHandlers\.triggerMirrorInBackground\s*\}"
       @"\bgetLedgerBookingDefaultsWith\s+Persistence\.Settings\.getSetting\s+liveBerlinZone\.Value\s+DateTime\.UtcNow\b"
       @"\bgetBookingCategoryForPayeeWith\s+Ledger\.Persistence\.loadLastPayeeCategory\s+Persistence\.Rules\.getAllRules\s+payee\b"
       @"\bimportTargetWith\s+Persistence\.Settings\.getSetting\s+toImport\.Length\s+with\b"
@@ -816,6 +821,9 @@ let hostedServiceGuardTests =
                   "addLedgerBooking = fun request -> addLedgerBookingWith liveLedgerBookingPorts (liveBerlinDay ()) DateTime.UtcNow request\n"
                   "discardCapturedBooking = fun entryId -> discardCapturedBookingWith liveLedgerBookingPorts DateTime.UtcNow entryId\n"
                   "let liveLedgerBookingPorts : LedgerBookingPorts = {\n    Setting = Persistence.Settings.getSetting\n    LoadYnabCategories = YnabClient.getCategories\n    BudgetAccounts = YnabClient.fetchTransferAccounts\n    Push = YnabClient.createTransactionFor\n    Delete = YnabClient.deleteTransaction\n    NewEntryId = Ledger.Events.newEntryId\n    TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground\n}\n"
+                  "deleteEntry = fun entryId -> deleteEntryWith liveEntryDeletionPorts DateTime.UtcNow entryId\n"
+                  "restoreDeletedEntry = fun entryId -> restoreDeletedEntryWith liveEntryDeletionPorts DateTime.UtcNow entryId\n"
+                  "let liveEntryDeletionPorts : EntryDeletionPorts = {\n    Setting = Persistence.Settings.getSetting\n    Delete = YnabClient.deleteTransaction\n    Create = YnabClient.createReplacement\n    TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground\n}\n"
                   "Ledger.QueryHandlers.getLedgerBookingDefaultsWith Persistence.Settings.getSetting liveBerlinZone.Value DateTime.UtcNow\n"
                   "Ledger.QueryHandlers.getBookingCategoryForPayeeWith\n            Ledger.Persistence.loadLastPayeeCategory\n            Persistence.Rules.getAllRules\n            payee\n"
                   "match! importTargetWith Persistence.Settings.getSetting toImport.Length with\n"
@@ -899,6 +907,9 @@ let hostedServiceGuardTests =
                   "BudgetAccounts = YnabClient.fetchTransferAccounts", "BudgetAccounts = (fun _ _ -> async.Return (Ok []))", "Erfassen ohne Konten"
                   "Push = YnabClient.createTransactionFor\n    Delete", "Push = fakeCreate\n    Delete", "Erfassen ohne Push"
                   "Delete = YnabClient.deleteTransaction", "Delete = (fun _ _ _ -> async.Return (Ok ()))", "Rückgängig ohne Löschen"
+                  "deleteEntryWith liveEntryDeletionPorts", "deleteEntryWith fakeDeletionPorts", "Löschen mit anderen Ports"
+                  "restoreDeletedEntryWith liveEntryDeletionPorts", "restoreDeletedEntryWith fakeDeletionPorts", "Wiederherstellen mit anderen Ports"
+                  "Create = YnabClient.createReplacement", "Create = (fun _ _ _ -> async.Return (Ok \"x\"))", "Wiederherstellen ohne Neuanlage"
                   "getLedgerBookingDefaultsWith Persistence.Settings.getSetting liveBerlinZone.Value", "getLedgerBookingDefaultsWith Persistence.Settings.getSetting TimeZoneInfo.Utc", "Vorbelegung in UTC"
                   "Persistence.Rules.getAllRules\n            payee", "(fun () -> async.Return [])\n            payee", "Kategorie zum Payee ohne Regeln" ] do
                 Expect.isNonEmpty (findMissingApiWirings (replaced original replacement)) label

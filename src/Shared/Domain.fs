@@ -1008,6 +1008,9 @@ type LedgerEntryView = {
     /// In YNAB geloescht. Die Buchung bleibt sichtbar und traegt ein Kennzeichen;
     /// sie zaehlt nicht mehr zum Kontostand (ADR 0013).
     DeletedInYnab: bool
+    /// Abgeglichen (`cleared = reconciled`, ledger-z6sya): das Detail bietet dann kein
+    /// "Buchung löschen" an (ADR 0092 Punkt 1).
+    Reconciled: bool
     /// Zu prüfen: `approved = false` oder `cleared = Uncleared` (ADR 0032). Der Chip
     /// "Zu prüfen (n)" und der Punkt am linken Zeilenrand hängen daran.
     NeedsReview: bool

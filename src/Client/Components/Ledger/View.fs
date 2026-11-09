@@ -1454,6 +1454,11 @@ let private historyView (dispatch: Msg -> unit) (entry: LedgerEntryView) (histor
 /// Betrag und Text, kein Geprüft-Schalter; die Filter-Knöpfe bleiben.
 let detailReadOnly (entry: LedgerEntryView) : bool = entry.DeletedInYnab
 
+/// Bietet das Detail "Buchung löschen" an (ledger-z6sya, ADR 0092 Punkt 1)? Nicht bei
+/// abgeglichenen, schon gelöschten und Noch nicht in YNAB verknüpften Buchungen (ADR 0091 Punkt 3).
+let detailDeleteVisible (entry: LedgerEntryView) : bool =
+    not entry.DeletedInYnab && not entry.Reconciled && entry.LinkedToYnab
+
 /// Der Kopf des Details: Betrag, "Konto · Datum", Schließen.
 let private detailHead (model: Model) (entry: LedgerEntryView) (onClose: (unit -> unit) option) =
     Detail.head
@@ -1864,7 +1869,25 @@ let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
       )
 
       Detail.sectionLabel "HISTORIE"
-      historyView dispatch entry model.History ]
+      historyView dispatch entry model.History
+
+      // Ganz unten wie im Prototyp (Version 17): "Buchung löschen" in Rot, klein, volle Breite.
+      // Der Rand links und rechts wie bei den Feldzeilen des Details (`px-4`).
+      if detailDeleteVisible entry then
+          Html.div [
+              prop.className "px-4 pt-2 pb-4"
+              prop.children [
+                  Button.view {
+                      Button.defaultProps with
+                          Text = "Buchung löschen"
+                          Variant = Button.Danger
+                          Size = Button.Small
+                          IsBusy = model.DeletingEntries.Contains entry.Id
+                          ClassName = Some "w-full"
+                          OnClick = fun () -> dispatch (StartDeleteEntry entry.Id)
+                  }
+              ]
+          ] ]
 
 /// Das Detail als Seitenpanel (PC). Gerendert in der Spalte der Liste (`FilterBarColumn`).
 // ============================================

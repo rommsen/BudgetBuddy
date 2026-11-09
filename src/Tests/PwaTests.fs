@@ -70,6 +70,7 @@ let private anEntry : Shared.Domain.LedgerEntryView = {
     Flag = Shared.Domain.NoFlag
     IsTransfer = false
     TransferAccountId = None
+    Reconciled = false
     SplitCategoryGroupNames = Map.empty
     ReviewMarkWriteBackFailure = None
     CategorizationWriteBackFailure = None

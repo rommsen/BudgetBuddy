@@ -439,6 +439,15 @@ type LedgerApi = {
     /// sie im Kassenbuch als gelöscht. Nur für eine in BB erfasste, mit YNAB verknüpfte Buchung.
     discardCapturedBooking: Guid -> Async<Result<unit, string>>
 
+    /// "Buchung löschen" im Buchungs-Detail (ledger-z6sya, ADR 0092): löscht die Buchung zuerst in
+    /// YNAB, danach gilt sie im Kassenbuch als gelöscht. Abgelehnt ohne Aufruf bei abgeglichenen,
+    /// schon gelöschten und nicht mit YNAB verknüpften Buchungen.
+    deleteEntry: Guid -> Async<Result<unit, string>>
+
+    /// "Rückgängig" nach "Buchung löschen" (ledger-z6sya, ADR 0092 Punkt 2): legt die Buchung in
+    /// YNAB mit dem Stand vor dem Löschen neu an, danach ist sie im Kassenbuch nicht mehr gelöscht.
+    restoreDeletedEntry: Guid -> Async<Result<unit, string>>
+
     /// Die Vorbelegung des Formulars "Neue Buchung": heute (Berliner Kalender), das Import-Konto,
     /// das zuletzt genutzte Konto und die Zuletzt-Chips.
     getLedgerBookingDefaults: unit -> Async<LedgerBookingDefaults>

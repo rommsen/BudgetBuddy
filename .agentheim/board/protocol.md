@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-09 22:46 -- Task verified and completed: ledger-z6sya - "Buchung löschen im Detail, auch in YNAB, mit Rückgängig"
+
+**Type:** Work / Task completion
+**Task:** ledger-z6sya - "Buchung löschen im Detail, auch in YNAB, mit Rückgängig"
+**Summary:** Buchung im Detail löschen, auch in YNAB, mit Rückgängig per Neuanlage
+**Duration:** 34m (Dispatch 22:08 bis Verdict 22:42)
+**Verification:** PASS (iteration 2)
+**Files changed:** 35
+**Tests added:** 38
+**ADRs written:** none
+
+---
+
+## 2026-11-09 22:33 -- Verification failed: ledger-z6sya - "Buchung löschen im Detail, auch in YNAB, mit Rückgängig"
+
+**Type:** Work / Verification failure
+**Task:** ledger-z6sya - "Buchung löschen im Detail, auch in YNAB, mit Rückgängig"
+**Iteration:** 1 of 3
+**Reasons:** Schreib-Sperre für deleteEntry und restoreDeletedEntry durch keinen Test belegt (commandWaitsForMirror fehlt)
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-09 22:07 -- Batch started: [ledger-z6sya, ledger-m7mye]
 
 **Type:** Work / Batch start
