@@ -16,12 +16,13 @@ Zuletzt aktualisiert: 2026-11-09, nach dem work-Lauf zu budgeting-t7dka samt Rev
   ledger-nb4tv (ETF-Konto), Buchung löschen im Detail, Betrag bearbeiten im Detail; dazu der Bug
   ledger-m7k2d (Split einer Barbuchung nicht änderbar, Entscheidung zu ADR 0058).
   Bug budgeting-t7dka (Targets anwenden übergeht deaktivierte Kategorien) in main (2026-11-09,
-  40631e3f, Review 518d4ac3, Nachtrag ADR 0088), noch nicht deployt.
+  40631e3f, Review 518d4ac3, Nachtrag ADR 0088), von Roman deployt (2026-11-09).
 - **Etappe 3 · Ein Produkt:** noch nicht verfeinert, Zeilen wachsen.
-- **Nächster Schritt:** budgeting-t7dka deployen (auf Romans Anweisung); bis dahin keine Kategorie mit
-  aktivem Target deaktivieren. Seite Kategorien (leiser Knopf „Umbenennen“, Satz im Gruppen-Formular)
-  von Roman gesehen: gut (2026-11-09).
-- **Danach:** ledger-m7k2d verfeinern, dann die übrigen Zeilen von Etappe 2.
+- **Nächster Schritt:** ledger-m7k2d verfeinern (Split einer Barbuchung, Entscheidung zu ADR 0058).
+  budgeting-t7dka ist deployt (2026-11-09), Kategorien mit aktivem Target dürfen wieder deaktiviert
+  werden. Seite Kategorien (leiser Knopf „Umbenennen“, Satz im Gruppen-Formular) von Roman gesehen: gut.
+- **Danach:** die übrigen Zeilen von Etappe 2 (ledger-nb4tv ETF-Konto, Buchung löschen und Betrag
+  bearbeiten im Detail).
 
 ## Ablauf je Schritt
 1. Nächsten Schritt aus „Stand“ nennen.
