@@ -19,8 +19,8 @@ Zuletzt aktualisiert: 2026-11-09, nach dem work-Lauf zu budgeting-t7dka samt Rev
   40631e3f, Review 518d4ac3, Nachtrag ADR 0088), noch nicht deployt.
 - **Etappe 3 · Ein Produkt:** noch nicht verfeinert, Zeilen wachsen.
 - **Nächster Schritt:** budgeting-t7dka deployen (auf Romans Anweisung); bis dahin keine Kategorie mit
-  aktivem Target deaktivieren. Dabei prüft Roman auf der Seite Kategorien den leisen Knopf „Umbenennen“
-  neben dem Gruppenkopf (412 px, 1280 px) und den neuen Satz im Gruppen-Formular.
+  aktivem Target deaktivieren. Seite Kategorien (leiser Knopf „Umbenennen“, Satz im Gruppen-Formular)
+  von Roman gesehen: gut (2026-11-09).
 - **Danach:** ledger-m7k2d verfeinern, dann die übrigen Zeilen von Etappe 2.
 
 ## Ablauf je Schritt
