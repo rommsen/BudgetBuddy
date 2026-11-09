@@ -151,6 +151,47 @@ let splitDomainTests =
             Expect.equal (replacementImportId (Some "BB:abc:r9")) (Some "BB:abc:r10") "zehnter Ersatz"
             Expect.equal (replacementImportId None) None "ohne import_id keine"
 
+        // ledger-m7k2d, kaputt: GIVEN eine lange import_id (`BB:` plus 32 Zeichen, wie
+        // `cashEntryImportId`), WHEN die Ersatz-import_id gebildet wird, THEN war sie vor dem Fix
+        // 38 Zeichen lang und YNAB-untauglich. Jetzt wird der Stamm von hinten gekürzt
+        // (ADR 0058, Nachtrag 2026-11-09).
+        testCase "replacementImportId kürzt bei einer langen import_id den Stamm auf höchstens 36 Zeichen" <| fun () ->
+            let stem = "BB:" + String.replicate 32 "a"
+            let first = replacementImportId (Some stem) |> Option.get
+            Expect.isLessThanOrEqual first.Length ImportIdMaxLength "höchstens 36 Zeichen"
+            Expect.stringEnds first ":r1" "endet auf :r1"
+            Expect.isTrue (stem.StartsWith (first.Substring(0, first.Length - 3))) "Stamm ist Präfix des alten"
+            Expect.notEqual first stem "anders als die alte"
+
+            let second = replacementImportId (Some first) |> Option.get
+            Expect.isLessThanOrEqual second.Length ImportIdMaxLength "zweiter Ersatz höchstens 36 Zeichen"
+            Expect.stringEnds second ":r2" "endet auf :r2"
+            Expect.notEqual second first "anders als die erste Ersatz-Id"
+            Expect.notEqual second stem "anders als die alte"
+
+            let ninth = $"{stem.Substring(0, 33)}:r9"
+            let tenth = replacementImportId (Some ninth) |> Option.get
+            Expect.isLessThanOrEqual tenth.Length ImportIdMaxLength "zehnter Ersatz höchstens 36 Zeichen"
+            Expect.stringEnds tenth ":r10" "endet auf :r10"
+            Expect.isTrue (stem.StartsWith (tenth.Substring(0, tenth.Length - 4))) "Stamm bleibt Präfix"
+
+        // ledger-m7k2d, intakt: GIVEN eine kurze import_id (`BB:` plus 20 Zeichen), WHEN die
+        // Ersatz-import_id gebildet wird, THEN bleibt der Stamm voll erhalten.
+        testCase "replacementImportId lässt eine kurze import_id ungekürzt" <| fun () ->
+            let short = "BB:" + String.replicate 20 "b"
+            Expect.equal (replacementImportId (Some short)) (Some $"{short}:r1") "voller Stamm"
+            Expect.equal (replacementImportId (Some $"{short}:r1")) (Some $"{short}:r2") "voller Stamm beim zweiten Ersatz"
+
+        testCase "currentImportId findet unter gekürzten Stämmen die höchste Ersatz-Zahl" <| fun () ->
+            let entryId = newEntryId ()
+            let link v = { EntryId = entryId; System = ImportIdSystem; Value = v }
+            let stem = "BB:" + String.replicate 32 "c"
+            let r1 = replacementImportId (Some stem) |> Option.get
+            let r2 = replacementImportId (Some r1) |> Option.get
+            let r10 = replacementImportId (Some $"{stem.Substring(0, 33)}:r9") |> Option.get
+            Expect.equal (currentImportId [ link r1; link stem; link r2 ]) (Some r2) "r2 gewinnt"
+            Expect.equal (currentImportId [ link r10; link r2; link stem ]) (Some r10) "r10 gewinnt"
+
         testCase "currentImportId wählt die mit der höchsten Ersatz-Zahl" <| fun () ->
             let entryId = newEntryId ()
             let link v = { EntryId = entryId; System = ImportIdSystem; Value = v }
@@ -518,6 +559,37 @@ let splitCommandTests =
                 Expect.equal p.NewCategory (Some catC) "NewCategory"
                 Expect.isEmpty p.NewSplits "NewSplits leer"
             | other -> failtest $"erwartet Recategorized, war {other}"
+
+        // ledger-m7k2d, kaputt: GIVEN eine aufgeteilte Barbuchung mit `cashEntryImportId`
+        // (35 Zeichen), WHEN der Split geändert wird, THEN lehnte `setEntrySplits` vor dem Fix ab
+        // ("länger als 36 Zeichen"). Jetzt laufen DELETE und POST mit gekürzter Ersatz-Id, und
+        // eine zweite Änderung schickt wieder eine andere import_id.
+        testCase "Ändern einer aufgeteilten Barbuchung mit cashEntryImportId: POST mit gekürzter Ersatz-Id, zweite Änderung wieder anders" <| fun () ->
+            let entryId = newEntryId ()
+            let oldId = freshYnabId ()
+            let importId = cashEntryImportId entryId
+            appendAndApply
+                [ eventOn entryId YnabMirror (EntryObservedInYnab { observedPayload oldId (Some importId) with Splits = twoLines }) ]
+            |> Async.RunSynchronously
+            let probe = ToolsProbe()
+            probe.CreateResult <- Some (Ok "ynab-cash-1")
+            setSplits probe entryId [ line catA -4.00m; line catC -8.00m ] |> unwrap |> ignore
+
+            Expect.equal probe.Deletes [ oldId ] "DELETE der alten Id"
+            let first = (List.exactlyOne probe.Creates).ImportId |> Option.get
+            Expect.isLessThanOrEqual first.Length ImportIdMaxLength "höchstens 36 Zeichen"
+            Expect.stringEnds first ":r1" "endet auf :r1"
+            Expect.isTrue (importId.StartsWith (first.Substring(0, first.Length - 3))) "Stamm ist Präfix"
+            Expect.equal (findEntryByLink ImportIdSystem first |> Async.RunSynchronously) (Some entryId) "Verknüpfung der neuen import_id"
+            Expect.equal (findEntryByLink YnabSystem "ynab-cash-1" |> Async.RunSynchronously) (Some entryId) "Verknüpfung der neuen YNAB-Id"
+
+            probe.CreateResult <- Some (Ok "ynab-cash-2")
+            setSplits probe entryId twoLines |> unwrap |> ignore
+            let second = (List.last probe.Creates).ImportId |> Option.get
+            Expect.isLessThanOrEqual second.Length ImportIdMaxLength "zweiter Ersatz höchstens 36 Zeichen"
+            Expect.notEqual second first "andere als die erste Ersatz-Id"
+            Expect.notEqual second importId "andere als die ursprüngliche"
+            Expect.equal (findEntryByLink ImportIdSystem second |> Async.RunSynchronously) (Some entryId) "Verknüpfung der zweiten Ersatz-Id"
 
         testCase "Aufheben auf 'ohne Kategorie' (unkategorisierte Zeile)" <| fun () ->
             let entryId, _, _ = seedSplit ()

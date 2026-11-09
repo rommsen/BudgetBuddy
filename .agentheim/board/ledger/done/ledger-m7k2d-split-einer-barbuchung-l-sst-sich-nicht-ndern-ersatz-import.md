@@ -1,7 +1,7 @@
 ---
 id: ledger-m7k2d
 title: "Split einer Barbuchung lässt sich nicht ändern: Ersatz-import_id wäre länger als 36 Zeichen"
-status: doing
+status: done
 type: bug
 context: ledger
 created: 2026-11-08
@@ -63,3 +63,20 @@ Entscheidung Roman (2026-11-09, Nachtrag ADR 0058 Punkt 2): **Stamm kürzen, dan
   `generateImportId`, `matchesImportId` in `src/Shared/Domain.fs`; erzwungener Import in
   `src/Server/YnabClient.fs` (`forceNewImportId`).
 - Die UI-Sperre (`splitLocksOf`) prüft die Länge nicht; nach dem Fix braucht sie es auch nicht.
+
+## Outcome
+
+`replacementImportId` (`src/Server/Ledger/CommandHandlers.fs`) bildet die Ersatz-`import_id` jetzt als Stamm plus `:r<n>` und kürzt den Stamm von hinten auf `ImportIdMaxLength - Länge des Suffix`, wenn das Ergebnis sonst länger als 36 Zeichen wäre (ADR 0058, Nachtrag 2026-11-09). Kurze `import_id`s bleiben unverändert (`<alt>:r<n>`). Der gekürzte Stamm ist immer ein Präfix des ursprünglichen; `splitReplacementSuffix` und `currentImportId` sind unverändert und finden die aktuelle weiter über die höchste Ersatz-Zahl. Die Prüfung `tooLongImportId` und die Ablehnung "Die import_id wäre mit dem Suffix länger als 36 Zeichen" in `setEntrySplits` sind entfallen. Nicht geändert: PUT beim ersten Aufteilen, Sperre für fremde `import_id`s, `matchesImportId`.
+
+Tests in `src/Tests/LedgerSplitWriteTests.fs`:
+- rein, kaputt: "replacementImportId kürzt bei einer langen import_id den Stamm auf höchstens 36 Zeichen" (`BB:` plus 32 Zeichen: `:r1`, dann `:r2`, Übergang `:r9` zu `:r10`, je höchstens 36, Präfix, jeweils anders). Vor dem Fix rot: "Expected a (38) to be less than or equal to b (36)".
+- rein, intakt: "replacementImportId lässt eine kurze import_id ungekürzt" (`BB:` plus 20 Zeichen).
+- rein: "currentImportId findet unter gekürzten Stämmen die höchste Ersatz-Zahl" (r2 und r10 gewinnen). War vor dem Fix schon grün, sichert die Sortierung bei gekürzten Stämmen ab.
+- Handler, kaputt: "Ändern einer aufgeteilten Barbuchung mit cashEntryImportId: POST mit gekürzter Ersatz-Id, zweite Änderung wieder anders" (DELETE und POST laufen, Verknüpfungen der neuen import_id und YNAB-Id gespeichert, zweite Änderung schickt eine dritte, andere import_id). Vor dem Fix rot: "Befehl sollte gelingen, war: Die import_id wäre mit dem Suffix länger als 36 Zeichen".
+- intakt, bestehend: "Aufheben (eine Zeile): …" mit kurzer import_id (`BB:` plus 20) prüft weiter `{importId}:r1`, ebenso "Ändern: … :r1, ein zweiter Ersatz :r2".
+
+`./verify.sh`: VERIFY: PASS (dotnet 4537 grün, node 311 grün).
+
+README: das Delta ersetzt den Bullet **Ersatz-import_id**. Von Hand nachzuziehen (Bullet ohne fetten Kopf in `## Ereignisse`, `EntryReplacedInYnab`): alt "`NewImportId` (Option, die alte `import_id` plus `:r<n>`)", neu "`NewImportId` (Option, der Stamm der alten `import_id` plus `:r<n>`, bei mehr als 36 Zeichen von hinten gekürzt)". In CLAUDE.md steht nichts zum Thema (grep nach `:r<n>`, "36 Zeichen", `replacementImportId` ohne Treffer).
+
+Kann-Sammlung ledger: keine Funde.

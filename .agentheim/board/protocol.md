@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-09 21:03 -- Task verified and completed: ledger-m7k2d - "Split einer Barbuchung lässt sich nicht ändern: Ersatz-import_id wäre länger als 36 Zeichen"
+
+**Type:** Work / Task completion
+**Task:** ledger-m7k2d - "Split einer Barbuchung lässt sich nicht ändern: Ersatz-import_id wäre länger als 36 Zeichen"
+**Summary:** Ersatz-import_id kürzt den Stamm einer langen import_id, aufgeteilte Barbuchungen lassen sich wieder ändern
+**Duration:** 13m (Dispatch 20:49 bis Verdict 21:02)
+**Verification:** PASS (iteration 1)
+**Files changed:** 2
+**Tests added:** 4
+**ADRs written:** none (Nachtrag ADR 0058)
+
+---
+
 ## 2026-11-09 20:49 -- Batch started: [ledger-m7k2d]
 
 **Type:** Work / Batch start

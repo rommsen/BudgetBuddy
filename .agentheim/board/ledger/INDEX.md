@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 8
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 112
+- **Doing:** 0
+- **Done:** 113
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **ledger-m7k2d** — "Split einer Barbuchung lässt sich nicht ändern: Ersatz-import_id wäre länger als 36 Zeichen" (bug) — `doing/ledger-m7k2d-split-einer-barbuchung-l-sst-sich-nicht-ndern-ersatz-import.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **ledger-m7k2d** — "Split einer Barbuchung lässt sich nicht ändern: Ersatz-import_id wäre länger als 36 Zeichen" (bug) — `done/ledger-m7k2d-split-einer-barbuchung-l-sst-sich-nicht-ndern-ersatz-import.md`
 - **ledger-at63w** — "Buchung im Kassenbuch erfassen für jedes Konto ohne Import, mit Vorbelegung (Konto, Datum, Zuletzt, Kategorie zum Payee)" (feature) — `done/ledger-at63w-buchung-im-kassenbuch-erfassen.md`
 - **ledger-qvjvs** — "Buchung zum Übertrag machen: Konten im Kategorie-Picker des Kassenbuch-Details, Schreibweg nach YNAB" (feature) — `done/ledger-qvjvs-buchung-zum-uebertrag-machen.md`
 - **ledger-p3vq8** — "addCashExpense: gelingt der Push und scheitert danach das Schreiben der Verknüpfung, legt der Spiegel eine zweite Buchung an" (bug) — `done/ledger-p3vq8-push-gelungen-verknuepfung-nicht-geschrieben.md`

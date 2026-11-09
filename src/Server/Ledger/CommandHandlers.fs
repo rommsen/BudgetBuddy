@@ -2569,13 +2569,19 @@ let loadEntryPushPlan (entry: Entry) : Async<Result<EntryPushPlan, string>> =
         return planEntryPush accounts links events entry
     }
 
-/// Die `import_id` der Ersatzbuchung: die aktuelle plus `:r<n>`, n ist die Zahl der
-/// bisherigen Ersätze plus 1 (ADR 0058, Punkt 2). Ohne `import_id` keine. Rein.
+/// Die `import_id` der Ersatzbuchung: der Stamm der aktuellen plus `:r<n>`, n ist die Zahl
+/// der bisherigen Ersätze plus 1 (ADR 0058, Punkt 2). Wäre das länger als
+/// `ImportIdMaxLength`, wird der Stamm von hinten gekürzt (Nachtrag 2026-11-09, ledger-m7k2d:
+/// Barbuchungen und erzwungene Importe tragen 35 Zeichen). Der gekürzte Stamm ist ein Präfix
+/// des ursprünglichen; kurze `import_id`s bleiben ungekürzt. Ohne `import_id` keine. Rein.
 let replacementImportId (current: string option) : string option =
     current
     |> Option.map (fun id ->
         let stem, replaced = splitReplacementSuffix id
-        $"{stem}:r{replaced + 1}")
+        let suffix = $":r{replaced + 1}"
+        let maxStem = ImportIdMaxLength - suffix.Length
+        let kept = if stem.Length > maxStem then stem.Substring(0, maxStem) else stem
+        kept + suffix)
 
 /// Die Form einer Split-Anfrage nach der Prüfung: eine Kategorie (Aufheben oder
 /// gewöhnliche Kategorie) oder mindestens zwei Zeilen.
@@ -2853,16 +2859,8 @@ let setEntrySplits
                                         | Some id when not (id.StartsWith $"{ImportIdPrefix}:") -> Some id
                                         | _ -> None
 
-                                    let tooLongImportId =
-                                        replacementImportId (currentImportId links)
-                                        |> Option.exists (fun id -> id.Length > ImportIdMaxLength)
-
                                     if replaceRoute && pendingDeleted.IsNone && foreignImportId.IsSome then
                                         return Error foreignImportIdChangeReason
-                                    elif replaceRoute && tooLongImportId then
-                                        return
-                                            Error
-                                                $"Die import_id wäre mit dem Suffix länger als {ImportIdMaxLength} Zeichen"
                                     else
                                         let! ynabAccount = ynabAccountOf entry.AccountId
 
