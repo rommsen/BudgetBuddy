@@ -2858,6 +2858,8 @@ let amountSplitTransferReason =
     "Die Aufteilung enthält einen Übertrag, der Betrag lässt sich vorerst nur in YNAB ändern"
 let amountSplitPendingReason =
     "Die Aufteilung ist noch nicht in YNAB, bitte zuerst erneut senden"
+/// `setEntrySplitsWithAmount` für eine unaufgeteilte Buchung: ihr Betrag geht über `setEntryAmount`.
+let amountNotSplitReason = "Die Buchung ist nicht aufgeteilt, der Betrag geht ohne Aufteilung"
 
 /// Warum der Betrag einer Buchung sich nicht ändern lässt (ADR 0092, Punkt 3 und 4), oder `None`.
 /// Die eine Quelle der Regel: die Befehle (`setEntryAmount`, `setEntrySplitsWithAmount`) und der
@@ -2905,7 +2907,7 @@ let private changeSplits
                     match newAmount with
                     | None -> None
                     | Some _ when List.isEmpty entry.Splits ->
-                        Some "Die Buchung ist nicht aufgeteilt, der Betrag geht ohne Aufteilung"
+                        Some amountNotSplitReason
                     | Some _ -> amountNotChangeableReason entry
                 match amountLock, splitNotChangeableReason entry with
                 | Some reason, _ -> return Error reason

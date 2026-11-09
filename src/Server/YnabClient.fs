@@ -1817,6 +1817,10 @@ let updateMemo
 // Betrag zurückschreiben (ADR 0092, ledger-m7mye)
 // ============================================
 
+/// Ein Betrag in Milliunits mit Vorzeichen, die eine Umrechnung des Schreibwegs (Betrag und
+/// Split-Ersatz). Geht per `Encode.int` als JSON-Zahl hinaus.
+let private milliunitsOf (money: Money) : int = int (money.Amount * 1000m)
+
 /// Baut den Request-Body für das Zurückschreiben des Betrags: nur `amount`, in Milliunits mit
 /// Vorzeichen als JSON-Zahl (`Encode.int`; als Text verwirft YNAB die Buchung still). Weder
 /// Kategorie noch Memo oder Prüfvermerk (ADR 0028, Punkt 1). Nur für unaufgeteilte Buchungen:
@@ -1824,7 +1828,7 @@ let updateMemo
 /// Non-private, damit der JSON-Vertrag direkt testbar ist.
 let buildAmountBody (amount: Money) : string =
     Encode.object [
-        "transaction", Encode.object [ "amount", Encode.int (int (amount.Amount * 1000m)) ]
+        "transaction", Encode.object [ "amount", Encode.int (milliunitsOf amount) ]
     ]
     |> Encode.toString 2
 
@@ -1907,8 +1911,6 @@ type SplitReplacement = {
     /// hinaus, ohne `payee_name`. `None` im Split-Schreibweg.
     TransferAccountId: YnabAccountId option
 }
-
-let private milliunitsOf (money: Money) : int = int (money.Amount * 1000m)
 
 /// Der Body für das Aufteilen einer unaufgeteilten Buchung: `category_id` null und die
 /// Zeilen als `subtransactions` (ADR 0058, Probelauf 1). Übertrags-Zeilen gehen mit der
