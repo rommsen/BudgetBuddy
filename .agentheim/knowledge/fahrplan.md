@@ -3,7 +3,7 @@
 Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success looks like“.
 
 ## Stand
-Zuletzt aktualisiert: 2026-11-08, nach dem work-Lauf mit sechs Tasks aus Etappe 2.
+Zuletzt aktualisiert: 2026-11-09, nach dem work-Lauf zu budgeting-t7dka samt Review.
 
 - **Etappe 1 · Bedeutungen:** erledigt, 5 von 5 (Skizze und Prototyp, Layout-Sweep, Muster im
   Styleguide, Designwert-Tests aufgeräumt, Palette 2 im Token-Layer). Romans Blick auf dak16 neben
@@ -13,15 +13,15 @@ Zuletzt aktualisiert: 2026-11-08, nach dem work-Lauf mit sechs Tasks aus Etappe 
 - **Etappe 2 · Lücken schließen:** 6 von 9 gebaut und in main (2026-11-08): ledger-p3vq8,
   budgeting-pscgb, ledger-qvjvs, budgeting-sn2sn, budgeting-e2z7v, ledger-at63w. Neue ADRs 0089
   (Übertrag in BB), 0090 (Targets nach YNAB), 0091 (Erfasste Buchung verwerfen). Offen in Etappe 2:
-  ledger-nb4tv (ETF-Konto), Buchung löschen im Detail, Betrag bearbeiten im Detail; dazu die Bugs
-  ledger-m7k2d (Split einer Barbuchung nicht änderbar, Entscheidung zu ADR 0058) und budgeting-t7dka
-  (Targets anwenden übergeht deaktivierte Kategorien, betrifft Geld).
+  ledger-nb4tv (ETF-Konto), Buchung löschen im Detail, Betrag bearbeiten im Detail; dazu der Bug
+  ledger-m7k2d (Split einer Barbuchung nicht änderbar, Entscheidung zu ADR 0058).
+  Bug budgeting-t7dka (Targets anwenden übergeht deaktivierte Kategorien) in main (2026-11-09,
+  40631e3f, Review 518d4ac3, Nachtrag ADR 0088), noch nicht deployt.
 - **Etappe 3 · Ein Produkt:** noch nicht verfeinert, Zeilen wachsen.
-- **Nächster Schritt:** Etappe 2 (6 Tasks) deployt mit `9cc7550e` und von Roman abgenommen (2026-11-08):
-  Seiten neben Prototyp Version 17 gut, Neue Buchung am Galaxy S25 Ultra gut, „Targets nach YNAB
-  schreiben“ gelaufen (100 gleich, Geschenke neu). Jetzt budgeting-t7dka verfeinern (betrifft Geld); bis
-  dahin keine Kategorie mit aktivem Target deaktivieren.
-- **Danach:** ledger-m7k2d und budgeting-t7dka verfeinern, dann die übrigen Zeilen von Etappe 2.
+- **Nächster Schritt:** budgeting-t7dka deployen (auf Romans Anweisung); bis dahin keine Kategorie mit
+  aktivem Target deaktivieren. Dabei prüft Roman auf der Seite Kategorien den leisen Knopf „Umbenennen“
+  neben dem Gruppenkopf (412 px, 1280 px) und den neuen Satz im Gruppen-Formular.
+- **Danach:** ledger-m7k2d verfeinern, dann die übrigen Zeilen von Etappe 2.
 
 ## Ablauf je Schritt
 1. Nächsten Schritt aus „Stand“ nennen.
@@ -63,6 +63,7 @@ Ziel: Nichts zwingt mehr zu YNAB außer Reports.
   (Roman 2026-11-08: Import-Konto erst mit Abgleich, der kommt später).
 - ✓ `budgeting-pscgb` Kategorien verwalten: anlegen, umbenennen, Gruppe wechseln, Gruppen (ADR 0088)
 - ✓ `budgeting-sn2sn` Kategorie deaktivieren und eigene Reihenfolge, nur in BB (ADR 0088)
+- ✓ `budgeting-t7dka` Bug: Targets anwenden übergeht in BB deaktivierte Kategorien (Nachtrag ADR 0088)
 - ✓ `budgeting-e2z7v` Targets beim Speichern direkt nach YNAB (Nachtrag ADR 0084, Roman 2026-11-08)
 - ✓ `ledger-qvjvs` Buchung zum Übertrag machen (Konten im Picker des Details, Schreibweg nach YNAB)
 - ✓ `ledger-p3vq8` Push gelungen, Verknüpfung nicht geschrieben
