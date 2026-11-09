@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-09 20:49 -- Batch started: [ledger-m7k2d]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-m7k2d - "Split einer Barbuchung lässt sich nicht ändern: Ersatz-import_id wäre länger als 36 Zeichen"
+**Parallel:** scoped — builder named ledger-m7k2d; 0 other ready tasks
+
+---
+
 ## 2026-11-09 20:33 -- Modeling / Captured: ledger-m7mye - "Betrag einer Buchung im Detail bearbeiten, auch in YNAB"
 
 **Type:** Modeling / Capture
