@@ -352,6 +352,15 @@ let amountReducerTests =
             let _, msgs2, _ = run (StartUndoAmount (idOf 1, -42.80m)) saving
             Expect.isEmpty msgs2 "nicht neben laufendem Speichern"
 
+        testCase "Rückgängig gescheitert: Sperre frei mit dem Grund, Fehler-Toast, Betrag unverändert" <| fun () ->
+            let started, _, _ = run (StartUndoAmount (idOf 1, -42.80m)) (modelWith [ { entryOf 1 with Amount = eur -45m } ])
+            let model, msgs, external = run (AmountRestored (idOf 1, Error "YNAB weg")) started
+            Expect.equal (model.AmountRows |> Map.tryFind (idOf 1)) (Some (AmountCommandFailed "YNAB weg")) "nicht mehr AmountSending"
+            Expect.isSome (Components.Ledger.View.amountEditMsg model (rowOf 1 model)) "Knopf wieder frei"
+            Expect.isEmpty msgs "kein Aufruf"
+            Expect.equal external (ShowToast ("Rückgängig nicht möglich: YNAB weg", ToastError)) "Toast mit Grund"
+            Expect.equal (rowOf 1 model).Amount (eur -45m) "Betrag unverändert"
+
         testCase "Erneut senden: Erfolg löscht den Fehlschlag, ein erneuter Fehlschlag ersetzt den Grund" <| fun () ->
             let failing = { entryOf 1 with AmountWriteBackFailure = Some "weg" }
             let started, msgs, _ = run (StartRetryAmount (idOf 1)) (modelWith [ failing ])

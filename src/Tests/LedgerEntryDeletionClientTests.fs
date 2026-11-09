@@ -100,6 +100,7 @@ let deleteUpdateTests =
             Expect.equal (model.DetailFor |> Option.map (fun d -> d.Id)) (Some (idOf 1)) "Detail offen"
             Expect.isEmpty sent "nichts neu geladen"
             Expect.equal external (ShowToast ("Löschen nicht möglich: YNAB nicht erreichbar", ToastError)) "Toast mit Grund"
+            Expect.isFalse (model.DeletingEntries.Contains (idOf 1)) "Sperre frei"
 
         // Bug: nach dem Löschen blieb ein offenes Sheet "Betrag" stehen und sperrte die Liste.
         testCase "nach dem Löschen ist auch das Sheet Betrag zu" <| fun () ->
