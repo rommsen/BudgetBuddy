@@ -5,6 +5,22 @@ Newest entries on top.
 
 ---
 
+## 2026-11-09 21:51 -- Modeling / Promoted: ledger-m7mye - "Betrag einer Buchung im Detail bearbeiten, auch in YNAB"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-09 21:51 -- Modeling / Promoted: ledger-z6sya - "Buchung löschen im Detail, auch in YNAB, mit Rückgängig"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-09 21:51 -- Modeling / Refined: ledger-z6sya, ledger-m7mye - Buchung löschen und Betrag bearbeiten im Detail
 
 **Type:** Modeling / Refine

@@ -10,14 +10,16 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 8
-- **Todo:** 0
+- **Backlog:** 6
+- **Todo:** 2
 - **Doing:** 0
 - **Done:** 113
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **ledger-m7mye** — "Betrag einer Buchung im Detail bearbeiten, auch in YNAB" (feature) — `todo/ledger-m7mye-betrag-bearbeiten-im-detail.md`
+- **ledger-z6sya** — "Buchung löschen im Detail, auch in YNAB, mit Rückgängig" (feature) — `todo/ledger-z6sya-buchung-loeschen-im-detail.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -43,8 +45,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **ledger-m7mye** — "Betrag einer Buchung im Detail bearbeiten, auch in YNAB" (feature) — `backlog/ledger-m7mye-betrag-bearbeiten-im-detail.md`
-- **ledger-z6sya** — "Buchung löschen im Detail, auch in YNAB, mit Rückgängig" (feature) — `backlog/ledger-z6sya-buchung-loeschen-im-detail.md`
 - **ledger-k4n2s** — "Kann-Sammlung ledger" (chore) — `backlog/ledger-k4n2s-kann-sammlung-ledger.md`
 - **ledger-mj3a9** — "BOT_MAX_AMOUNT_EUR: ungültiger Wert fällt auf das Maximum zurück statt auf einen sicheren Wert" (bug) — `backlog/ledger-mj3a9-bot-betragsdeckel-faellt-sicher.md`
 - **ledger-g47hp** — "Benachrichtigung für Lena bei neuer Rückfrage" (feature) — `backlog/ledger-g47hp-benachrichtigung-fuer-lena.md`

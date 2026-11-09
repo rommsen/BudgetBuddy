@@ -1,7 +1,7 @@
 ## ADRs scoped to this BC
 
 <!-- adr-local:start -->
-- [ADR 0092](../../decisions/0092-buchung-loeschen-und-betrag-aendern-in-bb.md) Buchung löschen und Betrag ändern in BB: YNAB zuerst, Rückgängig per Neuanlage; abgeglichene gesperrt, Betrag bei Überträgen vorerst gesperrt, Splits über den Split-Editor.
+- **0092**: Buchung löschen und Betrag ändern in BB: YNAB zuerst, Rückgängig per Neuanlage mit Ersatz-import_id; abgeglichene gesperrt, Betrag auch bei Importen, bei Überträgen vorerst gesperrt, Splits über den Split-Editor · 2026-11-09 · `../../decisions/0092-buchung-loeschen-und-betrag-aendern-in-bb.md`
 - **0091**: Erfasste Buchung verwerfen (Rückgängig nach Neue Buchung): zuerst das DELETE in YNAB, nur bei Erfolg EntryDiscardedInBb im Kassenbuch, nur für verknüpfte, in BB erfasste, nicht abgeglichene Buchungen; Ausnahme von ADR 0021 · 2026-11-08 · `../../decisions/0091-erfasste-buchung-verwerfen-ynab-zuerst.md`
 - **0089**: Buchung in BB zum Übertrag machen und zurück: zwei Ereignisse (EntryTransferTargetSetInBb, EntryTransferTargetClearedInBb), Payee vor dem Übertrag als Zustand, Fehlschlag-Baseline mit Ziel; schränkt ADR 0055 Punkt 7 auf die Sammelaktion ein · 2026-11-08 · `../../decisions/0089-buchung-zum-uebertrag-in-bb.md`
 - **0068**: Bob-Grenzen über den Tag (500 € Summe, 10 Commits je Kalendertag), Datumsfenster 31 Tage, harter Deckel 500 € je Buchung, Drosselung 10 Anfragen pro Minute und 5 Minuten Kategorien-Cache; keine eigene Meldung, kein Flag · 2026-10-28 · `../../decisions/0068-bob-tagesgrenze-datumsfenster-und-drosselung.md`

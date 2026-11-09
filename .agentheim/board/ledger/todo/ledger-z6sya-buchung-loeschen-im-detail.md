@@ -1,7 +1,7 @@
 ---
 id: ledger-z6sya
 title: "Buchung löschen im Detail, auch in YNAB, mit Rückgängig"
-status: backlog
+status: todo
 type: feature
 context: ledger
 created: 2026-11-09
