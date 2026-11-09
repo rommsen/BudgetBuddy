@@ -172,6 +172,10 @@ Panels (Tab Geld), nimmt man `CategoryPicker.popoverInPanelRevealed`: es rückt 
 nimmt die volle Breite des schon eingerückten Inhalts. Der Pfeil ist bei gesperrten Buchungen
 gedämpft (`opacity-40`), ohne Wirkung und nennt den Grund im Tooltip. Beide Zeilen stehen in
 `/styleguide` bei „Detail: Felder“.
+Der Betrag im Kopf des Details ist `Detail.amountButton` (Betrag mit Pfeil `›`, öffnet „Betrag“, der
+Name nennt Aktion und Betrag); solange ein Aufruf läuft, ist er `aria-disabled`, ohne Hover, der Pfeil
+gedämpft (`opacity-40`). Ist der Betrag gesperrt, steht `Detail.amountLocked`: der Betrag ohne Knopf, der
+Grund darunter. Beide stehen in `/styleguide` bei „Detail: Betrag im Kopf“.
 Für die Auswahl-Leiste (Aktion „Kategorie setzen“, ledger-w29y6) gibt es zwei Varianten ohne
 markierte Zeile, denn mehrere Buchungen haben keine gemeinsame aktuelle Kategorie: der Picker
 öffnet immer ohne Haken, auch bei „Ohne Kategorie“. Am PC `CategoryPicker.selectionPopover`

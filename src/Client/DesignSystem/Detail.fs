@@ -64,24 +64,32 @@ let amount (value: decimal) (currency: string) (muted: bool) : ReactElement =
 
 /// Der Betrag im Kopf als Knopf (ledger-m7mye, ADR 0092, Prototyp Version 17): derselbe Betrag wie
 /// `amount`, dahinter der Pfeil `›`; ein Tipp öffnet das Sheet "Betrag". Trefferfläche mindestens
-/// 44 px hoch (am Handy 48 px über `TouchTargets.mobileMinHeight`).
-let amountButton (value: decimal) (currency: string) (label: string) (onClick: unit -> unit) : ReactElement =
+/// 44 px hoch (am Handy 48 px über `TouchTargets.mobileMinHeight`). Der Name nennt Aktion und
+/// Betrag ("Betrag bearbeiten, -42,80 €"), damit der Screenreader den Betrag nicht verliert.
+/// `onClick = None` sperrt den Knopf vorübergehend (etwa solange ein Aufruf läuft): `aria-disabled`,
+/// ohne Wirkung und ohne Hover, der Pfeil gedämpft wie beim gesperrten `pickerArrow` (`opacity-40`).
+/// Der Fokus bleibt, deshalb kein `disabled`.
+let amountButton (value: decimal) (currency: string) (label: string) (onClick: (unit -> unit) option) : ReactElement =
+    let name = $"{label}, {Money.formatAmountText (value > 0m) true value currency}"
+    let disabled = onClick.IsNone
     Html.button [
         prop.type'.button
         prop.custom ("data-testid", "detail-amount-edit")
-        prop.ariaLabel label
-        prop.title label
+        prop.ariaLabel name
+        prop.title name
+        prop.custom ("aria-disabled", (if disabled then "true" else "false"))
         prop.className (
             $"-ml-1 inline-flex {TouchTargets.mobileMinHeight} md:min-h-11 items-center gap-2 rounded-lg px-1 " +
-            "hover:bg-surface-hover transition-colors touch-manipulation"
+            "transition-colors touch-manipulation " +
+            (if disabled then "cursor-not-allowed" else "hover:bg-surface-hover")
         )
         prop.onClick (fun e ->
             e.stopPropagation ()
-            onClick ())
+            onClick |> Option.iter (fun click -> click ()))
         prop.children [
             amount value currency false
             Html.span [
-                prop.className Colors.textMuted
+                prop.className (Colors.textMuted + (if disabled then " opacity-40" else ""))
                 prop.ariaHidden true
                 prop.children [ Icons.chevronRight Icons.SM Icons.Default ]
             ]

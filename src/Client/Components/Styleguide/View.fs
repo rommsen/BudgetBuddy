@@ -2154,6 +2154,20 @@ let private DetailDemo () =
                   { Key = "0"; Dot = Detail.DotGrey; Text = "Kategorie in YNAB geändert"; Stamp = "10.09.2026 17:50 · YNAB-Spiegel" } ]
         ]
 
+        // Betrag im Kopf (ledger-m7mye): als Knopf mit Pfeil, vorübergehend gesperrt (ein Aufruf läuft)
+        // und gesperrt mit Grund darunter.
+        card "components-detail-amount" "Detail: Betrag im Kopf" "Betrag, Betrag als Knopf mit Pfeil (öffnet „Betrag“), Knopf während eines Aufrufs, gesperrt mit Grund" [
+            Html.div [
+                prop.className "flex flex-col gap-4"
+                prop.children [
+                    Detail.amount -48.12m "EUR" false
+                    Detail.amountButton -48.12m "EUR" "Betrag bearbeiten" (Some ignore)
+                    Detail.amountButton -48.12m "EUR" "Betrag bearbeiten" None
+                    Detail.amountLocked -48.12m "EUR" false "Abgeglichen, der Betrag lässt sich nicht ändern"
+                ]
+            ]
+        ]
+
         card "components-detail-panel" "Detail: Seitenpanel" "Kopf mit Betrag und Konto · Datum, darunter Payee und Kategorie mit Filter-Knopf in einer Spalte (ab md sichtbar)" [
             Html.div [
                 prop.className "relative h-[28rem] overflow-hidden"

@@ -1504,7 +1504,7 @@ let private detailHead (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntr
                 entry.Amount.Amount
                 entry.Amount.Currency
                 amountEditLabel
-                (fun () -> amountEditMsg model entry |> Option.iter dispatch)
+                (amountEditMsg model entry |> Option.map (fun msg -> fun () -> dispatch msg))
     Detail.head amountElement (detailSubtitle (accountNameOf model entry) entry) onClose
 
 /// Der Kopf über dem Split-Editor: der Gesamtbetrag des Editors ohne Knopf. Kommt der Editor aus
