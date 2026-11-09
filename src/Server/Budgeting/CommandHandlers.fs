@@ -489,6 +489,17 @@ let private planOf (month: BudgetMonth) : Result<TargetPreview, YnabError> =
     // BB lehnt ab, nicht YNAB (budgeting-b5n8q).
     | Error message -> Error (YnabError.RefusedByBb message)
 
+/// Plant Targets anwenden auf `month` ohne die in BB deaktivierten Kategorien (budgeting-t7dka): der gemeinsame
+/// Schritt von Vorschau und Anwenden, damit beide dieselben Zeilen ergeben (`chosenLinesIfCurrent`). Bleibt eine
+/// deaktivierte Kategorie wegen Aktivität oder Verfügbarem stehen, ist sie markiert und `targetApplicationLines`
+/// lässt sie weg. Ein Lesefehler des Zustands hält an (`deactivatedForTargets`).
+let private planWithoutDeactivated (connect: unit -> SqliteConnection) (month: BudgetMonth) : Async<Result<TargetPreview, YnabError>> =
+    async {
+        match! deactivatedForTargets connect with
+        | Error e -> return Error e
+        | Ok deactivated -> return month |> applyDeactivation deactivated |> planOf
+    }
+
 /// Die Vorschau: liest den Monat unter der Sperre und plant auf BBs Soll. Übernahme und Echo-Regel laufen nur im
 /// Speicher; die Vorschau schreibt nicht nach YNAB und hält höchstens die einmalige Target-Übernahme fest, wenn
 /// eine Kategorie des Monats noch darauf wartet (budgeting-eh8xe, Best-Effort wie das Lesen: `targetRulesBestEffort`). Liest über `connect`, `now` stempelt sie.
@@ -520,13 +531,9 @@ let previewWithLedger
                         match! periodActivityForCommand ledger targets monthKey with
                         | Error e -> return Error e
                         | Ok activity ->
-                            match! deactivatedForTargets connect with
-                            | Error e -> return Error e
-                            | Ok deactivated ->
-                                return
-                                    toBudgetMonthWith (Some fold.Categories) (Some activity) targets paused raw
-                                    |> applyDeactivation deactivated
-                                    |> planOf
+                            return!
+                                toBudgetMonthWith (Some fold.Categories) (Some activity) targets paused raw
+                                |> planWithoutDeactivated connect
     })
 
 /// `previewWithLedger` mit dem Kassenbuch der Anwendung (`liveLedgerActivityPort`).
@@ -779,15 +786,13 @@ let applyWithLedger
         match! preparedMonth (Some ledger) connect (loadPausedCategoriesWith connect) port now monthKey with
         | Error e -> return Error e
         | Ok (month, _, fold) ->
-            match! deactivatedForTargets connect with
+            // In BB deaktivierte Kategorien bekommen kein Geld über Targets (budgeting-t7dka).
+            match! planWithoutDeactivated connect month with
             | Error e -> return Error e
-            | Ok deactivated ->
-                // In BB deaktivierte Kategorien bekommen kein Geld über Targets (budgeting-t7dka): bleibt eine wegen
-                // Aktivität oder Verfügbarem stehen, ist sie markiert und `targetApplicationLines` lässt sie weg.
-                match planOf (applyDeactivation deactivated month) |> Result.map (fun fresh -> fresh, chosenLinesIfCurrent shown fresh) with
-                | Error e -> return Error e
-                | Ok (fresh, None) -> return Ok (PreviewChanged fresh)
-                | Ok (fresh, Some chosen) ->
+            | Ok fresh ->
+                match chosenLinesIfCurrent shown fresh with
+                | None -> return Ok (PreviewChanged fresh)
+                | Some chosen ->
                     // Nur die gewählten Zeilen (budgeting-m3x7f); abgewählte werden nicht geschrieben.
                     let lines =
                         chosen
