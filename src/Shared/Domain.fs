@@ -1044,6 +1044,16 @@ type LedgerEntryView = {
     /// Grund und "Erneut senden". `None`, wenn nichts offen ist (und für Antworten eines
     /// älteren Servers, der das Feld nicht kennt).
     MemoWriteBackFailure: string option
+    /// Grund des offenen Fehlschlags beim Zurückschreiben des Betrags nach YNAB (ledger-m7mye,
+    /// ADR 0092): der Betrag bleibt in BB gesetzt, das Detail zeigt "Betrag nicht in YNAB" mit
+    /// dem Grund und "Erneut senden". `None`, wenn nichts offen ist (und für Antworten eines
+    /// älteren Servers, der das Feld nicht kennt).
+    AmountWriteBackFailure: string option
+    /// Warum sich der Betrag nicht ändern lässt (ledger-m7mye, ADR 0092 Punkt 3 und 4): in YNAB
+    /// gelöscht, abgeglichen, noch nicht in YNAB, Übertrag, Split mit Übertrags-Zeile. Der Lesepfad
+    /// setzt ihn nach denselben Regeln wie der Befehl `setEntryAmount`. `None`: änderbar (auch für
+    /// Antworten eines älteren Servers, der das Feld nicht kennt).
+    AmountLockReason: string option
     /// Die Buchung trägt eine YNAB-Verknüpfung: vom Spiegel gesehene Buchungen immer,
     /// BB-geführte (Comdirect-Import, Quick Add) nach `EntryLinkedToYnab` (ADR 0021).
     LinkedToYnab: bool
@@ -1334,6 +1344,59 @@ type MemoOutcome = {
     CurrentMemo: string option
     MemoChange: MemoChange
     MemoWriteBack: MemoWriteBack
+}
+
+// ============================================
+// Betrag ändern im Detail (ledger-m7mye, ADR 0092)
+// ============================================
+
+/// Die Richtung "Ausgabe" in `AmountChangeRequest.Direction`.
+[<Literal>]
+let AmountDirectionOutflow = "outflow"
+
+/// Die Richtung "Einnahme" in `AmountChangeRequest.Direction`.
+[<Literal>]
+let AmountDirectionInflow = "inflow"
+
+/// Der neue Betrag einer Buchung, wie das Sheet "Betrag" ihn schickt: ohne Vorzeichen, die
+/// Richtung getrennt (die Zifferntastatur hat je nach App kein Minus). Die API-Grenze prüft
+/// beides (`Server.Validation.validateAmountChange`): `None` heißt leer.
+type AmountChangeRequest = {
+    Amount: decimal option
+    /// `AmountDirectionOutflow` oder `AmountDirectionInflow`.
+    Direction: string
+}
+
+/// Der neue Betrag einer aufgeteilten Buchung samt der neuen Aufteilung (ADR 0092 Punkt 3): beides
+/// geht zusammen als ein Ersatz nach YNAB (ADR 0058 Punkt 2).
+type SplitsWithAmountRequest = {
+    Amount: AmountChangeRequest
+    Lines: TransactionSplit list
+}
+
+/// Hat der Befehl den Betrag geändert? `AmountUnchanged`: Ziel gleich Ist, weder Ereignis noch
+/// YNAB-Aufruf.
+type AmountChange =
+    | AmountChanged
+    | AmountUnchanged
+
+/// Was mit dem Zurückschreiben des Betrags nach YNAB passiert ist.
+type AmountWriteBack =
+    /// Nichts zu senden (Ziel gleich Ist, oder kein offener Fehlschlag beim erneuten Senden).
+    | AmountNotSent
+    /// YNAB hat den Betrag angenommen.
+    | AmountSent
+    /// Der Weg nach YNAB ist gescheitert; der Betrag bleibt in BB.
+    | AmountSendFailed of reason: string
+
+/// Antwort von `setEntryAmount`.
+type AmountOutcome = {
+    /// Der Betrag vor dem Befehl (mit Vorzeichen), Grundlage für "Rückgängig".
+    PreviousAmount: Money
+    /// Der Betrag nach dem Befehl (mit Vorzeichen).
+    CurrentAmount: Money
+    AmountChange: AmountChange
+    AmountWriteBack: AmountWriteBack
 }
 
 // ============================================

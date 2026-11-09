@@ -35,6 +35,10 @@ type SplitEditorState = {
     Lines: SplitDraftLine list
     Picker: SplitPicker
     Before: SplitBefore
+    /// Kommt der Editor aus dem Sheet "Betrag" (ledger-m7mye, ADR 0092 Punkt 3): der Betrag vor der
+    /// Änderung. `Total` ist dann der neue Betrag, und "Speichern" schickt Betrag und Zeilen
+    /// zusammen (`setEntrySplitsWithAmount`). `None` beim gewöhnlichen Aufteilen.
+    AmountFrom: Money option
 }
 
 let emptyLine : SplitDraftLine = { Target = None; AmountText = ""; Memo = "" }
@@ -206,6 +210,7 @@ let startState (entry: LedgerEntryView) : SplitEditorState =
           Total = entry.Amount
           Lines = [ { emptyLine with Target = currentTarget }; emptyLine ]
           Picker = NoSplitPicker
+          AmountFrom = None
           Before =
             WasPlain (
                 match entry.CategoryId, entry.CategoryName with
@@ -222,7 +227,13 @@ let startState (entry: LedgerEntryView) : SplitEditorState =
                   AmountText = amountText s.Amount.Amount
                   Memo = s.Memo |> Option.defaultValue "" })
           Picker = NoSplitPicker
+          AmountFrom = None
           Before = WasSplit splits }
+
+/// Der Entwurf nach "Speichern" im Sheet "Betrag" einer aufgeteilten Buchung (ADR 0092 Punkt 3):
+/// die bisherigen Zeilen gegen den neuen Betrag, der Rest zeigt, was anzupassen ist.
+let startStateWithAmount (entry: LedgerEntryView) (newAmount: Money) : SplitEditorState =
+    { startState entry with Total = newAmount; AmountFrom = Some entry.Amount }
 
 /// Die Beschriftung des Ziels einer Zeile; Übertrag mit Pfeil, ohne Wahl ein Aufruf zum Wählen.
 let targetLabel (line: SplitDraftLine) : string =

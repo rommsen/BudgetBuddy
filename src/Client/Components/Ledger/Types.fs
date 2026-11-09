@@ -663,6 +663,116 @@ let memoToastText (previous: string option) (current: string option) : string =
 /// Der Toast nach "Rückgängig".
 let memoRestoredToastText : string = "Memo zurückgesetzt"
 
+// ============================================
+// Betrag bearbeiten im Detail (ledger-m7mye, ADR 0092)
+// ============================================
+
+/// Der Zustand der Betrags-Aktion einer Buchung, solange ein Aufruf läuft oder der Befehl selbst
+/// scheiterte. Ein offener Fehlschlag beim Zurückschreiben nach YNAB steht an der Buchung
+/// (`AmountWriteBackFailure`), nicht hier.
+type AmountRowState =
+    | AmountSending
+    | AmountCommandFailed of message: string
+
+/// Das offene Sheet "Betrag": die Buchung, die Richtung und der Betrag ohne Vorzeichen, wie
+/// Roman ihn tippt.
+type AmountEdit = {
+    AmountEntryId: Guid
+    AmountIsOutflow: bool
+    AmountDraft: string
+}
+
+/// Der Hinweis "Betrag nicht in YNAB" im Detail (Muster `MemoHint`).
+type AmountHint = {
+    Title: string
+    Reason: string
+    RetryLabel: string option
+}
+
+let amountHintTitle = "Betrag nicht in YNAB"
+
+/// Welchen Hinweis trägt die Buchung? Ein Befehlsfehler hat Vorrang, danach der offene
+/// Fehlschlag an der Buchung. Rein, wie `memoHintFor`.
+let amountHintFor (rowState: AmountRowState option) (entry: LedgerEntryView) : AmountHint option =
+    match rowState, entry.AmountWriteBackFailure with
+    | Some (AmountCommandFailed message), failure ->
+        Some {
+            Title = "Betrag nicht geändert"
+            Reason = message
+            RetryLabel = failure |> Option.map (fun _ -> "Erneut senden")
+        }
+    | _, Some reason -> Some { Title = amountHintTitle; Reason = reason; RetryLabel = Some "Erneut senden" }
+    | _, None -> None
+
+/// Warum der Betrag kein Knopf ist (ADR 0092 Punkt 3 und 4), oder `None`: der Grund aus dem
+/// Lesepfad (gelöscht, abgeglichen, noch nicht in YNAB, Übertrag, Split mit Übertrags-Zeile), bei
+/// einer aufgeteilten Buchung zusätzlich die Sperre ihrer Zeilen (Tracking-Konto, fremde
+/// `import_id`): der Betrag geht dort nur mit einer neuen Aufteilung. Rein, wie `categoryLockFor`.
+let amountLockFor (entry: LedgerEntryView) : string option =
+    match entry.AmountLockReason with
+    | Some reason -> Some reason
+    | None when not (List.isEmpty entry.Splits) -> Components.Ledger.SplitEditor.lockReasonFor entry
+    | None -> None
+
+/// Das Sheet "Betrag" vorbelegt aus der Buchung: Richtung aus dem Vorzeichen, Betrag ohne
+/// Vorzeichen und ohne Tausenderpunkt ("42,80").
+let amountEditFor (entry: LedgerEntryView) : AmountEdit =
+    { AmountEntryId = entry.Id
+      AmountIsOutflow = entry.Amount.Amount < 0m
+      AmountDraft = formatAmountForInput entry.Amount.Amount }
+
+/// Der Toast bei leerem Betrag oder 0.
+let amountMissingToastText = "Bitte einen Betrag größer als 0 eingeben"
+
+/// Der Hinweis im Sheet bei einer aufgeteilten Buchung (Prototyp).
+let amountSplitNote =
+    "Die Buchung ist aufgeteilt. Nach dem Speichern passt du die Aufteilung an den neuen Betrag an."
+
+/// Die Zeile unter dem Betragsfeld (Prototyp).
+let amountYnabNote = "Geht auch an YNAB. Bei einer importierten Buchung bleibt die Bank-Referenz erhalten."
+
+/// Die Beschriftung des Betrags-Knopfs im Kopf (Screenreader und Tooltip).
+let amountEditLabel = "Betrag bearbeiten"
+
+/// Was "Speichern" im Sheet "Betrag" tut. Rein, damit die Entscheidung ohne Proxy testbar ist.
+type AmountSaveStep =
+    /// Leer, 0 oder unlesbar: Toast, das Sheet bleibt offen.
+    | AmountSaveRejected
+    /// Gleicher Betrag: zurück ins Detail, kein Aufruf.
+    | AmountSaveUnchanged
+    /// Aufgeteilte Buchung: der Split-Editor öffnet mit dem neuen Betrag (mit Vorzeichen).
+    | AmountSaveOpensSplitEditor of Money
+    /// Gewöhnliche Buchung: `setEntryAmount` mit dieser Anfrage.
+    | AmountSaveSends of AmountChangeRequest
+
+/// Liest den Entwurf (ohne Vorzeichen; ein getipptes Minus zählt nicht) und entscheidet den
+/// Schritt nach "Speichern".
+let amountSaveStep (edit: AmountEdit) (entry: LedgerEntryView) : AmountSaveStep =
+    match parseAmountInput (edit.AmountDraft.Trim().TrimStart('-')) with
+    | None -> AmountSaveRejected
+    | Some magnitude when magnitude <= 0m -> AmountSaveRejected
+    | Some magnitude ->
+        let signed = if edit.AmountIsOutflow then -magnitude else magnitude
+        if signed = entry.Amount.Amount then AmountSaveUnchanged
+        elif not (List.isEmpty entry.Splits) then
+            AmountSaveOpensSplitEditor { entry.Amount with Amount = signed }
+        else
+            AmountSaveSends
+                { Amount = Some magnitude
+                  Direction = (if edit.AmountIsOutflow then AmountDirectionOutflow else AmountDirectionInflow) }
+
+/// Die Anfrage, die einen Betrag mit Vorzeichen wiederherstellt ("Rückgängig").
+let amountRequestOf (amount: decimal) : AmountChangeRequest =
+    { Amount = Some (abs amount)
+      Direction = (if amount < 0m then AmountDirectionOutflow else AmountDirectionInflow) }
+
+/// Der Toast nach dem Ändern (Prototyp: "Betrag geändert · −45,00 €").
+let amountToastText (amount: Money) : string =
+    $"Betrag geändert · {Client.DesignSystem.Money.formatAmountText false true amount.Amount amount.Currency}"
+
+/// Der Toast nach "Rückgängig".
+let amountRestoredToastText : string = "Betrag zurückgesetzt"
+
 /// Wann der Pfeil an der Kategorie wirkt und wann nicht (ADR 0055 Punkt 7).
 type CategoryLock =
     | CategoryEditable
@@ -883,6 +993,13 @@ type Model = {
 
     /// Der Zustand der Memo-Aktion je Buchung (ledger-fa1fp): unterwegs oder Befehl gescheitert.
     MemoRows: Map<Guid, MemoRowState>
+
+    /// Das offene Sheet "Betrag" (ledger-m7mye, ADR 0092): höchstens eines, für die Buchung im
+    /// offenen Detail.
+    AmountEdit: AmountEdit option
+
+    /// Der Zustand der Betrags-Aktion je Buchung (ledger-m7mye): unterwegs oder Befehl gescheitert.
+    AmountRows: Map<Guid, AmountRowState>
 
     /// Wie die Liste bei der gemessenen Breite und dem Eingabegerät bedient wird (ledger-m6zpd).
     /// Die Ansicht meldet es mit `ListInteractionChanged`; der Fußzeilen-Hinweis liest nur dieses Feld.
@@ -1581,6 +1698,31 @@ type Msg =
     | StartRetryMemo of Guid
     | RunRetryMemo of Guid
     | MemoRetried of Guid * Result<MemoWriteBack, string>
+
+    // ============================================
+    // Betrag bearbeiten im Detail (ledger-m7mye, ADR 0092)
+    // ============================================
+
+    /// Der Betrag im Kopf: öffnet das Sheet "Betrag", vorbelegt aus der Buchung.
+    | OpenAmountEdit of Guid
+    /// "Ausgabe" (true) oder "Einnahme" (false).
+    | AmountDirectionChanged of bool
+    | AmountDraftChanged of string
+    | CancelAmountEdit
+    | StartSaveAmount of Guid
+    | RunSetAmount of Guid * AmountChangeRequest
+    | AmountSet of Guid * Result<AmountOutcome, string>
+    /// "Rückgängig" im Toast: der Betrag vor dem Speichern (mit Vorzeichen).
+    | StartUndoAmount of Guid * decimal
+    | RunUndoAmount of Guid * decimal
+    | AmountRestored of Guid * Result<AmountOutcome, string>
+    /// "Erneut senden" an der Hinweisleiste "Betrag nicht in YNAB".
+    | StartRetryAmount of Guid
+    | RunRetryAmount of Guid
+    | AmountRetried of Guid * Result<AmountWriteBack, string>
+    /// Speichern im Split-Editor nach dem Sheet "Betrag": Betrag und Zeilen zusammen.
+    | RunSaveSplitsWithAmount of Guid * TransactionSplit list * Money
+    | SplitsWithAmountSaved of Guid * TransactionSplit list * Money * Result<CategoryChangeOutcome, string>
     /// Die Ansicht meldet, wie die Liste bei Breite und Eingabegerät bedient wird (ledger-m6zpd).
     | ListInteractionChanged of ListInteraction
     | LoadHistory of Guid

@@ -134,6 +134,8 @@ let toastActionMsg (kind: ToastActionKind) : Msg =
         LedgerMsg (Components.Ledger.Types.StartUndoFlag (entryId, previous))
     | UndoMemo (entryId, previous) ->
         LedgerMsg (Components.Ledger.Types.StartUndoMemo (entryId, previous))
+    | UndoAmount (entryId, previous) ->
+        LedgerMsg (Components.Ledger.Types.StartUndoAmount (entryId, previous))
     | UndoCapturedBooking entryId ->
         LedgerMsg (Components.Ledger.Types.StartDiscardCaptured entryId)
     | UndoDeleteEntry entryId ->

@@ -156,6 +156,7 @@ let domainTests =
                 CategorizationWriteBackFailure = None
                 FlagWriteBackFailure = None
                 MemoWriteBackFailure = None
+                AmountWriteBackFailure = None
                 LinkedToYnab = true
                 PushToYnabFailure = None
                 PayeeBeforeTransfer = None

@@ -62,6 +62,46 @@ let amount (value: decimal) (currency: string) (muted: bool) : ReactElement =
         prop.text (Money.formatAmountText (value > 0m) true value currency)
     ]
 
+/// Der Betrag im Kopf als Knopf (ledger-m7mye, ADR 0092, Prototyp Version 17): derselbe Betrag wie
+/// `amount`, dahinter der Pfeil `›`; ein Tipp öffnet das Sheet "Betrag". Trefferfläche mindestens
+/// 44 px hoch (am Handy 48 px über `TouchTargets.mobileMinHeight`).
+let amountButton (value: decimal) (currency: string) (label: string) (onClick: unit -> unit) : ReactElement =
+    Html.button [
+        prop.type'.button
+        prop.custom ("data-testid", "detail-amount-edit")
+        prop.ariaLabel label
+        prop.title label
+        prop.className (
+            $"-ml-1 inline-flex {TouchTargets.mobileMinHeight} md:min-h-11 items-center gap-2 rounded-lg px-1 " +
+            "hover:bg-surface-hover transition-colors touch-manipulation"
+        )
+        prop.onClick (fun e ->
+            e.stopPropagation ()
+            onClick ())
+        prop.children [
+            amount value currency false
+            Html.span [
+                prop.className Colors.textMuted
+                prop.ariaHidden true
+                prop.children [ Icons.chevronRight Icons.SM Icons.Default ]
+            ]
+        ]
+    ]
+
+/// Ein gesperrter Betrag im Kopf: der Betrag ohne Knopf, darunter der Grund wie bei der Kategorie
+/// (`fieldLockHint`), links bündig unter dem Betrag.
+let amountLocked (value: decimal) (currency: string) (muted: bool) (reason: string) : ReactElement =
+    Html.div [
+        prop.children [
+            amount value currency muted
+            Html.p [
+                prop.custom ("data-testid", "detail-amount-lock-hint")
+                prop.className $"mt-1 {ListRoles.muted}"
+                prop.text reason
+            ]
+        ]
+    ]
+
 let private closeButton (onClose: unit -> unit) : ReactElement =
     Html.button [
         prop.type'.button

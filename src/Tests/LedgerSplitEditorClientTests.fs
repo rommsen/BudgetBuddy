@@ -51,6 +51,8 @@ let private entryOf (n: int) : LedgerEntryView =
       CategorizationWriteBackFailure = None
       FlagWriteBackFailure = None
       MemoWriteBackFailure = None
+      AmountWriteBackFailure = None
+      AmountLockReason = None
       LinkedToYnab = true
       PushToYnabFailure = None
       SplitLocks = unlocked
@@ -128,7 +130,8 @@ let private stateOf (total: decimal) (lines: SplitDraftLine list) : SplitEditorS
       Total = eur total
       Lines = lines
       Picker = NoSplitPicker
-      Before = WasPlain (Some haushaltChoice) }
+      Before = WasPlain (Some haushaltChoice)
+      AmountFrom = None }
 
 let private toMoebel = Some (ToCategory (catId 2, "Möbel"))
 let private toHaushalt = Some (ToCategory (catId 1, "Haushalt"))

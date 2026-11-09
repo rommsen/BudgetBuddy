@@ -163,6 +163,8 @@ module ReadModel =
             CategorizationWriteBackFailure = entry.CategorizationWriteBackFailure |> Option.map (fun f -> f.Reason)
             FlagWriteBackFailure = entry.FlagWriteBackFailure |> Option.map (fun f -> f.Reason)
             MemoWriteBackFailure = entry.MemoWriteBackFailure |> Option.map (fun f -> f.Reason)
+            AmountWriteBackFailure = entry.AmountWriteBackFailure |> Option.map (fun f -> f.Reason)
+            AmountLockReason = Ledger.CommandHandlers.amountNotChangeableReason entry
             LinkedToYnab = entry.LinkedToYnab
             PushToYnabFailure = entry.PushToYnabFailure
             // Ohne Konten-Abruf und ohne Verknüpfungen: Tracking-Konto und Fremd-`import_id`
@@ -303,6 +305,11 @@ module ReadModel =
         | Some o, None -> $"Memo entfernt: {o}"
         | None, None -> "Memo in BB geändert"
 
+    /// Der Satz nennt den neuen Betrag und den alten (ADR 0092): die Historie hat keine
+    /// eigene Betragsspalte.
+    let private describeAmountChangedInBb (p: EntryAmountChangedInBbPayload) =
+        $"Betrag geändert auf {formatMoney p.NewAmount}, vorher {formatMoney p.OldAmount}"
+
     let private describeImportedFromComdirect (p: EntryImportedFromComdirectPayload) =
         let basis = $"Comdirect-Import angelegt: {payeeOr p.Payee}, {formatMoney p.Amount}"
         // Rückfrage Lena schon beim Import (ynab-sync-d9e51): die Herkunft steht im Satz.
@@ -417,6 +424,9 @@ module ReadModel =
         | EntryMemoChangedInBb p -> describeMemoChangedInBb p
         | EntryMemoWriteBackFailed p -> $"Memo nicht in YNAB: {p.Reason}"
         | EntryMemoWrittenBackToYnab -> "Memo in YNAB angekommen"
+        | EntryAmountChangedInBb p -> describeAmountChangedInBb p
+        | EntryAmountWriteBackFailed p -> $"Betrag nicht in YNAB: {p.Reason}"
+        | EntryAmountWrittenBackToYnab -> "Betrag in YNAB angekommen"
         | EntryReplacedInYnab _ -> "In YNAB neu angelegt (Split-Buchung ersetzt)"
         | EntryPushToYnabFailed p -> $"Push nach YNAB gescheitert: {p.Reason}"
         | EntryTransferTargetSetInBb p ->

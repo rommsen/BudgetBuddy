@@ -43,6 +43,8 @@ let private entryView (accId: Guid) (date: DateTime) (payee: string) : LedgerEnt
     CategorizationWriteBackFailure = None
     FlagWriteBackFailure = None
     MemoWriteBackFailure = None
+    AmountWriteBackFailure = None
+    AmountLockReason = None
     LinkedToYnab = false
     PushToYnabFailure = None
     SplitLocks = None

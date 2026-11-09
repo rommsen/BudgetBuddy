@@ -2718,6 +2718,19 @@ let private clearedToYnab (cleared: ClearedState) : string =
     | Cleared -> "cleared"
     | Reconciled -> "reconciled"
 
+/// Ein geänderter Betrag, der mit dem Ersatz einer Split-Buchung nach YNAB geht (ADR 0092,
+/// Punkt 3): die Baseline (der Betrag, den YNAB vermutlich noch hat) und ob vor dem Befehl schon
+/// ein Betrags-Fehlschlag offen war.
+type SplitAmountWrite = {
+    BaselineAmount: Money
+    HadOpenFailure: bool
+}
+
+/// Der offene Betrags-Fehlschlag einer Buchung als `SplitAmountWrite` ("Erneut senden"), sonst `None`.
+let private openAmountWrite (entry: Entry) : SplitAmountWrite option =
+    entry.AmountWriteBackFailure
+    |> Option.map (fun f -> { BaselineAmount = f.BaselineAmount; HadOpenFailure = true })
+
 /// Schickt den BB-Stand einer Buchung (`entry`, nach dem Ereignis) nach YNAB. Der Weg
 /// folgt dem, was YNAB vermutlich hält (die Baseline, ADR 0055 Punkt 4): ohne Split dort
 /// ein PUT (Kategorie oder Aufteilen), mit Split dort DELETE und POST (ADR 0058). Scheitert
@@ -2725,7 +2738,9 @@ let private clearedToYnab (cleared: ClearedState) : string =
 /// gelungen und das POST gescheitert, trägt der Fehlschlag die gelöschte Id, und
 /// "Erneut senden" ruft nur noch das POST (`pendingDeleted`). Erfolg beendet einen vorher
 /// offenen Fehlschlag (`EntryCategorizationWrittenBackToYnab`), ein Ersatz schreibt
-/// zusätzlich `EntryReplacedInYnab`.
+/// zusätzlich `EntryReplacedInYnab`. Geht ein geänderter Betrag mit (`amountWrite`, ADR 0092),
+/// hält ein Fehlschlag zusätzlich `EntryAmountWriteBackFailed` mit der Baseline fest, und ein
+/// Erfolg beendet einen vorher offenen Betrags-Fehlschlag.
 let private pushSplitState
     (now: DateTime)
     (tools: SplitWriteTools)
@@ -2733,13 +2748,24 @@ let private pushSplitState
     (baseline: CategoryRef option * TransactionSplit list)
     (hadOpenFailure: bool)
     (pendingDeleted: string option)
+    (amountWrite: SplitAmountWrite option)
     : Async<CategoryWriteBack> =
     async {
         let entryId = entry.Id
 
         let fail (reason: string) (deleted: string option) =
             async {
-                do! Ledger.Persistence.appendAndApply [ categoryFailureEventWith entryId now reason baseline deleted ]
+                let amountFailed =
+                    match amountWrite with
+                    | Some write ->
+                        [ reviewMarkEvent entryId now UserInBb (
+                              EntryAmountWriteBackFailed { Reason = reason; BaselineAmount = write.BaselineAmount }
+                          ) ]
+                    | None -> []
+                do!
+                    Ledger.Persistence.appendAndApply (
+                        categoryFailureEventWith entryId now reason baseline deleted :: amountFailed
+                    )
                 return CategorySendFailed reason
             }
 
@@ -2750,7 +2776,12 @@ let private pushSplitState
                         [ reviewMarkEvent entryId now UserInBb EntryCategorizationWrittenBackToYnab ]
                     else
                         []
-                let events = extra @ ended
+                let amountEnded =
+                    match amountWrite with
+                    | Some write when write.HadOpenFailure ->
+                        [ reviewMarkEvent entryId now UserInBb EntryAmountWrittenBackToYnab ]
+                    | _ -> []
+                let events = extra @ ended @ amountEnded
                 if not (List.isEmpty events) then
                     do! Ledger.Persistence.appendAndApply events
                 return CategorySent
@@ -2815,26 +2846,77 @@ let private pushSplitState
                         | Error err -> return! fail (describeSplitPushError err) newlyDeleted
     }
 
-/// Der Befehl `setEntrySplits` (ADR 0058): lädt die Buchung, lehnt Unzulässiges ab (Fehler,
-/// kein Ereignis, kein Schreib-Aufruf an YNAB), schreibt bei einer Änderung zuerst
-/// `EntryRecategorized` (Actor `UserInBb`, mit `NewSplits` bzw. beim Aufheben `NewCategory`)
-/// und ruft danach den Push (`pushSplitState`). Ziel gleich Ist: kein Ereignis, kein Push.
-/// Läuft unter der Schreib-Sperre (`WriteGuard`), nie während eines Spiegel-Laufs.
-let setEntrySplits
+// ============================================
+// Betrag ändern: Sperren (ADR 0092, ledger-m7mye)
+// ============================================
+
+let amountDeletedReason = "In YNAB gelöscht, der Betrag lässt sich nicht ändern"
+let amountReconciledReason = "Abgeglichen, der Betrag lässt sich nicht ändern"
+let amountNotInYnabReason = "Noch nicht in YNAB, der Betrag lässt sich erst danach ändern"
+let amountTransferReason = "Ein Übertrag, der Betrag lässt sich vorerst nur in YNAB ändern"
+let amountSplitTransferReason =
+    "Die Aufteilung enthält einen Übertrag, der Betrag lässt sich vorerst nur in YNAB ändern"
+let amountSplitPendingReason =
+    "Die Aufteilung ist noch nicht in YNAB, bitte zuerst erneut senden"
+
+/// Warum der Betrag einer Buchung sich nicht ändern lässt (ADR 0092, Punkt 3 und 4), oder `None`.
+/// Die eine Quelle der Regel: die Befehle (`setEntryAmount`, `setEntrySplitsWithAmount`) und der
+/// Lesepfad (`LedgerEntryView.AmountLockReason`) lesen beide diese Funktion. Gesperrt sind in YNAB
+/// gelöschte, abgeglichene und noch nicht verknüpfte Buchungen, Überträge (ganz oder als
+/// Split-Zeile: ob YNAB die Gegenbuchung beim Update mitzieht, ist nicht geprüft) und eine
+/// Buchung, deren Kategorie oder Aufteilung noch nicht in YNAB angekommen ist und die in BB oder
+/// in YNAB aufgeteilt ist (YNAB ignoriert den Betrag einer Split-Buchung still, ADR 0058). Rein.
+let amountNotChangeableReason (entry: Entry) : string option =
+    let splitTransfer =
+        entry.Splits
+        |> List.exists (fun s ->
+            match s.Target with
+            | ToTransfer _ -> true
+            | _ -> false)
+    let splitPending =
+        match entry.CategorizationWriteBackFailure with
+        | Some failure -> not (List.isEmpty entry.Splits) || not (List.isEmpty failure.BaselineSplits)
+        | None -> false
+    if entry.DeletedInYnab then Some amountDeletedReason
+    elif entry.Cleared = Reconciled then Some amountReconciledReason
+    elif not entry.LinkedToYnab then Some amountNotInYnabReason
+    elif entry.TransferAccountId.IsSome || entry.TransferEntryId.IsSome then Some amountTransferReason
+    elif splitTransfer then Some amountSplitTransferReason
+    elif splitPending then Some amountSplitPendingReason
+    else None
+
+/// Der gemeinsame Ablauf von `setEntrySplits` und `setEntrySplitsWithAmount`. `newAmount`: der
+/// neue Betrag mit Vorzeichen (ADR 0092 Punkt 3), dann gelten zusätzlich die Betrags-Sperren, die
+/// Zeilen werden gegen den neuen Betrag geprüft, und vor `EntryRecategorized` steht
+/// `EntryAmountChangedInBb`; beides geht als ein Ersatz nach YNAB.
+let private changeSplits
     (now: DateTime)
     (tools: SplitWriteTools)
     (entryId: EntryId)
     (lines: TransactionSplit list)
+    (newAmount: decimal option)
     : Async<Result<CategoryChangeOutcome, string>> =
     WriteGuard.exclusive (
         async {
             match! Ledger.Persistence.loadEntry entryId with
             | None -> return Error "Buchung nicht gefunden"
             | Some entry ->
-                match splitNotChangeableReason entry with
-                | Some reason -> return Error reason
-                | None ->
-                    match classifySplitLines entry.Amount lines with
+                let amountLock =
+                    match newAmount with
+                    | None -> None
+                    | Some _ when List.isEmpty entry.Splits ->
+                        Some "Die Buchung ist nicht aufgeteilt, der Betrag geht ohne Aufteilung"
+                    | Some _ -> amountNotChangeableReason entry
+                match amountLock, splitNotChangeableReason entry with
+                | Some reason, _ -> return Error reason
+                | None, Some reason -> return Error reason
+                | None, None ->
+                    let total =
+                        match newAmount with
+                        | Some amount -> { entry.Amount with Amount = amount }
+                        | None -> entry.Amount
+                    let amountChanged = total <> entry.Amount
+                    match classifySplitLines total lines with
                     | Error reason -> return Error reason
                     | Ok request ->
                         let! names = Ledger.Persistence.loadCategoryNames ()
@@ -2855,9 +2937,11 @@ let setEntrySplits
                                 // YNAB hält die Buchung (vermutlich) aufgeteilt: Ändern und
                                 // Aufheben laufen über DELETE und POST (ADR 0058, Punkt 2).
                                 let replaceRoute = not (List.isEmpty (snd baseline))
+                                let categorizationChanged =
+                                    categorizationIdentity entry.Category entry.Splits
+                                    <> categorizationIdentity newCategory newSplits
 
-                                if categorizationIdentity entry.Category entry.Splits
-                                   = categorizationIdentity newCategory newSplits then
+                                if not categorizationChanged && not amountChanged then
                                     return Ok { Previous = previous; Change = CategoryUnchanged; WriteBack = CategoryNotSent; PreviousTransferAccountId = None }
                                 else
                                     let foreignImportId =
@@ -2880,19 +2964,42 @@ let setEntrySplits
                                         | Error err ->
                                             return Error $"Das Konto konnte nicht geprüft werden: {describeSplitPushError err}"
                                         | Ok false ->
-                                            do!
-                                                Ledger.Persistence.appendAndApply [
-                                                    reviewMarkEvent entryId now UserInBb (
-                                                        EntryRecategorized {
-                                                            OldCategory = entry.Category
-                                                            NewCategory = newCategory
-                                                            OldSplits = entry.Splits
-                                                            NewSplits = newSplits
-                                                            OldPayee = entry.Payee
-                                                            NewPayee = entry.Payee
-                                                        }
-                                                    )
-                                                ]
+                                            // Der Betrag zuerst: `EntryRecategorized` prüft die Zeilen
+                                            // gegen den Betrag der Buchung (`requireCategoryXorSplits`).
+                                            let amountEvent =
+                                                if amountChanged then
+                                                    [ reviewMarkEvent entryId now UserInBb (
+                                                          EntryAmountChangedInBb { OldAmount = entry.Amount; NewAmount = total }
+                                                      ) ]
+                                                else
+                                                    []
+                                            let recategorized =
+                                                if categorizationChanged then
+                                                    [ reviewMarkEvent entryId now UserInBb (
+                                                          EntryRecategorized {
+                                                              OldCategory = entry.Category
+                                                              NewCategory = newCategory
+                                                              OldSplits = entry.Splits
+                                                              NewSplits = newSplits
+                                                              OldPayee = entry.Payee
+                                                              NewPayee = entry.Payee
+                                                          }
+                                                      ) ]
+                                                else
+                                                    []
+                                            do! Ledger.Persistence.appendAndApply (amountEvent @ recategorized)
+
+                                            let amountWrite =
+                                                if amountChanged then
+                                                    Some {
+                                                        BaselineAmount =
+                                                            entry.AmountWriteBackFailure
+                                                            |> Option.map (fun f -> f.BaselineAmount)
+                                                            |> Option.defaultValue entry.Amount
+                                                        HadOpenFailure = entry.AmountWriteBackFailure.IsSome
+                                                    }
+                                                else
+                                                    openAmountWrite entry
 
                                             let! updated = Ledger.Persistence.loadEntry entryId
                                             let! writeBack =
@@ -2903,9 +3010,38 @@ let setEntrySplits
                                                     baseline
                                                     entry.CategorizationWriteBackFailure.IsSome
                                                     pendingDeleted
+                                                    amountWrite
                                             return Ok { Previous = previous; Change = CategoryChanged; WriteBack = writeBack; PreviousTransferAccountId = None }
         }
     )
+
+/// Der Befehl `setEntrySplits` (ADR 0058): lädt die Buchung, lehnt Unzulässiges ab (Fehler,
+/// kein Ereignis, kein Schreib-Aufruf an YNAB), schreibt bei einer Änderung zuerst
+/// `EntryRecategorized` (Actor `UserInBb`, mit `NewSplits` bzw. beim Aufheben `NewCategory`)
+/// und ruft danach den Push (`pushSplitState`). Ziel gleich Ist: kein Ereignis, kein Push.
+/// Läuft unter der Schreib-Sperre (`WriteGuard`), nie während eines Spiegel-Laufs.
+let setEntrySplits
+    (now: DateTime)
+    (tools: SplitWriteTools)
+    (entryId: EntryId)
+    (lines: TransactionSplit list)
+    : Async<Result<CategoryChangeOutcome, string>> =
+    changeSplits now tools entryId lines None
+
+/// Betrag und Aufteilung einer aufgeteilten Buchung zusammen (ADR 0092 Punkt 3, ledger-m7mye):
+/// wie `setEntrySplits`, die Zeilen werden gegen `newAmount` (mit Vorzeichen) geprüft
+/// (`mkSplits`). Zuerst `EntryAmountChangedInBb`, dann `EntryRecategorized`, danach ein Ersatz in
+/// YNAB (DELETE und POST mit neuem Betrag und neuen Zeilen, Ersatz-`import_id`, ADR 0058 Punkt 2).
+/// Abgelehnt ohne Ereignis und ohne Aufruf, was `amountNotChangeableReason` sperrt, und eine
+/// unaufgeteilte Buchung (ihr Betrag geht über `setEntryAmount`).
+let setEntrySplitsWithAmount
+    (now: DateTime)
+    (tools: SplitWriteTools)
+    (entryId: EntryId)
+    (lines: TransactionSplit list)
+    (newAmount: decimal)
+    : Async<Result<CategoryChangeOutcome, string>> =
+    changeSplits now tools entryId lines (Some newAmount)
 
 /// "Erneut senden" am Hinweis "Kategorie nicht in YNAB", für Kategorie und Split zugleich
 /// (ADR 0055 Punkt 4, ADR 0058 Punkt 3). Hält YNAB (laut Baseline) keinen Split und trägt die
@@ -2950,7 +3086,14 @@ let retryCategorizationOrSplitWriteBack
                         return Ok writeBack
                     else
                         let! writeBack =
-                            pushSplitState now tools entry baseline true failure.YnabDeletedTransactionId
+                            pushSplitState
+                                now
+                                tools
+                                entry
+                                baseline
+                                true
+                                failure.YnabDeletedTransactionId
+                                (openAmountWrite entry)
                         return Ok writeBack
         }
     )
@@ -3421,6 +3564,171 @@ let retryMemoWriteBack
                 let baseline = memoBaseline entry (memoKey entry.Memo)
                 let! writeBack = pushMemo now push entry baseline (memoKey entry.Memo)
                 return Ok writeBack
+        }
+    )
+
+// ============================================
+// Betrag ändern und nach YNAB zurückschreiben (ADR 0092, ledger-m7mye)
+// ============================================
+
+/// Der Push des Betrags, injiziert wie `MemoPush`: bekommt die YNAB-Transaction-Id und den Betrag
+/// mit Vorzeichen. Der Aufrufer (`Server.Api`) bindet Token und Budget ein (`Ynab.updateAmount`).
+type AmountPush = string -> Money -> Async<YnabResult<unit>>
+
+/// Der Grund-Text für den Hinweis "Betrag nicht in YNAB". Wie `describeMemoPushError`.
+let describeAmountPushError (error: YnabError) : string =
+    match error with
+    | YnabError.InvalidResponse msg -> $"YNAB hat den Betrag abgelehnt: {msg}"
+    | other -> ynabErrorText other
+
+/// Der Grund, wenn eine aufgeteilte Buchung über `setEntryAmount` statt über
+/// `setEntrySplitsWithAmount` kommt.
+let amountSplitRouteReason =
+    "Die Buchung ist aufgeteilt, der Betrag geht nur zusammen mit der Aufteilung"
+
+/// Die Baseline eines neuen Fehlschlags: bei einem schon offenen die erste, sonst der Betrag
+/// vor der Änderung (ADR 0092, wie ADR 0062).
+let private amountBaseline (entry: Entry) (before: Money) : Money =
+    match entry.AmountWriteBackFailure with
+    | Some failure -> failure.BaselineAmount
+    | None -> before
+
+/// Schickt den Betrag einer unaufgeteilten Buchung. Scheitert der Push (oder fehlt die
+/// Verknüpfung), schreibt die Funktion `EntryAmountWriteBackFailed`. Bei Erfolg schreibt sie kein
+/// Ereignis, außer ein früherer Fehlschlag war offen: dann ist er mit dem Erfolg beendet
+/// (`EntryAmountWrittenBackToYnab`).
+let private pushAmount
+    (now: DateTime)
+    (push: AmountPush)
+    (entry: Entry)
+    (baseline: Money)
+    (amount: Money)
+    : Async<AmountWriteBack> =
+    async {
+        let entryId = entry.Id
+
+        let fail (reason: string) =
+            async {
+                do!
+                    Ledger.Persistence.appendAndApply [
+                        reviewMarkEvent entryId now UserInBb (
+                            EntryAmountWriteBackFailed { Reason = reason; BaselineAmount = baseline }
+                        )
+                    ]
+                return AmountSendFailed reason
+            }
+
+        match! tryYnabTransactionId entryId with
+        | None -> return! fail reviewMarkNotLinkedReason
+        | Some ynabTransactionId ->
+            match! push ynabTransactionId amount with
+            | Ok () ->
+                if entry.AmountWriteBackFailure.IsSome then
+                    do!
+                        Ledger.Persistence.appendAndApply [
+                            reviewMarkEvent entryId now UserInBb EntryAmountWrittenBackToYnab
+                        ]
+                return AmountSent
+            | Error err -> return! fail (describeAmountPushError err)
+    }
+
+/// Den Betrag einer unaufgeteilten Buchung ändern (ADR 0092 Punkt 3) und "Rückgängig" (derselbe
+/// Befehl mit dem alten Betrag). `newAmount` trägt das Vorzeichen (geprüft an der API-Grenze,
+/// `Server.Validation.validateAmountChange`). Abgelehnt ohne Ereignis und ohne Push: unbekannte
+/// Buchung, was `amountNotChangeableReason` sperrt, und eine aufgeteilte Buchung (ihr Betrag geht
+/// mit der Aufteilung, `setEntrySplitsWithAmount`). Ziel gleich Ist: weder Ereignis noch Push
+/// (`AmountUnchanged`). Sonst zuerst `EntryAmountChangedInBb`, danach der Push (Reihenfolge wie
+/// ADR 0050, Punkt 5). Läuft unter der Schreib-Sperre (`WriteGuard`). Die `import_id` und die
+/// Bank-Referenz eines Comdirect-Imports bleiben: das Update schickt nur `amount`.
+let setEntryAmount
+    (now: DateTime)
+    (push: AmountPush)
+    (entryId: EntryId)
+    (newAmount: decimal)
+    : Async<Result<AmountOutcome, string>> =
+    WriteGuard.exclusive (
+        async {
+            match! Ledger.Persistence.loadEntry entryId with
+            | None -> return Error "Buchung nicht gefunden"
+            | Some entry ->
+                match amountNotChangeableReason entry with
+                | Some reason -> return Error reason
+                | None when not (List.isEmpty entry.Splits) -> return Error amountSplitRouteReason
+                | None ->
+                    let previous = entry.Amount
+                    let target = { previous with Amount = newAmount }
+                    if target = previous then
+                        return
+                            Ok {
+                                PreviousAmount = previous
+                                CurrentAmount = previous
+                                AmountChange = AmountUnchanged
+                                AmountWriteBack = AmountNotSent
+                            }
+                    else
+                        do!
+                            Ledger.Persistence.appendAndApply [
+                                reviewMarkEvent entryId now UserInBb (
+                                    EntryAmountChangedInBb { OldAmount = previous; NewAmount = target }
+                                )
+                            ]
+
+                        let baseline = amountBaseline entry previous
+                        let! writeBack = pushAmount now push entry baseline target
+                        return
+                            Ok {
+                                PreviousAmount = previous
+                                CurrentAmount = target
+                                AmountChange = AmountChanged
+                                AmountWriteBack = writeBack
+                            }
+        }
+    )
+
+/// Bildet das Ergebnis des Split-Ersatzes auf das des Betrags ab ("Erneut senden" einer
+/// aufgeteilten Buchung).
+let private amountWriteBackOf (writeBack: CategoryWriteBack) : AmountWriteBack =
+    match writeBack with
+    | CategorySent -> AmountSent
+    | CategorySendFailed reason -> AmountSendFailed reason
+    | CategoryNotSent -> AmountNotSent
+
+/// "Erneut senden" am Hinweis "Betrag nicht in YNAB" (ADR 0092): sendet den Betrag des aktuellen
+/// BB-Stands. Eine unaufgeteilte Buchung per Update; eine aufgeteilte als Ersatz mit ihren Zeilen
+/// (DELETE und POST, bzw. nur das POST, wenn das DELETE schon gelungen ist), was auch einen
+/// offenen Kategorie-Fehlschlag beendet. Erfolg schreibt `EntryAmountWrittenBackToYnab` (Actor
+/// `UserInBb`), ein erneuter Fehlschlag ersetzt den Grund (die Baseline bleibt). Ohne offenen
+/// Fehlschlag tut der Befehl nichts (`AmountNotSent`).
+let retryAmountWriteBack
+    (now: DateTime)
+    (push: AmountPush)
+    (tools: SplitWriteTools)
+    (entryId: EntryId)
+    : Async<Result<AmountWriteBack, string>> =
+    WriteGuard.exclusive (
+        async {
+            match! Ledger.Persistence.loadEntry entryId with
+            | None -> return Error "Buchung nicht gefunden"
+            | Some entry when entry.DeletedInYnab -> return Error amountDeletedReason
+            | Some entry when entry.AmountWriteBackFailure.IsNone -> return Ok AmountNotSent
+            | Some entry when List.isEmpty entry.Splits ->
+                let baseline = amountBaseline entry entry.Amount
+                let! writeBack = pushAmount now push entry baseline entry.Amount
+                return Ok writeBack
+            | Some entry ->
+                let baseline = categoryBaseline entry (entry.Category, entry.Splits)
+                let pendingDeleted =
+                    entry.CategorizationWriteBackFailure |> Option.bind (fun f -> f.YnabDeletedTransactionId)
+                let! writeBack =
+                    pushSplitState
+                        now
+                        tools
+                        entry
+                        baseline
+                        entry.CategorizationWriteBackFailure.IsSome
+                        pendingDeleted
+                        (openAmountWrite entry)
+                return Ok (amountWriteBackOf writeBack)
         }
     )
 

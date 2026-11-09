@@ -1245,6 +1245,9 @@ type DetailNotice =
     /// Gelb, mit "Erneut senden": das Memo ist in BB gesetzt, aber nicht in YNAB (ADR 0062).
     /// `busy`: der Aufruf läuft.
     | MemoNotice of MemoHint * busy: bool
+    /// Gelb, mit "Erneut senden": der Betrag ist in BB geändert, aber nicht in YNAB (ADR 0092).
+    /// `busy`: der Aufruf läuft.
+    | AmountNotice of AmountHint * busy: bool
 
 /// Der Satz der roten Leiste. Den Zeitpunkt liefert die jüngste Historie-Zeile "In YNAB
 /// gelöscht"; ohne geladene Historie steht der Satz ohne Zeit da.
@@ -1322,6 +1325,21 @@ let detailNoticeWithMemo
     | Some notice -> Some notice
     | None -> memoHintFor memoRow entry |> Option.map (fun hint -> MemoNotice (hint, (memoRow = Some MemoSending)))
 
+/// Wie `detailNoticeWithMemo`, mit dem Betrag: alle bisherigen Hinweise haben Vorrang, danach
+/// "Betrag nicht in YNAB" (höchstens eine Leiste, ADR 0092).
+let detailNoticeWithAmount
+    (rowState: ReviewMarkRowState option)
+    (categoryRow: CategoryRowState option)
+    (flagRow: FlagRowState option)
+    (memoRow: MemoRowState option)
+    (amountRow: AmountRowState option)
+    (history: RemoteData<LedgerHistoryLine list>)
+    (entry: LedgerEntryView)
+    : DetailNotice option =
+    match detailNoticeWithMemo rowState categoryRow flagRow memoRow history entry with
+    | Some notice -> Some notice
+    | None -> amountHintFor amountRow entry |> Option.map (fun hint -> AmountNotice (hint, (amountRow = Some AmountSending)))
+
 /// Die Nachricht der Aktion in der Hinweisleiste: die Prüfvermerk-Leiste ("Erneut senden",
 /// `retryReviewMarkWriteBack` aus ledger-r777c) und die Kategorie-Leiste
 /// (`retryCategorizationWriteBack`) haben eine, ebenso "Noch nicht in YNAB"
@@ -1332,6 +1350,7 @@ let detailNoticeActionMsg (entryId: Guid) (notice: DetailNotice) : Msg option =
     | CategoryNotice hint when hint.RetryLabel.IsSome -> Some (StartRetryCategorization entryId)
     | FlagNotice (hint, _) when hint.RetryLabel.IsSome -> Some (StartRetryFlag entryId)
     | MemoNotice (hint, _) when hint.RetryLabel.IsSome -> Some (StartRetryMemo entryId)
+    | AmountNotice (hint, _) when hint.RetryLabel.IsSome -> Some (StartRetryAmount entryId)
     | NotInYnabNotice _ -> Some (StartRetryPush entryId)
     | _ -> None
 
@@ -1409,6 +1428,15 @@ let private noticeView
                 match hint.RetryLabel, detailNoticeActionMsg entry.Id notice with
                 | Some label, Some msg -> Some { Label = label; Busy = busy; Disabled = false; OnClick = fun () -> dispatch msg }
                 | _ -> None }
+    | AmountNotice (hint, busy) ->
+        Detail.notice
+            { Tone = Detail.NoticeYellow
+              Badge = hint.Title
+              Reason = hint.Reason
+              Action =
+                match hint.RetryLabel, detailNoticeActionMsg entry.Id notice with
+                | Some label, Some msg -> Some { Label = label; Busy = busy; Disabled = false; OnClick = fun () -> dispatch msg }
+                | _ -> None }
 
 /// Die Beschriftung einer Split-Zeile: Kategorie, Übertrag oder offen.
 ///
@@ -1459,12 +1487,25 @@ let detailReadOnly (entry: LedgerEntryView) : bool = entry.DeletedInYnab
 let detailDeleteVisible (entry: LedgerEntryView) : bool =
     not entry.DeletedInYnab && not entry.Reconciled && entry.LinkedToYnab
 
-/// Der Kopf des Details: Betrag, "Konto · Datum", Schließen.
-let private detailHead (model: Model) (entry: LedgerEntryView) (onClose: (unit -> unit) option) =
-    Detail.head
-        (Detail.amount entry.Amount.Amount entry.Amount.Currency (detailReadOnly entry))
-        (detailSubtitle (accountNameOf model entry) entry)
-        onClose
+/// Die Nachricht des Betrags-Knopfs im Kopf, oder `None`: gesperrt (`amountLockFor`) oder ein
+/// Aufruf läuft (ledger-m7mye, ADR 0092).
+let amountEditMsg (model: Model) (entry: LedgerEntryView) : Msg option =
+    if (amountLockFor entry).IsSome || (model.AmountRows |> Map.tryFind entry.Id) = Some AmountSending then None
+    else Some (OpenAmountEdit entry.Id)
+
+/// Der Kopf des Details: Betrag, "Konto · Datum", Schließen. Der Betrag ist ein Knopf, der das
+/// Sheet "Betrag" öffnet; gesperrt steht er ohne Pfeil, mit dem Grund darunter (ADR 0092).
+let private detailHead (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) (onClose: (unit -> unit) option) =
+    let amountElement =
+        match amountLockFor entry with
+        | Some reason -> Detail.amountLocked entry.Amount.Amount entry.Amount.Currency (detailReadOnly entry) reason
+        | None ->
+            Detail.amountButton
+                entry.Amount.Amount
+                entry.Amount.Currency
+                amountEditLabel
+                (fun () -> amountEditMsg model entry |> Option.iter dispatch)
+    Detail.head amountElement (detailSubtitle (accountNameOf model entry) entry) onClose
 
 /// Wo der Kategorie-Picker aufgeht: am PC als Popover im Panel, am Handy und in der
 /// Kompaktliste als zweites Sheet über dem Detail-Sheet (Tafel 4.2 und 4.10).
@@ -1798,10 +1839,11 @@ let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
     let categoryRow = model.CategoryRows |> Map.tryFind entry.Id
     let flagRow = model.FlagRows |> Map.tryFind entry.Id
     let memoRow = model.MemoRows |> Map.tryFind entry.Id
+    let amountRow = model.AmountRows |> Map.tryFind entry.Id
     let muted = detailReadOnly entry
     let textColor = if muted then Tokens.Colors.textMuted else Tokens.Colors.textPrimary
 
-    [ match detailNoticeWithMemo rowState categoryRow flagRow memoRow model.History entry with
+    [ match detailNoticeWithAmount rowState categoryRow flagRow memoRow amountRow model.History entry with
       | Some notice -> noticeView dispatch rowState categoryRow (model.PushRetryRows |> Map.tryFind entry.Id) entry notice
       | None -> ()
 
@@ -2014,13 +2056,96 @@ let splitEditorFor (model: Model) (entry: LedgerEntryView) : SplitLogic.SplitEdi
 /// Das Detail als Seitenpanel (PC). Gerendert in der Spalte der Liste (`FilterBarColumn`). Mit
 /// offenem Editor ersetzt er die Felder; Kopf und Hülle bleiben, die Fußleiste trägt "Abbrechen"
 /// und "Speichern".
+// ============================================
+// Sheet "Betrag" (ledger-m7mye, ADR 0092, Prototyp Version 17)
+// ============================================
+
+/// Das offene Sheet "Betrag", wenn es zu dieser Buchung gehört.
+let amountEditOf (model: Model) (entry: LedgerEntryView) : AmountEdit option =
+    model.AmountEdit |> Option.filter (fun edit -> edit.AmountEntryId = entry.Id)
+
+/// Der Inhalt des Sheets "Betrag": Ausgabe oder Einnahme, das Betragsfeld ohne Vorzeichen
+/// (Zifferntastatur `decimal`, rechtsbündig, Mono, groß), bei einer aufgeteilten Buchung der
+/// Hinweis, darunter der Satz zu YNAB. Handy (Sheet) und PC (Dialog) teilen ihn.
+let private amountFormBody (dispatch: Msg -> unit) (entry: LedgerEntryView) (edit: AmountEdit) : ReactElement list =
+    [ Segmented.view
+          "amount-direction"
+          "Ausgabe oder Einnahme"
+          [ { Label = "Ausgabe"; IsActive = edit.AmountIsOutflow; Disabled = false; OnClick = fun () -> dispatch (AmountDirectionChanged true) }
+            { Label = "Einnahme"; IsActive = not edit.AmountIsOutflow; Disabled = false; OnClick = fun () -> dispatch (AmountDirectionChanged false) } ]
+      Html.div [
+          prop.custom ("data-testid", "amount-input")
+          prop.children [
+              Input.text
+                  { Input.textInputDefaults with
+                      Value = edit.AmountDraft
+                      OnChange = fun text -> dispatch (AmountDraftChanged text)
+                      Placeholder = "0,00"
+                      Size = Input.Large
+                      InputMode = Some "decimal"
+                      AriaLabel = Some "Betrag"
+                      ClassName = Some "w-full input-amount input-amount-hero tabular-nums"
+                      OnKeyDown =
+                        Some (fun e ->
+                            if e.key = "Enter" then
+                                e.preventDefault ()
+                                dispatch (StartSaveAmount entry.Id)) }
+          ]
+      ]
+      if not (List.isEmpty entry.Splits) then ErrorDisplay.notice amountSplitNote
+      Html.p [ prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.textMuted}"; prop.text amountYnabNote ] ]
+
+/// "Abbrechen" und "Speichern" des Sheets "Betrag", nebeneinander in voller Breite.
+let private amountFooter (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) : ReactElement =
+    let busy = (model.AmountRows |> Map.tryFind entry.Id) = Some AmountSending
+    Html.div [
+        prop.className "grid w-full grid-cols-2 gap-3"
+        prop.children [
+            Button.view
+                { Button.defaultProps with
+                    Text = "Abbrechen"
+                    Variant = Button.Secondary
+                    IsDisabled = busy
+                    ClassName = Some "w-full"
+                    OnClick = fun () -> dispatch CancelAmountEdit }
+            Button.view
+                { Button.defaultProps with
+                    Text = "Speichern"
+                    Variant = Button.Primary
+                    IsBusy = busy
+                    ClassName = Some "w-full"
+                    OnClick = fun () -> dispatch (StartSaveAmount entry.Id) }
+        ]
+    ]
+
+/// Am PC öffnet "Betrag" als Dialog über der Liste, das Panel bleibt rechts stehen (Prototyp).
+let private amountDialog (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) : ReactElement =
+    match amountEditOf model entry with
+    | None -> Html.none
+    | Some edit ->
+        Modal.view
+            { Modal.defaultProps with
+                IsOpen = true
+                OnClose = fun () -> dispatch CancelAmountEdit
+                Size = Modal.Large
+                Title = Some "Betrag"
+                Subtitle = Some (payeeLabel entry) }
+            [ Modal.body [
+                  Html.div [
+                      prop.custom ("data-testid", "amount-form")
+                      prop.className "flex flex-col gap-4"
+                      prop.children (amountFormBody dispatch entry edit)
+                  ]
+              ]
+              Modal.footer [ amountFooter dispatch model entry ] ]
+
 let private detailPanelView (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) : ReactElement =
     match splitEditorFor model entry with
     | Some editor ->
         let saving = isSavingSplit model editor
         Detail.panel
             $"Aufteilen {payeeLabel entry}"
-            [ detailHead model entry (Some (fun () -> dispatch CloseDetail))
+            [ detailHead dispatch model entry (Some (fun () -> dispatch CloseDetail))
               // Die Fußleiste steht im scrollenden Bereich, am unteren Rand haftend: bei wenigen Zeilen
               // folgt sie dem Inhalt, bei vielen bleibt sie sichtbar. Als eigene Zeile unter dem
               // Panel läge sie bei einer kurzen Liste unterhalb des Fensters.
@@ -2035,10 +2160,13 @@ let private detailPanelView (dispatch: Msg -> unit) (model: Model) (entry: Ledge
                             (fun () -> dispatch StartSaveSplits) ]
               ) ]
     | None ->
-        Detail.panel
-            $"Detail {payeeLabel entry}"
-            [ detailHead model entry (Some (fun () -> dispatch CloseDetail))
-              Detail.scrollBody (detailContent dispatch model entry) ]
+        React.fragment [
+            Detail.panel
+                $"Detail {payeeLabel entry}"
+                [ detailHead dispatch model entry (Some (fun () -> dispatch CloseDetail))
+                  Detail.scrollBody (detailContent dispatch model entry) ]
+            amountDialog dispatch model entry
+        ]
 
 /// Das Detail als BottomSheet (Handy, Kompaktliste, zu schmales Fenster für das Panel).
 /// Das Sheet bringt Titel und Schließen-Knopf mit; der Kopf mit Betrag und Payee steht
@@ -2047,26 +2175,43 @@ let private detailPanelView (dispatch: Msg -> unit) (model: Model) (entry: Ledge
 let private detailSheetView (dispatch: Msg -> unit) (model: Model) (open': bool) : ReactElement =
     let entry = detailEntryOf model
     let editor = entry |> Option.bind (splitEditorFor model)
+    // Das Sheet "Betrag" ersetzt den Inhalt des Detail-Sheets (kein zweites Sheet darüber, §7.15);
+    // Schließen kehrt ins Detail zurück, wie beim Split-Editor.
+    let amountEdit = entry |> Option.bind (amountEditOf model)
     BottomSheet.view
         { IsOpen = open' && entry.IsSome
-          OnClose = (fun () -> dispatch (if editor.IsSome then CloseSplitEditor else CloseDetail))
-          Title = (if editor.IsSome then "Aufteilen" else "Buchung")
+          OnClose =
+            (fun () ->
+                dispatch (
+                    if amountEdit.IsSome then CancelAmountEdit
+                    elif editor.IsSome then CloseSplitEditor
+                    else CloseDetail
+                ))
+          Title = (if amountEdit.IsSome then "Betrag" elif editor.IsSome then "Aufteilen" else "Buchung")
           Subtitle =
             (match entry, editor with
+             | Some e, _ when amountEdit.IsSome -> Some (payeeLabel e)
              | Some e, Some _ -> Some $"{payeeLabel e} · {formatDateFull e.Date}"
              | _ -> None)
           Footer =
-            (match editor with
-             | Some ed ->
+            (match entry, amountEdit, editor with
+             | Some e, Some _, _ -> Some [ amountFooter dispatch model e ]
+             | _, None, Some ed ->
                  let saving = isSavingSplit model ed
                  Some [ SplitUi.saveButton true (SplitLogic.canSave ed && not saving) saving (fun () -> dispatch StartSaveSplits) ]
-             | None -> None) }
+             | _ -> None) }
         // Der Inhalt steht nur im DOM, solange das Sheet offen ist: ein geschlossenes Sheet bliebe
         // sonst als verstecktes Doppel neben dem Panel stehen.
-        [ match entry, editor with
-          | Some entry, Some ed when open' -> yield! splitEditorBody dispatch model entry ed
-          | Some entry, None when open' ->
-              detailHead model entry None
+        [ match entry, amountEdit, editor with
+          | Some entry, Some edit, _ when open' ->
+              Html.div [
+                  prop.custom ("data-testid", "amount-form")
+                  prop.className "flex flex-col gap-4"
+                  prop.children (amountFormBody dispatch entry edit)
+              ]
+          | Some entry, None, Some ed when open' -> yield! splitEditorBody dispatch model entry ed
+          | Some entry, None, None when open' ->
+              detailHead dispatch model entry None
               yield! detailContent dispatch model entry
           | _ -> () ]
 

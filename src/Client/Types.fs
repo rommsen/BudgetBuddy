@@ -251,6 +251,9 @@ type ToastActionKind =
     /// "Rückgängig" nach dem Speichern eines Memos (ledger-fa1fp, ADR 0062): das Memo vor dem
     /// Speichern kommt aus der Antwort des Befehls (`None`: kein Memo).
     | UndoMemo of entryId: Guid * previous: string option
+    /// "Rückgängig" nach dem Ändern des Betrags (ledger-m7mye, ADR 0092): der Betrag vor dem
+    /// Speichern (mit Vorzeichen) aus der Antwort des Befehls. Nicht bei einer aufgeteilten Buchung.
+    | UndoAmount of entryId: Guid * previous: decimal
     /// "Rückgängig" nach "Buchung anlegen" im Kassenbuch (ledger-at63w): die Buchung wird in YNAB
     /// gelöscht und im Kassenbuch verworfen.
     | UndoCapturedBooking of entryId: Guid

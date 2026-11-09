@@ -38,6 +38,8 @@ let private entryOn (n: int) (date: DateTime) (amount: decimal) : LedgerEntryVie
     CategorizationWriteBackFailure = None
     FlagWriteBackFailure = None
     MemoWriteBackFailure = None
+    AmountWriteBackFailure = None
+    AmountLockReason = None
     LinkedToYnab = false
     PushToYnabFailure = None
     SplitLocks = None

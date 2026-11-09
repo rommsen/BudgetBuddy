@@ -1489,6 +1489,24 @@ let private memoPush () : Async<Ledger.CommandHandlers.MemoPush> =
                 async { return Error (YnabError.BudgetNotFound "Kein Standard-Budget konfiguriert (Settings)") }
     }
 
+/// Der Push des Betrags (ledger-m7mye, ADR 0092) mit Token und Standard-Budget aus den
+/// Settings, mit denselben Fehlerfällen wie `memoPush`. Sendet nur `amount`.
+let private amountPush () : Async<Ledger.CommandHandlers.AmountPush> =
+    async {
+        let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
+        let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
+
+        match tokenOpt, budgetOpt with
+        | Some token, Some budgetId ->
+            return fun ynabTransactionId amount ->
+                YnabClient.updateAmount token (YnabBudgetId budgetId) ynabTransactionId amount
+        | None, _ ->
+            return fun _ _ -> async { return Error (YnabError.Unauthorized "No YNAB token configured") }
+        | _, None ->
+            return fun _ _ ->
+                async { return Error (YnabError.BudgetNotFound "Kein Standard-Budget konfiguriert (Settings)") }
+    }
+
 /// Der Sammel-Push des Flags (ledger-y54gr), mit denselben Fehlerfällen wie `flagPush`.
 let private flagBatchPush () : Async<Ledger.CommandHandlers.FlagBatchPush> =
     async {
@@ -1862,6 +1880,38 @@ let ledgerApi : LedgerApi = {
     retryMemoWriteBack = fun entryId -> async {
         let! push = memoPush ()
         return! Ledger.CommandHandlers.retryMemoWriteBack DateTime.UtcNow push (Ledger.Events.EntryId entryId)
+    }
+
+    // Betrag ändern (ledger-m7mye, ADR 0092): Prüfung an der Grenze, dann Kassenbuch zuerst und der
+    // Push (nur `amount`), unter der Schreib-Sperre. Das Rückgängig läuft über denselben Befehl.
+    setEntryAmount = fun entryId request -> async {
+        match Validation.validateAmountChange request with
+        | Error errors -> return Error (String.concat " " errors)
+        | Ok amount ->
+            let! push = amountPush ()
+            return! Ledger.CommandHandlers.setEntryAmount DateTime.UtcNow push (Ledger.Events.EntryId entryId) amount
+    }
+
+    retryAmountWriteBack = fun entryId -> async {
+        let! push = amountPush ()
+        let! tools = splitWriteTools ()
+        return!
+            Ledger.CommandHandlers.retryAmountWriteBack DateTime.UtcNow push tools (Ledger.Events.EntryId entryId)
+    }
+
+    // Betrag und Aufteilung einer aufgeteilten Buchung zusammen, als ein Ersatz (ADR 0092 Punkt 3).
+    setEntrySplitsWithAmount = fun entryId request -> async {
+        match Validation.validateAmountChange request.Amount with
+        | Error errors -> return Error (String.concat " " errors)
+        | Ok amount ->
+            let! tools = splitWriteTools ()
+            return!
+                Ledger.CommandHandlers.setEntrySplitsWithAmount
+                    DateTime.UtcNow
+                    tools
+                    (Ledger.Events.EntryId entryId)
+                    request.Lines
+                    amount
     }
 
     // Lena fragen für eine ganze Auswahl und das gemeinsame "Rückgängig" (ledger-y54gr):

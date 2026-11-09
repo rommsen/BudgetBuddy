@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-09 23:02 -- Task verified and completed: ledger-m7mye - "Betrag einer Buchung im Detail bearbeiten, auch in YNAB"
+
+**Type:** Work / Task completion
+**Task:** ledger-m7mye - "Betrag einer Buchung im Detail bearbeiten, auch in YNAB"
+**Summary:** Betrag einer Buchung im Detail bearbeiten, auch in YNAB
+**Duration:** 1h31m (Dispatch 22:08 bis Verdict 23:39)
+**Verification:** PASS (iteration 2, nach Merge-Konflikt mit ledger-z6sya)
+**Files changed:** 42
+**Tests added:** 61
+**ADRs written:** none
+
+---
+
 ## 2026-11-09 22:46 -- Task verified and completed: ledger-z6sya - "Buchung löschen im Detail, auch in YNAB, mit Rückgängig"
 
 **Type:** Work / Task completion

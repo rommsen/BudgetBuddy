@@ -499,6 +499,40 @@ let validateTransferRequest (entryId: Guid) (YnabAccountId target: YnabAccountId
     if List.isEmpty errors then Ok () else Error errors
 
 // ============================================
+// Betrag ändern im Detail (ledger-m7mye, ADR 0092)
+// ============================================
+
+let AmountMissingText = "Bitte einen Betrag eingeben."
+let AmountNotPositiveText = "Der Betrag muss größer als 0 sein, die Richtung steht in Ausgabe oder Einnahme."
+let AmountTooManyDecimalsText = "Der Betrag hat höchstens zwei Nachkommastellen."
+let AmountTooLargeText = "Der Betrag ist zu groß."
+let AmountDirectionUnknownText = $"Unbekannte Richtung, erlaubt sind '{AmountDirectionOutflow}' und '{AmountDirectionInflow}'."
+
+/// Die Obergrenze eines Betrags wie bei Quick Add (`validateManualTransaction`). Sie hält auch die
+/// Milliunits im Wertebereich von `Encode.int` an der YNAB-Grenze.
+let MaxEntryAmount = 1_000_000m
+
+/// Prüft den neuen Betrag aus dem Sheet "Betrag" an der API-Grenze: ein Betrag ist da, größer als
+/// 0, höchstens zwei Nachkommastellen und nicht über der Obergrenze; die Richtung ist Ausgabe oder
+/// Einnahme. Sammelt alle Fehler. Ergebnis ist der Betrag mit Vorzeichen (Ausgabe negativ). Rein.
+let validateAmountChange (request: AmountChangeRequest) : Result<decimal, string list> =
+    let errors =
+        [
+            match request.Amount with
+            | None -> AmountMissingText
+            | Some amount when amount <= 0m -> AmountNotPositiveText
+            | Some amount ->
+                if Decimal.Round(amount, 2) <> amount then AmountTooManyDecimalsText
+                if amount > MaxEntryAmount then AmountTooLargeText
+            if request.Direction <> AmountDirectionOutflow && request.Direction <> AmountDirectionInflow then
+                AmountDirectionUnknownText
+        ]
+    match errors, request.Amount with
+    | [], Some amount -> Ok (if request.Direction = AmountDirectionOutflow then -amount else amount)
+    | [], None -> Error [ AmountMissingText ]
+    | errors, _ -> Error errors
+
+// ============================================
 // Buchung im Kassenbuch erfassen (ledger-at63w)
 // ============================================
 

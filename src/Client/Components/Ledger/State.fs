@@ -98,6 +98,8 @@ let init () : Model * Cmd<Msg> =
         DetailForm = DetailSheet
         MemoEdit = None
         MemoRows = Map.empty
+        AmountEdit = None
+        AmountRows = Map.empty
         ListInteraction = TableRows
         History = NotAsked
         LastMirrorRun = NotAsked
@@ -671,6 +673,33 @@ let private reloadHistoryFor (entryId: Guid) (model: Model) : Cmd<Msg> =
     if model.DetailFor |> Option.exists (fun d -> d.Id = entryId) then Cmd.ofMsg (LoadHistory entryId)
     else Cmd.none
 
+/// Der offene Fehlschlag nach der Antwort von `setEntryAmount` (Muster `memoFailureOf`).
+let private amountFailureOf (outcome: AmountOutcome) (entry: LedgerEntryView) : string option =
+    match outcome.AmountWriteBack with
+    | AmountSendFailed reason -> Some reason
+    | AmountSent -> None
+    | AmountNotSent -> if outcome.AmountChange = AmountUnchanged then entry.AmountWriteBackFailure else None
+
+/// Trägt das Ergebnis von `setEntryAmount` in den Zustand ein (ADR 0092): die Zeile bekommt den
+/// Betrag und den Zustand des Zurückschreibens, das Sheet dieser Buchung schließt. Rein.
+let private applyAmountResult (entryId: Guid) (outcome: AmountOutcome) (model: Model) : Model =
+    let cleared =
+        { model with
+            AmountRows = model.AmountRows |> Map.remove entryId
+            AmountEdit = model.AmountEdit |> Option.filter (fun edit -> edit.AmountEntryId <> entryId) }
+    match findEntry cleared entryId with
+    | None -> cleared
+    | Some entry ->
+        replaceEntry
+            { entry with
+                Amount = outcome.CurrentAmount
+                AmountWriteBackFailure = amountFailureOf outcome entry }
+            cleared
+
+/// Nach einer Änderung des Betrags: Historie der offenen Buchung und Kontostände neu holen.
+let private afterAmountChange (entryId: Guid) (model: Model) : Cmd<Msg> =
+    Cmd.batch [ reloadHistoryFor entryId model; Cmd.ofMsg LoadBalances ]
+
 /// Trägt das Ergebnis von `setEntrySplits` in den Zustand ein (ledger-pafkp). `lines` sind die
 /// geschickten Zeilen: eine Zeile hebt die Aufteilung auf (die Buchung trägt dann diese
 /// Kategorie), mehrere teilen auf oder ersetzen die Zeilen. Die Zeile bleibt an ihrem Platz und
@@ -976,6 +1005,7 @@ let private keyboardBlocked (model: Model) : bool =
     || model.CategoryPickerFor.IsSome
     || model.SplitEditor.IsSome
     || model.MemoEdit.IsSome
+    || model.AmountEdit.IsSome
     || (model.DetailFor.IsSome && model.DetailForm = DetailSheet)
 
 /// Öffnet das Detail für `entry`: markiert die Zeile, setzt die Historie auf "lädt" und
@@ -1034,7 +1064,7 @@ let entryDeletedText = "Buchung gelöscht, auch in YNAB"
 let entryRestoredText = "Buchung wiederhergestellt"
 
 let private showDetail (entry: LedgerEntryView) (model: Model) : Model * Cmd<Msg> =
-    { model with DetailFor = Some entry; FocusedRow = Some entry.Id; History = Loading; MemoEdit = None },
+    { model with DetailFor = Some entry; FocusedRow = Some entry.Id; History = Loading; MemoEdit = None; AmountEdit = None },
     Cmd.ofMsg (LoadHistory entry.Id)
 
 /// Folgt ein offenes Panel der Markierung? Zeigt es eine andere Buchung als die markierte
@@ -1132,6 +1162,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             AccountSheetOpen = false
             DetailFor = None
             MemoEdit = None
+            AmountEdit = None
             History = NotAsked },
         Cmd.batch [ Cmd.ofMsg LoadEntries; Cmd.ofEffect (fun _ -> writeRememberedFilter filter) ],
         NoOp
@@ -1266,7 +1297,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             model', cmd, NoOp
 
     | CloseDetail ->
-        { model with DetailFor = None; History = NotAsked; MemoEdit = None }, Cmd.none, NoOp
+        { model with DetailFor = None; History = NotAsked; MemoEdit = None; AmountEdit = None }, Cmd.none, NoOp
 
     | DetailFormChanged form ->
         { model with DetailForm = form }, Cmd.none, NoOp
@@ -2277,6 +2308,162 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         NoOp
 
     // ============================================
+    // Betrag bearbeiten im Detail (ledger-m7mye, ADR 0092)
+    // ============================================
+
+    | OpenAmountEdit entryId ->
+        match findEntry model entryId with
+        | Some entry when model.DetailFor |> Option.exists (fun d -> d.Id = entryId)
+                          && (amountLockFor entry).IsNone
+                          && (model.AmountRows |> Map.tryFind entryId) <> Some AmountSending ->
+            { model with
+                AmountEdit = Some (amountEditFor entry)
+                AmountRows = model.AmountRows |> Map.remove entryId
+                MemoEdit = None
+                CategoryPickerFor = None
+                CategorySuggestions = [] },
+            Cmd.none,
+            NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | AmountDirectionChanged isOutflow ->
+        { model with AmountEdit = model.AmountEdit |> Option.map (fun e -> { e with AmountIsOutflow = isOutflow }) },
+        Cmd.none,
+        NoOp
+
+    | AmountDraftChanged text ->
+        { model with AmountEdit = model.AmountEdit |> Option.map (fun e -> { e with AmountDraft = text }) },
+        Cmd.none,
+        NoOp
+
+    | CancelAmountEdit ->
+        match model.AmountEdit with
+        | Some edit when (model.AmountRows |> Map.tryFind edit.AmountEntryId) <> Some AmountSending ->
+            { model with AmountEdit = None; AmountRows = model.AmountRows |> Map.remove edit.AmountEntryId }, Cmd.none, NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | StartSaveAmount entryId ->
+        match model.AmountEdit, findEntry model entryId with
+        | Some edit, Some entry when edit.AmountEntryId = entryId
+                                     && (model.AmountRows |> Map.tryFind entryId) <> Some AmountSending
+                                     && (amountLockFor entry).IsNone ->
+            match amountSaveStep edit entry with
+            | AmountSaveRejected -> model, Cmd.none, ShowToast (amountMissingToastText, ToastError)
+            | AmountSaveUnchanged -> { model with AmountEdit = None }, Cmd.none, NoOp
+            | AmountSaveOpensSplitEditor newAmount ->
+                // Erst das Speichern einer gültigen Aufteilung schickt etwas (ADR 0092 Punkt 3).
+                let loadTargets =
+                    match model.TransferTargets with
+                    | Success _ | Loading -> Cmd.none
+                    | _ -> Cmd.ofMsg RunLoadTransferTargets
+                { model with
+                    AmountEdit = None
+                    SplitEditor = Some (SplitEditor.startStateWithAmount entry newAmount)
+                    CategoryPickerFor = None
+                    CategorySuggestions = []
+                    CategoryCard = None },
+                Cmd.batch [ Cmd.ofMsg EnsureCategoriesFresh; loadTargets; Cmd.ofMsg LoadQuickAddAccount ],
+                NoOp
+            | AmountSaveSends request ->
+                { model with AmountRows = model.AmountRows |> Map.add entryId AmountSending },
+                Cmd.ofMsg (RunSetAmount (entryId, request)),
+                NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | RunSetAmount (entryId, request) ->
+        let cmd =
+            Cmd.OfAsync.either
+                (Api.ledger.setEntryAmount entryId)
+                request
+                (fun result -> AmountSet (entryId, result))
+                (fun ex -> AmountSet (entryId, Error ex.Message))
+        model, cmd, NoOp
+
+    | AmountSet (entryId, Ok outcome) ->
+        let model' = applyAmountResult entryId outcome model
+        let external =
+            match outcome.AmountChange, outcome.AmountWriteBack with
+            | AmountUnchanged, _ -> NoOp
+            | AmountChanged, writeBack ->
+                let text = amountToastText outcome.CurrentAmount
+                let action = { Label = undoToastLabel; Kind = UndoAmount (entryId, outcome.PreviousAmount.Amount) }
+                match writeBack with
+                | AmountSendFailed reason -> ShowToastWithAction ($"{text}. {amountHintTitle}: {reason}", ToastWarning, action)
+                | _ -> ShowToastWithAction (text, ToastSuccess, action)
+        model', (if outcome.AmountChange = AmountChanged then afterAmountChange entryId model' else Cmd.none), external
+
+    // Das Sheet bleibt mit dem Entwurf offen, der Toast nennt den Grund.
+    | AmountSet (entryId, Error message) ->
+        { model with AmountRows = model.AmountRows |> Map.add entryId (AmountCommandFailed message) },
+        Cmd.none,
+        ShowToast ($"Betrag nicht geändert: {message}", ToastError)
+
+    | StartUndoAmount (entryId, previous) ->
+        { model with AmountRows = model.AmountRows |> Map.add entryId AmountSending },
+        Cmd.ofMsg (RunUndoAmount (entryId, previous)),
+        NoOp
+
+    | RunUndoAmount (entryId, previous) ->
+        let cmd =
+            Cmd.OfAsync.either
+                (Api.ledger.setEntryAmount entryId)
+                (amountRequestOf previous)
+                (fun result -> AmountRestored (entryId, result))
+                (fun ex -> AmountRestored (entryId, Error ex.Message))
+        model, cmd, NoOp
+
+    | AmountRestored (entryId, Ok outcome) ->
+        // Der Rücknahme-Toast hat kein "Rückgängig" (eine Aktion, ein Toast, eine Rücknahme).
+        let model' = applyAmountResult entryId outcome model
+        let external =
+            match outcome.AmountWriteBack with
+            | AmountSendFailed reason -> ShowToast ($"{amountHintTitle}: {reason}", ToastWarning)
+            | _ when outcome.AmountChange = AmountUnchanged -> NoOp
+            | _ -> ShowToast (amountRestoredToastText, ToastSuccess)
+        model', (if outcome.AmountChange = AmountChanged then afterAmountChange entryId model' else Cmd.none), external
+
+    | AmountRestored (entryId, Error message) ->
+        { model with AmountRows = model.AmountRows |> Map.add entryId (AmountCommandFailed message) },
+        Cmd.none,
+        ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
+
+    | StartRetryAmount entryId ->
+        { model with AmountRows = model.AmountRows |> Map.add entryId AmountSending },
+        Cmd.ofMsg (RunRetryAmount entryId),
+        NoOp
+
+    | RunRetryAmount entryId ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.ledger.retryAmountWriteBack
+                entryId
+                (fun result -> AmountRetried (entryId, result))
+                (fun ex -> AmountRetried (entryId, Error ex.Message))
+        model, cmd, NoOp
+
+    | AmountRetried (entryId, Ok writeBack) ->
+        let failure =
+            match writeBack with
+            | AmountSendFailed reason -> Some reason
+            | AmountSent | AmountNotSent -> None
+        let cleared = { model with AmountRows = model.AmountRows |> Map.remove entryId }
+        let model' =
+            match findEntry cleared entryId with
+            | Some entry -> replaceEntry { entry with AmountWriteBackFailure = failure } cleared
+            | None -> cleared
+        let external =
+            match writeBack with
+            | AmountSendFailed reason -> ShowToast ($"{amountHintTitle}: {reason}", ToastWarning)
+            | _ -> NoOp
+        // Eine aufgeteilte Buchung geht als Ersatz: der Abruf zeigt die neue Lage (Sperren, Kategorie-Hinweis).
+        model', Cmd.ofMsg (RunRefreshEntry entryId), external
+
+    | AmountRetried (entryId, Error message) ->
+        { model with AmountRows = model.AmountRows |> Map.add entryId (AmountCommandFailed message) },
+        Cmd.none,
+        NoOp
+
+    // ============================================
     // Split-Editor im Detail (ledger-pafkp, ADR 0058)
     // ============================================
 
@@ -2319,6 +2506,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 DetailFor = None
                 History = NotAsked
                 MemoEdit = None
+                AmountEdit = None
                 CategoryPickerFor = None
                 CategorySuggestions = []
                 CategoryCard = None },
@@ -2493,7 +2681,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         let model = { model with DiscardingCaptured = model.DiscardingCaptured.Remove entryId }
         let model' =
             if model.DetailFor |> Option.exists (fun d -> d.Id = entryId) then
-                { model with DetailFor = None; History = NotAsked; MemoEdit = None }
+                { model with DetailFor = None; History = NotAsked; MemoEdit = None; AmountEdit = None }
             else
                 model
         model', Cmd.batch [ Cmd.ofMsg LoadEntries; Cmd.ofMsg LoadBalances ], ShowToast (capturedDiscardedText, ToastSuccess)
@@ -2625,8 +2813,12 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         | Some editor when not (splitBusy model editor.EntryId) ->
             match SplitEditor.requestLines editor with
             | Some lines ->
+                let run =
+                    match editor.AmountFrom with
+                    | Some _ -> RunSaveSplitsWithAmount (editor.EntryId, lines, editor.Total)
+                    | None -> RunSaveSplits (editor.EntryId, lines)
                 { model with CategoryRows = model.CategoryRows |> Map.add editor.EntryId CategorySending },
-                Cmd.ofMsg (RunSaveSplits (editor.EntryId, lines)),
+                Cmd.ofMsg run,
                 NoOp
             | None -> model, Cmd.none, NoOp
         | _ -> model, Cmd.none, NoOp
@@ -2663,6 +2855,39 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                     ShowToast (full, tone)
             | CategoryChanged, _, None -> NoOp
         model', cmd, external
+
+    | RunSaveSplitsWithAmount (entryId, lines, amount) ->
+        let cmd =
+            Cmd.OfAsync.either
+                (Api.ledger.setEntrySplitsWithAmount entryId)
+                { Amount = amountRequestOf amount.Amount; Lines = lines }
+                (fun result -> SplitsWithAmountSaved (entryId, lines, amount, result))
+                (fun ex -> SplitsWithAmountSaved (entryId, lines, amount, Error ex.Message))
+        model, cmd, NoOp
+
+    // Betrag und Aufteilung zusammen (ADR 0092 Punkt 3). Kein "Rückgängig": die alte Aufteilung
+    // gehört zum alten Betrag, ein Rückweg wäre ein zweiter Ersatz (Abweichung vom Prototyp).
+    | SplitsWithAmountSaved (entryId, lines, amount, Ok outcome) ->
+        let model', cmd = applySplitResult entryId lines outcome model
+        let changed = outcome.Change = CategoryChanged
+        let model'' =
+            match findEntry model' entryId with
+            | Some entry when changed -> replaceEntry { entry with Amount = amount } model'
+            | _ -> model'
+        let external =
+            match outcome.WriteBack with
+            | CategorySendFailed reason -> ShowToast ($"{amountToastText amount}. {amountHintTitle}: {reason}", ToastWarning)
+            | _ when changed -> ShowToast (amountToastText amount, ToastSuccess)
+            | _ -> NoOp
+        let follow = if changed then afterAmountChange entryId model'' else Cmd.none
+        // Ein Fehlschlag holt die Buchung ohnehin neu (`applySplitResult`); sonst die Sperren nach dem Ersatz.
+        model'', Cmd.batch [ cmd; follow ], external
+
+    | SplitsWithAmountSaved (entryId, _, _, Error message) ->
+        // Der Editor bleibt offen: der Entwurf geht nicht verloren.
+        { model with CategoryRows = model.CategoryRows |> Map.remove entryId },
+        Cmd.none,
+        ShowToast ($"Betrag nicht geändert: {message}", ToastError)
 
     | SplitsSaved (entryId, _, Error message) ->
         // Der Editor bleibt offen: der Entwurf geht nicht verloren.
@@ -2753,7 +2978,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | RouteEntryLoaded _ -> model, Cmd.none, NoOp
 
     | LeaveRouteEntry leftFor ->
-        let left = { model with PendingRouteEntry = None; DetailFor = None; History = NotAsked; MemoEdit = None }
+        let left = { model with PendingRouteEntry = None; DetailFor = None; History = NotAsked; MemoEdit = None; AmountEdit = None }
         match leftFor with
         | LedgerList -> left, Cmd.none, NoOp
         // Ohne Filter zieht `resolveInitialFilter` beim nächsten Besuch die gemerkte Sicht.
@@ -3174,10 +3399,12 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             | _ -> updateCore CloseSplitEditor model
         elif model.CategoryPickerFor.IsSome then
             { model with CategoryPickerFor = None; CategorySuggestions = [] }, Cmd.none, NoOp
+        elif model.AmountEdit.IsSome then
+            updateCore CancelAmountEdit model
         elif model.MemoEdit.IsSome then
             updateCore CancelMemoEdit model
         elif model.DetailFor.IsSome then
-            { model with DetailFor = None; History = NotAsked; MemoEdit = None }, Cmd.none, NoOp
+            { model with DetailFor = None; History = NotAsked; MemoEdit = None; AmountEdit = None }, Cmd.none, NoOp
         elif model.SelectionMode || hasSelection model then
             updateCore ClearSelection model
         else
@@ -3197,7 +3424,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     let selectionBegan = not (hasSelection model) && hasSelection model'
     let model' =
         if model'.DetailFor.IsSome && selectionBegan then
-            { model' with DetailFor = None; History = NotAsked; MemoEdit = None }
+            { model' with DetailFor = None; History = NotAsked; MemoEdit = None; AmountEdit = None }
         else
             model'
     // Eine neuere Eingabe überholt den Sprung: die späte Antwort der Route darf sie nicht überschreiben.

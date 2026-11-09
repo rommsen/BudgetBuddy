@@ -362,6 +362,18 @@ let private rows : Row list = [
       Run = fun () -> ledgerApi.setEntryMemo (Guid.NewGuid()) "Notiz" |> run |> expectError "Memo" }
     { Endpoint = "LedgerApi.retryMemoWriteBack"; Case = "unbekannte Buchung: Fehler"
       Run = fun () -> ledgerApi.retryMemoWriteBack (Guid.NewGuid()) |> run |> expectError "Memo erneut" }
+    { Endpoint = "LedgerApi.setEntryAmount"; Case = "ungültige Eingabe (leer, unbekannte Richtung): Fehler"
+      Run = fun () ->
+        ledgerApi.setEntryAmount (Guid.NewGuid()) { Amount = None; Direction = "x" } |> run |> expectError "Betrag ungültig" }
+    { Endpoint = "LedgerApi.retryAmountWriteBack"; Case = "unbekannte Buchung: Fehler"
+      Run = fun () -> ledgerApi.retryAmountWriteBack (Guid.NewGuid()) |> run |> expectError "Betrag erneut" }
+    { Endpoint = "LedgerApi.setEntrySplitsWithAmount"; Case = "unbekannte Buchung: Fehler"
+      Run = fun () ->
+        ledgerApi.setEntrySplitsWithAmount
+            (Guid.NewGuid())
+            { Amount = { Amount = Some 5m; Direction = AmountDirectionOutflow }; Lines = [] }
+        |> run
+        |> expectError "Betrag und Aufteilung" }
     { Endpoint = "LedgerApi.setLenaFlagBatch"; Case = "Auswahl nur aus unbekannten Buchungen: Fehler"
       Run = fun () -> ledgerApi.setLenaFlagBatch (BatchPicked [ Guid.NewGuid() ]) AssignLena |> run |> expectError "Lena Auswahl" }
     { Endpoint = "LedgerApi.restoreFlagBatch"; Case = "unbekannte Buchung ändert nichts"

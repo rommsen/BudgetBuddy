@@ -518,6 +518,27 @@ type LedgerApi = {
     /// (MemoNotSent) without an open memo write-back failure.
     retryMemoWriteBack: Guid -> Async<Result<MemoWriteBack, string>>
 
+    /// Changes the amount of one unsplit booking (ledger-m7mye, ADR 0092; also the undo: the same
+    /// command with the old amount), in BB first, then writes it back to YNAB (only `amount`, in
+    /// milliunits). The request carries the amount without sign and the direction ("outflow" or
+    /// "inflow"); empty, zero, negative, more than two decimals and an unknown direction are
+    /// rejected with all reasons. Error without event and without YNAB call when the booking is
+    /// unknown, deleted in YNAB, reconciled, not yet in YNAB, a transfer, split (use
+    /// setEntrySplitsWithAmount) or its split is not yet in YNAB. Returns the previous amount
+    /// (for undo), whether anything changed and the write-back result.
+    setEntryAmount: Guid -> AmountChangeRequest -> Async<Result<AmountOutcome, string>>
+
+    /// Sends the booking's current amount to YNAB again ("Erneut senden"); a split booking goes
+    /// as a replacement (DELETE and POST). Does nothing (AmountNotSent) without an open amount
+    /// write-back failure.
+    retryAmountWriteBack: Guid -> Async<Result<AmountWriteBack, string>>
+
+    /// The amount of a split booking together with its new split lines (ledger-m7mye, ADR 0092
+    /// Punkt 3): like setEntrySplits, but the lines are checked against the new amount and both go
+    /// to YNAB as one replacement (DELETE and POST, ADR 0058 Punkt 2). Same locks as
+    /// setEntryAmount and setEntrySplits; same outcome type as setEntrySplits.
+    setEntrySplitsWithAmount: Guid -> SplitsWithAmountRequest -> Async<Result<CategoryChangeOutcome, string>>
+
     /// Assigns (or withdraws) the Lena flag for a whole selection (ledger-y54gr): the server
     /// resolves the selection like setReviewMarkBatch, writes one EntryFlagChangedInBb per
     /// changed booking and sends ONE bulk PATCH with only `flag_color`. Bookings already in

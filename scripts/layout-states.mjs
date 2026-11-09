@@ -769,6 +769,40 @@ export const STATES = [
       reach: (page) => page.locator('.bottom-sheet.active [data-testid="split-amount-0"]').or(page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Speichern", exact: true })),
     },
   },
+  // ledger-m7mye: das Sheet "Betrag" am Handy ersetzt den Inhalt des Detail-Sheets. "Speichern" klebt unten und
+  // bleibt bei offener Zifferntastatur im Betragsfeld erreichbar.
+  {
+    name: "kassenbuch-betrag",
+    route: "/ledger",
+    widths: HANDY_WIDTHS,
+    mock: mockLedger,
+    open: async (page) => {
+      const sheet = await openLedgerDetail(page, "Bauhaus");
+      await sheet.locator('[data-testid="detail-amount-edit"]').tap();
+      await page.locator('.bottom-sheet.active [data-testid="amount-form"]').waitFor();
+    },
+    primary: (page) => page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Speichern", exact: true }),
+    keyboard: {
+      focus: (page) => page.locator('.bottom-sheet.active [data-testid="amount-input"] input'),
+      reach: (page) => page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Speichern", exact: true }),
+    },
+  },
+  // ledger-m7mye: am PC öffnet "Betrag" als Dialog über der Liste, das Detail-Panel bleibt rechts.
+  {
+    name: "kassenbuch-betrag-dialog",
+    route: "/ledger",
+    widths: [1440],
+    mock: mockLedger,
+    open: async (page) => {
+      const row = page.locator("table tbody tr", { hasText: "Bauhaus" }).first();
+      await row.waitFor();
+      await row.locator("td").nth(2).click();
+      const panel = page.locator('[data-testid="ledger-detail-panel"]');
+      await panel.locator('[data-testid="detail-amount-edit"]').click();
+      await page.locator('[data-layer="dialog"] [data-testid="amount-form"]').waitFor();
+    },
+    primary: (page) => page.locator('[data-layer="dialog"]').getByRole("button", { name: "Speichern", exact: true }),
+  },
   // ledger-at63w: "Neue Buchung" am Handy als Sheet. "Buchung anlegen" klebt unten und bleibt auch bei
   // offener Tastatur im Betragsfeld erreichbar.
   {

@@ -111,6 +111,13 @@ type MemoWriteBackFailure = {
     BaselineMemo: string option
 }
 
+/// Der offene Fehlschlag beim Zurückschreiben des Betrags nach YNAB (ADR 0092, Muster ADR 0062):
+/// der Grund für die Zeile und die Baseline, der Betrag, den YNAB vermutlich noch hat.
+type AmountWriteBackFailure = {
+    Reason: string
+    BaselineAmount: Money
+}
+
 /// Der aktuelle Stand einer Buchung, abgeleitet aus ihrem Ereignis-Log.
 type Entry = {
     Id: EntryId
@@ -156,6 +163,9 @@ type Entry = {
     /// Der offene Fehlschlag beim Zurückschreiben des Memos nach YNAB samt Baseline
     /// (ADR 0062). `None`, wenn nichts offen ist.
     MemoWriteBackFailure: MemoWriteBackFailure option
+    /// Der offene Fehlschlag beim Zurückschreiben des Betrags nach YNAB samt Baseline
+    /// (ADR 0092). `None`, wenn nichts offen ist.
+    AmountWriteBackFailure: AmountWriteBackFailure option
     /// Die Buchung trägt eine YNAB-Verknüpfung: von Anfang an bei `EntryObservedInYnab`,
     /// sonst ab `EntryLinkedToYnab` (ADR 0021). Die Verknüpfung selbst liegt in der
     /// Fremd-Id-Tabelle (ADR 0015), das Feld ist ihre Spiegelung im Zustand.
@@ -344,6 +354,7 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             CategorizationWriteBackFailure = None
             FlagWriteBackFailure = None
             MemoWriteBackFailure = None
+            AmountWriteBackFailure = None
             LinkedToYnab = true
             PushToYnabFailure = None
             PayeeBeforeTransfer = None
@@ -360,7 +371,11 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             // Ändert YNAB das Memo, gilt YNABs Stand und ein offener Fehlschlag ist beendet
             // (ADR 0062). `observe` lässt das Memo unverändert, wenn YNAB noch die Baseline zeigt.
             MemoWriteBackFailure =
-                if p.NewMemo <> p.OldMemo then None else e.MemoWriteBackFailure }
+                if p.NewMemo <> p.OldMemo then None else e.MemoWriteBackFailure
+            // Dasselbe für den Betrag (ADR 0092): `observe` lässt ihn unverändert, solange YNAB
+            // noch die Baseline zeigt.
+            AmountWriteBackFailure =
+                if p.NewAmount <> p.OldAmount then None else e.AmountWriteBackFailure }
 
     | EntryCategorizationChangeObservedInYnab p ->
         let e = requireExisting ()
@@ -425,6 +440,24 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
     | EntryMemoWrittenBackToYnab ->
         let e = requireExisting ()
         { e with MemoWriteBackFailure = None }
+
+    | EntryAmountChangedInBb p ->
+        // Eine neue Änderung setzt einen offenen Fehlschlag zurück (ADR 0092, wie ADR 0062).
+        let e = requireExisting ()
+        { e with Amount = p.NewAmount; AmountWriteBackFailure = None }
+
+    | EntryAmountWriteBackFailed p ->
+        let e = requireExisting ()
+        // Bei einem schon offenen Fehlschlag bleibt die erste Baseline.
+        let baseline =
+            match e.AmountWriteBackFailure with
+            | Some open' -> open'.BaselineAmount
+            | None -> p.BaselineAmount
+        { e with AmountWriteBackFailure = Some { Reason = p.Reason; BaselineAmount = baseline } }
+
+    | EntryAmountWrittenBackToYnab ->
+        let e = requireExisting ()
+        { e with AmountWriteBackFailure = None }
 
     | EntryTransferCounterpartObservedInYnab p ->
         // Kein zweites Entstehungs-Ereignis: eine unbekannte Buchung ist ein kaputtes
@@ -512,6 +545,7 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             CategorizationWriteBackFailure = None
             FlagWriteBackFailure = None
             MemoWriteBackFailure = None
+            AmountWriteBackFailure = None
             LinkedToYnab = false
             PushToYnabFailure = None
             PayeeBeforeTransfer = None
@@ -558,6 +592,7 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             CategorizationWriteBackFailure = None
             FlagWriteBackFailure = None
             MemoWriteBackFailure = None
+            AmountWriteBackFailure = None
             LinkedToYnab = false
             PushToYnabFailure = None
             PayeeBeforeTransfer = None
@@ -964,9 +999,20 @@ let observe (ctx: ObservationContext) (existing: Entry option) (obs: YnabObserva
                 elif obs.Memo = failure.BaselineMemo then false, false
                 else true, false
 
+        // ADR 0092: dieselbe Regel für den Betrag. Mit offenem Fehlschlag heißt der BB-Stand
+        // "angekommen", die Baseline "YNAB hat den Push nie gesehen" (der Betrag bleibt), jeder
+        // andere Stand ist eine echte Änderung in YNAB.
+        let amountChanged, amountWrittenBack =
+            match entry.AmountWriteBackFailure with
+            | None -> entry.Amount <> obs.Amount, false
+            | Some failure ->
+                if obs.Amount = entry.Amount then false, true
+                elif obs.Amount = failure.BaselineAmount then false, false
+                else true, false
+
         let detailsChanged =
             entry.Date <> obs.Date
-            || entry.Amount <> obs.Amount
+            || amountChanged
             || entry.Payee <> obs.Payee
             || memoChanged
             || entry.AccountId <> ctx.AccountId
@@ -974,6 +1020,9 @@ let observe (ctx: ObservationContext) (existing: Entry option) (obs: YnabObserva
         // Das Memo des Ereignisses: bei einer Änderung in YNAB das beobachtete, sonst bleibt
         // der BB-Stand (Baseline-Fall, sonst würde das Ereignis das BB-Memo überschreiben).
         let newMemo = if memoChanged then obs.Memo else entry.Memo
+
+        // Der Betrag des Ereignisses: wie das Memo, im Baseline-Fall bleibt der BB-Stand.
+        let newAmount = if amountChanged then obs.Amount else entry.Amount
 
         // ADR 0055, Punkt 5: Ohne offenen Fehlschlag gewinnt YNAB (jeder abweichende Stand
         // ist eine Beobachtung). Mit offenem Fehlschlag: gleich dem BB-Stand heißt
@@ -1029,7 +1078,7 @@ let observe (ctx: ObservationContext) (existing: Entry option) (obs: YnabObserva
                         OldDate = entry.Date
                         NewDate = obs.Date
                         OldAmount = entry.Amount
-                        NewAmount = obs.Amount
+                        NewAmount = newAmount
                         OldPayee = entry.Payee
                         NewPayee = obs.Payee
                         OldMemo = entry.Memo
@@ -1087,4 +1136,8 @@ let observe (ctx: ObservationContext) (existing: Entry option) (obs: YnabObserva
             // ADR 0062: dasselbe für das Memo.
             if memoWrittenBack then
                 event EntryMemoWrittenBackToYnab
+
+            // ADR 0092: dasselbe für den Betrag.
+            if amountWrittenBack then
+                event EntryAmountWrittenBackToYnab
         ]

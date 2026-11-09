@@ -36,6 +36,8 @@ let entryOf (n: int) (amount: decimal) (needsReview: bool) (deleted: bool) : Led
     CategorizationWriteBackFailure = None
     FlagWriteBackFailure = None
     MemoWriteBackFailure = None
+    AmountWriteBackFailure = None
+    AmountLockReason = None
     LinkedToYnab = false
     PushToYnabFailure = None
     SplitLocks = None
