@@ -11,19 +11,19 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 6
-- **Todo:** 2
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 2
 - **Done:** 113
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **ledger-m7mye** — "Betrag einer Buchung im Detail bearbeiten, auch in YNAB" (feature) — `todo/ledger-m7mye-betrag-bearbeiten-im-detail.md`
-- **ledger-z6sya** — "Buchung löschen im Detail, auch in YNAB, mit Rückgängig" (feature) — `todo/ledger-z6sya-buchung-loeschen-im-detail.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **ledger-m7mye** — "Betrag einer Buchung im Detail bearbeiten, auch in YNAB" (feature) — `doing/ledger-m7mye-betrag-bearbeiten-im-detail.md`
+- **ledger-z6sya** — "Buchung löschen im Detail, auch in YNAB, mit Rückgängig" (feature) — `doing/ledger-z6sya-buchung-loeschen-im-detail.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)

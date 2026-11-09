@@ -1,7 +1,7 @@
 ---
 id: ledger-m7mye
 title: "Betrag einer Buchung im Detail bearbeiten, auch in YNAB"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-11-09

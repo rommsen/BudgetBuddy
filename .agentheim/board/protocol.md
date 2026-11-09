@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-09 22:07 -- Batch started: [ledger-z6sya, ledger-m7mye]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-z6sya - "Buchung löschen im Detail, auch in YNAB, mit Rückgängig", ledger-m7mye - "Betrag einer Buchung im Detail bearbeiten, auch in YNAB"
+**Parallel:** scoped — builder named ledger-z6sya, ledger-m7mye; parallel (2 workers), beide ändern CommandHandlers.fs und das Detail, Merge nacheinander (z6sya zuerst)
+
+---
+
 ## 2026-11-09 21:51 -- Modeling / Promoted: ledger-m7mye - "Betrag einer Buchung im Detail bearbeiten, auch in YNAB"
 
 **Type:** Modeling / Promote
