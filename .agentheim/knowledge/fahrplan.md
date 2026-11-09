@@ -3,7 +3,7 @@
 Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success looks like“.
 
 ## Stand
-Zuletzt aktualisiert: 2026-11-09, nach dem work-Lauf zu budgeting-t7dka samt Review.
+Zuletzt aktualisiert: 2026-11-09, nach dem work-Lauf zu ledger-m7k2d samt Review.
 
 - **Etappe 1 · Bedeutungen:** erledigt, 5 von 5 (Skizze und Prototyp, Layout-Sweep, Muster im
   Styleguide, Designwert-Tests aufgeräumt, Palette 2 im Token-Layer). Romans Blick auf dak16 neben
@@ -13,16 +13,16 @@ Zuletzt aktualisiert: 2026-11-09, nach dem work-Lauf zu budgeting-t7dka samt Rev
 - **Etappe 2 · Lücken schließen:** 6 von 9 gebaut und in main (2026-11-08): ledger-p3vq8,
   budgeting-pscgb, ledger-qvjvs, budgeting-sn2sn, budgeting-e2z7v, ledger-at63w. Neue ADRs 0089
   (Übertrag in BB), 0090 (Targets nach YNAB), 0091 (Erfasste Buchung verwerfen). Offen in Etappe 2:
-  ledger-nb4tv (ETF-Konto), Buchung löschen im Detail, Betrag bearbeiten im Detail; dazu der Bug
-  ledger-m7k2d (Split einer Barbuchung nicht änderbar, Entscheidung zu ADR 0058).
+  ledger-nb4tv (ETF-Konto), ledger-z6sya (Buchung löschen im Detail), ledger-m7mye (Betrag bearbeiten im
+  Detail). Bug ledger-m7k2d (Split einer Barbuchung nicht änderbar) in main (2026-11-09), noch nicht deployt.
   Bug budgeting-t7dka (Targets anwenden übergeht deaktivierte Kategorien) in main (2026-11-09,
   40631e3f, Review 518d4ac3, Nachtrag ADR 0088), von Roman deployt (2026-11-09).
 - **Etappe 3 · Ein Produkt:** noch nicht verfeinert, Zeilen wachsen.
-- **Nächster Schritt:** ledger-m7k2d verfeinern (Split einer Barbuchung, Entscheidung zu ADR 0058).
-  budgeting-t7dka ist deployt (2026-11-09), Kategorien mit aktivem Target dürfen wieder deaktiviert
-  werden. Seite Kategorien (leiser Knopf „Umbenennen“, Satz im Gruppen-Formular) von Roman gesehen: gut.
-- **Danach:** die übrigen Zeilen von Etappe 2 (ledger-nb4tv ETF-Konto, Buchung löschen und Betrag
-  bearbeiten im Detail).
+- **Nächster Schritt:** ledger-m7k2d deployen (auf Romans Anweisung). Gebaut und in main (2026-11-09,
+  bc3c22ca, Review 2edff908..c40ee10c, Nachtrag ADR 0058): eine aufgeteilte Barbuchung lässt sich wieder
+  ändern. budgeting-t7dka ist deployt (2026-11-09).
+- **Danach:** ledger-z6sya (Buchung löschen) und ledger-m7mye (Betrag bearbeiten) mit dem Prototyp daneben
+  verfeinern, dann ledger-nb4tv (ETF-Konto und Abgleich).
 
 ## Ablauf je Schritt
 1. Nächsten Schritt aus „Stand“ nennen.
