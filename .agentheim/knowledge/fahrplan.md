@@ -3,7 +3,7 @@
 Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success looks like“.
 
 ## Stand
-Zuletzt aktualisiert: 2026-11-10, nach Romans Blick auf ledger-z6sya und ledger-m7mye.
+Zuletzt aktualisiert: 2026-11-10, nach work-Lauf und Review zu ledger-mj3a9, ledger-q42pg, ledger-m7a9q.
 
 - **Etappe 1 · Bedeutungen:** erledigt, 5 von 5 (Skizze und Prototyp, Layout-Sweep, Muster im
   Styleguide, Designwert-Tests aufgeräumt, Palette 2 im Token-Layer). Romans Blick auf dak16 neben
@@ -21,9 +21,14 @@ Zuletzt aktualisiert: 2026-11-10, nach Romans Blick auf ledger-z6sya und ledger-
   Etappe 3 verschoben (Roman, 2026-11-10).
   Deployt (2026-11-10, f85d3b3d): ledger-m7k2d, ledger-z6sya, ledger-m7mye.
 - **Etappe 3 · Ein Produkt:** noch nicht verfeinert, Zeilen wachsen.
-- **Nächster Schritt:** Etappe 3 in Tickets schneiden, zuerst Navigation mit drei Orten und Übersicht als
-  Einstieg. Klein und unabhängig dazwischen: ledger-q42pg (Feldfehler Betrag), ledger-mj3a9 (Bob-Betragsdeckel),
-  ledger-m7a9q (Probelauf Betrag eines Übertrags).
+- **Laufend erledigt (2026-11-10):** ledger-mj3a9 (Bob gesperrt bei ungültigem `BOT_MAX_AMOUNT_EUR`, Nachtrag
+  ADR 0068), ledger-q42pg (Feldfehler am Betrag statt Toast), ledger-m7a9q (Probelauf: YNAB zieht die Gegenbuchung
+  eines Übertrags mit, Nachtrag ADR 0092); Review 68279598..HEAD mit Fixes 009b3186 und 5444edd7. Neu im Backlog:
+  ledger-t4rk8 (Betrag eines Übertrags in BB ändern) und design-system-ak97z (Umschalter Ausgabe/Einnahme schließt
+  die Tastatur nicht mehr). Nicht deployt.
+- **Nächster Schritt:** Roman prüft ledger-q42pg am Handy (412 px, Touch: Meldung unter dem Betragsfeld, Tastatur
+  bleibt offen), sobald deployt. Dann Etappe 3 in Tickets schneiden, zuerst Navigation mit drei Orten und Übersicht
+  als Einstieg.
 
 ## Ablauf je Schritt
 1. Nächsten Schritt aus „Stand“ nennen.
@@ -133,7 +138,9 @@ Unabhängig von den Etappen, weil es im Alltag stört, eine Sicherheitsgrenze be
 jede Arbeit bremst.
 
 - `infrastructure-g4wy8` Verbindungsabbrüche
-- `ledger-mj3a9` Bob-Betragsdeckel
+- ✓ `ledger-mj3a9` Bob-Betragsdeckel (2026-11-10)
+- `ledger-t4rk8` Betrag eines Übertrags in BB ändern
+- `design-system-ak97z` Umschalter im Sheet Betrag hält die Tastatur offen
 - `infrastructure-mshaf` Gate schneller und stabil
 
 ## Danach, bei Bedarf

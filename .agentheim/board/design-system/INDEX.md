@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 2
+- **Backlog:** 3
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 45
@@ -35,6 +35,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **design-system-ak97z** — "Segmented mit KeepsFocus: Ausgabe/Einnahme im Sheet Betrag schließt die Tastatur nicht mehr" (bug) — `backlog/design-system-ak97z-segmented-keepsfocus.md`
 - **design-system-k8s2m** — "Kann-Sammlung design-system" (chore) — `backlog/design-system-k8s2m-kann-sammlung-design-system.md`
 - **design-system-taytp** — "Kategorie-Picker vereinheitlichen und Split im Import auf das Design-System" (refactor) — `backlog/design-system-taytp-kategorie-picker-vereinheitlichen.md`
 <!-- backlog-list:end -->

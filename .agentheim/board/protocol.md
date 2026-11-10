@@ -5,10 +5,31 @@ Newest entries on top.
 
 ---
 
+## 2026-11-10 23:09 -- Review-Lauf: 68279598..5444edd7
+
+**Type:** Review / Review-Lauf
+**Bereich:** 68279598..5444edd7 (ledger-mj3a9, ledger-q42pg, ledger-m7a9q)
+**Agents:** backend-code-quality, frontend-architecture, design-quality, qa-milestone-reviewer
+**Funde:** behoben 14, verworfen 2, Rückfrage 2, Ticket 1 (design-system-ak97z), Kann-Sammlung 3 (ledger-k4n2s Punkte 38 bis 40)
+**Commits:** 009b3186, 5444edd7
+**Verworfen:** ErrorDisplay.inlineWithId (heute kein zweiter Nutzer); roter Rand am Betragsfeld bei Fehler (Roman: rote Zeile reicht)
+**Verifikation:** VERIFY: PASS (dotnet 4655 grün, node 311 grün, dotnet build, npm run build, guard:classes, guard:tokens grün)
+
+---
+
+## 2026-11-10 23:09 -- Capture / Captured: design-system-ak97z - "Segmented mit KeepsFocus: Ausgabe/Einnahme im Sheet Betrag schließt die Tastatur nicht mehr"
+
+**Type:** Capture
+**BC:** design-system
+**Filed to:** backlog
+**Summary:** Aus Review-Lauf 2026-11-10: Segmented schließt im Sheet Betrag die Tastatur, Option KeepsFocus wie am Button.
+
+---
+
 ## 2026-11-10 22:33 -- Work session ended
 
 **Type:** Work / Session end
-**Duration:** 50m (Batch-Start 22:00 bis 22:50)
+**Duration:** 33m (Batch-Start 22:00 bis 22:33)
 **Completed:** 3 (first-try PASS: 3, re-dispatched: 0, skipped: 0)
 **Bounced:** 0
 **Failed:** 0
