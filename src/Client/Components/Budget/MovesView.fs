@@ -41,12 +41,8 @@ let private focusLeft (e: Browser.Types.FocusEvent) : bool =
     not (obj.ReferenceEquals (Browser.Dom.document.activeElement, e.target))
 
 let moneySwitch (tab: MoneyTabState) (dispatch: Msg -> unit) =
-    let segment label mode : Segmented.Segment =
-        { Label = label
-          IsActive = (tab.Mode = mode)
-          Disabled = false
-          KeepsFocus = false
-          OnClick = fun () -> dispatch (SwitchMoneyMode mode) }
+    let segment label mode =
+        Segmented.segment label (tab.Mode = mode) (fun () -> dispatch (SwitchMoneyMode mode))
     Segmented.view "money-mode" "Modus" [ segment "Zuweisen" AssignMode; segment "Holen" TakeMode; segment "Abgeben" GiveMode ]
 
 /// Ein Betragsfeld. `.input-field` setzt Farbe und Schrift ohne Layer, deshalb eigene Regeln (`styles.css`).

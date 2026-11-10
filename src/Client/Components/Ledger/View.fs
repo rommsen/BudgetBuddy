@@ -2077,6 +2077,15 @@ let splitEditorFor (model: Model) (entry: LedgerEntryView) : SplitLogic.SplitEdi
 let amountEditOf (model: Model) (entry: LedgerEntryView) : AmountEdit option =
     model.AmountEdit |> Option.filter (fun edit -> edit.AmountEntryId = entry.Id)
 
+/// Ausgabe oder Einnahme über einem Betragsfeld ohne Vorzeichen (Sheet "Betrag", "Neue Buchung"). Beide
+/// Segmente halten den Fokus im Feld (`KeepsFocus`, design-system-ak97z), am Handy bleibt die Tastatur offen.
+let private directionSegments (testId: string) (isOutflow: bool) (onChange: bool -> unit) : ReactElement =
+    Segmented.view
+        testId
+        "Ausgabe oder Einnahme"
+        [ { Segmented.segment "Ausgabe" isOutflow (fun () -> onChange true) with KeepsFocus = true }
+          { Segmented.segment "Einnahme" (not isOutflow) (fun () -> onChange false) with KeepsFocus = true } ]
+
 /// Der Inhalt des Sheets "Betrag": Ausgabe oder Einnahme, das Betragsfeld ohne Vorzeichen
 /// (Zifferntastatur `decimal`, rechtsbündig, Mono, groß), bei einer aufgeteilten Buchung der
 /// Hinweis, darunter der Satz zu YNAB. Handy (Sheet) und PC (Dialog) teilen ihn. Ein abgelehntes
@@ -2085,11 +2094,7 @@ let amountEditOf (model: Model) (entry: LedgerEntryView) : AmountEdit option =
 /// rollt ins Bild (`RevealAmountFieldError`).
 let private amountFormBody (dispatch: Msg -> unit) (entry: LedgerEntryView) (edit: AmountEdit) : ReactElement list =
     let invalid = edit.AmountFieldError.IsSome
-    [ Segmented.view
-          "amount-direction"
-          "Ausgabe oder Einnahme"
-          [ { Label = "Ausgabe"; IsActive = edit.AmountIsOutflow; Disabled = false; KeepsFocus = true; OnClick = fun () -> dispatch (AmountDirectionChanged true) }
-            { Label = "Einnahme"; IsActive = not edit.AmountIsOutflow; Disabled = false; KeepsFocus = true; OnClick = fun () -> dispatch (AmountDirectionChanged false) } ]
+    [ directionSegments "amount-direction" edit.AmountIsOutflow (fun isOutflow -> dispatch (AmountDirectionChanged isOutflow))
       Html.div [
           prop.custom ("data-testid", "amount-input")
           prop.children [
@@ -3647,11 +3652,7 @@ let private captureFields (dispatch: Msg -> unit) (model: Model) (capture: Captu
     let label (text: string) =
         Html.span [ prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.textMuted}"; prop.text text ]
     [
-        Segmented.view
-            "capture-direction"
-            "Ausgabe oder Einnahme"
-            [ { Label = "Ausgabe"; IsActive = form.IsOutflow; Disabled = false; KeepsFocus = true; OnClick = fun () -> dispatch (SetCaptureDirection true) }
-              { Label = "Einnahme"; IsActive = not form.IsOutflow; Disabled = false; KeepsFocus = true; OnClick = fun () -> dispatch (SetCaptureDirection false) } ]
+        directionSegments "capture-direction" form.IsOutflow (fun isOutflow -> dispatch (SetCaptureDirection isOutflow))
 
         // Betrag ohne Vorzeichen: die Zifferntastatur zu `decimal` hat je nach App kein Minus, die
         // Richtung kommt aus Ausgabe oder Einnahme.

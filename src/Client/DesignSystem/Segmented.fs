@@ -19,6 +19,10 @@ type Segment = {
     OnClick: unit -> unit
 }
 
+/// Ein Segment mit den Grundwerten: frei und ohne `KeepsFocus`. Abweichungen per `{ segment ... with ... }`.
+let segment (label: string) (isActive: bool) (onClick: unit -> unit) : Segment =
+    { Label = label; IsActive = isActive; Disabled = false; KeepsFocus = false; OnClick = onClick }
+
 let segmentClass (isActive: bool) (disabled: bool) : string =
     let baseClasses =
         $"inline-flex items-center justify-center {TouchTargets.alwaysMinHeight} px-2 rounded-md text-sm font-semibold touch-manipulation transition-colors"

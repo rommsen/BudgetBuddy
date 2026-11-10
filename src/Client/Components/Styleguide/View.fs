@@ -1835,10 +1835,10 @@ let private SegmentedDemo () =
     let amount, setAmount = React.useState 20m
     let isOutflow, setIsOutflow = React.useState true
     let draft, setDraft = React.useState "12,50"
-    let segment label : Segmented.Segment =
-        { Label = label; IsActive = (active = label); Disabled = false; KeepsFocus = false; OnClick = fun () -> setActive label }
+    let segment label =
+        Segmented.segment label (active = label) (fun () -> setActive label)
     section "23b. Segmented, Schritte und Zeilen von und nach" [
-        note "Umschalter mit aria-pressed, aktiv im Akzent. Schritte halten den Fokus im Feld daneben. Die wählbare Zeile öffnet am Handy sheetLayered, im Panel CategoryPicker.popoverInPanelRevealed. styleguide.md §5."
+        note "Umschalter mit aria-pressed, aktiv im Akzent. Schritte halten den Fokus im Feld daneben, Segmente mit KeepsFocus auch. Die wählbare Zeile öffnet am Handy sheetLayered, im Panel CategoryPicker.popoverInPanelRevealed. styleguide.md §5."
         Html.div [
             prop.custom ("data-ds-card", "components-segmented")
             prop.custom ("data-ds-card-name", "Segmented")
@@ -1850,13 +1850,13 @@ let private SegmentedDemo () =
                     "demo-segmented-disabled"
                     "Beispiel gesperrt"
                     [ for label in [ "Monat"; "Woche"; "Jahr" ] do
-                          ({ Label = label; IsActive = (label = "Monat"); Disabled = true; KeepsFocus = false; OnClick = ignore } : Segmented.Segment) ]
+                          { Segmented.segment label (label = "Monat") ignore with Disabled = true } ]
                 caption "Gesperrt: disabled, gedämpft, kein Hover (Rhythmus im Tab Target, solange das Speichern läuft)"
                 Segmented.view
                     "demo-segmented-weekday"
                     "Wochentag"
                     [ for label, _ in Shared.Budgeting.weekdays do
-                          ({ Label = label; IsActive = (label = "Fr"); Disabled = false; KeepsFocus = false; OnClick = ignore } : Segmented.Segment) ]
+                          Segmented.segment label (label = "Fr") ignore ]
                 caption "Wochentag im Tab Target: sieben Segmente, Montag zuerst"
                 Html.div [
                     prop.className "w-[340px] max-w-full"
@@ -1865,20 +1865,21 @@ let private SegmentedDemo () =
                             "demo-segmented-weekday-panel"
                             "Wochentag im Panel"
                             [ for label, _ in Shared.Budgeting.weekdays do
-                                  ({ Label = label; IsActive = (label = "Mo"); Disabled = false; KeepsFocus = false; OnClick = ignore } : Segmented.Segment) ]
+                                  Segmented.segment label (label = "Mo") ignore ]
                     ]
                 ]
                 caption "Dieselbe Leiste in 340 px, der Breite des Panels am PC"
                 Segmented.view
                     "demo-segmented-keeps-focus"
                     "Ausgabe oder Einnahme"
-                    [ { Label = "Ausgabe"; IsActive = isOutflow; Disabled = false; KeepsFocus = true; OnClick = fun () -> setIsOutflow true }
-                      { Label = "Einnahme"; IsActive = not isOutflow; Disabled = false; KeepsFocus = true; OnClick = fun () -> setIsOutflow false } ]
+                    [ { Segmented.segment "Ausgabe" isOutflow (fun () -> setIsOutflow true) with KeepsFocus = true }
+                      { Segmented.segment "Einnahme" (not isOutflow) (fun () -> setIsOutflow false) with KeepsFocus = true } ]
                 Input.text
                     { Input.textInputDefaults with
                         Value = draft
                         OnChange = setDraft
                         Placeholder = "0,00"
+                        Size = Input.Large
                         InputMode = Some "decimal"
                         AriaLabel = Some "Betrag im Beispiel"
                         ClassName = Some (Input.amountFieldClass true false) }

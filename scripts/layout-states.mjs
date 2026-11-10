@@ -811,6 +811,8 @@ export const STATES = [
       await page.locator('.bottom-sheet.active [data-testid="amount-input-error"]').waitFor();
       if ((await page.evaluate(() => window.__amountBlurs)) > 0) throw new Error("Betragsfeld verlor beim Speichern den Fokus");
       // design-system-ak97z: ein Tipp auf "Einnahme" nimmt dem Feld den Fokus nicht (`Segment.KeepsFocus`).
+      if (!(await field.evaluate((el) => document.activeElement === el)))
+        throw new Error("Betragsfeld hat vor dem Tipp auf Einnahme keinen Fokus");
       await page.locator('.bottom-sheet.active [data-testid="amount-direction"]', { hasText: "Einnahme" }).tap();
       if ((await page.evaluate(() => window.__amountBlurs)) > 0) throw new Error("Betragsfeld verlor bei Einnahme den Fokus");
       await page.locator('.bottom-sheet.active [data-testid="amount-direction"]', { hasText: "Ausgabe" }).tap();
@@ -877,11 +879,17 @@ export const STATES = [
         window.__captureAmountBlurs = 0;
         el.addEventListener("blur", () => window.__captureAmountBlurs++);
       });
+      if (!(await field.evaluate((el) => document.activeElement === el)))
+        throw new Error("Betragsfeld in Neue Buchung hat vor dem Tipp auf Einnahme keinen Fokus");
       await page.locator('.bottom-sheet.active [data-testid="capture-direction"]', { hasText: "Einnahme" }).tap();
       await frames(page);
       if ((await page.evaluate(() => window.__captureAmountBlurs)) > 0)
         throw new Error("Betragsfeld in Neue Buchung verlor bei Einnahme den Fokus");
       await page.locator('.bottom-sheet.active [data-testid="capture-direction"]', { hasText: "Ausgabe" }).tap();
+      await frames(page);
+      if ((await page.evaluate(() => window.__captureAmountBlurs)) > 0)
+        throw new Error("Betragsfeld in Neue Buchung verlor bei Ausgabe den Fokus");
+      // Zurück in den Startzustand (Ausgabe, kein Fokus): die Tastaturprüfung setzt den Fokus selbst ins Feld.
       await field.evaluate((el) => el.blur());
     },
     primary: (page) => page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Buchung anlegen", exact: true }),

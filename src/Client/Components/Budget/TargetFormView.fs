@@ -135,11 +135,8 @@ let private rhythmChoice (props: TargetFormProps) =
     let active = targetRhythmValue shown props.Form
     let locked = formFieldsLocked props.Locks
     let segment (label: string) (frequency: TargetFrequency) : Segmented.Segment =
-        { Label = label
-          IsActive = (active = Some frequency)
-          Disabled = locked
-          KeepsFocus = false
-          OnClick = fun () -> props.OnRhythmChanged frequency }
+        { Segmented.segment label (active = Some frequency) (fun () -> props.OnRhythmChanged frequency) with
+            Disabled = locked }
     Input.groupSimple "Rhythmus" (
         Html.div [
             prop.custom ("data-testid", "target-rhythm-choice")
@@ -166,11 +163,8 @@ let private weekdayChoice (props: TargetFormProps) =
     let active = targetWeekdayValue props.Shown props.Form
     let locked = formFieldsLocked props.Locks
     let segment (label: string, day: int) : Segmented.Segment =
-        { Label = label
-          IsActive = (active = Some day)
-          Disabled = locked
-          KeepsFocus = false
-          OnClick = fun () -> props.OnWeekdayChanged day }
+        { Segmented.segment label (active = Some day) (fun () -> props.OnWeekdayChanged day) with
+            Disabled = locked }
     Input.group
         { Label = "Wochentag"
           Required = true
