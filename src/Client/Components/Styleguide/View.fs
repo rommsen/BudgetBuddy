@@ -1833,8 +1833,10 @@ let private TabsDemo () =
 let private SegmentedDemo () =
     let active, setActive = React.useState "Zuweisen"
     let amount, setAmount = React.useState 20m
+    let isOutflow, setIsOutflow = React.useState true
+    let draft, setDraft = React.useState "12,50"
     let segment label : Segmented.Segment =
-        { Label = label; IsActive = (active = label); Disabled = false; OnClick = fun () -> setActive label }
+        { Label = label; IsActive = (active = label); Disabled = false; KeepsFocus = false; OnClick = fun () -> setActive label }
     section "23b. Segmented, Schritte und Zeilen von und nach" [
         note "Umschalter mit aria-pressed, aktiv im Akzent. Schritte halten den Fokus im Feld daneben. Die wählbare Zeile öffnet am Handy sheetLayered, im Panel CategoryPicker.popoverInPanelRevealed. styleguide.md §5."
         Html.div [
@@ -1848,13 +1850,13 @@ let private SegmentedDemo () =
                     "demo-segmented-disabled"
                     "Beispiel gesperrt"
                     [ for label in [ "Monat"; "Woche"; "Jahr" ] do
-                          ({ Label = label; IsActive = (label = "Monat"); Disabled = true; OnClick = ignore } : Segmented.Segment) ]
+                          ({ Label = label; IsActive = (label = "Monat"); Disabled = true; KeepsFocus = false; OnClick = ignore } : Segmented.Segment) ]
                 caption "Gesperrt: disabled, gedämpft, kein Hover (Rhythmus im Tab Target, solange das Speichern läuft)"
                 Segmented.view
                     "demo-segmented-weekday"
                     "Wochentag"
                     [ for label, _ in Shared.Budgeting.weekdays do
-                          ({ Label = label; IsActive = (label = "Fr"); Disabled = false; OnClick = ignore } : Segmented.Segment) ]
+                          ({ Label = label; IsActive = (label = "Fr"); Disabled = false; KeepsFocus = false; OnClick = ignore } : Segmented.Segment) ]
                 caption "Wochentag im Tab Target: sieben Segmente, Montag zuerst"
                 Html.div [
                     prop.className "w-[340px] max-w-full"
@@ -1863,10 +1865,24 @@ let private SegmentedDemo () =
                             "demo-segmented-weekday-panel"
                             "Wochentag im Panel"
                             [ for label, _ in Shared.Budgeting.weekdays do
-                                  ({ Label = label; IsActive = (label = "Mo"); Disabled = false; OnClick = ignore } : Segmented.Segment) ]
+                                  ({ Label = label; IsActive = (label = "Mo"); Disabled = false; KeepsFocus = false; OnClick = ignore } : Segmented.Segment) ]
                     ]
                 ]
                 caption "Dieselbe Leiste in 340 px, der Breite des Panels am PC"
+                Segmented.view
+                    "demo-segmented-keeps-focus"
+                    "Ausgabe oder Einnahme"
+                    [ { Label = "Ausgabe"; IsActive = isOutflow; Disabled = false; KeepsFocus = true; OnClick = fun () -> setIsOutflow true }
+                      { Label = "Einnahme"; IsActive = not isOutflow; Disabled = false; KeepsFocus = true; OnClick = fun () -> setIsOutflow false } ]
+                Input.text
+                    { Input.textInputDefaults with
+                        Value = draft
+                        OnChange = setDraft
+                        Placeholder = "0,00"
+                        InputMode = Some "decimal"
+                        AriaLabel = Some "Betrag im Beispiel"
+                        ClassName = Some (Input.amountFieldClass true false) }
+                caption "KeepsFocus: das Segment nimmt dem Betragsfeld den Fokus nicht (preventDefault auf mousedown), am Handy bleibt die Tastatur offen. Ausgabe oder Einnahme im Sheet Betrag und in Neue Buchung."
                 Html.div [
                     prop.className "grid grid-cols-6 gap-1"
                     prop.children [

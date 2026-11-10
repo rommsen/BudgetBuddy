@@ -788,7 +788,8 @@ export const STATES = [
     },
   },
   // ledger-q42pg: Speichern mit leerem Betrag zeigt den Feldfehler unter dem Feld. Das Feld verliert beim Speichern den
-  // Fokus nicht, nach einem Tipp auf "Ausgabe" bekommt es ihn beim Speichern zurück, und es verweist per
+  // Fokus nicht, auch nicht bei "Einnahme" und "Ausgabe" (design-system-ak97z); hat es ihn verloren, bekommt es ihn
+  // beim Speichern zurück, und es verweist per
   // `aria-describedby` auf die Meldung. Geht die Tastatur danach auf, rollt die Meldung ins Bild, auch bei 320 px,
   // wo sie in zwei Zeilen umbricht.
   {
@@ -809,7 +810,13 @@ export const STATES = [
       await save.tap();
       await page.locator('.bottom-sheet.active [data-testid="amount-input-error"]').waitFor();
       if ((await page.evaluate(() => window.__amountBlurs)) > 0) throw new Error("Betragsfeld verlor beim Speichern den Fokus");
+      // design-system-ak97z: ein Tipp auf "Einnahme" nimmt dem Feld den Fokus nicht (`Segment.KeepsFocus`).
+      await page.locator('.bottom-sheet.active [data-testid="amount-direction"]', { hasText: "Einnahme" }).tap();
+      if ((await page.evaluate(() => window.__amountBlurs)) > 0) throw new Error("Betragsfeld verlor bei Einnahme den Fokus");
       await page.locator('.bottom-sheet.active [data-testid="amount-direction"]', { hasText: "Ausgabe" }).tap();
+      if ((await page.evaluate(() => window.__amountBlurs)) > 0) throw new Error("Betragsfeld verlor bei Ausgabe den Fokus");
+      // Hat das Feld den Fokus doch verloren (etwa ein Tipp daneben), holt Speichern ihn zurück (ledger-q42pg).
+      await field.evaluate((el) => el.blur());
       await save.tap();
       await frames(page);
       const state = await field.evaluate((el) => ({
@@ -817,9 +824,12 @@ export const STATES = [
         describedBy: el.getAttribute("aria-describedby"),
         invalid: el.getAttribute("aria-invalid"),
       }));
-      if (!state.focused) throw new Error("Betragsfeld hat nach Ausgabe und Speichern keinen Fokus");
+      if (!state.focused) throw new Error("Betragsfeld hat nach Blur und Speichern keinen Fokus");
       if (state.describedBy !== "amount-input-error" || state.invalid !== "true")
         throw new Error(`Feldfehler nicht am Feld: ${JSON.stringify(state)}`);
+      // Chromium hält `:active` nach einem Tipp noch einen Moment fest; der Knopf misst dann mit
+      // `active:scale-[0.98]` nur 47 px. Der Zustand wartet, bis "Speichern" losgelassen ist.
+      await page.waitForFunction((el) => !el.matches(":active"), await save.elementHandle());
     },
     primary: (page) => page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Speichern", exact: true }),
     keyboard: {
@@ -860,6 +870,19 @@ export const STATES = [
       await page.locator(".ledger-capture-fab").getByRole("button").waitFor();
       await page.locator(".ledger-capture-fab").getByRole("button").tap();
       await page.locator('.bottom-sheet.active [data-testid="capture-recent"]').waitFor();
+      // design-system-ak97z: Fokus im Betragsfeld, ein Tipp auf "Einnahme" nimmt ihn nicht (`Segment.KeepsFocus`).
+      const field = page.locator('.bottom-sheet.active [data-testid="capture-amount"] input');
+      await field.tap();
+      await field.evaluate((el) => {
+        window.__captureAmountBlurs = 0;
+        el.addEventListener("blur", () => window.__captureAmountBlurs++);
+      });
+      await page.locator('.bottom-sheet.active [data-testid="capture-direction"]', { hasText: "Einnahme" }).tap();
+      await frames(page);
+      if ((await page.evaluate(() => window.__captureAmountBlurs)) > 0)
+        throw new Error("Betragsfeld in Neue Buchung verlor bei Einnahme den Fokus");
+      await page.locator('.bottom-sheet.active [data-testid="capture-direction"]', { hasText: "Ausgabe" }).tap();
+      await field.evaluate((el) => el.blur());
     },
     primary: (page) => page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Buchung anlegen", exact: true }),
     keyboard: {

@@ -12,6 +12,10 @@ type Segment = {
     /// Gesperrt (budgeting-g2ty9, X3): `disabled`, gedämpft wie ein gesperrtes Feld, kein Hover. Erster
     /// Nutzer: der Rhythmus im Tab Target, solange das Speichern läuft.
     Disabled: bool
+    /// Hält den Fokus im Feld daneben (design-system-ak97z, wie `Button.KeepsFocus`): `preventDefault` auf
+    /// `mousedown`, am Handy bleibt die Tastatur offen. Erste Nutzer: Ausgabe oder Einnahme im Sheet "Betrag"
+    /// und in "Neue Buchung".
+    KeepsFocus: bool
     OnClick: unit -> unit
 }
 
@@ -33,6 +37,7 @@ let private segmentButton (testId: string) (segment: Segment) : ReactElement =
         prop.custom ("aria-pressed", segment.IsActive)
         prop.disabled segment.Disabled
         prop.className (segmentClass segment.IsActive segment.Disabled)
+        if segment.KeepsFocus then prop.onMouseDown (fun e -> e.preventDefault ())
         prop.onClick (fun _ -> segment.OnClick ())
         prop.text segment.Label
     ]

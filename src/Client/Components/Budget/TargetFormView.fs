@@ -138,6 +138,7 @@ let private rhythmChoice (props: TargetFormProps) =
         { Label = label
           IsActive = (active = Some frequency)
           Disabled = locked
+          KeepsFocus = false
           OnClick = fun () -> props.OnRhythmChanged frequency }
     Input.groupSimple "Rhythmus" (
         Html.div [
@@ -168,6 +169,7 @@ let private weekdayChoice (props: TargetFormProps) =
         { Label = label
           IsActive = (active = Some day)
           Disabled = locked
+          KeepsFocus = false
           OnClick = fun () -> props.OnWeekdayChanged day }
     Input.group
         { Label = "Wochentag"

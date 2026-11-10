@@ -45,6 +45,7 @@ let moneySwitch (tab: MoneyTabState) (dispatch: Msg -> unit) =
         { Label = label
           IsActive = (tab.Mode = mode)
           Disabled = false
+          KeepsFocus = false
           OnClick = fun () -> dispatch (SwitchMoneyMode mode) }
     Segmented.view "money-mode" "Modus" [ segment "Zuweisen" AssignMode; segment "Holen" TakeMode; segment "Abgeben" GiveMode ]
 

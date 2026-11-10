@@ -2088,8 +2088,8 @@ let private amountFormBody (dispatch: Msg -> unit) (entry: LedgerEntryView) (edi
     [ Segmented.view
           "amount-direction"
           "Ausgabe oder Einnahme"
-          [ { Label = "Ausgabe"; IsActive = edit.AmountIsOutflow; Disabled = false; OnClick = fun () -> dispatch (AmountDirectionChanged true) }
-            { Label = "Einnahme"; IsActive = not edit.AmountIsOutflow; Disabled = false; OnClick = fun () -> dispatch (AmountDirectionChanged false) } ]
+          [ { Label = "Ausgabe"; IsActive = edit.AmountIsOutflow; Disabled = false; KeepsFocus = true; OnClick = fun () -> dispatch (AmountDirectionChanged true) }
+            { Label = "Einnahme"; IsActive = not edit.AmountIsOutflow; Disabled = false; KeepsFocus = true; OnClick = fun () -> dispatch (AmountDirectionChanged false) } ]
       Html.div [
           prop.custom ("data-testid", "amount-input")
           prop.children [
@@ -3650,8 +3650,8 @@ let private captureFields (dispatch: Msg -> unit) (model: Model) (capture: Captu
         Segmented.view
             "capture-direction"
             "Ausgabe oder Einnahme"
-            [ { Label = "Ausgabe"; IsActive = form.IsOutflow; Disabled = false; OnClick = fun () -> dispatch (SetCaptureDirection true) }
-              { Label = "Einnahme"; IsActive = not form.IsOutflow; Disabled = false; OnClick = fun () -> dispatch (SetCaptureDirection false) } ]
+            [ { Label = "Ausgabe"; IsActive = form.IsOutflow; Disabled = false; KeepsFocus = true; OnClick = fun () -> dispatch (SetCaptureDirection true) }
+              { Label = "Einnahme"; IsActive = not form.IsOutflow; Disabled = false; KeepsFocus = true; OnClick = fun () -> dispatch (SetCaptureDirection false) } ]
 
         // Betrag ohne Vorzeichen: die Zifferntastatur zu `decimal` hat je nach App kein Minus, die
         // Richtung kommt aus Ausgabe oder Einnahme.

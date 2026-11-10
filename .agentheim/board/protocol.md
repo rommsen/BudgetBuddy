@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-10 23:35 -- Task verified and completed: design-system-ak97z - "Segmented mit KeepsFocus: Ausgabe/Einnahme im Sheet Betrag schließt die Tastatur nicht mehr"
+
+**Type:** Work / Task completion
+**Task:** design-system-ak97z - "Segmented mit KeepsFocus: Ausgabe/Einnahme im Sheet Betrag schließt die Tastatur nicht mehr"
+**Summary:** Segmented mit KeepsFocus, Ausgabe/Einnahme schließt die Tastatur nicht mehr
+**Duration:** 25m
+**Verification:** PASS (iteration 1)
+**Files changed:** 7
+**Tests added:** 2
+**ADRs written:** none
+
+---
+
 ## 2026-11-10 23:10 -- Batch started: [design-system-ak97z]
 
 **Type:** Work / Batch start
