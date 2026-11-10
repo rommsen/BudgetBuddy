@@ -3,7 +3,7 @@
 Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success looks like“.
 
 ## Stand
-Zuletzt aktualisiert: 2026-11-09, nach dem work-Lauf zu ledger-z6sya und ledger-m7mye samt Review.
+Zuletzt aktualisiert: 2026-11-10, nach dem Deploy von ledger-z6sya und ledger-m7mye.
 
 - **Etappe 1 · Bedeutungen:** erledigt, 5 von 5 (Skizze und Prototyp, Layout-Sweep, Muster im
   Styleguide, Designwert-Tests aufgeräumt, Palette 2 im Token-Layer). Romans Blick auf dak16 neben
@@ -16,11 +16,11 @@ Zuletzt aktualisiert: 2026-11-09, nach dem work-Lauf zu ledger-z6sya und ledger-
   Neuanlage nach halbem Split-Ersatz behoben). Romans `[human-eye]`-Blick auf beide steht aus (Seite neben
   Prototyp Version 17, Touch bei 412 px). Folge-Spike ledger-m7a9q (Betrag eines Übertrags per Update) im
   Backlog, danach kann die Sperre für Überträge fallen. Offen in Etappe 2: ledger-nb4tv (ETF-Konto).
-  Nicht deployt: ledger-m7k2d, ledger-z6sya, ledger-m7mye.
+  Deployt (2026-11-10, f85d3b3d): ledger-m7k2d, ledger-z6sya, ledger-m7mye.
 - **Etappe 3 · Ein Produkt:** noch nicht verfeinert, Zeilen wachsen.
 - **Nächster Schritt:** Roman prüft ledger-z6sya und ledger-m7mye am Handy und am PC gegen den Prototyp
   (Abweichungen stehen in den Outcomes: roter Grund und Höhe des Lösch-Knopfs, Modal-Hintergrund,
-  Sperre "Aufteilung noch nicht in YNAB"), dann deployen auf Anweisung.
+  Sperre "Aufteilung noch nicht in YNAB"); beides ist schon deployt.
 - **Danach:** ledger-nb4tv (ETF-Konto und Abgleich) verfeinern.
 
 ## Ablauf je Schritt
