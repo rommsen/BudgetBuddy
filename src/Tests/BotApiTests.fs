@@ -66,7 +66,7 @@ type private Env(?pushResult: Async<YnabResult<string>>, ?target: Result<BotTarg
     member _.Pushes = pushes
     member val Deps : BotDeps =
         { Token = fun () -> defaultArg token' (Some token)
-          MaxAmountEur = fun () -> Ok 500m
+          MaxAmountEur = fun () -> Server.ServerConfig.Default
           Now = fun () -> now
           BerlinZone = TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin"
           LoadCategories =
@@ -251,7 +251,7 @@ let botApiTests =
         // BOT_MAX_AMOUNT_EUR sperrt Bob, statt ihm die Vorgabe 500 Euro zu geben.
         testCase "gesperrter Deckel: Vorschau wird mit Grund abgelehnt, ohne YNAB-Aufruf und ohne gespeicherte Vorschau" <| fun () ->
             let env = Env()
-            let deps = { env.Deps with MaxAmountEur = fun () -> Error "50,00" }
+            let deps = { env.Deps with MaxAmountEur = fun () -> Server.ServerConfig.Invalid "50,00" }
             let payee = uniquePayee ()
             let status, json = call deps "POST" "/bot/transactions/preview" bearer (bodyOf deps payee "5" "outflow")
             Expect.equal status 503 "gesperrt"
@@ -267,7 +267,7 @@ let botApiTests =
             let env = Env()
             let payee = uniquePayee ()
             let id = preview env.Deps payee "5" "outflow"
-            let blocked = { env.Deps with MaxAmountEur = fun () -> Error "abc" }
+            let blocked = { env.Deps with MaxAmountEur = fun () -> Server.ServerConfig.Invalid "abc" }
             let status, json = commit blocked id
             Expect.equal status 503 "gesperrt"
             Expect.equal (str json "message") "Bot gesperrt: BOT_MAX_AMOUNT_EUR ist ungültig" "Grund"
@@ -278,7 +278,7 @@ let botApiTests =
 
         testCase "gesperrter Deckel: ohne gültiges Token bleibt es bei 401, mit Token sperrt jede Route" <| fun () ->
             let env = Env()
-            let blocked = { env.Deps with MaxAmountEur = fun () -> Error "0" }
+            let blocked = { env.Deps with MaxAmountEur = fun () -> Server.ServerConfig.Invalid "0" }
             for meth, path in [ "POST", "/bot/transactions/preview"; "POST", $"/bot/transactions/{Guid.NewGuid()}/commit"; "GET", "/bot/categories" ] do
                 Expect.equal (fst (call blocked meth path None "")) 401 $"{meth} {path} ohne Header"
                 Expect.equal (fst (call blocked meth path (Some "Bearer falsch") "")) 401 $"{meth} {path} falsches Token"
@@ -373,6 +373,14 @@ let botApiTests =
             Expect.equal (fst (call env.Deps "POST" "/bot/transactions/preview" bearer (bodyOf env.Deps "x" "0" "outflow"))) 422 "0 Euro"
             Expect.equal (fst (call env.Deps "POST" "/bot/transactions/preview" bearer (bodyOf env.Deps "x" "-20" "outflow"))) 422 "-20 Euro (-20000 Milliunits)"
             Expect.equal (fst (call env.Deps "POST" "/bot/transactions/preview" bearer (bodyOf env.Deps "x" "500" "outflow"))) 200 "500 Euro"
+
+        // Sicherheitsgrenze (ADR 0068 Punkt 1): eine abgesenkte Obergrenze muss bis zur Vorschau
+        // durchgreifen, nicht nur im Startlog stehen.
+        testCase "abgesenkte Obergrenze 100 Euro: 100,01 Euro wird mit 422 abgelehnt, 100 Euro geht" <| fun () ->
+            let env = Env()
+            let deps = { env.Deps with MaxAmountEur = fun () -> Server.ServerConfig.Lowered 100m }
+            Expect.equal (fst (call deps "POST" "/bot/transactions/preview" bearer (bodyOf deps "x" "100.01" "outflow"))) 422 "100,01 Euro"
+            Expect.equal (fst (call deps "POST" "/bot/transactions/preview" bearer (bodyOf deps "x" "100" "outflow"))) 200 "100 Euro"
 
         testCase "ungültige Eingaben ergeben 400 mit Feldnamen" <| fun () ->
             let env = Env()

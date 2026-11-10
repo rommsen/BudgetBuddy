@@ -87,7 +87,8 @@ type BotPreviewStore() =
 
     member _.HasCommitStarted(id: Guid) = commits.ContainsKey id
 
-    /// Zahl der gespeicherten Vorschauen (auch abgelaufener, bis `Purge` sie wegwirft).
+    /// Zahl der gespeicherten Vorschauen, nur für Tests. Zählt auch abgelaufene, bis `Purge`
+    /// sie wegwirft, taugt also nicht für Grenzen.
     member _.Count = previews.Count
 
     /// Startet den Commit je Vorschau mit einer beim ersten Aufruf festgelegten `EntryId`.
@@ -190,8 +191,8 @@ type BotCategoryCache() =
 type BotDeps = {
     Token: unit -> string option
     /// Die Obergrenze je Buchung aus `BOT_MAX_AMOUNT_EUR` (`ServerConfig.resolveBotMaxAmountEur`).
-    /// `Error` heißt: gesetzt, aber ungültig, Bob ist gesperrt (ADR 0068, Nachtrag 2026-11-10).
-    MaxAmountEur: unit -> Result<decimal, string>
+    /// `Invalid` heißt: gesetzt, aber ungültig, Bob ist gesperrt (ADR 0068, Nachtrag 2026-11-10).
+    MaxAmountEur: unit -> Server.ServerConfig.BotMaxAmount
     Now: unit -> DateTime
     /// Europe/Berlin, einmal beim Start aufgelöst: Kalendertag für Datumsfenster und Tagesgrenze.
     BerlinZone: TimeZoneInfo
@@ -503,10 +504,10 @@ let handler (deps: BotDeps) : HttpHandler =
             if not authorized then
                 respond 401 (errorBody "unauthorized" "Kein gültiges Bearer-Token" []) earlyReturn ctx
             else
-              match deps.MaxAmountEur() with
-              | Error _ ->
+              match Server.ServerConfig.effectiveBotMaxAmountEur (deps.MaxAmountEur()) with
+              | None ->
                 respond 503 (errorBody "bot_blocked" Server.ServerConfig.botBlockedReason []) earlyReturn ctx
-              | Ok maxAmountEur ->
+              | Some maxAmountEur ->
                 let segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries) |> List.ofArray
                 let routed =
                     match ctx.Request.Method, segments with
