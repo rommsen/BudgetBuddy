@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-10 22:29 -- Task verified and completed: ledger-m7a9q - "Probelauf: Betrag eines Übertrags per Update in YNAB ändern"
+
+**Type:** Work / Task completion
+**Task:** ledger-m7a9q - "Probelauf: Betrag eines Übertrags per Update in YNAB ändern"
+**Summary:** Probelauf: YNAB zieht die Gegenbuchung beim Betrag eines Übertrags mit, Nachtrag ADR 0092
+**Duration:** 38m
+**Verification:** PASS (iteration 1)
+**Files changed:** 1
+**Tests added:** 1
+**ADRs written:** none (Nachtrag ADR 0092)
+
+---
+
 ## 2026-11-10 22:17 -- Task verified and completed: ledger-mj3a9 - "BOT_MAX_AMOUNT_EUR: ein gesetzter, aber ungültiger Wert sperrt Bob, statt auf 500 € zurückzufallen"
 
 **Type:** Work / Task completion

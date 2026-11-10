@@ -322,4 +322,159 @@ let integrationTests =
                     | Error err ->
                         failtestf "Unexpected error type: %A" err
                 } |> Async.RunSynchronously
+
+        // ledger-m7a9q, ADR 0092 Punkt 4: zieht YNAB die Gegenbuchung mit, wenn BB den Betrag eines
+        // Übertrags ändert? Teil 1: PUT `amount` (der Schreibweg `updateAmount`) auf einen Übertrag
+        // zwischen zwei Budget-Konten, von beiden Seiten. Teil 2: der Ersatz (DELETE und POST,
+        // ADR 0058) einer Split-Buchung mit Übertrags-Zeile und neuem Betrag, dazu ein PUT `amount`
+        // auf die Gegenbuchung einer Übertrags-Zeile. Schreibt nur in das Budget "Test" und löscht
+        // alles, was es anlegt.
+        testCase "Probelauf: YNAB zieht die Gegenbuchung beim Betrag eines Übertrags mit (Budget Test)" <| fun () ->
+            if not (shouldRunIntegrationTests()) then
+                Tests.skiptest "RUN_INTEGRATION_TESTS not set to 'true' - skipping integration test (set RUN_INTEGRATION_TESTS=true in .env to enable)"
+
+            match getEnvVar "YNAB_TOKEN" with
+            | None -> Tests.skiptest "YNAB_TOKEN not set in .env - skipping integration test"
+            | Some token ->
+                let budget =
+                    match getBudgets token |> Async.RunSynchronously with
+                    | Ok budgets ->
+                        match budgets |> List.tryFind (fun b -> b.Name = "Test") with
+                        | Some b -> b.Id
+                        | None -> Tests.skiptest "Budget 'Test' nicht vorhanden - skipping integration test"
+                    | Error e -> failtest $"Budgets nicht lesbar: {e}"
+                let (YnabBudgetId budgetIdText) = budget
+
+                let accounts =
+                    match fetchBudgetAccounts token budget |> Async.RunSynchronously with
+                    | Ok accounts -> accounts |> List.filter (fun a -> a.OnBudget && not a.Closed)
+                    | Error e -> failtest $"Konten nicht lesbar: {e}"
+                let accountA, accountB =
+                    match accounts with
+                    | a :: b :: _ -> a, b
+                    | _ -> failtest "Das Budget Test braucht zwei offene Budget-Konten"
+                let category =
+                    match getCategories token budget |> Async.RunSynchronously with
+                    | Ok categories ->
+                        categories
+                        |> List.tryFind (fun c -> not c.Hidden && not (c.Name.StartsWith "Inflow") && c.GroupName <> "Credit Card Payments" && c.GroupName <> "Internal Master Category")
+                        |> Option.defaultWith (fun () -> failtest "Keine Kategorie im Budget Test")
+                    | Error e -> failtest $"Kategorien nicht lesbar: {e}"
+
+                let eur (amount: decimal) : Money = { Amount = amount; Currency = "EUR" }
+
+                // Liest eine Buchung roh (GET .../transactions/{id}): Betrag, Gegenbuchung, gelöscht,
+                // Split-Zeilen (Betrag, Gegenbuchung).
+                let readTransaction (id: string) =
+                    use client = new System.Net.Http.HttpClient()
+                    client.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}")
+                    let response =
+                        client.GetAsync($"https://api.youneedabudget.com/v1/budgets/{budgetIdText}/transactions/{id}")
+                        |> Async.AwaitTask |> Async.RunSynchronously
+                    let body = response.Content.ReadAsStringAsync() |> Async.AwaitTask |> Async.RunSynchronously
+                    if int response.StatusCode = 404 then None
+                    else
+                        if int response.StatusCode <> 200 then failtest $"GET {id}: HTTP {int response.StatusCode}"
+                        use doc = System.Text.Json.JsonDocument.Parse body
+                        let tx = doc.RootElement.GetProperty("data").GetProperty("transaction")
+                        let text (e: System.Text.Json.JsonElement) (name: string) =
+                            match e.TryGetProperty name with
+                            | true, v when v.ValueKind = System.Text.Json.JsonValueKind.String -> Some (v.GetString())
+                            | _ -> None
+                        let subs =
+                            [ for s in tx.GetProperty("subtransactions").EnumerateArray() do
+                                if not (s.GetProperty("deleted").GetBoolean()) then
+                                    yield s.GetProperty("amount").GetInt64(), text s "transfer_transaction_id" ]
+                        Some {| Amount = tx.GetProperty("amount").GetInt64()
+                                Transfer = text tx "transfer_transaction_id"
+                                Deleted = tx.GetProperty("deleted").GetBoolean()
+                                Subs = subs |}
+                let readLive id =
+                    readTransaction id |> Option.filter (fun t -> not t.Deleted)
+
+                let replacement amount transferTo splits : SplitReplacement =
+                    { AccountId = accountA.Id
+                      Date = DateTime.Today
+                      Amount = eur amount
+                      Payee = (if Option.isNone transferTo then Some "Probelauf ledger-m7a9q" else None)
+                      Memo = Some "Probelauf ledger-m7a9q, wird gelöscht"
+                      FlagColor = None
+                      Cleared = "uncleared"
+                      Approved = true
+                      ImportId = None
+                      CategoryId = None
+                      Splits = splits
+                      TransferAccountId = transferTo }
+
+                let created = Collections.Generic.List<string>()
+                try
+                    // Teil 1: ein Übertrag A -> B über -12,34 €.
+                    let transferId =
+                        match createReplacement token budget (replacement -12.34m (Some accountB.Id) []) |> Async.RunSynchronously with
+                        | Ok id -> id
+                        | Error e -> failtest $"Übertrag nicht angelegt: {e}"
+                    created.Add transferId
+                    let before = readLive transferId |> Option.get
+                    let counterpartId = before.Transfer |> Option.defaultWith (fun () -> failtest "Übertrag ohne Gegenbuchung")
+                    printfn "[Probelauf] Übertrag %s: %d, Gegenbuchung %s: %d" transferId before.Amount counterpartId (readLive counterpartId |> Option.get).Amount
+
+                    let putA = updateAmount token budget transferId (eur -20m) |> Async.RunSynchronously
+                    printfn "[Probelauf] PUT amount -20000 auf %s: %A" transferId putA
+                    Expect.isOk putA "YNAB nimmt den Betrag eines Übertrags an"
+                    let afterA = readLive transferId |> Option.get
+                    let counterpartAfterA = readLive counterpartId
+                    printfn "[Probelauf] danach Übertrag %d, Gegenbuchung %A" afterA.Amount counterpartAfterA
+                    Expect.equal afterA.Amount -20000L "der Übertrag trägt den neuen Betrag"
+                    Expect.equal afterA.Transfer (Some counterpartId) "die Gegenbuchung behält ihre Id"
+                    Expect.equal (counterpartAfterA |> Option.map (fun c -> c.Amount)) (Some 20000L) "YNAB zieht die Gegenbuchung mit"
+
+                    let putB = updateAmount token budget counterpartId (eur 7.5m) |> Async.RunSynchronously
+                    printfn "[Probelauf] PUT amount 7500 auf die Gegenbuchung %s: %A" counterpartId putB
+                    Expect.isOk putB "YNAB nimmt den Betrag der Gegenbuchung an"
+                    let afterB = readLive transferId
+                    printfn "[Probelauf] danach Übertrag %A, Gegenbuchung %A" afterB (readLive counterpartId)
+                    Expect.equal (afterB |> Option.map (fun t -> t.Amount)) (Some -7500L) "YNAB zieht auch von der Gegenseite mit"
+
+                    // Teil 2: Split auf A über -15 €: -10 € Kategorie, -5 € Übertrag nach B.
+                    let splitLines (categoryPart: decimal) (transferPart: decimal) : TransactionSplit list =
+                        [ { Target = ToCategory (category.Id, category.Name); Amount = eur categoryPart; Memo = None }
+                          { Target = ToTransfer (accountB.Id, accountB.Name); Amount = eur transferPart; Memo = None } ]
+                    let splitId =
+                        match createReplacement token budget (replacement -15m None (splitLines -10m -5m)) |> Async.RunSynchronously with
+                        | Ok id -> id
+                        | Error e -> failtest $"Split nicht angelegt: {e}"
+                    created.Add splitId
+                    let split = readLive splitId |> Option.get
+                    let oldLineCounterpart =
+                        split.Subs |> List.choose snd |> List.tryHead
+                        |> Option.defaultWith (fun () -> failtest "Übertrags-Zeile ohne Gegenbuchung")
+                    printfn "[Probelauf] Split %s: %A, Gegenbuchung der Zeile %A" splitId split (readLive oldLineCounterpart)
+
+                    let newSplitId =
+                        match replaceSplitTransaction token budget splitId (replacement -25m None (splitLines -10m -15m)) |> Async.RunSynchronously with
+                        | Ok id -> id
+                        | Error e -> failtest $"Ersatz gescheitert: {e}"
+                    created.Remove splitId |> ignore
+                    created.Add newSplitId
+                    let newSplit = readLive newSplitId |> Option.get
+                    let newLineCounterpart =
+                        newSplit.Subs |> List.choose snd |> List.tryHead
+                        |> Option.defaultWith (fun () -> failtest "Ersatz: Übertrags-Zeile ohne Gegenbuchung")
+                    let newCounterpart = readLive newLineCounterpart
+                    printfn "[Probelauf] Ersatz %s: %A, alte Gegenbuchung %A, neue Gegenbuchung %s: %A"
+                        newSplitId newSplit (readTransaction oldLineCounterpart) newLineCounterpart newCounterpart
+                    Expect.isNone (readLive oldLineCounterpart) "die alte Gegenbuchung ist gelöscht"
+                    Expect.equal (newCounterpart |> Option.map (fun c -> c.Amount)) (Some 15000L) "die neue Gegenbuchung trägt den neuen Zeilenbetrag"
+
+                    // Die Gegenbuchung einer Übertrags-Zeile selbst per PUT ändern: was macht YNAB mit der Zeile?
+                    let putLine = updateAmount token budget newLineCounterpart (eur 3m) |> Async.RunSynchronously
+                    printfn "[Probelauf] PUT amount 3000 auf die Gegenbuchung %s der Zeile: %A, danach Split %A, Gegenbuchung %A"
+                        newLineCounterpart putLine (readTransaction newSplitId) (readTransaction newLineCounterpart)
+                    Expect.isError putLine "YNAB lehnt den Betrag der Gegenbuchung einer Übertrags-Zeile ab (400)"
+                    Expect.equal (readLive newSplitId |> Option.map (fun t -> t.Subs)) (Some newSplit.Subs) "die Split-Zeilen bleiben"
+                    Expect.equal (readLive newLineCounterpart |> Option.map (fun c -> c.Amount)) (Some 15000L) "die Gegenbuchung bleibt"
+                finally
+                    for id in created do
+                        let result = deleteTransaction token budget id |> Async.RunSynchronously
+                        printfn "[Probelauf] Aufräumen DELETE %s: %A" id result
     ]

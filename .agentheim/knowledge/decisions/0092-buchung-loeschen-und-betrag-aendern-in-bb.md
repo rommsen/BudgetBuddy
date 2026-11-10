@@ -6,7 +6,7 @@ status: accepted
 date: 2026-11-09
 supersedes: []
 superseded_by: []
-related_tasks: [ledger-z6sya, ledger-m7mye]
+related_tasks: [ledger-z6sya, ledger-m7mye, ledger-m7a9q, ledger-t4rk8]
 related_adrs: [0021, 0053, 0055, 0058, 0083, 0086, 0091]
 related_research: []
 ---
@@ -60,3 +60,24 @@ Entschieden von Roman am 2026-11-09.
 - **Bestätigungsdialog statt Rückgängig:** abgelehnt, der Prototyp zeigt Rückgängig im Toast.
 - **Betrag bei Importen sperren:** abgelehnt, Roman folgt dem Prototyp.
 - **Betrag bei Splits sperren:** abgelehnt, der Prototyp führt nach dem Speichern in den Split-Editor.
+
+## Nachtrag 2026-11-10, Probelauf Betrag eines Übertrags (ledger-m7a9q)
+
+Probelauf gegen das Budget "Test" (Integrationstest "Probelauf: YNAB zieht die Gegenbuchung beim
+Betrag eines Übertrags mit (Budget Test)" in `src/Tests/YnabIntegrationTests.fs`, hinter
+`RUN_INTEGRATION_TESTS`):
+
+- PUT `amount` auf einen Übertrag zwischen zwei Budget-Konten: 200, YNAB zieht die Gegenbuchung mit
+  (Betrag mit umgekehrtem Vorzeichen, gleiche Id, Verknüpfung bleibt). Das gilt von beiden Seiten.
+- Ersatz (DELETE und POST, ADR 0058 Punkt 2) einer Split-Buchung mit Übertrags-Zeile und neuem
+  Betrag: die alte Gegenbuchung ist gelöscht, die neue trägt den neuen Zeilenbetrag und eine neue Id
+  (wie ADR 0058 Probelauf 5).
+- PUT `amount` auf die Gegenbuchung einer Split-Übertrags-Zeile: 400 "the amount or date cannot be
+  changed because the payee or category is not valid"; nichts ändert sich.
+
+Entscheidung: Punkt 4 fällt für den Betrag. `amountTransferReason` fällt für einen ganzen Übertrag
+(BB schreibt den Betrag per Update und zieht den Eintrag der Gegenbuchung in BB mit), außer für die
+Gegenbuchung einer Split-Übertrags-Zeile: deren Betrag ändert sich nur über die Aufteilung der
+Ursprungsbuchung, die Sperre bleibt dort mit eigenem Grund. `amountSplitTransferReason` fällt: der
+Betrag einer Split-Buchung mit Übertrags-Zeile geht wie jeder Split als Ersatz, die Verknüpfung der
+Split-Überträge (ledger-h6mer) läuft danach neu. Umsetzung in ledger-t4rk8.
