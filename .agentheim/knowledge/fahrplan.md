@@ -3,26 +3,27 @@
 Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success looks like“.
 
 ## Stand
-Zuletzt aktualisiert: 2026-11-10, nach dem Deploy von ledger-z6sya und ledger-m7mye.
+Zuletzt aktualisiert: 2026-11-10, nach Romans Blick auf ledger-z6sya und ledger-m7mye.
 
 - **Etappe 1 · Bedeutungen:** erledigt, 5 von 5 (Skizze und Prototyp, Layout-Sweep, Muster im
   Styleguide, Designwert-Tests aufgeräumt, Palette 2 im Token-Layer). Romans Blick auf dak16 neben
   dem Prototyp: freigegeben (2026-11-08). Entschieden (Roman, 2026-11-08): Fokusring, Textlinks und
   Marke im Akzent, gescheiterter Push bleibt Gelb (Nachtrag ADR 0087).
   Panel ab 1024 px (Roman, 2026-11-07).
-- **Etappe 2 · Lücken schließen:** 8 von 8 gebaut und in main. Neu (2026-11-09): ledger-z6sya (Buchung
+- **Etappe 2 · Lücken schließen:** erledigt, 8 von 8. Neu (2026-11-09): ledger-z6sya (Buchung
   löschen im Detail, mit Rückgängig, 67becce0) und ledger-m7mye (Betrag bearbeiten im Detail, ee0cc661),
   beide nach ADR 0092; Review 01b989fc..8561beb8 mit Fixes fe515af6..2c808771 (unter anderem doppelte
-  Neuanlage nach halbem Split-Ersatz behoben). Romans `[human-eye]`-Blick auf beide steht aus (Seite neben
-  Prototyp Version 17, Touch bei 412 px). Folge-Spike ledger-m7a9q (Betrag eines Übertrags per Update) im
+  Neuanlage nach halbem Split-Ersatz behoben). Romans Blick auf beide am Handy und PC (2026-11-10): passt;
+  Abweichungen roter Grund, Höhe und Position des Lösch-Knopfs und Modal-Hintergrund angenommen. Leerer
+  Betrag als Meldung am Feld statt Toast: ledger-q42pg. Bank-Referenz nach Betragsänderung per Test belegt,
+  im Alltag beim nächsten Import auf Duplikat achten. Folge-Spike ledger-m7a9q (Betrag eines Übertrags per Update) im
   Backlog, danach kann die Sperre für Überträge fallen. ledger-nb4tv (ETF-Konto und Abgleich) nach
   Etappe 3 verschoben (Roman, 2026-11-10).
   Deployt (2026-11-10, f85d3b3d): ledger-m7k2d, ledger-z6sya, ledger-m7mye.
 - **Etappe 3 · Ein Produkt:** noch nicht verfeinert, Zeilen wachsen.
-- **Nächster Schritt:** Roman prüft ledger-z6sya und ledger-m7mye am Handy und am PC gegen den Prototyp
-  (Abweichungen stehen in den Outcomes: roter Grund und Höhe des Lösch-Knopfs, Modal-Hintergrund,
-  Sperre "Aufteilung noch nicht in YNAB"); beides ist schon deployt.
-- **Danach:** Etappe 3 in Tickets schneiden, zuerst Navigation mit drei Orten und Übersicht als Einstieg.
+- **Nächster Schritt:** Etappe 3 in Tickets schneiden, zuerst Navigation mit drei Orten und Übersicht als
+  Einstieg. Klein und unabhängig dazwischen: ledger-q42pg (Feldfehler Betrag), ledger-mj3a9 (Bob-Betragsdeckel),
+  ledger-m7a9q (Probelauf Betrag eines Übertrags).
 
 ## Ablauf je Schritt
 1. Nächsten Schritt aus „Stand“ nennen.
@@ -57,7 +58,7 @@ Reihenfolge: `infrastructure-nx14s` → `infrastructure-jc1y1` → `design-syste
 - [x] `design-system-dak16` Palette 2 im Token-Layer, Kontrast-Wächter (2026-11-08, Verifier PASS in Iteration 2, Blick Roman freigegeben)
 - [x] `design-system-bcdqy` Muster im Styleguide (2026-11-07, von Roman freigegeben)
 
-## Etappe 2 · Lücken schließen
+## Etappe 2 · Lücken schließen (erledigt 2026-11-10)
 Ziel: Nichts zwingt mehr zu YNAB außer Reports.
 
 - ✓ `ledger-at63w` Buchung im Kassenbuch erfassen für jedes Konto ohne Import, mit Vorbelegung
@@ -68,9 +69,10 @@ Ziel: Nichts zwingt mehr zu YNAB außer Reports.
 - ✓ `budgeting-e2z7v` Targets beim Speichern direkt nach YNAB (Nachtrag ADR 0084, Roman 2026-11-08)
 - ✓ `ledger-qvjvs` Buchung zum Übertrag machen (Konten im Picker des Details, Schreibweg nach YNAB)
 - ✓ `ledger-p3vq8` Push gelungen, Verknüpfung nicht geschrieben
-- ✓ `ledger-z6sya` Buchung löschen im Detail (auch in YNAB), mit Rückgängig (gebaut, `[human-eye]` offen).
+- ✓ `ledger-z6sya` Buchung löschen im Detail (auch in YNAB), mit Rückgängig (Blick Roman 2026-11-10: passt).
 - ✓ `ledger-m7mye` Betrag einer Buchung bearbeiten im Detail (auch in YNAB), im Prototyp ab Version 15
-  (Roman, 2026-11-08); gebaut, `[human-eye]` offen. Überträge gesperrt bis Spike `ledger-m7a9q`.
+  (Roman, 2026-11-08); Blick Roman 2026-11-10: passt, Feldfehler statt Toast in `ledger-q42pg`.
+  Überträge gesperrt bis Spike `ledger-m7a9q`.
 
 ## Etappe 3 · Ein Produkt
 Ziel: Drei Orte, eine Sprache, Seite für Seite an der Skizze.

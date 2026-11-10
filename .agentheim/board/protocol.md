@@ -5,6 +5,25 @@ Newest entries on top.
 
 ---
 
+## 2026-11-10 -- Etappe 2 abgeschlossen: Blick Roman auf ledger-z6sya und ledger-m7mye
+
+**Type:** Review / Human-eye
+**Tasks:** ledger-z6sya - "Buchung löschen im Detail, auch in YNAB, mit Rückgängig", ledger-m7mye - "Betrag einer Buchung im Detail bearbeiten, auch in YNAB"
+**Ergebnis:** Handy (412 px, Touch) und PC: passt. Abgeglichene Buchung ohne Lösch-Knopf geprüft. Bank-Referenz nach Betragsänderung im Detail nicht sichtbar, per Test belegt (`LedgerAmountTests.fs:345`).
+**Abweichungen angenommen:** roter Grund, Höhe und Position des Lösch-Knopfs, Modal-Hintergrund am PC.
+**Geändert:** leerer Betrag als Meldung am Feld statt Toast, neue Task ledger-q42pg (aus ledger-k4n2s Punkt 35).
+**Fahrplan:** Etappe 2 erledigt.
+
+---
+
+## 2026-11-10 -- Modeling / Captured: ledger-q42pg - "Betrag bearbeiten: leerer Betrag oder 0 als Meldung am Feld statt Toast"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Status:** backlog
+
+---
+
 ## 2026-11-09 23:26 -- Review-Lauf: 01b989fc..8561beb8
 
 **Type:** Review / Review-Lauf
