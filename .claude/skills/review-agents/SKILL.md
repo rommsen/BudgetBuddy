@@ -74,6 +74,8 @@ genannten Stelle nachlesen und einer Gruppe zuordnen:
   Nutzen trägt die Änderung nicht. Ein Satz Begründung.
 - **Rückfrage**: nur bei echten Entscheidungen des Owners (sichtbares Verhalten ändert sich, ADR müsste sich ändern,
   zwei vertretbare Wege). Gesammelt am Ende stellen, mit `AskUserQuestion`, nicht einzeln zwischendurch.
+  Widerspricht eine Vorgabe der Task dem Styleguide und nennt die Task dafür keinen Grund, ist das immer eine
+  Rückfrage, nie Verwerfen und nie Kann-Sammlung (ledger-m7mye: Toast statt Feldfehler).
 - **Ticket**: nur wenn der Fix eigenes Modeling braucht oder über mehrere BCs geht und der Fund die Schwelle der
   Backlog-Disziplin aus `CLAUDE.md` erfüllt. Erwartung: null pro Lauf. Dann über `agentheim:quick-capture` in den
   Backlog, mit Verweis auf den Fund.
