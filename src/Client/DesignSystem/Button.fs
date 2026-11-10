@@ -44,6 +44,9 @@ type ButtonProps = {
     AriaLabel: string option
     /// `aria-expanded` für einen Knopf, der ein Panel öffnet; `None` ohne Attribut.
     AriaExpanded: bool option
+    /// Der Knopf nimmt dem Feld daneben den Fokus nicht (`preventDefault` auf `mousedown`, ADR 0005
+    /// Punkt 2): am Handy bleibt die Tastatur offen. Gewirkt wird weiter auf dem `click`.
+    KeepsFocus: bool
 }
 
 and IconPosition = Left | Right
@@ -64,6 +67,7 @@ let defaultProps = {
     Title = None
     AriaLabel = None
     AriaExpanded = None
+    KeepsFocus = false
 }
 
 // ============================================
@@ -147,6 +151,7 @@ let view (props: ButtonProps) =
         prop.disabled state.Disabled
         if state.AriaDisabled then prop.ariaDisabled true
         if state.AriaBusy then prop.ariaBusy true
+        if props.KeepsFocus then prop.onMouseDown (fun e -> e.preventDefault ())
         prop.onClick (fun _ -> if not state.AriaDisabled then props.OnClick())
         if props.Title.IsSome then prop.title props.Title.Value
         if props.AriaLabel.IsSome then prop.ariaLabel props.AriaLabel.Value

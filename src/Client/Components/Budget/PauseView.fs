@@ -37,6 +37,8 @@ let private pauseButton
                 IsBusy = state.Busy
                 IsDisabled = state.Disabled
                 ClassName = Some $"w-full {TouchTargets.sheetMinHeight}"
+                // Im Tab Geld nimmt der Knopf dem Betragsfeld den Fokus nicht (ADR 0005 Punkt 2).
+                KeepsFocus = (placement = PauseInMoneyTab)
                 OnClick = fun () -> dispatch (SetTargetPause b.Intent) }
     Html.div [
         // Satz und Knopf stehen als Geschwister im Fragment: ein Schlüssel hält den Knopf, wenn der Satz
@@ -44,11 +46,7 @@ let private pauseButton
         prop.key "pause-button"
         prop.custom ("data-testid", "target-pause")
         if invisible then prop.className "invisible"
-        prop.children [
-            match placement with
-            | PauseInMoneyTab -> keepsFocus [ button ]
-            | PauseInTargetTab -> button
-        ]
+        prop.children [ button ]
     ]
 
 let pauseControlView (placement: PausePlacement) (model: Model) (category: BudgetCategory) (dispatch: Msg -> unit) =

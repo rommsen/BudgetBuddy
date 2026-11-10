@@ -2081,7 +2081,8 @@ let amountEditOf (model: Model) (entry: LedgerEntryView) : AmountEdit option =
 /// (Zifferntastatur `decimal`, rechtsbündig, Mono, groß), bei einer aufgeteilten Buchung der
 /// Hinweis, darunter der Satz zu YNAB. Handy (Sheet) und PC (Dialog) teilen ihn. Ein abgelehntes
 /// Speichern zeigt den Feldfehler direkt unter dem Feld (`ErrorDisplay.inline'`, Styleguide §5,
-/// ledger-q42pg), das Feld verweist per `aria-describedby` darauf.
+/// ledger-q42pg), das Feld verweist per `aria-describedby` darauf, bekommt den Fokus und der Fehler
+/// rollt ins Bild (`RevealAmountFieldError`).
 let private amountFormBody (dispatch: Msg -> unit) (entry: LedgerEntryView) (edit: AmountEdit) : ReactElement list =
     let invalid = edit.AmountFieldError.IsSome
     [ Segmented.view
@@ -2100,13 +2101,9 @@ let private amountFormBody (dispatch: Msg -> unit) (entry: LedgerEntryView) (edi
                       Size = Input.Large
                       InputMode = Some "decimal"
                       AriaLabel = Some "Betrag"
-                      DescribedBy = (if invalid then Some "amount-input-error" else None)
+                      DescribedBy = (if invalid then Some amountFieldErrorId else None)
                       AriaInvalid = invalid
-                      ClassName =
-                        Some (
-                            if invalid then "w-full input-amount input-amount-hero input-invalid tabular-nums"
-                            else "w-full input-amount input-amount-hero tabular-nums"
-                        )
+                      ClassName = Some (Input.amountFieldClass true invalid)
                       OnKeyDown =
                         Some (fun e ->
                             if e.key = "Enter" then
@@ -2115,8 +2112,8 @@ let private amountFormBody (dispatch: Msg -> unit) (entry: LedgerEntryView) (edi
               match edit.AmountFieldError with
               | Some message ->
                   Html.div [
-                      prop.id "amount-input-error"
-                      prop.custom ("data-testid", "amount-input-error")
+                      prop.id amountFieldErrorId
+                      prop.custom ("data-testid", amountFieldErrorId)
                       prop.children [ ErrorDisplay.inline' message ]
                   ]
               | None -> ()
@@ -2140,18 +2137,14 @@ let private amountFooter (dispatch: Msg -> unit) (model: Model) (entry: LedgerEn
                     OnClick = fun () -> dispatch CancelAmountEdit }
             // "Speichern" nimmt dem Betragsfeld den Fokus nicht: nach einem abgelehnten Speichern
             // bleibt die Tastatur am Handy offen und Roman tippt gleich weiter (ledger-q42pg).
-            Html.div [
-                prop.onMouseDown (fun e -> e.preventDefault ())
-                prop.children [
-                    Button.view
-                        { Button.defaultProps with
-                            Text = "Speichern"
-                            Variant = Button.Primary
-                            IsBusy = busy
-                            ClassName = Some "w-full"
-                            OnClick = fun () -> dispatch (StartSaveAmount entry.Id) }
-                ]
-            ]
+            Button.view
+                { Button.defaultProps with
+                    Text = "Speichern"
+                    Variant = Button.Primary
+                    IsBusy = busy
+                    ClassName = Some "w-full"
+                    KeepsFocus = true
+                    OnClick = fun () -> dispatch (StartSaveAmount entry.Id) }
         ]
     ]
 
@@ -3673,7 +3666,7 @@ let private captureFields (dispatch: Msg -> unit) (model: Model) (capture: Captu
                         Size = Input.Large
                         InputMode = Some "decimal"
                         AriaLabel = Some "Betrag"
-                        ClassName = Some "w-full input-amount input-amount-hero tabular-nums" }
+                        ClassName = Some (Input.amountFieldClass true false) }
             ]
         ]
 

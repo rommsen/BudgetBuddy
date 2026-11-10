@@ -198,7 +198,7 @@ let private amountField (props: TargetFormProps) =
                         ReadOnly = formFieldsLocked props.Locks
                         DescribedBy = (if hint.IsSome then Some "target-amount-hint-text" else None)
                         AriaInvalid = hint.IsSome
-                        ClassName = Some (amountFieldClass hint.IsSome) }
+                        ClassName = Some (Input.amountFieldClass false hint.IsSome) }
                 match hint with
                 | Some text ->
                     Html.div [

@@ -154,6 +154,14 @@ let email value onChange placeholder =
 let number value onChange placeholder =
     text { textInputDefaults with Value = value; OnChange = onChange; Placeholder = placeholder; Type = "number" }
 
+/// Die Klasse eines Betragsfelds: Mono, Ziffern gleich breit, bei ungültiger Eingabe färbt `input-invalid`
+/// die Ziffern rot (`styles.css`). `hero` macht den Betrag groß (`input-amount-hero`, Formular "Neue Buchung"
+/// und Sheet "Betrag"). Zugewiesen, Holen und Abgeben, das Target und das Kassenbuch teilen sie.
+let amountFieldClass (hero: bool) (invalid: bool) : string =
+    let heroClass = if hero then " input-amount-hero" else ""
+    let invalidClass = if invalid then " input-invalid" else ""
+    $"w-full input-amount{heroClass}{invalidClass} tabular-nums"
+
 // ============================================
 // Textarea
 // ============================================

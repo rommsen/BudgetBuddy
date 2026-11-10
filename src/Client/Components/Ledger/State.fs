@@ -2356,7 +2356,9 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             match amountSaveStep edit entry with
             | AmountSaveRejected ->
                 // Die Meldung steht am Feld, kein Toast (Styleguide §5, ledger-q42pg).
-                { model with AmountEdit = Some { edit with AmountFieldError = Some amountMissingText } }, Cmd.none, NoOp
+                { model with AmountEdit = Some { edit with AmountFieldError = Some amountMissingText } },
+                Cmd.ofMsg RevealAmountFieldError,
+                NoOp
             | AmountSaveUnchanged -> { model with AmountEdit = None }, Cmd.none, NoOp
             | AmountSaveOpensSplitEditor newAmount ->
                 // Erst das Speichern einer gültigen Aufteilung schickt etwas (ADR 0092 Punkt 3).
@@ -2377,6 +2379,11 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 Cmd.ofMsg (RunSetAmount (entryId, request)),
                 NoOp
         | _ -> model, Cmd.none, NoOp
+
+    | RevealAmountFieldError ->
+        model,
+        Cmd.ofEffect (fun _ -> Client.DesignSystem.Viewport.focusAndReveal amountFieldSelector amountFieldErrorId),
+        NoOp
 
     | RunSetAmount (entryId, request) ->
         let cmd =

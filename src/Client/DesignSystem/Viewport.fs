@@ -79,6 +79,51 @@ let start () =
         document.addEventListener ("focusout", fun _ -> window.setTimeout ((fun () -> sync ()), 150) |> ignore)
 
 // ---------------------------------------------------------------------------
+// Feldfehler ins Bild
+// ---------------------------------------------------------------------------
+
+/// Rollt `reveal` noch einmal, sobald eine Transition an einem Vorfahren des Elements `revealId` endet,
+/// etwa die Höhe eines Sheets, das mit der Tastatur kleiner wird. Vorher gibt es dort nichts zu rollen.
+/// Ohne passende Transition räumt sich der Listener nach einer Sekunde selbst ab.
+let private revealAfterTransition (revealId: string) (reveal: unit -> unit) =
+    let handler: (Event -> unit) ref = ref ignore
+    let remove () = document.removeEventListener ("transitionend", handler.Value)
+
+    handler.Value <-
+        fun (e: Event) ->
+            let element = document.getElementById revealId
+            let target = e.target :?> Node
+            if not (isNull element) && not (isNull target) && target.contains element then
+                remove ()
+                reveal ()
+
+    document.addEventListener ("transitionend", handler.Value)
+    window.setTimeout (remove, 1000) |> ignore
+
+/// Gibt dem Feld `fieldSelector` den Fokus und rollt den Hinweis mit der Id `revealId` ins Bild
+/// (`block: "nearest"`), etwa den Feldfehler unter dem Betragsfeld (ledger-q42pg). Der Fokus kommt sofort,
+/// noch im Tipp, damit das Handy die Tastatur öffnet oder offen lässt. Gerollt wird im nächsten Frame (der
+/// Hinweis steht erst nach dem Render) und noch einmal beim nächsten `resize` des visualViewport: geht die
+/// Tastatur erst jetzt auf, rollt das Handy nur das Feld ins Bild, der Hinweis darunter bliebe verdeckt.
+/// Schrumpft die Ebene dabei mit einer Transition, rollt er nach deren Ende ein drittes Mal.
+let focusAndReveal (fieldSelector: string) (revealId: string) =
+    let reveal () =
+        let element = document.getElementById revealId
+        if not (isNull element) then element?scrollIntoView (createObj [ "block" ==> "nearest" ]) |> ignore
+
+    let field = document.querySelector fieldSelector
+    if not (isNull field) then (field :?> HTMLElement).focus ()
+    window.requestAnimationFrame (fun _ -> reveal ()) |> ignore
+
+    let onResize (_: Event) =
+        reveal ()
+        revealAfterTransition revealId reveal
+
+    match tryVisualViewport () with
+    | Some vv -> vv?addEventListener ("resize", onResize, createObj [ "once" ==> true ]) |> ignore
+    | None -> ()
+
+// ---------------------------------------------------------------------------
 // Body scroll lock (counted, so nested sheets don't fight over the styles)
 // ---------------------------------------------------------------------------
 

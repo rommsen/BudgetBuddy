@@ -787,9 +787,10 @@ export const STATES = [
       reach: (page) => page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Speichern", exact: true }),
     },
   },
-  // ledger-q42pg: Speichern mit leerem Betrag zeigt den Feldfehler unter dem Feld, kein Toast. Das Feld behält den
-  // Fokus und verweist per `aria-describedby` auf die Meldung; mit offener Tastatur bleiben Meldung und "Speichern"
-  // im Bild.
+  // ledger-q42pg: Speichern mit leerem Betrag zeigt den Feldfehler unter dem Feld. Das Feld verliert beim Speichern den
+  // Fokus nicht, nach einem Tipp auf "Ausgabe" bekommt es ihn beim Speichern zurück, und es verweist per
+  // `aria-describedby` auf die Meldung. Geht die Tastatur danach auf, rollt die Meldung ins Bild, auch bei 320 px,
+  // wo sie in zwei Zeilen umbricht.
   {
     name: "kassenbuch-betrag-feldfehler",
     route: "/ledger",
@@ -799,24 +800,28 @@ export const STATES = [
       const sheet = await openLedgerDetail(page, "Bauhaus");
       await sheet.locator('[data-testid="detail-amount-edit"]').tap();
       const field = page.locator('.bottom-sheet.active [data-testid="amount-input"] input');
+      const save = page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Speichern", exact: true });
       await field.fill("");
-      await page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Speichern", exact: true }).tap();
+      await field.evaluate((el) => {
+        window.__amountBlurs = 0;
+        el.addEventListener("blur", () => window.__amountBlurs++);
+      });
+      await save.tap();
       await page.locator('.bottom-sheet.active [data-testid="amount-input-error"]').waitFor();
+      if ((await page.evaluate(() => window.__amountBlurs)) > 0) throw new Error("Betragsfeld verlor beim Speichern den Fokus");
+      await page.locator('.bottom-sheet.active [data-testid="amount-direction"]', { hasText: "Ausgabe" }).tap();
+      await save.tap();
+      await frames(page);
       const state = await field.evaluate((el) => ({
         focused: document.activeElement === el,
         describedBy: el.getAttribute("aria-describedby"),
         invalid: el.getAttribute("aria-invalid"),
       }));
-      if (!state.focused) throw new Error("Betragsfeld verlor beim Speichern den Fokus");
+      if (!state.focused) throw new Error("Betragsfeld hat nach Ausgabe und Speichern keinen Fokus");
       if (state.describedBy !== "amount-input-error" || state.invalid !== "true")
         throw new Error(`Feldfehler nicht am Feld: ${JSON.stringify(state)}`);
-      if ((await page.locator(".toast-layer > *").count()) > 0) throw new Error("Toast statt Feldfehler");
     },
     primary: (page) => page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Speichern", exact: true }),
-    // Bei 320 px bricht die Meldung in zwei Zeilen um und liegt bei halber Höhe 22 px unter dem Rand des
-    // Sheet-Inhalts: das Feld rückt ins Bild, die Meldung erst nach Scrollen. `scroll-margin` am Feld hilft nicht,
-    // `scrollIntoView` mit `nearest` ignoriert es, solange das Feld selbst sichtbar ist. Ab 390 px passt alles.
-    exceptions: [{ width: 320, inv: 7, selector: 'div[data-testid="amount-input-error"]' }],
     keyboard: {
       focus: (page) => page.locator('.bottom-sheet.active [data-testid="amount-input"] input'),
       reach: (page) =>

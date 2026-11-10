@@ -253,6 +253,21 @@ let private buttonSection =
                 row [
                     Button.view { Button.defaultProps with Text = "Target pausieren"; Variant = Button.Secondary; IsBusy = true }
                 ]
+                note "KeepsFocus: der Knopf nimmt dem Feld daneben den Fokus nicht (preventDefault auf mousedown), am Handy bleibt die Tastatur offen. Beispiel: Speichern im Sheet Betrag, Fehlbetrag und Pause im Tab Geld."
+                row [
+                    Html.div [
+                        prop.className "w-40"
+                        prop.children [
+                            Input.text
+                                { Input.textInputDefaults with
+                                    Value = "12,50"
+                                    InputMode = Some "decimal"
+                                    AriaLabel = Some "Betrag"
+                                    ClassName = Some (Input.amountFieldClass false false) }
+                        ]
+                    ]
+                    Button.view { Button.defaultProps with Text = "Speichern"; Variant = Button.Primary; KeepsFocus = true }
+                ]
                 subTitle "Hero-CTAs"
                 row [
                     Button.hero "Sync starten" ignore
@@ -1074,7 +1089,7 @@ let private InputDemo () =
                         Size = Input.Large
                         InputMode = Some "decimal"
                         AriaLabel = Some "Betrag"
-                        ClassName = Some "w-full input-amount input-amount-hero tabular-nums" }
+                        ClassName = Some (Input.amountFieldClass true false) }
                 Input.toggle toggleValue setToggleValue (Some "Auto-Kategorisierung aktiv")
                 // switchRow: Schalter als Zeile mit Erklärung (Schalter "Aktiv" der Seite Kategorien, budgeting-sn2sn).
                 Input.switchRow "styleguide-switch-row" "Aktiv" "Deaktiviert verschwindet sie aus Auswahl und Budget. Buchungen und Historie bleiben." toggleValue false setToggleValue

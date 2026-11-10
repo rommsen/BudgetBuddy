@@ -229,8 +229,17 @@ let amountReducerTests =
                     (model.AmountEdit |> Option.map (fun e -> e.AmountDraft, e.AmountFieldError))
                     (Some (draft, Some amountMissingText))
                     $"Feldfehler bei '{draft}', Sheet bleibt offen"
-                Expect.isEmpty msgs "kein Aufruf"
+                Expect.equal msgs [ RevealAmountFieldError ] "kein Aufruf, nur Fokus und Meldung ins Bild"
                 Expect.isEmpty model.AmountRows "keine Sperre"
+
+        // Review ledger-q42pg: nach einem Tipp auf "Ausgabe" bekam das Feld den Fokus nicht zurück, und bei 320 px
+        // mit Tastatur lag die Meldung unter dem Rand. Die DOM-Wirkung prüft der Layout-Sweep.
+        testCase "Fokus und Meldung ins Bild: ein Effekt, das Modell bleibt, kein Toast" <| fun () ->
+            let rejected, _, _ = run (StartSaveAmount (idOf 1)) (typed [ entryOf 1 ] "")
+            let model, cmd, external = Components.Ledger.State.update RevealAmountFieldError rejected
+            Expect.equal model rejected "Modell unverändert"
+            Expect.equal (List.length cmd) 1 "genau ein Effekt"
+            Expect.equal external NoOp "kein Toast"
 
         testCase "Tippen löscht den Feldfehler, ein gültiger Betrag speichert danach wie bisher" <| fun () ->
             let rejected, _, _ = run (StartSaveAmount (idOf 1)) (typed [ entryOf 1 ] "")

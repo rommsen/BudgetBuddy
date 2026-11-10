@@ -727,6 +727,12 @@ let amountEditFor (entry: LedgerEntryView) : AmountEdit =
 /// Der Feldfehler unter dem Betragsfeld bei leerem Betrag oder 0 (ledger-q42pg).
 let amountMissingText = "Bitte einen Betrag größer als 0 eingeben"
 
+/// Die Id des Feldfehlers, auf die das Betragsfeld per `aria-describedby` verweist.
+let amountFieldErrorId = "amount-input-error"
+
+/// Das Betragsfeld im Sheet oder Dialog "Betrag".
+let amountFieldSelector = "[data-testid='amount-input'] input"
+
 /// Der Hinweis im Sheet bei einer aufgeteilten Buchung (Prototyp).
 let amountSplitNote =
     "Die Buchung ist aufgeteilt. Nach dem Speichern passt du die Aufteilung an den neuen Betrag an."
@@ -739,7 +745,7 @@ let amountEditLabel = "Betrag bearbeiten"
 
 /// Was "Speichern" im Sheet "Betrag" tut. Rein, damit die Entscheidung ohne Proxy testbar ist.
 type AmountSaveStep =
-    /// Leer, 0 oder unlesbar: Toast, das Sheet bleibt offen.
+    /// Leer, 0 oder unlesbar: Feldfehler unter dem Feld, das Sheet bleibt offen.
     | AmountSaveRejected
     /// Gleicher Betrag: zurück ins Detail, kein Aufruf.
     | AmountSaveUnchanged
@@ -1713,6 +1719,9 @@ type Msg =
     | AmountDraftChanged of string
     | CancelAmountEdit
     | StartSaveAmount of Guid
+    /// Nach einem abgelehnten Speichern: Fokus ins Betragsfeld, auch nach einem Tipp auf "Ausgabe" oder
+    /// "Einnahme", und der Feldfehler rollt ins Bild (ledger-q42pg).
+    | RevealAmountFieldError
     | RunSetAmount of Guid * AmountChangeRequest
     | AmountSet of Guid * Result<AmountOutcome, string>
     /// "Rückgängig" im Toast: der Betrag vor dem Speichern (mit Vorzeichen).

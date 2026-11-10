@@ -66,7 +66,7 @@ let private assignField (model: Model) (category: BudgetCategory) (tab: MoneyTab
                         AriaLabel = Some "Zugewiesen"
                         DescribedBy = (if assignFieldInvalid tab then Some "assign-amount-hint" else None)
                         AriaInvalid = assignFieldInvalid tab
-                        ClassName = Some (amountFieldClass (assignFieldInvalid tab)) }
+                        ClassName = Some (Input.amountFieldClass false (assignFieldInvalid tab)) }
             ]
         ]
     )
@@ -121,16 +121,15 @@ let private missingButton (model: Model) (month: BudgetMonth) (category: BudgetC
         Html.div [
             prop.custom ("data-testid", "assign-missing")
             prop.children [
-                keepsFocus [
-                    Button.view
-                        { Button.defaultProps with
-                            Text = missingActionText action
-                            Variant = variant
-                            IsDisabled = not enabled
-                            IsLoading = (model.MoveInFlight <> NoMoveCall)
-                            ClassName = Some $"w-full {TouchTargets.sheetMinHeight}"
-                            OnClick = fun () -> dispatch CoverMissing }
-                ]
+                Button.view
+                    { Button.defaultProps with
+                        Text = missingActionText action
+                        Variant = variant
+                        IsDisabled = not enabled
+                        IsLoading = (model.MoveInFlight <> NoMoveCall)
+                        ClassName = Some $"w-full {TouchTargets.sheetMinHeight}"
+                        KeepsFocus = true
+                        OnClick = fun () -> dispatch CoverMissing }
             ]
         ]
     match action with
@@ -261,7 +260,7 @@ let private transferMode (model: Model) (month: BudgetMonth) (tab: MoneyTabState
                             AriaLabel = Some "Betrag"
                             DescribedBy = (if transferAmountInvalid month tab then Some "transfer-amount-hint" else None)
                             AriaInvalid = transferAmountInvalid month tab
-                            ClassName = Some (amountFieldClass (transferAmountInvalid month tab)) }
+                            ClassName = Some (Input.amountFieldClass false (transferAmountInvalid month tab)) }
                 ]
             ]
         )
