@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-10 22:17 -- Task verified and completed: ledger-mj3a9 - "BOT_MAX_AMOUNT_EUR: ein gesetzter, aber ungültiger Wert sperrt Bob, statt auf 500 € zurückzufallen"
+
+**Type:** Work / Task completion
+**Task:** ledger-mj3a9 - "BOT_MAX_AMOUNT_EUR: ein gesetzter, aber ungültiger Wert sperrt Bob, statt auf 500 € zurückzufallen"
+**Summary:** ungültiger BOT_MAX_AMOUNT_EUR sperrt Bob statt Rückfall auf 500 €
+**Duration:** 21m
+**Verification:** PASS (iteration 1)
+**Files changed:** 6
+**Tests added:** 15
+**ADRs written:** none (Nachtrag ADR 0068)
+
+---
+
 ## 2026-11-10 22:00 -- Batch started: [ledger-mj3a9, ledger-q42pg, ledger-m7a9q]
 
 **Type:** Work / Batch start

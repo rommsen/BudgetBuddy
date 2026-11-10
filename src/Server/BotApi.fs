@@ -87,6 +87,9 @@ type BotPreviewStore() =
 
     member _.HasCommitStarted(id: Guid) = commits.ContainsKey id
 
+    /// Zahl der gespeicherten Vorschauen (auch abgelaufener, bis `Purge` sie wegwirft).
+    member _.Count = previews.Count
+
     /// Startet den Commit je Vorschau mit einer beim ersten Aufruf festgelegten `EntryId`.
     /// Läuft ein Versuch oder ist er abgeschlossen, bekommt jeder weitere Aufruf denselben
     /// Versuch und damit dasselbe Ergebnis. Endete er mit einer Ausnahme, startet der nächste
@@ -186,7 +189,9 @@ type BotCategoryCache() =
 /// Alles, was von außen kommt.
 type BotDeps = {
     Token: unit -> string option
-    MaxAmountEur: unit -> decimal
+    /// Die Obergrenze je Buchung aus `BOT_MAX_AMOUNT_EUR` (`ServerConfig.resolveBotMaxAmountEur`).
+    /// `Error` heißt: gesetzt, aber ungültig, Bob ist gesperrt (ADR 0068, Nachtrag 2026-11-10).
+    MaxAmountEur: unit -> Result<decimal, string>
     Now: unit -> DateTime
     /// Europe/Berlin, einmal beim Start aufgelöst: Kalendertag für Datumsfenster und Tagesgrenze.
     BerlinZone: TimeZoneInfo
@@ -293,7 +298,7 @@ let private readBody (ctx: HttpContext) : Task<string> =
         return! reader.ReadToEndAsync()
     }
 
-let private previewHandler (deps: BotDeps) : HttpHandler =
+let private previewHandler (deps: BotDeps) (maxAmountEur: decimal) : HttpHandler =
     fun _ ctx ->
         task {
             let now = deps.Now()
@@ -307,7 +312,7 @@ let private previewHandler (deps: BotDeps) : HttpHandler =
                 return!
                     respond 400 (errorBody "invalid_request" "Die Anfrage ist ungültig" [ "fields", Encode.list fields ]) earlyReturn ctx
             | Ok input ->
-                match checkBotAmount (deps.MaxAmountEur()) input.AmountEur with
+                match checkBotAmount maxAmountEur input.AmountEur with
                 | Error reason ->
                     return! respond 422 (errorBody "amount_not_allowed" reason []) earlyReturn ctx
                 | Ok () ->
@@ -473,8 +478,11 @@ let private isBotPath (path: string) =
     || path.StartsWith("/bot%2f", StringComparison.OrdinalIgnoreCase)
 
 /// Der Einstieg: alles unter `/bot/` wird hier beantwortet, alles andere geht weiter an
-/// die nächsten Handler. Ohne gültiges Bearer-Token (oder ohne gesetztes Token) 401,
-/// danach Routen, unbekannte Pfade 404 als JSON.
+/// die nächsten Handler. Ohne gültiges Bearer-Token (oder ohne gesetztes Token) 401.
+/// Ist `BOT_MAX_AMOUNT_EUR` gesetzt, aber ungültig, ist Bob gesperrt: jede angemeldete
+/// Anfrage bekommt 503 `bot_blocked`, vor jeder anderen Prüfung, ohne YNAB-Aufruf und ohne
+/// Rohwert in der Antwort (ADR 0068, Nachtrag 2026-11-10). Danach Routen, unbekannte Pfade
+/// 404 als JSON.
 /// Fremde Pfade: `skipPipeline`, nicht `next ctx`. Im `choose` von Api.webApp hieße
 /// `next ctx` "erledigt", die Remoting-Handler dahinter kämen nie dran.
 let handler (deps: BotDeps) : HttpHandler =
@@ -495,10 +503,14 @@ let handler (deps: BotDeps) : HttpHandler =
             if not authorized then
                 respond 401 (errorBody "unauthorized" "Kein gültiges Bearer-Token" []) earlyReturn ctx
             else
+              match deps.MaxAmountEur() with
+              | Error _ ->
+                respond 503 (errorBody "bot_blocked" Server.ServerConfig.botBlockedReason []) earlyReturn ctx
+              | Ok maxAmountEur ->
                 let segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries) |> List.ofArray
                 let routed =
                     match ctx.Request.Method, segments with
-                    | "POST", [ "bot"; "transactions"; "preview" ] -> previewHandler deps
+                    | "POST", [ "bot"; "transactions"; "preview" ] -> previewHandler deps maxAmountEur
                     | "POST", [ "bot"; "transactions"; id; "commit" ] -> commitHandler deps id
                     | "GET", [ "bot"; "categories" ] -> categoriesHandler deps
                     | _ -> respond 404 (errorBody "not_found" "Unbekannter Pfad" [])

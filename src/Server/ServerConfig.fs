@@ -48,30 +48,41 @@ let private tryParseBotMaxAmount (currentValue: string) : decimal option =
     | true, d when d > 0m -> Some d
     | _ -> None
 
-/// Die Obergrenze in Euro. Nicht gesetzt, nicht lesbar oder nicht positiv: die Vorgabe
-/// (500 EUR). Ein größerer Wert wird auf `hardBotMaxAmountEur` gedeckelt.
-let resolveBotMaxAmountEur (currentValue: string) : decimal =
-    match tryParseBotMaxAmount currentValue with
-    | Some d -> min d hardBotMaxAmountEur
-    | None -> defaultBotMaxAmountEur
-
-/// Der Logtext für den Start: nennt den wirksamen Wert. Bei gedeckeltem oder ungültigem
-/// Rohwert nennt er zusätzlich den gelesenen Rohwert. Ein nicht gesetzter Wert ist die
-/// Vorgabe und braucht keinen Hinweis. Das Token kommt hier nie vor.
-let botMaxAmountLogLine (currentValue: string) : string =
-    let effective = resolveBotMaxAmountEur currentValue
-    let eff = effective.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)
+/// Die Obergrenze in Euro (ADR 0068 Punkt 1, Nachtrag 2026-11-10). Nicht gesetzt (leer oder
+/// nur Leerraum): die Vorgabe (500 EUR). Gesetzt und gültig: der Wert, höchstens
+/// `hardBotMaxAmountEur`. Gesetzt, aber ungültig (Komma, Vorzeichen, Tausendertrennzeichen,
+/// 0, Text): `Error` mit dem Rohwert, Bob ist dann gesperrt. Ein Rückfall auf die Vorgabe
+/// gäbe einem Tippfehler beim Absenken die höchste Grenze.
+let resolveBotMaxAmountEur (currentValue: string) : Result<decimal, string> =
     let raw = if isNull currentValue then "" else currentValue.Trim()
     if raw = "" then
-        sprintf "Bot-Schnittstelle: Obergrenze je Buchung %s EUR (Vorgabe)." eff
+        Ok defaultBotMaxAmountEur
     else
         match tryParseBotMaxAmount raw with
-        | None ->
-            sprintf "Bot-Schnittstelle: Obergrenze je Buchung %s EUR. %s=\"%s\" ist ungültig (nur Dezimalpunkt, positiv), die Vorgabe gilt." eff botMaxAmountVariable raw
+        | Some d -> Ok (min d hardBotMaxAmountEur)
+        | None -> Error raw
+
+/// Der Grund, mit dem die Bot-Schnittstelle jede Anfrage ablehnt, solange
+/// `BOT_MAX_AMOUNT_EUR` ungültig ist. Ohne Rohwert, der steht nur im Startlog.
+let botBlockedReason = sprintf "Bot gesperrt: %s ist ungültig" botMaxAmountVariable
+
+/// Der Logtext für den Start: nennt den wirksamen Wert. Bei gedeckeltem Rohwert nennt er
+/// zusätzlich den gelesenen Rohwert, bei ungültigem Rohwert diesen und die Sperre. Ein nicht
+/// gesetzter Wert ist die Vorgabe und braucht keinen Hinweis. Das Token kommt hier nie vor.
+let botMaxAmountLogLine (currentValue: string) : string =
+    let format (d: decimal) = d.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)
+    let raw = if isNull currentValue then "" else currentValue.Trim()
+    match resolveBotMaxAmountEur currentValue with
+    | Error raw ->
+        sprintf "Bot-Schnittstelle: %s=\"%s\" ist ungültig (nur Dezimalpunkt, positiv). Bob ist gesperrt, bis der Wert korrigiert ist." botMaxAmountVariable raw
+    | Ok effective when raw = "" ->
+        sprintf "Bot-Schnittstelle: Obergrenze je Buchung %s EUR (Vorgabe)." (format effective)
+    | Ok effective ->
+        match tryParseBotMaxAmount raw with
         | Some d when d > hardBotMaxAmountEur ->
-            sprintf "Bot-Schnittstelle: Obergrenze je Buchung %s EUR. %s=\"%s\" liegt über dem harten Deckel und wird gedeckelt." eff botMaxAmountVariable raw
-        | Some _ ->
-            sprintf "Bot-Schnittstelle: Obergrenze je Buchung %s EUR." eff
+            sprintf "Bot-Schnittstelle: Obergrenze je Buchung %s EUR. %s=\"%s\" liegt über dem harten Deckel und wird gedeckelt." (format effective) botMaxAmountVariable raw
+        | _ ->
+            sprintf "Bot-Schnittstelle: Obergrenze je Buchung %s EUR." (format effective)
 
 /// Die Zeitzone Europe/Berlin aus der Zeitzonendatenbank des Systems, einmal beim Start
 /// aufgelöst (`Program.fs`) und als Abhängigkeit an die Bot-Schnittstelle gegeben. Fehlt sie

@@ -6,7 +6,7 @@ status: accepted
 date: 2026-10-28
 supersedes: []
 superseded_by: []
-related_tasks: [ledger-ybm5x, ledger-ssmp3, ledger-bbkgs, ledger-dtrn2]
+related_tasks: [ledger-ybm5x, ledger-ssmp3, ledger-bbkgs, ledger-dtrn2, ledger-mj3a9]
 related_adrs: [0066, 0067]
 related_research: []
 ---
@@ -53,3 +53,21 @@ Prüfliste. Das bleibt das Prüfsignal für Roman.
   Deploy. Das ist gewollt.
 - Umgesetzt in ledger-ybm5x (Punkt 1), ledger-ssmp3 (Punkte 2 und 3), ledger-bbkgs (Punkt 4) und
   ledger-dtrn2 (Pfadabgleich unter `/bot`).
+
+## Nachtrag 2026-11-10 (ledger-mj3a9): ungültiger Wert sperrt Bob
+
+Punkt 1 wird geändert. Der Rückfall auf 500 € gab einem Tippfehler beim Absenken (etwa "50,00")
+die höchste Grenze. Roman hat am 2026-11-10 entschieden, Bob in diesem Fall zu sperren. BB läuft weiter.
+
+- **Nicht gesetzt** (leer oder nur Leerraum): 500 €.
+- **Gesetzt und gültig** (nur Ziffern mit optionalem Dezimalpunkt, größer 0): der Wert. Zu hohe
+  Werte werden auf 500 € gedeckelt.
+- **Gesetzt, aber ungültig** (Komma, Vorzeichen, Tausendertrennzeichen, 0, Text): Bob ist gesperrt.
+  Jede angemeldete Anfrage unter `/bot/` bekommt nach der Token-Prüfung und vor jeder anderen
+  Prüfung 503 `bot_blocked` mit dem Grund "Bot gesperrt: BOT_MAX_AMOUNT_EUR ist ungültig", ohne
+  Rohwert in der Antwort. Es gibt keinen YNAB-Aufruf, kein Ereignis und keine gespeicherte Vorschau.
+  Ohne gültiges Token bleibt es bei 401.
+- Der Startlog nennt bei ungültigem Wert den Rohwert und "Bob ist gesperrt, bis der Wert korrigiert ist".
+
+Verworfen: ein Startabbruch, der ganz BB vom Netz nähme, und ein fester kleiner Rückfallwert,
+also eine Grenze, die niemand gewählt hat. Die Grenzen werden nur strenger, nichts wird konfigurierbar.

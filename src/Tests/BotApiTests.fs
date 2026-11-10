@@ -66,7 +66,7 @@ type private Env(?pushResult: Async<YnabResult<string>>, ?target: Result<BotTarg
     member _.Pushes = pushes
     member val Deps : BotDeps =
         { Token = fun () -> defaultArg token' (Some token)
-          MaxAmountEur = fun () -> 500m
+          MaxAmountEur = fun () -> Ok 500m
           Now = fun () -> now
           BerlinZone = TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin"
           LoadCategories =
@@ -246,6 +246,44 @@ let botApiTests =
                 Expect.equal (str json "error") "unauthorized" "JSON-Fehler"
                 Expect.equal (fst (call env.Deps meth path (Some "Bearer falsch") "")) 401 $"{meth} {path} falsches Token"
                 Expect.equal (fst (call env.Deps meth path (Some token) "")) 401 "ohne Bearer-Präfix"
+
+        // ledger-mj3a9 (ADR 0068, Nachtrag 2026-11-10): ein gesetzter, aber ungültiger
+        // BOT_MAX_AMOUNT_EUR sperrt Bob, statt ihm die Vorgabe 500 Euro zu geben.
+        testCase "gesperrter Deckel: Vorschau wird mit Grund abgelehnt, ohne YNAB-Aufruf und ohne gespeicherte Vorschau" <| fun () ->
+            let env = Env()
+            let deps = { env.Deps with MaxAmountEur = fun () -> Error "50,00" }
+            let payee = uniquePayee ()
+            let status, json = call deps "POST" "/bot/transactions/preview" bearer (bodyOf deps payee "5" "outflow")
+            Expect.equal status 503 "gesperrt"
+            Expect.equal (str json "error") "bot_blocked" "Code"
+            Expect.equal (str json "message") "Bot gesperrt: BOT_MAX_AMOUNT_EUR ist ungültig" "Grund"
+            Expect.isFalse (json.Value.GetRawText().Contains "50,00") "kein Rohwert in der Antwort"
+            Expect.equal env.CategoryLoads 0 "keine Kategorien von YNAB geladen"
+            Expect.equal deps.Store.Count 0 "keine Vorschau gespeichert"
+            Expect.equal env.Pushes 0 "nichts an YNAB"
+            Expect.isEmpty (entriesFor payee) "nichts im Kassenbuch"
+
+        testCase "gesperrter Deckel: Commit einer offenen Vorschau wird mit Grund abgelehnt, ohne Push und ohne Ereignis" <| fun () ->
+            let env = Env()
+            let payee = uniquePayee ()
+            let id = preview env.Deps payee "5" "outflow"
+            let blocked = { env.Deps with MaxAmountEur = fun () -> Error "abc" }
+            let status, json = commit blocked id
+            Expect.equal status 503 "gesperrt"
+            Expect.equal (str json "message") "Bot gesperrt: BOT_MAX_AMOUNT_EUR ist ungültig" "Grund"
+            Expect.isFalse (json.Value.GetRawText().Contains "abc") "kein Rohwert in der Antwort"
+            Expect.isFalse (blocked.Store.HasCommitStarted id) "kein Commit gestartet"
+            Expect.equal env.Pushes 0 "nichts an YNAB"
+            Expect.isEmpty (entriesFor payee) "kein Ereignis im Kassenbuch"
+
+        testCase "gesperrter Deckel: ohne gültiges Token bleibt es bei 401, mit Token sperrt jede Route" <| fun () ->
+            let env = Env()
+            let blocked = { env.Deps with MaxAmountEur = fun () -> Error "0" }
+            for meth, path in [ "POST", "/bot/transactions/preview"; "POST", $"/bot/transactions/{Guid.NewGuid()}/commit"; "GET", "/bot/categories" ] do
+                Expect.equal (fst (call blocked meth path None "")) 401 $"{meth} {path} ohne Header"
+                Expect.equal (fst (call blocked meth path (Some "Bearer falsch") "")) 401 $"{meth} {path} falsches Token"
+                Expect.equal (fst (call blocked meth path bearer "")) 503 $"{meth} {path} mit Token gesperrt"
+            Expect.equal env.CategoryLoads 0 "keine Kategorien von YNAB geladen"
 
         // infrastructure-vp308: `FixedTimeEquals` auf Bytes ungleicher Länge kehrt sofort zurück und verriet die
         // Länge über die Antwortzeit; jetzt werden beide Seiten vorher mit SHA-256 gehasht. Die Zeit misst

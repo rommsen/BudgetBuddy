@@ -36,5 +36,82 @@ let private resolveUrlsTests =
         }
     ]
 
+// ledger-mj3a9 (ADR 0068, Nachtrag 2026-11-10): ein gesetzter, aber ungültiger
+// BOT_MAX_AMOUNT_EUR fiel auf 500 EUR zurück, also auf den harten Deckel. Ein
+// Tippfehler beim Absenken ("50,00") gab Bob so die höchste Grenze.
+let private botMaxAmountTests =
+    let blocked raw = Error raw : Result<decimal, string>
+    testList "BOT_MAX_AMOUNT_EUR" [
+
+        // Regression: vor dem Fix lieferte jeder dieser Werte 500 EUR.
+        test "Komma \"50,00\" sperrt Bob statt auf 500 Euro zurückzufallen" {
+            Expect.equal (resolveBotMaxAmountEur "50,00") (blocked "50,00") "Komma"
+        }
+
+        test "\"0\" sperrt Bob" {
+            Expect.equal (resolveBotMaxAmountEur "0") (blocked "0") "0 ist keine Grenze"
+        }
+
+        test "Vorzeichen \"-5\" sperrt Bob" {
+            Expect.equal (resolveBotMaxAmountEur "-5") (blocked "-5") "negativ"
+        }
+
+        test "Tausendertrennzeichen \"1,000\" sperrt Bob" {
+            Expect.equal (resolveBotMaxAmountEur "1,000") (blocked "1,000") "Tausendertrennzeichen"
+        }
+
+        test "Text \"abc\" sperrt Bob" {
+            Expect.equal (resolveBotMaxAmountEur "abc") (blocked "abc") "Text"
+        }
+
+        test "nicht gesetzt (null, leer, nur Leerraum) ergibt die Vorgabe 500 Euro" {
+            Expect.equal (resolveBotMaxAmountEur null) (Ok 500m) "null"
+            Expect.equal (resolveBotMaxAmountEur "") (Ok 500m) "leer"
+            Expect.equal (resolveBotMaxAmountEur "   ") (Ok 500m) "Leerraum"
+        }
+
+        test "ein gültiger Wert senkt die Grenze: \"100.00\" ergibt 100 Euro" {
+            Expect.equal (resolveBotMaxAmountEur "100.00") (Ok 100m) "100 Euro"
+            Expect.equal (resolveBotMaxAmountEur " 120.5 ") (Ok 120.5m) "Leerraum wird getrimmt"
+        }
+
+        test "harter Deckel: \"900\" ergibt 500 Euro, die Umgebung darf nur absenken" {
+            Expect.equal hardBotMaxAmountEur 500m "Konstante"
+            Expect.equal (resolveBotMaxAmountEur "900") (Ok 500m) "gedeckelt"
+            Expect.equal (resolveBotMaxAmountEur "500.01") (Ok 500m) "knapp darüber"
+            Expect.equal (resolveBotMaxAmountEur "500") (Ok 500m) "genau der Deckel"
+        }
+
+        test "Startlog: ein ungültiger Wert nennt Rohwert und Folge" {
+            let line = botMaxAmountLogLine "50,00"
+            Expect.stringContains line "BOT_MAX_AMOUNT_EUR=\"50,00\"" "Rohwert"
+            Expect.stringContains line "Bob ist gesperrt, bis der Wert korrigiert ist" "Folge"
+            Expect.isFalse (line.Contains "500.00 EUR") "keine wirksame Grenze genannt"
+        }
+
+        test "Startlog: nicht gesetzt, gültig und gedeckelt wie bisher" {
+            Expect.equal (botMaxAmountLogLine null) "Bot-Schnittstelle: Obergrenze je Buchung 500.00 EUR (Vorgabe)." "Vorgabe"
+            Expect.equal (botMaxAmountLogLine "250.50") "Bot-Schnittstelle: Obergrenze je Buchung 250.50 EUR." "gültig"
+            Expect.equal
+                (botMaxAmountLogLine "900")
+                "Bot-Schnittstelle: Obergrenze je Buchung 500.00 EUR. BOT_MAX_AMOUNT_EUR=\"900\" liegt über dem harten Deckel und wird gedeckelt."
+                "gedeckelt"
+        }
+
+        test "Startlog: das Token steht in keiner Zeile" {
+            // Die Logzeile bekommt nur den Rohwert der Obergrenze; kein Fall nennt die
+            // Token-Variable. Ein Token als Rohwert wäre ein Bedienfehler, der Rohwert wird
+            // dann genannt, damit er sich korrigieren lässt.
+            for raw in [ null; ""; "250.50"; "900"; "50,00"; "abc" ] do
+                let line = botMaxAmountLogLine raw
+                Expect.isFalse (line.Contains botApiTokenVariable) $"Token-Variable in Zeile zu '{raw}'"
+                Expect.isFalse (line.Contains "Bearer") $"kein Bearer in Zeile zu '{raw}'"
+        }
+
+        test "der Sperrgrund nennt die Variable, aber keinen Rohwert" {
+            Expect.equal botBlockedReason "Bot gesperrt: BOT_MAX_AMOUNT_EUR ist ungültig" "Grund"
+        }
+    ]
+
 [<Tests>]
-let tests = testList "ServerConfig" [ resolveUrlsTests ]
+let tests = testList "ServerConfig" [ resolveUrlsTests; botMaxAmountTests ]
