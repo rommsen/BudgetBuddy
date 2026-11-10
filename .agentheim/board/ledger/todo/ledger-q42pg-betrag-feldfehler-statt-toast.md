@@ -1,7 +1,7 @@
 ---
 id: ledger-q42pg
 title: "Betrag bearbeiten: leerer Betrag oder 0 als Meldung am Feld statt Toast"
-status: backlog
+status: todo
 type: bug
 context: ledger
 created: 2026-11-10

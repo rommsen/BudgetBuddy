@@ -1,7 +1,7 @@
 ---
 id: ledger-m7a9q
 title: "Probelauf: Betrag eines Übertrags per Update in YNAB ändern"
-status: backlog
+status: todo
 type: spike
 context: ledger
 created: 2026-11-09
@@ -23,3 +23,8 @@ Probelauf gegen das Wegwerf-Budget "Test": PUT `amount` auf einen Übertrag zwis
 ## Acceptance criteria
 - [ ] Probelauf dokumentiert (Aufruf, Antwort, Zustand der Gegenbuchung danach).
 - [ ] Nachtrag ADR 0092 mit der Entscheidung, ob `amountTransferReason` und `amountSplitTransferReason` fallen.
+
+## Notes
+Stop-loss: Ist mitten im Probelauf die Antwort schon klar und die Folge billig (etwa YNAB zieht die Gegenbuchung
+sichtbar mit oder lehnt das Update eindeutig ab), das Ergebnis festhalten und aufhören.
+Nur gegen das Wegwerf-Budget "Test", nie gegen Romans Budget; Aufruf hinter `RUN_INTEGRATION_TESTS`.

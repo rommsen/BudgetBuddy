@@ -10,14 +10,17 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 8
-- **Todo:** 0
+- **Backlog:** 5
+- **Todo:** 3
 - **Doing:** 0
 - **Done:** 115
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **ledger-m7a9q** — "Probelauf: Betrag eines Übertrags per Update in YNAB ändern" (spike) — `todo/ledger-m7a9q-probelauf-betrag-uebertrag.md`
+- **ledger-q42pg** — "Betrag bearbeiten: leerer Betrag oder 0 als Meldung am Feld statt Toast" (bug) — `todo/ledger-q42pg-betrag-feldfehler-statt-toast.md`
+- **ledger-mj3a9** — "BOT_MAX_AMOUNT_EUR: ein gesetzter, aber ungültiger Wert sperrt Bob, statt auf 500 € zurückzufallen" (bug) — `todo/ledger-mj3a9-bot-betragsdeckel-faellt-sicher.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -45,10 +48,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **ledger-q42pg** — "Betrag bearbeiten: leerer Betrag oder 0 als Meldung am Feld statt Toast" (bug) — `backlog/ledger-q42pg-betrag-feldfehler-statt-toast.md`
-- **ledger-m7a9q** — "Probelauf: Betrag eines Übertrags per Update in YNAB ändern" (spike) — `backlog/ledger-m7a9q-probelauf-betrag-uebertrag.md`
 - **ledger-k4n2s** — "Kann-Sammlung ledger" (chore) — `backlog/ledger-k4n2s-kann-sammlung-ledger.md`
-- **ledger-mj3a9** — "BOT_MAX_AMOUNT_EUR: ungültiger Wert fällt auf das Maximum zurück statt auf einen sicheren Wert" (bug) — `backlog/ledger-mj3a9-bot-betragsdeckel-faellt-sicher.md`
 - **ledger-g47hp** — "Benachrichtigung für Lena bei neuer Rückfrage" (feature) — `backlog/ledger-g47hp-benachrichtigung-fuer-lena.md`
 - **ledger-ayjzq** — "Sicht 'Für mich' für Lena in BB: alles, was ihr zugewiesen ist" (feature) — `backlog/ledger-ayjzq-sicht-fuer-mich.md`
 - **ledger-hg5m5** — "Regel-Angebot nach einer Kategorie-Änderung im Kassenbuch: Anbieten, aus Payee und neuer Kategorie eine Kategorisierungsregel anzulegen" (feature) — `backlog/ledger-hg5m5-regel-angebot-nach-kategorie-aenderung.md`

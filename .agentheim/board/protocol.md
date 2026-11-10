@@ -5,6 +5,40 @@ Newest entries on top.
 
 ---
 
+## 2026-11-10 21:59 -- Modeling / Promoted: ledger-m7a9q - "Probelauf: Betrag eines Übertrags per Update in YNAB ändern"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-10 21:59 -- Modeling / Promoted: ledger-q42pg - "Betrag bearbeiten: leerer Betrag oder 0 als Meldung am Feld statt Toast"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-10 21:59 -- Modeling / Promoted: ledger-mj3a9 - "BOT_MAX_AMOUNT_EUR: ein gesetzter, aber ungültiger Wert sperrt Bob, statt auf 500 € zurückzufallen"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-10 21:59 -- Modeling / Refined: ledger-mj3a9 - BOT_MAX_AMOUNT_EUR: ein gesetzter, aber ungültiger Wert sperrt Bob
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** todo
+**Summary:** Entscheidung Roman: ungültiger Wert sperrt alle /bot/-Anfragen mit Grund, BB läuft weiter; nicht gesetzt 500 €, zu hoch auf 500 € gedeckelt. Nachtrag zu ADR 0068 Punkt 1 vorgesehen. Dazu ledger-m7a9q um Stop-loss ergänzt.
+**ADRs written:** keine (Nachtrag 0068 im Worker-Lauf)
+
+---
+
 ## 2026-11-10 -- Etappe 2 abgeschlossen: Blick Roman auf ledger-z6sya und ledger-m7mye
 
 **Type:** Review / Human-eye
