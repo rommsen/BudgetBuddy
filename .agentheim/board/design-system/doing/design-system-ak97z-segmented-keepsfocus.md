@@ -1,7 +1,7 @@
 ---
 id: design-system-ak97z
 title: "Segmented mit KeepsFocus: Ausgabe/Einnahme im Sheet Betrag schließt die Tastatur nicht mehr"
-status: todo
+status: doing
 type: bug
 context: design-system
 created: 2026-11-10

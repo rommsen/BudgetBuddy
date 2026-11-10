@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-10 23:10 -- Batch started: [design-system-ak97z]
+
+**Type:** Work / Batch start
+**Tasks:** design-system-ak97z - "Segmented mit KeepsFocus: Ausgabe/Einnahme im Sheet Betrag schließt die Tastatur nicht mehr"
+**Parallel:** scoped — builder named design-system-ak97z; no (1 worker)
+
+---
+
 ## 2026-11-10 23:10 -- Modeling / Promoted: design-system-ak97z - "Segmented mit KeepsFocus: Ausgabe/Einnahme im Sheet Betrag schließt die Tastatur nicht mehr"
 
 **Type:** Modeling / Promote
