@@ -1,7 +1,7 @@
 ---
 id: ledger-m7a9q
 title: "Probelauf: Betrag eines Übertrags per Update in YNAB ändern"
-status: todo
+status: doing
 type: spike
 context: ledger
 created: 2026-11-09

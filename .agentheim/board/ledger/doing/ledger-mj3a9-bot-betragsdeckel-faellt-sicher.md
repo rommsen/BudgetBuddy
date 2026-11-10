@@ -1,7 +1,7 @@
 ---
 id: ledger-mj3a9
 title: "BOT_MAX_AMOUNT_EUR: ein gesetzter, aber ungültiger Wert sperrt Bob, statt auf 500 € zurückzufallen"
-status: todo
+status: doing
 type: bug
 context: ledger
 created: 2026-10-29

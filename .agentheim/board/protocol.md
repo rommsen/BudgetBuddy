@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-10 22:00 -- Batch started: [ledger-mj3a9, ledger-q42pg, ledger-m7a9q]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-mj3a9 - "BOT_MAX_AMOUNT_EUR: ein gesetzter, aber ungültiger Wert sperrt Bob, statt auf 500 € zurückzufallen", ledger-q42pg - "Betrag bearbeiten: leerer Betrag oder 0 als Meldung am Feld statt Toast", ledger-m7a9q - "Probelauf: Betrag eines Übertrags per Update in YNAB ändern"
+**Parallel:** scoped — builder named ledger-mj3a9, ledger-q42pg, ledger-m7a9q; yes (3 workers); merge order by return, src/Tests/Tests.fsproj possible overlap
+
+---
+
 ## 2026-11-10 21:59 -- Modeling / Promoted: ledger-m7a9q - "Probelauf: Betrag eines Übertrags per Update in YNAB ändern"
 
 **Type:** Modeling / Promote
