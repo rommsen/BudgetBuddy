@@ -5,6 +5,23 @@ Newest entries on top.
 
 ---
 
+## 2026-11-10 23:10 -- Modeling / Promoted: design-system-ak97z - "Segmented mit KeepsFocus: Ausgabe/Einnahme im Sheet Betrag schließt die Tastatur nicht mehr"
+
+**Type:** Modeling / Promote
+**BC:** design-system
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-10 23:10 -- Modeling / Refined: design-system-ak97z - Segmented mit KeepsFocus
+
+**Type:** Modeling / Refine
+**BC:** design-system
+**Status after:** todo
+**Summary:** Nutzer von Segmented geprüft; Neue Buchung im Kassenbuch als zweiter Ort aufgenommen, Form (Feld am Segment oder Parameter) dem Worker überlassen, passend zu Button.KeepsFocus. Roman hat die Task im Review-Lauf entschieden und autonomen Lauf freigegeben.
+
+---
+
 ## 2026-11-10 23:09 -- Review-Lauf: 68279598..5444edd7
 
 **Type:** Review / Review-Lauf

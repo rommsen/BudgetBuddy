@@ -1,7 +1,7 @@
 ---
 id: design-system-ak97z
 title: "Segmented mit KeepsFocus: Ausgabe/Einnahme im Sheet Betrag schließt die Tastatur nicht mehr"
-status: backlog
+status: todo
 type: bug
 context: design-system
 created: 2026-11-10
@@ -22,6 +22,10 @@ zwischen zwei Feldern die Tastatur nicht schließen darf. Gefunden im Review-Lau
 ## What
 - `Segmented` bekommt eine Option wie `Button.KeepsFocus` (onMouseDown preventDefault am Segment), Vorgabe aus.
 - Das Sheet bzw. der Dialog "Betrag" im Kassenbuch nutzt sie, das Betragsfeld behält den Fokus beim Umschalten.
+- Ebenso "Ausgabe | Einnahme" in "Neue Buchung" im Kassenbuch (`src/Client/Components/Ledger/View.fs` um Zeile 3650,
+  ledger-at63w), falls dort ein Betragsfeld daneben den Fokus haben kann.
+- Form: ein Feld `KeepsFocus: bool` am `Segment`-Record (`src/Client/DesignSystem/Segmented.fs`) oder ein Parameter von
+  `Segmented.view`; der Worker wählt die Form, die zu `Button.KeepsFocus` passt, und zieht alle Nutzer nach.
 - Andere Nutzer von `Segmented` (Tab Geld, Rhythmus im Tab Target) bleiben unverändert, außer dort steht ebenfalls
   ein Betragsfeld daneben; das prüft der Worker und nennt es im Outcome.
 - Beispiel unter /styleguide, Zeile im Inventar `Segmented` (Styleguide §5).
