@@ -2338,7 +2338,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         NoOp
 
     | AmountDraftChanged text ->
-        { model with AmountEdit = model.AmountEdit |> Option.map (fun e -> { e with AmountDraft = text }) },
+        { model with AmountEdit = model.AmountEdit |> Option.map (fun e -> { e with AmountDraft = text; AmountFieldError = None }) },
         Cmd.none,
         NoOp
 
@@ -2354,7 +2354,9 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                                      && (model.AmountRows |> Map.tryFind entryId) <> Some AmountSending
                                      && (amountLockFor entry).IsNone ->
             match amountSaveStep edit entry with
-            | AmountSaveRejected -> model, Cmd.none, ShowToast (amountMissingToastText, ToastError)
+            | AmountSaveRejected ->
+                // Die Meldung steht am Feld, kein Toast (Styleguide §5, ledger-q42pg).
+                { model with AmountEdit = Some { edit with AmountFieldError = Some amountMissingText } }, Cmd.none, NoOp
             | AmountSaveUnchanged -> { model with AmountEdit = None }, Cmd.none, NoOp
             | AmountSaveOpensSplitEditor newAmount ->
                 // Erst das Speichern einer gültigen Aufteilung schickt etwas (ADR 0092 Punkt 3).

@@ -119,7 +119,7 @@ let amountBuildingBlockTests =
 
         testCase "Entscheidung beim Speichern: leer und 0 abgelehnt, gleich schließt, sonst die Anfrage ohne Vorzeichen" <| fun () ->
             let entry = entryOf 1
-            let edit draft outflow = { AmountEntryId = entry.Id; AmountIsOutflow = outflow; AmountDraft = draft }
+            let edit draft outflow = { AmountEntryId = entry.Id; AmountIsOutflow = outflow; AmountDraft = draft; AmountFieldError = None }
             Expect.equal (amountSaveStep (edit "" true) entry) AmountSaveRejected "leer"
             Expect.equal (amountSaveStep (edit "0" true) entry) AmountSaveRejected "0"
             Expect.equal (amountSaveStep (edit "0,00" true) entry) AmountSaveRejected "0,00"
@@ -188,7 +188,7 @@ let amountReducerTests =
             let model, msgs, _ = run (OpenAmountEdit (idOf 1)) (modelWith [ entryOf 1 ])
             Expect.equal
                 model.AmountEdit
-                (Some { AmountEntryId = idOf 1; AmountIsOutflow = true; AmountDraft = "42,80" })
+                (Some { AmountEntryId = idOf 1; AmountIsOutflow = true; AmountDraft = "42,80"; AmountFieldError = None })
                 "vorbelegt"
             Expect.isEmpty msgs "kein Aufruf"
 
@@ -219,14 +219,33 @@ let amountReducerTests =
             Expect.equal again model "kein zweiter Aufruf, solange einer läuft"
             Expect.isEmpty msgs2 "nichts"
 
-        testCase "0 oder leer zeigt den Toast, das Sheet bleibt offen, kein Aufruf" <| fun () ->
+        // Bug ledger-q42pg: leer oder 0 zeigte einen Toast statt der Meldung am Feld (Styleguide §5).
+        testCase "0 oder leer setzt den Feldfehler, kein Toast, das Sheet bleibt offen, kein Aufruf" <| fun () ->
             for draft in [ ""; "0"; "0,00" ] do
                 let before = typed [ entryOf 1 ] draft
                 let model, msgs, external = run (StartSaveAmount (idOf 1)) before
-                Expect.equal external (ShowToast (amountMissingToastText, ToastError)) $"Toast bei '{draft}'"
-                Expect.isSome model.AmountEdit "Sheet bleibt offen"
+                Expect.equal external NoOp $"kein Toast bei '{draft}'"
+                Expect.equal
+                    (model.AmountEdit |> Option.map (fun e -> e.AmountDraft, e.AmountFieldError))
+                    (Some (draft, Some amountMissingText))
+                    $"Feldfehler bei '{draft}', Sheet bleibt offen"
                 Expect.isEmpty msgs "kein Aufruf"
                 Expect.isEmpty model.AmountRows "keine Sperre"
+
+        testCase "Tippen löscht den Feldfehler, ein gültiger Betrag speichert danach wie bisher" <| fun () ->
+            let rejected, _, _ = run (StartSaveAmount (idOf 1)) (typed [ entryOf 1 ] "")
+            Expect.isSome (rejected.AmountEdit |> Option.bind (fun e -> e.AmountFieldError)) "Feldfehler steht"
+            let switched, _, _ = run (AmountDirectionChanged false) rejected
+            Expect.isSome (switched.AmountEdit |> Option.bind (fun e -> e.AmountFieldError)) "Richtung ist kein Tippen"
+            let typedAgain, _, _ = run (AmountDraftChanged "4") switched
+            Expect.equal
+                (typedAgain.AmountEdit |> Option.map (fun e -> e.AmountDraft, e.AmountFieldError))
+                (Some ("4", None))
+                "Fehler weg"
+            let saved, msgs, external = run (StartSaveAmount (idOf 1)) typedAgain
+            Expect.equal msgs [ RunSetAmount (idOf 1, { Amount = Some 4m; Direction = AmountDirectionInflow }) ] "Aufruf"
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (saved.AmountRows |> Map.tryFind (idOf 1)) (Some AmountSending) "läuft"
 
         testCase "unverändert gespeichert: zurück ins Detail ohne Aufruf" <| fun () ->
             let model, msgs, external = run (StartSaveAmount (idOf 1)) (typed [ entryOf 1 ] "42,80")

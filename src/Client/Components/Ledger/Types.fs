@@ -674,12 +674,14 @@ type AmountRowState =
     | AmountSending
     | AmountCommandFailed of message: string
 
-/// Das offene Sheet "Betrag": die Buchung, die Richtung und der Betrag ohne Vorzeichen, wie
-/// Roman ihn tippt.
+/// Das offene Sheet "Betrag": die Buchung, die Richtung, der Betrag ohne Vorzeichen, wie
+/// Roman ihn tippt, und der Feldfehler unter dem Betragsfeld nach einem abgelehnten Speichern
+/// (ledger-q42pg). Tippen löscht ihn.
 type AmountEdit = {
     AmountEntryId: Guid
     AmountIsOutflow: bool
     AmountDraft: string
+    AmountFieldError: string option
 }
 
 /// Der Hinweis "Betrag nicht in YNAB" im Detail (Muster `MemoHint`).
@@ -719,10 +721,11 @@ let amountLockFor (entry: LedgerEntryView) : string option =
 let amountEditFor (entry: LedgerEntryView) : AmountEdit =
     { AmountEntryId = entry.Id
       AmountIsOutflow = entry.Amount.Amount < 0m
-      AmountDraft = formatAmountForInput entry.Amount.Amount }
+      AmountDraft = formatAmountForInput entry.Amount.Amount
+      AmountFieldError = None }
 
-/// Der Toast bei leerem Betrag oder 0.
-let amountMissingToastText = "Bitte einen Betrag größer als 0 eingeben"
+/// Der Feldfehler unter dem Betragsfeld bei leerem Betrag oder 0 (ledger-q42pg).
+let amountMissingText = "Bitte einen Betrag größer als 0 eingeben"
 
 /// Der Hinweis im Sheet bei einer aufgeteilten Buchung (Prototyp).
 let amountSplitNote =

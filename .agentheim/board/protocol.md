@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-10 22:33 -- Task verified and completed: ledger-q42pg - "Betrag bearbeiten: leerer Betrag oder 0 als Meldung am Feld statt Toast"
+
+**Type:** Work / Task completion
+**Task:** ledger-q42pg - "Betrag bearbeiten: leerer Betrag oder 0 als Meldung am Feld statt Toast"
+**Summary:** leerer Betrag oder 0 als Meldung am Feld statt Toast
+**Duration:** 43m
+**Verification:** PASS (iteration 1)
+**Files changed:** 5
+**Tests added:** 2
+**ADRs written:** none
+
+---
+
 ## 2026-11-10 22:29 -- Task verified and completed: ledger-m7a9q - "Probelauf: Betrag eines Übertrags per Update in YNAB ändern"
 
 **Type:** Work / Task completion
