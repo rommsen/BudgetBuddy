@@ -8,7 +8,7 @@ created: 2026-09-12
 completed:
 depends_on: []
 blocks: []
-tags: [etappe-2, vision, v1, etf, kontostand, research, valuation]
+tags: [etappe-3, vision, v1, etf, kontostand, research, valuation]
 related_adrs: [0016]
 related_research: []
 prior_art: [ledger-zm0zx]
