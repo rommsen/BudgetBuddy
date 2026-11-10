@@ -24,10 +24,10 @@ Zuletzt aktualisiert: 2026-11-10, nach work-Lauf und Review zu ledger-mj3a9, led
 - **Laufend erledigt (2026-11-10):** ledger-mj3a9 (Bob gesperrt bei ungültigem `BOT_MAX_AMOUNT_EUR`, Nachtrag
   ADR 0068), ledger-q42pg (Feldfehler am Betrag statt Toast), ledger-m7a9q (Probelauf: YNAB zieht die Gegenbuchung
   eines Übertrags mit, Nachtrag ADR 0092); Review 68279598..HEAD mit Fixes 009b3186 und 5444edd7. Neu im Backlog:
-  ledger-t4rk8 (Betrag eines Übertrags in BB ändern) und design-system-ak97z (Umschalter Ausgabe/Einnahme schließt
-  die Tastatur nicht mehr). Nicht deployt.
-- **Nächster Schritt:** Roman prüft ledger-q42pg am Handy (412 px, Touch: Meldung unter dem Betragsfeld, Tastatur
-  bleibt offen), sobald deployt. Dann Etappe 3 in Tickets schneiden, zuerst Navigation mit drei Orten und Übersicht
+  ledger-t4rk8 (Betrag eines Übertrags in BB ändern, braucht Romans Entscheidungen beim Verfeinern). Danach
+  design-system-ak97z (Umschalter Ausgabe/Einnahme hält die Tastatur offen, 45273030) mit Review b74d67df. Nicht deployt.
+- **Nächster Schritt:** Roman prüft ledger-q42pg und design-system-ak97z am Handy (412 px, Touch: Meldung unter dem
+  Betragsfeld, Tastatur bleibt beim Umschalten Ausgabe/Einnahme und beim Speichern offen), sobald deployt. Dann Etappe 3 in Tickets schneiden, zuerst Navigation mit drei Orten und Übersicht
   als Einstieg.
 
 ## Ablauf je Schritt
@@ -140,7 +140,7 @@ jede Arbeit bremst.
 - `infrastructure-g4wy8` Verbindungsabbrüche
 - ✓ `ledger-mj3a9` Bob-Betragsdeckel (2026-11-10)
 - `ledger-t4rk8` Betrag eines Übertrags in BB ändern
-- `design-system-ak97z` Umschalter im Sheet Betrag hält die Tastatur offen
+- ✓ `design-system-ak97z` Umschalter im Sheet Betrag hält die Tastatur offen (2026-11-10)
 - `infrastructure-mshaf` Gate schneller und stabil
 
 ## Danach, bei Bedarf

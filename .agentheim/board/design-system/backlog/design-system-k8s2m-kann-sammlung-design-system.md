@@ -39,3 +39,6 @@ Geschnitten und priorisiert wird im Refinement.
 - Settings „Nicht konfiguriert“: roter Punkt mit gelbem Text, zwei Rollen für einen Zustand (ADR 0087).
 - Settings: Ist Comdirect nicht eingerichtet, steht dessen Formular offen, und „Zugangsdaten speichern“ ist primär, auch wenn eine andere Karte bearbeitet wird (zwei Hauptaktionen).
 - `TextGlowTokenTests.fs` ist mit dem Modul `TextGlows` gelöscht (Bugbezug design-system-tg2wn); ein Rückdreh-Beleg nach Doktrin Punkt 8 fehlt, weil es den Code nicht mehr gibt.
+- Review-Lauf 2026-11-10 (design-system-ak97z): `KeepsFocus` sitzt je `Segment`, an allen Nutzern hat aber die ganze Leiste denselben Wert; ein Parameter je Leiste (`Segmented.viewKeepingFocus`) ließe sich nicht halb setzen. Erst sinnvoll, wenn mehr Leisten mit `KeepsFocus` dazukommen.
+- Review-Lauf 2026-11-10 (design-system-ak97z): Das Warten auf das Ende von `:active` am Knopf "Speichern" (`scripts/layout-states.mjs`, Zustand `kassenbuch-betrag-feldfehler`) gehört allgemein in `settle` (`scripts/layout-invariants.mjs`): vor jeder Messung warten, bis kein Element mehr `:active` ist (`active:scale-*` verkleinert die Trefferfläche kurz).
+- Review-Lauf 2026-11-10 (design-system-ak97z): Die Fokus-Prüfungen im Layout-Sweep laufen unter dem Testnamen `[layout] Sweep: …`, sind der Aussage nach `[fokus]`.
