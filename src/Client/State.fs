@@ -182,6 +182,11 @@ let private addToast (message: string) (toastType: ToastType) (model: Model) : M
 // Seiten-Ladekommandos
 // ============================================
 
+/// Muss der Start der App die Konten der Seitenleiste eigens laden? Nicht auf Übersicht und Kassenbuch: die laden
+/// sie beim Betreten selbst.
+let initialLoadsSidebarAccounts (initialPage: Page) : bool =
+    not (initialPage = Overview || isLedgerPage initialPage)
+
 /// Die Ladekommandos einer Seite. Eine Stelle, zwei Aufrufer: `init` beim
 /// Direktaufruf (Deep-Link, F5) und `UrlChanged` beim Navigieren. Frueher stand
 /// dieser `match` nur im `else`-Zweig von `UrlChanged`; weil `init` die Seite aus
@@ -508,9 +513,10 @@ let init () : Model * Cmd<Msg> =
         Cmd.map SettingsMsg settingsCmd  // Load settings on startup - needed for categories
         Cmd.map SyncFlowMsg syncFlowCmd  // Load categories and payees on startup
         initialPageCmd
-        // Die Seitenleiste zeigt die Konten auf jeder Seite; die Übersicht lädt sie selbst mit.
-        if initialPage <> Overview then
-            Cmd.map OverviewMsg (Cmd.ofMsg Components.Overview.Types.LoadAccounts)
+        // Die Seitenleiste zeigt die Konten auf jeder Seite. Die Übersicht lädt sie selbst mit, das Kassenbuch
+        // auch (`syncNavAccounts` füllt die Seitenleiste); sonst luden sie doppelt.
+        if initialLoadsSidebarAccounts initialPage then
+            Cmd.map OverviewMsg (Cmd.ofMsg Components.Overview.Types.SidebarNeedsAccounts)
     ]
     model, cmd
 
@@ -747,7 +753,7 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
                     Cmd.none
 
         let accountsCmd =
-            if importChangesBalances syncFlowMsg then Cmd.map OverviewMsg (Cmd.ofMsg Components.Overview.Types.LoadAccounts)
+            if importChangesBalances syncFlowMsg then Cmd.map OverviewMsg (Cmd.ofMsg Components.Overview.Types.SidebarNeedsAccounts)
             else Cmd.none
 
         { model with SyncFlow = syncFlowModel' }, Cmd.batch [ Cmd.map SyncFlowMsg syncFlowCmd; externalCmd; accountsCmd ]

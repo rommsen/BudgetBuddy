@@ -20,20 +20,26 @@ type Model = {
     Accounts: RemoteData<LedgerAccountsView>
     /// Die Kontostände dazu. Lädt das Kassenbuch neue Stände, zieht die Wurzel sie hier nach.
     Balances: RemoteData<LedgerAccountBalanceView list>
+    /// Der Kalendertag (Europe/Berlin) beim letzten Betreten. Monat und neueste Buchungen rechnen damit, die View
+    /// liest keine Uhr. Vor dem ersten Betreten zeigt die Übersicht nichts, das ihn braucht.
+    Today: DateTime
 }
 
 let init : Model =
     { Month = NotAsked
       Recent = NotAsked
       Accounts = NotAsked
-      Balances = NotAsked }
+      Balances = NotAsked
+      Today = DateTime.MinValue }
 
 /// Jeder Auslöser, der den Remoting-Proxy anfasst, ist geteilt: die reine Antwort setzt nur den Zustand.
 type Msg =
     /// Die Übersicht wird betreten: Monat, neueste Buchungen, Konten und Stände laden.
     | Entered of today: DateTime
-    /// Start der App: nur Konten und Stände für die Seitenleiste.
-    | LoadAccounts
+    /// „Erneut laden“ nach einem Ladefehler: wie das Betreten, mit dem Tag von dort.
+    | ReloadRequested
+    /// Die Seitenleiste braucht Konten und Stände: beim Start der App, nach einem Import, „Erneut laden“.
+    | SidebarNeedsAccounts
     | MonthLoaded of Result<BudgetMonth, string>
     | RecentLoaded of Result<LedgerEntryView list, string>
     | AccountsLoaded of Result<LedgerAccountsView, string>

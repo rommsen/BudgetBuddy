@@ -41,9 +41,10 @@ let private reloading (rd: RemoteData<'a>) : RemoteData<'a> =
     | Success _ -> rd
     | _ -> Loading
 
-/// Der reine Teil von `Entered` und `LoadAccounts`: welche Stränge laden.
-let beginEnter (model: Model) : Model =
+/// Der reine Teil von `Entered` und `SidebarNeedsAccounts`: welche Stränge laden.
+let beginEnter (today: System.DateTime) (model: Model) : Model =
     { model with
+        Today = today
         Month = reloading model.Month
         Recent = reloading model.Recent
         Accounts = reloading model.Accounts
@@ -64,10 +65,12 @@ let applyAnswer (msg: Msg) (model: Model) : Model =
     | BalancesLoaded (Ok balances) -> { model with Balances = Success balances }
     | BalancesLoaded (Error message) -> { model with Balances = RemoteData.lateFailure message model.Balances }
     | Entered _
-    | LoadAccounts -> model
+    | ReloadRequested
+    | SidebarNeedsAccounts -> model
 
-let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
+let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     match msg with
+    | ReloadRequested -> update (Entered model.Today) model
     | Entered today ->
         let monthCmd =
             Cmd.OfAsync.either
@@ -81,6 +84,6 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 recentQuery
                 (fun page -> RecentLoaded (Ok page.Entries))
                 (fun ex -> RecentLoaded (Error ex.Message))
-        beginEnter model, Cmd.batch [ monthCmd; recentCmd; loadAccountsCmd () ]
-    | LoadAccounts -> beginAccounts model, loadAccountsCmd ()
+        beginEnter today model, Cmd.batch [ monthCmd; recentCmd; loadAccountsCmd () ]
+    | SidebarNeedsAccounts -> beginAccounts model, loadAccountsCmd ()
     | answer -> applyAnswer answer model, Cmd.none

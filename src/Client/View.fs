@@ -34,14 +34,14 @@ let private sidebarAccounts (model: Model) (dispatch: Msg -> unit) : Navigation.
     | Components.Overview.Types.AccountsListFailed _ ->
         Navigation.SidebarAccountsFailed (
             "Konten konnten nicht geladen werden",
-            fun () -> dispatch (OverviewMsg Components.Overview.Types.LoadAccounts)
+            fun () -> dispatch (OverviewMsg Components.Overview.Types.SidebarNeedsAccounts)
         )
     | Components.Overview.Types.AccountsListEmpty ->
         Navigation.SidebarAccountsEmpty (Components.Overview.Types.noAccountsTitle, Components.Overview.Types.noAccountsText)
     | Components.Overview.Types.AccountsListShown accounts ->
         let selected = if isLedgerPage model.CurrentPage then model.Ledger.SelectedFilter else None
         let row (card: Components.Ledger.View.AccountCard) : Navigation.SidebarAccount =
-            { Key = card.Label
+            { Key = Components.Ledger.State.encodeAccountFilter card.Filter
               Label = card.Label
               Value =
                 match card.Balance with
@@ -135,8 +135,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                       OpenOverdrawn = fun () -> dispatch OpenBudgetOverdrawn
                                       OpenAccount = fun filter -> dispatch (OpenLedgerAccount filter)
                                       OpenEntry = fun entryId -> dispatch (NavigateTo (LedgerEntry entryId))
-                                      Retry = fun () -> dispatch (OverviewMsg (Components.Overview.Types.Entered (Components.Overview.State.berlinToday ()))) }
-                                    (Components.Overview.State.berlinToday ())
+                                      Retry = fun () -> dispatch (OverviewMsg Components.Overview.Types.ReloadRequested) }
                             | SyncFlow ->
                                 Html.div [
                                     prop.className "px-4 md:px-6"

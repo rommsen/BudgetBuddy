@@ -228,7 +228,7 @@ let private accountsBlock (actions: Actions) (model: Model) =
                         prop.children [
                             for card in rows ->
                                 Html.button [
-                                    prop.key card.Label
+                                    prop.key (Components.Ledger.State.encodeAccountFilter card.Filter)
                                     prop.type' "button"
                                     prop.custom ("data-testid", "overview-account")
                                     prop.className $"w-full flex items-center justify-between gap-2.5 px-3 min-h-[48px] text-left border-b {Borders.subtle} last:border-b-0"
@@ -245,8 +245,7 @@ let private accountsBlock (actions: Actions) (model: Model) =
         // `buildAccountCards` liefert immer „Alle Konten“; ohne Konto greift oben der leere Zustand.
         | [] -> Html.none
 
-let private recentBlock (actions: Actions) (recent: RemoteData<LedgerEntryView list>) =
-    let today = Components.Overview.State.berlinToday ()
+let private recentBlock (actions: Actions) (today: DateTime) (recent: RemoteData<LedgerEntryView list>) =
     Html.section [
         prop.className "flex flex-col gap-2.5"
         prop.children [
@@ -293,7 +292,7 @@ let private recentBlock (actions: Actions) (recent: RemoteData<LedgerEntryView l
         ]
     ]
 
-let view (model: Model) (actions: Actions) (today: DateTime) =
+let view (model: Model) (actions: Actions) =
     Primitives.Container.full [
         Html.div [
             prop.custom ("data-testid", "overview-page")
@@ -305,11 +304,11 @@ let view (model: Model) (actions: Actions) (today: DateTime) =
                 | NotAsked
                 | Loading -> monthSkeleton
                 | Failure message -> monthError actions message
-                | Success month -> monthCard actions (monthSummary month today)
+                | Success month -> monthCard actions (monthSummary month model.Today)
                 // Die Konten stehen unter 1024 px hier, darüber in der Seitenleiste (Styleguide §7.15).
                 Html.div [ prop.className "lg:hidden"; prop.children [ accountsBlock actions model ] ]
                 // Am PC (ab 768 px) die neuesten Buchungen, einspaltig, bis `ledger-s1weh` „Zu tun“ links bringt.
-                Html.div [ prop.className "hidden md:block"; prop.children [ recentBlock actions model.Recent ] ]
+                Html.div [ prop.className "hidden md:block"; prop.children [ recentBlock actions model.Today model.Recent ] ]
             ]
         ]
     ]

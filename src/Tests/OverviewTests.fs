@@ -141,7 +141,7 @@ let transitionTests =
         // Review-Fund: `syncNavAccounts` spiegelte nur `Ok`. Scheiterte das Kassenbuch beim Laden, blieb die
         // Seitenleiste beim Platzhalter stehen; ein geladener Stand bleibt aber stehen (`lateFailure`).
         testCase "Scheitert das Kassenbuch beim Laden, zeigt die Seitenleiste den Fehler statt ewig zu laden" <| fun () ->
-            let loading = { rootModel Ledger with Overview = Components.Overview.State.beginEnter Components.Overview.Types.init }
+            let loading = { rootModel Ledger with Overview = Components.Overview.State.beginEnter (DateTime(2026, 11, 7)) Components.Overview.Types.init }
             let model, _ = State.update (State.LedgerMsg (Components.Ledger.Types.AccountsLoaded (Error "weg"))) loading
             let model, _ = State.update (State.LedgerMsg (Components.Ledger.Types.BalancesLoaded (Error "weg"))) model
             Expect.equal model.Overview.Accounts (Failure "weg") "Konten"
@@ -156,11 +156,18 @@ let transitionTests =
             let result : ImportResult = { CreatedCount = 2; DuplicateTransactionIds = []; LenaFlagNotSentCount = 0 }
             let reloads (msg: Components.SyncFlow.Types.Msg) =
                 let _, cmd = State.update (State.SyncFlowMsg msg) (rootModel SyncFlow)
-                dispatched cmd |> List.contains (State.OverviewMsg LoadAccounts)
+                dispatched cmd |> List.contains (State.OverviewMsg SidebarNeedsAccounts)
             Expect.isTrue (reloads (Components.SyncFlow.Types.ImportCompleted (Ok result))) "Import fertig"
             Expect.isTrue (reloads (Components.SyncFlow.Types.ImportCompleted (Error (SyncError.YnabImportFailed (1, "x"))))) "Teilfehlschlag"
             Expect.isTrue (reloads (Components.SyncFlow.Types.ForceImportCompleted (Ok 1))) "Duplikate nachgeschoben"
             Expect.isFalse (reloads (Components.SyncFlow.Types.SetFilter Components.SyncFlow.Types.AllTransactions)) "sonst nicht"
+
+        // Review-Fund: beim Start auf einer Kassenbuch-Seite luden Übersicht und Kassenbuch die Konten doppelt.
+        testCase "Der Start lädt die Konten der Seitenleiste nur, wo die Seite sie nicht selbst lädt" <| fun () ->
+            for page, loads in
+                [ Overview, false; Ledger, false; LedgerEntry accountId, false
+                  Budget, true; SyncFlow, true; Settings, true; Rules, true; QuickAdd, true ] do
+                Expect.equal (State.initialLoadsSidebarAccounts page) loads (string page)
 
         testCase "Die Seiten-Navigation merkt die Seite vor den Einstellungen" <| fun () ->
             let model, _ = State.update (State.UrlChanged [ "settings" ]) (rootModel Budget)
@@ -170,7 +177,7 @@ let transitionTests =
             Expect.equal model.SettingsReturn Budget "über den Styleguide hinweg"
 
         testCase "Die Übersicht ist bereit, wenn Monat, Konten und Buchungen nicht mehr laden" <| fun () ->
-            let loading = { rootModel Overview with Overview = Components.Overview.State.beginEnter Components.Overview.Types.init }
+            let loading = { rootModel Overview with Overview = Components.Overview.State.beginEnter (DateTime(2026, 11, 7)) Components.Overview.Types.init }
             Expect.isFalse (State.isPageReady loading) "lädt"
             let answered =
                 [ MonthLoaded (Ok november); RecentLoaded (Ok []); AccountsLoaded (Error "x"); BalancesLoaded (Ok []) ]
