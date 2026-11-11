@@ -108,6 +108,17 @@ const budgetMonth = (key) => ({
   ],
 });
 const BUDGET_ORDER = budgetMonth(CURRENT).Groups.flatMap((g) => g.Categories.map((c) => c.Id));
+/// Derselbe Monat ohne Kategorie im Minus: die Übersicht zeigt dann kein „Im Minus“.
+const budgetMonthWithoutOverdrawn = (key) => {
+  const month = budgetMonth(key);
+  return {
+    ...month,
+    Groups: month.Groups.map((g) => ({
+      ...g,
+      Categories: g.Categories.map((c) => (c.Available.Amount < 0 ? { ...c, Available: eur(0) } : c)),
+    })),
+  };
+};
 
 const categoryEntries = Array.from({ length: 12 }, (_, i) => ({
   EntryId: `00000000-0000-0000-0001-${String(i + 1).padStart(12, "0")}`,
@@ -1126,6 +1137,19 @@ export const STATES = [
     deferred: {
       api: "**/api/BudgetApi/getBudgetMonth",
       body: { Ok: budgetMonth(CURRENT) },
+      loaded: (page) => page.locator('[data-testid="overview-month"]'),
+    },
+  },
+  // Gegenstück zu `uebersicht`: der Monat ohne Kategorie im Minus. Die Karte ist gleich hoch mit oder ohne „Im Minus“.
+  {
+    name: "uebersicht-ohne-minus",
+    route: "/",
+    widths: [390, 900, 1280],
+    mock: mockOverview,
+    open: openOverview,
+    deferred: {
+      api: "**/api/BudgetApi/getBudgetMonth",
+      body: { Ok: budgetMonthWithoutOverdrawn(CURRENT) },
       loaded: (page) => page.locator('[data-testid="overview-month"]'),
     },
   },

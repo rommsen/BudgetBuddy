@@ -373,7 +373,11 @@ let isPageReady (model: Model) : bool =
         && notLoading model.Ledger.Categories
     match model.CurrentPage with
     | Styleguide -> true
-    | Overview -> notLoading model.Overview.Month && notLoading model.Overview.Accounts && notLoading model.Overview.Recent
+    | Overview ->
+        notLoading model.Overview.Month
+        && notLoading model.Overview.Accounts
+        && notLoading model.Overview.Balances
+        && notLoading model.Overview.Recent
     | SyncFlow ->
         notLoading model.SyncFlow.CurrentSession
         && notLoading model.SyncFlow.SyncTransactions

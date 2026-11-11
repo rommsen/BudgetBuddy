@@ -11,7 +11,8 @@ let private entryId = System.Guid.Parse "00000000-0000-0000-0000-000000000042"
 
 /// Jede Seite mit ihren Segmenten. Ein neuer Fall in `Page` ohne Zeile hier fällt in `allPagesCovered` auf.
 let private routes : (Page * string list) list =
-    [ Overview, []
+    [ // Nicht vertauscht: `/` ist die Übersicht, der Sync-Ablauf liegt unter `/sync`.
+      Overview, []
       SyncFlow, [ "sync" ]
       Rules, [ "rules" ]
       Settings, [ "settings" ]
@@ -41,12 +42,6 @@ let routingTests =
                 Microsoft.FSharp.Reflection.FSharpType.GetUnionCases typeof<Page> |> Array.map (fun c -> c.Name) |> Set.ofArray
             let covered = routes |> List.map (fst >> caseName) |> Set.ofList
             Expect.equal covered all "jede Seite hat eine Route"
-
-        testCase "/ ist die Übersicht und /sync der Sync-Ablauf, nicht vertauscht" <| fun () ->
-            Expect.equal (Routing.parseUrl []) Overview "/"
-            Expect.equal (Routing.parseUrl [ "sync" ]) SyncFlow "/sync"
-            Expect.equal (Routing.toUrlSegments Overview) [] "Übersicht"
-            Expect.equal (Routing.toUrlSegments SyncFlow) [ "sync" ] "Sync-Ablauf"
 
         testCase "Ein unbekannter Pfad landet auf der Übersicht" <| fun () ->
             Expect.equal (Routing.parseUrl [ "unbekannt" ]) Overview "ein Segment"
