@@ -178,6 +178,14 @@ let todoStateTests =
             Expect.equal (reviewCount init) 0 "unbekannt: keine Zahl"
             Expect.equal (Client.DesignSystem.Navigation.reviewCountLabel 4) "4 zu prüfen" "Wort zum Gelb"
 
+        testCase "Der Zähler steht nur an der Übersicht und nur über null" <| fun () ->
+            let navCount = Client.DesignSystem.Navigation.navCount
+            Expect.equal (navCount 3 Client.DesignSystem.Navigation.Overview) (Some 3) "Übersicht"
+            Expect.equal (navCount 1 Client.DesignSystem.Navigation.Overview) (Some 1) "eine"
+            Expect.equal (navCount 0 Client.DesignSystem.Navigation.Overview) None "null: kein Zähler"
+            for page in [ Client.DesignSystem.Navigation.Ledger; Client.DesignSystem.Navigation.Budget; Client.DesignSystem.Navigation.QuickAdd ] do
+                Expect.equal (navCount 3 page) None (string page)
+
         // Review-Fund: Antworten waren nicht an ihre Anfrage gebunden. Überlappten Betreten und `CountsNeeded` (Start,
         // Import) oder `ReloadRequested` nach dem Erfassen, setzte eine langsame alte Antwort Zähler und Liste zurück.
         testCase "Eine Antwort auf eine überholte Anfrage setzt Zähler und Liste nicht zurück" <| fun () ->

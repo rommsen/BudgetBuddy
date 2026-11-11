@@ -133,9 +133,11 @@ let private countBadge (extraClass: string) (count: int) =
         Html.span [ prop.className "sr-only"; prop.text (reviewCountLabel count) ]
     ]
 
-/// Der Zähler eines Orts: nur an der Übersicht und nur über null.
-let private countOf (props: Props) (page: NavPage) : int option =
-    if page = Overview && props.OverviewCount > 0 then Some props.OverviewCount else None
+/// Der Zähler eines Orts: nur an der Übersicht und nur über null. Rein, die Views rufen es nur auf.
+let navCount (overviewCount: int) (page: NavPage) : int option =
+    if page = Overview && overviewCount > 0 then Some overviewCount else None
+
+let private countOf (props: Props) (page: NavPage) : int option = navCount props.OverviewCount page
 
 /// Ein Eintrag der Rail. Beschriftung 10 px, damit „Kassenbuch“ in die 72 px passt; `showLabel = false` zeigt nur
 /// das Symbol (das Zahnrad), der Name steht dann als `aria-label` und `title`.
