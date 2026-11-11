@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-11-11 08:31 -- Modeling / Refined: design-system-k6kfw, ledger-s1weh - Navigation mit drei Orten und Übersicht als Einstieg
+
+**Type:** Modeling / Refine
+**BC:** design-system, ledger
+**Status after:** todo
+**Summary:** Beide Schnitte am Prototyp Version 17 verfeinert. k6kfw: drei Orte plus vorläufig Quick Add, Leiste am Handy, Rail 768 bis 1023 px, Seitenleiste mit Konten ab 1024 px, Einstellungen bleiben Seite, Regeln als Link im Kassenbuch-Kopf, Styleguide in den Einstellungen, schlichte Übersicht unter / mit Monat und Konten. s1weh: Zu tun mit sechs Eintragsarten und einer Hauptaktion, Zähler, + Buchung, PC zweispaltig; Übergangsziele bis Import direkt und Durchgehen. ledger-f8d7x: Seitenleiste mit Konten wandert nach k6kfw.
+**ADRs written:** keine
+
+---
+
 ## 2026-11-11 08:10 -- Modeling / Captured: design-system-x1abn - "Logo und Icon: Buddy aus standards/frontend/brand/ als Marke und PWA-Icon"
 
 **Type:** Modeling / Capture
