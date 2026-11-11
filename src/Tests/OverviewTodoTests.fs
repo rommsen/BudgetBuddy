@@ -63,6 +63,10 @@ let todoTests =
                 Expect.equal drugstore.Target (TodoCover drugstoreId) "Ziel Drogerie"
             | other -> failtestf "zwei Einträge erwartet: %A" other
 
+        testCase "2: Verfügbar genau null ist nicht im Minus" <| fun () ->
+            let month = monthOf 0m [ category foodId "Lebensmittel" 0m None; category drugstoreId "Drogerie" -0.01m None ]
+            Expect.equal (todos { inputs with Month = Some month } |> targetsOf) [ TodoCover drugstoreId ] "nur die unter null"
+
         testCase "3: Targets anwenden, wenn einer Kategorie Geld zum Target fehlt, Summe und 1 Kategorie" <| fun () ->
             let one = monthOf 0m [ category foodId "Lebensmittel" 10m (Some 60m); category clothesId "Kleidung" 143m (Some 0m) ]
             match todos { inputs with Month = Some one } with
