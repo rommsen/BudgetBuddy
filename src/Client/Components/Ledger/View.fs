@@ -1252,6 +1252,9 @@ type DetailNotice =
     /// Gelb, mit "Erneut senden": der Betrag ist in BB geändert, aber nicht in YNAB (ADR 0092).
     /// `busy`: der Aufruf läuft.
     | AmountNotice of AmountHint * busy: bool
+    /// Gelb, mit "Erneut senden": der Payee ist in BB geändert, aber nicht in YNAB (ledger-fxt09).
+    /// `busy`: der Aufruf läuft.
+    | PayeeNotice of PayeeHint * busy: bool
 
 /// Der Satz der roten Leiste. Den Zeitpunkt liefert die jüngste Historie-Zeile "In YNAB
 /// gelöscht"; ohne geladene Historie steht der Satz ohne Zeit da.
@@ -1344,6 +1347,22 @@ let detailNoticeWithAmount
     | Some notice -> Some notice
     | None -> amountHintFor amountRow entry |> Option.map (fun hint -> AmountNotice (hint, (amountRow = Some AmountSending)))
 
+/// Wie `detailNoticeWithAmount`, mit dem Payee: alle bisherigen Hinweise haben Vorrang, danach
+/// "Payee nicht in YNAB" (höchstens eine Leiste, je Feld ein eigener Hinweis).
+let detailNoticeWithPayee
+    (rowState: ReviewMarkRowState option)
+    (categoryRow: CategoryRowState option)
+    (flagRow: FlagRowState option)
+    (memoRow: MemoRowState option)
+    (amountRow: AmountRowState option)
+    (payeeRow: PayeeRowState option)
+    (history: RemoteData<LedgerHistoryLine list>)
+    (entry: LedgerEntryView)
+    : DetailNotice option =
+    match detailNoticeWithAmount rowState categoryRow flagRow memoRow amountRow history entry with
+    | Some notice -> Some notice
+    | None -> payeeHintFor payeeRow entry |> Option.map (fun hint -> PayeeNotice (hint, (payeeRow = Some PayeeSending)))
+
 /// Die Nachricht der Aktion in der Hinweisleiste: die Prüfvermerk-Leiste ("Erneut senden",
 /// `retryReviewMarkWriteBack` aus ledger-r777c) und die Kategorie-Leiste
 /// (`retryCategorizationWriteBack`) haben eine, ebenso "Noch nicht in YNAB"
@@ -1355,6 +1374,7 @@ let detailNoticeActionMsg (entryId: Guid) (notice: DetailNotice) : Msg option =
     | FlagNotice (hint, _) when hint.RetryLabel.IsSome -> Some (StartRetryFlag entryId)
     | MemoNotice (hint, _) when hint.RetryLabel.IsSome -> Some (StartRetryMemo entryId)
     | AmountNotice (hint, _) when hint.RetryLabel.IsSome -> Some (StartRetryAmount entryId)
+    | PayeeNotice (hint, _) when hint.RetryLabel.IsSome -> Some (StartRetryPayee entryId)
     | NotInYnabNotice _ -> Some (StartRetryPush entryId)
     | _ -> None
 
@@ -1441,6 +1461,15 @@ let private noticeView
                 match hint.RetryLabel, detailNoticeActionMsg entry.Id notice with
                 | Some label, Some msg -> Some { Label = label; Busy = busy; Disabled = false; OnClick = fun () -> dispatch msg }
                 | _ -> None }
+    | PayeeNotice (hint, busy) ->
+        Detail.notice
+            { Tone = Detail.NoticeYellow
+              Badge = hint.Title
+              Reason = hint.Reason
+              Action =
+                match hint.RetryLabel, detailNoticeActionMsg entry.Id notice with
+                | Some label, Some msg -> Some { Label = label; Busy = busy; Disabled = false; OnClick = fun () -> dispatch msg }
+                | _ -> None }
 
 /// Die Beschriftung einer Split-Zeile: Kategorie, Übertrag oder offen.
 ///
@@ -1493,6 +1522,11 @@ let detailDeleteVisible (entry: LedgerEntryView) : bool =
 
 /// Die Nachricht des Betrags-Knopfs im Kopf, oder `None`, wenn er nichts öffnen darf
 /// (`State.amountEditOpenable`, ledger-m7mye, ADR 0092).
+/// Die Nachricht eines Tipps auf die Payee-Zeile: öffnet die Payee-Auswahl, wenn der Payee sich
+/// ändern lässt und gerade kein Aufruf läuft, sonst nichts (ledger-fxt09).
+let payeeEditMsg (model: Model) (entry: LedgerEntryView) : Msg option =
+    if Components.Ledger.State.payeeEditOpenable model entry then Some (OpenPayeeEdit entry.Id) else None
+
 let amountEditMsg (model: Model) (entry: LedgerEntryView) : Msg option =
     if Components.Ledger.State.amountEditOpenable model entry then Some (OpenAmountEdit entry.Id)
     else None
@@ -1857,16 +1891,19 @@ let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
     let flagRow = model.FlagRows |> Map.tryFind entry.Id
     let memoRow = model.MemoRows |> Map.tryFind entry.Id
     let amountRow = model.AmountRows |> Map.tryFind entry.Id
+    let payeeRow = model.PayeeRows |> Map.tryFind entry.Id
     let muted = detailReadOnly entry
     let textColor = if muted then Tokens.Colors.textMuted else Tokens.Colors.textPrimary
+    let payeeOpenMsg = payeeEditMsg model entry
 
-    [ match detailNoticeWithAmount rowState categoryRow flagRow memoRow amountRow model.History entry with
+    [ match detailNoticeWithPayee rowState categoryRow flagRow memoRow amountRow payeeRow model.History entry with
       | Some notice -> noticeView dispatch rowState categoryRow (model.PushRetryRows |> Map.tryFind entry.Id) entry notice
       | None -> ()
 
       // Payee: eigene Feldzeile, damit sein Filter-Knopf rechts bündig mit dem der
-      // Kategorie steht.
-      Detail.fieldRow
+      // Kategorie steht. Ein Tipp auf den Wert oder den Pfeil öffnet die Payee-Auswahl (ledger-fxt09).
+      Detail.fieldRowWith
+          (payeeOpenMsg |> Option.map (fun msg -> fun () -> dispatch msg))
           "detail-payee"
           "Payee"
           (Html.span [
@@ -1878,17 +1915,18 @@ let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
                       (payeeLabel entry)
               ]
           ])
-          (match payeeFilterLabel entry, entry.Payee with
-           | Some label, Some payee ->
-               // Der Platzhalter hält den Filter-Knopf bündig mit dem der Kategorie-Zeile,
-               // die rechts daneben den Pfeil des Pickers trägt.
-               Some (
-                   React.fragment [
-                       Detail.filterButton label (fun () -> dispatch (FilterByRowPayee payee))
-                       Detail.pickerArrowSpacer ()
-                   ]
-               )
-           | _ -> None)
+          (Some (
+              React.fragment [
+                  match payeeFilterLabel entry, entry.Payee with
+                  | Some label, Some payee -> Detail.filterButton label (fun () -> dispatch (FilterByRowPayee payee))
+                  | _ -> ()
+                  Detail.forwardArrow
+                      "detail-payee-arrow"
+                      payeeEditLabel
+                      (if payeeOpenMsg.IsSome then None else Some (payeeLockFor entry |> Option.defaultValue payeeEditLabel))
+                      (fun () -> payeeOpenMsg |> Option.iter dispatch)
+              ]
+          ))
 
       // Kategorie: voll qualifiziert (ADR 0039), rechts der Filter-Knopf und der Pfeil, der den
       // Picker öffnet (ledger-sfab0). Filtern und Ändern sind getrennte Ziele (ADR 0053).
@@ -2074,6 +2112,43 @@ let splitEditorFor (model: Model) (entry: LedgerEntryView) : SplitLogic.SplitEdi
 /// offenem Editor ersetzt er die Felder; Kopf und Hülle bleiben, die Fußleiste trägt "Abbrechen"
 /// und "Speichern".
 // ============================================
+// Payee-Auswahl (ledger-fxt09)
+// ============================================
+
+/// Die offene Payee-Auswahl, wenn sie zu dieser Buchung gehört.
+let payeeEditOf (model: Model) (entry: LedgerEntryView) : PayeeEdit option =
+    model.PayeeEdit |> Option.filter (fun edit -> edit.PayeeEntryId = entry.Id)
+
+/// Die Eigenschaften der Payee-Auswahl für eine Buchung: Payee, Vorschläge des Kassenbuchs und
+/// die Rückrufe. `focusSearch`: am PC der Fokus in der Suche, am Handy nicht (§7.9).
+let payeePickerProps (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) (edit: PayeeEdit) (focusSearch: bool) : PayeePicker.PayeePickerProps =
+    { Current = entry.Payee
+      Suggestions =
+        model.PayeeChoices |> RemoteData.toOption |> Option.defaultValue [] |> List.map (fun s -> s.Payee, s.Count)
+      Loading = (match model.PayeeChoices with Loading -> true | _ -> false)
+      LoadError = (match model.PayeeChoices with Failure message -> Some message | _ -> None)
+      FieldError = edit.PayeeFieldError
+      FocusSearch = focusSearch
+      Busy = (model.PayeeRows |> Map.tryFind entry.Id) = Some PayeeSending
+      OnPick = fun payee -> dispatch (StartSavePayee (entry.Id, payee))
+      OnSearchChanged = fun () -> dispatch PayeeSearchEdited
+      OnClose = fun () -> dispatch CancelPayeeEdit }
+
+/// Am PC öffnet die Payee-Auswahl als Dialog über der Liste (§7.6, Auswahl), das Panel bleibt stehen.
+let private payeeDialog (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) : ReactElement =
+    match payeeEditOf model entry with
+    | None -> Html.none
+    | Some edit ->
+        Modal.view
+            { Modal.defaultProps with
+                IsOpen = true
+                OnClose = fun () -> dispatch CancelPayeeEdit
+                Size = Modal.Large
+                Title = Some "Payee"
+                Subtitle = Some (payeeLabel entry) }
+            [ Modal.body [ PayeePicker.view (payeePickerProps dispatch model entry edit (Viewport.isFinePointer ())) ] ]
+
+// ============================================
 // Sheet "Betrag" (ledger-m7mye, ADR 0092, Prototyp Version 17)
 // ============================================
 
@@ -2205,6 +2280,7 @@ let private detailPanelView (dispatch: Msg -> unit) (model: Model) (entry: Ledge
                 [ detailHead dispatch model entry (Some (fun () -> dispatch CloseDetail))
                   Detail.scrollBody (detailContent dispatch model entry) ]
             amountDialog dispatch model entry
+            payeeDialog dispatch model entry
         ]
 
 /// Das Detail als BottomSheet (Handy, Kompaktliste, zu schmales Fenster für das Panel).
@@ -2217,23 +2293,32 @@ let private detailSheetView (dispatch: Msg -> unit) (model: Model) (open': bool)
     // Das Sheet "Betrag" ersetzt den Inhalt des Detail-Sheets (kein zweites Sheet darüber, §7.15);
     // Schließen kehrt ins Detail zurück, wie beim Split-Editor.
     let amountEdit = entry |> Option.bind (amountEditOf model)
+    // Die Payee-Auswahl ersetzt ebenso den Inhalt (§7.15, ledger-fxt09).
+    let payeeEdit = entry |> Option.bind (payeeEditOf model)
     BottomSheet.view
         { IsOpen = open' && entry.IsSome
           OnClose =
             (fun () ->
                 dispatch (
-                    if amountEdit.IsSome then CancelAmountEdit
+                    if payeeEdit.IsSome then CancelPayeeEdit
+                    elif amountEdit.IsSome then CancelAmountEdit
                     elif editor.IsSome then CloseSplitEditor
                     else CloseDetail
                 ))
-          Title = (if amountEdit.IsSome then "Betrag" elif editor.IsSome then "Aufteilen" else "Buchung")
+          Title =
+            (if payeeEdit.IsSome then "Payee"
+             elif amountEdit.IsSome then "Betrag"
+             elif editor.IsSome then "Aufteilen"
+             else "Buchung")
           Subtitle =
             (match entry, editor with
+             | Some e, _ when payeeEdit.IsSome -> Some (payeeLabel e)
              | Some e, _ when amountEdit.IsSome -> Some (payeeLabel e)
              | Some e, Some _ -> Some $"{payeeLabel e} · {formatDateFull e.Date}"
              | _ -> None)
           Footer =
             (match entry, amountEdit, editor with
+             | _ when payeeEdit.IsSome -> None
              | Some e, Some _, _ -> Some [ amountFooter dispatch model e ]
              | _, None, Some ed ->
                  let saving = isSavingSplit model ed
@@ -2242,6 +2327,8 @@ let private detailSheetView (dispatch: Msg -> unit) (model: Model) (open': bool)
         // Der Inhalt steht nur im DOM, solange das Sheet offen ist: ein geschlossenes Sheet bliebe
         // sonst als verstecktes Doppel neben dem Panel stehen.
         [ match entry, amountEdit, editor with
+          | Some entry, _, _ when open' && payeeEdit.IsSome ->
+              PayeePicker.view (payeePickerProps dispatch model entry payeeEdit.Value (Viewport.isFinePointer ()))
           | Some entry, Some edit, _ when open' ->
               Html.div [
                   prop.custom ("data-testid", "amount-form")

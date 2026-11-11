@@ -78,7 +78,10 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         // Die erste Installation übernimmt die Seite sofort. Kein skipWaiting: ein
         // aktualisierter Worker wartet, bis Pwa.applyUpdate ihn freigibt (ADR 0057).
-        clientsClaim: true
+        clientsClaim: true,
+        // Das eine App-Bündel ist über 2 MiB gewachsen (ledger-fxt09). Ohne höhere Grenze bliebe es aus
+        // dem Precache, und der Build bricht ab. 4 MiB lässt Luft, bis das Bündel geteilt wird.
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024
       }
     })
   ],

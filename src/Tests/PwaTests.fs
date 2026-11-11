@@ -78,6 +78,7 @@ let private anEntry : Shared.Domain.LedgerEntryView = {
     MemoWriteBackFailure = None
     AmountWriteBackFailure = None
     AmountLockReason = None
+    PayeeWriteBackFailure = None
     LinkedToYnab = false
     PushToYnabFailure = None
     SplitLocks = None

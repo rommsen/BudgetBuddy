@@ -333,6 +333,9 @@ type ToastActionKind =
     /// "Rückgängig" nach dem Ändern des Betrags (ledger-m7mye, ADR 0092): der Betrag vor dem
     /// Speichern (mit Vorzeichen) aus der Antwort des Befehls. Nicht bei einer aufgeteilten Buchung.
     | UndoAmount of entryId: Guid * previous: decimal
+    /// "Rückgängig" nach dem Ändern des Payees (ledger-fxt09): der Payee vor dem Ändern aus der
+    /// Antwort des Befehls. Fehlt er (die Buchung hatte keinen), gibt es kein "Rückgängig".
+    | UndoPayee of entryId: Guid * previous: string
     /// "Rückgängig" nach "Buchung anlegen" im Kassenbuch (ledger-at63w): die Buchung wird in YNAB
     /// gelöscht und im Kassenbuch verworfen.
     | UndoCapturedBooking of entryId: Guid

@@ -789,6 +789,74 @@ let amountToastText (amount: Money) : string =
 /// Der Toast nach "Rückgängig".
 let amountRestoredToastText : string = "Betrag zurückgesetzt"
 
+// ============================================
+// Payee ändern im Detail (ledger-fxt09)
+// ============================================
+
+/// Der Zustand der Payee-Aktion einer Buchung, solange ein Aufruf läuft oder der Befehl selbst
+/// scheiterte. Ein offener Fehlschlag beim Zurückschreiben nach YNAB steht an der Buchung
+/// (`PayeeWriteBackFailure`), nicht hier.
+type PayeeRowState =
+    | PayeeSending
+    | PayeeCommandFailed of message: string
+
+/// Die offene Payee-Auswahl: die Buchung und der Feldfehler unter dem Suchfeld nach einem
+/// abgelehnten Payee (leer, zu lang, vom Server abgelehnt). Den Suchtext hält die Komponente.
+type PayeeEdit = {
+    PayeeEntryId: Guid
+    PayeeFieldError: string option
+}
+
+/// Der Hinweis "Payee nicht in YNAB" im Detail (Muster `MemoHint`).
+type PayeeHint = {
+    Title: string
+    Reason: string
+    RetryLabel: string option
+}
+
+let payeeHintTitle = "Payee nicht in YNAB"
+
+/// Welchen Hinweis trägt die Buchung? Ein Befehlsfehler beim erneuten Senden hat Vorrang, danach
+/// der offene Fehlschlag an der Buchung. Rein, wie `memoHintFor`.
+let payeeHintFor (rowState: PayeeRowState option) (entry: LedgerEntryView) : PayeeHint option =
+    match rowState, entry.PayeeWriteBackFailure with
+    | Some (PayeeCommandFailed message), Some _ ->
+        Some { Title = payeeHintTitle; Reason = message; RetryLabel = Some "Erneut senden" }
+    | _, Some reason -> Some { Title = payeeHintTitle; Reason = reason; RetryLabel = Some "Erneut senden" }
+    | _, None -> None
+
+/// Warum sich der Payee nicht ändern lässt, oder `None` (dieselbe Regel wie der Befehl,
+/// `Shared.Domain.payeeLockReason`).
+let payeeLockFor (entry: LedgerEntryView) : string option =
+    payeeLockReason entry.DeletedInYnab entry.LinkedToYnab entry.IsTransfer
+
+/// Die Beschriftung des Pfeils an der Payee-Zeile (Screenreader und Tooltip).
+let payeeEditLabel = "Payee ändern"
+
+/// Der Toast nach dem Ändern (§7.13): "Payee geändert · Rewe".
+let payeeToastText (payee: string) : string = $"Payee geändert · {payee}"
+
+/// Der Toast nach "Rückgängig".
+let payeeRestoredToastText : string = "Payee zurückgesetzt"
+
+/// Der Pfeil der Payee-Zeile im Detail: dorthin kehrt der Fokus zurück, wenn die Auswahl schließt.
+let payeeRowSelector = "[data-testid='detail-payee-arrow']"
+
+/// Was ein Übernehmen in der Payee-Auswahl tut. Rein, damit die Entscheidung ohne Proxy testbar ist.
+type PayeeSaveStep =
+    /// Leer oder zu lang: Feldfehler unter dem Suchfeld, die Auswahl bleibt offen.
+    | PayeeSaveRejected of reason: string
+    /// Derselbe Payee (getrimmt, ohne Groß- und Kleinschreibung): zurück ins Detail, kein Aufruf.
+    | PayeeSaveUnchanged
+    /// `setEntryPayee` mit dem getrimmten Payee.
+    | PayeeSaveSends of payee: string
+
+let payeeSaveStep (text: string) (entry: LedgerEntryView) : PayeeSaveStep =
+    match normalizePayee text with
+    | Error reason -> PayeeSaveRejected reason
+    | Ok payee when payeeKey (Some payee) = payeeKey entry.Payee -> PayeeSaveUnchanged
+    | Ok payee -> PayeeSaveSends payee
+
 /// Wann der Pfeil an der Kategorie wirkt und wann nicht (ADR 0055 Punkt 7).
 type CategoryLock =
     | CategoryEditable
@@ -1022,6 +1090,16 @@ type Model = {
 
     /// Der Zustand der Betrags-Aktion je Buchung (ledger-m7mye): unterwegs oder Befehl gescheitert.
     AmountRows: Map<Guid, AmountRowState>
+
+    /// Die offene Payee-Auswahl (ledger-fxt09): höchstens eine, für die Buchung im offenen Detail.
+    PayeeEdit: PayeeEdit option
+
+    /// Der Zustand der Payee-Aktion je Buchung (ledger-fxt09): unterwegs oder Befehl gescheitert.
+    PayeeRows: Map<Guid, PayeeRowState>
+
+    /// Die Payees des ganzen Kassenbuchs für die Payee-Auswahl, häufigste zuerst
+    /// (`getLedgerPayeeSuggestions` ohne Filter). Lädt beim ersten Öffnen und nach jeder Änderung neu.
+    PayeeChoices: RemoteData<LedgerPayeeSuggestion list>
 
     /// Wie die Liste bei der gemessenen Breite und dem Eingabegerät bedient wird (ledger-m6zpd).
     /// Die Ansicht meldet es mit `ListInteractionChanged`; der Fußzeilen-Hinweis liest nur dieses Feld.
@@ -1751,6 +1829,33 @@ type Msg =
     | StartRetryAmount of Guid
     | RunRetryAmount of Guid
     | AmountRetried of Guid * Result<AmountWriteBack, string>
+
+    // ============================================
+    // Payee ändern im Detail (ledger-fxt09)
+    // ============================================
+
+    /// Ein Tipp auf die Payee-Zeile: öffnet die Payee-Auswahl.
+    | OpenPayeeEdit of Guid
+    | RunLoadPayeeChoices
+    | PayeeChoicesLoaded of Result<LedgerPayeeSuggestion list, string>
+    /// Schließen der Auswahl (Esc, Schließen-Knopf): zurück ins Detail, ohne Änderung.
+    | CancelPayeeEdit
+    /// Der Fokus kehrt auf die Payee-Zeile im Detail zurück (nach dem Schließen der Auswahl).
+    | RestorePayeeRowFocus
+    /// Getippt im Suchfeld: nimmt einen Feldfehler zurück.
+    | PayeeSearchEdited
+    /// Ein Vorschlag oder "„…“ übernehmen": übernimmt sofort (§7.1).
+    | StartSavePayee of Guid * string
+    | RunSetPayee of Guid * string
+    | PayeeSet of Guid * Result<PayeeOutcome, string>
+    /// "Rückgängig" im Toast: derselbe Befehl mit dem alten Payee.
+    | StartUndoPayee of Guid * string
+    | RunUndoPayee of Guid * string
+    | PayeeRestored of Guid * Result<PayeeOutcome, string>
+    /// "Erneut senden" an der Hinweisleiste "Payee nicht in YNAB".
+    | StartRetryPayee of Guid
+    | RunRetryPayee of Guid
+    | PayeeRetried of Guid * Result<PayeeWriteBack, string>
     /// Speichern im Split-Editor nach dem Sheet "Betrag": Betrag und Zeilen zusammen.
     | RunSaveSplitsWithAmount of Guid * TransactionSplit list * Money
     | SplitsWithAmountSaved of Guid * TransactionSplit list * Money * Result<CategoryChangeOutcome, string>

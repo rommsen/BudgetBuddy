@@ -499,6 +499,29 @@ let validateTransferRequest (entryId: Guid) (YnabAccountId target: YnabAccountId
     if List.isEmpty errors then Ok () else Error errors
 
 // ============================================
+// Payee ändern (ledger-fxt09)
+// ============================================
+
+let payeeEntryMissingText = "Die Buchung fehlt."
+
+/// Prüft die Anfrage von `setEntryPayee` an der API-Grenze: die Buchung braucht eine Id, der Payee
+/// folgt `Shared.Domain.normalizePayee` (leer, über 200 Zeichen). Alle Fehler gesammelt; `Ok` trägt
+/// den getrimmten Payee.
+let validatePayeeChange (entryId: Guid) (payee: string) : Result<string, string list> =
+    let normalized = normalizePayee payee
+    let errors =
+        [
+            if entryId = Guid.Empty then payeeEntryMissingText
+            match normalized with
+            | Error reason -> reason
+            | Ok _ -> ()
+        ]
+    match errors, normalized with
+    | [], Ok trimmed -> Ok trimmed
+    | [], Error reason -> Error [ reason ]
+    | errors, _ -> Error errors
+
+// ============================================
 // Betrag ändern im Detail (ledger-m7mye, ADR 0092)
 // ============================================
 

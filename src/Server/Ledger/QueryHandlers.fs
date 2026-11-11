@@ -165,6 +165,7 @@ module ReadModel =
             MemoWriteBackFailure = entry.MemoWriteBackFailure |> Option.map (fun f -> f.Reason)
             AmountWriteBackFailure = entry.AmountWriteBackFailure |> Option.map (fun f -> f.Reason)
             AmountLockReason = Ledger.CommandHandlers.amountNotChangeableReason entry
+            PayeeWriteBackFailure = entry.PayeeWriteBackFailure |> Option.map (fun f -> f.Reason)
             LinkedToYnab = entry.LinkedToYnab
             PushToYnabFailure = entry.PushToYnabFailure
             // Ohne Konten-Abruf und ohne Verknüpfungen: Tracking-Konto und Fremd-`import_id`
@@ -427,6 +428,9 @@ module ReadModel =
         | EntryAmountChangedInBb p -> describeAmountChangedInBb p
         | EntryAmountWriteBackFailed p -> $"Betrag nicht in YNAB: {p.Reason}"
         | EntryAmountWrittenBackToYnab -> "Betrag in YNAB angekommen"
+        | EntryPayeeChangedInBb p -> $"Payee geändert auf {p.NewPayee}, vorher {payeeOr p.OldPayee}"
+        | EntryPayeeWriteBackFailed p -> $"Payee nicht in YNAB: {p.Reason}"
+        | EntryPayeeWrittenBackToYnab -> "Payee in YNAB angekommen"
         | EntryReplacedInYnab _ -> "In YNAB neu angelegt (Split-Buchung ersetzt)"
         | EntryPushToYnabFailed p -> $"Push nach YNAB gescheitert: {p.Reason}"
         | EntryTransferTargetSetInBb p ->

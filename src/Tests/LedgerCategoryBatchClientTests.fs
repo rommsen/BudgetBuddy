@@ -56,6 +56,7 @@ let private entryOf (n: int) (cat: int) : LedgerEntryView =
       MemoWriteBackFailure = None
       AmountWriteBackFailure = None
       AmountLockReason = None
+      PayeeWriteBackFailure = None
       LinkedToYnab = true
       PushToYnabFailure = None
       SplitLocks = None

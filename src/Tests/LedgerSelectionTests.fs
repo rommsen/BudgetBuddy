@@ -38,6 +38,7 @@ let entryOf (n: int) (amount: decimal) (needsReview: bool) (deleted: bool) : Led
     MemoWriteBackFailure = None
     AmountWriteBackFailure = None
     AmountLockReason = None
+    PayeeWriteBackFailure = None
     LinkedToYnab = false
     PushToYnabFailure = None
     SplitLocks = None

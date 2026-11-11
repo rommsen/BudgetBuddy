@@ -563,6 +563,7 @@ let private entryWith (account: Guid) (payee: string) (amount: decimal) (categor
       FlagWriteBackFailure = None
       MemoWriteBackFailure = None
       AmountWriteBackFailure = None
+      PayeeWriteBackFailure = None
       LinkedToYnab = true
       PushToYnabFailure = None
       PayeeBeforeTransfer = None }

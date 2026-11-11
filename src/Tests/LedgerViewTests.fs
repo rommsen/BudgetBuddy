@@ -45,6 +45,7 @@ let private entryView (accId: Guid) (date: DateTime) (payee: string) : LedgerEnt
     MemoWriteBackFailure = None
     AmountWriteBackFailure = None
     AmountLockReason = None
+    PayeeWriteBackFailure = None
     LinkedToYnab = false
     PushToYnabFailure = None
     SplitLocks = None

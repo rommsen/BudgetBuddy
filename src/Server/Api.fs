@@ -1489,6 +1489,24 @@ let private memoPush () : Async<Ledger.CommandHandlers.MemoPush> =
                 async { return Error (YnabError.BudgetNotFound "Kein Standard-Budget konfiguriert (Settings)") }
     }
 
+/// Der Push des Payees (ledger-fxt09) mit Token und Standard-Budget aus den Settings, mit denselben
+/// Fehlerfällen wie `memoPush`. Sendet nur `payee_id` (null) und `payee_name`.
+let private payeePush () : Async<Ledger.CommandHandlers.PayeePush> =
+    async {
+        let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
+        let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
+
+        match tokenOpt, budgetOpt with
+        | Some token, Some budgetId ->
+            return fun ynabTransactionId payee ->
+                YnabClient.updatePayee token (YnabBudgetId budgetId) ynabTransactionId payee
+        | None, _ ->
+            return fun _ _ -> async { return Error (YnabError.Unauthorized "No YNAB token configured") }
+        | _, None ->
+            return fun _ _ ->
+                async { return Error (YnabError.BudgetNotFound "Kein Standard-Budget konfiguriert (Settings)") }
+    }
+
 /// Der Push des Betrags (ledger-m7mye, ADR 0092) mit Token und Standard-Budget aus den
 /// Settings, mit denselben Fehlerfällen wie `memoPush`. Sendet nur `amount`.
 let private amountPush () : Async<Ledger.CommandHandlers.AmountPush> =
@@ -1882,6 +1900,22 @@ let ledgerApi : LedgerApi = {
     retryMemoWriteBack = fun entryId -> async {
         let! push = memoPush ()
         return! Ledger.CommandHandlers.retryMemoWriteBack DateTime.UtcNow push (Ledger.Events.EntryId entryId)
+    }
+
+    // Payee ändern (ledger-fxt09): Prüfung an der Grenze, dann Kassenbuch zuerst und der Push
+    // (`payee_id` null und `payee_name`), unter der Schreib-Sperre. Das Rückgängig läuft über
+    // denselben Befehl.
+    setEntryPayee = fun entryId payee -> async {
+        match Validation.validatePayeeChange entryId payee with
+        | Error errors -> return Error (String.concat " " errors)
+        | Ok trimmed ->
+            let! push = payeePush ()
+            return! Ledger.CommandHandlers.setEntryPayee DateTime.UtcNow push (Ledger.Events.EntryId entryId) trimmed
+    }
+
+    retryPayeeWriteBack = fun entryId -> async {
+        let! push = payeePush ()
+        return! Ledger.CommandHandlers.retryPayeeWriteBack DateTime.UtcNow push (Ledger.Events.EntryId entryId)
     }
 
     // Betrag ändern (ledger-m7mye, ADR 0092): Prüfung an der Grenze, dann Kassenbuch zuerst und der

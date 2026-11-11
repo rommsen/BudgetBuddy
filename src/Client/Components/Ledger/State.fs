@@ -100,6 +100,9 @@ let init () : Model * Cmd<Msg> =
         MemoRows = Map.empty
         AmountEdit = None
         AmountRows = Map.empty
+        PayeeEdit = None
+        PayeeRows = Map.empty
+        PayeeChoices = NotAsked
         ListInteraction = TableRows
         History = NotAsked
         LastMirrorRun = NotAsked
@@ -696,6 +699,46 @@ let private applyAmountResult (entryId: Guid) (outcome: AmountOutcome) (model: M
                 AmountWriteBackFailure = amountFailureOf outcome entry }
             cleared
 
+/// Der offene Fehlschlag nach der Antwort von `setEntryPayee` (Muster `memoFailureOf`).
+let private payeeFailureOf (outcome: PayeeOutcome) (entry: LedgerEntryView) : string option =
+    match outcome.PayeeWriteBack with
+    | PayeeSendFailed reason -> Some reason
+    | PayeeSent -> None
+    | PayeeNotSent -> if outcome.PayeeChange = PayeeUnchanged then entry.PayeeWriteBackFailure else None
+
+/// Trägt das Ergebnis von `setEntryPayee` in den Zustand ein (ledger-fxt09): die Zeile bekommt den
+/// Payee und den Zustand des Zurückschreibens, die Auswahl dieser Buchung schließt. Nach einer
+/// Änderung laden die Payees der Auswahl beim nächsten Öffnen neu. Rein.
+let applyPayeeResult (entryId: Guid) (outcome: PayeeOutcome) (model: Model) : Model =
+    let cleared =
+        { model with
+            PayeeRows = model.PayeeRows |> Map.remove entryId
+            PayeeEdit = model.PayeeEdit |> Option.filter (fun edit -> edit.PayeeEntryId <> entryId)
+            PayeeChoices = (if outcome.PayeeChange = PayeeChanged then NotAsked else model.PayeeChoices) }
+    match findEntry cleared entryId with
+    | None -> cleared
+    | Some entry ->
+        replaceEntry
+            { entry with
+                Payee = outcome.CurrentPayee
+                PayeeWriteBackFailure = payeeFailureOf outcome entry }
+            cleared
+
+/// Die Abfrage der Payee-Auswahl: das ganze Kassenbuch, ohne Filter und ohne gelöschte Buchungen.
+let payeeChoicesQuery : LedgerPayeeSuggestionQuery = {
+    AccountId = None
+    IncludeDeleted = false
+    OnlyNeedsReview = false
+    OnlyAskLena = false
+    WithoutCategory = false
+    CategoryIds = []
+    DateFrom = None
+    DateTo = None
+    Memo = None
+    AmountMin = None
+    AmountMax = None
+}
+
 /// Nach einer Änderung des Betrags: Historie der offenen Buchung und Kontostände neu holen.
 let private afterAmountChange (entryId: Guid) (model: Model) : Cmd<Msg> =
     Cmd.batch [ reloadHistoryFor entryId model; Cmd.ofMsg LoadBalances ]
@@ -1006,6 +1049,7 @@ let private keyboardBlocked (model: Model) : bool =
     || model.SplitEditor.IsSome
     || model.MemoEdit.IsSome
     || model.AmountEdit.IsSome
+    || model.PayeeEdit.IsSome
     || (model.DetailFor.IsSome && model.DetailForm = DetailSheet)
 
 /// Öffnet das Detail für `entry`: markiert die Zeile, setzt die Historie auf "lädt" und
@@ -1065,7 +1109,7 @@ let entryRestoredText = "Buchung wiederhergestellt"
 /// Schließt das Detail samt allem, was daran hängt: Historie, Sheet "Notiz" und Sheet "Betrag".
 /// Jede Stelle, die das Detail schließt, geht hier durch, damit kein offenes Sheet stehen bleibt.
 let closeDetail (model: Model) : Model =
-    { model with DetailFor = None; History = NotAsked; MemoEdit = None; AmountEdit = None }
+    { model with DetailFor = None; History = NotAsked; MemoEdit = None; AmountEdit = None; PayeeEdit = None }
 
 /// Darf der Betrags-Knopf im Kopf das Sheet "Betrag" öffnen? Nicht bei gesperrtem Betrag, nicht
 /// solange ein Aufruf zum Betrag läuft, nicht bei offenem Split-Editor (der Kopf zeigt dort den
@@ -1076,8 +1120,23 @@ let amountEditOpenable (model: Model) (entry: LedgerEntryView) : bool =
     && model.SplitEditor.IsNone
     && not (model.DeletingEntries.Contains entry.Id)
 
+/// Darf ein Tipp auf die Payee-Zeile die Payee-Auswahl öffnen? Nicht bei gesperrtem Payee, nicht
+/// solange ein Aufruf zum Payee läuft, nicht bei offenem Split-Editor und nicht, solange die
+/// Buchung gelöscht wird (ledger-fxt09).
+let payeeEditOpenable (model: Model) (entry: LedgerEntryView) : bool =
+    (payeeLockFor entry).IsNone
+    && (model.PayeeRows |> Map.tryFind entry.Id) <> Some PayeeSending
+    && model.SplitEditor.IsNone
+    && not (model.DeletingEntries.Contains entry.Id)
+
 let private showDetail (entry: LedgerEntryView) (model: Model) : Model * Cmd<Msg> =
-    { model with DetailFor = Some entry; FocusedRow = Some entry.Id; History = Loading; MemoEdit = None; AmountEdit = None },
+    { model with
+        DetailFor = Some entry
+        FocusedRow = Some entry.Id
+        History = Loading
+        MemoEdit = None
+        AmountEdit = None
+        PayeeEdit = None },
     Cmd.ofMsg (LoadHistory entry.Id)
 
 /// Folgt ein offenes Panel der Markierung? Zeigt es eine andere Buchung als die markierte
@@ -2505,6 +2564,192 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         NoOp
 
     // ============================================
+    // Payee ändern im Detail (ledger-fxt09)
+    // ============================================
+
+    | OpenPayeeEdit entryId ->
+        match findEntry model entryId with
+        | Some entry when model.DetailFor |> Option.exists (fun d -> d.Id = entryId) && payeeEditOpenable model entry ->
+            let load =
+                match model.PayeeChoices with
+                | Success _ | Loading -> Cmd.none
+                | _ -> Cmd.ofMsg RunLoadPayeeChoices
+            { model with
+                PayeeEdit = Some { PayeeEntryId = entryId; PayeeFieldError = None }
+                PayeeRows = model.PayeeRows |> Map.remove entryId
+                PayeeChoices = (match model.PayeeChoices with Success _ -> model.PayeeChoices | _ -> Loading)
+                MemoEdit = None
+                AmountEdit = None
+                CategoryPickerFor = None
+                CategorySuggestions = [] },
+            load,
+            NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | RunLoadPayeeChoices ->
+        let cmd =
+            Cmd.OfAsync.either
+                (Retry.reading Api.ledger.getLedgerPayeeSuggestions)
+                payeeChoicesQuery
+                (Ok >> PayeeChoicesLoaded)
+                (fun ex -> PayeeChoicesLoaded (Error ex.Message))
+        model, cmd, NoOp
+
+    | PayeeChoicesLoaded (Ok choices) -> { model with PayeeChoices = Success choices }, Cmd.none, NoOp
+
+    | PayeeChoicesLoaded (Error message) ->
+        { model with PayeeChoices = RemoteData.lateFailure message model.PayeeChoices }, Cmd.none, NoOp
+
+    | CancelPayeeEdit ->
+        match model.PayeeEdit with
+        | Some edit when (model.PayeeRows |> Map.tryFind edit.PayeeEntryId) <> Some PayeeSending ->
+            { model with PayeeEdit = None; PayeeRows = model.PayeeRows |> Map.remove edit.PayeeEntryId },
+            Cmd.ofMsg RestorePayeeRowFocus,
+            NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | RestorePayeeRowFocus ->
+        model,
+        Cmd.ofEffect (fun _ ->
+            match Browser.Dom.document.querySelector payeeRowSelector with
+            | null -> ()
+            | element -> (element :?> Browser.Types.HTMLElement).focus ()),
+        NoOp
+
+    | PayeeSearchEdited ->
+        match model.PayeeEdit with
+        | Some edit when edit.PayeeFieldError.IsSome ->
+            { model with PayeeEdit = Some { edit with PayeeFieldError = None } }, Cmd.none, NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | StartSavePayee (entryId, text) ->
+        match model.PayeeEdit, findEntry model entryId with
+        | Some edit, Some entry when edit.PayeeEntryId = entryId
+                                     && (model.PayeeRows |> Map.tryFind entryId) <> Some PayeeSending
+                                     && (payeeLockFor entry).IsNone ->
+            match payeeSaveStep text entry with
+            | PayeeSaveRejected reason ->
+                // Die Meldung steht unter dem Suchfeld, kein Toast (Styleguide §5).
+                { model with PayeeEdit = Some { edit with PayeeFieldError = Some reason } }, Cmd.none, NoOp
+            | PayeeSaveUnchanged -> { model with PayeeEdit = None }, Cmd.ofMsg RestorePayeeRowFocus, NoOp
+            | PayeeSaveSends payee ->
+                { model with
+                    PayeeRows = model.PayeeRows |> Map.add entryId PayeeSending
+                    PayeeEdit = Some { edit with PayeeFieldError = None } },
+                Cmd.ofMsg (RunSetPayee (entryId, payee)),
+                NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | RunSetPayee (entryId, payee) ->
+        let cmd =
+            Cmd.OfAsync.either
+                (Api.ledger.setEntryPayee entryId)
+                payee
+                (fun result -> PayeeSet (entryId, result))
+                (fun ex -> PayeeSet (entryId, Error ex.Message))
+        model, cmd, NoOp
+
+    | PayeeSet (entryId, Ok outcome) ->
+        let model' = applyPayeeResult entryId outcome model
+        let external =
+            match outcome.PayeeChange, outcome.CurrentPayee with
+            | PayeeChanged, Some current ->
+                let text = payeeToastText current
+                let toast toastText toastType =
+                    match outcome.PreviousPayee with
+                    | Some previous ->
+                        ShowToastWithAction (toastText, toastType, { Label = undoToastLabel; Kind = UndoPayee (entryId, previous) })
+                    | None -> ShowToast (toastText, toastType)
+                match outcome.PayeeWriteBack with
+                | PayeeSendFailed reason -> toast $"{text}. {payeeHintTitle}: {reason}" ToastWarning
+                | _ -> toast text ToastSuccess
+            | _ -> NoOp
+        let cmd =
+            Cmd.batch [
+                Cmd.ofMsg RestorePayeeRowFocus
+                if outcome.PayeeChange = PayeeChanged then reloadHistoryFor entryId model'
+            ]
+        model', cmd, external
+
+    // Die Auswahl bleibt offen, der Grund steht als Feldfehler unter dem Suchfeld.
+    | PayeeSet (entryId, Error message) ->
+        { model with
+            PayeeRows = model.PayeeRows |> Map.remove entryId
+            PayeeEdit =
+                model.PayeeEdit
+                |> Option.map (fun edit -> if edit.PayeeEntryId = entryId then { edit with PayeeFieldError = Some message } else edit) },
+        Cmd.none,
+        NoOp
+
+    | StartUndoPayee (entryId, previous) ->
+        // Ein zweiter Tipp auf "Rückgängig" schickt nichts, solange ein Aufruf zum Payee läuft.
+        if (model.PayeeRows |> Map.tryFind entryId) = Some PayeeSending then
+            model, Cmd.none, NoOp
+        else
+            { model with PayeeRows = model.PayeeRows |> Map.add entryId PayeeSending },
+            Cmd.ofMsg (RunUndoPayee (entryId, previous)),
+            NoOp
+
+    | RunUndoPayee (entryId, previous) ->
+        let cmd =
+            Cmd.OfAsync.either
+                (Api.ledger.setEntryPayee entryId)
+                previous
+                (fun result -> PayeeRestored (entryId, result))
+                (fun ex -> PayeeRestored (entryId, Error ex.Message))
+        model, cmd, NoOp
+
+    | PayeeRestored (entryId, Ok outcome) ->
+        // Der Rücknahme-Toast hat kein "Rückgängig" (eine Aktion, ein Toast, eine Rücknahme).
+        let model' = applyPayeeResult entryId outcome model
+        let external =
+            match outcome.PayeeWriteBack with
+            | PayeeSendFailed reason -> ShowToast ($"{payeeHintTitle}: {reason}", ToastWarning)
+            | _ when outcome.PayeeChange = PayeeUnchanged -> NoOp
+            | _ -> ShowToast (payeeRestoredToastText, ToastSuccess)
+        model', (if outcome.PayeeChange = PayeeChanged then reloadHistoryFor entryId model' else Cmd.none), external
+
+    | PayeeRestored (entryId, Error message) ->
+        { model with PayeeRows = model.PayeeRows |> Map.remove entryId },
+        Cmd.none,
+        ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
+
+    | StartRetryPayee entryId ->
+        { model with PayeeRows = model.PayeeRows |> Map.add entryId PayeeSending },
+        Cmd.ofMsg (RunRetryPayee entryId),
+        NoOp
+
+    | RunRetryPayee entryId ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.ledger.retryPayeeWriteBack
+                entryId
+                (fun result -> PayeeRetried (entryId, result))
+                (fun ex -> PayeeRetried (entryId, Error ex.Message))
+        model, cmd, NoOp
+
+    | PayeeRetried (entryId, Ok writeBack) ->
+        let failure =
+            match writeBack with
+            | PayeeSendFailed reason -> Some reason
+            | PayeeSent | PayeeNotSent -> None
+        let cleared = { model with PayeeRows = model.PayeeRows |> Map.remove entryId }
+        let model' =
+            match findEntry cleared entryId with
+            | Some entry -> replaceEntry { entry with PayeeWriteBackFailure = failure } cleared
+            | None -> cleared
+        let external =
+            match writeBack with
+            | PayeeSendFailed reason -> ShowToast ($"{payeeHintTitle}: {reason}", ToastWarning)
+            | _ -> NoOp
+        model', reloadHistoryFor entryId model', external
+
+    | PayeeRetried (entryId, Error message) ->
+        { model with PayeeRows = model.PayeeRows |> Map.add entryId (PayeeCommandFailed message) },
+        Cmd.none,
+        NoOp
+
+    // ============================================
     // Split-Editor im Detail (ledger-pafkp, ADR 0058)
     // ============================================
 
@@ -3438,6 +3683,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             { model with CategoryPickerFor = None; CategorySuggestions = [] }, Cmd.none, NoOp
         elif model.AmountEdit.IsSome then
             updateCore CancelAmountEdit model
+        elif model.PayeeEdit.IsSome then
+            updateCore CancelPayeeEdit model
         elif model.MemoEdit.IsSome then
             updateCore CancelMemoEdit model
         elif model.DetailFor.IsSome then

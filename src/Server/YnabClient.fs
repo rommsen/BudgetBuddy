@@ -1814,6 +1814,73 @@ let updateMemo
     }
 
 // ============================================
+// Payee zurückschreiben (ledger-fxt09)
+// ============================================
+
+/// Baut den Request-Body für das Zurückschreiben des Payees: `payee_id` ausdrücklich `null` und
+/// `payee_name` (wie `buildTransferBody`, Fall `BackToCategory`, ADR 0089). Mit `payee_id: null`
+/// sucht YNAB den Payee über den Namen oder legt ihn an; nur `payee_name` ließe die alte
+/// `payee_id` stehen. Weder Kategorie noch Memo oder Prüfvermerk (ADR 0028, Punkt 1), damit bleiben
+/// auch `import_id` und Bank-Referenz. Der Text geht unverändert hinaus (BB hat ihn vorher
+/// getrimmt und auf die Grenze von YNAB geprüft, `Shared.Domain.normalizePayee`). Non-private,
+/// damit der JSON-Vertrag direkt testbar ist.
+let buildPayeeBody (payee: string) : string =
+    Encode.object [
+        "transaction", Encode.object [
+            "payee_id", Encode.nil
+            "payee_name", Encode.string payee
+        ]
+    ]
+    |> Encode.toString 2
+
+/// Sendet den Payee mit dem übergebenen `HttpClient` (injizierbar, damit ein Test gegen einen
+/// Fake-Handler läuft, nie gegen YNAB): `PUT .../transactions/{transaction_id}`, Fehlerzuordnung
+/// wie `sendMemo`.
+let sendPayee
+    (httpClient: System.Net.Http.HttpClient)
+    (YnabBudgetId budgetId: YnabBudgetId)
+    (ynabTransactionId: string)
+    (payee: string)
+    : Async<YnabResult<unit>> =
+    async {
+        try
+            let requestBody = buildPayeeBody payee
+            use content = new System.Net.Http.StringContent(requestBody, System.Text.Encoding.UTF8, "application/json")
+            let! httpResponse =
+                httpClient.PutAsync($"{baseUrl}/budgets/{budgetId}/transactions/{ynabTransactionId}", content)
+                |> Async.AwaitTask
+            let! bodyText = httpResponse.Content.ReadAsStringAsync() |> Async.AwaitTask
+            let statusCode = int httpResponse.StatusCode
+
+            printfn "[YNAB] PUT /budgets/%s/transactions/%s - Payee" budgetId ynabTransactionId
+            printfn "[YNAB] Response Status: %d" statusCode
+
+            match statusCode with
+            | 200 -> return Ok ()
+            | 400 -> return Error (YnabError.InvalidResponse $"Bad request: {bodyText}")
+            | 401 -> return Error (YnabError.Unauthorized "Invalid YNAB token")
+            | 404 -> return Error (YnabError.InvalidResponse "Transaction not found")
+            | 429 -> return Error (YnabError.RateLimitExceeded 60)
+            | _ -> return Error (YnabError.NetworkError $"HTTP {statusCode}: {bodyText}")
+        with ex ->
+            return Error (YnabError.NetworkError $"Failed to update payee: {ex.Message}")
+    }
+
+/// Schreibt den Payee einer Buchung nach YNAB zurück (ledger-fxt09). Eigener Name und eigene
+/// Signatur, die nur den Payee kennt, keine allgemeine Update-Funktion (ADR 0028, Punkt 1).
+let updatePayee
+    (token: string)
+    (budgetId: YnabBudgetId)
+    (ynabTransactionId: string)
+    (payee: string)
+    : Async<YnabResult<unit>> =
+    async {
+        use httpClient = new System.Net.Http.HttpClient()
+        httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}")
+        return! sendPayee httpClient budgetId ynabTransactionId payee
+    }
+
+// ============================================
 // Betrag zurückschreiben (ADR 0092, ledger-m7mye)
 // ============================================
 

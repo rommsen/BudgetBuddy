@@ -100,6 +100,7 @@ let private entry (accountId: LedgerAccountId) (amount: decimal) : Entry = {
     FlagWriteBackFailure = None
     MemoWriteBackFailure = None
     AmountWriteBackFailure = None
+    PayeeWriteBackFailure = None
     LinkedToYnab = false
     PushToYnabFailure = None
     PayeeBeforeTransfer = None

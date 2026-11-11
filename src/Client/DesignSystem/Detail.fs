@@ -302,6 +302,27 @@ let pickerArrow (label: string) (isOpen: bool) (lockedHint: string option) (onCl
         prop.children [ Icons.chevronDown Icons.SM Icons.Default ]
     ]
 
+/// Der Pfeil `›` neben einem Feld, das eine eigene Auswahl öffnet, die den Inhalt ersetzt (Payee,
+/// ledger-fxt09). Gleiche Trefferfläche und Sperre wie `pickerArrow`; `testId` benennt den Knopf.
+let forwardArrow (testId: string) (label: string) (lockedHint: string option) (onClick: unit -> unit) : ReactElement =
+    let locked = lockedHint.IsSome
+    Html.button [
+        prop.type'.button
+        prop.title (lockedHint |> Option.defaultValue label)
+        prop.ariaLabel (lockedHint |> Option.defaultValue label)
+        prop.custom ("aria-disabled", (if locked then "true" else "false"))
+        prop.custom ("data-testid", testId)
+        prop.className (
+            $"inline-flex {TouchTargets.mobileSquare} md:h-11 md:w-8 shrink-0 items-center justify-center rounded-lg {Colors.textMuted} transition-colors touch-manipulation "
+            + (if locked then "opacity-40 cursor-not-allowed" else "hover:text-text-primary hover:bg-surface-hover")
+        )
+        prop.onMouseDown (fun e -> e.stopPropagation ())
+        prop.onClick (fun e ->
+            e.stopPropagation ()
+            if not locked then onClick ())
+        prop.children [ Icons.chevronRight Icons.SM Icons.Default ]
+    ]
+
 /// Ein unsichtbarer Platzhalter in der Breite des Pfeils: Feldzeilen ohne Pfeil (Payee) halten
 /// damit ihren Filter-Knopf bündig mit dem der Kategorie-Zeile.
 let pickerArrowSpacer () : ReactElement =

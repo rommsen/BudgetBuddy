@@ -150,6 +150,8 @@ let tests =
                   [ "getLedgerAccounts"; "getLastMirrorRun"; "getLenaFlagSettings"
                     "getLedgerAccountBalances"; "getLedgerEntriesPage"; "getLedgerEntriesPage"
                     "getEntryHistory"; "getLedgerPayeeSuggestions"; "getPayeeCategorySuggestions"
+                    // ledger-fxt09: die Payees des ganzen Kassenbuchs für die Payee-Auswahl.
+                    "getLedgerPayeeSuggestions"
                     "getBudgetAccounts"; "getSettings"; "getLedgerEntry"; "getLedgerEntry"
                     // ledger-at63w: Vorbelegung und Kategorie zum Payee beim Erfassen.
                     "getLedgerBookingDefaults"; "getBookingCategoryForPayee" ]

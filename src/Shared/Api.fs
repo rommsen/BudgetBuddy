@@ -523,6 +523,18 @@ type LedgerApi = {
     /// (MemoNotSent) without an open memo write-back failure.
     retryMemoWriteBack: Guid -> Async<Result<MemoWriteBack, string>>
 
+    /// Changes the payee of one booking (ledger-fxt09; also the undo: the same command with the
+    /// old payee), in BB first, then writes it back to YNAB (`payee_id` null and `payee_name`,
+    /// YNAB finds or creates the payee). The text is trimmed; empty and longer than YNAB's limit
+    /// (200) are rejected. Error without event and without YNAB call when the booking is unknown,
+    /// deleted in YNAB, not linked to YNAB or a transfer. Same payee (trimmed, ignoring case):
+    /// PayeeUnchanged. Reconciled bookings stay changeable.
+    setEntryPayee: Guid -> string -> Async<Result<PayeeOutcome, string>>
+
+    /// Sends the booking's current payee to YNAB again ("Erneut senden"). Does nothing
+    /// (PayeeNotSent) without an open payee write-back failure.
+    retryPayeeWriteBack: Guid -> Async<Result<PayeeWriteBack, string>>
+
     /// Changes the amount of one unsplit booking (ledger-m7mye, ADR 0092; also the undo: the same
     /// command with the old amount), in BB first, then writes it back to YNAB (only `amount`, in
     /// milliunits). The request carries the amount without sign and the direction ("outflow" or

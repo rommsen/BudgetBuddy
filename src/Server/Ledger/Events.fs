@@ -388,6 +388,23 @@ type EntryMemoWriteBackFailedPayload = {
     BaselineMemo: string option
 }
 
+/// Der Payee wurde in BB geändert (ledger-fxt09, Muster ADR 0062): Ändern und "Rückgängig"
+/// erzeugen denselben Typ. `OldPayee` ist der Payee davor (`None`, wenn die Buchung keinen trug),
+/// `NewPayee` der getrimmte neue. Actor `UserInBb`.
+type EntryPayeeChangedInBbPayload = {
+    OldPayee: string option
+    NewPayee: string
+}
+
+/// Das Zurückschreiben des Payees nach YNAB ist gescheitert (ledger-fxt09, Muster ADR 0062).
+/// `Reason` ist der Grund für die Zeile. Die Baseline ist der Payee, den YNAB vermutlich noch hat:
+/// der `OldPayee` der ersten gescheiterten Änderung (bei weiteren Änderungen mit offenem
+/// Fehlschlag bleibt die erste Baseline).
+type EntryPayeeWriteBackFailedPayload = {
+    Reason: string
+    BaselinePayee: string option
+}
+
 /// Der Betrag wurde in BB geändert (ADR 0092, Punkt 3, ledger-m7mye): Ändern und "Rückgängig"
 /// erzeugen denselben Typ. Alt und Neu tragen das Vorzeichen (Ausgabe negativ). Actor `UserInBb`.
 type EntryAmountChangedInBbPayload = {
@@ -476,6 +493,13 @@ type LedgerEventBody =
     /// Der offene Betrags-Fehlschlag ist beendet: der Push hat Erfolg (Actor `UserInBb`)
     /// oder YNAB zeigt den BB-Stand (Actor `YnabMirror`). Kein Payload (ADR 0092).
     | EntryAmountWrittenBackToYnab
+    /// Payee in BB geändert (ledger-fxt09). Entscheidung, Actor `UserInBb`.
+    | EntryPayeeChangedInBb of EntryPayeeChangedInBbPayload
+    /// Zurückschreiben des Payees nach YNAB gescheitert (ledger-fxt09), mit Baseline.
+    | EntryPayeeWriteBackFailed of EntryPayeeWriteBackFailedPayload
+    /// Der offene Payee-Fehlschlag ist beendet: der Push hat Erfolg (Actor `UserInBb`)
+    /// oder YNAB zeigt den BB-Stand (Actor `YnabMirror`). Kein Payload (ledger-fxt09).
+    | EntryPayeeWrittenBackToYnab
     /// Eine Split-Buchung ist in YNAB gelöscht und unter neuer Id angelegt worden
     /// (ADR 0058). Stiftet die neuen Verknüpfungen (YNAB-Id, ImportId) und hält die alte
     /// YNAB-Id als abgelöst fest.
@@ -561,6 +585,9 @@ let eventTypeName (body: LedgerEventBody) : string =
     | EntryAmountChangedInBb _ -> "EntryAmountChangedInBb"
     | EntryAmountWriteBackFailed _ -> "EntryAmountWriteBackFailed"
     | EntryAmountWrittenBackToYnab -> "EntryAmountWrittenBackToYnab"
+    | EntryPayeeChangedInBb _ -> "EntryPayeeChangedInBb"
+    | EntryPayeeWriteBackFailed _ -> "EntryPayeeWriteBackFailed"
+    | EntryPayeeWrittenBackToYnab -> "EntryPayeeWrittenBackToYnab"
     | EntryReplacedInYnab _ -> "EntryReplacedInYnab"
     | EntryPushToYnabFailed _ -> "EntryPushToYnabFailed"
     | EntryTransferTargetSetInBb _ -> "EntryTransferTargetSetInBb"
@@ -605,6 +632,9 @@ let schemaVersion (body: LedgerEventBody) : int =
     | EntryAmountChangedInBb _ -> 1
     | EntryAmountWriteBackFailed _ -> 1
     | EntryAmountWrittenBackToYnab -> 1
+    | EntryPayeeChangedInBb _ -> 1
+    | EntryPayeeWriteBackFailed _ -> 1
+    | EntryPayeeWrittenBackToYnab -> 1
     | EntryReplacedInYnab _ -> 1
     | EntryPushToYnabFailed _ -> 1
     | EntryTransferTargetSetInBb _ -> 1
@@ -1289,6 +1319,30 @@ module Codec =
             BaselineAmount = get.Required.Field "baselineAmount" decodeMoney
         })
 
+    let encodePayeeChangedInBb (p: EntryPayeeChangedInBbPayload) =
+        Encode.object [
+            "oldPayee", encodeOptionalString p.OldPayee
+            "newPayee", Encode.string p.NewPayee
+        ]
+
+    let decodePayeeChangedInBb : Decoder<EntryPayeeChangedInBbPayload> =
+        Decode.object (fun get -> {
+            OldPayee = get.Optional.Field "oldPayee" Decode.string
+            NewPayee = get.Required.Field "newPayee" Decode.string
+        })
+
+    let encodePayeeWriteBackFailed (p: EntryPayeeWriteBackFailedPayload) =
+        Encode.object [
+            "reason", Encode.string p.Reason
+            "baselinePayee", encodeOptionalString p.BaselinePayee
+        ]
+
+    let decodePayeeWriteBackFailed : Decoder<EntryPayeeWriteBackFailedPayload> =
+        Decode.object (fun get -> {
+            Reason = get.Required.Field "reason" Decode.string
+            BaselinePayee = get.Optional.Field "baselinePayee" Decode.string
+        })
+
     let encodeReplacedInYnab (p: EntryReplacedInYnabPayload) =
         Encode.object [
             "oldYnabTransactionId", Encode.string p.OldYnabTransactionId
@@ -1341,6 +1395,9 @@ let encodePayload (body: LedgerEventBody) : string =
         | EntryAmountChangedInBb p -> Codec.encodeAmountChangedInBb p
         | EntryAmountWriteBackFailed p -> Codec.encodeAmountWriteBackFailed p
         | EntryAmountWrittenBackToYnab -> Encode.object []
+        | EntryPayeeChangedInBb p -> Codec.encodePayeeChangedInBb p
+        | EntryPayeeWriteBackFailed p -> Codec.encodePayeeWriteBackFailed p
+        | EntryPayeeWrittenBackToYnab -> Encode.object []
         | EntryReplacedInYnab p -> Codec.encodeReplacedInYnab p
         | EntryPushToYnabFailed p -> Codec.encodePushToYnabFailed p
         | EntryTransferTargetSetInBb p -> Codec.encodeTransferTargetSetInBb p
@@ -1415,6 +1472,11 @@ let decodePayload (eventType: string) (version: int) (payload: string) : Result<
     | "EntryAmountWriteBackFailed", 1 ->
         Decode.fromString Codec.decodeAmountWriteBackFailed payload |> Result.map EntryAmountWriteBackFailed
     | "EntryAmountWrittenBackToYnab", 1 -> Ok EntryAmountWrittenBackToYnab
+    | "EntryPayeeChangedInBb", 1 ->
+        Decode.fromString Codec.decodePayeeChangedInBb payload |> Result.map EntryPayeeChangedInBb
+    | "EntryPayeeWriteBackFailed", 1 ->
+        Decode.fromString Codec.decodePayeeWriteBackFailed payload |> Result.map EntryPayeeWriteBackFailed
+    | "EntryPayeeWrittenBackToYnab", 1 -> Ok EntryPayeeWrittenBackToYnab
     | "EntryReplacedInYnab", 1 ->
         Decode.fromString Codec.decodeReplacedInYnab payload |> Result.map EntryReplacedInYnab
     | "EntryPushToYnabFailed", 1 ->

@@ -37,6 +37,7 @@ let private entryView (n: int) (needsReview: bool) : LedgerEntryView = {
     MemoWriteBackFailure = None
     AmountWriteBackFailure = None
     AmountLockReason = None
+    PayeeWriteBackFailure = None
     LinkedToYnab = false
     PushToYnabFailure = None
     SplitLocks = None

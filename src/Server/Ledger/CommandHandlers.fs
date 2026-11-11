@@ -3580,6 +3580,153 @@ let retryMemoWriteBack
     )
 
 // ============================================
+// Payee ändern und nach YNAB zurückschreiben (ledger-fxt09, Muster ADR 0062)
+// ============================================
+
+/// Der Push des Payees, injiziert wie `MemoPush`: bekommt die YNAB-Transaction-Id und den
+/// getrimmten Payee. Der Aufrufer (`Server.Api`) bindet Token und Budget ein (`Ynab.updatePayee`:
+/// `payee_id` null und `payee_name`).
+type PayeePush = string -> string -> Async<YnabResult<unit>>
+
+/// Der Grund-Text für den Hinweis "Payee nicht in YNAB". Wie `describeMemoPushError`.
+let describePayeePushError (error: YnabError) : string =
+    match error with
+    | YnabError.InvalidResponse msg -> $"YNAB hat den Payee abgelehnt: {msg}"
+    | other -> ynabErrorText other
+
+/// Warum sich der Payee dieser Buchung nicht ändern lässt (`Shared.Domain.payeeLockReason`).
+let payeeNotChangeableReason (entry: Entry) : string option =
+    payeeLockReason
+        entry.DeletedInYnab
+        entry.LinkedToYnab
+        (entry.TransferAccountId.IsSome || entry.TransferEntryId.IsSome)
+
+/// Die Baseline eines neuen Fehlschlags: bei einem schon offenen die erste, sonst der Stand vor
+/// der Änderung (wie ADR 0062).
+let private payeeBaseline (entry: Entry) (before: string option) : string option =
+    match entry.PayeeWriteBackFailure with
+    | Some failure -> failure.BaselinePayee
+    | None -> before
+
+/// Schickt den Payee. Scheitert der Push (oder fehlt die Verknüpfung), schreibt die Funktion
+/// `EntryPayeeWriteBackFailed`. Bei Erfolg schreibt sie kein Ereignis, außer ein früherer
+/// Fehlschlag war offen: dann ist er mit dem Erfolg beendet (`EntryPayeeWrittenBackToYnab`).
+let private pushPayee
+    (now: DateTime)
+    (push: PayeePush)
+    (entry: Entry)
+    (baseline: string option)
+    (payee: string)
+    : Async<PayeeWriteBack> =
+    async {
+        let entryId = entry.Id
+
+        let fail (reason: string) =
+            async {
+                do!
+                    Ledger.Persistence.appendAndApply [
+                        reviewMarkEvent entryId now UserInBb (
+                            EntryPayeeWriteBackFailed { Reason = reason; BaselinePayee = baseline }
+                        )
+                    ]
+                return PayeeSendFailed reason
+            }
+
+        match! tryYnabTransactionId entryId with
+        | None -> return! fail reviewMarkNotLinkedReason
+        | Some ynabTransactionId ->
+            match! push ynabTransactionId payee with
+            | Ok () ->
+                if entry.PayeeWriteBackFailure.IsSome then
+                    do!
+                        Ledger.Persistence.appendAndApply [
+                            reviewMarkEvent entryId now UserInBb EntryPayeeWrittenBackToYnab
+                        ]
+                return PayeeSent
+            | Error err -> return! fail (describePayeePushError err)
+    }
+
+/// Den Payee einer Buchung ändern (ledger-fxt09) und "Rückgängig" (derselbe Befehl mit dem alten
+/// Payee). Die Eingabe läuft durch `normalizePayee`: getrimmt, leer und zu lang werden abgelehnt.
+/// Abgelehnt ohne Ereignis und ohne Push: unbekannte Buchung und was `payeeNotChangeableReason`
+/// sperrt (in YNAB gelöscht, nicht mit YNAB verknüpft, Übertrag). Abgeglichene Buchungen bleiben
+/// änderbar. Ziel gleich Ist (getrimmt, ohne Groß- und Kleinschreibung, `payeeKey`): weder Ereignis
+/// noch Push (`PayeeUnchanged`). Sonst zuerst `EntryPayeeChangedInBb`, danach der Push (Reihenfolge
+/// wie ADR 0021 Punkt 5). Läuft unter der Schreib-Sperre (`WriteGuard`). Die `import_id` und die
+/// Bank-Referenz eines Comdirect-Imports bleiben: das Update schickt nur `payee_id` und
+/// `payee_name`.
+let setEntryPayee
+    (now: DateTime)
+    (push: PayeePush)
+    (entryId: EntryId)
+    (text: string)
+    : Async<Result<PayeeOutcome, string>> =
+    match normalizePayee text with
+    | Error reason -> async { return Error reason }
+    | Ok newPayee ->
+        WriteGuard.exclusive (
+            async {
+                match! Ledger.Persistence.loadEntry entryId with
+                | None -> return Error "Buchung nicht gefunden"
+                | Some entry ->
+                    match payeeNotChangeableReason entry with
+                    | Some reason -> return Error reason
+                    | None ->
+                        let previous = entry.Payee
+                        if payeeKey (Some newPayee) = payeeKey previous then
+                            return
+                                Ok {
+                                    PreviousPayee = previous
+                                    CurrentPayee = previous
+                                    PayeeChange = PayeeUnchanged
+                                    PayeeWriteBack = PayeeNotSent
+                                }
+                        else
+                            do!
+                                Ledger.Persistence.appendAndApply [
+                                    reviewMarkEvent entryId now UserInBb (
+                                        EntryPayeeChangedInBb { OldPayee = previous; NewPayee = newPayee }
+                                    )
+                                ]
+
+                            let baseline = payeeBaseline entry previous
+                            let! writeBack = pushPayee now push entry baseline newPayee
+                            return
+                                Ok {
+                                    PreviousPayee = previous
+                                    CurrentPayee = Some newPayee
+                                    PayeeChange = PayeeChanged
+                                    PayeeWriteBack = writeBack
+                                }
+            }
+        )
+
+/// "Erneut senden" am Hinweis "Payee nicht in YNAB" (ledger-fxt09): sendet den Payee des aktuellen
+/// BB-Stands. Erfolg schreibt `EntryPayeeWrittenBackToYnab` (Actor `UserInBb`), ein erneuter
+/// Fehlschlag ersetzt den Grund (die Baseline bleibt). Ohne offenen Fehlschlag tut der Befehl
+/// nichts (`PayeeNotSent`). Abgelehnt wie `setEntryPayee`.
+let retryPayeeWriteBack
+    (now: DateTime)
+    (push: PayeePush)
+    (entryId: EntryId)
+    : Async<Result<PayeeWriteBack, string>> =
+    WriteGuard.exclusive (
+        async {
+            match! Ledger.Persistence.loadEntry entryId with
+            | None -> return Error "Buchung nicht gefunden"
+            | Some entry ->
+                match payeeNotChangeableReason entry, entry.Payee with
+                | Some reason, _ -> return Error reason
+                | None, _ when entry.PayeeWriteBackFailure.IsNone -> return Ok PayeeNotSent
+                | None, None -> return Ok PayeeNotSent
+                | None, Some payee ->
+                    let baseline = payeeBaseline entry entry.Payee
+                    let! writeBack = pushPayee now push entry baseline payee
+                    return Ok writeBack
+        }
+    )
+
+// ============================================
 // Betrag ändern und nach YNAB zurückschreiben (ADR 0092, ledger-m7mye)
 // ============================================
 

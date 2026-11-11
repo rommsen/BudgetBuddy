@@ -214,6 +214,9 @@ let migrateLedgerEntryColumns (conn: SqliteConnection) =
     // ADR 0092: offener Fehlschlag beim Zurückschreiben des Betrags als JSON (Grund,
     // Baseline-Betrag), NULL heißt kein offener Fehlschlag.
     migrateColumn "ALTER TABLE ledger_entries ADD COLUMN amount_write_back_failure TEXT" |> ignore
+    // ledger-fxt09: offener Fehlschlag beim Zurückschreiben des Payees als JSON (Grund,
+    // Baseline-Payee), NULL heißt kein offener Fehlschlag.
+    migrateColumn "ALTER TABLE ledger_entries ADD COLUMN payee_write_back_failure TEXT" |> ignore
     // ledger-rynk5: offener Push-Fehlschlag (Grund, Zeitpunkt) und Spiegelung der
     // YNAB-Verknüpfung im Zustand. Beim Anlegen von `linked_to_ynab` trägt ein einmaliger
     // Backfill aus der Fremd-Id-Tabelle die bestehenden Verknüpfungen nach.
@@ -396,6 +399,7 @@ let internal createLedgerSchemaOn (conn: SqliteConnection) =
             flag_write_back_failure TEXT,
             memo_write_back_failure TEXT,
             amount_write_back_failure TEXT,
+            payee_write_back_failure TEXT,
             push_failure_reason TEXT,
             push_failure_at TEXT,
             linked_to_ynab INTEGER NOT NULL DEFAULT 0,
@@ -480,6 +484,7 @@ type private EntryRow = {
     flag_write_back_failure: string
     memo_write_back_failure: string
     amount_write_back_failure: string
+    payee_write_back_failure: string
     push_failure_reason: string
     push_failure_at: string
     linked_to_ynab: int64
@@ -639,6 +644,12 @@ let private rowToEntry (row: EntryRow) : Entry =
                 match Thoth.Json.Net.Decode.fromString Codec.decodeAmountWriteBackFailed json with
                 | Ok p -> { Reason = p.Reason; BaselineAmount = p.BaselineAmount }
                 | Error e -> failwith $"Betrags-Fehlschlag der Buchung {row.id} nicht lesbar: {e}")
+        PayeeWriteBackFailure =
+            toOption row.payee_write_back_failure
+            |> Option.map (fun json ->
+                match Thoth.Json.Net.Decode.fromString Codec.decodePayeeWriteBackFailed json with
+                | Ok p -> { Reason = p.Reason; BaselinePayee = p.BaselinePayee }
+                | Error e -> failwith $"Payee-Fehlschlag der Buchung {row.id} nicht lesbar: {e}")
         LinkedToYnab = row.linked_to_ynab = 1L
         PushToYnabFailure =
             toOption row.push_failure_reason
@@ -741,6 +752,15 @@ let private entryParams (entry: Entry) =
                     )
                 )
             | None -> null
+        payee_write_back_failure =
+            match entry.PayeeWriteBackFailure with
+            | Some f ->
+                box (
+                    Thoth.Json.Net.Encode.toString 0 (
+                        Codec.encodePayeeWriteBackFailed { Reason = f.Reason; BaselinePayee = f.BaselinePayee }
+                    )
+                )
+            | None -> null
         push_failure_reason = orNull (entry.PushToYnabFailure |> Option.map (fun f -> f.Reason))
         push_failure_at = orNull (entry.PushToYnabFailure |> Option.map (fun f -> dateToText f.FailedAt))
         linked_to_ynab = (if entry.LinkedToYnab then 1 else 0)
@@ -759,12 +779,12 @@ let private upsertEntrySql =
          (id, account_id, date, amount, currency, payee, memo, category_id, category_name,
           splits, cleared, transfer_entry_id, deleted_in_ynab, approved, flag_color, flag_name,
           transfer_account_id, split_transfer_counterparts, review_mark_write_back_failure,
-          categorization_write_back_failure, flag_write_back_failure, memo_write_back_failure, amount_write_back_failure, push_failure_reason, push_failure_at, linked_to_ynab, payee_before_transfer)
+          categorization_write_back_failure, flag_write_back_failure, memo_write_back_failure, amount_write_back_failure, payee_write_back_failure, push_failure_reason, push_failure_at, linked_to_ynab, payee_before_transfer)
        VALUES
          (@id, @account_id, @date, @amount, @currency, @payee, @memo, @category_id,
           @category_name, @splits, @cleared, @transfer_entry_id, @deleted_in_ynab, @approved,
           @flag_color, @flag_name, @transfer_account_id, @split_transfer_counterparts,
-          @review_mark_write_back_failure, @categorization_write_back_failure, @flag_write_back_failure, @memo_write_back_failure, @amount_write_back_failure, @push_failure_reason, @push_failure_at, @linked_to_ynab, @payee_before_transfer)
+          @review_mark_write_back_failure, @categorization_write_back_failure, @flag_write_back_failure, @memo_write_back_failure, @amount_write_back_failure, @payee_write_back_failure, @push_failure_reason, @push_failure_at, @linked_to_ynab, @payee_before_transfer)
        ON CONFLICT(id) DO UPDATE SET
           account_id = excluded.account_id,
           date = excluded.date,
@@ -788,6 +808,7 @@ let private upsertEntrySql =
           flag_write_back_failure = excluded.flag_write_back_failure,
           memo_write_back_failure = excluded.memo_write_back_failure,
           amount_write_back_failure = excluded.amount_write_back_failure,
+          payee_write_back_failure = excluded.payee_write_back_failure,
           push_failure_reason = excluded.push_failure_reason,
           push_failure_at = excluded.push_failure_at,
           linked_to_ynab = excluded.linked_to_ynab,

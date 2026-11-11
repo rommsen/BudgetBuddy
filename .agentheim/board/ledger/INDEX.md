@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 10
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 119
+- **Doing:** 0
+- **Done:** 120
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **ledger-fxt09** — "Payee einer Buchung in BB ändern: Befehl mit Ereignis und Schreibweg nach YNAB, im Buchungs-Detail und auf der Karte beim Durchgehen, Rückgängig im Toast" (feature) — `doing/ledger-fxt09-payee-aendern-in-bb.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **ledger-fxt09** — "Payee einer Buchung in BB ändern: Befehl mit Ereignis und Schreibweg nach YNAB, im Buchungs-Detail und auf der Karte beim Durchgehen, Rückgängig im Toast" (feature) — `done/ledger-fxt09-payee-aendern-in-bb.md`
 - **ledger-s1weh** — "Übersicht als Einstieg (Variante A): Zu tun mit einer Hauptaktion, Zähler an der Übersicht, „+ Buchung“, am PC zweispaltig" (feature) — `done/ledger-s1weh-uebersicht-als-einstieg.md`
 - **ledger-q42pg** — "Betrag bearbeiten: leerer Betrag oder 0 als Meldung am Feld statt Toast" (bug) — `done/ledger-q42pg-betrag-feldfehler-statt-toast.md`
 - **ledger-m7a9q** — "Probelauf: Betrag eines Übertrags per Update in YNAB ändern" (spike) — `done/ledger-m7a9q-probelauf-betrag-uebertrag.md`

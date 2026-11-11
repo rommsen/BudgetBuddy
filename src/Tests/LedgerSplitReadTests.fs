@@ -276,6 +276,7 @@ let trackingLockTests =
           MemoWriteBackFailure = None
           AmountWriteBackFailure = None
           AmountLockReason = None
+          PayeeWriteBackFailure = None
           LinkedToYnab = true
           PushToYnabFailure = None
           SplitLocks = None

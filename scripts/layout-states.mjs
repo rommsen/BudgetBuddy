@@ -911,6 +911,44 @@ export const STATES = [
     },
     primary: (page) => page.locator('[data-layer="dialog"]').getByRole("button", { name: "Speichern", exact: true }),
   },
+  // ledger-fxt09: die Payee-Auswahl am Handy ersetzt den Inhalt des Detail-Sheets (§7.15), mit einem langen Payee,
+  // der in der Liste mit Ellipse abschneidet.
+  {
+    name: "kassenbuch-payee-auswahl",
+    route: "/ledger",
+    widths: [412],
+    mock: async (page) => {
+      await mockLedger(page);
+      await page.route("**/api/LedgerApi/getLedgerPayeeSuggestions", (r) =>
+        json(r, [{ Payee: "Bauhaus", Count: 9 }, { Payee: LONG_PAYEE, Count: 4 }, { Payee: "Baumarkt", Count: 2 }])
+      );
+    },
+    open: async (page) => {
+      const sheet = await openLedgerDetail(page, "Bauhaus");
+      await sheet.locator('[data-testid="detail-payee-arrow"]').tap();
+      await page.locator('.bottom-sheet.active [data-testid="payee-picker-option"]').first().waitFor();
+    },
+  },
+  // ledger-fxt09: am PC die Payee-Auswahl. Mit Panel (1440) als Dialog über der Liste, das Detail-Panel bleibt
+  // rechts; ohne Panel (1280, Detail als Sheet) ersetzt sie den Inhalt des Sheets.
+  {
+    name: "kassenbuch-payee-auswahl-pc",
+    route: "/ledger",
+    widths: [1280, 1440],
+    mock: async (page) => {
+      await mockLedger(page);
+      await page.route("**/api/LedgerApi/getLedgerPayeeSuggestions", (r) =>
+        json(r, [{ Payee: "Bauhaus", Count: 9 }, { Payee: LONG_PAYEE, Count: 4 }, { Payee: "Baumarkt", Count: 2 }])
+      );
+    },
+    open: async (page) => {
+      const row = page.locator("table tbody tr", { hasText: "Bauhaus" }).first();
+      await row.waitFor();
+      await row.locator("td").nth(2).click();
+      await page.locator('[data-testid="detail-payee-arrow"]').filter({ visible: true }).first().click();
+      await page.locator('[data-testid="payee-picker-option"]').filter({ visible: true }).first().waitFor();
+    },
+  },
   // ledger-at63w: "Neue Buchung" am Handy als Sheet. "Buchung anlegen" klebt unten und bleibt auch bei
   // offener Tastatur im Betragsfeld erreichbar.
   {

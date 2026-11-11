@@ -1082,6 +1082,11 @@ type LedgerEntryView = {
     /// setzt ihn nach denselben Regeln wie der Befehl `setEntryAmount`. `None`: änderbar (auch für
     /// Antworten eines älteren Servers, der das Feld nicht kennt).
     AmountLockReason: string option
+    /// Grund des offenen Fehlschlags beim Zurückschreiben des Payees nach YNAB (ledger-fxt09):
+    /// der Payee bleibt in BB gesetzt, das Detail zeigt "Payee nicht in YNAB" mit dem Grund und
+    /// "Erneut senden". `None`, wenn nichts offen ist (und für Antworten eines älteren Servers,
+    /// der das Feld nicht kennt).
+    PayeeWriteBackFailure: string option
     /// Die Buchung trägt eine YNAB-Verknüpfung: vom Spiegel gesehene Buchungen immer,
     /// BB-geführte (Comdirect-Import, Quick Add) nach `EntryLinkedToYnab` (ADR 0021).
     LinkedToYnab: bool
@@ -1372,6 +1377,77 @@ type MemoOutcome = {
     CurrentMemo: string option
     MemoChange: MemoChange
     MemoWriteBack: MemoWriteBack
+}
+
+// ============================================
+// Payee ändern und zurückschreiben (ledger-fxt09, Muster ADR 0062)
+// ============================================
+
+/// Die längste Payee-Länge, die BB nach YNAB schickt: `payee_name` hat in YNABs OpenAPI-Schema
+/// `maxLength: 200` (SaveTransaction, geprüft 2026-11-11). Ein längerer Text wird abgelehnt, nie
+/// gekürzt.
+let ynabPayeeMaxLength = 200
+
+/// Der Grund, wenn der Payee leer ist.
+let payeeEmptyReason = "Der Payee darf nicht leer sein"
+
+/// Der Grund, wenn ein Payee über die Grenze von YNAB hinausgeht.
+let payeeTooLongReason = $"Der Payee ist zu lang (höchstens {ynabPayeeMaxLength} Zeichen)"
+
+/// Bringt die Eingabe in die Form, die BB speichert und YNAB bekommt: getrimmt. Leer und zu lang
+/// lehnt sie ab. Rein; Client (Feldfehler) und Server (Befehl, API-Grenze) nutzen dieselbe Regel.
+let normalizePayee (text: string) : Result<string, string> =
+    let trimmed = if isNull text then "" else text.Trim()
+    if trimmed = "" then Error payeeEmptyReason
+    elif trimmed.Length > ynabPayeeMaxLength then Error payeeTooLongReason
+    else Ok trimmed
+
+/// Der Payee als Vergleichswert: getrimmt, ohne Groß- und Kleinschreibung, leer zählt als kein
+/// Payee. "Ziel gleich Ist" beim Ändern (`PayeeUnchanged`) und "ist schon ein Vorschlag" in der
+/// Auswahl lesen diese Regel.
+let payeeKey (payee: string option) : string option =
+    payee
+    |> Option.map (fun p -> p.Trim().ToLowerInvariant())
+    |> Option.filter (fun p -> p <> "")
+
+let payeeDeletedReason = "In YNAB gelöscht, der Payee lässt sich nicht ändern"
+let payeeNotInYnabReason = "Noch nicht mit YNAB verknüpft, der Payee lässt sich erst danach ändern"
+let payeeTransferReason = "Ein Übertrag, der Payee ist dort das Zielkonto"
+
+/// Warum sich der Payee einer Buchung nicht ändern lässt, oder `None`. Die eine Quelle der Regel:
+/// der Befehl `setEntryPayee` (mit dem Zustand der Buchung) und das Detail im Client (mit
+/// `LedgerEntryView`) lesen beide diese Funktion. Gesperrt sind in YNAB gelöschte, noch nicht mit
+/// YNAB verknüpfte (auch eine wartende nach ADR 0093) und Überträge (ADR 0089). Abgeglichene
+/// bleiben änderbar: der Payee ändert keinen Saldo (Roman, 2026-11-11).
+let payeeLockReason (deletedInYnab: bool) (linkedToYnab: bool) (isTransfer: bool) : string option =
+    if deletedInYnab then Some payeeDeletedReason
+    elif not linkedToYnab then Some payeeNotInYnabReason
+    elif isTransfer then Some payeeTransferReason
+    else None
+
+/// Hat der Befehl den Payee geändert? `PayeeUnchanged`: Ziel gleich Ist, weder Ereignis noch
+/// YNAB-Aufruf.
+type PayeeChange =
+    | PayeeChanged
+    | PayeeUnchanged
+
+/// Was mit dem Zurückschreiben des Payees nach YNAB passiert ist.
+type PayeeWriteBack =
+    /// Nichts zu senden (Ziel gleich Ist, oder kein offener Fehlschlag beim erneuten Senden).
+    | PayeeNotSent
+    /// YNAB hat den Payee angenommen.
+    | PayeeSent
+    /// Der Weg nach YNAB ist gescheitert; der Payee bleibt in BB.
+    | PayeeSendFailed of reason: string
+
+/// Antwort von `setEntryPayee`.
+type PayeeOutcome = {
+    /// Der Payee vor dem Befehl, Grundlage für "Rückgängig".
+    PreviousPayee: string option
+    /// Der Payee nach dem Befehl (getrimmt).
+    CurrentPayee: string option
+    PayeeChange: PayeeChange
+    PayeeWriteBack: PayeeWriteBack
 }
 
 // ============================================

@@ -1,7 +1,7 @@
 ---
 id: ledger-fxt09
 title: "Payee einer Buchung in BB ändern: Befehl mit Ereignis und Schreibweg nach YNAB, im Buchungs-Detail und auf der Karte beim Durchgehen, Rückgängig im Toast"
-status: doing
+status: done
 type: feature
 context: ledger
 created: 2026-11-11
@@ -123,3 +123,50 @@ aber eintippen.
 
 Aufteilen, Kategorie und Memo ändern den Payee nicht. Eine Regel aus der Buchung (`categorization-n3sxw`) liest den
 Bank-Payee.
+
+## Outcome
+
+Payee ändern läuft jetzt als Kassenbuch-Befehl und im Buchungs-Detail. `./verify.sh` endet mit `VERIFY: PASS` (dotnet 4812 grün, 15 übersprungen nur in den Listen „(requires .env)“, node 315 grün).
+
+**Server**
+- `Ledger.CommandHandlers.setEntryPayee` / `retryPayeeWriteBack` (`src/Server/Ledger/CommandHandlers.fs`), API `LedgerApi.setEntryPayee` / `retryPayeeWriteBack` (`src/Shared/Api.fs`, `src/Server/Api.fs`, Port `payeePush`). Unter `WriteGuard.exclusive`, erst `EntryPayeeChangedInBb`, dann der Push, bei Fehlschlag `EntryPayeeWriteBackFailed` mit Baseline, kein Rollback. Ein Spiegel-Auslöser nach dem Befehl gibt es wie beim Memo nicht.
+- Ereignisse `EntryPayeeChangedInBb` (OldPayee optional, NewPayee), `EntryPayeeWriteBackFailed` (Reason, BaselinePayee), `EntryPayeeWrittenBackToYnab` (ohne Payload), alle Version 1 (`src/Server/Ledger/Events.fs`). Die Namen folgen der Task, kein Abgleich mit dem tactical-modeler nötig. `Entry.PayeeWriteBackFailure` (Spalte `payee_write_back_failure`), `LedgerEntryView.PayeeWriteBackFailure`.
+- Regeln in `src/Shared/Domain.fs`: `normalizePayee` (getrimmt, leer und über 200 abgelehnt), `payeeKey` (getrimmt, ohne Groß-/Kleinschreibung, Grundlage für `PayeeUnchanged`), `payeeLockReason` (gelöscht, nicht mit YNAB verknüpft, Übertrag; abgeglichen bleibt änderbar). Server und Client lesen dieselben Funktionen. Prüfung an der API-Grenze: `Server.Validation.validatePayeeChange` (fehlende Buchung und Payee-Fehler gesammelt).
+- **Grenze 200 Zeichen:** geprüft gegen YNABs OpenAPI (`https://api.ynab.com/papi/open_api_spec.yaml`, SaveTransaction `payee_name: maxLength: 200`, 2026-11-11).
+- Push: `YnabClient.buildPayeeBody` / `sendPayee` / `updatePayee`, Rumpf genau `{"transaction":{"payee_id": null, "payee_name": "…"}}`.
+- Spiegel (`Ledger.Domain.observe`): Baseline-Regel wie beim Memo. BB-Stand ergibt `EntryPayeeWrittenBackToYnab` (Actor `YnabMirror`) ohne `EntryDetailsChangeObservedInYnab`. Baseline lässt Payee und Fehlschlag stehen. Ein dritter Payee (auch „REWE“ statt „Rewe“) gilt. `EntryRestoredInBb` beendet einen offenen Payee-Fehlschlag wie die anderen.
+- Historie: „Payee geändert auf <neu>, vorher <alt>“, „Payee nicht in YNAB: <Grund>“, „Payee in YNAB angekommen“.
+
+**Probelauf gegen das Budget „Test“** (`src/Tests/YnabIntegrationTests.fs`, „Probelauf: der PUT des Payees ändert nur den Payee (Budget Test)“, Liste „(requires .env)“). Zweimal live ausgeführt: dafür stand `RUN_INTEGRATION_TESTS=true` kurz in der `.env` des Worktrees, danach wurde sie per Prüfsumme bestätigt wiederhergestellt. Ergebnis:
+- Der PUT ändert `payee_name` und `payee_id`. Kategorie, Betrag, `import_id`, `cleared` und `approved` bleiben unverändert (Test grün).
+- YNAB gleicht **weder Schreibweise noch Leerzeichen an**. „PROBELAUF FXT09 … NEU“ hat neben „Probelauf fxt09 … Neu“ einen neuen Payee mit eigener `payee_id` angelegt, „  Probelauf … Neu  “ ebenfalls, mit den Leerzeichen. Deshalb trimmt BB vor dem Senden. Eine Buchung, deren Payee sich nur in Groß-/Kleinschreibung unterscheidet, gilt in BB als unverändert (`PayeeUnchanged`). Eine reine Korrektur der Schreibweise geht in BB also nicht, nur in YNAB.
+- Jeder Lauf hinterlässt im Budget „Test“ drei Probe-Payees. Die API kann Payees nicht löschen, die Buchung selbst wird gelöscht.
+
+**Client**
+- DS-Komponente `src/Client/DesignSystem/PayeePicker.fs` (neue Variante, auf `/styleguide` als „Payee-Auswahl“). Props: Payee, Vorschläge, Feldfehler, Rückrufe `OnPick`/`OnClose`; die Karte in `ledger-v6s7c` kann sie ohne Detail öffnen. Reine Bausteine `options` und `keyAction`. Suche vorbelegt mit dem heutigen Payee, „„<Eingabe>“ übernehmen“ als erste Zeile bei neuer Eingabe, Klick übernimmt sofort, Zeilen halten den Fokus im Suchfeld (`onMouseDown preventDefault`), am PC Fokus und Markierung in der Suche, ↑↓/Enter/Esc nach §7.9.
+- Detail (`src/Client/Components/Ledger/View.fs`): die Payee-Zeile ist klickbar und trägt rechts den Pfeil `›` (`Detail.forwardArrow`, `detail-payee-arrow`, gesperrt mit Grund im Tooltip). Der Filter-Knopf „alle zeigen“ bleibt. Am Handy ersetzt die Auswahl den Inhalt des Detail-Sheets, am PC mit Panel ein `Modal`. Hinweisleiste `PayeeNotice` („Payee nicht in YNAB“, Erneut senden) nach allen anderen Leisten.
+- Reducer (`State.fs`, `Types.fs`): `OpenPayeeEdit`, `StartSavePayee` (Feldfehler bei leer oder zu lang, ebenso eine Ablehnung durch den Server), Toast „Payee geändert · <neu>“ mit Rückgängig (`UndoPayee` → derselbe Befehl mit dem alten Payee), `StartRetryPayee`. Die Payees kommen aus `getLedgerPayeeSuggestions` ohne Filter (`payeeChoicesQuery`, über `Retry.reading`). Esc schließt erst die Auswahl, der Fokus kehrt auf `detail-payee-arrow` zurück.
+
+**Tests**
+- `src/Tests/LedgerPayeeTests.fs`: Regeln, Validierung (alle Fehler gesammelt), Codec/Version/Replay mit allen drei Ereignissen, Befehle mit `PayeeProbe` (jede Ablehnungsregel und Grenze der Vorlage Memo, abgeglichen änderbar, Reihenfolge, Rückgängig, Fehlschlag, Baseline, Erneut senden), Comdirect-Import (import_id und Reference bleiben, zweiter Abruf derselben Reference: `AlreadyImported`, keine zweite Buchung, Payee bleibt der geänderte), Schreib-Sperre, Spiegel mit Baseline, Historie, Encoder und Fake-Handler.
+- `src/Tests/LedgerPayeeClientTests.fs`: Auswahl-Zeilen und Tasten, Sperre, Schritt, Hinweis, Reducer samt Rückgängig über denselben Befehl.
+- `RemotingEndpointNegativeTests.fs`: Zeilen für `setEntryPayee` (leer, unbekannt) und `retryPayeeWriteBack` (unbekannt). `RetryTests.fs`: Inventar um den zweiten `getLedgerPayeeSuggestions`-Aufruf ergänzt.
+- Browser: `scripts/ledger-payee.test.mjs` mit `[flow:payee-aendern]` (412 px, Touch: die Auswahl ersetzt das Sheet, kein Autofokus, Tippen und Übernehmen lösen keinen Blur aus, Toast, Rückgängig) und `[fokus]` am PC bei 1440 px (Fokus in der Suche, Esc zurück auf den Pfeil der Payee-Zeile). Bei 1280 px zeigt BB das Detail als Sheet, kein Panel, deshalb läuft der Fokus-Test bei 1440. Gegenprobe: ohne das Zurücksetzen des Fokus wird `[fokus]` rot (lokal geprüft, danach wiederhergestellt). Flow `payee-aendern` in `FLOWS`. Sweep-Zustände `kassenbuch-payee-auswahl` (412) und `kassenbuch-payee-auswahl-pc` (1280 als Sheet, 1440 als Dialog), beide grün.
+- Fixtures: `PayeeWriteBackFailure: null` in `buildEntryFixture` (`scripts/ledger-filter-bar.mjs`) und `scripts/ledger-status-column.mjs`, das Feld in allen `LedgerEntryView`- und `Entry`-Literalen der Tests.
+
+**Nebenwirkung Build:** Das App-Bündel ist über 2 MiB gewachsen (2,12 MB), und vite-plugin-pwa bricht den Build dann ab. `vite.config.js` setzt `workbox.maximumFileSizeToCacheInBytes` auf 4 MiB. Die parallelen Tasks dieser Welle stoßen wahrscheinlich auf dieselbe Grenze. Beim Merge darf der Eintrag nur einmal stehen.
+
+**Neben der Skizze verglichen:** Die Skizze (Prototyp Version 17) hat in der Payee-Zeile nur „alle zeigen“. Payee ändern ist die in der Task genannte Abweichung (BB kann es heute im Sync). Sonst ist das Detail unverändert. Screenshots:
+- `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/20e05553-37dc-4f2f-bcee-5ef520140bf9/scratchpad/e3/ledger-fxt09/bb-detail-handy-412.png`
+- `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/20e05553-37dc-4f2f-bcee-5ef520140bf9/scratchpad/e3/ledger-fxt09/bb-payee-auswahl-handy-412.png`
+- `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/20e05553-37dc-4f2f-bcee-5ef520140bf9/scratchpad/e3/ledger-fxt09/bb-detail-pc-1440.png`
+- `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/20e05553-37dc-4f2f-bcee-5ef520140bf9/scratchpad/e3/ledger-fxt09/bb-payee-auswahl-pc-1440.png`
+
+Offen: das Kriterium [human-eye] (Roman sieht Payee ändern am Handy und am PC an).
+
+**README-Delta:** Die Abschnitte `## Ereignisse` (endet mit Fließtext) und `## Key commands` (Bullets ohne fetten Kopf) erreicht das Delta-Gate nur per append bzw. gar nicht per replace. Die Einzelheiten der drei Ereignisse stehen deshalb im Bullet unter `## Key events`. Der Conductor kann drei Bullets in `## Ereignisse` nach `EntryAmountWrittenBackToYnab` von Hand ergänzen. Im Bullet *BuchungÄndern* (v2) unter Key commands kann er „der Payee auch (*PayeeÄndern*, ledger-fxt09)“ ergänzen. Der Satz „BuchungGeändert — Kategorie, Split, Memo, Payee geändert“ stimmt jetzt ohne Änderung.
+
+**Für die Kann-Sammlung ledger:**
+- Das App-Bündel teilen (Code-Splitting), statt die Precache-Grenze weiter anzuheben.
+- Probe-Payees im Budget „Test“ sammeln sich je Lauf des Probelaufs an.
+- Eine reine Korrektur der Schreibweise des Payees ist in BB nicht möglich (`payeeKey` ohne Groß-/Kleinschreibung), nur in YNAB.

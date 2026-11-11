@@ -111,6 +111,7 @@ export const FLOWS = {
   "zuletzt-verwendet-merken": "Der Kategorie-Filter behält Zuletzt verwendet über ein Neuladen.",
   "kategorie-aendern": "Die Kategorie einer Buchung ändern und rückgängig machen.",
   "memo-setzen": "Einer Buchung ein Memo geben.",
+  "payee-aendern": "Im Buchungs-Detail am Handy den Payee ändern und rückgängig machen.",
   "aufteilen": "Eine Buchung aufteilen, mit Übertrag, und rückgängig machen.",
   "barabhebung-aufteilen": "Einen Teil einer Buchung als Barabhebung aufs Bar-Konto übertragen.",
   "buchung-pruefen": "Eine Buchung an der Zeile als geprüft markieren.",

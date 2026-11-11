@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-11 23:31 -- Task verified and completed: ledger-fxt09 - "Payee einer Buchung in BB ändern: Befehl mit Ereignis und Schreibweg nach YNAB, im Buchungs-Detail und auf der Karte beim Durchgehen, Rückgängig im Toast"
+
+**Type:** Work / Task completion
+**Task:** ledger-fxt09 - "Payee einer Buchung in BB ändern: Befehl mit Ereignis und Schreibweg nach YNAB, im Buchungs-Detail und auf der Karte beim Durchgehen, Rückgängig im Toast"
+**Summary:** Payee einer Buchung in BB ändern, mit Schreibweg nach YNAB
+**Duration:** 62m
+**Verification:** PASS (iteration 1)
+**Files changed:** 52
+**Tests added:** 71
+**ADRs written:** none
+
+---
+
+## 2026-11-11 23:21 -- Verification failed: budgeting-w9yt4 - Angepinnte Kategorien
+
+**Type:** Work / Verification failure
+**Task:** budgeting-w9yt4 - Angepinnte Kategorien
+**Iteration:** 1 of 3
+**Reasons:** Fertig im PC-Dialog nicht volle Breite (Button.FullWidth wird ab md auto), Abweichung nicht genannt
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-11 22:30 -- Batch started: [budgeting-w9yt4, banking-import-d0fey, ledger-fxt09]
 
 **Type:** Work / Batch start

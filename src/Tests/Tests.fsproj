@@ -123,6 +123,7 @@
     <Compile Include="NetworkCallGuardTests.fs" />
     <Compile Include="LedgerMemoTests.fs" />
     <Compile Include="LedgerAmountTests.fs" />
+    <Compile Include="LedgerPayeeTests.fs" />
     <Compile Include="LedgerTransferTests.fs" />
     <Compile Include="LedgerBookingCaptureTests.fs" />
     <Compile Include="LedgerEntryDeletionTests.fs" />
@@ -152,6 +153,7 @@
     <Compile Include="LedgerCaptureClientTests.fs" />
     <Compile Include="LedgerMemoClientTests.fs" />
     <Compile Include="LedgerAmountClientTests.fs" />
+    <Compile Include="LedgerPayeeClientTests.fs" />
     <Compile Include="LedgerEntryDeletionClientTests.fs" />
     <Compile Include="LedgerReviewMarkBatchClientTests.fs" />
     <Compile Include="LedgerCategoryBatchClientTests.fs" />

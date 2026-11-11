@@ -1633,6 +1633,41 @@ let private CategoryPickerSingleDemo () =
         ]
     ]
 
+/// Payee-Auswahl (ledger-fxt09): Suchfeld mit dem heutigen Payee, „„…“ übernehmen“ für eine neue
+/// Eingabe, darunter die Payees nach Zahl der Buchungen. Ein Klick übernimmt sofort. Erfundene
+/// Beispieldaten, Zustand lokal. Im Kassenbuch steht sie im Sheet (Handy) oder im Dialog (PC).
+[<ReactComponent>]
+let private PayeePickerDemo () =
+    let chosen, setChosen = React.useState "REWE SAGT DANKE 4711"
+    let error, setError = React.useState<string option> None
+    section "Payee-Auswahl" [
+        note "Ein Auswahl-Dialog nach §7.9 für einen frei wählbaren Text: oben die Suche, vorbelegt mit dem heutigen Payee. Passt die Eingabe zu keinem vorhandenen Payee, steht „„Eingabe“ übernehmen“ als erste Zeile. Ein leerer oder zu langer Payee steht als Feldfehler unter dem Suchfeld."
+        Html.div [
+            prop.custom ("data-ds-demo", "payee-picker")
+            prop.className "max-w-sm"
+            prop.children [
+                PayeePicker.view
+                    { Current = Some chosen
+                      Suggestions = [ "Rewe", 42; "REWE SAGT DANKE 4711", 7; "Edeka Center", 18; "Bäckerei Krume", 25 ]
+                      Loading = false
+                      LoadError = None
+                      FieldError = error
+                      FocusSearch = false
+                      Busy = false
+                      OnPick =
+                        fun payee ->
+                            match Shared.Domain.normalizePayee payee with
+                            | Ok trimmed ->
+                                setError None
+                                setChosen trimmed
+                            | Error reason -> setError (Some reason)
+                      OnSearchChanged = fun () -> setError None
+                      OnClose = ignore }
+            ]
+        ]
+        caption $"Gewählt: {chosen}"
+    ]
+
 /// Split-Editor (ledger-pafkp): Summe, Zeilen, Knopfzeile "Zeile hinzufügen" und "Barabhebung", Fußleisten und der
 /// gemeinsame Ziel-Picker mit dem Abschnitt "Übertrag auf Konto" (design-system-bym4m). Erfundene Beispieldaten, Zustand lokal.
 [<ReactComponent>]
@@ -2484,6 +2519,7 @@ let view (back: ReactElement) =
                         BottomSheetDemo()
                         CategoryPickerDemo()
                         CategoryPickerSingleDemo()
+                        PayeePickerDemo()
                         SplitEditorDemo()
                         SwipeDemo()
                         navigationSection

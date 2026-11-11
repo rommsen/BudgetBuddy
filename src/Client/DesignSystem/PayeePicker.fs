@@ -1,0 +1,239 @@
+/// Die Payee-Auswahl (ledger-fxt09): ein Suchfeld, vorbelegt mit dem heutigen Payee, darunter die
+/// Payees, die zur Eingabe passen (häufigste zuerst), und als erste Zeile „„<Eingabe>“ übernehmen“,
+/// wenn die Eingabe kein vorhandener Payee ist. Ein Klick übernimmt sofort (Click-Commit, §7.1), am
+/// PC steht der Fokus in der Suche, ↑↓ und Enter wählen, Esc schließt nur die Auswahl (§7.9). Am
+/// Handy kein Autofokus. Der Baustein kennt weder Kassenbuch-Model noch -Msg: der Aufrufer liefert
+/// Payee, Vorschläge und Rückrufe. Das Buchungs-Detail zeigt ihn im Sheet (Handy) oder im Dialog
+/// (PC); die Karte beim Durchgehen (ledger-v6s7c) öffnet ihn ohne das Detail.
+module Client.DesignSystem.PayeePicker
+
+open System
+open Feliz
+open Fable.Core.JsInterop
+open Client.DesignSystem.Tokens
+
+/// Eine Zeile der Auswahl.
+type PayeeOption =
+    /// Die getippte Eingabe, getrimmt, als neuer Payee.
+    | TakeTyped of payee: string
+    /// Ein vorhandener Payee mit der Zahl seiner Buchungen.
+    | Suggested of payee: string * count: int
+
+/// Höchstens so viele Vorschläge stehen in der Liste; die Suche grenzt weiter ein.
+let maxShown = 50
+
+/// Die Zeile, die die Eingabe als neuen Payee übernimmt.
+let takeLabel (typed: string) : string = $"„{typed}“ übernehmen"
+
+let searchPlaceholder = "Payee suchen oder eingeben…"
+let loadingText = "Payees werden geladen…"
+let emptyText = "Noch keine Payees im Kassenbuch"
+
+/// Die Id des Feldfehlers, auf die das Suchfeld per `aria-describedby` verweist.
+let fieldErrorId = "payee-picker-error"
+
+let private keyOf (text: string) = text.Trim().ToLowerInvariant()
+
+/// Die Zeilen zur Eingabe: zuerst „übernehmen“, wenn die getrimmte Eingabe nicht leer und kein
+/// vorhandener Payee ist (ohne Groß- und Kleinschreibung), danach die passenden Payees nach Zahl der
+/// Buchungen, höchstens `maxShown`. Leere Eingabe zeigt alle. Rein.
+let options (suggestions: (string * int) list) (search: string) : PayeeOption list =
+    let typed = if isNull search then "" else search.Trim()
+    let key = keyOf typed
+    let exists = suggestions |> List.exists (fun (payee, _) -> keyOf payee = key)
+    let matches =
+        suggestions
+        |> List.filter (fun (payee, _) -> key = "" || payee.ToLowerInvariant().Contains key)
+        |> List.sortByDescending snd
+        |> List.truncate maxShown
+        |> List.map Suggested
+    [ if typed <> "" && not exists then TakeTyped typed ] @ matches
+
+/// Der Payee, den eine Zeile übernimmt.
+let payeeOf (option: PayeeOption) : string =
+    match option with
+    | TakeTyped payee -> payee
+    | Suggested (payee, _) -> payee
+
+/// Was eine Taste im Suchfeld tut.
+type KeyAction =
+    | MoveTo of int
+    /// Übernimmt diesen Text (auch leer: dann meldet der Aufrufer den Feldfehler).
+    | Pick of string
+    | CloseOnly
+    | NoAction
+
+/// ↑↓ bewegen die Markierung, Enter übernimmt die markierte Zeile, ohne Markierung die erste, ohne
+/// Zeile die Eingabe selbst. Esc schließt nur die Auswahl. Rein.
+let keyAction (key: string) (rows: PayeeOption list) (active: int option) (search: string) : KeyAction =
+    let count = List.length rows
+    match key with
+    | "ArrowDown" when count > 0 -> MoveTo (match active with None -> 0 | Some i -> min (count - 1) (i + 1))
+    | "ArrowUp" when count > 0 -> MoveTo (match active with None -> count - 1 | Some i -> max 0 (i - 1))
+    | "Enter" ->
+        match active with
+        | Some i when i >= 0 && i < count -> Pick (payeeOf (List.item i rows))
+        | _ ->
+            match rows with
+            | first :: _ -> Pick (payeeOf first)
+            | [] -> Pick (if isNull search then "" else search)
+    | "Escape" -> CloseOnly
+    | _ -> NoAction
+
+type PayeePickerProps = {
+    /// Der heutige Payee der Buchung, vorbelegt im Suchfeld.
+    Current: string option
+    /// Die Payees des Kassenbuchs mit der Zahl ihrer Buchungen.
+    Suggestions: (string * int) list
+    /// Die Vorschläge laden noch.
+    Loading: bool
+    /// Die Vorschläge ließen sich nicht laden (die Eingabe geht trotzdem).
+    LoadError: string option
+    /// Der Feldfehler unter dem Suchfeld (leer, zu lang, vom Server abgelehnt).
+    FieldError: string option
+    /// Fokus ins Suchfeld beim Öffnen (am PC; am Handy käme sonst die Tastatur).
+    FocusSearch: bool
+    /// Ein Aufruf läuft: weitere Übernahmen wirken nicht.
+    Busy: bool
+    OnPick: string -> unit
+    /// Getippt: der Aufrufer nimmt einen Feldfehler zurück.
+    OnSearchChanged: unit -> unit
+    OnClose: unit -> unit
+}
+
+let private rowClassFor (isActive: bool) : string =
+    let tone = if isActive then "bg-surface-hover" else "hover:bg-surface-hover"
+    $"px-2 {TouchTargets.mobileMinHeight} md:min-h-9 rounded-lg cursor-pointer touch-manipulation {tone}"
+
+[<ReactComponent>]
+let View (props: PayeePickerProps) =
+    let search, setSearch = React.useState (props.Current |> Option.defaultValue "")
+    let active, setActive = React.useState<int option> None
+    let containerRef = React.useRef<Browser.Types.HTMLElement option> None
+    let rows = options props.Suggestions search
+
+    // Fokus ins Suchfeld beim Öffnen, der heutige Payee markiert: Tippen ersetzt ihn.
+    React.useEffectOnce (fun () ->
+        if props.FocusSearch then
+            match containerRef.current with
+            | Some el ->
+                let field = el.querySelector "input"
+                if not (isNull field) then
+                    let input = field :?> Browser.Types.HTMLInputElement
+                    input.focus ()
+                    input.select ()
+            | None -> ())
+
+    // Die markierte Zeile bleibt sichtbar.
+    React.useEffect (
+        (fun () ->
+            match active, containerRef.current with
+            | Some i, Some el ->
+                let target = el.querySelector $"[data-row-index='{i}']"
+                if not (isNull target) then target?scrollIntoView (createObj [ "block" ==> "nearest" ])
+            | _ -> ()),
+        [| box active |]
+    )
+
+    let pick (payee: string) = if not props.Busy then props.OnPick payee
+
+    Html.div [
+        prop.ref containerRef
+        prop.custom ("data-testid", "payee-picker")
+        prop.className "flex flex-col gap-3"
+        prop.onKeyDown (fun e ->
+            match keyAction e.key rows active search with
+            | MoveTo i ->
+                e.preventDefault ()
+                setActive (Some i)
+            | Pick payee ->
+                e.preventDefault ()
+                pick payee
+            | CloseOnly ->
+                // Esc bleibt in der Auswahl: das Dokument schlösse sonst zugleich das Detail.
+                e.preventDefault ()
+                e.stopPropagation ()
+                props.OnClose ()
+            | NoAction -> ())
+        prop.children [
+            Html.div [
+                prop.custom ("data-testid", "payee-picker-search")
+                prop.children [
+                    Input.text
+                        { Input.textInputDefaults with
+                            Value = search
+                            OnChange =
+                                fun text ->
+                                    setSearch text
+                                    setActive None
+                                    props.OnSearchChanged ()
+                            Placeholder = searchPlaceholder
+                            Size = Input.Small
+                            AriaLabel = Some "Payee"
+                            DescribedBy = (if props.FieldError.IsSome then Some fieldErrorId else None)
+                            AriaInvalid = props.FieldError.IsSome
+                            ClassName = Some "w-full" }
+                    match props.FieldError with
+                    | Some message ->
+                        Html.div [
+                            prop.id fieldErrorId
+                            prop.custom ("data-testid", fieldErrorId)
+                            prop.className "mt-1.5"
+                            prop.children [ ErrorDisplay.inline' message ]
+                        ]
+                    | None -> ()
+                ]
+            ]
+            Html.div [
+                prop.role "listbox"
+                prop.ariaLabel "Payees"
+                prop.className "flex flex-col"
+                prop.children [
+                    for index, row in List.indexed rows do
+                        let label, count =
+                            match row with
+                            | TakeTyped payee -> takeLabel payee, None
+                            | Suggested (payee, n) -> payee, Some n
+                        PickerParts.row
+                            (rowClassFor (active = Some index))
+                            [
+                                prop.key (match row with TakeTyped p -> $"take-{p}" | Suggested (p, _) -> $"s-{p}")
+                                prop.role "option"
+                                prop.custom ("aria-selected", (active = Some index))
+                                prop.custom ("data-row-index", index)
+                                prop.custom ("data-testid", (match row with TakeTyped _ -> "payee-picker-take" | Suggested _ -> "payee-picker-option"))
+                                // Der Fokus bleibt im Suchfeld: am Handy bleibt die Tastatur offen (§7.1).
+                                prop.onMouseDown (fun e -> e.preventDefault ())
+                                prop.onClick (fun e ->
+                                    e.stopPropagation ()
+                                    pick (payeeOf row))
+                            ]
+                            (match count with
+                             | None -> PickerParts.name label
+                             | Some n ->
+                                 Html.span [
+                                     prop.className "flex min-w-0 flex-1 items-center justify-between gap-3"
+                                     prop.children [
+                                         PickerParts.name label
+                                         Html.span [
+                                             prop.className $"{Fonts.mono} {Colors.textMuted} {FontSizes.xs} tabular-nums shrink-0"
+                                             prop.text (Money.formatCount n)
+                                         ]
+                                     ]
+                                 ])
+                            None
+                    if props.Loading then
+                        Html.p [ prop.className $"py-2 {FontSizes.sm} {Colors.textMuted}"; prop.text loadingText ]
+                    else
+                        match props.LoadError with
+                        | Some message -> ErrorDisplay.inline' message
+                        | None when List.isEmpty props.Suggestions && List.isEmpty rows ->
+                            Html.p [ prop.className $"py-2 {FontSizes.sm} {Colors.textMuted}"; prop.text emptyText ]
+                        | None -> ()
+                ]
+            ]
+        ]
+    ]
+
+/// Die Auswahl mit diesen Eigenschaften.
+let view (props: PayeePickerProps) : ReactElement = View props

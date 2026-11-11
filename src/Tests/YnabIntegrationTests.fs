@@ -477,4 +477,110 @@ let integrationTests =
                     for id in created do
                         let result = deleteTransaction token budget id |> Async.RunSynchronously
                         printfn "[Probelauf] Aufräumen DELETE %s: %A" id result
+        // ledger-fxt09: der PUT des Payees (`updatePayee`, `payee_id` null und `payee_name`) ändert den
+        // Payee und lässt Kategorie, Betrag, `import_id` und Prüfvermerk stehen. Dazu: gleicht YNAB
+        // Schreibweise oder Leerzeichen an einen vorhandenen Payee an? Schreibt nur in das Budget
+        // "Test" und löscht, was es anlegt.
+        testCase "Probelauf: der PUT des Payees ändert nur den Payee (Budget Test)" <| fun () ->
+            if not (shouldRunIntegrationTests()) then
+                Tests.skiptest "RUN_INTEGRATION_TESTS not set to 'true' - skipping integration test (set RUN_INTEGRATION_TESTS=true in .env to enable)"
+
+            match getEnvVar "YNAB_TOKEN" with
+            | None -> Tests.skiptest "YNAB_TOKEN not set in .env - skipping integration test"
+            | Some token ->
+                let budget =
+                    match getBudgets token |> Async.RunSynchronously with
+                    | Ok budgets ->
+                        match budgets |> List.tryFind (fun b -> b.Name = "Test") with
+                        | Some b -> b.Id
+                        | None -> Tests.skiptest "Budget 'Test' nicht vorhanden - skipping integration test"
+                    | Error e -> failtest $"Budgets nicht lesbar: {e}"
+                let (YnabBudgetId budgetIdText) = budget
+                let account =
+                    match fetchBudgetAccounts token budget |> Async.RunSynchronously with
+                    | Ok accounts ->
+                        accounts
+                        |> List.tryFind (fun a -> a.OnBudget && not a.Closed)
+                        |> Option.defaultWith (fun () -> failtest "Das Budget Test braucht ein offenes Budget-Konto")
+                    | Error e -> failtest $"Konten nicht lesbar: {e}"
+                let category =
+                    match getCategories token budget |> Async.RunSynchronously with
+                    | Ok categories ->
+                        categories
+                        |> List.tryFind (fun c -> not c.Hidden && not (c.Name.StartsWith "Inflow") && c.GroupName <> "Credit Card Payments" && c.GroupName <> "Internal Master Category")
+                        |> Option.defaultWith (fun () -> failtest "Keine Kategorie im Budget Test")
+                    | Error e -> failtest $"Kategorien nicht lesbar: {e}"
+
+                // Liest die Felder, die der PUT nicht ändern darf, und den Payee.
+                let read (id: string) =
+                    use client = new System.Net.Http.HttpClient()
+                    client.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}")
+                    let response =
+                        client.GetAsync($"https://api.youneedabudget.com/v1/budgets/{budgetIdText}/transactions/{id}")
+                        |> Async.AwaitTask |> Async.RunSynchronously
+                    let body = response.Content.ReadAsStringAsync() |> Async.AwaitTask |> Async.RunSynchronously
+                    if int response.StatusCode <> 200 then failtest $"GET {id}: HTTP {int response.StatusCode}"
+                    use doc = System.Text.Json.JsonDocument.Parse body
+                    let tx = doc.RootElement.GetProperty("data").GetProperty("transaction")
+                    let text (name: string) =
+                        match tx.TryGetProperty name with
+                        | true, v when v.ValueKind = System.Text.Json.JsonValueKind.String -> Some (v.GetString())
+                        | _ -> None
+                    {| PayeeName = text "payee_name"
+                       PayeeId = text "payee_id"
+                       CategoryId = text "category_id"
+                       Amount = tx.GetProperty("amount").GetInt64()
+                       ImportId = text "import_id"
+                       Cleared = text "cleared"
+                       Approved = tx.GetProperty("approved").GetBoolean() |}
+
+                let suffix = Guid.NewGuid().ToString("N").Substring(0, 8)
+                let original = $"Probelauf fxt09 {suffix} Bank"
+                let replacement : SplitReplacement =
+                    { AccountId = account.Id
+                      Date = DateTime.Today
+                      Amount = { Amount = -4.56m; Currency = "EUR" }
+                      Payee = Some original
+                      Memo = Some "Probelauf ledger-fxt09, wird gelöscht"
+                      FlagColor = None
+                      Cleared = "cleared"
+                      Approved = true
+                      ImportId = Some $"BB:fxt09-{suffix}"
+                      CategoryId = Some category.Id
+                      Splits = []
+                      TransferAccountId = None }
+                let id =
+                    match createReplacement token budget replacement |> Async.RunSynchronously with
+                    | Ok id -> id
+                    | Error e -> failtest $"Buchung nicht angelegt: {e}"
+                try
+                    let before = read id
+                    printfn "[Probelauf fxt09] vorher %A" before
+                    let renamed = $"Probelauf fxt09 {suffix} Neu"
+                    let put = updatePayee token budget id renamed |> Async.RunSynchronously
+                    Expect.isOk put "YNAB nimmt den Payee an"
+                    let after = read id
+                    printfn "[Probelauf fxt09] nach PUT '%s': %A" renamed after
+                    Expect.equal after.PayeeName (Some renamed) "der neue Payee"
+                    Expect.notEqual after.PayeeId before.PayeeId "eine andere payee_id"
+                    Expect.equal
+                        (after.CategoryId, after.Amount, after.ImportId, after.Cleared, after.Approved)
+                        (before.CategoryId, before.Amount, before.ImportId, before.Cleared, before.Approved)
+                        "Kategorie, Betrag, import_id und Prüfvermerk bleiben"
+
+                    // Schreibweise: ein Name, der sich vom eben angelegten nur in Groß- und Kleinschreibung
+                    // unterscheidet.
+                    let otherCase = renamed.ToUpperInvariant()
+                    updatePayee token budget id otherCase |> Async.RunSynchronously |> fun r -> Expect.isOk r "PUT Schreibweise"
+                    let afterCase = read id
+                    printfn "[Probelauf fxt09] nach PUT '%s': %A" otherCase afterCase
+
+                    // Leerzeichen: derselbe Name mit Leerzeichen am Rand (BB trimmt vorher, hier roh).
+                    let padded = $"  {renamed}  "
+                    updatePayee token budget id padded |> Async.RunSynchronously |> fun r -> Expect.isOk r "PUT Leerzeichen"
+                    let afterPadded = read id
+                    printfn "[Probelauf fxt09] nach PUT '%s': %A" padded afterPadded
+                finally
+                    let result = deleteTransaction token budget id |> Async.RunSynchronously
+                    printfn "[Probelauf fxt09] Aufräumen DELETE %s: %A" id result
     ]
