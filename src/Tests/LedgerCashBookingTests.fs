@@ -862,3 +862,56 @@ let entriesNotInYnabTests =
             | [ shown ] -> Expect.equal shown.Reason PushOutcomeUnknown "Ausgang unbekannt"
             | other -> failtestf "eine Zeile erwartet, bekam %A" other
     ]
+
+/// Eine in BB erfasste Barbuchung auf `account`, danach die Ereignisse aus `after` (verknüpft, gelöscht, Fehlschlag).
+let private seedCashEntry (account: LedgerAccount) (after: LedgerEventBody list) : Guid =
+    let entryId = newEntryId ()
+    let event body = { EntryId = entryId; OccurredAt = at; Actor = QuickAdd; Body = body }
+    let added =
+        CashExpenseAdded {
+            AccountId = account.Id
+            Date = day
+            Amount = { Amount = -1m; Currency = "EUR" }
+            Payee = Some "Kiosk s1weh"
+            Memo = None
+            Category = None
+            Cleared = Uncleared
+            Approved = false
+            ImportId = None
+        }
+    appendAndApply (event added :: List.map event after) |> Async.RunSynchronously
+    let (EntryId id) = entryId
+    id
+
+// QA-Fund: das SQL hinter `getEntriesNotInYnab` (`linked_to_ynab = 0 AND deleted_in_ynab = 0`) war ungetestet.
+[<Tests>]
+let entriesNotInYnabQueryTests =
+    testList "Buchungen nicht in YNAB aus der Datenbank" [
+        testCase "Die Abfrage liefert offene Buchungen, keine verknüpften und keine in YNAB gelöschten" <| fun () ->
+            initialize ()
+            let account = mirroredAccount ()
+            let linked = seedCashEntry account [ EntryLinkedToYnab { YnabTransactionId = $"ynab-s1weh-{Guid.NewGuid()}" } ]
+            let deleted = seedCashEntry account [ EntryDeletionObservedInYnab ]
+            let failed = seedCashEntry account [ EntryPushToYnabFailed { Reason = "YNAB antwortet nicht" } ]
+            let unknown = seedCashEntry account []
+            let (LedgerAccountId accountGuid) = account.Id
+            // Die Datenbank ist zwischen den Tests geteilt: nur dieses frische Konto zählt. `entriesNotInYnab` filtert
+            // danach noch einmal rein, deshalb steht das SQL hier einzeln: ohne eine seiner Bedingungen wird es rot.
+            let loaded =
+                loadEntriesNotLinkedToYnab ()
+                |> Async.RunSynchronously
+                |> List.filter (fun e -> e.AccountId = account.Id)
+                |> List.map (fun e -> let (EntryId id) = e.Id in id)
+            Expect.equal (Set.ofList loaded) (Set.ofList [ failed; unknown ]) "das SQL lässt verknüpfte und gelöschte weg"
+            let shown =
+                getEntriesNotInYnab ()
+                |> Async.RunSynchronously
+                |> List.filter (fun e -> e.AccountId = accountGuid)
+            Expect.equal (shown |> List.map (fun e -> e.EntryId)) [ failed; unknown ] "ohne verknüpfte und gelöschte"
+            Expect.isFalse (shown |> List.exists (fun e -> e.EntryId = linked || e.EntryId = deleted)) "beide fehlen"
+            match shown with
+            | [ f; u ] ->
+                Expect.equal (match f.Reason with PushFailed p -> Some p.Reason | PushOutcomeUnknown -> None) (Some "YNAB antwortet nicht") "Grund"
+                Expect.equal u.Reason PushOutcomeUnknown "Ausgang unbekannt"
+            | other -> failtestf "zwei Zeilen erwartet, bekam %A" other
+    ]
