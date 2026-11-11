@@ -35,23 +35,23 @@ let private loadAccountsCmd () : Cmd<Msg> =
             (fun ex -> BalancesLoaded (Error ex.Message))
     ]
 
-/// Die neuesten Buchungen samt den Zählern „zu prüfen“ und „Lena“ über alle Konten.
-let private recentCmd () : Cmd<Msg> =
+/// Die neuesten Buchungen samt den Zählern „zu prüfen“ und „Lena“ über alle Konten, als Anfrage `request`.
+let private recentCmd (request: int) : Cmd<Msg> =
     Cmd.OfAsync.either
         (Retry.reading Api.ledger.getLedgerEntriesPage)
         recentQuery
-        (Ok >> RecentLoaded)
-        (fun ex -> RecentLoaded (Error ex.Message))
+        (fun page -> RecentLoaded (request, Ok page))
+        (fun ex -> RecentLoaded (request, Error ex.Message))
 
 /// Was „Zu tun“ außer Monat und Zählern braucht: die Buchungen nicht in YNAB, den Stand des Imports und die
 /// Lena-Farbe (ledger-s1weh). Die Sync-Historie bringt höchstens zehn Sitzungen.
-let private todoSourcesCmd () : Cmd<Msg> =
+let private todoSourcesCmd (notInYnabRequest: int) : Cmd<Msg> =
     Cmd.batch [
         Cmd.OfAsync.either
             (Retry.reading Api.ledger.getEntriesNotInYnab)
             ()
-            (Ok >> NotInYnabLoaded)
-            (fun ex -> NotInYnabLoaded (Error ex.Message))
+            (fun entries -> NotInYnabLoaded (notInYnabRequest, Ok entries))
+            (fun ex -> NotInYnabLoaded (notInYnabRequest, Error ex.Message))
         Cmd.OfAsync.either
             (Retry.reading Api.sync.getSyncHistory)
             10
@@ -70,36 +70,46 @@ let private reloading (rd: RemoteData<'a>) : RemoteData<'a> =
     | Success _ -> rd
     | _ -> Loading
 
-/// Der reine Teil von `Entered` und `SidebarNeedsAccounts`: welche Stränge laden.
+/// Der reine Teil von `Entered`: welche Stränge laden. Neueste Buchungen und Buchungen nicht in YNAB bekommen eine
+/// neue Anfrage-Nummer.
 let beginEnter (today: System.DateTime) (model: Model) : Model =
     { model with
         Today = today
         Month = reloading model.Month
         Recent = reloading model.Recent
+        RecentRequest = model.RecentRequest + 1
         NotInYnab = reloading model.NotInYnab
+        NotInYnabRequest = model.NotInYnabRequest + 1
         Accounts = reloading model.Accounts
         Balances = reloading model.Balances }
+
+/// Der reine Teil von `CountsNeeded`: nur die neuesten Buchungen samt Zählern, mit neuer Anfrage-Nummer.
+let beginCounts (model: Model) : Model =
+    { model with Recent = reloading model.Recent; RecentRequest = model.RecentRequest + 1 }
 
 let beginAccounts (model: Model) : Model =
     { model with Accounts = reloading model.Accounts; Balances = reloading model.Balances }
 
-/// Die Antworten, rein. Ein spätes Scheitern ersetzt keinen geladenen Stand.
+/// Die Antworten, rein. Ein spätes Scheitern ersetzt keinen geladenen Stand. Eine Antwort auf eine überholte Anfrage
+/// (Nummer älter als die jüngste) bleibt ohne Wirkung.
 let applyAnswer (msg: Msg) (model: Model) : Model =
     match msg with
+    | RecentLoaded (request, _) when request <> model.RecentRequest -> model
+    | NotInYnabLoaded (request, _) when request <> model.NotInYnabRequest -> model
     | MonthLoaded (Ok month) -> { model with Month = Success month }
     | MonthLoaded (Error message) -> { model with Month = RemoteData.lateFailure message model.Month }
-    | RecentLoaded (Ok page) ->
+    | RecentLoaded (_, Ok page) ->
         { model with
             Recent = Success page.Entries
             NeedsReviewCount = page.NeedsReviewCount
             AskLenaCount = page.AskLenaCount }
-    | RecentLoaded (Error message) -> { model with Recent = RemoteData.lateFailure message model.Recent }
+    | RecentLoaded (_, Error message) -> { model with Recent = RemoteData.lateFailure message model.Recent }
     | AccountsLoaded (Ok accounts) -> { model with Accounts = Success accounts }
     | AccountsLoaded (Error message) -> { model with Accounts = RemoteData.lateFailure message model.Accounts }
     | BalancesLoaded (Ok balances) -> { model with Balances = Success balances }
     | BalancesLoaded (Error message) -> { model with Balances = RemoteData.lateFailure message model.Balances }
-    | NotInYnabLoaded (Ok entries) -> { model with NotInYnab = Success entries }
-    | NotInYnabLoaded (Error message) -> { model with NotInYnab = RemoteData.lateFailure message model.NotInYnab }
+    | NotInYnabLoaded (_, Ok entries) -> { model with NotInYnab = Success entries }
+    | NotInYnabLoaded (_, Error message) -> { model with NotInYnab = RemoteData.lateFailure message model.NotInYnab }
     | SyncHistoryLoaded (now, Ok sessions) ->
         { model with ImportStand = lastImportAt sessions |> Option.map (importStandText now) }
     // Ohne Historie fehlt nur der Stand in Zeile 2 von Eintrag 1.
@@ -121,7 +131,11 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 (monthKey today)
                 MonthLoaded
                 (fun ex -> MonthLoaded (Error ex.Message))
-        beginEnter today model, Cmd.batch [ monthCmd; recentCmd (); todoSourcesCmd (); loadAccountsCmd () ]
+        let entered = beginEnter today model
+        entered,
+        Cmd.batch [ monthCmd; recentCmd entered.RecentRequest; todoSourcesCmd entered.NotInYnabRequest; loadAccountsCmd () ]
     | SidebarNeedsAccounts -> beginAccounts model, loadAccountsCmd ()
-    | CountsNeeded -> { model with Recent = reloading model.Recent }, recentCmd ()
+    | CountsNeeded ->
+        let counting = beginCounts model
+        counting, recentCmd counting.RecentRequest
     | answer -> applyAnswer answer model, Cmd.none

@@ -211,7 +211,7 @@ let transitionTests =
             let loading = { rootModel Overview with Overview = Components.Overview.State.beginEnter (DateTime(2026, 11, 7)) Components.Overview.Types.init }
             Expect.isFalse (State.isPageReady loading) "lädt"
             let answered =
-                [ MonthLoaded (Ok november); RecentLoaded (Ok { Entries = []; TotalCount = 0; TotalAmount = eur 0m; DeletedCount = 0; NeedsReviewCount = 0; AskLenaCount = 0 }); AccountsLoaded (Error "x"); BalancesLoaded (Ok []); NotInYnabLoaded (Ok []) ]
+                [ MonthLoaded (Ok november); RecentLoaded (loading.Overview.RecentRequest, Ok { Entries = []; TotalCount = 0; TotalAmount = eur 0m; DeletedCount = 0; NeedsReviewCount = 0; AskLenaCount = 0 }); AccountsLoaded (Error "x"); BalancesLoaded (Ok []); NotInYnabLoaded (loading.Overview.NotInYnabRequest, Ok []) ]
                 |> List.fold (fun m msg -> Components.Overview.State.applyAnswer msg m) loading.Overview
             Expect.isTrue (State.isPageReady { loading with Overview = answered }) "fertig, auch mit Fehler"
 

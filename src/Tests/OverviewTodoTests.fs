@@ -172,11 +172,32 @@ let todoStateTests =
         testCase "Die Antwort der neuesten Buchungen bringt die Zähler mit, die Zahl an der Übersicht folgt" <| fun () ->
             let page : LedgerEntryPage =
                 { Entries = []; TotalCount = 0; TotalAmount = eur 0m; DeletedCount = 0; NeedsReviewCount = 4; AskLenaCount = 2 }
-            let answered = Components.Overview.State.applyAnswer (RecentLoaded (Ok page)) init
+            let answered = Components.Overview.State.applyAnswer (RecentLoaded (init.RecentRequest, Ok page)) init
             Expect.equal (answered.NeedsReviewCount, answered.AskLenaCount) (4, 2) "Zähler"
             Expect.equal (reviewCount answered) 4 "Zahl"
             Expect.equal (reviewCount init) 0 "unbekannt: keine Zahl"
             Expect.equal (reviewCountLabel 4) "4 zu prüfen" "Wort zum Gelb"
+
+        // Review-Fund: Antworten waren nicht an ihre Anfrage gebunden. Überlappten Betreten und `CountsNeeded` (Start,
+        // Import) oder `ReloadRequested` nach dem Erfassen, setzte eine langsame alte Antwort Zähler und Liste zurück.
+        testCase "Eine Antwort auf eine überholte Anfrage setzt Zähler und Liste nicht zurück" <| fun () ->
+            let page (needsReview: int) : LedgerEntryPage =
+                { Entries = []; TotalCount = 0; TotalAmount = eur 0m; DeletedCount = 0; NeedsReviewCount = needsReview; AskLenaCount = 0 }
+            let apply msg model = Components.Overview.State.applyAnswer msg model
+            let entered = Components.Overview.State.beginEnter (DateTime(2026, 11, 7)) init
+            let counting = Components.Overview.State.beginCounts entered
+            let afterNew = apply (RecentLoaded (counting.RecentRequest, Ok (page 5))) counting
+            let afterOld = apply (RecentLoaded (entered.RecentRequest, Ok (page 2))) afterNew
+            Expect.equal (reviewCount afterOld) 5 "die alte Antwort nach der neuen ändert nichts"
+            let failedOld = apply (RecentLoaded (entered.RecentRequest, Error "weg")) counting
+            Expect.equal failedOld.Recent counting.Recent "ein altes Scheitern auch nicht"
+            let again = Components.Overview.State.beginEnter (DateTime(2026, 11, 7)) entered
+            let fresh = apply (NotInYnabLoaded (again.NotInYnabRequest, Ok [])) again
+            let stale = apply (NotInYnabLoaded (entered.NotInYnabRequest, Ok [ notInYnab ])) fresh
+            Expect.equal stale.NotInYnab (Success []) "Buchungen nicht in YNAB: die alte Liste kommt nicht zurück"
+            // `CountsNeeded` lässt die Buchungen nicht in YNAB in Ruhe: deren laufende Antwort zählt weiter.
+            let notInYnabAnswered = apply (NotInYnabLoaded (entered.NotInYnabRequest, Ok [ notInYnab ])) counting
+            Expect.equal notInYnabAnswered.NotInYnab (Success [ notInYnab ]) "eigene Nummer je Strang"
 
         testCase "Der Stand des Imports: die jüngste abgeschlossene Sitzung, relativ zu jetzt" <| fun () ->
             let session (minutesAgo: float) (status: SyncSessionStatus) : SyncSession =

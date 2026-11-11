@@ -21,6 +21,11 @@ type Model = {
     AskLenaCount: int
     /// Die Buchungen, die nicht in YNAB sind (ledger-s1weh).
     NotInYnab: RemoteData<EntryNotInYnab list>
+    /// Die Nummer der jüngsten Anfrage der neuesten Buchungen samt Zählern. Jede Auslösestelle zählt hoch, eine
+    /// Antwort mit älterer Nummer wird verworfen: sonst setzte eine langsame alte Antwort den Stand zurück.
+    RecentRequest: int
+    /// Dasselbe für die Buchungen nicht in YNAB.
+    NotInYnabRequest: int
     /// Wie lange der letzte abgeschlossene Import her ist, etwa „vor 2 Std.“. `None` ohne bekannten Import.
     ImportStand: string option
     /// Die Lena-Farbe aus den Einstellungen (ADR 0056) für die Marke in „Zu tun“.
@@ -41,6 +46,8 @@ let init : Model =
       NeedsReviewCount = 0
       AskLenaCount = 0
       NotInYnab = NotAsked
+      RecentRequest = 0
+      NotInYnabRequest = 0
       ImportStand = None
       LenaFlagColor = None
       Accounts = NotAsked
@@ -59,9 +66,10 @@ type Msg =
     /// einer anderen Seite und nach einem Import (ledger-s1weh).
     | CountsNeeded
     | MonthLoaded of Result<BudgetMonth, string>
-    /// Die neuesten Buchungen samt den Zählern „zu prüfen“ und „Lena“ über alle Konten.
-    | RecentLoaded of Result<LedgerEntryPage, string>
-    | NotInYnabLoaded of Result<EntryNotInYnab list, string>
+    /// Die neuesten Buchungen samt den Zählern „zu prüfen“ und „Lena“ über alle Konten, mit der Nummer der Anfrage.
+    | RecentLoaded of request: int * Result<LedgerEntryPage, string>
+    /// Die Buchungen nicht in YNAB, mit der Nummer der Anfrage.
+    | NotInYnabLoaded of request: int * Result<EntryNotInYnab list, string>
     /// Die letzten Sync-Sitzungen, mit dem Zeitpunkt der Antwort (UTC) für „Import vor …“.
     | SyncHistoryLoaded of now: DateTime * Result<SyncSession list, string>
     | LenaFlagLoaded of Result<LenaFlagSettings, string>
