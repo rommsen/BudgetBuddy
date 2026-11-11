@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-11 09:45 -- Batch started: [design-system-k6kfw]
+
+**Type:** Work / Batch start
+**Tasks:** design-system-k6kfw - "Navigation mit drei Orten: Übersicht, Kassenbuch, Budget, Einstellungen hinter dem Zahnrad, ab 768 px links; dazu eine schlichte Übersicht als Einstieg"
+**Parallel:** scoped — builder named design-system-k6kfw; no other ready tasks
+
+---
+
 ## 2026-11-11 08:31 -- Modeling / Promoted: design-system-k6kfw - "Navigation mit drei Orten: Übersicht, Kassenbuch, Budget, Einstellungen hinter dem Zahnrad, ab 768 px links; dazu eine schlichte Übersicht als Einstieg"
 
 **Type:** Modeling / Promote
