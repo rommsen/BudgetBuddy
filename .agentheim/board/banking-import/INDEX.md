@@ -11,18 +11,18 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 4
-- **Todo:** 1
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 1
 - **Done:** 7
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **banking-import-d0fey** — "Import direkt ins Kassenbuch: „Abrufen“ bucht neue Umsätze ohne Prüfsitzung sofort in Kassenbuch und YNAB als „zu prüfen“, unsichere Duplikate warten im Kassenbuch, der Sync-Ablauf schrumpft auf das Sheet „Abrufen“" (feature) — `todo/banking-import-d0fey-import-direkt-ins-kassenbuch.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **banking-import-d0fey** — "Import direkt ins Kassenbuch: „Abrufen“ bucht neue Umsätze ohne Prüfsitzung sofort in Kassenbuch und YNAB als „zu prüfen“, unsichere Duplikate warten im Kassenbuch, der Sync-Ablauf schrumpft auf das Sheet „Abrufen“" (feature) — `doing/banking-import-d0fey-import-direkt-ins-kassenbuch.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-11 22:30 -- Batch started: [budgeting-w9yt4, banking-import-d0fey, ledger-fxt09]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-w9yt4 - "Angepinnte Kategorien: Block „Angepinnt“ auf der Übersicht, Sheet zum Anpinnen, Lösen und Ordnen, Pin-Knopf im Kategorie-Detail, gespeichert als Zustand", banking-import-d0fey - "Import direkt ins Kassenbuch: „Abrufen“ bucht neue Umsätze ohne Prüfsitzung sofort in Kassenbuch und YNAB als „zu prüfen“, unsichere Duplikate warten im Kassenbuch, der Sync-Ablauf schrumpft auf das Sheet „Abrufen“", ledger-fxt09 - "Payee einer Buchung in BB ändern: Befehl mit Ereignis und Schreibweg nach YNAB, im Buchungs-Detail und auf der Karte beim Durchgehen, Rückgängig im Toast"
+**Parallel:** yes (3 workers; banking-import-d0fey und ledger-fxt09 teilen Api.fs, Ledger/CommandHandlers.fs und RemotingEndpointNegativeTests.fs, Merge nacheinander)
+
+---
+
 ## 2026-11-11 21:54 -- Modeling / Promoted: ledger-fxt09 - "Payee einer Buchung in BB ändern: Befehl mit Ereignis und Schreibweg nach YNAB, im Buchungs-Detail und auf der Karte beim Durchgehen, Rückgängig im Toast"
 
 **Type:** Modeling / Promote

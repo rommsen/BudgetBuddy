@@ -1,7 +1,7 @@
 ---
 id: banking-import-d0fey
 title: "Import direkt ins Kassenbuch: „Abrufen“ bucht neue Umsätze ohne Prüfsitzung sofort in Kassenbuch und YNAB als „zu prüfen“, unsichere Duplikate warten im Kassenbuch, der Sync-Ablauf schrumpft auf das Sheet „Abrufen“"
-status: todo
+status: doing
 type: feature
 context: banking-import
 created: 2026-11-11

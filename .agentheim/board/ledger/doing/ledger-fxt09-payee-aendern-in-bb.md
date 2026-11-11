@@ -1,7 +1,7 @@
 ---
 id: ledger-fxt09
 title: "Payee einer Buchung in BB ändern: Befehl mit Ereignis und Schreibweg nach YNAB, im Buchungs-Detail und auf der Karte beim Durchgehen, Rückgängig im Toast"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-11-11
