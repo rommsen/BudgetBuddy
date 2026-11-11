@@ -28,8 +28,11 @@ Zuletzt aktualisiert: 2026-11-11, nach work-Lauf zu design-system-k6kfw.
   ledger-t4rk8 (Betrag eines Übertrags in BB ändern, braucht Romans Entscheidungen beim Verfeinern). Danach
   design-system-ak97z (Umschalter Ausgabe/Einnahme hält die Tastatur offen, 45273030) mit Review b74d67df. Deployt 2026-11-11 (5f7fc08a).
 - **Blick Roman (2026-11-11):** ledger-q42pg und design-system-ak97z am Handy geprüft, passt.
-- **Nächster Schritt:** `/review-agents` für design-system-k6kfw (Navigation mit drei Orten): frontend-architecture,
-  design-quality, qa-milestone-reviewer. Danach Romans Blick am Handy (412 px) und am PC neben dem Prototyp,
+- **Review design-system-k6kfw (2026-11-11):** 31 Funde behoben in 63e9f6a7..ec87e30b, darunter „Abrufen“ startet den
+  Sync erst nach dem Lesen der Sitzung (kein zweiter Start, keine zweite Push-TAN) und sichtbare Ladefehler der Konten.
+  Entschieden (Roman): Schriftgrößen der Übersicht nach §7.14 (Kriterium in ledger-s1weh), Abbrechen-Pfeil im
+  Sync-Ablauf in die Kann-Sammlung banking-import.
+- **Nächster Schritt:** Romans Blick auf Navigation und Übersicht am Handy (412 px) und am PC neben dem Prototyp,
   dann `/agentheim:work` für ledger-s1weh (Übersicht als Einstieg, in `todo/`). Nicht deployt.
   Offen zum Verfeinern mit Roman: ledger-t4rk8 (Betrag eines Übertrags in BB ändern).
 - Verfeinert wird nur die nächste Etappe. Spätere Etappen haben Zeilen, keine Tickets.
