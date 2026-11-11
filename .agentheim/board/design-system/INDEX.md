@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 5
-- **Todo:** 0
+- **Backlog:** 4
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 46
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **design-system-k6kfw** — "Navigation mit drei Orten: Übersicht, Kassenbuch, Budget, Einstellungen hinter dem Zahnrad, ab 768 px links; dazu eine schlichte Übersicht als Einstieg" (feature) — `todo/design-system-k6kfw-navigation-mit-drei-orten.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -38,7 +39,6 @@ research touching this BC, and concept synthesis pages.
 <!-- backlog-list:start -->
 - **design-system-x1abn** — "Logo und Icon: Buddy aus standards/frontend/brand/ als Marke und PWA-Icon" (feature) — `backlog/design-system-x1abn-logo-und-icon.md`
 - **design-system-gcpws** — "Liste mit Panel überall: Panel rund 30 % ab 1024 px, auch für Regeln, Erfassen, Targets prüfen und Kategorien, ein generischer Tastentest" (feature) — `backlog/design-system-gcpws-liste-mit-panel-ueberall.md`
-- **design-system-k6kfw** — "Navigation mit drei Orten: Übersicht, Kassenbuch, Budget, Einstellungen hinter dem Zahnrad, ab 768 px links" (feature) — `backlog/design-system-k6kfw-navigation-mit-drei-orten.md`
 - **design-system-k8s2m** — "Kann-Sammlung design-system" (chore) — `backlog/design-system-k8s2m-kann-sammlung-design-system.md`
 - **design-system-taytp** — "Kategorie-Picker vereinheitlichen und Split im Import auf das Design-System" (refactor) — `backlog/design-system-taytp-kategorie-picker-vereinheitlichen.md`
 <!-- backlog-list:end -->

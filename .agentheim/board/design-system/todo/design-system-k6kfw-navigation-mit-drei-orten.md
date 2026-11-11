@@ -1,7 +1,7 @@
 ---
 id: design-system-k6kfw
 title: "Navigation mit drei Orten: Übersicht, Kassenbuch, Budget, Einstellungen hinter dem Zahnrad, ab 768 px links; dazu eine schlichte Übersicht als Einstieg"
-status: backlog
+status: todo
 type: feature
 context: design-system
 created: 2026-11-11

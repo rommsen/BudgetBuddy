@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-11 08:31 -- Modeling / Promoted: design-system-k6kfw - "Navigation mit drei Orten: Übersicht, Kassenbuch, Budget, Einstellungen hinter dem Zahnrad, ab 768 px links; dazu eine schlichte Übersicht als Einstieg"
+
+**Type:** Modeling / Promote
+**BC:** design-system
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-11 08:31 -- Modeling / Refined: design-system-k6kfw, ledger-s1weh - Navigation mit drei Orten und Übersicht als Einstieg
 
 **Type:** Modeling / Refine
