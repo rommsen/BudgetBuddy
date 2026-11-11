@@ -5,6 +5,26 @@ Newest entries on top.
 
 ---
 
+## 2026-11-11 17:33 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** 2h25m
+**Completed:** 1 (first-try PASS: 0, re-dispatched: 1, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Lost-result re-dispatches:** 0
+**Lost-result escalations:** 0
+**Dispatches:** s1weh: 2
+**Commits:** 4
+**Vision-conformance:** none — batch aligns with vision
+**Batch mix:** 100% product-facing (1 task)
+**Carry-over:** .agentheim/knowledge/fahrplan.md: committed (Fahrplan-Stand nach ledger-s1weh)
+**Result source:** sidecar in beiden Iterationen, layout both+sentinel
+**README length:** ledger README now 728 lines (ADR-0041 trigger: ~600) — consider `modeling` CONSOLIDATE
+
+---
+
 ## 2026-11-11 17:32 -- Task verified and completed: ledger-s1weh - "Übersicht als Einstieg (Variante A): Zu tun mit einer Hauptaktion, Zähler an der Übersicht, „+ Buchung“, am PC zweispaltig"
 
 **Type:** Work / Task completion

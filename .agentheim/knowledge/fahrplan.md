@@ -3,7 +3,7 @@
 Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success looks like“.
 
 ## Stand
-Zuletzt aktualisiert: 2026-11-11, nach work-Lauf zu design-system-k6kfw.
+Zuletzt aktualisiert: 2026-11-11, nach work-Lauf zu ledger-s1weh.
 
 - **Etappe 1 · Bedeutungen:** erledigt, 5 von 5 (Skizze und Prototyp, Layout-Sweep, Muster im
   Styleguide, Designwert-Tests aufgeräumt, Palette 2 im Token-Layer). Romans Blick auf dak16 neben
@@ -20,8 +20,10 @@ Zuletzt aktualisiert: 2026-11-11, nach work-Lauf zu design-system-k6kfw.
   Backlog, danach kann die Sperre für Überträge fallen. ledger-nb4tv (ETF-Konto und Abgleich) nach
   Etappe 3 verschoben (Roman, 2026-11-10).
   Deployt (2026-11-10, f85d3b3d): ledger-m7k2d, ledger-z6sya, ledger-m7mye.
-- **Etappe 3 · Ein Produkt:** in elf Schnitte geteilt (Roman, 2026-11-11). 1 erledigt (design-system-k6kfw,
-  189ec9a9, Verifier PASS in Iteration 2), 2 in `todo/`. Reihenfolge und Zuordnung im Abschnitt Etappe 3.
+- **Etappe 3 · Ein Produkt:** in elf Schnitte geteilt (Roman, 2026-11-11). 2 erledigt (design-system-k6kfw,
+  189ec9a9, Verifier PASS in Iteration 2; ledger-s1weh, 6d728e16, Verifier PASS in Iteration 2), keiner in `todo/`.
+  ledger-s1weh (Übersicht mit Zu tun): Abweichungen (a) bis (c) vom Prototyp in der Task, Romans Blick am Handy und PC offen,
+  Review noch nicht gelaufen. Reihenfolge und Zuordnung im Abschnitt Etappe 3.
 - **Laufend erledigt (2026-11-10):** ledger-mj3a9 (Bob gesperrt bei ungültigem `BOT_MAX_AMOUNT_EUR`, Nachtrag
   ADR 0068), ledger-q42pg (Feldfehler am Betrag statt Toast), ledger-m7a9q (Probelauf: YNAB zieht die Gegenbuchung
   eines Übertrags mit, Nachtrag ADR 0092); Review 68279598..HEAD mit Fixes 009b3186 und 5444edd7. Neu im Backlog:
@@ -33,7 +35,8 @@ Zuletzt aktualisiert: 2026-11-11, nach work-Lauf zu design-system-k6kfw.
   Entschieden (Roman): Schriftgrößen der Übersicht nach §7.14 (Kriterium in ledger-s1weh), Abbrechen-Pfeil im
   Sync-Ablauf in die Kann-Sammlung banking-import.
 - **Blick Roman (2026-11-11):** design-system-k6kfw (Navigation mit drei Orten) am Handy und PC geprüft, passt.
-- **Nächster Schritt:** `/agentheim:work` für ledger-s1weh (Übersicht als Einstieg, in `todo/`).
+- **Nächster Schritt:** `/review-agents` für ledger-s1weh (6d728e16), dann Romans Blick auf die Übersicht neben dem Prototyp;
+  danach budgeting-w9yt4 (Angepinnte Kategorien) verfeinern.
   Offen zum Verfeinern mit Roman: ledger-t4rk8 (Betrag eines Übertrags in BB ändern).
 - Verfeinert wird nur die nächste Etappe. Spätere Etappen haben Zeilen, keine Tickets.
 - Neue Ideen für spätere Etappen kommen hier als Zeile dazu.
@@ -88,7 +91,7 @@ Bis 4 und 5 stehen, zeigt „Zu tun“ auf den heutigen Sync-Ablauf; der Sync is
 Baut ein Schnitt eine Seite um, gilt die Zeile „Browser-Tests beim Umbau“ als Kriterium.
 
 1. ✓ `design-system-k6kfw` Navigation mit drei Orten, Zahnrad, ab 768 px links (2026-11-11)
-2. `ledger-s1weh` Übersicht als Einstieg (Zu tun, Monat, Konten am Handy, „+ Buchung“)
+2. ✓ `ledger-s1weh` Übersicht als Einstieg (Zu tun, Monat, Konten am Handy, „+ Buchung“) (2026-11-11)
 3. `budgeting-w9yt4` Angepinnte Kategorien
 4. `banking-import-d0fey` Import direkt ins Kassenbuch (nimmt `banking-import-t4raw`, `categorization-hz6vj` auf)
 5. `ledger-v6s7c` Durchgehen Karte für Karte
