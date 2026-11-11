@@ -26,20 +26,9 @@ Zuletzt aktualisiert: 2026-11-10, nach work-Lauf und Review zu ledger-mj3a9, led
   eines Übertrags mit, Nachtrag ADR 0092); Review 68279598..HEAD mit Fixes 009b3186 und 5444edd7. Neu im Backlog:
   ledger-t4rk8 (Betrag eines Übertrags in BB ändern, braucht Romans Entscheidungen beim Verfeinern). Danach
   design-system-ak97z (Umschalter Ausgabe/Einnahme hält die Tastatur offen, 45273030) mit Review b74d67df. Deployt 2026-11-11 (5f7fc08a).
-- **Nächster Schritt:** Roman prüft ledger-q42pg und design-system-ak97z am Handy (412 px, Touch: Meldung unter dem
-  Betragsfeld, Tastatur bleibt beim Umschalten Ausgabe/Einnahme und beim Speichern offen); beides ist deployt. Dann Etappe 3 in Tickets schneiden, zuerst Navigation mit drei Orten und Übersicht
-  als Einstieg.
-
-## Ablauf je Schritt
-1. Nächsten Schritt aus „Stand“ nennen.
-2. Verfeinern, nur Tasks der laufenden Etappe; promoten.
-3. `/agentheim:work` (Worker, Verifier).
-4. `/review-agents`; Funde unter der Muss-Schwelle in die Kann-Sammlung, nicht ins Backlog.
-5. Roman prüft die `[human-eye]`-Kriterien (Seite gegen Prototyp).
-6. Haken setzen, „Stand“ aktualisieren, committen.
-7. Wird der Kontext knapp: „Stand“ ist die Übergabe; nach `/compact` zuerst diese Datei lesen.
-
-Regeln:
+- **Blick Roman (2026-11-11):** ledger-q42pg und design-system-ak97z am Handy geprüft, passt.
+- **Nächster Schritt:** Etappe 3 in Tickets schneiden, zuerst Navigation mit drei Orten und Übersicht als Einstieg.
+  Offen zum Verfeinern mit Roman: ledger-t4rk8 (Betrag eines Übertrags in BB ändern).
 - Verfeinert wird nur die nächste Etappe. Spätere Etappen haben Zeilen, keine Tickets.
 - Neue Ideen für spätere Etappen kommen hier als Zeile dazu.
 - Bestehende Tasks tragen einen Tag: `etappe-1`, `etappe-2`, `etappe-3`, `laufend`, `danach`.
