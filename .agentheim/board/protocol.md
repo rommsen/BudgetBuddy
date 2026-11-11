@@ -5,6 +5,35 @@ Newest entries on top.
 
 ---
 
+## 2026-11-11 21:54 -- Modeling / Refined: banking-import-d0fey, banking-import-t4raw, ledger-v6s7c - Import direkt und Durchgehen
+
+**Type:** Modeling / Refine
+**BC:** banking-import, ledger, categorization
+**Status after:** todo
+**Summary:** Import bucht ohne Prüfsitzung direkt ins Kassenbuch und nach YNAB, unsichere Duplikate warten im Kassenbuch (zählen im Kontostand mit, Roman), automatischer Abruf im Intervall (Vorgabe an, 360 min) in t4raw umgeschrieben. Durchgehen Karte für Karte über alle ungeprüften Buchungen, wartende zuerst, dann älteste; Karte nach §7.14. Alle Funktionen der heutigen Prüfung bleiben (Payee ändern neu in ledger-fxt09, Aufteilen über Details, Regel aus der Buchung mit categorization-n3sxw, Order-ID-Vorschlag). Deploy von 4 und 5 gemeinsam (Roman). categorization-hz6vj geht in d0fey auf, Rest in der Kann-Sammlung.
+**Split into:** ledger-fxt09, ledger-r7h2w
+**ADRs written:** 0093
+
+---
+
+## 2026-11-11 21:54 -- Modeling / Captured: ledger-r7h2w - "Wartende Buchung (unsicheres Duplikat) übernehmen oder verwerfen: Befehle „Ist neu“, „Ist doppelt, verwerfen“ und Rückgängig mit Ereignissen, „Ist neu“ schickt sie nach YNAB"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Befehle für wartende unsichere Duplikate: Ist neu (Push nach YNAB), Verwerfen und Rückgängig, nach ADR 0093. Oberfläche baut ledger-v6s7c.
+
+---
+
+## 2026-11-11 21:54 -- Modeling / Captured: ledger-fxt09 - "Payee einer Buchung in BB ändern: Befehl mit Ereignis und Schreibweg nach YNAB, im Buchungs-Detail und auf der Karte beim Durchgehen, Rückgängig im Toast"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Payee einer Buchung in BB ändern, im Buchungsdetail und auf der Karte beim Durchgehen, mit Schreibweg nach YNAB. Ersetzt Payee ändern aus dem wegfallenden Sync-Ablauf.
+
+---
+
 ## 2026-11-11 21:36 -- Modeling / Promoted: budgeting-w9yt4 - "Angepinnte Kategorien: Block „Angepinnt“ auf der Übersicht, Sheet zum Anpinnen, Lösen und Ordnen, Pin-Knopf im Kategorie-Detail, gespeichert als Zustand"
 
 **Type:** Modeling / Promote
