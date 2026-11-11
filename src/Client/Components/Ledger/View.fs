@@ -1075,16 +1075,11 @@ let private accountListRowView (dispatch: Msg -> unit) (selected: AccountFilter 
         isActive
         (fun () -> dispatch (SelectFilter card.Filter))
 
-/// „Erneut laden“ bei gescheiterten Kontoständen. `className` legt fest, bis wohin er steht: in der Kontenspalte
-/// bis 1023 px, ab 1024 px über der Liste, weil die Spalte dort der Seitenleiste weicht.
-let private balancesNoticeView (dispatch: Msg -> unit) (className: string) (balances: RemoteData<LedgerAccountBalanceView list>) =
-    match balancesNotice balances with
-    | Some n ->
-        Html.div [
-            prop.className className
-            prop.children [ ErrorDisplay.cardCompactWith n.RetryLabel n.Text (Some (fun () -> dispatch n.Retry)) ]
-        ]
-    | None -> Html.none
+/// „Erneut laden“ bei gescheiterten Kontoständen: in der Kontenspalte bis 1023 px, ab 1024 px über der Liste, weil
+/// die Spalte dort der Seitenleiste weicht. Der Aufrufer legt den Rahmen fest.
+let private balancesNoticeView (dispatch: Msg -> unit) (balances: RemoteData<LedgerAccountBalanceView list>) =
+    balancesNotice balances
+    |> Option.map (fun n -> ErrorDisplay.cardCompactWith n.RetryLabel n.Text (Some (fun () -> dispatch n.Retry)))
 
 let private accountStrip
     (dispatch: Msg -> unit)
@@ -1096,7 +1091,10 @@ let private accountStrip
         Html.none
     else
         let cards = buildAccountCards accounts balances
-        let notice = balancesNoticeView dispatch "pb-2" balances
+        let notice =
+            match balancesNoticeView dispatch balances with
+            | Some card -> Html.div [ prop.className "pb-2"; prop.children [ card ] ]
+            | None -> Html.none
         Html.div [
             // Breite nach Handoff Screen 1.9 (Konten-Spalte: 268px). Kein eigener
             // Hintergrund (der Entwurf setzt dort `surface-app`, also denselben
@@ -4189,7 +4187,9 @@ let view (model: Model) (dispatch: Msg -> unit) =
             ErrorDisplay.cardWithTitle "Konten konnten nicht geladen werden" message (Some (fun () -> dispatch LoadAccounts))
         | Loading -> Loading.centered "Kassenbuch wird geöffnet…"
         | NotAsked | Success _ ->
-            if not (List.isEmpty accounts) then balancesNoticeView dispatch "hidden lg:block pb-3" balances
+            match balancesNoticeView dispatch balances with
+            | Some card when not (List.isEmpty accounts) -> Html.div [ prop.className "hidden lg:block pb-3"; prop.children [ card ] ]
+            | _ -> ()
             Html.div [
                 prop.className "flex flex-col md:flex-row md:items-start md:gap-6 gap-4"
                 prop.children [
