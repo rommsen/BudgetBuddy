@@ -1181,6 +1181,36 @@ export const STATES = [
     },
     open: async (page) => page.locator('[data-testid="overview-todos"]').waitFor(),
   },
+  // ledger-s1weh: „Neue Buchung“ auf der Übersicht, am Handy als Sheet über „+ Buchung“, ab 1024 px als Dialog in der
+  // Mitte über „Buchung“ im Kopf. „Buchung anlegen“ ist ohne Scrollen erreichbar, am Handy auch bei offener Tastatur.
+  {
+    name: "uebersicht-erfassen",
+    route: "/",
+    widths: [412, 1280],
+    mock: async (page) => {
+      await mockOverview(page);
+      await mockCapture(page, { catchAll: false });
+    },
+    open: async (page, { width }) => {
+      await openOverview(page);
+      if (width < 1024) {
+        await page.locator('[data-testid="overview-capture-fab"]').tap();
+        await page.locator('.bottom-sheet.active [data-testid="capture-recent"]').waitFor();
+      } else {
+        await page.getByRole("button", { name: "Neue Buchung" }).locator("visible=true").first().click();
+        await page.locator('[data-layer="dialog"] [data-testid="capture-recent"]').waitFor();
+      }
+    },
+    primary: (page) =>
+      page
+        .locator('[data-layer="dialog"]')
+        .or(page.locator(".bottom-sheet.active").first())
+        .getByRole("button", { name: "Buchung anlegen", exact: true }),
+    keyboard: {
+      focus: (page) => page.locator('.bottom-sheet.active [data-testid="capture-amount"] input'),
+      reach: (page) => page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Buchung anlegen", exact: true }),
+    },
+  },
   // Bei 20 px Grundschrift wächst die Karte „Monat“ mit (Höhen in rem); Platzhalter und Karte bleiben gleich hoch.
   {
     name: "uebersicht-grosse-schrift",

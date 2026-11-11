@@ -905,6 +905,12 @@ type DetailForm =
     | DetailPanel
     | DetailSheet
 
+/// Die Form von „Neue Buchung“ außerhalb des Kassenbuchs (Übersicht, ledger-s1weh): ab 1024 px ein Dialog in
+/// der Mitte, darunter das Sheet. Im Kassenbuch gilt `DetailForm` (Panel rechts oder Sheet).
+type CaptureShell =
+    | CaptureDialog
+    | CaptureSheet
+
 /// Wie die Liste bedient wird (ADR 0053 Punkt 6): die Breite wählt nur das Layout, die Gesten
 /// folgen dem Eingabegerät. `TableRows` ist die Tabelle (ab `md`), `CompactMouse` die schmale
 /// Kompaktliste mit Maus (Kästchen, Markierung, alle Tasten), `CompactTouch` die Kompaktliste

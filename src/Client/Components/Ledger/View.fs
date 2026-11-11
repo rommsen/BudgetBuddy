@@ -3647,10 +3647,17 @@ let private captureAccountList (dispatch: Msg -> unit) (model: Model) (capture: 
         ]
     ]
 
+/// Wo das Formular steht: im Panel rechts (Kassenbuch am PC), im Dialog (Übersicht am PC, ledger-s1weh) oder im
+/// Sheet. Im Panel und im Dialog öffnen Konto und Kategorie an Ort und Stelle, im Sheet als Sheet darüber.
+type private CapturePlace =
+    | CaptureInPanel
+    | CaptureInDialog
+    | CaptureInSheet
+
 /// Die Felder des Formulars von oben nach unten wie im Prototyp: Ausgabe/Einnahme, Betrag,
-/// Zuletzt, Konto, Kategorie oder Konto, Payee, Datum und Memo, dazu Fehler. `inPanel`: am PC
+/// Zuletzt, Konto, Kategorie oder Konto, Payee, Datum und Memo, dazu Fehler. `place`: im Panel
 /// öffnen die Auswahlen im Panel, am Handy als Sheet über dem Formular.
-let private captureFields (dispatch: Msg -> unit) (model: Model) (capture: Capture.CaptureState) (inPanel: bool) : ReactElement list =
+let private captureFields (dispatch: Msg -> unit) (model: Model) (capture: Capture.CaptureState) (place: CapturePlace) : ReactElement list =
     let form = capture.Form
     let account = captureAccountOf model form
     let accountOpen = capture.Picker = Some Capture.CaptureAccountPicker
@@ -3714,7 +3721,7 @@ let private captureFields (dispatch: Msg -> unit) (model: Model) (capture: Captu
                      |> Option.map (fun b -> Money.accountBalance b.Amount b.Currency))
                     accountOpen
                     (fun () -> dispatch (if accountOpen then CloseCapturePicker else OpenCapturePicker Capture.CaptureAccountPicker))
-                if inPanel && accountOpen then
+                if place <> CaptureInSheet && accountOpen then
                     Html.div [
                         prop.className $"mt-1 rounded-lg border {Tokens.Borders.default'} {Tokens.Backgrounds.elevated} p-1"
                         prop.children [ captureAccountList dispatch model capture ]
@@ -3733,7 +3740,11 @@ let private captureFields (dispatch: Msg -> unit) (model: Model) (capture: Captu
                     None
                     targetOpen
                     (fun () -> dispatch (if targetOpen then CloseCapturePicker else OpenCapturePicker Capture.CaptureTargetPicker))
-                if inPanel then CategoryPicker.popoverInPanel targetOpen (capturePickerProps dispatch model form)
+                match place with
+                | CaptureInPanel -> CategoryPicker.popoverInPanel targetOpen (capturePickerProps dispatch model form)
+                // Im scrollenden Körper des Dialogs rückt das Popover beim Öffnen ins Bild (FilterPopover.viewRevealed).
+                | CaptureInDialog -> CategoryPicker.popoverInPanelRevealed targetOpen (capturePickerProps dispatch model form)
+                | CaptureInSheet -> ()
             ]
         ]
 
@@ -3819,9 +3830,9 @@ let private captureFields (dispatch: Msg -> unit) (model: Model) (capture: Captu
     ]
 
 /// Der Inhalt des Formulars je nach Ladezustand der Vorbelegung.
-let private captureBody (dispatch: Msg -> unit) (model: Model) (capture: Capture.CaptureState) (inPanel: bool) : ReactElement list =
+let private captureBody (dispatch: Msg -> unit) (model: Model) (capture: Capture.CaptureState) (place: CapturePlace) : ReactElement list =
     match capture.Defaults with
-    | Success _ -> captureFields dispatch model capture inPanel
+    | Success _ -> captureFields dispatch model capture place
     | Failure message ->
         [ ErrorDisplay.cardWithTitle "Vorbelegung konnte nicht geladen werden" message (Some (fun () -> dispatch RetryCaptureDefaults)) ]
     | NotAsked | Loading -> [ Loading.centered "Formular wird vorbereitet…" ]
@@ -3870,7 +3881,7 @@ let private capturePanelView (dispatch: Msg -> unit) (model: Model) (capture: Ca
               Html.div [
                   prop.custom ("data-testid", "capture-form")
                   prop.className "flex flex-col gap-3 px-4 py-3"
-                  prop.children (captureBody dispatch model capture true)
+                  prop.children (captureBody dispatch model capture CaptureInPanel)
               ]
               // Wie im Prototyp direkt unter den Feldern, nicht am unteren Rand des Panels: das Panel reicht
               // ohne Scrollen der Seite unter den Fensterrand.
@@ -3902,7 +3913,7 @@ let private captureSheetView (dispatch: Msg -> unit) (model: Model) (capture: Ca
                   Html.div [
                       prop.custom ("data-testid", "capture-form")
                       prop.className "flex flex-col gap-4"
-                      prop.children (captureBody dispatch model c false)
+                      prop.children (captureBody dispatch model c CaptureInSheet)
                   ]
               | _ -> () ]
         match capture with
@@ -3921,9 +3932,71 @@ let private captureSheetView (dispatch: Msg -> unit) (model: Model) (capture: Ca
         | _ -> ()
     ]
 
-/// Das Formular als Sheet außerhalb des Kassenbuchs (Übersicht, ledger-s1weh), bei jeder Breite.
+/// Die Form des Formulars außerhalb des Kassenbuchs (ledger-s1weh): ab 1024 px (`panelViewport`, dieselbe Schwelle
+/// wie das Panel im Kassenbuch, §7.6) ein Dialog in der Mitte, darunter das Sheet.
+let captureShellFor (panelViewport: bool) : CaptureShell =
+    if panelViewport then CaptureDialog else CaptureSheet
+
+/// Was Esc im Dialog „Neue Buchung“ tut: erst die offene Kontoliste schließen, dann das Formular. Das Popover der
+/// Kategorie behandelt Esc selbst und hält das Ereignis an. Während „Buchung anlegen“ läuft, bleibt das Formular
+/// offen (`CloseCapture` prüft `Saving`).
+let captureEscapeMsg (capture: Capture.CaptureState) : Msg =
+    if capture.Picker.IsSome then CloseCapturePicker else CloseCapture
+
+/// Esc am Dokument, solange der Dialog „Neue Buchung“ offen ist: auch wenn der Fokus noch auf „Buchung“ im Kopf
+/// der Übersicht steht. Ein Ereignis, das schon jemand behandelt hat (Popover der Kategorie), bleibt unberührt.
+[<ReactComponent>]
+let private CaptureDialogEscape (capture: Capture.CaptureState) (dispatch: Msg -> unit) =
+    let latest = React.useRef (capture, dispatch)
+    latest.current <- (capture, dispatch)
+    React.useEffect (
+        (fun () ->
+            let onKey (event: Browser.Types.Event) =
+                let e = event :?> Browser.Types.KeyboardEvent
+                if e.key = "Escape" && not e.defaultPrevented then
+                    let current, send = latest.current
+                    e.preventDefault ()
+                    send (captureEscapeMsg current)
+            Browser.Dom.document.addEventListener ("keydown", onKey)
+            React.createDisposable (fun () -> Browser.Dom.document.removeEventListener ("keydown", onKey))),
+        [||]
+    )
+    Html.none
+
+/// Das Formular als Dialog in der Mitte (Übersicht ab 1024 px, ledger-s1weh). Felder, Kontoliste und Popover der
+/// Kategorie wie im Panel des Kassenbuchs; Esc, Hintergrund und Schließen schließen wie „Abbrechen“.
+let private captureDialogView (dispatch: Msg -> unit) (model: Model) (capture: Capture.CaptureState) : ReactElement =
+    React.fragment [
+        CaptureDialogEscape capture dispatch
+        Modal.view
+            { Modal.defaultProps with
+                IsOpen = true
+                OnClose = fun () -> dispatch CloseCapture
+                Size = Modal.Large
+                Title = Some captureTitle }
+            [ Modal.body [
+                  Html.div [
+                      prop.custom ("data-testid", "capture-form")
+                      prop.className "flex flex-col gap-3"
+                      prop.children (captureBody dispatch model capture CaptureInDialog)
+                  ]
+              ]
+              Modal.footer [
+                  Html.div [
+                      prop.className "grid w-full grid-cols-2 gap-3"
+                      prop.children [ captureCancelButton dispatch capture true; captureSubmitButton dispatch capture true ]
+                  ]
+              ] ]
+    ]
+
+/// Das Formular außerhalb des Kassenbuchs (Übersicht, ledger-s1weh): ab 1024 px als Dialog, darunter als Sheet.
+/// Die Breite wird einmal je Render gelesen (wie `isInspectorPanelViewport` sonst, ADR 0043): beide Formen
+/// portalen nach `document.body`, deshalb steht genau eine im DOM.
 let captureSheet (dispatch: Msg -> unit) (model: Model) : ReactElement =
-    captureSheetView dispatch model model.Capture true
+    match captureShellFor (Viewport.isInspectorPanelViewport ()), model.Capture with
+    | CaptureDialog, Some capture -> captureDialogView dispatch model capture
+    | CaptureDialog, None -> Html.none
+    | CaptureSheet, _ -> captureSheetView dispatch model model.Capture true
 
 /// Der schwebende Knopf "+ Buchung" am Handy, unten rechts über der Navigation. Er fehlt bei
 /// offenem Formular und im Auswahl-Modus (dort steht die Auswahl-Leiste). `fixed`, deshalb rendert ihn

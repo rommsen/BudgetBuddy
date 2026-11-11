@@ -207,7 +207,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                     Components.Ledger.View.selectionBars (LedgerMsg >> dispatch) model.Ledger
                     Components.Ledger.View.captureFab (LedgerMsg >> dispatch) model.Ledger
                 // „+ Buchung“ der Übersicht (ledger-s1weh): der Knopf schwebt am Handy, das Formular ist das des
-                // Kassenbuchs, als Sheet über der Übersicht.
+                // Kassenbuchs, ab 1024 px als Dialog in der Mitte, darunter als Sheet über der Übersicht.
                 if model.CurrentPage = Overview then
                     if model.Ledger.Capture.IsNone then
                         Components.Overview.View.captureFab model.Overview (fun () -> dispatch CaptureFromOverview)

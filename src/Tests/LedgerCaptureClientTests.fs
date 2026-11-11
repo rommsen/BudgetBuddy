@@ -426,3 +426,25 @@ let payeeLookupOrderTests =
             Expect.equal (captureOf model').Errors [ Components.Ledger.Capture.amountInvalidText ] "Fehler sichtbar"
             Expect.isFalse (captureOf model').Saving "bedienbar"
     ]
+
+/// „Neue Buchung“ auf der Übersicht (ledger-s1weh): ab 1024 px ein Dialog in der Mitte, darunter das Sheet. Esc im
+/// Dialog schließt eine Stufe, erst die Kontoliste, dann das Formular, nie während „Buchung anlegen“ läuft.
+[<Tests>]
+let overviewDialogTests =
+    let escape (model: Model) = step (Components.Ledger.View.captureEscapeMsg (captureOf model)) model
+    testList "Neue Buchung: Dialog auf der Übersicht am PC (ledger-s1weh)" [
+        testCase "ab 1024 px öffnet das Formular als Dialog, darunter als Sheet" <| fun () ->
+            Expect.equal (Components.Ledger.View.captureShellFor true) CaptureDialog "PC"
+            Expect.equal (Components.Ledger.View.captureShellFor false) CaptureSheet "Handy und schmales Fenster"
+
+        testCase "Esc bei offener Kontoliste schließt nur die Liste" <| fun () ->
+            let model = opened None |> step (OpenCapturePicker Components.Ledger.Capture.CaptureAccountPicker) |> escape
+            Expect.isNone (captureOf model).Picker "Liste zu"
+
+        testCase "Esc ohne offene Auswahl schließt das Formular" <| fun () ->
+            Expect.isNone (escape (opened None)).Capture "Formular zu"
+
+        testCase "Esc während Buchung anlegen läuft lässt das Formular offen" <| fun () ->
+            let model = opened (Some (OneAccount bar)) |> step (SetCaptureAmount "1") |> step SubmitCapture
+            Expect.isSome (escape model).Capture "bleibt offen"
+    ]

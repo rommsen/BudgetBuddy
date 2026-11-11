@@ -552,7 +552,8 @@ neue Ding. Ein Dialog (`Modal`) ist nur eine kurze Frage (Rückfrage vor dem Lö
 Budget, Targets prüfen, Kategorien).
 
 **Wann nicht:** Unter 1024 px öffnet das Detail als `BottomSheet` (§7.1). Eine Rückfrage oder eine
-Auswahl wird kein Panel.
+Auswahl wird kein Panel. Auf einer Seite ohne Liste (Übersicht) öffnet „Neue Buchung“ ab 1024 px als `Modal` in der Mitte,
+darunter als Sheet; nach dem Anlegen bleibt die Seite stehen (Roman, 2026-11-11).
 
 **Quelle:** ADR 0087 Punkt 16; Recherche Abschnitt 6, PC 1 und 2. Die Schwelle 1024 px folgt dem Prototyp (Roman, 2026-11-07); die Recherche nannte 840 px.
 
