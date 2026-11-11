@@ -1645,6 +1645,9 @@ type Msg =
 
     // Konto-Filter
     | SelectFilter of AccountFilter
+    /// Konto aus der Seitenleiste oder der Übersicht, bevor das Kassenbuch betreten wird (design-system-k6kfw):
+    /// setzt und merkt den Filter, ohne zu laden. Das Betreten lädt Konten und danach die Buchungen.
+    | PresetFilter of AccountFilter
     /// Konto-Wechsler am Handy (ledger-ybmqc): Titel antippen öffnet, Schließen oder Wahl schließt.
     | OpenAccountSheet
     | CloseAccountSheet

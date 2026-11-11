@@ -2,8 +2,8 @@
   {
     "file": "src/Client/DesignSystem/Tokens.fs",
     "pattern": "text-arbitrary-size",
-    "count": 8,
-    "reason": "Definitionsstelle der Typografie-Skala (FontSizes, ListRoles): text-[10px], text-[11px], text-[13px] und text-[15px] stehen nur hier (ADR 0049, Styleguide §2)."
+    "count": 9,
+    "reason": "Definitionsstelle der Typografie-Skala (FontSizes, ListRoles): text-[10px], text-[11px], text-[13px], text-[15px] und text-[17px] stehen nur hier (ADR 0049, Styleguide §2)."
   },
   {
     "file": "src/Client/DesignSystem/Input.fs",

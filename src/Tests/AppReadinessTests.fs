@@ -29,7 +29,7 @@ let private baseModel (page: Page) : State.Model =
         Ledger = ledgerModel
         Budget = Components.Budget.State.init ()
         QuickAdd = None
-        QuickAddTemplates = NotAsked
+        QuickAddTemplates = NotAsked; Overview = Components.Overview.Types.init; SettingsReturn = Types.Page.Overview
     }
 
 [<Tests>]

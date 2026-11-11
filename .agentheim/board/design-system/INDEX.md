@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 4
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 46
+- **Doing:** 0
+- **Done:** 47
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **design-system-k6kfw** — "Navigation mit drei Orten: Übersicht, Kassenbuch, Budget, Einstellungen hinter dem Zahnrad, ab 768 px links; dazu eine schlichte Übersicht als Einstieg" (feature) — `doing/design-system-k6kfw-navigation-mit-drei-orten.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **design-system-k6kfw** — "Navigation mit drei Orten: Übersicht, Kassenbuch, Budget, Einstellungen hinter dem Zahnrad, ab 768 px links; dazu eine schlichte Übersicht als Einstieg" (feature) — `done/design-system-k6kfw-navigation-mit-drei-orten.md`
 - **design-system-ak97z** — "Segmented mit KeepsFocus: Ausgabe/Einnahme im Sheet Betrag schließt die Tastatur nicht mehr" (bug) — `done/design-system-ak97z-segmented-keepsfocus.md`
 - **design-system-dak16** — "Palette 2 im Token-Layer: ein Akzent für Aktion und Auswahl, Gelb für braucht dich, keine Seitenausnahmen, Kontrast-Wächter" (feature) — `done/design-system-dak16-palette-2-im-token-layer.md`
 - **design-system-bcdqy** — "Muster im Styleguide: Orte, Auswahl, Liste mit Panel, Tastatur, Dialoge und Layout-Regeln für Handy und PC" (feature) — `done/design-system-bcdqy-muster-im-styleguide.md`

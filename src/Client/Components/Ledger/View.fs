@@ -1109,7 +1109,9 @@ let private accountStrip
             // wirksam (die Klasse selbst ist per `@media` in styles.css auf md+
             // begrenzt): am Handy zeigt dieselbe Zelle die waagerechte Kartenleiste
             // ohne Sticky.
-            prop.className $"md:w-[268px] md:shrink-0 md:border-r {Tokens.Borders.subtle} md:pr-3 ledger-account-strip"
+            // Ab 1024 px stehen die Konten in der Seitenleiste (design-system-k6kfw, Styleguide §7.14: eine
+            // Kontowahl je Ansicht); die Spalte gilt nur noch zwischen 768 und 1023 px neben der Rail.
+            prop.className $"md:w-[268px] md:shrink-0 md:border-r {Tokens.Borders.subtle} md:pr-3 lg:hidden ledger-account-strip"
             prop.children [
                 notice
                 Primitives.Responsive.mobileOnlyFlex [
@@ -2345,10 +2347,11 @@ let keyboardHintPanelText = "↑ ↓ bewegen · G geprüft · Esc Panel schließ
 let keyboardHintTextFor (model: Model) : string =
     if detailPanelOpen model then keyboardHintPanelText else keyboardHintText
 
+/// Die Leiste beginnt rechts von Rail (72 px) und Seitenleiste (232 px), design-system-k6kfw.
 let private keyboardHint (text: string) : ReactElement =
     Html.div [
         prop.className (
-            $"hidden md:flex fixed bottom-0 left-0 right-0 z-30 items-center gap-2 {Tokens.Backgrounds.surface} " +
+            $"hidden md:flex fixed bottom-0 left-0 md:left-[72px] lg:left-[232px] right-0 z-30 items-center gap-2 {Tokens.Backgrounds.surface} " +
             $"border-t {Tokens.Borders.subtle} px-5 py-3 {Tokens.FontSizes.xs} {Tokens.Colors.textMuted}"
         )
         prop.children [ Html.span [ prop.className Tokens.Fonts.mono; prop.text text ] ]
@@ -3504,7 +3507,8 @@ let selectionBars (dispatch: Msg -> unit) (model: Model) : ReactElement =
 let private selectionBarSpacers (model: Model) : ReactElement =
     React.fragment [
         if model.SelectionMode then Html.div [ prop.className "md:hidden h-52"; prop.ariaHidden true ]
-        if hasSelection model then Html.div [ prop.className "hidden md:block h-28 lg:h-20"; prop.ariaHidden true ]
+        // Neben der Seitenleiste (232 px, design-system-k6kfw) bricht die Leiste bis 1279 px zweizeilig um.
+        if hasSelection model then Html.div [ prop.className "hidden md:block h-28 xl:h-20"; prop.ariaHidden true ]
         elif keyboardHintVisible model then Html.div [ prop.className "hidden md:block h-12"; prop.ariaHidden true ]
     ]
 
@@ -4138,6 +4142,16 @@ let view (model: Model) (dispatch: Msg -> unit) =
             "Kassenbuch"
             (lastRunSubtitle model.LastMirrorRun)
             [
+                // Regeln stehen nicht mehr in der Navigation: bis `categorization-n3sxw` (Regeln ins Kassenbuch)
+                // führt dieser Link auf die Regelseite (design-system-k6kfw).
+                Html.a [
+                    prop.href "#/rules"
+                    prop.className $"inline-flex items-center gap-1.5 px-2 text-sm {Tokens.Colors.textSecondary} hover:text-text-primary {Tokens.TouchTargets.mobileMinHeight} md:min-h-0"
+                    prop.children [
+                        Icons.rules Icons.XS Icons.Default
+                        Html.span [ prop.text "Regeln" ]
+                    ]
+                ]
                 Button.view {
                     Button.defaultProps with
                         Icon = Some (Icons.sync Icons.SM Icons.Default)

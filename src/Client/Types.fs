@@ -139,6 +139,9 @@ module RemoteData =
 
 /// Application pages/routes
 type Page =
+    /// Die Übersicht, Einstieg der App unter `/` (design-system-k6kfw, ADR 0087 Punkt 9).
+    | Overview
+    /// Der Sync-Ablauf unter `/sync`: hängt unter der Übersicht und startet über „Abrufen“.
     | SyncFlow
     | Rules
     | Settings
@@ -173,6 +176,48 @@ let isLedgerPage (page: Page) : bool =
 let pageKey (page: Page) : string =
     if isLedgerPage page then "Ledger" else page.ToString()
 
+/// Die Orte der Navigation (Styleguide §7.4, ADR 0087 Punkt 9): Übersicht, Kassenbuch und Budget.
+/// Quick Add steht als vierter Eintrag, bis `ledger-ea70s` (Ein Erfassen) es ablöst.
+type Place =
+    | OverviewPlace
+    | LedgerPlace
+    | BudgetPlace
+    | QuickAddPlace
+
+/// Der Ort, unter dem eine Seite hängt und der in der Navigation markiert ist. Einstellungen und
+/// Styleguide hängen an keinem Ort, sie liegen hinter dem Zahnrad. Regeln hängen unter dem
+/// Kassenbuch, bis `categorization-n3sxw` sie dort als Tab einbaut.
+let placeOf (page: Page) : Place option =
+    match page with
+    | Overview
+    | SyncFlow -> Some OverviewPlace
+    | Ledger
+    | LedgerEntry _
+    | Rules -> Some LedgerPlace
+    | Budget
+    | BudgetHistory
+    | BudgetTargetCheck
+    | BudgetCategories -> Some BudgetPlace
+    | QuickAdd -> Some QuickAddPlace
+    | Settings
+    | Styleguide -> None
+
+/// Die Seite eines Orts.
+let placePage (place: Place) : Page =
+    match place with
+    | OverviewPlace -> Overview
+    | LedgerPlace -> Ledger
+    | BudgetPlace -> Budget
+    | QuickAddPlace -> QuickAdd
+
+/// Die Seite, zu der „Zurück“ aus den Einstellungen führt: die zuletzt offene Seite außerhalb der
+/// Einstellungen. Der Styleguide hängt unter den Einstellungen und ändert das Ziel nicht.
+let settingsReturn (current: Page) (target: Page) (previous: Page) : Page =
+    match current, target with
+    | (Settings | Styleguide), _ -> previous
+    | _, (Settings | Styleguide) -> current
+    | _ -> previous
+
 /// URL routing helpers for hash-based navigation
 module Routing =
     open Feliz.Router
@@ -186,7 +231,8 @@ module Routing =
     /// Parse URL segments to Page
     let parseUrl (segments: string list) : Page =
         match segments with
-        | [] -> SyncFlow
+        | [] -> Overview
+        | ["sync"] -> SyncFlow
         | ["rules"] -> Rules
         | ["settings"] -> Settings
         | ["styleguide"] -> Styleguide
@@ -197,12 +243,14 @@ module Routing =
         | ["budget"; "history"] -> BudgetHistory
         | ["budget"; "target-check"] -> BudgetTargetCheck
         | ["budget"; "categories"] -> BudgetCategories
-        | _ -> SyncFlow  // Fallback to SyncFlow for unknown routes
+        // Ein unbekannter Pfad landet auf der Übersicht.
+        | _ -> Overview
 
     /// Convert Page to URL segments (for navigation)
     let toUrlSegments (page: Page) : string list =
         match page with
-        | SyncFlow -> []
+        | Overview -> []
+        | SyncFlow -> ["sync"]
         | Rules -> ["rules"]
         | Settings -> ["settings"]
         | Styleguide -> ["styleguide"]

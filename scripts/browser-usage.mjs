@@ -91,7 +91,7 @@ export const TAGS = {
 /// Die Nutzerflüsse mit je einem Happy Path im Browser (`[flow:<name>]`). Ein neuer Flow ist eine neue
 /// Zeile hier; je Flow läuft höchstens ein Test.
 export const FLOWS = {
-  "budget-oeffnen": "Die Budget-Seite ist am Handy über die Tab-Leiste erreichbar.",
+  "navigation": "Die drei Orte über Leiste (Handy), Rail (Tablet) und Seitenleiste (PC) erreichen, ein Konto aus der Seitenleiste öffnen und über das Zahnrad in die Einstellungen.",
   "geld-zuweisen": "Am Handy eine Kategorie wählen, einen Betrag zuweisen und zur nächsten springen.",
   "geld-verschieben": "Am Handy Geld von einer Kategorie an eine andere abgeben.",
   "verschiebung-erneut-senden": "Eine gescheiterte Verschiebung über den Toast erneut senden.",

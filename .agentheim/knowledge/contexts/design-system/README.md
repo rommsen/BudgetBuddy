@@ -60,6 +60,7 @@ First-class BC für Frontend-Infrastruktur (analog `infrastructure` für Backend
 - **Lena-Kennzeichen (ADR 0087 Punkt 8)** — `Badge.lenaMark text`: Flag-Symbol (`Icons.LenaFlag`, `role="img"`, Name „Flag“) und der Text mit „Lena“, neutral, ohne farbiges Badge. Die Farbe aus `lena_flag_color` steht nur im Symbol: die Seite setzt `data-lena-flag` (Kassenbuch, Import prüfen), `styles.css` bildet sie auf `--color-flag-<farbe>` ab; ohne Farbe bleibt das Symbol gedämpft.
 - **Kontrast-Wächter** — `scripts/contrast-guard.test.mjs` (Teil von `npm run test:scripts`) liest die Farbwerte aus `src/Client/styles.css` und prüft nach WCAG 2: Text- und Rollenfarben mindestens 4,5:1 gegen `bg-card`, `bg-elevated`, `bg-hover`; `border-strong` und die Flag-Farben mindestens 3:1; `on-accent` auf dem Akzent mindestens 4,5:1.
 - **Entfallene Farben im Token-Wächter** — das Muster `entfallene-farbe` in `scripts/token-guard.mjs` meldet `neon-pink/orange/purple`, `neonPink/Orange/Purple`, `calm-violet`/`calmViolet` und `Stats.Pink` überall unter `src/Client/`, auch im DesignSystem und ohne Eintrag in der Ausnahmeliste. Es ersetzt `budget-ohne-pink` und die Farbregel `measurePink` des Layout-Sweeps (Regression zu Fix 5850313).
+- **Ort und Navigation (design-system-k6kfw)** — BB hat drei Orte: Übersicht (`/`), Kassenbuch und Budget; Quick Add steht als vierter Eintrag, bis `ledger-ea70s` es ablöst. `Types.placeOf` ordnet jede Seite ihrem Ort zu (Sync-Ablauf unter Übersicht; Buchungsdetail und Regeln unter Kassenbuch; Budget-Historie, Targets prüfen und Kategorien unter Budget); Einstellungen und Styleguide hängen an keinem Ort, sie liegen hinter dem Zahnrad. `Navigation.fs` zeigt die Orte am Handy als Leiste unten, von 768 bis 1023 px als Rail ohne Konten und ab 1024 px als Seitenleiste mit Marke, Konten und Einstellungen; oben steht keine Leiste mehr (`--nav-height` ist 0). Jede Unterseite hat im Kopf „Zurück“ (`PageHeader.backButton`, Prototyp `.back`), aus den Einstellungen zur zuvor offenen Seite (`Types.settingsReturn`). Der Sync-Ablauf liegt unter `/sync` und startet über „Abrufen“ in der Übersicht.
 
 ## The styleguide gate
 Der Styleguide (`design-system-001`) ist das **Gate** für UI-Arbeit projektweit:
@@ -156,12 +157,7 @@ Komponenten, **nur in diese Richtung** (Repo → Claude Design, nie zurück).
   `@charset`/`@layer` stehen muss, und wurde vom Build deshalb verworfen. Die App
   liefert die drei Schriften jetzt selbst aus (`@font-face`, `public/fonts/`), kein
   Google-Fonts-Import mehr.
-- **Navigation-Preview-Varianten** (`Navigation.desktopNavPreview`/`mobileNavPreview`,
-  `src/Client/DesignSystem/Navigation.fs`): dieselbe Chrome wie
-  `desktopNav`/`mobileNav`, aber ohne `fixed`-Positionierung, zum Einbetten in
-  begrenzte Container (Styleguide-Galerie, Export-Bundle). Bewusst additive Funktionen
-  statt eines `transform`-Containment-Tricks auf den echten (fixen)
-  Navigationskomponenten (siehe `.claude/rules/css-animation-safety.md`).
+- **Navigation-Preview-Varianten** (`Navigation.bottomBarPreview`/`sidebarPreview`, `src/Client/DesignSystem/Navigation.fs`, seit design-system-k6kfw): dieselben Einträge wie `bottomBar`/`sidebar`, aber ohne `fixed`-Positionierung, zum Einbetten in begrenzte Container (Styleguide-Galerie, Export-Bundle). Bewusst additive Funktionen statt eines `transform`-Containment-Tricks auf den echten (fixen) Navigationskomponenten (siehe `.claude/rules/css-animation-safety.md`).
 - Verifikation: automatisiert über `npm run test:scripts`
   (`scripts/export-design-system.test.mjs`, design-system-w4n9r). Browserfrei geprüft:
   `resolveOutDir`, `expectedBundleFiles`, `findMissingBundleFiles` (dieselbe Funktion,

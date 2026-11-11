@@ -374,15 +374,9 @@ let private sheet (model: Model) (dispatch: Msg -> unit) =
               ] ]
     | None -> BottomSheet.inspector (props "" false) [] [] []
 
+/// „Zurück“ mit Pfeil (Prototyp `.back`, design-system-k6kfw).
 let private backButton (dispatch: Msg -> unit) =
-    Button.view
-        { Button.defaultProps with
-            Text = "← Budget"
-            Variant = Button.Ghost
-            Size = Button.Small
-            AriaLabel = Some "Zurück zum Budget"
-            ClassName = Some "-ml-3"
-            OnClick = fun () -> dispatch LeaveTargetCheck }
+    PageHeader.backButtonFor (Some "Zurück zum Budget") (fun () -> dispatch LeaveTargetCheck)
 
 let private counter (hints: bool) (count: int) =
     let testId, label = if hints then "target-check-hints", "Hinweise" else "target-check-fits", "Passt"

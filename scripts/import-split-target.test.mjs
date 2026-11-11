@@ -70,7 +70,7 @@ async function openReady(viewport) {
   await page.route("**/api/YnabApi/getPayees", (r) => r.fulfill(json({ Ok: [] })));
   await page.route("**/api/YnabApi/getBudgetDetails", count("getBudgetDetails", (r) => r.fulfill({ status: 500, body: "x" })));
   await page.route("**/api/LedgerApi/getBudgetAccounts", (r) => r.fulfill(json({ Ok: accounts })));
-  await page.goto(`http://localhost:${port}/#/`);
+  await page.goto(`http://localhost:${port}/#/sync`);
   await page.waitForSelector(".tx-row");
   return { ctx, page, calls };
 }

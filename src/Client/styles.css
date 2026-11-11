@@ -147,12 +147,11 @@
   --radius-full: 9999px;
 
   /* Layout */
-  --nav-height-mobile: 56px;
-  --nav-height-desktop: 56px;
-  --bottom-nav-height: 64px;
-  /* Die PC-Navbar ist `h-16` (`Navigation.fs`): in rem, sie wächst mit der Grundschrift. Alles, was
-     darunter haftet, rückt mit (Layout-Sweep, Zustände budget-grosse-schrift, kassenbuch-grosse-schrift). */
-  --nav-height: 4rem;
+  /* Leiste unten am Handy: 60 px (Prototyp `.nav`, design-system-k6kfw), ohne Safe-Area. */
+  --bottom-nav-height: 60px;
+  /* Oben steht keine Leiste mehr (design-system-k6kfw): die Navigation liegt am PC links, am Handy unten. Was
+     oben haftet, haftet am Rand des Fensters; der Name bleibt, damit die Haft-Regeln eine Stelle teilen. */
+  --nav-height: 0px;
   --content-max-width: 960px;
   --content-padding: 16px;
 
@@ -1167,7 +1166,7 @@ nav a:focus-visible {
   -webkit-overflow-scrolling: touch;
   /* Sticky below the fixed header — on long lists the filter never scrolls away */
   position: sticky;
-  top: calc(56px + env(safe-area-inset-top, 0px));
+  top: env(safe-area-inset-top, 0px);
   z-index: 20;
   background: color-mix(in srgb, var(--bg-app) 85%, transparent);
   backdrop-filter: blur(12px);
@@ -1185,8 +1184,8 @@ nav a:focus-visible {
    `filterChipBar`): haftet wie `.table-sticky-thead`/`.ledger-account-strip`
    unter der fixen Navbar. Anders als bei der Tabelle gilt das auf beiden
    Geräten (Styleguide 7.3, Aufgaben-`## What`: "auf beiden Geräten"), deshalb
-   zwei Werte statt eines einzigen `@media`-Blocks: 56px Handy-Kopfzeile
-   (`mobileHeader`, plus Safe-Area) und `--nav-height` am PC, genau wie `.filters`
+   zwei Werte statt eines einzigen `@media`-Blocks: die Safe-Area oben am Handy
+   und `--nav-height` am PC, genau wie `.filters`
    oben.
 
    `--ledger-filter-bar-height` (an `.table-sticky-thead thead` unten) trägt die
@@ -1200,7 +1199,7 @@ nav a:focus-visible {
 .budget-month-bar,
 .budget-filter-chips {
   position: sticky;
-  top: calc(56px + env(safe-area-inset-top, 0px));
+  top: env(safe-area-inset-top, 0px);
   z-index: 20;
   background: color-mix(in srgb, var(--bg-app) 85%, transparent);
   backdrop-filter: blur(12px);
@@ -1218,7 +1217,7 @@ nav a:focus-visible {
    wenig Höhe nehmen. Die Höhe des Kopfs misst `MeasuredBar` in `Budget/View.fs`, er bricht um und
    wächst mit der Schrift. */
 .budget-page {
-  --budget-nav-height: calc(56px + env(safe-area-inset-top, 0px));
+  --budget-nav-height: env(safe-area-inset-top, 0px);
   --budget-bar-bottom: calc(var(--budget-nav-height) + var(--budget-month-bar-height, 0px));
 }
 .budget-filter-chips {
@@ -1361,8 +1360,8 @@ nav a:focus-visible {
    ============================================================ */
 .date-header {
   position: sticky;
-  /* mobileHeader (56px) + sticky .filters (~52px) */
-  top: calc(108px + env(safe-area-inset-top, 0px));
+  /* unter der haftenden .filters (~52px), oben steht keine Leiste mehr (design-system-k6kfw) */
+  top: calc(52px + env(safe-area-inset-top, 0px));
   z-index: 5;
   display: flex;
   justify-content: space-between;
@@ -2199,9 +2198,9 @@ nav a:focus-visible {
   }
 }
 
-/* Date header top offset for desktop (taller nav + sticky filters) */
+/* Date header top offset for desktop: nur unter den haftenden Filtern, oben steht keine Leiste mehr */
 @media (min-width: 768px) {
-  .date-header { top: 116px; }
+  .date-header { top: 52px; }
 }
 @media (min-width: 768px) {
   .tx-payee { font-size: 14px; }

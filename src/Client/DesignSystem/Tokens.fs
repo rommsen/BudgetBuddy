@@ -101,6 +101,7 @@ module FontSizes =
     let xs = "text-xs"                   // Labels, captions
     let micro = "text-[10px]"            // Micro labels: stat captions, status chips, mono glyphs (below the xs scale by design)
     let microPlus = "text-[11px]"        // Slightly larger micro labels (e.g. desktop-only meta strings)
+    let brand = "text-[17px]"            // Markenname in der Seitenleiste (Prototyp `.brand`, design-system-k6kfw)
     let compact = "text-[13px]"          // Zwischen xs und sm: Kopf und Werte der Leiste Monatserster (Skizze, budgeting-m3x7f)
 
 /// Typografie-Rollen für ruhige Listen (ADR 0049, Styleguide §2 "Ruhige Listen").

@@ -85,7 +85,7 @@ async function open(startAnswer, lost) {
     current = session("ReviewingTransactions");
     return r.fulfill(json({ Ok: [] }));
   });
-  await page.goto(`http://localhost:${port}/#/`);
+  await page.goto(`http://localhost:${port}/#/sync`);
   await page.getByRole("button", { name: "Sync starten" }).click();
   return { ctx, page, calls };
 }

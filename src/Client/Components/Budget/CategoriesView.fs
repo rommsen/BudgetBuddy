@@ -27,14 +27,7 @@ let private header (dispatch: Msg -> unit) =
         prop.custom ("data-testid", "categories-head")
         prop.className "flex items-baseline gap-3"
         prop.children [
-            Button.view
-                { Button.defaultProps with
-                    Text = "Zurück"
-                    Variant = Button.Ghost
-                    Size = Button.Small
-                    AriaLabel = Some "Zurück zum Budget"
-                    ClassName = Some "-ml-3"
-                    OnClick = fun () -> dispatch Leave }
+            PageHeader.backButtonFor (Some "Zurück zum Budget") (fun () -> dispatch Leave)
             Html.h1 [ prop.className $"text-xl {FontWeights.semibold} {Colors.textPrimary}"; prop.text "Kategorien" ]
         ]
     ]

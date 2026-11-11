@@ -259,7 +259,7 @@ let private listArea (model: Model) (shown: BudgetGroup list) (wide: bool) (disp
     Html.div [
         prop.custom ("data-testid", "budget-list-area")
         prop.custom ("aria-busy", monthChanging model)
-        prop.className $"flex flex-col gap-4 min-w-0 {monthChangeClass model}"
+        prop.className $"@container flex flex-col gap-4 min-w-0 {monthChangeClass model}"
         prop.children [
             match model.Month with
             | NotAsked

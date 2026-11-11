@@ -434,31 +434,6 @@ test("[tastatur] Barrierefreiheit: Handy-Zeile mit aria-current, Monat und Suche
   }
 });
 
-test("[flow:budget-oeffnen] Navigation: die Budget-Seite ist über die Tab-Leiste am Handy erreichbar", async () => {
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
-  const page = await context.newPage();
-  page.setDefaultTimeout(30000);
-  await page.route("**/api/**", (route) =>
-    route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"not mocked in this test"}' })
-  );
-  await mockFrame(page, frameFor(monthFixture));
-  await page.route("**/api/BudgetApi/getBudgetMonth", (route) =>
-    route.fulfill({ contentType: "application/json", body: JSON.stringify({ Ok: monthFixture("2026-10-01", 10) }) })
-  );
-  try {
-    await page.goto(`http://127.0.0.1:${frontendPort}/#/settings`, { waitUntil: "load" });
-    const tab = page.locator("nav").getByText("Budget", { exact: true }).filter({ visible: true });
-    await tab.waitFor();
-    const bounds = await tab.boundingBox();
-    assert.ok(bounds && bounds.x >= 0 && bounds.x + bounds.width <= 390, "Eintrag liegt im sichtbaren Bereich");
-    await tab.click();
-    await page.locator('[data-testid="budget-to-be-budgeted"]').waitFor();
-    assert.match(page.url(), /#\/budget$/);
-  } finally {
-    await context.close();
-  }
-});
-
 // ---------------- budgeting-h3k9d: dichter, Tastatur seitenweit, Überzogen, ˄ ˅ ----------------
 
 const selectedRowText = (page) => page.locator("tr[aria-current='true']").innerText();

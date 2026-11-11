@@ -217,7 +217,7 @@ let view (history: GeneralHistory) (dispatch: Msg -> unit) =
                 Html.div [
                     prop.className "flex items-center gap-3"
                     prop.children [
-                        Button.secondary "Zurück" (fun () -> dispatch LeaveGeneralHistory)
+                        PageHeader.backButtonFor (Some "Zurück zum Budget") (fun () -> dispatch LeaveGeneralHistory)
                         Html.span [ prop.className ListRoles.primary; prop.text "Historie" ]
                     ]
                 ]

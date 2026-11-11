@@ -713,8 +713,9 @@ let private lenaFlagCard (model: Model) (dispatch: Msg -> unit) =
 // Page Header
 // ============================================
 
-let private pageHeader (dispatch: Msg -> unit) =
-    PageHeader.withActions
+let private pageHeader (back: ReactElement) (dispatch: Msg -> unit) =
+    PageHeader.top
+        (Some back)
         "Einstellungen"
         (Some "Verbindungen und Konfiguration")
         [
@@ -732,12 +733,13 @@ let private pageHeader (dispatch: Msg -> unit) =
 // Main View
 // ============================================
 
-let view (model: Model) (dispatch: Msg -> unit) =
+/// `back`: „Zurück“ zur Seite, die vor den Einstellungen offen war (design-system-k6kfw).
+let view (back: ReactElement) (model: Model) (dispatch: Msg -> unit) =
     Html.div [
         prop.className "space-y-5 md:space-y-6 max-w-3xl mx-auto"
         prop.children [
             // Header
-            pageHeader dispatch
+            pageHeader back dispatch
 
             // Loading state
             match model.Settings with

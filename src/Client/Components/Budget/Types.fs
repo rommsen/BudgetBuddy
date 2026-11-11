@@ -304,6 +304,9 @@ type Model = {
     CategorySearch: string
     /// Filter über der Liste. Bleibt beim Monatswechsel stehen.
     Filter: CategoryFilter
+    /// Der Filter, mit dem das nächste Betreten der Seite beginnt, etwa „Im Minus“ aus der Übersicht
+    /// (design-system-k6kfw). Das Betreten verbraucht ihn.
+    EntryFilter: CategoryFilter option
     /// Der Tab Geld der gewählten Kategorie.
     TabMoney: MoneyTabState option
     /// Gespeicherte Zuweisungen: es läuft höchstens eine, die erste (ADR 0078 Punkt 5).
@@ -411,6 +414,8 @@ type Msg =
     | ClearCategorySearch
     /// Alle, Fehlt oder Überzogen.
     | SelectFilter of CategoryFilter
+    /// Die Seite wird gleich mit diesem Filter betreten (Übersicht, „Im Minus“).
+    | EnterWithFilter of CategoryFilter
     /// Der Umschalter Zuweisen, Holen, Abgeben.
     | SwitchMoneyMode of MoneyMode
     /// Eingabe im Feld Zugewiesen.
@@ -592,6 +597,7 @@ let init () : Model =
       Targets = TargetsClosed
       CategorySearch = ""
       Filter = AllCategories
+      EntryFilter = None
       TabMoney = None
       AssignQueue = []
       MoveInFlight = NoMoveCall

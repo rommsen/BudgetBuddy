@@ -13,6 +13,8 @@ type IconSize =
     | MD    // 24px - standard icons
     | LG    // 32px - featured icons
     | XL    // 48px - hero icons
+    | Tab   // 22px - Leiste unten, Rail und Symbolknöpfe im Kopf (Prototyp `.nav`, `.icon`)
+    | Side  // 19px - Zeilen der Seitenleiste (Prototyp `.nv`)
 
 let private sizeToClass = function
     | XS -> "w-4 h-4"
@@ -20,6 +22,8 @@ let private sizeToClass = function
     | MD -> "w-6 h-6"
     | LG -> "w-8 h-8"
     | XL -> "w-12 h-12"
+    | Tab -> "w-[22px] h-[22px]"
+    | Side -> "w-[19px] h-[19px]"
 
 let private sizeToTextClass = function
     | XS -> "text-sm"
@@ -27,6 +31,8 @@ let private sizeToTextClass = function
     | MD -> "text-xl"
     | LG -> "text-2xl"
     | XL -> "text-4xl"
+    | Tab -> "text-xl"
+    | Side -> "text-lg"
 
 // ============================================
 // Icon Color Variants
@@ -139,6 +145,69 @@ let settings (size: IconSize) (color: IconColor) =
             svg.strokeLineJoin "round"
             svg.d "M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
         ]
+    ]
+
+// ============================================
+// Orte der Navigation (Prototyp Version 17, `I.home`, `I.book`, `I.pie`, `I.gear`, `I.refresh`)
+// ============================================
+
+/// Wie `svgIcon`, mit der Strichstärke des Prototyps (1,8) und runden Enden.
+let private protoIcon (size: IconSize) (color: IconColor) (children: ReactElement list) =
+    Svg.svg [
+        svg.className $"{sizeToClass size} {colorToClass color} inline-block flex-shrink-0"
+        svg.fill "none"
+        svg.viewBox (0, 0, 24, 24)
+        svg.stroke "currentColor"
+        svg.strokeWidth 1.8
+        svg.strokeLineCap "round"
+        svg.strokeLineJoin "round"
+        svg.children children
+    ]
+
+/// Haus: der Ort Übersicht.
+let home (size: IconSize) (color: IconColor) =
+    protoIcon size color [ Svg.path [ svg.d "M3 11l9-7 9 7" ]; Svg.path [ svg.d "M5 10v10h14V10" ] ]
+
+/// Buch: der Ort Kassenbuch.
+let book (size: IconSize) (color: IconColor) =
+    protoIcon size color [
+        Svg.rect [ svg.x 4; svg.y 3; svg.width 16; svg.height 18; svg.rx 2 ]
+        Svg.path [ svg.d "M8 8h8M8 12h8M8 16h5" ]
+    ]
+
+/// Kreis mit Segment: der Ort Budget.
+let pie (size: IconSize) (color: IconColor) =
+    protoIcon size color [ Svg.path [ svg.d "M12 3v9h9" ]; Svg.circle [ svg.cx 12; svg.cy 12; svg.r 9 ] ]
+
+/// Zahnrad: die Einstellungen.
+let gear (size: IconSize) (color: IconColor) =
+    protoIcon size color [
+        Svg.circle [ svg.cx 12; svg.cy 12; svg.r 3 ]
+        Svg.path [
+            svg.d "M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"
+        ]
+    ]
+
+/// Pfeile im Kreis: „Abrufen“.
+let refresh (size: IconSize) (color: IconColor) =
+    protoIcon size color [
+        Svg.path [ svg.d "M20 11a8 8 0 0 0-14.3-4.9L4 8" ]
+        Svg.path [ svg.d "M4 4v4h4" ]
+        Svg.path [ svg.d "M4 13a8 8 0 0 0 14.3 4.9L20 16" ]
+        Svg.path [ svg.d "M20 20v-4h-4" ]
+    ]
+
+/// Pfeil nach links: „Zurück“ (Prototyp `I.left`, Strich 2).
+let arrowLeft (size: IconSize) (color: IconColor) =
+    Svg.svg [
+        svg.className $"{sizeToClass size} {colorToClass color} inline-block flex-shrink-0"
+        svg.fill "none"
+        svg.viewBox (0, 0, 24, 24)
+        svg.stroke "currentColor"
+        svg.strokeWidth 2
+        svg.strokeLineCap "round"
+        svg.strokeLineJoin "round"
+        svg.children [ Svg.path [ svg.d "M15 6l-6 6 6 6" ] ]
     ]
 
 // ============================================

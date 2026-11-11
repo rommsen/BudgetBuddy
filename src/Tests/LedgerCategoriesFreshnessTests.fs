@@ -50,7 +50,7 @@ let private rootModel stamp page : State.Model =
       Ledger = { model () with Categories = Success categories; CategoriesLoadedAt = stamp }
       Budget = Components.Budget.State.init ()
       QuickAdd = None
-      QuickAddTemplates = NotAsked }
+      QuickAddTemplates = NotAsked; Overview = Components.Overview.Types.init; SettingsReturn = Types.Page.Overview }
 
 let private dispatched (cmd: Elmish.Cmd<State.Msg>) =
     let collected = ResizeArray<State.Msg>()

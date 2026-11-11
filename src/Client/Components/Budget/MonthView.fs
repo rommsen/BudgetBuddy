@@ -431,7 +431,7 @@ let DesktopCategoryList (selectedId: System.Guid option, focusable: bool, conten
     Html.div [
         prop.ref listRef
         // `overflow-clip` statt `overflow-hidden`: sonst haftet der Spaltenkopf an dieser Karte statt an der Seite.
-        prop.className "hidden md:block rounded-xl border border-border-subtle bg-surface-card overflow-clip"
+        prop.className "hidden md:@min-[600px]:block rounded-xl border border-border-subtle bg-surface-card overflow-clip"
         if focusable then
             prop.tabIndex 0
             prop.ariaLabel "Kategorien"
@@ -450,8 +450,10 @@ let categories (model: Model) (month: BudgetMonth) (shown: BudgetGroup list) (di
         ]
     else
         React.fragment [
+            // Die Tabelle braucht rund 600 px. Neben Seitenleiste (232 px) und Panel ist die Liste bei 1024 px schmaler:
+            // dann stehen die Zeilen wie am Handy (Container-Abfrage auf `budget-list-area`, design-system-k6kfw).
             Html.div [
-                prop.className "md:hidden"
+                prop.className "md:@min-[600px]:hidden"
                 prop.children (shown |> List.map (mobileGroup selectedId dispatch))
             ]
             DesktopCategoryList (

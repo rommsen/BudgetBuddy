@@ -68,7 +68,7 @@ before(async () => {
   });
   await page.goto(`http://127.0.0.1:${frontendPort}/#/ledger`, { waitUntil: "load" });
   await waitForPageLoaded(page, "/ledger");
-  await page.locator(".ledger-account-strip").getByText("Alle Konten").filter({ visible: true }).first().click();
+  await page.locator(".ledger-account-strip, aside").getByText("Alle Konten").filter({ visible: true }).first().click();
 });
 
 after(async () => {

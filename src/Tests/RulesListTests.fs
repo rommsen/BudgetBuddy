@@ -63,7 +63,7 @@ let private tests =
             test "Kopf ruhig, Rahmen volle Breite, kein Gradient" {
                 Expect.isFalse (contains "gradientWithActions" rulesViewSource) "gradientWithActions"
                 Expect.isFalse (contains "PageHeader.gradient" rulesViewSource) "PageHeader.gradient"
-                Expect.isTrue (contains "PageHeader.calm" rulesViewSource) "PageHeader.calm"
+                Expect.isTrue (contains "PageHeader.top" rulesViewSource) "PageHeader.top"
                 Expect.isTrue (contains "Primitives.Container.full" rulesViewSource) "Container.full"
             }
             test "Tabelle mit calmHeaderCell und calmRow, Zeile ohne Karte" {

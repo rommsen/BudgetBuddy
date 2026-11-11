@@ -1764,15 +1764,24 @@ let private SwipeDemo () =
 // Navigation
 // ============================================
 
-/// Navigation-Sektion (design-system-t82sg): die App-Navigation fehlte bisher in der
-/// Galerie. Rendert `Navigation.desktopNavPreview`/`mobileNavPreview`, dieselbe
-/// Chrome wie `Navigation.desktopNav`/`mobileNav`, nur ohne `fixed`-Positionierung,
-/// damit sie sich als begrenzter Ausschnitt statt als Overlay über die ganze
-/// Galerie-Seite legt. Rein präsentational: `currentPage`/`onNavigate` sind fix bzw.
-/// no-op, es gibt keine echte Navigation von hier aus.
+/// Navigation-Sektion (design-system-t82sg, design-system-k6kfw): Leiste unten am Handy und Seitenleiste ab
+/// 1024 px als Vorschau ohne `fixed` (`Navigation.bottomBarPreview`, `sidebarPreview`). Rein präsentational,
+/// es gibt keine echte Navigation von hier aus. Die Rail (768 bis 1023 px) nutzt dieselben Einträge.
 let private navigationSection =
+    let demoProps : Navigation.Props =
+        { Current = Some Navigation.Ledger
+          OnNavigate = ignore
+          SettingsActive = false
+          OnSettings = ignore
+          OnBrand = ignore
+          Accounts =
+            [ { Key = "alle"; Label = "Alle Konten"; Value = Navigation.AccountAmount (4300m, "EUR"); IsActive = false; OnClick = ignore }
+              { Key = "giro"; Label = "Girokonto"; Value = Navigation.AccountAmount (2418.07m, "EUR"); IsActive = true; OnClick = ignore }
+              { Key = "karte"; Label = "Kreditkarte"; Value = Navigation.AccountAmount (-312.40m, "EUR"); IsActive = false; OnClick = ignore } ]
+          AccountsLoading = false
+          HideBottomBar = false }
     section "21. Navigation" [
-        note "Seitennavigation. Desktop: Top-Navbar. Mobile: Header + Bottom-Nav. In der App fix positioniert; hier als begrenzte Vorschau eingebettet. styleguide.md §5."
+        note "Drei Orte (Styleguide §7.4): Leiste unten am Handy, Rail links von 768 bis 1023 px, Seitenleiste mit Konten ab 1024 px. Einstellungen hinter dem Zahnrad. In der App fix positioniert; hier als Vorschau eingebettet."
         // data-ds-card (s. cardSection) ist der Export-Marker für components-navigation.html.
         Html.div [
             prop.custom ("data-ds-card", "components-navigation")
@@ -1781,13 +1790,15 @@ let private navigationSection =
             prop.custom ("data-ds-group", "Components")
             prop.className "space-y-4"
             prop.children [
-                subTitle "Desktop"
-                Navigation.desktopNavPreview Navigation.Ledger ignore
-                subTitle "Mobile"
+                subTitle "Seitenleiste (ab 1024 px)"
+                Navigation.sidebarPreview demoProps
+                subTitle "Leiste unten (Handy)"
                 Html.div [
                     prop.className "max-w-sm"
-                    prop.children [ Navigation.mobileNavPreview Navigation.Ledger ignore ]
+                    prop.children [ Navigation.bottomBarPreview demoProps ]
                 ]
+                subTitle "Kopf einer Unterseite"
+                PageHeader.top (Some (PageHeader.backButton ignore)) "Targets prüfen" None []
             ]
         ]
     ]
@@ -2385,13 +2396,16 @@ let private multiSelectSection =
 // Seite
 // ============================================
 
-let view () =
+/// `back`: „Zurück“ zu den Einstellungen, unter denen der Styleguide liegt (design-system-k6kfw).
+let view (back: ReactElement) =
     Html.div [
         prop.className "space-y-2 max-w-4xl mx-auto pb-16"
         prop.children [
-            PageHeader.withSubtitle
+            PageHeader.top
+                (Some back)
                 "Styleguide"
-                "Lebende Galerie der echten Design-System-Komponenten & Tokens. Geschriebener Begleiter: standards/frontend/styleguide.md."
+                (Some "Lebende Galerie der echten Design-System-Komponenten & Tokens. Geschriebener Begleiter: standards/frontend/styleguide.md.")
+                []
 
             Html.div [
                 prop.className "space-y-10"

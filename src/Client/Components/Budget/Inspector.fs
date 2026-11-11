@@ -348,13 +348,16 @@ let enterPage (model: Model) : Model * PageEntry =
                 { entered with
                     Selected = entered.Selected |> Option.map (fun s -> { s with ReturnPending = false })
                     GeneralHistory = { entered.GeneralHistory with ReturnPending = false }
-                    TargetCheck = { entered.TargetCheck with ReturnPending = false } }
+                    TargetCheck = { entered.TargetCheck with ReturnPending = false }
+                    Filter = entered.EntryFilter |> Option.defaultValue entered.Filter
+                    EntryFilter = None }
         returned, KeptPage
     else
         { entered with
             ChosenMonth = None
             CategorySearch = ""
-            Filter = AllCategories
+            Filter = entered.EntryFilter |> Option.defaultValue AllCategories
+            EntryFilter = None
             Selected = None
             Tab = MoneyTab },
         FreshEntry

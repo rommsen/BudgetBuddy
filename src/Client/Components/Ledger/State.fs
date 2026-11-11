@@ -1176,6 +1176,14 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         Cmd.batch [ Cmd.ofMsg LoadEntries; Cmd.ofEffect (fun _ -> writeRememberedFilter filter) ],
         NoOp
 
+    | PresetFilter filter ->
+        { closeDetail (resetEntries model) with
+            SelectedFilter = Some filter
+            RememberedFilter = Some filter
+            AccountSheetOpen = false },
+        Cmd.ofEffect (fun _ -> writeRememberedFilter filter),
+        NoOp
+
     | OpenAccountSheet -> { model with AccountSheetOpen = true }, Cmd.none, NoOp
 
     | CloseAccountSheet -> { model with AccountSheetOpen = false }, Cmd.none, NoOp
@@ -3443,6 +3451,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     let routeOvertaken =
         match msg with
         | SelectFilter _
+        | PresetFilter _
         | OpenDetail _
         | OpenFocusedDetail -> true
         | _ -> selectionBegan

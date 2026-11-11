@@ -66,7 +66,7 @@ async function openForm(answer) {
     patterns.push(pattern);
     return answer(r, pattern);
   });
-  await page.goto(`http://localhost:${port}/#/`);
+  await page.goto(`http://localhost:${port}/#/sync`);
   // Das Formular gibt es erst an einer Zeile, die Roman selbst kategorisiert hat.
   await page.locator(".tx-row", { hasText: "Testmarkt" }).click();
   await page.getByRole("button", { name: "Kategorie wählen" }).click();

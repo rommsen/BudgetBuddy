@@ -307,7 +307,7 @@ let private routingTests =
                   Ledger = ledgerModel
                   Budget = { Components.Budget.Types.init () with Month = month }
                   QuickAdd = None
-                  QuickAddTemplates = NotAsked }
+                  QuickAddTemplates = NotAsked; Overview = Components.Overview.Types.init; SettingsReturn = Types.Page.Overview }
             Expect.isFalse (State.isPageReady (model Loading)) "lädt"
             Expect.isTrue (State.isPageReady (model (Success monthK7wmd))) "geladen"
             Expect.isTrue (State.isPageReady (model (Failure "x"))) "Fehler ist auch fertig"

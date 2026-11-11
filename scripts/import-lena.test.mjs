@@ -89,7 +89,7 @@ async function open(vp) {
   const page = await ctx.newPage();
   page.setDefaultTimeout(15000);
   await mock(page);
-  await page.goto(`http://localhost:${port}/#/`);
+  await page.goto(`http://localhost:${port}/#/sync`);
   await page.waitForSelector(".tx-row");
   return { ctx, page };
 }

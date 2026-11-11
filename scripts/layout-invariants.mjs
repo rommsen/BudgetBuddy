@@ -38,7 +38,8 @@ export const INPUT_FONT_MIN = 16;
 /// `md` aus `Breakpoints`: darunter gilt das Handy-Layout.
 export const MOBILE_BELOW = 768;
 /// Breiten für Seiten (Invariante 1).
-export const PAGE_WIDTHS = [320, 390, 768, 1024, 1440, 1920];
+// 412 (Romans Handy), 900 (Rail) und 1280 (Seitenleiste) seit design-system-k6kfw.
+export const PAGE_WIDTHS = [320, 390, 412, 768, 900, 1024, 1280, 1440, 1920];
 export const HANDY_WIDTHS = [320, 390];
 /// Breiten für die Spaltenköpfe des Kassenbuchs (Invariante 8).
 export const TABLE_WIDTHS = [800, 1024, 1280, 1440];

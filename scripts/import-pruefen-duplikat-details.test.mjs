@@ -64,7 +64,7 @@ test('[fable] PC: Verdacht zeigt die Prüfung sofort mit Datum und Betrag aus de
   const page = await ctx.newPage();
   page.setDefaultTimeout(15000);
   await mock(page);
-  await page.goto(`http://localhost:${port}/#/`);
+  await page.goto(`http://localhost:${port}/#/sync`);
   await page.waitForSelector(".tx-row");
 
   const rowOf = (payee) => page.locator(".tx-row", { hasText: payee });

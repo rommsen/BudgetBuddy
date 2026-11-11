@@ -138,7 +138,7 @@ let private rootModel (pageNow: Page) (budget: Model) : State.Model =
       Ledger = ledgerModel
       Budget = budget
       QuickAdd = None
-      QuickAddTemplates = NotAsked }
+      QuickAddTemplates = NotAsked; Overview = Components.Overview.Types.init; SettingsReturn = Types.Page.Overview }
 
 let private dispatched (cmd: Elmish.Cmd<State.Msg>) : State.Msg list =
     let collected = ResizeArray<State.Msg>()

@@ -1366,7 +1366,7 @@ let private rootModel (page: Types.Page) : State.Model =
         Ledger = ledgerModel
         Budget = Components.Budget.State.init ()
         QuickAdd = None
-        QuickAddTemplates = NotAsked
+        QuickAddTemplates = NotAsked; Overview = Components.Overview.Types.init; SettingsReturn = Types.Page.Overview
     }
 
 let private visibilityTests =

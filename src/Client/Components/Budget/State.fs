@@ -447,6 +447,7 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
     | CategorySearchChanged search -> { model with CategorySearch = search }, Cmd.none, NoOp
     | ClearCategorySearch -> { model with CategorySearch = "" }, Cmd.none, NoOp
     | SelectFilter filter -> { model with Filter = filter }, Cmd.none, NoOp
+    | EnterWithFilter filter -> { model with EntryFilter = Some filter }, Cmd.none, NoOp
     | Loaded (generation, result) -> quiet (withTabData (applyLoaded generation result model))
     | OpenTargets ->
         match openTargets model, shownMonth model with
@@ -678,6 +679,7 @@ let private routeOf (msg: Msg) (model: Model) : MsgRoute =
     | CategorySearchChanged _
     | ClearCategorySearch
     | SelectFilter _
+    | EnterWithFilter _
     | CoverMissing
     | AssignAnswered _
     | AssignCallLost _

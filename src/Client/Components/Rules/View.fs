@@ -733,13 +733,15 @@ let private rulesHeaderActions (model: Model) (dispatch: Msg -> unit) = [
     rulesMenu model dispatch
 ]
 
-let view (model: Model) (dispatch: Msg -> unit) =
+/// `back`: „Zurück“ zum Kassenbuch, unter dem die Regeln hängen, bis `categorization-n3sxw` sie dort als Tab einbaut.
+let view (back: ReactElement) (model: Model) (dispatch: Msg -> unit) =
     // Ruhige Liste (ADR 0049 Punkt 9): schlanker Seitenkopf, die Liste füllt die Breite
     Primitives.Container.full [
         Html.div [
             prop.className "space-y-4 animate-fade-in"
             prop.children [
-                PageHeader.calm
+                PageHeader.top
+                    (Some back)
                     "Kategorisierungsregeln"
                     (match model.Rules with
                      | RemoteData.Success rules when not rules.IsEmpty -> Some (summaryText rules)

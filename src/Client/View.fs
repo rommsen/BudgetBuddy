@@ -10,32 +10,39 @@ open Client.DesignSystem
 // Type Conversions
 // ============================================
 
-/// Convert Types.Page to Navigation.NavPage
-let private toNavPage (page: Page) : Navigation.NavPage =
-    match page with
-    | SyncFlow -> Navigation.SyncFlow
-    | Rules -> Navigation.Rules
-    | Settings -> Navigation.Settings
-    | QuickAdd -> Navigation.QuickAdd
-    | Ledger
-    | LedgerEntry _ -> Navigation.Ledger
-    | Budget
-    | BudgetHistory
-    | BudgetTargetCheck
-    | BudgetCategories -> Navigation.Budget
-    // Styleguide has no own nav tab; it's reached from Settings, so the
-    // Settings tab stays highlighted while viewing the gallery.
-    | Styleguide -> Navigation.Settings
+/// Der Ort als Eintrag der Navigation.
+let private toNavPage (place: Place) : Navigation.NavPage =
+    match place with
+    | OverviewPlace -> Navigation.Overview
+    | LedgerPlace -> Navigation.Ledger
+    | BudgetPlace -> Navigation.Budget
+    | QuickAddPlace -> Navigation.QuickAdd
 
-/// Convert Navigation.NavPage to Types.Page
 let private fromNavPage (navPage: Navigation.NavPage) : Page =
     match navPage with
-    | Navigation.SyncFlow -> SyncFlow
-    | Navigation.Rules -> Rules
-    | Navigation.Settings -> Settings
-    | Navigation.QuickAdd -> QuickAdd
+    | Navigation.Overview -> Overview
     | Navigation.Ledger -> Ledger
     | Navigation.Budget -> Budget
+    | Navigation.QuickAdd -> QuickAdd
+
+/// Die Kontozeilen der Seitenleiste: „Alle Konten“ und jedes Konto, dieselben Karten wie im Kassenbuch.
+/// Markiert ist das gewählte Konto nur, solange das Kassenbuch offen ist.
+let private sidebarAccounts (model: Model) (dispatch: Msg -> unit) : Navigation.SidebarAccount list =
+    match model.Overview.Accounts with
+    | Success accounts ->
+        let selected = if isLedgerPage model.CurrentPage then model.Ledger.SelectedFilter else None
+        Components.Ledger.View.buildAccountCards accounts.Accounts model.Overview.Balances
+        |> List.map (fun card ->
+            { Key = card.Label
+              Label = card.Label
+              Value =
+                match card.Balance with
+                | Components.Ledger.View.BalanceShown money -> Navigation.AccountAmount (money.Amount, money.Currency)
+                | Components.Ledger.View.BalancePending -> Navigation.AccountPending
+                | Components.Ledger.View.BalanceUnavailable -> Navigation.AccountUnavailable
+              IsActive = selected = Some card.Filter
+              OnClick = fun () -> dispatch (OpenLedgerAccount card.Filter) })
+    | _ -> []
 
 /// Convert Types.ToastType to Toast.ToastVariant
 let private toToastVariant (toastType: ToastType) : Toast.ToastVariant =
@@ -64,7 +71,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
     // Seite setzt ihre Ränder selbst.
     let pageShell =
         match model.CurrentPage with
-        | Ledger | LedgerEntry _ | Rules | Budget | BudgetHistory | BudgetTargetCheck | BudgetCategories | SyncFlow -> Navigation.pageContentFull
+        | Overview | Ledger | LedgerEntry _ | Rules | Budget | BudgetHistory | BudgetTargetCheck | BudgetCategories | SyncFlow -> Navigation.pageContentFull
         | _ -> Navigation.pageContent
 
     React.router [
@@ -85,11 +92,17 @@ let view (model: Model) (dispatch: Msg -> unit) =
                     prop.style [ style.display.none ]
                 ]
 
-                // Navigation (desktop top + mobile header/bottom)
-                Navigation.navigation
-                    (toNavPage model.CurrentPage)
-                    (fun navPage -> dispatch (NavigateTo (fromNavPage navPage)))
-                    bottomNavHidden
+                // Navigation: Leiste unten am Handy, Rail von 768 bis 1023 px, Seitenleiste ab 1024 px.
+                Navigation.navigation {
+                    Current = placeOf model.CurrentPage |> Option.map toNavPage
+                    OnNavigate = fun navPage -> dispatch (NavigateTo (fromNavPage navPage))
+                    SettingsActive = (model.CurrentPage = Settings || model.CurrentPage = Styleguide)
+                    OnSettings = fun () -> dispatch (NavigateTo Settings)
+                    OnBrand = fun () -> dispatch (NavigateTo Overview)
+                    Accounts = sidebarAccounts model dispatch
+                    AccountsLoading = (match model.Overview.Accounts with | Loading | NotAsked -> true | _ -> false)
+                    HideBottomBar = bottomNavHidden
+                }
 
                 // Main content with padding for fixed navbar
                 pageShell [
@@ -99,16 +112,36 @@ let view (model: Model) (dispatch: Msg -> unit) =
                         prop.className "animate-page-enter"
                         prop.children [
                             match model.CurrentPage with
+                            | Overview ->
+                                Components.Overview.View.view
+                                    model.Overview
+                                    { Fetch = fun () -> dispatch FetchFromBank
+                                      OpenSettings = fun () -> dispatch (NavigateTo Settings)
+                                      OpenBudget = fun () -> dispatch (NavigateTo Budget)
+                                      OpenOverdrawn = fun () -> dispatch OpenBudgetOverdrawn
+                                      OpenAccount = fun filter -> dispatch (OpenLedgerAccount filter)
+                                      OpenEntry = fun entryId -> dispatch (NavigateTo (LedgerEntry entryId))
+                                      Retry = fun () -> dispatch (OverviewMsg (Components.Overview.Types.Entered (Components.Overview.State.berlinToday ()))) }
+                                    (Components.Overview.State.berlinToday ())
                             | SyncFlow ->
+                                Html.div [
+                                    prop.className "px-4 md:px-6"
+                                    prop.children [
+                                        // Der Sync-Ablauf trägt seine Titel selbst; der Kopf führt zurück zur Übersicht.
+                                        PageHeader.backButtonFor (Some "Zurück zur Übersicht") (fun () -> dispatch (NavigateTo Overview))
+                                    ]
+                                ]
                                 Components.SyncFlow.View.view
                                     model.SyncFlow
                                     (SyncFlowMsg >> dispatch)
                             | Rules ->
                                 Components.Rules.View.view
+                                    (PageHeader.backButtonFor (Some "Zurück zum Kassenbuch") (fun () -> dispatch (NavigateTo Ledger)))
                                     model.Rules
                                     (RulesMsg >> dispatch)
                             | Settings ->
                                 Components.Settings.View.view
+                                    (PageHeader.backButton (fun () -> dispatch (NavigateTo model.SettingsReturn)))
                                     model.Settings
                                     (SettingsMsg >> dispatch)
                             | QuickAdd ->
@@ -144,7 +177,8 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                     (Components.Budget.Types.CategoryAdminMsg >> BudgetMsg >> dispatch)
                             | Styleguide ->
                                 // Presentational gallery — no model/dispatch needed.
-                                Components.Styleguide.View.view ()
+                                Components.Styleguide.View.view
+                                    (PageHeader.backButtonFor (Some "Zurück zu den Einstellungen") (fun () -> dispatch (NavigateTo Settings)))
                         ]
                     ]
                 ]

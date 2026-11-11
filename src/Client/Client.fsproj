@@ -102,6 +102,11 @@
     <Compile Include="Components/Budget/CategoriesView.fs" />
     <Compile Include="Components/Budget/View.fs" />
 
+    <!-- Component: Overview (Übersicht, Einstieg der App, design-system-k6kfw) -->
+    <Compile Include="Components/Overview/Types.fs" />
+    <Compile Include="Components/Overview/State.fs" />
+    <Compile Include="Components/Overview/View.fs" />
+
     <!-- Component: Styleguide (living component gallery — presentational) -->
     <Compile Include="Components/Styleguide/View.fs" />
 

@@ -508,7 +508,7 @@ let private rootModel (page: Page) : State.Model =
       Ledger = fst (Components.Ledger.State.init ())
       Budget = Components.Budget.State.init ()
       QuickAdd = None
-      QuickAddTemplates = NotAsked }
+      QuickAddTemplates = NotAsked; Overview = Components.Overview.Types.init; SettingsReturn = Types.Page.Overview }
 
 let private failureToast (exiting: bool) : Toast =
     { Id = System.Guid.NewGuid(); Message = "Fehler"; Type = ToastError; Exiting = exiting; Action = None }

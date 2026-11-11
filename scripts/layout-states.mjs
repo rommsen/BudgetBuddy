@@ -26,6 +26,15 @@ const frames = (page) => page.evaluate(() => new Promise((done) => requestAnimat
 // Was jede Seite lädt
 // ============================================================
 
+const NAV_ACCOUNTS = {
+  Accounts: [
+    { Id: fixtureGuid(8001), Name: "Girokonto", Kind: "LedgerBankAccount", YnabAccountId: null, Closed: false },
+    { Id: fixtureGuid(8002), Name: "Kreditkarte mit einem sehr langen Namen für die Seitenleiste", Kind: "LedgerBankAccount", YnabAccountId: null, Closed: false },
+    { Id: fixtureGuid(8003), Name: "Bar", Kind: "LedgerCashAccount", YnabAccountId: null, Closed: false },
+  ],
+  DefaultAccountId: fixtureGuid(8001),
+};
+
 /// Die Aufrufe, die die App auf jeder Seite macht (Navigation, Sync-Stand, Einstellungen). Spätere Routen
 /// überschreiben sie (Playwright lässt die zuletzt registrierte gewinnen).
 async function mockApp(page) {
@@ -39,6 +48,12 @@ async function mockApp(page) {
   await page.route("**/api/YnabApi/getPayees", (r) => json(r, { Ok: [] }));
   await page.route("**/api/YnabApi/getCategories", (r) =>
     json(r, { Ok: [...buildCategoriesFixture(), { Id: { YnabCategoryId: guid(2) }, Name: LONG_CATEGORY, GroupName: "Alltag", Available: eur(12345.67), Hidden: false }] })
+  );
+  // Die Seitenleiste lädt Konten und Stände beim Start auf jeder Seite (design-system-k6kfw): ein langer Name
+  // und ein negativer Stand für Invariante 4.
+  await page.route("**/api/LedgerApi/getLedgerAccounts", (r) => json(r, NAV_ACCOUNTS));
+  await page.route("**/api/LedgerApi/getLedgerAccountBalances", (r) =>
+    json(r, NAV_ACCOUNTS.Accounts.map((a, i) => ({ AccountId: a.Id, Balance: eur(i === 1 ? -31240.4 : 123456.78) })))
   );
   await page.route("**/api/LedgerApi/getBudgetAccounts", (r) =>
     json(r, {
@@ -369,7 +384,7 @@ const openLedgerDetail = async (page, payee) => {
 const openAllAccounts = async (page) => {
   await openLedger(page);
   const loaded = page.waitForResponse("**/api/LedgerApi/getLedgerEntriesPage");
-  await page.locator(".ledger-account-strip").getByText("Alle Konten", { exact: true }).filter({ visible: true }).first().click();
+  await page.locator(".ledger-account-strip, aside").getByText("Alle Konten", { exact: true }).filter({ visible: true }).first().click();
   await loaded;
   await frames(page);
 };
@@ -422,6 +437,25 @@ const openRules = async (page) => page.getByText("Regel eins").locator("visible=
 // ============================================================
 
 const mockSync = mockApp;
+
+// ============================================================
+// Übersicht (design-system-k6kfw)
+// ============================================================
+
+/// Monat und neueste Buchungen der Übersicht: lange Payees, eine Buchung ohne Kategorie, große Beträge.
+async function mockOverview(page) {
+  await mockBudget(page);
+  const accountId = NAV_ACCOUNTS.DefaultAccountId;
+  const entries = Array.from({ length: 6 }, (_, n) =>
+    buildEntryFixture(accountId, n, n === 0 ? { Payee: LONG_PAYEE, CategoryName: null, Amount: eur(-123456.78) } : {})
+  );
+  await page.route("**/api/LedgerApi/getLedgerEntriesPage", (r) =>
+    json(r, { Entries: entries, TotalCount: 6, TotalAmount: eur(-1000), DeletedCount: 0, NeedsReviewCount: 0, AskLenaCount: 0 })
+  );
+}
+/// Die Übersicht steht, sobald der Monat da ist oder sein Platzhalter (beim verzögerten Monat, Invariante 9).
+const openOverview = async (page) =>
+  page.locator('[data-testid="overview-month"], [data-testid="overview-month-loading"]').first().waitFor();
 
 // ============================================================
 // Die Zustände
@@ -1080,10 +1114,25 @@ export const STATES = [
     },
     primary: (page) => page.locator('[data-testid="category-picker-footer-hint"]:visible'),
   },
+  // design-system-k6kfw: die Übersicht als Einstieg, mit Leiste unten, Rail und Seitenleiste je nach Breite.
+  {
+    name: "uebersicht",
+    route: "/",
+    widths: PAGE_WIDTHS,
+    mock: mockOverview,
+    open: openOverview,
+    // design-system-k6kfw, Verifier iteration 1: die Karte „Monat“ hat eine feste Höhe, beim Laden rutschen Konten
+    // (Handy) und Neueste Buchungen (PC) nicht nach unten. Der Monat kommt mit „Im Minus“.
+    deferred: {
+      api: "**/api/BudgetApi/getBudgetMonth",
+      body: { Ok: budgetMonth(CURRENT) },
+      loaded: (page) => page.locator('[data-testid="overview-month"]'),
+    },
+  },
   // Fix 31f15e0 (banking-import-v8n3k): die Zeile zum Bankstand nimmt beim Laden schon ihre Höhe ein.
   {
     name: "sync-start",
-    route: "/",
+    route: "/sync",
     widths: [...HANDY_WIDTHS, 1440],
     mock: mockSync,
     open: async (page) => page.getByRole("button", { name: "Sync starten" }).waitFor(),

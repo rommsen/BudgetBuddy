@@ -33,7 +33,7 @@ let private baseModel () : State.Model =
         Ledger = ledgerModel
         Budget = Components.Budget.State.init ()
         QuickAdd = None
-        QuickAddTemplates = NotAsked
+        QuickAddTemplates = NotAsked; Overview = Components.Overview.Types.init; SettingsReturn = Types.Page.Overview
     }
 
 let private withLedger (f: Components.Ledger.Types.Model -> Components.Ledger.Types.Model) (m: State.Model) =

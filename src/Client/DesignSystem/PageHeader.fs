@@ -1,6 +1,7 @@
 module Client.DesignSystem.PageHeader
 
 open Feliz
+open Client.DesignSystem.Tokens
 
 // ============================================
 // PageHeader Design System Component
@@ -101,3 +102,70 @@ let withActions (title: string) (subtitle: string option) (actions: ReactElement
 /// Schlanker Kopf für Listen-Seiten: Titel, gedämpfter Untertitel, Aktionen rechts
 let calm (title: string) (subtitle: string option) (actions: ReactElement list) =
     view { defaultProps with Title = title; Subtitle = subtitle; Actions = actions; TitleStyle = Calm }
+
+// ============================================
+// Kopf eines Orts und einer Unterseite (Prototyp Version 17 `top`, `.top`, `.back`, design-system-k6kfw)
+// ============================================
+
+/// „Zurück“ mit Pfeil nach links im Kopf einer Unterseite (Prototyp `.back`): Text 14 px in `text-secondary`,
+/// am Handy 48 px hoch (Styleguide §7.15), am PC 44 px. `ariaLabel` nennt das Ziel, etwa „Zurück zum Budget“.
+let backButtonFor (ariaLabel: string option) (onClick: unit -> unit) =
+    Html.button [
+        prop.type' "button"
+        prop.custom ("data-testid", "page-back")
+        match ariaLabel with
+        | Some label -> prop.ariaLabel label
+        | None -> ()
+        prop.className (
+            $"-ml-1 inline-flex shrink-0 items-center gap-1 pr-2 text-sm {Colors.textSecondary} "
+            + $"{TouchTargets.mobileMinHeight} md:min-h-11 hover:text-text-primary"
+        )
+        prop.onClick (fun _ -> onClick ())
+        prop.children [
+            Client.DesignSystem.Icons.arrowLeft Client.DesignSystem.Icons.SM Client.DesignSystem.Icons.Default
+            Html.span [ prop.text "Zurück" ]
+        ]
+    ]
+
+let backButton (onClick: unit -> unit) = backButtonFor None onClick
+
+/// Symbolknopf im Kopf (Prototyp `.icon`): Symbol 22 px, am Handy 48 × 48 px (Styleguide §7.15), am PC 44 × 44 px.
+let iconButton (ariaLabel: string) (icon: Client.DesignSystem.Icons.IconSize -> Client.DesignSystem.Icons.IconColor -> ReactElement) (onClick: unit -> unit) =
+    Html.button [
+        prop.type' "button"
+        prop.ariaLabel ariaLabel
+        prop.className (
+            $"{TouchTargets.mobileSquare} md:h-11 md:w-11 shrink-0 grid place-items-center rounded-md "
+            + $"{Colors.textSecondary} hover:bg-surface-hover hover:text-text-primary"
+        )
+        prop.onClick (fun _ -> onClick ())
+        prop.children [ icon Client.DesignSystem.Icons.Tab Client.DesignSystem.Icons.Default ]
+    ]
+
+/// Der Kopf eines Orts oder einer Unterseite (Prototyp `.top`): optional „Zurück“, Titel 20 px in der
+/// Display-Schrift, darunter optional ein Untertitel 12 px gedämpft, rechts die Aktionen.
+let top (back: ReactElement option) (title: string) (subtitle: string option) (actions: ReactElement list) =
+    Html.div [
+        prop.custom ("data-testid", "page-top")
+        prop.className "flex items-center gap-2 mb-3 min-w-0"
+        prop.children [
+            match back with
+            | Some b -> b
+            | None -> Html.none
+            Html.div [
+                prop.className "flex-1 min-w-0"
+                prop.children [
+                    Html.h1 [
+                        prop.className "text-xl font-semibold font-display text-text-primary truncate"
+                        prop.title title
+                        prop.text title
+                    ]
+                    match subtitle with
+                    | Some s -> Html.p [ prop.className "text-xs text-text-muted"; prop.text s ]
+                    | None -> Html.none
+                ]
+            ]
+            if not actions.IsEmpty then
+                Html.div [ prop.className "flex shrink-0 items-center gap-1"; prop.children actions ]
+        ]
+    ]

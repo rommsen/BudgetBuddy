@@ -37,6 +37,12 @@ type Model = {
     // (ynab-t4n8p), loaded once per page visit. RemoteData so a failed/empty
     // read degrades gracefully — no templates shown, form still usable.
     QuickAddTemplates: RemoteData<QuickAddTemplate list>
+
+    // Die Übersicht samt Konten der Seitenleiste (design-system-k6kfw).
+    Overview: Components.Overview.Types.Model
+
+    // Wohin „Zurück“ aus den Einstellungen führt: die zuletzt offene Seite davor (design-system-k6kfw).
+    SettingsReturn: Page
 }
 
 // ============================================
@@ -73,6 +79,15 @@ type Msg =
     | RulesMsg of Components.Rules.Types.Msg
     | LedgerMsg of Components.Ledger.Types.Msg
     | BudgetMsg of Components.Budget.Types.Msg
+    | OverviewMsg of Components.Overview.Types.Msg
+
+    // Übergänge aus Übersicht und Seitenleiste (design-system-k6kfw)
+    /// Konto aus Seitenleiste oder Übersicht: das Kassenbuch öffnet mit diesem Konto.
+    | OpenLedgerAccount of Components.Ledger.Types.AccountFilter
+    /// „Im Minus“ im Monat der Übersicht: das Budget öffnet mit dem Filter Überzogen.
+    | OpenBudgetOverdrawn
+    /// „Abrufen“ im Kopf der Übersicht: der Sync-Ablauf öffnet und startet.
+    | FetchFromBank
 
     // Quick Add (manual transaction entry → YNAB), lifted from SyncFlow (ynab-q7k3m)
     | OpenQuickAdd
@@ -175,6 +190,9 @@ let private addToast (message: string) (toastType: ToastType) (model: Model) : M
 /// ein Direktaufruf lud nichts (Kassenbuch und Rules waren betroffen).
 let rec pageLoadCmd (page: Page) : Cmd<Msg> =
     match page with
+    | Overview ->
+        // Monat, neueste Buchungen, Konten und Stände; „heute“ geht als Parameter in die reine Rechnung.
+        Cmd.map OverviewMsg (Cmd.ofMsg (Components.Overview.Types.Entered (Components.Overview.State.berlinToday ())))
     | SyncFlow ->
         Cmd.batch [
             Cmd.map SyncFlowMsg (Cmd.ofMsg Components.SyncFlow.Types.LoadCurrentSession)
@@ -350,6 +368,7 @@ let isPageReady (model: Model) : bool =
         && notLoading model.Ledger.Categories
     match model.CurrentPage with
     | Styleguide -> true
+    | Overview -> notLoading model.Overview.Month && notLoading model.Overview.Accounts && notLoading model.Overview.Recent
     | SyncFlow ->
         notLoading model.SyncFlow.CurrentSession
         && notLoading model.SyncFlow.SyncTransactions
@@ -476,6 +495,8 @@ let init () : Model * Cmd<Msg> =
         Budget = Components.Budget.State.init ()
         QuickAdd = None
         QuickAddTemplates = NotAsked
+        Overview = Components.Overview.Types.init
+        SettingsReturn = Overview
     }
 
     // Trigger page-specific load commands for the initial (deep-linked) page.
@@ -487,6 +508,9 @@ let init () : Model * Cmd<Msg> =
         Cmd.map SettingsMsg settingsCmd  // Load settings on startup - needed for categories
         Cmd.map SyncFlowMsg syncFlowCmd  // Load categories and payees on startup
         initialPageCmd
+        // Die Seitenleiste zeigt die Konten auf jeder Seite; die Übersicht lädt sie selbst mit.
+        if initialPage <> Overview then
+            Cmd.map OverviewMsg (Cmd.ofMsg Components.Overview.Types.LoadAccounts)
     ]
     model, cmd
 
@@ -509,6 +533,13 @@ let ledgerCategoriesSetupGap (settings: AppSettingsView) : string option =
 /// Die Kassenbuch-Kategorien als Fehler mit Grund; das Warten auf die Settings endet.
 let private ledgerCategoriesFailed (reason: string) (ledger: Components.Ledger.Types.Model) =
     { ledger with Categories = Failure reason; CategoriesAwaitSettings = false }
+
+/// Lädt das Kassenbuch Konten oder Stände neu, ziehen Seitenleiste und Übersicht mit (design-system-k6kfw).
+let syncNavAccounts (ledgerMsg: Components.Ledger.Types.Msg) (overview: Components.Overview.Types.Model) =
+    match ledgerMsg with
+    | Components.Ledger.Types.AccountsLoaded (Ok accounts) -> { overview with Accounts = Success accounts }
+    | Components.Ledger.Types.BalancesLoaded (Ok balances) -> { overview with Balances = Success balances }
+    | _ -> overview
 
 /// Ausgehende Aufrufe des Root-`update` als Funktionswerte (Doktrin Punkt 1): unter .NET wirft
 /// der Remoting-Proxy im Typinitialisierer, Tests geben deshalb eigene Funktionen mit
@@ -547,7 +578,10 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
         if page = model.CurrentPage then
             model, Cmd.none
         else
-            { model with CurrentPage = page }, urlChangedCmd model.Ledger model.CurrentPage page
+            { model with
+                CurrentPage = page
+                SettingsReturn = settingsReturn model.CurrentPage page model.SettingsReturn },
+            urlChangedCmd model.Ledger model.CurrentPage page
 
     // Die PWA kam in den Vordergrund: auf der Kassenbuch-Seite verhält sich das wie
     // ein Seitenaufruf, es wird nur der Lauf-Status neu geladen. Dessen Frische-Prüfung
@@ -823,7 +857,31 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
             | BackToBudget -> Cmd.navigateBack ()
             | ToLedgerList -> Cmd.ofMsg (NavigateTo Ledger)
 
-        { model with Ledger = ledgerModel' }, Cmd.batch [ Cmd.map LedgerMsg ledgerCmd; externalCmd; routeCmd ]
+        { model with Ledger = ledgerModel'; Overview = syncNavAccounts ledgerMsg model.Overview },
+        Cmd.batch [ Cmd.map LedgerMsg ledgerCmd; externalCmd; routeCmd ]
+
+    | OverviewMsg overviewMsg ->
+        let overview', cmd = Components.Overview.State.update overviewMsg model.Overview
+        { model with Overview = overview' }, Cmd.map OverviewMsg cmd
+
+    | OpenLedgerAccount filter ->
+        let ledgerMsg =
+            if isLedgerPage model.CurrentPage then Components.Ledger.Types.SelectFilter filter
+            else Components.Ledger.Types.PresetFilter filter
+        let model', cmd = updateWith ports (LedgerMsg ledgerMsg) model
+        model', Cmd.batch [ cmd; (if model.CurrentPage = Ledger then Cmd.none else Cmd.ofMsg (NavigateTo Ledger)) ]
+
+    | OpenBudgetOverdrawn ->
+        let model', cmd =
+            updateWith ports (BudgetMsg (Components.Budget.Types.EnterWithFilter Components.Budget.Types.OverdrawnOnly)) model
+        model', Cmd.batch [ cmd; Cmd.ofMsg (NavigateTo Budget) ]
+
+    | FetchFromBank ->
+        model,
+        Cmd.batch [
+            Cmd.ofMsg (NavigateTo SyncFlow)
+            Cmd.map SyncFlowMsg (Cmd.ofMsg Components.SyncFlow.Types.StartSync)
+        ]
 
     | BudgetMsg budgetMsg ->
         let budgetModel', budgetCmd, externalMsg = Components.Budget.State.update budgetMsg model.Budget

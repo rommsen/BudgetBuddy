@@ -425,7 +425,7 @@ let private modelWithForm (form: QuickAddFormState) : State.Model =
         Ledger = ledgerModel
         Budget = Components.Budget.State.init ()
         QuickAdd = Some form
-        QuickAddTemplates = NotAsked
+        QuickAddTemplates = NotAsked; Overview = Components.Overview.Types.init; SettingsReturn = Types.Page.Overview
     }
 
 let reducerTests =
