@@ -344,6 +344,60 @@ let txListSkeleton (rowCount: int) =
         ]
     ]
 
+/// Balken in einer Textzeile: er steht in einer Zeile mit der Schriftgröße des Ziels, damit die Zeile so hoch ist wie
+/// die echte.
+let private lineBar = $"inline-block align-middle h-[0.75em] max-w-full {Radius.sm} {Backgrounds.surface} animate-pulse"
+
+/// Platzhalter einer Liste mit großem ersten Eintrag (Prototyp Version 17 `todoList`, „Zu tun“ auf der Übersicht,
+/// ledger-s1weh): Karte, oben Marke, Titel 16 px, Satz und der Knopf über die volle Breite, darunter `rowCount` Zeilen
+/// mit Marke, zwei Textzeilen und Pfeil. Gleich hoch wie die Liste mit `rowCount + 1` Einträgen, damit beim Laden
+/// nichts darunter springt (Layout-Invariante 9).
+let firstItemListSkeleton (rowCount: int) =
+    Html.div [
+        prop.ariaLabel "Lade Aufgaben"
+        prop.ariaBusy true
+        prop.className $"{Backgrounds.dark} border {Borders.subtle} rounded-[14px]"
+        prop.children [
+            Html.div [
+                prop.className (
+                    "flex flex-col gap-2.5 px-3.5 pt-3.5 pb-3"
+                    + if rowCount > 0 then $" border-b {Borders.subtle}" else ""
+                )
+                prop.children [
+                    Html.div [
+                        prop.className "flex items-center gap-2.5"
+                        prop.children [
+                            Html.span [ prop.className $"w-4 h-4 shrink-0 {Radius.full} {Backgrounds.surface} animate-pulse" ]
+                            Html.div [
+                                prop.className "flex-1 min-w-0"
+                                prop.children [
+                                    Html.div [ prop.className FontSizes.emphasis; prop.children [ Html.span [ prop.className $"{lineBar} w-44" ] ] ]
+                                    Html.div [ prop.className FontSizes.compact; prop.children [ Html.span [ prop.className $"{lineBar} w-56" ] ] ]
+                                ]
+                            ]
+                        ]
+                    ]
+                    // Wie `Button.view` Primary, Medium, `FullWidth`: am Handy 48 px über die volle Breite, ab `md` 40 px.
+                    Html.div [ prop.className $"h-10 min-h-[48px] md:min-h-0 w-full md:w-24 {Radius.md} {Backgrounds.surface} animate-pulse" ]
+                ]
+            ]
+            for _ in 1..rowCount do
+                Html.div [
+                    prop.className $"flex items-center gap-2.5 px-3 py-2.5 min-h-12 border-b {Borders.subtle} last:border-b-0"
+                    prop.children [
+                        Html.span [ prop.className $"w-4 h-4 shrink-0 {Radius.full} {Backgrounds.surface} animate-pulse" ]
+                        Html.div [
+                            prop.className "flex-1 min-w-0"
+                            prop.children [
+                                Html.div [ prop.className ListRoles.primarySize; prop.children [ Html.span [ prop.className $"{lineBar} w-40" ] ] ]
+                                Html.div [ prop.className FontSizes.compact; prop.children [ Html.span [ prop.className $"{lineBar} w-52" ] ] ]
+                            ]
+                        ]
+                    ]
+                ]
+        ]
+    ]
+
 // ============================================
 // Loading States with Context
 // ============================================

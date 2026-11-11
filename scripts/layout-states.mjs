@@ -1143,13 +1143,17 @@ export const STATES = [
     // design-system-k6kfw, Verifier iteration 1: die Karte „Monat“ hat eine feste Höhe, beim Laden rutschen Konten
     // (Handy) und Neueste Buchungen (PC) nicht nach unten. Der Monat kommt mit „Im Minus“.
     deferred: {
-      // ledger-s1weh: unter 1024 px steht „Zu tun“ über dem Monat und wächst mit seinem Inhalt, sobald der Monat da ist.
-      // Ab 1024 px steht es links daneben; dort hält die feste Höhe der Karte „Monat“ die neuesten Buchungen an Ort.
-      fromWidth: 1024,
       api: "**/api/BudgetApi/getBudgetMonth",
       body: { Ok: budgetMonth(CURRENT) },
       loaded: (page) => page.locator('[data-testid="overview-month"]'),
     },
+    // Rest-Sprung nach Vorgabe (§7.4): „Zu tun“ steht unter 1024 px über dem Monat und wächst mit seinem Inhalt. Der
+    // Platzhalter hat die Form des Ziels (großer erster Eintrag mit Knopf und eine Zeile), bei 320 und 390 px bricht
+    // der Satz des ersten Eintrags aber auf zwei Zeilen um, die Konten rutschen um diese Zeile. Kann-Sammlung ledger.
+    exceptions: [
+      { width: 320, inv: 9, selector: '[data-testid="overview-account"]' },
+      { width: 390, inv: 9, selector: '[data-testid="overview-account"]' },
+    ],
   },
   // ledger-s1weh: „Zu tun“ mit allen Arten von Einträgen, ein langer Payee in „Buchung nicht in YNAB“, der Zähler an der
   // Übersicht in Rail und Seitenleiste und „+ Buchung“ ruhig über der Leiste.
@@ -1188,13 +1192,12 @@ export const STATES = [
       await page.addStyleTag({ content: "html { font-size: 20px; }" });
     },
     deferred: {
-      // ledger-s1weh: unter 1024 px steht „Zu tun“ über dem Monat und wächst mit seinem Inhalt, sobald der Monat da ist.
-      // Ab 1024 px steht es links daneben; dort hält die feste Höhe der Karte „Monat“ die neuesten Buchungen an Ort.
-      fromWidth: 1024,
       api: "**/api/BudgetApi/getBudgetMonth",
       body: { Ok: budgetMonth(CURRENT) },
       loaded: (page) => page.locator('[data-testid="overview-month"]'),
     },
+    // Wie `uebersicht`: bei 390 px bricht der Satz des ersten Eintrags um (§7.4, „Zu tun“ wächst mit seinem Inhalt).
+    exceptions: [{ width: 390, inv: 9, selector: '[data-testid="overview-account"]' }],
   },
   // Gegenstück zu `uebersicht`: der Monat ohne Kategorie im Minus. Die Karte ist gleich hoch mit oder ohne „Im Minus“.
   {
@@ -1204,13 +1207,17 @@ export const STATES = [
     mock: mockOverview,
     open: openOverview,
     deferred: {
-      // ledger-s1weh: unter 1024 px steht „Zu tun“ über dem Monat und wächst mit seinem Inhalt, sobald der Monat da ist.
-      // Ab 1024 px steht es links daneben; dort hält die feste Höhe der Karte „Monat“ die neuesten Buchungen an Ort.
-      fromWidth: 1024,
       api: "**/api/BudgetApi/getBudgetMonth",
       body: { Ok: budgetMonthWithoutOverdrawn(CURRENT) },
       loaded: (page) => page.locator('[data-testid="overview-month"]'),
     },
+    // Ohne „Im Minus“ steht in „Zu tun“ nur ein Eintrag, die Liste ist eine Zeile kürzer als der Platzhalter (§7.4,
+    // „Zu tun“ wächst mit seinem Inhalt). Unter 1024 px rutschen Konten und neueste Buchungen nach oben. Kann-Sammlung ledger.
+    exceptions: [
+      { width: 390, inv: 9, selector: '[data-testid="overview-account"]' },
+      { width: 900, inv: 9, selector: '[data-testid="overview-account"]' },
+      { width: 900, inv: 9, selector: '[data-testid="overview-recent"]' },
+    ],
   },
   // design-system-k6kfw, Review-Fund: ein Ladefehler des Monats stand als große Fehlerkarte da, Konten (Handy) und
   // Neueste Buchungen (PC) rutschten nach unten. Der Fehler steht jetzt in der festen Höhe der Karte.
@@ -1221,13 +1228,17 @@ export const STATES = [
     mock: mockOverview,
     open: openOverview,
     deferred: {
-      // ledger-s1weh: unter 1024 px steht „Zu tun“ über dem Monat und wächst mit seinem Inhalt, sobald der Monat da ist.
-      // Ab 1024 px steht es links daneben; dort hält die feste Höhe der Karte „Monat“ die neuesten Buchungen an Ort.
-      fromWidth: 1024,
       api: "**/api/BudgetApi/getBudgetMonth",
       body: { Error: "YNAB antwortet nicht" },
       loaded: (page) => page.locator('[data-testid="overview-month-error"]'),
     },
+    // Ohne Monat zeigt „Zu tun“ die kleine Fehlerkarte statt der Liste, kürzer als der Platzhalter (§7.4, „Zu tun“
+    // wächst mit seinem Inhalt). Unter 1024 px rutschen Konten und neueste Buchungen nach oben. Kann-Sammlung ledger.
+    exceptions: [
+      { width: 390, inv: 9, selector: '[data-testid="overview-account"]' },
+      { width: 900, inv: 9, selector: '[data-testid="overview-account"]' },
+      { width: 900, inv: 9, selector: '[data-testid="overview-recent"]' },
+    ],
   },
   // Fix 31f15e0 (banking-import-v8n3k): die Zeile zum Bankstand nimmt beim Laden schon ihre Höhe ein.
   {

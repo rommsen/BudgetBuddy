@@ -404,7 +404,9 @@ let private todoRow (actions: Actions) (todo: Todo) =
 
 let private todoBlock (actions: Actions) (model: Model) =
     match todoState model with
-    | TodosLoading -> Loading.txListSkeleton 2
+    // In der Form des Ziels: großer erster Eintrag mit Knopf und eine Zeile, damit Monat und Konten darunter beim
+    // Laden nicht springen (Layout-Invariante 9).
+    | TodosLoading -> Loading.firstItemListSkeleton 1
     | TodosFailed message ->
         ErrorDisplay.cardCompact $"Was zu tun ist, konnte nicht geladen werden: {message}" (Some actions.Retry)
     | TodosShown [] -> Card.allDone "overview-all-done" "Alles erledigt" "Neue Aufgaben erscheinen nach dem nächsten Import."

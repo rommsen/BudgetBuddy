@@ -969,6 +969,11 @@ let private loadingSection =
                 ]
                 subTitle "Skeletons"
                 Loading.tableSkeleton 3 3
+                Html.div [
+                    prop.className "max-w-sm"
+                    prop.children [ Loading.firstItemListSkeleton 1 ]
+                ]
+                caption "firstItemListSkeleton: großer erster Eintrag mit Knopf und eine Zeile, „Zu tun“ beim Laden (ledger-s1weh)"
             ]
         ]
     ]
