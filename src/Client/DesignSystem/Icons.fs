@@ -53,6 +53,8 @@ type IconColor =
     | Error         // text-error
     | Info          // text-info
     | LenaFlag      // die Farbe aus `lena_flag_color`, nur im Flag-Symbol (ADR 0087 Punkt 8)
+    | OnAccent      // text-on-accent: auf einer Fläche im Akzent, etwa das Häkchen in `Button.checkRow`
+    | Inherit       // die Schriftfarbe des Knopfs, damit dessen `hover:` auch das Symbol färbt
 
 /// Die Klasse einer Symbolfarbe (öffentlich für Tests der Farbrollen, ADR 0087).
 let colorToClass = function
@@ -65,6 +67,8 @@ let colorToClass = function
     | Error -> "text-error"
     | Info -> "text-info"
     | LenaFlag -> "lena-flag-icon"
+    | OnAccent -> "text-on-accent"
+    | Inherit -> "text-current"
 
 // ============================================
 // SVG Icon Component

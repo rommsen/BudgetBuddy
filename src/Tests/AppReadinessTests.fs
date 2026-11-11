@@ -23,7 +23,7 @@ let private baseModel (page: Page) : State.Model =
         Toasts = []
         Pwa = Pwa.initialState
         Settings = settingsModel
-        Fetch = Components.Fetch.Types.init; QuickAddCategories = []; QuickAddCategoriesLoad = NotAsked
+        Fetch = Components.Fetch.Types.init; QuickAddCategories = NotAsked
         Rules = rulesModel
         Ledger = ledgerModel
         Budget = Components.Budget.State.init ()
@@ -34,6 +34,16 @@ let private baseModel (page: Page) : State.Model =
 [<Tests>]
 let appReadinessTests =
     testList "State.isPageReady" [
+
+        // budgeting-w9yt4 (Review): die Übersicht galt als bereit, während die angepinnten Kategorien noch luden; ein
+        // Screenshot zeigte dann das Skeleton des Blocks „Angepinnt“.
+        testCase "Die Übersicht ist nicht bereit, solange die angepinnten Kategorien laden" <| fun () ->
+            let loaded =
+                { Components.Overview.Types.init with
+                    Month = NotAsked; Accounts = NotAsked; Balances = NotAsked; Recent = NotAsked; NotInYnab = NotAsked }
+            let model = { baseModel Overview with Overview = { loaded with Pins = Loading } }
+            Expect.isFalse (State.isPageReady model) "Pins laden noch"
+            Expect.isTrue (State.isPageReady { model with Overview = { loaded with Pins = Success [] } }) "geladen ist bereit"
 
         testCase "Styleguide ist immer bereit: keine eigenen Datenstränge, rein präsentational" <| fun () ->
             let model = baseModel Styleguide

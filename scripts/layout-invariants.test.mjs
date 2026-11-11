@@ -242,9 +242,9 @@ test("[layout] Gegenbeweis Invariante 8: ein Spaltenkopf mit zu breitem Text mel
 
 test("[layout] Gegenbeweis Invariante 9: eine Zeile, die erst nach der Antwort wächst, meldet den Sprung", async () => {
   // Früher am Zustand `sync-start` (die Seite Sync entfiel mit banking-import-d0fey): jetzt wächst die Karte Monat
-  // der Übersicht erst nach ihrer Antwort.
+  // der Übersicht erst nach ihrer Antwort. Gemeldet wird, was darunter rutscht: am PC die neuesten Buchungen.
   const hits = await brokenFinds("uebersicht-ohne-minus", 1280, 9, '[data-testid="overview-month"] { padding-bottom: 400px !important; }');
-  assert.ok(hits.length > 0, hits.map(formatViolation).join("\n"));
+  assert.ok(hits.some((v) => v.selector.includes("overview-recent")), hits.map(formatViolation).join("\n"));
 });
 
 test("[layout] settle wartet nicht auf eine pausierte Animation", { timeout: 30000 }, async () => {

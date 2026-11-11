@@ -48,8 +48,14 @@ type Model = {
     /// Die angepinnten Kategorien in BBs gespeicherter Folge (budgeting-w9yt4), auch deaktivierte und gelöschte: die
     /// Anzeige blendet sie aus, die Id behält ihren Platz. Das Kategorie-Detail im Budget liest sie mit.
     Pins: RemoteData<Guid list>
-    /// Die Nummer der jüngsten Speicher-Anfrage der Pins. Scheitert eine ältere, ist sie überholt.
-    PinsRequest: int
+    /// Die Nummer des jüngsten Lesens der Pins. Jedes Lesen und jede Änderung zählt hoch: eine Antwort mit älterer
+    /// Nummer ist überholt und überschreibt keinen Pin, den Roman inzwischen umgeschaltet hat.
+    PinsRead: int
+    /// Der zuletzt bestätigte Stand: gelesen oder gespeichert. Scheitert das Speichern, springt die Anzeige hierhin.
+    PinsConfirmed: Guid list
+    /// Die Liste, deren Speichern gerade läuft. Es läuft höchstens eines: eine Änderung währenddessen wartet und geht
+    /// nach der Antwort als ganze Liste hinterher, so kommen die Listen in ihrer Folge beim Server an.
+    PinsSaving: Guid list option
     /// Das Sheet „Angepinnt“, `None` solange es zu ist.
     PinSheet: PinSheet option
     /// BBs Reihenfolge der Kategorien (ADR 0088) für die Liste im Sheet, geholt beim ersten Öffnen. Ohne sie gilt
@@ -71,7 +77,9 @@ let init : Model =
       Balances = NotAsked
       Today = DateTime.MinValue
       Pins = NotAsked
-      PinsRequest = 0
+      PinsRead = 0
+      PinsConfirmed = []
+      PinsSaving = None
       PinSheet = None
       CategoryOrder = None }
 
@@ -99,13 +107,14 @@ type Msg =
     /// Die angepinnten Kategorien werden gebraucht: beim Start der App auf einer anderen Seite (Pin-Knopf im
     /// Kategorie-Detail).
     | PinsNeeded
-    | PinsLoaded of Result<Guid list, string>
+    /// Die gelesenen Pins, mit der Nummer des Lesens.
+    | PinsLoaded of read: int * Result<Guid list, string>
     /// Anpinnen oder lösen, aus dem Sheet oder dem Kategorie-Detail. Neu angepinnte kommen ans Ende.
     | PinToggled of categoryId: Guid
     /// Pfeil hoch im Sheet: eine Stelle nach oben unter den gezeigten Pins.
     | PinMovedUp of categoryId: Guid
-    /// Die Antwort auf das Speichern, mit der Nummer der Anfrage und dem Stand davor für den Rücksprung.
-    | PinsSaved of request: int * previous: Guid list * Result<unit, string>
+    /// Die Antwort auf das laufende Speichern (`PinsSaving`).
+    | PinsSaved of Result<unit, string>
     | PinSheetOpened
     | PinSheetClosed
     | PinSearchChanged of string
@@ -539,6 +548,12 @@ let pinSheetGroups (order: Guid list option) (query: string) (month: BudgetMonth
 /// Die Zeilen des Sheets flach, in der Folge der Anzeige: die Markierung zählt in dieser Liste.
 let pinSheetRows (order: Guid list option) (query: string) (month: BudgetMonth) : BudgetCategory list =
     pinSheetGroups order query month |> List.collect snd
+
+/// Die markierte Zeile des offenen Sheets: Enter schaltet sie um, das Suchfeld zeigt auf sie (`aria-activedescendant`).
+let pinSheetMarked (model: Model) : BudgetCategory option =
+    match model.PinSheet, model.Month with
+    | Some sheet, Success month -> pinSheetRows model.CategoryOrder sheet.Query month |> List.tryItem sheet.Marked
+    | _ -> None
 
 /// Der Abschnitt „Angepinnt (n)“ steht nur ohne Suchbegriff und mit gezeigten Pins.
 let pinSheetPinnedSection (query: string) (pins: Guid list) (month: BudgetMonth) : BudgetCategory list =

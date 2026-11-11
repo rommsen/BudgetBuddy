@@ -74,7 +74,6 @@ let private templatesSection (templates: RemoteData<QuickAddTemplate list>) (dis
 let view
     (formOpt: QuickAddFormState option)
     (categories: YnabCategory list)
-    (recentCategoryIds: YnabCategoryId list)
     (templates: RemoteData<QuickAddTemplate list>)
     (dispatch: Msg -> unit)
     : ReactElement =
@@ -103,10 +102,6 @@ let view
             { Id = id.ToString()
               Label = $"{cat.GroupName}: {cat.Name}"
               Available = cat.Available })
-
-    let recentCats =
-        recentCategoryIds
-        |> List.map (fun (YnabCategoryId guid) -> guid.ToString())
 
     React.fragment [
         Html.div [
@@ -258,7 +253,7 @@ let view
             (form.Payee.Trim())
             pickerCategoryOptions
             []
-            recentCats
+            []
             (fun catId -> update { form with CategoryId = catId; ShowCategoryPicker = false })
             (fun () -> update { form with ShowCategoryPicker = false })
     ]

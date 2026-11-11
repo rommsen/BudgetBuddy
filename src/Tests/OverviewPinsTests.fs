@@ -42,7 +42,7 @@ let private deactivate (id: Guid) (m: BudgetMonth) : BudgetMonth =
                 { g with Categories = g.Categories |> List.map (fun c -> if c.Id = id then { c with Deactivated = Some true } else c) }) }
 
 let private loaded (pins: Guid list) : Model =
-    { init with Month = Success november; Pins = Success pins }
+    { init with Month = Success november; Pins = Success pins; PinsConfirmed = pins }
 
 let private step msg model = pinStep msg model
 
@@ -147,7 +147,7 @@ let blockStateTests =
             Expect.equal (pinBlockState { loaded [ food ] with Month = Failure "YNAB" }) PinsFailed "Monat"
 
         testCase "Ein Ladefehler nach geladenen Pins behält den Stand" <| fun () ->
-            let model, _ = step (PinsLoaded (Error "kaputt")) (loaded [ food ])
+            let model, _ = step (PinsLoaded (0, Error "kaputt")) (loaded [ food ])
             Expect.equal model.Pins (Success [ food ]) "bleibt"
     ]
 
@@ -157,12 +157,12 @@ let pinChangeTests =
         testCase "Anpinnen hängt ans Ende und speichert die ganze Liste" <| fun () ->
             let model, effect = step (PinToggled kids) (loaded [ food; restaurant ])
             Expect.equal model.Pins (Success [ food; restaurant; kids ]) "am Ende"
-            Expect.equal effect (SavePins (1, [ food; restaurant ], [ food; restaurant; kids ])) "gespeichert wird alles"
+            Expect.equal effect (SavePins [ food; restaurant; kids ]) "gespeichert wird alles"
 
         testCase "Lösen nimmt heraus" <| fun () ->
             let model, effect = step (PinToggled restaurant) (loaded [ food; restaurant; kids ])
             Expect.equal model.Pins (Success [ food; kids ]) "gelöst"
-            Expect.equal effect (SavePins (1, [ food; restaurant; kids ], [ food; kids ])) "gespeichert"
+            Expect.equal effect (SavePins [ food; kids ]) "gespeichert"
 
         testCase "Ohne geladene Pins geschieht nichts: die gespeicherte Liste bleibt unberührt" <| fun () ->
             let model, effect = step (PinToggled kids) { loaded [] with Pins = Failure "kaputt" }
@@ -186,39 +186,104 @@ let pinChangeTests =
             Expect.isFalse (isPinned { loaded [ restaurant ] with Pins = Loading } restaurant) "ohne Stand nie"
     ]
 
-/// Zwei Änderungen schnell hintereinander, die Antworten in jeder Reihenfolge und mit jedem Ausgang (Doktrin Punkt 20).
-/// Orakel: Scheitert die jüngste Anfrage, gilt der Stand vor ihr, sonst der nach ihr. Gemeldet wird nur die jüngste.
+/// Ein fester Ablauf aus Umschaltern und Antworten auf das Speichern.
+type private SaveStep =
+    | Toggle of Guid
+    | Answer of ok: bool
+
+/// Zwei Umschalter schnell hintereinander und die Antworten auf das Speichern in jeder Lage und mit jedem Ausgang
+/// (Doktrin Punkt 20, budgeting-w9yt4 Review: vorher sprang ein Scheitern auf einen nie gespeicherten Stand zurück).
+/// Orakel ist ein Server, der jede angekommene Liste in ihrer Folge übernimmt, unabhängig vom getesteten Code: es läuft
+/// höchstens ein Speichern zugleich, jedes trägt die ganze angezeigte Liste, am Ende zeigt die Übersicht, was der
+/// Server hat, und ein Scheitern meldet sich genau dann, wenn seit dem Senden kein Umschalter kam.
 [<Tests>]
 let saveOrderTests =
     testList "Angepinnt: Antworten auf das Speichern in jeder Reihenfolge" [
-        let start = loaded [ food ]
-        let afterFirst = [ food; kids ]
-        let afterSecond = [ food; kids; restaurant ]
-        for firstOk in [ true; false ] do
-            for secondOk in [ true; false ] do
-                for firstAnswersFirst in [ true; false ] do
-                    testCase $"erste {firstOk}, zweite {secondOk}, erste antwortet zuerst {firstAnswersFirst}" <| fun () ->
-                        let one, e1 = step (PinToggled kids) start
-                        let two, e2 = step (PinToggled restaurant) one
-                        let answer effect ok =
-                            match effect with
-                            | SavePins (request, previous, _) -> PinsSaved (request, previous, (if ok then Ok () else Error "Platte voll"))
-                            | other -> failtestf "Speichern erwartet: %A" other
-                        let answers =
-                            if firstAnswersFirst then [ answer e1 firstOk; answer e2 secondOk ]
-                            else [ answer e2 secondOk; answer e1 firstOk ]
-                        let notices = ResizeArray<string>()
-                        let final =
-                            answers
-                            |> List.fold
-                                (fun model msg ->
-                                    pinSaveNotice msg model |> Option.iter notices.Add
-                                    fst (step msg model))
-                                two
-                        let expected = if secondOk then afterSecond else afterFirst
-                        Expect.equal final.Pins (Success expected) "angezeigter Stand"
-                        let expectedNotices = if secondOk then [] else [ "Nicht gespeichert: Platte voll" ]
-                        Expect.equal (List.ofSeq notices) expectedNotices "Toast nur zur jüngsten"
+        let scripts =
+            [ for firstOk in [ true; false ] do
+                  for secondOk in [ true; false ] do
+                      // Der zweite Umschalter vor oder nach der ersten Antwort.
+                      yield [ Toggle kids; Toggle restaurant; Answer firstOk; Answer secondOk ]
+                      yield [ Toggle kids; Answer firstOk; Toggle restaurant; Answer secondOk ] ]
+        let describe (script: SaveStep list) =
+            script
+            |> List.map (function
+                | Toggle id when id = kids -> "Kinderkram umschalten"
+                | Toggle _ -> "Restaurant umschalten"
+                | Answer true -> "gespeichert"
+                | Answer false -> "gescheitert")
+            |> String.concat ", "
+        for script in scripts do
+            testCase (describe script) <| fun () ->
+                let mutable model = loaded [ food ]
+                let mutable server = [ food ]
+                let mutable inFlight : (Guid list * bool) option = None // gesendete Liste, kam seither ein Umschalter
+                let notices = ResizeArray<string>()
+                let expectedNotices = ResizeArray<string>()
+                let send effect =
+                    match effect with
+                    | SavePins pins ->
+                        Expect.isNone inFlight "höchstens ein Speichern zugleich"
+                        Expect.equal (Success pins) model.Pins "gesendet wird die angezeigte Liste"
+                        inFlight <- Some (pins, false)
+                    | NoPinEffect -> ()
+                    | other -> failtestf "unerwartet: %A" other
+                let run msg =
+                    pinSaveNotice msg model |> Option.iter notices.Add
+                    let next, effect = step msg model
+                    model <- next
+                    send effect
+                let rec drain (remaining: SaveStep list) =
+                    match remaining with
+                    | [] -> ()
+                    | Toggle id :: rest ->
+                        inFlight <- inFlight |> Option.map (fun (pins, _) -> pins, true)
+                        run (PinToggled id)
+                        drain rest
+                    | Answer ok :: rest ->
+                        match inFlight with
+                        | None -> drain rest
+                        | Some (pins, toggledSince) ->
+                            inFlight <- None
+                            if ok then server <- pins
+                            elif not toggledSince then expectedNotices.Add "Nicht gespeichert: Platte voll"
+                            run (PinsSaved (if ok then Ok () else Error "Platte voll"))
+                            drain rest
+                drain script
+                // Was nach dem Ablauf noch gesendet wurde, beantwortet der Server mit Erfolg.
+                while inFlight.IsSome do
+                    drain [ Answer true ]
+                Expect.equal model.Pins (Success server) "die Übersicht zeigt, was gespeichert ist"
+                Expect.equal (List.ofSeq notices) (List.ofSeq expectedNotices) "Toast nur, wenn die Anzeige zurückspringt"
+    ]
+
+/// budgeting-w9yt4 Review: eine späte Antwort auf das Lesen (etwa nach jedem Abruf über ReloadRequested) überschrieb
+/// einen Pin, den Roman inzwischen umgeschaltet hatte; der nächste Umschalter speicherte dann die alte Liste ganz.
+[<Tests>]
+let lateReadTests =
+    testList "Angepinnt: späte Antworten auf das Lesen" [
+        testCase "Lesen startet, Roman schaltet um, die alte Antwort kommt an: der Umschalter bleibt" <| fun () ->
+            let reading = beginEnter (DateTime(2026, 11, 11)) (loaded [ food ])
+            let toggled, _ = step (PinToggled kids) reading
+            let late, _ = step (PinsLoaded (reading.PinsRead, Ok [ food ])) toggled
+            Expect.equal late.Pins (Success [ food; kids ]) "der Umschalter bleibt"
+
+        testCase "Lesen startet während eines Speicherns: die Antwort zählt nicht" <| fun () ->
+            let saving, _ = step (PinToggled kids) (loaded [ food ])
+            let reading = beginPins saving
+            let late, _ = step (PinsLoaded (reading.PinsRead, Ok [ food ])) reading
+            Expect.equal late.Pins (Success [ food; kids ]) "die gesendete Liste bleibt"
+
+        testCase "Ohne Umschalter gilt die Antwort des jüngsten Lesens, eine ältere nicht" <| fun () ->
+            let first = beginPins (loaded [ food ])
+            let second = beginPins first
+            let stale, _ = step (PinsLoaded (first.PinsRead, Ok [ car ])) second
+            Expect.equal stale.Pins (Success [ food ]) "überholt"
+            let fresh, _ = step (PinsLoaded (second.PinsRead, Ok [ kids ])) stale
+            Expect.equal fresh.Pins (Success [ kids ]) "jüngstes Lesen"
+            let saving, _ = step (PinToggled kids) fresh
+            let failed, _ = step (PinsSaved (Error "Platte voll")) saving
+            Expect.equal failed.Pins (Success [ kids ]) "der gelesene Stand ist der bestätigte"
     ]
 
 [<Tests>]
@@ -278,6 +343,14 @@ let sheetTests =
             let opened, _ = step PinSheetOpened (loaded [])
             Expect.isNone (fst (step PinSheetClosed opened)).PinSheet "Fertig, Esc, Schließen"
             Expect.isNone (beginEnter (DateTime(2026, 11, 11)) opened).PinSheet "Betreten"
+
+        // budgeting-w9yt4 Review: „Erneut versuchen“ im Sheet, wenn der Monat fehlt, lädt neu und lässt das Sheet offen.
+        testCase "Erneut laden lässt ein offenes Sheet offen und lädt den Monat neu" <| fun () ->
+            let opened, _ = step PinSheetOpened { loaded [] with Month = Failure "YNAB"; Today = DateTime(2026, 11, 11) }
+            let reloading = beginReload opened
+            Expect.equal reloading.PinSheet opened.PinSheet "bleibt offen"
+            Expect.equal reloading.Month Loading "Monat lädt"
+            Expect.equal reloading.Today opened.Today "derselbe Tag"
     ]
 
 let private rootModel (page: Page) : State.Model =
@@ -288,7 +361,7 @@ let private rootModel (page: Page) : State.Model =
       Toasts = []
       Pwa = Pwa.initialState
       Settings = settingsModel
-      Fetch = Components.Fetch.Types.init; QuickAddCategories = []; QuickAddCategoriesLoad = NotAsked
+      Fetch = Components.Fetch.Types.init; QuickAddCategories = NotAsked
       Rules = rulesModel
       Ledger = ledgerModel
       Budget = Components.Budget.Types.init ()
@@ -301,6 +374,15 @@ let private dispatched (cmd: Elmish.Cmd<State.Msg>) : State.Msg list =
     let collected = ResizeArray<State.Msg>()
     cmd |> List.iter (fun effect -> effect collected.Add)
     List.ofSeq collected
+
+/// Nur die Toasts eines Cmds. Das Speichern darin läuft im Hintergrund an und scheitert unter .NET am
+/// Remoting-Proxy; seine Antwort kommt später und zählt hier nicht.
+let private toastsOf (cmd: Elmish.Cmd<State.Msg>) : State.Msg list =
+    let collected = System.Collections.Concurrent.ConcurrentQueue<State.Msg>()
+    cmd |> List.iter (fun effect -> effect collected.Enqueue)
+    collected.ToArray()
+    |> Array.filter (function State.ShowToast _ -> true | _ -> false)
+    |> List.ofArray
 
 [<Tests>]
 let openPinnedTests =
@@ -326,13 +408,32 @@ let openPinnedTests =
 
         testCase "Ein Speicherfehler kommt als Toast „Nicht gespeichert: <Grund>“, die Anzeige springt zurück" <| fun () ->
             let start = rootModel Overview
-            let saving = { start with Overview = { start.Overview with Pins = Success [ food; kids ]; PinsRequest = 1 } }
-            let model, cmd = State.update (State.OverviewMsg (PinsSaved (1, [ food ], Error "Datenbank gesperrt"))) saving
+            let saving =
+                { start with
+                    Overview =
+                        { start.Overview with Pins = Success [ food; kids ]; PinsConfirmed = [ food ]; PinsSaving = Some [ food; kids ] } }
+            let model, cmd = State.update (State.OverviewMsg (PinsSaved (Error "Datenbank gesperrt"))) saving
             Expect.equal model.Overview.Pins (Success [ food ]) "zurück auf den vorigen Stand"
             Expect.contains (dispatched cmd) (State.ShowToast ("Nicht gespeichert: Datenbank gesperrt", ToastError)) "Toast"
+
+        // budgeting-w9yt4 Review: der Toast muss den Stand vor dem Umschalten lesen, sonst sagte er „gelöst“ beim
+        // Anpinnen. Gegenprobe: `wasPinned` nach dem Umschalten gelesen macht diesen Test rot.
+        testCase "Der Pin-Knopf im Kategorie-Detail pinnt ans Ende an und löst wieder, je mit Toast und gespeichert" <| fun () ->
+            let start = rootModel Budget
+            let withPins = { start with Overview = { start.Overview with Pins = Success [ food ]; PinsConfirmed = [ food ] } }
+            let pinned, pinCmd = State.update (State.TogglePinFromInspector (restaurant, "Restaurant")) withPins
+            Expect.equal pinned.Overview.Pins (Success [ food; restaurant ]) "am Ende"
+            Expect.equal pinned.Overview.PinsSaving (Some [ food; restaurant ]) "gespeichert wird die ganze Liste"
+            Expect.equal (toastsOf pinCmd) [ State.ShowToast ("Restaurant angepinnt", ToastSuccess) ] "Toast anpinnen"
+            let saved, _ = State.update (State.OverviewMsg (PinsSaved (Ok ()))) pinned
+            let loosened, looseCmd = State.update (State.TogglePinFromInspector (restaurant, "Restaurant")) saved
+            Expect.equal loosened.Overview.Pins (Success [ food ]) "gelöst"
+            Expect.equal loosened.Overview.PinsSaving (Some [ food ]) "gespeichert"
+            Expect.equal (toastsOf looseCmd) [ State.ShowToast ("Restaurant gelöst", ToastSuccess) ] "Toast lösen"
 
         testCase "Der Pin-Knopf ohne geladene Pins tut nichts" <| fun () ->
             let model, cmd = State.update (State.TogglePinFromInspector (restaurant, "Restaurant")) (rootModel Budget)
             Expect.equal model.Overview.Pins NotAsked "unberührt"
             Expect.isEmpty (dispatched cmd) "kein Toast, kein Speichern"
     ]
+

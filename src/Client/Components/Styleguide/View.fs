@@ -391,7 +391,8 @@ let private buttonSection =
                         // gedämpftem Pfeil nach oben.
                         Button.orderNameRow "styleguide-order-row" "styleguide-order-row" "Drogerie bearbeiten" "Drogerie" ignore ignore false true ignore ignore
                         // budgeting-w9yt4: „Bearbeiten“ im Kopf des Blocks Angepinnt, Pin-Knopf im Kategorie-Detail (beide Stände),
-                        // Platz eines fehlenden Pfeils und Zeilen zum Ankreuzen im Sheet Angepinnt (angekreuzt, markiert, leer).
+                        // Platz eines fehlenden Pfeils, „Lösen“ (×) und Zeilen zum Ankreuzen im Sheet Angepinnt (angekreuzt,
+                        // markiert, leer).
                         Button.quietAccentText "styleguide-quiet-accent-text" "Bearbeiten" ignore
                         Html.div [
                             prop.className "flex items-center gap-2"
@@ -399,14 +400,15 @@ let private buttonSection =
                                 Button.pinToggle "styleguide-pin-off" false ignore
                                 Button.pinToggle "styleguide-pin-on" true ignore
                                 Button.orderArrowGap ()
+                                Button.removeIcon "styleguide-remove-icon" "Lebensmittel lösen" ignore
                             ]
                         ]
                         Html.div [
                             prop.className "rounded-[14px] border border-border-subtle overflow-hidden"
                             prop.children [
-                                Button.checkRow "styleguide-check-row" true false ignore [ Html.span [ prop.className "flex-1"; prop.text "Lebensmittel" ] ]
-                                Button.checkRow "styleguide-check-row" false true ignore [ Html.span [ prop.className "flex-1"; prop.text "Drogerie (markiert)" ] ]
-                                Button.checkRow "styleguide-check-row" false false ignore [ Html.span [ prop.className "flex-1"; prop.text "Auto" ] ]
+                                Button.checkRow "styleguide-check-row" "styleguide-check-row-1" true false ignore [ Html.span [ prop.className "flex-1"; prop.text "Lebensmittel" ] ]
+                                Button.checkRow "styleguide-check-row" "styleguide-check-row-2" false true ignore [ Html.span [ prop.className "flex-1"; prop.text "Drogerie (markiert)" ] ]
+                                Button.checkRow "styleguide-check-row" "styleguide-check-row-3" false false ignore [ Html.span [ prop.className "flex-1"; prop.text "Auto" ] ]
                             ]
                         ]
                     ]

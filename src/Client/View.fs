@@ -154,12 +154,9 @@ let view (model: Model) (dispatch: Msg -> unit) =
                             | QuickAdd ->
                                 // Standalone Quick Add page. Categories load at startup;
                                 // templates are the recent Quick-Add bookings (ynab-t4n8p).
-                                // Zuletzt genutzte Kategorien kamen aus dem Sync-Ablauf, der
-                                // entfiel (banking-import-d0fey).
                                 Views.QuickAddPage.view
                                     model.QuickAdd
-                                    model.QuickAddCategories
-                                    []
+                                    (RemoteData.toOption model.QuickAddCategories |> Option.defaultValue [])
                                     model.QuickAddTemplates
                                     dispatch
                             | Ledger

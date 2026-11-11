@@ -132,7 +132,7 @@ let private rootModel (pageNow: Page) (budget: Model) : State.Model =
       Toasts = []
       Pwa = Pwa.initialState
       Settings = settingsModel
-      Fetch = Components.Fetch.Types.init; QuickAddCategories = []; QuickAddCategoriesLoad = NotAsked
+      Fetch = Components.Fetch.Types.init; QuickAddCategories = NotAsked
       Rules = rulesModel
       Ledger = ledgerModel
       Budget = budget

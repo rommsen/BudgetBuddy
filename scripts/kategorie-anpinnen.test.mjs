@@ -97,14 +97,15 @@ test("[tastatur] Am PC steht der Fokus in der Suche des Sheets, Pfeile markieren
     const dialog = page.locator('[data-layer="dialog"]');
     const rows = dialog.locator('[data-testid="pin-sheet-row"]');
     await rows.first().waitFor();
-    const search = dialog.getByRole("textbox", { name: "Kategorie suchen" });
+    const search = dialog.getByRole("combobox", { name: "Kategorie suchen" });
     await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Kategorie suchen");
 
     await search.press("ArrowDown");
     await rows.nth(1).and(page.locator('[data-marked="true"]')).waitFor();
+    assert.equal(await search.getAttribute("aria-activedescendant"), await rows.nth(1).getAttribute("id"), "die Suche zeigt auf die Markierung");
     const save = page.waitForRequest("**/api/BudgetApi/setPinnedCategories");
     await search.press("Enter");
-    await rows.nth(1).and(page.locator('[aria-pressed="true"]')).waitFor();
+    await rows.nth(1).and(page.locator('[aria-checked="true"]')).waitFor();
     const [sent] = JSON.parse((await save).postData() ?? "[[]]");
     assert.equal(sent.length, 1, "die markierte Zeile ist angepinnt und gespeichert");
     assert.equal(await search.evaluate((el) => el === document.activeElement), true, "der Fokus bleibt in der Suche");

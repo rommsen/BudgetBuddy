@@ -46,7 +46,8 @@ let private stateToClass = function
 // ============================================
 
 /// Das Feld steuert eine Liste darunter, der Fokus bleibt im Feld (Muster Combobox der WAI-ARIA-Praxis):
-/// `role="combobox"`, `aria-controls` auf die Listbox, `aria-activedescendant` auf die markierte Zeile.
+/// `role="combobox"`, `aria-controls` auf die Liste, `aria-activedescendant` auf die markierte Zeile. Genutzt von der
+/// Payee-Auswahl (ledger-fxt09) und der Suche im Sheet „Angepinnt“ (budgeting-w9yt4).
 type ComboboxAria = {
     ListboxId: string
     Expanded: bool
@@ -76,7 +77,7 @@ type TextInputProps = {
     DescribedBy: string option
     /// Die Eingabe gilt nicht (`aria-invalid`). Die rote Umrandung setzt weiter `State` oder die Klasse.
     AriaInvalid: bool
-    /// Das Feld ist die Eingabe einer Combobox (ledger-fxt09, Payee-Auswahl).
+    /// Das Feld ist die Eingabe einer Combobox (Payee-Auswahl, Suche im Sheet „Angepinnt“). `None` für ein schlichtes Feld.
     Combobox: ComboboxAria option
 }
 

@@ -40,9 +40,8 @@ type Model = {
     QuickAddTemplates: RemoteData<QuickAddTemplate list>
 
     // Die Kategorien für Quick Add, beim Start und beim Betreten der Seite geladen. Lagen bis
-    // banking-import-d0fey im Sync-Ablauf.
-    QuickAddCategories: YnabCategory list
-    QuickAddCategoriesLoad: RemoteData<unit>
+    // banking-import-d0fey im Sync-Ablauf. Ein spätes Scheitern behält eine geladene Liste.
+    QuickAddCategories: RemoteData<YnabCategory list>
 
     // Die Übersicht samt Konten der Seitenleiste (design-system-k6kfw).
     Overview: Components.Overview.Types.Model
@@ -395,6 +394,7 @@ let isPageReady (model: Model) : bool =
         && notLoading model.Overview.Balances
         && notLoading model.Overview.Recent
         && notLoading model.Overview.NotInYnab
+        && notLoading model.Overview.Pins
     | Rules -> notLoading model.Rules.Rules
     | Settings -> notLoading model.Settings.Settings
     | QuickAdd -> notLoading model.QuickAddTemplates
@@ -514,8 +514,7 @@ let init () : Model * Cmd<Msg> =
         Budget = Components.Budget.State.init ()
         QuickAdd = None
         QuickAddTemplates = NotAsked
-        QuickAddCategories = []
-        QuickAddCategoriesLoad = NotAsked
+        QuickAddCategories = NotAsked
         Overview = Components.Overview.Types.init
         SettingsReturn = Overview
     }
@@ -775,7 +774,7 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
         let externalCmd = fetchExternalCmd model' externalMsg
         model', Cmd.batch [ Cmd.map FetchMsg fetchCmd; externalCmd ]
 
-    | LoadQuickAddCategories when RemoteData.isLoading model.QuickAddCategoriesLoad ->
+    | LoadQuickAddCategories when RemoteData.isLoading model.QuickAddCategories ->
         // Der laufende Abruf liefert dasselbe.
         model, Cmd.none
 
@@ -789,7 +788,7 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
                 | None -> return Error (YnabError.Unauthorized "Kein Standard-Budget eingerichtet")
             | None -> return Error (YnabError.Unauthorized "YNAB ist nicht eingerichtet")
         }
-        { model with QuickAddCategoriesLoad = Loading },
+        { model with QuickAddCategories = Loading },
         Cmd.OfAsync.either
             loadCategoriesAsync
             ()
@@ -797,7 +796,7 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
             (fun ex -> QuickAddCategoriesLoaded (Error (YnabError.NetworkError ex.Message)))
 
     | QuickAddCategoriesLoaded (Ok categories) ->
-        { model with QuickAddCategories = categories; QuickAddCategoriesLoad = Success () }, Cmd.none
+        { model with QuickAddCategories = Success categories }, Cmd.none
 
     | QuickAddCategoriesLoaded (Error error) ->
         // `Unauthorized` trägt hier auch "nicht eingerichtet" aus dem Ladeweg.
@@ -806,7 +805,7 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
             | YnabError.Unauthorized message -> message
             | other -> ynabErrorText other
         let message = $"Kategorien konnten nicht geladen werden: {text}"
-        { model with QuickAddCategoriesLoad = Failure text },
+        { model with QuickAddCategories = RemoteData.lateFailure text model.QuickAddCategories },
         (if shouldShowLoadFailure model.CurrentPage message model.Toasts then Cmd.ofMsg (ShowToast (message, ToastError))
          else Cmd.none)
 

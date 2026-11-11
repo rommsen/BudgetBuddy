@@ -269,6 +269,7 @@ let view (props: BottomSheetProps) (children: ReactElement list) : ReactElement 
 type private InspectorContent = {
     Title: string
     Subtitle: string option
+    Footer: ReactElement list option
     HeaderActions: ReactElement list
     Pinned: ReactElement list
     Children: ReactElement list
@@ -279,11 +280,11 @@ type private InspectorContent = {
 let private ExitDurationMs = 500
 
 [<ReactComponent>]
-let private InspectorSheet (props: BottomSheetProps, headerActions: ReactElement list, pinned: ReactElement list, children: ReactElement list) =
+let private HeldSheet (props: BottomSheetProps, fixedHeight: bool, headerActions: ReactElement list, pinned: ReactElement list, children: ReactElement list) =
     let held = React.useRef<InspectorContent option> None
     let released, setReleased = React.useState 0
     if props.IsOpen then
-        held.current <- Some { Title = props.Title; Subtitle = props.Subtitle; HeaderActions = headerActions; Pinned = pinned; Children = children }
+        held.current <- Some { Title = props.Title; Subtitle = props.Subtitle; Footer = props.Footer; HeaderActions = headerActions; Pinned = pinned; Children = children }
     React.useEffect (
         (fun () ->
             if props.IsOpen then
@@ -300,12 +301,12 @@ let private InspectorSheet (props: BottomSheetProps, headerActions: ReactElement
     )
     let shown =
         held.current
-        |> Option.defaultValue { Title = props.Title; Subtitle = props.Subtitle; HeaderActions = []; Pinned = []; Children = [] }
+        |> Option.defaultValue { Title = props.Title; Subtitle = props.Subtitle; Footer = props.Footer; HeaderActions = []; Pinned = []; Children = [] }
     BottomSheetInternal
-        { Props = { props with Title = shown.Title; Subtitle = shown.Subtitle }
+        { Props = { props with Title = shown.Title; Subtitle = shown.Subtitle; Footer = shown.Footer }
           Children = shown.Children
           Elevated = false
-          FixedHeight = true
+          FixedHeight = fixedHeight
           HeaderActions = shown.HeaderActions
           Pinned = shown.Pinned }
 
@@ -319,7 +320,13 @@ let inspector
     (pinned: ReactElement list)
     (children: ReactElement list)
     : ReactElement =
-    InspectorSheet (props, headerActions, pinned, children)
+    HeldSheet (props, true, headerActions, pinned, children)
+
+/// Wie `view`, aber der letzte Inhalt bleibt stehen, solange das Sheet ausfährt: für ein Sheet, dessen Inhalt am
+/// Zustand hängt, der beim Schließen wegfällt (Sheet „Angepinnt“, budgeting-w9yt4). Muss offen wie zu gerendert
+/// bleiben, sonst geht der gehaltene Inhalt verloren.
+let viewHeld (props: BottomSheetProps) (children: ReactElement list) : ReactElement =
+    HeldSheet (props, false, [], [], children)
 
 /// Wie `view`, aber auf der erhöhten Ebene (`layer-2`): das Sheet öffnet über einem anderen
 /// Sheet, zum Beispiel der Kategorie-Picker über dem Buchungs-Detail.

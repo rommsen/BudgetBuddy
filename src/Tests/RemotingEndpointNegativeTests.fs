@@ -512,15 +512,10 @@ let private rows : Row list = [
               Expect.stringContains message Server.Validation.PinnedCategoryDuplicateText "doppelt"
               Expect.stringContains message (string unknown) "unbekannt"
           | Ok () -> failtest "Pins hätten abgelehnt werden müssen" }
-    { Endpoint = "BudgetApi.getPinnedCategories"; Case = "Tabelle nicht lesbar: kurze Meldung statt Ausnahme"
-      Run = fun () ->
-          let connectionString = $"Data Source=pinned-negative-{Guid.NewGuid():N};Mode=Memory;Cache=Shared"
-          use anchor = new Microsoft.Data.Sqlite.SqliteConnection(connectionString)
-          anchor.Open()
-          Expect.equal
-              (Server.Budgeting.Categories.pinnedCategoriesWith (fun () -> new Microsoft.Data.Sqlite.SqliteConnection(connectionString)) |> run)
-              (Error Server.Budgeting.Categories.PinnedCategoriesUnreadableText)
-              "ohne Tabelle" }
+    // Die nicht lesbare Tabelle prüft der Handler (`PinnedCategoriesTests`, „Lese- und Schreibfehler kommen als kurze
+    // Meldung“); hier geht der Aufruf durch den Endpoint.
+    { Endpoint = "BudgetApi.getPinnedCategories"; Case = "nur BBs Datenbank: eine Liste, keine Ausnahme, kein YNAB"
+      Run = fun () -> Expect.isOk (budget.getPinnedCategories () |> run) "liest nur die Datenbank" }
     { Endpoint = "BudgetApi.retryFailedTargets"; Case = "keine gültige Anwendungs-Id: Fehler"
       Run = fun () -> budget.retryFailedTargets "keine-guid" |> run |> expectError "Wiederholen" }
     // budgeting-e2z7v: Targets nach YNAB.

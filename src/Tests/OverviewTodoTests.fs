@@ -242,7 +242,7 @@ let private rootModel (page: Page) : State.Model =
       Toasts = []
       Pwa = Pwa.initialState
       Settings = settingsModel
-      Fetch = Components.Fetch.Types.init; QuickAddCategories = []; QuickAddCategoriesLoad = NotAsked
+      Fetch = Components.Fetch.Types.init; QuickAddCategories = NotAsked
       Rules = rulesModel
       Ledger = ledgerModel
       Budget = Components.Budget.Types.init ()

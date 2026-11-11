@@ -416,12 +416,13 @@ let sheetArrow (testId: string) (ariaLabel: string) (icon: ReactElement) (onClic
     ]
 
 /// Eine Zeile zum Ankreuzen (Prototyp Version 17 `.check`, Sheet „Angepinnt“, budgeting-w9yt4): links ein Kästchen
-/// 22 px mit Radius 7 px, Rand `border-strong`, angekreuzt gefüllt im Akzent mit Häkchen, danach der Inhalt. Die ganze
-/// Zeile ist der Knopf (`aria-pressed`), 52 px hoch. `marked`: die Markierung der Pfeiltasten am PC, Kante im Akzent
-/// (ADR 0087 Punkt 20).
-let checkRow (testId: string) (isChecked: bool) (marked: bool) (onClick: unit -> unit) (children: ReactElement list) =
+/// 22 px mit Radius 7 px, Rand `border-strong`, angekreuzt gefüllt im Akzent mit Häkchen in `on-accent`, danach der
+/// Inhalt. Die ganze Zeile ist der Knopf (`role="checkbox"`, `aria-checked`), 52 px hoch. `marked`: die Markierung der
+/// Pfeiltasten am PC, Kante im Akzent (ADR 0087 Punkt 20). `rowId`: die Id, auf die ein Suchfeld mit
+/// `aria-activedescendant` zeigt.
+let checkRow (testId: string) (rowId: string) (isChecked: bool) (marked: bool) (onClick: unit -> unit) (children: ReactElement list) =
     let box =
-        if isChecked then $"{Backgrounds.accent} {Borders.accent} {Colors.onAccent} {Colors.onAccentSvg}"
+        if isChecked then $"{Backgrounds.accent} {Borders.accent}"
         else Borders.strong
     let markedClass =
         if marked then $"{Backgrounds.accentSubtle} outline outline-1 -outline-offset-1 outline-accent"
@@ -429,7 +430,9 @@ let checkRow (testId: string) (isChecked: bool) (marked: bool) (onClick: unit ->
     Html.button [
         prop.type' "button"
         prop.custom ("data-testid", testId)
-        prop.ariaPressed isChecked
+        prop.id rowId
+        prop.role "checkbox"
+        prop.ariaChecked isChecked
         if marked then prop.custom ("data-marked", "true")
         prop.className $"flex w-full items-center gap-3 min-h-[52px] px-3 py-1 text-left border-b border-border-subtle last:border-b-0 cursor-pointer touch-manipulation {markedClass}"
         prop.onClick (fun _ -> onClick ())
@@ -437,7 +440,7 @@ let checkRow (testId: string) (isChecked: bool) (marked: bool) (onClick: unit ->
             Html.span [
                 prop.ariaHidden true
                 prop.className $"grid place-items-center shrink-0 w-[22px] h-[22px] rounded-[7px] border-[1.5px] {box}"
-                prop.children [ (if isChecked then Icons.check Icons.Mark Icons.Primary else Html.none) ]
+                prop.children [ (if isChecked then Icons.check Icons.Mark Icons.OnAccent else Html.none) ]
             ]
             yield! children
         ]
@@ -448,7 +451,8 @@ let pinToggleLabel (pinned: bool) : string =
     if pinned then "Von der Übersicht lösen" else "Auf der Übersicht anpinnen"
 
 /// Der Pin-Knopf im Kopf des Kategorie-Details (budgeting-w9yt4, Prototyp Version 17 `pinToggle`): Umriss in
-/// `text-secondary`, angepinnt gefüllt im Akzent. 48 px wie `sheetArrow`, damit er in denselben Kopf passt.
+/// `text-secondary`, beim Darüberfahren `text-primary`, angepinnt gefüllt im Akzent. 48 px wie `sheetArrow`, damit er
+/// in denselben Kopf passt. Den Stand sagt das wechselnde Label; ein `aria-pressed` dazu läse ihn doppelt.
 let pinToggle (testId: string) (pinned: bool) (onClick: unit -> unit) =
     let label = pinToggleLabel pinned
     Html.button [
@@ -456,10 +460,24 @@ let pinToggle (testId: string) (pinned: bool) (onClick: unit -> unit) =
         prop.custom ("data-testid", testId)
         prop.ariaLabel label
         prop.title label
-        prop.ariaPressed pinned
-        prop.className $"inline-flex items-center justify-center {TouchTargets.minSize} -my-2 rounded-md cursor-pointer touch-manipulation hover:text-text-primary"
+        prop.className $"inline-flex items-center justify-center {TouchTargets.minSize} -my-2 rounded-md {Colors.textSecondary} cursor-pointer touch-manipulation hover:text-text-primary"
         prop.onClick (fun _ -> onClick ())
-        prop.children [ (if pinned then Icons.pinSolid Icons.SM Icons.Accent else Icons.pin Icons.SM Icons.Default) ]
+        prop.children [ (if pinned then Icons.pinSolid Icons.SM Icons.Accent else Icons.pin Icons.SM Icons.Inherit) ]
+    ]
+
+/// Ein randloser Knopf mit × zum Herausnehmen aus einer Liste, die der Nutzer selbst führt: „Lösen“ im Sheet
+/// „Angepinnt“ (budgeting-w9yt4). Symbol in `text-secondary`, beim Darüberfahren `text-primary`, Name nur über
+/// `ariaLabel` (auch als `title`). Am Handy 48 px, ab md 40 px wie `orderArrow` daneben. Kein Löschen: dafür gibt es
+/// `danger` mit Bestätigung.
+let removeIcon (testId: string) (ariaLabel: string) (onClick: unit -> unit) =
+    Html.button [
+        prop.type' "button"
+        prop.custom ("data-testid", testId)
+        prop.ariaLabel ariaLabel
+        prop.title ariaLabel
+        prop.className $"inline-flex shrink-0 items-center justify-center {TouchTargets.minSize} md:min-h-[40px] md:min-w-[40px] rounded-md {Colors.textSecondary} cursor-pointer touch-manipulation hover:bg-surface-hover hover:text-text-primary"
+        prop.onClick (fun _ -> onClick ())
+        prop.children [ Icons.x Icons.SM Icons.Inherit ]
     ]
 
 /// Der Platz eines fehlenden Pfeils in einer Liste mit `orderArrow` (erste Zeile im Sheet „Angepinnt“): gleich breit,
@@ -601,7 +619,7 @@ let quietAccentText (testId: string) (text: string) (onClick: unit -> unit) =
         prop.type' "button"
         prop.custom ("data-testid", testId)
         prop.className
-            $"inline-flex items-center justify-center min-h-[48px] min-w-[48px] md:min-h-9 md:min-w-0 -my-4 md:-my-2.5 px-1 -mr-1 text-xs tracking-normal cursor-pointer touch-manipulation {Colors.accent} hover:text-text-primary transition-colors"
+            $"inline-flex items-center justify-center {TouchTargets.minSize} md:min-h-9 md:min-w-0 -my-4 md:-my-2.5 px-1 -mr-1 text-xs tracking-normal cursor-pointer touch-manipulation {Colors.accent} hover:text-text-primary transition-colors"
         prop.onClick (fun _ -> onClick ())
         prop.text text
     ]

@@ -447,6 +447,12 @@ let private pinBlock (actions: Actions) (model: Model) =
         ]
     ]
 
+/// Die Liste aller Kategorien im Sheet, gesteuert vom Suchfeld (`aria-controls`).
+let private pinSheetListId = "pin-sheet-list"
+
+/// Die Id einer Zeile der Liste, für `aria-activedescendant`.
+let private pinSheetRowId (categoryId: System.Guid) = $"pin-sheet-row-{categoryId}"
+
 [<Emit("$0 && $0.scrollIntoView({ block: 'nearest' })")>]
 let private scrollIntoViewNearest (element: obj) : unit = jsNative
 
@@ -454,7 +460,7 @@ let private scrollIntoViewNearest (element: obj) : unit = jsNative
 /// schaltet die markierte Zeile um. Die markierte Zeile bleibt im Bild. Esc fängt der Rahmen im Dialog ab (`pinSheet`),
 /// ohne Handler am Dokument: die gehören Kassenbuch und Budget-Seite.
 [<ReactComponent>]
-let private PinSearch (query: string) (marked: int) (dispatch: Msg -> unit) =
+let private PinSearch (query: string) (marked: int) (markedRowId: string option) (dispatch: Msg -> unit) =
     let container = React.useElementRef ()
     React.useEffectOnce (fun () ->
         if Viewport.isFinePointer () then
@@ -479,6 +485,7 @@ let private PinSearch (query: string) (marked: int) (dispatch: Msg -> unit) =
                     Placeholder = "Kategorie suchen…"
                     AriaLabel = Some "Kategorie suchen"
                     ClassName = Some "w-full"
+                    Combobox = Some { ListboxId = pinSheetListId; Expanded = true; ActiveOptionId = markedRowId }
                     OnKeyDown =
                         Some (fun e ->
                             match e.key with
@@ -500,7 +507,7 @@ let private pinSheetBody (model: Model) (sheet: PinSheet) (dispatch: Msg -> unit
         prop.custom ("data-testid", "pin-sheet")
         prop.className "flex flex-col gap-2.5"
         prop.children [
-            PinSearch sheet.Query sheet.Marked dispatch
+            PinSearch sheet.Query sheet.Marked (pinSheetMarked model |> Option.map (fun c -> pinSheetRowId c.Id)) dispatch
             match model.Month with
             | Success month ->
                 let pinned = pinSheetPinnedSection sheet.Query pins month
@@ -525,19 +532,18 @@ let private pinSheetBody (model: Model) (sheet: PinSheet) (dispatch: Msg -> unit
                                                 (Icons.chevronUp Icons.SM Icons.Default)
                                                 true
                                                 (fun () -> dispatch (PinMovedUp c.Id))
-                                        Button.orderArrow
-                                            "pin-sheet-remove"
-                                            $"{c.Name} lösen"
-                                            (Icons.x Icons.SM Icons.Default)
-                                            true
-                                            (fun () -> dispatch (PinToggled c.Id))
+                                        Button.removeIcon "pin-sheet-remove" $"{c.Name} lösen" (fun () -> dispatch (PinToggled c.Id))
                                     ]
                                 ]
                         ]
                     ]
                 let groups = pinSheetGroups model.CategoryOrder sheet.Query month
                 let offsets = groups |> List.scan (fun acc (_, cs) -> acc + List.length cs) 0
-                for (name, categories), offset in List.zip groups (List.take groups.Length offsets) do
+                Html.div [
+                  prop.id pinSheetListId
+                  prop.className "flex flex-col gap-2.5"
+                  prop.children [
+                   for (name, categories), offset in List.zip groups (List.take groups.Length offsets) do
                     React.keyedFragment (
                         name,
                         [ sectionHead name None
@@ -549,6 +555,7 @@ let private pinSheetBody (model: Model) (sheet: PinSheet) (dispatch: Msg -> unit
                                           string c.Id,
                                           [ Button.checkRow
                                                 "pin-sheet-row"
+                                                (pinSheetRowId c.Id)
                                                 (Set.contains c.Id pinnedSet)
                                                 (offset + i = sheet.Marked)
                                                 (fun () -> dispatch (PinToggled c.Id))
@@ -564,9 +571,16 @@ let private pinSheetBody (model: Model) (sheet: PinSheet) (dispatch: Msg -> unit
                               ]
                           ] ]
                     )
+                  ]
+                ]
                 if groups.IsEmpty then
-                    Html.p [ prop.className $"{ListRoles.muted} px-0.5"; prop.text "Keine Kategorie gefunden" ]
-            | Failure _ -> Html.p [ prop.className $"{ListRoles.muted} px-0.5"; prop.text pinLoadFailedText ]
+                    Html.p [ prop.className $"{ListRoles.muted} px-0.5"; prop.text Input.noMatchesText ]
+            // Hier fehlt der Monat, nicht die Pins: ohne ihn gibt es keine Liste der Kategorien.
+            | Failure message ->
+                ErrorDisplay.cardCompactWith
+                    "Erneut versuchen"
+                    $"Der Monat konnte nicht geladen werden: {message}"
+                    (Some (fun () -> dispatch ReloadRequested))
             | NotAsked
             | Loading -> Loading.txListSkeleton 3
         ]
@@ -586,7 +600,8 @@ let private doneButton (dispatch: Msg -> unit) =
 /// portalen nach `document.body`, die Breite wird einmal je Render gelesen (ADR 0043).
 let pinSheet (model: Model) (dispatch: Msg -> unit) =
     match model.PinSheet with
-    | None -> BottomSheet.view { IsOpen = false; OnClose = ignore; Title = pinSheetTitle; Subtitle = Some pinSheetSubtitle; Footer = None } []
+    // Zu hält das Sheet seinen letzten Inhalt, solange es ausfährt (`viewHeld`).
+    | None -> BottomSheet.viewHeld { IsOpen = false; OnClose = ignore; Title = pinSheetTitle; Subtitle = Some pinSheetSubtitle; Footer = None } []
     | Some sheet ->
         if Viewport.isInspectorPanelViewport () then
             Modal.view
@@ -612,7 +627,7 @@ let pinSheet (model: Model) (dispatch: Msg -> unit) =
                       ] ]
                   ] ]
         else
-            BottomSheet.view
+            BottomSheet.viewHeld
                 { IsOpen = true
                   OnClose = fun () -> dispatch PinSheetClosed
                   Title = pinSheetTitle
