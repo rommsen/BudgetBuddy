@@ -22,8 +22,10 @@ Zuletzt aktualisiert: 2026-11-11, nach work-Lauf zu ledger-s1weh.
   Deployt (2026-11-10, f85d3b3d): ledger-m7k2d, ledger-z6sya, ledger-m7mye.
 - **Etappe 3 · Ein Produkt:** in elf Schnitte geteilt (Roman, 2026-11-11). 2 erledigt (design-system-k6kfw,
   189ec9a9, Verifier PASS in Iteration 2; ledger-s1weh, 6d728e16, Verifier PASS in Iteration 2), keiner in `todo/`.
-  ledger-s1weh (Übersicht mit Zu tun): Abweichungen (a) bis (c) vom Prototyp in der Task, Romans Blick am Handy und PC offen,
-  Review noch nicht gelaufen. Reihenfolge und Zuordnung im Abschnitt Etappe 3.
+  ledger-s1weh (Übersicht mit Zu tun): Abweichungen (a) bis (c) vom Prototyp in der Task, Romans Blick am Handy und PC offen.
+  Review df9611c4..HEAD (2026-11-11): 22 Funde behoben in 3142ef3e..ec4f4124, darunter Budget aus Zu tun öffnete bei wartender
+  Rückkehr im gewählten statt im laufenden Monat und überholte Antworten setzten Zähler zurück. Entschieden (Roman):
+  „Buchung“ auf der Übersicht am PC als Dialog (Modal ab 1024 px). Reihenfolge und Zuordnung im Abschnitt Etappe 3.
 - **Laufend erledigt (2026-11-10):** ledger-mj3a9 (Bob gesperrt bei ungültigem `BOT_MAX_AMOUNT_EUR`, Nachtrag
   ADR 0068), ledger-q42pg (Feldfehler am Betrag statt Toast), ledger-m7a9q (Probelauf: YNAB zieht die Gegenbuchung
   eines Übertrags mit, Nachtrag ADR 0092); Review 68279598..HEAD mit Fixes 009b3186 und 5444edd7. Neu im Backlog:
@@ -35,8 +37,8 @@ Zuletzt aktualisiert: 2026-11-11, nach work-Lauf zu ledger-s1weh.
   Entschieden (Roman): Schriftgrößen der Übersicht nach §7.14 (Kriterium in ledger-s1weh), Abbrechen-Pfeil im
   Sync-Ablauf in die Kann-Sammlung banking-import.
 - **Blick Roman (2026-11-11):** design-system-k6kfw (Navigation mit drei Orten) am Handy und PC geprüft, passt.
-- **Nächster Schritt:** `/review-agents` für ledger-s1weh (6d728e16), dann Romans Blick auf die Übersicht neben dem Prototyp;
-  danach budgeting-w9yt4 (Angepinnte Kategorien) verfeinern.
+- **Nächster Schritt:** Romans Blick auf die Übersicht (ledger-s1weh) am Handy und PC neben dem Prototyp, danach
+  budgeting-w9yt4 (Angepinnte Kategorien) verfeinern. Vorschlag: `/architecture-review ledger` (15 Tasks seit dem letzten Bestandsreview).
   Offen zum Verfeinern mit Roman: ledger-t4rk8 (Betrag eines Übertrags in BB ändern).
 - Verfeinert wird nur die nächste Etappe. Spätere Etappen haben Zeilen, keine Tickets.
 - Neue Ideen für spätere Etappen kommen hier als Zeile dazu.

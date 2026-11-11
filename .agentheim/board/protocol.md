@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-11 20:36 -- Review-Lauf: df9611c4..141c094d (ledger-s1weh, af94b183)
+
+**Type:** Review / Review-Lauf
+**Bereich:** df9611c4..141c094d, Tasks ledger-s1weh (Übersicht mit Zu tun) und design-system-k6kfw (Fix af94b183)
+**Agents:** backend-code-quality, frontend-architecture, design-quality, qa-milestone-reviewer
+**Funde:** behoben 22, verworfen 4, Rückfrage 1 (umgesetzt), Ticket 0, Kann-Sammlung 3 (ledger 46 bis 48) plus Punkt 49 zu den Layout-Ausnahmen
+**Commits:** 3142ef3e..ec4f4124 (18 Commits), 17c9ada9 (README, Kann-Sammlung)
+**Rückfrage:** Buchung auf der Übersicht am PC als Dialog ab 1024 px (Roman: Modal), ec4f4124
+**Verworfen:** todoState doppelt berechnet (billig, kein Nutzen); Kontenladen zieht die Liste nach (harmlos); Outcome-Wort Erneut laden statt Erneut versuchen (nur Doku); ledger-read-retry hängt an PageSize 6 (wird laut rot, nicht still falsch)
+**Verifikation:** VERIFY: PASS (dotnet 4746 grün, node 313 grün, dotnet build, npm run build, guard:classes, guard:tokens grün)
+
+---
+
 ## 2026-11-11 17:33 -- Work session ended
 
 **Type:** Work / Session end
