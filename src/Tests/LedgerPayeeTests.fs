@@ -449,7 +449,7 @@ let private importCandidate (txId: string) (importId: string) (reference: string
       RawPayee = Some bankPayee
       Memo = None
       ReviewSteps = []
-      ExistingEntryImportId = None }
+      Hold = None }
 
 [<Tests>]
 let importTests =

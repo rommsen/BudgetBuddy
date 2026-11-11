@@ -39,3 +39,9 @@ Den Testfall entfernen. Falls das Verhalten bei abgelehnter Anmeldung abgesicher
 ## Aus dem Review-Lauf nach design-system-dak16 (2026-11-08)
 - Import prüfen: `src/Client/Components/SyncFlow/State.fs:569` schluckt einen Ladefehler der Lena-Flag-Farbe (`fun _ -> LenaFlagColorLoaded None`), und `SyncFlow.Types.LenaFlagColor` ist `string option` statt `RemoteData`. Das Kassenbuch macht es richtig (`RemoteData` plus `lenaColorLoadFailedReason`); hier nachziehen.
 - Review-Lauf 2026-11-11 (design-system-k6kfw), Roman: Im Sync-Ablauf stehen in der Prüfung zwei Rückwege übereinander (oben „Zurück“ zur Übersicht, darunter der alte Pfeil, der die Prüfung abbricht). Den Abbrechen-Pfeil entfernen, Abbrechen als eigener neutraler Knopf in der Prüfung. Entfällt, wenn `ledger-v6s7c` (Durchgehen) den Sync-Ablauf ablöst.
+
+## Aus banking-import-d0fey (2026-11-12)
+- Die Tabelle `sync_transactions` liest und schreibt niemand mehr; `TransactionStatus` (`ManualCategorized`, `Imported`) ist im Abruf weitgehend tot. Aufräumen samt Migration.
+- Quick Add zeigt keine zuletzt genutzten Kategorien mehr, sie kamen nur aus dem Sync-Ablauf.
+- Der Satz „<n> sichere Duplikate übersprungen“ zählt auch Umsätze, die schon vor BB in YNAB standen; bei jedem Abruf im Zeitraum kommen sie wieder.
+- Die beiden Punkte oben aus den Review-Läufen 2026-11-08 und 2026-11-11 zum Sync-Ablauf (Lena-Farbe in `SyncFlow/State.fs`, zwei Rückwege) sind mit dem Ablauf entfallen.

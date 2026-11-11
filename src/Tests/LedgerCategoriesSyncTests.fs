@@ -28,7 +28,6 @@ open State
 
 let private baseModel (page: Page) : State.Model =
     let settingsModel, _ = Components.Settings.State.init ()
-    let syncFlowModel, _ = Components.SyncFlow.State.init ()
     let rulesModel, _ = Components.Rules.State.init ()
     let ledgerModel, _ = Components.Ledger.State.init ()
     {
@@ -36,7 +35,7 @@ let private baseModel (page: Page) : State.Model =
         Toasts = []
         Pwa = Pwa.initialState
         Settings = settingsModel
-        SyncFlow = syncFlowModel
+        Fetch = Components.Fetch.Types.init; QuickAddCategories = []; QuickAddCategoriesLoad = NotAsked
         Rules = rulesModel
         Ledger = ledgerModel
         Budget = Components.Budget.State.init ()
@@ -100,7 +99,7 @@ let ledgerCategoriesSyncTests =
         }
 
         test "Auf einer anderen Seite als dem Kassenbuch wird nichts nachgeholt" {
-            let model = baseModel SyncFlow
+            let model = baseModel Rules
             let _, cmd = State.update (SettingsMsg (Components.Settings.Types.SettingsLoaded (Ok settingsWithBudget))) model
             Expect.isEmpty (dispatched cmd) "Die Kassenbuch-Seite ist gar nicht offen"
         }
@@ -124,10 +123,6 @@ let ledgerCategoriesSyncTests =
 let bankStatusOnForegroundTests =
     testList "State: die PWA kommt in den Vordergrund" [
 
-        test "Auf der Sync-Seite wird der Stand der Bank neu gelesen" {
-            let _, cmd = State.update VisibilityChanged (baseModel SyncFlow)
-            Expect.contains (dispatched cmd) (SyncFlowMsg Components.SyncFlow.Types.LoadBankStatus) "der Stand folgt"
-        }
 
         test "Auf den Einstellungen wird der Stand der Bank neu gelesen" {
             let _, cmd = State.update VisibilityChanged (baseModel Settings)

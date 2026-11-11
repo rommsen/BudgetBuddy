@@ -970,33 +970,6 @@ let prepareTransactions
         RejectedTransferTransactionIds = rejected
     }
 
-/// "Lena fragen" beim Import (ynab-sync-d9e51): trägt für jede vorbereitete Buchung, deren
-/// Sitzungs-Transaktion eine Rückfrage trägt (`AskLena`), die eingestellte Lena-Farbe als
-/// `flag_color` in den Create-Body ein. Buchungen ohne Rückfrage bleiben unverändert (kein
-/// `flag_color`-Schlüssel). Ist keine Farbe gesetzt (zwischen Setzen der Rückfrage und
-/// Push entfernt), geht keine Buchung mit Flag; die Anzahl der Rückfragen, die deshalb
-/// ohne Flag blieben, liefert die zweite Komponente. Pure, kein I/O.
-let applyLenaFlag
-    (lenaColor: string option)
-    (transactions: SyncTransaction list)
-    (prepared: PrepareResult)
-    : PrepareResult * int =
-    let asking =
-        transactions |> List.filter (fun tx -> tx.AskLena) |> List.map (fun tx -> tx.Transaction.Id) |> Set.ofList
-    match lenaColor with
-    | None ->
-        let notSent = prepared.ToSend |> List.filter (fun p -> asking.Contains p.TransactionId) |> List.length
-        prepared, notSent
-    | Some color ->
-        let toSend =
-            prepared.ToSend
-            |> List.map (fun p ->
-                if asking.Contains p.TransactionId then
-                    { p with Request = { p.Request with FlagColor = Some color } }
-                else
-                    p)
-        { prepared with ToSend = toSend }, 0
-
 /// Liest `data.transactions[].{import_id, id}` und `data.duplicate_import_ids` aus der
 /// 201-Antwort von `POST /transactions`. Non-private und pur, damit der JSON-Vertrag
 /// direkt gegen eine repräsentative YNAB-Antwort testbar ist (Muster wie

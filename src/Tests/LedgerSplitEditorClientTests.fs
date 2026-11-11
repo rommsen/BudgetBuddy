@@ -57,7 +57,8 @@ let private entryOf (n: int) : LedgerEntryView =
       LinkedToYnab = true
       PushToYnabFailure = None
       SplitLocks = unlocked
-      ExternalLinks = [] }
+      ExternalLinks = []
+      PossibleDuplicate = None }
 
 let private idOf (n: int) = (entryOf n).Id
 
@@ -669,12 +670,6 @@ let viewTests =
             Expect.equal o.TotalText "81,90 €" "Gesamtbetrag ohne Vorzeichen"
             Expect.equal (SplitEditor.restRowLabel true) "Stimmt" "ausgeglichen"
             Expect.equal (SplitEditor.restRowLabel false) "Rest" "offen"
-            // dieselben Klassen wie splitAmountClass im Import-Editor
-            for warn in [ true; false ] do
-                Expect.equal
-                    (SplitEditor.amountClass warn)
-                    (Components.SyncFlow.Views.SplitSheet.splitAmountClass warn)
-                    "gleiche Klasse wie der Import-Editor"
 
         testCase "der Knopf heißt Aufteilen ohne Split und Ändern mit Split" <| fun () ->
             // ledger-r8h19: die 44 px misst `[layout] Handy (390x844): Aufteilen im selben Sheet, …`.

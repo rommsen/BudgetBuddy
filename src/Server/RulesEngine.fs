@@ -241,13 +241,10 @@ let classifyTransactions
                         MatchedRuleId = Some matchedRule.Id
                         PayeeOverride = matchedRule.PayeeOverride
                         ExternalLinks = externalLinks
-                        UserNotes = None
                         DuplicateStatus = NotDuplicate (emptyDetectionDetails transaction.Reference)  // Will be updated by DuplicateDetection
-                        YnabImportStatus = NotAttempted
                         Splits = None
                         SuggestedByOrderId = None
                         ReviewSteps = []
-                        AskLena = false
                     }
                     |> appendReviewStep now (ByRule (matchedRule.Id, matchedRule.Name))
                 | None ->
@@ -259,13 +256,10 @@ let classifyTransactions
                         MatchedRuleId = None
                         PayeeOverride = None
                         ExternalLinks = externalLinks
-                        UserNotes = None
                         DuplicateStatus = NotDuplicate (emptyDetectionDetails transaction.Reference)  // Will be updated by DuplicateDetection
-                        YnabImportStatus = NotAttempted
                         Splits = None
                         SuggestedByOrderId = None
                         ReviewSteps = []  // No rule matched: nothing to record yet
-                        AskLena = false
                     }
             )
 

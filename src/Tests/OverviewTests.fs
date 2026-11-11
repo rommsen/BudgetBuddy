@@ -83,14 +83,13 @@ let monthSummaryTests =
 
 let private rootModel (page: Page) : State.Model =
     let settingsModel, _ = Components.Settings.State.init ()
-    let syncFlowModel, _ = Components.SyncFlow.State.init ()
     let rulesModel, _ = Components.Rules.State.init ()
     let ledgerModel, _ = Components.Ledger.State.init ()
     { CurrentPage = page
       Toasts = []
       Pwa = Pwa.initialState
       Settings = settingsModel
-      SyncFlow = syncFlowModel
+      Fetch = Components.Fetch.Types.init; QuickAddCategories = []; QuickAddCategoriesLoad = NotAsked
       Rules = rulesModel
       Ledger = ledgerModel
       Budget = Components.Budget.Types.init ()
@@ -126,15 +125,13 @@ let transitionTests =
             // Das Kassenbuch steht schon offen, kein Betreten lädt nach: ohne `LoadEntries` blieb die alte Liste stehen.
             Expect.contains (dispatched cmd) (State.LedgerMsg Components.Ledger.Types.LoadEntries) "lädt die Buchungen"
 
-        // Review-Fund: „Abrufen“ startete den Sync zugleich mit dem Seitenwechsel; das Lesen der Sitzung beim Betreten
-        // zeigte dann den Startknopf, obwohl der Start lief. Jetzt geht ein Auftrag an den Sync-Ablauf
-        // (Reihenfolgen in SyncStartOrderTests).
-        testCase "Abrufen öffnet den Sync-Ablauf und gibt ihm den Auftrag, statt selbst zu starten" <| fun () ->
+        // Review-Fund (design-system-k6kfw): „Abrufen“ startete den Sync zugleich mit dem Seitenwechsel. Seit
+        // banking-import-d0fey öffnet „Abrufen“ das Sheet über der aktuellen Seite; das Sheet liest zuerst die
+        // Sitzung und startet erst dann (Reihenfolgen in SyncStartOrderTests).
+        testCase "Abrufen öffnet das Sheet über der aktuellen Seite, statt zu navigieren oder selbst zu starten" <| fun () ->
             let _, cmd = State.update State.FetchFromBank (rootModel Overview)
             let messages = dispatched cmd
-            Expect.contains messages (State.NavigateTo SyncFlow) "zum Sync-Ablauf"
-            Expect.contains messages (State.SyncFlowMsg Components.SyncFlow.Types.StartRequested) "Auftrag"
-            Expect.isFalse (messages |> List.contains (State.SyncFlowMsg Components.SyncFlow.Types.StartSync)) "kein blinder Start"
+            Expect.equal messages [ State.FetchMsg Components.Fetch.Types.Opened ] "nur das Sheet"
 
         testCase "Im Minus öffnet das Budget mit dem Filter Überzogen" <| fun () ->
             let model, _ = State.update State.OpenBudgetOverdrawn (rootModel Overview)
@@ -165,33 +162,39 @@ let transitionTests =
             let late, _ = State.update (State.LedgerMsg (Components.Ledger.Types.AccountsLoaded (Error "weg"))) loaded
             Expect.equal late.Overview.Accounts (Success accounts) "ein geladener Stand bleibt"
 
-        // Review-Fund: nach dem Import standen in der Seitenleiste die Salden von vorher.
-        testCase "Nach dem Import lädt die Seitenleiste die Konten neu, auch nach einem Teilfehlschlag" <| fun () ->
-            let result : ImportResult = { CreatedCount = 2; DuplicateTransactionIds = []; LenaFlagNotSentCount = 0 }
-            // ledger-s1weh: nach dem Import gibt es neue Buchungen zu prüfen, die Zahl an der Übersicht lädt mit.
-            let reloads (msg: Components.SyncFlow.Types.Msg) =
-                let _, cmd = State.update (State.SyncFlowMsg msg) (rootModel SyncFlow)
-                let messages = dispatched cmd
-                let accounts = messages |> List.contains (State.OverviewMsg SidebarNeedsAccounts)
-                let counts = messages |> List.contains (State.OverviewMsg CountsNeeded)
-                Expect.equal counts accounts "Konten und Zahl laden zusammen"
-                accounts
-            Expect.isTrue (reloads (Components.SyncFlow.Types.ImportCompleted (Ok result))) "Import fertig"
-            Expect.isTrue (reloads (Components.SyncFlow.Types.ImportCompleted (Error (SyncError.YnabImportFailed (1, "x"))))) "Teilfehlschlag"
-            Expect.isTrue (reloads (Components.SyncFlow.Types.ForceImportCompleted (Ok 1))) "Duplikate nachgeschoben"
-            Expect.isFalse (reloads (Components.SyncFlow.Types.SetFilter Components.SyncFlow.Types.AllTransactions)) "sonst nicht"
+        // Review-Fund: nach dem Import standen in der Seitenleiste die Salden von vorher. Seit banking-import-d0fey
+        // lädt nach jedem Abruf die Übersicht neu (Zu tun, Zähler, Importzeile, Konten), auf dem Kassenbuch
+        // zusätzlich die Liste und die Stände.
+        testCase "Nach einem Abruf laden Übersicht, Zähler, Importzeile und eine offene Kassenbuch-Liste neu" <| fun () ->
+            let after page = dispatched (State.fetchExternalCmd (rootModel page) Components.Fetch.Types.FetchFinished)
+            Expect.equal (after Overview) [ State.OverviewMsg ReloadRequested ] "auf der Übersicht"
+            Expect.equal
+                (after Ledger)
+                [ State.OverviewMsg ReloadRequested
+                  State.LedgerMsg Components.Ledger.Types.LoadEntries
+                  State.LedgerMsg Components.Ledger.Types.LoadBalances ]
+                "im Kassenbuch auch Liste und Stände"
+            Expect.isEmpty (dispatched (State.fetchExternalCmd (rootModel Overview) Components.Fetch.Types.NoOp)) "sonst nichts"
+
+        // Bis ledger-v6s7c führt „Jetzt durchgehen“ dorthin, wo heute Zu-tun-Eintrag 1 hinführt.
+        testCase "Jetzt durchgehen öffnet das Kassenbuch über alle Konten mit genau dem Filter Zu prüfen" <| fun () ->
+            let model, cmd = State.update (State.FetchMsg Components.Fetch.Types.ReviewRequested) { rootModel Overview with Fetch = { Components.Fetch.Types.init with IsOpen = true } }
+            Expect.isFalse model.Fetch.IsOpen "das Sheet schließt"
+            let messages = dispatched cmd
+            // Wohin Eintrag 1 führt (alle Konten, genau „Zu prüfen“), prüft `todoTargetTests` in OverviewTodoTests.
+            Expect.equal messages [ State.OpenOverviewTodo TodoReview ] "wie Zu-tun-Eintrag 1"
 
         testCase "Der Start lädt die Zahl an der Übersicht auf jeder anderen Seite, die Übersicht lädt sie selbst" <| fun () ->
             for page, loads in
                 [ Overview, false; Ledger, true; LedgerEntry accountId, true
-                  Budget, true; SyncFlow, true; Settings, true; Rules, true; QuickAdd, true ] do
+                  Budget, true; Settings, true; Rules, true; QuickAdd, true ] do
                 Expect.equal (State.initialLoadsOverviewCount page) loads (string page)
 
         // Review-Fund: beim Start auf einer Kassenbuch-Seite luden Übersicht und Kassenbuch die Konten doppelt.
         testCase "Der Start lädt die Konten der Seitenleiste nur, wo die Seite sie nicht selbst lädt" <| fun () ->
             for page, loads in
                 [ Overview, false; Ledger, false; LedgerEntry accountId, false
-                  Budget, true; SyncFlow, true; Settings, true; Rules, true; QuickAdd, true ] do
+                  Budget, true; Settings, true; Rules, true; QuickAdd, true ] do
                 Expect.equal (State.initialLoadsSidebarAccounts page) loads (string page)
 
         testCase "Die Seiten-Navigation merkt die Seite vor den Einstellungen" <| fun () ->

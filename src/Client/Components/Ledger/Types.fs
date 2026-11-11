@@ -407,11 +407,16 @@ let swipeActionLabel = "Geprüft"
 /// Die Beschriftung der Toast-Aktion.
 let undoToastLabel = "Rückgängig"
 
+/// Der Grund, aus dem jede Aktion an einer wartenden Buchung gesperrt ist („doppelt?“, ADR 0093
+/// Punkt 6), oder `None`, wenn sie nicht wartet. Erster Zweig jeder Sperre im Kassenbuch. Rein.
+let heldLockReason (entry: LedgerEntryView) : string option =
+    entry.PossibleDuplicate |> Option.map (fun _ -> possibleDuplicateLockedText)
+
 /// Wirkt der Wisch auf diese Zeile? Nur eine zu prüfende, nicht in YNAB gelöschte Zeile
 /// nimmt den Prüfvermerk an; auf einer geprüften Zeile bleibt es bei `NoChange`, ohne
 /// Aufruf und ohne Toast.
 let swipeAppliesTo (entry: LedgerEntryView) : bool =
-    entry.NeedsReview && not entry.DeletedInYnab
+    entry.NeedsReview && not entry.DeletedInYnab && (heldLockReason entry).IsNone
 
 let reviewMarkHintTitle = "Prüfvermerk nicht in YNAB"
 
@@ -555,7 +560,8 @@ let lenaActionFor (lenaColor: RemoteData<string option>) (entry: LedgerEntryView
         | AskLena -> "Rückfrage zurücknehmen", WithdrawLena
         | _ -> "Lena fragen", AssignLena
     let reason =
-        if entry.DeletedInYnab then Some lenaDeletedReason
+        if (heldLockReason entry).IsSome then heldLockReason entry
+        elif entry.DeletedInYnab then Some lenaDeletedReason
         // Zurücknehmen braucht die Farbe nicht, nur das Zuweisen.
         elif target = AssignLena then lenaColorBlockReason lenaColor
         else None
@@ -644,7 +650,10 @@ let memoDeletedReason = "In YNAB gelöscht, das Memo lässt sich nicht ändern"
 
 let memoActionFor (entry: LedgerEntryView) : MemoAction =
     { Label = (if (memoTextOf entry).IsSome then "Bearbeiten" else "Memo hinzufügen")
-      DisabledReason = (if entry.DeletedInYnab then Some memoDeletedReason else None) }
+      DisabledReason =
+        match heldLockReason entry with
+        | Some reason -> Some reason
+        | None -> if entry.DeletedInYnab then Some memoDeletedReason else None }
 
 /// Warum das Eingabefeld sich nicht speichern lässt (zu lang), sonst `None`. Dieselbe Regel wie
 /// auf dem Server (`Shared.Domain.normalizeMemo`).
@@ -719,6 +728,7 @@ let amountHintFor (rowState: AmountRowState option) (entry: LedgerEntryView) : A
 /// `import_id`): der Betrag geht dort nur mit einer neuen Aufteilung. Rein, wie `categoryLockFor`.
 let amountLockFor (entry: LedgerEntryView) : string option =
     match entry.AmountLockReason with
+    | _ when (heldLockReason entry).IsSome -> heldLockReason entry
     | Some reason -> Some reason
     | None when not (List.isEmpty entry.Splits) -> Components.Ledger.SplitEditor.lockReasonFor entry
     | None -> None
@@ -825,10 +835,12 @@ let payeeHintFor (rowState: PayeeRowState option) (entry: LedgerEntryView) : Pay
     | _, Some reason -> Some { Title = payeeHintTitle; Reason = reason; RetryLabel = Some "Erneut senden" }
     | _, None -> None
 
-/// Warum sich der Payee nicht ändern lässt, oder `None` (dieselbe Regel wie der Befehl,
-/// `Shared.Domain.payeeLockReason`).
+/// Warum sich der Payee nicht ändern lässt, oder `None` (dieselbe Regel wie der Befehl:
+/// zuerst die wartende Buchung, ADR 0093 Punkt 6, dann `Shared.Domain.payeeLockReason`).
 let payeeLockFor (entry: LedgerEntryView) : string option =
-    payeeLockReason entry.DeletedInYnab entry.LinkedToYnab entry.IsTransfer
+    match heldLockReason entry with
+    | Some reason -> Some reason
+    | None -> payeeLockReason entry.DeletedInYnab entry.LinkedToYnab entry.IsTransfer
 
 /// Die Beschriftung des Pfeils an der Payee-Zeile (Screenreader und Tooltip).
 let payeeEditLabel = "Payee ändern"
@@ -861,6 +873,8 @@ let payeeSaveStep (text: string) (entry: LedgerEntryView) : PayeeSaveStep =
 type CategoryLock =
     | CategoryEditable
     | CategoryLockedDeleted
+    /// Die Buchung wartet als unsicheres Duplikat (ADR 0093 Punkt 6).
+    | CategoryLockedHeld
     /// Split-Buchung: der Pfeil öffnet den Split-Editor (ledger-pafkp).
     | CategoryOpensSplitEditor
     /// Split-Buchung, deren Zeilen sich nicht ändern lassen (abgeglichen, Tracking-Konto,
@@ -868,7 +882,8 @@ type CategoryLock =
     | CategoryLockedSplit of reason: string
 
 let categoryLockFor (entry: LedgerEntryView) : CategoryLock =
-    if entry.DeletedInYnab then CategoryLockedDeleted
+    if (heldLockReason entry).IsSome then CategoryLockedHeld
+    elif entry.DeletedInYnab then CategoryLockedDeleted
     elif not (List.isEmpty entry.Splits) then
         match Components.Ledger.SplitEditor.lockReasonFor entry with
         | Some reason -> CategoryLockedSplit reason
@@ -882,6 +897,7 @@ let categoryLockHint (lock: CategoryLock) : string option =
     match lock with
     | CategoryEditable -> None
     | CategoryLockedDeleted -> Some "In YNAB gelöscht, die Kategorie lässt sich nicht ändern"
+    | CategoryLockedHeld -> Some possibleDuplicateLockedText
     | CategoryOpensSplitEditor -> None
     | CategoryLockedSplit reason -> Some reason
 
@@ -1450,6 +1466,7 @@ let reviewBatchToastText (outcome: Shared.Domain.ReviewMarkBatchOutcome) : strin
     let notes =
         [ if outcome.UnchangedCount > 0 then $"{outcome.UnchangedCount} ohne Änderung"
           if outcome.FailedCount > 0 then $"{outcome.FailedCount} nicht in YNAB"
+          if outcome.HeldCount > 0 then $"{outcome.HeldCount} vielleicht doppelt"
           if sendFailed > 0 then $"{sendFailed} nicht an YNAB gesendet" ]
     if List.isEmpty notes then head else head + " (" + String.concat ", " notes + ")"
 
@@ -1462,7 +1479,7 @@ let reviewBatchToastType (outcome: Shared.Domain.ReviewMarkBatchOutcome) : Toast
             match c.WriteBack with
             | Shared.Domain.ReviewMarkSendFailed _ -> true
             | _ -> false)
-    if anySendFailed || outcome.FailedCount > 0 then ToastWarning
+    if anySendFailed || outcome.FailedCount > 0 || outcome.HeldCount > 0 then ToastWarning
     elif List.isEmpty outcome.Changed then ToastInfo
     else ToastSuccess
 
@@ -1493,6 +1510,7 @@ let categoryBatchSkipReasons (outcome: Shared.Domain.CategoryBatchOutcome) : str
       if has Shared.Domain.SkipTransfer then "Übertrag"
       if has Shared.Domain.SkipDeletedInYnab then "gelöscht"
       if has Shared.Domain.SkipNotFound then "nicht gefunden"
+      if has Shared.Domain.SkipPossibleDuplicate then "vielleicht doppelt"
       if outcome.UnchangedCount > 0 then "schon dort" ]
 
 /// Die Buchungen des Stapels, deren Weg nach YNAB gescheitert ist, mit ihrem Grund.
@@ -1594,7 +1612,8 @@ let flagBatchToastText (target: Shared.Domain.LenaFlagTarget) (outcome: Shared.D
         | Shared.Domain.WithdrawLena, _ -> $"Rückfrage bei {count} Buchungen zurückgenommen"
     let notes =
         [ if outcome.UnchangedCount > 0 then $"{Client.DesignSystem.Money.formatCount outcome.UnchangedCount} ohne Änderung"
-          if outcome.FailedCount > 0 then $"{Client.DesignSystem.Money.formatCount outcome.FailedCount} nicht in YNAB" ]
+          if outcome.FailedCount > 0 then $"{Client.DesignSystem.Money.formatCount outcome.FailedCount} nicht in YNAB"
+          if outcome.HeldCount > 0 then $"{Client.DesignSystem.Money.formatCount outcome.HeldCount} vielleicht doppelt" ]
     let withNotes = if List.isEmpty notes then head else head + " (" + String.concat ", " notes + ")"
     match flagBatchSendFailures outcome with
     | [] -> withNotes
@@ -1604,7 +1623,7 @@ let flagBatchToastText (target: Shared.Domain.LenaFlagTarget) (outcome: Shared.D
 /// Die Art des Toasts: Warnung, sobald etwas nicht geklappt hat (nicht in YNAB, nicht gesendet),
 /// Info ohne Änderung, sonst Erfolg.
 let flagBatchToastType (outcome: Shared.Domain.FlagBatchOutcome) : ToastType =
-    if not (List.isEmpty (flagBatchSendFailures outcome)) || outcome.FailedCount > 0 then ToastWarning
+    if not (List.isEmpty (flagBatchSendFailures outcome)) || outcome.FailedCount > 0 || outcome.HeldCount > 0 then ToastWarning
     elif List.isEmpty outcome.Changed then ToastInfo
     else ToastSuccess
 

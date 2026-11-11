@@ -99,7 +99,7 @@ async function open(context) {
     }));
     route.fulfill({
       contentType: "application/json",
-      body: JSON.stringify({ Ok: { Changed: changes, UnchangedCount: 0, FailedCount: 0 } }),
+      body: JSON.stringify({ Ok: { Changed: changes, UnchangedCount: 0, FailedCount: 0, HeldCount: 0 } }),
     });
   });
   await page.route("**/api/LedgerApi/restoreFlagBatch", (route) => {
@@ -116,6 +116,7 @@ async function open(context) {
           })),
           UnchangedCount: 0,
           FailedCount: 0,
+          HeldCount: 0,
         },
       }),
     });

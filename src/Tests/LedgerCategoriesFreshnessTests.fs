@@ -39,13 +39,12 @@ let private update msg m =
 
 let private rootModel stamp page : State.Model =
     let settingsModel, _ = Components.Settings.State.init ()
-    let syncFlowModel, _ = Components.SyncFlow.State.init ()
     let rulesModel, _ = Components.Rules.State.init ()
     { CurrentPage = page
       Toasts = []
       Pwa = Pwa.initialState
       Settings = settingsModel
-      SyncFlow = syncFlowModel
+      Fetch = Components.Fetch.Types.init; QuickAddCategories = []; QuickAddCategoriesLoad = NotAsked
       Rules = rulesModel
       Ledger = { model () with Categories = Success categories; CategoriesLoadedAt = stamp }
       Budget = Components.Budget.State.init ()

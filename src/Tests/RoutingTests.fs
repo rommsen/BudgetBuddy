@@ -11,9 +11,8 @@ let private entryId = System.Guid.Parse "00000000-0000-0000-0000-000000000042"
 
 /// Jede Seite mit ihren Segmenten. Ein neuer Fall in `Page` ohne Zeile hier fällt in `allPagesCovered` auf.
 let private routes : (Page * string list) list =
-    [ // Nicht vertauscht: `/` ist die Übersicht, der Sync-Ablauf liegt unter `/sync`.
+    [ // `/` ist die Übersicht. Den Sync-Ablauf unter `/sync` gibt es seit banking-import-d0fey nicht mehr.
       Overview, []
-      SyncFlow, [ "sync" ]
       Rules, [ "rules" ]
       Settings, [ "settings" ]
       Styleguide, [ "styleguide" ]
@@ -54,7 +53,6 @@ let placeTests =
         testCase "Jede Seite hängt unter ihrem Ort, Einstellungen und Styleguide unter keinem" <| fun () ->
             let expected =
                 [ Overview, Some OverviewPlace
-                  SyncFlow, Some OverviewPlace
                   Ledger, Some LedgerPlace
                   LedgerEntry entryId, Some LedgerPlace
                   Rules, Some LedgerPlace
@@ -78,8 +76,7 @@ let backTargetTests =
     testList "Ziel von Zurück" [
         testCase "Jede Unterseite führt zu ihrem Ort, die Einstellungen zur Seite davor, Orte haben kein Zurück" <| fun () ->
             let expected =
-                [ SyncFlow, Some (Overview, "Zurück zur Übersicht")
-                  Rules, Some (Ledger, "Zurück zum Kassenbuch")
+                [ Rules, Some (Ledger, "Zurück zum Kassenbuch")
                   Styleguide, Some (Settings, "Zurück zu den Einstellungen")
                   Settings, Some (Budget, "Zurück zum Budget")
                   Overview, None
@@ -98,7 +95,6 @@ let backTargetTests =
         testCase "Zurück aus den Einstellungen nennt die gemerkte Seite" <| fun () ->
             let label settingsReturnPage = (backTarget Settings settingsReturnPage |> Option.get).Label
             Expect.equal (label (LedgerEntry entryId)) "Zurück zum Kassenbuch" "Buchung"
-            Expect.equal (label SyncFlow) "Zurück zum Sync" "Sync-Ablauf"
             Expect.equal (label Overview) "Zurück zur Übersicht" "Übersicht"
     ]
 

@@ -16,7 +16,6 @@ open Types
 
 let private baseModel (page: Page) : State.Model =
     let settingsModel, _ = Components.Settings.State.init ()
-    let syncFlowModel, _ = Components.SyncFlow.State.init ()
     let rulesModel, _ = Components.Rules.State.init ()
     let ledgerModel, _ = Components.Ledger.State.init ()
     {
@@ -24,7 +23,7 @@ let private baseModel (page: Page) : State.Model =
         Toasts = []
         Pwa = Pwa.initialState
         Settings = settingsModel
-        SyncFlow = syncFlowModel
+        Fetch = Components.Fetch.Types.init; QuickAddCategories = []; QuickAddCategoriesLoad = NotAsked
         Rules = rulesModel
         Ledger = ledgerModel
         Budget = Components.Budget.State.init ()
@@ -130,30 +129,6 @@ let appReadinessTests =
                             Settings = Loading
                             YnabBudgets = Loading } }
             Expect.isFalse (State.isPageReady model) "Settings lädt noch"
-
-        testCase "SyncFlow ist NICHT bereit, solange CurrentSession noch lädt" <| fun () ->
-            let model =
-                { baseModel SyncFlow with
-                    SyncFlow = { (baseModel SyncFlow).SyncFlow with CurrentSession = Loading } }
-            Expect.isFalse (State.isPageReady model) "CurrentSession lädt noch"
-
-        testCase "SyncFlow ist NICHT bereit, wenn CurrentSession fertig ist, aber die Transaktionen anschliessend noch laden" <| fun () ->
-            let model =
-                { baseModel SyncFlow with
-                    SyncFlow =
-                        { (baseModel SyncFlow).SyncFlow with
-                            CurrentSession = Success None
-                            SyncTransactions = Loading } }
-            Expect.isFalse (State.isPageReady model) "SyncTransactions lädt noch, auch nach CurrentSession"
-
-        testCase "SyncFlow ist bereit, wenn CurrentSession und SyncTransactions fertig sind" <| fun () ->
-            let model =
-                { baseModel SyncFlow with
-                    SyncFlow =
-                        { (baseModel SyncFlow).SyncFlow with
-                            CurrentSession = Success None
-                            SyncTransactions = NotAsked } }
-            Expect.isTrue (State.isPageReady model) "Kein Datenstrang lädt mehr"
 
         testCase "QuickAdd ist NICHT bereit, solange QuickAddTemplates noch lädt" <| fun () ->
             let model = { baseModel QuickAdd with QuickAddTemplates = Loading }

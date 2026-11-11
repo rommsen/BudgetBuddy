@@ -101,6 +101,15 @@ module ReadModel =
         | Some account -> Some account.Id
         | None -> accounts |> List.tryHead |> Option.map (fun a -> a.Id)
 
+    /// Die wartende Buchung als Sicht (ADR 0093 Punkt 3): Grund und Schnappschuss des Treffers.
+    let possibleDuplicateViewOf (held: EntryHeldAsPossibleDuplicatePayload) : PossibleDuplicateView =
+        { Reason = held.Reason
+          MatchDate = held.Match.Date
+          MatchAmount = held.Match.Amount
+          MatchPayee = held.Match.Payee
+          MatchCategoryName = held.Match.CategoryName
+          MatchEntryId = held.MatchEntryId |> Option.map (fun (EntryId id) -> id) }
+
     /// Eine Buchung als Sicht. Die Herkunft kommt von aussen: sie steckt im Actor des
     /// ersten Ereignisses, nicht im Zustand. `categoryGroups` ist die Zuordnung
     /// Kategorie-Id -> Gruppenname (ADR 0039, ledger-h6ptn): einmal je Abfrage
@@ -172,6 +181,7 @@ module ReadModel =
             // ergänzen `withImportIdLock` und `withTrackingLock` (ledger-pafkp).
             SplitLocks = Ledger.CommandHandlers.splitLocksOf false None entry
             ExternalLinks = Server.RulesEngine.detectSpecialLinksFromText entry.Payee (entry.Memo |> Option.defaultValue "")
+            PossibleDuplicate = entry.PossibleDuplicate |> Option.map possibleDuplicateViewOf
         }
 
     /// Setzt die Sperren neu, sobald die `import_id` der Buchung bekannt ist (ledger-pafkp):
@@ -444,6 +454,7 @@ module ReadModel =
         | EntryDiscardedInBb _ -> "In BB verworfen (Rückgängig), in YNAB gelöscht"
         | EntryDeletedInBb _ -> "In BB gelöscht"
         | EntryRestoredInBb _ -> "In BB wiederhergestellt"
+        | EntryHeldAsPossibleDuplicate p -> $"Vielleicht doppelt, wartet auf deine Entscheidung: {p.Reason}"
 
     /// Ein gespeichertes Ereignis als Historien-Zeile.
     let toHistoryLine (recorded: RecordedLedgerEvent) : LedgerHistoryLine = {
@@ -553,13 +564,14 @@ let getYnabPushState (entryId: EntryId) : Async<YnabPushState option> =
                 else NotLinkedToYnab (NotInYnabReason.ofPushFailure e.PushToYnabFailure))
     }
 
-/// Die Buchungen, die nicht in YNAB sind (ledger-s1weh), rein: nicht verknüpft und nicht in YNAB gelöscht.
+/// Die Buchungen, die nicht in YNAB sind (ledger-s1weh), rein: nicht verknüpft, nicht in YNAB gelöscht und nicht
+/// als unsicheres Duplikat zurückgehalten (ADR 0093 Punkt 5, kein Push ist gescheitert).
 /// Zuerst die mit offenem Push-Fehlschlag, der neueste Fehlschlag zuerst; danach die ohne bekannten Ausgang,
 /// nach Buchungsdatum, die neueste zuerst. Bei Gleichstand entscheidet die EntryId, die größere zuerst (UUIDv7, also
 /// die später angelegte): das Buchungsdatum ist ein Tag und das SQL sortiert nicht, ohne Zweitschlüssel sprang die
 /// Liste beim Neuladen. Dieselbe Menge, die das Kassenbuch mit „Noch nicht in YNAB“ kennzeichnet.
 let entriesNotInYnab (entries: Entry list) : EntryNotInYnab list =
-    let notInYnab = entries |> List.filter (fun e -> not e.LinkedToYnab && not e.DeletedInYnab)
+    let notInYnab = entries |> List.filter (fun e -> not e.LinkedToYnab && not e.DeletedInYnab && not (isHeldAsPossibleDuplicate e))
     let idOf (e: Entry) = let (EntryId id) = e.Id in id
     let failed =
         notInYnab

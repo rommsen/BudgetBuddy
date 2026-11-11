@@ -495,13 +495,10 @@ let createSyncTransaction () : SyncTransaction =
         MatchedRuleId = None
         PayeeOverride = None
         ExternalLinks = []
-        UserNotes = None
         DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF123")
-        YnabImportStatus = NotAttempted
         Splits = None
         SuggestedByOrderId = None
         ReviewSteps = []
-        AskLena = false
     }
 
 [<Tests>]

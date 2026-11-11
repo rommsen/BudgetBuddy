@@ -114,10 +114,9 @@ let toastLifecycleTests =
             let toast = { mkToast idA with Action = Some { Label = "Rückgängig"; Kind = UndoReviewMark (idB, previous) } }
             let ledger, _ = Components.Ledger.State.init ()
             let settings, _ = Components.Settings.State.init ()
-            let syncFlow, _ = Components.SyncFlow.State.init ()
             let rules, _ = Components.Rules.State.init ()
             let model : State.Model =
-                { CurrentPage = Ledger; Toasts = [ toast ]; Pwa = Pwa.initialState; Settings = settings; SyncFlow = syncFlow
+                { CurrentPage = Ledger; Toasts = [ toast ]; Pwa = Pwa.initialState; Settings = settings; Fetch = Components.Fetch.Types.init; QuickAddCategories = []; QuickAddCategoriesLoad = NotAsked
                   Rules = rules; Ledger = ledger; Budget = Components.Budget.State.init (); QuickAdd = None; QuickAddTemplates = NotAsked; Overview = Components.Overview.Types.init; SettingsReturn = Types.Page.Overview }
             let after, cmd = State.update (State.ToastActionClicked idA) model
             Expect.isTrue (Toast.isExiting idA after.Toasts) "Toast geht ab"
@@ -138,10 +137,9 @@ let toastLifecycleTests =
             let budget = { Components.Budget.State.init () with AssignQueue = [ write ]; OpenRetries = [ retry ] }
             let ledger, _ = Components.Ledger.State.init ()
             let settings, _ = Components.Settings.State.init ()
-            let syncFlow, _ = Components.SyncFlow.State.init ()
             let rules, _ = Components.Rules.State.init ()
             let model : State.Model =
-                { CurrentPage = Budget; Toasts = [ toast ]; Pwa = Pwa.initialState; Settings = settings; SyncFlow = syncFlow
+                { CurrentPage = Budget; Toasts = [ toast ]; Pwa = Pwa.initialState; Settings = settings; Fetch = Components.Fetch.Types.init; QuickAddCategories = []; QuickAddCategoriesLoad = NotAsked
                   Rules = rules; Ledger = ledger; Budget = budget; QuickAdd = None; QuickAddTemplates = NotAsked; Overview = Components.Overview.Types.init; SettingsReturn = Types.Page.Overview }
             let clicked, _ = State.update (State.ToastActionClicked idA) model
             let after, cmd = State.update (State.toastActionMsg (RetryBudgetMove "app-1")) clicked

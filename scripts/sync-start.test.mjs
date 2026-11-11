@@ -1,18 +1,12 @@
 // scripts/sync-start.test.mjs
 //
-// Gerenderter Beleg für `banking-import-cyg94`: der Server entscheidet über die TAN. Echter
-// Vite-Client gegen gemockte Sync-API-Antworten (erfundene Werte, nie die echte Datenbank, nie
-// Comdirect oder YNAB). Pfad ohne TAN: `startSync` antwortet `ReviewReady`, die Prüfung erscheint
-// direkt, `confirmTan` geht nie hinaus. Pfad mit TAN: `TanRequired` zeigt den TAN-Schritt, erst
-// "Ich habe bestätigt" führt in die Prüfung. `initiateComdirectAuth` gibt es nicht mehr: der
-// Catch-all antwortet darauf mit 500, und der Test merkt sich jeden solchen Aufruf.
+// „Abrufen“ (banking-import-d0fey, ADR 0093): ein Sheet über der Übersicht statt der Seite Sync. Echter Vite-Client
+// gegen gemockte Antworten (erfundene Werte, nie die echte Datenbank, nie Comdirect oder YNAB).
 //
-// infrastructure-t5m2b: hier bleiben der TAN-Fluss als Happy Path und eine verlorene Antwort mit
-// abgebrochenem Neulesen (Status 0 gibt es nur im Fable-Kompilat). Dass die Zeile zum Bankstand beim
-// Laden nicht springt, prüft der Layout-Sweep (Zustand sync-start, Invariante 9).
-// Die Texte zum Stand prüft `ClientCommandTests.fs` ("Hinweis zur Bankverbindung"), die übrigen
-// Ausgänge nach verlorener Antwort und ReviewReady ohne TAN `SyncFlowStateTests.fs`, dass die
-// TAN-Bestätigung nie wiederholt wird, das Inventar in `RetryTests.fs`.
+// Hier bleiben der eine Happy Path am Handy (412 px, Touch: TAN bestätigen, Ergebnis lesen) und eine verlorene
+// Antwort mit abgebrochenem Neulesen (Status 0 gibt es nur im Fable-Kompilat). Zustände und Reihenfolgen prüfen
+// `FetchSheetTests.fs` und `SyncStartOrderTests.fs` unter .NET, das Layout der Sweep (Zustände `abrufen-tan` und
+// `abrufen-fertig`), das Inventar der lesenden Aufrufe `RetryTests.fs`.
 //
 // Ausführen: node --test scripts/sync-start.test.mjs
 // (Teil von `npm run test:scripts`.)
@@ -21,18 +15,9 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
 import { getFreePort, startFrontend, stopServer } from "./screenshot-route.mjs";
+import { stateNamed, syncSession, FETCH_RESULT } from "./layout-states.mjs";
 
-const g = (n) => `00000000-0000-4000-8000-${n.toString(16).padStart(12, "0")}`;
-const W = (c, v) => ({ [c]: v });
-const day = () => new Date().toISOString().slice(0, 10) + "T08:00:00.0000000";
-const det = { TransactionReference: "", ReferenceFoundInYnab: false, ImportIdFoundInYnab: false, FuzzyMatchDate: null, FuzzyMatchAmount: null, FuzzyMatchPayee: null };
-const row = {
-  Transaction: { Id: W("TransactionId", "cyg94-1"), BookingDate: day(), Amount: { Amount: -12.34, Currency: "EUR" }, Payee: "Erfundener Markt", Memo: "Kartenzahlung", Reference: "ref1", RawData: "" },
-  Status: "Pending", CategoryId: null, CategoryName: null, MatchedRuleId: null, PayeeOverride: null, ExternalLinks: [], UserNotes: null, DuplicateStatus: { NotDuplicate: det },
-  YnabImportStatus: "NotAttempted", Splits: null, SuggestedByOrderId: null, ReviewSteps: [], AskLena: false,
-};
-const session = (Status) => ({ Id: W("SyncSessionId", g(1)), StartedAt: day(), CompletedAt: null, Status, TransactionCount: 1, ImportedCount: 0, SkippedCount: 0 });
-const json = (b) => ({ contentType: "application/json", body: JSON.stringify(b) });
+const json = (route, body) => route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
 
 let frontend;
 let port;
@@ -48,65 +33,70 @@ after(async () => {
   await stopServer(frontend, port);
 });
 
-async function open(startAnswer, lost) {
-  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
-  const page = await ctx.newPage();
-  page.setDefaultTimeout(15000);
-  const calls = { start: 0, confirm: 0, unknown: [] };
+/// Die Übersicht am Handy mit der API eines Abrufs. `lost`: die Antwort von `startSync` geht verloren, danach
+/// antwortet `getCurrentSession` der Reihe nach aus `lost.reads` ("abort" bricht die Verbindung ab).
+async function open({ lost } = {}) {
+  const context = await browser.newContext({ viewport: { width: 412, height: 915 }, hasTouch: true, isMobile: true });
+  const page = await context.newPage();
+  page.setDefaultTimeout(20000);
+  const calls = { start: 0, confirm: 0 };
   let current = null; // die Sitzung, die der Server gerade kennt
-  await page.route("**/api/**", (r) => {
-    calls.unknown.push(new URL(r.request().url()).pathname);
-    return r.fulfill({ status: 500, body: "x" });
-  });
-  await page.route("**/api/SyncApi/getBankConnectionStatus", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify("BankDisconnected") }));
+  await page.route("**/api/**", (r) => r.fulfill({ status: 500, contentType: "application/json", body: '{"error":"nicht gemockt"}' }));
+  await stateNamed("abrufen-tan").mock(page);
   await page.route("**/api/SyncApi/getCurrentSession", (r) => {
-    // Nach dem Start antwortet der Server der Reihe nach aus `lost.reads`.
     if (calls.start > 0 && lost?.reads?.length) {
       const next = lost.reads.shift();
       if (next === "abort") return r.abort("connectionreset");
       current = next;
     }
-    return r.fulfill(json(current));
+    return json(r, current);
   });
-  await page.route("**/api/SyncApi/getTransactions", (r) => r.fulfill(json({ Ok: [row] })));
   await page.route("**/api/SyncApi/startSync", (r) => {
     calls.start += 1;
-    // Die Antwort geht verloren, der Server hat den Start aber verarbeitet (Live-Befund "Http error (0)").
     if (lost) {
+      // Die Antwort geht verloren, der Server hat den Start aber verarbeitet (Live-Befund "Http error (0)").
       current = lost.server;
       return r.abort("connectionreset");
     }
-    const [kind, status] = startAnswer;
-    current = session(status);
-    return r.fulfill(json({ Ok: { [kind]: current } }));
+    current = syncSession("AwaitingTan");
+    return json(r, { Ok: { TanRequired: current } });
   });
   await page.route("**/api/SyncApi/confirmTan", (r) => {
     calls.confirm += 1;
-    current = session("ReviewingTransactions");
-    return r.fulfill(json({ Ok: [] }));
+    current = syncSession("Completed", FETCH_RESULT);
+    return json(r, { Ok: current });
   });
-  await page.goto(`http://localhost:${port}/#/sync`);
-  await page.getByRole("button", { name: "Sync starten" }).click();
-  return { ctx, page, calls };
+  await page.goto(`http://localhost:${port}/`);
+  await page.locator('[data-testid="overview-month"], [data-testid="overview-month-loading"]').first().waitFor();
+  await page.getByRole("button", { name: "Abrufen" }).locator("visible=true").first().tap();
+  return { context, page, calls };
 }
 
-test("[flow:sync-starten] ohne Bankverbindung: erst der TAN-Schritt, dann die Prüfung", async () => {
-  const { ctx, page, calls } = await open(["TanRequired", "AwaitingTan"]);
-  const confirm = page.getByRole("button", { name: "Ich habe bestätigt" });
-  await confirm.waitFor();
-  assert.equal(await page.locator(".tx-row").count(), 0, "noch keine Buchungen");
-  assert.equal(calls.confirm, 0, "wartet auf Roman");
-  await confirm.click();
-  await page.locator(".tx-row", { hasText: "Erfundener Markt" }).waitFor();
-  assert.equal(calls.confirm, 1, "eine Bestätigung");
-  assert.ok(!calls.unknown.some((p) => p.includes("initiateComdirectAuth")), "kein alter Auth-Aufruf");
-  await ctx.close();
+const sheet = (page) => page.locator(".bottom-sheet.active").first();
+
+test("[flow:abrufen] Über Abrufen mit Push-TAN abrufen und das Ergebnis lesen", async () => {
+  const { context, page, calls } = await open();
+  try {
+    const confirm = sheet(page).getByRole("button", { name: "Ich habe bestätigt" });
+    await confirm.waitFor();
+    assert.equal(calls.confirm, 0, "wartet auf Roman");
+    await confirm.tap();
+    await sheet(page).getByText("6 neue Buchungen").waitFor();
+    assert.equal(calls.start, 1, "ein Start");
+    assert.equal(calls.confirm, 1, "eine Bestätigung");
+    await sheet(page).getByRole("button", { name: "Jetzt durchgehen" }).waitFor();
+  } finally {
+    await context.close();
+  }
 });
 
 test("[fable] verlorene Antwort, das erste Neulesen bricht ab: der nächste Versuch findet den TAN-Schritt", async () => {
-  const { ctx, page, calls } = await open(null, { server: session("AwaitingTan"), reads: ["abort", session("AwaitingTan")] });
-  await page.getByRole("button", { name: "Ich habe bestätigt" }).waitFor();
-  assert.equal(calls.start, 1, "kein zweiter Start");
-  assert.equal(await page.getByText("Synchronisierung fehlgeschlagen").count(), 0, "kein Fehler");
-  await ctx.close();
+  const { context, page, calls } = await open({ lost: { server: syncSession("AwaitingTan"), reads: ["abort", syncSession("AwaitingTan")] } });
+  try {
+    await sheet(page).getByRole("button", { name: "Ich habe bestätigt" }).waitFor();
+    assert.equal(calls.start, 1, "kein zweiter Start");
+    assert.equal(await sheet(page).locator('[data-testid="fetch-error"]').count(), 0, "kein Fehler");
+  } finally {
+    await context.close();
+  }
 });

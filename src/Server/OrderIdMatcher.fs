@@ -36,6 +36,12 @@ let buildYnabOrderIdMap (ynabTransactions: YnabTransaction list) : Map<string, O
         (orderId, newest))
     |> Map.ofList
 
+/// Die Kategorie-Id eines Vorschlags. `None`, wenn YNAB etwas anderes als eine Guid lieferte.
+let private parseCategoryId (suggestion: OrderIdSuggestion) : YnabCategoryId option =
+    match Guid.TryParse suggestion.CategoryId with
+    | true, id -> Some (YnabCategoryId id)
+    | false, _ -> None
+
 /// Applies Order ID-based category suggestions to uncategorized Amazon transactions.
 /// Only affects transactions with status Pending or NeedsAttention that don't already have a category.
 /// Sets SuggestedByOrderId to indicate the source of the suggestion.
@@ -55,47 +61,15 @@ let applySuggestions (now: DateTime) (orderIdMap: Map<string, OrderIdSuggestion>
             | None, (Pending | NeedsAttention) ->
                 match RulesEngine.extractAmazonOrderId tx.Transaction with
                 | Some orderId ->
-                    match Map.tryFind orderId orderIdMap with
-                    | Some suggestion ->
+                    // Eine nicht lesbare Kategorie-Id aus der YNAB-Historie überspringt den Eintrag
+                    // (categorization-hz6vj): `Guid.Parse` warf hier und brach den ganzen Abruf ab.
+                    match Map.tryFind orderId orderIdMap |> Option.bind (fun s -> parseCategoryId s |> Option.map (fun id -> s, id)) with
+                    | Some (suggestion, categoryId) ->
                         { tx with
-                            CategoryId = Some (YnabCategoryId (Guid.Parse suggestion.CategoryId))
+                            CategoryId = Some categoryId
                             CategoryName = Some suggestion.CategoryName
                             SuggestedByOrderId = Some suggestion.OrderId }
                         |> appendReviewStep now (ByOrderIdMatch suggestion.OrderId)
                     | None -> tx
                 | None -> tx
             | _ -> tx)
-
-/// Given a just-categorized transaction, finds other transactions in the session
-/// with the same Amazon Order ID that don't have a category yet, and propagates the category to them.
-/// Returns only the newly updated transactions (not the source transaction).
-/// Appends a `ByUser` review step (categorization-gdrx8, Entscheidung Roman
-/// 2026-09-11): Roman made the categorization decision on the source transaction, BB
-/// only carries it over to the siblings: the decision stays his, not a new actor.
-/// `at` should be the same timestamp used for the source transaction's own review step
-/// (the propagation happens as part of that one categorization action).
-let propagateInSession (at: DateTime) (categorized: SyncTransaction) (allTransactions: SyncTransaction list) : SyncTransaction list =
-    match categorized.CategoryId, RulesEngine.extractAmazonOrderId categorized.Transaction with
-    | Some categoryId, Some orderId ->
-        allTransactions
-        |> List.choose (fun tx ->
-            // Skip the source transaction itself
-            if tx.Transaction.Id = categorized.Transaction.Id then
-                None
-            // Only propagate to uncategorized transactions
-            elif tx.CategoryId.IsSome then
-                None
-            else
-                match tx.Status with
-                | Pending | NeedsAttention ->
-                    match RulesEngine.extractAmazonOrderId tx.Transaction with
-                    | Some txOrderId when txOrderId = orderId ->
-                        { tx with
-                            CategoryId = Some categoryId
-                            CategoryName = categorized.CategoryName
-                            SuggestedByOrderId = Some orderId }
-                        |> appendReviewStep at ByUser
-                        |> Some
-                    | _ -> None
-                | _ -> None)
-    | _ -> []

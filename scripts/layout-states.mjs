@@ -335,10 +335,24 @@ const moneyMode = (page, name) => page.locator('[data-testid="money-mode"]:visib
 const TODAY = new Date().toISOString().slice(0, 10) + "T00:00:00.0000000";
 export const LONG_PAYEE = "Ein Zahlungsempfänger mit einem sehr langen Namen, der in keine Spalte passt";
 
-function ledgerEntries(accountId) {
+/// Eine Buchung, die als unsicheres Duplikat wartet (banking-import-d0fey, ADR 0093): „doppelt?“ in der Zeile.
+export const HELD_PAYEE = "Vielleicht doppelt mit einem langen Zahlungsempfänger";
+export const POSSIBLE_DUPLICATE = {
+  Reason: "In YNAB steht eine Buchung mit gleichem Betrag am 10.11.2026 bei Markt.",
+  MatchDate: "2026-11-10T00:00:00.0000000",
+  MatchAmount: eur(-12345.67),
+  MatchPayee: "Markt",
+  MatchCategoryName: "Lebensmittel",
+  MatchEntryId: null,
+};
+
+function ledgerEntries(accountId, { held = false } = {}) {
   const entry = (n, extra) => buildEntryFixture(accountId, n, { Date: TODAY, LinkedToYnab: true, CategorizationWriteBackFailure: null, ...extra });
   const lebensmittel = { CategoryId: CATEGORY_IDS.lebensmittel, CategoryName: "Lebensmittel", CategoryGroupName: "Alltag" };
   return [
+    ...(held
+      ? [entry(10, { Payee: HELD_PAYEE, NeedsReview: true, LinkedToYnab: false, Amount: eur(-12345.67), PossibleDuplicate: POSSIBLE_DUPLICATE, ...lebensmittel })]
+      : []),
     entry(1, { Payee: "Bauhaus", NeedsReview: true, Amount: eur(-81.9), ...lebensmittel }),
     entry(2, {
       Payee: "AMAZON PAYMENTS",
@@ -366,14 +380,14 @@ function ledgerEntries(accountId) {
   ];
 }
 
-async function mockLedger(page, { accounts = 3 } = {}) {
+async function mockLedger(page, { accounts = 3, held = false } = {}) {
   await mockApp(page);
   const accountsFixture = buildAccountsFixture(accounts);
   accountsFixture.Accounts[2].Name = "Gemeinschaftskonto mit einem sehr langen Kontonamen";
   await mockFilterBarApi(page, {
     accountsFixture,
     balancesFixture: buildBalancesFixture(accountsFixture.Accounts).map((b, i) => (i === 2 ? { ...b, Balance: eur(-12345.67) } : b)),
-    resolveEntries: () => ledgerEntries(accountsFixture.DefaultAccountId),
+    resolveEntries: () => ledgerEntries(accountsFixture.DefaultAccountId, { held }),
   });
   for (const [name, body] of [
     ["getEntryHistory", []],
@@ -451,10 +465,34 @@ async function mockRules(page) {
 const openRules = async (page) => page.getByText("Regel eins").locator("visible=true").first().waitFor();
 
 // ============================================================
-// Sync
+// Abrufen (banking-import-d0fey)
 // ============================================================
 
-const mockSync = mockApp;
+const SYNC_ID = { SyncSessionId: "00000000-0000-4000-8000-0000000a5a01" };
+/// Eine Sitzung, wie der Server sie liefert (`SyncSession`).
+export const syncSession = (Status, Counts = {}) => ({
+  Id: SYNC_ID,
+  StartedAt: TODAY,
+  CompletedAt: null,
+  Status,
+  Trigger: "Manual",
+  Counts: { NewEntries: 0, ByRule: 0, ByOrderId: 0, WithoutCategory: 0, SafeDuplicatesSkipped: 0, Held: 0, NotInYnab: 0, ...Counts },
+});
+/// Das Ergebnis des Prototyps, mit Bestellnummer und nicht in YNAB (Abweichung (b)), damit der Satz am Handy umbricht.
+export const FETCH_RESULT = { NewEntries: 6, ByRule: 2, ByOrderId: 1, WithoutCategory: 3, SafeDuplicatesSkipped: 2, Held: 1, NotInYnab: 1 };
+
+/// Die Übersicht mit dem Sheet „Abrufen“: `startSync` antwortet mit `start`, `confirmTan` mit dem fertigen Abruf.
+const mockFetch = (start) => async (page) => {
+  await mockOverview(page);
+  await page.route("**/api/SyncApi/startSync", (r) => json(r, { Ok: start }));
+  await page.route("**/api/SyncApi/confirmTan", (r) => json(r, { Ok: syncSession("Completed", FETCH_RESULT) }));
+};
+const fetchLayer = (page) => page.locator('[data-layer="dialog"]').or(page.locator(".bottom-sheet.active").first());
+const openFetch = (ready) => async (page) => {
+  await openOverview(page);
+  await page.getByRole("button", { name: "Abrufen" }).locator("visible=true").first().click();
+  await fetchLayer(page).locator(`[data-testid="${ready}"]`).waitFor();
+};
 
 // ============================================================
 // Übersicht (design-system-k6kfw)
@@ -1359,18 +1397,32 @@ export const STATES = [
       { width: 900, inv: 9, selector: '[data-testid="overview-pins-empty"]' },
     ],
   },
-  // Fix 31f15e0 (banking-import-v8n3k): die Zeile zum Bankstand nimmt beim Laden schon ihre Höhe ein.
+  // banking-import-d0fey: das Sheet „Abrufen“ (Prototyp Version 17, Sheet `import`) am Handy als Sheet, am PC als
+  // Dialog über der Übersicht. „Ich habe bestätigt“ und „Jetzt durchgehen“ sind ohne Scrollen erreichbar.
   {
-    name: "sync-start",
-    route: "/sync",
-    widths: [...HANDY_WIDTHS, 1440],
-    mock: mockSync,
-    open: async (page) => page.getByRole("button", { name: "Sync starten" }).waitFor(),
-    deferred: {
-      api: "**/api/SyncApi/getBankConnectionStatus",
-      body: "BankConnected",
-      loaded: (page) => page.getByText("Nächster Sync ohne TAN"),
-    },
+    name: "abrufen-tan",
+    route: "/",
+    widths: [320, 412, 1280],
+    mock: mockFetch({ TanRequired: syncSession("AwaitingTan") }),
+    open: openFetch("fetch-tan"),
+    primary: (page) => fetchLayer(page).getByRole("button", { name: "Ich habe bestätigt" }),
+  },
+  {
+    name: "abrufen-fertig",
+    route: "/",
+    widths: [320, 412, 1280],
+    mock: mockFetch({ Fetched: syncSession("Completed", FETCH_RESULT) }),
+    open: openFetch("fetch-done"),
+    primary: (page) => fetchLayer(page).getByRole("button", { name: "Jetzt durchgehen" }),
+  },
+  // banking-import-d0fey: eine wartende Buchung trägt „doppelt?“ statt „Nicht in YNAB“ (Zeile am Handy, Statusspalte
+  // am PC), mit langem Payee und großem Betrag.
+  {
+    name: "kassenbuch-wartend",
+    route: "/ledger",
+    widths: [320, 412, 1280],
+    mock: (page) => mockLedger(page, { held: true }),
+    open: async (page) => page.getByText(HELD_PAYEE, { exact: true }).locator("visible=true").first().waitFor(),
   },
 ];
 

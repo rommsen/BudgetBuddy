@@ -68,7 +68,6 @@ let private restoringSetting (key: string) (body: unit -> unit) =
         | None -> Persistence.Settings.deleteSetting key |> run
 
 let private unknownSession () = SyncSessionId (Guid.NewGuid())
-let private unknownTx = TransactionId "unbekannte-buchung"
 
 let private emptyPageQuery (accountId: Guid) : LedgerEntryPageQuery =
     { AccountId = Some accountId
@@ -223,8 +222,8 @@ let private rows : Row list = [
 
     // ---------------- SyncApi ----------------
     { Endpoint = "SyncApi.startSync"; Case = "ohne Comdirect-Zugangsdaten Fehler"
-      // Eigene leere Sitzung: Expecto läuft parallel, und eine offene Prüfung aus einer anderen Liste
-      // käme unverändert zurück, ohne dass die Zugangsdaten gelesen werden.
+      // Eigene leere Sitzung: Expecto läuft parallel, und eine Sitzung aus einer anderen Liste darf das
+      // Ergebnis nicht stellen. Ohne Zugangsdaten bucht der Abruf nichts (banking-import-d0fey).
       Run = fun () ->
           let noSession = { liveImportPorts.Sessions with Current = fun () -> None }
           Server.BankImport.startSyncWith { liveImportPorts with Sessions = noSession } |> run |> expectError "Start" }
@@ -246,27 +245,6 @@ let private rows : Row list = [
         |> run |> expectError "Trennen" }
     { Endpoint = "SyncApi.confirmTan"; Case = "unbekannte Sitzung: Fehler"
       Run = fun () -> syncApi.confirmTan (unknownSession ()) |> run |> expectError "TAN" }
-    { Endpoint = "SyncApi.getTransactions"; Case = "unbekannte Sitzung: Fehler"
-      Run = fun () -> syncApi.getTransactions (unknownSession ()) |> run |> expectError "Umsätze" }
-    { Endpoint = "SyncApi.categorizeTransaction"; Case = "unbekannte Sitzung: Fehler"
-      Run = fun () -> syncApi.categorizeTransaction (unknownSession (), unknownTx, None, None) |> run |> expectError "Kategorie" }
-    { Endpoint = "SyncApi.skipTransaction"; Case = "unbekannte Sitzung: Fehler"
-      Run = fun () -> syncApi.skipTransaction (unknownSession (), unknownTx) |> run |> expectError "Überspringen" }
-    { Endpoint = "SyncApi.unskipTransaction"; Case = "unbekannte Sitzung: Fehler"
-      Run = fun () -> syncApi.unskipTransaction (unknownSession (), unknownTx) |> run |> expectError "Zurückholen" }
-    { Endpoint = "SyncApi.bulkCategorize"; Case = "unbekannte Sitzung: Fehler"
-      Run = fun () ->
-        syncApi.bulkCategorize (unknownSession (), [ unknownTx ], YnabCategoryId (Guid.NewGuid())) |> run |> expectError "Sammel" }
-    { Endpoint = "SyncApi.splitTransaction"; Case = "unbekannte Sitzung: Fehler"
-      Run = fun () -> syncApi.splitTransaction (unknownSession (), unknownTx, []) |> run |> expectError "Aufteilen" }
-    { Endpoint = "SyncApi.clearSplit"; Case = "unbekannte Sitzung: Fehler"
-      Run = fun () -> syncApi.clearSplit (unknownSession (), unknownTx) |> run |> expectError "Aufteilung lösen" }
-    { Endpoint = "SyncApi.setAskLena"; Case = "unbekannte Sitzung: Fehler"
-      Run = fun () -> syncApi.setAskLena (unknownSession (), unknownTx, true) |> run |> expectError "Lena" }
-    { Endpoint = "SyncApi.importToYnab"; Case = "unbekannte Sitzung: Fehler"
-      Run = fun () -> syncApi.importToYnab (unknownSession ()) |> run |> expectError "Import" }
-    { Endpoint = "SyncApi.forceImportDuplicates"; Case = "unbekannte Sitzung: Fehler"
-      Run = fun () -> syncApi.forceImportDuplicates (unknownSession (), [ unknownTx ]) |> run |> expectError "Erzwingen" }
     { Endpoint = "SyncApi.getSyncHistory"; Case = "negative Anzahl ohne Absturz"
       Run = fun () -> syncApi.getSyncHistory -1 |> run |> ignore }
 

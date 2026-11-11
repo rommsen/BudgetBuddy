@@ -23,8 +23,7 @@ schwaches Payee-basiertes Auto-Matching.
 - **PayeeOverride** — überschreibt den an YNAB gemeldeten Payee unabhängig von der Kategorie. Eine Regeländerung (`RuleChange`) sagt mit `PayeeOverrideChange` ausdrücklich, was geschieht: behalten, setzen oder entfernen.
 - **AutoCategorized** — TransactionStatus, wenn eine Regel automatisch gegriffen hat
   (vs. **ManualCategorized** für Romans Hand-Zuordnung).
-- **Order-ID-Matching** — eine kategorisierte Transaktion vererbt ihre Kategorie an andere
-  mit gleicher Amazon-Order-ID (`SuggestedByOrderId`, `OrderIdSuggestion`).
+- **Order-ID-Matching** — beim Abruf übernimmt eine neue Amazon-Buchung ohne Kategorie die Kategorie der jüngsten YNAB-Buchung mit gleicher Order-ID (`OrderIdMatcher.applySuggestions`, `SuggestedByOrderId`, `OrderIdSuggestion`). Eine Kategorie-Id aus der Historie, die keine Guid ist, überspringt den Eintrag, statt den Abruf abzubrechen (categorization-hz6vj, in banking-import-d0fey). Die Weitergabe an Buchungen derselben Bestellnummer innerhalb eines Imports (`propagateInSession`) entfiel mit der Prüfsitzung (ADR 0093).
 - **NeedsAttention** — TransactionStatus für Sammel-/Sonderfälle (Amazon, PayPal), die
   Romans Blick brauchen.
 - **ExternalLink** — Label+Url, z.B. zur Amazon-Bestellung, als Entscheidungshilfe.
@@ -37,16 +36,13 @@ schwaches Payee-basiertes Auto-Matching.
   gelaufen ist, bevor die Kassenbuch-Buchung beim Push entsteht (ADR 0021);
   `ledger-qvt84` liest die Spur beim Push und übersetzt sie in
   `EntryCategorizedByRule`/`EntryRecategorized`-Ereignisse mit den Original-Zeitpunkten
-  (categorization-gdrx8). Sieben Schreibpfade hängen einen Schritt an:
-  - `RulesEngine.classifyTransactions`: `ByRule`, beim Regel-Treffer zur Abrufzeit.
-  - `categorizeTransaction`, `bulkCategorize`, `splitTransaction`, `clearSplit`
-    (`Server.Api`): `ByUser`, Romans manuelle Entscheidung.
+  (categorization-gdrx8). Seit dem Abruf mit Buchen (ADR 0093) hängen zwei Schreibpfade
+  einen Schritt an, beide zur Abrufzeit:
+  - `RulesEngine.classifyTransactions`: `ByRule`, beim Regel-Treffer.
   - `OrderIdMatcher.applySuggestions`: `ByOrderIdMatch orderId`, Kategorie aus der
-    YNAB-Historie derselben Bestellung zur Abrufzeit; eigener Urheber, weil weder Regel
-    noch Roman diese Buchung entschieden haben.
-  - `OrderIdMatcher.propagateInSession`: `ByUser`, weil BB Romans Entscheidung auf der
-    Quell-Buchung nur auf die Geschwister derselben Bestellung überträgt; die fachliche
-    Entscheidung bleibt seine.
+    YNAB-Historie derselben Bestellung; eigener Urheber, weil weder Regel noch Roman diese
+    Buchung entschieden haben.
+  Romans Entscheidungen fallen danach im Kassenbuch (Ereignisse der Entscheidungs-Familie).
 - **Available** — der aktuelle Budgetwert einer Kategorie (YNAB `balance`, das "Available"
   des laufenden Monats), als `Money option` (None = keine Zahl zeigen). Im Kategorie-Picker
   rechtsbündig und farbcodiert (grün >0 / rot <0 / neutral =0) hinter dem Namen, damit "passt
@@ -54,7 +50,7 @@ schwaches Payee-basiertes Auto-Matching.
   Kategorien-Load, kein Live-Refresh pro Zeile. **Ausnahme "Inflow: Ready to Assign":** deren
   eigenes `balance` ist ein interner Akkumulator (Fantasiewert); stattdessen zeigt sie den
   echten Ready-to-Assign des Monats (`to_be_budgeted`), via `applyReadyToAssign` (ADR 0011).
-- **Muster-Test**: prüft ein Muster gegen einen Text, ohne eine Regel zu speichern (`testRule`). Drei getrennte Ausgänge: passt, passt nicht, kein Urteil. Kein Urteil gibt es bei ungültigem Muster (nennt den Grund) und bei Netzfehler (eigene Meldung), beides ist nie „passt nicht“. Im Regelformular an der Importzeile läuft er entprellt von selbst: `InlineRuleTest: RemoteData<bool>` hält das Ergebnis, `InlineRuleTestVersion` verwirft fällige Timer und späte Antworten.
+- **Muster-Test**: prüft ein Muster gegen einen Text, ohne eine Regel zu speichern (`testRule`). Drei getrennte Ausgänge: passt, passt nicht, kein Urteil. Kein Urteil gibt es bei ungültigem Muster (nennt den Grund) und bei Netzfehler (eigene Meldung), beides ist nie „passt nicht“.
 
 ## Aggregates
 - **Rule** — eine Regel; Invariante: gültiges Pattern (bei Regex kompilierbar), eindeutige
@@ -69,14 +65,13 @@ schwaches Payee-basiertes Auto-Matching.
 ## Key commands
 - *ApplyRules* auf eine Menge BankTransactions.
 - *CreateRule* (oft direkt aus dem Zuweisungs-Dialog).
-- *PropagateOrderId* innerhalb einer SyncSession.
 
 ## Relationships with other contexts
 - **Downstream of:** `banking-import` — erhält geholte BankTransactions.
-- **Upstream of:** `ledger` (über die SyncSession, beim Push; ADR 0021). Die
-  SyncTransaction führt ihre Review-Spur (`ReviewSteps`, categorization-gdrx8) bis zum
-  Push mit; `ledger-qvt84` liest sie und übersetzt sie in eine Ereignisfolge im
-  Kassenbuch, danach pusht `ynab-sync`.
+- **Upstream of:** `ledger` (beim Abruf mit Buchen, ADR 0021 und ADR 0093). Die
+  SyncTransaction trägt ihre Review-Spur (`ReviewSteps`, categorization-gdrx8) vom Abruf bis
+  zum Buchen; `recordComdirectPush` übersetzt sie in eine Ereignisfolge im Kassenbuch,
+  danach pusht `ynab-sync`.
 - Voller Kontext-Überblick: `../../context-map.md`.
 
 ## Szenarien und Tests

@@ -64,16 +64,12 @@
     <Compile Include="UnderfundedTests.fs" />
     <Compile Include="SplitTransactionTests.fs" />
     <Compile Include="SplitPushTests.fs" />
-    <Compile Include="ImportAskLenaTests.fs" />
     <Compile Include="ValidationTests.fs" />
-    <Compile Include="SyncSessionManagerTests.fs" />
     <Compile Include="RoutingTests.fs" />
     <Compile Include="CorsTests.fs" />
     <Compile Include="CmdTiming.fs" />
-    <Compile Include="SyncFlowViewTests.fs" />
-    <Compile Include="SyncFlowStateTests.fs" />
     <Compile Include="SyncStartOrderTests.fs" />
-    <Compile Include="ImportAskLenaClientTests.fs" />
+    <Compile Include="FetchSheetTests.fs" />
     <Compile Include="QuickAddTests.fs" />
     <Compile Include="PwaTests.fs" />
     <Compile Include="RetryTests.fs" />
@@ -82,7 +78,6 @@
     <Compile Include="LedgerCategoriesSyncTests.fs" />
     <Compile Include="LedgerCategoriesAwaitSettingsTests.fs" />
     <Compile Include="LedgerCategoriesFreshnessTests.fs" />
-    <Compile Include="SplitEditorTests.fs" />
     <Compile Include="RulesReorderTests.fs" />
     <Compile Include="CategoryPickerTests.fs" />
     <Compile Include="ButtonSizeTests.fs" />
@@ -110,6 +105,7 @@
     <Compile Include="LedgerLenaFlagBatchTests.fs" />
     <Compile Include="LedgerReviewMarkClientTests.fs" />
     <Compile Include="LedgerPushFailureTests.fs" />
+    <Compile Include="LedgerHeldDuplicateTests.fs" />
     <Compile Include="LedgerRetryPushTests.fs" />
     <Compile Include="LedgerCashBookingTests.fs" />
     <Compile Include="BotValidationTests.fs" />
@@ -128,8 +124,6 @@
     <Compile Include="LedgerTransferTests.fs" />
     <Compile Include="LedgerBookingCaptureTests.fs" />
     <Compile Include="LedgerEntryDeletionTests.fs" />
-    <Compile Include="ForceImportCandidateTests.fs" />
-    <Compile Include="PushOutcomeClassificationTests.fs" />
     <Compile Include="LedgerPageTests.fs" />
     <Compile Include="LedgerViewTests.fs" />
     <Compile Include="SettingsViewTests.fs" />
@@ -156,6 +150,7 @@
     <Compile Include="LedgerAmountClientTests.fs" />
     <Compile Include="LedgerPayeeClientTests.fs" />
     <Compile Include="LedgerEntryDeletionClientTests.fs" />
+    <Compile Include="LedgerHeldDuplicateClientTests.fs" />
     <Compile Include="LedgerReviewMarkBatchClientTests.fs" />
     <Compile Include="LedgerCategoryBatchClientTests.fs" />
     <Compile Include="LedgerLenaFlagClientTests.fs" />

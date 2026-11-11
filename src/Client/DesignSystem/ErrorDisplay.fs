@@ -337,6 +337,24 @@ module ErrorDisplay =
             ]
         ]
 
+    /// Hinweis in Gelb wie `notice`, mit fettem Anfang (Prototyp Version 17, Sheet „Abrufen“: „**Push-TAN
+    /// bestätigen.** Öffne die Comdirect-App …“, banking-import-d0fey).
+    let noticeWithLead (lead: string) (message: string) =
+        Html.div [
+            prop.className attentionBoxClass
+            prop.role "alert"
+            prop.children [
+                Icons.warning MD attentionIconColor
+                Html.p [
+                    prop.className "flex-1 text-text-secondary text-sm"
+                    prop.children [
+                        Html.strong [ prop.className "font-semibold text-text-primary"; prop.text lead ]
+                        Html.text (" " + message)
+                    ]
+                ]
+            ]
+        ]
+
     /// Hinweis in Gelb wie `notice`, mit Aktion: braucht dich, kein Fehler (ADR 0087 Punkt 3).
     /// Vorher `bg-warning`/`border-warning`/`text-warning`, ohne `--color-warning` in styles.css
     /// definiert und damit wirkungslos (ADR 0031, design-system-thtpp).

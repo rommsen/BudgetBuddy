@@ -20,7 +20,6 @@ let private t0 = 1_000_000_000L
 
 let private baseModel () : State.Model =
     let settingsModel, _ = Components.Settings.State.init ()
-    let syncFlowModel, _ = Components.SyncFlow.State.init ()
     let rulesModel, _ = Components.Rules.State.init ()
     let ledgerModel, _ = Components.Ledger.State.init ()
     {
@@ -28,7 +27,7 @@ let private baseModel () : State.Model =
         Toasts = []
         Pwa = Pwa.initialState
         Settings = settingsModel
-        SyncFlow = syncFlowModel
+        Fetch = Components.Fetch.Types.init; QuickAddCategories = []; QuickAddCategoriesLoad = NotAsked
         Rules = rulesModel
         Ledger = ledgerModel
         Budget = Components.Budget.State.init ()
@@ -83,6 +82,7 @@ let private anEntry : Shared.Domain.LedgerEntryView = {
     PushToYnabFailure = None
     SplitLocks = None
     ExternalLinks = []
+    PossibleDuplicate = None
 }
 
 let private noticeToasts (m: State.Model) =
@@ -217,9 +217,8 @@ let inputActiveTests =
           StartedAt = DateTime(2026, 10, 24)
           CompletedAt = None
           Status = status
-          TransactionCount = 0
-          ImportedCount = 0
-          SkippedCount = 0 }
+          Trigger = Shared.Domain.Manual
+          Counts = Shared.Domain.emptyFetchCounts }
     testList "State.isInputActive" [
         active "Zuweisungen in der Schlange der Budget-Seite" (fun m ->
             let write : Components.Budget.Types.AssignWrite =
@@ -265,18 +264,9 @@ let inputActiveTests =
         active "Schnellerfassung: IsSaving" (fun m -> { m with QuickAdd = Some { blankForm with IsSaving = true } })
         testCase "Schnellerfassung: leeres Formular ist keine Eingabe" <| fun () ->
             Expect.isFalse (State.isInputActive { baseModel () with QuickAdd = Some blankForm }) "leer"
-        active "Sync-Ablauf: laufende Sitzung" (fun m ->
-            { m with SyncFlow = { m.SyncFlow with CurrentSession = Success (Some (session Shared.Domain.FetchingTransactions)) } })
-        active "Sync-Ablauf: TAN-Bestätigung läuft" (fun m -> { m with SyncFlow = { m.SyncFlow with IsTanConfirming = true } })
-        active "Sync-Ablauf: offene Aufteilung" (fun m ->
-            let split : Components.SyncFlow.Types.SplitEditState =
-                { TransactionId = Shared.Domain.TransactionId "tx-1"
-                  Total = { Amount = -10m; Currency = "EUR" }
-                  Lines = []
-                  Currency = "EUR"
-                  ActivePicker = Components.SyncFlow.Types.NoPicker
-                  AwaitedCashbackLine = None }
-            { m with SyncFlow = { m.SyncFlow with SplitEdit = Some split } })
+        active "Abrufen: das Sheet ist offen" (fun m -> { m with Fetch = { m.Fetch with IsOpen = true } })
+        active "Abrufen: ein Start läuft" (fun m -> { m with Fetch = { m.Fetch with Start = Components.Fetch.Types.StartInFlight } })
+        active "Abrufen: TAN-Bestätigung läuft" (fun m -> { m with Fetch = { m.Fetch with IsTanConfirming = true } })
         active "Regeln: EditingRule" (fun m ->
             let rule : Shared.Domain.Rule =
                 { Id = Shared.Domain.RuleId (Guid.NewGuid())
@@ -292,8 +282,8 @@ let inputActiveTests =
                   CreatedAt = DateTime.UtcNow
                   UpdatedAt = DateTime.UtcNow }
             { m with Rules = { m.Rules with EditingRule = Some rule } })
-        testCase "Sync-Ablauf: abgeschlossene Sitzung ist keine Eingabe" <| fun () ->
+        testCase "Abrufen: ein geschlossenes Sheet nach beendetem Abruf ist keine Eingabe" <| fun () ->
             let m = baseModel ()
-            let m' = { m with SyncFlow = { m.SyncFlow with CurrentSession = Success (Some (session Shared.Domain.Completed)) } }
+            let m' = { m with Fetch = { m.Fetch with Session = Success (Some (session Shared.Domain.Completed)) } }
             Expect.isFalse (State.isInputActive m') "Completed"
     ]

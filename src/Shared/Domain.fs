@@ -250,37 +250,17 @@ let getDuplicateDetails (status: DuplicateStatus) : DuplicateDetectionDetails =
     | ConfirmedDuplicate (_, details) -> details
 
 // ============================================
-// YNAB Import Status (what happened DURING import)
-// ============================================
-
-/// Why YNAB rejected a transaction during import
-type YnabRejectionReason =
-    | DuplicateImportId of importId: string  // YNAB already has this import_id
-    | UnknownRejection of rawResponse: string option
-
-/// Status of YNAB's import attempt for a transaction
-type YnabImportStatus =
-    | NotAttempted            // Import not yet tried
-    | YnabImported            // Successfully imported to YNAB
-    | RejectedByYnab of YnabRejectionReason  // YNAB rejected it
-
-// ============================================
 // Review Trail (categorization-gdrx8)
 // ============================================
-// Roman hat entschieden (2026-09-11), dass Regel-Vorschlag und Romans Korrektur beim
-// Push als Ereignisfolge im Kassenbuch sichtbar werden ("Regel X: Lebensmittel", dann
-// "Roman in BB: Drogerie", ADR 0021). Weil die Kassenbuch-Buchung laut ADR 0021 erst
-// mit dem Push entsteht, führt die SyncSession bis dahin selbst Buch, wer wann welchen
-// Kategorisierungs-Stand gesetzt hat. `ledger-qvt84` liest diese Spur beim Push und
-// übersetzt sie in `EntryCategorizedByRule` / `EntryRecategorized`-Ereignisse mit den
-// hier festgehaltenen Original-Zeitpunkten.
+// Roman hat entschieden (2026-09-11), dass Regel-Vorschlag und Order-ID-Vorschlag beim
+// Buchen als Ereignisfolge im Kassenbuch sichtbar werden ("Regel X: Lebensmittel", ADR 0021).
+// Zwischen Abruf und Buchen (ADR 0093) hält die Review-Spur fest, wer wann welchen
+// Kategorisierungs-Stand gesetzt hat; `recordComdirectPush` übersetzt sie in
+// `EntryCategorizedByRule` / `EntryRecategorized`-Ereignisse mit diesen Zeitpunkten.
 
 /// Wer einen Review-Schritt gesetzt hat: die Regel-Engine (mit Regel-Identität und
 /// -Name, damit eine spätere Anzeige "Regel X: ..." nicht erst nachschlagen muss),
-/// Roman selbst (manuelle Kategorisierung/Split/PayeeOverride; die fachliche
-/// Entscheidung bleibt seine, auch wenn BB sie nur auf Geschwister-Buchungen
-/// derselben Amazon-Order-ID überträgt, `OrderIdMatcher.propagateInSession`),
-/// oder der Order-ID-Abgleich (`OrderIdMatcher.applySuggestions`): eine Kategorie, die
+/// Roman selbst, oder der Order-ID-Abgleich (`OrderIdMatcher.applySuggestions`): eine Kategorie, die
 /// beim Abruf aus der YNAB-Historie derselben Bestellung übernommen wurde, ohne dass
 /// Roman oder eine Regel sie für DIESE Buchung getroffen hätte. Anzeigename
 /// "Order-ID-Abgleich" (Entscheidung Roman, 2026-09-11).
@@ -310,11 +290,8 @@ type SyncTransaction = {
     MatchedRuleId: RuleId option
     PayeeOverride: string option
     ExternalLinks: ExternalLink list
-    UserNotes: string option
     /// BudgetBuddy's pre-import duplicate detection (analyzed BEFORE sending to YNAB)
     DuplicateStatus: DuplicateStatus
-    /// What happened when we tried to import to YNAB (set AFTER import attempt)
-    YnabImportStatus: YnabImportStatus
     /// Optional list of splits for multi-category transactions.
     /// None = single category transaction (uses CategoryId)
     /// Some [] = invalid state (splits must have at least 2 items)
@@ -325,10 +302,6 @@ type SyncTransaction = {
     /// Die Review-Spur: älteste Entscheidung zuerst, damit die Reihenfolge direkt in
     /// Ereignis-Reihenfolge übersetzbar ist (categorization-gdrx8, ADR 0021).
     ReviewSteps: ReviewStep list
-    /// Rückfrage Lena, schon beim Import gesetzt (ynab-sync-d9e51): der Import-Push sendet
-    /// die eingestellte Lena-Flag-Farbe mit, das Kassenbuch zeigt die Buchung sofort als
-    /// Rückfrage. Nur an offenen Zeilen setzbar; Überspringen hebt sie auf.
-    AskLena: bool
 }
 
 /// Hängt einen Review-Schritt an, der den aktuellen Kategorisierungs-Stand von `tx`
@@ -533,30 +506,53 @@ type SyncSessionStatus =
     | AwaitingBankAuth      // Need to start Comdirect OAuth
     | AwaitingTan           // Waiting for user to confirm TAN
     | FetchingTransactions  // Fetching from bank
-    | ReviewingTransactions // User reviewing/categorizing
-    | ImportingToYnab       // Sending to YNAB
+    | ImportingToYnab       // Buchen ins Kassenbuch und Push nach YNAB (ADR 0093)
     | Completed             // Done
     | Failed of string      // Error occurred
+
+/// Wer einen Abruf auslöste (ADR 0093 Punkt 10). Der automatische Abruf kommt mit
+/// banking-import-t4raw dazu.
+type SyncTrigger =
+    | Manual
+
+/// Die Zahlen eines Abrufs mit Buchen (ADR 0093 Punkt 10). `NewEntries` zählt jede neu ins
+/// Kassenbuch gebuchte Buchung, auch die wartenden; `ByRule`, `ByOrderId` und
+/// `WithoutCategory` teilen sie auf. `NotInYnab` zählt die Buchungen dieses Abrufs, deren
+/// Push gescheitert ist (auch erneut gesendete).
+type FetchCounts = {
+    NewEntries: int
+    ByRule: int
+    ByOrderId: int
+    WithoutCategory: int
+    SafeDuplicatesSkipped: int
+    Held: int
+    NotInYnab: int
+}
+
+let emptyFetchCounts : FetchCounts = {
+    NewEntries = 0
+    ByRule = 0
+    ByOrderId = 0
+    WithoutCategory = 0
+    SafeDuplicatesSkipped = 0
+    Held = 0
+    NotInYnab = 0
+}
 
 type SyncSession = {
     Id: SyncSessionId
     StartedAt: DateTime
     CompletedAt: DateTime option
     Status: SyncSessionStatus
-    TransactionCount: int
-    ImportedCount: int
-    SkippedCount: int
+    Trigger: SyncTrigger
+    Counts: FetchCounts
 }
 
-/// Antwort von `startSync`: der Server entscheidet über die TAN (ADR 0071 Punkt 6).
+/// Antwort von `startSync`: der Server entscheidet über die TAN (ADR 0071 Punkt 6). Ohne
+/// TAN läuft der Abruf samt Buchen im Aufruf, `Fetched` trägt die beendete Sitzung.
 type SyncStart =
     | TanRequired of SyncSession
-    | ReviewReady of SyncSession
-
-type SyncSessionSummary = {
-    Session: SyncSession
-    Transactions: SyncTransaction list
-}
+    | Fetched of SyncSession
 
 // ============================================
 // Settings/Configuration
@@ -707,10 +703,6 @@ type SyncError =
     | YnabImportFailed of failedCount: int * message: string
     | InvalidSessionState of expected: string * actual: string
     | DatabaseError of operation: string * message: string
-    /// "Lena fragen" an einer Importzeile abgelehnt (ynab-sync-d9e51): keine Flag-Farbe
-    /// eingestellt oder die Zeile ist nicht mehr offen. Der Grund ist ein deutscher Satz
-    /// für die Anzeige.
-    | AskLenaRejected of reason: string
 
 /// Errors from Comdirect API operations.
 /// Purpose: Distinguishes auth failures from network issues for retry logic.
@@ -1004,6 +996,22 @@ type SplitLocks = {
     ReplacementPending: bool
 }
 
+/// Warum eine Buchung als unsicheres Duplikat wartet (ADR 0093 Punkt 3): der Grund als Satz und
+/// der Treffer in YNAB, wie er beim Abruf aussah. `MatchEntryId` ist die Buchung des Treffers im
+/// Kassenbuch, falls BB sie kennt.
+type PossibleDuplicateView = {
+    Reason: string
+    MatchDate: DateTime
+    MatchAmount: Money
+    MatchPayee: string option
+    MatchCategoryName: string option
+    MatchEntryId: Guid option
+}
+
+/// Der Satz, mit dem jeder schreibende Kassenbuch-Befehl eine wartende Buchung ablehnt
+/// (ADR 0093 Punkt 6). Client und Server zeigen denselben Wortlaut.
+let possibleDuplicateLockedText = "Die Buchung ist vielleicht doppelt. Erst entscheiden: Ist neu oder verwerfen."
+
 /// Eine Buchung, wie die Kassenbuch-Seite sie zeigt.
 type LedgerEntryView = {
     Id: Guid
@@ -1102,6 +1110,10 @@ type LedgerEntryView = {
     /// wie im Sync). Reines Read-Model-Feld, kein Ereignis, kein Schema. Nur das Buchungs-Detail
     /// zeigt sie.
     ExternalLinks: ExternalLink list
+    /// Die Buchung wartet als unsicheres Duplikat („doppelt?“, ADR 0093 Punkt 3): Grund und Treffer
+    /// in YNAB. `None`, wenn sie nicht wartet. Solange sie wartet, sperrt das Kassenbuch jeden
+    /// schreibenden Befehl (ADR 0093 Punkt 6).
+    PossibleDuplicate: PossibleDuplicateView option
 }
 
 // ============================================
@@ -1313,6 +1325,8 @@ type FlagBatchOutcome = {
     Changed: FlagBatchChange list
     UnchangedCount: int
     FailedCount: int
+    /// Übersprungen, weil die Buchung als unsicheres Duplikat wartet (ADR 0093 Punkt 6).
+    HeldCount: int
 }
 
 /// Eine Buchung mit dem Flag, auf das "Rückgängig" sie zurückstellen soll.
@@ -1551,6 +1565,8 @@ type CategorySkipReason =
     | SkipSplitNotAdjusted
     | SkipTransfer
     | SkipNotFound
+    /// Die Buchung wartet als unsicheres Duplikat (ADR 0093 Punkt 6).
+    | SkipPossibleDuplicate
 
 /// Eine Buchung, deren Kategorie der Stapel geändert hat: ihre vorherige Kategorie (für
 /// die gemeinsame Rücknahme) und das Ergebnis des Sammel-PATCH für sie.
@@ -1798,6 +1814,8 @@ type ReviewMarkBatchOutcome = {
     Changed: ReviewMarkBatchChange list
     UnchangedCount: int
     FailedCount: int
+    /// Übersprungen, weil die Buchung als unsicheres Duplikat wartet (ADR 0093 Punkt 6).
+    HeldCount: int
 }
 
 /// Eine Buchung mit dem Prüfvermerk, auf den "Rückgängig" sie zurückstellen soll.

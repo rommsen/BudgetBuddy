@@ -34,36 +34,8 @@ let createTestSession (status: SyncSessionStatus) : SyncSession =
         StartedAt = DateTime.UtcNow
         CompletedAt = Some DateTime.UtcNow
         Status = status
-        TransactionCount = 5
-        ImportedCount = 3
-        SkippedCount = 2
-    }
-
-/// Helper to create a test SyncTransaction with specified status
-let createTestSyncTransaction (sessionId: SyncSessionId) (status: TransactionStatus) : SyncTransaction =
-    {
-        Transaction = {
-            Id = TransactionId "test-tx-1"
-            BookingDate = DateTime.UtcNow
-            Amount = { Amount = 100M; Currency = "EUR" }
-            Payee = Some "Test Payee"
-            Memo = "Test Memo"
-            Reference = "REF123"
-            RawData = ""
-        }
-        Status = status
-        CategoryId = None
-        CategoryName = None
-        MatchedRuleId = None
-        PayeeOverride = None
-        ExternalLinks = []
-        UserNotes = None
-        DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF123")
-        YnabImportStatus = NotAttempted
-        Splits = None
-        SuggestedByOrderId = None
-        ReviewSteps = []
-        AskLena = false
+        Trigger = Manual
+        Counts = { NewEntries = 5; ByRule = 2; ByOrderId = 1; WithoutCategory = 2; SafeDuplicatesSkipped = 3; Held = 1; NotInYnab = 1 }
     }
 
 [<Tests>]
@@ -154,14 +126,6 @@ let typeConversionTests =
                 | None -> failtest "Session not found after insert"
                 | Some s -> Expect.equal s.Status FetchingTransactions "Status should be FetchingTransactions"
 
-            testCase "ReviewingTransactions roundtrip" <| fun () ->
-                let session = createTestSession ReviewingTransactions
-                SyncSessions.createSession session |> Async.RunSynchronously
-                let retrieved = SyncSessions.getSessionById session.Id |> Async.RunSynchronously
-                match retrieved with
-                | None -> failtest "Session not found after insert"
-                | Some s -> Expect.equal s.Status ReviewingTransactions "Status should be ReviewingTransactions"
-
             testCase "ImportingToYnab roundtrip" <| fun () ->
                 let session = createTestSession ImportingToYnab
                 SyncSessions.createSession session |> Async.RunSynchronously
@@ -203,205 +167,17 @@ let typeConversionTests =
                     | _ -> failtest "Status should be Failed"
         ]
 
-        testList "TransactionStatus Conversions" [
-            testCase "Pending roundtrip" <| fun () ->
-                let sessionId = SyncSessionId (Guid.NewGuid())
-                let session = createTestSession AwaitingBankAuth
-                let session = { session with Id = sessionId }
+        // banking-import-d0fey (ADR 0093 Punkt 10): Auslöser und Zahlen des Abrufs gehen in `sync_sessions`
+        // und kommen unverändert zurück.
+        testList "Zahlen des Abrufs" [
+            testCase "Zahlen und Auslöser einer beendeten Sitzung kommen unverändert zurück" <| fun () ->
+                let session = createTestSession Completed
                 SyncSessions.createSession session |> Async.RunSynchronously
-
-                let tx = createTestSyncTransaction sessionId Pending
-                SyncTransactions.saveTransaction sessionId tx |> Async.RunSynchronously
-
-                let retrieved = SyncTransactions.getTransactionsBySession sessionId |> Async.RunSynchronously
-                Expect.isNonEmpty retrieved "Should have at least one transaction"
-                let first = List.head retrieved
-                Expect.equal first.Status Pending "Status should be Pending"
-
-            testCase "AutoCategorized roundtrip" <| fun () ->
-                let sessionId = SyncSessionId (Guid.NewGuid())
-                let session = createTestSession AwaitingBankAuth
-                let session = { session with Id = sessionId }
-                SyncSessions.createSession session |> Async.RunSynchronously
-
-                let tx = createTestSyncTransaction sessionId AutoCategorized
-                SyncTransactions.saveTransaction sessionId tx |> Async.RunSynchronously
-
-                let retrieved = SyncTransactions.getTransactionsBySession sessionId |> Async.RunSynchronously
-                Expect.isNonEmpty retrieved "Should have at least one transaction"
-                let first = List.head retrieved
-                Expect.equal first.Status AutoCategorized "Status should be AutoCategorized"
-
-            testCase "ManualCategorized roundtrip" <| fun () ->
-                let sessionId = SyncSessionId (Guid.NewGuid())
-                let session = createTestSession AwaitingBankAuth
-                let session = { session with Id = sessionId }
-                SyncSessions.createSession session |> Async.RunSynchronously
-
-                let tx = createTestSyncTransaction sessionId ManualCategorized
-                SyncTransactions.saveTransaction sessionId tx |> Async.RunSynchronously
-
-                let retrieved = SyncTransactions.getTransactionsBySession sessionId |> Async.RunSynchronously
-                Expect.isNonEmpty retrieved "Should have at least one transaction"
-                let first = List.head retrieved
-                Expect.equal first.Status ManualCategorized "Status should be ManualCategorized"
-
-            testCase "NeedsAttention roundtrip" <| fun () ->
-                let sessionId = SyncSessionId (Guid.NewGuid())
-                let session = createTestSession AwaitingBankAuth
-                let session = { session with Id = sessionId }
-                SyncSessions.createSession session |> Async.RunSynchronously
-
-                let tx = createTestSyncTransaction sessionId NeedsAttention
-                SyncTransactions.saveTransaction sessionId tx |> Async.RunSynchronously
-
-                let retrieved = SyncTransactions.getTransactionsBySession sessionId |> Async.RunSynchronously
-                Expect.isNonEmpty retrieved "Should have at least one transaction"
-                let first = List.head retrieved
-                Expect.equal first.Status NeedsAttention "Status should be NeedsAttention"
-
-            testCase "Skipped roundtrip" <| fun () ->
-                let sessionId = SyncSessionId (Guid.NewGuid())
-                let session = createTestSession AwaitingBankAuth
-                let session = { session with Id = sessionId }
-                SyncSessions.createSession session |> Async.RunSynchronously
-
-                let tx = createTestSyncTransaction sessionId Skipped
-                SyncTransactions.saveTransaction sessionId tx |> Async.RunSynchronously
-
-                let retrieved = SyncTransactions.getTransactionsBySession sessionId |> Async.RunSynchronously
-                Expect.isNonEmpty retrieved "Should have at least one transaction"
-                let first = List.head retrieved
-                Expect.equal first.Status Skipped "Status should be Skipped"
-
-            testCase "Imported roundtrip" <| fun () ->
-                let sessionId = SyncSessionId (Guid.NewGuid())
-                let session = createTestSession AwaitingBankAuth
-                let session = { session with Id = sessionId }
-                SyncSessions.createSession session |> Async.RunSynchronously
-
-                let tx = createTestSyncTransaction sessionId Imported
-                SyncTransactions.saveTransaction sessionId tx |> Async.RunSynchronously
-
-                let retrieved = SyncTransactions.getTransactionsBySession sessionId |> Async.RunSynchronously
-                Expect.isNonEmpty retrieved "Should have at least one transaction"
-                let first = List.head retrieved
-                Expect.equal first.Status Imported "Status should be Imported"
-        ]
-
-        // categorization-gdrx8: the review trail (rule proposal, then Roman's
-        // correction) must survive a server restart, i.e. a save/reload roundtrip
-        // against SQLite. This is the "Kassenbuch-Buchung" that ledger-qvt84 will
-        // later read at push time (ADR 0021), so the persisted shape must be exact.
-        testList "ReviewSteps Conversions" [
-            testCase "rule step followed by a user correction roundtrips in order" <| fun () ->
-                let sessionId = SyncSessionId (Guid.NewGuid())
-                let session = { createTestSession AwaitingBankAuth with Id = sessionId }
-                SyncSessions.createSession session |> Async.RunSynchronously
-
-                let ruleId = RuleId (Guid.NewGuid())
-                let categoryA = YnabCategoryId (Guid.NewGuid())
-                let categoryB = YnabCategoryId (Guid.NewGuid())
-                let ruleAt = DateTime(2026, 9, 11, 8, 0, 0, DateTimeKind.Utc)
-                let userAt = DateTime(2026, 9, 11, 8, 5, 0, DateTimeKind.Utc)
-                let ruleStep = {
-                    At = ruleAt
-                    By = ByRule (ruleId, "Regel X")
-                    Category = Some categoryA
-                    CategoryName = Some "Lebensmittel"
-                    Splits = None
-                    PayeeOverride = None
-                }
-                let userStep = {
-                    At = userAt
-                    By = ByUser
-                    Category = Some categoryB
-                    CategoryName = Some "Drogerie"
-                    Splits = None
-                    PayeeOverride = Some "dm"
-                }
-                let tx =
-                    { createTestSyncTransaction sessionId ManualCategorized with
-                        ReviewSteps = [ ruleStep; userStep ] }
-                SyncTransactions.saveTransaction sessionId tx |> Async.RunSynchronously
-
-                let retrieved = SyncTransactions.getTransactionsBySession sessionId |> Async.RunSynchronously
-                Expect.isNonEmpty retrieved "Should have at least one transaction"
-                let first = List.head retrieved
-                Expect.equal first.ReviewSteps [ ruleStep; userStep ] "Review steps should survive save/reload, oldest first"
-                // DateTime-Gleichheit vergleicht nur Ticks. Der Zeitpunkt eines Prüfschritts wird
-                // beim Import-Commit zu `OccurredAt` eines Kassenbuch-Ereignisses, und `events`
-                // verlangt UTC (ledger-k9tm2): die Art muss den Rundlauf überstehen.
-                Expect.equal
-                    (first.ReviewSteps |> List.map (fun s -> s.At.Kind))
-                    [ DateTimeKind.Utc; DateTimeKind.Utc ]
-                    "Review step times stay UTC after save/reload"
-
-            testCase "a review step carrying splits roundtrips the split target" <| fun () ->
-                let sessionId = SyncSessionId (Guid.NewGuid())
-                let session = { createTestSession AwaitingBankAuth with Id = sessionId }
-                SyncSessions.createSession session |> Async.RunSynchronously
-
-                let splitStep = {
-                    At = DateTime(2026, 9, 11, 8, 0, 0, DateTimeKind.Utc)
-                    By = ByUser
-                    Category = None
-                    CategoryName = None
-                    Splits = Some [
-                        { Target = ToCategory (YnabCategoryId (Guid.NewGuid()), "Lebensmittel")
-                          Amount = { Amount = 80M; Currency = "EUR" }
-                          Memo = None }
-                        { Target = ToTransfer (YnabAccountId (Guid.NewGuid()), "Bargeld")
-                          Amount = { Amount = 20M; Currency = "EUR" }
-                          Memo = Some "Abhebung" }
-                    ]
-                    PayeeOverride = None
-                }
-                let tx =
-                    { createTestSyncTransaction sessionId ManualCategorized with
-                        ReviewSteps = [ splitStep ] }
-                SyncTransactions.saveTransaction sessionId tx |> Async.RunSynchronously
-
-                let retrieved = SyncTransactions.getTransactionsBySession sessionId |> Async.RunSynchronously
-                let first = List.head retrieved
-                Expect.equal first.ReviewSteps [ splitStep ] "Split target inside a review step should roundtrip"
-
-            testCase "a transaction with no review steps yet roundtrips as an empty list" <| fun () ->
-                let sessionId = SyncSessionId (Guid.NewGuid())
-                let session = { createTestSession AwaitingBankAuth with Id = sessionId }
-                SyncSessions.createSession session |> Async.RunSynchronously
-
-                let tx = createTestSyncTransaction sessionId Pending
-                SyncTransactions.saveTransaction sessionId tx |> Async.RunSynchronously
-
-                let retrieved = SyncTransactions.getTransactionsBySession sessionId |> Async.RunSynchronously
-                let first = List.head retrieved
-                Expect.isEmpty first.ReviewSteps "A transaction never reviewed has no review steps"
-
-            // Iteration 2 (Entscheidung Roman, 2026-09-11): der dritte ReviewActor-Fall
-            // für den Order-ID-Abgleich muss denselben Codec-Weg wie ByRule/ByUser
-            // durchlaufen.
-            testCase "a ByOrderIdMatch step roundtrips its order id" <| fun () ->
-                let sessionId = SyncSessionId (Guid.NewGuid())
-                let session = { createTestSession AwaitingBankAuth with Id = sessionId }
-                SyncSessions.createSession session |> Async.RunSynchronously
-
-                let orderMatchStep = {
-                    At = DateTime(2026, 9, 11, 8, 0, 0, DateTimeKind.Utc)
-                    By = ByOrderIdMatch "ABC-1234567-1234567"
-                    Category = Some (YnabCategoryId (Guid.NewGuid()))
-                    CategoryName = Some "Elektronik"
-                    Splits = None
-                    PayeeOverride = None
-                }
-                let tx =
-                    { createTestSyncTransaction sessionId AutoCategorized with
-                        ReviewSteps = [ orderMatchStep ] }
-                SyncTransactions.saveTransaction sessionId tx |> Async.RunSynchronously
-
-                let retrieved = SyncTransactions.getTransactionsBySession sessionId |> Async.RunSynchronously
-                let first = List.head retrieved
-                Expect.equal first.ReviewSteps [ orderMatchStep ] "ByOrderIdMatch (incl. order id) should roundtrip"
+                let changed = { session with Counts = { session.Counts with NewEntries = 7; NotInYnab = 2 } }
+                SyncSessions.updateSession changed |> Async.RunSynchronously
+                let retrieved = SyncSessions.getSessionById session.Id |> Async.RunSynchronously
+                Expect.equal (retrieved |> Option.map (fun s -> s.Counts)) (Some changed.Counts) "Zahlen nach dem Ändern"
+                Expect.equal (retrieved |> Option.map (fun s -> s.Trigger)) (Some Manual) "Auslöser"
         ]
     ]
 

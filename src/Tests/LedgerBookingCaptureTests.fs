@@ -566,7 +566,8 @@ let private entryWith (account: Guid) (payee: string) (amount: decimal) (categor
       PayeeWriteBackFailure = None
       LinkedToYnab = true
       PushToYnabFailure = None
-      PayeeBeforeTransfer = None }
+      PayeeBeforeTransfer = None
+      PossibleDuplicate = None }
 
 [<Tests>]
 let defaultsTests =

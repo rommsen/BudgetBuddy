@@ -39,7 +39,8 @@ let private entryOf (n: int) : LedgerEntryView =
       AmountLockReason = None
       PayeeWriteBackFailure = None
       LinkedToYnab = true
-      PushToYnabFailure = None; SplitLocks = None; ExternalLinks = [] }
+      PushToYnabFailure = None; SplitLocks = None; ExternalLinks = []
+      PossibleDuplicate = None }
 
 let private idOf (n: int) = (entryOf n).Id
 

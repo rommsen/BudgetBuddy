@@ -156,44 +156,23 @@ type RulesApi = {
 }
 
 // ============================================
-// Import Result Types
-// ============================================
-
-/// Result of importing transactions to YNAB.
-/// Contains both success count and list of transactions rejected as duplicates.
-type ImportResult = {
-    /// Number of transactions actually created in YNAB
-    CreatedCount: int
-    /// Transaction IDs that were rejected because they already exist in YNAB
-    DuplicateTransactionIds: TransactionId list
-    /// Zeilen mit Rückfrage Lena, die ohne Flag nach YNAB gingen, weil die Lena-Farbe bis
-    /// zum Push entfernt wurde (ynab-sync-d9e51). 0 im Normalfall.
-    LenaFlagNotSentCount: int
-}
-
-// ============================================
 // Sync Flow API
 // ============================================
 
-/// API contract for the complete sync workflow.
-/// Purpose: Orchestrates multi-step process from bank auth to YNAB import.
+/// API contract for "Abrufen": Push-TAN, Abruf und Buchen (ADR 0071, ADR 0093).
+/// Purpose: Ein Abruf bucht neue Umsätze sofort ins Kassenbuch und nach YNAB, eine Prüfsitzung gibt es nicht.
 type SyncApi = {
-    // ============================================
-    // Session management
-    // ============================================
-
-    /// Startet einen Sync, der Server entscheidet über die TAN (ADR 0071 Punkt 6).
-    /// Purpose: Bei aktiver Bankverbindung läuft der Abruf in diesem Aufruf (`ReviewReady`), sonst startet
-    /// die Push-TAN (`TanRequired`). Eine offene Prüfung kommt unverändert als `ReviewReady` zurück.
-    /// Returns: SyncStart or SyncError (ComdirectAuthFailed, TransactionFetchFailed, DatabaseError).
+    /// Startet einen Abruf, der Server entscheidet über die TAN (ADR 0071 Punkt 6).
+    /// Purpose: Bei aktiver Bankverbindung laufen Abruf und Buchen in diesem Aufruf (`Fetched` mit der
+    /// beendeten Sitzung), sonst startet die Push-TAN (`TanRequired`). Ein zweiter Start während eines
+    /// Abrufs wartet und bekommt dessen Ergebnis.
+    /// Returns: SyncStart or SyncError (ComdirectAuthFailed, TransactionFetchFailed, YnabImportFailed, DatabaseError).
     startSync: unit -> Async<SyncResult<SyncStart>>
 
-    /// Retrieves the currently active sync session if one exists.
-    /// Purpose: Allows UI to resume interrupted sync or show progress.
+    /// Die aktuelle Sitzung, falls es eine gibt. Nach verlorener Antwort liest der Client hier das Ergebnis.
     getCurrentSession: unit -> Async<SyncSession option>
 
-    /// Cancels an active sync session and cleans up auth state.
-    /// Purpose: Allows user to abort sync and start fresh.
+    /// Bricht eine Sitzung ab, die auf die Bank wartet.
     /// Returns: Unit on success or SyncError (SessionNotFound).
     cancelSync: SyncSessionId -> Async<SyncResult<unit>>
 
@@ -201,87 +180,14 @@ type SyncApi = {
     /// Direkt nach einem Neustart kann er kurz `BankDisconnected` zeigen.
     getBankConnectionStatus: unit -> Async<BankConnectionStatus>
 
-    /// Trennt die Bankverbindung und löscht den gespeicherten Wert. Eine offene Prüfung bleibt.
+    /// Trennt die Bankverbindung und löscht den gespeicherten Wert.
     /// Returns: Unit oder `DatabaseError`, wenn der gespeicherte Wert liegen geblieben ist. Dann bleiben
     /// Verbindung und Sitzung unverändert.
     disconnectBank: unit -> Async<SyncResult<unit>>
 
-    // ============================================
-    // Comdirect auth flow
-    // ============================================
-
-    /// Completes TAN flow after user confirms on phone.
-    /// Purpose: Fetches transactions and applies rules engine after auth succeeds.
-    /// Returns: Unit on success or SyncError (TanTimeout, TransactionFetchFailed).
-    confirmTan: SyncSessionId -> Async<SyncResult<unit>>
-
-    // ============================================
-    // Transaction operations
-    // ============================================
-
-    /// Retrieves all transactions for a sync session.
-    /// Purpose: Populates transaction review UI with categorized data.
-    /// Returns: Transaction list or SyncError (SessionNotFound, InvalidSessionState).
-    getTransactions: SyncSessionId -> Async<SyncResult<SyncTransaction list>>
-
-    /// Manually categorizes a single transaction and propagates category to other transactions with the same Amazon Order ID.
-    /// Purpose: Allows user to override auto-categorization or categorize uncategorized.
-    /// Parameters: (sessionId, transactionId, categoryId, payeeOverride)
-    /// Returns: List of updated transactions (first = categorized, rest = propagated) or SyncError.
-    categorizeTransaction: SyncSessionId * TransactionId * YnabCategoryId option * string option -> Async<SyncResult<SyncTransaction list>>
-
-    /// Marks a transaction to be skipped during import.
-    /// Purpose: Excludes duplicates or unwanted transactions.
-    /// Returns: Updated transaction or SyncError (SessionNotFound).
-    skipTransaction: SyncSessionId * TransactionId -> Async<SyncResult<SyncTransaction>>
-
-    /// Restores a skipped transaction to active status.
-    /// Purpose: Allows user to re-include a previously skipped transaction.
-    /// Returns: Updated transaction or SyncError (SessionNotFound).
-    unskipTransaction: SyncSessionId * TransactionId -> Async<SyncResult<SyncTransaction>>
-
-    /// Categorizes multiple transactions at once.
-    /// Purpose: Bulk operation for efficiency when user selects multiple.
-    /// Returns: Updated transactions or SyncError (SessionNotFound, InvalidSessionState).
-    bulkCategorize: SyncSessionId * TransactionId list * YnabCategoryId -> Async<SyncResult<SyncTransaction list>>
-
-    /// Splits a transaction into multiple categories.
-    /// Purpose: Allows allocating a single transaction across multiple YNAB categories.
-    /// Parameters: (sessionId, transactionId, splits)
-    /// Constraints: Splits must have at least 2 items and their amounts must sum to the transaction total.
-    /// Returns: Updated transaction with splits or SyncError (SessionNotFound, InvalidSessionState).
-    splitTransaction: SyncSessionId * TransactionId * TransactionSplit list -> Async<SyncResult<SyncTransaction>>
-
-    /// Clears splits from a transaction, reverting to single-category mode.
-    /// Purpose: Allows user to undo a split and use regular categorization.
-    /// Returns: Updated transaction without splits or SyncError (SessionNotFound).
-    clearSplit: SyncSessionId * TransactionId -> Async<SyncResult<SyncTransaction>>
-
-    /// Setzt oder nimmt die Rückfrage Lena an einer Importzeile (ynab-sync-d9e51, ADR 0056).
-    /// Purpose: "Lena fragen" schon beim Prüfen; der Import-Push sendet die Flag-Farbe mit.
-    /// Parameters: (sessionId, transactionId, askLena)
-    /// Returns: Updated transaction, or SyncError (SessionNotFound; AskLenaRejected bei
-    /// fehlender Flag-Farbe in den Settings oder bei übersprungener/importierter Zeile).
-    setAskLena: SyncSessionId * TransactionId * bool -> Async<SyncResult<SyncTransaction>>
-
-    // ============================================
-    // Import
-    // ============================================
-
-    /// Sends all categorized transactions to YNAB.
-    /// Purpose: Final step that creates transactions in YNAB budget.
-    /// Returns: ImportResult with created count and duplicate transaction IDs, or SyncError (YnabImportFailed).
-    importToYnab: SyncSessionId -> Async<SyncResult<ImportResult>>
-
-    /// Force re-imports transactions that were previously rejected as duplicates.
-    /// Purpose: Allows re-importing transactions that were deleted in YNAB.
-    /// Uses new import_ids to bypass YNAB's duplicate detection.
-    /// Returns: Count of successfully imported transactions or SyncError (YnabImportFailed).
-    forceImportDuplicates: SyncSessionId * TransactionId list -> Async<SyncResult<int>>
-
-    // ============================================
-    // History
-    // ============================================
+    /// Schließt die Push-TAN ab, ruft ab und bucht.
+    /// Returns: die beendete Sitzung mit ihren Zahlen, oder SyncError (TanTimeout, TransactionFetchFailed, ...).
+    confirmTan: SyncSessionId -> Async<SyncResult<SyncSession>>
 
     /// Retrieves recent sync sessions for history display.
     /// Returns: Most recent N sessions (never fails - returns empty list).

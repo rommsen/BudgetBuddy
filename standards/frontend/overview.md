@@ -12,7 +12,7 @@ Was der Code nicht von selbst erklärt. Visuelle Regeln: `standards/frontend/sty
 
 ## Gelerntes
 
-- Späte Antworten: wenn Eingaben schnell aufeinander folgen, trägt jede Änderung eine Version, und nur die neueste wird übernommen (`PendingCategoryVersions` in `src/Client/Components/SyncFlow/State.fs`).
+- Späte Antworten: wenn Eingaben schnell aufeinander folgen, trägt jede Änderung eine Version, und nur die neueste wird übernommen (`SessionReadVersion` in `src/Client/Components/Fetch/State.fs`).
 - Lange Listen: teure Ableitungen (etwa Kategorie-Optionen) einmal vor der Schleife berechnen, inaktive Zeilen als schlichten Text statt als volle Auswahlkomponente rendern.
 - Listenelemente mit `prop.key`, sonst rendert React ganze Listen neu.
 - Schaltflächen, die einen Aufruf auslösen, zeigen den Ladezustand und sind solange gesperrt (Doppelklick).

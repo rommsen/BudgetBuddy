@@ -141,8 +141,6 @@ module RemoteData =
 type Page =
     /// Die Übersicht, Einstieg der App unter `/` (design-system-k6kfw, ADR 0087 Punkt 9).
     | Overview
-    /// Der Sync-Ablauf unter `/sync`: hängt unter der Übersicht und startet über „Abrufen“.
-    | SyncFlow
     | Rules
     | Settings
     | Styleguide
@@ -189,8 +187,7 @@ type Place =
 /// Kassenbuch, bis `categorization-n3sxw` sie dort als Tab einbaut.
 let placeOf (page: Page) : Place option =
     match page with
-    | Overview
-    | SyncFlow -> Some OverviewPlace
+    | Overview -> Some OverviewPlace
     | Ledger
     | LedgerEntry _
     | Rules -> Some LedgerPlace
@@ -225,7 +222,6 @@ type BackTarget = { Target: Page; Label: string }
 let backLabel (page: Page) : string =
     match page with
     | Overview -> "Zurück zur Übersicht"
-    | SyncFlow -> "Zurück zum Sync"
     | Ledger
     | LedgerEntry _ -> "Zurück zum Kassenbuch"
     | Rules -> "Zurück zu den Regeln"
@@ -237,13 +233,12 @@ let backLabel (page: Page) : string =
     | Settings -> "Zurück zu den Einstellungen"
     | Styleguide -> "Zurück zum Styleguide"
 
-/// Das Ziel von „Zurück“ einer Unterseite: der Sync-Ablauf führt zur Übersicht, die Regeln zum Kassenbuch,
+/// Das Ziel von „Zurück“ einer Unterseite: die Regeln führen zum Kassenbuch,
 /// der Styleguide zu den Einstellungen und die Einstellungen zur Seite davor (`settingsReturn`). Orte haben
 /// kein „Zurück“. Die Budget-Unterseiten führen ihr „Zurück“ selbst (ein Schritt im Verlauf oder das Budget).
 let backTarget (page: Page) (settingsReturnPage: Page) : BackTarget option =
     let toPage target = Some { Target = target; Label = backLabel target }
     match page with
-    | SyncFlow -> toPage Overview
     | Rules -> toPage Ledger
     | Styleguide -> toPage Settings
     | Settings -> toPage settingsReturnPage
@@ -263,7 +258,6 @@ module Routing =
     let parseUrl (segments: string list) : Page =
         match segments with
         | [] -> Overview
-        | ["sync"] -> SyncFlow
         | ["rules"] -> Rules
         | ["settings"] -> Settings
         | ["styleguide"] -> Styleguide
@@ -281,7 +275,6 @@ module Routing =
     let toUrlSegments (page: Page) : string list =
         match page with
         | Overview -> []
-        | SyncFlow -> ["sync"]
         | Rules -> ["rules"]
         | Settings -> ["settings"]
         | Styleguide -> ["styleguide"]

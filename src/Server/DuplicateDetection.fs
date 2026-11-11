@@ -136,6 +136,12 @@ let detectDuplicate
             | None ->
                 NotDuplicate details
 
+/// Die YNAB-Buchung, die eine Bankbuchung zum unsicheren Duplikat macht (Betrag, Tag ±1, Payee):
+/// dieselbe Regel und dieselbe erste Fundstelle wie `detectDuplicate`. Der Abruf hält damit den
+/// Treffer im Ereignis fest (ADR 0093 Punkt 3).
+let possibleMatchOf (ynabTransactions: YnabTransaction list) (bankTx: BankTransaction) : YnabTransaction option =
+    ynabTransactions |> List.tryFind (matchesByDateAmountPayee defaultConfig bankTx)
+
 /// Marks all sync transactions with their duplicate status
 let markDuplicates
     (ynabTransactions: YnabTransaction list)

@@ -989,6 +989,7 @@ let retryPushToYnab
                 async {
                     match! Ledger.Persistence.loadEntry entryId with
                     | None -> return Error "Buchung nicht gefunden"
+                    | Some entry when isHeldAsPossibleDuplicate entry -> return Error possibleDuplicateLockedText
                     | Some entry when entry.DeletedInYnab -> return Error "Die Buchung ist in YNAB gelöscht"
                     | Some entry when entry.LinkedToYnab -> return Error "Die Buchung ist schon in YNAB"
                     | Some entry ->
@@ -1047,15 +1048,9 @@ type ComdirectImportCandidate = {
     RawPayee: string option
     Memo: string option
     ReviewSteps: ReviewStep list
-    /// Die ImportId, über die nach einer schon bestehenden Kassenbuch-Buchung gesucht
-    /// wird, falls sie von `Prepared.ImportId` abweicht (Force-Import, ledger-fq3kd):
-    /// der normale Push schreibt die Buchung vor YNABs Duplikat-Meldung bereits mit der
-    /// alten, deterministischen ImportId (`Shared.Domain.generateImportId`); Force-
-    /// Import sendet danach mit einer neuen ImportId (`forceNewImportId = true`, nur für
-    /// YNABs Dedup), muss die bestehende Buchung aber über die alte ImportId finden.
-    /// `None` (Normalfall, Import-Push): Suche und Versand teilen sich dieselbe
-    /// ImportId, wie bisher.
-    ExistingEntryImportId: string option
+    /// Gesetzt, wenn der Abruf die neue Buchung als unsicheres Duplikat zurückhält (ADR 0093
+    /// Punkt 3): dann folgt der Entstehung `EntryHeldAsPossibleDuplicate` statt des Pushs.
+    Hold: EntryHeldAsPossibleDuplicatePayload option
 }
 
 /// Wie eine einzelne Buchung aus einem Push-Versuch hervorgegangen ist.
@@ -1075,6 +1070,11 @@ type ComdirectPushOutcome =
     | AlreadyImported of EntryId
     /// Das Kassenbuch-Schreiben ist gescheitert: nicht gesendet (Task-Notes, Schritt 7b).
     | LedgerWriteFailed of string
+    /// Neu gebucht und als unsicheres Duplikat zurückgehalten, nicht gesendet (ADR 0093 Punkt 3).
+    | HeldAsPossibleDuplicate of EntryId
+    /// Schon im Kassenbuch und wartend oder verworfen: kein Ereignis, nicht gesendet (ADR 0093
+    /// Punkt 7, `knownImportDecision`).
+    | SkippedKnownImport of EntryId
 
 /// Ergebnis eines Import-Push-Versuchs: die Herkunft je Buchung, plus das rohe
 /// Sende-Ergebnis (`None`, wenn nichts zu senden war). Der Aufrufer (`Server.Api`)
@@ -1129,42 +1129,28 @@ let pushComdirectImports
             |> List.map (fun candidate ->
                 async {
                     let prepared = candidate.Prepared
-                    // Force-Import (ledger-fq3kd): sucht über die alte, deterministische
-                    // ImportId, sendet aber mit der neuen (`ExistingEntryImportId`,
-                    // gesetzt vom Aufrufer). Normalfall: beide sind dieselbe ImportId.
-                    let searchImportId = candidate.ExistingEntryImportId |> Option.defaultValue prepared.ImportId
 
-                    match! Ledger.Persistence.findEntryByLink ImportIdSystem searchImportId with
+                    match! Ledger.Persistence.findEntryByLink ImportIdSystem prepared.ImportId with
                     | Some entryId ->
                         // Schon eine Buchung für diese ImportId (ADR 0021 Punkt 3): kein
-                        // zweites Entstehen. Ob sie erneut gesendet werden muss, hängt
-                        // aber davon ab, ob sie schon mit YNAB verknüpft ist. Ohne
-                        // `ynab`-Verknüpfung ist ein vorheriger Push-Versuch gescheitert
-                        // (Netzwerkfehler, Timeout, 429, 400), bevor die Verknüpfung
-                        // geschrieben wurde: dann muss der zweite Versuch trotzdem senden
-                        // und verknüpfen, sonst erreicht die Buchung YNAB nie (Verifier-
-                        // Fund, Iteration 2; ADR 0021 "bis ein erneuter Push ... sie über
-                        // die ImportId verknüpft" setzt genau das voraus).
-                        let! links = Ledger.Persistence.linksForEntry entryId
-                        if links |> List.exists (fun l -> l.System = YnabSystem) then
-                            return prepared.TransactionId, Choice1Of3 entryId
-                        else
-                            return prepared.TransactionId, Choice2Of3 entryId
+                        // zweites Entstehen. Ob sie erneut gesendet wird, entscheidet
+                        // `knownImportDecision` (ADR 0093 Punkt 7): wartend oder verworfen nie,
+                        // verknüpft nicht, sonst ja (ein vorheriger Versuch scheiterte vor der
+                        // Verknüpfung, ohne zweiten Versand erreichte die Buchung YNAB nie).
+                        match! Ledger.Persistence.loadEntry entryId with
+                        | Some entry ->
+                            match knownImportDecision entry with
+                            | SkipKnownImport -> return prepared.TransactionId, Choice1Of3 (SkippedKnownImport entryId)
+                            | AlreadyLinkedImport -> return prepared.TransactionId, Choice1Of3 (AlreadyImported entryId)
+                            | SendImportAgain -> return prepared.TransactionId, Choice2Of3 entryId
+                        | None -> return prepared.TransactionId, Choice3Of3 "Buchung zur ImportId nicht lesbar"
                     | None ->
                         let entryId = newEntryId ()
-                        let events =
+                        let creation =
                             recordComdirectPush resolveCategoryName {
                                 EntryId = entryId
                                 AccountId = accountId
-                                // Die neu geschriebene Buchung trägt dieselbe ImportId,
-                                // über die sie gesucht wurde (`searchImportId`), nicht
-                                // zwingend `prepared.ImportId`: im Force-Fall wäre das
-                                // sonst die neue, nur für YNABs Dedup erzeugte ImportId,
-                                // unter der ein späterer Versuch (mit wieder einer neuen
-                                // ImportId) diese Buchung nie wiederfände und erneut eine
-                                // zweite anlegen würde (AC "zweiter Force-Import-Versuch
-                                // erzeugt keine zweite Buchung", ledger-fq3kd).
-                                ImportId = searchImportId
+                                ImportId = prepared.ImportId
                                 ComdirectReference = candidate.ComdirectReference
                                 Date = candidate.Date
                                 Amount = candidate.Amount
@@ -1173,23 +1159,33 @@ let pushComdirectImports
                                 Memo = candidate.Memo
                                 PushedAt = now
                                 ReviewSteps = candidate.ReviewSteps
-                                // Rückfrage Lena beim Import (ynab-sync-d9e51): die Farbe, die der
-                                // Create-Body trägt, steht schon in der Entstehung (Kassenbuch
-                                // zuerst, ADR 0021), nicht erst nach dem Push.
+                                // Kein Flag beim Import: "Lena fragen" geht im Kassenbuch (ADR 0093).
                                 LenaFlagColor = prepared.Request.FlagColor
                             }
+                        let hold =
+                            candidate.Hold
+                            |> Option.map (fun payload ->
+                                { EntryId = entryId
+                                  OccurredAt = now
+                                  Actor = ComdirectImport
+                                  Body = EntryHeldAsPossibleDuplicate payload })
+                            |> Option.toList
+                        let events = creation @ hold
 
                         try
                             do! Ledger.Persistence.appendAndApply events
-                            return prepared.TransactionId, Choice2Of3 entryId
+                            if candidate.Hold.IsSome then
+                                return prepared.TransactionId, Choice1Of3 (HeldAsPossibleDuplicate entryId)
+                            else
+                                return prepared.TransactionId, Choice2Of3 entryId
                         with ex ->
                             return prepared.TransactionId, Choice3Of3 ex.Message
                 })
             |> Async.Sequential
 
-        let alreadyImported =
+        let notSent =
             writeResults
-            |> Array.choose (function txId, Choice1Of3 entryId -> Some (txId, entryId) | _ -> None)
+            |> Array.choose (function txId, Choice1Of3 outcome -> Some (txId, outcome) | _ -> None)
         let written =
             writeResults
             |> Array.choose (function txId, Choice2Of3 entryId -> Some (txId, entryId) | _ -> None)
@@ -1275,7 +1271,7 @@ let pushComdirectImports
 
         let outcomeMap =
             [
-                yield! alreadyImported |> Array.map (fun (txId, entryId) -> txId, AlreadyImported entryId)
+                yield! notSent
                 yield! linkedOutcomes
                 yield! failed |> Array.map (fun (txId, msg) -> txId, LedgerWriteFailed msg)
             ]
@@ -1295,6 +1291,24 @@ let summarizeLedgerWriteFailures (result: ComdirectPushResult) : (int * string) 
         |> Map.toList
         |> List.choose (fun (_, outcome) -> match outcome with LedgerWriteFailed msg -> Some msg | _ -> None)
     if failures.IsEmpty then None else Some (failures.Length, String.concat "; " failures)
+
+/// Die schon gebuchten Comdirect-Buchungen unter diesen ImportIds und was ein erneuter Abruf mit
+/// ihnen tut (ADR 0093 Punkt 7, `knownImportDecision`). Eine ImportId ohne Buchung fehlt in der Map.
+let knownComdirectImports (importIds: string list) : Async<Map<string, KnownImportDecision>> =
+    async {
+        let! found = Ledger.Persistence.findEntriesByLinks ImportIdSystem importIds
+        let! entries = Ledger.Persistence.loadEntries (found |> Map.toList |> List.map snd)
+        return
+            found
+            |> Map.toList
+            |> List.choose (fun (importId, entryId) ->
+                Map.tryFind entryId entries |> Option.map (fun e -> importId, knownImportDecision e))
+            |> Map.ofList
+    }
+
+/// Die Buchungen im Kassenbuch zu YNAB-Ids, soweit BB sie über die `ynab`-Verknüpfung kennt.
+let entriesOfYnabTransactions (ynabTransactionIds: string list) : Async<Map<string, EntryId>> =
+    Ledger.Persistence.findEntriesByLinks YnabSystem ynabTransactionIds
 
 /// Verdrahtet den Lauf mit dem echten YNAB-Client und den gespeicherten Einstellungen.
 /// Die eine Stelle, durch die alle drei Auslöser aus ADR 0014 laufen: der manuelle
@@ -1458,6 +1472,7 @@ let private changeReviewMark
         async {
             match! Ledger.Persistence.loadEntry entryId with
             | None -> return Error "Buchung nicht gefunden"
+            | Some entry when isHeldAsPossibleDuplicate entry -> return Error possibleDuplicateLockedText
             | Some entry when entry.DeletedInYnab -> return Error "Die Buchung ist in YNAB gelöscht"
             | Some entry ->
                 let previous = reviewMarkOf entry
@@ -1528,6 +1543,7 @@ let retryReviewMarkWriteBack
         async {
             match! Ledger.Persistence.loadEntry entryId with
             | None -> return Error "Buchung nicht gefunden"
+            | Some entry when isHeldAsPossibleDuplicate entry -> return Error possibleDuplicateLockedText
             | Some entry when entry.DeletedInYnab -> return Error "Die Buchung ist in YNAB gelöscht"
             | Some entry when entry.ReviewMarkWriteBackFailure.IsNone -> return Ok ReviewMarkNotSent
             | Some entry ->
@@ -1625,6 +1641,7 @@ let private changeReviewMarkBatch
             let candidates = ResizeArray<BatchCandidate>()
             let mutable unchanged = 0
             let mutable failed = 0
+            let mutable held = 0
             let ids = targets |> List.map fst
             let! entries = Ledger.Persistence.loadEntries ids
             let! links = Ledger.Persistence.linksForEntries ids
@@ -1632,6 +1649,7 @@ let private changeReviewMarkBatch
             for entryId, resolveTarget in targets do
                 match Map.tryFind entryId entries with
                 | None -> failed <- failed + 1
+                | Some entry when isHeldAsPossibleDuplicate entry -> held <- held + 1
                 | Some entry when entry.DeletedInYnab -> failed <- failed + 1
                 | Some entry ->
                     let previous = reviewMarkOf entry
@@ -1652,7 +1670,7 @@ let private changeReviewMarkBatch
             let changed = candidates |> Seq.toList
 
             if List.isEmpty changed then
-                return Ok { Changed = []; UnchangedCount = unchanged; FailedCount = failed }
+                return Ok { Changed = []; UnchangedCount = unchanged; FailedCount = failed; HeldCount = held }
             else
                 do!
                     Ledger.Persistence.appendAndApply [
@@ -1701,7 +1719,7 @@ let private changeReviewMarkBatch
                              | Some r -> ReviewMarkSendFailed r
                              | None -> ReviewMarkSent) } ]
 
-                return Ok { Changed = outcomes; UnchangedCount = unchanged; FailedCount = failed }
+                return Ok { Changed = outcomes; UnchangedCount = unchanged; FailedCount = failed; HeldCount = held }
         }
     )
 
@@ -1848,6 +1866,7 @@ let private categoryNotChangeableText (reason: CategorySkipReason) : string =
     | SkipSplitNotAdjusted -> "Der Split der Buchung ist in YNAB noch nicht angepasst, bitte erneut senden"
     | SkipTransfer -> "Ein Übertrag zwischen Budget-Konten hat keine Kategorie"
     | SkipNotFound -> "Buchung nicht gefunden"
+    | SkipPossibleDuplicate -> possibleDuplicateLockedText
 
 let private categoryNotChangeableReason (entry: Entry) : string option =
     categoryNotChangeable entry |> Option.map categoryNotChangeableText
@@ -1985,6 +2004,7 @@ let setEntryTransfer
         async {
             match! Ledger.Persistence.loadEntry entryId with
             | None -> return Error "Buchung nicht gefunden"
+            | Some entry when isHeldAsPossibleDuplicate entry -> return Error possibleDuplicateLockedText
             | Some entry ->
                 match categoryNotChangeable entry with
                 | Some SkipSplit -> return Error transferSplitReason
@@ -2237,6 +2257,7 @@ let setEntryCategory
         async {
             match! Ledger.Persistence.loadEntry entryId with
             | None -> return Error "Buchung nicht gefunden"
+            | Some entry when isHeldAsPossibleDuplicate entry -> return Error possibleDuplicateLockedText
             | Some entry ->
                 match categoryNotChangeable entry with
                 | Some reason when reason <> SkipTransfer -> return Error (categoryNotChangeableText reason)
@@ -2337,6 +2358,7 @@ let setEntryCategoryBatch
                 for entryId in ids do
                     match Map.tryFind entryId entries with
                     | None -> skipped.Add SkipNotFound
+                    | Some entry when isHeldAsPossibleDuplicate entry -> skipped.Add SkipPossibleDuplicate
                     | Some entry ->
                         match categoryNotChangeable entry with
                         | Some reason -> skipped.Add reason
@@ -2434,6 +2456,7 @@ let retryCategorizationWriteBack
         async {
             match! Ledger.Persistence.loadEntry entryId with
             | None -> return Error "Buchung nicht gefunden"
+            | Some entry when isHeldAsPossibleDuplicate entry -> return Error possibleDuplicateLockedText
             | Some entry when entry.DeletedInYnab -> return Error "Die Buchung ist in YNAB gelöscht"
             | Some entry when entry.CategorizationWriteBackFailure.IsNone -> return Ok CategoryNotSent
             | Some entry when not (List.isEmpty entry.Splits) ->
@@ -2902,6 +2925,7 @@ let private changeSplits
         async {
             match! Ledger.Persistence.loadEntry entryId with
             | None -> return Error "Buchung nicht gefunden"
+            | Some entry when isHeldAsPossibleDuplicate entry -> return Error possibleDuplicateLockedText
             | Some entry ->
                 let amountLock =
                     match newAmount with
@@ -3061,6 +3085,7 @@ let retryCategorizationOrSplitWriteBack
         async {
             match! Ledger.Persistence.loadEntry entryId with
             | None -> return Error "Buchung nicht gefunden"
+            | Some entry when isHeldAsPossibleDuplicate entry -> return Error possibleDuplicateLockedText
             | Some entry when entry.DeletedInYnab -> return Error "Die Buchung ist in YNAB gelöscht"
             | Some entry ->
                 match entry.CategorizationWriteBackFailure with
@@ -3175,6 +3200,7 @@ let deleteEntry
                 async {
                     match! Ledger.Persistence.loadEntry entryId with
                     | None -> return Error "Buchung nicht gefunden"
+                    | Some entry when isHeldAsPossibleDuplicate entry -> return Error possibleDuplicateLockedText
                     | Some entry when entry.DeletedInYnab -> return Error entryDeleteDeletedText
                     | Some entry when entry.Cleared = Reconciled -> return Error entryDeleteReconciledText
                     | Some entry ->
@@ -3350,6 +3376,7 @@ let private changeFlag
         async {
             match! Ledger.Persistence.loadEntry entryId with
             | None -> return Error "Buchung nicht gefunden"
+            | Some entry when isHeldAsPossibleDuplicate entry -> return Error possibleDuplicateLockedText
             | Some entry when entry.DeletedInYnab -> return Error "Die Buchung ist in YNAB gelöscht"
             | Some entry ->
                 match resolveTarget entry with
@@ -3435,6 +3462,7 @@ let retryFlagWriteBack
         async {
             match! Ledger.Persistence.loadEntry entryId with
             | None -> return Error "Buchung nicht gefunden"
+            | Some entry when isHeldAsPossibleDuplicate entry -> return Error possibleDuplicateLockedText
             | Some entry when entry.DeletedInYnab -> return Error "Die Buchung ist in YNAB gelöscht"
             | Some entry when entry.FlagWriteBackFailure.IsNone -> return Ok FlagNotSent
             | Some entry ->
@@ -3526,6 +3554,7 @@ let setEntryMemo
             async {
                 match! Ledger.Persistence.loadEntry entryId with
                 | None -> return Error "Buchung nicht gefunden"
+                | Some entry when isHeldAsPossibleDuplicate entry -> return Error possibleDuplicateLockedText
                 | Some entry when entry.DeletedInYnab -> return Error "Die Buchung ist in YNAB gelöscht"
                 | Some entry ->
                     let previous = memoKey entry.Memo
@@ -3570,6 +3599,7 @@ let retryMemoWriteBack
         async {
             match! Ledger.Persistence.loadEntry entryId with
             | None -> return Error "Buchung nicht gefunden"
+            | Some entry when isHeldAsPossibleDuplicate entry -> return Error possibleDuplicateLockedText
             | Some entry when entry.DeletedInYnab -> return Error "Die Buchung ist in YNAB gelöscht"
             | Some entry when entry.MemoWriteBackFailure.IsNone -> return Ok MemoNotSent
             | Some entry ->
@@ -3668,6 +3698,7 @@ let setEntryPayee
             async {
                 match! Ledger.Persistence.loadEntry entryId with
                 | None -> return Error "Buchung nicht gefunden"
+                | Some entry when isHeldAsPossibleDuplicate entry -> return Error possibleDuplicateLockedText
                 | Some entry ->
                     match payeeNotChangeableReason entry with
                     | Some reason -> return Error reason
@@ -3714,6 +3745,7 @@ let retryPayeeWriteBack
         async {
             match! Ledger.Persistence.loadEntry entryId with
             | None -> return Error "Buchung nicht gefunden"
+            | Some entry when isHeldAsPossibleDuplicate entry -> return Error possibleDuplicateLockedText
             | Some entry ->
                 match payeeNotChangeableReason entry, entry.Payee with
                 | Some reason, _ -> return Error reason
@@ -3809,6 +3841,7 @@ let setEntryAmount
         async {
             match! Ledger.Persistence.loadEntry entryId with
             | None -> return Error "Buchung nicht gefunden"
+            | Some entry when isHeldAsPossibleDuplicate entry -> return Error possibleDuplicateLockedText
             | Some entry ->
                 match amountNotChangeableReason entry with
                 | Some reason -> return Error reason
@@ -3868,6 +3901,7 @@ let retryAmountWriteBack
         async {
             match! Ledger.Persistence.loadEntry entryId with
             | None -> return Error "Buchung nicht gefunden"
+            | Some entry when isHeldAsPossibleDuplicate entry -> return Error possibleDuplicateLockedText
             | Some entry when entry.DeletedInYnab -> return Error amountDeletedReason
             | Some entry when entry.AmountWriteBackFailure.IsNone -> return Ok AmountNotSent
             | Some entry when List.isEmpty entry.Splits ->
@@ -3922,11 +3956,13 @@ let private changeFlagBatch
             let candidates = ResizeArray<Entry * (string option * string option)>()
             let mutable unchanged = 0
             let mutable failed = 0
+            let mutable held = 0
             let! entries = Ledger.Persistence.loadEntries (targets |> List.map fst)
 
             for entryId, resolveTarget in targets do
                 match Map.tryFind entryId entries with
                 | None -> failed <- failed + 1
+                | Some entry when isHeldAsPossibleDuplicate entry -> held <- held + 1
                 | Some entry when entry.DeletedInYnab -> failed <- failed + 1
                 | Some entry ->
                     match resolveTarget entry with
@@ -3937,7 +3973,7 @@ let private changeFlagBatch
             let changed = candidates |> Seq.toList
 
             if List.isEmpty changed then
-                return Ok { Changed = []; UnchangedCount = unchanged; FailedCount = failed }
+                return Ok { Changed = []; UnchangedCount = unchanged; FailedCount = failed; HeldCount = held }
             else
                 do!
                     Ledger.Persistence.appendAndApply [
@@ -4008,7 +4044,7 @@ let private changeFlagBatch
                              | Some r -> FlagSendFailed r
                              | None -> FlagSent) } ]
 
-                return Ok { Changed = outcomes; UnchangedCount = unchanged; FailedCount = failed }
+                return Ok { Changed = outcomes; UnchangedCount = unchanged; FailedCount = failed; HeldCount = held }
         }
     )
 

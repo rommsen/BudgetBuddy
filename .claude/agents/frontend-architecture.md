@@ -23,7 +23,7 @@ Du prüfst Frontend-Code in BudgetBuddy und meldest Befunde. Du änderst keinen 
 1. **MVU:** Zustand ändert sich nur in `update`; Seiteneffekte nur als `Cmd`, nie in der View. Kein `Async.StartImmediate` in Views.
 2. **Asynchroner Zustand:** `RemoteData<'T>` statt `IsLoading: bool` plus Option; jede `Failure` wird angezeigt.
 3. **Nachrichten:** `Msg`-Fälle beschreiben, was passiert ist oder was der Nutzer will (`MemoSet`, `ReviewMarkCommandFailed`), nicht technische Setter. Antwort-Nachrichten tragen das Ergebnis als `Result`.
-4. **Ladeantwort-Bindung:** eine späte Antwort darf keinen neueren Zustand überschreiben. Wo Eingaben schnell aufeinander folgen, prüft die Antwort ihre Version oder Anfrage-Id (Vorbild `PendingVersion` in `src/Client/Components/SyncFlow/State.fs`).
+4. **Ladeantwort-Bindung:** eine späte Antwort darf keinen neueren Zustand überschreiben. Wo Eingaben schnell aufeinander folgen, prüft die Antwort ihre Version oder Anfrage-Id (Vorbild `SessionReadVersion` in `src/Client/Components/Fetch/State.fs`).
 5. **Komponenten:** UI aus `src/Client/DesignSystem/`, kein Inline-Nachbau vorhandener Komponenten. Listenelemente mit `prop.key`.
 6. **Fable-Fallen:** `int64` und Formatierung wie in `.claude/rules/fable-pitfalls.md`.
 7. **Lesbarkeit:** lange `update`-Zweige in Helfer ziehen, wiederholte View-Teile in Funktionen, keine toten `Msg`-Fälle.

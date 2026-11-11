@@ -232,15 +232,28 @@ let private notInYnabBadge () =
             Size = Badge.Small
     }
 
+/// Kennzeichen einer Buchung, die als unsicheres Duplikat wartet (ADR 0093 Punkt 3, Prototyp
+/// `txRow`): das Wort „doppelt?“ in Gelb, braucht dich (ADR 0087 Punkt 3).
+let private possibleDuplicateBadge () =
+    Badge.view {
+        Badge.defaultProps with
+            Text = "doppelt?"
+            Variant = Badge.Warning
+            Size = Badge.Small
+    }
+
 /// Das Zustands-Kennzeichen einer Zeile (PC-Statusspalte) in der Rangfolge: in YNAB
-/// gelöscht vor noch nicht in YNAB vor den übrigen Zuständen (Zu prüfen, Flag).
+/// gelöscht vor wartend („doppelt?“, statt „Nicht in YNAB“) vor noch nicht in YNAB vor den
+/// übrigen Zuständen (Zu prüfen, Flag).
 type RowStatusMark =
     | RowDeleted
+    | RowPossibleDuplicate
     | RowNotInYnab
     | RowOtherStates
 
 let rowStatusMark (entry: LedgerEntryView) : RowStatusMark =
     if entry.DeletedInYnab then RowDeleted
+    elif entry.PossibleDuplicate.IsSome then RowPossibleDuplicate
     elif not entry.LinkedToYnab then RowNotInYnab
     else RowOtherStates
 
@@ -249,6 +262,7 @@ let rowStatusMark (entry: LedgerEntryView) : RowStatusMark =
 /// 128-px-Zelle nicht überläuft; sonst "zu prüfen" (nur bei `NeedsReview`), das Flag und bei
 /// einer gelöschten Buchung das Gelöscht-Symbol.
 type TableStatusMark =
+    | StatusPossibleDuplicate
     | StatusNotInYnab
     | StatusNeedsReview
     | StatusFlag of LedgerFlag
@@ -257,6 +271,7 @@ type TableStatusMark =
 let tableStatusMarks (entry: LedgerEntryView) : TableStatusMark list =
     match rowStatusMark entry with
     | RowNotInYnab -> [ StatusNotInYnab ]
+    | RowPossibleDuplicate -> [ StatusPossibleDuplicate ]
     | mark ->
         [ if entry.NeedsReview then StatusNeedsReview
           if entry.Flag <> NoFlag then StatusFlag entry.Flag
@@ -671,6 +686,7 @@ let private entryRow
                     match rowStatusMark entry with
                     | RowDeleted -> keepWidth (deletedBadge ())
                     | RowNotInYnab -> keepWidth (notInYnabBadge ())
+                    | RowPossibleDuplicate -> keepWidth (possibleDuplicateBadge ())
                     | RowOtherStates -> ()
                 ]
             ]
@@ -688,14 +704,14 @@ type ReviewMarkSlot =
 
 /// Tabelle und Maus-Zeile: Schaltfläche, bei laufender Auswahl der Platzhalter.
 let pointerRowReviewMarkSlot (entry: LedgerEntryView) (selectionActive: bool) : ReviewMarkSlot =
-    if entry.DeletedInYnab then NoReviewMarkSlot
+    if entry.DeletedInYnab || (heldLockReason entry).IsSome then NoReviewMarkSlot
     elif selectionActive then ReviewMarkPlaceholder
     else ReviewMarkButtonSlot
 
 /// Finger-Zeile: Schaltfläche nur ohne Maus, außerhalb des Auswahl-Modus und ohne Auswahl;
 /// sonst gar nichts (kein Platzhalter, die Zeile hat keine Spalten).
 let touchRowReviewMarkSlot (entry: LedgerEntryView) (mouse: bool) (inSelectionMode: bool) (selectionActive: bool) : ReviewMarkSlot =
-    if entry.DeletedInYnab || mouse || inSelectionMode || selectionActive then NoReviewMarkSlot
+    if entry.DeletedInYnab || (heldLockReason entry).IsSome || mouse || inSelectionMode || selectionActive then NoReviewMarkSlot
     else ReviewMarkButtonSlot
 
 let private entryRowWithReviewMark
@@ -980,6 +996,7 @@ let private entryTableRow
                         for mark in tableStatusMarks entry do
                             match mark with
                             | StatusNotInYnab -> notInYnabBadge ()
+                            | StatusPossibleDuplicate -> possibleDuplicateBadge ()
                             | StatusNeedsReview -> needsReviewStatusBadge ()
                             | StatusFlag flag -> flagStatusBadge flag
                             | StatusDeleted -> deletedStatusIcon ()
@@ -1236,6 +1253,8 @@ let categoryFilterLabel (entry: LedgerEntryView) : string option =
 type DetailNotice =
     /// Rot, ohne Aktion. Der Satz trägt den Löschzeitpunkt aus der Historie, wenn sie da ist.
     | DeletedNotice of reason: string
+    /// Gelb, ohne Aktion: die Buchung wartet als unsicheres Duplikat (ADR 0093 Punkt 3).
+    | PossibleDuplicateNotice
     /// Gelb, mit "Erneut senden" (sofortiger Push): der Push nach YNAB steht aus oder scheiterte.
     | NotInYnabNotice of reason: string
     /// Gelb, mit "Erneut senden", wenn etwas zu senden ist.
@@ -1255,6 +1274,10 @@ type DetailNotice =
     /// Gelb, mit "Erneut senden": der Payee ist in BB geändert, aber nicht in YNAB (ledger-fxt09).
     /// `busy`: der Aufruf läuft.
     | PayeeNotice of PayeeHint * busy: bool
+
+/// Die gelbe Leiste einer wartenden Buchung (Abweichung (e) zum Prototyp Version 17).
+let possibleDuplicateNoticeBadge = "Vielleicht doppelt."
+let possibleDuplicateNoticeReason = "Geht erst nach deiner Entscheidung nach YNAB."
 
 /// Der Satz der roten Leiste. Den Zeitpunkt liefert die jüngste Historie-Zeile "In YNAB
 /// gelöscht"; ohne geladene Historie steht der Satz ohne Zeit da.
@@ -1288,6 +1311,8 @@ let detailNoticeFor
     : DetailNotice option =
     if entry.DeletedInYnab then
         Some (DeletedNotice (deletedNoticeReason history))
+    elif entry.PossibleDuplicate.IsSome then
+        Some PossibleDuplicateNotice
     elif not entry.LinkedToYnab then
         Some (NotInYnabNotice (notInYnabNoticeReason entry.PushToYnabFailure))
     else
@@ -1394,6 +1419,12 @@ let private noticeView
     match notice with
     | DeletedNotice reason ->
         Detail.notice { Tone = Detail.NoticeRed; Badge = "In YNAB gelöscht"; Reason = reason; Action = None }
+    | PossibleDuplicateNotice ->
+        Detail.notice
+            { Tone = Detail.NoticeYellow
+              Badge = possibleDuplicateNoticeBadge
+              Reason = possibleDuplicateNoticeReason
+              Action = None }
     | NotInYnabNotice reason ->
         Detail.notice
             { Tone = Detail.NoticeYellow
@@ -1514,6 +1545,11 @@ let private historyView (dispatch: Msg -> unit) (entry: LedgerEntryView) (histor
 /// Eine in YNAB gelöschte Buchung ist im Detail ein Lesezustand (ledger-q1hw2): gedämpfter
 /// Betrag und Text, kein Geprüft-Schalter; die Filter-Knöpfe bleiben.
 let detailReadOnly (entry: LedgerEntryView) : bool = entry.DeletedInYnab
+
+/// Zeigt das Detail den Geprüft-Schalter? Nicht bei einer in YNAB gelöschten Buchung (sie nimmt keinen
+/// Prüfvermerk an) und nicht bei einer wartenden (ADR 0093 Punkt 6).
+let detailReviewSwitchVisible (entry: LedgerEntryView) : bool =
+    not (detailReadOnly entry) && (heldLockReason entry).IsNone
 
 /// Bietet das Detail "Buchung löschen" an (ledger-z6sya, ADR 0092 Punkt 1)? Nicht bei
 /// abgeglichenen, schon gelöschten und Noch nicht in YNAB verknüpften Buchungen (ADR 0091 Punkt 3).
@@ -1725,16 +1761,17 @@ let private categoryField (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
             ]
     ]
 
-/// Die Nachricht des festen Knopfs im Feld Split ("Aufteilen" bzw. "Ändern"): öffnet den Editor,
-/// wenn die Sperren der Buchung es erlauben, sonst nichts (ledger-pafkp).
-let splitActionMsg (entry: LedgerEntryView) : Msg option =
-    if entry.DeletedInYnab || (SplitLogic.lockReasonFor entry).IsSome then None else Some (OpenSplitEditor entry.Id)
-
 /// Der Grund, aus dem das Feld Split gesperrt ist. Eine in YNAB gelöschte Buchung nennt ihren
 /// eigenen Hinweis, sonst kommt der Grund aus den Sperren, die der Lesepfad liefert.
 let splitLockTextFor (entry: LedgerEntryView) : string option =
-    if entry.DeletedInYnab then Some "In YNAB gelöscht, die Buchung lässt sich nicht aufteilen"
+    if (heldLockReason entry).IsSome then heldLockReason entry
+    elif entry.DeletedInYnab then Some "In YNAB gelöscht, die Buchung lässt sich nicht aufteilen"
     else SplitLogic.lockReasonFor entry
+
+/// Die Nachricht des festen Knopfs im Feld Split ("Aufteilen" bzw. "Ändern"): öffnet den Editor,
+/// wenn die Sperren der Buchung es erlauben, sonst nichts (ledger-pafkp).
+let splitActionMsg (entry: LedgerEntryView) : Msg option =
+    if (splitLockTextFor entry).IsSome then None else Some (OpenSplitEditor entry.Id)
 
 /// Das Feld Split: "Kein Split" mit festem Knopf "Aufteilen", bei einer aufgeteilten Buchung die
 /// Zeilen mit Vorzeichen und der Knopf "Ändern" (ledger-pafkp, Tafel 4.4, 4.7, 4.9).
@@ -1948,8 +1985,8 @@ let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
 
       flagField dispatch model flagRow entry
 
-      // Eine in YNAB gelöschte Buchung nimmt keinen Prüfvermerk an: kein Schalter.
-      if not (detailReadOnly entry) then
+      // Eine in YNAB gelöschte oder wartende Buchung nimmt keinen Prüfvermerk an: kein Schalter.
+      if detailReviewSwitchVisible entry then
           Detail.reviewedSwitch
               "Geprüft"
               (not entry.NeedsReview)

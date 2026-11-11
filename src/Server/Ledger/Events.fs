@@ -317,6 +317,26 @@ type EntryDiscardedInBbPayload = {
     YnabTransactionId: string
 }
 
+/// Der Treffer in YNAB, wie er beim Abruf aussah (ADR 0093 Punkt 3): Datum, Betrag, Payee und
+/// Kategorie-Name als Schnappschuss.
+type PossibleDuplicateMatch = {
+    Date: DateTime
+    Amount: Money
+    Payee: string option
+    CategoryName: string option
+}
+
+/// Der Abruf hält eine neu gebuchte Comdirect-Buchung als unsicheres Duplikat zurück
+/// (banking-import-d0fey, ADR 0093 Punkt 3, Actor `ComdirectImport`): statt des Pushs nach YNAB
+/// folgt dieses Ereignis. Trägt den Grund als Satz, die YNAB-Id des Treffers, dessen Buchung im
+/// Kassenbuch (falls BB sie über die `ynab`-Verknüpfung kennt) und den Schnappschuss.
+type EntryHeldAsPossibleDuplicatePayload = {
+    Reason: string
+    MatchYnabTransactionId: string
+    MatchEntryId: EntryId option
+    Match: PossibleDuplicateMatch
+}
+
 /// Roman hat im Buchungs-Detail "Buchung löschen" gewählt (ledger-z6sya, ADR 0092, Actor
 /// `UserInBb`). Erst nachdem YNAB die Buchung gelöscht hat, steht das Ereignis im Log; die
 /// Buchung gilt danach als gelöscht. Trägt die gelöschte YNAB-Id und den Stand vor dem Löschen,
@@ -519,6 +539,9 @@ type LedgerEventBody =
     /// Löschen mit "Rückgängig" aufgehoben, nachdem YNAB die Buchung neu angelegt hat
     /// (ledger-z6sya). Entscheidung.
     | EntryRestoredInBb of EntryRestoredInBbPayload
+    /// Der Abruf hält eine neue Buchung als unsicheres Duplikat zurück, kein Push nach YNAB
+    /// (banking-import-d0fey, ADR 0093 Punkt 3). Entscheidung des Imports.
+    | EntryHeldAsPossibleDuplicate of EntryHeldAsPossibleDuplicatePayload
 
 // ============================================
 // Entscheidungs-Familie: noch reservierter Name
@@ -595,6 +618,7 @@ let eventTypeName (body: LedgerEventBody) : string =
     | EntryDiscardedInBb _ -> "EntryDiscardedInBb"
     | EntryDeletedInBb _ -> "EntryDeletedInBb"
     | EntryRestoredInBb _ -> "EntryRestoredInBb"
+    | EntryHeldAsPossibleDuplicate _ -> "EntryHeldAsPossibleDuplicate"
 
 /// Die Schema-Version, mit der ein Ereignis heute geschrieben wird. Aendert sich die
 /// Payload-Form eines Typs, kommt eine neue Version dazu; alte gespeicherte Ereignisse
@@ -642,6 +666,7 @@ let schemaVersion (body: LedgerEventBody) : int =
     | EntryDiscardedInBb _ -> 1
     | EntryDeletedInBb _ -> 1
     | EntryRestoredInBb _ -> 1
+    | EntryHeldAsPossibleDuplicate _ -> 1
 
 // ============================================
 // JSON-Codecs
@@ -1195,6 +1220,30 @@ module Codec =
     let decodeDiscardedInBb : Decoder<EntryDiscardedInBbPayload> =
         Decode.object (fun get -> { YnabTransactionId = get.Required.Field "ynabTransactionId" Decode.string })
 
+    let encodeHeldAsPossibleDuplicate (p: EntryHeldAsPossibleDuplicatePayload) =
+        Encode.object [
+            "reason", Encode.string p.Reason
+            "matchYnabTransactionId", Encode.string p.MatchYnabTransactionId
+            "matchEntryId", encodeOption encodeEntryId p.MatchEntryId
+            "matchDate", encodeDate p.Match.Date
+            "matchAmount", encodeMoney p.Match.Amount
+            "matchPayee", encodeOptionalString p.Match.Payee
+            "matchCategoryName", encodeOptionalString p.Match.CategoryName
+        ]
+
+    let decodeHeldAsPossibleDuplicate : Decoder<EntryHeldAsPossibleDuplicatePayload> =
+        Decode.object (fun get -> {
+            Reason = get.Required.Field "reason" Decode.string
+            MatchYnabTransactionId = get.Required.Field "matchYnabTransactionId" Decode.string
+            MatchEntryId = get.Optional.Field "matchEntryId" decodeEntryId
+            Match = {
+                Date = get.Required.Field "matchDate" decodeDate
+                Amount = get.Required.Field "matchAmount" decodeMoney
+                Payee = get.Optional.Field "matchPayee" Decode.string
+                CategoryName = get.Optional.Field "matchCategoryName" Decode.string
+            }
+        })
+
     let encodeDeletedInBb (p: EntryDeletedInBbPayload) =
         Encode.object [
             "ynabTransactionId", Encode.string p.YnabTransactionId
@@ -1405,6 +1454,7 @@ let encodePayload (body: LedgerEventBody) : string =
         | EntryDiscardedInBb p -> Codec.encodeDiscardedInBb p
         | EntryDeletedInBb p -> Codec.encodeDeletedInBb p
         | EntryRestoredInBb p -> Codec.encodeRestoredInBb p
+        | EntryHeldAsPossibleDuplicate p -> Codec.encodeHeldAsPossibleDuplicate p
     Encode.toString 0 json
 
 /// Liest eine gespeicherte Payload zurueck. Typname und Schema-Version zusammen
@@ -1491,6 +1541,8 @@ let decodePayload (eventType: string) (version: int) (payload: string) : Result<
         Decode.fromString Codec.decodeDeletedInBb payload |> Result.map EntryDeletedInBb
     | "EntryRestoredInBb", 1 ->
         Decode.fromString Codec.decodeRestoredInBb payload |> Result.map EntryRestoredInBb
+    | "EntryHeldAsPossibleDuplicate", 1 ->
+        Decode.fromString Codec.decodeHeldAsPossibleDuplicate payload |> Result.map EntryHeldAsPossibleDuplicate
     | t, v -> Error $"Unbekannter Ereignistyp '{t}' in Schema-Version {v}"
 
 // ============================================

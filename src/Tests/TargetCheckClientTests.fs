@@ -126,14 +126,13 @@ let private answered (id: Guid) (result: Result<TargetChangeResult, string>) (mo
 
 let private rootModel (pageNow: Page) (budget: Model) : State.Model =
     let settingsModel, _ = Components.Settings.State.init ()
-    let syncFlowModel, _ = Components.SyncFlow.State.init ()
     let rulesModel, _ = Components.Rules.State.init ()
     let ledgerModel, _ = Components.Ledger.State.init ()
     { CurrentPage = pageNow
       Toasts = []
       Pwa = Pwa.initialState
       Settings = settingsModel
-      SyncFlow = syncFlowModel
+      Fetch = Components.Fetch.Types.init; QuickAddCategories = []; QuickAddCategoriesLoad = NotAsked
       Rules = rulesModel
       Ledger = ledgerModel
       Budget = budget

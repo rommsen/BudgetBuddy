@@ -58,7 +58,6 @@ let private syncErrorToString (error: SyncError) : string =
     | SyncError.YnabImportFailed (count, msg) -> $"Failed to import {count} transactions: {msg}"
     | SyncError.InvalidSessionState (expected, actual) -> $"Invalid session state. Expected: {expected}, Actual: {actual}"
     | SyncError.DatabaseError (op, msg) -> $"Database error during {op}: {msg}"
-    | SyncError.AskLenaRejected reason -> reason
 
 /// Feste Meldung zu bekannten Comdirect-Fehlercodes. Der Code kommt aus `ComdirectClient`,
 /// der Antwortrumpf erreicht diese Stelle nicht.
@@ -578,8 +577,8 @@ let liveEntryDeletionPorts : EntryDeletionPorts = {
 let importNotConfiguredText = "YNAB ist nicht vollständig eingerichtet. Token, Budget und Import-Konto in den Settings unter YNAB setzen."
 let importAccountInvalidText = "Das Import-Konto ist ungültig eingerichtet. Wähle es in den Settings unter YNAB neu aus."
 
-/// Token, Budget, YNAB-Konto und Kassenbuch-Konto des Import-Pushs (`importToYnab` und
-/// `forceImportDuplicates`). Fehlt eine Einstellung, ist die Konto-Id keine Guid oder fehlt das gespiegelte Kassenbuch-Konto,
+/// Token, Budget, YNAB-Konto und Kassenbuch-Konto des Import-Pushs (Abruf mit Buchen,
+/// `liveImportTargetWith`). Fehlt eine Einstellung, ist die Konto-Id keine Guid oder fehlt das gespiegelte Kassenbuch-Konto,
 /// ist das ein Fehler mit `count` Buchungen, bevor irgendetwas geschrieben oder YNAB
 /// gefragt wird (ADR 0021: erst Kassenbuch, dann Push; kein erfundenes Konto).
 let importTargetWith
@@ -810,71 +809,6 @@ let rulesApi : RulesApi = {
 }
 
 // ============================================
-// Comdirect-Import-Kandidaten (ledger-w6tbq)
-// ============================================
-
-/// `prepareTransactions` für den Import. Zukunft heißt: nach dem Berliner Kalendertag von
-/// `utcNow` (infrastructure-p747v). Das gilt für den normalen wie für den erzwungenen Import.
-let internal prepareForImport
-    (berlinZone: TimeZoneInfo)
-    (utcNow: DateTime)
-    (accountId: YnabAccountId)
-    (transferPayees: Map<YnabAccountId, YnabPayeeId>)
-    (forceNewImportId: bool)
-    (transactions: SyncTransaction list)
-    : PrepareResult =
-    prepareTransactions (Ledger.Bot.Domain.berlinDayOf berlinZone utcNow) accountId transferPayees forceNewImportId transactions
-
-/// Baut aus einem `prepareTransactions`-Ergebnis die Kassenbuch-Kandidaten für einen
-/// Comdirect-Import-Push. Einzige Stelle, die `ExistingEntryImportId` setzt: vorher
-/// stand dieser gut 20-zeilige Block doppelt im normalen Import-Push und in
-/// Force-Import und unterschied sich in genau diesem einen Feld (Verifier-Fund).
-/// `forceImport = false` (normaler Push): Suche und Versand teilen sich dieselbe
-/// ImportId (`ExistingEntryImportId = None`, ledger-fq3kd). `forceImport = true`:
-/// `prepared` trägt schon die von `prepareTransactions ... true` neu erzeugte
-/// ImportId zum Versand (YNABs Dedup); die Suche nach der schon bestehenden
-/// Kassenbuch-Buchung muss aber über die alte, deterministische ImportId laufen
-/// (`Shared.Domain.generateImportId`), denn genau darüber hat der normale Push sie
-/// ursprünglich angelegt (ADR 0021, ADR 0015: die Buchung ist nur über ihre
-/// Fremd-Id erreichbar, solange keine YNAB-Id verknüpft ist).
-/// Payee/Memo kommen aus dem tatsächlich vorbereiteten Request (`p.Request`), nicht
-/// aus den rohen Comdirect-Feldern (Verifier-Fund, ledger-qvt84 Iteration 3):
-/// YNAB bekommt PayeeName (Override-Fallback "Unknown") und Memo über
-/// `buildMemoWithReference` (immer mit ", Ref: <Referenz>"-Suffix); schreibt die
-/// Entstehung stattdessen die rohen Werte, sieht der nächste Spiegel-Lauf ein
-/// falsches Kopfdaten-Ereignis. Die rohe Comdirect-Reference bleibt unverändert in
-/// ihrem eigenen Feld (`ComdirectReference`). Pure, kein I/O.
-let buildComdirectImportCandidates
-    (forceImport: bool)
-    (transactions: SyncTransaction list)
-    (prepared: PrepareResult)
-    : Ledger.CommandHandlers.ComdirectImportCandidate list =
-    let byTransactionId =
-        transactions |> List.map (fun tx -> tx.Transaction.Id, tx) |> Map.ofList
-    prepared.ToSend
-    |> List.map (fun p ->
-        let tx = Map.find p.TransactionId byTransactionId
-        ({
-            Prepared = p
-            ComdirectReference = tx.Transaction.Reference
-            Date = tx.Transaction.BookingDate
-            Amount = tx.Transaction.Amount
-            Payee = Some p.Request.PayeeName
-            // Der rohe Bank-Payee, unabhängig von einem Override (ledger-jkb0f):
-            // `p.Request.PayeeName` hat einen zu diesem Zeitpunkt aktiven Override
-            // schon eingebacken, taugt also nicht als Fallback, wenn ein späterer
-            // Review-Schritt genau diesen Override wieder entfernt.
-            RawPayee = tx.Transaction.Payee
-            Memo = Some p.Request.Memo
-            ReviewSteps = tx.ReviewSteps
-            ExistingEntryImportId =
-                if forceImport then
-                    Some (Shared.Domain.generateImportId p.TransactionId)
-                else
-                    None
-        } : Ledger.CommandHandlers.ComdirectImportCandidate))
-
-// ============================================
 // Sync API Implementation
 // ============================================
 
@@ -899,8 +833,8 @@ let cancelSyncWith
 }
 
 /// YNAB-Buchungen für Duplikate und Order-ID-Vorschläge. Ohne Einrichtung oder bei einem Fehler
-/// läuft der Abruf ohne diesen Abgleich weiter.
-let private loadYnabTransactionsForReview (days: int) : Async<YnabTransaction list option> = async {
+/// bucht der Abruf nichts (ADR 0093 Punkt 8).
+let private loadYnabTransactionsForImport (days: int) : Async<YnabTransaction list option> = async {
     let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
     let! budgetIdOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
     let! accountIdOpt = Persistence.Settings.getSetting "ynab_default_account_id"
@@ -916,12 +850,27 @@ let private loadYnabTransactionsForReview (days: int) : Async<YnabTransaction li
     | _ -> return None
 }
 
+/// Das Ziel des Buchens aus den Settings (`importTargetWith`), mit dem echten Push.
+let liveImportTargetWith (setting: string -> Async<string option>) : Async<Result<BankImport.ImportTarget, string>> =
+    async {
+        match! importTargetWith setting 0 with
+        | Error (SyncError.YnabImportFailed (_, message)) -> return Error message
+        | Error err -> return Error (syncErrorToString err)
+        | Ok (token, budgetId, ynabAccountId, ledgerAccount) ->
+            return
+                Ok {
+                    LedgerAccountId = ledgerAccount.Id
+                    YnabAccountId = ynabAccountId
+                    Push = sendPrepared token budgetId
+                }
+    }
+
 let private liveImportSessions : BankImport.SyncSessions = {
     Current = SyncSessionManager.getCurrentSession
     StartNew = SyncSessionManager.startNewSession
     SetStatus = SyncSessionManager.updateSessionStatus
     Fail = SyncSessionManager.failSession
-    AddTransactions = SyncSessionManager.addTransactions
+    Complete = SyncSessionManager.completeSession
     ValidateAwaitingTan = fun sessionId ->
         SyncSessionManager.validateSessionStatus sessionId AwaitingTan |> Result.map ignore
     RecordStarted = Persistence.SyncSessions.createSession
@@ -933,13 +882,16 @@ let internal liveImportPorts : BankImport.ImportPorts = {
     Sources = {
         Bank = BankPort.comdirectBankPort ComdirectAuthSession.livePorts (fun () -> DateTimeOffset.UtcNow)
         LoadRules = Persistence.Rules.getAllRules
-        LoadYnabTransactions = loadYnabTransactionsForReview
+        LoadYnabTransactions = loadYnabTransactionsForImport
     }
     Sessions = liveImportSessions
     LoadSettings = fun () -> async {
         let! settings = loadAppSettings ()
         return { Comdirect = settings.Comdirect; DaysToFetch = settings.Sync.DaysToFetch }
     }
+    LoadTarget = fun () -> liveImportTargetWith Persistence.Settings.getSetting
+    TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground
+    BookImports = Ledger.CommandHandlers.pushComdirectImports
     DescribeBankError = comdirectErrorToString
     Clock = fun () -> DateTime.UtcNow
     Today = liveBerlinDay
@@ -971,437 +923,6 @@ let syncApi : SyncApi = {
     // ============================================
 
     confirmTan = BankImport.confirmTanWith liveImportPorts
-
-    // ============================================
-    // Transaction operations
-    // ============================================
-
-    getTransactions = fun sessionId -> async {
-        match SyncSessionManager.validateSession sessionId with
-        | Error err -> return Error err
-        | Ok _ ->
-            let transactions = SyncSessionManager.getTransactions()
-            // Re-generate ExternalLinks if empty (lost after DB reload)
-            let enriched =
-                transactions
-                |> List.map (fun tx ->
-                    if tx.ExternalLinks.IsEmpty then
-                        { tx with ExternalLinks = RulesEngine.detectSpecialTransaction tx.Transaction }
-                    else tx)
-            return Ok enriched
-    }
-
-    categorizeTransaction = fun (sessionId, txId, categoryId, payeeOverride) -> async {
-        match SyncSessionManager.validateSession sessionId with
-        | Error err -> return Error err
-        | Ok _ ->
-            match SyncSessionManager.getTransaction txId with
-            | None -> return Error (SyncError.SessionNotFound (let (SyncSessionId id) = sessionId in id))
-            | Some tx ->
-                // Get category name if category ID provided
-                let! categoryName = async {
-                    match categoryId with
-                    | Some catId -> return! categoryNameIfKnown catId
-                    | None -> return None
-                }
-
-                // Same timestamp for the source transaction's own step and for anything
-                // propagated from it below: both are part of this one categorization action.
-                let now = DateTime.UtcNow
-
-                let updated =
-                    { tx with
-                        Status = ManualCategorized
-                        CategoryId = categoryId
-                        CategoryName = categoryName
-                        PayeeOverride = payeeOverride
-                        SuggestedByOrderId = None  // Manual override clears any suggestion
-                    }
-                    |> appendReviewStep now ByUser
-
-                SyncSessionManager.updateTransaction updated
-
-                // Propagate category to other transactions with the same Amazon Order ID
-                let allTransactions = SyncSessionManager.getTransactions()
-                let propagated = OrderIdMatcher.propagateInSession now updated allTransactions
-                for propagatedTx in propagated do
-                    SyncSessionManager.updateTransaction propagatedTx
-
-                return Ok (updated :: propagated)
-    }
-
-    skipTransaction = fun (sessionId, txId) -> async {
-        match SyncSessionManager.validateSession sessionId with
-        | Error err -> return Error err
-        | Ok _ ->
-            match SyncSessionManager.getTransaction txId with
-            | None -> return Error (SyncError.SessionNotFound (let (SyncSessionId id) = sessionId in id))
-            | Some tx ->
-                // Überspringen hebt eine gesetzte Rückfrage Lena auf (ynab-sync-d9e51).
-                let updated = ImportAskLena.skip tx
-                SyncSessionManager.updateTransaction updated
-                return Ok updated
-    }
-
-    unskipTransaction = fun (sessionId, txId) -> async {
-        match SyncSessionManager.validateSession sessionId with
-        | Error err -> return Error err
-        | Ok _ ->
-            match SyncSessionManager.getTransaction txId with
-            | None -> return Error (SyncError.SessionNotFound (let (SyncSessionId id) = sessionId in id))
-            | Some tx ->
-                let newStatus =
-                    if tx.CategoryId.IsSome then ManualCategorized
-                    else Pending
-                let updated = { tx with Status = newStatus }
-                SyncSessionManager.updateTransaction updated
-                return Ok updated
-    }
-
-    bulkCategorize = fun (sessionId, txIds, categoryId) -> async {
-        match SyncSessionManager.validateSession sessionId with
-        | Error err -> return Error err
-        | Ok _ ->
-            // Get category name
-            let! categoryName = categoryNameIfKnown categoryId
-
-            // Update all transactions
-            let mutable updatedTransactions = []
-            for txId in txIds do
-                match SyncSessionManager.getTransaction txId with
-                | Some tx ->
-                    let updated =
-                        { tx with
-                            Status = ManualCategorized
-                            CategoryId = Some categoryId
-                            CategoryName = categoryName
-                            SuggestedByOrderId = None  // Manual override clears any suggestion
-                        }
-                        |> appendReviewStep DateTime.UtcNow ByUser
-                    SyncSessionManager.updateTransaction updated
-                    updatedTransactions <- updated :: updatedTransactions
-                | None -> ()
-
-            return Ok (List.rev updatedTransactions)
-    }
-
-    splitTransaction = fun (sessionId, txId, splits) -> async {
-        match SyncSessionManager.validateSession sessionId with
-        | Error err -> return Error err
-        | Ok _ ->
-            match SyncSessionManager.getTransaction txId with
-            | None -> return Error (SyncError.SessionNotFound (let (SyncSessionId id) = sessionId in id))
-            | Some tx ->
-                // Re-validate the structural split invariants server-side via the
-                // shared smart-constructor (ADR 0006): >= 2 lines, one currency, and
-                // the sign-correct sum (transfer lines included) equals the total.
-                match mkSplits tx.Transaction.Amount splits with
-                | Error splitError ->
-                    return Error (SyncError.InvalidSessionState ("split", splitErrorText splitError))
-                | Ok validatedSplits ->
-                    let updated =
-                        { tx with
-                            Status = ManualCategorized
-                            CategoryId = None  // No single category for split transactions
-                            CategoryName = None
-                            Splits = Some validatedSplits
-                        }
-                        |> appendReviewStep DateTime.UtcNow ByUser
-                    SyncSessionManager.updateTransaction updated
-                    return Ok updated
-    }
-
-    clearSplit = fun (sessionId, txId) -> async {
-        match SyncSessionManager.validateSession sessionId with
-        | Error err -> return Error err
-        | Ok _ ->
-            match SyncSessionManager.getTransaction txId with
-            | None -> return Error (SyncError.SessionNotFound (let (SyncSessionId id) = sessionId in id))
-            | Some tx ->
-                let updated =
-                    { tx with
-                        Status = Pending  // Reset to pending so user can categorize
-                        Splits = None
-                    }
-                    |> appendReviewStep DateTime.UtcNow ByUser
-                SyncSessionManager.updateTransaction updated
-                return Ok updated
-    }
-
-    // "Lena fragen" an der Importzeile (ynab-sync-d9e51, ADR 0056): der Zustand hängt an
-    // der Sitzungs-Transaktion, die Flag-Farbe kommt aus den Settings.
-    setAskLena = fun (sessionId, txId, askLena) -> async {
-        match SyncSessionManager.validateSession sessionId with
-        | Error err -> return Error err
-        | Ok _ ->
-            match SyncSessionManager.getTransaction txId with
-            | None -> return Error (SyncError.SessionNotFound (let (SyncSessionId id) = sessionId in id))
-            | Some tx ->
-                let! lenaColor = Persistence.Settings.getSetting Ledger.CommandHandlers.lenaFlagColorSettingKey
-                match ImportAskLena.setAskLena lenaColor askLena tx with
-                | Error reason -> return Error (SyncError.AskLenaRejected reason)
-                | Ok updated ->
-                    SyncSessionManager.updateTransaction updated
-                    return Ok updated
-    }
-
-    // ============================================
-    // Import
-    // ============================================
-
-    importToYnab = fun sessionId -> async {
-        match SyncSessionManager.validateSession sessionId with
-        | Error err -> return Error err
-        | Ok _ ->
-            // Get all transactions
-            let transactions = SyncSessionManager.getTransactions()
-
-            // Filter to transactions ready for import (category is optional)
-            let toImport =
-                transactions
-                |> List.filter (fun tx ->
-                    match tx.Status with
-                    | AutoCategorized | ManualCategorized | NeedsAttention | Pending ->
-                        true  // Category is optional - uncategorized will appear in YNAB's Uncategorized view
-                    | _ -> false
-                )
-
-            if toImport.IsEmpty then
-                return Ok { CreatedCount = 0; DuplicateTransactionIds = []; LenaFlagNotSentCount = 0 }
-            else
-                // ADR 0021: erst Kassenbuch, dann Push. Ohne gespiegeltes Kassenbuch-Konto
-                // für das Import-Konto kein Ereignis und kein YNAB-Aufruf (`importTargetWith`).
-                match! importTargetWith Persistence.Settings.getSetting toImport.Length with
-                | Error err -> return Error err
-                | Ok (token, YnabBudgetId budgetId, ynabAccountId, ledgerAccount) ->
-                        match! resolveTransferPayees token (YnabBudgetId budgetId) toImport with
-                        | Error ynabError ->
-                            return Error (SyncError.YnabImportFailed (toImport.Length, ynabErrorText ynabError))
-                        | Ok transferPayees ->
-                            let prepared0 =
-                                prepareForImport liveBerlinZone.Value DateTime.UtcNow ynabAccountId transferPayees false toImport
-
-                            // Rückfrage Lena (ynab-sync-d9e51): die Farbe wird erst jetzt aus
-                            // den Settings gelesen, nicht beim Setzen der Rückfrage. Fehlt sie
-                            // inzwischen, geht die Zeile ohne Flag und der Bericht nennt das.
-                            let! storedLenaColor =
-                                Persistence.Settings.getSetting Ledger.CommandHandlers.lenaFlagColorSettingKey
-                            let lenaColor = ImportAskLena.validColor storedLenaColor
-                            let prepared, lenaFlagNotSent = applyLenaFlag lenaColor toImport prepared0
-
-                            // Teil 2 (ADR 0021): je vorbereiteter Buchung die Rohdaten und
-                            // die Review-Spur (categorization-gdrx8) mitgeben, aus der das
-                            // Kassenbuch die Kategorisierungs-Ereignisse baut. Normaler
-                            // Import-Push (kein Force-Import): Suche und Versand teilen
-                            // sich dieselbe ImportId (`buildComdirectImportCandidates`,
-                            // ledger-w6tbq, ehemals dieser Block doppelt).
-                            let candidates =
-                                buildComdirectImportCandidates false toImport prepared
-
-                            let now = DateTime.UtcNow
-                            let push preparedList = sendPrepared token (YnabBudgetId budgetId) preparedList
-
-                            // Kassenbuch zuerst, dann Push, dann Verknüpfung (ADR 0021,
-                            // Task-Notes Schritt 7/8): die eigentliche Reihenfolge lebt in
-                            // `Ledger.CommandHandlers.pushComdirectImports`, injiziert und
-                            // ohne Netz testbar (Muster wie `addCashExpense`).
-                            let! pushResult =
-                                Ledger.CommandHandlers.pushComdirectImports
-                                    now
-                                    push
-                                    Ledger.CommandHandlers.triggerMirrorInBackground
-                                    ledgerAccount.Id
-                                    candidates
-
-                            match pushResult.SendResult with
-                            | Some (Error ynabError) ->
-                                // ADR 0021 Punkt 2: kein Rollback. Die schon geschriebenen
-                                // Kassenbuch-Buchungen bleiben unverändert und unverknüpft
-                                // stehen; der API-Aufruf meldet den Push-Fehler trotzdem.
-                                return
-                                    Error (SyncError.YnabImportFailed (candidates.Length, ynabErrorText ynabError))
-                            | _ ->
-                                // Outcome-Klassifikation (welche Buchung importiert,
-                                // Duplikat oder gescheitert ist, und ob die Session
-                                // abgeschlossen werden darf) liegt in der reinen, unter
-                                // `dotnet test` erreichbaren Funktion
-                                // `Server.PushOutcomeClassification.classifyPushOutcomes`
-                                // (ledger-na3rq), dieselbe wie in `forceImportDuplicates`.
-                                // `forceImport = false`, `otherSessionTransactions = []`:
-                                // `toImport` ist bereits "alles gerade Offene" der Session
-                                // (siehe Filter oben), die session-weite Force-Regel greift
-                                // hier nicht (siehe Doc-Kommentar an `classifyPushOutcomes`).
-                                let classification =
-                                    Server.PushOutcomeClassification.classifyPushOutcomes toImport prepared pushResult false []
-
-                                SyncSessionManager.updateTransactions classification.UpdatedTransactions
-
-                                // Session darf nur abschließen, wenn dieser Versuch weder
-                                // ein Duplikat noch ein gescheitertes Kassenbuch-Schreiben
-                                // hinterlassen hat (`SessionMayComplete`, ein Feld der
-                                // Klassifikation, keine hier wiederholte Bedingung).
-                                if classification.SessionMayComplete then
-                                    SyncSessionManager.completeSession()
-
-                                // Update session in database. Persisted regardless of a
-                                // ledger write failure: transactions that DID succeed
-                                // (Linked/AlreadyImported/duplicates) must not lose their
-                                // status just because another transaction in the same
-                                // batch failed to write.
-                                match SyncSessionManager.getCurrentSession() with
-                                | Some session ->
-                                    do! Persistence.SyncSessions.updateSession session
-
-                                    // Save all transactions to database
-                                    for tx in transactions do
-                                        do! Persistence.SyncTransactions.saveTransaction session.Id tx
-
-                                    let createdCount =
-                                        pushResult.Outcomes
-                                        |> Map.toList
-                                        |> List.filter (fun (_, outcome) ->
-                                            match outcome with
-                                            | Ledger.CommandHandlers.Linked _ -> true
-                                            | _ -> false)
-                                        |> List.length
-
-                                    // Kassenbuch-Scheitern und nicht auswertbare YNAB-Antwort
-                                    // sichtbar machen statt still schlucken (Verifier-Fund,
-                                    // Iteration 3; ledger-fgw2q): die erfolgreich importierten
-                                    // Buchungen sind oben schon gespeichert.
-                                    match Server.PushOutcomeClassification.pushFailureError classification with
-                                    | Some err -> return Error err
-                                    | None ->
-                                        // Return ImportResult with created count and duplicate IDs
-                                        return Ok {
-                                            CreatedCount = createdCount
-                                            DuplicateTransactionIds = classification.DuplicateTransactionIds
-                                            LenaFlagNotSentCount = lenaFlagNotSent
-                                        }
-                                | None ->
-                                    return Error (SyncError.SessionNotFound (let (SyncSessionId id) = sessionId in id))
-    }
-
-    // ============================================
-    // Force Import Duplicates
-    // ============================================
-
-    forceImportDuplicates = fun (sessionId, transactionIds) -> async {
-        match SyncSessionManager.validateSession sessionId with
-        | Error err -> return Error err
-        | Ok _ ->
-            // Get all transactions and filter to only the specified ones
-            let allTransactions = SyncSessionManager.getTransactions()
-            let transactionsToForce =
-                allTransactions
-                |> List.filter (fun tx -> transactionIds |> List.contains tx.Transaction.Id)
-
-            if transactionsToForce.IsEmpty then
-                return Ok 0
-            else
-                // ADR 0021: erst Kassenbuch, dann Push. Ohne gespiegeltes Kassenbuch-Konto
-                // für das Import-Konto kein Ereignis und kein YNAB-Aufruf (`importTargetWith`).
-                match! importTargetWith Persistence.Settings.getSetting transactionsToForce.Length with
-                | Error err -> return Error err
-                | Ok (token, YnabBudgetId budgetId, ynabAccountId, ledgerAccount) ->
-                        match! resolveTransferPayees token (YnabBudgetId budgetId) transactionsToForce with
-                        | Error ynabError ->
-                            return Error (SyncError.YnabImportFailed (transactionsToForce.Length, ynabErrorText ynabError))
-                        | Ok transferPayees ->
-                            // Force import with NEW import_ids (forceNewImportId = true):
-                            // nur für YNABs Dedup. Die Kassenbuch-Suche läuft über die
-                            // alte, deterministische ImportId
-                            // (`buildComdirectImportCandidates true`, ledger-w6tbq), nicht
-                            // über diese neue (ledger-fq3kd).
-                            let prepared0 = prepareForImport liveBerlinZone.Value DateTime.UtcNow ynabAccountId transferPayees true transactionsToForce
-                            // Eine erzwungene Buchung mit Rückfrage Lena geht wieder mit der Flag-Farbe
-                            // (ynab-sync-d9e51); die Zahl der ohne Flag gesendeten ist hier nicht Teil
-                            // des Ergebnisses.
-                            let! storedLenaColor =
-                                Persistence.Settings.getSetting Ledger.CommandHandlers.lenaFlagColorSettingKey
-                            let prepared, _ =
-                                applyLenaFlag (ImportAskLena.validColor storedLenaColor) transactionsToForce prepared0
-
-                            let candidates =
-                                buildComdirectImportCandidates true transactionsToForce prepared
-
-                            let now = DateTime.UtcNow
-                            let push preparedList = sendPrepared token (YnabBudgetId budgetId) preparedList
-
-                            let! pushResult =
-                                Ledger.CommandHandlers.pushComdirectImports
-                                    now
-                                    push
-                                    Ledger.CommandHandlers.triggerMirrorInBackground
-                                    ledgerAccount.Id
-                                    candidates
-
-                            match pushResult.SendResult with
-                            | Some (Error ynabError) ->
-                                // ADR 0021 Punkt 2: kein Rollback. Schon geschriebene
-                                // Kassenbuch-Buchungen bleiben unverändert und
-                                // unverknüpft stehen; der API-Aufruf meldet den
-                                // Push-Fehler trotzdem.
-                                return
-                                    Error (SyncError.YnabImportFailed (transactionsToForce.Length, ynabErrorText ynabError))
-                            | _ ->
-                                // Dieselbe Outcome-Klassifikation wie beim normalen
-                                // Import-Push (`Server.PushOutcomeClassification`,
-                                // ledger-na3rq). Bug-Fix: vorher prüfte dieser Zweig nur,
-                                // ob keine kategorisierte Buchung mehr offen ist
-                                // (`allCategorizedImported`), ohne ein gescheitertes
-                                // Kassenbuch-Schreiben dieses Versuchs zu berücksichtigen
-                                // (`LedgerWriteFailed`). Die Session konnte dadurch
-                                // fälschlich abgeschlossen werden, obwohl eine Buchung
-                                // offen blieb (ADR 0021).
-                                //
-                                // `forceImport = true`, `otherSessionTransactions` sind alle
-                                // Session-Buchungen außerhalb dieses Force-Batches: Roman
-                                // wählt `transactionIds` gezielt aus, deshalb muss sowohl
-                                // eine anderswo offen gebliebene Buchung als auch eine
-                                // Buchung dieses Batches, die trotz Force-Versuch offen
-                                // bleibt (zukunftsdatiert, nicht auswertbar), den Abschluss
-                                // blockieren, wie es `allCategorizedImported` vor der
-                                // Extraktion über die ganze Session tat.
-                                let otherSessionTransactions =
-                                    allTransactions
-                                    |> List.filter (fun tx -> not (List.contains tx.Transaction.Id transactionIds))
-
-                                let classification =
-                                    Server.PushOutcomeClassification.classifyPushOutcomes
-                                        transactionsToForce
-                                        prepared
-                                        pushResult
-                                        true
-                                        otherSessionTransactions
-
-                                SyncSessionManager.updateTransactions classification.UpdatedTransactions
-
-                                if classification.SessionMayComplete then
-                                    SyncSessionManager.completeSession()
-
-                                // Update session in database
-                                match SyncSessionManager.getCurrentSession() with
-                                | Some session ->
-                                    do! Persistence.SyncSessions.updateSession session
-
-                                    // Save updated transactions
-                                    for tx in SyncSessionManager.getTransactions() do
-                                        do! Persistence.SyncTransactions.saveTransaction session.Id tx
-
-                                    let createdCount =
-                                        pushResult.Outcomes
-                                        |> Map.toList
-                                        |> List.filter (fun (_, outcome) ->
-                                            match outcome with
-                                            | Ledger.CommandHandlers.Linked _ | Ledger.CommandHandlers.AlreadyImported _ -> true
-                                            | _ -> false)
-                                        |> List.length
-
-                                    return Ok createdCount
-                                | None ->
-                                    return Error (SyncError.SessionNotFound (let (SyncSessionId id) = sessionId in id))
-    }
 
     // ============================================
     // History

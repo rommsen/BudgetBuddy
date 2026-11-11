@@ -227,6 +227,9 @@ let migrateLedgerEntryColumns (conn: SqliteConnection) =
     // ledger-qvjvs: der Payee aus BB vor einem in BB gesetzten Übertrag. NULL ist für jede
     // Bestandsbuchung richtig, vor dieser Spalte gab es keinen in BB gesetzten Übertrag.
     migrateColumn "ALTER TABLE ledger_entries ADD COLUMN payee_before_transfer TEXT" |> ignore
+    // banking-import-d0fey (ADR 0093 Punkt 3): das Payload von `EntryHeldAsPossibleDuplicate` als
+    // JSON, NULL heißt: die Buchung wartet nicht. Vor dieser Spalte gab es keine wartende Buchung.
+    migrateColumn "ALTER TABLE ledger_entries ADD COLUMN possible_duplicate TEXT" |> ignore
 
 // ============================================
 // Übergang des Kassenbuch-Logs nach `events` (ADR 0083 Abschnitt 6, ledger-k9tm2)
@@ -403,7 +406,8 @@ let internal createLedgerSchemaOn (conn: SqliteConnection) =
             push_failure_reason TEXT,
             push_failure_at TEXT,
             linked_to_ynab INTEGER NOT NULL DEFAULT 0,
-            payee_before_transfer TEXT
+            payee_before_transfer TEXT,
+            possible_duplicate TEXT
         );
 
         CREATE INDEX IF NOT EXISTS idx_ledger_entries_account ON ledger_entries(account_id);
@@ -489,6 +493,7 @@ type private EntryRow = {
     push_failure_at: string
     linked_to_ynab: int64
     payee_before_transfer: string
+    possible_duplicate: string
 }
 
 [<CLIMutable>]
@@ -657,6 +662,12 @@ let private rowToEntry (row: EntryRow) : Entry =
                 { Reason = reason; FailedAt = dateFromText row.push_failure_at })
         TransferAccountId = toOption row.transfer_account_id |> Option.map (Guid.Parse >> YnabAccountId)
         PayeeBeforeTransfer = toOption row.payee_before_transfer
+        PossibleDuplicate =
+            toOption row.possible_duplicate
+            |> Option.map (fun json ->
+                match Thoth.Json.Net.Decode.fromString Codec.decodeHeldAsPossibleDuplicate json with
+                | Ok p -> p
+                | Error e -> failwith $"Wartende Buchung {row.id} nicht lesbar: {e}")
     }
 
 let private rowToAccount (row: AccountRow) : LedgerAccount =
@@ -765,6 +776,10 @@ let private entryParams (entry: Entry) =
         push_failure_at = orNull (entry.PushToYnabFailure |> Option.map (fun f -> dateToText f.FailedAt))
         linked_to_ynab = (if entry.LinkedToYnab then 1 else 0)
         payee_before_transfer = orNull entry.PayeeBeforeTransfer
+        possible_duplicate =
+            match entry.PossibleDuplicate with
+            | Some p -> box (Thoth.Json.Net.Encode.toString 0 (Codec.encodeHeldAsPossibleDuplicate p))
+            | None -> null
         transfer_account_id =
             match entry.TransferAccountId with
             | Some (YnabAccountId a) -> box (a.ToString())
@@ -779,12 +794,12 @@ let private upsertEntrySql =
          (id, account_id, date, amount, currency, payee, memo, category_id, category_name,
           splits, cleared, transfer_entry_id, deleted_in_ynab, approved, flag_color, flag_name,
           transfer_account_id, split_transfer_counterparts, review_mark_write_back_failure,
-          categorization_write_back_failure, flag_write_back_failure, memo_write_back_failure, amount_write_back_failure, payee_write_back_failure, push_failure_reason, push_failure_at, linked_to_ynab, payee_before_transfer)
+          categorization_write_back_failure, flag_write_back_failure, memo_write_back_failure, amount_write_back_failure, payee_write_back_failure, push_failure_reason, push_failure_at, linked_to_ynab, payee_before_transfer, possible_duplicate)
        VALUES
          (@id, @account_id, @date, @amount, @currency, @payee, @memo, @category_id,
           @category_name, @splits, @cleared, @transfer_entry_id, @deleted_in_ynab, @approved,
           @flag_color, @flag_name, @transfer_account_id, @split_transfer_counterparts,
-          @review_mark_write_back_failure, @categorization_write_back_failure, @flag_write_back_failure, @memo_write_back_failure, @amount_write_back_failure, @payee_write_back_failure, @push_failure_reason, @push_failure_at, @linked_to_ynab, @payee_before_transfer)
+          @review_mark_write_back_failure, @categorization_write_back_failure, @flag_write_back_failure, @memo_write_back_failure, @amount_write_back_failure, @payee_write_back_failure, @push_failure_reason, @push_failure_at, @linked_to_ynab, @payee_before_transfer, @possible_duplicate)
        ON CONFLICT(id) DO UPDATE SET
           account_id = excluded.account_id,
           date = excluded.date,
@@ -812,7 +827,8 @@ let private upsertEntrySql =
           push_failure_reason = excluded.push_failure_reason,
           push_failure_at = excluded.push_failure_at,
           linked_to_ynab = excluded.linked_to_ynab,
-          payee_before_transfer = excluded.payee_before_transfer"""
+          payee_before_transfer = excluded.payee_before_transfer,
+          possible_duplicate = excluded.possible_duplicate"""
 
 /// Führt die abgeleitete Indextabelle `ledger_entry_split_categories` einer Buchung
 /// nach (ADR 0038): erst `DELETE` aller Zeilen dieser Buchung, dann `INSERT` je
@@ -1139,13 +1155,14 @@ let loadAllEntries () : Async<Entry list> =
         return rows |> Seq.map rowToEntry |> Seq.toList
     }
 
-/// Die Buchungen, die nicht mit YNAB verknüpft und nicht in YNAB gelöscht sind (ledger-s1weh): die Menge
-/// hinter „Buchung nicht in YNAB“ der Übersicht. Reihenfolge und Auswahl legt `QueryHandlers` fest.
+/// Die Buchungen, die nicht mit YNAB verknüpft, nicht in YNAB gelöscht und nicht als unsicheres Duplikat
+/// zurückgehalten sind (ledger-s1weh, ADR 0093 Punkt 5): die Menge hinter „Buchung nicht in YNAB“ der
+/// Übersicht. Eine wartende Buchung ist nicht gescheitert. Reihenfolge und Auswahl legt `QueryHandlers` fest.
 let loadEntriesNotLinkedToYnab () : Async<Entry list> =
     async {
         use conn = Core.getConnection ()
         let! rows =
-            conn.QueryAsync<EntryRow>("SELECT * FROM ledger_entries WHERE linked_to_ynab = 0 AND deleted_in_ynab = 0")
+            conn.QueryAsync<EntryRow>("SELECT * FROM ledger_entries WHERE linked_to_ynab = 0 AND deleted_in_ynab = 0 AND possible_duplicate IS NULL")
             |> Async.AwaitTask
         return rows |> Seq.map rowToEntry |> Seq.toList
     }

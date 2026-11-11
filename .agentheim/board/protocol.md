@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-12 00:02 -- Task verified and completed: banking-import-d0fey - "Import direkt ins Kassenbuch: „Abrufen“ bucht neue Umsätze ohne Prüfsitzung sofort in Kassenbuch und YNAB als „zu prüfen“, unsichere Duplikate warten im Kassenbuch, der Sync-Ablauf schrumpft auf das Sheet „Abrufen“"
+
+**Type:** Work / Task completion
+**Task:** banking-import-d0fey - "Import direkt ins Kassenbuch: „Abrufen“ bucht neue Umsätze ohne Prüfsitzung sofort in Kassenbuch und YNAB als „zu prüfen“, unsichere Duplikate warten im Kassenbuch, der Sync-Ablauf schrumpft auf das Sheet „Abrufen“"
+**Summary:** Import direkt ins Kassenbuch und nach YNAB, unsichere Duplikate warten
+**Duration:** 128m
+**Verification:** PASS (iteration 2)
+**Files changed:** 115
+**Tests added:** 93
+**ADRs written:** none
+
+---
+
+## 2026-11-11 23:53 -- Verification failed: banking-import-d0fey - Import direkt ins Kassenbuch
+
+**Type:** Work / Verification failure
+**Task:** banking-import-d0fey - Import direkt ins Kassenbuch
+**Iteration:** 1 of 3
+**Reasons:** ledger-README-Delta nach Merge von main veraltet (Payee-Sperre für wartende Buchungen fehlt in Unsicheres Duplikat, Payee ändern, PayeeÄndern)
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-11 23:40 -- Task verified and completed: budgeting-w9yt4 - "Angepinnte Kategorien: Block „Angepinnt“ auf der Übersicht, Sheet zum Anpinnen, Lösen und Ordnen, Pin-Knopf im Kategorie-Detail, gespeichert als Zustand"
 
 **Type:** Work / Task completion

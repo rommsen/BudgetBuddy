@@ -188,7 +188,34 @@ type Entry = {
     /// Macht er sie wieder zur normalen Buchung, geht dieser Payee nach YNAB. `None`, solange
     /// die Buchung kein in BB gesetzter Übertrag ist; ein Übertrag aus YNAB hat keinen.
     PayeeBeforeTransfer: string option
+    /// Die Buchung wartet als unsicheres Duplikat (ADR 0093 Punkt 3), aus
+    /// `EntryHeldAsPossibleDuplicate`. `None`, wenn sie nicht wartet. Solange sie wartet,
+    /// geht sie nicht nach YNAB und jeder schreibende Kassenbuch-Befehl lehnt sie ab.
+    PossibleDuplicate: EntryHeldAsPossibleDuplicatePayload option
 }
+
+/// Wartet die Buchung als unsicheres Duplikat (ADR 0093 Punkt 6)? Erster Zweig jeder Sperre
+/// eines schreibenden Kassenbuch-Befehls.
+let isHeldAsPossibleDuplicate (entry: Entry) : bool = entry.PossibleDuplicate.IsSome
+
+/// Was ein erneuter Abruf mit einer Comdirect-Buchung tut, deren `import_id` das Kassenbuch
+/// schon kennt (ADR 0093 Punkt 7).
+type KnownImportDecision =
+    /// Wartet als unsicheres Duplikat oder ist verworfen: kein Ereignis, kein Push.
+    | SkipKnownImport
+    /// Schon mit YNAB verknüpft: nicht erneut senden.
+    | AlreadyLinkedImport
+    /// Unverknüpft mit offenem Fehlschlag oder unbekanntem Ausgang: erneut senden, die feste
+    /// `import_id` hält YNAB von einer zweiten Buchung ab.
+    | SendImportAgain
+
+/// Die Entscheidung über eine schon bekannte Comdirect-Buchung. Rein. Verworfen heißt hier:
+/// gelöscht, ohne je mit YNAB verknüpft gewesen zu sein.
+let knownImportDecision (entry: Entry) : KnownImportDecision =
+    if isHeldAsPossibleDuplicate entry then SkipKnownImport
+    elif entry.LinkedToYnab then AlreadyLinkedImport
+    elif entry.DeletedInYnab then SkipKnownImport
+    else SendImportAgain
 
 /// Deutet der rohe Flag-Name als *Rückfrage Lena*? "Lena" nach Trim, ohne Beachtung der
 /// Groß-/Kleinschreibung (ADR 0032, Punkt 5). Die eine Stelle dieser Deutung: der Lesepfad
@@ -369,6 +396,7 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             LinkedToYnab = true
             PushToYnabFailure = None
             PayeeBeforeTransfer = None
+            PossibleDuplicate = None
         }
 
     | EntryDetailsChangeObservedInYnab p ->
@@ -594,6 +622,7 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             LinkedToYnab = false
             PushToYnabFailure = None
             PayeeBeforeTransfer = None
+            PossibleDuplicate = None
         }
 
     | EntryCategorizedByRule p ->
@@ -642,7 +671,21 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             LinkedToYnab = false
             PushToYnabFailure = None
             PayeeBeforeTransfer = None
+            PossibleDuplicate = None
         }
+
+    | EntryLinkedToYnab _ when existing |> Option.exists isHeldAsPossibleDuplicate ->
+        // ADR 0093 Punkt 6: eine wartende Buchung geht nicht nach YNAB, eine Verknüpfung wäre ein
+        // kaputter Ablauf.
+        let (EntryId id) = event.EntryId
+        invalidOp $"EntryLinkedToYnab auf Buchung {id}, die als unsicheres Duplikat wartet"
+
+    | EntryHeldAsPossibleDuplicate p ->
+        let e = requireExisting ()
+        if e.LinkedToYnab then
+            let (EntryId id) = event.EntryId
+            invalidOp $"EntryHeldAsPossibleDuplicate auf Buchung {id}, die schon mit YNAB verknüpft ist"
+        { e with PossibleDuplicate = Some p }
 
     | EntryLinkedToYnab _ ->
         // Die YNAB-Verknuepfung lebt in der Fremd-Id-Tabelle (ADR 0015), nicht als Feld

@@ -104,6 +104,7 @@ let private entry (accountId: LedgerAccountId) (amount: decimal) : Entry = {
     LinkedToYnab = false
     PushToYnabFailure = None
     PayeeBeforeTransfer = None
+    PossibleDuplicate = None
 }
 
 let private linkedAccountId = LedgerAccountId (Guid.Parse "0195c000-0000-7000-8000-00000000bc01")

@@ -41,9 +41,8 @@
     <Compile Include="OrderIdMatcher.fs" />
     <Compile Include="Validation.fs" />
     <Compile Include="SyncSessionManager.fs" />
-    <Compile Include="ImportAskLena.fs" />
-    <Compile Include="BankImport.fs" />
     <Compile Include="Ledger/CommandHandlers.fs" />
+    <Compile Include="BankImport.fs" />
     <Compile Include="Ledger/QueryHandlers.fs" />
     <Compile Include="Budgeting/Domain.fs" />
     <Compile Include="Budgeting/Events.fs" />
@@ -57,7 +56,6 @@
     <Compile Include="Budgeting/TakeoverWorker.fs" />
     <Compile Include="Budgeting/Categories.fs" />
     <Compile Include="Rules/CommandHandlers.fs" />
-    <Compile Include="PushOutcomeClassification.fs" />
     <Compile Include="BotApi.fs" />
     <Compile Include="Api.fs" />
     <Compile Include="Program.fs" />

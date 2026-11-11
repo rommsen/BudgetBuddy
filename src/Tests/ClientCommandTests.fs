@@ -30,19 +30,6 @@ let private ruleForm : Components.Rules.Types.RuleFormState =
         TargetField = Payee
         TestInput = "REWE Markt" }
 
-let private inlineForm : Components.SyncFlow.Types.InlineRuleFormState =
-    { TransactionId = TransactionId "t5m2b"
-      Pattern = "edeka"
-      PatternType = Contains
-      TargetField = Combined
-      CategoryId = YnabCategoryId System.Guid.Empty
-      CategoryName = "Lebensmittel"
-      PayeeOverride = ""
-      RuleName = "Auto: Test"
-      IsSaving = false
-      TransactionText = "EDEKA Center"
-      InlineRuleTest = NotAsked }
-
 [<Tests>]
 let tests =
     testList "Ausgehende Aufrufe im Client" [
@@ -58,20 +45,6 @@ let tests =
             test "bleibt die Antwort aus, ist das ein Netzfehler und kein Urteil über das Muster" {
                 let msg = firstDispatched (Components.Rules.State.testPatternCmd lost ruleForm)
                 Expect.equal msg Components.Rules.Types.RulePatternTestLost "Netzfehler"
-            }
-        ]
-        testList "Mustertest an der Importzeile" [
-            test "der Aufruf bekommt den Text der Buchung, die Antwort trägt den Stand" {
-                let seen = ref None
-                let call args = async { seen.Value <- Some args; return Ok true }
-                let msg = firstDispatched (Components.SyncFlow.State.inlineRuleTestCmd call 3 inlineForm)
-                Expect.equal seen.Value (Some ("edeka", Contains, Combined, "EDEKA Center")) "Argumente"
-                Expect.equal msg (Components.SyncFlow.Types.InlineRuleTested (3, Ok true)) "Urteil zum Stand 3"
-            }
-            // Bug categorization-f955d: ein Netzfehler erschien als "passt nicht".
-            test "bleibt die Antwort aus, ist das ein Netzfehler zum Stand und kein passt nicht" {
-                let msg = firstDispatched (Components.SyncFlow.State.inlineRuleTestCmd lost 3 inlineForm)
-                Expect.equal msg (Components.SyncFlow.Types.InlineRuleTestLost 3) "Netzfehler"
             }
         ]
         testList "Bank trennen" [

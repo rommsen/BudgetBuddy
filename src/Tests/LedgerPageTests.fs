@@ -79,6 +79,7 @@ let private entry (n: int) (amount: decimal) : Entry = {
     LinkedToYnab = false
     PushToYnabFailure = None
     PayeeBeforeTransfer = None
+    PossibleDuplicate = None
 }
 
 let private recorded (seq: int) (actor: Actor) (body: LedgerEventBody) : RecordedLedgerEvent = {
@@ -1303,7 +1304,7 @@ let private erstlaufTests =
             // dieser Test faengt, wenn eine Seite dort ihre Kommandos verliert.
             // `Styleguide` ist reine Galerie und laedt bewusst nichts.
             let datentragend =
-                [ Types.Page.SyncFlow; Types.Page.Rules; Types.Page.Settings
+                [ Types.Page.Rules; Types.Page.Settings
                   Types.Page.Ledger; Types.Page.QuickAdd ]
             for page in datentragend do
                 let msgs = dispatched (State.pageLoadCmd page)
@@ -1354,7 +1355,6 @@ let private erstlaufTests =
 /// Kind-Modelle allein sind reine Konstruktion, deshalb ungefährlich.
 let private rootModel (page: Types.Page) : State.Model =
     let settingsModel, _ = Components.Settings.State.init ()
-    let syncFlowModel, _ = Components.SyncFlow.State.init ()
     let rulesModel, _ = Components.Rules.State.init ()
     let ledgerModel, _ = Components.Ledger.State.init ()
     {
@@ -1362,7 +1362,7 @@ let private rootModel (page: Types.Page) : State.Model =
         Toasts = []
         Pwa = Pwa.initialState
         Settings = settingsModel
-        SyncFlow = syncFlowModel
+        Fetch = Components.Fetch.Types.init; QuickAddCategories = []; QuickAddCategoriesLoad = NotAsked
         Rules = rulesModel
         Ledger = ledgerModel
         Budget = Components.Budget.State.init ()

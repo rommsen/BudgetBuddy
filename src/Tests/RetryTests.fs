@@ -145,7 +145,9 @@ let tests =
                   "Components/Rules/State.fs", [ "getAllRules" ]
                   // ledger-r8h19: beide Kategorien-Abrufe (Regeln, Kassenbuch) laufen über den Port
                   // `GetCategories`, umhüllt einmal in `livePorts`.
-                  "State.fs", [ "getCategories"; "getRecentQuickAddTemplates" ]
+                  // banking-import-d0fey: die Kategorien für Quick Add (Einstellungen, dann Kategorien) lagen im
+                  // Sync-Ablauf und stehen jetzt im Root.
+                  "State.fs", [ "getCategories"; "getRecentQuickAddTemplates"; "getSettings"; "getCategories" ]
                   "Components/Ledger/State.fs",
                   [ "getLedgerAccounts"; "getLastMirrorRun"; "getLenaFlagSettings"
                     "getLedgerAccountBalances"; "getLedgerEntriesPage"; "getLedgerEntriesPage"
@@ -155,11 +157,8 @@ let tests =
                     "getBudgetAccounts"; "getSettings"; "getLedgerEntry"; "getLedgerEntry"
                     // ledger-at63w: Vorbelegung und Kategorie zum Payee beim Erfassen.
                     "getLedgerBookingDefaults"; "getBookingCategoryForPayee" ]
-                  // infrastructure-t5m2b: der Import kam dazu, als seine Browser-Wächter je Abbruch
-                  // (getSettings, getTransactions, getCategories, getPayees, getBudgetAccounts) fielen.
-                  "Components/SyncFlow/State.fs",
-                  [ "getCurrentSession"; "getTransactions"; "getLenaFlagSettings"; "getSettings"; "getSettings"
-                    "getSettings"; "getCategories"; "getBudgetAccounts"; "getPayees"; "testRule" ]
+                  // banking-import-d0fey: das Sheet „Abrufen“ liest nur die Sitzung.
+                  "Components/Fetch/State.fs", [ "getCurrentSession" ]
                   "Components/Budget/State.fs",
                   [ "getBudgetFrame"; "getBudgetFrame"; "getBudgetMonth"; "previewTargets"; "getCategoryMonthEntries"; "getCategoryHistory"; "getRecentMoveCategories"; "getBudgetHistory"; "getTargetCheck"
                     // budgeting-m3x7f: das Feld Targets prüfen der Leiste liest dieselben Rohdaten.
@@ -177,7 +176,7 @@ let tests =
         // umhüllt hatte. Der Fable.Remoting-Proxy läuft unter .NET nicht, deshalb prüft der Test
         // die Verdrahtung im Quelltext.
         test "die Lena-Flag-Farbe wird an allen Aufrufstellen über den Helfer geladen" {
-            for file in [ "Settings"; "Ledger"; "SyncFlow" ] do
+            for file in [ "Settings"; "Ledger" ] do
                 let source = readClient $"Components/{file}/State.fs"
                 Expect.isTrue (wrappedLenaFlagCall.IsMatch source) $"{file}: über Retry.reading"
         }

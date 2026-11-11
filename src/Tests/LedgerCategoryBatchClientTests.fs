@@ -60,7 +60,8 @@ let private entryOf (n: int) (cat: int) : LedgerEntryView =
       LinkedToYnab = true
       PushToYnabFailure = None
       SplitLocks = None
-      ExternalLinks = [] }
+      ExternalLinks = []
+      PossibleDuplicate = None }
 
 let private idOf (n: int) = (entryOf n 0).Id
 let private idsOf (ns: int list) = ns |> List.map idOf

@@ -362,12 +362,10 @@ let markDuplicatesTests =
                   MatchedRuleId = None
                   PayeeOverride = None
                   ExternalLinks = []
-                  UserNotes = None
                   DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF1")
-                  YnabImportStatus = NotAttempted
                   Splits = None
                   SuggestedByOrderId = None
-                  ReviewSteps = []; AskLena = false }
+                  ReviewSteps = [] }
                 { Transaction = bankTx2
                   Status = Pending
                   CategoryId = None
@@ -375,12 +373,10 @@ let markDuplicatesTests =
                   MatchedRuleId = None
                   PayeeOverride = None
                   ExternalLinks = []
-                  UserNotes = None
                   DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF2")
-                  YnabImportStatus = NotAttempted
                   Splits = None
                   SuggestedByOrderId = None
-                  ReviewSteps = []; AskLena = false }
+                  ReviewSteps = [] }
                 { Transaction = bankTx3
                   Status = Pending
                   CategoryId = None
@@ -388,12 +384,10 @@ let markDuplicatesTests =
                   MatchedRuleId = None
                   PayeeOverride = None
                   ExternalLinks = []
-                  UserNotes = None
                   DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF3")
-                  YnabImportStatus = NotAttempted
                   Splits = None
                   SuggestedByOrderId = None
-                  ReviewSteps = []; AskLena = false }
+                  ReviewSteps = [] }
             ]
 
             let ynabTransactions = [
@@ -461,13 +455,10 @@ let additionalEdgeCaseTests =
                 MatchedRuleId = Some ruleId
                 PayeeOverride = Some "Override Payee"
                 ExternalLinks = [{ Label = "Link"; Url = "https://example.com" }]
-                UserNotes = Some "User note"
                 DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF999")
-                YnabImportStatus = NotAttempted
                 Splits = None
                 SuggestedByOrderId = None
                 ReviewSteps = []
-                AskLena = false
             }
 
             // YNAB transaction that matches
@@ -485,7 +476,6 @@ let additionalEdgeCaseTests =
             Expect.equal resultTx.MatchedRuleId (Some ruleId) "MatchedRuleId should be preserved"
             Expect.equal resultTx.PayeeOverride (Some "Override Payee") "PayeeOverride should be preserved"
             Expect.hasLength resultTx.ExternalLinks 1 "ExternalLinks should be preserved"
-            Expect.equal resultTx.UserNotes (Some "User note") "UserNotes should be preserved"
             // DuplicateStatus should be updated
             match resultTx.DuplicateStatus with
             | ConfirmedDuplicate (_, _) -> ()
@@ -655,12 +645,10 @@ let countDuplicatesTests =
                   MatchedRuleId = None
                   PayeeOverride = None
                   ExternalLinks = []
-                  UserNotes = None
                   DuplicateStatus = ConfirmedDuplicate ("ref1", emptyDetectionDetails "ref1")
-                  YnabImportStatus = NotAttempted
                   Splits = None
                   SuggestedByOrderId = None
-                  ReviewSteps = []; AskLena = false }
+                  ReviewSteps = [] }
                 { Transaction = bankTx
                   Status = Pending
                   CategoryId = None
@@ -668,12 +656,10 @@ let countDuplicatesTests =
                   MatchedRuleId = None
                   PayeeOverride = None
                   ExternalLinks = []
-                  UserNotes = None
                   DuplicateStatus = PossibleDuplicate ("reason", emptyDetectionDetails "ref")
-                  YnabImportStatus = NotAttempted
                   Splits = None
                   SuggestedByOrderId = None
-                  ReviewSteps = []; AskLena = false }
+                  ReviewSteps = [] }
                 { Transaction = bankTx
                   Status = Pending
                   CategoryId = None
@@ -681,12 +667,10 @@ let countDuplicatesTests =
                   MatchedRuleId = None
                   PayeeOverride = None
                   ExternalLinks = []
-                  UserNotes = None
                   DuplicateStatus = NotDuplicate (emptyDetectionDetails "ref")
-                  YnabImportStatus = NotAttempted
                   Splits = None
                   SuggestedByOrderId = None
-                  ReviewSteps = []; AskLena = false }
+                  ReviewSteps = [] }
                 { Transaction = bankTx
                   Status = Pending
                   CategoryId = None
@@ -694,12 +678,10 @@ let countDuplicatesTests =
                   MatchedRuleId = None
                   PayeeOverride = None
                   ExternalLinks = []
-                  UserNotes = None
                   DuplicateStatus = NotDuplicate (emptyDetectionDetails "ref")
-                  YnabImportStatus = NotAttempted
                   Splits = None
                   SuggestedByOrderId = None
-                  ReviewSteps = []; AskLena = false }
+                  ReviewSteps = [] }
             ]
 
             let result = countDuplicates syncTransactions

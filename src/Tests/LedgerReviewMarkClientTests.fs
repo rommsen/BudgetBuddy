@@ -42,6 +42,7 @@ let private entryView (n: int) (needsReview: bool) : LedgerEntryView = {
     PushToYnabFailure = None
     SplitLocks = None
     ExternalLinks = []
+    PossibleDuplicate = None
 }
 
 let private modelWith (onlyNeedsReview: bool) (entries: LedgerEntryView list) : Model =

@@ -184,6 +184,22 @@ let allDone (testId: string) (title: string) (description: string) =
         ]
     ]
 
+/// Leerer Zustand oder Ergebnis in einem Sheet oder Dialog, ohne Rahmen und Symbol (Prototyp Version 17
+/// `.empty`, Sheet „Abrufen“, banking-import-d0fey): Kopf halbfett, darunter ein Satz, mittig. Ein
+/// gelungenes Ergebnis zeigt den Kopf in Grün (§2).
+let sheetMessage (testId: string) (success: bool) (title: string) (description: string) =
+    Html.div [
+        prop.custom ("data-testid", testId)
+        prop.className "flex flex-col items-center gap-2 px-5 py-9 text-center"
+        prop.children [
+            Html.p [
+                prop.className $"""{FontSizes.emphasis} {FontWeights.semibold} {(if success then Colors.success else Colors.textPrimary)}"""
+                prop.text title
+            ]
+            Html.p [ prop.className $"{FontSizes.compact} {Colors.textMuted} max-w-[30ch]"; prop.text description ]
+        ]
+    ]
+
 let emptyState (icon: ReactElement) (title: string) (description: string) (action: ReactElement option) =
     Html.div [
         prop.className "rounded-xl bg-surface-card border border-border-default border-dashed p-8 md:p-12 text-center"

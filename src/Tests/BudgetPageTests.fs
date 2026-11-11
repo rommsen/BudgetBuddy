@@ -295,14 +295,13 @@ let private routingTests =
         test "Die Budget-Seite gilt als bereit, sobald der Monat nicht mehr lädt" {
             let model (month: RemoteData<BudgetMonth>) : State.Model =
                 let settingsModel, _ = Components.Settings.State.init ()
-                let syncFlowModel, _ = Components.SyncFlow.State.init ()
                 let rulesModel, _ = Components.Rules.State.init ()
                 let ledgerModel, _ = Components.Ledger.State.init ()
                 { CurrentPage = Budget
                   Toasts = []
                   Pwa = Pwa.initialState
                   Settings = settingsModel
-                  SyncFlow = syncFlowModel
+                  Fetch = Components.Fetch.Types.init; QuickAddCategories = []; QuickAddCategoriesLoad = NotAsked
                   Rules = rulesModel
                   Ledger = ledgerModel
                   Budget = { Components.Budget.Types.init () with Month = month }

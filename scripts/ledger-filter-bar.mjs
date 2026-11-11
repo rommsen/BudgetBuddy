@@ -53,6 +53,7 @@ export function buildEntryFixture(accountId, n, overrides = {}) {
     LinkedToYnab: false,
     PushToYnabFailure: null,
     ExternalLinks: [],
+    PossibleDuplicate: null,
     ...overrides,
   };
 }

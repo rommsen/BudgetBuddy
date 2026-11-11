@@ -96,8 +96,7 @@ Spiegel-*Ergebnis* und die Abweichung gehören dem `ledger`.
 - **Transfer-Payee im Lesepfad** — YNAB nennt die Payee einer Übertrags-Zeile
   "Transfer : <Konto>". Der Spiegel schneidet das Präfix ab, damit die Transfer-Split-Zeile
   den **Kontonamen** trägt, wie `SplitTarget.ToTransfer` ihn verlangt.
-- **Rückfrage Lena beim Import** (ynab-sync-d9e51): Zustand `AskLena` an der Sitzungs-Transaktion (`SyncTransaction`), gesetzt über `SyncApi.setAskLena` an der einzelnen offenen Importzeile (Pending, AutoCategorized, ManualCategorized, NeedsAttention). Der Import-Push sendet für diese Zeilen `flag_color` mit der Einstellung `lena_flag_color` (ADR 0056, 0061), auch ohne Kategorie; Zeilen ohne Rückfrage senden den Schlüssel nicht. Ohne gültige Farbe ist die Aktion gesperrt (`SyncError.AskLenaRejected`), Überspringen hebt die Rückfrage auf, ist die Farbe bis zum Push entfernt, geht die Zeile ohne Flag und `ImportResult.LenaFlagNotSentCount` nennt das. Der Zustand ist sitzungsgebunden und nicht persistiert (ADR 0064).
-- **Konten im Import** (ynab-sync-k3vq8): Das Split-Sheet in Import prüfen bezieht seine Konten über `LedgerApi.getBudgetAccounts` (wie das Kassenbuch, serverseitig gecacht), die Quick-Add-Id getrennt über `getSettings`. Geladen wird beim Seitenaufruf und erneut beim Öffnen des Sheets, solange die Liste fehlt. Ein Fehlschlag von Konten oder Kategorien heißt **Ladefehler** (`ShowLoadFailure`): Er erscheint als Toast mit dem Fehlertext, nur auf Import und Quick-Add und nicht, solange derselbe Text noch sichtbar ist. Die Kategorien laden auch im Hintergrund auf anderen Seiten, dort bleibt ihr Fehler still, das Betreten des Imports lädt neu. Die **wartende Barabhebungs-Zeile** (`AwaitedCashbackLine`) ist die Übertrag-Zeile eines Cashback-Splits, deren Quick-Add-Konto beim Tipp noch nicht bekannt war: Sie wird beim Eintreffen nachgetragen, solange sie leer ist. Lesende Aufrufe im SyncFlow laufen über `Retry.reading`, schreibende nie, weil ein abgebrochener Schreibaufruf beim Server angekommen sein kann und `startSync` oder `confirmTan` nur durch Romans Klick entstehen (ADR 0071). `Retry.reading` hält Antworten zurück, deshalb trägt jede Antwort auf Sitzung, Buchungen, Konten und Quick-Add-Id den Stand ihres Abrufs: nur der aktuelle Stand zählt, Start, TAN-Bestätigung und Abbruch überholen laufende Lesevorgänge.
+- **Ladefehler** (ynab-sync-k3vq8, seit banking-import-d0fey nur Quick Add): Scheitert das Laden der Quick-Add-Kategorien, erscheint der Fehlertext als Toast, nur auf der Seite Quick Add und nicht, solange derselbe Text noch sichtbar ist (`shouldShowLoadFailure`). Die Kategorien laden auch im Hintergrund auf anderen Seiten, dort bleibt ihr Fehler still. Das Split-Sheet im Import, die Konten im Import und die wartende Barabhebungs-Zeile sind mit dem Sync-Ablauf entfallen (ADR 0093).
 
 ## Aggregates
 - **YnabTransaction** — Invariante: gültige ImportId; bei Splits Summe == Amount und ≥2 Teile.
@@ -113,7 +112,6 @@ Spiegel-*Ergebnis* und die Abweichung gehören dem `ledger`.
 - *AddManualTransaction* (Quick Add: einzelne manuelle Buchung aufs Quick-Add-Konto).
 - *MirrorYnabBudget* (Spiegel-Lauf: Konten- und Transaktions-Abruf, Beobachtungen ans
   Kassenbuch; in v1 manuell ausgelöst).
-- *SetAskLena* (ynab-sync-d9e51: Rückfrage Lena an einer Importzeile setzen oder zurücknehmen; reine Regeln in `Server.ImportAskLena`, der Push-Teil `YnabClient.applyLenaFlag`).
 
 ## Relationships with other contexts
 - **Downstream of:** `ledger` für den Push (ADR 0021): gepusht wird, was vorher ins

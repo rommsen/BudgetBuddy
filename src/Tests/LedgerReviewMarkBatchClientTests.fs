@@ -49,7 +49,7 @@ let private change (n: int) (writeBack: ReviewMarkWriteBack) : ReviewMarkBatchCh
 }
 
 let private outcomeOf (changes: ReviewMarkBatchChange list) (unchanged: int) (failed: int) : ReviewMarkBatchOutcome =
-    { Changed = changes; UnchangedCount = unchanged; FailedCount = failed }
+    { Changed = changes; UnchangedCount = unchanged; FailedCount = failed; HeldCount = 0 }
 
 let private entriesOf (model: Model) =
     match model.Entries with

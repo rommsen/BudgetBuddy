@@ -161,6 +161,7 @@ let domainTests =
                 LinkedToYnab = true
                 PushToYnabFailure = None
                 PayeeBeforeTransfer = None
+                PossibleDuplicate = None
             }
             Expect.equal e expected "Feld für Feld"
 

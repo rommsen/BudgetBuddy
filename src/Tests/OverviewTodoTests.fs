@@ -215,7 +215,7 @@ let todoStateTests =
             let session (minutesAgo: float) (status: SyncSessionStatus) : SyncSession =
                 let at = DateTime(2026, 11, 7, 12, 0, 0).AddMinutes(-minutesAgo)
                 { Id = SyncSessionId (Guid.NewGuid()); StartedAt = at.AddMinutes(-1.0); CompletedAt = Some at; Status = status
-                  TransactionCount = 0; ImportedCount = 0; SkippedCount = 0 }
+                  Trigger = Manual; Counts = emptyFetchCounts }
             let now = DateTime(2026, 11, 7, 12, 0, 0)
             let last = lastImportAt [ session 300.0 SyncSessionStatus.Completed; session 120.0 SyncSessionStatus.Completed; session 5.0 (SyncSessionStatus.Failed "x") ]
             Expect.equal (last |> Option.map (importStandText now)) (Some "vor 2 Std.") "jüngste abgeschlossene"
@@ -236,14 +236,13 @@ let todoStateTests =
 
 let private rootModel (page: Page) : State.Model =
     let settingsModel, _ = Components.Settings.State.init ()
-    let syncFlowModel, _ = Components.SyncFlow.State.init ()
     let rulesModel, _ = Components.Rules.State.init ()
     let ledgerModel, _ = Components.Ledger.State.init ()
     { CurrentPage = page
       Toasts = []
       Pwa = Pwa.initialState
       Settings = settingsModel
-      SyncFlow = syncFlowModel
+      Fetch = Components.Fetch.Types.init; QuickAddCategories = []; QuickAddCategoriesLoad = NotAsked
       Rules = rulesModel
       Ledger = ledgerModel
       Budget = Components.Budget.Types.init ()

@@ -23,7 +23,8 @@ type Model = {
 
     // Child component models
     Settings: Components.Settings.Types.Model
-    SyncFlow: Components.SyncFlow.Types.Model
+    /// Das Sheet „Abrufen“ (banking-import-d0fey).
+    Fetch: Components.Fetch.Types.Model
     Rules: Components.Rules.Types.Model
     Ledger: Components.Ledger.Types.Model
     Budget: Components.Budget.Types.Model
@@ -37,6 +38,11 @@ type Model = {
     // (ynab-t4n8p), loaded once per page visit. RemoteData so a failed/empty
     // read degrades gracefully — no templates shown, form still usable.
     QuickAddTemplates: RemoteData<QuickAddTemplate list>
+
+    // Die Kategorien für Quick Add, beim Start und beim Betreten der Seite geladen. Lagen bis
+    // banking-import-d0fey im Sync-Ablauf.
+    QuickAddCategories: YnabCategory list
+    QuickAddCategoriesLoad: RemoteData<unit>
 
     // Die Übersicht samt Konten der Seitenleiste (design-system-k6kfw).
     Overview: Components.Overview.Types.Model
@@ -75,7 +81,7 @@ type Msg =
 
     // Child component messages
     | SettingsMsg of Components.Settings.Types.Msg
-    | SyncFlowMsg of Components.SyncFlow.Types.Msg
+    | FetchMsg of Components.Fetch.Types.Msg
     | RulesMsg of Components.Rules.Types.Msg
     | LedgerMsg of Components.Ledger.Types.Msg
     | BudgetMsg of Components.Budget.Types.Msg
@@ -86,8 +92,10 @@ type Msg =
     | OpenLedgerAccount of Components.Ledger.Types.AccountFilter
     /// „Im Minus“ im Monat der Übersicht: das Budget öffnet mit dem Filter Überzogen.
     | OpenBudgetOverdrawn
-    /// „Abrufen“ im Kopf der Übersicht: der Sync-Ablauf öffnet und startet, wenn keine Sitzung läuft.
+    /// „Abrufen“ im Kopf der Übersicht: das Sheet „Abrufen“ öffnet und startet, wenn keine Sitzung läuft.
     | FetchFromBank
+    | LoadQuickAddCategories
+    | QuickAddCategoriesLoaded of Result<YnabCategory list, YnabError>
     /// Ein Eintrag aus „Zu tun“ der Übersicht (ledger-s1weh): das Ziel öffnen, vorbereitet.
     | OpenOverviewTodo of Components.Overview.Types.TodoTarget
     /// „+ Buchung“ auf der Übersicht: das Erfassen aus dem Kassenbuch öffnen, die Übersicht bleibt stehen.
@@ -213,13 +221,6 @@ let rec pageLoadCmd (page: Page) : Cmd<Msg> =
     | Overview ->
         // Monat, neueste Buchungen, Konten und Stände; „heute“ geht als Parameter in die reine Rechnung.
         Cmd.map OverviewMsg (Cmd.ofMsg (Components.Overview.Types.Entered (Components.Overview.State.berlinToday ())))
-    | SyncFlow ->
-        Cmd.batch [
-            Cmd.map SyncFlowMsg (Cmd.ofMsg Components.SyncFlow.Types.LoadCurrentSession)
-            Cmd.map SyncFlowMsg (Cmd.ofMsg Components.SyncFlow.Types.LoadCategories)
-            Cmd.map SyncFlowMsg (Cmd.ofMsg Components.SyncFlow.Types.LoadAccounts)
-            Cmd.map SyncFlowMsg (Cmd.ofMsg Components.SyncFlow.Types.LoadQuickAddAccount)
-        ]
     | Rules ->
         Cmd.batch [
             Cmd.map RulesMsg (Cmd.ofMsg Components.Rules.Types.LoadRules)
@@ -264,23 +265,23 @@ let rec pageLoadCmd (page: Page) : Cmd<Msg> =
         Cmd.map BudgetMsg (Cmd.ofMsg (Components.Budget.Types.CategoryAdminMsg Components.Budget.Categories.Entered))
     | QuickAdd ->
         // Open a fresh form and make sure the category picker has data
-        // (categories are loaded into SyncFlow at startup; retry in
-        // case that failed or this is a deep link). Also load the
-        // recent-booking templates once per visit (ynab-t4n8p).
+        // (categories are loaded at startup; retry in case that failed or
+        // this is a deep link). Also load the recent-booking templates once
+        // per visit (ynab-t4n8p).
         Cmd.batch [
             Cmd.ofMsg OpenQuickAdd
             Cmd.ofMsg LoadQuickAddTemplates
-            Cmd.map SyncFlowMsg (Cmd.ofMsg Components.SyncFlow.Types.LoadCategories)
+            Cmd.ofMsg LoadQuickAddCategories
         ]
 
-/// Soll ein Ladefehler des SyncFlow erscheinen? Die Kategorien laden beim App-Start auf jeder
+/// Soll ein Ladefehler der Quick-Add-Kategorien erscheinen? Die Kategorien laden beim App-Start auf jeder
 /// Seite, ihr Fehler gehört aber nur dorthin, wo sie gebraucht werden. Das Betreten dieser
 /// Seiten lädt neu und meldet es dann. Ein noch sichtbarer gleicher Toast reicht, sonst stapelt
 /// schnelles Wechseln bei dauerhaftem Fehler je Besuch einen weiteren (ynab-sync-k3vq8).
 let shouldShowLoadFailure (page: Page) (message: string) (toasts: Toast list) : bool =
     let pageUsesData =
         match page with
-        | SyncFlow | QuickAdd -> true
+        | QuickAdd -> true
         | _ -> false
     pageUsesData && not (toasts |> List.exists (fun toast -> toast.Message = message && not toast.Exiting))
 
@@ -394,9 +395,6 @@ let isPageReady (model: Model) : bool =
         && notLoading model.Overview.Balances
         && notLoading model.Overview.Recent
         && notLoading model.Overview.NotInYnab
-    | SyncFlow ->
-        notLoading model.SyncFlow.CurrentSession
-        && notLoading model.SyncFlow.SyncTransactions
     | Rules -> notLoading model.Rules.Rules
     | Settings -> notLoading model.Settings.Settings
     | QuickAdd -> notLoading model.QuickAddTemplates
@@ -445,17 +443,14 @@ let isInputActive (model: Model) : bool =
             form.IsSaving
             || [ form.AmountText; form.Payee; form.Memo; form.CategoryId ]
                |> List.exists (fun text -> not (String.IsNullOrWhiteSpace text))
-    let syncActive =
-        let sync = model.SyncFlow
-        let sessionRunning =
-            match sync.CurrentSession with
-            | Success (Some session) ->
-                match session.Status with
-                | Completed | Failed _ -> false
-                | _ -> true
-            | _ -> false
-        sessionRunning || sync.IsTanConfirming || sync.SplitEdit.IsSome || sync.InlineRuleForm.IsSome
-    ledgerActive || rulesActive || settingsActive || quickAddActive || syncActive
+    // Ein offenes Sheet „Abrufen“ oder ein laufender Abruf: ein Neuladen verlöre Push-TAN oder Ergebnis.
+    let fetchActive =
+        let fetch = model.Fetch
+        fetch.IsOpen
+        || fetch.Start <> Components.Fetch.Types.StartIdle
+        || fetch.IsTanConfirming
+        || fetch.InterruptedStart.IsSome
+    ledgerActive || rulesActive || settingsActive || quickAddActive || fetchActive
     || Components.Budget.Moves.inputActive model.Budget
 
 /// Der Hinweis "Neue Version, neu laden": ein Info-Toast mit Aktion, der nicht nach 5 s
@@ -500,7 +495,6 @@ let private applyPwaDecision (model: Model) : Model * Cmd<Msg> =
 
 let init () : Model * Cmd<Msg> =
     let settingsModel, settingsCmd = Components.Settings.State.init ()
-    let syncFlowModel, syncFlowCmd = Components.SyncFlow.State.init ()
     let rulesModel, rulesCmd = Components.Rules.State.init ()
     // Das Kassenbuch laedt erst beim Betreten der Seite (UrlChanged), nicht beim
     // Start der App: es soll keine Abfrage ausloesen, solange niemand hineinschaut.
@@ -514,12 +508,14 @@ let init () : Model * Cmd<Msg> =
         Toasts = []
         Pwa = Pwa.initialState
         Settings = settingsModel
-        SyncFlow = syncFlowModel
+        Fetch = Components.Fetch.Types.init
         Rules = rulesModel
         Ledger = ledgerModel
         Budget = Components.Budget.State.init ()
         QuickAdd = None
         QuickAddTemplates = NotAsked
+        QuickAddCategories = []
+        QuickAddCategoriesLoad = NotAsked
         Overview = Components.Overview.Types.init
         SettingsReturn = Overview
     }
@@ -531,7 +527,7 @@ let init () : Model * Cmd<Msg> =
 
     let cmd = Cmd.batch [
         Cmd.map SettingsMsg settingsCmd  // Load settings on startup - needed for categories
-        Cmd.map SyncFlowMsg syncFlowCmd  // Load categories and payees on startup
+        Cmd.ofMsg LoadQuickAddCategories
         initialPageCmd
         // Die Seitenleiste zeigt die Konten auf jeder Seite. Die Übersicht lädt sie selbst mit, das Kassenbuch
         // auch (`syncNavAccounts` füllt die Seitenleiste); sonst luden sie doppelt.
@@ -579,12 +575,21 @@ let syncNavAccounts (ledgerMsg: Components.Ledger.Types.Msg) (overview: Componen
         { overview with Balances = RemoteData.lateFailure message overview.Balances }
     | _ -> overview
 
-/// Nach einem Import (auch einem Teilfehlschlag) stimmen die Salden der Seitenleiste nicht mehr.
-let importChangesBalances (syncFlowMsg: Components.SyncFlow.Types.Msg) : bool =
-    match syncFlowMsg with
-    | Components.SyncFlow.Types.ImportCompleted _
-    | Components.SyncFlow.Types.ForceImportCompleted (Ok _) -> true
-    | _ -> false
+/// Was der Root nach einer Nachricht des Sheets „Abrufen“ tut. Nach einem Abruf laden Zu tun, Zähler und
+/// die Zeile „Comdirect · Import <Stand>“ der Übersicht neu, dazu die Konten der Seitenleiste und eine offene
+/// Kassenbuch-Liste. „Jetzt durchgehen“ führt bis ledger-v6s7c ins Kassenbuch mit Filter „Zu prüfen“.
+let fetchExternalCmd (model: Model) (external: Components.Fetch.Types.ExternalMsg) : Cmd<Msg> =
+    match external with
+    | Components.Fetch.Types.NoOp -> Cmd.none
+    | Components.Fetch.Types.ShowToast (message, toastType) -> Cmd.ofMsg (ShowToast (message, toastType))
+    | Components.Fetch.Types.OpenReview -> Cmd.ofMsg (OpenOverviewTodo Components.Overview.Types.TodoReview)
+    | Components.Fetch.Types.FetchFinished ->
+        Cmd.batch [
+            Cmd.map OverviewMsg (Cmd.ofMsg Components.Overview.Types.ReloadRequested)
+            if isLedgerPage model.CurrentPage then
+                Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadEntries)
+                Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadBalances)
+        ]
 
 /// Ausgehende Aufrufe des Root-`update` als Funktionswerte (Doktrin Punkt 1): unter .NET wirft
 /// der Remoting-Proxy im Typinitialisierer, Tests geben deshalb eigene Funktionen mit
@@ -645,7 +650,6 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
                 if Components.Ledger.Types.categoriesReloadDue model.Ledger DateTime.Now then
                     Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadCategories)
             ]
-        | SyncFlow -> model, Cmd.map SyncFlowMsg (Cmd.ofMsg Components.SyncFlow.Types.LoadBankStatus)
         | Settings -> model, Cmd.map SettingsMsg (Cmd.ofMsg Components.Settings.Types.LoadBankStatus)
         | _ -> model, Cmd.none
 
@@ -763,32 +767,48 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
         { model with Settings = settingsModel'; Ledger = ledgerAfterSettings }, Cmd.batch [ Cmd.map SettingsMsg settingsCmd; externalCmd; syncCategoriesCmd ]
 
     // ============================================
-    // SyncFlow Component
+    // Sheet „Abrufen“ (banking-import-d0fey)
     // ============================================
-    | SyncFlowMsg syncFlowMsg ->
-        let syncFlowModel', syncFlowCmd, externalMsg = Components.SyncFlow.State.update syncFlowMsg model.SyncFlow
+    | FetchMsg fetchMsg ->
+        let fetchModel', fetchCmd, externalMsg = Components.Fetch.State.update fetchMsg model.Fetch
+        let model' = { model with Fetch = fetchModel' }
+        let externalCmd = fetchExternalCmd model' externalMsg
+        model', Cmd.batch [ Cmd.map FetchMsg fetchCmd; externalCmd ]
 
-        // Handle external messages from SyncFlow component
-        let externalCmd =
-            match externalMsg with
-            | Components.SyncFlow.Types.NoOp -> Cmd.none
-            | Components.SyncFlow.Types.ShowToast (message, toastType) -> Cmd.ofMsg (ShowToast (message, toastType))
-            | Components.SyncFlow.Types.ShowLoadFailure message ->
-                if shouldShowLoadFailure model.CurrentPage message model.Toasts then
-                    Cmd.ofMsg (ShowToast (message, ToastError))
-                else
-                    Cmd.none
+    | LoadQuickAddCategories when RemoteData.isLoading model.QuickAddCategoriesLoad ->
+        // Der laufende Abruf liefert dasselbe.
+        model, Cmd.none
 
-        let accountsCmd =
-            if importChangesBalances syncFlowMsg then
-                Cmd.batch [
-                    Cmd.map OverviewMsg (Cmd.ofMsg Components.Overview.Types.SidebarNeedsAccounts)
-                    // Nach einem Import gibt es neue Buchungen zu prüfen: die Zahl an der Übersicht zieht nach.
-                    Cmd.map OverviewMsg (Cmd.ofMsg Components.Overview.Types.CountsNeeded)
-                ]
-            else Cmd.none
+    | LoadQuickAddCategories ->
+        let loadCategoriesAsync () = async {
+            let! settings = Retry.reading Api.settings.getSettings ()
+            match settings.Ynab with
+            | Some ynab ->
+                match ynab.DefaultBudgetId with
+                | Some budgetId -> return! Retry.reading Api.ynab.getCategories budgetId
+                | None -> return Error (YnabError.Unauthorized "Kein Standard-Budget eingerichtet")
+            | None -> return Error (YnabError.Unauthorized "YNAB ist nicht eingerichtet")
+        }
+        { model with QuickAddCategoriesLoad = Loading },
+        Cmd.OfAsync.either
+            loadCategoriesAsync
+            ()
+            QuickAddCategoriesLoaded
+            (fun ex -> QuickAddCategoriesLoaded (Error (YnabError.NetworkError ex.Message)))
 
-        { model with SyncFlow = syncFlowModel' }, Cmd.batch [ Cmd.map SyncFlowMsg syncFlowCmd; externalCmd; accountsCmd ]
+    | QuickAddCategoriesLoaded (Ok categories) ->
+        { model with QuickAddCategories = categories; QuickAddCategoriesLoad = Success () }, Cmd.none
+
+    | QuickAddCategoriesLoaded (Error error) ->
+        // `Unauthorized` trägt hier auch "nicht eingerichtet" aus dem Ladeweg.
+        let text =
+            match error with
+            | YnabError.Unauthorized message -> message
+            | other -> ynabErrorText other
+        let message = $"Kategorien konnten nicht geladen werden: {text}"
+        { model with QuickAddCategoriesLoad = Failure text },
+        (if shouldShowLoadFailure model.CurrentPage message model.Toasts then Cmd.ofMsg (ShowToast (message, ToastError))
+         else Cmd.none)
 
     // ============================================
     // Rules Component
@@ -993,12 +1013,8 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
         model', Cmd.batch (cmd :: (loads |> List.map Cmd.ofMsg))
 
     | FetchFromBank ->
-        model,
-        Cmd.batch [
-            Cmd.ofMsg (NavigateTo SyncFlow)
-            // Ein Auftrag: der Sync-Ablauf liest zuerst die Sitzung und startet nur, wenn keine läuft.
-            Cmd.map SyncFlowMsg (Cmd.ofMsg Components.SyncFlow.Types.StartRequested)
-        ]
+        // Ein Auftrag: das Sheet liest zuerst die Sitzung und startet nur, wenn keine läuft.
+        model, Cmd.ofMsg (FetchMsg Components.Fetch.Types.Opened)
 
     | BudgetMsg budgetMsg ->
         let budgetModel', budgetCmd, externalMsg = Components.Budget.State.update budgetMsg model.Budget

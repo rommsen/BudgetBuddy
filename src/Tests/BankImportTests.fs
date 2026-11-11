@@ -2,6 +2,8 @@ module Tests.BankImportTests
 
 // Der Server entscheidet über die TAN (banking-import-cyg94, ADR 0071 Punkt 5 und 6). Der Bank-Port
 // läuft über den echten Zustandsautomaten mit Fake-Ports, kein Testfall erreicht Comdirect oder YNAB.
+// Seit banking-import-d0fey (ADR 0093) bucht der Abruf: das Kassenbuch ist die In-Memory-SQLite, der Push
+// nach YNAB ein Fake-Port. Jede Reference ist je Testfall eindeutig, Expecto läuft parallel.
 
 open System
 open System.Threading
@@ -14,6 +16,8 @@ open Server.BankConnection
 open Server.ComdirectAuthSession
 open Server.BankPort
 open Server.BankImport
+
+do Environment.SetEnvironmentVariable("USE_MEMORY_DB", "true")
 
 let private run (work: Async<'T>) = Async.RunSynchronously work
 
@@ -46,6 +50,9 @@ let private stored : StoredConnection =
 
 let private connected = Connected { Session = authSession validTokens None; Keys = keys; NextRefreshAttempt = None }
 let private pendingChallenge = ChallengePending { Session = authSession validTokens (Some challenge); Keys = keys }
+
+/// Eine Reference, die kein anderer Testfall nutzt: der Importschlüssel `BB:` plus Reference ist global.
+let private uniqueRef (label: string) = $"{label}-{Guid.NewGuid():N}"
 
 let private bankTransaction (reference: string) (payee: string) (memo: string) : BankTransaction =
     { Id = TransactionId reference
@@ -83,24 +90,21 @@ let private ruleFor (pattern: string) (categoryId: Guid) : Rule =
 /// Sitzung im Speicher, wie `SyncSessionManager`. Der echte Manager ist global, Expecto läuft parallel.
 type private SessionsProbe() =
     let mutable current : SyncSession option = None
-    let transactions = ResizeArray<SyncTransaction>()
     member val Started = ResizeArray<SyncSession>()
     member val Changed = ResizeArray<SyncSession>()
     member val OnRecordStarted : unit -> unit = ignore with get, set
     member _.Status = current |> Option.map (fun session -> session.Status)
-    member _.Transactions = List.ofSeq transactions
+    member _.Current = current
     member _.Clear() = current <- None
-    member _.Open (status: SyncSessionStatus) (existing: SyncTransaction list) =
+    member _.Open (status: SyncSessionStatus) =
         let session =
             { Id = SyncSessionId (Guid.NewGuid())
               StartedAt = DateTime(2026, 10, 31)
               CompletedAt = None
               Status = status
-              TransactionCount = existing.Length
-              ImportedCount = 0
-              SkippedCount = 0 }
+              Trigger = Manual
+              Counts = emptyFetchCounts }
         current <- Some session
-        transactions.AddRange existing
         session
     member this.Build() : SyncSessions =
         let setStatus status =
@@ -108,12 +112,11 @@ type private SessionsProbe() =
             | Some session -> current <- Some { session with Status = status }
             | None -> failwith "Keine Sitzung"
         { Current = fun () -> current
-          StartNew = fun () -> this.Open AwaitingBankAuth []
+          StartNew = fun () -> this.Open AwaitingBankAuth
           SetStatus = setStatus
           Fail = fun message -> if current.IsSome then setStatus (Failed message)
-          AddTransactions = fun added ->
-              transactions.AddRange added
-              current <- current |> Option.map (fun s -> { s with TransactionCount = transactions.Count })
+          Complete = fun counts ->
+              current <- current |> Option.map (fun s -> { s with Status = Completed; Counts = counts })
           ValidateAwaitingTan = fun sessionId ->
               match current with
               | Some session when session.Id = sessionId && session.Status = AwaitingTan -> Ok ()
@@ -132,7 +135,16 @@ type private Probe(initial: BankConnectionState) =
     let mutable clears = 0
     member val Sessions = SessionsProbe()
     member val Losses = ResizeArray<string>()
-    member val FetchAnswer : ComdirectResult<BankTransaction list> = Ok [ bankTransaction "ref-1" "Markt" "Karte" ] with get, set
+    member val FetchAnswer : ComdirectResult<BankTransaction list> = Ok [ bankTransaction (uniqueRef "ref") "Markt" "Karte" ] with get, set
+    /// Die vorbereiteten Buchungen je Push nach YNAB.
+    member val Pushes = ResizeArray<Server.YnabClient.PreparedTransaction list>()
+    member val Rules : Rule list = [] with get, set
+    member val YnabAnswer : YnabTransaction list option = Some [] with get, set
+    /// Die Antwort von YNAB auf einen Push. Ohne Angabe legt YNAB jede Buchung unter einer eigenen Id an.
+    member val PushAnswer : (Server.YnabClient.PreparedTransaction list -> YnabResult<Server.YnabClient.TransactionCreateResult>) option = None with get, set
+    /// Das Kassenbuch-Konto des Import-Kontos, je Probe eigenes.
+    member val LedgerAccount = Ledger.Events.newLedgerAccountId () with get
+    member val Book = Ledger.CommandHandlers.pushComdirectImports with get, set
     member val LoginAnswer : ComdirectResult<AuthSession> = Ok (authSession validTokens (Some challenge)) with get, set
     member val RefreshAnswer : Result<Tokens, RefreshFailure> = Ok validTokens with get, set
     member val ConfirmAnswer : ComdirectResult<Tokens> = Ok validTokens with get, set
@@ -183,20 +195,42 @@ type private Probe(initial: BankConnectionState) =
         { Gate = new SemaphoreSlim(1, 1)
           Sources =
             { Bank = comdirectBankPort connection (fun () -> now)
-              LoadRules = fun () -> async.Return []
-              LoadYnabTransactions = fun _ -> async.Return None }
+              LoadRules = fun () -> async.Return this.Rules
+              LoadYnabTransactions = fun _ -> async.Return this.YnabAnswer }
           Sessions = this.Sessions.Build()
           LoadSettings = fun () -> async.Return this.Settings
+          LoadTarget = fun () -> async {
+              Ledger.Persistence.initializeLedgerSchema ()
+              return
+                  Ok {
+                      LedgerAccountId = this.LedgerAccount
+                      YnabAccountId = YnabAccountId (Guid.NewGuid())
+                      Push = fun prepared -> async {
+                          lock this.Pushes (fun () -> this.Pushes.Add prepared)
+                          match this.PushAnswer with
+                          | Some answer -> return answer prepared
+                          | None ->
+                              return
+                                  Ok {
+                                      Server.YnabClient.emptyCreateResult with
+                                          Created =
+                                              prepared
+                                              |> List.map (fun p ->
+                                                  ({ TransactionId = p.TransactionId
+                                                     ImportId = p.ImportId
+                                                     YnabTransactionId = $"ynab-{p.ImportId}" } : Server.YnabClient.CreatedTransactionResult)) } } } }
+          TriggerMirror = ignore
+          BookImports = fun now push trigger account candidates -> this.Book now push trigger account candidates
           DescribeBankError = fun error -> $"Bankfehler: %A{error}"
           Clock = fun () -> now.UtcDateTime
           Today = fun () -> today }
 
 let private rejected = ComdirectError.AuthenticationFailed "HTTP 401"
 
-let private expectReviewReady (result: SyncResult<SyncStart>) =
+let private expectFetched (result: SyncResult<SyncStart>) =
     match result with
-    | Ok (ReviewReady session) -> session
-    | other -> failtestf "ReviewReady erwartet, bekam %A" other
+    | Ok (Fetched session) -> session
+    | other -> failtestf "Fetched erwartet, bekam %A" other
 
 let private expectTanRequired (result: SyncResult<SyncStart>) =
     match result with
@@ -246,20 +280,20 @@ let private startedSessionId (probe: Probe) = (Seq.exactlyOne probe.Sessions.Sta
 let startSyncTests =
     testList "startSync: der Server entscheidet über die TAN" [
 
-        testCase "aktive Verbindung: ReviewReady ohne Challenge, die Buchungen liegen in der Sitzung" <| fun () ->
+        testCase "aktive Verbindung: der Abruf bucht ohne Challenge, die Sitzung ist mit ihren Zahlen beendet" <| fun () ->
             let probe = Probe(connected)
             let ports = probe.Build()
-            let session = startSyncWith ports |> run |> expectReviewReady
-            Expect.equal session.Status ReviewingTransactions "Prüfung offen"
-            Expect.equal session.TransactionCount 1 "Anzahl in der gelieferten Sitzung"
+            let session = startSyncWith ports |> run |> expectFetched
+            Expect.equal session.Status Completed "beendet"
+            Expect.equal session.Counts.NewEntries 1 "Anzahl in der gelieferten Sitzung"
             Expect.equal probe.Logins 0 "keine Challenge"
-            Expect.equal (probe.Sessions.Transactions |> List.map (fun t -> t.Transaction.Reference)) [ "ref-1" ] "Buchung installiert"
+            Expect.equal (probe.Pushes |> Seq.sumBy List.length) 1 "eine Buchung nach YNAB"
             Expect.equal probe.Sessions.Started.Count 1 "Sitzung gespeichert"
-            Expect.equal (probe.Sessions.Changed |> Seq.map (fun s -> s.Status) |> List.ofSeq) [ ReviewingTransactions ] "Endstand gespeichert"
+            Expect.equal (probe.Sessions.Changed |> Seq.map (fun s -> s.Status) |> List.ofSeq) [ Completed ] "Endstand gespeichert"
 
         testCase "der Abruf nutzt die konfigurierte Konto-Id" <| fun () ->
             let probe = Probe(connected)
-            startSyncWith (probe.Build()) |> run |> expectReviewReady |> ignore
+            startSyncWith (probe.Build()) |> run |> expectFetched |> ignore
             Expect.equal (List.ofSeq probe.FetchedAccountIds) [ "konfiguriertes-konto" ] "Konto aus den Einstellungen"
 
         // infrastructure-p747v: abends um 23:30 UTC ist in Berlin schon der nächste Tag.
@@ -269,7 +303,7 @@ let startSyncTests =
                 { probe.Build() with
                     Clock = fun () -> DateTime(2026, 11, 1, 23, 30, 0, DateTimeKind.Utc)
                     Today = fun () -> DateTime(2026, 11, 2) }
-            startSyncWith ports |> run |> expectReviewReady |> ignore
+            startSyncWith ports |> run |> expectFetched |> ignore
             Expect.equal (List.ofSeq probe.FetchedDays) [ DateTime(2026, 11, 2) ] "der 2. November kommt an"
 
         // Bug: Ohne Konto-Id ging ein leerer Wert an die Bank, die Antwort sagte nichts über die Ursache.
@@ -306,7 +340,7 @@ let startSyncTests =
             probe.RefreshAnswer <- Error (ReloginRequired "HTTP 401")
             let session = startSyncWith (probe.Build()) |> run |> expectTanRequired
             Expect.equal session.Status AwaitingTan "wartet auf die TAN"
-            Expect.equal session.TransactionCount 0 "keine Buchungen"
+            Expect.equal session.Counts.NewEntries 0 "keine Buchungen"
             Expect.equal probe.Logins 1 "genau eine Challenge"
             Expect.equal probe.Losses.Count 1 "Verlust gemeldet"
 
@@ -345,42 +379,10 @@ let startSyncTests =
             | Some (Failed _) -> ()
             | other -> failtestf "Sitzung gescheitert erwartet: %A" other
 
-        testCase "offene Prüfung: dieselbe Sitzung, Buchungen unverändert, kein Bankzugriff" <| fun () ->
-            let probe = Probe(connected)
-            let reviewed =
-                { Transaction = bankTransaction "bleibt" "Markt" "Karte"
-                  Status = ManualCategorized
-                  CategoryId = None
-                  CategoryName = None
-                  MatchedRuleId = None
-                  PayeeOverride = None
-                  ExternalLinks = []
-                  UserNotes = None
-                  DuplicateStatus = NotDuplicate { TransactionReference = "bleibt"; ReferenceFoundInYnab = false; ImportIdFoundInYnab = false; FuzzyMatchDate = None; FuzzyMatchAmount = None; FuzzyMatchPayee = None }
-                  YnabImportStatus = NotAttempted
-                  Splits = None
-                  SuggestedByOrderId = None
-                  ReviewSteps = []
-                  AskLena = false }
-            let opened = probe.Sessions.Open ReviewingTransactions [ reviewed ]
-            let session = startSyncWith (probe.Build()) |> run |> expectReviewReady
-            Expect.equal session opened "dieselbe Sitzung"
-            Expect.equal probe.Sessions.Transactions [ reviewed ] "Buchungen unverändert"
-            Expect.equal probe.Fetches 0 "kein Abruf"
-            Expect.equal probe.Logins 0 "keine Challenge"
-            Expect.equal probe.Sessions.Started.Count 0 "keine neue Sitzung"
-
-        testCase "offene Prüfung ohne Zugangsdaten: die Prüfung kommt trotzdem zurück" <| fun () ->
-            let probe = Probe(Disconnected)
-            probe.Settings <- { probe.Settings with Comdirect = None }
-            let opened = probe.Sessions.Open ReviewingTransactions []
-            let session = startSyncWith (probe.Build()) |> run |> expectReviewReady
-            Expect.equal session opened "dieselbe Sitzung"
-
         testCase "eine abgeschlossene Sitzung blockiert keinen neuen Sync" <| fun () ->
             let probe = Probe(connected)
-            let finished = probe.Sessions.Open Completed []
-            let session = startSyncWith (probe.Build()) |> run |> expectReviewReady
+            let finished = probe.Sessions.Open Completed
+            let session = startSyncWith (probe.Build()) |> run |> expectFetched
             Expect.notEqual session.Id finished.Id "neue Sitzung"
 
         testCase "ohne Zugangsdaten: Fehler, keine Sitzung, keine Challenge" <| fun () ->
@@ -400,7 +402,7 @@ let startSyncTests =
             | other -> failtestf "DatabaseError erwartet: %A" other
             Expect.equal probe.Sessions.Status (Some (Failed "kaputt")) "Sitzung gescheitert"
 
-        testCase "zweiter startSync während des Abrufs: ein Abruf, beide bekommen dieselbe Prüfung" <| fun () ->
+        testCase "zweiter startSync während des Abrufs: ein Abruf, beide bekommen dasselbe Ergebnis" <| fun () ->
             let probe = Probe(connected)
             let inFetch = TaskCompletionSource<unit>(TaskCreationOptions.RunContinuationsAsynchronously)
             let release = TaskCompletionSource<unit>(TaskCreationOptions.RunContinuationsAsynchronously)
@@ -414,15 +416,15 @@ let startSyncTests =
             Expect.isFalse second.IsCompleted "der zweite Start wartet"
             release.SetResult ()
             Expect.isTrue (Task.WaitAll([| first :> Task; second :> Task |], hangLimit)) "beide fertig"
-            let a = expectReviewReady first.Result
-            let b = expectReviewReady second.Result
+            let a = expectFetched first.Result
+            let b = expectFetched second.Result
             Expect.equal a.Id b.Id "dieselbe Sitzung"
             Expect.equal probe.Fetches 1 "ein Abruf"
-            Expect.equal probe.Sessions.Transactions.Length 1 "Buchung einmal"
+            Expect.equal (probe.Pushes |> Seq.sumBy List.length) 1 "Buchung einmal gebucht und gesendet"
 
         testCase "ein Fehler vor der neuen Sitzung lässt die alte Sitzung unberührt" <| fun () ->
             let probe = Probe(connected)
-            let older = probe.Sessions.Open AwaitingTan []
+            let older = probe.Sessions.Open AwaitingTan
             let ports = { probe.Build() with LoadSettings = fun () -> async { return failwith "Einstellungen kaputt" } }
             match startSyncWith ports |> run with
             | Error (SyncError.DatabaseError ("start_sync", _)) -> ()
@@ -442,7 +444,7 @@ let startSyncTests =
             bank.Release ()
             Expect.isTrue (start.Wait hangLimit) "der Abruf endet"
             expectSessionGone start.Result
-            Expect.isEmpty probe.Sessions.Transactions "nichts installiert"
+            Expect.isEmpty probe.Pushes "nichts gebucht"
             Expect.isTrue (isConnected probe.Connection) "die Verbindung bleibt"
 
         // Bug: nach dem Abbruch startete der Verbindungstod eine Challenge, `ChallengePending` blieb liegen.
@@ -520,20 +522,24 @@ let startSyncTests =
 let confirmTanTests =
     testList "confirmTan: nach der TAN derselbe Abruf" [
 
-        testCase "bestätigte TAN: die Prüfung ist offen" <| fun () ->
+        testCase "bestätigte TAN: der Abruf bucht, die beendete Sitzung kommt zurück" <| fun () ->
             let probe = Probe(pendingChallenge)
             let ports = probe.Build()
-            let session = probe.Sessions.Open AwaitingTan []
-            Expect.equal (confirmTanWith ports session.Id |> run) (Ok ()) "bestätigt"
-            Expect.equal probe.Sessions.Status (Some ReviewingTransactions) "Prüfung offen"
-            Expect.equal probe.Sessions.Transactions.Length 1 "Buchung installiert"
+            let session = probe.Sessions.Open AwaitingTan
+            match confirmTanWith ports session.Id |> run with
+            | Ok finished ->
+                Expect.equal finished.Status Completed "beendet"
+                Expect.equal finished.Counts.NewEntries 1 "eine neue Buchung"
+            | other -> failtestf "Ok erwartet: %A" other
+            Expect.equal probe.Sessions.Status (Some Completed) "Sitzung beendet"
+            Expect.equal (probe.Pushes |> Seq.sumBy List.length) 1 "Buchung gebucht und gesendet"
             Expect.isTrue (isConnected probe.Connection) "verbunden"
 
         testCase "gescheiterte TAN: Fehler, kein Abruf" <| fun () ->
             let probe = Probe(pendingChallenge)
             probe.ConfirmAnswer <- Error ComdirectError.TanRejected
             let ports = probe.Build()
-            let session = probe.Sessions.Open AwaitingTan []
+            let session = probe.Sessions.Open AwaitingTan
             match confirmTanWith ports session.Id |> run with
             | Error (SyncError.ComdirectAuthFailed _) -> ()
             | other -> failtestf "ComdirectAuthFailed erwartet: %A" other
@@ -542,7 +548,7 @@ let confirmTanTests =
         testCase "falscher Sitzungszustand: nichts geht zur Bank" <| fun () ->
             let probe = Probe(pendingChallenge)
             let ports = probe.Build()
-            let session = probe.Sessions.Open ReviewingTransactions []
+            let session = probe.Sessions.Open FetchingTransactions
             match confirmTanWith ports session.Id |> run with
             | Error (SyncError.InvalidSessionState _) -> ()
             | other -> failtestf "InvalidSessionState erwartet: %A" other
@@ -552,7 +558,7 @@ let confirmTanTests =
             let probe = Probe(pendingChallenge)
             probe.FetchAnswer <- Error (ComdirectError.NetworkError (503, ""))
             let ports = probe.Build()
-            let session = probe.Sessions.Open AwaitingTan []
+            let session = probe.Sessions.Open AwaitingTan
             match confirmTanWith ports session.Id |> run with
             | Error (SyncError.TransactionFetchFailed _) -> ()
             | other -> failtestf "TransactionFetchFailed erwartet: %A" other
@@ -565,7 +571,7 @@ let confirmTanTests =
             let probe = Probe(pendingChallenge)
             probe.DuringFetch <- fun () -> async { failwith "kaputt" }
             let ports = probe.Build()
-            let session = probe.Sessions.Open AwaitingTan []
+            let session = probe.Sessions.Open AwaitingTan
             match confirmTanWith ports session.Id |> run with
             | Error (SyncError.DatabaseError ("confirm_tan", _)) -> ()
             | other -> failtestf "DatabaseError erwartet: %A" other
@@ -575,7 +581,7 @@ let confirmTanTests =
             let probe = Probe(pendingChallenge)
             probe.Settings <- { probe.Settings with Comdirect = Some { credentials with AccountId = None } }
             let ports = probe.Build()
-            let session = probe.Sessions.Open AwaitingTan []
+            let session = probe.Sessions.Open AwaitingTan
             match confirmTanWith ports session.Id |> run with
             | Error (SyncError.TransactionFetchFailed reason) -> Expect.stringContains reason "Konto-Id" "die Meldung nennt, was fehlt"
             | other -> failtestf "TransactionFetchFailed erwartet: %A" other
@@ -588,111 +594,10 @@ let confirmTanTests =
             let probe = Probe(pendingChallenge)
             probe.DuringConfirm <- fun () -> async { probe.Sessions.Clear () }
             let ports = probe.Build()
-            let session = probe.Sessions.Open AwaitingTan []
+            let session = probe.Sessions.Open AwaitingTan
             confirmTanWith ports session.Id |> run |> expectSessionGone
             Expect.equal probe.Fetches 0 "kein Abruf"
             Expect.isTrue (isConnected probe.Connection) "verbunden"
-    ]
-
-let private fakeBank (transactions: BankTransaction list) : BankPort =
-    { Resume = fun () -> async.Return ()
-      Status = fun () -> BankReady
-      StartAuth = fun _ _ -> failtest "keine Challenge im Abruf"
-      CompleteAuth = fun () -> failtest "keine Bestätigung im Abruf"
-      FetchTransactions = fun _ _ _ -> async.Return (Ok transactions) }
-
-let private sources (bank: BankPort) (rules: Rule list) (ynab: YnabTransaction list option) : ReviewSources =
-    { Bank = bank
-      LoadRules = fun () -> async.Return rules
-      LoadYnabTransactions = fun _ -> async.Return ynab }
-
-let private request = { AccountId = "konto"; DaysToFetch = 14; Now = now.UtcDateTime; Today = today }
-
-let private fetched (source: ReviewSources) =
-    match fetchForReview source request |> run with
-    | Ok transactions -> transactions
-    | Error failure -> failtestf "Buchungen erwartet: %A" failure
-
-let private orderId = "302-1234567-7654321"
-
-[<Tests>]
-let fetchForReviewTests =
-    testList "fetchForReview: Regeln, Duplikate, Order-ID und Auto-Skip" [
-
-        testCase "die Regel kategorisiert und trägt den Prüfschritt mit der eingespeisten Zeit" <| fun () ->
-            let categoryId = Guid.NewGuid()
-            let source = sources (fakeBank [ bankTransaction "r1" "Marktkauf" "Karte" ]) [ ruleFor "Marktkauf" categoryId ] None
-            let tx = fetched source |> List.exactlyOne
-            Expect.equal tx.Status AutoCategorized "Regel gegriffen"
-            Expect.equal tx.CategoryId (Some (YnabCategoryId categoryId)) "Kategorie der Regel"
-            Expect.equal (tx.ReviewSteps |> List.map (fun s -> s.At)) [ now.UtcDateTime ] "Zeit kommt als Parameter"
-
-        testCase "eine ungültige Regel beendet den Abruf mit der Meldung" <| fun () ->
-            let invalid = { ruleFor "(" (Guid.NewGuid()) with PatternType = PatternType.Regex }
-            match fetchForReview (sources (fakeBank []) [ invalid ] None) request |> run with
-            | Error (RulesInvalid message) -> Expect.isNotEmpty message "Meldung"
-            | other -> failtestf "RulesInvalid erwartet: %A" other
-
-        testCase "bestätigtes Duplikat wird übersprungen, die übrigen bleiben offen" <| fun () ->
-            let bank = fakeBank [ bankTransaction "schon-da" "Markt" "Karte"; bankTransaction "neu" "Markt" "Karte" ]
-            let known = [ ynabTransaction "Karte, Ref: schon-da" -99m None ]
-            let byReference = fetched (sources bank [] (Some known)) |> List.map (fun t -> t.Transaction.Reference, t.Status) |> Map.ofList
-            Expect.equal byReference["schon-da"] Skipped "Auto-Skip"
-            Expect.equal byReference["neu"] Pending "bleibt offen"
-
-        testCase "mögliches Duplikat bleibt offen und trägt das Urteil" <| fun () ->
-            let tx = { bankTransaction "aehnlich" "Markt" "Karte" with BookingDate = DateTime(2026, 9, 1) }
-            let known = { ynabTransaction "ohne Referenz" -12.34m None with Payee = Some "Markt" }
-            let result = fetched (sources (fakeBank [ tx ]) [] (Some [ known ])) |> List.exactlyOne
-            Expect.equal result.Status Pending "nicht übersprungen"
-            match result.DuplicateStatus with
-            | PossibleDuplicate _ -> ()
-            | other -> failtestf "PossibleDuplicate erwartet: %A" other
-
-        testCase "Order-ID aus der YNAB-Historie schlägt die Kategorie vor" <| fun () ->
-            let categoryId = Guid.NewGuid()
-            let known = [ ynabTransaction $"Bestellung {orderId}" -5m (Some (categoryId, "Haushalt")) ]
-            let bank = fakeBank [ bankTransaction "amazon" "AMAZON" $"Bestellung {orderId}" ]
-            let tx = fetched (sources bank [] (Some known)) |> List.exactlyOne
-            Expect.equal tx.SuggestedByOrderId (Some orderId) "Vorschlag"
-            Expect.equal tx.CategoryId (Some (YnabCategoryId categoryId)) "Kategorie aus der Historie"
-
-        testCase "ohne YNAB-Abgleich bleiben die Buchungen unbeurteilt, der Abruf läuft" <| fun () ->
-            let tx = fetched (sources (fakeBank [ bankTransaction "r1" "Markt" "Karte" ]) [] None) |> List.exactlyOne
-            Expect.equal tx.Status Pending "offen"
-            match tx.DuplicateStatus with
-            | NotDuplicate _ -> ()
-            | other -> failtestf "NotDuplicate erwartet: %A" other
-
-        testCase "der YNAB-Abgleich reicht sieben Tage weiter als der Bankabruf" <| fun () ->
-            let requested = ResizeArray<int>()
-            let source =
-                { sources (fakeBank []) [] None with
-                    LoadYnabTransactions = fun days -> async {
-                        requested.Add days
-                        return None } }
-            fetched source |> ignore
-            Expect.equal (List.ofSeq requested) [ 21 ] "14 + 7 Tage"
-
-        testCase "Konto, Tage und Kalendertag gehen unverändert an die Bank" <| fun () ->
-            let seen = ResizeArray<string * int * DateTime>()
-            let bank =
-                { fakeBank [] with
-                    FetchTransactions = fun account days day -> async {
-                        seen.Add ((account, days, day))
-                        return Ok [] } }
-            fetched (sources bank [] None) |> ignore
-            Expect.equal (List.ofSeq seen) [ "konto", 14, today ] "Parameter"
-
-        testCase "Bankfehler: Regeln und YNAB werden nicht gelesen" <| fun () ->
-            let bank = { fakeBank [] with FetchTransactions = fun _ _ _ -> async.Return (Error ComdirectError.SessionExpired) }
-            let source =
-                { sources bank [] None with
-                    LoadRules = fun () -> failtest "keine Regeln"
-                    LoadYnabTransactions = fun _ -> failtest "kein YNAB" }
-            match fetchForReview source request |> run with
-            | Error (BankFetchFailed ComdirectError.SessionExpired) -> ()
-            | other -> failtestf "BankFetchFailed erwartet: %A" other
     ]
 
 let private storedProbe () =
@@ -705,9 +610,9 @@ let private storedProbe () =
 let startSyncAfterRestartTests =
     testList "startSync nach dem Neustart: ein gespeicherter Wert kostet keine TAN" [
 
-        testCase "Klick vor der Wiederaufnahme: ReviewReady, keine Challenge, der Wert bleibt" <| fun () ->
+        testCase "Klick vor der Wiederaufnahme: Abruf ohne Challenge, der Wert bleibt" <| fun () ->
             let probe = storedProbe ()
-            startSyncWith (probe.Build()) |> run |> expectReviewReady |> ignore
+            startSyncWith (probe.Build()) |> run |> expectFetched |> ignore
             Expect.equal probe.Logins 0 "keine Challenge"
             Expect.equal probe.Refreshes 1 "per Refresh aufgenommen"
             Expect.equal probe.Clears 0 "Wert bleibt"
@@ -724,7 +629,7 @@ let startSyncAfterRestartTests =
             bank.Release ()
             Expect.isTrue (resume.Wait hangLimit) "Wiederaufnahme fertig"
             Expect.isTrue (start.Wait hangLimit) "Klick fertig"
-            start.Result |> expectReviewReady |> ignore
+            start.Result |> expectFetched |> ignore
             Expect.equal probe.Logins 0 "keine Challenge"
             Expect.equal probe.Refreshes 1 "ein Refresh"
             Expect.equal probe.Clears 0 "Wert bleibt"
@@ -745,7 +650,7 @@ let startSyncAfterRestartTests =
             load.SetResult (StoredReadable stored)
             Expect.isTrue (resume.Wait hangLimit) "Wiederaufnahme fertig"
             Expect.isTrue (start.Wait hangLimit) "Klick fertig"
-            start.Result |> expectReviewReady |> ignore
+            start.Result |> expectFetched |> ignore
             Expect.equal probe.Logins 0 "keine Challenge"
             Expect.equal probe.Clears 0 "Wert bleibt"
 
@@ -801,7 +706,7 @@ let startSyncAfterRestartTests =
 
         testCase "Aktive Verbindung: der Wert löst keinen Refresh aus" <| fun () ->
             let probe = Probe(connected, StoredRead = async.Return (StoredReadable stored))
-            startSyncWith (probe.Build()) |> run |> expectReviewReady |> ignore
+            startSyncWith (probe.Build()) |> run |> expectFetched |> ignore
             Expect.equal probe.Refreshes 0 "kein Refresh aus dem Wert, das Access-Token gilt noch"
     ]
 
@@ -814,7 +719,7 @@ let retryLaterSyncTests =
         testCase "RetryLater beim Klick: der Abruf läuft mit dem alten Token, der Wert bleibt" <| fun () ->
             let probe = storedProbe ()
             probe.RefreshAnswer <- Error (RetryLater "HTTP 503")
-            startSyncWith (probe.Build()) |> run |> expectReviewReady |> ignore
+            startSyncWith (probe.Build()) |> run |> expectFetched |> ignore
             Expect.equal probe.Logins 0 "keine Challenge"
             Expect.equal probe.Fetches 1 "Abruf gelaufen"
             Expect.equal probe.Clears 0 "Wert bleibt"
@@ -931,27 +836,26 @@ let disconnectBankTests =
             Expect.equal probe.Sessions.Status (Some (Failed "Bank getrennt. Sync neu starten.")) "die Sitzung sagt, was los ist"
             match confirmTanWith ports session.Id |> run with
             | Error _ -> ()
-            | Ok () -> failtest "confirmTan muss scheitern"
+            | Ok _ -> failtest "confirmTan muss scheitern"
             Expect.equal probe.Fetches 0 "kein Abruf"
 
         testCase "eine Sitzung in AwaitingBankAuth bleibt dort nicht stehen" <| fun () ->
             let probe = Probe(connected)
             let ports = probe.Build()
-            let session = probe.Sessions.Open AwaitingBankAuth []
+            let session = probe.Sessions.Open AwaitingBankAuth
             disconnectBank ports probe |> ignore
             Expect.equal probe.Sessions.Status (Some (Failed "Bank getrennt. Sync neu starten.")) "beendet"
             Expect.isError (confirmTanWith ports session.Id |> run) "confirmTan scheitert"
 
-        testCase "eine offene Prüfung bleibt offen, ihre Buchungen auch" <| fun () ->
+        testCase "eine beendete Sitzung bleibt beendet, ihre Buchungen stehen im Kassenbuch" <| fun () ->
             let probe = Probe(connected)
             let ports = probe.Build()
-            startSyncWith ports |> run |> expectReviewReady |> ignore
+            startSyncWith ports |> run |> expectFetched |> ignore
             Expect.equal (disconnectBank ports probe) (Ok ()) "getrennt"
-            Expect.equal probe.Sessions.Status (Some ReviewingTransactions) "Prüfung offen"
-            Expect.equal probe.Sessions.Transactions.Length 1 "Buchung liegt noch"
+            Expect.equal probe.Sessions.Status (Some Completed) "beendet"
             Expect.equal (connectionState probe.Connection) Disconnected "Verbindung weg"
 
-        testCase "ein laufender Abruf endet zuerst und landet in der Prüfung" <| fun () ->
+        testCase "ein laufender Abruf endet zuerst und bucht" <| fun () ->
             let probe = Probe(connected)
             let bank = Barrier()
             probe.DuringFetch <- bank.Hold
@@ -962,7 +866,7 @@ let disconnectBankTests =
             bank.Release ()
             Expect.isTrue (disconnected.Wait hangLimit) "das Trennen endet"
             Expect.isTrue (start.Wait hangLimit) "der Start endet"
-            Expect.equal probe.Sessions.Status (Some ReviewingTransactions) "Prüfung offen"
+            Expect.equal probe.Sessions.Status (Some Completed) "beendet"
             Expect.equal (connectionState probe.Connection) Disconnected "danach getrennt"
 
         // banking-import-bftq0: Ohne `ImportPorts.Gate` startet der Start nach dem Trennen eine Challenge.
@@ -1002,4 +906,269 @@ let disconnectBankTests =
                 Expect.stringContains message "Exception" "der Typname reicht zur Einordnung"
             | other -> failtestf "DatabaseError erwartet: %A" other
             Expect.equal probe.Sessions.Status (Some AwaitingTan) "die Sitzung wartet weiter auf die TAN"
+    ]
+
+// ============================================
+// Abruf bucht (banking-import-d0fey, ADR 0093 Punkt 1 bis 8)
+// ============================================
+// Bank und YNAB sind Fake-Ports, das Kassenbuch ist die In-Memory-SQLite. Jeder Testfall nutzt eigene
+// References und ein eigenes Kassenbuch-Konto.
+
+module private Booking =
+    open Ledger.Events
+
+    let importIdOf (reference: string) = generateImportId (TransactionId reference)
+
+    let entryOf (reference: string) : EntryId option =
+        Ledger.Persistence.findEntryByLink Ledger.Domain.ImportIdSystem (importIdOf reference) |> run
+
+    let eventsOf (entryId: EntryId) =
+        Ledger.Persistence.loadEventsForEntry entryId |> run |> List.map (fun r -> r.Event)
+
+    let typesOf (entryId: EntryId) = eventsOf entryId |> List.map (fun e -> eventTypeName e.Body)
+
+    let pushedImportIds (probe: Probe) =
+        probe.Pushes |> Seq.collect id |> Seq.map (fun p -> p.ImportId) |> List.ofSeq
+
+    let counts (result: SyncResult<SyncStart>) : FetchCounts =
+        (expectFetched result).Counts
+
+    /// Eine Comdirect-Buchung, die schon im Kassenbuch steht (eigener Testaufbau, wie ein früherer Abruf).
+    let seedImported (account: LedgerAccountId) (reference: string) (more: EntryId -> LedgerEvent list) : EntryId =
+        let entryId = newEntryId ()
+        let created =
+            { EntryId = entryId
+              OccurredAt = DateTime(2026, 10, 30, 8, 0, 0, DateTimeKind.Utc)
+              Actor = ComdirectImport
+              Body =
+                EntryImportedFromComdirect {
+                    AccountId = account
+                    ImportId = importIdOf reference
+                    ComdirectReference = reference
+                    Date = DateTime(2026, 10, 30)
+                    Amount = { Amount = -12.34m; Currency = "EUR" }
+                    Payee = Some "Markt"
+                    Memo = Some "Karte"
+                    Cleared = Uncleared
+                    Approved = false
+                    FlagColor = None
+                    FlagName = None
+                } }
+        Ledger.Persistence.appendAndApply (created :: more entryId) |> run
+        entryId
+
+    let at = DateTime(2026, 10, 30, 9, 0, 0, DateTimeKind.Utc)
+    let ev (entryId: EntryId) (actor: Actor) (body: LedgerEventBody) : LedgerEvent =
+        { EntryId = entryId; OccurredAt = at; Actor = actor; Body = body }
+
+[<Tests>]
+let bookingTests =
+    let testCase name body =
+        testCase name (fun () ->
+            Ledger.Persistence.initializeLedgerSchema ()
+            body ())
+    testList "Abruf bucht ins Kassenbuch und nach YNAB" [
+
+        testCase "drei neue Umsätze: je Buchung Entstehung, Kategorisierung, ein Push und die Verknüpfung" <| fun () ->
+            let probe = Probe(connected)
+            let ruleRef, orderRef, plainRef = uniqueRef "regel", uniqueRef "bestellung", uniqueRef "nichts"
+            let groceries = Guid.NewGuid()
+            let electronics = Guid.NewGuid()
+            let orderId = "302-1234567-7654321"
+            probe.Rules <- [ ruleFor "Rewe" groceries ]
+            probe.YnabAnswer <- Some [ ynabTransaction $"Amazon {orderId}" -99m (Some (electronics, "Elektronik")) ]
+            probe.FetchAnswer <-
+                Ok [ bankTransaction ruleRef "Rewe Markt" "Einkauf"
+                     bankTransaction orderRef "AMAZON" $"Bestellung {orderId}"
+                     bankTransaction plainRef "Kiosk" "Zeitung" ]
+            let result = startSyncWith (probe.Build()) |> run
+            Expect.equal
+                (Booking.counts result)
+                { emptyFetchCounts with NewEntries = 3; ByRule = 1; ByOrderId = 1; WithoutCategory = 1 }
+                "3 neu, 1 per Regel, 1 aus Bestellnummer, 1 ohne Kategorie"
+            Expect.equal probe.Pushes.Count 1 "ein Push"
+            Expect.equal
+                (Booking.pushedImportIds probe |> List.sort)
+                ([ ruleRef; orderRef; plainRef ] |> List.map Booking.importIdOf |> List.sort)
+                "mit den drei Buchungen"
+            let ruleEntry = Booking.entryOf ruleRef |> Option.get
+            let orderEntry = Booking.entryOf orderRef |> Option.get
+            let plainEntry = Booking.entryOf plainRef |> Option.get
+            Expect.equal (Booking.typesOf ruleEntry) [ "EntryImportedFromComdirect"; "EntryCategorizedByRule"; "EntryLinkedToYnab" ] "Regel"
+            Expect.equal (Booking.typesOf orderEntry) [ "EntryImportedFromComdirect"; "EntryRecategorized"; "EntryLinkedToYnab" ] "Bestellnummer"
+            Expect.equal ((Booking.eventsOf orderEntry).[1].Actor) (Ledger.Events.OrderIdMatch orderId) "Actor des Order-ID-Abgleichs"
+            Expect.equal (Booking.typesOf plainEntry) [ "EntryImportedFromComdirect"; "EntryLinkedToYnab" ] "ohne Kategorie"
+            match (Booking.eventsOf plainEntry).Head.Body with
+            | Ledger.Events.EntryImportedFromComdirect p ->
+                Expect.isFalse p.Approved "zu prüfen"
+                Expect.equal p.Cleared Ledger.Events.Uncleared "offen"
+            | other -> failtestf "Entstehung erwartet: %A" other
+
+        // categorization-hz6vj: eine nicht lesbare Kategorie-Id in der YNAB-Historie brach den ganzen Abruf ab
+        // (Regressionstest auf der reinen Ebene in OrderIdMatcherTests).
+        testCase "eine Kategorie-Id ohne Guid in der YNAB-Historie: der Abruf bucht, die Buchung bekommt keinen Vorschlag" <| fun () ->
+            let probe = Probe(connected)
+            let reference = uniqueRef "kaputte-historie"
+            let orderId = "302-7654321-1234567"
+            probe.YnabAnswer <-
+                Some [ { ynabTransaction $"Amazon {orderId}" -99m None with CategoryId = Some "keine-guid"; CategoryName = Some "Elektronik" } ]
+            probe.FetchAnswer <- Ok [ bankTransaction reference "AMAZON" $"Bestellung {orderId}" ]
+            let counts = startSyncWith (probe.Build()) |> run |> Booking.counts
+            Expect.equal counts { emptyFetchCounts with NewEntries = 1; WithoutCategory = 1 } "gebucht, ohne Vorschlag"
+            let entryId = Booking.entryOf reference |> Option.get
+            Expect.equal (Booking.typesOf entryId) [ "EntryImportedFromComdirect"; "EntryLinkedToYnab" ] "keine Kategorisierung"
+
+        testCase "eine in YNAB gefundene Reference ist ein sicheres Duplikat: keine Buchung, kein Push" <| fun () ->
+            let probe = Probe(connected)
+            let reference = uniqueRef "doppelt"
+            probe.FetchAnswer <- Ok [ bankTransaction reference "Markt" "Karte" ]
+            probe.YnabAnswer <- Some [ ynabTransaction $"Karte, Ref: {reference}" -12.34m None ]
+            let counts = startSyncWith (probe.Build()) |> run |> Booking.counts
+            Expect.equal counts { emptyFetchCounts with SafeDuplicatesSkipped = 1 } "1 sicheres Duplikat"
+            Expect.isNone (Booking.entryOf reference) "keine Buchung"
+            Expect.isEmpty probe.Pushes "kein Push"
+
+        testCase "ein unsicheres Duplikat wartet im Kassenbuch mit Grund, Treffer und Schnappschuss und geht nicht nach YNAB" <| fun () ->
+            let probe = Probe(connected)
+            let reference, other = uniqueRef "fuzzy", uniqueRef "normal"
+            let matchYnabId = $"ynab-{Guid.NewGuid()}"
+            // Der Treffer steht schon im Kassenbuch, über die `ynab`-Verknüpfung auffindbar.
+            let matchEntry =
+                Booking.seedImported probe.LedgerAccount (uniqueRef "treffer") (fun id ->
+                    [ Booking.ev id Ledger.Events.ComdirectImport (Ledger.Events.EntryLinkedToYnab { YnabTransactionId = matchYnabId }) ])
+            let matched =
+                { ynabTransaction "Wocheneinkauf" -12.34m (Some (Guid.NewGuid(), "Lebensmittel")) with
+                    Id = matchYnabId
+                    Date = DateTime(2026, 10, 29)
+                    Payee = Some "Markt" }
+            probe.YnabAnswer <- Some [ matched ]
+            probe.FetchAnswer <- Ok [ bankTransaction reference "Markt" "Karte"; { bankTransaction other "Kiosk" "Zeitung" with Amount = { Amount = -3m; Currency = "EUR" } } ]
+            let counts = startSyncWith (probe.Build()) |> run |> Booking.counts
+            Expect.equal counts { emptyFetchCounts with NewEntries = 2; WithoutCategory = 2; Held = 1 } "1 wartend"
+            let held = Booking.entryOf reference |> Option.get
+            Expect.equal (Booking.typesOf held) [ "EntryImportedFromComdirect"; "EntryHeldAsPossibleDuplicate" ] "wartet statt Push"
+            let heldEvent = Booking.eventsOf held |> List.last
+            Expect.equal heldEvent.Actor Ledger.Events.ComdirectImport "Actor des Imports"
+            match heldEvent.Body with
+            | Ledger.Events.EntryHeldAsPossibleDuplicate p ->
+                Expect.stringContains p.Reason "29.10.2026" "der Grund nennt den Treffer"
+                Expect.equal p.MatchYnabTransactionId matchYnabId "YNAB-Id des Treffers"
+                Expect.equal p.MatchEntryId (Some matchEntry) "Buchung des Treffers im Kassenbuch"
+                Expect.equal
+                    p.Match
+                    { Date = DateTime(2026, 10, 29); Amount = { Amount = -12.34m; Currency = "EUR" }; Payee = Some "Markt"; CategoryName = Some "Lebensmittel" }
+                    "Schnappschuss"
+            | body -> failtestf "EntryHeldAsPossibleDuplicate erwartet: %A" body
+            Expect.equal (Booking.pushedImportIds probe) [ Booking.importIdOf other ] "nur die andere Buchung geht nach YNAB"
+
+        testCase "scheitert der Push, bleiben die Buchungen mit je einem Fehlschlag und stehen unter Buchung nicht in YNAB" <| fun () ->
+            let probe = Probe(connected)
+            let reference = uniqueRef "pushfehler"
+            probe.FetchAnswer <- Ok [ bankTransaction reference "Markt" "Karte" ]
+            probe.PushAnswer <- Some (fun _ -> Error (YnabError.NetworkError "Timeout"))
+            let counts = startSyncWith (probe.Build()) |> run |> Booking.counts
+            Expect.equal counts { emptyFetchCounts with NewEntries = 1; WithoutCategory = 1; NotInYnab = 1 } "1 nicht in YNAB"
+            let entryId = Booking.entryOf reference |> Option.get
+            Expect.equal (Booking.typesOf entryId) [ "EntryImportedFromComdirect"; "EntryPushToYnabFailed" ] "Fehlschlag festgehalten"
+            let notInYnab = Ledger.QueryHandlers.getEntriesNotInYnab () |> run
+            Expect.isTrue (notInYnab |> List.exists (fun e -> Ledger.Events.EntryId e.EntryId = entryId)) "Zu-tun-Eintrag 5 zeigt sie"
+
+        testCase "ohne YNAB-Abgleich wird nichts gebucht, die Sitzung scheitert mit der Meldung" <| fun () ->
+            let probe = Probe(connected)
+            let reference = uniqueRef "ohne-ynab"
+            probe.FetchAnswer <- Ok [ bankTransaction reference "Markt" "Karte" ]
+            probe.YnabAnswer <- None
+            match startSyncWith (probe.Build()) |> run with
+            | Error (SyncError.YnabImportFailed (_, message)) ->
+                Expect.equal message "YNAB ist nicht erreichbar, es wurde nichts gebucht." "Meldung aus ADR 0093 Punkt 8"
+            | other -> failtestf "YnabImportFailed erwartet: %A" other
+            Expect.isNone (Booking.entryOf reference) "kein Ereignis"
+            Expect.isEmpty probe.Pushes "kein Push"
+            Expect.equal probe.Sessions.Status (Some (Failed ynabUnavailableMessage)) "Sitzung gescheitert"
+
+        testCase "scheitert eine Kassenbuch-Invariante beim Schreiben, endet die Sitzung gescheitert statt im Buchen" <| fun () ->
+            let probe = Probe(connected)
+            probe.Book <- fun now push trigger account candidates -> async {
+                let! real = Ledger.CommandHandlers.pushComdirectImports now push trigger account candidates
+                return
+                    { real with
+                        Outcomes = real.Outcomes |> Map.map (fun _ _ -> Ledger.CommandHandlers.LedgerWriteFailed "Kategorie und Splits schließen sich aus") } }
+            match startSyncWith (probe.Build()) |> run with
+            | Error (SyncError.YnabImportFailed (1, message)) -> Expect.stringContains message "Kategorie und Splits" "die Meldung des Kassenbuchs"
+            | other -> failtestf "YnabImportFailed erwartet: %A" other
+            match probe.Sessions.Status with
+            | Some (Failed message) -> Expect.stringContains message "Kassenbuch" "sichtbar gescheitert"
+            | other -> failtestf "Failed erwartet, nie ImportingToYnab: %A" other
+            Expect.equal (probe.Sessions.Changed |> Seq.last |> fun s -> s.Status |> function Failed _ -> true | _ -> false) true "gespeichert"
+
+        // infrastructure-p747v: `DateTime.Today` lieferte im UTC-Container den Vortag, die Buchung von heute blieb als
+        // Zukunft liegen. Vorher in YnabClientTests (`prepareForImport`), seit banking-import-d0fey trägt der Abruf
+        // den Berliner Tag aus `Today` bis ins Vorbereiten.
+        testCase "eine Buchung vom Berliner Tag wird gebucht, auch wenn die Uhr in UTC noch den Vortag zeigt" <| fun () ->
+            let probe = Probe(connected)
+            let reference = uniqueRef "heute"
+            probe.FetchAnswer <- Ok [ { bankTransaction reference "Markt" "Karte" with BookingDate = DateTime(2026, 11, 2) } ]
+            let ports =
+                { probe.Build() with
+                    Clock = fun () -> DateTime(2026, 11, 1, 23, 30, 0, DateTimeKind.Utc)
+                    Today = fun () -> DateTime(2026, 11, 2) }
+            let counts = startSyncWith ports |> run |> Booking.counts
+            Expect.equal counts.NewEntries 1 "gebucht"
+            Expect.equal (Booking.pushedImportIds probe) [ Booking.importIdOf reference ] "gesendet"
+    ]
+
+[<Tests>]
+let repeatedFetchTests =
+    let testCase name body =
+        testCase name (fun () ->
+            Ledger.Persistence.initializeLedgerSchema ()
+            body ())
+    // ADR 0093 Punkt 7: dieselbe Reference kommt bei jedem Abruf im Zeitraum wieder.
+    testList "Wiederholter Abruf: Abgleich mit dem Kassenbuch über die import_id" [
+
+        testCase "wartend und verworfen: kein Ereignis, kein Push" <| fun () ->
+            let probe = Probe(connected)
+            let heldRef, discardedRef = uniqueRef "wartend", uniqueRef "verworfen"
+            let heldPayload : Ledger.Events.EntryHeldAsPossibleDuplicatePayload =
+                { Reason = "ähnlich"; MatchYnabTransactionId = "ynab-t"; MatchEntryId = None
+                  Match = { Date = DateTime(2026, 10, 29); Amount = { Amount = -12.34m; Currency = "EUR" }; Payee = Some "Markt"; CategoryName = None } }
+            let held =
+                Booking.seedImported probe.LedgerAccount heldRef (fun id ->
+                    [ Booking.ev id Ledger.Events.ComdirectImport (Ledger.Events.EntryHeldAsPossibleDuplicate heldPayload) ])
+            // Verworfen gilt wie gelöscht, ohne je verknüpft gewesen zu sein (das Ereignis dafür kommt mit
+            // ledger-r7h2w, hier direkt im Testaufbau).
+            let discarded =
+                Booking.seedImported probe.LedgerAccount discardedRef (fun id ->
+                    [ Booking.ev id Ledger.Events.UserInBb (Ledger.Events.EntryDiscardedInBb { YnabTransactionId = "nie-in-ynab" }) ])
+            let before = Booking.typesOf held, Booking.typesOf discarded
+            probe.FetchAnswer <- Ok [ bankTransaction heldRef "Markt" "Karte"; bankTransaction discardedRef "Markt" "Karte" ]
+            let counts = startSyncWith (probe.Build()) |> run |> Booking.counts
+            Expect.equal counts emptyFetchCounts "nichts Neues"
+            Expect.equal (Booking.typesOf held, Booking.typesOf discarded) before "kein Ereignis"
+            Expect.isEmpty probe.Pushes "kein Push"
+
+        testCase "verknüpft: schon importiert, nicht erneut gesendet" <| fun () ->
+            let probe = Probe(connected)
+            let reference = uniqueRef "verknuepft"
+            let linked =
+                Booking.seedImported probe.LedgerAccount reference (fun id ->
+                    [ Booking.ev id Ledger.Events.ComdirectImport (Ledger.Events.EntryLinkedToYnab { YnabTransactionId = $"ynab-{reference}" }) ])
+            probe.FetchAnswer <- Ok [ bankTransaction reference "Markt" "Karte" ]
+            let counts = startSyncWith (probe.Build()) |> run |> Booking.counts
+            Expect.equal counts emptyFetchCounts "nichts Neues"
+            Expect.equal (Booking.typesOf linked) [ "EntryImportedFromComdirect"; "EntryLinkedToYnab" ] "kein Ereignis"
+            Expect.isEmpty probe.Pushes "kein Push"
+
+        testCase "unverknüpft nach gescheitertem Push: erneut gesendet, dieselbe Buchung wird verknüpft" <| fun () ->
+            let probe = Probe(connected)
+            let reference = uniqueRef "erneut"
+            let failed =
+                Booking.seedImported probe.LedgerAccount reference (fun id ->
+                    [ Booking.ev id Ledger.Events.ComdirectImport (Ledger.Events.EntryPushToYnabFailed { Reason = "Timeout" }) ])
+            probe.FetchAnswer <- Ok [ bankTransaction reference "Markt" "Karte" ]
+            let counts = startSyncWith (probe.Build()) |> run |> Booking.counts
+            Expect.equal counts emptyFetchCounts "keine neue Buchung"
+            Expect.equal (Booking.pushedImportIds probe) [ Booking.importIdOf reference ] "erneut gesendet"
+            Expect.equal (Booking.entryOf reference) (Some failed) "keine Reference entsteht zweimal"
+            Expect.equal (Booking.typesOf failed) [ "EntryImportedFromComdirect"; "EntryPushToYnabFailed"; "EntryLinkedToYnab" ] "verknüpft"
     ]

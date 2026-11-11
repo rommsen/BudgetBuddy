@@ -1,0 +1,191 @@
+module Tests.FetchSheetTests
+
+// Das Sheet „Abrufen“ (banking-import-d0fey, ADR 0093): der Ergebnissatz als reine Funktion, die Zustände
+// durch das echte `update` mit Ports als Funktionswerten (Doktrin Punkt 1). Die Reihenfolgen von Start,
+// Lesen, TAN und Abbruch zählt SyncStartOrderTests auf.
+
+open Expecto
+open Shared.Domain
+open Types
+open Components.Fetch.Types
+open Components.Fetch.State
+
+let private sessionWith (id: string) (status: SyncSessionStatus) (counts: FetchCounts) : SyncSession =
+    { Id = SyncSessionId (System.Guid.Parse id)
+      StartedAt = System.DateTime(2026, 11, 11)
+      CompletedAt = None
+      Status = status
+      Trigger = Manual
+      Counts = counts }
+
+let private before = sessionWith "00000000-0000-4000-8000-0000000000b1" Completed emptyFetchCounts
+let private booked = sessionWith "00000000-0000-4000-8000-0000000000b2" Completed { emptyFetchCounts with NewEntries = 2; WithoutCategory = 2 }
+let private waitingTan = sessionWith "00000000-0000-4000-8000-0000000000b2" AwaitingTan emptyFetchCounts
+
+let private never<'T> : Async<'T> = Async.FromContinuations(fun _ -> ())
+
+type private Calls = { mutable Reads: int; mutable Starts: int; mutable Confirms: int; mutable Cancels: int }
+
+let private portsWith (calls: Calls) : FetchPorts =
+    { GetCurrentSession = fun () -> calls.Reads <- calls.Reads + 1; never
+      StartSync = fun () -> calls.Starts <- calls.Starts + 1; never
+      ConfirmTan = fun _ -> calls.Confirms <- calls.Confirms + 1; never
+      CancelSync = fun _ -> calls.Cancels <- calls.Cancels + 1; never }
+
+let private newCalls () = { Reads = 0; Starts = 0; Confirms = 0; Cancels = 0 }
+
+/// Schickt Nachrichten nacheinander durch `updateWith` und liefert Modell und letzte äußere Nachricht.
+let private steps (calls: Calls) (model: Model) (messages: Msg list) : Model * ExternalMsg =
+    messages
+    |> List.fold (fun (m, _) msg -> let m', _, ext = updateWith (portsWith calls) msg m in m', ext) (model, NoOp)
+
+/// „Abrufen“ ohne laufende Sitzung: Lesen, Antwort, Start.
+let private startedFrom (calls: Calls) (server: SyncSession option) : Model =
+    let opened, _ = steps calls init [ Opened ]
+    let model, _ = steps calls opened [ SessionReadAnswered (opened.SessionReadVersion, Ok server) ]
+    model
+
+[<Tests>]
+let resultTests =
+    testList "Abrufen: der Ergebnissatz" [
+
+        testCase "der Kopf nennt die neuen Buchungen in Einzahl und Mehrzahl, ohne neue Nichts Neues" <| fun () ->
+            Expect.equal (resultTitle emptyFetchCounts) "Nichts Neues" "0"
+            Expect.equal (resultTitle { emptyFetchCounts with NewEntries = 1 }) "1 neue Buchung" "Einzahl"
+            Expect.equal (resultTitle { emptyFetchCounts with NewEntries = 6 }) "6 neue Buchungen" "Mehrzahl"
+
+        testCase "ohne neue Buchung steht der Satz des Prototyps da" <| fun () ->
+            Expect.equal (resultSentence emptyFetchCounts) "Seit dem letzten Abruf gibt es keine neuen Umsätze." "nichts"
+            Expect.equal
+                (resultSentence { emptyFetchCounts with SafeDuplicatesSkipped = 4 })
+                "Seit dem letzten Abruf gibt es keine neuen Umsätze."
+                "sichere Duplikate allein sind nichts Neues"
+
+        testCase "der Satz des Prototyps mit Regel, ohne Kategorie, sicheren Duplikaten und einem unsicheren" <| fun () ->
+            Expect.equal
+                (resultSentence { emptyFetchCounts with NewEntries = 6; ByRule = 2; WithoutCategory = 3; SafeDuplicatesSkipped = 2; Held = 1 })
+                "2 per Regel kategorisiert, 3 ohne Kategorie. 2 sichere Duplikate übersprungen, 1 unsicheres wartet auf dich und geht erst danach nach YNAB."
+                "Prototyp"
+
+        for name, counts, expected in
+            [ "nur per Regel", { emptyFetchCounts with NewEntries = 3; ByRule = 3 }, "3 per Regel kategorisiert."
+              "nur ohne Kategorie", { emptyFetchCounts with NewEntries = 1; WithoutCategory = 1 }, "1 ohne Kategorie."
+              "aus Bestellnummer", { emptyFetchCounts with NewEntries = 2; ByRule = 1; ByOrderId = 1 }, "1 per Regel kategorisiert, 1 aus Bestellnummer."
+              "ein sicheres Duplikat", { emptyFetchCounts with NewEntries = 1; ByRule = 1; SafeDuplicatesSkipped = 1 }, "1 per Regel kategorisiert. 1 sicheres Duplikat übersprungen."
+              "zwei unsichere", { emptyFetchCounts with NewEntries = 2; WithoutCategory = 2; Held = 2 }, "2 ohne Kategorie. 2 unsichere warten auf dich und gehen erst danach nach YNAB."
+              "nur unsichere ohne sichere", { emptyFetchCounts with NewEntries = 1; WithoutCategory = 1; Held = 1 }, "1 ohne Kategorie. 1 unsicheres wartet auf dich und geht erst danach nach YNAB."
+              "nicht in YNAB", { emptyFetchCounts with NewEntries = 2; ByRule = 2; NotInYnab = 2 }, "2 per Regel kategorisiert. 2 noch nicht in YNAB, sie stehen unter Zu tun."
+              "ohne nicht in YNAB", { emptyFetchCounts with NewEntries = 2; ByRule = 2 }, "2 per Regel kategorisiert." ] do
+            testCase $"Teile mit 0 entfallen ({name})" <| fun () ->
+                Expect.equal (resultSentence counts) expected name
+
+        testCase "der Erklärsatz unter der TAN nennt die Tage des Abrufs" <| fun () ->
+            Expect.equal
+                (tanExplanation 30)
+                "Danach ruft BB die Umsätze der letzten 30 Tage ab und gleicht sie mit dem Kassenbuch ab."
+                "Tage aus den Einstellungen"
+    ]
+
+[<Tests>]
+let stateTests =
+    testList "Abrufen: Zustände durch das echte update" [
+
+        testCase "Abrufen öffnet das Sheet und liest zuerst die Sitzung, gestartet wird erst danach" <| fun () ->
+            let calls = newCalls ()
+            let opened, _ = steps calls init [ Opened ]
+            Expect.isTrue opened.IsOpen "offen"
+            Expect.equal (sheetScreen opened) RunningScreen "Rufe ab…"
+            Expect.equal (calls.Reads, calls.Starts) (1, 0) "erst lesen"
+            let _ = startedFrom calls (Some before)
+            Expect.equal calls.Starts 1 "dann starten"
+
+        testCase "eine wartende TAN wird gezeigt, nicht neu gestartet" <| fun () ->
+            let calls = newCalls ()
+            let model = startedFrom calls (Some waitingTan)
+            Expect.equal (sheetScreen model) TanScreen "TAN"
+            Expect.equal calls.Starts 0 "kein zweiter Start"
+
+        testCase "Start mit TanRequired zeigt die TAN" <| fun () ->
+            let calls = newCalls ()
+            let model, ext = steps calls (startedFrom calls None) [ SyncStarted (Ok (TanRequired waitingTan)) ]
+            Expect.equal (sheetScreen model) TanScreen "TAN"
+            Expect.equal ext NoOp "noch kein Ergebnis"
+
+        testCase "Start mit Ergebnis zeigt die Zahlen und lässt den Root nachladen" <| fun () ->
+            let calls = newCalls ()
+            let model, ext = steps calls (startedFrom calls None) [ SyncStarted (Ok (Fetched booked)) ]
+            Expect.equal (sheetScreen model) (DoneScreen booked.Counts) "Ergebnis"
+            Expect.equal ext FetchFinished "Zu tun und Zähler laden neu"
+
+        testCase "ein Fehler zeigt die Meldung des Servers" <| fun () ->
+            let calls = newCalls ()
+            let model, ext =
+                steps calls (startedFrom calls None) [ SyncStarted (Error (SyncError.YnabImportFailed (0, "YNAB ist nicht erreichbar, es wurde nichts gebucht."))) ]
+            Expect.equal (sheetScreen model) (ErrorScreen "YNAB ist nicht erreichbar, es wurde nichts gebucht.") "Meldung"
+            Expect.equal ext FetchFinished "die Sync-Historie hat einen Eintrag mehr"
+
+        testCase "verlorene Antwort: die beendete neue Sitzung ist das Ergebnis" <| fun () ->
+            let calls = newCalls ()
+            let lost, _ = steps calls (startedFrom calls (Some before)) [ SyncStartInterrupted "Http error (0)" ]
+            Expect.equal calls.Reads 2 "nachgelesen"
+            let model, ext = steps calls lost [ SessionReadAnswered (lost.SessionReadVersion, Ok (Some booked)) ]
+            Expect.equal (sheetScreen model) (DoneScreen booked.Counts) "Ergebnis gelesen"
+            Expect.equal ext FetchFinished "nachladen"
+
+        testCase "verlorene Antwort: die alte Sitzung ist kein Ergebnis, das Sheet meldet den Abbruch" <| fun () ->
+            let calls = newCalls ()
+            let lost, _ = steps calls (startedFrom calls (Some before)) [ SyncStartInterrupted "Http error (0)" ]
+            let model, _ = steps calls lost [ SessionReadAnswered (lost.SessionReadVersion, Ok (Some before)) ]
+            Expect.equal (sheetScreen model) (ErrorScreen (interruptedStartMessage "Http error (0)")) "Abbruch"
+            Expect.equal calls.Starts 1 "nie neu gestartet"
+
+        testCase "verlorene Antwort: solange der Server abruft, wird weiter gelesen, nach der Frist endet es" <| fun () ->
+            let calls = newCalls ()
+            let lost, _ = steps calls (startedFrom calls (Some before)) [ SyncStartInterrupted "Http error (0)" ]
+            let running = { booked with Status = ImportingToYnab }
+            let waiting, _ = steps calls lost [ SessionReadAnswered (lost.SessionReadVersion, Ok (Some running)) ]
+            Expect.equal (sheetScreen waiting) RunningScreen "läuft noch"
+            Expect.equal (waiting.InterruptedStart |> Option.map (fun r -> r.ReadsLeft)) (Some (interruptedStartReadLimit - 1)) "nächstes Lesen geplant"
+            let exhausted = { waiting with InterruptedStart = waiting.InterruptedStart |> Option.map (fun r -> { r with ReadsLeft = 0; ReadPlanned = false }) }
+            let model, _ = steps calls exhausted [ SessionReadAnswered (exhausted.SessionReadVersion, Ok (Some running)) ]
+            Expect.equal (sheetScreen model) (ErrorScreen (interruptedStartTimeoutMessage "Http error (0)")) "Frist"
+
+        testCase "der Takt beim Nachlesen läuft nach der Pause ab" <| fun () ->
+            let calls = newCalls ()
+            let lost, _ = steps calls (startedFrom calls (Some before)) [ SyncStartInterrupted "Http error (0)" ]
+            let _, cmd, _ = updateWith (portsWith calls) (SessionReadAnswered (lost.SessionReadVersion, Ok (Some { booked with Status = FetchingTransactions }))) lost
+            CmdTiming.expectAfter interruptedStartPollMs (InterruptedStartReadDue (interruptedStartReadLimit - 1)) cmd
+
+        testCase "Ich habe bestätigt: das Sheet zeigt Rufe ab, danach das Ergebnis" <| fun () ->
+            let calls = newCalls ()
+            let tan, _ = steps calls (startedFrom calls None) [ SyncStarted (Ok (TanRequired waitingTan)) ]
+            let confirming, _ = steps calls tan [ ConfirmTan; ConfirmTan ]
+            Expect.equal calls.Confirms 1 "eine Bestätigung, auch bei zwei Tipps"
+            Expect.equal (sheetScreen confirming) RunningScreen "Rufe ab…"
+            let model, ext = steps calls confirming [ TanConfirmed (Ok booked) ]
+            Expect.equal (sheetScreen model) (DoneScreen booked.Counts) "Ergebnis"
+            Expect.equal ext FetchFinished "nachladen"
+
+        testCase "verlorene Antwort der TAN-Bestätigung: wartet die Sitzung noch, zeigt das Sheet die TAN wieder" <| fun () ->
+            let calls = newCalls ()
+            let tan, _ = steps calls (startedFrom calls None) [ SyncStarted (Ok (TanRequired waitingTan)); ConfirmTan ]
+            let lost, _ = steps calls tan [ TanConfirmInterrupted "Http error (0)" ]
+            let model, _ = steps calls lost [ SessionReadAnswered (lost.SessionReadVersion, Ok (Some waitingTan)) ]
+            Expect.equal (sheetScreen model) TanScreen "TAN wieder"
+            let finished, _ = steps calls lost [ SessionReadAnswered (lost.SessionReadVersion, Ok (Some booked)) ]
+            Expect.equal (sheetScreen finished) (DoneScreen booked.Counts) "oder das Ergebnis"
+
+        testCase "Abbrechen schließt das Sheet und bricht die Sitzung ab" <| fun () ->
+            let calls = newCalls ()
+            let tan, _ = steps calls (startedFrom calls None) [ SyncStarted (Ok (TanRequired waitingTan)) ]
+            let model, _ = steps calls tan [ CancelSync ]
+            Expect.isFalse model.IsOpen "zu"
+            Expect.equal calls.Cancels 1 "cancelSync"
+
+        testCase "Jetzt durchgehen schließt das Sheet und öffnet das Kassenbuch" <| fun () ->
+            let calls = newCalls ()
+            let done', _ = steps calls (startedFrom calls None) [ SyncStarted (Ok (Fetched booked)) ]
+            let model, ext = steps calls done' [ ReviewRequested ]
+            Expect.isFalse model.IsOpen "zu"
+            Expect.equal ext OpenReview "ins Kassenbuch"
+    ]

@@ -197,7 +197,7 @@ module private Fixtures =
         RawPayee = Some "dm"
         Memo = None
         ReviewSteps = []
-        ExistingEntryImportId = None
+        Hold = None
     }
 
     let pushResult (result: YnabResult<TransactionCreateResult>) (_: PreparedTransaction list) =

@@ -50,6 +50,7 @@ let private view (payee: string option) (categoryId: Guid option) : LedgerEntryV
     PushToYnabFailure = None
     SplitLocks = None
     ExternalLinks = []
+    PossibleDuplicate = None
 }
 
 let private split : TransactionSplit =
@@ -92,6 +93,7 @@ let private storedEntry : Entry = {
     LinkedToYnab = false
     PushToYnabFailure = None
     PayeeBeforeTransfer = None
+    PossibleDuplicate = None
 }
 
 [<Tests>]

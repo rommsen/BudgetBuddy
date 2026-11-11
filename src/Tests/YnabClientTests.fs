@@ -655,13 +655,10 @@ let transactionConversionTests =
                 MatchedRuleId = None
                 PayeeOverride = None
                 ExternalLinks = []
-                UserNotes = None
                 DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF123")
-                YnabImportStatus = NotAttempted
                 Splits = None
                 SuggestedByOrderId = None
                 ReviewSteps = []
-                AskLena = false
             }
 
             // Läuft über `prepareTransactions`, den echten Weg von `importToYnab` und
@@ -703,13 +700,10 @@ let transactionConversionTests =
                 MatchedRuleId = None
                 PayeeOverride = Some "Custom Payee"
                 ExternalLinks = []
-                UserNotes = None
                 DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF456")
-                YnabImportStatus = NotAttempted
                 Splits = None
                 SuggestedByOrderId = None
                 ReviewSteps = []
-                AskLena = false
             }
 
             let payeeName =
@@ -754,13 +748,10 @@ let transactionConversionTests =
                     MatchedRuleId = None
                     PayeeOverride = None
                     ExternalLinks = []
-                    UserNotes = None
                     DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF1")
-                    YnabImportStatus = NotAttempted
                     Splits = None
                     SuggestedByOrderId = None
                     ReviewSteps = []
-                    AskLena = false
                 }
             ]
 
@@ -790,13 +781,10 @@ let transactionConversionTests =
                     MatchedRuleId = None
                     PayeeOverride = None
                     ExternalLinks = []
-                    UserNotes = None
                     DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF2")
-                    YnabImportStatus = NotAttempted
                     Splits = None
                     SuggestedByOrderId = None
                     ReviewSteps = []
-                    AskLena = false
                 }
             ]
 
@@ -826,13 +814,10 @@ let transactionConversionTests =
                 MatchedRuleId = None
                 PayeeOverride = None
                 ExternalLinks = []
-                UserNotes = None
                 DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF-TODAY")
-                YnabImportStatus = NotAttempted
                 Splits = None
                 SuggestedByOrderId = None
                 ReviewSteps = []
-                AskLena = false
             }
 
             let isFuture = tx.Transaction.BookingDate.Date > today
@@ -1330,13 +1315,10 @@ module private PrepareFixtures =
         MatchedRuleId = None
         PayeeOverride = None
         ExternalLinks = []
-        UserNotes = None
         DuplicateStatus = NotDuplicate (emptyDetectionDetails id)
-        YnabImportStatus = NotAttempted
         Splits = None
         SuggestedByOrderId = None
         ReviewSteps = []
-        AskLena = false
     }
 
 [<Tests>]
@@ -1346,31 +1328,6 @@ let accountTransactionsQueryTests =
             // Bug infrastructure-p747v: das Fenster begann bei `DateTime.Today`, der Serverzeit.
             Expect.equal (Server.YnabClient.accountTransactionsQuery (DateTime(2026, 11, 2)) 90) "?since_date=2026-08-04"
                 "90 Tage vor dem Berliner Tag"
-    ]
-
-[<Tests>]
-let prepareForImportTests =
-    let berlin = TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin"
-    // 2026-11-02 00:30 Uhr in Berlin, in UTC noch der 1. November.
-    let utcNow = DateTime(2026, 11, 1, 23, 30, 0, DateTimeKind.Utc)
-
-    testList "Server.Api.prepareForImport (Berliner Kalendertag)" [
-        // Bug infrastructure-p747v: `DateTime.Today` lieferte im UTC-Container den Vortag,
-        // die Buchung von heute blieb als Zukunft liegen.
-        testCase "eine Buchung vom Berliner Tag wird gesendet, auch wenn UTC noch im Vortag liegt" <| fun () ->
-            let tx = PrepareFixtures.makeTx "tx-heute" AutoCategorized (DateTime(2026, 11, 2))
-            let result =
-                Server.Api.prepareForImport berlin utcNow PrepareFixtures.accountId Map.empty false [ tx ]
-            Expect.equal (result.ToSend |> List.map (fun p -> p.TransactionId)) [ tx.Transaction.Id ] "wird gesendet"
-            Expect.isEmpty result.FutureDatedTransactionIds "keine Zukunft"
-
-        testCase "eine Buchung nach dem Berliner Tag bleibt Zukunft, auch beim erzwungenen Import" <| fun () ->
-            let tx = PrepareFixtures.makeTx "tx-morgen" AutoCategorized (DateTime(2026, 11, 3))
-            for forceNewImportId in [ false; true ] do
-                let result =
-                    Server.Api.prepareForImport berlin utcNow PrepareFixtures.accountId Map.empty forceNewImportId [ tx ]
-                Expect.isEmpty result.ToSend "nicht senden"
-                Expect.equal result.FutureDatedTransactionIds [ tx.Transaction.Id ] "als Zukunft übersprungen"
     ]
 
 [<Tests>]

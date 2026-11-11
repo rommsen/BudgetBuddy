@@ -55,17 +55,11 @@
     <Compile Include="Components/Settings/View.fs" />
 
     <!-- Component: SyncFlow -->
-    <Compile Include="Components/SyncFlow/Types.fs" />
-    <Compile Include="Components/SyncFlow/State.fs" />
-    <Compile Include="Components/SyncFlow/Views/StatusViews.fs" />
-    <Compile Include="Components/SyncFlow/Views/InlineRuleForm.fs" />
-    <Compile Include="Components/SyncFlow/Views/ViewHelpers.fs" />
-    <Compile Include="Components/SyncFlow/Views/TransactionRow.fs" />
-    <Compile Include="Components/SyncFlow/Views/TransactionList.fs" />
-    <Compile Include="Components/SyncFlow/Views/SplitSheet.fs" />
-    <Compile Include="Components/SyncFlow/View.fs" />
 
     <!-- Component: Rules -->
+    <Compile Include="Components/Fetch/Types.fs" />
+    <Compile Include="Components/Fetch/State.fs" />
+    <Compile Include="Components/Fetch/View.fs" />
     <Compile Include="Components/Rules/Types.fs" />
     <Compile Include="Components/Rules/State.fs" />
     <Compile Include="Components/Rules/View.fs" />

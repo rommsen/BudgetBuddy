@@ -305,6 +305,24 @@ let initializeDatabase () =
     with :? SqliteException as ex when ex.Message.Contains("duplicate column name") ->
         ()
 
+    // banking-import-d0fey (ADR 0093 Punkt 10): Auslöser und Zahlen des Abrufs mit Buchen.
+    // Bestandszeilen bekommen 0 und keinen Auslöser (gelesen als `Manual`).
+    for statement in [
+        "ALTER TABLE sync_sessions ADD COLUMN triggered_by TEXT"
+        "ALTER TABLE sync_sessions ADD COLUMN new_count INTEGER NOT NULL DEFAULT 0"
+        "ALTER TABLE sync_sessions ADD COLUMN by_rule_count INTEGER NOT NULL DEFAULT 0"
+        "ALTER TABLE sync_sessions ADD COLUMN by_order_id_count INTEGER NOT NULL DEFAULT 0"
+        "ALTER TABLE sync_sessions ADD COLUMN without_category_count INTEGER NOT NULL DEFAULT 0"
+        "ALTER TABLE sync_sessions ADD COLUMN safe_duplicate_count INTEGER NOT NULL DEFAULT 0"
+        "ALTER TABLE sync_sessions ADD COLUMN held_count INTEGER NOT NULL DEFAULT 0"
+        "ALTER TABLE sync_sessions ADD COLUMN not_in_ynab_count INTEGER NOT NULL DEFAULT 0"
+    ] do
+        try
+            use cmdMigrate = new SqliteCommand(statement, conn)
+            cmdMigrate.ExecuteNonQuery() |> ignore
+        with :? SqliteException as ex when ex.Message.Contains("duplicate column name") ->
+            ()
+
 // ============================================
 // Rules Persistence
 // ============================================
@@ -591,22 +609,28 @@ module Settings =
 // ============================================
 
 module SyncSessions =
+    /// Eine Zeile in `sync_sessions`. Die Spalten `transaction_count`, `imported_count` und
+    /// `skipped_count` stammen aus der Prüfsitzung und werden seit ADR 0093 nicht mehr geschrieben.
     [<CLIMutable>]
     type SyncSessionRow = {
         id: string
         started_at: string
         completed_at: string option
         status: string
-        transaction_count: int
-        imported_count: int
-        skipped_count: int
+        triggered_by: string option
+        new_count: int64
+        by_rule_count: int64
+        by_order_id_count: int64
+        without_category_count: int64
+        safe_duplicate_count: int64
+        held_count: int64
+        not_in_ynab_count: int64
     }
 
     let private statusToString = function
         | AwaitingBankAuth -> "AwaitingBankAuth"
         | AwaitingTan -> "AwaitingTan"
         | FetchingTransactions -> "FetchingTransactions"
-        | ReviewingTransactions -> "ReviewingTransactions"
         | ImportingToYnab -> "ImportingToYnab"
         | Completed -> "Completed"
         | Failed msg -> $"Failed:{msg}"
@@ -619,10 +643,19 @@ module SyncSessions =
             | "AwaitingBankAuth" -> AwaitingBankAuth
             | "AwaitingTan" -> AwaitingTan
             | "FetchingTransactions" -> FetchingTransactions
-            | "ReviewingTransactions" -> ReviewingTransactions
+            // Eine Prüfsitzung von vor ADR 0093 lebte nur im Speicher, ihr Stand ist vergangen.
+            | "ReviewingTransactions" -> Failed "Prüfsitzung von vor dem Umbau"
             | "ImportingToYnab" -> ImportingToYnab
             | "Completed" -> Completed
-            | _ -> Failed "Unknown status"
+            | other -> failwith $"Unbekannter Sitzungsstatus: {other}"
+
+    let private triggerToString = function
+        | Manual -> "Manual"
+
+    let private triggerFromString (s: string option) : SyncTrigger =
+        match s with
+        | None | Some "Manual" -> Manual
+        | Some other -> failwith $"Unbekannter Auslöser: {other}"
 
     let private rowToSession (row: SyncSessionRow) : SyncSession =
         {
@@ -630,49 +663,59 @@ module SyncSessions =
             StartedAt = DateTime.Parse row.started_at
             CompletedAt = row.completed_at |> Option.map DateTime.Parse
             Status = statusFromString row.status
-            TransactionCount = row.transaction_count
-            ImportedCount = row.imported_count
-            SkippedCount = row.skipped_count
+            Trigger = triggerFromString row.triggered_by
+            Counts = {
+                NewEntries = int row.new_count
+                ByRule = int row.by_rule_count
+                ByOrderId = int row.by_order_id_count
+                WithoutCategory = int row.without_category_count
+                SafeDuplicatesSkipped = int row.safe_duplicate_count
+                Held = int row.held_count
+                NotInYnab = int row.not_in_ynab_count
+            }
         }
+
+    let private parameters (session: SyncSession) =
+        let (SyncSessionId sessionId) = session.Id
+        {|
+            id = sessionId.ToString()
+            started_at = session.StartedAt.ToString("O")
+            completed_at = session.CompletedAt |> Option.map (fun d -> d.ToString("O"))
+            status = statusToString session.Status
+            triggered_by = triggerToString session.Trigger
+            new_count = session.Counts.NewEntries
+            by_rule_count = session.Counts.ByRule
+            by_order_id_count = session.Counts.ByOrderId
+            without_category_count = session.Counts.WithoutCategory
+            safe_duplicate_count = session.Counts.SafeDuplicatesSkipped
+            held_count = session.Counts.Held
+            not_in_ynab_count = session.Counts.NotInYnab
+        |}
 
     let createSession (session: SyncSession) : Async<unit> =
         async {
             let conn = getConnection()
-            let (SyncSessionId sessionId) = session.Id
             do! (conn.ExecuteAsync(
                 """INSERT INTO sync_sessions
-                   (id, started_at, completed_at, status, transaction_count, imported_count, skipped_count)
-                   VALUES (@id, @started_at, @completed_at, @status, @transaction_count, @imported_count, @skipped_count)""",
-                {|
-                    id = sessionId.ToString()
-                    started_at = session.StartedAt.ToString("O")
-                    completed_at = session.CompletedAt |> Option.map (fun d -> d.ToString("O"))
-                    status = statusToString session.Status
-                    transaction_count = session.TransactionCount
-                    imported_count = session.ImportedCount
-                    skipped_count = session.SkippedCount
-                |}
+                   (id, started_at, completed_at, status, triggered_by, new_count, by_rule_count, by_order_id_count,
+                    without_category_count, safe_duplicate_count, held_count, not_in_ynab_count)
+                   VALUES (@id, @started_at, @completed_at, @status, @triggered_by, @new_count, @by_rule_count, @by_order_id_count,
+                    @without_category_count, @safe_duplicate_count, @held_count, @not_in_ynab_count)""",
+                parameters session
             ) |> Async.AwaitTask |> Async.Ignore)
         }
 
     let updateSession (session: SyncSession) : Async<unit> =
         async {
             let conn = getConnection()
-            let (SyncSessionId sessionId) = session.Id
             do! (conn.ExecuteAsync(
                 """UPDATE sync_sessions
-                   SET completed_at = @completed_at, status = @status,
-                       transaction_count = @transaction_count, imported_count = @imported_count,
-                       skipped_count = @skipped_count
+                   SET completed_at = @completed_at, status = @status, triggered_by = @triggered_by,
+                       new_count = @new_count, by_rule_count = @by_rule_count, by_order_id_count = @by_order_id_count,
+                       without_category_count = @without_category_count, safe_duplicate_count = @safe_duplicate_count,
+                       held_count = @held_count, not_in_ynab_count = @not_in_ynab_count
                    WHERE id = @id""",
-                {|
-                    id = sessionId.ToString()
-                    completed_at = session.CompletedAt |> Option.map (fun d -> d.ToString("O"))
-                    status = statusToString session.Status
-                    transaction_count = session.TransactionCount
-                    imported_count = session.ImportedCount
-                    skipped_count = session.SkippedCount
-                |}
+                parameters session
             ) |> Async.AwaitTask |> Async.Ignore)
         }
 
@@ -696,268 +739,4 @@ module SyncSessions =
                     {| Id = sessionId.ToString() |}
                 ) |> Async.AwaitTask
             return if isNull (box row) then None else Some (rowToSession row)
-        }
-
-// ============================================
-// Sync Transactions Persistence
-// ============================================
-
-module SyncTransactions =
-
-    /// JSON-Codec für die Review-Spur (categorization-gdrx8). Bewusst eigenständig
-    /// statt eines geteilten Codecs mit `Server.Ledger.Events.Codec`: `categorization`
-    /// ist laut BC-README upstream von `ledger`, ein gemeinsamer Codec würde diese
-    /// Richtung umkehren. Handgeschriebene Encode/Decode-Funktionen statt Auto-Codec,
-    /// damit die gespeicherte Form stabil bleibt (gleiches Muster wie
-    /// `Server.Ledger.Events.Codec`).
-    module private ReviewStepJson =
-        open System.Globalization
-
-        /// ISO-8601-Roundtrip-Text statt `Encode.datetime`/`Decode.datetimeUtc`: das
-        /// Paar verschiebt einen zeitzonenlosen Zeitpunkt um den lokalen Offset. "o"
-        /// plus `RoundtripKind` ist tickgenau (siehe `Server.Ledger.Events.Codec`).
-        let private encodeDate (d: DateTime) =
-            Encode.string (d.ToString("o", CultureInfo.InvariantCulture))
-
-        let private decodeDate : Decoder<DateTime> =
-            Decode.string
-            |> Decode.andThen (fun s ->
-                match DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind) with
-                | true, d -> Decode.succeed d
-                | false, _ -> Decode.fail $"Kein ISO-8601-Zeitpunkt: {s}")
-
-        let private encodeMoney (m: Money) =
-            Encode.object [
-                "amount", Encode.decimal m.Amount
-                "currency", Encode.string m.Currency
-            ]
-
-        let private decodeMoney : Decoder<Money> =
-            Decode.object (fun get -> {
-                Amount = get.Required.Field "amount" Decode.decimal
-                Currency = get.Required.Field "currency" Decode.string
-            })
-
-        let private encodeSplitTarget (t: SplitTarget) =
-            match t with
-            | ToCategory (YnabCategoryId id, name) ->
-                Encode.object [
-                    "kind", Encode.string "category"
-                    "categoryId", Encode.guid id
-                    "categoryName", Encode.string name
-                ]
-            | ToTransfer (YnabAccountId id, name) ->
-                Encode.object [
-                    "kind", Encode.string "transfer"
-                    "accountId", Encode.guid id
-                    "accountName", Encode.string name
-                ]
-            | Uncategorized ->
-                Encode.object [ "kind", Encode.string "uncategorized" ]
-
-        let private decodeSplitTarget : Decoder<SplitTarget> =
-            Decode.field "kind" Decode.string
-            |> Decode.andThen (function
-                | "category" ->
-                    Decode.object (fun get ->
-                        ToCategory (
-                            get.Required.Field "categoryId" Decode.guid |> YnabCategoryId,
-                            get.Required.Field "categoryName" Decode.string))
-                | "transfer" ->
-                    Decode.object (fun get ->
-                        ToTransfer (
-                            get.Required.Field "accountId" Decode.guid |> YnabAccountId,
-                            get.Required.Field "accountName" Decode.string))
-                | "uncategorized" -> Decode.succeed Uncategorized
-                | other -> Decode.fail $"Unbekanntes Split-Ziel: {other}")
-
-        let private encodeSplit (s: TransactionSplit) =
-            Encode.object [
-                "target", encodeSplitTarget s.Target
-                "amount", encodeMoney s.Amount
-                "memo", (match s.Memo with Some m -> Encode.string m | None -> Encode.nil)
-            ]
-
-        let private decodeSplit : Decoder<TransactionSplit> =
-            Decode.object (fun get -> {
-                Target = get.Required.Field "target" decodeSplitTarget
-                Amount = get.Required.Field "amount" decodeMoney
-                Memo = get.Optional.Field "memo" Decode.string
-            })
-
-        let private encodeActor (by: ReviewActor) =
-            match by with
-            | ByRule (RuleId ruleId, ruleName) ->
-                Encode.object [
-                    "kind", Encode.string "rule"
-                    "ruleId", Encode.guid ruleId
-                    "ruleName", Encode.string ruleName
-                ]
-            | ByUser ->
-                Encode.object [ "kind", Encode.string "user" ]
-            | ByOrderIdMatch orderId ->
-                Encode.object [
-                    "kind", Encode.string "orderIdMatch"
-                    "orderId", Encode.string orderId
-                ]
-
-        let private decodeActor : Decoder<ReviewActor> =
-            Decode.field "kind" Decode.string
-            |> Decode.andThen (function
-                | "rule" ->
-                    Decode.object (fun get ->
-                        ByRule (
-                            get.Required.Field "ruleId" Decode.guid |> RuleId,
-                            get.Required.Field "ruleName" Decode.string))
-                | "user" -> Decode.succeed ByUser
-                | "orderIdMatch" ->
-                    Decode.object (fun get ->
-                        ByOrderIdMatch (get.Required.Field "orderId" Decode.string))
-                | other -> Decode.fail $"Unbekannter Review-Actor: {other}")
-
-        let private encodeStep (step: ReviewStep) =
-            Encode.object [
-                "at", encodeDate step.At
-                "by", encodeActor step.By
-                "category",
-                    (match step.Category with
-                     | Some (YnabCategoryId id) -> Encode.guid id
-                     | None -> Encode.nil)
-                "categoryName", (match step.CategoryName with Some n -> Encode.string n | None -> Encode.nil)
-                "splits",
-                    (match step.Splits with
-                     | Some splits -> splits |> List.map encodeSplit |> Encode.list
-                     | None -> Encode.nil)
-                "payeeOverride", (match step.PayeeOverride with Some p -> Encode.string p | None -> Encode.nil)
-            ]
-
-        let private decodeStep : Decoder<ReviewStep> =
-            Decode.object (fun get -> {
-                At = get.Required.Field "at" decodeDate
-                By = get.Required.Field "by" decodeActor
-                Category = get.Optional.Field "category" Decode.guid |> Option.map YnabCategoryId
-                CategoryName = get.Optional.Field "categoryName" Decode.string
-                Splits = get.Optional.Field "splits" (Decode.list decodeSplit)
-                PayeeOverride = get.Optional.Field "payeeOverride" Decode.string
-            })
-
-        /// `[]` serialisiert als `None` (keine Spalte statt eines leeren JSON-Arrays):
-        /// hält bestehende Zeilen ohne Review-Spur von neuen ununterscheidbar.
-        let encode (steps: ReviewStep list) : string option =
-            match steps with
-            | [] -> None
-            | steps -> steps |> List.map encodeStep |> Encode.list |> Encode.toString 0 |> Some
-
-        /// Fehlende Spalte, `NULL` oder nicht lesbares JSON werden als leere Spur
-        /// behandelt statt den ganzen Zeilen-Read scheitern zu lassen: eine vor
-        /// categorization-gdrx8 gespeicherte Sitzung soll weiterhin laden (ADR 0021
-        /// verlangt das nicht explizit, aber ein Restart darf bestehende Sessions
-        /// nicht unlesbar machen).
-        let decode (raw: string option) : ReviewStep list =
-            match raw with
-            | None -> []
-            | Some json ->
-                match Decode.fromString (Decode.list decodeStep) json with
-                | Ok steps -> steps
-                | Error _ -> []
-
-    [<CLIMutable>]
-    type SyncTransactionRow = {
-        id: string
-        session_id: string
-        transaction_id: string
-        booking_date: string
-        amount: float
-        currency: string
-        payee: string option
-        memo: string
-        reference: string
-        status: string
-        category_id: string option
-        category_name: string option
-        matched_rule_id: string option
-        payee_override: string option
-        created_at: string
-        review_steps: string option
-    }
-
-    let saveTransaction (sessionId: SyncSessionId) (tx: SyncTransaction) : Async<unit> =
-        async {
-            let conn = getConnection()
-            let (SyncSessionId sid) = sessionId
-            let (TransactionId txId) = tx.Transaction.Id
-
-            do! (conn.ExecuteAsync(
-                """INSERT OR REPLACE INTO sync_transactions
-                   (id, session_id, transaction_id, booking_date, amount, currency, payee, memo,
-                    reference, status, category_id, category_name, matched_rule_id, payee_override, created_at,
-                    review_steps)
-                   VALUES (@id, @session_id, @transaction_id, @booking_date, @amount, @currency, @payee,
-                           @memo, @reference, @status, @category_id, @category_name, @matched_rule_id,
-                           @payee_override, @created_at, @review_steps)""",
-                {|
-                    id = Guid.NewGuid().ToString()
-                    session_id = sid.ToString()
-                    transaction_id = txId
-                    booking_date = tx.Transaction.BookingDate.ToString("O")
-                    amount = float tx.Transaction.Amount.Amount
-                    currency = tx.Transaction.Amount.Currency
-                    payee = tx.Transaction.Payee
-                    memo = tx.Transaction.Memo
-                    reference = tx.Transaction.Reference
-                    status = tx.Status.ToString()
-                    category_id = tx.CategoryId |> Option.map (fun (YnabCategoryId id) -> id.ToString())
-                    category_name = tx.CategoryName
-                    matched_rule_id = tx.MatchedRuleId |> Option.map (fun (RuleId id) -> id.ToString())
-                    payee_override = tx.PayeeOverride
-                    created_at = DateTime.UtcNow.ToString("O")
-                    review_steps = ReviewStepJson.encode tx.ReviewSteps
-                |}
-            ) |> Async.AwaitTask |> Async.Ignore)
-        }
-
-    let getTransactionsBySession (SyncSessionId sessionId: SyncSessionId) : Async<SyncTransaction list> =
-        async {
-            let conn = getConnection()
-            let! rows =
-                conn.QueryAsync<SyncTransactionRow>(
-                    "SELECT * FROM sync_transactions WHERE session_id = @SessionId ORDER BY booking_date DESC",
-                    {| SessionId = sessionId.ToString() |}
-                ) |> Async.AwaitTask
-
-            // Note: This is a simplified conversion. External links and full status parsing would be added here.
-            return rows |> Seq.toList |> List.map (fun row ->
-                {
-                    Transaction = {
-                        Id = TransactionId row.transaction_id
-                        BookingDate = DateTime.Parse row.booking_date
-                        Amount = { Amount = decimal row.amount; Currency = row.currency }
-                        Payee = row.payee
-                        Memo = row.memo
-                        Reference = row.reference
-                        RawData = ""
-                    }
-                    Status =
-                        match row.status with
-                        | "Pending" -> Pending
-                        | "AutoCategorized" -> AutoCategorized
-                        | "ManualCategorized" -> ManualCategorized
-                        | "NeedsAttention" -> NeedsAttention
-                        | "Skipped" -> Skipped
-                        | "Imported" -> Imported
-                        | _ -> Pending
-                    CategoryId = row.category_id |> Option.map (fun id -> YnabCategoryId (Guid.Parse id))
-                    CategoryName = row.category_name
-                    MatchedRuleId = row.matched_rule_id |> Option.map (fun id -> RuleId (Guid.Parse id))
-                    PayeeOverride = row.payee_override
-                    ExternalLinks = []
-                    UserNotes = None
-                    DuplicateStatus = NotDuplicate (emptyDetectionDetails row.reference)  // Duplicate status is not persisted, always reset to NotDuplicate
-                    YnabImportStatus = NotAttempted  // YnabImportStatus is not persisted
-                    Splits = None  // Splits are not persisted yet
-                    SuggestedByOrderId = None  // Suggestions are session-only, not persisted
-                    ReviewSteps = ReviewStepJson.decode row.review_steps
-                    AskLena = false  // Die Rückfrage Lena ist sitzungsgebunden und nicht persistiert (ynab-sync-d9e51)
-                }
-            )
         }

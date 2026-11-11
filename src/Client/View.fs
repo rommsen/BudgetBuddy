@@ -86,7 +86,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
     // Seite setzt ihre Ränder selbst.
     let pageShell =
         match model.CurrentPage with
-        | Overview | Ledger | LedgerEntry _ | Rules | Budget | BudgetHistory | BudgetTargetCheck | BudgetCategories | SyncFlow -> Navigation.pageContentFull
+        | Overview | Ledger | LedgerEntry _ | Rules | Budget | BudgetHistory | BudgetTargetCheck | BudgetCategories -> Navigation.pageContentFull
         | _ -> Navigation.pageContent
 
     React.router [
@@ -141,17 +141,6 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                       Capture = fun () -> dispatch CaptureFromOverview
                                       OpenPinned = fun categoryId -> dispatch (OpenPinnedCategory categoryId)
                                       Dispatch = OverviewMsg >> dispatch }
-                            | SyncFlow ->
-                                Html.div [
-                                    prop.className "px-4 md:px-6"
-                                    prop.children [
-                                        // Der Sync-Ablauf trägt seine Titel selbst; der Kopf führt zurück zur Übersicht.
-                                        back ()
-                                    ]
-                                ]
-                                Components.SyncFlow.View.view
-                                    model.SyncFlow
-                                    (SyncFlowMsg >> dispatch)
                             | Rules ->
                                 Components.Rules.View.view
                                     (back ())
@@ -163,13 +152,14 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                     model.Settings
                                     (SettingsMsg >> dispatch)
                             | QuickAdd ->
-                                // Standalone Quick Add page. Categories/recents are
-                                // shared YNAB structures already loaded into SyncFlow;
+                                // Standalone Quick Add page. Categories load at startup;
                                 // templates are the recent Quick-Add bookings (ynab-t4n8p).
+                                // Zuletzt genutzte Kategorien kamen aus dem Sync-Ablauf, der
+                                // entfiel (banking-import-d0fey).
                                 Views.QuickAddPage.view
                                     model.QuickAdd
-                                    model.SyncFlow.Categories
-                                    model.SyncFlow.RecentlyUsedCategoryIds
+                                    model.QuickAddCategories
+                                    []
                                     model.QuickAddTemplates
                                     dispatch
                             | Ledger
@@ -224,6 +214,14 @@ let view (model: Model) (dispatch: Msg -> unit) =
                     Components.Ledger.View.captureSheet (LedgerMsg >> dispatch) model.Ledger
                     // Das Sheet „Angepinnt“ (budgeting-w9yt4).
                     Components.Overview.View.pinSheet model.Overview (OverviewMsg >> dispatch)
+
+                // „Abrufen“ (banking-import-d0fey): Sheet am Handy, Dialog ab 1024 px, über jeder Seite.
+                Components.Fetch.View.view
+                    model.Fetch
+                    (match model.Settings.Settings with
+                     | Success settings -> settings.Sync.DaysToFetch
+                     | _ -> 30)
+                    (FetchMsg >> dispatch)
 
                 // Toast notifications using new Toast component
                 Toast.renderItems
