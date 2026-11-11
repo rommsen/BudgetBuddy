@@ -44,6 +44,8 @@ async function mockApp(page) {
   await page.route("**/api/SettingsApi/getLenaFlagSettings", (r) => json(r, { SavedColor: "Purple", SuggestedColor: null }));
   await page.route("**/api/SyncApi/getBankConnectionStatus", (r) => json(r, "BankConnected"));
   await page.route("**/api/SyncApi/getCurrentSession", (r) => json(r, null));
+  // budgeting-w9yt4: ohne Pins; der Pin-Knopf im Kategorie-Detail steht damit in jedem Zustand des Budgets.
+  await page.route("**/api/BudgetApi/getPinnedCategories", (r) => json(r, { Ok: [] }));
   await page.route("**/api/BudgetApi/getTargetCheck", (r) => json(r, { Ok: { Month: "2026-11-01", Today: "2026-11-06", Categories: [] } }));
   await page.route("**/api/YnabApi/getPayees", (r) => json(r, { Ok: [] }));
   await page.route("**/api/YnabApi/getCategories", (r) =>
@@ -1188,9 +1190,12 @@ export const STATES = [
     // Rest-Sprung nach Vorgabe (§7.4): „Zu tun“ steht unter 1024 px über dem Monat und wächst mit seinem Inhalt. Der
     // Platzhalter hat die Form des Ziels (großer erster Eintrag mit Knopf und eine Zeile), bei 320 und 390 px bricht
     // der Satz des ersten Eintrags aber auf zwei Zeilen um, die Konten rutschen um diese Zeile. Kann-Sammlung ledger.
+    // Die Leer-Karte „Angepinnt“ (budgeting-w9yt4) steht zwischen Monat und Konten und rutscht aus demselben Grund mit.
     exceptions: [
       { width: 320, inv: 9, selector: '[data-testid="overview-account"]' },
       { width: 390, inv: 9, selector: '[data-testid="overview-account"]' },
+      { width: 320, inv: 9, selector: '[data-testid="overview-pins-empty"]' },
+      { width: 390, inv: 9, selector: '[data-testid="overview-pins-empty"]' },
     ],
   },
   // ledger-s1weh: „Zu tun“ mit allen Arten von Einträgen, ein langer Payee in „Buchung nicht in YNAB“, der Zähler an der
@@ -1265,7 +1270,11 @@ export const STATES = [
       loaded: (page) => page.locator('[data-testid="overview-month"]'),
     },
     // Wie `uebersicht`: bei 390 px bricht der Satz des ersten Eintrags um (§7.4, „Zu tun“ wächst mit seinem Inhalt).
-    exceptions: [{ width: 390, inv: 9, selector: '[data-testid="overview-account"]' }],
+    // Die Leer-Karte „Angepinnt“ (budgeting-w9yt4) rutscht aus demselben Grund mit.
+    exceptions: [
+      { width: 390, inv: 9, selector: '[data-testid="overview-account"]' },
+      { width: 390, inv: 9, selector: '[data-testid="overview-pins-empty"]' },
+    ],
   },
   // Gegenstück zu `uebersicht`: der Monat ohne Kategorie im Minus. Die Karte ist gleich hoch mit oder ohne „Im Minus“.
   {
@@ -1285,7 +1294,46 @@ export const STATES = [
       { width: 390, inv: 9, selector: '[data-testid="overview-account"]' },
       { width: 900, inv: 9, selector: '[data-testid="overview-account"]' },
       { width: 900, inv: 9, selector: '[data-testid="overview-recent"]' },
+      // Die Leer-Karte „Angepinnt“ (budgeting-w9yt4) steht über beiden und rutscht aus demselben Grund mit.
+      { width: 390, inv: 9, selector: '[data-testid="overview-pins-empty"]' },
+      { width: 900, inv: 9, selector: '[data-testid="overview-pins-empty"]' },
     ],
+  },
+  // budgeting-w9yt4: drei angepinnte Kategorien, eine im Minus mit „fehlt“, eine mit langem Namen. Der Platzhalter hat
+  // je Pin eine Zeile in Zielform, beim Laden des Monats springt darunter nichts.
+  {
+    name: "uebersicht-angepinnt",
+    route: "/",
+    widths: [320, 412, 900, 1280],
+    mock: async (page) => {
+      await mockOverview(page);
+      await page.route("**/api/BudgetApi/getPinnedCategories", (r) => json(r, { Ok: [guid(1), guid(2), guid(3)] }));
+    },
+    open: openOverview,
+    deferred: {
+      api: "**/api/BudgetApi/getBudgetMonth",
+      body: { Ok: budgetMonth(CURRENT) },
+      loaded: (page) => page.locator('[data-testid="overview-pinned"]').first(),
+    },
+    // Wie `uebersicht`: bei 320 px bricht der Satz des ersten Eintrags in „Zu tun“ um (§7.4), die Konten rutschen mit.
+    exceptions: [{ width: 320, inv: 9, selector: '[data-testid="overview-account"]' }],
+  },
+  // budgeting-w9yt4: das Sheet „Angepinnt“, am Handy als Sheet, ab 1024 px als Dialog; „Fertig“ ohne Scrollen erreichbar.
+  {
+    name: "uebersicht-angepinnt-sheet",
+    route: "/",
+    widths: [412, 1280],
+    mock: async (page) => {
+      await mockOverview(page);
+      await page.route("**/api/BudgetApi/getPinnedCategories", (r) => json(r, { Ok: [guid(1), guid(2), guid(3)] }));
+    },
+    open: async (page) => {
+      await page.locator('[data-testid="overview-pins-edit"]').waitFor();
+      await page.locator('[data-testid="overview-pins-edit"]').click();
+      await page.locator('[data-testid="pin-sheet-row"]').first().waitFor();
+    },
+    primary: (page) =>
+      page.locator('[data-layer="dialog"]').or(page.locator(".bottom-sheet.active").first()).getByRole("button", { name: "Fertig", exact: true }),
   },
   // design-system-k6kfw, Review-Fund: ein Ladefehler des Monats stand als große Fehlerkarte da, Konten (Handy) und
   // Neueste Buchungen (PC) rutschten nach unten. Der Fehler steht jetzt in der festen Höhe der Karte.
@@ -1306,6 +1354,9 @@ export const STATES = [
       { width: 390, inv: 9, selector: '[data-testid="overview-account"]' },
       { width: 900, inv: 9, selector: '[data-testid="overview-account"]' },
       { width: 900, inv: 9, selector: '[data-testid="overview-recent"]' },
+      // Die Leer-Karte „Angepinnt“ (budgeting-w9yt4) steht über beiden und rutscht aus demselben Grund mit.
+      { width: 390, inv: 9, selector: '[data-testid="overview-pins-empty"]' },
+      { width: 900, inv: 9, selector: '[data-testid="overview-pins-empty"]' },
     ],
   },
   // Fix 31f15e0 (banking-import-v8n3k): die Zeile zum Bankstand nimmt beim Laden schon ihre Höhe ein.

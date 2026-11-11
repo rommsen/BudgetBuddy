@@ -118,6 +118,7 @@
     <Compile Include="CategoryLayoutFixture.fs" />
     <Compile Include="CategoryAdminTests.fs" />
     <Compile Include="CategoryLayoutTests.fs" />
+    <Compile Include="PinnedCategoriesTests.fs" />
     <Compile Include="RemotingPipelineTests.fs" />
     <Compile Include="RemotingEndpointNegativeTests.fs" />
     <Compile Include="NetworkCallGuardTests.fs" />
@@ -164,6 +165,7 @@
     <Compile Include="BudgetPageTests.fs" />
     <Compile Include="OverviewTests.fs" />
     <Compile Include="OverviewTodoTests.fs" />
+    <Compile Include="OverviewPinsTests.fs" />
     <Compile Include="BudgetHistoryClientTests.fs" />
     <Compile Include="AmountMathTests.fs" />
     <Compile Include="TargetsApplyClientTests.fs" />

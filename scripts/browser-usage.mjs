@@ -96,6 +96,7 @@ export const FLOWS = {
   "geld-zuweisen": "Am Handy eine Kategorie wählen, einen Betrag zuweisen und zur nächsten springen.",
   "geld-verschieben": "Am Handy Geld von einer Kategorie an eine andere abgeben.",
   "verschiebung-erneut-senden": "Eine gescheiterte Verschiebung über den Toast erneut senden.",
+  "kategorie-anpinnen": "Am Handy aus dem Kategorie-Detail eine Kategorie anpinnen, sie auf der Übersicht sehen und im Sheet Angepinnt lösen.",
   "targets-anwenden": "Am Handy über das Feld Targets anwenden der Leiste Monatserster die Vorschau öffnen, eine Zeile abwählen und anwenden.",
   "target-aendern": "Am Handy im Tab Target den Betrag eines Targets ändern und speichern.",
   "target-anlegen": "Am Handy für eine Kategorie ohne Target ein Monats-Target anlegen.",

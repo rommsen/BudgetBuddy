@@ -138,7 +138,9 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                       OpenEntry = fun entryId -> dispatch (NavigateTo (LedgerEntry entryId))
                                       Retry = fun () -> dispatch (OverviewMsg Components.Overview.Types.ReloadRequested)
                                       OpenTodo = fun target -> dispatch (OpenOverviewTodo target)
-                                      Capture = fun () -> dispatch CaptureFromOverview }
+                                      Capture = fun () -> dispatch CaptureFromOverview
+                                      OpenPinned = fun categoryId -> dispatch (OpenPinnedCategory categoryId)
+                                      Dispatch = OverviewMsg >> dispatch }
                             | SyncFlow ->
                                 Html.div [
                                     prop.className "px-4 md:px-6"
@@ -177,6 +179,14 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                     (LedgerMsg >> dispatch)
                             | Budget ->
                                 Components.Budget.View.view
+                                    (match model.Overview.Pins with
+                                     | Success _ ->
+                                         Some (
+                                             { IsPinned = Components.Overview.Types.isPinned model.Overview
+                                               Toggle = fun id name -> dispatch (TogglePinFromInspector (id, name)) }
+                                             : Components.Budget.Types.InspectorPin
+                                         )
+                                     | _ -> None)
                                     model.Budget
                                     (BudgetMsg >> dispatch)
                             | BudgetHistory ->
@@ -212,6 +222,8 @@ let view (model: Model) (dispatch: Msg -> unit) =
                     if model.Ledger.Capture.IsNone then
                         Components.Overview.View.captureFab model.Overview (fun () -> dispatch CaptureFromOverview)
                     Components.Ledger.View.captureSheet (LedgerMsg >> dispatch) model.Ledger
+                    // Das Sheet „Angepinnt“ (budgeting-w9yt4).
+                    Components.Overview.View.pinSheet model.Overview (OverviewMsg >> dispatch)
 
                 // Toast notifications using new Toast component
                 Toast.renderItems

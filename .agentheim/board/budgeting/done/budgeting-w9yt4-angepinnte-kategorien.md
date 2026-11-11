@@ -1,7 +1,7 @@
 ---
 id: budgeting-w9yt4
 title: "Angepinnte Kategorien: Block „Angepinnt“ auf der Übersicht, Sheet zum Anpinnen, Lösen und Ordnen, Pin-Knopf im Kategorie-Detail, gespeichert als Zustand"
-status: doing
+status: done
 type: feature
 context: budgeting
 created: 2026-11-11
@@ -107,3 +107,58 @@ Prototyp und Screenshots (Conductor gibt die Pfade an Worker, Verifier und `desi
 
 Speicherort: neben `CategoryLayout` (ADR 0088) als eigener Zustand, Wahl der Tabelle beim Worker. Leseweg nach dem
 Muster von `bbCategoryOrderWith`, Schreibweg nach `setCategoryOrderWith` (`src/Server/Budgeting/Categories.fs`).
+
+## Verifier note (iteration 1)
+**REASONS:** Kriterium „Seite neben der Skizze verglichen, Abweichungen nur die genannten“ nicht erfüllt: Im PC-Dialog steht „Fertig“ klein und links (`bb-pins-sheet-pc-1280.png`), Task und Prototyp (`p-pins-sheet-pc-1280.png`) verlangen volle Breite. Ursache: `doneButton` in `src/Client/Components/Overview/View.fs` nutzt `FullWidth = true`, `src/Client/DesignSystem/Button.fs:153` macht daraus `w-full md:w-auto`. Alles andere bestanden (verify PASS, Validierung, Negativtests, FLOWS, Layout-Ausnahmen, vite.config.js, README_DELTA). Nebenbei: „Bearbeiten“ im Blockkopf erbt `tracking-[0.14em]` von `sectionHead` und wirkt breiter gesperrt als im Prototyp.
+**SUGGESTED_FIX:** „Fertig“ auch im PC-Dialog über die volle Breite (etwa `ClassName`, die `w-full` ab md hält, oder ein Fuß-Rahmen), guard:classes muss grün bleiben; Screenshot `bb-pins-sheet-pc-1280.png` neu aufnehmen und vergleichen. Optional die Sperrung von „Bearbeiten“ im selben Schritt.
+**ITERATION_HINT:** likely-fixable
+
+## Outcome
+
+Angepinnte Kategorien sind gebaut (ADR 0087 Punkt 14). `./verify.sh` endet mit `VERIFY: PASS` (dotnet 4797 grün, node 315 grün). Das README-Delta ist mit `npm run check:readme-delta` geprüft (Exit 0); es ersetzt keinen Begriff, der Inspektor-Bullet bekommt nur einen Satz angehängt.
+
+**Zustand und Server**
+- Neue Tabelle `budget_pinned_categories` (`category_id`, `position`, `updated_at`), angelegt in `initializeBudgetingSchema` über `createPinnedCategoriesSchemaOn` (wiederholbar). Zustand, kein Ereignis (ADR 0083). `savePinnedCategoriesOn` ersetzt die ganze Liste in einer Transaktion, `loadPinnedCategoriesOn` liest sie in Folge (`src/Server/Budgeting/Persistence.fs`).
+- Handler `pinnedCategoriesWith` und `setPinnedCategoriesWith` in `src/Server/Budgeting/Categories.fs`; Meldungen `PinnedCategoriesUnreadableText`, `PinnedCategoriesNotSavedText`.
+- `src/Server/Validation.fs`: `validatePinnedCategories` lehnt doppelte und leere Ids (`PinnedCategoryDuplicateText`) und je unbekannte Id mit Id im Satz ab. Bekannt ist, was der Kategorie-Spiegel (`ledger_categories`) kennt oder schon angepinnt ist; so sperrt eine inzwischen gelöschte Kategorie das Speichern nicht.
+- `src/Shared/Api.fs` und `src/Server/Api.fs`: `BudgetApi.getPinnedCategories` und `BudgetApi.setPinnedCategories` (Liste der Ids, kein neuer Record, keine Fixture-Felder nachzuziehen). Live-Verdrahtung: Datenbank der Anwendung und `Ledger.Persistence.loadCategoryNames` als bekannte Ids, belegt im Test „budgetApi speichert eine im Spiegel bekannte Kategorie …“ (`PinnedCategoriesTests.fs`).
+
+**Client**
+- `Components/Overview/Types.fs`: reine Regeln `pinSpend` (Anteil, ausgegeben, von), `pinnedLines`, `visiblePins` (deaktivierte, versteckte und gelöschte fallen weg, Id bleibt), `pinBlockState`, `togglePin`, `movePinUp` (über ausgeblendete Ids hinweg), `pinSheetGroups`/`pinSheetRows` (BBs Reihenfolge aus `getBudgetFrame`, beim ersten Öffnen des Sheets geholt), `pinSheetPinnedSection`, `pinToggleNotice`, `pinsNotSavedText`, `isPinned`. Modell: `Pins`, `PinsRequest`, `PinSheet`, `CategoryOrder`.
+- `Components/Overview/State.fs`: `pinStep` (rein, mit `PinEffect`), sofortige Anzeige, Speichern der ganzen Liste, Rücksprung nur bei der jüngsten gescheiterten Anfrage, `pinSaveNotice` für den Toast „Nicht gespeichert: <Grund>“.
+- `Components/Overview/View.fs`: Block „Angepinnt“ nach dem Monat (Handy vor den Konten, PC vor „Neueste Buchungen“), Skeleton in Zielform, Fehlerkarte „Angepinnte Kategorien konnten nicht geladen werden“ mit „Erneut versuchen“, Leer-Karte; `pinSheet` (unter 1024 px `BottomSheet`, darüber `Modal`), Suche mit Fokus am PC, ↑↓/Enter in der Suche, Esc über einen `contents`-Rahmen im Dialog (kein Dokument-Handler, der Wächter `LedgerKeyboardTests` erlaubt die nur Kassenbuch und Budget).
+- Root (`src/Client/State.fs`, `View.fs`): `OpenPinnedCategory` (Budget mit `EntryAction.OpenPinnedFromOverview`, Tab Geld im laufenden Monat, Sheet oder Panel), `TogglePinFromInspector` mit Toast „<Name> angepinnt“/„<Name> gelöst“, Pins laden beim Start auf jeder anderen Seite (`PinsNeeded`).
+- Inspektor (`Components/Budget/InspectorView.fs`): Pin-Knopf zwischen den Schrittpfeilen und Schließen, im Panel rechts im Kopf; fehlt, solange die Pins nicht geladen sind (ein Umschalten ohne Stand würde die Liste überschreiben).
+- DS, alle auf `/styleguide`: `Icons.pin`, `Icons.pinSolid`, `Button.pinToggle`, `Button.quietAccentText` („Bearbeiten“ im Akzent, wie die Task, mit normalem Buchstabenabstand auch im gesperrten Abschnittskopf), `Button.checkRow` (Kästchen 22 px, angekreuzt im Akzent, Markierung), `Button.orderArrowGap`.
+- Iteration 2 (Verifier-Fund): „Fertig“ geht im PC-Dialog über die volle Breite. Ein `flex-col`-Rahmen im Fuß des Modals streckt den Knopf; `Button.FullWidth` (`w-full md:w-auto`) bleibt für alle anderen Knöpfe unverändert. Die Screenshots sind danach neu aufgenommen.
+- `vite.config.js`: `workbox.maximumFileSizeToCacheInBytes` auf 3 MiB. Das Bündel lag nach dieser Task 304 Byte über der Vorgabe von 2 MiB, der Build brach ab; ohne Anhebung würde die App nicht mehr vorgehalten. Die parallel laufenden Tasks stoßen auf dieselbe Grenze.
+
+**Tests**
+- `src/Tests/PinnedCategoriesTests.fs` (11): Validierung (Doppel, leere Id, unbekannte je mit Id), Handler mit In-Memory-SQLite (leer, Folge, Ersetzen, Ablehnung schreibt nichts, gelöschte bleibt erlaubt, Lese- und Schreibfehler), echte Verdrahtung im Budget-API.
+- `src/Tests/OverviewPinsTests.fs` (38): Rechnung (Erstattung mindert, 0 %, über 100 %, „von“ höchstens null), Zeilen (Folge, fehlt ohne Pause, deaktiviert fehlt und kommt an ihren Platz zurück), Blockzustand, Anpinnen/Lösen/Hoch, Speicherantworten in allen Reihenfolgen und Ausgängen (Doktrin Punkt 20), Sheet (Reihenfolge, Suche, Markierung, Enter), Root-Weg ins Budget und Toast bei Speicherfehler.
+- `RemotingEndpointNegativeTests.fs`: Zeilen für `setPinnedCategories` und `getPinnedCategories`.
+- `scripts/kategorie-anpinnen.test.mjs`: `[flow:kategorie-anpinnen]` (Handy: im Detail anpinnen, auf der Übersicht sehen, im Sheet lösen) und `[tastatur]` (PC: Fokus in der Suche, ↓, Enter, Esc). Flow in `FLOWS` eingetragen.
+- Layout-Sweep: neue Zustände `uebersicht-angepinnt` (drei Pins, verzögerter Monat, 320/412/900/1280) und `uebersicht-angepinnt-sheet` (412/1280, „Fertig“ erreichbar); `getPinnedCategories` in `mockApp` gemockt. Neue Ausnahmen für Invariante 9 an der Leer-Karte (`overview-pins-empty`) in `uebersicht`, `uebersicht-grosse-schrift`, `uebersicht-ohne-minus`, `uebersicht-monat-fehler` und für die Konten bei 320 px in `uebersicht-angepinnt`: dieselbe Ursache wie die bestehenden Ausnahmen („Zu tun“ wächst mit seinem Inhalt, §7.4), die Karte steht zwischen Monat und Konten.
+
+**Vergleich mit Prototyp Version 17** (BB mit Mock-Daten wie im Prototyp, neben `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/20e05553-37dc-4f2f-bcee-5ef520140bf9/scratchpad/e3/p-*.png`):
+- /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/20e05553-37dc-4f2f-bcee-5ef520140bf9/scratchpad/e3/budgeting-w9yt4/bb-uebersicht-angepinnt-handy-412.png
+- /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/20e05553-37dc-4f2f-bcee-5ef520140bf9/scratchpad/e3/budgeting-w9yt4/bb-uebersicht-angepinnt-pc-1280.png
+- /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/20e05553-37dc-4f2f-bcee-5ef520140bf9/scratchpad/e3/budgeting-w9yt4/bb-pins-sheet-handy-412.png
+- /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/20e05553-37dc-4f2f-bcee-5ef520140bf9/scratchpad/e3/budgeting-w9yt4/bb-pins-sheet-pc-1280.png
+- /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/20e05553-37dc-4f2f-bcee-5ef520140bf9/scratchpad/e3/budgeting-w9yt4/bb-kategorie-detail-handy-412.png
+- /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/20e05553-37dc-4f2f-bcee-5ef520140bf9/scratchpad/e3/budgeting-w9yt4/bb-kategorie-detail-pc-1280.png
+- /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/20e05553-37dc-4f2f-bcee-5ef520140bf9/scratchpad/e3/budgeting-w9yt4/bb-uebersicht-leer-handy-412.png
+- /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/20e05553-37dc-4f2f-bcee-5ef520140bf9/scratchpad/e3/budgeting-w9yt4/bb-uebersicht-leer-pc-1280.png
+
+Abweichungen:
+- Laut Task: Schrittpfeile `˄ ˅` statt `‹ ›`; das Sheet am PC als `Modal`.
+- Die Suche im Sheet ist BBs `Input.text` ohne Lupe, wie die Suche der Budget-Seite; der Prototyp hat eine Lupe im Feld.
+- Beim ersten Eintrag in „Angepinnt (n)“ bleibt der Platz des Pfeils frei (Task); der Prototyp zeigt dort einen Pfeil.
+- Im Panel ab 1024 px stehen weiter keine Schrittpfeile und kein Schließen (BB-Stand), der Pin-Knopf steht rechts im Kopf.
+
+Für die Kann-Sammlung budgeting:
+- Ein Neuladen der Pins während eines laufenden Speicherns kann einen älteren Stand zeigen, bis die Übersicht das nächste Mal betreten wird.
+- Unbekannt ist eine Kategorie, die YNAB schon hat, der Kategorie-Spiegel aber noch nicht (in YNAB angelegt, Spiegel-Lauf noch nicht gelaufen); Anpinnen lehnt dann mit Meldung ab.
+- Esc im Dialog mit dem Fokus auf „Schließen“ im Kopf geht über den Rahmen hinaus und wirkt nicht; Schließen selbst geht per Klick.
+
+[human-eye] Block, Sheet und Pin-Knopf am Handy und am PC ansehen steht für Roman aus.

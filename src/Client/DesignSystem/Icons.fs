@@ -279,6 +279,39 @@ let flag (size: IconSize) (color: IconColor) =
         ]
     ]
 
+/// Pin als Umriss (Prototyp Version 17 `I.pin`, budgeting-w9yt4): nicht angepinnt, im Kopf des Kategorie-Details und
+/// in der leeren Karte „Angepinnt“ der Übersicht.
+let pin (size: IconSize) (color: IconColor) =
+    Svg.svg [
+        svg.className $"{sizeToClass size} {colorToClass color} inline-block flex-shrink-0"
+        svg.fill "none"
+        svg.viewBox (0, 0, 24, 24)
+        svg.stroke "currentColor"
+        svg.strokeWidth 1.8
+        svg.strokeLineCap "round"
+        svg.strokeLineJoin "round"
+        svg.children [
+            Svg.path [ svg.d "M9 4h6l-1 6 3 3H7l3-3z" ]
+            Svg.path [ svg.d "M12 16v5" ]
+        ]
+    ]
+
+/// Pin gefüllt (Prototyp Version 17 `I.pinOn`, budgeting-w9yt4): angepinnt, im Akzent.
+let pinSolid (size: IconSize) (color: IconColor) =
+    Svg.svg [
+        svg.className $"{sizeToClass size} {colorToClass color} inline-block flex-shrink-0"
+        svg.fill "currentColor"
+        svg.viewBox (0, 0, 24, 24)
+        svg.stroke "currentColor"
+        svg.strokeWidth 1.8
+        svg.strokeLineCap "round"
+        svg.strokeLineJoin "round"
+        svg.children [
+            Svg.path [ svg.d "M9 4h6l-1 6 3 3H7l3-3z" ]
+            Svg.path [ svg.fill "none"; svg.d "M12 16v5" ]
+        ]
+    ]
+
 /// Gefülltes Flag (Prototyp Version 17 `I.flag`, ledger-s1weh): Stange als Strich, Fahne gefüllt in der Farbe des
 /// Symbols. Die Marke einer Rückfrage an Lena in „Zu tun“, mit `LenaFlag` in der Farbe aus den Einstellungen.
 let flagSolid (size: IconSize) (color: IconColor) =

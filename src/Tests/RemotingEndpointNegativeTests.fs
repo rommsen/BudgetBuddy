@@ -525,6 +525,24 @@ let private rows : Row list = [
         match budget.hideMonthStart "2020-01-01" |> run with
         | Error message -> Expect.stringContains message "vergangenen Monaten" "Grund"
         | Ok () -> failtest "Ausblenden hätte abgelehnt werden müssen" }
+    // budgeting-w9yt4: angepinnte Kategorien, nur BBs Datenbank. Ablehnungen schreiben nichts.
+    { Endpoint = "BudgetApi.setPinnedCategories"; Case = "doppelte und unbekannte Id: Fehler mit beiden Gründen, nichts gespeichert"
+      Run = fun () ->
+          let unknown = Guid.NewGuid()
+          match budget.setPinnedCategories [ unknown; unknown ] |> run with
+          | Error message ->
+              Expect.stringContains message Server.Validation.PinnedCategoryDuplicateText "doppelt"
+              Expect.stringContains message (string unknown) "unbekannt"
+          | Ok () -> failtest "Pins hätten abgelehnt werden müssen" }
+    { Endpoint = "BudgetApi.getPinnedCategories"; Case = "Tabelle nicht lesbar: kurze Meldung statt Ausnahme"
+      Run = fun () ->
+          let connectionString = $"Data Source=pinned-negative-{Guid.NewGuid():N};Mode=Memory;Cache=Shared"
+          use anchor = new Microsoft.Data.Sqlite.SqliteConnection(connectionString)
+          anchor.Open()
+          Expect.equal
+              (Server.Budgeting.Categories.pinnedCategoriesWith (fun () -> new Microsoft.Data.Sqlite.SqliteConnection(connectionString)) |> run)
+              (Error Server.Budgeting.Categories.PinnedCategoriesUnreadableText)
+              "ohne Tabelle" }
     { Endpoint = "BudgetApi.retryFailedTargets"; Case = "keine gültige Anwendungs-Id: Fehler"
       Run = fun () -> budget.retryFailedTargets "keine-guid" |> run |> expectError "Wiederholen" }
     // budgeting-e2z7v: Targets nach YNAB.

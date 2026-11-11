@@ -1,5 +1,5 @@
 /// Die Übersicht (design-system-k6kfw, ADR 0087 Punkt 9): Einstieg der App mit Kopf, „Zu tun“ (ledger-s1weh), Monat,
-/// Konten (Handy) und den neuesten Buchungen (PC). „Angepinnt“ bringt `budgeting-w9yt4`.
+/// Konten (Handy) und den neuesten Buchungen (PC), dazu „Angepinnt“ (budgeting-w9yt4).
 module Components.Overview.Types
 
 open System
@@ -9,6 +9,13 @@ open Types
 
 /// Wie viele Buchungen unter „Neueste Buchungen“ stehen (Prototyp `homeDesk`).
 let recentCount = 6
+
+/// Das Sheet „Angepinnt“ (budgeting-w9yt4): Suchbegriff und die markierte Zeile der Liste (Pfeile am PC).
+type PinSheet = {
+    Query: string
+    /// Stelle in der gefilterten Liste aller aktiven Kategorien (`pinSheetRows`).
+    Marked: int
+}
 
 type Model = {
     /// Der laufende Monat für den Block „Monat“.
@@ -38,6 +45,16 @@ type Model = {
     /// Der Kalendertag (Europe/Berlin) beim letzten Betreten. Monat und neueste Buchungen rechnen damit, die View
     /// liest keine Uhr. Vor dem ersten Betreten zeigt die Übersicht nichts, das ihn braucht.
     Today: DateTime
+    /// Die angepinnten Kategorien in BBs gespeicherter Folge (budgeting-w9yt4), auch deaktivierte und gelöschte: die
+    /// Anzeige blendet sie aus, die Id behält ihren Platz. Das Kategorie-Detail im Budget liest sie mit.
+    Pins: RemoteData<Guid list>
+    /// Die Nummer der jüngsten Speicher-Anfrage der Pins. Scheitert eine ältere, ist sie überholt.
+    PinsRequest: int
+    /// Das Sheet „Angepinnt“, `None` solange es zu ist.
+    PinSheet: PinSheet option
+    /// BBs Reihenfolge der Kategorien (ADR 0088) für die Liste im Sheet, geholt beim ersten Öffnen. Ohne sie gilt
+    /// die Folge des Monats.
+    CategoryOrder: Guid list option
 }
 
 let init : Model =
@@ -52,7 +69,11 @@ let init : Model =
       LenaFlagColor = None
       Accounts = NotAsked
       Balances = NotAsked
-      Today = DateTime.MinValue }
+      Today = DateTime.MinValue
+      Pins = NotAsked
+      PinsRequest = 0
+      PinSheet = None
+      CategoryOrder = None }
 
 /// Jeder Auslöser, der den Remoting-Proxy anfasst, ist geteilt: die reine Antwort setzt nur den Zustand.
 type Msg =
@@ -75,6 +96,24 @@ type Msg =
     | LenaFlagLoaded of Result<LenaFlagSettings, string>
     | AccountsLoaded of Result<LedgerAccountsView, string>
     | BalancesLoaded of Result<LedgerAccountBalanceView list, string>
+    /// Die angepinnten Kategorien werden gebraucht: beim Start der App auf einer anderen Seite (Pin-Knopf im
+    /// Kategorie-Detail).
+    | PinsNeeded
+    | PinsLoaded of Result<Guid list, string>
+    /// Anpinnen oder lösen, aus dem Sheet oder dem Kategorie-Detail. Neu angepinnte kommen ans Ende.
+    | PinToggled of categoryId: Guid
+    /// Pfeil hoch im Sheet: eine Stelle nach oben unter den gezeigten Pins.
+    | PinMovedUp of categoryId: Guid
+    /// Die Antwort auf das Speichern, mit der Nummer der Anfrage und dem Stand davor für den Rücksprung.
+    | PinsSaved of request: int * previous: Guid list * Result<unit, string>
+    | PinSheetOpened
+    | PinSheetClosed
+    | PinSearchChanged of string
+    /// ↑ (-1) oder ↓ (+1) aus der Suche: die Markierung wandert.
+    | PinMarkMoved of delta: int
+    /// Enter aus der Suche: die markierte Zeile umschalten.
+    | PinMarkedToggled
+    | CategoryOrderLoaded of Result<BudgetFrame, string>
 
 /// Was Seitenleiste und Abschnitt „Konten“ zeigen. Die Views rufen es nur auf.
 type AccountsListState =
@@ -369,3 +408,151 @@ let importStandText (now: DateTime) (at: DateTime) : string =
     elif span.TotalDays < 1.0 then $"vor {int span.TotalHours} Std."
     elif int span.TotalDays = 1 then "vor 1 Tag"
     else $"vor {int span.TotalDays} Tagen"
+
+// ============================================
+// Angepinnt (budgeting-w9yt4, Prototyp Version 17 `pinBlock`, Sheet `pins`)
+// ============================================
+
+/// Anteil, „ausgegeben“ und „von“ einer angepinnten Kategorie. Ausgegeben ist die Aktivität mit umgekehrtem Vorzeichen
+/// (eine Erstattung mindert), „von“ ist Verfügbar minus Aktivität, also was im Monat zur Verfügung stand.
+type PinSpend = {
+    Spent: decimal
+    Pool: decimal
+    /// Füllung des Balkens, 0 bis 1.
+    Share: float
+}
+
+/// Rein: ausgegeben durch „von“, begrenzt auf 0 bis 1. Ist „von“ höchstens null, ist der Balken mit Ausgaben voll,
+/// ohne leer.
+let pinSpend (activity: decimal) (available: decimal) : PinSpend =
+    let spent = -activity
+    let pool = available - activity
+    let share =
+        if pool <= 0m then (if spent > 0m then 1.0 else 0.0)
+        else max 0.0 (min 1.0 (float (spent / pool)))
+    { Spent = spent; Pool = pool; Share = share }
+
+/// Eine Zeile im Block „Angepinnt“.
+type PinnedLine = {
+    Category: BudgetCategory
+    /// Der Fehlbetrag zum Target im Monat, nur über null und ohne Pause.
+    Missing: Money option
+    Spend: PinSpend
+}
+
+/// Die aktiven Kategorien des Monats nach Id: in YNAB versteckte und gelöschte fehlen im Monat schon, in BB
+/// deaktivierte fallen hier weg (auch wenn sie wegen Aktivität im Monat stehen).
+let private activeCategories (month: BudgetMonth) : Map<Guid, BudgetCategory> =
+    month.Groups
+    |> List.collect (fun g -> g.Categories)
+    |> List.filter (isDeactivated >> not)
+    |> List.map (fun c -> c.Id, c)
+    |> Map.ofList
+
+/// Die gezeigten Pins: die gespeicherte Folge, nur aktive Kategorien des Monats.
+let visiblePins (pins: Guid list) (month: BudgetMonth) : BudgetCategory list =
+    let active = activeCategories month
+    pins |> List.choose (fun id -> Map.tryFind id active)
+
+/// Die Zeilen des Blocks „Angepinnt“ aus dem laufenden Monat.
+let pinnedLines (pins: Guid list) (month: BudgetMonth) : PinnedLine list =
+    visiblePins pins month
+    |> List.map (fun c ->
+        { Category = c
+          Missing = Components.Budget.Month.targetUnderfunded c |> Option.filter (fun m -> m.Amount > 0m)
+          Spend = pinSpend c.Activity.Amount c.Available.Amount })
+
+/// Was der Block „Angepinnt“ zeigt.
+type PinBlockState =
+    /// Pins oder Monat laden; `rows` ist die Zahl der Zeilen des Skeletons (die gespeicherten Pins, mindestens 1).
+    | PinsLoading of rows: int
+    | PinsFailed
+    | PinsEmpty
+    | PinsShown of PinnedLine list
+
+let pinBlockState (model: Model) : PinBlockState =
+    match model.Pins, model.Month with
+    | Failure _, _ -> PinsFailed
+    // Ohne Pins braucht die Karte den Monat nicht: sie steht gleich, darunter springt nichts.
+    | Success [], _ -> PinsEmpty
+    | Success _, Failure _ -> PinsFailed
+    | Success pins, Success month ->
+        match pinnedLines pins month with
+        | [] -> PinsEmpty
+        | lines -> PinsShown lines
+    | Success pins, _ -> PinsLoading (max 1 pins.Length)
+    | _ -> PinsLoading 1
+
+/// „Bearbeiten“ steht nur, wenn etwas angepinnt ist.
+let pinEditVisible (state: PinBlockState) : bool =
+    match state with
+    | PinsShown _ -> true
+    | _ -> false
+
+/// Zeile 3 einer Pin-Zeile: „<ausgegeben> von <Betrag> ausgegeben“.
+let pinSpendText (currency: string) (spend: PinSpend) : string =
+    let text amount = Components.Budget.Month.moneyText { Amount = amount; Currency = currency }
+    $"{text spend.Spent} von {text spend.Pool} ausgegeben"
+
+/// Die Leer-Karte des Blocks.
+let pinEmptyText = "Kategorien anpinnen, die du hier immer sehen willst"
+/// Der Ladefehler des Blocks.
+let pinLoadFailedText = "Angepinnte Kategorien konnten nicht geladen werden"
+
+/// Anpinnen oder lösen: eine angepinnte fällt heraus, eine neue kommt ans Ende.
+let togglePin (categoryId: Guid) (pins: Guid list) : Guid list =
+    if List.contains categoryId pins then pins |> List.filter ((<>) categoryId)
+    else pins @ [ categoryId ]
+
+/// Eine Stelle nach oben unter den gezeigten Pins (`shown`): tauscht mit dem nächsten gezeigten davor. Ausgeblendete
+/// Ids bleiben an ihrem Platz. Der erste gezeigte bleibt, wo er ist.
+let movePinUp (categoryId: Guid) (shown: Set<Guid>) (pins: Guid list) : Guid list =
+    let arr = List.toArray pins
+    match Array.tryFindIndex ((=) categoryId) arr with
+    | Some index ->
+        let before = [ index - 1 .. -1 .. 0 ] |> List.tryFind (fun i -> Set.contains arr.[i] shown)
+        match before with
+        | Some other ->
+            let copy = Array.copy arr
+            copy.[other] <- arr.[index]
+            copy.[index] <- arr.[other]
+            List.ofArray copy
+        | None -> pins
+    | None -> pins
+
+/// Die Liste im Sheet: alle aktiven Kategorien nach Gruppe in BBs Folge (ADR 0088), gefiltert nach dem Suchbegriff
+/// (Teil des Namens, ohne Groß und Klein). Gruppen ohne Treffer fallen weg.
+let pinSheetGroups (order: Guid list option) (query: string) (month: BudgetMonth) : (string * BudgetCategory list) list =
+    let needle = query.Trim().ToLowerInvariant()
+    let groups =
+        match order with
+        | Some o -> orderGroups o month.Groups
+        | None -> month.Groups
+    groups
+    |> List.map (fun g ->
+        g.Name,
+        g.Categories
+        |> List.filter (isDeactivated >> not)
+        |> List.filter (fun c -> needle = "" || c.Name.ToLowerInvariant().Contains needle))
+    |> List.filter (fun (_, cs) -> not cs.IsEmpty)
+
+/// Die Zeilen des Sheets flach, in der Folge der Anzeige: die Markierung zählt in dieser Liste.
+let pinSheetRows (order: Guid list option) (query: string) (month: BudgetMonth) : BudgetCategory list =
+    pinSheetGroups order query month |> List.collect snd
+
+/// Der Abschnitt „Angepinnt (n)“ steht nur ohne Suchbegriff und mit gezeigten Pins.
+let pinSheetPinnedSection (query: string) (pins: Guid list) (month: BudgetMonth) : BudgetCategory list =
+    if query.Trim() <> "" then [] else visiblePins pins month
+
+/// Die Rückmeldung nach dem Pin-Knopf im Kategorie-Detail. `wasPinned`: der Stand vor dem Klick.
+let pinToggleNotice (name: string) (wasPinned: bool) : string =
+    if wasPinned then $"{name} gelöst" else $"{name} angepinnt"
+
+/// Die Rückmeldung, wenn das Speichern scheitert (Ergebnis einer Aktion, Styleguide §5).
+let pinsNotSavedText (reason: string) : string = $"Nicht gespeichert: {reason}"
+
+/// Ist die Kategorie angepinnt? Ohne geladene Pins nie.
+let isPinned (model: Model) (categoryId: Guid) : bool =
+    match model.Pins with
+    | Success pins -> List.contains categoryId pins
+    | _ -> false

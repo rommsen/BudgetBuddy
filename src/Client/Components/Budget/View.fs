@@ -271,7 +271,8 @@ let private listArea (model: Model) (shown: BudgetGroup list) (wide: bool) (disp
         ]
     ]
 
-let view (model: Model) (dispatch: Msg -> unit) =
+/// `pin`: der Pin-Knopf im Kategorie-Detail (budgeting-w9yt4), `None` ohne geladene Pins.
+let view (pin: InspectorPin option) (model: Model) (dispatch: Msg -> unit) =
     let isPanel = Viewport.isInspectorPanelViewport ()
     // ADR 0043: zur Renderzeit genau ein Kopf, ein Suchfeld kann nicht doppelt stehen.
     let wide = Viewport.isDesktopViewport ()
@@ -306,12 +307,12 @@ let view (model: Model) (dispatch: Msg -> unit) =
                         prop.children [
                             PageKeys (model, dispatch)
                             listArea model shown wide dispatch
-                            inspectorPanel model dispatch
+                            inspectorPanel pin model dispatch
                         ]
                     ]
                 else
                     listArea model shown wide dispatch
-                    inspectorSheet model shown dispatch
+                    inspectorSheet pin model shown dispatch
             ]
         ]
     ]

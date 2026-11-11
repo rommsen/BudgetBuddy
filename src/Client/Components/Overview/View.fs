@@ -4,6 +4,7 @@
 module Components.Overview.View
 
 open System
+open Fable.Core
 open Feliz
 open Shared.Domain
 open Types
@@ -24,6 +25,10 @@ type Actions = {
     OpenTodo: TodoTarget -> unit
     /// „+ Buchung“: das Erfassen aus dem Kassenbuch (ledger-at63w), die Übersicht bleibt stehen.
     Capture: unit -> unit
+    /// Eine Zeile im Block „Angepinnt“ (budgeting-w9yt4): die Kategorie im Budget, Tab Geld.
+    OpenPinned: Guid -> unit
+    /// Nachrichten der Übersicht selbst: Sheet „Angepinnt“, Anpinnen, Lösen, Ordnen.
+    Dispatch: Msg -> unit
 }
 
 /// Die Beschriftung von „+ Buchung“ und der Name für den Screenreader.
@@ -327,6 +332,295 @@ let private recentBlock (actions: Actions) (today: DateTime) (recent: RemoteData
     ]
 
 // ============================================
+// Angepinnt (budgeting-w9yt4, Prototyp Version 17 `pinBlock`, Sheet `pins`)
+// ============================================
+
+let private pct (share: float) = sprintf "%.2f%%" (share * 100.0)
+
+/// Eine Zeile: Name und Verfügbar (davor „fehlt“), Balken 5 px, „<ausgegeben> von <Betrag> ausgegeben“.
+let private pinnedRow (actions: Actions) (line: PinnedLine) =
+    let c = line.Category
+    let negative = c.Available.Amount < 0m
+    Html.button [
+        prop.key (string c.Id)
+        prop.type' "button"
+        prop.custom ("data-testid", "overview-pinned")
+        prop.className $"w-full flex flex-col items-stretch gap-1.5 px-3 py-[11px] text-left border-b {Borders.subtle} last:border-b-0 {rowHover}"
+        prop.onClick (fun _ -> actions.OpenPinned c.Id)
+        prop.children [
+            Html.span [
+                // Feste Höhe je Zeile, damit der Platzhalter dieselbe Höhe hat (Styleguide §7.14).
+                prop.className "h-6 flex items-baseline justify-between gap-2.5 min-w-0"
+                prop.children [
+                    Truncate.text $"min-w-0 {ListRoles.primary}" c.Name
+                    Html.span [
+                        prop.className "flex shrink-0 items-baseline gap-2"
+                        prop.children [
+                            match line.Missing with
+                            | Some missing ->
+                                Html.span [
+                                    prop.custom ("data-testid", "overview-pinned-missing")
+                                    prop.className $"{ListRoles.missing} whitespace-nowrap"
+                                    prop.text $"fehlt {Components.Budget.Month.moneyText missing}"
+                                ]
+                            | None -> Html.none
+                            Html.span [
+                                prop.className (
+                                    $"{Fonts.mono} {ListRoles.primarySize} {FontWeights.semibold} tabular-nums whitespace-nowrap "
+                                    + if negative then Colors.error else Colors.textPrimary
+                                )
+                                prop.text (amountText c.Available.Amount)
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+            Html.span [
+                prop.className "block h-[5px] rounded-[3px] overflow-hidden bg-border-default"
+                prop.children [
+                    Html.span [
+                        prop.className ("block h-full " + if negative then "bg-error" else "bg-text-secondary")
+                        prop.style [ style.custom ("width", pct line.Spend.Share) ]
+                    ]
+                ]
+            ]
+            Truncate.text $"block h-4 {ListRoles.muted}" (pinSpendText c.Available.Currency line.Spend)
+        ]
+    ]
+
+/// Platzhalter in Zielform: je gespeichertem Pin eine Zeile mit Name, Balken und Zeile 3.
+let private pinSkeleton (rows: int) =
+    let bar (className: string) =
+        Loading.skeleton { Loading.defaultSkeleton with Shape = Loading.Custom; ClassName = Some className }
+    Html.div [
+        prop.custom ("data-testid", "overview-pins-loading")
+        prop.role "status"
+        prop.ariaLabel "Angepinnte Kategorien werden geladen"
+        prop.className cardClass
+        prop.children [
+            for i in 1 .. rows ->
+                Html.div [
+                    prop.key i
+                    prop.className $"flex flex-col gap-1.5 px-3 py-[11px] border-b {Borders.subtle} last:border-b-0"
+                    prop.children [
+                        Html.div [ prop.className "h-6 flex items-center"; prop.children [ bar "w-28 h-4" ] ]
+                        bar "w-full h-[5px]"
+                        Html.div [ prop.className "h-4 flex items-center"; prop.children [ bar "w-44 h-3" ] ]
+                    ]
+                ]
+        ]
+    ]
+
+let private pinBlock (actions: Actions) (model: Model) =
+    let state = pinBlockState model
+    let openSheet () = actions.Dispatch PinSheetOpened
+    Html.section [
+        prop.custom ("data-testid", "overview-pins")
+        prop.className "flex flex-col gap-2.5"
+        prop.children [
+            sectionHead
+                "Angepinnt"
+                (if pinEditVisible state then Some (Button.quietAccentText "overview-pins-edit" "Bearbeiten" openSheet) else None)
+            match state with
+            | PinsLoading rows -> pinSkeleton rows
+            | PinsFailed ->
+                Html.div [
+                    prop.custom ("data-testid", "overview-pins-error")
+                    prop.children [ ErrorDisplay.cardCompactWith "Erneut versuchen" pinLoadFailedText (Some actions.Retry) ]
+                ]
+            | PinsEmpty ->
+                Html.button [
+                    prop.type' "button"
+                    prop.custom ("data-testid", "overview-pins-empty")
+                    prop.className $"{cardClass} w-full flex items-center gap-2.5 p-3.5 min-h-12 text-left {rowHover}"
+                    prop.onClick (fun _ -> openSheet ())
+                    prop.children [
+                        Icons.pin Icons.SM Icons.Muted
+                        Html.span [ prop.className $"{FontSizes.compact} {Colors.textSecondary}"; prop.text pinEmptyText ]
+                    ]
+                ]
+            | PinsShown lines ->
+                Html.div [
+                    prop.className cardClass
+                    prop.children [ for line in lines -> pinnedRow actions line ]
+                ]
+        ]
+    ]
+
+[<Emit("$0 && $0.scrollIntoView({ block: 'nearest' })")>]
+let private scrollIntoViewNearest (element: obj) : unit = jsNative
+
+/// Die Suche des Sheets „Angepinnt“: am PC sofort im Fokus (§7.5, ADR 0087 Punkt 20), ↑↓ bewegen die Markierung, Enter
+/// schaltet die markierte Zeile um. Die markierte Zeile bleibt im Bild. Esc fängt der Rahmen im Dialog ab (`pinSheet`),
+/// ohne Handler am Dokument: die gehören Kassenbuch und Budget-Seite.
+[<ReactComponent>]
+let private PinSearch (query: string) (marked: int) (dispatch: Msg -> unit) =
+    let container = React.useElementRef ()
+    React.useEffectOnce (fun () ->
+        if Viewport.isFinePointer () then
+            match container.current with
+            | Some element ->
+                match element.querySelector "input" with
+                | null -> ()
+                | input -> (input :?> Browser.Types.HTMLElement).focus ()
+            | None -> ())
+    React.useEffect (
+        (fun () -> scrollIntoViewNearest (box (Browser.Dom.document.querySelector "[data-testid='pin-sheet-row'][data-marked='true']"))),
+        [| box marked |]
+    )
+    Html.div [
+        prop.ref container
+        prop.custom ("data-testid", "pin-sheet-search")
+        prop.children [
+            Input.text
+                { Input.textInputDefaults with
+                    Value = query
+                    OnChange = PinSearchChanged >> dispatch
+                    Placeholder = "Kategorie suchen…"
+                    AriaLabel = Some "Kategorie suchen"
+                    ClassName = Some "w-full"
+                    OnKeyDown =
+                        Some (fun e ->
+                            match e.key with
+                            | "ArrowDown" -> e.preventDefault (); dispatch (PinMarkMoved 1)
+                            | "ArrowUp" -> e.preventDefault (); dispatch (PinMarkMoved -1)
+                            | "Enter" -> e.preventDefault (); dispatch PinMarkedToggled
+                            | _ -> ()) }
+        ]
+    ]
+
+let private pinSheetTitle = "Angepinnt"
+let private pinSheetSubtitle = "Erscheinen auf der Übersicht, in dieser Reihenfolge"
+
+/// Der Inhalt des Sheets: Suche, „Angepinnt (n)“ mit Pfeil hoch und Lösen, darunter alle aktiven Kategorien nach Gruppe.
+let private pinSheetBody (model: Model) (sheet: PinSheet) (dispatch: Msg -> unit) =
+    let pins = match model.Pins with Success p -> p | _ -> []
+    let pinnedSet = Set.ofList pins
+    Html.div [
+        prop.custom ("data-testid", "pin-sheet")
+        prop.className "flex flex-col gap-2.5"
+        prop.children [
+            PinSearch sheet.Query sheet.Marked dispatch
+            match model.Month with
+            | Success month ->
+                let pinned = pinSheetPinnedSection sheet.Query pins month
+                if not pinned.IsEmpty then
+                    sectionHead $"Angepinnt ({pinned.Length})" None
+                    Html.div [
+                        prop.className cardClass
+                        prop.children [
+                            for i, c in List.indexed pinned ->
+                                Html.div [
+                                    prop.key (string c.Id)
+                                    prop.custom ("data-testid", "pin-sheet-pinned")
+                                    prop.className $"flex items-center gap-2.5 pl-3 pr-1 min-h-12 border-b {Borders.subtle} last:border-b-0"
+                                    prop.children [
+                                        Icons.pinSolid Icons.SM Icons.Accent
+                                        Truncate.text $"flex-1 min-w-0 {ListRoles.primary}" c.Name
+                                        if i = 0 then Button.orderArrowGap ()
+                                        else
+                                            Button.orderArrow
+                                                "pin-sheet-up"
+                                                $"{c.Name} nach oben"
+                                                (Icons.chevronUp Icons.SM Icons.Default)
+                                                true
+                                                (fun () -> dispatch (PinMovedUp c.Id))
+                                        Button.orderArrow
+                                            "pin-sheet-remove"
+                                            $"{c.Name} lösen"
+                                            (Icons.x Icons.SM Icons.Default)
+                                            true
+                                            (fun () -> dispatch (PinToggled c.Id))
+                                    ]
+                                ]
+                        ]
+                    ]
+                let groups = pinSheetGroups model.CategoryOrder sheet.Query month
+                let offsets = groups |> List.scan (fun acc (_, cs) -> acc + List.length cs) 0
+                for (name, categories), offset in List.zip groups (List.take groups.Length offsets) do
+                    React.keyedFragment (
+                        name,
+                        [ sectionHead name None
+                          Html.div [
+                              prop.className cardClass
+                              prop.children [
+                                  for i, c in List.indexed categories ->
+                                      React.keyedFragment (
+                                          string c.Id,
+                                          [ Button.checkRow
+                                                "pin-sheet-row"
+                                                (Set.contains c.Id pinnedSet)
+                                                (offset + i = sheet.Marked)
+                                                (fun () -> dispatch (PinToggled c.Id))
+                                                [ Truncate.text $"flex-1 min-w-0 {ListRoles.primary}" c.Name
+                                                  Html.span [
+                                                      prop.className (
+                                                          $"{Fonts.mono} {FontSizes.compact} tabular-nums whitespace-nowrap "
+                                                          + if c.Available.Amount < 0m then Colors.error else Colors.textSecondary
+                                                      )
+                                                      prop.text (amountText c.Available.Amount)
+                                                  ] ] ]
+                                      )
+                              ]
+                          ] ]
+                    )
+                if groups.IsEmpty then
+                    Html.p [ prop.className $"{ListRoles.muted} px-0.5"; prop.text "Keine Kategorie gefunden" ]
+            | Failure _ -> Html.p [ prop.className $"{ListRoles.muted} px-0.5"; prop.text pinLoadFailedText ]
+            | NotAsked
+            | Loading -> Loading.txListSkeleton 3
+        ]
+    ]
+
+let private doneButton (dispatch: Msg -> unit) =
+    Button.view {
+        Button.defaultProps with
+            Text = "Fertig"
+            Variant = Button.Primary
+            FullWidth = true
+            Glow = false
+            OnClick = fun () -> dispatch PinSheetClosed
+    }
+
+/// Das Sheet „Angepinnt“: unter 1024 px `BottomSheet`, ab 1024 px `Modal` in der Mitte (wie „Buchung“, §7.6). Beide
+/// portalen nach `document.body`, die Breite wird einmal je Render gelesen (ADR 0043).
+let pinSheet (model: Model) (dispatch: Msg -> unit) =
+    match model.PinSheet with
+    | None -> BottomSheet.view { IsOpen = false; OnClose = ignore; Title = pinSheetTitle; Subtitle = Some pinSheetSubtitle; Footer = None } []
+    | Some sheet ->
+        if Viewport.isInspectorPanelViewport () then
+            Modal.view
+                { Modal.defaultProps with
+                    IsOpen = true
+                    OnClose = fun () -> dispatch PinSheetClosed
+                    Size = Modal.Large
+                    Title = Some pinSheetTitle
+                    Subtitle = Some pinSheetSubtitle }
+                [ Html.div [
+                      // `contents`: der Rahmen ändert das Layout des Dialogs nicht, fängt aber Esc aus Suche, Zeilen und
+                      // „Fertig“ (oberster Dialog zuerst, ADR 0087 Punkt 19).
+                      prop.className "contents"
+                      prop.onKeyDown (fun e ->
+                          if e.key = "Escape" then
+                              e.preventDefault ()
+                              e.stopPropagation ()
+                              dispatch PinSheetClosed)
+                      prop.children [ Modal.body [ pinSheetBody model sheet dispatch ]; Modal.footer [
+                          // `flex-col` streckt „Fertig“ über die volle Breite wie im Prototyp; `FullWidth` allein hält ab md
+                          // nur die eigene Breite (`md:w-auto`).
+                          Html.div [ prop.className "flex flex-col w-full"; prop.children [ doneButton dispatch ] ]
+                      ] ]
+                  ] ]
+        else
+            BottomSheet.view
+                { IsOpen = true
+                  OnClose = fun () -> dispatch PinSheetClosed
+                  Title = pinSheetTitle
+                  Subtitle = Some pinSheetSubtitle
+                  Footer = Some [ doneButton dispatch ] }
+                [ pinSheetBody model sheet dispatch ]
+
+// ============================================
 // Zu tun (ledger-s1weh, Prototyp Version 17 `todoList`)
 // ============================================
 
@@ -463,6 +757,8 @@ let view (model: Model) (actions: Actions) =
                                 | Loading -> monthSkeleton
                                 | Failure message -> monthError actions message
                                 | Success month -> monthCard actions (monthSummary month model.Today)
+                                // Angepinnt nach dem Monat, am Handy vor den Konten, am PC vor den neuesten Buchungen.
+                                pinBlock actions model
                                 // Die Konten stehen unter 1024 px hier, darüber in der Seitenleiste (Styleguide §7.15).
                                 Html.div [ prop.className "lg:hidden"; prop.children [ accountsBlock actions model ] ]
                                 // Ab 768 px die neuesten Buchungen, ab 1024 px rechts unter dem Monat.

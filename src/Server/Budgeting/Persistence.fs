@@ -188,17 +188,55 @@ let loadCategoryLayoutWith (connect: unit -> SqliteConnection) : Async<Result<Ca
 let loadCategoryLayout () : Async<Result<CategoryLayout, string>> =
     loadCategoryLayoutWith Core.getConnection
 
+/// Die angepinnten Kategorien der Übersicht (budgeting-w9yt4, ADR 0087 Punkt 14): eine geordnete Liste von
+/// Kategorie-Ids. Zustand, kein Ereignis (ADR 0083): Anpinnen bewegt kein Geld. Eine eigene Tabelle, damit weder der
+/// Kategorie-Spiegel noch Deaktivieren und Reihenfolge (`budget_category_layout`) sie berühren. Wiederholbar.
+let createPinnedCategoriesSchemaOn (conn: SqliteConnection) : unit =
+    conn.Execute(
+        """CREATE TABLE IF NOT EXISTS budget_pinned_categories (
+               category_id TEXT    NOT NULL PRIMARY KEY,
+               position    INTEGER NOT NULL,
+               updated_at  TEXT    NOT NULL
+           )"""
+    )
+    |> ignore
+
+/// Ersetzt die angepinnten Kategorien durch `categoryIds` in dieser Folge, in einer Transaktion.
+let savePinnedCategoriesOn (conn: SqliteConnection) (categoryIds: Guid list) (at: DateTime) : unit =
+    if conn.State <> Data.ConnectionState.Open then
+        conn.Open()
+    use tx = conn.BeginTransaction()
+    let stamp = at.ToString("o", CultureInfo.InvariantCulture)
+    conn.Execute("DELETE FROM budget_pinned_categories", null, tx) |> ignore
+    categoryIds
+    |> List.iteri (fun index categoryId ->
+        conn.Execute(
+            "INSERT INTO budget_pinned_categories (category_id, position, updated_at) VALUES (@category_id, @position, @at)",
+            {| category_id = string categoryId; position = int64 index; at = stamp |},
+            tx
+        )
+        |> ignore)
+    tx.Commit()
+
+/// Die angepinnten Kategorien in ihrer Folge. Auch deaktivierte, versteckte und gelöschte: ausgeblendet wird beim
+/// Anzeigen, damit eine wieder aktive Kategorie an ihrem Platz steht.
+let loadPinnedCategoriesOn (conn: SqliteConnection) : Guid list =
+    conn.Query<string>("SELECT category_id FROM budget_pinned_categories ORDER BY position")
+    |> Seq.map Guid.Parse
+    |> List.ofSeq
+
 /// Legt `events` (ADR 0083) an und überführt die früheren Budget-Tabellen nach `events` (budgeting-hyn77). Entfernt
 /// `category_month_activity` (budgeting-k5q2w: die Ausgaben der Periode kommen aus dem Kassenbuch) und
 /// `underfunded_comparisons` (budgeting-hbhzf: BB rechnet den Fehlbetrag selbst, die Parallelrechnung entfällt),
 /// beides abgeleiteter Zustand ohne Geldentscheidung. Legt `budget_month_start_hidden` an (budgeting-m3x7f) und
-/// `budget_category_layout` (budgeting-sn2sn).
+/// `budget_category_layout` (budgeting-sn2sn) und `budget_pinned_categories` (budgeting-w9yt4).
 /// Wiederholbar. Läuft beim Start hinter `Ledger.Persistence.initializeLedgerSchema`. Bricht die Migration ab, wirft der Aufruf und BB startet nicht.
 let initializeBudgetingSchema () =
     use conn = Core.getConnection ()
     EventStore.createSchemaOn conn
     createMonthStartHiddenSchemaOn conn
     createCategoryLayoutSchemaOn conn
+    createPinnedCategoriesSchemaOn conn
     dropMonthActivityOn conn
     dropUnderfundedComparisonsOn conn
     Budgeting.EventMigration.migrateBudgetEventsOn conn |> ignore

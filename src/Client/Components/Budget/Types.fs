@@ -249,6 +249,16 @@ type EntryAction =
     | CoverFromOverview of categoryId: System.Guid
     /// Der Dialog Targets anwenden für den laufenden Monat.
     | ApplyTargetsFromOverview
+    /// Eine angepinnte Kategorie aus dem Block „Angepinnt“ (budgeting-w9yt4): ihr Detail im Tab Geld.
+    | OpenPinnedFromOverview of categoryId: System.Guid
+
+/// Der Pin-Knopf im Kopf des Kategorie-Details (budgeting-w9yt4). Die Pins gehören der Übersicht, die Wurzel reicht
+/// Stand und Umschalten herein; `None`, solange sie nicht geladen sind (dann fehlt der Knopf).
+type InspectorPin = {
+    IsPinned: System.Guid -> bool
+    /// Umschalten mit Id und Name der Kategorie (für den Toast).
+    Toggle: System.Guid -> string -> unit
+}
 
 /// Die Tabs des Inspektors.
 type InspectorTab =

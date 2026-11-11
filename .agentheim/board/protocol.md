@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-11 23:40 -- Task verified and completed: budgeting-w9yt4 - "Angepinnte Kategorien: Block „Angepinnt“ auf der Übersicht, Sheet zum Anpinnen, Lösen und Ordnen, Pin-Knopf im Kategorie-Detail, gespeichert als Zustand"
+
+**Type:** Work / Task completion
+**Task:** budgeting-w9yt4 - "Angepinnte Kategorien: Block „Angepinnt“ auf der Übersicht, Sheet zum Anpinnen, Lösen und Ordnen, Pin-Knopf im Kategorie-Detail, gespeichert als Zustand"
+**Summary:** Angepinnte Kategorien auf der Übersicht und im Kategorie-Detail
+**Duration:** 68m
+**Verification:** PASS (iteration 2)
+**Files changed:** 25
+**Tests added:** 53
+**ADRs written:** none
+
+---
+
 ## 2026-11-11 23:31 -- Task verified and completed: ledger-fxt09 - "Payee einer Buchung in BB ändern: Befehl mit Ereignis und Schreibweg nach YNAB, im Buchungs-Detail und auf der Karte beim Durchgehen, Rückgängig im Toast"
 
 **Type:** Work / Task completion

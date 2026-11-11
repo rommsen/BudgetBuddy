@@ -782,3 +782,24 @@ let validateCategoryOrderSave (save: Shared.Budgeting.CategoryOrderSave) : Resul
              || List.length (List.distinct save.CategoryIds) <> List.length save.CategoryIds then
               OrderCategoryInvalidText ]
     if errors.IsEmpty then Ok () else Error errors
+
+/// Die Meldung, wenn eine angepinnte Kategorie doppelt oder ohne Id genannt ist (budgeting-w9yt4).
+[<Literal>]
+let PinnedCategoryDuplicateText = "Die angepinnten Kategorien nennen eine Kategorie doppelt oder ohne Id."
+
+/// Die Meldung, wenn eine angepinnte Kategorie unbekannt ist, mit der Id.
+let pinnedCategoryUnknownText (categoryId: Guid) : string =
+    $"Die Kategorie {categoryId} ist unbekannt und kann nicht angepinnt werden."
+
+/// Die angepinnten Kategorien der Übersicht (budgeting-w9yt4): jede höchstens einmal, keine leere Id, und jede ist
+/// bekannt (`known`: der Kategorie-Spiegel und die schon gespeicherten Pins, damit eine inzwischen gelöschte nicht
+/// das ganze Speichern sperrt). Alle Gründe gesammelt, je unbekannte Id ein Satz.
+let validatePinnedCategories (known: Set<Guid>) (categoryIds: Guid list) : Result<unit, string list> =
+    let errors =
+        [ if categoryIds |> List.contains Guid.Empty
+             || List.length (List.distinct categoryIds) <> List.length categoryIds then
+              PinnedCategoryDuplicateText
+          for categoryId in List.distinct categoryIds do
+              if categoryId <> Guid.Empty && not (Set.contains categoryId known) then
+                  pinnedCategoryUnknownText categoryId ]
+    if errors.IsEmpty then Ok () else Error errors

@@ -390,6 +390,25 @@ let private buttonSection =
                         // orderNameRow: Zeile mit Pfeilen für die Reihenfolge (Seite Kategorien, budgeting-sn2sn), als erste Zeile mit
                         // gedämpftem Pfeil nach oben.
                         Button.orderNameRow "styleguide-order-row" "styleguide-order-row" "Drogerie bearbeiten" "Drogerie" ignore ignore false true ignore ignore
+                        // budgeting-w9yt4: „Bearbeiten“ im Kopf des Blocks Angepinnt, Pin-Knopf im Kategorie-Detail (beide Stände),
+                        // Platz eines fehlenden Pfeils und Zeilen zum Ankreuzen im Sheet Angepinnt (angekreuzt, markiert, leer).
+                        Button.quietAccentText "styleguide-quiet-accent-text" "Bearbeiten" ignore
+                        Html.div [
+                            prop.className "flex items-center gap-2"
+                            prop.children [
+                                Button.pinToggle "styleguide-pin-off" false ignore
+                                Button.pinToggle "styleguide-pin-on" true ignore
+                                Button.orderArrowGap ()
+                            ]
+                        ]
+                        Html.div [
+                            prop.className "rounded-[14px] border border-border-subtle overflow-hidden"
+                            prop.children [
+                                Button.checkRow "styleguide-check-row" true false ignore [ Html.span [ prop.className "flex-1"; prop.text "Lebensmittel" ] ]
+                                Button.checkRow "styleguide-check-row" false true ignore [ Html.span [ prop.className "flex-1"; prop.text "Drogerie (markiert)" ] ]
+                                Button.checkRow "styleguide-check-row" false false ignore [ Html.span [ prop.className "flex-1"; prop.text "Auto" ] ]
+                            ]
+                        ]
                     ]
                 ]
             ]
@@ -1024,7 +1043,10 @@ let private iconsSection =
                     Icons.externalLink Icons.MD Icons.Accent
                     Icons.flag Icons.MD Icons.Default
                     Icons.flagSolid Icons.MD Icons.Default
+                    Icons.pin Icons.MD Icons.Default
+                    Icons.pinSolid Icons.MD Icons.Accent
                 ]
+                caption "Icons.pin (Umriss, nicht angepinnt) und Icons.pinSolid (gefüllt, angepinnt, im Akzent): Kategorie-Detail und Block „Angepinnt“"
             ]
         ]
     ]

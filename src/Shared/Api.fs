@@ -663,6 +663,14 @@ type BudgetApi = {
     /// Geräten aus. Zustand, kein Ereignis (ADR 0083). Ein zweites Ausblenden ändert nichts. Gelesen wird über
     /// `getBudgetFrame` (`MonthStartHidden`). Ein ungültiger Monat wird abgelehnt. Kein YNAB.
     hideMonthStart: string -> Async<Result<unit, string>>
+
+    /// Die angepinnten Kategorien der Übersicht (budgeting-w9yt4, ADR 0087 Punkt 14) in ihrer Folge, auch deaktivierte
+    /// und gelöschte: der Client blendet sie aus, die Id behält ihren Platz. Zustand, kein Ereignis. Kein YNAB.
+    getPinnedCategories: unit -> Async<Result<System.Guid list, string>>
+
+    /// Setzt die angepinnten Kategorien als ganze Liste in dieser Folge. Doppelte und unbekannte Ids lehnt BB mit
+    /// konkreter Meldung ab, dann ist nichts geschrieben. Kein YNAB.
+    setPinnedCategories: System.Guid list -> Async<Result<unit, string>>
 }
 
 /// Kategorien verwalten (budgeting-pscgb, ADR 0088 Punkt 1): die Seite Kategorien unter Budget. Anlegen,

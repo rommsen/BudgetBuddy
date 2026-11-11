@@ -239,3 +239,53 @@ let pickerOptionsWith
                     |> pickerCategories layout (flatCategoryOrder layout placements)
                 )
     }
+
+// ============================================
+// Angepinnte Kategorien (budgeting-w9yt4, ADR 0087 Punkt 14)
+// ============================================
+
+/// Die Meldung, wenn die angepinnten Kategorien nicht lesbar sind.
+[<Literal>]
+let PinnedCategoriesUnreadableText = "Angepinnte Kategorien nicht lesbar"
+
+/// Die Meldung, wenn die angepinnten Kategorien nicht gespeichert werden konnten.
+[<Literal>]
+let PinnedCategoriesNotSavedText = "Angepinnte Kategorien nicht gespeichert"
+
+/// Die angepinnten Kategorien in ihrer Folge, auch deaktivierte und gelöschte (ausgeblendet wird beim Anzeigen).
+/// Ein Lesefehler wird geloggt und zu `PinnedCategoriesUnreadableText`. Kein YNAB.
+let pinnedCategoriesWith (connect: unit -> SqliteConnection) : Async<Result<Guid list, string>> =
+    async {
+        try
+            use conn = connect ()
+            return Ok (Budgeting.Persistence.loadPinnedCategoriesOn conn)
+        with ex ->
+            eprintfn "Angepinnte Kategorien lesen gescheitert: %s" ex.Message
+            return Error PinnedCategoriesUnreadableText
+    }
+
+/// Setzt die angepinnten Kategorien als ganze Liste (Zustand, kein Ereignis, ADR 0083). Bekannt ist, was der
+/// Kategorie-Spiegel kennt (`knownCategories`) oder schon angepinnt ist. Doppelte und unbekannte Ids lehnt BB mit
+/// allen Gründen ab und schreibt nichts (`validatePinnedCategories`). Kein YNAB.
+let setPinnedCategoriesWith
+    (connect: unit -> SqliteConnection)
+    (knownCategories: unit -> Async<Set<Guid>>)
+    (now: DateTime)
+    (categoryIds: Guid list)
+    : Async<Result<unit, string>> =
+    async {
+        match! pinnedCategoriesWith connect with
+        | Error message -> return Error message
+        | Ok stored ->
+            let! mirrored = knownCategories ()
+            match validatePinnedCategories (Set.union mirrored (Set.ofList stored)) categoryIds with
+            | Error errors -> return Error (String.concat " " errors)
+            | Ok () ->
+                try
+                    use conn = connect ()
+                    Budgeting.Persistence.savePinnedCategoriesOn conn categoryIds now
+                    return Ok ()
+                with ex ->
+                    eprintfn "Angepinnte Kategorien speichern gescheitert: %s" ex.Message
+                    return Error PinnedCategoriesNotSavedText
+    }

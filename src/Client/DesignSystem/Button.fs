@@ -415,6 +415,61 @@ let sheetArrow (testId: string) (ariaLabel: string) (icon: ReactElement) (onClic
         prop.children [ icon ]
     ]
 
+/// Eine Zeile zum Ankreuzen (Prototyp Version 17 `.check`, Sheet „Angepinnt“, budgeting-w9yt4): links ein Kästchen
+/// 22 px mit Radius 7 px, Rand `border-strong`, angekreuzt gefüllt im Akzent mit Häkchen, danach der Inhalt. Die ganze
+/// Zeile ist der Knopf (`aria-pressed`), 52 px hoch. `marked`: die Markierung der Pfeiltasten am PC, Kante im Akzent
+/// (ADR 0087 Punkt 20).
+let checkRow (testId: string) (isChecked: bool) (marked: bool) (onClick: unit -> unit) (children: ReactElement list) =
+    let box =
+        if isChecked then $"{Backgrounds.accent} {Borders.accent} {Colors.onAccent} {Colors.onAccentSvg}"
+        else Borders.strong
+    let markedClass =
+        if marked then $"{Backgrounds.accentSubtle} outline outline-1 -outline-offset-1 outline-accent"
+        else "hover:bg-surface-hover"
+    Html.button [
+        prop.type' "button"
+        prop.custom ("data-testid", testId)
+        prop.ariaPressed isChecked
+        if marked then prop.custom ("data-marked", "true")
+        prop.className $"flex w-full items-center gap-3 min-h-[52px] px-3 py-1 text-left border-b border-border-subtle last:border-b-0 cursor-pointer touch-manipulation {markedClass}"
+        prop.onClick (fun _ -> onClick ())
+        prop.children [
+            Html.span [
+                prop.ariaHidden true
+                prop.className $"grid place-items-center shrink-0 w-[22px] h-[22px] rounded-[7px] border-[1.5px] {box}"
+                prop.children [ (if isChecked then Icons.check Icons.Mark Icons.Primary else Html.none) ]
+            ]
+            yield! children
+        ]
+    ]
+
+/// Der Name des Pin-Knopfs je Stand (budgeting-w9yt4).
+let pinToggleLabel (pinned: bool) : string =
+    if pinned then "Von der Übersicht lösen" else "Auf der Übersicht anpinnen"
+
+/// Der Pin-Knopf im Kopf des Kategorie-Details (budgeting-w9yt4, Prototyp Version 17 `pinToggle`): Umriss in
+/// `text-secondary`, angepinnt gefüllt im Akzent. 48 px wie `sheetArrow`, damit er in denselben Kopf passt.
+let pinToggle (testId: string) (pinned: bool) (onClick: unit -> unit) =
+    let label = pinToggleLabel pinned
+    Html.button [
+        prop.type' "button"
+        prop.custom ("data-testid", testId)
+        prop.ariaLabel label
+        prop.title label
+        prop.ariaPressed pinned
+        prop.className $"inline-flex items-center justify-center {TouchTargets.minSize} -my-2 rounded-md cursor-pointer touch-manipulation hover:text-text-primary"
+        prop.onClick (fun _ -> onClick ())
+        prop.children [ (if pinned then Icons.pinSolid Icons.SM Icons.Accent else Icons.pin Icons.SM Icons.Default) ]
+    ]
+
+/// Der Platz eines fehlenden Pfeils in einer Liste mit `orderArrow` (erste Zeile im Sheet „Angepinnt“): gleich breit,
+/// ohne Wirkung.
+let orderArrowGap () : ReactElement =
+    Html.span [
+        prop.custom ("aria-hidden", true)
+        prop.className $"inline-block shrink-0 {TouchTargets.minSize} md:min-h-[40px] md:min-w-[40px]"
+    ]
+
 /// Der Platz eines fehlenden `sheetArrow`.
 let sheetArrowGap () : ReactElement =
     Html.span [
@@ -536,6 +591,20 @@ let private textButton (testId: string) (ariaLabel: string option) (text: string
 
 /// Ein leiser Textknopf, 12 px gedämpft, ohne Rand und Fläche ("Ausblenden").
 let quietText (testId: string) (text: string) (onClick: unit -> unit) = textButton testId None text onClick
+
+/// Ein leiser Textknopf im Akzent, 12 px, ohne Rand und Fläche: „Bearbeiten“ im Kopf des Blocks „Angepinnt“
+/// (budgeting-w9yt4, Prototyp Version 17 `.xs.c-acc`). Er führt in die Auswahl, ist also Auswahl/Navigation (ADR 0087
+/// Punkt 2). Trefferfläche 48 px am Handy; der negative Rand hält den Abschnittskopf so hoch wie ohne Knopf. Normaler
+/// Buchstabenabstand, auch im gesperrten Abschnittskopf.
+let quietAccentText (testId: string) (text: string) (onClick: unit -> unit) =
+    Html.button [
+        prop.type' "button"
+        prop.custom ("data-testid", testId)
+        prop.className
+            $"inline-flex items-center justify-center min-h-[48px] min-w-[48px] md:min-h-9 md:min-w-0 -my-4 md:-my-2.5 px-1 -mr-1 text-xs tracking-normal cursor-pointer touch-manipulation {Colors.accent} hover:text-text-primary transition-colors"
+        prop.onClick (fun _ -> onClick ())
+        prop.text text
+    ]
 
 /// `quietText` mit `ariaLabel`, wenn derselbe Text mehrfach auf der Seite steht und erst das Label sagt, worauf er
 /// wirkt ("Umbenennen" je Gruppe der Seite Kategorien). Der Akzent bleibt der Hauptaktion (Styleguide §2, §7.14,

@@ -2346,7 +2346,19 @@ let budgetApiWith
         return! targetCheckWith tokenOpt budgetOpt portFor (today ())
       }
 
-      hideMonthStart = fun monthKeyText -> hideMonthStartWith Persistence.getConnection (today ()) (utcNow ()) monthKeyText }
+      hideMonthStart = fun monthKeyText -> hideMonthStartWith Persistence.getConnection (today ()) (utcNow ()) monthKeyText
+
+      getPinnedCategories = fun () -> Server.Budgeting.Categories.pinnedCategoriesWith Persistence.getConnection
+
+      setPinnedCategories =
+        fun categoryIds ->
+            Server.Budgeting.Categories.setPinnedCategoriesWith
+                Persistence.getConnection
+                (fun () -> async {
+                    let! names = Ledger.Persistence.loadCategoryNames ()
+                    return names |> Map.keys |> Set.ofSeq })
+                (utcNow ())
+                categoryIds }
 
 /// Die Budget-Seite mit den echten YNAB-Ports. Die Settings kommen als Parameter, damit der
 /// Integrationstest den Live-Anschluss ohne Eintrag in der Datenbank prüfen kann.

@@ -92,6 +92,10 @@ type Msg =
     | OpenOverviewTodo of Components.Overview.Types.TodoTarget
     /// „+ Buchung“ auf der Übersicht: das Erfassen aus dem Kassenbuch öffnen, die Übersicht bleibt stehen.
     | CaptureFromOverview
+    /// Eine Zeile im Block „Angepinnt“ (budgeting-w9yt4): die Kategorie im Budget des laufenden Monats, Tab Geld.
+    | OpenPinnedCategory of System.Guid
+    /// Der Pin-Knopf im Kategorie-Detail (budgeting-w9yt4): anpinnen oder lösen, mit Toast.
+    | TogglePinFromInspector of categoryId: System.Guid * name: string
 
     // Quick Add (manual transaction entry → YNAB), lifted from SyncFlow (ynab-q7k3m)
     | OpenQuickAdd
@@ -536,6 +540,10 @@ let init () : Model * Cmd<Msg> =
         // Die Zahl an der Übersicht in Rail und Seitenleiste (ledger-s1weh); die Übersicht lädt sie selbst mit.
         if initialLoadsOverviewCount initialPage then
             Cmd.map OverviewMsg (Cmd.ofMsg Components.Overview.Types.CountsNeeded)
+        // Die angepinnten Kategorien (budgeting-w9yt4) braucht auch der Pin-Knopf im Kategorie-Detail; die Übersicht
+        // lädt sie selbst mit.
+        if initialLoadsOverviewCount initialPage then
+            Cmd.map OverviewMsg (Cmd.ofMsg Components.Overview.Types.PinsNeeded)
     ]
     model, cmd
 
@@ -922,7 +930,25 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
 
     | OverviewMsg overviewMsg ->
         let overview', cmd = Components.Overview.State.update overviewMsg model.Overview
-        { model with Overview = overview' }, Cmd.map OverviewMsg cmd
+        // Ein gescheitertes Speichern der Pins meldet ein Toast (Ergebnis einer Aktion, Styleguide §5).
+        let noticeCmd =
+            match Components.Overview.State.pinSaveNotice overviewMsg model.Overview with
+            | Some message -> Cmd.ofMsg (ShowToast (message, ToastError))
+            | None -> Cmd.none
+        { model with Overview = overview' }, Cmd.batch [ Cmd.map OverviewMsg cmd; noticeCmd ]
+
+    | OpenPinnedCategory categoryId ->
+        let model', cmd =
+            updateWith ports (BudgetMsg (Components.Budget.Types.EnterWithAction (Components.Budget.Types.OpenPinnedFromOverview categoryId))) model
+        model', Cmd.batch [ cmd; Cmd.ofMsg (NavigateTo Budget) ]
+
+    | TogglePinFromInspector (categoryId, name) ->
+        match model.Overview.Pins with
+        | Success _ ->
+            let wasPinned = Components.Overview.Types.isPinned model.Overview categoryId
+            let model', cmd = updateWith ports (OverviewMsg (Components.Overview.Types.PinToggled categoryId)) model
+            model', Cmd.batch [ cmd; Cmd.ofMsg (ShowToast (Components.Overview.Types.pinToggleNotice name wasPinned, ToastSuccess)) ]
+        | _ -> model, Cmd.none
 
     | OpenLedgerAccount filter ->
         let ledgerMsg =

@@ -362,6 +362,14 @@ let private sheetStepper (model: Model) (shown: BudgetGroup list) (dispatch: Msg
     [ arrow "inspector-previous" "Vorherige Kategorie" (Icons.chevronUp Icons.SM Icons.Default) Previous
       arrow "inspector-next" "Nächste Kategorie" (Icons.chevronDown Icons.SM Icons.Default) Next ]
 
+/// Der Pin-Knopf (budgeting-w9yt4) zwischen den Schrittpfeilen und Schließen, im Panel rechts im Kopf. Ohne geladene
+/// Pins fehlt er: ein Umschalten ohne Stand überschriebe die gespeicherte Liste.
+let private pinButton (pin: InspectorPin option) (category: BudgetCategory) =
+    match pin with
+    | Some pin ->
+        Button.pinToggle "inspector-pin" (pin.IsPinned category.Id) (fun () -> pin.Toggle category.Id category.Name)
+    | None -> Html.none
+
 /// Offene Verschiebungen im festen Bereich des Sheets. Es deckt die Seite ab, der Hinweis dort wäre
 /// nach Ablauf des Toasts nicht mehr bedienbar.
 let private sheetRetries (model: Model) (dispatch: Msg -> unit) =
@@ -399,7 +407,7 @@ let emptyPanel (model: Model) : EmptyPanel =
 
 /// Das Sheet unter 1024 px. Immer gerendert, damit es ein- und ausfährt. Beim Ausfahren hält
 /// `BottomSheet.inspector` den letzten Inhalt.
-let inspectorSheet (model: Model) (shown: BudgetGroup list) (dispatch: Msg -> unit) =
+let inspectorSheet (pin: InspectorPin option) (model: Model) (shown: BudgetGroup list) (dispatch: Msg -> unit) =
     let props title subtitle isOpen : BottomSheet.BottomSheetProps =
         { IsOpen = isOpen
           OnClose = fun () -> dispatch CloseInspector
@@ -410,7 +418,7 @@ let inspectorSheet (model: Model) (shown: BudgetGroup list) (dispatch: Msg -> un
     | Some (selected, month, (category, groupName)) ->
         BottomSheet.inspector
             (props category.Name (Some $"{groupName} · {monthLabel month.Month}") true)
-            (sheetStepper model shown dispatch)
+            (sheetStepper model shown dispatch @ [ pinButton pin category ])
             [ sheetRetries model dispatch
               inspectorTabBar model dispatch ]
             // `-mx-5` hebt den Rand von `.sheet-body` auf, die Zeilen tragen ihn selbst.
@@ -424,7 +432,7 @@ let inspectorSheet (model: Model) (shown: BudgetGroup list) (dispatch: Msg -> un
 /// Das Panel ab 1024 px. Der Hinweis steht ohne Auswahl da, die Höhe bleibt gleich. Beim Blättern
 /// bleibt der Inhalt stehen. Lädt der Monat bei bestehender Auswahl, steht ein Skeleton da. Scheitert
 /// das Laden, bleibt das Panel neben der Fehlerkarte leer: es kommt kein Inhalt nach.
-let inspectorPanel (model: Model) (dispatch: Msg -> unit) =
+let inspectorPanel (pin: InspectorPin option) (model: Model) (dispatch: Msg -> unit) =
     Html.aside [
         prop.custom ("data-testid", "budget-inspector")
         prop.className $"budget-inspector-panel flex flex-col rounded-xl border border-border-subtle bg-surface-card overflow-hidden {monthChangeClass model}"
@@ -432,10 +440,16 @@ let inspectorPanel (model: Model) (dispatch: Msg -> unit) =
             match sheetCategory model with
             | Some (selected, month, (category, groupName)) ->
                 Html.div [
-                    prop.className "flex flex-col gap-1 p-4 shrink-0"
+                    prop.className "flex items-start gap-2 p-4 shrink-0"
                     prop.children [
-                        Html.h2 (Truncate.textProps ListRoles.primary category.Name)
-                        Truncate.text ListRoles.secondary $"{groupName} · {monthLabel month.Month}"
+                        Html.div [
+                            prop.className "flex flex-col gap-1 flex-1 min-w-0"
+                            prop.children [
+                                Html.h2 (Truncate.textProps ListRoles.primary category.Name)
+                                Truncate.text ListRoles.secondary $"{groupName} · {monthLabel month.Month}"
+                            ]
+                        ]
+                        pinButton pin category
                     ]
                 ]
                 Html.div [ prop.className "shrink-0"; prop.children [ inspectorTabBar model dispatch ] ]

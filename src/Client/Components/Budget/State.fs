@@ -349,6 +349,8 @@ let takeEntryAction (model: Model) : Model * Cmd<Msg> =
             match action with
             | CoverFromOverview categoryId ->
                 selectCategory categoryId { cleared with Tab = MoneyTab } |> syncMoneyTab |> switchMode TakeMode |> withTabData
+            | OpenPinnedFromOverview categoryId ->
+                selectCategory categoryId { cleared with Tab = MoneyTab } |> syncMoneyTab |> withTabData
             | ApplyTargetsFromOverview ->
                 match openTargets cleared, shownMonth cleared with
                 | (opened, true), Some month -> opened, previewCmd month opened.TargetsPreviewGeneration

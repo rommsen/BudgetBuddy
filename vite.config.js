@@ -79,7 +79,7 @@ export default defineConfig({
         // Die erste Installation übernimmt die Seite sofort. Kein skipWaiting: ein
         // aktualisierter Worker wartet, bis Pwa.applyUpdate ihn freigibt (ADR 0057).
         clientsClaim: true,
-        // Das eine App-Bündel ist über 2 MiB gewachsen (ledger-fxt09). Ohne höhere Grenze bliebe es aus
+        // Das eine App-Bündel ist über 2 MiB gewachsen (ledger-fxt09, budgeting-w9yt4). Ohne höhere Grenze bliebe es aus
         // dem Precache, und der Build bricht ab. 4 MiB lässt Luft, bis das Bündel geteilt wird.
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024
       }
