@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-11 16:30 -- Batch started: [ledger-s1weh]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-s1weh - "Übersicht als Einstieg (Variante A): Zu tun mit einer Hauptaktion, Zähler an der Übersicht, „+ Buchung“, am PC zweispaltig"
+**Parallel:** no (1 worker — einzige bereite Task)
+
+---
+
 ## 2026-11-11 14:01 -- Capture / Captured: infrastructure-rm6zb - "Wächter gegen Formatangaben in interpolierten Strings unter src/Client und src/Shared"
 
 **Type:** Capture
