@@ -42,8 +42,9 @@ type CaptureState = {
     SubmitWhenLookedUp: bool
     /// Fehler aus der Prüfung im Client oder vom Server; sie bleiben im Formular stehen.
     Errors: string list
-    /// Zeigt das Kassenbuch nach dem Anlegen die neue Buchung im Panel? Nicht beim Erfassen aus der Übersicht
-    /// (ledger-s1weh): dort bleibt man auf der Seite.
+    /// Zeigt das Kassenbuch nach dem Anlegen die neue Buchung im Panel? Nicht, wenn die Antwort auf der Übersicht
+    /// ankommt (ledger-s1weh): dort bleibt man auf der Seite. Der Rahmen setzt es mit der Antwort
+    /// (`State.captureAnsweredOn`), es hängt nicht an der Seite, auf der das Formular geöffnet wurde.
     ShowsCreatedEntry: bool
 }
 

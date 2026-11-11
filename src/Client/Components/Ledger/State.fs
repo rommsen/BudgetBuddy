@@ -2534,11 +2534,6 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         | Some editor when not (splitBusy model editor.EntryId) -> { model with SplitEditor = None }, Cmd.none, NoOp
         | _ -> model, Cmd.none, NoOp
 
-    | OpenCaptureKeepingPage ->
-        match updateCore OpenCapture model with
-        | opened, cmd, external ->
-            { opened with Capture = opened.Capture |> Option.map (fun c -> { c with ShowsCreatedEntry = false }) }, cmd, external
-
     | OpenCapture ->
         match model.Capture with
         | Some _ -> model, Cmd.none, NoOp
@@ -3451,6 +3446,12 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             updateCore ClearSelection model
         else
             model, Cmd.none, NoOp
+
+/// Die Antwort auf „Buchung anlegen“ kommt auf dieser Seite an (ledger-s1weh): Nur im Kassenbuch zeigt das Panel danach
+/// die neue Buchung, auf der Übersicht bleibt die Seite stehen. Der Rahmen kennt die Seite und setzt es vor der Antwort,
+/// gleich wo das Formular geöffnet wurde.
+let captureAnsweredOn (onLedgerPage: bool) (model: Model) : Model =
+    { model with Capture = model.Capture |> Option.map (fun c -> { c with ShowsCreatedEntry = onLedgerPage }) }
 
 /// Eine beginnende Auswahl (von leer auf nicht leer) schließt ein offenes Panel oder Sheet
 /// (ADR 0053 Punkt 4, ledger-w4vte). Der Vergleich von Zustand vor und nach dem Schritt

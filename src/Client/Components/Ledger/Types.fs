@@ -1903,9 +1903,6 @@ type Msg =
     // ============================================
     /// "+ Buchung": öffnet das Formular und lädt die Vorbelegung.
     | OpenCapture
-    /// "+ Buchung" auf der Übersicht (ledger-s1weh): dasselbe Formular, nach dem Anlegen bleibt die Seite stehen
-    /// (am PC öffnet kein Detail).
-    | OpenCaptureKeepingPage
     | CloseCapture
     | RunLoadCaptureDefaults
     /// "Erneut versuchen" nach einer gescheiterten Vorbelegung.

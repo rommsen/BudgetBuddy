@@ -462,4 +462,29 @@ let captureTests =
                     | State.ShowToastWithAction (text, _, _) -> Some text
                     | _ -> None)
             Expect.equal toast (Some "Buchung angelegt · Bar · -8,60 €") "Konto und Betrag"
+
+        // Bug (Review ledger-s1weh): das Formular trug beim Öffnen fest, ob nach dem Anlegen das Detail kommt. Am PC im
+        // Kassenbuch begonnen und auf der Übersicht gespeichert, lud es das Detail im Kassenbuch; aus der Übersicht
+        // begonnen und im Kassenbuch gespeichert, fehlte es. Es entscheidet die Seite, auf der gespeichert wird.
+        testCase "Nach dem Anlegen entscheidet die Seite, auf der gespeichert wird, ob das Detail der Buchung kommt" <| fun () ->
+            let created : LedgerBookingCreated = { EntryId = entryId; AccountName = "Bar"; PushFailure = None }
+            let savedOn (opening: State.Model -> State.Model) (page: Page) =
+                let opened = opening (rootModel page)
+                let capture = opened.Ledger.Capture.Value
+                let filled =
+                    { opened with
+                        CurrentPage = page
+                        Ledger =
+                            { opened.Ledger with
+                                DetailForm = Components.Ledger.Types.DetailPanel
+                                Capture = Some { capture with Form = { capture.Form with AmountText = "8,60"; AccountId = Some (Guid.NewGuid()) } } } }
+                let _, cmd = State.update (State.LedgerMsg (Components.Ledger.Types.CaptureSubmitted (Ok created))) filled
+                dispatched cmd |> List.contains (State.LedgerMsg (Components.Ledger.Types.OpenRouteEntry entryId))
+            let inLedger (model: State.Model) =
+                fst (State.update (State.LedgerMsg Components.Ledger.Types.OpenCapture) { model with CurrentPage = Ledger })
+            let fromOverview (model: State.Model) =
+                fst (State.update State.CaptureFromOverview { model with CurrentPage = Overview })
+            Expect.isFalse (savedOn inLedger Overview) "im Kassenbuch begonnen, auf der Übersicht gespeichert: kein Detail"
+            Expect.isTrue (savedOn fromOverview Ledger) "auf der Übersicht begonnen, im Kassenbuch gespeichert: Detail"
+            Expect.isTrue (savedOn inLedger Ledger) "im Kassenbuch begonnen und gespeichert: Detail"
     ]

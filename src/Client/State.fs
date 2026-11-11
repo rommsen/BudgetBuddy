@@ -858,7 +858,13 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
             { model with Ledger = { model.Ledger with Categories = Loading; CategoriesAwaitSettings = true } }, cmd
 
     | LedgerMsg ledgerMsg ->
-        let ledgerModel', ledgerCmd, externalMsg = Components.Ledger.State.update ledgerMsg model.Ledger
+        // Ob nach dem Anlegen das Detail kommt, entscheidet die Seite, auf der die Antwort ankommt (ledger-s1weh).
+        let ledgerBefore =
+            match ledgerMsg with
+            | Components.Ledger.Types.CaptureSubmitted (Ok _) ->
+                Components.Ledger.State.captureAnsweredOn (isLedgerPage model.CurrentPage) model.Ledger
+            | _ -> model.Ledger
+        let ledgerModel', ledgerCmd, externalMsg = Components.Ledger.State.update ledgerMsg ledgerBefore
 
         let externalCmd =
             match externalMsg with
@@ -950,7 +956,7 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
               match ledger.Balances with
               | Success _ | Loading -> ()
               | _ -> LedgerMsg Components.Ledger.Types.LoadBalances ]
-        let model', cmd = updateWith ports (LedgerMsg Components.Ledger.Types.OpenCaptureKeepingPage) model
+        let model', cmd = updateWith ports (LedgerMsg Components.Ledger.Types.OpenCapture) model
         model', Cmd.batch (cmd :: (loads |> List.map Cmd.ofMsg))
 
     | FetchFromBank ->
