@@ -33,7 +33,7 @@ Zuletzt aktualisiert: 2026-11-11, nach work-Lauf zu design-system-k6kfw.
   Entschieden (Roman): Schriftgrößen der Übersicht nach §7.14 (Kriterium in ledger-s1weh), Abbrechen-Pfeil im
   Sync-Ablauf in die Kann-Sammlung banking-import.
 - **Nächster Schritt:** Romans Blick auf Navigation und Übersicht am Handy (412 px) und am PC neben dem Prototyp,
-  dann `/agentheim:work` für ledger-s1weh (Übersicht als Einstieg, in `todo/`). Nicht deployt.
+  dann `/agentheim:work` für ledger-s1weh (Übersicht als Einstieg, in `todo/`). Deployt 2026-11-11 (d8b8b3e0).
   Offen zum Verfeinern mit Roman: ledger-t4rk8 (Betrag eines Übertrags in BB ändern).
 - Verfeinert wird nur die nächste Etappe. Spätere Etappen haben Zeilen, keine Tickets.
 - Neue Ideen für spätere Etappen kommen hier als Zeile dazu.
