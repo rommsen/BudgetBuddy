@@ -830,6 +830,22 @@ let entriesNotInYnabTests =
             let ids = entriesNotInYnab [ earlyDay; older; lateDay; newer ] |> List.map (fun e -> e.EntryId)
             Expect.equal ids [ idOf newer; idOf older; idOf lateDay; idOf earlyDay ] "Reihenfolge"
 
+        // Review-Fund: das Buchungsdatum ist ein Tag und das SQL sortiert nicht. Zwei Buchungen am selben Tag (oder
+        // mit demselben Fehlschlag-Zeitpunkt) standen in der Reihenfolge der Datenbank, „Zu tun“ sprang beim Neuladen.
+        testCase "Bei gleichem Tag oder gleichem Fehlschlag entscheidet die EntryId, die größere (später angelegte) zuerst" <| fun () ->
+            // Feste Ids: zwei UUIDv7 aus derselben Millisekunde sind untereinander nicht geordnet.
+            let withId (n: int) (e: Entry) = { e with Id = EntryId (Guid.Parse $"0195c000-0000-7000-8000-00000000d0{n:D2}") }
+            let first = withId 1 (entry account -1m)
+            let second = withId 2 (entry account -2m)
+            for input in [ [ first; second ]; [ second; first ] ] do
+                let ids = entriesNotInYnab input |> List.map (fun e -> e.EntryId)
+                Expect.equal ids [ idOf second; idOf first ] "gleicher Tag"
+            let failedFirst = withId 3 { entry account -3m with PushToYnabFailure = failure 2 }
+            let failedSecond = withId 4 { entry account -4m with PushToYnabFailure = failure 2 }
+            for input in [ [ failedFirst; failedSecond ]; [ failedSecond; failedFirst ] ] do
+                let ids = entriesNotInYnab input |> List.map (fun e -> e.EntryId)
+                Expect.equal ids [ idOf failedSecond; idOf failedFirst ] "gleicher Fehlschlag"
+
         testCase "Payee, Betrag, Konto und Fehlschlag gehen mit" <| fun () ->
             let failed = { entry account -8.60m with PushToYnabFailure = failure 0 }
             match entriesNotInYnab [ failed ] with

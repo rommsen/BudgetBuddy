@@ -551,18 +551,21 @@ let getYnabPushState (entryId: EntryId) : Async<YnabPushState option> =
 
 /// Die Buchungen, die nicht in YNAB sind (ledger-s1weh), rein: nicht verknüpft und nicht in YNAB gelöscht.
 /// Zuerst die mit offenem Push-Fehlschlag, der neueste Fehlschlag zuerst; danach die ohne bekannten Ausgang,
-/// nach Buchungsdatum, die neueste zuerst. Dieselbe Menge, die das Kassenbuch mit „Noch nicht in YNAB“ kennzeichnet.
+/// nach Buchungsdatum, die neueste zuerst. Bei Gleichstand entscheidet die EntryId, die größere zuerst (UUIDv7, also
+/// die später angelegte): das Buchungsdatum ist ein Tag und das SQL sortiert nicht, ohne Zweitschlüssel sprang die
+/// Liste beim Neuladen. Dieselbe Menge, die das Kassenbuch mit „Noch nicht in YNAB“ kennzeichnet.
 let entriesNotInYnab (entries: Entry list) : EntryNotInYnab list =
     let notInYnab = entries |> List.filter (fun e -> not e.LinkedToYnab && not e.DeletedInYnab)
+    let idOf (e: Entry) = let (EntryId id) = e.Id in id
     let failed =
         notInYnab
-        |> List.choose (fun e -> e.PushToYnabFailure |> Option.map (fun f -> f.FailedAt, e))
+        |> List.choose (fun e -> e.PushToYnabFailure |> Option.map (fun f -> (f.FailedAt, idOf e), e))
         |> List.sortByDescending fst
         |> List.map snd
     let unknown =
         notInYnab
         |> List.filter (fun e -> e.PushToYnabFailure.IsNone)
-        |> List.sortByDescending (fun e -> e.Date)
+        |> List.sortByDescending (fun e -> e.Date, idOf e)
     (failed @ unknown)
     |> List.map (fun e ->
         let (EntryId entryId) = e.Id
