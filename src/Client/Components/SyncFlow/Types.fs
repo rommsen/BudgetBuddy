@@ -214,6 +214,17 @@ type StartRecovery = {
     ReadPlanned: bool
 }
 
+/// Wo ein Start des Syncs steht (design-system-k6kfw). Ein zweiter Tipp darf keinen zweiten `startSync`
+/// auslösen, sonst kommt womöglich eine zweite Push-TAN (ADR 0071: keine Challenge ohne Roman).
+type StartPhase =
+    /// Kein Start offen.
+    | StartIdle
+    /// „Abrufen“ kam als Auftrag: die Sitzung wird zuerst gelesen, gestartet wird erst bei keiner oder einer
+    /// abgeschlossenen Sitzung.
+    | StartOrdered
+    /// `startSync` ist unterwegs, die Antwort steht aus.
+    | StartInFlight
+
 /// SyncFlow-specific model state
 type Model = {
     CurrentSession: RemoteData<SyncSession option>
@@ -247,6 +258,8 @@ type Model = {
     BankStatusReadVersion: int
     /// Gesetzt, wenn die Antwort von `startSync` verloren ging und der Serverzustand neu gelesen wird.
     InterruptedStart: StartRecovery option
+    /// Auftrag und laufender Start (design-system-k6kfw).
+    Start: StartPhase
     /// Transaction IDs with expanded details (showing memo)
     ExpandedTransactionIds: Set<TransactionId>
     /// Active inline rule creation form (None when not creating rule)
@@ -276,6 +289,39 @@ let knownAccounts (model: Model) : YnabAccount list =
     | Success accounts -> accounts
     | _ -> []
 
+/// Was die Seite des Sync-Ablaufs zeigt. Die View ruft es nur auf (Doktrin Punkt 1).
+type SessionScreen =
+    | StartScreen
+    | LoadingScreen
+    | BankAuthScreen
+    | TanScreen
+    | FetchingScreen
+    | ReviewScreen
+    | ImportingScreen
+    | CompletedScreen of SyncSession
+    | ErrorScreen of string
+
+let sessionScreen (model: Model) : SessionScreen =
+    match model.CurrentSession with
+    | NotAsked | Success None -> StartScreen
+    | Loading -> LoadingScreen
+    | Failure error -> ErrorScreen error
+    | Success (Some session) ->
+        match session.Status with
+        | AwaitingBankAuth -> BankAuthScreen
+        | AwaitingTan -> TanScreen
+        | FetchingTransactions -> FetchingScreen
+        | ReviewingTransactions -> ReviewScreen
+        | ImportingToYnab -> ImportingScreen
+        | Completed -> CompletedScreen session
+        | Failed error -> ErrorScreen error
+
+/// Zeigt die Seite einen Knopf, der den Sync startet (Start, „Erneut synchronisieren“, „Erneut versuchen“)?
+let offersStart (screen: SessionScreen) : bool =
+    match screen with
+    | StartScreen | CompletedScreen _ | ErrorScreen _ -> true
+    | LoadingScreen | BankAuthScreen | TanScreen | FetchingScreen | ReviewScreen | ImportingScreen -> false
+
 /// SyncFlow-specific messages
 type Msg =
     | LoadCurrentSession
@@ -287,6 +333,9 @@ type Msg =
     | SessionReadAnswered of version: int * Result<SyncSession option, string>
     | CurrentSessionLoaded of SyncSession option
     | CurrentSessionLoadFailed of string
+    /// „Abrufen“ aus der Übersicht: erst die Sitzung lesen, dann nur bei keiner oder einer abgeschlossenen
+    /// Sitzung starten. Eine laufende Sitzung wird gezeigt (design-system-k6kfw).
+    | StartRequested
     | StartSync
     | SyncStarted of Result<SyncStart, SyncError>
     /// Die Antwort von `startSync` ging auf dem Transportweg verloren. Der Server kann trotzdem weit sein.

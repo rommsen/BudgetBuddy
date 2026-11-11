@@ -86,6 +86,11 @@ let private rootModel (page: Page) : State.Model =
       Overview = Components.Overview.Types.init
       SettingsReturn = Overview }
 
+let private dispatched (cmd: Elmish.Cmd<State.Msg>) : State.Msg list =
+    let collected = ResizeArray<State.Msg>()
+    cmd |> List.iter (fun effect -> effect collected.Add)
+    List.ofSeq collected
+
 let private accountId = Guid.Parse "00000000-0000-0000-0000-00000000a001"
 
 [<Tests>]
@@ -105,6 +110,16 @@ let transitionTests =
         testCase "Im Kassenbuch wechselt ein Konto aus der Seitenleiste den Filter wie die Kontenliste" <| fun () ->
             let model, _ = State.update (State.OpenLedgerAccount Components.Ledger.Types.AllAccounts) (rootModel Ledger)
             Expect.equal model.Ledger.SelectedFilter (Some Components.Ledger.Types.AllAccounts) "Filter"
+
+        // Review-Fund: „Abrufen“ startete den Sync zugleich mit dem Seitenwechsel; das Lesen der Sitzung beim Betreten
+        // zeigte dann den Startknopf, obwohl der Start lief. Jetzt geht ein Auftrag an den Sync-Ablauf
+        // (Reihenfolgen in SyncStartOrderTests).
+        testCase "Abrufen öffnet den Sync-Ablauf und gibt ihm den Auftrag, statt selbst zu starten" <| fun () ->
+            let _, cmd = State.update State.FetchFromBank (rootModel Overview)
+            let messages = dispatched cmd
+            Expect.contains messages (State.NavigateTo SyncFlow) "zum Sync-Ablauf"
+            Expect.contains messages (State.SyncFlowMsg Components.SyncFlow.Types.StartRequested) "Auftrag"
+            Expect.isFalse (messages |> List.contains (State.SyncFlowMsg Components.SyncFlow.Types.StartSync)) "kein blinder Start"
 
         testCase "Im Minus öffnet das Budget mit dem Filter Überzogen" <| fun () ->
             let model, _ = State.update State.OpenBudgetOverdrawn (rootModel Overview)

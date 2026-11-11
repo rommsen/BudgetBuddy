@@ -203,6 +203,7 @@ let init () : Model * Cmd<Msg> =
         BankStatus = NotAsked
         BankStatusReadVersion = 0
         InterruptedStart = None
+        Start = StartIdle
         ExpandedTransactionIds = Set.empty
         InlineRuleForm = None
         InlineRuleTestVersion = 0
@@ -259,14 +260,44 @@ let inlineRuleTestCmd
         (fun result -> InlineRuleTested (version, result))
         (fun _ -> InlineRuleTestLost version)
 
-let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
+/// Lesen der Sitzung und Start des Syncs als Funktionswerte (Doktrin Punkt 1): unter .NET wirft der
+/// Remoting-Proxy im Typinitialisierer. `update` schließt `livePorts` an, Tests zählen die Aufrufe.
+/// `updateWith` ruft einen Port schon beim Bauen des Cmd auf; das Async startet erst mit dem Cmd.
+type SyncPorts = {
+    GetCurrentSession: unit -> Async<SyncSession option>
+    StartSync: unit -> Async<Result<SyncStart, SyncError>>
+}
+
+let livePorts : SyncPorts = {
+    GetCurrentSession = fun () -> Retry.reading Api.sync.getCurrentSession ()
+    StartSync = fun () -> Api.sync.startSync ()
+}
+
+/// Der eine Weg zu `startSync`: Lesevorgänge von davor verfallen, ein zweiter Start wartet auf die Antwort.
+let private startWith (ports: SyncPorts) (model: Model) : Model * Cmd<Msg> =
+    let call = ports.StartSync ()
+    let cmd =
+        Cmd.OfAsync.either
+            (fun () -> call)
+            ()
+            SyncStarted
+            (fun ex -> SyncStartInterrupted ex.Message)
+    { beginSyncStart model with Start = StartInFlight }, cmd
+
+let rec updateWith (ports: SyncPorts) (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
+    // Während `startSync` läuft, bringt dessen Antwort die Sitzung. Ein Lesen der Datenbank fände dann noch
+    // keine oder die alte Sitzung und zeigte wieder den Startknopf (design-system-k6kfw).
+    | LoadCurrentSession when model.Start = StartInFlight ->
+        model, Cmd.ofMsg LoadBankStatus, NoOp
+
     | LoadCurrentSession ->
         let reading = beginSessionRead model
         let version = reading.SessionReadVersion
+        let call = ports.GetCurrentSession ()
         let cmd =
             Cmd.OfAsync.either
-                (Retry.reading Api.sync.getCurrentSession)
+                (fun () -> call)
                 ()
                 (fun session -> SessionReadAnswered (version, Ok session))
                 (fun ex -> SessionReadAnswered (version, Error ex.Message))
@@ -294,7 +325,13 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
 
     | SessionReadAnswered (_, Error reason) -> model, Cmd.ofMsg (CurrentSessionLoadFailed reason), NoOp
 
+    // Der Auftrag „Abrufen“ startet erst jetzt, und nur ohne laufende Sitzung (ADR 0071).
+    | CurrentSessionLoaded (None | Some { Status = Completed }) when model.Start = StartOrdered ->
+        let started, cmd = startWith ports model
+        started, cmd, NoOp
+
     | CurrentSessionLoaded session ->
+        let model = if model.Start = StartOrdered then { model with Start = StartIdle } else model
         let updatedModel = { model with CurrentSession = Success session }
         match model.InterruptedStart, session with
         | Some recovery, (None | Some { Status = Completed }) ->
@@ -319,6 +356,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         | _ -> { updatedModel with InterruptedStart = None }, Cmd.none, NoOp
 
     | CurrentSessionLoadFailed reason ->
+        let model = if model.Start = StartOrdered then { model with Start = StartIdle } else model
         let message =
             model.InterruptedStart
             |> Option.map (fun recovery -> recovery.Reason)
@@ -326,14 +364,21 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             |> interruptedStartMessage
         { model with CurrentSession = Failure message; InterruptedStart = None }, Cmd.none, ShowToast (message, ToastError)
 
+    | StartRequested ->
+        // Ein Auftrag, ein Start oder ein Nachlesen läuft schon: ein zweiter Tipp tut nichts.
+        if model.Start <> StartIdle || model.InterruptedStart.IsSome then
+            model, Cmd.none, NoOp
+        else
+            { model with Start = StartOrdered }, Cmd.ofMsg LoadCurrentSession, NoOp
+
+    | StartSync when model.Start = StartInFlight -> model, Cmd.none, NoOp
+
     | StartSync ->
-        let cmd =
-            Cmd.OfAsync.either
-                Api.sync.startSync
-                ()
-                SyncStarted
-                (fun ex -> SyncStartInterrupted ex.Message)
-        beginSyncStart model, cmd, NoOp
+        let started, cmd = startWith ports model
+        started, cmd, NoOp
+
+    | SyncStarted _ when model.Start = StartInFlight ->
+        updateWith ports msg { model with Start = StartIdle }
 
     | SyncStarted (Ok (TanRequired session)) ->
         { supersedeSessionRead model with CurrentSession = Success (Some session) }, Cmd.none, ShowToast ("Bitte bestätige die TAN auf deinem Handy", ToastInfo)
@@ -346,7 +391,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
 
     | SyncStartInterrupted reason ->
         let recovery = { Reason = reason; ReadsLeft = interruptedStartReadLimit; ReadPlanned = false }
-        { model with InterruptedStart = Some recovery }, Cmd.ofMsg LoadCurrentSession, NoOp
+        { model with InterruptedStart = Some recovery; Start = StartIdle }, Cmd.ofMsg LoadCurrentSession, NoOp
 
     | InterruptedStartReadDue readsLeft ->
         match model.InterruptedStart with
@@ -1370,3 +1415,5 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
 
     | TransactionsUpdatedByRule (Error err) ->
         model, Cmd.none, ShowToast (syncErrorToString err, ToastError)
+
+let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg = updateWith livePorts msg model

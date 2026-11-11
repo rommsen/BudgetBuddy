@@ -72,6 +72,7 @@
     <Compile Include="CmdTiming.fs" />
     <Compile Include="SyncFlowViewTests.fs" />
     <Compile Include="SyncFlowStateTests.fs" />
+    <Compile Include="SyncStartOrderTests.fs" />
     <Compile Include="ImportAskLenaClientTests.fs" />
     <Compile Include="QuickAddTests.fs" />
     <Compile Include="PwaTests.fs" />

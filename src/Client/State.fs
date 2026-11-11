@@ -86,7 +86,7 @@ type Msg =
     | OpenLedgerAccount of Components.Ledger.Types.AccountFilter
     /// „Im Minus“ im Monat der Übersicht: das Budget öffnet mit dem Filter Überzogen.
     | OpenBudgetOverdrawn
-    /// „Abrufen“ im Kopf der Übersicht: der Sync-Ablauf öffnet und startet.
+    /// „Abrufen“ im Kopf der Übersicht: der Sync-Ablauf öffnet und startet, wenn keine Sitzung läuft.
     | FetchFromBank
 
     // Quick Add (manual transaction entry → YNAB), lifted from SyncFlow (ynab-q7k3m)
@@ -880,7 +880,8 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
         model,
         Cmd.batch [
             Cmd.ofMsg (NavigateTo SyncFlow)
-            Cmd.map SyncFlowMsg (Cmd.ofMsg Components.SyncFlow.Types.StartSync)
+            // Ein Auftrag: der Sync-Ablauf liest zuerst die Sitzung und startet nur, wenn keine läuft.
+            Cmd.map SyncFlowMsg (Cmd.ofMsg Components.SyncFlow.Types.StartRequested)
         ]
 
     | BudgetMsg budgetMsg ->

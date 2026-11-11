@@ -19,16 +19,9 @@ let private bankName = "Comdirect"
 // ============================================
 
 let view (model: Model) (dispatch: Msg -> unit) =
-    // Check if we're in the reviewing state to use a custom header
-    let isReviewing =
-        match model.CurrentSession with
-        | Success (Some session) ->
-            match session.Status with
-            | ReviewingTransactions -> true
-            | _ -> false
-        | _ -> false
+    let screen = sessionScreen model
 
-    if isReviewing then
+    if screen = ReviewScreen then
         // Custom review header + content wrapped in sf-app
         let transactionCount =
             match model.SyncTransactions with
@@ -83,42 +76,17 @@ let view (model: Model) (dispatch: Msg -> unit) =
             prop.className "container mx-auto px-4 space-y-6"
             prop.children [
                 // Show appropriate content based on session status
-                match model.CurrentSession with
-                | NotAsked ->
-                    startSyncView model.BankStatus dispatch
-
-                | Loading ->
-                    loadingView "Bank wird abgefragt..."
-
-                | Success (Some session) ->
-                    match session.Status with
-                    | AwaitingBankAuth ->
-                        loadingView (sprintf "Verbindung zu %s..." bankName)
-
-                    | AwaitingTan ->
-                        tanWaitingView model.IsTanConfirming dispatch
-
-                    | FetchingTransactions ->
-                        fetchingView ()
-
-                    | ReviewingTransactions ->
-                        // This branch should not be reached due to isReviewing check above
-                        transactionListView model dispatch
-
-                    | ImportingToYnab ->
-                        loadingView "Importing to YNAB..."
-
-                    | Completed ->
-                        completedView session dispatch
-
-                    | Failed error ->
-                        errorView error dispatch
-
-                | Success None ->
-                    startSyncView model.BankStatus dispatch
-
-                | Failure error ->
-                    errorView error dispatch
+                match screen with
+                | StartScreen -> startSyncView model.BankStatus dispatch
+                | LoadingScreen -> loadingView "Bank wird abgefragt..."
+                | BankAuthScreen -> loadingView (sprintf "Verbindung zu %s..." bankName)
+                | TanScreen -> tanWaitingView model.IsTanConfirming dispatch
+                | FetchingScreen -> fetchingView ()
+                // Wird oben schon abgefangen.
+                | ReviewScreen -> transactionListView model dispatch
+                | ImportingScreen -> loadingView "Importing to YNAB..."
+                | CompletedScreen session -> completedView session dispatch
+                | ErrorScreen error -> errorView error dispatch
 
                 // Split-Review sheet (ynab-002)
                 splitSheet model dispatch
