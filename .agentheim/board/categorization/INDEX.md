@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 3
+- **Backlog:** 4
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 8
@@ -38,6 +38,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **categorization-n3sxw** — "Regeln ins Kassenbuch: Regeln als Tab neben den Buchungen statt eigener Seite" (feature) — `backlog/categorization-n3sxw-regeln-ins-kassenbuch.md`
 - **categorization-m5k2c** — "Kann-Sammlung categorization" (chore) — `backlog/categorization-m5k2c-kann-sammlung-categorization.md`
 - **categorization-hz6vj** — "Kategorisieren im Import: Order-Id und Review-Spur" (bug) — `backlog/categorization-hz6vj-kategorisieren-im-import-order-id-und-review.md`
 - **categorization-krscs** — "Regel-Dialog im Client: Ladezustände, Fehler, Seiteneffekte und Retry beim Muster-Test" (refactor) — `backlog/categorization-krscs-regel-dialog-ladezustaende-fehler-und-seiteneffekte.md`

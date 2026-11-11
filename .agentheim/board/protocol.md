@@ -5,6 +5,105 @@ Newest entries on top.
 
 ---
 
+## 2026-11-11 08:10 -- Modeling / Captured: design-system-x1abn - "Logo und Icon: Buddy aus standards/frontend/brand/ als Marke und PWA-Icon"
+
+**Type:** Modeling / Capture
+**BC:** design-system
+**Filed to:** backlog
+**Summary:** Schnitt aus Etappe 3 (Roman 2026-11-11), grob, verfeinert wird beim Drankommen.
+
+---
+
+## 2026-11-11 08:10 -- Modeling / Captured: budgeting-wnkgj - "Budget an die Bedeutungen angleichen: Targets prüfen mit weniger Orange, Wochentag als Auswahlfeld, Historie mit „Zeigen“, Leerflächen am PC"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Schnitt aus Etappe 3 (Roman 2026-11-11), grob, verfeinert wird beim Drankommen.
+
+---
+
+## 2026-11-11 08:10 -- Modeling / Captured: design-system-gcpws - "Liste mit Panel überall: Panel rund 30 % ab 1024 px, auch für Regeln, Erfassen, Targets prüfen und Kategorien, ein generischer Tastentest"
+
+**Type:** Modeling / Capture
+**BC:** design-system
+**Filed to:** backlog
+**Summary:** Schnitt aus Etappe 3 (Roman 2026-11-11), grob, verfeinert wird beim Drankommen.
+
+---
+
+## 2026-11-11 08:10 -- Modeling / Captured: ledger-f8d7x - "Kassenbuch ordnen: am Handy Filter-Knopf mit Sheet und Chips statt zwei wischender Leisten, am PC Seitenleiste mit Konten, Seitenpanel und Historie wie im Budget"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Schnitt aus Etappe 3 (Roman 2026-11-11), grob, verfeinert wird beim Drankommen.
+
+---
+
+## 2026-11-11 08:10 -- Modeling / Captured: ledger-ea70s - "Ein Erfassen: Quick Add hört auf, ein eigener Ort zu sein; „+ Buchung“ in Kassenbuch und Übersicht mit kluger Vorbelegung"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Schnitt aus Etappe 3 (Roman 2026-11-11), grob, verfeinert wird beim Drankommen.
+
+---
+
+## 2026-11-11 08:10 -- Modeling / Captured: categorization-n3sxw - "Regeln ins Kassenbuch: Regeln als Tab neben den Buchungen statt eigener Seite"
+
+**Type:** Modeling / Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Schnitt aus Etappe 3 (Roman 2026-11-11), grob, verfeinert wird beim Drankommen.
+
+---
+
+## 2026-11-11 08:10 -- Modeling / Captured: ledger-v6s7c - "Durchgehen neuer Buchungen Karte für Karte von der Übersicht aus, mit Amazon-Link und Duplikat-Karte"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Schnitt aus Etappe 3 (Roman 2026-11-11), grob, verfeinert wird beim Drankommen.
+
+---
+
+## 2026-11-11 08:10 -- Modeling / Captured: banking-import-d0fey - "Import direkt ins Kassenbuch: abgerufene Umsätze sofort in Kassenbuch und YNAB als „zu prüfen“, nur unsichere Duplikate warten"
+
+**Type:** Modeling / Capture
+**BC:** banking-import
+**Filed to:** backlog
+**Summary:** Schnitt aus Etappe 3 (Roman 2026-11-11), grob, verfeinert wird beim Drankommen.
+
+---
+
+## 2026-11-11 08:10 -- Modeling / Captured: budgeting-w9yt4 - "Angepinnte Kategorien: anpinnen und lösen auf der Übersicht und im Kategorie-Detail, gespeichert als Zustand"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Schnitt aus Etappe 3 (Roman 2026-11-11), grob, verfeinert wird beim Drankommen.
+
+---
+
+## 2026-11-11 08:10 -- Modeling / Captured: ledger-s1weh - "Übersicht als Einstieg (Variante A): Zu tun, Monat mit Balken und Marke heute, am Handy Konten, „+ Buchung“"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Schnitt aus Etappe 3 (Roman 2026-11-11), grob, verfeinert wird beim Drankommen.
+
+---
+
+## 2026-11-11 08:10 -- Modeling / Captured: design-system-k6kfw - "Navigation mit drei Orten: Übersicht, Kassenbuch, Budget, Einstellungen hinter dem Zahnrad, ab 768 px links"
+
+**Type:** Modeling / Capture
+**BC:** design-system
+**Filed to:** backlog
+**Summary:** Schnitt aus Etappe 3 (Roman 2026-11-11), grob, verfeinert wird beim Drankommen.
+
+---
+
 ## 2026-11-10 23:53 -- Review-Lauf: 293965bc..b74d67df
 
 **Type:** Review / Review-Lauf

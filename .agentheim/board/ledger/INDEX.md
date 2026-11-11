@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 6
+- **Backlog:** 10
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 118
@@ -48,6 +48,10 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ledger-f8d7x** — "Kassenbuch ordnen: am Handy Filter-Knopf mit Sheet und Chips statt zwei wischender Leisten, am PC Seitenleiste mit Konten, Seitenpanel und Historie wie im Budget" (feature) — `backlog/ledger-f8d7x-kassenbuch-ordnen.md`
+- **ledger-ea70s** — "Ein Erfassen: Quick Add hört auf, ein eigener Ort zu sein; „+ Buchung“ in Kassenbuch und Übersicht mit kluger Vorbelegung" (feature) — `backlog/ledger-ea70s-ein-erfassen.md`
+- **ledger-v6s7c** — "Durchgehen neuer Buchungen Karte für Karte von der Übersicht aus, mit Amazon-Link und Duplikat-Karte" (feature) — `backlog/ledger-v6s7c-durchgehen-karte-fuer-karte.md`
+- **ledger-s1weh** — "Übersicht als Einstieg (Variante A): Zu tun, Monat mit Balken und Marke heute, am Handy Konten, „+ Buchung“" (feature) — `backlog/ledger-s1weh-uebersicht-als-einstieg.md`
 - **ledger-t4rk8** — "Betrag eines Übertrags in BB ändern (Sperre nach Probelauf aufheben)" (feature) — `backlog/ledger-t4rk8-betrag-uebertrag-freigeben.md`
 - **ledger-k4n2s** — "Kann-Sammlung ledger" (chore) — `backlog/ledger-k4n2s-kann-sammlung-ledger.md`
 - **ledger-g47hp** — "Benachrichtigung für Lena bei neuer Rückfrage" (feature) — `backlog/ledger-g47hp-benachrichtigung-fuer-lena.md`

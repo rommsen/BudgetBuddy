@@ -3,7 +3,7 @@
 Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success looks like“.
 
 ## Stand
-Zuletzt aktualisiert: 2026-11-10, nach work-Lauf und Review zu ledger-mj3a9, ledger-q42pg, ledger-m7a9q.
+Zuletzt aktualisiert: 2026-11-11, Etappe 3 in elf Schnitte geteilt.
 
 - **Etappe 1 · Bedeutungen:** erledigt, 5 von 5 (Skizze und Prototyp, Layout-Sweep, Muster im
   Styleguide, Designwert-Tests aufgeräumt, Palette 2 im Token-Layer). Romans Blick auf dak16 neben
@@ -20,14 +20,16 @@ Zuletzt aktualisiert: 2026-11-10, nach work-Lauf und Review zu ledger-mj3a9, led
   Backlog, danach kann die Sperre für Überträge fallen. ledger-nb4tv (ETF-Konto und Abgleich) nach
   Etappe 3 verschoben (Roman, 2026-11-10).
   Deployt (2026-11-10, f85d3b3d): ledger-m7k2d, ledger-z6sya, ledger-m7mye.
-- **Etappe 3 · Ein Produkt:** noch nicht verfeinert, Zeilen wachsen.
+- **Etappe 3 · Ein Produkt:** in elf Schnitte geteilt (Roman, 2026-11-11), alle im Backlog, noch keiner
+  verfeinert. Reihenfolge und Zuordnung im Abschnitt Etappe 3.
 - **Laufend erledigt (2026-11-10):** ledger-mj3a9 (Bob gesperrt bei ungültigem `BOT_MAX_AMOUNT_EUR`, Nachtrag
   ADR 0068), ledger-q42pg (Feldfehler am Betrag statt Toast), ledger-m7a9q (Probelauf: YNAB zieht die Gegenbuchung
   eines Übertrags mit, Nachtrag ADR 0092); Review 68279598..HEAD mit Fixes 009b3186 und 5444edd7. Neu im Backlog:
   ledger-t4rk8 (Betrag eines Übertrags in BB ändern, braucht Romans Entscheidungen beim Verfeinern). Danach
   design-system-ak97z (Umschalter Ausgabe/Einnahme hält die Tastatur offen, 45273030) mit Review b74d67df. Deployt 2026-11-11 (5f7fc08a).
 - **Blick Roman (2026-11-11):** ledger-q42pg und design-system-ak97z am Handy geprüft, passt.
-- **Nächster Schritt:** Etappe 3 in Tickets schneiden, zuerst Navigation mit drei Orten und Übersicht als Einstieg.
+- **Nächster Schritt:** design-system-k6kfw (Navigation mit drei Orten) und ledger-s1weh (Übersicht als
+  Einstieg) am Prototyp verfeinern und promoten.
   Offen zum Verfeinern mit Roman: ledger-t4rk8 (Betrag eines Übertrags in BB ändern).
 - Verfeinert wird nur die nächste Etappe. Spätere Etappen haben Zeilen, keine Tickets.
 - Neue Ideen für spätere Etappen kommen hier als Zeile dazu.
@@ -76,6 +78,25 @@ Budget-Tabs mit fester Höhe, Monatsbalken in der Historie mit Beträgen (Styleg
 Split-Beträge ohne Vorzeichen und Tastatur bleibt beim Feldwechsel offen, Konten als Ziel in jeder
 Kategorieauswahl einer Buchung (Detail, Durchgehen, Erfassen, Split; Übertrag mit Gegenbuchung),
 Betrag im Buchungsdetail bearbeiten, Amazon nur als Link mit Bestellnummer (keine API).
+
+Schnitte (Roman, 2026-11-11). Zuerst 1 und 2, die Navigation geht mit einer schlichten Übersicht live.
+Bis 4 und 5 stehen, zeigt „Zu tun“ auf den heutigen Sync-Ablauf; der Sync ist dann kein Ort mehr.
+Baut ein Schnitt eine Seite um, gilt die Zeile „Browser-Tests beim Umbau“ als Kriterium.
+
+1. `design-system-k6kfw` Navigation mit drei Orten, Zahnrad, ab 768 px links
+2. `ledger-s1weh` Übersicht als Einstieg (Zu tun, Monat, Konten am Handy, „+ Buchung“)
+3. `budgeting-w9yt4` Angepinnte Kategorien
+4. `banking-import-d0fey` Import direkt ins Kassenbuch (nimmt `banking-import-t4raw`, `categorization-hz6vj` auf)
+5. `ledger-v6s7c` Durchgehen Karte für Karte
+6. `categorization-n3sxw` Regeln ins Kassenbuch (nimmt `categorization-krscs`, `ledger-hg5m5` auf)
+7. `ledger-ea70s` Ein Erfassen, Quick Add entfällt (nimmt `design-system-taytp` auf)
+8. `ledger-f8d7x` Kassenbuch ordnen, beim Verfeinern nach Handy und PC teilen (nimmt `ledger-ayjzq` auf)
+9. `design-system-gcpws` Liste mit Panel überall, generischer Tastentest
+10. `budgeting-wnkgj` Budget angleichen
+11. `design-system-x1abn` Logo und Icon
+
+Eigenständig bleiben `banking-import-q7vd2` (confirmTan-Fehlerzweig) und `ledger-nb4tv` (ETF-Konto).
+Die Zeilen darunter sind die Quelle der Schnitte.
 
 - Übersicht als Einstieg statt Sync, Variante A: Zu tun (eine Hauptaktion), Monat mit Balken und
   Marke „heute“, Angepinnt, am Handy Konten.
