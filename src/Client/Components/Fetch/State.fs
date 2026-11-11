@@ -31,6 +31,18 @@ let interruptedStartMessage (reason: string) : string =
 let interruptedStartTimeoutMessage (reason: string) : string =
     $"Die Verbindung zum Server brach ab ({reason}), und der Server hat auch nach 2 Minuten kein Ergebnis. Bitte neu abrufen."
 
+/// Fehlertext, wenn das Lesen der Sitzung vor dem Start scheitert: gestartet wurde noch nichts.
+let sessionReadFailedMessage (reason: string) : string =
+    $"Der Stand des Abrufs ließ sich nicht lesen ({reason}). Es wurde nichts abgerufen. Bitte neu abrufen."
+
+/// Der Toast nach einem Abruf, während das Sheet zu war: „Abruf fertig: 6 neue Buchungen“. Ohne neue Buchung,
+/// aber mit Umsätzen in der Zukunft, sagt „Nichts Neues“ allein zu wenig: dann folgt der Satz des Ergebnisses.
+let resultToast (counts: FetchCounts) : string =
+    if counts.NewEntries = 0 && counts.FutureDated > 0 then
+        $"Abruf fertig: {resultTitle counts}. {resultSentence counts}"
+    else
+        $"Abruf fertig: {resultTitle counts}"
+
 /// Die Aufrufe des Sheets als Funktionswerte (Doktrin Punkt 1): unter .NET wirft der Remoting-Proxy im
 /// Typinitialisierer. `update` schließt `livePorts` an, Tests zählen die Aufrufe. Ein Port wird schon
 /// beim Bauen des Cmd aufgerufen; das Async startet erst mit dem Cmd.
@@ -68,17 +80,27 @@ let private readSession (ports: FetchPorts) (model: Model) : Model * Cmd<Msg> =
 let private startWith (ports: FetchPorts) (model: Model) : Model * Cmd<Msg> =
     let call = ports.StartSync ()
     { model with
-        Start = StartInFlight
-        StartedOver = currentSessionId model
-        SessionReadVersion = model.SessionReadVersion + 1
-        InterruptedStart = None },
+        Phase = FetchStarting (currentSessionId model)
+        SessionReadVersion = model.SessionReadVersion + 1 },
     Cmd.OfAsync.either (fun () -> call) () SyncStarted (fun ex -> SyncStartInterrupted ex.Message)
 
-/// Die Sitzung ist beendet: das Sheet zeigt das Ergebnis, der Root lädt nach.
+/// Was Roman jetzt tun oder lesen muss (Push-TAN, Fehler), holt das Sheet nach vorn, auch wenn er es
+/// während des Abrufs geschlossen hat: die Push-TAN läuft sonst unbemerkt ab.
+let private surfaced (model: Model) : Model = { model with IsOpen = true }
+
+/// Ein Fehler beendet den Abruf: das Sheet zeigt ihn, offen oder wieder geöffnet.
+let private failed (message: string) (model: Model) : Model =
+    surfaced { model with Session = Failure message; Phase = FetchIdle }
+
+/// Die Sitzung steht still: das Sheet zeigt TAN oder Ergebnis, der Root lädt nach einem Ende nach. War das
+/// Sheet zu, öffnet es für TAN und Fehler wieder, ein Ergebnis kommt als Toast.
 let private settled (session: SyncSession) (model: Model) : Model * ExternalMsg =
-    let model = { model with Session = Success (Some session); InterruptedStart = None; IsTanConfirming = false }
+    let model = { model with Session = Success (Some session); Phase = FetchIdle }
     match session.Status with
-    | Completed | Failed _ -> model, FetchFinished
+    | Completed when model.IsOpen -> model, FetchFinished None
+    | Completed -> model, FetchFinished (Some (resultToast session.Counts))
+    | Failed _ -> surfaced model, FetchFinished None
+    | AwaitingTan -> surfaced model, NoOp
     | _ -> model, NoOp
 
 /// Eine Antwort beim Nachlesen nach verlorener Antwort.
@@ -93,25 +115,31 @@ let private recover (recovery: StartRecovery) (session: SyncSession option) (mod
         if recovery.ReadPlanned then
             model, Cmd.none, NoOp
         elif recovery.ReadsLeft <= 0 then
-            { model with Session = Failure (interruptedStartTimeoutMessage recovery.Reason); InterruptedStart = None }, Cmd.none, NoOp
+            failed (interruptedStartTimeoutMessage recovery.Reason) model, Cmd.none, NoOp
         else
             let readsLeft = recovery.ReadsLeft - 1
-            { model with InterruptedStart = Some { recovery with ReadsLeft = readsLeft; ReadPlanned = true } },
+            { model with Phase = FetchRecovering { recovery with ReadsLeft = readsLeft; ReadPlanned = true } },
             Debounce.delayed interruptedStartPollMs (InterruptedStartReadDue readsLeft),
             NoOp
     | _ ->
         // Der Start kam nie an, oder die Sitzung stammt aus einem früheren Abruf.
-        { model with Session = Failure (interruptedStartMessage recovery.Reason); InterruptedStart = None }, Cmd.none, NoOp
+        failed (interruptedStartMessage recovery.Reason) model, Cmd.none, NoOp
+
+/// Nachlesen nach verlorener Antwort: das erste Lesen geht sofort los.
+let private recoverFrom (ports: FetchPorts) (reason: string) (before: SyncSessionId option) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
+    let recovery = { Reason = reason; ReadsLeft = interruptedStartReadLimit; ReadPlanned = false; Before = before }
+    let reading, cmd = readSession ports { model with Phase = FetchRecovering recovery }
+    reading, cmd, NoOp
 
 let updateWith (ports: FetchPorts) (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
     | Opened ->
         let model = { model with IsOpen = true }
         // Ein Auftrag, ein Start, eine TAN-Bestätigung oder ein Nachlesen läuft schon: das Sheet zeigt ihn.
-        if model.Start <> StartIdle || model.InterruptedStart.IsSome || model.IsTanConfirming then
+        if model.Phase <> FetchIdle then
             model, Cmd.none, NoOp
         else
-            let reading, cmd = readSession ports { model with Start = StartOrdered; Session = Loading }
+            let reading, cmd = readSession ports { model with Phase = FetchOrdered; Session = Loading }
             reading, cmd, NoOp
 
     | Closed -> { model with IsOpen = false }, Cmd.none, NoOp
@@ -119,48 +147,50 @@ let updateWith (ports: FetchPorts) (msg: Msg) (model: Model) : Model * Cmd<Msg> 
     | SessionReadAnswered (version, _) when version <> model.SessionReadVersion -> model, Cmd.none, NoOp
 
     | SessionReadAnswered (_, answer) ->
-        match model.InterruptedStart, answer with
-        | Some recovery, Ok session -> recover recovery session model
-        | Some recovery, Error _ ->
-            { model with Session = Failure (interruptedStartMessage recovery.Reason); InterruptedStart = None }, Cmd.none, NoOp
-        | None, Error reason ->
-            { model with Session = Failure (interruptedStartMessage reason); Start = StartIdle }, Cmd.none, NoOp
-        | None, Ok session ->
-            match model.Start, session with
+        match model.Phase, answer with
+        | FetchRecovering recovery, Ok session -> recover recovery session model
+        | FetchRecovering recovery, Error _ -> failed (interruptedStartMessage recovery.Reason) model, Cmd.none, NoOp
+        // Das Lesen vor dem Start scheitert: es ging kein Start verloren.
+        | _, Error reason -> failed (sessionReadFailedMessage reason) model, Cmd.none, NoOp
+        | phase, Ok session ->
+            match phase, session with
             // Der Auftrag „Abrufen“ startet erst jetzt, und nur ohne laufende Sitzung (ADR 0071).
-            | StartOrdered, (None | Some { Status = (Completed | Failed _) }) ->
+            | FetchOrdered, (None | Some { Status = (Completed | Failed _) }) ->
                 let started, cmd = startWith ports { model with Session = Success session }
                 started, cmd, NoOp
-            | _ -> { model with Start = StartIdle; Session = Success session }, Cmd.none, NoOp
+            // Eine Sitzung wartet auf die TAN: das Sheet zeigt sie, auch wenn es inzwischen zu ist.
+            | _, Some ({ Status = AwaitingTan } as waiting) ->
+                let model', external = settled waiting model
+                model', Cmd.none, external
+            | _ -> { model with Phase = FetchIdle; Session = Success session }, Cmd.none, NoOp
 
     | SyncStarted answer ->
-        let model = { model with Start = StartIdle; SessionReadVersion = model.SessionReadVersion + 1 }
+        let model = { model with Phase = FetchIdle; SessionReadVersion = model.SessionReadVersion + 1 }
         match answer with
-        | Ok (TanRequired session) -> { model with Session = Success (Some session) }, Cmd.none, NoOp
+        | Ok (TanRequired session) -> surfaced { model with Session = Success (Some session) }, Cmd.none, NoOp
         | Ok (Fetched session) ->
             let model', external = settled session model
             model', Cmd.none, external
-        | Error err -> { model with Session = Failure (syncErrorText err) }, Cmd.none, FetchFinished
+        | Error err -> failed (syncErrorText err) model, Cmd.none, FetchFinished None
 
     | SyncStartInterrupted reason ->
-        let recovery = { Reason = reason; ReadsLeft = interruptedStartReadLimit; ReadPlanned = false; Before = model.StartedOver }
-        let reading, cmd = readSession ports { model with InterruptedStart = Some recovery; Start = StartIdle }
-        reading, cmd, NoOp
+        let before = match model.Phase with FetchStarting before -> before | _ -> None
+        recoverFrom ports reason before model
 
     | InterruptedStartReadDue readsLeft ->
-        match model.InterruptedStart with
-        | Some recovery when recovery.ReadPlanned && recovery.ReadsLeft = readsLeft ->
-            let reading, cmd = readSession ports { model with InterruptedStart = Some { recovery with ReadPlanned = false } }
+        match model.Phase with
+        | FetchRecovering recovery when recovery.ReadPlanned && recovery.ReadsLeft = readsLeft ->
+            let reading, cmd = readSession ports { model with Phase = FetchRecovering { recovery with ReadPlanned = false } }
             reading, cmd, NoOp
         // Das Nachlesen endete inzwischen, oder der Takt gehört zu einem früheren Abbruch.
         | _ -> model, Cmd.none, NoOp
 
     | ConfirmTan ->
-        match model.Session with
-        | Success (Some session) when not model.IsTanConfirming && session.Status = AwaitingTan ->
+        match model.Phase, model.Session with
+        | FetchIdle, Success (Some session) when session.Status = AwaitingTan ->
             let call = ports.ConfirmTan session.Id
             { model with
-                IsTanConfirming = true
+                Phase = FetchConfirmingTan
                 SessionReadVersion = model.SessionReadVersion + 1
                 Session = Success (Some { session with Status = FetchingTransactions }) },
             Cmd.OfAsync.either (fun () -> call) () TanConfirmed (fun ex -> TanConfirmInterrupted ex.Message),
@@ -171,15 +201,12 @@ let updateWith (ports: FetchPorts) (msg: Msg) (model: Model) : Model * Cmd<Msg> 
         let model', external = settled session model
         model', Cmd.none, external
 
-    | TanConfirmed (Error err) ->
-        { model with IsTanConfirming = false; Session = Failure (syncErrorText err) }, Cmd.none, FetchFinished
+    | TanConfirmed (Error err) -> failed (syncErrorText err) model, Cmd.none, FetchFinished None
 
     | TanConfirmInterrupted reason ->
         // Die Bestätigung beendet dieselbe Sitzung: jede gelesene Sitzung ist das Ergebnis. Wartet sie
         // noch auf die TAN, kam die Bestätigung nicht an, und das Sheet zeigt die TAN wieder.
-        let recovery = { Reason = reason; ReadsLeft = interruptedStartReadLimit; ReadPlanned = false; Before = None }
-        let reading, cmd = readSession ports { model with InterruptedStart = Some recovery; IsTanConfirming = false }
-        reading, cmd, NoOp
+        recoverFrom ports reason None model
 
     | CancelSync ->
         match model.Session with

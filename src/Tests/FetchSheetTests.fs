@@ -130,14 +130,14 @@ let stateTests =
             let calls = newCalls ()
             let model, ext = steps calls (startedFrom calls None) [ SyncStarted (Ok (Fetched booked)) ]
             Expect.equal (sheetScreen model) (DoneScreen booked.Counts) "Ergebnis"
-            Expect.equal ext FetchFinished "Zu tun und Zähler laden neu"
+            Expect.equal ext (FetchFinished None) "Zu tun und Zähler laden neu, ohne Toast bei offenem Sheet"
 
         testCase "ein Fehler zeigt die Meldung des Servers" <| fun () ->
             let calls = newCalls ()
             let model, ext =
                 steps calls (startedFrom calls None) [ SyncStarted (Error (SyncError.YnabImportFailed (0, "YNAB ist nicht erreichbar, es wurde nichts gebucht."))) ]
             Expect.equal (sheetScreen model) (ErrorScreen "YNAB ist nicht erreichbar, es wurde nichts gebucht.") "Meldung"
-            Expect.equal ext FetchFinished "die Sync-Historie hat einen Eintrag mehr"
+            Expect.equal ext (FetchFinished None) "die Sync-Historie hat einen Eintrag mehr"
 
         testCase "verlorene Antwort: die beendete neue Sitzung ist das Ergebnis" <| fun () ->
             let calls = newCalls ()
@@ -145,7 +145,7 @@ let stateTests =
             Expect.equal calls.Reads 2 "nachgelesen"
             let model, ext = steps calls lost [ SessionReadAnswered (lost.SessionReadVersion, Ok (Some booked)) ]
             Expect.equal (sheetScreen model) (DoneScreen booked.Counts) "Ergebnis gelesen"
-            Expect.equal ext FetchFinished "nachladen"
+            Expect.equal ext (FetchFinished None) "nachladen"
 
         testCase "verlorene Antwort: die alte Sitzung ist kein Ergebnis, das Sheet meldet den Abbruch" <| fun () ->
             let calls = newCalls ()
@@ -154,16 +154,27 @@ let stateTests =
             Expect.equal (sheetScreen model) (ErrorScreen (interruptedStartMessage "Http error (0)")) "Abbruch"
             Expect.equal calls.Starts 1 "nie neu gestartet"
 
+        // Früher „Nachlesen ohne Grenze“ (SyncFlow): las der Client nach verlorener Antwort ewig weiter, stand
+        // „Rufe ab…“ für immer da. Die Frist läuft hier echt durch, Takt für Takt.
         testCase "verlorene Antwort: solange der Server abruft, wird weiter gelesen, nach der Frist endet es" <| fun () ->
             let calls = newCalls ()
             let lost, _ = steps calls (startedFrom calls (Some before)) [ SyncStartInterrupted "Http error (0)" ]
-            let running = { booked with Status = ImportingToYnab }
-            let waiting, _ = steps calls lost [ SessionReadAnswered (lost.SessionReadVersion, Ok (Some running)) ]
+            let running = Some { booked with Status = ImportingToYnab }
+            let waiting, _ = steps calls lost [ SessionReadAnswered (lost.SessionReadVersion, Ok running) ]
             Expect.equal (sheetScreen waiting) RunningScreen "läuft noch"
-            Expect.equal (waiting.InterruptedStart |> Option.map (fun r -> r.ReadsLeft)) (Some (interruptedStartReadLimit - 1)) "nächstes Lesen geplant"
-            let exhausted = { waiting with InterruptedStart = waiting.InterruptedStart |> Option.map (fun r -> { r with ReadsLeft = 0; ReadPlanned = false }) }
-            let model, _ = steps calls exhausted [ SessionReadAnswered (exhausted.SessionReadVersion, Ok (Some running)) ]
+            let readsBefore = calls.Reads
+            let rec poll (model: Model) (rounds: int) =
+                match model.Phase with
+                | FetchRecovering recovery when rounds <= interruptedStartReadLimit ->
+                    let read, _ = steps calls model [ InterruptedStartReadDue recovery.ReadsLeft ]
+                    let answered, _ = steps calls read [ SessionReadAnswered (read.SessionReadVersion, Ok running) ]
+                    poll answered (rounds + 1)
+                | _ -> model, rounds
+            let model, rounds = poll waiting 0
             Expect.equal (sheetScreen model) (ErrorScreen (interruptedStartTimeoutMessage "Http error (0)")) "Frist"
+            Expect.equal rounds interruptedStartReadLimit "so viele Takte wie die Frist"
+            Expect.equal (calls.Reads - readsBefore) interruptedStartReadLimit "je Takt ein Lesen"
+            Expect.equal calls.Starts 1 "nie neu gestartet"
 
         testCase "der Takt beim Nachlesen läuft nach der Pause ab" <| fun () ->
             let calls = newCalls ()
@@ -179,7 +190,7 @@ let stateTests =
             Expect.equal (sheetScreen confirming) RunningScreen "Rufe ab…"
             let model, ext = steps calls confirming [ TanConfirmed (Ok booked) ]
             Expect.equal (sheetScreen model) (DoneScreen booked.Counts) "Ergebnis"
-            Expect.equal ext FetchFinished "nachladen"
+            Expect.equal ext (FetchFinished None) "nachladen"
 
         testCase "verlorene Antwort der TAN-Bestätigung: wartet die Sitzung noch, zeigt das Sheet die TAN wieder" <| fun () ->
             let calls = newCalls ()
@@ -203,4 +214,114 @@ let stateTests =
             let model, ext = steps calls done' [ ReviewRequested ]
             Expect.isFalse model.IsOpen "zu"
             Expect.equal ext OpenReview "ins Kassenbuch"
+
+        // Review-Fund zu banking-import-d0fey: scheiterte das erste Lesen beim Öffnen, stand „Die Verbindung zum
+        // Server brach ab“, als sei ein Start verloren gegangen.
+        testCase "scheitert das Lesen vor dem Start, sagt das Sheet, dass nichts abgerufen wurde" <| fun () ->
+            let calls = newCalls ()
+            let opened, _ = steps calls init [ Opened ]
+            let model, _ = steps calls opened [ SessionReadAnswered (opened.SessionReadVersion, Error "Http error (0)") ]
+            Expect.equal (sheetScreen model) (ErrorScreen (sessionReadFailedMessage "Http error (0)")) "eigener Satz"
+            Expect.equal calls.Starts 0 "kein Start"
+            Expect.equal model.Phase FetchIdle "ein neues Abrufen geht wieder"
+
+        // Früher „Routenwechsel startet zweite Kette“ (SyncFlow): ein Lesen von außen während des Nachlesens
+        // startete eine zweite Lesekette. Heute liest nur „Abrufen“ von außen.
+        testCase "Abrufen während des Nachlesens liest nicht ein zweites Mal" <| fun () ->
+            let calls = newCalls ()
+            let lost, _ = steps calls (startedFrom calls (Some before)) [ SyncStartInterrupted "Http error (0)"; Closed ]
+            let readsBefore = calls.Reads
+            let reopened, _ = steps calls lost [ Opened ]
+            Expect.equal calls.Reads readsBefore "kein zweites Lesen"
+            Expect.equal reopened.SessionReadVersion lost.SessionReadVersion "das laufende Lesen gilt weiter"
+            Expect.equal (sheetScreen reopened) RunningScreen "Rufe ab…"
+
+        testCase "scheitert die TAN-Bestätigung, zeigt das Sheet die Meldung und der Root lädt nach" <| fun () ->
+            let calls = newCalls ()
+            let tan, _ = steps calls (startedFrom calls None) [ SyncStarted (Ok (TanRequired waitingTan)); ConfirmTan ]
+            let model, ext = steps calls tan [ TanConfirmed (Error SyncError.TanTimeout) ]
+            Expect.equal (sheetScreen model) (ErrorScreen (syncErrorText SyncError.TanTimeout)) "Meldung"
+            Expect.equal ext (FetchFinished None) "die Sync-Historie hat einen Eintrag mehr"
+    ]
+
+// Review-Fund zu banking-import-d0fey: schloss Roman das Sheet während „Rufe ab…“, gingen Push-TAN, Fehler und
+// Ergebnis unbemerkt vorbei. TAN und Fehler holen das Sheet wieder nach vorn, ein Ergebnis kommt als Toast.
+[<Tests>]
+let closedSheetTests =
+    testList "Abrufen: geschlossenes Sheet während des Abrufs" [
+
+        let closedWhileStarting (calls: Calls) (server: SyncSession option) =
+            let model, _ = steps calls (startedFrom calls server) [ Closed ]
+            Expect.isFalse model.IsOpen "zu"
+            model
+
+        testCase "die Push-TAN öffnet das Sheet wieder" <| fun () ->
+            let calls = newCalls ()
+            let model, _ = steps calls (closedWhileStarting calls None) [ SyncStarted (Ok (TanRequired waitingTan)) ]
+            Expect.isTrue model.IsOpen "wieder offen"
+            Expect.equal (sheetScreen model) TanScreen "TAN"
+
+        testCase "ein Fehler beim Start öffnet das Sheet wieder" <| fun () ->
+            let calls = newCalls ()
+            let model, _ = steps calls (closedWhileStarting calls None) [ SyncStarted (Error SyncError.TanTimeout) ]
+            Expect.isTrue model.IsOpen "wieder offen"
+            Expect.equal (sheetScreen model) (ErrorScreen (syncErrorText SyncError.TanTimeout)) "Meldung"
+
+        testCase "ein Fehler der TAN-Bestätigung öffnet das Sheet wieder" <| fun () ->
+            let calls = newCalls ()
+            let tan, _ = steps calls (startedFrom calls None) [ SyncStarted (Ok (TanRequired waitingTan)); ConfirmTan; Closed ]
+            let model, _ = steps calls tan [ TanConfirmed (Error SyncError.TanTimeout) ]
+            Expect.isTrue model.IsOpen "wieder offen"
+
+        testCase "eine fehlgeschlagene Sitzung öffnet das Sheet wieder" <| fun () ->
+            let calls = newCalls ()
+            let failedSession = { booked with Status = Failed "YNAB ist nicht erreichbar, es wurde nichts gebucht." }
+            let model, ext = steps calls (closedWhileStarting calls None) [ SyncStarted (Ok (Fetched failedSession)) ]
+            Expect.isTrue model.IsOpen "wieder offen"
+            Expect.equal ext (FetchFinished None) "nachladen, ohne Toast"
+
+        testCase "die verlorene Antwort ohne Ergebnis öffnet das Sheet wieder" <| fun () ->
+            let calls = newCalls ()
+            let lost, _ = steps calls (closedWhileStarting calls (Some before)) [ SyncStartInterrupted "Http error (0)" ]
+            let model, _ = steps calls lost [ SessionReadAnswered (lost.SessionReadVersion, Ok (Some before)) ]
+            Expect.isTrue model.IsOpen "wieder offen"
+            Expect.equal (sheetScreen model) (ErrorScreen (interruptedStartMessage "Http error (0)")) "Abbruch"
+
+        testCase "eine wartende TAN beim Nachlesen öffnet das Sheet wieder" <| fun () ->
+            let calls = newCalls ()
+            let lost, _ = steps calls (closedWhileStarting calls (Some before)) [ SyncStartInterrupted "Http error (0)" ]
+            let model, _ = steps calls lost [ SessionReadAnswered (lost.SessionReadVersion, Ok (Some waitingTan)) ]
+            Expect.isTrue model.IsOpen "wieder offen"
+            Expect.equal (sheetScreen model) TanScreen "TAN"
+
+        testCase "eine schon wartende TAN beim Lesen vor dem Start öffnet das Sheet wieder" <| fun () ->
+            let calls = newCalls ()
+            let opened, _ = steps calls init [ Opened; Closed ]
+            let model, _ = steps calls opened [ SessionReadAnswered (opened.SessionReadVersion, Ok (Some waitingTan)) ]
+            Expect.isTrue model.IsOpen "wieder offen"
+            Expect.equal (sheetScreen model) TanScreen "TAN"
+            Expect.equal calls.Starts 0 "kein Start"
+
+        testCase "ein Ergebnis bei geschlossenem Sheet kommt als Toast, das Sheet bleibt zu" <| fun () ->
+            let calls = newCalls ()
+            let model, ext = steps calls (closedWhileStarting calls None) [ SyncStarted (Ok (Fetched booked)) ]
+            Expect.isFalse model.IsOpen "bleibt zu"
+            Expect.equal ext (FetchFinished (Some "Abruf fertig: 2 neue Buchungen")) "Toast mit dem Ergebnis"
+
+        testCase "ein Ergebnis nach der TAN bei geschlossenem Sheet kommt als Toast" <| fun () ->
+            let calls = newCalls ()
+            let tan, _ = steps calls (startedFrom calls None) [ SyncStarted (Ok (TanRequired waitingTan)); ConfirmTan; Closed ]
+            let model, ext = steps calls tan [ TanConfirmed (Ok { booked with Counts = emptyFetchCounts }) ]
+            Expect.isFalse model.IsOpen "bleibt zu"
+            Expect.equal ext (FetchFinished (Some "Abruf fertig: Nichts Neues")) "Toast"
+
+        testCase "ohne neue Buchung, aber mit Umsätzen in der Zukunft nennt der Toast sie" <| fun () ->
+            Expect.equal
+                (resultToast { emptyFetchCounts with FutureDated = 2 })
+                "Abruf fertig: Nichts Neues. 2 mit Datum in der Zukunft folgen beim nächsten Abruf."
+                "nicht nur Nichts Neues"
+            Expect.equal
+                (resultToast { emptyFetchCounts with NewEntries = 3; ByRule = 3; FutureDated = 1 })
+                "Abruf fertig: 3 neue Buchungen"
+                "mit neuen Buchungen bleibt der Toast kurz"
     ]

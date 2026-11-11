@@ -265,8 +265,8 @@ let inputActiveTests =
         testCase "Schnellerfassung: leeres Formular ist keine Eingabe" <| fun () ->
             Expect.isFalse (State.isInputActive { baseModel () with QuickAdd = Some blankForm }) "leer"
         active "Abrufen: das Sheet ist offen" (fun m -> { m with Fetch = { m.Fetch with IsOpen = true } })
-        active "Abrufen: ein Start läuft" (fun m -> { m with Fetch = { m.Fetch with Start = Components.Fetch.Types.StartInFlight } })
-        active "Abrufen: TAN-Bestätigung läuft" (fun m -> { m with Fetch = { m.Fetch with IsTanConfirming = true } })
+        active "Abrufen: ein Start läuft" (fun m -> { m with Fetch = { m.Fetch with Phase = Components.Fetch.Types.FetchStarting None } })
+        active "Abrufen: TAN-Bestätigung läuft" (fun m -> { m with Fetch = { m.Fetch with Phase = Components.Fetch.Types.FetchConfirmingTan } })
         active "Regeln: EditingRule" (fun m ->
             let rule : Shared.Domain.Rule =
                 { Id = Shared.Domain.RuleId (Guid.NewGuid())

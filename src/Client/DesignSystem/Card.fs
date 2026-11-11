@@ -184,21 +184,33 @@ let allDone (testId: string) (title: string) (description: string) =
         ]
     ]
 
-/// Leerer Zustand oder Ergebnis in einem Sheet oder Dialog, ohne Rahmen und Symbol (Prototyp Version 17
-/// `.empty`, Sheet „Abrufen“, banking-import-d0fey): Kopf halbfett, darunter ein Satz, mittig. Ein
-/// gelungenes Ergebnis zeigt den Kopf in Grün (§2).
-let sheetMessage (testId: string) (success: bool) (title: string) (description: string) =
+let private sheetMessageWith (testId: string) (busy: bool) (success: bool) (title: string) (description: string) =
     Html.div [
         prop.custom ("data-testid", testId)
+        // Der Wechsel von „Rufe ab…“ zum Ergebnis wird vorgelesen (Review-Fund zu banking-import-d0fey).
+        prop.role "status"
+        prop.custom ("aria-live", "polite")
         prop.className "flex flex-col items-center gap-2 px-5 py-9 text-center"
         prop.children [
+            if busy then Loading.spinner Loading.MD Loading.Accent
             Html.p [
                 prop.className $"""{FontSizes.emphasis} {FontWeights.semibold} {(if success then Colors.success else Colors.textPrimary)}"""
                 prop.text title
             ]
-            Html.p [ prop.className $"{FontSizes.compact} {Colors.textMuted} max-w-[30ch]"; prop.text description ]
+            // 36ch: das längste Ergebnis bleibt am Handy bei höchstens sechs Zeilen.
+            Html.p [ prop.className $"{FontSizes.compact} {Colors.textMuted} max-w-[36ch]"; prop.text description ]
         ]
     ]
+
+/// Leerer Zustand oder Ergebnis in einem Sheet oder Dialog, ohne Rahmen und Symbol (Prototyp Version 17
+/// `.empty`, Sheet „Abrufen“, banking-import-d0fey): Kopf halbfett, darunter ein Satz, mittig, als
+/// `role status`. Ein gelungenes Ergebnis zeigt den Kopf in Grün (§2).
+let sheetMessage (testId: string) (success: bool) (title: string) (description: string) =
+    sheetMessageWith testId false success title description
+
+/// Wie `sheetMessage`, während etwas läuft: ein Spinner über dem Kopf („Rufe ab…“).
+let sheetMessageBusy (testId: string) (title: string) (description: string) =
+    sheetMessageWith testId true false title description
 
 let emptyState (icon: ReactElement) (title: string) (description: string) (action: ReactElement option) =
     Html.div [

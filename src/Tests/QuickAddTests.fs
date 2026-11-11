@@ -473,6 +473,42 @@ let reducerTests =
         }
     ]
 
+/// Führt ein `Cmd` aus und sammelt die Nachrichten ein, nur für `Cmd.ofMsg` und `Cmd.batch`.
+let private dispatched (cmd: Elmish.Cmd<State.Msg>) : State.Msg list =
+    let collected = ResizeArray<State.Msg>()
+    cmd |> List.iter (fun effect -> effect collected.Add)
+    List.ofSeq collected
+
+// Bug ynab-sync-k3vq8: dauerhafte Ladefehler der Kategorien stapelten je Seitenbesuch einen weiteren Toast, und
+// der Toast lag über Seiten, die die Kategorien gar nicht brauchen. Vorher in SyncFlowStateTests (Import und
+// Quick-Add), seit banking-import-d0fey bleibt nur Quick-Add.
+let private categoriesFailed = State.QuickAddCategoriesLoaded (Error (YnabError.NetworkError "weg"))
+let private categoriesFailedText = "Kategorien konnten nicht geladen werden: Netzwerkfehler: weg"
+
+let private toastTexts (cmd: Elmish.Cmd<State.Msg>) =
+    dispatched cmd |> List.choose (function State.ShowToast (text, _) -> Some text | _ -> None)
+
+let loadFailureToastTests =
+    testList "Ladefehler der Quick-Add-Kategorien als Toast" [
+        test "scheitern die Kategorien, meldet nur Quick-Add einen Toast" {
+            for page in [ Types.Page.Overview; Types.Page.Ledger; Types.Page.Rules; Types.Page.Settings; Types.Page.Budget ] do
+                let _, cmd = State.update categoriesFailed { modelWithForm validForm with CurrentPage = page }
+                Expect.isEmpty (toastTexts cmd) $"{page}: kein Toast"
+            let _, cmd = State.update categoriesFailed (modelWithForm validForm)
+            Expect.equal (toastTexts cmd) [ categoriesFailedText ] "Quick-Add: ein Toast"
+        }
+        test "steht der gleiche Toast noch, stapelt ein weiterer Fehler keinen zweiten" {
+            let visible : Toast = { Id = Guid.NewGuid(); Message = categoriesFailedText; Type = ToastError; Exiting = false; Action = None }
+            let _, cmd = State.update categoriesFailed { modelWithForm validForm with Toasts = [ visible ] }
+            Expect.isEmpty (toastTexts cmd) "kein zweiter Toast"
+            let _, cmd = State.update categoriesFailed { modelWithForm validForm with Toasts = [ { visible with Exiting = true } ] }
+            Expect.equal (toastTexts cmd) [ categoriesFailedText ] "ein abgehender Toast zählt nicht mehr"
+        }
+        test "das Betreten von Quick-Add lädt die Kategorien neu" {
+            Expect.contains (dispatched (State.pageLoadCmd Types.Page.QuickAdd)) State.LoadQuickAddCategories "Kategorien"
+        }
+    ]
+
 // ============================================
 // amountFromMilliunits (reverse milliunits)
 // ============================================
@@ -744,5 +780,6 @@ let tests =
         parseAmountTests
         buildRequestTests
         reducerTests
+        loadFailureToastTests
         adapterTests
     ]

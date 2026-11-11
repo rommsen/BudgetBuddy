@@ -11,6 +11,7 @@
     <Compile Include="DesignSystem/Swipe.fs" />
     <Compile Include="DesignSystem/Primitives.fs" />
     <Compile Include="DesignSystem/Icons.fs" />
+    <Compile Include="DesignSystem/Loading.fs" />
     <Compile Include="DesignSystem/Button.fs" />
     <Compile Include="DesignSystem/ErrorDisplay.fs" />
     <Compile Include="DesignSystem/Card.fs" />
@@ -21,7 +22,6 @@
     <Compile Include="DesignSystem/Money.fs" />
     <Compile Include="DesignSystem/PickerParts.fs" />
     <Compile Include="DesignSystem/Table.fs" />
-    <Compile Include="DesignSystem/Loading.fs" />
     <Compile Include="DesignSystem/Toast.fs" />
     <Compile Include="DesignSystem/Modal.fs" />
     <Compile Include="DesignSystem/BottomSheet.fs" />

@@ -7,8 +7,9 @@ module Tests.SyncStartOrderTests
 //
 // Seit banking-import-d0fey (ADR 0093) ist „Abrufen“ ein Sheet (`Components.Fetch`). Die Aufzählung geht jede
 // Reihenfolge von „Abrufen“, Schließen, Lesantworten, Antwort, Fehler und Verlust von `startSync`, „Ich habe
-// bestätigt“, Antwort und Verlust von `confirmTan` und „Abbrechen“ durch das echte `update` (Doktrin Punkt 20,
-// Vorbild `moveWays`). Das Orakel führt einen eigenen Stand des Servers und der offenen Aufrufe, es glaubt nicht
+// bestätigt“, Antwort, Fehler und Verlust von `confirmTan`, „Abbrechen“ und dessen Antwort (gelungen oder
+// gescheitert) durch das echte `update` (Doktrin Punkt 20, Vorbild `moveWays`). Lesantworten kommen in jeder
+// Reihenfolge, auch die von vor dem Start nach dessen Antwort. Das Orakel führt einen eigenen Stand des Servers und der offenen Aufrufe, es glaubt nicht
 // dem Modell.
 
 open Expecto
@@ -26,10 +27,15 @@ let private session (status: SyncSessionStatus) : SyncSession =
       Counts = emptyFetchCounts }
 
 /// Die Sitzung, die `startSync` auf dem Server anlegt: sie wartet auf die TAN.
-let private started = { session AwaitingTan with Id = SyncSessionId (System.Guid.Parse "00000000-0000-4000-8000-00000000a5a2") }
+/// Jeder Start legt eine neue Sitzung an, `startedAs 0` ist die, die schon vor dem ersten Start wartet.
+let private startedAs (n: int) : SyncSession =
+    { session AwaitingTan with Id = SyncSessionId (System.Guid.Parse $"00000000-0000-4000-8000-00000000b00{n}") }
 
 /// Dieselbe Sitzung nach Abruf und Buchen.
-let private booked = { started with Status = Completed; Counts = { emptyFetchCounts with NewEntries = 2 } }
+let private bookedAs (n: int) = { startedAs n with Status = Completed; Counts = { emptyFetchCounts with NewEntries = 2 } }
+
+/// Dieselbe Sitzung, wenn Start oder TAN-Bestätigung mit Fehler enden.
+let private failedAs (n: int) = { startedAs n with Status = Failed "Die Bank antwortet nicht." }
 
 /// Der Server arbeitet an einer Sitzung: ein Start wäre eine zweite Challenge.
 let private running (server: SyncSession option) : bool =
@@ -62,6 +68,11 @@ type private Walk = {
     PendingStart: bool
     /// Ein `confirmTan` ist unterwegs.
     PendingConfirm: bool
+    /// Ein `cancelSync` ist unterwegs. Der Server bricht sofort ab, die Antwort kommt danach, gelungen oder
+    /// mit Fehler (verlorene Antwort). Eine Sitzung, die nach gescheitertem Abbruch weiter wartet, zählt die
+    /// Aufzählung nicht auf: liest „Abrufen“ sie während des Abbruchs, steht die TAN einer abgebrochenen
+    /// Sitzung da, und „Ich habe bestätigt“ scheitert am Server (Kann-Sammlung banking-import).
+    PendingCancel: bool
     Starts: int
     Opens: int
     Closes: int
@@ -87,17 +98,27 @@ let private apply (path: string list) (msg: Msg) (walk: Walk) : Walk =
             if walk.PendingStart then fail path "zweites startSync, während das erste läuft"
             if walk.PendingConfirm then fail path "startSync, während confirmTan läuft"
             if running walk.Server then fail path "startSync bei laufender Sitzung"
-            { walk with PendingStart = true; Starts = walk.Starts + 1; Server = Some started }
+            { walk with PendingStart = true; Starts = walk.Starts + 1; Server = Some (startedAs (walk.Starts + 1)) }
         else walk
     let walk =
         if confirms > confirmsBefore then
             if walk.PendingConfirm then fail path "zweites confirmTan, während das erste läuft"
-            if walk.Server <> Some started then fail path "confirmTan ohne wartende TAN auf dem Server"
+            if walk.Server <> Some (startedAs walk.Starts) then fail path "confirmTan ohne wartende TAN auf dem Server"
             { walk with PendingConfirm = true }
         else walk
     let walk =
-        if cancels > cancelsBefore then { walk with Server = None }
+        if cancels > cancelsBefore then { walk with PendingCancel = true; Server = None }
         else walk
+    // Was Roman tun oder lesen muss, steht nach einer Antwort im offenen Sheet, auch wenn er es geschlossen
+    // hatte (Review-Fund zu banking-import-d0fey: die Push-TAN lief sonst unbemerkt ab).
+    let isAnswer =
+        match msg with
+        | SessionReadAnswered _ | SyncStarted _ | TanConfirmed _ -> true
+        | _ -> false
+    let screen = sheetScreen model
+    let surfaces = match screen with TanScreen | ErrorScreen _ -> true | _ -> false
+    if isAnswer && surfaces && screen <> sheetScreen walk.Model && not model.IsOpen then
+        fail path "TAN oder Fehler bei geschlossenem Sheet"
     { walk with Model = model }
 
 let private events (walk: Walk) : (string * Msg * (Walk -> Walk)) list =
@@ -110,17 +131,22 @@ let private events (walk: Walk) : (string * Msg * (Walk -> Walk)) list =
           for answer in List.distinct (possible @ [ walk.Server ]) do
               $"Lesantwort {version}: %A{answer |> Option.map (fun s -> s.Status)}", SessionReadAnswered (version, Ok answer), drop
       if walk.PendingStart then
-          "Startantwort TAN", SyncStarted (Ok (TanRequired started)), (fun w -> { w with PendingStart = false })
+          "Startantwort TAN", SyncStarted (Ok (TanRequired (startedAs walk.Starts))), (fun w -> { w with PendingStart = false })
+          "Startantwort Fehler", SyncStarted (Error (SyncError.TransactionFetchFailed "Die Bank antwortet nicht.")), (fun w -> { w with PendingStart = false; Server = Some (failedAs walk.Starts) })
           if walk.Lost < 1 then
               "Start verloren", SyncStartInterrupted "Http error (0)", (fun w -> { w with PendingStart = false; Lost = w.Lost + 1 })
       if walk.PendingConfirm then
-          "TAN-Antwort", TanConfirmed (Ok booked), (fun w -> { w with PendingConfirm = false; Server = Some booked })
+          "TAN-Antwort", TanConfirmed (Ok (bookedAs walk.Starts)), (fun w -> { w with PendingConfirm = false; Server = Some (bookedAs walk.Starts) })
+          "TAN-Antwort Fehler", TanConfirmed (Error SyncError.TanTimeout), (fun w -> { w with PendingConfirm = false; Server = Some (failedAs walk.Starts) })
           if walk.Lost < 1 then
-              "TAN verloren", TanConfirmInterrupted "Http error (0)", (fun w -> { w with PendingConfirm = false; Server = Some booked; Lost = w.Lost + 1 })
+              "TAN verloren", TanConfirmInterrupted "Http error (0)", (fun w -> { w with PendingConfirm = false; Server = Some (bookedAs walk.Starts); Lost = w.Lost + 1 })
       if walk.Model.IsOpen && walk.Confirms < 1 && sheetScreen walk.Model = TanScreen then
           "Ich habe bestätigt", ConfirmTan, (fun w -> { w with Confirms = w.Confirms + 1 })
       if walk.Model.IsOpen && walk.Cancels < 1 && sheetScreen walk.Model = TanScreen && not walk.PendingConfirm then
-          "Abbrechen", CancelSync, (fun w -> { w with Cancels = w.Cancels + 1 }) ]
+          "Abbrechen", CancelSync, (fun w -> { w with Cancels = w.Cancels + 1 })
+      if walk.PendingCancel then
+          "Abbruch-Antwort", SyncCancelled (Ok ()), (fun w -> { w with PendingCancel = false })
+          "Abbruch-Antwort Fehler", SyncCancelled (Error (SyncError.DatabaseError ("cancel_sync", "weg"))), (fun w -> { w with PendingCancel = false }) ]
 
 let private check (path: string list) (walk: Walk) =
     if walk.Model.IsOpen && (walk.PendingStart || walk.PendingConfirm) && sheetScreen walk.Model <> RunningScreen then
@@ -130,6 +156,11 @@ let private check (path: string list) (walk: Walk) =
 let private checkEnd (initial: SyncSession option) (path: string list) (walk: Walk) =
     if walk.Opens > 0 && walk.OpenReads.IsEmpty && not (running initial) && walk.Starts = 0 then
         fail path "Auftrag ohne Start"
+    // Früher „Lesen von vor dem Start überschreibt die wartende Sitzung“ (SyncFlow): kam die Lesantwort von
+    // vor dem Start nach der Startantwort, stand „Rufe ab…“ statt der TAN da, bis die Push-TAN ablief.
+    let waiting = match walk.Server with Some { Status = AwaitingTan } -> true | _ -> false
+    if waiting && sheetScreen walk.Model <> TanScreen then
+        fail path "die wartende TAN ist verdeckt"
 
 let private explore (initial: SyncSession option) : int =
     let seen = System.Collections.Generic.HashSet<Walk>(HashIdentity.Structural)
@@ -151,6 +182,7 @@ let private explore (initial: SyncSession option) : int =
           OpenReads = []
           PendingStart = false
           PendingConfirm = false
+          PendingCancel = false
           Starts = 0
           Opens = 0
           Closes = 0
@@ -168,7 +200,7 @@ let startOrderTests =
               "mit beendeter Sitzung", Some (session Completed)
               "während die Bank verbindet", Some (session AwaitingBankAuth)
               "während Umsätze abgerufen werden", Some (session FetchingTransactions)
-              "während auf die TAN gewartet wird", Some started ] do
+              "während auf die TAN gewartet wird", Some (startedAs 0) ] do
             test $"In jeder Reihenfolge höchstens ein Start und eine TAN-Bestätigung, nie bei laufender Sitzung ({name})" {
                 let ends = explore initial
                 Expect.isGreaterThan ends 0 "die Aufzählung erreicht Enden"

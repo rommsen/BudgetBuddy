@@ -11,43 +11,41 @@ open Types
 type StartRecovery = {
     Reason: string
     ReadsLeft: int
-    /// Ein Lesen ist schon geplant. Ein Lesen von außen startet dann keine zweite Kette.
+    /// Ein Lesen ist schon geplant. Eine zweite Lesantwort startet dann keine zweite Kette.
     ReadPlanned: bool
     /// Die Sitzung, die vor dem Start auf dem Server lag. Eine beendete Sitzung mit dieser Id ist
     /// nicht das Ergebnis des verlorenen Aufrufs.
     Before: SyncSessionId option
 }
 
-/// Wo ein Start steht. Ein zweiter Tipp darf keinen zweiten `startSync` auslösen, sonst kommt
-/// womöglich eine zweite Push-TAN (ADR 0071: keine Challenge ohne Roman).
-type StartPhase =
-    | StartIdle
+/// Wo ein Abruf steht. Solange er nicht `FetchIdle` ist, löst „Abrufen“ nichts aus und ein zweiter Tipp
+/// keinen zweiten `startSync` oder `confirmTan`, sonst kommt womöglich eine zweite Push-TAN (ADR 0071:
+/// keine Challenge ohne Roman).
+type FetchPhase =
+    | FetchIdle
     /// „Abrufen“ kam als Auftrag: die Sitzung wird zuerst gelesen, gestartet wird erst bei keiner oder
     /// einer beendeten Sitzung.
-    | StartOrdered
-    /// `startSync` ist unterwegs.
-    | StartInFlight
+    | FetchOrdered
+    /// `startSync` ist unterwegs. Trägt die Sitzung, die vor dem Start auf dem Server lag.
+    | FetchStarting of before: SyncSessionId option
+    /// „Ich habe bestätigt“: `confirmTan` ist unterwegs.
+    | FetchConfirmingTan
+    /// Die Antwort von `startSync` oder `confirmTan` ging verloren, das Sheet liest nach.
+    | FetchRecovering of StartRecovery
 
 type Model = {
     IsOpen: bool
     Session: RemoteData<SyncSession option>
     /// Stand der lesenden Abrufe: nur die Antwort zum aktuellen Stand zählt.
     SessionReadVersion: int
-    Start: StartPhase
-    /// Die Sitzung vor dem laufenden Start (für das Nachlesen nach verlorener Antwort).
-    StartedOver: SyncSessionId option
-    InterruptedStart: StartRecovery option
-    IsTanConfirming: bool
+    Phase: FetchPhase
 }
 
 let init : Model = {
     IsOpen = false
     Session = NotAsked
     SessionReadVersion = 0
-    Start = StartIdle
-    StartedOver = None
-    InterruptedStart = None
-    IsTanConfirming = false
+    Phase = FetchIdle
 }
 
 type Msg =
@@ -71,8 +69,9 @@ type Msg =
 type ExternalMsg =
     | NoOp
     | ShowToast of string * ToastType
-    /// Ein Abruf ist beendet: Zu tun, Zähler, Importzeile und eine offene Kassenbuch-Liste laden neu.
-    | FetchFinished
+    /// Ein Abruf ist beendet: Zu tun, Zähler, Importzeile und eine offene Kassenbuch-Liste laden neu. War das
+    /// Sheet zu, trägt er den Satz für einen Toast mit dem Ergebnis.
+    | FetchFinished of resultToast: string option
     /// „Jetzt durchgehen“: bis ledger-v6s7c das Kassenbuch über alle Konten mit Filter „Zu prüfen“.
     | OpenReview
 
@@ -90,7 +89,7 @@ let sheetScreen (model: Model) : SheetScreen =
     match model.Session with
     | Failure message -> ErrorScreen message
     | NotAsked | Loading -> RunningScreen
-    | _ when model.InterruptedStart.IsSome || model.Start <> StartIdle || model.IsTanConfirming -> RunningScreen
+    | _ when model.Phase <> FetchIdle -> RunningScreen
     | Success None -> RunningScreen
     | Success (Some session) ->
         match session.Status with

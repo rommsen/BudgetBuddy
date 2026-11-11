@@ -10,7 +10,7 @@ open Components.Fetch.Types
 let private title = "Abrufen"
 let private subtitle = "Comdirect"
 
-let private footerButtons (secondaryText: string) (onSecondary: unit -> unit) (primary: (string * (unit -> unit) * bool) option) =
+let private footerButtons (secondaryText: string) (onSecondary: unit -> unit) (primary: (string * (unit -> unit)) option) =
     Html.div [
         prop.className "grid grid-cols-2 gap-3 w-full"
         prop.children [
@@ -21,12 +21,11 @@ let private footerButtons (secondaryText: string) (onSecondary: unit -> unit) (p
                     ClassName = Some "w-full"
                     OnClick = onSecondary }
             match primary with
-            | Some (text, onPrimary, busy) ->
+            | Some (text, onPrimary) ->
                 Button.view
                     { Button.defaultProps with
                         Text = text
                         Variant = Button.Primary
-                        IsBusy = busy
                         ClassName = Some "w-full"
                         OnClick = onPrimary }
             | None -> ()
@@ -49,16 +48,18 @@ let private content (model: Model) (daysToFetch: int) (dispatch: Msg -> unit) : 
               ]
           ] ],
         Some (
-            footerButtons "Abbrechen" (fun () -> dispatch CancelSync) (Some ("Ich habe bestätigt", (fun () -> dispatch ConfirmTan), model.IsTanConfirming))
+            footerButtons "Abbrechen" (fun () -> dispatch CancelSync) (Some ("Ich habe bestätigt", (fun () -> dispatch ConfirmTan)))
         )
     | RunningScreen ->
-        [ Card.sheetMessage "fetch-running" false "Rufe ab…" "Umsätze werden geladen und mit Regeln kategorisiert." ],
+        [ Card.sheetMessageBusy "fetch-running" "Rufe ab…" "Umsätze werden geladen und mit Regeln kategorisiert." ],
         None
     | DoneScreen counts ->
         [ Card.sheetMessage "fetch-done" (counts.NewEntries > 0) (resultTitle counts) (resultSentence counts) ],
-        Some (
-            footerButtons "Später" (fun () -> dispatch Closed) (Some ("Jetzt durchgehen", (fun () -> dispatch ReviewRequested), false))
-        )
+        // Ohne neue Buchung gibt es nichts durchzugehen (Review-Fund, Abweichung vom Prototyp).
+        if counts.NewEntries = 0 then
+            Some (footerButtons "Schließen" (fun () -> dispatch Closed) None)
+        else
+            Some (footerButtons "Später" (fun () -> dispatch Closed) (Some ("Jetzt durchgehen", (fun () -> dispatch ReviewRequested))))
     | ErrorScreen message ->
         [ Html.div [
               prop.custom ("data-testid", "fetch-error")
@@ -66,13 +67,15 @@ let private content (model: Model) (daysToFetch: int) (dispatch: Msg -> unit) : 
           ] ],
         Some (footerButtons "Schließen" (fun () -> dispatch Closed) None)
 
+/// Am Handy immer gerendert, damit das Sheet ein- und ausfährt (§7.10); beim Ausfahren hält es den letzten
+/// Inhalt. Der Dialog am PC fährt nicht aus, er erscheint nur offen.
 let view (model: Model) (daysToFetch: int) (dispatch: Msg -> unit) : ReactElement =
-    if not model.IsOpen then
-        Html.none
-    else
-        let body, footer = content model daysToFetch dispatch
-        let close () = dispatch Closed
-        if Viewport.isInspectorPanelViewport () then
+    let close () = dispatch Closed
+    if Viewport.isInspectorPanelViewport () then
+        if not model.IsOpen then
+            Html.none
+        else
+            let body, footer = content model daysToFetch dispatch
             Modal.view
                 { Modal.defaultProps with
                     IsOpen = true
@@ -84,11 +87,12 @@ let view (model: Model) (daysToFetch: int) (dispatch: Msg -> unit) : ReactElemen
                   match footer with
                   | Some f -> Modal.footer [ f ]
                   | None -> () ]
-        else
-            BottomSheet.view
-                { IsOpen = true
-                  OnClose = close
-                  Title = title
-                  Subtitle = Some subtitle
-                  Footer = footer |> Option.map List.singleton }
-                body
+    else
+        let body, footer = if model.IsOpen then content model daysToFetch dispatch else [], None
+        BottomSheet.viewHeld
+            { IsOpen = model.IsOpen
+              OnClose = close
+              Title = title
+              Subtitle = Some subtitle
+              Footer = footer |> Option.map List.singleton }
+            body

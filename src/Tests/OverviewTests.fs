@@ -166,7 +166,7 @@ let transitionTests =
         // lädt nach jedem Abruf die Übersicht neu (Zu tun, Zähler, Importzeile, Konten), auf dem Kassenbuch
         // zusätzlich die Liste und die Stände.
         testCase "Nach einem Abruf laden Übersicht, Zähler, Importzeile und eine offene Kassenbuch-Liste neu" <| fun () ->
-            let after page = dispatched (State.fetchExternalCmd (rootModel page) Components.Fetch.Types.FetchFinished)
+            let after page = dispatched (State.fetchExternalCmd (rootModel page) (Components.Fetch.Types.FetchFinished None))
             Expect.equal (after Overview) [ State.OverviewMsg ReloadRequested ] "auf der Übersicht"
             Expect.equal
                 (after Ledger)
@@ -175,6 +175,15 @@ let transitionTests =
                   State.LedgerMsg Components.Ledger.Types.LoadBalances ]
                 "im Kassenbuch auch Liste und Stände"
             Expect.isEmpty (dispatched (State.fetchExternalCmd (rootModel Overview) Components.Fetch.Types.NoOp)) "sonst nichts"
+
+        // Review-Fund zu banking-import-d0fey: war das Sheet zu, ging das Ergebnis unbemerkt vorbei.
+        testCase "Nach einem Abruf bei geschlossenem Sheet kommt das Ergebnis als Toast, dazu laden die Daten neu" <| fun () ->
+            let messages = dispatched (State.fetchExternalCmd (rootModel Overview) (Components.Fetch.Types.FetchFinished (Some "Abruf fertig: 6 neue Buchungen")))
+            Expect.equal
+                messages
+                [ State.ShowToast ("Abruf fertig: 6 neue Buchungen", ToastSuccess)
+                  State.OverviewMsg ReloadRequested ]
+                "Toast und Neuladen"
 
         // Bis ledger-v6s7c führt „Jetzt durchgehen“ dorthin, wo heute Zu-tun-Eintrag 1 hinführt.
         testCase "Jetzt durchgehen öffnet das Kassenbuch über alle Konten mit genau dem Filter Zu prüfen" <| fun () ->

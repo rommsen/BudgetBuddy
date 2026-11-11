@@ -30,6 +30,8 @@ type private BottomSheetInternalProps = {
     Elevated: bool
     /// Feste Höhe (`.fixed-height`), damit das Sheet beim Wechsel des Inhalts nicht springt.
     FixedHeight: bool
+    /// Hält beim Ausfahren den letzten Inhalt (`inspector`, `viewHeld`): zu ist es nicht bedienbar.
+    Held: bool
     /// Knöpfe im Kopf, links neben Schließen.
     HeaderActions: ReactElement list
     /// Fester Bereich zwischen Kopf und scrollendem Inhalt.
@@ -191,7 +193,7 @@ let private BottomSheetInternal (input: BottomSheetInternalProps) =
                 Html.div [
                     prop.className ("bottom-sheet" + layerClass + heightClass + activeClass)
                     // Zu oder beim Ausfahren: nicht bedienbar, für den Screenreader nicht da.
-                    if input.FixedHeight && not props.IsOpen then
+                    if input.Held && not props.IsOpen then
                         prop.custom ("inert", "true")
                         prop.custom ("aria-hidden", true)
                     prop.onClick (fun e -> e.stopPropagation())
@@ -264,9 +266,9 @@ let private BottomSheetInternal (input: BottomSheetInternalProps) =
 /// Renders a bottom sheet with overlay, drag handle, header and scrollable body.
 /// The sheet and overlay are always in the DOM; visibility is toggled via the `.active` CSS class.
 let view (props: BottomSheetProps) (children: ReactElement list) : ReactElement =
-    BottomSheetInternal { Props = props; Children = children; Elevated = false; FixedHeight = false; HeaderActions = []; Pinned = [] }
+    BottomSheetInternal { Props = props; Children = children; Elevated = false; FixedHeight = false; Held = false; HeaderActions = []; Pinned = [] }
 
-type private InspectorContent = {
+type private HeldContent = {
     Title: string
     Subtitle: string option
     Footer: ReactElement list option
@@ -281,7 +283,7 @@ let private ExitDurationMs = 500
 
 [<ReactComponent>]
 let private HeldSheet (props: BottomSheetProps, fixedHeight: bool, headerActions: ReactElement list, pinned: ReactElement list, children: ReactElement list) =
-    let held = React.useRef<InspectorContent option> None
+    let held = React.useRef<HeldContent option> None
     let released, setReleased = React.useState 0
     if props.IsOpen then
         held.current <- Some { Title = props.Title; Subtitle = props.Subtitle; Footer = props.Footer; HeaderActions = headerActions; Pinned = pinned; Children = children }
@@ -307,6 +309,7 @@ let private HeldSheet (props: BottomSheetProps, fixedHeight: bool, headerActions
           Children = shown.Children
           Elevated = false
           FixedHeight = fixedHeight
+          Held = true
           HeaderActions = shown.HeaderActions
           Pinned = shown.Pinned }
 
@@ -322,16 +325,17 @@ let inspector
     : ReactElement =
     HeldSheet (props, true, headerActions, pinned, children)
 
-/// Wie `view`, aber der letzte Inhalt bleibt stehen, solange das Sheet ausfährt: für ein Sheet, dessen Inhalt am
-/// Zustand hängt, der beim Schließen wegfällt (Sheet „Angepinnt“, budgeting-w9yt4). Muss offen wie zu gerendert
-/// bleiben, sonst geht der gehaltene Inhalt verloren.
+/// Wie `view`, aber der letzte Inhalt samt Fuß bleibt stehen, solange das Sheet ausfährt, und zu ist es nicht
+/// bedienbar: für ein Sheet, dessen Inhalt am Zustand hängt, der beim Schließen wegfällt oder wechselt (Sheet
+/// „Angepinnt“, budgeting-w9yt4; Sheet „Abrufen“, banking-import-d0fey). Muss offen wie zu gerendert bleiben,
+/// sonst geht der gehaltene Inhalt verloren.
 let viewHeld (props: BottomSheetProps) (children: ReactElement list) : ReactElement =
     HeldSheet (props, false, [], [], children)
 
 /// Wie `view`, aber auf der erhöhten Ebene (`layer-2`): das Sheet öffnet über einem anderen
 /// Sheet, zum Beispiel der Kategorie-Picker über dem Buchungs-Detail.
 let viewLayered (props: BottomSheetProps) (children: ReactElement list) : ReactElement =
-    BottomSheetInternal { Props = props; Children = children; Elevated = true; FixedHeight = false; HeaderActions = []; Pinned = [] }
+    BottomSheetInternal { Props = props; Children = children; Elevated = true; FixedHeight = false; Held = false; HeaderActions = []; Pinned = [] }
 
 // ---------------------------------------------------------------------------
 // Category Picker (specialised bottom sheet)

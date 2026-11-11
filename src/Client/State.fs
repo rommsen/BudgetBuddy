@@ -445,11 +445,7 @@ let isInputActive (model: Model) : bool =
                |> List.exists (fun text -> not (String.IsNullOrWhiteSpace text))
     // Ein offenes Sheet „Abrufen“ oder ein laufender Abruf: ein Neuladen verlöre Push-TAN oder Ergebnis.
     let fetchActive =
-        let fetch = model.Fetch
-        fetch.IsOpen
-        || fetch.Start <> Components.Fetch.Types.StartIdle
-        || fetch.IsTanConfirming
-        || fetch.InterruptedStart.IsSome
+        model.Fetch.IsOpen || model.Fetch.Phase <> Components.Fetch.Types.FetchIdle
     ledgerActive || rulesActive || settingsActive || quickAddActive || fetchActive
     || Components.Budget.Moves.inputActive model.Budget
 
@@ -582,8 +578,12 @@ let fetchExternalCmd (model: Model) (external: Components.Fetch.Types.ExternalMs
     | Components.Fetch.Types.NoOp -> Cmd.none
     | Components.Fetch.Types.ShowToast (message, toastType) -> Cmd.ofMsg (ShowToast (message, toastType))
     | Components.Fetch.Types.OpenReview -> Cmd.ofMsg (OpenOverviewTodo Components.Overview.Types.TodoReview)
-    | Components.Fetch.Types.FetchFinished ->
+    | Components.Fetch.Types.FetchFinished resultToast ->
         Cmd.batch [
+            // Das Sheet war zu: das Ergebnis kommt als Toast (Review-Fund zu banking-import-d0fey).
+            match resultToast with
+            | Some message -> Cmd.ofMsg (ShowToast (message, ToastSuccess))
+            | None -> ()
             Cmd.map OverviewMsg (Cmd.ofMsg Components.Overview.Types.ReloadRequested)
             if isLedgerPage model.CurrentPage then
                 Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadEntries)
