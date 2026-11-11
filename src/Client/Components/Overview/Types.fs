@@ -347,9 +347,6 @@ let reviewCount (model: Model) : int =
     | Success _ -> model.NeedsReviewCount
     | _ -> 0
 
-/// Der `aria-label` am Zähler: Gelb braucht ein Wort (Styleguide §2).
-let reviewCountLabel (count: int) : string = $"{count} zu prüfen"
-
 /// Wann der letzte Import abgeschlossen wurde: die jüngste abgeschlossene Sync-Sitzung.
 let lastImportAt (sessions: SyncSession list) : DateTime option =
     sessions

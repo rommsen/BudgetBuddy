@@ -176,7 +176,7 @@ let todoStateTests =
             Expect.equal (answered.NeedsReviewCount, answered.AskLenaCount) (4, 2) "Zähler"
             Expect.equal (reviewCount answered) 4 "Zahl"
             Expect.equal (reviewCount init) 0 "unbekannt: keine Zahl"
-            Expect.equal (reviewCountLabel 4) "4 zu prüfen" "Wort zum Gelb"
+            Expect.equal (Client.DesignSystem.Navigation.reviewCountLabel 4) "4 zu prüfen" "Wort zum Gelb"
 
         // Review-Fund: Antworten waren nicht an ihre Anfrage gebunden. Überlappten Betreten und `CountsNeeded` (Start,
         // Import) oder `ReloadRequested` nach dem Erfassen, setzte eine langsame alte Antwort Zähler und Liste zurück.

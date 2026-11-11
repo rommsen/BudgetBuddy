@@ -115,15 +115,22 @@ let bottomBar (props: Props) =
 // Rail (768 bis 1023 px)
 // ============================================
 
-/// Der Zähler an einem Ort: Mono 11 px in „braucht dich“. Die Zahl steht ohne Wort wie im Prototyp, das Wort
-/// trägt der `aria-label` (Styleguide §2, Gelb immer mit Wort).
+/// Das Wort zum Zähler an der Übersicht: Gelb braucht ein Wort (Styleguide §2).
+let reviewCountLabel (count: int) : string = $"{count} zu prüfen"
+
+/// Der Zähler an einem Ort: Mono 11 px in „braucht dich“. Die Zahl steht ohne Wort wie im Prototyp. Das Wort liest
+/// der Screenreader aus einem `sr-only`-Span daneben, die sichtbare Zahl ist für ihn verborgen: ein `aria-label` an
+/// einem `span` ohne Rolle erreicht ihn nicht verlässlich (Styleguide §2, Gelb immer mit Wort).
 let private countBadge (extraClass: string) (count: int) =
-    Html.span [
-        prop.custom ("data-testid", "nav-overview-count")
-        prop.ariaLabel $"{count} zu prüfen"
-        prop.title $"{count} zu prüfen"
-        prop.className $"{extraClass} {Fonts.mono} {FontSizes.microPlus} leading-none {Colors.attention}"
-        prop.text (string count)
+    React.fragment [
+        Html.span [
+            prop.custom ("data-testid", "nav-overview-count")
+            prop.ariaHidden true
+            prop.title (reviewCountLabel count)
+            prop.className $"{extraClass} {Fonts.mono} {FontSizes.microPlus} leading-none {Colors.attention}"
+            prop.text (string count)
+        ]
+        Html.span [ prop.className "sr-only"; prop.text (reviewCountLabel count) ]
     ]
 
 /// Der Zähler eines Orts: nur an der Übersicht und nur über null.
