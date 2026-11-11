@@ -30,6 +30,12 @@ paths:
 ### sprintf mit Nachkommastellen
 - `sprintf "%.2f"` rundet in Fable anders als in .NET; für Beträge `System.Math.Round(x, 2).ToString("0.00")` nutzen
 
+### Formatangaben in interpolierten Strings
+- Fable übersetzt `{ausdruck:Format}` in `$"…"` nicht: `$"{today.Month:D2}"` ergibt im Client `"%P(D2)"`, unter
+  .NET aber `"11"`. Die .NET-Tests bleiben grün (Bug nach design-system-k6kfw, Fix af94b183: Monat der Übersicht
+  als `'%P(D4)-%P(D2)-01'` an den Server).
+- Richtig: `(string x).PadLeft(2, '0')`, oder einen vorhandenen Formatierer aus `src/Shared` nehmen.
+
 ### Math.Round auf decimal
 - Im Fable-Kompilat rundet `Math.Round` auf decimal immer zur geraden Zahl, `MidpointRounding` wird verworfen
   (fable-library `Decimal.round` nutzt fest ROUND_HALF_EVEN). Als zweites Argument gilt der Modus sogar als
@@ -51,6 +57,9 @@ grep -rn 'Math.Round' src/Client/
 
 # DateTimeOffset ohne UTC
 grep -rn 'DateTimeOffset(' src/Server/ | grep -v 'TimeSpan.Zero'
+
+# Formatangaben in interpolierten Strings (erwartet: nichts)
+grep -rnE '\{[^{}"]+:[A-Za-z#0][A-Za-z0-9#.,]*\}' src/Client/ src/Shared/ | grep '\$"'
 
 # style.lineHeight (wahrscheinlich falsch)
 grep -rn 'style.lineHeight' src/Client/
