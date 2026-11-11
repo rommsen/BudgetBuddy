@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-11 21:36 -- Modeling / Promoted: budgeting-w9yt4 - "Angepinnte Kategorien: Block „Angepinnt“ auf der Übersicht, Sheet zum Anpinnen, Lösen und Ordnen, Pin-Knopf im Kategorie-Detail, gespeichert als Zustand"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-11 21:35 -- Modeling / Refined: budgeting-w9yt4 - Angepinnte Kategorien
 
 **Type:** Modeling / Refine

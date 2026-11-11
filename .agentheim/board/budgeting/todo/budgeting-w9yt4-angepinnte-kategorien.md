@@ -1,7 +1,7 @@
 ---
 id: budgeting-w9yt4
 title: "Angepinnte Kategorien: Block „Angepinnt“ auf der Übersicht, Sheet zum Anpinnen, Lösen und Ordnen, Pin-Knopf im Kategorie-Detail, gespeichert als Zustand"
-status: backlog
+status: todo
 type: feature
 context: budgeting
 created: 2026-11-11
