@@ -92,7 +92,7 @@ stehen, führen die Einträge zu neuen Umsätzen in den heutigen Sync-Ablauf und
       Durchgehen, Gelb statt Rot bei Eintrag 5, Angepinnt fehlt bis `budgeting-w9yt4`). Screenshots bei
       412 und 1280 px neben dem Prototyp im Outcome.
 - [ ] `./verify.sh` endet mit `VERIFY: PASS`.
-- [ ] Roman hat die Übersicht am Handy (412 px, Touch) und am PC neben dem Prototyp angesehen.
+- [x] Roman hat die Übersicht am Handy (412 px, Touch) und am PC neben dem Prototyp angesehen.
       [human-eye]
 
 ## Notes
@@ -129,7 +129,7 @@ SUGGESTED_FIX: Ein gefülltes Lena-Flag als neue DS-Icon-Variante (auf /stylegui
 ITERATION_HINT: likely-fixable
 
 ## Abweichungen, nach Verifier iteration 1 eingetragen (Conductor, 2026-11-11)
-Diese Abweichungen von Prototyp Version 17 gelten zusätzlich zu den oben genannten. Roman bestätigt oder streicht sie beim Blick [human-eye].
+Diese Abweichungen von Prototyp Version 17 gelten zusätzlich zu den oben genannten. Roman hat sie beim Blick bestätigt (2026-11-11), ebenso den Dialog für „Buchung“ am PC.
 - (a) Eintrag 5 „Buchung nicht in YNAB“ zählt jede nicht verknüpfte, nicht in YNAB gelöschte Buchung, auch einen Push ohne bekannten Ausgang. Grund: Es ist dieselbe Menge, die das Kassenbuch mit „Nicht in YNAB“ kennzeichnet (Ziel des Eintrags). Abgestimmt mit dem tactical-modeler.
 - (b) Kennt BB keinen Import, sagt Zeile 2 von Eintrag 1 „Im Kassenbuch“ statt „Import <Stand>“. Grund: Der Prototyp deckt den Fall nicht ab.
 - (c) „Abrufen“ und „Buchung“ am PC sind `Button` Secondary/Small (Pille) statt `.btn.sm`. Grund: übernommen aus design-system-k6kfw, dort schon als offene DS-Lücke in der Kann-Sammlung. „Buchung“ folgt „Abrufen“.
