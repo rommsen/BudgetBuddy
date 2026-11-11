@@ -5,6 +5,18 @@ Newest entries on top.
 
 ---
 
+## 2026-11-11 12:22 -- Review-Lauf: design-system-k6kfw
+
+**Type:** Review / Review-Lauf
+**Bereich:** design-system-k6kfw (189ec9a9)
+**Agents:** frontend-architecture, design-quality, qa-milestone-reviewer
+**Funde:** behoben 31, verworfen 1, Rückfrage 2, Ticket 0, Kann-Sammlung 5 (design-system-k8s2m drei Zeilen, categorization-m5k2c eine, banking-import-asr13 eine nach Rückfrage); Rückfrage Schriftgrößen als Kriterium in ledger-s1weh, Zählerhinweis in ledger-s1weh
+**Commits:** 63e9f6a7, 1bdd130f, 23a08613, 2b1eea0d, 1fe16732, b3ef1860, ec87e30b
+**Verworfen:** init ohne Cmd in Overview.Types (Teilmodell lädt nur über Entered aus dem Root, ein Cmd in init bringt nichts)
+**Verifikation:** VERIFY: PASS (dotnet 4693 grün, node 311 grün, dotnet build, npm run build, guard:classes, guard:tokens grün)
+
+---
+
 ## 2026-11-11 10:55 -- Modeling / Promoted: ledger-s1weh - "Übersicht als Einstieg (Variante A): Zu tun mit einer Hauptaktion, Zähler an der Übersicht, „+ Buchung“, am PC zweispaltig"
 
 **Type:** Modeling / Promote

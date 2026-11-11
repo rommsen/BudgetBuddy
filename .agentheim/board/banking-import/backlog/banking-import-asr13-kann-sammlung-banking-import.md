@@ -38,3 +38,4 @@ Den Testfall entfernen. Falls das Verhalten bei abgelehnter Anmeldung abgesicher
 
 ## Aus dem Review-Lauf nach design-system-dak16 (2026-11-08)
 - Import prüfen: `src/Client/Components/SyncFlow/State.fs:569` schluckt einen Ladefehler der Lena-Flag-Farbe (`fun _ -> LenaFlagColorLoaded None`), und `SyncFlow.Types.LenaFlagColor` ist `string option` statt `RemoteData`. Das Kassenbuch macht es richtig (`RemoteData` plus `lenaColorLoadFailedReason`); hier nachziehen.
+- Review-Lauf 2026-11-11 (design-system-k6kfw), Roman: Im Sync-Ablauf stehen in der Prüfung zwei Rückwege übereinander (oben „Zurück“ zur Übersicht, darunter der alte Pfeil, der die Prüfung abbricht). Den Abbrechen-Pfeil entfernen, Abbrechen als eigener neutraler Knopf in der Prüfung. Entfällt, wenn `ledger-v6s7c` (Durchgehen) den Sync-Ablauf ablöst.

@@ -22,3 +22,4 @@ Geschnitten und priorisiert wird im Refinement.
 
 ## Aus dem Review-Lauf nach infrastructure-jc1y1 (2026-11-08)
 - Regel-Dialog: Öffnet man das Kategorie-Popover, während der Dialog noch per `animate-scale-in` einfährt, rechnet `scrollIntoView` mit der skalierten Lage und das Popover steht halb unter dem Rand. Der Sweep-Zustand `regeln-dialog-picker` wartet deshalb per `settle` (`scripts/layout-states.mjs`). Abhilfe im Client: Popover erst nach dem Ende der Einfahrt positionieren oder neu messen.
+- Review-Lauf 2026-11-11 (design-system-k6kfw): Die übrigen Quelltext-Prüfungen in `src/Tests/RulesListTests.fs` (Liste „Quelltext“) sind View-Verdrahtung per Teilstring (Doktrin Punkt 7); beim Umbau der Regeln (`categorization-n3sxw`) entfernen oder auf Verhalten umstellen.

@@ -78,6 +78,11 @@ stehen, führen die Einträge zu neuen Umsätzen in den heutigen Sync-Ablauf und
       links „Zu tun“, rechts „Monat“ und „Neueste Buchungen“ aus `design-system-k6kfw`. Unter 1024 px
       einspaltig in der Reihenfolge Zu tun, Monat, Konten.
 
+### Schriftgrößen (Roman, 2026-11-11)
+- [ ] Die Übersicht hält Styleguide §7.14 (höchstens drei Schriftgrößen je Ansicht): „noch N Tage“ auf 11 px
+      wie die Abschnittsköpfe, der Monatsname in der Größe der Zeilen (`ListRoles.primary`). Heute sind es
+      sieben Größen (Review-Lauf zu design-system-k6kfw).
+
 ### Tests und Vergleich
 - [ ] Ein `[flow:uebersicht]`-Test bei 412 px: mit einer ungeprüften Buchung steht „1 Buchung zu
       prüfen“ als erster Eintrag mit Knopf „Prüfen“, der Knopf öffnet das
@@ -105,6 +110,9 @@ YNAB“ mit „Erneut senden“ (`src/Client/Components/Ledger/State.fs`), Geld 
 Budget (`src/Client/Components/Budget/`). Eine neue API braucht es nicht, falls die Zahl der ungeprüften
 Buchungen und der gescheiterten Pushes je Konto schon im Client ankommt; sonst klärt der Worker das mit dem
 `tactical-modeler` und meldet es im RESULT.
+
+Zähler (Review-Lauf 2026-11-11): Die Zahl steht in Gelb ohne Wort daneben; §2 verlangt bei Gelb ein Wort.
+Sichtbar bleibt die Zahl wie im Prototyp, dazu ein `aria-label` „<n> zu prüfen“ am Zähler.
 
 Der Conductor legt vor dem Start die Prototyp-Datei und Screenshots der Übersicht (Handy und PC) in den
 Scratchpad und gibt Worker, Verifier und `design-quality` die Pfade mit.
