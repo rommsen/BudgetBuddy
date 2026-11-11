@@ -332,21 +332,17 @@ let private recentBlock (actions: Actions) (today: DateTime) (recent: RemoteData
 
 /// Die Marke vor einem Eintrag, 9 px: „braucht dich“ Gelb, Fehler Rot. Rückfragen an Lena tragen das gefüllte
 /// Flag-Symbol (15 px, Prototyp `I.flag`) in der Flag-Farbe (Styleguide §2: die Flag-Farbe nur im Symbol); die Farbe
-/// setzt `lenaFlagScope` am Block.
+/// setzt `lenaFlagScope` am Block. Jede Marke ist `aria-hidden`: der Text des Eintrags trägt die Bedeutung („Rückfrage
+/// an Lena“, „zu prüfen“, „im Minus“), ein Name an der Marke ginge sonst doppelt in den Namen des Knopfs ein.
 let private todoMarkView (mark: TodoMark) =
     Html.span [
+        prop.ariaHidden true
         prop.className "w-4 shrink-0 grid place-items-center"
         prop.children [
             match mark with
-            | MarkLenaFlag ->
-                Html.span [
-                    prop.role "img"
-                    prop.ariaLabel "Lena-Flag"
-                    prop.className "inline-flex"
-                    prop.children [ Icons.flagSolid Icons.Mark Icons.LenaFlag ]
-                ]
-            | MarkAttention -> Html.span [ prop.ariaHidden true; prop.className "w-[9px] h-[9px] rounded-full bg-attention" ]
-            | MarkError -> Html.span [ prop.ariaHidden true; prop.className "w-[9px] h-[9px] rounded-full bg-error" ]
+            | MarkLenaFlag -> Html.span [ prop.className "inline-flex"; prop.children [ Icons.flagSolid Icons.Mark Icons.LenaFlag ] ]
+            | MarkAttention -> Html.span [ prop.className "w-[9px] h-[9px] rounded-full bg-attention" ]
+            | MarkError -> Html.span [ prop.className "w-[9px] h-[9px] rounded-full bg-error" ]
         ]
     ]
 
