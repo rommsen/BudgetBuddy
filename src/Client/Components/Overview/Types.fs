@@ -66,7 +66,10 @@ let noAccountsTitle = "Keine Konten"
 let noAccountsText = "Konten erscheinen hier nach dem ersten Spiegeln."
 
 /// Der Monat ("YYYY-MM-01"), zu dem `today` gehört.
-let monthKey (today: DateTime) : string = $"{today.Year:D4}-{today.Month:D2}-01"
+/// Den Monatsersten als "JJJJ-MM-01". Ohne Formatangabe wie `:D2`: die übersetzt Fable nicht, im Client käme
+/// "%P(D4)-%P(D2)-01" an (Bug nach design-system-k6kfw, Test `[fable]` in scripts/navigation.test.mjs).
+let monthKey (today: DateTime) : string =
+    (string today.Year).PadLeft(4, '0') + "-" + (string today.Month).PadLeft(2, '0') + "-01"
 
 let private monthNames =
     [| "Januar"; "Februar"; "März"; "April"; "Mai"; "Juni"; "Juli"; "August"; "September"; "Oktober"; "November"; "Dezember" |]

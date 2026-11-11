@@ -99,3 +99,23 @@ test("[flow:navigation] Leiste, Rail und Seitenleiste führen zu den Orten, ein 
     }
   }
 });
+
+// Bug (Produktion 2026-11-11, nach design-system-k6kfw): `monthKey` baute den Monat mit `$"{today.Year:D4}-…"`.
+// Fable übersetzt die Formatangabe `:D4` nicht, der Client schickte `'%P(D4)-%P(D2)-01'`, und die Karte „Monat“
+// zeigte „Ungültiger Monat“. Unter .NET ist der Wert richtig, deshalb prüft das nur das Fable-Kompilat.
+test("[fable] Die Übersicht fragt den Monat mit dem Berliner Monatsersten als JJJJ-MM-01 an", async () => {
+  const context = await browser.newContext({ viewport: { width: 412, height: 915 }, hasTouch: true, isMobile: true });
+  const page = await context.newPage();
+  page.setDefaultTimeout(20000);
+  try {
+    await page.route("**/api/**", (r) => r.fulfill({ status: 500, contentType: "application/json", body: '{"error":"nicht gemockt"}' }));
+    await stateNamed("uebersicht").mock(page);
+    const asked = page.waitForRequest((req) => req.url().includes("/api/BudgetApi/getBudgetMonth"));
+    await page.goto(`http://127.0.0.1:${port}/#/`, { waitUntil: "load" });
+    const body = JSON.parse((await asked).postData() ?? "null");
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Berlin" });
+    assert.deepEqual(body, [`${today.slice(0, 7)}-01`]);
+  } finally {
+    await context.close();
+  }
+});
