@@ -368,7 +368,7 @@ let private firstTodo (actions: Actions) (todo: Todo) (more: bool) =
                     Html.div [
                         prop.className "min-w-0"
                         prop.children [
-                            Html.div [ prop.className $"text-base {FontWeights.semibold} {Colors.textPrimary}"; prop.text todo.Title ]
+                            Html.div [ prop.className $"{FontSizes.emphasis} {FontWeights.semibold} {Colors.textPrimary}"; prop.text todo.Title ]
                             Html.div [ prop.className todoDetailClass; prop.text todo.Detail ]
                         ]
                     ]

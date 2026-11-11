@@ -104,6 +104,7 @@ module FontSizes =
     let brand = "text-[17px]"            // Markenname in der Seitenleiste (Prototyp `.brand`, design-system-k6kfw)
     let compact = "text-[13px]"          // Zwischen xs und sm: Kopf und Werte der Leiste Monatserster (Skizze, budgeting-m3x7f)
     let placeTitle = "text-xl"           // 20 px: Titel im Kopf eines Orts oder einer Unterseite (Prototyp `.top`, design-system-k6kfw)
+    let emphasis = "text-base"          // 16 px: Titel des ersten Eintrags in „Zu tun“ und Kopf von `Card.allDone` (Prototyp Version 17, ledger-s1weh)
 
 /// Typografie-Rollen für ruhige Listen (ADR 0049, Styleguide §2 "Ruhige Listen").
 /// Arbiträre Größen (`text-[15px]`, `text-[10px]`) stehen nur hier, nicht in Views.

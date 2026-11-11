@@ -171,14 +171,14 @@ let emptyStateCompact (title: string) (description: string) =
 let allDone (testId: string) (title: string) (description: string) =
     Html.div [
         prop.custom ("data-testid", testId)
-        prop.className "flex items-center gap-3 rounded-[14px] border border-border-subtle bg-surface-card p-4"
+        prop.className $"flex items-center gap-3 rounded-[14px] border {Borders.subtle} {Backgrounds.dark} {Padding.md}"
         prop.children [
-            Html.span [ prop.ariaHidden true; prop.className "w-2.5 h-2.5 shrink-0 rounded-full bg-success" ]
+            Html.span [ prop.ariaHidden true; prop.className $"w-2.5 h-2.5 shrink-0 {Radius.full} bg-success" ]
             Html.div [
                 prop.className "min-w-0"
                 prop.children [
-                    Html.p [ prop.className "font-semibold text-text-primary"; prop.text title ]
-                    Html.p [ prop.className $"{FontSizes.compact} text-text-secondary"; prop.text description ]
+                    Html.p [ prop.className $"{FontSizes.emphasis} {FontWeights.semibold} {Colors.textPrimary}"; prop.text title ]
+                    Html.p [ prop.className $"{FontSizes.compact} {Colors.textSecondary}"; prop.text description ]
                 ]
             ]
         ]
