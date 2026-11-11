@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-11 14:01 -- Capture / Captured: infrastructure-rm6zb - "Wächter gegen Formatangaben in interpolierten Strings unter src/Client und src/Shared"
+
+**Type:** Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Wächter gegen Formatangaben in interpolierten Strings (Fable übersetzt $"{x:D2}" nicht), aus learn nach Fix af94b183.
+
+---
+
 ## 2026-11-11 12:22 -- Review-Lauf: design-system-k6kfw
 
 **Type:** Review / Review-Lauf

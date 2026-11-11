@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 6
+- **Backlog:** 7
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 49
@@ -43,6 +43,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **infrastructure-rm6zb** — "Wächter gegen Formatangaben in interpolierten Strings unter src/Client und src/Shared" (chore) — `backlog/infrastructure-rm6zb-waechter-formatangaben-interpolierte-strings.md`
 - **infrastructure-ewasy** — README-Delta-Gate meldet alten Wortlaut, der nach einem replace anderswo in der README stehen bleibt (chore) — `backlog/infrastructure-ewasy-readme-delta-alter-wortlaut.md`
 - **infrastructure-hgbey** — "Kann-Sammlung infrastructure" (chore) — `backlog/infrastructure-hgbey-kann-sammlung-infrastructure.md`
 - **infrastructure-phadg** — "Altlasten nach der Test-Doktrin: nachgebaute Tests und Quelltext-Tests auf View-Verdrahtung ersetzen" (chore) — `backlog/infrastructure-phadg-altlasten-test-doktrin.md`
