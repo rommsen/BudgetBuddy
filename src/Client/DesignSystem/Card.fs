@@ -156,6 +156,16 @@ let footerRight (children: ReactElement list) =
 // ============================================
 
 /// Empty state card
+/// Kurzer leerer Zustand für schmale Spalten (Seitenleiste): Kopf und ein Satz, ohne Symbol und Aktion (§7.12).
+let emptyStateCompact (title: string) (description: string) =
+    Html.div [
+        prop.className "rounded-lg border border-border-default border-dashed px-3 py-3"
+        prop.children [
+            Html.p [ prop.className "text-sm font-semibold text-text-secondary"; prop.text title ]
+            Html.p [ prop.className "text-xs text-text-muted mt-0.5"; prop.text description ]
+        ]
+    ]
+
 let emptyState (icon: ReactElement) (title: string) (description: string) (action: ReactElement option) =
     Html.div [
         prop.className "rounded-xl bg-surface-card border border-border-default border-dashed p-8 md:p-12 text-center"

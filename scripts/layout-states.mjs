@@ -1129,6 +1129,20 @@ export const STATES = [
       loaded: (page) => page.locator('[data-testid="overview-month"]'),
     },
   },
+  // design-system-k6kfw, Review-Fund: ein Ladefehler des Monats stand als große Fehlerkarte da, Konten (Handy) und
+  // Neueste Buchungen (PC) rutschten nach unten. Der Fehler steht jetzt in der festen Höhe der Karte.
+  {
+    name: "uebersicht-monat-fehler",
+    route: "/",
+    widths: [390, 900, 1280],
+    mock: mockOverview,
+    open: openOverview,
+    deferred: {
+      api: "**/api/BudgetApi/getBudgetMonth",
+      body: { Error: "YNAB antwortet nicht" },
+      loaded: (page) => page.locator('[data-testid="overview-month-error"]'),
+    },
+  },
   // Fix 31f15e0 (banking-import-v8n3k): die Zeile zum Bankstand nimmt beim Laden schon ihre Höhe ein.
   {
     name: "sync-start",

@@ -50,6 +50,16 @@ type SidebarAccount = {
     OnClick: unit -> unit
 }
 
+/// Der Abschnitt „Konten“ der Seitenleiste.
+type SidebarAccounts =
+    /// Platzhalter statt der Zeilen.
+    | SidebarAccountsLoading
+    /// Ladefehler: kompakte Fehlerzeile mit „Erneut laden“.
+    | SidebarAccountsFailed of message: string * retry: (unit -> unit)
+    /// Noch kein Konto: kurzer leerer Zustand (Styleguide §7.12).
+    | SidebarAccountsEmpty of title: string * text: string
+    | SidebarAccountsShown of SidebarAccount list
+
 type Props = {
     /// Der markierte Ort, `None` auf Einstellungen und Styleguide.
     Current: NavPage option
@@ -58,9 +68,7 @@ type Props = {
     SettingsActive: bool
     OnSettings: unit -> unit
     OnBrand: unit -> unit
-    Accounts: SidebarAccount list
-    /// Laden die Konten noch? Dann stehen Platzhalter statt der Zeilen.
-    AccountsLoading: bool
+    Accounts: SidebarAccounts
     /// Die Leiste unten weicht am Handy der Auswahl-Leiste des Kassenbuchs (ledger-r1d2f).
     HideBottomBar: bool
 }
@@ -217,6 +225,24 @@ let private accountRow (account: SidebarAccount) =
         ]
     ]
 
+/// Die Zeilen unter „Konten“ je Zustand.
+let private accountsSection (accounts: SidebarAccounts) =
+    React.fragment [
+        match accounts with
+        | SidebarAccountsLoading ->
+            for i in 1..3 do
+                Html.div [
+                    prop.key (string i)
+                    prop.className "h-[34px] flex items-center px-2.5"
+                    prop.children [ Loading.amountSkeleton () ]
+                ]
+        | SidebarAccountsFailed (message, retry) ->
+            ErrorDisplay.cardCompactWith "Erneut laden" message (Some retry)
+        | SidebarAccountsEmpty (title, text) -> Card.emptyStateCompact title text
+        | SidebarAccountsShown rows ->
+            for account in rows do React.keyedFragment (account.Key, [ accountRow account ])
+    ]
+
 /// Seitenleiste ab 1024 px: feste Spalte 232 px, Marke, Orte, „Konten“ und unten die Einstellungen.
 let sidebar (props: Props) =
     Html.aside [
@@ -238,15 +264,7 @@ let sidebar (props: Props) =
                 prop.className $"px-2.5 pt-[18px] pb-1.5 {Fonts.mono} {FontSizes.microPlus} uppercase tracking-[0.14em] {Colors.textMuted}"
                 prop.text "Konten"
             ]
-            if props.AccountsLoading && List.isEmpty props.Accounts then
-                for i in 1..3 do
-                    Html.div [
-                        prop.key (string i)
-                        prop.className "h-[34px] flex items-center px-2.5"
-                        prop.children [ Loading.amountSkeleton () ]
-                    ]
-            else
-                for account in props.Accounts do React.keyedFragment (account.Key, [ accountRow account ])
+            accountsSection props.Accounts
             Html.div [ prop.className "flex-1 min-h-4" ]
             sideRow props.SettingsActive "Einstellungen" gear None props.OnSettings
         ]
@@ -288,7 +306,7 @@ let sidebarPreview (props: Props) =
                 prop.className $"px-2.5 pt-[18px] pb-1.5 {Fonts.mono} {FontSizes.microPlus} uppercase tracking-[0.14em] {Colors.textMuted}"
                 prop.text "Konten"
             ]
-            for account in props.Accounts do React.keyedFragment (account.Key, [ accountRow account ])
+            accountsSection props.Accounts
             Html.div [ prop.className "flex-1" ]
             sideRow props.SettingsActive "Einstellungen" gear None props.OnSettings
         ]

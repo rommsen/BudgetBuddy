@@ -7,6 +7,7 @@ open System
 open Expecto
 open Shared.Domain
 open Shared.Budgeting
+open Shared.Api
 open Types
 open Components.Overview.Types
 
@@ -137,6 +138,30 @@ let transitionTests =
             Expect.equal model.Overview.Accounts (Success accounts) "Konten"
             Expect.equal model.Overview.Balances (Success balances) "Stände"
 
+        // Review-Fund: `syncNavAccounts` spiegelte nur `Ok`. Scheiterte das Kassenbuch beim Laden, blieb die
+        // Seitenleiste beim Platzhalter stehen; ein geladener Stand bleibt aber stehen (`lateFailure`).
+        testCase "Scheitert das Kassenbuch beim Laden, zeigt die Seitenleiste den Fehler statt ewig zu laden" <| fun () ->
+            let loading = { rootModel Ledger with Overview = Components.Overview.State.beginEnter Components.Overview.Types.init }
+            let model, _ = State.update (State.LedgerMsg (Components.Ledger.Types.AccountsLoaded (Error "weg"))) loading
+            let model, _ = State.update (State.LedgerMsg (Components.Ledger.Types.BalancesLoaded (Error "weg"))) model
+            Expect.equal model.Overview.Accounts (Failure "weg") "Konten"
+            Expect.equal model.Overview.Balances (Failure "weg") "Stände"
+            let accounts : LedgerAccountsView = { Accounts = []; DefaultAccountId = None }
+            let loaded = { loading with Overview = { loading.Overview with Accounts = Success accounts } }
+            let late, _ = State.update (State.LedgerMsg (Components.Ledger.Types.AccountsLoaded (Error "weg"))) loaded
+            Expect.equal late.Overview.Accounts (Success accounts) "ein geladener Stand bleibt"
+
+        // Review-Fund: nach dem Import standen in der Seitenleiste die Salden von vorher.
+        testCase "Nach dem Import lädt die Seitenleiste die Konten neu, auch nach einem Teilfehlschlag" <| fun () ->
+            let result : ImportResult = { CreatedCount = 2; DuplicateTransactionIds = []; LenaFlagNotSentCount = 0 }
+            let reloads (msg: Components.SyncFlow.Types.Msg) =
+                let _, cmd = State.update (State.SyncFlowMsg msg) (rootModel SyncFlow)
+                dispatched cmd |> List.contains (State.OverviewMsg LoadAccounts)
+            Expect.isTrue (reloads (Components.SyncFlow.Types.ImportCompleted (Ok result))) "Import fertig"
+            Expect.isTrue (reloads (Components.SyncFlow.Types.ImportCompleted (Error (SyncError.YnabImportFailed (1, "x"))))) "Teilfehlschlag"
+            Expect.isTrue (reloads (Components.SyncFlow.Types.ForceImportCompleted (Ok 1))) "Duplikate nachgeschoben"
+            Expect.isFalse (reloads (Components.SyncFlow.Types.SetFilter Components.SyncFlow.Types.AllTransactions)) "sonst nicht"
+
         testCase "Die Seiten-Navigation merkt die Seite vor den Einstellungen" <| fun () ->
             let model, _ = State.update (State.UrlChanged [ "settings" ]) (rootModel Budget)
             Expect.equal model.SettingsReturn Budget "Budget"
@@ -151,6 +176,15 @@ let transitionTests =
                 [ MonthLoaded (Ok november); RecentLoaded (Ok []); AccountsLoaded (Error "x"); BalancesLoaded (Ok []) ]
                 |> List.fold (fun m msg -> Components.Overview.State.applyAnswer msg m) loading.Overview
             Expect.isTrue (State.isPageReady { loading with Overview = answered }) "fertig, auch mit Fehler"
+
+        // Review-Fund: bei einem Ladefehler stand unter „Konten“ nichts, ohne Konto ebenso.
+        testCase "Die Konten zeigen Laden, Fehler, einen leeren Zustand oder die Liste" <| fun () ->
+            let giro : LedgerAccountView = { Id = accountId; Name = "Giro"; Kind = LedgerBankAccount; YnabAccountId = None; Closed = false }
+            Expect.equal (accountsListState NotAsked) AccountsListLoading "noch nicht angefragt"
+            Expect.equal (accountsListState Loading) AccountsListLoading "lädt"
+            Expect.equal (accountsListState (Failure "weg")) (AccountsListFailed "weg") "Fehler"
+            Expect.equal (accountsListState (Success { Accounts = []; DefaultAccountId = None })) AccountsListEmpty "leer"
+            Expect.equal (accountsListState (Success { Accounts = [ giro ]; DefaultAccountId = None })) (AccountsListShown [ giro ]) "Liste"
 
         testCase "Ein spätes Scheitern ersetzt einen geladenen Monat nicht" <| fun () ->
             let loaded = Components.Overview.State.applyAnswer (MonthLoaded (Ok november)) Components.Overview.Types.init

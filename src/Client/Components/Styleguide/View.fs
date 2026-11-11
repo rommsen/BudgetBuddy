@@ -403,6 +403,10 @@ let private cardSection =
                     "Noch keine Transaktionen"
                     "Starte einen Sync, um Transaktionen zu importieren."
                     (Some (Button.primary "Sync starten" ignore))
+                Html.div [
+                    prop.className "max-w-[208px]"
+                    prop.children [ Card.emptyStateCompact "Keine Konten" "Konten erscheinen hier nach dem ersten Spiegeln." ]
+                ]
             ]
         ]
     ]
@@ -1775,10 +1779,10 @@ let private navigationSection =
           OnSettings = ignore
           OnBrand = ignore
           Accounts =
-            [ { Key = "alle"; Label = "Alle Konten"; Value = Navigation.AccountAmount (4300m, "EUR"); IsActive = false; OnClick = ignore }
-              { Key = "giro"; Label = "Girokonto"; Value = Navigation.AccountAmount (2418.07m, "EUR"); IsActive = true; OnClick = ignore }
-              { Key = "karte"; Label = "Kreditkarte"; Value = Navigation.AccountAmount (-312.40m, "EUR"); IsActive = false; OnClick = ignore } ]
-          AccountsLoading = false
+            Navigation.SidebarAccountsShown
+                [ { Key = "alle"; Label = "Alle Konten"; Value = Navigation.AccountAmount (4300m, "EUR"); IsActive = false; OnClick = ignore }
+                  { Key = "giro"; Label = "Girokonto"; Value = Navigation.AccountAmount (2418.07m, "EUR"); IsActive = true; OnClick = ignore }
+                  { Key = "karte"; Label = "Kreditkarte"; Value = Navigation.AccountAmount (-312.40m, "EUR"); IsActive = false; OnClick = ignore } ]
           HideBottomBar = false }
     section "21. Navigation" [
         note "Drei Orte (Styleguide §7.4): Leiste unten am Handy, Rail links von 768 bis 1023 px, Seitenleiste mit Konten ab 1024 px. Einstellungen hinter dem Zahnrad. In der App fix positioniert; hier als Vorschau eingebettet."

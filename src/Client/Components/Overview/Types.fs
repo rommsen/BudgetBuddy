@@ -39,6 +39,26 @@ type Msg =
     | AccountsLoaded of Result<LedgerAccountsView, string>
     | BalancesLoaded of Result<LedgerAccountBalanceView list, string>
 
+/// Was Seitenleiste und Abschnitt „Konten“ zeigen. Die Views rufen es nur auf.
+type AccountsListState =
+    | AccountsListLoading
+    /// Ladefehler: eine kompakte Fehlerzeile mit „Erneut laden“.
+    | AccountsListFailed of message: string
+    /// Noch kein Konto: ein kurzer leerer Zustand (Styleguide §7.12).
+    | AccountsListEmpty
+    | AccountsListShown of LedgerAccountView list
+
+let accountsListState (accounts: RemoteData<LedgerAccountsView>) : AccountsListState =
+    match accounts with
+    | NotAsked | Loading -> AccountsListLoading
+    | Failure message -> AccountsListFailed message
+    | Success view when List.isEmpty view.Accounts -> AccountsListEmpty
+    | Success view -> AccountsListShown view.Accounts
+
+/// Kopf und Satz des leeren Zustands der Konten.
+let noAccountsTitle = "Keine Konten"
+let noAccountsText = "Konten erscheinen hier nach dem ersten Spiegeln."
+
 /// Der Monat ("YYYY-MM-01"), zu dem `today` gehört.
 let monthKey (today: DateTime) : string = $"{today.Year:D4}-{today.Month:D2}-01"
 

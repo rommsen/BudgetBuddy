@@ -26,13 +26,21 @@ let private fromNavPage (navPage: Navigation.NavPage) : Page =
     | Navigation.QuickAdd -> QuickAdd
 
 /// Die Kontozeilen der Seitenleiste: „Alle Konten“ und jedes Konto, dieselben Karten wie im Kassenbuch.
-/// Markiert ist das gewählte Konto nur, solange das Kassenbuch offen ist.
-let private sidebarAccounts (model: Model) (dispatch: Msg -> unit) : Navigation.SidebarAccount list =
-    match model.Overview.Accounts with
-    | Success accounts ->
+/// Markiert ist das gewählte Konto nur, solange das Kassenbuch offen ist. Laden, Fehler und leere Liste nach
+/// `accountsListState`.
+let private sidebarAccounts (model: Model) (dispatch: Msg -> unit) : Navigation.SidebarAccounts =
+    match Components.Overview.Types.accountsListState model.Overview.Accounts with
+    | Components.Overview.Types.AccountsListLoading -> Navigation.SidebarAccountsLoading
+    | Components.Overview.Types.AccountsListFailed _ ->
+        Navigation.SidebarAccountsFailed (
+            "Konten konnten nicht geladen werden",
+            fun () -> dispatch (OverviewMsg Components.Overview.Types.LoadAccounts)
+        )
+    | Components.Overview.Types.AccountsListEmpty ->
+        Navigation.SidebarAccountsEmpty (Components.Overview.Types.noAccountsTitle, Components.Overview.Types.noAccountsText)
+    | Components.Overview.Types.AccountsListShown accounts ->
         let selected = if isLedgerPage model.CurrentPage then model.Ledger.SelectedFilter else None
-        Components.Ledger.View.buildAccountCards accounts.Accounts model.Overview.Balances
-        |> List.map (fun card ->
+        let row (card: Components.Ledger.View.AccountCard) : Navigation.SidebarAccount =
             { Key = card.Label
               Label = card.Label
               Value =
@@ -41,8 +49,10 @@ let private sidebarAccounts (model: Model) (dispatch: Msg -> unit) : Navigation.
                 | Components.Ledger.View.BalancePending -> Navigation.AccountPending
                 | Components.Ledger.View.BalanceUnavailable -> Navigation.AccountUnavailable
               IsActive = selected = Some card.Filter
-              OnClick = fun () -> dispatch (OpenLedgerAccount card.Filter) })
-    | _ -> []
+              OnClick = fun () -> dispatch (OpenLedgerAccount card.Filter) }
+        Components.Ledger.View.buildAccountCards accounts model.Overview.Balances
+        |> List.map row
+        |> Navigation.SidebarAccountsShown
 
 /// Convert Types.ToastType to Toast.ToastVariant
 let private toToastVariant (toastType: ToastType) : Toast.ToastVariant =
@@ -105,7 +115,6 @@ let view (model: Model) (dispatch: Msg -> unit) =
                     OnSettings = fun () -> dispatch (NavigateTo Settings)
                     OnBrand = fun () -> dispatch (NavigateTo Overview)
                     Accounts = sidebarAccounts model dispatch
-                    AccountsLoading = (match model.Overview.Accounts with | Loading | NotAsked -> true | _ -> false)
                     HideBottomBar = bottomNavHidden
                 }
 

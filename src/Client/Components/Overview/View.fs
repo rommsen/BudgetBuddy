@@ -65,7 +65,9 @@ let private amountText (amount: decimal) = Money.formatAmountText false true amo
 /// Die Karte „Monat“ hat je Breite genau eine Höhe, geladen wie beim Laden und mit oder ohne „Im Minus“ (Styleguide
 /// §7.14, feste Höhe vor variabler): Kopf 24 px, Ausgegeben samt Balken und Marke 46 px, untere Zeile am Handy 48 px
 /// (Trefferfläche, §7.15), am PC 24 px, dazwischen 8 px, innen 12 px, Rand 1 px.
-let private monthCardClass = $"{cardClass} h-[160px] md:h-[136px] px-3.5 py-3 flex flex-col gap-2 overflow-hidden"
+let private monthCardHeight = "h-[160px] md:h-[136px]"
+
+let private monthCardClass = $"{cardClass} {monthCardHeight} px-3.5 py-3 flex flex-col gap-2 overflow-hidden"
 
 /// Die untere Zeile: am Handy 48 px hoch, am PC 24 px.
 let private bottomRowHeight = "h-12 md:h-6"
@@ -179,13 +181,30 @@ let private monthSkeleton =
         ]
     ]
 
+/// Ein Ladefehler des Monats in derselben festen Höhe wie die Karte: darunter springt nichts.
+let private monthError (actions: Actions) (message: string) =
+    Html.div [
+        prop.custom ("data-testid", "overview-month-error")
+        prop.className $"{monthCardHeight} overflow-hidden"
+        prop.children [
+            ErrorDisplay.cardCompactWith "Erneut laden" $"Der Monat konnte nicht geladen werden: {message}" (Some actions.Retry)
+        ]
+    ]
+
 let private accountsBlock (actions: Actions) (model: Model) =
-    match model.Accounts with
-    | Failure message -> ErrorDisplay.cardCompact $"Konten konnten nicht geladen werden: {message}" (Some actions.Retry)
-    | NotAsked
-    | Loading -> Loading.txListSkeleton 3
-    | Success accounts ->
-        let cards = Components.Ledger.View.buildAccountCards accounts.Accounts model.Balances
+    match accountsListState model.Accounts with
+    | AccountsListFailed message -> ErrorDisplay.cardCompact $"Konten konnten nicht geladen werden: {message}" (Some actions.Retry)
+    | AccountsListLoading -> Loading.txListSkeleton 3
+    | AccountsListEmpty ->
+        Html.section [
+            prop.className "flex flex-col gap-2.5"
+            prop.children [
+                sectionHead "Konten" None
+                Card.emptyState (Icons.book Icons.LG Icons.Muted) noAccountsTitle noAccountsText None
+            ]
+        ]
+    | AccountsListShown accounts ->
+        let cards = Components.Ledger.View.buildAccountCards accounts model.Balances
         let valueOf (balance: Components.Ledger.View.CardBalance) (bold: bool) =
             match balance with
             | Components.Ledger.View.BalanceShown money ->
@@ -223,6 +242,7 @@ let private accountsBlock (actions: Actions) (model: Model) =
                     ]
                 ]
             ]
+        // `buildAccountCards` liefert immer „Alle Konten“; ohne Konto greift oben der leere Zustand.
         | [] -> Html.none
 
 let private recentBlock (actions: Actions) (recent: RemoteData<LedgerEntryView list>) =
@@ -284,7 +304,7 @@ let view (model: Model) (actions: Actions) (today: DateTime) =
                 match model.Month with
                 | NotAsked
                 | Loading -> monthSkeleton
-                | Failure message -> ErrorDisplay.card $"Der Monat konnte nicht geladen werden: {message}" (Some actions.Retry)
+                | Failure message -> monthError actions message
                 | Success month -> monthCard actions (monthSummary month today)
                 // Die Konten stehen unter 1024 px hier, darüber in der Seitenleiste (Styleguide §7.15).
                 Html.div [ prop.className "lg:hidden"; prop.children [ accountsBlock actions model ] ]

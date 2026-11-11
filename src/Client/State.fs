@@ -539,7 +539,19 @@ let syncNavAccounts (ledgerMsg: Components.Ledger.Types.Msg) (overview: Componen
     match ledgerMsg with
     | Components.Ledger.Types.AccountsLoaded (Ok accounts) -> { overview with Accounts = Success accounts }
     | Components.Ledger.Types.BalancesLoaded (Ok balances) -> { overview with Balances = Success balances }
+    // Ein Fehler zählt nur, solange nichts geladen ist: sonst bliebe die Seitenleiste beim Platzhalter stehen.
+    | Components.Ledger.Types.AccountsLoaded (Error message) ->
+        { overview with Accounts = RemoteData.lateFailure message overview.Accounts }
+    | Components.Ledger.Types.BalancesLoaded (Error message) ->
+        { overview with Balances = RemoteData.lateFailure message overview.Balances }
     | _ -> overview
+
+/// Nach einem Import (auch einem Teilfehlschlag) stimmen die Salden der Seitenleiste nicht mehr.
+let importChangesBalances (syncFlowMsg: Components.SyncFlow.Types.Msg) : bool =
+    match syncFlowMsg with
+    | Components.SyncFlow.Types.ImportCompleted _
+    | Components.SyncFlow.Types.ForceImportCompleted (Ok _) -> true
+    | _ -> false
 
 /// Ausgehende Aufrufe des Root-`update` als Funktionswerte (Doktrin Punkt 1): unter .NET wirft
 /// der Remoting-Proxy im Typinitialisierer, Tests geben deshalb eigene Funktionen mit
@@ -734,7 +746,11 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
                 else
                     Cmd.none
 
-        { model with SyncFlow = syncFlowModel' }, Cmd.batch [ Cmd.map SyncFlowMsg syncFlowCmd; externalCmd ]
+        let accountsCmd =
+            if importChangesBalances syncFlowMsg then Cmd.map OverviewMsg (Cmd.ofMsg Components.Overview.Types.LoadAccounts)
+            else Cmd.none
+
+        { model with SyncFlow = syncFlowModel' }, Cmd.batch [ Cmd.map SyncFlowMsg syncFlowCmd; externalCmd; accountsCmd ]
 
     // ============================================
     // Rules Component
