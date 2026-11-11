@@ -168,13 +168,24 @@ let transitionTests =
         // Review-Fund: nach dem Import standen in der Seitenleiste die Salden von vorher.
         testCase "Nach dem Import lädt die Seitenleiste die Konten neu, auch nach einem Teilfehlschlag" <| fun () ->
             let result : ImportResult = { CreatedCount = 2; DuplicateTransactionIds = []; LenaFlagNotSentCount = 0 }
+            // ledger-s1weh: nach dem Import gibt es neue Buchungen zu prüfen, die Zahl an der Übersicht lädt mit.
             let reloads (msg: Components.SyncFlow.Types.Msg) =
                 let _, cmd = State.update (State.SyncFlowMsg msg) (rootModel SyncFlow)
-                dispatched cmd |> List.contains (State.OverviewMsg SidebarNeedsAccounts)
+                let messages = dispatched cmd
+                let accounts = messages |> List.contains (State.OverviewMsg SidebarNeedsAccounts)
+                let counts = messages |> List.contains (State.OverviewMsg CountsNeeded)
+                Expect.equal counts accounts "Konten und Zahl laden zusammen"
+                accounts
             Expect.isTrue (reloads (Components.SyncFlow.Types.ImportCompleted (Ok result))) "Import fertig"
             Expect.isTrue (reloads (Components.SyncFlow.Types.ImportCompleted (Error (SyncError.YnabImportFailed (1, "x"))))) "Teilfehlschlag"
             Expect.isTrue (reloads (Components.SyncFlow.Types.ForceImportCompleted (Ok 1))) "Duplikate nachgeschoben"
             Expect.isFalse (reloads (Components.SyncFlow.Types.SetFilter Components.SyncFlow.Types.AllTransactions)) "sonst nicht"
+
+        testCase "Der Start lädt die Zahl an der Übersicht auf jeder anderen Seite, die Übersicht lädt sie selbst" <| fun () ->
+            for page, loads in
+                [ Overview, false; Ledger, true; LedgerEntry accountId, true
+                  Budget, true; SyncFlow, true; Settings, true; Rules, true; QuickAdd, true ] do
+                Expect.equal (State.initialLoadsOverviewCount page) loads (string page)
 
         // Review-Fund: beim Start auf einer Kassenbuch-Seite luden Übersicht und Kassenbuch die Konten doppelt.
         testCase "Der Start lädt die Konten der Seitenleiste nur, wo die Seite sie nicht selbst lädt" <| fun () ->

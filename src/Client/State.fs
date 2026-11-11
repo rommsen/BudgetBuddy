@@ -191,6 +191,11 @@ let private addToast (message: string) (toastType: ToastType) (model: Model) : M
 let initialLoadsSidebarAccounts (initialPage: Page) : bool =
     not (initialPage = Overview || isLedgerPage initialPage)
 
+/// Muss der Start der App die Zahl an der Übersicht in Rail und Seitenleiste eigens laden (ledger-s1weh)? Auf jeder
+/// Seite außer der Übersicht: die lädt sie beim Betreten selbst mit.
+let initialLoadsOverviewCount (initialPage: Page) : bool =
+    initialPage <> Overview
+
 /// Die Ladekommandos einer Seite. Eine Stelle, zwei Aufrufer: `init` beim
 /// Direktaufruf (Deep-Link, F5) und `UrlChanged` beim Navigieren. Frueher stand
 /// dieser `match` nur im `else`-Zweig von `UrlChanged`; weil `init` die Seite aus
@@ -527,7 +532,7 @@ let init () : Model * Cmd<Msg> =
         if initialLoadsSidebarAccounts initialPage then
             Cmd.map OverviewMsg (Cmd.ofMsg Components.Overview.Types.SidebarNeedsAccounts)
         // Die Zahl an der Übersicht in Rail und Seitenleiste (ledger-s1weh); die Übersicht lädt sie selbst mit.
-        if initialPage <> Overview then
+        if initialLoadsOverviewCount initialPage then
             Cmd.map OverviewMsg (Cmd.ofMsg Components.Overview.Types.CountsNeeded)
     ]
     model, cmd
