@@ -32,9 +32,8 @@ Zuletzt aktualisiert: 2026-11-11, nach work-Lauf zu design-system-k6kfw.
   Sync erst nach dem Lesen der Sitzung (kein zweiter Start, keine zweite Push-TAN) und sichtbare Ladefehler der Konten.
   Entschieden (Roman): Schriftgrößen der Übersicht nach §7.14 (Kriterium in ledger-s1weh), Abbrechen-Pfeil im
   Sync-Ablauf in die Kann-Sammlung banking-import.
-- **Nächster Schritt:** Romans Blick auf Navigation und Übersicht am Handy (412 px) und am PC neben dem Prototyp,
-  dann `/agentheim:work` für ledger-s1weh (Übersicht als Einstieg, in `todo/`). Deployt 2026-11-11 (d8b8b3e0), Fix der Karte „Monat“ (Fable-Formatangabe, af94b183) nachdeployt (c4346903);
-  Wächter dafür: infrastructure-rm6zb (Laufend).
+- **Blick Roman (2026-11-11):** design-system-k6kfw (Navigation mit drei Orten) am Handy und PC geprüft, passt.
+- **Nächster Schritt:** `/agentheim:work` für ledger-s1weh (Übersicht als Einstieg, in `todo/`).
   Offen zum Verfeinern mit Roman: ledger-t4rk8 (Betrag eines Übertrags in BB ändern).
 - Verfeinert wird nur die nächste Etappe. Spätere Etappen haben Zeilen, keine Tickets.
 - Neue Ideen für spätere Etappen kommen hier als Zeile dazu.

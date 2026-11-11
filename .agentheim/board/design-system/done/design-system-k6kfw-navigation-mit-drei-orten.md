@@ -125,8 +125,8 @@ Vorlage: Prototyp https://claude.ai/artifact/CE3WJZHhPX6NABosJaviRg Version 17, 
       „Handy-Ansicht“, noch ohne Zu tun und Angepinnt). Screenshots von Übersicht und Kassenbuch bei
       412 und 1280 px neben dem Prototyp im Outcome.
 - [ ] `./verify.sh` endet mit `VERIFY: PASS`.
-- [ ] Roman hat Navigation und Übersicht am Handy (412 px, Touch) und am PC neben dem Prototyp
-      angesehen. [human-eye]
+- [x] Roman hat Navigation und Übersicht am Handy (412 px, Touch) und am PC neben dem Prototyp
+      angesehen. [human-eye] (2026-11-11: passt)
 
 ## Notes
 Schnitt 1 aus Etappe 3 (Fahrplan, Roman 2026-11-11).
