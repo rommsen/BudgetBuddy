@@ -30,7 +30,7 @@ let private quietMonth = monthOf 0m [ category clothesId "Kleidung" 143m None ]
 
 let private notInYnab : EntryNotInYnab =
     { EntryId = entryId; AccountId = Guid.NewGuid(); Payee = Some "Zinsen"; Amount = eur 3.12m; Date = DateTime(2026, 11, 6)
-      PushFailure = Some { Reason = "YNAB antwortet nicht"; FailedAt = DateTime(2026, 11, 7) } }
+      Reason = PushFailed { Reason = "YNAB antwortet nicht"; FailedAt = DateTime(2026, 11, 7) } }
 
 let private inputs : TodoInputs =
     { Month = Some quietMonth; NeedsReview = 0; AskLena = 0; NotInYnab = []; ImportStand = Some "vor 2 Std." }

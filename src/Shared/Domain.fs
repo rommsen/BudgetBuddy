@@ -961,10 +961,24 @@ type LedgerPushFailure = {
     FailedAt: DateTime
 }
 
+/// Warum eine Buchung nicht in YNAB ist (ledger-s1weh), aus ihrem Zustand.
+type NotInYnabReason =
+    /// Der offene Fehlschlag des letzten Push, mit Grund und Zeitpunkt.
+    | PushFailed of LedgerPushFailure
+    /// Weder Verknüpfung noch Fehlschlag: der Push lief nicht zu Ende (er warf, oder das Schreiben der
+    /// Verknüpfung danach warf). Ob er YNAB erreichte, weiß das Kassenbuch nicht.
+    | PushOutcomeUnknown
+
+module NotInYnabReason =
+    /// Der Grund aus dem offenen Push-Fehlschlag einer nicht verknüpften Buchung.
+    let ofPushFailure (failure: LedgerPushFailure option) : NotInYnabReason =
+        match failure with
+        | Some f -> PushFailed f
+        | None -> PushOutcomeUnknown
+
 /// Eine Buchung, die nicht in YNAB ist (ledger-s1weh): nicht mit YNAB verknüpft und nicht in YNAB gelöscht.
 /// Dieselbe Menge, die das Kassenbuch mit „Noch nicht in YNAB“ kennzeichnet, über alle Konten. Die
-/// Übersicht zeigt je Buchung einen Eintrag in „Zu tun“. `PushFailure`: der offene Fehlschlag des letzten
-/// Push; `None` heißt, der Ausgang des Push ist nicht bekannt.
+/// Übersicht zeigt je Buchung einen Eintrag in „Zu tun“.
 type EntryNotInYnab = {
     EntryId: Guid
     AccountId: Guid
@@ -972,7 +986,7 @@ type EntryNotInYnab = {
     Amount: Money
     /// Das Buchungsdatum.
     Date: DateTime
-    PushFailure: LedgerPushFailure option
+    Reason: NotInYnabReason
 }
 
 /// Die Sperren des Split-Schreibwegs für eine Buchung, abgeleitet im Lesepfad nach denselben

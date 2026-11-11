@@ -372,8 +372,9 @@ let private bookedFromLedger (entryId: Ledger.Events.EntryId) : Async<BotCommitR
             |> Option.map (fun state ->
                 match state with
                 | Ledger.QueryHandlers.LinkedInYnab -> { EntryId = id; PushedToYnab = true; PushError = None }
-                | Ledger.QueryHandlers.PushFailed reason -> { EntryId = id; PushedToYnab = false; PushError = Some reason }
-                | Ledger.QueryHandlers.PushOutcomeUnknown ->
+                | Ledger.QueryHandlers.NotLinkedToYnab (PushFailed failure) ->
+                    { EntryId = id; PushedToYnab = false; PushError = Some failure.Reason }
+                | Ledger.QueryHandlers.NotLinkedToYnab PushOutcomeUnknown ->
                     { EntryId = id; PushedToYnab = false; PushError = Some unknownPushStateText })
     }
 

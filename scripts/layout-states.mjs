@@ -1170,7 +1170,7 @@ export const STATES = [
             Payee: LONG_PAYEE,
             Amount: eur(-123456.78),
             Date: "2026-11-06T00:00:00",
-            PushFailure: { Reason: "YNAB antwortet nicht", FailedAt: "2026-11-07T08:00:00Z" },
+            Reason: { PushFailed: { Reason: "YNAB antwortet nicht", FailedAt: "2026-11-07T08:00:00Z" } },
           },
         ])
       );

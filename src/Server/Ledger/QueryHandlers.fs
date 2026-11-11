@@ -534,11 +534,8 @@ let getLedgerEntry (entryGuid: Guid) : Async<LedgerEntryView option> =
 type YnabPushState =
     /// `EntryLinkedToYnab` steht da: die Buchung ist in YNAB.
     | LinkedInYnab
-    /// Der offene Fehlschlag des letzten Push, mit Grund.
-    | PushFailed of reason: string
-    /// Weder Verknüpfung noch Fehlschlag: der Push lief nicht zu Ende (er warf, oder das
-    /// Schreiben der Verknüpfung danach warf). Ob er YNAB erreichte, weiß das Kassenbuch nicht.
-    | PushOutcomeUnknown
+    /// Nicht verknüpft, mit dem Grund: offener Fehlschlag oder Ausgang unbekannt.
+    | NotLinkedToYnab of NotInYnabReason
 
 /// Der Push-Zustand einer Buchung (ledger-z71ka): Bob fragt ihn bei einer Wiederholung ab.
 /// `None` für eine unbekannte Buchung.
@@ -549,10 +546,7 @@ let getYnabPushState (entryId: EntryId) : Async<YnabPushState option> =
             entry
             |> Option.map (fun e ->
                 if e.LinkedToYnab then LinkedInYnab
-                else
-                    match e.PushToYnabFailure with
-                    | Some failure -> PushFailed failure.Reason
-                    | None -> PushOutcomeUnknown)
+                else NotLinkedToYnab (NotInYnabReason.ofPushFailure e.PushToYnabFailure))
     }
 
 /// Die Buchungen, die nicht in YNAB sind (ledger-s1weh), rein: nicht verknüpft und nicht in YNAB gelöscht.
@@ -578,7 +572,7 @@ let entriesNotInYnab (entries: Entry list) : EntryNotInYnab list =
           Payee = e.Payee
           Amount = e.Amount
           Date = e.Date
-          PushFailure = e.PushToYnabFailure })
+          Reason = NotInYnabReason.ofPushFailure e.PushToYnabFailure })
 
 /// Die Buchungen, die nicht in YNAB sind, über alle Konten (ledger-s1weh). Liest nur die Zustandstabelle.
 let getEntriesNotInYnab () : Async<EntryNotInYnab list> =

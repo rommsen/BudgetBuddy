@@ -838,6 +838,11 @@ let entriesNotInYnabTests =
                 Expect.equal shown.Payee (Some "Kiosk") "Payee"
                 Expect.equal shown.Amount.Amount -8.60m "Betrag"
                 Expect.equal shown.AccountId accountGuid "Konto"
-                Expect.equal (shown.PushFailure |> Option.map (fun f -> f.Reason)) (Some "YNAB antwortet nicht") "Grund"
+                Expect.equal shown.Reason (PushFailed (failure 0).Value) "Grund"
+            | other -> failtestf "eine Zeile erwartet, bekam %A" other
+
+        testCase "Ohne Fehlschlag ist der Ausgang des Push unbekannt" <| fun () ->
+            match entriesNotInYnab [ entry account -1m ] with
+            | [ shown ] -> Expect.equal shown.Reason PushOutcomeUnknown "Ausgang unbekannt"
             | other -> failtestf "eine Zeile erwartet, bekam %A" other
     ]
