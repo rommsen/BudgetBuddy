@@ -25,9 +25,9 @@ Zuletzt aktualisiert: 2026-11-10, nach work-Lauf und Review zu ledger-mj3a9, led
   ADR 0068), ledger-q42pg (Feldfehler am Betrag statt Toast), ledger-m7a9q (Probelauf: YNAB zieht die Gegenbuchung
   eines Übertrags mit, Nachtrag ADR 0092); Review 68279598..HEAD mit Fixes 009b3186 und 5444edd7. Neu im Backlog:
   ledger-t4rk8 (Betrag eines Übertrags in BB ändern, braucht Romans Entscheidungen beim Verfeinern). Danach
-  design-system-ak97z (Umschalter Ausgabe/Einnahme hält die Tastatur offen, 45273030) mit Review b74d67df. Nicht deployt.
+  design-system-ak97z (Umschalter Ausgabe/Einnahme hält die Tastatur offen, 45273030) mit Review b74d67df. Deployt 2026-11-11 (5f7fc08a).
 - **Nächster Schritt:** Roman prüft ledger-q42pg und design-system-ak97z am Handy (412 px, Touch: Meldung unter dem
-  Betragsfeld, Tastatur bleibt beim Umschalten Ausgabe/Einnahme und beim Speichern offen), sobald deployt. Dann Etappe 3 in Tickets schneiden, zuerst Navigation mit drei Orten und Übersicht
+  Betragsfeld, Tastatur bleibt beim Umschalten Ausgabe/Einnahme und beim Speichern offen); beides ist deployt. Dann Etappe 3 in Tickets schneiden, zuerst Navigation mit drei Orten und Übersicht
   als Einstieg.
 
 ## Ablauf je Schritt
