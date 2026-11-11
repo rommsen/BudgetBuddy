@@ -25,7 +25,8 @@ Zuletzt aktualisiert: 2026-11-11, nach work-Lauf zu ledger-s1weh.
   ledger-s1weh (Übersicht mit Zu tun): Abweichungen (a) bis (c) vom Prototyp in der Task, Romans Blick am Handy und PC offen.
   Review df9611c4..HEAD (2026-11-11): 22 Funde behoben in 3142ef3e..ec4f4124, darunter Budget aus Zu tun öffnete bei wartender
   Rückkehr im gewählten statt im laufenden Monat und überholte Antworten setzten Zähler zurück. Entschieden (Roman):
-  „Buchung“ auf der Übersicht am PC als Dialog (Modal ab 1024 px). Reihenfolge und Zuordnung im Abschnitt Etappe 3.
+  „Buchung“ auf der Übersicht am PC als Dialog (Modal ab 1024 px).
+  Deployt 2026-11-11 (dc0e3b9d): ledger-s1weh samt Review-Fixes. Reihenfolge und Zuordnung im Abschnitt Etappe 3.
 - **Laufend erledigt (2026-11-10):** ledger-mj3a9 (Bob gesperrt bei ungültigem `BOT_MAX_AMOUNT_EUR`, Nachtrag
   ADR 0068), ledger-q42pg (Feldfehler am Betrag statt Toast), ledger-m7a9q (Probelauf: YNAB zieht die Gegenbuchung
   eines Übertrags mit, Nachtrag ADR 0092); Review 68279598..HEAD mit Fixes 009b3186 und 5444edd7. Neu im Backlog:
