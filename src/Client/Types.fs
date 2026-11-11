@@ -218,6 +218,37 @@ let settingsReturn (current: Page) (target: Page) (previous: Page) : Page =
     | _, (Settings | Styleguide) -> current
     | _ -> previous
 
+/// Wohin „Zurück“ im Kopf einer Unterseite führt; `Label` ist das `aria-label` und nennt das Ziel.
+type BackTarget = { Target: Page; Label: string }
+
+/// Das `aria-label` für „Zurück“ zu dieser Seite.
+let backLabel (page: Page) : string =
+    match page with
+    | Overview -> "Zurück zur Übersicht"
+    | SyncFlow -> "Zurück zum Sync"
+    | Ledger
+    | LedgerEntry _ -> "Zurück zum Kassenbuch"
+    | Rules -> "Zurück zu den Regeln"
+    | Budget -> "Zurück zum Budget"
+    | BudgetHistory -> "Zurück zur Budget-Historie"
+    | BudgetTargetCheck -> "Zurück zu Targets prüfen"
+    | BudgetCategories -> "Zurück zu den Kategorien"
+    | QuickAdd -> "Zurück zu Quick Add"
+    | Settings -> "Zurück zu den Einstellungen"
+    | Styleguide -> "Zurück zum Styleguide"
+
+/// Das Ziel von „Zurück“ einer Unterseite: der Sync-Ablauf führt zur Übersicht, die Regeln zum Kassenbuch,
+/// der Styleguide zu den Einstellungen und die Einstellungen zur Seite davor (`settingsReturn`). Orte haben
+/// kein „Zurück“. Die Budget-Unterseiten führen ihr „Zurück“ selbst (ein Schritt im Verlauf oder das Budget).
+let backTarget (page: Page) (settingsReturnPage: Page) : BackTarget option =
+    let toPage target = Some { Target = target; Label = backLabel target }
+    match page with
+    | SyncFlow -> toPage Overview
+    | Rules -> toPage Ledger
+    | Styleguide -> toPage Settings
+    | Settings -> toPage settingsReturnPage
+    | Overview | Ledger | LedgerEntry _ | Budget | BudgetHistory | BudgetTargetCheck | BudgetCategories | QuickAdd -> None
+
 /// URL routing helpers for hash-based navigation
 module Routing =
     open Feliz.Router

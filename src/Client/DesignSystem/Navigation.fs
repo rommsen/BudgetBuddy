@@ -150,6 +150,8 @@ let rail (props: Props) =
 let private brand (onClick: unit -> unit) =
     Html.button [
         prop.type' "button"
+        prop.title "Zur Übersicht"
+        prop.ariaLabel "Zur Übersicht"
         prop.className $"flex items-center gap-2.5 px-2 pt-1 pb-[18px] text-left {Fonts.display} {FontWeights.semibold} {FontSizes.brand}"
         prop.onClick (fun _ -> onClick ())
         prop.children [

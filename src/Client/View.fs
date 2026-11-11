@@ -66,6 +66,11 @@ let private toToastItem (t: Types.Toast) : Toast.ToastItem =
 
 let view (model: Model) (dispatch: Msg -> unit) =
     let bottomNavHidden = hideBottomNav model
+    // „Zurück“ einer Unterseite; das Ziel rechnet `backTarget` (Types.fs).
+    let back () =
+        match backTarget model.CurrentPage model.SettingsReturn with
+        | Some target -> PageHeader.backButtonFor (Some target.Label) (fun () -> dispatch (NavigateTo target.Target))
+        | None -> Html.none
     // Kassenbuch, Import prüfen und Regeln füllen die Breite (ADR 0049 Punkt 9, ledger-n4vte,
     // ynab-sync-aj5tv): ihr Rahmen trägt keine `container`-Begrenzung (max. 1280px), die
     // Seite setzt ihre Ränder selbst.
@@ -128,7 +133,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                     prop.className "px-4 md:px-6"
                                     prop.children [
                                         // Der Sync-Ablauf trägt seine Titel selbst; der Kopf führt zurück zur Übersicht.
-                                        PageHeader.backButtonFor (Some "Zurück zur Übersicht") (fun () -> dispatch (NavigateTo Overview))
+                                        back ()
                                     ]
                                 ]
                                 Components.SyncFlow.View.view
@@ -136,12 +141,12 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                     (SyncFlowMsg >> dispatch)
                             | Rules ->
                                 Components.Rules.View.view
-                                    (PageHeader.backButtonFor (Some "Zurück zum Kassenbuch") (fun () -> dispatch (NavigateTo Ledger)))
+                                    (back ())
                                     model.Rules
                                     (RulesMsg >> dispatch)
                             | Settings ->
                                 Components.Settings.View.view
-                                    (PageHeader.backButton (fun () -> dispatch (NavigateTo model.SettingsReturn)))
+                                    (back ())
                                     model.Settings
                                     (SettingsMsg >> dispatch)
                             | QuickAdd ->
@@ -178,7 +183,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                             | Styleguide ->
                                 // Presentational gallery — no model/dispatch needed.
                                 Components.Styleguide.View.view
-                                    (PageHeader.backButtonFor (Some "Zurück zu den Einstellungen") (fun () -> dispatch (NavigateTo Settings)))
+                                    (back ())
                         ]
                     ]
                 ]

@@ -79,6 +79,35 @@ let placeTests =
     ]
 
 [<Tests>]
+let backTargetTests =
+    testList "Ziel von Zurück" [
+        testCase "Jede Unterseite führt zu ihrem Ort, die Einstellungen zur Seite davor, Orte haben kein Zurück" <| fun () ->
+            let expected =
+                [ SyncFlow, Some (Overview, "Zurück zur Übersicht")
+                  Rules, Some (Ledger, "Zurück zum Kassenbuch")
+                  Styleguide, Some (Settings, "Zurück zu den Einstellungen")
+                  Settings, Some (Budget, "Zurück zum Budget")
+                  Overview, None
+                  Ledger, None
+                  LedgerEntry entryId, None
+                  Budget, None
+                  QuickAdd, None
+                  // Die Budget-Unterseiten führen ihr Zurück selbst (Browser-Schritt oder Budget-Seite).
+                  BudgetHistory, None
+                  BudgetTargetCheck, None
+                  BudgetCategories, None ]
+            for page, target in expected do
+                let actual = backTarget page Budget |> Option.map (fun t -> t.Target, t.Label)
+                Expect.equal actual target (caseName page)
+
+        testCase "Zurück aus den Einstellungen nennt die gemerkte Seite" <| fun () ->
+            let label settingsReturnPage = (backTarget Settings settingsReturnPage |> Option.get).Label
+            Expect.equal (label (LedgerEntry entryId)) "Zurück zum Kassenbuch" "Buchung"
+            Expect.equal (label SyncFlow) "Zurück zum Sync" "Sync-Ablauf"
+            Expect.equal (label Overview) "Zurück zur Übersicht" "Übersicht"
+    ]
+
+[<Tests>]
 let settingsReturnTests =
     testList "Zurück aus den Einstellungen" [
         testCase "Wer aus dem Budget in die Einstellungen geht, kommt ins Budget zurück" <| fun () ->
