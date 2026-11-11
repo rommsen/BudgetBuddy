@@ -893,6 +893,7 @@ let internal liveImportPorts : BankImport.ImportPorts = {
     TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground
     BookImports = Ledger.CommandHandlers.pushComdirectImports
     DescribeBankError = comdirectErrorToString
+    LastStart = ref None
     Clock = fun () -> DateTime.UtcNow
     Today = liveBerlinDay
 }

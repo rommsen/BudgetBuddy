@@ -518,7 +518,9 @@ type SyncTrigger =
 /// Die Zahlen eines Abrufs mit Buchen (ADR 0093 Punkt 10). `NewEntries` zählt jede neu ins
 /// Kassenbuch gebuchte Buchung, auch die wartenden; `ByRule`, `ByOrderId` und
 /// `WithoutCategory` teilen sie auf. `NotInYnab` zählt die Buchungen dieses Abrufs, deren
-/// Push gescheitert ist (auch erneut gesendete).
+/// Push gescheitert ist (auch erneut gesendete). `FutureDated` zählt die abgerufenen Umsätze mit
+/// einem Buchungsdatum nach dem Berliner Tag: YNAB nimmt sie noch nicht an, der Abruf bucht sie erst,
+/// wenn ihr Tag da ist.
 type FetchCounts = {
     NewEntries: int
     ByRule: int
@@ -527,6 +529,7 @@ type FetchCounts = {
     SafeDuplicatesSkipped: int
     Held: int
     NotInYnab: int
+    FutureDated: int
 }
 
 let emptyFetchCounts : FetchCounts = {
@@ -537,6 +540,7 @@ let emptyFetchCounts : FetchCounts = {
     SafeDuplicatesSkipped = 0
     Held = 0
     NotInYnab = 0
+    FutureDated = 0
 }
 
 type SyncSession = {

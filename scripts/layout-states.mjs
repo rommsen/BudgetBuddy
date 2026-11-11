@@ -476,10 +476,10 @@ export const syncSession = (Status, Counts = {}) => ({
   CompletedAt: null,
   Status,
   Trigger: "Manual",
-  Counts: { NewEntries: 0, ByRule: 0, ByOrderId: 0, WithoutCategory: 0, SafeDuplicatesSkipped: 0, Held: 0, NotInYnab: 0, ...Counts },
+  Counts: { NewEntries: 0, ByRule: 0, ByOrderId: 0, WithoutCategory: 0, SafeDuplicatesSkipped: 0, Held: 0, NotInYnab: 0, FutureDated: 0, ...Counts },
 });
 /// Das Ergebnis des Prototyps, mit Bestellnummer und nicht in YNAB (Abweichung (b)), damit der Satz am Handy umbricht.
-export const FETCH_RESULT = { NewEntries: 6, ByRule: 2, ByOrderId: 1, WithoutCategory: 3, SafeDuplicatesSkipped: 2, Held: 1, NotInYnab: 1 };
+export const FETCH_RESULT = { NewEntries: 6, ByRule: 2, ByOrderId: 1, WithoutCategory: 3, SafeDuplicatesSkipped: 2, Held: 1, NotInYnab: 1, FutureDated: 0 };
 
 /// Die Übersicht mit dem Sheet „Abrufen“: `startSync` antwortet mit `start`, `confirmTan` mit dem fertigen Abruf.
 const mockFetch = (start) => async (page) => {

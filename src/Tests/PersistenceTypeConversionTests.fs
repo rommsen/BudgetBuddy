@@ -35,7 +35,7 @@ let createTestSession (status: SyncSessionStatus) : SyncSession =
         CompletedAt = Some DateTime.UtcNow
         Status = status
         Trigger = Manual
-        Counts = { NewEntries = 5; ByRule = 2; ByOrderId = 1; WithoutCategory = 2; SafeDuplicatesSkipped = 3; Held = 1; NotInYnab = 1 }
+        Counts = { NewEntries = 5; ByRule = 2; ByOrderId = 1; WithoutCategory = 2; SafeDuplicatesSkipped = 3; Held = 1; NotInYnab = 1; FutureDated = 2 }
     }
 
 [<Tests>]

@@ -316,6 +316,8 @@ let initializeDatabase () =
         "ALTER TABLE sync_sessions ADD COLUMN safe_duplicate_count INTEGER NOT NULL DEFAULT 0"
         "ALTER TABLE sync_sessions ADD COLUMN held_count INTEGER NOT NULL DEFAULT 0"
         "ALTER TABLE sync_sessions ADD COLUMN not_in_ynab_count INTEGER NOT NULL DEFAULT 0"
+        // Review-Fund zu banking-import-d0fey: Umsätze mit Datum nach dem Berliner Tag.
+        "ALTER TABLE sync_sessions ADD COLUMN future_dated_count INTEGER NOT NULL DEFAULT 0"
     ] do
         try
             use cmdMigrate = new SqliteCommand(statement, conn)
@@ -625,6 +627,7 @@ module SyncSessions =
         safe_duplicate_count: int64
         held_count: int64
         not_in_ynab_count: int64
+        future_dated_count: int64
     }
 
     let private statusToString = function
@@ -672,6 +675,7 @@ module SyncSessions =
                 SafeDuplicatesSkipped = int row.safe_duplicate_count
                 Held = int row.held_count
                 NotInYnab = int row.not_in_ynab_count
+                FutureDated = int row.future_dated_count
             }
         }
 
@@ -690,6 +694,7 @@ module SyncSessions =
             safe_duplicate_count = session.Counts.SafeDuplicatesSkipped
             held_count = session.Counts.Held
             not_in_ynab_count = session.Counts.NotInYnab
+            future_dated_count = session.Counts.FutureDated
         |}
 
     let createSession (session: SyncSession) : Async<unit> =
@@ -698,9 +703,9 @@ module SyncSessions =
             do! (conn.ExecuteAsync(
                 """INSERT INTO sync_sessions
                    (id, started_at, completed_at, status, triggered_by, new_count, by_rule_count, by_order_id_count,
-                    without_category_count, safe_duplicate_count, held_count, not_in_ynab_count)
+                    without_category_count, safe_duplicate_count, held_count, not_in_ynab_count, future_dated_count)
                    VALUES (@id, @started_at, @completed_at, @status, @triggered_by, @new_count, @by_rule_count, @by_order_id_count,
-                    @without_category_count, @safe_duplicate_count, @held_count, @not_in_ynab_count)""",
+                    @without_category_count, @safe_duplicate_count, @held_count, @not_in_ynab_count, @future_dated_count)""",
                 parameters session
             ) |> Async.AwaitTask |> Async.Ignore)
         }
@@ -713,7 +718,8 @@ module SyncSessions =
                    SET completed_at = @completed_at, status = @status, triggered_by = @triggered_by,
                        new_count = @new_count, by_rule_count = @by_rule_count, by_order_id_count = @by_order_id_count,
                        without_category_count = @without_category_count, safe_duplicate_count = @safe_duplicate_count,
-                       held_count = @held_count, not_in_ynab_count = @not_in_ynab_count
+                       held_count = @held_count, not_in_ynab_count = @not_in_ynab_count,
+                       future_dated_count = @future_dated_count
                    WHERE id = @id""",
                 parameters session
             ) |> Async.AwaitTask |> Async.Ignore)

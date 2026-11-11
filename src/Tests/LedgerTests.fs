@@ -2120,6 +2120,26 @@ module private PushFixtures =
             Hold = None
         }
 
+    /// Die Entstehung einer Comdirect-Buchung, für eine Buchung im Kassenbuch als Ausgangsstand.
+    let importedEvent () : LedgerEvent =
+        { EntryId = newEntryId ()
+          OccurredAt = DateTime(2026, 3, 1, 8, 0, 0, DateTimeKind.Utc)
+          Actor = ComdirectImport
+          Body =
+            EntryImportedFromComdirect {
+                AccountId = testAccountId
+                ImportId = "import-x"
+                ComdirectReference = "ref-x"
+                Date = DateTime(2026, 3, 1)
+                Amount = { Amount = -17.40m; Currency = "EUR" }
+                Payee = Some "dm"
+                Memo = None
+                Cleared = Uncleared
+                Approved = false
+                FlagColor = None
+                FlagName = None
+            } }
+
     /// Ein injizierter `push`, der jede vorbereitete Buchung unter einer eigenen
     /// YNAB-Id "anlegt" (Erfolgspfad).
     let successfulPush (ynabTxId: string) (prepared: PreparedTransaction list) : Async<YnabResult<TransactionCreateResult>> =
@@ -2519,6 +2539,127 @@ let ledgerImportPushCommandTests =
             |> ignore
 
             Expect.equal triggerCount 0 "ohne neuen Versand gibt es nichts, was der Spiegel sofort sehen müsste"
+
+        // Review-Fund zu banking-import-d0fey: Schreiben, Push und Verknüpfen liefen ohne Schreib-Sperre. Ein
+        // Spiegel-Lauf während des Pushs verknüpfte die Buchung über die import_id, danach warf das Verknüpfen
+        // hier an der bestehenden Verknüpfung. Der nachgestellte Lauf nimmt die Sperre wie `runMirrorGuarded`.
+        testCase "ein Spiegel-Lauf während des Import-Pushs wartet, bis die Verknüpfung steht" <| fun () ->
+            let txId = $"tx-{Guid.NewGuid()}"
+            let importId = $"import-{txId}"
+            let cand = PushFixtures.candidate txId importId (eur -8.80m) []
+            let ynabTxId = $"ynab-{txId}"
+            let mutable mirror : System.Threading.Tasks.Task<unit> option = None
+            let mutable mirrorDoneDuringPush = false
+            let mirrorRun =
+                WriteGuard.exclusive (
+                    async {
+                        match! findEntryByLink ImportIdSystem importId with
+                        | Some entryId ->
+                            match! loadEntry entryId with
+                            | Some entry when not entry.LinkedToYnab ->
+                                do!
+                                    appendAndApply [
+                                        { EntryId = entryId
+                                          OccurredAt = DateTime(2026, 3, 9, 10, 0, 1, DateTimeKind.Utc)
+                                          Actor = YnabMirror
+                                          Body = EntryLinkedToYnab { YnabTransactionId = ynabTxId } }
+                                    ]
+                            | _ -> ()
+                        | None -> ()
+                    })
+            let push (prepared: PreparedTransaction list) : Async<YnabResult<TransactionCreateResult>> =
+                async {
+                    let run = Async.StartAsTask mirrorRun
+                    mirror <- Some run
+                    mirrorDoneDuringPush <- run.Wait(TimeSpan.FromMilliseconds 500.0)
+                    return! PushFixtures.successfulPush ynabTxId prepared
+                }
+
+            let result =
+                pushComdirectImports (DateTime(2026, 3, 9, 10, 0, 0, DateTimeKind.Utc)) push noTrigger testAccountId [ cand ]
+                |> Async.RunSynchronously
+            Expect.isTrue (mirror.Value.Wait(TimeSpan.FromSeconds 30.0)) "der Lauf endet nach der Freigabe"
+
+            Expect.isFalse mirrorDoneDuringPush "der Lauf wartet an der Sperre"
+            match Map.tryFind (TransactionId txId) result.Outcomes with
+            | Some (Linked (entryId, _)) ->
+                Expect.equal
+                    (loadEventsForEntry entryId |> Async.RunSynchronously |> List.map (fun r -> r.EventType))
+                    [ "EntryImportedFromComdirect"; "EntryLinkedToYnab" ]
+                    "genau eine Verknüpfung, die des Imports"
+            | other -> failtest $"erwartete Linked, war {other}"
+
+        // Review-Fund zu banking-import-d0fey: eine Ausnahme beim Verknüpfen einer Buchung brach den ganzen Push ab,
+        // die übrigen Buchungen bekamen keinen Ausgang und der Spiegel keinen Auslöser.
+        testCase "scheitert die Verknüpfung einer Buchung, behalten die übrigen ihren Ausgang und der Spiegel wird angestoßen" <| fun () ->
+            let brokenTx, okTx = $"tx-{Guid.NewGuid()}", $"tx-{Guid.NewGuid()}"
+            let brokenImport, okImport = $"import-{brokenTx}", $"import-{okTx}"
+            let candidates =
+                [ PushFixtures.candidate brokenTx brokenImport (eur -1.10m) []
+                  PushFixtures.candidate okTx okImport (eur -2.20m) [] ]
+            // Zwischen Schreiben und Verknüpfen trägt die eine Buchung schon die Verknüpfung mit derselben YNAB-Id
+            // (wie nach einem Spiegel-Lauf), das Verknüpfen wirft an ihr.
+            let push (prepared: PreparedTransaction list) : Async<YnabResult<TransactionCreateResult>> =
+                async {
+                    let! broken = findEntryByLink ImportIdSystem brokenImport
+                    do!
+                        appendAndApply [
+                            { EntryId = broken.Value
+                              OccurredAt = DateTime(2026, 3, 9, 11, 0, 0, DateTimeKind.Utc)
+                              Actor = YnabMirror
+                              Body = EntryLinkedToYnab { YnabTransactionId = $"ynab-{brokenTx}" } }
+                        ]
+                    return!
+                        async.Return (
+                            Ok {
+                                emptyCreateResult with
+                                    Created =
+                                        prepared
+                                        |> List.map (fun p ->
+                                            ({ TransactionId = p.TransactionId; ImportId = p.ImportId; YnabTransactionId = (let (TransactionId t) = p.TransactionId in $"ynab-{t}") }
+                                                : CreatedTransactionResult))
+                            })
+                }
+            let mutable triggerCount = 0
+
+            let result =
+                pushComdirectImports
+                    (DateTime(2026, 3, 9, 11, 0, 0, DateTimeKind.Utc))
+                    push
+                    (fun () -> triggerCount <- triggerCount + 1)
+                    testAccountId
+                    candidates
+                |> Async.RunSynchronously
+
+            match Map.tryFind (TransactionId okTx) result.Outcomes with
+            | Some (Linked _) -> ()
+            | other -> failtest $"die andere Buchung sollte Linked sein, war {other}"
+            match Map.tryFind (TransactionId brokenTx) result.Outcomes with
+            | Some (WrittenNotLinked _) -> ()
+            | other -> failtest $"die Buchung mit gescheiterter Verknüpfung sollte WrittenNotLinked sein, war {other}"
+            Expect.equal triggerCount 1 "der Spiegel wird angestoßen"
+
+        // Review-Fund zu banking-import-d0fey: ein erneuter Abruf sendete die frisch klassifizierten Bankdaten, nicht
+        // BBs Stand. Ein in BB gesetzter Übertrag braucht die Übertrags-Payee, die der Sammel-Push nicht kennt.
+        testCase "erneut gesendet: der Request trägt BBs Stand, ein Übertrag geht nicht in den Sammel-Push" <| fun () ->
+            let request = PushFixtures.dummyRequest "import-x"
+            let category = { CategoryId = YnabCategoryId (Guid.NewGuid()); CategoryName = "Haushalt" }
+            let imported = replay [ PushFixtures.importedEvent () ] |> Option.get
+            let entry =
+                { imported with
+                    Payee = Some "Drogerie in BB"
+                    Memo = Some "Memo in BB"
+                    Category = Some category
+                    FlagColor = Some "purple" }
+            match importResendRequest request entry with
+            | Ok sent ->
+                let (YnabCategoryId categoryId) = category.CategoryId
+                Expect.equal sent.CategoryId (Some (categoryId.ToString())) "BBs Kategorie"
+                Expect.equal (sent.PayeeName, sent.Memo, sent.FlagColor) ("Drogerie in BB", "Memo in BB", Some "purple") "BBs Payee, Memo, Flag"
+                Expect.equal (sent.ImportId, sent.AccountId) (request.ImportId, request.AccountId) "import_id und Konto bleiben"
+            | Error reason -> failtest $"erwartete einen Request, war {reason}"
+            let transfer = { entry with Category = None; TransferAccountId = Some (YnabAccountId (Guid.NewGuid())) }
+            Expect.equal (importResendRequest request transfer) (Error importResendTransferReason) "Übertrag über Erneut senden"
 
     ]
 

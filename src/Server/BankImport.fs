@@ -75,6 +75,9 @@ type ImportPorts = {
             -> LedgerCommands.ComdirectImportCandidate list
             -> Async<LedgerCommands.ComdirectPushResult>
     DescribeBankError: ComdirectError -> string
+    /// Das Ergebnis des letzten Starts mit seiner Sitzung. Ein zweiter Start, der am Gate gewartet
+    /// hat, bekommt daraus den Fehler mit seinem Typ statt nur der Meldung der Sitzung.
+    LastStart: (SyncSessionId * SyncResult<SyncStart>) option ref
     Clock: unit -> DateTime
     /// Der Berliner Kalendertag.
     Today: unit -> DateTime
@@ -139,25 +142,53 @@ let planImport
     }
 
 /// Das Ereignis-Payload für ein unsicheres Duplikat. `matchEntries` löst die YNAB-Id des Treffers
-/// zur Buchung im Kassenbuch auf, soweit bekannt.
+/// zur Buchung im Kassenbuch auf, soweit bekannt. Ein unsicheres Duplikat wartet immer, auch wenn
+/// `possibleMatchOf` den Treffer der Erkennung nicht wiederfindet (Review-Fund zu banking-import-d0fey:
+/// sonst ginge es still nach YNAB). Dann kommt der Schnappschuss aus den Erkennungsdetails, ohne
+/// YNAB-Id (leer), und eine Log-Zeile meldet die Abweichung.
 let holdOf
     (ynabTransactions: YnabTransaction list)
     (matchEntries: Map<string, EntryId>)
     (tx: SyncTransaction)
     : EntryHeldAsPossibleDuplicatePayload option =
     match tx.DuplicateStatus with
-    | PossibleDuplicate _ ->
-        DuplicateDetection.possibleMatchOf ynabTransactions tx.Transaction
-        |> Option.map (fun matched ->
-            { Reason = possibleDuplicateReason matched
-              MatchYnabTransactionId = matched.Id
-              MatchEntryId = Map.tryFind matched.Id matchEntries
-              Match = {
-                  Date = matched.Date
-                  Amount = matched.Amount
-                  Payee = matched.Payee
-                  CategoryName = matched.CategoryName
-              } })
+    | PossibleDuplicate (_, details) ->
+        match DuplicateDetection.possibleMatchOf ynabTransactions tx.Transaction with
+        | Some matched ->
+            Some
+                { Reason = possibleDuplicateReason matched
+                  MatchYnabTransactionId = matched.Id
+                  MatchEntryId = Map.tryFind matched.Id matchEntries
+                  Match = {
+                      Date = matched.Date
+                      Amount = matched.Amount
+                      Payee = matched.Payee
+                      CategoryName = matched.CategoryName
+                  } }
+        | None ->
+            eprintfn "Abruf: unsicheres Duplikat ohne Treffer in der YNAB-Liste, die Buchung wartet trotzdem"
+            let snapshot : YnabTransaction =
+                { Id = ""
+                  Date = details.FuzzyMatchDate |> Option.defaultValue tx.Transaction.BookingDate
+                  Amount =
+                    details.FuzzyMatchAmount
+                    |> Option.map (fun amount -> { tx.Transaction.Amount with Amount = amount })
+                    |> Option.defaultValue tx.Transaction.Amount
+                  Payee = details.FuzzyMatchPayee
+                  Memo = None
+                  ImportId = None
+                  CategoryId = None
+                  CategoryName = None }
+            Some
+                { Reason = possibleDuplicateReason snapshot
+                  MatchYnabTransactionId = ""
+                  MatchEntryId = None
+                  Match = {
+                      Date = snapshot.Date
+                      Amount = snapshot.Amount
+                      Payee = snapshot.Payee
+                      CategoryName = None
+                  } }
     | NotDuplicate _ | ConfirmedDuplicate _ -> None
 
 /// Baut aus dem vorbereiteten Push die Kassenbuch-Kandidaten. Payee und Memo kommen aus dem
@@ -185,8 +216,12 @@ let candidatesOf
             Hold = Map.tryFind p.TransactionId holds
         } : LedgerCommands.ComdirectImportCandidate))
 
-/// Die Zahlen des Abrufs aus Plan und Push-Ergebnis (ADR 0093 Punkt 10). Rein.
-let countsOf (plan: ImportPlan) (outcomes: Map<TransactionId, LedgerCommands.ComdirectPushOutcome>) : FetchCounts =
+/// Die Zahlen des Abrufs aus Plan, Vorbereitung und Push-Ergebnis (ADR 0093 Punkt 10). Rein.
+let countsOf
+    (plan: ImportPlan)
+    (prepared: Ynab.PrepareResult)
+    (outcomes: Map<TransactionId, LedgerCommands.ComdirectPushOutcome>)
+    : FetchCounts =
     let booked =
         plan.ToBook
         |> List.filter (fun tx ->
@@ -202,6 +237,7 @@ let countsOf (plan: ImportPlan) (outcomes: Map<TransactionId, LedgerCommands.Com
         SafeDuplicatesSkipped = plan.SafeDuplicatesSkipped
         Held = countOutcomes (function LedgerCommands.HeldAsPossibleDuplicate _ -> true | _ -> false)
         NotInYnab = countOutcomes (function LedgerCommands.WrittenNotLinked _ -> true | _ -> false)
+        FutureDated = prepared.FutureDatedTransactionIds.Length
     }
 
 // ============================================
@@ -259,6 +295,10 @@ let fetchAndBook
                             |> List.choose (fun tx -> holdOf ynabTransactions matchEntries tx |> Option.map (fun h -> tx.Transaction.Id, h))
                             |> Map.ofList
                         let toPush = plan.ToBook @ plan.ToSendAgain
+                        // Ein Umsatz nach dem Berliner Tag geht noch nicht nach YNAB und nicht ins Kassenbuch,
+                        // auch kein unsicheres Duplikat: YNAB nähme ihn nicht an, und beim Abruf an seinem Tag
+                        // läuft die Duplikatprüfung mit dem dann aktuellen YNAB-Stand. `FutureDated` zählt ihn.
+                        // Abgelehnte Übertrags-Splits gibt es hier nicht: die Regeln setzen keine Splits.
                         let prepared = Ynab.prepareTransactions request.Today target.YnabAccountId Map.empty false toPush
                         let candidates = candidatesOf holds toPush prepared
                         let! result =
@@ -270,7 +310,7 @@ let fetchAndBook
                                 candidates
                         match LedgerCommands.summarizeLedgerWriteFailures result with
                         | Some (count, message) -> return Some (Error (BookingFailed (count, message)))
-                        | None -> return Some (Ok (countsOf plan result.Outcomes))
+                        | None -> return Some (Ok (countsOf plan prepared result.Outcomes))
     }
 
 // ============================================
@@ -352,7 +392,8 @@ let private failFetch (ports: ImportPorts) (failure: FetchFailure) : Async<SyncE
             | YnabUnavailable -> ynabUnavailableMessage, SyncError.YnabImportFailed (0, ynabUnavailableMessage)
             | TargetUnavailable reason -> reason, SyncError.YnabImportFailed (0, reason)
             | BookingFailed (count, reason) ->
-                let m = $"Kassenbuch-Schreiben für {count} Buchung(en) gescheitert: {reason}"
+                let entries = if count = 1 then "1 Buchung" else $"{count} Buchungen"
+                let m = $"Kassenbuch-Schreiben für {entries} gescheitert: {reason}"
                 m, SyncError.YnabImportFailed (count, m)
         ports.Sessions.Fail message
         let! _ = recordCurrent ports
@@ -394,13 +435,26 @@ let private fetchOrRequireTan (ports: ImportPorts) (settings: ImportSettings) (c
                 return Error error
     }
 
-/// Das Ergebnis des Abrufs, auf den ein zweiter Start am Gate gewartet hat. `None`: es gibt keins
-/// (die Sitzung wurde abgebrochen), dann startet der zweite Start selbst.
-let private resultOfAwaited (ports: ImportPorts) : SyncResult<SyncStart> option =
+/// Ob eine Sitzung fertig ist (beendet, gescheitert oder bei der TAN), also kein Abruf mehr an ihr läuft.
+let private isSettled (status: SyncSessionStatus) : bool =
+    match status with
+    | Completed | Failed _ | AwaitingTan -> true
+    | AwaitingBankAuth | FetchingTransactions | ImportingToYnab -> false
+
+/// Das Ergebnis des Abrufs, auf den ein zweiter Start am Gate gewartet hat. `before` ist die Sitzung
+/// beim Ankommen am Gate. War sie schon fertig und ist sie noch die aktuelle, hat der Abruf am Gate
+/// keine neue Sitzung gebracht (Review-Fund zu banking-import-d0fey: sonst bekam der Start das Ergebnis
+/// von vor Stunden). `None`: es gibt kein Ergebnis (auch nach einem Abbruch), dann startet der zweite
+/// Start selbst. Ein Fehler behält seinen Typ aus `LastStart`.
+let private resultOfAwaited (ports: ImportPorts) (before: SyncSession option) : SyncResult<SyncStart> option =
     match ports.Sessions.Current () with
+    | Some session when before |> Option.exists (fun b -> b.Id = session.Id && isSettled b.Status) -> None
     | Some ({ Status = Completed } as session) -> Some (Ok (Fetched session))
     | Some ({ Status = AwaitingTan } as session) -> Some (Ok (TanRequired session))
-    | Some { Status = Failed message } -> Some (Error (SyncError.TransactionFetchFailed message))
+    | Some ({ Status = Failed message } as session) ->
+        match ports.LastStart.Value with
+        | Some (sessionId, (Error _ as error)) when sessionId = session.Id -> Some error
+        | _ -> Some (Error (SyncError.TransactionFetchFailed message))
     | _ -> None
 
 /// Startet einen Abruf. Läuft schon einer, wartet der Start am Gate und bekommt dessen Ergebnis;
@@ -408,11 +462,12 @@ let private resultOfAwaited (ports: ImportPorts) : SyncResult<SyncStart> option 
 let startSyncWith (ports: ImportPorts) : Async<SyncResult<SyncStart>> =
     async {
         let first = ports.Gate.Wait 0
+        let before = if first then None else ports.Sessions.Current ()
         if not first then
             do! ports.Gate.WaitAsync() |> Async.AwaitTask
         try
             try
-                match (if first then None else resultOfAwaited ports) with
+                match (if first then None else resultOfAwaited ports before) with
                 | Some awaited -> return awaited
                 | None ->
                     let! settings = ports.LoadSettings ()
@@ -424,7 +479,7 @@ let startSyncWith (ports: ImportPorts) : Async<SyncResult<SyncStart>> =
                         return Error (SyncError.TransactionFetchFailed missingAccountIdMessage)
                     | Some credentials ->
                         let session = ports.Sessions.StartNew ()
-                        return! failingSessionOnException ports "start_sync" (async {
+                        let! result = failingSessionOnException ports "start_sync" (async {
                             do! ports.Sessions.RecordStarted session
                             do! ports.Sources.Bank.Resume ()
                             if isCurrent ports session.Id then
@@ -434,6 +489,8 @@ let startSyncWith (ports: ImportPorts) : Async<SyncResult<SyncStart>> =
                             else
                                 return Error (sessionNotFound session.Id)
                         })
+                        ports.LastStart.Value <- Some (session.Id, result)
+                        return result
             with ex ->
                 return Error (SyncError.DatabaseError ("start_sync", ex.Message))
         finally

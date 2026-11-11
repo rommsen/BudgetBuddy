@@ -107,10 +107,16 @@ let resultTitle (counts: FetchCounts) : string =
     | n -> $"{n} neue Buchungen"
 
 /// Der Satz unter dem Kopf des Ergebnisses: Teile mit 0 entfallen, Einzahl und Mehrzahl je Teil.
-/// Ohne neue Buchung steht der feste Satz des Prototyps da.
+/// Ohne neue Buchung steht der feste Satz des Prototyps da. Umsätze mit Datum in der Zukunft bucht der
+/// Abruf noch nicht, ein eigener Satz nennt sie (dann auch ohne neue Buchung statt des festen Satzes).
 let resultSentence (counts: FetchCounts) : string =
+    let later =
+        match counts.FutureDated with
+        | 0 -> None
+        | 1 -> Some "1 mit Datum in der Zukunft folgt beim nächsten Abruf."
+        | n -> Some $"{n} mit Datum in der Zukunft folgen beim nächsten Abruf."
     if counts.NewEntries = 0 then
-        "Seit dem letzten Abruf gibt es keine neuen Umsätze."
+        later |> Option.defaultValue "Seit dem letzten Abruf gibt es keine neuen Umsätze."
     else
         let part (n: int) (text: string) = if n > 0 then Some $"{n} {text}" else None
         let sentence (parts: string option list) =
@@ -133,7 +139,7 @@ let resultSentence (counts: FetchCounts) : string =
         let third =
             if counts.NotInYnab > 0 then Some $"{counts.NotInYnab} noch nicht in YNAB, sie stehen unter Zu tun."
             else None
-        [ first; second; third ] |> List.choose id |> String.concat " "
+        [ first; second; third; later ] |> List.choose id |> String.concat " "
 
 /// Der Erklärsatz unter dem TAN-Hinweis.
 let tanExplanation (daysToFetch: int) : string =

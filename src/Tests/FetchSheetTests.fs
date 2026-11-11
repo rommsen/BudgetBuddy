@@ -61,6 +61,18 @@ let resultTests =
                 "Seit dem letzten Abruf gibt es keine neuen Umsätze."
                 "sichere Duplikate allein sind nichts Neues"
 
+        // Review-Fund zu banking-import-d0fey: ohne neue Buchung stand der feste Satz da, auch wenn Umsätze mit
+        // Datum in der Zukunft noch folgen.
+        testCase "ohne neue Buchung, aber mit Umsätzen in der Zukunft, nennt der Satz sie statt des festen Satzes" <| fun () ->
+            Expect.equal
+                (resultSentence { emptyFetchCounts with FutureDated = 1 })
+                "1 mit Datum in der Zukunft folgt beim nächsten Abruf."
+                "einer"
+            Expect.equal
+                (resultSentence { emptyFetchCounts with SafeDuplicatesSkipped = 1; FutureDated = 3 })
+                "3 mit Datum in der Zukunft folgen beim nächsten Abruf."
+                "mehrere"
+
         testCase "der Satz des Prototyps mit Regel, ohne Kategorie, sicheren Duplikaten und einem unsicheren" <| fun () ->
             Expect.equal
                 (resultSentence { emptyFetchCounts with NewEntries = 6; ByRule = 2; WithoutCategory = 3; SafeDuplicatesSkipped = 2; Held = 1 })
@@ -75,7 +87,10 @@ let resultTests =
               "zwei unsichere", { emptyFetchCounts with NewEntries = 2; WithoutCategory = 2; Held = 2 }, "2 ohne Kategorie. 2 unsichere warten auf dich und gehen erst danach nach YNAB."
               "nur unsichere ohne sichere", { emptyFetchCounts with NewEntries = 1; WithoutCategory = 1; Held = 1 }, "1 ohne Kategorie. 1 unsicheres wartet auf dich und geht erst danach nach YNAB."
               "nicht in YNAB", { emptyFetchCounts with NewEntries = 2; ByRule = 2; NotInYnab = 2 }, "2 per Regel kategorisiert. 2 noch nicht in YNAB, sie stehen unter Zu tun."
-              "ohne nicht in YNAB", { emptyFetchCounts with NewEntries = 2; ByRule = 2 }, "2 per Regel kategorisiert." ] do
+              "ohne nicht in YNAB", { emptyFetchCounts with NewEntries = 2; ByRule = 2 }, "2 per Regel kategorisiert."
+              // Review-Fund zu banking-import-d0fey: Umsätze nach dem Berliner Tag fielen still aus dem Ergebnis.
+              "einer mit Datum in der Zukunft", { emptyFetchCounts with NewEntries = 1; WithoutCategory = 1; FutureDated = 1 }, "1 ohne Kategorie. 1 mit Datum in der Zukunft folgt beim nächsten Abruf."
+              "zwei mit Datum in der Zukunft", { emptyFetchCounts with NewEntries = 1; ByRule = 1; NotInYnab = 1; FutureDated = 2 }, "1 per Regel kategorisiert. 1 noch nicht in YNAB, sie stehen unter Zu tun. 2 mit Datum in der Zukunft folgen beim nächsten Abruf." ] do
             testCase $"Teile mit 0 entfallen ({name})" <| fun () ->
                 Expect.equal (resultSentence counts) expected name
 
