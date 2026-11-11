@@ -236,6 +236,39 @@ let private budgetEntering : Components.Budget.Types.Model =
 
 let private budgetMonth = monthOf 0m [ category foodId "Lebensmittel" -24.10m (Some 60m); category clothesId "Kleidung" 143m None ]
 
+let private december = "2026-12-01"
+
+let private monthFor (month: string) : BudgetMonth = { budgetMonth with Month = month }
+
+/// Der Rahmen mit November als laufendem Monat und Dezember als Folgemonat.
+let private twoMonthFrame : RemoteData<BudgetFrame> =
+    Success
+        { CurrentMonth = "2026-11-01"; Months = [ "2026-11-01"; december ]; CategoryOrder = [ foodId; clothesId ]
+          MonthStartHidden = [] }
+
+/// Betritt die Budget-Seite und antwortet wie der Server: beim frischen Betreten erst der Rahmen, dann der gezeigte
+/// Monat auf dem Weg, den die Abfrage nimmt (`Reloaded` beim stillen Neu-Lesen, sonst `Loaded`).
+let private enterAndAnswer (budget: Components.Budget.Types.Model) : Components.Budget.Types.Model =
+    let update msg model =
+        let next, _, _ = Components.Budget.State.update msg model
+        next
+    let fresh = snd (Components.Budget.Inspector.enterPage budget) = Components.Budget.Inspector.FreshEntry
+    let entered = update Components.Budget.Types.PageEntered budget
+    let framed =
+        match entered.Frame with
+        | Success frame when fresh -> update (Components.Budget.Types.FrameLoaded (Ok frame)) entered
+        | _ -> entered
+    let shown = Components.Budget.Month.shownMonth framed |> Option.get
+    let answer = Ok (monthFor shown)
+    let quiet =
+        match framed.Month with
+        | Success _ -> not (Components.Budget.Month.monthChanging framed)
+        | _ -> false
+    let msg =
+        if quiet then Components.Budget.Types.Reloaded (framed.MonthGeneration, answer)
+        else Components.Budget.Types.Loaded (framed.MonthGeneration, answer)
+    update msg framed
+
 [<Tests>]
 let todoTargetTests =
     testList "Ziele aus Zu tun" [
@@ -300,6 +333,95 @@ let todoTargetTests =
             let waited, _ = Components.Budget.State.takeEntryAction stale
             Expect.isSome waited.EntryAction "wartet"
             Expect.isNone waited.Selected "noch nichts gewählt"
+
+        // Bug (Review ledger-s1weh): stand eine Rückkehr an (Buchung aus dem Budget angetippt), nahm das Betreten den Weg
+        // `KeptPage` und behielt den gewählten Folgemonat; „Targets anwenden“ aus „Zu tun“ öffnete den Dialog im Dezember.
+        testCase "3 aus Zu tun öffnet den Dialog im laufenden Monat, auch wenn das Budget auf eine Rückkehr in den Dezember wartet" <| fun () ->
+            let waiting =
+                { budgetEntering with
+                    Frame = twoMonthFrame
+                    ChosenMonth = Some december
+                    Month = Success (monthFor december)
+                    Freshness = Components.Budget.Types.MonthRead }
+                |> Components.Budget.Inspector.selectCategory foodId
+                |> Components.Budget.Inspector.leaveForEntry
+            let start = { rootModel Overview with Budget = waiting }
+            let model, _ = State.update (State.OpenOverviewTodo TodoApplyTargets) start
+            let opened = enterAndAnswer model.Budget
+            Expect.equal (Components.Budget.Month.shownMonth opened) (Some "2026-11-01") "der laufende Monat"
+            Expect.equal opened.Targets Components.Budget.Types.PreviewLoading "Dialog offen"
+            Expect.isNone opened.EntryAction "verbraucht"
+
+        // Bug (Review ledger-s1weh): `takeEntryAction` handelte in jedem gezeigten Monat.
+        testCase "Zeigt das Budget einen anderen als den laufenden Monat, verfällt der Eintrag ohne Wirkung" <| fun () ->
+            let december' =
+                { budgetEntering with
+                    Frame = twoMonthFrame
+                    ChosenMonth = Some december
+                    Month = Success (monthFor december)
+                    Freshness = Components.Budget.Types.MonthRead
+                    EntryAction = Some Components.Budget.Types.ApplyTargetsFromOverview }
+            let taken, _ = Components.Budget.State.takeEntryAction december'
+            Expect.equal taken.Targets Components.Budget.Types.TargetsClosed "kein Dialog im Dezember"
+            Expect.isNone taken.EntryAction "verbraucht"
+
+        // Bug (Review ledger-s1weh): scheiterte der Monat, blieb der Eintrag liegen und sprang beim nächsten Laden auf.
+        testCase "Scheitert der Monat, verfällt der Eintrag, das nächste Laden öffnet nichts" <| fun () ->
+            let entering = { budgetEntering with EntryAction = Some Components.Budget.Types.ApplyTargetsFromOverview }
+            let failed, _, _ = Components.Budget.State.update (Components.Budget.Types.Loaded (3, Error "YNAB antwortet nicht")) entering
+            Expect.isNone failed.EntryAction "verbraucht"
+            let retried = { failed with Month = Loading; MonthGeneration = 4 }
+            let loaded, _, _ = Components.Budget.State.update (Components.Budget.Types.Loaded (4, Ok budgetMonth)) retried
+            Expect.equal loaded.Targets Components.Budget.Types.TargetsClosed "kein Dialog"
+
+        // Bug (Review ledger-s1weh): scheiterte das stille Neu-Lesen, blieb der Eintrag liegen.
+        testCase "Scheitert das stille Neu-Lesen, verfällt der Eintrag" <| fun () ->
+            let quiet =
+                { budgetEntering with
+                    Month = Success budgetMonth
+                    Freshness = Components.Budget.Types.MonthStale
+                    EntryAction = Some (Components.Budget.Types.CoverFromOverview foodId) }
+            let failed, _, _ = Components.Budget.State.update (Components.Budget.Types.Reloaded (3, Error "YNAB antwortet nicht")) quiet
+            Expect.isNone failed.EntryAction "verbraucht"
+            Expect.isNone failed.Selected "nichts gewählt"
+
+        // Bug (Review ledger-s1weh): scheiterte schon der Rahmen, kam nie ein Monat, der Eintrag blieb liegen.
+        testCase "Scheitert der Rahmen, verfällt der Eintrag" <| fun () ->
+            let entering =
+                { budgetEntering with Frame = Loading; EntryAction = Some Components.Budget.Types.ApplyTargetsFromOverview }
+            let failed, _, _ = Components.Budget.State.update (Components.Budget.Types.FrameLoaded (Error "YNAB antwortet nicht")) entering
+            Expect.isNone failed.EntryAction "verbraucht"
+
+        // Bug (Review ledger-s1weh): verließ Roman die Seite vor der Antwort, sprang der Eintrag beim nächsten Betreten auf.
+        testCase "Wer die Seite vor der Antwort verlässt, findet den Eintrag beim nächsten Betreten nicht mehr" <| fun () ->
+            let entering = { budgetEntering with EntryAction = Some Components.Budget.Types.ApplyTargetsFromOverview }
+            let left, _, _ = Components.Budget.State.update Components.Budget.Types.PageLeft entering
+            Expect.isNone left.EntryAction "gelöscht"
+
+        // Bug (Review ledger-s1weh): eine Antwort, die vor dem Tipp auf „Zu tun“ angefragt war, verbrauchte den Eintrag.
+        testCase "Eine vor dem Tipp angefragte Antwort verbraucht den Eintrag nicht, eine verworfene auch nicht" <| fun () ->
+            let model, _ = State.update (State.OpenOverviewTodo TodoApplyTargets) { rootModel Overview with Budget = budgetEntering }
+            let older, _, _ = Components.Budget.State.update (Components.Budget.Types.Loaded (3, Ok budgetMonth)) model.Budget
+            Expect.equal older.Targets Components.Budget.Types.TargetsClosed "kein Dialog aus der alten Antwort"
+            Expect.isSome older.EntryAction "wartet"
+            let discarded, _, _ =
+                Components.Budget.State.update (Components.Budget.Types.Loaded (older.MonthGeneration - 1, Error "alt")) older
+            Expect.isSome discarded.EntryAction "wartet weiter"
+
+        // Gewinnt `Reloaded` den Lauf gegen `Loaded`, ist der `Reloaded`-Zweig die einzige Stelle, die den Eintrag nimmt.
+        testCase "2 öffnet die Kategorie auch, wenn Reloaded vor Loaded ankommt" <| fun () ->
+            let entering = { budgetEntering with EntryAction = Some (Components.Budget.Types.CoverFromOverview foodId) }
+            let loaded, _, _ = Components.Budget.State.update (Components.Budget.Types.Reloaded (3, Ok budgetMonth)) entering
+            Expect.equal (loaded.Selected |> Option.map (fun s -> s.CategoryId)) (Some foodId) "die Kategorie"
+            Expect.equal (loaded.TabMoney |> Option.map (fun t -> t.Mode)) (Some Components.Budget.Types.TakeMode) "Holen"
+            Expect.isNone loaded.EntryAction "verbraucht"
+
+        testCase "3 öffnet den Dialog auch, wenn Reloaded vor Loaded ankommt" <| fun () ->
+            let entering = { budgetEntering with EntryAction = Some Components.Budget.Types.ApplyTargetsFromOverview }
+            let loaded, cmd, _ = Components.Budget.State.update (Components.Budget.Types.Reloaded (3, Ok budgetMonth)) entering
+            Expect.equal loaded.Targets Components.Budget.Types.PreviewLoading "Dialog offen"
+            Expect.isNonEmpty cmd "die Vorschau wird geholt"
+            Expect.isNone loaded.EntryAction "verbraucht"
     ]
 
 [<Tests>]

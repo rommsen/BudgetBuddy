@@ -324,20 +324,43 @@ let private afterTargetAnswer (shown: bool) (reread: bool) (model: Model, extern
 let private afterMovementWhen (reload: bool) (model: Model, cmd: Cmd<Msg>, external: ExternalMsg) : Model * Cmd<Msg> * ExternalMsg =
     if reload then afterMovement (model, cmd, external) else model, cmd, external
 
+/// Ein Eintrag aus „Zu tun“ (ledger-s1weh) betritt die Seite von vorn, beim laufenden Monat: Eine anstehende Rückkehr
+/// (Kassenbuch, allgemeine Historie, Targets prüfen) gilt nicht mehr, so nimmt `enterPage` den Weg `FreshEntry`. Antworten
+/// auf Abfragen von vor dem Tipp zählen ab jetzt nicht mehr und verbrauchen den Eintrag nicht.
+let enterWithAction (action: EntryAction) (model: Model) : Model =
+    requestMonth
+        { model with
+            EntryAction = Some action
+            ChosenMonth = None
+            Selected = model.Selected |> Option.map (fun s -> { s with ReturnPending = false })
+            GeneralHistory = { model.GeneralHistory with ReturnPending = false }
+            TargetCheck = { model.TargetCheck with ReturnPending = false } }
+
 /// Der Eintrag aus „Zu tun“ (ledger-s1weh), sobald der Monat frisch gelesen ist: die Kategorie im Tab Geld mit
-/// Holen (die Vorbelegung ist das Minus) oder der Dialog Targets anwenden. Er wird einmal verbraucht.
+/// Holen (die Vorbelegung ist das Minus) oder der Dialog Targets anwenden. Er wird einmal verbraucht und wirkt nur im
+/// laufenden Monat; zeigt die Seite einen anderen, verfällt er ohne Wirkung.
 let takeEntryAction (model: Model) : Model * Cmd<Msg> =
     match model.EntryAction, model.Month with
     | Some action, Success _ when model.Freshness = MonthRead && not (monthChanging model) ->
         let cleared = { model with EntryAction = None }
-        match action with
-        | CoverFromOverview categoryId ->
-            selectCategory categoryId { cleared with Tab = MoneyTab } |> syncMoneyTab |> switchMode TakeMode |> withTabData
-        | ApplyTargetsFromOverview ->
-            match openTargets cleared, shownMonth cleared with
-            | (opened, true), Some month -> opened, previewCmd month opened.TargetsPreviewGeneration
-            | (opened, _), _ -> opened, Cmd.none
+        if shownMonthKind cleared <> Some CurrentMonth then
+            cleared, Cmd.none
+        else
+            match action with
+            | CoverFromOverview categoryId ->
+                selectCategory categoryId { cleared with Tab = MoneyTab } |> syncMoneyTab |> switchMode TakeMode |> withTabData
+            | ApplyTargetsFromOverview ->
+                match openTargets cleared, shownMonth cleared with
+                | (opened, true), Some month -> opened, previewCmd month opened.TargetsPreviewGeneration
+                | (opened, _), _ -> opened, Cmd.none
     | _ -> model, Cmd.none
+
+/// Nach einer Antwort auf eine Abfrage des Monats. Die Antwort auf die laufende Abfrage (`counts`) verbraucht den
+/// Eintrag, auch wenn sie scheitert: sonst spränge er beim nächsten Laden ungefragt auf. Eine verworfene Antwort älterer
+/// Generation lässt ihn liegen.
+let private answerEntryAction (counts: bool) (model: Model) : Model * Cmd<Msg> =
+    let acted, cmd = takeEntryAction model
+    (if counts then { acted with EntryAction = None } else acted), cmd
 
 /// Ein einziges `match` ohne Sammelzweig: eine neue Nachricht ohne Zweig meldet der Compiler.
 let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
@@ -356,7 +379,9 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
     | Load -> beginLoad model, frameCmd (), NoOp
     | FrameLoaded result ->
         let model', external, loadMonth = applyFrameLoaded result model
-        model', (if loadMonth then loadCmd model' else Cmd.none), external
+        // Ohne Rahmen kommt kein Monat: der Eintrag aus „Zu tun“ verfällt, statt nach „Wiederholen“ aufzuspringen.
+        let settled = if loadMonth then model' else { model' with EntryAction = None }
+        settled, (if loadMonth then loadCmd settled else Cmd.none), external
     | FrameRefreshed result ->
         // Der Monat rückt weiter: Die Eingabe gilt dem alten und wird wie beim Verlassen gesichert.
         let left, outcome = if frameMovesMonth result model then leaveInspector model else model, NothingOpen
@@ -378,7 +403,7 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
             match model.MoveInFlight with
             | MoveCallRunning -> MoveCallRunningAway
             | call -> call
-        leaveMonthStart { model with MoveInFlight = away }, Cmd.none, NoOp
+        leaveMonthStart { model with MoveInFlight = away; EntryAction = None }, Cmd.none, NoOp
     | OpenGeneralHistory -> openGeneralHistory model, Cmd.none, ShowGeneralHistory
     | ToggleBudgetMenu -> { model with MenuOpen = not model.MenuOpen }, Cmd.none, NoOp
     | CloseBudgetMenu -> { model with MenuOpen = false }, Cmd.none, NoOp
@@ -463,10 +488,10 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
     | ClearCategorySearch -> { model with CategorySearch = "" }, Cmd.none, NoOp
     | SelectFilter filter -> { model with Filter = filter }, Cmd.none, NoOp
     | EnterWithFilter filter -> { model with EntryFilter = Some filter }, Cmd.none, NoOp
-    | EnterWithAction action -> { model with EntryAction = Some action }, Cmd.none, NoOp
+    | EnterWithAction action -> enterWithAction action model, Cmd.none, NoOp
     | Loaded (generation, result) ->
         let loaded, tabCmd = withTabData (applyLoaded generation result model)
-        let acted, actionCmd = takeEntryAction loaded
+        let acted, actionCmd = answerEntryAction (generation = model.MonthGeneration) loaded
         acted, Cmd.batch [ tabCmd; actionCmd ], NoOp
     | OpenTargets ->
         match openTargets model, shownMonth model with
@@ -620,7 +645,7 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
     | Reloaded (generation, result) ->
         let model', external = applyReloaded generation result model
         let withRequest, cmd = withTabData model'
-        let acted, actionCmd = takeEntryAction withRequest
+        let acted, actionCmd = answerEntryAction (generation = model.MonthGeneration) withRequest
         acted, Cmd.batch [ cmd; actionCmd ], external
 
 /// Wie `update` eine Nachricht behandelt.
