@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-11 10:55 -- Modeling / Promoted: ledger-s1weh - "Übersicht als Einstieg (Variante A): Zu tun mit einer Hauptaktion, Zähler an der Übersicht, „+ Buchung“, am PC zweispaltig"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-11 10:54 -- Work session ended
 
 **Type:** Work / Session end

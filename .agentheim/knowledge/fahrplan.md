@@ -3,7 +3,7 @@
 Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success looks like“.
 
 ## Stand
-Zuletzt aktualisiert: 2026-11-11, Etappe 3 in elf Schnitte geteilt.
+Zuletzt aktualisiert: 2026-11-11, nach work-Lauf zu design-system-k6kfw.
 
 - **Etappe 1 · Bedeutungen:** erledigt, 5 von 5 (Skizze und Prototyp, Layout-Sweep, Muster im
   Styleguide, Designwert-Tests aufgeräumt, Palette 2 im Token-Layer). Romans Blick auf dak16 neben
@@ -20,17 +20,17 @@ Zuletzt aktualisiert: 2026-11-11, Etappe 3 in elf Schnitte geteilt.
   Backlog, danach kann die Sperre für Überträge fallen. ledger-nb4tv (ETF-Konto und Abgleich) nach
   Etappe 3 verschoben (Roman, 2026-11-10).
   Deployt (2026-11-10, f85d3b3d): ledger-m7k2d, ledger-z6sya, ledger-m7mye.
-- **Etappe 3 · Ein Produkt:** in elf Schnitte geteilt (Roman, 2026-11-11); 1 und 2 verfeinert, 1 in `todo/`. Reihenfolge und Zuordnung im Abschnitt Etappe 3.
+- **Etappe 3 · Ein Produkt:** in elf Schnitte geteilt (Roman, 2026-11-11). 1 erledigt (design-system-k6kfw,
+  189ec9a9, Verifier PASS in Iteration 2), 2 in `todo/`. Reihenfolge und Zuordnung im Abschnitt Etappe 3.
 - **Laufend erledigt (2026-11-10):** ledger-mj3a9 (Bob gesperrt bei ungültigem `BOT_MAX_AMOUNT_EUR`, Nachtrag
   ADR 0068), ledger-q42pg (Feldfehler am Betrag statt Toast), ledger-m7a9q (Probelauf: YNAB zieht die Gegenbuchung
   eines Übertrags mit, Nachtrag ADR 0092); Review 68279598..HEAD mit Fixes 009b3186 und 5444edd7. Neu im Backlog:
   ledger-t4rk8 (Betrag eines Übertrags in BB ändern, braucht Romans Entscheidungen beim Verfeinern). Danach
   design-system-ak97z (Umschalter Ausgabe/Einnahme hält die Tastatur offen, 45273030) mit Review b74d67df. Deployt 2026-11-11 (5f7fc08a).
 - **Blick Roman (2026-11-11):** ledger-q42pg und design-system-ak97z am Handy geprüft, passt.
-- **Nächster Schritt:** `/agentheim:work` für design-system-k6kfw (Navigation mit drei Orten, in `todo/`).
-  ledger-s1weh (Übersicht als Einstieg) ist verfeinert und wartet in `backlog/`, bis k6kfw erledigt ist; dann
-  promoten. Entschieden (Roman, 2026-11-11): Einstellungen bleiben Seite, Regeln als Link im Kassenbuch-Kopf,
-  Quick Add bleibt in der Navigation bis ledger-ea70s, Styleguide in den Einstellungen, Rail 768 bis 1023 px.
+- **Nächster Schritt:** `/review-agents` für design-system-k6kfw (Navigation mit drei Orten): frontend-architecture,
+  design-quality, qa-milestone-reviewer. Danach Romans Blick am Handy (412 px) und am PC neben dem Prototyp,
+  dann `/agentheim:work` für ledger-s1weh (Übersicht als Einstieg, in `todo/`). Nicht deployt.
   Offen zum Verfeinern mit Roman: ledger-t4rk8 (Betrag eines Übertrags in BB ändern).
 - Verfeinert wird nur die nächste Etappe. Spätere Etappen haben Zeilen, keine Tickets.
 - Neue Ideen für spätere Etappen kommen hier als Zeile dazu.
@@ -84,7 +84,7 @@ Schnitte (Roman, 2026-11-11). Zuerst 1 und 2, die Navigation geht mit einer schl
 Bis 4 und 5 stehen, zeigt „Zu tun“ auf den heutigen Sync-Ablauf; der Sync ist dann kein Ort mehr.
 Baut ein Schnitt eine Seite um, gilt die Zeile „Browser-Tests beim Umbau“ als Kriterium.
 
-1. `design-system-k6kfw` Navigation mit drei Orten, Zahnrad, ab 768 px links
+1. ✓ `design-system-k6kfw` Navigation mit drei Orten, Zahnrad, ab 768 px links (2026-11-11)
 2. `ledger-s1weh` Übersicht als Einstieg (Zu tun, Monat, Konten am Handy, „+ Buchung“)
 3. `budgeting-w9yt4` Angepinnte Kategorien
 4. `banking-import-d0fey` Import direkt ins Kassenbuch (nimmt `banking-import-t4raw`, `categorization-hz6vj` auf)

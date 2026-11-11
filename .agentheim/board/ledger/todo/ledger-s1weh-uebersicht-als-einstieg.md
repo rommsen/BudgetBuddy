@@ -1,7 +1,7 @@
 ---
 id: ledger-s1weh
 title: "Übersicht als Einstieg (Variante A): Zu tun mit einer Hauptaktion, Zähler an der Übersicht, „+ Buchung“, am PC zweispaltig"
-status: backlog
+status: todo
 type: feature
 context: ledger
 created: 2026-11-11
