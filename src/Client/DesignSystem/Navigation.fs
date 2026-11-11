@@ -69,6 +69,9 @@ type Props = {
     OnSettings: unit -> unit
     OnBrand: unit -> unit
     Accounts: SidebarAccounts
+    /// Die Zahl an der Übersicht in Rail und Seitenleiste: die zu prüfenden Buchungen (ledger-s1weh). Bei 0 steht
+    /// nichts. Die Leiste unten am Handy trägt keinen Zähler (Prototyp Version 17).
+    OverviewCount: int
     /// Die Leiste unten weicht am Handy der Auswahl-Leiste des Kassenbuchs (ledger-r1d2f).
     HideBottomBar: bool
 }
@@ -112,9 +115,24 @@ let bottomBar (props: Props) =
 // Rail (768 bis 1023 px)
 // ============================================
 
+/// Der Zähler an einem Ort: Mono 11 px in „braucht dich“. Die Zahl steht ohne Wort wie im Prototyp, das Wort
+/// trägt der `aria-label` (Styleguide §2, Gelb immer mit Wort).
+let private countBadge (extraClass: string) (count: int) =
+    Html.span [
+        prop.custom ("data-testid", "nav-overview-count")
+        prop.ariaLabel $"{count} zu prüfen"
+        prop.title $"{count} zu prüfen"
+        prop.className $"{extraClass} {Fonts.mono} {FontSizes.microPlus} leading-none {Colors.attention}"
+        prop.text (string count)
+    ]
+
+/// Der Zähler eines Orts: nur an der Übersicht und nur über null.
+let private countOf (props: Props) (page: NavPage) : int option =
+    if page = Overview && props.OverviewCount > 0 then Some props.OverviewCount else None
+
 /// Ein Eintrag der Rail. Beschriftung 10 px, damit „Kassenbuch“ in die 72 px passt; `showLabel = false` zeigt nur
 /// das Symbol (das Zahnrad), der Name steht dann als `aria-label` und `title`.
-let private railButton (active: bool) (label: string) (showLabel: bool) (icon: IconSize -> IconColor -> ReactElement) (onClick: unit -> unit) =
+let private railButton (active: bool) (label: string) (showLabel: bool) (icon: IconSize -> IconColor -> ReactElement) (count: int option) (onClick: unit -> unit) =
     Html.button [
         prop.type' "button"
         ariaCurrent active
@@ -122,7 +140,7 @@ let private railButton (active: bool) (label: string) (showLabel: bool) (icon: I
             prop.ariaLabel label
             prop.title label
         prop.className (
-            $"w-full flex flex-col items-center justify-center gap-1 py-2 rounded-[10px] {FontSizes.micro} transition-colors "
+            $"relative w-full flex flex-col items-center justify-center gap-1 py-2 rounded-[10px] {FontSizes.micro} transition-colors "
             + if active then $"{Backgrounds.surface} {Colors.accent}"
               else $"{Colors.textSecondary} hover:bg-surface-hover hover:text-text-primary"
         )
@@ -131,6 +149,10 @@ let private railButton (active: bool) (label: string) (showLabel: bool) (icon: I
             icon Tab (if active then Accent else Default)
             // `title` trägt den ganzen Namen, falls er doch gekürzt wird.
             if showLabel then Truncate.text "max-w-full" label
+            // Rechts oben neben dem Symbol: unter dem Symbol steht der Name.
+            match count with
+            | Some n -> countBadge "absolute top-1.5 right-1.5" n
+            | None -> Html.none
         ]
     ]
 
@@ -144,9 +166,9 @@ let rail (props: Props) =
         )
         prop.children [
             for item in navItems do
-                React.keyedFragment (item.Label, [ railButton (isCurrent props item.Page) item.Label true item.Icon (fun () -> props.OnNavigate item.Page) ])
+                React.keyedFragment (item.Label, [ railButton (isCurrent props item.Page) item.Label true item.Icon (countOf props item.Page) (fun () -> props.OnNavigate item.Page) ])
             Html.div [ prop.className "flex-1" ]
-            railButton props.SettingsActive "Einstellungen" false gear props.OnSettings
+            railButton props.SettingsActive "Einstellungen" false gear None props.OnSettings
         ]
     ]
 
@@ -181,7 +203,7 @@ let private sideRowClass (active: bool) =
     + if active then $"{Backgrounds.surface} {Colors.accent}"
       else $"{Colors.textSecondary} hover:bg-surface-hover hover:text-text-primary"
 
-/// Eine Zeile der Seitenleiste: Ort oder Einstellungen. `count` füllt `ledger-s1weh` (Mono 11 px, „braucht dich“).
+/// Eine Zeile der Seitenleiste: Ort oder Einstellungen, rechts der Zähler (ledger-s1weh, Mono 11 px, „braucht dich“).
 let private sideRow (active: bool) (label: string) (icon: IconSize -> IconColor -> ReactElement) (count: int option) (onClick: unit -> unit) =
     Html.button [
         prop.type' "button"
@@ -192,8 +214,7 @@ let private sideRow (active: bool) (label: string) (icon: IconSize -> IconColor 
             icon Side (if active then Accent else Default)
             Html.span [ prop.className "truncate"; prop.text label ]
             match count with
-            | Some n when n > 0 ->
-                Html.span [ prop.className $"ml-auto {Fonts.mono} {FontSizes.microPlus} {Colors.attention}"; prop.text (string n) ]
+            | Some n when n > 0 -> countBadge "ml-auto" n
             | _ -> Html.none
         ]
     ]
@@ -258,7 +279,7 @@ let sidebar (props: Props) =
                 prop.className "flex flex-col gap-0.5"
                 prop.children [
                     for item in navItems do
-                        React.keyedFragment (item.Label, [ sideRow (isCurrent props item.Page) item.Label item.Icon None (fun () -> props.OnNavigate item.Page) ])
+                        React.keyedFragment (item.Label, [ sideRow (isCurrent props item.Page) item.Label item.Icon (countOf props item.Page) (fun () -> props.OnNavigate item.Page) ])
                 ]
             ]
             Html.div [
@@ -304,9 +325,9 @@ let railPreview (props: Props) =
         )
         prop.children [
             for item in navItems do
-                React.keyedFragment (item.Label, [ railButton (isCurrent props item.Page) item.Label true item.Icon (fun () -> props.OnNavigate item.Page) ])
+                React.keyedFragment (item.Label, [ railButton (isCurrent props item.Page) item.Label true item.Icon (countOf props item.Page) (fun () -> props.OnNavigate item.Page) ])
             Html.div [ prop.className "flex-1" ]
-            railButton props.SettingsActive "Einstellungen" false gear props.OnSettings
+            railButton props.SettingsActive "Einstellungen" false gear None props.OnSettings
         ]
     ]
 
@@ -317,7 +338,7 @@ let sidebarPreview (props: Props) =
         prop.children [
             brand props.OnBrand
             for item in navItems do
-                React.keyedFragment (item.Label, [ sideRow (isCurrent props item.Page) item.Label item.Icon None (fun () -> props.OnNavigate item.Page) ])
+                React.keyedFragment (item.Label, [ sideRow (isCurrent props item.Page) item.Label item.Icon (countOf props item.Page) (fun () -> props.OnNavigate item.Page) ])
             Html.div [
                 prop.className $"px-2.5 pt-[18px] pb-1.5 {Fonts.mono} {FontSizes.microPlus} uppercase tracking-[0.14em] {Colors.textMuted}"
                 prop.text "Konten"

@@ -1,5 +1,6 @@
-/// Die schlichte Übersicht (design-system-k6kfw, Prototyp Version 17 `homeHead`, `monthBlock`, `home`, `homeDesk`):
-/// Kopf mit „Abrufen“, der Monat als Karte fester Höhe, am Handy die Konten, am PC die neuesten Buchungen.
+/// Die Übersicht (design-system-k6kfw, ledger-s1weh; Prototyp Version 17 `homeHead`, `todoList`, `monthBlock`, `home`
+/// Variante A, `homeDesk`): Kopf mit „Abrufen“ und am PC „Buchung“, zuerst „Zu tun“, dann der Monat als Karte fester
+/// Höhe, am Handy die Konten, ab 768 px die neuesten Buchungen. Ab 1024 px zwei Spalten.
 module Components.Overview.View
 
 open System
@@ -19,7 +20,15 @@ type Actions = {
     OpenAccount: Components.Ledger.Types.AccountFilter -> unit
     OpenEntry: Guid -> unit
     Retry: unit -> unit
+    /// Ein Eintrag aus „Zu tun“ (ledger-s1weh).
+    OpenTodo: TodoTarget -> unit
+    /// „+ Buchung“: das Erfassen aus dem Kassenbuch (ledger-at63w), die Übersicht bleibt stehen.
+    Capture: unit -> unit
 }
+
+/// Die Beschriftung von „+ Buchung“ und der Name für den Screenreader.
+let captureLabel = "Buchung"
+let captureAriaLabel = "Neue Buchung"
 
 /// Abschnittskopf (Prototyp `.sec-h`): Mono 11 px, Großbuchstaben, gedämpft, rechts optional ein Wert.
 let private sectionHead (title: string) (right: ReactElement option) =
@@ -38,12 +47,13 @@ let private cardClass = $"{Backgrounds.dark} border {Borders.subtle} rounded-[14
 /// Überfahren am PC und Tippen am Handy wie in den neuesten Buchungen.
 let private rowHover = "hover:bg-surface-hover active:bg-surface-hover"
 
-let private head (actions: Actions) =
+let private head (actions: Actions) (importStand: string option) =
     PageHeader.top
         None
         "Übersicht"
-        // Den Stand des Imports kennt BB heute nicht ohne neue Abfrage: die Zeile entfällt (Task-Kriterium).
-        None
+        // „Comdirect · Import <Stand>“ am Handy und am PC (Prototyp `homeHead`, 12 px gedämpft); ohne bekannten Import
+        // keine Zeile.
+        (importLine importStand)
         [
             Html.div [
                 prop.className $"flex items-center {Spacing.sm} md:hidden"
@@ -52,15 +62,29 @@ let private head (actions: Actions) =
                     PageHeader.iconButton "Einstellungen" Icons.gear actions.OpenSettings
                 ]
             ]
-            Button.view {
-                Button.defaultProps with
-                    Text = "Abrufen"
-                    Icon = Some (Icons.refresh Icons.XS Icons.Default)
-                    Variant = Button.Secondary
-                    Size = Button.Small
-                    ClassName = Some "hidden md:inline-flex"
-                    OnClick = actions.Fetch
-            }
+            Html.div [
+                prop.className $"hidden md:flex items-center {Spacing.sm}"
+                prop.children [
+                    Button.view {
+                        Button.defaultProps with
+                            Text = "Abrufen"
+                            Icon = Some (Icons.refresh Icons.XS Icons.Default)
+                            Variant = Button.Secondary
+                            Size = Button.Small
+                            OnClick = actions.Fetch
+                    }
+                    // Am PC „Buchung“ als kleiner Knopf neben „Abrufen“, am Handy schwebt „+ Buchung“ (ledger-s1weh).
+                    Button.view {
+                        Button.defaultProps with
+                            Text = captureLabel
+                            Icon = Some (Icons.plus Icons.XS Icons.Default)
+                            Variant = Button.Secondary
+                            Size = Button.Small
+                            AriaLabel = Some captureAriaLabel
+                            OnClick = actions.Capture
+                    }
+                ]
+            ]
         ]
 
 let private amountText (amount: decimal) = Money.formatAmountText false true amount "EUR"
@@ -88,8 +112,10 @@ let private monthCard (actions: Actions) (summary: MonthSummary) =
             Html.div [
                 prop.className "h-6 shrink-0 flex items-baseline justify-between gap-3"
                 prop.children [
-                    Html.span [ prop.className $"{FontWeights.semibold} {Colors.textPrimary}"; prop.text summary.Name ]
-                    Html.span [ prop.className $"text-xs whitespace-nowrap {Colors.textMuted}"; prop.text (daysLeftText summary.DaysLeft) ]
+                    // Schriftgrößen (Roman, 2026-11-11, §7.14): der Monatsname in der Größe der Zeilen, „noch N Tage“ auf 11 px
+                    // wie die Abschnittsköpfe.
+                    Html.span [ prop.className $"{ListRoles.primarySize} {FontWeights.semibold} {Colors.textPrimary}"; prop.text summary.Name ]
+                    Html.span [ prop.className $"{FontSizes.microPlus} whitespace-nowrap {Colors.textMuted}"; prop.text (daysLeftText summary.DaysLeft) ]
                 ]
             ]
             Html.div [
@@ -300,23 +326,155 @@ let private recentBlock (actions: Actions) (today: DateTime) (recent: RemoteData
         ]
     ]
 
+// ============================================
+// Zu tun (ledger-s1weh, Prototyp Version 17 `todoList`)
+// ============================================
+
+/// Die Marke vor einem Eintrag, 9 px: „braucht dich“ Gelb, Fehler Rot. Rückfragen an Lena tragen das gefüllte
+/// Flag-Symbol (15 px, Prototyp `I.flag`) in der Flag-Farbe (Styleguide §2: die Flag-Farbe nur im Symbol); die Farbe
+/// setzt `lenaFlagScope` am Block.
+let private todoMarkView (mark: TodoMark) =
+    Html.span [
+        prop.className "w-4 shrink-0 grid place-items-center"
+        prop.children [
+            match mark with
+            | MarkLenaFlag ->
+                Html.span [
+                    prop.role "img"
+                    prop.ariaLabel "Lena-Flag"
+                    prop.className "inline-flex"
+                    prop.children [ Icons.flagSolid Icons.Mark Icons.LenaFlag ]
+                ]
+            | MarkAttention -> Html.span [ prop.ariaHidden true; prop.className "w-[9px] h-[9px] rounded-full bg-attention" ]
+            | MarkError -> Html.span [ prop.ariaHidden true; prop.className "w-[9px] h-[9px] rounded-full bg-error" ]
+        ]
+    ]
+
+let private todoDetailClass = $"{FontSizes.compact} {Colors.textSecondary}"
+
+/// Der erste Eintrag steht groß: Text 16 px halbfett, Zeile 2, darunter die eine Hauptaktion der Ansicht (§7.14).
+let private firstTodo (actions: Actions) (todo: Todo) (more: bool) =
+    Html.div [
+        prop.custom ("data-testid", "overview-todo-first")
+        prop.className (
+            "flex flex-col gap-2.5 px-3.5 pt-3.5 pb-3"
+            + if more then $" border-b {Borders.subtle}" else ""
+        )
+        prop.children [
+            Html.div [
+                prop.className "flex items-center gap-2.5"
+                prop.children [
+                    todoMarkView (todoMark todo.Target)
+                    Html.div [
+                        prop.className "min-w-0"
+                        prop.children [
+                            Html.div [ prop.className $"text-base {FontWeights.semibold} {Colors.textPrimary}"; prop.text todo.Title ]
+                            Html.div [ prop.className todoDetailClass; prop.text todo.Detail ]
+                        ]
+                    ]
+                ]
+            ]
+            Button.view {
+                Button.defaultProps with
+                    Text = todoActionLabel todo.Target
+                    Variant = Button.Primary
+                    FullWidth = true
+                    // Prototyp `.btn.primary.block`: gefüllt im Akzent, ohne Glow.
+                    Glow = false
+                    OnClick = fun () -> actions.OpenTodo todo.Target
+            }
+        ]
+    ]
+
+/// Jeder weitere Eintrag: eine Zeile mit Pfeil rechts, ein Klick führt zum selben Ziel.
+let private todoRow (actions: Actions) (todo: Todo) =
+    Html.button [
+        prop.type' "button"
+        prop.custom ("data-testid", "overview-todo")
+        prop.className $"w-full flex items-center gap-2.5 px-3 py-2.5 min-h-12 text-left border-b {Borders.subtle} last:border-b-0 {rowHover}"
+        prop.onClick (fun _ -> actions.OpenTodo todo.Target)
+        prop.children [
+            todoMarkView (todoMark todo.Target)
+            Html.div [
+                prop.className "flex-1 min-w-0"
+                prop.children [
+                    Truncate.text $"block {ListRoles.primary}" todo.Title
+                    Truncate.text $"block {todoDetailClass}" todo.Detail
+                ]
+            ]
+            Icons.chevronRight Icons.XS Icons.Muted
+        ]
+    ]
+
+let private todoBlock (actions: Actions) (model: Model) =
+    match todoState model with
+    | TodosLoading -> Loading.txListSkeleton 2
+    | TodosFailed message ->
+        ErrorDisplay.cardCompact $"Was zu tun ist, konnte nicht geladen werden: {message}" (Some actions.Retry)
+    | TodosShown [] -> Card.allDone "overview-all-done" "Alles erledigt" "Neue Aufgaben erscheinen nach dem nächsten Import."
+    | TodosShown (first :: rest) ->
+        Html.div [
+            prop.custom ("data-testid", "overview-todos")
+            yield! Badge.lenaFlagScope model.LenaFlagColor
+            prop.className cardClass
+            prop.children [
+                firstTodo actions first (not rest.IsEmpty)
+                for todo in rest do
+                    React.keyedFragment (todoKey todo.Target, [ todoRow actions todo ])
+            ]
+        ]
+
+/// Steht in „Zu tun“ etwas? Dann ist „+ Buchung“ ruhig, damit es bei einer Hauptaktion je Ansicht bleibt (§7.14).
+/// Beim Laden auch ruhig: sonst wechselte der Knopf, sobald die Liste kommt.
+let captureQuiet (model: Model) : bool =
+    match todoState model with
+    | TodosShown [] -> false
+    | _ -> true
+
+/// „+ Buchung“ am Handy unten rechts über der Leiste. `fixed`, deshalb rendert ihn der Haupt-`View.fs` außerhalb der
+/// Seitenhülle.
+let captureFab (model: Model) (onCapture: unit -> unit) =
+    Html.div [
+        prop.className "md:hidden overview-capture-fab"
+        prop.children [ Button.fab "overview-capture-fab" captureLabel captureAriaLabel (captureQuiet model) onCapture ]
+    ]
+
 let view (model: Model) (actions: Actions) =
     Primitives.Container.full [
         Html.div [
             prop.custom ("data-testid", "overview-page")
-            prop.className "flex flex-col gap-2.5 max-w-[640px]"
+            prop.className "flex flex-col gap-2.5 max-w-[640px] lg:max-w-[1240px]"
             prop.children [
-                head actions
-                sectionHead "Monat" None
-                match model.Month with
-                | NotAsked
-                | Loading -> monthSkeleton
-                | Failure message -> monthError actions message
-                | Success month -> monthCard actions (monthSummary month model.Today)
-                // Die Konten stehen unter 1024 px hier, darüber in der Seitenleiste (Styleguide §7.15).
-                Html.div [ prop.className "lg:hidden"; prop.children [ accountsBlock actions model ] ]
-                // Am PC (ab 768 px) die neuesten Buchungen, einspaltig, bis `ledger-s1weh` „Zu tun“ links bringt.
-                Html.div [ prop.className "hidden md:block"; prop.children [ recentBlock actions model.Today model.Recent ] ]
+                head actions model.ImportStand
+                // Unter 1024 px eine Spalte: Zu tun, Monat, Konten. Ab 1024 px zwei (Prototyp `.dgrid`): links Zu tun,
+                // rechts Monat und Neueste Buchungen.
+                Html.div [
+                    prop.className "flex flex-col gap-2.5 lg:grid lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:gap-6 lg:items-start"
+                    prop.children [
+                        Html.section [
+                            prop.custom ("data-testid", "overview-todo-column")
+                            prop.className "flex flex-col gap-2.5 min-w-0"
+                            prop.children [ sectionHead "Zu tun" None; todoBlock actions model ]
+                        ]
+                        Html.div [
+                            prop.className "flex flex-col gap-2.5 min-w-0"
+                            prop.children [
+                                sectionHead "Monat" None
+                                match model.Month with
+                                | NotAsked
+                                | Loading -> monthSkeleton
+                                | Failure message -> monthError actions message
+                                | Success month -> monthCard actions (monthSummary month model.Today)
+                                // Die Konten stehen unter 1024 px hier, darüber in der Seitenleiste (Styleguide §7.15).
+                                Html.div [ prop.className "lg:hidden"; prop.children [ accountsBlock actions model ] ]
+                                // Ab 768 px die neuesten Buchungen, ab 1024 px rechts unter dem Monat.
+                                Html.div [ prop.className "hidden md:block"; prop.children [ recentBlock actions model.Today model.Recent ] ]
+                            ]
+                        ]
+                    ]
+                ]
+                // Am Handy Platz unter der letzten Zeile für „+ Buchung“ (52 px) und seinen Abstand.
+                Html.div [ prop.className "md:hidden h-[4.5rem]"; prop.ariaHidden true ]
             ]
         ]
     ]

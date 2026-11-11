@@ -25,6 +25,14 @@ let private tests =
             Expect.isTrue (has Colors.onAccent Button.heroClass) Button.heroClass
         }
 
+        test "Button.primary leuchtet, ohne Glow (Glow = false) bleibt nur die Füllung im Akzent" {
+            let glowing = Button.variantClassFor { Button.defaultProps with Variant = Button.Primary }
+            let calm = Button.variantClassFor { Button.defaultProps with Variant = Button.Primary; Glow = false }
+            Expect.isTrue (has Glows.accent glowing) glowing
+            Expect.isFalse (has Glows.accent calm) calm
+            Expect.isTrue (has Backgrounds.accent calm) calm
+        }
+
         test "Ein Knopf ohne Füllung trägt den Rand border-strong" {
             let cls = Button.variantClassFor { Button.defaultProps with Variant = Button.Secondary }
             Expect.isTrue (has Borders.strong cls) cls

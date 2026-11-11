@@ -47,6 +47,9 @@ type ButtonProps = {
     /// Der Knopf nimmt dem Feld daneben den Fokus nicht (`preventDefault` auf `mousedown`, ADR 0005
     /// Punkt 2): am Handy bleibt die Tastatur offen. Gewirkt wird weiter auf dem `click`.
     KeepsFocus: bool
+    /// Nur Primary: der Glow der Hauptaktion (ADR 0087 Punkt 6). `false` für einen gefüllten Knopf über die volle
+    /// Breite in einer Karte (Prototyp `.btn.primary.block`, „Zu tun“ auf der Übersicht).
+    Glow: bool
 }
 
 and IconPosition = Left | Right
@@ -68,6 +71,7 @@ let defaultProps = {
     AriaLabel = None
     AriaExpanded = None
     KeepsFocus = false
+    Glow = true
 }
 
 // ============================================
@@ -127,7 +131,13 @@ let buttonState (props: ButtonProps) : ButtonState =
 /// Die Klassen der Variante. Beschäftigt (`IsBusy`) reagiert der Knopf nicht auf Hover: ein Tipp tut
 /// nichts, er soll nicht danach aussehen (budgeting-c6vn4, P3).
 let variantClassFor (props: ButtonProps) : string =
-    let all = variantToClass props.Variant
+    let all =
+        let cls = variantToClass props.Variant
+        if props.Glow then cls
+        else
+            cls.Split([| ' ' |], System.StringSplitOptions.RemoveEmptyEntries)
+            |> Array.filter (fun c -> c <> Glows.accent)
+            |> String.concat " "
     if (buttonState props).AriaDisabled then
         all.Split([| ' ' |], System.StringSplitOptions.RemoveEmptyEntries)
         |> Array.filter (fun c -> not (c.StartsWith "hover:"))
@@ -641,5 +651,31 @@ let orderNameRow
                     orderArrow $"{testId}-down" $"{name} nach unten" (chevronDown SM Default) canDown onDown
                 ]
             ]
+        ]
+    ]
+
+// ============================================
+// Schwebender Knopf (Prototyp Version 17 `.fab`, ledger-s1weh)
+// ============================================
+
+/// Der schwebende Knopf „+ Buchung“ am Handy: rund, 52 px hoch, Symbol 20 px. Gefüllt im Akzent ist er die
+/// Hauptaktion der Ansicht. `quiet`: Grund `surface-elevated`, Rand und Schrift im Akzent, ohne Glow, wenn die
+/// Ansicht schon eine Hauptaktion hat (Styleguide §7.14). Die Lage (`fixed`) setzt der Aufrufer.
+let fab (testId: string) (text: string) (ariaLabel: string) (quiet: bool) (onClick: unit -> unit) =
+    Html.button [
+        prop.type' "button"
+        prop.custom ("data-testid", testId)
+        prop.custom ("data-quiet", (if quiet then "true" else "false"))
+        prop.ariaLabel ariaLabel
+        prop.className (
+            $"inline-flex items-center gap-1.5 h-[52px] px-[18px] rounded-full {FontSizes.body} {FontWeights.semibold} "
+            + "transition-transform active:scale-[0.98] "
+            + if quiet then $"{Backgrounds.surface} border {Borders.accent} {Colors.accent}"
+              else $"{Backgrounds.accent} {Colors.onAccent} {Colors.onAccentSvg} {Glows.accent}"
+        )
+        prop.onClick (fun _ -> onClick ())
+        prop.children [
+            plus SM (if quiet then Accent else Default)
+            Html.span [ prop.text text ]
         ]
     ]

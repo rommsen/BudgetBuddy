@@ -1118,6 +1118,17 @@ let loadAllEntries () : Async<Entry list> =
         return rows |> Seq.map rowToEntry |> Seq.toList
     }
 
+/// Die Buchungen, die nicht mit YNAB verknüpft und nicht in YNAB gelöscht sind (ledger-s1weh): die Menge
+/// hinter „Buchung nicht in YNAB“ der Übersicht. Reihenfolge und Auswahl legt `QueryHandlers` fest.
+let loadEntriesNotLinkedToYnab () : Async<Entry list> =
+    async {
+        use conn = Core.getConnection ()
+        let! rows =
+            conn.QueryAsync<EntryRow>("SELECT * FROM ledger_entries WHERE linked_to_ynab = 0 AND deleted_in_ynab = 0")
+            |> Async.AwaitTask
+        return rows |> Seq.map rowToEntry |> Seq.toList
+    }
+
 /// Alle Buchungen eines Kontos, neueste zuerst. Liest ausschliesslich die
 /// Zustandstabelle: der Lesepfad der Kassenbuch-Seite faltet kein Log (ADR 0013).
 ///

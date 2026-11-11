@@ -219,7 +219,7 @@ let submitTests =
             Expect.contains sent LoadEntries "Liste neu"
             match external with
             | ShowToastWithAction (text, ToastSuccess, action) ->
-                Expect.equal text "Buchung angelegt · Bar" "Text"
+                Expect.equal text "Buchung angelegt · Bar · -1,00 €" "Konto und Betrag (§7.13)"
                 Expect.equal action.Kind (UndoCapturedBooking (created None).EntryId) "Rückgängig"
             | other -> failtest $"Rückmeldung mit Rückgängig erwartet: {other}"
 

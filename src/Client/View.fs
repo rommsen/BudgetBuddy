@@ -115,6 +115,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                     OnSettings = fun () -> dispatch (NavigateTo Settings)
                     OnBrand = fun () -> dispatch (NavigateTo Overview)
                     Accounts = sidebarAccounts model dispatch
+                    OverviewCount = Components.Overview.Types.reviewCount model.Overview
                     HideBottomBar = bottomNavHidden
                 }
 
@@ -135,7 +136,9 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                       OpenOverdrawn = fun () -> dispatch OpenBudgetOverdrawn
                                       OpenAccount = fun filter -> dispatch (OpenLedgerAccount filter)
                                       OpenEntry = fun entryId -> dispatch (NavigateTo (LedgerEntry entryId))
-                                      Retry = fun () -> dispatch (OverviewMsg Components.Overview.Types.ReloadRequested) }
+                                      Retry = fun () -> dispatch (OverviewMsg Components.Overview.Types.ReloadRequested)
+                                      OpenTodo = fun target -> dispatch (OpenOverviewTodo target)
+                                      Capture = fun () -> dispatch CaptureFromOverview }
                             | SyncFlow ->
                                 Html.div [
                                     prop.className "px-4 md:px-6"
@@ -203,6 +206,12 @@ let view (model: Model) (dispatch: Msg -> unit) =
                 if isLedgerPage model.CurrentPage then
                     Components.Ledger.View.selectionBars (LedgerMsg >> dispatch) model.Ledger
                     Components.Ledger.View.captureFab (LedgerMsg >> dispatch) model.Ledger
+                // „+ Buchung“ der Übersicht (ledger-s1weh): der Knopf schwebt am Handy, das Formular ist das des
+                // Kassenbuchs, als Sheet über der Übersicht.
+                if model.CurrentPage = Overview then
+                    if model.Ledger.Capture.IsNone then
+                        Components.Overview.View.captureFab model.Overview (fun () -> dispatch CaptureFromOverview)
+                    Components.Ledger.View.captureSheet (LedgerMsg >> dispatch) model.Ledger
 
                 // Toast notifications using new Toast component
                 Toast.renderItems

@@ -555,6 +555,38 @@ let getYnabPushState (entryId: EntryId) : Async<YnabPushState option> =
                     | None -> PushOutcomeUnknown)
     }
 
+/// Die Buchungen, die nicht in YNAB sind (ledger-s1weh), rein: nicht verknüpft und nicht in YNAB gelöscht.
+/// Zuerst die mit offenem Push-Fehlschlag, der neueste Fehlschlag zuerst; danach die ohne bekannten Ausgang,
+/// nach Buchungsdatum, die neueste zuerst. Dieselbe Menge, die das Kassenbuch mit „Noch nicht in YNAB“ kennzeichnet.
+let entriesNotInYnab (entries: Entry list) : EntryNotInYnab list =
+    let notInYnab = entries |> List.filter (fun e -> not e.LinkedToYnab && not e.DeletedInYnab)
+    let failed =
+        notInYnab
+        |> List.choose (fun e -> e.PushToYnabFailure |> Option.map (fun f -> f.FailedAt, e))
+        |> List.sortByDescending fst
+        |> List.map snd
+    let unknown =
+        notInYnab
+        |> List.filter (fun e -> e.PushToYnabFailure.IsNone)
+        |> List.sortByDescending (fun e -> e.Date)
+    (failed @ unknown)
+    |> List.map (fun e ->
+        let (EntryId entryId) = e.Id
+        let (LedgerAccountId accountId) = e.AccountId
+        { EntryId = entryId
+          AccountId = accountId
+          Payee = e.Payee
+          Amount = e.Amount
+          Date = e.Date
+          PushFailure = e.PushToYnabFailure })
+
+/// Die Buchungen, die nicht in YNAB sind, über alle Konten (ledger-s1weh). Liest nur die Zustandstabelle.
+let getEntriesNotInYnab () : Async<EntryNotInYnab list> =
+    async {
+        let! entries = Ledger.Persistence.loadEntriesNotLinkedToYnab ()
+        return entriesNotInYnab entries
+    }
+
 /// Die Zeilen des Kategorie-Details aus den Buchungen: der Anteil dieser Kategorie je Buchung, in der
 /// Reihenfolge der Eingabe. Eine Buchung auf einem unbekannten Konto bleibt drin, ohne Kontonamen.
 let categoryMonthEntries

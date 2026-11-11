@@ -637,7 +637,9 @@ export async function runState(browser, baseUrl, state, width, { inject = null, 
     });
     await state.mock(page);
     let release = null;
-    if (state.deferred && want(9)) {
+    // `deferred.fromWidth`: Invariante 9 erst ab dieser Breite. Darunter steht über dem verzögerten Block ein Block, der
+    // nach Vorgabe mit seinem Inhalt wächst (Übersicht: „Zu tun“ über dem Monat, Styleguide §7.4 Variante A).
+    if (state.deferred && want(9) && width >= (state.deferred.fromWidth ?? 0)) {
       const gate = Promise.withResolvers();
       release = gate.resolve;
       await page.route(state.deferred.api, async (route) => {

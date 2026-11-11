@@ -88,6 +88,10 @@ type Msg =
     | OpenBudgetOverdrawn
     /// „Abrufen“ im Kopf der Übersicht: der Sync-Ablauf öffnet und startet, wenn keine Sitzung läuft.
     | FetchFromBank
+    /// Ein Eintrag aus „Zu tun“ der Übersicht (ledger-s1weh): das Ziel öffnen, vorbereitet.
+    | OpenOverviewTodo of Components.Overview.Types.TodoTarget
+    /// „+ Buchung“ auf der Übersicht: das Erfassen aus dem Kassenbuch öffnen, die Übersicht bleibt stehen.
+    | CaptureFromOverview
 
     // Quick Add (manual transaction entry → YNAB), lifted from SyncFlow (ynab-q7k3m)
     | OpenQuickAdd
@@ -378,6 +382,7 @@ let isPageReady (model: Model) : bool =
         && notLoading model.Overview.Accounts
         && notLoading model.Overview.Balances
         && notLoading model.Overview.Recent
+        && notLoading model.Overview.NotInYnab
     | SyncFlow ->
         notLoading model.SyncFlow.CurrentSession
         && notLoading model.SyncFlow.SyncTransactions
@@ -521,6 +526,9 @@ let init () : Model * Cmd<Msg> =
         // auch (`syncNavAccounts` füllt die Seitenleiste); sonst luden sie doppelt.
         if initialLoadsSidebarAccounts initialPage then
             Cmd.map OverviewMsg (Cmd.ofMsg Components.Overview.Types.SidebarNeedsAccounts)
+        // Die Zahl an der Übersicht in Rail und Seitenleiste (ledger-s1weh); die Übersicht lädt sie selbst mit.
+        if initialPage <> Overview then
+            Cmd.map OverviewMsg (Cmd.ofMsg Components.Overview.Types.CountsNeeded)
     ]
     model, cmd
 
@@ -757,7 +765,12 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
                     Cmd.none
 
         let accountsCmd =
-            if importChangesBalances syncFlowMsg then Cmd.map OverviewMsg (Cmd.ofMsg Components.Overview.Types.SidebarNeedsAccounts)
+            if importChangesBalances syncFlowMsg then
+                Cmd.batch [
+                    Cmd.map OverviewMsg (Cmd.ofMsg Components.Overview.Types.SidebarNeedsAccounts)
+                    // Nach einem Import gibt es neue Buchungen zu prüfen: die Zahl an der Übersicht zieht nach.
+                    Cmd.map OverviewMsg (Cmd.ofMsg Components.Overview.Types.CountsNeeded)
+                ]
             else Cmd.none
 
         { model with SyncFlow = syncFlowModel' }, Cmd.batch [ Cmd.map SyncFlowMsg syncFlowCmd; externalCmd; accountsCmd ]
@@ -883,8 +896,16 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
             | BackToBudget -> Cmd.navigateBack ()
             | ToLedgerList -> Cmd.ofMsg (NavigateTo Ledger)
 
+        // Nach dem Erfassen aus der Übersicht (ledger-s1weh) bleibt man dort; „Zu tun“, Zähler und neueste Buchungen
+        // ziehen nach.
+        let overviewCmd =
+            match ledgerMsg with
+            | Components.Ledger.Types.CaptureSubmitted (Ok _) when model.CurrentPage = Overview ->
+                Cmd.map OverviewMsg (Cmd.ofMsg Components.Overview.Types.ReloadRequested)
+            | _ -> Cmd.none
+
         { model with Ledger = ledgerModel'; Overview = syncNavAccounts ledgerMsg model.Overview },
-        Cmd.batch [ Cmd.map LedgerMsg ledgerCmd; externalCmd; routeCmd ]
+        Cmd.batch [ Cmd.map LedgerMsg ledgerCmd; externalCmd; routeCmd; overviewCmd ]
 
     | OverviewMsg overviewMsg ->
         let overview', cmd = Components.Overview.State.update overviewMsg model.Overview
@@ -901,6 +922,36 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
         let model', cmd =
             updateWith ports (BudgetMsg (Components.Budget.Types.EnterWithFilter Components.Budget.Types.OverdrawnOnly)) model
         model', Cmd.batch [ cmd; Cmd.ofMsg (NavigateTo Budget) ]
+
+    | OpenOverviewTodo target ->
+        let toLedger preset =
+            let model', cmd = updateWith ports (LedgerMsg (Components.Ledger.Types.PresetQuickFilter preset)) model
+            model', Cmd.batch [ cmd; Cmd.ofMsg (NavigateTo Ledger) ]
+        let toBudget action =
+            let model', cmd = updateWith ports (BudgetMsg (Components.Budget.Types.EnterWithAction action)) model
+            model', Cmd.batch [ cmd; Cmd.ofMsg (NavigateTo Budget) ]
+        match target with
+        // Bis `ledger-v6s7c` (Durchgehen) das Kassenbuch mit Filter „Zu prüfen“ (Übergang, Roman 2026-11-11).
+        | Components.Overview.Types.TodoReview -> toLedger Components.Ledger.Types.PresetNeedsReview
+        | Components.Overview.Types.TodoAskLena -> toLedger Components.Ledger.Types.PresetAskLena
+        | Components.Overview.Types.TodoNotInYnab entryId -> model, Cmd.ofMsg (NavigateTo (LedgerEntry entryId))
+        | Components.Overview.Types.TodoCover categoryId ->
+            toBudget (Components.Budget.Types.CoverFromOverview categoryId)
+        | Components.Overview.Types.TodoApplyTargets -> toBudget Components.Budget.Types.ApplyTargetsFromOverview
+        | Components.Overview.Types.TodoDistribute -> model, Cmd.ofMsg (NavigateTo Budget)
+
+    | CaptureFromOverview ->
+        // Das Formular braucht Konten und Stände des Kassenbuchs; war es noch nicht offen, laden sie jetzt.
+        let ledger = model.Ledger
+        let loads =
+            [ match ledger.Accounts with
+              | Success _ | Loading -> ()
+              | _ -> LedgerMsg Components.Ledger.Types.LoadAccounts
+              match ledger.Balances with
+              | Success _ | Loading -> ()
+              | _ -> LedgerMsg Components.Ledger.Types.LoadBalances ]
+        let model', cmd = updateWith ports (LedgerMsg Components.Ledger.Types.OpenCaptureKeepingPage) model
+        model', Cmd.batch (cmd :: (loads |> List.map Cmd.ofMsg))
 
     | FetchFromBank ->
         model,

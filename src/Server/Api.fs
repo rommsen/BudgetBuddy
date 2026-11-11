@@ -1719,6 +1719,8 @@ let ledgerApi : LedgerApi = {
 
     getLedgerAccountBalances = fun () -> Ledger.QueryHandlers.getLedgerAccountBalances ()
 
+    getEntriesNotInYnab = fun () -> Ledger.QueryHandlers.getEntriesNotInYnab ()
+
     getEntryHistory = fun entryId -> Ledger.QueryHandlers.getEntryHistory entryId
 
     // Prüfvermerk setzen und nach YNAB zurückschreiben (ledger-r777c, ADR 0050).

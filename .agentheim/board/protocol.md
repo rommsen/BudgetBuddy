@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-11 17:32 -- Task verified and completed: ledger-s1weh - "Übersicht als Einstieg (Variante A): Zu tun mit einer Hauptaktion, Zähler an der Übersicht, „+ Buchung“, am PC zweispaltig"
+
+**Type:** Work / Task completion
+**Task:** ledger-s1weh - "Übersicht als Einstieg (Variante A): Zu tun mit einer Hauptaktion, Zähler an der Übersicht, „+ Buchung“, am PC zweispaltig"
+**Summary:** Übersicht als Einstieg mit Zu tun, Zähler, + Buchung und PC-Raster
+**Duration:** 2h05m
+**Verification:** PASS (iteration 2)
+**Files changed:** 34
+**Tests added:** 33
+**ADRs written:** none
+
+---
+
+## 2026-11-11 17:15 -- Verification failed: ledger-s1weh - Übersicht als Einstieg (Variante A)
+
+**Type:** Work / Verification failure
+**Task:** ledger-s1weh - Übersicht als Einstieg (Variante A)
+**Iteration:** 1 of 3
+**Reasons:** Lena-Marke als Umriss statt gefülltes Flag (neue DS-Variante nötig), Importzeile unter „Übersicht“ fehlt, Glow am Zu-tun-Hauptknopf, Abweichungen (a)–(c) nicht in der Task
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-11 16:30 -- Batch started: [ledger-s1weh]
 
 **Type:** Work / Batch start

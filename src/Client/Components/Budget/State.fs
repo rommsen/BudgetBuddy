@@ -324,6 +324,21 @@ let private afterTargetAnswer (shown: bool) (reread: bool) (model: Model, extern
 let private afterMovementWhen (reload: bool) (model: Model, cmd: Cmd<Msg>, external: ExternalMsg) : Model * Cmd<Msg> * ExternalMsg =
     if reload then afterMovement (model, cmd, external) else model, cmd, external
 
+/// Der Eintrag aus „Zu tun“ (ledger-s1weh), sobald der Monat frisch gelesen ist: die Kategorie im Tab Geld mit
+/// Holen (die Vorbelegung ist das Minus) oder der Dialog Targets anwenden. Er wird einmal verbraucht.
+let takeEntryAction (model: Model) : Model * Cmd<Msg> =
+    match model.EntryAction, model.Month with
+    | Some action, Success _ when model.Freshness = MonthRead && not (monthChanging model) ->
+        let cleared = { model with EntryAction = None }
+        match action with
+        | CoverFromOverview categoryId ->
+            selectCategory categoryId { cleared with Tab = MoneyTab } |> syncMoneyTab |> switchMode TakeMode |> withTabData
+        | ApplyTargetsFromOverview ->
+            match openTargets cleared, shownMonth cleared with
+            | (opened, true), Some month -> opened, previewCmd month opened.TargetsPreviewGeneration
+            | (opened, _), _ -> opened, Cmd.none
+    | _ -> model, Cmd.none
+
 /// Ein einziges `match` ohne Sammelzweig: eine neue Nachricht ohne Zweig meldet der Compiler.
 let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     let quiet (model': Model, cmd: Cmd<Msg>) = model', cmd, NoOp
@@ -448,7 +463,11 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
     | ClearCategorySearch -> { model with CategorySearch = "" }, Cmd.none, NoOp
     | SelectFilter filter -> { model with Filter = filter }, Cmd.none, NoOp
     | EnterWithFilter filter -> { model with EntryFilter = Some filter }, Cmd.none, NoOp
-    | Loaded (generation, result) -> quiet (withTabData (applyLoaded generation result model))
+    | EnterWithAction action -> { model with EntryAction = Some action }, Cmd.none, NoOp
+    | Loaded (generation, result) ->
+        let loaded, tabCmd = withTabData (applyLoaded generation result model)
+        let acted, actionCmd = takeEntryAction loaded
+        acted, Cmd.batch [ tabCmd; actionCmd ], NoOp
     | OpenTargets ->
         match openTargets model, shownMonth model with
         | (model', true), Some month -> model', previewCmd month model'.TargetsPreviewGeneration, NoOp
@@ -601,7 +620,8 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
     | Reloaded (generation, result) ->
         let model', external = applyReloaded generation result model
         let withRequest, cmd = withTabData model'
-        withRequest, cmd, external
+        let acted, actionCmd = takeEntryAction withRequest
+        acted, Cmd.batch [ cmd; actionCmd ], external
 
 /// Wie `update` eine Nachricht behandelt.
 [<RequireQualifiedAccess>]
@@ -680,6 +700,7 @@ let private routeOf (msg: Msg) (model: Model) : MsgRoute =
     | ClearCategorySearch
     | SelectFilter _
     | EnterWithFilter _
+    | EnterWithAction _
     | CoverMissing
     | AssignAnswered _
     | AssignCallLost _

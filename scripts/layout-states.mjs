@@ -52,6 +52,11 @@ async function mockApp(page) {
   // Die Seitenleiste lädt Konten und Stände beim Start auf jeder Seite (design-system-k6kfw): ein langer Name
   // und ein negativer Stand für Invariante 4.
   await page.route("**/api/LedgerApi/getLedgerAccounts", (r) => json(r, NAV_ACCOUNTS));
+  // Die Zahl an der Übersicht in Rail und Seitenleiste lädt beim Start auf jeder Seite (ledger-s1weh): keine offene
+  // Buchung, also kein Zähler. Seiten mit eigener Liste überschreiben die Antwort.
+  await page.route("**/api/LedgerApi/getLedgerEntriesPage", (r) =>
+    json(r, { Entries: [], TotalCount: 0, TotalAmount: eur(0), DeletedCount: 0, NeedsReviewCount: 0, AskLenaCount: 0 })
+  );
   await page.route("**/api/LedgerApi/getLedgerAccountBalances", (r) =>
     json(r, NAV_ACCOUNTS.Accounts.map((a, i) => ({ AccountId: a.Id, Balance: eur(i === 1 ? -31240.4 : 123456.78) })))
   );
@@ -463,6 +468,9 @@ async function mockOverview(page) {
   await page.route("**/api/LedgerApi/getLedgerEntriesPage", (r) =>
     json(r, { Entries: entries, TotalCount: 6, TotalAmount: eur(-1000), DeletedCount: 0, NeedsReviewCount: 0, AskLenaCount: 0 })
   );
+  // „Zu tun“ (ledger-s1weh): keine Buchung außerhalb von YNAB, kein bekannter Import. Die Einträge kommen aus dem Monat.
+  await page.route("**/api/LedgerApi/getEntriesNotInYnab", (r) => json(r, []));
+  await page.route("**/api/SyncApi/getSyncHistory", (r) => json(r, []));
 }
 /// Die Übersicht steht, sobald der Monat da ist oder sein Platzhalter (beim verzögerten Monat, Invariante 9).
 const openOverview = async (page) =>
@@ -1135,10 +1143,39 @@ export const STATES = [
     // design-system-k6kfw, Verifier iteration 1: die Karte „Monat“ hat eine feste Höhe, beim Laden rutschen Konten
     // (Handy) und Neueste Buchungen (PC) nicht nach unten. Der Monat kommt mit „Im Minus“.
     deferred: {
+      // ledger-s1weh: unter 1024 px steht „Zu tun“ über dem Monat und wächst mit seinem Inhalt, sobald der Monat da ist.
+      // Ab 1024 px steht es links daneben; dort hält die feste Höhe der Karte „Monat“ die neuesten Buchungen an Ort.
+      fromWidth: 1024,
       api: "**/api/BudgetApi/getBudgetMonth",
       body: { Ok: budgetMonth(CURRENT) },
       loaded: (page) => page.locator('[data-testid="overview-month"]'),
     },
+  },
+  // ledger-s1weh: „Zu tun“ mit allen Arten von Einträgen, ein langer Payee in „Buchung nicht in YNAB“, der Zähler an der
+  // Übersicht in Rail und Seitenleiste und „+ Buchung“ ruhig über der Leiste.
+  {
+    name: "uebersicht-zu-tun",
+    route: "/",
+    widths: [320, 412, 900, 1280],
+    mock: async (page) => {
+      await mockOverview(page);
+      await page.route("**/api/LedgerApi/getLedgerEntriesPage", (r) =>
+        json(r, { Entries: [], TotalCount: 0, TotalAmount: eur(0), DeletedCount: 0, NeedsReviewCount: 12, AskLenaCount: 2 })
+      );
+      await page.route("**/api/LedgerApi/getEntriesNotInYnab", (r) =>
+        json(r, [
+          {
+            EntryId: guid(9101),
+            AccountId: NAV_ACCOUNTS.DefaultAccountId,
+            Payee: LONG_PAYEE,
+            Amount: eur(-123456.78),
+            Date: "2026-11-06T00:00:00",
+            PushFailure: { Reason: "YNAB antwortet nicht", FailedAt: "2026-11-07T08:00:00Z" },
+          },
+        ])
+      );
+    },
+    open: async (page) => page.locator('[data-testid="overview-todos"]').waitFor(),
   },
   // Bei 20 px Grundschrift wächst die Karte „Monat“ mit (Höhen in rem); Platzhalter und Karte bleiben gleich hoch.
   {
@@ -1151,6 +1188,9 @@ export const STATES = [
       await page.addStyleTag({ content: "html { font-size: 20px; }" });
     },
     deferred: {
+      // ledger-s1weh: unter 1024 px steht „Zu tun“ über dem Monat und wächst mit seinem Inhalt, sobald der Monat da ist.
+      // Ab 1024 px steht es links daneben; dort hält die feste Höhe der Karte „Monat“ die neuesten Buchungen an Ort.
+      fromWidth: 1024,
       api: "**/api/BudgetApi/getBudgetMonth",
       body: { Ok: budgetMonth(CURRENT) },
       loaded: (page) => page.locator('[data-testid="overview-month"]'),
@@ -1164,6 +1204,9 @@ export const STATES = [
     mock: mockOverview,
     open: openOverview,
     deferred: {
+      // ledger-s1weh: unter 1024 px steht „Zu tun“ über dem Monat und wächst mit seinem Inhalt, sobald der Monat da ist.
+      // Ab 1024 px steht es links daneben; dort hält die feste Höhe der Karte „Monat“ die neuesten Buchungen an Ort.
+      fromWidth: 1024,
       api: "**/api/BudgetApi/getBudgetMonth",
       body: { Ok: budgetMonthWithoutOverdrawn(CURRENT) },
       loaded: (page) => page.locator('[data-testid="overview-month"]'),
@@ -1178,6 +1221,9 @@ export const STATES = [
     mock: mockOverview,
     open: openOverview,
     deferred: {
+      // ledger-s1weh: unter 1024 px steht „Zu tun“ über dem Monat und wächst mit seinem Inhalt, sobald der Monat da ist.
+      // Ab 1024 px steht es links daneben; dort hält die feste Höhe der Karte „Monat“ die neuesten Buchungen an Ort.
+      fromWidth: 1024,
       api: "**/api/BudgetApi/getBudgetMonth",
       body: { Error: "YNAB antwortet nicht" },
       loaded: (page) => page.locator('[data-testid="overview-month-error"]'),

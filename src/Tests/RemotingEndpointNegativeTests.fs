@@ -295,6 +295,8 @@ let private rows : Row list = [
         Expect.isEmpty suggestions "keine Vorschläge" }
     { Endpoint = "LedgerApi.getLedgerAccountBalances"; Case = "schwach: Abfrage ohne Absturz"
       Run = fun () -> ledgerApi.getLedgerAccountBalances () |> run |> ignore }
+    { Endpoint = "LedgerApi.getEntriesNotInYnab"; Case = "schwach: Abfrage ohne Absturz"
+      Run = fun () -> ledgerApi.getEntriesNotInYnab () |> run |> ignore }
     { Endpoint = "LedgerApi.getEntryHistory"; Case = "unbekannte Buchung: leere Historie"
       Run = fun () -> Expect.isEmpty (ledgerApi.getEntryHistory (Guid.NewGuid()) |> run) "keine Historie" }
     { Endpoint = "LedgerApi.setReviewMark"; Case = "unbekannte Buchung: Fehler"

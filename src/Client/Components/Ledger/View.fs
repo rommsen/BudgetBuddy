@@ -3921,6 +3921,10 @@ let private captureSheetView (dispatch: Msg -> unit) (model: Model) (capture: Ca
         | _ -> ()
     ]
 
+/// Das Formular als Sheet außerhalb des Kassenbuchs (Übersicht, ledger-s1weh), bei jeder Breite.
+let captureSheet (dispatch: Msg -> unit) (model: Model) : ReactElement =
+    captureSheetView dispatch model model.Capture true
+
 /// Der schwebende Knopf "+ Buchung" am Handy, unten rechts über der Navigation. Er fehlt bei
 /// offenem Formular und im Auswahl-Modus (dort steht die Auswahl-Leiste). `fixed`, deshalb rendert ihn
 /// der Haupt-`View.fs` außerhalb der Seitenhülle mit der Eintrittsanimation (wie `selectionBars`).

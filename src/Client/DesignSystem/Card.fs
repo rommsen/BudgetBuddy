@@ -166,6 +166,24 @@ let emptyStateCompact (title: string) (description: string) =
         ]
     ]
 
+/// Nichts mehr zu tun (Prototyp Version 17 `todoList`, ledger-s1weh): eine Karte mit grünem Punkt, Kopf halbfett und
+/// ein Satz, was hier erscheinen wird (§7.12). Grün heißt gelungen, alles erledigt (§2).
+let allDone (testId: string) (title: string) (description: string) =
+    Html.div [
+        prop.custom ("data-testid", testId)
+        prop.className "flex items-center gap-3 rounded-[14px] border border-border-subtle bg-surface-card p-4"
+        prop.children [
+            Html.span [ prop.ariaHidden true; prop.className "w-2.5 h-2.5 shrink-0 rounded-full bg-success" ]
+            Html.div [
+                prop.className "min-w-0"
+                prop.children [
+                    Html.p [ prop.className "font-semibold text-text-primary"; prop.text title ]
+                    Html.p [ prop.className $"{FontSizes.compact} text-text-secondary"; prop.text description ]
+                ]
+            ]
+        ]
+    ]
+
 let emptyState (icon: ReactElement) (title: string) (description: string) (action: ReactElement option) =
     Html.div [
         prop.className "rounded-xl bg-surface-card border border-border-default border-dashed p-8 md:p-12 text-center"

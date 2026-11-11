@@ -15,6 +15,7 @@ type IconSize =
     | XL    // 48px - hero icons
     | Tab   // 22px - Leiste unten, Rail und Symbolknöpfe im Kopf (Prototyp `.nav`, `.icon`)
     | Side  // 19px - Zeilen der Seitenleiste (Prototyp `.nv`)
+    | Mark  // 15px - Marke vor einem Eintrag in „Zu tun“ (Prototyp `todoList`)
 
 let private sizeToClass = function
     | XS -> "w-4 h-4"
@@ -24,6 +25,7 @@ let private sizeToClass = function
     | XL -> "w-12 h-12"
     | Tab -> "w-[22px] h-[22px]"
     | Side -> "w-[19px] h-[19px]"
+    | Mark -> "w-[15px] h-[15px]"
 
 let private sizeToTextClass = function
     | XS -> "text-sm"
@@ -33,6 +35,7 @@ let private sizeToTextClass = function
     | XL -> "text-4xl"
     | Tab -> "text-xl"
     | Side -> "text-lg"
+    | Mark -> "text-sm"
 
 // ============================================
 // Icon Color Variants
@@ -273,6 +276,22 @@ let flag (size: IconSize) (color: IconColor) =
             svg.strokeLineCap "round"
             svg.strokeLineJoin "round"
             svg.d "M3 3v1.5M3 21v-6m0 0 2.77-.693a9 9 0 0 1 6.208.682l.108.054a9 9 0 0 0 6.086.71l3.114-.732a48.524 48.524 0 0 1-.005-10.499l-3.11.732a9 9 0 0 1-6.085-.711l-.108-.054a9 9 0 0 0-6.208-.682L3 4.5M3 15V4.5"
+        ]
+    ]
+
+/// Gefülltes Flag (Prototyp Version 17 `I.flag`, ledger-s1weh): Stange als Strich, Fahne gefüllt in der Farbe des
+/// Symbols. Die Marke einer Rückfrage an Lena in „Zu tun“, mit `LenaFlag` in der Farbe aus den Einstellungen.
+let flagSolid (size: IconSize) (color: IconColor) =
+    Svg.svg [
+        svg.className $"{sizeToClass size} {colorToClass color} inline-block flex-shrink-0"
+        svg.fill "currentColor"
+        svg.viewBox (0, 0, 24, 24)
+        svg.stroke "currentColor"
+        svg.strokeWidth 1.6
+        svg.strokeLineJoin "round"
+        svg.children [
+            Svg.path [ svg.fill "none"; svg.d "M5 21V4" ]
+            Svg.path [ svg.d "M5 4h12l-2.5 4.5L17 13H5z" ]
         ]
     ]
 

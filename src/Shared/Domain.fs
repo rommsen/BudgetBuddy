@@ -961,6 +961,20 @@ type LedgerPushFailure = {
     FailedAt: DateTime
 }
 
+/// Eine Buchung, die nicht in YNAB ist (ledger-s1weh): nicht mit YNAB verknüpft und nicht in YNAB gelöscht.
+/// Dieselbe Menge, die das Kassenbuch mit „Noch nicht in YNAB“ kennzeichnet, über alle Konten. Die
+/// Übersicht zeigt je Buchung einen Eintrag in „Zu tun“. `PushFailure`: der offene Fehlschlag des letzten
+/// Push; `None` heißt, der Ausgang des Push ist nicht bekannt.
+type EntryNotInYnab = {
+    EntryId: Guid
+    AccountId: Guid
+    Payee: string option
+    Amount: Money
+    /// Das Buchungsdatum.
+    Date: DateTime
+    PushFailure: LedgerPushFailure option
+}
+
 /// Die Sperren des Split-Schreibwegs für eine Buchung, abgeleitet im Lesepfad nach denselben
 /// Regeln wie der Befehl `setEntrySplits` (ledger-pafkp, ADR 0058 Punkt 2, 6 und 7). `None` an
 /// der Buchung heißt: nichts gesperrt, nichts offen (auch bei Antworten eines älteren Servers).

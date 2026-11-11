@@ -57,8 +57,14 @@ async function openLedger(abortEntries) {
     json(route, buildBalancesFixture(accounts.Accounts))
   );
   await page.route("**/api/LedgerApi/getLedgerEntriesPage", (route) => {
-    calls.entries += 1;
-    if (abortEntries(calls.entries)) return route.abort("connectionreset");
+    // Die Zahl an der Übersicht in der Seitenleiste lädt beim Start mit derselben Abfrage über alle Konten (ledger-s1weh,
+    // `Overview.Types.recentQuery`, sechs Buchungen). Sie ist nicht die Liste des Kassenbuchs und zählt hier nicht mit.
+    const [query] = JSON.parse(route.request().postData() ?? "[]");
+    const listQuery = !(query?.AccountId === null && query?.PageSize === 6 && !query?.OnlyNeedsReview);
+    if (listQuery) {
+      calls.entries += 1;
+      if (abortEntries(calls.entries)) return route.abort("connectionreset");
+    }
     return json(route, {
       Entries: [entry],
       TotalCount: 1,

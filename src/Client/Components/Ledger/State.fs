@@ -1101,6 +1101,16 @@ let private reviewKeyBlocked (model: Model) (entry: LedgerEntryView) : bool =
     || entry.DeletedInYnab
     || (model.ReviewMarkRows |> Map.tryFind entry.Id) = Some ReviewMarkSending
 
+/// Das Kassenbuch für einen Eintrag aus „Zu tun“ (ledger-s1weh): alle Konten, genau der eine Filter, die übrigen
+/// Filter leer, damit die Liste die Zahl aus der Übersicht zeigt. Rein.
+let presetQuickFilter (preset: QuickFilterPreset) (model: Model) : Model =
+    { closeDetail (resetEntries model) with
+        SelectedFilter = Some AllAccounts
+        RememberedFilter = Some AllAccounts
+        AccountSheetOpen = false
+        Filters = { noFilters with OnlyAskLena = (preset = PresetAskLena) }
+        OnlyNeedsReview = (preset = PresetNeedsReview) }
+
 let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
 
@@ -1183,6 +1193,10 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             AccountSheetOpen = false },
         Cmd.ofEffect (fun _ -> writeRememberedFilter filter),
         NoOp
+
+    | PresetQuickFilter preset ->
+        let filtered = presetQuickFilter preset model
+        filtered, Cmd.ofEffect (fun _ -> writeRememberedFilter AllAccounts), NoOp
 
     | OpenAccountSheet -> { model with AccountSheetOpen = true }, Cmd.none, NoOp
 
@@ -2520,6 +2534,11 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         | Some editor when not (splitBusy model editor.EntryId) -> { model with SplitEditor = None }, Cmd.none, NoOp
         | _ -> model, Cmd.none, NoOp
 
+    | OpenCaptureKeepingPage ->
+        match updateCore OpenCapture model with
+        | opened, cmd, external ->
+            { opened with Capture = opened.Capture |> Option.map (fun c -> { c with ShowsCreatedEntry = false }) }, cmd, external
+
     | OpenCapture ->
         match model.Capture with
         | Some _ -> model, Cmd.none, NoOp
@@ -2662,17 +2681,19 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 
     | CaptureSubmitted (Ok created) ->
         // Am PC zeigt das Panel danach die neue Buchung (Styleguide §7.6).
+        let showsEntry = model.Capture |> Option.forall (fun c -> c.ShowsCreatedEntry)
+        let amount = model.Capture |> Option.bind (fun c -> Capture.signedAmount c.Form)
         let openDetail =
-            if model.DetailForm = DetailPanel then Cmd.ofMsg (OpenRouteEntry created.EntryId) else Cmd.none
+            if showsEntry && model.DetailForm = DetailPanel then Cmd.ofMsg (OpenRouteEntry created.EntryId) else Cmd.none
         let toast =
             match created.PushFailure with
             | None ->
                 ShowToastWithAction (
-                    Capture.createdText created,
+                    Capture.createdText created amount,
                     ToastSuccess,
                     { Label = undoToastLabel; Kind = UndoCapturedBooking created.EntryId }
                 )
-            | Some _ -> ShowToast (Capture.createdText created, ToastWarning)
+            | Some _ -> ShowToast (Capture.createdText created amount, ToastWarning)
         { model with Capture = None },
         Cmd.batch [ Cmd.ofMsg LoadEntries; Cmd.ofMsg LoadBalances; openDetail ],
         toast

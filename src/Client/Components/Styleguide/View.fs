@@ -186,6 +186,14 @@ let private colorSection =
             ]
             caption "ohne Vorfahr mit data-lena-flag: Symbol gedämpft"
         ]
+        row [
+            Html.div [
+                yield! Badge.lenaFlagScope (Some "purple")
+                prop.className "flex items-center gap-3"
+                prop.children [ Icons.flagSolid Icons.Mark Icons.LenaFlag ]
+            ]
+            caption "Icons.flagSolid Mark LenaFlag: gefülltes Flag, 15 px, Marke einer Rückfrage an Lena in „Zu tun“"
+        ]
     ]
 
 // ============================================
@@ -272,6 +280,20 @@ let private buttonSection =
                 row [
                     Button.hero "Sync starten" ignore
                     Button.heroWithIcon "Sync starten" (Icons.sync Icons.MD Icons.Primary) ignore
+                ]
+                subTitle "Primär ohne Glow"
+                note "Gefüllt im Akzent über die volle Breite einer Karte, ohne Glow (Glow = false), etwa der erste Eintrag in „Zu tun“ auf der Übersicht (Prototyp `.btn.primary.block`)."
+                Html.div [
+                    prop.className "max-w-sm flex flex-col"
+                    prop.children [
+                        Button.view { Button.defaultProps with Text = "Prüfen"; Variant = Button.Primary; FullWidth = true; Glow = false }
+                    ]
+                ]
+                subTitle "Schwebender Knopf"
+                note "„+ Buchung“ am Handy unten rechts über der Leiste: 52 px hoch, Symbol 20 px. Gefüllt ist er die Hauptaktion; ruhig (Rand und Schrift im Akzent), wenn die Ansicht schon eine hat, etwa „Zu tun“ auf der Übersicht (§7.14)."
+                row [
+                    Button.fab "styleguide-fab" "Buchung" "Neue Buchung" false ignore
+                    Button.fab "styleguide-fab-quiet" "Buchung" "Neue Buchung" true ignore
                 ]
                 subTitle "Button-Gruppe"
                 Button.group [
@@ -406,6 +428,10 @@ let private cardSection =
                 Html.div [
                     prop.className "max-w-[208px]"
                     prop.children [ Card.emptyStateCompact "Keine Konten" "Konten erscheinen hier nach dem ersten Spiegeln." ]
+                ]
+                Html.div [
+                    prop.className "max-w-sm"
+                    prop.children [ Card.allDone "styleguide-all-done" "Alles erledigt" "Neue Aufgaben erscheinen nach dem nächsten Import." ]
                 ]
             ]
         ]
@@ -991,6 +1017,8 @@ let private iconsSection =
                     Icons.creditCard Icons.MD Icons.Primary
                     Icons.search Icons.MD Icons.Default
                     Icons.externalLink Icons.MD Icons.Accent
+                    Icons.flag Icons.MD Icons.Default
+                    Icons.flagSolid Icons.MD Icons.Default
                 ]
             ]
         ]
@@ -1783,6 +1811,7 @@ let private navigationSection =
                 [ { Key = "alle"; Label = "Alle Konten"; Value = Navigation.AccountAmount (4300m, "EUR"); IsActive = false; OnClick = ignore }
                   { Key = "giro"; Label = "Girokonto"; Value = Navigation.AccountAmount (2418.07m, "EUR"); IsActive = true; OnClick = ignore }
                   { Key = "karte"; Label = "Kreditkarte"; Value = Navigation.AccountAmount (-312.40m, "EUR"); IsActive = false; OnClick = ignore } ]
+          OverviewCount = 4
           HideBottomBar = false }
     section "21. Navigation" [
         note "Drei Orte (Styleguide §7.4): Leiste unten am Handy, Rail links von 768 bis 1023 px, Seitenleiste mit Konten ab 1024 px. Einstellungen hinter dem Zahnrad. In der App fix positioniert; hier als Vorschau eingebettet."

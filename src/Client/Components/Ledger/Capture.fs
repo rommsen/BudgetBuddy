@@ -42,6 +42,9 @@ type CaptureState = {
     SubmitWhenLookedUp: bool
     /// Fehler aus der Prüfung im Client oder vom Server; sie bleiben im Formular stehen.
     Errors: string list
+    /// Zeigt das Kassenbuch nach dem Anlegen die neue Buchung im Panel? Nicht beim Erfassen aus der Übersicht
+    /// (ledger-s1weh): dort bleibt man auf der Seite.
+    ShowsCreatedEntry: bool
 }
 
 let amountInvalidText = "Bitte einen gültigen Betrag eingeben"
@@ -69,6 +72,7 @@ let opening : CaptureState = {
     PayeeLookup = None
     SubmitWhenLookedUp = false
     Errors = []
+    ShowsCreatedEntry = true
 }
 
 /// Das Formular nach dem Laden der Vorbelegung: heute (Berliner Kalender) und das vorbelegte
@@ -154,8 +158,22 @@ let awaitsPayeeCategory (capture: CaptureState) : bool =
 let templateLabel (template: LedgerBookingTemplate) : string =
     $"{template.Payee} · {amountText template.Amount}"
 
-/// Der Satz der Rückmeldung nach dem Anlegen. Rein.
-let createdText (created: LedgerBookingCreated) : string =
+/// Der Satz der Rückmeldung nach dem Anlegen: Konto und Betrag (Styleguide §7.13, ledger-s1weh), eine Ausgabe
+/// mit Minus. Ohne bekannten Betrag nur das Konto. Rein.
+let createdText (created: LedgerBookingCreated) (amount: decimal option) : string =
+    let what =
+        match amount with
+        | Some a ->
+            let money = Client.DesignSystem.Money.formatAmountText true true a "EUR"
+            $"{created.AccountName} · {money}"
+        | None -> created.AccountName
     match created.PushFailure with
-    | None -> $"Buchung angelegt · {created.AccountName}"
-    | Some reason -> $"Buchung angelegt · {created.AccountName}, noch nicht in YNAB: {reason}"
+    | None -> $"Buchung angelegt · {what}"
+    | Some reason -> $"Buchung angelegt · {what}, noch nicht in YNAB: {reason}"
+
+/// Der Betrag des gerade angelegten Formulars mit Vorzeichen: eine Ausgabe negativ. `None`, wenn er nicht lesbar
+/// ist. Rein.
+let signedAmount (form: CaptureForm) : decimal option =
+    match captureRequest form with
+    | Ok request -> Some (if request.IsOutflow then -request.Amount else request.Amount)
+    | Error _ -> None

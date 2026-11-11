@@ -35,6 +35,35 @@ let private loadAccountsCmd () : Cmd<Msg> =
             (fun ex -> BalancesLoaded (Error ex.Message))
     ]
 
+/// Die neuesten Buchungen samt den Zählern „zu prüfen“ und „Lena“ über alle Konten.
+let private recentCmd () : Cmd<Msg> =
+    Cmd.OfAsync.either
+        (Retry.reading Api.ledger.getLedgerEntriesPage)
+        recentQuery
+        (Ok >> RecentLoaded)
+        (fun ex -> RecentLoaded (Error ex.Message))
+
+/// Was „Zu tun“ außer Monat und Zählern braucht: die Buchungen nicht in YNAB, den Stand des Imports und die
+/// Lena-Farbe (ledger-s1weh). Die Sync-Historie bringt höchstens zehn Sitzungen.
+let private todoSourcesCmd () : Cmd<Msg> =
+    Cmd.batch [
+        Cmd.OfAsync.either
+            (Retry.reading Api.ledger.getEntriesNotInYnab)
+            ()
+            (Ok >> NotInYnabLoaded)
+            (fun ex -> NotInYnabLoaded (Error ex.Message))
+        Cmd.OfAsync.either
+            (Retry.reading Api.sync.getSyncHistory)
+            10
+            (fun sessions -> SyncHistoryLoaded (System.DateTime.UtcNow, Ok sessions))
+            (fun ex -> SyncHistoryLoaded (System.DateTime.UtcNow, Error ex.Message))
+        Cmd.OfAsync.either
+            (Retry.reading Api.settings.getLenaFlagSettings)
+            ()
+            (Ok >> LenaFlagLoaded)
+            (fun ex -> LenaFlagLoaded (Error ex.Message))
+    ]
+
 /// Geladene Werte bleiben stehen, bis neue da sind: sonst flackern Seitenleiste und Monat beim Betreten.
 let private reloading (rd: RemoteData<'a>) : RemoteData<'a> =
     match rd with
@@ -47,6 +76,7 @@ let beginEnter (today: System.DateTime) (model: Model) : Model =
         Today = today
         Month = reloading model.Month
         Recent = reloading model.Recent
+        NotInYnab = reloading model.NotInYnab
         Accounts = reloading model.Accounts
         Balances = reloading model.Balances }
 
@@ -58,15 +88,28 @@ let applyAnswer (msg: Msg) (model: Model) : Model =
     match msg with
     | MonthLoaded (Ok month) -> { model with Month = Success month }
     | MonthLoaded (Error message) -> { model with Month = RemoteData.lateFailure message model.Month }
-    | RecentLoaded (Ok entries) -> { model with Recent = Success entries }
+    | RecentLoaded (Ok page) ->
+        { model with
+            Recent = Success page.Entries
+            NeedsReviewCount = page.NeedsReviewCount
+            AskLenaCount = page.AskLenaCount }
     | RecentLoaded (Error message) -> { model with Recent = RemoteData.lateFailure message model.Recent }
     | AccountsLoaded (Ok accounts) -> { model with Accounts = Success accounts }
     | AccountsLoaded (Error message) -> { model with Accounts = RemoteData.lateFailure message model.Accounts }
     | BalancesLoaded (Ok balances) -> { model with Balances = Success balances }
     | BalancesLoaded (Error message) -> { model with Balances = RemoteData.lateFailure message model.Balances }
+    | NotInYnabLoaded (Ok entries) -> { model with NotInYnab = Success entries }
+    | NotInYnabLoaded (Error message) -> { model with NotInYnab = RemoteData.lateFailure message model.NotInYnab }
+    | SyncHistoryLoaded (now, Ok sessions) ->
+        { model with ImportStand = lastImportAt sessions |> Option.map (importStandText now) }
+    // Ohne Historie fehlt nur der Stand in Zeile 2 von Eintrag 1.
+    | SyncHistoryLoaded (_, Error _) -> model
+    | LenaFlagLoaded (Ok settings) -> { model with LenaFlagColor = settings.SavedColor }
+    | LenaFlagLoaded (Error _) -> model
     | Entered _
     | ReloadRequested
-    | SidebarNeedsAccounts -> model
+    | SidebarNeedsAccounts
+    | CountsNeeded -> model
 
 let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     match msg with
@@ -78,12 +121,7 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 (monthKey today)
                 MonthLoaded
                 (fun ex -> MonthLoaded (Error ex.Message))
-        let recentCmd =
-            Cmd.OfAsync.either
-                (Retry.reading Api.ledger.getLedgerEntriesPage)
-                recentQuery
-                (fun page -> RecentLoaded (Ok page.Entries))
-                (fun ex -> RecentLoaded (Error ex.Message))
-        beginEnter today model, Cmd.batch [ monthCmd; recentCmd; loadAccountsCmd () ]
+        beginEnter today model, Cmd.batch [ monthCmd; recentCmd (); todoSourcesCmd (); loadAccountsCmd () ]
     | SidebarNeedsAccounts -> beginAccounts model, loadAccountsCmd ()
+    | CountsNeeded -> { model with Recent = reloading model.Recent }, recentCmd ()
     | answer -> applyAnswer answer model, Cmd.none

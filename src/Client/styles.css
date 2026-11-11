@@ -2934,3 +2934,11 @@ nav a:focus-visible {
   -webkit-user-select: none;
   user-select: none;
 }
+
+/* „+ Buchung“ auf der Übersicht (ledger-s1weh): wie im Kassenbuch unten rechts über der Leiste. */
+.overview-capture-fab {
+  position: fixed;
+  right: 16px;
+  bottom: calc(var(--bottom-nav-height) + 16px + env(safe-area-inset-bottom, 0px));
+  z-index: 30;
+}

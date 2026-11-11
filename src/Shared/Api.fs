@@ -428,6 +428,11 @@ type LedgerApi = {
     /// Buchung wird abgelehnt, ohne Push.
     retryPushToYnab: Guid -> Async<Result<PushToYnabWriteBack, string>>
 
+    /// Die Buchungen, die nicht in YNAB sind (ledger-s1weh), über alle Konten: nicht verknüpft und nicht in
+    /// YNAB gelöscht. Erst die mit offenem Push-Fehlschlag (neuester zuerst), dann die ohne bekannten Ausgang
+    /// (nach Buchungsdatum, neueste zuerst). Liest nur die Zustandstabelle des Kassenbuchs.
+    getEntriesNotInYnab: unit -> Async<EntryNotInYnab list>
+
     /// "Neue Buchung" im Kassenbuch (ledger-at63w): erfasst eine Buchung auf einem offenen
     /// Budget-Konto ohne Import, Kassenbuch zuerst, dann der Push (ADR 0021). Ein Konto als Ziel
     /// bucht einen Übertrag. Error ohne Ereignis und ohne Push bei ungültiger Eingabe, dem

@@ -802,3 +802,42 @@ let lostPushAnswerTests =
                 [ "CashExpenseAdded"; "EntryPushToYnabFailed"; "EntryPushToYnabFailed" ]
                 "der neue Fehlschlag steht"
     ]
+
+// ============================================
+// Buchungen nicht in YNAB (ledger-s1weh): die Menge hinter „Zu tun“ der Übersicht
+// ============================================
+
+[<Tests>]
+let entriesNotInYnabTests =
+    let account = freshAccount ()
+    let failure (minute: int) : LedgerPushFailure option =
+        Some { Reason = "YNAB antwortet nicht"; FailedAt = at.AddMinutes(float minute) }
+    let idOf (e: Entry) = let (EntryId id) = e.Id in id
+    testList "Buchungen nicht in YNAB" [
+        testCase "Nur nicht verknüpfte, nicht gelöschte Buchungen zählen, mit und ohne Fehlschlag" <| fun () ->
+            let linked = { entry account -1m with LinkedToYnab = true }
+            let deleted = { entry account -2m with DeletedInYnab = true; PushToYnabFailure = failure 0 }
+            let failed = { entry account -3m with PushToYnabFailure = failure 0 }
+            let unknown = entry account -4m
+            let ids = entriesNotInYnab [ linked; deleted; failed; unknown ] |> List.map (fun e -> e.EntryId)
+            Expect.equal ids [ idOf failed; idOf unknown ] "verknüpfte und gelöschte fehlen"
+
+        testCase "Erst die Fehlschläge, der neueste zuerst, dann die ohne Ausgang nach Datum" <| fun () ->
+            let older = { entry account -1m with PushToYnabFailure = failure 1 }
+            let newer = { entry account -2m with PushToYnabFailure = failure 5 }
+            let earlyDay = { entry account -3m with Date = day.AddDays -3.0 }
+            let lateDay = { entry account -4m with Date = day }
+            let ids = entriesNotInYnab [ earlyDay; older; lateDay; newer ] |> List.map (fun e -> e.EntryId)
+            Expect.equal ids [ idOf newer; idOf older; idOf lateDay; idOf earlyDay ] "Reihenfolge"
+
+        testCase "Payee, Betrag, Konto und Fehlschlag gehen mit" <| fun () ->
+            let failed = { entry account -8.60m with PushToYnabFailure = failure 0 }
+            match entriesNotInYnab [ failed ] with
+            | [ shown ] ->
+                let (LedgerAccountId accountGuid) = account
+                Expect.equal shown.Payee (Some "Kiosk") "Payee"
+                Expect.equal shown.Amount.Amount -8.60m "Betrag"
+                Expect.equal shown.AccountId accountGuid "Konto"
+                Expect.equal (shown.PushFailure |> Option.map (fun f -> f.Reason)) (Some "YNAB antwortet nicht") "Grund"
+            | other -> failtestf "eine Zeile erwartet, bekam %A" other
+    ]

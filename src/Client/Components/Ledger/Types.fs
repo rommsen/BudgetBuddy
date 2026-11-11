@@ -27,6 +27,13 @@ type AccountFilter =
     | AllAccounts
     | OneAccount of Guid
 
+/// Der Filter, mit dem ein Eintrag aus „Zu tun“ das Kassenbuch öffnet (ledger-s1weh).
+type QuickFilterPreset =
+    /// Chip „Zu prüfen“.
+    | PresetNeedsReview
+    /// Chip „Rückfrage Lena“.
+    | PresetAskLena
+
 // ============================================
 // Filterleiste und Summenzeile (ledger-j8xq4)
 // ============================================
@@ -1648,6 +1655,9 @@ type Msg =
     /// Konto aus der Seitenleiste oder der Übersicht, bevor das Kassenbuch betreten wird (design-system-k6kfw):
     /// setzt und merkt den Filter, ohne zu laden. Das Betreten lädt Konten und danach die Buchungen.
     | PresetFilter of AccountFilter
+    /// Ein Eintrag aus „Zu tun“ der Übersicht (ledger-s1weh), bevor das Kassenbuch betreten wird: alle Konten mit
+    /// genau diesem Filter, die übrigen Filter leer. Lädt nicht, wie `PresetFilter`.
+    | PresetQuickFilter of QuickFilterPreset
     /// Konto-Wechsler am Handy (ledger-ybmqc): Titel antippen öffnet, Schließen oder Wahl schließt.
     | OpenAccountSheet
     | CloseAccountSheet
@@ -1893,6 +1903,9 @@ type Msg =
     // ============================================
     /// "+ Buchung": öffnet das Formular und lädt die Vorbelegung.
     | OpenCapture
+    /// "+ Buchung" auf der Übersicht (ledger-s1weh): dasselbe Formular, nach dem Anlegen bleibt die Seite stehen
+    /// (am PC öffnet kein Detail).
+    | OpenCaptureKeepingPage
     | CloseCapture
     | RunLoadCaptureDefaults
     /// "Erneut versuchen" nach einer gescheiterten Vorbelegung.

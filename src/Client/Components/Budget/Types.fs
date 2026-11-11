@@ -243,6 +243,13 @@ type CategoryFilter =
     | MissingOnly
     | OverdrawnOnly
 
+/// Ein Eintrag aus „Zu tun“ der Übersicht, mit dem die Seite betreten wird (ledger-s1weh).
+type EntryAction =
+    /// Das Detail der Kategorie, Tab Geld, Holen; der Betrag ist mit dem Minus vorbelegt.
+    | CoverFromOverview of categoryId: System.Guid
+    /// Der Dialog Targets anwenden für den laufenden Monat.
+    | ApplyTargetsFromOverview
+
 /// Die Tabs des Inspektors.
 type InspectorTab =
     | MoneyTab
@@ -307,6 +314,9 @@ type Model = {
     /// Der Filter, mit dem das nächste Betreten der Seite beginnt, etwa „Im Minus“ aus der Übersicht
     /// (design-system-k6kfw). Das Betreten verbraucht ihn.
     EntryFilter: CategoryFilter option
+    /// Was das nächste Betreten der Seite tut, sobald der Monat frisch gelesen ist: ein Eintrag aus „Zu tun“ der
+    /// Übersicht (ledger-s1weh). Das Betreten verbraucht es.
+    EntryAction: EntryAction option
     /// Der Tab Geld der gewählten Kategorie.
     TabMoney: MoneyTabState option
     /// Gespeicherte Zuweisungen: es läuft höchstens eine, die erste (ADR 0078 Punkt 5).
@@ -416,6 +426,8 @@ type Msg =
     | SelectFilter of CategoryFilter
     /// Die Seite wird gleich mit diesem Filter betreten (Übersicht, „Im Minus“).
     | EnterWithFilter of CategoryFilter
+    /// Die Seite wird gleich für einen Eintrag aus „Zu tun“ betreten (ledger-s1weh).
+    | EnterWithAction of EntryAction
     /// Der Umschalter Zuweisen, Holen, Abgeben.
     | SwitchMoneyMode of MoneyMode
     /// Eingabe im Feld Zugewiesen.
@@ -598,6 +610,7 @@ let init () : Model =
       CategorySearch = ""
       Filter = AllCategories
       EntryFilter = None
+      EntryAction = None
       TabMoney = None
       AssignQueue = []
       MoveInFlight = NoMoveCall

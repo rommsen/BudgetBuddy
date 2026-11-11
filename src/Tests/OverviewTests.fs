@@ -202,14 +202,16 @@ let transitionTests =
                 [ "Monat", { settled with Month = Loading }
                   "Konten", { settled with Accounts = Loading }
                   "Stände", { settled with Balances = Loading }
-                  "Neueste", { settled with Recent = Loading } ] do
+                  "Neueste", { settled with Recent = Loading }
+                  // ledger-s1weh: „Zu tun“ wartet auf die Buchungen nicht in YNAB.
+                  "nicht in YNAB", { settled with NotInYnab = Loading } ] do
                 Expect.isFalse (State.isPageReady { rootModel Overview with Overview = loading }) name
 
         testCase "Die Übersicht ist bereit, wenn Monat, Konten und Buchungen nicht mehr laden" <| fun () ->
             let loading = { rootModel Overview with Overview = Components.Overview.State.beginEnter (DateTime(2026, 11, 7)) Components.Overview.Types.init }
             Expect.isFalse (State.isPageReady loading) "lädt"
             let answered =
-                [ MonthLoaded (Ok november); RecentLoaded (Ok []); AccountsLoaded (Error "x"); BalancesLoaded (Ok []) ]
+                [ MonthLoaded (Ok november); RecentLoaded (Ok { Entries = []; TotalCount = 0; TotalAmount = eur 0m; DeletedCount = 0; NeedsReviewCount = 0; AskLenaCount = 0 }); AccountsLoaded (Error "x"); BalancesLoaded (Ok []); NotInYnabLoaded (Ok []) ]
                 |> List.fold (fun m msg -> Components.Overview.State.applyAnswer msg m) loading.Overview
             Expect.isTrue (State.isPageReady { loading with Overview = answered }) "fertig, auch mit Fehler"
 
