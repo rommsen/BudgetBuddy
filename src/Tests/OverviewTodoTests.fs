@@ -98,7 +98,7 @@ let todoTests =
                 Expect.equal todo.Target (TodoNotInYnab entryId) "Ziel"
                 Expect.equal todo.Title "Buchung nicht in YNAB" "Text"
                 Expect.equal todo.Detail "Zinsen · 3,12 € · erneut senden" "Zeile 2"
-                Expect.stringStarts noPayee.Detail "Ohne Payee · " "ohne Payee"
+                Expect.stringStarts noPayee.Detail "ohne Payee · " "klein wie im Kassenbuch"
             | other -> failtestf "zwei Einträge erwartet: %A" other
 
         testCase "6: Zu verteilen über null ohne Eintrag 3" <| fun () ->

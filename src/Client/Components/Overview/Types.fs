@@ -265,7 +265,7 @@ let todos (inputs: TodoInputs) : Todo list =
     let notInYnab =
         inputs.NotInYnab
         |> List.map (fun e ->
-            let payee = e.Payee |> Option.filter (fun p -> p.Trim() <> "") |> Option.defaultValue "Ohne Payee"
+            let payee = e.Payee |> Option.filter (fun p -> p.Trim() <> "") |> Option.defaultValue "ohne Payee"
             { Target = TodoNotInYnab e.EntryId
               Title = "Buchung nicht in YNAB"
               Detail = $"{payee} · {moneyText e.Amount} · erneut senden" })
