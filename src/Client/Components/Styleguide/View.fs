@@ -452,6 +452,12 @@ let private cardSection =
                     prop.className "max-w-sm"
                     prop.children [ Card.allDone "styleguide-all-done" "Alles erledigt" "Neue Aufgaben erscheinen nach dem nächsten Import." ]
                 ]
+                // sheetMessage: leerer Zustand oder Ergebnis in einem Sheet, ohne Rahmen (Sheet „Abrufen“, banking-import-d0fey);
+                // ein gelungenes Ergebnis zeigt den Kopf in Grün.
+                Primitives.Grid.two [
+                    Card.sheetMessage "styleguide-sheet-message" false "Rufe ab…" "Umsätze werden geladen und mit Regeln kategorisiert."
+                    Card.sheetMessage "styleguide-sheet-message-success" true "3 neue Buchungen" "2 per Regel kategorisiert, 1 ohne Kategorie."
+                ]
             ]
         ]
     ]
@@ -1012,6 +1018,7 @@ let private errorSection =
                 ErrorDisplay.cardCompact "Einstellungen konnten nicht geladen werden" (Some ignore)
                 ErrorDisplay.warning "Diese Aktion kann nicht rückgängig gemacht werden." None
                 ErrorDisplay.notice "Stand hat sich geändert, es wurde nichts geschrieben."
+                ErrorDisplay.noticeWithLead "Push-TAN bestätigen." "Öffne die Comdirect-App und gib den Zugriff frei."
                 ErrorDisplay.success "Zugangsdaten erfolgreich verifiziert!"
             ]
         ]
@@ -2171,6 +2178,23 @@ let private DetailDemo () =
                   "PayPal Activity", "https://www.paypal.com/activities" ]
         ]
         card "components-detail-fields" "Detail: Felder, Filter-Knopf, Schalter, Herkunft" "Feldzeile mit Filter-Knopf, Split, Geprüft-Schalter, Herkunft" [
+            // Payee mit Filter-Knopf und Pfeil `›` (ledger-fxt09): forwardArrow öffnet eine eigene Auswahl, die den
+            // Inhalt ersetzt; änderbar und gesperrt mit Hinweistext am Knopf.
+            Detail.fieldRow
+                "styleguide-detail-payee"
+                "Payee"
+                (Detail.valueText Tokens.Colors.textPrimary "REWE Mitte")
+                (Some (
+                    React.fragment [
+                        Detail.filterButton "Nur Buchungen von REWE Mitte zeigen" ignore
+                        Detail.forwardArrow "styleguide-detail-payee-arrow" "Payee ändern" None ignore
+                    ]
+                ))
+            Detail.fieldRow
+                "styleguide-detail-payee-locked"
+                "Payee"
+                (Detail.valueText Tokens.Colors.textMuted "REWE Mitte")
+                (Some (Detail.forwardArrow "styleguide-detail-payee-arrow-locked" "Payee ändern" (Some "In YNAB gelöscht, der Payee lässt sich nicht ändern") ignore))
             Detail.fieldRow
                 "styleguide-detail-category"
                 "Kategorie"
