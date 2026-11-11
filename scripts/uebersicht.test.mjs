@@ -1,10 +1,11 @@
 // scripts/uebersicht.test.mjs
 //
 // ledger-s1weh: die Übersicht als Einstieg mit „Zu tun“. Der eine Happy Path am Handy (412 px): mit einer ungeprüften
-// Buchung steht „1 Buchung zu prüfen“ oben mit dem Knopf „Prüfen“ (ohne Glow), „+ Buchung“ ist ruhig, unter dem Titel
-// steht der Stand des Imports, die Rückfrage an Lena trägt das gefüllte Flag, und „Prüfen“ öffnet das Kassenbuch mit
-// Filter „Zu prüfen“. Welche Einträge in welcher Reihenfolge erscheinen, wohin sie führen und wann
-// „+ Buchung“ ruhig ist, prüfen die .NET-Tests (`OverviewTodoTests.fs`); Layout der Sweep (Zustand `uebersicht-zu-tun`).
+// Buchung steht „1 Buchung zu prüfen“ oben mit dem Knopf „Prüfen“, „+ Buchung“ ist ruhig, und „Prüfen“ öffnet das
+// Kassenbuch mit Filter „Zu prüfen“. Welche Einträge in welcher Reihenfolge erscheinen, wohin sie führen, wann
+// „+ Buchung“ ruhig ist und was die Zeile zum Import sagt, prüfen die .NET-Tests (`OverviewTodoTests.fs`); die
+// Flag-Farbe `FarbrollenTests.fs`; Layout der Sweep (Zustand `uebersicht-zu-tun`). Feste Designwerte (Glow, Größe
+// und Form der Marken) stehen im Styleguide, nicht hier.
 //
 // Ausführen: npm run test:scripts -- scripts/uebersicht.test.mjs
 
@@ -42,26 +43,12 @@ test("[flow:uebersicht] Mit einer ungeprüften Buchung führt „Prüfen“ in Z
     await page.route("**/api/LedgerApi/getLedgerEntriesPage", (r) => {
       return json(r, { Entries: [], TotalCount: 0, TotalAmount: { Amount: 0, Currency: "EUR" }, DeletedCount: 0, NeedsReviewCount: 1, AskLenaCount: 1 });
     });
-    // Der letzte Import vor gut zwei Stunden: die Zeile unter „Übersicht“ nennt ihn.
-    const importedAt = new Date(Date.now() - 2 * 3600 * 1000 - 60000).toISOString();
-    await page.route("**/api/SyncApi/getSyncHistory", (r) =>
-      json(r, [{ Id: { SyncSessionId: "00000000-0000-0000-0000-000000000077" }, StartedAt: importedAt, CompletedAt: importedAt, Status: "Completed", TransactionCount: 1, ImportedCount: 1, SkippedCount: 0 }])
-    );
 
     await page.goto(`http://127.0.0.1:${port}/#/`, { waitUntil: "load" });
     const first = page.locator('[data-testid="overview-todo-first"]');
     await first.getByText("1 Buchung zu prüfen").waitFor();
     const fab = page.locator('[data-testid="overview-capture-fab"]');
     assert.equal(await fab.getAttribute("data-quiet"), "true", "„+ Buchung“ ist ruhig, die Hauptaktion steht in Zu tun");
-    await page.locator('[data-testid="page-top"]').getByText("Comdirect · Import vor 2 Std.").waitFor();
-    // Prototyp `.btn.primary.block`: der Knopf über die volle Breite leuchtet nicht.
-    const shadow = await first.getByRole("button", { name: "Prüfen" }).evaluate((el) => getComputedStyle(el).boxShadow);
-    assert.equal(shadow, "none", "„Prüfen“ ohne Glow");
-    // Die Marke der Rückfrage an Lena ist das gefüllte Flag (Prototyp `I.flag`), 15 px.
-    const lenaMark = page.locator('[data-testid="overview-todo"]', { hasText: "1 Rückfrage an Lena offen" }).locator('[aria-label="Lena-Flag"] svg');
-    assert.equal(await lenaMark.getAttribute("fill"), "currentColor", "Flag gefüllt");
-    assert.equal(await lenaMark.locator('path[d="M5 4h12l-2.5 4.5L17 13H5z"]').count(), 1, "Fahne des Prototyps");
-    assert.equal((await lenaMark.boundingBox()).width, 15, "15 px");
 
     // Die Liste des Kassenbuchs lädt mit Filter „Zu prüfen“ über alle Konten.
     const ledgerLoad = page.waitForRequest((request) => {
