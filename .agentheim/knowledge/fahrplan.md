@@ -21,7 +21,14 @@ Zuletzt aktualisiert: 2026-11-11, nach work-Lauf zu ledger-s1weh.
   Etappe 3 verschoben (Roman, 2026-11-10).
   Deployt (2026-11-10, f85d3b3d): ledger-m7k2d, ledger-z6sya, ledger-m7mye.
 - **Etappe 3 · Ein Produkt:** in elf Schnitte geteilt (Roman, 2026-11-11). 2 erledigt (design-system-k6kfw,
-  189ec9a9, Verifier PASS in Iteration 2; ledger-s1weh, 6d728e16, Verifier PASS in Iteration 2), keiner in `todo/`.
+  189ec9a9, Verifier PASS in Iteration 2; ledger-s1weh, 6d728e16, Verifier PASS in Iteration 2).
+  Verfeinert 2026-11-11: Schnitte 3, 4 und 5. In `todo/`: budgeting-w9yt4 (Angepinnte Kategorien), banking-import-d0fey
+  (Import direkt, ADR 0093), ledger-fxt09 (Payee in BB ändern). Verfeinert in `backlog/`, Promotion nach ihrem Vorgänger:
+  ledger-r7h2w (wartendes Duplikat übernehmen oder verwerfen, nach d0fey), banking-import-t4raw (automatisch abrufen,
+  nach d0fey), ledger-v6s7c (Durchgehen, nach d0fey, r7h2w, fxt09). categorization-hz6vj ging in d0fey auf.
+  Entschieden (Roman): wartende Duplikate im Kassenbuch und im Kontostand mitgezählt, Abruf im Intervall mit Vorgabe an,
+  alle Funktionen der heutigen Prüfung bleiben (Regel aus der Buchung mit Schnitt 6), Durchgehen älteste zuerst und
+  nach §7.14, 4 und 5 werden gemeinsam deployt.
   ledger-s1weh (Übersicht mit Zu tun): Abweichungen (a) bis (c) vom Prototyp in der Task. Romans Blick am Handy und PC
   (2026-11-11): passt, (a) bis (c) und der Dialog am PC bestätigt.
   Review df9611c4..HEAD (2026-11-11): 22 Funde behoben in 3142ef3e..ec4f4124, darunter Budget aus Zu tun öffnete bei wartender
@@ -39,7 +46,8 @@ Zuletzt aktualisiert: 2026-11-11, nach work-Lauf zu ledger-s1weh.
   Entschieden (Roman): Schriftgrößen der Übersicht nach §7.14 (Kriterium in ledger-s1weh), Abbrechen-Pfeil im
   Sync-Ablauf in die Kann-Sammlung banking-import.
 - **Blick Roman (2026-11-11):** design-system-k6kfw (Navigation mit drei Orten) am Handy und PC geprüft, passt.
-- **Nächster Schritt:** budgeting-w9yt4 (Angepinnte Kategorien) verfeinern. Vorschlag: `/architecture-review ledger` (15 Tasks seit dem letzten Bestandsreview).
+- **Nächster Schritt:** `/agentheim:work` für budgeting-w9yt4, banking-import-d0fey und ledger-fxt09; r7h2w, t4raw und v6s7c
+  nach ihren Vorgängern promoten. Deploy von 4 und 5 erst, wenn v6s7c steht. Vorschlag: `/architecture-review ledger` (15 Tasks seit dem letzten Bestandsreview).
   Offen zum Verfeinern mit Roman: ledger-t4rk8 (Betrag eines Übertrags in BB ändern).
 - Verfeinert wird nur die nächste Etappe. Spätere Etappen haben Zeilen, keine Tickets.
 - Neue Ideen für spätere Etappen kommen hier als Zeile dazu.
