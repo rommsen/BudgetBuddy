@@ -6,7 +6,7 @@ status: accepted
 date: 2026-11-11
 supersedes: []
 superseded_by: []
-related_tasks: [banking-import-d0fey, banking-import-t4raw, ledger-r7h2w, ledger-v6s7c, ledger-fxt09, categorization-hz6vj]
+related_tasks: [banking-import-d0fey, banking-import-t4raw, ledger-r7h2w, ledger-v6s7c, ledger-fxt09]
 related_adrs: [0021, 0048, 0050, 0071, 0083, 0086, 0087, 0091, 0092]
 related_research: []
 ---

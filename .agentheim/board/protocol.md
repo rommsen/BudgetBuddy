@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-11 21:54 -- Modeling / Dismissed: categorization-hz6vj
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-hz6vj - "Kategorisieren im Import: Order-Id und Review-Spur" (categorization)
+
+---
+
 ## 2026-11-11 21:54 -- Modeling / Refined: banking-import-d0fey, banking-import-t4raw, ledger-v6s7c - Import direkt und Durchgehen
 
 **Type:** Modeling / Refine
