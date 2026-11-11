@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-11 21:35 -- Modeling / Refined: budgeting-w9yt4 - Angepinnte Kategorien
+
+**Type:** Modeling / Refine
+**BC:** budgeting
+**Status after:** todo
+**Summary:** Block Angepinnt auf der Übersicht, Sheet zum Anpinnen, Lösen und Ordnen (am PC Modal), Pin-Knopf im Kopf des Inspektors, Pins als Zustand neben CategoryLayout. Kriterien nach Prototyp Version 17 (pinBlock, Sheet pins), Abweichungen: Schrittpfeile ˄ ˅ bleiben, Sheet am PC als Modal.
+
+---
+
 ## 2026-11-11 20:36 -- Review-Lauf: df9611c4..141c094d (ledger-s1weh, af94b183)
 
 **Type:** Review / Review-Lauf
