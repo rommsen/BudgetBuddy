@@ -287,7 +287,7 @@ let barDesktop
     Html.div [
         prop.className (
             // Rechts von Rail und Seitenleiste (design-system-k6kfw).
-            $"selection-bar hidden md:flex flex-wrap fixed bottom-0 left-0 md:left-[72px] lg:left-[232px] right-0 z-40 items-center gap-x-4 gap-y-2 {Backgrounds.surface} " +
+            $"selection-bar hidden md:flex flex-wrap fixed bottom-0 left-0 {NavWidths.fixedLeft} right-0 z-40 items-center gap-x-4 gap-y-2 {Backgrounds.surface} " +
             $"border-t {Borders.default'} px-5 py-3.5"
         )
         prop.children [

@@ -129,7 +129,8 @@ let private railButton (active: bool) (label: string) (showLabel: bool) (icon: I
         prop.onClick (fun _ -> onClick ())
         prop.children [
             icon Tab (if active then Accent else Default)
-            if showLabel then Html.span [ prop.className "max-w-full truncate"; prop.text label ]
+            // `title` trägt den ganzen Namen, falls er doch gekürzt wird.
+            if showLabel then Truncate.text "max-w-full" label
         ]
     ]
 
@@ -138,7 +139,7 @@ let rail (props: Props) =
     Html.nav [
         prop.ariaLabel "Orte"
         prop.className (
-            $"hidden md:flex lg:hidden fixed top-0 bottom-0 left-0 z-50 w-[72px] flex-col gap-1 px-1 py-3 "
+            $"hidden md:flex lg:hidden fixed top-0 bottom-0 left-0 z-50 {NavWidths.rail} flex-col gap-1 px-1 py-3 "
             + $"border-r border-border-default {Backgrounds.dark}"
         )
         prop.children [
@@ -247,7 +248,7 @@ let private accountsSection (accounts: SidebarAccounts) =
 let sidebar (props: Props) =
     Html.aside [
         prop.className (
-            $"hidden lg:flex fixed top-0 bottom-0 left-0 z-50 w-[232px] flex-col gap-0.5 px-3 py-4 overflow-y-auto "
+            $"hidden lg:flex fixed top-0 bottom-0 left-0 z-50 {NavWidths.sidebar} flex-col gap-0.5 px-3 py-4 overflow-y-auto "
             + $"border-r border-border-default {Backgrounds.dark}"
         )
         prop.children [
@@ -294,10 +295,25 @@ let bottomBarPreview (props: Props) =
         prop.children [ for item in navItems do React.keyedFragment (item.Label, [ bottomItem props item ]) ]
     ]
 
+/// Rail ohne `fixed`: gleiche Einträge wie `rail`, feste Höhe für die Galerie.
+let railPreview (props: Props) =
+    Html.nav [
+        prop.ariaLabel "Orte (Vorschau)"
+        prop.className (
+            $"flex {NavWidths.rail} h-[420px] flex-col gap-1 px-1 py-3 border border-border-default rounded-lg {Backgrounds.dark}"
+        )
+        prop.children [
+            for item in navItems do
+                React.keyedFragment (item.Label, [ railButton (isCurrent props item.Page) item.Label true item.Icon (fun () -> props.OnNavigate item.Page) ])
+            Html.div [ prop.className "flex-1" ]
+            railButton props.SettingsActive "Einstellungen" false gear props.OnSettings
+        ]
+    ]
+
 /// Seitenleiste ohne `fixed`: gleiche Zeilen wie `sidebar`, feste Höhe für die Galerie.
 let sidebarPreview (props: Props) =
     Html.div [
-        prop.className $"flex w-[232px] h-[520px] flex-col gap-0.5 px-3 py-4 border border-border-default rounded-lg {Backgrounds.dark}"
+        prop.className $"flex {NavWidths.sidebar} h-[520px] flex-col gap-0.5 px-3 py-4 border border-border-default rounded-lg {Backgrounds.dark}"
         prop.children [
             brand props.OnBrand
             for item in navItems do
@@ -317,7 +333,7 @@ let sidebarPreview (props: Props) =
 // ============================================
 
 /// Der Abstand des Inhalts zur Navigation: unten die Leiste am Handy, links Rail oder Seitenleiste.
-let private shellOffset = "pb-24 md:pb-8 md:ml-[72px] lg:ml-[232px] pt-[calc(env(safe-area-inset-top)+0.5rem)]"
+let private shellOffset = $"pb-24 md:pb-8 {NavWidths.contentOffset} pt-[calc(env(safe-area-inset-top)+0.5rem)]"
 
 /// Inhalt mit `container`-Breite.
 let pageContent (children: ReactElement list) =

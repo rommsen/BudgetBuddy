@@ -35,6 +35,9 @@ let private sectionHead (title: string) (right: ReactElement option) =
 
 let private cardClass = $"{Backgrounds.dark} border {Borders.subtle} rounded-[14px]"
 
+/// Überfahren am PC und Tippen am Handy wie in den neuesten Buchungen.
+let private rowHover = "hover:bg-surface-hover active:bg-surface-hover"
+
 let private head (actions: Actions) =
     PageHeader.top
         None
@@ -43,7 +46,7 @@ let private head (actions: Actions) =
         None
         [
             Html.div [
-                prop.className "flex items-center gap-1 md:hidden"
+                prop.className $"flex items-center {Spacing.sm} md:hidden"
                 prop.children [
                     PageHeader.iconButton "Abrufen" Icons.refresh actions.Fetch
                     PageHeader.iconButton "Einstellungen" Icons.gear actions.OpenSettings
@@ -64,8 +67,9 @@ let private amountText (amount: decimal) = Money.formatAmountText false true amo
 
 /// Die Karte „Monat“ hat je Breite genau eine Höhe, geladen wie beim Laden und mit oder ohne „Im Minus“ (Styleguide
 /// §7.14, feste Höhe vor variabler): Kopf 24 px, Ausgegeben samt Balken und Marke 46 px, untere Zeile am Handy 48 px
-/// (Trefferfläche, §7.15), am PC 24 px, dazwischen 8 px, innen 12 px, Rand 1 px.
-let private monthCardHeight = "h-[160px] md:h-[136px]"
+/// (Trefferfläche, §7.15), am PC 24 px, dazwischen 8 px, innen 12 px, Rand 1 px. Alle Höhen in rem.
+/// In rem, damit die Karte mit einer größeren Grundschrift mitwächst (160 und 136 px bei 16 px).
+let private monthCardHeight = "h-[10rem] md:h-[8.5rem]"
 
 let private monthCardClass = $"{cardClass} {monthCardHeight} px-3.5 py-3 flex flex-col gap-2 overflow-hidden"
 
@@ -89,7 +93,7 @@ let private monthCard (actions: Actions) (summary: MonthSummary) =
                 ]
             ]
             Html.div [
-                prop.className "h-[46px] shrink-0"
+                prop.className "h-[2.875rem] shrink-0"
                 prop.children [
                     Html.div [
                         prop.className $"h-5 flex items-baseline justify-between gap-3 {FontSizes.compact}"
@@ -124,7 +128,10 @@ let private monthCard (actions: Actions) (summary: MonthSummary) =
                                     style.custom ("left", pct summary.TodayShare)
                                     style.custom ("transform", sprintf "translateX(-%.2f%%)" (summary.TodayShare * 100.0))
                                 ]
-                                prop.text "▲ heute"
+                                prop.children [
+                                    Html.span [ prop.ariaHidden true; prop.text "▲" ]
+                                    Html.text " heute"
+                                ]
                             ]
                         ]
                     ]
@@ -135,7 +142,7 @@ let private monthCard (actions: Actions) (summary: MonthSummary) =
                 prop.children [
                     Html.button [
                         prop.type' "button"
-                        prop.className "inline-flex min-w-0 items-center gap-1.5"
+                        prop.className $"inline-flex min-w-0 items-center gap-1.5 -mx-1.5 px-1.5 {Radius.sm} {rowHover}"
                         prop.onClick (fun _ -> actions.OpenBudget ())
                         prop.children [
                             Html.span [ prop.className $"shrink-0 {Colors.textMuted}"; prop.text "Zu verteilen" ]
@@ -151,7 +158,7 @@ let private monthCard (actions: Actions) (summary: MonthSummary) =
                     if summary.OverdrawnCount > 0 then
                         Html.button [
                             prop.type' "button"
-                            prop.className "inline-flex shrink-0 items-center gap-1.5"
+                            prop.className $"inline-flex shrink-0 items-center gap-1.5 px-1.5 {Radius.sm} {rowHover}"
                             prop.onClick (fun _ -> actions.OpenOverdrawn ())
                             prop.children [
                                 Html.span [ prop.className Colors.textMuted; prop.text "Im Minus" ]
@@ -169,12 +176,13 @@ let private monthSkeleton =
         Loading.skeleton { Loading.defaultSkeleton with Shape = Loading.Custom; ClassName = Some className }
     Html.div [
         prop.custom ("data-testid", "overview-month-loading")
+        prop.role "status"
         prop.ariaLabel "Monat wird geladen"
         prop.className monthCardClass
         prop.children [
             Html.div [ prop.className "h-6 shrink-0 flex items-center"; prop.children [ bar "w-24 h-4" ] ]
             Html.div [
-                prop.className "h-[46px] shrink-0 flex flex-col justify-center gap-2"
+                prop.className "h-[2.875rem] shrink-0 flex flex-col justify-center gap-2"
                 prop.children [ bar "w-full h-4"; bar "w-full h-2" ]
             ]
             Html.div [ prop.className $"{bottomRowHeight} shrink-0 flex items-center"; prop.children [ bar "w-40 h-4" ] ]
@@ -231,7 +239,7 @@ let private accountsBlock (actions: Actions) (model: Model) =
                                     prop.key (Components.Ledger.State.encodeAccountFilter card.Filter)
                                     prop.type' "button"
                                     prop.custom ("data-testid", "overview-account")
-                                    prop.className $"w-full flex items-center justify-between gap-2.5 px-3 min-h-[48px] text-left border-b {Borders.subtle} last:border-b-0"
+                                    prop.className $"w-full flex items-center justify-between gap-2.5 px-3 min-h-[48px] text-left border-b {Borders.subtle} last:border-b-0 {rowHover}"
                                     prop.onClick (fun _ -> actions.OpenAccount card.Filter)
                                     prop.children [
                                         Truncate.text $"min-w-0 {Colors.textPrimary}" card.Label
@@ -265,13 +273,13 @@ let private recentBlock (actions: Actions) (today: DateTime) (recent: RemoteData
                                 prop.key (string entry.Id)
                                 prop.type' "button"
                                 prop.custom ("data-testid", "overview-recent")
-                                prop.className $"w-full flex items-center gap-2.5 px-3 py-2 min-h-11 text-left border-b {Borders.subtle} last:border-b-0 hover:bg-surface-hover"
+                                prop.className $"w-full flex items-center gap-2.5 px-3 py-2 min-h-11 text-left border-b {Borders.subtle} last:border-b-0 {rowHover}"
                                 prop.onClick (fun _ -> actions.OpenEntry entry.Id)
                                 prop.children [
                                     Html.div [
                                         prop.className "flex-1 min-w-0"
                                         prop.children [
-                                            Truncate.text $"block {ListRoles.primary}" (entry.Payee |> Option.defaultValue "Ohne Payee")
+                                            Truncate.text $"block {ListRoles.primary}" (Components.Ledger.View.payeeLabel entry)
                                             Html.div [
                                                 prop.className $"{FontSizes.compact} {Colors.textSecondary} truncate"
                                                 prop.children [

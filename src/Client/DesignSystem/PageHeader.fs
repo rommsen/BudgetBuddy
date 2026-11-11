@@ -117,7 +117,7 @@ let backButtonFor (ariaLabel: string option) (onClick: unit -> unit) =
         | Some label -> prop.ariaLabel label
         | None -> ()
         prop.className (
-            $"-ml-1 inline-flex shrink-0 items-center gap-1 pr-2 text-sm {Colors.textSecondary} "
+            $"-ml-1 inline-flex shrink-0 items-center gap-1 pr-2 {FontSizes.sm} {Colors.textSecondary} "
             + $"{TouchTargets.mobileMinHeight} md:min-h-11 hover:text-text-primary"
         )
         prop.onClick (fun _ -> onClick ())
@@ -135,7 +135,7 @@ let iconButton (ariaLabel: string) (icon: Client.DesignSystem.Icons.IconSize -> 
         prop.type' "button"
         prop.ariaLabel ariaLabel
         prop.className (
-            $"{TouchTargets.mobileSquare} md:h-11 md:w-11 shrink-0 grid place-items-center rounded-md "
+            $"{TouchTargets.mobileSquare} md:h-11 md:w-11 shrink-0 grid place-items-center {Radius.sm} "
             + $"{Colors.textSecondary} hover:bg-surface-hover hover:text-text-primary"
         )
         prop.onClick (fun _ -> onClick ())
@@ -156,16 +156,17 @@ let top (back: ReactElement option) (title: string) (subtitle: string option) (a
                 prop.className "flex-1 min-w-0"
                 prop.children [
                     Html.h1 [
-                        prop.className "text-xl font-semibold font-display text-text-primary truncate"
+                        prop.className $"{FontSizes.placeTitle} {FontWeights.semibold} {Fonts.display} {Colors.textPrimary} truncate"
                         prop.title title
                         prop.text title
                     ]
                     match subtitle with
-                    | Some s -> Html.p [ prop.className "text-xs text-text-muted"; prop.text s ]
+                    | Some s -> Html.p [ prop.className $"{FontSizes.xs} {Colors.textMuted}"; prop.text s ]
                     | None -> Html.none
                 ]
             ]
             if not actions.IsEmpty then
-                Html.div [ prop.className "flex shrink-0 items-center gap-1"; prop.children actions ]
+                // 8 px zwischen Zielen (Styleguide §7.15).
+                Html.div [ prop.className $"flex shrink-0 items-center {Spacing.sm}"; prop.children actions ]
         ]
     ]

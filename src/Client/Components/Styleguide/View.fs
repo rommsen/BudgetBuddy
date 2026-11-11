@@ -1769,8 +1769,8 @@ let private SwipeDemo () =
 // ============================================
 
 /// Navigation-Sektion (design-system-t82sg, design-system-k6kfw): Leiste unten am Handy und Seitenleiste ab
-/// 1024 px als Vorschau ohne `fixed` (`Navigation.bottomBarPreview`, `sidebarPreview`). Rein präsentational,
-/// es gibt keine echte Navigation von hier aus. Die Rail (768 bis 1023 px) nutzt dieselben Einträge.
+/// 1024 px als Vorschau ohne `fixed` (`Navigation.bottomBarPreview`, `railPreview`, `sidebarPreview`). Rein
+/// präsentational, es gibt keine echte Navigation von hier aus.
 let private navigationSection =
     let demoProps : Navigation.Props =
         { Current = Some Navigation.Ledger
@@ -1796,11 +1796,20 @@ let private navigationSection =
             prop.children [
                 subTitle "Seitenleiste (ab 1024 px)"
                 Navigation.sidebarPreview demoProps
+                subTitle "Rail (768 bis 1023 px)"
+                Navigation.railPreview demoProps
                 subTitle "Leiste unten (Handy)"
                 Html.div [
                     prop.className "max-w-sm"
                     prop.children [ Navigation.bottomBarPreview demoProps ]
                 ]
+                subTitle "Kopf eines Orts"
+                PageHeader.top
+                    None
+                    "Übersicht"
+                    None
+                    [ PageHeader.iconButton "Abrufen" Icons.refresh ignore
+                      PageHeader.iconButton "Einstellungen" Icons.gear ignore ]
                 subTitle "Kopf einer Unterseite"
                 PageHeader.top (Some (PageHeader.backButton ignore)) "Targets prüfen" None []
             ]

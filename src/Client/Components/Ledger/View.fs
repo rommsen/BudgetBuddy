@@ -2353,7 +2353,7 @@ let keyboardHintTextFor (model: Model) : string =
 let private keyboardHint (text: string) : ReactElement =
     Html.div [
         prop.className (
-            $"hidden md:flex fixed bottom-0 left-0 md:left-[72px] lg:left-[232px] right-0 z-30 items-center gap-2 {Tokens.Backgrounds.surface} " +
+            $"hidden md:flex fixed bottom-0 left-0 {Tokens.NavWidths.fixedLeft} right-0 z-30 items-center gap-2 {Tokens.Backgrounds.surface} " +
             $"border-t {Tokens.Borders.subtle} px-5 py-3 {Tokens.FontSizes.xs} {Tokens.Colors.textMuted}"
         )
         prop.children [ Html.span [ prop.className Tokens.Fonts.mono; prop.text text ] ]
@@ -4146,11 +4146,12 @@ let view (model: Model) (dispatch: Msg -> unit) =
             [
                 // Regeln stehen nicht mehr in der Navigation: bis `categorization-n3sxw` (Regeln ins Kassenbuch)
                 // führt dieser Link auf die Regelseite (design-system-k6kfw).
+                // Ein Textlink im Akzent (Styleguide §2); einen Link-Baustein hat das DS nicht.
                 Html.a [
                     prop.href "#/rules"
-                    prop.className $"inline-flex items-center gap-1.5 px-2 text-sm {Tokens.Colors.textSecondary} hover:text-text-primary {Tokens.TouchTargets.mobileMinHeight} md:min-h-0"
+                    prop.className $"inline-flex items-center gap-1.5 px-2 {Tokens.FontSizes.sm} {Tokens.Colors.accent} hover:underline {Tokens.TouchTargets.mobileMinHeight} md:min-h-0"
                     prop.children [
-                        Icons.rules Icons.XS Icons.Default
+                        Icons.rules Icons.XS Icons.Accent
                         Html.span [ prop.text "Regeln" ]
                     ]
                 ]

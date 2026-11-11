@@ -1140,6 +1140,22 @@ export const STATES = [
       loaded: (page) => page.locator('[data-testid="overview-month"]'),
     },
   },
+  // Bei 20 px Grundschrift wächst die Karte „Monat“ mit (Höhen in rem); Platzhalter und Karte bleiben gleich hoch.
+  {
+    name: "uebersicht-grosse-schrift",
+    route: "/",
+    widths: [390, 1280],
+    mock: mockOverview,
+    open: async (page) => {
+      await openOverview(page);
+      await page.addStyleTag({ content: "html { font-size: 20px; }" });
+    },
+    deferred: {
+      api: "**/api/BudgetApi/getBudgetMonth",
+      body: { Ok: budgetMonth(CURRENT) },
+      loaded: (page) => page.locator('[data-testid="overview-month"]'),
+    },
+  },
   // Gegenstück zu `uebersicht`: der Monat ohne Kategorie im Minus. Die Karte ist gleich hoch mit oder ohne „Im Minus“.
   {
     name: "uebersicht-ohne-minus",

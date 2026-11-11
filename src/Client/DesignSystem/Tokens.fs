@@ -103,6 +103,7 @@ module FontSizes =
     let microPlus = "text-[11px]"        // Slightly larger micro labels (e.g. desktop-only meta strings)
     let brand = "text-[17px]"            // Markenname in der Seitenleiste (Prototyp `.brand`, design-system-k6kfw)
     let compact = "text-[13px]"          // Zwischen xs und sm: Kopf und Werte der Leiste Monatserster (Skizze, budgeting-m3x7f)
+    let placeTitle = "text-xl"           // 20 px: Titel im Kopf eines Orts oder einer Unterseite (Prototyp `.top`, design-system-k6kfw)
 
 /// Typografie-Rollen für ruhige Listen (ADR 0049, Styleguide §2 "Ruhige Listen").
 /// Arbiträre Größen (`text-[15px]`, `text-[10px]`) stehen nur hier, nicht in Views.
@@ -267,6 +268,20 @@ module Breakpoints =
     let mobileOnly = "md:hidden"
     let desktopOnly = "hidden md:block"
     let tabletUp = "sm:block"
+
+// ============================================
+// Navigation links (design-system-k6kfw)
+// ============================================
+
+/// Breite von Rail (768 bis 1023 px, 72 px) und Seitenleiste (ab 1024 px, 232 px) und der Abstand, den Inhalt und
+/// feste Leisten unten davon halten. Wörtliche Klassen, weil Tailwind nur Literale findet.
+module NavWidths =
+    let rail = "w-[72px]"
+    let sidebar = "w-[232px]"
+    /// Rand links des Seiteninhalts.
+    let contentOffset = "md:ml-[72px] lg:ml-[232px]"
+    /// Linke Kante einer festen Leiste am unteren Rand.
+    let fixedLeft = "md:left-[72px] lg:left-[232px]"
 
 // ============================================
 // Z-Index Tokens
