@@ -669,7 +669,7 @@ let fab (testId: string) (text: string) (ariaLabel: string) (quiet: bool) (onCli
         prop.ariaLabel ariaLabel
         prop.className (
             $"inline-flex items-center gap-1.5 h-[52px] px-[18px] rounded-full {FontSizes.body} {FontWeights.semibold} "
-            + "transition-transform active:scale-[0.98] "
+            + "touch-manipulation transition-transform active:scale-[0.98] "
             + if quiet then $"{Backgrounds.surface} border {Borders.accent} {Colors.accent}"
               else $"{Backgrounds.accent} {Colors.onAccent} {Colors.onAccentSvg} {Glows.accent}"
         )

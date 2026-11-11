@@ -2919,11 +2919,12 @@ nav a:focus-visible {
 .selection-bar {
   box-shadow: 0 -14px 40px rgba(0, 0, 0, 0.45);
 }
-/* "+ Buchung" am Handy (ledger-at63w): schwebt unten rechts über der Navigation, mit dem
+/* "+ Buchung" am Handy (ledger-at63w, auf der Übersicht ledger-s1weh): schwebt unten rechts über der Navigation, mit dem
    Seitenrand von 16 px (Styleguide §7.15) als Abstand zur Navigation und zur sicheren Zone unten.
    Ebene wie `ZIndex.fixed'` (30), damit Sheets und Modals (40) darüber liegen. Den Platz unter der
    Liste hält `captureFabSpacer` frei. */
-.ledger-capture-fab {
+.ledger-capture-fab,
+.overview-capture-fab {
   position: fixed;
   right: 16px;
   bottom: calc(var(--bottom-nav-height) + 16px + env(safe-area-inset-bottom, 0px));
@@ -2935,10 +2936,3 @@ nav a:focus-visible {
   user-select: none;
 }
 
-/* „+ Buchung“ auf der Übersicht (ledger-s1weh): wie im Kassenbuch unten rechts über der Leiste. */
-.overview-capture-fab {
-  position: fixed;
-  right: 16px;
-  bottom: calc(var(--bottom-nav-height) + 16px + env(safe-area-inset-bottom, 0px));
-  z-index: 30;
-}
