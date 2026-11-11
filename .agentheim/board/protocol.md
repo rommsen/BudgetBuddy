@@ -5,6 +5,22 @@ Newest entries on top.
 
 ---
 
+## 2026-11-11 21:54 -- Modeling / Promoted: ledger-fxt09 - "Payee einer Buchung in BB ändern: Befehl mit Ereignis und Schreibweg nach YNAB, im Buchungs-Detail und auf der Karte beim Durchgehen, Rückgängig im Toast"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-11 21:54 -- Modeling / Promoted: banking-import-d0fey - "Import direkt ins Kassenbuch: „Abrufen“ bucht neue Umsätze ohne Prüfsitzung sofort in Kassenbuch und YNAB als „zu prüfen“, unsichere Duplikate warten im Kassenbuch, der Sync-Ablauf schrumpft auf das Sheet „Abrufen“"
+
+**Type:** Modeling / Promote
+**BC:** banking-import
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-11 21:54 -- Modeling / Dismissed: categorization-hz6vj
 
 **Type:** Modeling / Dismiss
