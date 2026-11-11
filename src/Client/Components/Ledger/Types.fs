@@ -1117,6 +1117,10 @@ type Model = {
     /// (`getLedgerPayeeSuggestions` ohne Filter). Lädt beim ersten Öffnen und nach jeder Änderung neu.
     PayeeChoices: RemoteData<LedgerPayeeSuggestion list>
 
+    /// Die Lade-Nummer der Payee-Auswahl: jede Änderung eines Payees zählt sie weiter, eine ältere
+    /// Ladeantwort gilt dann nicht mehr.
+    PayeeChoicesGeneration: int
+
     /// Wie die Liste bei der gemessenen Breite und dem Eingabegerät bedient wird (ledger-m6zpd).
     /// Die Ansicht meldet es mit `ListInteractionChanged`; der Fußzeilen-Hinweis liest nur dieses Feld.
     ListInteraction: ListInteraction
@@ -1856,7 +1860,7 @@ type Msg =
     /// Ein Tipp auf die Payee-Zeile: öffnet die Payee-Auswahl.
     | OpenPayeeEdit of Guid
     | RunLoadPayeeChoices
-    | PayeeChoicesLoaded of Result<LedgerPayeeSuggestion list, string>
+    | PayeeChoicesLoaded of generation: int * Result<LedgerPayeeSuggestion list, string>
     /// Schließen der Auswahl (Esc, Schließen-Knopf): zurück ins Detail, ohne Änderung.
     | CancelPayeeEdit
     /// Der Fokus kehrt auf die Payee-Zeile im Detail zurück (nach dem Schließen der Auswahl).

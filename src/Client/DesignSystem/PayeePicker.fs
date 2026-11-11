@@ -32,6 +32,12 @@ let emptyText = "Noch keine Payees im Kassenbuch"
 /// Die Id des Feldfehlers, auf die das Suchfeld per `aria-describedby` verweist.
 let fieldErrorId = "payee-picker-error"
 
+/// Die Id der Listbox, auf die das Suchfeld per `aria-controls` verweist.
+let listboxId = "payee-picker-listbox"
+
+/// Die Id einer Zeile, auf die das Suchfeld per `aria-activedescendant` verweist, solange sie markiert ist.
+let optionId (index: int) : string = $"payee-picker-option-{index}"
+
 let private keyOf (text: string) = text.Trim().ToLowerInvariant()
 
 /// Die Zeilen zur Eingabe: zuerst „übernehmen“, wenn die getrimmte Eingabe nicht leer und kein
@@ -172,6 +178,11 @@ let View (props: PayeePickerProps) =
                             AriaLabel = Some "Payee"
                             DescribedBy = (if props.FieldError.IsSome then Some fieldErrorId else None)
                             AriaInvalid = props.FieldError.IsSome
+                            Combobox =
+                                Some
+                                    { ListboxId = listboxId
+                                      Expanded = not (List.isEmpty rows)
+                                      ActiveOptionId = active |> Option.filter (fun i -> i < List.length rows) |> Option.map optionId }
                             ClassName = Some "w-full" }
                     match props.FieldError with
                     | Some message ->
@@ -185,43 +196,51 @@ let View (props: PayeePickerProps) =
                 ]
             ]
             Html.div [
-                prop.role "listbox"
-                prop.ariaLabel "Payees"
                 prop.className "flex flex-col"
                 prop.children [
-                    for index, row in List.indexed rows do
-                        let label, count =
-                            match row with
-                            | TakeTyped payee -> takeLabel payee, None
-                            | Suggested (payee, n) -> payee, Some n
-                        PickerParts.row
-                            (rowClassFor (active = Some index))
-                            [
-                                prop.key (match row with TakeTyped p -> $"take-{p}" | Suggested (p, _) -> $"s-{p}")
-                                prop.role "option"
-                                prop.custom ("aria-selected", (active = Some index))
-                                prop.custom ("data-row-index", index)
-                                prop.custom ("data-testid", (match row with TakeTyped _ -> "payee-picker-take" | Suggested _ -> "payee-picker-option"))
-                                // Der Fokus bleibt im Suchfeld: am Handy bleibt die Tastatur offen (§7.1).
-                                prop.onMouseDown (fun e -> e.preventDefault ())
-                                prop.onClick (fun e ->
-                                    e.stopPropagation ()
-                                    pick (payeeOf row))
-                            ]
-                            (match count with
-                             | None -> PickerParts.name label
-                             | Some n ->
-                                 Html.span [
-                                     prop.className "flex min-w-0 flex-1 items-center justify-between gap-3"
-                                     prop.children [
-                                         PickerParts.name label
+                    Html.div [
+                        prop.id listboxId
+                        prop.role "listbox"
+                        prop.ariaLabel "Payees"
+                        prop.className "flex flex-col"
+                        prop.children [
+                            for index, row in List.indexed rows do
+                                let label, count =
+                                    match row with
+                                    | TakeTyped payee -> takeLabel payee, None
+                                    | Suggested (payee, n) -> payee, Some n
+                                PickerParts.row
+                                    (rowClassFor (active = Some index))
+                                    [
+                                        prop.key (match row with TakeTyped p -> $"take-{p}" | Suggested (p, _) -> $"s-{p}")
+                                        prop.id (optionId index)
+                                        prop.role "option"
+                                        prop.custom ("aria-selected", (active = Some index))
+                                        prop.custom ("data-row-index", index)
+                                        prop.custom ("data-testid", (match row with TakeTyped _ -> "payee-picker-take" | Suggested _ -> "payee-picker-option"))
+                                        // Der Fokus bleibt im Suchfeld: am Handy bleibt die Tastatur offen (§7.1).
+                                        prop.onMouseDown (fun e -> e.preventDefault ())
+                                        prop.onClick (fun e ->
+                                            e.stopPropagation ()
+                                            pick (payeeOf row))
+                                    ]
+                                    (match count with
+                                     | None -> PickerParts.name label
+                                     | Some n ->
                                          Html.span [
-                                             prop.className $"{Fonts.mono} {Colors.textMuted} {FontSizes.xs} tabular-nums shrink-0"
-                                             prop.text (Money.formatCount n)
-                                         ]
-                                     ]
-                                 ])
-                            None
+                                             prop.className "flex min-w-0 flex-1 items-center justify-between gap-3"
+                                             prop.children [
+                                                 PickerParts.name label
+                                                 Html.span [
+                                                     prop.className $"{Fonts.mono} {Colors.textMuted} {FontSizes.xs} tabular-nums shrink-0"
+                                                     prop.text (Money.formatCount n)
+                                                 ]
+                                             ]
+                                         ])
+                                    None
+                        ]
+                    ]
+                    // Lade-, Fehler- und Leertext stehen unter der Listbox: in ihr sind nur Optionen erlaubt.
                     if props.Loading then
                         Html.p [ prop.className $"py-2 {FontSizes.sm} {Colors.textMuted}"; prop.text loadingText ]
                     else

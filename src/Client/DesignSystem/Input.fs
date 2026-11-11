@@ -45,6 +45,14 @@ let private stateToClass = function
 // Text Input
 // ============================================
 
+/// Das Feld steuert eine Liste darunter, der Fokus bleibt im Feld (Muster Combobox der WAI-ARIA-Praxis):
+/// `role="combobox"`, `aria-controls` auf die Listbox, `aria-activedescendant` auf die markierte Zeile.
+type ComboboxAria = {
+    ListboxId: string
+    Expanded: bool
+    ActiveOptionId: string option
+}
+
 type TextInputProps = {
     Value: string
     OnChange: string -> unit
@@ -68,6 +76,8 @@ type TextInputProps = {
     DescribedBy: string option
     /// Die Eingabe gilt nicht (`aria-invalid`). Die rote Umrandung setzt weiter `State` oder die Klasse.
     AriaInvalid: bool
+    /// Das Feld ist die Eingabe einer Combobox (ledger-fxt09, Payee-Auswahl).
+    Combobox: ComboboxAria option
 }
 
 let textInputDefaults = {
@@ -87,6 +97,7 @@ let textInputDefaults = {
     OnKeyDown = None
     DescribedBy = None
     AriaInvalid = false
+    Combobox = None
 }
 
 /// Setzt `text` das Inline-`fontSize 16` (iOS-Zoom-Schutz)? Nur Medium. Small trägt
@@ -133,6 +144,16 @@ let text (props: TextInputProps) =
         | Some id -> prop.ariaDescribedBy id
         | None -> ()
         if props.AriaInvalid then prop.ariaInvalid true
+        match props.Combobox with
+        | Some combobox ->
+            prop.role "combobox"
+            prop.custom ("aria-autocomplete", "list")
+            prop.custom ("aria-controls", combobox.ListboxId)
+            prop.ariaExpanded combobox.Expanded
+            match combobox.ActiveOptionId with
+            | Some id -> prop.custom ("aria-activedescendant", id)
+            | None -> ()
+        | None -> ()
         // Prevent iOS zoom on focus (Small und Large regeln das über ihre Klassen)
         if usesInlineFontSize props.Size then
             prop.style [ style.fontSize 16 ]

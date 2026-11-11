@@ -713,7 +713,11 @@ let private apiWirings =
       // getestet, die Live-Verdrahtung erreicht YNAB und die echte Datenbank nur im laufenden Dienst.
       @"\bFetchMonth\s*=\s*fun\s+month\s*->\s*YnabClient\.getMonth\s+token\s+budgetId\s+month\b"
       @"\bpickerOptionsWith\s+\(fun\s*\(\)\s*->\s*YnabClient\.getCategoriesPlaced\s+token\s+budgetId\)\s+\(fun\s*\(\)\s*->\s*YnabClient\.getReadyToAssign\s+token\s+budgetId\)\s+Budgeting\.Persistence\.loadCategoryLayout\b"
-      @"\bFetchCategoryOrder\s*=\s*fun\s*\(\)\s*->\s*Server\.Budgeting\.Categories\.bbCategoryOrderWith\s+\(fun\s*\(\)\s*->\s*YnabClient\.getCategoriesPlaced\s+token\s+budgetId\)\s+Budgeting\.Persistence\.loadCategoryLayout\b" ]
+      @"\bFetchCategoryOrder\s*=\s*fun\s*\(\)\s*->\s*Server\.Budgeting\.Categories\.bbCategoryOrderWith\s+\(fun\s*\(\)\s*->\s*YnabClient\.getCategoriesPlaced\s+token\s+budgetId\)\s+Budgeting\.Persistence\.loadCategoryLayout\b"
+      // Memo und Payee nach YNAB (Review-Fund zu ledger-fxt09): `ynabPushWith` ist mit Fake-Settings getestet,
+      // die Befehle mit Fake-Push; der Push des Servers erreicht YNAB nur im laufenden Dienst.
+      @"\bmemoPush\s*\(\)\s*:\s*Async<Ledger\.CommandHandlers\.MemoPush>\s*=\s*ynabPushWith\s+Persistence\.Settings\.getSetting\s+\(fun\s+token\s+budgetId\s*->\s*YnabClient\.updateMemo\s+token\s+budgetId\)\s+refusedPush\s*(?:\n\s*\n|\z)"
+      @"\bpayeePush\s*\(\)\s*:\s*Async<Ledger\.CommandHandlers\.PayeePush>\s*=\s*ynabPushWith\s+Persistence\.Settings\.getSetting\s+\(fun\s+token\s+budgetId\s*->\s*YnabClient\.updatePayee\s+token\s+budgetId\)\s+refusedPush\s*(?:\n\s*\n|\z)" ]
 
 /// Bobs Push in `BotApi.liveDeps` (ledger-bk3q8): bekommt Konto, `import_id` (ledger-p3vq8) und Request der
 /// Barbuchung und reicht alle drei unverändert an YNAB. Ein Ersatz kompilierte, der Testlauf kann den echten Push nicht ausführen.
@@ -840,6 +844,8 @@ let hostedServiceGuardTests =
                   "|> Remoting.fromValue (categoryApi berlinZone)\n"
                   "return!\n    Server.Budgeting.Categories.pickerOptionsWith\n        (fun () -> YnabClient.getCategoriesPlaced token budgetId)\n        (fun () -> YnabClient.getReadyToAssign token budgetId)\n        Budgeting.Persistence.loadCategoryLayout\n"
                   "FetchCategoryOrder =\n    fun () ->\n        Server.Budgeting.Categories.bbCategoryOrderWith\n            (fun () -> YnabClient.getCategoriesPlaced token budgetId)\n            Budgeting.Persistence.loadCategoryLayout\n"
+                  "let private memoPush () : Async<Ledger.CommandHandlers.MemoPush> =\n    ynabPushWith Persistence.Settings.getSetting (fun token budgetId -> YnabClient.updateMemo token budgetId) refusedPush\n\n"
+                  "let private payeePush () : Async<Ledger.CommandHandlers.PayeePush> =\n    ynabPushWith Persistence.Settings.getSetting (fun token budgetId -> YnabClient.updatePayee token budgetId) refusedPush\n\n"
                   "{ Settings = fun () -> ynabAccessWith Persistence.Settings.getSetting\n  FetchMonths = fun token budgetId -> YnabClient.getMonths token budgetId\n  FetchMonth = fun token budgetId monthKey -> YnabClient.getMonth token budgetId monthKey\n  LoadTakenOver = Budgeting.Persistence.loadTakenOverMonths\n  EnsureTakenOver = Server.Budgeting.CommandHandlers.ensureTakenOver }\n" ]
                 |> String.concat "\n"
             let replaced (original: string) (replacement: string) = real.Replace(original, replacement)
@@ -921,7 +927,12 @@ let hostedServiceGuardTests =
                   "restoreDeletedEntryWith liveEntryDeletionPorts", "restoreDeletedEntryWith fakeDeletionPorts", "Wiederherstellen mit anderen Ports"
                   "Create = YnabClient.createReplacement", "Create = (fun _ _ _ -> async.Return (Ok \"x\"))", "Wiederherstellen ohne Neuanlage"
                   "getLedgerBookingDefaultsWith Persistence.Settings.getSetting liveBerlinZone.Value", "getLedgerBookingDefaultsWith Persistence.Settings.getSetting TimeZoneInfo.Utc", "Vorbelegung in UTC"
-                  "Persistence.Rules.getAllRules\n            payee", "(fun () -> async.Return [])\n            payee", "Kategorie zum Payee ohne Regeln" ] do
+                  "Persistence.Rules.getAllRules\n            payee", "(fun () -> async.Return [])\n            payee", "Kategorie zum Payee ohne Regeln"
+                  "YnabClient.updatePayee token budgetId", "YnabClient.updateCategory token budgetId", "Payee über einen anderen Schreibweg"
+                  "YnabClient.updateMemo token budgetId", "(fun _ _ -> async.Return (Ok ()))", "Memo ohne YNAB"
+                  "MemoPush> =\n    ynabPushWith Persistence.Settings.getSetting", "MemoPush> =\n    ynabPushWith (fun _ -> async.Return None)", "Memo ohne Settings"
+                  "PayeePush> =\n    ynabPushWith Persistence.Settings.getSetting", "PayeePush> =\n    ynabPushWith (fun _ -> async.Return None)", "Payee ohne Settings"
+                  "updatePayee token budgetId) refusedPush", "updatePayee token budgetId) (fun _ -> fun _ _ -> async.Return (Ok ()))", "Payee ohne Einrichtung gilt als gesendet" ] do
                 Expect.isNonEmpty (findMissingApiWirings (replaced original replacement)) label
             Expect.isNonEmpty (findMissingApiWirings $"// {real}") "nur im Kommentar"
 

@@ -731,3 +731,37 @@ let ynabClientTests =
             | Error (YnabError.NetworkError _) -> ()
             | other -> failtest $"erwartet Netzfehler, war {other}"
     ]
+
+// ============================================
+// Token und Budget aus den Settings (Review-Fund zu ledger-fxt09)
+// ============================================
+
+[<Tests>]
+let ynabPushSettingsTests =
+    // `memoPush` und `payeePush` holen Token und Budget über `Server.Api.ynabPushWith`; die Verdrahtung
+    // mit `Persistence.Settings.getSetting` und `YnabClient.updatePayee` prüft `apiWirings`.
+    let pushWith (settings: (string * string) list) =
+        let lookup key = async.Return (settings |> List.tryFind (fun (k, _) -> k = key) |> Option.map snd)
+        Server.Api.ynabPushWith
+            lookup
+            (fun token budgetId -> fun (_: string) (_: string) -> async.Return (Ok (token, budgetId)))
+            (fun error -> fun _ _ -> async.Return (Error error))
+        |> Async.RunSynchronously
+    let send push = push "tx-1" "Rewe" |> Async.RunSynchronously
+    let both = [ "ynab_token", "t-1"; "ynab_default_budget_id", "b-1" ]
+    testList "Payee: Token und Budget aus den Settings" [
+        testCase "mit Token und Budget geht der Push mit genau diesen an YNAB" <| fun () ->
+            Expect.equal (send (pushWith both)) (Ok ("t-1", YnabBudgetId "b-1")) "Token und Budget"
+
+        testCase "ohne Token antwortet der Push mit Unauthorized, der Grund im Hinweis ist deutsch" <| fun () ->
+            match send (pushWith [ "ynab_default_budget_id", "b-1" ]) with
+            | Error (YnabError.Unauthorized _ as error) ->
+                Expect.equal (describePayeePushError error) "YNAB-Token ungültig (HTTP 401)" "Grund"
+            | other -> failtest $"erwartet Unauthorized, war {other}"
+
+        testCase "ohne Budget antwortet der Push mit BudgetNotFound" <| fun () ->
+            match send (pushWith [ "ynab_token", "t-1" ]) with
+            | Error (YnabError.BudgetNotFound _ as error) ->
+                Expect.equal (describePayeePushError error) "Budget in YNAB nicht gefunden" "Grund"
+            | other -> failtest $"erwartet BudgetNotFound, war {other}"
+    ]

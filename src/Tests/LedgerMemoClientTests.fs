@@ -287,6 +287,9 @@ let memoReducerTests =
             let failing = { withMemo 1 "Notiz" with MemoWriteBackFailure = Some "weg" }
             let model, msgs, _ = run (StartRetryMemo (idOf 1)) (modelWith [ failing ])
             Expect.equal msgs [ RunRetryMemo (idOf 1) ] "Aufruf"
+            // Review-Fund zu ledger-fxt09: ein zweiter Tipp während des Aufrufs schickte einen zweiten.
+            let _, twice, _ = run (StartRetryMemo (idOf 1)) model
+            Expect.isEmpty twice "ein zweiter Tipp schickt nichts"
             let sent, _, external = run (MemoRetried (idOf 1, Ok MemoSent)) model
             Expect.isNone (rowOf 1 sent).MemoWriteBackFailure "Fehlschlag beendet"
             Expect.equal external NoOp "kein Toast bei Erfolg"

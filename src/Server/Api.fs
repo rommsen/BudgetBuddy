@@ -992,41 +992,37 @@ let private flagPush () : Async<Ledger.CommandHandlers.FlagPush> =
                 async { return Error (YnabError.BudgetNotFound "Kein Standard-Budget konfiguriert (Settings)") }
     }
 
-/// Der Push des Memos (ledger-fa1fp, ADR 0062) mit Token und Standard-Budget aus den
-/// Settings, mit denselben Fehlerfällen wie `flagPush`. Sendet nur `memo`.
+/// Token und Standard-Budget aus den Settings für einen Push nach YNAB: mit beiden baut `connected` den
+/// Push, fehlt eins, baut `refused` einen Push, der mit dem Fehler antwortet statt zu werfen. Der Grund
+/// im Hinweis kommt aus `ynabErrorText`, der Text in `Unauthorized` erscheint dort nicht.
+let ynabPushWith
+    (setting: string -> Async<string option>)
+    (connected: string -> YnabBudgetId -> 'push)
+    (refused: YnabError -> 'push)
+    : Async<'push> =
+    async {
+        let! tokenOpt = setting "ynab_token"
+        let! budgetOpt = setting "ynab_default_budget_id"
+
+        match tokenOpt, budgetOpt with
+        | Some token, Some budgetId -> return connected token (YnabBudgetId budgetId)
+        | None, _ -> return refused (YnabError.Unauthorized "No YNAB token configured")
+        | _, None -> return refused (YnabError.BudgetNotFound "Kein Standard-Budget konfiguriert (Settings)")
+    }
+
+/// Ein Push mit Buchung und Wert, der nur mit dem Fehler antwortet.
+let private refusedPush (error: YnabError) : 'id -> 'value -> Async<Result<unit, YnabError>> =
+    fun _ _ -> async { return Error error }
+
+/// Der Push des Memos (ledger-fa1fp, ADR 0062) mit Token und Standard-Budget aus den Settings.
+/// Sendet nur `memo`.
 let private memoPush () : Async<Ledger.CommandHandlers.MemoPush> =
-    async {
-        let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
-        let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
+    ynabPushWith Persistence.Settings.getSetting (fun token budgetId -> YnabClient.updateMemo token budgetId) refusedPush
 
-        match tokenOpt, budgetOpt with
-        | Some token, Some budgetId ->
-            return fun ynabTransactionId memo ->
-                YnabClient.updateMemo token (YnabBudgetId budgetId) ynabTransactionId memo
-        | None, _ ->
-            return fun _ _ -> async { return Error (YnabError.Unauthorized "No YNAB token configured") }
-        | _, None ->
-            return fun _ _ ->
-                async { return Error (YnabError.BudgetNotFound "Kein Standard-Budget konfiguriert (Settings)") }
-    }
-
-/// Der Push des Payees (ledger-fxt09) mit Token und Standard-Budget aus den Settings, mit denselben
-/// Fehlerfällen wie `memoPush`. Sendet nur `payee_id` (null) und `payee_name`.
+/// Der Push des Payees (ledger-fxt09) mit Token und Standard-Budget aus den Settings. Sendet nur
+/// `payee_id` (null) und `payee_name`.
 let private payeePush () : Async<Ledger.CommandHandlers.PayeePush> =
-    async {
-        let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
-        let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
-
-        match tokenOpt, budgetOpt with
-        | Some token, Some budgetId ->
-            return fun ynabTransactionId payee ->
-                YnabClient.updatePayee token (YnabBudgetId budgetId) ynabTransactionId payee
-        | None, _ ->
-            return fun _ _ -> async { return Error (YnabError.Unauthorized "No YNAB token configured") }
-        | _, None ->
-            return fun _ _ ->
-                async { return Error (YnabError.BudgetNotFound "Kein Standard-Budget konfiguriert (Settings)") }
-    }
+    ynabPushWith Persistence.Settings.getSetting (fun token budgetId -> YnabClient.updatePayee token budgetId) refusedPush
 
 /// Der Push des Betrags (ledger-m7mye, ADR 0092) mit Token und Standard-Budget aus den
 /// Settings, mit denselben Fehlerfällen wie `memoPush`. Sendet nur `amount`.

@@ -152,7 +152,7 @@ test("[flow:payee-aendern] Handy: Payee im Detail ändern und im Toast rückgän
   await context.close();
 });
 
-test("[fokus] PC: beim Öffnen steht der Fokus in der Suche, Esc führt zurück ins Detail auf die Payee-Zeile", async () => {
+test("[fokus] PC: beim Öffnen steht der Fokus in der Suche, ↓ macht eine Zeile zum aktiven Nachfahren, Esc führt zurück ins Detail auf die Payee-Zeile", async () => {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await open(context);
   await page.locator("table tbody tr", { hasText: BANK_PAYEE }).first().locator("td").nth(2).click();
@@ -164,6 +164,27 @@ test("[fokus] PC: beim Öffnen steht der Fokus in der Suche, Esc führt zurück 
   await field.waitFor();
   await page.waitForFunction(
     () => document.activeElement === document.querySelector('[data-layer="dialog"] [data-testid="payee-picker-search"] input')
+  );
+
+  // Der Fokus bleibt in der Suche, ↓ markiert eine Zeile: das Suchfeld nennt sie als aktiven Nachfahren
+  // der Listbox, die es steuert (Review-Fund zu ledger-fxt09).
+  await page.keyboard.press("ArrowDown");
+  const combobox = await field.evaluate((el) => {
+    const active = document.getElementById(el.getAttribute("aria-activedescendant") ?? "");
+    const listbox = document.getElementById(el.getAttribute("aria-controls") ?? "");
+    return {
+      role: el.getAttribute("role"),
+      focused: document.activeElement === el,
+      listboxRole: listbox?.getAttribute("role") ?? null,
+      activeSelected: active?.getAttribute("aria-selected") ?? null,
+      activeInListbox: !!(active && listbox?.contains(active)),
+      onlyOptions: listbox ? [...listbox.children].every((c) => c.getAttribute("role") === "option") : false,
+    };
+  });
+  assert.deepEqual(
+    combobox,
+    { role: "combobox", focused: true, listboxRole: "listbox", activeSelected: "true", activeInListbox: true, onlyOptions: true },
+    "Combobox: aria-controls auf die Listbox, aria-activedescendant auf die markierte Zeile"
   );
 
   await page.keyboard.press("Escape");

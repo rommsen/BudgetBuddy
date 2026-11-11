@@ -181,7 +181,6 @@ let reducerTests =
             let loaded = { model with PayeeEdit = None; PayeeChoices = Success [] }
             let _, again, _ = run (OpenPayeeEdit (idOf 1)) loaded
             Expect.isEmpty again "geladen: kein zweiter Abruf"
-            Expect.equal Components.Ledger.State.payeeChoicesQuery.AccountId None "das ganze Kassenbuch"
 
         testCase "eine gesperrte Buchung öffnet keine Auswahl" <| fun () ->
             let locked = { entryOf 1 with LinkedToYnab = false }
@@ -285,4 +284,116 @@ let reducerTests =
         testCase "ein anderes Detail oder Schließen verwirft die Auswahl" <| fun () ->
             let model, _, _ = run CloseDetail (opened ())
             Expect.isNone model.PayeeEdit "mit dem Detail zu"
+
+        // Review-Fund zu ledger-fxt09: Schloss das Detail während des Speicherns, ging ein Fehler von
+        // setEntryPayee still verloren (kein Feldfehler mehr da, kein Toast).
+        testCase "PayeeSet Error bei geschlossener Auswahl: ein Fehler-Toast nennt den Grund" <| fun () ->
+            let sending, _, _ = run (StartSavePayee (idOf 1, "Rewe")) (opened ())
+            let closed, _, _ = run CloseDetail sending
+            let model, _, external = run (PayeeSet (idOf 1, Error "YNAB weg")) closed
+            Expect.equal external (ShowToast ("Payee nicht geändert: YNAB weg", ToastError)) "Toast mit Grund"
+            Expect.isEmpty model.PayeeRows "Sperre gelöst"
+            Expect.equal (rowOf 1 model).Payee (Some "REWE SAGT DANKE 4711") "Payee unverändert"
+
+        // Review-Fund zu ledger-fxt09: Die Ladeantwort der Auswahl war ungebunden. Kam sie nach einer
+        // Änderung an, stand wieder die alte Payee-Liste da.
+        testCase "eine alte Ladeantwort der Payee-Auswahl ersetzt nach einer Änderung die Liste nicht" <| fun () ->
+            let opening, _, _ = run (OpenPayeeEdit (idOf 1)) (modelWith [ entryOf 1 ])
+            let oldAnswer = Components.Ledger.State.payeeChoicesAnswer opening
+            let oldList = [ { Payee = "REWE SAGT DANKE 4711"; Count = 3 } ]
+            let sending, _, _ = run (StartSavePayee (idOf 1, "Rewe")) opening
+            let changed, _, _ = run (PayeeSet (idOf 1, Ok (outcome (Some "REWE SAGT DANKE 4711") "Rewe" PayeeSent))) sending
+            let late, _, _ = run (oldAnswer (Ok oldList)) changed
+            Expect.equal late.PayeeChoices NotAsked "die alte Liste bleibt draußen"
+            let reopened, msgs, _ = run (OpenPayeeEdit (idOf 1)) late
+            Expect.equal msgs [ RunLoadPayeeChoices ] "lädt neu"
+            let lateAgain, _, _ = run (oldAnswer (Ok oldList)) reopened
+            Expect.equal lateAgain.PayeeChoices Loading "auch beim neuen Laden nicht"
+            let fresh = [ { Payee = "Rewe"; Count = 13 } ]
+            let loaded, _, _ = run (Components.Ledger.State.payeeChoicesAnswer reopened (Ok fresh)) lateAgain
+            Expect.equal loaded.PayeeChoices (Success fresh) "die neue Antwort gilt"
+            let intact, _, _ = run (oldAnswer (Ok oldList)) opening
+            Expect.equal intact.PayeeChoices (Success oldList) "ohne Änderung gilt die Antwort"
+    ]
+
+// ============================================
+// Sperre über mehrere Nachrichten (Doktrin Punkt 20)
+// ============================================
+
+/// Welcher Aufruf zum Payee unterwegs ist, wie die Aufzählung ihn kennt. Der Merker ist eigen: Der
+/// Test soll nicht der Sperre glauben, die er prüft.
+type private PayeeCall =
+    | SaveCall of payee: string
+    | UndoCall of payee: string
+    | RetryCall
+
+/// Der Aufruf, den ein Schritt angestoßen hat, aus den ausgehenden Nachrichten.
+let private callOf (msgs: Msg list) : PayeeCall option =
+    msgs
+    |> List.tryPick (function
+        | RunSetPayee (_, payee) -> Some (SaveCall payee)
+        | RunUndoPayee (_, payee) -> Some (UndoCall payee)
+        | RunRetryPayee _ -> Some RetryCall
+        | _ -> None)
+
+/// Alle Ereignisse, die in diesem Zustand kommen können.
+let private payeeEvents (model: Model) (pending: PayeeCall option) : (string * Msg) list =
+    let current = rowOf 1 model
+    let other = if current.Payee = Some "Rewe" then "Edeka" else "Rewe"
+    let id = idOf 1
+    [ "Öffnen", OpenPayeeEdit id
+      "Schließen", CancelPayeeEdit
+      "Detail zu", CloseDetail
+      "Detail auf", OpenDetail current
+      "Übernehmen", StartSavePayee (id, other)
+      "Rückgängig", StartUndoPayee (id, "REWE SAGT DANKE 4711")
+      "Erneut senden", StartRetryPayee id
+      match pending with
+      | Some (SaveCall payee) ->
+          "Antwort", PayeeSet (id, Ok (outcome current.Payee payee PayeeSent))
+          "Fehler", PayeeSet (id, Error "weg")
+      | Some (UndoCall payee) ->
+          "Antwort", PayeeRestored (id, Ok (outcome current.Payee payee PayeeSent))
+          "Fehler", PayeeRestored (id, Error "weg")
+      | Some RetryCall ->
+          "Antwort", PayeeRetried (id, Ok PayeeSent)
+          "Fehler", PayeeRetried (id, Error "weg")
+      | None -> () ]
+
+[<Tests>]
+let payeeLockTests =
+    // Review-Fund zu ledger-fxt09: StartRetryPayee prüfte die Sperre nicht. Ein "Erneut senden"
+    // während Speichern oder Rückgängig schickte einen zweiten Aufruf.
+    testList "Payee ändern: ein Aufruf zugleich" [
+        testCase "über alle Reihenfolgen von Übernehmen, Rückgängig, Erneut senden und Antworten läuft höchstens ein Aufruf, ruhend startet jeder" <| fun () ->
+            let start = { opened () with PayeeEdit = None }
+            let failing = { rowOf 1 start with PayeeWriteBackFailure = Some "weg" }
+            let start = { start with Entries = Success [ failing ]; DetailFor = Some failing }
+            let mutable started = 0
+            let mutable blocked = 0
+            let rec go (left: int) (path: string list) (model: Model) (pending: PayeeCall option) =
+                for name, msg in payeeEvents model pending do
+                    let after, msgs, external = run msg model
+                    let path' = name :: path
+                    let shown = String.concat ", " (List.rev path')
+                    let call = callOf msgs
+                    match pending, call with
+                    | Some _, Some _ -> failtest $"zweiter Aufruf: {shown}"
+                    | Some _, None -> if name = "Übernehmen" || name = "Rückgängig" || name = "Erneut senden" then blocked <- blocked + 1
+                    | None, Some _ -> started <- started + 1
+                    | None, None ->
+                        let saveOpen = model.PayeeEdit |> Option.exists (fun e -> e.PayeeEntryId = idOf 1)
+                        if name = "Rückgängig" || name = "Erneut senden" || (name = "Übernehmen" && saveOpen) then
+                            failtest $"ruhend startet {name} nicht: {shown}"
+                    if name = "Fehler" then
+                        let fieldError = after.PayeeEdit |> Option.exists (fun e -> e.PayeeFieldError.IsSome)
+                        let toast = match external with ShowToast (_, ToastError) -> true | _ -> false
+                        let notice = (after.PayeeRows |> Map.tryFind (idOf 1)) = Some (PayeeCommandFailed "weg")
+                        Expect.isTrue (fieldError || toast || notice) $"Fehler ohne Spur: {shown}"
+                    let answered = name = "Antwort" || name = "Fehler"
+                    let pending' = if answered then None else Option.orElse call pending
+                    if left > 1 then go (left - 1) path' after pending'
+            go 6 [] start None
+            Expect.isGreaterThan started 1000 "die Aufzählung startet Aufrufe"
+            Expect.isGreaterThan blocked 1000 "und versucht Starts während eines Aufrufs"
     ]

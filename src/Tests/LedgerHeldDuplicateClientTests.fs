@@ -87,7 +87,9 @@ let tests =
             Expect.isFalse (detailReviewSwitchVisible entry) "kein Geprüft-Schalter"
             Expect.isFalse (swipeAppliesTo entry) "kein Wisch"
             Expect.equal (pointerRowReviewMarkSlot entry false) NoReviewMarkSlot "keine Prüf-Schaltfläche am PC"
-            Expect.equal (touchRowReviewMarkSlot entry false false false) NoReviewMarkSlot "keine Prüf-Schaltfläche am Handy"
+            // Review-Fund zu banking-import-d0fey: ohne Platzhalter rückte der Betrag am Handy aus der Spalte.
+            Expect.equal (touchRowReviewMarkSlot entry false false false) ReviewMarkPlaceholder "am Handy ein Platzhalter statt der Prüf-Schaltfläche"
+            Expect.equal (touchRowReviewMarkSlot entry false false true) NoReviewMarkSlot "bei laufender Auswahl wie jede Zeile ohne Schaltfläche"
             Expect.isFalse (detailDeleteVisible entry) "kein Löschen"
 
         testCase "ohne Wartemarke bleiben die Aktionen frei" <| fun () ->

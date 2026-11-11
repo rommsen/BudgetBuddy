@@ -709,9 +709,11 @@ let pointerRowReviewMarkSlot (entry: LedgerEntryView) (selectionActive: bool) : 
     else ReviewMarkButtonSlot
 
 /// Finger-Zeile: Schaltfläche nur ohne Maus, außerhalb des Auswahl-Modus und ohne Auswahl;
-/// sonst gar nichts (kein Platzhalter, die Zeile hat keine Spalten).
+/// sonst gar nichts (kein Platzhalter, die Zeile hat keine Spalten). Eine wartende Buchung
+/// („doppelt?“) bekommt dort den Platzhalter: ihr Betrag bleibt in der Spalte der Beträge daneben.
 let touchRowReviewMarkSlot (entry: LedgerEntryView) (mouse: bool) (inSelectionMode: bool) (selectionActive: bool) : ReviewMarkSlot =
-    if entry.DeletedInYnab || (heldLockReason entry).IsSome || mouse || inSelectionMode || selectionActive then NoReviewMarkSlot
+    if entry.DeletedInYnab || mouse || inSelectionMode || selectionActive then NoReviewMarkSlot
+    elif (heldLockReason entry).IsSome then ReviewMarkPlaceholder
     else ReviewMarkButtonSlot
 
 let private entryRowWithReviewMark
@@ -800,10 +802,17 @@ let private entryRowWithReviewMark
                     // Eine in YNAB gelöschte Buchung nimmt keinen Prüfvermerk an (wie am PC).
                     // Bei laufender Auswahl entfällt die Schaltfläche: die Leiste schreibt,
                     // die Zeilen nicht (ledger-r1d2f, ledger-w4vte).
-                    if touchRowReviewMarkSlot entry mouse.IsSome selected.IsSome selectionActive = ReviewMarkButtonSlot then
+                    match touchRowReviewMarkSlot entry mouse.IsSome selected.IsSome selectionActive with
+                    | NoReviewMarkSlot -> ()
+                    | slot ->
                         Html.div [
                             prop.className $"shrink-0 flex items-center px-1 {Tokens.Backgrounds.dark} border-b {Tokens.Borders.subtle}"
-                            prop.children [ reviewMarkButton dispatch false false rowState entry ]
+                            prop.children [
+                                if slot = ReviewMarkPlaceholder then
+                                    Html.span [ prop.className $"shrink-0 {Tokens.TouchTargets.mobileSquare} md:h-7 md:w-7"; prop.ariaHidden true ]
+                                else
+                                    reviewMarkButton dispatch false false rowState entry
+                            ]
                         ]
                 ]
             ]
@@ -1416,6 +1425,16 @@ let private noticeView
     (entry: LedgerEntryView)
     (notice: DetailNotice)
     : ReactElement =
+    // Gelbe Leiste mit "Erneut senden", der Laufzustand kommt mit dem Hinweis (Flag, Memo, Betrag, Payee).
+    let retryNotice (title: string) (reason: string) (retryLabel: string option) (busy: bool) =
+        Detail.notice
+            { Tone = Detail.NoticeYellow
+              Badge = title
+              Reason = reason
+              Action =
+                match retryLabel, detailNoticeActionMsg entry.Id notice with
+                | Some label, Some msg -> Some { Label = label; Busy = busy; Disabled = false; OnClick = fun () -> dispatch msg }
+                | _ -> None }
     match notice with
     | DeletedNotice reason ->
         Detail.notice { Tone = Detail.NoticeRed; Badge = "In YNAB gelöscht"; Reason = reason; Action = None }
@@ -1465,42 +1484,10 @@ let private noticeView
                           Disabled = false
                           OnClick = fun () -> dispatch msg }
                 | _ -> None }
-    | FlagNotice (hint, busy) ->
-        Detail.notice
-            { Tone = Detail.NoticeYellow
-              Badge = hint.Title
-              Reason = hint.Reason
-              Action =
-                match hint.RetryLabel, detailNoticeActionMsg entry.Id notice with
-                | Some label, Some msg -> Some { Label = label; Busy = busy; Disabled = false; OnClick = fun () -> dispatch msg }
-                | _ -> None }
-    | MemoNotice (hint, busy) ->
-        Detail.notice
-            { Tone = Detail.NoticeYellow
-              Badge = hint.Title
-              Reason = hint.Reason
-              Action =
-                match hint.RetryLabel, detailNoticeActionMsg entry.Id notice with
-                | Some label, Some msg -> Some { Label = label; Busy = busy; Disabled = false; OnClick = fun () -> dispatch msg }
-                | _ -> None }
-    | AmountNotice (hint, busy) ->
-        Detail.notice
-            { Tone = Detail.NoticeYellow
-              Badge = hint.Title
-              Reason = hint.Reason
-              Action =
-                match hint.RetryLabel, detailNoticeActionMsg entry.Id notice with
-                | Some label, Some msg -> Some { Label = label; Busy = busy; Disabled = false; OnClick = fun () -> dispatch msg }
-                | _ -> None }
-    | PayeeNotice (hint, busy) ->
-        Detail.notice
-            { Tone = Detail.NoticeYellow
-              Badge = hint.Title
-              Reason = hint.Reason
-              Action =
-                match hint.RetryLabel, detailNoticeActionMsg entry.Id notice with
-                | Some label, Some msg -> Some { Label = label; Busy = busy; Disabled = false; OnClick = fun () -> dispatch msg }
-                | _ -> None }
+    | FlagNotice (hint, busy) -> retryNotice hint.Title hint.Reason hint.RetryLabel busy
+    | MemoNotice (hint, busy) -> retryNotice hint.Title hint.Reason hint.RetryLabel busy
+    | AmountNotice (hint, busy) -> retryNotice hint.Title hint.Reason hint.RetryLabel busy
+    | PayeeNotice (hint, busy) -> retryNotice hint.Title hint.Reason hint.RetryLabel busy
 
 /// Die Beschriftung einer Split-Zeile: Kategorie, Übertrag oder offen.
 ///

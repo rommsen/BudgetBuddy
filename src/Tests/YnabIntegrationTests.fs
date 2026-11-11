@@ -574,12 +574,18 @@ let integrationTests =
                     updatePayee token budget id otherCase |> Async.RunSynchronously |> fun r -> Expect.isOk r "PUT Schreibweise"
                     let afterCase = read id
                     printfn "[Probelauf fxt09] nach PUT '%s': %A" otherCase afterCase
+                    // YNAB gleicht die Schreibweise nicht an: ein eigener Payee mit eigener payee_id.
+                    Expect.equal afterCase.PayeeName (Some otherCase) "YNAB übernimmt die Schreibweise wörtlich"
+                    Expect.notEqual afterCase.PayeeId after.PayeeId "andere Schreibweise, andere payee_id"
 
                     // Leerzeichen: derselbe Name mit Leerzeichen am Rand (BB trimmt vorher, hier roh).
                     let padded = $"  {renamed}  "
                     updatePayee token budget id padded |> Async.RunSynchronously |> fun r -> Expect.isOk r "PUT Leerzeichen"
                     let afterPadded = read id
                     printfn "[Probelauf fxt09] nach PUT '%s': %A" padded afterPadded
+                    // YNAB trimmt nicht: die Leerzeichen bleiben, deshalb trimmt BB vor dem Senden.
+                    Expect.equal afterPadded.PayeeName (Some padded) "die Leerzeichen bleiben erhalten"
+                    Expect.notEqual afterPadded.PayeeId after.PayeeId "mit Leerzeichen eine andere payee_id"
                 finally
                     let result = deleteTransaction token budget id |> Async.RunSynchronously
                     printfn "[Probelauf fxt09] Aufräumen DELETE %s: %A" id result

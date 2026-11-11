@@ -103,6 +103,7 @@ let init () : Model * Cmd<Msg> =
         PayeeEdit = None
         PayeeRows = Map.empty
         PayeeChoices = NotAsked
+        PayeeChoicesGeneration = 0
         ListInteraction = TableRows
         History = NotAsked
         LastMirrorRun = NotAsked
@@ -714,7 +715,9 @@ let applyPayeeResult (entryId: Guid) (outcome: PayeeOutcome) (model: Model) : Mo
         { model with
             PayeeRows = model.PayeeRows |> Map.remove entryId
             PayeeEdit = model.PayeeEdit |> Option.filter (fun edit -> edit.PayeeEntryId <> entryId)
-            PayeeChoices = (if outcome.PayeeChange = PayeeChanged then NotAsked else model.PayeeChoices) }
+            PayeeChoices = (if outcome.PayeeChange = PayeeChanged then NotAsked else model.PayeeChoices)
+            PayeeChoicesGeneration =
+                if outcome.PayeeChange = PayeeChanged then model.PayeeChoicesGeneration + 1 else model.PayeeChoicesGeneration }
     match findEntry cleared entryId with
     | None -> cleared
     | Some entry ->
@@ -723,6 +726,12 @@ let applyPayeeResult (entryId: Guid) (outcome: PayeeOutcome) (model: Model) : Mo
                 Payee = outcome.CurrentPayee
                 PayeeWriteBackFailure = payeeFailureOf outcome entry }
             cleared
+
+/// Die Antwort der Payee-Auswahl, gebunden an die Lade-Nummer beim Start der Abfrage. Eine Änderung
+/// zählt die Nummer weiter: eine Antwort von davor setzt die alte Liste nicht zurück.
+let payeeChoicesAnswer (model: Model) : Result<LedgerPayeeSuggestion list, string> -> Msg =
+    let generation = model.PayeeChoicesGeneration
+    fun result -> PayeeChoicesLoaded (generation, result)
 
 /// Die Abfrage der Payee-Auswahl: das ganze Kassenbuch, ohne Filter und ohne gelöschte Buchungen.
 let payeeChoicesQuery : LedgerPayeeSuggestionQuery = {
@@ -2362,9 +2371,13 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
 
     | StartRetryMemo entryId ->
-        { model with MemoRows = model.MemoRows |> Map.add entryId MemoSending },
-        Cmd.ofMsg (RunRetryMemo entryId),
-        NoOp
+        // Ein Tipp auf "Erneut senden" schickt nichts, solange ein Aufruf zum Memo läuft.
+        if (model.MemoRows |> Map.tryFind entryId) = Some MemoSending then
+            model, Cmd.none, NoOp
+        else
+            { model with MemoRows = model.MemoRows |> Map.add entryId MemoSending },
+            Cmd.ofMsg (RunRetryMemo entryId),
+            NoOp
 
     | RunRetryMemo entryId ->
         let cmd =
@@ -2528,9 +2541,13 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
 
     | StartRetryAmount entryId ->
-        { model with AmountRows = model.AmountRows |> Map.add entryId AmountSending },
-        Cmd.ofMsg (RunRetryAmount entryId),
-        NoOp
+        // Ein Tipp auf "Erneut senden" schickt nichts, solange ein Aufruf zum Betrag läuft.
+        if (model.AmountRows |> Map.tryFind entryId) = Some AmountSending then
+            model, Cmd.none, NoOp
+        else
+            { model with AmountRows = model.AmountRows |> Map.add entryId AmountSending },
+            Cmd.ofMsg (RunRetryAmount entryId),
+            NoOp
 
     | RunRetryAmount entryId ->
         let cmd =
@@ -2591,13 +2608,15 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             Cmd.OfAsync.either
                 (Retry.reading Api.ledger.getLedgerPayeeSuggestions)
                 payeeChoicesQuery
-                (Ok >> PayeeChoicesLoaded)
-                (fun ex -> PayeeChoicesLoaded (Error ex.Message))
+                (Ok >> payeeChoicesAnswer model)
+                (fun ex -> payeeChoicesAnswer model (Error ex.Message))
         model, cmd, NoOp
 
-    | PayeeChoicesLoaded (Ok choices) -> { model with PayeeChoices = Success choices }, Cmd.none, NoOp
+    | PayeeChoicesLoaded (generation, _) when generation <> model.PayeeChoicesGeneration -> model, Cmd.none, NoOp
 
-    | PayeeChoicesLoaded (Error message) ->
+    | PayeeChoicesLoaded (_, Ok choices) -> { model with PayeeChoices = Success choices }, Cmd.none, NoOp
+
+    | PayeeChoicesLoaded (_, Error message) ->
         { model with PayeeChoices = RemoteData.lateFailure message model.PayeeChoices }, Cmd.none, NoOp
 
     | CancelPayeeEdit ->
@@ -2671,15 +2690,14 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             ]
         model', cmd, external
 
-    // Die Auswahl bleibt offen, der Grund steht als Feldfehler unter dem Suchfeld.
+    // Die Auswahl bleibt offen, der Grund steht als Feldfehler unter dem Suchfeld. Ist sie inzwischen
+    // zu (Detail geschlossen oder gewechselt), nennt ein Toast den Grund (Muster MemoSet).
     | PayeeSet (entryId, Error message) ->
-        { model with
-            PayeeRows = model.PayeeRows |> Map.remove entryId
-            PayeeEdit =
-                model.PayeeEdit
-                |> Option.map (fun edit -> if edit.PayeeEntryId = entryId then { edit with PayeeFieldError = Some message } else edit) },
-        Cmd.none,
-        NoOp
+        let cleared = { model with PayeeRows = model.PayeeRows |> Map.remove entryId }
+        match model.PayeeEdit with
+        | Some edit when edit.PayeeEntryId = entryId ->
+            { cleared with PayeeEdit = Some { edit with PayeeFieldError = Some message } }, Cmd.none, NoOp
+        | _ -> cleared, Cmd.none, ShowToast ($"Payee nicht geändert: {message}", ToastError)
 
     | StartUndoPayee (entryId, previous) ->
         // Ein zweiter Tipp auf "Rückgängig" schickt nichts, solange ein Aufruf zum Payee läuft.
@@ -2715,9 +2733,13 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
 
     | StartRetryPayee entryId ->
-        { model with PayeeRows = model.PayeeRows |> Map.add entryId PayeeSending },
-        Cmd.ofMsg (RunRetryPayee entryId),
-        NoOp
+        // Ein Tipp auf "Erneut senden" schickt nichts, solange ein Aufruf zum Payee läuft.
+        if (model.PayeeRows |> Map.tryFind entryId) = Some PayeeSending then
+            model, Cmd.none, NoOp
+        else
+            { model with PayeeRows = model.PayeeRows |> Map.add entryId PayeeSending },
+            Cmd.ofMsg (RunRetryPayee entryId),
+            NoOp
 
     | RunRetryPayee entryId ->
         let cmd =

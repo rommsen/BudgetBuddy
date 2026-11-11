@@ -395,6 +395,9 @@ let amountReducerTests =
             let failing = { entryOf 1 with AmountWriteBackFailure = Some "weg" }
             let started, msgs, _ = run (StartRetryAmount (idOf 1)) (modelWith [ failing ])
             Expect.equal msgs [ RunRetryAmount (idOf 1) ] "Aufruf"
+            // Review-Fund zu ledger-fxt09: ein zweiter Tipp während des Aufrufs schickte einen zweiten.
+            let _, twice, _ = run (StartRetryAmount (idOf 1)) started
+            Expect.isEmpty twice "ein zweiter Tipp schickt nichts"
             let sent, _, _ = run (AmountRetried (idOf 1, Ok AmountSent)) started
             Expect.isNone (rowOf 1 sent).AmountWriteBackFailure "Fehlschlag beendet"
             let again, _, _ = run (AmountRetried (idOf 1, Ok (AmountSendFailed "immer noch"))) started
