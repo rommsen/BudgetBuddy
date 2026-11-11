@@ -1,7 +1,7 @@
 ---
 id: ledger-r7h2w
 title: "Wartende Buchung (unsicheres Duplikat) übernehmen oder verwerfen: Befehle „Ist neu“, „Ist doppelt, verwerfen“ und Rückgängig mit Ereignissen, „Ist neu“ schickt sie nach YNAB"
-status: backlog
+status: todo
 type: feature
 context: ledger
 created: 2026-11-11

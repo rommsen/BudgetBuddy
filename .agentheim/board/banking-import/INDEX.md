@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 4
-- **Todo:** 0
+- **Backlog:** 3
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 8
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **banking-import-t4raw** — "Automatisch abrufen im Intervall: ein Hintergrunddienst bucht neue Umsätze direkt ins Kassenbuch, Vorgabe an, alle 360 Minuten, in den Einstellungen abschaltbar, nie eine Push-TAN" (feature) — `todo/banking-import-t4raw-zeitgesteuertes-vorbereiten-zur-pruefung.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -41,7 +42,6 @@ research touching this BC, and concept synthesis pages.
 - **banking-import-asr13** — "Kann-Sammlung banking-import" (chore) — `backlog/banking-import-asr13-kann-sammlung-banking-import.md`
 - **banking-import-r9tfx** — "Verlust der Bankverbindung per Web-Push melden" (feature) — `backlog/banking-import-r9tfx-verlust-der-bankverbindung-per-web-push-melden.md`
 - **banking-import-q7vd2** — "confirmTan: Transportfehler vom fachlichen Fehler trennen und den Serverzustand bis zum Ende nachlesen" (bug) — `backlog/banking-import-q7vd2-confirmtan-transportfehler-vom-fachlichen-fehler-trennen-und.md`
-- **banking-import-t4raw** — "Zeitgesteuertes Vorbereiten zur Prüfung, per Setting an und aus, Default aus" (feature) — `backlog/banking-import-t4raw-zeitgesteuertes-vorbereiten-zur-pruefung.md`
 <!-- backlog-list:end -->
 
 

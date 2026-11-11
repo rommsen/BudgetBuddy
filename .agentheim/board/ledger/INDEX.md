@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 10
-- **Todo:** 0
+- **Backlog:** 9
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 120
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **ledger-r7h2w** — "Wartende Buchung (unsicheres Duplikat) übernehmen oder verwerfen: Befehle „Ist neu“, „Ist doppelt, verwerfen“ und Rückgängig mit Ereignissen, „Ist neu“ schickt sie nach YNAB" (feature) — `todo/ledger-r7h2w-wartende-buchung-uebernehmen-oder-verwerfen.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -50,7 +51,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **ledger-r7h2w** — "Wartende Buchung (unsicheres Duplikat) übernehmen oder verwerfen: Befehle „Ist neu“, „Ist doppelt, verwerfen“ und Rückgängig mit Ereignissen, „Ist neu“ schickt sie nach YNAB" (feature) — `backlog/ledger-r7h2w-wartende-buchung-uebernehmen-oder-verwerfen.md`
 - **ledger-f8d7x** — "Kassenbuch ordnen: am Handy Filter-Knopf mit Sheet und Chips statt zwei wischender Leisten, am PC Seitenleiste mit Konten, Seitenpanel und Historie wie im Budget" (feature) — `backlog/ledger-f8d7x-kassenbuch-ordnen.md`
 - **ledger-ea70s** — "Ein Erfassen: Quick Add hört auf, ein eigener Ort zu sein; „+ Buchung“ in Kassenbuch und Übersicht mit kluger Vorbelegung" (feature) — `backlog/ledger-ea70s-ein-erfassen.md`
 - **ledger-v6s7c** — "Durchgehen neuer Buchungen Karte für Karte von der Übersicht aus, mit Amazon-Link und Duplikat-Karte" (feature) — `backlog/ledger-v6s7c-durchgehen-karte-fuer-karte.md`

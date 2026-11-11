@@ -5,6 +5,22 @@ Newest entries on top.
 
 ---
 
+## 2026-11-12 00:03 -- Modeling / Promoted: banking-import-t4raw - "Automatisch abrufen im Intervall: ein Hintergrunddienst bucht neue Umsätze direkt ins Kassenbuch, Vorgabe an, alle 360 Minuten, in den Einstellungen abschaltbar, nie eine Push-TAN"
+
+**Type:** Modeling / Promote
+**BC:** banking-import
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-12 00:03 -- Modeling / Promoted: ledger-r7h2w - "Wartende Buchung (unsicheres Duplikat) übernehmen oder verwerfen: Befehle „Ist neu“, „Ist doppelt, verwerfen“ und Rückgängig mit Ereignissen, „Ist neu“ schickt sie nach YNAB"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-12 00:02 -- Task verified and completed: banking-import-d0fey - "Import direkt ins Kassenbuch: „Abrufen“ bucht neue Umsätze ohne Prüfsitzung sofort in Kassenbuch und YNAB als „zu prüfen“, unsichere Duplikate warten im Kassenbuch, der Sync-Ablauf schrumpft auf das Sheet „Abrufen“"
 
 **Type:** Work / Task completion
