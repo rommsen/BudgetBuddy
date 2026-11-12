@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 11
-- **Todo:** 3
+- **Backlog:** 10
+- **Todo:** 4
 - **Doing:** 3
 - **Done:** 124
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **ledger-nc708** — "Detail und Durchgehen halten ihren Stand: Historie an Ladevorgänge gebunden ohne Flackern, jede Änderung an der offenen Buchung lädt ihre Historie nach, gescheitertes „Lena fragen“ holt die Karte zurück (Components/Ledger/State.fs LoadHistory, HistoryLoaded, LenaFlagSet)" (bug) — `todo/ledger-nc708-detail-und-durchgehen-halten-stand.md`
 - **ledger-f8bjm** — "Ersatz-POST mit verlorener Antwort: Wiederherstellen, Split- und Betrags-Ersatz scheitern danach dauerhaft an 409, der Spiegel legt die Ersatzbuchung als neue Buchung „YNAB-Spiegel“ an; die Ersatz-import_id muss vor dem POST im Kassenbuch stehen (Ledger/CommandHandlers.fs)" (bug) — `todo/ledger-f8bjm-ersatz-post-verlorene-antwort.md`
 - **ledger-vf6z5** — "„Neue Buchung“ nach Styleguide: Betrags- und Kontofehler am Feld mit Fokus, direkte Fehlertexte ohne „Bitte“, Kontoliste mit Spinner und ehrlichem Leer- und Fehlerzustand" (bug) — `todo/ledger-vf6z5-neue-buchung-fehler-am-feld.md`
 - **ledger-ng110** — "Split-Editor nach Styleguide: offener Rest gelb, zu viel verteilt rot, Zeilenfelder mit Fehlerzustand, Entfernen als removeIcon mit Sperre, Speicherfehler im offenen Editor statt Toast" (bug) — `todo/ledger-ng110-eingaben-fehler-styleguide.md`
@@ -61,7 +62,6 @@ research touching this BC, and concept synthesis pages.
 ### Backlog
 <!-- backlog-list:start -->
 - **ledger-dn4vy** — "Filter und Liste nach Styleguide: Betrag Von/Bis mit Zifferntastatur, Name und Fehlerzustand, Schnellwahl als Segmented, Payee-Vorschläge mit Tastatur, lesbare ausgegraute Zeile, Fokus am Prüfknopf, Lena-Grund als Text" (bug) — `backlog/ledger-dn4vy-filter-und-liste-styleguide.md`
-- **ledger-nc708** — "Detail und Durchgehen halten ihren Stand: Historie an Ladevorgänge gebunden ohne Flackern, jede Änderung an der offenen Buchung lädt ihre Historie nach, gescheitertes „Lena fragen“ holt die Karte zurück (Components/Ledger/State.fs LoadHistory, HistoryLoaded, LenaFlagSet)" (bug) — `backlog/ledger-nc708-detail-und-durchgehen-halten-stand.md`
 - **ledger-h7de3** — "Fehlertexte in Ereignissen: fehlendes Token als „nicht eingerichtet“, YNAB-Rohtext nur ins Log, Token- und Budget-Zugriff an einer Stelle" (bug) — `backlog/ledger-h7de3-fehlertexte-in-ereignissen.md`
 - **ledger-f8d7x** — "Kassenbuch ordnen: am Handy Filter-Knopf mit Sheet und Chips statt zwei wischender Leisten, am PC Seitenleiste mit Konten, Seitenpanel und Historie wie im Budget" (feature) — `backlog/ledger-f8d7x-kassenbuch-ordnen.md`
 - **ledger-ea70s** — "Ein Erfassen: Quick Add hört auf, ein eigener Ort zu sein; „+ Buchung“ in Kassenbuch und Übersicht mit kluger Vorbelegung" (feature) — `backlog/ledger-ea70s-ein-erfassen.md`

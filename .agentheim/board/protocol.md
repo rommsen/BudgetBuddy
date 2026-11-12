@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-12 08:00 -- Modeling / Promoted: ledger-nc708 - "Detail und Durchgehen halten ihren Stand: Historie an Ladevorgänge gebunden ohne Flackern, jede Änderung an der offenen Buchung lädt ihre Historie nach, gescheitertes „Lena fragen“ holt die Karte zurück (Components/Ledger/State.fs LoadHistory, HistoryLoaded, LenaFlagSet)"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-12 08:00 -- Task verified and completed: ledger-smv1s - "Zeilen-Sperre für Erneut senden, Rückgängig und Setzen einheitlich in update: ein Helfer für alle Start-Zweige je Buchung und Feld, Aufzählung je Sperrgruppe nach Doktrin Punkt 20, Deciding im Durchgehen an die Id gebunden"
 
 **Type:** Work / Task completion
