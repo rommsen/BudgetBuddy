@@ -66,6 +66,9 @@ Zuletzt aktualisiert: 2026-11-12, nach work-Lauf zum Bestandsreview ledger (G1, 
   keine Antworten zu, ein offener Ersatz ohne Fehlschlag blieb gesperrt. Entschieden (Roman): gelbe Hinweise bleiben in der
   ausgegrauten Zeile, „Ersatz“-Texte passen, Toast am Handy als Ticket design-system-vf94m. Gate: VERIFY: PASS (dotnet 4899,
   node 322).
+- **Deployt 2026-11-12 (57461f98):** Schnitte 3 bis 5 (w9yt4, d0fey mit r7h2w, fxt09, t4raw, v6s7c) und die zehn Tasks aus dem
+  Bestandsreview ledger samt Review-Fixes. Automatischer Abruf ab jetzt an (alle 6 Stunden, bucht direkt), Migration
+  `pending_replacement` (ledger-f8bjm). Health-Check grün.
 - **Nächster Schritt:** Romans Blick auf die Schnitte 3 bis 5 und die neuen Seiten-Details
   (Screenshots im Scratchpad e3/<task-id>/), Deploy auf Anweisung (`scripts/deploy.sh`; Achtung: automatischer Abruf ab Deploy
   an, alle 6 Stunden, bucht direkt; f8bjm bringt eine Migration). Danach Schnitt 6 `categorization-n3sxw` verfeinern.
