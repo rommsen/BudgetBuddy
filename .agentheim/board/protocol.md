@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-12 01:01 -- Batch started: [ledger-r7h2w, banking-import-t4raw]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-r7h2w - "Wartende Buchung (unsicheres Duplikat) übernehmen oder verwerfen: Befehle „Ist neu“, „Ist doppelt, verwerfen“ und Rückgängig mit Ereignissen, „Ist neu“ schickt sie nach YNAB", banking-import-t4raw - "Automatisch abrufen im Intervall: ein Hintergrunddienst bucht neue Umsätze direkt ins Kassenbuch, Vorgabe an, alle 360 Minuten, in den Einstellungen abschaltbar, nie eine Push-TAN"
+**Parallel:** yes (2 workers; beide berühren src/Server/BankImport.fs bzw. Ledger/CommandHandlers.fs am Rand, Merge nacheinander)
+
+---
+
 ## 2026-11-12 01:00 -- Review-Lauf: cfc21b06..613eee26
 
 **Type:** Review / Review-Lauf

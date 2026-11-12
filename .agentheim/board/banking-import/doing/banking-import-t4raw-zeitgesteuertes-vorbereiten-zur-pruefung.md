@@ -1,7 +1,7 @@
 ---
 id: banking-import-t4raw
 title: "Automatisch abrufen im Intervall: ein Hintergrunddienst bucht neue Umsätze direkt ins Kassenbuch, Vorgabe an, alle 360 Minuten, in den Einstellungen abschaltbar, nie eine Push-TAN"
-status: todo
+status: doing
 type: feature
 context: banking-import
 created: 2026-10-30
