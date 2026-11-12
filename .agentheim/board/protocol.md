@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-12 01:00 -- Review-Lauf: cfc21b06..613eee26
+
+**Type:** Review / Review-Lauf
+**Bereich:** budgeting-w9yt4 (Angepinnte Kategorien), ledger-fxt09 (Payee ändern), banking-import-d0fey (Import direkt)
+**Agents:** backend-code-quality, frontend-architecture, design-quality, qa-milestone-reviewer
+**Funde:** behoben 45, verworfen 4, Rückfrage 0, Ticket 0 (Kann-Sammlung: 17 Zeilen in ledger, budgeting, banking-import, design-system)
+**Commits:** 006dacec, 657e7c63, a9503b79, 5e437c9f, 61d4b585
+**Kritisch behoben:** Import-Push ohne Schreib-Sperre (a9503b79), späte Pin-Leseantwort überschreibt Umschaltung (5e437c9f), Häkchen-Kontrast in checkRow (5e437c9f)
+**Verworfen:** Lupe im Suchfeld (BB-Stand, Verifier bestätigt), Markierung beim Öffnen des Sheets Angepinnt (so im Prototyp), sprintf für die Balkenbreite (harmlos), Umbenennung reviewMarkEvent (kein Nutzen)
+**Verifikation:** VERIFY: PASS (dotnet 4653 grün, node 313 grün, dotnet build, npm run build, guard:classes, guard:tokens grün)
+
+---
+
 ## 2026-11-12 00:03 -- Modeling / Promoted: banking-import-t4raw - "Automatisch abrufen im Intervall: ein Hintergrunddienst bucht neue Umsätze direkt ins Kassenbuch, Vorgabe an, alle 360 Minuten, in den Einstellungen abschaltbar, nie eine Push-TAN"
 
 **Type:** Modeling / Promote

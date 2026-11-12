@@ -170,3 +170,6 @@ Offen: das Kriterium [human-eye] (Roman sieht Payee ändern am Handy und am PC a
 - Das App-Bündel teilen (Code-Splitting), statt die Precache-Grenze weiter anzuheben.
 - Probe-Payees im Budget „Test“ sammeln sich je Lauf des Probelaufs an.
 - Eine reine Korrektur der Schreibweise des Payees ist in BB nicht möglich (`payeeKey` ohne Groß-/Kleinschreibung), nur in YNAB.
+
+### Nachtrag Review-Lauf 2026-11-12
+Behoben (657e7c63): ein Fehler von `setEntryPayee` nach geschlossenem Detail meldet ein Toast; Erneut senden für Payee, Memo und Betrag gesperrt während eines Aufrufs (Aufzählung in LedgerPayeeClientTests, vor dem Fix rot); Ladeantwort der Auswahl an eine Lade-Nummer gebunden; Suchfeld als Combobox mit `aria-activedescendant`, Hinweise unter der Listbox; `payeePush` und `memoPush` über `ynabPushWith`, Verdrahtung in `apiWirings` mit Gegenbeweis; Probelauf mit echten Erwartungen (nicht live ausgeführt).

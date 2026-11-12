@@ -138,3 +138,10 @@ Kaputt-Szenario (GIVEN/WHEN/THEN): GIVEN Wechsel hin und zurück, das Lesen des 
 - `BudgetCategory.Deactivated: bool option` macht `None` und `Some false` gleichbedeutend; ein DU wäre klarer, ist aber eine Vertragsänderung mit Fixtures (aus Review-Lauf nach budgeting-t7dka).
 - Der Intakt-Test "aus einer deaktivierten Kategorie lässt sich weiter verschieben" bliebe grün, wenn `applyDeactivation` in `preparedMonth None` rutschte; schärfer mit gelöschter Tabelle `budget_category_layout` und erwartetem Erfolg. Der reine Test zu `targetApplicationLines` steht in `CategoryLayoutTests.fs` statt bei den übrigen in `TargetsApplyTests.fs` (aus Review-Lauf nach budgeting-t7dka).
 - Der Hinweis "Name und Gruppe werden nach YNAB übertragen." im Kategorie-Formular hängt per `aria-describedby` an keinem Feld (`CategoriesView.fs`, aus Review-Lauf nach budgeting-pscgb).
+
+## Aus budgeting-w9yt4 und Review-Lauf 2026-11-12
+- Werden die Pins neu geladen, während ein Speichern läuft, verwirft BB die Leseantwort (Review-Fix); der angezeigte Stand kommt erst beim nächsten Lesen nach.
+- Eine Kategorie, die in YNAB angelegt, aber noch nicht im Kategorie-Spiegel ist, gilt als unbekannt; Anpinnen lehnt sie mit Meldung ab.
+- Esc wirkt im Dialog „Angepinnt“ nicht, wenn der Fokus auf „Schließen“ im Kopf steht (der Kopf liegt außerhalb des Rahmens).
+- Layout-Ausnahmen Invariante 9 für die Leer-Karte „Angepinnt“: Zustand `uebersicht`, Breiten 320 und 390, Selektor `[data-testid="overview-pins-empty"]`; Zustand `uebersicht` mit 20 px Schrift, Breite 390, derselbe Selektor; dazu `uebersicht-ohne-minus`, `uebersicht-monat-fehler` und die Konten bei 320 px in `uebersicht-angepinnt`. Grund: „Zu tun“ wächst mit seinem Inhalt (§7.4).
+- `orderArrow` trägt sein Symbol mit eigener Farbklasse (`Icons.Default`), `hover:text-text-primary` wirkt nicht aufs Symbol (Seite Kategorien, Sheet „Angepinnt“); Lösung wie bei `pinToggle`: `Icons.Inherit`.

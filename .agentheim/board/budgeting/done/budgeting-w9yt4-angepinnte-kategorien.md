@@ -162,3 +162,6 @@ Für die Kann-Sammlung budgeting:
 - Esc im Dialog mit dem Fokus auf „Schließen“ im Kopf geht über den Rahmen hinaus und wirkt nicht; Schließen selbst geht per Klick.
 
 [human-eye] Block, Sheet und Pin-Knopf am Handy und am PC ansehen steht für Roman aus.
+
+### Nachtrag Review-Lauf 2026-11-12
+Behoben (5e437c9f): eine späte Leseantwort der Pins überschreibt keinen inzwischen umgeschalteten Pin (Lese-Nummer), Speichern läuft serialisiert mit Rücksprung auf den zuletzt bestätigten Stand, Häkchen in `checkRow` in `on-accent`, `checkRow` als Checkbox-Rolle, Sheet als Combobox (`ComboboxAria`), eigener Knopf `removeIcon` zum Lösen, Sheet hält beim Ausfahren den Inhalt (`BottomSheet.viewHeld`), Monat-Ladefehler mit „Erneut versuchen“, `isPageReady` wartet auf die Pins, `QuickAddCategories` als `RemoteData`. Rot vor dem Fix gezeigt: späte Lese-Antwort, beide Speicher-Anfragen scheitern, `isPageReady` ohne Pins; Gegenprobe Inspektor-Toast rot. Gegenbeweis Invariante 9 prüft `overview-recent`. Neue DS-Bausteine stehen auf /styleguide und in §5 (006dacec).

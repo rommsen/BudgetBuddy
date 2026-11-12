@@ -45,3 +45,6 @@ Den Testfall entfernen. Falls das Verhalten bei abgelehnter Anmeldung abgesicher
 - Quick Add zeigt keine zuletzt genutzten Kategorien mehr, sie kamen nur aus dem Sync-Ablauf.
 - Der Satz „<n> sichere Duplikate übersprungen“ zählt auch Umsätze, die schon vor BB in YNAB standen; bei jedem Abruf im Zeitraum kommen sie wieder.
 - Die beiden Punkte oben aus den Review-Läufen 2026-11-08 und 2026-11-11 zum Sync-Ablauf (Lena-Farbe in `SyncFlow/State.fs`, zwei Rückwege) sind mit dem Ablauf entfallen.
+- Review-Lauf 2026-11-12: `MatchYnabTransactionId = ""` im Rückfall von `holdOf` ist ein Platzhalter; langfristig sollte die Duplikaterkennung den Treffer selbst mitgeben (Shared-Typ). ledger-r7h2w muss das leere Feld beachten.
+- Review-Lauf 2026-11-12: Abbrechen und sofort wieder „Abrufen“, solange `cancelSync` unterwegs ist: das Lesen kann die gerade abgebrochene Sitzung noch mit TAN liefern, „Ich habe bestätigt“ scheitert dann mit „Der Abruf ist nicht mehr offen“ (keine zweite Challenge).
+- Review-Lauf 2026-11-12: Wächter ohne erreichbaren Weg (Versionssprünge in `startWith`, `SyncStarted`, `ConfirmTan`, `ReadPlanned`, Vergleich von `ReadsLeft`) bleiben als Absicherung, Mutanten dort bleiben grün.
