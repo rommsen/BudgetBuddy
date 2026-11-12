@@ -249,6 +249,19 @@ let commandTests =
             Expect.isTrue (isNotInYnab entryId) "Buchung nicht in YNAB"
             Expect.isFalse (isHeldAsPossibleDuplicate (entryOf entryId)) "wartet nicht mehr"
 
+        testCase "Ist neu mit 409: die import_id steht schon in YNAB, angekommen ohne Fehlschlag, ein Auslöser" <| fun () ->
+            // ledger-xqqnv: derselbe Ausgang wie bei „Erneut senden“ und der Barbuchung.
+            let _, _, entryId = seedHeld ()
+            let _, push = recordingPush (Error ImportIdAlreadyInYnab)
+            let mutable triggers = 0
+            let result = confirmEntryIsNew at push (fun () -> triggers <- triggers + 1) entryId |> run
+            Expect.equal result (Ok PushToYnabSent) "gesendet"
+            Expect.equal
+                (typesOf entryId |> List.skip 2)
+                [ "EntryConfirmedAsNewInBb" ]
+                "die Entscheidung, kein EntryPushToYnabFailed"
+            Expect.equal triggers 1 "ein Auslöser"
+
         testCase "Ist doppelt, verwerfen: Ereignis ohne YNAB, die Buchung zählt nirgends" <| fun () ->
             let account, _, entryId = seedHeld ()
             let (EntryId entryGuid) = entryId

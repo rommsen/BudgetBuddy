@@ -6,7 +6,7 @@ status: accepted
 date: 2026-09-11
 supersedes: []
 superseded_by: []
-related_tasks: [ledger-cscw1, categorization-gdrx8, ledger-qvt84, ledger-tdnpk, ledger-r6wn3, ledger-at63w]
+related_tasks: [ledger-cscw1, categorization-gdrx8, ledger-qvt84, ledger-tdnpk, ledger-r6wn3, ledger-at63w, ledger-xqqnv]
 related_adrs: [0004, 0013, 0015, 0091]
 related_research: []
 ---
@@ -110,3 +110,7 @@ nur neue dazu.
 
 ## Nachtrag 2026-11-08, Rückgängig nach dem Erfassen (ledger-at63w)
 Die Reihenfolge "Kassenbuch zuerst, dann YNAB" gilt nicht für das Verwerfen einer eben in BB erfassten Buchung (ADR 0091): dort geht zuerst das DELETE an YNAB und erst bei Erfolg `EntryDiscardedInBb` ins Kassenbuch, nur für eine mit YNAB verknüpfte Buchung. Scheitert das DELETE, ändert sich nichts. Das Erfassen selbst (`addLedgerBooking`) folgt weiter dieser ADR: `CashExpenseAdded`, bei einem Übertrag `EntryTransferTargetSetInBb` im selben Schritt, dann der Push, dann `EntryLinkedToYnab`.
+
+## Nachtrag 2026-11-12, vorhandene import_id (ledger-xqqnv)
+
+Punkt 2 nannte „lehnt YNAB die Buchung als Duplikat ab“ als Fehlschlag. Kennt YNAB die `import_id` schon (Einzel-Post 409, Sammel-Post `duplicate_import_ids`), kam ein früherer Versand an, nur seine Antwort nicht (ledger-p3vq8). Auf allen Wegen (Barbuchung über Quick Add, Bob und Neue Buchung, Erneut senden, Ist neu, Import-Sammelpush) schreibt BB dann kein `EntryPushToYnabFailed`. Die Buchung bleibt unverknüpft und damit „noch nicht in YNAB“ (Grund `PushOutcomeUnknown`, Bob-Text `unknownPushStateText` bei einer Wiederholung aus dem Log), bis der Spiegel sie über die `import_id` verknüpft. BB erfindet keine YNAB-Id, denn auch eine in YNAB gelöschte Buchung sperrt ihre `import_id` (ADR 0058 Probelauf 3). Kein Rollback bleibt (Punkt 2). Roman 2026-11-12: die Barbuchung meldet dann „Buchung angelegt“, Bob bekommt `pushed_to_ynab: true`.

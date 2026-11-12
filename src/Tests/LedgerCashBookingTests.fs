@@ -759,6 +759,31 @@ let lostPushAnswerTests =
             let last = eventsOf entryId |> List.last
             Expect.equal (last.EventType, last.Event.Actor) ("EntryLinkedToYnab", YnabMirror) "der Spiegel verknüpft"
 
+        testCase "Kaputt: die Barbuchung bekommt 409, die import_id steht schon in YNAB; angekommen, kein Fehlschlag" <| fun () ->
+            // ledger-xqqnv: bisher schrieb `addCashExpense` hier `EntryPushToYnabFailed` und meldete `Error`,
+            // obwohl die Buchung in YNAB steht. Jetzt wie „Erneut senden“: angekommen, der Spiegel verknüpft.
+            let entryId = newEntryId ()
+            let input, _ = cashBookingParts (booking (freshAccount ()))
+            let mutable triggers = 0
+            let result =
+                addCashExpense QuickAdd at entryId (fun () -> async.Return (Error ImportIdAlreadyInYnab)) (fun () -> triggers <- triggers + 1) input
+                |> Async.RunSynchronously
+            Expect.equal result (Ok entryId) "Ok mit der Buchungs-Id"
+            Expect.equal (eventTypesOf entryId) [ "CashExpenseAdded" ] "nur die Buchung, kein EntryPushToYnabFailed"
+            Expect.equal triggers 1 "der Spiegel wird genau einmal angestoßen"
+
+        testCase "Intakt: die Barbuchung mit Netzfehler schreibt weiter EntryPushToYnabFailed, ohne Auslöser" <| fun () ->
+            let entryId = newEntryId ()
+            let input, _ = cashBookingParts (booking (freshAccount ()))
+            let mutable triggers = 0
+            let err = YnabError.NetworkError "Zeitüberschreitung"
+            let result =
+                addCashExpense QuickAdd at entryId (fun () -> async.Return (Error err)) (fun () -> triggers <- triggers + 1) input
+                |> Async.RunSynchronously
+            Expect.equal result (Error err) "der Fehler wird durchgereicht"
+            Expect.equal (eventTypesOf entryId) [ "CashExpenseAdded"; "EntryPushToYnabFailed" ] "Fehlschlag steht"
+            Expect.equal triggers 0 "kein Auslöser"
+
         testCase "Intakt: Erneut senden einer Buchung, deren CashExpenseAdded keine import_id trägt, schickt keine" <| fun () ->
             // Vor ledger-p3vq8 gepusht: ob sie schon in YNAB steht, weiß BB nicht (ADR 0004 Nachtrag).
             let account = mirroredAccount ()

@@ -698,12 +698,56 @@ type CashExpenseInput = {
 /// Wiederholungen gleich. Rein.
 let cashEntryImportId (EntryId id: EntryId) : string = $"{ImportIdPrefix}:{id:N}"
 
-/// Der Grund, wenn YNAB den Versand beantwortet hat, die Buchung aber nicht in der
-/// Antwort angelegt war: nicht auswertbare Antwort, Duplikat oder sonst nicht angelegt.
-let describeNotCreatedReason (importId: string) (result: Ynab.TransactionCreateResult) : string =
-    if result.ResponseUnparseable then "Die Antwort von YNAB war nicht auswertbar"
-    elif result.DuplicateImportIds |> List.contains importId then "YNAB hat die Buchung als Duplikat abgelehnt"
-    else "YNAB hat die Buchung nicht angelegt"
+/// Wie der Versand einer Buchung an YNAB ausging (ledger-xqqnv), gleich für die Barbuchung,
+/// „Erneut senden“, „Ist neu“ und den Import-Sammelpush.
+type PushArrival =
+    /// YNAB hat die Buchung angelegt, die Antwort nennt ihre YNAB-Id.
+    | ArrivedLinked of ynabTransactionId: string
+    /// YNAB kennt die `import_id` schon: ein früherer Versand kam an, nur seine Antwort nicht
+    /// (ledger-p3vq8). Keine YNAB-Id; ob die Buchung dort noch lebt, klärt der Spiegel, der sie
+    /// über die `import_id` verknüpft (ADR 0058 Probelauf 3).
+    | ArrivedWithoutId
+    /// Der Versand ist gescheitert, mit Grund.
+    | PushFailedBecause of reason: string
+
+/// Der Ausgang eines Einzel-Posts: `Ok id` ist verknüpft, 409 (`ImportIdAlreadyInYnab`)
+/// angekommen ohne Id, jeder andere Fehler gescheitert. Rein.
+let singlePushArrival (result: YnabResult<string>) : PushArrival =
+    match result with
+    | Ok ynabTransactionId -> ArrivedLinked ynabTransactionId
+    | Error ImportIdAlreadyInYnab -> ArrivedWithoutId
+    | Error err -> PushFailedBecause (ynabErrorText err)
+
+/// Der Ausgang einer Buchung im Sammel-Post: ihre Id in `Created` ist verknüpft, ihre
+/// `import_id` in `DuplicateImportIds` angekommen ohne Id (YNAB antwortet dann mit 201, nicht
+/// 409), sonst gescheitert (nicht angelegt, nicht auswertbar oder Sende-Fehler). Rein.
+let batchPushArrival
+    (prepared: Ynab.PreparedTransaction)
+    (sendResult: YnabResult<Ynab.TransactionCreateResult>)
+    : PushArrival =
+    match sendResult with
+    | Error err -> PushFailedBecause (ynabErrorText err)
+    | Ok created ->
+        match created.Created |> List.tryFind (fun c -> c.TransactionId = prepared.TransactionId) with
+        | Some c -> ArrivedLinked c.YnabTransactionId
+        | None when created.ResponseUnparseable -> PushFailedBecause "Die Antwort von YNAB war nicht auswertbar"
+        | None when created.DuplicateImportIds |> List.contains prepared.ImportId -> ArrivedWithoutId
+        | None -> PushFailedBecause "YNAB hat die Buchung nicht angelegt"
+
+/// Das Ereignis nach einem Versand: verknüpft `EntryLinkedToYnab`, angekommen ohne Id keins,
+/// gescheitert `EntryPushToYnabFailed` mit Grund. Rein.
+let arrivalEvent (arrival: PushArrival) : LedgerEventBody option =
+    match arrival with
+    | ArrivedLinked ynabTransactionId -> Some (EntryLinkedToYnab { YnabTransactionId = ynabTransactionId })
+    | ArrivedWithoutId -> None
+    | PushFailedBecause reason -> Some (EntryPushToYnabFailed { Reason = reason })
+
+/// Stößt der Ausgang den Spiegel an? Verknüpft und angekommen ja, gescheitert nie. Rein.
+let arrivalTriggersMirror (arrival: PushArrival) : bool =
+    match arrival with
+    | ArrivedLinked _
+    | ArrivedWithoutId -> true
+    | PushFailedBecause _ -> false
 
 /// Schreibt zuerst die Kassenbuch-Buchung (`CashExpenseAdded`, Actor `actor`: `QuickAdd`
 /// für die eigene Seite, `Bob` für die `/bot/`-Schnittstelle, ADR 0066), ruft
@@ -715,13 +759,16 @@ let describeNotCreatedReason (importId: string) (result: Ynab.TransactionCreateR
 /// Rollback (ADR 0021, Punkt 2); der Fehler wird durchgereicht, die Buchung bleibt ohne
 /// YNAB-Verknüpfung bis zu einem erneuten Push oder dem nächsten Spiegel-Lauf. Der
 /// Fehlschlag steht danach als `EntryPushToYnabFailed` mit Grund im Log (ledger-rynk5).
+/// Kennt YNAB die `import_id` schon (409, `singlePushArrival`), ist die Buchung angekommen
+/// (ledger-xqqnv): kein Ereignis, `Ok entryId`, der Auslöser läuft, und der Spiegel verknüpft
+/// sie über die `import_id`.
 ///
 /// Ereignis, Push und Verknüpfung laufen unter der Schreib-Sperre (`WriteGuard`,
 /// ledger-kfd5m): ein Lauf zwischen Push und `EntryLinkedToYnab` hängte sonst die
 /// Verknüpfung über die ImportId an, und das Schreiben der Verknüpfung durch den Befehl
 /// scheiterte danach an der schon bestehenden.
-/// Nach erfolgreichem Push stößt `triggerMirror` den Spiegel an (ADR 0014 Punkt 2): erst
-/// wenn `EntryLinkedToYnab` geschrieben und die Sperre wieder frei ist, nie davor
+/// Nach erfolgreichem oder angekommenem Push stößt `triggerMirror` den Spiegel an (ADR 0014
+/// Punkt 2): erst wenn `EntryLinkedToYnab` geschrieben und die Sperre wieder frei ist, nie davor
 /// (Task-Nachtrag, ADR 0021; der Lauf nimmt dieselbe Sperre).
 ///
 /// `now`, `push` und `triggerMirror` kommen von außen, damit der Ablauf ohne Uhr, ohne
@@ -776,27 +823,16 @@ let private addCashExpenseWith
                         followUps |> List.map (fun body -> { EntryId = entryId; OccurredAt = now; Actor = actor; Body = body })
                     do! Ledger.Persistence.appendAndApply (cashExpenseAdded :: followUpEvents)
 
-                    match! push () with
-                    | Ok ynabTransactionId ->
-                        let linked = {
-                            EntryId = entryId
-                            OccurredAt = now
-                            Actor = actor
-                            Body = EntryLinkedToYnab { YnabTransactionId = ynabTransactionId }
-                        }
-                        do! Ledger.Persistence.appendAndApply [ linked ]
-                        return Ok entryId
-                    | Error err ->
-                        do!
-                            Ledger.Persistence.appendAndApply [
-                                {
-                                    EntryId = entryId
-                                    OccurredAt = now
-                                    Actor = actor
-                                    Body = EntryPushToYnabFailed { Reason = ynabErrorText err }
-                                }
-                            ]
-                        return Error err
+                    let! pushed = push ()
+                    let arrival = singlePushArrival pushed
+                    match arrivalEvent arrival with
+                    | Some body ->
+                        do! Ledger.Persistence.appendAndApply [ { EntryId = entryId; OccurredAt = now; Actor = actor; Body = body } ]
+                    | None -> ()
+                    // Angekommen ohne Id (409) meldet wie „Erneut senden“ Erfolg (ledger-xqqnv).
+                    match pushed, arrival with
+                    | Error err, PushFailedBecause _ -> return Error err
+                    | _ -> return Ok entryId
                 }
             )
 
@@ -970,16 +1006,15 @@ let pushNotPossibleReason = "Das Konto der Buchung ist nicht mit YNAB verbunden"
 /// (`retryPushToYnab`, `confirmEntryIsNew`).
 let private pushEntryAndRecord (now: DateTime) (push: EntryPush) (entry: Entry) : Async<PushToYnabWriteBack> =
     async {
-        let event body = { EntryId = entry.Id; OccurredAt = now; Actor = UserInBb; Body = body }
-        match! push entry with
-        | Ok ynabTransactionId ->
-            do! Ledger.Persistence.appendAndApply [ event (EntryLinkedToYnab { YnabTransactionId = ynabTransactionId }) ]
-            return PushToYnabSent
-        | Error ImportIdAlreadyInYnab -> return PushToYnabSent
-        | Error err ->
-            let reason = ynabErrorText err
-            do! Ledger.Persistence.appendAndApply [ event (EntryPushToYnabFailed { Reason = reason }) ]
-            return PushToYnabFailed reason
+        let! pushed = push entry
+        let arrival = singlePushArrival pushed
+        match arrivalEvent arrival with
+        | Some body -> do! Ledger.Persistence.appendAndApply [ { EntryId = entry.Id; OccurredAt = now; Actor = UserInBb; Body = body } ]
+        | None -> ()
+        match arrival with
+        | PushFailedBecause reason -> return PushToYnabFailed reason
+        | ArrivedLinked _
+        | ArrivedWithoutId -> return PushToYnabSent
     }
 
 /// "Erneut senden" am Hinweis "Noch nicht in YNAB" (ledger-cks06): pusht genau diese
@@ -1156,8 +1191,10 @@ type ComdirectPushOutcome =
     /// Kassenbuch geschrieben, an YNAB gesendet und über die Push-Antwort verknüpft.
     | Linked of EntryId * ynabTransactionId: string
     /// Kassenbuch geschrieben und gesendet, aber (noch) nicht verknüpft: Push
-    /// fehlgeschlagen, YNAB lehnte als Duplikat ab, oder die Antwort war nicht
-    /// auswertbar (ADR 0021 Punkt 2, kein Rollback).
+    /// fehlgeschlagen (mit `EntryPushToYnabFailed`), die Antwort war nicht auswertbar
+    /// (ebenso), oder YNAB kannte die `import_id` schon (`duplicate_import_ids`, ohne
+    /// Ereignis: angekommen, der Spiegel verknüpft, ledger-xqqnv). ADR 0021 Punkt 2, kein
+    /// Rollback.
     | WrittenNotLinked of EntryId
     /// Schon eine mit YNAB verknüpfte Buchung für diese ImportId (ADR 0021 Punkt 3):
     /// kein zweites Entstehen, diese Buchung wurde nicht erneut gesendet. Eine Buchung
@@ -1247,10 +1284,12 @@ let private appendSafely (what: string) (events: LedgerEvent list) : Async<bool>
 /// (`SkippedKnownImport`), verknüpft nicht (`AlreadyImported`), sonst erneut senden, mit
 /// BBs Stand aus dem Kassenbuch (`importResendRequest`). Existiert noch keine Buchung,
 /// schreibt `appendAndApply` die Ereignisfolge aus `recordComdirectPush`. Gesendet wird nur,
-/// was geschrieben (oder wiedergefunden) wurde (Task-Notes, Schritt 8). Nach einer
-/// erfolgreichen Antwort wird jede tatsächlich angelegte Buchung mit `EntryLinkedToYnab`
-/// verknüpft; ein Push-Fehler, ein Duplikat oder eine nicht auswertbare Antwort lassen die
-/// geschriebenen Buchungen unverändert und unverknüpft stehen (kein Rollback). Scheitert das
+/// was geschrieben (oder wiedergefunden) wurde (Task-Notes, Schritt 8). Den Ausgang je
+/// Buchung ordnet `batchPushArrival` ein: eine angelegte Buchung wird mit `EntryLinkedToYnab`
+/// verknüpft; eine `import_id` in `duplicate_import_ids` heißt angekommen (ein früherer
+/// Versand kam an, nur die Antwort nicht, ledger-xqqnv) und schreibt kein Ereignis; ein
+/// Push-Fehler, eine nicht angelegte Buchung oder eine nicht auswertbare Antwort schreiben
+/// `EntryPushToYnabFailed` mit Grund. Unverknüpfte Buchungen bleiben stehen (kein Rollback). Scheitert das
 /// Schreiben einer Verknüpfung, bleibt diese eine Buchung `WrittenNotLinked` (der Spiegel
 /// verknüpft sie über die `import_id`), die übrigen behalten ihren Ausgang.
 ///
@@ -1259,11 +1298,11 @@ let private appendSafely (what: string) (events: LedgerEvent list) : Async<bool>
 /// Verknüpfung über die `import_id` an, und das Verknüpfen hier scheiterte an der schon
 /// bestehenden (Review-Fund zu banking-import-d0fey).
 ///
-/// `triggerMirror` stößt nach einem tatsächlich erfolgreichen Sende-Versuch den
-/// Spiegel an (ADR 0014 Punkt 2), erst nach der Freigabe der Sperre (der Lauf nimmt dieselbe).
-/// Ohne Sendung (nichts Neues, alles schon `AlreadyImported`) oder bei einem gescheiterten
-/// Sende-Versuch bleibt der Auslöser aus: der nächste Spiegel-Lauf (Frische-Kriterium oder ein
-/// erneuter Push) holt das nach.
+/// `triggerMirror` stößt den Spiegel an (ADR 0014 Punkt 2), wenn mindestens eine gesendete
+/// Buchung ankam (verknüpft oder angekommen ohne Id), erst nach der Freigabe der Sperre (der
+/// Lauf nimmt dieselbe). Ohne Sendung (nichts Neues, alles schon `AlreadyImported`) oder wenn
+/// keine Buchung ankam (Sende-Fehler, nicht angelegt, nicht auswertbar) bleibt der Auslöser
+/// aus: der nächste Spiegel-Lauf (Frische-Kriterium oder ein erneuter Push) holt das nach.
 let pushComdirectImports
     (now: DateTime)
     (push: Ynab.PreparedTransaction list -> Async<YnabResult<Ynab.TransactionCreateResult>>)
@@ -1388,37 +1427,33 @@ let pushComdirectImports
                         if toSend.IsEmpty then async.Return None
                         else async { let! r = push (toSend |> List.map fst) in return Some r }
                     let sendResult = sendResultOpt |> Option.defaultValue (Ok Ynab.emptyCreateResult)
-                    let ynabIdByTxId =
-                        match sendResult with
-                        | Ok created -> created.Created |> List.map (fun c -> c.TransactionId, c.YnabTransactionId) |> Map.ofList
-                        | Error _ -> Map.empty
 
+                    // Je gesendeter Buchung derselbe Ausgang wie beim Einzel-Post (`batchPushArrival`):
+                    // verknüpft schreibt `EntryLinkedToYnab`, angekommen ohne Id (`import_id` schon in
+                    // YNAB) nichts, gescheitert `EntryPushToYnabFailed` mit Grund (ADR 0021 Punkt 2,
+                    // kein Rollback, ledger-rynk5).
                     let! sentOutcomes =
                         toSend
                         |> List.map (fun (prepared, entryId) ->
                             async {
                                 let txId = prepared.TransactionId
-                                match sendResult, Map.tryFind txId ynabIdByTxId with
-                                | Ok _, Some ynabId ->
-                                    let linked =
-                                        { EntryId = entryId
-                                          OccurredAt = now
-                                          Actor = ComdirectImport
-                                          Body = EntryLinkedToYnab { YnabTransactionId = ynabId } }
+                                let arrival = batchPushArrival prepared sendResult
+                                let event =
+                                    arrivalEvent arrival
+                                    |> Option.map (fun body -> { EntryId = entryId; OccurredAt = now; Actor = ComdirectImport; Body = body })
+                                match arrival, event with
+                                | ArrivedLinked ynabId, Some linked ->
                                     match! appendSafely "Verknüpfung" [ linked ] with
-                                    | true -> return txId, Linked (entryId, ynabId)
-                                    | false -> return txId, WrittenNotLinked entryId
-                                | _ ->
-                                    // Gescheiterter Versand (ADR 0021 Punkt 2, kein Rollback): Grund und Zeit
-                                    // im Log festhalten, die Buchung bleibt unverknüpft stehen (ledger-rynk5).
-                                    let reason =
-                                        match sendResult with
-                                        | Error err -> ynabErrorText err
-                                        | Ok created -> describeNotCreatedReason prepared.ImportId created
-                                    let! _ = appendSafely "Fehlschlag" [ pushFailed entryId reason ]
-                                    return txId, WrittenNotLinked entryId
+                                    | true -> return arrival, (txId, Linked (entryId, ynabId))
+                                    | false -> return arrival, (txId, WrittenNotLinked entryId)
+                                | _, Some failed ->
+                                    let! _ = appendSafely "Fehlschlag" [ failed ]
+                                    return arrival, (txId, WrittenNotLinked entryId)
+                                | _, None -> return arrival, (txId, WrittenNotLinked entryId)
                             })
                         |> Async.Sequential
+                    let anyArrived = sentOutcomes |> Array.exists (fst >> arrivalTriggersMirror)
+                    let sentOutcomes = sentOutcomes |> Array.map snd
 
                     let outcomeMap =
                         [
@@ -1433,16 +1468,15 @@ let pushComdirectImports
                         ]
                         |> Map.ofList
 
-                    return { Outcomes = outcomeMap; SendResult = sendResultOpt }
+                    return { Outcomes = outcomeMap; SendResult = sendResultOpt }, anyArrived
                 }
             )
 
         // Nach dem Push (ADR 0014 Punkt 2) und nach der Freigabe der Sperre: nur wenn
-        // tatsächlich etwas gesendet und die Antwort auswertbar war, nicht bei einem leeren
-        // Versuch oder einem Sende-Fehler.
-        match result.SendResult with
-        | Some (Ok _) -> triggerMirror ()
-        | _ -> ()
+        // mindestens eine Buchung ankam (verknüpft oder mit schon bekannter `import_id`), nicht
+        // bei einem leeren Versuch, einem Sende-Fehler oder einer nicht auswertbaren Antwort.
+        let result, anyArrived = result
+        if anyArrived then triggerMirror ()
 
         return result
     }

@@ -1,7 +1,7 @@
 ---
 id: ledger-xqqnv
 title: "Vorhandene import_id heißt angekommen: Barbuchung, Erneut senden, Ist neu und Import-Sammelpush schreiben keinen Fehlschlag, wenn YNAB die import_id schon kennt; Sperre und Auslöser des Import-Pushs belegt (Ledger/CommandHandlers.fs)"
-status: doing
+status: done
 type: bug
 context: ledger
 created: 2026-11-12
@@ -122,3 +122,32 @@ aber Grund und Historie sind falsch.
 - Die Ersatz-POSTs mit `import_id` plus `:r<n>` haben eine verwandte Lücke: eigene Task ledger-f8bjm.
 - Test-Hilfen: `LedgerWriteGuardProbe.commandWaitsForMirror` und `SyncMirrorTrigger` in
   `src/Tests/LedgerWriteGuardProbe.fs`. `SyncMirrorTrigger` zählt nicht, zum Zählen ein eigener Zähler im Test.
+
+## Outcome
+
+Ein reiner Helfer ordnet den Ausgang eines Versands ein (`src/Server/Ledger/CommandHandlers.fs`): `PushArrival` mit `ArrivedLinked id`, `ArrivedWithoutId` und `PushFailedBecause reason`. `singlePushArrival` deckt den Einzel-Post ab (`Ok id`, 409 `ImportIdAlreadyInYnab`, anderer Fehler), `batchPushArrival` den Sammel-Post (in `Created`, in `DuplicateImportIds`, nicht angelegt, nicht auswertbar, Sende-Fehler). `arrivalEvent` liefert das Ereignis, `arrivalTriggersMirror` sagt, ob der Spiegel angestoßen wird. `describeNotCreatedReason` und der Satz „YNAB hat die Buchung als Duplikat abgelehnt“ sind entfallen.
+
+- `addCashExpenseWith` (Quick Add, Bob, Neue Buchung) und `pushEntryAndRecord` (Erneut senden, Ist neu) nutzen den Helfer. Bei 409 schreibt die Barbuchung nur `CashExpenseAdded`, liefert `Ok entryId` und stößt den Spiegel an. Daraus folgt `LedgerBookingCreated.PushFailure = None` (der Toast sagt „Buchung angelegt“, am Client war nichts zu ändern, `Capture.fs` wertet schon `PushFailure` aus), und Bob bekommt `pushed_to_ynab: true` ohne `push_error` (`BotApi.fs` blieb unverändert, die Grenzen auch).
+- `pushComdirectImports`: je gesendeter Buchung `batchPushArrival`. Eine import_id in `duplicate_import_ids` ergibt `WrittenNotLinked` ohne Ereignis. Der Auslöser läuft nach der Freigabe, wenn mindestens eine Buchung ankam (verknüpft oder ohne Id). Verhaltensänderung: eine nur nicht auswertbare Antwort stößt den Spiegel nicht mehr an (vorher bei jedem `Ok`), nach der Regel „nie bei gescheitert“.
+- Doc-Kommentare von `WrittenNotLinked`, `pushComdirectImports` und `addCashExpenseWith` sind nachgezogen.
+
+Tests (vollständiger Lauf 4768 grün, `./verify.sh`: `VERIFY: PASS`):
+- `src/Tests/LedgerTests.fs`: neue Liste „Ledger Ausgang eines Versands (rein, ledger-xqqnv)“ mit 8 Fällen. In „Ledger CommandHandlers (pushComdirectImports)“ neu: der Regressionstest (erster Push scheitert, erneuter Abruf mit Duplikat, kein zweiter Fehlschlag, ein Auslöser, danach Spiegel-Lauf mit `EntryLinkedToYnab` durch `YnabMirror`, keine zweite Buchung), die gemischte Antwort, „nicht angelegte Buchung ohne Eintrag in duplicate_import_ids“ und der Auslöser nach Freigabe (`SyncMirrorTrigger(2000)` unter `serialized`, `FinishedInTime = Some true`). Der Duplikat-Test prüft jetzt genau `EntryImportedFromComdirect`, der Test zur nicht auswertbaren Antwort prüft das Ereignis mit Grund. Der Sperre-Test läuft über `LedgerWriteGuardProbe.commandWaitsForMirror`: während der Lauf hängt, gibt es keine Buchung zur ImportId und keinen Push, danach Entstehung und Verknüpfung mit Actor `ComdirectImport`. Der selbstgebaute Lauf ist entfallen.
+- `src/Tests/LedgerCashBookingTests.fs`: 409 bei der Barbuchung (kaputt), Netzfehler (intakt).
+- `src/Tests/LedgerBookingCaptureTests.fs`: Neue Buchung mit 409.
+- `src/Tests/LedgerDuplicateDecisionTests.fs` (Befehlsliste): Ist neu mit 409.
+- `src/Tests/BotApiTests.fs`: Commit mit 409, eine Buchung, kein zweiter Push, Tagesnutzung zählt Summe (1 Euro: 499 geht, 499,01 ergibt 422) und Anzahl (nach neun Commits geht ein zehnter, nach zehn 422) genau einmal.
+- `src/Tests/LedgerPushFailureTests.fs`: der alte Test „Duplikat: der Grund nennt das Duplikat“ ist auf das neue Verhalten umgestellt (kein Fehlschlag).
+
+Gegenproben:
+1. Duplikat und 409 im Helfer wieder als Fehlschlag: 11 Tests rot, darunter Regressionstest, Duplikat-Test, gemischte Antwort, Barbuchung 409, Neue Buchung 409, Bob 409, Ist neu 409 und Erneut senden 409.
+2. Auslöser in den gesperrten Abschnitt verschoben: genau „der Spiegel-Auslöser nach dem Import-Push läuft erst nach Freigabe der Sperre“ rot.
+3. `WriteGuard.exclusive` um `pushComdirectImports` entfernt: genau „ein Spiegel-Lauf hält den Import-Push an, bis er fertig ist“ rot.
+
+Für den Conductor, README ledger von Hand: der Bullet *BuchungÜbernehmen* unter `## Key commands` ist per replace nicht erreichbar (kursiver Kopf, Prüfung 6). Dort ist der Satz „Push-Fehler, YNAB-Duplikat-Ablehnung oder eine nicht auswertbare Antwort lassen die Kassenbuch-Buchung unverknüpft stehen, kein Rollback; jede geschriebene oder wiedergefundene, nicht verknüpfte Buchung des Versuchs bekommt ein `EntryPushToYnabFailed` (Grund, Actor `ComdirectImport`), `AlreadyImported` keins.“ zu ersetzen durch: „Den Ausgang je gesendeter Buchung ordnet `batchPushArrival` ein (ledger-xqqnv, **Versand-Ausgang**): angelegt verknüpft mit `EntryLinkedToYnab`; steht ihre `import_id` in `duplicate_import_ids`, ist sie angekommen ohne Id (`WrittenNotLinked`, kein Ereignis, der Spiegel verknüpft); ein Push-Fehler, eine nicht angelegte Buchung oder eine nicht auswertbare Antwort lassen sie unverknüpft stehen, kein Rollback, mit `EntryPushToYnabFailed` (Grund, Actor `ComdirectImport`), `AlreadyImported` keins. Der Spiegel-Auslöser läuft nach der Freigabe der Sperre, wenn mindestens eine Buchung ankam (verknüpft oder ohne Id), nie, wenn keine ankam.“ Das README_DELTA ist mit `npm run check:readme-delta -- --bc ledger` geprüft (Exit 0). Zusätzlich korrigiert es den veralteten Satz „Nicht gesperrt ist der Comdirect-Import-Push“ im Bullet **Schreib-Sperre**, denn der Code sperrt ihn.
+
+Nachtrag zu ADR 0021 (zum Übernehmen als Abschnitt „Nachtrag 2026-11-12, vorhandene import_id (ledger-xqqnv)“): Punkt 2 nannte „lehnt YNAB die Buchung als Duplikat ab“ als Fehlschlag. Kennt YNAB die `import_id` schon (Einzel-Post 409, Sammel-Post `duplicate_import_ids`), kam ein früherer Versand an, nur seine Antwort nicht (ledger-p3vq8). Auf allen Wegen (Barbuchung, Erneut senden, Ist neu, Import-Sammelpush) schreibt BB dann kein `EntryPushToYnabFailed`. Die Buchung bleibt unverknüpft und damit „noch nicht in YNAB“ (Grund `PushOutcomeUnknown`, Bob-Text `unknownPushStateText` bei einer Wiederholung aus dem Log), bis der Spiegel sie über die `import_id` verknüpft. BB erfindet keine YNAB-Id, denn auch eine in YNAB gelöschte Buchung sperrt ihre `import_id` (ADR 0058 Probelauf 3). Kein Rollback bleibt (Punkt 2).
+
+Für die Kann-Sammlung ledger:
+- `LedgerEntryDeletionTests.fs:518` prüft für `pushComdirectImports` weiter mit eigenem Muster. Der neue Test in `LedgerTests.fs` deckt den Auslöser nach Freigabe jetzt ab, der alte Anteil könnte entfallen.
+- *WartendeÜbernehmen* im README sagt „der Spiegel-Auslöser … nur bei Erfolg“. Gemeint ist `PushToYnabSent`, also mit 409. Bei Gelegenheit präzisieren.

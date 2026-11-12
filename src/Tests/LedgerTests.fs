@@ -2318,7 +2318,140 @@ let ledgerImportPushCommandTests =
                 Expect.isNone
                     (linksForEntry entryId |> Async.RunSynchronously |> List.tryFind (fun l -> l.System = YnabSystem))
                     "keine YNAB-Verknüpfung für ein Duplikat"
+                // ledger-xqqnv: eine bekannte import_id heißt angekommen, kein Fehlschlag.
+                Expect.equal
+                    (loadEventsForEntry entryId |> Async.RunSynchronously |> List.map (fun r -> r.EventType))
+                    [ "EntryImportedFromComdirect" ]
+                    "nur die Entstehung, kein EntryPushToYnabFailed"
             | other -> failtest $"erwartete WrittenNotLinked, war {other}"
+
+        testCase "Kaputt: erneuter Abruf nach Fehlschlag, YNAB kennt die import_id; kein zweiter Fehlschlag, der Spiegel verknüpft" <| fun () ->
+            // ledger-xqqnv: der erste Sammelpush kam an, nur seine Antwort nicht. Bisher schrieb der erneute Abruf
+            // „YNAB hat die Buchung als Duplikat abgelehnt“ als Fehlschlag, obwohl die Buchung in YNAB ist.
+            let ynabAccount = YnabAccountId (Guid.NewGuid())
+            let account : LedgerAccount = {
+                Id = LedgerAccountId (Guid.NewGuid())
+                Name = $"Giro-{Guid.NewGuid()}"
+                Kind = BankAccount
+                Link = YnabMirrored ynabAccount
+                Closed = false
+            }
+            saveAccount account |> Async.RunSynchronously
+            let txId = $"tx-{Guid.NewGuid()}"
+            let importId = $"import-{txId}"
+            let cand = PushFixtures.candidate txId importId (eur -17.40m) []
+            let failingPush (_: PreparedTransaction list) : Async<YnabResult<TransactionCreateResult>> =
+                async.Return (Error (YnabError.NetworkError "Zeitüberschreitung"))
+            let entryId =
+                match
+                    (pushComdirectImports (DateTime(2026, 3, 10, 10, 0, 0, DateTimeKind.Utc)) failingPush noTrigger account.Id [ cand ]
+                     |> Async.RunSynchronously).Outcomes
+                    |> Map.tryFind (TransactionId txId)
+                with
+                | Some (WrittenNotLinked entryId) -> entryId
+                | other -> failtest $"erster Versuch sollte WrittenNotLinked liefern, war {other}"
+
+            // WHEN: der erneute Abruf sendet sie, YNAB meldet die import_id in duplicate_import_ids.
+            let duplicatePush (_: PreparedTransaction list) : Async<YnabResult<TransactionCreateResult>> =
+                async.Return (Ok { emptyCreateResult with DuplicateImportIds = [ importId ] })
+            let mutable triggerCount = 0
+            let second =
+                pushComdirectImports
+                    (DateTime(2026, 3, 10, 11, 0, 0, DateTimeKind.Utc))
+                    duplicatePush
+                    (fun () -> triggerCount <- triggerCount + 1)
+                    account.Id
+                    [ cand ]
+                |> Async.RunSynchronously
+
+            // THEN: kein zweiter Fehlschlag, angekommen ohne Verknüpfung, ein Auslöser.
+            Expect.equal (Map.tryFind (TransactionId txId) second.Outcomes) (Some (WrittenNotLinked entryId)) "WrittenNotLinked"
+            Expect.equal
+                (loadEventsForEntry entryId |> Async.RunSynchronously |> List.map (fun r -> r.EventType))
+                [ "EntryImportedFromComdirect"; "EntryPushToYnabFailed" ]
+                "kein zweites EntryPushToYnabFailed"
+            Expect.equal triggerCount 1 "der Spiegel wird genau einmal angestoßen"
+
+            // AND: der Spiegel sieht die YNAB-Buchung mit derselben import_id und verknüpft sie.
+            let ynabTxId = $"ynab-{txId}"
+            let observation : Server.YnabObservations.YnabObservation = {
+                YnabTransactionId = ynabTxId
+                AccountId = ynabAccount
+                ImportId = Some importId
+                Date = DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc)
+                Amount = eur -17.40m
+                Payee = Some "dm"
+                Memo = None
+                Category = None
+                Splits = []
+                SplitTransfers = []
+                Cleared = Uncleared
+                TransferAccountId = None
+                TransferYnabTransactionId = None
+                Deleted = false
+                Approved = false
+                FlagColor = None
+                FlagName = None
+            }
+            let fetchers = {
+                emptyMirrorFetchers with
+                    FetchAccounts =
+                        fun _ ->
+                            async.Return (Ok { Accounts = [ { AccountId = ynabAccount; Name = account.Name; Closed = false; Deleted = false } ]; ServerKnowledge = 7L })
+                    FetchTransactions = fun _ -> async.Return (Ok { Observations = [ observation ]; ServerKnowledge = 7L })
+            }
+            match runMirror (DateTime(2026, 3, 10, 12, 0, 0, DateTimeKind.Utc)) fetchers (YnabBudgetId $"budget-xqqnv-{Guid.NewGuid()}") |> Async.RunSynchronously with
+            | Ok summary -> Expect.equal summary.NewEntries 0 "keine zweite Buchung"
+            | Error err -> failtest $"Lauf sollte gelingen, war: {err}"
+            Expect.hasLength (loadEntriesForAccount account.Id |> Async.RunSynchronously) 1 "genau eine Buchung auf dem Konto"
+            Expect.equal (findEntryByLink YnabSystem ynabTxId |> Async.RunSynchronously) (Some entryId) "die YNAB-Id zeigt auf die Buchung"
+            let linked =
+                loadEventsForEntry entryId
+                |> Async.RunSynchronously
+                |> List.filter (fun r -> r.EventType = "EntryLinkedToYnab")
+            Expect.equal (linked |> List.map (fun r -> r.Event.Actor)) [ YnabMirror ] "der Spiegel verknüpft"
+
+        testCase "gemischte Antwort: eine angelegt, eine in duplicate_import_ids, genau ein Auslöser" <| fun () ->
+            let createdTx, duplicateTx = $"tx-{Guid.NewGuid()}", $"tx-{Guid.NewGuid()}"
+            let createdImport, duplicateImport = $"import-{createdTx}", $"import-{duplicateTx}"
+            let candidates =
+                [ PushFixtures.candidate createdTx createdImport (eur -1.30m) []
+                  PushFixtures.candidate duplicateTx duplicateImport (eur -2.40m) [] ]
+            let ynabTxId = $"ynab-{createdTx}"
+            let push (_: PreparedTransaction list) : Async<YnabResult<TransactionCreateResult>> =
+                async.Return (
+                    Ok {
+                        emptyCreateResult with
+                            Created = [ { TransactionId = TransactionId createdTx; ImportId = createdImport; YnabTransactionId = ynabTxId } ]
+                            DuplicateImportIds = [ duplicateImport ]
+                    })
+            let mutable triggerCount = 0
+
+            let result =
+                pushComdirectImports
+                    (DateTime(2026, 3, 10, 13, 0, 0, DateTimeKind.Utc))
+                    push
+                    (fun () -> triggerCount <- triggerCount + 1)
+                    testAccountId
+                    candidates
+                |> Async.RunSynchronously
+
+            match Map.tryFind (TransactionId createdTx) result.Outcomes with
+            | Some (Linked (entryId, gotId)) ->
+                Expect.equal gotId ynabTxId "verknüpft über die Antwort"
+                Expect.equal
+                    (loadEventsForEntry entryId |> Async.RunSynchronously |> List.map (fun r -> r.EventType))
+                    [ "EntryImportedFromComdirect"; "EntryLinkedToYnab" ]
+                    "Entstehung und Verknüpfung"
+            | other -> failtest $"erwartete Linked, war {other}"
+            match Map.tryFind (TransactionId duplicateTx) result.Outcomes with
+            | Some (WrittenNotLinked entryId) ->
+                Expect.equal
+                    (loadEventsForEntry entryId |> Async.RunSynchronously |> List.map (fun r -> r.EventType))
+                    [ "EntryImportedFromComdirect" ]
+                    "kein Ereignis nach der Entstehung"
+            | other -> failtest $"erwartete WrittenNotLinked, war {other}"
+            Expect.equal triggerCount 1 "genau ein Auslöser"
 
         testCase "eine nicht auswertbare YNAB-Antwort verknüpft nichts, kein pauschaler Erfolg" <| fun () ->
             // AC: eine nicht auswertbare Antwort markiert Buchungen nicht pauschal als
@@ -2341,7 +2474,37 @@ let ledgerImportPushCommandTests =
                 Expect.isNone
                     (linksForEntry entryId |> Async.RunSynchronously |> List.tryFind (fun l -> l.System = YnabSystem))
                     "keine YNAB-Verknüpfung bei nicht auswertbarer Antwort"
+                match loadEventsForEntry entryId |> Async.RunSynchronously |> List.map (fun r -> r.Event.Body) with
+                | [ EntryImportedFromComdirect _; EntryPushToYnabFailed failure ] ->
+                    Expect.equal failure.Reason "Die Antwort von YNAB war nicht auswertbar" "Grund des Fehlschlags"
+                | other -> failtest $"erwartete Entstehung und Fehlschlag, war {other}"
             | other -> failtest $"erwartete WrittenNotLinked, war {other}"
+
+        testCase "eine nicht angelegte Buchung ohne Eintrag in duplicate_import_ids schreibt den Fehlschlag mit Grund" <| fun () ->
+            let txId = $"tx-{Guid.NewGuid()}"
+            let importId = $"import-{txId}"
+            let cand = PushFixtures.candidate txId importId (eur -4.30m) []
+            let push (_: PreparedTransaction list) : Async<YnabResult<TransactionCreateResult>> =
+                async.Return (Ok { emptyCreateResult with DuplicateImportIds = [ "import-fremd" ] })
+            let mutable triggerCount = 0
+
+            let result =
+                pushComdirectImports
+                    (DateTime(2026, 3, 7, 11, 0, 0, DateTimeKind.Utc))
+                    push
+                    (fun () -> triggerCount <- triggerCount + 1)
+                    testAccountId
+                    [ cand ]
+                |> Async.RunSynchronously
+
+            match Map.tryFind (TransactionId txId) result.Outcomes with
+            | Some (WrittenNotLinked entryId) ->
+                match loadEventsForEntry entryId |> Async.RunSynchronously |> List.map (fun r -> r.Event.Body) with
+                | [ EntryImportedFromComdirect _; EntryPushToYnabFailed failure ] ->
+                    Expect.equal failure.Reason "YNAB hat die Buchung nicht angelegt" "Grund des Fehlschlags"
+                | other -> failtest $"erwartete Entstehung und Fehlschlag, war {other}"
+            | other -> failtest $"erwartete WrittenNotLinked, war {other}"
+            Expect.equal triggerCount 0 "kein Auslöser, wenn keine Buchung ankam"
 
         testCase "Split mit Transfer-Zeile landet korrekt im Kassenbuch" <| fun () ->
             let txId = $"tx-{Guid.NewGuid()}"
@@ -2542,52 +2705,53 @@ let ledgerImportPushCommandTests =
 
         // Review-Fund zu banking-import-d0fey: Schreiben, Push und Verknüpfen liefen ohne Schreib-Sperre. Ein
         // Spiegel-Lauf während des Pushs verknüpfte die Buchung über die import_id, danach warf das Verknüpfen
-        // hier an der bestehenden Verknüpfung. Der nachgestellte Lauf nimmt die Sperre wie `runMirrorGuarded`.
-        testCase "ein Spiegel-Lauf während des Import-Pushs wartet, bis die Verknüpfung steht" <| fun () ->
+        // hier an der bestehenden Verknüpfung. Belegt über einen echten, gesperrten Lauf (ledger-xqqnv).
+        testCase "ein Spiegel-Lauf hält den Import-Push an, bis er fertig ist" <| fun () ->
             let txId = $"tx-{Guid.NewGuid()}"
             let importId = $"import-{txId}"
             let cand = PushFixtures.candidate txId importId (eur -8.80m) []
             let ynabTxId = $"ynab-{txId}"
-            let mutable mirror : System.Threading.Tasks.Task<unit> option = None
-            let mutable mirrorDoneDuringPush = false
-            let mirrorRun =
-                WriteGuard.exclusive (
-                    async {
-                        match! findEntryByLink ImportIdSystem importId with
-                        | Some entryId ->
-                            match! loadEntry entryId with
-                            | Some entry when not entry.LinkedToYnab ->
-                                do!
-                                    appendAndApply [
-                                        { EntryId = entryId
-                                          OccurredAt = DateTime(2026, 3, 9, 10, 0, 1, DateTimeKind.Utc)
-                                          Actor = YnabMirror
-                                          Body = EntryLinkedToYnab { YnabTransactionId = ynabTxId } }
-                                    ]
-                            | _ -> ()
-                        | None -> ()
-                    })
+            let mutable pushCalls = 0
             let push (prepared: PreparedTransaction list) : Async<YnabResult<TransactionCreateResult>> =
-                async {
-                    let run = Async.StartAsTask mirrorRun
-                    mirror <- Some run
-                    mirrorDoneDuringPush <- run.Wait(TimeSpan.FromMilliseconds 500.0)
-                    return! PushFixtures.successfulPush ynabTxId prepared
-                }
+                pushCalls <- pushCalls + 1
+                PushFixtures.successfulPush ynabTxId prepared
 
             let result =
-                pushComdirectImports (DateTime(2026, 3, 9, 10, 0, 0, DateTimeKind.Utc)) push noTrigger testAccountId [ cand ]
-                |> Async.RunSynchronously
-            Expect.isTrue (mirror.Value.Wait(TimeSpan.FromSeconds 30.0)) "der Lauf endet nach der Freigabe"
+                LedgerWriteGuardProbe.commandWaitsForMirror
+                    (fun () ->
+                        Expect.isNone
+                            (findEntryByLink ImportIdSystem importId |> Async.RunSynchronously)
+                            "während der Lauf hängt, gibt es zur ImportId keine Buchung"
+                        Expect.equal pushCalls 0 "und keinen Push")
+                    (pushComdirectImports (DateTime(2026, 3, 9, 10, 0, 0, DateTimeKind.Utc)) push noTrigger testAccountId [ cand ])
 
-            Expect.isFalse mirrorDoneDuringPush "der Lauf wartet an der Sperre"
             match Map.tryFind (TransactionId txId) result.Outcomes with
             | Some (Linked (entryId, _)) ->
+                let recorded = loadEventsForEntry entryId |> Async.RunSynchronously
                 Expect.equal
-                    (loadEventsForEntry entryId |> Async.RunSynchronously |> List.map (fun r -> r.EventType))
-                    [ "EntryImportedFromComdirect"; "EntryLinkedToYnab" ]
-                    "genau eine Verknüpfung, die des Imports"
+                    (recorded |> List.map (fun r -> r.EventType, r.Event.Actor))
+                    [ "EntryImportedFromComdirect", ComdirectImport; "EntryLinkedToYnab", ComdirectImport ]
+                    "Entstehung und Verknüpfung des Imports"
             | other -> failtest $"erwartete Linked, war {other}"
+
+        testCase "der Spiegel-Auslöser nach dem Import-Push läuft erst nach Freigabe der Sperre" <| fun () ->
+            let txId = $"tx-{Guid.NewGuid()}"
+            let importId = $"import-{txId}"
+            let cand = PushFixtures.candidate txId importId (eur -8.90m) []
+            let trigger = LedgerWriteGuardProbe.SyncMirrorTrigger(2000)
+
+            LedgerWriteGuardProbe.serialized (fun () ->
+                let run =
+                    Async.StartAsTask(
+                        pushComdirectImports
+                            (DateTime(2026, 3, 9, 10, 30, 0, DateTimeKind.Utc))
+                            (PushFixtures.successfulPush $"ynab-{txId}")
+                            trigger.Trigger
+                            testAccountId
+                            [ cand ])
+                Expect.isTrue (run.Wait 10000) "Befehl beendet")
+
+            Expect.equal trigger.FinishedInTime (Some true) "der Lauf des Auslösers endet in der Frist, die Sperre ist schon frei"
 
         // Review-Fund zu banking-import-d0fey: eine Ausnahme beim Verknüpfen einer Buchung brach den ganzen Push ab,
         // die übrigen Buchungen bekamen keinen Ausgang und der Spiegel keinen Auslöser.
@@ -2668,6 +2832,48 @@ let ledgerImportPushCommandTests =
 // bleiben (Verifier-Fund, Iteration 3, extrahiert damit `Server.Api.importToYnab`s
 // Sichtbarmachen ohne HTTP testbar ist).
 // ============================================
+
+[<Tests>]
+let pushArrivalTests =
+    let prepared = PushFixtures.prepared "tx-ausgang" "import-ausgang"
+    testList "Ledger Ausgang eines Versands (rein, ledger-xqqnv)" [
+        testCase "Einzel-Post: Ok mit Id ist verknüpft" <| fun () ->
+            Expect.equal (singlePushArrival (Ok "ynab-1")) (ArrivedLinked "ynab-1") "verknüpft"
+            Expect.equal (arrivalEvent (ArrivedLinked "ynab-1")) (Some (EntryLinkedToYnab { YnabTransactionId = "ynab-1" })) "EntryLinkedToYnab"
+            Expect.isTrue (arrivalTriggersMirror (ArrivedLinked "ynab-1")) "Spiegel"
+
+        testCase "Einzel-Post: 409 ist angekommen ohne Id, kein Ereignis, Spiegel" <| fun () ->
+            Expect.equal (singlePushArrival (Error ImportIdAlreadyInYnab)) ArrivedWithoutId "angekommen"
+            Expect.isNone (arrivalEvent ArrivedWithoutId) "kein Ereignis"
+            Expect.isTrue (arrivalTriggersMirror ArrivedWithoutId) "Spiegel"
+
+        testCase "Einzel-Post: ein anderer Fehler ist gescheitert, mit Grund, ohne Spiegel" <| fun () ->
+            let err = YnabError.NetworkError "weg"
+            let arrival = singlePushArrival (Error err)
+            Expect.equal arrival (PushFailedBecause (ynabErrorText err)) "gescheitert"
+            Expect.equal (arrivalEvent arrival) (Some (EntryPushToYnabFailed { Reason = ynabErrorText err })) "Fehlschlag"
+            Expect.isFalse (arrivalTriggersMirror arrival) "kein Spiegel"
+
+        testCase "Sammel-Post: die Id in Created ist verknüpft" <| fun () ->
+            let created = { emptyCreateResult with Created = [ { TransactionId = prepared.TransactionId; ImportId = prepared.ImportId; YnabTransactionId = "ynab-2" } ] }
+            Expect.equal (batchPushArrival prepared (Ok created)) (ArrivedLinked "ynab-2") "verknüpft"
+
+        testCase "Sammel-Post: die import_id in duplicate_import_ids ist angekommen ohne Id" <| fun () ->
+            let created = { emptyCreateResult with DuplicateImportIds = [ prepared.ImportId ] }
+            Expect.equal (batchPushArrival prepared (Ok created)) ArrivedWithoutId "angekommen"
+
+        testCase "Sammel-Post: nicht angelegt ist gescheitert" <| fun () ->
+            let created = { emptyCreateResult with DuplicateImportIds = [ "import-fremd" ] }
+            Expect.equal (batchPushArrival prepared (Ok created)) (PushFailedBecause "YNAB hat die Buchung nicht angelegt") "gescheitert"
+
+        testCase "Sammel-Post: nicht auswertbar ist gescheitert" <| fun () ->
+            let created = { emptyCreateResult with ResponseUnparseable = true }
+            Expect.equal (batchPushArrival prepared (Ok created)) (PushFailedBecause "Die Antwort von YNAB war nicht auswertbar") "gescheitert"
+
+        testCase "Sammel-Post: ein Sende-Fehler ist gescheitert, mit dem Fehlertext" <| fun () ->
+            let err = YnabError.NetworkError "weg"
+            Expect.equal (batchPushArrival prepared (Error err)) (PushFailedBecause (ynabErrorText err)) "gescheitert"
+    ]
 
 [<Tests>]
 let summarizeLedgerWriteFailuresTests =

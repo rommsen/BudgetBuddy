@@ -299,6 +299,18 @@ let commandTests =
                 Expect.isNone req.CategoryId "keine Kategorie im Request"
             | other -> failtest $"genau ein Push erwartet: {other}"
 
+        testCase "kennt YNAB die import_id schon (409), ist die Buchung angekommen: kein Grund, kein Fehlschlag" <| fun () ->
+            // ledger-xqqnv: wie „Erneut senden“; der Spiegel verknüpft über die import_id.
+            setup ()
+            let accounts = freshAccounts ()
+            let probe = BookingProbe(accounts, Error ImportIdAlreadyInYnab)
+            let entryId = newEntryId ()
+            match book probe entryId (request accounts.Bar) with
+            | Ok created -> Expect.isNone created.PushFailure "kein Grund, der Toast sagt „Buchung angelegt“"
+            | Error e -> failtest $"Buchung erwartet: {e}"
+            Expect.equal (eventsOf entryId |> List.map (fun r -> r.EventType)) [ "CashExpenseAdded" ] "kein EntryPushToYnabFailed"
+            Expect.equal probe.Mirrors 1 "der Spiegel wird angestoßen"
+
         testCase "ein gescheiterter Push lässt die Buchung stehen und nennt den Grund" <| fun () ->
             setup ()
             let accounts = freshAccounts ()

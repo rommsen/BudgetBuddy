@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-12 07:58 -- Task verified and completed: ledger-xqqnv - "Vorhandene import_id heißt angekommen: Barbuchung, Erneut senden, Ist neu und Import-Sammelpush schreiben keinen Fehlschlag, wenn YNAB die import_id schon kennt; Sperre und Auslöser des Import-Pushs belegt (Ledger/CommandHandlers.fs)"
+
+**Type:** Work / Task completion
+**Task:** ledger-xqqnv - "Vorhandene import_id heißt angekommen: Barbuchung, Erneut senden, Ist neu und Import-Sammelpush schreiben keinen Fehlschlag, wenn YNAB die import_id schon kennt; Sperre und Auslöser des Import-Pushs belegt (Ledger/CommandHandlers.fs)"
+**Summary:** vorhandene import_id heißt auf allen Schreibwegen angekommen, Sperre und Auslöser des Import-Pushs belegt
+**Duration:** 30m
+**Verification:** PASS (iteration 1)
+**Files changed:** 7
+**Tests added:** 17
+**ADRs written:** none (Nachtrag ADR 0021)
+
+---
+
 ## 2026-11-12 07:28 -- Batch started: [ledger-xqqnv, ledger-smv1s, ledger-ct3cx]
 
 **Type:** Work / Batch start

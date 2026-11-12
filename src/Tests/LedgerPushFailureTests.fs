@@ -267,10 +267,14 @@ let pushFailureCommandTests =
             let result = runPush (Ok { emptyCreateResult with ResponseUnparseable = true }) txId importId
             expectFailureEvent (writtenEntryId result txId) "nicht auswertbar"
 
-        testCase "Duplikat: der Grund nennt das Duplikat" <| fun () ->
+        testCase "bekannte import_id: angekommen, kein Fehlschlag-Ereignis (ledger-xqqnv)" <| fun () ->
             let txId, importId = Fixtures.ids ()
             let result = runPush (Ok { emptyCreateResult with DuplicateImportIds = [ importId ] }) txId importId
-            expectFailureEvent (writtenEntryId result txId) "Duplikat"
+            let entryId = writtenEntryId result txId
+            Expect.equal (eventTypesOf entryId) [ "EntryImportedFromComdirect" ] "nur die Entstehung"
+            let entry = loadEntry entryId |> Async.RunSynchronously |> Option.get
+            Expect.isNone entry.PushToYnabFailure "kein Fehlschlag im Zustand"
+            Expect.isFalse entry.LinkedToYnab "unverknüpft, der Spiegel verknüpft"
 
         testCase "erfolgreicher Push schreibt kein Fehlschlag-Ereignis" <| fun () ->
             let txId, importId = Fixtures.ids ()
