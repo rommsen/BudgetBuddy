@@ -2081,16 +2081,24 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 
     // -------- Betrag (Suchfeld mit Verzögerung, Von/Bis) --------
 
+    // Ein unlesbarer Text lässt seine Grenze stehen (`amountFilterValue`, ledger-dn4vy): vorher nahm „abc“
+    // einen aktiven Filter still weg.
     | SetAmountMinDraft text ->
         let newVersion = model.AmountVersion + 1
+        let filters = model.Filters
         { model with AmountMinDraft = text; AmountVersion = newVersion },
-        Debounce.delayedDefault (CommitAmountFilter (parseAmountFilterText text, parseAmountFilterText model.AmountMaxDraft, newVersion)),
+        Debounce.delayedDefault (
+            CommitAmountFilter (amountFilterValue filters.AmountMin text, amountFilterValue filters.AmountMax model.AmountMaxDraft, newVersion)
+        ),
         NoOp
 
     | SetAmountMaxDraft text ->
         let newVersion = model.AmountVersion + 1
+        let filters = model.Filters
         { model with AmountMaxDraft = text; AmountVersion = newVersion },
-        Debounce.delayedDefault (CommitAmountFilter (parseAmountFilterText model.AmountMinDraft, parseAmountFilterText text, newVersion)),
+        Debounce.delayedDefault (
+            CommitAmountFilter (amountFilterValue filters.AmountMin model.AmountMinDraft, amountFilterValue filters.AmountMax text, newVersion)
+        ),
         NoOp
 
     | CommitAmountFilter (min_, max_, version) ->

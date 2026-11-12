@@ -740,21 +740,36 @@ let private amountFilterTextTests =
     testList "Betrags-Suchfeld: parseAmountFilterText / formatAmountDraft" [
 
         test "Leerer Text ist kein Filter" {
-            Expect.equal (parseAmountFilterText "") None "Leer heißt: kein Wert"
-            Expect.equal (parseAmountFilterText "   ") None "Nur Leerzeichen zählt auch als leer"
+            Expect.equal (parseAmountFilterText "") AmountTextEmpty "Leer heißt: kein Wert"
+            Expect.equal (parseAmountFilterText "   ") AmountTextEmpty "Nur Leerzeichen zählt auch als leer"
         }
 
         test "Punkt und Komma werden beide als Dezimaltrennzeichen gelesen" {
-            Expect.equal (parseAmountFilterText "12.50") (Some 12.50m) "Punkt (Invariant Culture)"
-            Expect.equal (parseAmountFilterText "12,50") (Some 12.50m) "Komma (Roman tippt deutsch)"
+            Expect.equal (parseAmountFilterText "12.50") (AmountTextValue 12.50m) "Punkt (Invariant Culture)"
+            Expect.equal (parseAmountFilterText "12,50") (AmountTextValue 12.50m) "Komma (Roman tippt deutsch)"
         }
 
         test "Ein negativer Betrag bleibt negativ" {
-            Expect.equal (parseAmountFilterText "-9,80") (Some -9.80m) "Vorzeichen bleibt erhalten"
+            Expect.equal (parseAmountFilterText "-9,80") (AmountTextValue -9.80m) "Vorzeichen bleibt erhalten"
         }
 
-        test "Unlesbarer Text liefert None statt eine Ausnahme zu werfen" {
-            Expect.equal (parseAmountFilterText "abc") None "Kein Absturz bei falscher Eingabe"
+        // ledger-dn4vy: unlesbar und leer waren beide `None`, ein „abc“ nahm so einen aktiven Filter weg.
+        test "Unlesbarer Text ist eigens unlesbar, nicht leer, und wirft keine Ausnahme" {
+            Expect.equal (parseAmountFilterText "abc") AmountTextUnreadable "Kein Absturz, aber auch kein leeres Feld"
+            Expect.equal (parseAmountFilterText "5,,0") AmountTextUnreadable "Zwei Trennzeichen sind unlesbar"
+        }
+
+        test "Eine Filtergrenze: leer nimmt sie weg, lesbar setzt sie, unlesbar lässt die bisherige stehen" {
+            Expect.equal (amountFilterValue (Some 5m) "") None "leer"
+            Expect.equal (amountFilterValue (Some 5m) "7,5") (Some 7.5m) "lesbar"
+            Expect.equal (amountFilterValue (Some 5m) "abc") (Some 5m) "unlesbar mit Filter"
+            Expect.equal (amountFilterValue None "abc") None "unlesbar ohne Filter"
+        }
+
+        test "Das Feld gilt nur bei unlesbarem Text als ungültig" {
+            Expect.isTrue (amountFilterTextInvalid "abc") "unlesbar"
+            Expect.isFalse (amountFilterTextInvalid "") "leer"
+            Expect.isFalse (amountFilterTextInvalid "12,50") "lesbar"
         }
 
         test "formatAmountDraft schreibt mit Punkt (Invariant Culture), die Rückrichtung von parseAmountFilterText" {

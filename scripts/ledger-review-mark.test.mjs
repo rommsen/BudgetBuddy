@@ -168,3 +168,38 @@ test("[flow:buchung-pruefen] Geprüft an der Zeile: Trefferfläche, Aufruf, Wech
     }
   }
 });
+
+// ledger-dn4vy: der Knopf war während des Aufrufs `disabled`, der Fokus fiel auf `body`. Jetzt sperrt er über
+// `aria-disabled` und `aria-busy`; dass ein zweiter Klick nichts schickt, prüft die Zeilen-Sperre in `update`
+// (ledger-smv1s).
+test("[fokus] PC: der Fokus bleibt am Prüfknopf, solange der Aufruf läuft", async () => {
+  const { page, context } = await openLedger({ width: 1440, height: 900 });
+  try {
+    let release;
+    const gate = new Promise((resolve) => (release = resolve));
+    await page.route("**/api/LedgerApi/setReviewMark", async (route) => {
+      await gate;
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          Ok: { Previous: { IsApproved: false, ClearedState: "ReviewUncleared" }, Change: "ReviewMarkChanged", WriteBack: "ReviewMarkSent" },
+        }),
+      });
+    });
+    const row = rowOf(page, true, PAYEES.toReview);
+    const button = row.getByRole("button", { name: "Geprüft", exact: true });
+    await button.waitFor();
+    await button.click();
+    // Gesperrt ist der Knopf so oder so: vor dem Fix über `disabled`, jetzt über `aria-busy`.
+    await row.locator('button[aria-busy="true"], button:disabled').waitFor();
+    const focused = await page.evaluate(() => {
+      const el = document.activeElement;
+      return { tag: el.tagName, busy: el.getAttribute("aria-busy"), disabled: el.getAttribute("aria-disabled"), label: el.textContent };
+    });
+    assert.deepEqual(focused, { tag: "BUTTON", busy: "true", disabled: "true", label: "Geprüft" }, "der Fokus steht am gesperrten Prüfknopf");
+    release();
+    await row.getByRole("button", { name: "Ungeprüft", exact: true }).waitFor();
+  } finally {
+    await context.close();
+  }
+});

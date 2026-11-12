@@ -547,14 +547,16 @@ let reviewMarkButtonClassName (hoverOnly: bool) (rowFocused: bool) : string =
         else "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
     $"inline-flex shrink-0 items-center justify-center rounded-lg {Tokens.TouchTargets.mobileSquare} md:h-7 md:w-7 " +
     "text-text-secondary hover:text-text-primary hover:bg-surface-hover " +
-    "transition-colors touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed " +
+    "transition-colors touch-manipulation aria-disabled:opacity-50 aria-disabled:cursor-not-allowed " +
     visibility
 
 /// Die Schaltfläche "Geprüft" / "Ungeprüft" einer Zeile (ledger-r777c, ADR 0050): ein
 /// Symbol (Haken für "Geprüft", Pfeil zurück für "Ungeprüft") mit der Beschriftung als
 /// nur vorgelesenem Text, damit die Statusspalte der PC-Tabelle (128px) nicht
 /// überläuft. Am Handy 48px Trefferfläche, am PC 28px. Der Klick öffnet nicht die
-/// Historie der Zeile (`stopPropagation`). Ein laufender Aufruf sperrt die Schaltfläche.
+/// Historie der Zeile (`stopPropagation`). Ein laufender Aufruf sperrt die Schaltfläche über
+/// `aria-disabled` und `aria-busy`, nicht über `disabled`: sonst fiele der Fokus auf `body`
+/// (ledger-dn4vy). Einen zweiten Klick fängt die Zeilen-Sperre in `update` ab (ledger-smv1s).
 let private reviewMarkButton
     (dispatch: Msg -> unit)
     (hoverOnly: bool)
@@ -571,7 +573,9 @@ let private reviewMarkButton
 
     Html.button [
         prop.type'.button
-        prop.disabled sending
+        if sending then
+            prop.ariaDisabled true
+            prop.ariaBusy true
         prop.title (reviewMarkTooltip action.Target)
         prop.className (reviewMarkButtonClassName hoverOnly rowFocused)
         prop.onClick (fun e ->
@@ -979,7 +983,8 @@ let private entryTableRow
             OnClick = Some (fun () -> dispatch (OpenDetail entry))
             StatusEdge = entry.NeedsReview
             IsFocused = isFocused
-            ClassName = Some ("group " + selectableRowClassName selected isAnchor + (if isFilteredOut then " opacity-50" else "")) }
+            // Ausgegraut in `text-muted` bei voller Deckkraft (`.filtered-out-text`, ledger-dn4vy).
+            ClassName = Some ("group " + selectableRowClassName selected isAnchor + (if isFilteredOut then " filtered-out-text" else "")) }
         [
             selectBoxCell dispatch selected entry
             Table.roleCell Table.DateCell [ Html.text (formatDate entry.Date) ]
@@ -2625,7 +2630,8 @@ let private mobileEntryRow
               // Ausgegraut (Filter-Nichttreffer): die Zeile bleibt stehen, der Vermerk nennt den Grund.
               Html.div [
                   prop.custom ("data-testid", "filtered-out-row")
-                  prop.className "opacity-50"
+                  // `text-muted` bei voller Deckkraft (`.filtered-out-text`): `opacity-50` fiel unter 4,5:1 (ledger-dn4vy).
+                  prop.className "filtered-out-text"
                   prop.children [
                       row
                       Html.div [
@@ -3086,17 +3092,9 @@ let private categoryPickerBody (dispatch: Msg -> unit) (model: Model) (categorie
         OnApply = fun () -> dispatch ApplyCategoryFilter
     }
 
-let private dateQuickButton (dispatch: Msg -> unit) (model: Model) (quick: DateQuick) =
-    let isSelected = model.DateDraft.Quick = Some quick
-    Html.button [
-        prop.type' "button"
-        prop.className (
-            $"rounded-full py-2 {Tokens.TouchTargets.minHeight} text-xs font-semibold border transition-colors "
-            + (if isSelected then $"bg-accent/10 border-accent {Tokens.Colors.accent}"
-               else $"{Tokens.Backgrounds.dark} {Tokens.Borders.default'} {Tokens.Colors.textSecondary}"))
-        prop.onClick (fun _ -> dispatch (SetDateQuick quick))
-        prop.text (dateQuickLabel quick)
-    ]
+/// Ein Knopf der Schnellwahl Zeitraum (`Segmented`, ledger-dn4vy): gewählt mit `aria-pressed`.
+let private dateQuickSegment (dispatch: Msg -> unit) (model: Model) (quick: DateQuick) : Segmented.Segment =
+    Segmented.segment (dateQuickLabel quick) (model.DateDraft.Quick = Some quick) (fun () -> dispatch (SetDateQuick quick))
 
 /// Feldbeschriftung der Filter-Popover: 12px gedämpft (`ListRoles.muted`)
 let private fieldLabel (label: string) (child: ReactElement) : ReactElement =
@@ -3127,15 +3125,12 @@ let private datePickerBody (dispatch: Msg -> unit) (model: Model) =
                 prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.textMuted} {Tokens.Fonts.mono} uppercase tracking-wider"
                 prop.text "Schnellwahl"
             ]
-            Html.div [
-                prop.className "grid grid-cols-2 gap-2"
-                prop.children [
-                    dateQuickButton dispatch model ThisMonth
-                    dateQuickButton dispatch model LastMonth
-                    dateQuickButton dispatch model ThisYear
-                    dateQuickButton dispatch model Last12Months
-                ]
-            ]
+            // Zwei Reihen: vier Texte nebeneinander passen bei 320 px nicht sicher (ledger-dn4vy).
+            Segmented.viewColumns
+                "date-quick"
+                "Schnellwahl"
+                Segmented.TwoColumns
+                [ for quick in [ ThisMonth; LastMonth; ThisYear; Last12Months ] -> dateQuickSegment dispatch model quick ]
             // Am schmalen Handy untereinander: nebeneinander schnitte das Feld den Platzhalter ab (infrastructure-nx14s).
             Html.div [
                 prop.className "grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-1"
@@ -3155,48 +3150,127 @@ let private datePickerBody (dispatch: Msg -> unit) (model: Model) =
 let payeeSuggestionsHeading (totalCount: int) : string =
     $"Vorschläge aus den {Money.formatCount totalCount} Treffern"
 
-/// Die Payee-Auswahl (AC: Vorschläge kommen mit Anzahl aus dem aktuellen Treffer;
-/// Einzelauswahl, ein Klick filtert sofort, kein "Übernehmen").
-let private payeePickerBody (dispatch: Msg -> unit) (model: Model) =
-    let allSuggestions = model.PayeeSuggestions |> RemoteData.toOption |> Option.defaultValue []
-    let filtered =
-        allSuggestions
-        |> List.filter (fun s ->
-            String.IsNullOrWhiteSpace model.PayeeSearch
-            || s.Payee.ToLowerInvariant().Contains(model.PayeeSearch.Trim().ToLowerInvariant()))
+/// Was eine Taste in der Suche des Payee-Filters tut (ledger-dn4vy): wie `PayeePicker.keyAction`, aber ohne
+/// Zeile wählt Enter nichts (ein getippter Name ohne Buchung fände keinen Treffer). Esc gehört dem
+/// Popover, das schließt nur sich selbst. Rein.
+let payeeFilterKeyAction (key: string) (rows: PayeePicker.PayeeOption list) (active: int option) (search: string) : PayeePicker.KeyAction =
+    match PayeePicker.keyAction key rows active search with
+    | PayeePicker.Pick _ when List.isEmpty rows -> PayeePicker.NoAction
+    | PayeePicker.CloseOnly -> PayeePicker.NoAction
+    | action -> action
+
+type private PayeeFilterListProps = {
+    Suggestions: RemoteData<LedgerPayeeSuggestion list>
+    Heading: string
+    Search: string
+    FocusSearch: bool
+    OnSearch: string -> unit
+    OnPick: string -> unit
+}
+
+/// Suche und Vorschläge des Payee-Filters (ledger-dn4vy): Zeilen und Tasten aus `PayeePicker`, ohne die Zeile
+/// „übernehmen“. Am PC steht der Fokus beim Öffnen in der Suche, ↑↓ markieren, Enter filtert nach der
+/// markierten (ohne Markierung der ersten) Zeile.
+[<ReactComponent>]
+let private PayeeFilterList (props: PayeeFilterListProps) =
+    let active, setActive = React.useState<int option> None
+    let containerRef = React.useRef<Browser.Types.HTMLElement option> None
+    let loaded = props.Suggestions |> RemoteData.toOption |> Option.defaultValue []
+    let rows = PayeePicker.suggestedOptions [ for s in loaded -> s.Payee, s.Count ] props.Search
+
+    React.useEffectOnce (fun () ->
+        if props.FocusSearch then
+            match containerRef.current with
+            | Some el ->
+                let field = el.querySelector "input"
+                if not (isNull field) then (field :?> Browser.Types.HTMLInputElement).focus ()
+            | None -> ())
 
     Html.div [
+        prop.ref containerRef
         prop.className "flex flex-col gap-3"
+        prop.onKeyDown (fun e ->
+            match payeeFilterKeyAction e.key rows active props.Search with
+            | PayeePicker.MoveTo i ->
+                e.preventDefault ()
+                setActive (Some i)
+            | PayeePicker.Pick payee ->
+                e.preventDefault ()
+                props.OnPick payee
+            | PayeePicker.CloseOnly
+            | PayeePicker.NoAction -> ())
         prop.children [
-            PickerParts.searchField model.PayeeSearch (fun text -> dispatch (SetPayeeSearch text)) "Payee suchen…"
+            Input.text { Input.textInputDefaults with
+                            Value = props.Search
+                            OnChange = (fun text -> setActive None; props.OnSearch text)
+                            Placeholder = "Payee suchen…"
+                            Size = Input.Small
+                            AriaLabel = Some "Payee suchen"
+                            Combobox =
+                                Some
+                                    { ListboxId = "payee-filter-listbox"
+                                      Expanded = not (List.isEmpty rows)
+                                      ActiveOptionId = active |> Option.filter (fun i -> i < List.length rows) |> Option.map (fun i -> $"payee-filter-option-{i}") }
+                            ClassName = Some "w-full" }
             Html.div [
                 prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.textMuted} {Tokens.Fonts.mono} uppercase tracking-wider"
-                prop.text (payeeSuggestionsHeading model.TotalCount)
+                prop.text props.Heading
             ]
-            match model.PayeeSuggestions with
+            match props.Suggestions with
             | Loading -> Loading.centered "Vorschläge werden geladen…"
             | Failure message -> ErrorDisplay.inline' message
             | NotAsked -> Html.none
             | Success _ ->
                 Html.div [
+                    prop.id "payee-filter-listbox"
+                    prop.role "listbox"
+                    prop.ariaLabel "Payees"
                     prop.className "flex flex-col max-h-64 overflow-y-auto"
                     prop.children [
-                        for s in filtered do
-                            Html.button [
-                                prop.key s.Payee
-                                prop.type' "button"
-                                prop.className "flex items-center justify-between gap-3 min-w-0 py-2.5 text-left"
-                                prop.onClick (fun _ -> dispatch (SelectPayeeFilter s.Payee))
-                                prop.children [
-                                    PickerParts.name s.Payee
-                                    Html.span [
-                                        prop.className $"{Tokens.Fonts.mono} {Tokens.Colors.textMuted} {Tokens.FontSizes.xs} tabular-nums shrink-0"
-                                        prop.text (Money.formatCount s.Count)
+                        for index, row in List.indexed rows do
+                            match row with
+                            | PayeePicker.Suggested (payee, count) ->
+                                PickerParts.row
+                                    (PayeePicker.rowClassFor (active = Some index))
+                                    [
+                                        prop.key payee
+                                        prop.id $"payee-filter-option-{index}"
+                                        prop.role "option"
+                                        prop.custom ("aria-selected", (active = Some index))
+                                        // Der Fokus bleibt in der Suche: am Handy bleibt die Tastatur offen (§7.1).
+                                        prop.onMouseDown (fun e -> e.preventDefault ())
+                                        prop.onClick (fun _ -> props.OnPick payee)
                                     ]
-                                ]
-                            ]
+                                    (Html.span [
+                                        prop.className "flex min-w-0 flex-1 items-center justify-between gap-3"
+                                        prop.children [
+                                            PickerParts.name payee
+                                            Html.span [
+                                                prop.className $"{Tokens.Fonts.mono} {Tokens.Colors.textMuted} {Tokens.FontSizes.xs} tabular-nums shrink-0"
+                                                prop.text (Money.formatCount count)
+                                            ]
+                                        ]
+                                    ])
+                                    None
+                            | PayeePicker.TakeTyped _ -> ()
                     ]
                 ]
+        ]
+    ]
+
+/// Die Payee-Auswahl (AC: Vorschläge kommen mit Anzahl aus dem aktuellen Treffer;
+/// Einzelauswahl, ein Klick filtert sofort, kein "Übernehmen").
+let private payeePickerBody (dispatch: Msg -> unit) (model: Model) =
+    Html.div [
+        prop.className "flex flex-col gap-3"
+        prop.children [
+            PayeeFilterList
+                { Suggestions = model.PayeeSuggestions
+                  Heading = payeeSuggestionsHeading model.TotalCount
+                  Search = model.PayeeSearch
+                  FocusSearch = Viewport.isDesktopViewport ()
+                  OnSearch = fun text -> dispatch (SetPayeeSearch text)
+                  OnPick = fun payee -> dispatch (SelectPayeeFilter payee) }
             Html.p [
                 prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.textMuted}"
                 prop.text "Ein Tipp auf den Vorschlag filtert sofort: Payee ist immer nur einer."
@@ -3217,21 +3291,39 @@ let private memoPickerBody (dispatch: Msg -> unit) (model: Model) =
         ]
     ]
 
-/// Betragsfeld mit sichtbarem Euro-Hinweis rechts im Feld
-let private amountField (value: string) (onChange: string -> unit) (placeholder: string) : ReactElement =
+/// Der Hinweis unter einem unlesbaren Betrag im Filter (ledger-dn4vy).
+let amountFilterInvalidHint = "Betrag als Zahl, z. B. 12,50"
+
+/// Betragsfeld des Filters mit sichtbarem Euro-Hinweis rechts im Feld (ledger-dn4vy): Zifferntastatur
+/// (`decimal`), Mono, 48 px und 16 px am Handy (`Input.Medium`), benannt als „Betrag von“ bzw. „Betrag bis“.
+/// Ein unlesbarer Text gilt sofort beim Tippen als ungültig und nennt den Grund am Feld.
+let private amountField (name: string) (value: string) (onChange: string -> unit) (placeholder: string) : ReactElement =
+    let invalid = amountFilterTextInvalid value
+    let hintId = "amount-filter-hint-" + (name.Replace(" ", "-").ToLowerInvariant())
     Html.div [
-        prop.className "relative"
+        prop.className "space-y-1"
         prop.children [
-            Input.text { Input.textInputDefaults with
-                            Value = value
-                            OnChange = onChange
-                            Placeholder = placeholder
-                            Size = Input.Small
-                            ClassName = Some "pr-8" }
-            Html.span [
-                prop.className $"absolute inset-y-0 right-3 flex items-center pointer-events-none {Tokens.ListRoles.muted}"
-                prop.text "€"
+            Html.div [
+                prop.className "relative"
+                prop.children [
+                    Input.text { Input.textInputDefaults with
+                                    Value = value
+                                    OnChange = onChange
+                                    Placeholder = placeholder
+                                    InputMode = Some "decimal"
+                                    AriaLabel = Some name
+                                    State = (if invalid then Input.Error amountFilterInvalidHint else Input.Normal)
+                                    AriaInvalid = invalid
+                                    DescribedBy = (if invalid then Some hintId else None)
+                                    ClassName = Some (Input.amountFieldClass false invalid + " pr-8") }
+                    Html.span [
+                        prop.className $"absolute inset-y-0 right-3 flex items-center pointer-events-none {Tokens.ListRoles.muted}"
+                        prop.text "€"
+                    ]
+                ]
             ]
+            if invalid then
+                Html.div [ prop.id hintId; prop.children [ ErrorDisplay.inline' amountFilterInvalidHint ] ]
         ]
     ]
 
@@ -3240,8 +3332,8 @@ let private amountPickerBody (dispatch: Msg -> unit) (model: Model) =
     Html.div [
         prop.className "grid grid-cols-2 gap-3"
         prop.children [
-            fieldLabel "Von" (amountField model.AmountMinDraft (fun text -> dispatch (SetAmountMinDraft text)) "z. B. 5")
-            fieldLabel "Bis" (amountField model.AmountMaxDraft (fun text -> dispatch (SetAmountMaxDraft text)) "z. B. 50")
+            fieldLabel "Von" (amountField "Betrag von" model.AmountMinDraft (fun text -> dispatch (SetAmountMinDraft text)) "z. B. 5")
+            fieldLabel "Bis" (amountField "Betrag bis" model.AmountMaxDraft (fun text -> dispatch (SetAmountMaxDraft text)) "z. B. 50")
         ]
     ]
 
@@ -4305,7 +4397,7 @@ let private FilterBarColumn
                 // Hinweis verschöbe sonst jede folgende Stelle, React baute die
                 // Liste neu auf und die gescrollte Zeile spränge (ledger-ct3cx).
                 if model.MirrorRunning then
-                    Loading.inlineWithText "Spiegel läuft — die Liste bleibt so lange stehen."
+                    Loading.inlineWithText "Spiegel läuft. Die Liste bleibt so lange stehen."
                 else
                     Html.none
 
@@ -4408,6 +4500,8 @@ let view (model: Model) (dispatch: Msg -> unit) =
                         Variant = Button.Secondary
                         IsLoading = model.MirrorRunning
                         Title = Some "Jetzt spiegeln"
+                        // Am Handy zeigt `title` nichts: der Name kommt aus `AriaLabel` (ledger-dn4vy).
+                        AriaLabel = Some "Jetzt spiegeln"
                         ClassName = Some "md:hidden"
                         OnClick = (fun () -> dispatch StartMirror)
                 }
@@ -4729,6 +4823,10 @@ let private reviewNormalCard (dispatch: Msg -> unit) (model: Model) (review: Rev
                         OnClick = fun () -> dispatch ReviewSkip }
             ]
         ]
+        // Der Grund der Sperre steht als Text da, nicht nur im `title` (ledger-dn4vy, wie im Detail).
+        match lena.DisabledReason with
+        | Some reason -> ReviewCard.meta reason
+        | None -> ()
         Button.view
             { Button.defaultProps with
                 Text = (if hasTarget then "Passt, weiter" else "Erst Kategorie wählen")

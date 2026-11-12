@@ -137,7 +137,7 @@ let view (props: StatProps) =
                         prop.className "flex items-center justify-between"
                         prop.children [
                             Html.span [
-                                prop.className $"{labelSize} font-medium text-text-muted/70 uppercase tracking-wider"
+                                prop.className $"{labelSize} font-medium {Colors.textMuted} uppercase tracking-wider"
                                 prop.text props.Label
                             ]
                             match props.Icon with

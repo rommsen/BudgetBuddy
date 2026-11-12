@@ -116,6 +116,22 @@ let pickerTests =
             Expect.equal (PayeePicker.keyAction "Enter" [] None "") (PayeePicker.Pick "") "leer geht an den Aufrufer"
             Expect.equal (PayeePicker.keyAction "Escape" rows None "rew") PayeePicker.CloseOnly "Esc"
             Expect.equal (PayeePicker.keyAction "a" rows None "rew") PayeePicker.NoAction "Tippen"
+
+        // ledger-dn4vy: der Payee-Filter sucht unter den Treffern; „übernehmen“ fände dort nichts.
+        testCase "Payee-Filter: Vorschläge ohne Übernehmen-Zeile, sonst wie die Auswahl" <| fun () ->
+            Expect.equal
+                (PayeePicker.suggestedOptions suggestions "rew")
+                [ PayeePicker.Suggested ("Rewe City", 30); PayeePicker.Suggested ("Rewe", 12) ]
+                "nur vorhandene Payees"
+            Expect.isEmpty (PayeePicker.suggestedOptions suggestions "Zahnarzt") "kein Treffer, keine Zeile"
+
+        testCase "Payee-Filter: Enter ohne Zeile filtert nicht, Esc bleibt beim Popover, ↓ und Enter wie die Auswahl" <| fun () ->
+            let rows = PayeePicker.suggestedOptions suggestions "rew"
+            Expect.equal (Components.Ledger.View.payeeFilterKeyAction "ArrowDown" rows None "rew") (PayeePicker.MoveTo 0) "erste"
+            Expect.equal (Components.Ledger.View.payeeFilterKeyAction "Enter" rows (Some 0) "rew") (PayeePicker.Pick "Rewe City") "markiert"
+            Expect.equal (Components.Ledger.View.payeeFilterKeyAction "Enter" rows None "rew") (PayeePicker.Pick "Rewe City") "ohne Markierung die erste"
+            Expect.equal (Components.Ledger.View.payeeFilterKeyAction "Enter" [] None "Zahnarzt") PayeePicker.NoAction "ohne Zeile nichts"
+            Expect.equal (Components.Ledger.View.payeeFilterKeyAction "Escape" rows None "rew") PayeePicker.NoAction "Esc schließt das Popover selbst"
     ]
 
 // ============================================

@@ -46,7 +46,7 @@ test("[layout] Sweep: eine Ausnahme nennt Breite, Invariante und Selektor und un
     for (const e of state.exceptions ?? []) {
       const label = `${state.name}: ${JSON.stringify(e)}`;
       assert.ok(state.widths.includes(e.width), `Breite des Zustands (${label})`);
-      assert.ok(Number.isInteger(e.inv) && e.inv >= 1 && e.inv <= 9, `Invariante 1 bis 9 (${label})`);
+      assert.ok(Number.isInteger(e.inv) && e.inv >= 1 && e.inv <= 10, `Invariante 1 bis 10 (${label})`);
       assert.ok(typeof e.selector === "string" && e.selector.trim() !== "", `Selektor nicht leer (${label})`);
     }
   }
@@ -245,6 +245,25 @@ test("[layout] Gegenbeweis Invariante 9: eine Zeile, die erst nach der Antwort w
   // der Übersicht erst nach ihrer Antwort. Gemeldet wird, was darunter rutscht: am PC die neuesten Buchungen.
   const hits = await brokenFinds("uebersicht-ohne-minus", 1280, 9, '[data-testid="overview-month"] { padding-bottom: 400px !important; }');
   assert.ok(hits.some((v) => v.selector.includes("overview-recent")), hits.map(formatViolation).join("\n"));
+});
+
+test("[layout] Gegenbeweis Invariante 10: Text mit halber Deckkraft meldet den Kontrast", async () => {
+  // Wie die ausgegraute Zeile vor ledger-dn4vy (`opacity-50`): `text-muted` fiel auf 2,23:1.
+  const hits = await brokenFinds("kassenbuch-ausgegraut", 1280, 10, ".filtered-out-text { opacity: .5 !important; }");
+  assert.ok(hits.some((v) => v.selector.includes('"Bauhaus"')), hits.map(formatViolation).join("\n"));
+  assert.ok(hits.every((v) => /^Kontrast \d/.test(v.value)), hits.map(formatViolation).join("\n"));
+});
+
+test("[layout] Gegenbeweis Invariante 10: ein gesperrtes Element zählt nicht, ein freies mit derselben Farbe schon", async () => {
+  // WCAG 1.4.3 nimmt gesperrte Bedienelemente aus. Gleiches CSS, einmal mit, einmal ohne `aria-disabled`.
+  const css = '[data-testid="filtered-out-note"] { opacity: .5 !important; }';
+  const note = (v) => v.selector.includes("passt nicht mehr zum Filter");
+  const free = await brokenRun("kassenbuch-ausgegraut", 1280, 10, css);
+  assert.ok(free.some(note), free.map(formatViolation).join("\n"));
+  const locked = await brokenRun("kassenbuch-ausgegraut", 1280, 10, css, (page) =>
+    page.locator('[data-testid="filtered-out-note"]').evaluateAll((els) => els.forEach((el) => el.setAttribute("aria-disabled", "true")))
+  );
+  assert.deepEqual(locked.filter(note).map(formatViolation), []);
 });
 
 test("[layout] settle wartet nicht auf eine pausierte Animation", { timeout: 30000 }, async () => {

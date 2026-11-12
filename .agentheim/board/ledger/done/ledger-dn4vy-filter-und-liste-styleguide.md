@@ -1,7 +1,7 @@
 ---
 id: ledger-dn4vy
 title: "Filter und Liste nach Styleguide: Betrag Von/Bis mit Zifferntastatur, Name und Fehlerzustand, Schnellwahl als Segmented, Payee-Vorschläge mit Tastatur, lesbare ausgegraute Zeile, Fokus am Prüfknopf, Lena-Grund als Text"
-status: doing
+status: done
 type: bug
 context: ledger
 created: 2026-11-12
@@ -131,3 +131,26 @@ Hinweise für den Worker:
   als Zeile für die Kann-Sammlung ledger im RESULT melden.
 - Der Fehlerzustand des Filter-Betrags gilt sofort beim Tippen (rein aus dem Text), nicht erst nach Ablauf der
   Verzögerung.
+
+## Outcome
+
+Filter und Liste des Kassenbuchs folgen jetzt dem Styleguide. `./verify.sh`: VERIFY: PASS (dotnet 4833 grün, 15 erlaubte übersprungen; node 322 grün).
+
+- **Betragsfilter** (`Ledger/Types.fs`, `Ledger/State.fs`): `parseAmountFilterText` liefert `AmountFilterText` (leer, lesbar, unlesbar). `amountFilterValue` lässt bei unlesbarem Text die bisherige Grenze stehen, `SetAmountMinDraft`/`SetAmountMaxDraft` schicken das an `CommitAmountFilter`. Der Doc-Kommentar stimmt damit wieder. Belege: `LedgerPageTests.fs` „Über alle Reihenfolgen aus Tippen, Ablauf und Entfernen …“. Der Test geht für „abc“, „“ und „7,5“ durch das echte `update` und lässt die echte Verzögerung über `CmdTiming` ablaufen, mit und ohne Entfernen. Vor dem Fix war er rot (erwartet Some 5, war None). Dazu „Ein unlesbarer Bis-Betrag lässt beide Grenzen stehen …“ und die reinen Tests in `LedgerViewTests.fs`.
+- **Betragsfeld** (`Ledger/View.fs`, `amountField`): `InputMode "decimal"`, `Input.Medium` (48 px und 16 px am Handy), `amountFieldClass false invalid`, `AriaLabel` „Betrag von“/„Betrag bis“, `aria-invalid` und `ErrorDisplay.inline'` „Betrag als Zahl, z. B. 12,50“, sobald getippt wird. Beleg: neuer Sweep-Zustand `kassenbuch-filter-betrag` (320, 390). Er füllt die Felder per `getByRole("textbox", { name: "Betrag von" })` und prüft `inputmode`. Vor dem Fix brach er (`locator.fill` Timeout).
+- **Schnellwahl** als `Segmented.viewColumns … TwoColumns` (neue Variante in `DesignSystem/Segmented.fs`, Styleguide §5 nachgezogen). Belege: Zustand `kassenbuch-filter-zeitraum` grün; der `[fable]`-Test findet „Dieser Monat“ weiter per Rolle.
+- **Payee-Filter** (`PayeeFilterList` in `Ledger/View.fs`): nutzt `PayeePicker.suggestedOptions` (neu, ohne „übernehmen“), `PayeePicker.rowClassFor` (jetzt öffentlich) und `payeeFilterKeyAction`. Am PC Autofokus in der Suche, Combobox mit `aria-activedescendant`. Neu ist die Grenze von 50 Vorschlägen (`PayeePicker.maxShown`) und die Sortierung nach Häufigkeit. Belege: `LedgerPayeeClientTests.fs` (zwei Fälle „Payee-Filter: …“), `[tastatur]` „PC: im Payee-Filter wählt ↓ und Enter den ersten Vorschlag“ in `scripts/ledger-filter-bar.test.mjs` (mit Esc ohne Filter), Zustand `kassenbuch-filter-payee` (320, 390). Vor dem Fix war die Invariante 2 rot: 42,5 px je Zeile.
+- **Ausgegraute Zeile**: `.filtered-out-text` in `styles.css` (alle Texte `text-muted`, Symbole ausgenommen) statt `opacity-50`, am PC und am Handy. Neue **Invariante 10** in `scripts/layout-invariants.mjs`: sichtbarer Text hat mindestens 4,5:1. Gerechnet wird mit Farbe samt Alpha (normiert über eine Leinwand, auch oklab), dem Produkt der `opacity` aller Vorfahren und den Hintergründen bis zum ersten deckenden. Ausgenommen sind `disabled`/`aria-disabled`, Platzhalter, sr-only sowie Text vor Verlauf oder Bild. Der Kopfkommentar ist angepasst. Neue Zustände `kassenbuch-ausgegraut` (1280) und `kassenbuch-ausgegraut-handy` (412): Kategorie-Filter Lebensmittel, dann Bauhaus auf Nebenkosten. Vor dem Fix rot, mit der alten `opacity-50` lokal gebaut: Bauhaus 4,33:1, Kategorie 2,67:1, „zu prüfen“ 2,98:1, Datum 2,16:1, Vermerk am Handy 2,23:1. Gegenbeweise in `layout-invariants.test.mjs`: „Text mit halber Deckkraft meldet den Kontrast“ und „ein gesperrtes Element zählt nicht, ein freies mit derselben Farbe schon“.
+- **Treffer der Invariante 10 außerhalb des Kassenbuchs** stehen als `exceptions` (inv 10) in `layout-states.mjs`: `budget-historie` 768 bis 1920, `budget-target-anlegen` 1440, `regeln-dialog-picker` 1440, `uebersicht-zu-tun` 900 und 1280. Einen Treffer im Kassenbuch selbst habe ich behoben statt ihn auszunehmen: die Kontokarten am Handy, deren Label in `DesignSystem/Stats.fs` in `text-muted/70` stand (3,23:1, in rund 15 Kassenbuch-Zuständen). Das Label steht jetzt in `Colors.textMuted`. Davon ist auch `/styleguide` betroffen.
+- **Prüfknopf**: `aria-disabled` und `aria-busy` statt `disabled`, Klassen `aria-disabled:`. Beleg: `[fokus]` „PC: der Fokus bleibt am Prüfknopf, solange der Aufruf läuft“ in `scripts/ledger-review-mark.test.mjs`, mit zurückgehaltener Mock-Antwort. Vor dem Fix rot: Fokus auf BODY.
+- **Karte beim Durchgehen**: Ist „Lena fragen“ gesperrt, steht `ReviewCard.meta reason` unter den Knöpfen. Der Text kommt aus `lenaActionFor`. Der Lena-Fehlerzweig (ledger-nc708) ist nicht angefasst.
+- **„Jetzt spiegeln“ am Handy**: `AriaLabel = Some "Jetzt spiegeln"`. **Hinweis**: „Spiegel läuft. Die Liste bleibt so lange stehen.“, nachgezogen in `layout-states.mjs` (`kassenbuch-spiegel-laeuft`, `kassenbuch-nach-spiegel`).
+- **`[human-eye]` Vergleich vorher/nachher**: Die Vorher-Bilder sind mit den HEAD-Ständen von View/Segmented/PayeePicker/styles/Stats lokal gebaut, danach habe ich die Dateien wiederhergestellt. Die Bilder liegen unter `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/20e05553-37dc-4f2f-bcee-5ef520140bf9/scratchpad/e3/ledger-dn4vy/`, je `vorher-` und `nachher-` für `zeitraum-390/1280`, `payee-390/1280`, `betrag-390/1280`, `ausgegraut-1280/412` und `karte-ohne-flagfarbe-412/1280` (.png). Abweichungen sind nur die genannten. Dazu kommen der Fokusrahmen in der Payee-Suche am PC und die eingerückten Payee-Zeilen der Payee-Auswahl.
+
+Für die Kann-Sammlung:
+- ledger: „Jetzt spiegeln“ setzt während des Laufs `IsLoading` und damit `disabled`, der Fokus geht verloren wie früher am Prüfknopf.
+- ledger: Am Handy mit aktivem Filter sind „Alle Filter löschen“ (44 px) und das Chip-„×“ (24 px) zu klein, Ausnahme `kassenbuch-ausgegraut-handy` @ 412, inv 2 (Chip-„×“ steht schon in ledger-k4n2s Punkt 1).
+- ledger: Übersicht, Leertext „Buchungen erscheinen hier nach dem nächsten …“ in `text-muted/70` (3,23:1), Ausnahme `uebersicht-zu-tun` @ 900/1280, inv 10, `[data-testid="overview-page"] p "Buchungen erscheinen hier`.
+- budgeting: „1 von 2 fehlgeschlagen“ in Rot auf seiner Fläche 4,46:1, Ausnahme `budget-historie` @ 768/900/1024/1280/1440/1920, inv 10, `[data-testid="general-history-partly-failed"] span`.
+- budgeting: „Verfügbar“ 0,00 € in `text-muted` auf heller Fläche 4,44:1, Ausnahme `budget-target-anlegen` @ 1440, inv 10, `[data-testid="budget-available"] span`.
+- categorization: Hilfetexte im Regel-Dialog in `text-muted/70` (3,23:1), Ausnahme `regeln-dialog-picker` @ 1440, inv 10, `[data-testid="rule-dialog"] p`.

@@ -2,7 +2,8 @@
 //
 // Die Filterleiste des Kassenbuchs im echten Fable-Client gegen gemockte Antworten
 // (`scripts/ledger-filter-bar.mjs`). Hier steht nur, was der Browser allein messen kann:
-// der Happy Path am PC (Popover), die Datumsrechnung im Fable-Kompilat und der native Kalender.
+// der Happy Path am PC (Popover), die Datumsrechnung im Fable-Kompilat, der native Kalender und die Tasten im
+// Payee-Filter.
 // Sheet am Handy, Feldschrift und die sticky Leiste prüft der Layout-Sweep (`scripts/layout-states.mjs`,
 // Zustände kassenbuch, kassenbuch-filter-*, kassenbuch-spiegel-*, kassenbuch-gefiltert). Entwurf,
 // Übernehmen, Sperren, Summenzeile, Leerzustand und Chip-Reihenfolge prüft `dotnet test`
@@ -161,4 +162,49 @@ test("[fokus] Der Kalender-Knopf wirft keinen Konsolenfehler und lässt das Text
   const relevant = errors.filter((e) => !/not mocked in this test|Failed to load resource/.test(e));
   assert.deepEqual(relevant, [], "Kein Konsolenfehler");
   await page.keyboard.press("Escape");
+});
+
+// ledger-dn4vy: die Vorschläge des Payee-Filters waren Knöpfe ohne Tasten, die Suche bekam beim Öffnen keinen Fokus.
+// Die Tastenlogik selbst prüft LedgerPayeeClientTests (`payeeFilterKeyAction`); hier die Verdrahtung im Popover.
+test("[tastatur] PC: im Payee-Filter wählt ↓ und Enter den ersten Vorschlag", async () => {
+  const suggestions = (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify([
+        { Payee: "REWE Mitte", Count: 9 },
+        { Payee: "Deutsche Bahn", Count: 3 },
+      ]),
+    });
+  const queries = [];
+  const spy = (route) => {
+    queries.push(route.request().postDataJSON()[0]);
+    route.fallback();
+  };
+  await page.route("**/api/LedgerApi/getLedgerPayeeSuggestions", suggestions);
+  await page.route("**/api/LedgerApi/getLedgerEntriesPage", spy);
+  try {
+    const chip = () => page.getByRole("button", { name: "Payee", exact: true }).first();
+    await chip().click();
+    const search = popover().getByRole("combobox", { name: "Payee suchen" });
+    await popover().getByRole("option", { name: /REWE Mitte/ }).waitFor();
+    await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Payee suchen");
+
+    // Esc schließt nur das Popover, ohne zu filtern.
+    await page.keyboard.press("Escape");
+    await popover().waitFor({ state: "detached" });
+    assert.equal(queries.filter((q) => q.Payee).length, 0, "Esc filtert nicht");
+
+    await chip().click();
+    await popover().getByRole("option", { name: /REWE Mitte/ }).waitFor();
+    await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Payee suchen");
+    await page.keyboard.press("ArrowDown");
+    assert.equal(await search.getAttribute("aria-activedescendant"), "payee-filter-option-0", "↓ markiert die erste Zeile");
+    await page.keyboard.press("Enter");
+    await popover().waitFor({ state: "detached" });
+    await pollUntil(() => queries.some((q) => q.Payee));
+    assert.equal(queries.find((q) => q.Payee).Payee, "REWE Mitte", "Enter filtert nach dem markierten Payee");
+  } finally {
+    await page.unroute("**/api/LedgerApi/getLedgerEntriesPage", spy);
+    await page.unroute("**/api/LedgerApi/getLedgerPayeeSuggestions", suggestions);
+  }
 });

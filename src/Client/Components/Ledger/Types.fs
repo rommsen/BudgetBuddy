@@ -109,16 +109,22 @@ let noFilters : Filters = {
     OnlyAskLena = false
 }
 
-/// Liest den Text eines Betrags-Suchfelds als `decimal option`: leer (nach
-/// `Trim()`) ist `None`, sonst ein geparster Wert, deutsches Komma wie Punkt
-/// gleichermaßen akzeptiert (Roman tippt üblicherweise Komma). Ein nicht lesbarer
-/// Text (z. B. "abc") liefert ebenfalls `None`, statt eine Ausnahme zu werfen:
-/// die Eingabe bleibt am Feld selbst sichtbar (`AmountMinDraft`/`AmountMaxDraft`),
-/// nur der Filter bleibt dann unverändert.
-let parseAmountFilterText (text: string) : decimal option =
-    let trimmed = text.Trim()
+/// Was im Text eines Betrags-Suchfelds steht (ledger-dn4vy): nichts, ein lesbarer Betrag oder etwas
+/// Unlesbares. Die Unterscheidung braucht der Filter: leer nimmt ihn weg, unlesbar lässt ihn stehen.
+type AmountFilterText =
+    | AmountTextEmpty
+    | AmountTextValue of decimal
+    | AmountTextUnreadable
+
+/// Liest den Text eines Betrags-Suchfelds: leer (nach `Trim()`) ist `AmountTextEmpty`, sonst ein
+/// geparster Wert, deutsches Komma wie Punkt gleichermaßen akzeptiert (Roman tippt üblicherweise
+/// Komma). Ein nicht lesbarer Text (z. B. "abc") ist `AmountTextUnreadable`, statt eine Ausnahme zu
+/// werfen: die Eingabe bleibt am Feld sichtbar (`AmountMinDraft`/`AmountMaxDraft`) und gilt dort als
+/// ungültig, der Filter bleibt unverändert (`amountFilterValue`).
+let parseAmountFilterText (text: string) : AmountFilterText =
+    let trimmed = if isNull text then "" else text.Trim()
     if trimmed = "" then
-        None
+        AmountTextEmpty
     else
         match
             Decimal.TryParse(
@@ -127,8 +133,21 @@ let parseAmountFilterText (text: string) : decimal option =
                 System.Globalization.CultureInfo.InvariantCulture
             )
         with
-        | true, value -> Some value
-        | false, _ -> None
+        | true, value -> AmountTextValue value
+        | false, _ -> AmountTextUnreadable
+
+/// Der Wert einer Filtergrenze nach einer Eingabe: leer nimmt die Grenze weg, ein lesbarer Betrag
+/// gilt, ein unlesbarer lässt die bisherige Grenze `current` stehen (ledger-dn4vy).
+let amountFilterValue (current: decimal option) (text: string) : decimal option =
+    match parseAmountFilterText text with
+    | AmountTextEmpty -> None
+    | AmountTextValue value -> Some value
+    | AmountTextUnreadable -> current
+
+/// Das Betragsfeld des Filters ist ungültig: sein Text ist weder leer noch ein lesbarer Betrag. Gilt
+/// sofort beim Tippen, nicht erst nach der Verzögerung.
+let amountFilterTextInvalid (text: string) : bool =
+    parseAmountFilterText text = AmountTextUnreadable
 
 /// Der Anzeigetext eines geparsten Betrags im Suchfeld, wenn ein Popover neu
 /// geöffnet wird (Rückrichtung von `parseAmountFilterText`). Immer mit Punkt

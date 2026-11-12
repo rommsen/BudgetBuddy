@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-12 09:29 -- Task verified and completed: ledger-dn4vy - "Filter und Liste nach Styleguide: Betrag Von/Bis mit Zifferntastatur, Name und Fehlerzustand, Schnellwahl als Segmented, Payee-Vorschläge mit Tastatur, lesbare ausgegraute Zeile, Fokus am Prüfknopf, Lena-Grund als Text"
+
+**Type:** Work / Task completion
+**Task:** ledger-dn4vy - "Filter und Liste nach Styleguide: Betrag Von/Bis mit Zifferntastatur, Name und Fehlerzustand, Schnellwahl als Segmented, Payee-Vorschläge mit Tastatur, lesbare ausgegraute Zeile, Fokus am Prüfknopf, Lena-Grund als Text"
+**Summary:** Filter und Liste nach Styleguide: Betrag Von/Bis mit Zifferntastatur und Fehlerzustand, Segmented, Payee-Vorschläge mit Tasten, ausgegraute Zeile in text-muted mit Kontrast-Invariante
+**Duration:** 45m
+**Verification:** PASS (iteration 1)
+**Files changed:** 16
+**Tests added:** 11
+**ADRs written:** none
+
+---
+
+## 2026-11-12 09:17 -- Verification failed: ledger-f8bjm - Ersatz-POST mit verlorener Antwort
+
+**Type:** Work / Verification failure
+**Task:** ledger-f8bjm - Ersatz-POST mit verlorener Antwort
+**Iteration:** 2 of 3
+**Reasons:** echter Ersatz-POST bildet 409 als InvalidResponse ab (Fake-Port-Vertrag stimmt nicht mit Live-Adapter), dadurch beendet replacementRejected den Ersatz und der nächste Versuch legt mit :r2 doppelt an; replacementRejected zu weit
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-12 09:14 -- Task verified and completed: ledger-nc708 - "Detail und Durchgehen halten ihren Stand: Historie an Ladevorgänge gebunden ohne Flackern, jede Änderung an der offenen Buchung lädt ihre Historie nach, gescheitertes „Lena fragen“ holt die Karte zurück (Components/Ledger/State.fs LoadHistory, HistoryLoaded, LenaFlagSet)"
 
 **Type:** Work / Task completion

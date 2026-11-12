@@ -55,6 +55,11 @@ let options (suggestions: (string * int) list) (search: string) : PayeeOption li
         |> List.map Suggested
     [ if typed <> "" && not exists then TakeTyped typed ] @ matches
 
+/// Nur die vorhandenen Payees zur Eingabe, ohne „übernehmen“ (ledger-dn4vy): der Payee-Filter des
+/// Kassenbuchs sucht unter den Treffern, ein getippter Name ohne Buchung fände nichts. Rein.
+let suggestedOptions (suggestions: (string * int) list) (search: string) : PayeeOption list =
+    options suggestions search |> List.filter (function Suggested _ -> true | TakeTyped _ -> false)
+
 /// Der Payee, den eine Zeile übernimmt.
 let payeeOf (option: PayeeOption) : string =
     match option with
@@ -107,7 +112,9 @@ type PayeePickerProps = {
     OnClose: unit -> unit
 }
 
-let private rowClassFor (isActive: bool) : string =
+/// Die Klasse einer Zeile: 48 px am Handy, markiert in `bg-surface-hover`. Auch der Payee-Filter des
+/// Kassenbuchs nutzt sie (ledger-dn4vy).
+let rowClassFor (isActive: bool) : string =
     let tone = if isActive then "bg-surface-hover" else "hover:bg-surface-hover"
     $"px-2 {TouchTargets.mobileMinHeight} md:min-h-9 rounded-lg cursor-pointer touch-manipulation {tone}"
 

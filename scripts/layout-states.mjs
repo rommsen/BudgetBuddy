@@ -412,6 +412,31 @@ const openLedgerDetail = async (page, payee) => {
   return sheet;
 };
 
+/// Kategorie-Filter „Lebensmittel“, dann Bauhaus im Detail auf „Nebenkosten“: die Zeile passt nicht mehr zum
+/// Filter und bleibt ausgegraut stehen (ledger-dn4vy, Vorlage scripts/ledger-category-change.test.mjs).
+const openFilteredOut = async (page, { mobile }) => {
+  await openLedger(page);
+  await page.getByRole("button", { name: /^Kategorie/ }).locator("visible=true").first().click();
+  const layer = page.locator('.bottom-sheet.active, [data-layer="popover"]').first();
+  await layer.getByText("Lebensmittel", { exact: true }).last().click();
+  await layer.getByRole("button", { name: "Übernehmen (1)" }).click();
+  await page.getByRole("button", { name: "Kategorie: 1" }).locator("visible=true").first().waitFor();
+  await openLedger(page);
+  const payee = page.getByText("Bauhaus", { exact: true }).locator("visible=true").first();
+  if (mobile) await payee.tap();
+  else await payee.click();
+  const arrow = page.locator('[data-testid="detail-category-arrow"]').filter({ visible: true }).first();
+  await arrow.click();
+  await page.locator('[role="option"]', { hasText: "Nebenkosten" }).filter({ visible: true }).last().click();
+  await page.locator('[data-toast-action="true"]').first().waitFor();
+  await page.locator('[data-testid="filtered-out-note"]').filter({ visible: true }).first().waitFor();
+  // Erst wenn der Picker zu ist und das Detail steht, schließt „Schließen“ es.
+  await page.waitForFunction(() => document.querySelectorAll(".bottom-sheet.active").length === 1);
+  await settle(page, { where: "ausgegraute Zeile, Detail offen" });
+  await ledgerSheet(page).getByRole("button", { name: "Schließen" }).click();
+  await page.waitForFunction(() => document.querySelectorAll(".bottom-sheet.active").length === 0);
+};
+
 /// Die Gesamtsicht aus der Konten-Spalte: gewartet wird auf die Liste aller Konten.
 const openAllAccounts = async (page) => {
   await openLedger(page);
@@ -757,6 +782,10 @@ export const STATES = [
     name: "budget-target-anlegen",
     route: "/budget",
     widths: [...HANDY_WIDTHS, 1440],
+    // Invariante 10 (ledger-dn4vy): „Verfügbar“ in `text-muted` hat auf seiner Fläche 4,44:1. Kann-Sammlung budgeting.
+    exceptions: [
+      { width: 1440, inv: 10, selector: '[data-testid="budget-available"] span' },
+    ],
     mock: mockBudget,
     open: async (page, { mobile }) => {
       await openInspector(page, mobile, "Urlaub", "Target");
@@ -822,6 +851,16 @@ export const STATES = [
     name: "budget-historie",
     route: "/budget/history",
     widths: PAGE_WIDTHS,
+    // Invariante 10 (ledger-dn4vy): der rote Satz „1 von 2 fehlgeschlagen“ hat 4,46:1 auf seiner Fläche. Kann-Sammlung
+    // budgeting.
+    exceptions: [
+      { width: 768, inv: 10, selector: '[data-testid="general-history-partly-failed"] span' },
+      { width: 900, inv: 10, selector: '[data-testid="general-history-partly-failed"] span' },
+      { width: 1024, inv: 10, selector: '[data-testid="general-history-partly-failed"] span' },
+      { width: 1280, inv: 10, selector: '[data-testid="general-history-partly-failed"] span' },
+      { width: 1440, inv: 10, selector: '[data-testid="general-history-partly-failed"] span' },
+      { width: 1920, inv: 10, selector: '[data-testid="general-history-partly-failed"] span' },
+    ],
     mock: mockBudget,
     open: async (page) => {
       const run = page.locator('[data-testid="general-history-run"]').first();
@@ -932,6 +971,70 @@ export const STATES = [
       await page.getByRole("button", { name: /^Zeitraum/ }).locator("visible=true").first().click();
       await page.locator(".bottom-sheet.active").waitFor();
     },
+  },
+  // ledger-dn4vy: Betrag Von/Bis im Filter-Sheet. Vorher ohne Namen (der Zustand fand das Feld nicht), ohne
+  // Zifferntastatur und 36 px hoch; mit unlesbarem Bis steht der Grund am Feld.
+  {
+    name: "kassenbuch-filter-betrag",
+    route: "/ledger",
+    widths: HANDY_WIDTHS,
+    mock: mockLedger,
+    open: async (page) => {
+      await openLedger(page);
+      await page.getByRole("button", { name: "Betrag", exact: true }).locator("visible=true").first().click();
+      const sheet = page.locator(".bottom-sheet.active");
+      await sheet.waitFor();
+      const from = sheet.getByRole("textbox", { name: "Betrag von" });
+      const to = sheet.getByRole("textbox", { name: "Betrag bis" });
+      // Beide unlesbar: ein gültiger Wert setzte den Filter, Chip und „Alle Filter löschen“ hinter dem Sheet
+      // gehören nicht zu diesem Zustand.
+      await from.fill("abc");
+      await to.fill("50x");
+      for (const field of [from, to]) {
+        const mode = await field.getAttribute("inputmode");
+        if (mode !== "decimal") throw new Error(`Betragsfeld ohne Zifferntastatur: inputmode ${mode}`);
+      }
+      await sheet.getByText("Betrag als Zahl, z. B. 12,50").nth(1).waitFor();
+    },
+  },
+  // ledger-dn4vy: die Payee-Vorschläge im Filter-Sheet. Vorher `py-2.5` ohne Mindesthöhe (rund 40 px).
+  {
+    name: "kassenbuch-filter-payee",
+    route: "/ledger",
+    widths: HANDY_WIDTHS,
+    mock: async (page) => {
+      await mockLedger(page);
+      await page.route("**/api/LedgerApi/getLedgerPayeeSuggestions", (r) =>
+        json(r, [{ Payee: "Bauhaus", Count: 9 }, { Payee: LONG_PAYEE, Count: 4 }, { Payee: "Baumarkt", Count: 2 }])
+      );
+    },
+    open: async (page) => {
+      await openLedger(page);
+      await page.getByRole("button", { name: "Payee", exact: true }).locator("visible=true").first().click();
+      await page.locator('.bottom-sheet.active [role="option"]').first().waitFor();
+    },
+  },
+  // ledger-dn4vy: die ausgegraute Zeile („passt nicht mehr zum Filter“) am PC ohne Panel und am Handy. Vorher
+  // `opacity-50`: alle Texte der Zeile fielen unter 4,5:1 (Invariante 10).
+  {
+    name: "kassenbuch-ausgegraut",
+    route: "/ledger",
+    widths: [1280],
+    mock: mockLedger,
+    open: (page) => openFilteredOut(page, { mobile: false }),
+  },
+  {
+    name: "kassenbuch-ausgegraut-handy",
+    route: "/ledger",
+    widths: [412],
+    // Mit aktivem Filter: Chip-„×“ (24 px) und „Alle Filter löschen“ (44 px) sind zu klein. Kann-Sammlung ledger
+    // (ledger-k4n2s, Punkt 1).
+    exceptions: [
+      { width: 412, inv: 2, selector: 'button "Kategorie: 1 entfernen"' },
+      { width: 412, inv: 2, selector: 'button "Alle Filter löschen"' },
+    ],
+    mock: mockLedger,
+    open: (page) => openFilteredOut(page, { mobile: true }),
   },
   // ledger-external-links: das Detail-Sheet mit Bestell-Link.
   {
@@ -1338,7 +1441,7 @@ export const STATES = [
       await mockLedger(page);
       await mockRunningMirror(page);
     },
-    open: async (page) => page.getByText("Spiegel läuft — die Liste bleibt so lange stehen.").waitFor(),
+    open: async (page) => page.getByText("Spiegel läuft. Die Liste bleibt so lange stehen.").waitFor(),
   },
   {
     name: "kassenbuch-nach-spiegel",
@@ -1349,7 +1452,7 @@ export const STATES = [
       page.sweepMirror = await mockRunningMirror(page);
     },
     open: async (page) => {
-      const hint = page.getByText("Spiegel läuft — die Liste bleibt so lange stehen.");
+      const hint = page.getByText("Spiegel läuft. Die Liste bleibt so lange stehen.");
       await hint.waitFor();
       await page.sweepMirror.finishMirror();
       await hint.waitFor({ state: "detached" });
@@ -1401,6 +1504,11 @@ export const STATES = [
     name: "regeln-dialog-picker",
     route: "/rules",
     widths: [1440],
+    // Invariante 10 (ledger-dn4vy): die Hilfetexte im Regel-Dialog stehen in `text-muted/70` (3,23:1). Kann-Sammlung
+    // categorization.
+    exceptions: [
+      { width: 1440, inv: 10, selector: '[data-testid="rule-dialog"] p' },
+    ],
     mock: mockRules,
     open: async (page) => {
       await openRules(page);
@@ -1446,6 +1554,12 @@ export const STATES = [
     name: "uebersicht-zu-tun",
     route: "/",
     widths: [320, 412, 900, 1280],
+    // Invariante 10 (ledger-dn4vy): der Leertext „Buchungen erscheinen hier …“ steht in `text-muted/70` (3,23:1).
+    // Kann-Sammlung der Übersicht.
+    exceptions: [
+      { width: 900, inv: 10, selector: '[data-testid="overview-page"] p "Buchungen erscheinen hier' },
+      { width: 1280, inv: 10, selector: '[data-testid="overview-page"] p "Buchungen erscheinen hier' },
+    ],
     mock: async (page) => {
       await mockOverview(page);
       await page.route("**/api/LedgerApi/getLedgerEntriesPage", (r) =>

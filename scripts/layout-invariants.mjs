@@ -21,10 +21,15 @@
 //   7 der Primärknopf eines Sheets ist ohne Scrollen erreichbar, auch bei offener Tastatur (kleinerer Viewport)
 //   8 Spaltenköpfe einer Tabelle überlappen nicht und tragen ihren Text ganz
 //   9 kein Layout-Sprung beim Nachladen
+//  10 sichtbarer Text hat mindestens 4,5:1 gegen seinen tatsächlichen Hintergrund (ledger-dn4vy)
 //
-// Farben prüft der Sweep nicht: seit ADR 0087 gibt es kein Pink und keine Seitenausnahme mehr, die entfallenen
-// Farben verbietet der Token-Wächter überall unter src/Client (`entfallene-farbe` in scripts/token-guard.mjs),
-// den Kontrast scripts/contrast-guard.test.mjs.
+// Farbwerte selbst prüft der Sweep nicht: die entfallenen Farben verbietet der Token-Wächter überall unter
+// src/Client (`entfallene-farbe` in scripts/token-guard.mjs), den Kontrast der Token-Paare
+// scripts/contrast-guard.test.mjs. Invariante 10 misst, was erst die Seite ergibt: Farbe samt Alpha, das Produkt
+// der `opacity` aller Vorfahren und die Hintergründe bis zum ersten deckenden (ausgegraute Zeile mit
+// `opacity-50`, ledger-dn4vy). Ausgenommen sind gesperrte Bedienelemente (`disabled`, `aria-disabled`, WCAG
+// 1.4.3), Platzhalter (kein Textknoten) und Text vor einem Verlauf oder Bild (dort gibt es keinen einen
+// Hintergrund).
 //
 // Messregeln gegen Flackern: gemessen wird erst, wenn alle laufenden endlichen Animationen fertig sind
 // (unendliche wie Spinner und pausierte zählen nicht) und die Lage steht, gescrollt wird bis zum Stillstand.
@@ -35,6 +40,8 @@
 /// Styleguide-Schwellen.
 export const TOUCH_MIN = 48;
 export const INPUT_FONT_MIN = 16;
+/// Kontrast für Text (Styleguide §2, ADR 0087 Punkt 6).
+export const TEXT_CONTRAST_MIN = 4.5;
 /// `md` aus `Breakpoints`: darunter gilt das Handy-Layout.
 export const MOBILE_BELOW = 768;
 /// Breiten für Seiten (Invariante 1).
@@ -131,9 +138,9 @@ export async function mark(locator, attribute) {
   return count;
 }
 
-/// Die Messung im Browser für die Invarianten 1 bis 5, 7 (ohne Tastatur) und 8. Liefert Verletzungen als
+/// Die Messung im Browser für die Invarianten 1 bis 5, 7 (ohne Tastatur), 8 und 10. Liefert Verletzungen als
 /// `{ inv, selector, value }`.
-function measureInPage({ mobile, touchMin, inputFontMin, checks, reachSelector }) {
+function measureInPage({ mobile, touchMin, inputFontMin, contrastMin, checks, reachSelector }) {
   const out = [];
   const vw = document.documentElement.clientWidth;
   const vh = window.innerHeight;
@@ -410,12 +417,97 @@ function measureInPage({ mobile, touchMin, inputFontMin, checks, reachSelector }
     }
   }
 
+  // 10 Kontrast sichtbarer Texte gegen ihren tatsächlichen Hintergrund.
+  if (want(10)) {
+    // Jede CSS-Farbe (auch oklab und color-mix) als sRGB mit Alpha: die Leinwand rechnet sie um.
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 1;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    const cache = new Map();
+    const rgba = (css) => {
+      if (cache.has(css)) return cache.get(css);
+      ctx.clearRect(0, 0, 1, 1);
+      ctx.fillStyle = "rgba(0, 0, 0, 0)";
+      ctx.fillStyle = css;
+      ctx.fillRect(0, 0, 1, 1);
+      const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
+      const color = { r, g, b, a: a / 255 };
+      cache.set(css, color);
+      return color;
+    };
+    const over = (top, bottom) => ({
+      r: top.r * top.a + bottom.r * (1 - top.a),
+      g: top.g * top.a + bottom.g * (1 - top.a),
+      b: top.b * top.a + bottom.b * (1 - top.a),
+      a: 1,
+    });
+    const luminance = ({ r, g, b }) => {
+      const lin = (c) => {
+        const v = c / 255;
+        return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+      };
+      return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+    };
+    const ratio = (a, b) => {
+      const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+      return (hi + 0.05) / (lo + 0.05);
+    };
+    // Der Hintergrund hinter `el`: die Flächen der Vorfahren übereinander bis zur ersten deckenden. `null` vor
+    // einem Verlauf oder Bild.
+    const backdrop = (el) => {
+      const layers = [];
+      for (let node = el; node; node = node.parentElement) {
+        const s = getComputedStyle(node);
+        if (s.backgroundImage !== "none") return null;
+        const bg = rgba(s.backgroundColor);
+        if (bg.a > 0) layers.push(bg);
+        if (bg.a >= 1) break;
+      }
+      // Unter allem liegt die Seite: ohne deckende Fläche zählt Schwarz wie der dunkle Grund der App.
+      let color = { r: 0, g: 0, b: 0, a: 1 };
+      for (const layer of layers.reverse()) color = over(layer, color);
+      return color;
+    };
+    const opacityOf = (el) => {
+      let product = 1;
+      for (let node = el; node; node = node.parentElement) product *= parseFloat(getComputedStyle(node).opacity);
+      return product;
+    };
+    const locked = (el) => !!el.closest(':disabled, [aria-disabled="true"]');
+    for (const el of document.body.querySelectorAll("*")) {
+      if (["SCRIPT", "STYLE", "OPTION", "TEXTAREA"].includes(el.tagName) || el.closest("svg")) continue;
+      const hasText = [...el.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim());
+      if (!hasText || !shown(el) || parked(el) || locked(el)) continue;
+      const s = getComputedStyle(el);
+      // Nur für Screenreader (sr-only): ein Pixel groß, absichtlich nicht zu sehen.
+      const r = el.getBoundingClientRect();
+      if (r.width <= 1 || r.height <= 1) continue;
+      // Text, der seine Farbe aus einem Verlauf nimmt (`bg-clip-text`), hat keine eine Farbe.
+      if (s.backgroundClip === "text" || s.webkitBackgroundClip === "text") continue;
+      const fill = rgba(s.webkitTextFillColor || s.color);
+      const bg = backdrop(el);
+      if (!bg) continue;
+      const alpha = fill.a * opacityOf(el);
+      if (alpha === 0) continue;
+      const seen = over({ ...fill, a: alpha }, bg);
+      const value = ratio(seen, bg);
+      if (value < contrastMin - 0.005) report(10, el, `Kontrast ${value.toFixed(2)}:1 (Text ${s.color}, Deckkraft ${round(alpha)})`);
+    }
+  }
+
   return out;
 }
 
-/// Invarianten 1 bis 5, 7 und 8 im jetzigen Zustand.
-export async function measure(page, { width, checks = [1, 2, 3, 4, 5, 7, 8], reachSelector = "[data-sweep-primary], [data-sweep-reach]" }) {
-  return page.evaluate(measureInPage, { mobile: width < MOBILE_BELOW, touchMin: TOUCH_MIN, inputFontMin: INPUT_FONT_MIN, checks, reachSelector });
+/// Invarianten 1 bis 5, 7, 8 und 10 im jetzigen Zustand.
+export async function measure(page, { width, checks = [1, 2, 3, 4, 5, 7, 8, 10], reachSelector = "[data-sweep-primary], [data-sweep-reach]" }) {
+  return page.evaluate(measureInPage, {
+    mobile: width < MOBILE_BELOW,
+    touchMin: TOUCH_MIN,
+    inputFontMin: INPUT_FONT_MIN,
+    contrastMin: TEXT_CONTRAST_MIN,
+    checks,
+    reachSelector,
+  });
 }
 
 /// Steht ein Sheet, Popover oder Dialog offen?
@@ -628,7 +720,7 @@ export async function runState(browser, baseUrl, state, width, { inject = null, 
   page.setDefaultTimeout(20000);
   const found = [];
   const unmocked = new Set();
-  const want = (n) => (checks ?? state.checks ?? [1, 2, 3, 4, 5, 6, 7, 8, 9]).includes(n);
+  const want = (n) => (checks ?? state.checks ?? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]).includes(n);
   try {
     // Was nicht gemockt ist, antwortet mit 500 und wird gemeldet: ein Fehler-Toast verfälschte die Messung.
     await page.route("**/api/**", (route) => {
@@ -666,7 +758,7 @@ export async function runState(browser, baseUrl, state, width, { inject = null, 
     if (primary && (await mark(primary, "data-sweep-primary")) === 0) throw new Error("Primärknopf nicht gefunden");
     const reach = state.reach?.(page, { width, mobile });
     if (reach && (await mark(reach, "data-sweep-reach")) === 0) throw new Error("reach nicht gefunden");
-    found.push(...(await measure(page, { width, checks: [1, 2, 3, 4, 5, 7, 8].filter(want) })));
+    found.push(...(await measure(page, { width, checks: [1, 2, 3, 4, 5, 7, 8, 10].filter(want) })));
 
     // Mit offener Tastatur: das Feld hat den Fokus, der Viewport halbiert sich, was `keyboard.reach` nennt,
     // bleibt ohne Scrollen sichtbar.

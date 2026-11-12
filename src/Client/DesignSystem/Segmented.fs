@@ -54,3 +54,24 @@ let view (testId: string) (ariaLabel: string) (segments: Segment list) : ReactEl
         prop.className $"grid grid-flow-col auto-cols-fr gap-1 rounded-lg border {Borders.default'} p-0.5"
         prop.children (segments |> List.map (segmentButton testId))
     ]
+
+/// Spaltenzahl der mehrreihigen Leiste (`viewColumns`).
+type Columns =
+    | TwoColumns
+    | ThreeColumns
+
+let private columnsClass (columns: Columns) : string =
+    match columns with
+    | TwoColumns -> "grid-cols-2"
+    | ThreeColumns -> "grid-cols-3"
+
+/// Wie `view`, aber in fester Spaltenzahl über mehrere Reihen (ledger-dn4vy): vier Optionen in zwei Reihen,
+/// wenn ihre Texte nebeneinander bei 320 px nicht sicher passen. Erster Nutzer: die Schnellwahl Zeitraum im
+/// Filter des Kassenbuchs.
+let viewColumns (testId: string) (ariaLabel: string) (columns: Columns) (segments: Segment list) : ReactElement =
+    Html.div [
+        prop.role "group"
+        prop.ariaLabel ariaLabel
+        prop.className $"grid {columnsClass columns} gap-1 rounded-lg border {Borders.default'} p-0.5"
+        prop.children (segments |> List.map (segmentButton testId))
+    ]

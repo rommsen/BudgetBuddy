@@ -1226,6 +1226,60 @@ let reducerTests =
             Expect.isEmpty (dispatched memoCmd @ dispatched amountCmd) "keine neue Abfrage"
         }
 
+        // Regression ledger-dn4vy: ein unlesbarer Betrag („abc“) wurde wie ein leeres Feld gelesen,
+        // das Commit nach der Verzögerung nahm den aktiven Filter „ab 5 €“ still weg. Aufgezählt über
+        // die Reihenfolgen aus Setzen, Ablauf der Verzögerung und Entfernen (ledger-ct3cx), je Eingabe.
+        test "Über alle Reihenfolgen aus Tippen, Ablauf und Entfernen: unlesbar lässt den Filter stehen, leer nimmt ihn weg" {
+            let withFilter =
+                { (freshModel ()) with Filters = { noFilters with AmountMin = Some 5m }; AmountMinDraft = "5" }
+            // Jede Reihenfolge, in der das Tippen vor dem Ablauf liegt, mit und ohne Entfernen.
+            let orders =
+                [ [ "tippen"; "ablauf" ]
+                  [ "tippen"; "ablauf"; "entfernen" ]
+                  [ "tippen"; "entfernen"; "ablauf" ]
+                  [ "entfernen"; "tippen"; "ablauf" ] ]
+            for text, expectedAfterTyping in [ "abc", Some 5m; "", None; "7,5", Some 7.5m ] do
+                for order in orders do
+                    let label = $"„{text}“ {order}"
+                    let mutable pending : Elmish.Cmd<Msg> = Elmish.Cmd.none
+                    let mutable model = withFilter
+                    for step in order do
+                        match step with
+                        | "tippen" ->
+                            let typed, cmd, _ = Components.Ledger.State.update (SetAmountMinDraft text) model
+                            model <- typed
+                            pending <- cmd
+                        | "ablauf" ->
+                            // Die echte Verzögerung läuft ab, ihre Nachricht geht durch `update`.
+                            let msg, _ = Tests.CmdTiming.firstDispatchedAfter (Client.Debounce.DefaultDelayMs + 3000) pending
+                            let committed, _, _ = Components.Ledger.State.update msg model
+                            model <- committed
+                        | _ ->
+                            let removed, _, _ = Components.Ledger.State.update RemoveAmountFilter model
+                            model <- removed
+                    // Orakel aus der Reihenfolge: ein Entfernen nach dem Tippen überholt die Eingabe.
+                    let removed = List.contains "entfernen" order
+                    let removedAfterTyping = removed && List.findIndex ((=) "entfernen") order > List.findIndex ((=) "tippen") order
+                    let expected =
+                        if removedAfterTyping then None
+                        elif removed && text = "abc" then None // vorher entfernt: unlesbar holt nichts zurück
+                        else expectedAfterTyping
+                    Expect.equal model.Filters.AmountMin expected $"Filter Von: {label}"
+                    if not removedAfterTyping then
+                        Expect.equal (amountFilterTextInvalid model.AmountMinDraft) (text = "abc") $"Feld ungültig: {label}"
+        }
+
+        test "Ein unlesbarer Bis-Betrag lässt beide Grenzen stehen, wenn danach Von getippt wird" {
+            let withFilter =
+                { (freshModel ()) with
+                    Filters = { noFilters with AmountMin = Some 5m; AmountMax = Some 50m }
+                    AmountMinDraft = "5"
+                    AmountMaxDraft = "50" }
+            let typedMax, _, _ = Components.Ledger.State.update (SetAmountMaxDraft "5x") withFilter
+            let _, cmd, _ = Components.Ledger.State.update (SetAmountMinDraft "6") typedMax
+            Tests.CmdTiming.expectAfter Client.Debounce.DefaultDelayMs (CommitAmountFilter (Some 6m, Some 50m, 2)) cmd
+        }
+
         // ============================================
         // Filterleiste: "Alle Filter löschen" (ledger-j8xq4)
         // ============================================
