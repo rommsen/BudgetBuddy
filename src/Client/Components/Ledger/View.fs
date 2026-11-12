@@ -3046,7 +3046,7 @@ let private entryList
                 ]
 
             if model.HasMoreEntries then
-                ScrollSentinel (fun () -> dispatch LoadMoreEntries) (model.HasMoreEntries && not model.LoadingMore)
+                ScrollSentinel (fun () -> dispatch LoadMoreEntries) (model.HasMoreEntries && not model.LoadingMore && not model.Refreshing)
         ]
 
 // ============================================
@@ -4295,10 +4295,15 @@ let private FilterBarColumn
                 prop.className (if panelOpen then "md:pr-[420px] md:min-h-[calc(100vh-7rem)]" else "")
                 prop.children [
             Primitives.Stack.md [
+                // Der Lauf blockiert die Liste nicht: sie bleibt
+                // stehen, der Hinweis steht daneben (ADR 0014). Ohne Lauf hält
+                // `Html.none` den Platz: die Kinder sind keylos, ein wegfallender
+                // Hinweis verschöbe sonst jede folgende Stelle, React baute die
+                // Liste neu auf und die gescrollte Zeile spränge (ledger-ct3cx).
                 if model.MirrorRunning then
-                    // Der Lauf blockiert die Liste nicht: sie bleibt
-                    // stehen, der Hinweis steht daneben (ADR 0014).
                     Loading.inlineWithText "Spiegel läuft — die Liste bleibt so lange stehen."
+                else
+                    Html.none
 
                 filterChipBar dispatch model categories (sortChipVisible (visibleColumns tableWidth isAllAccounts)) isAllAccounts (Some barCallbackRef)
                 summaryOrSelectionRow accounts categories model

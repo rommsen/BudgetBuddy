@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 10
 - **Todo:** 1
-- **Doing:** 3
-- **Done:** 127
+- **Doing:** 2
+- **Done:** 128
 <!-- task-counts:end -->
 
 ### Todo
@@ -25,11 +25,11 @@ research touching this BC, and concept synthesis pages.
 <!-- doing-list:start -->
 - **ledger-f8bjm** — "Ersatz-POST mit verlorener Antwort: Wiederherstellen, Split- und Betrags-Ersatz scheitern danach dauerhaft an 409, der Spiegel legt die Ersatzbuchung als neue Buchung „YNAB-Spiegel“ an; die Ersatz-import_id muss vor dem POST im Kassenbuch stehen (Ledger/CommandHandlers.fs)" (bug) — `doing/ledger-f8bjm-ersatz-post-verlorene-antwort.md`
 - **ledger-ng110** — "Split-Editor nach Styleguide: offener Rest gelb, zu viel verteilt rot, Zeilenfelder mit Fehlerzustand, Entfernen als removeIcon mit Sperre, Speicherfehler im offenen Editor statt Toast" (bug) — `doing/ledger-ng110-eingaben-fehler-styleguide.md`
-- **ledger-ct3cx** — "Kassenbuch-Liste behält Auswahl, Seiten und Scrollstand nach Spiegel-Lauf und Abruf: Nachladen im Hintergrund statt Neuaufbau, Filter entfernen überholt wartende Eingaben, ein Neuaufbau je Wechsel (Components/Ledger/State.fs resetEntries, AccountsLoaded, fetchExternalCmd)" (bug) — `doing/ledger-ct3cx-kassenbuch-behaelt-stand.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **ledger-ct3cx** — "Kassenbuch-Liste behält Auswahl, Seiten und Scrollstand nach Spiegel-Lauf und Abruf: Nachladen im Hintergrund statt Neuaufbau, Filter entfernen überholt wartende Eingaben, ein Neuaufbau je Wechsel (Components/Ledger/State.fs resetEntries, AccountsLoaded, fetchExternalCmd)" (bug) — `done/ledger-ct3cx-kassenbuch-behaelt-stand.md`
 - **ledger-vf6z5** — "„Neue Buchung“ nach Styleguide: Betrags- und Kontofehler am Feld mit Fokus, direkte Fehlertexte ohne „Bitte“, Kontoliste mit Spinner und ehrlichem Leer- und Fehlerzustand" (bug) — `done/ledger-vf6z5-neue-buchung-fehler-am-feld.md`
 - **ledger-sjbvc** — "Sammellauf der Auswahl in einem Feld statt drei Bool-Flags: alle Sammelstarts und ihr Rückgängig prüfen einen Merker, StartReviewMarkBatch und StartUndoReviewMarkBatch sperren richtig, Aufzählung über die drei Sammelaktionen nach Doktrin Punkt 20" (refactor) — `done/ledger-sjbvc-sammellauf-ein-feld.md`
 - **ledger-vfr4h** — "Schreib-Sperre, Spiegel-Auslöser nach Freigabe und Wartesperre für Verwerfen nach dem Erfassen, Übertrag, Löschen, Wiederherstellen und Ist neu durch Verhalten belegt; Wartesperre als erster Zweig in discardCapturedBooking und restoreDeletedEntry" (refactor) — `done/ledger-vfr4h-sperre-und-ausloeser-belegen.md`

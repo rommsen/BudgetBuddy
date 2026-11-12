@@ -226,7 +226,7 @@ let filterButtonTests =
                 Expect.equal updated.SelectedFilter filtered.SelectedFilter "Konto bleibt"
                 Expect.equal updated.DetailFor filtered.DetailFor "Detail bleibt offen, dieselbe Buchung"
                 Expect.equal updated.History filtered.History "Historie bleibt stehen"
-                Expect.contains (dispatched cmd) LoadEntries "lädt neu"
+                Expect.contains (dispatched cmd) (RunLoadEntriesPage 0) "lädt neu"
             }
 
             test "FilterByRowCategory ersetzt die Auswahl, schaltet Ohne Kategorie aus und lässt den Rest stehen" {
@@ -241,7 +241,7 @@ let filterButtonTests =
                 Expect.equal updated.SelectedFilter filtered.SelectedFilter "Konto bleibt"
                 Expect.equal updated.DetailFor filtered.DetailFor "Detail bleibt offen, dieselbe Buchung"
                 Expect.equal updated.History filtered.History "Historie bleibt stehen"
-                Expect.contains (dispatched cmd) LoadEntries "lädt neu"
+                Expect.contains (dispatched cmd) (RunLoadEntriesPage 0) "lädt neu"
             }
 
             test "Beide Filter-Nachrichten leeren die Auswahl und setzen die Seite auf 0" {

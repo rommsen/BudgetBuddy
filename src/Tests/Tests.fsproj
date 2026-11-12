@@ -145,6 +145,7 @@
     <Compile Include="LedgerWithoutCategoryTests.fs" />
     <Compile Include="LedgerReviewStateTests.fs" />
     <Compile Include="LedgerSelectionTests.fs" />
+    <Compile Include="LedgerBackgroundRefreshTests.fs" />
     <Compile Include="LedgerCompactInteractionTests.fs" />
     <Compile Include="LedgerDetailTests.fs" />
     <Compile Include="LedgerNotInYnabClientTests.fs" />

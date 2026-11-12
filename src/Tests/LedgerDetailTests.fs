@@ -567,7 +567,7 @@ let routeEntryTests =
             let start = { modelWith (rows 1) with SelectedFilter = Some (OneAccount otherAccount) }
             let model, sent = start |> pending 7 |> run (answer 7)
             Expect.equal model.SelectedFilter (Some (OneAccount (entry 7).AccountId)) "Konto der Buchung"
-            Expect.contains sent LoadEntries "Liste lädt"
+            Expect.contains sent (RunLoadEntriesPage 0) "Liste lädt"
             Expect.equal (detailId model) (Some (idOf 7)) "Detail bleibt offen"
 
         testCase "der Sprung ändert die gemerkte Sicht des Geräts nicht" <| fun () ->

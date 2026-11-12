@@ -290,7 +290,7 @@ let lenaReducerTests =
             let model = modelWith [ entryOf 1 ]
             let on, msgs, _ = run ToggleOnlyAskLena model
             Expect.isTrue on.Filters.OnlyAskLena "an"
-            Expect.equal msgs [ LoadEntries ] "Neuladen"
+            Expect.equal msgs [ RunLoadEntriesPage 0 ] "Neuladen"
             Expect.equal on.Entries Loading "Liste wird neu geladen"
             Expect.isTrue (Components.Ledger.State.buildPageQuery on None 0).OnlyAskLena "Seitenanfrage"
             Expect.isFalse (Components.Ledger.State.buildPageQuery model None 0).OnlyAskLena "ohne Chip aus"

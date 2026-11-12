@@ -1464,6 +1464,21 @@ type Model = {
     /// Filter oder einer Sortierung, die nicht mehr gilt, und wird verworfen.
     EntriesGeneration: int
 
+    /// Zählt jedes Nachladen im Hintergrund (ledger-ct3cx): nach einem Spiegel-Lauf, einem Abruf
+    /// oder „Rückgängig“ auf ein Verwerfen holt die Liste denselben Ausschnitt neu, statt neu
+    /// aufzubauen. Die Antwort trägt diese Zahl und die `EntriesGeneration` ihres Starts; ein
+    /// späteres Nachladen oder ein Neuaufbau macht sie ungültig. Eine eigene Zahl, weil ein
+    /// Hochzählen der Generation laufende Summen- und Payee-Abfragen verwerfen würde.
+    RefreshGeneration: int
+
+    /// Läuft ein Nachladen im Hintergrund? Solange ruht „Weitere laden“: eine angehängte Seite
+    /// aus dem alten Ausschnitt passte nicht zur neuen Liste.
+    Refreshing: bool
+
+    /// Kam ein Nachladen, während „Weitere laden“ lief? Dann wartet es auf dessen Antwort und
+    /// holt danach den ganzen Ausschnitt samt der neuen Seite.
+    RefreshQueued: bool
+
     /// Das laufende Durchgehen (ledger-v6s7c), `None` außerhalb der Seite.
     Review: ReviewSession option
 
@@ -1916,6 +1931,11 @@ type Msg =
     // Konten
     | LoadAccounts
     | AccountsLoaded of Result<LedgerAccountsView, string>
+    /// Konten nach einem Spiegel-Lauf neu laden (ledger-ct3cx). Anders als `LoadAccounts`
+    /// (Seitenaufruf) baut die Antwort die Liste nur neu auf, wenn sich der aufgelöste
+    /// Konto-Filter ändert oder noch keine Liste geladen ist; sonst lädt sie im Hintergrund nach.
+    | RefreshAccounts
+    | AccountsRefreshed of Result<LedgerAccountsView, string>
 
     // Kontostaende
     | LoadBalances
@@ -1948,6 +1968,12 @@ type Msg =
     /// Der Beobachter am Listenende ist sichtbar geworden: naechste Seite nachladen,
     /// wenn gerade keine laeuft und es noch etwas zu holen gibt.
     | LoadMoreEntries
+    /// Nachladen im Hintergrund (ledger-ct3cx): dieselbe Filterung und Sortierung ab Zeile 0,
+    /// so viele Zeilen wie geladen sind. Auswahl, Seiten und Scrollstand bleiben. Ohne geladene
+    /// Liste baut es neu auf. Rein; die Abfrage steckt hinter `RunRefreshEntries`.
+    | RefreshEntries
+    | RunRefreshEntries
+    | EntriesRefreshed of generation: int * refresh: int * Result<LedgerEntryPage, string>
     /// Der Schalter "gelöschte Buchungen zeigen" wurde betätigt (ledger-p3n8k):
     /// kippt `IncludeDeleted` und lädt die Liste ab Seite 0 neu.
     | ToggleIncludeDeleted

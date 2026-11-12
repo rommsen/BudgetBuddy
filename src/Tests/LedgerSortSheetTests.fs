@@ -91,7 +91,7 @@ let sortSheetTests =
             Expect.equal after.Filters before.Filters "Filter unverändert"
             Expect.equal after.SelectedFilter before.SelectedFilter "Konto unverändert"
             Expect.isFalse after.SortSheetOpen "Sheet geschlossen"
-            Expect.equal msgs [ LoadEntries ] "LoadEntries"
+            Expect.equal msgs [ RunLoadEntriesPage 0 ] "genau eine Abfrage der Seite 0"
         }
 
         test "SetSortExactly setzt Feld und Richtung zugleich" {

@@ -149,8 +149,8 @@ let tests =
                   // Sync-Ablauf und stehen jetzt im Root.
                   "State.fs", [ "getCategories"; "getRecentQuickAddTemplates"; "getSettings"; "getCategories" ]
                   "Components/Ledger/State.fs",
-                  [ "getLedgerAccounts"; "getLastMirrorRun"; "getLenaFlagSettings"
-                    "getLedgerAccountBalances"; "getLedgerEntriesPage"; "getLedgerEntriesPage"
+                  [ "getLedgerAccounts"; "getLedgerAccounts"; "getLastMirrorRun"; "getLenaFlagSettings"
+                    "getLedgerAccountBalances"; "getLedgerEntriesPage"; "getLedgerEntriesPage"; "getLedgerEntriesPage"
                     "getEntryHistory"; "getLedgerPayeeSuggestions"; "getPayeeCategorySuggestions"
                     // ledger-fxt09: die Payees des ganzen Kassenbuchs für die Payee-Auswahl.
                     "getLedgerPayeeSuggestions"

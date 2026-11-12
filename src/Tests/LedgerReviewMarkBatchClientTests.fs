@@ -221,13 +221,13 @@ let undoTests =
             Expect.equal model'.Entries Loading "Liste wird neu geladen"
             Expect.equal model'.LocallyRemoved 0 "Seitenversatz auf den Stand des Servers"
             Expect.equal model'.NextPage 0 "ab Seite 0"
-            Expect.equal (messagesOf cmd) [ LoadEntries ] "LoadEntries"
+            Expect.equal (messagesOf cmd) [ RunLoadEntriesPage 0 ] "genau eine Abfrage der Seite 0"
             Expect.equal external NoOp "kein Toast bei Erfolg"
 
         testCase "ein Fehlschlag beim Zurückschreiben zeigt den Hinweis, die Liste lädt trotzdem neu" <| fun () ->
             let outcome = outcomeOf [ change 1 (ReviewMarkSendFailed "Limit") ] 0 0
             let _, cmd, external = update (ReviewMarkBatchRestored (Ok outcome)) (modelWith true 2 2)
-            Expect.equal (messagesOf cmd) [ LoadEntries ] "LoadEntries"
+            Expect.equal (messagesOf cmd) [ RunLoadEntriesPage 0 ] "genau eine Abfrage der Seite 0"
             match external with
             | ShowToast (text, ToastError) -> Expect.stringContains text "Limit" "Grund"
             | other -> failtest $"erwartet Fehler-Toast, war {other}"

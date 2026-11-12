@@ -234,9 +234,10 @@ let rec pageLoadCmd (page: Page) : Cmd<Msg> =
         Cmd.none
     | Ledger ->
         // Konten (die den Standard vorauswaehlen und damit die Buchungen
-        // nachziehen) und der Status des letzten Spiegel-Laufs. Kein
-        // automatischer Spiegel-Lauf: das Frische-Kriterium ist
-        // Folge-Arbeit (ADR 0014, ledger-h4p6c).
+        // nachziehen) und der Status des letzten Spiegel-Laufs. Ist der letzte
+        // Lauf älter als 5 Minuten, startet `MirrorStatusLoaded` den Spiegel-Lauf
+        // im Hintergrund (Frische-Kriterium, ADR 0014, ledger-h4p6c); danach lädt
+        // die Liste im Hintergrund nach und behält ihren Stand (ledger-ct3cx).
         Cmd.batch [
             Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadAccounts)
             Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadBalances)
@@ -573,7 +574,8 @@ let private ledgerCategoriesFailed (reason: string) (ledger: Components.Ledger.T
 /// Lädt das Kassenbuch Konten oder Stände neu, ziehen Seitenleiste und Übersicht mit (design-system-k6kfw).
 let syncNavAccounts (ledgerMsg: Components.Ledger.Types.Msg) (overview: Components.Overview.Types.Model) =
     match ledgerMsg with
-    | Components.Ledger.Types.AccountsLoaded (Ok accounts) -> { overview with Accounts = Success accounts }
+    | Components.Ledger.Types.AccountsLoaded (Ok accounts)
+    | Components.Ledger.Types.AccountsRefreshed (Ok accounts) -> { overview with Accounts = Success accounts }
     | Components.Ledger.Types.BalancesLoaded (Ok balances) -> { overview with Balances = Success balances }
     // Ein Fehler zählt nur, solange nichts geladen ist: sonst bliebe die Seitenleiste beim Platzhalter stehen.
     | Components.Ledger.Types.AccountsLoaded (Error message) ->
@@ -598,7 +600,8 @@ let fetchExternalCmd (model: Model) (external: Components.Fetch.Types.ExternalMs
             | None -> ()
             Cmd.map OverviewMsg (Cmd.ofMsg Components.Overview.Types.ReloadRequested)
             if isLedgerPage model.CurrentPage then
-                Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadEntries)
+                // Im Hintergrund: Auswahl, Seiten und Scrollstand bleiben (ledger-ct3cx).
+                Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.RefreshEntries)
                 Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadBalances)
         ]
 

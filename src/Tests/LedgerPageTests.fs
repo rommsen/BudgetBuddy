@@ -752,7 +752,7 @@ let reducerTests =
             Expect.isTrue updated.IncludeDeleted "Ein Klick blendet gelöschte Buchungen ein"
             Expect.equal updated.Entries Loading "Die Liste wird neu geholt"
             Expect.equal updated.NextPage 0 "Wieder ab Seite 0"
-            Expect.contains (dispatched cmd) LoadEntries "Das Neuladen wird angestoßen"
+            Expect.contains (dispatched cmd) (RunLoadEntriesPage 0) "Das Neuladen wird angestoßen"
 
             let toggledBack, _, _ = Components.Ledger.State.update ToggleIncludeDeleted updated
             Expect.isFalse toggledBack.IncludeDeleted "Ein zweiter Klick blendet wieder aus"
@@ -779,7 +779,7 @@ let reducerTests =
             Expect.isTrue updated.OnlyNeedsReview "Ein Antippen filtert auf ungeprüfte Buchungen"
             Expect.equal updated.Entries Loading "Die Liste wird neu geholt"
             Expect.equal updated.NextPage 0 "Wieder ab Seite 0"
-            Expect.contains (dispatched cmd) LoadEntries "Das Neuladen wird angestoßen"
+            Expect.contains (dispatched cmd) (RunLoadEntriesPage 0) "Das Neuladen wird angestoßen"
 
             let toggledBack, _, _ = Components.Ledger.State.update ToggleOnlyNeedsReview updated
             Expect.isFalse toggledBack.OnlyNeedsReview "Erneutes Antippen hebt den Filter auf"
@@ -920,7 +920,7 @@ let reducerTests =
             Expect.equal applied.Filters.CategoryIds (Set.ofList [ catA; catB ]) "Beide Kategorien stehen jetzt im committeten Filter (Vereinigung)"
             Expect.equal applied.OpenPopover None "Das Popover schließt sich"
             Expect.equal applied.NextPage 0 "Ein Filterwechsel beginnt wieder bei Seite 0"
-            Expect.contains (dispatched cmd) LoadEntries "Das Neuladen wird angestoßen"
+            Expect.contains (dispatched cmd) (RunLoadEntriesPage 0) "Das Neuladen wird angestoßen"
             // ledger-r8h19: Chip-Text und Seitenanfrage, vorher im [layout]-Test der Filterleiste.
             Expect.equal (Components.Ledger.View.chipLabel applied CategoryChip) "Kategorie: 2" "Der Chip nennt die Zahl der Kategorien"
             Expect.equal (Components.Ledger.View.chipLabel opened CategoryChip) "Kategorie" "Ohne Filter heißt der Chip nur Kategorie"
@@ -963,7 +963,7 @@ let reducerTests =
             let updated, cmd, _ = Components.Ledger.State.update RemoveCategoryFilter withFilters
             Expect.isTrue (Set.isEmpty updated.Filters.CategoryIds) "Kategorie ist weg"
             Expect.equal updated.Filters.Payee (Some "Café Lotte") "Der Payee-Filter bleibt unberührt stehen"
-            Expect.contains (dispatched cmd) LoadEntries "Neu laden"
+            Expect.contains (dispatched cmd) (RunLoadEntriesPage 0) "Neu laden"
         }
 
         test "Versteckte Kategorien lassen sich auf-/zuklappen, unabhängig vom Entwurf" {
@@ -1059,7 +1059,7 @@ let reducerTests =
             Expect.equal applied.Filters.DateRange (Some withQuick.DateDraft) "Der Entwurf steht jetzt im Filter"
             Expect.equal applied.OpenPopover None "Das Popover schließt sich"
             Expect.equal applied.NextPage 0 "Wieder ab Seite 0"
-            Expect.contains (dispatched cmd) LoadEntries "Neu laden"
+            Expect.contains (dispatched cmd) (RunLoadEntriesPage 0) "Neu laden"
         }
 
         test "Esc beim Zeitraum-Popover lässt den vorherigen Filter unverändert" {
@@ -1082,7 +1082,7 @@ let reducerTests =
             let updated, cmd, _ = Components.Ledger.State.update RemoveDateFilter withFilters
             Expect.equal updated.Filters.DateRange None "Zeitraum ist weg"
             Expect.equal updated.Filters.Memo (Some "Kuchen") "Memo bleibt unberührt"
-            Expect.contains (dispatched cmd) LoadEntries "Neu laden"
+            Expect.contains (dispatched cmd) (RunLoadEntriesPage 0) "Neu laden"
         }
 
         // ============================================
@@ -1094,7 +1094,7 @@ let reducerTests =
             Expect.equal updated.Filters.Payee (Some "Café Lotte") "Der Payee-Filter steht sofort"
             Expect.equal updated.OpenPopover None "Das Popover schließt sich"
             Expect.equal updated.NextPage 0 "Wieder ab Seite 0"
-            Expect.contains (dispatched cmd) LoadEntries "Neu laden"
+            Expect.contains (dispatched cmd) (RunLoadEntriesPage 0) "Neu laden"
         }
 
         test "'×' am Payee-Chip entfernt den Payee-Filter" {
@@ -1137,7 +1137,7 @@ let reducerTests =
             let committed, cmd, _ = Components.Ledger.State.update (CommitMemoFilter ("Kuchen", 1)) typing
             Expect.equal committed.Filters.Memo (Some "Kuchen") "Die aktuelle Version committet"
             Expect.equal committed.NextPage 0 "Wieder ab Seite 0"
-            Expect.contains (dispatched cmd) LoadEntries "Neu laden"
+            Expect.contains (dispatched cmd) (RunLoadEntriesPage 0) "Neu laden"
         }
 
         test "Ein leeres Memo-Commit löscht den Filter statt eines leeren Strings" {
@@ -1159,7 +1159,7 @@ let reducerTests =
             let committed, cmd, _ = Components.Ledger.State.update (CommitAmountFilter (Some 5m, None, 1)) typing
             Expect.equal committed.Filters.AmountMin (Some 5m) "Von steht"
             Expect.equal committed.Filters.AmountMax None "Bis bleibt offen"
-            Expect.contains (dispatched cmd) LoadEntries "Neu laden"
+            Expect.contains (dispatched cmd) (RunLoadEntriesPage 0) "Neu laden"
 
         }
 
@@ -1182,6 +1182,48 @@ let reducerTests =
             Expect.equal updated.Filters.AmountMax None "Bis ist weg"
             Expect.equal updated.AmountMinDraft "" "Eingabefeld Von ist leer"
             Expect.equal updated.AmountMaxDraft "" "Eingabefeld Bis ist leer"
+        }
+
+        // Regression ledger-ct3cx: Entfernen hob die Version nicht an. Das noch wartende Commit der letzten
+        // Eingabe setzte den gerade entfernten Filter wieder und lud die Liste neu.
+        test "Ein entfernter Memo-Filter kommt durch die wartende Eingabe nicht zurück" {
+            let typing, _, _ = Components.Ledger.State.update (SetMemoDraft "abc") (freshModel ())
+            let removed, _, _ = Components.Ledger.State.update RemoveMemoFilter typing
+            let after, cmd, _ = Components.Ledger.State.update (CommitMemoFilter ("abc", typing.MemoVersion)) removed
+            Expect.equal after.Filters.Memo None "der Filter bleibt entfernt"
+            Expect.isEmpty (dispatched cmd) "keine neue Abfrage"
+        }
+
+        test "Ein entfernter Betrags-Filter kommt durch die wartende Eingabe nicht zurück" {
+            let typing, _, _ = Components.Ledger.State.update (SetAmountMinDraft "5") (freshModel ())
+            let removed, _, _ = Components.Ledger.State.update RemoveAmountFilter typing
+            let after, cmd, _ = Components.Ledger.State.update (CommitAmountFilter (Some 5m, None, typing.AmountVersion)) removed
+            Expect.equal after.Filters.AmountMin None "der Filter bleibt entfernt"
+            Expect.isEmpty (dispatched cmd) "keine neue Abfrage"
+        }
+
+        test "'Alle Filter löschen' leert die Eingabefelder, wartende Memo- und Betragseingaben setzen nichts" {
+            let memo, _, _ = Components.Ledger.State.update (SetMemoDraft "abc") (freshModel ())
+            let typing, _, _ = Components.Ledger.State.update (SetAmountMaxDraft "9") memo
+            let cleared, _, _ = Components.Ledger.State.update ClearAllFilters typing
+            Expect.equal (cleared.MemoDraft, cleared.AmountMinDraft, cleared.AmountMaxDraft) ("", "", "") "Eingabefelder leer"
+            let afterMemo, memoCmd, _ = Components.Ledger.State.update (CommitMemoFilter ("abc", typing.MemoVersion)) cleared
+            let afterAmount, amountCmd, _ =
+                Components.Ledger.State.update (CommitAmountFilter (None, Some 9m, typing.AmountVersion)) afterMemo
+            Expect.equal afterAmount.Filters noFilters "kein Filter kommt zurück"
+            Expect.isEmpty (dispatched memoCmd @ dispatched amountCmd) "keine neue Abfrage"
+        }
+
+        test "Ein Eintrag aus „Zu tun“ überholt wartende Memo- und Betragseingaben" {
+            let memo, _, _ = Components.Ledger.State.update (SetMemoDraft "abc") (freshModel ())
+            let typing, _, _ = Components.Ledger.State.update (SetAmountMinDraft "5") memo
+            let preset = Components.Ledger.State.presetQuickFilter PresetNeedsReview typing
+            let afterMemo, memoCmd, _ = Components.Ledger.State.update (CommitMemoFilter ("abc", typing.MemoVersion)) preset
+            let afterAmount, amountCmd, _ =
+                Components.Ledger.State.update (CommitAmountFilter (Some 5m, None, typing.AmountVersion)) afterMemo
+            Expect.equal afterAmount.Filters.Memo None "kein Memo-Filter"
+            Expect.equal afterAmount.Filters.AmountMin None "kein Betrags-Filter"
+            Expect.isEmpty (dispatched memoCmd @ dispatched amountCmd) "keine neue Abfrage"
         }
 
         // ============================================
@@ -1207,7 +1249,7 @@ let reducerTests =
             Expect.isTrue updated.OnlyNeedsReview "'Zu prüfen' ist kein Such-Filter, bleibt stehen"
             Expect.isTrue updated.IncludeDeleted "'Gelöschte zeigen' ist kein Such-Filter, bleibt stehen"
             Expect.equal updated.NextPage 0 "Wieder ab Seite 0"
-            Expect.contains (dispatched cmd) LoadEntries "Neu laden"
+            Expect.contains (dispatched cmd) (RunLoadEntriesPage 0) "Neu laden"
         }
 
         // ============================================
@@ -1318,28 +1360,32 @@ let private erstlaufTests =
             // still nichts tat — die gerade angelegten Konten wurden nie sichtbar.
             let _, cmd, _ = Components.Ledger.State.update (MirrorFinished (Ok summary)) (freshModel ())
             let msgs = dispatched cmd
-            Expect.contains msgs LoadAccounts "Konten muessen nach dem Lauf neu geladen werden"
+            // Seit ledger-ct3cx über `RefreshAccounts`: dessen Antwort baut nur bei geändertem Filter oder ohne
+            // Liste neu auf, sonst lädt sie im Hintergrund nach.
+            Expect.contains msgs RefreshAccounts "Konten muessen nach dem Lauf neu geladen werden"
             Expect.contains msgs LoadBalances "Kontostaende muessen nach dem Lauf neu geladen werden"
             Expect.contains msgs LoadMirrorStatus "Lauf-Status muss nach dem Lauf neu geladen werden"
         }
 
         test "Geladene Konten behalten eine bereits getroffene Auswahl" {
             // Sonst springt die Seite nach jedem Spiegel-Lauf zurueck auf das Standardkonto,
-            // waehrend Roman ein anderes Konto ansieht.
+            // waehrend Roman ein anderes Konto ansieht. Die Konten nach dem Lauf kommen seit
+            // ledger-ct3cx als `AccountsRefreshed`; der Seitenaufruf (`AccountsLoaded`) löst denselben
+            // Filter auf (`resolveInitialFilter`).
             let model = { freshModel () with SelectedFilter = Some (OneAccount (accountGuid 1)) }
-            let updated, _, _ = Components.Ledger.State.update (AccountsLoaded (Ok accountsView)) model
+            let updated, _, _ = Components.Ledger.State.update (AccountsRefreshed (Ok accountsView)) model
             Expect.equal updated.SelectedFilter (Some (OneAccount (accountGuid 1))) "Die eigene Auswahl ueberlebt"
         }
 
         test "Geladene Konten behalten die Gesamtsicht als Auswahl" {
             let model = { freshModel () with SelectedFilter = Some AllAccounts }
-            let updated, _, _ = Components.Ledger.State.update (AccountsLoaded (Ok accountsView)) model
+            let updated, _, _ = Components.Ledger.State.update (AccountsRefreshed (Ok accountsView)) model
             Expect.equal updated.SelectedFilter (Some AllAccounts) "Auch die Gesamtsicht ueberlebt ein Neuladen"
         }
 
         test "Verschwindet das gewaehlte Konto, greift wieder die Vorauswahl" {
             let model = { freshModel () with SelectedFilter = Some (OneAccount (accountGuid 9)) }
-            let updated, _, _ = Components.Ledger.State.update (AccountsLoaded (Ok accountsView)) model
+            let updated, _, _ = Components.Ledger.State.update (AccountsRefreshed (Ok accountsView)) model
             Expect.equal updated.SelectedFilter (Some (OneAccount (accountGuid 2))) "Faellt auf das Standardkonto zurueck"
         }
     ]

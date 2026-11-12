@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-12 08:43 -- Task verified and completed: ledger-ct3cx - "Kassenbuch-Liste behält Auswahl, Seiten und Scrollstand nach Spiegel-Lauf und Abruf: Nachladen im Hintergrund statt Neuaufbau, Filter entfernen überholt wartende Eingaben, ein Neuaufbau je Wechsel (Components/Ledger/State.fs resetEntries, AccountsLoaded, fetchExternalCmd)"
+
+**Type:** Work / Task completion
+**Task:** ledger-ct3cx - "Kassenbuch-Liste behält Auswahl, Seiten und Scrollstand nach Spiegel-Lauf und Abruf: Nachladen im Hintergrund statt Neuaufbau, Filter entfernen überholt wartende Eingaben, ein Neuaufbau je Wechsel (Components/Ledger/State.fs resetEntries, AccountsLoaded, fetchExternalCmd)"
+**Summary:** Kassenbuch-Liste lädt nach Spiegel-Lauf, Abruf und Rückgängig im Hintergrund nach und behält Auswahl, Seiten und Scrollstand
+**Duration:** 2h05m
+**Verification:** PASS (iteration 2)
+**Files changed:** 16
+**Tests added:** 30
+**ADRs written:** none
+
+---
+
 ## 2026-11-12 08:32 -- Task verified and completed: ledger-vf6z5 - "„Neue Buchung“ nach Styleguide: Betrags- und Kontofehler am Feld mit Fokus, direkte Fehlertexte ohne „Bitte“, Kontoliste mit Spinner und ehrlichem Leer- und Fehlerzustand"
 
 **Type:** Work / Task completion

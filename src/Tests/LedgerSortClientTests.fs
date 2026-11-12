@@ -115,7 +115,7 @@ let sortClientTests =
             Expect.equal after.Selection NoSelection "Auswahl leer"
             Expect.equal after.Filters before.Filters "Filter unverändert"
             Expect.equal after.SelectedFilter before.SelectedFilter "Konto unverändert"
-            Expect.equal msgs [ LoadEntries ] "LoadEntries"
+            Expect.equal msgs [ RunLoadEntriesPage 0 ] "genau eine Abfrage der Seite 0"
         }
 
         test "SetSort auf das aktive Feld dreht die Richtung" {
@@ -126,7 +126,7 @@ let sortClientTests =
             Expect.equal after.LocallyRemoved 0 "Versatz zurück"
             Expect.equal after.Selection NoSelection "Auswahl leer"
             Expect.equal after.Filters before.Filters "Filter unverändert"
-            Expect.equal msgs [ LoadEntries ] "LoadEntries"
+            Expect.equal msgs [ RunLoadEntriesPage 0 ] "genau eine Abfrage der Seite 0"
             let back, _ = step (SetSort SortByAmount) after
             Expect.equal back.Sort { Field = SortByAmount; Direction = SortAsc } "wieder aufsteigend"
         }

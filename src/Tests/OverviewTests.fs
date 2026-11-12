@@ -123,7 +123,7 @@ let transitionTests =
             let model, cmd = State.update (State.OpenLedgerAccount Components.Ledger.Types.AllAccounts) (rootModel Ledger)
             Expect.equal model.Ledger.SelectedFilter (Some Components.Ledger.Types.AllAccounts) "Filter"
             // Das Kassenbuch steht schon offen, kein Betreten lädt nach: ohne `LoadEntries` blieb die alte Liste stehen.
-            Expect.contains (dispatched cmd) (State.LedgerMsg Components.Ledger.Types.LoadEntries) "lädt die Buchungen"
+            Expect.contains (dispatched cmd) (State.LedgerMsg (Components.Ledger.Types.RunLoadEntriesPage 0)) "lädt die Buchungen"
 
         // Review-Fund (design-system-k6kfw): „Abrufen“ startete den Sync zugleich mit dem Seitenwechsel. Seit
         // banking-import-d0fey öffnet „Abrufen“ das Sheet über der aktuellen Seite; das Sheet liest zuerst die
@@ -164,14 +164,15 @@ let transitionTests =
 
         // Review-Fund: nach dem Import standen in der Seitenleiste die Salden von vorher. Seit banking-import-d0fey
         // lädt nach jedem Abruf die Übersicht neu (Zu tun, Zähler, Importzeile, Konten), auf dem Kassenbuch
-        // zusätzlich die Liste und die Stände.
+        // zusätzlich die Liste und die Stände. Die Liste lädt im Hintergrund nach und behält Auswahl, Seiten und
+        // Scrollstand (ledger-ct3cx, vorher `LoadEntries` mit Neuaufbau).
         testCase "Nach einem Abruf laden Übersicht, Zähler, Importzeile und eine offene Kassenbuch-Liste neu" <| fun () ->
             let after page = dispatched (State.fetchExternalCmd (rootModel page) (Components.Fetch.Types.FetchFinished None))
             Expect.equal (after Overview) [ State.OverviewMsg ReloadRequested ] "auf der Übersicht"
             Expect.equal
                 (after Ledger)
                 [ State.OverviewMsg ReloadRequested
-                  State.LedgerMsg Components.Ledger.Types.LoadEntries
+                  State.LedgerMsg Components.Ledger.Types.RefreshEntries
                   State.LedgerMsg Components.Ledger.Types.LoadBalances ]
                 "im Kassenbuch auch Liste und Stände"
             Expect.isEmpty (dispatched (State.fetchExternalCmd (rootModel Overview) Components.Fetch.Types.NoOp)) "sonst nichts"

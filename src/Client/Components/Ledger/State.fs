@@ -155,6 +155,9 @@ let init () : Model * Cmd<Msg> =
         FilteredOut = Set.empty
         OrderStale = false
         EntriesGeneration = 0
+        RefreshGeneration = 0
+        Refreshing = false
+        RefreshQueued = false
         Review = None
         ReviewGeneration = 0
         RestoringDuplicates = Set.empty
@@ -162,7 +165,7 @@ let init () : Model * Cmd<Msg> =
     model, Cmd.none
 
 /// Der Zustand einer frisch angestossenen Buchungsliste: Seite 0, nichts geladen.
-/// Von `LoadEntries` und `SelectFilter` geteilt: beide starten die Liste neu. Eine neue
+/// Grundlage von `rebuildEntries` (Neuaufbau) und den Vorbelegungen ohne eigene Abfrage. Eine neue
 /// Liste ist ein neuer Treffer: die Auswahl bezog sich auf den alten und endet mit ihm
 /// (Konto-, Filter- und Chipwechsel laufen alle hierdurch, ledger-r1d2f).
 let private resetEntries (model: Model) : Model = {
@@ -185,7 +188,21 @@ let private resetEntries (model: Model) : Model = {
         // Laufende Abfragen der alten Liste verlieren hier ihre Gültigkeit (infrastructure-r3tw7).
         // `LoadingMore` endet oben mit ihnen, die Antwort der neuen Liste läuft unabhängig davon.
         EntriesGeneration = model.EntriesGeneration + 1
+        // Ein laufendes oder wartendes Nachladen gehört zur alten Liste (ledger-ct3cx).
+        Refreshing = false
+        RefreshQueued = false
 }
+
+/// Neuaufbau der Liste (ledger-ct3cx): Seite 0, Auswahl leer, Skeleton, genau eine Abfrage der
+/// Seite 0. Nur bei geänderter Abfrage (Konto, Filter, Chip, Sortierung, „Gelöschte zeigen“), ohne
+/// geladene Liste und beim Betreten der Seite; sonst lädt die Liste im Hintergrund nach.
+let private rebuildEntries (model: Model) : Model * Cmd<Msg> =
+    resetEntries model, Cmd.ofMsg (RunLoadEntriesPage 0)
+
+/// `rebuildEntries` als Ergebnis eines `update`-Zweigs ohne Nachricht nach außen.
+let private rebuildWith (model: Model) : Model * Cmd<Msg> * ExternalMsg =
+    let rebuilt, cmd = rebuildEntries model
+    rebuilt, cmd, NoOp
 
 /// Die Startrichtung beim Wechsel auf ein anderes Sortierfeld (ADR 0051 Punkt 9): Datum
 /// absteigend (neueste zuerst), Betrag aufsteigend (kleinster Wert zuerst, also die größte
@@ -453,6 +470,36 @@ let totalsRefreshAnswer (model: Model) : Result<LedgerEntryPage, string> -> Msg 
 let entriesPageAnswer (model: Model) (page: int) : Result<LedgerEntryPage, string> -> Msg =
     let generation = model.EntriesGeneration
     fun result -> EntriesPageLoaded (generation, page, result)
+
+/// Die Antwort eines Nachladens im Hintergrund (ledger-ct3cx), gebunden an die Liste und an das
+/// Nachladen beim Start. Ein Neuaufbau oder ein späteres Nachladen macht sie ungültig.
+let entriesRefreshAnswer (model: Model) : Result<LedgerEntryPage, string> -> Msg =
+    let generation = model.EntriesGeneration
+    let refresh = model.RefreshGeneration
+    fun result -> EntriesRefreshed (generation, refresh, result)
+
+let private accountIdOf (filter: AccountFilter) : Guid option =
+    match filter with
+    | AllAccounts -> None
+    | OneAccount id -> Some id
+
+/// Anfrage und Antwort einer Seite, wie `RunLoadEntriesPage` sie absetzt. Rein; `None` ohne Konto-Filter.
+let pageRequest (model: Model) (page: int) : (LedgerEntryPageQuery * (Result<LedgerEntryPage, string> -> Msg)) option =
+    model.SelectedFilter
+    |> Option.map (fun filter -> buildPageQuery model (accountIdOf filter) page, entriesPageAnswer model page)
+
+/// Anfrage und Antwort des Nachladens im Hintergrund, wie `RunRefreshEntries` sie absetzt (ledger-ct3cx):
+/// dieselbe Filterung und Sortierung ab Zeile 0, so viele Zeilen wie die geladenen Seiten fassen, ohne
+/// Abzug lokal entfernter Zeilen. `None` ohne Konto-Filter oder wenn kein Nachladen mehr läuft. Rein.
+let refreshRequest (model: Model) : (LedgerEntryPageQuery * (Result<LedgerEntryPage, string> -> Msg)) option =
+    match model.SelectedFilter with
+    | Some filter when model.Refreshing ->
+        let query =
+            { buildPageQuery model (accountIdOf filter) 0 with
+                PageSize = max 1 model.NextPage * pageSize
+                LocallyRemoved = 0 }
+        Some (query, entriesRefreshAnswer model)
+    | _ -> None
 
 /// Die Antwort der Payee-Vorschläge, gebunden an die Liste beim Start der Abfrage. Trüge das
 /// Scheitern eine andere Generation, gälte es als alt und das offene Popover fragte ohne Ende neu.
@@ -1236,6 +1283,9 @@ let presetQuickFilter (preset: QuickFilterPreset) (model: Model) : Model =
         RememberedFilter = Some AllAccounts
         AccountSheetOpen = false
         Filters = { noFilters with OnlyAskLena = (preset = PresetAskLena) }
+        // Eine wartende Memo- oder Betragseingabe setzte sonst einen Filter in die neue Sicht (ledger-ct3cx).
+        MemoVersion = model.MemoVersion + 1
+        AmountVersion = model.AmountVersion + 1
         OnlyNeedsReview = (preset = PresetNeedsReview) }
 
 
@@ -1310,6 +1360,61 @@ let private returnToReviewCard (entryId: Guid) (model: Model) : Model * Cmd<Msg>
 let private editReview (f: ReviewSession -> ReviewSession) (model: Model) : Model =
     { model with Review = model.Review |> Option.map f }
 
+/// Trägt die Antwort eines Nachladens im Hintergrund ein (ledger-ct3cx). Die Zeilen stehen in der
+/// Reihenfolge des Servers: geänderte mit neuem Stand, gelöschte und nicht mehr passende fehlen, neue
+/// stehen an ihrem Platz. Deckt die Antwort den ganzen Treffer ab, wird die Auswahl auf die noch
+/// vorhandenen Buchungen beschnitten, sonst bleibt sie (bei „alle“ gehören neue dazu), der
+/// Auswahl-Modus bleibt, der Anker nur mit seiner Zeile. Ein offenes Detail
+/// bekommt den neuen Stand seiner Buchung, wenn sie in der Antwort steht, und lädt seine Historie neu;
+/// das Durchgehen bleibt unberührt. Zähler kommen aus der Antwort, ausgegraute Zeilen, veraltete
+/// Reihenfolge und lokal entfernte Zeilen enden. Rein bis auf den Befehl.
+let private applyEntriesRefresh (page: LedgerEntryPage) (model: Model) : Model * Cmd<Msg> =
+    let entries = page.Entries
+    let present = entries |> List.map (fun e -> e.Id) |> Set.ofList
+    // Die Antwort umfasst nur das Fenster der geladenen Seiten. Fehlt eine Id, kann sie gelöscht sein
+    // oder hinter das Fenster gerückt (eine neue Buchung oben schiebt die letzte Zeile hinaus). Nur wenn
+    // die Antwort den ganzen Treffer abdeckt, ist eine fehlende Id sicher weg; sonst bleibt sie gewählt
+    // bzw. abgewählt, damit eine Sammelaktion keine abgewählte Buchung trifft.
+    let coversHit = List.length entries >= page.TotalCount
+    let prune (ids: Set<Guid>) = if coversHit then Set.intersect ids present else ids
+    let selection =
+        match model.Selection with
+        | NoSelection -> NoSelection
+        | Picked ids ->
+            let kept = prune ids
+            if Set.isEmpty kept then NoSelection else Picked kept
+        | AllExcept excluded -> AllExcept (prune excluded)
+    let detail =
+        match model.Review, model.DetailFor with
+        | None, Some open' -> Some (entries |> List.tryFind (fun e -> e.Id = open'.Id) |> Option.defaultValue open')
+        | _, other -> other
+    let refreshed =
+        { model with
+            Entries = Success entries
+            Selection = selection
+            SelectionAnchor = model.SelectionAnchor |> Option.filter present.Contains
+            DetailFor = detail
+            // Dieselbe Regel wie nach einer geladenen Seite.
+            FocusedRow =
+                (match detail with
+                 | Some d -> if present.Contains d.Id then Some d.Id else None
+                 | None -> reconcileFocus entries model.FocusedRow)
+            TotalCount = page.TotalCount
+            TotalAmount = page.TotalAmount
+            HasMoreEntries = List.length entries < page.TotalCount
+            DeletedCount = page.DeletedCount
+            NeedsReviewCount = page.NeedsReviewCount
+            AskLenaCount = page.AskLenaCount
+            FilteredOut = Set.empty
+            OrderStale = false
+            LocallyRemoved = 0
+            Refreshing = false }
+    let history =
+        match model.Review, detail with
+        | None, Some d -> reloadHistoryFor d.Id refreshed
+        | _ -> Cmd.none
+    refreshed, history
+
 /// Gibt „Ist neu“ und „Verwerfen“ frei, wenn die Antwort zur laufenden Entscheidung gehört. Die Antwort
 /// einer Entscheidung aus einem früheren Durchgehen lässt die laufende stehen (ledger-smv1s).
 let private releaseDeciding (entryId: Guid) (model: Model) : Model =
@@ -1343,11 +1448,37 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         // Kommen die Konten nach der Vorbelegung (Deep Link), wird das Konto des Formulars nachgesetzt.
         let model' = withCaptureDefaultAccount { model with Accounts = Success accounts; SelectedFilter = filter }
         match filter with
-        | Some _ -> resetEntries model', Cmd.ofMsg LoadEntries, NoOp
+        | Some _ ->
+            let rebuilt, cmd = rebuildEntries model'
+            rebuilt, cmd, NoOp
         | None -> { resetEntries model' with Entries = NotAsked }, Cmd.none, NoOp
 
     | AccountsLoaded (Error message) ->
         { model with Accounts = Failure message }, Cmd.none, NoOp
+
+    | RefreshAccounts ->
+        // Wie `LoadAccounts`, nur ohne Ladezustand: die geladenen Konten bleiben stehen, bis die neuen
+        // da sind. Der Aufruf liegt hinter einem Lambda, damit `update` auch unter .NET läuft.
+        let cmd =
+            Cmd.OfAsync.either
+                (fun () -> Retry.reading Api.ledger.getLedgerAccounts ())
+                ()
+                (Ok >> AccountsRefreshed)
+                (fun ex -> AccountsRefreshed (Error ex.Message))
+        model, Cmd.batch [ cmd; Cmd.ofMsg LoadLenaFlagSettings ], NoOp
+
+    | AccountsRefreshed (Ok accounts) ->
+        // Nach einem Spiegel-Lauf (ledger-ct3cx): bleibt der aufgelöste Filter derselbe und steht eine
+        // Liste, lädt sie im Hintergrund nach. Sonst (anderes Konto, keine oder noch ladende Liste)
+        // gilt dasselbe wie nach einem Seitenaufruf.
+        let filter = resolveInitialFilter model.SelectedFilter model.RememberedFilter accounts
+        if filter.IsSome && filter = model.SelectedFilter && RemoteData.isSuccess model.Entries then
+            withCaptureDefaultAccount { model with Accounts = Success accounts }, Cmd.ofMsg RefreshEntries, NoOp
+        else
+            updateCore (AccountsLoaded (Ok accounts)) model
+
+    | AccountsRefreshed (Error message) ->
+        { model with Accounts = RemoteData.lateFailure message model.Accounts }, Cmd.none, NoOp
 
     // ============================================
     // Kontostaende
@@ -1383,12 +1514,13 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         // einer Buchung, die gleich nicht mehr in der Liste steht. Die
         // Scroll-Position wird bewusst NICHT gemerkt (Task-Notes) — alle anderen
         // Zustaende (Kontostaende, Lauf-Status) bleiben unangetastet stehen.
-        { closeDetail (resetEntries model) with
-            SelectedFilter = Some filter
-            RememberedFilter = Some filter
-            AccountSheetOpen = false },
-        Cmd.batch [ Cmd.ofMsg LoadEntries; Cmd.ofEffect (fun _ -> writeRememberedFilter filter) ],
-        NoOp
+        let rebuilt, load =
+            rebuildEntries
+                { closeDetail model with
+                    SelectedFilter = Some filter
+                    RememberedFilter = Some filter
+                    AccountSheetOpen = false }
+        rebuilt, Cmd.batch [ load; Cmd.ofEffect (fun _ -> writeRememberedFilter filter) ], NoOp
 
     | PresetFilter filter ->
         { closeDetail (resetEntries model) with
@@ -1408,11 +1540,11 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 
     | SetSort field ->
         // Wie ein Filterwechsel: Seite 0, Auswahl leer, Filter und Konto bleiben stehen.
-        { (resetEntries model) with Sort = nextSort (effectiveSort model) field }, Cmd.ofMsg LoadEntries, NoOp
+        rebuildWith { model with Sort = nextSort (effectiveSort model) field }
 
     | SetSortExactly sort ->
         // Wie SetSort, nur mit der gewählten Kombination; das Sheet schließt.
-        { (resetEntries model) with Sort = sort; SortSheetOpen = false }, Cmd.ofMsg LoadEntries, NoOp
+        rebuildWith { model with Sort = sort; SortSheetOpen = false }
 
     | OpenSortSheet -> { model with SortSheetOpen = true }, Cmd.none, NoOp
 
@@ -1421,15 +1553,14 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     // ============================================
     // Buchungen, seitenweise
     // ============================================
-    | LoadEntries -> resetEntries model, Cmd.ofMsg (RunLoadEntriesPage 0), NoOp
+    | LoadEntries ->
+        let rebuilt, cmd = rebuildEntries model
+        rebuilt, cmd, NoOp
 
     | RunLoadEntriesPage page ->
-        match model.SelectedFilter with
+        match pageRequest model page with
         | None -> model, Cmd.none, NoOp
-        | Some filter ->
-            let accountId = match filter with AllAccounts -> None | OneAccount id -> Some id
-            let query = buildPageQuery model accountId page
-            let answer = entriesPageAnswer model page
+        | Some (query, answer) ->
             let cmd =
                 Cmd.OfAsync.either
                     (Retry.reading Api.ledger.getLedgerEntriesPage)
@@ -1470,7 +1601,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             NeedsReviewCount = entryPage.NeedsReviewCount
             AskLenaCount = entryPage.AskLenaCount
             LoadingMore = false },
-        Cmd.none,
+        // Ein Nachladen, das auf diese Seite gewartet hat, holt jetzt den ganzen Ausschnitt (ledger-ct3cx).
+        (if model.RefreshQueued then Cmd.ofMsg RefreshEntries else Cmd.none),
         NoOp
 
     | EntriesPageLoaded (_, 0, Error message) ->
@@ -1482,39 +1614,81 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         // Ein Fehler beim Nachladen loescht die bereits sichtbare Liste nicht: sie
         // bleibt stehen, nur der Hinweis erscheint als Toast.
         { model with LoadingMore = false },
-        Cmd.none,
+        (if model.RefreshQueued then Cmd.ofMsg RefreshEntries else Cmd.none),
         ShowToast ($"Weitere Buchungen konnten nicht geladen werden: {message}", ToastError)
 
     | LoadMoreEntries ->
         // Reiner Wächter: kein zweiter Nachlade-Aufruf waehrend einer laeuft, keiner
         // ohne weitere Seiten, keiner ohne eine erfolgreich geladene erste Seite.
         // Bei veralteter Reihenfolge ruht das Nachladen, bis "Neu laden" die Liste neu aufsetzt.
-        if model.LoadingMore || model.OrderStale || not model.HasMoreEntries || not (RemoteData.isSuccess model.Entries) then
+        // Während eines Nachladens im Hintergrund ruht es auch: die Seite gehörte zum alten Ausschnitt.
+        if model.LoadingMore || model.Refreshing || model.OrderStale || not model.HasMoreEntries || not (RemoteData.isSuccess model.Entries) then
             model, Cmd.none, NoOp
         else
             { model with LoadingMore = true }, Cmd.ofMsg (RunLoadEntriesPage model.NextPage), NoOp
 
+    | RefreshEntries ->
+        match model.SelectedFilter, model.Entries with
+        | None, _ -> model, Cmd.none, NoOp
+        | Some _, Success _ when model.LoadingMore ->
+            // Erst die laufende Seite abwarten, dann den ganzen Ausschnitt samt ihr holen.
+            { model with RefreshQueued = true }, Cmd.none, NoOp
+        | Some _, Success _ ->
+            { model with RefreshGeneration = model.RefreshGeneration + 1; Refreshing = true; RefreshQueued = false },
+            Cmd.ofMsg RunRefreshEntries,
+            NoOp
+        | Some _, _ ->
+            // Ohne geladene Liste gibt es keinen Stand zu halten.
+            let rebuilt, cmd = rebuildEntries model
+            rebuilt, cmd, NoOp
+
+    | RunRefreshEntries ->
+        match refreshRequest model with
+        | None -> model, Cmd.none, NoOp
+        | Some (query, answer) ->
+            let cmd =
+                Cmd.OfAsync.either
+                    (Retry.reading Api.ledger.getLedgerEntriesPage)
+                    query
+                    (Ok >> answer)
+                    (fun ex -> answer (Error ex.Message))
+            model, cmd, NoOp
+
+    // Die Antwort eines abgelösten Nachladens oder einer neu aufgebauten Liste: verwerfen.
+    | EntriesRefreshed (generation, refresh, _) when generation <> model.EntriesGeneration || refresh <> model.RefreshGeneration ->
+        model, Cmd.none, NoOp
+
+    | EntriesRefreshed (_, _, Ok page) ->
+        let refreshed, cmd = applyEntriesRefresh page model
+        refreshed, cmd, NoOp
+
+    | EntriesRefreshed (_, _, Error message) ->
+        // Die Liste bleibt mit Auswahl stehen, nur der Hinweis erscheint.
+        { model with Refreshing = false },
+        Cmd.none,
+        ShowToast ($"Liste konnte nicht aktualisiert werden: {message}", ToastWarning)
+
     | ToggleIncludeDeleted ->
-        // Reine Zustandsänderung plus `Cmd.ofMsg LoadEntries` (dieselbe Teilung wie
+        // Reine Zustandsänderung plus Neuaufbau über `rebuildWith` (dieselbe Teilung wie
         // beim Filterwechsel `SelectFilter`): der Proxy-Aufruf steckt erst hinter
         // `RunLoadEntriesPage`, nicht in diesem Zweig (ADR 0020).
-        { (resetEntries model) with IncludeDeleted = not model.IncludeDeleted }, Cmd.ofMsg LoadEntries, NoOp
+        rebuildWith { model with IncludeDeleted = not model.IncludeDeleted }
 
     | ToggleOnlyNeedsReview ->
-        // Reine Zustandsänderung plus `Cmd.ofMsg LoadEntries` (derselbe Schnitt wie
+        // Reine Zustandsänderung plus Neuaufbau über `rebuildWith` (derselbe Schnitt wie
         // `ToggleIncludeDeleted`/ADR 0020): der Proxy-Aufruf steckt erst hinter
         // `RunLoadEntriesPage`, nicht in diesem Zweig.
-        { (resetEntries model) with OnlyNeedsReview = not model.OnlyNeedsReview }, Cmd.ofMsg LoadEntries, NoOp
+        rebuildWith { model with OnlyNeedsReview = not model.OnlyNeedsReview }
 
     | ToggleOnlyAskLena ->
-        // Wie `ToggleWithoutCategory`: reine Zustandsänderung plus `LoadEntries` (ADR 0020).
+        // Wie `ToggleWithoutCategory`: reine Zustandsänderung plus Neuaufbau (ADR 0020).
         let filters = { model.Filters with OnlyAskLena = not model.Filters.OnlyAskLena }
-        { (resetEntries model) with Filters = filters }, Cmd.ofMsg LoadEntries, NoOp
+        rebuildWith { model with Filters = filters }
 
     | ToggleWithoutCategory ->
-        // Wie `ToggleOnlyNeedsReview`: reine Zustandsänderung plus `LoadEntries` (ADR 0020).
+        // Wie `ToggleOnlyNeedsReview`: reine Zustandsänderung plus Neuaufbau (ADR 0020).
         let filters = { model.Filters with WithoutCategory = not model.Filters.WithoutCategory }
-        { (resetEntries model) with Filters = filters }, Cmd.ofMsg LoadEntries, NoOp
+        rebuildWith { model with Filters = filters }
 
     // ============================================
     // Historie einer Buchung
@@ -1625,10 +1799,11 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         // Konten und Kontostaende neu laden, nicht nur die Buchungen: der erste Lauf
         // auf einem leeren Kassenbuch legt die Konten ueberhaupt erst an, und ein
         // spaeterer Lauf kann ein in YNAB neu angelegtes Konto oder geaenderte
-        // Staende mitbringen. `AccountsLoaded` zieht die Buchungen des gewaehlten
-        // Filters selbst nach (Regression ledger-kt0wq).
+        // Staende mitbringen. `AccountsRefreshed` zieht die Buchungen des gewaehlten
+        // Filters selbst nach (Regression ledger-kt0wq): im Hintergrund, solange der Filter
+        // derselbe bleibt und eine Liste steht, sonst als Neuaufbau (ledger-ct3cx).
         { model with MirrorRunning = false },
-        Cmd.batch [ Cmd.ofMsg LoadAccounts; Cmd.ofMsg LoadBalances; Cmd.ofMsg LoadMirrorStatus ],
+        Cmd.batch [ Cmd.ofMsg RefreshAccounts; Cmd.ofMsg LoadBalances; Cmd.ofMsg LoadMirrorStatus ],
         ShowToast (mirrorSummaryText summary, ToastSuccess)
 
     | MirrorFinished (Error message) ->
@@ -1709,14 +1884,14 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     // Liste, nicht die Buchung.
     | FilterByRowPayee payee ->
         let filters = { model.Filters with Payee = Some payee }
-        resetEntries { model with Filters = filters }, Cmd.ofMsg LoadEntries, NoOp
+        rebuildWith { model with Filters = filters }
 
     | FilterByRowCategory categoryId ->
         // "Ohne Kategorie" verbindet sich mit einer Kategorienauswahl per Oder (ADR 0048)
         // und würde Buchungen ohne Ziel einschließen, die Roman nicht gewählt hat.
         let filters =
             { model.Filters with CategoryIds = Set.singleton categoryId; WithoutCategory = false }
-        resetEntries { model with Filters = filters }, Cmd.ofMsg LoadEntries, NoOp
+        rebuildWith { model with Filters = filters }
 
     // -------- Kategorie (Mehrfachauswahl, Click-Commit) --------
 
@@ -1742,13 +1917,12 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             let filters = { model.Filters with CategoryIds = model.CategoryDraft }
             let recent = pushRecentCategories model.CategoryDraft model.RecentCategories
             let remember = Cmd.ofEffect (fun _ -> writeRecentCategories recent)
-            resetEntries { model with Filters = filters; OpenPopover = None; RecentCategories = recent },
-            Cmd.batch [ Cmd.ofMsg LoadEntries; remember ],
-            NoOp
+            let rebuilt, load = rebuildEntries { model with Filters = filters; OpenPopover = None; RecentCategories = recent }
+            rebuilt, Cmd.batch [ load; remember ], NoOp
 
     | RemoveCategoryFilter ->
         let filters = { model.Filters with CategoryIds = Set.empty }
-        resetEntries { model with Filters = filters }, Cmd.ofMsg LoadEntries, NoOp
+        rebuildWith { model with Filters = filters }
 
     // -------- Zeitraum (Schnellwahl schreibt Von/Bis mit) --------
 
@@ -1791,11 +1965,11 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             if model.DateDraft.From.IsNone && model.DateDraft.To.IsNone then None
             else Some model.DateDraft
         let filters = { model.Filters with DateRange = range }
-        resetEntries { model with Filters = filters; OpenPopover = None }, Cmd.ofMsg LoadEntries, NoOp
+        rebuildWith { model with Filters = filters; OpenPopover = None }
 
     | RemoveDateFilter ->
         let filters = { model.Filters with DateRange = None }
-        resetEntries { model with Filters = filters }, Cmd.ofMsg LoadEntries, NoOp
+        rebuildWith { model with Filters = filters }
 
     // -------- Payee (Einzelauswahl, filtert sofort) --------
 
@@ -1845,11 +2019,11 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 
     | SelectPayeeFilter payee ->
         let filters = { model.Filters with Payee = Some payee }
-        resetEntries { model with Filters = filters; OpenPopover = None }, Cmd.ofMsg LoadEntries, NoOp
+        rebuildWith { model with Filters = filters; OpenPopover = None }
 
     | RemovePayeeFilter ->
         let filters = { model.Filters with Payee = None }
-        resetEntries { model with Filters = filters }, Cmd.ofMsg LoadEntries, NoOp
+        rebuildWith { model with Filters = filters }
 
     // -------- Memo (Suchfeld mit Verzögerung) --------
 
@@ -1866,11 +2040,12 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         else
             let trimmed = text.Trim()
             let filters = { model.Filters with Memo = (if trimmed = "" then None else Some trimmed) }
-            resetEntries { model with Filters = filters }, Cmd.ofMsg LoadEntries, NoOp
+            rebuildWith { model with Filters = filters }
 
     | RemoveMemoFilter ->
         let filters = { model.Filters with Memo = None }
-        resetEntries { model with Filters = filters; MemoDraft = "" }, Cmd.ofMsg LoadEntries, NoOp
+        // Die Version steigt: ein wartendes `CommitMemoFilter` holt den entfernten Filter nicht zurück (ledger-ct3cx).
+        rebuildWith { model with Filters = filters; MemoDraft = ""; MemoVersion = model.MemoVersion + 1 }
 
     // -------- Betrag (Suchfeld mit Verzögerung, Von/Bis) --------
 
@@ -1891,23 +2066,28 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             model, Cmd.none, NoOp
         else
             let filters = { model.Filters with AmountMin = min_; AmountMax = max_ }
-            resetEntries { model with Filters = filters }, Cmd.ofMsg LoadEntries, NoOp
+            rebuildWith { model with Filters = filters }
 
     | RemoveAmountFilter ->
         let filters = { model.Filters with AmountMin = None; AmountMax = None }
-        resetEntries { model with Filters = filters; AmountMinDraft = ""; AmountMaxDraft = "" }, Cmd.ofMsg LoadEntries, NoOp
+        // Wie `RemoveMemoFilter`: ein wartendes `CommitAmountFilter` ist überholt (ledger-ct3cx).
+        rebuildWith { model with Filters = filters; AmountMinDraft = ""; AmountMaxDraft = ""; AmountVersion = model.AmountVersion + 1 }
 
     | ClearAllFilters ->
         // Der Chip "Ohne Kategorie" bleibt stehen (wie "Zu prüfen"): er gehört nicht zu
         // den fünf Such-Filtern (ADR 0048).
-        resetEntries
+        // Die Versionen steigen, damit eine wartende Eingabe den Filter nicht zurückholt (ledger-ct3cx).
+        rebuildWith
             { model with
                 Filters =
                     { noFilters with
                         WithoutCategory = model.Filters.WithoutCategory
-                        OnlyAskLena = model.Filters.OnlyAskLena } },
-        Cmd.ofMsg LoadEntries,
-        NoOp
+                        OnlyAskLena = model.Filters.OnlyAskLena }
+                MemoDraft = ""
+                MemoVersion = model.MemoVersion + 1
+                AmountMinDraft = ""
+                AmountMaxDraft = ""
+                AmountVersion = model.AmountVersion + 1 }
 
     // ============================================
     // Prüfvermerk setzen und zurückschreiben (ledger-r777c, ADR 0050)
@@ -3460,7 +3640,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             if model.SelectedFilter = Some filter then
                 settled, Cmd.none
             else
-                { (resetEntries settled) with SelectedFilter = Some filter }, Cmd.ofMsg LoadEntries
+                rebuildEntries { settled with SelectedFilter = Some filter }
         let model'', historyCmd = showDetail entry model'
         model'', Cmd.batch [ listCmd; historyCmd ], NoOp
 
@@ -3633,7 +3813,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             match sendFailed with
             | Some reason -> ShowToast ($"{reviewMarkHintTitle}: {reason}", ToastError)
             | None -> NoOp
-        resetEntries { model with BatchRunning = None }, Cmd.ofMsg LoadEntries, external
+        let rebuilt, load = rebuildEntries { model with BatchRunning = None }
+        rebuilt, load, external
 
     | ReviewMarkBatchRestored (Error message) ->
         { model with BatchRunning = None }, Cmd.none, ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
@@ -4166,8 +4347,14 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     // Der Toast meldet es auch außerhalb des Durchgehens, wo keine Karte zurückkommt.
     | DiscardedDuplicateRestored (entryId, Ok ()) ->
         let released = { model with RestoringDuplicates = model.RestoringDuplicates.Remove entryId }
-        let model', cmd = returnToReviewCard entryId released
-        model', cmd, ShowToast (reviewRestoredText, ToastSuccess)
+        match released.Review with
+        | Some _ ->
+            let model', cmd = returnToReviewCard entryId released
+            model', cmd, ShowToast (reviewRestoredText, ToastSuccess)
+        | None ->
+            // Außerhalb des Durchgehens kommt keine Karte zurück: die Liste lädt im Hintergrund nach,
+            // damit die Buchung wieder dasteht (ledger-k4n2s Punkt 63).
+            released, Cmd.ofMsg RefreshEntries, ShowToast (reviewRestoredText, ToastSuccess)
 
     | DiscardedDuplicateRestored (entryId, Error message) ->
         { model with RestoringDuplicates = model.RestoringDuplicates.Remove entryId },
