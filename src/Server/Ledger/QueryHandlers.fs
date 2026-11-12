@@ -454,7 +454,10 @@ module ReadModel =
         | EntryDiscardedInBb _ -> "In BB verworfen (Rückgängig), in YNAB gelöscht"
         | EntryDeletedInBb _ -> "In BB gelöscht"
         | EntryRestoredInBb _ -> "In BB wiederhergestellt"
-        | EntryHeldAsPossibleDuplicate p -> $"Vielleicht doppelt, wartet auf deine Entscheidung: {p.Reason}"
+        | EntryHeldAsPossibleDuplicate p -> $"Vielleicht doppelt, zurückgehalten: {p.Reason}"
+        | EntryConfirmedAsNewInBb -> "Als neu übernommen"
+        | EntryDiscardedAsDuplicateInBb _ -> "Als doppelt verworfen"
+        | EntryDiscardRevokedInBb -> "Verwerfen zurückgenommen"
 
     /// Ein gespeichertes Ereignis als Historien-Zeile.
     let toHistoryLine (recorded: RecordedLedgerEvent) : LedgerHistoryLine = {

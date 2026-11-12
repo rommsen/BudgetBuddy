@@ -1351,6 +1351,24 @@ let ledgerApi : LedgerApi = {
 
     restoreDeletedEntry = fun entryId -> restoreDeletedEntryWith liveEntryDeletionPorts DateTime.UtcNow entryId
 
+    // Wartende Buchung (ledger-r7h2w, ADR 0093 Punkt 4): „Ist neu“ pusht über den Einzel-Push wie
+    // „Erneut senden“, Verwerfen und Rückgängig rufen YNAB nicht.
+    confirmEntryIsNew = fun entryId -> async {
+        let! push = entryPush ()
+        return!
+            Ledger.CommandHandlers.confirmEntryIsNew
+                DateTime.UtcNow
+                push
+                Ledger.CommandHandlers.triggerMirrorInBackground
+                (Ledger.Events.EntryId entryId)
+    }
+
+    discardDuplicateEntry = fun entryId ->
+        Ledger.CommandHandlers.discardDuplicateEntry DateTime.UtcNow (Ledger.Events.EntryId entryId)
+
+    restoreDiscardedDuplicate = fun entryId ->
+        Ledger.CommandHandlers.restoreDiscardedDuplicate DateTime.UtcNow (Ledger.Events.EntryId entryId)
+
     getLedgerBookingDefaults = fun () ->
         Ledger.QueryHandlers.getLedgerBookingDefaultsWith Persistence.Settings.getSetting liveBerlinZone.Value DateTime.UtcNow
 

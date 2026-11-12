@@ -57,6 +57,29 @@ let private setup () =
         if value.IsSome then
             failtestf "In der Test-Datenbank steht '%s'; die Negativfälle laufen nur ohne Zugangsdaten" key
 
+/// Eine gewöhnliche, nicht wartende Buchung im Kassenbuch (ledger-r7h2w). Liefert ihre Id.
+let private plainLedgerEntry () : Guid =
+    let entryId = Ledger.Events.newEntryId ()
+    let (Ledger.Events.EntryId id) = entryId
+    Ledger.Persistence.appendAndApply [
+        { EntryId = entryId
+          OccurredAt = DateTime(2026, 11, 12, 9, 0, 0, DateTimeKind.Utc)
+          Actor = Ledger.Events.QuickAdd
+          Body =
+            Ledger.Events.CashExpenseAdded {
+                AccountId = Ledger.Events.LedgerAccountId (Guid.NewGuid())
+                Date = DateTime(2026, 11, 12)
+                Amount = { Amount = -1m; Currency = "EUR" }
+                Payee = Some "am805-r7h2w"
+                Memo = None
+                Category = None
+                Cleared = Ledger.Events.Uncleared
+                Approved = false
+                ImportId = None } }
+    ]
+    |> run
+    id
+
 /// Setzt eine Einstellung nach dem Fall auf den vorherigen Wert zurück.
 let private restoringSetting (key: string) (body: unit -> unit) =
     let previous = Persistence.Settings.getSetting key |> run
@@ -314,6 +337,19 @@ let private rows : Row list = [
       Run = fun () -> ledgerApi.deleteEntry Guid.Empty |> run |> expectError "Buchung löschen" }
     { Endpoint = "LedgerApi.restoreDeletedEntry"; Case = "leere Buchungs-Id: Fehler"
       Run = fun () -> ledgerApi.restoreDeletedEntry Guid.Empty |> run |> expectError "Wiederherstellen" }
+    // ledger-r7h2w: je Endpunkt eine unbekannte und eine nicht wartende (bzw. nicht verworfene) Buchung.
+    { Endpoint = "LedgerApi.confirmEntryIsNew"; Case = "unbekannte und nicht wartende Buchung: Fehler ohne YNAB"
+      Run = fun () ->
+        ledgerApi.confirmEntryIsNew (Guid.NewGuid()) |> run |> expectError "Ist neu unbekannt"
+        ledgerApi.confirmEntryIsNew (plainLedgerEntry ()) |> run |> expectError "Ist neu nicht wartend" }
+    { Endpoint = "LedgerApi.discardDuplicateEntry"; Case = "unbekannte und nicht wartende Buchung: Fehler"
+      Run = fun () ->
+        ledgerApi.discardDuplicateEntry (Guid.NewGuid()) |> run |> expectError "Verwerfen unbekannt"
+        ledgerApi.discardDuplicateEntry (plainLedgerEntry ()) |> run |> expectError "Verwerfen nicht wartend" }
+    { Endpoint = "LedgerApi.restoreDiscardedDuplicate"; Case = "unbekannte und nicht verworfene Buchung: Fehler"
+      Run = fun () ->
+        ledgerApi.restoreDiscardedDuplicate (Guid.NewGuid()) |> run |> expectError "Rückgängig unbekannt"
+        ledgerApi.restoreDiscardedDuplicate (plainLedgerEntry ()) |> run |> expectError "Rückgängig nicht verworfen" }
     { Endpoint = "LedgerApi.getLedgerBookingDefaults"; Case = "ohne Einrichtung: heute ohne Uhrzeit, höchstens drei Chips"
       Run = fun () ->
         let defaults = ledgerApi.getLedgerBookingDefaults () |> run

@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-12 01:28 -- Task verified and completed: ledger-r7h2w - "Wartende Buchung (unsicheres Duplikat) übernehmen oder verwerfen: Befehle „Ist neu“, „Ist doppelt, verwerfen“ und Rückgängig mit Ereignissen, „Ist neu“ schickt sie nach YNAB"
+
+**Type:** Work / Task completion
+**Task:** ledger-r7h2w - "Wartende Buchung (unsicheres Duplikat) übernehmen oder verwerfen: Befehle „Ist neu“, „Ist doppelt, verwerfen“ und Rückgängig mit Ereignissen, „Ist neu“ schickt sie nach YNAB"
+**Summary:** Wartende Buchung übernehmen oder verwerfen, mit Rückgängig
+**Duration:** 28m
+**Verification:** PASS (iteration 1)
+**Files changed:** 10
+**Tests added:** 25
+**ADRs written:** none
+
+---
+
 ## 2026-11-12 01:01 -- Batch started: [ledger-r7h2w, banking-import-t4raw]
 
 **Type:** Work / Batch start

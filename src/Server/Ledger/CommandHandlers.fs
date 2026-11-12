@@ -964,6 +964,24 @@ let pushFlagColorOf (entry: Entry) : string option = entry.FlagColor
 /// Der Grund, wenn die Buchung zu keinem YNAB-Konto gehört (BB-eigenes Konto).
 let pushNotPossibleReason = "Das Konto der Buchung ist nicht mit YNAB verbunden"
 
+/// Der Einzel-Push einer nicht verknüpften Buchung samt Ergebnis-Ereignis (Actor `UserInBb`):
+/// Erfolg schreibt `EntryLinkedToYnab`, ein Fehlschlag `EntryPushToYnabFailed`, eine schon
+/// vorhandene `import_id` nichts. Läuft beim Aufrufer unter der Schreib-Sperre
+/// (`retryPushToYnab`, `confirmEntryIsNew`).
+let private pushEntryAndRecord (now: DateTime) (push: EntryPush) (entry: Entry) : Async<PushToYnabWriteBack> =
+    async {
+        let event body = { EntryId = entry.Id; OccurredAt = now; Actor = UserInBb; Body = body }
+        match! push entry with
+        | Ok ynabTransactionId ->
+            do! Ledger.Persistence.appendAndApply [ event (EntryLinkedToYnab { YnabTransactionId = ynabTransactionId }) ]
+            return PushToYnabSent
+        | Error ImportIdAlreadyInYnab -> return PushToYnabSent
+        | Error err ->
+            let reason = ynabErrorText err
+            do! Ledger.Persistence.appendAndApply [ event (EntryPushToYnabFailed { Reason = reason }) ]
+            return PushToYnabFailed reason
+    }
+
 /// "Erneut senden" am Hinweis "Noch nicht in YNAB" (ledger-cks06): pusht genau diese
 /// eine Buchung über denselben Weg wie die Neuanlage. Erfolg schreibt `EntryLinkedToYnab`
 /// (löst den offenen Fehlschlag auf) und stößt den Spiegel an, ein Fehlschlag schreibt
@@ -993,31 +1011,8 @@ let retryPushToYnab
                     | Some entry when entry.DeletedInYnab -> return Error "Die Buchung ist in YNAB gelöscht"
                     | Some entry when entry.LinkedToYnab -> return Error "Die Buchung ist schon in YNAB"
                     | Some entry ->
-                        match! push entry with
-                        | Ok ynabTransactionId ->
-                            do!
-                                Ledger.Persistence.appendAndApply [
-                                    {
-                                        EntryId = entryId
-                                        OccurredAt = now
-                                        Actor = UserInBb
-                                        Body = EntryLinkedToYnab { YnabTransactionId = ynabTransactionId }
-                                    }
-                                ]
-                            return Ok PushToYnabSent
-                        | Error ImportIdAlreadyInYnab -> return Ok PushToYnabSent
-                        | Error err ->
-                            let reason = ynabErrorText err
-                            do!
-                                Ledger.Persistence.appendAndApply [
-                                    {
-                                        EntryId = entryId
-                                        OccurredAt = now
-                                        Actor = UserInBb
-                                        Body = EntryPushToYnabFailed { Reason = reason }
-                                    }
-                                ]
-                            return Ok (PushToYnabFailed reason)
+                        let! outcome = pushEntryAndRecord now push entry
+                        return Ok outcome
                 }
             )
 
@@ -1025,6 +1020,109 @@ let retryPushToYnab
         if result = Ok PushToYnabSent then triggerMirror ()
         return result
     }
+
+// ============================================
+// Wartende Buchung: Ist neu, Ist doppelt verwerfen, Rückgängig (ledger-r7h2w, ADR 0093 Punkt 4)
+// ============================================
+
+/// Die Sätze, mit denen die drei Befehle eine Buchung ablehnen (ledger-r7h2w).
+let duplicateNotAwaitingText = "Die Buchung wartet nicht als vielleicht doppelt"
+let duplicateAlreadyDiscardedText = "Die Buchung ist schon als doppelt verworfen"
+let duplicateAlreadyInYnabText = "Die Buchung ist schon in YNAB"
+let duplicateNotDiscardedText = "Nur eine als doppelt verworfene Buchung lässt sich zurückholen"
+
+/// Die Ablehnung für „Ist neu“ und „Ist doppelt, verwerfen“: nur eine wartende, nicht verworfene,
+/// nicht verknüpfte Buchung. Rein, Spiegel der Invariante in `apply`.
+let duplicateDecisionRefusal (entry: Entry option) : string option =
+    match entry with
+    | None -> Some "Buchung nicht gefunden"
+    | Some e when isDiscardedAsDuplicate e -> Some duplicateAlreadyDiscardedText
+    | Some e when e.LinkedToYnab -> Some duplicateAlreadyInYnabText
+    | Some e when not (isAwaitingDuplicateDecision e) -> Some duplicateNotAwaitingText
+    | Some _ -> None
+
+/// „Ist neu“ (ledger-r7h2w, ADR 0093 Punkt 4): schreibt `EntryConfirmedAsNewInBb` (Actor `UserInBb`)
+/// und pusht die Buchung danach wie „Erneut senden“ (`EntryPush` mit ihrer `import_id`). Erfolg
+/// schreibt `EntryLinkedToYnab`, ein Fehlschlag `EntryPushToYnabFailed`; kein Rollback (ADR 0021),
+/// danach ist sie eine gewöhnliche Buchung nicht in YNAB. Abgelehnt ohne Ereignis und ohne Push,
+/// wenn sie nicht wartet (`duplicateDecisionRefusal`). Unter der Schreib-Sperre, der Spiegel erst
+/// nach der Freigabe.
+let confirmEntryIsNew
+    (now: DateTime)
+    (push: EntryPush)
+    (triggerMirror: unit -> unit)
+    (entryId: EntryId)
+    : Async<Result<PushToYnabWriteBack, string>> =
+    async {
+        let! result =
+            WriteGuard.exclusive (
+                async {
+                    let! loaded = Ledger.Persistence.loadEntry entryId
+                    match duplicateDecisionRefusal loaded with
+                    | Some reason -> return Error reason
+                    | None ->
+                        do!
+                            Ledger.Persistence.appendAndApply [
+                                { EntryId = entryId; OccurredAt = now; Actor = UserInBb; Body = EntryConfirmedAsNewInBb }
+                            ]
+                        match! Ledger.Persistence.loadEntry entryId with
+                        | None -> return Error "Buchung nicht gefunden"
+                        | Some confirmed ->
+                            let! outcome = pushEntryAndRecord now push confirmed
+                            return Ok outcome
+                }
+            )
+        if result = Ok PushToYnabSent then triggerMirror ()
+        return result
+    }
+
+/// Das Payload des Verwerfens aus der Wartemarke: eine leere YNAB-Id des Treffers (der Abruf fand
+/// ihn nicht wieder) wird `None`. Rein.
+let discardedAsDuplicatePayloadOf (held: EntryHeldAsPossibleDuplicatePayload) : EntryDiscardedAsDuplicateInBbPayload =
+    { MatchedYnabTransactionId =
+        if String.IsNullOrWhiteSpace held.MatchYnabTransactionId then None
+        else Some held.MatchYnabTransactionId
+      MatchedEntryId = held.MatchEntryId }
+
+/// „Ist doppelt, verwerfen“ (ledger-r7h2w, ADR 0093 Punkt 4): schreibt
+/// `EntryDiscardedAsDuplicateInBb` (Actor `UserInBb`). Kein YNAB-Aufruf, sie war nie in YNAB; danach
+/// zählt sie nirgends. Abgelehnt ohne Ereignis wie „Ist neu“. Unter der Schreib-Sperre.
+let discardDuplicateEntry (now: DateTime) (entryId: EntryId) : Async<Result<unit, string>> =
+    WriteGuard.exclusive (
+        async {
+            let! loaded = Ledger.Persistence.loadEntry entryId
+            match duplicateDecisionRefusal loaded, loaded |> Option.bind (fun e -> e.PossibleDuplicate) with
+            | Some reason, _ -> return Error reason
+            | None, None -> return Error duplicateNotAwaitingText
+            | None, Some held ->
+                do!
+                    Ledger.Persistence.appendAndApply [
+                        { EntryId = entryId
+                          OccurredAt = now
+                          Actor = UserInBb
+                          Body = EntryDiscardedAsDuplicateInBb (discardedAsDuplicatePayloadOf held) }
+                    ]
+                return Ok ()
+        }
+    )
+
+/// Rückgängig des Verwerfens (ledger-r7h2w, ADR 0093 Punkt 4): schreibt `EntryDiscardRevokedInBb`
+/// (Actor `UserInBb`), die Buchung wartet wieder. Ohne Zeitgrenze (wie ADR 0091 Punkt 4), kein
+/// YNAB-Aufruf. Nur für eine als doppelt verworfene Buchung. Unter der Schreib-Sperre.
+let restoreDiscardedDuplicate (now: DateTime) (entryId: EntryId) : Async<Result<unit, string>> =
+    WriteGuard.exclusive (
+        async {
+            match! Ledger.Persistence.loadEntry entryId with
+            | None -> return Error "Buchung nicht gefunden"
+            | Some entry when not (isDiscardedAsDuplicate entry) -> return Error duplicateNotDiscardedText
+            | Some _ ->
+                do!
+                    Ledger.Persistence.appendAndApply [
+                        { EntryId = entryId; OccurredAt = now; Actor = UserInBb; Body = EntryDiscardRevokedInBb }
+                    ]
+                return Ok ()
+        }
+    )
 
 // ============================================
 // Import-Push: Kassenbuch zuerst, dann YNAB, dann Verknüpfung (ADR 0021, Teil 2)

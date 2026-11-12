@@ -1239,11 +1239,16 @@ let repeatedFetchTests =
             let held =
                 Booking.seedImported probe.LedgerAccount heldRef (fun id ->
                     [ Booking.ev id Ledger.Events.ComdirectImport (Ledger.Events.EntryHeldAsPossibleDuplicate heldPayload) ])
-            // Verworfen gilt wie gelöscht, ohne je verknüpft gewesen zu sein (das Ereignis dafür kommt mit
-            // ledger-r7h2w, hier direkt im Testaufbau).
+            // Verworfen über den echten Befehl „Ist doppelt, verwerfen“ (ledger-r7h2w,
+            // `EntryDiscardedAsDuplicateInBb`).
             let discarded =
                 Booking.seedImported probe.LedgerAccount discardedRef (fun id ->
-                    [ Booking.ev id Ledger.Events.UserInBb (Ledger.Events.EntryDiscardedInBb { YnabTransactionId = "nie-in-ynab" }) ])
+                    [ Booking.ev id Ledger.Events.ComdirectImport (Ledger.Events.EntryHeldAsPossibleDuplicate heldPayload) ])
+            Expect.equal
+                (Ledger.CommandHandlers.discardDuplicateEntry (DateTime(2026, 10, 30, 9, 0, 0, DateTimeKind.Utc)) discarded |> run)
+                (Ok ())
+                "verworfen"
+            Expect.equal (List.last (Booking.typesOf discarded)) "EntryDiscardedAsDuplicateInBb" "das echte Ereignis"
             let before = Booking.typesOf held, Booking.typesOf discarded
             probe.FetchAnswer <- Ok [ bankTransaction heldRef "Markt" "Karte"; bankTransaction discardedRef "Markt" "Karte" ]
             let counts = startSyncWith (probe.Build()) |> run |> Booking.counts

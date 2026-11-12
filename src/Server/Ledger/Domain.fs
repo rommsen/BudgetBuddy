@@ -195,8 +195,18 @@ type Entry = {
 }
 
 /// Wartet die Buchung als unsicheres Duplikat (ADR 0093 Punkt 6)? Erster Zweig jeder Sperre
-/// eines schreibenden Kassenbuch-Befehls.
+/// eines schreibenden Kassenbuch-Befehls. Wahr auch für eine als doppelt verworfene Buchung: sie
+/// behält die Wartemarke für „Rückgängig“ (ledger-r7h2w) und bleibt so ebenfalls gesperrt.
 let isHeldAsPossibleDuplicate (entry: Entry) : bool = entry.PossibleDuplicate.IsSome
+
+/// Ist die Buchung als doppelt verworfen (`EntryDiscardedAsDuplicateInBb`, ledger-r7h2w)? Sie trägt
+/// die Wartemarke und gilt als gelöscht; nur „Rückgängig“ (`EntryDiscardRevokedInBb`) geht noch.
+let isDiscardedAsDuplicate (entry: Entry) : bool = entry.PossibleDuplicate.IsSome && entry.DeletedInYnab
+
+/// Wartet die Buchung auf die Entscheidung „Ist neu“ oder „Ist doppelt, verwerfen“: Wartemarke,
+/// weder verworfen noch mit YNAB verknüpft (ledger-r7h2w, ADR 0093 Punkt 4).
+let isAwaitingDuplicateDecision (entry: Entry) : bool =
+    entry.PossibleDuplicate.IsSome && not entry.DeletedInYnab && not entry.LinkedToYnab
 
 /// Was ein erneuter Abruf mit einer Comdirect-Buchung tut, deren `import_id` das Kassenbuch
 /// schon kennt (ADR 0093 Punkt 7).
@@ -686,6 +696,31 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             let (EntryId id) = event.EntryId
             invalidOp $"EntryHeldAsPossibleDuplicate auf Buchung {id}, die schon mit YNAB verknüpft ist"
         { e with PossibleDuplicate = Some p }
+
+    | EntryConfirmedAsNewInBb ->
+        // ledger-r7h2w (ADR 0093 Punkt 4): „Ist neu“. Die Buchung wartet nicht mehr, der Push folgt.
+        let e = requireExisting ()
+        if not (isAwaitingDuplicateDecision e) then
+            let (EntryId id) = event.EntryId
+            invalidOp $"EntryConfirmedAsNewInBb auf Buchung {id}, die nicht als unsicheres Duplikat wartet"
+        { e with PossibleDuplicate = None }
+
+    | EntryDiscardedAsDuplicateInBb _ ->
+        // ledger-r7h2w (ADR 0093 Punkt 4): „Ist doppelt, verwerfen“. Sie gilt als gelöscht wie nach
+        // `EntryDiscardedInBb` und zählt nirgends; die Wartemarke bleibt für „Rückgängig“.
+        let e = requireExisting ()
+        if not (isAwaitingDuplicateDecision e) then
+            let (EntryId id) = event.EntryId
+            invalidOp $"EntryDiscardedAsDuplicateInBb auf Buchung {id}, die nicht als unsicheres Duplikat wartet"
+        { e with DeletedInYnab = true }
+
+    | EntryDiscardRevokedInBb ->
+        // ledger-r7h2w (ADR 0093 Punkt 4): Rückgängig des Verwerfens, die Buchung wartet wieder.
+        let e = requireExisting ()
+        if not (isDiscardedAsDuplicate e) then
+            let (EntryId id) = event.EntryId
+            invalidOp $"EntryDiscardRevokedInBb auf Buchung {id}, die nicht als doppelt verworfen ist"
+        { e with DeletedInYnab = false }
 
     | EntryLinkedToYnab _ ->
         // Die YNAB-Verknuepfung lebt in der Fremd-Id-Tabelle (ADR 0015), nicht als Feld

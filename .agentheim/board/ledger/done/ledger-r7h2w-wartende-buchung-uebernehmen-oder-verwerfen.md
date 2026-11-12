@@ -1,7 +1,7 @@
 ---
 id: ledger-r7h2w
 title: "Wartende Buchung (unsicheres Duplikat) übernehmen oder verwerfen: Befehle „Ist neu“, „Ist doppelt, verwerfen“ und Rückgängig mit Ereignissen, „Ist neu“ schickt sie nach YNAB"
-status: doing
+status: done
 type: feature
 context: ledger
 created: 2026-11-11
@@ -69,3 +69,19 @@ Buchungs-Detail des Kassenbuchs ist nicht Teil des Prototyps; er kommt nicht
 
 Ereignisnamen nach Rat des `tactical-modeler` (2026-11-11). Der Feldname `DeletedInYnab` passt beim Verwerfen nicht
 wörtlich; er bedeutet seit ADR 0091 und 0092 „gelöscht, zählt nicht“ und deckt so rund 50 Filter ohne Änderung.
+
+## Outcome
+
+Die drei Befehle für eine wartende Buchung (ADR 0093 Punkt 4 bis 7) samt Ereignissen und API. Keine Oberfläche (die Duplikat-Karte baut ledger-v6s7c).
+
+- Ereignisse (`src/Server/Ledger/Events.fs`): `EntryConfirmedAsNewInBb` (ohne Payload), `EntryDiscardedAsDuplicateInBb` (Payload `MatchedYnabTransactionId: string option`, `MatchedEntryId: EntryId option`), `EntryDiscardRevokedInBb` (ohne Payload), je Version 1 mit Codec. Abweichung von der Task: `MatchedYnabTransactionId` ist eine Option, weil `MatchYnabTransactionId` der Wartemarke seit dem Review-Lauf leer sein kann; leer wird `None` (`discardedAsDuplicatePayloadOf`).
+- `apply` (`src/Server/Ledger/Domain.fs`): Übernehmen hebt `PossibleDuplicate` auf, Verwerfen setzt `DeletedInYnab` und behält die Wartemarke (für Rückgängig, die Buchung bleibt so auch gesperrt), Rückgängig nimmt `DeletedInYnab` zurück. Invarianten über die neuen reinen Funktionen `isAwaitingDuplicateDecision` und `isDiscardedAsDuplicate`.
+- Befehle (`src/Server/Ledger/CommandHandlers.fs`): `confirmEntryIsNew` (Ereignis, dann Push über `EntryPush` wie `retryPushToYnab`; der gemeinsame Teil ist jetzt `pushEntryAndRecord`; Spiegel-Auslöser erst nach der Freigabe und nur bei Erfolg), `discardDuplicateEntry`, `restoreDiscardedDuplicate`, alle unter `WriteGuard.exclusive`. Ablehnungen über `duplicateDecisionRefusal` mit konkreten Sätzen, ohne Ereignis und ohne YNAB.
+- API: `LedgerApi.confirmEntryIsNew: Guid -> Async<Result<PushToYnabWriteBack, string>>`, `discardDuplicateEntry`, `restoreDiscardedDuplicate` (`src/Shared/Api.fs`, `src/Server/Api.fs`; „Ist neu“ mit dem echten `entryPush ()`).
+- Historie (`src/Server/Ledger/QueryHandlers.fs`): „Als neu übernommen“, „Als doppelt verworfen“, „Verwerfen zurückgenommen“; der Satz aus d0fey heißt jetzt wie in der Task „Vielleicht doppelt, zurückgehalten: <Grund>“ (vorher „wartet auf deine Entscheidung“).
+- Tests: `src/Tests/LedgerDuplicateDecisionTests.fs` (Domäne, Befehle gegen In-Memory-SQLite, der Push über das echte `Server.Api.entryPushWith` mit Fake-POST prüft genau einen POST mit `BB:<Reference>`, Ablehnungen je Regel, Replay mit allen drei Typen, Schreib-Sperre mit `LedgerWriteGuardProbe`); drei Zeilen in `src/Tests/RemotingEndpointNegativeTests.fs` (unbekannt und nicht wartend bzw. nicht verworfen); in `src/Tests/BankImportTests.fs` läuft der Fall „wartend und verworfen“ des wiederholten Abrufs jetzt mit dem echten `discardDuplicateEntry` statt eines eingesetzten `EntryDiscardedInBb`.
+- `./verify.sh`: VERIFY: PASS (dotnet 4678 grün, node 313 grün).
+
+Für den Conductor beim README: der Bullet *EntryHeldAsPossibleDuplicate* unter `## Key events` ist per replace nicht erreichbar (kursiver Kopf). Dort von Hand den Historien-Satz „Vielleicht doppelt, wartet auf deine Entscheidung: <Grund>“ durch „Vielleicht doppelt, zurückgehalten: <Grund>“ ersetzen. Den Abschnitt `## Ereignisse` lässt das Delta aus (Einfügepunkt hinter Fließtext); d0fey hatte dort auch keinen Eintrag.
+
+Für die Kann-Sammlung: `getLedgerEntry` liefert für eine als doppelt verworfene Buchung weiter `PossibleDuplicate` (unter „gelöschte zeigen“ könnte der Client „doppelt?“ zeigen); ledger-v6s7c kann das über `DeletedInYnab` unterscheiden.

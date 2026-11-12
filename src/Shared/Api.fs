@@ -359,6 +359,19 @@ type LedgerApi = {
     /// YNAB mit dem Stand vor dem Löschen neu an, danach ist sie im Kassenbuch nicht mehr gelöscht.
     restoreDeletedEntry: Guid -> Async<Result<unit, string>>
 
+    /// „Ist neu“ für eine wartende Buchung (ledger-r7h2w, ADR 0093 Punkt 4): sie wartet nicht mehr und
+    /// geht sofort nach YNAB. Ok nennt Erfolg oder den Grund des gescheiterten Pushs, Error eine
+    /// abgelehnte Buchung (unbekannt, wartet nicht, schon verworfen, schon in YNAB).
+    confirmEntryIsNew: Guid -> Async<Result<PushToYnabWriteBack, string>>
+
+    /// „Ist doppelt, verwerfen“ für eine wartende Buchung (ledger-r7h2w): sie zählt danach nirgends,
+    /// kein YNAB-Aufruf. Error bei einer Buchung, die nicht wartet.
+    discardDuplicateEntry: Guid -> Async<Result<unit, string>>
+
+    /// Rückgängig des Verwerfens (ledger-r7h2w): die Buchung wartet wieder. Error bei einer Buchung,
+    /// die nicht als doppelt verworfen ist.
+    restoreDiscardedDuplicate: Guid -> Async<Result<unit, string>>
+
     /// Die Vorbelegung des Formulars "Neue Buchung": heute (Berliner Kalender), das Import-Konto,
     /// das zuletzt genutzte Konto und die Zuletzt-Chips.
     getLedgerBookingDefaults: unit -> Async<LedgerBookingDefaults>

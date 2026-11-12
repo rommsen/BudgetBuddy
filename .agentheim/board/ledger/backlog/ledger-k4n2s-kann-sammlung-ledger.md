@@ -77,3 +77,4 @@ Sammelstelle für Befunde, die stimmen, aber die Schwelle der Backlog-Disziplin 
 55. **Review-Lauf 2026-11-12**: Fehlt das YNAB-Token, nennt ein Push-Fehlschlag „YNAB-Token ungültig (HTTP 401)“ statt „YNAB-Token fehlt“ (`ynabErrorText` unterscheidet das nicht).
 56. **Review-Lauf 2026-11-12**: Maus-Zeile und Tabelle (`pointerRowReviewMarkSlot`) geben wartenden Buchungen keinen Platzhalter, der Betrag kann rücken (am Handy behoben).
 57. **Review-Lauf 2026-11-12**: `importResendRequest` und `planEntryPush` decken teils dieselben Felder ab; `planEntryPush` sendet Splits weiterhin nicht („Erneut senden“). Zusammenführen prüfen.
+58. **ledger-r7h2w** (2026-11-12): `getLedgerEntry` liefert für eine als doppelt verworfene Buchung weiter `PossibleDuplicate`; unter „gelöschte zeigen“ könnte der Client „doppelt?“ zeigen. ledger-v6s7c unterscheidet über `DeletedInYnab`.
