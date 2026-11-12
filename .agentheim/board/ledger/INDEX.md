@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 8
+- **Backlog:** 12
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 122
@@ -52,6 +52,10 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ledger-smv1s** — "Erneut senden und Rückgängig gegen Doppelaufruf sperren, einheitlich in update, mit Aufzählungstests nach Doktrin Punkt 20" (bug) — `backlog/ledger-smv1s-doppelaufruf-sperren.md`
+- **ledger-ng110** — "Eingaben und Fehler im Kassenbuch nach Styleguide: Split-Rest gelb, Fehler am Feld, Zifferntastatur und Namen im Filter, Kontrast, Barrierefreiheit" (bug) — `backlog/ledger-ng110-eingaben-fehler-styleguide.md`
+- **ledger-ct3cx** — "Kassenbuch behält seinen Stand: kein pauschales Neuladen nach dem Spiegel-Lauf, Historie und Filter an Versionen gebunden" (bug) — `backlog/ledger-ct3cx-kassenbuch-behaelt-stand.md`
+- **ledger-xqqnv** — "Schreibwege einheitlich: Schreib-Sperre, Spiegel-Auslöser nach Freigabe und vorhandene import_id in allen Befehlen gleich und durch Verhalten belegt" (refactor) — `backlog/ledger-xqqnv-schreibwege-einheitlich.md`
 - **ledger-f8d7x** — "Kassenbuch ordnen: am Handy Filter-Knopf mit Sheet und Chips statt zwei wischender Leisten, am PC Seitenleiste mit Konten, Seitenpanel und Historie wie im Budget" (feature) — `backlog/ledger-f8d7x-kassenbuch-ordnen.md`
 - **ledger-ea70s** — "Ein Erfassen: Quick Add hört auf, ein eigener Ort zu sein; „+ Buchung“ in Kassenbuch und Übersicht mit kluger Vorbelegung" (feature) — `backlog/ledger-ea70s-ein-erfassen.md`
 - **ledger-t4rk8** — "Betrag eines Übertrags in BB ändern (Sperre nach Probelauf aufheben)" (feature) — `backlog/ledger-t4rk8-betrag-uebertrag-freigeben.md`

@@ -5,6 +5,52 @@ Newest entries on top.
 
 ---
 
+## 2026-11-12 06:41 -- Bestandsreview: ledger
+
+**Type:** Review / Bestandsreview
+**Befunde:** hoch 3, mittel 49, niedrig 55
+**Gruppen:** 7
+**Bericht:** .agentheim/knowledge/reviews/2026-11-12-ledger.md
+**Tasks:** ledger-xqqnv, ledger-ct3cx, ledger-ng110, ledger-smv1s
+
+---
+
+## 2026-11-12 06:41 -- Capture / Captured: ledger-smv1s - "Erneut senden und Rückgängig gegen Doppelaufruf sperren, einheitlich in update, mit Aufzählungstests nach Doktrin Punkt 20"
+
+**Type:** Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Gruppe aus dem Bestandsreview ledger 2026-11-12
+
+---
+
+## 2026-11-12 06:41 -- Capture / Captured: ledger-ng110 - "Eingaben und Fehler im Kassenbuch nach Styleguide: Split-Rest gelb, Fehler am Feld, Zifferntastatur und Namen im Filter, Kontrast, Barrierefreiheit"
+
+**Type:** Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Gruppe aus dem Bestandsreview ledger 2026-11-12
+
+---
+
+## 2026-11-12 06:41 -- Capture / Captured: ledger-ct3cx - "Kassenbuch behält seinen Stand: kein pauschales Neuladen nach dem Spiegel-Lauf, Historie und Filter an Versionen gebunden"
+
+**Type:** Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Gruppe aus dem Bestandsreview ledger 2026-11-12
+
+---
+
+## 2026-11-12 06:41 -- Capture / Captured: ledger-xqqnv - "Schreibwege einheitlich: Schreib-Sperre, Spiegel-Auslöser nach Freigabe und vorhandene import_id in allen Befehlen gleich und durch Verhalten belegt"
+
+**Type:** Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Gruppe aus dem Bestandsreview ledger 2026-11-12
+
+---
+
 ## 2026-11-12 03:03 -- Work session ended
 
 **Type:** Work / Session end
