@@ -81,3 +81,6 @@ Sammelstelle für Befunde, die stimmen, aber die Schwelle der Backlog-Disziplin 
 59. **ledger-v6s7c** (2026-11-12): `ReviewCard.field` wiederholt die Bauart von `Input.pickerField` nur wegen des gelben Platzhalters und des fehlenden Pfeils; eine Variante von `pickerField` wäre sauberer.
 60. **ledger-v6s7c**: Am PC landet der Fokus nach Esc im Kategorie-Popover des Durchgehens auf dem Feld; ein Enter danach öffnet den Picker erneut, statt „Passt“ auszulösen.
 61. **ledger-v6s7c**: Eine sehr lange Karte (langer Payee, mehrere Links, Lena-Hinweis) kann bei 320 px „Passt, weiter“ unter den Rand schieben; der Sweep prüft die üblichen Fälle.
+62. **Review-Lauf 2026-11-12** (faa240c5..64a3402f): „Als doppelt verworfen“ hat keinen eigenen Zustand (`PossibleDuplicate.IsSome && DeletedInYnab`, `isDiscardedAsDuplicate`); ein DU für den Duplikat-Zustand (wartet, als neu bestätigt, verworfen) wäre klarer und hielte `DeletedInYnab` für YNAB frei.
+63. **Review-Lauf 2026-11-12**: Nach „Rückgängig“ auf ein Verwerfen außerhalb des Durchgehens kommt der Toast, die Kassenbuch-Liste lädt aber nicht neu; die Buchung erscheint dort erst beim nächsten Laden.
+64. **Review-Lauf 2026-11-12**: `ReviewCard.field` an `Input.pickerField` angleichen (Platzhalter in Gelb, Form ohne Pfeil als Varianten), statt die Bauart zu wiederholen.

@@ -233,3 +233,6 @@ Durchgehen Karte für Karte steht unter der Übersicht (Route `#/review`, Naviga
 - `ReviewCard.field` wiederholt die Bauart von `Input.pickerField` nur wegen des gelben Platzhalters und des fehlenden Pfeils; eine Variante von `pickerField` wäre sauberer.
 - Am PC landet der Fokus nach Esc im Kategorie-Popover auf dem Feld; ein Enter danach öffnet den Picker erneut, statt „Passt“ auszulösen.
 - Eine sehr lange Karte (langer Payee, mehrere Links, Lena-Hinweis) kann bei 320 px „Passt, weiter“ unter den Rand schieben; der Sweep prüft die üblichen Fälle.
+
+### Nachtrag Review-Lauf 2026-11-12
+Behoben (e59c5ef0): Wisch entscheidet nur bei waagrechtem Weg, `touchcancel` setzt zurück (vor dem Fix rot: ein schräger Scroll setzte einen Prüfvermerk); die Antwort der Schlange ist an eine Generation gebunden (`ReviewGeneration`); eine Buchung ohne bekannten Stand wird übersprungen; Rückgängig nach dem Verwerfen mit Toast und Sperre; Skeleton statt Spinner (`ReviewCard.skeleton`); Radien 14/12 px; Namen für Payee-Knopf und Fortschritt; „Ist doppelt, verwerfen“ bricht unter 640 px um. Die Aufzählung prüft jede ausstehende Antwort und `Deciding` (Gegenproben rot). Dazu (acc3ba6e): Ereignisliste für „aus Bestellnummer“ als Konstante mit Test über alle Ereignisse, Lesen nur für die betroffenen Buchungen; Schlange ohne verworfene Buchungen getestet.

@@ -5,6 +5,20 @@ Newest entries on top.
 
 ---
 
+## 2026-11-12 03:03 -- Review-Lauf: faa240c5..64a3402f
+
+**Type:** Review / Review-Lauf
+**Bereich:** ledger-r7h2w (wartende Buchung übernehmen oder verwerfen), banking-import-t4raw (automatisch abrufen), ledger-v6s7c (Durchgehen)
+**Agents:** backend-code-quality, frontend-architecture, design-quality, qa-milestone-reviewer
+**Funde:** behoben 28, verworfen 0, Rückfrage 3 (an Roman im Bericht), Ticket 0 (Kann-Sammlung: 9 Zeilen in ledger, design-system, banking-import, infrastructure)
+**Commits:** 424d33c9, acc3ba6e, e59c5ef0
+**Wichtigster Fix:** Wisch im Durchgehen entschied nur über den waagrechten Weg, ein schräger Scroll setzte einen Prüfvermerk nach YNAB (e59c5ef0)
+**Verworfen:** keine; in die Kann-Sammlung: eigener Zustand für verworfene Duplikate (braucht Modellierung), ReviewCard.field auf pickerField, Radius- und Schrift-Tokens
+**Rückfragen:** Ist doppelt, verwerfen im Akzent statt Rot (so in Task und Prototyp); Texte Alle und Eine Push-TAN fragt es nie an in den Einstellungen
+**Verifikation:** VERIFY: PASS (dotnet 4751 grün, node 316 grün, dotnet build, npm run build, guard:classes, guard:tokens grün)
+
+---
+
 ## 2026-11-12 02:33 -- Task verified and completed: ledger-v6s7c - "Durchgehen Karte für Karte unter der Übersicht: ungeprüfte Buchungen bestätigen mit Kategorie, Vorschlägen, Bestell-Link, Memo, Lena und Wischen, Duplikat-Karte für wartende Buchungen, Zu tun und „Abrufen“ führen dorthin"
 
 **Type:** Work / Task completion

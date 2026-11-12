@@ -178,3 +178,6 @@ Das Kriterium „Roman hat die Einstellungen am Handy und am PC angesehen“ ist
 - Zwischen „Bank trennen“ und dem Block „Automatisch abrufen“ steht keine Trennlinie.
 - Das Auswahlfeld „Alle“ ist über `Input.group` nicht per `for` mit seiner Bezeichnung verbunden (gilt für alle `Input.group`-Felder).
 - Der Flow `[flow:bank-trennen]` reagiert empfindlich auf Layout unter dem Status. Fällt die Rückfrage nach 3 s zurück, während der Knopf wandert, wird der Test rot.
+
+### Nachtrag Review-Lauf 2026-11-12
+Behoben (424d33c9): Eine Ablehnung beim Speichern setzt Schalter und Intervall auf den gespeicherten Stand zurück, die Meldung steht am auslösenden Element; „Einstellungen speichern“ der Sync-Karte ist gesperrt, solange „Automatisch abrufen“ speichert; ein gespeichertes Intervall außerhalb 60 bis 1440 wird beim Laden auf die Grenze gezogen, ein unlesbares gilt als 360 (je mit Log-Zeile); deutscher Text in `validateSyncSettings`; Aufzählung der Speicher-Reihenfolgen. Dazu (acc3ba6e): Abbruch-Token im `AutoFetchWorker`, eine Log-Zeile je Bankfehler, `Log`-Port im Strukturwächter mit Mutante belegt.

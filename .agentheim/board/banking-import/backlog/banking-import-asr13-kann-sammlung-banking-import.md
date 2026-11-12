@@ -53,3 +53,5 @@ Den Testfall entfernen. Falls das Verhalten bei abgelehnter Anmeldung abgesicher
 - banking-import-t4raw: Felder über `Input.group` sind nicht per `for` mit ihrer Bezeichnung verbunden (auch das Auswahlfeld „Alle“).
 - banking-import-t4raw: `[flow:bank-trennen]` reagiert empfindlich auf Layout unter dem Status (Rückfrage fällt nach 3 s zurück, während der Knopf wandert).
 - banking-import-t4raw: Die README nennt unter **Wiederaufnahme** „den Hintergrunddienst“ im Singular (gemeint `BankConnectionWorker`), seit `AutoFetchWorker` mehrdeutig.
+- Review-Lauf 2026-11-12: Gegenrichtung der Speichersperre in den Einstellungen offen: schaltet jemand „Automatisch abrufen“ um, während das Speichern der Sync-Karte noch unterwegs ist, gehen die geänderten Tage mit dem alten Stand hinaus (Fenster eine Server-Antwort lang; braucht einen Laufzustand für die Sync-Karte).
+- Review-Lauf 2026-11-12: `autoFetchErrorText` erkennt Validierungsfehler am String `DatabaseError ("validation", …)`; ein eigener `SettingsError`-Fall für Validierung wäre robuster.
