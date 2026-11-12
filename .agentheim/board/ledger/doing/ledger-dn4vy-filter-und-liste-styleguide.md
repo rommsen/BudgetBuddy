@@ -1,7 +1,7 @@
 ---
 id: ledger-dn4vy
 title: "Filter und Liste nach Styleguide: Betrag Von/Bis mit Zifferntastatur, Name und Fehlerzustand, Schnellwahl als Segmented, Payee-Vorschläge mit Tastatur, lesbare ausgegraute Zeile, Fokus am Prüfknopf, Lena-Grund als Text"
-status: backlog
+status: doing
 type: bug
 context: ledger
 created: 2026-11-12

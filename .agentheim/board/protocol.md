@@ -5,6 +5,22 @@ Newest entries on top.
 
 ---
 
+## 2026-11-12 08:44 -- Batch started: [ledger-nc708, ledger-dn4vy]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-nc708 - "Detail und Durchgehen halten ihren Stand: Historie an Ladevorgänge gebunden ohne Flackern, jede Änderung an der offenen Buchung lädt ihre Historie nach, gescheitertes „Lena fragen“ holt die Karte zurück (Components/Ledger/State.fs LoadHistory, HistoryLoaded, LenaFlagSet)", ledger-dn4vy - "Filter und Liste nach Styleguide: Betrag Von/Bis mit Zifferntastatur, Name und Fehlerzustand, Schnellwahl als Segmented, Payee-Vorschläge mit Tastatur, lesbare ausgegraute Zeile, Fokus am Prüfknopf, Lena-Grund als Text"
+**Parallel:** yes (Welle 3, 2 Worker neben ledger-f8bjm; nc708 und dn4vy beide in Components/Ledger/State.fs und View.fs, nacheinander mergen)
+
+---
+
+## 2026-11-12 08:43 -- Modeling / Promoted: ledger-dn4vy - "Filter und Liste nach Styleguide: Betrag Von/Bis mit Zifferntastatur, Name und Fehlerzustand, Schnellwahl als Segmented, Payee-Vorschläge mit Tastatur, lesbare ausgegraute Zeile, Fokus am Prüfknopf, Lena-Grund als Text"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-12 08:43 -- Task verified and completed: ledger-ct3cx - "Kassenbuch-Liste behält Auswahl, Seiten und Scrollstand nach Spiegel-Lauf und Abruf: Nachladen im Hintergrund statt Neuaufbau, Filter entfernen überholt wartende Eingaben, ein Neuaufbau je Wechsel (Components/Ledger/State.fs resetEntries, AccountsLoaded, fetchExternalCmd)"
 
 **Type:** Work / Task completion

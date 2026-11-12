@@ -1,7 +1,7 @@
 ---
 id: ledger-nc708
 title: "Detail und Durchgehen halten ihren Stand: Historie an Ladevorgänge gebunden ohne Flackern, jede Änderung an der offenen Buchung lädt ihre Historie nach, gescheitertes „Lena fragen“ holt die Karte zurück (Components/Ledger/State.fs LoadHistory, HistoryLoaded, LenaFlagSet)"
-status: todo
+status: doing
 type: bug
 context: ledger
 created: 2026-11-12
