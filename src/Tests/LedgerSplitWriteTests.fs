@@ -1025,13 +1025,129 @@ let splitCommandTests =
             Expect.equal probe.WriteCalls 0 "kein schreibender YNAB-Aufruf"
             Expect.equal (entryOf entryId).Amount (eur -12.00m) "Betrag unverändert"
 
+        testCase "Kaputt: offener Ersatz ohne Fehlschlag lässt sich erneut senden" <| fun () ->
+            // ledger-f8bjm, Review rv3: nach einem Absturz zwischen `EntryReplacementSentToYnab` und dem
+            // Fehlschlag gab "Erneut senden" `CategoryNotSent`, `splitLocksOf` meldete nichts, und
+            // Löschen sowie jede Änderung blieben mit `replacementPendingText` dauerhaft gesperrt.
+            let entryId, oldId, importId = seedSplit ()
+            appendAndApply [
+                eventOn entryId UserInBb (EntryReplacementSentToYnab { OldYnabTransactionId = oldId; NewImportId = $"{importId}:r1" })
+            ]
+            |> Async.RunSynchronously
+            let locks = splitLocksOf false (Some importId) (entryOf entryId)
+            Expect.equal (locks |> Option.map (fun l -> l.ReplacementPending)) (Some true) "der Lesepfad meldet die offene Neuanlage"
+
+            let probe = ToolsProbe()
+            probe.CreateResult <- Some (Ok "ynab-nach-absturz")
+            let retry =
+                retryCategorizationOrSplitWriteBack at (fun _ _ -> async { return Ok () }) probe.Tools noTransfer entryId
+                |> Async.RunSynchronously
+                |> unwrap
+            Expect.equal retry CategorySent "gesendet"
+            Expect.isEmpty probe.Deletes "kein zweites DELETE"
+            Expect.isEmpty probe.Puts "kein PUT"
+            Expect.equal (probe.Creates |> List.map (fun r -> r.ImportId)) [ Some $"{importId}:r1" ] "dieselbe Ersatz-import_id"
+            Expect.isNone (entryOf entryId).PendingReplacement "der Ersatz ist abgeschlossen"
+            let links = linksForEntry entryId |> Async.RunSynchronously
+            Expect.equal (currentYnabTransactionId links) (Some "ynab-nach-absturz") "neue Id gilt"
+
+        testCase "Kaputt: offener Ersatz ohne Fehlschlag nach dem Aufheben geht als POST, nicht als PUT" <| fun () ->
+            // ledger-f8bjm, Review rv3: ohne Fehlschlag ist die Baseline der BB-Stand, nach dem Aufheben
+            // unaufgeteilt; ein PUT träfe die in YNAB schon gelöschte alte Id.
+            let entryId, oldId, importId = seedSplit ()
+            appendAndApply [
+                eventOn entryId UserInBb (
+                    EntryRecategorized {
+                        OldCategory = None
+                        NewCategory = Some catA
+                        OldSplits = twoLines
+                        NewSplits = []
+                        OldPayee = Some "Rewe"
+                        NewPayee = Some "Rewe"
+                    }
+                )
+                eventOn entryId UserInBb (EntryReplacementSentToYnab { OldYnabTransactionId = oldId; NewImportId = $"{importId}:r1" })
+            ]
+            |> Async.RunSynchronously
+            let probe = ToolsProbe()
+            probe.CreateResult <- Some (Error (YnabError.NetworkError "Timeout"))
+            retryCategorizationOrSplitWriteBack at (fun _ _ -> async { return Ok () }) probe.Tools noTransfer entryId
+            |> Async.RunSynchronously
+            |> unwrap
+            |> ignore
+            Expect.isEmpty probe.CategoryPuts "kein PUT der Kategorie"
+            Expect.isEmpty probe.Deletes "kein DELETE"
+            let request = List.exactlyOne probe.Creates
+            Expect.equal request.CategoryId (Some catA.CategoryId) "POST mit der Kategorie"
+            Expect.equal request.ImportId (Some $"{importId}:r1") "dieselbe Ersatz-import_id"
+            Expect.isSome (entryOf entryId).CategorizationWriteBackFailure "Fehlschlag offen"
+
+            // Der zweite Versuch nach dem Fehlschlag (Baseline unaufgeteilt) bleibt beim POST.
+            let again = ToolsProbe()
+            again.CreateResult <- Some (Ok "ynab-neu")
+            let retry =
+                retryCategorizationOrSplitWriteBack at (fun _ _ -> async { return Ok () }) again.Tools noTransfer entryId
+                |> Async.RunSynchronously
+                |> unwrap
+            Expect.equal retry CategorySent "gesendet"
+            Expect.isEmpty again.CategoryPuts "kein PUT der Kategorie"
+            Expect.equal (again.Creates |> List.map (fun r -> r.ImportId)) [ Some $"{importId}:r1" ] "wieder :r1"
+            Expect.isNone (entryOf entryId).CategorizationWriteBackFailure "Fehlschlag beendet"
+
+        testCase "Kaputt: offener Ersatz ohne Fehlschlag, Erneut senden am Betrag schickt das POST" <| fun () ->
+            // ledger-f8bjm, Review rv3: `retryAmountWriteBack` gab ohne Betrags-Fehlschlag `AmountNotSent`.
+            let entryId, oldId, importId = seedSplit ()
+            appendAndApply [
+                eventOn entryId UserInBb (EntryReplacementSentToYnab { OldYnabTransactionId = oldId; NewImportId = $"{importId}:r1" })
+            ]
+            |> Async.RunSynchronously
+            let probe = ToolsProbe()
+            let mutable amountPushes = 0
+            let push = fun _ _ -> async { amountPushes <- amountPushes + 1; return Ok () }
+            let result = retryAmountWriteBack at push probe.Tools entryId |> Async.RunSynchronously |> unwrap
+            Expect.equal result AmountSent "gesendet"
+            Expect.equal amountPushes 0 "kein Update des Betrags"
+            Expect.isEmpty probe.Deletes "kein DELETE"
+            Expect.equal (probe.Creates |> List.map (fun r -> r.ImportId)) [ Some $"{importId}:r1" ] "dieselbe Ersatz-import_id"
+            Expect.isNone (entryOf entryId).PendingReplacement "abgeschlossen"
+
+        testCase "Erneut senden am Betrag nennt bei einer Ablehnung den Betrag, nicht die Aufteilung" <| fun () ->
+            // Review rv3: der Grund hieß auch beim Betrags-Retry "YNAB hat die Aufteilung abgelehnt".
+            let entryId, _, _ = seedSplit ()
+            let failing = ToolsProbe()
+            failing.CreateResult <- Some (Error (YnabError.NetworkError "Timeout"))
+            setEntrySplitsWithAmount at failing.Tools entryId [ line catA -5.00m; line catB -9.50m ] -14.50m
+            |> Async.RunSynchronously
+            |> unwrap
+            |> ignore
+            let probe = ToolsProbe()
+            probe.CreateHttp <- Some (HttpStatusCode.BadRequest, """{"error":{"id":"400"}}""")
+            match retryAmountWriteBack at (fun _ _ -> async { return Ok () }) probe.Tools entryId |> Async.RunSynchronously |> unwrap with
+            | AmountSendFailed reason ->
+                Expect.equal reason "YNAB hat den Betrag abgelehnt: Ersatzbuchung ungültig (HTTP 400)" "Betrag als Gegenstand"
+            | other -> failtest $"erwartet Fehlschlag, war {other}"
+
+        testCase "Ohne offenen Ersatz und ohne Fehlschlag tut Erneut senden nichts" <| fun () ->
+            let entryId, _, _ = seedSplit ()
+            let probe = ToolsProbe()
+            let retry =
+                retryCategorizationOrSplitWriteBack at (fun _ _ -> async { return Ok () }) probe.Tools noTransfer entryId
+                |> Async.RunSynchronously
+                |> unwrap
+            Expect.equal retry CategoryNotSent "nichts zu senden"
+            let amount = retryAmountWriteBack at (fun _ _ -> async { return Ok () }) probe.Tools entryId |> Async.RunSynchronously |> unwrap
+            Expect.equal amount AmountNotSent "nichts zu senden"
+            Expect.equal probe.WriteCalls 0 "kein Aufruf"
+            Expect.isNone (splitLocksOf false (Some (freshImportId ())) (entryOf entryId)) "keine Sperre"
+
         testCase "POST mit 400: YNAB hat abgelehnt, der offene Ersatz endet; eine neue Aufteilung geht mit :r2 ohne DELETE" <| fun () ->
             // ledger-f8bjm, Iteration 2: die Sperre darf eine abgelehnte Buchung nicht festhalten.
             let entryId, oldId, importId = seedSplit ()
             let probe = ToolsProbe()
             probe.CreateHttp <- Some (HttpStatusCode.BadRequest, """{"error":{"id":"400","name":"bad_request","detail":"x"}}""")
             match (setSplits probe entryId [ line catA -4.00m; line catC -8.00m ] |> unwrap).WriteBack with
-            | CategorySendFailed _ -> ()
+            | CategorySendFailed reason ->
+                Expect.equal reason "YNAB hat die Aufteilung abgelehnt: Ersatzbuchung ungültig (HTTP 400)" "Ablehnung als Satz"
             | other -> failtest $"erwartet Fehlschlag, war {other}"
             Expect.equal ((entryOf entryId).CategorizationWriteBackFailure |> Option.bind (fun f -> f.YnabDeletedTransactionId)) (Some oldId) "Neuanlage offen"
             Expect.isNone (entryOf entryId).PendingReplacement "kein offener Ersatz mehr"
@@ -1056,7 +1172,12 @@ let splitCommandTests =
             let entryId, _, importId = seedSplit ()
             let probe = ToolsProbe()
             probe.CreateHttp <- Some (HttpStatusCode.Created, """{"data":{}}""")
-            setSplits probe entryId [ line catA -4.00m; line catC -8.00m ] |> unwrap |> ignore
+            match (setSplits probe entryId [ line catA -4.00m; line catC -8.00m ] |> unwrap).WriteBack with
+            | CategorySendFailed reason ->
+                // Review rv3: die unlesbare Antwort ist keine Ablehnung ("YNAB hat die Aufteilung abgelehnt: YNAB-Antwort nicht lesbar").
+                Expect.equal reason splitPushUnreadableText "unlesbar, der Spiegel klärt"
+                Expect.isFalse (reason.Contains "abgelehnt") "keine Ablehnung"
+            | other -> failtest $"erwartet Fehlschlag, war {other}"
             Expect.equal
                 ((entryOf entryId).PendingReplacement |> Option.map (fun p -> p.NewImportId))
                 (Some $"{importId}:r1")
@@ -1401,6 +1522,28 @@ let splitYnabClientTests =
             Expect.isFalse (replacementRejected (YnabError.InvalidResponse "Bad request: payees")) "Payees mit 400"
             Expect.isFalse (replacementRejected (YnabError.InvalidResponse "Transaction not found")) "Payees mit 404"
             Expect.isFalse (replacementRejected (YnabError.Unauthorized "No YNAB token configured")) "kein Token"
+
+        testCase "Ein Text wie der einer Ersatz-Ablehnung aus einem anderen Pfad zählt nicht als Ablehnung" <| fun () ->
+            // Review rv3: `replacementRejectedByYnab` verglich Texte; ein `InvalidResponse` mit demselben Satz
+            // (etwa aus PUT, DELETE oder den Payees) beendete den offenen Ersatz, die nächste
+            // Ersatz-import_id legte in YNAB doppelt an.
+            Expect.isFalse (replacementRejected (YnabError.InvalidResponse "Ersatzbuchung ungültig (HTTP 400)")) "400-Satz"
+            Expect.isFalse
+                (replacementRejected (YnabError.InvalidResponse "Budget oder Konto der Ersatzbuchung nicht gefunden (HTTP 404)"))
+                "404-Satz"
+
+        testCase "POST einer Ersatzbuchung: eine Ausnahme beim Senden heißt YNAB nicht erreichbar, ohne die Ausnahme" <| fun () ->
+            // Review rv3: die Meldung der Ausnahme ging roh an den Client ("Failed to create transaction: …").
+            let marker = "geheime-ausnahme-rv3"
+            let throwing =
+                { new HttpMessageHandler() with
+                    member _.SendAsync(_, _) = raise (HttpRequestException marker) }
+            use client = new HttpClient(throwing)
+            match Ynab.sendCreateTransaction client budget "{}" |> Async.RunSynchronously with
+            | Error err ->
+                Expect.equal (ynabErrorText err) "Netzwerkfehler: YNAB nicht erreichbar" "fester Satz"
+                Expect.isFalse (replacementRejected err) "keine Ablehnung"
+            | Ok _ -> failtest "eine Ausnahme ist ein Fehler"
 
         testCase "parseCreatedTransactionId liest data.transaction.id, sonst data.transaction_ids[0]" <| fun () ->
             Expect.equal (Ynab.parseCreatedTransactionId """{"data":{"transaction":{"id":"a"}}}""") (Some "a") "transaction.id"

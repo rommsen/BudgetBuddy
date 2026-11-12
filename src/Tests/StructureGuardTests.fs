@@ -703,6 +703,9 @@ let private apiWirings =
       // getestet, die Ports des Servers erreichen YNAB nur im laufenden Dienst.
       @"\bdeleteEntry\s*=\s*fun\s+entryId\s*->\s*deleteEntryWith\s+liveEntryDeletionPorts\s+DateTime\.UtcNow\s+entryId\b"
       @"\brestoreDeletedEntry\s*=\s*fun\s+entryId\s*->\s*restoreDeletedEntryWith\s+liveEntryDeletionPorts\s+DateTime\.UtcNow\s+entryId\b"
+      // Split-Schreibweg (ledger-f8bjm, Review rv3): `TriggerMirror` stößt nach einem 409 auf den Ersatz-POST den Spiegel an;
+      // die Befehle sind mit einem zählenden Fake-Port getestet, der Port des Servers startet einen echten Spiegel-Lauf.
+      @"\bDelete\s*=\s*fun\s+ynabTransactionId\s*->\s*YnabClient\.deleteTransaction\s+token\s+budget\s+ynabTransactionId\s+Create\s*=\s*fun\s+replacement\s*->\s*YnabClient\.createReplacement\s+token\s+budget\s+replacement\s+TriggerMirror\s*=\s*Ledger\.CommandHandlers\.triggerMirrorInBackground\s*\}"
       @"\bliveEntryDeletionPorts\s*:\s*EntryDeletionPorts\s*=\s*\{\s*Setting\s*=\s*Persistence\.Settings\.getSetting\s+Delete\s*=\s*YnabClient\.deleteTransaction\s+Create\s*=\s*YnabClient\.createReplacement\s+TriggerMirror\s*=\s*Ledger\.CommandHandlers\.triggerMirrorInBackground\s*\}"
       @"\bgetLedgerBookingDefaultsWith\s+Persistence\.Settings\.getSetting\s+liveBerlinZone\.Value\s+DateTime\.UtcNow\b"
       @"\bgetBookingCategoryForPayeeWith\s+Ledger\.Persistence\.loadLastPayeeCategory\s+Persistence\.Rules\.getAllRules\s+payee\b"
@@ -866,6 +869,7 @@ let hostedServiceGuardTests =
                   "let liveLedgerBookingPorts : LedgerBookingPorts = {\n    Setting = Persistence.Settings.getSetting\n    LoadYnabCategories = YnabClient.getCategories\n    BudgetAccounts = YnabClient.fetchTransferAccounts\n    Push = YnabClient.createTransactionFor\n    Delete = YnabClient.deleteTransaction\n    NewEntryId = Ledger.Events.newEntryId\n    TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground\n}\n"
                   "deleteEntry = fun entryId -> deleteEntryWith liveEntryDeletionPorts DateTime.UtcNow entryId\n"
                   "restoreDeletedEntry = fun entryId -> restoreDeletedEntryWith liveEntryDeletionPorts DateTime.UtcNow entryId\n"
+                  "Delete = fun ynabTransactionId -> YnabClient.deleteTransaction token budget ynabTransactionId\n                Create = fun replacement -> YnabClient.createReplacement token budget replacement\n                TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground\n            }\n"
                   "let liveEntryDeletionPorts : EntryDeletionPorts = {\n    Setting = Persistence.Settings.getSetting\n    Delete = YnabClient.deleteTransaction\n    Create = YnabClient.createReplacement\n    TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground\n}\n"
                   "Ledger.QueryHandlers.getLedgerBookingDefaultsWith Persistence.Settings.getSetting liveBerlinZone.Value DateTime.UtcNow\n"
                   "Ledger.QueryHandlers.getBookingCategoryForPayeeWith\n            Ledger.Persistence.loadLastPayeeCategory\n            Persistence.Rules.getAllRules\n            payee\n"
@@ -965,6 +969,8 @@ let hostedServiceGuardTests =
                   "deleteEntryWith liveEntryDeletionPorts", "deleteEntryWith fakeDeletionPorts", "Löschen mit anderen Ports"
                   "restoreDeletedEntryWith liveEntryDeletionPorts", "restoreDeletedEntryWith fakeDeletionPorts", "Wiederherstellen mit anderen Ports"
                   "Create = YnabClient.createReplacement", "Create = (fun _ _ _ -> async.Return (Ok \"x\"))", "Wiederherstellen ohne Neuanlage"
+                  "createReplacement token budget replacement\n                TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground", "createReplacement token budget replacement\n                TriggerMirror = ignore", "Split-Schreibweg ohne Spiegel nach 409"
+                  "Create = fun replacement -> YnabClient.createReplacement token budget replacement", "Create = fun replacement -> async.Return (Ok \"x\")", "Split-Ersatz ohne Neuanlage"
                   "getLedgerBookingDefaultsWith Persistence.Settings.getSetting liveBerlinZone.Value", "getLedgerBookingDefaultsWith Persistence.Settings.getSetting TimeZoneInfo.Utc", "Vorbelegung in UTC"
                   "Persistence.Rules.getAllRules\n            payee", "(fun () -> async.Return [])\n            payee", "Kategorie zum Payee ohne Regeln"
                   "YnabClient.updatePayee token budgetId", "YnabClient.updateCategory token budgetId", "Payee über einen anderen Schreibweg"

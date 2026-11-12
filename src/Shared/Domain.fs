@@ -677,6 +677,11 @@ type YnabError =
     /// (ledger-p3vq8, Probelauf ADR 0058). Bei BBs fester `import_id` heißt das: die Buchung ist
     /// schon in YNAB, der Spiegel verknüpft sie.
     | ImportIdAlreadyInYnab
+    /// 400 oder 404 auf den gesendeten POST einer Ersatzbuchung (ledger-f8bjm, ADR 0058 Probelauf 3): YNAB hat
+    /// sie nicht angelegt, unter ihrer `import_id` steht dort nichts. Ein eigener Fall, damit kein gleichlautender
+    /// Text aus einem anderen Pfad (Payees, PUT, DELETE) als Ablehnung zählt. `reason` ist ein fester Satz ohne
+    /// Antwortrumpf.
+    | ReplacementRejectedByYnab of reason: string
 
 /// Der YNAB-Fehler als deutscher Satz. Die einzige Übersetzung, Server und Client nutzen sie. Der
 /// Text landet auch im Ereignis-Log und in der Antwort an Bob (`push_error`), deshalb stehen keine
@@ -695,6 +700,7 @@ let ynabErrorText (error: YnabError) : string =
     | LocalWriteFailed message -> message
     | RefusedByBb message -> message
     | ImportIdAlreadyInYnab -> "Die Buchung steht schon in YNAB (gleiche import_id, HTTP 409)"
+    | ReplacementRejectedByYnab reason -> $"YNAB hat abgelehnt: {reason}"
 
 /// Errors during rules operations.
 /// Purpose: Provides clear feedback for rule validation and compilation failures.

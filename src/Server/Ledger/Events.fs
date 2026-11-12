@@ -571,6 +571,9 @@ type LedgerEventBody =
     /// YNAB hat die Ersatzbuchung eines offenen Split- oder Betrags-Ersatzes abgelehnt (400 oder
     /// 404, ledger-f8bjm): unter ihrer `import_id` steht dort nichts, der offene Ersatz endet. Der
     /// nächste Versuch nimmt die nächste Ersatz-`import_id`. Geschrieben mit dem Fehlschlag.
+    /// Nur für die Art `Replace`: ein abgelehntes Wiederherstellen (`Restore`) bleibt offen, ein
+    /// weiteres Rückgängig nimmt dieselbe `import_id` (ADR 0092, Nachtrag 2026-11-12). Die Buchung
+    /// bleibt dabei gelöscht, und gesperrt ist nur, was eine gelöschte Buchung ohnehin nicht darf.
     | EntryReplacementRejectedByYnab of EntryReplacementSentPayload
     /// Der Abruf hält eine neue Buchung als unsicheres Duplikat zurück, kein Push nach YNAB
     /// (banking-import-d0fey, ADR 0093 Punkt 3). Entscheidung des Imports.

@@ -2932,6 +2932,22 @@ let splitNotChangeableReason (entry: Entry) : string option =
         Some "Ein Übertrag zwischen Budget-Konten lässt sich nicht aufteilen"
     else None
 
+/// Die in YNAB schon gelöschte alte Id eines halben Ersatzes (ADR 0058 Punkt 3): aus dem
+/// Fehlschlag, oder aus einem offenen Ersatz der Art `Replace`, auch wenn (nach einem Absturz
+/// zwischen `EntryReplacementSentToYnab` und dem Fehlschlag) kein Fehlschlag sie trägt
+/// (ledger-f8bjm). Dann geht "Erneut senden" nur noch als POST. Rein.
+let deletedForReplacement (entry: Entry) : string option =
+    match entry.CategorizationWriteBackFailure |> Option.bind (fun f -> f.YnabDeletedTransactionId) with
+    | Some id -> Some id
+    | None ->
+        entry.PendingReplacement
+        |> Option.filter (fun p -> p.Kind = Replace)
+        |> Option.map (fun p -> p.OldYnabTransactionId)
+
+/// Steht ein Split- oder Betrags-Ersatz offen (`PendingReplacement` der Art `Replace`)? Rein.
+let hasOpenReplace (entry: Entry) : bool =
+    entry.PendingReplacement |> Option.exists (fun p -> p.Kind = Replace)
+
 /// Solange ein Ersatz offen ist (ledger-f8bjm), kann die Ersatzbuchung in YNAB schon leben. Ein
 /// Löschen ohne DELETE und ein späteres Rückgängig legten dort eine zweite Buchung an; ein anderer
 /// Inhalt ginge mit derselben Ersatz-`import_id` hinaus, bekäme 409 und gälte fälschlich als
@@ -2958,9 +2974,7 @@ let splitLocksOf (isTracking: bool) (importId: string option) (entry: Entry) : S
         | Some reason -> Some reason
         | None -> if isTracking then Some trackingSplitReason else None
 
-    let pendingDeleted =
-        entry.CategorizationWriteBackFailure
-        |> Option.bind (fun f -> f.YnabDeletedTransactionId)
+    let pendingDeleted = deletedForReplacement entry
 
     let foreign =
         pendingDeleted.IsNone
@@ -2999,11 +3013,36 @@ let private withMirrorAfterArrival (tools: SplitWriteTools) (command: (unit -> u
         return result
     }
 
-/// Der Grund-Text für den Hinweis "Kategorie nicht in YNAB" beim Split-Schreibweg.
-let describeSplitPushError (error: YnabError) : string =
+/// Was ein Ersatz im Split-Schreibweg nach YNAB trägt, für den Grund-Text eines Fehlschlags.
+let splitPushSubject = "die Aufteilung"
+let splitAndAmountPushSubject = "Betrag und Aufteilung"
+let amountPushSubject = "den Betrag"
+
+/// Der Grund, wenn YNABs Antwort im Split-Schreibweg unlesbar war: YNAB kann die Änderung
+/// übernommen haben, das ist keine Ablehnung.
+let splitPushUnreadableText =
+    $"{Ynab.unreadableResponseText}. Der Spiegel klärt, ob die Buchung in YNAB angekommen ist."
+
+let private rejectionText (subject: string) (error: YnabError) : string =
     match error with
-    | YnabError.InvalidResponse msg -> $"YNAB hat die Aufteilung abgelehnt: {msg}"
+    | YnabError.ReplacementRejectedByYnab reason
+    | YnabError.InvalidResponse reason -> $"YNAB hat {subject} abgelehnt: {reason}"
     | other -> ynabErrorText other
+
+/// Der Grund-Text eines gescheiterten Schritts im Split-Schreibweg ("Kategorie nicht in YNAB",
+/// "Betrag nicht in YNAB", aus `pushSplitState`). `subject` nennt, was der Ersatz trägt
+/// (`splitPushSubject`, `splitAndAmountPushSubject`, `amountPushSubject`). Abgelehnt heißt nur,
+/// was YNAB abgelehnt hat: der Ersatz-POST (`ReplacementRejectedByYnab`) und ein
+/// `InvalidResponse` aus PUT, DELETE oder den Payees. Eine unlesbare Antwort ist
+/// `splitPushUnreadableText`. Rein.
+let describeSplitPushErrorOf (subject: string) (error: YnabError) : string =
+    match error with
+    | YnabError.InvalidResponse msg when msg = Ynab.unreadableResponseText -> splitPushUnreadableText
+    | other -> rejectionText subject other
+
+/// Der Grund-Text für Fehler um den Split-Schreibweg herum (Konto-Prüfung, Budget-Konten), ohne
+/// den Satz zum Spiegel: dort geht keine Buchung hinaus.
+let describeSplitPushError (error: YnabError) : string = rejectionText splitPushSubject error
 
 let private clearedToYnab (cleared: ClearedState) : string =
     match cleared with
@@ -3042,17 +3081,15 @@ let private pushSplitState
     (hadOpenFailure: bool)
     (pendingDeleted: string option)
     (amountWrite: SplitAmountWrite option)
+    (subject: string)
     (arrivedWithoutId: unit -> unit)
     : Async<CategoryWriteBack> =
     async {
         let entryId = entry.Id
+        let describe = describeSplitPushErrorOf subject
         // ledger-f8bjm: ein offener Ersatz heißt, das DELETE ist gelungen, auch wenn (nach einem
         // Absturz) kein Fehlschlag die gelöschte Id trägt.
-        let pendingDeleted =
-            match pendingDeleted, entry.PendingReplacement with
-            | Some id, _ -> Some id
-            | None, Some pending when pending.Kind = Replace -> Some pending.OldYnabTransactionId
-            | None, _ -> None
+        let pendingDeleted = pendingDeleted |> Option.orElse (deletedForReplacement entry)
 
         let fail (reason: string) (deleted: string option) =
             async {
@@ -3091,7 +3128,9 @@ let private pushSplitState
         match! tryYnabTransactionId entryId with
         | None -> return! fail categoryNotLinkedReason None
         | Some currentId ->
-            if List.isEmpty (snd baseline) then
+            // Ist das DELETE schon gelungen, hält YNAB nichts mehr, das ein PUT ändern könnte; auch
+            // dann nicht, wenn die Baseline (ohne Fehlschlag: der BB-Stand) unaufgeteilt ist.
+            if List.isEmpty (snd baseline) && pendingDeleted.IsNone then
                 let! result =
                     if List.isEmpty entry.Splits then
                         tools.PutCategory currentId (entry.Category |> Option.map (fun c -> c.CategoryId))
@@ -3099,7 +3138,7 @@ let private pushSplitState
                         tools.PutSplits currentId entry.Splits
                 match result with
                 | Ok () -> return! succeed []
-                | Error err -> return! fail (describeSplitPushError err) None
+                | Error err -> return! fail (describe err) None
             else
                 let! deleteResult =
                     match pendingDeleted with
@@ -3107,7 +3146,7 @@ let private pushSplitState
                     | None -> tools.Delete currentId
 
                 match deleteResult with
-                | Error err -> return! fail (describeSplitPushError err) None
+                | Error err -> return! fail (describe err) None
                 | Ok () ->
                     let oldId = defaultArg pendingDeleted currentId
                     let newlyDeleted = if pendingDeleted.IsNone then Some oldId else None
@@ -3171,21 +3210,21 @@ let private pushSplitState
                                         }
                                     )
                                 ]
-                        | Error err, _ when replacementRejected err && newImportId.IsSome ->
-                            // ledger-f8bjm: YNAB hat abgelehnt, unter der Ersatz-import_id steht dort
-                            // nichts. Der offene Ersatz endet, sonst bliebe die Buchung gesperrt; die
-                            // gelöschte alte Id trägt jetzt der Fehlschlag.
-                            do!
-                                Ledger.Persistence.appendAndApply [
-                                    reviewMarkEvent entryId now UserInBb (
-                                        EntryReplacementRejectedByYnab {
-                                            OldYnabTransactionId = oldId
-                                            NewImportId = Option.get newImportId
-                                        }
-                                    )
-                                ]
-                            return! fail (describeSplitPushError err) (Some oldId)
-                        | Error err, _ -> return! fail (describeSplitPushError err) newlyDeleted
+                        | Error err, _ when replacementRejected err ->
+                            match newImportId with
+                            | Some importId ->
+                                // ledger-f8bjm: YNAB hat abgelehnt, unter der Ersatz-import_id steht
+                                // dort nichts. Der offene Ersatz endet, sonst bliebe die Buchung
+                                // gesperrt; die gelöschte alte Id trägt jetzt der Fehlschlag.
+                                do!
+                                    Ledger.Persistence.appendAndApply [
+                                        reviewMarkEvent entryId now UserInBb (
+                                            EntryReplacementRejectedByYnab { OldYnabTransactionId = oldId; NewImportId = importId }
+                                        )
+                                    ]
+                                return! fail (describe err) (Some oldId)
+                            | None -> return! fail (describe err) newlyDeleted
+                        | Error err, _ -> return! fail (describe err) newlyDeleted
     }
 
 // ============================================
@@ -3362,6 +3401,7 @@ let private changeSplits
                                                     entry.CategorizationWriteBackFailure.IsSome
                                                     pendingDeleted
                                                     amountWrite
+                                                    (if amountChanged then splitAndAmountPushSubject else splitPushSubject)
                                                     arrived
                                             return Ok { Previous = previous; Change = CategoryChanged; WriteBack = writeBack; PreviousTransferAccountId = None }
         }
@@ -3415,7 +3455,16 @@ let retryCategorizationOrSplitWriteBack
             | Some entry when isHeldAsPossibleDuplicate entry -> return Error possibleDuplicateLockedText
             | Some entry when entry.DeletedInYnab -> return Error "Die Buchung ist in YNAB gelöscht"
             | Some entry ->
+                let openReplacement = hasOpenReplace entry
+                let subject = if entry.AmountWriteBackFailure.IsSome then splitAndAmountPushSubject else splitPushSubject
                 match entry.CategorizationWriteBackFailure with
+                // ledger-f8bjm: ein offener Ersatz ohne Fehlschlag (Absturz zwischen Senden und
+                // Fehlschlag) ist ein halber Ersatz; "Erneut senden" schickt nur das POST.
+                | None when openReplacement ->
+                    let baseline = categoryBaseline entry (entry.Category, entry.Splits)
+                    let! writeBack =
+                        pushSplitState now tools entry baseline false None (openAmountWrite entry) subject arrived
+                    return Ok writeBack
                 | None -> return Ok CategoryNotSent
                 // Ein Übertrag betrifft den Fehlschlag (ledger-qvjvs): gesendet wird der BB-Stand,
                 // der Übertrag mit der Payee des Ziels oder der Weg zurück mit Kategorie und Payee.
@@ -3434,7 +3483,7 @@ let retryCategorizationOrSplitWriteBack
                         return Ok writeBack
                 | Some failure ->
                     let baseline = categoryBaseline entry (entry.Category, entry.Splits)
-                    if List.isEmpty failure.BaselineSplits && List.isEmpty entry.Splits then
+                    if List.isEmpty failure.BaselineSplits && List.isEmpty entry.Splits && not openReplacement then
                         let target = entry.Category |> Option.map (fun c -> c.CategoryId)
                         let! writeBack = pushCategory now categoryPush entry baseline target
                         return Ok writeBack
@@ -3448,6 +3497,7 @@ let retryCategorizationOrSplitWriteBack
                                 true
                                 failure.YnabDeletedTransactionId
                                 (openAmountWrite entry)
+                                subject
                                 arrived
                         return Ok writeBack
         }
@@ -4260,15 +4310,16 @@ let retryAmountWriteBack
             | None -> return Error "Buchung nicht gefunden"
             | Some entry when isHeldAsPossibleDuplicate entry -> return Error possibleDuplicateLockedText
             | Some entry when entry.DeletedInYnab -> return Error amountDeletedReason
-            | Some entry when entry.AmountWriteBackFailure.IsNone -> return Ok AmountNotSent
-            | Some entry when List.isEmpty entry.Splits ->
+            // ledger-f8bjm: ein offener Ersatz (auch ohne Fehlschlag, nach einem Absturz zwischen
+            // Senden und Fehlschlag) ist ein halber Ersatz; er geht nur als POST, nie als Update.
+            | Some entry when entry.AmountWriteBackFailure.IsNone && not (hasOpenReplace entry) ->
+                return Ok AmountNotSent
+            | Some entry when List.isEmpty entry.Splits && not (hasOpenReplace entry) ->
                 let baseline = amountBaseline entry entry.Amount
                 let! writeBack = pushAmount now push entry baseline entry.Amount
                 return Ok writeBack
             | Some entry ->
                 let baseline = categoryBaseline entry (entry.Category, entry.Splits)
-                let pendingDeleted =
-                    entry.CategorizationWriteBackFailure |> Option.bind (fun f -> f.YnabDeletedTransactionId)
                 let! writeBack =
                     pushSplitState
                         now
@@ -4276,8 +4327,9 @@ let retryAmountWriteBack
                         entry
                         baseline
                         entry.CategorizationWriteBackFailure.IsSome
-                        pendingDeleted
+                        None
                         (openAmountWrite entry)
+                        amountPushSubject
                         arrived
                 return Ok (amountWriteBackOf writeBack)
         }
