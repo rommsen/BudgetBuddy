@@ -3861,15 +3861,15 @@ let private captureAccountList (dispatch: Msg -> unit) (model: Model) (capture: 
         prop.children [
             match choice with
             | Capture.CaptureAccountsLoading ->
-                Html.div [
+                yield Html.div [
                     prop.role "status"
                     prop.className $"flex items-center gap-2 px-3 py-2 {Tokens.FontSizes.sm} {Tokens.Colors.textMuted}"
                     prop.children [ Loading.spinner Loading.SM Loading.Default; Html.span [ prop.text Capture.accountsLoadingText ] ]
                 ]
             | Capture.CaptureAccountsFailed ->
-                Html.div [ prop.className "px-3 py-2"; prop.children [ ErrorDisplay.inline' Capture.accountsFailedText ] ]
+                yield Html.div [ prop.className "px-3 py-2"; prop.children [ ErrorDisplay.inline' Capture.accountsFailedText ] ]
             | Capture.NoBookableAccount ->
-                Html.p [ prop.className $"px-3 py-2 {Tokens.FontSizes.sm} {Tokens.Colors.textMuted}"; prop.text Capture.noBookableAccountText ]
+                yield Html.p [ prop.className $"px-3 py-2 {Tokens.FontSizes.sm} {Tokens.Colors.textMuted}"; prop.text Capture.noBookableAccountText ]
             | Capture.BookableAccounts _ -> ()
             for account in accounts ->
                 let isActive = capture.Form.AccountId = Some account.Id

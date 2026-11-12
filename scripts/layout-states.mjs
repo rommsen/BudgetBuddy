@@ -1335,6 +1335,36 @@ export const STATES = [
           .or(page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Buchung anlegen", exact: true })),
     },
   },
+  // Bug ledger-vf6z5 (Review): die Konto-Auswahl in "Neue Buchung" verwarf ihre Zustände ohne Konto. Das `->` in
+  // `for account in accounts -> …` schaltete die impliziten Yields der Liste ab, der Spinner mit "Konten werden
+  // geladen", der Ladefehler und "Kein Konto zum Buchen" kamen nie ins DOM (FS0020). Die Budget-Konten aus YNAB
+  // laden hier nie (`State.captureAccountChoice` wartet auf Vorbelegung, Konten und Budget-Konten; hängt
+  // `getLedgerAccounts`, öffnet das Kassenbuch gar nicht), die Auswahl muss den Ladetext zeigen.
+  {
+    name: "kassenbuch-erfassen-konten-laden",
+    route: "/ledger",
+    widths: HANDY_WIDTHS,
+    // Die Konto-Auswahl ist mit nur der Ladezeile niedrig, die Mitte des Formulars darunter trifft den Schleier
+    // (`.overlay.layer-2`) der zweiten Ebene. Invariante 5 zählt nur `.bottom-sheet.active` und `[data-layer]` als
+    // Ebene, nicht deren Schleier. Kann-Sammlung infrastructure.
+    exceptions: [
+      { width: 320, inv: 5, selector: 'div "Neue Buchung' },
+      { width: 390, inv: 5, selector: 'div "Neue Buchung' },
+    ],
+    mock: async (page) => {
+      await mockApp(page);
+      await mockCapture(page, { catchAll: false });
+      await page.route("**/api/LedgerApi/getBudgetAccounts", () => {});
+    },
+    open: async (page) => {
+      await page.locator(".ledger-capture-fab").getByRole("button").waitFor();
+      await page.locator(".ledger-capture-fab").getByRole("button").tap();
+      await page.locator('.bottom-sheet.active [data-testid="capture-account"]').tap();
+      await page
+        .locator('.bottom-sheet.active [data-testid="capture-account-list"] [role="status"]', { hasText: "Konten werden geladen" })
+        .waitFor();
+    },
+  },
   // ledger-at63w: "Neue Buchung" am PC im Panel rechts neben der Liste, "Buchung anlegen" ohne Scrollen im Bild.
   {
     name: "kassenbuch-erfassen-panel",

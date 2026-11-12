@@ -2,6 +2,10 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
+    <!-- FS0020 (Wert still verworfen) und FS3221 (Wert in einer Liste ohne yield verworfen) als Fehler: ein `->` in
+         einer Listen-Schleife schaltet die impliziten Yields ab, die übrigen Elemente fielen sonst still weg
+         (Kontoliste in „Neue Buchung“, Antworten in LedgerRowLockWaysTests). -->
+    <WarningsAsErrors>$(WarningsAsErrors);FS0020;FS3221</WarningsAsErrors>
   </PropertyGroup>
 
   <ItemGroup>

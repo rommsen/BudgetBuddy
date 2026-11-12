@@ -111,17 +111,21 @@ type private LockGroup =
 let private on (entryId: Guid) (name: string) (msg: Msg) : Start = { Name = name; Target = (fun _ -> Some entryId); Msg = msg }
 let private onCard (name: string) (msg: Msg) : Start = { Name = name; Target = cardOf; Msg = msg }
 
-/// Geht alle Folgen bis `depth` durch und gibt die Namen der Starts zurück, die einen Aufruf auslösten.
-let private walk (group: LockGroup) (depth: int) : Set<string> =
+/// Geht alle Folgen bis `depth` durch und gibt die Namen der Starts zurück, die einen Aufruf auslösten, dazu die
+/// Antwortarten ("Ok", "Error"), die zugestellt wurden.
+let private walk (group: LockGroup) (depth: int) : Set<string> * Set<string> =
     let visited = Collections.Generic.Dictionary<Model * Call list, int> HashIdentity.Structural
     let mutable fired = Set.empty
+    let mutable answered' = Set.empty
     let callsFor (entryId: Guid) (calls: Call list) = calls |> List.filter (fun c -> c.Entry = entryId) |> List.length
     let rec go (left: int) (path: string list) (model: Model) (pending: Call list) =
+        // Das `->` der ersten Schleife schaltet die impliziten Yields der ganzen Liste ab: ohne `yield` verwarf die
+        // zweite Schleife beide Antworten, die Aufzählung stellte nie eine zu (Review a3f7eb1d..982bdf79, FS0020).
         let events =
             [ for s in group.Starts -> s.Name, s.Msg, Some s, None
               for i, call in List.indexed pending do
-                  "Ok", call.Ok, None, Some i
-                  "Error", call.Error, None, Some i ]
+                  yield "Ok", call.Ok, None, Some i
+                  yield "Error", call.Error, None, Some i ]
         for name, msg, start, answered in events do
             let path' = name :: path
             let shown = String.concat ", " (List.rev path')
@@ -144,6 +148,7 @@ let private walk (group: LockGroup) (depth: int) : Set<string> =
                     Expect.equal external NoOp $"{group.Name}: gesperrter Start meldet etwas: {shown}"
                 | _ -> ()
             | None, Some i ->
+                answered' <- answered'.Add name
                 let entryId = pending.[i].Entry
                 if callsFor entryId open' = 0 then
                     let startsAgain =
@@ -160,7 +165,7 @@ let private walk (group: LockGroup) (depth: int) : Set<string> =
                 visited[key] <- left - 1
                 go (left - 1) path' after open'
     go depth [] group.Base []
-    fired
+    fired, answered'
 
 let private changedCategory : CategoryChangeOutcome =
     { Previous = Some food; Change = CategoryChanged; WriteBack = CategorySent; PreviousTransferAccountId = None }
@@ -311,21 +316,24 @@ let private pushGroup : LockGroup =
         | RunRetryPush id -> Some { Entry = id; Ok = PushRetried (id, Ok PushToYnabSent); Error = PushRetried (id, Error "weg") }
         | _ -> None }
 
-/// Läuft die Aufzählung einer Gruppe und prüft, dass jeder Start-Zweig mindestens einmal startete.
+/// Läuft die Aufzählung einer Gruppe und prüft, dass jeder Start-Zweig mindestens einmal startete und jede
+/// Antwortart mindestens einmal zugestellt wurde (sonst prüft "wieder frei" nichts).
 let private walkTest (group: LockGroup) (depth: int) : Test =
-    test $"{group.Name}: höchstens ein Aufruf je Buchung, gesperrt heißt still, nach der Antwort wieder frei" {
-        let fired = walk group depth
+    test $"{group.Name}: höchstens ein Aufruf je Buchung, gesperrt heißt still, nach Erfolg und nach Fehler wieder frei" {
+        let fired, answered = walk group depth
         for start in group.Starts do
             Expect.isTrue (fired.Contains start.Name) $"{group.Name}: {start.Name} startete nie, die Aufzählung prüft ihn nicht"
+        for kind in [ "Ok"; "Error" ] do
+            Expect.isTrue (answered.Contains kind) $"{group.Name}: keine {kind}-Antwort zugestellt, die Aufzählung prüft sie nicht"
     }
 
 [<Tests>]
 let rowLockWays =
     testList "Zeilen-Sperre je Buchung und Gruppe" [
-        testList "Kategorie und Split" [ walkTest categoryGroup 6 ]
-        testList "Prüfvermerk" [ walkTest reviewMarkGroup 6 ]
-        testList "Lena" [ walkTest lenaGroup 6 ]
-        testList "Memo" [ walkTest memoGroup 6 ]
-        testList "Betrag" [ walkTest amountGroup 6 ]
-        testList "Noch nicht in YNAB" [ walkTest pushGroup 6 ]
+        testList "Kategorie und Split" [ walkTest categoryGroup 8 ]
+        testList "Prüfvermerk" [ walkTest reviewMarkGroup 8 ]
+        testList "Lena" [ walkTest lenaGroup 8 ]
+        testList "Memo" [ walkTest memoGroup 8 ]
+        testList "Betrag" [ walkTest amountGroup 8 ]
+        testList "Noch nicht in YNAB" [ walkTest pushGroup 8 ]
     ]
