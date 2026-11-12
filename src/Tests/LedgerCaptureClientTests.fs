@@ -195,18 +195,23 @@ let submitTests =
             let capture = captureOf model'
             Expect.equal
                 (capture.AmountError, capture.AccountError, capture.ServerErrors)
-                (Some Components.Ledger.Capture.amountInvalidText, Some Components.Ledger.Capture.accountMissingText, [])
+                (Some Components.Ledger.Capture.amountEmptyText, Some Components.Ledger.Capture.accountMissingText, [])
                 "beide Fehler am Feld, keiner gesammelt"
 
         // Bug ledger-vf6z5: der Betragsfehler stand gesammelt am Formularende, das Feld bekam weder Fokus noch
         // Markierung (Styleguide §5, Vorbild Sheet "Betrag" aus ledger-q42pg).
-        testCase "ein unlesbarer Betrag schickt keinen Aufruf, nur Fokus und Meldung ins Bild" <| fun () ->
-            for text in [ ""; "abc" ] do
+        // Review a3f7eb1d..982bdf79: ein leeres Feld meldete „Betrag nicht lesbar, etwa 12,50“, obwohl nichts
+        // getippt war. Leer heißt jetzt „Betrag fehlt“, unlesbar bleibt beim Satz mit dem Beispiel.
+        testCase "ein leerer oder unlesbarer Betrag schickt keinen Aufruf, nur Fokus und die passende Meldung ins Bild" <| fun () ->
+            for text, expected in
+                [ "", Components.Ledger.Capture.amountEmptyText
+                  "   ", Components.Ledger.Capture.amountEmptyText
+                  "abc", Components.Ledger.Capture.amountInvalidText ] do
                 let model = opened (Some (OneAccount bar)) |> step (SetCaptureAmount text)
                 let model', sent, external = run SubmitCapture model
                 Expect.equal sent [ RevealCaptureAmountError ] $"nur der Fokus-Effekt bei '{text}'"
                 Expect.equal external NoOp "kein Toast"
-                Expect.equal (captureOf model').AmountError (Some Components.Ledger.Capture.amountInvalidText) "Fehler am Feld"
+                Expect.equal (captureOf model').AmountError (Some expected) $"Fehler am Feld bei '{text}'"
                 Expect.isFalse (captureOf model').Saving "bedienbar"
 
         testCase "ein Betrag von 0 meldet sich am Feld mit Fokus" <| fun () ->
@@ -254,7 +259,7 @@ let submitTests =
                     Capture = (opened None).Capture |> Option.map (fun c -> { c with Form = { c.Form with AccountId = None } }) }
                 |> step SubmitCapture
             let chosen = captureOf (step (ChooseCaptureAccount bar) rejected)
-            Expect.equal (chosen.AmountError, chosen.AccountError) (Some Components.Ledger.Capture.amountInvalidText, None) "nur der Kontofehler weg"
+            Expect.equal (chosen.AmountError, chosen.AccountError) (Some Components.Ledger.Capture.amountEmptyText, None) "nur der Kontofehler weg"
 
         testCase "ein Fehler vom Server bleibt im Formular stehen, die Eingaben auch" <| fun () ->
             let model =
@@ -482,7 +487,7 @@ let payeeLookupOrderTests =
                 |> step (SetCapturePayee "Tankstelle")
                 |> step CommitCapturePayee
             let model', sent, _ = run SubmitCapture model
-            Expect.equal (captureOf model').AmountError (Some Components.Ledger.Capture.amountInvalidText) "Fehler am Feld"
+            Expect.equal (captureOf model').AmountError (Some Components.Ledger.Capture.amountEmptyText) "Fehler am Feld"
             Expect.equal sent [ RevealCaptureAmountError ] "Fokus sofort, kein Warten auf die Kategorie"
             Expect.isFalse (captureOf model').Saving "bedienbar"
     ]

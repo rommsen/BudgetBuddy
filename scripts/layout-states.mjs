@@ -782,9 +782,10 @@ export const STATES = [
     name: "budget-target-anlegen",
     route: "/budget",
     widths: [...HANDY_WIDTHS, 1440],
-    // Invariante 10 (ledger-dn4vy): „Verfügbar“ in `text-muted` hat auf seiner Fläche 4,44:1. Kann-Sammlung budgeting.
+    // Invariante 10 (ledger-dn4vy): „Verfügbar“ 0,00 € in `text-muted` hat auf seiner Fläche 4,44:1. Kann-Sammlung
+    // budgeting. Auf den Text des Treffers verengt, ein anderer Betrag in der Spalte fällt weiter auf.
     exceptions: [
-      { width: 1440, inv: 10, selector: '[data-testid="budget-available"] span' },
+      { width: 1440, inv: 10, selector: '[data-testid="budget-available"] span "0,00 €"' },
     ],
     mock: mockBudget,
     open: async (page, { mobile }) => {
@@ -994,7 +995,7 @@ export const STATES = [
         const mode = await field.getAttribute("inputmode");
         if (mode !== "decimal") throw new Error(`Betragsfeld ohne Zifferntastatur: inputmode ${mode}`);
       }
-      await sheet.getByText("Betrag als Zahl, z. B. 12,50").nth(1).waitFor();
+      await sheet.getByText("Betrag nicht lesbar, etwa 12,50").nth(1).waitFor();
     },
   },
   // ledger-dn4vy: die Payee-Vorschläge im Filter-Sheet. Vorher `py-2.5` ohne Mindesthöhe (rund 40 px).
@@ -1068,6 +1069,8 @@ export const STATES = [
   },
   // ledger-ng110: ein unlesbarer Zeilenbetrag zeigt rote Ziffern (`input-invalid`) und trägt `aria-invalid`. Die
   // Invarianten 2 und 3 laufen auf den Feldern aus `Input.text` und dem Knopf "Zeile entfernen" (`removeIconWhen`).
+  // Review a3f7eb1d..982bdf79: die Zeile hatte nur rote Ziffern, keinen Satz. Jetzt steht „Betrag nicht lesbar, etwa
+  // 12,50“ unter der Zeile (`ErrorDisplay.inline'`), das Feld verweist per `aria-describedby` darauf.
   {
     name: "kassenbuch-aufteilen-ungueltig",
     route: "/ledger",
@@ -1082,6 +1085,10 @@ export const STATES = [
       await page.waitForFunction((el) => el.getAttribute("aria-invalid") === "true", await field.elementHandle());
       if (!(await field.evaluate((el) => el.classList.contains("input-invalid"))))
         throw new Error("Ungültiger Zeilenbetrag ohne input-invalid");
+      const describedBy = await field.getAttribute("aria-describedby");
+      if (!describedBy) throw new Error("Ungültiger Zeilenbetrag ohne aria-describedby");
+      const message = sheet.locator(`[id="${describedBy}"]`);
+      await message.getByText("Betrag nicht lesbar, etwa 12,50").waitFor();
       const valid = sheet.locator('[data-testid="split-amount-0"] input');
       if ((await valid.getAttribute("aria-invalid")) !== null) throw new Error("Leerer Zeilenbetrag gilt als ungültig");
       await field.blur();
@@ -1504,10 +1511,11 @@ export const STATES = [
     name: "regeln-dialog-picker",
     route: "/rules",
     widths: [1440],
-    // Invariante 10 (ledger-dn4vy): die Hilfetexte im Regel-Dialog stehen in `text-muted/70` (3,23:1). Kann-Sammlung
-    // categorization.
+    // Invariante 10 (ledger-dn4vy): die beiden Hilfetexte im Regel-Dialog stehen in `text-muted/70` (3,23:1).
+    // Kann-Sammlung categorization. Auf den Text der Treffer verengt, ein weiterer blasser Absatz fällt weiter auf.
     exceptions: [
-      { width: 1440, inv: 10, selector: '[data-testid="rule-dialog"] p' },
+      { width: 1440, inv: 10, selector: '[data-testid="rule-dialog"] p "Trifft zu wenn der Text diesen Teiltext' },
+      { width: 1440, inv: 10, selector: '[data-testid="rule-dialog"] p "Leer lassen für Original-Empfänger"' },
     ],
     mock: mockRules,
     open: async (page) => {

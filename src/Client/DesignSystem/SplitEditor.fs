@@ -30,8 +30,8 @@ let restAmountClass (rest: RestState) : string =
     let color =
         match rest with
         | RestOpen -> Colors.attention
-        | RestOver -> "text-error"
-        | RestBalanced -> "text-text-primary"
+        | RestOver -> Colors.error
+        | RestBalanced -> Colors.textPrimary
     $"font-mono font-medium tabular-nums whitespace-nowrap {color}"
 
 let totalLabel = "Gesamt"
@@ -102,8 +102,9 @@ type LineProps = {
     TargetLabel: string
     TargetChosen: bool
     AmountText: string
-    /// Der Betrag ist nicht leer und nicht lesbar: rote Ziffern und `aria-invalid`
-    AmountInvalid: bool
+    /// Die Meldung, wenn der Betrag nicht leer und nicht lesbar ist: rote Ziffern, `aria-invalid` und der Satz
+    /// unter der Zeile, auf den das Feld per `aria-describedby` verweist. `None`: der Betrag gilt.
+    AmountError: string option
     Memo: string
     Disabled: bool
     CanRemove: bool
@@ -133,8 +134,11 @@ let private targetButton (props: LineProps) : ReactElement =
 
 /// Eine Zeile: das Ziel-Feld (Kategorie oder Konto), Betrag mit "Rest" und Entfernen,
 /// darunter das Memo. Betrag und Memo sind `Input.text` (Small: 16 px am Handy, 14 px ab md), der
-/// Betrag als Betragsfeld mit Fehlerzustand (`Input.amountFieldClass`).
+/// Betrag als Betragsfeld mit Fehlerzustand (`Input.amountFieldClass`) und der Meldung darunter
+/// (`ErrorDisplay.inline'`, wie das Betragsfeld in „Neue Buchung“).
 let line (props: LineProps) : ReactElement =
+    let amountInvalid = props.AmountError.IsSome
+    let amountErrorId = $"split-amount-error-{props.Index}"
     Html.div [
         prop.key (string props.Index)
         prop.custom ("data-testid", $"split-line-{props.Index}")
@@ -157,8 +161,9 @@ let line (props: LineProps) : ReactElement =
                                     Disabled = props.Disabled
                                     InputMode = Some "decimal"
                                     AriaLabel = Some "Betrag"
-                                    AriaInvalid = props.AmountInvalid
-                                    ClassName = Some (Input.amountFieldClass false props.AmountInvalid) }
+                                    AriaInvalid = amountInvalid
+                                    DescribedBy = (if amountInvalid then Some amountErrorId else None)
+                                    ClassName = Some (Input.amountFieldClass false amountInvalid) }
                         ]
                     ]
                     Html.span [ prop.className $"{FontSizes.sm} {Colors.textMuted}"; prop.text "€" ]
@@ -178,6 +183,14 @@ let line (props: LineProps) : ReactElement =
                         props.OnRemove
                 ]
             ]
+            match props.AmountError with
+            | Some message ->
+                Html.div [
+                    prop.id amountErrorId
+                    prop.custom ("data-testid", amountErrorId)
+                    prop.children [ ErrorDisplay.inline' message ]
+                ]
+            | None -> ()
             Html.div [
                 prop.custom ("data-testid", $"split-memo-{props.Index}")
                 prop.children [

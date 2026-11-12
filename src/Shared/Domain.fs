@@ -1296,7 +1296,7 @@ let lenaFlagName = "Lena"
 /// Der Grund, wenn die Einstellung `lena_flag_color` fehlt oder keine YNAB-Farbe ist
 /// (ADR 0056, Punkt 1). Der Server lehnt den Befehl damit ab, das Detail nennt ihn als
 /// Grund der gesperrten Aktion.
-let lenaColorMissingReason = "In den Settings die Flag-Farbe für Lena wählen"
+let lenaColorMissingReason = "In den Einstellungen die Flag-Farbe für Lena wählen"
 
 /// Das rohe Flag einer Buchung, wie YNAB es führt: Farbe und Name. Die Antwort der Flag-
 /// Befehle trägt den Vorzustand in dieser Form, "Rückgängig" schickt ihn zurück (auch ein

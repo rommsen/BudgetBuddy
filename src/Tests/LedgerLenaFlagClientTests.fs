@@ -96,7 +96,7 @@ let lenaActionTests =
         testCase "ohne gesetzte Farbe ist Lena fragen gesperrt und nennt den Grund; Zurücknehmen bleibt möglich" <| fun () ->
             let ask = lenaActionFor (Success None) (entryOf 1)
             Expect.equal ask.DisabledReason (Some lenaColorMissingReason) "Grund"
-            Expect.equal lenaColorMissingReason "In den Settings die Flag-Farbe für Lena wählen" "Wortlaut"
+            Expect.equal lenaColorMissingReason "In den Einstellungen die Flag-Farbe für Lena wählen" "Wortlaut"
             Expect.isNone (lenaActionFor (Success None) (lenaEntry 1)).DisabledReason "Zurücknehmen braucht die Farbe nicht"
 
         // Regression ledger-vq2g8 (Bestandsreview 2026-11-06): scheiterte das Laden der

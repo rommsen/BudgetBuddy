@@ -401,6 +401,8 @@ let private buttonSection =
                                 Button.pinToggle "styleguide-pin-on" true ignore
                                 Button.orderArrowGap ()
                                 Button.removeIcon "styleguide-remove-icon" "Lebensmittel lösen" ignore
+                                // Gesperrt (`removeIconWhen true`): die einzige Zeile im Split-Editor, die bleiben muss.
+                                Button.removeIconWhen true "styleguide-remove-icon-locked" "Zeile entfernen" ignore
                             ]
                         ]
                         Html.div [
@@ -1771,7 +1773,8 @@ let private SplitEditorDemo () =
           TargetLabel = label
           TargetChosen = chosen
           AmountText = amount
-          AmountInvalid = Components.Ledger.SplitEditor.lineAmountInvalid amount
+          AmountError =
+            if Components.Ledger.SplitEditor.lineAmountInvalid amount then Some Components.Ledger.Capture.amountInvalidText else None
           Memo = ""
           Disabled = false
           CanRemove = true
@@ -1984,6 +1987,13 @@ let private SegmentedDemo () =
                     [ for label in [ "Monat"; "Woche"; "Jahr" ] do
                           { Segmented.segment label (label = "Monat") ignore with Disabled = true } ]
                 caption "Gesperrt: disabled, gedämpft, kein Hover (Rhythmus im Tab Target, solange das Speichern läuft)"
+                Segmented.viewColumns
+                    "demo-segmented-columns"
+                    "Schnellwahl"
+                    Segmented.TwoColumns
+                    [ for label in [ "Dieser Monat"; "Letzter Monat"; "Dieses Jahr"; "12 Monate" ] do
+                          Segmented.segment label (label = "Dieser Monat") ignore ]
+                caption "viewColumns TwoColumns: vier Optionen in zwei Reihen, wenn sie nebeneinander bei 320 px nicht sicher passen (Schnellwahl Zeitraum im Filter des Kassenbuchs)"
                 Segmented.view
                     "demo-segmented-weekday"
                     "Wochentag"
@@ -2267,10 +2277,10 @@ let private DetailDemo () =
                     prop.className "flex min-w-0 flex-col"
                     prop.children [
                         Detail.valueText Tokens.Colors.textMuted "Kein Flag"
-                        Detail.fieldLockHint "styleguide-detail-flag-lock-hint" "In den Settings die Flag-Farbe für Lena wählen"
+                        Detail.fieldLockHint "styleguide-detail-flag-lock-hint" lenaColorMissingReason
                     ]
                  ])
-                (Some (Detail.fieldActionButton "styleguide-detail-flag-action" "Lena fragen" (Some "In den Settings die Flag-Farbe für Lena wählen") false ignore))
+                (Some (Detail.fieldActionButton "styleguide-detail-flag-action" "Lena fragen" (Some lenaColorMissingReason) false ignore))
             // Memo-Zeile mit festem Knopf (ledger-fa1fp): ohne Memo, mit Memo und gesperrt.
             Detail.fieldRow
                 "styleguide-detail-memo"

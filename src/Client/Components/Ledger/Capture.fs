@@ -40,7 +40,7 @@ type CaptureState = {
     /// "Buchung anlegen" wurde getippt, während die Kategorie zum Payee lud: der Aufruf startet mit
     /// der Antwort, damit die vorgeschlagene Kategorie nicht fehlt.
     SubmitWhenLookedUp: bool
-    /// Der Fehler am Betragsfeld aus der Prüfung im Client (unlesbar oder 0); Tippen nimmt ihn zurück.
+    /// Der Fehler am Betragsfeld aus der Prüfung im Client (leer, unlesbar oder 0); Tippen nimmt ihn zurück.
     AmountError: string option
     /// Der Fehler unter dem Feld "Konto"; die Wahl eines Kontos nimmt ihn zurück.
     AccountError: string option
@@ -52,7 +52,11 @@ type CaptureState = {
     ShowsCreatedEntry: bool
 }
 
+/// Der Satz zu einem Betrag, der nicht leer und nicht lesbar ist. Neue Buchung, Filter (Betrag von und bis) und die
+/// Zeile im Split-Editor nennen denselben Satz.
 let amountInvalidText = "Betrag nicht lesbar, etwa 12,50"
+/// Das Betragsfeld ist leer (oder nur Leerzeichen).
+let amountEmptyText = "Betrag fehlt"
 let amountZeroText = "Der Betrag muss größer als 0 sein"
 let accountMissingText = "Konto fehlt"
 
@@ -158,6 +162,7 @@ let applyPayeeCategory (payee: string) (category: YnabCategoryId option) (form: 
 let captureRequest (form: CaptureForm) : Result<LedgerBookingRequest, CaptureFieldErrors> =
     let amount =
         match parseAmountInput form.AmountText with
+        | None when String.IsNullOrWhiteSpace form.AmountText -> Error amountEmptyText
         | None -> Error amountInvalidText
         | Some a when a <= 0m -> Error amountZeroText
         | Some a -> Ok a

@@ -548,6 +548,8 @@ let reviewMarkButtonClassName (hoverOnly: bool) (rowFocused: bool) : string =
     $"inline-flex shrink-0 items-center justify-center rounded-lg {Tokens.TouchTargets.mobileSquare} md:h-7 md:w-7 " +
     "text-text-secondary hover:text-text-primary hover:bg-surface-hover " +
     "transition-colors touch-manipulation aria-disabled:opacity-50 aria-disabled:cursor-not-allowed " +
+    // Gesperrt (laufender Aufruf, `aria-disabled`) ohne Hover-Rückmeldung, wie ein `disabled`-Knopf.
+    "aria-disabled:hover:text-text-secondary aria-disabled:hover:bg-transparent " +
     visibility
 
 /// Die Schaltfläche "Geprüft" / "Ungeprüft" einer Zeile (ledger-r777c, ADR 0050): ein
@@ -2092,7 +2094,8 @@ let private splitEditorBody
                             TargetLabel = SplitLogic.targetLabel line
                             TargetChosen = line.Target.IsSome
                             AmountText = line.AmountText
-                            AmountInvalid = SplitLogic.lineAmountInvalid line.AmountText
+                            AmountError =
+                                if SplitLogic.lineAmountInvalid line.AmountText then Some Capture.amountInvalidText else None
                             Memo = line.Memo
                             Disabled = saving
                             CanRemove = lineCount > 1
@@ -3268,7 +3271,7 @@ let private payeePickerBody (dispatch: Msg -> unit) (model: Model) =
                 { Suggestions = model.PayeeSuggestions
                   Heading = payeeSuggestionsHeading model.TotalCount
                   Search = model.PayeeSearch
-                  FocusSearch = Viewport.isDesktopViewport ()
+                  FocusSearch = Viewport.isFinePointer ()
                   OnSearch = fun text -> dispatch (SetPayeeSearch text)
                   OnPick = fun payee -> dispatch (SelectPayeeFilter payee) }
             Html.p [
@@ -3291,9 +3294,6 @@ let private memoPickerBody (dispatch: Msg -> unit) (model: Model) =
         ]
     ]
 
-/// Der Hinweis unter einem unlesbaren Betrag im Filter (ledger-dn4vy).
-let amountFilterInvalidHint = "Betrag als Zahl, z. B. 12,50"
-
 /// Betragsfeld des Filters mit sichtbarem Euro-Hinweis rechts im Feld (ledger-dn4vy): Zifferntastatur
 /// (`decimal`), Mono, 48 px und 16 px am Handy (`Input.Medium`), benannt als „Betrag von“ bzw. „Betrag bis“.
 /// Ein unlesbarer Text gilt sofort beim Tippen als ungültig und nennt den Grund am Feld.
@@ -3312,7 +3312,7 @@ let private amountField (name: string) (value: string) (onChange: string -> unit
                                     Placeholder = placeholder
                                     InputMode = Some "decimal"
                                     AriaLabel = Some name
-                                    State = (if invalid then Input.Error amountFilterInvalidHint else Input.Normal)
+                                    State = (if invalid then Input.Error Capture.amountInvalidText else Input.Normal)
                                     AriaInvalid = invalid
                                     DescribedBy = (if invalid then Some hintId else None)
                                     ClassName = Some (Input.amountFieldClass false invalid + " pr-8") }
@@ -3323,7 +3323,7 @@ let private amountField (name: string) (value: string) (onChange: string -> unit
                 ]
             ]
             if invalid then
-                Html.div [ prop.id hintId; prop.children [ ErrorDisplay.inline' amountFilterInvalidHint ] ]
+                Html.div [ prop.id hintId; prop.children [ ErrorDisplay.inline' Capture.amountInvalidText ] ]
         ]
     ]
 
