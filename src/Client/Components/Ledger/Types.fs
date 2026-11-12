@@ -491,6 +491,14 @@ let categoryHintTitle = "Kategorie nicht in YNAB"
 /// (ADR 0058, ledger-pafkp).
 let categoryReplacementTitle = "In YNAB gelöscht, Neuanlage offen"
 
+/// Grund der Hinweisleiste bei einem offenen Ersatz ohne Fehlschlag (Absturz zwischen Senden und
+/// Fehlschlag, ledger-f8bjm). Derselbe Satz wie `replacementPendingText` auf dem Server.
+let categoryReplacementPendingReason =
+    "Der Ersatz ist in YNAB noch nicht bestätigt. Erneut senden oder den Spiegel abwarten."
+
+let private replacementPending (entry: LedgerEntryView) : bool =
+    entry.SplitLocks |> Option.exists (fun l -> l.ReplacementPending)
+
 /// Welchen Hinweis trägt die Buchung? Ein Befehlsfehler hat Vorrang, danach der offene
 /// Fehlschlag an der Buchung. Rein, wie `reviewMarkHintFor`.
 let categoryHintFor (rowState: CategoryRowState option) (entry: LedgerEntryView) : CategoryHint option =
@@ -501,9 +509,12 @@ let categoryHintFor (rowState: CategoryRowState option) (entry: LedgerEntryView)
             Reason = message
             RetryLabel = failure |> Option.map (fun _ -> "Erneut senden")
         }
-    | _, Some reason when entry.SplitLocks |> Option.exists (fun l -> l.ReplacementPending) ->
+    | _, Some reason when replacementPending entry ->
         Some { Title = categoryReplacementTitle; Reason = reason; RetryLabel = Some "Erneut senden" }
     | _, Some reason -> Some { Title = categoryHintTitle; Reason = reason; RetryLabel = Some "Erneut senden" }
+    // ledger-f8bjm: ein offener Ersatz ohne Fehlschlag; "Erneut senden" schickt nur das POST.
+    | _, None when replacementPending entry ->
+        Some { Title = categoryReplacementTitle; Reason = categoryReplacementPendingReason; RetryLabel = Some "Erneut senden" }
     | _, None -> None
 
 // ============================================

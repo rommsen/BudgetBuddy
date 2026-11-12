@@ -395,6 +395,33 @@ let lockTests =
             let model, sent, _ = run (StartRetryCategorization pending.Id) (modelWith [ pending; entryOf 2 ])
             Expect.equal sent [ RunRetryCategorization pending.Id ] "genau ein Aufruf"
             Expect.equal (model.CategoryRows |> Map.tryFind pending.Id) (Some CategorySending) "sendet"
+
+        // ledger-f8bjm: nach einem Absturz zwischen Senden und Fehlschlag meldet der Server den offenen
+        // Ersatz ohne Fehlschlag; "Erneut senden" schickt dann nur das POST, der Client bot es nicht an.
+        testCase "ein offener Ersatz ohne Fehlschlag zeigt die Hinweisleiste mit Erneut senden" <| fun () ->
+            let pending =
+                { entryOf 1 with
+                    CategorizationWriteBackFailure = None
+                    SplitLocks = Some { CannotSplitReason = None; CannotChangeReason = None; ReplacementPending = true } }
+            match categoryHintFor None pending with
+            | Some hint ->
+                Expect.equal hint.Title categoryReplacementTitle "Titel des halben Ersatzes"
+                Expect.equal
+                    hint.Reason
+                    "Der Ersatz ist in YNAB noch nicht bestätigt. Erneut senden oder den Spiegel abwarten."
+                    "Grund wie die Sperre des Servers"
+                Expect.equal hint.RetryLabel (Some "Erneut senden") "Knopf"
+            | None -> failtest "Hinweis erwartet"
+            let notice = Components.Ledger.View.detailNoticeWithCategory None None NotAsked pending
+            Expect.equal
+                (notice |> Option.bind (Components.Ledger.View.detailNoticeActionMsg pending.Id))
+                (Some (StartRetryCategorization pending.Id))
+                "Erneut senden schickt StartRetryCategorization"
+            let model, sent, _ = run (StartRetryCategorization pending.Id) (modelWith [ pending; entryOf 2 ])
+            Expect.equal sent [ RunRetryCategorization pending.Id ] "genau ein Aufruf"
+            // Ein gelungenes Senden beendet den offenen Ersatz, die Leiste verschwindet.
+            let after, _, _ = update (CategorizationRetried (pending.Id, Ok CategorySent)) model
+            Expect.isNone (categoryHintFor None (rowOf 1 after)) "nach dem Senden kein Hinweis mehr"
     ]
 
 // ============================================

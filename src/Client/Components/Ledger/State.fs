@@ -2517,9 +2517,15 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             | CategorySendFailed reason -> Some reason
             | CategorySent | CategoryNotSent -> None
         let cleared = { model with CategoryRows = model.CategoryRows |> Map.remove entryId }
+        // Erfolg beendet einen offenen Ersatz (ledger-f8bjm), wie beim Speichern der Aufteilung.
+        let locksOf (entry: LedgerEntryView) =
+            match writeBack with
+            | CategorySent -> entry.SplitLocks |> Option.map (fun l -> { l with ReplacementPending = false })
+            | _ -> entry.SplitLocks
         let model' =
             match findEntry cleared entryId with
-            | Some entry -> replaceEntry { entry with CategorizationWriteBackFailure = failure } cleared
+            | Some entry ->
+                replaceEntry { entry with CategorizationWriteBackFailure = failure; SplitLocks = locksOf entry } cleared
             | None -> cleared
         let external =
             match writeBack with
