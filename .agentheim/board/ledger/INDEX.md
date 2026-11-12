@@ -11,18 +11,18 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 8
-- **Todo:** 1
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 1
 - **Done:** 121
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **ledger-v6s7c** — "Durchgehen Karte für Karte unter der Übersicht: ungeprüfte Buchungen bestätigen mit Kategorie, Vorschlägen, Bestell-Link, Memo, Lena und Wischen, Duplikat-Karte für wartende Buchungen, Zu tun und „Abrufen“ führen dorthin" (feature) — `todo/ledger-v6s7c-durchgehen-karte-fuer-karte.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **ledger-v6s7c** — "Durchgehen Karte für Karte unter der Übersicht: ungeprüfte Buchungen bestätigen mit Kategorie, Vorschlägen, Bestell-Link, Memo, Lena und Wischen, Duplikat-Karte für wartende Buchungen, Zu tun und „Abrufen“ führen dorthin" (feature) — `doing/ledger-v6s7c-durchgehen-karte-fuer-karte.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)

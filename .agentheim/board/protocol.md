@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-12 01:28 -- Batch started: [ledger-v6s7c]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-v6s7c - "Durchgehen Karte für Karte unter der Übersicht: ungeprüfte Buchungen bestätigen mit Kategorie, Vorschlägen, Bestell-Link, Memo, Lena und Wischen, Duplikat-Karte für wartende Buchungen, Zu tun und „Abrufen“ führen dorthin"
+**Parallel:** yes (läuft neben banking-import-t4raw aus der vorigen Welle)
+
+---
+
 ## 2026-11-12 01:28 -- Modeling / Promoted: ledger-v6s7c - "Durchgehen Karte für Karte unter der Übersicht: ungeprüfte Buchungen bestätigen mit Kategorie, Vorschlägen, Bestell-Link, Memo, Lena und Wischen, Duplikat-Karte für wartende Buchungen, Zu tun und „Abrufen“ führen dorthin"
 
 **Type:** Modeling / Promote
