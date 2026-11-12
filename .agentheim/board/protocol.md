@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-12 08:17 -- Batch started: [ledger-f8bjm]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-f8bjm - "Ersatz-POST mit verlorener Antwort: Wiederherstellen, Split- und Betrags-Ersatz scheitern danach dauerhaft an 409, der Spiegel legt die Ersatzbuchung als neue Buchung „YNAB-Spiegel“ an; die Ersatz-import_id muss vor dem POST im Kassenbuch stehen (Ledger/CommandHandlers.fs)"
+**Parallel:** yes (Welle 2d, nach Integration von ledger-vfr4h; ledger-nc708 wartet auf Integration von ledger-ct3cx)
+
+---
+
 ## 2026-11-12 08:17 -- Task verified and completed: ledger-vfr4h - "Schreib-Sperre, Spiegel-Auslöser nach Freigabe und Wartesperre für Verwerfen nach dem Erfassen, Übertrag, Löschen, Wiederherstellen und Ist neu durch Verhalten belegt; Wartesperre als erster Zweig in discardCapturedBooking und restoreDeletedEntry"
 
 **Type:** Work / Task completion

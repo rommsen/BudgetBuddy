@@ -1,7 +1,7 @@
 ---
 id: ledger-f8bjm
 title: "Ersatz-POST mit verlorener Antwort: Wiederherstellen, Split- und Betrags-Ersatz scheitern danach dauerhaft an 409, der Spiegel legt die Ersatzbuchung als neue Buchung „YNAB-Spiegel“ an; die Ersatz-import_id muss vor dem POST im Kassenbuch stehen (Ledger/CommandHandlers.fs)"
-status: todo
+status: doing
 type: bug
 context: ledger
 created: 2026-11-12
