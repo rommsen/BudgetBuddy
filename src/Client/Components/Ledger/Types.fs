@@ -1069,9 +1069,11 @@ type ReviewSwipe =
     | SwipeNothing
 
 /// Die Entscheidung am Ende eines Wischs auf der Karte: mehr als 90 px nach rechts „Passt“, mehr als
-/// 90 px nach links „Später“, dazwischen nichts. Rein.
-let reviewSwipeOf (dx: float) : ReviewSwipe =
-    if dx > reviewSwipeThresholdPx then SwipeConfirm
+/// 90 px nach links „Später“, dazwischen nichts. Nur ein waagrechter Wisch zählt (`abs dx > abs dy`):
+/// eine schräge Scrollbewegung mit 90 px seitlich setzt keinen Prüfvermerk. Rein.
+let reviewSwipeOf (dx: float) (dy: float) : ReviewSwipe =
+    if abs dx <= abs dy then SwipeNothing
+    elif dx > reviewSwipeThresholdPx then SwipeConfirm
     elif dx < -reviewSwipeThresholdPx then SwipeSkip
     else SwipeNothing
 
@@ -1463,6 +1465,14 @@ type Model = {
 
     /// Das laufende Durchgehen (ledger-v6s7c), `None` außerhalb der Seite.
     Review: ReviewSession option
+
+    /// Zählt jedes Öffnen des Durchgehens. Die Abfrage der Schlange trägt die Generation ihres Starts
+    /// mit; die späte Antwort eines früheren Öffnens setzt die laufende Sitzung nicht auf Karte 1 zurück.
+    /// Am Modell und nicht in `ReviewSession`, weil das Verlassen die Sitzung verwirft.
+    ReviewGeneration: int
+
+    /// Buchungen, deren „Rückgängig“ nach dem Verwerfen gerade läuft: ein zweiter Tipp schickt nichts.
+    RestoringDuplicates: Set<Guid>
 }
 
 /// Ist Von oder Bis des Zeitraum-Entwurfs ungültig eingegeben? Dann ist "Übernehmen"
@@ -2380,12 +2390,13 @@ type Msg =
     | ReviewOpened
     /// Die Seite wird verlassen: Karte, Picker und Detail schließen.
     | ReviewLeft
-    | RunLoadReviewQueue
-    | ReviewQueueLoaded of Result<LedgerEntryView list, string>
+    /// Lädt die Schlange; die Zahl ist die Generation des Öffnens (`ReviewGeneration`).
+    | RunLoadReviewQueue of generation: int
+    | ReviewQueueLoaded of generation: int * Result<LedgerEntryView list, string>
     /// Die gezeigte Karte wird neu gelesen; eine inzwischen geprüfte oder gelöschte übersprungen.
     | RunReviewRefresh of Guid
     | ReviewEntryRefreshed of Guid * basis: LedgerEntryView option * Result<LedgerEntryView option, string>
-    | RunReviewSuggestions of Guid * string * YnabCategoryId option
+    | RunReviewSuggestions of Guid * string
     | ReviewSuggestionsLoaded of Guid * YnabCategoryId list
     /// Die schon vorhandene Buchung zur Duplikat-Karte wird gelesen.
     | RunReviewMatch of Guid
@@ -2416,8 +2427,8 @@ type Msg =
     | DiscardedDuplicateRestored of Guid * Result<unit, string>
     /// „Details“: das Buchungs-Detail über der Karte.
     | ReviewShowDetails
-    /// Ende eines Wischs auf der Karte, mit dem Weg in Pixeln.
-    | ReviewSwiped of float
+    /// Ende eines Wischs auf der Karte, mit dem Weg in Pixeln (waagrecht, senkrecht).
+    | ReviewSwiped of dx: float * dy: float
     /// Eine Taste am PC (ohne Fokus in einem Feld).
     | ReviewKey of ReviewKeyAction
 

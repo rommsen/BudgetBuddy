@@ -38,7 +38,7 @@ test("[flow:uebersicht] Mit einer ungeprüften Buchung führt „Jetzt durchgehe
   try {
     await page.route("**/api/**", (r) => r.fulfill({ status: 500, contentType: "application/json", body: '{"error":"nicht gemockt"}' }));
     await stateNamed("kassenbuch").mock(page);
-    await stateNamed("uebersicht").mock(page);
+    // Nach `mockReview`: es ruft `mockApp` und überschriebe sonst die Antworten der Übersicht.
     await mockReview(page, [REVIEW_QUEUE.plain]);
     await stateNamed("uebersicht").mock(page);
     // Die neuesten Buchungen: eine Buchung ist zu prüfen.

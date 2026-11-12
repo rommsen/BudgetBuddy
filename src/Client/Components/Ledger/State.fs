@@ -158,6 +158,8 @@ let init () : Model * Cmd<Msg> =
         OrderStale = false
         EntriesGeneration = 0
         Review = None
+        ReviewGeneration = 0
+        RestoringDuplicates = Set.empty
     }
     model, Cmd.none
 
@@ -1186,9 +1188,11 @@ let presetQuickFilter (preset: QuickFilterPreset) (model: Model) : Model =
 // ============================================
 
 /// Zeigt die Karte an der Stelle `index` der Schlange: die Buchung steht in `DetailFor` (der letzte
-/// bekannte Stand), sie wird neu gelesen, die Vorschläge zum Payee laden. Hinter der letzten Karte steht
-/// die Endansicht. Rein bis auf die Befehle.
-let private showReviewCardAt (index: int) (model: Model) : Model * Cmd<Msg> =
+/// bekannte Stand), sie wird neu gelesen, die Vorschläge zum Payee laden. Eine Buchung ohne bekannten
+/// Stand wird übersprungen wie eine unbekannte beim Neulesen (`reviewSkipsEntry`): ohne Stand gibt es
+/// keine Karte, und der Nachlauf in `update` stieße sonst bei jeder Nachricht ein neues Neulesen an.
+/// Hinter der letzten Karte steht die Endansicht. Rein bis auf die Befehle.
+let rec private showReviewCardAt (index: int) (model: Model) : Model * Cmd<Msg> =
     match model.Review, reviewQueueOf model with
     | Some review, Some ids ->
         let cleared =
@@ -1199,20 +1203,22 @@ let private showReviewCardAt (index: int) (model: Model) : Model * Cmd<Msg> =
                 SplitEditor = None }
         if index < List.length ids then
             let id = ids.[index]
-            let entry = findEntry model id |> Option.orElse (review.Snapshots |> Map.tryFind id)
-            let shown =
-                { cleared with
-                    DetailFor = entry
-                    Review = Some { review with Index = index; Suggestions = []; DetailShown = false; Confirming = None; Deciding = None } }
-            let suggestions =
-                match entry |> Option.bind (fun e -> e.Payee) with
-                | Some payee when not (String.IsNullOrWhiteSpace payee) -> Cmd.ofMsg (RunReviewSuggestions (id, payee, None))
-                | _ -> Cmd.none
-            let matchLoad =
-                match entry |> Option.bind (fun e -> e.PossibleDuplicate) |> Option.bind (fun d -> d.MatchEntryId) with
-                | Some matchId when not (review.Matches.ContainsKey matchId) -> Cmd.ofMsg (RunReviewMatch matchId)
-                | _ -> Cmd.none
-            shown, Cmd.batch [ Cmd.ofMsg (RunReviewRefresh id); suggestions; matchLoad ]
+            match findEntry model id |> Option.orElse (review.Snapshots |> Map.tryFind id) with
+            | None -> showReviewCardAt (index + 1) model
+            | Some entry ->
+                let shown =
+                    { cleared with
+                        DetailFor = Some entry
+                        Review = Some { review with Index = index; Suggestions = []; DetailShown = false; Confirming = None; Deciding = None } }
+                let suggestions =
+                    match entry.Payee with
+                    | Some payee when not (String.IsNullOrWhiteSpace payee) -> Cmd.ofMsg (RunReviewSuggestions (id, payee))
+                    | _ -> Cmd.none
+                let matchLoad =
+                    match entry.PossibleDuplicate |> Option.bind (fun d -> d.MatchEntryId) with
+                    | Some matchId when not (review.Matches.ContainsKey matchId) -> Cmd.ofMsg (RunReviewMatch matchId)
+                    | _ -> Cmd.none
+                shown, Cmd.batch [ Cmd.ofMsg (RunReviewRefresh id); suggestions; matchLoad ]
         else
             { cleared with Review = Some { review with Index = List.length ids; Suggestions = []; DetailShown = false; Confirming = None; Deciding = None } },
             Cmd.none
@@ -3788,16 +3794,18 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     // ============================================
 
     | ReviewOpened ->
+        let generation = model.ReviewGeneration + 1
         let opened =
             { closeDetail model with
                 Review = Some reviewStarting
+                ReviewGeneration = generation
                 CategoryPickerFor = None
                 CategorySuggestions = []
                 CategoryCard = None
                 SplitEditor = None
                 Capture = None }
         let loads =
-            [ yield Cmd.ofMsg RunLoadReviewQueue
+            [ yield Cmd.ofMsg (RunLoadReviewQueue generation)
               match model.Accounts with
               | Success _ | Loading -> ()
               | _ -> yield Cmd.ofMsg LoadAccounts
@@ -3819,16 +3827,17 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         Cmd.none,
         NoOp
 
-    | RunLoadReviewQueue ->
+    | RunLoadReviewQueue generation ->
         model,
         Cmd.OfAsync.either
             (Retry.reading Api.ledger.getReviewQueue)
             ()
-            (Ok >> ReviewQueueLoaded)
-            (fun ex -> ReviewQueueLoaded (Error ex.Message)),
+            (fun entries -> ReviewQueueLoaded (generation, Ok entries))
+            (fun ex -> ReviewQueueLoaded (generation, Error ex.Message)),
         NoOp
 
-    | ReviewQueueLoaded (Ok entries) when model.Review.IsSome ->
+    // Nur die Antwort des jüngsten Öffnens: eine späte frühere setzt die laufende Sitzung nicht zurück.
+    | ReviewQueueLoaded (generation, Ok entries) when model.Review.IsSome && generation = model.ReviewGeneration ->
         let loaded =
             model
             |> editReview (fun r ->
@@ -3838,7 +3847,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         let model', cmd = showReviewCardAt 0 loaded
         model', cmd, NoOp
 
-    | ReviewQueueLoaded (Error message) when model.Review.IsSome ->
+    | ReviewQueueLoaded (generation, Error message) when model.Review.IsSome && generation = model.ReviewGeneration ->
         editReview (fun r -> { r with Queue = Failure message }) model, Cmd.none, NoOp
 
     | ReviewQueueLoaded _ -> model, Cmd.none, NoOp
@@ -3861,13 +3870,16 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         else
             replaceEntry fresh.Value model, Cmd.none, NoOp
 
+    // Absichtlich still: eine Antwort für eine andere oder inzwischen geänderte Karte ist veraltet, und
+    // scheitert das Neulesen (`Error`), bleibt die Karte mit dem bekannten Stand stehen. „Passt“ und die
+    // anderen Befehle melden ihre Fehler selbst.
     | ReviewEntryRefreshed _ -> model, Cmd.none, NoOp
 
-    | RunReviewSuggestions (entryId, payee, current) ->
+    | RunReviewSuggestions (entryId, payee) ->
         model,
         Cmd.OfAsync.either
             (Retry.reading (Api.ledger.getPayeeCategorySuggestions payee))
-            current
+            None
             (fun ids -> ReviewSuggestionsLoaded (entryId, ids))
             (fun _ -> ReviewSuggestionsLoaded (entryId, [])),
         NoOp
@@ -4036,7 +4048,13 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | ReviewDiscarded (_, Error message) ->
         model |> editReview (fun r -> { r with Deciding = None }), Cmd.none, ShowToast ($"Nicht verworfen: {message}", ToastError)
 
-    | StartRestoreDiscardedDuplicate entryId -> model, Cmd.ofMsg (RunRestoreDiscardedDuplicate entryId), NoOp
+    | StartRestoreDiscardedDuplicate entryId ->
+        if model.RestoringDuplicates.Contains entryId then
+            model, Cmd.none, NoOp
+        else
+            { model with RestoringDuplicates = model.RestoringDuplicates.Add entryId },
+            Cmd.ofMsg (RunRestoreDiscardedDuplicate entryId),
+            NoOp
 
     | RunRestoreDiscardedDuplicate entryId ->
         model,
@@ -4048,12 +4066,16 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         NoOp
 
     // Die Duplikat-Karte steht wieder da; das Neulesen bringt die Wartemarke zurück.
+    // Der Toast meldet es auch außerhalb des Durchgehens, wo keine Karte zurückkommt.
     | DiscardedDuplicateRestored (entryId, Ok ()) ->
-        let model', cmd = returnToReviewCard entryId model
-        model', cmd, NoOp
+        let released = { model with RestoringDuplicates = model.RestoringDuplicates.Remove entryId }
+        let model', cmd = returnToReviewCard entryId released
+        model', cmd, ShowToast (reviewRestoredText, ToastSuccess)
 
-    | DiscardedDuplicateRestored (_, Error message) ->
-        model, Cmd.none, ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
+    | DiscardedDuplicateRestored (entryId, Error message) ->
+        { model with RestoringDuplicates = model.RestoringDuplicates.Remove entryId },
+        Cmd.none,
+        ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
 
     | ReviewShowDetails ->
         match reviewCardOf model with
@@ -4064,10 +4086,10 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             NoOp
         | None -> model, Cmd.none, NoOp
 
-    | ReviewSwiped dx ->
+    | ReviewSwiped (dx, dy) ->
         match reviewCardOf model with
         | Some card when reviewCardKindOf card = NormalCard ->
-            match reviewSwipeOf dx with
+            match reviewSwipeOf dx dy with
             | SwipeConfirm when reviewHasTarget card -> updateCore ReviewConfirm model
             | SwipeConfirm -> model, Cmd.none, ShowToast (reviewNeedsTargetText, ToastInfo)
             | SwipeSkip -> updateCore ReviewSkip model
@@ -4131,6 +4153,8 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     let model', cmd, external = updateCore msg model
     // Das Durchgehen hält seine Karte in `DetailFor`. Hat ein Schritt im Detail sie geschlossen (etwa
     // „Buchung löschen“), steht die Karte wieder da; das Neulesen überspringt sie, wenn sie weg ist.
+    // `showReviewCardAt` zeigt danach eine Karte oder die Endansicht (eine Buchung ohne Stand überspringt
+    // es), der Haken greift also nur einmal und nicht bei jeder weiteren Nachricht.
     let model', cmd =
         match model'.Review, reviewQueueOf model' with
         | Some review, Some ids when review.Index < List.length ids && (reviewCardOf model').IsNone ->

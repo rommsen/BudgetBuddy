@@ -2528,9 +2528,12 @@ let private multiSelectSection =
 
 let private reviewCardSection =
     section "29. Durchgehen (Karte für Karte)" [
-        note "ReviewCard: Fortschritt 4 px (Spur border, Füllung Akzent), die Karte des Durchgehens mit Payee und Betrag in 20 px, die Duplikat-Karte mit gelbem Rand („braucht dich“) und die Tastenleiste am PC mit kbd-Kästchen. Höchstens drei Schriftgrößen je Ansicht (§7.14): 20 px, 16/14 px, 12 px."
+        note "ReviewCard: Fortschritt 4 px (Spur border, Füllung Akzent), die Karte des Durchgehens (Radius 14 px, Hinweis und Trefferzeile 12 px) mit Payee und Betrag in 20 px, die Duplikat-Karte mit gelbem Rand („braucht dich“) und die Tastenleiste am PC mit kbd-Kästchen. Höchstens drei Schriftgrößen je Ansicht (§7.14): 20 px, 16/14 px, 12 px."
         subTitle "ReviewCard.progress"
-        Html.div [ prop.className "max-w-md"; prop.children [ ReviewCard.progress 30.0 ] ]
+        Html.div [ prop.className "max-w-md"; prop.children [ ReviewCard.progress 30.0 (Some "4 von 10") ] ]
+        subTitle "ReviewCard.skeleton"
+        note "Solange Schlange oder Karte laden: Fortschritt ohne Füllung, die Karte mit grauen Balken in der Höhe ihrer Zeilen und die drei Knopfflächen darunter (§6, Skeleton statt Spinner)."
+        Html.div [ prop.className "max-w-md"; prop.children [ ReviewCard.skeleton () ] ]
         subTitle "ReviewCard.card (normal)"
         Html.div [
             prop.className "max-w-md flex flex-col gap-3"
@@ -2543,7 +2546,7 @@ let private reviewCardSection =
                     ReviewCard.caption "demo-review-order" "aus Bestellnummer"
                     ReviewCard.linkRow "Bestellung bei Amazon" (Some "302-1234567-2222222") "https://www.amazon.de/gp/your-account/order-history"
                     ReviewCard.kvRow "demo-review-memo" "Memo" None "hinzufügen" ignore
-                    ReviewCard.note "demo-review-note" [ Html.span [ prop.text "Lena ist gefragt. Die Buchung bleibt offen, bis Lena oder du sie prüft." ] ]
+                    ReviewCard.note "demo-review-note" [ Html.span [ ReviewCard.noteName "Lena"; Html.text " ist gefragt. Die Buchung bleibt offen, bis Lena oder du sie prüft." ] ]
                 ]
                 ReviewCard.card false [] [
                     ReviewCard.meta "Gestern · Kreditkarte · YNAB-Spiegel"
@@ -2562,7 +2565,7 @@ let private reviewCardSection =
                     ReviewCard.metaAttention "Möglicherweise doppelt · noch nicht in YNAB"
                     ReviewCard.payee "Markt" "" None
                     ReviewCard.amount "-42,80 €"
-                    ReviewCard.meta "Heute · Girokonto · Comdirect-Import"
+                    ReviewCard.metaSecondary "Heute · Girokonto · Comdirect-Import"
                     ReviewCard.sectionHead "Schon im Kassenbuch"
                     ReviewCard.matchRow "Markt" "Heute · Girokonto · Lebensmittel" "-42,80 €"
                     ReviewCard.caption "demo-review-reason" "Gleicher Betrag, gleicher Tag, gleicher Payee, aber eine andere Bank-Referenz."
@@ -2570,7 +2573,7 @@ let private reviewCardSection =
             ]
         ]
         subTitle "Button.Choice"
-        note "Zwei gleich breite Entscheidungen nebeneinander auf einer Karte: 16 px am Handy, 14 px am PC, wenig Innenabstand (px-3), kein Umbruch. Die Höhe setzt der Aufrufer (52 px, der Hauptknopf „Passt, weiter“ 54 px)."
+        note "Zwei gleich breite Entscheidungen nebeneinander auf einer Karte: 16 px am Handy, 14 px am PC, wenig Innenabstand (px-3). Unter 640 px bricht ein langer Text auf zwei Zeilen um, darüber kein Umbruch. Die Höhe setzt der Aufrufer (52 px, der Hauptknopf „Passt, weiter“ 54 px)."
         Html.div [
             prop.className "max-w-md grid grid-cols-2 gap-2"
             prop.children [

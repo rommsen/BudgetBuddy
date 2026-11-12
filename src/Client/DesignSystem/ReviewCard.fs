@@ -8,14 +8,18 @@ open Feliz
 open Client.DesignSystem.Tokens
 
 /// Der Fortschritt (Prototyp `.progress`): 4 px hoch, Spur in der Rahmenfarbe, Füllung im Akzent.
-/// `percent` von 0 bis 100.
-let progress (percent: float) : ReactElement =
+/// `percent` von 0 bis 100, `valueText` liest der Screenreader statt der Prozentzahl („4 von 10“).
+let progress (percent: float) (valueText: string option) : ReactElement =
     Html.div [
         prop.custom ("data-testid", "review-progress")
         prop.role "progressbar"
+        prop.ariaLabel "Fortschritt"
         prop.custom ("aria-valuemin", "0")
         prop.custom ("aria-valuemax", "100")
         prop.custom ("aria-valuenow", string (int percent))
+        match valueText with
+        | Some text -> prop.custom ("aria-valuetext", text)
+        | None -> ()
         prop.className $"h-1 w-full overflow-hidden {Radius.full} bg-border-default"
         prop.children [
             Html.div [
@@ -25,7 +29,8 @@ let progress (percent: float) : ReactElement =
         ]
     ]
 
-/// Die Karte (Prototyp `.rcard`): Innenabstand 18 × 16 px, 12 px zwischen den Zeilen. `attention`
+/// Die Karte (Prototyp `.card.rcard`): Radius 14 px wie `Card.allDone`, Innenabstand 18 × 16 px, 12 px
+/// zwischen den Zeilen. `attention`
 /// zeichnet den Rand in Gelb (Duplikat-Karte, „braucht dich“). `extra` sind weitere Eigenschaften
 /// (Wischgesten, Test-Id).
 let card (attention: bool) (extra: IReactProperty list) (children: ReactElement list) : ReactElement =
@@ -33,7 +38,7 @@ let card (attention: bool) (extra: IReactProperty list) (children: ReactElement 
     Html.div [
         yield! extra
         prop.className (
-            $"flex flex-col gap-3 px-4 py-[18px] {Radius.lg} border {border} {Backgrounds.dark} "
+            $"flex flex-col gap-3 px-4 py-[18px] rounded-[14px] border {border} {Backgrounds.dark} "
             + "transition-[transform,opacity] duration-150 touch-pan-y"
         )
         prop.children children
@@ -43,11 +48,17 @@ let card (attention: bool) (extra: IReactProperty list) (children: ReactElement 
 let meta (text: string) : ReactElement =
     Html.p [ prop.custom ("data-testid", "review-meta"); prop.className $"{FontSizes.xs} {Colors.textMuted}"; prop.text text ]
 
+/// Kleine Zeile in `text-secondary` (Prototyp `.small.sec`): Tag, Konto und Herkunft auf der Duplikat-Karte.
+let metaSecondary (text: string) : ReactElement =
+    Html.p [ prop.custom ("data-testid", "review-meta"); prop.className $"{FontSizes.xs} {Colors.textSecondary}"; prop.text text ]
+
 /// Kleine Zeile in Gelb: „Möglicherweise doppelt · noch nicht in YNAB“.
 let metaAttention (text: string) : ReactElement =
     Html.p [ prop.className $"{FontSizes.xs} {Colors.attention}"; prop.text text ]
 
-/// Der Payee groß und halbfett. Mit `onClick` ein Knopf (Payee ändern), sonst Text.
+/// Der Payee groß und halbfett. Mit `onClick` ein Knopf (Payee ändern), sonst Text. Der Name des Knopfs
+/// ist `ariaLabel` mit dem sichtbaren Payee dahinter („Payee ändern: Amazon“), damit Sprachsteuerung
+/// ihn über das sichtbare Wort findet.
 let payee (text: string) (ariaLabel: string) (onClick: (unit -> unit) option) : ReactElement =
     let cls = $"{FontSizes.placeTitle} {FontWeights.semibold} {Colors.textPrimary} min-w-0 break-words"
     match onClick with
@@ -55,7 +66,7 @@ let payee (text: string) (ariaLabel: string) (onClick: (unit -> unit) option) : 
         Html.button [
             prop.type' "button"
             prop.custom ("data-testid", "review-payee")
-            prop.ariaLabel ariaLabel
+            prop.ariaLabel $"{ariaLabel}: {text}"
             prop.className $"{cls} -mx-1 px-1 text-left {Radius.sm} {TouchTargets.mobileMinHeight} md:min-h-0 hover:bg-surface-hover touch-manipulation"
             prop.onClick (fun _ -> click ())
             prop.text text
@@ -157,13 +168,18 @@ let linkRow (title: string) (detail: string option) (url: string) : ReactElement
         ]
     ]
 
-/// Ein Hinweis in der Karte (Prototyp `.note`): Rand, Radius 12 px, Text klein.
+/// Ein Hinweis in der Karte (Prototyp `.note`): Rand, Radius 12 px, Text klein in `text-secondary`. Ein
+/// Name darin steht mit `noteName` hervorgehoben (Prototyp `.note b`).
 let note (testId: string) (children: ReactElement list) : ReactElement =
     Html.div [
         prop.custom ("data-testid", testId)
-        prop.className $"flex items-start gap-2 {Radius.lg} border {Borders.default'} px-3 py-2.5 {FontSizes.xs} {Colors.textSecondary}"
+        prop.className $"flex items-start gap-2 rounded-[12px] border {Borders.default'} px-3 py-2.5 {FontSizes.xs} {Colors.textSecondary}"
         prop.children children
     ]
+
+/// Ein Name im Hinweis (Prototyp `.note b`): `text-primary`, halbfett.
+let noteName (text: string) : ReactElement =
+    Html.b [ prop.className $"{FontWeights.semibold} {Colors.textPrimary}"; prop.text text ]
 
 /// Abschnittskopf in der Karte (Prototyp `.sec-h`): Mono, gesperrt, Großbuchstaben, gedämpft.
 let sectionHead (text: string) : ReactElement =
@@ -172,12 +188,12 @@ let sectionHead (text: string) : ReactElement =
         prop.text text
     ]
 
-/// Die Zeile der schon vorhandenen Buchung auf erhöhtem Grund: Payee, darunter Tag, Konto und Kategorie,
-/// rechts der Betrag.
+/// Die Zeile der schon vorhandenen Buchung auf erhöhtem Grund, Radius 12 px: Payee, darunter Tag, Konto und
+/// Kategorie, rechts der Betrag.
 let matchRow (payeeText: string) (metaText: string) (amountText: string) : ReactElement =
     Html.div [
         prop.custom ("data-testid", "review-match")
-        prop.className $"flex items-center justify-between gap-3 {Radius.lg} {Backgrounds.surface} px-4 py-3"
+        prop.className $"flex items-center justify-between gap-3 rounded-[12px] {Backgrounds.surface} px-4 py-3"
         prop.children [
             Html.div [
                 prop.className "flex min-w-0 flex-col"
@@ -235,5 +251,39 @@ let keyBar (keys: (string * string) list) : ReactElement =
                     prop.className "inline-flex items-center gap-1.5"
                     prop.children [ kbd key; Html.span [ prop.text label ] ]
                 ]
+        ]
+    ]
+
+let private skeletonBar = $"block {Radius.sm} {Backgrounds.surface} animate-pulse"
+
+/// Platzhalter der Seite, solange Schlange oder Karte laden (§6, Skeleton statt Spinner): Fortschritt ohne
+/// Füllung, die Karte mit grauen Balken in der Höhe ihrer Zeilen (Meta, Payee, Betrag, Feld „Kategorie“,
+/// Memo) und darunter die drei Knopfflächen (zwei nebeneinander, 52 px, und der Hauptknopf, 54 px).
+let skeleton () : ReactElement =
+    Html.div [
+        prop.custom ("data-testid", "review-skeleton")
+        prop.ariaLabel "Lade Buchungen"
+        prop.ariaBusy true
+        prop.className "flex flex-col gap-3"
+        prop.children [
+            Html.div [ prop.className $"h-1 w-full {Radius.full} bg-border-default" ]
+            Html.div [
+                prop.className $"flex flex-col gap-3 px-4 py-[18px] rounded-[14px] border {Borders.default'} {Backgrounds.dark}"
+                prop.children [
+                    Html.span [ prop.className $"{skeletonBar} h-3 w-40" ]
+                    Html.span [ prop.className $"{skeletonBar} h-5 w-32" ]
+                    Html.span [ prop.className $"{skeletonBar} h-5 w-24" ]
+                    Html.span [ prop.className $"{skeletonBar} h-[52px] w-full" ]
+                    Html.span [ prop.className $"{skeletonBar} h-[52px] w-full" ]
+                ]
+            ]
+            Html.div [
+                prop.className "grid grid-cols-2 gap-2"
+                prop.children [
+                    Html.span [ prop.className $"{skeletonBar} h-[52px]" ]
+                    Html.span [ prop.className $"{skeletonBar} h-[52px]" ]
+                ]
+            ]
+            Html.span [ prop.className $"{skeletonBar} h-[54px] w-full" ]
         ]
     ]

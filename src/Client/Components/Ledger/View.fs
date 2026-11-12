@@ -4523,9 +4523,10 @@ let private setCardTransform (element: Browser.Types.HTMLElement) (value: string
 let private setCardOpacity (element: Browser.Types.HTMLElement) (value: string) : unit = jsNative
 
 /// Die Karte folgt beim Wischen dem Finger und wird blasser (Prototyp `touchmove`); am Ende entscheidet
-/// `reviewSwipeOf` über den Weg.
+/// `reviewSwipeOf` über den Weg (waagrecht und senkrecht). Bricht der Browser die Geste ab (`touchcancel`,
+/// etwa weil er scrollt), steht die Karte wieder an ihrem Platz und nichts wird entschieden.
 [<ReactComponent>]
-let private SwipeableReviewCard (enabled: bool) (onSwiped: float -> unit) (content: ReactElement list) =
+let private SwipeableReviewCard (enabled: bool) (onSwiped: float * float -> unit) (content: ReactElement list) =
     let start = React.useRef<(float * float) option> None
     let element = React.useRef<Browser.Types.HTMLElement option> None
     let reset () =
@@ -4553,13 +4554,17 @@ let private SwipeableReviewCard (enabled: bool) (onSwiped: float -> unit) (conte
                   | _ -> ())
               prop.onTouchEnd (fun e ->
                   match start.current with
-                  | Some (sx, _) when e.changedTouches.Length > 0 ->
+                  | Some (sx, sy) when e.changedTouches.Length > 0 ->
                       start.current <- None
                       reset ()
-                      onSwiped (e.changedTouches.[0].clientX - sx)
+                      let t = e.changedTouches.[0]
+                      onSwiped (t.clientX - sx, t.clientY - sy)
                   | _ ->
                       start.current <- None
-                      reset ()) ]
+                      reset ())
+              prop.onTouchCancel (fun _ ->
+                  start.current <- None
+                  reset ()) ]
     ReviewCard.card
         false
         ([ prop.custom ("data-testid", "review-card")
@@ -4636,7 +4641,7 @@ let private reviewNormalCard (dispatch: Msg -> unit) (model: Model) (review: Rev
             if entry.Flag = AskLena then
                 ReviewCard.note "review-lena-note" [
                     Html.span [ prop.className "inline-flex shrink-0 pt-0.5"; prop.children [ Icons.flagSolid Icons.XS Icons.LenaFlag ] ]
-                    Html.span [ prop.text $"Lena {reviewLenaHintText}" ]
+                    Html.span [ ReviewCard.noteName "Lena"; Html.text $" {reviewLenaHintText}" ]
                 ]
             ReviewCard.detailsLink (fun () -> dispatch ReviewShowDetails)
         ]
@@ -4645,7 +4650,7 @@ let private reviewNormalCard (dispatch: Msg -> unit) (model: Model) (review: Rev
             prop.children [
                 Button.view
                     { Button.defaultProps with
-                        Text = lena.Label |> fun l -> if entry.Flag = AskLena then "Rückfrage zurück" else "Lena fragen"
+                        Text = (if entry.Flag = AskLena then "Rückfrage zurück" else "Lena fragen")
                         Variant = Button.Secondary
                         Size = Button.Choice
                         ClassName = Some "min-h-[52px]"
@@ -4694,7 +4699,7 @@ let private reviewDuplicateCard (dispatch: Msg -> unit) (model: Model) (review: 
             ReviewCard.metaAttention "Möglicherweise doppelt · noch nicht in YNAB"
             ReviewCard.payee (payeeLabel entry) "" None
             ReviewCard.amount (amountText entry.Amount)
-            ReviewCard.meta (reviewMetaText today (reviewAccountName model entry.AccountId) entry)
+            ReviewCard.metaSecondary (reviewMetaText today (reviewAccountName model entry.AccountId) entry)
             ReviewCard.sectionHead "Schon im Kassenbuch"
             ReviewCard.matchRow matchPayee matchMeta matchAmount
             ReviewCard.caption "review-duplicate-reason" duplicate.Reason
@@ -4812,19 +4817,20 @@ let ReviewPage (model: Model) (dispatch: Msg -> unit) (onBack: unit -> unit) =
                   | _ -> () ]
         let body =
             match review.Queue with
-            | NotAsked | Loading -> [ Loading.centered "Buchungen werden geladen…" ]
+            | NotAsked | Loading -> [ ReviewCard.skeleton () ]
             | Failure message ->
                 [ ErrorDisplay.cardWithTitle "Buchungen konnten nicht geladen werden" message (Some (fun () -> dispatch ReviewOpened)) ]
             | Success _ ->
-                [ ReviewCard.progress (reviewProgressPercent review.Index count)
+                [ ReviewCard.progress (reviewProgressPercent review.Index count) (reviewProgressText review.Index count)
                   match card with
                   | Some entry ->
                       match entry.PossibleDuplicate with
                       | Some duplicate -> reviewDuplicateCard dispatch model review entry duplicate
                       | None -> reviewNormalCard dispatch model review entry desk
                       reviewEditors dispatch model entry desk
-                  | None when review.Index >= count -> reviewEnd count onBack
-                  | None -> Loading.centered "Buchung wird geladen…" ]
+                  // Ohne Karte steht die Endansicht: `update` zeigt nach jedem Schritt eine Karte oder überspringt
+                  // eine Buchung ohne Stand bis hinter die letzte (`showReviewCardAt`).
+                  | None -> reviewEnd count onBack ]
         let detail =
             match card with
             | Some entry when review.DetailShown ->

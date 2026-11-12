@@ -4,7 +4,8 @@ module LedgerReviewClientTests
 //
 //  * reine Funktionen: Ziel für „Passt“, Wischschwelle, Tastenzuordnung, Texte von Karte und Endansicht;
 //  * die Zustandsfolge durch das echte `update` als Aufzählung aller Reihenfolgen (Doktrin Punkt 20): Passt mit
-//    später Antwort und Fehler, Später, Lena mit Rückgängig, Kategorie, Verwerfen mit Rückgängig, Ist neu, Ende.
+//    später Antwort und Fehler je gesendetem Aufruf, Später, Lena mit Rückgängig je Karte, Kategorie, Verwerfen und
+//    Ist neu mit getrennter Antwort (Ok und Fehler), Rückgängig nach dem Verwerfen (Ok und Fehler), Ende.
 //    Das Orakel führt Stelle, Schlange und offene Antworten selbst und fragt den getesteten Code nicht;
 //  * Einzelfälle: Toasts, Überspringen beim Neulesen, Details, Esc und Verlassen.
 
@@ -89,7 +90,7 @@ let private reviewing (queue: LedgerEntryView list) : Model =
     let model, _ = Components.Ledger.State.init ()
     { model with LenaFlagColor = Success (Some "purple"); Categories = Success categories; DetailForm = DetailSheet }
     |> step ReviewOpened
-    |> step (ReviewQueueLoaded (Ok queue))
+    |> fun opened -> step (ReviewQueueLoaded (opened.ReviewGeneration, Ok queue)) opened
 
 let private cardId (model: Model) = reviewCardOf model |> Option.map idOf
 let private indexOf (model: Model) = model.Review |> Option.map (fun r -> r.Index) |> Option.defaultValue -1
@@ -118,11 +119,20 @@ let pureTests =
             Expect.isTrue (reviewHasTarget { bare with Splits = [ split; split ] }) "Aufteilung"
 
         testCase "die Wischschwelle liegt über 90 Pixeln in beide Richtungen" <| fun () ->
-            Expect.equal (reviewSwipeOf 91.0) SwipeConfirm "rechts: Passt"
-            Expect.equal (reviewSwipeOf 90.0) SwipeNothing "genau 90: nichts"
-            Expect.equal (reviewSwipeOf -91.0) SwipeSkip "links: Später"
-            Expect.equal (reviewSwipeOf -90.0) SwipeNothing "genau -90: nichts"
-            Expect.equal (reviewSwipeOf 0.0) SwipeNothing "kein Weg"
+            Expect.equal (reviewSwipeOf 91.0 0.0) SwipeConfirm "rechts: Passt"
+            Expect.equal (reviewSwipeOf 90.0 0.0) SwipeNothing "genau 90: nichts"
+            Expect.equal (reviewSwipeOf -91.0 0.0) SwipeSkip "links: Später"
+            Expect.equal (reviewSwipeOf -90.0 0.0) SwipeNothing "genau -90: nichts"
+            Expect.equal (reviewSwipeOf 0.0 0.0) SwipeNothing "kein Weg"
+
+        // Review-Fund zu ledger-v6s7c: `touchend` entschied nur über den Weg zur Seite. Eine schräge Scrollbewegung
+        // mit mehr als 90 px seitlich setzte den Prüfvermerk (geht nach YNAB, ohne Rückgängig).
+        testCase "nur ein waagrechter Wisch entscheidet, ein schräger Scroll nicht" <| fun () ->
+            Expect.equal (reviewSwipeOf 120.0 150.0) SwipeNothing "mehr senkrecht als waagrecht: nichts"
+            Expect.equal (reviewSwipeOf 120.0 120.0) SwipeNothing "gleich viel: nichts"
+            Expect.equal (reviewSwipeOf -120.0 -130.0) SwipeNothing "nach links, mehr senkrecht: nichts"
+            Expect.equal (reviewSwipeOf 120.0 -40.0) SwipeConfirm "leicht schräg nach rechts: Passt"
+            Expect.equal (reviewSwipeOf -120.0 40.0) SwipeSkip "leicht schräg nach links: Später"
 
         testCase "Tasten je Kartenart: Enter nur mit Ziel und nicht auf der Duplikat-Karte, K und L nicht auf ihr" <| fun () ->
             let normal = Some (NormalCard, true)
@@ -217,12 +227,17 @@ let private cardC = entryOf 4
 let private queue = [ dupD; cardA; cardB; cardC ]
 let private ids = queue |> List.map idOf
 
+/// Eine Entscheidung auf der Duplikat-Karte, deren Antwort aussteht.
+type private Decision =
+    | DecideDiscard
+    | DecideNew
+
 /// Was das Orakel über das Durchgehen weiß, ohne den getesteten Code zu fragen.
 type private Walk =
     { Index: int
       /// „Passt“ wartet auf die Antwort für die gezeigte Karte (sperrt ein zweites „Passt“).
       Pending: Guid option
-      /// Gesendete Prüfvermerke, deren Antwort noch aussteht (auch nach dem Weitergehen).
+      /// Gesendete Prüfvermerke, deren Antwort noch aussteht (auch nach dem Weitergehen), in Sendefolge.
       InFlight: Guid list
       /// Karten mit Ziel (Kategorie, Übertrag oder Aufteilung).
       Targets: Set<Guid>
@@ -232,6 +247,10 @@ type private Walk =
       LenaUndo: Guid list
       /// Flag-Aufruf läuft (sperrt „Lena fragen“ auf der Karte).
       FlagSending: Set<Guid>
+      /// „Ist neu“ oder „Verwerfen“ wartet auf die Antwort für die gezeigte Karte (sperrt beide Knöpfe).
+      Deciding: Guid option
+      /// Gesendete Entscheidungen, deren Antwort noch aussteht (auch nach dem Weitergehen).
+      Decisions: (Guid * Decision) list
       /// D verworfen, „Rückgängig“ steht aus.
       DiscardUndo: bool }
 
@@ -243,18 +262,28 @@ let private startWalk =
       DupHeld = true
       LenaUndo = []
       FlagSending = Set.empty
+      Deciding = None
+      Decisions = []
       DiscardUndo = false }
 
 let private current (w: Walk) = if w.Index < ids.Length then Some ids.[w.Index] else None
 let private isDup (w: Walk) = current w = Some (idOf dupD) && w.DupHeld
-let private moveTo (index: int) (w: Walk) = { w with Index = index; Pending = None }
+let private moveTo (index: int) (w: Walk) = { w with Index = index; Pending = None; Deciding = None }
 
-/// Alle Ereignisse, die im Zustand kommen können: Name, Nachrichten und das Orakel danach.
+/// Entfernt das erste Vorkommen von `x`.
+let rec private removeFirst (x: 'a) (xs: 'a list) : 'a list =
+    match xs with
+    | [] -> []
+    | y :: rest when y = x -> rest
+    | y :: rest -> y :: removeFirst x rest
+
+/// Alle Ereignisse, die im Zustand kommen können: Name, Nachrichten und das Orakel danach. Jede ausstehende
+/// Antwort kann als nächste kommen, nicht nur die älteste: Ok und Fehler je gesendetem Aufruf.
 let private events (w: Walk) : (string * Msg list * Walk) list =
     [ match current w with
       | Some id when not (isDup w) ->
           if w.Pending.IsNone && w.Targets.Contains id then
-              "Passt", [ ReviewConfirm ], { w with Pending = Some id; InFlight = id :: w.InFlight }
+              "Passt", [ ReviewConfirm ], { w with Pending = Some id; InFlight = w.InFlight @ [ id ] }
           "Später", [ ReviewSkip ], moveTo (w.Index + 1) w
           if not (w.FlagSending.Contains id) then
               "Lena", [ ReviewLena ], { moveTo (w.Index + 1) w with LenaUndo = id :: w.LenaUndo; FlagSending = w.FlagSending.Add id }
@@ -262,38 +291,51 @@ let private events (w: Walk) : (string * Msg list * Walk) list =
               "Kategorie", categorySet id, { w with Targets = w.Targets.Add id }
       | Some id ->
           "Später", [ ReviewSkip ], moveTo (w.Index + 1) w
-          "Verwerfen", [ ReviewDiscard; ReviewDiscarded (id, Ok ()) ], { moveTo (w.Index + 1) w with DiscardUndo = true }
-          "Ist neu", [ ReviewConfirmNew; ReviewConfirmedNew (id, Ok PushToYnabSent) ], { w with DupHeld = false }
+          if w.Deciding.IsNone then
+              "Verwerfen", [ ReviewDiscard ], { w with Deciding = Some id; Decisions = w.Decisions @ [ id, DecideDiscard ] }
+              "Ist neu", [ ReviewConfirmNew ], { w with Deciding = Some id; Decisions = w.Decisions @ [ id, DecideNew ] }
       | None -> ()
-      match w.InFlight with
-      | id :: rest ->
-          let answered = { w with InFlight = rest; Pending = (if w.Pending = Some id then None else w.Pending) }
-          "Passt-Antwort", [ reviewed id ], (if current w = Some id then moveTo (w.Index + 1) answered else answered)
-          "Passt-Fehler", [ ReviewConfirmed (id, Error "Netz") ], answered
-      | [] -> ()
-      match w.LenaUndo with
-      | id :: rest ->
+      for id in List.distinct w.InFlight do
+          let answered = { w with InFlight = removeFirst id w.InFlight; Pending = (if w.Pending = Some id then None else w.Pending) }
+          $"Passt-Antwort {id}", [ reviewed id ], (if current w = Some id then moveTo (w.Index + 1) answered else answered)
+          $"Passt-Fehler {id}", [ ReviewConfirmed (id, Error "Netz") ], answered
+      for (id, decision) in List.distinct w.Decisions do
+          let answered = { w with Decisions = removeFirst (id, decision) w.Decisions; Deciding = (if w.Deciding = Some id then None else w.Deciding) }
+          match decision with
+          | DecideDiscard ->
+              "Verwerfen-Antwort",
+              [ ReviewDiscarded (id, Ok ()) ],
+              (let after = { answered with DiscardUndo = true }
+               if current w = Some id then moveTo (w.Index + 1) after else after)
+              "Verwerfen-Fehler", [ ReviewDiscarded (id, Error "Netz") ], answered
+          | DecideNew ->
+              "Ist-neu-Antwort", [ ReviewConfirmedNew (id, Ok PushToYnabSent) ], { answered with DupHeld = false }
+              "Ist-neu-Fehler", [ ReviewConfirmedNew (id, Error "Netz") ], answered
+      for id in w.LenaUndo do
           let back = ids |> List.findIndex ((=) id)
-          let after = { w with LenaUndo = rest }
-          "Lena-Rückgängig",
+          let after = { w with LenaUndo = w.LenaUndo |> List.filter ((<>) id) }
+          $"Lena-Rückgängig {id}",
           [ StartUndoFlag (id, { Color = None; Name = None }) ],
           (if back <> w.Index then moveTo back after else after)
-      | [] -> ()
       if w.DiscardUndo then
           let back = ids |> List.findIndex ((=) (idOf dupD))
           let after = { w with DiscardUndo = false }
           "Verwerfen-Rückgängig",
-          [ DiscardedDuplicateRestored (idOf dupD, Ok ()) ],
-          (if back <> w.Index then moveTo back after else after) ]
+          [ StartRestoreDiscardedDuplicate (idOf dupD); DiscardedDuplicateRestored (idOf dupD, Ok ()) ],
+          (if back <> w.Index then moveTo back after else after)
+          "Verwerfen-Rückgängig-Fehler",
+          [ StartRestoreDiscardedDuplicate (idOf dupD); DiscardedDuplicateRestored (idOf dupD, Error "Netz") ],
+          after ]
 
 let private observe (model: Model) =
     let review = model.Review.Value
-    review.Index, cardId model, review.Confirming, (reviewCardOf model |> Option.map reviewCardKindOf)
+    review.Index, cardId model, review.Confirming, review.Deciding, (reviewCardOf model |> Option.map reviewCardKindOf)
 
 let private expected (w: Walk) =
     w.Index,
     current w,
     w.Pending,
+    w.Deciding,
     current w |> Option.map (fun id -> if id = idOf dupD && w.DupHeld then DuplicateCard else NormalCard)
 
 [<Tests>]
@@ -321,11 +363,11 @@ let caseTests =
         testCase "die Schlange startet mit der ersten Karte, lädt sie neu und holt die Vorschläge" <| fun () ->
             let model, _ = Components.Ledger.State.init ()
             let opened, msgs, _ = run ReviewOpened model
-            Expect.contains msgs RunLoadReviewQueue "Schlange laden"
-            let loaded, msgs, _ = run (ReviewQueueLoaded (Ok [ cardA; cardB ])) opened
+            Expect.contains msgs (RunLoadReviewQueue opened.ReviewGeneration) "Schlange laden"
+            let loaded, msgs, _ = run (ReviewQueueLoaded (opened.ReviewGeneration, Ok [ cardA; cardB ])) opened
             Expect.equal (cardId loaded) (Some (idOf cardA)) "erste Karte"
             Expect.contains msgs (RunReviewRefresh (idOf cardA)) "neu lesen"
-            Expect.contains msgs (RunReviewSuggestions (idOf cardA, "Payee v6s7c 2", None)) "Vorschläge"
+            Expect.contains msgs (RunReviewSuggestions (idOf cardA, "Payee v6s7c 2")) "Vorschläge"
 
         testCase "eine inzwischen geprüfte oder gelöschte Buchung wird beim Erreichen übersprungen" <| fun () ->
             let model = reviewing [ cardA; cardB ]
@@ -352,15 +394,80 @@ let caseTests =
 
         testCase "Wisch nach rechts ohne Ziel meldet es und die Karte bleibt" <| fun () ->
             let model = reviewing [ cardB; cardA ]
-            let after, msgs, external = run (ReviewSwiped 120.0) model
+            let after, msgs, external = run (ReviewSwiped (120.0, 0.0)) model
             Expect.equal (cardId after) (Some (idOf cardB)) "bleibt"
             Expect.equal external (ShowToast (reviewNeedsTargetText, ToastInfo)) "Hinweis"
             Expect.isEmpty (msgs |> List.filter (function RunReviewConfirm _ -> true | _ -> false)) "kein Prüfvermerk"
-            Expect.equal (cardId (step (ReviewSwiped -120.0) model)) (Some (idOf cardA)) "nach links: Später"
+            Expect.equal (cardId (step (ReviewSwiped (-120.0, 0.0)) model)) (Some (idOf cardA)) "nach links: Später"
 
         testCase "Wisch nach rechts mit Ziel setzt den Prüfvermerk" <| fun () ->
-            let _, msgs, _ = run (ReviewSwiped 120.0) (reviewing [ cardA ])
+            let _, msgs, _ = run (ReviewSwiped (120.0, 0.0)) (reviewing [ cardA ])
             Expect.contains msgs (RunReviewConfirm (idOf cardA)) "Prüfvermerk"
+
+        // Review-Fund zu ledger-v6s7c: ein schräger Scroll über die Karte setzte den Prüfvermerk.
+        testCase "ein schräger Scroll über die Karte setzt keinen Prüfvermerk und lässt die Karte stehen" <| fun () ->
+            let model = reviewing [ cardA; cardC ]
+            let after, msgs, external = run (ReviewSwiped (120.0, 150.0)) model
+            Expect.isEmpty (msgs |> List.filter (function RunReviewConfirm _ -> true | _ -> false)) "kein Prüfvermerk"
+            Expect.equal (cardId after) (Some (idOf cardA)) "Karte bleibt"
+            Expect.equal external NoOp "kein Hinweis"
+            let _, _, back = run (ReviewSwiped (-120.0, -150.0)) model
+            Expect.equal (cardId (step (ReviewSwiped (-120.0, -150.0)) model)) (Some (idOf cardA)) "auch nach links nichts"
+            Expect.equal back NoOp "kein Hinweis"
+
+        // Review-Fund zu ledger-v6s7c: die Antwort auf die Schlange war nur an `Review.IsSome` gebunden. Die späte
+        // Antwort eines früheren Öffnens setzte die laufende Sitzung auf Karte 1 zurück.
+        testCase "die späte Antwort eines früheren Öffnens setzt die laufende Sitzung nicht zurück" <| fun () ->
+            let model, _ = Components.Ledger.State.init ()
+            let first = model |> step ReviewOpened
+            let second = first |> step ReviewOpened
+            let walking =
+                second
+                |> step (ReviewQueueLoaded (second.ReviewGeneration, Ok [ cardA; cardC ]))
+                |> step ReviewSkip
+            Expect.equal (cardId walking) (Some (idOf cardC)) "zweite Karte"
+            let late = walking |> step (ReviewQueueLoaded (first.ReviewGeneration, Ok [ cardB; cardA; cardC ]))
+            Expect.equal (cardId late) (Some (idOf cardC)) "bleibt auf der zweiten Karte"
+            Expect.equal (reviewQueueOf late) (Some [ idOf cardA; idOf cardC ]) "Schlange unverändert"
+            let failed = walking |> step (ReviewQueueLoaded (first.ReviewGeneration, Error "Netz"))
+            Expect.equal (reviewQueueOf failed) (Some [ idOf cardA; idOf cardC ]) "ein später Fehler auch nicht"
+            // Verlassen und neu öffnen: die Antwort der verlassenen Sitzung zählt ebenso nicht.
+            let reopened = walking |> step ReviewLeft |> step ReviewOpened
+            let stale = reopened |> step (ReviewQueueLoaded (second.ReviewGeneration, Ok [ cardB ]))
+            Expect.equal (stale.Review |> Option.map (fun r -> r.Queue)) (Some Loading) "lädt weiter"
+
+        // Review-Fund zu ledger-v6s7c: fand `showReviewCardAt` keinen Stand der Buchung, blieb die Karte leer und der
+        // Nachlauf in `update` stieß bei jeder Nachricht ein neues Neulesen an.
+        testCase "eine Buchung ohne bekannten Stand wird übersprungen und nicht bei jeder Nachricht neu gelesen" <| fun () ->
+            let model = reviewing [ cardA; cardC ]
+            let unknown = Guid.Parse "0195f810-0000-7000-8000-0000000000ff"
+            let broken =
+                { model with
+                    DetailFor = None
+                    Review = model.Review |> Option.map (fun r -> { r with Queue = Success [ unknown; idOf cardC ]; Snapshots = r.Snapshots |> Map.remove (idOf cardA) }) }
+            let after, msgs, _ = run (ReviewSuggestionsLoaded (Guid.NewGuid (), [])) broken
+            Expect.equal (cardId after) (Some (idOf cardC)) "weiter zur nächsten bekannten Karte"
+            Expect.isEmpty (msgs |> List.filter (function RunReviewRefresh id -> id = unknown | _ -> false)) "die unbekannte wird nicht gelesen"
+            let _, again, _ = run (ReviewSuggestionsLoaded (Guid.NewGuid (), [])) after
+            Expect.isEmpty (again |> List.filter (function RunReviewRefresh _ -> true | _ -> false)) "kein Neulesen ohne Anlass"
+
+        testCase "Rückgängig nach dem Verwerfen meldet sich mit einem Toast und schickt nur einmal" <| fun () ->
+            let model = reviewing [ dupD; cardA ] |> step ReviewDiscard |> step (ReviewDiscarded (idOf dupD, Ok ()))
+            let started, msgs, _ = run (StartRestoreDiscardedDuplicate (idOf dupD)) model
+            Expect.contains msgs (RunRestoreDiscardedDuplicate (idOf dupD)) "gesendet"
+            let _, twice, _ = run (StartRestoreDiscardedDuplicate (idOf dupD)) started
+            Expect.isEmpty twice "ein zweiter Tipp schickt nichts"
+            let restored, _, external = run (DiscardedDuplicateRestored (idOf dupD, Ok ())) started
+            Expect.equal external (ShowToast (reviewRestoredText, ToastSuccess)) "Toast"
+            Expect.equal (cardId restored) (Some (idOf dupD)) "die Karte steht wieder da"
+            let _, again, _ = run (StartRestoreDiscardedDuplicate (idOf dupD)) restored
+            Expect.contains again (RunRestoreDiscardedDuplicate (idOf dupD)) "nach der Antwort wieder frei"
+            let outside, _, external = run (DiscardedDuplicateRestored (idOf dupD, Ok ())) (started |> step ReviewLeft)
+            Expect.equal external (ShowToast (reviewRestoredText, ToastSuccess)) "auch außerhalb des Durchgehens"
+            Expect.isFalse (outside.RestoringDuplicates.Contains (idOf dupD)) "Sperre frei"
+            let failed, _, external = run (DiscardedDuplicateRestored (idOf dupD, Error "Netz")) started
+            Expect.equal external (ShowToast ("Rückgängig nicht möglich: Netz", ToastError)) "Fehler"
+            Expect.isFalse (failed.RestoringDuplicates.Contains (idOf dupD)) "Sperre frei nach dem Fehler"
 
         testCase "Verwerfen geht weiter und bietet Rückgängig an, Ist neu meldet den Weg nach YNAB" <| fun () ->
             let model = reviewing [ dupD; cardA ] |> step ReviewDiscard

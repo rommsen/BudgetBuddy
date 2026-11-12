@@ -21,7 +21,8 @@ type ButtonSize =
     | Medium  // default
     | Large   // btn-lg
     /// Zwei gleich breite Entscheidungen nebeneinander auf einer Karte (Durchgehen, ledger-v6s7c): 16 px am Handy,
-    /// 14 px am PC, wenig Innenabstand, damit „Ist doppelt, verwerfen“ bei 412 px auf einer Zeile steht. Die Höhe setzt
+    /// 14 px am PC, wenig Innenabstand, damit „Ist doppelt, verwerfen“ bei 412 px auf einer Zeile steht. Unter 640 px
+    /// darf ein langer Text auf zwei Zeilen umbrechen (bei 320 px passt er nicht in die halbe Breite). Die Höhe setzt
     /// der Aufrufer (52 px, der Hauptknopf 54 px).
     | Choice
 
@@ -87,7 +88,7 @@ let private sizeToClass = function
     | Small -> "text-xs px-3 py-1.5 min-h-[48px] md:min-h-0"
     | Medium -> "text-sm px-[18px] py-2.5 min-h-[48px] md:min-h-0"
     | Large -> "text-base px-6 py-3 min-h-[52px] md:min-h-0"
-    | Choice -> "text-base md:text-sm px-3 py-3 whitespace-nowrap"
+    | Choice -> "text-base md:text-sm px-3 py-3 whitespace-normal leading-tight text-center sm:whitespace-nowrap"
 
 /// Icon-only-Knöpfe (Small ohne Text) sind mobil auch 48 px breit, ab `md` ohne Mindestbreite.
 let iconOnlyClass (size: ButtonSize) (text: string) =

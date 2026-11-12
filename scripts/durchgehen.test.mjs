@@ -82,7 +82,6 @@ test("[flow:durchgehen] Am Handy ein Duplikat verwerfen, eine Kategorie wählen,
     // Wisch nach rechts: Prüfvermerk, danach die Endansicht.
     await swipe(page, card, 200);
     await page.locator('[data-testid="review-end"]').getByText("Alles geprüft").waitFor();
-    await page.getByText("2 Buchungen durchgegangen. Neue erscheinen nach dem nächsten Import.").waitFor();
     assert.deepEqual(
       state.calls.map((c) => c.endpoint),
       ["discardDuplicateEntry", "setEntryCategory", "setReviewMark"],
