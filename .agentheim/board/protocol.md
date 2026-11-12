@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-12 06:42 -- Capture / Captured: ledger-h7de3 - "Fehlertexte in Ereignissen: fehlendes Token als „nicht eingerichtet“, YNAB-Rohtext nur ins Log, Token- und Budget-Zugriff an einer Stelle"
+
+**Type:** Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Gruppe G3 aus dem Bestandsreview ledger 2026-11-12: Fehlertexte in Ereignissen
+
+---
+
 ## 2026-11-12 06:41 -- Bestandsreview: ledger
 
 **Type:** Review / Bestandsreview

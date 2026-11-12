@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 12
+- **Backlog:** 13
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 122
@@ -52,6 +52,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ledger-h7de3** — "Fehlertexte in Ereignissen: fehlendes Token als „nicht eingerichtet“, YNAB-Rohtext nur ins Log, Token- und Budget-Zugriff an einer Stelle" (bug) — `backlog/ledger-h7de3-fehlertexte-in-ereignissen.md`
 - **ledger-smv1s** — "Erneut senden und Rückgängig gegen Doppelaufruf sperren, einheitlich in update, mit Aufzählungstests nach Doktrin Punkt 20" (bug) — `backlog/ledger-smv1s-doppelaufruf-sperren.md`
 - **ledger-ng110** — "Eingaben und Fehler im Kassenbuch nach Styleguide: Split-Rest gelb, Fehler am Feld, Zifferntastatur und Namen im Filter, Kontrast, Barrierefreiheit" (bug) — `backlog/ledger-ng110-eingaben-fehler-styleguide.md`
 - **ledger-ct3cx** — "Kassenbuch behält seinen Stand: kein pauschales Neuladen nach dem Spiegel-Lauf, Historie und Filter an Versionen gebunden" (bug) — `backlog/ledger-ct3cx-kassenbuch-behaelt-stand.md`
