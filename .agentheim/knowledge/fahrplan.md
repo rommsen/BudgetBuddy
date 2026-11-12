@@ -3,7 +3,7 @@
 Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success looks like“.
 
 ## Stand
-Zuletzt aktualisiert: 2026-11-11, nach work-Lauf zu ledger-s1weh.
+Zuletzt aktualisiert: 2026-11-12, nach work-Lauf zum Bestandsreview ledger (G1, G2, G4, G5).
 
 - **Etappe 1 · Bedeutungen:** erledigt, 5 von 5 (Skizze und Prototyp, Layout-Sweep, Muster im
   Styleguide, Designwert-Tests aufgeräumt, Palette 2 im Token-Layer). Romans Blick auf dak16 neben
@@ -50,9 +50,20 @@ Zuletzt aktualisiert: 2026-11-11, nach work-Lauf zu ledger-s1weh.
   Entschieden (Roman): Schriftgrößen der Übersicht nach §7.14 (Kriterium in ledger-s1weh), Abbrechen-Pfeil im
   Sync-Ablauf in die Kann-Sammlung banking-import.
 - **Blick Roman (2026-11-11):** design-system-k6kfw (Navigation mit drei Orten) am Handy und PC geprüft, passt.
-- **Nächster Schritt:** Romans Blick auf die Schnitte 3 bis 5, dann Deploy von 3 bis 5 auf Anweisung (`scripts/deploy.sh`;
-  Achtung: automatischer Abruf ist ab Deploy an, alle 6 Stunden, bucht direkt). Danach Schnitt 6 `categorization-n3sxw`
-  (Regeln ins Kassenbuch) verfeinern. Vorschlag: `/architecture-review ledger` (18 ledger-Tasks seit dem letzten Bestandsreview). Vorschlag: `/architecture-review ledger` (15 Tasks seit dem letzten Bestandsreview).
+- **Bestandsreview ledger (2026-11-12):** 107 Befunde, Bericht `.agentheim/knowledge/reviews/2026-11-12-ledger.md`. Gruppen G1,
+  G2, G4, G5 verfeinert und in 10 Tasks gebaut, alle Verifier PASS (ct3cx in Iteration 2, f8bjm in Iteration 3): ledger-xqqnv
+  (vorhandene import_id heißt angekommen, auch bei Barbuchungen), ledger-vfr4h (Sperre und Auslöser belegt), ledger-smv1s
+  (Zeilen-Sperre `whenRowIdle`), ledger-sjbvc (Sammellauf in einem Feld), ledger-ct3cx (Liste behält Auswahl, Seiten und
+  Scrollstand nach Spiegel-Lauf), ledger-nc708 (Historie an Ladevorgänge gebunden), ledger-ng110 (Split-Editor: offener Rest
+  gelb, zu viel rot), ledger-vf6z5 (Neue Buchung mit Feldfehlern), ledger-dn4vy (Filter und Liste nach Styleguide,
+  Kontrast-Invariante 10), ledger-f8bjm (Ersatz-POST mit verlorener Antwort: neue Ereignisse und Spalte `pending_replacement`,
+  Nachträge ADR 0058 und 0092). Entschieden (Roman, 2026-11-12): Rest gelb/rot, 409 bei Barbuchung angekommen, ausgegraute
+  Zeile in `text-muted`. Gate auf 6359f73c: VERIFY: PASS (dotnet 4886, node 322). Nicht gepusht, nicht deployt. G3
+  (ledger-h7de3, Fehlertexte in Ereignissen) noch unverfeinert, wartet nicht mehr.
+- **Nächster Schritt:** `/review-agents` über den Lauf (Bereich 2f41a405..6359f73c), darunter ein bekannter Testfehler in
+  `LedgerRowLockWaysTests.fs:124` (Kann-Punkt 84). Dann Romans Blick auf die Schnitte 3 bis 5 und die neuen Seiten-Details
+  (Screenshots im Scratchpad e3/<task-id>/), Deploy auf Anweisung (`scripts/deploy.sh`; Achtung: automatischer Abruf ab Deploy
+  an, alle 6 Stunden, bucht direkt; f8bjm bringt eine Migration). Danach Schnitt 6 `categorization-n3sxw` verfeinern.
   Offen zum Verfeinern mit Roman: ledger-t4rk8 (Betrag eines Übertrags in BB ändern).
 - Verfeinert wird nur die nächste Etappe. Spätere Etappen haben Zeilen, keine Tickets.
 - Neue Ideen für spätere Etappen kommen hier als Zeile dazu.

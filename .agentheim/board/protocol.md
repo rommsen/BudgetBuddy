@@ -5,6 +5,28 @@ Newest entries on top.
 
 ---
 
+## 2026-11-12 09:46 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** 2h18m
+**Completed:** 10 (first-try PASS: 8, re-dispatched: 2, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Lost-result re-dispatches:** 0
+**Lost-result escalations:** 0
+**Dispatches:** xqqnv: 1, smv1s: 1, ct3cx: 2, vfr4h: 1, sjbvc: 1, vf6z5: 1, ng110: 1, nc708: 1, dn4vy: 1, f8bjm: 3
+**Commits:** 17
+**Vision-conformance:** none — batch aligns with vision
+**Batch mix:** 100% product-facing (10 tasks)
+**Carry-over:** none — working tree clean
+**Merge-back:** ct3cx zweimal mit main gemergt, Konflikte in State.fs (applyEntriesRefresh neben releaseDeciding; ReviewMarkBatchRestored rebuildEntries mit BatchRunning = None), der zweite vom Conductor aufgelöst; Salvage .agentheim/salvage/ledger-ct3cx-merge-conflict.patch. Alle übrigen vor dem Verifier mit main gemergt.
+**Verifier-Funde:** ct3cx Iteration 1 (Auswahl unter „alle“ verlor Ausnahmen außerhalb des Fensters, Sammelaktion hätte abgewählte Buchung getroffen); f8bjm Iteration 1 (geänderte Aufteilung bei offenem Ersatz als Erfolg) und Iteration 2 (Live-Adapter bildete 409 als Fehler ab, Doppelanlage mit :r2).
+**Gate auf main:** 6359f73c VERIFY: PASS (dotnet 4886, node 322).
+**Review-Vorschlag (Override C):** /review-agents mit qa-milestone-reviewer, backend-code-quality, frontend-architecture, design-quality über 2f41a405..6359f73c; bekannter Testfehler LedgerRowLockWaysTests.fs:124 (FS0020, Kann-Punkt 84).
+
+---
+
 ## 2026-11-12 09:40 -- Task verified and completed: ledger-f8bjm - "Ersatz-POST mit verlorener Antwort: Wiederherstellen, Split- und Betrags-Ersatz scheitern danach dauerhaft an 409, der Spiegel legt die Ersatzbuchung als neue Buchung „YNAB-Spiegel“ an; die Ersatz-import_id muss vor dem POST im Kassenbuch stehen (Ledger/CommandHandlers.fs)"
 
 **Type:** Work / Task completion
