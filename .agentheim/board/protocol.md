@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-12 12:12 -- Capture / Captured: design-system-vf94m - "Toast am Handy oben statt unten: der Toast mit Rückgängig verdeckt heute den Knopf „+ Buchung“ (Styleguide §7.13)"
+
+**Type:** Capture
+**BC:** design-system
+**Filed to:** backlog
+**Summary:** Toast am Handy unten verdeckt den Knopf + Buchung, Styleguide §7.13 verlangt oben; Fund aus dem Review-Lauf, Roman wählte eigenes Ticket.
+
+---
+
 ## 2026-11-12 12:01 -- Review-Lauf: a3f7eb1d..982bdf79
 
 **Type:** Review / Review-Lauf
