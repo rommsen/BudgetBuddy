@@ -37,6 +37,13 @@ type Model = {
     ComdirectAccountIdInput: string
     SyncDaysInput: int
 
+    // Automatisch abrufen (banking-import-t4raw, ADR 0093 Punkt 9): Schalter und Intervall speichern sofort.
+    // Solange gespeichert wird, sind beide gesperrt; eine Ablehnung steht als Feldfehler am Auswahlfeld.
+    AutoFetchEnabledInput: bool
+    AutoFetchIntervalInput: int
+    AutoFetchSaving: bool
+    AutoFetchError: string option
+
     // Lena fragen (ledger-xfjcp, ADR 0056): die Farbe im Auswahlfeld ("" = keine) und der
     // geladene Stand mit Vorschlag.
     LenaFlagColorInput: string
@@ -78,6 +85,9 @@ type Msg =
     | UpdateSyncDaysInput of int
     | SaveSyncSettings
     | SyncSettingsSaved of Result<unit, SettingsError>
+    | SetAutoFetchEnabled of bool
+    | SetAutoFetchInterval of int
+    | AutoFetchSaved of SyncSettings * Result<unit, SettingsError>
     | LoadLenaFlagSettings
     | LenaFlagSettingsLoaded of Result<LenaFlagSettings, string>
     | UpdateLenaFlagColorInput of string
@@ -114,6 +124,40 @@ let private loadedSettings (model: Model) =
     match model.Settings with
     | Success settings -> Some settings
     | _ -> None
+
+/// Die Stufen im Auswahlfeld „Alle“ (Roman, 2026-11-11): am Handy ohne Tastatur bedienbar. Der Server nimmt
+/// jeden Wert von 60 bis 1440 Minuten; ein gespeicherter Wert außerhalb der Stufen steht zusätzlich in der
+/// Liste, damit das Feld ihn zeigt.
+let autoFetchIntervalOptions (current: int) : (int * string) list =
+    let steps =
+        [ 1; 2; 3; 4; 6; 8; 12; 24 ]
+        |> List.map (fun hours -> hours * 60, (if hours = 1 then "1 Stunde" else $"{hours} Stunden"))
+    if steps |> List.exists (fun (minutes, _) -> minutes = current) then steps
+    else (current, $"{current} Minuten") :: steps |> List.sortBy fst
+
+/// Das Auswahlfeld ist gesperrt, solange der Schalter aus ist (sein Wert bleibt) oder gespeichert wird.
+let autoFetchIntervalLocked (model: Model) : bool =
+    not model.AutoFetchEnabledInput || model.AutoFetchSaving
+
+/// Was „Automatisch abrufen“ speichert: Schalter und Intervall aus der Eingabe, die Tage wie gespeichert.
+/// `saveSyncSettings` speichert alle drei, die Karte Sync-Einstellungen bleibt so unberührt.
+let autoFetchSettingsToSave (model: Model) : SyncSettings =
+    let savedDays =
+        match model.Settings with
+        | Success settings -> settings.Sync.DaysToFetch
+        | _ -> model.SyncDaysInput
+    { DaysToFetch = savedDays
+      AutoFetchEnabled = model.AutoFetchEnabledInput
+      AutoFetchIntervalMinutes = model.AutoFetchIntervalInput }
+
+/// Was die Karte Sync-Einstellungen speichert: die Tage aus der Eingabe, Schalter und Intervall wie gespeichert.
+let syncDaysSettingsToSave (model: Model) : SyncSettings =
+    match model.Settings with
+    | Success settings -> { settings.Sync with DaysToFetch = model.SyncDaysInput }
+    | _ ->
+        { DaysToFetch = model.SyncDaysInput
+          AutoFetchEnabled = model.AutoFetchEnabledInput
+          AutoFetchIntervalMinutes = model.AutoFetchIntervalInput }
 
 /// Ein gesetzter Token muss nicht neu eingegeben werden: der Server gibt ihn nicht heraus.
 let ynabTokenIsSet (model: Model) : bool =

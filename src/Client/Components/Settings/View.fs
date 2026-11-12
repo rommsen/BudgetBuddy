@@ -387,6 +387,41 @@ let private bankConnectionBlock (model: Model) (dispatch: Msg -> unit) =
         ]
     ]
 
+/// Automatisch abrufen (banking-import-t4raw, ADR 0093 Punkt 9): Schalter und Intervall speichern sofort. Fünf und
+/// mehr Stufen sind ein Auswahlfeld (§7.5); bei abgeschaltetem Schalter ist es gesperrt, sein Wert bleibt. Eine
+/// Ablehnung des Servers steht am Feld (§5).
+let private autoFetchBlock (model: Model) (dispatch: Msg -> unit) =
+    Html.div [
+        prop.className "space-y-3 px-4 pb-4"
+        prop.children [
+            Input.switchRow
+                "auto-fetch-switch"
+                "Automatisch abrufen"
+                "BB ruft neue Umsätze im Hintergrund ab und bucht sie als zu prüfen. Eine Push-TAN fragt es nie an."
+                model.AutoFetchEnabledInput
+                model.AutoFetchSaving
+                (SetAutoFetchEnabled >> dispatch)
+            Input.groupWithError "Alle" model.AutoFetchError (
+                Input.select {
+                    Input.selectDefaults with
+                        Value = string model.AutoFetchIntervalInput
+                        OnChange = fun value ->
+                            match System.Int32.TryParse value with
+                            | true, minutes -> dispatch (SetAutoFetchInterval minutes)
+                            | false, _ -> ()
+                        Options =
+                            autoFetchIntervalOptions model.AutoFetchIntervalInput
+                            |> List.map (fun (minutes, label) -> { Value = string minutes; Label = label; Disabled = false })
+                        State =
+                            match model.AutoFetchError with
+                            | Some message -> Input.Error message
+                            | None -> Input.Normal
+                        Disabled = autoFetchIntervalLocked model
+                        ClassName = Some "w-full"
+                })
+        ]
+    ]
+
 /// Sekundärer Knopf, der während des Trennens gesperrt ist.
 let private lockableButton (isLocked: bool) (text: string) (onClick: unit -> unit) =
     Button.view {
@@ -549,6 +584,10 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
                         ]
                 ]
             ]
+
+        // Unter den Aktionen: so verschiebt der Block weder Status noch Knöpfe der Verbindung.
+        if isConfigured then
+            autoFetchBlock model dispatch
     ]
 
 // ============================================
@@ -783,7 +822,8 @@ let view (back: ReactElement) (model: Model) (dispatch: Msg -> unit) =
                             prop.children [
                                 Html.a [
                                     prop.href "#/styleguide"
-                                    prop.className "inline-flex items-center gap-2 text-sm text-accent hover:underline"
+                                    // Am Handy 48 px Trefferfläche (Sweep-Zustand einstellungen, banking-import-t4raw).
+                                    prop.className "inline-flex items-center gap-2 min-h-[48px] md:min-h-0 text-sm text-accent hover:underline"
                                     prop.children [
                                         Icons.externalLink Icons.XS Icons.Accent
                                         Html.span [ prop.text "Styleguide ansehen (Design-System-Galerie)" ]

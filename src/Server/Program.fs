@@ -55,6 +55,12 @@ let main args =
             Server.BankConnection.tickPeriod))
     |> ignore
 
+    // Ruft neue Umsätze im Intervall ab und bucht sie (banking-import-t4raw, ADR 0093 Punkt 9). Nur hier registriert, im
+    // TestServer läuft der Dienst nie (ADR 0071 Punkt 8, Wächter in StructureGuardTests.fs).
+    builder.Services.AddHostedService(fun (_: System.IServiceProvider) ->
+        new Server.AutoFetchWorker.AutoFetchWorker(Server.Api.runAutoFetch, Server.AutoFetchWorker.tickPeriod))
+    |> ignore
+
     // Übernimmt die Monate aus YNAB nach und nach (budgeting-dkjc5, ADR 0084 Punkt 5). Nur hier registriert, im
     // TestServer läuft der Dienst nie (ADR 0071 Punkt 8, Wächter in StructureGuardTests.fs).
     builder.Services.AddHostedService(fun (_: System.IServiceProvider) ->

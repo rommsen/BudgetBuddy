@@ -66,7 +66,7 @@ let private settingsWithEverything : AppSettings =
                Username = storedUsername
                Password = password
                AccountId = Some "konto-1" }
-      Sync = { DaysToFetch = 30 } }
+      Sync = { DaysToFetch = 30; AutoFetchEnabled = true; AutoFetchIntervalMinutes = 360 } }
 
 [<Tests>]
 let settingsSecretsServerTests =
@@ -226,7 +226,7 @@ let private view : AppSettingsView =
                HasUsername = true
                HasPassword = true
                AccountId = Some "konto-1" }
-      Sync = { DaysToFetch = 30 } }
+      Sync = { DaysToFetch = 30; AutoFetchEnabled = true; AutoFetchIntervalMinutes = 360 } }
 
 let private loaded settings =
     let model, _ = Components.Settings.State.init ()
@@ -298,5 +298,35 @@ let settingsSecretsClientTests =
             let updated, cmd, _ = Components.Settings.State.update SaveYnabToken reopened
             Expect.isNone updated.EditingSection "Dialog zu"
             Expect.isEmpty cmd "kein saveYnabToken"
+        }
+    ]
+
+// banking-import-t4raw (ADR 0093 Punkt 9): Schalter und Intervall des automatischen Abrufs als Zustand in `settings`.
+[<Tests>]
+let autoFetchSettingsTests =
+    testList "Einstellungen: automatisch abrufen" [
+        test "gespeicherte Einstellungen ohne die neuen Schlüssel laden an und 360 Minuten" {
+            let probe = SettingsProbe [ "sync_days_to_fetch", "14" ]
+            let sync = (readSettingsForClient probe.Get |> run).Sync
+            Expect.equal sync { DaysToFetch = 14; AutoFetchEnabled = true; AutoFetchIntervalMinutes = 360 } "Vorgaben"
+        }
+
+        test "gespeichert, kommen Schalter und Intervall unverschlüsselt und ohne Secrets in getSettings zurück" {
+            let probe = SettingsProbe storedSettings
+            let saved = { DaysToFetch = 21; AutoFetchEnabled = false; AutoFetchIntervalMinutes = 120 }
+            Expect.equal (saveSyncSettingsWith probe.Set saved |> run) (Ok ()) "gespeichert"
+            Expect.isTrue (probe.Writes |> Seq.forall (fun (_, _, encrypted) -> not encrypted)) "kein Secret"
+            let view = readSettingsForClient probe.Get |> run
+            Expect.equal view.Sync saved "wie gespeichert"
+            let answer = sprintf "%A" view
+            for secret in [ token; clientSecret; password ] do
+                Expect.isFalse (answer.Contains secret) $"'{secret}' darf nicht in der Antwort stehen"
+        }
+
+        test "ein abgelehntes Intervall schreibt nichts" {
+            let probe = SettingsProbe []
+            let result = saveSyncSettingsWith probe.Set { DaysToFetch = 21; AutoFetchEnabled = true; AutoFetchIntervalMinutes = 1441 } |> run
+            Expect.isError result "abgelehnt"
+            Expect.isEmpty probe.Writes "nichts geschrieben"
         }
     ]

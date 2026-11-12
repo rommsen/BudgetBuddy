@@ -1,7 +1,7 @@
 ---
 id: banking-import-t4raw
 title: "Automatisch abrufen im Intervall: ein Hintergrunddienst bucht neue Umsätze direkt ins Kassenbuch, Vorgabe an, alle 360 Minuten, in den Einstellungen abschaltbar, nie eine Push-TAN"
-status: doing
+status: done
 type: feature
 context: banking-import
 created: 2026-10-30
@@ -117,3 +117,64 @@ Stufen statt freier Minuten im Auswahlfeld: am Handy ohne Tastatur bedienbar. De
 bis 1440 an, Roman 2026-11-11: Stufen 1, 2, 3, 4, 6, 8, 12 und 24 Stunden reichen.
 
 Design-System: nichts Neues, `Input.switchRow` und ein Auswahlfeld gibt es.
+
+## Outcome
+
+Automatisch abrufen läuft (ADR 0093 Punkt 9). Der automatische Abruf nimmt denselben Weg wie „Abrufen“, bucht direkt ins Kassenbuch und nach YNAB und startet nie eine Challenge oder einen Passwort-Login.
+
+**Server**
+- `src/Shared/Domain.fs`: `SyncTrigger` kennt jetzt `Scheduled`. `SyncSettings` hat die neuen Felder `AutoFetchEnabled` und `AutoFetchIntervalMinutes`, die Vorgaben heißen `defaultAutoFetchEnabled` (an) und `defaultAutoFetchIntervalMinutes` (360).
+- `src/Server/BankImport.fs`:
+  - `isAutoFetchDue` ist rein und rechnet mit der Uhr als Parameter. Fällig ist ein Lauf bei Schalter an, wenn seit dem jüngsten Abruf mindestens das Intervall vergangen ist, ohne Historie sofort.
+  - `runAutoFetchWith` bekommt `AutoFetchPorts` (Import, Zeitplan, jüngster Abruf, Log) und liefert `AutoFetchOutcome` (Off, NotDue, Skipped FetchRunning/BankNotConnected/NotConfigured, Ran).
+  - Der Lauf nimmt das Gate nur mit `Wait 0`, wartet also nicht. Er ruft `fetchAndBook` und schreibt die eigene Sitzung (`Trigger = Scheduled`) nur in die Historie. Die Sitzung im Speicher (TAN, „Abrufen“) bleibt unberührt.
+  - Ein Fehler endet `Failed` mit dem Satz aus `describeFailure`, der aus `failFetch` herausgezogen ist. Bei Bankfehlern kommt eine Log-Zeile mit Status und Code dazu (`bankErrorLogDetail`).
+- `src/Server/AutoFetchWorker.fs` ist neu: ein `BackgroundService` mit Minutentakt (`tickPeriod`). Ein Fehler beendet den Dienst nicht, gemeldet wird nur der Typname.
+- Registriert ist der Dienst nur in `src/Server/Program.fs` mit `Server.Api.runAutoFetch`.
+- `src/Server/Api.fs`:
+  - `liveAutoFetchPorts` und `runAutoFetch` sind neu.
+  - `loadAppSettingsFrom` liest `sync_auto_fetch_enabled` und `sync_auto_fetch_interval_minutes`. Fehlen die Schlüssel (Bestand), gelten an und 360.
+  - `saveSyncSettingsWith` ist aus dem Endpoint herausgezogen und schreibt alle drei Schlüssel.
+- `src/Server/Persistence.fs`: Der Auslöser `Scheduled` wird gespeichert und gelesen. `latestFinishedStartedAt` liefert den Beginn des jüngsten beendeten oder gescheiterten Abrufs in UTC (`AssumeUniversal`/`AdjustToUniversal`; ohne das käme Ortszeit zurück, Mutant geprüft).
+- `src/Server/Validation.fs` meldet „Intervall muss zwischen 60 und 1440 Minuten liegen“ und sammelt die Fehler.
+
+**Client**
+- In der Karte Comdirect, unter den Aktionen der Verbindung, stehen `Input.switchRow` „Automatisch abrufen“ mit dem Erklärsatz aus der Task und darunter das Auswahlfeld „Alle“ (`Input.select` nach §7.5, Stufen 1, 2, 3, 4, 6, 8, 12 und 24 Stunden).
+- Beide speichern sofort über `saveSyncSettings` (`saveAutoFetchCmd`, Aufruf hinter einem Lambda) und sind gesperrt, solange gespeichert wird. Bei Schalter aus ist das Feld gesperrt, sein Wert bleibt (`autoFetchIntervalLocked`).
+- Lehnt der Server ab, steht die Meldung über `Input.groupWithError` am Feld, ohne Toast. Ein Erfolg meldet „Automatisch abrufen gespeichert“.
+- Die Karte Sync-Einstellungen schickt Schalter und Intervall so mit, wie sie gespeichert sind (`syncDaysSettingsToSave`).
+- Abweichung von der Task-Skizze in Worten: Der Block steht unter den Knöpfen, nicht direkt unter dem Status. Direkt unter dem Status verschob er „Bank trennen“, der Flow `[flow:bank-trennen]` wurde damit rot, weil der Knopf beim Klick wanderte und die Rückfrage nach 3 s zurückfiel.
+
+**Tests (Heimat-Ebene)**
+- `src/Tests/BankImportTests.fs`:
+  - Fälligkeit rein: 359, 360 und 361 Minuten, keine Historie, aus.
+  - Der Lauf mit Fake-Ports und In-Memory-Kassenbuch deckt ab: Schalter aus; fällig mit Buchung (Actor ComdirectImport, Push, Eintrag Scheduled, Sitzung im Speicher unberührt); 359 Minuten; von Hand vor 10 Minuten; keine Historie; Disconnected und ChallengePending (keine Challenge, kein Login, kein Eintrag, der nächste Takt ruft ab); Verbindung stirbt im Abruf; Bankfehler mit Log „HTTP 503, Code …“; YNAB nicht erreichbar; Gate belegt (übersprungen, danach fällig); „Abrufen“ wartet auf einen laufenden Lauf (ein Push, keine Reference zweimal).
+  - Dazu zwei Tests für den Dienst und `latestFinishedStartedAt` auf der In-Memory-SQLite.
+- `src/Tests/SettingsSecretsTests.fs`: Bestand ohne Schlüssel lädt an und 360; nach dem Speichern liefert `getSettings` die Werte zurück, ohne Secrets; ein abgelehntes Intervall schreibt nichts.
+- `src/Tests/ValidationTests.fs`: 59 und 1441 Minuten abgelehnt, 60 und 1440 angenommen, Fehler gesammelt.
+- `src/Tests/RemotingEndpointNegativeTests.fs`: Die eine Zeile für `saveSyncSettings` prüft jetzt Tage und Intervall mit konkreter Meldung. Die Tabelle verlangt genau eine Zeile je Endpoint.
+- `src/Tests/ClientCommandTests.fs`: Client-`update` unter .NET (Schalter aus sperrt und behält den Wert, Speichern schickt beide Felder, Feldfehler ohne Toast, gesperrt während des Speicherns, Sync-Karte, Stufen).
+- `src/Tests/StructureGuardTests.fs`:
+  - `isAutoFetchWorkerWired` mit Gegenbeweis (leerer Takt, anderer Abstand, Kommentar).
+  - Neue `apiWirings` für `saveSyncSettings`, `liveAutoFetchPorts` und `runAutoFetch`, mit Gegenbeweisen.
+  - Belegt sind damit alle Live-Anschlüsse: `Program.fs`, `liveAutoFetchPorts` (Import, Zeitplan aus `loadAppSettings`, `latestFinishedStartedAt`) und `runAutoFetch`.
+- `AutoFetchWorker` steht in der Modulliste von `NetworkCallGuardTests.fs`.
+- Die Fixtures in `scripts/settings-secrets.test.mjs`, `scripts/rules-page-mobile.test.mjs`, `scripts/ledger-filter-bar.mjs` und `scripts/layout-states.mjs` tragen die neuen Felder.
+- Neuer Sweep-Zustand `einstellungen` (PAGE_WIDTHS, also auch 412 und 1280) mit Comdirect eingerichtet.
+  - Er zeigte, dass der Link „Styleguide ansehen“ am Handy keine 48 px Trefferfläche hatte. Behoben mit `min-h-[48px] md:min-h-0` statt einer Ausnahme.
+- `src/Tests/LedgerPageTests.fs` „Ohne Konto-Filter …“ fragt jetzt mit großer Seite. Grund: Die geteilte In-Memory-DB bekommt parallel jüngere Buchungen aus dem Bank-Import, und Konto B fiel je nach Reihenfolge von der 100er-Seite. Im Gate-Lauf war der Test damit rot.
+- `./verify.sh`: VERIFY: PASS (dotnet 4686 grün, node 313 grün).
+
+**Für Roman (human-eye)**: BB-Aufnahmen der Karte bei 412 und 1280 px, Schalter an und aus:
+- /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/20e05553-37dc-4f2f-bcee-5ef520140bf9/scratchpad/e3/banking-import-t4raw/bb-einstellungen-handy-412-an.png
+- /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/20e05553-37dc-4f2f-bcee-5ef520140bf9/scratchpad/e3/banking-import-t4raw/bb-einstellungen-handy-412-aus.png
+- /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/20e05553-37dc-4f2f-bcee-5ef520140bf9/scratchpad/e3/banking-import-t4raw/bb-einstellungen-pc-1280-an.png
+- /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/20e05553-37dc-4f2f-bcee-5ef520140bf9/scratchpad/e3/banking-import-t4raw/bb-einstellungen-pc-1280-aus.png
+
+Das Kriterium „Roman hat die Einstellungen am Handy und am PC angesehen“ ist offen.
+
+**Für die Kann-Sammlung banking-import**
+- Die Fälligkeit zählt jeden gescheiterten Abruf in `sync_sessions`, auch eine von Hand abgelehnte TAN. `sync_sessions` unterscheidet „Bankfehler“ nicht von anderen Fehlern. Folge: höchstens ein später automatischer Lauf.
+- Zwischen „Bank trennen“ und dem Block „Automatisch abrufen“ steht keine Trennlinie.
+- Das Auswahlfeld „Alle“ ist über `Input.group` nicht per `for` mit seiner Bezeichnung verbunden (gilt für alle `Input.group`-Felder).
+- Der Flow `[flow:bank-trennen]` reagiert empfindlich auf Layout unter dem Status. Fällt die Rückfrage nach 3 s zurück, während der Knopf wandert, wird der Test rot.

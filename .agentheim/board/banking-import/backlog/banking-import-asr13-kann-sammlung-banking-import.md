@@ -48,3 +48,8 @@ Den Testfall entfernen. Falls das Verhalten bei abgelehnter Anmeldung abgesicher
 - Review-Lauf 2026-11-12: `MatchYnabTransactionId = ""` im Rückfall von `holdOf` ist ein Platzhalter; langfristig sollte die Duplikaterkennung den Treffer selbst mitgeben (Shared-Typ). ledger-r7h2w muss das leere Feld beachten.
 - Review-Lauf 2026-11-12: Abbrechen und sofort wieder „Abrufen“, solange `cancelSync` unterwegs ist: das Lesen kann die gerade abgebrochene Sitzung noch mit TAN liefern, „Ich habe bestätigt“ scheitert dann mit „Der Abruf ist nicht mehr offen“ (keine zweite Challenge).
 - Review-Lauf 2026-11-12: Wächter ohne erreichbaren Weg (Versionssprünge in `startWith`, `SyncStarted`, `ConfirmTan`, `ReadPlanned`, Vergleich von `ReadsLeft`) bleiben als Absicherung, Mutanten dort bleiben grün.
+- banking-import-t4raw (2026-11-12): Die Fälligkeit des automatischen Abrufs zählt jeden gescheiterten Eintrag in `sync_sessions`, auch eine von Hand abgelehnte TAN; `sync_sessions` unterscheidet Bankfehler nicht von anderen. Folge: höchstens ein später automatischer Lauf.
+- banking-import-t4raw: Zwischen „Bank trennen“ und dem Block „Automatisch abrufen“ steht keine Trennlinie.
+- banking-import-t4raw: Felder über `Input.group` sind nicht per `for` mit ihrer Bezeichnung verbunden (auch das Auswahlfeld „Alle“).
+- banking-import-t4raw: `[flow:bank-trennen]` reagiert empfindlich auf Layout unter dem Status (Rückfrage fällt nach 3 s zurück, während der Knopf wandert).
+- banking-import-t4raw: Die README nennt unter **Wiederaufnahme** „den Hintergrunddienst“ im Singular (gemeint `BankConnectionWorker`), seit `AutoFetchWorker` mehrdeutig.

@@ -103,6 +103,8 @@ let loadAppSettingsFrom (getSetting: string -> Async<string option>) : Async<App
     let! comdirectPassword = getSetting "comdirect_password"
     let! comdirectAccountId = getSetting "comdirect_account_id"
     let! syncDaysToFetch = getSetting "sync_days_to_fetch"
+    let! autoFetchEnabled = getSetting "sync_auto_fetch_enabled"
+    let! autoFetchInterval = getSetting "sync_auto_fetch_interval_minutes"
 
     let ynabSettings =
         match ynabToken with
@@ -129,6 +131,9 @@ let loadAppSettingsFrom (getSetting: string -> Async<string option>) : Async<App
 
     let syncSettings = {
         DaysToFetch = syncDaysToFetch |> Option.bind (fun s -> match Int32.TryParse(s: string) with | true, i -> Some i | _ -> None) |> Option.defaultValue 30
+        // Ohne Schlüssel (Bestand vor banking-import-t4raw) gelten die Vorgaben.
+        AutoFetchEnabled = autoFetchEnabled |> Option.bind (fun s -> match Boolean.TryParse(s: string) with | true, b -> Some b | _ -> None) |> Option.defaultValue defaultAutoFetchEnabled
+        AutoFetchIntervalMinutes = autoFetchInterval |> Option.bind (fun s -> match Int32.TryParse(s: string) with | true, i -> Some i | _ -> None) |> Option.defaultValue defaultAutoFetchIntervalMinutes
     }
 
     return {
@@ -266,6 +271,21 @@ let testComdirectConnectionWith
             return Error (SettingsError.ComdirectCredentialsInvalid ("credentials", "Comdirect credentials not configured"))
 }
 
+/// Speichert die Sync-Einstellungen nach der Validierung (alle Fehler gesammelt). Die Schlüssel liest
+/// `loadAppSettingsFrom` wieder.
+let saveSyncSettingsWith (setSetting: string -> string -> bool -> Async<unit>) (settings: SyncSettings) : Async<SettingsResult<unit>> = async {
+    match validateSyncSettings settings with
+    | Error errors -> return Error (SettingsError.DatabaseError ("validation", String.concat "; " errors))
+    | Ok valid ->
+        try
+            do! setSetting "sync_days_to_fetch" (string valid.DaysToFetch) false
+            do! setSetting "sync_auto_fetch_enabled" (if valid.AutoFetchEnabled then "true" else "false") false
+            do! setSetting "sync_auto_fetch_interval_minutes" (string valid.AutoFetchIntervalMinutes) false
+            return Ok ()
+        with ex ->
+            return Error (SettingsError.DatabaseError ("save_sync_settings", ex.Message))
+}
+
 let settingsApi : SettingsApi = {
     getLenaFlagSettings = fun () -> Ledger.QueryHandlers.getLenaFlagSettings ()
 
@@ -304,17 +324,7 @@ let settingsApi : SettingsApi = {
             Persistence.Settings.setSetting
             ComdirectAuthSession.disconnect
 
-    saveSyncSettings = fun settings -> async {
-        // Validate
-        match validateSyncSettings settings with
-        | Error errors -> return Error (SettingsError.DatabaseError ("validation", String.concat "; " errors))
-        | Ok valid ->
-            try
-                do! Persistence.Settings.setSetting "sync_days_to_fetch" (string valid.DaysToFetch) false
-                return Ok ()
-            with ex ->
-                return Error (SettingsError.DatabaseError ("save_sync_settings", ex.Message))
-    }
+    saveSyncSettings = saveSyncSettingsWith Persistence.Settings.setSetting
 
     testYnabConnection = fun () -> async {
         // Get token from settings
@@ -897,6 +907,20 @@ let internal liveImportPorts : BankImport.ImportPorts = {
     Clock = fun () -> DateTime.UtcNow
     Today = liveBerlinDay
 }
+
+/// Der automatische Abruf mit den Live-Ports (banking-import-t4raw, ADR 0093 Punkt 9): dasselbe Gate und
+/// derselbe Abruf wie „Abrufen“. Nur der Dienst aus `Program.fs` ruft `runAutoFetch` auf.
+let internal liveAutoFetchPorts : BankImport.AutoFetchPorts = {
+    Import = liveImportPorts
+    LoadSchedule = fun () -> async {
+        let! settings = loadAppSettings ()
+        return { Enabled = settings.Sync.AutoFetchEnabled; IntervalMinutes = settings.Sync.AutoFetchIntervalMinutes }
+    }
+    LatestFetch = Persistence.SyncSessions.latestFinishedStartedAt
+    Log = eprintfn "%s"
+}
+
+let runAutoFetch () : Async<unit> = BankImport.runAutoFetchWith liveAutoFetchPorts |> Async.Ignore
 
 let syncApi : SyncApi = {
     // ============================================

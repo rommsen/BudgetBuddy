@@ -1301,3 +1301,262 @@ let repeatedFetchTests =
             Expect.equal sent.Request.CategoryId (Some (bbCategory.ToString())) "BBs Kategorie, nicht die der Regel"
             Expect.equal (Booking.typesOf failed |> List.last) "EntryLinkedToYnab" "verknüpft"
     ]
+
+// ============================================
+// Automatisch abrufen (banking-import-t4raw, ADR 0093 Punkt 9)
+// ============================================
+// Derselbe Abruf wie „Abrufen“ mit denselben Fake-Ports; die Historie ist der `SessionsProbe`, der Beginn des
+// jüngsten Abrufs ein Funktionswert. Die Uhr steht auf `now`.
+
+let private minutesAgo (minutes: float) = Some (now.UtcDateTime.AddMinutes -minutes)
+
+let private schedule360 : AutoFetchSchedule = { Enabled = true; IntervalMinutes = 360 }
+
+/// Ports eines Takts über einer Probe. `Log` sammelt die Zeilen.
+type private AutoFetchProbe(ports: ImportPorts) =
+    member val Schedule = schedule360 with get, set
+    member val Latest : DateTime option = None with get, set
+    member val Logs = ResizeArray<string>()
+    member this.Ports : AutoFetchPorts =
+        { Import = ports
+          LoadSchedule = fun () -> async.Return this.Schedule
+          LatestFetch = fun () -> async.Return this.Latest
+          Log = fun line -> lock this.Logs (fun () -> this.Logs.Add line) }
+    member this.Tick () = runAutoFetchWith this.Ports |> run
+
+let private autoFetchProbe (initial: BankConnectionState) =
+    let probe = Probe(initial)
+    let ports = probe.Build()
+    probe, ports, AutoFetchProbe(ports)
+
+/// Die Einträge des Laufs in der Historie: begonnen und Endstand.
+let private historyOf (probe: Probe) =
+    List.ofSeq probe.Sessions.Started, probe.Sessions.Changed |> Seq.map (fun s -> s.Status) |> List.ofSeq
+
+let private expectFailedEntry (probe: Probe) =
+    let started, changed = historyOf probe
+    Expect.equal (started |> List.map (fun s -> s.Trigger)) [ Scheduled ] "ein automatischer Eintrag"
+    match changed with
+    | [ Failed message ] -> message
+    | other -> failtestf "ein Eintrag gescheitert erwartet: %A" other
+
+[<Tests>]
+let autoFetchDueTests =
+    testList "Automatisch abrufen: Fälligkeit" [
+        test "nach 360 und 361 Minuten fällig, nach 359 nicht" {
+            let at = now.UtcDateTime
+            Expect.isTrue (isAutoFetchDue at schedule360 (minutesAgo 361.0)) "361"
+            Expect.isTrue (isAutoFetchDue at schedule360 (minutesAgo 360.0)) "genau das Intervall"
+            Expect.isFalse (isAutoFetchDue at schedule360 (minutesAgo 359.0)) "359"
+        }
+        test "ohne Abruf in der Historie sofort fällig, abgeschaltet nie" {
+            let at = now.UtcDateTime
+            Expect.isTrue (isAutoFetchDue at schedule360 None) "keine Historie"
+            Expect.isFalse (isAutoFetchDue at { schedule360 with Enabled = false } None) "aus"
+            Expect.isFalse (isAutoFetchDue at { schedule360 with Enabled = false } (minutesAgo 5000.0)) "aus, lange her"
+        }
+        test "das Intervall aus den Einstellungen zählt" {
+            let at = now.UtcDateTime
+            Expect.isTrue (isAutoFetchDue at { schedule360 with IntervalMinutes = 60 } (minutesAgo 60.0)) "eine Stunde"
+            Expect.isFalse (isAutoFetchDue at { schedule360 with IntervalMinutes = 1440 } (minutesAgo 1439.0)) "ein Tag"
+        }
+    ]
+
+[<Tests>]
+let autoFetchRunTests =
+    let testCase name body =
+        testCase name (fun () ->
+            Ledger.Persistence.initializeLedgerSchema ()
+            body ())
+    testList "Automatisch abrufen: der Lauf" [
+
+        testCase "Schalter aus: kein Bankzugriff, kein Eintrag in der Historie" <| fun () ->
+            let probe, _, auto = autoFetchProbe connected
+            auto.Schedule <- { schedule360 with Enabled = false }
+            Expect.equal (auto.Tick ()) AutoFetchOff "aus"
+            Expect.equal probe.Fetches 0 "kein Bankzugriff"
+            Expect.isEmpty probe.Sessions.Started "kein Eintrag"
+
+        testCase "fällig und verbunden: der Abruf bucht ins Kassenbuch und nach YNAB, ein Eintrag Scheduled" <| fun () ->
+            let probe, _, auto = autoFetchProbe connected
+            let reference = uniqueRef "auto"
+            probe.FetchAnswer <- Ok [ bankTransaction reference "Markt" "Karte" ]
+            auto.Latest <- minutesAgo 361.0
+            let expected = { emptyFetchCounts with NewEntries = 1; WithoutCategory = 1 }
+            Expect.equal (auto.Tick ()) (AutoFetchRan (Ok expected)) "gebucht"
+            Expect.equal probe.Logins 0 "keine Challenge"
+            let entryId = Booking.entryOf reference |> Option.get
+            Expect.equal (Booking.typesOf entryId) [ "EntryImportedFromComdirect"; "EntryLinkedToYnab" ] "Kassenbuch zuerst, dann verknüpft"
+            Expect.isTrue (Booking.eventsOf entryId |> List.forall (fun e -> e.Actor = Ledger.Events.ComdirectImport)) "Actor ComdirectImport"
+            Expect.equal (Booking.pushedImportIds probe) [ Booking.importIdOf reference ] "nach YNAB"
+            let started, changed = historyOf probe
+            Expect.equal (started |> List.map (fun s -> s.Trigger, s.StartedAt)) [ Scheduled, now.UtcDateTime ] "Eintrag automatisch, Beginn aus der Uhr"
+            Expect.equal changed [ Completed ] "beendet"
+            Expect.equal (Seq.last probe.Sessions.Changed).Counts expected "mit den Zahlen"
+            Expect.isNone probe.Sessions.Current "die Sitzung von „Abrufen“ bleibt unberührt"
+
+        testCase "jüngster Abruf vor 359 Minuten: kein Bankzugriff" <| fun () ->
+            let probe, _, auto = autoFetchProbe connected
+            auto.Latest <- minutesAgo 359.0
+            Expect.equal (auto.Tick ()) AutoFetchNotDue "nicht fällig"
+            Expect.equal probe.Fetches 0 "kein Bankzugriff"
+            Expect.isEmpty probe.Sessions.Started "kein Eintrag"
+
+        testCase "ein Abruf von Hand vor 10 Minuten: kein automatischer Lauf" <| fun () ->
+            let probe, _, auto = autoFetchProbe connected
+            auto.Latest <- minutesAgo 10.0
+            Expect.equal (auto.Tick ()) AutoFetchNotDue "nicht fällig"
+            Expect.equal probe.Fetches 0 "kein Bankzugriff"
+
+        testCase "keine Historie: ein Abruf läuft" <| fun () ->
+            let probe, _, auto = autoFetchProbe connected
+            match auto.Tick () with
+            | AutoFetchRan (Ok _) -> ()
+            | other -> failtestf "Lauf erwartet: %A" other
+            Expect.equal probe.Fetches 1 "ein Abruf"
+
+        for label, state in [ "Disconnected", Disconnected; "ChallengePending", pendingChallenge ] do
+            testCase $"{label}: keine Challenge, kein Passwort-Login, kein Abruf, kein Eintrag, der nächste Takt prüft wieder" <| fun () ->
+                let probe, _, auto = autoFetchProbe state
+                Expect.equal (auto.Tick ()) (AutoFetchSkipped BankNotConnected) "übersprungen"
+                Expect.equal probe.Logins 0 "keine Challenge, kein Passwort-Login"
+                Expect.equal probe.Fetches 0 "kein Abruf"
+                Expect.isEmpty probe.Sessions.Started "kein Eintrag"
+                probe.Connection.Cell.State.Value <- connected
+                match auto.Tick () with
+                | AutoFetchRan (Ok _) -> ()
+                | other -> failtestf "der nächste Takt ruft ab: %A" other
+
+        testCase "die Verbindung stirbt im Abruf: keine Challenge, ein Eintrag gescheitert, nichts gebucht" <| fun () ->
+            let probe, _, auto = autoFetchProbe connected
+            let reference = uniqueRef "stirbt"
+            probe.FetchAnswer <- Error rejected
+            probe.RefreshAnswer <- Error (ReloginRequired "HTTP 401")
+            match auto.Tick () with
+            | AutoFetchRan (Error _) -> ()
+            | other -> failtestf "gescheitert erwartet: %A" other
+            Expect.equal probe.Logins 0 "keine Challenge"
+            Expect.isTrue (isDisconnected probe.Connection) "die Verbindung ist weg"
+            expectFailedEntry probe |> ignore
+            Expect.isEmpty probe.Pushes "nichts nach YNAB"
+            Expect.isNone (Booking.entryOf reference) "nichts gebucht"
+
+        testCase "ein Bankfehler bei lebender Verbindung: nichts gebucht, gescheitert, Log mit Status und Code" <| fun () ->
+            let probe, _, auto = autoFetchProbe connected
+            probe.FetchAnswer <- Error (ComdirectError.NetworkError (503, "service_unavailable"))
+            match auto.Tick () with
+            | AutoFetchRan (Error _) -> ()
+            | other -> failtestf "gescheitert erwartet: %A" other
+            Expect.equal probe.Logins 0 "keine Challenge"
+            Expect.isTrue (isConnected probe.Connection) "die Verbindung lebt"
+            let message = expectFailedEntry probe
+            Expect.stringContains message "Bankfehler" "die Meldung des Bankfehlers"
+            Expect.isEmpty probe.Pushes "nichts nach YNAB"
+            Expect.equal (List.ofSeq auto.Logs |> List.filter (fun l -> l.Contains "HTTP 503, Code service_unavailable")).Length 1 "Status und Code im Log"
+            // Der Eintrag zählt als jüngster Abruf: der nächste Versuch folgt nach dem Intervall.
+            let started = (Seq.exactlyOne probe.Sessions.Started).StartedAt
+            Expect.isFalse (isAutoFetchDue (started.AddMinutes 359.0) schedule360 (Some started)) "nicht vor dem Intervall"
+
+        testCase "ohne YNAB-Abgleich bucht der Lauf nichts und scheitert mit Grund" <| fun () ->
+            let probe, _, auto = autoFetchProbe connected
+            let reference = uniqueRef "ohne-ynab"
+            probe.FetchAnswer <- Ok [ bankTransaction reference "Markt" "Karte" ]
+            probe.YnabAnswer <- None
+            Expect.equal (auto.Tick ()) (AutoFetchRan (Error ynabUnavailableMessage)) "gescheitert mit Grund"
+            Expect.equal (expectFailedEntry probe) ynabUnavailableMessage "Grund in der Historie"
+            Expect.isNone (Booking.entryOf reference) "nichts gebucht"
+            Expect.isEmpty probe.Pushes "nichts nach YNAB"
+
+        testCase "ein Abruf von Hand hält das Gate: der Lauf wartet nicht, überspringt und bleibt fällig" <| fun () ->
+            let probe, ports, auto = autoFetchProbe connected
+            ports.Gate.Wait()
+            try
+                Expect.equal (auto.Tick ()) (AutoFetchSkipped FetchRunning) "übersprungen"
+                Expect.equal probe.Fetches 0 "kein Abruf"
+                Expect.isEmpty probe.Sessions.Started "kein Eintrag"
+            finally
+                ports.Gate.Release() |> ignore
+            match auto.Tick () with
+            | AutoFetchRan (Ok _) -> ()
+            | other -> failtestf "danach fällig: %A" other
+
+        testCase "„Abrufen“ wartet auf einen laufenden automatischen Lauf und findet dessen Buchung im Kassenbuch" <| fun () ->
+            let probe, ports, auto = autoFetchProbe connected
+            let reference = uniqueRef "beide"
+            probe.FetchAnswer <- Ok [ bankTransaction reference "Markt" "Karte" ]
+            let barrier = Barrier()
+            let held = ref 0
+            probe.DuringFetch <- fun () ->
+                if Interlocked.Increment(held) = 1 then barrier.Hold () else async.Return ()
+            let scheduled = runAutoFetchWith auto.Ports |> Async.StartAsTask
+            Expect.isTrue (barrier.WaitReached ()) "der automatische Lauf ruft ab"
+            let manual = startSyncWith ports |> Async.StartAsTask
+            Expect.isFalse (manual.Wait 200) "„Abrufen“ wartet am Gate"
+            barrier.Release ()
+            Expect.isTrue (scheduled.Wait hangLimit) "der automatische Lauf endet"
+            Expect.isTrue (manual.Wait hangLimit) "„Abrufen“ endet"
+            Expect.equal scheduled.Result (AutoFetchRan (Ok { emptyFetchCounts with NewEntries = 1; WithoutCategory = 1 })) "automatisch gebucht"
+            let session = expectFetched manual.Result
+            Expect.equal session.Trigger Manual "eigene Sitzung von Hand"
+            Expect.equal session.Counts.NewEntries 0 "schon im Kassenbuch"
+            Expect.equal probe.Fetches 2 "beide fragten die Bank"
+            Expect.equal (Booking.pushedImportIds probe) [ Booking.importIdOf reference ] "ein Push, keine Reference zweimal"
+            Expect.isSome (Booking.entryOf reference) "eine Buchung"
+    ]
+
+[<Tests>]
+let autoFetchWorkerTests =
+    testList "Automatisch abrufen: Hintergrunddienst" [
+        testCase "ein Fehler in einem Takt beendet den Dienst nicht" <| fun () ->
+            let calls = ref 0
+            let secondCall = TaskCompletionSource<unit>()
+            let failingTick () = async {
+                if Interlocked.Increment(calls) >= 2 then
+                    secondCall.TrySetResult () |> ignore
+                failwith "Takt scheitert"
+            }
+            use worker = new Server.AutoFetchWorker.AutoFetchWorker(failingTick, TimeSpan.FromMilliseconds 1.0)
+            worker.StartAsync(CancellationToken.None).Wait()
+            Expect.isTrue (secondCall.Task.Wait(TimeSpan.FromSeconds 10.0)) "der zweite Takt läuft"
+            worker.StopAsync(CancellationToken.None).Wait()
+
+        testCase "ein hängender Takt blockiert das Beenden nicht" <| fun () ->
+            let reached = TaskCompletionSource<unit>()
+            let never = TaskCompletionSource<unit>()
+            let hangingTick () = async {
+                reached.TrySetResult () |> ignore
+                do! never.Task |> Async.AwaitTask
+            }
+            use worker = new Server.AutoFetchWorker.AutoFetchWorker(hangingTick, TimeSpan.FromMilliseconds 1.0)
+            worker.StartAsync(CancellationToken.None).Wait()
+            Expect.isTrue (reached.Task.Wait(TimeSpan.FromSeconds 10.0)) "der Takt läuft"
+            Expect.isTrue (worker.StopAsync(CancellationToken.None).Wait(TimeSpan.FromSeconds 10.0)) "das Beenden kehrt zurück"
+    ]
+
+[<Tests>]
+let autoFetchHistoryTests =
+    testList "Automatisch abrufen: der jüngste Abruf aus der Historie" [
+        // Einziger Testfall, der `sync_sessions` der geteilten In-Memory-DB beschreibt; die Zeiten liegen weit
+        // nach jeder echten Sitzung.
+        testCase "beendet oder gescheitert zählt, bei der TAN stehen geblieben nicht, die Zeit kommt als UTC" <| fun () ->
+            global.Persistence.initializeDatabase ()
+            let at (day: int) (hour: int) = DateTime(2099, 1, day, hour, 0, 0, DateTimeKind.Utc)
+            let session (status: SyncSessionStatus) (started: DateTime) (trigger: SyncTrigger) =
+                { Id = SyncSessionId (Guid.NewGuid())
+                  StartedAt = started
+                  CompletedAt = Some (started.AddMinutes 1.0)
+                  Status = status
+                  Trigger = trigger
+                  Counts = emptyFetchCounts }
+            let record s = global.Persistence.SyncSessions.createSession s |> run
+            let latest () = global.Persistence.SyncSessions.latestFinishedStartedAt () |> run
+            let failed = session (Failed "Bankfehler") (at 1 9) Scheduled
+            record failed
+            record (session AwaitingTan (at 2 9) Manual)
+            Expect.equal (latest ()) (Some (at 1 9)) "gescheitert zählt, die TAN nicht"
+            Expect.equal (latest () |> Option.map (fun d -> d.Kind)) (Some DateTimeKind.Utc) "als UTC"
+            record (session Completed (at 1 10) Manual)
+            Expect.equal (latest ()) (Some (at 1 10)) "der jüngere beendete"
+            let stored = global.Persistence.SyncSessions.getSessionById failed.Id |> run
+            Expect.equal (stored |> Option.map (fun s -> s.Trigger)) (Some Scheduled) "der Auslöser bleibt"
+    ]

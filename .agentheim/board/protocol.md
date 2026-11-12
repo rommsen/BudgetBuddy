@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-12 01:38 -- Task verified and completed: banking-import-t4raw - "Automatisch abrufen im Intervall: ein Hintergrunddienst bucht neue Umsätze direkt ins Kassenbuch, Vorgabe an, alle 360 Minuten, in den Einstellungen abschaltbar, nie eine Push-TAN"
+
+**Type:** Work / Task completion
+**Task:** banking-import-t4raw - "Automatisch abrufen im Intervall: ein Hintergrunddienst bucht neue Umsätze direkt ins Kassenbuch, Vorgabe an, alle 360 Minuten, in den Einstellungen abschaltbar, nie eine Push-TAN"
+**Summary:** Automatisch abrufen im Intervall, bucht direkt, nie mit Challenge
+**Duration:** 62m
+**Verification:** PASS (iteration 1)
+**Files changed:** 25
+**Tests added:** 35
+**ADRs written:** none
+
+---
+
 ## 2026-11-12 01:28 -- Batch started: [ledger-v6s7c]
 
 **Type:** Work / Batch start

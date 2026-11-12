@@ -510,10 +510,11 @@ type SyncSessionStatus =
     | Completed             // Done
     | Failed of string      // Error occurred
 
-/// Wer einen Abruf auslöste (ADR 0093 Punkt 10). Der automatische Abruf kommt mit
-/// banking-import-t4raw dazu.
+/// Wer einen Abruf auslöste (ADR 0093 Punkt 10): Roman mit „Abrufen“ oder der Zeitplan
+/// (banking-import-t4raw, ADR 0093 Punkt 9).
 type SyncTrigger =
     | Manual
+    | Scheduled
 
 /// Die Zahlen eines Abrufs mit Buchen (ADR 0093 Punkt 10). `NewEntries` zählt jede neu ins
 /// Kassenbuch gebuchte Buchung, auch die wartenden; `ByRule`, `ByOrderId` und
@@ -583,7 +584,15 @@ type YnabSettings = {
 
 type SyncSettings = {
     DaysToFetch: int  // How many days back to fetch
+    /// Automatisch abrufen (ADR 0093 Punkt 9), Vorgabe an.
+    AutoFetchEnabled: bool
+    /// Abstand der automatischen Abrufe in Minuten, 60 bis 1440, Vorgabe 360.
+    AutoFetchIntervalMinutes: int
 }
+
+/// Vorgaben des automatischen Abrufs, auch für gespeicherte Einstellungen ohne die Schlüssel.
+let defaultAutoFetchEnabled = true
+let defaultAutoFetchIntervalMinutes = 360
 
 /// Einstellungen samt Secrets. Bleibt auf dem Server, an den Client geht `AppSettingsView`.
 type AppSettings = {

@@ -380,21 +380,24 @@ let private fetchIntoSession (ports: ImportPorts) (settings: ImportSettings) (se
                 | None -> return SessionGone
     }
 
+/// Meldung für Sitzung und Historie und der Fehler für den Aufrufer.
+let private describeFailure (ports: ImportPorts) (failure: FetchFailure) : string * SyncError =
+    match failure with
+    | BankFetchFailed error ->
+        let m = ports.DescribeBankError error
+        m, SyncError.TransactionFetchFailed m
+    | RulesInvalid reason -> reason, SyncError.TransactionFetchFailed reason
+    | AccountIdMissing -> missingAccountIdMessage, SyncError.TransactionFetchFailed missingAccountIdMessage
+    | YnabUnavailable -> ynabUnavailableMessage, SyncError.YnabImportFailed (0, ynabUnavailableMessage)
+    | TargetUnavailable reason -> reason, SyncError.YnabImportFailed (0, reason)
+    | BookingFailed (count, reason) ->
+        let entries = if count = 1 then "1 Buchung" else $"{count} Buchungen"
+        let m = $"Kassenbuch-Schreiben für {entries} gescheitert: {reason}"
+        m, SyncError.YnabImportFailed (count, m)
+
 let private failFetch (ports: ImportPorts) (failure: FetchFailure) : Async<SyncError> =
     async {
-        let message, error =
-            match failure with
-            | BankFetchFailed error ->
-                let m = ports.DescribeBankError error
-                m, SyncError.TransactionFetchFailed m
-            | RulesInvalid reason -> reason, SyncError.TransactionFetchFailed reason
-            | AccountIdMissing -> missingAccountIdMessage, SyncError.TransactionFetchFailed missingAccountIdMessage
-            | YnabUnavailable -> ynabUnavailableMessage, SyncError.YnabImportFailed (0, ynabUnavailableMessage)
-            | TargetUnavailable reason -> reason, SyncError.YnabImportFailed (0, reason)
-            | BookingFailed (count, reason) ->
-                let entries = if count = 1 then "1 Buchung" else $"{count} Buchungen"
-                let m = $"Kassenbuch-Schreiben für {entries} gescheitert: {reason}"
-                m, SyncError.YnabImportFailed (count, m)
+        let message, error = describeFailure ports failure
         ports.Sessions.Fail message
         let! _ = recordCurrent ports
         return error
@@ -548,3 +551,141 @@ let confirmTanWith (ports: ImportPorts) (sessionId: SyncSessionId) : Async<SyncR
                     let! error = failFetch ports failure
                     return Error error
     }))
+
+// ============================================
+// Automatisch abrufen (banking-import-t4raw, ADR 0093 Punkt 9)
+// ============================================
+
+/// Schalter und Intervall des automatischen Abrufs aus den Einstellungen.
+type AutoFetchSchedule = {
+    Enabled: bool
+    IntervalMinutes: int
+}
+
+/// Fällig ist ein Lauf, wenn der Schalter an ist und seit dem Beginn des jüngsten Abrufs (beendet oder
+/// gescheitert, von Hand oder automatisch) mindestens das Intervall vergangen ist. Ohne Abruf in der
+/// Historie ist er sofort fällig. Rein, beide Zeiten in UTC.
+let isAutoFetchDue (now: DateTime) (schedule: AutoFetchSchedule) (latestFetch: DateTime option) : bool =
+    schedule.Enabled
+    && (match latestFetch with
+        | None -> true
+        | Some latest -> now - latest >= TimeSpan.FromMinutes (float schedule.IntervalMinutes))
+
+/// Was ein Takt braucht: den Abruf mit seinen Ports, den Zeitplan, den Beginn des jüngsten Abrufs aus der
+/// Historie (`sync_sessions`) und das Log.
+type AutoFetchPorts = {
+    Import: ImportPorts
+    LoadSchedule: unit -> Async<AutoFetchSchedule>
+    LatestFetch: unit -> Async<DateTime option>
+    Log: string -> unit
+}
+
+/// Warum ein fälliger Lauf nichts tat. Ein übersprungener Lauf schreibt nichts in die Historie und bleibt fällig.
+type AutoFetchSkip =
+    /// Ein Abruf von Hand (oder ein Trennen, eine TAN-Bestätigung) hält das Gate.
+    | FetchRunning
+    /// `Disconnected` oder `ChallengePending`: ohne `Connected` kein Abruf, nie eine Challenge.
+    | BankNotConnected
+    /// Keine Zugangsdaten oder keine Konto-Id.
+    | NotConfigured
+
+type AutoFetchOutcome =
+    | AutoFetchOff
+    | AutoFetchNotDue
+    | AutoFetchSkipped of AutoFetchSkip
+    /// Der Lauf erreichte die Bank und steht in der Historie, beendet oder gescheitert.
+    | AutoFetchRan of Result<FetchCounts, string>
+
+/// Status und Code eines Bankfehlers fürs Log (Invariante Fehlertexte, ADR 0071 Punkt 3): nie der
+/// Antwortrumpf. Ein `NetworkError` trägt schon nur den gefilterten Code, `AuthenticationFailed` schon
+/// „HTTP 401“ samt Code. Rein.
+let bankErrorLogDetail (error: ComdirectError) : string =
+    match error with
+    | ComdirectError.NetworkError (status, code) when isSafeErrorCode code -> $"HTTP {status}, Code {code}"
+    | ComdirectError.NetworkError (status, _) -> $"HTTP {status}"
+    | ComdirectError.AuthenticationFailed detail -> detail
+    | ComdirectError.SessionExpired -> "HTTP 403"
+    | ComdirectError.TanChallengeExpired -> "TAN abgelaufen"
+    | ComdirectError.TanRejected -> "TAN abgelehnt"
+    | ComdirectError.InvalidCredentials -> "Zugangsdaten ungültig"
+    | ComdirectError.InvalidResponse _ -> "Antwort nicht lesbar"
+
+/// Ein Takt des automatischen Abrufs. Ist ein Lauf fällig, ruft er bei `Connected` denselben Abruf wie
+/// „Abrufen“ (`fetchAndBook`) und bucht damit direkt. Er startet nie eine Challenge und meldet sich nie per
+/// Passwort an (ADR 0071 Punkt 2): ohne `Connected` überspringt er, stirbt die Verbindung im Abruf, endet er
+/// gescheitert. Die Sitzung des Laufs steht nur in der Historie, die Sitzung im Speicher (TAN, „Abrufen“)
+/// bleibt unberührt. Hält ein Abruf von Hand das Gate, wartet der Lauf nicht; „Abrufen“ dagegen wartet am
+/// Gate auf einen laufenden automatischen Lauf und findet dessen Buchungen danach im Kassenbuch.
+let runAutoFetchWith (ports: AutoFetchPorts) : Async<AutoFetchOutcome> =
+    async {
+        let! schedule = ports.LoadSchedule ()
+        if not schedule.Enabled then
+            return AutoFetchOff
+        else
+            let! latest = ports.LatestFetch ()
+            let importPorts = ports.Import
+            if not (isAutoFetchDue (importPorts.Clock ()) schedule latest) then
+                return AutoFetchNotDue
+            elif not (importPorts.Gate.Wait 0) then
+                return AutoFetchSkipped FetchRunning
+            else
+                try
+                    match importPorts.Sources.Bank.Status () with
+                    | BankAuthRequired -> return AutoFetchSkipped BankNotConnected
+                    | BankReady ->
+                        let! settings = importPorts.LoadSettings ()
+                        match settings.Comdirect, configuredAccountId settings with
+                        | None, _
+                        | _, None -> return AutoFetchSkipped NotConfigured
+                        | Some _, Some accountId ->
+                            let started = importPorts.Clock ()
+                            let session = {
+                                Id = SyncSessionId (Guid.NewGuid())
+                                StartedAt = started
+                                CompletedAt = None
+                                Status = FetchingTransactions
+                                Trigger = Scheduled
+                                Counts = emptyFetchCounts
+                            }
+                            do! importPorts.Sessions.RecordStarted session
+                            let finish (status: SyncSessionStatus) (counts: FetchCounts) =
+                                importPorts.Sessions.RecordChanged
+                                    { session with Status = status; CompletedAt = Some (importPorts.Clock ()); Counts = counts }
+                            let fail (message: string) (detail: string option) =
+                                async {
+                                    match detail with
+                                    | Some d -> ports.Log $"Automatischer Abruf gescheitert ({d}): {message}"
+                                    | None -> ports.Log $"Automatischer Abruf gescheitert: {message}"
+                                    do! finish (Failed message) emptyFetchCounts
+                                    return AutoFetchRan (Error message)
+                                }
+                            let request = {
+                                AccountId = accountId
+                                DaysToFetch = settings.DaysToFetch
+                                Now = started
+                                Today = importPorts.Today ()
+                            }
+                            let! outcome = async {
+                                try
+                                    let! result = fetchAndBook importPorts request (fun () -> true)
+                                    return Choice1Of2 result
+                                with ex ->
+                                    // Nur der Typ: der Text der Ausnahme könnte Bankdaten zitieren.
+                                    return Choice2Of2 (ex.GetType().Name)
+                            }
+                            match outcome with
+                            | Choice1Of2 (Some (Ok counts)) ->
+                                do! finish Completed counts
+                                return AutoFetchRan (Ok counts)
+                            | Choice1Of2 (Some (Error failure)) ->
+                                let detail =
+                                    match failure with
+                                    | BankFetchFailed error -> Some (bankErrorLogDetail error)
+                                    | _ -> None
+                                return! fail (fst (describeFailure importPorts failure)) detail
+                            // `beforeBooking` sagt immer ja, ohne Ergebnis endet der Lauf trotzdem sichtbar.
+                            | Choice1Of2 None -> return! fail "Abruf ohne Ergebnis beendet" None
+                            | Choice2Of2 typeName -> return! fail $"Abruf abgebrochen ({typeName})" None
+                finally
+                    importPorts.Gate.Release() |> ignore
+    }

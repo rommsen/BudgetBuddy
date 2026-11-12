@@ -21,7 +21,7 @@ import { getFreePort, startFrontend, stopServer } from "./screenshot-route.mjs";
 const settings = {
   Comdirect: { HasClientId: true, HasClientSecret: true, HasUsername: true, HasPassword: true, AccountId: "konto-1" },
   Ynab: { HasToken: true, DefaultBudgetId: null, DefaultAccountId: null, QuickAddAccountId: null },
-  Sync: { DaysToFetch: 30 },
+  Sync: { DaysToFetch: 30, AutoFetchEnabled: true, AutoFetchIntervalMinutes: 360 },
 };
 const json = (body) => ({ contentType: "application/json", body: JSON.stringify(body) });
 

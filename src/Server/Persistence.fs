@@ -654,10 +654,12 @@ module SyncSessions =
 
     let private triggerToString = function
         | Manual -> "Manual"
+        | Scheduled -> "Scheduled"
 
     let private triggerFromString (s: string option) : SyncTrigger =
         match s with
         | None | Some "Manual" -> Manual
+        | Some "Scheduled" -> Scheduled
         | Some other -> failwith $"Unbekannter Auslöser: {other}"
 
     let private rowToSession (row: SyncSessionRow) : SyncSession =
@@ -745,4 +747,26 @@ module SyncSessions =
                     {| Id = sessionId.ToString() |}
                 ) |> Async.AwaitTask
             return if isNull (box row) then None else Some (rowToSession row)
+        }
+
+    /// Beginn des jüngsten Abrufs, der zu Ende kam (beendet oder gescheitert), von Hand oder automatisch,
+    /// in UTC. Daraus rechnet der Zeitplan die Fälligkeit (banking-import-t4raw): ein Abruf von Hand setzt
+    /// ihn zurück, ein Neustart nicht. Eine Sitzung, die bei der TAN stehen blieb, zählt nicht.
+    let latestFinishedStartedAt () : Async<DateTime option> =
+        async {
+            let conn = getConnection()
+            let! value =
+                conn.QueryFirstOrDefaultAsync<string>(
+                    """SELECT started_at FROM sync_sessions
+                       WHERE status = 'Completed' OR status LIKE 'Failed:%'
+                       ORDER BY started_at DESC LIMIT 1"""
+                ) |> Async.AwaitTask
+            return
+                if isNull value then None
+                else
+                    Some (
+                        DateTime.Parse(
+                            value,
+                            Globalization.CultureInfo.InvariantCulture,
+                            Globalization.DateTimeStyles.AssumeUniversal ||| Globalization.DateTimeStyles.AdjustToUniversal))
         }

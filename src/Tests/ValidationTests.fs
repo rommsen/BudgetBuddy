@@ -213,38 +213,63 @@ let settingsValidationTests =
         ]
 
         testList "validateSyncSettings" [
+            let validSync : SyncSettings = { DaysToFetch = 30; AutoFetchEnabled = true; AutoFetchIntervalMinutes = 360 }
+            let intervalMessage = "Intervall muss zwischen 60 und 1440 Minuten liegen"
+
+            // banking-import-t4raw (ADR 0093 Punkt 9): das Intervall des automatischen Abrufs.
+            test "ein Intervall von 59 oder 1441 Minuten wird mit konkreter Meldung abgelehnt" {
+                for minutes in [ 59; 1441 ] do
+                    Expect.equal
+                        (validateSyncSettings { validSync with AutoFetchIntervalMinutes = minutes })
+                        (Error [ intervalMessage ])
+                        $"{minutes} Minuten"
+            }
+
+            test "60 und 1440 Minuten gehen durch, auch bei abgeschaltetem Abruf" {
+                for minutes in [ 60; 1440 ] do
+                    Expect.isOk (validateSyncSettings { validSync with AutoFetchIntervalMinutes = minutes; AutoFetchEnabled = false }) $"{minutes} Minuten"
+            }
+
+            test "Tage und Intervall falsch: beide Fehler gesammelt" {
+                match validateSyncSettings { validSync with DaysToFetch = 0; AutoFetchIntervalMinutes = 0 } with
+                | Error errors ->
+                    Expect.equal errors.Length 2 "zwei Meldungen"
+                    Expect.contains errors intervalMessage "das Intervall"
+                | Ok _ -> failtest "Ablehnung erwartet"
+            }
+
             test "returns Ok for valid settings" {
-                let settings = { DaysToFetch = 30 }
+                let settings = { validSync with DaysToFetch = 30 }
                 let result = validateSyncSettings settings
                 Expect.isOk result "Should return Ok for valid settings"
             }
 
             test "returns Ok for minimum days" {
-                let settings = { DaysToFetch = 1 }
+                let settings = { validSync with DaysToFetch = 1 }
                 let result = validateSyncSettings settings
                 Expect.isOk result "Should return Ok for minimum days"
             }
 
             test "returns Ok for maximum days" {
-                let settings = { DaysToFetch = 90 }
+                let settings = { validSync with DaysToFetch = 90 }
                 let result = validateSyncSettings settings
                 Expect.isOk result "Should return Ok for maximum days"
             }
 
             test "returns Error for zero days" {
-                let settings = { DaysToFetch = 0 }
+                let settings = { validSync with DaysToFetch = 0 }
                 let result = validateSyncSettings settings
                 Expect.isError result "Should return Error for zero days"
             }
 
             test "returns Error for too many days" {
-                let settings = { DaysToFetch = 100 }
+                let settings = { validSync with DaysToFetch = 100 }
                 let result = validateSyncSettings settings
                 Expect.isError result "Should return Error for too many days"
             }
 
             test "returns Error for negative days" {
-                let settings = { DaysToFetch = -1 }
+                let settings = { validSync with DaysToFetch = -1 }
                 let result = validateSyncSettings settings
                 Expect.isError result "Should return Error for negative days"
             }

@@ -58,6 +58,11 @@ let validateSyncSettings (settings: SyncSettings) : Result<SyncSettings, string 
     let errors =
         [
             validateRange "Days to fetch" 1 90 settings.DaysToFetch
+            // ADR 0093 Punkt 9: das Auswahlfeld bietet Stufen von 1 bis 24 Stunden, der Server nimmt jeden Wert dazwischen.
+            if settings.AutoFetchIntervalMinutes < 60 || settings.AutoFetchIntervalMinutes > 1440 then
+                Some "Intervall muss zwischen 60 und 1440 Minuten liegen"
+            else
+                None
         ]
         |> List.choose id
 

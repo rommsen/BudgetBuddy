@@ -43,7 +43,7 @@ let private settingsWithBudget : AppSettingsView = {
             DefaultAccountId = None
             QuickAddAccountId = None
         }
-    Sync = { DaysToFetch = 30 }
+    Sync = { DaysToFetch = 30; AutoFetchEnabled = true; AutoFetchIntervalMinutes = 360 }
 }
 
 /// Nur für `Cmd.ofMsg`/`Cmd.batch`/`Cmd.map` zulässig, kein `Cmd.OfAsync`.

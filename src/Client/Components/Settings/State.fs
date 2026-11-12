@@ -30,6 +30,10 @@ let init () : Model * Cmd<Msg> =
         ComdirectPasswordInput = ""
         ComdirectAccountIdInput = ""
         SyncDaysInput = 30
+        AutoFetchEnabledInput = defaultAutoFetchEnabled
+        AutoFetchIntervalInput = defaultAutoFetchIntervalMinutes
+        AutoFetchSaving = false
+        AutoFetchError = None
         LenaFlagColorInput = ""
         LenaFlag = { SavedColor = None; SuggestedColor = None }
         ComdirectConnectionValid = NotAsked
@@ -51,6 +55,25 @@ let disconnectBankCmd (call: unit -> Async<Result<unit, SyncError>>) : Cmd<Msg> 
         BankDisconnectFinished
         (fun _ -> Error (SyncError.DatabaseError ("disconnect_bank", "Antwort auf das Trennen fehlt. Stand prüfen oder wiederholen.")) |> BankDisconnectFinished)
 
+/// Speichert die Sync-Einstellungen. `call` ist der Remoting-Aufruf, unter .NET bleibt er ungerufen.
+let saveAutoFetchCmd (call: SyncSettings -> Async<SettingsResult<unit>>) (settings: SyncSettings) : Cmd<Msg> =
+    Cmd.OfAsync.either
+        call
+        settings
+        (fun result -> AutoFetchSaved (settings, result))
+        (fun ex -> AutoFetchSaved (settings, Error (SettingsError.DatabaseError ("save", ex.Message))))
+
+/// Die Meldung am Auswahlfeld: eine Ablehnung der Validierung steht ohne technischen Vorsatz da.
+let autoFetchErrorText (error: SettingsError) : string =
+    match error with
+    | SettingsError.DatabaseError ("validation", message) -> message
+    | other -> settingsErrorToString other
+
+let private startAutoFetchSave (model: Model) : Model * Cmd<Msg> * ExternalMsg =
+    let saving = { model with AutoFetchSaving = true; AutoFetchError = None }
+    // Hinter einem Lambda: der Remoting-Proxy wirft unter .NET im Typinitialisierer.
+    saving, saveAutoFetchCmd (fun settings -> Api.settings.saveSyncSettings settings) (autoFetchSettingsToSave saving), NoOp
+
 let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
     | LoadSettings ->
@@ -68,6 +91,8 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                 Settings = Success settings
                 ComdirectAccountIdInput = settings.Comdirect |> Option.bind (fun c -> c.AccountId) |> Option.defaultValue ""
                 SyncDaysInput = settings.Sync.DaysToFetch
+                AutoFetchEnabledInput = settings.Sync.AutoFetchEnabled
+                AutoFetchIntervalInput = settings.Sync.AutoFetchIntervalMinutes
         }
         updatedModel, Cmd.none, NoOp
 
@@ -178,7 +203,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         { model with SyncDaysInput = value }, Cmd.none, NoOp
 
     | SaveSyncSettings ->
-        let settings : SyncSettings = { DaysToFetch = model.SyncDaysInput }
+        let settings = syncDaysSettingsToSave model
         let cmd =
             Cmd.OfAsync.either
                 Api.settings.saveSyncSettings
@@ -192,12 +217,39 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         let updatedSettings =
             match model.Settings with
             | Success settings ->
-                Success { settings with Sync = { DaysToFetch = model.SyncDaysInput } }
+                Success { settings with Sync = { settings.Sync with DaysToFetch = model.SyncDaysInput } }
             | other -> other
         { model with Settings = updatedSettings; EditingSection = None }, Cmd.none, ShowToast ("Sync settings saved successfully", ToastSuccess)
 
     | SyncSettingsSaved (Error err) ->
         model, Cmd.none, ShowToast (settingsErrorToString err, ToastError)
+
+    | SetAutoFetchEnabled _
+    | SetAutoFetchInterval _ when model.AutoFetchSaving -> model, Cmd.none, NoOp
+
+    | SetAutoFetchEnabled enabled ->
+        startAutoFetchSave { model with AutoFetchEnabledInput = enabled }
+
+    | SetAutoFetchInterval minutes ->
+        startAutoFetchSave { model with AutoFetchIntervalInput = minutes }
+
+    | AutoFetchSaved (saved, Ok ()) ->
+        let updatedSettings =
+            match model.Settings with
+            | Success settings ->
+                Success
+                    { settings with
+                        Sync =
+                            { settings.Sync with
+                                AutoFetchEnabled = saved.AutoFetchEnabled
+                                AutoFetchIntervalMinutes = saved.AutoFetchIntervalMinutes } }
+            | other -> other
+        { model with Settings = updatedSettings; AutoFetchSaving = false; AutoFetchError = None },
+        Cmd.none,
+        ShowToast ("Automatisch abrufen gespeichert", ToastSuccess)
+
+    | AutoFetchSaved (_, Error err) ->
+        { model with AutoFetchSaving = false; AutoFetchError = Some (autoFetchErrorText err) }, Cmd.none, NoOp
 
     | LoadLenaFlagSettings ->
         let cmd =

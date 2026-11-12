@@ -43,6 +43,7 @@
     <Compile Include="SyncSessionManager.fs" />
     <Compile Include="Ledger/CommandHandlers.fs" />
     <Compile Include="BankImport.fs" />
+    <Compile Include="AutoFetchWorker.fs" />
     <Compile Include="Ledger/QueryHandlers.fs" />
     <Compile Include="Budgeting/Domain.fs" />
     <Compile Include="Budgeting/Events.fs" />

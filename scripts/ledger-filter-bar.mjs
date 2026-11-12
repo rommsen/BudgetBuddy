@@ -120,7 +120,7 @@ export function buildSettingsFixture(budgetId = "fake-budget-id") {
       DefaultAccountId: null,
       QuickAddAccountId: null,
     },
-    Sync: { DaysToFetch: 30 },
+    Sync: { DaysToFetch: 30, AutoFetchEnabled: true, AutoFetchIntervalMinutes: 360 },
   };
 }
 

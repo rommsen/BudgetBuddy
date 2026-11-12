@@ -168,8 +168,14 @@ let private rows : Row list = [
       Run = fun () ->
         settingsApi.saveComdirectCredentials { ClientId = ""; ClientSecret = ""; Username = ""; Password = ""; AccountId = None }
         |> run |> expectError "Zugangsdaten" }
-    { Endpoint = "SettingsApi.saveSyncSettings"; Case = "negative Tageszahl wird abgelehnt"
-      Run = fun () -> settingsApi.saveSyncSettings { DaysToFetch = -1 } |> run |> expectError "Tage" }
+    // banking-import-t4raw: dazu das Intervall des automatischen Abrufs, beide Fehler gesammelt und konkret.
+    { Endpoint = "SettingsApi.saveSyncSettings"; Case = "negative Tageszahl und ungültiges Intervall werden mit konkreter Meldung abgelehnt"
+      Run = fun () ->
+        match settingsApi.saveSyncSettings { DaysToFetch = -1; AutoFetchEnabled = true; AutoFetchIntervalMinutes = 59 } |> run with
+        | Error (SettingsError.DatabaseError (_, message)) ->
+            Expect.stringContains message "Days to fetch" "die Tage"
+            Expect.stringContains message "Intervall muss zwischen 60 und 1440 Minuten liegen" "das Intervall"
+        | other -> failtestf "Ablehnung erwartet: %A" other }
     { Endpoint = "SettingsApi.testYnabConnection"; Case = "ohne Token Fehler"
       Run = fun () -> settingsApi.testYnabConnection () |> run |> expectError "YNAB" }
     { Endpoint = "SettingsApi.testComdirectConnection"; Case = "ohne Zugangsdaten Fehler"

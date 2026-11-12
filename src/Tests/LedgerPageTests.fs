@@ -1936,8 +1936,10 @@ let ledgerPagingTests =
             seedEntry pageTestAccountB 20 -5m |> Async.RunSynchronously
             seedEntry pageTestAccountB 21 -6m |> Async.RunSynchronously
 
+            // Die In-Memory-DB ist geteilt: andere Listen (etwa der Bank-Import) buchen parallel jüngere Buchungen.
+            // Auf einer Seite mit 100 Zeilen fiel Konto B damit je nach Reihenfolge heraus (banking-import-t4raw).
             let allAccountsPage =
-                Ledger.QueryHandlers.getLedgerEntriesPage (baseQuery None)
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery None with PageSize = 100000 }
                 |> Async.RunSynchronously
 
             let (LedgerAccountId rawB) = pageTestAccountB

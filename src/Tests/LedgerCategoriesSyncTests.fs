@@ -52,10 +52,10 @@ let private settingsWithBudget : AppSettingsView = {
             DefaultAccountId = None
             QuickAddAccountId = None
         }
-    Sync = { DaysToFetch = 30 }
+    Sync = { DaysToFetch = 30; AutoFetchEnabled = true; AutoFetchIntervalMinutes = 360 }
 }
 
-let private settingsWithoutBudget : AppSettingsView = { Comdirect = None; Ynab = None; Sync = { DaysToFetch = 30 } }
+let private settingsWithoutBudget : AppSettingsView = { Comdirect = None; Ynab = None; Sync = { DaysToFetch = 30; AutoFetchEnabled = true; AutoFetchIntervalMinutes = 360 } }
 
 /// Führt ein `Cmd` aus und sammelt die abgeschickten Nachrichten ein, nur zulässig
 /// für `Cmd.ofMsg`/`Cmd.batch`/`Cmd.map` (kein `Cmd.OfAsync`, das würde den unter

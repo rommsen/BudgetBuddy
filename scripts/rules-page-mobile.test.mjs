@@ -55,7 +55,7 @@ const category = (n) => ({
 const settings = {
   Comdirect: null,
   Ynab: { HasToken: true, DefaultBudgetId: W("YnabBudgetId", "b1"), DefaultAccountId: null, QuickAddAccountId: null },
-  Sync: { DaysToFetch: 14 },
+  Sync: { DaysToFetch: 14, AutoFetchEnabled: true, AutoFetchIntervalMinutes: 360 },
 };
 
 async function openPage(width, height) {

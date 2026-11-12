@@ -38,7 +38,7 @@ let private ownFileName = "NetworkCallGuardTests.fs"
 
 /// Client-Module, deren Funktionen ins Netz gehen können.
 let private clientModules =
-    [ "YnabClient"; "ComdirectClient"; "BankConnection"; "ComdirectAuthSession"; "BankConnectionWorker"; "BankPort"; "BankImport" ]
+    [ "YnabClient"; "ComdirectClient"; "BankConnection"; "ComdirectAuthSession"; "BankConnectionWorker"; "BankPort"; "BankImport"; "AutoFetchWorker" ]
 
 let private directMarker =
     Regex(

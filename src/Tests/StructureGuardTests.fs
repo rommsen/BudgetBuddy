@@ -598,6 +598,13 @@ let isTakeoverWorkerWired (program: string) : bool =
         fst (lex program),
         @"AddHostedService[\s\S]*?TakeoverWorker\(\s*Server\.Api\.liveTakeoverPort\s*,\s*berlinZone\s*,\s*\(fun\s*\(\)\s*->\s*System\.DateTime\.UtcNow\)\s*,\s*Server\.Budgeting\.TakeoverWorker\.sleep\s*\)")
 
+/// Der Dienst des automatischen Abrufs (banking-import-t4raw) bekommt den Takt mit den Live-Ports und den
+/// Minutentakt. Ein leerer Takt oder ein anderer Abstand kompilierten.
+let isAutoFetchWorkerWired (program: string) : bool =
+    Regex.IsMatch(
+        fst (lex program),
+        @"AddHostedService[\s\S]*?AutoFetchWorker\(\s*Server\.Api\.runAutoFetch\s*,\s*Server\.AutoFetchWorker\.tickPeriod\s*\)")
+
 /// `livePorts` trägt die Netzports, Tests dürfen ihn nicht anfassen (`NetworkCallGuardTests.fs`). Das
 /// Verhalten von Speicher und Schlüsseln prüfen die Tests direkt, hier bleibt nur der Anschluss.
 let isLivePortsStorageWired (session: string) : bool =
@@ -717,6 +724,12 @@ let private apiWirings =
       // Memo und Payee nach YNAB (Review-Fund zu ledger-fxt09): `ynabPushWith` ist mit Fake-Settings getestet,
       // die Befehle mit Fake-Push; der Push des Servers erreicht YNAB nur im laufenden Dienst.
       @"\bmemoPush\s*\(\)\s*:\s*Async<Ledger\.CommandHandlers\.MemoPush>\s*=\s*ynabPushWith\s+Persistence\.Settings\.getSetting\s+\(fun\s+token\s+budgetId\s*->\s*YnabClient\.updateMemo\s+token\s+budgetId\)\s+refusedPush\s*(?:\n\s*\n|\z)"
+      // Automatisch abrufen (banking-import-t4raw): `runAutoFetchWith` ist mit Fake-Ports für Bank und YNAB und dem
+      // In-Memory-Kassenbuch getestet, `latestFinishedStartedAt` auf der In-Memory-SQLite, `saveSyncSettingsWith` mit
+      // einem Fake-Speicher. Die Ports des Servers erreichen Comdirect und YNAB nur im laufenden Dienst.
+      @"\bsaveSyncSettings\s*=\s*saveSyncSettingsWith\s+Persistence\.Settings\.setSetting\b"
+      @"\bliveAutoFetchPorts\s*:\s*BankImport\.AutoFetchPorts\s*=\s*\{\s*Import\s*=\s*liveImportPorts\s+LoadSchedule\s*=\s*fun\s*\(\)\s*->\s*async\s*\{\s*let!\s+settings\s*=\s*loadAppSettings\s*\(\)\s*return\s*\{\s*Enabled\s*=\s*settings\.Sync\.AutoFetchEnabled\s*;\s*IntervalMinutes\s*=\s*settings\.Sync\.AutoFetchIntervalMinutes\s*\}\s*\}\s*LatestFetch\s*=\s*Persistence\.SyncSessions\.latestFinishedStartedAt\b"
+      @"\brunAutoFetch\s*\(\)\s*:\s*Async<unit>\s*=\s*BankImport\.runAutoFetchWith\s+liveAutoFetchPorts\s*\|>\s*Async\.Ignore\s*(?:\n\s*\n|\z)"
       @"\bpayeePush\s*\(\)\s*:\s*Async<Ledger\.CommandHandlers\.PayeePush>\s*=\s*ynabPushWith\s+Persistence\.Settings\.getSetting\s+\(fun\s+token\s+budgetId\s*->\s*YnabClient\.updatePayee\s+token\s+budgetId\)\s+refusedPush\s*(?:\n\s*\n|\z)" ]
 
 /// Bobs Push in `BotApi.liveDeps` (ledger-bk3q8): bekommt Konto, `import_id` (ledger-p3vq8) und Request der
@@ -746,6 +759,20 @@ let hostedServiceGuardTests =
         testCase "Program.fs registriert die Übernahme im Hintergrund mit Live-Port, echter Uhr und echtem Warten" <| fun () ->
             let program = serverSources "Program.fs" |> List.exactlyOne |> snd
             Expect.isTrue (isTakeoverWorkerWired program) "sonst übernimmt niemand die älteren Monate"
+
+        testCase "Program.fs registriert den automatischen Abruf mit dem Takt des Servers und dem Minutentakt" <| fun () ->
+            let program = serverSources "Program.fs" |> List.exactlyOne |> snd
+            Expect.isTrue (isAutoFetchWorkerWired program) "sonst ruft niemand automatisch ab"
+
+        testCase "Gegenbeweis: ein falsch verdrahteter automatischer Abruf wird erkannt" <| fun () ->
+            let registered (tick: string) (period: string) =
+                $"builder.Services.AddHostedService(fun _ ->\n    new Server.AutoFetchWorker.AutoFetchWorker({tick}, {period}))"
+            let tick = "Server.Api.runAutoFetch"
+            let period = "Server.AutoFetchWorker.tickPeriod"
+            Expect.isTrue (isAutoFetchWorkerWired (registered tick period)) "richtig verdrahtet"
+            Expect.isFalse (isAutoFetchWorkerWired (registered "(fun () -> async.Return ())" period)) "leerer Takt"
+            Expect.isFalse (isAutoFetchWorkerWired (registered tick "System.TimeSpan.FromDays 365.0")) "anderer Abstand"
+            Expect.isFalse (isAutoFetchWorkerWired $"// {registered tick period}") "nur im Kommentar"
 
         testCase "Gegenbeweis: eine falsch verdrahtete Übernahme im Hintergrund wird erkannt" <| fun () ->
             let registered (port: string) (clock: string) (delay: string) =
@@ -805,6 +832,9 @@ let hostedServiceGuardTests =
         testCase "Gegenbeweis: ein Ersatz in den Endpoints wird gemeldet" <| fun () ->
             let real =
                 [ "getSettings = fun () -> readSettingsForClient Persistence.Settings.getSetting\n"
+                  "saveSyncSettings = saveSyncSettingsWith Persistence.Settings.setSetting\n"
+                  "let internal liveAutoFetchPorts : BankImport.AutoFetchPorts = {\n    Import = liveImportPorts\n    LoadSchedule = fun () -> async {\n        let! settings = loadAppSettings ()\n        return { Enabled = settings.Sync.AutoFetchEnabled; IntervalMinutes = settings.Sync.AutoFetchIntervalMinutes }\n    }\n    LatestFetch = Persistence.SyncSessions.latestFinishedStartedAt\n    Log = eprintfn \"%s\"\n}\n"
+                  "let runAutoFetch () : Async<unit> = BankImport.runAutoFetchWith liveAutoFetchPorts |> Async.Ignore\n\n"
                   "saveComdirectCredentials =\n    saveComdirectCredentialsWith\n        Persistence.Settings.getSetting\n        Persistence.Settings.setSetting\n        ComdirectAuthSession.disconnect\n"
                   "testComdirectConnection = fun () ->\n    testComdirectConnectionWith\n        Persistence.Settings.getSetting\n        ComdirectAuthSession.livePorts\n"
                   "Bank = BankPort.comdirectBankPort ComdirectAuthSession.livePorts clock\n"
@@ -852,6 +882,14 @@ let hostedServiceGuardTests =
             Expect.isEmpty (findMissingApiWirings real) "richtig"
             for original, replacement, label in
                 [ "readSettingsForClient Persistence.Settings.getSetting", "readSettingsForClient (fun _ -> async.Return None)", "Einstellungen aus leerem Speicher"
+                  "saveSyncSettingsWith Persistence.Settings.setSetting", "saveSyncSettingsWith (fun _ _ _ -> async.Return ())", "Sync-Einstellungen schreiben nichts"
+                  "Import = liveImportPorts", "Import = fakeImportPorts", "automatischer Abruf mit anderen Ports"
+                  "let! settings = loadAppSettings ()", "let! settings = async.Return fakeSettings", "Zeitplan ohne Einstellungen"
+                  "Enabled = settings.Sync.AutoFetchEnabled", "Enabled = true", "Schalter fest an"
+                  "IntervalMinutes = settings.Sync.AutoFetchIntervalMinutes", "IntervalMinutes = 1", "Intervall fest"
+                  "LatestFetch = Persistence.SyncSessions.latestFinishedStartedAt", "LatestFetch = (fun () -> async.Return None)", "Fälligkeit ohne Historie"
+                  "runAutoFetchWith liveAutoFetchPorts", "runAutoFetchWith fakeAutoFetchPorts", "Takt mit anderen Ports"
+                  "BankImport.runAutoFetchWith liveAutoFetchPorts |> Async.Ignore", "async.Return ()", "leerer Takt"
                   "ComdirectAuthSession.disconnect", "(fun () -> async.Return ())", "leeres Trennen"
                   "saveComdirectCredentialsWith\n        Persistence.Settings.getSetting", "saveComdirectCredentialsWith\n        (fun _ -> async.Return None)", "keine alten Zugangsdaten"
                   "Persistence.Settings.setSetting", "(fun _ _ _ -> async.Return ())", "nichts geschrieben"

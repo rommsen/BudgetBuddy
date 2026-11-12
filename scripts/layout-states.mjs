@@ -39,7 +39,7 @@ const NAV_ACCOUNTS = {
 /// überschreiben sie (Playwright lässt die zuletzt registrierte gewinnen).
 async function mockApp(page) {
   await page.route("**/api/SettingsApi/getSettings", (r) =>
-    json(r, { Comdirect: null, Ynab: { HasToken: true, DefaultBudgetId: W("YnabBudgetId", "fake-budget-id"), DefaultAccountId: null, QuickAddAccountId: null }, Sync: { DaysToFetch: 14 } })
+    json(r, { Comdirect: null, Ynab: { HasToken: true, DefaultBudgetId: W("YnabBudgetId", "fake-budget-id"), DefaultAccountId: null, QuickAddAccountId: null }, Sync: { DaysToFetch: 14, AutoFetchEnabled: true, AutoFetchIntervalMinutes: 360 } })
   );
   await page.route("**/api/SettingsApi/getLenaFlagSettings", (r) => json(r, { SavedColor: "Purple", SuggestedColor: null }));
   await page.route("**/api/SyncApi/getBankConnectionStatus", (r) => json(r, "BankConnected"));
@@ -463,6 +463,23 @@ async function mockRules(page) {
   await page.route("**/api/RulesApi/getAllRules", (r) => json(r, [rule(1, "Regel eins", 1), rule(2, "Eine Regel mit einem sehr langen Namen für die Zeile", 2), rule(3, "Regel drei", 3)]));
 }
 const openRules = async (page) => page.getByText("Regel eins").locator("visible=true").first().waitFor();
+
+// ============================================================
+// Einstellungen (banking-import-t4raw)
+// ============================================================
+
+/// Comdirect eingerichtet und verbunden: die Karte zeigt Schalter „Automatisch abrufen“ und das Auswahlfeld „Alle“.
+async function mockSettings(page) {
+  await mockApp(page);
+  await page.route("**/api/SettingsApi/getSettings", (r) =>
+    json(r, {
+      Comdirect: { HasClientId: true, HasClientSecret: true, HasUsername: true, HasPassword: true, AccountId: "kuenstliches-konto" },
+      Ynab: { HasToken: true, DefaultBudgetId: W("YnabBudgetId", "fake-budget-id"), DefaultAccountId: null, QuickAddAccountId: null },
+      Sync: { DaysToFetch: 14, AutoFetchEnabled: true, AutoFetchIntervalMinutes: 360 },
+    })
+  );
+}
+const openSettings = async (page) => page.locator('[data-testid="auto-fetch-switch"]').waitFor();
 
 // ============================================================
 // Abrufen (banking-import-d0fey)
@@ -1171,6 +1188,14 @@ export const STATES = [
       await page.route("**/api/SettingsApi/getLenaFlagSettings", (r) => json(r, { SavedColor: null, SuggestedColor: null }));
     },
     open: openMobileSelection,
+  },
+  // banking-import-t4raw: die Karte Comdirect mit Schalter „Automatisch abrufen“ und Auswahlfeld „Alle“.
+  {
+    name: "einstellungen",
+    route: "/settings",
+    widths: PAGE_WIDTHS,
+    mock: mockSettings,
+    open: openSettings,
   },
   // categorization-cgq35: Prioritätspfeile und Overflow-Knopf am Handy, Regeln mit langen Namen.
   {
