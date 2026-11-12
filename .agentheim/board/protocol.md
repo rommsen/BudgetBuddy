@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-12 08:09 -- Batch started: [ledger-vf6z5]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-vf6z5 - "„Neue Buchung“ nach Styleguide: Betrags- und Kontofehler am Feld mit Fokus, direkte Fehlertexte ohne „Bitte“, Kontoliste mit Spinner und ehrlichem Leer- und Fehlerzustand"
+**Parallel:** yes (Welle 2b, freier Platz nach ledger-vfr4h; ledger-ng110, ledger-nc708, ledger-f8bjm warten, Cap 3; f8bjm erst nach Integration von vfr4h)
+
+---
+
 ## 2026-11-12 08:00 -- Modeling / Promoted: ledger-nc708 - "Detail und Durchgehen halten ihren Stand: Historie an Ladevorgänge gebunden ohne Flackern, jede Änderung an der offenen Buchung lädt ihre Historie nach, gescheitertes „Lena fragen“ holt die Karte zurück (Components/Ledger/State.fs LoadHistory, HistoryLoaded, LenaFlagSet)"
 
 **Type:** Modeling / Promote
