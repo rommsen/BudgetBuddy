@@ -1,7 +1,7 @@
 ---
 id: ledger-sjbvc
 title: "Sammellauf der Auswahl in einem Feld statt drei Bool-Flags: alle Sammelstarts und ihr Rückgängig prüfen einen Merker, StartReviewMarkBatch und StartUndoReviewMarkBatch sperren richtig, Aufzählung über die drei Sammelaktionen nach Doktrin Punkt 20"
-status: todo
+status: doing
 type: refactor
 context: ledger
 created: 2026-11-12

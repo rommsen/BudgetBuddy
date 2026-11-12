@@ -5,6 +5,22 @@ Newest entries on top.
 
 ---
 
+## 2026-11-12 07:58 -- Batch started: [ledger-vfr4h, ledger-sjbvc]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-vfr4h - "Schreib-Sperre, Spiegel-Auslöser nach Freigabe und Wartesperre für Verwerfen nach dem Erfassen, Übertrag, Löschen, Wiederherstellen und Ist neu durch Verhalten belegt; Wartesperre als erster Zweig in discardCapturedBooking und restoreDeletedEntry", ledger-sjbvc - "Sammellauf der Auswahl in einem Feld statt drei Bool-Flags: alle Sammelstarts und ihr Rückgängig prüfen einen Merker, StartReviewMarkBatch und StartUndoReviewMarkBatch sperren richtig, Aufzählung über die drei Sammelaktionen nach Doktrin Punkt 20"
+**Parallel:** yes (Welle 2a, 2 Worker neben ledger-ct3cx; ledger-ng110, ledger-vf6z5, ledger-f8bjm warten auf freie Plätze, Cap 3; f8bjm nicht neben vfr4h, beide in restoreDeletedEntry)
+
+---
+
+## 2026-11-12 07:58 -- Modeling / Promoted: ledger-f8bjm - "Ersatz-POST mit verlorener Antwort: Wiederherstellen, Split- und Betrags-Ersatz scheitern danach dauerhaft an 409, der Spiegel legt die Ersatzbuchung als neue Buchung „YNAB-Spiegel“ an; die Ersatz-import_id muss vor dem POST im Kassenbuch stehen (Ledger/CommandHandlers.fs)"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-12 07:58 -- Task verified and completed: ledger-xqqnv - "Vorhandene import_id heißt angekommen: Barbuchung, Erneut senden, Ist neu und Import-Sammelpush schreiben keinen Fehlschlag, wenn YNAB die import_id schon kennt; Sperre und Auslöser des Import-Pushs belegt (Ledger/CommandHandlers.fs)"
 
 **Type:** Work / Task completion
