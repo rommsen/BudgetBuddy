@@ -1,7 +1,7 @@
 ---
 id: ledger-v6s7c
 title: "Durchgehen Karte für Karte unter der Übersicht: ungeprüfte Buchungen bestätigen mit Kategorie, Vorschlägen, Bestell-Link, Memo, Lena und Wischen, Duplikat-Karte für wartende Buchungen, Zu tun und „Abrufen“ führen dorthin"
-status: backlog
+status: todo
 type: feature
 context: ledger
 created: 2026-11-11
