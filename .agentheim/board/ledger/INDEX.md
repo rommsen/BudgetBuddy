@@ -10,14 +10,21 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 19
-- **Todo:** 0
+- **Backlog:** 12
+- **Todo:** 7
 - **Doing:** 0
 - **Done:** 122
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **ledger-vfr4h** — "Schreib-Sperre, Spiegel-Auslöser nach Freigabe und Wartesperre für Verwerfen nach dem Erfassen, Übertrag, Löschen, Wiederherstellen und Ist neu durch Verhalten belegt; Wartesperre als erster Zweig in discardCapturedBooking und restoreDeletedEntry" (refactor) — `todo/ledger-vfr4h-sperre-und-ausloeser-belegen.md`
+- **ledger-xqqnv** — "Vorhandene import_id heißt angekommen: Barbuchung, Erneut senden, Ist neu und Import-Sammelpush schreiben keinen Fehlschlag, wenn YNAB die import_id schon kennt; Sperre und Auslöser des Import-Pushs belegt (Ledger/CommandHandlers.fs)" (bug) — `todo/ledger-xqqnv-schreibwege-einheitlich.md`
+- **ledger-vf6z5** — "„Neue Buchung“ nach Styleguide: Betrags- und Kontofehler am Feld mit Fokus, direkte Fehlertexte ohne „Bitte“, Kontoliste mit Spinner und ehrlichem Leer- und Fehlerzustand" (bug) — `todo/ledger-vf6z5-neue-buchung-fehler-am-feld.md`
+- **ledger-ng110** — "Split-Editor nach Styleguide: offener Rest gelb, zu viel verteilt rot, Zeilenfelder mit Fehlerzustand, Entfernen als removeIcon mit Sperre, Speicherfehler im offenen Editor statt Toast" (bug) — `todo/ledger-ng110-eingaben-fehler-styleguide.md`
+- **ledger-ct3cx** — "Kassenbuch-Liste behält Auswahl, Seiten und Scrollstand nach Spiegel-Lauf und Abruf: Nachladen im Hintergrund statt Neuaufbau, Filter entfernen überholt wartende Eingaben, ein Neuaufbau je Wechsel (Components/Ledger/State.fs resetEntries, AccountsLoaded, fetchExternalCmd)" (bug) — `todo/ledger-ct3cx-kassenbuch-behaelt-stand.md`
+- **ledger-sjbvc** — "Sammellauf der Auswahl in einem Feld statt drei Bool-Flags: alle Sammelstarts und ihr Rückgängig prüfen einen Merker, StartReviewMarkBatch und StartUndoReviewMarkBatch sperren richtig, Aufzählung über die drei Sammelaktionen nach Doktrin Punkt 20" (refactor) — `todo/ledger-sjbvc-sammellauf-ein-feld.md`
+- **ledger-smv1s** — "Zeilen-Sperre für Erneut senden, Rückgängig und Setzen einheitlich in update: ein Helfer für alle Start-Zweige je Buchung und Feld, Aufzählung je Sperrgruppe nach Doktrin Punkt 20, Deciding im Durchgehen an die Id gebunden" (bug) — `todo/ledger-smv1s-doppelaufruf-sperren.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -53,16 +60,9 @@ research touching this BC, and concept synthesis pages.
 ### Backlog
 <!-- backlog-list:start -->
 - **ledger-f8bjm** — "Ersatz-POST mit verlorener Antwort: Wiederherstellen, Split- und Betrags-Ersatz scheitern danach dauerhaft an 409, der Spiegel legt die Ersatzbuchung als neue Buchung „YNAB-Spiegel“ an; die Ersatz-import_id muss vor dem POST im Kassenbuch stehen (Ledger/CommandHandlers.fs)" (bug) — `backlog/ledger-f8bjm-ersatz-post-verlorene-antwort.md`
-- **ledger-vfr4h** — "Schreib-Sperre, Spiegel-Auslöser nach Freigabe und Wartesperre für Verwerfen nach dem Erfassen, Übertrag, Löschen, Wiederherstellen und Ist neu durch Verhalten belegt; Wartesperre als erster Zweig in discardCapturedBooking und restoreDeletedEntry" (refactor) — `backlog/ledger-vfr4h-sperre-und-ausloeser-belegen.md`
 - **ledger-dn4vy** — "Filter und Liste nach Styleguide: Betrag Von/Bis mit Zifferntastatur, Name und Fehlerzustand, Schnellwahl als Segmented, Payee-Vorschläge mit Tastatur, lesbare ausgegraute Zeile, Fokus am Prüfknopf, Lena-Grund als Text" (bug) — `backlog/ledger-dn4vy-filter-und-liste-styleguide.md`
-- **ledger-vf6z5** — "„Neue Buchung“ nach Styleguide: Betrags- und Kontofehler am Feld mit Fokus, direkte Fehlertexte ohne „Bitte“, Kontoliste mit Spinner und ehrlichem Leer- und Fehlerzustand" (bug) — `backlog/ledger-vf6z5-neue-buchung-fehler-am-feld.md`
 - **ledger-nc708** — "Detail und Durchgehen halten ihren Stand: Historie an Ladevorgänge gebunden ohne Flackern, jede Änderung an der offenen Buchung lädt ihre Historie nach, gescheitertes „Lena fragen“ holt die Karte zurück (Components/Ledger/State.fs LoadHistory, HistoryLoaded, LenaFlagSet)" (bug) — `backlog/ledger-nc708-detail-und-durchgehen-halten-stand.md`
-- **ledger-sjbvc** — "Sammellauf der Auswahl in einem Feld statt drei Bool-Flags: alle Sammelstarts und ihr Rückgängig prüfen einen Merker, StartReviewMarkBatch und StartUndoReviewMarkBatch sperren richtig, Aufzählung über die drei Sammelaktionen nach Doktrin Punkt 20" (refactor) — `backlog/ledger-sjbvc-sammellauf-ein-feld.md`
 - **ledger-h7de3** — "Fehlertexte in Ereignissen: fehlendes Token als „nicht eingerichtet“, YNAB-Rohtext nur ins Log, Token- und Budget-Zugriff an einer Stelle" (bug) — `backlog/ledger-h7de3-fehlertexte-in-ereignissen.md`
-- **ledger-smv1s** — "Erneut senden und Rückgängig gegen Doppelaufruf sperren, einheitlich in update, mit Aufzählungstests nach Doktrin Punkt 20" (bug) — `backlog/ledger-smv1s-doppelaufruf-sperren.md`
-- **ledger-ng110** — "Eingaben und Fehler im Kassenbuch nach Styleguide: Split-Rest gelb, Fehler am Feld, Zifferntastatur und Namen im Filter, Kontrast, Barrierefreiheit" (bug) — `backlog/ledger-ng110-eingaben-fehler-styleguide.md`
-- **ledger-ct3cx** — "Kassenbuch behält seinen Stand: kein pauschales Neuladen nach dem Spiegel-Lauf, Historie und Filter an Versionen gebunden" (bug) — `backlog/ledger-ct3cx-kassenbuch-behaelt-stand.md`
-- **ledger-xqqnv** — "Schreibwege einheitlich: Schreib-Sperre, Spiegel-Auslöser nach Freigabe und vorhandene import_id in allen Befehlen gleich und durch Verhalten belegt" (refactor) — `backlog/ledger-xqqnv-schreibwege-einheitlich.md`
 - **ledger-f8d7x** — "Kassenbuch ordnen: am Handy Filter-Knopf mit Sheet und Chips statt zwei wischender Leisten, am PC Seitenleiste mit Konten, Seitenpanel und Historie wie im Budget" (feature) — `backlog/ledger-f8d7x-kassenbuch-ordnen.md`
 - **ledger-ea70s** — "Ein Erfassen: Quick Add hört auf, ein eigener Ort zu sein; „+ Buchung“ in Kassenbuch und Übersicht mit kluger Vorbelegung" (feature) — `backlog/ledger-ea70s-ein-erfassen.md`
 - **ledger-t4rk8** — "Betrag eines Übertrags in BB ändern (Sperre nach Probelauf aufheben)" (feature) — `backlog/ledger-t4rk8-betrag-uebertrag-freigeben.md`

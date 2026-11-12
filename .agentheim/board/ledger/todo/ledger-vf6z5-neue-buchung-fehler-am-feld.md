@@ -1,7 +1,7 @@
 ---
 id: ledger-vf6z5
 title: "„Neue Buchung“ nach Styleguide: Betrags- und Kontofehler am Feld mit Fokus, direkte Fehlertexte ohne „Bitte“, Kontoliste mit Spinner und ehrlichem Leer- und Fehlerzustand"
-status: backlog
+status: todo
 type: bug
 context: ledger
 created: 2026-11-12

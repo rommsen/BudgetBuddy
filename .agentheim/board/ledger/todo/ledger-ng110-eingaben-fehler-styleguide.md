@@ -1,7 +1,7 @@
 ---
 id: ledger-ng110
 title: "Split-Editor nach Styleguide: offener Rest gelb, zu viel verteilt rot, Zeilenfelder mit Fehlerzustand, Entfernen als removeIcon mit Sperre, Speicherfehler im offenen Editor statt Toast"
-status: backlog
+status: todo
 type: bug
 context: ledger
 created: 2026-11-12

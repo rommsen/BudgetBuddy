@@ -1,7 +1,7 @@
 ---
 id: ledger-vfr4h
 title: "Schreib-Sperre, Spiegel-Auslöser nach Freigabe und Wartesperre für Verwerfen nach dem Erfassen, Übertrag, Löschen, Wiederherstellen und Ist neu durch Verhalten belegt; Wartesperre als erster Zweig in discardCapturedBooking und restoreDeletedEntry"
-status: backlog
+status: todo
 type: refactor
 context: ledger
 created: 2026-11-12

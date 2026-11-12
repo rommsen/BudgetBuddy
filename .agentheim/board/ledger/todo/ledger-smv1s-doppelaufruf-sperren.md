@@ -1,7 +1,7 @@
 ---
 id: ledger-smv1s
 title: "Zeilen-Sperre für Erneut senden, Rückgängig und Setzen einheitlich in update: ein Helfer für alle Start-Zweige je Buchung und Feld, Aufzählung je Sperrgruppe nach Doktrin Punkt 20, Deciding im Durchgehen an die Id gebunden"
-status: backlog
+status: todo
 type: bug
 context: ledger
 created: 2026-11-12
