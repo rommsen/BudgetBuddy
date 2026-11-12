@@ -57,7 +57,10 @@ let validateComdirectSettings (settings: ComdirectSettings) : Result<ComdirectSe
 let validateSyncSettings (settings: SyncSettings) : Result<SyncSettings, string list> =
     let errors =
         [
-            validateRange "Days to fetch" 1 90 settings.DaysToFetch
+            if settings.DaysToFetch < 1 || settings.DaysToFetch > 90 then
+                Some "Abzurufende Tage müssen zwischen 1 und 90 liegen"
+            else
+                None
             // ADR 0093 Punkt 9: das Auswahlfeld bietet Stufen von 1 bis 24 Stunden, der Server nimmt jeden Wert dazwischen.
             if settings.AutoFetchIntervalMinutes < 60 || settings.AutoFetchIntervalMinutes > 1440 then
                 Some "Intervall muss zwischen 60 und 1440 Minuten liegen"

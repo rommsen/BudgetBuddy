@@ -88,6 +88,23 @@ let internal comdirectErrorToString (error: ComdirectError) : string =
 // Settings API Implementation
 // ============================================
 
+/// Das gespeicherte Intervall des automatischen Abrufs, begrenzt auf 60 bis 1440 Minuten wie beim Speichern
+/// (`validateSyncSettings`). Ohne Schlüssel gilt die Vorgabe. Ein unlesbarer Wert gilt als Vorgabe, einer außerhalb
+/// wird auf die Grenze gezogen; beides kommt mit einer Zeile fürs Log zurück, sonst hieße „5“ alle 5 Minuten
+/// (Review-Fund zu banking-import-t4raw).
+let autoFetchIntervalFromStored (stored: string option) : int * string option =
+    match stored with
+    | None -> defaultAutoFetchIntervalMinutes, None
+    | Some raw ->
+        match Int32.TryParse(raw: string) with
+        | true, minutes when minutes >= 60 && minutes <= 1440 -> minutes, None
+        | true, minutes ->
+            let bounded = max 60 (min 1440 minutes)
+            bounded, Some $"sync_auto_fetch_interval_minutes {minutes} liegt außerhalb von 60 bis 1440, es gilt {bounded}"
+        | false, _ ->
+            defaultAutoFetchIntervalMinutes,
+            Some $"sync_auto_fetch_interval_minutes ist keine Zahl, es gilt {defaultAutoFetchIntervalMinutes}"
+
 /// Lädt die Einstellungen samt Secrets. Nur für den Server: startSync und der Comdirect-Import
 /// brauchen die echten Zugangsdaten. An den Client geht ausschließlich `readSettingsForClient`.
 /// Ein Lesefehler läuft zum Aufrufer durch: er darf nicht wie "nichts gesetzt" aussehen.
@@ -129,11 +146,14 @@ let loadAppSettingsFrom (getSetting: string -> Async<string option>) : Async<App
             }
         | _ -> None
 
+    let autoFetchIntervalMinutes, intervalWarning = autoFetchIntervalFromStored autoFetchInterval
+    intervalWarning |> Option.iter (eprintfn "%s")
+
     let syncSettings = {
         DaysToFetch = syncDaysToFetch |> Option.bind (fun s -> match Int32.TryParse(s: string) with | true, i -> Some i | _ -> None) |> Option.defaultValue 30
         // Ohne Schlüssel (Bestand vor banking-import-t4raw) gelten die Vorgaben.
         AutoFetchEnabled = autoFetchEnabled |> Option.bind (fun s -> match Boolean.TryParse(s: string) with | true, b -> Some b | _ -> None) |> Option.defaultValue defaultAutoFetchEnabled
-        AutoFetchIntervalMinutes = autoFetchInterval |> Option.bind (fun s -> match Int32.TryParse(s: string) with | true, i -> Some i | _ -> None) |> Option.defaultValue defaultAutoFetchIntervalMinutes
+        AutoFetchIntervalMinutes = autoFetchIntervalMinutes
     }
 
     return {

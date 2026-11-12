@@ -323,6 +323,24 @@ let autoFetchSettingsTests =
                 Expect.isFalse (answer.Contains secret) $"'{secret}' darf nicht in der Antwort stehen"
         }
 
+        // Review-Fund zu banking-import-t4raw: ein gespeicherter Wert außerhalb ging ungeprüft an den Zeitplan,
+        // „5“ hätte alle 5 Minuten abgerufen.
+        test "ein gespeichertes Intervall außerhalb von 60 bis 1440 Minuten gilt als Grenze, ein unlesbares als Vorgabe" {
+            for stored, expected in [ "5", 60; "59", 60; "60", 60; "1440", 1440; "1441", 1440; "abc", 360 ] do
+                let probe = SettingsProbe [ "sync_auto_fetch_interval_minutes", stored ]
+                let settings = loadAppSettingsFrom probe.Get |> run
+                Expect.equal settings.Sync.AutoFetchIntervalMinutes expected $"gespeichert {stored}"
+        }
+
+        test "ein ungültiges gespeichertes Intervall kommt mit einer Zeile fürs Log zurück, ein gültiges ohne" {
+            for stored in [ Some "5"; Some "1441"; Some "abc" ] do
+                let _, warning = autoFetchIntervalFromStored stored
+                Expect.isSome warning $"%A{stored}"
+            for stored in [ None; Some "60"; Some "360"; Some "1440" ] do
+                let _, warning = autoFetchIntervalFromStored stored
+                Expect.isNone warning $"%A{stored}"
+        }
+
         test "ein abgelehntes Intervall schreibt nichts" {
             let probe = SettingsProbe []
             let result = saveSyncSettingsWith probe.Set { DaysToFetch = 21; AutoFetchEnabled = true; AutoFetchIntervalMinutes = 1441 } |> run

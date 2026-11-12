@@ -389,7 +389,7 @@ let private bankConnectionBlock (model: Model) (dispatch: Msg -> unit) =
 
 /// Automatisch abrufen (banking-import-t4raw, ADR 0093 Punkt 9): Schalter und Intervall speichern sofort. Fünf und
 /// mehr Stufen sind ein Auswahlfeld (§7.5); bei abgeschaltetem Schalter ist es gesperrt, sein Wert bleibt. Eine
-/// Ablehnung des Servers steht am Feld (§5).
+/// Ablehnung des Servers steht am Element, das gespeichert hat (§5).
 let private autoFetchBlock (model: Model) (dispatch: Msg -> unit) =
     Html.div [
         prop.className "space-y-3 px-4 pb-4"
@@ -401,7 +401,10 @@ let private autoFetchBlock (model: Model) (dispatch: Msg -> unit) =
                 model.AutoFetchEnabledInput
                 model.AutoFetchSaving
                 (SetAutoFetchEnabled >> dispatch)
-            Input.groupWithError "Alle" model.AutoFetchError (
+            match autoFetchErrorAt AutoFetchSwitch model with
+            | Some message -> ErrorDisplay.inline' message
+            | None -> ()
+            Input.groupWithError "Alle" (autoFetchErrorAt AutoFetchIntervalField model) (
                 Input.select {
                     Input.selectDefaults with
                         Value = string model.AutoFetchIntervalInput
@@ -413,7 +416,7 @@ let private autoFetchBlock (model: Model) (dispatch: Msg -> unit) =
                             autoFetchIntervalOptions model.AutoFetchIntervalInput
                             |> List.map (fun (minutes, label) -> { Value = string minutes; Label = label; Disabled = false })
                         State =
-                            match model.AutoFetchError with
+                            match autoFetchErrorAt AutoFetchIntervalField model with
                             | Some message -> Input.Error message
                             | None -> Input.Normal
                         Disabled = autoFetchIntervalLocked model
@@ -670,7 +673,15 @@ let private syncSettingsCard (model: Model) (dispatch: Msg -> unit) =
                     ]
 
                     // Save button
-                    Button.primaryWithIcon "Einstellungen speichern" (Icons.check Icons.SM Icons.Primary) (fun () -> dispatch SaveSyncSettings)
+                    // Gesperrt, solange „Automatisch abrufen“ speichert (syncSaveLocked).
+                    Button.view {
+                        Button.defaultProps with
+                            Text = "Einstellungen speichern"
+                            Variant = Button.Primary
+                            Icon = Some (Icons.check Icons.SM Icons.Primary)
+                            IsDisabled = syncSaveLocked model
+                            OnClick = fun () -> dispatch SaveSyncSettings
+                    }
 
                     // Cancel button
                     Html.div [

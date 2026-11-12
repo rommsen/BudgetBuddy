@@ -754,7 +754,7 @@ module SyncSessions =
     /// ihn zurück, ein Neustart nicht. Eine Sitzung, die bei der TAN stehen blieb, zählt nicht.
     let latestFinishedStartedAt () : Async<DateTime option> =
         async {
-            let conn = getConnection()
+            use conn = getConnection()
             let! value =
                 conn.QueryFirstOrDefaultAsync<string>(
                     """SELECT started_at FROM sync_sessions

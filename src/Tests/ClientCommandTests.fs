@@ -160,13 +160,6 @@ let autoFetchSettingsClientTests =
             | other -> failtestf "Erfolgsmeldung erwartet: %A" other
         }
 
-        test "während des Speicherns ändern Schalter und Feld nichts" {
-            let saving, _ = update (Components.Settings.Types.SetAutoFetchInterval 480) loaded
-            let again, _ = update (Components.Settings.Types.SetAutoFetchEnabled false) saving
-            Expect.isTrue again.AutoFetchEnabledInput "Schalter unverändert"
-            Expect.equal again.AutoFetchIntervalInput 480 "Wert unverändert"
-        }
-
         test "eine Ablehnung des Servers steht als Feldfehler am Auswahlfeld, nicht als Toast" {
             let changed, _ = update (Components.Settings.Types.SetAutoFetchInterval 480) loaded
             let toSave = Components.Settings.Types.autoFetchSettingsToSave changed
@@ -177,11 +170,27 @@ let autoFetchSettingsClientTests =
             let answer = Components.Settings.State.saveAutoFetchCmd rejecting toSave |> firstDispatched
             Expect.equal (List.ofSeq sent) [ toSave ] "geschickt, was gespeichert werden soll"
             let rejected, external = update answer changed
-            Expect.equal rejected.AutoFetchError (Some "Intervall muss zwischen 60 und 1440 Minuten liegen") "am Feld, ohne technischen Vorsatz"
+            Expect.equal
+                (Components.Settings.Types.autoFetchErrorAt Components.Settings.Types.AutoFetchIntervalField rejected)
+                (Some "Intervall muss zwischen 60 und 1440 Minuten liegen")
+                "am Feld, ohne technischen Vorsatz"
+            Expect.isNone (Components.Settings.Types.autoFetchErrorAt Components.Settings.Types.AutoFetchSwitch rejected) "nicht am Schalter"
+            Expect.equal rejected.AutoFetchIntervalInput 120 "das Feld zeigt wieder den gespeicherten Wert"
             Expect.isFalse rejected.AutoFetchSaving "wieder bedienbar"
             Expect.equal external Components.Settings.Types.NoOp "kein Toast"
             let retried, _ = update (Components.Settings.Types.SetAutoFetchInterval 360) rejected
             Expect.isNone retried.AutoFetchError "der nächste Versuch räumt die Meldung"
+        }
+
+        // Review-Fund zu banking-import-t4raw: nach einer Ablehnung blieb der Schalter auf Aus, BB rief aber weiter
+        // ab, und die Meldung stand am Feld „Alle“.
+        test "lehnt der Server den Schalter ab, steht er wieder an und die Meldung steht am Schalter" {
+            let off, _ = update (Components.Settings.Types.SetAutoFetchEnabled false) loaded
+            let sent = Components.Settings.Types.autoFetchSettingsToSave off
+            let rejected, _ = update (Components.Settings.Types.AutoFetchSaved (sent, Error (SettingsError.DatabaseError ("save", "weg")))) off
+            Expect.isTrue rejected.AutoFetchEnabledInput "wieder an, wie gespeichert"
+            Expect.isSome (Components.Settings.Types.autoFetchErrorAt Components.Settings.Types.AutoFetchSwitch rejected) "am Schalter"
+            Expect.isNone (Components.Settings.Types.autoFetchErrorAt Components.Settings.Types.AutoFetchIntervalField rejected) "nicht am Feld"
         }
 
         test "die Karte Sync-Einstellungen speichert die Tage und lässt Schalter und Intervall wie gespeichert" {
@@ -201,5 +210,84 @@ let autoFetchSettingsClientTests =
                 (Components.Settings.Types.autoFetchIntervalOptions 90 |> List.map fst)
                 [ 60; 90; 120; 180; 240; 360; 480; 720; 1440 ]
                 "90 Minuten zusätzlich"
+        }
+    ]
+
+// Review-Fund zu banking-import-t4raw (Doktrin Punkt 20): die Sperre beim Speichern von „Automatisch abrufen“
+// und das Speichern der Karte Sync-Einstellungen über alle Reihenfolgen. Beide schreiben alle drei Werte; liefe
+// das Speichern der Karte, während „Automatisch abrufen“ speichert, überschriebe es Schalter und Intervall mit dem
+// alten Stand.
+
+/// Was der Server gespeichert hat, was „Automatisch abrufen“ gerade schickt und welche Tage eingegeben sind, wie
+/// die Aufzählung es kennt. Das Orakel ist eigen: es glaubt weder `AutoFetchSaving` noch `syncSaveLocked`.
+type private AutoFetchWalk = { Saved: SyncSettings; Sent: SyncSettings option; Days: int }
+
+[<Tests>]
+let autoFetchSaveWalkTests =
+    let open' = { DaysToFetch = 14; AutoFetchEnabled = true; AutoFetchIntervalMinutes = 120 }
+    let start =
+        let model, _ = Components.Settings.State.init ()
+        let view : AppSettingsView = { Comdirect = None; Ynab = None; Sync = open' }
+        let loaded, _, _ = Components.Settings.State.update (Components.Settings.Types.SettingsLoaded (Ok view)) model
+        loaded
+    let rejection = SettingsError.DatabaseError ("validation", "Intervall muss zwischen 60 und 1440 Minuten liegen")
+    /// Alle Ereignisse in diesem Zustand mit dem Stand danach. `bool` sagt, ob ein Aufruf erwartet wird.
+    let events (walk: AutoFetchWalk) : (string * Components.Settings.Types.Msg * AutoFetchWalk * bool) list =
+        let idle = walk.Sent.IsNone
+        let sending change = if idle then { walk with Sent = Some (change walk.Saved) } else walk
+        [ for enabled in [ true; false ] do
+              $"Schalter {enabled}",
+              Components.Settings.Types.SetAutoFetchEnabled enabled,
+              sending (fun saved -> { saved with AutoFetchEnabled = enabled }),
+              idle
+          for minutes in [ 120; 480 ] do
+              $"Intervall {minutes}",
+              Components.Settings.Types.SetAutoFetchInterval minutes,
+              sending (fun saved -> { saved with AutoFetchIntervalMinutes = minutes }),
+              idle
+          for days in [ 14; 30 ] do
+              $"Tage {days}", Components.Settings.Types.UpdateSyncDaysInput days, { walk with Days = days }, false
+          "Sync speichern", Components.Settings.Types.SaveSyncSettings, walk, idle
+          match walk.Sent with
+          | Some sent ->
+              "Gespeichert", Components.Settings.Types.AutoFetchSaved (sent, Ok ()), { walk with Saved = sent; Sent = None }, false
+              "Abgelehnt", Components.Settings.Types.AutoFetchSaved (sent, Error rejection), { walk with Sent = None }, false
+          | None -> () ]
+    let check (path: string list) (model: Components.Settings.Types.Model) (walk: AutoFetchWalk) =
+        let where = String.concat " > " (List.rev path)
+        Expect.equal model.AutoFetchSaving walk.Sent.IsSome $"speichert: {where}"
+        let shown = walk.Sent |> Option.defaultValue walk.Saved
+        Expect.equal (model.AutoFetchEnabledInput, model.AutoFetchIntervalInput) (shown.AutoFetchEnabled, shown.AutoFetchIntervalMinutes) $"Eingabe: {where}"
+        Expect.equal model.SyncDaysInput walk.Days $"Tage: {where}"
+        match model.Settings with
+        | Success settings ->
+            Expect.equal
+                (settings.Sync.AutoFetchEnabled, settings.Sync.AutoFetchIntervalMinutes)
+                (walk.Saved.AutoFetchEnabled, walk.Saved.AutoFetchIntervalMinutes)
+                $"gespeicherter Stand: {where}"
+        | other -> failtestf "geladen erwartet: %A (%s)" other where
+    let rec walkFrom (depth: int) (path: string list) (model: Components.Settings.Types.Model) (walk: AutoFetchWalk) : int =
+        if depth = 0 then 0
+        else
+            events walk
+            |> List.sumBy (fun (name, msg, after, callExpected) ->
+                let path' = name :: path
+                let next, cmd, _ = Components.Settings.State.update msg model
+                let where = String.concat " > " (List.rev path')
+                Expect.equal (not (List.isEmpty cmd)) callExpected $"Aufruf: {where}"
+                if name = "Sync speichern" && callExpected then
+                    // Die Karte schickt die eingegebenen Tage, Schalter und Intervall wie gespeichert.
+                    Expect.equal
+                        (Components.Settings.Types.syncDaysSettingsToSave model)
+                        { walk.Saved with DaysToFetch = walk.Days }
+                        $"Sync schickt: {where}"
+                check path' next after
+                1 + walkFrom (depth - 1) path' next after)
+    testList "Einstellungen: Speichern von automatisch abrufen in jeder Reihenfolge" [
+        test "Schalter, Intervall, Antworten, Tage und Speichern der Karte halten Sperre und gespeicherten Stand" {
+            let initial = { Saved = open'; Sent = None; Days = 14 }
+            check [] start initial
+            let steps = walkFrom 5 [] start initial
+            Expect.isGreaterThan steps 10000 "die Aufzählung erreicht genug Reihenfolgen"
         }
     ]

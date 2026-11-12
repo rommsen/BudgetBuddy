@@ -235,6 +235,7 @@ let settingsValidationTests =
                 | Error errors ->
                     Expect.equal errors.Length 2 "zwei Meldungen"
                     Expect.contains errors intervalMessage "das Intervall"
+                    Expect.contains errors "Abzurufende Tage müssen zwischen 1 und 90 liegen" "die Tage, auf Deutsch"
                 | Ok _ -> failtest "Ablehnung erwartet"
             }
 

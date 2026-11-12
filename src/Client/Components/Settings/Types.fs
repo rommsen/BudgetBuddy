@@ -23,6 +23,11 @@ let lenaFlagColorLabel (color: string) : string =
 let lenaFlagColorPreselection (settings: LenaFlagSettings) : string option =
     settings.SavedColor |> Option.orElse settings.SuggestedColor
 
+/// Welches Element von „Automatisch abrufen“ ein Speichern ausgelöst hat. Dort steht eine Ablehnung (§5).
+type AutoFetchControl =
+    | AutoFetchSwitch
+    | AutoFetchIntervalField
+
 /// Settings-specific model state
 type Model = {
     Settings: RemoteData<AppSettingsView>
@@ -38,11 +43,12 @@ type Model = {
     SyncDaysInput: int
 
     // Automatisch abrufen (banking-import-t4raw, ADR 0093 Punkt 9): Schalter und Intervall speichern sofort.
-    // Solange gespeichert wird, sind beide gesperrt; eine Ablehnung steht als Feldfehler am Auswahlfeld.
+    // Solange gespeichert wird, sind beide gesperrt; eine Ablehnung setzt beide auf den gespeicherten Stand
+    // zurück und steht am Element, das gespeichert hat.
     AutoFetchEnabledInput: bool
     AutoFetchIntervalInput: int
     AutoFetchSaving: bool
-    AutoFetchError: string option
+    AutoFetchError: (AutoFetchControl * string) option
 
     // Lena fragen (ledger-xfjcp, ADR 0056): die Farbe im Auswahlfeld ("" = keine) und der
     // geladene Stand mit Vorschlag.
@@ -138,6 +144,17 @@ let autoFetchIntervalOptions (current: int) : (int * string) list =
 /// Das Auswahlfeld ist gesperrt, solange der Schalter aus ist (sein Wert bleibt) oder gespeichert wird.
 let autoFetchIntervalLocked (model: Model) : bool =
     not model.AutoFetchEnabledInput || model.AutoFetchSaving
+
+/// Die Ablehnung, die an diesem Element steht.
+let autoFetchErrorAt (control: AutoFetchControl) (model: Model) : string option =
+    match model.AutoFetchError with
+    | Some (at, message) when at = control -> Some message
+    | _ -> None
+
+/// „Speichern“ der Karte Sync-Einstellungen ist gesperrt, solange „Automatisch abrufen“ speichert: beide
+/// schreiben alle drei Werte, das spätere Speichern überschriebe das frühere.
+let syncSaveLocked (model: Model) : bool =
+    model.AutoFetchSaving
 
 /// Was „Automatisch abrufen“ speichert: Schalter und Intervall aus der Eingabe, die Tage wie gespeichert.
 /// `saveSyncSettings` speichert alle drei, die Karte Sync-Einstellungen bleibt so unberührt.

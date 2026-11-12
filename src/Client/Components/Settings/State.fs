@@ -69,6 +69,21 @@ let autoFetchErrorText (error: SettingsError) : string =
     | SettingsError.DatabaseError ("validation", message) -> message
     | other -> settingsErrorToString other
 
+/// Speichert die Karte Sync-Einstellungen. `call` ist der Remoting-Aufruf, unter .NET bleibt er ungerufen.
+let saveSyncDaysCmd (call: SyncSettings -> Async<SettingsResult<unit>>) (settings: SyncSettings) : Cmd<Msg> =
+    Cmd.OfAsync.either
+        call
+        settings
+        SyncSettingsSaved
+        (fun ex -> Error (SettingsError.DatabaseError ("save", ex.Message)) |> SyncSettingsSaved)
+
+/// Welches Element ein abgelehntes Speichern ausgelöst hat: gespeichert wird je Mal nur eine Änderung, ein
+/// anderer Schalter als gespeichert heißt, der Schalter war es.
+let private autoFetchTrigger (model: Model) (sent: SyncSettings) : AutoFetchControl =
+    match model.Settings with
+    | Success settings when settings.Sync.AutoFetchEnabled <> sent.AutoFetchEnabled -> AutoFetchSwitch
+    | _ -> AutoFetchIntervalField
+
 let private startAutoFetchSave (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     let saving = { model with AutoFetchSaving = true; AutoFetchError = None }
     // Hinter einem Lambda: der Remoting-Proxy wirft unter .NET im Typinitialisierer.
@@ -202,15 +217,13 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     | UpdateSyncDaysInput value ->
         { model with SyncDaysInput = value }, Cmd.none, NoOp
 
+    // Läuft das Speichern von „Automatisch abrufen“, überschriebe dieses Speichern es mit dem alten Stand.
+    | SaveSyncSettings when syncSaveLocked model ->
+        model, Cmd.none, NoOp
+
     | SaveSyncSettings ->
-        let settings = syncDaysSettingsToSave model
-        let cmd =
-            Cmd.OfAsync.either
-                Api.settings.saveSyncSettings
-                settings
-                SyncSettingsSaved
-                (fun ex -> Error (SettingsError.DatabaseError ("save", ex.Message)) |> SyncSettingsSaved)
-        model, cmd, NoOp
+        // Hinter einem Lambda: der Remoting-Proxy wirft unter .NET im Typinitialisierer.
+        model, saveSyncDaysCmd (fun settings -> Api.settings.saveSyncSettings settings) (syncDaysSettingsToSave model), NoOp
 
     | SyncSettingsSaved (Ok _) ->
         // Update local state with the saved sync settings
@@ -248,8 +261,20 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         Cmd.none,
         ShowToast ("Automatisch abrufen gespeichert", ToastSuccess)
 
-    | AutoFetchSaved (_, Error err) ->
-        { model with AutoFetchSaving = false; AutoFetchError = Some (autoFetchErrorText err) }, Cmd.none, NoOp
+    // Abgelehnt: Schalter und Feld zeigen wieder, was gespeichert ist und gilt, die Meldung steht am Element,
+    // das gespeichert hat (Review-Fund zu banking-import-t4raw: der Schalter blieb auf Aus, BB rief weiter ab).
+    | AutoFetchSaved (sent, Error err) ->
+        let enabled, interval =
+            match model.Settings with
+            | Success settings -> settings.Sync.AutoFetchEnabled, settings.Sync.AutoFetchIntervalMinutes
+            | _ -> model.AutoFetchEnabledInput, model.AutoFetchIntervalInput
+        { model with
+            AutoFetchEnabledInput = enabled
+            AutoFetchIntervalInput = interval
+            AutoFetchSaving = false
+            AutoFetchError = Some (autoFetchTrigger model sent, autoFetchErrorText err) },
+        Cmd.none,
+        NoOp
 
     | LoadLenaFlagSettings ->
         let cmd =

@@ -173,7 +173,7 @@ let private rows : Row list = [
       Run = fun () ->
         match settingsApi.saveSyncSettings { DaysToFetch = -1; AutoFetchEnabled = true; AutoFetchIntervalMinutes = 59 } |> run with
         | Error (SettingsError.DatabaseError (_, message)) ->
-            Expect.stringContains message "Days to fetch" "die Tage"
+            Expect.stringContains message "Abzurufende Tage müssen zwischen 1 und 90 liegen" "die Tage"
             Expect.stringContains message "Intervall muss zwischen 60 und 1440 Minuten liegen" "das Intervall"
         | other -> failtestf "Ablehnung erwartet: %A" other }
     { Endpoint = "SettingsApi.testYnabConnection"; Case = "ohne Token Fehler"
