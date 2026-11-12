@@ -1117,6 +1117,19 @@ let captureAccounts (model: Model) (defaults: LedgerBookingDefaults) : LedgerAcc
     | Success view, Success budget -> bookingAccounts view.Accounts budget defaults.ImportAccountId
     | _ -> []
 
+/// Was die Konto-Auswahl zeigt (ledger-vf6z5). Ein Ladefehler geht vor dem Laden, damit die Liste nicht "lädt",
+/// wenn nichts mehr lädt. Rein.
+let captureAccountChoice (model: Model) (capture: Capture.CaptureState) : Capture.CaptureAccountList =
+    match capture.Defaults, model.Accounts, model.TransferTargets with
+    | Failure _, _, _
+    | _, Failure _, _
+    | _, _, Failure _ -> Capture.CaptureAccountsFailed
+    | Success defaults, Success _, Success _ ->
+        match captureAccounts model defaults with
+        | [] -> Capture.NoBookableAccount
+        | accounts -> Capture.BookableAccounts accounts
+    | _ -> Capture.CaptureAccountsLoading
+
 let private captureAccountIds (model: Model) (defaults: LedgerBookingDefaults) : Guid list =
     captureAccounts model defaults |> List.map (fun a -> a.Id)
 
@@ -1138,14 +1151,24 @@ let private updateCaptureForm (change: Capture.CaptureForm -> Capture.CaptureFor
     | Some capture -> { model with Capture = Some { capture with Form = change capture.Form } }
     | None -> model
 
-/// Startet "Buchung anlegen" aus dem Formular, oder zeigt die Fehler, die der Client schon kennt.
+/// Das Formular ohne Fehler, vor einem neuen Aufruf.
+let private withoutCaptureErrors (capture: Capture.CaptureState) : Capture.CaptureState =
+    { capture with AmountError = None; AccountError = None; ServerErrors = [] }
+
+/// Startet "Buchung anlegen" aus dem Formular, oder zeigt die Fehler, die der Client schon kennt, am Feld
+/// (Styleguide §5, ledger-vf6z5). Ein Betragsfehler holt den Fokus ins Feld und rollt die Meldung ins Bild.
 let private submitCapture (capture: Capture.CaptureState) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match Capture.captureRequest capture.Form with
     | Ok request ->
-        { model with Capture = Some { capture with Saving = true; Errors = [] } },
+        { model with Capture = Some { withoutCaptureErrors capture with Saving = true } },
         Cmd.ofMsg (RunSubmitCapture request),
         NoOp
-    | Error errors -> { model with Capture = Some { capture with Errors = errors } }, Cmd.none, NoOp
+    | Error errors ->
+        { model with
+            Capture =
+                Some { capture with AmountError = errors.AmountMessage; AccountError = errors.AccountMessage; ServerErrors = [] } },
+        (if errors.AmountMessage.IsSome then Cmd.ofMsg RevealCaptureAmountError else Cmd.none),
+        NoOp
 
 let capturedDiscardedText = "Buchung zurückgenommen"
 let entryDeletedText = "Buchung gelöscht, auch in YNAB"
@@ -2993,7 +3016,13 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         | None, _ -> model, Cmd.none, NoOp
 
     | SetCaptureDirection isOutflow -> updateCaptureForm (fun f -> { f with IsOutflow = isOutflow }) model, Cmd.none, NoOp
-    | SetCaptureAmount text -> updateCaptureForm (fun f -> { f with AmountText = text }) model, Cmd.none, NoOp
+    | SetCaptureAmount text ->
+        match model.Capture with
+        | Some capture ->
+            { model with Capture = Some { capture with Form = { capture.Form with AmountText = text }; AmountError = None } },
+            Cmd.none,
+            NoOp
+        | None -> model, Cmd.none, NoOp
     | SetCapturePayee text -> updateCaptureForm (fun f -> { f with Payee = text }) model, Cmd.none, NoOp
     | SetCaptureDate date -> updateCaptureForm (fun f -> { f with Date = date.Date }) model, Cmd.none, NoOp
     | SetCaptureMemo text -> updateCaptureForm (fun f -> { f with Memo = text }) model, Cmd.none, NoOp
@@ -3029,7 +3058,16 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 { model with Capture = Some capture' }, Cmd.none, NoOp
         | None -> model, Cmd.none, NoOp
 
-    | ApplyCaptureTemplate template -> updateCaptureForm (Capture.applyTemplate template) model, Cmd.none, NoOp
+    | ApplyCaptureTemplate template ->
+        // Der Chip füllt Betrag und Konto: ihre Fehler gelten nicht mehr.
+        match model.Capture with
+        | Some capture ->
+            { model with
+                Capture =
+                    Some { capture with Form = Capture.applyTemplate template capture.Form; AmountError = None; AccountError = None } },
+            Cmd.none,
+            NoOp
+        | None -> model, Cmd.none, NoOp
 
     | OpenCapturePicker picker ->
         match model.Capture with
@@ -3045,7 +3083,12 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         match model.Capture with
         | Some capture ->
             { model with
-                Capture = Some { capture with Picker = None; Form = { capture.Form with AccountId = Some accountId } } },
+                Capture =
+                    Some
+                        { capture with
+                            Picker = None
+                            Form = { capture.Form with AccountId = Some accountId }
+                            AccountError = None } },
             Cmd.none,
             NoOp
         | None -> model, Cmd.none, NoOp
@@ -3067,11 +3110,17 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             // Lädt die Kategorie zum Payee noch (Tipp direkt nach dem Payee-Feld), wartet der Aufruf
             // auf die Antwort; der Knopf ist so lange belegt.
             | Ok _ when Capture.awaitsPayeeCategory capture ->
-                { model with Capture = Some { capture with Saving = true; SubmitWhenLookedUp = true; Errors = [] } },
+                { model with Capture = Some { withoutCaptureErrors capture with Saving = true; SubmitWhenLookedUp = true } },
                 Cmd.none,
                 NoOp
             | _ -> submitCapture capture model
         | _ -> model, Cmd.none, NoOp
+
+    | RevealCaptureAmountError ->
+        model,
+        Cmd.ofEffect (fun _ ->
+            Client.DesignSystem.Viewport.focusAndReveal Capture.amountFieldSelector Capture.amountErrorId),
+        NoOp
 
     | RunSubmitCapture request ->
         model,
@@ -3103,7 +3152,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 
     | CaptureSubmitted (Error message) ->
         match model.Capture with
-        | Some capture -> { model with Capture = Some { capture with Saving = false; Errors = [ message ] } }, Cmd.none, NoOp
+        | Some capture -> { model with Capture = Some { capture with Saving = false; ServerErrors = [ message ] } }, Cmd.none, NoOp
         | None -> model, Cmd.none, ShowToast (message, ToastError)
 
     | StartDiscardCaptured entryId ->

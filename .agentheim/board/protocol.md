@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-12 08:32 -- Task verified and completed: ledger-vf6z5 - "„Neue Buchung“ nach Styleguide: Betrags- und Kontofehler am Feld mit Fokus, direkte Fehlertexte ohne „Bitte“, Kontoliste mit Spinner und ehrlichem Leer- und Fehlerzustand"
+
+**Type:** Work / Task completion
+**Task:** ledger-vf6z5 - "„Neue Buchung“ nach Styleguide: Betrags- und Kontofehler am Feld mit Fokus, direkte Fehlertexte ohne „Bitte“, Kontoliste mit Spinner und ehrlichem Leer- und Fehlerzustand"
+**Summary:** Neue Buchung zeigt Betrags- und Kontofehler am Feld, Texte ohne Bitte, Kontoliste mit Spinner, Ladefehler und Leerzustand
+**Duration:** 16m
+**Verification:** PASS (iteration 1)
+**Files changed:** 6
+**Tests added:** 12
+**ADRs written:** none
+
+---
+
 ## 2026-11-12 08:22 -- Task verified and completed: ledger-sjbvc - "Sammellauf der Auswahl in einem Feld statt drei Bool-Flags: alle Sammelstarts und ihr Rückgängig prüfen einen Merker, StartReviewMarkBatch und StartUndoReviewMarkBatch sperren richtig, Aufzählung über die drei Sammelaktionen nach Doktrin Punkt 20"
 
 **Type:** Work / Task completion

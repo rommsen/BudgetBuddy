@@ -40,17 +40,44 @@ type CaptureState = {
     /// "Buchung anlegen" wurde getippt, während die Kategorie zum Payee lud: der Aufruf startet mit
     /// der Antwort, damit die vorgeschlagene Kategorie nicht fehlt.
     SubmitWhenLookedUp: bool
-    /// Fehler aus der Prüfung im Client oder vom Server; sie bleiben im Formular stehen.
-    Errors: string list
+    /// Der Fehler am Betragsfeld aus der Prüfung im Client (unlesbar oder 0); Tippen nimmt ihn zurück.
+    AmountError: string option
+    /// Der Fehler unter dem Feld "Konto"; die Wahl eines Kontos nimmt ihn zurück.
+    AccountError: string option
+    /// Fehler vom Server, gesammelt über "Buchung anlegen": `validateLedgerBooking` liefert Texte ohne Feldbezug.
+    ServerErrors: string list
     /// Zeigt das Kassenbuch nach dem Anlegen die neue Buchung im Panel? Nicht, wenn die Antwort auf der Übersicht
     /// ankommt (ledger-s1weh): dort bleibt man auf der Seite. Der Rahmen setzt es mit der Antwort
     /// (`State.captureAnsweredOn`), es hängt nicht an der Seite, auf der das Formular geöffnet wurde.
     ShowsCreatedEntry: bool
 }
 
-let amountInvalidText = "Bitte einen gültigen Betrag eingeben"
+let amountInvalidText = "Betrag nicht lesbar, etwa 12,50"
 let amountZeroText = "Der Betrag muss größer als 0 sein"
-let accountMissingText = "Bitte ein Konto wählen"
+let accountMissingText = "Konto fehlt"
+
+/// Die Id des Betragsfehlers, auf die das Betragsfeld per `aria-describedby` verweist (ledger-vf6z5).
+let amountErrorId = "capture-amount-error"
+
+/// Das Betragsfeld des Formulars, für Fokus und Meldung ins Bild.
+let amountFieldSelector = "[data-testid='capture-amount'] input"
+
+/// Die Fehler, die der Client vor dem Aufruf kennt, je Feld.
+type CaptureFieldErrors = {
+    AmountMessage: string option
+    AccountMessage: string option
+}
+
+/// Was die Konto-Auswahl zeigt (ledger-vf6z5): lädt, Ladefehler, kein wählbares Konto oder die Konten.
+type CaptureAccountList =
+    | CaptureAccountsLoading
+    | CaptureAccountsFailed
+    | NoBookableAccount
+    | BookableAccounts of LedgerAccountView list
+
+let accountsLoadingText = "Konten werden geladen"
+let accountsFailedText = "Konten konnten nicht geladen werden"
+let noBookableAccountText = "Kein Konto zum Buchen"
 
 /// Ein leeres Formular für einen Tag (vor der Vorbelegung: Ausgabe, ohne Konto).
 let emptyForm (today: DateTime) : CaptureForm = {
@@ -72,7 +99,9 @@ let opening : CaptureState = {
     Saving = false
     PayeeLookup = None
     SubmitWhenLookedUp = false
-    Errors = []
+    AmountError = None
+    AccountError = None
+    ServerErrors = []
     ShowsCreatedEntry = true
 }
 
@@ -124,21 +153,16 @@ let applyPayeeCategory (payee: string) (category: YnabCategoryId option) (form: 
         { form with Target = Some (BookOnCategory id) }
     | _ -> form
 
-/// Der Aufruf aus dem Formular, oder die Fehler, die der Client schon kennt (Betrag, Konto). Die
-/// übrigen Regeln prüft der Server (`Validation.validateLedgerBooking`). Rein.
-let captureRequest (form: CaptureForm) : Result<LedgerBookingRequest, string list> =
+/// Der Aufruf aus dem Formular, oder die Fehler, die der Client schon kennt, je Feld (Betrag, Konto).
+/// Die übrigen Regeln prüft der Server (`Validation.validateLedgerBooking`). Rein.
+let captureRequest (form: CaptureForm) : Result<LedgerBookingRequest, CaptureFieldErrors> =
     let amount =
         match parseAmountInput form.AmountText with
         | None -> Error amountInvalidText
         | Some a when a <= 0m -> Error amountZeroText
         | Some a -> Ok a
-    let errors =
-        [ match amount with
-          | Error e -> e
-          | Ok _ -> ()
-          if form.AccountId.IsNone then accountMissingText ]
-    match amount, form.AccountId, errors with
-    | Ok a, Some account, [] ->
+    match amount, form.AccountId with
+    | Ok a, Some account ->
         Ok {
             AccountId = account
             Amount = a
@@ -148,7 +172,11 @@ let captureRequest (form: CaptureForm) : Result<LedgerBookingRequest, string lis
             Date = form.Date
             Memo = if String.IsNullOrWhiteSpace form.Memo then None else Some (form.Memo.Trim())
         }
-    | _ -> Error errors
+    | _ ->
+        Error {
+            AmountMessage = (match amount with Error e -> Some e | Ok _ -> None)
+            AccountMessage = (if form.AccountId.IsNone then Some accountMissingText else None)
+        }
 
 /// Wartet "Buchung anlegen" auf die Kategorie zum Payee? Nur, wenn die Abfrage zum Payee im Feld
 /// läuft; eine Abfrage zu einem alten Payee wird ohnehin verworfen. Rein.

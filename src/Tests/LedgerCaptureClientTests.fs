@@ -191,11 +191,70 @@ let submitTests =
         testCase "ohne Betrag und Konto bleiben die Fehler im Formular, kein Aufruf" <| fun () ->
             let model = { opened None with Capture = (opened None).Capture |> Option.map (fun c -> { c with Form = { c.Form with AccountId = None } }) }
             let model', sent, _ = run SubmitCapture model
-            Expect.isEmpty sent "kein Aufruf"
+            Expect.equal sent [ RevealCaptureAmountError ] "kein Aufruf, nur Fokus ins Betragsfeld"
+            let capture = captureOf model'
             Expect.equal
-                (captureOf model').Errors
-                [ Components.Ledger.Capture.amountInvalidText; Components.Ledger.Capture.accountMissingText ]
-                "beide Fehler sichtbar"
+                (capture.AmountError, capture.AccountError, capture.ServerErrors)
+                (Some Components.Ledger.Capture.amountInvalidText, Some Components.Ledger.Capture.accountMissingText, [])
+                "beide Fehler am Feld, keiner gesammelt"
+
+        // Bug ledger-vf6z5: der Betragsfehler stand gesammelt am Formularende, das Feld bekam weder Fokus noch
+        // Markierung (Styleguide §5, Vorbild Sheet "Betrag" aus ledger-q42pg).
+        testCase "ein unlesbarer Betrag schickt keinen Aufruf, nur Fokus und Meldung ins Bild" <| fun () ->
+            for text in [ ""; "abc" ] do
+                let model = opened (Some (OneAccount bar)) |> step (SetCaptureAmount text)
+                let model', sent, external = run SubmitCapture model
+                Expect.equal sent [ RevealCaptureAmountError ] $"nur der Fokus-Effekt bei '{text}'"
+                Expect.equal external NoOp "kein Toast"
+                Expect.equal (captureOf model').AmountError (Some Components.Ledger.Capture.amountInvalidText) "Fehler am Feld"
+                Expect.isFalse (captureOf model').Saving "bedienbar"
+
+        testCase "ein Betrag von 0 meldet sich am Feld mit Fokus" <| fun () ->
+            let model = opened (Some (OneAccount bar)) |> step (SetCaptureAmount "0")
+            let model', sent, _ = run SubmitCapture model
+            Expect.equal sent [ RevealCaptureAmountError ] "nur der Fokus-Effekt"
+            Expect.equal (captureOf model').AmountError (Some Components.Ledger.Capture.amountZeroText) "Fehler am Feld"
+
+        testCase "ein gültiger Betrag ohne Konto gibt keinen Fokus-Effekt" <| fun () ->
+            let model =
+                { opened None with
+                    Capture = (opened None).Capture |> Option.map (fun c -> { c with Form = { c.Form with AccountId = None } }) }
+                |> step (SetCaptureAmount "8,60")
+            let model', sent, _ = run SubmitCapture model
+            Expect.isEmpty sent "kein Aufruf, kein Fokus"
+            let capture = captureOf model'
+            Expect.equal (capture.AmountError, capture.AccountError) (None, Some Components.Ledger.Capture.accountMissingText) "nur der Kontofehler"
+
+        testCase "Fokus und Meldung ins Bild: ein Effekt, das Modell bleibt" <| fun () ->
+            let rejected = opened (Some (OneAccount bar)) |> step SubmitCapture
+            let model, cmd, external = Components.Ledger.State.update RevealCaptureAmountError rejected
+            Expect.equal model rejected "Modell unverändert"
+            Expect.equal (List.length cmd) 1 "genau ein Effekt"
+            Expect.equal external NoOp "kein Toast"
+
+        testCase "Tippen im Betragsfeld nimmt den Betragsfehler zurück, der Kontofehler bleibt" <| fun () ->
+            let rejected =
+                { opened None with
+                    Capture = (opened None).Capture |> Option.map (fun c -> { c with Form = { c.Form with AccountId = None } }) }
+                |> step SubmitCapture
+            let typed = captureOf (step (SetCaptureAmount "8") rejected)
+            Expect.equal (typed.AmountError, typed.AccountError) (None, Some Components.Ledger.Capture.accountMissingText) "nur der Betragsfehler weg"
+
+        testCase "ein Zuletzt-Chip füllt Betrag und Konto und nimmt beide Fehler zurück" <| fun () ->
+            let rejected =
+                { opened None with
+                    Capture = (opened None).Capture |> Option.map (fun c -> { c with Form = { c.Form with AccountId = None } }) }
+                |> step SubmitCapture
+            let filled = captureOf (step (ApplyCaptureTemplate template) rejected)
+            Expect.equal (filled.AmountError, filled.AccountError) (None, None) "keine Fehler mehr"
+
+        testCase "die Wahl eines Kontos nimmt den Kontofehler zurück, der Betragsfehler bleibt" <| fun () ->
+            let rejected =
+                { opened None with
+                    Capture = (opened None).Capture |> Option.map (fun c -> { c with Form = { c.Form with AccountId = None } }) }
+                |> step SubmitCapture
+            let chosen = captureOf (step (ChooseCaptureAccount bar) rejected)
+            Expect.equal (chosen.AmountError, chosen.AccountError) (Some Components.Ledger.Capture.amountInvalidText, None) "nur der Kontofehler weg"
 
         testCase "ein Fehler vom Server bleibt im Formular stehen, die Eingaben auch" <| fun () ->
             let model =
@@ -204,7 +263,8 @@ let submitTests =
                 |> step SubmitCapture
                 |> step (CaptureSubmitted (Error "Das Konto ist geschlossen."))
             let capture = captureOf model
-            Expect.equal capture.Errors [ "Das Konto ist geschlossen." ] "Fehler sichtbar"
+            Expect.equal capture.ServerErrors [ "Das Konto ist geschlossen." ] "Fehler gesammelt über Buchung anlegen"
+            Expect.equal (capture.AmountError, capture.AccountError) (None, None) "kein Feldfehler"
             Expect.isFalse capture.Saving "wieder bedienbar"
             Expect.equal capture.Form.AmountText "8,60" "Eingabe bleibt"
 
@@ -422,9 +482,38 @@ let payeeLookupOrderTests =
                 |> step (SetCapturePayee "Tankstelle")
                 |> step CommitCapturePayee
             let model', sent, _ = run SubmitCapture model
-            Expect.isEmpty sent "kein Aufruf"
-            Expect.equal (captureOf model').Errors [ Components.Ledger.Capture.amountInvalidText ] "Fehler sichtbar"
+            Expect.equal (captureOf model').AmountError (Some Components.Ledger.Capture.amountInvalidText) "Fehler am Feld"
+            Expect.equal sent [ RevealCaptureAmountError ] "Fokus sofort, kein Warten auf die Kategorie"
             Expect.isFalse (captureOf model').Saving "bedienbar"
+    ]
+
+/// Die Kontoliste in „Neue Buchung“ (ledger-vf6z5): sie sagte „Konten werden geladen“ bei jeder leeren Liste, auch nach
+/// einem Ladefehler oder ohne wählbares Konto.
+[<Tests>]
+let accountListTests =
+    let choice (model: Model) = Components.Ledger.State.captureAccountChoice model (captureOf model)
+    testList "Neue Buchung: Kontoliste lädt, scheitert oder ist leer (ledger-vf6z5)" [
+        testCase "solange die Konten laden, lädt die Liste" <| fun () ->
+            let model = { opened None with Accounts = Loading }
+            Expect.equal (choice model) Components.Ledger.Capture.CaptureAccountsLoading "lädt"
+            let targets = { opened None with TransferTargets = Loading }
+            Expect.equal (choice targets) Components.Ledger.Capture.CaptureAccountsLoading "Budget-Konten laden"
+
+        testCase "nach einem Ladefehler meldet die Liste den Fehler" <| fun () ->
+            let model = { opened None with TransferTargets = Failure "Zeitüberschreitung" }
+            Expect.equal (choice model) Components.Ledger.Capture.CaptureAccountsFailed "Fehler"
+            let accounts = { opened None with Accounts = Failure "Zeitüberschreitung" }
+            Expect.equal (choice accounts) Components.Ledger.Capture.CaptureAccountsFailed "Fehler der Konten"
+
+        testCase "ohne wählbares Konto steht kein Konto zum Buchen" <| fun () ->
+            let model = { opened None with TransferTargets = Success [] }
+            Expect.equal (choice model) Components.Ledger.Capture.NoBookableAccount "leer"
+
+        testCase "mit Konten zeigt die Liste die wählbaren ohne das Import-Konto" <| fun () ->
+            match choice (opened None) with
+            | Components.Ledger.Capture.BookableAccounts accounts ->
+                Expect.equal (accounts |> List.map (fun a -> a.Id) |> Set.ofList) (Set.ofList [ bar; tagesgeld ]) "ohne Girokonto"
+            | other -> failtest $"Konten erwartet: {other}"
     ]
 
 /// „Neue Buchung“ auf der Übersicht (ledger-s1weh): ab 1024 px ein Dialog in der Mitte, darunter das Sheet. Esc im

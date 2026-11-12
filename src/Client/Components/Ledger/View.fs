@@ -3751,18 +3751,30 @@ let private captureBalanceOf (model: Model) (accountId: Guid) : Money option =
     | Success balances -> balances |> List.tryFind (fun b -> b.AccountId = accountId) |> Option.map (fun b -> b.Balance)
     | _ -> None
 
-/// Die Konto-Auswahl: jedes wählbare Konto mit Saldo, das gewählte markiert.
+/// Die Konto-Auswahl: jedes wählbare Konto mit Saldo, das gewählte markiert. Ohne Konten sagt sie, warum: lädt
+/// (Spinner mit Text), Ladefehler oder kein wählbares Konto (ledger-vf6z5, `State.captureAccountChoice`).
 let private captureAccountList (dispatch: Msg -> unit) (model: Model) (capture: Capture.CaptureState) : ReactElement =
+    let choice = State.captureAccountChoice model capture
     let accounts =
-        match capture.Defaults with
-        | Success defaults -> State.captureAccounts model defaults
+        match choice with
+        | Capture.BookableAccounts accounts -> accounts
         | _ -> []
     Html.div [
         prop.className "flex flex-col gap-0.5"
         prop.custom ("data-testid", "capture-account-list")
         prop.children [
-            if List.isEmpty accounts then
-                Html.p [ prop.className $"px-3 py-2 {Tokens.FontSizes.sm} {Tokens.Colors.textMuted}"; prop.text "Konten werden geladen" ]
+            match choice with
+            | Capture.CaptureAccountsLoading ->
+                Html.div [
+                    prop.role "status"
+                    prop.className $"flex items-center gap-2 px-3 py-2 {Tokens.FontSizes.sm} {Tokens.Colors.textMuted}"
+                    prop.children [ Loading.spinner Loading.SM Loading.Default; Html.span [ prop.text Capture.accountsLoadingText ] ]
+                ]
+            | Capture.CaptureAccountsFailed ->
+                Html.div [ prop.className "px-3 py-2"; prop.children [ ErrorDisplay.inline' Capture.accountsFailedText ] ]
+            | Capture.NoBookableAccount ->
+                Html.p [ prop.className $"px-3 py-2 {Tokens.FontSizes.sm} {Tokens.Colors.textMuted}"; prop.text Capture.noBookableAccountText ]
+            | Capture.BookableAccounts _ -> ()
             for account in accounts ->
                 let isActive = capture.Form.AccountId = Some account.Id
                 let pick = fun () -> dispatch (ChooseCaptureAccount account.Id)
@@ -3790,6 +3802,7 @@ let private captureFields (dispatch: Msg -> unit) (model: Model) (capture: Captu
     let account = captureAccountOf model form
     let accountOpen = capture.Picker = Some Capture.CaptureAccountPicker
     let targetOpen = capture.Picker = Some Capture.CaptureTargetPicker
+    let amountInvalid = capture.AmountError.IsSome
     let label (text: string) =
         Html.span [ prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.textMuted}"; prop.text text ]
     [
@@ -3808,7 +3821,18 @@ let private captureFields (dispatch: Msg -> unit) (model: Model) (capture: Captu
                         Size = Input.Large
                         InputMode = Some "decimal"
                         AriaLabel = Some "Betrag"
-                        ClassName = Some (Input.amountFieldClass true false) }
+                        DescribedBy = (if amountInvalid then Some Capture.amountErrorId else None)
+                        AriaInvalid = amountInvalid
+                        ClassName = Some (Input.amountFieldClass true amountInvalid) }
+                // Der Fehler steht am Feld (Styleguide §5, ledger-vf6z5); `RevealCaptureAmountError` rollt ihn ins Bild.
+                match capture.AmountError with
+                | Some message ->
+                    Html.div [
+                        prop.id Capture.amountErrorId
+                        prop.custom ("data-testid", Capture.amountErrorId)
+                        prop.children [ ErrorDisplay.inline' message ]
+                    ]
+                | None -> ()
             ]
         ]
 
@@ -3849,6 +3873,14 @@ let private captureFields (dispatch: Msg -> unit) (model: Model) (capture: Captu
                      |> Option.map (fun b -> Money.accountBalance b.Amount b.Currency))
                     accountOpen
                     (fun () -> dispatch (if accountOpen then CloseCapturePicker else OpenCapturePicker Capture.CaptureAccountPicker))
+                // `pickerField` ist ein Knopf, `aria-invalid` gilt dort nicht: die Meldung trägt `role="alert"`.
+                match capture.AccountError with
+                | Some message ->
+                    Html.div [
+                        prop.custom ("data-testid", "capture-account-error")
+                        prop.children [ ErrorDisplay.inline' message ]
+                    ]
+                | None -> ()
                 if place <> CaptureInSheet && accountOpen then
                     Html.div [
                         prop.className $"mt-1 rounded-lg border {Tokens.Borders.default'} {Tokens.Backgrounds.elevated} p-1"
@@ -3946,7 +3978,8 @@ let private captureFields (dispatch: Msg -> unit) (model: Model) (capture: Captu
             ]
         ]
 
-        match capture.Errors with
+        // Fehler vom Server bleiben gesammelt über "Buchung anlegen": `validateLedgerBooking` liefert sie ohne Feldbezug.
+        match capture.ServerErrors with
         | [] -> ()
         | errors ->
             Html.div [

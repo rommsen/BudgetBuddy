@@ -1130,6 +1130,51 @@ export const STATES = [
       reach: (page) => page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Buchung anlegen", exact: true }),
     },
   },
+  // Bug ledger-vf6z5: "Buchung anlegen" mit leerem Betrag sammelte den Fehler am Formularende, das Betragsfeld bekam
+  // weder Fokus noch `aria-invalid`. Jetzt steht die Meldung unter dem Feld, das Feld hat den Fokus und verweist per
+  // `aria-describedby` darauf; geht die Tastatur danach auf, rollt die Meldung ins Bild (Muster
+  // `kassenbuch-betrag-feldfehler`).
+  {
+    name: "kassenbuch-erfassen-feldfehler",
+    route: "/ledger",
+    widths: HANDY_WIDTHS,
+    mock: async (page) => {
+      await mockApp(page);
+      await mockCapture(page, { catchAll: false });
+    },
+    open: async (page) => {
+      await page.locator(".ledger-capture-fab").getByRole("button").waitFor();
+      await page.locator(".ledger-capture-fab").getByRole("button").tap();
+      await page.locator('.bottom-sheet.active [data-testid="capture-recent"]').waitFor();
+      const field = page.locator('.bottom-sheet.active [data-testid="capture-amount"] input');
+      const submit = page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Buchung anlegen", exact: true });
+      await field.fill("");
+      await field.evaluate((el) => el.blur());
+      await submit.tap();
+      await page.locator('.bottom-sheet.active [data-testid="capture-amount-error"]').waitFor();
+      await frames(page);
+      const state = await field.evaluate((el) => ({
+        focused: document.activeElement === el,
+        describedBy: el.getAttribute("aria-describedby"),
+        invalid: el.getAttribute("aria-invalid"),
+      }));
+      if (!state.focused) throw new Error("Betragsfeld in Neue Buchung hat nach abgelehntem Absenden keinen Fokus");
+      if (state.describedBy !== "capture-amount-error" || state.invalid !== "true")
+        throw new Error(`Feldfehler nicht am Betragsfeld: ${JSON.stringify(state)}`);
+      if ((await page.locator('.bottom-sheet.active [data-testid="capture-errors"]').count()) > 0)
+        throw new Error("Betragsfehler steht noch gesammelt am Formularende");
+      // Chromium hält `:active` nach einem Tipp noch einen Moment fest (siehe `kassenbuch-betrag-feldfehler`).
+      await page.waitForFunction((el) => !el.matches(":active"), await submit.elementHandle());
+    },
+    primary: (page) => page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Buchung anlegen", exact: true }),
+    keyboard: {
+      focus: (page) => page.locator('.bottom-sheet.active [data-testid="capture-amount"] input'),
+      reach: (page) =>
+        page
+          .locator('.bottom-sheet.active [data-testid="capture-amount-error"]')
+          .or(page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Buchung anlegen", exact: true })),
+    },
+  },
   // ledger-at63w: "Neue Buchung" am PC im Panel rechts neben der Liste, "Buchung anlegen" ohne Scrollen im Bild.
   {
     name: "kassenbuch-erfassen-panel",

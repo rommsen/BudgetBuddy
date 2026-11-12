@@ -1,7 +1,7 @@
 ---
 id: ledger-vf6z5
 title: "„Neue Buchung“ nach Styleguide: Betrags- und Kontofehler am Feld mit Fokus, direkte Fehlertexte ohne „Bitte“, Kontoliste mit Spinner und ehrlichem Leer- und Fehlerzustand"
-status: doing
+status: done
 type: bug
 context: ledger
 created: 2026-11-12
@@ -91,3 +91,25 @@ Hinweise für den Worker:
   nicht hierher, sondern zu ledger-xqqnv (Schreibwege einheitlich); diese Task ändert nur die Feldfehler vor dem Aufruf.
 - Teil 1 (ledger-ng110, Split-Editor) und Teil 3 (ledger-dn4vy, Filter und Liste) arbeiten in `View.fs` und `State.fs`
   in anderen Funktionen.
+
+## Outcome
+
+„Neue Buchung“ trägt die Fehler getrennt: `CaptureState.AmountError`, `AccountError`, `ServerErrors` statt `Errors`; `Capture.captureRequest` liefert `CaptureFieldErrors` (`AmountMessage`, `AccountMessage`).
+
+- Betragsfehler unter dem Betragsfeld (`ErrorDisplay.inline'` mit Id `capture-amount-error`, `AriaInvalid`, `DescribedBy`, `Input.amountFieldClass true invalid`). Abgelehntes Absenden schickt als einzige Nachricht `RevealCaptureAmountError` (`Viewport.focusAndReveal` mit `Capture.amountFieldSelector`, `Capture.amountErrorId`). Ohne Konto, aber mit gültigem Betrag, gibt es keinen Fokus-Effekt. Die Prüfung läuft vor dem Warten auf die Kategorie zum Payee (unverändert über `submitCapture`).
+- Kontofehler „Konto fehlt“ unter dem Feld „Konto“ (`data-testid="capture-account-error"`, `role="alert"` aus `ErrorDisplay.inline'`; `pickerField` unverändert).
+- Tippen im Betrag nimmt den Betragsfehler zurück, die Wahl eines Kontos den Kontofehler. Ein Zuletzt-Chip füllt Betrag und Konto und nimmt beide zurück (kleine Ergänzung, sonst stünde ein veralteter Fehler neben gefüllten Feldern).
+- Fehler des Servers bleiben gesammelt über „Buchung anlegen“ (`capture-errors`), wie in der Task begründet.
+- Texte: `Capture.amountInvalidText` „Betrag nicht lesbar, etwa 12,50“, `Capture.accountMissingText` „Konto fehlt“, `Types.amountMissingText` „Betrag fehlt oder ist 0“.
+- Kontoliste: reine Funktion `State.captureAccountChoice` (`Capture.CaptureAccountList`: `CaptureAccountsLoading`, `CaptureAccountsFailed`, `NoBookableAccount`, `BookableAccounts`). Ein Ladefehler (Vorbelegung, Konten oder Budget-Konten) geht vor dem Laden. Ansicht: Spinner mit „Konten werden geladen“, `ErrorDisplay.inline'` „Konten konnten nicht geladen werden“, „Kein Konto zum Buchen“.
+
+Belege:
+- Expecto in `src/Tests/LedgerCaptureClientTests.fs`: die alten Fälle (ohne Betrag und Konto, Serverfehler, falscher Betrag während die Kategorie lädt) umgeschrieben, dazu neu: unlesbarer Betrag nur `RevealCaptureAmountError`, 0 am Feld mit Fokus, gültiger Betrag ohne Konto ohne Fokus, Effekt ohne Modelländerung, Tippen, Kontowahl, Zuletzt-Chip, vier Fälle der Kontoliste. Gegenprobe: ohne den Fokus-Effekt und ohne das Zurücknehmen beim Tippen werden fünf Fälle rot.
+- Layout-Sweep: neuer Zustand `kassenbuch-erfassen-feldfehler` in `scripts/layout-states.mjs` (Handy-Breiten, Kommentar nennt den Bug). Er prüft Fokus, `aria-invalid="true"`, `aria-describedby="capture-amount-error"`, dass kein gesammelter Fehler mehr steht, und mit `keyboard.reach` die Meldung bei offener Tastatur. Gegenprobe: ohne `focusAndReveal` bricht der Zustand bei 320 und 390 px („hat nach abgelehntem Absenden keinen Fokus“).
+- Vergleich mit dem heutigen Stand (`main` gegen Worktree, gemockte API, vor und nach „Buchung anlegen“ mit leerem Betrag): Handy 412 px `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/20e05553-37dc-4f2f-bcee-5ef520140bf9/scratchpad/e3/ledger-vf6z5/vorher-handy-fehler.png` neben `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/20e05553-37dc-4f2f-bcee-5ef520140bf9/scratchpad/e3/ledger-vf6z5/nachher-handy-fehler.png`, PC-Panel 1440 px `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/20e05553-37dc-4f2f-bcee-5ef520140bf9/scratchpad/e3/ledger-vf6z5/vorher-pc-fehler.png` neben `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/20e05553-37dc-4f2f-bcee-5ef520140bf9/scratchpad/e3/ledger-vf6z5/nachher-pc-fehler.png`, Kontoliste `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/20e05553-37dc-4f2f-bcee-5ef520140bf9/scratchpad/e3/ledger-vf6z5/vorher-handy-konten.png` neben `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/20e05553-37dc-4f2f-bcee-5ef520140bf9/scratchpad/e3/ledger-vf6z5/nachher-handy-konten.png`. Vorher stand der Fehler unten im Formular außerhalb des Bilds und das Feld blieb unmarkiert, nachher steht die Meldung unter dem fokussierten Feld. Sonst keine Abweichung. Aufnahme mit `shots.mjs` im selben Ordner (über `runState`), `npm run screenshot:route` braucht ein laufendes Backend. `[human-eye]` bleibt bei Roman.
+- `./verify.sh`: `VERIFY: PASS` (dotnet 4785 grün, node 316 grün).
+
+Für die Kann-Sammlung ledger:
+- Gleiche „Bitte“-Texte außerhalb dieser Task: `src/Server/Validation.fs:570` `bookingAccountMissingText` „Bitte ein Konto wählen.“ und `src/Client/Types.fs:457` (Quick Add) „Bitte einen gültigen Betrag eingeben“ (§8).
+- Fehler des Servers am Feld statt gesammelt: braucht strukturierte Fehler aus `validateLedgerBooking`.
+- Die Kontoliste bietet nach einem Ladefehler kein „Erneut versuchen“.

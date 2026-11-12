@@ -742,7 +742,7 @@ let amountEditFor (entry: LedgerEntryView) : AmountEdit =
       AmountFieldError = None }
 
 /// Der Feldfehler unter dem Betragsfeld bei leerem Betrag oder 0 (ledger-q42pg).
-let amountMissingText = "Bitte einen Betrag größer als 0 eingeben"
+let amountMissingText = "Betrag fehlt oder ist 0"
 
 /// Die Id des Feldfehlers, auf die das Betragsfeld per `aria-describedby` verweist.
 let amountFieldErrorId = "amount-input-error"
@@ -2222,6 +2222,8 @@ type Msg =
     | ChooseCaptureTarget of LedgerBookingTarget option
     /// "Buchung anlegen": prüft im Client und startet den Aufruf, gesperrt solange er läuft.
     | SubmitCapture
+    /// Abgelehntes "Buchung anlegen" wegen des Betrags: Fokus ins Betragsfeld, Meldung ins Bild (ledger-vf6z5).
+    | RevealCaptureAmountError
     | RunSubmitCapture of LedgerBookingRequest
     | CaptureSubmitted of Result<LedgerBookingCreated, string>
     /// "Rückgängig" an der Rückmeldung nach dem Anlegen.
