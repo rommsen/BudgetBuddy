@@ -125,6 +125,24 @@ type AmountWriteBackFailure = {
     BaselineAmount: Money
 }
 
+/// Welcher Weg eine Ersatzbuchung an YNAB geschickt hat (ledger-f8bjm): der Ersatz einer
+/// Split-Buchung (DELETE und POST, ADR 0058) oder das Wiederherstellen nach dem Löschen (ADR 0092).
+type ReplacementKind =
+    | Replace
+    | Restore
+
+/// Ein offener Ersatz (ledger-f8bjm): BB hat eine Ersatzbuchung mit `NewImportId` an YNAB
+/// geschickt, kennt ihre neue YNAB-Id aber noch nicht. Endet mit `EntryReplacedInYnab` bzw.
+/// `EntryRestoredInBb`, aus der POST-Antwort oder vom Spiegel, der die Ersatzbuchung über die
+/// `import_id` findet, oder (nur `Replace`) mit `EntryReplacementRejectedByYnab`, wenn YNAB den
+/// POST abgelehnt hat. Solange er offen ist, lehnt BB Löschen und jede Änderung von Aufteilung
+/// oder Betrag ab.
+type PendingReplacement = {
+    Kind: ReplacementKind
+    OldYnabTransactionId: string
+    NewImportId: string
+}
+
 /// Der aktuelle Stand einer Buchung, abgeleitet aus ihrem Ereignis-Log.
 type Entry = {
     Id: EntryId
@@ -192,6 +210,9 @@ type Entry = {
     /// `EntryHeldAsPossibleDuplicate`. `None`, wenn sie nicht wartet. Solange sie wartet,
     /// geht sie nicht nach YNAB und jeder schreibende Kassenbuch-Befehl lehnt sie ab.
     PossibleDuplicate: EntryHeldAsPossibleDuplicatePayload option
+    /// Der offene Ersatz (ledger-f8bjm), aus `EntryReplacementSentToYnab` bzw.
+    /// `EntryRestoreSentToYnab`. `None`, wenn keiner offen ist.
+    PendingReplacement: PendingReplacement option
 }
 
 /// Wartet die Buchung als unsicheres Duplikat (ADR 0093 Punkt 6)? Erster Zweig jeder Sperre
@@ -373,6 +394,20 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             invalidOp
                 $"Ereignis '{eventTypeName event.Body}' fuer Buchung {id} ohne vorangehende Erstbeobachtung"
 
+    // ledger-f8bjm: höchstens ein offener Ersatz je Buchung. Ein zweites Senden mit anderer
+    // Ersatz-`import_id` legte in YNAB eine zweite Buchung an und ist ein kaputter Ablauf.
+    let sendReplacement (kind: ReplacementKind) (p: EntryReplacementSentPayload) =
+        let e = requireExisting ()
+        match e.PendingReplacement with
+        | Some pending when pending.NewImportId <> p.NewImportId ->
+            let (EntryId id) = event.EntryId
+            invalidOp
+                $"Buchung {id} hat schon einen offenen Ersatz mit import_id {pending.NewImportId}, nicht {p.NewImportId}"
+        | _ ->
+            { e with
+                PendingReplacement =
+                    Some { Kind = kind; OldYnabTransactionId = p.OldYnabTransactionId; NewImportId = p.NewImportId } }
+
     if isCreationEvent event.Body && existing.IsSome then
         let (EntryId id) = event.EntryId
         invalidOp
@@ -407,6 +442,7 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             PushToYnabFailure = None
             PayeeBeforeTransfer = None
             PossibleDuplicate = None
+            PendingReplacement = None
         }
 
     | EntryDetailsChangeObservedInYnab p ->
@@ -600,7 +636,23 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             AmountWriteBackFailure = None
             PayeeWriteBackFailure = None
             FlagWriteBackFailure = None
-            ReviewMarkWriteBackFailure = None }
+            ReviewMarkWriteBackFailure = None
+            PendingReplacement = None }
+
+    | EntryReplacementSentToYnab p -> sendReplacement Replace p
+
+    | EntryRestoreSentToYnab p -> sendReplacement Restore p
+
+    | EntryReplacementRejectedByYnab p ->
+        // ledger-f8bjm: nur der offene Ersatz derselben import_id endet; alles andere ist ein
+        // kaputter Ablauf (geschrieben wird es nur direkt nach dem abgelehnten POST).
+        let e = requireExisting ()
+        match e.PendingReplacement with
+        | Some pending when pending.Kind = Replace && pending.NewImportId = p.NewImportId ->
+            { e with PendingReplacement = None }
+        | _ ->
+            let (EntryId id) = event.EntryId
+            invalidOp $"Buchung {id} hat keinen offenen Ersatz mit import_id {p.NewImportId}"
 
     | EntryImportedFromComdirect p ->
         {
@@ -633,6 +685,7 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             PushToYnabFailure = None
             PayeeBeforeTransfer = None
             PossibleDuplicate = None
+            PendingReplacement = None
         }
 
     | EntryCategorizedByRule p ->
@@ -682,6 +735,7 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             PushToYnabFailure = None
             PayeeBeforeTransfer = None
             PossibleDuplicate = None
+            PendingReplacement = None
         }
 
     | EntryLinkedToYnab _ when existing |> Option.exists isHeldAsPossibleDuplicate ->
@@ -815,7 +869,7 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
         // mehr. Der Spiegel zieht sie nach, sobald er die neuen Gegenbuchungen sieht
         // (ADR 0046). Die Verknüpfungen stiftet `linksFrom`.
         let e = requireExisting ()
-        { e with SplitTransferCounterparts = Map.empty }
+        { e with SplitTransferCounterparts = Map.empty; PendingReplacement = None }
 
 /// Die Fremd-Ids, die ein Ereignis mitbringt. Rein: der Store schreibt sie beim
 /// Anhaengen mit, ohne selbst zu wissen, welches Ereignis welche Verknuepfung stiftet.
@@ -852,6 +906,11 @@ let linksFrom (event: LedgerEvent) : EntryLink list =
             | Some importId -> { EntryId = event.EntryId; System = ImportIdSystem; Value = importId }
             | None -> ()
         ]
+    | EntryReplacementSentToYnab p
+    | EntryRestoreSentToYnab p ->
+        // ledger-f8bjm: nur die Ersatz-`import_id`; neue YNAB-Id und abgelöste alte kommen mit dem
+        // Ergebnis-Ereignis.
+        [ { EntryId = event.EntryId; System = ImportIdSystem; Value = p.NewImportId } ]
     | EntryRestoredInBb p ->
         [
             { EntryId = event.EntryId; System = YnabSystem; Value = p.NewYnabTransactionId }

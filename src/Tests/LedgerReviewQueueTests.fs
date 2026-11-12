@@ -198,6 +198,12 @@ let categorySettingTests =
             let categorized = { created with Category = Some food; LinkedToYnab = true }
             let waiting = { created with PossibleDuplicate = Some held }
             let discarded = { waiting with DeletedInYnab = true }
+            // ledger-f8bjm: `EntryReplacementRejectedByYnab` gilt nur auf einem offenen Split-Ersatz derselben
+            // import_id (Beispielwert "x").
+            let replacing =
+                { categorized with
+                    PendingReplacement =
+                        Some { Kind = Ledger.Domain.Replace; OldYnabTransactionId = "x"; NewImportId = "x" } }
             let categorizationOf (e: Ledger.Domain.Entry) = e.Category, e.Splits
             let isCreation (body: LedgerEventBody) =
                 try Ledger.Domain.apply None (eventOf body) |> ignore; true
@@ -208,7 +214,7 @@ let categorySettingTests =
                 if isCreation body then true
                 else
                     let outcomes =
-                        [ categorized; waiting; discarded ]
+                        [ categorized; waiting; discarded; replacing ]
                         |> List.choose (fun before ->
                             try Some (categorizationOf (Ledger.Domain.apply (Some before) (eventOf body)) <> categorizationOf before)
                             with :? InvalidOperationException -> None)

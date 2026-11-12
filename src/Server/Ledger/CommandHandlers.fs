@@ -420,6 +420,40 @@ let private linkSplitTransferCounterparts
                 do! MirrorBatchState.append state (List.ofSeq events)
     }
 
+/// Die Ereignisse, wenn der Spiegel eine Buchung über die ImportId findet (ADR 0021 Nachtrag,
+/// ledger-r6wn3): `EntryLinkedToYnab`. Ist die ImportId die eines offenen Ersatzes (ledger-f8bjm),
+/// schließt der Spiegel ihn ab, mit dem Ereignis, das die POST-Antwort geschrieben hätte (Actor
+/// `YnabMirror`): `EntryReplacedInYnab` samt Ende der offenen Kategorie- und Betrags-Fehlschläge
+/// (YNAB hält jetzt den BB-Stand) bzw. `EntryRestoredInBb`. Rein.
+let importIdMatchEvents (now: DateTime) (existing: Entry option) (entryId: EntryId) (obs: YnabObservation) : LedgerEvent list =
+    let event body = { EntryId = entryId; OccurredAt = now; Actor = YnabMirror; Body = body }
+    match existing |> Option.bind (fun e -> e.PendingReplacement |> Option.map (fun p -> e, p)) with
+    | Some (entry, pending) when obs.ImportId = Some pending.NewImportId ->
+        match pending.Kind with
+        | Replace ->
+            [
+                event (
+                    EntryReplacedInYnab {
+                        OldYnabTransactionId = pending.OldYnabTransactionId
+                        NewYnabTransactionId = obs.YnabTransactionId
+                        NewImportId = Some pending.NewImportId
+                    }
+                )
+                if entry.CategorizationWriteBackFailure.IsSome then event EntryCategorizationWrittenBackToYnab
+                if entry.AmountWriteBackFailure.IsSome then event EntryAmountWrittenBackToYnab
+            ]
+        | Restore ->
+            [
+                event (
+                    EntryRestoredInBb {
+                        OldYnabTransactionId = pending.OldYnabTransactionId
+                        NewYnabTransactionId = obs.YnabTransactionId
+                        NewImportId = Some pending.NewImportId
+                    }
+                )
+            ]
+    | _ -> [ event (EntryLinkedToYnab { YnabTransactionId = obs.YnabTransactionId }) ]
+
 /// Ist diese Beobachtung die Lösch-Beobachtung einer abgelösten YNAB-Id (ADR 0058, Punkt 5)?
 /// Abgelöst ist eine Id, wenn ein Ersatz sie festgehalten hat (Verknüpfung
 /// `YnabSupersededSystem`) oder wenn das DELETE gelungen und die Neuanlage noch offen ist
@@ -432,7 +466,12 @@ let private isSupersededDeletion (state: MirrorBatchState) (existing: Entry opti
             existing
             |> Option.bind (fun e -> e.CategorizationWriteBackFailure)
             |> Option.bind (fun f -> f.YnabDeletedTransactionId)
+        // ledger-f8bjm: auch die alte Id eines offenen Ersatzes, wenn ihre Lösch-Beobachtung im
+        // Lauf vor der Ersatzbuchung kommt und kein Fehlschlag die gelöschte Id trägt.
+        let pendingReplacement =
+            existing |> Option.bind (fun e -> e.PendingReplacement) |> Option.map (fun p -> p.OldYnabTransactionId)
         pendingDeletion = Some obs.YnabTransactionId
+        || pendingReplacement = Some obs.YnabTransactionId
         || (MirrorBatchState.find state YnabSupersededSystem obs.YnabTransactionId).IsSome
 
 /// Ein Spiegel-Lauf: Beobachtungen holen, Konten nachziehen, je Beobachtung die Buchung
@@ -502,17 +541,18 @@ let runMirror
                                     | MatchedByImportId id ->
                                         id,
                                         true,
-                                        [
-                                            {
-                                                EntryId = id
-                                                OccurredAt = now
-                                                Actor = YnabMirror
-                                                Body = EntryLinkedToYnab { YnabTransactionId = obs.YnabTransactionId }
-                                            }
-                                        ]
+                                        importIdMatchEvents now (MirrorBatchState.entry state id) id obs
                                     | NewEntry id -> id, false, []
 
-                                let existing = if known then MirrorBatchState.entry state entryId else None
+                                // `observe` vergleicht mit dem Stand nach den Verknüpfungs-Ereignissen
+                                // (ledger-f8bjm: nach dem Abschluss eines Wiederherstellens ist die
+                                // Buchung nicht mehr gelöscht, die offenen Fehlschläge sind beendet).
+                                let existing =
+                                    if known then
+                                        MirrorBatchState.entry state entryId
+                                        |> Option.map (fun e -> linkEvents |> List.fold (fun st ev -> apply (Some st) ev) e)
+                                    else
+                                        None
 
                                 // ADR 0058, Punkt 5: das Löschen der ersetzten Id ist BBs eigenes
                                 // Werk und darf die Buchung nicht als "in YNAB gelöscht" markieren.
@@ -2691,6 +2731,9 @@ type SplitWriteTools = {
     Delete: string -> Async<YnabResult<unit>>
     /// POST der Ersatzbuchung (zweiter Schritt), liefert die neue YNAB-Id.
     Create: Ynab.SplitReplacement -> Async<YnabResult<string>>
+    /// Stößt den Spiegel an, nach Freigabe der Schreib-Sperre: wenn YNAB die Ersatzbuchung schon
+    /// kennt (409, ledger-f8bjm), verknüpft der Spiegel ihre neue YNAB-Id.
+    TriggerMirror: unit -> unit
 }
 
 /// Das längste `import_id`, das YNAB annimmt.
@@ -2889,6 +2932,13 @@ let splitNotChangeableReason (entry: Entry) : string option =
         Some "Ein Übertrag zwischen Budget-Konten lässt sich nicht aufteilen"
     else None
 
+/// Solange ein Ersatz offen ist (ledger-f8bjm), kann die Ersatzbuchung in YNAB schon leben. Ein
+/// Löschen ohne DELETE und ein späteres Rückgängig legten dort eine zweite Buchung an; ein anderer
+/// Inhalt ginge mit derselben Ersatz-`import_id` hinaus, bekäme 409 und gälte fälschlich als
+/// angekommen. Gesperrt sind deshalb Löschen und jede Änderung von Aufteilung oder Betrag.
+let replacementPendingText =
+    "Der Ersatz ist in YNAB noch nicht bestätigt. Erneut senden oder den Spiegel abwarten."
+
 /// Die Texte der Sperren, vom Befehl und vom Lesepfad gemeinsam benutzt.
 let trackingSplitReason = "Auf einem Tracking-Konto lassen sich Buchungen nicht aufteilen"
 
@@ -2931,6 +2981,23 @@ let splitLocksOf (isTracking: bool) (importId: string option) (entry: Entry) : S
             CannotChangeReason = cannotChange
             ReplacementPending = pendingDeleted.IsSome
         }
+
+/// Hat YNAB den POST einer Ersatzbuchung sicher nicht angelegt (ledger-f8bjm)? Nur, wenn der POST
+/// gesendet wurde und YNAB mit 400 oder 404 abgelehnt hat; die Regel hält der Adapter, der die
+/// Antwort zuordnet (`Ynab.replacementRejectedByYnab`). Alles andere lässt den offenen Ersatz offen:
+/// im Zweifel schließt der Spiegel ab, eine neue Ersatz-`import_id` legte in YNAB doppelt an. Rein.
+let replacementRejected (error: YnabError) : bool = Ynab.replacementRejectedByYnab error
+
+/// Führt einen Befehl des Split-Schreibwegs aus und stößt danach, nach Freigabe der
+/// Schreib-Sperre, den Spiegel an, wenn YNAB die Ersatzbuchung schon kannte (409, ledger-f8bjm).
+/// `command` bekommt die Meldung, die `pushSplitState` in diesem Fall ruft.
+let private withMirrorAfterArrival (tools: SplitWriteTools) (command: (unit -> unit) -> Async<'a>) : Async<'a> =
+    async {
+        let arrived = ref false
+        let! result = command (fun () -> arrived.Value <- true)
+        if arrived.Value then tools.TriggerMirror ()
+        return result
+    }
 
 /// Der Grund-Text für den Hinweis "Kategorie nicht in YNAB" beim Split-Schreibweg.
 let describeSplitPushError (error: YnabError) : string =
@@ -2975,9 +3042,17 @@ let private pushSplitState
     (hadOpenFailure: bool)
     (pendingDeleted: string option)
     (amountWrite: SplitAmountWrite option)
+    (arrivedWithoutId: unit -> unit)
     : Async<CategoryWriteBack> =
     async {
         let entryId = entry.Id
+        // ledger-f8bjm: ein offener Ersatz heißt, das DELETE ist gelungen, auch wenn (nach einem
+        // Absturz) kein Fehlschlag die gelöschte Id trägt.
+        let pendingDeleted =
+            match pendingDeleted, entry.PendingReplacement with
+            | Some id, _ -> Some id
+            | None, Some pending when pending.Kind = Replace -> Some pending.OldYnabTransactionId
+            | None, _ -> None
 
         let fail (reason: string) (deleted: string option) =
             async {
@@ -3037,7 +3112,14 @@ let private pushSplitState
                     let oldId = defaultArg pendingDeleted currentId
                     let newlyDeleted = if pendingDeleted.IsNone then Some oldId else None
                     let! links = Ledger.Persistence.linksForEntry entryId
-                    let newImportId = replacementImportId (currentImportId links)
+                    // ledger-f8bjm: steht ein Ersatz offen, gilt seine Ersatz-import_id; neu
+                    // gerechnet ergäbe sie wegen ihrer Verknüpfung schon `:r<n+1>` und legte in
+                    // YNAB eine zweite Buchung an.
+                    let openReplacement = entry.PendingReplacement |> Option.filter (fun p -> p.Kind = Replace)
+                    let newImportId =
+                        match openReplacement with
+                        | Some pending -> Some pending.NewImportId
+                        | None -> replacementImportId (currentImportId links)
 
                     match! ynabAccountOf entry.AccountId with
                     | None -> return! fail "Das Konto der Buchung ist nicht mit YNAB verknüpft" newlyDeleted
@@ -3057,8 +3139,28 @@ let private pushSplitState
                             TransferAccountId = None
                         }
 
-                        match! tools.Create request with
-                        | Ok newId ->
+                        // ledger-f8bjm: die Ersatz-import_id steht vor dem POST im Kassenbuch
+                        // (ADR 0021), damit der Spiegel die Ersatzbuchung auch bei verlorener
+                        // Antwort der Buchung zuordnet.
+                        match newImportId, openReplacement with
+                        | Some importId, None ->
+                            do!
+                                Ledger.Persistence.appendAndApply [
+                                    reviewMarkEvent entryId now UserInBb (
+                                        EntryReplacementSentToYnab { OldYnabTransactionId = oldId; NewImportId = importId }
+                                    )
+                                ]
+                        | _ -> ()
+
+                        let! created = tools.Create request
+                        match created, singlePushArrival created with
+                        | _, ArrivedWithoutId when newImportId.IsSome ->
+                            // YNAB kennt die Ersatz-import_id: ein früherer POST kam an, nur seine
+                            // Antwort nicht. Kein Fehlschlag; der Spiegel verknüpft die neue Id und
+                            // beendet die offenen Fehlschläge.
+                            arrivedWithoutId ()
+                            return CategorySent
+                        | Ok newId, _ ->
                             return!
                                 succeed [
                                     reviewMarkEvent entryId now UserInBb (
@@ -3069,7 +3171,21 @@ let private pushSplitState
                                         }
                                     )
                                 ]
-                        | Error err -> return! fail (describeSplitPushError err) newlyDeleted
+                        | Error err, _ when replacementRejected err && newImportId.IsSome ->
+                            // ledger-f8bjm: YNAB hat abgelehnt, unter der Ersatz-import_id steht dort
+                            // nichts. Der offene Ersatz endet, sonst bliebe die Buchung gesperrt; die
+                            // gelöschte alte Id trägt jetzt der Fehlschlag.
+                            do!
+                                Ledger.Persistence.appendAndApply [
+                                    reviewMarkEvent entryId now UserInBb (
+                                        EntryReplacementRejectedByYnab {
+                                            OldYnabTransactionId = oldId
+                                            NewImportId = Option.get newImportId
+                                        }
+                                    )
+                                ]
+                            return! fail (describeSplitPushError err) (Some oldId)
+                        | Error err, _ -> return! fail (describeSplitPushError err) newlyDeleted
     }
 
 // ============================================
@@ -3124,7 +3240,8 @@ let private changeSplits
     (lines: TransactionSplit list)
     (newAmount: decimal option)
     : Async<Result<CategoryChangeOutcome, string>> =
-    WriteGuard.exclusive (
+    withMirrorAfterArrival tools (fun arrived ->
+      WriteGuard.exclusive (
         async {
             match! Ledger.Persistence.loadEntry entryId with
             | None -> return Error "Buchung nicht gefunden"
@@ -3172,6 +3289,11 @@ let private changeSplits
 
                                 if not categorizationChanged && not amountChanged then
                                     return Ok { Previous = previous; Change = CategoryUnchanged; WriteBack = CategoryNotSent; PreviousTransferAccountId = None }
+                                elif entry.PendingReplacement |> Option.exists (fun p -> p.Kind = Replace) then
+                                    // ledger-f8bjm: YNAB hält unter der Ersatz-import_id vielleicht schon
+                                    // den gesendeten Stand. Ein anderer Inhalt bekäme 409 und gälte als
+                                    // angekommen, der Spiegel überschriebe ihn danach mit dem gesendeten.
+                                    return Error replacementPendingText
                                 else
                                     let foreignImportId =
                                         match currentImportId links with
@@ -3240,9 +3362,10 @@ let private changeSplits
                                                     entry.CategorizationWriteBackFailure.IsSome
                                                     pendingDeleted
                                                     amountWrite
+                                                    arrived
                                             return Ok { Previous = previous; Change = CategoryChanged; WriteBack = writeBack; PreviousTransferAccountId = None }
         }
-    )
+      ))
 
 /// Der Befehl `setEntrySplits` (ADR 0058): lädt die Buchung, lehnt Unzulässiges ab (Fehler,
 /// kein Ereignis, kein Schreib-Aufruf an YNAB), schreibt bei einer Änderung zuerst
@@ -3284,7 +3407,8 @@ let retryCategorizationOrSplitWriteBack
     (transfer: TransferWriteTools)
     (entryId: EntryId)
     : Async<Result<CategoryWriteBack, string>> =
-    WriteGuard.exclusive (
+    withMirrorAfterArrival tools (fun arrived ->
+      WriteGuard.exclusive (
         async {
             match! Ledger.Persistence.loadEntry entryId with
             | None -> return Error "Buchung nicht gefunden"
@@ -3324,9 +3448,10 @@ let retryCategorizationOrSplitWriteBack
                                 true
                                 failure.YnabDeletedTransactionId
                                 (openAmountWrite entry)
+                                arrived
                         return Ok writeBack
         }
-    )
+      ))
 
 // ============================================
 // Buchung löschen und Rückgängig (ledger-z6sya, ADR 0092)
@@ -3406,6 +3531,7 @@ let deleteEntry
                     | Some entry when isHeldAsPossibleDuplicate entry -> return Error possibleDuplicateLockedText
                     | Some entry when entry.DeletedInYnab -> return Error entryDeleteDeletedText
                     | Some entry when entry.Cleared = Reconciled -> return Error entryDeleteReconciledText
+                    | Some entry when entry.PendingReplacement.IsSome -> return Error replacementPendingText
                     | Some entry ->
                         let! links = Ledger.Persistence.linksForEntry entryId
                         let record (ynabTransactionId: string) =
@@ -3468,10 +3594,35 @@ let restoreDeletedEntry
                             match! ynabAccountOf entry.AccountId with
                             | None -> return Error pushNotPossibleReason
                             | Some ynabAccount ->
-                                let request = restoreRequestOf ynabAccount deleted
-                                match! createInYnab request with
-                                | Error err -> return Error (ynabErrorText err)
-                                | Ok newId ->
+                                // ledger-f8bjm: steht das Wiederherstellen schon offen, gilt seine
+                                // Ersatz-import_id; sonst steht sie vor dem POST im Kassenbuch.
+                                let request =
+                                    match entry.PendingReplacement with
+                                    | Some pending when pending.Kind = Restore ->
+                                        { restoreRequestOf ynabAccount deleted with ImportId = Some pending.NewImportId }
+                                    | _ -> restoreRequestOf ynabAccount deleted
+                                match request.ImportId, entry.PendingReplacement with
+                                | Some importId, None ->
+                                    do!
+                                        Ledger.Persistence.appendAndApply [
+                                            { EntryId = entryId
+                                              OccurredAt = now
+                                              Actor = UserInBb
+                                              Body =
+                                                EntryRestoreSentToYnab {
+                                                    OldYnabTransactionId = deleted.YnabTransactionId
+                                                    NewImportId = importId
+                                                } }
+                                        ]
+                                | _ -> ()
+                                let! created = createInYnab request
+                                match created, singlePushArrival created with
+                                // YNAB kennt die Ersatz-import_id: ein früherer POST kam an, nur seine
+                                // Antwort nicht. Angekommen; der Spiegel findet die neue Buchung über die
+                                // import_id und schreibt `EntryRestoredInBb`.
+                                | _, ArrivedWithoutId when request.ImportId.IsSome -> return Ok ()
+                                | Error err, _ -> return Error (ynabErrorText err)
+                                | Ok newId, _ ->
                                     do!
                                         Ledger.Persistence.appendAndApply [
                                             { EntryId = entryId
@@ -4102,7 +4253,8 @@ let retryAmountWriteBack
     (tools: SplitWriteTools)
     (entryId: EntryId)
     : Async<Result<AmountWriteBack, string>> =
-    WriteGuard.exclusive (
+    withMirrorAfterArrival tools (fun arrived ->
+      WriteGuard.exclusive (
         async {
             match! Ledger.Persistence.loadEntry entryId with
             | None -> return Error "Buchung nicht gefunden"
@@ -4126,9 +4278,10 @@ let retryAmountWriteBack
                         entry.CategorizationWriteBackFailure.IsSome
                         pendingDeleted
                         (openAmountWrite entry)
+                        arrived
                 return Ok (amountWriteBackOf writeBack)
         }
-    )
+      ))
 
 // ============================================
 // Lena fragen für eine ganze Auswahl, ein Sammel-PATCH (ledger-y54gr)

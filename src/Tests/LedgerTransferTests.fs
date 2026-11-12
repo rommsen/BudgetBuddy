@@ -140,7 +140,8 @@ let private noSplit : SplitWriteTools =
       PutCategory = fun _ _ -> async { return Error error }
       PutSplits = fun _ _ -> async { return Error error }
       Delete = fun _ -> async { return Error error }
-      Create = fun _ -> async { return Error error } }
+      Create = fun _ -> async { return Error error }
+      TriggerMirror = ignore }
 
 let private okCategoryPush : CategoryPush = fun _ _ -> async { return Ok () }
 

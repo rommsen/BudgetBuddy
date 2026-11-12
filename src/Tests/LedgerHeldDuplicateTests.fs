@@ -76,7 +76,8 @@ let private splitTools : SplitWriteTools =
       PutCategory = fun _ _ -> noYnab "PutCategory"
       PutSplits = fun _ _ -> noYnab "PutSplits"
       Delete = fun _ -> noYnab "Delete"
-      Create = fun _ -> noYnab "Create" }
+      Create = fun _ -> noYnab "Create"
+      TriggerMirror = ignore }
 
 let private transferTools : TransferWriteTools =
     { Accounts = fun () -> noYnab "Accounts"

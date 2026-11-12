@@ -230,6 +230,9 @@ let migrateLedgerEntryColumns (conn: SqliteConnection) =
     // banking-import-d0fey (ADR 0093 Punkt 3): das Payload von `EntryHeldAsPossibleDuplicate` als
     // JSON, NULL heißt: die Buchung wartet nicht. Vor dieser Spalte gab es keine wartende Buchung.
     migrateColumn "ALTER TABLE ledger_entries ADD COLUMN possible_duplicate TEXT" |> ignore
+    // ledger-f8bjm: der offene Ersatz als JSON (Art, abgelöste YNAB-Id, Ersatz-import_id), NULL
+    // heißt: keiner offen. Vor dieser Spalte gab es kein Ereignis, das einen offen hielt.
+    migrateColumn "ALTER TABLE ledger_entries ADD COLUMN pending_replacement TEXT" |> ignore
 
 // ============================================
 // Übergang des Kassenbuch-Logs nach `events` (ADR 0083 Abschnitt 6, ledger-k9tm2)
@@ -407,7 +410,8 @@ let internal createLedgerSchemaOn (conn: SqliteConnection) =
             push_failure_at TEXT,
             linked_to_ynab INTEGER NOT NULL DEFAULT 0,
             payee_before_transfer TEXT,
-            possible_duplicate TEXT
+            possible_duplicate TEXT,
+            pending_replacement TEXT
         );
 
         CREATE INDEX IF NOT EXISTS idx_ledger_entries_account ON ledger_entries(account_id);
@@ -494,6 +498,7 @@ type private EntryRow = {
     linked_to_ynab: int64
     payee_before_transfer: string
     possible_duplicate: string
+    pending_replacement: string
 }
 
 [<CLIMutable>]
@@ -588,6 +593,29 @@ let private decodeSplitTransferCounterparts (text: string) : Map<string, EntryId
         | Ok pairs -> Map.ofList pairs
         | Error e -> failwith $"Split-Übertrags-Verknüpfungen nicht lesbar: {e}"
 
+/// Der offene Ersatz als JSON-Spalte (ledger-f8bjm). Eine unbekannte Art ist ein Fehler.
+let private encodePendingReplacement (p: PendingReplacement) : string =
+    Thoth.Json.Net.Encode.object [
+        "kind", Thoth.Json.Net.Encode.string (match p.Kind with Replace -> "replace" | Restore -> "restore")
+        "oldYnabTransactionId", Thoth.Json.Net.Encode.string p.OldYnabTransactionId
+        "newImportId", Thoth.Json.Net.Encode.string p.NewImportId
+    ]
+    |> Thoth.Json.Net.Encode.toString 0
+
+let private decodePendingReplacement : Thoth.Json.Net.Decoder<PendingReplacement> =
+    let kind =
+        Thoth.Json.Net.Decode.string
+        |> Thoth.Json.Net.Decode.andThen (fun text ->
+            match text with
+            | "replace" -> Thoth.Json.Net.Decode.succeed Replace
+            | "restore" -> Thoth.Json.Net.Decode.succeed Restore
+            | other -> Thoth.Json.Net.Decode.fail $"unbekannte Art eines offenen Ersatzes: {other}")
+    Thoth.Json.Net.Decode.object (fun get -> {
+        Kind = get.Required.Field "kind" kind
+        OldYnabTransactionId = get.Required.Field "oldYnabTransactionId" Thoth.Json.Net.Decode.string
+        NewImportId = get.Required.Field "newImportId" Thoth.Json.Net.Decode.string
+    })
+
 let private rowToEntry (row: EntryRow) : Entry =
     let category =
         match toOption row.category_id, toOption row.category_name with
@@ -668,6 +696,12 @@ let private rowToEntry (row: EntryRow) : Entry =
                 match Thoth.Json.Net.Decode.fromString Codec.decodeHeldAsPossibleDuplicate json with
                 | Ok p -> p
                 | Error e -> failwith $"Wartende Buchung {row.id} nicht lesbar: {e}")
+        PendingReplacement =
+            toOption row.pending_replacement
+            |> Option.map (fun json ->
+                match Thoth.Json.Net.Decode.fromString decodePendingReplacement json with
+                | Ok p -> p
+                | Error e -> failwith $"Offener Ersatz der Buchung {row.id} nicht lesbar: {e}")
     }
 
 let private rowToAccount (row: AccountRow) : LedgerAccount =
@@ -780,6 +814,10 @@ let private entryParams (entry: Entry) =
             match entry.PossibleDuplicate with
             | Some p -> box (Thoth.Json.Net.Encode.toString 0 (Codec.encodeHeldAsPossibleDuplicate p))
             | None -> null
+        pending_replacement =
+            match entry.PendingReplacement with
+            | Some p -> box (encodePendingReplacement p)
+            | None -> null
         transfer_account_id =
             match entry.TransferAccountId with
             | Some (YnabAccountId a) -> box (a.ToString())
@@ -794,12 +832,12 @@ let private upsertEntrySql =
          (id, account_id, date, amount, currency, payee, memo, category_id, category_name,
           splits, cleared, transfer_entry_id, deleted_in_ynab, approved, flag_color, flag_name,
           transfer_account_id, split_transfer_counterparts, review_mark_write_back_failure,
-          categorization_write_back_failure, flag_write_back_failure, memo_write_back_failure, amount_write_back_failure, payee_write_back_failure, push_failure_reason, push_failure_at, linked_to_ynab, payee_before_transfer, possible_duplicate)
+          categorization_write_back_failure, flag_write_back_failure, memo_write_back_failure, amount_write_back_failure, payee_write_back_failure, push_failure_reason, push_failure_at, linked_to_ynab, payee_before_transfer, possible_duplicate, pending_replacement)
        VALUES
          (@id, @account_id, @date, @amount, @currency, @payee, @memo, @category_id,
           @category_name, @splits, @cleared, @transfer_entry_id, @deleted_in_ynab, @approved,
           @flag_color, @flag_name, @transfer_account_id, @split_transfer_counterparts,
-          @review_mark_write_back_failure, @categorization_write_back_failure, @flag_write_back_failure, @memo_write_back_failure, @amount_write_back_failure, @payee_write_back_failure, @push_failure_reason, @push_failure_at, @linked_to_ynab, @payee_before_transfer, @possible_duplicate)
+          @review_mark_write_back_failure, @categorization_write_back_failure, @flag_write_back_failure, @memo_write_back_failure, @amount_write_back_failure, @payee_write_back_failure, @push_failure_reason, @push_failure_at, @linked_to_ynab, @payee_before_transfer, @possible_duplicate, @pending_replacement)
        ON CONFLICT(id) DO UPDATE SET
           account_id = excluded.account_id,
           date = excluded.date,
@@ -828,7 +866,8 @@ let private upsertEntrySql =
           push_failure_at = excluded.push_failure_at,
           linked_to_ynab = excluded.linked_to_ynab,
           payee_before_transfer = excluded.payee_before_transfer,
-          possible_duplicate = excluded.possible_duplicate"""
+          possible_duplicate = excluded.possible_duplicate,
+          pending_replacement = excluded.pending_replacement"""
 
 /// Führt die abgeleitete Indextabelle `ledger_entry_split_categories` einer Buchung
 /// nach (ADR 0038): erst `DELETE` aller Zeilen dieser Buchung, dann `INSERT` je
@@ -933,16 +972,34 @@ let private applyLedgerReadModels : EventStore.ApplyReadModels =
                     if isNull (box row) then None else Some (rowToEntry row)
 
             for link in linksFrom event do
-                conn.Execute(
-                    "INSERT INTO ledger_entry_links (entry_id, system, value) VALUES (@entry_id, @system, @value)",
-                    {|
-                        entry_id = entryIdText
-                        system = linkSystemToString link.System
-                        value = link.Value
-                    |},
-                    tx
-                )
-                |> ignore
+                // ledger-f8bjm: das Ergebnis eines Ersatzes stiftet die Ersatz-import_id, die das
+                // Senden schon gestiftet hat. Dieselbe import_id-Verknüpfung auf dieselbe Buchung ist
+                // kein Konflikt (OR IGNORE); zeigt sie auf eine andere Buchung, scheitert das Anhängen
+                // laut an der Prüfung danach. Jede andere doppelte Verknüpfung scheitert wie bisher.
+                let insertSql =
+                    if link.System = ImportIdSystem then
+                        "INSERT OR IGNORE INTO ledger_entry_links (entry_id, system, value) VALUES (@entry_id, @system, @value)"
+                    else
+                        "INSERT INTO ledger_entry_links (entry_id, system, value) VALUES (@entry_id, @system, @value)"
+                let inserted =
+                    conn.Execute(
+                        insertSql,
+                        {|
+                            entry_id = entryIdText
+                            system = linkSystemToString link.System
+                            value = link.Value
+                        |},
+                        tx
+                    )
+                if inserted = 0 then
+                    let owner =
+                        conn.ExecuteScalar<string>(
+                            "SELECT entry_id FROM ledger_entry_links WHERE system = @system AND value = @value",
+                            {| system = linkSystemToString link.System; value = link.Value |},
+                            tx
+                        )
+                    if owner <> entryIdText then
+                        failwith $"Verknüpfung {linkSystemToString link.System}:{link.Value} zeigt schon auf Buchung {owner}"
 
             let newState = apply currentState event
             conn.Execute(upsertEntrySql, entryParams newState, tx) |> ignore

@@ -110,6 +110,74 @@ let splitDomainTests =
                 Expect.equal (decodePayload (eventTypeName body) 1 (encodePayload body)) (Ok body) $"Rundreise {eventTypeName body}"
             Expect.equal (eventTypeName (List.head bodies)) "EntryReplacedInYnab" "Name"
 
+        testCase "Offener Ersatz (ledger-f8bjm): Codec-Rundreise, linksFrom und apply der beiden Sende-Ereignisse" <| fun () ->
+            let sent = { OldYnabTransactionId = "alt"; NewImportId = "BB:abc:r1" }
+            for body in [ EntryReplacementSentToYnab sent; EntryRestoreSentToYnab sent ] do
+                Expect.equal (schemaVersion body) 1 $"Version von {eventTypeName body}"
+                Expect.equal (decodePayload (eventTypeName body) 1 (encodePayload body)) (Ok body) $"Rundreise {eventTypeName body}"
+            Expect.equal (eventTypeName (EntryReplacementSentToYnab sent)) "EntryReplacementSentToYnab" "Name Ersatz"
+            Expect.equal (eventTypeName (EntryRestoreSentToYnab sent)) "EntryRestoreSentToYnab" "Name Wiederherstellen"
+            Expect.equal
+                (Ledger.QueryHandlers.ReadModel.describe (EntryReplacementSentToYnab sent))
+                "Ersatz an YNAB gesendet"
+                "Historie Ersatz"
+            Expect.equal
+                (Ledger.QueryHandlers.ReadModel.describe (EntryRestoreSentToYnab sent))
+                "Wiederherstellen an YNAB gesendet"
+                "Historie Wiederherstellen"
+
+            let entryId = newEntryId ()
+            Expect.equal
+                (linksFrom (eventOn entryId UserInBb (EntryReplacementSentToYnab sent)) |> List.map (fun l -> l.System, l.Value))
+                [ ImportIdSystem, "BB:abc:r1" ]
+                "nur die Ersatz-import_id, die alte Id gilt noch nicht als abgelöst"
+
+            let observed = apply None (eventOn entryId YnabMirror (EntryObservedInYnab (observedPayload "alt" None)))
+            let pending = apply (Some observed) (eventOn entryId UserInBb (EntryReplacementSentToYnab sent))
+            Expect.equal
+                pending.PendingReplacement
+                (Some { Kind = Replace; OldYnabTransactionId = "alt"; NewImportId = "BB:abc:r1" })
+                "offener Ersatz"
+            Expect.equal
+                (apply (Some pending) (eventOn entryId UserInBb (EntryReplacementSentToYnab sent))).PendingReplacement
+                pending.PendingReplacement
+                "dasselbe Senden noch einmal ändert nichts"
+            Expect.throws
+                (fun () ->
+                    apply (Some pending) (eventOn entryId UserInBb (EntryReplacementSentToYnab { sent with NewImportId = "BB:abc:r2" }))
+                    |> ignore)
+                "ein zweiter Ersatz mit anderer import_id ist ein kaputter Ablauf"
+            let replaced =
+                apply (Some pending) (
+                    eventOn entryId YnabMirror (
+                        EntryReplacedInYnab { OldYnabTransactionId = "alt"; NewYnabTransactionId = "neu"; NewImportId = Some "BB:abc:r1" }
+                    )
+                )
+            Expect.isNone replaced.PendingReplacement "EntryReplacedInYnab schließt ab"
+            let restorePending = apply (Some observed) (eventOn entryId UserInBb (EntryRestoreSentToYnab sent))
+            Expect.equal (restorePending.PendingReplacement |> Option.map (fun p -> p.Kind)) (Some Restore) "Art Wiederherstellen"
+            let restored =
+                apply (Some restorePending) (
+                    eventOn entryId YnabMirror (
+                        EntryRestoredInBb { OldYnabTransactionId = "alt"; NewYnabTransactionId = "neu"; NewImportId = Some "BB:abc:r1" }
+                    )
+                )
+            Expect.isNone restored.PendingReplacement "EntryRestoredInBb schließt ab"
+
+            // Iteration 2: die Ablehnung durch YNAB beendet nur einen offenen Split-Ersatz derselben import_id.
+            let rejected = EntryReplacementRejectedByYnab sent
+            Expect.equal (decodePayload (eventTypeName rejected) (schemaVersion rejected) (encodePayload rejected)) (Ok rejected) "Rundreise Ablehnung"
+            Expect.equal (eventTypeName rejected) "EntryReplacementRejectedByYnab" "Name Ablehnung"
+            Expect.equal (Ledger.QueryHandlers.ReadModel.describe rejected) "Ersatz von YNAB abgelehnt" "Historie Ablehnung"
+            Expect.isEmpty (linksFrom (eventOn entryId UserInBb rejected)) "keine Verknüpfung"
+            Expect.isNone (apply (Some pending) (eventOn entryId UserInBb rejected)).PendingReplacement "Ablehnung schließt ab"
+            Expect.throws
+                (fun () -> apply (Some pending) (eventOn entryId UserInBb (EntryReplacementRejectedByYnab { sent with NewImportId = "BB:abc:r2" })) |> ignore)
+                "Ablehnung einer anderen import_id"
+            Expect.throws
+                (fun () -> apply (Some restorePending) (eventOn entryId UserInBb rejected) |> ignore)
+                "kein Ende eines offenen Wiederherstellens"
+
         testCase "ein gespeicherter Fehlschlag ohne ynabDeletedTransactionId liest sich als None" <| fun () ->
             let legacy = """{"reason":"Timeout","baselineCategory":null,"baselineSplits":[]}"""
             match decodePayload "EntryCategorizationWriteBackFailed" 1 legacy with
@@ -282,8 +350,37 @@ let private seedSplit () : EntryId * string * string =
 
 let private entryOf (entryId: EntryId) : Entry = loadEntry entryId |> Async.RunSynchronously |> Option.get
 
+let private eventsOfEntry (entryId: EntryId) : RecordedLedgerEvent list =
+    loadEventsForEntry entryId |> Async.RunSynchronously
+
 let private eventTypesOf (entryId: EntryId) : string list =
     loadEventsForEntry entryId |> Async.RunSynchronously |> List.map (fun r -> r.EventType)
+
+type private FakeHandler(status: HttpStatusCode, responseBody: string) =
+    inherit HttpMessageHandler()
+    member val Method : HttpMethod = null with get, set
+    member val Url : string = "" with get, set
+    member val Body : string = "" with get, set
+    override this.SendAsync(request: HttpRequestMessage, _ct: Threading.CancellationToken) =
+        task {
+            this.Method <- request.Method
+            this.Url <- request.RequestUri.ToString()
+            let! body = if isNull request.Content then task { return "" } else request.Content.ReadAsStringAsync()
+            this.Body <- body
+            return new HttpResponseMessage(status, Content = new StringContent(responseBody))
+        }
+
+/// Der POST einer Ersatzbuchung über den echten Adapter (`Ynab.buildReplacementBody`,
+/// `Ynab.sendCreateTransaction`), YNAB antwortet mit `status` und `responseBody` (ledger-f8bjm:
+/// der Handler sieht genau den Fehler, den der Live-Port liefert).
+let private postReplacementVia (status: HttpStatusCode) (responseBody: string) (request: Ynab.SplitReplacement) =
+    async {
+        match Ynab.buildReplacementBody Map.empty request with
+        | Error _ -> return failtest "der Ersatz-Body sollte sich bauen lassen"
+        | Ok body ->
+            use client = new HttpClient(new FakeHandler(status, responseBody))
+            return! Ynab.sendCreateTransaction client (YnabBudgetId "budget-1") body
+    }
 
 /// Der Satz YNAB-Aufrufe, der aufzeichnet und feste Ergebnisse liefert.
 type private ToolsProbe() =
@@ -296,7 +393,10 @@ type private ToolsProbe() =
     member val PutResult : YnabResult<unit> = Ok () with get, set
     member val DeleteResult : YnabResult<unit> = Ok () with get, set
     member val CreateResult : YnabResult<string> option = None with get, set
+    /// Statt `CreateResult`: YNAB antwortet mit diesem Status und Rumpf, der echte Adapter ordnet zu.
+    member val CreateHttp : (HttpStatusCode * string) option = None with get, set
     member val OnPut : unit -> unit = ignore with get, set
+    member val MirrorTriggers = 0 with get, set
     member this.WriteCalls = this.Puts.Length + this.CategoryPuts.Length + this.Deletes.Length + this.Creates.Length
     member this.Tools : SplitWriteTools = {
         IsTrackingAccount =
@@ -328,8 +428,11 @@ type private ToolsProbe() =
             fun request ->
                 async {
                     this.Creates <- this.Creates @ [ request ]
-                    return this.CreateResult |> Option.defaultWith (fun () -> Ok (freshYnabId ()))
+                    match this.CreateHttp with
+                    | Some (status, responseBody) -> return! postReplacementVia status responseBody request
+                    | None -> return this.CreateResult |> Option.defaultWith (fun () -> Ok (freshYnabId ()))
                 }
+        TriggerMirror = fun () -> this.MirrorTriggers <- this.MirrorTriggers + 1
     }
 
 let private setSplits (probe: ToolsProbe) (entryId: EntryId) (lines: TransactionSplit list) =
@@ -347,6 +450,45 @@ let private expectRejected (probe: ToolsProbe) (entryId: EntryId) (lines: Transa
     | Ok _ -> failtest $"{what} muss abgelehnt werden"
     Expect.equal (eventTypesOf entryId) before $"{what}: kein Ereignis"
     Expect.equal probe.WriteCalls 0 $"{what}: kein schreibender YNAB-Aufruf"
+
+/// Eine Beobachtung des Spiegels auf dem Girokonto: die Felder aus `observedPayload`, Splits und
+/// Löschung nach Wahl.
+let private observation (ynabId: string) (importId: string option) (splits: TransactionSplit list) (deleted: bool) : YnabObservation = {
+    YnabTransactionId = ynabId
+    AccountId = ynabAccount
+    ImportId = importId
+    Date = DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Utc)
+    Amount = eur -12.00m
+    Payee = Some "Rewe"
+    Memo = Some "Wocheneinkauf"
+    Category = None
+    Splits = splits
+    SplitTransfers = []
+    Cleared = Cleared
+    TransferAccountId = None
+    TransferYnabTransactionId = None
+    Deleted = deleted
+    Approved = true
+    FlagColor = Some "blue"
+    FlagName = None
+}
+
+/// Ein Spiegel-Lauf mit festen Beobachtungen auf dem Girokonto.
+let private mirrorWith (observations: YnabObservation list) : MirrorRunSummary =
+    let fetchers : MirrorFetchers = {
+        emptyMirrorFetchers with
+            FetchAccounts =
+                fun _ ->
+                    async { return Ok { Accounts = [ { AccountId = ynabAccount; Name = "Girokonto"; Closed = false; Deleted = false } ]; ServerKnowledge = 1L } }
+            FetchTransactions = fun _ -> async { return Ok { Observations = observations; ServerKnowledge = 1L } }
+    }
+    match runMirror at fetchers (YnabBudgetId "budget-f8bjm") |> Async.RunSynchronously with
+    | Ok summary -> summary
+    | Error e -> failtest $"Spiegel sollte gelingen, war: {e}"
+
+/// Die sichtbaren (nicht gelöschten) Buchungen des Girokontos.
+let private visibleEntryCount () : int =
+    loadEntriesForAccount accountId |> Async.RunSynchronously |> List.filter (fun e -> not e.DeletedInYnab) |> List.length
 
 [<Tests>]
 let splitCommandTests =
@@ -535,7 +677,7 @@ let splitCommandTests =
             Expect.isNone request.CategoryId "keine Kategorie neben den Splits"
             Expect.equal
                 (eventTypesOf entryId)
-                [ "EntryObservedInYnab"; "EntryRecategorized"; "EntryReplacedInYnab" ]
+                [ "EntryObservedInYnab"; "EntryRecategorized"; "EntryReplacementSentToYnab"; "EntryReplacedInYnab" ]
                 "Ereignisse"
             Expect.equal (entryOf entryId).Splits newLines "Zustand"
 
@@ -720,10 +862,228 @@ let splitCommandTests =
             Expect.isNone (entryOf entryId).CategorizationWriteBackFailure "Fehlschlag beendet"
             Expect.equal
                 (eventTypesOf entryId |> List.skip 2)
-                [ "EntryCategorizationWriteBackFailed"; "EntryReplacedInYnab"; "EntryCategorizationWrittenBackToYnab" ]
+                [ "EntryReplacementSentToYnab"; "EntryCategorizationWriteBackFailed"; "EntryReplacedInYnab"; "EntryCategorizationWrittenBackToYnab" ]
                 "Log nach dem Ereignis"
             let links = linksForEntry entryId |> Async.RunSynchronously
             Expect.equal (currentYnabTransactionId links) (Some "ynab-recreated") "neue Id gilt"
+
+        testCase "Kaputt (ledger-f8bjm): POST legt an, Antwort geht verloren; der Spiegel ordnet die Ersatzbuchung der bestehenden zu" <| fun () ->
+            let entryId, oldId, importId = seedSplit ()
+            let newLines = [ line catA -4.00m; line catC -8.00m ]
+            let probe = ToolsProbe()
+            probe.CreateResult <- Some (Error (YnabError.NetworkError "Timeout"))
+            setSplits probe entryId newLines |> unwrap |> ignore
+            let request = List.exactlyOne probe.Creates
+            Expect.equal request.ImportId (Some $"{importId}:r1") "Ersatz-import_id im POST"
+            let visibleBefore = visibleEntryCount ()
+
+            // YNAB hat angelegt: der Spiegel sieht die Ersatzbuchung und die Löschung der alten Id.
+            let newId = freshYnabId ()
+            let summary = mirrorWith [ observation newId request.ImportId newLines false; observation oldId (Some importId) [] true ]
+
+            Expect.equal summary.NewEntries 0 "keine neue Kassenbuch-Buchung"
+            Expect.equal (findEntryByLink YnabSystem newId |> Async.RunSynchronously) (Some entryId) "neue YNAB-Id an der bestehenden Buchung"
+            let links = linksForEntry entryId |> Async.RunSynchronously
+            Expect.equal (currentYnabTransactionId links) (Some newId) "die neue Id gilt"
+            Expect.isFalse (entryOf entryId).DeletedInYnab "nicht als gelöscht markiert"
+            Expect.equal (visibleEntryCount ()) visibleBefore "Zahl der sichtbaren Buchungen unverändert"
+
+        testCase "Kaputt (ledger-f8bjm): Erneut senden nach verlorener Antwort, 409 heißt angekommen" <| fun () ->
+            let entryId, oldId, importId = seedSplit ()
+            let newLines = [ line catA -4.00m; line catC -8.00m ]
+            let probe = ToolsProbe()
+            probe.CreateResult <- Some (Error (YnabError.NetworkError "Timeout"))
+            setSplits probe entryId newLines |> unwrap |> ignore
+
+            let retryProbe = ToolsProbe()
+            retryProbe.CreateHttp <- Some (HttpStatusCode.Conflict, """{"error":{"id":"409","name":"conflict","detail":"same import_id"}}""")
+            let retry =
+                retryCategorizationOrSplitWriteBack at (fun _ _ -> async { return Ok () }) retryProbe.Tools noTransfer entryId
+                |> Async.RunSynchronously
+                |> unwrap
+            Expect.equal retry CategorySent "angekommen, kein Fehlschlag"
+            Expect.isEmpty retryProbe.Deletes "kein zweites DELETE"
+            Expect.equal (List.exactlyOne retryProbe.Creates).ImportId (Some $"{importId}:r1") "dieselbe Ersatz-import_id"
+            let conflictText = ynabErrorText YnabError.ImportIdAlreadyInYnab
+            let failure = (entryOf entryId).CategorizationWriteBackFailure
+            Expect.isFalse
+                (failure |> Option.exists (fun f -> f.Reason.Contains conflictText || f.Reason.Contains "409"))
+                "kein Fehlschlag mit dem 409-Text"
+            Expect.equal retryProbe.MirrorTriggers 1 "Spiegel angestoßen"
+            // ledger-f8bjm, Iteration 3: das 409 kommt über den echten Adapter; es beendet den offenen
+            // Ersatz nicht, sonst ginge der nächste Versuch mit :r2 und legte in YNAB doppelt an.
+            Expect.isFalse (List.contains "EntryReplacementRejectedByYnab" (eventTypesOf entryId)) "keine Ablehnung"
+            Expect.equal
+                ((entryOf entryId).PendingReplacement |> Option.map (fun p -> p.NewImportId))
+                (Some $"{importId}:r1")
+                "der offene Ersatz bleibt"
+            let againProbe = ToolsProbe()
+            againProbe.CreateHttp <- retryProbe.CreateHttp
+            retryCategorizationOrSplitWriteBack at (fun _ _ -> async { return Ok () }) againProbe.Tools noTransfer entryId
+            |> Async.RunSynchronously
+            |> unwrap
+            |> ignore
+            Expect.equal (againProbe.Creates |> List.map (fun r -> r.ImportId)) [ Some $"{importId}:r1" ] "auch danach :r1, kein :r2"
+
+            let newId = freshYnabId ()
+            let summary = mirrorWith [ observation oldId (Some importId) [] true; observation newId (Some $"{importId}:r1") newLines false ]
+            Expect.equal summary.NewEntries 0 "keine neue Kassenbuch-Buchung"
+            let links = linksForEntry entryId |> Async.RunSynchronously
+            Expect.equal (currentYnabTransactionId links) (Some newId) "nach dem Spiegel verknüpft"
+            Expect.isFalse (entryOf entryId).DeletedInYnab "nicht als gelöscht markiert"
+            Expect.isNone (entryOf entryId).CategorizationWriteBackFailure "kein offener Fehlschlag mehr"
+
+        testCase "Replay (ledger-f8bjm): nach verlorener Antwort und Spiegel-Abschluss ergeben Log und Zustand dieselben Verknüpfungen" <| fun () ->
+            let entryId, oldId, importId = seedSplit ()
+            let newLines = [ line catA -4.00m; line catC -8.00m ]
+            let probe = ToolsProbe()
+            probe.CreateResult <- Some (Error (YnabError.NetworkError "Timeout"))
+            setSplits probe entryId newLines |> unwrap |> ignore
+            let pendingFromDb = entryOf entryId
+            let replay () =
+                loadEventsForEntry entryId |> Async.RunSynchronously |> List.map (fun r -> r.Event) |> replay |> Option.get
+            Expect.equal pendingFromDb (replay ()) "offener Ersatz: Zustand gleich Replay"
+            Expect.equal
+                (pendingFromDb.PendingReplacement |> Option.map (fun p -> p.OldYnabTransactionId, p.NewImportId))
+                (Some (oldId, $"{importId}:r1"))
+                "offener Ersatz mit alter Id und Ersatz-import_id"
+
+            let newId = freshYnabId ()
+            mirrorWith [ observation newId (Some $"{importId}:r1") newLines false ] |> ignore
+            Expect.equal (entryOf entryId) (replay ()) "nach dem Abschluss: Zustand gleich Replay"
+            let fromLog =
+                loadEventsForEntry entryId
+                |> Async.RunSynchronously
+                |> List.collect (fun r -> linksFrom r.Event)
+                |> List.map (fun l -> l.System, l.Value)
+                |> Set.ofList
+            let stored = linksForEntry entryId |> Async.RunSynchronously |> List.map (fun l -> l.System, l.Value) |> Set.ofList
+            Expect.equal stored fromLog "Verknüpfungen aus dem Log gleich den gespeicherten"
+            Expect.isTrue (Set.contains (YnabSupersededSystem, oldId) fromLog) "alte Id abgelöst"
+            Expect.isTrue (Set.contains (ImportIdSystem, $"{importId}:r1") fromLog) "Ersatz-import_id"
+            Expect.isTrue (Set.contains (YnabSystem, newId) fromLog) "neue YNAB-Id"
+            Expect.equal
+                (eventsOfEntry entryId |> List.filter (fun r -> r.EventType = "EntryReplacedInYnab") |> List.map (fun r -> r.Event.Actor))
+                [ YnabMirror ]
+                "der Spiegel schließt den Ersatz ab"
+
+        testCase "Offener Ersatz ohne Fehlschlag (ledger-f8bjm): die Lösch-Beobachtung der alten Id setzt DeletedInYnab nicht" <| fun () ->
+            let entryId, oldId, importId = seedSplit ()
+            // Wie nach einem Absturz zwischen Senden und Fehlschlag: nur das Sende-Ereignis steht im Log.
+            appendAndApply [
+                eventOn entryId UserInBb (EntryReplacementSentToYnab { OldYnabTransactionId = oldId; NewImportId = $"{importId}:r1" })
+            ]
+            |> Async.RunSynchronously
+            let summary = mirrorWith [ observation oldId (Some importId) [] true ]
+            Expect.equal summary.DeletedEntries 0 "die abgelöste Id zählt nicht als gelöscht"
+            Expect.isFalse (entryOf entryId).DeletedInYnab "DeletedInYnab bleibt aus"
+
+        testCase "Kaputt: verlorene Antwort, Aufteilung erneut ändern; abgelehnt statt falscher Erfolg nach 409" <| fun () ->
+            // ledger-f8bjm, Verifier-FAIL Iteration 1: C ging mit der Ersatz-import_id von B hinaus, YNAB
+            // antwortete 409, BB meldete Erfolg, der Spiegel überschrieb C danach still mit B.
+            let entryId, _, _ = seedSplit ()
+            let sentLines = [ line catA -4.00m; line catC -8.00m ]
+            let probe = ToolsProbe()
+            probe.CreateResult <- Some (Error (YnabError.NetworkError "Timeout"))
+            setSplits probe entryId sentLines |> unwrap |> ignore
+
+            // YNAB hält den gesendeten Stand unter der Ersatz-import_id; ein POST darauf gäbe 409.
+            let changeProbe = ToolsProbe()
+            changeProbe.CreateHttp <- Some (HttpStatusCode.Conflict, """{"error":{"id":"409","name":"conflict","detail":"same import_id"}}""")
+            let before = eventTypesOf entryId
+            match setSplits changeProbe entryId [ line catA -6.00m; line catC -6.00m ] with
+            | Error reason -> Expect.equal reason replacementPendingText "der Satz sagt, was zu tun ist"
+            | Ok outcome -> failtest $"eine andere Aufteilung bei offenem Ersatz muss abgelehnt werden, war {outcome.WriteBack}"
+            Expect.equal (eventTypesOf entryId) before "kein Ereignis"
+            Expect.equal changeProbe.WriteCalls 0 "kein schreibender YNAB-Aufruf"
+            Expect.equal changeProbe.MirrorTriggers 0 "kein Spiegel-Anstoß"
+            Expect.equal (entryOf entryId).Splits sentLines "BB hält den gesendeten Stand"
+            Expect.isSome (entryOf entryId).CategorizationWriteBackFailure "der Fehlschlag bleibt offen"
+
+            // Derselbe Inhalt ist kein Änderungswunsch; "Erneut senden" läuft weiter (Test oben).
+            let sameProbe = ToolsProbe()
+            let same = setSplits sameProbe entryId sentLines |> unwrap
+            Expect.equal same.Change CategoryUnchanged "gleicher Inhalt: unverändert"
+            Expect.equal sameProbe.WriteCalls 0 "kein Aufruf"
+
+        testCase "Kaputt: offener Ersatz ohne Fehlschlag, Betrag und Aufteilung ändern wird abgelehnt" <| fun () ->
+            // ledger-f8bjm, Iteration 2: ohne Fehlschlag sperrt `amountNotChangeableReason` nichts.
+            let entryId, oldId, importId = seedSplit ()
+            // Wie nach einem Absturz zwischen Senden und Fehlschlag: kein Fehlschlag sperrt den Betrag.
+            appendAndApply [
+                eventOn entryId UserInBb (EntryReplacementSentToYnab { OldYnabTransactionId = oldId; NewImportId = $"{importId}:r1" })
+            ]
+            |> Async.RunSynchronously
+            let probe = ToolsProbe()
+            probe.CreateHttp <- Some (HttpStatusCode.Conflict, """{"error":{"id":"409","name":"conflict","detail":"same import_id"}}""")
+            let before = eventTypesOf entryId
+            let result =
+                setEntrySplitsWithAmount at probe.Tools entryId [ line catA -5.00m; line catC -10.00m ] -15.00m
+                |> Async.RunSynchronously
+            Expect.equal result (Error replacementPendingText) "abgelehnt mit dem Satz"
+            Expect.equal (eventTypesOf entryId) before "kein Ereignis"
+            Expect.equal probe.WriteCalls 0 "kein schreibender YNAB-Aufruf"
+            Expect.equal (entryOf entryId).Amount (eur -12.00m) "Betrag unverändert"
+
+        testCase "POST mit 400: YNAB hat abgelehnt, der offene Ersatz endet; eine neue Aufteilung geht mit :r2 ohne DELETE" <| fun () ->
+            // ledger-f8bjm, Iteration 2: die Sperre darf eine abgelehnte Buchung nicht festhalten.
+            let entryId, oldId, importId = seedSplit ()
+            let probe = ToolsProbe()
+            probe.CreateHttp <- Some (HttpStatusCode.BadRequest, """{"error":{"id":"400","name":"bad_request","detail":"x"}}""")
+            match (setSplits probe entryId [ line catA -4.00m; line catC -8.00m ] |> unwrap).WriteBack with
+            | CategorySendFailed _ -> ()
+            | other -> failtest $"erwartet Fehlschlag, war {other}"
+            Expect.equal ((entryOf entryId).CategorizationWriteBackFailure |> Option.bind (fun f -> f.YnabDeletedTransactionId)) (Some oldId) "Neuanlage offen"
+            Expect.isNone (entryOf entryId).PendingReplacement "kein offener Ersatz mehr"
+            Expect.isTrue (List.contains "EntryReplacementRejectedByYnab" (eventTypesOf entryId)) "Ablehnung im Log"
+            Expect.equal
+                (entryOf entryId)
+                (loadEventsForEntry entryId |> Async.RunSynchronously |> List.map (fun r -> r.Event) |> replay |> Option.get)
+                "Zustand gleich Replay"
+            Expect.equal probe.MirrorTriggers 0 "kein Spiegel-Anstoß"
+
+            // Ein neuer Inhalt ist danach möglich: nur das POST, mit der nächsten Ersatz-import_id.
+            let changeProbe = ToolsProbe()
+            let changed = setSplits changeProbe entryId [ line catA -6.00m; line catC -6.00m ] |> unwrap
+            Expect.equal changed.WriteBack CategorySent "gesendet"
+            Expect.isEmpty changeProbe.Deletes "kein zweites DELETE"
+            Expect.equal (List.exactlyOne changeProbe.Creates).ImportId (Some $"{importId}:r2") "nächste Ersatz-import_id"
+            Expect.isNone (entryOf entryId).CategorizationWriteBackFailure "Fehlschlag beendet"
+            Expect.isNone (entryOf entryId).PendingReplacement "abgeschlossen"
+
+        testCase "POST mit unlesbarer Antwort: YNAB kann angelegt haben, der offene Ersatz bleibt" <| fun () ->
+            // ledger-f8bjm, Iteration 2.
+            let entryId, _, importId = seedSplit ()
+            let probe = ToolsProbe()
+            probe.CreateHttp <- Some (HttpStatusCode.Created, """{"data":{}}""")
+            setSplits probe entryId [ line catA -4.00m; line catC -8.00m ] |> unwrap |> ignore
+            Expect.equal
+                ((entryOf entryId).PendingReplacement |> Option.map (fun p -> p.NewImportId))
+                (Some $"{importId}:r1")
+                "offener Ersatz bleibt"
+            Expect.isFalse (List.contains "EntryReplacementRejectedByYnab" (eventTypesOf entryId)) "keine Ablehnung"
+
+        testCase "POST mit Netzfehler (ledger-f8bjm): Fehlschlag wie bisher, der offene Ersatz bleibt, Erneut senden schickt dieselbe import_id" <| fun () ->
+            let entryId, oldId, importId = seedSplit ()
+            let probe = ToolsProbe()
+            probe.CreateResult <- Some (Error (YnabError.NetworkError "Timeout"))
+            match (setSplits probe entryId [ line catA -4.00m; line catC -8.00m ] |> unwrap).WriteBack with
+            | CategorySendFailed _ -> ()
+            | other -> failtest $"erwartet Fehlschlag, war {other}"
+            Expect.equal ((entryOf entryId).CategorizationWriteBackFailure |> Option.bind (fun f -> f.YnabDeletedTransactionId)) (Some oldId) "Neuanlage offen"
+            Expect.equal probe.MirrorTriggers 0 "kein Spiegel-Anstoß"
+            let retryProbe = ToolsProbe()
+            retryProbe.CreateResult <- Some (Error (YnabError.NetworkError "Timeout"))
+            retryCategorizationOrSplitWriteBack at (fun _ _ -> async { return Ok () }) retryProbe.Tools noTransfer entryId
+            |> Async.RunSynchronously
+            |> unwrap
+            |> ignore
+            Expect.isEmpty retryProbe.Deletes "kein zweites DELETE"
+            Expect.equal (List.exactlyOne retryProbe.Creates).ImportId (Some $"{importId}:r1") "dieselbe Ersatz-import_id, nicht :r2"
+            Expect.equal
+                (eventTypesOf entryId |> List.filter ((=) "EntryReplacementSentToYnab") |> List.length)
+                1
+                "nur ein Sende-Ereignis"
 
         testCase "DELETE scheitert: Fehlschlag wie bei der Kategorie, kein POST; Erneut senden wiederholt das DELETE" <| fun () ->
             let entryId, oldId, _ = seedSplit ()
@@ -920,20 +1280,6 @@ let private fieldOf (path: string list) (decoder: Decoder<'a>) (json: string) : 
     | Ok v -> v
     | Error e -> failtest $"Pfad {path}: {e}"
 
-type private FakeHandler(status: HttpStatusCode, responseBody: string) =
-    inherit HttpMessageHandler()
-    member val Method : HttpMethod = null with get, set
-    member val Url : string = "" with get, set
-    member val Body : string = "" with get, set
-    override this.SendAsync(request: HttpRequestMessage, _ct: Threading.CancellationToken) =
-        task {
-            this.Method <- request.Method
-            this.Url <- request.RequestUri.ToString()
-            let! body = if isNull request.Content then task { return "" } else request.Content.ReadAsStringAsync()
-            this.Body <- body
-            return new HttpResponseMessage(status, Content = new StringContent(responseBody))
-        }
-
 [<Tests>]
 let splitYnabClientTests =
     let budget = YnabBudgetId "budget-1"
@@ -1015,7 +1361,7 @@ let splitYnabClientTests =
             | Error (YnabError.RateLimitExceeded _) -> ()
             | other -> failtest $"429: {other}"
 
-        testCase "POST: Methode, Pfad, neue Id aus der Antwort, 409 als Fehler" <| fun () ->
+        testCase "POST: Methode, Pfad, neue Id aus der Antwort, 409 heißt YNAB kennt die import_id" <| fun () ->
             let ok = new FakeHandler(HttpStatusCode.Created, """{"data":{"transaction_ids":["neu-1"],"transaction":{"id":"neu-1"}}}""")
             use okClient = new HttpClient(ok)
             Expect.equal (Ynab.sendCreateTransaction okClient budget "{\"transaction\":{}}" |> Async.RunSynchronously) (Ok "neu-1") "Id"
@@ -1025,9 +1371,36 @@ let splitYnabClientTests =
 
             let conflict = new FakeHandler(HttpStatusCode.Conflict, """{"error":{"detail":"same import_id"}}""")
             use conflictClient = new HttpClient(conflict)
-            match Ynab.sendCreateTransaction conflictClient budget "{}" |> Async.RunSynchronously with
-            | Error (YnabError.InvalidResponse msg) -> Expect.stringContains msg "import_id" "Grund"
-            | other -> failtest $"409: {other}"
+            // ledger-f8bjm, Iteration 3: wie bei der Einzelbuchung, sonst beendete der Handler den
+            // offenen Ersatz und legte mit der nächsten Ersatz-import_id doppelt an.
+            Expect.equal
+                (Ynab.sendCreateTransaction conflictClient budget "{}" |> Async.RunSynchronously)
+                (Error YnabError.ImportIdAlreadyInYnab)
+                "409"
+
+        testCase "POST einer Ersatzbuchung (ledger-f8bjm): nur ein gesendeter POST mit 400 oder 404 gilt als abgelehnt" <| fun () ->
+            let post (status: int) (responseBody: string) =
+                let handler = new FakeHandler(enum<HttpStatusCode> status, responseBody)
+                use client = new HttpClient(handler)
+                Ynab.sendCreateTransaction client budget "{}" |> Async.RunSynchronously
+            let rejected (status: int) (responseBody: string) =
+                match post status responseBody with
+                | Error err -> replacementRejected err
+                | Ok _ -> false
+            Expect.isTrue (rejected 400 """{"error":{"id":"400"}}""") "400 abgelehnt"
+            Expect.isTrue (rejected 404 """{"error":{"id":"404"}}""") "404 abgelehnt"
+            Expect.isFalse (rejected 409 """{"error":{"id":"409"}}""") "409 angekommen"
+            Expect.isFalse (rejected 201 """{"data":{}}""") "201 ohne Id: kann angelegt sein"
+            Expect.isFalse (rejected 500 "boom") "5xx"
+            Expect.isFalse (rejected 429 "{}") "429"
+            Expect.isFalse (rejected 401 "{}") "401"
+            match post 400 """{"error":{"detail":"geheimer Rumpf"}}""" with
+            | Error err -> Expect.isFalse ((ynabErrorText err).Contains "geheimer Rumpf") "der Rumpf bleibt im Log"
+            | Ok _ -> failtest "400 ist ein Fehler"
+            // Fehler vor dem POST (Payees, Übertrags-Payee, fehlende Settings) beenden den Ersatz nicht.
+            Expect.isFalse (replacementRejected (YnabError.InvalidResponse "Bad request: payees")) "Payees mit 400"
+            Expect.isFalse (replacementRejected (YnabError.InvalidResponse "Transaction not found")) "Payees mit 404"
+            Expect.isFalse (replacementRejected (YnabError.Unauthorized "No YNAB token configured")) "kein Token"
 
         testCase "parseCreatedTransactionId liest data.transaction.id, sonst data.transaction_ids[0]" <| fun () ->
             Expect.equal (Ynab.parseCreatedTransactionId """{"data":{"transaction":{"id":"a"}}}""") (Some "a") "transaction.id"

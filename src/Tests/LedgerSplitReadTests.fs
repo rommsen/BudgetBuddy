@@ -199,6 +199,7 @@ let splitLocksViewTests =
                 PutSplits = fun _ _ -> async { return Ok () }
                 Delete = fun _ -> async { return Ok () }
                 Create = fun _ -> async { return Error (YnabError.NetworkError "weg") }
+                TriggerMirror = ignore
             }
             let outcome =
                 setEntrySplits at tools entryId [ line catA -4.00m; line catB -8.00m ] |> Async.RunSynchronously

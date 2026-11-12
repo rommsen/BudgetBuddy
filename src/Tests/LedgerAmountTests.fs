@@ -190,6 +190,7 @@ type private SplitProbe() =
                     this.Creates <- this.Creates @ [ request ]
                     return this.CreateResult |> Option.defaultWith (fun () -> Ok $"ynab-m7mye-{Guid.NewGuid()}")
                 }
+        TriggerMirror = ignore
     }
 
 let private okProbe () = AmountProbe(Ok ())
@@ -547,7 +548,7 @@ let splitCommandTests =
             Expect.equal created.ImportId (replacementImportId oldImportId) "Ersatz-import_id"
             Expect.equal
                 (eventTypesOf entryId)
-                [ "EntryObservedInYnab"; "EntryAmountChangedInBb"; "EntryRecategorized"; "EntryReplacedInYnab" ]
+                [ "EntryObservedInYnab"; "EntryAmountChangedInBb"; "EntryRecategorized"; "EntryReplacementSentToYnab"; "EntryReplacedInYnab" ]
                 "Betrag, Aufteilung, Ersatz"
             let entry = entryOf entryId
             Expect.equal entry.Amount (eur -14.50m) "Betrag in BB"

@@ -79,7 +79,7 @@ let private entry (n: int) (amount: decimal) : Entry = {
     LinkedToYnab = false
     PushToYnabFailure = None
     PayeeBeforeTransfer = None
-    PossibleDuplicate = None
+    PossibleDuplicate = None; PendingReplacement = None
 }
 
 let private recorded (seq: int) (actor: Actor) (body: LedgerEventBody) : RecordedLedgerEvent = {

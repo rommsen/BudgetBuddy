@@ -6,7 +6,7 @@ status: accepted
 date: 2026-11-09
 supersedes: []
 superseded_by: []
-related_tasks: [ledger-z6sya, ledger-m7mye, ledger-m7a9q, ledger-t4rk8]
+related_tasks: [ledger-z6sya, ledger-m7mye, ledger-m7a9q, ledger-t4rk8, ledger-f8bjm]
 related_adrs: [0021, 0053, 0055, 0058, 0083, 0086, 0091]
 related_research: []
 ---
@@ -81,3 +81,7 @@ Gegenbuchung einer Split-Übertrags-Zeile: deren Betrag ändert sich nur über d
 Ursprungsbuchung, die Sperre bleibt dort mit eigenem Grund. `amountSplitTransferReason` fällt: der
 Betrag einer Split-Buchung mit Übertrags-Zeile geht wie jeder Split als Ersatz, die Verknüpfung der
 Split-Überträge (ledger-h6mer) läuft danach neu. Umsetzung in ledger-t4rk8.
+
+## Nachtrag 2026-11-12, Wiederherstellen mit offenem Ersatz (ledger-f8bjm)
+
+Zu Punkt 2 und 3. Rückgängig schreibt vor dem POST `EntryRestoreSentToYnab` mit der Ersatz-`import_id`. Das ergänzt „YNAB zuerst“ für das DELETE und kehrt es nicht um. Geht die Antwort verloren oder kommt ein 409, bleibt die Buchung gelöscht, bis der Spiegel die neue Buchung über die `import_id` findet und `EntryRestoredInBb` mit Actor `YnabMirror` schreibt (Historie „In BB wiederhergestellt“ mit Herkunft Spiegel, darüber „Wiederherstellen an YNAB gesendet“ mit Herkunft BB). Ein zweites Rückgängig mit 409 (vom Adapter als `ImportIdAlreadyInYnab` gemeldet) meldet Erfolg und stößt den Spiegel an; ein 400 lässt das Wiederherstellen offen, ein weiteres Rückgängig nimmt dieselbe `import_id`. Für den Betrags-Ersatz einer aufgeteilten Buchung (Punkt 3) gilt die Sperre aus dem Nachtrag zu ADR 0058: bei offenem Ersatz kein anderer Betrag.

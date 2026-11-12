@@ -12,6 +12,8 @@ module LedgerEntryDeletionTests
 //  * der JSON-Vertrag der Neuanlage eines Übertrags (`payee_id` statt `payee_name`).
 
 open System
+open System.Net
+open System.Net.Http
 
 // CRITICAL: Testmodus setzen, BEVOR das Persistence-Modul initialisiert wird.
 do Environment.SetEnvironmentVariable("USE_MEMORY_DB", "true")
@@ -109,6 +111,23 @@ let private balanceOf (account: Account) : decimal =
     |> List.find (fun b -> b.AccountId = id)
     |> fun b -> b.Balance.Amount
 
+/// YNAB antwortet mit festem Status und Rumpf (für den echten Adapter des Ersatz-POST).
+type private FakeHandler(status: HttpStatusCode, responseBody: string) =
+    inherit HttpMessageHandler()
+    override _.SendAsync(_request: HttpRequestMessage, _ct: Threading.CancellationToken) =
+        task { return new HttpResponseMessage(status, Content = new StringContent(responseBody)) }
+
+/// Der POST des Wiederherstellens über den echten Adapter (`Ynab.buildReplacementBody`,
+/// `Ynab.sendCreateTransaction`, wie `Ynab.createReplacement` ohne Übertrag), ledger-f8bjm.
+let private postReplacementVia (status: HttpStatusCode) (responseBody: string) (request: Ynab.SplitReplacement) =
+    async {
+        match Ynab.buildReplacementBody Map.empty request with
+        | Error _ -> return failtest "der Ersatz-Body sollte sich bauen lassen"
+        | Ok body ->
+            use client = new HttpClient(new FakeHandler(status, responseBody))
+            return! Ynab.sendCreateTransaction client (YnabBudgetId "budget-1") body
+    }
+
 /// Die YNAB-Aufrufe von Löschen und Wiederherstellen: zeichnen auf und liefern feste Ergebnisse.
 type private Probe() =
     member val Deletes : string list = [] with get, set
@@ -116,6 +135,8 @@ type private Probe() =
     member val DeleteResult : YnabResult<unit> = Ok () with get, set
     /// Ohne festes Ergebnis liefert der POST je Aufruf eine neue YNAB-Id (Verknüpfungen sind eindeutig).
     member val CreateResult : YnabResult<string> option = None with get, set
+    /// Statt `CreateResult`: YNAB antwortet mit diesem Status und Rumpf, der echte Adapter ordnet zu.
+    member val CreateHttp : (HttpStatusCode * string) option = None with get, set
     member val MirrorTriggers = 0 with get, set
     member this.Delete (id: string) =
         async {
@@ -125,7 +146,9 @@ type private Probe() =
     member this.Create (request: Ynab.SplitReplacement) =
         async {
             this.Creates <- this.Creates @ [ request ]
-            return this.CreateResult |> Option.defaultWith (fun () -> Ok (freshYnabId ()))
+            match this.CreateHttp with
+            | Some (status, responseBody) -> return! postReplacementVia status responseBody request
+            | None -> return this.CreateResult |> Option.defaultWith (fun () -> Ok (freshYnabId ()))
         }
     member this.Trigger () = this.MirrorTriggers <- this.MirrorTriggers + 1
 
@@ -494,6 +517,46 @@ let deletionCommandTests =
             Expect.isTrue (entryOf entryId).DeletedInYnab "bleibt gelöscht"
             Expect.equal (eventsOf entryId |> List.length) before "kein Ereignis"
 
+        testCase "scheitert der POST mit import_id (400), bleibt die Buchung gelöscht; ein zweites Rückgängig schickt dieselbe import_id (ledger-f8bjm)" <| fun () ->
+            let account = freshAccount ()
+            let oldId = freshYnabId ()
+            let entryId = seed (observed account oldId (Some "BB:f8bjm-3"))
+            let probe = Probe(CreateHttp = Some (HttpStatusCode.BadRequest, """{"error":{"id":"400"}}"""))
+            delete probe entryId |> expectOk "Löschen"
+            match restore probe entryId with
+            | Error _ -> ()
+            | Ok () -> failtest "Fehler erwartet"
+            Expect.isTrue (entryOf entryId).DeletedInYnab "bleibt gelöscht"
+            Expect.equal
+                (eventsOf entryId |> List.last).Event.Body
+                (EntryRestoreSentToYnab { OldYnabTransactionId = oldId; NewImportId = "BB:f8bjm-3:r1" })
+                "nur das Senden steht im Log"
+            probe.CreateHttp <- None
+            probe.CreateResult <- Some (Ok "ynab-f8bjm-neu")
+            restore probe entryId |> expectOk "zweites Rückgängig"
+            Expect.equal (probe.Creates |> List.map (fun r -> r.ImportId)) [ Some "BB:f8bjm-3:r1"; Some "BB:f8bjm-3:r1" ] "dieselbe import_id"
+            Expect.isFalse (entryOf entryId).DeletedInYnab "wiederhergestellt"
+            Expect.isNone (entryOf entryId).PendingReplacement "kein offener Ersatz mehr"
+            Expect.equal
+                (eventsOf entryId |> List.map (fun r -> r.EventType) |> List.filter ((=) "EntryRestoreSentToYnab") |> List.length)
+                1
+                "ein Sende-Ereignis"
+
+        testCase "solange ein Ersatz offen ist, lässt sich die Buchung nicht löschen, ohne Aufruf und ohne Ereignis (ledger-f8bjm)" <| fun () ->
+            let account = freshAccount ()
+            let oldId = freshYnabId ()
+            let entryId = seed (observed account oldId (Some "BB:f8bjm-4"))
+            appendAndApply [
+                { EntryId = entryId; OccurredAt = at; Actor = UserInBb
+                  Body = EntryReplacementSentToYnab { OldYnabTransactionId = oldId; NewImportId = "BB:f8bjm-4:r1" } }
+            ]
+            |> Async.RunSynchronously
+            let before = eventsOf entryId |> List.length
+            let probe = Probe()
+            Expect.equal (delete probe entryId) (Error replacementPendingText) "abgelehnt"
+            Expect.isEmpty probe.Deletes "kein DELETE"
+            Expect.equal (eventsOf entryId |> List.length) before "kein Ereignis"
+
         testCase "eine in YNAB gelöschte Buchung lässt sich nicht wiederherstellen, ohne Aufruf" <| fun () ->
             let account = freshAccount ()
             let entryId = seed (observed account (freshYnabId ()) None)
@@ -645,6 +708,56 @@ let deletionMirrorTests =
             Expect.equal summary.DeletedEntries 0 "keine neue Löschung"
             Expect.equal (eventsOf entryId |> List.length) eventsBefore "kein Ereignis"
             Expect.equal (entryOf entryId) stateBefore "Zustand gleich"
+
+        testCase "Kaputt (ledger-f8bjm): Wiederherstellen legt an, Antwort geht verloren; der Spiegel ordnet die Neuanlage der bestehenden Buchung zu" <| fun () ->
+            let account = freshAccount ()
+            let oldId = freshYnabId ()
+            let entryId = seed (observed account oldId (Some "BB:f8bjm-1"))
+            let probe = Probe()
+            delete probe entryId |> expectOk "Löschen"
+            probe.CreateResult <- Some (Error (YnabError.NetworkError "Zeitüberschreitung"))
+            match restore probe entryId with
+            | Error _ -> ()
+            | Ok () -> failtest "die verlorene Antwort ist ein Fehler"
+            let request = List.exactlyOne probe.Creates
+            Expect.equal request.ImportId (Some "BB:f8bjm-1:r1") "Ersatz-import_id im POST"
+
+            // YNAB hat angelegt: der Spiegel sieht die neue Buchung.
+            let newId = freshYnabId ()
+            let summary = runWith account [ { deletion account newId with Deleted = false; ImportId = request.ImportId } ]
+
+            Expect.equal summary.NewEntries 0 "keine neue Kassenbuch-Buchung"
+            Expect.equal (findEntryByLink YnabSystem newId |> Async.RunSynchronously) (Some entryId) "neue YNAB-Id an der bestehenden Buchung"
+            let links = linksForEntry entryId |> Async.RunSynchronously
+            Expect.equal (currentYnabTransactionId links) (Some newId) "die neue Id gilt"
+            Expect.isFalse (entryOf entryId).DeletedInYnab "wieder sichtbar"
+            Expect.equal (balanceOf account) -42.80m "zählt wieder im Kontostand"
+            let (EntryId guid) = entryId
+            let history = Ledger.QueryHandlers.getEntryHistory guid |> Async.RunSynchronously
+            Expect.isTrue
+                (history |> List.exists (fun l -> l.Description = "In BB wiederhergestellt"))
+                "Historie zeigt das Wiederherstellen in BB"
+
+        testCase "Kaputt (ledger-f8bjm): ein zweites Rückgängig nach verlorener Antwort, 409 heißt angekommen" <| fun () ->
+            let account = freshAccount ()
+            let entryId = seed (observed account (freshYnabId ()) (Some "BB:f8bjm-2"))
+            let probe = Probe()
+            delete probe entryId |> expectOk "Löschen"
+            probe.CreateResult <- Some (Error (YnabError.NetworkError "Zeitüberschreitung"))
+            restore probe entryId |> ignore
+            let triggersBefore = probe.MirrorTriggers
+            // ledger-f8bjm, Iteration 3: das 409 kommt über den echten Adapter.
+            probe.CreateHttp <- Some (HttpStatusCode.Conflict, """{"error":{"id":"409","detail":"same import_id"}}""")
+            restore probe entryId |> expectOk "zweites Rückgängig"
+            Expect.equal (probe.Creates |> List.map (fun r -> r.ImportId)) [ Some "BB:f8bjm-2:r1"; Some "BB:f8bjm-2:r1" ] "dieselbe Ersatz-import_id"
+            Expect.equal probe.MirrorTriggers (triggersBefore + 1) "Spiegel angestoßen"
+
+            let newId = freshYnabId ()
+            let summary = runWith account [ { deletion account newId with Deleted = false; ImportId = Some "BB:f8bjm-2:r1" } ]
+            Expect.equal summary.NewEntries 0 "keine neue Kassenbuch-Buchung"
+            Expect.isFalse (entryOf entryId).DeletedInYnab "wieder sichtbar"
+            let links = linksForEntry entryId |> Async.RunSynchronously
+            Expect.equal (currentYnabTransactionId links) (Some newId) "nach dem Spiegel verknüpft"
 
         testCase "nach dem Wiederherstellen setzt die Löschung der alten Id DeletedInYnab nicht" <| fun () ->
             let account = freshAccount ()

@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-12 09:40 -- Task verified and completed: ledger-f8bjm - "Ersatz-POST mit verlorener Antwort: Wiederherstellen, Split- und Betrags-Ersatz scheitern danach dauerhaft an 409, der Spiegel legt die Ersatzbuchung als neue Buchung „YNAB-Spiegel“ an; die Ersatz-import_id muss vor dem POST im Kassenbuch stehen (Ledger/CommandHandlers.fs)"
+
+**Type:** Work / Task completion
+**Task:** ledger-f8bjm - "Ersatz-POST mit verlorener Antwort: Wiederherstellen, Split- und Betrags-Ersatz scheitern danach dauerhaft an 409, der Spiegel legt die Ersatzbuchung als neue Buchung „YNAB-Spiegel“ an; die Ersatz-import_id muss vor dem POST im Kassenbuch stehen (Ledger/CommandHandlers.fs)"
+**Summary:** Ersatz-POST mit verlorener Antwort: Ersatz-import_id vor dem POST im Kassenbuch, 409 heißt angekommen, der Spiegel schließt den offenen Ersatz ab statt doppelt anzulegen
+**Duration:** 1h55m
+**Verification:** PASS (iteration 3)
+**Files changed:** 20
+**Tests added:** 15
+**ADRs written:** none (Nachträge ADR 0058, 0092)
+
+---
+
 ## 2026-11-12 09:29 -- Task verified and completed: ledger-dn4vy - "Filter und Liste nach Styleguide: Betrag Von/Bis mit Zifferntastatur, Name und Fehlerzustand, Schnellwahl als Segmented, Payee-Vorschläge mit Tastatur, lesbare ausgegraute Zeile, Fokus am Prüfknopf, Lena-Grund als Text"
 
 **Type:** Work / Task completion

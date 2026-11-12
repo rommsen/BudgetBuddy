@@ -380,6 +380,20 @@ type EntryRestoredInBbPayload = {
     NewImportId: string option
 }
 
+/// BB hat eine Ersatzbuchung an YNAB geschickt, deren neue YNAB-Id es noch nicht kennt
+/// (ledger-f8bjm, ADR 0058 und 0092 Nachtrag 2026-11-12): geschrieben unter der Schreib-Sperre
+/// unmittelbar vor dem POST, nur wenn die Ersatzbuchung eine `import_id` trägt. Die Ersatz-
+/// `import_id` steht damit vor dem POST im Kassenbuch (ADR 0021): geht die Antwort verloren,
+/// ordnet der Spiegel die Ersatzbuchung über sie der Buchung zu. Gleiche Felder für den
+/// Split-Ersatz (`EntryReplacementSentToYnab`) und das Wiederherstellen (`EntryRestoreSentToYnab`).
+type EntryReplacementSentPayload = {
+    /// Die YNAB-Id, die die Ersatzbuchung ablöst (beim Split-Ersatz schon gelöscht, beim
+    /// Wiederherstellen die beim Löschen gelöschte).
+    OldYnabTransactionId: string
+    /// Die Ersatz-`import_id` (`replacementImportId`), unter der die Ersatzbuchung in YNAB steht.
+    NewImportId: string
+}
+
 /// Das Flag wurde in BB geändert (ADR 0056, Punkt 2): "Lena fragen", "Rückfrage zurücknehmen"
 /// und "Rückgängig" erzeugen denselben Typ. Die Absicht steht nicht im Log, nur der Übergang
 /// (Alt und Neu, roh wie YNAB sie liefert). Actor `UserInBb`.
@@ -548,6 +562,16 @@ type LedgerEventBody =
     /// Löschen mit "Rückgängig" aufgehoben, nachdem YNAB die Buchung neu angelegt hat
     /// (ledger-z6sya). Entscheidung.
     | EntryRestoredInBb of EntryRestoredInBbPayload
+    /// Die Ersatzbuchung eines Split- oder Betrags-Ersatzes ist an YNAB geschickt, ihre neue Id
+    /// noch unbekannt (ledger-f8bjm). Abgeschlossen durch `EntryReplacedInYnab`.
+    | EntryReplacementSentToYnab of EntryReplacementSentPayload
+    /// Die Neuanlage nach "Rückgängig" ist an YNAB geschickt, ihre neue Id noch unbekannt
+    /// (ledger-f8bjm). Abgeschlossen durch `EntryRestoredInBb`.
+    | EntryRestoreSentToYnab of EntryReplacementSentPayload
+    /// YNAB hat die Ersatzbuchung eines offenen Split- oder Betrags-Ersatzes abgelehnt (400 oder
+    /// 404, ledger-f8bjm): unter ihrer `import_id` steht dort nichts, der offene Ersatz endet. Der
+    /// nächste Versuch nimmt die nächste Ersatz-`import_id`. Geschrieben mit dem Fehlschlag.
+    | EntryReplacementRejectedByYnab of EntryReplacementSentPayload
     /// Der Abruf hält eine neue Buchung als unsicheres Duplikat zurück, kein Push nach YNAB
     /// (banking-import-d0fey, ADR 0093 Punkt 3). Entscheidung des Imports.
     | EntryHeldAsPossibleDuplicate of EntryHeldAsPossibleDuplicatePayload
@@ -636,6 +660,9 @@ let eventTypeName (body: LedgerEventBody) : string =
     | EntryDiscardedInBb _ -> "EntryDiscardedInBb"
     | EntryDeletedInBb _ -> "EntryDeletedInBb"
     | EntryRestoredInBb _ -> "EntryRestoredInBb"
+    | EntryReplacementSentToYnab _ -> "EntryReplacementSentToYnab"
+    | EntryRestoreSentToYnab _ -> "EntryRestoreSentToYnab"
+    | EntryReplacementRejectedByYnab _ -> "EntryReplacementRejectedByYnab"
     | EntryHeldAsPossibleDuplicate _ -> "EntryHeldAsPossibleDuplicate"
     | EntryConfirmedAsNewInBb -> "EntryConfirmedAsNewInBb"
     | EntryDiscardedAsDuplicateInBb _ -> "EntryDiscardedAsDuplicateInBb"
@@ -702,6 +729,9 @@ let schemaVersion (body: LedgerEventBody) : int =
     | EntryDiscardedInBb _ -> 1
     | EntryDeletedInBb _ -> 1
     | EntryRestoredInBb _ -> 1
+    | EntryReplacementSentToYnab _ -> 1
+    | EntryRestoreSentToYnab _ -> 1
+    | EntryReplacementRejectedByYnab _ -> 1
     | EntryHeldAsPossibleDuplicate _ -> 1
     | EntryConfirmedAsNewInBb -> 1
     | EntryDiscardedAsDuplicateInBb _ -> 1
@@ -1341,6 +1371,18 @@ module Codec =
             NewImportId = get.Optional.Field "newImportId" Decode.string
         })
 
+    let encodeReplacementSent (p: EntryReplacementSentPayload) =
+        Encode.object [
+            "oldYnabTransactionId", Encode.string p.OldYnabTransactionId
+            "newImportId", Encode.string p.NewImportId
+        ]
+
+    let decodeReplacementSent : Decoder<EntryReplacementSentPayload> =
+        Decode.object (fun get -> {
+            OldYnabTransactionId = get.Required.Field "oldYnabTransactionId" Decode.string
+            NewImportId = get.Required.Field "newImportId" Decode.string
+        })
+
     let encodeFlagChangedInBb (p: EntryFlagChangedInBbPayload) =
         Encode.object [
             "oldFlagColor", encodeOptionalString p.OldFlagColor
@@ -1505,6 +1547,9 @@ let encodePayload (body: LedgerEventBody) : string =
         | EntryDiscardedInBb p -> Codec.encodeDiscardedInBb p
         | EntryDeletedInBb p -> Codec.encodeDeletedInBb p
         | EntryRestoredInBb p -> Codec.encodeRestoredInBb p
+        | EntryReplacementSentToYnab p -> Codec.encodeReplacementSent p
+        | EntryRestoreSentToYnab p -> Codec.encodeReplacementSent p
+        | EntryReplacementRejectedByYnab p -> Codec.encodeReplacementSent p
         | EntryHeldAsPossibleDuplicate p -> Codec.encodeHeldAsPossibleDuplicate p
         | EntryConfirmedAsNewInBb -> Encode.object []
         | EntryDiscardedAsDuplicateInBb p -> Codec.encodeDiscardedAsDuplicateInBb p
@@ -1595,6 +1640,12 @@ let decodePayload (eventType: string) (version: int) (payload: string) : Result<
         Decode.fromString Codec.decodeDeletedInBb payload |> Result.map EntryDeletedInBb
     | "EntryRestoredInBb", 1 ->
         Decode.fromString Codec.decodeRestoredInBb payload |> Result.map EntryRestoredInBb
+    | "EntryReplacementSentToYnab", 1 ->
+        Decode.fromString Codec.decodeReplacementSent payload |> Result.map EntryReplacementSentToYnab
+    | "EntryRestoreSentToYnab", 1 ->
+        Decode.fromString Codec.decodeReplacementSent payload |> Result.map EntryRestoreSentToYnab
+    | "EntryReplacementRejectedByYnab", 1 ->
+        Decode.fromString Codec.decodeReplacementSent payload |> Result.map EntryReplacementRejectedByYnab
     | "EntryHeldAsPossibleDuplicate", 1 ->
         Decode.fromString Codec.decodeHeldAsPossibleDuplicate payload |> Result.map EntryHeldAsPossibleDuplicate
     | "EntryConfirmedAsNewInBb", 1 -> Ok EntryConfirmedAsNewInBb

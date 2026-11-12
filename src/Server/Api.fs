@@ -1154,6 +1154,7 @@ let private splitWriteTools () : Async<Ledger.CommandHandlers.SplitWriteTools> =
                 PutSplits = fun ynabTransactionId splits -> YnabClient.updateSplits token budget ynabTransactionId splits
                 Delete = fun ynabTransactionId -> YnabClient.deleteTransaction token budget ynabTransactionId
                 Create = fun replacement -> YnabClient.createReplacement token budget replacement
+                TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground
             }
         | _ ->
             let error =
@@ -1166,6 +1167,7 @@ let private splitWriteTools () : Async<Ledger.CommandHandlers.SplitWriteTools> =
                 PutSplits = fun _ _ -> async { return Error error }
                 Delete = fun _ -> async { return Error error }
                 Create = fun _ -> async { return Error error }
+                TriggerMirror = ignore
             }
     }
 

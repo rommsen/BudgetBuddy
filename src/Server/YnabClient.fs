@@ -2113,8 +2113,50 @@ let sendDeleteTransaction
             return Error (YnabError.NetworkError $"Failed to delete transaction: {ex.Message}")
     }
 
+/// Der Text eines Ersatz-POST, den YNAB mit 400 abgelehnt hat (ledger-f8bjm).
+let private replacementBadRequestText = "Ersatzbuchung ungültig (HTTP 400)"
+
+/// Der Text eines Ersatz-POST, dessen Budget oder Konto YNAB nicht kennt (404, ledger-f8bjm).
+let private replacementNotFoundText = "Budget oder Konto der Ersatzbuchung nicht gefunden (HTTP 404)"
+
+/// Ordnet die Antwort auf den POST einer Ersatzbuchung zu (Split- oder Betrags-Ersatz,
+/// Wiederherstellen; ADR 0058 Punkt 2, ADR 0092). 200 und 201 liefern die neue YNAB-Id, ohne
+/// lesbare Id ist die Antwort unlesbar. 409 heißt wie bei der Einzelbuchung: YNAB kennt die
+/// `import_id` schon (`ImportIdAlreadyInYnab`, ledger-f8bjm), die Buchung ist angekommen. 400 und
+/// 404 sind Ablehnungen (`replacementRejectedByYnab`). Der Rumpf geht nur ins Log.
+let interpretReplacementResponse (status: int) (bodyText: string) : YnabResult<string> =
+    match status with
+    | 200
+    | 201 ->
+        match parseCreatedTransactionId bodyText with
+        | Some id -> Ok id
+        | None -> Error (unreadableResponseOf "POST" "transactions" "keine Id der neuen Buchung")
+    | 400 ->
+        printfn "[YNAB] POST transactions: HTTP 400: %s" bodyText
+        Error (YnabError.InvalidResponse replacementBadRequestText)
+    | 401 -> Error (YnabError.Unauthorized "YNAB-Token ungültig")
+    | 404 ->
+        printfn "[YNAB] POST transactions: HTTP 404: %s" bodyText
+        Error (YnabError.InvalidResponse replacementNotFoundText)
+    | 409 ->
+        printfn "[YNAB] POST transactions: HTTP 409: %s" bodyText
+        Error YnabError.ImportIdAlreadyInYnab
+    | 429 -> Error (YnabError.RateLimitExceeded 60)
+    | _ -> Error (statusFailureOf "POST" "transactions" status bodyText)
+
+/// Hat YNAB einen gesendeten Ersatz-POST abgelehnt (400 oder 404 aus
+/// `interpretReplacementResponse`)? Dann steht unter seiner `import_id` in YNAB nichts (ADR 0058
+/// Probelauf 3: nur eine angelegte Buchung sperrt ihre `import_id`). Nein bei allem anderen, auch
+/// bei einer unlesbaren Antwort (auch ein 201 kann unlesbar sein), bei Netzfehlern, 5xx und bei
+/// Fehlern vor dem POST (Payees, Übertrags-Payee): dort kann die Buchung angelegt sein oder ein
+/// späterer Versuch mit derselben `import_id` klärt es (ledger-f8bjm). Rein.
+let replacementRejectedByYnab (error: YnabError) : bool =
+    match error with
+    | YnabError.InvalidResponse message -> message = replacementBadRequestText || message = replacementNotFoundText
+    | _ -> false
+
 /// Legt die ersetzte Buchung neu an (`POST .../transactions`, eine Buchung) und liefert
-/// ihre neue YNAB-Id.
+/// ihre neue YNAB-Id; die Antwort ordnet `interpretReplacementResponse` zu.
 let sendCreateTransaction
     (httpClient: System.Net.Http.HttpClient)
     (YnabBudgetId budgetId: YnabBudgetId)
@@ -2131,12 +2173,7 @@ let sendCreateTransaction
             printfn "[YNAB] POST /budgets/%s/transactions - Ersatz einer Split-Buchung" budgetId
             printfn "[YNAB] Response Status: %d" statusCode
 
-            match mapSplitStatus statusCode bodyText [ 200; 201 ] with
-            | Error e -> return Error e
-            | Ok () ->
-                match parseCreatedTransactionId bodyText with
-                | Some id -> return Ok id
-                | None -> return Error (YnabError.InvalidResponse "Die Antwort nennt keine Id der neuen Buchung")
+            return interpretReplacementResponse statusCode bodyText
         with ex ->
             return Error (YnabError.NetworkError $"Failed to create transaction: {ex.Message}")
     }
