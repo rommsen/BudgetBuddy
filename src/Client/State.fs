@@ -445,9 +445,7 @@ let isInputActive (model: Model) : bool =
         || draftDiffers ledger.MemoDraft (filters.Memo |> Option.defaultValue "")
         || draftDiffers ledger.AmountMinDraft (amountText filters.AmountMin)
         || draftDiffers ledger.AmountMaxDraft (amountText filters.AmountMax)
-        || ledger.ReviewMarkBatchRunning
-        || ledger.CategoryBatchRunning
-        || ledger.LenaBatchRunning
+        || ledger.BatchRunning.IsSome
     let rulesActive = model.Rules.EditingRule.IsSome
     let settingsActive = model.Settings.EditingSection.IsSome
     let quickAddActive =

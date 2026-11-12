@@ -1138,6 +1138,14 @@ let reviewProgressText (index: int) (count: int) : string option =
 let reviewProgressPercent (index: int) (count: int) : float =
     if count <= 0 || index >= count then 100.0 else float index / float count * 100.0
 
+/// Der laufende Sammellauf der Auswahl (ledger-sjbvc), je Sammelaktion ein Fall. Ihr Rückgängig
+/// läuft im Fall der Aktion. Es läuft höchstens einer: alle Sammelaktionen und ihr Rückgängig
+/// sind gesperrt, solange einer läuft.
+type BatchRun =
+    | ReviewMarkBatchRun
+    | CategoryBatchRun
+    | LenaBatchRun
+
 type Model = {
     /// Die Konten samt Vorauswahl des Servers.
     Accounts: RemoteData<LedgerAccountsView>
@@ -1369,24 +1377,17 @@ type Model = {
     /// `CategoryPickerFor` dem Detail bleibt. Die Auswahl bleibt während der Wahl bestehen.
     BatchCategoryPickerOpen: bool
 
-    /// Läuft gerade ein Sammel-Aufruf "Kategorie setzen" (oder seine Rücknahme)? Dann sind
-    /// beide Sammelaktionen der Leiste gesperrt.
-    CategoryBatchRunning: bool
+    /// Welcher Sammel-Aufruf der Auswahl gerade läuft ("Geprüft", "Kategorie setzen", "Lena
+    /// fragen" bzw. "Rückfrage zurücknehmen", oder ihr Rückgängig). Solange einer läuft, sind
+    /// alle Sammelaktionen der Leiste gesperrt, ein zweiter Klick löst keinen zweiten Aufruf aus
+    /// (ledger-sjbvc).
+    BatchRunning: BatchRun option
 
     /// Die Fokuszeile der Tastaturnavigation am PC (ledger-rjb8w, `keyboardCursor` aus
     /// Handoff Ablauf 7). `None`, bis die erste Taste sie setzt. Sie überlebt das
     /// Neuladen der Liste; fällt die Zeile danach aus der Liste, springt der Fokus auf die
     /// erste Zeile.
     FocusedRow: Guid option
-
-    /// Läuft gerade ein Stapel-Aufruf "Geprüft" für die Auswahl (ledger-nhwrt)? Dann ist die
-    /// Aktion in der Leiste gesperrt, ein zweiter Klick löst keinen zweiten Aufruf aus.
-    ReviewMarkBatchRunning: bool
-
-    /// Läuft gerade ein Sammel-Aufruf "Lena fragen" bzw. "Rückfrage zurücknehmen" für die
-    /// Auswahl (ledger-y54gr), oder seine Rücknahme? Dann sind alle Sammelaktionen der Leiste
-    /// gesperrt, ein zweiter Klick löst keinen zweiten Aufruf aus.
-    LenaBatchRunning: bool
 
     // ============================================
     // Kategorie ändern im Detail (ledger-sfab0)

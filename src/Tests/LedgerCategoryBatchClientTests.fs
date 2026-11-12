@@ -119,8 +119,8 @@ let pickerTests =
             Expect.isFalse closed.BatchCategoryPickerOpen "zweiter Klick schließt"
 
         testCase "während ein Sammelaufruf läuft, öffnet der Picker nicht (beide Aktionen gesperrt)" <| fun () ->
-            for running in [ { selectedModel () with CategoryBatchRunning = true }
-                             { selectedModel () with ReviewMarkBatchRunning = true } ] do
+            for running in [ { selectedModel () with BatchRunning = Some CategoryBatchRun }
+                             { selectedModel () with BatchRunning = Some ReviewMarkBatchRun } ] do
                 let m, _, _ = update ToggleBatchCategoryPicker running
                 Expect.isFalse m.BatchCategoryPickerOpen "gesperrt"
 
@@ -150,7 +150,7 @@ let startTests =
         testCase "die Wahl ruft den Befehl mit der Auswahl auf, sperrt die Aktionen und schließt den Picker" <| fun () ->
             let model = { selectedModel () with BatchCategoryPickerOpen = true }
             let started, sent, _ = run (StartCategoryBatch (Some (catId 2))) model
-            Expect.isTrue started.CategoryBatchRunning "gesperrt"
+            Expect.equal started.BatchRunning (Some CategoryBatchRun) "gesperrt"
             Expect.isFalse started.BatchCategoryPickerOpen "Picker zu"
             // ledger-r8h19: ersetzt den Teilstring-Test der Verdrahtung in LedgerRecentCategoriesTests.
             Expect.equal (List.tryHead started.RecentCategories) (Some (catGuid 2)) "rückt an die Spitze von Zuletzt verwendet"
@@ -163,9 +163,9 @@ let startTests =
         testCase "ohne Auswahl und während ein Aufruf läuft löst die Wahl nichts aus" <| fun () ->
             let _, none, _ = run (StartCategoryBatch None) { selectedModel () with Selection = NoSelection }
             Expect.isEmpty none "ohne Auswahl kein Aufruf"
-            let _, again, _ = run (StartCategoryBatch None) { selectedModel () with CategoryBatchRunning = true }
+            let _, again, _ = run (StartCategoryBatch None) { selectedModel () with BatchRunning = Some CategoryBatchRun }
             Expect.isEmpty again "ein zweiter Aufruf läuft nicht"
-            let _, review, _ = run (StartCategoryBatch None) { selectedModel () with ReviewMarkBatchRunning = true }
+            let _, review, _ = run (StartCategoryBatch None) { selectedModel () with BatchRunning = Some ReviewMarkBatchRun }
             Expect.isEmpty review "auch nicht während Geprüft läuft"
 
         testCase "AllExcept: der Aufruf trägt die Treffer-Anfrage und die Ausnahmen" <| fun () ->
@@ -184,11 +184,11 @@ let doneTests =
     testList "Kategorie setzen für die Auswahl: Ergebnis (ledger-w29y6)" [
 
         testCase "Erfolg: Auswahl samt Modus beendet, Zeilen tragen die neue Kategorie, LoadCategories folgt" <| fun () ->
-            let model = { selectedModel () with SelectionMode = true; CategoryBatchRunning = true }
+            let model = { selectedModel () with SelectionMode = true; BatchRunning = Some CategoryBatchRun }
             let m, sent, external = run (CategoryBatchDone (Some (catId 2), Ok threeChanged)) model
             Expect.equal m.Selection NoSelection "Auswahl beendet"
             Expect.isFalse m.SelectionMode "Auswahl-Modus beendet"
-            Expect.isFalse m.CategoryBatchRunning "Aktionen frei"
+            Expect.isNone m.BatchRunning "Aktionen frei"
             for n in [ 1; 2; 3 ] do
                 Expect.equal (rowOf n m).CategoryId (Some (catGuid 2)) $"Zeile {n} trägt die neue Kategorie"
                 Expect.equal (rowOf n m).CategoryName (Some (choice 2).CategoryName) $"Zeile {n} trägt den Namen"
@@ -203,7 +203,7 @@ let doneTests =
 
         testCase "ohne geänderte Buchung: Toast ohne Aktion, kein LoadCategories" <| fun () ->
             let outcome = outcomeOf [] 2 [ SkipSplit ]
-            let _, sent, external = run (CategoryBatchDone (Some (catId 2), Ok outcome)) { selectedModel () with CategoryBatchRunning = true }
+            let _, sent, external = run (CategoryBatchDone (Some (catId 2), Ok outcome)) { selectedModel () with BatchRunning = Some CategoryBatchRun }
             Expect.isFalse (List.contains LoadCategories sent) "nichts geändert"
             match external with
             | ShowToast (text, ToastInfo) -> Expect.stringContains text "Keine Buchung geändert" "Satz"
@@ -220,8 +220,8 @@ let doneTests =
             | other -> failtest $"erwartet Warn-Toast mit Aktion, war {other}"
 
         testCase "Fehler des Befehls: Aktionen frei, Fehler-Toast, Auswahl bleibt" <| fun () ->
-            let m, _, external = run (CategoryBatchDone (None, Error "kaputt")) { selectedModel () with CategoryBatchRunning = true }
-            Expect.isFalse m.CategoryBatchRunning "frei"
+            let m, _, external = run (CategoryBatchDone (None, Error "kaputt")) { selectedModel () with BatchRunning = Some CategoryBatchRun }
+            Expect.isNone m.BatchRunning "frei"
             Expect.equal m.Selection (selectedModel ()).Selection "Auswahl bleibt"
             match external with
             | ShowToast (text, ToastError) -> Expect.stringContains text "kaputt" "Meldung"
@@ -275,7 +275,7 @@ let undoTests =
                   change 2 None CategorySent
                   change 3 (Some (choice 1)) CategorySent ]
             let m, sent, _ = run (StartUndoCategoryBatch changes) (selectedModel ())
-            Expect.isTrue m.CategoryBatchRunning "gesperrt"
+            Expect.equal m.BatchRunning (Some CategoryBatchRun) "gesperrt"
             match sent with
             | [ RunUndoCategoryBatch groups ] ->
                 Expect.equal groups [ Some (choice 1), idsOf [ 1; 3 ]; None, idsOf [ 2 ] ] "zwei Gruppen, ein PATCH je Gruppe"
@@ -289,8 +289,8 @@ let undoTests =
             let undoOutcome =
                 outcomeOf [ for n in 1..3 -> change n (Some (choice 2)) CategorySent ] 0 []
             let restored, sent, external =
-                run (CategoryBatchRestored [ Some (choice 1), Ok undoOutcome ]) { afterDo with CategoryBatchRunning = true }
-            Expect.isFalse restored.CategoryBatchRunning "frei"
+                run (CategoryBatchRestored [ Some (choice 1), Ok undoOutcome ]) { afterDo with BatchRunning = Some CategoryBatchRun }
+            Expect.isNone restored.BatchRunning "frei"
             for n in [ 1; 2; 3 ] do
                 Expect.equal (rowOf n restored).CategoryId (Some (catGuid 1)) $"Zeile {n} zurück"
             Expect.isEmpty (Set.toList restored.FilteredOut) "keine ausgegraute Zeile mehr"

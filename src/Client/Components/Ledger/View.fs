@@ -3530,6 +3530,23 @@ let batchPickerProps (dispatch: Msg -> unit) (model: Model) : CategoryPicker.Cat
         OnSelect = CategoryPicker.categoryChoice (fun choice -> dispatch (StartCategoryBatch choice))
         OnClose = fun () -> dispatch CloseBatchCategoryPicker }
 
+/// Sperre und Ladezustand der Auswahl-Leiste (ledger-sjbvc).
+type SelectionBarRun =
+    { /// Läuft ein Sammelaufruf, sind alle Sammelaktionen gesperrt.
+      Locked: bool
+      ReviewBusy: bool
+      CategoryBusy: bool
+      /// Der Ladezustand steht an "Lena fragen", auch beim Zurücknehmen und beim Rückgängig.
+      LenaBusy: bool }
+
+/// Leitet aus dem laufenden Sammellauf ab, welche Schaltfläche lädt und ob die Leiste sperrt.
+/// Ein Rückgängig lädt an der Schaltfläche seiner Aktion. Rein.
+let selectionBarRun (running: BatchRun option) : SelectionBarRun =
+    { Locked = running.IsSome
+      ReviewBusy = (running = Some ReviewMarkBatchRun)
+      CategoryBusy = (running = Some CategoryBatchRun)
+      LenaBusy = (running = Some LenaBatchRun) }
+
 /// Die Auswahl-Leiste am unteren Rand (ledger-r1d2f), mit der einen primären Aktion
 /// "Geprüft" (ledger-nhwrt). Am Handy
 /// erscheint sie im Auswahl-Modus und ersetzt die Tab-Bar (zwei Reihen), am PC, solange die
@@ -3540,14 +3557,14 @@ let batchPickerProps (dispatch: Msg -> unit) (model: Model) : CategoryPicker.Cat
 let selectionBars (dispatch: Msg -> unit) (model: Model) : ReactElement =
     let totals = selectionTotals model
     let countText = selectionBarCountText totals.Count
-    // Läuft einer der beiden Sammelaufrufe, sind beide Aktionen gesperrt.
-    let locked = model.ReviewMarkBatchRunning || model.CategoryBatchRunning || model.LenaBatchRunning
+    let run = selectionBarRun model.BatchRunning
+    let locked = run.Locked
     let pickerProps = batchPickerProps dispatch model
     // Popover am PC, Sheet am Handy: nie beide, denn das Sheet portalt in den Body (ADR 0043).
     let desktop = Viewport.isDesktopViewport ()
     let category : MultiSelect.CategoryAction =
         { Label = selectionCategoryLabel
-          IsBusy = model.CategoryBatchRunning
+          IsBusy = run.CategoryBusy
           IsLocked = locked
           OnClick = fun () -> dispatch ToggleBatchCategoryPicker
           Popover =
@@ -3565,7 +3582,7 @@ let selectionBars (dispatch: Msg -> unit) (model: Model) : ReactElement =
     // Grund; zurücknehmen braucht sie nicht.
     let lena : MultiSelect.LenaAction =
         { Label = selectionLenaLabel totals.Count
-          IsBusy = model.LenaBatchRunning
+          IsBusy = run.LenaBusy
           IsLocked = locked
           Reason = selectionLenaDisabledReason model.LenaFlagColor
           OnClick = fun () -> dispatch (StartLenaBatch AssignLena) }
@@ -3584,7 +3601,7 @@ let selectionBars (dispatch: Msg -> unit) (model: Model) : ReactElement =
                 (isAllSelected model.Selection)
                 (fun () -> dispatch ToggleSelectAll)
                 selectionReviewedLabel
-                model.ReviewMarkBatchRunning
+                run.ReviewBusy
                 locked
                 (fun () -> dispatch StartReviewMarkBatch)
                 category
@@ -3600,7 +3617,7 @@ let selectionBars (dispatch: Msg -> unit) (model: Model) : ReactElement =
                           countText
                           totals.Amount
                           selectionReviewedLabel
-                          model.ReviewMarkBatchRunning
+                          run.ReviewBusy
                           locked
                           (fun () -> dispatch StartReviewMarkBatch)
                           category

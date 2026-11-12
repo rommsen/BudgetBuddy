@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-12 08:22 -- Task verified and completed: ledger-sjbvc - "Sammellauf der Auswahl in einem Feld statt drei Bool-Flags: alle Sammelstarts und ihr Rückgängig prüfen einen Merker, StartReviewMarkBatch und StartUndoReviewMarkBatch sperren richtig, Aufzählung über die drei Sammelaktionen nach Doktrin Punkt 20"
+
+**Type:** Work / Task completion
+**Task:** ledger-sjbvc - "Sammellauf der Auswahl in einem Feld statt drei Bool-Flags: alle Sammelstarts und ihr Rückgängig prüfen einen Merker, StartReviewMarkBatch und StartUndoReviewMarkBatch sperren richtig, Aufzählung über die drei Sammelaktionen nach Doktrin Punkt 20"
+**Summary:** Sammellauf der Auswahl in einem Feld BatchRunning statt drei Bool-Flags, Aufzählung über alle Sammelstarts samt Rückgängig
+**Duration:** 16m
+**Verification:** PASS (iteration 1)
+**Files changed:** 8
+**Tests added:** 2
+**ADRs written:** none
+
+---
+
+## 2026-11-12 08:20 -- Verification failed: ledger-ct3cx - Kassenbuch-Liste behält Auswahl, Seiten und Scrollstand
+
+**Type:** Work / Verification failure
+**Task:** ledger-ct3cx - Kassenbuch-Liste behält Auswahl, Seiten und Scrollstand
+**Iteration:** 1 of 3
+**Reasons:** AllExcept verliert Ausnahmen außerhalb des nachgeladenen Fensters (Sammelaktion trifft abgewählte Buchung), fehlender Test für Herausschieben aus dem Fenster, README-Satz
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-12 08:17 -- Batch started: [ledger-f8bjm]
 
 **Type:** Work / Batch start

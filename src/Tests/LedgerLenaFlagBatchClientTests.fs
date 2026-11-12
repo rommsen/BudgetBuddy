@@ -91,7 +91,7 @@ let reducerTests =
         testCase "Start sperrt die Sammelaktionen und löst den Aufruf mit der Auswahl aus" <| fun () ->
             let model = modelWith [ entryOf 1; entryOf 2 ] |> selecting [ 1; 2 ]
             let model', msgs, _ = run (StartLenaBatch AssignLena) model
-            Expect.isTrue model'.LenaBatchRunning "gesperrt"
+            Expect.equal model'.BatchRunning (Some LenaBatchRun) "gesperrt"
             match msgs with
             | [ RunLenaBatch (BatchPicked ids, AssignLena) ] ->
                 Expect.equal (Set.ofList ids) (Set.ofList [ idOf 1; idOf 2 ]) "die gewählten Ids"
@@ -102,12 +102,12 @@ let reducerTests =
             let noop name model target =
                 let model', msgs, _ = run (StartLenaBatch target) model
                 Expect.isEmpty msgs $"{name}: kein Aufruf"
-                Expect.equal model'.LenaBatchRunning model.LenaBatchRunning $"{name}: Sperre unverändert"
+                Expect.equal model'.BatchRunning model.BatchRunning $"{name}: Sperre unverändert"
             noop "ohne Auswahl" base' AssignLena
             noop "ohne Farbe" ({ (selecting [ 1 ] base') with LenaFlagColor = Success None }) AssignLena
-            noop "Geprüft läuft" ({ (selecting [ 1 ] base') with ReviewMarkBatchRunning = true }) AssignLena
-            noop "Kategorie läuft" ({ (selecting [ 1 ] base') with CategoryBatchRunning = true }) WithdrawLena
-            noop "Lena läuft" ({ (selecting [ 1 ] base') with LenaBatchRunning = true }) WithdrawLena
+            noop "Geprüft läuft" ({ (selecting [ 1 ] base') with BatchRunning = Some ReviewMarkBatchRun }) AssignLena
+            noop "Kategorie läuft" ({ (selecting [ 1 ] base') with BatchRunning = Some CategoryBatchRun }) WithdrawLena
+            noop "Lena läuft" ({ (selecting [ 1 ] base') with BatchRunning = Some LenaBatchRun }) WithdrawLena
 
         testCase "Zurücknehmen braucht die Farbe nicht" <| fun () ->
             let model = { (modelWith [ lenaEntry 1 ] |> selecting [ 1 ]) with LenaFlagColor = Success None }
@@ -115,7 +115,7 @@ let reducerTests =
             Expect.equal (List.length msgs) 1 "Aufruf geht hinaus"
 
         testCase "die anderen Sammelaktionen sind während des Lena-Aufrufs gesperrt" <| fun () ->
-            let model = { (modelWith [ entryOf 1 ] |> selecting [ 1 ]) with LenaBatchRunning = true }
+            let model = { (modelWith [ entryOf 1 ] |> selecting [ 1 ]) with BatchRunning = Some LenaBatchRun }
             let _, reviewMsgs, _ = run StartReviewMarkBatch model
             Expect.isEmpty reviewMsgs "Geprüft gesperrt"
             let _, categoryMsgs, _ = run (StartCategoryBatch None) model
@@ -124,7 +124,7 @@ let reducerTests =
             Expect.isFalse picker.BatchCategoryPickerOpen "Picker bleibt zu"
 
         testCase "Ergebnis: geladene Zeilen tragen Lena, die Auswahl endet, der Zähler wächst, ein Toast mit Rückgängig" <| fun () ->
-            let model = { (modelWith [ entryOf 1; entryOf 2; entryOf 3 ] |> selecting [ 1; 2 ]) with LenaBatchRunning = true }
+            let model = { (modelWith [ entryOf 1; entryOf 2; entryOf 3 ] |> selecting [ 1; 2 ]) with BatchRunning = Some LenaBatchRun }
             let result = outcome [ change 1 noFlagState FlagSent; change 2 markedState FlagSent ]
             let model', _, external = run (LenaBatchDone (AssignLena, Ok result)) model
             Expect.equal (rowOf 1 model').Flag AskLena "Zeile 1"
@@ -133,7 +133,7 @@ let reducerTests =
             Expect.equal model'.AskLenaCount 2 "Zähler"
             Expect.equal model'.Selection NoSelection "Auswahl endet"
             Expect.isFalse model'.SelectionMode "Auswahl-Modus endet"
-            Expect.isFalse model'.LenaBatchRunning "Sperre frei"
+            Expect.isNone model'.BatchRunning "Sperre frei"
             match external with
             | ShowToastWithAction (text, ToastSuccess, action) ->
                 Expect.equal text "2 Buchungen an Lena gefragt" "Satz"
@@ -141,7 +141,7 @@ let reducerTests =
             | other -> failtest $"Toast mit Rückgängig erwartet, war {other}"
 
         testCase "Fehlschlag je Buchung: die Zeile trägt den Grund, der Toast ist eine Warnung" <| fun () ->
-            let model = { (modelWith [ entryOf 1; entryOf 2 ] |> selecting [ 1; 2 ]) with LenaBatchRunning = true }
+            let model = { (modelWith [ entryOf 1; entryOf 2 ] |> selecting [ 1; 2 ]) with BatchRunning = Some LenaBatchRun }
             let result = outcome [ change 1 noFlagState FlagSent; change 2 noFlagState (FlagSendFailed "Keine Verbindung") ]
             let model', _, external = run (LenaBatchDone (AssignLena, Ok result)) model
             Expect.equal (rowOf 1 model').FlagWriteBackFailure None "gesendet"
@@ -152,7 +152,7 @@ let reducerTests =
             | other -> failtest $"Warnung erwartet, war {other}"
 
         testCase "ohne Änderung: Info-Toast ohne Rückgängig, die Auswahl endet trotzdem" <| fun () ->
-            let model = { (modelWith [ lenaEntry 1 ] |> selecting [ 1 ]) with LenaBatchRunning = true }
+            let model = { (modelWith [ lenaEntry 1 ] |> selecting [ 1 ]) with BatchRunning = Some LenaBatchRun }
             let result : FlagBatchOutcome = { Changed = []; UnchangedCount = 1; FailedCount = 0; HeldCount = 0 }
             let model', _, external = run (LenaBatchDone (AssignLena, Ok result)) model
             Expect.equal model'.Selection NoSelection "Auswahl endet"
@@ -161,9 +161,9 @@ let reducerTests =
             | other -> failtest $"Info-Toast erwartet, war {other}"
 
         testCase "Fehler des Aufrufs: Sperre frei, Auswahl bleibt, Fehler-Toast" <| fun () ->
-            let model = { (modelWith [ entryOf 1 ] |> selecting [ 1 ]) with LenaBatchRunning = true }
+            let model = { (modelWith [ entryOf 1 ] |> selecting [ 1 ]) with BatchRunning = Some LenaBatchRun }
             let model', _, external = run (LenaBatchDone (AssignLena, Error "kaputt")) model
-            Expect.isFalse model'.LenaBatchRunning "Sperre frei"
+            Expect.isNone model'.BatchRunning "Sperre frei"
             Expect.notEqual model'.Selection NoSelection "Auswahl bleibt"
             match external with
             | ShowToast (text, ToastError) -> Expect.stringContains text "kaputt" "Grund"
@@ -173,7 +173,7 @@ let reducerTests =
             let rows = [ lenaEntry 1; lenaEntry 2; lenaEntry 3 ]
             let model =
                 { (modelWith rows |> selecting [ 1; 2 ]) with
-                    LenaBatchRunning = true
+                    BatchRunning = Some LenaBatchRun
                     Filters = { (modelWith rows).Filters with OnlyAskLena = true } }
             let result = outcome [ change 1 lenaState FlagSent; change 2 lenaState FlagSent ]
             let model', _, _ = run (LenaBatchDone (WithdrawLena, Ok result)) model
@@ -188,11 +188,11 @@ let reducerTests =
         testCase "Rückgängig stellt je Buchung den Vorzustand her, auch Markiert; der Chip nimmt sie wieder auf" <| fun () ->
             let rows = [ entryOf 1; entryOf 2 ]
             let model =
-                { (modelWith rows |> selecting [ 1; 2 ]) with LenaBatchRunning = true }
+                { (modelWith rows |> selecting [ 1; 2 ]) with BatchRunning = Some LenaBatchRun }
             let result = outcome [ change 1 noFlagState FlagSent; change 2 markedState FlagSent ]
             let assigned, _, _ = run (LenaBatchDone (AssignLena, Ok result)) model
             let started, msgs, _ = run (StartUndoFlagBatch result.Changed) assigned
-            Expect.isTrue started.LenaBatchRunning "Rücknahme sperrt"
+            Expect.equal started.BatchRunning (Some LenaBatchRun) "Rücknahme sperrt"
             let items =
                 match msgs with
                 | [ RunUndoFlagBatch items ] -> items
@@ -203,7 +203,7 @@ let reducerTests =
             Expect.equal (rowOf 1 restored).Flag NoFlag "ohne Flag zurück"
             Expect.equal (rowOf 2 restored).Flag Marked "Markiert zurück"
             Expect.equal restored.AskLenaCount 0 "Zähler zurück"
-            Expect.isFalse restored.LenaBatchRunning "Sperre frei"
+            Expect.isNone restored.BatchRunning "Sperre frei"
             match external with
             | ShowToast (text, ToastSuccess) -> Expect.equal text "Flag bei 2 Buchungen zurückgesetzt" "Satz"
             | other -> failtest $"Erfolgs-Toast ohne Rückgängig erwartet, war {other}"
@@ -213,26 +213,26 @@ let reducerTests =
             let baseModel = modelWith rows
             let model =
                 { (baseModel |> selecting [ 1 ]) with
-                    LenaBatchRunning = true
+                    BatchRunning = Some LenaBatchRun
                     Filters = { baseModel.Filters with OnlyAskLena = true } }
             let withdrawn, _, _ =
                 run (LenaBatchDone (WithdrawLena, Ok (outcome [ change 1 lenaState FlagSent ]))) model
             Expect.isTrue (withdrawn.FilteredOut.Contains (idOf 1)) "ausgegraut"
             let items : FlagRestoreItem list = [ { EntryId = idOf 1; Previous = lenaState } ]
             let restored, _, _ =
-                run (FlagBatchRestored (items, Ok (outcome [ change 1 noFlagState FlagSent ]))) { withdrawn with LenaBatchRunning = true }
+                run (FlagBatchRestored (items, Ok (outcome [ change 1 noFlagState FlagSent ]))) { withdrawn with BatchRunning = Some LenaBatchRun }
             Expect.equal (rowOf 1 restored).Flag AskLena "wieder Lena"
             Expect.isFalse (restored.FilteredOut.Contains (idOf 1)) "wieder Treffer"
             Expect.equal restored.TotalCount 2 "Trefferzahl zurück"
 
         testCase "Rückgängig lässt eine neue Auswahl stehen; ein Fehler gibt die Sperre frei" <| fun () ->
-            let model = { (modelWith [ entryOf 1; entryOf 2 ] |> selecting [ 2 ]) with LenaBatchRunning = true }
+            let model = { (modelWith [ entryOf 1; entryOf 2 ] |> selecting [ 2 ]) with BatchRunning = Some LenaBatchRun }
             let items : FlagRestoreItem list = [ { EntryId = idOf 1; Previous = noFlagState } ]
             let restored, _, _ =
                 run (FlagBatchRestored (items, Ok (outcome [ change 1 lenaState FlagSent ]))) model
             Expect.notEqual restored.Selection NoSelection "Auswahl bleibt"
             let failed, _, external = run (FlagBatchRestored (items, Error "kaputt")) model
-            Expect.isFalse failed.LenaBatchRunning "Sperre frei"
+            Expect.isNone failed.BatchRunning "Sperre frei"
             match external with
             | ShowToast (_, ToastError) -> ()
             | other -> failtest $"Fehler-Toast erwartet, war {other}"

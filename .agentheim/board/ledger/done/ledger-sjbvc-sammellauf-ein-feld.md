@@ -1,7 +1,7 @@
 ---
 id: ledger-sjbvc
 title: "Sammellauf der Auswahl in einem Feld statt drei Bool-Flags: alle Sammelstarts und ihr Rückgängig prüfen einen Merker, StartReviewMarkBatch und StartUndoReviewMarkBatch sperren richtig, Aufzählung über die drei Sammelaktionen nach Doktrin Punkt 20"
-status: doing
+status: done
 type: refactor
 context: ledger
 created: 2026-11-12
@@ -78,3 +78,41 @@ Befunde:
 - Überschneidungen: ledger-smv1s (Teil 1) ändert in State.fs die Zeilen-Zweige 1855 bis 2460, 3303 und das Durchgehen,
   keine gemeinsame Funktion. Andere Bestandsreview-Tasks berühren den Sammel-Abschnitt nicht.
 - Keine Server-Änderung.
+
+## Outcome
+
+Die drei Bool-Flags `CategoryBatchRunning`, `ReviewMarkBatchRunning` und `LenaBatchRunning` sind ersetzt durch
+`BatchRunning: BatchRun option` mit den Fällen `ReviewMarkBatchRun`, `CategoryBatchRun` und `LenaBatchRun`
+(`src/Client/Components/Ledger/Types.fs`). `grep -rn "BatchRunning: bool" src/Client` ist leer.
+
+- `src/Client/Components/Ledger/State.fs`: `StartReviewMarkBatch`, `ToggleBatchCategoryPicker` (in der Task
+  `OpenBatchCategoryPicker` genannt), `StartCategoryBatch`, `StartUndoCategoryBatch`, `StartLenaBatch`,
+  `StartUndoFlagBatch` und neu `StartUndoReviewMarkBatch` prüfen nur `BatchRunning` und setzen den Fall ihrer Aktion
+  (ein Rückgängig den Fall seiner Aktion). Jede Antwort löst ihn, neu auch `ReviewMarkBatchRestored` Ok
+  (`resetEntries { model with BatchRunning = None }`) und Error. Ein gesperrter Start und ein gesperrtes Rückgängig
+  bleiben still (Modell gleich, keine Nachricht, `NoOp`).
+- `src/Client/Components/Ledger/View.fs`: reine Funktion `selectionBarRun` (Typ `SelectionBarRun`: `Locked`,
+  `ReviewBusy`, `CategoryBusy`, `LenaBusy`) leitet Sperre und Ladezustand der Auswahl-Leiste ab; der Ladezustand steht
+  an derselben Schaltfläche wie vorher (Kategorie, "Lena fragen", Geprüft). Kein Browser-Test prüfte den Ladezustand,
+  daher der Expecto-Test "Auswahl-Leiste: Sperre und Ladezustand (ledger-sjbvc)".
+- `src/Client/State.fs` (`isInputActive`) liest `ledger.BatchRunning.IsSome`; `src/Tests/PwaTests.fs` hat je Fall
+  einen `active`-Eintrag.
+- Aufzählung nach Doktrin Punkt 20: `src/Tests/LedgerReviewMarkBatchClientTests.fs`, Testliste "Sammellauf der
+  Auswahl: höchstens einer (ledger-sjbvc)". Sie geht bis Tiefe 5 alle Folgen aus den sieben Starts (Geprüft,
+  Kategorie, Lena fragen, Rückfrage zurücknehmen, die drei Rückgängig), Picker auf/zu, neuer Auswahl (langes Drücken)
+  und den Antworten Ok und Error des offenen Aufrufs durch das echte `update`. Orakel ist ein eigener Zähler der
+  ausgegebenen `Run…`-Nachrichten und zugestellten Antworten. Geprüft: nie mehr als ein offener Aufruf; ein
+  gesperrter Start ändert das Modell nicht, schickt keine Nachricht und meldet nichts; der Picker öffnet nicht bei
+  offenem Aufruf; nach jeder Antwort startet jede Sammelaktion wieder und der Picker öffnet (wenn eine Auswahl
+  sichtbar ist; nach dem Neuladen durch "Rückgängig Geprüft" ist keine Zeile geladen, dann schließt der Picker
+  ohnehin). Der Einzelfall "während ein Aufruf läuft" ab Zeile 87 ist entfernt, der Teil "ohne Auswahl" bleibt.
+- Roter Lauf vor dem Umbau (gegen den alten Code, Ausgabe in
+  `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/20e05553-37dc-4f2f-bcee-5ef520140bf9/scratchpad/e3/sjbvc-red.txt`),
+  unter anderem: "zwei offene Sammelaufrufe: Kategorie offen, dann Geprüft", "Rückgängig Geprüft offen, dann
+  Rückgängig Geprüft", "Rückgängig Geprüft offen, dann Kategorie / Lena fragen / Rückfrage zurücknehmen / Rückgängig
+  Kategorie / Rückgängig Lena", "Geprüft offen, dann Rückgängig Geprüft", "Lena offen, dann Rückgängig Geprüft" und
+  "der Picker öffnet bei offenem Aufruf: Rückgängig Geprüft offen, dann Picker". Nach dem Umbau grün (1,2 s).
+- Fixtures in `LedgerCategoryBatchClientTests.fs` und `LedgerLenaFlagBatchClientTests.fs` auf `BatchRunning = Some …`
+  umgestellt.
+- `./verify.sh`: `VERIFY: PASS` (dotnet 4770 grün, node 316 grün).
+- Keine Skizze, Kriterium Skizzenvergleich entfällt.

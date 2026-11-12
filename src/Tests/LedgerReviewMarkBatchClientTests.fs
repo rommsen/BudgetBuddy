@@ -63,7 +63,7 @@ let startTests =
         testCase "Picked: der Stapel-Aufruf trägt die gewählten Ids" <| fun () ->
             let model = { modelWith false 5 5 with Selection = Picked (Set.ofList (rowIds [ 1; 3 ])) }
             let started, cmd, _ = update StartReviewMarkBatch model
-            Expect.isTrue started.ReviewMarkBatchRunning "Aktion gesperrt"
+            Expect.equal started.BatchRunning (Some ReviewMarkBatchRun) "Aktion gesperrt"
             match messagesOf cmd with
             | [ RunReviewMarkBatch (BatchPicked ids) ] ->
                 Expect.equal (List.sort ids) (List.sort (rowIds [ 1; 3 ])) "genau die gewählten Ids"
@@ -84,12 +84,9 @@ let startTests =
                 Expect.equal (query.Page, query.LocallyRemoved) (0, 0) "Seite und Versatz zählen für den Treffer nicht"
             | other -> failtest $"erwartet RunReviewMarkBatch (BatchAllExcept ...), war {other}"
 
-        testCase "ohne Auswahl und während ein Aufruf läuft löst der Klick nichts aus" <| fun () ->
+        testCase "ohne Auswahl löst der Klick nichts aus" <| fun () ->
             let _, noSelection, _ = update StartReviewMarkBatch (modelWith false 3 3)
             Expect.isEmpty noSelection "ohne Auswahl kein Aufruf"
-            let running = { modelWith false 3 3 with Selection = Picked (Set.ofList (rowIds [ 1 ])); ReviewMarkBatchRunning = true }
-            let _, again, _ = update StartReviewMarkBatch running
-            Expect.isEmpty again "ein zweiter Klick schickt keinen zweiten Aufruf"
     ]
 
 [<Tests>]
@@ -101,12 +98,12 @@ let doneTests =
                 { modelWith true 5 5 with
                     Selection = Picked (Set.ofList (rowIds [ 1; 2; 3 ]))
                     SelectionMode = true
-                    ReviewMarkBatchRunning = true }
+                    BatchRunning = Some ReviewMarkBatchRun }
             let outcome = outcomeOf [ change 1 ReviewMarkSent; change 2 ReviewMarkSent; change 3 ReviewMarkSent ] 0 0
             let model', cmd, _ = update (ReviewMarkBatchDone (Ok outcome)) model
             Expect.equal model'.Selection NoSelection "Auswahl aufgehoben"
             Expect.isFalse model'.SelectionMode "Auswahl-Modus beendet"
-            Expect.isFalse model'.ReviewMarkBatchRunning "Aktion wieder frei"
+            Expect.isNone model'.BatchRunning "Aktion wieder frei"
             Expect.equal (entriesOf model' |> List.map (fun e -> e.Id)) (rowIds [ 4; 5 ]) "gesetzte Zeilen verlassen die Liste"
             Expect.equal model'.NeedsReviewCount 2 "Zähler sinkt um die Zahl der gesetzten Buchungen"
             Expect.equal model'.TotalCount 2 "Treffer sinkt"
@@ -147,9 +144,9 @@ let doneTests =
             let model =
                 { modelWith true 3 3 with
                     Selection = Picked (Set.ofList (rowIds [ 1 ]))
-                    ReviewMarkBatchRunning = true }
+                    BatchRunning = Some ReviewMarkBatchRun }
             let model', _, external = update (ReviewMarkBatchDone (Error "Netz weg")) model
-            Expect.isFalse model'.ReviewMarkBatchRunning "wieder frei"
+            Expect.isNone model'.BatchRunning "wieder frei"
             Expect.equal model'.Selection model.Selection "Auswahl bleibt"
             match external with
             | ShowToast (text, ToastError) -> Expect.stringContains text "Netz weg" "Grund im Toast"
@@ -243,4 +240,183 @@ let undoTests =
             match external with
             | ShowToast (text, ToastError) -> Expect.stringContains text "weg" "Grund"
             | other -> failtest $"erwartet Fehler-Toast, war {other}"
+    ]
+
+// ============================================
+// Sammellauf der Auswahl: höchstens einer (ledger-sjbvc, Doktrin Punkt 20)
+// ============================================
+
+/// Ein ausgegebener Sammel-Aufruf. Der Zähler der Aufzählung ist eigen: der Test soll nicht dem
+/// Feld glauben, das er prüft.
+type private BatchCall =
+    | ReviewCall
+    | CategoryCall
+    | LenaCall
+    | UndoReviewCall
+    | UndoCategoryCall
+    | UndoFlagCall
+
+let private batchCallOf (msg: Msg) : BatchCall option =
+    match msg with
+    | RunReviewMarkBatch _ -> Some ReviewCall
+    | RunCategoryBatch _ -> Some CategoryCall
+    | RunLenaBatch _ -> Some LenaCall
+    | RunUndoReviewMarkBatch _ -> Some UndoReviewCall
+    | RunUndoCategoryBatch _ -> Some UndoCategoryCall
+    | RunUndoFlagBatch _ -> Some UndoFlagCall
+    | _ -> None
+
+let private batchCategory = YnabCategoryId (Guid.Parse "0195e900-0000-7000-8000-0000000000c1")
+
+let private categoryChange : CategoryBatchChange = { EntryId = (row 1).Id; Previous = None; WriteBack = CategorySent }
+
+let private categoryOutcome : CategoryBatchOutcome = { Changed = [ categoryChange ]; UnchangedCount = 0; Skipped = [] }
+
+let private noFlag : FlagState = { Color = None; Name = None }
+
+let private flagChange : FlagBatchChange = { EntryId = (row 1).Id; Previous = noFlag; WriteBack = FlagSent }
+
+let private flagOutcome : FlagBatchOutcome = { Changed = [ flagChange ]; UnchangedCount = 0; FailedCount = 0; HeldCount = 0 }
+
+let private flagItems : FlagRestoreItem list = [ { EntryId = (row 1).Id; Previous = noFlag } ]
+
+let private reviewItems : ReviewMarkRestoreItem list =
+    [ { EntryId = (row 1).Id; Previous = { IsApproved = false; ClearedState = ReviewUncleared } } ]
+
+/// Alle Sammelstarts und ihr Rückgängig. Der Picker der Kategorie zählt nicht dazu: er gibt keinen
+/// Aufruf aus, darf aber nicht öffnen, solange einer offen ist.
+let private batchStarts : (string * Msg) list =
+    [ "Geprüft", StartReviewMarkBatch
+      "Kategorie", StartCategoryBatch (Some batchCategory)
+      "Lena fragen", StartLenaBatch AssignLena
+      "Rückfrage zurücknehmen", StartLenaBatch WithdrawLena
+      "Rückgängig Geprüft", StartUndoReviewMarkBatch reviewItems
+      "Rückgängig Kategorie", StartUndoCategoryBatch [ categoryChange ]
+      "Rückgängig Lena", StartUndoFlagBatch [ flagChange ] ]
+
+/// Der Start, der den Aufruf ausgegeben hat, für die Meldung.
+let private callName (call: BatchCall) : string =
+    match call with
+    | ReviewCall -> "Geprüft"
+    | CategoryCall -> "Kategorie"
+    | LenaCall -> "Lena"
+    | UndoReviewCall -> "Rückgängig Geprüft"
+    | UndoCategoryCall -> "Rückgängig Kategorie"
+    | UndoFlagCall -> "Rückgängig Lena"
+
+/// Die beiden Antworten (Ok und Error) eines offenen Aufrufs.
+let private answersOf (call: BatchCall) : (string * Msg) list =
+    match call with
+    | ReviewCall ->
+        [ "Geprüft Ok", ReviewMarkBatchDone (Ok (outcomeOf [ change 1 ReviewMarkSent ] 0 0))
+          "Geprüft Error", ReviewMarkBatchDone (Error "weg") ]
+    | CategoryCall ->
+        [ "Kategorie Ok", CategoryBatchDone (Some batchCategory, Ok categoryOutcome)
+          "Kategorie Error", CategoryBatchDone (Some batchCategory, Error "weg") ]
+    | LenaCall ->
+        [ "Lena Ok", LenaBatchDone (AssignLena, Ok flagOutcome)
+          "Lena Error", LenaBatchDone (AssignLena, Error "weg") ]
+    | UndoReviewCall ->
+        [ "Rückgängig Geprüft Ok", ReviewMarkBatchRestored (Ok (outcomeOf [ change 1 ReviewMarkSent ] 0 0))
+          "Rückgängig Geprüft Error", ReviewMarkBatchRestored (Error "weg") ]
+    | UndoCategoryCall ->
+        [ "Rückgängig Kategorie Ok", CategoryBatchRestored [ None, Ok categoryOutcome ]
+          "Rückgängig Kategorie Error", CategoryBatchRestored [ None, Error "weg" ] ]
+    | UndoFlagCall ->
+        [ "Rückgängig Lena Ok", FlagBatchRestored (flagItems, Ok flagOutcome)
+          "Rückgängig Lena Error", FlagBatchRestored (flagItems, Error "weg") ]
+
+/// Drei geladene Zeilen auf einem Konto, Zeile 1 gewählt, die Flag-Farbe gesetzt.
+let private batchBase () : Model =
+    { modelWith false 3 3 with
+        Selection = Picked (Set.ofList (rowIds [ 1 ]))
+        LenaFlagColor = Success (Some "purple") }
+
+/// Nach einem Ergebnis endet die Auswahl; langes Drücken beginnt eine neue.
+let private selectRow : Msg = StartSelectionMode (row 1).Id
+
+/// Alle Ereignisse in diesem Zustand: jeder Start, der Picker, eine neue Auswahl (nach einem
+/// Ergebnis endet sie) und die Antworten des offenen Aufrufs.
+let private batchEvents (model: Model) (pending: BatchCall list) : (string * Msg) list =
+    [ yield! batchStarts
+      if model.BatchCategoryPickerOpen then "Picker zu", CloseBatchCategoryPicker
+      else "Picker", ToggleBatchCategoryPicker
+      if Components.Ledger.State.reviewMarkBatchSelection model |> Option.isNone then "Zeile wählen", selectRow
+      for call in List.distinct pending do
+          yield! answersOf call ]
+
+/// Macht jeden Start möglich: ohne Auswahl wählt langes Drücken Zeile 1 (durch das echte update).
+/// "Alle" ginge nach dem Neuladen nicht: ohne Treffer ist die Auswahl leer.
+let private armed (model: Model) : Model =
+    if Components.Ledger.State.reviewMarkBatchSelection model |> Option.isSome then model
+    else
+        let model', _, _ = update selectRow model
+        model'
+
+/// Geht alle Folgen bis `depth` ab. Ein Verstoß wird mit dem Schritt davor gesammelt, so nennt die
+/// Meldung jedes verletzte Paar einmal statt nur den ersten Pfad.
+let private walkBatches (depth: int) : int * string list =
+    let mutable steps = 0
+    let violations = Collections.Generic.SortedSet<string>()
+    let isStart (name: string) = batchStarts |> List.exists (fun (n, _) -> n = name)
+    let rec go (left: int) (path: string list) (model: Model) (pending: BatchCall list) =
+        for name, msg in batchEvents model pending do
+            let after, cmd, external = update msg model
+            steps <- steps + 1
+            let path' = name :: path
+            let pair =
+                match pending with
+                | call :: _ -> $"{callName call} offen, dann {name}"
+                | [] -> path' |> List.truncate 2 |> List.rev |> String.concat " -> "
+            let fail (what: string) = violations.Add $"{what}: {pair}" |> ignore
+            let issued = messagesOf cmd |> List.choose batchCallOf
+            let answered =
+                pending |> List.tryFind (fun call -> answersOf call |> List.exists (fun (n, _) -> n = name))
+            let remaining =
+                match answered with
+                | Some call -> List.removeAt (List.findIndex ((=) call) pending) pending
+                | None -> pending
+            let pending' = remaining @ issued
+            if pending'.Length > 1 then fail "zwei offene Sammelaufrufe"
+            if isStart name && not pending.IsEmpty then
+                if after <> model then fail "gesperrter Start ändert das Modell"
+                if not (List.isEmpty (messagesOf cmd)) then fail "gesperrter Start schickt eine Nachricht"
+                if external <> NoOp then fail "gesperrter Start meldet etwas"
+            if name = "Picker" && not pending.IsEmpty && after.BatchCategoryPickerOpen then
+                fail "der Picker öffnet bei offenem Aufruf"
+            if answered.IsSome && pending'.IsEmpty then
+                for startName, start in batchStarts do
+                    let _, startCmd, _ = update start (armed after)
+                    if (messagesOf startCmd |> List.choose batchCallOf).Length <> 1 then
+                        fail $"nach der Antwort startet {startName} nicht"
+                // Nach dem Neuladen (Rückgängig Geprüft) ist keine Zeile geladen: ohne sichtbare
+                // Auswahl schließt der Picker ohnehin, das ist keine Sperre.
+                if not after.BatchCategoryPickerOpen && hasSelection (armed after) then
+                    let opened, _, _ = update ToggleBatchCategoryPicker (armed after)
+                    if not opened.BatchCategoryPickerOpen then fail "nach der Antwort öffnet der Picker nicht"
+            // Nach einem Verstoß weiterzugehen zählte nur Folgefehler.
+            if left > 1 && pending'.Length <= 1 then go (left - 1) path' after pending'
+    go depth [] (batchBase ()) []
+    steps, List.ofSeq violations
+
+[<Tests>]
+let batchRunTests =
+    testList "Sammellauf der Auswahl: höchstens einer (ledger-sjbvc)" [
+        testCase "alle Folgen aus Sammelstarts, Rückgängig, Picker und Antworten bis Tiefe 5" <| fun () ->
+            let steps, violations = walkBatches 5
+            Expect.isGreaterThan steps 1000 "die Aufzählung erreicht genug Zustände"
+            Expect.isEmpty violations (String.concat "\n" violations)
+    ]
+
+[<Tests>]
+let selectionBarRunTests =
+    testList "Auswahl-Leiste: Sperre und Ladezustand (ledger-sjbvc)" [
+        testCase "ohne Lauf ist nichts gesperrt, je Lauf lädt die Schaltfläche seiner Aktion und alles sperrt" <| fun () ->
+            let shown (running: BatchRun option) =
+                let run = Components.Ledger.View.selectionBarRun running
+                run.Locked, run.ReviewBusy, run.CategoryBusy, run.LenaBusy
+            Expect.equal (shown None) (false, false, false, false) "frei"
+            Expect.equal (shown (Some ReviewMarkBatchRun)) (true, true, false, false) "Geprüft"
+            Expect.equal (shown (Some CategoryBatchRun)) (true, false, true, false) "Kategorie"
+            Expect.equal (shown (Some LenaBatchRun)) (true, false, false, true) "Lena"
     ]

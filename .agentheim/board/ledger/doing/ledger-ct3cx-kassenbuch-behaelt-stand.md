@@ -165,3 +165,14 @@ Hinweise für den Worker:
 - ledger-f8d7x baut Filter-Sheet und Chips, deren Entfernen die Zweige hier ruft; übernimmt die neuen Nachrichten statt
   eigener Lade-Wege.
 - ledger-nc708 (Teil 2) ändert das Innere von `reloadHistoryFor`; dieser Teil ruft es nur.
+
+## Verifier note (iteration 1)
+
+REASONS:
+- Bei „alle“ (`AllExcept`) kann eine abgewählte Buchung durch das Nachladen wieder in die Auswahl rutschen und dann von einer Sammelaktion getroffen werden. `applyEntriesRefresh` (`| AllExcept excluded -> AllExcept (Set.intersect excluded present)`) entfernt jede Ausnahme, deren Id nicht in der Antwort steht; die Antwort umfasst aber nur ein Fenster von `NextPage * pageSize` Zeilen (`refreshRequest`). Bringt der Spiegel-Lauf eine neue Buchung oben in die Liste, fällt die letzte geladene Zeile aus dem Fenster, obwohl sie noch zum Treffer gehört. Hat Roman genau diese Zeile unter „alle“ abgewählt, ist die Ausnahme weg, und `reviewMarkBatchSelection` (`BatchAllExcept (query, Set.toList excluded)`) schickt sie nicht mehr mit. „Geprüft für die Auswahl“ oder „Kategorie setzen“ schreibt dann auf eine abgewählte Buchung, der Push geht nach YNAB. Neue Regression, verfälscht Daten.
+- Das Beschneiden bringt dort nichts: `selectionTotals` zieht nur geladene Ausnahmen ab, der Server ignoriert Ids, die nicht mehr existieren. Für das Herausschieben aus dem Fenster gibt es keinen Test; die Aufzählung „Reihenfolgen beim Nachladen im Hintergrund“ prüft `AllExcept` nicht. Bei `Picked` dasselbe in die harmlose Richtung: eine gewählte Zeile, die aus dem Fenster geschoben wird, verliert still ihre Auswahl.
+- README_DELTA (Spiegel-Lauf-Op, letzter Satz): „Neu auf baut sie nur, wenn …“ ist kein Satz; besser „Neu aufgebaut wird sie nur, wenn …“. Die Code-Bedingung nennt auch eine Liste, die noch lädt (`Entries` nicht `Success`).
+
+SUGGESTED_FIX: Ausnahmen (und gewählte Ids) bei `AllExcept`/`Picked` nur dann fallen lassen, wenn die Antwort den ganzen Treffer abdeckt (Länge der Antwort kleiner als die angefragte Fenstergröße bzw. gleich TotalCount). Sonst Ausnahmen und gewählte Ids behalten, die nicht in der Antwort stehen, weil sie hinter dem Fenster liegen können. Dazu ein Expecto-Test: unter „alle“ wird die letzte geladene Zeile abgewählt, das Nachladen liefert oben eine neue Buchung und schiebt sie aus dem Fenster, danach steht sie weiter in `excluded` von `reviewMarkBatchSelection`; ebenso für `Picked`. Die Aufzählung um `AllExcept` mit einer Ausnahme am Fensterende erweitern. README-Satz glätten.
+
+ITERATION_HINT: likely-fixable

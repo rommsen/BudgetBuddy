@@ -135,10 +135,8 @@ let init () : Model * Cmd<Msg> =
         SelectionAnchor = None
         SelectionMode = false
         BatchCategoryPickerOpen = false
-        CategoryBatchRunning = false
+        BatchRunning = None
         FocusedRow = None
-        ReviewMarkBatchRunning = false
-        LenaBatchRunning = false
         CategoryPickerFor = None
         SplitEditor = None
         QuickAddAccountId = None
@@ -922,7 +920,7 @@ let private applyReviewMarkBatch (outcome: ReviewMarkBatchOutcome) (model: Model
             Selection = NoSelection
             SelectionAnchor = None
             SelectionMode = false
-            ReviewMarkBatchRunning = false
+            BatchRunning = None
             NeedsReviewCount = max 0 (model.NeedsReviewCount - changedCount)
     }
     match ended.Entries with
@@ -991,7 +989,7 @@ let private applyCategoryBatch
             SelectionAnchor = None
             SelectionMode = false
             BatchCategoryPickerOpen = false
-            CategoryBatchRunning = false
+            BatchRunning = None
     }
     let changedCount = List.length outcome.Changed
     let targetId = target |> Option.map (fun t -> t.CategoryId)
@@ -1055,9 +1053,9 @@ let private applyFlagBatch
                 Selection = NoSelection
                 SelectionAnchor = None
                 SelectionMode = false
-                LenaBatchRunning = false }
+                BatchRunning = None }
         else
-            { model with LenaBatchRunning = false }
+            { model with BatchRunning = None }
     let isLena (state: FlagState) = if flagOfState state = AskLena then 1 else 0
     let askLenaDelta =
         outcome.Changed |> List.sumBy (fun c -> isLena (newStateOf c.EntryId) - isLena c.Previous)
@@ -3523,10 +3521,10 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     // ============================================
 
     | StartReviewMarkBatch ->
-        // Nur mit Auswahl und ohne laufenden Aufruf; der Proxy-Aufruf steckt hinter `Run...`.
+        // Nur mit Auswahl und ohne laufenden Sammelaufruf; der Proxy-Aufruf steckt hinter `Run...`.
         match reviewMarkBatchSelection model with
-        | Some selection when not model.ReviewMarkBatchRunning && not model.LenaBatchRunning ->
-            { model with ReviewMarkBatchRunning = true }, Cmd.ofMsg (RunReviewMarkBatch selection), NoOp
+        | Some selection when model.BatchRunning.IsNone ->
+            { model with BatchRunning = Some ReviewMarkBatchRun }, Cmd.ofMsg (RunReviewMarkBatch selection), NoOp
         | _ -> model, Cmd.none, NoOp
 
     | RunReviewMarkBatch selection ->
@@ -3552,11 +3550,16 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         model', (if reload then Cmd.ofMsg LoadEntries else Cmd.none), external
 
     | ReviewMarkBatchDone (Error message) ->
-        { model with ReviewMarkBatchRunning = false },
+        { model with BatchRunning = None },
         Cmd.none,
         ShowToast ($"Prüfvermerk nicht gesetzt: {message}", ToastError)
 
-    | StartUndoReviewMarkBatch items -> model, Cmd.ofMsg (RunUndoReviewMarkBatch items), NoOp
+    | StartUndoReviewMarkBatch items ->
+        // Wie jedes Sammel-Rückgängig nur ohne laufenden Sammelaufruf; gesperrt bleibt es still.
+        if model.BatchRunning.IsSome then
+            model, Cmd.none, NoOp
+        else
+            { model with BatchRunning = Some ReviewMarkBatchRun }, Cmd.ofMsg (RunUndoReviewMarkBatch items), NoOp
 
     | RunUndoReviewMarkBatch items ->
         let cmd =
@@ -3581,10 +3584,10 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             match sendFailed with
             | Some reason -> ShowToast ($"{reviewMarkHintTitle}: {reason}", ToastError)
             | None -> NoOp
-        resetEntries model, Cmd.ofMsg LoadEntries, external
+        resetEntries { model with BatchRunning = None }, Cmd.ofMsg LoadEntries, external
 
     | ReviewMarkBatchRestored (Error message) ->
-        model, Cmd.none, ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
+        { model with BatchRunning = None }, Cmd.none, ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
 
     // ============================================
     // "Kategorie setzen" für die ganze Auswahl (ledger-w29y6)
@@ -3594,10 +3597,10 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         if model.BatchCategoryPickerOpen then
             { model with BatchCategoryPickerOpen = false }, Cmd.none, NoOp
         else
-            // Nur mit nicht leerer Auswahl und ohne laufenden Sammelaufruf (einer sperrt beide
-            // Aktionen der Leiste). Öffnen lädt die Kategorien bei Stand über zwei Minuten nach.
+            // Nur mit nicht leerer Auswahl und ohne laufenden Sammelaufruf (einer sperrt alle
+            // Sammelaktionen der Leiste). Öffnen lädt die Kategorien bei Stand über zwei Minuten nach.
             match reviewMarkBatchSelection model with
-            | Some _ when not model.ReviewMarkBatchRunning && not model.CategoryBatchRunning && not model.LenaBatchRunning ->
+            | Some _ when model.BatchRunning.IsNone ->
                 { model with BatchCategoryPickerOpen = true; OpenPopover = None },
                 Cmd.ofMsg EnsureCategoriesFresh,
                 NoOp
@@ -3607,9 +3610,9 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 
     | StartCategoryBatch target ->
         match reviewMarkBatchSelection model with
-        | Some selection when not model.ReviewMarkBatchRunning && not model.CategoryBatchRunning && not model.LenaBatchRunning ->
+        | Some selection when model.BatchRunning.IsNone ->
             { model with
-                CategoryBatchRunning = true
+                BatchRunning = Some CategoryBatchRun
                 BatchCategoryPickerOpen = false
                 RecentCategories = rememberPickedCategory target model.RecentCategories },
             Cmd.batch [
@@ -3646,15 +3649,15 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         model', cmd, external
 
     | CategoryBatchDone (_, Error message) ->
-        { model with CategoryBatchRunning = false },
+        { model with BatchRunning = None },
         Cmd.none,
         ShowToast ($"Kategorie nicht geändert: {message}", ToastError)
 
     | StartUndoCategoryBatch changes ->
-        if model.CategoryBatchRunning || model.ReviewMarkBatchRunning || model.LenaBatchRunning then
+        if model.BatchRunning.IsSome then
             model, Cmd.none, NoOp
         else
-            { model with CategoryBatchRunning = true },
+            { model with BatchRunning = Some CategoryBatchRun },
             Cmd.ofMsg (RunUndoCategoryBatch (categoryBatchUndoGroups changes)),
             NoOp
 
@@ -3680,7 +3683,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 
     | CategoryBatchRestored results ->
         // Ohne neue Aktion: eine Aktion, ein Toast, eine Rücknahme.
-        let ended = { model with CategoryBatchRunning = false }
+        let ended = { model with BatchRunning = None }
         let model', cmd =
             results
             |> List.fold
@@ -3714,13 +3717,11 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         // Wie die anderen Sammelaktionen: nur mit Auswahl und ohne laufenden Sammelaufruf; "Lena
         // fragen" zusätzlich nur mit gesetzter Flag-Farbe. Der Proxy-Aufruf steckt hinter `Run...`.
         let blocked =
-            model.ReviewMarkBatchRunning
-            || model.CategoryBatchRunning
-            || model.LenaBatchRunning
+            model.BatchRunning.IsSome
             || (target = AssignLena && (selectionLenaDisabledReason model.LenaFlagColor).IsSome)
         match reviewMarkBatchSelection model with
         | Some selection when not blocked ->
-            { model with LenaBatchRunning = true; BatchCategoryPickerOpen = false },
+            { model with BatchRunning = Some LenaBatchRun; BatchCategoryPickerOpen = false },
             Cmd.ofMsg (RunLenaBatch (selection, target)),
             NoOp
         | _ -> model, Cmd.none, NoOp
@@ -3750,16 +3751,16 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         model', Cmd.none, external
 
     | LenaBatchDone (_, Error message) ->
-        { model with LenaBatchRunning = false },
+        { model with BatchRunning = None },
         Cmd.none,
         ShowToast ($"Flag nicht geändert: {message}", ToastError)
 
     | StartUndoFlagBatch changes ->
-        if model.LenaBatchRunning || model.CategoryBatchRunning || model.ReviewMarkBatchRunning then
+        if model.BatchRunning.IsSome then
             model, Cmd.none, NoOp
         else
             let items = changes |> List.map (fun (c: FlagBatchChange) -> ({ EntryId = c.EntryId; Previous = c.Previous }: FlagRestoreItem))
-            { model with LenaBatchRunning = true }, Cmd.ofMsg (RunUndoFlagBatch items), NoOp
+            { model with BatchRunning = Some LenaBatchRun }, Cmd.ofMsg (RunUndoFlagBatch items), NoOp
 
     | RunUndoFlagBatch items ->
         let cmd =
@@ -3783,7 +3784,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         model', Cmd.none, external
 
     | FlagBatchRestored (_, Error message) ->
-        { model with LenaBatchRunning = false },
+        { model with BatchRunning = None },
         Cmd.none,
         ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
 
