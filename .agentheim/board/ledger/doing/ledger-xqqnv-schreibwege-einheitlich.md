@@ -1,7 +1,7 @@
 ---
 id: ledger-xqqnv
 title: "Vorhandene import_id heißt angekommen: Barbuchung, Erneut senden, Ist neu und Import-Sammelpush schreiben keinen Fehlschlag, wenn YNAB die import_id schon kennt; Sperre und Auslöser des Import-Pushs belegt (Ledger/CommandHandlers.fs)"
-status: todo
+status: doing
 type: bug
 context: ledger
 created: 2026-11-12

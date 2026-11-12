@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-12 07:28 -- Batch started: [ledger-xqqnv, ledger-smv1s, ledger-ct3cx]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-xqqnv - "Vorhandene import_id heißt angekommen: Barbuchung, Erneut senden, Ist neu und Import-Sammelpush schreiben keinen Fehlschlag, wenn YNAB die import_id schon kennt; Sperre und Auslöser des Import-Pushs belegt (Ledger/CommandHandlers.fs)", ledger-smv1s - "Zeilen-Sperre für Erneut senden, Rückgängig und Setzen einheitlich in update: ein Helfer für alle Start-Zweige je Buchung und Feld, Aufzählung je Sperrgruppe nach Doktrin Punkt 20, Deciding im Durchgehen an die Id gebunden", ledger-ct3cx - "Kassenbuch-Liste behält Auswahl, Seiten und Scrollstand nach Spiegel-Lauf und Abruf: Nachladen im Hintergrund statt Neuaufbau, Filter entfernen überholt wartende Eingaben, ein Neuaufbau je Wechsel (Components/Ledger/State.fs resetEntries, AccountsLoaded, fetchExternalCmd)"
+**Parallel:** yes (3 Worker; ledger-sjbvc, ledger-ng110, ledger-vf6z5, ledger-vfr4h in die nächste Welle, Cap 3; smv1s und ct3cx beide in Components/Ledger/State.fs, nacheinander mergen)
+
+---
+
 ## 2026-11-12 07:26 -- Modeling / Promoted: ledger-vfr4h - "Schreib-Sperre, Spiegel-Auslöser nach Freigabe und Wartesperre für Verwerfen nach dem Erfassen, Übertrag, Löschen, Wiederherstellen und Ist neu durch Verhalten belegt; Wartesperre als erster Zweig in discardCapturedBooking und restoreDeletedEntry"
 
 **Type:** Modeling / Promote

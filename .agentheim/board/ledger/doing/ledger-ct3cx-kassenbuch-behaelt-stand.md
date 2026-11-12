@@ -1,7 +1,7 @@
 ---
 id: ledger-ct3cx
 title: "Kassenbuch-Liste behält Auswahl, Seiten und Scrollstand nach Spiegel-Lauf und Abruf: Nachladen im Hintergrund statt Neuaufbau, Filter entfernen überholt wartende Eingaben, ein Neuaufbau je Wechsel (Components/Ledger/State.fs resetEntries, AccountsLoaded, fetchExternalCmd)"
-status: todo
+status: doing
 type: bug
 context: ledger
 created: 2026-11-12
