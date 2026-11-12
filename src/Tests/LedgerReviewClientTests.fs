@@ -579,6 +579,21 @@ let lenaFailureTests =
             Expect.equal (failed.FlagRows |> Map.tryFind (idOf lenaA)) (Some (FlagCommandFailed "Netz")) "Fehler an A"
             Expect.equal external (ShowToast ("Flag nicht geändert: Netz", ToastError)) "Toast"
 
+        // Regression Review a3f7eb1d..982bdf79 (ledger-nc708): der Sprung zurück lief über `closeDetail` und
+        // verwarf das offene Memo auf Karte B samt Entwurf.
+        testCase "steht auf Karte B eine Eingabe offen, bleibt B samt Entwurf, Fehlerzeile und Toast wie sonst" <| fun () ->
+            let editing =
+                reviewing [ lenaA; lenaB ]
+                |> step ReviewLena
+                |> step (StartMemoEdit (idOf lenaB))
+                |> step (MemoEditChanged "Entwurf")
+            let failed, msgs, external = run (lenaFailed (idOf lenaA)) editing
+            Expect.equal (cardId failed) (Some (idOf lenaB)) "Karte B bleibt"
+            Expect.equal failed.MemoEdit (Some { MemoEntryId = idOf lenaB; MemoDraft = "Entwurf" }) "der Entwurf bleibt offen"
+            Expect.equal (failed.FlagRows |> Map.tryFind (idOf lenaA)) (Some (FlagCommandFailed "Netz")) "Fehler an A"
+            Expect.isEmpty msgs "kein Neulesen einer Karte"
+            Expect.equal external (ShowToast ("Flag nicht geändert: Netz", ToastError)) "Toast"
+
         testCase "außerhalb des Durchgehens ändert der Fehler nur Zeile und Toast" <| fun () ->
             let model, _ = Components.Ledger.State.init ()
             let ledger = { model with Entries = Success [ lenaA; lenaB ]; LenaFlagColor = Success (Some "purple") }
@@ -600,8 +615,9 @@ let lenaFailureTests =
             Expect.equal (cardId (asked |> step ok)) (Some (idOf lenaB)) "B bleibt"
     ]
 
-/// Was das Orakel zu „Lena im Durchgehen“ weiß: Stelle, ob „Lena fragen“ für A läuft, ob „Passt“ für B läuft.
-type private LenaWalk = { At: int; LenaSent: bool; ConfirmSent: bool }
+/// Was das Orakel zu „Lena im Durchgehen“ weiß: Stelle, ob „Lena fragen“ für A läuft, ob „Passt“ für B läuft,
+/// ob auf B das Memo mit Entwurf offen steht.
+type private LenaWalk = { At: int; LenaSent: bool; ConfirmSent: bool; MemoOpen: bool }
 
 let private lenaCurrent (w: LenaWalk) = if w.At < lenaIds.Length then Some lenaIds.[w.At] else None
 
@@ -612,28 +628,36 @@ let private lenaEvents (w: LenaWalk) : (string * Msg list * LenaWalk) list =
               "Lena A", [ ReviewLena ], { w with At = w.At + 1; LenaSent = true }
           if id = idOf lenaB && not w.ConfirmSent then
               "Passt B", [ ReviewConfirm ], { w with ConfirmSent = true }
-          "Später", [ ReviewSkip ], { w with At = w.At + 1 }
+          if id = idOf lenaB && not w.MemoOpen then
+              "Memo B", [ StartMemoEdit (idOf lenaB); MemoEditChanged "Entwurf" ], { w with MemoOpen = true }
+          "Später", [ ReviewSkip ], { w with At = w.At + 1; MemoOpen = false }
       | None -> ()
       if w.ConfirmSent then
           let after = { w with ConfirmSent = false }
-          "Passt-Antwort B", [ reviewed (idOf lenaB) ], (if lenaCurrent w = Some (idOf lenaB) then { after with At = w.At + 1 } else after)
+          "Passt-Antwort B", [ reviewed (idOf lenaB) ], (if lenaCurrent w = Some (idOf lenaB) then { after with At = w.At + 1; MemoOpen = false } else after)
       if w.LenaSent then
-          "Lena-Fehler A", [ lenaFailed (idOf lenaA) ], { w with LenaSent = false; At = 0 } ]
+          // Ein offenes Memo hält die Karte fest (Review a3f7eb1d..982bdf79).
+          "Lena-Fehler A", [ lenaFailed (idOf lenaA) ], (if w.MemoOpen then { w with LenaSent = false } else { w with LenaSent = false; At = 0 }) ]
 
 [<Tests>]
 let lenaWalkTests =
-    testCase "Lena im Durchgehen: jede Reihenfolge bis Tiefe 6, der Fehler für A holt A zurück, auch aus der Endansicht" <| fun () ->
+    testCase "Lena im Durchgehen: jede Reihenfolge bis Tiefe 6, der Fehler für A holt A zurück, auch aus der Endansicht, ein offenes Memo hält B fest" <| fun () ->
         let mutable visited = 0
         let mutable fromEnd = 0
+        let mutable heldByMemo = 0
         let rec walk (depth: int) (path: string list) (model: Model) (w: LenaWalk) =
             visited <- visited + 1
             let shown = String.concat " → " (List.rev path)
             Expect.equal (indexOf model, cardId model) (w.At, lenaCurrent w) shown
+            let expectedMemo = if w.MemoOpen then Some { MemoEntryId = idOf lenaB; MemoDraft = "Entwurf" } else None
+            Expect.equal model.MemoEdit expectedMemo $"Memo: {shown}"
             if depth > 0 then
                 for name, msgs, w' in lenaEvents w do
                     if name = "Lena-Fehler A" && w.At >= lenaIds.Length then fromEnd <- fromEnd + 1
+                    if name = "Lena-Fehler A" && w.MemoOpen then heldByMemo <- heldByMemo + 1
                     let model' = msgs |> List.fold (fun m msg -> step msg m) model
                     walk (depth - 1) (name :: path) model' w'
-        walk 6 [] (reviewing [ lenaA; lenaB ]) { At = 0; LenaSent = false; ConfirmSent = false }
+        walk 6 [] (reviewing [ lenaA; lenaB ]) { At = 0; LenaSent = false; ConfirmSent = false; MemoOpen = false }
         Expect.isGreaterThan visited 100 "die Aufzählung läuft wirklich"
         Expect.isGreaterThan fromEnd 0 "der Fehler kommt auch in der Endansicht an"
+        Expect.isGreaterThan heldByMemo 0 "der Fehler kommt auch bei offenem Memo auf B an"

@@ -1165,6 +1165,19 @@ type BatchRun =
     | CategoryBatchRun
     | LenaBatchRun
 
+/// Das Nachladen im Hintergrund (ledger-ct3cx).
+type RefreshState =
+    /// Nichts läuft und nichts wartet.
+    | RefreshIdle
+    /// Die Abfrage läuft. `basis` sind die Zeilen beim Start: ändert ein Einzelbefehl (Kategorie,
+    /// Prüfvermerk, Memo, Lena, Betrag, Payee, Split, Übertrag) bis zur Antwort eine Zeile, ist die
+    /// Antwort älter als die Liste und wird verworfen. Solange ruht „Weitere laden“: eine angehängte
+    /// Seite aus dem alten Ausschnitt passte nicht zur neuen Liste.
+    | RefreshRunning of basis: LedgerEntryView list
+    /// Das Nachladen kam, während „Weitere laden“ lief: es wartet auf dessen Antwort und holt danach
+    /// den ganzen Ausschnitt samt der neuen Seite.
+    | RefreshAfterPage
+
 type Model = {
     /// Die Konten samt Vorauswahl des Servers.
     Accounts: RemoteData<LedgerAccountsView>
@@ -1494,13 +1507,8 @@ type Model = {
     /// Hochzählen der Generation laufende Summen- und Payee-Abfragen verwerfen würde.
     RefreshGeneration: int
 
-    /// Läuft ein Nachladen im Hintergrund? Solange ruht „Weitere laden“: eine angehängte Seite
-    /// aus dem alten Ausschnitt passte nicht zur neuen Liste.
-    Refreshing: bool
-
-    /// Kam ein Nachladen, während „Weitere laden“ lief? Dann wartet es auf dessen Antwort und
-    /// holt danach den ganzen Ausschnitt samt der neuen Seite.
-    RefreshQueued: bool
+    /// Wo das Nachladen im Hintergrund steht (ledger-ct3cx).
+    Refresh: RefreshState
 
     /// Das laufende Durchgehen (ledger-v6s7c), `None` außerhalb der Seite.
     Review: ReviewSession option
@@ -2645,3 +2653,9 @@ let transferCategoryLabel (model: Model) (entry: LedgerEntryView) : string optio
         match entry.TransferAccountId |> Option.bind (transferAccountName model) with
         | Some name -> Some $"Übertrag → {name}"
         | None -> Some "Übertrag"
+
+/// Läuft ein Nachladen im Hintergrund (ledger-ct3cx)? Solange ruht „Weitere laden“.
+let refreshRunning (model: Model) : bool =
+    match model.Refresh with
+    | RefreshRunning _ -> true
+    | RefreshIdle | RefreshAfterPage -> false

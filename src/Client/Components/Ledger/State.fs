@@ -157,8 +157,7 @@ let init () : Model * Cmd<Msg> =
         OrderStale = false
         EntriesGeneration = 0
         RefreshGeneration = 0
-        Refreshing = false
-        RefreshQueued = false
+        Refresh = RefreshIdle
         Review = None
         ReviewGeneration = 0
         RestoringDuplicates = Set.empty
@@ -190,8 +189,7 @@ let private resetEntries (model: Model) : Model = {
         // `LoadingMore` endet oben mit ihnen, die Antwort der neuen Liste läuft unabhängig davon.
         EntriesGeneration = model.EntriesGeneration + 1
         // Ein laufendes oder wartendes Nachladen gehört zur alten Liste (ledger-ct3cx).
-        Refreshing = false
-        RefreshQueued = false
+        Refresh = RefreshIdle
 }
 
 /// Neuaufbau der Liste (ledger-ct3cx): Seite 0, Auswahl leer, Skeleton, genau eine Abfrage der
@@ -494,7 +492,7 @@ let pageRequest (model: Model) (page: int) : (LedgerEntryPageQuery * (Result<Led
 /// Abzug lokal entfernter Zeilen. `None` ohne Konto-Filter oder wenn kein Nachladen mehr läuft. Rein.
 let refreshRequest (model: Model) : (LedgerEntryPageQuery * (Result<LedgerEntryPage, string> -> Msg)) option =
     match model.SelectedFilter with
-    | Some filter when model.Refreshing ->
+    | Some filter when refreshRunning model ->
         let query =
             { buildPageQuery model (accountIdOf filter) 0 with
                 PageSize = max 1 model.NextPage * pageSize
@@ -897,10 +895,6 @@ let private applySplitResult
             let finalModel = if orderChanged then { filtered with OrderStale = true } else filtered
             finalModel, Cmd.batch [ refresh; (if orderChanged then Cmd.ofMsg RunRefreshTotals else Cmd.none) ]
 
-/// Ist für diese Buchung ein Aufruf des Split-Wegs unterwegs?
-let private splitBusy (model: Model) (entryId: Guid) : bool =
-    (model.CategoryRows |> Map.tryFind entryId) = Some CategorySending
-
 /// Die Sperrgruppen je Buchung (ledger-smv1s): Befehle derselben Gruppe zur selben Buchung laufen nie
 /// gleichzeitig, sonst gewinnt die zuletzt eintreffende Antwort und die Zeile zeigt einen falschen Stand.
 type private RowLock =
@@ -939,7 +933,7 @@ let private whenRowIdle
 /// Ändert den Entwurf des offenen Editors. Jede Eingabe nimmt einen Speicherfehler zurück (ledger-ng110).
 let private editSplit (f: SplitEditor.SplitEditorState -> SplitEditor.SplitEditorState) (model: Model) : Model =
     match model.SplitEditor with
-    | Some editor when not (splitBusy model editor.EntryId) -> { model with SplitEditor = Some (f { editor with SaveError = None }) }
+    | Some editor when not (rowBusy CategoryLock model editor.EntryId) -> { model with SplitEditor = Some (f { editor with SaveError = None }) }
     | _ -> model
 
 /// Ein abgelehntes Speichern (ledger-ng110, §7.13): steht der Editor der Buchung noch offen, kommt die Meldung in
@@ -1295,7 +1289,7 @@ let private reviewKeyBlocked (model: Model) (entry: LedgerEntryView) : bool =
     model.SelectionMode
     || hasSelection model
     || entry.DeletedInYnab
-    || (model.ReviewMarkRows |> Map.tryFind entry.Id) = Some ReviewMarkSending
+    || rowBusy ReviewMarkLock model entry.Id
 
 /// Das Kassenbuch für einen Eintrag aus „Zu tun“ (ledger-s1weh): alle Konten, genau der eine Filter, die übrigen
 /// Filter leer, damit die Liste die Zahl aus der Übersicht zeigt. Rein.
@@ -1306,7 +1300,12 @@ let presetQuickFilter (preset: QuickFilterPreset) (model: Model) : Model =
         AccountSheetOpen = false
         Filters = { noFilters with OnlyAskLena = (preset = PresetAskLena) }
         // Eine wartende Memo- oder Betragseingabe setzte sonst einen Filter in die neue Sicht (ledger-ct3cx).
+        // Die Felder leeren sich wie bei „Alle Filter löschen“; ein stehender Entwurf hielte sonst
+        // `isInputActive` wahr und „Neu laden“ zurück.
+        MemoDraft = ""
         MemoVersion = model.MemoVersion + 1
+        AmountMinDraft = ""
+        AmountMaxDraft = ""
         AmountVersion = model.AmountVersion + 1
         OnlyNeedsReview = (preset = PresetNeedsReview) }
 
@@ -1363,6 +1362,11 @@ let private advanceReview (model: Model) : Model * Cmd<Msg> =
             | None -> review.Snapshots
         showReviewCardAt (review.Index + 1) { model with Review = Some { review with Snapshots = snapshots } }
     | None -> model, Cmd.none
+
+/// Steht auf der gezeigten Karte eine Eingabe offen (Memo, Betrag, Payee, Split-Editor)? Ein Kartenwechsel
+/// schlösse sie samt Entwurf. Rein.
+let private reviewCardEditing (model: Model) : bool =
+    model.MemoEdit.IsSome || model.AmountEdit.IsSome || model.PayeeEdit.IsSome || model.SplitEditor.IsSome
 
 /// Holt die Karte einer Buchung zurück, die schon hinter der gezeigten liegt („Rückgängig“ nach Lena
 /// oder Verwerfen). Liegt sie nicht in der Schlange, bleibt alles.
@@ -1430,7 +1434,7 @@ let private applyEntriesRefresh (page: LedgerEntryPage) (model: Model) : Model *
             FilteredOut = Set.empty
             OrderStale = false
             LocallyRemoved = 0
-            Refreshing = false }
+            Refresh = RefreshIdle }
     let history =
         match model.Review, detail with
         | None, Some d -> afterEntryChange d.Id refreshed
@@ -1624,7 +1628,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             AskLenaCount = entryPage.AskLenaCount
             LoadingMore = false },
         // Ein Nachladen, das auf diese Seite gewartet hat, holt jetzt den ganzen Ausschnitt (ledger-ct3cx).
-        (if model.RefreshQueued then Cmd.ofMsg RefreshEntries else Cmd.none),
+        (if model.Refresh = RefreshAfterPage then Cmd.ofMsg RefreshEntries else Cmd.none),
         NoOp
 
     | EntriesPageLoaded (_, 0, Error message) ->
@@ -1636,7 +1640,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         // Ein Fehler beim Nachladen loescht die bereits sichtbare Liste nicht: sie
         // bleibt stehen, nur der Hinweis erscheint als Toast.
         { model with LoadingMore = false },
-        (if model.RefreshQueued then Cmd.ofMsg RefreshEntries else Cmd.none),
+        (if model.Refresh = RefreshAfterPage then Cmd.ofMsg RefreshEntries else Cmd.none),
         ShowToast ($"Weitere Buchungen konnten nicht geladen werden: {message}", ToastError)
 
     | LoadMoreEntries ->
@@ -1644,7 +1648,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         // ohne weitere Seiten, keiner ohne eine erfolgreich geladene erste Seite.
         // Bei veralteter Reihenfolge ruht das Nachladen, bis "Neu laden" die Liste neu aufsetzt.
         // Während eines Nachladens im Hintergrund ruht es auch: die Seite gehörte zum alten Ausschnitt.
-        if model.LoadingMore || model.Refreshing || model.OrderStale || not model.HasMoreEntries || not (RemoteData.isSuccess model.Entries) then
+        if model.LoadingMore || refreshRunning model || model.OrderStale || not model.HasMoreEntries || not (RemoteData.isSuccess model.Entries) then
             model, Cmd.none, NoOp
         else
             { model with LoadingMore = true }, Cmd.ofMsg (RunLoadEntriesPage model.NextPage), NoOp
@@ -1654,9 +1658,9 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         | None, _ -> model, Cmd.none, NoOp
         | Some _, Success _ when model.LoadingMore ->
             // Erst die laufende Seite abwarten, dann den ganzen Ausschnitt samt ihr holen.
-            { model with RefreshQueued = true }, Cmd.none, NoOp
-        | Some _, Success _ ->
-            { model with RefreshGeneration = model.RefreshGeneration + 1; Refreshing = true; RefreshQueued = false },
+            { model with Refresh = RefreshAfterPage }, Cmd.none, NoOp
+        | Some _, Success rows ->
+            { model with RefreshGeneration = model.RefreshGeneration + 1; Refresh = RefreshRunning rows },
             Cmd.ofMsg RunRefreshEntries,
             NoOp
         | Some _, _ ->
@@ -1680,13 +1684,19 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | EntriesRefreshed (generation, refresh, _) when generation <> model.EntriesGeneration || refresh <> model.RefreshGeneration ->
         model, Cmd.none, NoOp
 
+    // Ein Einzelbefehl hat seit dem Start eine Zeile geändert (ledger-ct3cx, Review a3f7eb1d..982bdf79):
+    // die Antwort kann ihn noch nicht kennen und setzte Zeile, Detail und Zähler auf den alten Stand.
+    // Verworfen und neu gefragt, statt Zeilen und Zähler aus zwei Ständen zu mischen.
+    | EntriesRefreshed (_, _, Ok _) when (match model.Refresh with RefreshRunning basis -> model.Entries <> Success basis | _ -> false) ->
+        { model with Refresh = RefreshIdle }, Cmd.ofMsg RefreshEntries, NoOp
+
     | EntriesRefreshed (_, _, Ok page) ->
         let refreshed, cmd = applyEntriesRefresh page model
         refreshed, cmd, NoOp
 
     | EntriesRefreshed (_, _, Error message) ->
         // Die Liste bleibt mit Auswahl stehen, nur der Hinweis erscheint.
-        { model with Refreshing = false },
+        { model with Refresh = RefreshIdle },
         Cmd.none,
         ShowToast ($"Liste konnte nicht aktualisiert werden: {message}", ToastWarning)
 
@@ -2012,7 +2022,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         match model.SelectedFilter with
         | None -> { model with PayeeSuggestions = Success [] }, Cmd.none, NoOp
         | Some filter ->
-            let accountId = match filter with AllAccounts -> None | OneAccount id -> Some id
+            let accountId = accountIdOf filter
             let query : LedgerPayeeSuggestionQuery = {
                 AccountId = accountId
                 IncludeDeleted = model.IncludeDeleted
@@ -2586,9 +2596,12 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         model', afterEntryChange entryId model', external
 
     // Im Durchgehen ist die Karte nach „Lena fragen“ schon weiter: der Fehler holt sie zurück, damit Roman
-    // ihn an der Buchung sieht (ledger-nc708). Außerhalb des Durchgehens bleibt alles, wo es ist.
+    // ihn an der Buchung sieht (ledger-nc708). Außerhalb des Durchgehens bleibt alles, wo es ist. Steht auf
+    // der gezeigten Karte eine Eingabe offen, bleibt die Karte: der Sprung schlösse sie samt Entwurf
+    // (Review a3f7eb1d..982bdf79). Fehler an der Zeile und Toast bleiben.
     | LenaFlagSet (entryId, _, Error message) ->
-        let returned, showCmd = returnToReviewCard entryId model
+        let returned, showCmd =
+            if reviewCardEditing model then model, Cmd.none else returnToReviewCard entryId model
         { returned with FlagRows = returned.FlagRows |> Map.add entryId (FlagCommandFailed message) },
         showCmd,
         ShowToast ($"Flag nicht geändert: {message}", ToastError)
@@ -3172,7 +3185,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         | Some entry when model.DetailFor |> Option.exists (fun d -> d.Id = entryId)
                           && not entry.DeletedInYnab
                           && (SplitEditor.lockReasonFor entry).IsNone
-                          && not (splitBusy model entryId) ->
+                          && not (rowBusy CategoryLock model entryId) ->
             let loadTargets =
                 match model.TransferTargets with
                 | Success _ | Loading -> Cmd.none
@@ -3188,7 +3201,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 
     | CloseSplitEditor ->
         match model.SplitEditor with
-        | Some editor when not (splitBusy model editor.EntryId) -> { model with SplitEditor = None }, Cmd.none, NoOp
+        | Some editor when not (rowBusy CategoryLock model editor.EntryId) -> { model with SplitEditor = None }, Cmd.none, NoOp
         | _ -> model, Cmd.none, NoOp
 
     | OpenCapture ->
@@ -3711,7 +3724,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         match model.SelectedFilter with
         | None -> model, Cmd.none, NoOp
         | Some filter ->
-            let accountId = match filter with AllAccounts -> None | OneAccount id -> Some id
+            let accountId = accountIdOf filter
             let query = { buildPageQuery model accountId 0 with LocallyRemoved = 0 }
             let answer = totalsRefreshAnswer model
             let cmd =

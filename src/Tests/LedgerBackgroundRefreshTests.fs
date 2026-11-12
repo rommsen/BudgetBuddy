@@ -148,7 +148,7 @@ let refreshTests =
             Expect.equal after.TotalAmount (eur -200m) "Summe aus der Antwort"
             Expect.equal after.NeedsReviewCount 7 "„Zu prüfen (n)“ aus der Antwort"
             Expect.equal after.AskLenaCount 3 "„Rückfrage Lena (n)“ aus der Antwort"
-            Expect.isFalse after.Refreshing "das Nachladen ist fertig"
+            Expect.isFalse (refreshRunning after) "das Nachladen ist fertig"
         }
 
         test "Ist „alle“ gewählt, fällt eine verschwundene Ausnahme weg und neue Buchungen gehören zur Auswahl" {
@@ -241,7 +241,7 @@ let refreshTests =
             let after, _, external = update (answer (Error "keine Verbindung")) started
             Expect.equal after.Entries model.Entries "die Liste bleibt"
             Expect.equal after.Selection model.Selection "die Auswahl bleibt"
-            Expect.isFalse after.Refreshing "das Nachladen ist zu Ende"
+            Expect.isFalse (refreshRunning after) "das Nachladen ist zu Ende"
             Expect.equal external (ShowToast ("Liste konnte nicht aktualisiert werden: keine Verbindung", ToastWarning)) "Warnung"
         }
 
@@ -255,6 +255,53 @@ let refreshTests =
             let again, _ = startRefresh started
             let afterSecond, _, _ = update (answer (Ok (pageOf [ b ] 1 -20m))) again
             Expect.equal afterSecond.Entries model.Entries "die Antwort des ersten Nachladens zählt nicht mehr"
+        }
+
+        // Regression Review a3f7eb1d..982bdf79 (ledger-ct3cx): ein Einzelbefehl zwischen Start und Antwort zählte
+        // keine Generation hoch. Die spätere Antwort mit dem Stand vor dem Befehl setzte die Zeile wieder auf
+        // „zu prüfen“ und „Zu prüfen (n)“ auf den alten Zähler.
+        test "Ändert ein Einzelbefehl eine Zeile, während das Nachladen läuft, verwirft die Liste die ältere Antwort und fragt neu" {
+            let a, b = entry 1, entry 2
+            let model = loadedModel [ a; b ] 2 1
+            let started, answer = startRefresh model
+            let marking, markCmd, _ = update (StartSetReviewMark (a.Id, Reviewed)) started
+            Expect.equal (dispatched markCmd) [ RunSetReviewMark (a.Id, Reviewed) ] "der Prüfvermerk geht los"
+            let outcome : ReviewMarkOutcome = {
+                Previous = { IsApproved = false; ClearedState = ReviewUncleared }
+                Change = ReviewMarkChanged
+                WriteBack = ReviewMarkSent
+            }
+            let marked, _, _ = update (ReviewMarkSet (a.Id, Reviewed, Ok outcome)) marking
+            Expect.equal marked.NeedsReviewCount 0 "der Zähler folgt dem Prüfvermerk"
+            // Die Antwort wurde vor dem Prüfvermerk gelesen: A ist dort noch zu prüfen.
+            let after, cmd, _ = update (answer (Ok (pageOf [ a; b ] 2 -30m))) marked
+            Expect.equal after.Entries marked.Entries "die Zeilen bleiben beim neueren Stand"
+            Expect.equal after.NeedsReviewCount 0 "der Zähler bleibt beim neueren Stand"
+            Expect.equal (dispatched cmd) [ RefreshEntries ] "das Nachladen fragt neu"
+            let again, againCmd, _ = update RefreshEntries after
+            Expect.equal (dispatched againCmd) [ RunRefreshEntries ] "eine neue Abfrage geht los"
+            Expect.isTrue (refreshRunning again) "das neue Nachladen läuft"
+        }
+
+        test "Ohne Einzelbefehl trägt die Antwort ihren Stand ein, auch wenn ein Befehl noch sendet" {
+            // Intakt-Fall: ein laufender Befehl ändert die Zeilen noch nicht, die Antwort zählt; seine
+            // spätere Antwort setzt die Zeile relativ zum dann geladenen Stand.
+            let a, b = entry 1, entry 2
+            let changedB = { b with Memo = Some "neu" }
+            let model = loadedModel [ a; b ] 2 1
+            let started, answer = startRefresh model
+            let marking, _, _ = update (StartSetReviewMark (a.Id, Reviewed)) started
+            let after, cmd, _ = update (answer (Ok (pageOf [ a; changedB ] 2 -30m))) marking
+            Expect.equal after.Entries (Success [ a; changedB ]) "der neue Stand steht in der Liste"
+            Expect.isEmpty (dispatched cmd) "kein zweites Nachladen"
+            let outcome : ReviewMarkOutcome = {
+                Previous = { IsApproved = false; ClearedState = ReviewUncleared }
+                Change = ReviewMarkChanged
+                WriteBack = ReviewMarkSent
+            }
+            let marked, _, _ = update (ReviewMarkSet (a.Id, Reviewed, Ok outcome)) after
+            Expect.equal marked.NeedsReviewCount 6 "der Zähler aus der Antwort, um A vermindert"
+            Expect.isFalse (marked.Entries |> RemoteData.withDefault [] |> List.find (fun e -> e.Id = a.Id)).NeedsReview "A geprüft"
         }
 
         test "Ohne geladene Liste baut das Nachladen neu auf" {
@@ -369,11 +416,14 @@ type private Step =
     | AnswerLoadMore
     | AnswerRefresh
     | SecondMirror
+    /// Ein Einzelbefehl samt Antwort: „Geprüft“ für Buchung 1.
+    | MarkRow
 
-/// Eine laufende Abfrage: die Anfrage und ihre Antwort-Funktion, wie der `Run*`-Zweig sie bindet.
+/// Eine laufende Abfrage: die Anfrage, ihre Antwort-Funktion, wie der `Run*`-Zweig sie bindet, und der
+/// Stand des Servers beim Start (die Antwort kennt keinen späteren Befehl).
 type private Pending =
-    | PagePending of LedgerEntryPageQuery * (Result<LedgerEntryPage, string> -> Msg)
-    | RefreshPending of LedgerEntryPageQuery * (Result<LedgerEntryPage, string> -> Msg)
+    | PagePending of LedgerEntryPageQuery * (Result<LedgerEntryPage, string> -> Msg) * LedgerEntryView list
+    | RefreshPending of LedgerEntryPageQuery * (Result<LedgerEntryPage, string> -> Msg) * LedgerEntryView list
 
 /// Der Server nach dem Spiegel-Lauf: eine neue Buchung oben, Buchung 5 gelöscht, alle Beträge geändert.
 let private serverRows : LedgerEntryView list =
@@ -399,12 +449,13 @@ let rec private send (msg: Msg) (world: World) : World =
     match msg with
     | RunLoadEntriesPage page ->
         match Components.Ledger.State.pageRequest world.Model page with
-        | Some (query, answer) -> { world with Pending = world.Pending @ [ PagePending (query, answer) ] }
+        | Some (query, answer) -> { world with Pending = world.Pending @ [ PagePending (query, answer, world.Server) ] }
         | None -> world
     | RunRefreshEntries ->
         match Components.Ledger.State.refreshRequest world.Model with
-        | Some (query, answer) -> { world with Pending = world.Pending @ [ RefreshPending (query, answer) ] }
+        | Some (query, answer) -> { world with Pending = world.Pending @ [ RefreshPending (query, answer, world.Server) ] }
         | None -> world
+    | RunSetReviewMark _ -> world
     | RefreshAccounts -> send (AccountsRefreshed (Ok accountsView)) world
     | LoadBalances | LoadMirrorStatus | LoadLenaFlagSettings -> world
     | _ ->
@@ -414,8 +465,8 @@ let rec private send (msg: Msg) (world: World) : World =
 let private answer (pending: Pending) (world: World) : World =
     let world' = { world with Pending = world.Pending |> List.filter (fun p -> not (obj.ReferenceEquals (p, pending))) }
     match pending with
-    | PagePending (query, reply)
-    | RefreshPending (query, reply) -> send (reply (Ok (serve world.Server query))) world'
+    | PagePending (query, reply, server)
+    | RefreshPending (query, reply, server) -> send (reply (Ok (serve server query))) world'
 
 let private applyStep (world: World) (step: Step) : World =
     match step with
@@ -424,13 +475,22 @@ let private applyStep (world: World) (step: Step) : World =
     | LoadMore -> send LoadMoreEntries world
     | SecondMirror -> send (MirrorFinished (Ok summary)) world
     | AnswerLoadMore ->
-        match world.Pending |> List.tryFind (function PagePending (q, _) -> q.Page > 0 | _ -> false) with
+        match world.Pending |> List.tryFind (function PagePending (q, _, _) -> q.Page > 0 | _ -> false) with
         | Some p -> answer p world
         | None -> world
     | AnswerRefresh ->
         match world.Pending |> List.tryFind (function RefreshPending _ -> true | _ -> false) with
         | Some p -> answer p world
         | None -> world
+    | MarkRow ->
+        let marking = send (StartSetReviewMark (idOf 1, Reviewed)) world
+        let outcome : ReviewMarkOutcome = {
+            Previous = { IsApproved = false; ClearedState = ReviewUncleared }
+            Change = ReviewMarkChanged
+            WriteBack = ReviewMarkSent
+        }
+        let server = marking.Server |> List.map (fun e -> if e.Id = idOf 1 then { e with NeedsReview = false } else e)
+        send (ReviewMarkSet (idOf 1, Reviewed, Ok outcome)) { marking with Server = server }
 
 /// Beantwortet alle noch laufenden Abfragen in der Reihenfolge ihres Starts.
 let rec private settle (rounds: int) (world: World) : World =
@@ -540,5 +600,39 @@ let orderTests =
                     | Some (BatchPicked ids), Picked _ ->
                         Expect.contains ids (idOf 199) $"der Stapel-Auftrag enthält 199: {label}"
                     | other, _ -> failtestf "Unerwarteter Stapel-Auftrag %A: %s" other label
+        }
+        // Regression Review a3f7eb1d..982bdf79 (ledger-ct3cx): ein Einzelbefehl zwischen Start und Antwort des
+        // Nachladens. Die Antwort mit dem Stand vor dem Befehl setzte die Zeile auf den alten Stand zurück.
+        test "Über alle Reihenfolgen zeigt die Liste nach einem Einzelbefehl nie wieder den Stand davor" {
+            let initial = loadedModel [ for n in 1..100 -> entryWith n -1m ] 250 1
+            let orders =
+                permutations [ StartRefresh; MarkRow; AnswerRefresh; SecondMirror ]
+                |> List.filter (before StartRefresh AnswerRefresh)
+            Expect.isGreaterThan (List.length orders) 10 "die Aufzählung deckt die Reihenfolgen ab"
+            for order in orders do
+                let label = sprintf "%A" order
+                // Orakel aus der Nachrichtenfolge: nach „Geprüft“ ist Buchung 1 nicht mehr zu prüfen.
+                let check (marked: bool) (world: World) =
+                    match world.Model.Entries with
+                    | Success rows when marked ->
+                        match rows |> List.tryFind (fun e -> e.Id = idOf 1) with
+                        | Some row -> Expect.isFalse row.NeedsReview $"Buchung 1 bleibt geprüft: {label}"
+                        | None -> ()
+                    | _ -> ()
+                let final, _ =
+                    order
+                    |> List.fold (fun (w, marked) step ->
+                        let w' = applyStep w step
+                        let marked' = marked || step = MarkRow
+                        check marked' w'
+                        w', marked') ({ Model = initial; Pending = []; Server = serverRows }, false)
+                let settled = settle 20 final
+                check true settled
+                match settled.Model.Entries with
+                | Success rows ->
+                    // Am Ende der Stand des Servers nach dem Befehl.
+                    Expect.equal rows (List.truncate (List.length rows) settled.Server) $"Präfix des Servers nach dem Befehl: {label}"
+                    Expect.isFalse (refreshRunning settled.Model) $"das Nachladen ist zu Ende: {label}"
+                | other -> failtestf "Erwartet Success, war %A: %s" other label
         }
     ]

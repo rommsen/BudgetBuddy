@@ -3059,7 +3059,7 @@ let private entryList
                 ]
 
             if model.HasMoreEntries then
-                ScrollSentinel (fun () -> dispatch LoadMoreEntries) (model.HasMoreEntries && not model.LoadingMore && not model.Refreshing)
+                ScrollSentinel (fun () -> dispatch LoadMoreEntries) (model.HasMoreEntries && not model.LoadingMore && not (refreshRunning model))
         ]
 
 // ============================================

@@ -1214,6 +1214,16 @@ let reducerTests =
             Expect.isEmpty (dispatched memoCmd @ dispatched amountCmd) "keine neue Abfrage"
         }
 
+        // Regression Review a3f7eb1d..982bdf79 (ledger-s1weh): der Eintrag aus „Zu tun“ ließ die Eingabefelder
+        // stehen. Der Entwurf wich vom leeren Filter ab, `isInputActive` blieb wahr und hielt „Neu laden“ zurück.
+        test "Ein Eintrag aus „Zu tun“ leert die Eingabefelder wie „Alle Filter löschen“" {
+            let memo, _, _ = Components.Ledger.State.update (SetMemoDraft "abc") (freshModel ())
+            let low, _, _ = Components.Ledger.State.update (SetAmountMinDraft "5") memo
+            let typing, _, _ = Components.Ledger.State.update (SetAmountMaxDraft "9") low
+            let preset = Components.Ledger.State.presetQuickFilter PresetAskLena typing
+            Expect.equal (preset.MemoDraft, preset.AmountMinDraft, preset.AmountMaxDraft) ("", "", "") "Eingabefelder leer"
+        }
+
         test "Ein Eintrag aus „Zu tun“ überholt wartende Memo- und Betragseingaben" {
             let memo, _, _ = Components.Ledger.State.update (SetMemoDraft "abc") (freshModel ())
             let typing, _, _ = Components.Ledger.State.update (SetAmountMinDraft "5") memo
