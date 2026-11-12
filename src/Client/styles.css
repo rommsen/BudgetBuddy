@@ -741,10 +741,11 @@ nav a:focus-visible {
 /* --- Ausgegraute Zeile im Kassenbuch (ledger-dn4vy) ---
    Eine Buchung, die nach einer Änderung nicht mehr zum Filter passt, bleibt stehen. Alle ihre Texte stehen in
    `text-muted` bei voller Deckkraft (5,32:1 auf `bg-card`); `opacity-50` fiel unter 4,5:1. Symbole behalten ihre
-   Farbe (das Lena-Flag), sie erben sonst den gedämpften Text. Außerhalb von @layer, damit die Regel die
+   Farbe (das Lena-Flag), sie erben sonst den gedämpften Text. Gelbe Hinweise („zu prüfen“, „Keine Kategorie“,
+   `text-attention`) bleiben gelb (Roman, 2026-11-12). Außerhalb von @layer, damit die Regel die
    Farb-Utilities der Kinder überstimmt. */
 .filtered-out-text,
-.filtered-out-text :not(svg, svg *) { color: var(--color-text-muted); }
+.filtered-out-text :not(svg, svg *, .text-attention) { color: var(--color-text-muted); }
 
 /* --- Lena-Flag (ADR 0087 Punkt 8) ---
    Die Seite setzt `data-lena-flag` auf die gespeicherte Farbe aus `lena_flag_color`; das Flag-Symbol

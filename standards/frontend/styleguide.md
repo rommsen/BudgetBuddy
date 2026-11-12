@@ -101,6 +101,10 @@ Dekoration: höchstens ein farbiger Akzent pro Zeile, und der meldet einen Zusta
 Trägt eine Zeile zwei Zustände zugleich, zeigen beide ihre Farbe, jeder mit Wort oder Betrag: etwa Rot
 am Verfügbar-Betrag im Minus und `fehlt` in Gelb.
 
+Eine ausgegraute Zeile (passt nach einer Änderung nicht mehr zum Filter, `.filtered-out-text`) steht mit allen Texten in
+`text-muted` bei voller Deckkraft; gelbe Hinweise („zu prüfen“, „Keine Kategorie“, `text-attention`) und Symbole wie das
+Lena-Flag behalten ihre Farbe (Roman, 2026-11-12).
+
 | Element | PC | Handy |
 |---------|----|-------|
 | Payee | Inter 500 14px `text-primary` | Inter 500 15px `text-primary` |
