@@ -1,7 +1,7 @@
 ---
 id: ledger-vfr4h
 title: "Schreib-Sperre, Spiegel-Auslöser nach Freigabe und Wartesperre für Verwerfen nach dem Erfassen, Übertrag, Löschen, Wiederherstellen und Ist neu durch Verhalten belegt; Wartesperre als erster Zweig in discardCapturedBooking und restoreDeletedEntry"
-status: doing
+status: done
 type: refactor
 context: ledger
 created: 2026-11-12
@@ -97,3 +97,24 @@ Erfassen, Übertrag, Löschen und Wiederherstellen ist das nicht oder nur halb b
   `pushComdirectImports` gehört ganz zu xqqnv und wird hier nicht angefasst. Überschneidung ledger-f8bjm: dieselbe
   Funktion `restoreDeletedEntry`; hier nur der erste Zweig, f8bjm ändert den POST-Ausgang. Nicht gleichzeitig bauen.
 - Sichtbar ändert sich nur der Satz, wenn eine wartende Buchung verworfen oder wiederhergestellt werden soll.
+
+## Outcome
+
+Wartesperre als erster Zweig nach „nicht gefunden“ in `discardCapturedBooking` und `restoreDeletedEntry` (`src/Server/Ledger/CommandHandlers.fs`, Satz `possibleDuplicateLockedText`, Doc-Kommentare nachgezogen). Sonst nur Tests:
+
+- `src/Tests/LedgerBookingCaptureTests.fs`, Liste „Buchung erfassen: Rückgängig (ledger-at63w)“: abgeglichene erfasste Buchung (`EntryClearedStateChangeObservedInYnab` auf `Reconciled`, verknüpft) liefert `discardReconciledText`; vom Spiegel als gelöscht beobachtete (`EntryDeletionObservedInYnab`) liefert `discardDeletedText`; wartende Buchung liefert `possibleDuplicateLockedText`. Je ohne DELETE, ohne Ereignis, ohne Auslöser (Helfer `expectRefused`). Auslöser genau einmal nach Erfolg, null nach jeder Ablehnung (Tabelle: unbekannt, gelöscht, nicht erfasst, abgeglichen, nicht verknüpft, wartend) und nach gescheitertem DELETE. Neue `testSequenced`-Liste „Buchung erfassen: Rückgängig, Schreib-Sperre“ mit `commandWaitsForMirror` (kein DELETE, kein `EntryDiscardedInBb` während des Laufs, danach genau eins) und `SyncMirrorTrigger(2000)` unter `serialized`.
+- `src/Tests/LedgerTransferTests.fs`: neue Liste „Übertrag in BB: Schreib-Sperre“ für `setEntryTransfer` (kein `EntryTransferTargetSetInBb`, kein PUT während des Laufs, danach je genau eins).
+- `src/Tests/LedgerEntryDeletionTests.fs`: in „Buchung löschen: Schreib-Sperre“ je ein `SyncMirrorTrigger`-Test für `deleteEntry` und `restoreDeletedEntry`; in den Befehlen „wartende Buchung lässt sich nicht wiederherstellen“ (kein POST, kein Ereignis, kein Auslöser).
+- `src/Tests/LedgerDuplicateDecisionTests.fs`, „Wartende Buchung entscheiden: Schreib-Sperre“: `SyncMirrorTrigger`-Test für `confirmEntryIsNew`; die Zählung „genau einmal“ im bestehenden Test bleibt.
+
+Gegenproben (jeweils Code geändert, gebaut, Liste rot, danach zurückgesetzt):
+- Wartesperre-Zweige in beiden Befehlen entfernt: „wartende Buchung lässt sich nicht verwerfen“ und „nicht wiederherstellen“ rot (vorher `discardNotCapturedText` bzw. `entryRestoreNotDeletedInBbText`).
+- Reconciled-Prüfung in `discardCapturedBooking` entfernt (`if false`): „abgeglichene erfasste Buchung“ und die Ablehnungstabelle rot.
+- Auslöser von `deleteEntry` in den gesperrten Abschnitt verschoben: „Spiegel-Auslöser nach dem Löschen“ rot (`FinishedInTime = Some false`).
+- `WriteGuard.exclusive` in `discardCapturedBooking` und `setEntryTransfer` durch `id` ersetzt: beide Sperre-Tests rot.
+
+`./verify.sh`: VERIFY: PASS (dotnet 4780 grün, node 316 grün).
+
+README-Delta: geprüft mit `npm run check:readme-delta -- --bc ledger`, ohne Befund. Die Key-commands-Bullets *ErfassteBuchungVerwerfen* und *BuchungLöschen / GelöschteBuchungWiederherstellen* haben einen kursiven Kopf und sind per replace nicht erreichbar (Prüfung 6), der Abschnitt hat kein Bullet mit fettem Kopf. Darum trägt das Delta die Wartesperre in den fetten Bullets **Erfasste Buchung verwerfen (Rückgängig)** und **Buchung löschen (im Detail)** und in der Liste unter **Unsicheres Duplikat**. Vorschlag zum Nachziehen von Hand in Key commands: bei *ErfassteBuchungVerwerfen* „Ablehnung ohne Aufruf und ohne Ereignis, als erster Zweig für eine wartende Buchung (`possibleDuplicateLockedText`, ledger-vfr4h), sonst für eine nicht in BB erfasste …“; bei *BuchungLöschen / GelöschteBuchungWiederherstellen* „Wiederherstellen: … Ablehnung ohne Aufruf, als erster Zweig für eine wartende Buchung (`possibleDuplicateLockedText`, ledger-vfr4h), sonst wenn die Buchung nicht in BB gelöscht ist.“
+
+`pushComdirectImports` nicht angefasst (ledger-xqqnv). Kein Client-Code geändert, keine Skizze.

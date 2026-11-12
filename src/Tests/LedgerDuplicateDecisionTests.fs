@@ -373,6 +373,20 @@ let writeGuardTests =
             Expect.equal result (Ok PushToYnabSent) "gesendet"
             Expect.equal triggers 1 "Spiegel nach der Freigabe"
 
+        testCase "der Spiegel-Auslöser nach Ist neu läuft erst nach Freigabe der Sperre" <| fun () ->
+            // ledger-vfr4h: `triggers = 0` während des Laufs gilt auch bei einem Auslöser im gesperrten
+            // Abschnitt, weil der Befehl dort noch auf die Sperre wartet. Ein synchroner Auslöser, der
+            // einen gesperrten Lauf abwartet, deckt die Stelle auf.
+            global.Persistence.initializeDatabase ()
+            let _, _, entryId = seedHeld ()
+            let _, push = recordingPush (Ok "ynab-sperre-ausloeser")
+            let trigger = LedgerWriteGuardProbe.SyncMirrorTrigger(2000)
+            LedgerWriteGuardProbe.serialized (fun () ->
+                let run = Async.StartAsTask(confirmEntryIsNew at push trigger.Trigger entryId)
+                Expect.isTrue (run.Wait 10000) "Befehl beendet"
+                Expect.equal run.Result (Ok PushToYnabSent) "gesendet")
+            Expect.equal trigger.FinishedInTime (Some true) "der Lauf des Auslösers endet in der Frist, die Sperre ist schon frei"
+
         testCase "Verwerfen und Rückgängig warten auf einen Spiegel-Lauf" <| fun () ->
             global.Persistence.initializeDatabase ()
             let _, _, entryId = seedHeld ()

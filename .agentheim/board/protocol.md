@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-12 08:17 -- Task verified and completed: ledger-vfr4h - "Schreib-Sperre, Spiegel-Auslöser nach Freigabe und Wartesperre für Verwerfen nach dem Erfassen, Übertrag, Löschen, Wiederherstellen und Ist neu durch Verhalten belegt; Wartesperre als erster Zweig in discardCapturedBooking und restoreDeletedEntry"
+
+**Type:** Work / Task completion
+**Task:** ledger-vfr4h - "Schreib-Sperre, Spiegel-Auslöser nach Freigabe und Wartesperre für Verwerfen nach dem Erfassen, Übertrag, Löschen, Wiederherstellen und Ist neu durch Verhalten belegt; Wartesperre als erster Zweig in discardCapturedBooking und restoreDeletedEntry"
+**Summary:** Wartesperre als erster Zweig in Verwerfen und Wiederherstellen, Sperre und Auslöser für Verwerfen, Übertrag, Löschen, Wiederherstellen, Ist neu belegt
+**Duration:** 22m
+**Verification:** PASS (iteration 1)
+**Files changed:** 5
+**Tests added:** 12
+**ADRs written:** none
+
+---
+
 ## 2026-11-12 08:13 -- Batch started: [ledger-ng110]
 
 **Type:** Work / Batch start

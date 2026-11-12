@@ -76,6 +76,30 @@ let private seed (payload: EntryObservedInYnabPayload) : EntryId =
 
 let private entryOf (entryId: EntryId) : Entry = loadEntry entryId |> Async.RunSynchronously |> Option.get
 
+/// Eine importierte Buchung, die als vielleicht doppelt wartet (ADR 0093 Punkt 2), wie `seedHeld`
+/// in `LedgerDuplicateDecisionTests`.
+let private seedHeld (account: Account) : EntryId =
+    let entryId = newEntryId ()
+    let reference = $"vfr4h-{Guid.NewGuid():N}"
+    appendAndApply [
+        { EntryId = entryId; OccurredAt = at; Actor = ComdirectImport
+          Body =
+            EntryImportedFromComdirect {
+                AccountId = account.Ledger; ImportId = $"BB:{reference}"; ComdirectReference = reference
+                Date = DateTime(2026, 11, 9); Amount = eur -50m; Payee = Some "Markt"; Memo = None
+                Cleared = Uncleared; Approved = false; FlagColor = None; FlagName = None } }
+        { EntryId = entryId; OccurredAt = at; Actor = ComdirectImport
+          Body =
+            EntryHeldAsPossibleDuplicate {
+                Reason = "In YNAB steht eine Buchung mit gleichem Betrag."
+                MatchYnabTransactionId = freshYnabId ()
+                MatchEntryId = None
+                Match = { Date = DateTime(2026, 11, 8); Amount = eur -50m; Payee = Some "Markt"; CategoryName = None } } }
+    ]
+    |> Async.RunSynchronously
+    entryId
+
+
 let private eventsOf (entryId: EntryId) : RecordedLedgerEvent list = loadEventsForEntry entryId |> Async.RunSynchronously
 
 let private balanceOf (account: Account) : decimal =
@@ -487,6 +511,16 @@ let deletionCommandTests =
             restore probe entryId |> expectOk "Wiederherstellen"
             Expect.equal (restore probe entryId) (Error entryRestoreNotDeletedInBbText) "abgelehnt"
             Expect.equal probe.Creates.Length 1 "kein zweiter POST"
+
+        testCase "eine wartende Buchung lässt sich nicht wiederherstellen: Wartesperre, ohne Aufruf, ohne Ereignis" <| fun () ->
+            // ledger-vfr4h (ADR 0093 Punkt 6): vorher kam "nicht in BB gelöscht" statt des Satzes der Wartesperre.
+            let entryId = seedHeld (freshAccount ())
+            let before = eventsOf entryId |> List.length
+            let probe = Probe()
+            Expect.equal (restore probe entryId) (Error possibleDuplicateLockedText) "Satz der Wartesperre"
+            Expect.isEmpty probe.Creates "kein POST"
+            Expect.equal (eventsOf entryId |> List.length) before "kein Ereignis"
+            Expect.equal probe.MirrorTriggers 0 "kein Spiegel"
     ]
 
 // ============================================
@@ -532,6 +566,29 @@ let deletionWriteGuardTests =
             waitsForMirror entryId probe (restoreDeletedEntry at probe.Create probe.Trigger entryId) |> expectOk "Wiederherstellen"
             Expect.equal probe.Creates.Length 1 "ein POST nach dem Lauf"
             Expect.equal (eventsOf entryId |> List.last).EventType "EntryRestoredInBb" "Ereignis nach dem Lauf"
+
+        testCase "der Spiegel-Auslöser nach dem Löschen läuft erst nach Freigabe der Sperre" <| fun () ->
+            let account = freshAccount ()
+            let entryId = seed (observed account (freshYnabId ()) None)
+            let probe = Probe()
+            let trigger = LedgerWriteGuardProbe.SyncMirrorTrigger(2000)
+            LedgerWriteGuardProbe.serialized (fun () ->
+                let run = Async.StartAsTask(deleteEntry at probe.Delete trigger.Trigger entryId)
+                Expect.isTrue (run.Wait 10000) "Befehl beendet"
+                run.Result |> expectOk "Löschen")
+            Expect.equal trigger.FinishedInTime (Some true) "der Lauf des Auslösers endet in der Frist, die Sperre ist schon frei"
+
+        testCase "der Spiegel-Auslöser nach dem Wiederherstellen läuft erst nach Freigabe der Sperre" <| fun () ->
+            let account = freshAccount ()
+            let entryId = seed (observed account (freshYnabId ()) None)
+            delete (Probe()) entryId |> expectOk "Löschen"
+            let probe = Probe()
+            let trigger = LedgerWriteGuardProbe.SyncMirrorTrigger(2000)
+            LedgerWriteGuardProbe.serialized (fun () ->
+                let run = Async.StartAsTask(restoreDeletedEntry at probe.Create trigger.Trigger entryId)
+                Expect.isTrue (run.Wait 10000) "Befehl beendet"
+                run.Result |> expectOk "Wiederherstellen")
+            Expect.equal trigger.FinishedInTime (Some true) "der Lauf des Auslösers endet in der Frist, die Sperre ist schon frei"
     ]
 
 // ============================================

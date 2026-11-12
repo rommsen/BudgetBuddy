@@ -480,16 +480,55 @@ let retryTransferTests =
 // Rückgängig: discardCapturedBooking
 // ============================================
 
+/// Löscht in YNAB über die Probe: zeichnet die Id auf und liefert das feste Ergebnis.
+let private deleteVia (deletes: ResizeArray<string>) (result: YnabResult<unit>) =
+    fun (ynabId: string) -> async { deletes.Add ynabId; return result }
+
+/// Eine importierte Buchung, die als vielleicht doppelt wartet (ADR 0093 Punkt 2), wie `seedHeld`
+/// in `LedgerDuplicateDecisionTests`.
+let private seedHeld (account: LedgerAccountId) : EntryId =
+    let entryId = newEntryId ()
+    let reference = $"vfr4h-{Guid.NewGuid():N}"
+    appendAndApply [
+        { EntryId = entryId; OccurredAt = now; Actor = ComdirectImport
+          Body =
+            EntryImportedFromComdirect {
+                AccountId = account; ImportId = $"BB:{reference}"; ComdirectReference = reference
+                Date = today; Amount = eur -50m; Payee = Some "Markt"; Memo = None
+                Cleared = Uncleared; Approved = false; FlagColor = None; FlagName = None } }
+        { EntryId = entryId; OccurredAt = now; Actor = ComdirectImport
+          Body =
+            EntryHeldAsPossibleDuplicate {
+                Reason = "In YNAB steht eine Buchung mit gleichem Betrag."
+                MatchYnabTransactionId = $"ynab-treffer-{Guid.NewGuid():N}"
+                MatchEntryId = None
+                Match = { Date = today; Amount = eur -50m; Payee = Some "Markt"; CategoryName = None } } }
+    ]
+    |> Async.RunSynchronously
+    entryId
+
+/// Eine im Kassenbuch erfasste, mit YNAB verknüpfte Buchung auf Bar.
+let private captured (accounts: Accounts) (ynabId: string) : EntryId =
+    let entryId = newEntryId ()
+    book (BookingProbe(accounts, Ok ynabId)) entryId (request accounts.Bar) |> ignore
+    entryId
+
 [<Tests>]
 let discardTests =
-    let discardWith (deletes: ResizeArray<string>) (result: YnabResult<unit>) (entryId: EntryId) =
-        discardCapturedBooking
-            now
-            loadEntryOrigin
-            (fun ynabId -> async { deletes.Add ynabId; return result })
-            ignore
-            entryId
+    let discardCounting (deletes: ResizeArray<string>) (triggers: int ref) (result: YnabResult<unit>) (entryId: EntryId) =
+        discardCapturedBooking now loadEntryOrigin (deleteVia deletes result) (fun () -> triggers.Value <- triggers.Value + 1) entryId
         |> Async.RunSynchronously
+    let discardWith (deletes: ResizeArray<string>) (result: YnabResult<unit>) (entryId: EntryId) =
+        discardCounting deletes (ref 0) result entryId
+    /// Lehnt ab: der erwartete Satz, kein DELETE, kein Ereignis, kein Auslöser.
+    let expectRefused (expected: string) (entryId: EntryId) =
+        let before = eventsOf entryId |> List.length
+        let deletes = ResizeArray()
+        let triggers = ref 0
+        Expect.equal (discardCounting deletes triggers (Ok ()) entryId) (Error expected) "der Satz"
+        Expect.isEmpty deletes "kein DELETE"
+        Expect.equal (eventsOf entryId |> List.length) before "kein Ereignis"
+        Expect.equal triggers.Value 0 "kein Spiegel-Auslöser"
     testSequenced
     <| testList "Buchung erfassen: Rückgängig (ledger-at63w)" [
         testCase "Rückgängig löscht zuerst in YNAB und verwirft die Buchung danach im Kassenbuch" <| fun () ->
@@ -547,6 +586,134 @@ let discardTests =
             let deletes = ResizeArray()
             Expect.equal (discardWith deletes (Ok ()) entryId) (Error discardDeletedText) "abgelehnt"
             Expect.isEmpty deletes "kein zweites DELETE"
+
+        testCase "eine abgeglichene erfasste Buchung lässt sich nicht verwerfen" <| fun () ->
+            setup ()
+            let accounts = freshAccounts ()
+            let entryId = captured accounts "ynab-discard-reconciled"
+            appendAndApply [
+                { EntryId = entryId; OccurredAt = now; Actor = YnabMirror
+                  Body = EntryClearedStateChangeObservedInYnab { OldCleared = Uncleared; NewCleared = Reconciled } }
+            ]
+            |> Async.RunSynchronously
+            Expect.equal (entryOf entryId).Cleared Reconciled "abgeglichen"
+            Expect.isTrue (entryOf entryId).LinkedToYnab "verknüpft"
+            expectRefused discardReconciledText entryId
+
+        testCase "eine vom Spiegel als in YNAB gelöscht beobachtete erfasste Buchung lässt sich nicht verwerfen" <| fun () ->
+            setup ()
+            let accounts = freshAccounts ()
+            let entryId = captured accounts "ynab-discard-observed"
+            appendAndApply [ { EntryId = entryId; OccurredAt = now; Actor = YnabMirror; Body = EntryDeletionObservedInYnab } ]
+            |> Async.RunSynchronously
+            expectRefused discardDeletedText entryId
+
+        testCase "eine wartende Buchung lässt sich nicht verwerfen: Wartesperre" <| fun () ->
+            // ledger-vfr4h (ADR 0093 Punkt 6): vorher kam "Nur eine in BB erfasste Buchung" statt des
+            // Satzes der Wartesperre.
+            setup ()
+            let accounts = freshAccounts ()
+            expectRefused possibleDuplicateLockedText (seedHeld accounts.Bar)
+
+        testCase "der Spiegel wird genau einmal nach dem Verwerfen angestoßen" <| fun () ->
+            setup ()
+            let accounts = freshAccounts ()
+            let entryId = captured accounts "ynab-discard-trigger"
+            let triggers = ref 0
+            Expect.equal (discardCounting (ResizeArray()) triggers (Ok ()) entryId) (Ok ()) "verworfen"
+            Expect.equal triggers.Value 1 "ein Auslöser"
+
+        testCase "nach keiner Ablehnung und keinem gescheiterten DELETE wird der Spiegel angestoßen" <| fun () ->
+            setup ()
+            let accounts = freshAccounts ()
+            let refusals : (string * (unit -> EntryId) * string) list = [
+                "unbekannt", newEntryId, "Buchung nicht gefunden"
+                "gelöscht",
+                (fun () ->
+                    let id = captured accounts "ynab-discard-t-deleted"
+                    discardWith (ResizeArray()) (Ok ()) id |> ignore
+                    id),
+                discardDeletedText
+                "nicht erfasst",
+                (fun () ->
+                    let id = newEntryId ()
+                    let input : CashExpenseInput =
+                        { AccountId = accounts.Bar; Date = today; Amount = eur -3m; Payee = Some "Kiosk"; Memo = None; Category = None }
+                    addCashExpense QuickAdd now id (fun () -> async.Return (Ok "ynab-discard-t-qa")) ignore input
+                    |> Async.RunSynchronously |> ignore
+                    id),
+                discardNotCapturedText
+                "abgeglichen",
+                (fun () ->
+                    let id = captured accounts "ynab-discard-t-reconciled"
+                    appendAndApply [
+                        { EntryId = id; OccurredAt = now; Actor = YnabMirror
+                          Body = EntryClearedStateChangeObservedInYnab { OldCleared = Uncleared; NewCleared = Reconciled } }
+                    ]
+                    |> Async.RunSynchronously
+                    id),
+                discardReconciledText
+                "nicht verknüpft",
+                (fun () ->
+                    let id = newEntryId ()
+                    book (BookingProbe(accounts, Error (YnabError.NetworkError "weg"))) id (request accounts.Bar) |> ignore
+                    id),
+                discardNotLinkedText
+                "wartend", (fun () -> seedHeld accounts.Bar), possibleDuplicateLockedText
+            ]
+            for name, arrange, expected in refusals do
+                let triggers = ref 0
+                Expect.equal (discardCounting (ResizeArray()) triggers (Ok ()) (arrange ())) (Error expected) name
+                Expect.equal triggers.Value 0 $"kein Auslöser ({name})"
+            let failed = captured accounts "ynab-discard-t-failed"
+            let triggers = ref 0
+            match discardCounting (ResizeArray()) triggers (Error (YnabError.NetworkError "weg")) failed with
+            | Error _ -> ()
+            | Ok () -> failtest "Fehler erwartet"
+            Expect.equal triggers.Value 0 "kein Auslöser nach gescheitertem DELETE"
+    ]
+
+// ============================================
+// Rückgängig unter der Schreib-Sperre (ADR 0055 Punkt 6, ledger-vfr4h)
+// ============================================
+//
+// Ohne Sperre sähe ein Spiegel-Lauf zwischen DELETE und `EntryDiscardedInBb` die Löschung in YNAB
+// und schriebe `EntryDeletionObservedInYnab` (Actor `YnabMirror`) statt des BB-Ereignisses.
+
+[<Tests>]
+let discardWriteGuardTests =
+    testSequenced
+    <| testList "Buchung erfassen: Rückgängig, Schreib-Sperre" [
+        testCase "Rückgängig während eines Spiegel-Laufs ruft DELETE und schreibt EntryDiscardedInBb erst nach dem Lauf" <| fun () ->
+            setup ()
+            let accounts = freshAccounts ()
+            let entryId = captured accounts "ynab-discard-guard"
+            let before = eventsOf entryId |> List.map (fun r -> r.EventType)
+            let deletes = ResizeArray()
+            let result =
+                LedgerWriteGuardProbe.commandWaitsForMirror
+                    (fun () ->
+                        Expect.equal (eventsOf entryId |> List.map (fun r -> r.EventType)) before "noch kein Ereignis während des Laufs"
+                        Expect.isEmpty deletes "noch kein DELETE")
+                    (discardCapturedBooking now loadEntryOrigin (deleteVia deletes (Ok ())) ignore entryId)
+            Expect.equal result (Ok ()) "verworfen"
+            Expect.equal (List.ofSeq deletes) [ "ynab-discard-guard" ] "ein DELETE nach dem Lauf"
+            Expect.equal
+                (eventsOf entryId |> List.map (fun r -> r.EventType))
+                (before @ [ "EntryDiscardedInBb" ])
+                "ein Ereignis nach dem Lauf"
+
+        testCase "der Spiegel-Auslöser nach Rückgängig läuft erst nach Freigabe der Sperre" <| fun () ->
+            setup ()
+            let accounts = freshAccounts ()
+            let entryId = captured accounts "ynab-discard-sync"
+            let trigger = LedgerWriteGuardProbe.SyncMirrorTrigger(2000)
+            LedgerWriteGuardProbe.serialized (fun () ->
+                let run =
+                    Async.StartAsTask(discardCapturedBooking now loadEntryOrigin (deleteVia (ResizeArray()) (Ok ())) trigger.Trigger entryId)
+                Expect.isTrue (run.Wait 10000) "Befehl beendet"
+                Expect.equal run.Result (Ok ()) "verworfen")
+            Expect.equal trigger.FinishedInTime (Some true) "der Lauf des Auslösers endet in der Frist, die Sperre ist schon frei"
     ]
 
 // ============================================

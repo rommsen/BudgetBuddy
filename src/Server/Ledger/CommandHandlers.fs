@@ -2356,6 +2356,7 @@ let discardReconciledText = "Die Buchung ist abgeglichen"
 /// Buchung zuerst in YNAB und schreibt erst danach `EntryDiscardedInBb` (Actor `UserInBb`). Nur
 /// für eine Buchung, die mit `CashExpenseAdded` durch `UserInBb` entstand, mit YNAB verknüpft,
 /// nicht gelöscht und nicht abgeglichen ist; sonst Ablehnung ohne Aufruf und ohne Ereignis.
+/// Eine wartende Buchung lehnt der erste Zweig mit dem Satz der Wartesperre ab (ADR 0093 Punkt 6).
 /// Scheitert das Löschen, bleibt alles, wie es war. Unter der Schreib-Sperre, der Spiegel danach.
 /// `origin` liefert den Actor des ersten Ereignisses der Buchung.
 let discardCapturedBooking
@@ -2371,6 +2372,7 @@ let discardCapturedBooking
                 async {
                     match! Ledger.Persistence.loadEntry entryId with
                     | None -> return Error "Buchung nicht gefunden"
+                    | Some entry when isHeldAsPossibleDuplicate entry -> return Error possibleDuplicateLockedText
                     | Some entry when entry.DeletedInYnab -> return Error discardDeletedText
                     | Some entry ->
                         match! origin entryId with
@@ -3441,7 +3443,8 @@ let deleteEntry
 /// nach dem Löschen: unter der Schreib-Sperre ein POST mit dem Stand aus `EntryDeletedInBb`
 /// (`restoreRequestOf`), nur bei Erfolg danach `EntryRestoredInBb` (Actor `UserInBb`) mit der
 /// neuen YNAB-Id; die alte gilt dann als abgelöst (ADR 0058 Punkt 5). Nur für eine Buchung, deren
-/// letztes Löschen ein `EntryDeletedInBb` ist und die noch als gelöscht gilt. Scheitert der POST,
+/// letztes Löschen ein `EntryDeletedInBb` ist und die noch als gelöscht gilt; eine wartende Buchung
+/// lehnt der erste Zweig mit dem Satz der Wartesperre ab (ADR 0093 Punkt 6). Scheitert der POST,
 /// bleibt die Buchung gelöscht, kein Ereignis.
 let restoreDeletedEntry
     (now: DateTime)
@@ -3455,6 +3458,7 @@ let restoreDeletedEntry
                 async {
                     match! Ledger.Persistence.loadEntry entryId with
                     | None -> return Error "Buchung nicht gefunden"
+                    | Some entry when isHeldAsPossibleDuplicate entry -> return Error possibleDuplicateLockedText
                     | Some entry when not entry.DeletedInYnab -> return Error entryRestoreNotDeletedInBbText
                     | Some entry ->
                         let! recorded = Ledger.Persistence.loadEventsForEntry entryId

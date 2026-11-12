@@ -461,6 +461,40 @@ let transferCommandTests =
     ]
 
 // ============================================
+// Schreib-Sperre gegen den Spiegel-Lauf (ADR 0055 Punkt 6, ledger-vfr4h)
+// ============================================
+//
+// Ohne Sperre sähe ein Spiegel-Lauf zwischen `EntryTransferTargetSetInBb` und dem PUT den alten
+// YNAB-Stand und schriebe ihn als Änderung aus YNAB zurück.
+
+[<Tests>]
+let transferWriteGuardTests =
+    let testCase name body =
+        testCase name (fun () ->
+            initializeLedgerSchema ()
+            global.Persistence.initializeDatabase ()
+            seedCategories ()
+            body ())
+
+    testSequenced
+    <| testList "Übertrag in BB: Schreib-Sperre" [
+        testCase "zum Übertrag während eines Spiegel-Laufs schreibt das Ereignis und den PUT erst nach dem Lauf" <| fun () ->
+            let accounts = freshAccounts ()
+            let entryId, ynabId = seedLinked accounts
+            let before = eventTypesOf entryId
+            let probe = TransferProbe(accounts.List, Ok ())
+            let result =
+                LedgerWriteGuardProbe.commandWaitsForMirror
+                    (fun () ->
+                        Expect.equal (eventTypesOf entryId) before "noch kein Ereignis während des Laufs"
+                        Expect.isEmpty probe.Calls "noch kein PUT")
+                    (setEntryTransfer at probe.Tools entryId accounts.Target)
+            Expect.equal (unwrap result).WriteBack CategorySent "gesendet"
+            Expect.equal (eventTypesOf entryId) (before @ [ "EntryTransferTargetSetInBb" ]) "ein Ereignis nach dem Lauf"
+            Expect.equal probe.Calls [ ynabId, MakeTransfer "payee-tagesgeld" ] "ein PUT nach dem Lauf"
+    ]
+
+// ============================================
 // Spiegel nach dem Push
 // ============================================
 
