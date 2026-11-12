@@ -60,8 +60,13 @@ Zuletzt aktualisiert: 2026-11-12, nach work-Lauf zum Bestandsreview ledger (G1, 
   Nachträge ADR 0058 und 0092). Entschieden (Roman, 2026-11-12): Rest gelb/rot, 409 bei Barbuchung angekommen, ausgegraute
   Zeile in `text-muted`. Gate auf 6359f73c: VERIFY: PASS (dotnet 4886, node 322). Nicht gepusht, nicht deployt. G3
   (ledger-h7de3, Fehlertexte in Ereignissen) noch unverfeinert, wartet nicht mehr.
-- **Nächster Schritt:** `/review-agents` über den Lauf (Bereich 2f41a405..6359f73c), darunter ein bekannter Testfehler in
-  `LedgerRowLockWaysTests.fs:124` (Kann-Punkt 84). Dann Romans Blick auf die Schnitte 3 bis 5 und die neuen Seiten-Details
+- **Review-Lauf a3f7eb1d..982bdf79 (2026-11-12):** 4 Agents, 29 Funde behoben in 7115d633..738c8407, darunter: Nachladen
+  überschrieb neuere Zeilen, gescheitertes „Lena fragen“ verwarf eine offene Eingabe, die Kontoliste bei „Neue Buchung“
+  zeigte Laden/Fehler/leer nie (FS0020, jetzt in allen Projekten ein Build-Fehler), die Aufzählung der Zeilen-Sperre stellte
+  keine Antworten zu, ein offener Ersatz ohne Fehlschlag blieb gesperrt. Entschieden (Roman): gelbe Hinweise bleiben in der
+  ausgegrauten Zeile, „Ersatz“-Texte passen, Toast am Handy als Ticket design-system-vf94m. Gate: VERIFY: PASS (dotnet 4899,
+  node 322).
+- **Nächster Schritt:** Romans Blick auf die Schnitte 3 bis 5 und die neuen Seiten-Details
   (Screenshots im Scratchpad e3/<task-id>/), Deploy auf Anweisung (`scripts/deploy.sh`; Achtung: automatischer Abruf ab Deploy
   an, alle 6 Stunden, bucht direkt; f8bjm bringt eine Migration). Danach Schnitt 6 `categorization-n3sxw` verfeinern.
   Offen zum Verfeinern mit Roman: ledger-t4rk8 (Betrag eines Übertrags in BB ändern).
