@@ -4393,3 +4393,455 @@ let view (model: Model) (dispatch: Msg -> unit) =
        ]
       ]
     ]
+
+// ============================================
+// Durchgehen Karte für Karte (ledger-v6s7c, Prototyp Version 17 `review()`)
+// ============================================
+
+/// Der Wert im Feld „Kategorie“ der Karte.
+type ReviewCategoryValue =
+    | ReviewCategoryNamed of string
+    /// Eine aufgeteilte Buchung: „Aufgeteilt“ ohne Pfeil, geändert wird im Detail.
+    | ReviewSplit
+    /// Ohne Ziel: gedämpft-gelb „Kategorie wählen“.
+    | ReviewMissing
+
+/// Der Wert des Felds: die Kategorie, „→ <Konto>“ bei einem Übertrag, „Aufgeteilt“ bei einer Aufteilung.
+let reviewCategoryValue (model: Model) (entry: LedgerEntryView) : ReviewCategoryValue =
+    if not (List.isEmpty entry.Splits) then ReviewSplit
+    elif entry.IsTransfer && entry.CategoryId.IsNone then
+        let name = entry.TransferAccountId |> Option.bind (transferAccountName model) |> Option.defaultValue "Konto"
+        ReviewCategoryNamed $"→ {name}"
+    else
+        match entry.CategoryName with
+        | Some name -> ReviewCategoryNamed name
+        | None -> ReviewMissing
+
+/// „<Tag> · <Konto> · <Herkunft>“ oben auf der Karte; der Tag wie in der Kassenbuch-Liste.
+let reviewMetaText (today: DateTime) (accountName: string) (entry: LedgerEntryView) : string =
+    $"{formatEntryDate today entry.Date} · {accountName} · {originLabel entry.Origin}"
+
+/// Die Link-Zeilen der Karte als (Titel, Nummer, Adresse): eine Amazon-Bestellung heißt „Bestellung bei
+/// Amazon“ mit der Nummer darunter, die übrigen Links tragen ihre Beschriftung (Abweichung (d)).
+let reviewLinks (entry: LedgerEntryView) : (string * string option * string) list =
+    let prefix = "Bestellung "
+    detailExternalLinks entry
+    |> List.map (fun (label, url) ->
+        if label.StartsWith prefix then "Bestellung bei Amazon", Some (label.Substring prefix.Length), url
+        else label, None, url)
+
+/// Die Vorschläge unter dem Feld: höchstens drei, ohne die aktuelle Kategorie, nur bekannte Kategorien.
+let reviewSuggestionChips (model: Model) (entry: LedgerEntryView) : YnabCategory list =
+    let categories = model.Categories |> RemoteData.toOption |> Option.defaultValue []
+    let current = entry.CategoryId |> Option.map YnabCategoryId
+    match model.Review with
+    | Some review ->
+        review.Suggestions
+        |> List.filter (fun id -> Some id <> current)
+        |> List.choose (fun id -> categories |> List.tryFind (fun c -> c.Id = id))
+        |> List.truncate 3
+    | None -> []
+
+/// Die Zeile der schon vorhandenen Buchung auf der Duplikat-Karte als (Payee, „<Tag> · <Konto> · <Kategorie>“,
+/// Betrag): die aufgelöste Kassenbuch-Buchung, ohne sie der Schnappschuss aus dem Ereignis (Konto dann das der
+/// wartenden Buchung).
+let reviewMatchRow
+    (today: DateTime)
+    (accountName: Guid -> string)
+    (held: LedgerEntryView)
+    (resolved: LedgerEntryView option)
+    (duplicate: PossibleDuplicateView)
+    : string * string * string =
+    let money (m: Money) = Money.formatAmountText false true m.Amount m.Currency
+    match resolved with
+    | Some e ->
+        payeeLabel e, $"{formatEntryDate today e.Date} · {accountName e.AccountId} · {categoryLabel e}", money e.Amount
+    | None ->
+        let payee = duplicate.MatchPayee |> Option.filter (fun p -> p.Trim() <> "") |> Option.defaultValue "ohne Payee"
+        let category = duplicate.MatchCategoryName |> Option.defaultValue "ohne Kategorie"
+        payee, $"{formatEntryDate today duplicate.MatchDate} · {accountName held.AccountId} · {category}", money duplicate.MatchAmount
+
+/// Die Tastenleiste am PC (Prototyp `renderDesk`).
+let reviewKeys : (string * string) list =
+    [ "Enter", "passt"; "S", "später"; "K", "Kategorie"; "L", "Lena"; "Esc", "zurück" ]
+
+let reviewSwipeHintText = "Nach rechts wischen heißt „Passt“, nach links „Später“."
+let reviewLenaHintText = "ist gefragt. Die Buchung bleibt offen, bis Lena oder du sie prüft."
+
+/// Liegt etwas über der Karte, das Tasten selbst behandelt (Picker, Payee, Memo, Betrag, Split)? Dann
+/// gelten die Tasten des Durchgehens nicht (§7.8 Punkt 6).
+let reviewOverlayOpen (model: Model) : bool =
+    model.CategoryPickerFor.IsSome || model.PayeeEdit.IsSome || model.MemoEdit.IsSome
+    || model.AmountEdit.IsSome || model.SplitEditor.IsSome
+
+/// Was eine Taste im Durchgehen auslöst, aus dem Ereignis: nichts aus einem Eingabefeld, mit Strg, Meta
+/// oder Alt, bei offener Auswahl über der Karte; Enter auf einem Knopf bleibt dessen eigene Aktivierung. Mit
+/// offenem Detail gilt nur Esc (schließt das Detail). Rein.
+let reviewKeyFor (model: Model) (tagName: string) (isContentEditable: bool) (modifier: bool) (key: string) : ReviewKeyAction option =
+    if reviewOverlayOpen model || modifier || isTypingTarget tagName isContentEditable then None
+    elif key = "Enter" && isActivatable tagName then None
+    else
+        let card =
+            match reviewCardOf model with
+            | Some entry when not (model.Review |> Option.exists (fun r -> r.DetailShown)) ->
+                Some (reviewCardKindOf entry, reviewHasTarget entry)
+            | _ -> None
+        match model.Review with
+        | Some r when r.DetailShown -> if key = "Escape" then Some KeyLeave else None
+        | _ -> reviewKeyAction card key
+
+[<ReactComponent>]
+let private ReviewKeyboard (model: Model) (dispatch: Msg -> unit) =
+    let modelRef = React.useRef model
+    modelRef.current <- model
+    let dispatchRef = React.useRef dispatch
+    dispatchRef.current <- dispatch
+    React.useEffect (
+        (fun () ->
+            let handler (e: Browser.Types.Event) =
+                let ke = e :?> Browser.Types.KeyboardEvent
+                let target = ke.target :?> Browser.Types.HTMLElement
+                let tagName = if isNull (box target) then "" else target.tagName
+                let editable = not (isNull (box target)) && target.isContentEditable
+                if not ke.defaultPrevented then
+                    match reviewKeyFor modelRef.current tagName editable (ke.ctrlKey || ke.metaKey || ke.altKey) ke.key with
+                    | Some action ->
+                        ke.preventDefault ()
+                        dispatchRef.current (ReviewKey action)
+                    | None -> ()
+            Browser.Dom.document.addEventListener ("keydown", handler)
+            { new IDisposable with
+                member _.Dispose() = Browser.Dom.document.removeEventListener ("keydown", handler) }),
+        [||]
+    )
+    Html.none
+
+[<Emit("$0.style.transform = $1")>]
+let private setCardTransform (element: Browser.Types.HTMLElement) (value: string) : unit = jsNative
+
+[<Emit("$0.style.opacity = $1")>]
+let private setCardOpacity (element: Browser.Types.HTMLElement) (value: string) : unit = jsNative
+
+/// Die Karte folgt beim Wischen dem Finger und wird blasser (Prototyp `touchmove`); am Ende entscheidet
+/// `reviewSwipeOf` über den Weg.
+[<ReactComponent>]
+let private SwipeableReviewCard (enabled: bool) (onSwiped: float -> unit) (content: ReactElement list) =
+    let start = React.useRef<(float * float) option> None
+    let element = React.useRef<Browser.Types.HTMLElement option> None
+    let reset () =
+        match element.current with
+        | Some el ->
+            setCardTransform el ""
+            setCardOpacity el ""
+        | None -> ()
+    let swipeProps : IReactProperty list =
+        if not enabled then []
+        else
+            [ prop.onTouchStart (fun e ->
+                  if e.touches.Length > 0 then
+                      let t = e.touches.[0]
+                      start.current <- Some (t.clientX, t.clientY))
+              prop.onTouchMove (fun e ->
+                  match start.current, element.current with
+                  | Some (sx, sy), Some el when e.touches.Length > 0 ->
+                      let t = e.touches.[0]
+                      let dx = t.clientX - sx
+                      let dy = t.clientY - sy
+                      if abs dx > abs dy then
+                          setCardTransform el $"translateX({dx * 0.6}px)"
+                          setCardOpacity el (string (1.0 - min (abs dx / 400.0) 0.5))
+                  | _ -> ())
+              prop.onTouchEnd (fun e ->
+                  match start.current with
+                  | Some (sx, _) when e.changedTouches.Length > 0 ->
+                      start.current <- None
+                      reset ()
+                      onSwiped (e.changedTouches.[0].clientX - sx)
+                  | _ ->
+                      start.current <- None
+                      reset ()) ]
+    ReviewCard.card
+        false
+        ([ prop.custom ("data-testid", "review-card")
+           prop.ref (fun (el: Browser.Types.Element) -> element.current <- (if isNull el then None else Some (el :?> Browser.Types.HTMLElement))) ]
+         @ swipeProps)
+        content
+
+/// Der Name eines Kontos des Kassenbuchs.
+let private reviewAccountName (model: Model) (accountId: Guid) : string =
+    match model.Accounts with
+    | Success view ->
+        view.Accounts |> List.tryFind (fun a -> a.Id = accountId) |> Option.map (fun a -> a.Name) |> Option.defaultValue "Konto"
+    | _ -> "Konto"
+
+let private amountText (m: Money) = Money.formatAmountText false true m.Amount m.Currency
+
+/// Die normale Karte mit den Knöpfen darunter.
+let private reviewNormalCard (dispatch: Msg -> unit) (model: Model) (review: ReviewSession) (entry: LedgerEntryView) (desk: bool) =
+    let today = DateTime.Today
+    let pickerOpen = model.CategoryPickerFor = Some entry.Id && not review.DetailShown
+    let pickerProps = detailPickerProps dispatch model entry
+    let hasTarget = reviewHasTarget entry
+    let lena = lenaActionFor model.LenaFlagColor entry
+    let categoryBusy = (model.CategoryRows |> Map.tryFind entry.Id) = Some CategorySending
+    let field =
+        match reviewCategoryValue model entry with
+        | ReviewSplit -> ReviewCard.field "review-category" "Kategorie" (Some "Aufgeteilt") "" false None
+        | value ->
+            let shown = match value with ReviewCategoryNamed n -> Some n | _ -> None
+            ReviewCard.field "review-category" "Kategorie" shown "Kategorie wählen" pickerOpen (Some (fun () -> dispatch ReviewOpenCategory))
+    React.fragment [
+        SwipeableReviewCard (not desk) (ReviewSwiped >> dispatch) [
+            ReviewCard.meta (reviewMetaText today (reviewAccountName model entry.AccountId) entry)
+            ReviewCard.payee
+                (payeeLabel entry)
+                payeeEditLabel
+                (payeeEditMsg model entry |> Option.map (fun msg -> fun () -> dispatch msg))
+            ReviewCard.amount (amountText entry.Amount)
+            Html.div [
+                prop.className "relative"
+                prop.children [
+                    field
+                    if desk then CategoryPicker.popoverWithWidth "w-full" pickerOpen pickerProps
+                ]
+            ]
+            if entry.CategoryFromOrderId then ReviewCard.caption "review-order-id" "aus Bestellnummer"
+            match reviewSuggestionChips model entry with
+            | [] -> ()
+            | chips ->
+                Html.div [
+                    prop.custom ("data-testid", "review-suggestions")
+                    prop.className "flex flex-col gap-1.5"
+                    prop.children [
+                        ReviewCard.caption "review-suggested-label" "Vorgeschlagen"
+                        Html.div [
+                            prop.className "flex flex-wrap gap-1.5"
+                            prop.children [
+                                for c in chips ->
+                                    Html.span [
+                                        prop.key (string c.Id)
+                                        prop.children [ BottomSheet.chipButtonTouch c.Name (fun () -> dispatch (ReviewPickSuggestion c.Id)) ]
+                                    ]
+                            ]
+                        ]
+                    ]
+                ]
+            for (title, detail, url) in reviewLinks entry do ReviewCard.linkRow title detail url
+            ReviewCard.kvRow
+                "review-memo"
+                "Memo"
+                (memoTextOf entry)
+                "hinzufügen"
+                (fun () -> memoActionMsg model entry |> Option.iter dispatch)
+            if entry.Flag = AskLena then
+                ReviewCard.note "review-lena-note" [
+                    Html.span [ prop.className "inline-flex shrink-0 pt-0.5"; prop.children [ Icons.flagSolid Icons.XS Icons.LenaFlag ] ]
+                    Html.span [ prop.text $"Lena {reviewLenaHintText}" ]
+                ]
+            ReviewCard.detailsLink (fun () -> dispatch ReviewShowDetails)
+        ]
+        Html.div [
+            prop.className "grid grid-cols-2 gap-2"
+            prop.children [
+                Button.view
+                    { Button.defaultProps with
+                        Text = lena.Label |> fun l -> if entry.Flag = AskLena then "Rückfrage zurück" else "Lena fragen"
+                        Variant = Button.Secondary
+                        Size = Button.Choice
+                        ClassName = Some "min-h-[52px]"
+                        FullWidth = true
+                        Icon = (if entry.Flag = AskLena then None else Some (Icons.flagSolid Icons.XS Icons.LenaFlag))
+                        IsDisabled = lena.DisabledReason.IsSome
+                        Title = lena.DisabledReason
+                        IsBusy = (model.FlagRows |> Map.tryFind entry.Id) = Some FlagSending
+                        OnClick = fun () -> dispatch ReviewLena }
+                Button.view
+                    { Button.defaultProps with
+                        Text = "Später"
+                        Variant = Button.Secondary
+                        Size = Button.Choice
+                        ClassName = Some "min-h-[52px]"
+                        FullWidth = true
+                        OnClick = fun () -> dispatch ReviewSkip }
+            ]
+        ]
+        Button.view
+            { Button.defaultProps with
+                Text = (if hasTarget then "Passt, weiter" else "Erst Kategorie wählen")
+                Variant = Button.Primary
+                Size = Button.Choice
+                FullWidth = true
+                Glow = false
+                ClassName = Some "min-h-[54px]"
+                IsDisabled = not hasTarget || categoryBusy
+                IsBusy = review.Confirming = Some entry.Id
+                OnClick = fun () -> dispatch ReviewConfirm }
+        if not desk then ReviewCard.hint reviewSwipeHintText
+        // Kategorieauswahl am Handy: das Sheet über der Seite (die Karte ist kein Sheet).
+        if not desk then
+            CategoryPicker.sheet pickerOpen (Some $"{payeeLabel entry} · {amountText entry.Amount}") pickerProps
+    ]
+
+/// Die Duplikat-Karte einer wartenden Buchung (ADR 0093): gelber Rand, der Treffer im Kassenbuch, „Ist neu“
+/// und „Ist doppelt, verwerfen“. Kein Wischen, keine Hinweiszeile.
+let private reviewDuplicateCard (dispatch: Msg -> unit) (model: Model) (review: ReviewSession) (entry: LedgerEntryView) (duplicate: PossibleDuplicateView) =
+    let today = DateTime.Today
+    let resolved = duplicate.MatchEntryId |> Option.bind (fun id -> review.Matches |> Map.tryFind id)
+    let matchPayee, matchMeta, matchAmount = reviewMatchRow today (reviewAccountName model) entry resolved duplicate
+    let deciding = review.Deciding = Some entry.Id
+    React.fragment [
+        ReviewCard.card true [ prop.custom ("data-testid", "review-duplicate-card") ] [
+            ReviewCard.metaAttention "Möglicherweise doppelt · noch nicht in YNAB"
+            ReviewCard.payee (payeeLabel entry) "" None
+            ReviewCard.amount (amountText entry.Amount)
+            ReviewCard.meta (reviewMetaText today (reviewAccountName model entry.AccountId) entry)
+            ReviewCard.sectionHead "Schon im Kassenbuch"
+            ReviewCard.matchRow matchPayee matchMeta matchAmount
+            ReviewCard.caption "review-duplicate-reason" duplicate.Reason
+        ]
+        Html.div [
+            prop.className "grid grid-cols-2 gap-2"
+            prop.children [
+                Button.view
+                    { Button.defaultProps with
+                        Text = "Ist neu"
+                        Variant = Button.Secondary
+                        Size = Button.Choice
+                        ClassName = Some "min-h-[52px]"
+                        FullWidth = true
+                        IsDisabled = deciding
+                        OnClick = fun () -> dispatch ReviewConfirmNew }
+                Button.view
+                    { Button.defaultProps with
+                        Text = "Ist doppelt, verwerfen"
+                        Variant = Button.Primary
+                        Size = Button.Choice
+                        ClassName = Some "min-h-[52px]"
+                        FullWidth = true
+                        Glow = false
+                        IsBusy = deciding
+                        OnClick = fun () -> dispatch ReviewDiscard }
+            ]
+        ]
+    ]
+
+/// Memo und Payee der Karte: am Handy ein Sheet, am PC ein Dialog.
+let private reviewEditors (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) (desk: bool) =
+    let memoEdit = memoEditFor model entry
+    let memoRow = model.MemoRows |> Map.tryFind entry.Id
+    let memoBody =
+        match memoEdit with
+        | Some edit ->
+            let problem =
+                match memoDraftProblem edit.MemoDraft, memoRow with
+                | Some problem, _ -> Some problem
+                | None, Some (MemoCommandFailed message) -> Some message
+                | None, _ -> None
+            let busy = (memoRow = Some MemoSending)
+            [ Detail.memoEditor
+                  { Value = edit.MemoDraft
+                    OnChange = fun text -> dispatch (MemoEditChanged text)
+                    OnSave = fun () -> dispatch (StartSaveMemo entry.Id)
+                    OnCancel = fun () -> dispatch CancelMemoEdit
+                    Busy = busy
+                    Problem = problem
+                    MaxLength = ynabMemoMaxLength
+                    SaveDisabled = busy || (memoDraftProblem edit.MemoDraft).IsSome } ]
+        | None -> []
+    let payeeEdit = payeeEditOf model entry
+    React.fragment [
+        if desk then
+            Modal.view
+                { Modal.defaultProps with
+                    IsOpen = memoEdit.IsSome
+                    OnClose = fun () -> dispatch CancelMemoEdit
+                    Title = Some "Memo"
+                    Subtitle = Some (payeeLabel entry) }
+                [ Modal.bodyNoPadding memoBody ]
+            payeeDialog dispatch model entry
+        else
+            BottomSheet.view
+                { IsOpen = memoEdit.IsSome
+                  OnClose = fun () -> dispatch CancelMemoEdit
+                  Title = "Memo"
+                  Subtitle = Some (payeeLabel entry)
+                  Footer = None }
+                memoBody
+            BottomSheet.view
+                { IsOpen = payeeEdit.IsSome
+                  OnClose = fun () -> dispatch CancelPayeeEdit
+                  Title = "Payee"
+                  Subtitle = Some (payeeLabel entry)
+                  Footer = None }
+                [ match payeeEdit with
+                  | Some edit -> PayeePicker.view (payeePickerProps dispatch model entry edit false)
+                  | None -> () ]
+    ]
+
+/// Die Endansicht: „Alles geprüft“ in Grün, die Zahl der durchgegangenen Buchungen, „Zur Übersicht“.
+let private reviewEnd (count: int) (onBack: unit -> unit) =
+    Html.div [
+        prop.custom ("data-testid", "review-end")
+        prop.className "flex flex-col items-center gap-3"
+        prop.children [
+            Card.sheetMessage "review-end-message" true "Alles geprüft" (reviewDoneText count)
+            Button.view { Button.defaultProps with Text = "Zur Übersicht"; Variant = Button.Primary; OnClick = onBack }
+        ]
+    ]
+
+/// Die Seite „Durchgehen“ unter der Übersicht (Styleguide §7.4): Kopf mit „Zurück“ und „i von n“, Fortschritt,
+/// Karte und Knöpfe; am PC als Spalte von höchstens 620 px mit Tastenleiste.
+[<ReactComponent>]
+let ReviewPage (model: Model) (dispatch: Msg -> unit) (onBack: unit -> unit) =
+    let desk = Viewport.isInspectorPanelViewport ()
+    let form = if desk then DetailPanel else DetailSheet
+    React.useEffect ((fun () -> if model.DetailForm <> form then dispatch (DetailFormChanged form)), [| box form; box model.DetailForm |])
+    match model.Review with
+    | None -> Html.none
+    | Some review ->
+        let count = reviewQueueOf model |> Option.map List.length |> Option.defaultValue 0
+        let card = reviewCardOf model
+        let header =
+            PageHeader.top
+                (Some (PageHeader.backButtonFor (Some "Zurück zur Übersicht") onBack))
+                "Durchgehen"
+                None
+                [ match reviewProgressText review.Index count with
+                  | Some text when card.IsSome ->
+                      Html.span [ prop.custom ("data-testid", "review-position"); prop.className $"{Tokens.Fonts.mono} {Tokens.FontSizes.xs} {Tokens.Colors.textMuted}"; prop.text text ]
+                  | _ -> () ]
+        let body =
+            match review.Queue with
+            | NotAsked | Loading -> [ Loading.centered "Buchungen werden geladen…" ]
+            | Failure message ->
+                [ ErrorDisplay.cardWithTitle "Buchungen konnten nicht geladen werden" message (Some (fun () -> dispatch ReviewOpened)) ]
+            | Success _ ->
+                [ ReviewCard.progress (reviewProgressPercent review.Index count)
+                  match card with
+                  | Some entry ->
+                      match entry.PossibleDuplicate with
+                      | Some duplicate -> reviewDuplicateCard dispatch model review entry duplicate
+                      | None -> reviewNormalCard dispatch model review entry desk
+                      reviewEditors dispatch model entry desk
+                  | None when review.Index >= count -> reviewEnd count onBack
+                  | None -> Loading.centered "Buchung wird geladen…" ]
+        let detail =
+            match card with
+            | Some entry when review.DetailShown ->
+                if desk then detailPanelView dispatch model entry else detailSheetView dispatch model true
+            | _ -> Html.none
+        Html.div [
+            prop.custom ("data-testid", "review-page")
+            prop.className ("relative flex min-h-full flex-col" + (if desk && review.DetailShown then " pr-[420px]" else ""))
+            yield! Badge.lenaFlagScope (lenaColorOf model.LenaFlagColor)
+            prop.children [
+                Html.div [
+                    prop.className "mx-auto flex w-full max-w-[620px] flex-1 flex-col gap-3"
+                    prop.children [ header; yield! body ]
+                ]
+                if desk && card.IsSome then
+                    Html.div [ prop.className "mx-auto mt-4 w-full max-w-[620px]"; prop.children [ ReviewCard.keyBar reviewKeys ] ]
+                detail
+                ReviewKeyboard model dispatch
+            ]
+        ]

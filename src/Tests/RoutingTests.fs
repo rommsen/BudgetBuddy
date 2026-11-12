@@ -20,6 +20,8 @@ let private routes : (Page * string list) list =
       Ledger, [ "ledger" ]
       LedgerEntry entryId, [ "ledger"; "entry"; string entryId ]
       Budget, [ "budget" ]
+      // ledger-v6s7c: das Durchgehen unter der Übersicht.
+      Review, [ "review" ]
       BudgetHistory, [ "budget"; "history" ]
       BudgetTargetCheck, [ "budget"; "target-check" ]
       BudgetCategories, [ "budget"; "categories" ] ]

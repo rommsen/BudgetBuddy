@@ -281,7 +281,7 @@ let trackingLockTests =
           PushToYnabFailure = None
           SplitLocks = None
           ExternalLinks = []
-          PossibleDuplicate = None }
+          PossibleDuplicate = None; CategoryFromOrderId = false }
 
     testList "Ledger Split-Sperren (Tracking-Konten)" [
 

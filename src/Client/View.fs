@@ -159,6 +159,11 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                     (RemoteData.toOption model.QuickAddCategories |> Option.defaultValue [])
                                     model.QuickAddTemplates
                                     dispatch
+                            | Review ->
+                                Components.Ledger.View.ReviewPage
+                                    model.Ledger
+                                    (LedgerMsg >> dispatch)
+                                    (fun () -> dispatch (NavigateTo Overview))
                             | Ledger
                             | LedgerEntry _ ->
                                 Components.Ledger.View.view

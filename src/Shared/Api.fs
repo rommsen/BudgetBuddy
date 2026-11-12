@@ -320,6 +320,12 @@ type LedgerApi = {
     /// in YNAB is pending.
     getLedgerEntry: Guid -> Async<LedgerEntryView option>
 
+    /// Die Warteschlange des Durchgehens (ledger-v6s7c): alle ungeprüften, nicht in YNAB gelöschten
+    /// Buchungen über alle Konten, dieselbe Menge wie `NeedsReviewCount` ohne Konto. Geordnet nach
+    /// `reviewQueueOrder`: wartende zuerst, dann Buchungsdatum aufsteigend, dann EntryId. Liest nur
+    /// das Kassenbuch, keine YNAB-Anfrage.
+    getReviewQueue: unit -> Async<LedgerEntryView list>
+
     /// Die Buchungen einer Kategorie in einem Monat, für das Kategorie-Detail im Budget
     /// (budgeting-m1bce, Customer/Supplier ledger an budgeting). Über alle Konten, neueste zuerst,
     /// ohne in YNAB gelöschte; bei Splits nur der Anteil dieser Kategorie. Liest nur das Kassenbuch,

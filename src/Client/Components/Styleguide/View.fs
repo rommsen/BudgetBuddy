@@ -2523,6 +2523,82 @@ let private multiSelectSection =
     ]
 
 // ============================================
+// 29. Durchgehen (ledger-v6s7c)
+// ============================================
+
+let private reviewCardSection =
+    section "29. Durchgehen (Karte für Karte)" [
+        note "ReviewCard: Fortschritt 4 px (Spur border, Füllung Akzent), die Karte des Durchgehens mit Payee und Betrag in 20 px, die Duplikat-Karte mit gelbem Rand („braucht dich“) und die Tastenleiste am PC mit kbd-Kästchen. Höchstens drei Schriftgrößen je Ansicht (§7.14): 20 px, 16/14 px, 12 px."
+        subTitle "ReviewCard.progress"
+        Html.div [ prop.className "max-w-md"; prop.children [ ReviewCard.progress 30.0 ] ]
+        subTitle "ReviewCard.card (normal)"
+        Html.div [
+            prop.className "max-w-md flex flex-col gap-3"
+            prop.children [
+                ReviewCard.card false [] [
+                    ReviewCard.meta "Heute · Girokonto · Comdirect-Import"
+                    ReviewCard.payee "Amazon" "Payee ändern" (Some ignore)
+                    ReviewCard.amount "-21,50 €"
+                    ReviewCard.field "demo-review-category" "Kategorie" (Some "Kinderkram") "Kategorie wählen" false (Some ignore)
+                    ReviewCard.caption "demo-review-order" "aus Bestellnummer"
+                    ReviewCard.linkRow "Bestellung bei Amazon" (Some "302-1234567-2222222") "https://www.amazon.de/gp/your-account/order-history"
+                    ReviewCard.kvRow "demo-review-memo" "Memo" None "hinzufügen" ignore
+                    ReviewCard.note "demo-review-note" [ Html.span [ prop.text "Lena ist gefragt. Die Buchung bleibt offen, bis Lena oder du sie prüft." ] ]
+                ]
+                ReviewCard.card false [] [
+                    ReviewCard.meta "Gestern · Kreditkarte · YNAB-Spiegel"
+                    ReviewCard.payee "Markt" "" None
+                    ReviewCard.amount "-42,80 €"
+                    ReviewCard.field "demo-review-missing" "Kategorie" None "Kategorie wählen" false (Some ignore)
+                ]
+                ReviewCard.hint "Nach rechts wischen heißt „Passt“, nach links „Später“."
+            ]
+        ]
+        subTitle "ReviewCard.card (Duplikat, gelber Rand)"
+        Html.div [
+            prop.className "max-w-md"
+            prop.children [
+                ReviewCard.card true [] [
+                    ReviewCard.metaAttention "Möglicherweise doppelt · noch nicht in YNAB"
+                    ReviewCard.payee "Markt" "" None
+                    ReviewCard.amount "-42,80 €"
+                    ReviewCard.meta "Heute · Girokonto · Comdirect-Import"
+                    ReviewCard.sectionHead "Schon im Kassenbuch"
+                    ReviewCard.matchRow "Markt" "Heute · Girokonto · Lebensmittel" "-42,80 €"
+                    ReviewCard.caption "demo-review-reason" "Gleicher Betrag, gleicher Tag, gleicher Payee, aber eine andere Bank-Referenz."
+                ]
+            ]
+        ]
+        subTitle "Button.Choice"
+        note "Zwei gleich breite Entscheidungen nebeneinander auf einer Karte: 16 px am Handy, 14 px am PC, wenig Innenabstand (px-3), kein Umbruch. Die Höhe setzt der Aufrufer (52 px, der Hauptknopf „Passt, weiter“ 54 px)."
+        Html.div [
+            prop.className "max-w-md grid grid-cols-2 gap-2"
+            prop.children [
+                Button.view
+                    { Button.defaultProps with
+                        Text = "Ist neu"
+                        Variant = Button.Secondary
+                        Size = Button.Choice
+                        ClassName = Some "min-h-[52px]"
+                        FullWidth = true }
+                Button.view
+                    { Button.defaultProps with
+                        Text = "Ist doppelt, verwerfen"
+                        Variant = Button.Primary
+                        Size = Button.Choice
+                        ClassName = Some "min-h-[52px]"
+                        FullWidth = true
+                        Glow = false }
+            ]
+        ]
+        subTitle "ReviewCard.keyBar"
+        Html.div [
+            prop.className "max-w-xl"
+            prop.children [ ReviewCard.keyBar [ "Enter", "passt"; "S", "später"; "K", "Kategorie"; "L", "Lena"; "Esc", "zurück" ] ]
+        ]
+    ]
+
+// ============================================
 // Seite
 // ============================================
 
@@ -2580,6 +2656,7 @@ let view (back: ReactElement) =
                         DetailDemo()
                         multiSelectSection
                         CategoryMultiSelectDemo()
+                        reviewCardSection
                     ]
                     |> List.mapi (fun i sectionEl -> React.keyedFragment (i, [ sectionEl ]))
                 )

@@ -82,7 +82,7 @@ let private anEntry : Shared.Domain.LedgerEntryView = {
     PushToYnabFailure = None
     SplitLocks = None
     ExternalLinks = []
-    PossibleDuplicate = None
+    PossibleDuplicate = None; CategoryFromOrderId = false
 }
 
 let private noticeToasts (m: State.Model) =

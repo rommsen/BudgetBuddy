@@ -50,7 +50,7 @@ let private view (payee: string option) (categoryId: Guid option) : LedgerEntryV
     PushToYnabFailure = None
     SplitLocks = None
     ExternalLinks = []
-    PossibleDuplicate = None
+    PossibleDuplicate = None; CategoryFromOrderId = false
 }
 
 let private split : TransactionSplit =

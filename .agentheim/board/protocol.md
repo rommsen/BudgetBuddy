@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-12 02:33 -- Task verified and completed: ledger-v6s7c - "Durchgehen Karte für Karte unter der Übersicht: ungeprüfte Buchungen bestätigen mit Kategorie, Vorschlägen, Bestell-Link, Memo, Lena und Wischen, Duplikat-Karte für wartende Buchungen, Zu tun und „Abrufen“ führen dorthin"
+
+**Type:** Work / Task completion
+**Task:** ledger-v6s7c - "Durchgehen Karte für Karte unter der Übersicht: ungeprüfte Buchungen bestätigen mit Kategorie, Vorschlägen, Bestell-Link, Memo, Lena und Wischen, Duplikat-Karte für wartende Buchungen, Zu tun und „Abrufen“ führen dorthin"
+**Summary:** Durchgehen Karte für Karte von der Übersicht aus, mit Duplikat-Karte
+**Duration:** 68m
+**Verification:** PASS (iteration 2)
+**Files changed:** 51
+**Tests added:** 30
+**ADRs written:** none
+
+---
+
+## 2026-11-12 02:22 -- Verification failed: ledger-v6s7c - Durchgehen Karte für Karte
+
+**Type:** Work / Verification failure
+**Task:** ledger-v6s7c - Durchgehen Karte für Karte
+**Iteration:** 1 of 3
+**Reasons:** Button.Choice fehlt auf /styleguide und in Styleguide §5, Doc-Kommentar verrutscht
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-12 01:38 -- Task verified and completed: banking-import-t4raw - "Automatisch abrufen im Intervall: ein Hintergrunddienst bucht neue Umsätze direkt ins Kassenbuch, Vorgabe an, alle 360 Minuten, in den Einstellungen abschaltbar, nie eine Push-TAN"
 
 **Type:** Work / Task completion

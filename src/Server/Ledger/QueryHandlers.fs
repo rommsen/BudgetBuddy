@@ -182,7 +182,13 @@ module ReadModel =
             SplitLocks = Ledger.CommandHandlers.splitLocksOf false None entry
             ExternalLinks = Server.RulesEngine.detectSpecialLinksFromText entry.Payee (entry.Memo |> Option.defaultValue "")
             PossibleDuplicate = entry.PossibleDuplicate |> Option.map possibleDuplicateViewOf
+            CategoryFromOrderId = false
         }
+
+    /// Setzt „aus Bestellnummer“ (ledger-v6s7c): `orderIdCategorized` sind die Buchungen, deren
+    /// jüngste Kategorisierung aus dem Order-ID-Abgleich kam (`loadOrderIdCategorizedEntries`).
+    let withOrderIdCategory (orderIdCategorized: Set<Guid>) (view: LedgerEntryView) : LedgerEntryView =
+        { view with CategoryFromOrderId = orderIdCategorized.Contains view.Id }
 
     /// Setzt die Sperren neu, sobald die `import_id` der Buchung bekannt ist (ledger-pafkp):
     /// eine aufgeteilte Buchung mit einer `import_id` ohne Präfix `BB:` lässt sich nicht
@@ -511,6 +517,7 @@ let getLedgerEntriesForAccount (accountId: Guid) : Async<LedgerEntryView list> =
         let! categoryNames = Ledger.Persistence.loadCategoryNames ()
 
         let! importLinks = Ledger.Persistence.importIdLinksForEntries (splitEntryIds entries)
+        let! orderIdCategorized = Ledger.Persistence.loadOrderIdCategorizedEntries ()
 
         return
             entries
@@ -525,7 +532,8 @@ let getLedgerEntriesForAccount (accountId: Guid) : Async<LedgerEntryView list> =
                     |> Option.defaultValue MirroredFromYnab
 
                 ReadModel.toEntryView categoryNames categoryGroups origin entry
-                |> ReadModel.withImportIdLock entry (currentImportIdOf importLinks id))
+                |> ReadModel.withImportIdLock entry (currentImportIdOf importLinks id)
+                |> ReadModel.withOrderIdCategory orderIdCategorized)
     }
 
 /// Eine einzelne Buchung als Sicht (ledger-pafkp): der Client holt sie nach einem gescheiterten
@@ -540,12 +548,36 @@ let getLedgerEntry (entryGuid: Guid) : Async<LedgerEntryView option> =
             let! categoryGroups = Ledger.Persistence.loadCategoryGroups ()
             let! categoryNames = Ledger.Persistence.loadCategoryNames ()
             let! importLinks = Ledger.Persistence.importIdLinksForEntries [ entry.Id ]
+            let! orderIdCategorized = Ledger.Persistence.loadOrderIdCategorizedEntries ()
             let origin =
                 origins |> Map.tryFind entryGuid |> Option.map ReadModel.originOf |> Option.defaultValue MirroredFromYnab
             return
                 ReadModel.toEntryView categoryNames categoryGroups origin entry
                 |> ReadModel.withImportIdLock entry (currentImportIdOf importLinks entryGuid)
+                |> ReadModel.withOrderIdCategory orderIdCategorized
                 |> Some
+    }
+
+/// Die Warteschlange des Durchgehens (ledger-v6s7c): alle zu prüfenden, nicht gelöschten Buchungen
+/// über alle Konten, jede Herkunft, in der Folge von `reviewQueueOrder`.
+let getReviewQueue () : Async<LedgerEntryView list> =
+    async {
+        let! entries = Ledger.Persistence.loadNeedsReviewEntries ()
+        let! origins = Ledger.Persistence.loadEntryOrigins ()
+        let! categoryGroups = Ledger.Persistence.loadCategoryGroups ()
+        let! categoryNames = Ledger.Persistence.loadCategoryNames ()
+        let! importLinks = Ledger.Persistence.importIdLinksForEntries (splitEntryIds entries)
+        let! orderIdCategorized = Ledger.Persistence.loadOrderIdCategorizedEntries ()
+        return
+            entries
+            |> List.map (fun entry ->
+                let (EntryId id) = entry.Id
+                let origin =
+                    origins |> Map.tryFind id |> Option.map ReadModel.originOf |> Option.defaultValue MirroredFromYnab
+                ReadModel.toEntryView categoryNames categoryGroups origin entry
+                |> ReadModel.withImportIdLock entry (currentImportIdOf importLinks id)
+                |> ReadModel.withOrderIdCategory orderIdCategorized)
+            |> reviewQueueOrder
     }
 
 /// Wie weit eine Buchung auf dem Weg nach YNAB ist (ADR 0021), aus ihrem Zustand.
@@ -696,6 +728,7 @@ let getLedgerEntriesPage (query: LedgerEntryPageQuery) : Async<LedgerEntryPage> 
         let! categoryNames = Ledger.Persistence.loadCategoryNames ()
 
         let! importLinks = Ledger.Persistence.importIdLinksForEntries (splitEntryIds pageEntries)
+        let! orderIdCategorized = Ledger.Persistence.loadOrderIdCategorizedEntries ()
 
         let views =
             pageEntries
@@ -704,7 +737,8 @@ let getLedgerEntriesPage (query: LedgerEntryPageQuery) : Async<LedgerEntryPage> 
                 let origin =
                     origins |> Map.tryFind id |> Option.map ReadModel.originOf |> Option.defaultValue MirroredFromYnab
                 ReadModel.toEntryView categoryNames categoryGroups origin entry
-                |> ReadModel.withImportIdLock entry (currentImportIdOf importLinks id))
+                |> ReadModel.withImportIdLock entry (currentImportIdOf importLinks id)
+                |> ReadModel.withOrderIdCategory orderIdCategorized)
 
         return {
             Entries = views

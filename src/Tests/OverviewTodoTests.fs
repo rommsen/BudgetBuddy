@@ -47,10 +47,10 @@ let todoTests =
             match todos { inputs with NeedsReview = 4 } with
             | [ todo ] ->
                 Expect.equal todo.Target TodoReview "Ziel"
-                Expect.equal todo.Title "4 Buchungen zu prüfen" "Text"
+                Expect.equal todo.Title "4 neue Buchungen durchgehen" "Text"
                 Expect.equal todo.Detail "Import vor 2 Std." "Zeile 2"
             | other -> failtestf "ein Eintrag erwartet: %A" other
-            Expect.equal (todos { inputs with NeedsReview = 1 }).Head.Title "1 Buchung zu prüfen" "Einzahl"
+            Expect.equal (todos { inputs with NeedsReview = 1 }).Head.Title "1 neue Buchung durchgehen" "Einzahl"
             Expect.equal (todos { inputs with NeedsReview = 1; ImportStand = None }).Head.Detail "Im Kassenbuch" "ohne bekannten Import"
 
         testCase "2: je Kategorie im Minus ein Eintrag mit dem Minus und Geld holen" <| fun () ->
@@ -128,7 +128,7 @@ let todoTests =
 
         testCase "Marken und Knöpfe: Gelb für 1, 3, 5 und 6, Rot für 2, das Lena-Flag für 4" <| fun () ->
             for target, mark, label in
-                [ TodoReview, MarkAttention, "Prüfen"
+                [ TodoReview, MarkAttention, "Jetzt durchgehen"
                   TodoCover foodId, MarkError, "Geld holen"
                   TodoApplyTargets, MarkAttention, "Anwenden"
                   TodoAskLena, MarkLenaFlag, "Öffnen"
@@ -304,12 +304,19 @@ let private enterAndAnswer (budget: Components.Budget.Types.Model) : Components.
 [<Tests>]
 let todoTargetTests =
     testList "Ziele aus Zu tun" [
-        testCase "1 öffnet das Kassenbuch über alle Konten mit Filter Zu prüfen" <| fun () ->
-            let model, cmd = State.update (State.OpenOverviewTodo TodoReview) (rootModel Overview)
-            Expect.equal model.Ledger.SelectedFilter (Some Components.Ledger.Types.AllAccounts) "alle Konten"
-            Expect.isTrue model.Ledger.OnlyNeedsReview "Zu prüfen"
-            Expect.isFalse model.Ledger.Filters.OnlyAskLena "nicht Lena"
-            Expect.contains (dispatched cmd) (State.NavigateTo Ledger) "ins Kassenbuch"
+        testCase "1 öffnet das Durchgehen, der Filter des Kassenbuchs bleibt" <| fun () ->
+            let start = rootModel Overview
+            let model, cmd = State.update (State.OpenOverviewTodo TodoReview) start
+            Expect.equal (dispatched cmd) [ State.NavigateTo Review ] "ins Durchgehen"
+            Expect.equal model.Ledger.OnlyNeedsReview start.Ledger.OnlyNeedsReview "kein Filter Zu prüfen"
+            Expect.equal model.Ledger.SelectedFilter start.Ledger.SelectedFilter "Konto unverändert"
+
+        testCase "Jetzt durchgehen im Sheet Abrufen führt ins Durchgehen" <| fun () ->
+            let model, cmd = State.update (State.FetchMsg Components.Fetch.Types.ReviewRequested) (rootModel Overview)
+            let follow = dispatched cmd |> List.filter (function State.OpenOverviewTodo _ -> true | _ -> false)
+            Expect.equal follow [ State.OpenOverviewTodo TodoReview ] "über Eintrag 1"
+            let _, next = State.update follow.Head model
+            Expect.equal (dispatched next) [ State.NavigateTo Review ] "ins Durchgehen"
 
         testCase "4 öffnet das Kassenbuch mit Filter Lena, die übrigen Filter leer" <| fun () ->
             let start = rootModel Overview

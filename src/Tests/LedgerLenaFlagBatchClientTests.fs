@@ -41,7 +41,7 @@ let private entryOf (n: int) : LedgerEntryView =
       PayeeWriteBackFailure = None
       LinkedToYnab = true
       PushToYnabFailure = None; SplitLocks = None; ExternalLinks = []
-      PossibleDuplicate = None }
+      PossibleDuplicate = None; CategoryFromOrderId = false }
 
 let private lenaEntry (n: int) = { entryOf n with Flag = AskLena }
 let private idOf (n: int) = (entryOf n).Id

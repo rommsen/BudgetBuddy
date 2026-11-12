@@ -72,7 +72,7 @@ type ExternalMsg =
     /// Ein Abruf ist beendet: Zu tun, Zähler, Importzeile und eine offene Kassenbuch-Liste laden neu. War das
     /// Sheet zu, trägt er den Satz für einen Toast mit dem Ergebnis.
     | FetchFinished of resultToast: string option
-    /// „Jetzt durchgehen“: bis ledger-v6s7c das Kassenbuch über alle Konten mit Filter „Zu prüfen“.
+    /// „Jetzt durchgehen“: das Durchgehen Karte für Karte (ledger-v6s7c).
     | OpenReview
 
 // ============================================

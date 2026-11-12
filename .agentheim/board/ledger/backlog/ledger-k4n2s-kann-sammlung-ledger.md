@@ -78,3 +78,6 @@ Sammelstelle für Befunde, die stimmen, aber die Schwelle der Backlog-Disziplin 
 56. **Review-Lauf 2026-11-12**: Maus-Zeile und Tabelle (`pointerRowReviewMarkSlot`) geben wartenden Buchungen keinen Platzhalter, der Betrag kann rücken (am Handy behoben).
 57. **Review-Lauf 2026-11-12**: `importResendRequest` und `planEntryPush` decken teils dieselben Felder ab; `planEntryPush` sendet Splits weiterhin nicht („Erneut senden“). Zusammenführen prüfen.
 58. **ledger-r7h2w** (2026-11-12): `getLedgerEntry` liefert für eine als doppelt verworfene Buchung weiter `PossibleDuplicate`; unter „gelöschte zeigen“ könnte der Client „doppelt?“ zeigen. ledger-v6s7c unterscheidet über `DeletedInYnab`.
+59. **ledger-v6s7c** (2026-11-12): `ReviewCard.field` wiederholt die Bauart von `Input.pickerField` nur wegen des gelben Platzhalters und des fehlenden Pfeils; eine Variante von `pickerField` wäre sauberer.
+60. **ledger-v6s7c**: Am PC landet der Fokus nach Esc im Kategorie-Popover des Durchgehens auf dem Feld; ein Enter danach öffnet den Picker erneut, statt „Passt“ auszulösen.
+61. **ledger-v6s7c**: Eine sehr lange Karte (langer Payee, mehrere Links, Lena-Hinweis) kann bei 320 px „Passt, weiter“ unter den Rand schieben; der Sweep prüft die üblichen Fälle.

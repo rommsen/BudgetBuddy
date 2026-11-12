@@ -157,6 +157,7 @@ let init () : Model * Cmd<Msg> =
         FilteredOut = Set.empty
         OrderStale = false
         EntriesGeneration = 0
+        Review = None
     }
     model, Cmd.none
 
@@ -1179,6 +1180,74 @@ let presetQuickFilter (preset: QuickFilterPreset) (model: Model) : Model =
         Filters = { noFilters with OnlyAskLena = (preset = PresetAskLena) }
         OnlyNeedsReview = (preset = PresetNeedsReview) }
 
+
+// ============================================
+// Durchgehen Karte für Karte (ledger-v6s7c)
+// ============================================
+
+/// Zeigt die Karte an der Stelle `index` der Schlange: die Buchung steht in `DetailFor` (der letzte
+/// bekannte Stand), sie wird neu gelesen, die Vorschläge zum Payee laden. Hinter der letzten Karte steht
+/// die Endansicht. Rein bis auf die Befehle.
+let private showReviewCardAt (index: int) (model: Model) : Model * Cmd<Msg> =
+    match model.Review, reviewQueueOf model with
+    | Some review, Some ids ->
+        let cleared =
+            { closeDetail model with
+                CategoryPickerFor = None
+                CategorySuggestions = []
+                CategoryCard = None
+                SplitEditor = None }
+        if index < List.length ids then
+            let id = ids.[index]
+            let entry = findEntry model id |> Option.orElse (review.Snapshots |> Map.tryFind id)
+            let shown =
+                { cleared with
+                    DetailFor = entry
+                    Review = Some { review with Index = index; Suggestions = []; DetailShown = false; Confirming = None; Deciding = None } }
+            let suggestions =
+                match entry |> Option.bind (fun e -> e.Payee) with
+                | Some payee when not (String.IsNullOrWhiteSpace payee) -> Cmd.ofMsg (RunReviewSuggestions (id, payee, None))
+                | _ -> Cmd.none
+            let matchLoad =
+                match entry |> Option.bind (fun e -> e.PossibleDuplicate) |> Option.bind (fun d -> d.MatchEntryId) with
+                | Some matchId when not (review.Matches.ContainsKey matchId) -> Cmd.ofMsg (RunReviewMatch matchId)
+                | _ -> Cmd.none
+            shown, Cmd.batch [ Cmd.ofMsg (RunReviewRefresh id); suggestions; matchLoad ]
+        else
+            { cleared with Review = Some { review with Index = List.length ids; Suggestions = []; DetailShown = false; Confirming = None; Deciding = None } },
+            Cmd.none
+    | _ -> model, Cmd.none
+
+/// Geht zur nächsten Karte. Der Stand der verlassenen Karte bleibt gemerkt, falls „Rückgängig“ sie
+/// zurückholt.
+let private advanceReview (model: Model) : Model * Cmd<Msg> =
+    match model.Review with
+    | Some review ->
+        let snapshots =
+            match reviewCardOf model with
+            | Some card -> review.Snapshots |> Map.add card.Id card
+            | None -> review.Snapshots
+        showReviewCardAt (review.Index + 1) { model with Review = Some { review with Snapshots = snapshots } }
+    | None -> model, Cmd.none
+
+/// Holt die Karte einer Buchung zurück, die schon hinter der gezeigten liegt („Rückgängig“ nach Lena
+/// oder Verwerfen). Liegt sie nicht in der Schlange, bleibt alles.
+let private returnToReviewCard (entryId: Guid) (model: Model) : Model * Cmd<Msg> =
+    match model.Review, reviewQueueOf model with
+    | Some review, Some ids ->
+        match ids |> List.tryFindIndex (fun id -> id = entryId) with
+        | Some index when index <> review.Index || (reviewCardOf model).IsNone ->
+            let snapshots =
+                match reviewCardOf model with
+                | Some card -> review.Snapshots |> Map.add card.Id card
+                | None -> review.Snapshots
+            showReviewCardAt index { model with Review = Some { review with Snapshots = snapshots } }
+        | _ -> model, Cmd.none
+    | _ -> model, Cmd.none
+
+let private editReview (f: ReviewSession -> ReviewSession) (model: Model) : Model =
+    { model with Review = model.Review |> Option.map f }
+
 let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
 
@@ -1395,6 +1464,23 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             let model', cmd = showDetail entry model
             model', cmd, NoOp
 
+    // Im Durchgehen schließt „Details“ nur das Detail: die Karte bleibt und liest die Buchung neu.
+    | CloseDetail when model.Review |> Option.exists (fun r -> r.DetailShown) ->
+        let model' =
+            { model with
+                History = NotAsked
+                MemoEdit = None
+                AmountEdit = None
+                PayeeEdit = None
+                SplitEditor = None
+                CategoryPickerFor = None
+                CategorySuggestions = [] }
+            |> editReview (fun r -> { r with DetailShown = false })
+        let refresh =
+            match reviewCardOf model' with
+            | Some card -> Cmd.ofMsg (RunReviewRefresh card.Id)
+            | None -> Cmd.none
+        model', refresh, NoOp
     | CloseDetail -> closeDetail model, Cmd.none, NoOp
 
     | DetailFormChanged form ->
@@ -2002,7 +2088,10 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             | CategoryUnchanged, CategorySendFailed reason -> ShowToast ($"{categoryHintTitle}: {reason}", ToastWarning)
             | CategoryUnchanged, _ -> NoOp
             | CategoryChanged, writeBack ->
-                let text = categoryChangedToastText newName outcome.Previous
+                let text =
+                    if isReviewCard model' entryId then
+                        reviewCategoryToastText newName (categoryOfId model' newId |> Option.bind (fun c -> c.Available))
+                    else categoryChangedToastText newName outcome.Previous
                 let action = { Label = undoToastLabel; Kind = undoKindFor entryId outcome }
                 match writeBack with
                 | CategorySendFailed reason ->
@@ -2083,7 +2172,9 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             | CategoryUnchanged, None -> NoOp
             | CategoryChanged, _ ->
                 let text =
-                    if undo then transferUndoneToastText name else transferSetToastText name
+                    if undo then transferUndoneToastText name
+                    elif isReviewCard model' entryId then reviewTransferToastText name
+                    else transferSetToastText name
                 let text, toastType =
                     match failed with
                     | Some reason -> $"{text}. {categoryHintTitle}: {reason}", ToastWarning
@@ -2203,8 +2294,10 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         ShowToast ($"Flag nicht geändert: {message}", ToastError)
 
     | StartUndoFlag (entryId, previous) ->
-        { model with FlagRows = model.FlagRows |> Map.add entryId FlagSending },
-        Cmd.ofMsg (RunUndoFlag (entryId, previous)),
+        // Im Durchgehen holt „Rückgängig“ nach „Lena fragen“ die Karte zurück (ledger-v6s7c).
+        let returned, showCmd = returnToReviewCard entryId model
+        { returned with FlagRows = returned.FlagRows |> Map.add entryId FlagSending },
+        Cmd.batch [ showCmd; Cmd.ofMsg (RunUndoFlag (entryId, previous)) ],
         NoOp
 
     | RunUndoFlag (entryId, previous) ->
@@ -2328,7 +2421,9 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             match outcome.MemoChange, outcome.MemoWriteBack with
             | MemoUnchanged, _ -> NoOp
             | MemoChanged, writeBack ->
-                let text = memoToastText outcome.PreviousMemo outcome.CurrentMemo
+                let text =
+                    if isReviewCard model' entryId then reviewMemoToastText outcome.CurrentMemo
+                    else memoToastText outcome.PreviousMemo outcome.CurrentMemo
                 let action = { Label = undoToastLabel; Kind = UndoMemo (entryId, outcome.PreviousMemo) }
                 match writeBack with
                 | MemoSendFailed reason -> ShowToastWithAction ($"{text}. {memoHintTitle}: {reason}", ToastWarning, action)
@@ -3688,6 +3783,312 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         | Some id when not (keyboardBlocked model) -> updateCore (ClickRowCheckbox (id, false)) model
         | _ -> model, Cmd.none, NoOp
 
+    // ============================================
+    // Durchgehen (ledger-v6s7c)
+    // ============================================
+
+    | ReviewOpened ->
+        let opened =
+            { closeDetail model with
+                Review = Some reviewStarting
+                CategoryPickerFor = None
+                CategorySuggestions = []
+                CategoryCard = None
+                SplitEditor = None
+                Capture = None }
+        let loads =
+            [ yield Cmd.ofMsg RunLoadReviewQueue
+              match model.Accounts with
+              | Success _ | Loading -> ()
+              | _ -> yield Cmd.ofMsg LoadAccounts
+              match model.LenaFlagColor with
+              | Success _ | Loading -> ()
+              | _ -> yield Cmd.ofMsg LoadLenaFlagSettings
+              match model.Categories with
+              | Success _ -> yield Cmd.ofMsg EnsureCategoriesFresh
+              | Loading -> ()
+              | _ -> yield Cmd.ofMsg LoadCategories ]
+        opened, Cmd.batch loads, NoOp
+
+    | ReviewLeft ->
+        { closeDetail model with
+            Review = None
+            CategoryPickerFor = None
+            CategorySuggestions = []
+            SplitEditor = None },
+        Cmd.none,
+        NoOp
+
+    | RunLoadReviewQueue ->
+        model,
+        Cmd.OfAsync.either
+            (Retry.reading Api.ledger.getReviewQueue)
+            ()
+            (Ok >> ReviewQueueLoaded)
+            (fun ex -> ReviewQueueLoaded (Error ex.Message)),
+        NoOp
+
+    | ReviewQueueLoaded (Ok entries) when model.Review.IsSome ->
+        let loaded =
+            model
+            |> editReview (fun r ->
+                { r with
+                    Queue = Success (entries |> List.map (fun e -> e.Id))
+                    Snapshots = entries |> List.map (fun e -> e.Id, e) |> Map.ofList })
+        let model', cmd = showReviewCardAt 0 loaded
+        model', cmd, NoOp
+
+    | ReviewQueueLoaded (Error message) when model.Review.IsSome ->
+        editReview (fun r -> { r with Queue = Failure message }) model, Cmd.none, NoOp
+
+    | ReviewQueueLoaded _ -> model, Cmd.none, NoOp
+
+    | RunReviewRefresh entryId ->
+        let basis = findEntry model entryId
+        model,
+        Cmd.OfAsync.either
+            (Retry.reading Api.ledger.getLedgerEntry)
+            entryId
+            (fun result -> ReviewEntryRefreshed (entryId, basis, Ok result))
+            (fun ex -> ReviewEntryRefreshed (entryId, basis, Error ex.Message)),
+        NoOp
+
+    // Nur für die gezeigte Karte und nur, wenn sie sich seit dem Start der Abfrage nicht geändert hat.
+    | ReviewEntryRefreshed (entryId, basis, Ok fresh) when isReviewCard model entryId && model.DetailFor = basis ->
+        if reviewSkipsEntry fresh then
+            let model', cmd = advanceReview model
+            model', cmd, NoOp
+        else
+            replaceEntry fresh.Value model, Cmd.none, NoOp
+
+    | ReviewEntryRefreshed _ -> model, Cmd.none, NoOp
+
+    | RunReviewSuggestions (entryId, payee, current) ->
+        model,
+        Cmd.OfAsync.either
+            (Retry.reading (Api.ledger.getPayeeCategorySuggestions payee))
+            current
+            (fun ids -> ReviewSuggestionsLoaded (entryId, ids))
+            (fun _ -> ReviewSuggestionsLoaded (entryId, [])),
+        NoOp
+
+    | ReviewSuggestionsLoaded (entryId, ids) when isReviewCard model entryId ->
+        editReview (fun r -> { r with Suggestions = ids }) model, Cmd.none, NoOp
+
+    | ReviewSuggestionsLoaded _ -> model, Cmd.none, NoOp
+
+    | RunReviewMatch matchId ->
+        model,
+        Cmd.OfAsync.either
+            (Retry.reading Api.ledger.getLedgerEntry)
+            matchId
+            (fun found -> ReviewMatchLoaded (matchId, found))
+            (fun _ -> ReviewMatchLoaded (matchId, None)),
+        NoOp
+
+    // Ohne Antwort bleibt der Schnappschuss aus dem Ereignis.
+    | ReviewMatchLoaded (matchId, Some found) ->
+        editReview (fun r -> { r with Matches = r.Matches |> Map.add matchId found }) model, Cmd.none, NoOp
+
+    | ReviewMatchLoaded _ -> model, Cmd.none, NoOp
+
+    | ReviewConfirm ->
+        match model.Review, reviewCardOf model with
+        | Some review, Some card when review.Confirming.IsNone
+                                      && reviewCardKindOf card = NormalCard
+                                      && reviewHasTarget card
+                                      && (model.CategoryRows |> Map.tryFind card.Id) <> Some CategorySending ->
+            editReview (fun r -> { r with Confirming = Some card.Id }) model,
+            Cmd.ofMsg (RunReviewConfirm card.Id),
+            NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | RunReviewConfirm entryId ->
+        model,
+        Cmd.OfAsync.either
+            (Api.ledger.setReviewMark entryId)
+            Reviewed
+            (fun result -> ReviewConfirmed (entryId, result))
+            (fun ex -> ReviewConfirmed (entryId, Error ex.Message)),
+        NoOp
+
+    | ReviewConfirmed (entryId, Ok outcome) ->
+        let released = model |> editReview (fun r -> if r.Confirming = Some entryId then { r with Confirming = None } else r)
+        // Die Liste des Kassenbuchs zieht mit, falls die Buchung dort geladen ist.
+        let listed = applyReviewMarkResult entryId (Some false) (writeBackFailureOf outcome) released
+        let warning =
+            match outcome.WriteBack with
+            | ReviewMarkSendFailed reason -> ShowToast ($"{reviewMarkHintTitle}: {reason}", ToastWarning)
+            | _ -> NoOp
+        if isReviewCard released entryId then
+            let model', cmd = advanceReview listed
+            model', cmd, warning
+        else
+            listed, Cmd.none, warning
+
+    // Die Karte bleibt stehen, der Toast nennt den Grund.
+    | ReviewConfirmed (entryId, Error message) ->
+        model |> editReview (fun r -> if r.Confirming = Some entryId then { r with Confirming = None } else r),
+        Cmd.none,
+        ShowToast ($"Nicht geprüft: {message}", ToastError)
+
+    | ReviewSkip ->
+        match reviewCardOf model with
+        | Some _ ->
+            let model', cmd = advanceReview model
+            model', cmd, NoOp
+        | None -> model, Cmd.none, NoOp
+
+    | ReviewLena ->
+        match reviewCardOf model with
+        | Some card when reviewCardKindOf card = NormalCard ->
+            match lenaActionFor model.LenaFlagColor card with
+            | action when action.DisabledReason.IsSome || (model.FlagRows |> Map.tryFind card.Id) = Some FlagSending ->
+                model, Cmd.none, NoOp
+            | action ->
+                let flagged, flagCmd, external = updateCore (StartSetLenaFlag (card.Id, action.Target)) model
+                match action.Target with
+                | AssignLena ->
+                    let model', cmd = advanceReview flagged
+                    model', Cmd.batch [ flagCmd; cmd ], external
+                | WithdrawLena -> flagged, flagCmd, external
+        | _ -> model, Cmd.none, NoOp
+
+    | ReviewOpenCategory ->
+        match reviewCardOf model with
+        | Some card when reviewCardKindOf card = NormalCard && model.CategoryPickerFor.IsNone ->
+            updateCore (OpenCategoryPicker card.Id) model
+        | _ -> model, Cmd.none, NoOp
+
+    | ReviewPickSuggestion categoryId ->
+        match reviewCardOf model with
+        | Some card when reviewCardKindOf card = NormalCard ->
+            updateCore (StartSetEntryCategory (card.Id, Some categoryId)) model
+        | _ -> model, Cmd.none, NoOp
+
+    | ReviewConfirmNew ->
+        match model.Review, reviewCardOf model with
+        | Some review, Some card when review.Deciding.IsNone && reviewCardKindOf card = DuplicateCard ->
+            editReview (fun r -> { r with Deciding = Some card.Id }) model, Cmd.ofMsg (RunReviewConfirmNew card.Id), NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | RunReviewConfirmNew entryId ->
+        model,
+        Cmd.OfAsync.either
+            Api.ledger.confirmEntryIsNew
+            entryId
+            (fun result -> ReviewConfirmedNew (entryId, result))
+            (fun ex -> ReviewConfirmedNew (entryId, Error ex.Message)),
+        NoOp
+
+    // Die Buchung wartet nicht mehr: dieselbe Stelle zeigt jetzt ihre normale Karte.
+    | ReviewConfirmedNew (entryId, Ok writeBack) ->
+        let released = model |> editReview (fun r -> { r with Deciding = None })
+        let withoutHold =
+            match findEntry released entryId with
+            | Some entry ->
+                let linked = (writeBack = PushToYnabSent)
+                replaceEntry
+                    { entry with
+                        PossibleDuplicate = None
+                        LinkedToYnab = entry.LinkedToYnab || linked
+                        PushToYnabFailure =
+                            match writeBack with
+                            | PushToYnabFailed reason -> Some { Reason = reason; FailedAt = DateTime.UtcNow }
+                            | PushToYnabSent -> None }
+                    released
+            | None -> released
+        let toast =
+            match writeBack with
+            | PushToYnabSent -> ShowToast (reviewConfirmedNewText, ToastSuccess)
+            | PushToYnabFailed reason -> ShowToast ($"Als neu übernommen. {pushRetryFailedToastTitle}: {reason}", ToastWarning)
+        let refresh = if isReviewCard withoutHold entryId then Cmd.ofMsg (RunReviewRefresh entryId) else Cmd.none
+        withoutHold, refresh, toast
+
+    | ReviewConfirmedNew (_, Error message) ->
+        model |> editReview (fun r -> { r with Deciding = None }), Cmd.none, ShowToast ($"Nicht übernommen: {message}", ToastError)
+
+    | ReviewDiscard ->
+        match model.Review, reviewCardOf model with
+        | Some review, Some card when review.Deciding.IsNone && reviewCardKindOf card = DuplicateCard ->
+            editReview (fun r -> { r with Deciding = Some card.Id }) model, Cmd.ofMsg (RunReviewDiscard card.Id), NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | RunReviewDiscard entryId ->
+        model,
+        Cmd.OfAsync.either
+            Api.ledger.discardDuplicateEntry
+            entryId
+            (fun result -> ReviewDiscarded (entryId, result))
+            (fun ex -> ReviewDiscarded (entryId, Error ex.Message)),
+        NoOp
+
+    | ReviewDiscarded (entryId, Ok ()) ->
+        let released = model |> editReview (fun r -> { r with Deciding = None })
+        let toast =
+            ShowToastWithAction (reviewDiscardedText, ToastSuccess, { Label = undoToastLabel; Kind = UndoDiscardDuplicate entryId })
+        if isReviewCard released entryId then
+            let model', cmd = advanceReview released
+            model', cmd, toast
+        else
+            released, Cmd.none, toast
+
+    | ReviewDiscarded (_, Error message) ->
+        model |> editReview (fun r -> { r with Deciding = None }), Cmd.none, ShowToast ($"Nicht verworfen: {message}", ToastError)
+
+    | StartRestoreDiscardedDuplicate entryId -> model, Cmd.ofMsg (RunRestoreDiscardedDuplicate entryId), NoOp
+
+    | RunRestoreDiscardedDuplicate entryId ->
+        model,
+        Cmd.OfAsync.either
+            Api.ledger.restoreDiscardedDuplicate
+            entryId
+            (fun result -> DiscardedDuplicateRestored (entryId, result))
+            (fun ex -> DiscardedDuplicateRestored (entryId, Error ex.Message)),
+        NoOp
+
+    // Die Duplikat-Karte steht wieder da; das Neulesen bringt die Wartemarke zurück.
+    | DiscardedDuplicateRestored (entryId, Ok ()) ->
+        let model', cmd = returnToReviewCard entryId model
+        model', cmd, NoOp
+
+    | DiscardedDuplicateRestored (_, Error message) ->
+        model, Cmd.none, ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
+
+    | ReviewShowDetails ->
+        match reviewCardOf model with
+        | Some card ->
+            { model with History = Loading; CategoryPickerFor = None; CategorySuggestions = [] }
+            |> editReview (fun r -> { r with DetailShown = true }),
+            Cmd.ofMsg (LoadHistory card.Id),
+            NoOp
+        | None -> model, Cmd.none, NoOp
+
+    | ReviewSwiped dx ->
+        match reviewCardOf model with
+        | Some card when reviewCardKindOf card = NormalCard ->
+            match reviewSwipeOf dx with
+            | SwipeConfirm when reviewHasTarget card -> updateCore ReviewConfirm model
+            | SwipeConfirm -> model, Cmd.none, ShowToast (reviewNeedsTargetText, ToastInfo)
+            | SwipeSkip -> updateCore ReviewSkip model
+            | SwipeNothing -> model, Cmd.none, NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | ReviewKey action ->
+        match action with
+        | KeyConfirm -> updateCore ReviewConfirm model
+        | KeySkip -> updateCore ReviewSkip model
+        | KeyOpenCategory -> updateCore ReviewOpenCategory model
+        | KeyLena -> updateCore ReviewLena model
+        // Esc schließt erst, was über der Karte offen ist, dann die Ansicht.
+        | KeyLeave ->
+            if model.CategoryPickerFor.IsSome then
+                { model with CategoryPickerFor = None; CategorySuggestions = [] }, Cmd.none, NoOp
+            elif model.PayeeEdit.IsSome then updateCore CancelPayeeEdit model
+            elif model.MemoEdit.IsSome then updateCore CancelMemoEdit model
+            elif model.Review |> Option.exists (fun r -> r.DetailShown) then updateCore CloseDetail model
+            else model, Cmd.none, LeaveReview
+
     | EscapePressed ->
         // Ein Esc schließt genau eine Stufe: Popover, dann Detail, dann Auswahl. Liegt der
         // Fokus im Popover, behandelt es Esc selbst und das Ereignis erreicht das Dokument
@@ -3728,6 +4129,14 @@ let captureAnsweredOn (onLedgerPage: bool) (model: Model) : Model =
 /// Drücken am Handy.
 let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     let model', cmd, external = updateCore msg model
+    // Das Durchgehen hält seine Karte in `DetailFor`. Hat ein Schritt im Detail sie geschlossen (etwa
+    // „Buchung löschen“), steht die Karte wieder da; das Neulesen überspringt sie, wenn sie weg ist.
+    let model', cmd =
+        match model'.Review, reviewQueueOf model' with
+        | Some review, Some ids when review.Index < List.length ids && (reviewCardOf model').IsNone ->
+            let shown, showCmd = showReviewCardAt review.Index model'
+            shown, Cmd.batch [ cmd; showCmd ]
+        | _ -> model', cmd
     // Detail und Formular teilen sich Panel und Sheet: öffnet eine Buchung, schließt das Formular.
     let model' =
         match model'.Capture, model'.DetailFor with

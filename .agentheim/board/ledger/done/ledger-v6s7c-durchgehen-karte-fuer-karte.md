@@ -1,7 +1,7 @@
 ---
 id: ledger-v6s7c
 title: "Durchgehen Karte für Karte unter der Übersicht: ungeprüfte Buchungen bestätigen mit Kategorie, Vorschlägen, Bestell-Link, Memo, Lena und Wischen, Duplikat-Karte für wartende Buchungen, Zu tun und „Abrufen“ führen dorthin"
-status: doing
+status: done
 type: feature
 context: ledger
 created: 2026-11-11
@@ -196,3 +196,40 @@ Am PC zeigt der Prototyp im Kassenbuch-Kopf zusätzlich „<n> durchgehen“; da
 
 Der Conductor legt vor dem Start Prototyp und Screenshots in den Scratchpad (Pfade oben) und gibt sie Worker,
 Verifier und `design-quality` mit.
+
+## Verifier note (iteration 1)
+**REASONS:** Kriterium „DS-Bausteine nur, wo sie gleich aussehen, sonst neue Varianten auf /styleguide“ nicht erfüllt: Die neue Größe `Button.Choice` (src/Client/DesignSystem/Button.fs:26 und :90), genutzt in Ledger/View.fs:4650, :4662, :4672, steht weder auf /styleguide (Abschnitt 29 zeigt nur `ReviewCard.*`) noch in styleguide.md §5; der Outcome behauptet beides. Dazu: Abschnitt 29 steht zwischen dem Doc-Kommentar zu `back` und `let view` (Styleguide/View.fs um Zeile 2529). Alles andere bestanden (verify PASS, Fixtures, Negativtabelle, FLOWS, Lesepfad, Delta-Gate).
+**SUGGESTED_FIX:** Einen Knopf mit `Button.Choice` auf /styleguide zeigen (etwa das Paar „Ist neu“ / „Ist doppelt, verwerfen“ in Abschnitt 29) und `Choice` in der Zeile **Button** von §5 beschreiben (zwei gleich breite Entscheidungen, 16/14 px, Höhe setzt der Aufrufer). Doc-Kommentar zu `back` wieder direkt über `let view`.
+**ITERATION_HINT:** likely-fixable
+
+## Outcome
+
+Durchgehen Karte für Karte steht unter der Übersicht (Route `#/review`, Navigation markiert Übersicht, am Handy ohne Leiste unten). Zu-tun-Eintrag 1 („<n> neue Buchungen durchgehen“, Einzahl „1 neue Buchung durchgehen“, Knopf „Jetzt durchgehen“) und „Jetzt durchgehen“ im Sheet „Abrufen“ führen dorthin. Der Übergang über das Kassenbuch mit Filter ist entfernt.
+
+**Server und Lesepfad**
+- `LedgerApi.getReviewQueue` (`src/Shared/Api.fs`, `src/Server/Api.fs`, `Ledger.QueryHandlers.getReviewQueue`, `Ledger.Persistence.loadNeedsReviewEntries`): alle ungeprüften, nicht gelöschten Buchungen über alle Konten, geordnet von der reinen Funktion `Shared.Domain.reviewQueueOrder` (wartende zuerst, dann Datum aufsteigend, Gleichstand EntryId als Text).
+- Neues Pflichtfeld `LedgerEntryView.CategoryFromOrderId` („aus Bestellnummer“): `Ledger.Persistence.loadOrderIdCategorizedEntries` sucht `EntryRecategorized` mit Actor `OrderIdMatch`, nach dem kein weiteres Kategorisierungs-Ereignis kam; gesetzt in Seite, Einzelabfrage, Konto-Abfrage und Schlange (`ReadModel.withOrderIdCategory`). Fixtures in `scripts/ledger-filter-bar.mjs` und `scripts/ledger-status-column.mjs` nachgezogen.
+
+**Client**
+- Zustand in `Components.Ledger.Types.ReviewSession` (`Model.Review`); die Karte ist die Buchung in `DetailFor`, so laufen Kategorie, Übertrag, Payee, Memo, Lena und das Detail („Details“) über die vorhandenen Befehle. Neue Nachrichten und Logik in `src/Client/Components/Ledger/State.fs` (`showReviewCardAt`, `advanceReview`, `returnToReviewCard`, Abschnitt „Durchgehen“), reine Funktionen in `Types.fs` (`reviewHasTarget`, `reviewSwipeOf`, `reviewKeyAction`, `reviewSkipsEntry`, Texte) und `View.fs` (`reviewKeyFor`, `reviewCategoryValue`, `reviewLinks`, `reviewMatchRow`, `ReviewPage`).
+- Toasts der Karte: „Kategorie: <Name> · <verfügbar> verfügbar“, „Übertrag nach <Konto> · Gegenbuchung angelegt“, „Memo gespeichert“/„Memo entfernt“, „Lena gefragt“ mit Rückgängig (holt die Karte zurück), „Als neu übernommen, geht nach YNAB“, „Verworfen, nicht nach YNAB gegangen“ mit Rückgängig (`ToastActionKind.UndoDiscardDuplicate` → `restoreDiscardedDuplicate`, die Duplikat-Karte steht wieder da). „Passt, weiter“ ohne Toast, beim Fehler bleibt die Karte.
+- Neuer DS-Baustein `src/Client/DesignSystem/ReviewCard.fs` (Fortschritt, Karte normal und mit gelbem Rand, Feld „Kategorie“ mit gelbem Platzhalter, Link-, Memo-, Hinweis- und Trefferzeile, „Details“, Tastenleiste mit `kbd`), neue Button-Größe `Button.Choice` (zwei gleich breite Entscheidungen, 16/14 px, `px-3`, kein Umbruch, Höhe setzt der Aufrufer). `ReviewCard` steht auf `/styleguide` (Abschnitt 29) und in `standards/frontend/styleguide.md` §5 (Zeile **ReviewCard**); `Button.Choice` erst seit Iteration 2 (siehe unten).
+- Schriftgrößen nach §7.14 (Abweichung (h)): 20 px für Seitentitel, Payee und Betrag; 16 px am Handy bzw. 14 px am PC für Feldwerte, Memo, „öffnen“ und alle Knöpfe; 12 px für Meta-Zeile, „aus Bestellnummer“, „Vorgeschlagen“, Hinweise, „Details“, Abschnittskopf, „i von n“ und Tastenleiste.
+
+**Tests**
+- `src/Tests/LedgerReviewQueueTests.fs`: Reihenfolge (rein) und `getReviewQueue` gegen In-Memory-SQLite mit jeder Herkunft, gleiche Zahl wie `countNeedsReviewEntries`; „aus Bestellnummer“ im Lesepfad, weg nach Romans Änderung.
+- `src/Tests/LedgerReviewClientTests.fs`: reine Funktionen (Ziel, Wischschwelle, Tasten je Kartenart, Texte, Feld, Links, Trefferzeile), Aufzählung aller Reihenfolgen bis Tiefe 6 durch das echte `update` mit eigenem Orakel (Passt mit später Antwort und Fehler, Später, Lena mit Rückgängig, Kategorie, Verwerfen mit Rückgängig, Ist neu, Ende; Gegenprobe: das Weitergehen ohne Prüfung der Karte bei der Passt-Antwort macht den Test rot), Einzelfälle (Überspringen beim Neulesen, veraltete Antwort, Fehler beim Prüfvermerk, Wisch ohne Ziel, Toasts, Details, Esc-Kette, Verlassen, Endansicht).
+- Angepasst: `OverviewTodoTests.fs` (Text, Einzahl, Knopf, Ziel Durchgehen, „Jetzt durchgehen“ aus dem Sheet), `FetchSheetTests.fs`, `RemotingEndpointNegativeTests.fs` (Zeile `getReviewQueue`), `RetryTests.fs`, `RoutingTests.fs`.
+- Browser: `scripts/durchgehen.test.mjs` mit `[flow:durchgehen]` (412 px, Wisch über CDP-Touch), `[tastatur]` (Enter, K, Esc schließt erst den Picker, L, S, Esc zur Übersicht) und `[fable]` (Datum und Betrag des Treffers). `[flow:uebersicht]` in `scripts/uebersicht.test.mjs` gegen das neue Ziel, `FLOWS` in `scripts/browser-usage.mjs` angepasst und um `durchgehen` ergänzt. Sweep-Zustände `durchgehen-karte`, `durchgehen-amazon` (Bestell-Link, Vorschläge, Lena-Hinweis, „aus Bestellnummer“), `durchgehen-duplikat`, `durchgehen-ende` bei 320, 412 und 1280 px mit Hauptknopf ohne Scrollen, dazu `durchgehen-memo` (412 px, „Speichern“ bei offener Tastatur im Bild) in `scripts/layout-states.mjs`; `/review` in `KNOWN_ROUTES`.
+- `./verify.sh` (Iteration 1): VERIFY: PASS (dotnet 4707 grün, node 316 grün).
+
+**Vergleich mit der Skizze** (Prototyp Version 17): BB-Screenshots unter `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/20e05553-37dc-4f2f-bcee-5ef520140bf9/scratchpad/e3/ledger-v6s7c/` (`bb-durchgehen-karte-*`, `bb-durchgehen-amazon-*`, `bb-durchgehen-duplikat-*`, `bb-durchgehen-ende-*`, `bb-durchgehen-zu-tun-*`, je `handy-412` und `pc-1280`), neben `p-durchgehen-karte-*`, `p-durchgehen-amazon-3-*`, `p-durchgehen-duplikat-*`, `p-durchgehen-ende-*`, `p-uebersicht-angepinnt-*` im Ordner darüber. Abweichungen nur die genannten (a) bis (h). Zu (h): Betrag 20 px statt 30 px. Die Eingabe mit Touch (Wechsel zwischen Suche und Liste im Kategorie-Sheet, Speichern im Memo-Sheet ohne vorzeitig geschlossene Tastatur) läuft über die vorhandenen Bausteine `CategoryPicker.sheet` und `Detail.memoEditor`; der Sweep-Zustand `durchgehen-memo` prüft „Speichern“ bei offener Tastatur. Ein Blick mit echtem Touch steht mit dem Kriterium [human-eye] noch aus.
+
+**Hinweis für den Conductor:** `.agentheim/knowledge/contexts/banking-import/README.md` (Bullet **Abrufen**) sagt noch „„Jetzt durchgehen“ führt bis ledger-v6s7c ins Kassenbuch über alle Konten mit Filter „Zu prüfen“.“ Das gilt nicht mehr (fremder BC, deshalb nicht im Delta). Im ledger-README nennt *WartendeVerwerfen* (Key commands, Bullet ohne fetten Kopf) „Eine Oberfläche dafür baut ledger-v6s7c (Duplikat-Karte)“; das ist jetzt erledigt und kann von Hand nachgezogen werden.
+
+**Iteration 2** (Verifier-Note Iteration 1): `Button.Choice` steht jetzt auf `/styleguide` (Abschnitt 29, Paar „Ist neu“ / „Ist doppelt, verwerfen“ mit Hinweis zu Größe und Höhe, `src/Client/Components/Styleguide/View.fs`) und in `standards/frontend/styleguide.md` §5 in der Zeile **Button** (`ButtonSize.Choice`: zwei gleich breite Entscheidungen, 16 px am Handy, 14 px am PC, `px-3`, kein Umbruch, Höhe setzt der Aufrufer, 52 px, der Hauptknopf 54 px). Die Behauptung aus Iteration 1, `Button.Choice` stehe schon dort, war falsch. Abschnitt 29 steht wieder vor dem Kopf „Seite“, der Doc-Kommentar zu `back` direkt über `let view`. Stand mit `main` (banking-import-t4raw) gemergt; `./verify.sh`: VERIFY: PASS (dotnet 4740 grün, node 316 grün).
+
+**Für die Kann-Sammlung**
+- `ReviewCard.field` wiederholt die Bauart von `Input.pickerField` nur wegen des gelben Platzhalters und des fehlenden Pfeils; eine Variante von `pickerField` wäre sauberer.
+- Am PC landet der Fokus nach Esc im Kategorie-Popover auf dem Feld; ein Enter danach öffnet den Picker erneut, statt „Passt“ auszulösen.
+- Eine sehr lange Karte (langer Payee, mehrere Links, Lena-Hinweis) kann bei 320 px „Passt, weiter“ unter den Rand schieben; der Sweep prüft die üblichen Fälle.

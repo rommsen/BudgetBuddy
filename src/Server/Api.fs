@@ -1341,6 +1341,11 @@ let ledgerApi : LedgerApi = {
             return List.tryHead locked
     }
 
+    getReviewQueue = fun () -> async {
+        let! views = Ledger.QueryHandlers.getReviewQueue ()
+        return! withTrackingLocks views
+    }
+
     getCategoryMonthEntries = fun query -> async {
         match Validation.validateCategoryMonthQuery query with
         | Error errors -> return Error (String.concat " " errors)

@@ -1127,7 +1127,18 @@ type LedgerEntryView = {
     /// in YNAB. `None`, wenn sie nicht wartet. Solange sie wartet, sperrt das Kassenbuch jeden
     /// schreibenden Befehl (ADR 0093 Punkt 6).
     PossibleDuplicate: PossibleDuplicateView option
+    /// Die heutige Kategorie kam aus dem Order-ID-Abgleich (ledger-v6s7c): die jüngste
+    /// Kategorisierung der Buchung ist `EntryRecategorized` mit Actor `OrderIdMatch`. Das
+    /// Durchgehen zeigt dann „aus Bestellnummer“ unter der Kategorie. Reines Read-Model-Feld.
+    CategoryFromOrderId: bool
 }
+
+/// Die Reihenfolge der Warteschlange im Durchgehen (ledger-v6s7c): zuerst die wartenden Buchungen
+/// (ADR 0093, sie halten YNAB auf), danach nach Buchungsdatum, älteste zuerst, bei Gleichstand die
+/// kleinere EntryId (als Text verglichen, damit Server und Client dieselbe Folge haben). Rein.
+let reviewQueueOrder (entries: LedgerEntryView list) : LedgerEntryView list =
+    entries
+    |> List.sortBy (fun e -> (e.PossibleDuplicate.IsNone, e.Date, e.Id.ToString()))
 
 // ============================================
 // Prüfvermerk setzen und zurückschreiben (ADR 0050, ledger-r777c)

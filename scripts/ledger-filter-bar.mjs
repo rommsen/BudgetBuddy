@@ -54,6 +54,7 @@ export function buildEntryFixture(accountId, n, overrides = {}) {
     PushToYnabFailure: null,
     ExternalLinks: [],
     PossibleDuplicate: null,
+    CategoryFromOrderId: false,
     ...overrides,
   };
 }

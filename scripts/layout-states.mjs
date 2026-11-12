@@ -534,6 +534,90 @@ const openOverview = async (page) =>
   page.locator('[data-testid="overview-month"], [data-testid="overview-month-loading"]').first().waitFor();
 
 // ============================================================
+// Durchgehen (ledger-v6s7c)
+// ============================================================
+
+/// Die Karten der Schlange: lange Namen und große Beträge (Invariante 4). `REVIEW_QUEUE.<art>` ist je eine Buchung.
+export const REVIEW_QUEUE = (() => {
+  const accountId = NAV_ACCOUNTS.DefaultAccountId;
+  const lebensmittel = { CategoryId: CATEGORY_IDS.lebensmittel, CategoryName: "Lebensmittel", CategoryGroupName: "Alltag" };
+  const base = { Date: TODAY, NeedsReview: true, LinkedToYnab: true, Origin: "ImportedFromComdirect", CategorizationWriteBackFailure: null };
+  return {
+    held: buildEntryFixture(accountId, 61, {
+      ...base,
+      Payee: HELD_PAYEE,
+      LinkedToYnab: false,
+      Amount: eur(-12345.67),
+      CategoryId: null,
+      CategoryName: null,
+      CategoryGroupName: null,
+      PossibleDuplicate: { ...POSSIBLE_DUPLICATE, MatchDate: "2025-03-10T00:00:00.0000000", Reason: "Gleicher Betrag, gleicher Tag, gleicher Payee, aber eine andere Bank-Referenz." },
+    }),
+    plain: buildEntryFixture(accountId, 62, { ...base, Payee: LONG_PAYEE, Amount: eur(-123456.78), ...lebensmittel }),
+    amazon: buildEntryFixture(accountId, 63, {
+      ...base,
+      Payee: "AMAZON PAYMENTS",
+      Origin: "MirroredFromYnab",
+      Amount: eur(-21.5),
+      Flag: "AskLena",
+      CategoryFromOrderId: true,
+      ...lebensmittel,
+      ExternalLinks: [
+        { Label: "Bestellung 302-7654321-2222222", Url: "https://www.amazon.de/gp/your-account/order-details?orderID=302-7654321-2222222" },
+      ],
+    }),
+    open: buildEntryFixture(accountId, 64, { ...base, Payee: "Markt ohne Kategorie", Amount: eur(-42.8), CategoryId: null, CategoryName: null, CategoryGroupName: null }),
+  };
+})();
+
+/// Die Seite „Durchgehen“ mit dieser Schlange. Das Neulesen einer Karte liefert ihren Stand aus `state`, damit
+/// Befehle (Kategorie, Prüfvermerk, Verwerfen) ihn ändern können; `state.calls` sammelt die Befehle.
+export async function mockReview(page, queue) {
+  await mockApp(page);
+  const state = { byId: new Map(queue.map((e) => [e.Id, { ...e }])), calls: [] };
+  const answer = (r, body) => json(r, body);
+  await page.route("**/api/LedgerApi/getReviewQueue", (r) => answer(r, queue.map((e) => state.byId.get(e.Id))));
+  await page.route("**/api/LedgerApi/getLedgerEntry", (r) => {
+    const [id] = r.request().postDataJSON();
+    return answer(r, state.byId.get(id) ?? null);
+  });
+  await page.route("**/api/LedgerApi/getPayeeCategorySuggestions", (r) =>
+    answer(r, [{ YnabCategoryId: CATEGORY_IDS.bahn }, { YnabCategoryId: CATEGORY_IDS.nebenkosten }])
+  );
+  await page.route("**/api/LedgerApi/getEntryHistory", (r) => answer(r, []));
+  await page.route("**/api/LedgerApi/getLedgerPayeeSuggestions", (r) => answer(r, []));
+  await page.route("**/api/LedgerApi/setEntryCategory", (r) => {
+    const [id, category] = r.request().postDataJSON();
+    state.calls.push({ endpoint: "setEntryCategory", id, category });
+    const entry = state.byId.get(id);
+    const categoryId = category && category.YnabCategoryId;
+    state.byId.set(id, { ...entry, CategoryId: categoryId, CategoryName: "Lebensmittel", CategoryGroupName: "Alltag" });
+    return answer(r, { Ok: { Previous: null, Change: "CategoryChanged", WriteBack: "CategorySent", PreviousTransferAccountId: null } });
+  });
+  await page.route("**/api/LedgerApi/setReviewMark", (r) => {
+    const [id] = r.request().postDataJSON();
+    state.calls.push({ endpoint: "setReviewMark", id });
+    state.byId.set(id, { ...state.byId.get(id), NeedsReview: false });
+    return answer(r, { Ok: { Previous: { IsApproved: false, ClearedState: "ReviewUncleared" }, Change: "ReviewMarkChanged", WriteBack: "ReviewMarkSent" } });
+  });
+  await page.route("**/api/LedgerApi/setLenaFlag", (r) => {
+    const [id, target] = r.request().postDataJSON();
+    state.calls.push({ endpoint: "setLenaFlag", id, target });
+    return answer(r, { Ok: { Previous: { Color: null, Name: null }, Change: "FlagChanged", WriteBack: "FlagSent" } });
+  });
+  await page.route("**/api/LedgerApi/discardDuplicateEntry", (r) => {
+    const [id] = r.request().postDataJSON();
+    state.calls.push({ endpoint: "discardDuplicateEntry", id });
+    state.byId.set(id, { ...state.byId.get(id), DeletedInYnab: true });
+    return answer(r, { Ok: null });
+  });
+  return state;
+}
+
+const reviewOpen = (testId) => async (page) => page.locator(`[data-testid="${testId}"]`).first().waitFor();
+const reviewPrimary = (name) => (page) => page.getByRole("button", { name, exact: true }).locator("visible=true").first();
+
+// ============================================================
 // Die Zustände
 // ============================================================
 
@@ -1286,6 +1370,57 @@ export const STATES = [
       );
     },
     open: async (page) => page.locator('[data-testid="overview-todos"]').waitFor(),
+  },
+  // ledger-v6s7c: das Durchgehen. Karte mit langem Payee und großem Betrag, Karte mit Bestell-Link, Vorschlägen und
+  // Lena-Hinweis, Duplikat-Karte und Endansicht; „Passt, weiter“ (bzw. der Hauptknopf der Karte) ohne Scrollen.
+  {
+    name: "durchgehen-karte",
+    route: "/review",
+    widths: [320, 412, 1280],
+    mock: (page) => mockReview(page, [REVIEW_QUEUE.plain]),
+    open: reviewOpen("review-card"),
+    primary: reviewPrimary("Passt, weiter"),
+  },
+  {
+    name: "durchgehen-amazon",
+    route: "/review",
+    widths: [320, 412, 1280],
+    mock: (page) => mockReview(page, [REVIEW_QUEUE.amazon]),
+    open: async (page) => page.locator('[data-testid="review-suggestions"]').first().waitFor(),
+    primary: reviewPrimary("Passt, weiter"),
+  },
+  {
+    name: "durchgehen-duplikat",
+    route: "/review",
+    widths: [320, 412, 1280],
+    mock: (page) => mockReview(page, [REVIEW_QUEUE.held]),
+    open: reviewOpen("review-duplicate-card"),
+    primary: reviewPrimary("Ist doppelt, verwerfen"),
+  },
+  {
+    name: "durchgehen-ende",
+    route: "/review",
+    widths: [320, 412, 1280],
+    mock: (page) => mockReview(page, []),
+    open: reviewOpen("review-end"),
+    primary: reviewPrimary("Zur Übersicht"),
+  },
+  // Das Memo-Sheet der Karte am Handy: „Speichern“ bleibt bei offener Tastatur im Bild.
+  {
+    name: "durchgehen-memo",
+    route: "/review",
+    widths: [412],
+    mock: (page) => mockReview(page, [REVIEW_QUEUE.plain]),
+    open: async (page) => {
+      await page.locator('[data-testid="review-memo"]').first().waitFor();
+      await page.locator('[data-testid="review-memo"]').first().click();
+      await page.locator('.bottom-sheet.active [data-testid="detail-memo-editor"]').waitFor();
+    },
+    primary: (page) => page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Speichern", exact: true }),
+    keyboard: {
+      focus: (page) => page.locator(".bottom-sheet.active textarea, .bottom-sheet.active input").first(),
+      reach: (page) => page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Speichern", exact: true }),
+    },
   },
   // ledger-s1weh: „Neue Buchung“ auf der Übersicht, am Handy als Sheet über „+ Buchung“, ab 1024 px als Dialog in der
   // Mitte über „Buchung“ im Kopf. „Buchung anlegen“ ist ohne Scrollen erreichbar, am Handy auch bei offener Tastatur.

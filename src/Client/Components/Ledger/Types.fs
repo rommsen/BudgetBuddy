@@ -1004,6 +1004,138 @@ type ListInteraction =
     | CompactMouse
     | CompactTouch
 
+// ============================================
+// Durchgehen Karte für Karte (ledger-v6s7c, ADR 0086, Styleguide §7.4)
+// ============================================
+
+/// Das laufende Durchgehen. Die gezeigte Karte ist die Buchung in `DetailFor`: so laufen Kategorie,
+/// Übertrag, Payee, Memo und Lena über dieselben Befehle wie im Detail.
+type ReviewSession = {
+    /// Die Schlange beim Öffnen, in fester Folge: „i von n“ springt nicht, auch wenn Buchungen
+    /// inzwischen geprüft sind.
+    Queue: RemoteData<Guid list>
+    /// Der Stand jeder Buchung der Schlange, wie er beim Laden oder zuletzt gelesen wurde.
+    Snapshots: Map<Guid, LedgerEntryView>
+    /// Die Stelle der gezeigten Karte, 0-basiert; die Länge der Schlange heißt Endansicht.
+    Index: int
+    /// „Passt, weiter“ läuft für diese Buchung.
+    Confirming: Guid option
+    /// „Ist neu“ oder „Ist doppelt, verwerfen“ läuft für diese Buchung.
+    Deciding: Guid option
+    /// Die Vorschläge zum Payee der Karte, ohne die aktuelle Kategorie.
+    Suggestions: YnabCategoryId list
+    /// Das Buchungs-Detail („Details“) steht über der Karte.
+    DetailShown: bool
+    /// Die aufgelösten Treffer der Duplikat-Karten: die Buchung im Kassenbuch je `MatchEntryId`.
+    Matches: Map<Guid, LedgerEntryView>
+}
+
+/// Ein frisches Durchgehen: die Schlange lädt.
+let reviewStarting : ReviewSession =
+    { Queue = Loading
+      Snapshots = Map.empty
+      Index = 0
+      Confirming = None
+      Deciding = None
+      Suggestions = []
+      DetailShown = false
+      Matches = Map.empty }
+
+/// Die Art der Karte: die normale oder die Duplikat-Karte einer wartenden Buchung (ADR 0093).
+type ReviewCardKind =
+    | NormalCard
+    | DuplicateCard
+
+let reviewCardKindOf (entry: LedgerEntryView) : ReviewCardKind =
+    if entry.PossibleDuplicate.IsSome then DuplicateCard else NormalCard
+
+/// Hat die Buchung ein Ziel, ist „Passt“ frei: eine Kategorie, ein Übertrag oder eine Aufteilung
+/// (Sinn von „Ohne Kategorie“, ADR 0048). Ohne Ziel steht „Erst Kategorie wählen“.
+let reviewHasTarget (entry: LedgerEntryView) : bool =
+    entry.CategoryId.IsSome || entry.CategoryName.IsSome || entry.IsTransfer || not (List.isEmpty entry.Splits)
+
+/// Muss die Karte beim Erreichen übersprungen werden? Inzwischen geprüft, gelöscht oder unbekannt.
+let reviewSkipsEntry (entry: LedgerEntryView option) : bool =
+    match entry with
+    | Some e -> not e.NeedsReview || e.DeletedInYnab
+    | None -> true
+
+/// Ab wie viel Pixeln Wischen eine Entscheidung ist (Prototyp `touchend`).
+let reviewSwipeThresholdPx = 90.0
+
+type ReviewSwipe =
+    | SwipeConfirm
+    | SwipeSkip
+    | SwipeNothing
+
+/// Die Entscheidung am Ende eines Wischs auf der Karte: mehr als 90 px nach rechts „Passt“, mehr als
+/// 90 px nach links „Später“, dazwischen nichts. Rein.
+let reviewSwipeOf (dx: float) : ReviewSwipe =
+    if dx > reviewSwipeThresholdPx then SwipeConfirm
+    elif dx < -reviewSwipeThresholdPx then SwipeSkip
+    else SwipeNothing
+
+/// Was eine Taste im Durchgehen auslöst (PC, Styleguide §7.8 Punkt 6).
+type ReviewKeyAction =
+    | KeyConfirm
+    | KeySkip
+    | KeyOpenCategory
+    | KeyLena
+    | KeyLeave
+
+/// Die Tastenbelegung des Durchgehens: Enter passt (nur mit Ziel, nicht auf der Duplikat-Karte),
+/// S später, K öffnet die Kategorieauswahl und L fragt Lena bzw. nimmt die Rückfrage zurück (beide
+/// nicht auf der Duplikat-Karte), Esc führt zurück. Ohne Karte (Endansicht) nur Esc. Rein.
+let reviewKeyAction (card: (ReviewCardKind * bool) option) (key: string) : ReviewKeyAction option =
+    match key, card with
+    | "Escape", _ -> Some KeyLeave
+    | _, None -> None
+    | "Enter", Some (NormalCard, true) -> Some KeyConfirm
+    | ("s" | "S"), Some _ -> Some KeySkip
+    | ("k" | "K"), Some (NormalCard, _) -> Some KeyOpenCategory
+    | ("l" | "L"), Some (NormalCard, _) -> Some KeyLena
+    | _ -> None
+
+/// Der Toast nach einer Kategorie auf der Karte: Name und was die Kategorie danach verfügbar hat.
+let reviewCategoryToastText (name: string option) (available: Money option) : string =
+    match name, available with
+    | Some n, Some a -> $"Kategorie: {n} · {Client.DesignSystem.Money.formatAmountText false true a.Amount a.Currency} verfügbar"
+    | Some n, None -> $"Kategorie: {n}"
+    | None, _ -> "Kategorie entfernt"
+
+/// Der Toast nach einem Übertrag auf der Karte.
+let reviewTransferToastText (name: string option) : string =
+    match name with
+    | Some n -> $"Übertrag nach {n} · Gegenbuchung angelegt"
+    | None -> "Übertrag gesetzt · Gegenbuchung angelegt"
+
+/// Der Toast nach dem Memo auf der Karte.
+let reviewMemoToastText (current: string option) : string =
+    match current with
+    | Some _ -> "Memo gespeichert"
+    | None -> "Memo entfernt"
+
+/// Der Hinweis beim Wisch nach rechts ohne Ziel.
+let reviewNeedsTargetText = "Erst eine Kategorie wählen"
+let reviewConfirmedNewText = "Als neu übernommen, geht nach YNAB"
+let reviewDiscardedText = "Verworfen, nicht nach YNAB gegangen"
+let reviewRestoredText = "Steht wieder zur Entscheidung"
+
+/// Die Zeile der Endansicht: wie viele Buchungen die Schlange hatte (Einzahl „1 Buchung“).
+let reviewDoneText (count: int) : string =
+    let tail = "Neue erscheinen nach dem nächsten Import."
+    if count = 0 then tail
+    elif count = 1 then $"1 Buchung durchgegangen. {tail}"
+    else $"{count} Buchungen durchgegangen. {tail}"
+
+/// „i von n“ im Kopf; in der Endansicht steht nichts.
+let reviewProgressText (index: int) (count: int) : string option =
+    if index < count then Some $"{index + 1} von {count}" else None
+
+/// Die Füllung des Fortschrittsbalkens in Prozent: (i−1)/n, voll in der Endansicht.
+let reviewProgressPercent (index: int) (count: int) : float =
+    if count <= 0 || index >= count then 100.0 else float index / float count * 100.0
+
 type Model = {
     /// Die Konten samt Vorauswahl des Servers.
     Accounts: RemoteData<LedgerAccountsView>
@@ -1328,6 +1460,9 @@ type Model = {
     /// die Generation ihres Starts mit. Eine Antwort einer älteren Generation gehört zu einem
     /// Filter oder einer Sortierung, die nicht mehr gilt, und wird verworfen.
     EntriesGeneration: int
+
+    /// Das laufende Durchgehen (ledger-v6s7c), `None` außerhalb der Seite.
+    Review: ReviewSession option
 }
 
 /// Ist Von oder Bis des Zeitraum-Entwurfs ungültig eingegeben? Dann ist "Übernehmen"
@@ -1339,6 +1474,24 @@ let dateDraftHasError (model: Model) : bool =
 /// Listentasten an (ledger-q1hw2); ein offenes Sheet verdeckt die Liste und sperrt sie.
 let detailPanelOpen (model: Model) : bool =
     model.DetailFor.IsSome && model.DetailForm = DetailPanel
+
+/// Die Schlange des Durchgehens, sobald sie geladen ist.
+let reviewQueueOf (model: Model) : Guid list option =
+    match model.Review with
+    | Some { Queue = Success ids } -> Some ids
+    | _ -> None
+
+/// Die gezeigte Karte des Durchgehens (ledger-v6s7c): die Buchung in `DetailFor` an der Stelle
+/// `Index` der Schlange. `None` außerhalb des Durchgehens, beim Laden und in der Endansicht.
+let reviewCardOf (model: Model) : LedgerEntryView option =
+    match model.Review, reviewQueueOf model with
+    | Some review, Some ids when review.Index < List.length ids ->
+        model.DetailFor |> Option.filter (fun d -> d.Id = ids.[review.Index])
+    | _ -> None
+
+/// Ist diese Buchung die gezeigte Karte des Durchgehens?
+let isReviewCard (model: Model) (entryId: Guid) : bool =
+    reviewCardOf model |> Option.exists (fun e -> e.Id = entryId)
 
 /// Wohin die Route `#/ledger/entry/<id>` verlassen wurde (budgeting-m1bce).
 type RouteLeftFor =
@@ -2219,6 +2372,55 @@ type Msg =
     /// Popover, dann das Detail, dann die Auswahl.
     | EscapePressed
 
+    // ============================================
+    // Durchgehen (ledger-v6s7c)
+    // ============================================
+
+    /// Die Seite „Durchgehen“ öffnet: die Schlange lädt neu.
+    | ReviewOpened
+    /// Die Seite wird verlassen: Karte, Picker und Detail schließen.
+    | ReviewLeft
+    | RunLoadReviewQueue
+    | ReviewQueueLoaded of Result<LedgerEntryView list, string>
+    /// Die gezeigte Karte wird neu gelesen; eine inzwischen geprüfte oder gelöschte übersprungen.
+    | RunReviewRefresh of Guid
+    | ReviewEntryRefreshed of Guid * basis: LedgerEntryView option * Result<LedgerEntryView option, string>
+    | RunReviewSuggestions of Guid * string * YnabCategoryId option
+    | ReviewSuggestionsLoaded of Guid * YnabCategoryId list
+    /// Die schon vorhandene Buchung zur Duplikat-Karte wird gelesen.
+    | RunReviewMatch of Guid
+    | ReviewMatchLoaded of Guid * LedgerEntryView option
+    /// „Passt, weiter“: der Prüfvermerk, danach die nächste Karte.
+    | ReviewConfirm
+    | RunReviewConfirm of Guid
+    | ReviewConfirmed of Guid * Result<ReviewMarkOutcome, string>
+    /// „Später“: weiter, die Buchung bleibt ungeprüft.
+    | ReviewSkip
+    /// „Lena fragen“ (weiter) bzw. „Rückfrage zurück“ (bleibt).
+    | ReviewLena
+    /// K: die Kategorieauswahl der Karte.
+    | ReviewOpenCategory
+    /// Ein Vorschlag unter dem Feld.
+    | ReviewPickSuggestion of YnabCategoryId
+    /// „Ist neu“ auf der Duplikat-Karte.
+    | ReviewConfirmNew
+    | RunReviewConfirmNew of Guid
+    | ReviewConfirmedNew of Guid * Result<PushToYnabWriteBack, string>
+    /// „Ist doppelt, verwerfen“ auf der Duplikat-Karte.
+    | ReviewDiscard
+    | RunReviewDiscard of Guid
+    | ReviewDiscarded of Guid * Result<unit, string>
+    /// „Rückgängig“ nach dem Verwerfen: die Buchung wartet wieder, ihre Karte steht wieder da.
+    | StartRestoreDiscardedDuplicate of Guid
+    | RunRestoreDiscardedDuplicate of Guid
+    | DiscardedDuplicateRestored of Guid * Result<unit, string>
+    /// „Details“: das Buchungs-Detail über der Karte.
+    | ReviewShowDetails
+    /// Ende eines Wischs auf der Karte, mit dem Weg in Pixeln.
+    | ReviewSwiped of float
+    /// Eine Taste am PC (ohne Fokus in einem Feld).
+    | ReviewKey of ReviewKeyAction
+
 /// Die Tastenbelegung der Kassenbuch-Liste (PC): Pfeil ab/auf und J/K bewegen den Fokus,
 /// G setzt "Geprüft", Umschalt+G "Ungeprüft", Enter öffnet das Detail der markierten Zeile
 /// und Esc schließt eine Stufe (ledger-q1hw2), die Leertaste wählt die markierte Zeile
@@ -2258,6 +2460,8 @@ type ExternalMsg =
     | ShowToast of string * ToastType
     /// Ein Toast mit Schaltfläche (ledger-th36h: "Rückgängig").
     | ShowToastWithAction of string * ToastType * ToastAction
+    /// Das Durchgehen ist zu Ende oder wird verlassen: zurück zur Übersicht (ledger-v6s7c).
+    | LeaveReview
 
 /// Die Zusammenfassung eines Spiegel-Laufs als Satz.
 let mirrorSummaryText (summary: MirrorRunSummary) : string =

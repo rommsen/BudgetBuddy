@@ -160,6 +160,8 @@ type Page =
     | BudgetTargetCheck
     /// Kategorien verwalten: anlegen, umbenennen, Gruppe wechseln, Gruppen (budgeting-pscgb, ADR 0088).
     | BudgetCategories
+    /// Durchgehen Karte für Karte unter der Übersicht (ledger-v6s7c, Styleguide §7.4).
+    | Review
 
 
 /// Zeigt die Seite das Kassenbuch, mit oder ohne offene Buchung?
@@ -187,7 +189,8 @@ type Place =
 /// Kassenbuch, bis `categorization-n3sxw` sie dort als Tab einbaut.
 let placeOf (page: Page) : Place option =
     match page with
-    | Overview -> Some OverviewPlace
+    | Overview
+    | Review -> Some OverviewPlace
     | Ledger
     | LedgerEntry _
     | Rules -> Some LedgerPlace
@@ -222,6 +225,7 @@ type BackTarget = { Target: Page; Label: string }
 let backLabel (page: Page) : string =
     match page with
     | Overview -> "Zurück zur Übersicht"
+    | Review -> "Zurück zum Durchgehen"
     | Ledger
     | LedgerEntry _ -> "Zurück zum Kassenbuch"
     | Rules -> "Zurück zu den Regeln"
@@ -242,7 +246,7 @@ let backTarget (page: Page) (settingsReturnPage: Page) : BackTarget option =
     | Rules -> toPage Ledger
     | Styleguide -> toPage Settings
     | Settings -> toPage settingsReturnPage
-    | Overview | Ledger | LedgerEntry _ | Budget | BudgetHistory | BudgetTargetCheck | BudgetCategories | QuickAdd -> None
+    | Overview | Review | Ledger | LedgerEntry _ | Budget | BudgetHistory | BudgetTargetCheck | BudgetCategories | QuickAdd -> None
 
 /// URL routing helpers for hash-based navigation
 module Routing =
@@ -268,6 +272,7 @@ module Routing =
         | ["budget"; "history"] -> BudgetHistory
         | ["budget"; "target-check"] -> BudgetTargetCheck
         | ["budget"; "categories"] -> BudgetCategories
+        | ["review"] -> Review
         // Ein unbekannter Pfad landet auf der Übersicht.
         | _ -> Overview
 
@@ -285,6 +290,7 @@ module Routing =
         | BudgetHistory -> ["budget"; "history"]
         | BudgetTargetCheck -> ["budget"; "target-check"]
         | BudgetCategories -> ["budget"; "categories"]
+        | Review -> ["review"]
 
     /// Get current page from URL (for initialization)
     let currentPage () : Page =
@@ -344,6 +350,9 @@ type ToastActionKind =
     /// "Rückgängig" nach "Lena fragen" bzw. "Rückfrage zurücknehmen" für eine ganze Auswahl
     /// (ledger-y54gr): ein Klick stellt Farbe und Name jeder geänderten Buchung wieder her.
     | UndoFlagBatch of changes: Shared.Domain.FlagBatchChange list
+    /// "Rückgängig" nach "Ist doppelt, verwerfen" im Durchgehen (ledger-v6s7c): die Buchung wartet
+    /// wieder, ihre Duplikat-Karte steht wieder da.
+    | UndoDiscardDuplicate of entryId: Guid
     /// "Erneut senden" nach einer teilweise gescheiterten Verschiebung (budgeting-afd8h):
     /// die Anwendungs-Id kommt aus dem Bericht des Servers.
     | RetryBudgetMove of applicationId: string

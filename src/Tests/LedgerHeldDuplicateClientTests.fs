@@ -40,7 +40,7 @@ let private entryOf (n: int) : LedgerEntryView =
       AmountLockReason = None
       LinkedToYnab = false
       PushToYnabFailure = None; SplitLocks = None; ExternalLinks = []; PayeeWriteBackFailure = None
-      PossibleDuplicate = None }
+      PossibleDuplicate = None; CategoryFromOrderId = false }
 
 let private held (n: int) : LedgerEntryView =
     { entryOf n with

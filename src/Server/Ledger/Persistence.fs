@@ -1757,6 +1757,44 @@ let countNeedsReviewEntries (accountId: LedgerAccountId option) : Async<int> =
         return int count
     }
 
+/// Die zu prüfenden Buchungen über alle Konten (ledger-v6s7c, Warteschlange des Durchgehens):
+/// dieselbe Bedingung wie `countNeedsReviewEntries None`, gelöschte nie. Die Reihenfolge legt
+/// der Lesepfad fest (`reviewQueueOrder`).
+let loadNeedsReviewEntries () : Async<Entry list> =
+    async {
+        use conn = Core.getConnection ()
+        let! rows =
+            conn.QueryAsync<EntryRow>(
+                $"SELECT * FROM ledger_entries WHERE deleted_in_ynab = 0 AND {needsReviewSqlClause}")
+            |> Async.AwaitTask
+        return rows |> Seq.map rowToEntry |> Seq.toList
+    }
+
+/// Die Buchungen, deren jüngste Kategorisierung `EntryRecategorized` mit Actor `OrderIdMatch` ist
+/// (ledger-v6s7c, „aus Bestellnummer“). Eine spätere Änderung durch Roman, eine Regel oder den
+/// Spiegel nimmt die Buchung heraus.
+let loadOrderIdCategorizedEntries () : Async<Set<Guid>> =
+    async {
+        use conn = Core.getConnection ()
+        // Die Ereignisse, die die Kategorie setzen oder ändern: die jüngste davon nennt, woher die heutige kommt.
+        let! rows =
+            conn.QueryAsync<string>(
+                """SELECT e.stream_id FROM events e
+                    WHERE e.context = @context AND e.event_type = 'EntryRecategorized' AND e.actor_kind = 'OrderIdMatch'
+                      AND NOT EXISTS (
+                        SELECT 1 FROM events later
+                        WHERE later.context = e.context AND later.stream_id = e.stream_id
+                          AND later.stream_version > e.stream_version
+                          AND later.event_type IN (
+                            'EntryObservedInYnab', 'EntryCategorizationChangeObservedInYnab', 'EntryImportedFromComdirect',
+                            'CashExpenseAdded', 'EntryCategorizedByRule', 'EntryRecategorized',
+                            'EntryTransferTargetSetInBb', 'EntryTransferTargetClearedInBb'))""",
+                {| context = ledgerContext |}
+            )
+            |> Async.AwaitTask
+        return rows |> Seq.map entryGuidOfStream |> Set.ofSeq
+    }
+
 /// Die Zahl der Buchungen mit Flag "Lena" eines Kontos oder aller Konten (ADR 0056, Punkt 6),
 /// unabhängig vom Chip `OnlyAskLena` und ohne die Such-Filter: wie `countNeedsReviewEntries`
 /// ein fester Zähler für den Chip "Rückfrage Lena (n)". Gelöschte Buchungen zählen nie mit.

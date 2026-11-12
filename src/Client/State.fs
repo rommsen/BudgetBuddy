@@ -177,6 +177,8 @@ let toastActionMsg (kind: ToastActionKind) : Msg =
         LedgerMsg (Components.Ledger.Types.StartUndoCategoryBatch changes)
     | UndoFlagBatch changes ->
         LedgerMsg (Components.Ledger.Types.StartUndoFlagBatch changes)
+    | UndoDiscardDuplicate entryId ->
+        LedgerMsg (Components.Ledger.Types.StartRestoreDiscardedDuplicate entryId)
     | RetryBudgetMove applicationId ->
         BudgetMsg (Components.Budget.Types.RetryMove applicationId)
 
@@ -262,6 +264,9 @@ let rec pageLoadCmd (page: Page) : Cmd<Msg> =
     | BudgetCategories ->
         // Die Liste kommt bei jedem Betreten live aus YNAB (budgeting-pscgb).
         Cmd.map BudgetMsg (Cmd.ofMsg (Components.Budget.Types.CategoryAdminMsg Components.Budget.Categories.Entered))
+    | Review ->
+        // Die Schlange wird bei jedem Betreten neu gelesen (ledger-v6s7c).
+        Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.ReviewOpened)
     | QuickAdd ->
         // Open a fresh form and make sure the category picker has data
         // (categories are loaded at startup; retry in case that failed or
@@ -361,6 +366,9 @@ let urlChangedCmd (ledger: Components.Ledger.Types.Model) (current: Page) (page:
         Cmd.batch [ Cmd.map BudgetMsg (Cmd.ofMsg Components.Budget.Types.GeneralHistoryAbandoned); pageLoadCmd page ]
     | BudgetTargetCheck, target when target <> Budget ->
         Cmd.batch [ Cmd.map BudgetMsg (Cmd.ofMsg Components.Budget.Types.TargetCheckAbandoned); pageLoadCmd page ]
+    // Das Durchgehen schließt Karte und Detail, sonst stünde das Detail im Kassenbuch offen (ledger-v6s7c).
+    | Review, target when target <> Review ->
+        Cmd.batch [ Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.ReviewLeft); pageLoadCmd page ]
     | _ -> pageLoadCmd page
 
 // ============================================
@@ -404,10 +412,16 @@ let isPageReady (model: Model) : bool =
     | BudgetHistory -> notLoading model.Budget.GeneralHistory.Rows
     | BudgetTargetCheck -> notLoading model.Budget.TargetCheck.Data
     | BudgetCategories -> notLoading model.Budget.CategoryAdmin.Groups
+    | Review ->
+        match model.Ledger.Review with
+        | Some review -> notLoading review.Queue && notLoading model.Ledger.Accounts
+        | None -> false
 
 /// Die Auswahl-Leiste des Kassenbuchs ersetzt am Handy die Tab-Bar (ledger-r1d2f).
+/// Das Durchgehen steht am Handy ohne Tab-Bar, wie im Prototyp (ledger-v6s7c): die Knöpfe unter der Karte
+/// sind die Bedienung der Seite.
 let hideBottomNav (model: Model) : bool =
-    isLedgerPage model.CurrentPage && model.Ledger.SelectionMode
+    (isLedgerPage model.CurrentPage && model.Ledger.SelectionMode) || model.CurrentPage = Review
 
 /// Läuft gerade eine Eingabe, die ein Neuladen verlieren würde (infrastructure-bnbdc,
 /// ADR 0057)? Reiner Schnappschuss des Modells. Nicht erfasst ist ein Textfeld mit Fokus,
@@ -906,6 +920,7 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
             | Components.Ledger.Types.ShowToast (message, toastType) -> Cmd.ofMsg (ShowToast (message, toastType))
             | Components.Ledger.Types.ShowToastWithAction (message, toastType, action) ->
                 Cmd.ofMsg (ShowToastWithAction (message, toastType, action))
+            | Components.Ledger.Types.LeaveReview -> Cmd.ofMsg (NavigateTo Overview)
 
         let closedByUser =
             match ledgerMsg with
@@ -989,8 +1004,7 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
             let model', cmd = updateWith ports (BudgetMsg (Components.Budget.Types.EnterWithAction action)) model
             model', Cmd.batch [ cmd; Cmd.ofMsg (NavigateTo Budget) ]
         match target with
-        // Bis `ledger-v6s7c` (Durchgehen) das Kassenbuch mit Filter „Zu prüfen“ (Übergang, Roman 2026-11-11).
-        | Components.Overview.Types.TodoReview -> toLedger Components.Ledger.Types.PresetNeedsReview
+        | Components.Overview.Types.TodoReview -> model, Cmd.ofMsg (NavigateTo Review)
         | Components.Overview.Types.TodoAskLena -> toLedger Components.Ledger.Types.PresetAskLena
         | Components.Overview.Types.TodoNotInYnab entryId -> model, Cmd.ofMsg (NavigateTo (LedgerEntry entryId))
         | Components.Overview.Types.TodoCover categoryId ->

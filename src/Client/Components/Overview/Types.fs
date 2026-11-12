@@ -230,7 +230,7 @@ let recentQuery : LedgerEntryPageQuery =
 
 /// Wohin ein Eintrag in „Zu tun“ führt. Die Reihenfolge der Fälle ist die Reihenfolge der Liste.
 type TodoTarget =
-    /// 1: das Kassenbuch über alle Konten mit Filter „Zu prüfen“ (bis `ledger-v6s7c` das Durchgehen bringt).
+    /// 1: das Durchgehen Karte für Karte (ledger-v6s7c).
     | TodoReview
     /// 2: das Detail dieser Kategorie im Budget, Bereich Geld, Holen, Betrag vorbelegt mit dem Minus.
     | TodoCover of categoryId: Guid
@@ -281,7 +281,9 @@ let todos (inputs: TodoInputs) : Todo list =
     let review =
         if inputs.NeedsReview > 0 then
             [ { Target = TodoReview
-                Title = (if inputs.NeedsReview = 1 then "1 Buchung zu prüfen" else $"{inputs.NeedsReview} Buchungen zu prüfen")
+                Title =
+                  (if inputs.NeedsReview = 1 then "1 neue Buchung durchgehen"
+                   else $"{inputs.NeedsReview} neue Buchungen durchgehen")
                 Detail =
                   match inputs.ImportStand with
                   | Some stand -> $"Import {stand}"
@@ -349,7 +351,7 @@ let todoMark (target: TodoTarget) : TodoMark =
 /// Die Beschriftung des Hauptknopfs, wenn der Eintrag oben steht.
 let todoActionLabel (target: TodoTarget) : string =
     match target with
-    | TodoReview -> "Prüfen"
+    | TodoReview -> "Jetzt durchgehen"
     | TodoCover _ -> "Geld holen"
     | TodoApplyTargets -> "Anwenden"
     | TodoAskLena

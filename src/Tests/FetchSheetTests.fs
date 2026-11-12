@@ -208,12 +208,12 @@ let stateTests =
             Expect.isFalse model.IsOpen "zu"
             Expect.equal calls.Cancels 1 "cancelSync"
 
-        testCase "Jetzt durchgehen schließt das Sheet und öffnet das Kassenbuch" <| fun () ->
+        testCase "Jetzt durchgehen schließt das Sheet und öffnet das Durchgehen" <| fun () ->
             let calls = newCalls ()
             let done', _ = steps calls (startedFrom calls None) [ SyncStarted (Ok (Fetched booked)) ]
             let model, ext = steps calls done' [ ReviewRequested ]
             Expect.isFalse model.IsOpen "zu"
-            Expect.equal ext OpenReview "ins Kassenbuch"
+            Expect.equal ext OpenReview "ins Durchgehen"
 
         // Review-Fund zu banking-import-d0fey: scheiterte das erste Lesen beim Öffnen, stand „Die Verbindung zum
         // Server brach ab“, als sei ein Start verloren gegangen.

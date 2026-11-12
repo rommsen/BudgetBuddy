@@ -156,7 +156,9 @@ let tests =
                     "getLedgerPayeeSuggestions"
                     "getBudgetAccounts"; "getSettings"; "getLedgerEntry"; "getLedgerEntry"
                     // ledger-at63w: Vorbelegung und Kategorie zum Payee beim Erfassen.
-                    "getLedgerBookingDefaults"; "getBookingCategoryForPayee" ]
+                    "getLedgerBookingDefaults"; "getBookingCategoryForPayee"
+                    // ledger-v6s7c: Schlange, Neulesen der Karte, Vorschläge und Treffer des Durchgehens.
+                    "getReviewQueue"; "getLedgerEntry"; "getPayeeCategorySuggestions"; "getLedgerEntry" ]
                   // banking-import-d0fey: das Sheet „Abrufen“ liest nur die Sitzung.
                   "Components/Fetch/State.fs", [ "getCurrentSession" ]
                   "Components/Budget/State.fs",

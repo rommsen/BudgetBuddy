@@ -1,0 +1,427 @@
+module LedgerReviewClientTests
+
+// Durchgehen Karte für Karte, Client-Seite (ledger-v6s7c):
+//
+//  * reine Funktionen: Ziel für „Passt“, Wischschwelle, Tastenzuordnung, Texte von Karte und Endansicht;
+//  * die Zustandsfolge durch das echte `update` als Aufzählung aller Reihenfolgen (Doktrin Punkt 20): Passt mit
+//    später Antwort und Fehler, Später, Lena mit Rückgängig, Kategorie, Verwerfen mit Rückgängig, Ist neu, Ende.
+//    Das Orakel führt Stelle, Schlange und offene Antworten selbst und fragt den getesteten Code nicht;
+//  * Einzelfälle: Toasts, Überspringen beim Neulesen, Details, Esc und Verlassen.
+
+open System
+open Expecto
+open Shared.Domain
+open Types
+open Components.Ledger.Types
+
+let private eur (amount: decimal) : Money = { Amount = amount; Currency = "EUR" }
+let private account = Guid.Parse "0195e800-0000-7000-8000-0000000000aa"
+let private food = Guid.Parse "0195d800-0000-7000-8000-0000000000f1"
+
+let private entryOf (n: int) : LedgerEntryView =
+    { Id = Guid.Parse $"0195f810-0000-7000-8000-{n:D12}"
+      AccountId = account
+      Date = DateTime(2026, 11, n)
+      Amount = eur -10m
+      Payee = Some $"Payee v6s7c {n}"
+      Memo = None
+      CategoryName = Some "Lebensmittel"
+      CategoryId = Some food
+      CategoryGroupName = Some "Alltag"
+      Reconciled = false
+      SplitCategoryGroupNames = Map.empty
+      Splits = []
+      Origin = ImportedFromComdirect
+      DeletedInYnab = false
+      NeedsReview = true
+      Flag = NoFlag
+      IsTransfer = false
+      TransferAccountId = None
+      ReviewMarkWriteBackFailure = None
+      CategorizationWriteBackFailure = None
+      FlagWriteBackFailure = None
+      MemoWriteBackFailure = None
+      AmountWriteBackFailure = None
+      AmountLockReason = None
+      LinkedToYnab = true
+      PushToYnabFailure = None
+      SplitLocks = None
+      ExternalLinks = []
+      PayeeWriteBackFailure = None
+      PossibleDuplicate = None
+      CategoryFromOrderId = false }
+
+let private withoutCategory (e: LedgerEntryView) = { e with CategoryName = None; CategoryId = None; CategoryGroupName = None }
+
+let private held (n: int) : LedgerEntryView =
+    { withoutCategory (entryOf n) with
+        LinkedToYnab = false
+        PossibleDuplicate =
+            Some { Reason = "Gleicher Betrag, gleicher Tag, gleicher Payee, aber eine andere Bank-Referenz."
+                   MatchDate = DateTime(2026, 11, 1)
+                   MatchAmount = eur -10m
+                   MatchPayee = Some "Markt"
+                   MatchCategoryName = Some "Lebensmittel"
+                   MatchEntryId = None } }
+
+let private idOf (e: LedgerEntryView) = e.Id
+
+let private categories : YnabCategory list =
+    [ { Id = YnabCategoryId food; Name = "Lebensmittel"; GroupName = "Alltag"; Available = Some (eur 120m); Hidden = false } ]
+
+let private update = Components.Ledger.State.update
+
+/// Ein Schritt durch das echte `update`; die Folgenachrichten werden gesammelt, nicht ausgeführt. Ein Effekt
+/// (Gerätespeicher) läuft unter .NET nicht und bleibt außen vor.
+let private run (msg: Msg) (model: Model) : Model * Msg list * ExternalMsg =
+    let model', cmd, external = update msg model
+    let sent = ResizeArray<Msg>()
+    for sub in cmd do
+        try sub sent.Add with _ -> ()
+    model', List.ofSeq sent, external
+
+let private step (msg: Msg) (model: Model) : Model =
+    let model', _, _ = run msg model
+    model'
+
+/// Das Durchgehen mit geladener Schlange, wie `ReviewOpened` und die Antwort es hinterlassen.
+let private reviewing (queue: LedgerEntryView list) : Model =
+    let model, _ = Components.Ledger.State.init ()
+    { model with LenaFlagColor = Success (Some "purple"); Categories = Success categories; DetailForm = DetailSheet }
+    |> step ReviewOpened
+    |> step (ReviewQueueLoaded (Ok queue))
+
+let private cardId (model: Model) = reviewCardOf model |> Option.map idOf
+let private indexOf (model: Model) = model.Review |> Option.map (fun r -> r.Index) |> Option.defaultValue -1
+
+let private reviewed (entryId: Guid) : Msg =
+    ReviewConfirmed (entryId, Ok { Previous = { IsApproved = false; ClearedState = ReviewUncleared }; Change = ReviewMarkChanged; WriteBack = ReviewMarkSent })
+
+let private categorySet (entryId: Guid) : Msg list =
+    [ StartSetEntryCategory (entryId, Some (YnabCategoryId food))
+      EntryCategorySet (
+          entryId,
+          Some (YnabCategoryId food),
+          Ok { Previous = None; Change = CategoryChanged; WriteBack = CategorySent; PreviousTransferAccountId = None }
+      ) ]
+
+[<Tests>]
+let pureTests =
+    testList "Durchgehen: reine Funktionen" [
+
+        testCase "Passt ist ohne Ziel gesperrt und mit Kategorie, Übertrag oder Aufteilung frei" <| fun () ->
+            let bare = withoutCategory (entryOf 1)
+            Expect.isFalse (reviewHasTarget bare) "ohne Ziel"
+            Expect.isTrue (reviewHasTarget (entryOf 1)) "Kategorie"
+            Expect.isTrue (reviewHasTarget { bare with IsTransfer = true; TransferAccountId = Some Guid.Empty }) "Übertrag"
+            let split : TransactionSplit = { Amount = eur -5m; Memo = None; Target = Uncategorized }
+            Expect.isTrue (reviewHasTarget { bare with Splits = [ split; split ] }) "Aufteilung"
+
+        testCase "die Wischschwelle liegt über 90 Pixeln in beide Richtungen" <| fun () ->
+            Expect.equal (reviewSwipeOf 91.0) SwipeConfirm "rechts: Passt"
+            Expect.equal (reviewSwipeOf 90.0) SwipeNothing "genau 90: nichts"
+            Expect.equal (reviewSwipeOf -91.0) SwipeSkip "links: Später"
+            Expect.equal (reviewSwipeOf -90.0) SwipeNothing "genau -90: nichts"
+            Expect.equal (reviewSwipeOf 0.0) SwipeNothing "kein Weg"
+
+        testCase "Tasten je Kartenart: Enter nur mit Ziel und nicht auf der Duplikat-Karte, K und L nicht auf ihr" <| fun () ->
+            let normal = Some (NormalCard, true)
+            let noTarget = Some (NormalCard, false)
+            let dup = Some (DuplicateCard, false)
+            let cases =
+                [ "Enter", normal, Some KeyConfirm
+                  "Enter", noTarget, None
+                  "Enter", dup, None
+                  "s", normal, Some KeySkip
+                  "S", dup, Some KeySkip
+                  "k", normal, Some KeyOpenCategory
+                  "K", noTarget, Some KeyOpenCategory
+                  "k", dup, None
+                  "l", normal, Some KeyLena
+                  "L", dup, None
+                  "Escape", normal, Some KeyLeave
+                  "Escape", dup, Some KeyLeave
+                  "Escape", None, Some KeyLeave
+                  "s", None, None
+                  "x", normal, None ]
+            for key, card, expected in cases do
+                Expect.equal (reviewKeyAction card key) expected $"{key} auf {card}"
+
+        testCase "Tasten aus einem Feld, mit Strg oder bei offener Auswahl wirken nicht" <| fun () ->
+            let model = reviewing [ entryOf 1 ]
+            let key = Components.Ledger.View.reviewKeyFor
+            Expect.equal (key model "BODY" false false "Enter") (Some KeyConfirm) "frei"
+            Expect.equal (key model "INPUT" false false "s") None "im Feld"
+            Expect.equal (key model "BODY" false true "s") None "mit Strg"
+            Expect.equal (key model "BUTTON" false false "Enter") None "Enter auf einem Knopf"
+            let picking = { model with CategoryPickerFor = Some (entryOf 1).Id }
+            Expect.equal (key picking "BODY" false false "Escape") None "der Picker behandelt Esc selbst"
+            let details = model |> step ReviewShowDetails
+            Expect.equal (key details "BODY" false false "s") None "mit offenem Detail nur Esc"
+            Expect.equal (key details "BODY" false false "Escape") (Some KeyLeave) "Esc schließt das Detail"
+
+        testCase "Endansicht: Zahl mit Einzahl, ohne Karte nur der Satz zum Import" <| fun () ->
+            Expect.equal (reviewDoneText 10) "10 Buchungen durchgegangen. Neue erscheinen nach dem nächsten Import." "Mehrzahl"
+            Expect.equal (reviewDoneText 1) "1 Buchung durchgegangen. Neue erscheinen nach dem nächsten Import." "Einzahl"
+            Expect.equal (reviewDoneText 0) "Neue erscheinen nach dem nächsten Import." "leere Schlange"
+            Expect.equal (reviewProgressText 3 10) (Some "4 von 10") "i von n"
+            Expect.equal (reviewProgressPercent 3 10) 30.0 "(i−1)/n"
+            Expect.equal (reviewProgressPercent 10 10) 100.0 "voll am Ende"
+
+        testCase "Kategorie, Übertrag und Aufteilung im Feld der Karte" <| fun () ->
+            let model = reviewing [ entryOf 1 ]
+            let value = Components.Ledger.View.reviewCategoryValue model
+            Expect.equal (value (entryOf 1)) (Components.Ledger.View.ReviewCategoryNamed "Lebensmittel") "Kategorie"
+            Expect.equal (value (withoutCategory (entryOf 1))) Components.Ledger.View.ReviewMissing "ohne"
+            let split : TransactionSplit = { Amount = eur -5m; Memo = None; Target = Uncategorized }
+            Expect.equal (value { withoutCategory (entryOf 1) with Splits = [ split; split ] }) Components.Ledger.View.ReviewSplit "aufgeteilt"
+            match value { withoutCategory (entryOf 1) with IsTransfer = true; TransferAccountId = Some Guid.Empty } with
+            | Components.Ledger.View.ReviewCategoryNamed text -> Expect.stringStarts text "→ " "Übertrag"
+            | other -> failtestf "Übertrag erwartet: %A" other
+
+        testCase "die Amazon-Bestellung heißt Bestellung bei Amazon mit Nummer, andere Links behalten ihr Wort" <| fun () ->
+            let entry =
+                { entryOf 1 with
+                    ExternalLinks =
+                        [ { Label = "Bestellung 302-1234567-1234567"; Url = "https://example.invalid/order" }
+                          { Label = "PayPal Activity"; Url = "https://example.invalid/paypal" } ] }
+            Expect.equal
+                (Components.Ledger.View.reviewLinks entry)
+                [ "Bestellung bei Amazon", Some "302-1234567-1234567", "https://example.invalid/order"
+                  "PayPal Activity", None, "https://example.invalid/paypal" ]
+                "zwei Zeilen"
+
+        testCase "die Zeile des Treffers nimmt die aufgelöste Buchung, sonst den Schnappschuss" <| fun () ->
+            let today = DateTime(2026, 11, 12)
+            let dup = (held 5).PossibleDuplicate.Value
+            let name _ = "Girokonto"
+            let payee, meta, amount = Components.Ledger.View.reviewMatchRow today name (held 5) None dup
+            Expect.equal payee "Markt" "Payee aus dem Ereignis"
+            Expect.equal meta "01.11. · Girokonto · Lebensmittel" "Tag, Konto, Kategorie"
+            Expect.stringContains amount "10,00" "Betrag"
+            let resolved = { entryOf 12 with Payee = Some "Markt im Kassenbuch" }
+            let payee', meta', _ = Components.Ledger.View.reviewMatchRow today name (held 5) (Some resolved) dup
+            Expect.equal payee' "Markt im Kassenbuch" "aufgelöst"
+            Expect.equal meta' "Heute · Girokonto · Lebensmittel" "Tag der aufgelösten Buchung"
+    ]
+
+// ============================================
+// Aufzählung der Reihenfolgen (Doktrin Punkt 20)
+// ============================================
+
+/// Die Schlange: zuerst die wartende D, dann A (mit Kategorie), B (ohne), C (mit).
+let private dupD = held 1
+let private cardA = entryOf 2
+let private cardB = withoutCategory (entryOf 3)
+let private cardC = entryOf 4
+let private queue = [ dupD; cardA; cardB; cardC ]
+let private ids = queue |> List.map idOf
+
+/// Was das Orakel über das Durchgehen weiß, ohne den getesteten Code zu fragen.
+type private Walk =
+    { Index: int
+      /// „Passt“ wartet auf die Antwort für die gezeigte Karte (sperrt ein zweites „Passt“).
+      Pending: Guid option
+      /// Gesendete Prüfvermerke, deren Antwort noch aussteht (auch nach dem Weitergehen).
+      InFlight: Guid list
+      /// Karten mit Ziel (Kategorie, Übertrag oder Aufteilung).
+      Targets: Set<Guid>
+      /// D wartet noch (vor „Ist neu“).
+      DupHeld: bool
+      /// Lena gefragt, „Rückgängig“ steht aus (jüngste zuerst).
+      LenaUndo: Guid list
+      /// Flag-Aufruf läuft (sperrt „Lena fragen“ auf der Karte).
+      FlagSending: Set<Guid>
+      /// D verworfen, „Rückgängig“ steht aus.
+      DiscardUndo: bool }
+
+let private startWalk =
+    { Index = 0
+      Pending = None
+      InFlight = []
+      Targets = set [ idOf cardA; idOf cardC ]
+      DupHeld = true
+      LenaUndo = []
+      FlagSending = Set.empty
+      DiscardUndo = false }
+
+let private current (w: Walk) = if w.Index < ids.Length then Some ids.[w.Index] else None
+let private isDup (w: Walk) = current w = Some (idOf dupD) && w.DupHeld
+let private moveTo (index: int) (w: Walk) = { w with Index = index; Pending = None }
+
+/// Alle Ereignisse, die im Zustand kommen können: Name, Nachrichten und das Orakel danach.
+let private events (w: Walk) : (string * Msg list * Walk) list =
+    [ match current w with
+      | Some id when not (isDup w) ->
+          if w.Pending.IsNone && w.Targets.Contains id then
+              "Passt", [ ReviewConfirm ], { w with Pending = Some id; InFlight = id :: w.InFlight }
+          "Später", [ ReviewSkip ], moveTo (w.Index + 1) w
+          if not (w.FlagSending.Contains id) then
+              "Lena", [ ReviewLena ], { moveTo (w.Index + 1) w with LenaUndo = id :: w.LenaUndo; FlagSending = w.FlagSending.Add id }
+          if not (w.Targets.Contains id) then
+              "Kategorie", categorySet id, { w with Targets = w.Targets.Add id }
+      | Some id ->
+          "Später", [ ReviewSkip ], moveTo (w.Index + 1) w
+          "Verwerfen", [ ReviewDiscard; ReviewDiscarded (id, Ok ()) ], { moveTo (w.Index + 1) w with DiscardUndo = true }
+          "Ist neu", [ ReviewConfirmNew; ReviewConfirmedNew (id, Ok PushToYnabSent) ], { w with DupHeld = false }
+      | None -> ()
+      match w.InFlight with
+      | id :: rest ->
+          let answered = { w with InFlight = rest; Pending = (if w.Pending = Some id then None else w.Pending) }
+          "Passt-Antwort", [ reviewed id ], (if current w = Some id then moveTo (w.Index + 1) answered else answered)
+          "Passt-Fehler", [ ReviewConfirmed (id, Error "Netz") ], answered
+      | [] -> ()
+      match w.LenaUndo with
+      | id :: rest ->
+          let back = ids |> List.findIndex ((=) id)
+          let after = { w with LenaUndo = rest }
+          "Lena-Rückgängig",
+          [ StartUndoFlag (id, { Color = None; Name = None }) ],
+          (if back <> w.Index then moveTo back after else after)
+      | [] -> ()
+      if w.DiscardUndo then
+          let back = ids |> List.findIndex ((=) (idOf dupD))
+          let after = { w with DiscardUndo = false }
+          "Verwerfen-Rückgängig",
+          [ DiscardedDuplicateRestored (idOf dupD, Ok ()) ],
+          (if back <> w.Index then moveTo back after else after) ]
+
+let private observe (model: Model) =
+    let review = model.Review.Value
+    review.Index, cardId model, review.Confirming, (reviewCardOf model |> Option.map reviewCardKindOf)
+
+let private expected (w: Walk) =
+    w.Index,
+    current w,
+    w.Pending,
+    current w |> Option.map (fun id -> if id = idOf dupD && w.DupHeld then DuplicateCard else NormalCard)
+
+[<Tests>]
+let walkTests =
+    testCase "Durchgehen: jede Reihenfolge bis Tiefe 6 landet auf der Karte, die das Orakel erwartet" <| fun () ->
+        let mutable visited = 0
+        let rec walk (depth: int) (path: string list) (model: Model) (w: Walk) =
+            visited <- visited + 1
+            Expect.equal (observe model) (expected w) (String.concat " → " (List.rev path))
+            if depth > 0 then
+                for name, msgs, w' in events w do
+                    let model' = msgs |> List.fold (fun m msg -> step msg m) model
+                    walk (depth - 1) (name :: path) model' w'
+        walk 6 [] (reviewing queue) startWalk
+        Expect.isGreaterThan visited 1000 "die Aufzählung läuft wirklich"
+
+// ============================================
+// Einzelfälle
+// ============================================
+
+[<Tests>]
+let caseTests =
+    testList "Durchgehen: Einzelfälle" [
+
+        testCase "die Schlange startet mit der ersten Karte, lädt sie neu und holt die Vorschläge" <| fun () ->
+            let model, _ = Components.Ledger.State.init ()
+            let opened, msgs, _ = run ReviewOpened model
+            Expect.contains msgs RunLoadReviewQueue "Schlange laden"
+            let loaded, msgs, _ = run (ReviewQueueLoaded (Ok [ cardA; cardB ])) opened
+            Expect.equal (cardId loaded) (Some (idOf cardA)) "erste Karte"
+            Expect.contains msgs (RunReviewRefresh (idOf cardA)) "neu lesen"
+            Expect.contains msgs (RunReviewSuggestions (idOf cardA, "Payee v6s7c 2", None)) "Vorschläge"
+
+        testCase "eine inzwischen geprüfte oder gelöschte Buchung wird beim Erreichen übersprungen" <| fun () ->
+            let model = reviewing [ cardA; cardB ]
+            let basis = model.DetailFor
+            let skipped = model |> step (ReviewEntryRefreshed (idOf cardA, basis, Ok (Some { cardA with NeedsReview = false })))
+            Expect.equal (cardId skipped) (Some (idOf cardB)) "geprüft: weiter"
+            let gone = skipped |> step (ReviewEntryRefreshed (idOf cardB, skipped.DetailFor, Ok None))
+            Expect.equal (indexOf gone) 2 "unbekannt: weiter zur Endansicht"
+            Expect.isNone (reviewCardOf gone) "keine Karte"
+
+        testCase "eine veraltete Antwort des Neulesens überschreibt die Karte nicht" <| fun () ->
+            let model = reviewing [ cardB ] |> step (List.head (categorySet (idOf cardB)))
+            let stale = model |> step (ReviewEntryRefreshed (idOf cardB, Some cardA, Ok (Some { cardB with Payee = Some "alt" })))
+            Expect.equal (reviewCardOf stale |> Option.bind (fun e -> e.Payee)) cardB.Payee "unverändert"
+
+        testCase "scheitert der Prüfvermerk, bleibt die Karte und ein Toast nennt den Grund" <| fun () ->
+            let model = reviewing [ cardA; cardC ] |> step ReviewConfirm
+            let failed, _, external = run (ReviewConfirmed (idOf cardA, Error "YNAB antwortet nicht")) model
+            Expect.equal (cardId failed) (Some (idOf cardA)) "dieselbe Karte"
+            Expect.equal external (ShowToast ("Nicht geprüft: YNAB antwortet nicht", ToastError)) "Grund"
+            let ok, _, external = run (reviewed (idOf cardA)) (failed |> step ReviewConfirm)
+            Expect.equal (cardId ok) (Some (idOf cardC)) "weiter"
+            Expect.equal external NoOp "kein Toast"
+
+        testCase "Wisch nach rechts ohne Ziel meldet es und die Karte bleibt" <| fun () ->
+            let model = reviewing [ cardB; cardA ]
+            let after, msgs, external = run (ReviewSwiped 120.0) model
+            Expect.equal (cardId after) (Some (idOf cardB)) "bleibt"
+            Expect.equal external (ShowToast (reviewNeedsTargetText, ToastInfo)) "Hinweis"
+            Expect.isEmpty (msgs |> List.filter (function RunReviewConfirm _ -> true | _ -> false)) "kein Prüfvermerk"
+            Expect.equal (cardId (step (ReviewSwiped -120.0) model)) (Some (idOf cardA)) "nach links: Später"
+
+        testCase "Wisch nach rechts mit Ziel setzt den Prüfvermerk" <| fun () ->
+            let _, msgs, _ = run (ReviewSwiped 120.0) (reviewing [ cardA ])
+            Expect.contains msgs (RunReviewConfirm (idOf cardA)) "Prüfvermerk"
+
+        testCase "Verwerfen geht weiter und bietet Rückgängig an, Ist neu meldet den Weg nach YNAB" <| fun () ->
+            let model = reviewing [ dupD; cardA ] |> step ReviewDiscard
+            let after, _, external = run (ReviewDiscarded (idOf dupD, Ok ())) model
+            Expect.equal (cardId after) (Some (idOf cardA)) "weiter"
+            Expect.equal
+                external
+                (ShowToastWithAction (reviewDiscardedText, ToastSuccess, { Label = "Rückgängig"; Kind = UndoDiscardDuplicate (idOf dupD) }))
+                "Toast"
+            let newOne = reviewing [ dupD; cardA ] |> step ReviewConfirmNew
+            let confirmed, _, external = run (ReviewConfirmedNew (idOf dupD, Ok PushToYnabSent)) newOne
+            Expect.equal external (ShowToast (reviewConfirmedNewText, ToastSuccess)) "Toast"
+            Expect.equal (reviewCardOf confirmed |> Option.map reviewCardKindOf) (Some NormalCard) "normale Karte an derselben Stelle"
+            let _, _, failed = run (ReviewConfirmedNew (idOf dupD, Ok (PushToYnabFailed "Timeout"))) newOne
+            match failed with
+            | ShowToast (text, ToastWarning) -> Expect.stringContains text "Timeout" "Grund"
+            | other -> failtestf "Warnung erwartet: %A" other
+
+        testCase "die Kategorie auf der Karte meldet Name und Verfügbares" <| fun () ->
+            let model = reviewing [ cardB ]
+            let msgs = categorySet (idOf cardB)
+            let started = step msgs.Head model
+            let _, _, external = run msgs.[1] started
+            match external with
+            | ShowToastWithAction (text, _, _) -> Expect.stringStarts text "Kategorie: Lebensmittel · " "Name"
+            | other -> failtestf "Toast erwartet: %A" other
+
+        testCase "Details öffnet das Detail über der Karte, Schließen lässt die Karte stehen und liest sie neu" <| fun () ->
+            let model = reviewing [ cardA; cardC ]
+            let opened, msgs, _ = run ReviewShowDetails model
+            Expect.isTrue opened.Review.Value.DetailShown "offen"
+            Expect.contains msgs (LoadHistory (idOf cardA)) "Historie"
+            let closed, msgs, _ = run CloseDetail opened
+            Expect.isFalse closed.Review.Value.DetailShown "zu"
+            Expect.equal (cardId closed) (Some (idOf cardA)) "Karte bleibt"
+            Expect.contains msgs (RunReviewRefresh (idOf cardA)) "neu lesen"
+
+        testCase "Esc schließt erst den Picker, dann das Detail, dann die Ansicht" <| fun () ->
+            let picking = reviewing [ cardA ] |> step (ReviewKey KeyOpenCategory)
+            Expect.equal picking.CategoryPickerFor (Some (idOf cardA)) "K öffnet den Picker"
+            let closed, _, external = run (ReviewKey KeyLeave) picking
+            Expect.isNone closed.CategoryPickerFor "Picker zu"
+            Expect.equal external NoOp "Ansicht bleibt"
+            let details = closed |> step ReviewShowDetails
+            let back, _, external = run (ReviewKey KeyLeave) details
+            Expect.isFalse back.Review.Value.DetailShown "Detail zu"
+            Expect.equal external NoOp "Ansicht bleibt"
+            let _, _, external = run (ReviewKey KeyLeave) back
+            Expect.equal external LeaveReview "zurück zur Übersicht"
+
+        testCase "Verlassen schließt Karte und Detail" <| fun () ->
+            let left = reviewing [ cardA ] |> step ReviewLeft
+            Expect.isNone left.Review "kein Durchgehen"
+            Expect.isNone left.DetailFor "kein Detail im Kassenbuch"
+
+        testCase "die Endansicht kommt nach der letzten Karte, eine leere Schlange zeigt sie sofort" <| fun () ->
+            let model = reviewing [ cardA ] |> step ReviewSkip
+            Expect.equal (indexOf model) 1 "hinter der letzten"
+            Expect.isNone (reviewCardOf model) "keine Karte"
+            let empty = reviewing []
+            Expect.equal (indexOf empty) 0 "Stelle 0"
+            Expect.equal (reviewQueueOf empty) (Some []) "leer"
+            Expect.isNone (reviewCardOf empty) "Endansicht"
+    ]

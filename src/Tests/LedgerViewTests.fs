@@ -50,7 +50,7 @@ let private entryView (accId: Guid) (date: DateTime) (payee: string) : LedgerEnt
     PushToYnabFailure = None
     SplitLocks = None
     ExternalLinks = []
-    PossibleDuplicate = None
+    PossibleDuplicate = None; CategoryFromOrderId = false
 }
 
 let private splitLine (amount: decimal) : TransactionSplit = {
