@@ -36,3 +36,5 @@ Gründe in `events` und in der Oberfläche sind falsch („Token ungültig“ st
 Captured via `quick-capture` on 2026-11-12, raw, unrefined. Überschneidet sich mit Kann-Sammlung ledger 54 (Push-Wege auf `ynabPushWith`) und 55 („Token ungültig“ statt „fehlt“); beide gehen hier auf.
 
 Nach ledger-xqqnv (vorhandene import_id heißt angekommen) bauen: beide ändern `pushComdirectImports` (`WriteFailed ex.Message`, `CommandHandlers.fs:1347`) und `ynabErrorText`/`describeNotCreatedReason` (Refinement ledger-xqqnv, 2026-11-12).
+
+Aus dem Review-Lauf 2026-11-12: `mapSplitStatus` in `YnabClient.fs` (PUT und DELETE des Split-Wegs) legt den Antwortrumpf in den Fehlertext (`"Bad request: {bodyText}"`, `"Conflict: {bodyText}"`, `"HTTP {status}: {bodyText}"`), der so an den Client und in `events` geht; gehört zu Befund 2 dieser Task (auf `badRequestOf`/`statusFailureOf` umstellen). Der Ersatz-POST nutzt seit ledger-f8bjm `interpretReplacementResponse` und ist schon sauber.

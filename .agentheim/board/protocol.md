@@ -5,6 +5,18 @@ Newest entries on top.
 
 ---
 
+## 2026-11-12 12:01 -- Review-Lauf: a3f7eb1d..982bdf79
+
+**Type:** Review / Review-Lauf
+**Bereich:** a3f7eb1d..982bdf79 (ledger-xqqnv, vfr4h, smv1s, sjbvc, ct3cx, nc708, ng110, vf6z5, dn4vy, f8bjm)
+**Agents:** backend-code-quality, frontend-architecture, design-quality, qa-milestone-reviewer
+**Funde:** behoben 29, verworfen 2, Rückfrage 4, Ticket 0, Kann-Sammlung 11 (ledger 88 bis 97, dazu ledger-h7de3 Notes)
+**Commits:** 7115d633 (Texte, Styleguide, Design), 099943d5 (Nachladen verwirft überholte Antwort, Lena-Fehler hält offene Eingabe, RefreshState), 451f3004 (Kontoliste Neue Buchung wurde nie gerendert, Aufzählung Zeilen-Sperre stellte keine Antworten zu, FS0020/FS3221 als Fehler), 672e5d4a (offener Ersatz ohne Fehlschlag, Ablehnung als eigener Fall, Fehlertexte, Spiegel-Port bewacht), 4c019a05 (Erneut senden im Detail bei offenem Ersatz)
+**Verworfen:** doppelter roter Rand am Betragsfilter (Input.Error setzt Rand und Shake, amountFieldClass nur die Ziffernfarbe, kein Duplikat); AccountsRefreshed bei Loading nur Konten setzen (PresetFilter und presetQuickFilter verlassen sich auf diesen Neuaufbau, Kann 94)
+**Verifikation:** VERIFY: PASS (dotnet 4899 grün, node 322 grün, dotnet build, npm run build, guard:classes, guard:tokens grün)
+
+---
+
 ## 2026-11-12 09:46 -- Work session ended
 
 **Type:** Work / Session end
