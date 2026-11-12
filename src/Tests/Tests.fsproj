@@ -158,6 +158,7 @@
     <Compile Include="LedgerCategoryBatchClientTests.fs" />
     <Compile Include="LedgerLenaFlagClientTests.fs" />
     <Compile Include="LedgerLenaFlagBatchClientTests.fs" />
+    <Compile Include="LedgerRowLockWaysTests.fs" />
     <Compile Include="LedgerKeyboardTests.fs" />
     <Compile Include="MoneyFormatTests.fs" />
     <Compile Include="BudgetPageTests.fs" />

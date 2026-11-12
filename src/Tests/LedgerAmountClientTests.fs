@@ -371,16 +371,8 @@ let amountReducerTests =
             Expect.isNone model.AmountEdit "kein Sheet"
             Expect.isNone (Components.Ledger.View.amountEditMsg deleting (entryOf 1)) "Knopf ohne Nachricht"
 
-        // Bug: ein Doppeltipp auf "Rückgängig" schickte zwei Anfragen, auch neben einem laufenden Speichern.
-        testCase "Rückgängig schickt nichts, solange für die Buchung ein Aufruf läuft" <| fun () ->
-            let started, _, _ = run (StartUndoAmount (idOf 1, -42.80m)) (modelWith [ { entryOf 1 with Amount = eur -45m } ])
-            let again, msgs, external = run (StartUndoAmount (idOf 1, -42.80m)) started
-            Expect.equal again started "Modell unverändert"
-            Expect.isEmpty msgs "kein zweiter Aufruf"
-            Expect.equal external NoOp "kein Toast"
-            let saving, _, _ = run (StartSaveAmount (idOf 1)) (typed [ entryOf 1 ] "45")
-            let _, msgs2, _ = run (StartUndoAmount (idOf 1, -42.80m)) saving
-            Expect.isEmpty msgs2 "nicht neben laufendem Speichern"
+        // Die Sperre je Buchung (Rückgängig und Erneut senden neben laufendem Speichern, Doppeltipp) prüft
+        // die Aufzählung, Gruppe Betrag in LedgerRowLockWaysTests.fs (ledger-smv1s).
 
         testCase "Rückgängig gescheitert: Sperre frei mit dem Grund, Fehler-Toast, Betrag unverändert" <| fun () ->
             let started, _, _ = run (StartUndoAmount (idOf 1, -42.80m)) (modelWith [ { entryOf 1 with Amount = eur -45m } ])
@@ -395,9 +387,6 @@ let amountReducerTests =
             let failing = { entryOf 1 with AmountWriteBackFailure = Some "weg" }
             let started, msgs, _ = run (StartRetryAmount (idOf 1)) (modelWith [ failing ])
             Expect.equal msgs [ RunRetryAmount (idOf 1) ] "Aufruf"
-            // Review-Fund zu ledger-fxt09: ein zweiter Tipp während des Aufrufs schickte einen zweiten.
-            let _, twice, _ = run (StartRetryAmount (idOf 1)) started
-            Expect.isEmpty twice "ein zweiter Tipp schickt nichts"
             let sent, _, _ = run (AmountRetried (idOf 1, Ok AmountSent)) started
             Expect.isNone (rowOf 1 sent).AmountWriteBackFailure "Fehlschlag beendet"
             let again, _, _ = run (AmountRetried (idOf 1, Ok (AmountSendFailed "immer noch"))) started

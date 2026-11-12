@@ -843,6 +843,41 @@ let private applySplitResult
 let private splitBusy (model: Model) (entryId: Guid) : bool =
     (model.CategoryRows |> Map.tryFind entryId) = Some CategorySending
 
+/// Die Sperrgruppen je Buchung (ledger-smv1s): Befehle derselben Gruppe zur selben Buchung laufen nie
+/// gleichzeitig, sonst gewinnt die zuletzt eintreffende Antwort und die Zeile zeigt einen falschen Stand.
+type private RowLock =
+    /// Kategorie, Übertrag und Split teilen `CategoryRows` (ein Split ändert die Kategorie).
+    | CategoryLock
+    /// Prüfvermerk aus Liste, Detail und Wisch, dazu „Passt, weiter“ im Durchgehen.
+    | ReviewMarkLock
+    | FlagLock
+    | MemoLock
+    | AmountLock
+    /// „Erneut senden“ am Hinweis „Noch nicht in YNAB“.
+    | PushLock
+
+/// Läuft für die Buchung ein Aufruf ihrer Sperrgruppe?
+let private rowBusy (lock: RowLock) (model: Model) (entryId: Guid) : bool =
+    match lock with
+    | CategoryLock -> (model.CategoryRows |> Map.tryFind entryId) = Some CategorySending
+    | ReviewMarkLock ->
+        (model.ReviewMarkRows |> Map.tryFind entryId) = Some ReviewMarkSending
+        || model.Review |> Option.exists (fun r -> r.Confirming = Some entryId)
+    | FlagLock -> (model.FlagRows |> Map.tryFind entryId) = Some FlagSending
+    | MemoLock -> (model.MemoRows |> Map.tryFind entryId) = Some MemoSending
+    | AmountLock -> (model.AmountRows |> Map.tryFind entryId) = Some AmountSending
+    | PushLock -> (model.PushRetryRows |> Map.tryFind entryId) = Some PushSending
+
+/// Führt einen Start-Zweig nur aus, wenn in der Sperrgruppe der Buchung nichts läuft. Gesperrt bleibt
+/// alles still: Modell gleich, kein Befehl, kein Toast.
+let private whenRowIdle
+    (lock: RowLock)
+    (entryId: Guid)
+    (model: Model)
+    (start: unit -> Model * Cmd<Msg> * ExternalMsg)
+    : Model * Cmd<Msg> * ExternalMsg =
+    if rowBusy lock model entryId then model, Cmd.none, NoOp else start ()
+
 /// Ändert den Entwurf des offenen Editors.
 let private editSplit (f: SplitEditor.SplitEditorState -> SplitEditor.SplitEditorState) (model: Model) : Model =
     match model.SplitEditor with
@@ -1253,6 +1288,11 @@ let private returnToReviewCard (entryId: Guid) (model: Model) : Model * Cmd<Msg>
 
 let private editReview (f: ReviewSession -> ReviewSession) (model: Model) : Model =
     { model with Review = model.Review |> Option.map f }
+
+/// Gibt „Ist neu“ und „Verwerfen“ frei, wenn die Antwort zur laufenden Entscheidung gehört. Die Antwort
+/// einer Entscheidung aus einem früheren Durchgehen lässt die laufende stehen (ledger-smv1s).
+let private releaseDeciding (entryId: Guid) (model: Model) : Model =
+    model |> editReview (fun r -> if r.Deciding = Some entryId then { r with Deciding = None } else r)
 
 let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
@@ -1853,9 +1893,10 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     // ============================================
 
     | StartSetReviewMark (entryId, target) ->
-        { model with ReviewMarkRows = model.ReviewMarkRows |> Map.add entryId ReviewMarkSending },
-        Cmd.ofMsg (RunSetReviewMark (entryId, target)),
-        NoOp
+        whenRowIdle ReviewMarkLock entryId model (fun () ->
+            { model with ReviewMarkRows = model.ReviewMarkRows |> Map.add entryId ReviewMarkSending },
+            Cmd.ofMsg (RunSetReviewMark (entryId, target)),
+            NoOp)
 
     | RunSetReviewMark (entryId, target) ->
         let cmd =
@@ -1880,9 +1921,10 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         NoOp
 
     | StartRetryReviewMark entryId ->
-        { model with ReviewMarkRows = model.ReviewMarkRows |> Map.add entryId ReviewMarkSending },
-        Cmd.ofMsg (RunRetryReviewMark entryId),
-        NoOp
+        whenRowIdle ReviewMarkLock entryId model (fun () ->
+            { model with ReviewMarkRows = model.ReviewMarkRows |> Map.add entryId ReviewMarkSending },
+            Cmd.ofMsg (RunRetryReviewMark entryId),
+            NoOp)
 
     | RunRetryReviewMark entryId ->
         let cmd =
@@ -1910,9 +1952,10 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     // ============================================
 
     | StartRetryPush entryId ->
-        { model with PushRetryRows = model.PushRetryRows |> Map.add entryId PushSending },
-        Cmd.ofMsg (RunRetryPush entryId),
-        NoOp
+        whenRowIdle PushLock entryId model (fun () ->
+            { model with PushRetryRows = model.PushRetryRows |> Map.add entryId PushSending },
+            Cmd.ofMsg (RunRetryPush entryId),
+            NoOp)
 
     | RunRetryPush entryId ->
         let cmd =
@@ -1946,12 +1989,13 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             match model.Entries with
             | Success entries -> entries |> List.tryFind (fun e -> e.Id = entryId)
             | _ -> None
-        match entry with
-        | Some e when swipeAppliesTo e && (model.ReviewMarkRows |> Map.tryFind entryId) <> Some ReviewMarkSending ->
-            { model with ReviewMarkRows = model.ReviewMarkRows |> Map.add entryId ReviewMarkSending },
-            Cmd.ofMsg (RunSwipeReviewed entryId),
-            NoOp
-        | _ -> model, Cmd.none, NoOp
+        whenRowIdle ReviewMarkLock entryId model (fun () ->
+            match entry with
+            | Some e when swipeAppliesTo e ->
+                { model with ReviewMarkRows = model.ReviewMarkRows |> Map.add entryId ReviewMarkSending },
+                Cmd.ofMsg (RunSwipeReviewed entryId),
+                NoOp
+            | _ -> model, Cmd.none, NoOp)
 
     | RunSwipeReviewed entryId ->
         let payee =
@@ -1987,9 +2031,10 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         ShowToast ($"Prüfvermerk nicht gesetzt: {message}", ToastError)
 
     | StartUndoReviewMark (entryId, previous) ->
-        { model with ReviewMarkRows = model.ReviewMarkRows |> Map.add entryId ReviewMarkSending },
-        Cmd.ofMsg (RunUndoReviewMark (entryId, previous)),
-        NoOp
+        whenRowIdle ReviewMarkLock entryId model (fun () ->
+            { model with ReviewMarkRows = model.ReviewMarkRows |> Map.add entryId ReviewMarkSending },
+            Cmd.ofMsg (RunUndoReviewMark (entryId, previous)),
+            NoOp)
 
     | RunUndoReviewMark (entryId, previous) ->
         let cmd =
@@ -2061,21 +2106,21 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | CategorySuggestionsLoaded _ -> model, Cmd.none, NoOp
 
     | StartSetEntryCategory (entryId, newId) ->
-        match findEntry model entryId with
-        | Some entry when categoryLockFor entry = CategoryEditable
-                          && (model.CategoryRows |> Map.tryFind entryId) <> Some CategorySending ->
-            { model with
-                CategoryRows = model.CategoryRows |> Map.add entryId CategorySending
-                CategoryPickerFor = None
-                CategorySuggestions = []
-                CategoryCard = None
-                RecentCategories = rememberPickedCategory newId model.RecentCategories },
-            Cmd.batch [
-                Cmd.ofMsg (RunSetEntryCategory (entryId, newId))
-                Cmd.ofEffect (fun _ -> writeRecentCategories (rememberPickedCategory newId model.RecentCategories))
-            ],
-            NoOp
-        | _ -> model, Cmd.none, NoOp
+        whenRowIdle CategoryLock entryId model (fun () ->
+            match findEntry model entryId with
+            | Some entry when categoryLockFor entry = CategoryEditable ->
+                { model with
+                    CategoryRows = model.CategoryRows |> Map.add entryId CategorySending
+                    CategoryPickerFor = None
+                    CategorySuggestions = []
+                    CategoryCard = None
+                    RecentCategories = rememberPickedCategory newId model.RecentCategories },
+                Cmd.batch [
+                    Cmd.ofMsg (RunSetEntryCategory (entryId, newId))
+                    Cmd.ofEffect (fun _ -> writeRecentCategories (rememberPickedCategory newId model.RecentCategories))
+                ],
+                NoOp
+            | _ -> model, Cmd.none, NoOp)
 
     | RunSetEntryCategory (entryId, newId) ->
         let cmd =
@@ -2112,9 +2157,10 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         ShowToast ($"Kategorie nicht geändert: {message}", ToastError)
 
     | StartUndoCategory (entryId, previous) ->
-        { model with CategoryRows = model.CategoryRows |> Map.add entryId CategorySending },
-        Cmd.ofMsg (RunUndoCategory (entryId, previous)),
-        NoOp
+        whenRowIdle CategoryLock entryId model (fun () ->
+            { model with CategoryRows = model.CategoryRows |> Map.add entryId CategorySending },
+            Cmd.ofMsg (RunUndoCategory (entryId, previous)),
+            NoOp)
 
     | RunUndoCategory (entryId, previous) ->
         let cmd =
@@ -2146,17 +2192,17 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
 
     | StartSetEntryTransfer (entryId, account, undo) ->
-        match findEntry model entryId with
-        | Some entry when categoryLockFor entry = CategoryEditable
-                          && (model.CategoryRows |> Map.tryFind entryId) <> Some CategorySending ->
-            { model with
-                CategoryRows = model.CategoryRows |> Map.add entryId CategorySending
-                CategoryPickerFor = None
-                CategorySuggestions = []
-                CategoryCard = None },
-            Cmd.ofMsg (RunSetEntryTransfer (entryId, account, undo)),
-            NoOp
-        | _ -> model, Cmd.none, NoOp
+        whenRowIdle CategoryLock entryId model (fun () ->
+            match findEntry model entryId with
+            | Some entry when categoryLockFor entry = CategoryEditable ->
+                { model with
+                    CategoryRows = model.CategoryRows |> Map.add entryId CategorySending
+                    CategoryPickerFor = None
+                    CategorySuggestions = []
+                    CategoryCard = None },
+                Cmd.ofMsg (RunSetEntryTransfer (entryId, account, undo)),
+                NoOp
+            | _ -> model, Cmd.none, NoOp)
 
     | RunSetEntryTransfer (entryId, account, undo) ->
         let cmd =
@@ -2197,9 +2243,10 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         ShowToast ((if undo then $"Rückgängig nicht möglich: {message}" else $"Übertrag nicht gesetzt: {message}"), ToastError)
 
     | StartRetryCategorization entryId ->
-        { model with CategoryRows = model.CategoryRows |> Map.add entryId CategorySending },
-        Cmd.ofMsg (RunRetryCategorization entryId),
-        NoOp
+        whenRowIdle CategoryLock entryId model (fun () ->
+            { model with CategoryRows = model.CategoryRows |> Map.add entryId CategorySending },
+            Cmd.ofMsg (RunRetryCategorization entryId),
+            NoOp)
 
     | RunRetryCategorization entryId ->
         let cmd =
@@ -2259,14 +2306,14 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         { model with LenaFlagColor = RemoteData.lateFailure message model.LenaFlagColor }, Cmd.none, NoOp
 
     | StartSetLenaFlag (entryId, target) ->
-        match findEntry model entryId with
-        | Some entry when (lenaActionFor model.LenaFlagColor entry).DisabledReason.IsNone
-                          && (lenaActionFor model.LenaFlagColor entry).Target = target
-                          && (model.FlagRows |> Map.tryFind entryId) <> Some FlagSending ->
-            { model with FlagRows = model.FlagRows |> Map.add entryId FlagSending },
-            Cmd.ofMsg (RunSetLenaFlag (entryId, target)),
-            NoOp
-        | _ -> model, Cmd.none, NoOp
+        whenRowIdle FlagLock entryId model (fun () ->
+            match findEntry model entryId with
+            | Some entry when (lenaActionFor model.LenaFlagColor entry).DisabledReason.IsNone
+                              && (lenaActionFor model.LenaFlagColor entry).Target = target ->
+                { model with FlagRows = model.FlagRows |> Map.add entryId FlagSending },
+                Cmd.ofMsg (RunSetLenaFlag (entryId, target)),
+                NoOp
+            | _ -> model, Cmd.none, NoOp)
 
     | RunSetLenaFlag (entryId, target) ->
         let cmd =
@@ -2300,11 +2347,13 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         ShowToast ($"Flag nicht geändert: {message}", ToastError)
 
     | StartUndoFlag (entryId, previous) ->
-        // Im Durchgehen holt „Rückgängig“ nach „Lena fragen“ die Karte zurück (ledger-v6s7c).
-        let returned, showCmd = returnToReviewCard entryId model
-        { returned with FlagRows = returned.FlagRows |> Map.add entryId FlagSending },
-        Cmd.batch [ showCmd; Cmd.ofMsg (RunUndoFlag (entryId, previous)) ],
-        NoOp
+        // Im Durchgehen holt „Rückgängig“ nach „Lena fragen“ die Karte zurück (ledger-v6s7c). Gesperrt
+        // bleibt auch die Karte, wo sie ist.
+        whenRowIdle FlagLock entryId model (fun () ->
+            let returned, showCmd = returnToReviewCard entryId model
+            { returned with FlagRows = returned.FlagRows |> Map.add entryId FlagSending },
+            Cmd.batch [ showCmd; Cmd.ofMsg (RunUndoFlag (entryId, previous)) ],
+            NoOp)
 
     | RunUndoFlag (entryId, previous) ->
         let cmd =
@@ -2331,9 +2380,10 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
 
     | StartRetryFlag entryId ->
-        { model with FlagRows = model.FlagRows |> Map.add entryId FlagSending },
-        Cmd.ofMsg (RunRetryFlag entryId),
-        NoOp
+        whenRowIdle FlagLock entryId model (fun () ->
+            { model with FlagRows = model.FlagRows |> Map.add entryId FlagSending },
+            Cmd.ofMsg (RunRetryFlag entryId),
+            NoOp)
 
     | RunRetryFlag entryId ->
         let cmd =
@@ -2397,19 +2447,19 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         | _ -> model, Cmd.none, NoOp
 
     | StartSaveMemo entryId ->
-        match model.MemoEdit, findEntry model entryId with
-        | Some edit, Some entry when edit.MemoEntryId = entryId
-                                     && (model.MemoRows |> Map.tryFind entryId) <> Some MemoSending
-                                     && (memoActionFor entry).DisabledReason.IsNone
-                                     && (memoDraftProblem edit.MemoDraft).IsNone ->
-            if memoDraftChangesEntry edit.MemoDraft entry then
-                { model with MemoRows = model.MemoRows |> Map.add entryId MemoSending },
-                Cmd.ofMsg (RunSetMemo (entryId, edit.MemoDraft)),
-                NoOp
-            else
-                // Gleiches Memo: nichts zu speichern, das Feld schließt ohne Aufruf.
-                { model with MemoEdit = None }, Cmd.none, NoOp
-        | _ -> model, Cmd.none, NoOp
+        whenRowIdle MemoLock entryId model (fun () ->
+            match model.MemoEdit, findEntry model entryId with
+            | Some edit, Some entry when edit.MemoEntryId = entryId
+                                         && (memoActionFor entry).DisabledReason.IsNone
+                                         && (memoDraftProblem edit.MemoDraft).IsNone ->
+                if memoDraftChangesEntry edit.MemoDraft entry then
+                    { model with MemoRows = model.MemoRows |> Map.add entryId MemoSending },
+                    Cmd.ofMsg (RunSetMemo (entryId, edit.MemoDraft)),
+                    NoOp
+                else
+                    // Gleiches Memo: nichts zu speichern, das Feld schließt ohne Aufruf.
+                    { model with MemoEdit = None }, Cmd.none, NoOp
+            | _ -> model, Cmd.none, NoOp)
 
     | RunSetMemo (entryId, text) ->
         let cmd =
@@ -2443,9 +2493,10 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         ShowToast ($"Memo nicht geändert: {message}", ToastError)
 
     | StartUndoMemo (entryId, previous) ->
-        { model with MemoRows = model.MemoRows |> Map.add entryId MemoSending },
-        Cmd.ofMsg (RunUndoMemo (entryId, previous)),
-        NoOp
+        whenRowIdle MemoLock entryId model (fun () ->
+            { model with MemoRows = model.MemoRows |> Map.add entryId MemoSending },
+            Cmd.ofMsg (RunUndoMemo (entryId, previous)),
+            NoOp)
 
     | RunUndoMemo (entryId, previous) ->
         let cmd =
@@ -2472,13 +2523,10 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
 
     | StartRetryMemo entryId ->
-        // Ein Tipp auf "Erneut senden" schickt nichts, solange ein Aufruf zum Memo läuft.
-        if (model.MemoRows |> Map.tryFind entryId) = Some MemoSending then
-            model, Cmd.none, NoOp
-        else
+        whenRowIdle MemoLock entryId model (fun () ->
             { model with MemoRows = model.MemoRows |> Map.add entryId MemoSending },
             Cmd.ofMsg (RunRetryMemo entryId),
-            NoOp
+            NoOp)
 
     | RunRetryMemo entryId ->
         let cmd =
@@ -2544,36 +2592,36 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         | _ -> model, Cmd.none, NoOp
 
     | StartSaveAmount entryId ->
-        match model.AmountEdit, findEntry model entryId with
-        | Some edit, Some entry when edit.AmountEntryId = entryId
-                                     && (model.AmountRows |> Map.tryFind entryId) <> Some AmountSending
-                                     && (amountLockFor entry).IsNone ->
-            match amountSaveStep edit entry with
-            | AmountSaveRejected ->
-                // Die Meldung steht am Feld, kein Toast (Styleguide §5, ledger-q42pg).
-                { model with AmountEdit = Some { edit with AmountFieldError = Some amountMissingText } },
-                Cmd.ofMsg RevealAmountFieldError,
-                NoOp
-            | AmountSaveUnchanged -> { model with AmountEdit = None }, Cmd.none, NoOp
-            | AmountSaveOpensSplitEditor newAmount ->
-                // Erst das Speichern einer gültigen Aufteilung schickt etwas (ADR 0092 Punkt 3).
-                let loadTargets =
-                    match model.TransferTargets with
-                    | Success _ | Loading -> Cmd.none
-                    | _ -> Cmd.ofMsg RunLoadTransferTargets
-                { model with
-                    AmountEdit = None
-                    SplitEditor = Some (SplitEditor.startStateWithAmount entry newAmount)
-                    CategoryPickerFor = None
-                    CategorySuggestions = []
-                    CategoryCard = None },
-                Cmd.batch [ Cmd.ofMsg EnsureCategoriesFresh; loadTargets; Cmd.ofMsg LoadQuickAddAccount ],
-                NoOp
-            | AmountSaveSends request ->
-                { model with AmountRows = model.AmountRows |> Map.add entryId AmountSending },
-                Cmd.ofMsg (RunSetAmount (entryId, request)),
-                NoOp
-        | _ -> model, Cmd.none, NoOp
+        whenRowIdle AmountLock entryId model (fun () ->
+            match model.AmountEdit, findEntry model entryId with
+            | Some edit, Some entry when edit.AmountEntryId = entryId
+                                         && (amountLockFor entry).IsNone ->
+                match amountSaveStep edit entry with
+                | AmountSaveRejected ->
+                    // Die Meldung steht am Feld, kein Toast (Styleguide §5, ledger-q42pg).
+                    { model with AmountEdit = Some { edit with AmountFieldError = Some amountMissingText } },
+                    Cmd.ofMsg RevealAmountFieldError,
+                    NoOp
+                | AmountSaveUnchanged -> { model with AmountEdit = None }, Cmd.none, NoOp
+                | AmountSaveOpensSplitEditor newAmount ->
+                    // Erst das Speichern einer gültigen Aufteilung schickt etwas (ADR 0092 Punkt 3).
+                    let loadTargets =
+                        match model.TransferTargets with
+                        | Success _ | Loading -> Cmd.none
+                        | _ -> Cmd.ofMsg RunLoadTransferTargets
+                    { model with
+                        AmountEdit = None
+                        SplitEditor = Some (SplitEditor.startStateWithAmount entry newAmount)
+                        CategoryPickerFor = None
+                        CategorySuggestions = []
+                        CategoryCard = None },
+                    Cmd.batch [ Cmd.ofMsg EnsureCategoriesFresh; loadTargets; Cmd.ofMsg LoadQuickAddAccount ],
+                    NoOp
+                | AmountSaveSends request ->
+                    { model with AmountRows = model.AmountRows |> Map.add entryId AmountSending },
+                    Cmd.ofMsg (RunSetAmount (entryId, request)),
+                    NoOp
+            | _ -> model, Cmd.none, NoOp)
 
     | RevealAmountFieldError ->
         model,
@@ -2609,13 +2657,10 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         ShowToast ($"Betrag nicht geändert: {message}", ToastError)
 
     | StartUndoAmount (entryId, previous) ->
-        // Ein zweiter Tipp auf "Rückgängig" schickt nichts, solange ein Aufruf zum Betrag läuft.
-        if (model.AmountRows |> Map.tryFind entryId) = Some AmountSending then
-            model, Cmd.none, NoOp
-        else
+        whenRowIdle AmountLock entryId model (fun () ->
             { model with AmountRows = model.AmountRows |> Map.add entryId AmountSending },
             Cmd.ofMsg (RunUndoAmount (entryId, previous)),
-            NoOp
+            NoOp)
 
     | RunUndoAmount (entryId, previous) ->
         let cmd =
@@ -2642,13 +2687,10 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
 
     | StartRetryAmount entryId ->
-        // Ein Tipp auf "Erneut senden" schickt nichts, solange ein Aufruf zum Betrag läuft.
-        if (model.AmountRows |> Map.tryFind entryId) = Some AmountSending then
-            model, Cmd.none, NoOp
-        else
+        whenRowIdle AmountLock entryId model (fun () ->
             { model with AmountRows = model.AmountRows |> Map.add entryId AmountSending },
             Cmd.ofMsg (RunRetryAmount entryId),
-            NoOp
+            NoOp)
 
     | RunRetryAmount entryId ->
         let cmd =
@@ -3215,18 +3257,19 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 
     | StartSaveSplits ->
         match model.SplitEditor with
-        | Some editor when not (splitBusy model editor.EntryId) ->
-            match SplitEditor.requestLines editor with
-            | Some lines ->
-                let run =
-                    match editor.AmountFrom with
-                    | Some _ -> RunSaveSplitsWithAmount (editor.EntryId, lines, editor.Total)
-                    | None -> RunSaveSplits (editor.EntryId, lines)
-                { model with CategoryRows = model.CategoryRows |> Map.add editor.EntryId CategorySending },
-                Cmd.ofMsg run,
-                NoOp
-            | None -> model, Cmd.none, NoOp
-        | _ -> model, Cmd.none, NoOp
+        | Some editor ->
+            whenRowIdle CategoryLock editor.EntryId model (fun () ->
+                match SplitEditor.requestLines editor with
+                | Some lines ->
+                    let run =
+                        match editor.AmountFrom with
+                        | Some _ -> RunSaveSplitsWithAmount (editor.EntryId, lines, editor.Total)
+                        | None -> RunSaveSplits (editor.EntryId, lines)
+                    { model with CategoryRows = model.CategoryRows |> Map.add editor.EntryId CategorySending },
+                    Cmd.ofMsg run,
+                    NoOp
+                | None -> model, Cmd.none, NoOp)
+        | None -> model, Cmd.none, NoOp
 
     | RunSaveSplits (entryId, lines) ->
         let cmd =
@@ -3301,9 +3344,10 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         ShowToast ($"Aufteilung nicht gespeichert: {message}", ToastError)
 
     | StartUndoSplit (entryId, lines) ->
-        { model with CategoryRows = model.CategoryRows |> Map.add entryId CategorySending },
-        Cmd.ofMsg (RunUndoSplit (entryId, lines)),
-        NoOp
+        whenRowIdle CategoryLock entryId model (fun () ->
+            { model with CategoryRows = model.CategoryRows |> Map.add entryId CategorySending },
+            Cmd.ofMsg (RunUndoSplit (entryId, lines)),
+            NoOp)
 
     | RunUndoSplit (entryId, lines) ->
         let cmd =
@@ -3905,14 +3949,17 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | ReviewMatchLoaded _ -> model, Cmd.none, NoOp
 
     | ReviewConfirm ->
+        // „Passt, weiter“ teilt die Sperre mit dem Prüfvermerk aus „Details“ (ledger-smv1s) und wartet auf
+        // eine laufende Kategorie-Änderung der Karte.
         match model.Review, reviewCardOf model with
-        | Some review, Some card when review.Confirming.IsNone
-                                      && reviewCardKindOf card = NormalCard
-                                      && reviewHasTarget card
-                                      && (model.CategoryRows |> Map.tryFind card.Id) <> Some CategorySending ->
-            editReview (fun r -> { r with Confirming = Some card.Id }) model,
-            Cmd.ofMsg (RunReviewConfirm card.Id),
-            NoOp
+        | Some review, Some card when review.Confirming.IsNone ->
+            whenRowIdle ReviewMarkLock card.Id model (fun () ->
+                if reviewCardKindOf card = NormalCard && reviewHasTarget card && not (rowBusy CategoryLock model card.Id) then
+                    editReview (fun r -> { r with Confirming = Some card.Id }) model,
+                    Cmd.ofMsg (RunReviewConfirm card.Id),
+                    NoOp
+                else
+                    model, Cmd.none, NoOp)
         | _ -> model, Cmd.none, NoOp
 
     | RunReviewConfirm entryId ->
@@ -3955,7 +4002,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         match reviewCardOf model with
         | Some card when reviewCardKindOf card = NormalCard ->
             match lenaActionFor model.LenaFlagColor card with
-            | action when action.DisabledReason.IsSome || (model.FlagRows |> Map.tryFind card.Id) = Some FlagSending ->
+            | action when action.DisabledReason.IsSome || rowBusy FlagLock model card.Id ->
                 model, Cmd.none, NoOp
             | action ->
                 let flagged, flagCmd, external = updateCore (StartSetLenaFlag (card.Id, action.Target)) model
@@ -3995,7 +4042,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 
     // Die Buchung wartet nicht mehr: dieselbe Stelle zeigt jetzt ihre normale Karte.
     | ReviewConfirmedNew (entryId, Ok writeBack) ->
-        let released = model |> editReview (fun r -> { r with Deciding = None })
+        let released = releaseDeciding entryId model
         let withoutHold =
             match findEntry released entryId with
             | Some entry ->
@@ -4017,8 +4064,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         let refresh = if isReviewCard withoutHold entryId then Cmd.ofMsg (RunReviewRefresh entryId) else Cmd.none
         withoutHold, refresh, toast
 
-    | ReviewConfirmedNew (_, Error message) ->
-        model |> editReview (fun r -> { r with Deciding = None }), Cmd.none, ShowToast ($"Nicht übernommen: {message}", ToastError)
+    | ReviewConfirmedNew (entryId, Error message) ->
+        releaseDeciding entryId model, Cmd.none, ShowToast ($"Nicht übernommen: {message}", ToastError)
 
     | ReviewDiscard ->
         match model.Review, reviewCardOf model with
@@ -4036,7 +4083,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         NoOp
 
     | ReviewDiscarded (entryId, Ok ()) ->
-        let released = model |> editReview (fun r -> { r with Deciding = None })
+        let released = releaseDeciding entryId model
         let toast =
             ShowToastWithAction (reviewDiscardedText, ToastSuccess, { Label = undoToastLabel; Kind = UndoDiscardDuplicate entryId })
         if isReviewCard released entryId then
@@ -4045,8 +4092,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         else
             released, Cmd.none, toast
 
-    | ReviewDiscarded (_, Error message) ->
-        model |> editReview (fun r -> { r with Deciding = None }), Cmd.none, ShowToast ($"Nicht verworfen: {message}", ToastError)
+    | ReviewDiscarded (entryId, Error message) ->
+        releaseDeciding entryId model, Cmd.none, ShowToast ($"Nicht verworfen: {message}", ToastError)
 
     | StartRestoreDiscardedDuplicate entryId ->
         if model.RestoringDuplicates.Contains entryId then

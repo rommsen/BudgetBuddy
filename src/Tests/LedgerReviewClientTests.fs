@@ -314,8 +314,12 @@ let private events (w: Walk) : (string * Msg list * Walk) list =
       for id in w.LenaUndo do
           let back = ids |> List.findIndex ((=) id)
           let after = { w with LenaUndo = w.LenaUndo |> List.filter ((<>) id) }
+          // „Rückgängig“ steht erst im Toast, wenn „Lena fragen“ geantwortet hat; solange der Aufruf läuft,
+          // ist es gesperrt (Zeilen-Sperre, ledger-smv1s).
+          let noFlag = { Color = None; Name = None }
           $"Lena-Rückgängig {id}",
-          [ StartUndoFlag (id, { Color = None; Name = None }) ],
+          [ LenaFlagSet (id, AssignLena, Ok { Previous = noFlag; Change = FlagChanged; WriteBack = FlagSent })
+            StartUndoFlag (id, noFlag) ],
           (if back <> w.Index then moveTo back after else after)
       if w.DiscardUndo then
           let back = ids |> List.findIndex ((=) (idOf dupD))
@@ -485,6 +489,27 @@ let caseTests =
             match failed with
             | ShowToast (text, ToastWarning) -> Expect.stringContains text "Timeout" "Grund"
             | other -> failtestf "Warnung erwartet: %A" other
+
+        // ledger-smv1s: Die Antwort einer Entscheidung aus einem verlassenen Durchgehen löste die laufende
+        // Entscheidung einer anderen Karte; ein zweites „Ist neu“ schickte einen zweiten Aufruf.
+        testCase "die späte Antwort zu einer verlassenen Karte gibt die Entscheidung der neuen Karte nicht frei" <| fun () ->
+            let dupE = held 5
+            let answers =
+                [ ReviewConfirmedNew (idOf dupD, Ok PushToYnabSent)
+                  ReviewConfirmedNew (idOf dupD, Error "Netz")
+                  ReviewDiscarded (idOf dupD, Ok ())
+                  ReviewDiscarded (idOf dupD, Error "Netz") ]
+            for answer in answers do
+                let left = reviewing [ dupD ] |> step ReviewConfirmNew |> step ReviewLeft
+                let reopened = left |> step ReviewOpened
+                let deciding =
+                    reopened
+                    |> step (ReviewQueueLoaded (reopened.ReviewGeneration, Ok [ dupE ]))
+                    |> step ReviewConfirmNew
+                let after = step answer deciding
+                Expect.equal (after.Review |> Option.bind (fun r -> r.Deciding)) (Some (idOf dupE)) $"{answer}: Entscheidung läuft weiter"
+                let _, msgs, _ = run ReviewConfirmNew after
+                Expect.isEmpty msgs $"{answer}: kein zweiter Aufruf"
 
         testCase "die Kategorie auf der Karte meldet Name und Verfügbares" <| fun () ->
             let model = reviewing [ cardB ]

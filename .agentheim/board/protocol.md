@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-12 08:00 -- Task verified and completed: ledger-smv1s - "Zeilen-Sperre für Erneut senden, Rückgängig und Setzen einheitlich in update: ein Helfer für alle Start-Zweige je Buchung und Feld, Aufzählung je Sperrgruppe nach Doktrin Punkt 20, Deciding im Durchgehen an die Id gebunden"
+
+**Type:** Work / Task completion
+**Task:** ledger-smv1s - "Zeilen-Sperre für Erneut senden, Rückgängig und Setzen einheitlich in update: ein Helfer für alle Start-Zweige je Buchung und Feld, Aufzählung je Sperrgruppe nach Doktrin Punkt 20, Deciding im Durchgehen an die Id gebunden"
+**Summary:** Zeilen-Sperre über whenRowIdle für alle Start-Zweige je Buchung, Aufzählung je Sperrgruppe
+**Duration:** 38m
+**Verification:** PASS (iteration 1)
+**Files changed:** 5
+**Tests added:** 7
+**ADRs written:** none
+
+---
+
 ## 2026-11-12 07:58 -- Batch started: [ledger-vfr4h, ledger-sjbvc]
 
 **Type:** Work / Batch start

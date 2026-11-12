@@ -1,7 +1,7 @@
 ---
 id: ledger-smv1s
 title: "Zeilen-Sperre für Erneut senden, Rückgängig und Setzen einheitlich in update: ein Helfer für alle Start-Zweige je Buchung und Feld, Aufzählung je Sperrgruppe nach Doktrin Punkt 20, Deciding im Durchgehen an die Id gebunden"
-status: doing
+status: done
 type: bug
 context: ledger
 created: 2026-11-12
@@ -102,3 +102,52 @@ Befunde:
   ledger-ng110 ändert `SplitsSaved (Error …)` (3301) direkt über `StartUndoSplit`. Diese Zweige hier nicht anfassen.
   ledger-sjbvc (Sammellauf, Teil 2) ändert den Sammel-Abschnitt 3480 bis 3760, keine gemeinsame Funktion.
 - Sichtbar ändert sich nur: ein gesperrter Tipp tut nichts.
+
+## Outcome
+
+Ein Helfer sperrt jetzt alle Start-Zweige je Buchung und Sperrgruppe in `update`. Im Alltag sichtbar: ein gesperrter Tipp tut nichts.
+
+**Code** (`src/Client/Components/Ledger/State.fs`)
+- `RowLock` (`CategoryLock`, `ReviewMarkLock`, `FlagLock`, `MemoLock`, `AmountLock`, `PushLock`), `rowBusy` und `whenRowIdle` stehen vor `editSplit`. `ReviewMarkLock` liest `ReviewMarkRows` und `Review.Confirming` (die Task ließ die Wahl offen). `ReviewConfirm` setzt `ReviewMarkSending` nicht zusätzlich, so blieb sein Fehlerzweig unberührt.
+- Durch `whenRowIdle` laufen: `StartSetEntryCategory`, `StartUndoCategory`, `StartSetEntryTransfer`, `StartRetryCategorization`, `StartSaveSplits`, `StartUndoSplit`, `StartSetReviewMark`, `StartRetryReviewMark`, `StartSwipeReviewed`, `StartUndoReviewMark`, `ReviewConfirm`, `StartSetLenaFlag`, `StartUndoFlag` (die Prüfung kommt vor `returnToReviewCard`), `StartRetryFlag`, `StartSaveMemo`, `StartUndoMemo`, `StartRetryMemo`, `StartSaveAmount`, `StartUndoAmount`, `StartRetryAmount` und `StartRetryPush`. Keiner dieser Zweige prüft den Sende-Zustand noch von Hand. `ReviewLena` fragt `rowBusy FlagLock` (eine Zeile), weil es sonst trotz gesperrtem Start zur nächsten Karte ginge. `ReviewConfirm` wartet weiter auf eine laufende Kategorie-Änderung, jetzt über `rowBusy CategoryLock`.
+- `releaseDeciding` (neben `editReview`): `ReviewConfirmedNew` und `ReviewDiscarded` (Ok und Error) lösen `Deciding` nur, wenn es `Some entryId` ist.
+- Nicht angefasst: `EntryCategorySet`, der Fehlerzweig von `ReviewLena`, `SplitsSaved (Error …)`, der Sammel-Abschnitt und alles um `AccountsLoaded`, `resetEntries` und `LoadEntries` (ledger-ct3cx, ledger-ng110, ledger-sjbvc).
+
+**Tests**
+- Neu ist `src/Tests/LedgerRowLockWaysTests.fs`, eingetragen in `Tests.fsproj`. Es hat je Gruppe einen `testList` (Kategorie und Split, Prüfvermerk, Lena, Memo, Betrag, Noch nicht in YNAB). Die Ereignisse sind jeder Start-Zweig für Buchung A, ein Start für Buchung B und je offenem Aufruf seine Antwort Ok und Error. Das Orakel ist eine eigene Liste offener Aufrufe, gebildet aus den ausgegebenen `Run…`-Nachrichten und den zugestellten Antworten, also nicht aus den `…Rows`. Prüfungen:
+  - nie zwei offene Aufrufe derselben Gruppe für eine Buchung;
+  - ein gesperrter Start lässt das Modell gleich (`Expect.equal`), schickt keine Nachricht und gibt `NoOp` zurück;
+  - nach jeder Antwort startet wieder ein Start-Zweig für die Buchung;
+  - jeder Start-Zweig hat mindestens einmal gestartet.
+  - Tiefe 6. Der Zustandsraum ist schon vor dieser Tiefe abgeschlossen, je Gruppe 4 bis 19 Zustände.
+- `src/Tests/LedgerReviewClientTests.fs` hat einen neuen Regressionstest „die späte Antwort zu einer verlassenen Karte gibt die Entscheidung der neuen Karte nicht frei“. Er läuft für alle vier Antworten über `ReviewLeft` und `ReviewOpened`. Vor dem Fix war er rot (`expected: Some <B>, actual: <null>` bei `ReviewConfirmedNew (A, Ok PushToYnabSent)`).
+- In derselben Datei ist im Orakel der bestehenden Aufzählung „Durchgehen: jede Reihenfolge bis Tiefe 6“ das Ereignis „Lena-Rückgängig“ geändert. Es stellt jetzt erst die Antwort auf „Lena fragen“ zu und dann `StartUndoFlag`, so wie es real geschieht: der Toast mit „Rückgängig“ erscheint erst nach dieser Antwort. Das alte Orakel ließ „Rückgängig“ neben dem laufenden Lena-Aufruf zu, und genau das sperrt diese Task jetzt.
+- In `src/Tests/LedgerAmountClientTests.fs` sind die Einzelfälle der Betrags-Sperre entfernt: der Test „Rückgängig schickt nichts, solange für die Buchung ein Aufruf läuft“ und die Zeilen zum zweiten Tipp in „Erneut senden: Erfolg löscht den Fehlschlag …“ (Review-Fund zu ledger-fxt09). An ihrer Stelle steht ein Kommentar mit Verweis auf die Gruppe Betrag. Gegenprobe nach Doktrin Punkt 8: im fertigen Code die Sperre an `StartUndoAmount` und `StartRetryAmount` lokal entfernt, dann wird die Gruppe Betrag rot mit „zwei offene Aufrufe für eine Buchung: Betrag speichern, Betrag zurück“. Nur `StartRetryAmount` entsperrt ergibt „Betrag speichern, Betrag erneut senden“. Danach wiederhergestellt.
+
+**Roter Lauf vor dem Fix** (Aufzählung gegen `State.fs` von HEAD, alle Verstöße gesammelt, Rohliste unter `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/20e05553-37dc-4f2f-bcee-5ef520140bf9/scratchpad/e3/ledger-smv1s/red-raw.txt`, kürzeste Pfade):
+- Kategorie und Split:
+  - „Kategorie setzen, Kategorie zurück“ (`StartUndoCategory` neben `StartSetEntryCategory`);
+  - „Split speichern, Split zurück“ (`StartUndoSplit` neben `StartSaveSplits`);
+  - „Kategorie erneut senden, Kategorie erneut senden“;
+  - dazu „Übertrag setzen, Split zurück“ und „Zweite Buchung, Zweite Buchung“.
+- Prüfvermerk:
+  - „Prüfvermerk setzen, Prüfvermerk zurück“ und „Prüfvermerk setzen, Prüfvermerk erneut senden“;
+  - „Prüfvermerk setzen, Prüfvermerk setzen“;
+  - „Prüfvermerk setzen, Passt, weiter“ und „Passt, weiter, Prüfvermerk setzen“ (je zwei offene Aufrufe und geändertes Modell);
+  - dazu „Wisch geprüft, Prüfvermerk zurück“.
+- Lena:
+  - „Lena fragen, Lena zurück“ und „Lena fragen, Lena erneut senden“;
+  - „Lena auf der Karte, Lena zurück“: gesperrter Start ändert das Modell, das ist `returnToReviewCard`.
+- Memo: „Memo speichern, Memo zurück“, „Memo zurück, Memo zurück“ und „Memo erneut senden, Memo zurück“.
+- Noch nicht in YNAB: „Erneut senden, Erneut senden“.
+- Betrag: grün vor dem Fix, der Code war schon richtig. Die Gegenprobe steht oben.
+
+**Kann-Sammlung**: ledger-k4n2s Punkt 53 (`StartUndoMemo` ohne Memo-Sperre) geht hier auf. Der Punkt ist dort schon durchgestrichen mit „geht auf in ledger-smv1s“. Beim Integrieren bitte in „erledigt durch ledger-smv1s“ ändern, denn der Worker schreibt nicht unter `.agentheim/`.
+
+**Skizzenvergleich**: entfällt, es gibt keine Skizze (Vorgabe des Conductors).
+
+**Gate**: `./verify.sh` endet mit `VERIFY: PASS` (dotnet 4757 grün, node 316 grün).
+
+Für die Kann-Sammlung:
+- `StartUndoPayee`, `StartRetryPayee` und `StartSavePayee` sperren weiter von Hand und noch nicht über `whenRowIdle`. Payee war keine Gruppe dieser Task. Ein `PayeeLock` würde es einheitlich machen.
+- `review.Confirming.IsNone` in `ReviewConfirm` bleibt als Sperre für die ganze Sitzung. `showReviewCardAt` setzt `Confirming` beim Kartenwechsel zurück, ein „Passt“, das noch läuft, verliert damit seinen Merker. Ein Prüfvermerk aus „Details“ derselben Buchung wäre danach nicht mehr gesperrt. Die Aufzählung erreicht das nicht, denn „Später“ ist kein Ereignis der Gruppe.
