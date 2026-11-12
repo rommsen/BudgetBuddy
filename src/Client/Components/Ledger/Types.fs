@@ -1270,6 +1270,10 @@ type Model = {
     /// Die Historie der offenen Buchung.
     History: RemoteData<LedgerHistoryLine list>
 
+    /// Die Lade-Nummer der Historie: jedes gestartete Laden zählt sie weiter, nur die Antwort des
+    /// zuletzt gestarteten gilt (ledger-nc708, Vorbild `HistoryGeneration` im Budget).
+    HistoryGeneration: int
+
     /// Zeitpunkt und Ergebnis des zuletzt gelaufenen Spiegels.
     LastMirrorRun: RemoteData<MirrorRunStatus option>
 
@@ -2075,8 +2079,9 @@ type Msg =
     /// Die Ansicht meldet, wie die Liste bei Breite und Eingabegerät bedient wird (ledger-m6zpd).
     | ListInteractionChanged of ListInteraction
     | LoadHistory of Guid
-    /// Die Historie der Buchung `Guid`; kommt sie nach einem Wechsel der Buchung an, gilt sie nicht mehr.
-    | HistoryLoaded of Guid * Result<LedgerHistoryLine list, string>
+    /// Die Historie der Buchung `Guid` mit der Lade-Nummer beim Start (`historyAnswer`). Kommt sie nach
+    /// einem Wechsel der Buchung oder nach einem neueren Laden an, gilt sie nicht mehr.
+    | HistoryLoaded of Guid * int * Result<LedgerHistoryLine list, string>
 
     // Spiegel
     | LoadMirrorStatus

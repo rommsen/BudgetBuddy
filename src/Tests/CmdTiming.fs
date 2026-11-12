@@ -23,3 +23,14 @@ let expectAfter (delayMs: int) (expected: 'msg) (cmd: Elmish.Cmd<'msg>) =
     let msg, elapsed = firstDispatchedAfter (delayMs + 3000) cmd
     Expect.equal msg expected "die Nachricht nach Ablauf"
     Expect.isGreaterThanOrEqual elapsed (int64 delayMs - 100L) $"erst nach {delayMs} ms"
+
+/// Wie `expectAfter`, überspringt aber sofort abgeschickte Nachrichten, auf die `ignored` passt (etwa das
+/// Neuladen der Historie neben einem Zeitgeber, ledger-nc708).
+let expectAfterIgnoring (ignored: 'msg -> bool) (delayMs: int) (expected: 'msg) (cmd: Elmish.Cmd<'msg>) =
+    let collected = new BlockingCollection<'msg>()
+    let clock = Stopwatch.StartNew()
+    cmd |> List.iter (fun effect -> effect (fun msg -> if not (ignored msg) then collected.Add msg))
+    let mutable msg = Unchecked.defaultof<'msg>
+    if not (collected.TryTake(&msg, delayMs + 3000)) then failtest $"keine Nachricht innerhalb von {delayMs + 3000} ms"
+    Expect.equal msg expected "die Nachricht nach Ablauf"
+    Expect.isGreaterThanOrEqual clock.ElapsedMilliseconds (int64 delayMs - 100L) $"erst nach {delayMs} ms"

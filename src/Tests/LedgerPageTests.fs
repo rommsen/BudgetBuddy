@@ -838,7 +838,7 @@ let reducerTests =
                   recorded 2 Actor.YnabMirror EntryDeletionObservedInYnab ]
                 |> List.map ReadModel.toHistoryLine
             let opened, _, _ = Components.Ledger.State.update (OpenDetail (entryView 1 -42.5m false)) (freshModel ())
-            let updated, _, _ = Components.Ledger.State.update (HistoryLoaded (entryGuid 1, Ok lines)) opened
+            let updated, _, _ = Components.Ledger.State.update (HistoryLoaded (entryGuid 1, 0, Ok lines)) opened
             match updated.History with
             | Success loaded -> Expect.equal (loaded |> List.map (fun l -> l.Sequence)) [ 1; 2 ] "Reihenfolge bleibt"
             | other -> failtestf "Erwartet Success, war %A" other
@@ -3550,8 +3550,8 @@ let private staleAnswerTests =
         testCase "Ein spätes Scheitern ersetzt die fertige Historie derselben Buchung nicht" <| fun () ->
             let shown = withDetail { freshModel () with History = Success [] }
             let id = (entryView 1 -1m false).Id
-            Expect.equal (update (HistoryLoaded (id, Error "x")) shown).History (Success []) "bleibt"
-            Expect.equal (update (HistoryLoaded (id, Error "x")) { shown with History = Loading }).History (Failure "x") "ohne Stand gilt der Fehler"
+            Expect.equal (update (HistoryLoaded (id, 0, Error "x")) shown).History (Success []) "bleibt"
+            Expect.equal (update (HistoryLoaded (id, 0, Error "x")) { shown with History = Loading }).History (Failure "x") "ohne Stand gilt der Fehler"
 
         testCase "Ein spätes Scheitern ersetzt fertige Überweisungsziele nicht" <| fun () ->
             let shown = { freshModel () with TransferTargets = Success [] }

@@ -106,6 +106,7 @@ let init () : Model * Cmd<Msg> =
         PayeeChoicesGeneration = 0
         ListInteraction = TableRows
         History = NotAsked
+        HistoryGeneration = 0
         LastMirrorRun = NotAsked
         MirrorRunning = false
         Categories = NotAsked
@@ -720,9 +721,21 @@ let private applyMemoResult (entryId: Guid) (outcome: MemoOutcome) (model: Model
                 MemoWriteBackFailure = memoFailureOf outcome entry }
             cleared
 
-/// Holt die Historie der offenen Buchung neu, damit die Zeile der Memo-Änderung dort steht.
-let private reloadHistoryFor (entryId: Guid) (model: Model) : Cmd<Msg> =
-    if model.DetailFor |> Option.exists (fun d -> d.Id = entryId) then Cmd.ofMsg (LoadHistory entryId)
+/// Die Antwort auf das Laden der Historie: Buchung und Lade-Nummer beim Start sind gebunden
+/// (ledger-nc708). Rein, damit Tests die Antworten eines bestimmten Ladens bauen können.
+let historyAnswer (entryId: Guid) (generation: int) : Result<LedgerHistoryLine list, string> -> Msg =
+    fun result -> HistoryLoaded (entryId, generation, result)
+
+/// Gehört die Antwort zum zuletzt gestarteten Laden der offenen Buchung?
+let private isCurrentHistory (entryId: Guid) (generation: int) (model: Model) : bool =
+    generation = model.HistoryGeneration && model.DetailFor |> Option.exists (fun e -> e.Id = entryId)
+
+/// Nach einer erfolgreichen Änderung an einer Buchung (ledger-nc708): steht sie im Detail, holt es ihre
+/// Historie neu, damit die neue Zeile dort steht. Im Durchgehen zählt das Detail nur, wenn „Details“
+/// offen ist; die Karte allein zeigt keine Historie.
+let private afterEntryChange (entryId: Guid) (model: Model) : Cmd<Msg> =
+    let shown = model.Review |> Option.forall (fun r -> r.DetailShown)
+    if shown && model.DetailFor |> Option.exists (fun d -> d.Id = entryId) then Cmd.ofMsg (LoadHistory entryId)
     else Cmd.none
 
 /// Der offene Fehlschlag nach der Antwort von `setEntryAmount` (Muster `memoFailureOf`).
@@ -798,7 +811,7 @@ let payeeChoicesQuery : LedgerPayeeSuggestionQuery = {
 
 /// Nach einer Änderung des Betrags: Historie der offenen Buchung und Kontostände neu holen.
 let private afterAmountChange (entryId: Guid) (model: Model) : Cmd<Msg> =
-    Cmd.batch [ reloadHistoryFor entryId model; Cmd.ofMsg LoadBalances ]
+    Cmd.batch [ afterEntryChange entryId model; Cmd.ofMsg LoadBalances ]
 
 /// Trägt das Ergebnis von `setEntrySplits` in den Zustand ein (ledger-pafkp). `lines` sind die
 /// geschickten Zeilen: eine Zeile hebt die Aufteilung auf (die Buchung trägt dann diese
@@ -1420,7 +1433,7 @@ let private applyEntriesRefresh (page: LedgerEntryPage) (model: Model) : Model *
             Refreshing = false }
     let history =
         match model.Review, detail with
-        | None, Some d -> reloadHistoryFor d.Id refreshed
+        | None, Some d -> afterEntryChange d.Id refreshed
         | _ -> Cmd.none
     refreshed, history
 
@@ -1739,23 +1752,33 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | ListInteractionChanged interaction ->
         { model with ListInteraction = interaction }, Cmd.none, NoOp
 
-    | LoadHistory entryId ->
+    // Nachladen derselben Buchung lässt die gezeigte Historie stehen, bis die Antwort da ist; das Öffnen
+    // einer Buchung setzt vorher `Loading` (`showDetail`, `ReviewShowDetails`). Ohne offenes Detail der
+    // Buchung gibt es nichts zu laden.
+    | LoadHistory entryId when model.DetailFor |> Option.exists (fun e -> e.Id = entryId) ->
+        let generation = model.HistoryGeneration + 1
+        let answer = historyAnswer entryId generation
         let cmd =
             Cmd.OfAsync.either
-                (Retry.reading Api.ledger.getEntryHistory)
+                (fun id -> Retry.reading Api.ledger.getEntryHistory id)
                 entryId
-                (fun lines -> HistoryLoaded (entryId, Ok lines))
-                (fun ex -> HistoryLoaded (entryId, Error ex.Message))
-        { model with History = Loading }, cmd, NoOp
+                (fun lines -> answer (Ok lines))
+                (fun ex -> answer (Error ex.Message))
+        let history =
+            match model.History with
+            | Success _ -> model.History
+            | _ -> Loading
+        { model with History = history; HistoryGeneration = generation }, cmd, NoOp
+    | LoadHistory _ -> model, Cmd.none, NoOp
 
-    | HistoryLoaded (entryId, Ok lines) when model.DetailFor |> Option.exists (fun e -> e.Id = entryId) ->
+    | HistoryLoaded (entryId, generation, Ok lines) when isCurrentHistory entryId generation model ->
         { model with History = Success lines }, Cmd.none, NoOp
 
-    | HistoryLoaded (entryId, Error message) when model.DetailFor |> Option.exists (fun e -> e.Id = entryId) ->
+    | HistoryLoaded (entryId, generation, Error message) when isCurrentHistory entryId generation model ->
         { model with History = RemoteData.lateFailure message model.History }, Cmd.none, NoOp
 
     // Die Historie einer Buchung, die nicht mehr im Detail steht (schnelles Weiterspringen,
-    // geschlossenes Detail): verwerfen.
+    // geschlossenes Detail), oder die eines überholten Ladens: verwerfen.
     | HistoryLoaded _ -> model, Cmd.none, NoOp
 
     // ============================================
@@ -2123,7 +2146,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         // Ist ändert daran nichts. Der Fehlschlag kommt aus der Antwort; ohne Änderung und
         // ohne Versand bleibt ein offener Fehlschlag stehen.
         let needsReview = Some (target = Unreviewed)
-        applyReviewMarkResult entryId needsReview (writeBackFailureOf outcome) model, Cmd.none, NoOp
+        let model' = applyReviewMarkResult entryId needsReview (writeBackFailureOf outcome) model
+        model', afterEntryChange entryId model', NoOp
 
     | ReviewMarkSet (entryId, _, Error message) ->
         { model with ReviewMarkRows = model.ReviewMarkRows |> Map.add entryId (ReviewMarkCommandFailed message) },
@@ -2150,7 +2174,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             match writeBack with
             | ReviewMarkSendFailed reason -> Some reason
             | ReviewMarkSent | ReviewMarkNotSent -> None
-        applyReviewMarkResult entryId None failureOf model, Cmd.none, NoOp
+        let model' = applyReviewMarkResult entryId None failureOf model
+        model', afterEntryChange entryId model', NoOp
 
     | ReviewMarkRetried (entryId, Error message) ->
         { model with ReviewMarkRows = model.ReviewMarkRows |> Map.add entryId (ReviewMarkCommandFailed message) },
@@ -2181,7 +2206,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             match result with
             | PushToYnabSent -> ShowToast (pushRetrySentToastText, ToastSuccess)
             | PushToYnabFailed reason -> ShowToast ($"{pushRetryFailedToastTitle}: {reason}", ToastError)
-        applyPushRetryResult entryId DateTime.UtcNow result model, Cmd.none, toast
+        let model' = applyPushRetryResult entryId DateTime.UtcNow result model
+        model', afterEntryChange entryId model', toast
 
     | PushRetried (entryId, Error message) ->
         { model with PushRetryRows = model.PushRetryRows |> Map.remove entryId },
@@ -2233,7 +2259,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                     ToastSuccess,
                     { Label = undoToastLabel; Kind = UndoReviewMark (entryId, outcome.Previous) }
                 )
-        model', Cmd.none, external
+        model', afterEntryChange entryId model', external
 
     | SwipeReviewedDone (entryId, _, Error message) ->
         { model with ReviewMarkRows = model.ReviewMarkRows |> Map.add entryId (ReviewMarkCommandFailed message) },
@@ -2261,7 +2287,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             match outcome.WriteBack with
             | ReviewMarkSendFailed reason -> ShowToast ($"{reviewMarkHintTitle}: {reason}", ToastError)
             | _ -> NoOp
-        model', Cmd.none, external
+        model', afterEntryChange entryId model', external
 
     | ReviewMarkRestored (entryId, _, Error message) ->
         { model with ReviewMarkRows = model.ReviewMarkRows |> Map.add entryId (ReviewMarkCommandFailed message) },
@@ -2358,7 +2384,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 | CategorySendFailed reason ->
                     ShowToastWithAction ($"{text}. {categoryHintTitle}: {reason}", ToastWarning, action)
                 | _ -> ShowToastWithAction (text, ToastSuccess, action)
-        model', cmd, external
+        model', Cmd.batch [ cmd; afterEntryChange entryId model' ], external
 
     | EntryCategorySet (entryId, _, Error message) ->
         { model with
@@ -2393,7 +2419,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             | CategorySendFailed reason -> ShowToast ($"{categoryHintTitle}: {reason}", ToastWarning)
             | _ when outcome.Change = CategoryUnchanged -> NoOp
             | _ -> ShowToast (categoryRestoredToastText name, ToastSuccess)
-        model', cmd, external
+        model', Cmd.batch [ cmd; afterEntryChange entryId model' ], external
 
     | EntryCategoryRestored (entryId, _, Error message) ->
         { model with
@@ -2444,7 +2470,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 if undo then ShowToast (text, toastType)
                 else ShowToastWithAction (text, toastType, { Label = undoToastLabel; Kind = undoKindFor entryId outcome })
         let refresh = if outcome.Change = CategoryChanged then Cmd.ofMsg (RunRefreshEntry entryId) else Cmd.none
-        model', refresh, external
+        model', Cmd.batch [ refresh; afterEntryChange entryId model' ], external
 
     | EntryTransferSet (entryId, _, undo, Error message) ->
         { model with
@@ -2481,7 +2507,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             match writeBack with
             | CategorySendFailed reason -> ShowToast ($"{categoryHintTitle}: {reason}", ToastWarning)
             | _ -> NoOp
-        model', Cmd.none, external
+        model', afterEntryChange entryId model', external
 
     | CategorizationRetried (entryId, Error message) ->
         { model with
@@ -2549,11 +2575,14 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 match writeBack with
                 | FlagSendFailed reason -> ShowToastWithAction ($"{text}. {flagHintTitle}: {reason}", ToastWarning, action)
                 | _ -> ShowToastWithAction (text, ToastSuccess, action)
-        model', Cmd.none, external
+        model', afterEntryChange entryId model', external
 
+    // Im Durchgehen ist die Karte nach „Lena fragen“ schon weiter: der Fehler holt sie zurück, damit Roman
+    // ihn an der Buchung sieht (ledger-nc708). Außerhalb des Durchgehens bleibt alles, wo es ist.
     | LenaFlagSet (entryId, _, Error message) ->
-        { model with FlagRows = model.FlagRows |> Map.add entryId (FlagCommandFailed message) },
-        Cmd.none,
+        let returned, showCmd = returnToReviewCard entryId model
+        { returned with FlagRows = returned.FlagRows |> Map.add entryId (FlagCommandFailed message) },
+        showCmd,
         ShowToast ($"Flag nicht geändert: {message}", ToastError)
 
     | StartUndoFlag (entryId, previous) ->
@@ -2582,7 +2611,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             | FlagSendFailed reason -> ShowToast ($"{flagHintTitle}: {reason}", ToastWarning)
             | _ when outcome.Change = FlagUnchanged -> NoOp
             | _ -> ShowToast (flagRestoredToastText, ToastSuccess)
-        model', Cmd.none, external
+        model', afterEntryChange entryId model', external
 
     | FlagRestored (entryId, _, Error message) ->
         { model with FlagRows = model.FlagRows |> Map.add entryId (FlagCommandFailed message) },
@@ -2618,7 +2647,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             match writeBack with
             | FlagSendFailed reason -> ShowToast ($"{flagHintTitle}: {reason}", ToastWarning)
             | _ -> NoOp
-        model', Cmd.none, external
+        model', afterEntryChange entryId model', external
 
     | FlagRetried (entryId, Error message) ->
         { model with FlagRows = model.FlagRows |> Map.add entryId (FlagCommandFailed message) },
@@ -2682,7 +2711,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 
     | MemoSet (entryId, Ok outcome) ->
         let model' = applyMemoResult entryId outcome model
-        let history = reloadHistoryFor entryId model'
+        let history = afterEntryChange entryId model'
         let external =
             match outcome.MemoChange, outcome.MemoWriteBack with
             | MemoUnchanged, _ -> NoOp
@@ -2725,7 +2754,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             | MemoSendFailed reason -> ShowToast ($"{memoHintTitle}: {reason}", ToastWarning)
             | _ when outcome.MemoChange = MemoUnchanged -> NoOp
             | _ -> ShowToast (memoRestoredToastText, ToastSuccess)
-        model', (if outcome.MemoChange = MemoChanged then reloadHistoryFor entryId model' else Cmd.none), external
+        model', (if outcome.MemoChange = MemoChanged then afterEntryChange entryId model' else Cmd.none), external
 
     | MemoRestored (entryId, Error message) ->
         { model with MemoRows = model.MemoRows |> Map.add entryId (MemoCommandFailed message) },
@@ -2761,7 +2790,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             match writeBack with
             | MemoSendFailed reason -> ShowToast ($"{memoHintTitle}: {reason}", ToastWarning)
             | _ -> NoOp
-        model', Cmd.none, external
+        model', afterEntryChange entryId model', external
 
     | MemoRetried (entryId, Error message) ->
         { model with MemoRows = model.MemoRows |> Map.add entryId (MemoCommandFailed message) },
@@ -2926,7 +2955,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             | AmountSendFailed reason -> ShowToast ($"{amountHintTitle}: {reason}", ToastWarning)
             | _ -> NoOp
         // Eine aufgeteilte Buchung geht als Ersatz: der Abruf zeigt die neue Lage (Sperren, Kategorie-Hinweis).
-        model', Cmd.ofMsg (RunRefreshEntry entryId), external
+        model', Cmd.batch [ Cmd.ofMsg (RunRefreshEntry entryId); afterEntryChange entryId model' ], external
 
     | AmountRetried (entryId, Error message) ->
         { model with AmountRows = model.AmountRows |> Map.add entryId (AmountCommandFailed message) },
@@ -3039,7 +3068,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         let cmd =
             Cmd.batch [
                 Cmd.ofMsg RestorePayeeRowFocus
-                if outcome.PayeeChange = PayeeChanged then reloadHistoryFor entryId model'
+                if outcome.PayeeChange = PayeeChanged then afterEntryChange entryId model'
             ]
         model', cmd, external
 
@@ -3078,7 +3107,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             | PayeeSendFailed reason -> ShowToast ($"{payeeHintTitle}: {reason}", ToastWarning)
             | _ when outcome.PayeeChange = PayeeUnchanged -> NoOp
             | _ -> ShowToast (payeeRestoredToastText, ToastSuccess)
-        model', (if outcome.PayeeChange = PayeeChanged then reloadHistoryFor entryId model' else Cmd.none), external
+        model', (if outcome.PayeeChange = PayeeChanged then afterEntryChange entryId model' else Cmd.none), external
 
     | PayeeRestored (entryId, Error message) ->
         { model with PayeeRows = model.PayeeRows |> Map.remove entryId },
@@ -3117,7 +3146,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             match writeBack with
             | PayeeSendFailed reason -> ShowToast ($"{payeeHintTitle}: {reason}", ToastWarning)
             | _ -> NoOp
-        model', reloadHistoryFor entryId model', external
+        model', afterEntryChange entryId model', external
 
     | PayeeRetried (entryId, Error message) ->
         { model with PayeeRows = model.PayeeRows |> Map.add entryId (PayeeCommandFailed message) },
@@ -3540,7 +3569,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 else
                     ShowToast (full, tone)
             | CategoryChanged, _, None -> NoOp
-        model', cmd, external
+        model', Cmd.batch [ cmd; afterEntryChange entryId model' ], external
 
     | RunSaveSplitsWithAmount (entryId, lines, amount) ->
         let cmd =
@@ -3598,7 +3627,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             | CategorySendFailed reason -> ShowToast ($"{categoryHintTitle}: {reason}", ToastWarning)
             | _ when outcome.Change = CategoryUnchanged -> NoOp
             | _ -> ShowToast ("Aufteilung zurückgenommen", ToastSuccess)
-        model', cmd, external
+        model', Cmd.batch [ cmd; afterEntryChange entryId model' ], external
 
     | SplitsRestored (entryId, _, Error message) ->
         { model with CategoryRows = model.CategoryRows |> Map.add entryId (CategoryCommandFailed message) },

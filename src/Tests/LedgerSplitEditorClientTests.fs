@@ -509,7 +509,11 @@ let reducerTests =
             let model = { opened (entryOf 1) with CategoryRows = Map.ofList [ idOf 1, CategorySending ] }
             let lines = [ moebel; haushalt ]
             let after, cmd, external = update (SplitsSaved (idOf 1, lines, Ok (changedOutcome (Some haushaltChoice) CategorySent))) model
-            Expect.isEmpty (cmd |> List.ofSeq) "kein Folgebefehl bei Erfolg"
+            let sent = ResizeArray<Msg>()
+            for sub in cmd do
+                sub sent.Add
+            // Das Detail ist offen: es holt die Historie mit der neuen Zeile (ledger-nc708), sonst nichts.
+            Expect.equal (List.ofSeq sent) [ LoadHistory (idOf 1) ] "bei Erfolg nur das Neuladen der Historie"
             let row = rowOf 1 after
             Expect.equal row.Splits lines "Splits in der Liste"
             Expect.isNone row.CategoryId "keine Einzelkategorie mehr"

@@ -557,3 +557,83 @@ let caseTests =
             Expect.equal (reviewQueueOf empty) (Some []) "leer"
             Expect.isNone (reviewCardOf empty) "Endansicht"
     ]
+
+// ============================================
+// Gescheitertes „Lena fragen“ holt die Karte zurück (ledger-nc708)
+// ============================================
+
+let private lenaA = entryOf 5
+let private lenaB = entryOf 6
+let private lenaIds = [ idOf lenaA; idOf lenaB ]
+let private lenaFailed (entryId: Guid) : Msg = LenaFlagSet (entryId, AssignLena, Error "Netz")
+
+[<Tests>]
+let lenaFailureTests =
+    testList "Durchgehen: gescheitertes „Lena fragen“ (ledger-nc708)" [
+
+        testCase "der Fehler holt Karte A zurück, Fehlerzeile und Toast wie außerhalb" <| fun () ->
+            let asked = reviewing [ lenaA; lenaB ] |> step ReviewLena
+            Expect.equal (cardId asked) (Some (idOf lenaB)) "nach „Lena fragen“ steht B"
+            let failed, _, external = run (lenaFailed (idOf lenaA)) asked
+            Expect.equal (cardId failed) (Some (idOf lenaA)) "Karte A ist wieder sichtbar"
+            Expect.equal (failed.FlagRows |> Map.tryFind (idOf lenaA)) (Some (FlagCommandFailed "Netz")) "Fehler an A"
+            Expect.equal external (ShowToast ("Flag nicht geändert: Netz", ToastError)) "Toast"
+
+        testCase "außerhalb des Durchgehens ändert der Fehler nur Zeile und Toast" <| fun () ->
+            let model, _ = Components.Ledger.State.init ()
+            let ledger = { model with Entries = Success [ lenaA; lenaB ]; LenaFlagColor = Success (Some "purple") }
+            let sending = ledger |> step (StartSetLenaFlag (idOf lenaA, AssignLena))
+            let failed, msgs, external = run (lenaFailed (idOf lenaA)) sending
+            Expect.equal failed { sending with FlagRows = sending.FlagRows |> Map.add (idOf lenaA) (FlagCommandFailed "Netz") } "nur die Zeile"
+            Expect.isEmpty msgs "keine Folgenachricht"
+            Expect.equal external (ShowToast ("Flag nicht geändert: Netz", ToastError)) "Toast"
+
+        testCase "nach dem Verlassen passiert am Durchgehen nichts" <| fun () ->
+            let left = reviewing [ lenaA; lenaB ] |> step ReviewLena |> step ReviewLeft
+            let failed = left |> step (lenaFailed (idOf lenaA))
+            Expect.isNone failed.Review "kein Durchgehen"
+            Expect.isNone failed.DetailFor "kein Detail"
+
+        testCase "nach Erfolg bleibt B sichtbar" <| fun () ->
+            let asked = reviewing [ lenaA; lenaB ] |> step ReviewLena
+            let ok = LenaFlagSet (idOf lenaA, AssignLena, Ok { Previous = { Color = None; Name = None }; Change = FlagChanged; WriteBack = FlagSent })
+            Expect.equal (cardId (asked |> step ok)) (Some (idOf lenaB)) "B bleibt"
+    ]
+
+/// Was das Orakel zu „Lena im Durchgehen“ weiß: Stelle, ob „Lena fragen“ für A läuft, ob „Passt“ für B läuft.
+type private LenaWalk = { At: int; LenaSent: bool; ConfirmSent: bool }
+
+let private lenaCurrent (w: LenaWalk) = if w.At < lenaIds.Length then Some lenaIds.[w.At] else None
+
+let private lenaEvents (w: LenaWalk) : (string * Msg list * LenaWalk) list =
+    [ match lenaCurrent w with
+      | Some id ->
+          if id = idOf lenaA && not w.LenaSent then
+              "Lena A", [ ReviewLena ], { w with At = w.At + 1; LenaSent = true }
+          if id = idOf lenaB && not w.ConfirmSent then
+              "Passt B", [ ReviewConfirm ], { w with ConfirmSent = true }
+          "Später", [ ReviewSkip ], { w with At = w.At + 1 }
+      | None -> ()
+      if w.ConfirmSent then
+          let after = { w with ConfirmSent = false }
+          "Passt-Antwort B", [ reviewed (idOf lenaB) ], (if lenaCurrent w = Some (idOf lenaB) then { after with At = w.At + 1 } else after)
+      if w.LenaSent then
+          "Lena-Fehler A", [ lenaFailed (idOf lenaA) ], { w with LenaSent = false; At = 0 } ]
+
+[<Tests>]
+let lenaWalkTests =
+    testCase "Lena im Durchgehen: jede Reihenfolge bis Tiefe 6, der Fehler für A holt A zurück, auch aus der Endansicht" <| fun () ->
+        let mutable visited = 0
+        let mutable fromEnd = 0
+        let rec walk (depth: int) (path: string list) (model: Model) (w: LenaWalk) =
+            visited <- visited + 1
+            let shown = String.concat " → " (List.rev path)
+            Expect.equal (indexOf model, cardId model) (w.At, lenaCurrent w) shown
+            if depth > 0 then
+                for name, msgs, w' in lenaEvents w do
+                    if name = "Lena-Fehler A" && w.At >= lenaIds.Length then fromEnd <- fromEnd + 1
+                    let model' = msgs |> List.fold (fun m msg -> step msg m) model
+                    walk (depth - 1) (name :: path) model' w'
+        walk 6 [] (reviewing [ lenaA; lenaB ]) { At = 0; LenaSent = false; ConfirmSent = false }
+        Expect.isGreaterThan visited 100 "die Aufzählung läuft wirklich"
+        Expect.isGreaterThan fromEnd 0 "der Fehler kommt auch in der Endansicht an"

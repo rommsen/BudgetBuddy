@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-12 09:14 -- Task verified and completed: ledger-nc708 - "Detail und Durchgehen halten ihren Stand: Historie an Ladevorgänge gebunden ohne Flackern, jede Änderung an der offenen Buchung lädt ihre Historie nach, gescheitertes „Lena fragen“ holt die Karte zurück (Components/Ledger/State.fs LoadHistory, HistoryLoaded, LenaFlagSet)"
+
+**Type:** Work / Task completion
+**Task:** ledger-nc708 - "Detail und Durchgehen halten ihren Stand: Historie an Ladevorgänge gebunden ohne Flackern, jede Änderung an der offenen Buchung lädt ihre Historie nach, gescheitertes „Lena fragen“ holt die Karte zurück (Components/Ledger/State.fs LoadHistory, HistoryLoaded, LenaFlagSet)"
+**Summary:** Historie im Detail an Ladevorgänge gebunden, Nachladen nach jeder Änderung, gescheitertes Lena fragen holt die Karte zurück
+**Duration:** 30m
+**Verification:** PASS (iteration 1)
+**Files changed:** 8
+**Tests added:** 36
+**ADRs written:** none
+
+---
+
+## 2026-11-12 08:53 -- Verification failed: ledger-f8bjm - Ersatz-POST mit verlorener Antwort
+
+**Type:** Work / Verification failure
+**Task:** ledger-f8bjm - Ersatz-POST mit verlorener Antwort
+**Iteration:** 1 of 3
+**Reasons:** geänderte Aufteilung bei offenem Ersatz meldet 409 als Erfolg und verliert die neue Entscheidung, Doku-Satz dazu, Sperrtext mit bitte
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-12 08:49 -- Task verified and completed: ledger-ng110 - "Split-Editor nach Styleguide: offener Rest gelb, zu viel verteilt rot, Zeilenfelder mit Fehlerzustand, Entfernen als removeIcon mit Sperre, Speicherfehler im offenen Editor statt Toast"
 
 **Type:** Work / Task completion

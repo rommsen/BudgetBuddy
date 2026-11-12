@@ -87,3 +87,14 @@ fehlt das.
 - Überschneidung ledger-vfr4h: dieselbe Funktion `restoreDeletedEntry` (dort nur der erste Zweig mit der Wartesperre).
   Nicht gleichzeitig bauen.
 - Live-Aufrufe gegen YNAB nur hinter `RUN_INTEGRATION_TESTS`; die Kaputt-Fälle laufen mit Ports.
+
+## Verifier note (iteration 1)
+
+REASONS:
+- Datenfehler auf dem neuen 409-Weg: eine erneute Änderung der Aufteilung bei offenem Ersatz wird als Erfolg gemeldet und die neuere Entscheidung danach still überschrieben. Ablauf: Aufteilung mit Stand A, Roman setzt B, DELETE gelingt, der POST landet in YNAB, Antwort NetworkError. Die Buchung hat `PendingReplacement` (r1) und einen offenen Kategorie-Fehlschlag. Roman setzt C (`changeSplits` sperrt diesen Fall nicht, `splitNotChangeableReason`). `pushSplitState` nimmt `pending.NewImportId` wieder, POSTet C mit r1, YNAB antwortet 409, weil B unter r1 steht, Ergebnis `ArrivedWithoutId -> CategorySent`: Roman sieht Erfolg. Danach schreibt der Spiegel in `importIdMatchEvents` `EntryCategorizationWrittenBackToYnab` ohne Inhaltsprüfung, `observe` läuft ohne offenen Fehlschlag, C weicht vom beobachteten B ab, „YNAB gewinnt“, BB übernimmt das alte B. Die Entscheidung C geht ohne Fehlschlag verloren. Kein Test deckt das.
+- Doku dazu: der README_DELTA-Satz „Solange der Ersatz offen ist, schickt jeder Versuch dieselbe Ersatz-`import_id` … ein 409 darauf heißt angekommen“ und der Kommentar „YNAB hält jetzt den BB-Stand“ gelten nur, solange sich der Inhalt seit dem Sende-Ereignis nicht geändert hat.
+- Neuer Nutzertext `entryDeleteReplacementPendingText` („…, bitte erneut senden oder den Spiegel abwarten“) verstößt gegen Styleguide §8 („Keine Höflichkeitsfloskeln“).
+
+SUGGESTED_FIX: Eine geänderte Aufteilung bei offenem Ersatz nicht als angekommen melden. Vorgabe des Conductors (2026-11-12): sperren. Solange ein Ersatz der Art `Replace` offen ist, lehnt `changeSplits` (und jeder andere Weg, der Aufteilung oder Betrag ändert, `setEntrySplitsWithAmount`, `setEntryAmount` auf einer aufgeteilten Buchung) einen anderen Inhalt mit einem Satz ab, der sagt, was zu tun ist (Erneut senden oder den Spiegel abwarten); nur „Erneut senden“ mit dem gesendeten Inhalt läuft. Achte auf den Fall nach einer 400 (der Ersatz-POST wurde abgelehnt, YNAB kennt r1 nicht): dort darf die Buchung nicht hängen bleiben, ein neuer Inhalt muss danach möglich sein. Dafür den gesendeten Inhalt nicht neu erfinden; prüfe, ob eine 400 den offenen Ersatz beenden darf, und belege beides. Dazu ein Kaputt-Test „verlorene Antwort, Aufteilung erneut ändern, 409: kein falscher Erfolg, C bleibt erhalten bzw. wird abgelehnt“, rot vor dem Fix. Den Sperrtext beim Löschen ohne „bitte“ (etwa „Der Ersatz ist in YNAB noch nicht bestätigt. Erneut senden oder den Spiegel abwarten.“), README_DELTA nachziehen.
+
+ITERATION_HINT: likely-fixable

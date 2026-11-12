@@ -75,7 +75,7 @@ let openCloseTests =
             let model =
                 modelWith (rows 3)
                 |> step (OpenDetail (entry 1))
-                |> step (HistoryLoaded (idOf 1, Ok lines))
+                |> step (HistoryLoaded (idOf 1, 0, Ok lines))
             Expect.equal model.History (Success lines) "Success"
 
         testCase "eine Historie, die nach einem Wechsel der Buchung eintrifft, wird verworfen" <| fun () ->
@@ -84,7 +84,7 @@ let openCloseTests =
                 |> asPanel
                 |> step (OpenDetail (entry 1))
                 |> step (OpenDetail (entry 2))
-                |> step (HistoryLoaded (idOf 1, Ok [ historyLine 1 ImportedFromComdirect "alt" ]))
+                |> step (HistoryLoaded (idOf 1, 0, Ok [ historyLine 1 ImportedFromComdirect "alt" ]))
             Expect.equal model.History Loading "die Historie der ersten Buchung überschreibt die zweite nicht"
 
         testCase "im Auswahl-Modus am Handy öffnet ein Tipp kein Detail" <| fun () ->
@@ -670,4 +670,214 @@ let routeEntryTests =
             Expect.isTrue (routeEntryLoadFailed (Some id) (RouteEntryLoaded (id, Error "weg"))) "Fehler"
             Expect.isFalse (routeEntryLoadFailed None (RouteEntryLoaded (id, Error "weg"))) "verlassen"
             Expect.isFalse (routeEntryLoadFailed (Some id) (answer 7)) "geladen"
+    ]
+
+// ============================================
+// Historie an Ladevorgänge gebunden (ledger-nc708)
+// ============================================
+
+/// Ein Schritt durch das echte `update`, ohne die Befehle auszuführen: das Laden der Historie baut den
+/// Aufruf an den Server, die Antwort kommt im Test über `historyAnswer`.
+let private start (msg: Msg) (model: Model) : Model =
+    let model', _, _ = Components.Ledger.State.update msg model
+    model'
+
+let private h1 = historyLine 1 ImportedFromComdirect "Comdirect-Import: Buchung erfasst"
+let private h2 = historyLine 2 ImportedFromComdirect "Kategorie geändert"
+let private h3 = historyLine 3 ImportedFromComdirect "Memo geändert"
+
+/// Detail von Buchung 1 offen, Historie `Success [h1]`.
+let private openWithHistory () : Model =
+    { (modelWith (rows 3) |> asPanel |> step (OpenDetail (entry 1))) with History = Success [ h1 ] }
+
+[<Tests>]
+let historyGenerationTests =
+    testList "Detail: Historie an Ladevorgänge gebunden (ledger-nc708)" [
+
+        testCase "kommt die Antwort des zweiten Ladens vor der des ersten, zählt nur die des zweiten" <| fun () ->
+            let first = openWithHistory () |> start (LoadHistory (idOf 1))
+            let firstAnswer = Components.Ledger.State.historyAnswer (idOf 1) first.HistoryGeneration
+            let second = first |> start (LoadHistory (idOf 1))
+            let secondAnswer = Components.Ledger.State.historyAnswer (idOf 1) second.HistoryGeneration
+            let model = second |> step (secondAnswer (Ok [ h1; h2; h3 ])) |> step (firstAnswer (Ok [ h1; h2 ]))
+            Expect.equal model.History (Success [ h1; h2; h3 ]) "die späte Antwort des ersten Ladens überschreibt nichts"
+            let failedLate = second |> step (secondAnswer (Ok [ h1; h2; h3 ])) |> step (firstAnswer (Error "weg"))
+            Expect.equal failedLate.History (Success [ h1; h2; h3 ]) "auch ihr Scheitern nicht"
+
+        testCase "die Antwort bindet Buchung und Lade-Nummer beim Start" <| fun () ->
+            let answer = Components.Ledger.State.historyAnswer (idOf 1) 7
+            Expect.equal (answer (Ok [ h1 ])) (HistoryLoaded (idOf 1, 7, Ok [ h1 ])) "Erfolg"
+            Expect.equal (answer (Error "weg")) (HistoryLoaded (idOf 1, 7, Error "weg")) "Scheitern"
+
+        testCase "Nachladen derselben Buchung lässt die gezeigte Historie bis zur Antwort stehen" <| fun () ->
+            let reloading = openWithHistory () |> start (LoadHistory (idOf 1))
+            Expect.equal reloading.History (Success [ h1 ]) "kein „Historie wird geladen…“ beim Nachladen"
+            let answer = Components.Ledger.State.historyAnswer (idOf 1) reloading.HistoryGeneration
+            Expect.equal (reloading |> step (answer (Ok [ h1; h2 ]))).History (Success [ h1; h2 ]) "die Antwort ersetzt den Stand"
+            Expect.equal (reloading |> step (answer (Error "weg"))).History (Success [ h1 ]) "ein Scheitern lässt den Stand"
+
+        testCase "das Öffnen einer anderen Buchung lädt mit Loading, eine späte Antwort für die erste ändert nichts" <| fun () ->
+            let reloading = openWithHistory () |> start (LoadHistory (idOf 1))
+            let answer = Components.Ledger.State.historyAnswer (idOf 1) reloading.HistoryGeneration
+            let other, sent = reloading |> run (OpenDetail (entry 2))
+            Expect.equal other.History Loading "die neue Buchung lädt"
+            Expect.equal sent [ LoadHistory (idOf 2) ] "Abruf für die neue Buchung"
+            Expect.equal (other |> step (answer (Ok [ h1; h2 ]))).History Loading "die Antwort für die erste ist verworfen"
+
+        testCase "ohne offenes Detail der Buchung lädt LoadHistory nichts" <| fun () ->
+            let closed = openWithHistory () |> step CloseDetail
+            let model, _, _ = Components.Ledger.State.update (LoadHistory (idOf 1)) closed
+            Expect.equal model closed "nichts geändert"
+    ]
+
+/// Ein Ereignis der Aufzählung zur Historie.
+type private HistoryEvent =
+    | StartLoad of int
+    | Answer of int
+    | Close
+    | OpenB
+
+/// Was das Orakel weiß, ohne den getesteten Code zu fragen.
+type private HistoryWalk =
+    { /// Welche Buchung im Detail steht: 1 (A), 2 (B) oder keine.
+      Open: int option
+      /// Die Historie von A, wie sie zuletzt gezeigt wurde.
+      ShownA: LedgerHistoryLine list
+      /// Das zuletzt gestartete Laden von A, solange A offen ist.
+      LastStarted: int option
+      /// Die gestarteten Ladevorgänge (auch ohne offenes A, dann ohne Wirkung).
+      Started: Set<int> }
+
+let private answerLines (n: int) : LedgerHistoryLine list =
+    if n = 1 then [ h1; h2 ] else [ h1; h2; h3 ]
+
+let private historyOracle (w: HistoryWalk) : RemoteData<LedgerHistoryLine list> =
+    match w.Open with
+    | Some 1 -> Success w.ShownA
+    | Some _ -> Loading
+    | None -> NotAsked
+
+let private historyNext (event: HistoryEvent) (w: HistoryWalk) : HistoryWalk =
+    match event with
+    | StartLoad n ->
+        { w with Started = w.Started.Add n; LastStarted = (if w.Open = Some 1 then Some n else w.LastStarted) }
+    | Answer n when w.Open = Some 1 && w.LastStarted = Some n -> { w with ShownA = answerLines n }
+    | Answer _ -> w
+    | Close -> { w with Open = None; LastStarted = None }
+    | OpenB -> { w with Open = Some 2; LastStarted = None }
+
+[<Tests>]
+let historyWalkTests =
+    testCase "Historie: jede Reihenfolge aus zwei Ladevorgängen von A, ihren Antworten, Schließen und Öffnen von B" <| fun () ->
+        let all = [ StartLoad 1; StartLoad 2; Answer 1; Answer 2; Close; OpenB ]
+        let mutable finished = 0
+        let rec walk (path: string list) (model: Model) (w: HistoryWalk) (answers: Map<int, Msg>) (left: HistoryEvent list) =
+            Expect.equal model.History (historyOracle w) (String.concat " → " (List.rev path))
+            if List.isEmpty left then finished <- finished + 1
+            for event in left do
+                let ready =
+                    match event with
+                    | Answer n -> answers.ContainsKey n
+                    | _ -> true
+                if ready then
+                    let model' =
+                        match event with
+                        | StartLoad _ -> start (LoadHistory (idOf 1)) model
+                        | Answer n -> step answers.[n] model
+                        | Close -> step CloseDetail model
+                        | OpenB -> step (OpenDetail (entry 2)) model
+                    let answers' =
+                        match event with
+                        | StartLoad n ->
+                            let answer = Components.Ledger.State.historyAnswer (idOf 1) model'.HistoryGeneration
+                            answers |> Map.add n (answer (Ok (answerLines n)))
+                        | _ -> answers
+                    walk ($"%A{event}" :: path) model' (historyNext event w) answers' (left |> List.filter ((<>) event))
+        let w0 = { Open = Some 1; ShownA = [ h1 ]; LastStarted = None; Started = Set.empty }
+        walk [] (openWithHistory ()) w0 Map.empty all
+        Expect.equal finished 180 "alle gültigen Reihenfolgen (jede Antwort nach ihrem Start)"
+
+// ============================================
+// Jede Änderung an der offenen Buchung lädt ihre Historie nach (ledger-nc708)
+// ============================================
+
+let private categoryOk : CategoryChangeOutcome =
+    { Previous = None; Change = CategoryChanged; WriteBack = CategorySent; PreviousTransferAccountId = None }
+
+let private flagOk : FlagOutcome =
+    { Previous = { Color = None; Name = None }; Change = FlagChanged; WriteBack = FlagSent }
+
+let private memoOk : MemoOutcome =
+    { PreviousMemo = None; CurrentMemo = Some "Wocheneinkauf"; MemoChange = MemoChanged; MemoWriteBack = MemoSent }
+
+let private eurOf (amount: decimal) : Money = { Amount = amount; Currency = "EUR" }
+
+let private amountOk : AmountOutcome =
+    { PreviousAmount = eurOf -10m; CurrentAmount = eurOf -12m; AmountChange = AmountChanged; AmountWriteBack = AmountSent }
+
+let private payeeOk : PayeeOutcome =
+    { PreviousPayee = Some "Bäckerei"; CurrentPayee = Some "Markt"; PayeeChange = PayeeChanged; PayeeWriteBack = PayeeSent }
+
+let private splitLines : TransactionSplit list =
+    [ { Target = ToCategory (YnabCategoryId (Guid.Parse "0195d8c0-0000-7000-8000-000000000001"), "Lebensmittel"); Amount = eurOf -6m; Memo = None }
+      { Target = ToCategory (YnabCategoryId (Guid.Parse "0195d8c0-0000-7000-8000-000000000002"), "Drogerie"); Amount = eurOf -4m; Memo = None } ]
+
+/// Jede erfolgreiche Antwort eines Einzelbefehls, einzeln genannt. Die Liste ist das Orakel.
+let private changeAnswers : (string * (Guid -> Msg)) list =
+    [ "EntryCategorySet", fun id -> EntryCategorySet (id, Some (YnabCategoryId (Guid.Parse "0195d8c0-0000-7000-8000-000000000001")), Ok categoryOk)
+      "EntryCategoryRestored", fun id -> EntryCategoryRestored (id, None, Ok categoryOk)
+      "EntryTransferSet", fun id -> EntryTransferSet (id, YnabAccountId (Guid.Parse "0195e8c0-0000-7000-8000-0000000000bb"), false, Ok categoryOk)
+      "CategorizationRetried", fun id -> CategorizationRetried (id, Ok CategorySent)
+      "LenaFlagSet", fun id -> LenaFlagSet (id, AssignLena, Ok flagOk)
+      "FlagRestored", fun id -> FlagRestored (id, { Color = None; Name = None }, Ok flagOk)
+      "FlagRetried", fun id -> FlagRetried (id, Ok FlagSent)
+      "ReviewMarkSet", fun id -> ReviewMarkSet (id, Reviewed, Ok okOutcome)
+      "ReviewMarkRetried", fun id -> ReviewMarkRetried (id, Ok ReviewMarkSent)
+      "ReviewMarkRestored", fun id -> ReviewMarkRestored (id, okOutcome.Previous, Ok okOutcome)
+      "SwipeReviewedDone", fun id -> SwipeReviewedDone (id, "Geprüft", Ok okOutcome)
+      "PushRetried", fun id -> PushRetried (id, Ok PushToYnabSent)
+      "MemoSet", fun id -> MemoSet (id, Ok memoOk)
+      "MemoRestored", fun id -> MemoRestored (id, Ok memoOk)
+      "MemoRetried", fun id -> MemoRetried (id, Ok MemoSent)
+      "AmountSet", fun id -> AmountSet (id, Ok amountOk)
+      "AmountRestored", fun id -> AmountRestored (id, Ok amountOk)
+      "AmountRetried", fun id -> AmountRetried (id, Ok AmountSent)
+      "PayeeSet", fun id -> PayeeSet (id, Ok payeeOk)
+      "PayeeRestored", fun id -> PayeeRestored (id, Ok payeeOk)
+      "PayeeRetried", fun id -> PayeeRetried (id, Ok PayeeSent)
+      "SplitsSaved", fun id -> SplitsSaved (id, splitLines, Ok categoryOk)
+      "SplitsRestored", fun id -> SplitsRestored (id, splitLines, Ok categoryOk)
+      "SplitsWithAmountSaved", fun id -> SplitsWithAmountSaved (id, splitLines, eurOf -10m, Ok categoryOk) ]
+
+/// Die Folgenachrichten eines Schritts; ein Aufruf an den Server läuft unter .NET nicht und bleibt außen vor.
+let private sentBy (msg: Msg) (model: Model) : Msg list =
+    let _, cmd, _ = Components.Ledger.State.update msg model
+    let sent = ResizeArray<Msg>()
+    for sub in cmd do
+        try sub sent.Add with _ -> ()
+    List.ofSeq sent
+
+let private historyLoads (sent: Msg list) : Guid list =
+    sent |> List.choose (function LoadHistory id -> Some id | _ -> None)
+
+[<Tests>]
+let afterChangeTests =
+    testList "Detail: jede Änderung an der offenen Buchung lädt ihre Historie nach (ledger-nc708)" [
+        for name, answer in changeAnswers do
+            testCase $"{name}: Detail der Buchung offen lädt nach, andere oder keine Buchung offen nicht" <| fun () ->
+                let opened = openWithHistory ()
+                Expect.equal (historyLoads (sentBy (answer (idOf 1)) opened)) [ idOf 1 ] "Detail der Buchung offen"
+                let other = modelWith (rows 3) |> asPanel |> step (OpenDetail (entry 2))
+                Expect.isEmpty (historyLoads (sentBy (answer (idOf 1)) other)) "Detail einer anderen Buchung offen"
+                let closed = opened |> step CloseDetail
+                Expect.isEmpty (historyLoads (sentBy (answer (idOf 1)) closed)) "kein Detail offen"
+
+        testCase "im Durchgehen lädt die Karte mit „Details“ offen nach, ohne „Details“ nicht" <| fun () ->
+            let model, _ = Components.Ledger.State.init ()
+            let opened = { model with Entries = Success (rows 3); DetailForm = DetailSheet } |> step ReviewOpened
+            let reviewing = opened |> step (ReviewQueueLoaded (opened.ReviewGeneration, Ok [ entry 1; entry 2 ]))
+            let answer = EntryCategorySet (idOf 1, Some (YnabCategoryId (Guid.Parse "0195d8c0-0000-7000-8000-000000000001")), Ok categoryOk)
+            Expect.isEmpty (historyLoads (sentBy answer reviewing)) "die Karte allein zeigt keine Historie"
+            let details = reviewing |> step ReviewShowDetails
+            Expect.equal (historyLoads (sentBy answer details)) [ idOf 1 ] "„Details“ offen"
     ]
