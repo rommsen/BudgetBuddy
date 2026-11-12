@@ -923,11 +923,20 @@ let private whenRowIdle
     : Model * Cmd<Msg> * ExternalMsg =
     if rowBusy lock model entryId then model, Cmd.none, NoOp else start ()
 
-/// Ändert den Entwurf des offenen Editors.
+/// Ändert den Entwurf des offenen Editors. Jede Eingabe nimmt einen Speicherfehler zurück (ledger-ng110).
 let private editSplit (f: SplitEditor.SplitEditorState -> SplitEditor.SplitEditorState) (model: Model) : Model =
     match model.SplitEditor with
-    | Some editor when not (splitBusy model editor.EntryId) -> { model with SplitEditor = Some (f editor) }
+    | Some editor when not (splitBusy model editor.EntryId) -> { model with SplitEditor = Some (f { editor with SaveError = None }) }
     | _ -> model
+
+/// Ein abgelehntes Speichern (ledger-ng110, §7.13): steht der Editor der Buchung noch offen, kommt die Meldung in
+/// den Editor und kein Toast; ist er zur Antwort schon zu, meldet sie der Toast.
+let private splitSaveFailed (entryId: Guid) (text: string) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
+    let cleared = { model with CategoryRows = model.CategoryRows |> Map.remove entryId }
+    match cleared.SplitEditor with
+    | Some editor when editor.EntryId = entryId ->
+        { cleared with SplitEditor = Some { editor with SaveError = Some text } }, Cmd.none, NoOp
+    | _ -> cleared, Cmd.none, ShowToast (text, ToastError)
 
 /// Der Name eines Übertrag-Ziels aus der Kontenliste.
 let private accountNameOf (model: Model) (id: YnabAccountId) : string option =
@@ -3492,7 +3501,9 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                         match editor.AmountFrom with
                         | Some _ -> RunSaveSplitsWithAmount (editor.EntryId, lines, editor.Total)
                         | None -> RunSaveSplits (editor.EntryId, lines)
-                    { model with CategoryRows = model.CategoryRows |> Map.add editor.EntryId CategorySending },
+                    { model with
+                        CategoryRows = model.CategoryRows |> Map.add editor.EntryId CategorySending
+                        SplitEditor = Some { editor with SaveError = None } },
                     Cmd.ofMsg run,
                     NoOp
                 | None -> model, Cmd.none, NoOp)
@@ -3558,17 +3569,11 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         // Ein Fehlschlag holt die Buchung ohnehin neu (`applySplitResult`); sonst die Sperren nach dem Ersatz.
         model'', Cmd.batch [ cmd; follow ], external
 
+    // Der Editor bleibt offen: der Entwurf geht nicht verloren.
     | SplitsWithAmountSaved (entryId, _, _, Error message) ->
-        // Der Editor bleibt offen: der Entwurf geht nicht verloren.
-        { model with CategoryRows = model.CategoryRows |> Map.remove entryId },
-        Cmd.none,
-        ShowToast ($"Betrag nicht geändert: {message}", ToastError)
+        splitSaveFailed entryId $"Betrag nicht geändert: {message}" model
 
-    | SplitsSaved (entryId, _, Error message) ->
-        // Der Editor bleibt offen: der Entwurf geht nicht verloren.
-        { model with CategoryRows = model.CategoryRows |> Map.remove entryId },
-        Cmd.none,
-        ShowToast ($"Aufteilung nicht gespeichert: {message}", ToastError)
+    | SplitsSaved (entryId, _, Error message) -> splitSaveFailed entryId $"Aufteilung nicht gespeichert: {message}" model
 
     | StartUndoSplit (entryId, lines) ->
         whenRowIdle CategoryLock entryId model (fun () ->

@@ -13,10 +13,25 @@ open Client.DesignSystem.Tokens
 // Reine Klassenfunktionen und Texte
 // ============================================
 
-/// Betrag im Editor-Kopf und in der Restzeile (ADR 0049): neutral, Mono, 500. `warn` färbt nur
-/// den Text rot (der Rest ist nicht null, Speichern ist gesperrt).
-let amountClass (warn: bool) : string =
-    let color = if warn then "text-error" else "text-text-primary"
+/// Der Stand des Rests (ledger-ng110): noch offen, zu viel verteilt oder ausgeglichen.
+type RestState =
+    /// Rest über null: es fehlt noch etwas, kein Fehler.
+    | RestOpen
+    /// Rest unter null: die Zeilen sind größer als der Gesamtbetrag.
+    | RestOver
+    | RestBalanced
+
+/// Betrag im Editor-Kopf (ADR 0049): neutral, Mono, 500.
+let amountClass : string = "font-mono font-medium tabular-nums whitespace-nowrap text-text-primary"
+
+/// Betrag in der Restzeile: offen gelb (`Colors.attention`, braucht dich, kein Fehler, mit dem Wort „Rest“
+/// daneben), zu viel verteilt rot (Fehler), ausgeglichen neutral (Styleguide §2, ADR 0087 Punkt 3 und 4).
+let restAmountClass (rest: RestState) : string =
+    let color =
+        match rest with
+        | RestOpen -> Colors.attention
+        | RestOver -> "text-error"
+        | RestBalanced -> "text-text-primary"
     $"font-mono font-medium tabular-nums whitespace-nowrap {color}"
 
 let totalLabel = "Gesamt"
@@ -34,7 +49,10 @@ let saveLabel = "Speichern"
 let cancelLabel = "Abbrechen"
 
 /// Die Beschriftung der Restzeile: "Stimmt" bei null, sonst "Rest".
-let restRowLabel (balanced: bool) : string = if balanced then balancedLabel else restLabel
+let restRowLabel (rest: RestState) : string =
+    match rest with
+    | RestBalanced -> balancedLabel
+    | RestOpen | RestOver -> restLabel
 
 // ============================================
 // Summe
@@ -43,19 +61,21 @@ let restRowLabel (balanced: bool) : string = if balanced then balancedLabel else
 type SummaryProps = {
     TotalText: string
     RestText: string
-    /// Der Rest ist nicht null: Warnfarbe auf dem Betrag
-    RestWarn: bool
-    Balanced: bool
+    /// Offen, zu viel verteilt oder ausgeglichen: Farbe und Beschriftung der Restzeile
+    Rest: RestState
 }
 
-let private summaryRow (testId: string) (label: string) (value: string) (warn: bool) : ReactElement =
+/// Eine Zeile der Summe; `rest` färbt den Betrag nach dem Stand des Rests, ohne ist er neutral (Gesamt).
+let private summaryRow (testId: string) (label: string) (value: string) (rest: RestState option) : ReactElement =
     Html.div [
         prop.className "flex items-center justify-between gap-3"
         prop.children [
             Html.span [ prop.className $"{FontSizes.sm} {Colors.textMuted}"; prop.text label ]
             Html.span [
                 prop.custom ("data-testid", testId)
-                prop.className $"{FontSizes.sm} {amountClass warn}"
+                match rest with
+                | Some state -> prop.className $"{FontSizes.sm} {restAmountClass state}"
+                | None -> prop.className $"{FontSizes.sm} {amountClass}"
                 prop.text value
             ]
         ]
@@ -67,8 +87,8 @@ let summary (props: SummaryProps) : ReactElement =
         prop.custom ("data-testid", "split-summary")
         prop.className $"flex flex-col gap-1 px-4 py-3 border-b {Borders.subtle}"
         prop.children [
-            summaryRow "split-total" totalLabel props.TotalText false
-            summaryRow "split-rest" (restRowLabel props.Balanced) props.RestText props.RestWarn
+            summaryRow "split-total" totalLabel props.TotalText None
+            summaryRow "split-rest" (restRowLabel props.Rest) props.RestText (Some props.Rest)
         ]
     ]
 
@@ -82,6 +102,8 @@ type LineProps = {
     TargetLabel: string
     TargetChosen: bool
     AmountText: string
+    /// Der Betrag ist nicht leer und nicht lesbar: rote Ziffern und `aria-invalid`
+    AmountInvalid: bool
     Memo: string
     Disabled: bool
     CanRemove: bool
@@ -110,7 +132,8 @@ let private targetButton (props: LineProps) : ReactElement =
     ]
 
 /// Eine Zeile: das Ziel-Feld (Kategorie oder Konto), Betrag mit "Rest" und Entfernen,
-/// darunter das Memo.
+/// darunter das Memo. Betrag und Memo sind `Input.text` (Small: 16 px am Handy, 14 px ab md), der
+/// Betrag als Betragsfeld mit Fehlerzustand (`Input.amountFieldClass`).
 let line (props: LineProps) : ReactElement =
     Html.div [
         prop.key (string props.Index)
@@ -121,16 +144,22 @@ let line (props: LineProps) : ReactElement =
             Html.div [
                 prop.className "flex items-center gap-2"
                 prop.children [
-                    Html.input [
-                        prop.type' "text"
-                        prop.inputMode.decimal
+                    Html.div [
                         prop.custom ("data-testid", $"split-amount-{props.Index}")
-                        prop.ariaLabel "Betrag"
-                        prop.className "input-field text-base md:text-sm px-3 py-2 min-h-[36px] min-w-0 flex-1 font-mono tabular-nums"
-                        prop.placeholder amountPlaceholder
-                        prop.value props.AmountText
-                        prop.disabled props.Disabled
-                        prop.onChange props.OnAmount
+                        prop.className "min-w-0 flex-1"
+                        prop.children [
+                            Input.text
+                                { Input.textInputDefaults with
+                                    Value = props.AmountText
+                                    OnChange = props.OnAmount
+                                    Placeholder = amountPlaceholder
+                                    Size = Input.Small
+                                    Disabled = props.Disabled
+                                    InputMode = Some "decimal"
+                                    AriaLabel = Some "Betrag"
+                                    AriaInvalid = props.AmountInvalid
+                                    ClassName = Some (Input.amountFieldClass false props.AmountInvalid) }
+                        ]
                     ]
                     Html.span [ prop.className $"{FontSizes.sm} {Colors.textMuted}"; prop.text "€" ]
                     Button.view
@@ -142,26 +171,26 @@ let line (props: LineProps) : ReactElement =
                             OnClick = props.OnRest
                             Title = Some restButtonTitle
                             ClassName = Some "shrink-0" }
-                    Button.view
-                        { Button.defaultProps with
-                            Variant = Button.Ghost
-                            Size = Button.Small
-                            IsDisabled = props.Disabled || not props.CanRemove
-                            Icon = Some (Icons.x Icons.SM Icons.Default)
-                            OnClick = props.OnRemove
-                            Title = Some removeLineLabel
-                            ClassName = Some "shrink-0" }
+                    Button.removeIconWhen
+                        (props.Disabled || not props.CanRemove)
+                        $"split-remove-{props.Index}"
+                        removeLineLabel
+                        props.OnRemove
                 ]
             ]
-            Html.input [
-                prop.type' "text"
+            Html.div [
                 prop.custom ("data-testid", $"split-memo-{props.Index}")
-                prop.ariaLabel "Memo"
-                prop.className "input-field text-base md:text-sm px-3 py-2 min-h-[36px]"
-                prop.placeholder memoPlaceholder
-                prop.value props.Memo
-                prop.disabled props.Disabled
-                prop.onChange props.OnMemo
+                prop.children [
+                    Input.text
+                        { Input.textInputDefaults with
+                            Value = props.Memo
+                            OnChange = props.OnMemo
+                            Placeholder = memoPlaceholder
+                            Size = Input.Small
+                            Disabled = props.Disabled
+                            AriaLabel = Some "Memo"
+                            ClassName = Some "w-full" }
+                ]
             ]
         ]
     ]
@@ -216,12 +245,36 @@ let cancelButton (saving: bool) (onCancel: unit -> unit) : ReactElement =
             IsDisabled = saving
             OnClick = onCancel }
 
+/// Ein abgelehntes Speichern bei offenem Editor (ledger-ng110, §7.13): `ErrorDisplay.inline'` direkt über
+/// "Speichern", im Fuß des Panels wie im Fuß des Sheets, damit es ohne Scrollen im Bild steht. Ohne Fehler nichts.
+let saveError (message: string option) : ReactElement =
+    match message with
+    | Some text ->
+        Html.div [
+            prop.custom ("data-testid", "split-save-error")
+            prop.children [ ErrorDisplay.inline' text ]
+        ]
+    | None -> Html.none
+
 /// Die Fußleiste im Seitenpanel (PC): "Abbrechen" und "Speichern", haftend am unteren Rand des
-/// scrollenden Bereichs (der Aufrufer stellt sie als letztes Kind hinein). Am Handy steht nur
-/// `saveButton` im Footer des Sheets, der Rückweg läuft über das Sheet.
-let footer (canSave: bool) (saving: bool) (onCancel: unit -> unit) (onSave: unit -> unit) : ReactElement =
+/// scrollenden Bereichs (der Aufrufer stellt sie als letztes Kind hinein), darüber ein Speicherfehler.
+/// Am Handy steht nur `saveButton` im Footer des Sheets, der Rückweg läuft über das Sheet.
+let footer (error: string option) (canSave: bool) (saving: bool) (onCancel: unit -> unit) (onSave: unit -> unit) : ReactElement =
     Html.div [
         prop.custom ("data-testid", "split-footer")
-        prop.className $"sticky bottom-0 flex items-center justify-end gap-3 border-t {Borders.default'} {Backgrounds.dark} px-4 py-3"
-        prop.children [ cancelButton saving onCancel; saveButton false canSave saving onSave ]
+        prop.className $"sticky bottom-0 flex flex-col gap-2 border-t {Borders.default'} {Backgrounds.dark} px-4 py-3"
+        prop.children [
+            saveError error
+            Html.div [
+                prop.className "flex items-center justify-end gap-3"
+                prop.children [ cancelButton saving onCancel; saveButton false canSave saving onSave ]
+            ]
+        ]
+    ]
+
+/// Der Fuß des Sheets am Handy: "Speichern" über die volle Breite, darüber ein Speicherfehler.
+let sheetFooter (error: string option) (canSave: bool) (saving: bool) (onSave: unit -> unit) : ReactElement =
+    Html.div [
+        prop.className "flex w-full flex-col gap-2"
+        prop.children [ saveError error; saveButton true canSave saving onSave ]
     ]

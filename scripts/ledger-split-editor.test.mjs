@@ -159,7 +159,14 @@ test("[flow:aufteilen] PC: Aufteilen mit Übertrag über den Picker im Panel: Ta
   await openDetail(page, "Bauhaus");
   await splitAction(panel(page)).click();
   await panel(page).locator('[data-testid="split-summary"]').waitFor();
-  await panel(page).locator('[data-testid="split-amount-0"]').fill("30");
+  // ledger-ng110: "Zeile entfernen" ist ein removeIcon mit Namen über aria-label, je Zeile einer.
+  const remove = panel(page).getByRole("button", { name: "Zeile entfernen" });
+  assert.equal(await remove.count(), 2, "je Zeile ein Knopf Zeile entfernen");
+  await panel(page).getByRole("button", { name: "Zeile hinzufügen" }).click();
+  await panel(page).locator('[data-testid="split-line-2"]').waitFor();
+  await remove.nth(2).click();
+  await panel(page).locator('[data-testid="split-line-2"]').waitFor({ state: "detached" });
+  await panel(page).locator('[data-testid="split-amount-0"] input').fill("30");
 
   await panel(page).locator('[data-testid="split-target-1"]').click();
   const picker = panel(page).locator('[data-testid="category-picker-accounts"]');

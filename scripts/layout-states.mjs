@@ -959,9 +959,59 @@ export const STATES = [
     primary: (page) => page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Speichern", exact: true }),
     // Der Fuß mit Speichern steht außerhalb des Scrollbereichs und fährt mit dem Sheet über die Tastatur.
     keyboard: {
-      focus: (page) => page.locator('.bottom-sheet.active [data-testid="split-amount-0"]'),
-      reach: (page) => page.locator('.bottom-sheet.active [data-testid="split-amount-0"]').or(page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Speichern", exact: true })),
+      focus: (page) => page.locator('.bottom-sheet.active [data-testid="split-amount-0"] input'),
+      reach: (page) => page.locator('.bottom-sheet.active [data-testid="split-amount-0"] input').or(page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Speichern", exact: true })),
     },
+  },
+  // ledger-ng110: ein unlesbarer Zeilenbetrag zeigt rote Ziffern (`input-invalid`) und trägt `aria-invalid`. Die
+  // Invarianten 2 und 3 laufen auf den Feldern aus `Input.text` und dem Knopf "Zeile entfernen" (`removeIconWhen`).
+  {
+    name: "kassenbuch-aufteilen-ungueltig",
+    route: "/ledger",
+    widths: HANDY_WIDTHS,
+    mock: mockLedger,
+    open: async (page) => {
+      const sheet = await openLedgerDetail(page, "Bauhaus");
+      await sheet.locator('[data-testid="detail-split-action"]').tap();
+      await sheet.locator('[data-testid="split-summary"]').waitFor();
+      const field = sheet.locator('[data-testid="split-amount-1"] input');
+      await field.fill("abc");
+      await page.waitForFunction((el) => el.getAttribute("aria-invalid") === "true", await field.elementHandle());
+      if (!(await field.evaluate((el) => el.classList.contains("input-invalid"))))
+        throw new Error("Ungültiger Zeilenbetrag ohne input-invalid");
+      const valid = sheet.locator('[data-testid="split-amount-0"] input');
+      if ((await valid.getAttribute("aria-invalid")) !== null) throw new Error("Leerer Zeilenbetrag gilt als ungültig");
+      await field.blur();
+    },
+    primary: (page) => page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Speichern", exact: true }),
+  },
+  // ledger-ng110: ein abgelehntes Speichern steht bei offenem Editor über "Speichern" im Fuß des Sheets
+  // (`ErrorDisplay.inline'`), ohne Scrollen sichtbar und ohne Toast. Der Entwurf: "Zeile entfernen" an der leeren
+  // Zeile, dann "Rest" an der Kategorie-Zeile, das hebt die Aufteilung auf und lässt Speichern zu.
+  {
+    name: "kassenbuch-aufteilen-speicherfehler",
+    route: "/ledger",
+    widths: HANDY_WIDTHS,
+    mock: async (page) => {
+      await mockLedger(page);
+      await page.route("**/api/LedgerApi/setEntrySplits", (r) => json(r, { Error: "YNAB nicht erreichbar" }));
+    },
+    open: async (page) => {
+      const sheet = await openLedgerDetail(page, "Bauhaus");
+      await sheet.locator('[data-testid="detail-split-action"]').tap();
+      await sheet.locator('[data-testid="split-summary"]').waitFor();
+      await sheet.getByRole("button", { name: "Zeile entfernen" }).nth(1).tap();
+      await sheet.locator('[data-testid="split-line-1"]').waitFor({ state: "detached" });
+      await sheet.locator('[data-testid="split-line-0"]').getByRole("button", { name: "Rest", exact: true }).tap();
+      const save = sheet.getByRole("button", { name: "Speichern", exact: true });
+      await save.tap();
+      await page.locator('.bottom-sheet.active [data-testid="split-save-error"]').waitFor();
+      const shown = await page.getByText("Aufteilung nicht gespeichert: YNAB nicht erreichbar").count();
+      if (shown !== 1) throw new Error(`Speicherfehler ${shown}-mal statt einmal im Editor (Toast dazu?)`);
+      await page.waitForFunction((el) => !el.matches(":active"), await save.elementHandle());
+    },
+    primary: (page) => page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Speichern", exact: true }),
+    reach: (page) => page.locator('.bottom-sheet.active [data-testid="split-save-error"]'),
   },
   // ledger-m7mye: das Sheet "Betrag" am Handy ersetzt den Inhalt des Detail-Sheets. "Speichern" klebt unten und
   // bleibt bei offener Zifferntastatur im Betragsfeld erreichbar.

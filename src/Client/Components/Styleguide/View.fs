@@ -1704,7 +1704,8 @@ let private PayeePickerDemo () =
 [<ReactComponent>]
 let private SplitEditorDemo () =
     let amountA, setAmountA = React.useState "23,40"
-    let amountB, setAmountB = React.useState ""
+    // Vorbelegt mit einem Tippfehler: die Zeile zeigt den Fehlerzustand, der Rest bleibt offen (gelb).
+    let amountB, setAmountB = React.useState "12,5o"
     let targetPopoverOpen, setTargetPopoverOpen = React.useState false
     let targetSheetOpen, setTargetSheetOpen = React.useState false
     let chosenTarget, setChosenTarget = React.useState ""
@@ -1770,6 +1771,7 @@ let private SplitEditorDemo () =
           TargetLabel = label
           TargetChosen = chosen
           AmountText = amount
+          AmountInvalid = Components.Ledger.SplitEditor.lineAmountInvalid amount
           Memo = ""
           Disabled = false
           CanRemove = true
@@ -1782,8 +1784,10 @@ let private SplitEditorDemo () =
     section "27. Split-Editor (Buchung aufteilen)" [
         note "Der Editor im Buchungs-Detail (Ablauf 4): Gesamtbetrag und Rest über den Zeilen, je Zeile \
               Kategorie oder Übertrag-Ziel, Betrag mit Rest-Knopf und Memo. Der Rest ist neutral bei \
-              0,00 € und rot sonst, Speichern ist erst bei Rest 0,00 € aktiv, Zeile hinzufügen \
-              dann ausgegraut. Genau eine primäre Aktion (Speichern). Das Ziel einer Zeile wählt ein \
+              0,00 €, gelb, solange noch etwas offen ist, und rot, wenn zu viel verteilt ist. Ein unlesbarer \
+              Betrag zeigt rote Ziffern und aria-invalid. Zeile entfernen ist ein removeIcon, bei einer \
+              einzigen Zeile gesperrt. Speichern ist erst bei Rest 0,00 € aktiv, Zeile hinzufügen \
+              dann ausgegraut. Ein abgelehntes Speichern steht über Speichern im Fuß, kein Toast. Genau eine primäre Aktion (Speichern). Das Ziel einer Zeile wählt ein \
               einziger Picker: Kategorien und darunter der Abschnitt Übertrag auf Konto, die Suche läuft \
               über beides, das Präfix Konto: zeigt nur Konten. Am PC als Popover, am Handy als zweites \
               Sheet. ADR 0005, ADR 0006, ADR 0049."
@@ -1794,8 +1798,10 @@ let private SplitEditorDemo () =
                 SplitEditor.summary
                     { TotalText = text total
                       RestText = text rest
-                      RestWarn = not balanced
-                      Balanced = balanced }
+                      Rest =
+                        if rest > 0m then SplitEditor.RestOpen
+                        elif rest < 0m then SplitEditor.RestOver
+                        else SplitEditor.RestBalanced }
                 Html.div [
                     prop.className "relative"
                     prop.children [
@@ -1805,7 +1811,7 @@ let private SplitEditorDemo () =
                 ]
                 SplitEditor.line (lineProps 1 "Kategorie oder Konto wählen" false amountB setAmountB)
                 SplitEditor.lineActions (not balanced) ignore true ignore
-                SplitEditor.footer balanced false ignore ignore
+                SplitEditor.footer None balanced false ignore ignore
             ]
         ]
         row [
@@ -1819,7 +1825,9 @@ let private SplitEditorDemo () =
         Html.div [
             prop.custom ("data-ds-demo", "split-editor-mobile-save")
             prop.className "max-w-sm"
-            prop.children [ SplitEditor.saveButton true balanced false ignore ]
+            prop.children [
+                SplitEditor.sheetFooter (Some "Aufteilung nicht gespeichert: YNAB nicht erreichbar") balanced false ignore
+            ]
         ]
     ]
 

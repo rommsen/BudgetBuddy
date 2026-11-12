@@ -2018,15 +2018,17 @@ let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
 let private isSavingSplit (model: Model) (editor: SplitLogic.SplitEditorState) : bool =
     (model.CategoryRows |> Map.tryFind editor.EntryId) = Some CategorySending
 
-/// Gesamtbetrag und Rest über den Zeilen. Beträge ohne Vorzeichen, wie die Eingabe; die Rest-Farbe
-/// folgt der Klasse des Import-Editors (ADR 0049): neutral bei 0,00 €, Warnfarbe sonst.
+/// Gesamtbetrag und Rest über den Zeilen. Beträge ohne Vorzeichen, wie die Eingabe; der Rest ist
+/// offen (gelb), zu viel verteilt (rot) oder ausgeglichen (neutral), ledger-ng110.
 let splitSummaryProps (editor: SplitLogic.SplitEditorState) : SplitUi.SummaryProps =
     let rest = SplitLogic.remainder editor
     let text (value: decimal) = Money.formatAmountText false true value editor.Total.Currency
     { TotalText = text (abs editor.Total.Amount)
       RestText = text rest
-      RestWarn = rest <> 0m
-      Balanced = rest = 0m }
+      Rest =
+        if rest > 0m then SplitUi.RestOpen
+        elif rest < 0m then SplitUi.RestOver
+        else SplitUi.RestBalanced }
 
 let private lineCategoryId (line: SplitLogic.SplitDraftLine) : YnabCategoryId option =
     match line.Target with
@@ -2085,6 +2087,7 @@ let private splitEditorBody
                             TargetLabel = SplitLogic.targetLabel line
                             TargetChosen = line.Target.IsSome
                             AmountText = line.AmountText
+                            AmountInvalid = SplitLogic.lineAmountInvalid line.AmountText
                             Memo = line.Memo
                             Disabled = saving
                             CanRemove = lineCount > 1
@@ -2292,6 +2295,7 @@ let private detailPanelView (dispatch: Msg -> unit) (model: Model) (entry: Ledge
                     yield! splitEditorBody dispatch model entry editor
                     yield
                         SplitUi.footer
+                            editor.SaveError
                             (SplitLogic.canSave editor && not saving)
                             saving
                             (fun () -> dispatch CloseSplitEditor)
@@ -2346,7 +2350,7 @@ let private detailSheetView (dispatch: Msg -> unit) (model: Model) (open': bool)
              | Some e, Some _, _ -> Some [ amountFooter dispatch model e ]
              | _, None, Some ed ->
                  let saving = isSavingSplit model ed
-                 Some [ SplitUi.saveButton true (SplitLogic.canSave ed && not saving) saving (fun () -> dispatch StartSaveSplits) ]
+                 Some [ SplitUi.sheetFooter ed.SaveError (SplitLogic.canSave ed && not saving) saving (fun () -> dispatch StartSaveSplits) ]
              | _ -> None) }
         // Der Inhalt steht nur im DOM, solange das Sheet offen ist: ein geschlossenes Sheet bliebe
         // sonst als verstecktes Doppel neben dem Panel stehen.

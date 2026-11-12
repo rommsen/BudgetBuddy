@@ -133,7 +133,8 @@ let private stateOf (total: decimal) (lines: SplitDraftLine list) : SplitEditorS
       Lines = lines
       Picker = NoSplitPicker
       Before = WasPlain (Some haushaltChoice)
-      AmountFrom = None }
+      AmountFrom = None
+      SaveError = None }
 
 let private toMoebel = Some (ToCategory (catId 2, "Möbel"))
 let private toHaushalt = Some (ToCategory (catId 1, "Haushalt"))
@@ -588,15 +589,6 @@ let reducerTests =
             let final, _, _ = update (EntryRefreshed (idOf 1, Some (rowOf 1 after), Ok (Some refreshed))) after
             Expect.equal (rowOf 1 final).SplitLocks refreshed.SplitLocks "Neuanlage offen sichtbar"
 
-        testCase "Befehlsfehler: der Editor bleibt offen, Toast Aufteilung nicht gespeichert" <| fun () ->
-            let model = { opened (entryOf 1) with CategoryRows = Map.ofList [ idOf 1, CategorySending ] }
-            let after, _, external = update (SplitsSaved (idOf 1, [ moebel; haushalt ], Error "Summe stimmt nicht")) model
-            Expect.isSome after.SplitEditor "Entwurf geht nicht verloren"
-            Expect.isFalse (after.CategoryRows |> Map.containsKey (idOf 1)) "Zeilenzustand weg"
-            match external with
-            | ShowToast (text, ToastError) -> Expect.stringContains text "Summe stimmt nicht" "Grund"
-            | other -> failtestf "Fehler-Toast erwartet: %A" other
-
         testCase "Filter-Nichttreffer: die Zeile bleibt ausgegraut an ihrem Platz, Trefferzahl und Summe gehen mit" <| fun () ->
             let filters = { noFilters with CategoryIds = Set.singleton (catGuid 1) }
             let model0 = { opened (entryOf 1) with Filters = filters; CategoryRows = Map.ofList [ idOf 1, CategorySending ] }
@@ -656,20 +648,37 @@ let reducerTests =
 let viewTests =
     testList "Split-Editor: Ansicht (ledger-pafkp)" [
 
-        testCase "Rest-Farbe über die Klasse des Import-Editors: neutral bei 0,00 €, Warnfarbe sonst" <| fun () ->
+        // ledger-ng110: Gelb heißt „braucht dich, kein Fehler“ (Styleguide §2, ADR 0087 Punkt 3), Rot „Fehler und
+        // Minus“. Ein offener Rest ist kein Fehler, zu viel verteilt schon.
+        testCase "Rest-Farbe: offen gelb, zu viel verteilt rot, ausgeglichen neutral" <| fun () ->
             let balanced = stateOf -81.90m [ lineWith toMoebel "23,40"; lineWith toHaushalt "58,50" ]
             let open' = stateOf -81.90m [ lineWith toMoebel "23,40"; lineWith toHaushalt "" ]
+            let over = stateOf -81.90m [ lineWith toMoebel "23,40"; lineWith toHaushalt "60,00" ]
             let b = Components.Ledger.View.splitSummaryProps balanced
             let o = Components.Ledger.View.splitSummaryProps open'
-            Expect.isFalse b.RestWarn "ausgeglichen"
-            Expect.isTrue b.Balanced "Stimmt"
-            Expect.isTrue o.RestWarn "Rest offen"
-            Expect.stringContains (SplitEditor.amountClass b.RestWarn) "text-text-primary" "neutral"
-            Expect.stringContains (SplitEditor.amountClass o.RestWarn) "text-error" "Warnfarbe"
+            let v = Components.Ledger.View.splitSummaryProps over
+            Expect.equal b.Rest SplitEditor.RestBalanced "ausgeglichen"
+            Expect.equal o.Rest SplitEditor.RestOpen "Rest offen"
+            Expect.equal v.Rest SplitEditor.RestOver "zu viel verteilt"
+            Expect.stringContains (SplitEditor.restAmountClass b.Rest) "text-text-primary" "ausgeglichen neutral"
+            Expect.stringContains (SplitEditor.restAmountClass o.Rest) Tokens.Colors.attention "offen gelb"
+            Expect.isFalse ((SplitEditor.restAmountClass o.Rest).Contains "text-error") "offen nicht rot"
+            Expect.stringContains (SplitEditor.restAmountClass v.Rest) "text-error" "zu viel rot"
             Expect.equal o.RestText "58,50 €" "Rest als Betrag"
+            Expect.equal v.RestText "-1,50 €" "zu viel mit Minus"
             Expect.equal o.TotalText "81,90 €" "Gesamtbetrag ohne Vorzeichen"
-            Expect.equal (SplitEditor.restRowLabel true) "Stimmt" "ausgeglichen"
-            Expect.equal (SplitEditor.restRowLabel false) "Rest" "offen"
+            Expect.equal (SplitEditor.restRowLabel SplitEditor.RestBalanced) "Stimmt" "ausgeglichen"
+            Expect.equal (SplitEditor.restRowLabel SplitEditor.RestOpen) "Rest" "offen"
+            Expect.equal (SplitEditor.restRowLabel SplitEditor.RestOver) "Rest" "zu viel"
+
+        // ledger-ng110: ein unlesbarer Zeilenbetrag zählte still als 0, niemand sagte, welche Zeile schuld ist.
+        testCase "lineAmountInvalid: leer und lesbar gültig, Unlesbares ungültig" <| fun () ->
+            Expect.isFalse (lineAmountInvalid "") "leer"
+            Expect.isFalse (lineAmountInvalid "  ") "nur Leerzeichen"
+            Expect.isFalse (lineAmountInvalid "12,50") "Komma"
+            Expect.isFalse (lineAmountInvalid "12.50") "Punkt"
+            Expect.isTrue (lineAmountInvalid "abc") "Buchstaben"
+            Expect.isTrue (lineAmountInvalid "1,2,3") "zwei Trenner"
 
         testCase "der Knopf heißt Aufteilen ohne Split und Ändern mit Split" <| fun () ->
             // ledger-r8h19: die 44 px misst `[layout] Handy (390x844): Aufteilen im selben Sheet, …`.
@@ -771,4 +780,133 @@ let cashbackTests =
             Expect.equal loaded.QuickAddAccountId (Some cashAccountId) "gemerkt"
             let failed, _, _ = update (QuickAddAccountLoaded (Error "weg")) loaded
             Expect.equal failed.QuickAddAccountId (Some cashAccountId) "ein Fehler lässt den Stand"
+    ]
+
+// ledger-ng110: Ein abgelehntes Speichern stand nur im Toast, während der Editor offen blieb (§7.13: blockierende
+// Fehler gehören in `ErrorDisplay`). Aufzählung aller Reihenfolgen durch das echte `update` (Doktrin Punkt 20):
+// Speichern, Schließen (Editor oder Detail), Eingabe und Antwort (Erfolg, Fehler), je Schreibweg. Das Orakel kennt
+// nur die Regel „Editor offen bei der Antwort ⇒ Fehler im Editor, kein Toast; sonst Toast“, die nächste Eingabe
+// oder das nächste Speichern nimmt den Fehler zurück.
+
+type private SaveStep =
+    | SaveStep
+    | InputStep
+    | CloseEditorStep
+    | CloseDetailStep
+    | AnswerOkStep
+    | AnswerFailStep
+
+/// Ein Schreibweg des Editors: Splits allein oder Betrag und Splits zusammen (ADR 0092 Punkt 3).
+type private SaveWay =
+    { Name: string
+      Base: Model
+      Ok: Msg
+      Fail: Msg
+      /// Der Anfang der Meldung im Editor und im Toast.
+      Prefix: string }
+
+/// Was das Orakel weiß: steht der Editor offen, läuft ein Aufruf, steht ein Fehler im Editor.
+type private SaveOracle = { Open: bool; Pending: bool; Error: bool }
+
+let private saveWays : SaveWay list =
+    let ready =
+        let mutable model = opened (entryOf 1)
+        for msg in
+            [ SetSplitLineAmount (0, "23,40")
+              SelectSplitCategory (0, Some (catId 2))
+              SelectSplitCategory (1, Some (catId 1))
+              FillSplitLineRest 1 ] do
+            let m, _, _ = update msg model
+            model <- m
+        model
+    let lines = [ moebel; haushalt ]
+    let ok = Ok (changedOutcome (Some haushaltChoice) CategorySent)
+    [ { Name = "Aufteilen"
+        Base = ready
+        Ok = SplitsSaved (idOf 1, lines, ok)
+        Fail = SplitsSaved (idOf 1, lines, Error "weg")
+        Prefix = "Aufteilung nicht gespeichert" }
+      { Name = "Betrag mit Aufteilung"
+        Base = { ready with SplitEditor = ready.SplitEditor |> Option.map (fun e -> { e with AmountFrom = Some (eur -90m) }) }
+        Ok = SplitsWithAmountSaved (idOf 1, lines, eur -81.90m, ok)
+        Fail = SplitsWithAmountSaved (idOf 1, lines, eur -81.90m, Error "weg")
+        Prefix = "Betrag nicht geändert" } ]
+
+/// Welche Schritte das Orakel im Zustand zulässt: Speichern, Eingabe und Schließen nur bei offenem Editor, eine
+/// Antwort nur bei laufendem Aufruf.
+let private stepsFor (o: SaveOracle) : SaveStep list =
+    [ if o.Open then
+          yield SaveStep
+          yield InputStep
+          yield CloseEditorStep
+          yield CloseDetailStep
+      if o.Pending then
+          yield AnswerOkStep
+          yield AnswerFailStep ]
+
+/// Das Orakel: der erwartete Zustand und ob die Antwort einen Toast schickt.
+let private expectAfter (step: SaveStep) (o: SaveOracle) : SaveOracle * bool =
+    match step with
+    | SaveStep when o.Pending -> o, false
+    | SaveStep -> { o with Pending = true; Error = false }, false
+    | InputStep when o.Pending -> o, false
+    | InputStep -> { o with Error = false }, false
+    // Während des Aufrufs bleibt der Editor (Knopf gesperrt), das Detail lässt sich schließen.
+    | CloseEditorStep when o.Pending -> o, false
+    | CloseEditorStep
+    | CloseDetailStep -> { o with Open = false; Error = false }, false
+    | AnswerOkStep -> { o with Open = false; Pending = false; Error = false }, false
+    | AnswerFailStep when o.Open -> { o with Pending = false; Error = true }, false
+    | AnswerFailStep -> { o with Pending = false; Error = false }, true
+
+let private stepMsg (way: SaveWay) (n: int) (step: SaveStep) : Msg =
+    match step with
+    | SaveStep -> StartSaveSplits
+    | InputStep -> SetSplitLineMemo (0, $"Notiz {n}")
+    | CloseEditorStep -> CloseSplitEditor
+    | CloseDetailStep -> CloseDetail
+    | AnswerOkStep -> way.Ok
+    | AnswerFailStep -> way.Fail
+
+[<Tests>]
+let saveErrorTests =
+    testList "Split-Editor: Speicherfehler im offenen Editor (ledger-ng110)" [
+        for way in saveWays do
+            testCase $"{way.Name}: alle Reihenfolgen aus Speichern, Schließen, Eingabe und Antwort" <| fun () ->
+                let mutable walks = 0
+                let mutable inEditor = 0
+                let mutable toasts = 0
+                let rec walk (depth: int) (path: SaveStep list) (model: Model) (o: SaveOracle) =
+                    if depth > 0 then
+                        for step in stepsFor o do
+                            let path' = path @ [ step ]
+                            let where = $"{way.Name}: %A{path'}"
+                            let model', _, external = update (stepMsg way depth step) model
+                            let o', toast = expectAfter step o
+                            Expect.equal model'.SplitEditor.IsSome o'.Open $"Editor offen: {where}"
+                            Expect.equal
+                                (model'.CategoryRows |> Map.tryFind (idOf 1) = Some CategorySending)
+                                o'.Pending
+                                $"Aufruf läuft: {where}"
+                            match model'.SplitEditor with
+                            | Some editor ->
+                                if o'.Error then
+                                    Expect.equal editor.SaveError (Some $"{way.Prefix}: weg") $"Fehler im Editor: {where}"
+                                    inEditor <- inEditor + 1
+                                else
+                                    Expect.isNone editor.SaveError $"kein Fehler im Editor: {where}"
+                            | None -> ()
+                            match step, external with
+                            | AnswerFailStep, ShowToast (text, ToastError) when toast ->
+                                Expect.equal text $"{way.Prefix}: weg" $"Toast: {where}"
+                                toasts <- toasts + 1
+                            | AnswerFailStep, other when toast -> failtestf "Toast erwartet: %s, war %A" where other
+                            | AnswerFailStep, other -> Expect.equal other NoOp $"kein Toast bei offenem Editor: {where}"
+                            | _ -> ()
+                            walks <- walks + 1
+                            walk (depth - 1) path' model' o'
+                walk 6 [] way.Base { Open = true; Pending = false; Error = false }
+                Expect.isGreaterThan walks 100 "genug Reihenfolgen"
+                Expect.isGreaterThan inEditor 10 "Fehler im Editor erreicht"
+                Expect.isGreaterThan toasts 10 "Toast bei geschlossenem Editor erreicht"
     ]

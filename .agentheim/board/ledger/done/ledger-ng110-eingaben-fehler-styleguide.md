@@ -1,7 +1,7 @@
 ---
 id: ledger-ng110
 title: "Split-Editor nach Styleguide: offener Rest gelb, zu viel verteilt rot, Zeilenfelder mit Fehlerzustand, Entfernen als removeIcon mit Sperre, Speicherfehler im offenen Editor statt Toast"
-status: doing
+status: done
 type: bug
 context: ledger
 created: 2026-11-12
@@ -99,3 +99,30 @@ Hinweise für den Worker:
 Überschneidungen: Teil 2 (ledger-vf6z5, „Neue Buchung“) und Teil 3 (ledger-dn4vy, Filter und Liste) arbeiten in
 `Ledger/View.fs` und `Ledger/State.fs` in anderen Funktionen. ledger-smv1s (Doppelaufruf sperren) nennt `StartUndoSplit`;
 das ist ein anderer Zweig als die hier geänderten `Error`-Zweige.
+
+## Outcome
+
+Der Split-Editor im Kassenbuch folgt jetzt dem Styleguide. `./verify.sh` meldet `VERIFY: PASS` (dotnet 4776 grün, node 316 grün, beide Wächter grün).
+
+- Rest: `SummaryProps.Rest: RestState` (`RestOpen`, `RestOver`, `RestBalanced`) ersetzt `RestWarn`/`Balanced`. `restAmountClass` färbt offen in `Colors.attention`, zu viel in `text-error`, ausgeglichen neutral (`src/Client/DesignSystem/SplitEditor.fs`, `splitSummaryProps` in `src/Client/Components/Ledger/View.fs`). Der Rest unter null behält sein Minus wie bisher.
+- Zeilenfelder: Betrag und Memo laufen über `Input.text` (Small). Der Betrag nutzt `Input.amountFieldClass false invalid`, `InputMode "decimal"` und `AriaInvalid`. Die reine Funktion `lineAmountInvalid` steht in `src/Client/Components/Ledger/SplitEditor.fs`, die View übergibt sie als `LineProps.AmountInvalid`. `data-testid="split-amount-<i>"` und `split-memo-<i>` sitzen jetzt auf einem Wrapper (Selektor `… input`, im Sweep und in `[flow:aufteilen]` nachgezogen).
+- "Zeile entfernen": neue Variante `Button.removeIconWhen disabled` (`removeIcon` = ohne Sperre), Name über `aria-label`, `data-testid="split-remove-<i>"`, in §5 Zeile „Button“ von `standards/frontend/styleguide.md` genannt.
+- Speicherfehler: `SplitEditorState.SaveError: string option`. `splitSaveFailed` in `src/Client/Components/Ledger/State.fs` setzt ihn bei offenem Editor derselben Buchung und schickt dann keinen Toast; ist der Editor zu, kommt der Toast wie bisher. `editSplit` (jede Eingabe) und `StartSaveSplits` nehmen ihn zurück. Angezeigt wird er per `SplitEditor.saveError` (`ErrorDisplay.inline'`) über „Speichern“: im Panel in `footer`, am Handy im Sheet-Fuß über `sheetFooter`.
+- Tests (`src/Tests/LedgerSplitEditorClientTests.fs`):
+  - „Rest-Farbe: offen gelb, zu viel verteilt rot, ausgeglichen neutral“ ist umgeschrieben und war mit `RestOpen -> text-error` rot.
+  - „lineAmountInvalid …“ ist neu.
+  - `saveErrorTests` zählt je Schreibweg (Aufteilen, Betrag mit Aufteilung) alle Reihenfolgen aus Speichern, Eingabe, Editor schließen, Detail schließen und Antwort (Erfolg, Fehler) bis Tiefe 6 durch das echte `update` auf, mit eigenem Orakel. Mit dem alten Verhalten (immer Toast) war der Test rot.
+  - Der alte Test „Befehlsfehler: … Toast“ entfällt, weil die Aufzählung ihn ersetzt.
+- Layout-Sweep (`scripts/layout-states.mjs`):
+  - Neu ist `kassenbuch-aufteilen-ungueltig`: „abc“ eintippen, `aria-invalid` und `input-invalid` am Feld prüfen, ein leeres Feld bleibt ohne `aria-invalid`.
+  - Neu ist `kassenbuch-aufteilen-speicherfehler`: Mock `setEntrySplits` antwortet mit Error, der Zustand prüft, dass die Meldung genau einmal erscheint (kein Toast), und `reach` verlangt sie ohne Scrollen.
+  - `kassenbuch-aufteilen` misst mit zwei Zeilen beide Entfernen-Knöpfe (Invariante 2).
+  - `[flow:aufteilen]` in `scripts/ledger-split-editor.test.mjs` findet „Zeile entfernen“ per `getByRole`, fügt eine Zeile hinzu und entfernt sie wieder.
+- `/styleguide`, Abschnitt 27: Das Beispiel zeigt einen offenen Rest in Gelb und die Zeile „12,5o“ als ungültig. Darunter steht der Handy-Fuß mit Speicherfehler. Der Hinweistext ist angepasst.
+- Vergleich vorher/nachher (eigene Playwright-Aufnahmen mit gemockter API, Skript `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/20e05553-37dc-4f2f-bcee-5ef520140bf9/scratchpad/ng110/tools/shots.mjs`). Die Dateien liegen unter `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/20e05553-37dc-4f2f-bcee-5ef520140bf9/scratchpad/e3/ledger-ng110/`:
+  - Vorher: `vorher-handy-412-offen.png`, `vorher-handy-412-ungueltig.png`, `vorher-handy-412-zu-viel.png`, `vorher-styleguide-split-editor.png`, `vorher-styleguide-split-sheet-fuss.png`.
+  - Nachher: dieselben Namen mit `nachher-` statt `vorher-`.
+  - Abweichungen sind nur die genannten. Dazu kommt eine kleine sichtbare Folge von `amountFieldClass`: der Platzhalter „0,00“ im Betragsfeld steht jetzt in Mono (wie in „Neue Buchung“).
+
+Für die Kann-Sammlung:
+- `.split-remainder` in `styles.css` ist weiter ungenutzt (laut Task hier nicht aufgeräumt).

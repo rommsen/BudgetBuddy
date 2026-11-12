@@ -179,7 +179,8 @@ let private categoryGroup : LockGroup =
               { Target = Some (ToCategory (YnabCategoryId homeId, "Haushalt")); AmountText = "12,80"; Memo = "" } ]
           Picker = NoSplitPicker
           Before = WasPlain (Some food)
-          AmountFrom = None }
+          AmountFrom = None
+          SaveError = None }
     let transferTo = YnabAccountId (Guid.Parse "0195e8a0-0000-7000-8000-0000000000bb")
     { Name = "Kategorie und Split"
       Base = { ledger with SplitEditor = Some editor }

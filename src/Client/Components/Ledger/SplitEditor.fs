@@ -39,6 +39,9 @@ type SplitEditorState = {
     /// Änderung. `Total` ist dann der neue Betrag, und "Speichern" schickt Betrag und Zeilen
     /// zusammen (`setEntrySplitsWithAmount`). `None` beim gewöhnlichen Aufteilen.
     AmountFrom: Money option
+    /// Ein abgelehntes Speichern, solange der Editor offen ist (ledger-ng110): steht über dem Fuß. Die
+    /// nächste Eingabe oder das nächste Speichern nimmt es zurück.
+    SaveError: string option
 }
 
 let emptyLine : SplitDraftLine = { Target = None; AmountText = ""; Memo = "" }
@@ -57,6 +60,10 @@ let parseMagnitude (text: string) : decimal option =
     else
         let trimmed = text.Trim().TrimStart('-')
         Types.parseAmountInput trimmed
+
+/// Ist der Betrag einer Zeile ungültig (ledger-ng110)? Leer ist gültig (die Zeile ist noch offen),
+/// ein nicht leerer, unlesbarer Text ungültig: er zählte sonst still als 0.
+let lineAmountInvalid (text: string) : bool = (parseMagnitude text).IsNone
 
 let private magnitudeOf (line: SplitDraftLine) : decimal =
     parseMagnitude line.AmountText |> Option.defaultValue 0m
@@ -211,6 +218,7 @@ let startState (entry: LedgerEntryView) : SplitEditorState =
           Lines = [ { emptyLine with Target = currentTarget }; emptyLine ]
           Picker = NoSplitPicker
           AmountFrom = None
+          SaveError = None
           Before =
             WasPlain (
                 match entry.CategoryId, entry.CategoryName with
@@ -228,6 +236,7 @@ let startState (entry: LedgerEntryView) : SplitEditorState =
                   Memo = s.Memo |> Option.defaultValue "" })
           Picker = NoSplitPicker
           AmountFrom = None
+          SaveError = None
           Before = WasSplit splits }
 
 /// Der Entwurf nach "Speichern" im Sheet "Betrag" einer aufgeteilten Buchung (ADR 0092 Punkt 3):

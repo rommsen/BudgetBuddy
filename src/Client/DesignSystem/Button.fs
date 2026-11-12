@@ -472,19 +472,27 @@ let pinToggle (testId: string) (pinned: bool) (onClick: unit -> unit) =
     ]
 
 /// Ein randloser Knopf mit × zum Herausnehmen aus einer Liste, die der Nutzer selbst führt: „Lösen“ im Sheet
-/// „Angepinnt“ (budgeting-w9yt4). Symbol in `text-secondary`, beim Darüberfahren `text-primary`, Name nur über
-/// `ariaLabel` (auch als `title`). Am Handy 48 px, ab md 40 px wie `orderArrow` daneben. Kein Löschen: dafür gibt es
-/// `danger` mit Bestätigung.
-let removeIcon (testId: string) (ariaLabel: string) (onClick: unit -> unit) =
+/// „Angepinnt“ (budgeting-w9yt4), „Zeile entfernen“ im Split-Editor (ledger-ng110). Symbol in `text-secondary`,
+/// beim Darüberfahren `text-primary`, Name nur über `ariaLabel` (auch als `title`). Am Handy 48 px, ab md 40 px wie
+/// `orderArrow` daneben. `disabled` sperrt ihn (`disabled`, `opacity-50 cursor-not-allowed`, kein Hover), etwa die
+/// letzte Zeile, die bleiben muss. Kein Löschen: dafür gibt es `danger` mit Bestätigung.
+let removeIconWhen (disabled: bool) (testId: string) (ariaLabel: string) (onClick: unit -> unit) =
     Html.button [
         prop.type' "button"
         prop.custom ("data-testid", testId)
         prop.ariaLabel ariaLabel
         prop.title ariaLabel
-        prop.className $"inline-flex shrink-0 items-center justify-center {TouchTargets.minSize} md:min-h-[40px] md:min-w-[40px] rounded-md {Colors.textSecondary} cursor-pointer touch-manipulation hover:bg-surface-hover hover:text-text-primary"
+        prop.disabled disabled
+        prop.className (
+            $"inline-flex shrink-0 items-center justify-center {TouchTargets.minSize} md:min-h-[40px] md:min-w-[40px] rounded-md {Colors.textSecondary} touch-manipulation " +
+            "enabled:cursor-pointer enabled:hover:bg-surface-hover enabled:hover:text-text-primary disabled:opacity-50 disabled:cursor-not-allowed"
+        )
         prop.onClick (fun _ -> onClick ())
         prop.children [ Icons.x Icons.SM Icons.Inherit ]
     ]
+
+/// `removeIconWhen` ohne Sperre.
+let removeIcon (testId: string) (ariaLabel: string) (onClick: unit -> unit) = removeIconWhen false testId ariaLabel onClick
 
 /// Der Platz eines fehlenden Pfeils in einer Liste mit `orderArrow` (erste Zeile im Sheet „Angepinnt“): gleich breit,
 /// ohne Wirkung.
