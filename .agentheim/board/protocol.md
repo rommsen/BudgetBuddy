@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-12 08:13 -- Batch started: [ledger-ng110]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-ng110 - "Split-Editor nach Styleguide: offener Rest gelb, zu viel verteilt rot, Zeilenfelder mit Fehlerzustand, Entfernen als removeIcon mit Sperre, Speicherfehler im offenen Editor statt Toast"
+**Parallel:** yes (Welle 2c, freier Platz nach ledger-ct3cx; ledger-nc708, ledger-f8bjm warten, Cap 3)
+
+---
+
 ## 2026-11-12 08:09 -- Batch started: [ledger-vf6z5]
 
 **Type:** Work / Batch start
