@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 13
+- **Backlog:** 19
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 122
@@ -52,6 +52,12 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ledger-f8bjm** — "Ersatz-POST mit verlorener Antwort: Wiederherstellen, Split- und Betrags-Ersatz scheitern danach dauerhaft an 409, der Spiegel legt die Ersatzbuchung als neue Buchung „YNAB-Spiegel“ an; die Ersatz-import_id muss vor dem POST im Kassenbuch stehen (Ledger/CommandHandlers.fs)" (bug) — `backlog/ledger-f8bjm-ersatz-post-verlorene-antwort.md`
+- **ledger-vfr4h** — "Schreib-Sperre, Spiegel-Auslöser nach Freigabe und Wartesperre für Verwerfen nach dem Erfassen, Übertrag, Löschen, Wiederherstellen und Ist neu durch Verhalten belegt; Wartesperre als erster Zweig in discardCapturedBooking und restoreDeletedEntry" (refactor) — `backlog/ledger-vfr4h-sperre-und-ausloeser-belegen.md`
+- **ledger-dn4vy** — "Filter und Liste nach Styleguide: Betrag Von/Bis mit Zifferntastatur, Name und Fehlerzustand, Schnellwahl als Segmented, Payee-Vorschläge mit Tastatur, lesbare ausgegraute Zeile, Fokus am Prüfknopf, Lena-Grund als Text" (bug) — `backlog/ledger-dn4vy-filter-und-liste-styleguide.md`
+- **ledger-vf6z5** — "„Neue Buchung“ nach Styleguide: Betrags- und Kontofehler am Feld mit Fokus, direkte Fehlertexte ohne „Bitte“, Kontoliste mit Spinner und ehrlichem Leer- und Fehlerzustand" (bug) — `backlog/ledger-vf6z5-neue-buchung-fehler-am-feld.md`
+- **ledger-nc708** — "Detail und Durchgehen halten ihren Stand: Historie an Ladevorgänge gebunden ohne Flackern, jede Änderung an der offenen Buchung lädt ihre Historie nach, gescheitertes „Lena fragen“ holt die Karte zurück (Components/Ledger/State.fs LoadHistory, HistoryLoaded, LenaFlagSet)" (bug) — `backlog/ledger-nc708-detail-und-durchgehen-halten-stand.md`
+- **ledger-sjbvc** — "Sammellauf der Auswahl in einem Feld statt drei Bool-Flags: alle Sammelstarts und ihr Rückgängig prüfen einen Merker, StartReviewMarkBatch und StartUndoReviewMarkBatch sperren richtig, Aufzählung über die drei Sammelaktionen nach Doktrin Punkt 20" (refactor) — `backlog/ledger-sjbvc-sammellauf-ein-feld.md`
 - **ledger-h7de3** — "Fehlertexte in Ereignissen: fehlendes Token als „nicht eingerichtet“, YNAB-Rohtext nur ins Log, Token- und Budget-Zugriff an einer Stelle" (bug) — `backlog/ledger-h7de3-fehlertexte-in-ereignissen.md`
 - **ledger-smv1s** — "Erneut senden und Rückgängig gegen Doppelaufruf sperren, einheitlich in update, mit Aufzählungstests nach Doktrin Punkt 20" (bug) — `backlog/ledger-smv1s-doppelaufruf-sperren.md`
 - **ledger-ng110** — "Eingaben und Fehler im Kassenbuch nach Styleguide: Split-Rest gelb, Fehler am Feld, Zifferntastatur und Namen im Filter, Kontrast, Barrierefreiheit" (bug) — `backlog/ledger-ng110-eingaben-fehler-styleguide.md`

@@ -6,7 +6,7 @@ type: feature
 context: ledger
 created: 2026-11-11
 completed:
-depends_on: [design-system-001-styleguide]
+depends_on: [design-system-001-styleguide, ledger-ct3cx]
 blocks: []
 tags: [etappe-3, frontend, kassenbuch]
 related_adrs: [0086,0087]
@@ -26,3 +26,5 @@ Handy: Kontowahl als Auswahlfeld mit Saldo, Suche, Filter-Knopf mit Sheet, geset
 ## Notes
 Schnitt aus Etappe 3 (Fahrplan, Roman 2026-11-11). Groß: beim Verfeinern nach Handy und PC teilen (Roman, 2026-11-11). Nimmt auf: ledger-ayjzq (Sicht „Für mich“). Die Seitenleiste mit Konten kommt mit design-system-k6kfw; bleibt dort eine zweite Kontowahl im Kassenbuch stehen, wird sie hier entfernt.
 Vorlage: Prototyp https://claude.ai/artifact/CE3WJZHhPX6NABosJaviRg (Version 17). Baut der Schnitt eine Seite um, fliegen ihre `[flow]`-, `[tastatur]`-, `[fokus]`- und `[scroll]`-Tests raus und werden gegen die Muster aus dem Styleguide neu geschrieben, je Flow einer.
+
+Nach ledger-ct3cx (Kassenbuch behält Stand) bauen: beide ändern die Filter-Chips (`Remove*Filter`, `ClearAllFilters`) und die Historie im Detail (Refinement ledger-ct3cx, 2026-11-12).

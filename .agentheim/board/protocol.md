@@ -5,6 +5,70 @@ Newest entries on top.
 
 ---
 
+## 2026-11-12 07:25 -- Modeling / Refined: ledger-smv1s, ledger-ct3cx, ledger-ng110, ledger-xqqnv - Bestandsreview ledger G1, G2, G5, G4
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** todo (ledger-smv1s, ledger-sjbvc, ledger-ct3cx, ledger-ng110, ledger-vf6z5, ledger-xqqnv, ledger-vfr4h); backlog bis Vorgänger fertig (ledger-nc708, ledger-dn4vy, ledger-f8bjm)
+**Summary:** Jeder der 48 Befunde am Code geprüft (keiner falsch, 10 teilweise). Roman 2026-11-12: Schnitt in Teile; offener Split-Rest gelb, zu viel verteilt rot; 409 bei Barbuchung heißt angekommen; ausgegraute Zeile in text-muted ohne Deckkraft. Lesezahl der Sammelbefehle als Kann-Punkt 68. Kann-Punkte 16 (schon behoben), 53, 54, 55, 63 gestrichen, 1 und 26 teilweise aufgenommen. ledger-h7de3 wartet auf ledger-xqqnv, ledger-f8d7x auf ledger-ct3cx.
+**Split into:** ledger-smv1s + ledger-sjbvc; ledger-ct3cx + ledger-nc708; ledger-ng110 + ledger-vf6z5 + ledger-dn4vy; ledger-xqqnv + ledger-vfr4h; neuer Fund ledger-f8bjm
+
+---
+
+## 2026-11-12 07:25 -- Modeling / Captured: ledger-f8bjm - "Ersatz-POST mit verlorener Antwort: Wiederherstellen, Split- und Betrags-Ersatz scheitern danach dauerhaft an 409, der Spiegel legt die Ersatzbuchung als neue Buchung „YNAB-Spiegel“ an; die Ersatz-import_id muss vor dem POST im Kassenbuch stehen (Ledger/CommandHandlers.fs)"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Fund aus dem Refinement von ledger-xqqnv: geht die Antwort auf einen Ersatz-POST verloren, scheitert jeder weitere Versuch an 409 und der Spiegel legt die Buchung mit falscher Herkunft an.
+
+---
+
+## 2026-11-12 07:25 -- Modeling / Captured: ledger-vfr4h - "Schreib-Sperre, Spiegel-Auslöser nach Freigabe und Wartesperre für Verwerfen nach dem Erfassen, Übertrag, Löschen, Wiederherstellen und Ist neu durch Verhalten belegt; Wartesperre als erster Zweig in discardCapturedBooking und restoreDeletedEntry"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Teil 2 von ledger-xqqnv (Bestandsreview G4): Schreib-Sperre, Spiegel-Auslöser nach Freigabe und Wartesperre für Verwerfen, Übertrag, Löschen, Wiederherstellen und Ist neu durch Verhalten belegen.
+
+---
+
+## 2026-11-12 07:25 -- Modeling / Captured: ledger-dn4vy - "Filter und Liste nach Styleguide: Betrag Von/Bis mit Zifferntastatur, Name und Fehlerzustand, Schnellwahl als Segmented, Payee-Vorschläge mit Tastatur, lesbare ausgegraute Zeile, Fokus am Prüfknopf, Lena-Grund als Text"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Teil 3 von ledger-ng110 (Bestandsreview G5): Filter und Liste nach Styleguide, Betrag Von/Bis, Segmented, Payee-Vorschläge, ausgegraute Zeile in text-muted, Fokus, Namen.
+
+---
+
+## 2026-11-12 07:25 -- Modeling / Captured: ledger-vf6z5 - "„Neue Buchung“ nach Styleguide: Betrags- und Kontofehler am Feld mit Fokus, direkte Fehlertexte ohne „Bitte“, Kontoliste mit Spinner und ehrlichem Leer- und Fehlerzustand"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Teil 2 von ledger-ng110 (Bestandsreview G5): Neue Buchung mit Fehlern am Feld, direkten Texten und Ladehinweis der Kontoliste.
+
+---
+
+## 2026-11-12 07:25 -- Modeling / Captured: ledger-nc708 - "Detail und Durchgehen halten ihren Stand: Historie an Ladevorgänge gebunden ohne Flackern, jede Änderung an der offenen Buchung lädt ihre Historie nach, gescheitertes „Lena fragen“ holt die Karte zurück (Components/Ledger/State.fs LoadHistory, HistoryLoaded, LenaFlagSet)"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Teil 2 von ledger-ct3cx (Bestandsreview G2): Historie im Detail an Ladevorgänge gebunden, Nachladen nach jeder Änderung, Karte kommt zurück, wenn Lena fragen im Durchgehen scheitert.
+
+---
+
+## 2026-11-12 07:25 -- Modeling / Captured: ledger-sjbvc - "Sammellauf der Auswahl in einem Feld statt drei Bool-Flags: alle Sammelstarts und ihr Rückgängig prüfen einen Merker, StartReviewMarkBatch und StartUndoReviewMarkBatch sperren richtig, Aufzählung über die drei Sammelaktionen nach Doktrin Punkt 20"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Teil 2 von ledger-smv1s (Bestandsreview G1): ein Feld für den Sammellauf statt drei Bool-Flags, alle Sammelstarts und ihr Rückgängig über einen Prüfpunkt.
+
+---
+
 ## 2026-11-12 06:42 -- Capture / Captured: ledger-h7de3 - "Fehlertexte in Ereignissen: fehlendes Token als „nicht eingerichtet“, YNAB-Rohtext nur ins Log, Token- und Budget-Zugriff an einer Stelle"
 
 **Type:** Capture

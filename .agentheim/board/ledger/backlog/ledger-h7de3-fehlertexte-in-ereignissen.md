@@ -6,7 +6,7 @@ type: bug
 context: ledger
 created: 2026-11-12
 completed:
-depends_on: []
+depends_on: [ledger-xqqnv]
 blocks: []
 tags: [bestandsreview, captured]
 related_adrs: []
@@ -34,3 +34,5 @@ Gründe in `events` und in der Oberfläche sind falsch („Token ungültig“ st
 
 ## Notes
 Captured via `quick-capture` on 2026-11-12, raw, unrefined. Überschneidet sich mit Kann-Sammlung ledger 54 (Push-Wege auf `ynabPushWith`) und 55 („Token ungültig“ statt „fehlt“); beide gehen hier auf.
+
+Nach ledger-xqqnv (vorhandene import_id heißt angekommen) bauen: beide ändern `pushComdirectImports` (`WriteFailed ex.Message`, `CommandHandlers.fs:1347`) und `ynabErrorText`/`describeNotCreatedReason` (Refinement ledger-xqqnv, 2026-11-12).
