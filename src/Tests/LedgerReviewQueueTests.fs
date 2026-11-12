@@ -157,6 +157,67 @@ let private seed (events: LedgerEvent list) = appendAndApply events |> run
 let private recategorized (actor: Actor) (oldC: CategoryRef option) (newC: CategoryRef option) (entryId: EntryId) =
     ev entryId actor (EntryRecategorized { OldCategory = oldC; NewCategory = newC; OldSplits = []; NewSplits = []; OldPayee = None; NewPayee = None })
 
+/// Ein Beispielwert je Typ für die Payloads (Review-Fund zu ledger-v6s7c): Optionen immer `Some`, damit
+/// ein Ereignis, das die Kategorie setzt, eine neue Kategorie mitbringt; jede Guid neu, damit sie von der
+/// Ausgangsbuchung abweicht; Listen leer (keine Splits).
+let rec private sampleOf (t: Type) : obj =
+    if t = typeof<string> then box "x"
+    elif t = typeof<Guid> then box (Guid.NewGuid())
+    elif t = typeof<DateTime> then box at
+    elif t = typeof<decimal> then box 0m
+    elif t = typeof<int> then box 0
+    elif t = typeof<bool> then box false
+    elif t.IsGenericType && t.GetGenericTypeDefinition() = typedefof<option<_>> then
+        let some = Reflection.FSharpType.GetUnionCases t |> Array.find (fun c -> c.Name = "Some")
+        Reflection.FSharpValue.MakeUnion(some, [| sampleOf (t.GetGenericArguments()[0]) |])
+    elif t.IsGenericType && t.GetGenericTypeDefinition() = typedefof<list<_>> then
+        let empty = Reflection.FSharpType.GetUnionCases t |> Array.find (fun c -> c.Name = "Empty")
+        Reflection.FSharpValue.MakeUnion(empty, [||])
+    elif Reflection.FSharpType.IsRecord t then
+        Reflection.FSharpValue.MakeRecord(t, Reflection.FSharpType.GetRecordFields t |> Array.map (fun f -> sampleOf f.PropertyType))
+    elif Reflection.FSharpType.IsUnion t then
+        let first = (Reflection.FSharpType.GetUnionCases t).[0]
+        Reflection.FSharpValue.MakeUnion(first, first.GetFields() |> Array.map (fun f -> sampleOf f.PropertyType))
+    else failwith $"Kein Beispielwert für {t.FullName}"
+
+[<Tests>]
+let categorySettingTests =
+    testList "aus Bestellnummer: welche Ereignisse die Kategorie setzen (rein)" [
+
+        // Review-Fund zu ledger-v6s7c: `loadOrderIdCategorizedEntries` filtert mit `categorySettingEventTypes`.
+        // Fehlt dort ein Ereignis, das die Kategorie ändert, bliebe „aus Bestellnummer“ nach der Änderung stehen.
+        testCase "genau die Ereignisse der Liste ändern Kategorie oder Splits, jedes Ereignis wird geprüft" <| fun () ->
+            let entryId = newEntryId ()
+            let eventOf (body: LedgerEventBody) = ev entryId UserInBb body
+            let bodies =
+                Reflection.FSharpType.GetUnionCases typeof<LedgerEventBody>
+                |> Array.map (fun c ->
+                    Reflection.FSharpValue.MakeUnion(c, c.GetFields() |> Array.map (fun f -> sampleOf f.PropertyType)) :?> LedgerEventBody)
+                |> List.ofArray
+            let created = Ledger.Domain.apply None (eventOf (comdirect (LedgerAccountId (Guid.NewGuid())) at))
+            let categorized = { created with Category = Some food; LinkedToYnab = true }
+            let waiting = { created with PossibleDuplicate = Some held }
+            let discarded = { waiting with DeletedInYnab = true }
+            let categorizationOf (e: Ledger.Domain.Entry) = e.Category, e.Splits
+            let isCreation (body: LedgerEventBody) =
+                try Ledger.Domain.apply None (eventOf body) |> ignore; true
+                with :? InvalidOperationException -> false
+            // Ein Entstehungs-Ereignis legt die erste Kategorisierung fest und zählt damit; jedes andere wird auf
+            // die Ausgangsbuchungen angewandt, auf denen es gilt.
+            let changesCategory (body: LedgerEventBody) =
+                if isCreation body then true
+                else
+                    let outcomes =
+                        [ categorized; waiting; discarded ]
+                        |> List.choose (fun before ->
+                            try Some (categorizationOf (Ledger.Domain.apply (Some before) (eventOf body)) <> categorizationOf before)
+                            with :? InvalidOperationException -> None)
+                    Expect.isNonEmpty outcomes $"{eventTypeName body} gilt auf keiner Ausgangsbuchung"
+                    List.contains true outcomes
+            let changing = bodies |> List.filter changesCategory |> List.map eventTypeName |> Set.ofList
+            Expect.equal changing (Set.ofList categorySettingEventTypes) "die Liste der Ereignisse, die die Kategorie setzen"
+    ]
+
 [<Tests>]
 let queueTests =
     testSequenced <| testList "Warteschlange: getReviewQueue (In-Memory-SQLite)" [
@@ -199,6 +260,24 @@ let queueTests =
                 "jede Herkunft"
             Expect.equal (List.length queue) (countNeedsReviewEntries (Some account) |> run) "dieselbe Zahl wie Zu prüfen"
             Expect.isSome (queue.Head.PossibleDuplicate) "die wartende trägt ihren Treffer"
+
+        // Review-Fund zu ledger-v6s7c: „Ist doppelt, verwerfen“ nimmt die Buchung aus der Schlange, „Rückgängig“
+        // stellt sie als wartende wieder vorn ein (ADR 0093 Punkt 4).
+        testCase "eine als doppelt verworfene fehlt, nach Rückgängig steht sie wieder vorn" <| fun () ->
+            initializeLedgerSchema ()
+            let account = LedgerAccountId (Guid.NewGuid())
+            let earlier = newEntryId ()
+            let discarded = newEntryId ()
+            seed [ ev earlier ComdirectImport (comdirect account (DateTime(2026, 11, 1))) ]
+            seed [ ev discarded ComdirectImport (comdirect account (DateTime(2026, 11, 9)))
+                   ev discarded ComdirectImport (EntryHeldAsPossibleDuplicate held)
+                   ev discarded UserInBb (EntryDiscardedAsDuplicateInBb { MatchedYnabTransactionId = Some held.MatchYnabTransactionId; MatchedEntryId = None }) ]
+            let (LedgerAccountId accountGuid) = account
+            let queueIds () =
+                Ledger.QueryHandlers.getReviewQueue () |> run |> List.filter (fun v -> v.AccountId = accountGuid) |> List.map (fun v -> v.Id)
+            Expect.equal (queueIds ()) [ guidOf earlier ] "verworfen: nicht in der Schlange"
+            seed [ ev discarded UserInBb EntryDiscardRevokedInBb ]
+            Expect.equal (queueIds ()) [ guidOf discarded; guidOf earlier ] "nach Rückgängig: wartend vorn"
 
         testCase "aus Bestellnummer nur bei Kategorie aus OrderIdMatch, weg nach einer Änderung durch Roman" <| fun () ->
             initializeLedgerSchema ()

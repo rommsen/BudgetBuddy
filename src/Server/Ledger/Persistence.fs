@@ -1770,29 +1770,36 @@ let loadNeedsReviewEntries () : Async<Entry list> =
         return rows |> Seq.map rowToEntry |> Seq.toList
     }
 
-/// Die Buchungen, deren jüngste Kategorisierung `EntryRecategorized` mit Actor `OrderIdMatch` ist
-/// (ledger-v6s7c, „aus Bestellnummer“). Eine spätere Änderung durch Roman, eine Regel oder den
-/// Spiegel nimmt die Buchung heraus.
-let loadOrderIdCategorizedEntries () : Async<Set<Guid>> =
+/// Die Buchungen unter `entryIds`, deren jüngste Kategorisierung `EntryRecategorized` mit Actor
+/// `OrderIdMatch` ist (ledger-v6s7c, „aus Bestellnummer“). Eine spätere Änderung durch Roman, eine
+/// Regel oder den Spiegel nimmt die Buchung heraus. Gelesen werden nur die Streams der übergebenen
+/// Buchungen (die Seite, die Schlange, die eine Buchung), in Stücken wie `importIdLinksForEntries`.
+let loadOrderIdCategorizedEntries (entryIds: EntryId list) : Async<Set<Guid>> =
     async {
         use conn = Core.getConnection ()
-        // Die Ereignisse, die die Kategorie setzen oder ändern: die jüngste davon nennt, woher die heutige kommt.
-        let! rows =
-            conn.QueryAsync<string>(
-                """SELECT e.stream_id FROM events e
-                    WHERE e.context = @context AND e.event_type = 'EntryRecategorized' AND e.actor_kind = 'OrderIdMatch'
-                      AND NOT EXISTS (
-                        SELECT 1 FROM events later
-                        WHERE later.context = e.context AND later.stream_id = e.stream_id
-                          AND later.stream_version > e.stream_version
-                          AND later.event_type IN (
-                            'EntryObservedInYnab', 'EntryCategorizationChangeObservedInYnab', 'EntryImportedFromComdirect',
-                            'CashExpenseAdded', 'EntryCategorizedByRule', 'EntryRecategorized',
-                            'EntryTransferTargetSetInBb', 'EntryTransferTargetClearedInBb'))""",
-                {| context = ledgerContext |}
-            )
-            |> Async.AwaitTask
-        return rows |> Seq.map entryGuidOfStream |> Set.ofSeq
+        let streamIds = entryIds |> List.map (fun (EntryId g) -> entryStreamId g) |> List.distinct
+        let found = ResizeArray<Guid>()
+        for chunk in List.chunkBySize 400 streamIds do
+            // Die Ereignisse, die die Kategorie setzen oder ändern (`categorySettingEventTypes`): das
+            // jüngste davon nennt, woher die heutige kommt.
+            let! rows =
+                conn.QueryAsync<string>(
+                    """SELECT e.stream_id FROM events e
+                        WHERE e.context = @context AND e.stream_id IN @streamIds
+                          AND e.event_type = @recategorized AND e.actor_kind = 'OrderIdMatch'
+                          AND NOT EXISTS (
+                            SELECT 1 FROM events later
+                            WHERE later.context = e.context AND later.stream_id = e.stream_id
+                              AND later.stream_version > e.stream_version
+                              AND later.event_type IN @categorySetting)""",
+                    {| context = ledgerContext
+                       streamIds = chunk
+                       recategorized = eventTypeName (EntryRecategorized Unchecked.defaultof<_>)
+                       categorySetting = categorySettingEventTypes |}
+                )
+                |> Async.AwaitTask
+            found.AddRange(rows |> Seq.map entryGuidOfStream)
+        return Set.ofSeq found
     }
 
 /// Die Zahl der Buchungen mit Flag "Lena" eines Kontos oder aller Konten (ADR 0056, Punkt 6),

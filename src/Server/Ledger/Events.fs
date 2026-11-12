@@ -641,6 +641,21 @@ let eventTypeName (body: LedgerEventBody) : string =
     | EntryDiscardedAsDuplicateInBb _ -> "EntryDiscardedAsDuplicateInBb"
     | EntryDiscardRevokedInBb -> "EntryDiscardRevokedInBb"
 
+/// Die Typnamen der Ereignisse, die Kategorie oder Splits einer Buchung setzen oder ändern
+/// (ledger-v6s7c, Lesepfad „aus Bestellnummer“): das jüngste davon nennt, woher die heutige
+/// Kategorie kommt. Aus `eventTypeName` abgeleitet, die Payload der Muster bleibt leer und wird
+/// nie gelesen. Ein Test schickt jeden Fall durch `apply` und hält die Liste vollständig.
+let categorySettingEventTypes : string list =
+    [ EntryObservedInYnab Unchecked.defaultof<_>
+      EntryCategorizationChangeObservedInYnab Unchecked.defaultof<_>
+      EntryImportedFromComdirect Unchecked.defaultof<_>
+      CashExpenseAdded Unchecked.defaultof<_>
+      EntryCategorizedByRule Unchecked.defaultof<_>
+      EntryRecategorized Unchecked.defaultof<_>
+      EntryTransferTargetSetInBb Unchecked.defaultof<_>
+      EntryTransferTargetClearedInBb Unchecked.defaultof<_> ]
+    |> List.map eventTypeName
+
 /// Die Schema-Version, mit der ein Ereignis heute geschrieben wird. Aendert sich die
 /// Payload-Form eines Typs, kommt eine neue Version dazu; alte gespeicherte Ereignisse
 /// bleiben unangetastet lesbar (ADR 0013, Punkt 7). `EntryObservedInYnab`,

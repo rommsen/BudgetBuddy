@@ -1452,7 +1452,10 @@ let autoFetchRunTests =
             let message = expectFailedEntry probe
             Expect.stringContains message "Bankfehler" "die Meldung des Bankfehlers"
             Expect.isEmpty probe.Pushes "nichts nach YNAB"
-            Expect.equal (List.ofSeq auto.Logs |> List.filter (fun l -> l.Contains "HTTP 503, Code service_unavailable")).Length 1 "Status und Code im Log"
+            // Review-Fund zu banking-import-t4raw: eine Zeile mit Status und Code, die Meldung nicht noch einmal.
+            let line = Expect.wantSome (Seq.tryExactlyOne auto.Logs) "genau eine Zeile im Log"
+            Expect.stringContains line "HTTP 503, Code service_unavailable" "Status und Code im Log"
+            Expect.isFalse (line.Contains message) "die Meldung steht nicht zusätzlich im Log"
             // Der Eintrag zählt als jüngster Abruf: der nächste Versuch folgt nach dem Intervall.
             let started = (Seq.exactlyOne probe.Sessions.Started).StartedAt
             Expect.isFalse (isAutoFetchDue (started.AddMinutes 359.0) schedule360 (Some started)) "nicht vor dem Intervall"
@@ -1531,6 +1534,22 @@ let autoFetchWorkerTests =
             worker.StartAsync(CancellationToken.None).Wait()
             Expect.isTrue (reached.Task.Wait(TimeSpan.FromSeconds 10.0)) "der Takt läuft"
             Expect.isTrue (worker.StopAsync(CancellationToken.None).Wait(TimeSpan.FromSeconds 10.0)) "das Beenden kehrt zurück"
+
+        // Review-Fund zu banking-import-t4raw: ohne Abbruch-Token lief ein hängender Takt nach dem Beenden weiter.
+        testCase "das Beenden bricht einen laufenden Takt ab" <| fun () ->
+            let reached = TaskCompletionSource<unit>()
+            let cancelled = TaskCompletionSource<unit>()
+            let never = TaskCompletionSource<unit>()
+            let hangingTick () = async {
+                use! _ = Async.OnCancel(fun () -> cancelled.TrySetResult () |> ignore)
+                reached.TrySetResult () |> ignore
+                do! never.Task |> Async.AwaitTask
+            }
+            use worker = new Server.AutoFetchWorker.AutoFetchWorker(hangingTick, TimeSpan.FromMilliseconds 1.0)
+            worker.StartAsync(CancellationToken.None).Wait()
+            Expect.isTrue (reached.Task.Wait(TimeSpan.FromSeconds 10.0)) "der Takt läuft"
+            worker.StopAsync(CancellationToken.None).Wait(TimeSpan.FromSeconds 10.0) |> ignore
+            Expect.isTrue (cancelled.Task.Wait(TimeSpan.FromSeconds 10.0)) "der Takt bekommt den Abbruch"
     ]
 
 [<Tests>]

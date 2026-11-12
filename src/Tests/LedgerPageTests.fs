@@ -1933,21 +1933,56 @@ let ledgerPagingTests =
                 "Neueste zuerst"
 
         testCase "Ohne Konto-Filter zeigt die Seite alle Konten, jede Zeile traegt ihr Konto" <| fun () ->
-            seedEntry pageTestAccountB 20 -5m |> Async.RunSynchronously
-            seedEntry pageTestAccountB 21 -6m |> Async.RunSynchronously
+            // Die In-Memory-DB ist geteilt, andere Listen buchen parallel. Ein eigener Payee grenzt die zwei
+            // Buchungen dieses Falls ab, ohne den Konto-Filter zu nutzen (Review-Fund zu banking-import-t4raw).
+            let payee = $"Gesamtsicht {Guid.NewGuid():N}"
+            let seedOn (account: LedgerAccountId) (amount: decimal) =
+                let entryId = newEntryId ()
+                appendAndApply [
+                    { EntryId = entryId
+                      OccurredAt = DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc)
+                      Actor = YnabMirror
+                      Body =
+                        EntryObservedInYnab {
+                            AccountId = account
+                            YnabTransactionId = $"pagetest-all-{Guid.NewGuid():N}"
+                            ImportId = None
+                            Date = DateTime(2026, 4, 25)
+                            Amount = { Amount = amount; Currency = "EUR" }
+                            Payee = Some payee
+                            Memo = None
+                            Category = None
+                            Splits = []
+                            Cleared = Uncleared
+                            TransferAccountId = None
+                            TransferYnabTransactionId = None
+                            Approved = true
+                            FlagColor = None
+                            FlagName = None
+                        } }
+                ]
+                |> Async.RunSynchronously
+                let (EntryId g) = entryId
+                g
+            // Konto B trägt -5 und -6, darauf baut der Kontostand im nächsten Fall; das zweite Konto ist frisch.
+            let other = LedgerAccountId (Guid.NewGuid())
+            saveAccount { Id = other; Name = "Konto Gesamtsicht"; Kind = BankAccount; Link = BbOwned; Closed = false }
+            |> Async.RunSynchronously
+            let onB1 = seedOn pageTestAccountB -5m
+            let onB2 = seedOn pageTestAccountB -6m
+            let onOther = seedOn other -7m
 
-            // Die In-Memory-DB ist geteilt: andere Listen (etwa der Bank-Import) buchen parallel jüngere Buchungen.
-            // Auf einer Seite mit 100 Zeilen fiel Konto B damit je nach Reihenfolge heraus (banking-import-t4raw).
             let allAccountsPage =
-                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery None with PageSize = 100000 }
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery None with Payee = Some payee }
                 |> Async.RunSynchronously
 
             let (LedgerAccountId rawB) = pageTestAccountB
-            Expect.isTrue
-                (allAccountsPage.Entries |> List.exists (fun e -> e.AccountId = rawB))
-                "Konto B ist in der Gesamtsicht enthalten"
-            Expect.isGreaterThanOrEqual allAccountsPage.TotalCount 7
-                "Mindestens die 5 Buchungen aus Konto A und die 2 aus Konto B"
+            let (LedgerAccountId rawOther) = other
+            Expect.equal
+                (allAccountsPage.Entries |> List.map (fun e -> e.Id, e.AccountId) |> Set.ofList)
+                (Set.ofList [ onB1, rawB; onB2, rawB; onOther, rawOther ])
+                "beide Konten, jede Zeile mit ihrem Konto"
+            Expect.equal allAccountsPage.TotalCount 3 "Trefferzahl über beide Konten"
 
         testCase "Kontostaende aller Konten kommen in einem Aufruf und bleiben von Seiten unberuehrt" <| fun () ->
             let balances = Ledger.QueryHandlers.getLedgerAccountBalances () |> Async.RunSynchronously

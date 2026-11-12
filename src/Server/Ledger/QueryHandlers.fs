@@ -517,7 +517,7 @@ let getLedgerEntriesForAccount (accountId: Guid) : Async<LedgerEntryView list> =
         let! categoryNames = Ledger.Persistence.loadCategoryNames ()
 
         let! importLinks = Ledger.Persistence.importIdLinksForEntries (splitEntryIds entries)
-        let! orderIdCategorized = Ledger.Persistence.loadOrderIdCategorizedEntries ()
+        let! orderIdCategorized = Ledger.Persistence.loadOrderIdCategorizedEntries (splitEntryIds entries)
 
         return
             entries
@@ -548,7 +548,7 @@ let getLedgerEntry (entryGuid: Guid) : Async<LedgerEntryView option> =
             let! categoryGroups = Ledger.Persistence.loadCategoryGroups ()
             let! categoryNames = Ledger.Persistence.loadCategoryNames ()
             let! importLinks = Ledger.Persistence.importIdLinksForEntries [ entry.Id ]
-            let! orderIdCategorized = Ledger.Persistence.loadOrderIdCategorizedEntries ()
+            let! orderIdCategorized = Ledger.Persistence.loadOrderIdCategorizedEntries [ entry.Id ]
             let origin =
                 origins |> Map.tryFind entryGuid |> Option.map ReadModel.originOf |> Option.defaultValue MirroredFromYnab
             return
@@ -567,7 +567,7 @@ let getReviewQueue () : Async<LedgerEntryView list> =
         let! categoryGroups = Ledger.Persistence.loadCategoryGroups ()
         let! categoryNames = Ledger.Persistence.loadCategoryNames ()
         let! importLinks = Ledger.Persistence.importIdLinksForEntries (splitEntryIds entries)
-        let! orderIdCategorized = Ledger.Persistence.loadOrderIdCategorizedEntries ()
+        let! orderIdCategorized = Ledger.Persistence.loadOrderIdCategorizedEntries (splitEntryIds entries)
         return
             entries
             |> List.map (fun entry ->
@@ -728,7 +728,7 @@ let getLedgerEntriesPage (query: LedgerEntryPageQuery) : Async<LedgerEntryPage> 
         let! categoryNames = Ledger.Persistence.loadCategoryNames ()
 
         let! importLinks = Ledger.Persistence.importIdLinksForEntries (splitEntryIds pageEntries)
-        let! orderIdCategorized = Ledger.Persistence.loadOrderIdCategorizedEntries ()
+        let! orderIdCategorized = Ledger.Persistence.loadOrderIdCategorizedEntries (splitEntryIds pageEntries)
 
         let views =
             pageEntries

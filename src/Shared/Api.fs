@@ -322,8 +322,10 @@ type LedgerApi = {
 
     /// Die Warteschlange des Durchgehens (ledger-v6s7c): alle ungeprüften, nicht in YNAB gelöschten
     /// Buchungen über alle Konten, dieselbe Menge wie `NeedsReviewCount` ohne Konto. Geordnet nach
-    /// `reviewQueueOrder`: wartende zuerst, dann Buchungsdatum aufsteigend, dann EntryId. Liest nur
-    /// das Kassenbuch, keine YNAB-Anfrage.
+    /// `reviewQueueOrder`: wartende zuerst, dann Buchungsdatum aufsteigend, dann EntryId. Liest das
+    /// Kassenbuch; für die Sperre auf Tracking-Konten fragt der Server wie bei `getLedgerEntriesPage`
+    /// die YNAB-Konten ab (fünf Minuten zwischengespeichert), ohne Token oder Antwort bleibt es bei
+    /// den lokalen Sperren.
     getReviewQueue: unit -> Async<LedgerEntryView list>
 
     /// Die Buchungen einer Kategorie in einem Monat, für das Kategorie-Detail im Budget

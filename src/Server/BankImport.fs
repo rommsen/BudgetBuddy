@@ -653,9 +653,8 @@ let runAutoFetchWith (ports: AutoFetchPorts) : Async<AutoFetchOutcome> =
                                     { session with Status = status; CompletedAt = Some (importPorts.Clock ()); Counts = counts }
                             let fail (message: string) (detail: string option) =
                                 async {
-                                    match detail with
-                                    | Some d -> ports.Log $"Automatischer Abruf gescheitert ({d}): {message}"
-                                    | None -> ports.Log $"Automatischer Abruf gescheitert: {message}"
+                                    // Bei einem Bankfehler nur Status und Code: die Meldung sagt dasselbe noch einmal.
+                                    ports.Log $"Automatischer Abruf gescheitert: {detail |> Option.defaultValue message}"
                                     do! finish (Failed message) emptyFetchCounts
                                     return AutoFetchRan (Error message)
                                 }

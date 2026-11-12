@@ -728,7 +728,7 @@ let private apiWirings =
       // In-Memory-Kassenbuch getestet, `latestFinishedStartedAt` auf der In-Memory-SQLite, `saveSyncSettingsWith` mit
       // einem Fake-Speicher. Die Ports des Servers erreichen Comdirect und YNAB nur im laufenden Dienst.
       @"\bsaveSyncSettings\s*=\s*saveSyncSettingsWith\s+Persistence\.Settings\.setSetting\b"
-      @"\bliveAutoFetchPorts\s*:\s*BankImport\.AutoFetchPorts\s*=\s*\{\s*Import\s*=\s*liveImportPorts\s+LoadSchedule\s*=\s*fun\s*\(\)\s*->\s*async\s*\{\s*let!\s+settings\s*=\s*loadAppSettings\s*\(\)\s*return\s*\{\s*Enabled\s*=\s*settings\.Sync\.AutoFetchEnabled\s*;\s*IntervalMinutes\s*=\s*settings\.Sync\.AutoFetchIntervalMinutes\s*\}\s*\}\s*LatestFetch\s*=\s*Persistence\.SyncSessions\.latestFinishedStartedAt\b"
+      @"\bliveAutoFetchPorts\s*:\s*BankImport\.AutoFetchPorts\s*=\s*\{\s*Import\s*=\s*liveImportPorts\s+LoadSchedule\s*=\s*fun\s*\(\)\s*->\s*async\s*\{\s*let!\s+settings\s*=\s*loadAppSettings\s*\(\)\s*return\s*\{\s*Enabled\s*=\s*settings\.Sync\.AutoFetchEnabled\s*;\s*IntervalMinutes\s*=\s*settings\.Sync\.AutoFetchIntervalMinutes\s*\}\s*\}\s*LatestFetch\s*=\s*Persistence\.SyncSessions\.latestFinishedStartedAt\s+Log\s*=\s*eprintfn\s+\x01\d+\x02\s*\}"
       @"\brunAutoFetch\s*\(\)\s*:\s*Async<unit>\s*=\s*BankImport\.runAutoFetchWith\s+liveAutoFetchPorts\s*\|>\s*Async\.Ignore\s*(?:\n\s*\n|\z)"
       @"\bpayeePush\s*\(\)\s*:\s*Async<Ledger\.CommandHandlers\.PayeePush>\s*=\s*ynabPushWith\s+Persistence\.Settings\.getSetting\s+\(fun\s+token\s+budgetId\s*->\s*YnabClient\.updatePayee\s+token\s+budgetId\)\s+refusedPush\s*(?:\n\s*\n|\z)" ]
 
@@ -888,6 +888,7 @@ let hostedServiceGuardTests =
                   "Enabled = settings.Sync.AutoFetchEnabled", "Enabled = true", "Schalter fest an"
                   "IntervalMinutes = settings.Sync.AutoFetchIntervalMinutes", "IntervalMinutes = 1", "Intervall fest"
                   "LatestFetch = Persistence.SyncSessions.latestFinishedStartedAt", "LatestFetch = (fun () -> async.Return None)", "Fälligkeit ohne Historie"
+                  "Log = eprintfn \"%s\"", "Log = ignore", "Meldungen des Abrufs verworfen"
                   "runAutoFetchWith liveAutoFetchPorts", "runAutoFetchWith fakeAutoFetchPorts", "Takt mit anderen Ports"
                   "BankImport.runAutoFetchWith liveAutoFetchPorts |> Async.Ignore", "async.Return ()", "leerer Takt"
                   "ComdirectAuthSession.disconnect", "(fun () -> async.Return ())", "leeres Trennen"

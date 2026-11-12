@@ -12,7 +12,8 @@ let tickPeriod = TimeSpan.FromMinutes 1.0
 /// Abruf im 15-s-Takt des Refresh hielte diesen auf. Registriert nur in `Program.fs` (ADR 0071 Punkt 8), im
 /// TestServer läuft er nie. Der erste Takt kommt erst nach `period`, dann hat die Wiederaufnahme der
 /// Bankverbindung ihren Vorlauf. Ein Fehler beendet den Dienst nicht, gemeldet wird nur der Typname. Ein Takt
-/// kann an der Bank hängen, deshalb wartet der Dienst auf ihn nur bis `stopping`.
+/// kann an der Bank hängen, deshalb wartet der Dienst auf ihn nur bis `stopping` und reicht `stopping` als
+/// Abbruch an den Takt weiter.
 type AutoFetchWorker(tick: unit -> Async<unit>, period: TimeSpan) =
     inherit BackgroundService()
 
@@ -30,6 +31,6 @@ type AutoFetchWorker(tick: unit -> Async<unit>, period: TimeSpan) =
             try
                 while not stopping.IsCancellationRequested do
                     let! _ = timer.WaitForNextTickAsync(stopping)
-                    do! Async.StartAsTask(guarded).WaitAsync(stopping)
+                    do! Async.StartAsTask(guarded, cancellationToken = stopping).WaitAsync(stopping)
             with :? OperationCanceledException -> ()
         }
