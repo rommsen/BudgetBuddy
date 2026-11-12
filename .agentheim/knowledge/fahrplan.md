@@ -20,15 +20,19 @@ Zuletzt aktualisiert: 2026-11-11, nach work-Lauf zu ledger-s1weh.
   Backlog, danach kann die Sperre für Überträge fallen. ledger-nb4tv (ETF-Konto und Abgleich) nach
   Etappe 3 verschoben (Roman, 2026-11-10).
   Deployt (2026-11-10, f85d3b3d): ledger-m7k2d, ledger-z6sya, ledger-m7mye.
-- **Etappe 3 · Ein Produkt:** in elf Schnitte geteilt (Roman, 2026-11-11). 2 erledigt (design-system-k6kfw,
-  189ec9a9, Verifier PASS in Iteration 2; ledger-s1weh, 6d728e16, Verifier PASS in Iteration 2).
-  Verfeinert 2026-11-11: Schnitte 3, 4 und 5. In `todo/`: budgeting-w9yt4 (Angepinnte Kategorien), banking-import-d0fey
-  (Import direkt, ADR 0093), ledger-fxt09 (Payee in BB ändern). Verfeinert in `backlog/`, Promotion nach ihrem Vorgänger:
-  ledger-r7h2w (wartendes Duplikat übernehmen oder verwerfen, nach d0fey), banking-import-t4raw (automatisch abrufen,
-  nach d0fey), ledger-v6s7c (Durchgehen, nach d0fey, r7h2w, fxt09). categorization-hz6vj ging in d0fey auf.
-  Entschieden (Roman): wartende Duplikate im Kassenbuch und im Kontostand mitgezählt, Abruf im Intervall mit Vorgabe an,
-  alle Funktionen der heutigen Prüfung bleiben (Regel aus der Buchung mit Schnitt 6), Durchgehen älteste zuerst und
-  nach §7.14, 4 und 5 werden gemeinsam deployt.
+- **Etappe 3 · Ein Produkt:** in elf Schnitte geteilt (Roman, 2026-11-11). 5 erledigt: 1 design-system-k6kfw, 2 ledger-s1weh
+  (beide deployt), 3 budgeting-w9yt4 (Angepinnte Kategorien, 828f6a24), 4 banking-import-d0fey (Import direkt, ADR 0093, 613eee26)
+  mit ledger-r7h2w (wartendes Duplikat übernehmen oder verwerfen, ef7e039b), ledger-fxt09 (Payee ändern, 0a7d9cf0) und
+  banking-import-t4raw (automatisch abrufen, Vorgabe an, 1b1c868f), 5 ledger-v6s7c (Durchgehen, 64a3402f). Work-Lauf
+  2026-11-12 nachts, Roman offline: alle Verifier PASS (w9yt4, d0fey, v6s7c in Iteration 2), zwei Review-Läufe mit Behebung
+  (cfc21b06..613eee26: 45 Funde, darunter Import-Push ohne Schreib-Sperre; faa240c5..64a3402f: 28 Funde, darunter ein
+  schräger Scroll, der als Wisch „Passt“ auslöste). Gate auf e59c5ef0: VERIFY: PASS (dotnet 4751, node 316). Nicht gepusht,
+  nicht deployt. Entschieden (Roman, 2026-11-11): wartende Duplikate im Kontostand mitgezählt, Abruf im Intervall mit
+  Vorgabe an, alle Funktionen der heutigen Prüfung bleiben (Regel aus der Buchung mit Schnitt 6), Durchgehen älteste zuerst
+  und nach §7.14, 4 und 5 werden gemeinsam deployt.
+  Offen für Roman: Blick am Handy und PC auf Angepinnt, Abrufen, Payee ändern, Durchgehen und Einstellungen (Screenshots im
+  Scratchpad e3/<task-id>/); Rückfragen aus dem Review: „Ist doppelt, verwerfen“ im Akzent statt Rot (so in Task und
+  Prototyp), Texte „Alle“ und „Eine Push-TAN fragt es nie an.“ in den Einstellungen.
   ledger-s1weh (Übersicht mit Zu tun): Abweichungen (a) bis (c) vom Prototyp in der Task. Romans Blick am Handy und PC
   (2026-11-11): passt, (a) bis (c) und der Dialog am PC bestätigt.
   Review df9611c4..HEAD (2026-11-11): 22 Funde behoben in 3142ef3e..ec4f4124, darunter Budget aus Zu tun öffnete bei wartender
@@ -46,8 +50,9 @@ Zuletzt aktualisiert: 2026-11-11, nach work-Lauf zu ledger-s1weh.
   Entschieden (Roman): Schriftgrößen der Übersicht nach §7.14 (Kriterium in ledger-s1weh), Abbrechen-Pfeil im
   Sync-Ablauf in die Kann-Sammlung banking-import.
 - **Blick Roman (2026-11-11):** design-system-k6kfw (Navigation mit drei Orten) am Handy und PC geprüft, passt.
-- **Nächster Schritt:** `/agentheim:work` für budgeting-w9yt4, banking-import-d0fey und ledger-fxt09; r7h2w, t4raw und v6s7c
-  nach ihren Vorgängern promoten. Deploy von 4 und 5 erst, wenn v6s7c steht. Vorschlag: `/architecture-review ledger` (15 Tasks seit dem letzten Bestandsreview).
+- **Nächster Schritt:** Romans Blick auf die Schnitte 3 bis 5, dann Deploy von 3 bis 5 auf Anweisung (`scripts/deploy.sh`;
+  Achtung: automatischer Abruf ist ab Deploy an, alle 6 Stunden, bucht direkt). Danach Schnitt 6 `categorization-n3sxw`
+  (Regeln ins Kassenbuch) verfeinern. Vorschlag: `/architecture-review ledger` (18 ledger-Tasks seit dem letzten Bestandsreview). Vorschlag: `/architecture-review ledger` (15 Tasks seit dem letzten Bestandsreview).
   Offen zum Verfeinern mit Roman: ledger-t4rk8 (Betrag eines Übertrags in BB ändern).
 - Verfeinert wird nur die nächste Etappe. Spätere Etappen haben Zeilen, keine Tickets.
 - Neue Ideen für spätere Etappen kommen hier als Zeile dazu.
@@ -103,9 +108,9 @@ Baut ein Schnitt eine Seite um, gilt die Zeile „Browser-Tests beim Umbau“ al
 
 1. ✓ `design-system-k6kfw` Navigation mit drei Orten, Zahnrad, ab 768 px links (2026-11-11)
 2. ✓ `ledger-s1weh` Übersicht als Einstieg (Zu tun, Monat, Konten am Handy, „+ Buchung“) (2026-11-11)
-3. `budgeting-w9yt4` Angepinnte Kategorien
-4. `banking-import-d0fey` Import direkt ins Kassenbuch (nimmt `banking-import-t4raw`, `categorization-hz6vj` auf)
-5. `ledger-v6s7c` Durchgehen Karte für Karte
+3. ✓ `budgeting-w9yt4` Angepinnte Kategorien (2026-11-12)
+4. ✓ `banking-import-d0fey` Import direkt ins Kassenbuch (2026-11-12) (nimmt `banking-import-t4raw`, `categorization-hz6vj` auf)
+5. ✓ `ledger-v6s7c` Durchgehen Karte für Karte (2026-11-12)
 6. `categorization-n3sxw` Regeln ins Kassenbuch (nimmt `categorization-krscs`, `ledger-hg5m5` auf)
 7. `ledger-ea70s` Ein Erfassen, Quick Add entfällt (nimmt `design-system-taytp` auf)
 8. `ledger-f8d7x` Kassenbuch ordnen, beim Verfeinern nach Handy und PC teilen (nimmt `ledger-ayjzq` auf)
