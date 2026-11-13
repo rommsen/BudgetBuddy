@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-11-13 20:03 -- Modeling / Refined: categorization-n3sxw - Regeln ins Kassenbuch
+
+**Type:** Modeling / Refine
+**BC:** categorization, ledger
+**Status after:** todo
+**Summary:** Prototyp Version 17 mit der heutigen Regel-Seite abgeglichen (Screenshots im Scratchpad). Mit Roman: zwei Tasks, Löschen mit Rückgängig, Payee-Override, Export/Import und Neu laden entfallen, Regel aus der Buchung als fester Eintrag und als Angebot nach Kategorie-Änderung. categorization-krscs geht in n3sxw auf. ledger-hg5m5 neu gefasst als Regel aus der Buchung, hängt an n3sxw.
+**Split into:** categorization-n3sxw, ledger-hg5m5
+
+---
+
 ## 2026-11-13 19:04 -- Modeling / Promoted: infrastructure-ewasy - README-Delta-Gate meldet alten Wortlaut, der nach einem replace anderswo in der README stehen bleibt
 
 **Type:** Modeling / Promote
