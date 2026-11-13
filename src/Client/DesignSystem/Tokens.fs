@@ -138,6 +138,13 @@ module ListRoles =
     /// Statuskante "zu prüfen": 3px in Gelb links (braucht dich, ADR 0087 Punkt 3), als inset-Schatten,
     /// damit die Zellinhalte nicht verrutschen. Gilt für Tabellenzeile und Handy-Zeile.
     let statusEdge = "shadow-[inset_3px_0_0_0_var(--color-attention)]"
+    /// Gewählte Zeile: blasser Akzent als Grund (wie die gewählte Buchung im Kassenbuch).
+    let selectedFill = "bg-accent/[0.07]"
+    /// Akzentkante links, 2 px als inset-Schatten: die Zeile, deren Detail offen ist (wie der Anker der Buchungen).
+    let selectedEdge = "shadow-[inset_2px_0_0_0_var(--color-accent)]"
+    /// Die Zeile, deren Detail im Panel oder Sheet offen ist: Grund und Kante wie die gewählte Buchung
+    /// (`selectableRowClassName` mit Anker im Kassenbuch). Erster Nutzer: Tab „Regeln“ (categorization-n3sxw).
+    let selectedRow = $"{selectedFill} {selectedEdge}"
     /// Waagerechter Zellabstand der Tabelle (liest die Variable von `Table.view`), für
     /// Zeilen, die keine `Table.cell` sind, etwa der Datumsgruppen-Kopf
     let cellPaddingX = "px-[var(--table-cell-px,0.75rem)]"

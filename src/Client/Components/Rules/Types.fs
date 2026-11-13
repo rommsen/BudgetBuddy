@@ -60,6 +60,8 @@ type TestVerdict =
     | PatternFaulty of reason: string
     /// Der Server hat nicht geantwortet: kein Urteil über das Muster.
     | Unreachable
+    /// Der Server hat geantwortet, konnte aber nicht prüfen (etwa ein Datenbankfehler): kein Urteil über das Muster.
+    | TestFailed of message: string
 
 /// „Muster testen“: ohne Text und Muster gibt es nichts zu prüfen, sonst läuft eine Anfrage oder ihr Urteil steht da.
 type PatternTest =
@@ -72,10 +74,15 @@ type SaveFailure =
     | PatternRejected of reason: string
     | SaveRejected of message: string
 
+/// `Saving request`: die Anfrage mit dieser Nummer läuft. Ihre Antwort gilt nur für das Formular, das sie noch trägt;
+/// ist es inzwischen geschlossen oder ein anderes, zieht sie nur die Liste nach.
 type SaveState =
     | NotSaving
-    | Saving
+    | Saving of request: int
     | SaveFailed of SaveFailure
+
+module SaveState =
+    let isSaving (save: SaveState) = match save with Saving _ -> true | _ -> false
 
 /// Die Hülle, in der das Formular steht: am PC das Panel, das nach dem Speichern die Regel zeigt (§7.6), am Handy
 /// das Sheet, das schließt.
@@ -118,13 +125,24 @@ let reorderedIds (direction: MoveDirection) (ruleId: RuleId) (rules: Rule list) 
                 elif i = swapWith then ids.[index]
                 else id)
 
+/// Das Speichern der Reihenfolge. Es läuft höchstens ein `reorderRules` zugleich, sonst könnten zwei Antworten
+/// vertauscht ankommen. Kommt währenddessen ein weiterer Pfeil, wird danach einmal der neueste Stand geschickt.
+type ReorderState =
+    | ReorderIdle
+    /// `sent`: die geschickte Reihenfolge. `again`: die Liste hat sich seitdem geändert.
+    | ReorderSending of sent: RuleId list * again: bool
+
 type Model = {
     Rules: RemoteData<Rule list>
     /// Zählt jedes Laden und jede Änderung an der Liste. Eine Ladeantwort mit älterer Version ist überholt und
     /// ersetzt die Liste nicht (Befund `State.fs:52` aus categorization-krscs).
     LoadVersion: int
-    Categories: YnabCategory list
+    /// Die Kategorien für die Auswahl. Sie lädt der Root mit dem konfigurierten Budget, einmal je Sitzung.
+    Categories: RemoteData<YnabCategory list>
     Panel: Panel option
+    /// Zählt die Anfragen zum Speichern; die Nummer bindet die Antwort an ihr Formular.
+    SaveRequests: int
+    Reorder: ReorderState
 }
 
 type Msg =
@@ -138,8 +156,8 @@ type Msg =
     | RuleChosen of RuleId
     | PanelClosed
     | MoveRequested of RuleId * MoveDirection
-    /// `previous`: die Reihenfolge vor dem Verschieben, sie steht nach einem Fehler wieder da.
-    | RulesReordered of previous: Rule list * Result<unit, string>
+    /// Scheitert das Speichern, lädt die Liste neu: der Server kennt die gültige Reihenfolge.
+    | RulesReordered of Result<unit, string>
     /// Der Tab „Regeln“ ist verlassen: ein offenes Formular schließt.
     | RulesTabLeft
 
@@ -156,9 +174,9 @@ type Msg =
     | PatternTested of TestRequest * Result<bool, RulesError>
     | PatternTestLost of TestRequest
     | CreateRequested of Shell
-    | RuleCreated of Shell * Result<Rule, RulesError>
+    | RuleCreated of Shell * request: int * Result<Rule, RulesError>
     | ChangeRequested of Shell
-    | RuleChanged of Shell * Result<Rule, RulesError>
+    | RuleChanged of Shell * request: int * Result<Rule, RulesError>
 
     // Löschen mit Rückgängig
     | DeleteRequested

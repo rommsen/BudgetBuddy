@@ -3622,18 +3622,6 @@ let private staleAnswerTests =
             Expect.equal (update (TransferTargetsLoaded (Error "x")) shown).TransferTargets (Success []) "bleibt"
             Expect.equal (update (TransferTargetsLoaded (Error "x")) { shown with TransferTargets = Loading }).TransferTargets (Failure "x") "ohne Stand gilt der Fehler"
 
-        // categorization-n3sxw: die Antwort trägt ihre Ladeversion, eine überholte zählt nicht.
-        testCase "Ein spätes Scheitern ersetzt die fertige Regel-Liste nicht und meldet nichts" <| fun () ->
-            let model, _ = Components.Rules.State.init ()
-            let shown = { model with Rules = Success []; LoadVersion = 2 }
-            let after, _, external = Components.Rules.State.update (Components.Rules.Types.RulesLoaded (1, Error "x")) shown
-            Expect.equal after.Rules (Success []) "bleibt"
-            Expect.equal external Components.Rules.Types.NoOp "kein Toast"
-            let failed, _, toast = Components.Rules.State.update (Components.Rules.Types.RulesLoaded (2, Error "x")) { shown with Rules = Loading }
-            Expect.equal failed.Rules (Failure "x") "ohne Stand gilt der Fehler"
-            // Der Fehler steht mit „Erneut versuchen“ in der Liste (`ErrorDisplay`), ein Toast dazu wäre doppelt.
-            Expect.equal toast Components.Rules.Types.NoOp "kein Toast"
-
         testCase "Ein spätes Scheitern ersetzt fertige Quick-Add-Vorlagen nicht" <| fun () ->
             let shown = { rootModel Types.Page.Ledger with QuickAddTemplates = Success [] }
             let kept, _ = State.update (State.QuickAddTemplatesLoaded (Error "x")) shown

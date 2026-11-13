@@ -44,6 +44,48 @@ let tests =
                 Expect.equal msg (Components.Rules.Types.PatternTestLost ruleTest) "Netzfehler"
             }
         ]
+        // Review-Fund categorization-n3sxw: Löschen, Rückgängig und Umordnen riefen `Client.Api` direkt, die
+        // übergebene Stelle und Reihenfolge waren ungetestet. Jetzt über `updateWith` mit einem Ersatz.
+        testList "Regeln löschen, zurückholen, umordnen" [
+            let rule (n: int) : Rule =
+                { Id = RuleId (System.Guid($"20000000-0000-0000-0000-{n:D12}"))
+                  Name = $"Regel {n}"; Pattern = $"m{n}"; PatternType = Contains; TargetField = Payee
+                  CategoryId = YnabCategoryId (System.Guid($"30000000-0000-0000-0000-{n:D12}")); CategoryName = "K"
+                  PayeeOverride = None; Priority = 10 - n; Enabled = true
+                  CreatedAt = System.DateTime(2026, 1, 1); UpdatedAt = System.DateTime(2026, 1, 1) }
+            let a, b, c = rule 1, rule 2, rule 3
+            let shown = { fst (Components.Rules.State.init ()) with Rules = Success [ a; b; c ]; LoadVersion = 1 }
+            let unused _ = async { return failtest "nicht erwartet" }
+            let portsWith (seen: obj option ref) : Components.Rules.State.RulesPorts =
+                { GetAll = unused
+                  Test = unused
+                  Create = unused
+                  Change = unused
+                  Delete = fun id -> async { seen.Value <- Some (box id); return Ok () }
+                  Restore = fun request -> async { seen.Value <- Some (box request); return Ok [ a; b; c ] }
+                  Reorder = fun ids -> async { seen.Value <- Some (box ids); return Ok () } }
+            let run msg model =
+                let seen = ref None
+                let _, cmd, _ = Components.Rules.State.updateWith (portsWith seen) msg model
+                let answer = firstDispatched cmd
+                seen.Value, answer
+            test "Löschen schickt die Id der offenen Regel, die Antwort kommt mit ihrer Stelle" {
+                let opened, _, _ = Components.Rules.State.update (Components.Rules.Types.RuleChosen b.Id) shown
+                let seen, answer = run Components.Rules.Types.DeleteRequested opened
+                Expect.equal seen (Some (box b.Id)) "Id"
+                Expect.equal answer (Components.Rules.Types.RuleDeleted (b, 1, Ok ())) "Stelle 1"
+            }
+            test "Rückgängig schickt Regel und Stelle, die Antwort ist die Liste des Servers" {
+                let seen, answer = run (Components.Rules.Types.RestoreRequested (c, 2)) shown
+                Expect.equal seen (Some (box ({ Rule = c; Position = 2 } : RuleRestore))) "Regel und Stelle"
+                Expect.equal answer (Components.Rules.Types.RuleRestored (Ok [ a; b; c ])) "Liste"
+            }
+            test "Ein Pfeil schickt die neue Reihenfolge" {
+                let seen, answer = run (Components.Rules.Types.MoveRequested (b.Id, Components.Rules.Types.Up)) shown
+                Expect.equal seen (Some (box [ b.Id; a.Id; c.Id ])) "neue Reihenfolge"
+                Expect.equal answer (Components.Rules.Types.RulesReordered (Ok ())) "Antwort"
+            }
+        ]
         testList "Bank trennen" [
             test "geht die Antwort verloren, steht ein fester Hinweis statt des technischen Fehlers" {
                 let msg = firstDispatched (Components.Settings.State.disconnectBankCmd lost)

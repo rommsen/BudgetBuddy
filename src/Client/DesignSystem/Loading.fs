@@ -398,6 +398,40 @@ let firstItemListSkeleton (rowCount: int) =
         ]
     ]
 
+/// Platzhalter einer Karte mit Listenzeilen (Tab „Regeln“ am Handy, categorization-n3sxw): Karte mit Rand, je Zeile
+/// links die Nummer, daneben `lineCount` Textzeilen (die erste in der Größe von `ListRoles.primary`, die übrigen 12 px),
+/// rechts zwei Pfeilflächen übereinander. So hoch wie die echte Zeile, damit beim Laden nichts springt.
+let cardListSkeleton (rowCount: int) (lineCount: int) =
+    Html.div [
+        prop.ariaBusy true
+        prop.className $"overflow-hidden rounded-xl border {Borders.default'} {Backgrounds.dark}"
+        prop.children [
+            for _ in 1..rowCount do
+                Html.div [
+                    prop.className $"flex items-center gap-2.5 py-3 pl-4 pr-1 border-b {Borders.subtle} last:border-b-0"
+                    prop.children [
+                        Html.span [ prop.className $"w-[18px] shrink-0 {FontSizes.xs}"; prop.children [ Html.span [ prop.className $"{lineBar} w-3" ] ] ]
+                        Html.div [
+                            prop.className "flex min-w-0 flex-1 flex-col gap-0.5"
+                            prop.children [
+                                Html.div [ prop.className ListRoles.primarySize; prop.children [ Html.span [ prop.className $"{lineBar} w-32" ] ] ]
+                                for i in 2..lineCount do
+                                    let barWidth = if i % 2 = 0 then "w-48" else "w-28"
+                                    Html.div [ prop.className FontSizes.xs; prop.children [ Html.span [ prop.className $"{lineBar} {barWidth}" ] ] ]
+                            ]
+                        ]
+                        Html.div [
+                            prop.className "flex shrink-0 flex-col gap-2"
+                            prop.children [
+                                for _ in 1..2 do
+                                    Html.span [ prop.className $"{TouchTargets.minSize} md:min-h-[40px] md:min-w-[40px] {Radius.md}" ]
+                            ]
+                        ]
+                    ]
+                ]
+        ]
+    ]
+
 // ============================================
 // Loading States with Context
 // ============================================

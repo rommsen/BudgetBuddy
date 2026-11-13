@@ -587,6 +587,14 @@ let ledgerCategoriesSetupGap (settings: AppSettingsView) : string option =
     | Some ynab when ynab.DefaultBudgetId.IsNone -> Some ledgerCategoriesNoBudget
     | Some _ -> None
 
+/// Sind die Kategorien des Tabs „Regeln“ zu laden? Nur, wenn sie weder da sind noch laden.
+let rulesCategoriesDue (categories: RemoteData<YnabCategory list>) : bool =
+    match categories with
+    | NotAsked
+    | Failure _ -> true
+    | Loading
+    | Success _ -> false
+
 /// Die Kassenbuch-Kategorien als Fehler mit Grund; das Warten auf die Settings endet.
 let private ledgerCategoriesFailed (reason: string) (ledger: Components.Ledger.Types.Model) =
     { ledger with Categories = Failure reason; CategoriesAwaitSettings = false }
@@ -781,7 +789,7 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
                            || (isLedgerPage model.CurrentPage && model.Ledger.Categories = NotAsked) then
                             Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadCategories)
                         // Derselbe Fall beim Direktaufruf des Tabs „Regeln“: die Auswahl der Kategorie wartete sonst.
-                        if model.CurrentPage = LedgerRules && model.Rules.Categories.IsEmpty then
+                        if model.CurrentPage = LedgerRules && rulesCategoriesDue model.Rules.Categories then
                             Cmd.map RulesMsg (Cmd.ofMsg Components.Rules.Types.LoadCategories)
                     ]
                 | _ -> Cmd.none
@@ -854,12 +862,15 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
         // Special handling for LoadCategories - parent needs to load them
         match rulesMsg with
         | Components.Rules.Types.LoadCategories ->
-            // Load categories from Settings context
-            match model.Settings.Settings with
-            | Success settings ->
-                match settings.Ynab with
-                | Some ynab ->
-                    match ynab.DefaultBudgetId with
+            // Die Auswahl der Kategorie braucht das konfigurierte Budget. Geladen wird einmal: stehen die Kategorien
+            // schon da oder laden sie, nichts; nach einem Fehler lädt „Erneut versuchen“ neu.
+            let withCategories categories = { model with Rules = { model.Rules with Categories = categories } }
+            if not (rulesCategoriesDue model.Rules.Categories) then
+                model, Cmd.none
+            else
+                match model.Settings.Settings with
+                | Success settings ->
+                    match settings.Ynab |> Option.bind (fun ynab -> ynab.DefaultBudgetId) with
                     | Some budgetId ->
                         let cmd =
                             Cmd.OfAsync.either
@@ -867,10 +878,17 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
                                 budgetId
                                 (fun result -> RulesMsg (Components.Rules.Types.CategoriesLoaded result))
                                 (fun ex -> RulesMsg (Components.Rules.Types.CategoriesLoaded (Error (YnabError.NetworkError ex.Message))))
-                        model, cmd
-                    | None -> model, Cmd.none
-                | None -> model, Cmd.none
-            | _ -> model, Cmd.none
+                        withCategories Loading, cmd
+                    | None ->
+                        // Ohne YNAB oder Budget gibt es nichts zu laden: der Grund statt eines ewigen Ladens.
+                        withCategories (Failure (ledgerCategoriesSetupGap settings |> Option.defaultValue ledgerCategoriesNoBudget)), Cmd.none
+                | Failure _ ->
+                    // Die Settings holen; sind sie da, lädt `SettingsLoaded` die Kategorien nach.
+                    withCategories (Failure "Einstellungen konnten nicht geladen werden"),
+                    Cmd.map SettingsMsg (Cmd.ofMsg Components.Settings.Types.LoadSettings)
+                // Die Settings laden noch: `SettingsLoaded` holt die Kategorien nach.
+                | NotAsked
+                | Loading -> model, Cmd.none
         | _ ->
             let rulesModel', rulesCmd, externalMsg = Components.Rules.State.update rulesMsg model.Rules
 

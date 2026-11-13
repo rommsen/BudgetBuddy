@@ -68,6 +68,7 @@ let testLine (test: PatternTest) : TestLine =
     | Tested (_, NoMatch) -> NoMatchLine "Passt nicht"
     | Tested (_, PatternFaulty reason) -> FaultLine reason
     | Tested (_, Unreachable) -> FaultLine ruleTestLostText
+    | Tested (_, TestFailed message) -> FaultLine $"Muster konnte nicht geprüft werden: {message}"
 
 let editorTitle (editor: Editor) =
     match editor with
@@ -99,8 +100,20 @@ let private selectedId (model: Model) =
     | Some { Editor = Editing rule } -> Some rule.Id
     | _ -> None
 
-/// Die gewählte Regel: Fläche `surface-hover` und Rand im Akzent (Prototyp `.rrow.cur`).
-let selectedRowClass = "bg-surface-hover shadow-[inset_0_0_0_1px_var(--color-accent)]"
+/// Die geladenen Kategorien; solange sie laden oder fehlen, keine.
+let private loadedCategories (model: Model) : YnabCategory list =
+    match model.Categories with
+    | RemoteData.Success categories -> categories
+    | _ -> []
+
+/// Der Ladezustand der Kategorien für die Auswahl: nach einem Fehler der Grund mit „Erneut versuchen“, kein ewiges
+/// „Kategorien werden geladen“.
+let categoryLoadState (categories: RemoteData<YnabCategory list>) : CategoryPicker.PickerLoadState =
+    match categories with
+    | RemoteData.Success _ -> CategoryPicker.PickerReady
+    | RemoteData.Failure reason -> CategoryPicker.PickerFailed (Some reason)
+    | RemoteData.NotAsked
+    | RemoteData.Loading -> CategoryPicker.PickerLoading
 
 // ============================================
 // Liste
@@ -120,7 +133,7 @@ let private ruleTable (model: Model) (rules: Rule list) (dispatch: Msg -> unit) 
     let grid = "grid grid-cols-[28px_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_64px_88px] items-center gap-3 px-3.5"
     Html.div [
         prop.custom ("data-testid", "rules-table")
-        prop.className "overflow-hidden rounded-xl border border-border-default bg-surface-card"
+        prop.className $"overflow-hidden rounded-xl border {Borders.default'} {Backgrounds.dark}"
         prop.children [
             Html.div [
                 prop.className $"{grid} h-[34px] border-b {Borders.default'} {ListRoles.groupHeader}"
@@ -137,7 +150,7 @@ let private ruleTable (model: Model) (rules: Rule list) (dispatch: Msg -> unit) 
                     if isSelected then prop.custom ("aria-current", "true")
                     prop.className (
                         $"{grid} h-11 border-b {Borders.subtle} last:border-b-0 cursor-pointer text-sm transition-colors "
-                        + (if isSelected then selectedRowClass else "hover:bg-surface-hover")
+                        + (if isSelected then ListRoles.selectedRow else "hover:bg-surface-hover")
                     )
                     prop.onClick (fun _ -> dispatch (RuleChosen rule.Id))
                     prop.children [
@@ -153,7 +166,8 @@ let private ruleTable (model: Model) (rules: Rule list) (dispatch: Msg -> unit) 
                         Html.span [ prop.className $"truncate {Colors.textSecondary}"; prop.title (kindText rule); prop.text (kindText rule) ]
                         Html.span [ prop.className $"truncate {Colors.textSecondary}"; prop.title rule.CategoryName; prop.text rule.CategoryName ]
                         Html.span [
-                            prop.className (if rule.Enabled then $"text-xs {Colors.success}" else ListRoles.muted)
+                            // Der Status ist kein Erfolg: „aktiv“ in `text-secondary`, „inaktiv“ gedämpft (Entscheidung Roman 2026-11-13).
+                            prop.className (if rule.Enabled then $"{ListRoles.secondary}" else $"{ListRoles.muted}")
                             prop.text (if rule.Enabled then "aktiv" else "inaktiv")
                         ]
                         Html.span [
@@ -173,7 +187,7 @@ let private ruleCard (model: Model) (rules: Rule list) (dispatch: Msg -> unit) =
     let selected = selectedId model
     Html.div [
         prop.custom ("data-testid", "rules-card")
-        prop.className "overflow-hidden rounded-xl border border-border-default bg-surface-card"
+        prop.className $"overflow-hidden rounded-xl border {Borders.default'} {Backgrounds.dark}"
         prop.children [
             for index, rule in List.indexed rules ->
                 Html.div [
@@ -182,7 +196,7 @@ let private ruleCard (model: Model) (rules: Rule list) (dispatch: Msg -> unit) =
                     if selected = Some rule.Id then prop.custom ("aria-current", "true")
                     prop.className (
                         $"flex items-center border-b {Borders.subtle} last:border-b-0 "
-                        + (if selected = Some rule.Id then selectedRowClass else "")
+                        + (if selected = Some rule.Id then ListRoles.selectedRow else "")
                     )
                     prop.children [
                         Html.button [
@@ -210,7 +224,8 @@ let private ruleCard (model: Model) (rules: Rule list) (dispatch: Msg -> unit) =
                             ]
                         ]
                         Html.div [
-                            prop.className "flex shrink-0 flex-col pr-1"
+                            // 8 px zwischen den Pfeilen (§7.15), wie in `Button.orderNameRow`.
+                            prop.className "flex shrink-0 flex-col gap-2 pr-1"
                             prop.children (moveArrows "rule-move" index total rule dispatch)
                         ]
                     ]
@@ -233,25 +248,34 @@ let private newRuleButtonBlock (dispatch: Msg -> unit) =
         ]
     ]
 
+/// Wie die Liste: Tabelle, wo die Tabelle steht, sonst die Karte mit drei Zeilen je Regel.
 let private skeleton () =
     Html.div [
         prop.role "status"
         prop.ariaLabel "Regeln werden geladen…"
-        prop.children [ Loading.tableSkeleton 5 5 ]
+        prop.children [
+            Html.div [ prop.className "hidden md:block lg:hidden xl:block"; prop.children [ Loading.tableSkeleton 6 5 ] ]
+            Html.div [ prop.className "md:hidden lg:block xl:hidden"; prop.children [ Loading.cardListSkeleton 5 3 ] ]
+        ]
     ]
 
 // ============================================
 // Formular (Panel und Sheet)
 // ============================================
 
-let private label (text: string) (forId: string option) =
+let private labelClass = $"mb-1 block {FontSizes.xs} {Colors.textSecondary}"
+
+/// Ein Textfeld mit seiner Bezeichnung: das `label` umschließt das Feld und ist so mit ihm verbunden.
+let private labelled (text: string) (field: ReactElement) =
     Html.label [
-        match forId with
-        | Some id -> prop.htmlFor id
-        | None -> ()
-        prop.className $"mb-1 block {FontSizes.xs} {Colors.textSecondary}"
-        prop.text text
+        prop.className "block"
+        prop.children [ Html.span [ prop.className labelClass; prop.text text ]; field ]
     ]
+
+/// Die Bezeichnung über einer Leiste: die Leiste (`role group`) trägt denselben Namen als `aria-label`, ein `label`
+/// hätte kein Feld.
+let private groupCaption (text: string) =
+    Html.span [ prop.ariaHidden true; prop.className labelClass; prop.text text ]
 
 let private segmentsFor (testId: string) (ariaLabel: string) (options: ('a * string) list) (current: 'a) (onChoose: 'a -> unit) (disabled: bool) =
     Segmented.view
@@ -267,7 +291,8 @@ let private testLineView (test: PatternTest) =
         match testLine test with
         | HintLine t -> ListRoles.muted, t
         | MatchLine t -> $"text-xs {Colors.success}", t
-        | NoMatchLine t -> $"text-xs {Colors.error}", t
+        // „Passt nicht“ ist ein Urteil, kein Fehler: neutral (Entscheidung Roman 2026-11-13).
+        | NoMatchLine t -> ListRoles.secondary, t
         | FaultLine t -> $"text-xs {Colors.error}", t
     Html.p [
         prop.custom ("data-testid", "rule-test-result")
@@ -278,7 +303,7 @@ let private testLineView (test: PatternTest) =
 
 /// Die Auswahl der Kategorie, im Popover am PC und im Sheet am Handy dieselbe.
 let private pickerPropsFor (model: Model) (panel: Panel) (dispatch: Msg -> unit) : CategoryPicker.CategoryPickerProps =
-    { Categories = model.Categories
+    { Categories = loadedCategories model
       Current = panel.Draft.CategoryId
       Suggested = []
       Recent = []
@@ -288,14 +313,14 @@ let private pickerPropsFor (model: Model) (panel: Panel) (dispatch: Msg -> unit)
       OfferWithout = false
       ToBeBudgeted = None
       StandLabel = None
-      LoadState = (if model.Categories.IsEmpty then CategoryPicker.PickerLoading else CategoryPicker.PickerReady)
-      OnRetry = ignore
+      LoadState = categoryLoadState model.Categories
+      OnRetry = fun () -> dispatch LoadCategories
       OnSelect = CategoryPicker.categoryChoice (CategoryChosen >> dispatch)
       OnClose = fun () -> dispatch CategoryPickerClosed }
 
 let private formFields (model: Model) (panel: Panel) (shell: Shell) (dispatch: Msg -> unit) =
     let draft = panel.Draft
-    let saving = panel.Save = Saving
+    let saving = SaveState.isSaving panel.Save
     let patternError =
         match panel.Save with
         | SaveFailed (PatternRejected reason) -> Some reason
@@ -305,26 +330,19 @@ let private formFields (model: Model) (panel: Panel) (shell: Shell) (dispatch: M
         prop.custom ("data-testid", "rule-form")
         prop.className "flex flex-col gap-3"
         prop.children [
+            labelled "Name" (
+                Input.text {
+                    Input.textInputDefaults with
+                        Value = draft.Name
+                        OnChange = NameEntered >> dispatch
+                        Placeholder = "z. B. Rewe"
+                        AriaLabel = Some "Name"
+                        Disabled = saving
+                }
+            )
             Html.div [
                 prop.children [
-                    label "Name" None
-                    Html.div [
-                        prop.children [
-                            Input.text {
-                                Input.textInputDefaults with
-                                    Value = draft.Name
-                                    OnChange = NameEntered >> dispatch
-                                    Placeholder = "z. B. Rewe"
-                                    AriaLabel = Some "Name"
-                                    Disabled = saving
-                            }
-                        ]
-                    ]
-                ]
-            ]
-            Html.div [
-                prop.children [
-                    label "Wenn" None
+                    groupCaption "Wenn"
                     segmentsFor "rule-pattern-type" "Wenn"
                         [ Contains, "Enthält"; Exact, "Exakt"; PatternType.Regex, "Regex" ]
                         draft.PatternType (PatternTypeChosen >> dispatch) saving
@@ -332,7 +350,7 @@ let private formFields (model: Model) (panel: Panel) (shell: Shell) (dispatch: M
             ]
             Html.div [
                 prop.children [
-                    label "Suchen in" None
+                    groupCaption "Suchen in"
                     segmentsFor "rule-target-field" "Suchen in"
                         [ Combined, "Payee & Memo"; Payee, "Payee"; Memo, "Memo" ]
                         draft.TargetField (TargetFieldChosen >> dispatch) saving
@@ -340,19 +358,20 @@ let private formFields (model: Model) (panel: Panel) (shell: Shell) (dispatch: M
             ]
             Html.div [
                 prop.children [
-                    label "Muster" None
-                    Input.text {
-                        Input.textInputDefaults with
-                            Value = draft.Pattern
-                            OnChange = PatternEntered >> dispatch
-                            Placeholder = "rewe"
-                            AriaLabel = Some "Muster"
-                            ClassName = Some "input-mono"
-                            Disabled = saving
-                            State = (match patternError with Some reason -> Input.Error reason | None -> Input.Normal)
-                            AriaInvalid = patternError.IsSome
-                            DescribedBy = (if patternError.IsSome then Some "rule-pattern-error" else None)
-                    }
+                    labelled "Muster" (
+                        Input.text {
+                            Input.textInputDefaults with
+                                Value = draft.Pattern
+                                OnChange = PatternEntered >> dispatch
+                                Placeholder = "rewe"
+                                AriaLabel = Some "Muster"
+                                ClassName = Some "input-mono"
+                                Disabled = saving
+                                State = (match patternError with Some reason -> Input.Error reason | None -> Input.Normal)
+                                AriaInvalid = patternError.IsSome
+                                DescribedBy = (if patternError.IsSome then Some "rule-pattern-error" else None)
+                        }
+                    )
                     match patternError with
                     | Some reason ->
                         Html.p [
@@ -376,7 +395,7 @@ let private formFields (model: Model) (panel: Panel) (shell: Shell) (dispatch: M
                             Input.pickerField
                                 "rule-category"
                                 "Dann Kategorie"
-                                (categoryValue model.Categories panel)
+                                (categoryValue (loadedCategories model) panel)
                                 "wählen"
                                 None
                                 panel.PickerOpen
@@ -389,17 +408,22 @@ let private formFields (model: Model) (panel: Panel) (shell: Shell) (dispatch: M
                     | InSheet -> ()
                 ]
             ]
-            Input.switchRow "rule-enabled" "Regel aktiv" "" draft.Enabled saving (EnabledSwitched >> dispatch)
+            // Ein Schalter mit kurzer Bezeichnung ohne Erklärsatz ist `toggle` (§5 Input).
+            Html.div [
+                prop.custom ("data-testid", "rule-enabled")
+                prop.children [ Input.toggle draft.Enabled (EnabledSwitched >> dispatch) (Some "Regel aktiv") ]
+            ]
             Html.div [
                 prop.children [
-                    label "Muster testen" None
-                    Input.text {
-                        Input.textInputDefaults with
-                            Value = draft.TestInput
-                            OnChange = TestInputEntered >> dispatch
-                            Placeholder = "Beispiel: REWE Markt 4711"
-                            AriaLabel = Some "Muster testen"
-                    }
+                    labelled "Muster testen" (
+                        Input.text {
+                            Input.textInputDefaults with
+                                Value = draft.TestInput
+                                OnChange = TestInputEntered >> dispatch
+                                Placeholder = "Beispiel: REWE Markt 4711"
+                                AriaLabel = Some "Muster testen"
+                        }
+                    )
                     testLineView panel.Test
                 ]
             ]
@@ -440,10 +464,10 @@ let private formButtons (panel: Panel) (shell: Shell) (dispatch: Msg -> unit) =
                     Text = "Abbrechen"
                     Variant = Button.Outline
                     FullWidth = true
-                    IsDisabled = (panel.Save = Saving)
+                    IsDisabled = SaveState.isSaving panel.Save
                     OnClick = fun () -> dispatch PanelClosed
             }
-            Form.submitButtonBlock (submitLabel panel.Editor) submit (panel.Save = Saving) (requiredFieldPairs panel.Draft)
+            Form.submitButtonBlock (submitLabel panel.Editor) submit (SaveState.isSaving panel.Save) (requiredFieldPairs panel.Draft)
         ]
     ]
 
@@ -488,11 +512,12 @@ let private sidePanel (model: Model) (dispatch: Msg -> unit) =
         ]
 
 /// Handy: das Sheet. Ist die Auswahl der Kategorie offen, ersetzt sie den Inhalt (§7.15) und führt nach der Wahl
-/// zurück. Immer gerendert, damit es ein- und ausfährt.
+/// zurück. Immer gerendert (`viewHeld`): es fährt ein und aus und hält beim Ausfahren den letzten Inhalt, statt leer
+/// herauszufahren.
 let private sheet (model: Model) (dispatch: Msg -> unit) =
     match model.Panel with
     | Some panel when panel.PickerOpen ->
-        BottomSheet.view
+        BottomSheet.viewHeld
             { IsOpen = true
               OnClose = fun () -> dispatch CategoryPickerClosed
               Title = CategoryPicker.sheetTitle []
@@ -500,14 +525,14 @@ let private sheet (model: Model) (dispatch: Msg -> unit) =
               Footer = None }
             [ CategoryPicker.sheetContent (pickerPropsFor model panel dispatch) ]
     | Some panel ->
-        BottomSheet.view
+        BottomSheet.viewHeld
             { IsOpen = true
               OnClose = fun () -> dispatch PanelClosed
               Title = editorTitle panel.Editor
               Subtitle = None
               Footer = Some [ formButtons panel InSheet dispatch ] }
             [ Html.div [ prop.className "py-2"; prop.children [ formFields model panel InSheet dispatch ] ] ]
-    | None -> BottomSheet.view { IsOpen = false; OnClose = ignore; Title = ""; Subtitle = None; Footer = None } []
+    | None -> BottomSheet.viewHeld { IsOpen = false; OnClose = ignore; Title = ""; Subtitle = None; Footer = None } []
 
 // ============================================
 // Tastatur am PC (§7.8)
