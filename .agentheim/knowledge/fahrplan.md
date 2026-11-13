@@ -3,7 +3,7 @@
 Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success looks like“.
 
 ## Stand
-Zuletzt aktualisiert: 2026-11-13, nach Romans Blick auf den Deploy 57461f98.
+Zuletzt aktualisiert: 2026-11-13, nach work-Lauf ledger-nkwqb und banking-import-pknvp.
 
 - **Etappe 1 · Bedeutungen:** erledigt, 5 von 5 (Skizze und Prototyp, Layout-Sweep, Muster im
   Styleguide, Designwert-Tests aufgeräumt, Palette 2 im Token-Layer). Romans Blick auf dak16 neben
@@ -77,8 +77,15 @@ Zuletzt aktualisiert: 2026-11-13, nach Romans Blick auf den Deploy 57461f98.
   (Geld betroffen). In YNAB ist die Buchung einmal da; Roman entfernt dort die Kategorie am Übertrag und gibt ihn frei,
   in BB wird nichts gelöscht (DELETE scheitert am 404, die Comdirect-Referenz ginge verloren). Roh dazu:
   ynab-sync-c7aag (YNABs Payee-Zuordnung überschreibt Importe), banking-import-r28hx (alle Konten per FinTS).
-- **Nächster Schritt:** ledger-nkwqb (Abgleich in YNAB, Übertrag als Duplikat) mit `/agentheim:modeling` verfeinern und
-  bauen, weil der Kontostand des Girokontos bis dahin falsch ist. Danach Schnitt 6 `categorization-n3sxw` (Regeln ins
+- **Work-Lauf 2026-11-13 (laufend):** ledger-nkwqb (Spiegel legt von YNAB abgeglichene Buchungen zusammen, Vollabruf-Generation 1,
+  f41a4d24) und banking-import-pknvp (YNAB-Übertrag als mögliches Duplikat beim Import, 127b9512), beide Verifier PASS in
+  Iteration 1. Nachträge ADR 0014, 0015, 0093. Gate im Worktree über den kombinierten Stand: VERIFY: PASS (dotnet 4936, node 322).
+  Probelauf gegen eine Kopie der Produktion (nur GET bei YNAB): 3 Zusammenlegungen (zwei ING-Überträge auf dem Girokonto, eine
+  Barbuchung von Bob, die YNAB mit einer älteren Buchung gleichen Betrags abgeglichen hat), danach stimmen alle Kontostände mit
+  YNAB. Nicht gepusht, nicht deployt.
+- **Nächster Schritt:** Romans Antwort zur Barbuchung (eine oder zwei Zahlungen; bei zwei den Abgleich in YNAB vor dem Deploy
+  aufheben), dann Deploy auf Anweisung (der erste Spiegel-Lauf danach liest einmal alles). Review vorgeschlagen:
+  `/review-agents` mit backend-code-quality und qa-milestone-reviewer. Danach Schnitt 6 `categorization-n3sxw` (Regeln ins
   Kassenbuch) verfeinern. Offen zum Verfeinern: ledger-yhemh (Memo unter Datum), ledger-h7de3 (Fehlertexte in Ereignissen),
   design-system-vf94m (Toast verdeckt „+ Buchung“), ledger-t4rk8 (Betrag eines Übertrags in BB ändern).
 - Verfeinert wird nur die nächste Etappe. Spätere Etappen haben Zeilen, keine Tickets.

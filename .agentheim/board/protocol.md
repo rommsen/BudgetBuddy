@@ -5,6 +5,26 @@ Newest entries on top.
 
 ---
 
+## 2026-11-13 09:01 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** 1h15m
+**Completed:** 2 (first-try PASS: 2, re-dispatched: 0, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Lost-result re-dispatches:** 0
+**Lost-result escalations:** 0
+**Dispatches:** banking-import-pknvp: 1, ledger-nkwqb: 1
+**Commits:** 4
+**Vision-conformance:** none — batch aligns with vision
+**Batch mix:** 100% product-facing (2 tasks)
+**Carry-over:** none — working tree clean
+**Probelauf vor Deploy (Conductor):** ein Spiegel-Lauf mit Vollabruf (nur GET bei YNAB) gegen eine Kopie der Produktions-DB im Scratchpad: 3 Zusammenlegungen (zwei ING-Überträge auf dem Girokonto, eine Barbuchung von Bob, die YNAB mit einer älteren Buchung gleichen Betrags abgeglichen hat), 1 Kategorie-Beobachtung, sonst nichts. Danach stimmen alle Kontostände mit YNAB überein (vorher Girokonto und Bar abweichend).
+**Review vorgeschlagen (Override C):** /review-agents mit backend-code-quality (src/Server) und qa-milestone-reviewer (Tests); nicht gestartet.
+
+---
+
 ## 2026-11-13 08:58 -- Task verified and completed: ledger-nkwqb - "Von YNAB abgeglichene Buchung bleibt im Kassenbuch doppelt: der Spiegel liest matched_transaction_id nicht und legt die zusammengelegte Buchung nicht still (Ledger/Domain.fs, Ledger/CommandHandlers.fs)"
 
 **Type:** Work / Task completion
