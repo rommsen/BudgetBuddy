@@ -706,4 +706,57 @@ let entryFormTests =
             let left, _ = State.update (State.UrlChanged [ "budget" ]) opened
             Expect.isNone left.Rules.Panel "Seite verlassen"
         }
+        // Auf der Karte des Durchgehens ist das Detail zu (`DetailShown = false`), die Karte steht aber in `DetailFor`.
+        // GIVEN die zweite Karte WHEN Roman „Regel anlegen“ tippt THEN öffnet das Formular und bleibt offen; nach
+        // Anlegen oder Abbrechen ist es zu und dieselbe Karte steht da (Stelle, Schlange und Buchung unverändert).
+        test "Auf der Karte des Durchgehens öffnet das Formular und führt danach zur selben Karte zurück" {
+            let entryOf (n: int) : LedgerEntryView =
+                { Id = Guid.Parse $"0195f710-0000-7000-8000-{n:D12}"; AccountId = Guid.NewGuid(); Date = DateTime.Today
+                  Amount = { Amount = -10m; Currency = "EUR" }; Payee = Some $"Payee {n}"; Memo = None
+                  CategoryName = Some "Kategorie 1"; CategoryId = Some (let (YnabCategoryId g) = r1.CategoryId in g)
+                  CategoryGroupName = Some "Alltag"
+                  Reconciled = false; SplitCategoryGroupNames = Map.empty; Splits = []; Origin = MirroredFromYnab
+                  DeletedInYnab = false; NeedsReview = true; Flag = NoFlag; IsTransfer = false; TransferAccountId = None
+                  ReviewMarkWriteBackFailure = None; CategorizationWriteBackFailure = None; FlagWriteBackFailure = None
+                  MemoWriteBackFailure = None; AmountWriteBackFailure = None; AmountLockReason = None
+                  PayeeWriteBackFailure = None; LinkedToYnab = true; PushToYnabFailure = None; SplitLocks = None
+                  ExternalLinks = []; PossibleDuplicate = None; CategoryFromOrderId = false }
+            let ledgerStep msg model = let m, _, _ = Components.Ledger.State.update msg model in m
+            let opened = ledgerStep Components.Ledger.Types.ReviewOpened (fst (Components.Ledger.State.init ()))
+            let onSecondCard =
+                opened
+                |> ledgerStep (Components.Ledger.Types.ReviewQueueLoaded (opened.ReviewGeneration, Ok [ entryOf 1; entryOf 2; entryOf 3 ]))
+                |> ledgerStep Components.Ledger.Types.ReviewSkip
+            let card = Components.Ledger.Types.reviewCardOf onSecondCard |> Option.get
+            Expect.equal card.Id (entryOf 2).Id "zweite Karte"
+            Expect.isFalse onSecondCard.Review.Value.DetailShown "Detail zu"
+            let root = { rootModel Page.Ledger with Ledger = onSecondCard }
+            let requested, cmd = State.update (State.LedgerMsg (Components.Ledger.Types.RuleFromEntryRequested card.Id)) root
+            let openMsg = State.RulesMsg (EntryRuleRequested (card.Id, "Payee 2", Some r1.CategoryId))
+            Expect.contains (dispatched cmd) openMsg "Formular angefordert"
+            let withForm, _ = State.update openMsg requested
+            Expect.equal (entryFormFor withForm.Rules) (Some card.Id) "Formular offen über der Karte"
+            let sameCard (model: State.Model) (label: string) =
+                Expect.equal model.Ledger.Review.Value.Index onSecondCard.Review.Value.Index $"Stelle ({label})"
+                Expect.equal model.Ledger.Review.Value.Queue onSecondCard.Review.Value.Queue $"Schlange ({label})"
+                Expect.equal (model.Ledger.DetailFor |> Option.map (fun d -> d.Id)) (Some card.Id) $"Buchung ({label})"
+            sameCard withForm "offen"
+            // Jede Nachricht des Kassenbuchs prüft, ob das Formular seiner Buchung folgt; die Karte gilt als gezeigt.
+            let afterLedgerMsg, _ = State.update (State.LedgerMsg Components.Ledger.Types.RuleOfferDismissed) withForm
+            Expect.equal (entryFormFor afterLedgerMsg.Rules) (Some card.Id) "bleibt offen über der Karte"
+            let saving, _ = State.update (State.RulesMsg (CreateRequested InSheet)) withForm
+            let created = { rule 9 true with Name = "Payee 2" }
+            let afterCreate, _ = State.update (State.RulesMsg (RuleCreated (InSheet, requestOf saving.Rules, Ok created))) saving
+            Expect.isNone afterCreate.Rules.Panel "nach dem Anlegen zu"
+            sameCard afterCreate "angelegt"
+            let afterClose, _ = State.update (State.RulesMsg PanelClosed) withForm
+            Expect.isNone afterClose.Rules.Panel "nach Abbrechen zu"
+            sameCard afterClose "abgebrochen"
+        }
+        // Review-Fund ledger-hg5m5: die Bedingung stand als Logik im View (`content`).
+        test "Der Tab Regeln zeigt ein Formular aus einer Buchung nicht, sein eigenes Formular schon" {
+            Expect.isNone (forTab fromEntry).Panel "aus der Buchung"
+            let inTab = step (RuleChosen r1.Id) shown
+            Expect.equal (forTab inTab) inTab "Formular des Tabs"
+        }
     ]

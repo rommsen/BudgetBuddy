@@ -36,13 +36,12 @@ let private tests =
         ]
 
         testList "Picker-Bausteine" [
-            // ledger-ea70s: der Picker im BottomSheet ist entfallen, der eine Einzel-Picker ist `CategoryPicker`.
-            test "CategoryMultiSelect und CategoryPicker nutzen Zeile und Gruppenkopf, nicht Money.available" {
-                for file in [ "CategoryMultiSelect.fs"; "CategoryPicker.fs" ] do
-                    let src = readDs file
-                    Expect.isTrue (contains "PickerParts.row" src) $"{file}: PickerParts.row"
-                    Expect.isTrue (contains "PickerParts.groupHeader" src) $"{file}: PickerParts.groupHeader"
-                    Expect.isFalse (contains "Money.available" src) $"{file}: Money.available"
+            // ledger-ea70s: der Picker im BottomSheet ist entfallen; `CategoryPicker` prüft CategoryPickerTests.fs.
+            test "CategoryMultiSelect nutzt Zeile und Gruppenkopf, nicht Money.available" {
+                let src = readDs "CategoryMultiSelect.fs"
+                Expect.isTrue (contains "PickerParts.row" src) "PickerParts.row"
+                Expect.isTrue (contains "PickerParts.groupHeader" src) "PickerParts.groupHeader"
+                Expect.isFalse (contains "Money.available" src) "Money.available"
             }
             test "Zeilenname: ListRoles.primary, truncate; Betragsbereich schrumpft nicht" {
                 Expect.isTrue (contains ListRoles.primary PickerParts.nameClass) PickerParts.nameClass

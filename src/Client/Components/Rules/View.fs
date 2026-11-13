@@ -666,8 +666,7 @@ let headerActions (dispatch: Msg -> unit) : ReactElement list =
 
 /// Der Inhalt des Tabs: Hinweis, Liste, Panel bzw. Sheet, Tastatur.
 let content (model: Model) (dispatch: Msg -> unit) : ReactElement =
-    // Ein Formular aus einer Buchung gehört zur Buchung, nicht in den Tab (ledger-hg5m5).
-    let model = if (entryFormFor model).IsSome then { model with Panel = None } else model
+    let model = forTab model
     let isPanel = Viewport.isInspectorPanelViewport ()
     Html.div [
         prop.custom ("data-testid", "rules-tab")

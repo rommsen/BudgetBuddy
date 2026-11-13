@@ -86,6 +86,11 @@ let followEntry (shown: Guid option) (model: Model) : Model =
     | Some entryId when shown <> Some entryId -> { model with Panel = None }
     | _ -> model
 
+/// Das Modell, das der Tab „Regeln“ zeigt: ein Formular aus einer Buchung gehört zur Buchung, nicht in den Tab
+/// (ledger-hg5m5). Ein Formular des Tabs bleibt.
+let forTab (model: Model) : Model =
+    if (entryFormFor model).IsSome then { model with Panel = None } else model
+
 /// Wo steht der Fokus, wenn eine Taste kommt? In einem Textfeld gehören die Pfeile dem Cursor (§7.8).
 type KeyFocus =
     | InTextField

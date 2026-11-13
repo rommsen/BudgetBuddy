@@ -128,6 +128,13 @@ let offerTests =
             Expect.equal (ruleOfferFor answered (shownEntry answered)) (Some "Rewe") "Angebot"
             Expect.equal (ruleOfferText "Rewe") "Regel für „Rewe“ anlegen?" "Satz"
         }
+        // Der Server prüft, ob eine Regel auf Payee und Memo schon passt (`MemoContains`); ohne das Memo der Buchung
+        // böte das Detail an, obwohl eine Memo-Regel die Buchung schon kategorisiert.
+        test "Die Frage an den Server trägt das Memo der Buchung" {
+            let withMemo = { rewe with Memo = Some "Miete Mai" }
+            let _, sent = changedTo withMemo (modelWith [ withMemo ])
+            Expect.contains sent (RunCheckRuleOffer (rewe.Id, "Rewe", "Miete Mai", lebensmittel)) "Memo in der Frage"
+        }
         test "Gibt schon eine Regel die neue Kategorie, kein Angebot; eine andere Kategorie der Regel bietet an" {
             let asked, _ = changedTo rewe (modelWith [ rewe ])
             let covered = step (RuleOfferChecked (rewe.Id, lebensmittel, Ok (Some lebensmittel))) asked

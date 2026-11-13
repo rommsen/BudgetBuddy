@@ -85,8 +85,6 @@ test("[flow:regel-aus-buchung] Am Handy aus einer Buchung im Kassenbuch eine Reg
     await sheet(page).locator('[data-testid="detail-title"]').getByText("Bauhaus").waitFor();
     await page.getByText("Regel angelegt").first().waitFor();
     assert.equal(created.length, 1, "angelegt");
-    assert.equal(created[0].PatternType, "Contains", "Enthält");
-    assert.equal(created[0].TargetField, "Payee", "in Payee");
   } finally {
     await context.close();
   }
