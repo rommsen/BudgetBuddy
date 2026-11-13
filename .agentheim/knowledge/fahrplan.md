@@ -3,7 +3,7 @@
 Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success looks like“.
 
 ## Stand
-Zuletzt aktualisiert: 2026-11-13, nach work-Lauf infrastructure-ewasy und categorization-n3sxw (Review steht aus).
+Zuletzt aktualisiert: 2026-11-13, nach work-Lauf und Review infrastructure-ewasy und categorization-n3sxw.
 
 - **Etappe 1 · Bedeutungen:** erledigt, 5 von 5 (Skizze und Prototyp, Layout-Sweep, Muster im
   Styleguide, Designwert-Tests aufgeräumt, Palette 2 im Token-Layer). Romans Blick auf dak16 neben
@@ -116,7 +116,13 @@ Zuletzt aktualisiert: 2026-11-13, nach work-Lauf infrastructure-ewasy und catego
   wie bei den Buchungen, Karte statt Tabelle von 1024 bis 1279 px. categorization-krscs ist in n3sxw aufgegangen, liegt
   noch im Backlog (verwerfen nur auf Romans Wort). Gate auf main: VERIFY: PASS (dotnet 4991, node 333). Nicht gepusht,
   nicht deployt.
-- **Nächster Schritt:** Review-Lauf (`/review-agents`) über 5c4924a0..HEAD, dann Romans Blick auf den Tab Regeln am Handy
+- **Review-Lauf aa2c1e46..HEAD (2026-11-13):** 4 Agents, rund 40 Funde behoben in 5107a1be..1da80ba9, darunter: eine
+  Speicherantwort schrieb in ein inzwischen anderes Panel (Eingabe verloren), Umordnungen liefen parallel, Kategorien-Fehler
+  ließ den Picker ewig laden, „Jetzt spiegeln“ fehlte am PC auf dem Tab Regeln, drei Bug-Regressionen der alten Regelseite
+  fehlten. Entschieden (Roman): „aktiv“ und „Passt nicht“ ruhig statt Grün und Rot. Der Sweep fand danach den überdeckten
+  Kopf bei 1024 px (behoben). Kann-Sammlungen categorization und design-system ergänzt. Gate: VERIFY: PASS (dotnet 5012,
+  node 338). Nicht gepusht, nicht deployt.
+- **Nächster Schritt:** Romans Blick auf den Tab Regeln am Handy
   und PC, dann ledger-hg5m5 (Regel aus der Buchung) promoten und bauen. Offen zum Verfeinern: ledger-yhemh (Memo unter
   Datum), ledger-h7de3 (Fehlertexte in Ereignissen), design-system-vf94m (Toast verdeckt „+ Buchung“), ledger-t4rk8
   (Betrag eines Übertrags in BB).
