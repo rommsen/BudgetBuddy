@@ -93,7 +93,8 @@ Zuletzt aktualisiert: 2026-11-13, nach work-Lauf ledger-nkwqb und banking-import
   (eine Regel für Vor- und Schleifenprüfung der Zusammenlegung, Log nur mit Grund, zwei ungedeckte Prüfungen wieder
   getestet, Testnamen), 1 in die Kann-Sammlung. Gate auf main: VERIFY: PASS (dotnet 4951, node 322). Dritter Probelauf: zwei
   Zusammenlegungen, keine Log-Zeilen, alle Kontostände gleich YNAB.
-- **Nächster Schritt:** Deploy auf Anweisung (der erste Spiegel-Lauf danach liest einmal alles). Danach ledger-ay81j verfeinern (Geld), dann Schnitt 6
+- **Deployt 2026-11-13 (248b089a):** ledger-nkwqb, banking-import-pknvp, ledger-nnd2f samt Review-Fix. Health-Check grün.
+- **Nächster Schritt:** ersten Spiegel-Lauf nach dem Deploy prüfen (Vollabruf, zwei Zusammenlegungen, Girokonto gleich YNAB). Danach ledger-ay81j verfeinern (Geld), dann Schnitt 6
   `categorization-n3sxw` (Regeln ins Kassenbuch). Offen zum Verfeinern: ledger-yhemh (Memo unter Datum), ledger-h7de3
   (Fehlertexte in Ereignissen), design-system-vf94m (Toast verdeckt „+ Buchung“), ledger-t4rk8 (Betrag eines Übertrags in BB).
 - Verfeinert wird nur die nächste Etappe. Spätere Etappen haben Zeilen, keine Tickets.
