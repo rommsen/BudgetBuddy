@@ -105,7 +105,9 @@ Zuletzt aktualisiert: 2026-11-13, nach work-Lauf und Review ledger-ay81j.
   im Lauf, wenn die Beobachtung ohne `import_id` vor der mit `import_id` kam. Gate auf main: VERIFY: PASS (dotnet 4986, node
   322). Probelauf gegen eine frische Kopie der Produktion: keine Änderung, kein Fehler. Learn: infrastructure-ewasy
   (Delta-Gate meldet alten Wortlaut) nachgeschärft, wird verfeinert. Nicht gepusht, nicht deployt.
-- **Nächster Schritt:** Deploy von ledger-ay81j auf Romans „Ja“, dann infrastructure-ewasy verfeinern und bauen, dann Schnitt 6
+- **Deployt 2026-11-13 (3cf305d5):** ledger-ay81j samt Review-Fixes. Health-Check grün. Keine Migration, der Spiegel
+  startet beim Öffnen des Kassenbuchs.
+- **Nächster Schritt:** infrastructure-ewasy bauen (in todo), dann Schnitt 6
   `categorization-n3sxw` (Regeln ins Kassenbuch). Offen zum Verfeinern: ledger-yhemh (Memo unter Datum), ledger-h7de3
   (Fehlertexte in Ereignissen), design-system-vf94m (Toast verdeckt „+ Buchung“), ledger-t4rk8 (Betrag eines Übertrags in BB).
 - Verfeinert wird nur die nächste Etappe. Spätere Etappen haben Zeilen, keine Tickets.
