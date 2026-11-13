@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 11
-- **Todo:** 0
+- **Backlog:** 10
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 134
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **ledger-ay81j** — "In BB erfasste Buchungen gehen ohne import_id an YNAB, der Spiegel verknüpft offene Erfassungen nach Konto, Tag, Betrag und Payee" (bug) — `todo/ledger-ay81j-ynab-gleicht-barbuchungen-ab.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -64,7 +65,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **ledger-ay81j** — "YNAB gleicht Barbuchungen aus BB (Bob, Quick Add, Neue Buchung) mit älteren von Hand erfassten Buchungen gleichen Betrags ab und verschluckt so echte Zahlungen" (bug) — `backlog/ledger-ay81j-ynab-gleicht-barbuchungen-ab.md`
 - **ledger-yhemh** — "Neue Buchung am Handy: Memo steht neben dem Datum statt darunter" (bug) — `backlog/ledger-yhemh-memo-unter-datum-am-handy.md`
 - **ledger-h7de3** — "Fehlertexte in Ereignissen: fehlendes Token als „nicht eingerichtet“, YNAB-Rohtext nur ins Log, Token- und Budget-Zugriff an einer Stelle" (bug) — `backlog/ledger-h7de3-fehlertexte-in-ereignissen.md`
 - **ledger-f8d7x** — "Kassenbuch ordnen: am Handy Filter-Knopf mit Sheet und Chips statt zwei wischender Leisten, am PC Seitenleiste mit Konten, Seitenpanel und Historie wie im Budget" (feature) — `backlog/ledger-f8d7x-kassenbuch-ordnen.md`

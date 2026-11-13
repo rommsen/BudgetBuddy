@@ -4,7 +4,7 @@ title: Split-Schreibweg nach YNAB: bestehende Split-Buchungen werden gelöscht u
 scope: ledger
 status: accepted
 date: 2026-10-24
-related_tasks: [ledger-mas5g, ledger-kxme4, ledger-pafkp, ledger-m7k2d, ledger-f8bjm]
+related_tasks: [ledger-mas5g, ledger-kxme4, ledger-pafkp, ledger-m7k2d, ledger-f8bjm, ledger-ay81j]
 related_adrs: [0006, 0028, 0046, 0054, 0055]
 ---
 
@@ -104,3 +104,9 @@ Zu Punkt 2: Seit ledger-p3vq8 tragen Barbuchungen `BB:` plus EntryId (35 Zeichen
 ## Nachtrag 2026-11-12, offener Ersatz (ledger-f8bjm)
 
 Zu Punkt 2, 3 und 5. Die Ersatz-`import_id` steht vor dem POST im Kassenbuch (`EntryReplacementSentToYnab`, Actor `UserInBb`, nach gelungenem DELETE) und bleibt bis zum Abschluss die einzige gültige Ersatz-Id der Buchung (offener Ersatz, `Entry.PendingReplacement`). Solange der Ersatz offen ist, lehnt BB jede andere Aufteilung, jeden anderen Betrag und das Löschen ab („Der Ersatz ist in YNAB noch nicht bestätigt. Erneut senden oder den Spiegel abwarten.“), damit der gesendete Inhalt der BB-Stand bleibt. Ein 409 auf den Ersatz-POST heißt dann angekommen (wie ledger-xqqnv): kein Fehlschlag, Spiegel anstoßen. Die Zuordnung der Antwort hält der Adapter (`interpretReplacementResponse`): 409 wird dort `ImportIdAlreadyInYnab` wie bei der Einzelbuchung. Der Spiegel ordnet die Ersatzbuchung über die `import_id` zu und schreibt `EntryReplacedInYnab` mit Actor `YnabMirror`, das beendet auch die offenen Fehlschläge. Nur wenn YNAB einen gesendeten Ersatz-POST mit 400 oder 404 ablehnt (`replacementRejectedByYnab`), endet der offene Ersatz mit `EntryReplacementRejectedByYnab`; der nächste Versuch nimmt die nächste Ersatz-`import_id`. Alles andere lässt ihn offen (409, 201 ohne Id, Netzfehler, 5xx, 401, 429, Fehler vor dem POST), weil eine neue Ersatz-`import_id` in YNAB doppelt anlegen könnte; im Zweifel schließt der Spiegel ab. Eine Lösch-Beobachtung der alten Id bleibt bei offenem Ersatz ohne Wirkung. Ohne `import_id` gibt es kein Sende-Ereignis, die Lücke aus ADR 0021 (Quick Add) bleibt dort hingenommen.
+
+## Nachtrag 2026-11-13 (ledger-ay81j, Roman)
+
+Ersatz und Wiederherstellen einer in BB erfassten Buchung gehen ohne Ersatz-`import_id`. Bei einer verlorenen Antwort gilt
+das Verhalten für Buchungen ohne `import_id`: Der Spiegel legt eine Buchung „YNAB-Spiegel“ an (Roman: angenommen,
+Kann-Punkt). Ein schon offener Ersatz sendet mit seiner Ersatz-`import_id` weiter.

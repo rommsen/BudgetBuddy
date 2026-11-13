@@ -6,7 +6,7 @@ status: accepted
 date: 2026-06-12
 supersedes: []
 superseded_by: []
-related_tasks:
+related_tasks: [ledger-ay81j]
   - contexts/ynab-sync/done/2026-06-11-quick-add-manual-entry.md
   - contexts/ynab-sync/done/2026-06-12-quick-add-feedback-round.md
   - ledger-p3vq8
@@ -87,3 +87,13 @@ Folge: YNAB behandelt diese Buchungen als importiert und gleicht sie nicht mehr 
 späteren Bankimport ab. Diesen Abgleich macht BB ("BB entscheidet"). Buchungen, die vor dem
 Nachtrag ohne `import_id` gepusht wurden, senden weiter ohne sie: ob eine davon schon in YNAB
 steht, weiß BB nicht, und eine `import_id` beim Neusenden ergäbe dann eine zweite YNAB-Buchung.
+
+## Nachtrag 2026-11-13 (ledger-ay81j, Roman)
+
+Der Nachtrag vom 2026-11-08 gilt nicht mehr. In BB erfasste Buchungen (erstes Ereignis `CashExpenseAdded`: Quick Add, Bob,
+Neue Buchung) gehen wieder ohne `import_id` an YNAB. Das gilt auch beim Erneut senden, beim Ersatz und beim
+Wiederherstellen und auch für Buchungen, die eine `BB:`-Verknüpfung aus der Zeit davor tragen. Grund: YNAB gleicht jede
+Buchung mit `import_id` wie einen Bankimport gegen von Hand erfasste Buchungen gleichen Betrags der letzten Tage ab und
+verschluckt dabei echte Zahlungen (Probelauf zu ledger-nkwqb). Nur ein schon offener Ersatz sendet mit seiner
+Ersatz-`import_id` weiter. Die Absicherung gegen eine verlorene Antwort übernimmt der Spiegel (ADR 0021, Nachtrag
+2026-11-13). Comdirect-Importe behalten ihre `import_id`.

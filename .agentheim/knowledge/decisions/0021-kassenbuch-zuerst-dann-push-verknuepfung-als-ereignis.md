@@ -6,7 +6,7 @@ status: accepted
 date: 2026-09-11
 supersedes: []
 superseded_by: []
-related_tasks: [ledger-cscw1, categorization-gdrx8, ledger-qvt84, ledger-tdnpk, ledger-r6wn3, ledger-at63w, ledger-xqqnv]
+related_tasks: [ledger-cscw1, categorization-gdrx8, ledger-qvt84, ledger-tdnpk, ledger-r6wn3, ledger-at63w, ledger-xqqnv, ledger-ay81j]
 related_adrs: [0004, 0013, 0015, 0091]
 related_research: []
 ---
@@ -114,3 +114,15 @@ Die Reihenfolge "Kassenbuch zuerst, dann YNAB" gilt nicht für das Verwerfen ein
 ## Nachtrag 2026-11-12, vorhandene import_id (ledger-xqqnv)
 
 Punkt 2 nannte „lehnt YNAB die Buchung als Duplikat ab“ als Fehlschlag. Kennt YNAB die `import_id` schon (Einzel-Post 409, Sammel-Post `duplicate_import_ids`), kam ein früherer Versand an, nur seine Antwort nicht (ledger-p3vq8). Auf allen Wegen (Barbuchung über Quick Add, Bob und Neue Buchung, Erneut senden, Ist neu, Import-Sammelpush) schreibt BB dann kein `EntryPushToYnabFailed`. Die Buchung bleibt unverknüpft und damit „noch nicht in YNAB“ (Grund `PushOutcomeUnknown`, Bob-Text `unknownPushStateText` bei einer Wiederholung aus dem Log), bis der Spiegel sie über die `import_id` verknüpft. BB erfindet keine YNAB-Id, denn auch eine in YNAB gelöschte Buchung sperrt ihre `import_id` (ADR 0058 Probelauf 3). Kein Rollback bleibt (Punkt 2). Roman 2026-11-12: die Barbuchung meldet dann „Buchung angelegt“, Bob bekommt `pushed_to_ynab: true`.
+
+## Nachtrag 2026-11-13 (ledger-ay81j, Roman)
+
+Für in BB erfasste Buchungen gibt es keine `import_id` mehr (ADR 0004, Nachtrag 2026-11-13) und damit auch kein 409. Als
+Ersatz verknüpft der Spiegel eine Beobachtung ohne `import_id` und ohne Abgleich-Id mit einer offenen Erfassung (in BB
+erfasst, nicht verknüpft, nicht gelöscht), wenn Konto, Tag, Betrag und Payee gleich sind (bei einem Übertrag das
+Zielkonto statt des Payees) und das Paar im Lauf eindeutig ist. Er schreibt dazu `EntryLinkedToYnab` mit Actor
+`YnabMirror`. Kandidatin ist eine offene Erfassung auch mit offenem Fehlschlag, denn eine Zeitüberschreitung steht als
+Fehlschlag im Log; das Restrisiko einer gleichen, am selben Tag von Hand in YNAB erfassten Zahlung ist angenommen.
+„Erneut senden“ lässt für sie zuerst den Spiegel laufen und sendet nur, wenn sie danach noch offen ist. Kann BB YNAB nicht
+abfragen, sendet es nicht. Der Nachtrag vom 2026-11-12 (409 heißt angekommen) gilt weiter für Comdirect und für offene
+Ersatzbuchungen mit `import_id`.

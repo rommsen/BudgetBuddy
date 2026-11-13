@@ -6,7 +6,7 @@ status: accepted
 date: 2026-10-27
 supersedes: []
 superseded_by: []
-related_tasks: [ledger-b0b7q]
+related_tasks: [ledger-b0b7q, ledger-ay81j]
 related_adrs: [0004, 0013, 0067, 0068]
 related_research: []
 ---
@@ -47,3 +47,10 @@ für den eigenen Client gebaut und ihr Wire-Format ist ein internes Detail.
 ## Nachtrag 2026-11-07 (infrastructure-vp308)
 
 Das Bearer-Token wird in konstanter Zeit über die SHA-256-Hashes beider Seiten verglichen (`tokenMatches` in `src/Server/BotApi.fs`). `CryptographicOperations.FixedTimeEquals` auf den rohen Bytes kehrt bei ungleicher Länge sofort zurück und verriet so die Länge des Tokens über die Antwortzeit. Die Hashes sind immer 32 Bytes lang. `push_error` und die `message` von `ynab_unavailable` sind feste deutsche Sätze, YNABs Antworttext steht nur im Server-Log. Die Grenzen aus ADR 0068 sind unverändert.
+
+## Nachtrag 2026-11-13 (ledger-ay81j, Roman)
+
+Bob-Buchungen gehen ohne `import_id` an YNAB (ADR 0004, Nachtrag 2026-11-13). Der Fall „YNAB kennt die `import_id` schon,
+`pushed_to_ynab: true`“ entfällt. Bei einer verlorenen Antwort meldet der Commit `pushed_to_ynab: false` mit `push_error`,
+und der Spiegel verknüpft die Buchung später. Ein erneuter Commit derselben `preview_id` liest den Stand aus dem
+Kassenbuch und pusht nicht. Texte und Grenzen (ADR 0068) sind unverändert.

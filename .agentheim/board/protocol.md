@@ -5,6 +5,24 @@ Newest entries on top.
 
 ---
 
+## 2026-11-13 15:58 -- Modeling / Promoted: ledger-ay81j - "In BB erfasste Buchungen gehen ohne import_id an YNAB, der Spiegel verknüpft offene Erfassungen nach Konto, Tag, Betrag und Payee"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-13 15:58 -- Modeling / Refined: ledger-ay81j - In BB erfasste Buchungen ohne import_id
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** todo
+**Summary:** In BB erfasste Buchungen (Quick Add, Bob, Neue Buchung, ihre Resends, Ersatz, Wiederherstellen) gehen ohne import_id an YNAB; der Spiegel verknüpft offene Erfassungen exakt über Konto, Tag, Betrag und Payee; Erneut senden lässt vorher den Spiegel laufen. Entschieden (Roman, 2026-11-13): ohne import_id, nur in BB erfasste, Kandidaten auch mit Fehlschlag, Ersatz-Lücke in die Kann-Sammlung.
+**ADRs written:** Nachträge zu 0004, 0015, 0021, 0058, 0066, 0092
+
+---
+
 ## 2026-11-13 14:07 -- Review-Lauf: f972a950..HEAD (ledger-nkwqb, banking-import-pknvp, ledger-nnd2f)
 
 **Type:** Review / Review-Lauf

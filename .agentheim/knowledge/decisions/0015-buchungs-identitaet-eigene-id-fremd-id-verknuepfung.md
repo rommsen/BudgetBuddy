@@ -6,7 +6,7 @@ status: accepted
 date: 2026-09-06
 supersedes: []
 superseded_by: []
-related_tasks: [ledger-z5vw6, ledger-nkwqb, ledger-nnd2f]
+related_tasks: [ledger-z5vw6, ledger-nkwqb, ledger-nnd2f, ledger-ay81j]
 related_research: []
 ---
 
@@ -118,3 +118,11 @@ anderen, die andere antwortet mit 404 und erscheint im Delta nie als gelöscht. 
 Abgelehnt: die Verknüpfungen auf die bleibende Buchung umziehen (der Abruf erkennt die Reference dann an einer Buchung,
 die nie aus dem Import kam, und die Historie verliert die Herkunft). Abgelehnt auch: die aufgenommene Buchung in BB
 löschen lassen (YNAB antwortet 404, und die Reference ginge verloren).
+
+## Nachtrag 2026-11-13 (ledger-ay81j, Roman)
+
+Abweichend von „Fuzzy-Match abgelehnt“ gibt es nach YNAB-Id und ImportId eine dritte Match-Stufe. Sie ist exakt (Konto,
+Tag, Betrag, Payee normalisiert über `payeeKey`) und gilt nur für offene Erfassungen, nur für Beobachtungen ohne
+`import_id` und ohne `matched_transaction_id` und nur bei einem eindeutigen Paar im Lauf. Sonst bleibt alles wie vorher,
+mit einer Log-Zeile. Fuzzy-Match über Zeitfenster oder Ähnlichkeit bleibt abgelehnt. Im Nachtrag zu ledger-nkwqb,
+Punkt 1, gilt „auch BBs Barbuchungen“ nur für Barbuchungen, die vor ledger-ay81j gesendet wurden.
