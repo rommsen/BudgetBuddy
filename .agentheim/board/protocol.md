@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-13 22:48 -- Modeling / Promoted: ledger-hg5m5 - "Regel aus der Buchung: „Regel anlegen“ im Detail und beim Durchgehen, dazu ein Angebot nach einer Kategorie-Änderung, vorbelegt mit Payee und Kategorie"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-13 22:45 -- Modeling / Dismissed: categorization-krscs
 
 **Type:** Modeling / Dismiss

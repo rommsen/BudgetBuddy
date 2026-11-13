@@ -1,7 +1,7 @@
 ---
 id: ledger-hg5m5
 title: "Regel aus der Buchung: „Regel anlegen“ im Detail und beim Durchgehen, dazu ein Angebot nach einer Kategorie-Änderung, vorbelegt mit Payee und Kategorie"
-status: backlog
+status: todo
 type: feature
 context: ledger
 created: 2026-10-24
