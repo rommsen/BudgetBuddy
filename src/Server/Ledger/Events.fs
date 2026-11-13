@@ -175,6 +175,37 @@ type EntrySplitTransferCounterpartObservedInYnabPayload = {
     SplitAmount: Money
 }
 
+/// YNAB hat diese Buchung mit einer anderen abgeglichen (match), und die andere bleibt
+/// sichtbar (ADR 0015, Nachtrag 2026-11-13, ledger-nkwqb). Liegt auf der aufgenommenen Buchung,
+/// deren YNAB-Id seitdem verdeckt ist (404, nie als gelöscht im Delta). Geschrieben im selben
+/// Anhängen wie `EntryMergedFromOtherObservedInYnab` auf der bleibenden Buchung.
+type EntryMergedIntoOtherObservedInYnabPayload = {
+    /// Die Kassenbuch-Id der bleibenden Buchung.
+    SurvivorEntryId: EntryId
+    /// YNABs Id der bleibenden Buchung (die Beobachtung mit `matched_transaction_id`).
+    SurvivorYnabTransactionId: string
+    /// YNABs Id dieser, jetzt verdeckten Buchung (die `matched_transaction_id`).
+    AbsorbedYnabTransactionId: string
+    /// Payee der bleibenden Buchung zum Zeitpunkt der Zusammenlegung (für den Historien-Satz).
+    SurvivorPayee: string option
+    /// Datum der bleibenden Buchung (für den Historien-Satz).
+    SurvivorDate: DateTime
+}
+
+/// Gegenstück zu `EntryMergedIntoOtherObservedInYnab` auf der bleibenden Buchung (ADR 0015,
+/// Nachtrag 2026-11-13, ledger-nkwqb). Nur Historie, ändert keinen Zustand.
+type EntryMergedFromOtherObservedInYnabPayload = {
+    /// Die Kassenbuch-Id der aufgenommenen Buchung.
+    AbsorbedEntryId: EntryId
+    /// YNABs Id der aufgenommenen Buchung (die `matched_transaction_id`).
+    AbsorbedYnabTransactionId: string
+    /// Die `comdirect`-Verknüpfung der aufgenommenen Buchung, falls sie eine hat.
+    AbsorbedComdirectReference: string option
+    AbsorbedPayee: string option
+    AbsorbedDate: DateTime
+    AbsorbedAmount: Money
+}
+
 // ============================================
 // Entscheidungs-Familie
 // ============================================
@@ -494,6 +525,12 @@ type LedgerEventBody =
     | EntryTransferCounterpartObservedInYnab of EntryTransferCounterpartObservedInYnabPayload
     /// Die Gegenbuchung einer Übertrags-Split-Zeile ist gefunden (ADR 0046). Beobachtung.
     | EntrySplitTransferCounterpartObservedInYnab of EntrySplitTransferCounterpartObservedInYnabPayload
+    /// In YNAB mit einer anderen Buchung zusammengelegt, diese hier ist verdeckt (ADR 0015,
+    /// Nachtrag 2026-11-13). Beobachtung, liegt auf der aufgenommenen Buchung.
+    | EntryMergedIntoOtherObservedInYnab of EntryMergedIntoOtherObservedInYnabPayload
+    /// In YNAB eine andere Buchung hierher zusammengelegt (ADR 0015, Nachtrag 2026-11-13).
+    /// Beobachtung, liegt auf der bleibenden Buchung, nur Historie.
+    | EntryMergedFromOtherObservedInYnab of EntryMergedFromOtherObservedInYnabPayload
     /// In YNAB geloescht gesehen. Nur Umschlag, keine Payload; der Zustand behaelt die
     /// Buchung und setzt das Flag `DeletedInYnab`.
     | EntryDeletionObservedInYnab
@@ -633,6 +670,8 @@ let eventTypeName (body: LedgerEventBody) : string =
     | EntryFlagChangeObservedInYnab _ -> "EntryFlagChangeObservedInYnab"
     | EntryTransferCounterpartObservedInYnab _ -> "EntryTransferCounterpartObservedInYnab"
     | EntrySplitTransferCounterpartObservedInYnab _ -> "EntrySplitTransferCounterpartObservedInYnab"
+    | EntryMergedIntoOtherObservedInYnab _ -> "EntryMergedIntoOtherObservedInYnab"
+    | EntryMergedFromOtherObservedInYnab _ -> "EntryMergedFromOtherObservedInYnab"
     | EntryDeletionObservedInYnab -> "EntryDeletionObservedInYnab"
     | EntryImportedFromComdirect _ -> "EntryImportedFromComdirect"
     | EntryCategorizedByRule _ -> "EntryCategorizedByRule"
@@ -702,6 +741,8 @@ let schemaVersion (body: LedgerEventBody) : int =
     | EntryFlagChangeObservedInYnab _ -> 1
     | EntryTransferCounterpartObservedInYnab _ -> 1
     | EntrySplitTransferCounterpartObservedInYnab _ -> 1
+    | EntryMergedIntoOtherObservedInYnab _ -> 1
+    | EntryMergedFromOtherObservedInYnab _ -> 1
     | EntryDeletionObservedInYnab -> 1
     | EntryImportedFromComdirect _ -> 2
     | EntryCategorizedByRule _ -> 1
@@ -1046,6 +1087,44 @@ module Codec =
             CounterpartEntryId = get.Required.Field "counterpartEntryId" decodeEntryId
             CounterpartYnabTransactionId = get.Required.Field "counterpartYnabTransactionId" Decode.string
             SplitAmount = get.Required.Field "splitAmount" decodeMoney
+        })
+
+    let encodeMergedIntoOther (p: EntryMergedIntoOtherObservedInYnabPayload) =
+        Encode.object [
+            "survivorEntryId", encodeEntryId p.SurvivorEntryId
+            "survivorYnabTransactionId", Encode.string p.SurvivorYnabTransactionId
+            "absorbedYnabTransactionId", Encode.string p.AbsorbedYnabTransactionId
+            "survivorPayee", encodeOptionalString p.SurvivorPayee
+            "survivorDate", encodeDate p.SurvivorDate
+        ]
+
+    let decodeMergedIntoOther : Decoder<EntryMergedIntoOtherObservedInYnabPayload> =
+        Decode.object (fun get -> {
+            SurvivorEntryId = get.Required.Field "survivorEntryId" decodeEntryId
+            SurvivorYnabTransactionId = get.Required.Field "survivorYnabTransactionId" Decode.string
+            AbsorbedYnabTransactionId = get.Required.Field "absorbedYnabTransactionId" Decode.string
+            SurvivorPayee = get.Optional.Field "survivorPayee" Decode.string
+            SurvivorDate = get.Required.Field "survivorDate" decodeDate
+        })
+
+    let encodeMergedFromOther (p: EntryMergedFromOtherObservedInYnabPayload) =
+        Encode.object [
+            "absorbedEntryId", encodeEntryId p.AbsorbedEntryId
+            "absorbedYnabTransactionId", Encode.string p.AbsorbedYnabTransactionId
+            "absorbedComdirectReference", encodeOptionalString p.AbsorbedComdirectReference
+            "absorbedPayee", encodeOptionalString p.AbsorbedPayee
+            "absorbedDate", encodeDate p.AbsorbedDate
+            "absorbedAmount", encodeMoney p.AbsorbedAmount
+        ]
+
+    let decodeMergedFromOther : Decoder<EntryMergedFromOtherObservedInYnabPayload> =
+        Decode.object (fun get -> {
+            AbsorbedEntryId = get.Required.Field "absorbedEntryId" decodeEntryId
+            AbsorbedYnabTransactionId = get.Required.Field "absorbedYnabTransactionId" Decode.string
+            AbsorbedComdirectReference = get.Optional.Field "absorbedComdirectReference" Decode.string
+            AbsorbedPayee = get.Optional.Field "absorbedPayee" Decode.string
+            AbsorbedDate = get.Required.Field "absorbedDate" decodeDate
+            AbsorbedAmount = get.Required.Field "absorbedAmount" decodeMoney
         })
 
     let encodeImportedFromComdirect (p: EntryImportedFromComdirectPayload) =
@@ -1519,6 +1598,8 @@ let encodePayload (body: LedgerEventBody) : string =
         | EntryApprovalChangeObservedInYnab p -> Codec.encodeApprovalChange p
         | EntryFlagChangeObservedInYnab p -> Codec.encodeFlagChange p
         | EntryTransferCounterpartObservedInYnab p -> Codec.encodeTransferCounterpart p
+        | EntryMergedIntoOtherObservedInYnab p -> Codec.encodeMergedIntoOther p
+        | EntryMergedFromOtherObservedInYnab p -> Codec.encodeMergedFromOther p
         | EntrySplitTransferCounterpartObservedInYnab p -> Codec.encodeSplitTransferCounterpart p
         | EntryDeletionObservedInYnab -> Encode.object []
         | EntryImportedFromComdirect p -> Codec.encodeImportedFromComdirect p
@@ -1577,6 +1658,10 @@ let decodePayload (eventType: string) (version: int) (payload: string) : Result<
         Decode.fromString Codec.decodeApprovalChange payload |> Result.map EntryApprovalChangeObservedInYnab
     | "EntryFlagChangeObservedInYnab", 1 ->
         Decode.fromString Codec.decodeFlagChange payload |> Result.map EntryFlagChangeObservedInYnab
+    | "EntryMergedIntoOtherObservedInYnab", 1 ->
+        Decode.fromString Codec.decodeMergedIntoOther payload |> Result.map EntryMergedIntoOtherObservedInYnab
+    | "EntryMergedFromOtherObservedInYnab", 1 ->
+        Decode.fromString Codec.decodeMergedFromOther payload |> Result.map EntryMergedFromOtherObservedInYnab
     | "EntryTransferCounterpartObservedInYnab", 1 ->
         Decode.fromString Codec.decodeTransferCounterpart payload |> Result.map EntryTransferCounterpartObservedInYnab
     | "EntrySplitTransferCounterpartObservedInYnab", 1 ->

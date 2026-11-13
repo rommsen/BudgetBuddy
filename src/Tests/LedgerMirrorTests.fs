@@ -49,6 +49,7 @@ let private observation (ynabTxId: string) : YnabObservation = {
     Cleared = Uncleared
     TransferAccountId = None
     TransferYnabTransactionId = None
+    MatchedYnabTransactionId = None
     SplitTransfers = []
     Deleted = false
     Approved = true

@@ -257,7 +257,7 @@ let transferDomainTests =
             let obs (target: YnabAccountId) (payee: string) : YnabObservation = {
                 YnabTransactionId = "ynab-pure"; AccountId = YnabAccountId (Guid.NewGuid()); ImportId = None
                 Date = entry.Date; Amount = entry.Amount; Payee = Some payee; Memo = entry.Memo; Category = None
-                Splits = []; SplitTransfers = []; Cleared = entry.Cleared; TransferAccountId = Some target
+                Splits = []; MatchedYnabTransactionId = None; SplitTransfers = []; Cleared = entry.Cleared; TransferAccountId = Some target
                 TransferYnabTransactionId = None; Deleted = false; Approved = true; FlagColor = None; FlagName = None }
             let stillA = observe ctx (Some failed) (obs a "Transfer : B")
             Expect.isEmpty stillA "YNAB hat den Push nie gesehen, Fehlschlag bleibt"
@@ -519,7 +519,7 @@ let transferMirrorTests =
             let observation : YnabObservation = {
                 YnabTransactionId = ynabId; AccountId = own; ImportId = None
                 Date = DateTime(2026, 11, 4, 0, 0, 0, DateTimeKind.Utc); Amount = eur -500m; Payee = Some "Rewe"
-                Memo = None; Category = Some catA; Splits = []; SplitTransfers = []; Cleared = Cleared
+                Memo = None; Category = Some catA; Splits = []; MatchedYnabTransactionId = None; SplitTransfers = []; Cleared = Cleared
                 TransferAccountId = None; TransferYnabTransactionId = None; Deleted = false; Approved = true
                 FlagColor = None; FlagName = None }
             let fetchers (knowledge: int64) (observations: YnabObservation list) : MirrorFetchers = {

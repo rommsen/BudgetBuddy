@@ -181,6 +181,7 @@ let private observationOf (entry: Entry) (category: CategoryRef option) : YnabOb
     Memo = entry.Memo
     Category = category
     Splits = []
+    MatchedYnabTransactionId = None
     SplitTransfers = []
     Cleared = entry.Cleared
     TransferAccountId = None

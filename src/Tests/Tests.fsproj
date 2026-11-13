@@ -131,6 +131,7 @@
     <Compile Include="LedgerTransferTests.fs" />
     <Compile Include="LedgerBookingCaptureTests.fs" />
     <Compile Include="LedgerEntryDeletionTests.fs" />
+    <Compile Include="LedgerYnabMergeTests.fs" />
     <Compile Include="LedgerPageTests.fs" />
     <Compile Include="LedgerViewTests.fs" />
     <Compile Include="SettingsViewTests.fs" />

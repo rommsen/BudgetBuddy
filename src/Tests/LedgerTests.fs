@@ -888,7 +888,7 @@ let splitCategoryIdsTests =
                 LinkedToYnab = false
                 PushToYnabFailure = None
                 PayeeBeforeTransfer = None
-                PossibleDuplicate = None; PendingReplacement = None
+                PossibleDuplicate = None; PendingReplacement = None; MergedIntoEntryId = None
             }
             let (YnabCategoryId rawA) = catA
             Expect.equal (splitCategoryIds entry) [ rawA ] "Zwei Zeilen derselben Kategorie ergeben genau einen Eintrag, kein Duplikat"
@@ -925,7 +925,7 @@ let splitCategoryIdsTests =
                 LinkedToYnab = false
                 PushToYnabFailure = None
                 PayeeBeforeTransfer = None
-                PossibleDuplicate = None; PendingReplacement = None
+                PossibleDuplicate = None; PendingReplacement = None; MergedIntoEntryId = None
             }
             Expect.equal (splitCategoryIds entry) [] "ToTransfer und Uncategorized sind keine Kategorie, der Kategorie-Filter findet eine solche Buchung nicht"
 
@@ -956,7 +956,7 @@ let splitCategoryIdsTests =
                 LinkedToYnab = false
                 PushToYnabFailure = None
                 PayeeBeforeTransfer = None
-                PossibleDuplicate = None; PendingReplacement = None
+                PossibleDuplicate = None; PendingReplacement = None; MergedIntoEntryId = None
             }
             Expect.equal (splitCategoryIds entry) [] "Ohne Splits gibt es keine Split-Zeilen-Kategorie, unabhängig von der einfachen Kategorie"
 
@@ -992,7 +992,7 @@ let splitCategoryIdsTests =
                 LinkedToYnab = false
                 PushToYnabFailure = None
                 PayeeBeforeTransfer = None
-                PossibleDuplicate = None; PendingReplacement = None
+                PossibleDuplicate = None; PendingReplacement = None; MergedIntoEntryId = None
             }
             let (YnabCategoryId rawA) = catA
             let (YnabCategoryId rawB) = catB
@@ -2384,6 +2384,7 @@ let ledgerImportPushCommandTests =
                 Memo = None
                 Category = None
                 Splits = []
+                MatchedYnabTransactionId = None
                 SplitTransfers = []
                 Cleared = Uncleared
                 TransferAccountId = None

@@ -213,6 +213,10 @@ type Entry = {
     /// Der offene Ersatz (ledger-f8bjm), aus `EntryReplacementSentToYnab` bzw.
     /// `EntryRestoreSentToYnab`. `None`, wenn keiner offen ist.
     PendingReplacement: PendingReplacement option
+    /// Die bleibende Buchung, wenn YNAB diese mit ihr zusammengelegt hat (ADR 0015, Nachtrag
+    /// 2026-11-13), aus `EntryMergedIntoOtherObservedInYnab`. Die Buchung gilt dann auch als
+    /// `DeletedInYnab`. `None`, wenn sie nicht aufgenommen ist.
+    MergedIntoEntryId: EntryId option
 }
 
 /// Wartet die Buchung als unsicheres Duplikat (ADR 0093 Punkt 6)? Erster Zweig jeder Sperre
@@ -244,6 +248,9 @@ type KnownImportDecision =
 /// gelöscht, ohne je mit YNAB verknüpft gewesen zu sein.
 let knownImportDecision (entry: Entry) : KnownImportDecision =
     if isHeldAsPossibleDuplicate entry then SkipKnownImport
+    // ADR 0093 Punkt 7, Nachtrag 2026-11-13 (ledger-nkwqb): in YNAB zusammengelegt gilt wie
+    // verworfen, obwohl die Buchung mit YNAB verknüpft ist.
+    elif entry.MergedIntoEntryId.IsSome then SkipKnownImport
     elif entry.LinkedToYnab then AlreadyLinkedImport
     elif entry.DeletedInYnab then SkipKnownImport
     else SendImportAgain
@@ -443,6 +450,7 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             PayeeBeforeTransfer = None
             PossibleDuplicate = None
             PendingReplacement = None
+            MergedIntoEntryId = None
         }
 
     | EntryDetailsChangeObservedInYnab p ->
@@ -606,6 +614,36 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
         let e = requireExisting ()
         { e with DeletedInYnab = true }
 
+    | EntryMergedIntoOtherObservedInYnab p ->
+        // ledger-nkwqb (ADR 0015, Nachtrag 2026-11-13): YNAB hat diese Buchung mit einer anderen
+        // abgeglichen, ihre YNAB-Id ist verdeckt. Sie zählt danach nirgends. Jedes Erneut senden
+        // bekäme nur noch ein 404, deshalb enden alle offenen Fehlschläge. `LinkedToYnab` bleibt,
+        // die Verknüpfungen auch (`linksFrom` liefert keine).
+        let e = requireExisting ()
+        let (EntryId id) = event.EntryId
+        if isHeldAsPossibleDuplicate e then
+            invalidOp $"EntryMergedIntoOtherObservedInYnab auf Buchung {id}, die als unsicheres Duplikat wartet"
+        if p.SurvivorEntryId = event.EntryId then
+            invalidOp $"Zusammenlegung der Buchung {id} zeigt auf sich selbst"
+        { e with
+            DeletedInYnab = true
+            MergedIntoEntryId = Some p.SurvivorEntryId
+            CategorizationWriteBackFailure = None
+            FlagWriteBackFailure = None
+            MemoWriteBackFailure = None
+            AmountWriteBackFailure = None
+            PayeeWriteBackFailure = None
+            ReviewMarkWriteBackFailure = None
+            PushToYnabFailure = None }
+
+    | EntryMergedFromOtherObservedInYnab p ->
+        // ledger-nkwqb: nur Historie auf der bleibenden Buchung.
+        let e = requireExisting ()
+        if p.AbsorbedEntryId = event.EntryId then
+            let (EntryId id) = event.EntryId
+            invalidOp $"Zusammenlegung in die Buchung {id} kommt von ihr selbst"
+        e
+
     | EntryDiscardedInBb _ ->
         // ledger-at63w: YNAB hat die Buchung schon gelöscht, BB verwirft sie danach. Sie gilt wie
         // eine in YNAB gelöschte; eine spätere Lösch-Beobachtung des Spiegels ändert nichts mehr.
@@ -686,6 +724,7 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             PayeeBeforeTransfer = None
             PossibleDuplicate = None
             PendingReplacement = None
+            MergedIntoEntryId = None
         }
 
     | EntryCategorizedByRule p ->
@@ -736,6 +775,7 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             PayeeBeforeTransfer = None
             PossibleDuplicate = None
             PendingReplacement = None
+            MergedIntoEntryId = None
         }
 
     | EntryLinkedToYnab _ when existing |> Option.exists isHeldAsPossibleDuplicate ->
@@ -1096,6 +1136,80 @@ let recordComdirectPush
             ([], (None, [], input.Payee))
 
     creation :: stepEvents
+
+// ============================================
+// Zusammenlegung in YNAB (ADR 0015, Nachtrag 2026-11-13, ledger-nkwqb)
+// ============================================
+
+/// Die Buchung, auf die eine `matched_transaction_id` zeigen könnte, samt ihren Verknüpfungen.
+/// Der Spiegel-Lauf findet sie über die `ynab`-Verknüpfung; die Verknüpfungen braucht die Regel
+/// für die Prüfung „aktuelle `ynab`-Verknüpfung“ und für die Comdirect-Reference.
+type MergeCandidate = {
+    Entry: Entry
+    Links: EntryLink list
+}
+
+/// Kann die Buchung in eine Zusammenlegung eingehen? Nicht, wenn sie schon gelöscht ist (in YNAB,
+/// in BB, verworfen), schon aufgenommen oder als unsicheres Duplikat wartet.
+let private canTakePartInMerge (entry: Entry) : bool =
+    not entry.DeletedInYnab
+    && entry.MergedIntoEntryId.IsNone
+    && not (isHeldAsPossibleDuplicate entry)
+
+/// Die Zusammenlegung aus einer Beobachtung (ADR 0015, Nachtrag 2026-11-13). Rein. `survivor` ist
+/// die Buchung der Beobachtung im Stand nach ihrem `observe`, `absorbed` die Buchung, auf die die
+/// `matched_transaction_id` zeigt (falls BB eine kennt). Ergibt die beiden Ereignisse, erst das der
+/// aufgenommenen, dann das der bleibenden Buchung, oder `[]`.
+let mergeObservedInYnab
+    (observedAt: DateTime)
+    (obs: YnabObservation)
+    (survivor: Entry)
+    (absorbed: MergeCandidate option)
+    : LedgerEvent list =
+    let event entryId body = { EntryId = entryId; OccurredAt = observedAt; Actor = YnabMirror; Body = body }
+    match obs.Deleted, obs.MatchedYnabTransactionId, absorbed with
+    | false, Some matchedId, Some candidate ->
+        let absorbedEntry = candidate.Entry
+        // Die aktuelle `ynab`-Verknüpfung, nicht die abgelöste (ADR 0058 Punkt 5): nach einem Ersatz
+        // trägt die Buchung die alte Id als `ynab` und als `ynabsuperseded`.
+        let hasLink system =
+            candidate.Links
+            |> List.exists (fun l -> l.System = system && l.Value = matchedId && l.EntryId = absorbedEntry.Id)
+        let isCurrentYnabLink = hasLink YnabSystem && not (hasLink YnabSupersededSystem)
+        if
+            isCurrentYnabLink
+            && absorbedEntry.Id <> survivor.Id
+            && canTakePartInMerge absorbedEntry
+            // Ein offener Ersatz wartet auf seine neue YNAB-Id, die alte Id ist nicht mehr maßgeblich.
+            && absorbedEntry.PendingReplacement.IsNone
+            && canTakePartInMerge survivor
+        then
+            let comdirectReference =
+                candidate.Links
+                |> List.tryFind (fun l -> l.System = ComdirectSystem)
+                |> Option.map (fun l -> l.Value)
+            [
+                event absorbedEntry.Id (
+                    EntryMergedIntoOtherObservedInYnab {
+                        SurvivorEntryId = survivor.Id
+                        SurvivorYnabTransactionId = obs.YnabTransactionId
+                        AbsorbedYnabTransactionId = matchedId
+                        SurvivorPayee = survivor.Payee
+                        SurvivorDate = survivor.Date
+                    })
+                event survivor.Id (
+                    EntryMergedFromOtherObservedInYnab {
+                        AbsorbedEntryId = absorbedEntry.Id
+                        AbsorbedYnabTransactionId = matchedId
+                        AbsorbedComdirectReference = comdirectReference
+                        AbsorbedPayee = absorbedEntry.Payee
+                        AbsorbedDate = absorbedEntry.Date
+                        AbsorbedAmount = absorbedEntry.Amount
+                    })
+            ]
+        else
+            []
+    | _ -> []
 
 // ============================================
 // Beobachtung: Snapshot gegen Zustand (ADR 0013, Punkt 4)

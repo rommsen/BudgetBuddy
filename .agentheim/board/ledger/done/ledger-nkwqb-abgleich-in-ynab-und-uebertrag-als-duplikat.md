@@ -1,7 +1,7 @@
 ---
 id: ledger-nkwqb
 title: "Von YNAB abgeglichene Buchung bleibt im Kassenbuch doppelt: der Spiegel liest matched_transaction_id nicht und legt die zusammengelegte Buchung nicht still (Ledger/Domain.fs, Ledger/CommandHandlers.fs)"
-status: doing
+status: done
 type: bug
 context: ledger
 created: 2026-11-13
@@ -170,3 +170,47 @@ Entschieden von Roman (2026-11-13), Ereignisse abgestimmt mit `tactical-modeler`
   - Optional ein GET auf M als Bestätigung von „verdeckt“, nur wenn der Probelauf unerwartete Kandidaten zeigt.
 - Duplikaterkennung für Überträge: eigene Task banking-import-pknvp (Roman, 2026-11-13: zwei Tasks).
 - Langfristig verwandt: FinTS für alle Konten (banking-import-r28hx).
+
+## Outcome
+
+Der Spiegel erkennt einen Abgleich in YNAB (match) und legt die beiden Buchungen im Kassenbuch zusammen (ADR 0015, Nachtrag 2026-11-13). Die Vollabruf-Generation (ADR 0014, Nachtrag 2026-11-13) liest beim ersten Lauf nach dem Deploy einmal alles, damit der bekannte Fall zusammengelegt wird.
+
+- Beobachtung: `YnabObservation.MatchedYnabTransactionId`, gelesen in `observationDecoder` (`src/Server/YnabObservations.fs`).
+- Ereignisse: `EntryMergedIntoOtherObservedInYnab` und `EntryMergedFromOtherObservedInYnab`, Version 1, Codec, Namens- und Versionstabelle (`src/Server/Ledger/Events.fs`).
+- Zustand: `Entry.MergedIntoEntryId` und Spalte `merged_into_entry_id` (über `migrateLedgerEntryColumns` und `createLedgerSchemaOn`, dazu `EntryRow`, `rowToEntry`, `entryParams`, Upsert). Der Abgleich von Replay und Tabelle vergleicht ganze `Entry`-Records und deckt das Feld damit mit ab.
+- Reine Regel `mergeObservedInYnab` mit `MergeCandidate` (Buchung plus Verknüpfungen) in `src/Server/Ledger/Domain.fs`. Die Matched-Id muss als `ynab` und darf nicht zugleich als `ynabsuperseded` auf die Kandidatin zeigen. `apply` für beide Ereignisse; `knownImportDecision` hat den Zweig `MergedIntoEntryId.IsSome -> SkipKnownImport` direkt nach der Wartesperre.
+- Spiegel-Lauf (`src/Server/Ledger/CommandHandlers.fs`): `MirrorBatchState.load` sucht die Matched-Ids mit `findEntriesByLinks YnabSystem` und lädt die Verknüpfungen der Treffer gebündelt mit `linksForEntries` (`MatchedEntryLinks`). `mergePairsOf` bestimmt die Paare vor der Schleife: mehrere auf dieselbe Id oder eine bleibende, die selbst Ziel ist (gegenseitiges Zeigen), ergeben keinen Merge, nur eine Log-Zeile. Die Merge-Ereignisse gehen nach dem `observe` der bleibenden Buchung in einem Anhängen ins Log. `isHiddenByMerge` lässt für eine Beobachtung, deren Buchung im Batch aufgenommen wird oder schon aufgenommen ist, den ganzen Schritt aus (Log-Zeile, kein Ereignis).
+- Vollabruf-Generation: `fullReadGenerationKey` (`ledger_mirror_full_read_generation_<budget>`), `currentFullReadGeneration = 1`. Weicht der Marker ab, holt der Lauf mit `FetchTransactions None`. Geschrieben wird er nur nach einem gelungenen Lauf, neben `saveServerKnowledge`, auch bei der Erstbefüllung.
+- `restoreDeletedEntry` lehnt eine aufgenommene Buchung nach der Wartesperre mit „Die Buchung ist in YNAB mit einer anderen zusammengelegt.“ ab (`entryRestoreMergedText`). `deleteEntry` antwortet über `DeletedInYnab` mit „Die Buchung ist schon gelöscht“, ohne DELETE.
+- Historie (`Ledger.QueryHandlers.ReadModel.describe`): die Sätze aus What, mit den Rückfällen ohne Referenz und ohne Payee.
+
+Tests: `src/Tests/LedgerYnabMergeTests.fs` mit 27 neuen Tests (Decoder, Domäne mit jedem Randfall aus Kriterium 4, Codec, Historie, Spiegel-Lauf mit Regressions- und Intakt-Szenario, gegenseitiges Zeigen, mehrere auf dieselbe Id, erneuter Abruf über `pushComdirectImports`, Löschen und Wiederherstellen mit gezählten Port-Aufrufen, drei Tests zur Vollabruf-Generation). Alle Daten sind erfunden. In 17 bestehenden Testdateien steht nur das neue Feld (`MatchedYnabTransactionId = None` bzw. `MergedIntoEntryId = None`) in den Record-Literalen. `BankImportTests` und die Dateien des parallelen Workers banking-import-pknvp sind nicht angefasst.
+
+Die Tests entstanden nach dem Produktionscode. Dass sie ohne den Fix rot sind, zeigen die Gegenproben, je lokal gebaut und danach wiederhergestellt:
+- `mergePairs` leer (der Lauf wie vor dem Fix): der Regressionstest „von YNAB abgeglichene Buchung bleibt nicht doppelt im Kassenbuch“ wird rot.
+- `isHiddenByMerge` immer falsch (`observe` läuft auf der aufgenommenen Buchung): derselbe Test wird rot, weil das Kopfdaten-Ereignis aus der Beobachtung von B auf E2 landet.
+- `knowledge = storedKnowledge` (ohne Generationsvergleich): „Knowledge gespeichert, Marker fehlt …“ und „scheitert der erste Lauf …“ werden rot.
+
+Die Mutantenliste umfasst nur diese drei.
+
+Der Test „beide im selben Anhängen“ prüft, dass die Positionen der beiden Ereignisse in `events` direkt aufeinander folgen (`EventStore.loadContext`). Ereigniszählungen laufen je Buchung, weil parallele Tests in dieselbe In-Memory-DB schreiben.
+
+`./verify.sh`: VERIFY: PASS (dotnet 4926 grün, node 322 grün).
+
+README-Delta: mit `npm run check:readme-delta -- --bc ledger` geprüft, Exit 0. Die vier ersetzten Bullets (Kontostand, Fremd-Id-Verknüpfung, Beobachtung, Spiegel-Lauf) behalten ihren ganzen alten Text und bekommen nur Sätze dazu. Ein `grep` nach alten Begriffen und Sätzen findet deshalb nichts nachzuziehen. Der neue Bullet **In YNAB zusammengelegt** kommt per `append` ans Ende von „Ubiquitous language“, nicht direkt hinter „Als doppelt verworfen“: `replace` kann keinen Bullet einschieben. Der Conductor kann ihn von Hand dorthin verschieben.
+Von Hand zu platzieren (das Gate lehnt ein `append` in `## Ereignisse` ab, weil der Einfügepunkt hinter Fließtext liegt; die Bullets dort haben keinen fetten Kopf): nach dem Bullet `EntryConfirmedAsNewInBb` / … und vor `ValuationRecorded` einfügen:
+
+```
+- `EntryMergedIntoOtherObservedInYnab` / `EntryMergedFromOtherObservedInYnab`: YNAB hat zwei Buchungen zusammengelegt
+  (ledger-nkwqb, ADR 0015 Nachtrag 2026-11-13). Zwei Ereignisse, ein Anhängen. Payload wie unter Key events. Schema-Version 1,
+  Actor `YnabMirror`. Historien-Sätze: aufgenommen „In YNAB mit <Payee> vom <Datum> zusammengelegt“ (ohne Payee „In YNAB
+  mit der Buchung vom <Datum> zusammengelegt“), bleibend „Import <Comdirect-Referenz> in YNAB hierher zusammengelegt“ (ohne
+  Referenz „Buchung <Payee> vom <Datum> über <Betrag> in YNAB hierher zusammengelegt“, ohne Payee „Buchung vom <Datum> über
+  <Betrag> in YNAB hierher zusammengelegt“).
+```
+
+Für den Probelauf des Conductors vor dem Deploy: ein Spiegel-Durchgang ist `Ledger.CommandHandlers.runMirror now fetchers budgetId` (`MirrorFetchers` mit `FetchAccounts`, `FetchTransactions`, `FetchCategories`; Vorbild sind die Fake-Abrufe in `Run.fetchers` in `src/Tests/LedgerYnabMergeTests.fs`). Die Datenbank wählt `Persistence.getConnection` über `DATA_DIR` (ohne `USE_MEMORY_DB`), vorher `Ledger.Persistence.initializeLedgerSchema ()` und `Persistence.initializeDatabase ()`. Ohne Generations-Marker in der Kopie holt der Lauf mit `FetchTransactions None`. Die Ereignisse nach Art zählt man vorher und nachher mit `EventStore.loadContext "ledger"` (Feld `EventType`).
+
+Für die Kann-Sammlung:
+- Eine Beobachtung, deren YNAB-Id Ziel eines Merge-Paars ist, lässt `observe` auch dann aus, wenn die Domäne den Merge danach ablehnt (etwa bei offenem Ersatz der aufgenommenen Buchung). Das betrifft nur seltene Randfälle, die Log-Zeile macht sie sichtbar.
+- Eine Kette (C zeigt auf A, A zeigt auf B) legt nur C und A zusammen, A und B nicht. Das ist nicht spezifiziert, die Log-Zeile nennt den Fall.

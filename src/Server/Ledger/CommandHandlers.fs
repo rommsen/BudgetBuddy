@@ -62,6 +62,18 @@ let serverKnowledgeKey (YnabBudgetId budgetId: YnabBudgetId) =
 [<Literal>]
 let lastMirrorRunKey = "ledger_mirror_last_run"
 
+/// Der Settings-Schlüssel der zuletzt vollständig gelesenen Vollabruf-Generation je Budget
+/// (ADR 0014, Nachtrag 2026-11-13, ledger-nkwqb).
+let fullReadGenerationKey (YnabBudgetId budgetId: YnabBudgetId) =
+    $"ledger_mirror_full_read_generation_{budgetId}"
+
+/// Die Vollabruf-Generation des Codes (ADR 0014, Nachtrag 2026-11-13). Weicht der gespeicherte
+/// Wert ab oder fehlt er, holt der nächste Lauf alle Buchungen ohne `last_knowledge_of_server`.
+/// Generation 1 holt die Abgleiche in YNAB (`matched_transaction_id`) nach, die vor ledger-nkwqb
+/// unbemerkt blieben. Vor jeder Erhöhung läuft ein Probelauf gegen eine Kopie der Produktion.
+[<Literal>]
+let currentFullReadGeneration = 1
+
 let loadServerKnowledge (budgetId: YnabBudgetId) : Async<int64 option> =
     async {
         let! stored = Core.Settings.getSetting (serverKnowledgeKey budgetId)
@@ -77,6 +89,19 @@ let private saveServerKnowledge (budgetId: YnabBudgetId) (knowledge: int64) : As
     Core.Settings.setSetting
         (serverKnowledgeKey budgetId)
         (knowledge.ToString(Globalization.CultureInfo.InvariantCulture))
+        false
+
+/// Gilt die gespeicherte Vollabruf-Generation des Budgets als aktuell?
+let private isFullReadGenerationCurrent (budgetId: YnabBudgetId) : Async<bool> =
+    async {
+        let! stored = Core.Settings.getSetting (fullReadGenerationKey budgetId)
+        return stored = Some (currentFullReadGeneration.ToString(Globalization.CultureInfo.InvariantCulture))
+    }
+
+let private saveFullReadGeneration (budgetId: YnabBudgetId) : Async<unit> =
+    Core.Settings.setSetting
+        (fullReadGenerationKey budgetId)
+        (currentFullReadGeneration.ToString(Globalization.CultureInfo.InvariantCulture))
         false
 
 // Lauf-Status als JSON-Text in den Settings. Handgeschriebene Codecs wie im
@@ -207,6 +232,10 @@ type private EntryMatch =
 type private MirrorBatchState = {
     mutable Links: Map<LinkSystem * string, EntryId>
     mutable Entries: Map<EntryId, Entry>
+    /// Alle Verknüpfungen der Buchungen, auf die eine `matched_transaction_id` des Batches zeigt
+    /// (ledger-nkwqb), einmal gebündelt geladen. Keine Verknüpfung wandert bei einer
+    /// Zusammenlegung, deshalb bleibt die Map im Lauf unverändert.
+    MatchedEntryLinks: Map<EntryId, EntryLink list>
 }
 
 module private MirrorBatchState =
@@ -222,6 +251,9 @@ module private MirrorBatchState =
                         match split.TransferYnabTransactionId with
                         | Some counterpart -> counterpart
                         | None -> ()
+                    match obs.MatchedYnabTransactionId with
+                    | Some matched -> matched
+                    | None -> ()
             ]
             let importIds = observations |> List.choose (fun obs -> obs.ImportId)
             let deletedIds = observations |> List.filter (fun obs -> obs.Deleted) |> List.map (fun obs -> obs.YnabTransactionId)
@@ -233,7 +265,12 @@ module private MirrorBatchState =
                       for KeyValue (value, entryId) in found -> (system, value), entryId ]
                 |> Map.ofList
             let! entries = Ledger.Persistence.loadEntries (links |> Map.toList |> List.map snd)
-            return { Links = links; Entries = entries }
+            let matchedEntryIds =
+                observations
+                |> List.choose (fun obs -> obs.MatchedYnabTransactionId)
+                |> List.choose (fun matched -> Map.tryFind matched byYnab)
+            let! matchedEntryLinks = Ledger.Persistence.linksForEntries matchedEntryIds
+            return { Links = links; Entries = entries; MatchedEntryLinks = matchedEntryLinks }
         }
 
     let find (state: MirrorBatchState) (system: LinkSystem) (value: string) : EntryId option =
@@ -250,6 +287,57 @@ module private MirrorBatchState =
                     state.Links <- Map.add (link.System, link.Value) link.EntryId state.Links
                 state.Entries <- Map.add event.EntryId (apply (Map.tryFind event.EntryId state.Entries) event) state.Entries
         }
+
+/// Die Kandidatin einer Zusammenlegung (ledger-nkwqb): die Buchung, auf die die Matched-Id über
+/// die `ynab`-Verknüpfung zeigt, mit ihren Verknüpfungen. Zu den vorab geladenen kommen die, die
+/// der Lauf selbst gestiftet hat.
+let private mergeCandidate (state: MirrorBatchState) (matchedId: string) : MergeCandidate option =
+    MirrorBatchState.find state YnabSystem matchedId
+    |> Option.bind (fun absorbedId ->
+        MirrorBatchState.entry state absorbedId
+        |> Option.map (fun absorbed ->
+            let loaded = Map.tryFind absorbedId state.MatchedEntryLinks |> Option.defaultValue []
+            let fromRun = [
+                for KeyValue ((system, value), entryId) in state.Links do
+                    if entryId = absorbedId then { EntryId = entryId; System = system; Value = value }
+            ]
+            { Entry = absorbed; Links = List.distinct (loaded @ fromRun) }))
+
+/// Die Zusammenlegungen des Batches (ledger-nkwqb, ADR 0015 Nachtrag 2026-11-13): YNAB-Id der
+/// bleibenden Beobachtung auf die Matched-Id. Vor der Schleife bestimmt. Zeigen mehrere
+/// ungelöschte Beobachtungen auf dieselbe Id, oder ist die bleibende selbst Ziel einer anderen
+/// (etwa zwei, die gegenseitig aufeinander zeigen), gibt es keinen Merge, nur eine Log-Zeile.
+let mergePairsOf (observations: YnabObservation list) : Map<string, string> =
+    let pointing =
+        observations
+        |> List.filter (fun obs -> not obs.Deleted)
+        |> List.choose (fun obs -> obs.MatchedYnabTransactionId |> Option.map (fun m -> obs.YnabTransactionId, m))
+    let targets = pointing |> List.countBy snd |> Map.ofList
+    [
+        for survivorId, matchedId in pointing do
+            if Map.find matchedId targets > 1 then
+                printfn
+                    "Zusammenlegung übersprungen: mehrere YNAB-Buchungen zeigen auf %s (unter anderem %s)"
+                    matchedId
+                    survivorId
+            elif targets.ContainsKey survivorId then
+                printfn
+                    "Zusammenlegung übersprungen: YNAB-Buchung %s ist selbst Ziel einer anderen Zusammenlegung (Ziel %s)"
+                    survivorId
+                    matchedId
+            else
+                survivorId, matchedId
+    ]
+    |> Map.ofList
+
+/// Ist die Buchung der Beobachtung in YNAB zusammengelegt (`MergedIntoEntryId`) oder wird sie es
+/// in diesem Batch (ledger-nkwqb)? Dann entfällt ihr `observe`.
+let private isHiddenByMerge (state: MirrorBatchState) (absorbedYnabIds: Set<string>) (obs: YnabObservation) : bool =
+    match MirrorBatchState.find state YnabSystem obs.YnabTransactionId with
+    | None -> false
+    | Some entryId ->
+        absorbedYnabIds.Contains obs.YnabTransactionId
+        || (MirrorBatchState.entry state entryId |> Option.exists (fun e -> e.MergedIntoEntryId.IsSome))
 
 /// Sucht die Buchung zu einer Beobachtung: erst über die YNAB-Id, dann über die
 /// ImportId, sonst ist sie neu. Liest nur, das Anhängen übernimmt `runMirror`.
@@ -498,7 +586,11 @@ let runMirror
             }
 
         try
-            let! knowledge = loadServerKnowledge budgetId
+            let! storedKnowledge = loadServerKnowledge budgetId
+            // ADR 0014, Nachtrag 2026-11-13: weicht die Vollabruf-Generation ab, liest der Lauf
+            // alles neu. Der Marker steht erst nach einem gelungenen Lauf.
+            let! generationCurrent = isFullReadGenerationCurrent budgetId
+            let knowledge = if generationCurrent then storedKnowledge else None
 
             // Konten bewusst **vollstaendig**, ohne `last_knowledge_of_server`: ein
             // Konten-Delta laesst unveraenderte Konten weg, und eine Buchung kann auf
@@ -513,6 +605,8 @@ let runMirror
                 | Error error -> return! finish (Error (ynabErrorText error))
                 | Ok batch ->
                     let! state = MirrorBatchState.load batch.Observations
+                    let mergePairs = mergePairsOf batch.Observations
+                    let absorbedYnabIds = mergePairs |> Map.toList |> List.map snd |> Set.ofList
                     let mutable newEntries = 0
                     let mutable changedEntries = 0
                     let mutable deletedEntries = 0
@@ -528,6 +622,13 @@ let runMirror
                                 failure <-
                                     Some
                                         $"Buchung {obs.YnabTransactionId} zeigt auf das YNAB-Konto {accountId}, das der Konten-Abruf nicht kennt"
+                            | Some _ when isHiddenByMerge state absorbedYnabIds obs ->
+                                // ledger-nkwqb: die Buchung ist in YNAB zusammengelegt oder wird es in
+                                // diesem Batch. Ihre YNAB-Id ist verdeckt, kein `observe` (es prüft
+                                // `DeletedInYnab` bei ungelöschten Beobachtungen nicht).
+                                printfn
+                                    "Beobachtung übersprungen: YNAB-Buchung %s ist in YNAB mit einer anderen zusammengelegt"
+                                    obs.YnabTransactionId
                             | Some ledgerAccountId ->
                                 let entryMatch = resolveEntry state obs
 
@@ -567,6 +668,17 @@ let runMirror
                                             obs
 
                                 do! MirrorBatchState.append state (linkEvents @ events)
+
+                                // Zusammenlegung in YNAB (ledger-nkwqb): nach dem `observe` der
+                                // bleibenden Buchung, damit sie auch dann existiert, wenn sie in
+                                // diesem Lauf erst entsteht. Beide Ereignisse in einem Anhängen.
+                                match Map.tryFind obs.YnabTransactionId mergePairs, MirrorBatchState.entry state entryId with
+                                | Some matchedId, Some survivor ->
+                                    let mergeEvents =
+                                        mergeObservedInYnab now obs survivor (mergeCandidate state matchedId)
+                                    if not (List.isEmpty mergeEvents) then
+                                        do! MirrorBatchState.append state mergeEvents
+                                | _ -> ()
 
                                 // Uebertrags-Verknuepfung (ADR 0015): erst nachdem die
                                 // Beobachtung selbst steht, sonst findet der Lookup die
@@ -610,6 +722,7 @@ let runMirror
                         // Gedaechtnis vor: ein abgebrochener Lauf holt beim naechsten Mal
                         // dasselbe Delta erneut, was dank Idempotenz folgenlos ist.
                         do! saveServerKnowledge budgetId batch.ServerKnowledge
+                        do! saveFullReadGeneration budgetId
 
                         // Nach der eigentlichen Arbeit, bestes Bemühen (ADR 0039,
                         // Punkt 4): ein 429 aus diesem Abruf darf einen Lauf nicht
@@ -3511,6 +3624,7 @@ let entryDeleteNotLinkedText = discardNotLinkedText
 let entryDeleteDeletedText = "Die Buchung ist schon gelöscht"
 let entryDeleteReconciledText = discardReconciledText
 let entryRestoreNotDeletedInBbText = "Nur eine in BB gelöschte Buchung lässt sich wiederherstellen"
+let entryRestoreMergedText = "Die Buchung ist in YNAB mit einer anderen zusammengelegt."
 
 /// Der Stand einer Buchung vor dem Löschen, wie ihn `EntryDeletedInBb` festhält. Rein.
 let deletedInBbPayloadOf (entry: Entry) (ynabTransactionId: string) (importId: string option) : EntryDeletedInBbPayload =
@@ -3635,6 +3749,8 @@ let restoreDeletedEntry
                     match! Ledger.Persistence.loadEntry entryId with
                     | None -> return Error "Buchung nicht gefunden"
                     | Some entry when isHeldAsPossibleDuplicate entry -> return Error possibleDuplicateLockedText
+                    // ledger-nkwqb: eine in YNAB zusammengelegte Buchung lässt sich nicht neu anlegen.
+                    | Some entry when entry.MergedIntoEntryId.IsSome -> return Error entryRestoreMergedText
                     | Some entry when not entry.DeletedInYnab -> return Error entryRestoreNotDeletedInBbText
                     | Some entry ->
                         let! recorded = Ledger.Persistence.loadEventsForEntry entryId

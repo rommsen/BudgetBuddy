@@ -122,3 +122,5 @@ Sammelstelle für Befunde, die stimmen, aber die Schwelle der Backlog-Disziplin 
 100. **Verfeinern ledger-nkwqb**: Zähler `MergedEntries` in der Zusammenfassung des Spiegel-Laufs.
 101. **Verfeinern ledger-nkwqb**: Historienzeile auch für eine schon gelöschte Buchung, die YNAB zusammenlegt (heute ergibt das kein Ereignis).
 102. **Verfeinern ledger-nkwqb**: Optional ein GET auf die Matched-Id als Bestätigung von „verdeckt“, nur wenn der Probelauf unerwartete Kandidaten zeigt.
+103. **Worker ledger-nkwqb** (2026-11-13): Eine Beobachtung, deren YNAB-Id Ziel eines Merge-Paars ist, lässt `observe` auch dann aus, wenn die Domäne den Merge danach ablehnt (etwa bei offenem Ersatz der aufgenommenen Buchung). Seltener Randfall, die Log-Zeile macht ihn sichtbar.
+104. **Worker ledger-nkwqb**: Eine Kette (C zeigt auf A, A zeigt auf B) legt nur C und A zusammen, A und B nicht. Nicht spezifiziert, die Log-Zeile nennt den Fall.

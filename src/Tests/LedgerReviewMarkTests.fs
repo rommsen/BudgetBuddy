@@ -217,6 +217,7 @@ let private observationOf (entry: Entry) (approved: bool) (cleared: ClearedState
     Memo = entry.Memo
     Category = entry.Category
     Splits = entry.Splits
+    MatchedYnabTransactionId = None
     SplitTransfers = []
     Cleared = cleared
     TransferAccountId = None

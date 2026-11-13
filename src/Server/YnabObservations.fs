@@ -60,6 +60,9 @@ type YnabObservation = {
     TransferAccountId: YnabAccountId option
     /// Die YNAB-Transaction-Id der Gegenbuchung (`transfer_transaction_id`).
     TransferYnabTransactionId: string option
+    /// YNABs `matched_transaction_id` (ADR 0015, Nachtrag 2026-11-13): YNAB hat diese Buchung
+    /// mit der genannten abgeglichen, die genannte ist seitdem verdeckt.
+    MatchedYnabTransactionId: string option
     /// In YNAB geloescht (`deleted: true` im Delta).
     Deleted: bool
     /// YNABs `approved` (nie null, ADR 0032): Teil des Prüfvermerks neben `Cleared`.
@@ -235,6 +238,7 @@ module Decoders =
                     get.Optional.Field "transfer_account_id" Decode.guid |> Option.map YnabAccountId
                 TransferYnabTransactionId =
                     get.Optional.Field "transfer_transaction_id" Decode.string
+                MatchedYnabTransactionId = get.Optional.Field "matched_transaction_id" Decode.string
                 Deleted = get.Optional.Field "deleted" Decode.bool |> Option.defaultValue false
                 Approved = get.Required.Field "approved" Decode.bool
                 FlagColor = get.Optional.Field "flag_color" Decode.string

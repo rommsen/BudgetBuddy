@@ -444,6 +444,7 @@ let private observationOf (entry: Entry) (memo: string option) : YnabObservation
     Memo = memo
     Category = entry.Category
     Splits = entry.Splits
+    MatchedYnabTransactionId = None
     SplitTransfers = []
     Cleared = entry.Cleared
     TransferAccountId = None

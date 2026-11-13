@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-13 08:58 -- Task verified and completed: ledger-nkwqb - "Von YNAB abgeglichene Buchung bleibt im Kassenbuch doppelt: der Spiegel liest matched_transaction_id nicht und legt die zusammengelegte Buchung nicht still (Ledger/Domain.fs, Ledger/CommandHandlers.fs)"
+
+**Type:** Work / Task completion
+**Task:** ledger-nkwqb - "Von YNAB abgeglichene Buchung bleibt im Kassenbuch doppelt: der Spiegel liest matched_transaction_id nicht und legt die zusammengelegte Buchung nicht still (Ledger/Domain.fs, Ledger/CommandHandlers.fs)"
+**Summary:** Spiegel legt von YNAB abgeglichene Buchungen zusammen, Vollabruf-Generation 1
+**Duration:** 58m
+**Verification:** PASS (iteration 1)
+**Files changed:** 25
+**Tests added:** 27
+**ADRs written:** none
+
+---
+
 ## 2026-11-13 08:44 -- Task verified and completed: banking-import-pknvp - "Ein YNAB-Übertrag mit gleichem Betrag und Tag gilt beim Import nicht als mögliches Duplikat, weil der Payee nicht passt (DuplicateDetection.fs)"
 
 **Type:** Work / Task completion

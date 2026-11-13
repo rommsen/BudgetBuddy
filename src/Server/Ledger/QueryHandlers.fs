@@ -410,6 +410,21 @@ module ReadModel =
         =
         $"Split-Zeile über {formatMoney p.SplitAmount} als Übertrag mit einer anderen Buchung verbunden"
 
+    /// Auf der aufgenommenen Buchung (ledger-nkwqb, ADR 0015 Nachtrag 2026-11-13).
+    let private describeMergedIntoOther (p: EntryMergedIntoOtherObservedInYnabPayload) =
+        match p.SurvivorPayee with
+        | Some payee -> $"In YNAB mit {payee} vom {formatDate p.SurvivorDate} zusammengelegt"
+        | None -> $"In YNAB mit der Buchung vom {formatDate p.SurvivorDate} zusammengelegt"
+
+    /// Auf der bleibenden Buchung: die Comdirect-Reference, sonst Payee, Datum und Betrag.
+    let private describeMergedFromOther (p: EntryMergedFromOtherObservedInYnabPayload) =
+        match p.AbsorbedComdirectReference, p.AbsorbedPayee with
+        | Some reference, _ -> $"Import {reference} in YNAB hierher zusammengelegt"
+        | None, Some payee ->
+            $"Buchung {payee} vom {formatDate p.AbsorbedDate} über {formatMoney p.AbsorbedAmount} in YNAB hierher zusammengelegt"
+        | None, None ->
+            $"Buchung vom {formatDate p.AbsorbedDate} über {formatMoney p.AbsorbedAmount} in YNAB hierher zusammengelegt"
+
     /// Ein Ereignis als Satz in der Sprache des Kassenbuchs (ADR 0013). Die Payloads
     /// tragen die alten und neuen **Namen**, deshalb braucht dieser Satz kein
     /// Nachschlagen.
@@ -424,6 +439,8 @@ module ReadModel =
         | EntryFlagChangeObservedInYnab p -> describeFlagChange p
         | EntryTransferCounterpartObservedInYnab p -> describeTransferCounterpart p
         | EntrySplitTransferCounterpartObservedInYnab p -> describeSplitTransferCounterpart p
+        | EntryMergedIntoOtherObservedInYnab p -> describeMergedIntoOther p
+        | EntryMergedFromOtherObservedInYnab p -> describeMergedFromOther p
         | EntryDeletionObservedInYnab -> "In YNAB gelöscht"
         | EntryImportedFromComdirect p -> describeImportedFromComdirect p
         | EntryCategorizedByRule p -> describeCategorizedByRule p

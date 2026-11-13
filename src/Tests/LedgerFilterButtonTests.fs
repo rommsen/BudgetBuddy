@@ -93,7 +93,7 @@ let private storedEntry : Entry = {
     LinkedToYnab = false
     PushToYnabFailure = None
     PayeeBeforeTransfer = None
-    PossibleDuplicate = None; PendingReplacement = None
+    PossibleDuplicate = None; PendingReplacement = None; MergedIntoEntryId = None
 }
 
 [<Tests>]

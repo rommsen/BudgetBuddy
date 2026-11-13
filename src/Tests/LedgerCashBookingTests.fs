@@ -104,7 +104,7 @@ let private entry (accountId: LedgerAccountId) (amount: decimal) : Entry = {
     LinkedToYnab = false
     PushToYnabFailure = None
     PayeeBeforeTransfer = None
-    PossibleDuplicate = None; PendingReplacement = None
+    PossibleDuplicate = None; PendingReplacement = None; MergedIntoEntryId = None
 }
 
 let private linkedAccountId = LedgerAccountId (Guid.Parse "0195c000-0000-7000-8000-00000000bc01")
@@ -641,6 +641,7 @@ let private observedCashBooking (ynabTxId: string) (ynabAccount: YnabAccountId) 
     Memo = Some "Kaffee am Bahnhof"
     Category = None
     Splits = []
+    MatchedYnabTransactionId = None
     SplitTransfers = []
     Cleared = Uncleared
     TransferAccountId = None

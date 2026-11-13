@@ -47,6 +47,7 @@ let private observationOn (account: YnabAccountId) (ynabTxId: string) : YnabObse
     Cleared = Uncleared
     TransferAccountId = None
     TransferYnabTransactionId = None
+    MatchedYnabTransactionId = None
     SplitTransfers = []
     Deleted = false
     Approved = true

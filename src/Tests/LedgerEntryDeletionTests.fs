@@ -675,6 +675,7 @@ let deletionMirrorTests =
         Memo = Some "Wocheneinkauf"
         Category = Some food
         Splits = []
+        MatchedYnabTransactionId = None
         SplitTransfers = []
         Cleared = Cleared
         TransferAccountId = None

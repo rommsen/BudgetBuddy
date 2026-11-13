@@ -233,6 +233,10 @@ let migrateLedgerEntryColumns (conn: SqliteConnection) =
     // ledger-f8bjm: der offene Ersatz als JSON (Art, abgelöste YNAB-Id, Ersatz-import_id), NULL
     // heißt: keiner offen. Vor dieser Spalte gab es kein Ereignis, das einen offen hielt.
     migrateColumn "ALTER TABLE ledger_entries ADD COLUMN pending_replacement TEXT" |> ignore
+    // ledger-nkwqb (ADR 0015, Nachtrag 2026-11-13): die bleibende Buchung, wenn YNAB diese mit
+    // einer anderen zusammengelegt hat. NULL heißt: nicht aufgenommen. Vor dieser Spalte gab es
+    // keine Zusammenlegung.
+    migrateColumn "ALTER TABLE ledger_entries ADD COLUMN merged_into_entry_id TEXT NULL" |> ignore
 
 // ============================================
 // Übergang des Kassenbuch-Logs nach `events` (ADR 0083 Abschnitt 6, ledger-k9tm2)
@@ -411,7 +415,8 @@ let internal createLedgerSchemaOn (conn: SqliteConnection) =
             linked_to_ynab INTEGER NOT NULL DEFAULT 0,
             payee_before_transfer TEXT,
             possible_duplicate TEXT,
-            pending_replacement TEXT
+            pending_replacement TEXT,
+            merged_into_entry_id TEXT NULL
         );
 
         CREATE INDEX IF NOT EXISTS idx_ledger_entries_account ON ledger_entries(account_id);
@@ -499,6 +504,7 @@ type private EntryRow = {
     payee_before_transfer: string
     possible_duplicate: string
     pending_replacement: string
+    merged_into_entry_id: string
 }
 
 [<CLIMutable>]
@@ -702,6 +708,7 @@ let private rowToEntry (row: EntryRow) : Entry =
                 match Thoth.Json.Net.Decode.fromString decodePendingReplacement json with
                 | Ok p -> p
                 | Error e -> failwith $"Offener Ersatz der Buchung {row.id} nicht lesbar: {e}")
+        MergedIntoEntryId = toOption row.merged_into_entry_id |> Option.map (Guid.Parse >> EntryId)
     }
 
 let private rowToAccount (row: AccountRow) : LedgerAccount =
@@ -818,6 +825,10 @@ let private entryParams (entry: Entry) =
             match entry.PendingReplacement with
             | Some p -> box (encodePendingReplacement p)
             | None -> null
+        merged_into_entry_id =
+            match entry.MergedIntoEntryId with
+            | Some (EntryId survivor) -> box (survivor.ToString())
+            | None -> null
         transfer_account_id =
             match entry.TransferAccountId with
             | Some (YnabAccountId a) -> box (a.ToString())
@@ -832,12 +843,12 @@ let private upsertEntrySql =
          (id, account_id, date, amount, currency, payee, memo, category_id, category_name,
           splits, cleared, transfer_entry_id, deleted_in_ynab, approved, flag_color, flag_name,
           transfer_account_id, split_transfer_counterparts, review_mark_write_back_failure,
-          categorization_write_back_failure, flag_write_back_failure, memo_write_back_failure, amount_write_back_failure, payee_write_back_failure, push_failure_reason, push_failure_at, linked_to_ynab, payee_before_transfer, possible_duplicate, pending_replacement)
+          categorization_write_back_failure, flag_write_back_failure, memo_write_back_failure, amount_write_back_failure, payee_write_back_failure, push_failure_reason, push_failure_at, linked_to_ynab, payee_before_transfer, possible_duplicate, pending_replacement, merged_into_entry_id)
        VALUES
          (@id, @account_id, @date, @amount, @currency, @payee, @memo, @category_id,
           @category_name, @splits, @cleared, @transfer_entry_id, @deleted_in_ynab, @approved,
           @flag_color, @flag_name, @transfer_account_id, @split_transfer_counterparts,
-          @review_mark_write_back_failure, @categorization_write_back_failure, @flag_write_back_failure, @memo_write_back_failure, @amount_write_back_failure, @payee_write_back_failure, @push_failure_reason, @push_failure_at, @linked_to_ynab, @payee_before_transfer, @possible_duplicate, @pending_replacement)
+          @review_mark_write_back_failure, @categorization_write_back_failure, @flag_write_back_failure, @memo_write_back_failure, @amount_write_back_failure, @payee_write_back_failure, @push_failure_reason, @push_failure_at, @linked_to_ynab, @payee_before_transfer, @possible_duplicate, @pending_replacement, @merged_into_entry_id)
        ON CONFLICT(id) DO UPDATE SET
           account_id = excluded.account_id,
           date = excluded.date,
@@ -867,7 +878,8 @@ let private upsertEntrySql =
           linked_to_ynab = excluded.linked_to_ynab,
           payee_before_transfer = excluded.payee_before_transfer,
           possible_duplicate = excluded.possible_duplicate,
-          pending_replacement = excluded.pending_replacement"""
+          pending_replacement = excluded.pending_replacement,
+          merged_into_entry_id = excluded.merged_into_entry_id"""
 
 /// Führt die abgeleitete Indextabelle `ledger_entry_split_categories` einer Buchung
 /// nach (ADR 0038): erst `DELETE` aller Zeilen dieser Buchung, dann `INSERT` je

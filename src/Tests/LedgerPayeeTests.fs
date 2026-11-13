@@ -551,6 +551,7 @@ let private observationOf (entry: Entry) (payee: string option) : YnabObservatio
     Memo = entry.Memo
     Category = entry.Category
     Splits = entry.Splits
+    MatchedYnabTransactionId = None
     SplitTransfers = []
     Cleared = entry.Cleared
     TransferAccountId = None
