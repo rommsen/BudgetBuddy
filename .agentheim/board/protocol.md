@@ -5,6 +5,24 @@ Newest entries on top.
 
 ---
 
+## 2026-11-14 00:02 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** 1h10m
+**Completed:** 2 (first-try PASS: 2, re-dispatched: 0, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Lost-result re-dispatches:** 0
+**Lost-result escalations:** 0
+**Dispatches:** ledger-ea70s: 1, ledger-hg5m5: 1
+**Commits:** 3
+**Vision-conformance:** none — batch aligns with vision
+**Batch mix:** 100% product-facing (2 tasks)
+**Carry-over:** none — working tree clean
+
+---
+
 ## 2026-11-14 00:01 -- Task verified and completed: ledger-hg5m5 - "Regel aus der Buchung: „Regel anlegen“ im Detail und beim Durchgehen, dazu ein Angebot nach einer Kategorie-Änderung, vorbelegt mit Payee und Kategorie"
 
 **Type:** Work / Task completion
