@@ -110,3 +110,12 @@ Zu Punkt 2, 3 und 5. Die Ersatz-`import_id` steht vor dem POST im Kassenbuch (`E
 Ersatz und Wiederherstellen einer in BB erfassten Buchung gehen ohne Ersatz-`import_id`. Bei einer verlorenen Antwort gilt
 das Verhalten für Buchungen ohne `import_id`: Der Spiegel legt eine Buchung „YNAB-Spiegel“ an (Roman: angenommen,
 Kann-Punkt). Ein schon offener Ersatz sendet mit seiner Ersatz-`import_id` weiter.
+
+## Korrektur 2026-11-13 (Review ledger-ay81j, Roman)
+
+Der Nachtrag oben gilt nicht mehr. Ohne Ersatz-`import_id` schickt ein Wiederholen nach verlorener Antwort das POST
+noch einmal und legt in YNAB eine zweite echte Buchung an. Ersatz und Wiederherstellen einer in BB erfassten Buchung gehen
+deshalb wieder mit Ersatz-`import_id`: Hat die Buchung keine eigene `import_id`, rechnet BB vom Stamm `BB:<EntryId>`
+(`replacementBaseImportId`), mit Sende-Ereignis vor dem POST, und ein 409 heißt angekommen. Restrisiko angenommen: YNAB
+kann die Ersatzbuchung im Abgleichfenster mit einer Handbuchung gleichen Betrags abgleichen. Nur der erste Push und das
+Erneut senden einer Erfassung gehen ohne `import_id` (ADR 0004 Nachtrag 2026-11-13).

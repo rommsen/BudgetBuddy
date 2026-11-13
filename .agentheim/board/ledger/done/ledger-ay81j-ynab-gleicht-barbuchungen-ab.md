@@ -259,3 +259,10 @@ Für die Kann-Sammlung ledger:
 - `loadOpenCaptures` lädt je Lauf alle offenen Erfassungen ohne Zeitfenster; bei vielen dauerhaft offenen Buchungen ließe sich auf die Tage der Beobachtungen einschränken.
 
 Conductor bei der Integration (Iteration 3): Die Hand-Liste und die drei Funde des Verifiers aus Iteration 2 (*PushErneutSenden*, *EntryReplacedInYnab*, *EntryDeletedInBb / EntryRestoredInBb*) hat der Conductor selbst in die README gesetzt, der Verifier hat die integrierte README geprüft (PASS). Probelauf gegen eine frische Kopie der Produktion (Delta-Lauf, nur GET): keine Änderung, kein Fehler. Gate auf main: VERIFY: PASS (dotnet 4985, node 322).
+
+## Review-Lauf 2026-11-13
+Korrektur (Roman, auf Fund von backend-code-quality): Ersatz und Wiederherstellen einer erfassten Buchung gehen wieder mit
+Ersatz-`import_id` vom Stamm `BB:<EntryId>`. Die Zeilen „Split- und Betrags-Ersatz“ und „Wiederherstellen“ der Tabelle in
+What 1, Punkt 4 unter Why und der erste Punkt unter „Bekannte Grenzen“ sind damit überholt (ADR 0058 und 0092, Korrektur
+2026-11-13). Commit 26a549cd, dazu die übrigen Review-Funde (Benennung `OpenCapture`, eine Abfrage in `loadOpenCaptures`,
+Log-Port, doppelte Verknüpfung im Lauf bei O2 vor O1 behoben, fehlende Tests).
