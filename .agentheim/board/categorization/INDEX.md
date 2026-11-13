@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 3
-- **Todo:** 0
+- **Backlog:** 2
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 8
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **categorization-n3sxw** — "Regeln ins Kassenbuch: Regeln als Tab neben den Buchungen statt eigener Seite" (feature) — `todo/categorization-n3sxw-regeln-ins-kassenbuch.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -38,7 +39,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **categorization-n3sxw** — "Regeln ins Kassenbuch: Regeln als Tab neben den Buchungen statt eigener Seite" (feature) — `backlog/categorization-n3sxw-regeln-ins-kassenbuch.md`
 - **categorization-m5k2c** — "Kann-Sammlung categorization" (chore) — `backlog/categorization-m5k2c-kann-sammlung-categorization.md`
 - **categorization-krscs** — "Regel-Dialog im Client: Ladezustände, Fehler, Seiteneffekte und Retry beim Muster-Test" (refactor) — `backlog/categorization-krscs-regel-dialog-ladezustaende-fehler-und-seiteneffekte.md`
 <!-- backlog-list:end -->

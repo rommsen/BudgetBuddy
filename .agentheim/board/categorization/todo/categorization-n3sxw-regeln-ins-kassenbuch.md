@@ -1,7 +1,7 @@
 ---
 id: categorization-n3sxw
 title: "Regeln ins Kassenbuch: Regeln als Tab neben den Buchungen statt eigener Seite"
-status: backlog
+status: todo
 type: feature
 context: categorization
 created: 2026-11-11

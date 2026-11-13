@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-13 20:03 -- Modeling / Promoted: categorization-n3sxw - "Regeln ins Kassenbuch: Regeln als Tab neben den Buchungen statt eigener Seite"
+
+**Type:** Modeling / Promote
+**BC:** categorization
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-13 20:03 -- Modeling / Refined: categorization-n3sxw - Regeln ins Kassenbuch
 
 **Type:** Modeling / Refine
