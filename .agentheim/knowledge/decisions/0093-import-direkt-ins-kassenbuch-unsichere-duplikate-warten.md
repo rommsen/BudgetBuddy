@@ -6,7 +6,7 @@ status: accepted
 date: 2026-11-11
 supersedes: []
 superseded_by: []
-related_tasks: [banking-import-d0fey, banking-import-t4raw, ledger-r7h2w, ledger-v6s7c, ledger-fxt09]
+related_tasks: [banking-import-d0fey, banking-import-t4raw, ledger-r7h2w, ledger-v6s7c, ledger-fxt09, ledger-nkwqb, banking-import-pknvp]
 related_adrs: [0021, 0048, 0050, 0071, 0083, 0086, 0087, 0091, 0092]
 related_research: []
 ---
@@ -114,3 +114,11 @@ Entschieden von Roman am 2026-11-11. Ereignisse und Zustände abgestimmt mit dem
   bis zur Entscheidung in Kauf.
 - **Vorbereiten nach Zeitplan ohne Buchen (ADR 0071 Punkt 7):** abgelehnt, ohne Prüfsitzung gibt es nichts
   vorzubereiten.
+
+## Nachtrag 2026-11-13 (ledger-nkwqb, banking-import-pknvp)
+- Punkt 7: Eine in YNAB zusammengelegte Buchung (`MergedIntoEntryId`, ADR 0015 Nachtrag 2026-11-13) gilt wie eine
+  verworfene (`SkipKnownImport`), obwohl sie mit YNAB verknüpft ist.
+- Erkennung: Eine YNAB-Buchung auf dem Importkonto mit `transfer_account_id`, gleichem Betrag und Tag ±1 ist ein
+  unsicheres Duplikat, unabhängig vom Payee (Roman, 2026-11-13). Ein von YNAB angelegter Übertrag trägt
+  „Transfer : <Konto>“ statt des Bank-Payees, und YNAB legte die gesendete Buchung sonst still mit ihm zusammen.
+  `detectDuplicate` und `possibleMatchOf` teilen sich ein Prädikat. Für alles andere gilt die Payee-Bedingung weiter.

@@ -6,7 +6,7 @@ status: accepted
 date: 2026-09-06
 supersedes: []
 superseded_by: []
-related_tasks: [ynab-czk34]
+related_tasks: [ynab-czk34, ledger-nkwqb]
 related_research: []
 ---
 
@@ -91,3 +91,13 @@ Push, nicht für einen vollständigen Spiegel.
 ## Nachtrag 2026-11-07 (ledger-r8h19)
 
 Ein Spiegel-Lauf lädt die Verknüpfungen seines Batches (YNAB-Id, Übertrags- und Split-Übertrags-Gegenbuchungen, ImportId, abgelöste Id) und die zugehörigen Buchungen einmal vor der Schleife, in Stücken zu 400 Werten, statt je Beobachtung bis zu vier Einzelabfragen zu stellen. Jedes Anhängen im Lauf trägt `linksFrom` und `apply` in diesen Stand nach, dieselben reinen Funktionen, mit denen das Anhängen `ledger_entry_links` und `ledger_entries` fortschreibt. Ein späterer Schritt sieht damit, was ein früherer im selben Lauf angelegt hat, wie bisher. Verworfen: den Stand nach jedem Anhängen aus der Datenbank neu laden (wieder eine Abfrage je geänderter Beobachtung). Idempotenz, Match-Reihenfolge (YNAB-Id vor ImportId, ADR 0015) und das Auslassen der Lösch-Beobachtung einer abgelösten Id (ADR 0058 Punkt 5) bleiben unverändert; ein Charakterisierungstest (`LedgerMirrorBatchTests`) hält die Ereignisse eines Batches mit allen diesen Fällen fest.
+
+## Nachtrag 2026-11-13 (ledger-nkwqb): Vollabruf-Generation
+
+Ein Delta holt keine Information nach, die BB beim ersten Sehen nicht dekodiert hat. Dafür gibt es eine
+Vollabruf-Generation: Settings-Schlüssel `ledger_mirror_full_read_generation_<budget>` und eine Konstante im Code.
+Weichen beide ab, holt der nächste Lauf ohne `last_knowledge_of_server` alles, ein Request. Der Marker wird nur nach einem
+gelungenen Lauf geschrieben. Das ist sicher, weil `observe` idempotent ist und offene Fehlschläge ihre Baseline schützen.
+Gelöschte Buchungen kommen nur im Delta, ihr Fehlen im Vollabruf bedeutet nichts. Vor jeder erhöhten Generation läuft ein
+Probelauf gegen eine Kopie der Produktion, gezählt nach Ereignisart. Generation 1 holt die Abgleiche nach, die vor
+ledger-nkwqb unbemerkt blieben; sie läuft automatisch beim ersten Lauf nach dem Deploy (Roman, 2026-11-13).

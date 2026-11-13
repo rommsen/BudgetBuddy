@@ -5,6 +5,26 @@ Newest entries on top.
 
 ---
 
+## 2026-11-13 08:20 -- Modeling / Refined: ledger-nkwqb - Von YNAB abgeglichene Buchung bleibt im Kassenbuch doppelt
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** todo
+**Summary:** Spiegel liest matched_transaction_id und legt zusammen (zwei Ereignisse EntryMergedIntoOtherObservedInYnab und EntryMergedFromOtherObservedInYnab, Marke MergedIntoEntryId, keine Verknüpfung wandert), Vollabruf-Generation holt den Fall nach dem Deploy einmal nach. Entschieden (Roman, 2026-11-13): YNABs Buchung bleibt, Historie an beiden, keine Korrektur von Kategorie und Freigabe, Nachholen automatisch, zwei Tasks, Aufheben des Abgleichs als Kann-Punkt (98 bis 102).
+**Split into:** banking-import-pknvp (Übertrag als mögliches Duplikat)
+**ADRs written:** Nachträge zu 0014, 0015, 0093
+
+---
+
+## 2026-11-13 08:20 -- Modeling / Captured: banking-import-pknvp - "Ein YNAB-Übertrag mit gleichem Betrag und Tag gilt beim Import nicht als mögliches Duplikat, weil der Payee nicht passt (DuplicateDetection.fs)"
+
+**Type:** Modeling / Capture
+**BC:** banking-import
+**Filed to:** backlog
+**Summary:** Abgespalten aus ledger-nkwqb: Ein YNAB-Übertrag mit gleichem Betrag und Tag ±1 macht die Bankbuchung zum möglichen Duplikat, unabhängig vom Payee.
+
+---
+
 ## 2026-11-13 07:25 -- Capture / Captured: banking-import-r28hx - "Alle Konten per FinTS selbst abrufen (zuerst ING), damit YNABs eigener Abruf und Abgleich wegfallen"
 
 **Type:** Capture
