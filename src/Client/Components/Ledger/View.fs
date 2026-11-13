@@ -4483,26 +4483,41 @@ type LedgerTabs = {
     ShowRules: unit -> unit
 }
 
-/// Der Scrollstand der Buchungen beim Wechsel zu „Regeln“. Der Tab „Buchungen“ baut sich beim Zurückwechseln neu
-/// auf, Konto, Filter und Auswahl stehen im Modell; nur der Scrollstand hängt am Fenster.
-let mutable private bookingsScrollY : float option = None
+/// Was im Kopf des Kassenbuchs steht, ohne Inhalt (categorization-n3sxw). Rein, damit die Zusicherungen unter .NET
+/// prüfbar sind: wo „+ Buchung“ steht und dass „Jetzt spiegeln“ auf beiden Tabs bleibt (Abweichung (g) der Task).
+type LedgerHeaderAction =
+    /// „Jetzt spiegeln“ als Symbolknopf, nur am Handy.
+    | MirrorIcon
+    /// „Jetzt spiegeln“ mit Text, ab `md`.
+    | MirrorButton
+    /// „+ Buchung“, ab `md` (am Handy der FAB).
+    | CaptureBooking
+    /// Die Aktionen des Tabs selbst, auf „Regeln“ die Hauptaktion „+ Neue Regel“.
+    | TabActions
+
+/// Die Kopf-Aktionen je Tab, in der Reihenfolge der Kopfzeile. Eine Hauptaktion je Ansicht: auf „Buchungen“
+/// „+ Buchung“, auf „Regeln“ „+ Neue Regel“ aus `TabActions`, dort gibt es kein „+ Buchung“.
+let headerActionsFor (onRules: bool) : LedgerHeaderAction list =
+    if onRules then [ MirrorIcon; MirrorButton; TabActions ]
+    else [ MirrorIcon; MirrorButton; CaptureBooking ]
 
 /// Springt ohne Animation (`scroll-behavior: smooth` der Seite gilt hier nicht): die Liste soll stehen wie vorher.
 [<Emit("window.scrollTo({ top: $0, behavior: 'instant' })")>]
 let private scrollWindowTo (y: float) : unit = jsNative
 
-/// Setzt den gemerkten Scrollstand, sobald die Buchungen wieder stehen (nach dem Aufbau, vor dem Zeichnen).
+/// Setzt den gemerkten Scrollstand (`BookingsScroll` im Modell), sobald die Buchungen wieder stehen (nach dem Aufbau,
+/// vor dem Zeichnen), und verbraucht ihn.
 [<ReactComponent>]
-let private BookingsScrollRestore () =
+let private BookingsScrollRestore (scroll: float option) (dispatch: Msg -> unit) =
     React.useLayoutEffectOnce (fun () ->
-        match bookingsScrollY with
+        match scroll with
         | Some y ->
-            bookingsScrollY <- None
             scrollWindowTo y
+            dispatch BookingsScrollDropped
         | None -> ())
     Html.none
 
-let private tabsBar (tabs: LedgerTabs) =
+let private tabsBar (tabs: LedgerTabs) (dispatch: Msg -> unit) =
     let onBookings = match tabs.Active with BookingsTab -> true | RulesTab _ -> false
     Html.div [
         prop.className "md:max-w-[320px] mb-3"
@@ -4513,7 +4528,7 @@ let private tabsBar (tabs: LedgerTabs) =
                   IsActive = not onBookings
                   OnClick =
                     fun () ->
-                        if onBookings then bookingsScrollY <- Some Browser.Dom.window.scrollY
+                        if onBookings then dispatch (BookingsScrollRemembered Browser.Dom.window.scrollY)
                         tabs.ShowRules () }
             ]
         ]
@@ -4525,19 +4540,44 @@ let view (model: Model) (dispatch: Msg -> unit) (tabs: LedgerTabs) =
     let isAllAccounts = model.SelectedFilter = Some AllAccounts
     let categories = model.Categories |> RemoteData.toOption |> Option.defaultValue []
 
-    // „Jetzt spiegeln“ bleibt am Handy als Symbol-Knopf in der Kopfzeile, auch auf dem Tab „Regeln“ (Prototyp).
-    let mirrorIcon =
-        Button.view {
-            Button.defaultProps with
-                Icon = Some (Icons.sync Icons.SM Icons.Default)
-                Variant = Button.Secondary
-                IsLoading = model.MirrorRunning
-                Title = Some "Jetzt spiegeln"
-                // Am Handy zeigt `title` nichts: der Name kommt aus `AriaLabel` (ledger-dn4vy).
-                AriaLabel = Some "Jetzt spiegeln"
-                ClassName = Some "md:hidden"
-                OnClick = (fun () -> dispatch StartMirror)
-        }
+    // „Jetzt spiegeln“ bleibt im Kopf, auch auf dem Tab „Regeln“ (Abweichung (g)): am Handy als Symbol-Knopf, am PC
+    // mit Text. Was wo steht, legt `headerActionsFor` fest.
+    let headerActions (tabActions: ReactElement list) =
+        let onRules = match tabs.Active with RulesTab _ -> true | BookingsTab -> false
+        headerActionsFor onRules
+        |> List.collect (function
+            | MirrorIcon ->
+                [ Button.view {
+                    Button.defaultProps with
+                        Icon = Some (Icons.sync Icons.SM Icons.Default)
+                        Variant = Button.Secondary
+                        IsLoading = model.MirrorRunning
+                        Title = Some "Jetzt spiegeln"
+                        // Am Handy zeigt `title` nichts: der Name kommt aus `AriaLabel` (ledger-dn4vy).
+                        AriaLabel = Some "Jetzt spiegeln"
+                        ClassName = Some "md:hidden"
+                        OnClick = (fun () -> dispatch StartMirror)
+                  } ]
+            | MirrorButton ->
+                [ Button.view {
+                    Button.defaultProps with
+                        Text = if model.MirrorRunning then "Spiegel läuft…" else "Jetzt spiegeln"
+                        Variant = Button.Secondary
+                        IsLoading = model.MirrorRunning
+                        ClassName = Some "hidden md:inline-flex"
+                        OnClick = (fun () -> dispatch StartMirror)
+                  } ]
+            | CaptureBooking ->
+                [ Button.view {
+                    Button.defaultProps with
+                        Text = captureOpenLabel
+                        Icon = Some (Icons.plus Icons.SM Icons.Default)
+                        Variant = Button.Primary
+                        AriaLabel = Some captureTitle
+                        ClassName = Some "hidden md:inline-flex"
+                        OnClick = (fun () -> dispatch OpenCapture)
+                  } ]
+            | TabActions -> tabActions)
 
     // Ruhige Liste (ADR 0049 Punkt 9): schlanker Seitenkopf, Liste füllt die Breite.
     // Die Lena-Farbe steht nur im Flag-Symbol (ADR 0087 Punkt 8, `data-lena-flag` in styles.css). Der
@@ -4559,37 +4599,15 @@ let view (model: Model) (dispatch: Msg -> unit) (tabs: LedgerTabs) =
                             Title = "Kassenbuch"
                             Subtitle = parts.Subtitle
                             SubtitleDesktopOnly = true
-                            Actions = mirrorIcon :: parts.Actions
+                            Actions = headerActions parts.Actions
                             TitleStyle = PageHeader.Calm }
                 ]
             ]
-            tabsBar tabs
+            tabsBar tabs dispatch
             parts.Content
         | BookingsTab ->
-            PageHeader.calm
-                "Kassenbuch"
-                (lastRunSubtitle model.LastMirrorRun)
-                [
-                    mirrorIcon
-                    Button.view {
-                        Button.defaultProps with
-                            Text = if model.MirrorRunning then "Spiegel läuft…" else "Jetzt spiegeln"
-                            Variant = Button.Secondary
-                            IsLoading = model.MirrorRunning
-                            ClassName = Some "hidden md:inline-flex"
-                            OnClick = (fun () -> dispatch StartMirror)
-                    }
-                    Button.view {
-                        Button.defaultProps with
-                            Text = captureOpenLabel
-                            Icon = Some (Icons.plus Icons.SM Icons.Default)
-                            Variant = Button.Primary
-                            AriaLabel = Some captureTitle
-                            ClassName = Some "hidden md:inline-flex"
-                            OnClick = (fun () -> dispatch OpenCapture)
-                    }
-                ]
-            tabsBar tabs
+            PageHeader.calm "Kassenbuch" (lastRunSubtitle model.LastMirrorRun) (headerActions [])
+            tabsBar tabs dispatch
 
             match model.Accounts with
             | Failure message ->
@@ -4608,7 +4626,7 @@ let view (model: Model) (dispatch: Msg -> unit) (tabs: LedgerTabs) =
                         FilterBarColumn dispatch model categories accounts isAllAccounts
                     ]
                 ]
-                BookingsScrollRestore ()
+                BookingsScrollRestore model.BookingsScroll dispatch
 
             KeyboardNavigation model.FocusedRow dispatch
        ]

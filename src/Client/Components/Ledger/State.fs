@@ -109,6 +109,7 @@ let init () : Model * Cmd<Msg> =
         HistoryGeneration = 0
         LastMirrorRun = NotAsked
         MirrorRunning = false
+        BookingsScroll = None
         Categories = NotAsked
         CategoriesLoadedAt = None
         CategoriesRefreshing = false
@@ -1827,6 +1828,9 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             model, Cmd.none, NoOp
         else
             { model with MirrorRunning = true }, Cmd.ofMsg RunMirror, NoOp
+
+    | BookingsScrollRemembered y -> { model with BookingsScroll = Some y }, Cmd.none, NoOp
+    | BookingsScrollDropped -> { model with BookingsScroll = None }, Cmd.none, NoOp
 
     | RunMirror ->
         let cmd =

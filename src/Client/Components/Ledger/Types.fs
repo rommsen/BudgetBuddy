@@ -1324,6 +1324,11 @@ type Model = {
     /// Roman wartet nie auf den Spiegel (ADR 0014).
     MirrorRunning: bool
 
+    /// Der Scrollstand der Buchungen beim Wechsel zum Tab „Regeln“ (categorization-n3sxw). Der Tab „Buchungen“
+    /// baut sich beim Zurückwechseln neu auf und setzt ihn wieder. Er gilt nur für den Weg Regeln → Buchungen:
+    /// verlässt Roman die Regeln zu einem anderen Ziel, wird er verworfen.
+    BookingsScroll: float option
+
     // ============================================
     // Filterleiste und Summenzeile (ledger-j8xq4)
     // ============================================
@@ -2128,6 +2133,12 @@ type Msg =
     | StartMirror
     | RunMirror
     | MirrorFinished of Result<MirrorRunSummary, string>
+
+    // Tab „Regeln“ (categorization-n3sxw)
+    /// Der Tab „Regeln“ wurde aus den Buchungen heraus gewählt: merkt deren Scrollstand.
+    | BookingsScrollRemembered of float
+    /// Der gemerkte Scrollstand ist gesetzt oder hinfällig (Regeln zu einem anderen Ziel verlassen).
+    | BookingsScrollDropped
 
     // ============================================
     // Filterleiste und Summenzeile (ledger-j8xq4)

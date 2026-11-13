@@ -3642,6 +3642,62 @@ let private staleAnswerTests =
             Expect.equal failed.QuickAddTemplates (Failure "x") "ohne Stand gilt der Fehler"
     ]
 
+// Tab „Regeln“ im Kassenbuch (categorization-n3sxw): Scrollstand der Buchungen im Modell und der Kopf je Tab.
+let private rulesTabTests =
+    let ledgerSteps (msgs: State.Msg list) (root: State.Model) =
+        msgs
+        |> List.fold
+            (fun (m: State.Model) msg ->
+                match msg with
+                | State.LedgerMsg (BookingsScrollRemembered _ | BookingsScrollDropped) -> State.update msg m |> fst
+                | _ -> m)
+            root
+    /// Ein Seitenwechsel per URL samt der Scroll-Nachrichten, die er an das Kassenbuch schickt.
+    let go (segments: string list) (root: State.Model) =
+        let after, cmd = State.update (State.UrlChanged segments) root
+        ledgerSteps (dispatched cmd) after
+    let onRulesFromBookings =
+        let root = rootModel Types.Page.LedgerRules
+        { root with Ledger = { root.Ledger with BookingsScroll = Some 420.0 } }
+
+    testList "Tab Regeln im Kassenbuch" [
+
+        test "Der Wechsel zu Regeln merkt den Scrollstand der Buchungen im Modell" {
+            let updated, _, _ = Components.Ledger.State.update (BookingsScrollRemembered 420.0) (freshModel ())
+            Expect.equal updated.BookingsScroll (Some 420.0) "gemerkt"
+        }
+
+        test "Zurück zu Buchungen behält den Scrollstand bis zum Wiederherstellen" {
+            let back = go [ "ledger" ] onRulesFromBookings
+            Expect.equal back.Ledger.BookingsScroll (Some 420.0) "der Tab Buchungen setzt ihn wieder"
+            let restored, _, _ = Components.Ledger.State.update BookingsScrollDropped back.Ledger
+            Expect.equal restored.BookingsScroll None "nach dem Setzen verbraucht"
+        }
+
+        // Fehler: Buchungen → Regeln → Übersicht → Kassenbuch sprang auf den alten Scrollstand.
+        test "Über einen anderen Weg zurück ins Kassenbuch gilt der alte Scrollstand nicht" {
+            let onOverview = go [] onRulesFromBookings
+            Expect.equal onOverview.Ledger.BookingsScroll None "verworfen beim Verlassen der Regeln"
+            let back = go [ "ledger" ] onOverview
+            Expect.equal back.Ledger.BookingsScroll None "kein Sprung auf den alten Stand"
+        }
+
+        test "Auf Buchungen steht „+ Buchung“, auf Regeln nicht" {
+            Expect.contains (Components.Ledger.View.headerActionsFor false) Components.Ledger.View.CaptureBooking "Buchungen"
+            Expect.isFalse
+                (Components.Ledger.View.headerActionsFor true |> List.contains Components.Ledger.View.CaptureBooking)
+                "Regeln: Hauptaktion ist „+ Neue Regel“"
+            Expect.contains (Components.Ledger.View.headerActionsFor true) Components.Ledger.View.TabActions "„+ Neue Regel“"
+        }
+
+        test "„Jetzt spiegeln“ steht auf beiden Tabs am Handy und am PC" {
+            for onRules in [ false; true ] do
+                let actions = Components.Ledger.View.headerActionsFor onRules
+                Expect.contains actions Components.Ledger.View.MirrorIcon $"Handy, Regeln={onRules}"
+                Expect.contains actions Components.Ledger.View.MirrorButton $"PC, Regeln={onRules}"
+        }
+    ]
+
 [<Tests>]
 let ledgerPageTests =
     testList
@@ -3654,5 +3710,6 @@ let ledgerPageTests =
           freshnessTests
           visibilityTests
           routeTests
+          rulesTabTests
           staleAnswerTests
           isTransferTests ]

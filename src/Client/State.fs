@@ -369,8 +369,14 @@ let urlChangedCmd (ledger: Components.Ledger.Types.Model) (current: Page) (page:
             Cmd.map RulesMsg (Cmd.ofMsg Components.Rules.Types.RulesTabLeft)
             if not loaded then pageLoadCmd page
         ]
+    // Der gemerkte Scrollstand der Buchungen gilt nur für den Weg zurück zu „Buchungen“: über ein anderes Ziel ins
+    // Kassenbuch stünde die Liste sonst auf einem alten Stand.
     | LedgerRules, target when target <> LedgerRules ->
-        Cmd.batch [ Cmd.map RulesMsg (Cmd.ofMsg Components.Rules.Types.RulesTabLeft); pageLoadCmd page ]
+        Cmd.batch [
+            Cmd.map RulesMsg (Cmd.ofMsg Components.Rules.Types.RulesTabLeft)
+            Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.BookingsScrollDropped)
+            pageLoadCmd page
+        ]
     | LedgerEntry _, _ -> Cmd.batch [ leave Components.Ledger.Types.OtherPage; pageLoadCmd page ]
     // Ohne den Abschied ginge eine offene Zuweisen-Eingabe beim Rücksprung per Browser verloren:
     // das Abbauen eines Felds löst in React keinen Blur aus.
