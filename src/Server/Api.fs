@@ -734,6 +734,11 @@ let rulesApi : RulesApi = {
             let matchText = getMatchText testTransaction targetField
             return Ok (compiled.Regex.IsMatch(matchText))
     }
+
+    ruleCategoryFor = fun (payee, memo) -> async {
+        let! rules = Persistence.Rules.getAllRules ()
+        return ruleCategoryFor rules payee memo
+    }
 }
 
 // ============================================

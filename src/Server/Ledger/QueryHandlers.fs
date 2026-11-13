@@ -1047,19 +1047,7 @@ let getLedgerBookingDefaultsWith
 /// Die Kategorie einer Regel für diesen Payee (Payee-Text, Memo leer), wie beim Import die erste
 /// passende aktive Regel. Ungültige Regeln liefern keine. Rein.
 let ruleCategoryForPayee (rules: Rule list) (payee: string) : YnabCategoryId option =
-    match Server.RulesEngine.compileRules rules with
-    | Error _ -> None
-    | Ok compiled ->
-        let probe : BankTransaction = {
-            Id = TransactionId ""
-            BookingDate = DateTime.MinValue
-            Amount = { Amount = 0m; Currency = "EUR" }
-            Payee = Some payee
-            Memo = ""
-            Reference = ""
-            RawData = ""
-        }
-        Server.RulesEngine.classify compiled probe |> Option.map snd
+    Server.RulesEngine.ruleCategoryFor rules payee ""
 
 /// Die vorbelegte Kategorie zum Payee beim Erfassen: die Kategorie, die dieser Payee zuletzt
 /// hatte, sonst die passende Regel, sonst keine. Leerer Payee: keine.

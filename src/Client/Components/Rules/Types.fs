@@ -2,6 +2,7 @@
 /// eine Regel öffnet am PC im Panel, am Handy im Sheet. Regeln sind Zustand, keine Ereignisse (ADR 0083).
 module Components.Rules.Types
 
+open System
 open Shared.Domain
 open Types
 
@@ -43,6 +44,17 @@ module RuleDraft =
         Enabled = rule.Enabled
         TestInput = ""
     }
+
+    /// Eine neue Regel aus einer Buchung (ledger-hg5m5): Name und Muster sind der Payee, Enthält, gesucht im
+    /// Payee, dazu die Kategorie der Buchung, falls sie eine eindeutige hat.
+    let fromEntry (payee: string) (categoryId: YnabCategoryId option) : RuleDraft =
+        let payee = payee.Trim()
+        { empty with
+            Name = payee
+            Pattern = payee
+            PatternType = Contains
+            TargetField = Payee
+            CategoryId = categoryId }
 
 /// Eine Anfrage an `testRule`. Die Antwort trägt sie mit: passt sie nicht mehr zur Eingabe, zählt sie nicht.
 type TestRequest = {
@@ -90,6 +102,12 @@ type Shell =
     | InPanel
     | InSheet
 
+/// Woher das offene Formular kommt: aus dem Tab „Regeln“ oder aus einer Buchung im Kassenbuch (ledger-hg5m5).
+/// Aus einer Buchung steht es dort, wo die Buchung steht (Detail oder Durchgehen), und führt zu ihr zurück.
+type PanelOrigin =
+    | FromRulesTab
+    | FromEntry of entryId: Guid
+
 /// Das offene Formular, am PC im Panel, am Handy im Sheet.
 type Panel = {
     Editor: Editor
@@ -98,6 +116,7 @@ type Panel = {
     Test: PatternTest
     /// Ist die Auswahl der Kategorie offen? Am PC ein Popover, am Handy ersetzt sie den Inhalt des Sheets (§7.15).
     PickerOpen: bool
+    Origin: PanelOrigin
 }
 
 /// Richtung eines Pfeils: `Up` lässt die Regel früher gewinnen, `Down` später.
@@ -153,6 +172,8 @@ type Msg =
 
     // Liste
     | NewRuleRequested
+    /// „Regel anlegen“ an einer Buchung: das Formular, vorbelegt aus Payee und Kategorie der Buchung (ledger-hg5m5).
+    | EntryRuleRequested of entryId: Guid * payee: string * categoryId: YnabCategoryId option
     | RuleChosen of RuleId
     | PanelClosed
     | MoveRequested of RuleId * MoveDirection

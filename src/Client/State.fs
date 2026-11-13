@@ -610,7 +610,9 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
         else
             { model with
                 CurrentPage = page
-                SettingsReturn = settingsReturn model.CurrentPage page model.SettingsReturn },
+                SettingsReturn = settingsReturn model.CurrentPage page model.SettingsReturn
+                // Ein Seitenwechsel schließt das Regel-Formular aus einer Buchung (ledger-hg5m5).
+                Rules = Components.Rules.State.followEntry None model.Rules },
             urlChangedCmd model.Ledger model.CurrentPage page
 
     // Die PWA kam in den Vordergrund: auf der Kassenbuch-Seite verhält sich das wie
@@ -868,6 +870,13 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
             | Components.Ledger.Types.ShowToastWithAction (message, toastType, action) ->
                 Cmd.ofMsg (ShowToastWithAction (message, toastType, action))
             | Components.Ledger.Types.LeaveReview -> Cmd.ofMsg (NavigateTo Overview)
+            // „Regel anlegen“ an einer Buchung (ledger-hg5m5): das Formular des Tabs „Regeln“, vorbelegt; die Auswahl
+            // der Kategorie braucht die Kategorien des Tabs.
+            | Components.Ledger.Types.OpenRuleForEntry (entryId, payee, categoryId) ->
+                Cmd.batch [
+                    Cmd.ofMsg (RulesMsg (Components.Rules.Types.EntryRuleRequested (entryId, payee, categoryId)))
+                    Cmd.ofMsg (RulesMsg Components.Rules.Types.LoadCategories)
+                ]
 
         let closedByUser =
             match ledgerMsg with
@@ -906,7 +915,11 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
                 Cmd.map OverviewMsg (Cmd.ofMsg Components.Overview.Types.ReloadRequested)
             | _ -> Cmd.none
 
-        { model with Ledger = ledgerModel'; Overview = syncNavAccounts ledgerMsg model.Overview },
+        { model with
+            Ledger = ledgerModel'
+            // Das Regel-Formular aus einer Buchung schließt, wenn das Kassenbuch sie nicht mehr zeigt (ledger-hg5m5).
+            Rules = Components.Rules.State.followEntry (detailId ledgerModel') model.Rules
+            Overview = syncNavAccounts ledgerMsg model.Overview },
         Cmd.batch [ Cmd.map LedgerMsg ledgerCmd; externalCmd; routeCmd; overviewCmd ]
 
     | OverviewMsg overviewMsg ->

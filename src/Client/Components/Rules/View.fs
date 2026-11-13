@@ -535,6 +535,66 @@ let private sheet (model: Model) (dispatch: Msg -> unit) =
     | None -> BottomSheet.viewHeld { IsOpen = false; OnClose = ignore; Title = ""; Subtitle = None; Footer = None } []
 
 // ============================================
+// Regel aus einer Buchung (ledger-hg5m5)
+// ============================================
+
+/// Der Hinweis unter dem Formular aus einer Buchung: Regeln wirken nur auf neue Importe (README categorization).
+let entryFormHint = "Gilt für neue Importe."
+
+/// Der Titel des Formulars aus einer Buchung.
+let entryFormTitle = "Regel anlegen"
+
+/// Das Formular aus einer Buchung in Teilen; das Kassenbuch setzt sie in Panel, Sheet oder Dialog ein.
+/// `OnBack` führt zur Buchung zurück (am Handy der Schließen-Knopf des Sheets, ist die Auswahl der Kategorie offen,
+/// zurück ins Formular). `Footer` füllt am Handy den Fuß des Sheets, am PC stehen die Knöpfe im Inhalt.
+type EntryFormParts = {
+    Title: string
+    OnBack: unit -> unit
+    Body: ReactElement list
+    Footer: ReactElement list option
+}
+
+let private entryHint () =
+    Html.p [
+        prop.custom ("data-testid", "rule-form-hint")
+        prop.className $"{FontSizes.xs} {Colors.textMuted}"
+        prop.text entryFormHint
+    ]
+
+/// Das Formular aus einer Buchung, falls es offen ist. `inSheet`: am Handy im Sheet, sonst im Panel oder Dialog am PC.
+let entryForm (model: Model) (dispatch: Msg -> unit) (inSheet: bool) : EntryFormParts option =
+    match model.Panel with
+    | Some ({ Origin = FromEntry _ } as panel) ->
+        if inSheet && panel.PickerOpen then
+            Some
+                { Title = CategoryPicker.sheetTitle []
+                  OnBack = fun () -> dispatch CategoryPickerClosed
+                  Body = [ CategoryPicker.sheetContent (pickerPropsFor model panel dispatch) ]
+                  Footer = None }
+        elif inSheet then
+            Some
+                { Title = entryFormTitle
+                  OnBack = fun () -> dispatch PanelClosed
+                  Body =
+                    [ Html.div [
+                          prop.className "flex flex-col gap-3 py-2"
+                          prop.children [ formFields model panel InSheet dispatch; entryHint () ]
+                      ] ]
+                  Footer = Some [ formButtons panel InSheet dispatch ] }
+        else
+            Some
+                { Title = entryFormTitle
+                  OnBack = fun () -> dispatch PanelClosed
+                  Body =
+                    [ Html.div [ prop.className "px-4 py-3"; prop.children [ formFields model panel InPanel dispatch ] ]
+                      Html.div [
+                          prop.className $"flex flex-col gap-3 border-t {Borders.default'} px-4 py-3"
+                          prop.children [ formButtons panel InPanel dispatch; entryHint () ]
+                      ] ]
+                  Footer = None }
+    | _ -> None
+
+// ============================================
 // Tastatur am PC (§7.8)
 // ============================================
 
@@ -616,6 +676,8 @@ let headerActions (dispatch: Msg -> unit) : ReactElement list =
 
 /// Der Inhalt des Tabs: Hinweis, Liste, Panel bzw. Sheet, Tastatur.
 let content (model: Model) (dispatch: Msg -> unit) : ReactElement =
+    // Ein Formular aus einer Buchung gehört zur Buchung, nicht in den Tab (ledger-hg5m5).
+    let model = if (entryFormFor model).IsSome then { model with Panel = None } else model
     let isPanel = Viewport.isInspectorPanelViewport ()
     Html.div [
         prop.custom ("data-testid", "rules-tab")

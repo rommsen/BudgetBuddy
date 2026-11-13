@@ -1915,6 +1915,78 @@ let externalLinksField (entry: LedgerEntryView) : ReactElement option =
     | links -> Some (Detail.externalLinksRow links)
 
 /// Alles unter dem Kopf: Hinweisleiste, Felder, Geprüft-Schalter, Herkunft, Historie.
+// ============================================
+// Regel aus der Buchung (ledger-hg5m5)
+// ============================================
+
+/// Das Regel-Formular aus einer Buchung. Es gehört zum Tab „Regeln“; der Root setzt es aus
+/// `Components.Rules.View.entryForm` zusammen, das Kassenbuch stellt es dorthin, wo die Buchung steht.
+type EntryRuleForm = {
+    Title: string
+    /// Zurück zur Buchung (am Handy aus der Auswahl der Kategorie zurück ins Formular).
+    OnBack: unit -> unit
+    Body: ReactElement list
+    /// Am Handy der Fuß des Sheets.
+    Footer: ReactElement list option
+}
+
+/// Das offene Regel-Formular für die gezeigte Buchung, `true` am Handy (Sheet), `false` am PC (Panel, Dialog).
+type EntryRuleFormSlot = bool -> EntryRuleForm option
+
+let noEntryRuleForm : EntryRuleFormSlot = fun _ -> None
+
+let ruleFromEntryLabel = "Regel anlegen"
+
+/// Der feste Eintrag „Regel anlegen“ unter den Feldern des Details; ohne Payee keiner.
+let private ruleFromEntryRow (dispatch: Msg -> unit) (entry: LedgerEntryView) : ReactElement =
+    let openForm = fun () -> dispatch (RuleFromEntryRequested entry.Id)
+    Detail.fieldRowWith
+        (Some openForm)
+        "detail-rule"
+        ruleFromEntryLabel
+        Html.none
+        (Some (Detail.forwardArrow "detail-rule-arrow" ruleFromEntryLabel None openForm))
+
+/// Das Angebot unter der Kategorie nach einer Änderung: „Regel für „<Payee>“ anlegen?“ mit „Anlegen“ und ×.
+let private ruleOfferRow (dispatch: Msg -> unit) (entry: LedgerEntryView) (payee: string) : ReactElement =
+    Html.div [
+        prop.custom ("data-testid", "rule-offer")
+        prop.className $"flex items-center gap-2 px-4 py-2 border-b {Tokens.Borders.subtle}"
+        prop.children [
+            Html.p [
+                prop.className $"min-w-0 flex-1 {Tokens.FontSizes.sm} {Tokens.Colors.textSecondary}"
+                prop.text (ruleOfferText payee)
+            ]
+            Button.view {
+                Button.defaultProps with
+                    Text = "Anlegen"
+                    Variant = Button.Secondary
+                    Size = Button.Small
+                    OnClick = fun () -> dispatch (RuleFromEntryRequested entry.Id)
+            }
+            Button.view {
+                Button.defaultProps with
+                    Icon = Some (Icons.x Icons.SM Icons.Default)
+                    Variant = Button.Ghost
+                    Size = Button.Small
+                    // Nicht „schließen“: das Sheet hat schon einen Knopf „Schließen“.
+                    AriaLabel = Some "Angebot ausblenden"
+                    Title = Some "Angebot ausblenden"
+                    OnClick = fun () -> dispatch RuleOfferDismissed
+            }
+        ]
+    ]
+
+/// Der Kopf des Formulars im Panel: „Zurück“ zur Buchung und der Titel (§7.15).
+let private ruleFormHead (form: EntryRuleForm) : ReactElement =
+    Html.div [
+        prop.className $"flex items-center gap-2 px-4 py-2 border-b {Tokens.Borders.subtle}"
+        prop.children [
+            PageHeader.backButtonFor (Some "Zurück zur Buchung") form.OnBack
+            Html.h2 [ prop.className $"min-w-0 truncate {Tokens.FontSizes.lg} font-semibold {Tokens.Colors.textPrimary}"; prop.text form.Title ]
+        ]
+    ]
+
 let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) : ReactElement list =
     let rowState = model.ReviewMarkRows |> Map.tryFind entry.Id
     let categoryRow = model.CategoryRows |> Map.tryFind entry.Id
@@ -1968,6 +2040,10 @@ let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
            elif isWithoutCategory entry then Tokens.Colors.attention
            else Tokens.Colors.textPrimary)
 
+      match ruleOfferFor model entry with
+      | Some payee -> ruleOfferRow dispatch entry payee
+      | None -> ()
+
       splitField dispatch entry
 
       memoField dispatch model memoRow entry textColor
@@ -1994,6 +2070,8 @@ let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
                   Size = Badge.Small
           }
       )
+
+      if (ruleSeedFor entry).IsSome then ruleFromEntryRow dispatch entry
 
       Detail.sectionLabel "HISTORIE"
       historyView dispatch entry model.History
@@ -2382,6 +2460,23 @@ let private detailSheetView (dispatch: Msg -> unit) (model: Model) (open': bool)
               detailHead dispatch model entry None
               yield! detailContent dispatch model entry
           | _ -> () ]
+
+/// Das Panel am PC, mit offenem Regel-Formular dieses statt des Details: es ersetzt den Inhalt und führt mit „Zurück“
+/// zur Buchung (ledger-hg5m5).
+let private detailPanelOrRuleForm (dispatch: Msg -> unit) (model: Model) (ruleForm: EntryRuleFormSlot) (entry: LedgerEntryView) : ReactElement =
+    match ruleForm false with
+    | Some form -> Detail.panel form.Title [ ruleFormHead form; Detail.scrollBody form.Body ]
+    | None -> detailPanelView dispatch model entry
+
+/// Das Sheet am Handy, mit offenem Regel-Formular dieses als Inhalt (§7.15): Schließen führt zur Buchung zurück
+/// (ledger-hg5m5).
+let private detailSheetOrRuleForm (dispatch: Msg -> unit) (model: Model) (ruleForm: EntryRuleFormSlot) (open': bool) : ReactElement =
+    match ruleForm true with
+    | Some form when open' && (detailEntryOf model).IsSome ->
+        BottomSheet.view
+            { IsOpen = true; OnClose = form.OnBack; Title = form.Title; Subtitle = None; Footer = form.Footer }
+            form.Body
+    | _ -> detailSheetView dispatch model open'
 
 // ============================================
 // Nachladen beim Scrollen (AC5)
@@ -4338,6 +4433,7 @@ let private FilterBarColumn
     (categories: YnabCategory list)
     (accounts: LedgerAccountView list)
     (isAllAccounts: bool)
+    (ruleForm: EntryRuleFormSlot)
     =
     let barHeight, setBarHeight = React.useState 0.0
     // 0 = noch nicht gemessen, dann gilt `assumedTableWidth`.
@@ -4397,11 +4493,11 @@ let private FilterBarColumn
         prop.style [ style.custom ("--ledger-filter-bar-height", sprintf "%.0fpx" barHeight) ]
         prop.children [
             // Das Sheet portalt nach `document.body`; es steht hier, weil die Form hier bekannt ist.
-            detailSheetView dispatch model (model.DetailFor.IsSome && detailForm = DetailSheet)
+            detailSheetOrRuleForm dispatch model ruleForm (model.DetailFor.IsSome && detailForm = DetailSheet)
             captureSheetView dispatch model model.Capture (detailForm = DetailSheet)
             match model.Capture, detailEntryOf model with
             | Some capture, _ when panelOpen -> capturePanelView dispatch model capture
-            | None, Some entry when panelOpen -> detailPanelView dispatch model entry
+            | None, Some entry when panelOpen -> detailPanelOrRuleForm dispatch model ruleForm entry
             | _ -> ()
             Html.div [
                 // Neben dem Panel macht die Spalte Platz; die Mindesthöhe hält das haftende
@@ -4552,7 +4648,7 @@ let private tabsBar (tabs: LedgerTabs) (dispatch: Msg -> unit) =
         ]
     ]
 
-let view (model: Model) (dispatch: Msg -> unit) (tabs: LedgerTabs) =
+let view (model: Model) (dispatch: Msg -> unit) (tabs: LedgerTabs) (ruleForm: EntryRuleFormSlot) =
     let accounts = model.Accounts |> RemoteData.toOption |> Option.map (fun a -> a.Accounts) |> Option.defaultValue []
     let balances = model.Balances
     let isAllAccounts = model.SelectedFilter = Some AllAccounts
@@ -4645,7 +4741,7 @@ let view (model: Model) (dispatch: Msg -> unit) (tabs: LedgerTabs) =
                         accountSwitcher dispatch model accounts balances
                         accountStrip dispatch accounts balances model.SelectedFilter
 
-                        FilterBarColumn dispatch model categories accounts isAllAccounts
+                        FilterBarColumn dispatch model categories accounts isAllAccounts ruleForm
                     ]
                 ]
                 BookingsScrollRestore model.BookingsScroll dispatch
@@ -4904,7 +5000,16 @@ let private reviewNormalCard (dispatch: Msg -> unit) (model: Model) (review: Rev
                     Html.span [ prop.className "inline-flex shrink-0 pt-0.5"; prop.children [ Icons.flagSolid Icons.XS Icons.LenaFlag ] ]
                     Html.span [ ReviewCard.noteName "Lena"; Html.text $" {reviewLenaHintText}" ]
                 ]
-            ReviewCard.detailsLink (fun () -> dispatch ReviewShowDetails)
+            // „Regel anlegen“ wie im Detail (ledger-hg5m5), ohne Payee keiner; neben „Details“, damit „Passt, weiter“
+            // am Handy im Bild bleibt.
+            if (ruleSeedFor entry).IsSome then
+                ReviewCard.linksWithDetails
+                    "review-rule"
+                    ruleFromEntryLabel
+                    (fun () -> dispatch (RuleFromEntryRequested entry.Id))
+                    (fun () -> dispatch ReviewShowDetails)
+            else
+                ReviewCard.detailsLink (fun () -> dispatch ReviewShowDetails)
         ]
         Html.div [
             prop.className "grid grid-cols-2 gap-2"
@@ -5062,8 +5167,11 @@ let private reviewEnd (count: int) (onBack: unit -> unit) =
 /// Die Seite „Durchgehen“ unter der Übersicht (Styleguide §7.4): Kopf mit „Zurück“ und „i von n“, Fortschritt,
 /// Karte und Knöpfe; am PC als Spalte von höchstens 620 px mit Tastenleiste.
 [<ReactComponent>]
-let ReviewPage (model: Model) (dispatch: Msg -> unit) (onBack: unit -> unit) =
+let ReviewPage (model: Model) (dispatch: Msg -> unit) (onBack: unit -> unit) (ruleForm: EntryRuleFormSlot) =
     let desk = Viewport.isInspectorPanelViewport ()
+    // Das Regel-Formular aus der Buchung (ledger-hg5m5): mit Detail ersetzt es dessen Inhalt, sonst steht es über der
+    // Karte, am PC als Dialog, am Handy als Sheet. Nach Anlegen oder Abbrechen steht dieselbe Karte da.
+    let openRuleForm = ruleForm (not desk)
     let form = if desk then DetailPanel else DetailSheet
     React.useEffect ((fun () -> if model.DetailForm <> form then dispatch (DetailFormChanged form)), [| box form; box model.DetailForm |])
     match model.Review with
@@ -5099,7 +5207,18 @@ let ReviewPage (model: Model) (dispatch: Msg -> unit) (onBack: unit -> unit) =
         let detail =
             match card with
             | Some entry when review.DetailShown ->
-                if desk then detailPanelView dispatch model entry else detailSheetView dispatch model true
+                if desk then detailPanelOrRuleForm dispatch model ruleForm entry else detailSheetOrRuleForm dispatch model ruleForm true
+            | Some _ ->
+                match openRuleForm with
+                | Some f when desk ->
+                    Modal.view
+                        { Modal.defaultProps with IsOpen = true; OnClose = f.OnBack; Title = Some f.Title }
+                        [ Modal.bodyNoPadding f.Body ]
+                | Some f ->
+                    BottomSheet.view
+                        { IsOpen = true; OnClose = f.OnBack; Title = f.Title; Subtitle = None; Footer = f.Footer }
+                        f.Body
+                | None -> Html.none
             | _ -> Html.none
         Html.div [
             prop.custom ("data-testid", "review-page")
@@ -5113,6 +5232,7 @@ let ReviewPage (model: Model) (dispatch: Msg -> unit) (onBack: unit -> unit) =
                 if desk && card.IsSome then
                     Html.div [ prop.className "mx-auto mt-4 w-full max-w-[620px]"; prop.children [ ReviewCard.keyBar reviewKeys ] ]
                 detail
-                ReviewKeyboard model dispatch
+                // Über dem Regel-Formular gelten die Tasten des Durchgehens nicht (Esc schließt nur das Formular).
+                if openRuleForm.IsNone then ReviewKeyboard model dispatch
             ]
         ]

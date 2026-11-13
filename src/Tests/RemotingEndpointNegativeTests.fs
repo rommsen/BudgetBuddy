@@ -240,6 +240,8 @@ let private rows : Row list = [
         |> run |> expectError "Regel wiederherstellen" }
     { Endpoint = "RulesApi.testRule"; Case = "ungültiger Regex wird abgelehnt"
       Run = fun () -> rulesApi.testRule ("(", Regex, Payee, "(irgendwas") |> run |> expectError "Muster" }
+    { Endpoint = "RulesApi.ruleCategoryFor"; Case = "leerer Payee: keine Kategorie, ohne Absturz"
+      Run = fun () -> Expect.isNone (rulesApi.ruleCategoryFor ("  ", "Miete") |> run) "ohne Payee kein Urteil" }
 
     // ---------------- SyncApi ----------------
     { Endpoint = "SyncApi.startSync"; Case = "ohne Comdirect-Zugangsdaten Fehler"

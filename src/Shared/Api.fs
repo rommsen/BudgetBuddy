@@ -139,6 +139,13 @@ type RulesApi = {
     /// Parameters: (pattern, patternType, targetField, testInput)
     /// Returns: True if pattern matches test input, false otherwise.
     testRule: string * PatternType * TargetField * string -> Async<RulesResult<bool>>
+
+    /// Die Kategorie, die die Regeln einer Buchung mit diesem Payee und Memo geben würden (ledger-hg5m5).
+    /// Purpose: Das Urteil „passt schon“ für das Regel-Angebot nach einer Kategorie-Änderung, mit derselben Engine
+    /// wie beim Import: die erste passende aktive Regel. Liest nur.
+    /// Parameters: (payee, memo)
+    /// Returns: Die Kategorie der Regel, ohne Payee oder ohne Treffer None.
+    ruleCategoryFor: string * string -> Async<YnabCategoryId option>
 }
 
 // ============================================

@@ -87,6 +87,14 @@ let view (model: Model) (dispatch: Msg -> unit) =
         { Active = active
           ShowBookings = fun () -> if not (isLedgerPage model.CurrentPage) then dispatch (NavigateTo Ledger)
           ShowRules = fun () -> if model.CurrentPage <> LedgerRules then dispatch (NavigateTo LedgerRules) }
+    // Das Regel-Formular aus einer Buchung (ledger-hg5m5): es gehört zum Tab „Regeln“, das Kassenbuch zeigt es dort,
+    // wo die Buchung steht.
+    let entryRuleForm : Components.Ledger.View.EntryRuleFormSlot =
+        fun inSheet ->
+            Components.Rules.View.entryForm model.Rules (RulesMsg >> dispatch) inSheet
+            |> Option.map (fun form ->
+                ({ Title = form.Title; OnBack = form.OnBack; Body = form.Body; Footer = form.Footer }
+                 : Components.Ledger.View.EntryRuleForm))
     let pageShell =
         match model.CurrentPage with
         | Overview | Ledger | LedgerEntry _ | LedgerRules | Budget | BudgetHistory | BudgetTargetCheck | BudgetCategories -> Navigation.pageContentFull
@@ -154,12 +162,14 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                     model.Ledger
                                     (LedgerMsg >> dispatch)
                                     (fun () -> dispatch (NavigateTo Overview))
+                                    entryRuleForm
                             | Ledger
                             | LedgerEntry _ ->
                                 Components.Ledger.View.view
                                     model.Ledger
                                     (LedgerMsg >> dispatch)
                                     (ledgerTabs Components.Ledger.View.BookingsTab)
+                                    entryRuleForm
                             | LedgerRules ->
                                 let rulesDispatch = RulesMsg >> dispatch
                                 Components.Ledger.View.view
@@ -171,6 +181,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                               Actions = Components.Rules.View.headerActions rulesDispatch
                                               Content = Components.Rules.View.content model.Rules rulesDispatch }
                                     ))
+                                    Components.Ledger.View.noEntryRuleForm
                             | Budget ->
                                 Components.Budget.View.view
                                     (match model.Overview.Pins with

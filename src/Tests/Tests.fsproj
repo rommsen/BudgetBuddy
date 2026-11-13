@@ -147,6 +147,7 @@
     <Compile Include="LedgerPayeeCategorySuggestionsTests.fs" />
     <Compile Include="LedgerRecentCategoriesTests.fs" />
     <Compile Include="LedgerCategoryChangeClientTests.fs" />
+    <Compile Include="LedgerRuleOfferClientTests.fs" />
     <Compile Include="LedgerSplitEditorClientTests.fs" />
     <Compile Include="LedgerWithoutCategoryTests.fs" />
     <Compile Include="LedgerReviewStateTests.fs" />

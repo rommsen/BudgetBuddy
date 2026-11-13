@@ -2643,6 +2643,7 @@ let private reviewCardSection =
                     ReviewCard.linkRow "Bestellung bei Amazon" (Some "302-1234567-2222222") "https://www.amazon.de/gp/your-account/order-history"
                     ReviewCard.kvRow "demo-review-memo" "Memo" None "hinzufügen" ignore
                     ReviewCard.note "demo-review-note" [ Html.span [ ReviewCard.noteName "Lena"; Html.text " ist gefragt. Die Buchung bleibt offen, bis Lena oder du sie prüft." ] ]
+                    ReviewCard.linksWithDetails "demo-review-rule" "Regel anlegen" ignore ignore
                 ]
                 ReviewCard.card false [] [
                     ReviewCard.meta "Gestern · Kreditkarte · YNAB-Spiegel"

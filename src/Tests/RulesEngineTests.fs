@@ -634,3 +634,38 @@ let textBasedSpecialLinkTests =
                     (detectSpecialLinksFromText payee memo)
                     $"gleiches Ergebnis für {payee} / {memo}"
     ]
+
+// ============================================
+// Urteil „passt schon“ für das Regel-Angebot (ledger-hg5m5)
+// ============================================
+
+[<Tests>]
+let ruleCategoryForTests =
+    let lebensmittel = Guid.NewGuid()
+    let drogerie = Guid.NewGuid()
+    testList "Kategorie, die die Regeln einer Buchung geben würden" [
+        testCase "die erste passende aktive Regel gibt die Kategorie, wie beim Import" <| fun () ->
+            let rules =
+                [ createRule (Guid.NewGuid()) "Rewe" "rewe" Contains Payee lebensmittel 1 true
+                  createRule (Guid.NewGuid()) "Alles" "e" Contains Payee drogerie 2 true ]
+            Expect.equal (ruleCategoryFor rules "REWE Markt 4711" "") (Some (YnabCategoryId lebensmittel)) "erste Regel gewinnt"
+
+        testCase "eine inaktive Regel zählt nicht, die nächste passende gewinnt" <| fun () ->
+            let rules =
+                [ createRule (Guid.NewGuid()) "Rewe aus" "rewe" Contains Payee lebensmittel 1 false
+                  createRule (Guid.NewGuid()) "Rewe" "rewe" Contains Payee drogerie 2 true ]
+            Expect.equal (ruleCategoryFor rules "Rewe" "") (Some (YnabCategoryId drogerie)) "inaktive übersprungen"
+
+        testCase "eine Regel auf das Memo sieht das Memo der Buchung" <| fun () ->
+            let rules = [ createRule (Guid.NewGuid()) "Miete" "miete" Contains Memo lebensmittel 1 true ]
+            Expect.equal (ruleCategoryFor rules "Vermieter" "Miete Mai") (Some (YnabCategoryId lebensmittel)) "Memo"
+            Expect.equal (ruleCategoryFor rules "Vermieter" "") None "ohne Memo kein Treffer"
+
+        testCase "ohne passende Regel keine Kategorie" <| fun () ->
+            let rules = [ createRule (Guid.NewGuid()) "Rewe" "rewe" Contains Payee lebensmittel 1 true ]
+            Expect.equal (ruleCategoryFor rules "Aldi" "") None "kein Treffer"
+
+        testCase "ohne Payee kein Urteil" <| fun () ->
+            let rules = [ createRule (Guid.NewGuid()) "Alles" ".*" PatternType.Regex Combined lebensmittel 1 true ]
+            Expect.equal (ruleCategoryFor rules "  " "Miete") None "leerer Payee"
+    ]

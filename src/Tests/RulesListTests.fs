@@ -635,3 +635,75 @@ let rootTests =
             Expect.contains (dispatched cmd) expected "Toast"
         }
     ]
+
+// ledger-hg5m5: das Formular aus einer Buchung. Es ist das Formular des Tabs, vorbelegt aus der Buchung, und führt nach
+// Anlegen oder Abbrechen zur Buchung zurück.
+[<Tests>]
+let entryFormTests =
+    let entryId = Guid.Parse "0195f700-0000-7000-8000-000000000001"
+    let fromEntry = step (EntryRuleRequested (entryId, " Rewe ", Some r1.CategoryId)) shown
+    testList "Regeln: Formular aus einer Buchung" [
+        test "Die Vorbelegung ist Name und Muster Payee, Enthält, in Payee, Kategorie der Buchung" {
+            let panel = panelOf fromEntry
+            Expect.equal panel.Editor NewRule "neue Regel"
+            Expect.equal panel.Origin (FromEntry entryId) "aus der Buchung"
+            Expect.equal
+                panel.Draft
+                { RuleDraft.empty with Name = "Rewe"; Pattern = "Rewe"; PatternType = Contains; TargetField = Payee; CategoryId = Some r1.CategoryId }
+                "vorbelegt"
+            let withoutCategory = panelOf (step (EntryRuleRequested (entryId, "Rewe", None)) shown)
+            Expect.isNone withoutCategory.Draft.CategoryId "Dann Kategorie leer"
+        }
+        test "Dieselbe Buchung noch einmal lässt den Entwurf stehen" {
+            let typed = steps [ NameEntered "Rewe Markt"; EntryRuleRequested (entryId, "Rewe", Some r1.CategoryId) ] fromEntry
+            Expect.equal (panelOf typed).Draft.Name "Rewe Markt" "Eingabe bleibt"
+        }
+        // GIVEN das vorbelegte Formular WHEN Roman „Regel anlegen“ drückt und der Server die Regel anlegt THEN meldet
+        // der Toast „Regel angelegt“, die Regel steht vorn, und das Formular schließt (zurück zur Buchung, auch am PC).
+        test "Nach dem Anlegen steht die Regel vorn, das Formular schließt in jeder Hülle" {
+            let created = { rule 9 true with Name = "Rewe" }
+            for shell in [ InPanel; InSheet ] do
+                let saving = step (CreateRequested shell) fromEntry
+                let after, _, ext = update (RuleCreated (shell, requestOf saving, Ok created)) saving
+                Expect.equal (ids after) [ created.Id; r1.Id; r2.Id; r3.Id ] $"vorn ({shell})"
+                Expect.isNone after.Panel $"zurück zur Buchung ({shell})"
+                Expect.equal ext (ShowToast ("Regel angelegt", ToastSuccess)) "Toast"
+        }
+        test "Abbrechen führt zur Buchung zurück, ohne Aufruf" {
+            let closed, cmd, _ = update PanelClosed fromEntry
+            Expect.isNone closed.Panel "zu"
+            Expect.isEmpty cmd "kein Aufruf"
+        }
+        test "Das Formular folgt seiner Buchung: eine andere oder keine schließt es, das Formular des Tabs bleibt" {
+            Expect.equal (followEntry (Some entryId) fromEntry) fromEntry "dieselbe Buchung"
+            Expect.isNone (followEntry (Some (Guid.NewGuid())) fromEntry).Panel "andere Buchung"
+            Expect.isNone (followEntry None fromEntry).Panel "keine"
+            let inTab = step (RuleChosen r1.Id) shown
+            Expect.equal (followEntry None inTab) inTab "Tab unberührt"
+        }
+        test "Der Root öffnet das Formular aus dem Kassenbuch und lädt die Kategorien" {
+            let model = rootModel Page.Ledger
+            let ledgerEntry : LedgerEntryView =
+                { Id = entryId; AccountId = Guid.NewGuid(); Date = DateTime.Today; Amount = { Amount = -10m; Currency = "EUR" }
+                  Payee = Some "Rewe"; Memo = None; CategoryName = None; CategoryId = None; CategoryGroupName = None
+                  Reconciled = false; SplitCategoryGroupNames = Map.empty; Splits = []; Origin = MirroredFromYnab
+                  DeletedInYnab = false; NeedsReview = false; Flag = NoFlag; IsTransfer = false; TransferAccountId = None
+                  ReviewMarkWriteBackFailure = None; CategorizationWriteBackFailure = None; FlagWriteBackFailure = None
+                  MemoWriteBackFailure = None; AmountWriteBackFailure = None; AmountLockReason = None
+                  PayeeWriteBackFailure = None; LinkedToYnab = true; PushToYnabFailure = None; SplitLocks = None
+                  ExternalLinks = []; PossibleDuplicate = None; CategoryFromOrderId = false }
+            let withDetail = { model with Ledger = { model.Ledger with DetailFor = Some ledgerEntry } }
+            let _, cmd = State.update (State.LedgerMsg (Components.Ledger.Types.RuleFromEntryRequested entryId)) withDetail
+            let sent = dispatched cmd
+            Expect.contains sent (State.RulesMsg (EntryRuleRequested (entryId, "Rewe", None))) "Formular"
+            Expect.contains sent (State.RulesMsg LoadCategories) "Kategorien"
+            // Schließt das Kassenbuch das Detail, schließt das Formular mit; ein Seitenwechsel ebenso.
+            let opened = { withDetail with Rules = fromEntry }
+            let closed, _ = State.update (State.LedgerMsg Components.Ledger.Types.CloseDetail) opened
+            Expect.isNone closed.Rules.Panel "Detail zu"
+            let kept, _ = State.update (State.LedgerMsg Components.Ledger.Types.RuleOfferDismissed) opened
+            Expect.isSome kept.Rules.Panel "Detail offen: bleibt"
+            let left, _ = State.update (State.UrlChanged [ "budget" ]) opened
+            Expect.isNone left.Rules.Panel "Seite verlassen"
+        }
+    ]

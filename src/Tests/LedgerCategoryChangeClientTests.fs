@@ -273,8 +273,9 @@ let changeTests =
         testCase "Der Zeitgeber der Karte meldet nach ihrer Dauer den Ablauf mit ihrer Version" <| fun () ->
             let model, cmd, _ =
                 Components.Ledger.State.update (EntryCategorySet (idOf 1, Some (catId 3), Ok (changed (Some lebensmittel) CategorySent))) (defaultModel ())
-            // Das offene Detail lädt daneben sofort seine Historie neu (ledger-nc708); gemessen wird der Zeitgeber.
-            let reload = function LoadHistory _ -> true | _ -> false
+            // Das offene Detail lädt daneben sofort seine Historie neu (ledger-nc708) und fragt nach dem Regel-Angebot
+            // (ledger-hg5m5); gemessen wird der Zeitgeber.
+            let reload = function LoadHistory _ | RunCheckRuleOffer _ -> true | _ -> false
             Tests.CmdTiming.expectAfterIgnoring reload categoryCardDurationMs (CategoryCardExpired model.CategoryCard.Value.Version) cmd
 
         testCase "Die Karte läuft ab, aber nur die mit ihrer Version" <| fun () ->

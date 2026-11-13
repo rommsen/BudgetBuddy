@@ -397,6 +397,8 @@ async function mockLedger(page, { accounts = 3, held = false } = {}) {
     await page.route(`**/api/LedgerApi/${name}`, (r) => json(r, body));
   }
   await page.route("**/api/LedgerApi/mirrorYnabBudget", () => {});
+  // ledger-hg5m5: nach einer Kategorie-Änderung fragt das Detail, ob eine Regel sie schon gibt; keine heißt Angebot.
+  await page.route("**/api/RulesApi/ruleCategoryFor", (r) => json(r, null));
   await page.route("**/api/LedgerApi/setEntryCategory", (r) =>
     json(r, { Ok: { Previous: { CategoryId: { YnabCategoryId: CATEGORY_IDS.lebensmittel }, CategoryName: "Lebensmittel" }, Change: "CategoryChanged", WriteBack: "CategorySent" } })
   );
@@ -1486,6 +1488,55 @@ export const STATES = [
       await page.locator('[data-toast-action="true"]').first().waitFor();
     },
   },
+  // ledger-hg5m5: nach der Kategorie-Änderung steht unter der Kategorie das Angebot „Regel anlegen?“; der Toast mit
+  // „Rückgängig“ verdeckt es nicht und es verdeckt ihn nicht (§7.13).
+  {
+    name: "kassenbuch-regel-angebot",
+    route: "/ledger",
+    widths: HANDY_WIDTHS,
+    mock: mockLedger,
+    open: async (page) => {
+      const sheet = await openLedgerDetail(page, "Bauhaus");
+      await sheet.locator('[data-testid="detail-category-arrow"]').tap();
+      const picker = page.locator(".bottom-sheet.active", { hasText: "Ziel wählen" });
+      await picker.waitFor();
+      await picker.locator('[role="option"]', { hasText: "Nebenkosten" }).last().tap();
+      await page.locator('[data-toast-action="true"]').first().waitFor();
+      await page.locator('.bottom-sheet.active [data-testid="rule-offer"]').waitFor();
+    },
+  },
+  // ledger-hg5m5: „Regel anlegen“ im Detail ersetzt den Inhalt des Sheets (§7.15), „Regel anlegen“ klebt unten.
+  {
+    name: "kassenbuch-regel-formular",
+    route: "/ledger",
+    widths: HANDY_WIDTHS,
+    mock: mockLedger,
+    open: async (page) => {
+      const sheet = await openLedgerDetail(page, "Bauhaus");
+      await sheet.locator('[data-testid="detail-rule"]').tap();
+      await page.locator('.bottom-sheet.active [data-testid="rule-form"]').waitFor();
+    },
+    primary: (page) => page.locator(".bottom-sheet.active").getByRole("button", { name: "Regel anlegen", exact: true }),
+  },
+  // ledger-hg5m5: am PC ersetzt das Formular den Inhalt des Panels, mit „Zurück“ zur Buchung.
+  {
+    name: "kassenbuch-regel-panel",
+    route: "/ledger",
+    widths: [1440],
+    // Schon vor ledger-hg5m5 bei jedem offenen Detail-Panel: nach dem Scrollen ragt die haftende Filterleiste 4 px
+    // unter den Kopf des Panels (Kann-Sammlung ledger).
+    exceptions: [{ width: 1440, inv: 6, selector: '[data-testid="ledger-detail-panel"] und div' }],
+    mock: mockLedger,
+    open: async (page) => {
+      const row = page.locator("table tbody tr", { hasText: "Bauhaus" }).first();
+      await row.waitFor();
+      await row.locator("td").nth(2).click();
+      const panel = page.locator('[data-testid="ledger-detail-panel"]');
+      await panel.locator('[data-testid="detail-rule"]').click();
+      await panel.locator('[data-testid="rule-form"]').waitFor();
+    },
+    primary: (page) => page.locator('[data-testid="ledger-detail-panel"]').getByRole("button", { name: "Regel anlegen", exact: true }),
+  },
   // ledger-w29y6: Kategorie setzen für eine Auswahl öffnet das Popover ganz im Bild.
   {
     name: "kassenbuch-auswahl-popover",
@@ -1744,6 +1795,20 @@ export const STATES = [
     mock: (page) => mockReview(page, []),
     open: reviewOpen("review-end"),
     primary: reviewPrimary("Zur Übersicht"),
+  },
+  // ledger-hg5m5: „Regel anlegen“ auf der Karte öffnet das Formular am PC als Dialog, am Handy als Sheet.
+  {
+    name: "durchgehen-regel",
+    route: "/review",
+    widths: [412, 1280],
+    mock: (page) => mockReview(page, [REVIEW_QUEUE.plain]),
+    open: async (page) => {
+      // Erst wenn die Vorschläge stehen, steht die Zeile still; sonst trifft der Klick das Memo darüber.
+      await page.locator('[data-testid="review-suggestions"]').first().waitFor();
+      await page.locator('[data-testid="review-rule"]').first().click();
+      await page.locator('[data-testid="rule-form"]').waitFor();
+    },
+    primary: (page) => page.getByRole("button", { name: "Regel anlegen", exact: true }).locator("visible=true").last(),
   },
   // Das Memo-Sheet der Karte am Handy: „Speichern“ bleibt bei offener Tastatur im Bild.
   {

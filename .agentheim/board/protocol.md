@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-14 00:01 -- Task verified and completed: ledger-hg5m5 - "Regel aus der Buchung: „Regel anlegen“ im Detail und beim Durchgehen, dazu ein Angebot nach einer Kategorie-Änderung, vorbelegt mit Payee und Kategorie"
+
+**Type:** Work / Task completion
+**Task:** ledger-hg5m5 - "Regel aus der Buchung: „Regel anlegen“ im Detail und beim Durchgehen, dazu ein Angebot nach einer Kategorie-Änderung, vorbelegt mit Payee und Kategorie"
+**Summary:** Regel aus der Buchung: „Regel anlegen“ im Detail und beim Durchgehen, Angebot nach einer Kategorie-Änderung
+**Duration:** 62m
+**Verification:** PASS (iteration 1)
+**Files changed:** 25
+**Tests added:** 25
+**ADRs written:** none
+
+---
+
 ## 2026-11-13 23:53 -- Task verified and completed: ledger-ea70s - "Ein Erfassen: Quick Add hört auf, ein eigener Ort zu sein; „+ Buchung“ in Kassenbuch und Übersicht mit kluger Vorbelegung"
 
 **Type:** Work / Task completion

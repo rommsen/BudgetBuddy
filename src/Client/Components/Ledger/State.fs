@@ -154,6 +154,7 @@ let init () : Model * Cmd<Msg> =
         AskLenaCount = 0
         CategoryCard = None
         CategoryCardVersion = 0
+        RuleOffer = None
         FilteredOut = Set.empty
         OrderStale = false
         EntriesGeneration = 0
@@ -609,6 +610,15 @@ let private applyCategoryResult
                 Cmd.none
         let refresh = if orderChanged then Cmd.ofMsg RunRefreshTotals else Cmd.none
         finalModel, Cmd.batch [ timer; refresh ]
+
+/// Nach einer gelungenen Kategorie-Änderung im Detail (ledger-hg5m5): Payee, Memo und Kategorie für die Frage an den
+/// Server, ob die Regeln das schon so zuordnen. Nicht ohne Kategorie, ohne Payee, bei Aufteilung oder Übertrag und
+/// nicht auf der Karte des Durchgehens (dort steht kein Detail).
+let ruleOfferCheckFor (model: Model) (entryId: Guid) (newId: YnabCategoryId option) : (string * string * YnabCategoryId) option =
+    match findEntry model entryId, newId with
+    | Some entry, Some categoryId when detailShows model entryId && ruleCategoryOf entry = Some categoryId ->
+        rulePayeeOf entry |> Option.map (fun payee -> payee, entry.Memo |> Option.defaultValue "", categoryId)
+    | _ -> None
 
 /// Nach dem Weg zurück vom Übertrag zur normalen Buchung (ledger-qvjvs): die Zeile ist lokal
 /// kein Übertrag mehr, den Payee aus BB liefert das Nachladen der Buchung.
@@ -2372,6 +2382,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                     CategoryPickerFor = None
                     CategorySuggestions = []
                     CategoryCard = None
+                    RuleOffer = None
                     RecentCategories = rememberPickedCategory newId model.RecentCategories },
                 Cmd.batch [
                     Cmd.ofMsg (RunSetEntryCategory (entryId, newId))
@@ -2391,6 +2402,13 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 
     | EntryCategorySet (entryId, newId, Ok outcome) ->
         let model', cmd = applyCategoryResult entryId newId None true outcome model |> afterTransferCleared entryId outcome
+        // Das Angebot „Regel anlegen?“: erst fragt der Server, ob eine Regel die Kategorie schon gibt (ledger-hg5m5).
+        let model', cmd =
+            match outcome.Change, ruleOfferCheckFor model' entryId newId with
+            | CategoryChanged, Some (payee, memo, categoryId) ->
+                { model' with RuleOffer = Some (RuleOfferChecking (entryId, categoryId)) },
+                Cmd.batch [ cmd; Cmd.ofMsg (RunCheckRuleOffer (entryId, payee, memo, categoryId)) ]
+            | _ -> model', cmd
         let newName = categoryOfId model newId |> Option.map (fun c -> c.Name)
         let external =
             match outcome.Change, outcome.WriteBack with
@@ -2416,7 +2434,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 
     | StartUndoCategory (entryId, previous) ->
         whenRowIdle CategoryLock entryId model (fun () ->
-            { model with CategoryRows = model.CategoryRows |> Map.add entryId CategorySending },
+            // „Rückgängig“ nimmt mit der Kategorie auch das Angebot weg (ledger-hg5m5).
+            { model with CategoryRows = model.CategoryRows |> Map.add entryId CategorySending; RuleOffer = None },
             Cmd.ofMsg (RunUndoCategory (entryId, previous)),
             NoOp)
 
@@ -3730,6 +3749,40 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         // Ohne Filter zieht `resolveInitialFilter` beim nächsten Besuch die gemerkte Sicht.
         | OtherPage -> { left with SelectedFilter = None }, Cmd.none, NoOp
 
+    // ============================================
+    // Regel aus der Buchung (ledger-hg5m5)
+    // ============================================
+    | RuleFromEntryRequested entryId ->
+        match findEntry model entryId |> Option.bind ruleSeedFor with
+        | Some (payee, categoryId) ->
+            { model with RuleOffer = None; CategoryPickerFor = None; CategorySuggestions = [] },
+            Cmd.none,
+            OpenRuleForEntry (entryId, payee, categoryId)
+        | None -> model, Cmd.none, NoOp
+
+    | RunCheckRuleOffer (entryId, payee, memo, categoryId) ->
+        let cmd =
+            Cmd.OfAsync.either
+                (Retry.reading Api.rules.ruleCategoryFor)
+                (payee, memo)
+                (fun result -> RuleOfferChecked (entryId, categoryId, Ok result))
+                (fun ex -> RuleOfferChecked (entryId, categoryId, Error ex.Message))
+        model, cmd, NoOp
+
+    // Nur die Antwort auf die laufende Frage zählt. Gibt schon eine Regel die Kategorie, kein Angebot; ohne Urteil
+    // (Netzfehler) auch keins: der feste Eintrag „Regel anlegen“ bleibt.
+    | RuleOfferChecked (entryId, categoryId, result) when model.RuleOffer = Some (RuleOfferChecking (entryId, categoryId)) ->
+        let offer =
+            match result with
+            | Ok (Some ruleCategory) when ruleCategory = categoryId -> None
+            | Ok _ -> Some (RuleOfferShown (entryId, categoryId))
+            | Error _ -> None
+        { model with RuleOffer = offer }, Cmd.none, NoOp
+
+    | RuleOfferChecked _ -> model, Cmd.none, NoOp
+
+    | RuleOfferDismissed -> { model with RuleOffer = None }, Cmd.none, NoOp
+
     | CategoryCardExpired version ->
         match model.CategoryCard with
         | Some card when card.Version = version -> { model with CategoryCard = None }, Cmd.none, NoOp
@@ -4549,6 +4602,11 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         | _ -> model'
     // Picker und Karte gehören zur Buchung im offenen Detail: schließt das Detail oder wechselt
     // es auf eine andere Buchung (Klick, Pfeiltaste, Esc, Kontowechsel), enden beide.
+    // Das Angebot „Regel anlegen?“ gehört zum offenen Detail seiner Buchung und zu ihrer Kategorie (ledger-hg5m5).
+    let model' =
+        match model'.RuleOffer with
+        | Some offer when not (ruleOfferStays model' offer) -> { model' with RuleOffer = None }
+        | _ -> model'
     let detailId = model'.DetailFor |> Option.map (fun d -> d.Id)
     let pickerStays = model'.CategoryPickerFor.IsNone || model'.CategoryPickerFor = detailId
     let cardStays = model'.CategoryCard |> Option.forall (fun c -> Some c.EntryId = detailId)

@@ -945,6 +945,40 @@ type CategoryChangeCardState = {
 /// Wie lange die Karte steht (Millisekunden).
 let categoryCardDurationMs = 6000
 
+// ============================================
+// Regel aus der Buchung (ledger-hg5m5)
+// ============================================
+
+/// Das Angebot „Regel für „<Payee>“ anlegen?“ im Detail nach einer Kategorie-Änderung. Erst fragt der Server, ob
+/// die Regeln die neue Kategorie schon geben (`Checking`); nur wenn nicht, steht das Angebot da (`Offered`). Beides
+/// gehört zur Buchung im offenen Detail und zu genau dieser Kategorie.
+type RuleOffer =
+    | RuleOfferChecking of entryId: Guid * categoryId: YnabCategoryId
+    | RuleOfferShown of entryId: Guid * categoryId: YnabCategoryId
+
+module RuleOffer =
+    let entryId (offer: RuleOffer) =
+        match offer with
+        | RuleOfferChecking (id, _) | RuleOfferShown (id, _) -> id
+
+    let categoryId (offer: RuleOffer) =
+        match offer with
+        | RuleOfferChecking (_, c) | RuleOfferShown (_, c) -> c
+
+/// Der Payee einer Buchung für eine Regel, ohne Payee keiner.
+let rulePayeeOf (entry: LedgerEntryView) : string option =
+    entry.Payee |> Option.map (fun p -> p.Trim()) |> Option.filter (fun p -> p <> "")
+
+/// Die Kategorie einer Buchung für „Dann Kategorie“: nur eine eindeutige, nicht bei Aufteilung oder Übertrag.
+let ruleCategoryOf (entry: LedgerEntryView) : YnabCategoryId option =
+    if not (List.isEmpty entry.Splits) || entry.IsTransfer then None
+    else entry.CategoryId |> Option.map YnabCategoryId
+
+/// Payee und Kategorie, mit denen das Regel-Formular aus dieser Buchung vorbelegt wird. Ohne Payee gibt es keinen
+/// Eintrag „Regel anlegen“.
+let ruleSeedFor (entry: LedgerEntryView) : (string * YnabCategoryId option) option =
+    rulePayeeOf entry |> Option.map (fun payee -> payee, ruleCategoryOf entry)
+
 /// Passt die Buchung nach der Änderung noch zu den aktiven Kategorie-Filtern? Ohne
 /// Kategorie-Filter und ohne Chip "Ohne Kategorie" passt sie immer. Mit beiden gilt Oder
 /// (ADR 0048). "Ohne Kategorie" trifft keinen Übertrag und keinen Split.
@@ -1503,6 +1537,9 @@ type Model = {
     CategoryCard: CategoryChangeCardState option
     CategoryCardVersion: int
 
+    /// Das Angebot „Regel anlegen?“ nach einer Kategorie-Änderung im Detail (ledger-hg5m5).
+    RuleOffer: RuleOffer option
+
     /// Zeilen, die nach einer Änderung nicht mehr zum aktiven Filter passen. Sie bleiben
     /// ausgegraut stehen (ADR 0055, Nachtrag). Neuladen, Filter- und Sortierwechsel leeren die Menge.
     FilteredOut: Set<Guid>
@@ -1590,6 +1627,34 @@ let detailEntryOf (model: Model) : LedgerEntryView option =
         match model.Entries with
         | Success entries -> entries |> List.tryFind (fun e -> e.Id = snapshot.Id) |> Option.defaultValue snapshot
         | _ -> snapshot)
+
+/// Steht das Buchungs-Detail dieser Buchung offen? Im Durchgehen nur, wenn „Details“ über der Karte stehen.
+let detailShows (model: Model) (entryId: Guid) : bool =
+    model.DetailFor |> Option.exists (fun d -> d.Id = entryId)
+    && (match model.Review with
+        | Some review -> review.DetailShown
+        | None -> true)
+
+/// Darf das Angebot „Regel anlegen?“ stehen bleiben (ledger-hg5m5)? Nur solange das Detail seiner Buchung offen ist
+/// und die Buchung noch einen Payee und genau die angebotene Kategorie hat (kein Rückgängig, keine Aufteilung, kein
+/// Übertrag dazwischen).
+let ruleOfferStays (model: Model) (offer: RuleOffer) : bool =
+    let entryId = RuleOffer.entryId offer
+    detailShows model entryId
+    && (match detailEntryOf model with
+        | Some entry when entry.Id = entryId ->
+            (rulePayeeOf entry).IsSome && ruleCategoryOf entry = Some (RuleOffer.categoryId offer)
+        | _ -> false)
+
+/// Das Angebot im Detail dieser Buchung: der Payee für „Regel für „<Payee>“ anlegen?“. Nur wenn der Server gesagt
+/// hat, dass keine Regel die Kategorie schon gibt.
+let ruleOfferFor (model: Model) (entry: LedgerEntryView) : string option =
+    match model.RuleOffer with
+    | Some (RuleOfferShown (entryId, _) as offer) when entryId = entry.Id && ruleOfferStays model offer -> rulePayeeOf entry
+    | _ -> None
+
+/// Der Satz des Angebots.
+let ruleOfferText (payee: string) : string = $"Regel für „{payee}“ anlegen?"
 
 
 // ============================================
@@ -2395,6 +2460,15 @@ type Msg =
     | FlagRetried of Guid * Result<FlagWriteBack, string>
     /// Die Karte "Budget nach dem Wechsel" läuft ab (nur die mit dieser Version).
     | CategoryCardExpired of version: int
+
+    // Regel aus der Buchung (ledger-hg5m5)
+    /// „Regel anlegen“ im Detail, auf der Karte beim Durchgehen oder „Anlegen“ im Angebot.
+    | RuleFromEntryRequested of Guid
+    /// Fragt den Server, ob die Regeln Payee und Memo schon diese Kategorie geben.
+    | RunCheckRuleOffer of Guid * payee: string * memo: string * YnabCategoryId
+    | RuleOfferChecked of Guid * YnabCategoryId * Result<YnabCategoryId option, string>
+    /// Das × am Angebot.
+    | RuleOfferDismissed
     /// Trefferzahl und Summe neu holen, solange die Reihenfolge veraltet ist.
     | RunRefreshTotals
     | TotalsRefreshed of generation: int * Result<LedgerEntryPage, string>
@@ -2559,6 +2633,8 @@ type ExternalMsg =
     | ShowToastWithAction of string * ToastType * ToastAction
     /// Das Durchgehen ist zu Ende oder wird verlassen: zurück zur Übersicht (ledger-v6s7c).
     | LeaveReview
+    /// Das Regel-Formular für diese Buchung öffnen, vorbelegt mit Payee und Kategorie (ledger-hg5m5).
+    | OpenRuleForEntry of entryId: Guid * payee: string * categoryId: YnabCategoryId option
 
 /// Die Zusammenfassung eines Spiegel-Laufs als Satz.
 let mirrorSummaryText (summary: MirrorRunSummary) : string =

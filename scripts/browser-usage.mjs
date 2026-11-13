@@ -124,6 +124,7 @@ export const FLOWS = {
   "bestell-link-oeffnen": "Den Bestell-Link einer Buchung aus dem Detail öffnen.",
   "abrufen": "Über Abrufen mit Push-TAN abrufen und das Ergebnis lesen.",
   "regel-anlegen": "Am Handy im Kassenbuch auf dem Tab Regeln eine neue Regel mit Kategorie anlegen, sie steht vorn in der Liste.",
+  "regel-aus-buchung": "Am Handy aus einer Buchung im Kassenbuch eine Regel anlegen, vorbelegt mit Payee und Kategorie, danach steht wieder die Buchung da.",
   "zugangsdaten-speichern": "In den Einstellungen Zugangsdaten speichern.",
   "bank-trennen": "In den Einstellungen die Bankverbindung trennen.",
   "design-system-export": "Das Design-System als Bundle exportieren.",

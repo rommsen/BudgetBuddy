@@ -62,7 +62,29 @@ let private panelFor (editor: Editor) : Panel =
         match editor with
         | NewRule -> RuleDraft.empty
         | Editing rule -> RuleDraft.fromRule rule
-    { Editor = editor; Draft = draft; Save = NotSaving; Test = NothingToTest; PickerOpen = false }
+    { Editor = editor; Draft = draft; Save = NotSaving; Test = NothingToTest; PickerOpen = false; Origin = FromRulesTab }
+
+/// Das Formular „Regel anlegen“ aus einer Buchung (ledger-hg5m5), vorbelegt aus Payee und Kategorie.
+let private entryPanel (entryId: Guid) (payee: string) (categoryId: YnabCategoryId option) : Panel =
+    { Editor = NewRule
+      Draft = RuleDraft.fromEntry payee categoryId
+      Save = NotSaving
+      Test = NothingToTest
+      PickerOpen = false
+      Origin = FromEntry entryId }
+
+/// Steht das Formular aus einer Buchung offen? Dann die Id der Buchung.
+let entryFormFor (model: Model) : Guid option =
+    match model.Panel with
+    | Some { Origin = FromEntry entryId } -> Some entryId
+    | _ -> None
+
+/// Das Formular aus einer Buchung gehört zu ihr: zeigt das Kassenbuch eine andere Buchung oder keine mehr (Detail
+/// zu, andere Buchung, Seite verlassen), schließt es. `shown` ist die Buchung, die das Kassenbuch gerade zeigt.
+let followEntry (shown: Guid option) (model: Model) : Model =
+    match entryFormFor model with
+    | Some entryId when shown <> Some entryId -> { model with Panel = None }
+    | _ -> model
 
 /// Wo steht der Fokus, wenn eine Taste kommt? In einem Textfeld gehören die Pfeile dem Cursor (§7.8).
 type KeyFocus =
@@ -202,11 +224,13 @@ let private saveFailure (error: RulesError) : SaveFailure =
     | RulesError.InvalidPattern (_, reason) -> PatternRejected reason
     | other -> SaveRejected (rulesErrorToString other)
 
-/// Nach dem Speichern zeigt das Panel die Regel (§7.6), das Sheet schließt.
-let private afterSave (shell: Shell) (rule: Rule) : Panel option =
-    match shell with
-    | InPanel -> Some (panelFor (Editing rule))
-    | InSheet -> None
+/// Nach dem Speichern zeigt das Panel die Regel (§7.6), das Sheet schließt. Aus einer Buchung geht es zurück zu
+/// ihr: das Formular schließt (ledger-hg5m5).
+let private afterSave (shell: Shell) (origin: PanelOrigin) (rule: Rule) : Panel option =
+    match shell, origin with
+    | _, FromEntry _ -> None
+    | InPanel, FromRulesTab -> Some (panelFor (Editing rule))
+    | InSheet, FromRulesTab -> None
 
 /// Trägt das offene Formular noch die Anfrage `request`? Nur dann gilt ihre Antwort für das Formular. Ist es
 /// geschlossen oder ein anderes (Regel gewechselt, neue Regel, Tab verlassen), zieht sie nur die Liste nach.
@@ -228,7 +252,10 @@ let private saveAnswered
     match result, bound with
     | Ok rule, _ ->
         let model' = mapRules (place rule) model
-        let panel = if bound.IsSome then afterSave shell rule else model.Panel
+        let panel =
+            match bound with
+            | Some saving -> afterSave shell saving.Origin rule
+            | None -> model.Panel
         { model' with Panel = panel }, Cmd.none, ShowToast (savedText, ToastSuccess)
     | Error err, Some panel ->
         { model with Panel = Some { panel with Save = SaveFailed (saveFailure err) } }, Cmd.none, NoOp
@@ -273,6 +300,12 @@ let updateWith (ports: RulesPorts) (msg: Msg) (model: Model) : Model * Cmd<Msg> 
     | NewRuleRequested when (model.Panel |> Option.exists (fun p -> p.Editor = NewRule)) -> model, Cmd.none, NoOp
 
     | NewRuleRequested -> { model with Panel = Some (panelFor NewRule) }, Cmd.none, NoOp
+
+    // Dieselbe Buchung noch einmal: der Entwurf bleibt, wie bei „Neue Regel“.
+    | EntryRuleRequested (entryId, _, _) when entryFormFor model = Some entryId -> model, Cmd.none, NoOp
+
+    | EntryRuleRequested (entryId, payee, categoryId) ->
+        { model with Panel = Some (entryPanel entryId payee categoryId) }, Cmd.none, NoOp
 
     | RuleChosen ruleId ->
         match model.Panel, model.Rules with

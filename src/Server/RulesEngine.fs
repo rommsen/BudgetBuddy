@@ -207,6 +207,27 @@ let classify
     )
     |> Option.map (fun compiled -> (compiled.Rule, compiled.Rule.CategoryId))
 
+/// Die Kategorie, die die Regeln einer Buchung mit diesem Payee und Memo geben würden: wie beim Import die erste
+/// passende aktive Regel (`classify`). Ohne Payee, ohne Treffer oder bei einer ungültigen Regel keine. Das Urteil
+/// „passt schon“ für das Regel-Angebot nach einer Kategorie-Änderung (ledger-hg5m5). Rein.
+let ruleCategoryFor (rules: Rule list) (payee: string) (memo: string) : YnabCategoryId option =
+    if String.IsNullOrWhiteSpace payee then
+        None
+    else
+        match compileRules rules with
+        | Error _ -> None
+        | Ok compiled ->
+            let probe : BankTransaction = {
+                Id = TransactionId ""
+                BookingDate = DateTime.MinValue
+                Amount = { Amount = 0m; Currency = "EUR" }
+                Payee = Some payee
+                Memo = memo
+                Reference = ""
+                RawData = ""
+            }
+            classify compiled probe |> Option.map snd
+
 /// Classifies a list of transactions using the provided rules.
 /// Purpose: Applies rules engine to all transactions and detects special patterns.
 /// `now` is the review-step timestamp for any rule that matches (threaded through

@@ -210,22 +210,32 @@ let matchRow (payeeText: string) (metaText: string) (amountText: string) : React
         ]
     ]
 
-/// „Details“ rechts unten in der Karte: klein im Akzent, am Handy 48 × 48 px Trefferfläche.
+/// Ein Textlink unten in der Karte: klein im Akzent, am Handy 48 × 48 px Trefferfläche.
+let private cardLink (testId: string) (label: string) (onClick: unit -> unit) : ReactElement =
+    Html.button [
+        prop.type' "button"
+        prop.custom ("data-testid", testId)
+        prop.className (
+            $"{FontSizes.xs} {Colors.accent} hover:underline {TouchTargets.mobileMinHeight} min-w-12 md:min-h-0 md:min-w-0 "
+            + "px-1 touch-manipulation"
+        )
+        prop.onClick (fun _ -> onClick ())
+        prop.text label
+    ]
+
+/// „Details“ rechts unten in der Karte.
 let detailsLink (onClick: unit -> unit) : ReactElement =
     Html.div [
         prop.className "flex justify-end"
-        prop.children [
-            Html.button [
-                prop.type' "button"
-                prop.custom ("data-testid", "review-details")
-                prop.className (
-                    $"{FontSizes.xs} {Colors.accent} hover:underline {TouchTargets.mobileMinHeight} min-w-12 md:min-h-0 md:min-w-0 "
-                    + "px-1 touch-manipulation"
-                )
-                prop.onClick (fun _ -> onClick ())
-                prop.text "Details"
-            ]
-        ]
+        prop.children [ cardLink "review-details" "Details" onClick ]
+    ]
+
+/// Die letzte Zeile der Karte mit einem zweiten Textlink links und „Details“ rechts (ledger-hg5m5: „Regel anlegen“).
+/// Eine eigene Zeile schöbe am Handy „Passt, weiter“ aus dem Bild.
+let linksWithDetails (testId: string) (label: string) (onClick: unit -> unit) (onDetails: unit -> unit) : ReactElement =
+    Html.div [
+        prop.className "flex items-center justify-between gap-3"
+        prop.children [ cardLink testId label onClick; cardLink "review-details" "Details" onDetails ]
     ]
 
 /// Die Hinweiszeile unter den Knöpfen: 12 px, gedämpft, mittig.
