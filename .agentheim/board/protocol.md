@@ -5,6 +5,42 @@ Newest entries on top.
 
 ---
 
+## 2026-11-13 07:25 -- Capture / Captured: banking-import-r28hx - "Alle Konten per FinTS selbst abrufen (zuerst ING), damit YNABs eigener Abruf und Abgleich wegfallen"
+
+**Type:** Capture
+**BC:** banking-import
+**Filed to:** backlog
+**Summary:** Alle Konten per FinTS selbst abrufen, zuerst ING.
+
+---
+
+## 2026-11-13 07:25 -- Capture / Captured: ynab-sync-c7aag - "YNABs automatische Payee-Zuordnung ändert importierte Buchungen, der Spiegel holt es zurück ins Kassenbuch"
+
+**Type:** Capture
+**BC:** ynab-sync
+**Filed to:** backlog
+**Summary:** YNABs Payee-Zuordnung ändert importierte Buchungen, der Spiegel holt es zurück.
+
+---
+
+## 2026-11-13 07:25 -- Capture / Captured: ledger-nkwqb - "Von YNAB abgeglichene Buchung bleibt im Kassenbuch doppelt; ein Übertrag gilt beim Import nicht als mögliches Duplikat"
+
+**Type:** Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Von YNAB abgeglichene Buchung bleibt doppelt (Kontostand Girokonto falsch), Übertrag gilt beim Import nicht als mögliches Duplikat.
+
+---
+
+## 2026-11-13 07:24 -- Capture / Captured: ledger-yhemh - "Neue Buchung am Handy: Memo steht neben dem Datum statt darunter"
+
+**Type:** Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Neue Buchung am Handy: Memo neben dem Datum statt darunter.
+
+---
+
 ## 2026-11-12 12:12 -- Capture / Captured: design-system-vf94m - "Toast am Handy oben statt unten: der Toast mit Rückgängig verdeckt heute den Knopf „+ Buchung“ (Styleguide §7.13)"
 
 **Type:** Capture

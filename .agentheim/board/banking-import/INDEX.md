@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 3
+- **Backlog:** 4
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 9
@@ -39,6 +39,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **banking-import-r28hx** — "Alle Konten per FinTS selbst abrufen (zuerst ING), damit YNABs eigener Abruf und Abgleich wegfallen" (feature) — `backlog/banking-import-r28hx-fints-fuer-alle-konten.md`
 - **banking-import-asr13** — "Kann-Sammlung banking-import" (chore) — `backlog/banking-import-asr13-kann-sammlung-banking-import.md`
 - **banking-import-r9tfx** — "Verlust der Bankverbindung per Web-Push melden" (feature) — `backlog/banking-import-r9tfx-verlust-der-bankverbindung-per-web-push-melden.md`
 - **banking-import-q7vd2** — "confirmTan: Transportfehler vom fachlichen Fehler trennen und den Serverzustand bis zum Ende nachlesen" (bug) — `backlog/banking-import-q7vd2-confirmtan-transportfehler-vom-fachlichen-fehler-trennen-und.md`

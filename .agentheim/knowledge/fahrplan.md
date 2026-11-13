@@ -3,7 +3,7 @@
 Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success looks like“.
 
 ## Stand
-Zuletzt aktualisiert: 2026-11-12, nach work-Lauf zum Bestandsreview ledger (G1, G2, G4, G5).
+Zuletzt aktualisiert: 2026-11-13, nach Romans Blick auf den Deploy 57461f98.
 
 - **Etappe 1 · Bedeutungen:** erledigt, 5 von 5 (Skizze und Prototyp, Layout-Sweep, Muster im
   Styleguide, Designwert-Tests aufgeräumt, Palette 2 im Token-Layer). Romans Blick auf dak16 neben
@@ -30,9 +30,8 @@ Zuletzt aktualisiert: 2026-11-12, nach work-Lauf zum Bestandsreview ledger (G1, 
   nicht deployt. Entschieden (Roman, 2026-11-11): wartende Duplikate im Kontostand mitgezählt, Abruf im Intervall mit
   Vorgabe an, alle Funktionen der heutigen Prüfung bleiben (Regel aus der Buchung mit Schnitt 6), Durchgehen älteste zuerst
   und nach §7.14, 4 und 5 werden gemeinsam deployt.
-  Offen für Roman: Blick am Handy und PC auf Angepinnt, Abrufen, Payee ändern, Durchgehen und Einstellungen (Screenshots im
-  Scratchpad e3/<task-id>/); Rückfragen aus dem Review: „Ist doppelt, verwerfen“ im Akzent statt Rot (so in Task und
-  Prototyp), Texte „Alle“ und „Eine Push-TAN fragt es nie an.“ in den Einstellungen.
+  Romans Blick am Handy und PC (2026-11-13): siehe Eintrag unten. Bestätigt (Roman, 2026-11-13): „Ist doppelt, verwerfen“
+  im Akzent, Texte „Alle“ und „Eine Push-TAN fragt es nie an.“ in den Einstellungen.
   ledger-s1weh (Übersicht mit Zu tun): Abweichungen (a) bis (c) vom Prototyp in der Task. Romans Blick am Handy und PC
   (2026-11-11): passt, (a) bis (c) und der Dialog am PC bestätigt.
   Review df9611c4..HEAD (2026-11-11): 22 Funde behoben in 3142ef3e..ec4f4124, darunter Budget aus Zu tun öffnete bei wartender
@@ -69,10 +68,19 @@ Zuletzt aktualisiert: 2026-11-12, nach work-Lauf zum Bestandsreview ledger (G1, 
 - **Deployt 2026-11-12 (57461f98):** Schnitte 3 bis 5 (w9yt4, d0fey mit r7h2w, fxt09, t4raw, v6s7c) und die zehn Tasks aus dem
   Bestandsreview ledger samt Review-Fixes. Automatischer Abruf ab jetzt an (alle 6 Stunden, bucht direkt), Migration
   `pending_replacement` (ledger-f8bjm). Health-Check grün.
-- **Nächster Schritt:** Romans Blick auf die Schnitte 3 bis 5 und die neuen Seiten-Details
-  (Screenshots im Scratchpad e3/<task-id>/), Deploy auf Anweisung (`scripts/deploy.sh`; Achtung: automatischer Abruf ab Deploy
-  an, alle 6 Stunden, bucht direkt; f8bjm bringt eine Migration). Danach Schnitt 6 `categorization-n3sxw` verfeinern.
-  Offen zum Verfeinern mit Roman: ledger-t4rk8 (Betrag eines Übertrags in BB ändern).
+- **Blick Roman (2026-11-13) auf den Deploy 57461f98:** Angepinnt, Abrufen und Import, automatisch abrufen, Durchgehen,
+  Auswahl und Scrollstand passen; Payee ändern, Split, Filter und ausgegraute Zeile noch ohne Rückmeldung. Ein Wisch nach links im Durchgehen zeigte
+  einmal „Erst eine Kategorie wählen“, nicht reproduzierbar (Roman: wohl falsch gewischt). Neue Buchung am Handy: Memo steht
+  neben dem Datum, Ticket ledger-yhemh. Keine wartenden Duplikate gesehen, dafür ein Kontostand-Fehler: ein von YNAB
+  abgeglichener Übertrag (ING an Girokonto) steht im Kassenbuch doppelt, weil der Spiegel
+  `matched_transaction_id` nicht liest und der Import einen Übertrag nicht als mögliches Duplikat erkennt. Ticket ledger-nkwqb
+  (Geld betroffen). In YNAB ist die Buchung einmal da; Roman entfernt dort die Kategorie am Übertrag und gibt ihn frei,
+  in BB wird nichts gelöscht (DELETE scheitert am 404, die Comdirect-Referenz ginge verloren). Roh dazu:
+  ynab-sync-c7aag (YNABs Payee-Zuordnung überschreibt Importe), banking-import-r28hx (alle Konten per FinTS).
+- **Nächster Schritt:** ledger-nkwqb (Abgleich in YNAB, Übertrag als Duplikat) mit `/agentheim:modeling` verfeinern und
+  bauen, weil der Kontostand des Girokontos bis dahin falsch ist. Danach Schnitt 6 `categorization-n3sxw` (Regeln ins
+  Kassenbuch) verfeinern. Offen zum Verfeinern: ledger-yhemh (Memo unter Datum), ledger-h7de3 (Fehlertexte in Ereignissen),
+  design-system-vf94m (Toast verdeckt „+ Buchung“), ledger-t4rk8 (Betrag eines Übertrags in BB ändern).
 - Verfeinert wird nur die nächste Etappe. Spätere Etappen haben Zeilen, keine Tickets.
 - Neue Ideen für spätere Etappen kommen hier als Zeile dazu.
 - Bestehende Tasks tragen einen Tag: `etappe-1`, `etappe-2`, `etappe-3`, `laufend`, `danach`.
