@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 1
+- **Backlog:** 2
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 15
@@ -45,6 +45,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ynab-sync-k9r4v** — "Kann-Sammlung ynab-sync" (chore) — `backlog/ynab-sync-k9r4v-kann-sammlung-ynab-sync.md`
 - **ynab-sync-c7aag** — "YNABs automatische Payee-Zuordnung ändert importierte Buchungen, der Spiegel holt es zurück ins Kassenbuch" (idea) — `backlog/ynab-sync-c7aag-ynab-payee-zuordnung-ueberschreibt-import.md`
 <!-- backlog-list:end -->
 
