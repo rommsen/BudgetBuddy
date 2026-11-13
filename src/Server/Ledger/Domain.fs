@@ -1156,6 +1156,31 @@ let private canTakePartInMerge (entry: Entry) : bool =
     && entry.MergedIntoEntryId.IsNone
     && not (isHeldAsPossibleDuplicate entry)
 
+/// Darf die Beobachtung die Kandidatin aufnehmen (ADR 0015, Nachtrag 2026-11-13, Punkt 1)? Rein.
+/// Alles, was ohne die bleibende Buchung prüfbar ist, damit der Spiegel-Lauf schon vor seiner
+/// Schleife weiß, welche Buchung aufgenommen wird. Zusammengelegt wird nur ein Comdirect-Import
+/// in einen Übertrag (ledger-nnd2f): YNAB gleicht jede Buchung mit `import_id` gegen von Hand
+/// erfasste ab, auch BBs Barbuchungen, und verschluckt dabei echte Zahlungen.
+let mayAbsorbInMerge (obs: YnabObservation) (candidate: MergeCandidate) : bool =
+    match obs.Deleted, obs.MatchedYnabTransactionId with
+    | false, Some matchedId ->
+        let absorbedEntry = candidate.Entry
+        // Die aktuelle `ynab`-Verknüpfung, nicht die abgelöste (ADR 0058 Punkt 5): nach einem Ersatz
+        // trägt die Buchung die alte Id als `ynab` und als `ynabsuperseded`.
+        let hasLink system =
+            candidate.Links
+            |> List.exists (fun l -> l.System = system && l.Value = matchedId && l.EntryId = absorbedEntry.Id)
+        let isCurrentYnabLink = hasLink YnabSystem && not (hasLink YnabSupersededSystem)
+        let isComdirectImport =
+            candidate.Links |> List.exists (fun l -> l.System = ComdirectSystem && l.EntryId = absorbedEntry.Id)
+        isCurrentYnabLink
+        && obs.TransferAccountId.IsSome
+        && isComdirectImport
+        && canTakePartInMerge absorbedEntry
+        // Ein offener Ersatz wartet auf seine neue YNAB-Id, die alte Id ist nicht mehr maßgeblich.
+        && absorbedEntry.PendingReplacement.IsNone
+    | _ -> false
+
 /// Die Zusammenlegung aus einer Beobachtung (ADR 0015, Nachtrag 2026-11-13). Rein. `survivor` ist
 /// die Buchung der Beobachtung im Stand nach ihrem `observe`, `absorbed` die Buchung, auf die die
 /// `matched_transaction_id` zeigt (falls BB eine kennt). Ergibt die beiden Ereignisse, erst das der
@@ -1167,21 +1192,12 @@ let mergeObservedInYnab
     (absorbed: MergeCandidate option)
     : LedgerEvent list =
     let event entryId body = { EntryId = entryId; OccurredAt = observedAt; Actor = YnabMirror; Body = body }
-    match obs.Deleted, obs.MatchedYnabTransactionId, absorbed with
-    | false, Some matchedId, Some candidate ->
+    match obs.MatchedYnabTransactionId, absorbed with
+    | Some matchedId, Some candidate ->
         let absorbedEntry = candidate.Entry
-        // Die aktuelle `ynab`-Verknüpfung, nicht die abgelöste (ADR 0058 Punkt 5): nach einem Ersatz
-        // trägt die Buchung die alte Id als `ynab` und als `ynabsuperseded`.
-        let hasLink system =
-            candidate.Links
-            |> List.exists (fun l -> l.System = system && l.Value = matchedId && l.EntryId = absorbedEntry.Id)
-        let isCurrentYnabLink = hasLink YnabSystem && not (hasLink YnabSupersededSystem)
         if
-            isCurrentYnabLink
+            mayAbsorbInMerge obs candidate
             && absorbedEntry.Id <> survivor.Id
-            && canTakePartInMerge absorbedEntry
-            // Ein offener Ersatz wartet auf seine neue YNAB-Id, die alte Id ist nicht mehr maßgeblich.
-            && absorbedEntry.PendingReplacement.IsNone
             && canTakePartInMerge survivor
         then
             let comdirectReference =

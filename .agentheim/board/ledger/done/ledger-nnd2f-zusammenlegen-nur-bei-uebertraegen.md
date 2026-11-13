@@ -1,7 +1,7 @@
 ---
 id: ledger-nnd2f
 title: "Der Spiegel legt nur noch zusammen, wenn YNAB einen Comdirect-Import mit einem Übertrag abgeglichen hat; eine verschluckte Barbuchung bleibt im Kassenbuch stehen (Ledger/Domain.fs mergeObservedInYnab)"
-status: doing
+status: done
 type: bug
 context: ledger
 created: 2026-11-13
@@ -58,3 +58,46 @@ Möglichkeit, wo das auftreten kann.“ Deshalb wird nicht deployt, bevor diese 
 - Vor dem Deploy wiederholt der Conductor den Probelauf gegen eine frische Kopie der Produktion: erwartet zwei
   Zusammenlegungen (die ING-Überträge), keine Barbuchung.
 - Der Kann-Punkt 103 in ledger-k4n2s ist mit Kriterium 4 erledigt.
+
+## Outcome
+
+`mergeObservedInYnab` (`src/Server/Ledger/Domain.fs`) prüft jetzt über die neue reine Funktion `mayAbsorbInMerge`
+zusätzlich: die Beobachtung der bleibenden Buchung trägt `TransferAccountId`, und die aufgenommene Buchung hat eine
+`comdirect`-Verknüpfung. `mayAbsorbInMerge` bündelt alles, was ohne die bleibende Buchung prüfbar ist (aktuelle
+`ynab`-Verknüpfung, Übertrag, Comdirect-Import, aufgenommene nicht gelöscht, nicht aufgenommen, kein Duplikat-Halt,
+kein offener Ersatz). Kein Datumsfenster.
+
+Spiegel-Lauf (`src/Server/Ledger/CommandHandlers.fs`): `absorbedInMerge` bestimmt vor der Schleife nur die Ziele der
+Merge-Paare, die `mayAbsorbInMerge` zulässt; nur für sie (und für Buchungen mit `MergedIntoEntryId`) entfällt `observe`.
+Ein abgelehntes Paar schreibt die Log-Zeile „Zusammenlegung abgelehnt: YNAB hat <A> mit <B> abgeglichen, BB legt nur
+einen Comdirect-Import in einen Übertrag zusammen“ und kein Ereignis. Damit ist Kann-Punkt 103 aus ledger-k4n2s erledigt.
+
+Tests (`src/Tests/LedgerYnabMergeTests.fs`, erfundene Daten):
+- Regressionstest „von YNAB verschluckte Barbuchung bleibt im Kassenbuch stehen“ (Kriterium 1): von Hand erfasste
+  Barbuchung A, Barbuchung E2 von Bob mit `importid` ohne `comdirect`, sieben Tage später, A mit Matched-Id B. Vor dem
+  Fix rot („kein Merge-Ereignis“), danach grün: kein Merge, Kontostand -25,00, zwei Buchungen.
+- „Ziel eines abgelehnten Merge-Paars: observe läuft normal“ (Kriterium 4): vor dem Fix rot (kein
+  `EntryDetailsChangeObservedInYnab`), danach Memo auf E2 nachgezogen.
+- Domäne (Kriterium 3): „Übertrag, aufgenommene ohne comdirect-Verknüpfung ergibt []“ und „Comdirect-Import, bleibende
+  aber kein Übertrag, ergibt []“, beide vor dem Fix rot. `pureScenario` trägt jetzt ein Gegenkonto, damit der bestehende
+  Test „Matched-Id auf eine andere Buchung“ den Fall Übertrag mit Comdirect-Import und zwei Ereignissen abdeckt.
+- Kriterium 2: der Regressionstest aus ledger-nkwqb (Übertrag A, Comdirect-Import E2) bleibt unverändert grün.
+
+README-Delta mit `check:readme-delta` geprüft (Exit 0). `./verify.sh`: VERIFY: PASS (dotnet 4940 grün, node 322 grün).
+
+Randfall, bewusst offen: Scheitert ein Paar erst an den Prüfungen der bleibenden Buchung (gelöscht oder schon
+aufgenommen), ist das Ziel schon übersprungen. Das gab es vorher genauso und betrifft eine ungelöschte Beobachtung
+praktisch nie.
+
+### ADR 0015 Ergänzung
+
+Im Nachtrag 2026-11-13 Punkt 1 nach dem Satz „Eine ungelöschte Beobachtung mit Matched-Id, die über die aktuelle
+`ynab`-Verknüpfung auf eine andere Buchung zeigt, legt zusammen.“ einfügen:
+
+„Das gilt nur, wenn die Beobachtung in YNAB ein Übertrag ist (Gegenkonto gesetzt) und die andere Buchung aus dem
+Comdirect-Import stammt (`comdirect`-Verknüpfung, ledger-nnd2f); in jedem anderen Fall legt BB nicht zusammen, schreibt
+eine Log-Zeile, und die Buchung bleibt im Kassenbuch, weil YNAB jede Buchung mit `import_id` gegen von Hand erfasste
+abgleicht, auch BBs Barbuchungen. Ein Datumsfenster gibt es nicht.“
+
+Und in Punkt 5 den Satz „Auf einer aufgenommenen Buchung läuft kein `observe` mehr.“ ergänzen um: „Das Ziel eines
+abgelehnten Paars läuft normal durch `observe`.“

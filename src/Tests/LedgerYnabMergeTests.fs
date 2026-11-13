@@ -117,8 +117,8 @@ let private applyBody (entry: Entry) (actor: Actor) (body: LedgerEventBody) : En
 let private linksOf (entry: Entry) (pairs: (LinkSystem * string) list) : EntryLink list =
     pairs |> List.map (fun (system, value) -> { EntryId = entry.Id; System = system; Value = value })
 
-/// Bleibende Buchung (A), aufgenommene Buchung (B, Comdirect-Import) und die Beobachtung von A
-/// mit Matched-Id B.
+/// Bleibende Buchung (A, in YNAB ein Übertrag), aufgenommene Buchung (B, Comdirect-Import) und
+/// die Beobachtung von A mit Matched-Id B.
 let private pureScenario () =
     let survivor = observedEntry "ynab-a"
     let absorbed = applyBody (importedEntry "ref-0001") ComdirectImport (EntryLinkedToYnab { YnabTransactionId = "ynab-b" })
@@ -126,7 +126,11 @@ let private pureScenario () =
         Entry = absorbed
         Links = linksOf absorbed [ YnabSystem, "ynab-b"; ImportIdSystem, "BB:ref-0001"; ComdirectSystem, "ref-0001" ]
     }
-    let obs = { observation "ynab-a" (YnabAccountId Guid.Empty) with MatchedYnabTransactionId = Some "ynab-b" }
+    let obs = {
+        observation "ynab-a" (YnabAccountId Guid.Empty) with
+            MatchedYnabTransactionId = Some "ynab-b"
+            TransferAccountId = Some (YnabAccountId (Guid.Parse "0195e000-0000-7000-8000-00000000f0a2"))
+    }
     survivor, absorbed, candidate, obs
 
 let private merge (obs: YnabObservation) (survivor: Entry) (candidate: MergeCandidate option) =
@@ -195,6 +199,16 @@ let domainTests =
                 Expect.equal first.OccurredAt second.OccurredAt "gleicher Zeitpunkt"
                 Expect.isEmpty (linksFrom first @ linksFrom second) "keine Verknüpfung wandert"
             | events -> failtestf "zwei Ereignisse erwartet, waren %A" events
+
+        // ledger-nnd2f: zusammengelegt wird nur ein Comdirect-Import in einen Übertrag.
+        testCase "Übertrag, aufgenommene ohne comdirect-Verknüpfung (Barbuchung mit importid) ergibt []" <| fun () ->
+            let survivor, absorbed, _, obs = pureScenario ()
+            let cash = { Entry = absorbed; Links = linksOf absorbed [ YnabSystem, "ynab-b"; ImportIdSystem, "BB:bar-0001" ] }
+            Expect.isEmpty (merge obs survivor (Some cash)) "kein Merge ohne Comdirect-Import"
+
+        testCase "Comdirect-Import, bleibende aber kein Übertrag, ergibt []" <| fun () ->
+            let survivor, _, candidate, obs = pureScenario ()
+            Expect.isEmpty (merge { obs with TransferAccountId = None } survivor (Some candidate)) "kein Merge ohne Übertrag"
 
         testCase "Matched-Id unbekannt ergibt []" <| fun () ->
             let survivor, _, _, obs = pureScenario ()
@@ -439,6 +453,36 @@ let private matchedBatch (i: Incident) : YnabObservation list = [
         Approved = false }
 ]
 
+/// Die Lage aus dem Probelauf von ledger-nkwqb (ledger-nnd2f), mit erfundenen Daten: eine von Hand
+/// in YNAB erfasste Barbuchung A (kein Übertrag), vom Spiegel als E1 beobachtet, und sieben Tage
+/// später eine Barbuchung E2 von Bob mit `importid`, ohne `comdirect`, verknüpft mit B.
+let private cashIncident () : Incident =
+    let suffix = Guid.NewGuid().ToString("N").Substring(0, 8)
+    let ynabAccount = YnabAccountId (Guid.NewGuid())
+    let account = newLedgerAccountId ()
+    saveAccount { Id = account; Name = "Bargeld"; Kind = BankAccount; Link = YnabMirrored ynabAccount; Closed = false }
+    |> Async.RunSynchronously
+    let budget = YnabBudgetId $"budget-nnd2f-{suffix}"
+    let a =
+        { observation $"ynab-a-{suffix}" ynabAccount with
+            Date = day 3; Amount = eur -12.50m; Payee = Some "Bäckerei Beispiel" }
+    Run.run 3 budget (Run.fetchers 10L [ a ]) |> ignore
+    let e1 = findEntryByLink YnabSystem a.YnabTransactionId |> Async.RunSynchronously |> Option.get
+
+    let importId = $"BB:bar-{suffix}"
+    let ynabB = $"ynab-b-{suffix}"
+    let e2 = newEntryId ()
+    appendAndApply [
+        { EntryId = e2; OccurredAt = at 10; Actor = Bob
+          Body =
+            CashExpenseAdded {
+                AccountId = account; Date = day 10; Amount = eur -12.50m; Payee = Some "Bäckerei Beispiel"
+                Memo = None; Category = None; Cleared = Uncleared; Approved = false; ImportId = Some importId } }
+        { EntryId = e2; OccurredAt = at 10; Actor = Bob; Body = EntryLinkedToYnab { YnabTransactionId = ynabB } }
+    ]
+    |> Async.RunSynchronously
+    { Budget = budget; Account = account; YnabAccount = ynabAccount; A = a; YnabB = ynabB; Reference = importId; E1 = e1; E2 = e2 }
+
 let private typesOf (entryId: EntryId) = loadEventsForEntry entryId |> Async.RunSynchronously |> List.map (fun r -> r.EventType)
 let private entryOf (entryId: EntryId) = loadEntry entryId |> Async.RunSynchronously |> Option.get
 let private linksOfEntry (entryId: EntryId) = linksForEntry entryId |> Async.RunSynchronously
@@ -510,6 +554,38 @@ let mirrorRunTests =
             Expect.isFalse (types |> List.exists (fun t -> t.StartsWith "EntryMerged")) "kein Merge-Ereignis"
             Expect.isNone (entryOf i.E2).MergedIntoEntryId "nicht aufgenommen"
             Expect.equal (balanceOf i.Account) -500.00m "E2 zählt weiter"
+
+        testCase "von YNAB verschluckte Barbuchung bleibt im Kassenbuch stehen" <| fun () ->
+            // ledger-nnd2f: YNAB glich die Barbuchung E2 von Bob (mit `importid`) mit einer eine Woche
+            // älteren, von Hand erfassten Barbuchung A gleichen Payees und Betrags ab. Es waren zwei
+            // Zahlungen. Vor dem Fix folgte der Spiegel dem Abgleich blind und nahm E2 auf.
+            let i = cashIncident ()
+            Expect.equal (balanceOf i.Account) -25.00m "Vorbedingung: vor dem Abgleich zählen beide"
+
+            Run.run 11 i.Budget (Run.fetchers 20L [ { i.A with MatchedYnabTransactionId = Some i.YnabB } ]) |> ignore
+
+            let types = typesOf i.E1 @ typesOf i.E2
+            Expect.isFalse (types |> List.exists (fun t -> t.StartsWith "EntryMerged")) "kein Merge-Ereignis"
+            Expect.isNone (entryOf i.E2).MergedIntoEntryId "E2 nicht aufgenommen"
+            Expect.equal (balanceOf i.Account) -25.00m "E2 zählt weiter im Kontostand"
+            Expect.equal (entriesOnAccount i) 2 "beide Buchungen stehen in der Liste"
+
+        testCase "Ziel eines abgelehnten Merge-Paars: observe läuft normal" <| fun () ->
+            // ledger-nnd2f (Kann-Punkt 103 aus ledger-k4n2s): übersprungen wird nur eine Buchung, die
+            // tatsächlich aufgenommen wird.
+            let i = cashIncident ()
+            let batch = [
+                { i.A with MatchedYnabTransactionId = Some i.YnabB }
+                { observation i.YnabB i.YnabAccount with
+                    ImportId = Some i.Reference; Date = day 10; Amount = eur -12.50m
+                    Payee = Some "Bäckerei Beispiel"; Memo = Some "Brötchen"; Cleared = Uncleared; Approved = false }
+            ]
+
+            Run.run 11 i.Budget (Run.fetchers 20L batch) |> ignore
+
+            Expect.contains (typesOf i.E2) "EntryDetailsChangeObservedInYnab" "die Änderung an E2 wird beobachtet"
+            Expect.equal (entryOf i.E2).Memo (Some "Brötchen") "Memo nachgezogen"
+            Expect.isNone (entryOf i.E2).MergedIntoEntryId "E2 nicht aufgenommen"
 
         testCase "zeigen zwei Beobachtungen gegenseitig aufeinander, gibt es keinen Merge" <| fun () ->
             let i = incident ()

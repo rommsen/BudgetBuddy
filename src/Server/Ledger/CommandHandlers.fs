@@ -330,6 +330,24 @@ let mergePairsOf (observations: YnabObservation list) : Map<string, string> =
     ]
     |> Map.ofList
 
+/// Die YNAB-Ids der Buchungen, die dieser Lauf aufnimmt (ledger-nnd2f): nur die Ziele der
+/// Merge-Paare, die die Regel zulässt (`mayAbsorbInMerge`). Das Ziel eines abgelehnten Paars
+/// läuft normal durch `observe`.
+let private absorbedInMerge
+    (state: MirrorBatchState)
+    (mergePairs: Map<string, string>)
+    (observations: YnabObservation list)
+    : Set<string> =
+    observations
+    |> List.choose (fun obs ->
+        match Map.tryFind obs.YnabTransactionId mergePairs with
+        | Some matchedId ->
+            mergeCandidate state matchedId
+            |> Option.filter (mayAbsorbInMerge obs)
+            |> Option.map (fun _ -> matchedId)
+        | None -> None)
+    |> Set.ofList
+
 /// Ist die Buchung der Beobachtung in YNAB zusammengelegt (`MergedIntoEntryId`) oder wird sie es
 /// in diesem Batch (ledger-nkwqb)? Dann entfällt ihr `observe`.
 let private isHiddenByMerge (state: MirrorBatchState) (absorbedYnabIds: Set<string>) (obs: YnabObservation) : bool =
@@ -606,7 +624,7 @@ let runMirror
                 | Ok batch ->
                     let! state = MirrorBatchState.load batch.Observations
                     let mergePairs = mergePairsOf batch.Observations
-                    let absorbedYnabIds = mergePairs |> Map.toList |> List.map snd |> Set.ofList
+                    let absorbedYnabIds = absorbedInMerge state mergePairs batch.Observations
                     let mutable newEntries = 0
                     let mutable changedEntries = 0
                     let mutable deletedEntries = 0
@@ -676,7 +694,12 @@ let runMirror
                                 | Some matchedId, Some survivor ->
                                     let mergeEvents =
                                         mergeObservedInYnab now obs survivor (mergeCandidate state matchedId)
-                                    if not (List.isEmpty mergeEvents) then
+                                    if List.isEmpty mergeEvents then
+                                        printfn
+                                            "Zusammenlegung abgelehnt: YNAB hat %s mit %s abgeglichen, BB legt nur einen Comdirect-Import in einen Übertrag zusammen"
+                                            obs.YnabTransactionId
+                                            matchedId
+                                    else
                                         do! MirrorBatchState.append state mergeEvents
                                 | _ -> ()
 

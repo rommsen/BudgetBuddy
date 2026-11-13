@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-13 13:22 -- Task verified and completed: ledger-nnd2f - "Der Spiegel legt nur noch zusammen, wenn YNAB einen Comdirect-Import mit einem Übertrag abgeglichen hat; eine verschluckte Barbuchung bleibt im Kassenbuch stehen (Ledger/Domain.fs mergeObservedInYnab)"
+
+**Type:** Work / Task completion
+**Task:** ledger-nnd2f - "Der Spiegel legt nur noch zusammen, wenn YNAB einen Comdirect-Import mit einem Übertrag abgeglichen hat; eine verschluckte Barbuchung bleibt im Kassenbuch stehen (Ledger/Domain.fs mergeObservedInYnab)"
+**Summary:** Spiegel legt nur noch einen Comdirect-Import in einen Übertrag zusammen
+**Duration:** 25m
+**Verification:** PASS (iteration 1)
+**Files changed:** 3
+**Tests added:** 4
+**ADRs written:** none (Ergänzung Nachtrag ADR 0015)
+
+---
+
 ## 2026-11-13 13:04 -- Batch started: [ledger-nnd2f]
 
 **Type:** Work / Batch start

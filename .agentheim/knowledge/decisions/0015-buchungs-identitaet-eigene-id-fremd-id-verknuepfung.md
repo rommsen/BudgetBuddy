@@ -6,7 +6,7 @@ status: accepted
 date: 2026-09-06
 supersedes: []
 superseded_by: []
-related_tasks: [ledger-z5vw6, ledger-nkwqb]
+related_tasks: [ledger-z5vw6, ledger-nkwqb, ledger-nnd2f]
 related_research: []
 ---
 
@@ -98,7 +98,11 @@ anderen, die andere antwortet mit 404 und erscheint im Delta nie als gelöscht. 
 (Roman, 2026-11-13).
 1. `YnabObservation` trägt `MatchedYnabTransactionId`. Eine ungelöschte Beobachtung mit Matched-Id, die über die aktuelle
    `ynab`-Verknüpfung auf eine andere Buchung zeigt, legt zusammen. Die Buchung der Beobachtung bleibt (YNAB behält sie),
-   die andere wird aufgenommen.
+   die andere wird aufgenommen. Das gilt nur, wenn die Beobachtung in YNAB ein Übertrag ist (Gegenkonto gesetzt) und die
+   andere Buchung aus dem Comdirect-Import stammt (`comdirect`-Verknüpfung, ledger-nnd2f, Roman: „Zusammenlegen macht nur
+   Sinn bei Überträgen“). In jedem anderen Fall legt BB nicht zusammen, schreibt eine Log-Zeile, und die Buchung bleibt im
+   Kassenbuch: YNAB gleicht jede Buchung mit `import_id` gegen von Hand erfasste ab, auch BBs Barbuchungen, und verschluckt
+   so echte Zahlungen (ledger-ay81j). Ein Datumsfenster gibt es nicht.
 2. Zwei Ereignisse in einem Anhängen, Actor `YnabMirror`: `EntryMergedIntoOtherObservedInYnab` auf der aufgenommenen
    Buchung (zählt danach nirgends, `DeletedInYnab`, neue Marke `MergedIntoEntryId`, offene Fehlschläge enden),
    `EntryMergedFromOtherObservedInYnab` auf der bleibenden (nur Historie).
@@ -107,7 +111,8 @@ anderen, die andere antwortet mit 404 und erscheint im Delta nie als gelöscht. 
 4. Kategorie und Prüfvermerk, die YNAB beim Abgleich setzt, zieht der Spiegel wie jede Beobachtung nach. BB setzt nichts
    zurück.
 5. Zeigen zwei Beobachtungen im selben Lauf gegenseitig aufeinander, oder zeigen mehrere auf dieselbe Id, legt BB nicht
-   zusammen und schreibt eine Log-Zeile. Auf einer aufgenommenen Buchung läuft kein `observe` mehr.
+   zusammen und schreibt eine Log-Zeile. Auf einer aufgenommenen Buchung läuft kein `observe` mehr. Das Ziel eines abgelehnten Paars läuft normal
+   durch `observe`.
 6. Ein späteres Aufheben des Abgleichs in YNAB baut BB nicht automatisch zurück.
 
 Abgelehnt: die Verknüpfungen auf die bleibende Buchung umziehen (der Abruf erkennt die Reference dann an einer Buchung,
