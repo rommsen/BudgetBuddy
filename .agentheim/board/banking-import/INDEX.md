@@ -11,18 +11,18 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 4
-- **Todo:** 1
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 1
 - **Done:** 9
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **banking-import-pknvp** — "Ein YNAB-Übertrag mit gleichem Betrag und Tag gilt beim Import nicht als mögliches Duplikat, weil der Payee nicht passt (DuplicateDetection.fs)" (bug) — `todo/banking-import-pknvp-uebertrag-als-moegliches-duplikat.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **banking-import-pknvp** — "Ein YNAB-Übertrag mit gleichem Betrag und Tag gilt beim Import nicht als mögliches Duplikat, weil der Payee nicht passt (DuplicateDetection.fs)" (bug) — `doing/banking-import-pknvp-uebertrag-als-moegliches-duplikat.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
