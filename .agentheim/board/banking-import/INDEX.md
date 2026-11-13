@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 4
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 9
+- **Doing:** 0
+- **Done:** 10
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **banking-import-pknvp** — "Ein YNAB-Übertrag mit gleichem Betrag und Tag gilt beim Import nicht als mögliches Duplikat, weil der Payee nicht passt (DuplicateDetection.fs)" (bug) — `doing/banking-import-pknvp-uebertrag-als-moegliches-duplikat.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **banking-import-pknvp** — "Ein YNAB-Übertrag mit gleichem Betrag und Tag gilt beim Import nicht als mögliches Duplikat, weil der Payee nicht passt (DuplicateDetection.fs)" (bug) — `done/banking-import-pknvp-uebertrag-als-moegliches-duplikat.md`
 - **banking-import-t4raw** — "Automatisch abrufen im Intervall: ein Hintergrunddienst bucht neue Umsätze direkt ins Kassenbuch, Vorgabe an, alle 360 Minuten, in den Einstellungen abschaltbar, nie eine Push-TAN" (feature) — `done/banking-import-t4raw-zeitgesteuertes-vorbereiten-zur-pruefung.md`
 - **banking-import-d0fey** — "Import direkt ins Kassenbuch: „Abrufen“ bucht neue Umsätze ohne Prüfsitzung sofort in Kassenbuch und YNAB als „zu prüfen“, unsichere Duplikate warten im Kassenbuch, der Sync-Ablauf schrumpft auf das Sheet „Abrufen“" (feature) — `done/banking-import-d0fey-import-direkt-ins-kassenbuch.md`
 - **banking-import-bftq0** — "Status der Bankverbindung sichtbar, Bank trennen" (feature) — `done/banking-import-bftq0-status-bankverbindung-und-verlustmeldung.md`

@@ -55,3 +55,4 @@ Den Testfall entfernen. Falls das Verhalten bei abgelehnter Anmeldung abgesicher
 - banking-import-t4raw: Die README nennt unter **Wiederaufnahme** „den Hintergrunddienst“ im Singular (gemeint `BankConnectionWorker`), seit `AutoFetchWorker` mehrdeutig.
 - Review-Lauf 2026-11-12: Gegenrichtung der Speichersperre in den Einstellungen offen: schaltet jemand „Automatisch abrufen“ um, während das Speichern der Sync-Karte noch unterwegs ist, gehen die geänderten Tage mit dem alten Stand hinaus (Fenster eine Server-Antwort lang; braucht einen Laufzustand für die Sync-Karte).
 - Review-Lauf 2026-11-12: `autoFetchErrorText` erkennt Validierungsfehler am String `DatabaseError ("validation", …)`; ein eigener `SettingsError`-Fall für Validierung wäre robuster.
+- banking-import-pknvp (2026-11-13): `Shared.Domain.YnabTransaction` geht nicht über Remoting und könnte ein reiner Server-Typ werden; dann fiele das neue Feld `TransferAccountId` aus `src/Shared`.

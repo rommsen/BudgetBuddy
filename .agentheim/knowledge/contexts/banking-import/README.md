@@ -18,7 +18,7 @@ ein Hauptgrund, warum BudgetBuddy existiert.
   Memo, **Reference** (Comdirect-Dedup-Schlüssel), RawData (Original-JSON).
 - **Reference** — der von Comdirect mitgelieferte Schlüssel, der eine Buchung über
   wiederholte Abrufe hinweg identifiziert.
-- **DuplicateStatus** — BBs *Vor-Import*-Urteil gegen die YNAB-Buchungen des Import-Kontos: `NotDuplicate | PossibleDuplicate | ConfirmedDuplicate`, jeweils mit **DuplicateDetectionDetails**. `ConfirmedDuplicate` (Reference oder `import_id` in YNAB gefunden) heißt **sicheres Duplikat** und wird übersprungen, `PossibleDuplicate` (Betrag, Tag ±1, Payee) heißt **unsicheres Duplikat** und wartet im Kassenbuch (ADR 0093 Punkt 2 und 3).
+- **DuplicateStatus** — BBs *Vor-Import*-Urteil gegen die YNAB-Buchungen des Import-Kontos: `NotDuplicate | PossibleDuplicate | ConfirmedDuplicate`, jeweils mit **DuplicateDetectionDetails**. `ConfirmedDuplicate` (Reference oder `import_id` in YNAB gefunden) heißt **sicheres Duplikat** und wird übersprungen, `PossibleDuplicate` (Betrag, Tag ±1 und ähnlicher Payee, bei einem Übertrag in YNAB mit `transfer_account_id` nur Betrag und Tag ±1, ADR 0093 Nachtrag, banking-import-pknvp) heißt **unsicheres Duplikat** und wartet im Kassenbuch (ADR 0093 Punkt 2 und 3).
 - **DuplicateDetectionDetails** — Belege fürs Urteil: FuzzyMatch auf Amount/Date/Payee,
   ob die ImportId oder Reference bereits in YNAB gefunden wurde.
 - **Push-TAN** — Comdirects Zwei-Faktor-Bestätigung; während eines Sync wird auf sie

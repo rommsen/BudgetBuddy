@@ -45,6 +45,7 @@ let createYnabTransaction memo payee categoryId categoryName date =
         ImportId = None
         CategoryId = categoryId
         CategoryName = categoryName
+        TransferAccountId = None
     }
 
 let testCategoryId = YnabCategoryId (Guid.Parse "11111111-1111-1111-1111-111111111111")

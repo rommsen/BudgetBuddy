@@ -211,6 +211,7 @@ module Decoders =
             ImportId = get.Optional.Field "import_id" Decode.string
             CategoryId = get.Optional.Field "category_id" Decode.string
             CategoryName = get.Optional.Field "category_name" Decode.string
+            TransferAccountId = get.Optional.Field "transfer_account_id" Decode.guid |> Option.map YnabAccountId
         })
 
 // ============================================

@@ -30,6 +30,7 @@ let createYnabTransaction id date amount payee memo importId =
         ImportId = importId
         CategoryId = None
         CategoryName = None
+        TransferAccountId = None
     }
 
 // ============================================
@@ -688,5 +689,61 @@ let countDuplicatesTests =
             Expect.equal result.Confirmed 1 "Should have 1 confirmed"
             Expect.equal result.Possible 1 "Should have 1 possible"
             Expect.equal result.None 2 "Should have 2 not duplicate"
+        }
+    ]
+
+// ============================================
+// Übertrag in YNAB (banking-import-pknvp, ADR 0093 Nachtrag)
+// ============================================
+
+[<Tests>]
+let transferMatchTests =
+    // Erfundene Daten: ein Gegenkonto, ein Kontoinhaber, ein Tag.
+    let otherAccount = YnabAccountId (Guid.Parse "11111111-2222-3333-4444-555555555555")
+    let day = DateTime(2026, 10, 30)
+    let bankTx amount date = createBankTransaction "REF-UEBERTRAG" (Some "Erika Musterfrau") "Umbuchung" amount date
+    let transfer amount date =
+        { createYnabTransaction "ynab-uebertrag" date amount (Some "Transfer : Tagesgeld") None None with
+            TransferAccountId = Some otherAccount }
+    testList "Übertrag in YNAB als unsicheres Duplikat" [
+        // Bug banking-import-pknvp: YNAB hatte den Übertrag schon angelegt (Payee „Transfer : <Konto>“), die
+        // Bankbuchung trug den Namen des Kontoinhabers. Die Payee-Bedingung schlug fehl, die Buchung ging nach
+        // YNAB, und YNAB legte sie still mit dem Übertrag zusammen.
+        test "ein Übertrag mit gleichem Betrag am Folgetag und anderem Payee ist ein unsicheres Duplikat" {
+            match detectDuplicate defaultConfig [ transfer 500m (day.AddDays 1.0) ] (bankTx 500m day) with
+            | PossibleDuplicate (_, details) ->
+                Expect.equal details.FuzzyMatchPayee (Some "Transfer : Tagesgeld") "die Details nennen den Übertrag"
+            | other -> failtestf "erwartet PossibleDuplicate, war %A" other
+        }
+
+        test "ein Übertrag am Vortag ist ein unsicheres Duplikat" {
+            match detectDuplicate defaultConfig [ transfer 500m (day.AddDays -1.0) ] (bankTx 500m day) with
+            | PossibleDuplicate _ -> ()
+            | other -> failtestf "erwartet PossibleDuplicate, war %A" other
+        }
+
+        test "ein Übertrag zwei Tage später ist kein Treffer" {
+            match detectDuplicate defaultConfig [ transfer 500m (day.AddDays 2.0) ] (bankTx 500m day) with
+            | NotDuplicate _ -> ()
+            | other -> failtestf "erwartet NotDuplicate, war %A" other
+        }
+
+        test "ein Übertrag mit anderem Betrag ist kein Treffer" {
+            match detectDuplicate defaultConfig [ transfer 500.01m day ] (bankTx 500m day) with
+            | NotDuplicate _ -> ()
+            | other -> failtestf "erwartet NotDuplicate, war %A" other
+        }
+
+        // intakt: ohne transfer_account_id gilt die Payee-Bedingung weiter.
+        test "eine Buchung ohne Übertrag mit anderem Payee bleibt kein Duplikat" {
+            let plain = createYnabTransaction "ynab-normal" day 500m (Some "Transfer : Tagesgeld") None None
+            match detectDuplicate defaultConfig [ plain ] (bankTx 500m day) with
+            | NotDuplicate _ -> ()
+            | other -> failtestf "erwartet NotDuplicate, war %A" other
+        }
+
+        test "possibleMatchOf findet den Übertrag wie detectDuplicate" {
+            let found = possibleMatchOf [ transfer 500m day ] (bankTx 500m day)
+            Expect.equal (found |> Option.map (fun t -> t.Id)) (Some "ynab-uebertrag") "derselbe Treffer"
         }
     ]

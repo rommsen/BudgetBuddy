@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-13 08:44 -- Task verified and completed: banking-import-pknvp - "Ein YNAB-Übertrag mit gleichem Betrag und Tag gilt beim Import nicht als mögliches Duplikat, weil der Payee nicht passt (DuplicateDetection.fs)"
+
+**Type:** Work / Task completion
+**Task:** banking-import-pknvp - "Ein YNAB-Übertrag mit gleichem Betrag und Tag gilt beim Import nicht als mögliches Duplikat, weil der Payee nicht passt (DuplicateDetection.fs)"
+**Summary:** Übertrag in YNAB als mögliches Duplikat beim Import
+**Duration:** 16m
+**Verification:** PASS (iteration 1)
+**Files changed:** 9
+**Tests added:** 10
+**ADRs written:** none
+
+---
+
 ## 2026-11-13 08:27 -- Batch started: [ledger-nkwqb, banking-import-pknvp]
 
 **Type:** Work / Batch start

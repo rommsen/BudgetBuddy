@@ -573,6 +573,7 @@ let private mkTxn id daysAgo amount payee categoryId memo : YnabTransaction =
         ImportId = None
         CategoryId = categoryId
         CategoryName = categoryId |> Option.map (fun _ -> "Lebensmittel")
+        TransferAccountId = None
     }
 
 let templateDedupTests =

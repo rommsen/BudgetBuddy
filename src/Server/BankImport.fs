@@ -178,7 +178,8 @@ let holdOf
                   Memo = None
                   ImportId = None
                   CategoryId = None
-                  CategoryName = None }
+                  CategoryName = None
+                  TransferAccountId = None }
             Some
                 { Reason = possibleDuplicateReason snapshot
                   MatchYnabTransactionId = ""

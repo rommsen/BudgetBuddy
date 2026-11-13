@@ -74,6 +74,19 @@ let matchesByDateAmountPayee (config: DuplicateMatchConfig) (bankTx: BankTransac
 
     dateMatches && amountMatches && payeeMatches
 
+/// Ein Übertrag in YNAB (`transfer_account_id` gesetzt) mit gleichem Betrag am Tag ±1 trifft, egal welcher
+/// Payee: YNAB trägt „Transfer : <Konto>“ statt des Bank-Payees und legte die gesendete Buchung sonst still
+/// mit dem Übertrag zusammen (ADR 0093 Nachtrag, banking-import-pknvp). Die YNAB-Liste stammt schon vom
+/// Importkonto.
+let matchesTransferByDateAmount (config: DuplicateMatchConfig) (bankTx: BankTransaction) (ynabTx: YnabTransaction) : bool =
+    ynabTx.TransferAccountId.IsSome
+    && abs (bankTx.BookingDate.Date - ynabTx.Date.Date).Days <= config.DateToleranceDays
+    && bankTx.Amount.Amount = ynabTx.Amount.Amount
+
+/// Das gemeinsame Prädikat für ein unsicheres Duplikat, von `detectDuplicate` und `possibleMatchOf` genutzt.
+let matchesPossibly (config: DuplicateMatchConfig) (bankTx: BankTransaction) (ynabTx: YnabTransaction) : bool =
+    matchesByDateAmountPayee config bankTx ynabTx || matchesTransferByDateAmount config bankTx ynabTx
+
 /// Checks if a bank transaction might match a YNAB transaction by import_id
 /// Import ID format: BB:<transactionId> (defined in Domain.ImportIdPrefix)
 let matchesByImportId (bankTx: BankTransaction) (ynabTx: YnabTransaction) : bool =
@@ -101,10 +114,10 @@ let detectDuplicate
         ynabTransactions
         |> List.tryFind (matchesByImportId bankTx)
 
-    // Check for fuzzy match by date/amount/payee (possible duplicate)
+    // Unsicheres Duplikat: Betrag, Tag ±1 und Payee, oder ein Übertrag mit Betrag und Tag ±1
     let fuzzyMatch =
         ynabTransactions
-        |> List.tryFind (matchesByDateAmountPayee config bankTx)
+        |> List.tryFind (matchesPossibly config bankTx)
 
     // Build diagnostic details about all checks
     let details: DuplicateDetectionDetails = {
@@ -136,11 +149,11 @@ let detectDuplicate
             | None ->
                 NotDuplicate details
 
-/// Die YNAB-Buchung, die eine Bankbuchung zum unsicheren Duplikat macht (Betrag, Tag ±1, Payee):
+/// Die YNAB-Buchung, die eine Bankbuchung zum unsicheren Duplikat macht (`matchesPossibly`):
 /// dieselbe Regel und dieselbe erste Fundstelle wie `detectDuplicate`. Der Abruf hält damit den
 /// Treffer im Ereignis fest (ADR 0093 Punkt 3).
 let possibleMatchOf (ynabTransactions: YnabTransaction list) (bankTx: BankTransaction) : YnabTransaction option =
-    ynabTransactions |> List.tryFind (matchesByDateAmountPayee defaultConfig bankTx)
+    ynabTransactions |> List.tryFind (matchesPossibly defaultConfig bankTx)
 
 /// Marks all sync transactions with their duplicate status
 let markDuplicates

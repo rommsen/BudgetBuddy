@@ -589,6 +589,26 @@ let transactionDecoderTests =
                 Expect.equal tx.Date.Kind DateTimeKind.Utc
                     "Das dekodierte Datum muss als Utc gekennzeichnet sein"
             | Error err -> failtest $"Failed to decode transaction: {err}"
+
+        // banking-import-pknvp: ein Übertrag trägt `transfer_account_id`, die Duplikaterkennung braucht das Feld.
+        testCase "transfer_account_id gesetzt wird zum Gegenkonto" <| fun () ->
+            let json = """{ "id": "tx-2", "date": "2026-02-03", "amount": -1000, "transfer_account_id": "11111111-2222-3333-4444-555555555555" }"""
+            match Decode.fromString Decoders.transactionDecoder json with
+            | Ok tx ->
+                Expect.equal tx.TransferAccountId (Some (YnabAccountId (Guid.Parse "11111111-2222-3333-4444-555555555555"))) "Gegenkonto"
+            | Error err -> failtest $"Failed to decode transaction: {err}"
+
+        testCase "transfer_account_id fehlt ergibt None" <| fun () ->
+            let json = """{ "id": "tx-3", "date": "2026-02-03", "amount": -1000 }"""
+            match Decode.fromString Decoders.transactionDecoder json with
+            | Ok tx -> Expect.isNone tx.TransferAccountId "kein Übertrag"
+            | Error err -> failtest $"Failed to decode transaction: {err}"
+
+        testCase "transfer_account_id null ergibt None" <| fun () ->
+            let json = """{ "id": "tx-4", "date": "2026-02-03", "amount": -1000, "transfer_account_id": null }"""
+            match Decode.fromString Decoders.transactionDecoder json with
+            | Ok tx -> Expect.isNone tx.TransferAccountId "kein Übertrag"
+            | Error err -> failtest $"Failed to decode transaction: {err}"
     ]
 
 // ============================================

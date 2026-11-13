@@ -71,7 +71,8 @@ let private ynabTransaction (memo: string) (amount: decimal) (category: (Guid * 
       Memo = Some memo
       ImportId = None
       CategoryId = category |> Option.map (fun (id, _) -> id.ToString())
-      CategoryName = category |> Option.map snd }
+      CategoryName = category |> Option.map snd
+      TransferAccountId = None }
 
 let private ruleFor (pattern: string) (categoryId: Guid) : Rule =
     { Id = RuleId (Guid.NewGuid())
@@ -1218,6 +1219,28 @@ let holdTests =
                     "Schnappschuss aus der Erkennung"
                 Expect.stringContains payload.Reason "29.10.2026" "der Grund nennt den Tag"
                 Expect.equal payload.MatchYnabTransactionId "" "keine YNAB-Id bekannt"
+            | None -> failtest "die Buchung muss warten"
+
+        // Bug banking-import-pknvp: ein YNAB-Übertrag mit anderem Payee war kein Treffer. `holdOf` muss ihn über
+        // dasselbe Prädikat wie die Erkennung wiederfinden, sonst fehlt die YNAB-Id des Treffers.
+        testCase "ein Übertrag in YNAB wird als Treffer wiedergefunden" <| fun () ->
+            let tx = bankTransaction (uniqueRef "uebertrag") "Erika Musterfrau" "Umbuchung"
+            let transfer =
+                { ynabTransaction "" -12.34m None with
+                    Id = "ynab-uebertrag"
+                    Date = DateTime(2026, 10, 31)
+                    Payee = Some "Transfer : Tagesgeld"
+                    TransferAccountId = Some (YnabAccountId (Guid.Parse "11111111-2222-3333-4444-555555555555")) }
+            let status = Server.DuplicateDetection.detectDuplicate Server.DuplicateDetection.defaultConfig [ transfer ] tx
+            let syncTx =
+                { (Server.RulesEngine.classifyTransactions now.UtcDateTime [] [ tx ] |> Result.defaultValue [] |> List.exactlyOne) with
+                    DuplicateStatus = status }
+            match holdOf [ transfer ] Map.empty syncTx with
+            | Some payload ->
+                Expect.equal payload.MatchYnabTransactionId "ynab-uebertrag" "die YNAB-Id des Übertrags"
+                Expect.equal payload.Match.Payee (Some "Transfer : Tagesgeld") "Payee des Übertrags"
+                Expect.equal payload.Match.Date (DateTime(2026, 10, 31)) "Datum des Übertrags"
+                Expect.stringContains payload.Reason "bei Transfer : Tagesgeld." "der Grund nennt den Übertrag"
             | None -> failtest "die Buchung muss warten"
     ]
 

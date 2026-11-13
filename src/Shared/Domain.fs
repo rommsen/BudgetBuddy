@@ -496,6 +496,9 @@ type YnabTransaction = {
     ImportId: string option  // Used for dedup
     CategoryId: string option
     CategoryName: string option
+    /// Gesetzt bei einem Übertrag (`transfer_account_id`): das Gegenkonto. Ein Übertrag mit gleichem
+    /// Betrag und Tag ±1 ist beim Import ein unsicheres Duplikat, egal welcher Payee (ADR 0093 Nachtrag).
+    TransferAccountId: YnabAccountId option
 }
 
 // ============================================
