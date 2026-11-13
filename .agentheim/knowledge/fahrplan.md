@@ -3,7 +3,7 @@
 Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success looks like“.
 
 ## Stand
-Zuletzt aktualisiert: 2026-11-13, nach work-Lauf und Review ledger-ay81j.
+Zuletzt aktualisiert: 2026-11-13, nach work-Lauf infrastructure-ewasy und categorization-n3sxw (Review steht aus).
 
 - **Etappe 1 · Bedeutungen:** erledigt, 5 von 5 (Skizze und Prototyp, Layout-Sweep, Muster im
   Styleguide, Designwert-Tests aufgeräumt, Palette 2 im Token-Layer). Romans Blick auf dak16 neben
@@ -107,9 +107,19 @@ Zuletzt aktualisiert: 2026-11-13, nach work-Lauf und Review ledger-ay81j.
   (Delta-Gate meldet alten Wortlaut) nachgeschärft, wird verfeinert. Nicht gepusht, nicht deployt.
 - **Deployt 2026-11-13 (3cf305d5):** ledger-ay81j samt Review-Fixes. Health-Check grün. Keine Migration, der Spiegel
   startet beim Öffnen des Kassenbuchs.
-- **Nächster Schritt:** infrastructure-ewasy bauen (in todo), dann Schnitt 6
-  `categorization-n3sxw` (Regeln ins Kassenbuch). Offen zum Verfeinern: ledger-yhemh (Memo unter Datum), ledger-h7de3
-  (Fehlertexte in Ereignissen), design-system-vf94m (Toast verdeckt „+ Buchung“), ledger-t4rk8 (Betrag eines Übertrags in BB).
+- **Work-Lauf 2026-11-13 abends:** infrastructure-ewasy (Delta-Gate meldet alten Wortlaut: Prüfung 7 mit `--keep`, Liste
+  „ganz nachlesen“, 09e2bc5f) und Schnitt 6 categorization-n3sxw (Regeln als Tab im Kassenbuch, Panel und Sheet, Löschen mit
+  Rückgängig über `restoreRule`, ADR 0094, 53e9170a), beide Verifier PASS in Iteration 2 (ewasy: Testlücke bei der
+  Schwelle; n3sxw: Abweichungen von der Skizze). Entschieden (Roman): zwei Tasks für Schnitt 6, Löschen mit Rückgängig,
+  Payee-Override, Export/Import und Neu laden entfallen, Regel aus der Buchung als fester Eintrag und als Angebot nach
+  Kategorie-Änderung (ledger-hg5m5, Angebot als Zeile im Detail statt im Toast), DS-Tabs und Umschalter wie überall, Panel
+  wie bei den Buchungen, Karte statt Tabelle von 1024 bis 1279 px. categorization-krscs ist in n3sxw aufgegangen, liegt
+  noch im Backlog (verwerfen nur auf Romans Wort). Gate auf main: VERIFY: PASS (dotnet 4991, node 333). Nicht gepusht,
+  nicht deployt.
+- **Nächster Schritt:** Review-Lauf (`/review-agents`) über 5c4924a0..HEAD, dann Romans Blick auf den Tab Regeln am Handy
+  und PC, dann ledger-hg5m5 (Regel aus der Buchung) promoten und bauen. Offen zum Verfeinern: ledger-yhemh (Memo unter
+  Datum), ledger-h7de3 (Fehlertexte in Ereignissen), design-system-vf94m (Toast verdeckt „+ Buchung“), ledger-t4rk8
+  (Betrag eines Übertrags in BB).
 - Verfeinert wird nur die nächste Etappe. Spätere Etappen haben Zeilen, keine Tickets.
 - Neue Ideen für spätere Etappen kommen hier als Zeile dazu.
 - Bestehende Tasks tragen einen Tag: `etappe-1`, `etappe-2`, `etappe-3`, `laufend`, `danach`.
@@ -167,7 +177,7 @@ Baut ein Schnitt eine Seite um, gilt die Zeile „Browser-Tests beim Umbau“ al
 3. ✓ `budgeting-w9yt4` Angepinnte Kategorien (2026-11-12)
 4. ✓ `banking-import-d0fey` Import direkt ins Kassenbuch (2026-11-12) (nimmt `banking-import-t4raw`, `categorization-hz6vj` auf)
 5. ✓ `ledger-v6s7c` Durchgehen Karte für Karte (2026-11-12)
-6. `categorization-n3sxw` Regeln ins Kassenbuch (nimmt `categorization-krscs`, `ledger-hg5m5` auf)
+6. ✓ `categorization-n3sxw` Regeln ins Kassenbuch (2026-11-13) (nimmt `categorization-krscs` auf), danach `ledger-hg5m5` Regel aus der Buchung
 7. `ledger-ea70s` Ein Erfassen, Quick Add entfällt (nimmt `design-system-taytp` auf)
 8. `ledger-f8d7x` Kassenbuch ordnen, beim Verfeinern nach Handy und PC teilen (nimmt `ledger-ayjzq` auf)
 9. `design-system-gcpws` Liste mit Panel überall, generischer Tastentest
