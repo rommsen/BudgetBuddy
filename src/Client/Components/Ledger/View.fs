@@ -4486,9 +4486,9 @@ type LedgerTabs = {
 /// Was im Kopf des Kassenbuchs steht, ohne Inhalt (categorization-n3sxw). Rein, damit die Zusicherungen unter .NET
 /// prüfbar sind: wo „+ Buchung“ steht und dass „Jetzt spiegeln“ auf beiden Tabs bleibt (Abweichung (g) der Task).
 type LedgerHeaderAction =
-    /// „Jetzt spiegeln“ als Symbolknopf, nur am Handy.
+    /// „Jetzt spiegeln“ als Symbolknopf: am Handy, auf „Regeln“ bis 1279 px.
     | MirrorIcon
-    /// „Jetzt spiegeln“ mit Text, ab `md`.
+    /// „Jetzt spiegeln“ mit Text: ab `md`, auf „Regeln“ ab `xl`.
     | MirrorButton
     /// „+ Buchung“, ab `md` (am Handy der FAB).
     | CaptureBooking
@@ -4541,9 +4541,13 @@ let view (model: Model) (dispatch: Msg -> unit) (tabs: LedgerTabs) =
     let categories = model.Categories |> RemoteData.toOption |> Option.defaultValue []
 
     // „Jetzt spiegeln“ bleibt im Kopf, auch auf dem Tab „Regeln“ (Abweichung (g)): am Handy als Symbol-Knopf, am PC
-    // mit Text. Was wo steht, legt `headerActionsFor` fest.
+    // mit Text. Was wo steht, legt `headerActionsFor` fest. Auf „Regeln“ steht ab 1024 px das Panel daneben; bis 1279 px
+    // ist die Listenspalte zu schmal für Titel, „Jetzt spiegeln“ mit Text und „+ Neue Regel“ (Sweep `regeln` @ 1024,
+    // Invariante 5). Dort bleibt es bis `xl` der Symbol-Knopf, wie die Karte statt der Tabelle (Abweichung (f)).
     let headerActions (tabActions: ReactElement list) =
         let onRules = match tabs.Active with RulesTab _ -> true | BookingsTab -> false
+        let mirrorIconClass = if onRules then "xl:hidden" else "md:hidden"
+        let mirrorButtonClass = if onRules then "hidden xl:inline-flex" else "hidden md:inline-flex"
         headerActionsFor onRules
         |> List.collect (function
             | MirrorIcon ->
@@ -4555,7 +4559,7 @@ let view (model: Model) (dispatch: Msg -> unit) (tabs: LedgerTabs) =
                         Title = Some "Jetzt spiegeln"
                         // Am Handy zeigt `title` nichts: der Name kommt aus `AriaLabel` (ledger-dn4vy).
                         AriaLabel = Some "Jetzt spiegeln"
-                        ClassName = Some "md:hidden"
+                        ClassName = Some mirrorIconClass
                         OnClick = (fun () -> dispatch StartMirror)
                   } ]
             | MirrorButton ->
@@ -4564,7 +4568,7 @@ let view (model: Model) (dispatch: Msg -> unit) (tabs: LedgerTabs) =
                         Text = if model.MirrorRunning then "Spiegel läuft…" else "Jetzt spiegeln"
                         Variant = Button.Secondary
                         IsLoading = model.MirrorRunning
-                        ClassName = Some "hidden md:inline-flex"
+                        ClassName = Some mirrorButtonClass
                         OnClick = (fun () -> dispatch StartMirror)
                   } ]
             | CaptureBooking ->
