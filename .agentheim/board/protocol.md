@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-13 19:04 -- Modeling / Promoted: infrastructure-ewasy - README-Delta-Gate meldet alten Wortlaut, der nach einem replace anderswo in der README stehen bleibt
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-13 19:04 -- Modeling / Refined: infrastructure-ewasy - README-Delta-Gate meldet alten Wortlaut
 
 **Type:** Modeling / Refine
