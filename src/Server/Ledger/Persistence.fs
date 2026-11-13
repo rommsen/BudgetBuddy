@@ -2112,6 +2112,33 @@ let loadEntryOrigins () : Async<Map<Guid, Actor>> =
         return loadEntryOriginsOn conn
     }
 
+/// Die offenen Erfassungen (ledger-ay81j): Buchungen, deren erstes Ereignis `CashExpenseAdded` ist
+/// (`isCapturedInBb`) und die nicht verknüpft, nicht in YNAB gelöscht und nicht als Duplikat
+/// gehalten sind (`isOpenForPushLink`). Zwei feste Abfragen je Spiegel-Lauf, keine je Buchung.
+let loadOpenCaptures () : Async<Entry list> =
+    async {
+        use conn = Core.getConnection ()
+        let captured =
+            conn.Query<string>(
+                "SELECT stream_id FROM events WHERE context = @context AND stream_version = 1 AND event_type = 'CashExpenseAdded'",
+                {| context = ledgerContext |}
+            )
+            |> Seq.map entryGuidOfStream
+            |> Set.ofSeq
+        let! rows =
+            conn.QueryAsync<EntryRow>(
+                "SELECT * FROM ledger_entries WHERE linked_to_ynab = 0 AND deleted_in_ynab = 0 AND possible_duplicate IS NULL"
+            )
+            |> Async.AwaitTask
+        return
+            rows
+            |> Seq.map rowToEntry
+            |> Seq.filter (fun e ->
+                let (EntryId id) = e.Id
+                captured.Contains id && Ledger.Domain.isOpenForPushLink e)
+            |> Seq.toList
+    }
+
 /// Alle Fremd-Id-Verknuepfungen einer Buchung.
 let linksForEntry (entryId: EntryId) : Async<EntryLink list> =
     async {

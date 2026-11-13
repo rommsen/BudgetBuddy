@@ -52,8 +52,12 @@ let private countingPush (result: YnabResult<string>) =
             async.Return result
     calls, push
 
+/// Ein Spiegel-Lauf vor „Erneut senden“, der nichts verknüpft (ledger-ay81j).
+let private mirrorFindsNothing () : Async<Result<MirrorRunSummary, string>> =
+    async.Return (Ok { NewEntries = 0; ChangedEntries = 0; DeletedEntries = 0; ServerKnowledge = 0L })
+
 let private retry (push: EntryPush) (entryId: EntryId) =
-    retryPushToYnab (at.AddHours 2.0) push noTrigger entryId |> Async.RunSynchronously
+    retryPushToYnab (at.AddHours 2.0) loadEntryOrigin mirrorFindsNothing push noTrigger entryId |> Async.RunSynchronously
 
 let private eventTypesOf (entryId: EntryId) =
     loadEventsForEntry entryId |> Async.RunSynchronously |> List.map (fun r -> r.EventType)
@@ -122,7 +126,7 @@ let retryPushTests =
             let mutable triggers = 0
             let trigger () = triggers <- triggers + 1
             let run (push: EntryPush) (entryId: EntryId) =
-                retryPushToYnab (at.AddHours 2.0) push trigger entryId |> Async.RunSynchronously
+                retryPushToYnab (at.AddHours 2.0) loadEntryOrigin mirrorFindsNothing push trigger entryId |> Async.RunSynchronously
             let _, failing = countingPush (Error (YnabError.NetworkError "Timeout"))
             Expect.equal (run failing (newEntry "auslöser-fehlschlag")) (Ok (PushToYnabFailed (ynabErrorText (YnabError.NetworkError "Timeout")))) "Fehlschlag"
             Expect.equal triggers 0 "kein Auslöser nach Fehlschlag"
@@ -176,7 +180,7 @@ let retryPushWriteGuardTests =
                     (fun () ->
                         Expect.equal (eventTypesOf entryId) [ "CashExpenseAdded"; "EntryPushToYnabFailed" ] "noch keine Verknüpfung während des Laufs"
                         Expect.isEmpty calls "noch kein Push")
-                    (retryPushToYnab (at.AddHours 2.0) push noTrigger entryId)
+                    (retryPushToYnab (at.AddHours 2.0) loadEntryOrigin mirrorFindsNothing push noTrigger entryId)
 
             Expect.equal result (Ok PushToYnabSent) "gesendet"
             Expect.equal
@@ -193,8 +197,144 @@ let retryPushWriteGuardTests =
             let trigger = LedgerWriteGuardProbe.SyncMirrorTrigger(2000)
 
             LedgerWriteGuardProbe.serialized (fun () ->
-                let run = Async.StartAsTask(retryPushToYnab (at.AddHours 2.0) push trigger.Trigger entryId)
+                let run = Async.StartAsTask(retryPushToYnab (at.AddHours 2.0) loadEntryOrigin mirrorFindsNothing push trigger.Trigger entryId)
                 Expect.isTrue (run.Wait 10000) "Befehl beendet")
 
             Expect.equal trigger.FinishedInTime (Some true) "der Lauf des Auslösers endet in der Frist, die Sperre ist schon frei"
+    ]
+
+// ============================================
+// Erneut senden einer offenen Erfassung: erst der Spiegel (ledger-ay81j, ADR 0021 Nachtrag 2026-11-13)
+// ============================================
+
+/// Ein mit YNAB verknüpftes Kassenbuch-Konto, wie nach einem Spiegel-Lauf.
+let private mirroredAccount () : Ledger.Domain.LedgerAccount * YnabAccountId =
+    let ynab = YnabAccountId (Guid.NewGuid())
+    let account : Ledger.Domain.LedgerAccount =
+        { Id = LedgerAccountId (Guid.NewGuid()); Name = $"Bar-{Guid.NewGuid()}"; Kind = Ledger.Domain.CashAccount
+          Link = Ledger.Domain.YnabMirrored ynab; Closed = false }
+    saveAccount account |> Async.RunSynchronously
+    account, ynab
+
+/// Eine Quick-Add-Buchung auf `account` mit offenem Fehlschlag (Zeitüberschreitung).
+let private openCapture (account: LedgerAccountId) (payee: string) : EntryId =
+    let entryId = newEntryId ()
+    appendAndApply [
+        { EntryId = entryId; OccurredAt = at; Actor = QuickAdd
+          Body =
+            CashExpenseAdded {
+                AccountId = account; Date = DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Utc); Amount = eur -4.50m
+                Payee = Some payee; Memo = None; Category = None; Cleared = Uncleared; Approved = false; ImportId = None } }
+        { EntryId = entryId; OccurredAt = at; Actor = QuickAdd; Body = EntryPushToYnabFailed { Reason = "Zeitüberschreitung" } }
+    ]
+    |> Async.RunSynchronously
+    entryId
+
+/// Der echte Spiegel-Lauf über gefälschte Abrufe: YNAB hält genau `observations` auf `ynab`.
+let private mirrorSeeing (ynab: YnabAccountId) (observations: Server.YnabObservations.YnabObservation list) () =
+    let fetchers = {
+        emptyMirrorFetchers with
+            FetchAccounts =
+                fun _ -> async.Return (Ok { Accounts = [ { AccountId = ynab; Name = "Bar"; Closed = false; Deleted = false } ]; ServerKnowledge = 3L })
+            FetchTransactions = fun _ -> async.Return (Ok { Observations = observations; ServerKnowledge = 3L })
+    }
+    runMirror (at.AddHours 1.0) fetchers (YnabBudgetId $"budget-ay81j-{Guid.NewGuid()}")
+
+let private observed (ynabTxId: string) (ynab: YnabAccountId) (payee: string) : Server.YnabObservations.YnabObservation = {
+    YnabTransactionId = ynabTxId; AccountId = ynab; ImportId = None
+    Date = DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Utc); Amount = eur -4.50m; Payee = Some payee; Memo = None
+    Category = None; Splits = []; SplitTransfers = []; Cleared = Uncleared; TransferAccountId = None
+    TransferYnabTransactionId = None; MatchedYnabTransactionId = None; Deleted = false; Approved = false
+    FlagColor = None; FlagName = None }
+
+let private fakeSettings : string -> Async<string option> =
+    let map = Map [ "ynab_token", "token-kuenstlich"; "ynab_default_budget_id", "budget-kuenstlich" ]
+    fun key -> async.Return (Map.tryFind key map)
+
+[<Tests>]
+let retryOpenCaptureTests =
+    let testCase name body =
+        testCase name (fun () ->
+            initializeLedgerSchema ()
+            global.Persistence.initializeDatabase ()
+            body ())
+
+    testSequenced
+    <| testList "Ledger Erneut senden einer offenen Erfassung (ledger-ay81j)" [
+
+        testCase "(a) der Spiegel verknüpft die Erfassung: kein Push, gesendet" <| fun () ->
+            // Verhindert eine zweite YNAB-Buchung, wenn ein früherer Push ohne import_id ankam.
+            let account, ynab = mirroredAccount ()
+            let payee = $"ay81j-{Guid.NewGuid()}"
+            let entryId = openCapture account.Id payee
+            let ynabTxId = $"ynab-ay81j-{Guid.NewGuid()}"
+            let calls, push = countingPush (Ok "ynab-nie")
+            let mutable triggers = 0
+            let result =
+                retryPushToYnab (at.AddHours 2.0) loadEntryOrigin (mirrorSeeing ynab [ observed ynabTxId ynab payee ]) push (fun () -> triggers <- triggers + 1) entryId
+                |> Async.RunSynchronously
+            Expect.equal result (Ok PushToYnabSent) "gesendet"
+            Expect.isEmpty calls "kein Push"
+            Expect.equal (findEntryByLink Ledger.Domain.YnabSystem ynabTxId |> Async.RunSynchronously) (Some entryId) "der Spiegel hat verknüpft"
+            Expect.equal triggers 0 "kein weiterer Auslöser"
+
+        testCase "(b) scheitert der Spiegel, kein Push, kein Ereignis und der Satz für den Toast" <| fun () ->
+            let account, _ = mirroredAccount ()
+            let entryId = openCapture account.Id $"ay81j-{Guid.NewGuid()}"
+            let calls, push = countingPush (Ok "ynab-nie")
+            for failing in [ (fun () -> async.Return (Error "HTTP 503")); (fun () -> async { return failwith "weg" }) ] do
+                let result = retryPushToYnab (at.AddHours 2.0) loadEntryOrigin failing push noTrigger entryId |> Async.RunSynchronously
+                Expect.equal result (Error retryMirrorUnavailableText) "der Satz aus What 3"
+            Expect.equal retryMirrorUnavailableText "BB konnte YNAB gerade nicht abfragen. Nichts gesendet, bitte später erneut senden." "Wortlaut"
+            Expect.isEmpty calls "kein Push"
+            Expect.equal (eventTypesOf entryId) [ "CashExpenseAdded"; "EntryPushToYnabFailed" ] "kein Ereignis"
+
+        testCase "(c) findet der Spiegel nichts, genau ein Push ohne import_id" <| fun () ->
+            let account, ynab = mirroredAccount ()
+            let payee = $"ay81j-{Guid.NewGuid()}"
+            let entryId = openCapture account.Id payee
+            let sent = ResizeArray<string option>()
+            let create importId _ _ _ _ _ _ =
+                sent.Add importId
+                async.Return (Ok $"ynab-ay81j-{Guid.NewGuid()}")
+            let push = Server.Api.entryPushWith fakeSettings create |> Async.RunSynchronously
+            let other = observed $"ynab-ay81j-{Guid.NewGuid()}" ynab "jemand anderes"
+            let result =
+                retryPushToYnab (at.AddHours 2.0) loadEntryOrigin (mirrorSeeing ynab [ other ]) push noTrigger entryId |> Async.RunSynchronously
+            Expect.equal result (Ok PushToYnabSent) "gesendet"
+            Expect.equal (List.ofSeq sent) [ None ] "genau ein Push, ohne import_id"
+
+        testCase "(d) ein Comdirect-Import ruft den Spiegel nicht" <| fun () ->
+            let account, _ = mirroredAccount ()
+            let entryId = newEntryId ()
+            let reference = $"ay81j-{Guid.NewGuid():N}".Substring(0, 20)
+            appendAndApply [
+                { EntryId = entryId; OccurredAt = at; Actor = ComdirectImport
+                  Body =
+                    EntryImportedFromComdirect {
+                        AccountId = account.Id; ImportId = $"BB:{reference}"; ComdirectReference = reference
+                        Date = at.Date; Amount = eur -9m; Payee = Some "Markt"; Memo = None
+                        Cleared = Uncleared; Approved = false; FlagColor = None; FlagName = None } }
+            ]
+            |> Async.RunSynchronously
+            let calls, push = countingPush (Ok $"ynab-ay81j-{Guid.NewGuid()}")
+            let mutable mirrors = 0
+            let mirror () =
+                mirrors <- mirrors + 1
+                async.Return (Error "darf nicht laufen")
+            let result = retryPushToYnab (at.AddHours 2.0) loadEntryOrigin mirror push noTrigger entryId |> Async.RunSynchronously
+            Expect.equal result (Ok PushToYnabSent) "gesendet"
+            Expect.equal mirrors 0 "kein Spiegel"
+            Expect.equal calls.Count 1 "ein Push"
+
+        testCase "Live: Erneut senden des Servers fragt bei einer Erfassung zuerst YNAB, ohne Einrichtung kein Push" <| fun () ->
+            // Belegt die Verdrahtung in `Api.fs` (`retryPushToYnabWith entryPush mirrorYnabBudget`): die
+            // Test-Datenbank hat kein YNAB-Token, der echte Spiegel scheitert, also kein Push und kein Ereignis.
+            // Ohne den Spiegel-Port schriebe der Push ein `EntryPushToYnabFailed` („No YNAB token configured“).
+            let account, _ = mirroredAccount ()
+            let entryId = openCapture account.Id $"ay81j-{Guid.NewGuid()}"
+            let (EntryId guid) = entryId
+            let result = Server.Api.ledgerApi.retryPushToYnab guid |> Async.RunSynchronously
+            Expect.equal result (Error retryMirrorUnavailableText) "der Satz aus What 3"
+            Expect.equal (eventTypesOf entryId) [ "CashExpenseAdded"; "EntryPushToYnabFailed" ] "kein Ereignis"
     ]

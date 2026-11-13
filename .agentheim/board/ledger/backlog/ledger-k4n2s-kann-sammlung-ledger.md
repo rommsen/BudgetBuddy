@@ -132,3 +132,5 @@ Sammelstelle für Befunde, die stimmen, aber die Schwelle der Backlog-Disziplin 
 110. **Verfeinern ledger-ay81j**: Die Verknüpfung offener Erfassungen auf einen halben Ersatz oder ein Wiederherstellen ohne `import_id` ausdehnen (heute legt der Spiegel dann eine zweite Buchung an; Roman: Kann-Sammlung).
 111. **Verfeinern ledger-ay81j**: Bleibt eine Erfassung nach einem Lauf ohne eindeutiges Paar offen, fehlt ein Weg, sie zu verwerfen oder zu sperren.
 112. **Verfeinern ledger-ay81j**: Eigener Toast „war schon in YNAB“, wenn Erneut senden die Buchung über den Spiegel gefunden hat.
+113. **Aus ledger-ay81j**: `BotPreviewStore.CommitOnce` liefert nach einer verlorenen Antwort bis zum Neustart `pushed_to_ynab: false`, obwohl der Spiegel die Buchung inzwischen verknüpft hat. Eine Wiederholung könnte bei `BotBooked` mit `PushedToYnab = false` den Stand neu aus dem Kassenbuch lesen.
+114. **Aus ledger-ay81j**: `loadOpenCaptures` lädt je Lauf alle offenen Erfassungen ohne Zeitfenster. Bei vielen dauerhaft offenen Buchungen ließe sich auf die Tage der Beobachtungen einschränken.

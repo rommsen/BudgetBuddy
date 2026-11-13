@@ -173,3 +173,79 @@ let tests =
             Expect.equal (added replaced replacedBefore) [] "die Lösch-Beobachtung der ersetzten Id schreibt nichts"
             Expect.isFalse (loaded replaced).DeletedInYnab "die ersetzte Buchung bleibt bestehen"
     ]
+
+// ============================================
+// Offene Erfassung im Lauf: nur ein eindeutiges Paar verknüpft (ledger-ay81j)
+// ============================================
+
+/// Eine in BB erfasste, offene Buchung auf `account` mit denselben Werten wie `observationOn`.
+let private openCapture (account: LedgerAccountId) : EntryId =
+    let entryId = newEntryId ()
+    appendAndApply [
+        { EntryId = entryId; OccurredAt = at 3; Actor = QuickAdd
+          Body =
+            CashExpenseAdded {
+                AccountId = account; Date = bookingDate; Amount = eur -21.99m; Payee = Some "Rewe"; Memo = None
+                Category = Some lebensmittel; Cleared = Uncleared; Approved = true; ImportId = None } }
+    ]
+    |> Async.RunSynchronously
+    entryId
+
+/// Führt den Lauf aus und liefert, was er auf die Konsole schrieb (die Log-Zeilen aus What 2).
+let private runCapturingLog (day: int) (budget: YnabBudgetId) (fetchers: MirrorFetchers) : MirrorRunSummary * string =
+    let original = Console.Out
+    use writer = new IO.StringWriter()
+    Console.SetOut writer
+    try
+        let summary = runOk day budget fetchers
+        summary, writer.ToString()
+    finally
+        Console.SetOut original
+
+[<Tests>]
+let openCaptureTests =
+    let testCase name body =
+        testCase name (fun () ->
+            initializeLedgerSchema ()
+            global.Persistence.initializeDatabase ()
+            body ())
+    let setup () =
+        let tag = Guid.NewGuid().ToString("N").Substring(0, 8)
+        let giro = YnabAccountId (Guid.NewGuid())
+        let budget = YnabBudgetId $"budget-ay81j-{tag}"
+        runOk 2 budget (fetchersFor [ giro ] []) |> ignore
+        let ledgerGiro =
+            match findAccountByYnabAccountId giro |> Async.RunSynchronously with
+            | Some account -> account.Id
+            | None -> failtest "Konto fehlt nach dem Vorlauf"
+        tag, giro, budget, ledgerGiro
+    let isOpen (entryId: EntryId) = not (loadEntry entryId |> Async.RunSynchronously |> Option.get).LinkedToYnab
+
+    testSequenced
+    <| testList "Spiegel-Lauf: offene Erfassung (ledger-ay81j)" [
+        testCase "ein eindeutiges Paar wird verknüpft, observe vergleicht danach gegen den verknüpften Stand" <| fun () ->
+            let tag, giro, budget, ledgerGiro = setup ()
+            let entryId = openCapture ledgerGiro
+            let summary = runOk 3 budget (fetchersFor [ giro ] [ observationOn giro $"ay81j-{tag}-eins" ])
+            Expect.equal summary.NewEntries 0 "keine neue Buchung"
+            Expect.equal (eventTypesOf entryId) [ "CashExpenseAdded"; "EntryLinkedToYnab" ] "nur die Verknüpfung, keine Änderung"
+            Expect.equal (entryOf YnabSystem $"ay81j-{tag}-eins") entryId "die YNAB-Id zeigt auf die Erfassung"
+
+        testCase "zwei passende Erfassungen zu einer YNAB-Buchung: keine Verknüpfung, Log-Zeile, beide bleiben offen" <| fun () ->
+            let tag, giro, budget, ledgerGiro = setup ()
+            let first, second = openCapture ledgerGiro, openCapture ledgerGiro
+            let ynabId = $"ay81j-{tag}-eine"
+            let summary, log = runCapturingLog 3 budget (fetchersFor [ giro ] [ observationOn giro ynabId ])
+            Expect.equal summary.NewEntries 1 "die YNAB-Buchung wird eine neue Buchung"
+            Expect.isTrue (isOpen first && isOpen second) "beide Erfassungen bleiben offen"
+            Expect.stringContains log $"Offene Erfassung nicht verknüpft: mehrere Buchungen in BB passen zu YNAB-Buchung {ynabId}" "Log-Zeile"
+
+        testCase "zwei passende YNAB-Buchungen zu einer Erfassung: keine Verknüpfung, Log-Zeile, die Erfassung bleibt offen" <| fun () ->
+            let tag, giro, budget, ledgerGiro = setup ()
+            let entryId = openCapture ledgerGiro
+            let summary, log =
+                runCapturingLog 3 budget (fetchersFor [ giro ] [ observationOn giro $"ay81j-{tag}-a"; observationOn giro $"ay81j-{tag}-b" ])
+            Expect.equal summary.NewEntries 2 "beide YNAB-Buchungen werden neue Buchungen"
+            Expect.isTrue (isOpen entryId) "die Erfassung bleibt offen"
+            Expect.stringContains log $"Offene Erfassung nicht verknüpft: mehrere YNAB-Buchungen passen zu Buchung {entryId}" "Log-Zeile"
+    ]

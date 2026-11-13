@@ -102,7 +102,7 @@ let private request (account: LedgerAccountId) : LedgerBookingRequest = {
 
 /// Die Werkzeuge des Befehls: zeichnen Pushs auf und liefern feste Ergebnisse.
 type private BookingProbe(accounts: Accounts, pushResult: YnabResult<string>) =
-    member val Pushes : (string * YnabAccountId * string option * ManualTransactionRequest) list = [] with get, set
+    member val Pushes : (YnabAccountId * string option * ManualTransactionRequest) list = [] with get, set
     member val Mirrors = 0 with get, set
     member val BudgetResult : YnabResult<TransferAccount list> = Ok accounts.Budget with get, set
     member val CategoryResult : Result<CategoryRef, string> = Ok food with get, set
@@ -112,9 +112,9 @@ type private BookingProbe(accounts: Accounts, pushResult: YnabResult<string>) =
           BudgetAccounts = fun () -> async.Return this.BudgetResult
           ResolveCategory = fun _ -> async.Return this.CategoryResult
           Push =
-            fun importId account transferPayee request ->
+            fun account transferPayee request ->
                 async {
-                    this.Pushes <- this.Pushes @ [ importId, account, transferPayee, request ]
+                    this.Pushes <- this.Pushes @ [ account, transferPayee, request ]
                     return pushResult
                 }
           TriggerMirror = fun () -> this.Mirrors <- this.Mirrors + 1 }
@@ -126,6 +126,10 @@ let private entryOf (entryId: EntryId) : Entry = loadEntry entryId |> Async.RunS
 
 let private book (probe: BookingProbe) (entryId: EntryId) (req: LedgerBookingRequest) =
     addLedgerBooking now entryId probe.Tools req |> Async.RunSynchronously
+
+/// Ein Spiegel-Lauf vor „Erneut senden“, der nichts verknüpft (ledger-ay81j).
+let private mirrorFindsNothing () : Async<Result<MirrorRunSummary, string>> =
+    async.Return (Ok { NewEntries = 0; ChangedEntries = 0; DeletedEntries = 0; ServerKnowledge = 0L })
 
 let private setup () =
     global.Persistence.initializeDatabase ()
@@ -252,11 +256,11 @@ let commandTests =
                 Expect.equal p.AccountId accounts.Bar "gewähltes Konto"
                 Expect.equal p.Amount (eur -8.60m) "Ausgabe negativ im Kassenbuch"
                 Expect.equal p.Category (Some food) "Kategorie mit Namen"
-                Expect.equal p.ImportId (Some (cashEntryImportId entryId)) "feste import_id im Ereignis"
+                // ledger-ay81j: in BB erfasst, ohne import_id.
+                Expect.isNone p.ImportId "keine import_id im Ereignis"
             | other -> failtest $"CashExpenseAdded erwartet: {other}"
             match probe.Pushes with
-            | [ importId, account, transferPayee, req ] ->
-                Expect.equal importId (cashEntryImportId entryId) "feste import_id im Push"
+            | [ account, transferPayee, req ] ->
                 Expect.equal account accounts.BarYnab "YNAB-Konto von Bar"
                 Expect.isNone transferPayee "kein Übertrag"
                 Expect.equal req.CategoryId (Some food.CategoryId) "Kategorie im Push"
@@ -292,8 +296,7 @@ let commandTests =
             Expect.equal entry.PayeeBeforeTransfer (Some "Bäckerei Lange") "Payee davor bleibt"
             match probe.Pushes with
             // Den Rumpf mit payee_id und ohne category_id prüft `jsonBodyTests` in QuickAddTests.fs.
-            | [ importId, account, transferPayee, req ] ->
-                Expect.equal importId (cashEntryImportId entryId) "feste import_id"
+            | [ account, transferPayee, req ] ->
                 Expect.equal account accounts.BarYnab "YNAB-Konto der Buchung"
                 Expect.equal transferPayee (Some "payee-tagesgeld") "Übertrags-Payee"
                 Expect.isNone req.CategoryId "keine Kategorie im Request"
@@ -373,7 +376,7 @@ let commandTests =
                 Setting = fun _ -> async.Return (Some "x")
                 LoadYnabCategories = fun _ _ -> failwith "kein YNAB"
                 BudgetAccounts = fun _ _ -> failwith "kein YNAB"
-                Push = fun _ _ _ _ _ _ _ -> failwith "kein YNAB"
+                Push = fun _ _ _ _ _ -> failwith "kein YNAB"
                 Delete = fun _ _ _ -> failwith "kein YNAB"
                 NewEntryId = fun () -> entryId
                 TriggerMirror = ignore
@@ -397,9 +400,9 @@ let commandTests =
                 LoadYnabCategories = fun _ _ -> failwith "nicht gebraucht"
                 BudgetAccounts = fun token budget -> async { calls.Add $"konten {token} {budget}"; return Ok accounts.Budget }
                 Push =
-                    fun importId flag transferPayee token budget account _ ->
+                    fun transferPayee token budget account _ ->
                         async {
-                            calls.Add $"push {importId} {flag} {transferPayee} {token} {budget} {account}"
+                            calls.Add $"push {transferPayee} {token} {budget} {account}"
                             return Ok "ynab-at63w-api"
                         }
                 Delete = fun _ _ _ -> failwith "nicht gebraucht"
@@ -412,13 +415,11 @@ let commandTests =
                 |> Async.RunSynchronously
             Expect.isOk result "angelegt"
             let budget = YnabBudgetId "bud"
-            let importId = Some (cashEntryImportId entryId)
-            let noFlag : string option = None
             let payee = Some "payee-tagesgeld"
             Expect.equal
                 (List.ofSeq calls)
                 [ $"konten tok {budget}"
-                  $"push {importId} {noFlag} {payee} tok {budget} {accounts.BarYnab}" ]
+                  $"push {payee} tok {budget} {accounts.BarYnab}" ]
                 "Aufrufe"
             // Das Import-Konto aus den Settings wird abgelehnt.
             let refused =
@@ -451,11 +452,11 @@ let retryTransferTests =
                 }
             let settings = Map [ "ynab_token", "tok"; "ynab_default_budget_id", "bud" ]
             let push = Server.Api.entryPushWith (fun k -> async.Return (Map.tryFind k settings)) create |> Async.RunSynchronously
-            let result = retryPushToYnab now push ignore entryId |> Async.RunSynchronously
+            let result = retryPushToYnab now loadEntryOrigin mirrorFindsNothing push ignore entryId |> Async.RunSynchronously
             Expect.equal result (Ok PushToYnabSent) "gesendet"
             Expect.equal
                 (List.ofSeq sent)
-                [ Some (cashEntryImportId entryId), Some "payee-tagesgeld", accounts.BarYnab, None ]
+                [ None, Some "payee-tagesgeld", accounts.BarYnab, None ]
                 "Übertrags-Payee, keine Kategorie"
 
         testCase "Erneut senden einer Buchung mit Kategorie sendet keine Übertrags-Payee" <| fun () ->
@@ -472,7 +473,7 @@ let retryTransferTests =
                 }
             let settings = Map [ "ynab_token", "tok"; "ynab_default_budget_id", "bud" ]
             let push = Server.Api.entryPushWith (fun k -> async.Return (Map.tryFind k settings)) create |> Async.RunSynchronously
-            retryPushToYnab now push ignore entryId |> Async.RunSynchronously |> ignore
+            retryPushToYnab now loadEntryOrigin mirrorFindsNothing push ignore entryId |> Async.RunSynchronously |> ignore
             Expect.equal (List.ofSeq sent) [ None, Some food.CategoryId ] "mit Kategorie"
     ]
 

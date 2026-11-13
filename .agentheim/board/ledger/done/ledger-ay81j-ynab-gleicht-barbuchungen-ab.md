@@ -1,7 +1,7 @@
 ---
 id: ledger-ay81j
 title: "In BB erfasste Buchungen gehen ohne import_id an YNAB, der Spiegel verknüpft offene Erfassungen nach Konto, Tag, Betrag und Payee"
-status: doing
+status: done
 type: bug
 context: ledger
 created: 2026-11-13
@@ -191,3 +191,71 @@ Feld in `src/Shared` ändert sich, die Playwright-Fixtures sind nicht betroffen.
 
 ### Kann-Punkte
 In die Kann-Sammlung ledger-k4n2s übernommen (Punkte 108 bis 112).
+
+## Verifier note (iteration 1)
+REASONS:
+- Kriterium „README-Delta deckt die Bullets aus Notes ab, die ersetzten Begriffe sind per grep nachgezogen“ nicht erfüllt: Der Bullet **Schreib-Sperre** (README :232) sagt weiter „neue Barbuchungen fängt seit ledger-p3vq8 zusätzlich die feste `import_id` ab“. Das ist nach dieser Änderung falsch. Kein Delta-Op deckt ihn ab, die Hand-Liste im OUTCOME nennt ihn nicht, die Vollständigkeitsaussage im OUTCOME stimmt nicht.
+- Sonst geprüft und in Ordnung: Gate PASS, Delta-Grammatik Exit 0, Comdirect-Wege unverändert, Bob-Grenzen unverändert, Bob-Abweichung (gecachtes Ergebnis bei erneutem Commit) als dokumentiert akzeptiert.
+SUGGESTED_FIX: `replace`-Op für **Schreib-Sperre** ergänzen (seit ledger-ay81j fängt der Abgleich **Offene Erfassung** sie ab, alte Erfassungen weiter über die ImportId). Danach README komplett per grep nach „feste import_id“, `409`, `cashEntryImportId`, `ImportIdAlreadyInYnab`, `createTransactionWith` durchsuchen und die Vollständigkeitsaussage im OUTCOME korrigieren. Keine Code-Änderung.
+ITERATION_HINT: likely-fixable
+
+## Verifier note (iteration 2)
+REASONS:
+- FAIL-Grund aus Iteration 1 behoben (Schreib-Sperre). Code unverändert, Gate aus Iteration 1 gilt.
+- Weiter nicht erfüllt: „die ersetzten Begriffe sind per grep nachgezogen“. Key command *PushErneutSenden* sagt weiter „lädt die Buchung und pusht sie … (trägt die Buchung eine `import_id`, geht sie mit, sonst keine)“. Falsch: eine erfasste Buchung lässt vorher den Spiegel laufen und geht ohne `import_id`, auch mit alter `BB:`-Verknüpfung.
+- Nachrangig: Key events *EntryReplacedInYnab* („neue `import_id`“) und *EntryDeletedInBb / EntryRestoredInBb* („stiftet … die neue `import_id`“) brauchen den Zusatz, dass eine erfasste Buchung keine neue `import_id` bekommt.
+SUGGESTED_FIX: Hand-Liste um *PushErneutSenden* ergänzen, Key events qualifizieren, README Satz für Satz gegen jeden ersetzten Bullet greppen. Keine Code-Änderung.
+ITERATION_HINT: likely-fixable
+
+## Outcome
+
+In BB erfasste Buchungen (erstes Ereignis `CashExpenseAdded`) gehen ohne `import_id` an YNAB, auf allen Wegen; der Spiegel verknüpft eine offene Erfassung als dritte Match-Stufe; „Erneut senden“ lässt für sie vorher den Spiegel laufen. Comdirect-Wege sind unverändert.
+
+- Einzel-Post mit injiziertem Client: `YnabClient.createTransactionOn http …` (Token je Anfrage im Header), `createTransactionFor` nutzt `YnabClient.sharedHttpClient`; `createTransactionWith`/`createTransactionWithFlag` sind entfallen (`src/Server/YnabClient.fs`).
+- Live-Ports als Fabriken: `Server.Api.quickAddPortsOn`, `Server.Api.ledgerBookingPortsOn`, `BotApi.liveDepsOn` mit `BotApi.botPushOn`; `live*` ist die Fabrik mit dem gemeinsamen Client. Die Push-Ports der Erfassung haben keinen `import_id`-Parameter mehr (`addCashBookingWith`, `addCashBooking`, `addQuickAdd`, `LedgerBookingTools.Push`, `QuickAddPorts.Push`, `LedgerBookingPorts.Push`, `BotDeps.Push`). `cashEntryImportId` ist entfallen, `CashExpenseAdded.ImportId = None`.
+- Reine Regeln in `src/Server/Ledger/Domain.fs`: `isCapturedInBb`, `isOpenForPushLink`, `isOpenPushLinkCandidate`, `matchesOpenCapture`, `planOpenPushLinks` (`OpenPushLinkPlan`).
+- `planEntryPush accounts origin links events entry` (erfasst: keine `import_id`), `loadEntryPushPlan` lädt das Log einmal. `replacementImportIdFor` (offen vor erfasst vor `replacementImportId`) für Split- und Betrags-Ersatz (`pushSplitState`) und `restoreRequestOf capturedInBb …`; für eine Erfassung kein `EntryReplacementSentToYnab`/`EntryRestoreSentToYnab`.
+- Spiegel (`src/Server/Ledger/CommandHandlers.fs`): `EntryMatch.MatchedByOpenPush`, `resolveEntry` prüft YNAB-Id, ImportId, offene Erfassung (nur solange die Buchung im Lauf noch offen ist); `MirrorBatchState.load observations resolution` lädt die offenen Erfassungen über eine feste Abfrage (`Ledger.Persistence.loadOpenCaptures`, zwei Abfragen je Lauf), die abgelösten Ids der zulässigen Beobachtungen gebündelt, und schreibt die beiden Log-Zeilen aus What 2. `openPushMatchEvents` (EntryLinkedToYnab, Actor `YnabMirror`), `survivorBeforeRun` kennt den Fall.
+- `retryPushToYnab now origin runMirrorNow push triggerMirror entryId`: Ablehnungen ohne Sperre, bei einer Erfassung `runMirrorNow` außerhalb von `WriteGuard` (Fehler oder Ausnahme: `Error retryMirrorUnavailableText`, kein Push, kein Ereignis), dann unter der Sperre neu laden; verknüpft: `Ok PushToYnabSent` ohne Push und ohne Auslöser. Live: `Server.Api.retryPushToYnabWith entryPush Ledger.CommandHandlers.mirrorYnabBudget`.
+- Kommentare an `PushArrival`, `addCashExpenseWith`, `addCashBooking*` nachgezogen, `ArrivedWithoutId` und der 409-Zweig bleiben.
+
+Tests (`./verify.sh`: VERIFY: PASS, dotnet 4985 grün, node 322 grün), alle Daten erfunden:
+- Testplan 1, `src/Tests/LedgerCashBookingTests.fs` „Ledger Versand ohne import_id (echter Einzel-Post, ledger-ay81j)“ mit Fake-Handler (`PostRecorder`) am echten Adapter: Quick Add über `quickAddPortsOn`, Neue Buchung mit und ohne Übertrag über `ledgerBookingPortsOn`, Erneut senden einer alten Erfassung mit `BB:`-Verknüpfung über `entryPushWith … (createTransactionOn http)`, intakt Comdirect Erneut senden mit `BB:<Reference>` ohne Spiegel. Bob-Commit über `botPushOn` im Test „Bobs Commit pusht den Request …“. Pure Planung: „eine in BB erfasste Buchung geht ohne import_id, auch mit alter BB:-Verknüpfung“. Ersetzt: der Quick-Add-Test mit fester `import_id` und die Bob-Prüfung auf `BB:<EntryId>`; `QuickAddTests.fs` prüft den Rumpf jetzt mit und ohne `import_id`.
+- Testplan 2, neue Datei `src/Tests/LedgerOpenPushLinkTests.fs` (13 Fälle): Treffer, je Kriterium ein Gegenfall (Payee, Konto, Tag, Betrag ohne Währung, Übertrag mit Zielkonto in drei Richtungen, gelöscht, mit `import_id`, mit Abgleich, bekannte Id), Mehrdeutigkeit in beide Richtungen, zwei Paare im Lauf, `isCapturedInBb` je Actor, `isOpenForPushLink`.
+- Testplan 3 und 4, `lostPushAnswerTests` umgebaut: Kaputt Netzfehler (Payee anders geschrieben) und Kaputt Ausgang unbekannt (`PushOutcomeUnknown`), je über `runMirror` in-memory mit `EntryLinkedToYnab` durch `YnabMirror`, keine zweite Buchung, Fehlschlag beendet; intakt anderer Payee; Bestand alte Erfassung mit `BB:` über die ImportId. Entfallen: „Erneut senden mit derselben import_id, 409“ und „Erneut senden ohne import_id in CashExpenseAdded“ (abgedeckt durch die Live-Tests und `LedgerRetryPushTests`).
+- Testplan 5, `src/Tests/LedgerMirrorBatchTests.fs` „Spiegel-Lauf: offene Erfassung“: eindeutiges Paar ohne Änderungsereignis, zwei Erfassungen zu einer Beobachtung und zwei Beobachtungen zu einer Erfassung, je mit der Log-Zeile.
+- Testplan 6, `src/Tests/LedgerRetryPushTests.fs` „Ledger Erneut senden einer offenen Erfassung“: (a) echter `runMirror` verknüpft, kein Push, kein Auslöser; (b) Spiegel-Fehler und Ausnahme, kein Push, kein Ereignis, Wortlaut; (c) genau ein Push ohne `import_id`; (d) Comdirect ruft den Spiegel nicht; Live über `Server.Api.ledgerApi.retryPushToYnab` (Test-DB ohne Token: der echte `mirrorYnabBudget` scheitert, also kein `EntryPushToYnabFailed`).
+- Testplan 7, `src/Tests/LedgerSplitWriteTests.fs` „Ledger Split-Ersatz einer erfassten Buchung“: erfasst mit und ohne alte Verknüpfung ohne `import_id` und ohne `EntryReplacementSentToYnab`, mit Betrag, offener Ersatz mit `pending.NewImportId`, intakt `:r1`, `replacementImportIdFor`.
+- Testplan 8, `src/Tests/LedgerEntryDeletionTests.fs` „Buchung wiederherstellen: in BB erfasst ohne import_id“: erfasst ohne `import_id` und ohne `EntryRestoreSentToYnab`, `EntryDeletedInBb` mit der alten; offenes Wiederherstellen mit `pending.NewImportId`; Comdirect mit `:r1`.
+- Testplan 9: `BankImportTests.fs`, `YnabClientTests.fs` unverändert grün.
+- Bob (`src/Tests/BotApiTests.fs`): der 409-Test ist ersetzt durch „verlorene Antwort: push_error, der Spiegel verknüpft, eine Buchung, zählt einmal, kein zweiter Push“.
+- Strukturwächter (`src/Tests/StructureGuardTests.fs`): Muster und Gegenbeweise auf die Fabriken umgestellt (`quickAddPortsOn`, `ledgerBookingPortsOn`, `liveQuickAddPorts`/`liveLedgerBookingPorts` mit `sharedHttpClient`, `entryPush`, `isBotPushWired` für `liveDepsOn`/`liveDeps`). Mitgezogen: `LedgerBookingCaptureTests.fs`, `LedgerHeldDuplicateTests.fs`.
+
+Rot vor dem Fix: Die Tests entstanden nach dem Produktionscode (die alten Signaturen ließen sich nach dem Umbau nicht mehr aufrufen). Gegenproben, je lokal gebaut, volle Suite, danach wiederhergestellt:
+1. `planEntryPush` mit `currentImportId` auch für Erfassungen: rot „eine in BB erfasste Buchung geht ohne import_id …“ und „Erneut senden einer alten Erfassung …“.
+2. `quickAddPortsOn` mit `(Some "BB:x")`: rot „Quick Add sendet über den echten Einzel-Post ohne import_id“ und der Strukturwächter.
+3. `botPushOn` mit `(Some "BB:x")`: rot „Bobs Commit pusht den Request …“.
+4. `resolveEntry` ohne dritte Stufe: rot beide Kaputt-Tests der verlorenen Antwort, Bob verlorene Antwort, Retry (a), Batch eindeutiges Paar.
+5. `retryPushToYnab` ohne `runMirrorNow`: rot Retry (a), (b) und der Live-Test.
+6. `planOpenPushLinks` ohne Eindeutigkeit: rot die vier Mehrdeutigkeits-Tests (rein und Lauf).
+7. `replacementImportIdFor` ohne den Zweig „erfasst“: rot Split erfasst, Split mit Betrag, `replacementImportIdFor`, Wiederherstellen erfasst.
+Kein Überlebender gilt nur für diese sieben Mutanten.
+
+Abweichungen von der Task:
+- What 4, „ein erneuter Commit derselben `preview_id` liest den Stand aus dem Kassenbuch“: Innerhalb der Prozesslaufzeit liefert `BotPreviewStore.CommitOnce` das zwischengespeicherte erste Ergebnis (`pushed_to_ynab: false` mit `push_error`), auch nach der Verknüpfung durch den Spiegel; `bookedFromLedger` greift nur nach einem abgebrochenen Versuch oder für einen neuen Slot. Es gibt keinen zweiten Push und keine zweite Buchung. Das Verhalten ist unverändert (What 4: Verhalten bleibt), der Test prüft keinen zweiten Push, nicht `pushed_to_ynab` der Wiederholung.
+- Ein Erneut senden, das der Spiegel gerade verknüpft hat, stößt keinen weiteren Spiegel-Lauf an.
+- Die ADR-Nachträge aus dem Verfeinern decken die Umsetzung ab, kein neuer ADR.
+
+README ledger, von Hand zu platzieren (Bullets ohne fetten Kopf, per Delta nicht erreichbar):
+- `## Key commands`, *BuchungÜbernehmen*: „(`YnabClient.createTransactionWith` mit der festen `import_id` `BB:` plus EntryId, ledger-p3vq8; liefert die YNAB-Transaction-Id aus der Antwort des Einzel-Posts)“ ersetzen durch „(Einzel-Post `YnabClient.createTransactionOn` ohne `import_id`, ledger-ay81j; liefert die YNAB-Transaction-Id aus der Antwort)“, und „Kennt YNAB die `import_id` schon (409), ist die Buchung angekommen: kein Fehlschlag, `Ok entryId`, der Spiegel verknüpft (**Versand-Ausgang**, ledger-xqqnv).“ ersetzen durch „Geht die Antwort verloren, verknüpft der nächste Spiegel-Lauf die Buchung als **Offene Erfassung** (ledger-ay81j); den 409-Zweig (ledger-xqqnv) erreicht eine Buchung ohne `import_id` nicht mehr.“
+- `## Ereignisse`, `CashExpenseAdded`: „Seit Schema-Version 3 (ledger-p3vq8) mit `importId` (`BB:` plus EntryId), Version 1 und 2 ohne.“ ersetzen durch „Seit Schema-Version 3 (ledger-p3vq8) mit dem Feld `importId` (`BB:` plus EntryId), Version 1 und 2 ohne; seit ledger-ay81j schreibt BB es leer, die Buchung geht ohne `import_id` an YNAB.“
+- `## Ereignisse`, **Verknüpfung**: „oder vom Spiegel über die ImportId (Actor `YnabMirror`, ADR 0021)“ ergänzen zu „oder vom Spiegel über die ImportId oder als offene Erfassung (Actor `YnabMirror`, ADR 0021, ledger-ay81j)“.
+- `## Key events`, *EntryReplacementSentToYnab* / *EntryRestoreSentToYnab*: Satz anhängen „Für eine in BB erfasste Buchung entfallen beide, sie geht ohne `import_id` (ledger-ay81j).“
+- `## Key commands`, *Lesen für eine Auswahl*: nach „(YNAB-Id, Übertrags-Gegenbuchungen, ImportId, abgelöste Id; `findEntriesByLinks`)“ einfügen „, dazu die offenen Erfassungen über eine feste Abfrage (`loadOpenCaptures`, ledger-ay81j)“.
+Das README_DELTA (17 Ops, Iteration 2 neu: **Schreib-Sperre**, der Satz zur festen `import_id` beschreibt jetzt den Abgleich **Offene Erfassung**, dazu der Spiegel vor der Sperre beim Erneut senden) ist mit `npm run check:readme-delta -- --bc ledger --delta <datei>` geprüft (Exit 0). Vollständigkeit: Ich habe das Delta auf eine Kopie der README angewendet und die ganze Datei (Bullets, `## Ereignisse`, Key commands, Key events, Open questions) per grep nach „feste/festen import_id“, `409`, `cashEntryImportId`, `ImportIdAlreadyInYnab`, `createTransactionWith` und „BB:<“ durchsucht. Falsch bleiben danach nur die Stellen der Hand-Liste oben (*BuchungÜbernehmen* mit `createTransactionWith`, „festen `import_id`“ und dem 409-Satz; `CashExpenseAdded` und **Verknüpfung** in `## Ereignisse`). Die übrigen Treffer sind richtig: `409` unter **Push-Fehlschlag**, **Ersatz-import_id**, **Erneut senden**, **Versand-Ausgang** und **Offener Ersatz** meint Comdirect und den offenen Ersatz, **Bot-Commit** sagt, dass kein 409 mehr entsteht, „BB:<Reference>“ unter **Ist neu** ist ein Comdirect-Import, „BB:<EntryId>“ nennt alte Erfassungen, und „feste `import_id`“ steht im neuen Bullet nur als abgelöster Begriff.
+
+Für die Kann-Sammlung ledger:
+- `BotPreviewStore.CommitOnce` liefert nach einer verlorenen Antwort bis zum Neustart `pushed_to_ynab: false`, obwohl der Spiegel die Buchung inzwischen verknüpft hat; eine Wiederholung könnte bei einem `BotBooked` mit `PushedToYnab = false` den Stand neu aus dem Kassenbuch lesen.
+- `loadOpenCaptures` lädt je Lauf alle offenen Erfassungen ohne Zeitfenster; bei vielen dauerhaft offenen Buchungen ließe sich auf die Tage der Beobachtungen einschränken.
+
+Conductor bei der Integration (Iteration 3): Die Hand-Liste und die drei Funde des Verifiers aus Iteration 2 (*PushErneutSenden*, *EntryReplacedInYnab*, *EntryDeletedInBb / EntryRestoredInBb*) hat der Conductor selbst in die README gesetzt, der Verifier hat die integrierte README geprüft (PASS). Probelauf gegen eine frische Kopie der Produktion (Delta-Lauf, nur GET): keine Änderung, kein Fehler. Gate auf main: VERIFY: PASS (dotnet 4985, node 322).

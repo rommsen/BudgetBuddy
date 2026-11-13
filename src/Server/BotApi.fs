@@ -200,9 +200,9 @@ type BotDeps = {
     ResolveTarget: unit -> Async<Result<BotTarget, string>>
     /// Der Push nach YNAB auf das Konto der Vorschau, mit dem Request, den die Barbuchung
     /// (`Ledger.CommandHandlers.addCashBookingWith`) aus denselben Werten wie die
-    /// Kassenbuch-Eingabe baut (ledger-bk3q8), und der festen `import_id` aus
-    /// `CashExpenseAdded` (ledger-p3vq8).
-    Push: YnabAccountId * string * ManualTransactionRequest -> Async<YnabResult<string>>
+    /// Kassenbuch-Eingabe baut (ledger-bk3q8), ohne `import_id` (ledger-ay81j, ADR 0066
+    /// Nachtrag 2026-11-13).
+    Push: YnabAccountId * ManualTransactionRequest -> Async<YnabResult<string>>
     /// Das Buchen ins Kassenbuch mit anschließendem Push. Live ist das
     /// `Ledger.CommandHandlers.addCashExpense`; Tests lösen hier Ausnahmen vor und nach dem
     /// Schreiben aus (ledger-z71ka).
@@ -402,7 +402,7 @@ let private bookWithinLimit (deps: BotDeps) (p: BotPreview) (entryId: Ledger.Eve
                     Ledger.Events.Bob
                     (deps.Now())
                     entryId
-                    (fun importId request -> deps.Push (p.Target.YnabAccountId, importId, request))
+                    (fun request -> deps.Push (p.Target.YnabAccountId, request))
                     deps.TriggerMirror
                     booking
             with
@@ -532,8 +532,24 @@ let private ynabContext () : Async<Result<string * YnabBudgetId, string>> =
         | Some token, Some budgetId -> return Ok (token, YnabBudgetId budgetId)
     }
 
-/// Die Umgebung der laufenden App. Eine Instanz teilt sich einen Vorschau-Speicher.
-let liveDeps (berlinZone: TimeZoneInfo) : BotDeps =
+/// Bobs Push mit dem `HttpClient` des Einzel-Posts (ledger-ay81j): Token und Budget aus
+/// `context`, die Barbuchung ohne `import_id`, ohne Flag und ohne Übertrag auf das Konto der
+/// Vorschau.
+let botPushOn
+    (http: System.Net.Http.HttpClient)
+    (context: unit -> Async<Result<string * YnabBudgetId, string>>)
+    : YnabAccountId * ManualTransactionRequest -> Async<YnabResult<string>> =
+    fun (ynabAccountId, request) ->
+        async {
+            match! context () with
+            | Error reason -> return Error (YnabError.Unauthorized reason)
+            | Ok (token, budgetId) ->
+                return! Server.YnabClient.createTransactionOn http None None None token budgetId ynabAccountId request
+        }
+
+/// Die Umgebung der laufenden App mit dem `HttpClient` des Einzel-Posts. Eine Instanz teilt sich
+/// einen Vorschau-Speicher.
+let liveDepsOn (berlinZone: TimeZoneInfo) (http: System.Net.Http.HttpClient) : BotDeps =
     {
         Token = fun () -> Server.ServerConfig.resolveBotToken (Environment.GetEnvironmentVariable Server.ServerConfig.botApiTokenVariable)
         MaxAmountEur =
@@ -559,16 +575,13 @@ let liveDeps (berlinZone: TimeZoneInfo) : BotDeps =
                         return
                             Ok { LedgerAccountId = account.LedgerAccountId; YnabAccountId = account.YnabAccountId; AccountName = account.AccountName }
                 }
-        Push =
-            fun (ynabAccountId, importId, request) ->
-                async {
-                    match! ynabContext () with
-                    | Error reason -> return Error (YnabError.Unauthorized reason)
-                    | Ok (token, budgetId) -> return! Server.YnabClient.createTransactionWith (Some importId) token budgetId ynabAccountId request
-                }
+        Push = botPushOn http ynabContext
         AddCashExpense = Ledger.CommandHandlers.addCashExpense
         TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground
         Store = BotPreviewStore()
         Limiter = BotRateLimiter(rateLimitPerWindow, rateLimitWindow)
         Categories = BotCategoryCache()
     }
+
+/// Die Umgebung der laufenden App mit dem gemeinsamen Client des Servers.
+let liveDeps (berlinZone: TimeZoneInfo) : BotDeps = liveDepsOn berlinZone Server.YnabClient.sharedHttpClient

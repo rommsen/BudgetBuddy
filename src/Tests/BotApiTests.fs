@@ -496,33 +496,49 @@ let botApiTests =
             Expect.equal (entriesFor payee).Length 1 "keine zweite Buchung"
             Expect.equal env.Pushes 1 "kein zweiter Push"
 
-        // ledger-xqqnv: kennt YNAB die import_id schon (409), ist die Buchung angekommen. Bisher meldete Bob
-        // `pushed_to_ynab: false` mit Fehlschlag, obwohl sie in YNAB steht.
-        testCase "Push mit 409: pushed_to_ynab ohne push_error, eine Buchung, zählt einmal, kein zweiter Push" <| fun () ->
-            let env = Env(pushResult = async.Return (Error ImportIdAlreadyInYnab))
+        // ledger-ay81j: Bob-Buchungen gehen ohne import_id, ein 409 entsteht nicht mehr. Geht die Antwort verloren,
+        // meldet der Commit `pushed_to_ynab: false` mit `push_error`, der nächste Spiegel-Lauf verknüpft die Buchung
+        // als offene Erfassung, und eine Wiederholung des Commits pusht nicht noch einmal.
+        testCase "verlorene Antwort: push_error, der Spiegel verknüpft, eine Buchung, zählt einmal, kein zweiter Push" <| fun () ->
+            let ledgerAccount = LedgerAccountId (Guid.NewGuid())
+            let ynab = YnabAccountId (Guid.NewGuid())
+            saveAccount { Id = ledgerAccount; Name = $"Bar-{Guid.NewGuid()}"; Kind = CashAccount; Link = YnabMirrored ynab; Closed = false }
+            |> Async.RunSynchronously
+            let env =
+                Env(pushResult = async.Return (Error (YnabError.NetworkError "Zeitüberschreitung")),
+                    target = Ok { LedgerAccountId = ledgerAccount; YnabAccountId = ynab; AccountName = "Bar" })
             let payee = uniquePayee ()
             let id = preview env.Deps payee "1" "outflow"
             let status, json = commit env.Deps id
             Expect.equal status 200 "Buchung steht"
-            Expect.isTrue (json.Value.GetProperty("pushed_to_ynab").GetBoolean()) "in YNAB angekommen"
-            Expect.equal (json.Value.GetProperty("push_error").ValueKind) JsonValueKind.Null "kein push_error"
-            let entry = entriesFor payee |> List.exactlyOne
-            Expect.equal
-                (loadEventsForEntry entry.Id |> Async.RunSynchronously |> List.map (fun r -> r.EventType, r.Event.Actor))
-                [ "CashExpenseAdded", Bob ]
-                "eine Bob-Buchung ohne Fehlschlag"
+            Expect.isFalse (json.Value.GetProperty("pushed_to_ynab").GetBoolean()) "nicht als angekommen gemeldet"
+            Expect.stringContains (str json "push_error") "Netzwerk" "Grund"
+            let entry =
+                loadEntriesForAccount ledgerAccount |> Async.RunSynchronously |> List.filter (fun e -> e.Payee = Some payee) |> List.exactlyOne
+            let ynabTxId = $"ynab-ay81j-{Guid.NewGuid()}"
+            let observation : Server.YnabObservations.YnabObservation = {
+                YnabTransactionId = ynabTxId; AccountId = ynab; ImportId = None; Date = entry.Date; Amount = entry.Amount
+                Payee = entry.Payee; Memo = entry.Memo; Category = entry.Category; Splits = []; SplitTransfers = []
+                Cleared = Uncleared; TransferAccountId = None; TransferYnabTransactionId = None
+                MatchedYnabTransactionId = None; Deleted = false; Approved = false; FlagColor = None; FlagName = None }
+            let fetchers = {
+                Ledger.CommandHandlers.emptyMirrorFetchers with
+                    FetchAccounts =
+                        fun _ -> async.Return (Ok { Accounts = [ { AccountId = ynab; Name = "Bar"; Closed = false; Deleted = false } ]; ServerKnowledge = 5L })
+                    FetchTransactions = fun _ -> async.Return (Ok { Observations = [ observation ]; ServerKnowledge = 5L })
+            }
+            match Ledger.CommandHandlers.runMirror (env.Now.AddMinutes 5.0) fetchers (YnabBudgetId $"budget-bot-{Guid.NewGuid()}") |> Async.RunSynchronously with
+            | Ok summary -> Expect.equal summary.NewEntries 0 "keine zweite Buchung im Spiegel"
+            | Error e -> failtest e
+            let linked = loadEntry entry.Id |> Async.RunSynchronously |> Option.get
+            Expect.isTrue linked.LinkedToYnab "nach dem Spiegel verknüpft"
+            Expect.isNone linked.PushToYnabFailure "der Fehlschlag ist beendet"
             let _, again = commit env.Deps id
             Expect.equal (str again "entry_id") (str json "entry_id") "derselbe Commit, dieselbe Buchung"
-            Expect.equal (entriesFor payee).Length 1 "keine zweite Buchung"
             Expect.equal env.Pushes 1 "kein zweiter Push"
-            // Tagesnutzung: die Buchung zählt genau einmal, mit 1 Euro Summe und Anzahl 1.
+            // Tagesnutzung: die Buchung zählt genau einmal, mit 1 Euro Summe.
             Expect.equal (fst (previewOn env.Deps (todayText env.Deps) "499" "outflow")) 200 "499 Euro passen noch"
             Expect.equal (fst (previewOn env.Deps (todayText env.Deps) "499.01" "outflow")) 422 "die Summe zählt den einen Euro"
-            for _ in 1..8 do
-                commit env.Deps (preview env.Deps (uniquePayee ()) "1" "outflow") |> ignore
-            Expect.equal (fst (previewOn env.Deps (todayText env.Deps) "1" "outflow")) 200 "neun Commits, ein zehnter geht noch"
-            commit env.Deps (preview env.Deps (uniquePayee ()) "1" "outflow") |> ignore
-            Expect.equal (fst (previewOn env.Deps (todayText env.Deps) "1" "outflow")) 422 "nach zehn Commits ist die Anzahl erreicht"
 
         // infrastructure-vp308: bei 400 hängte `createTransactionWithFlag` YNABs Antwortrumpf an den Fehler,
         // Bob bekam ihn als `push_error`, das Kassenbuch als Grund von `EntryPushToYnabFailed`. Der Fake

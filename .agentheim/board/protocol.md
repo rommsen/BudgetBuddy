@@ -5,6 +5,41 @@ Newest entries on top.
 
 ---
 
+## 2026-11-13 17:05 -- Task verified and completed: ledger-ay81j - "In BB erfasste Buchungen gehen ohne import_id an YNAB, der Spiegel verknüpft offene Erfassungen nach Konto, Tag, Betrag und Payee"
+
+**Type:** Work / Task completion
+**Task:** ledger-ay81j - "In BB erfasste Buchungen gehen ohne import_id an YNAB, der Spiegel verknüpft offene Erfassungen nach Konto, Tag, Betrag und Payee"
+**Summary:** in BB erfasste Buchungen gehen ohne import_id an YNAB, der Spiegel verknüpft offene Erfassungen
+**Duration:** 1h05m
+**Verification:** PASS (iteration 3)
+**Files changed:** 18
+**Tests added:** 39
+**ADRs written:** none
+
+---
+
+## 2026-11-13 16:58 -- Verification failed: ledger-ay81j - In BB erfasste Buchungen ohne import_id
+
+**Type:** Work / Verification failure
+**Task:** ledger-ay81j - In BB erfasste Buchungen ohne import_id
+**Iteration:** 2 of 3
+**Reasons:** Key command PushErneutSenden und zwei Key events nicht nachgezogen (README), Code unverändert und in Ordnung
+**Iteration hint:** likely-fixable
+**Next:** Conductor zieht die README beim Integrieren selbst nach (reine Doku), Verifier prüft die integrierte README als Iteration 3
+
+---
+
+## 2026-11-13 16:54 -- Verification failed: ledger-ay81j - In BB erfasste Buchungen ohne import_id
+
+**Type:** Work / Verification failure
+**Task:** ledger-ay81j - In BB erfasste Buchungen ohne import_id
+**Iteration:** 1 of 3
+**Reasons:** README-Delta deckt den Bullet Schreib-Sperre nicht ab (feste import_id), Vollständigkeitsaussage im OUTCOME falsch
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-13 16:09 -- Batch started: [ledger-ay81j]
 
 **Type:** Work / Batch start

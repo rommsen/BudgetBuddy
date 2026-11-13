@@ -189,7 +189,7 @@ let private commands : (string * (EntryId -> Async<Result<unit, string>>)) list 
       "setEntryMemo", fun id -> setEntryMemo at (fun _ _ -> noYnab "MemoPush") id "neu" |> ignoreOk
       "setEntryAmount", fun id -> setEntryAmount at (fun _ _ -> noYnab "AmountPush") id -40m |> ignoreOk
       "deleteEntry", fun id -> deleteEntry at (fun _ -> noYnab "Delete") ignore id |> ignoreOk
-      "retryPushToYnab", fun id -> retryPushToYnab at (fun _ -> noYnab "EntryPush") ignore id |> ignoreOk
+      "retryPushToYnab", fun id -> retryPushToYnab at loadEntryOrigin (fun () -> noYnab "Spiegel") (fun _ -> noYnab "EntryPush") ignore id |> ignoreOk
       "retryReviewMarkWriteBack", fun id -> retryReviewMarkWriteBack at (fun _ _ _ -> noYnab "ReviewMarkPush") id |> ignoreOk
       "retryCategorizationWriteBack", fun id -> retryCategorizationWriteBack at (fun _ _ -> noYnab "CategoryPush") id |> ignoreOk
       "retryCategorizationOrSplitWriteBack", fun id ->

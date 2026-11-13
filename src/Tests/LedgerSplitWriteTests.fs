@@ -708,14 +708,14 @@ let splitCommandTests =
                 Expect.isEmpty p.NewSplits "NewSplits leer"
             | other -> failtest $"erwartet Recategorized, war {other}"
 
-        // ledger-m7k2d, kaputt: GIVEN eine aufgeteilte Barbuchung mit `cashEntryImportId`
-        // (35 Zeichen), WHEN der Split geändert wird, THEN lehnte `setEntrySplits` vor dem Fix ab
+        // ledger-m7k2d, kaputt: GIVEN eine aufgeteilte Barbuchung mit der alten festen import_id
+        // `BB:<EntryId>` (35 Zeichen), aus YNAB beobachtet, WHEN der Split geändert wird, THEN lehnte `setEntrySplits` vor dem Fix ab
         // ("länger als 36 Zeichen"). Jetzt laufen DELETE und POST mit gekürzter Ersatz-Id, und
         // eine zweite Änderung schickt wieder eine andere import_id.
-        testCase "Ändern einer aufgeteilten Barbuchung mit cashEntryImportId: POST mit gekürzter Ersatz-Id, zweite Änderung wieder anders" <| fun () ->
+        testCase "Ändern einer aufgeteilten Barbuchung mit fester import_id: POST mit gekürzter Ersatz-Id, zweite Änderung wieder anders" <| fun () ->
             let entryId = newEntryId ()
             let oldId = freshYnabId ()
-            let importId = cashEntryImportId entryId
+            let importId = (let (EntryId g) = entryId in $"BB:{g:N}")
             appendAndApply
                 [ eventOn entryId YnabMirror (EntryObservedInYnab { observedPayload oldId (Some importId) with Splits = twoLines }) ]
             |> Async.RunSynchronously
@@ -1560,4 +1560,94 @@ let splitYnabClientTests =
             match Ynab.parseAccountsResponse body with
             | Ok [ account ] -> Expect.isFalse account.OnBudget "Tracking-Konto"
             | other -> failtest $"erwartet ein Konto, war {other}"
+    ]
+
+// ============================================
+// Ersatz einer in BB erfassten Buchung ohne import_id (ledger-ay81j, ADR 0058 Nachtrag 2026-11-13)
+// ============================================
+
+/// Eine in BB erfasste, mit YNAB verknüpfte und aufgeteilte Buchung. `oldImportId` ist die alte feste
+/// `BB:<EntryId>` aus der Zeit vor ledger-ay81j (oder keine). Aufgeteilt per PUT, damit YNAB sie aufgeteilt hält.
+let private seedCapturedSplit (oldImportId: bool) : EntryId * string =
+    let entryId = newEntryId ()
+    let ynabId = freshYnabId ()
+    appendAndApply [
+        eventOn entryId QuickAdd (
+            CashExpenseAdded {
+                AccountId = accountId; Date = at.Date; Amount = eur -12.00m; Payee = Some "Kiosk"; Memo = None
+                Category = Some catA; Cleared = Uncleared; Approved = true
+                ImportId = if oldImportId then Some (let (EntryId g) = entryId in $"BB:{g:N}") else None }
+        )
+        eventOn entryId QuickAdd (EntryLinkedToYnab { YnabTransactionId = ynabId })
+    ]
+    |> Async.RunSynchronously
+    setEntrySplits at (ToolsProbe()).Tools entryId twoLines |> Async.RunSynchronously |> ignore
+    entryId, ynabId
+
+[<Tests>]
+let capturedReplacementTests =
+    let testCase name body =
+        testCase name (fun () ->
+            initializeLedgerSchema ()
+            global.Persistence.initializeDatabase ()
+            seedCategories ()
+            seedAccount ()
+            body ())
+
+    testSequenced
+    <| testList "Ledger Split-Ersatz einer erfassten Buchung (ledger-ay81j)" [
+        testCase "Erfasst: der Ersatz geht ohne import_id, auch mit alter BB:-Verknüpfung, ohne EntryReplacementSentToYnab" <| fun () ->
+            // Verhindert, dass YNAB den Ersatz einer Barbuchung mit `BB:<id>:r1` wie einen Bankimport abgleicht.
+            for withOldImportId in [ true; false ] do
+                let entryId, oldId = seedCapturedSplit withOldImportId
+                let probe = ToolsProbe()
+                probe.CreateResult <- Some (Ok (freshYnabId ()))
+                setSplits probe entryId [ line catA -4.00m; line catC -8.00m ] |> unwrap |> ignore
+                Expect.equal probe.Deletes [ oldId ] "DELETE der alten Id"
+                Expect.equal (probe.Creates |> List.map (fun r -> r.ImportId)) [ None ] $"POST ohne import_id (alte Verknüpfung: {withOldImportId})"
+                let types = eventTypesOf entryId
+                Expect.isFalse (List.contains "EntryReplacementSentToYnab" types) "kein EntryReplacementSentToYnab"
+                match (eventsOfEntry entryId |> List.last).Event.Body with
+                | EntryReplacedInYnab p -> Expect.isNone p.NewImportId "Ersatz ohne import_id"
+                | other -> failtest $"EntryReplacedInYnab erwartet, war {other}"
+
+        testCase "Erfasst mit Betrag: Betrag und Aufteilung gehen ohne import_id" <| fun () ->
+            let entryId, _ = seedCapturedSplit true
+            let probe = ToolsProbe()
+            probe.CreateResult <- Some (Ok "ynab-betrag")
+            setEntrySplitsWithAmount at probe.Tools entryId [ line catA -5.00m; line catC -10.00m ] -15.00m
+            |> Async.RunSynchronously
+            |> unwrap
+            |> ignore
+            Expect.equal (probe.Creates |> List.map (fun r -> r.ImportId)) [ None ] "POST ohne import_id"
+
+        testCase "Erfasst, Ersatz schon offen: Erneut senden geht weiter mit pending.NewImportId" <| fun () ->
+            let entryId, oldId = seedCapturedSplit true
+            let pendingId = (let (EntryId g) = entryId in $"BB:{g:N}:r1")
+            appendAndApply [
+                eventOn entryId UserInBb (EntryReplacementSentToYnab { OldYnabTransactionId = oldId; NewImportId = pendingId })
+            ]
+            |> Async.RunSynchronously
+            let probe = ToolsProbe()
+            probe.CreateResult <- Some (Ok "ynab-offen")
+            retryCategorizationOrSplitWriteBack at (fun _ _ -> async { return Ok () }) probe.Tools noTransfer entryId
+            |> Async.RunSynchronously
+            |> unwrap
+            |> ignore
+            Expect.equal (probe.Creates |> List.map (fun r -> r.ImportId)) [ Some pendingId ] "die Ersatz-import_id des offenen Ersatzes"
+
+        testCase "Intakt: ein Comdirect-Import (aus YNAB beobachtet) geht weiter mit :r1" <| fun () ->
+            let entryId, _, importId = seedSplit ()
+            let probe = ToolsProbe()
+            probe.CreateResult <- Some (Ok "ynab-comdirect")
+            setSplits probe entryId [ line catA -4.00m; line catC -8.00m ] |> unwrap |> ignore
+            Expect.equal (probe.Creates |> List.map (fun r -> r.ImportId)) [ Some $"{importId}:r1" ] "Ersatz-import_id"
+            Expect.contains (eventTypesOf entryId) "EntryReplacementSentToYnab" "vor dem POST im Kassenbuch"
+
+        testCase "replacementImportIdFor: offen vor erfasst vor replacementImportId" <| fun () ->
+            let pending : PendingReplacement = { Kind = Replace; OldYnabTransactionId = "y"; NewImportId = "BB:p:r2" }
+            Expect.equal (replacementImportIdFor true (Some pending) (Some "BB:x")) (Some "BB:p:r2") "offen gewinnt"
+            Expect.equal (replacementImportIdFor true None (Some "BB:x")) None "erfasst ohne"
+            Expect.equal (replacementImportIdFor false None (Some "BB:x")) (Some "BB:x:r1") "sonst wie replacementImportId"
+            Expect.equal (replacementImportIdFor false None None) None "ohne import_id keine"
     ]

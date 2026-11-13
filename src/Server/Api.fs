@@ -399,8 +399,8 @@ let settingsApi : SettingsApi = {
 type QuickAddPorts = {
     Setting: string -> Async<string option>
     LoadYnabCategories: string -> YnabBudgetId -> Async<YnabResult<YnabCategory list>>
-    /// Der Einzel-Post: `import_id`, Token, Budget, Konto, Request.
-    Push: string option -> string -> YnabBudgetId -> YnabAccountId -> ManualTransactionRequest -> Async<YnabResult<string>>
+    /// Der Einzel-Post ohne `import_id` (ledger-ay81j, in BB erfasst): Token, Budget, Konto, Request.
+    Push: string -> YnabBudgetId -> YnabAccountId -> ManualTransactionRequest -> Async<YnabResult<string>>
     NewEntryId: unit -> Ledger.Events.EntryId
     TriggerMirror: unit -> unit
 }
@@ -430,7 +430,7 @@ let addManualTransactionWith (ports: QuickAddPorts) (now: DateTime) (validReques
                     Ledger.QueryHandlers.resolveCategoryRefWith
                         Ledger.Persistence.loadCategoryNames
                         (fun () -> ports.LoadYnabCategories token budget)
-                let push importId request = ports.Push (Some importId) token budget account.YnabAccountId request
+                let push request = ports.Push token budget account.YnabAccountId request
 
                 match!
                     Ledger.CommandHandlers.addQuickAdd
@@ -446,14 +446,18 @@ let addManualTransactionWith (ports: QuickAddPorts) (now: DateTime) (validReques
                 | Error err -> return Error err
     }
 
-/// Die Umgebung des laufenden Servers für Quick Add.
-let liveQuickAddPorts : QuickAddPorts = {
+/// Die Umgebung für Quick Add mit dem `HttpClient` des Einzel-Posts (ledger-ay81j): der Push geht
+/// ohne `import_id`, ohne Flag und ohne Übertrag hinaus.
+let quickAddPortsOn (http: System.Net.Http.HttpClient) : QuickAddPorts = {
     Setting = Persistence.Settings.getSetting
     LoadYnabCategories = YnabClient.getCategories
-    Push = YnabClient.createTransactionWith
+    Push = YnabClient.createTransactionOn http None None None
     NewEntryId = Ledger.Events.newEntryId
     TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground
 }
+
+/// Die Umgebung des laufenden Servers für Quick Add.
+let liveQuickAddPorts : QuickAddPorts = quickAddPortsOn YnabClient.sharedHttpClient
 
 // ============================================
 // Buchung im Kassenbuch erfassen (ledger-at63w)
@@ -466,8 +470,9 @@ type LedgerBookingPorts = {
     Setting: string -> Async<string option>
     LoadYnabCategories: string -> YnabBudgetId -> Async<YnabResult<YnabCategory list>>
     BudgetAccounts: string -> YnabBudgetId -> Async<YnabResult<YnabClient.TransferAccount list>>
-    /// Der Einzel-Post: `import_id`, Flag-Farbe, Übertrags-Payee, Token, Budget, Konto, Request.
-    Push: string option -> string option -> string option -> string -> YnabBudgetId -> YnabAccountId -> ManualTransactionRequest -> Async<YnabResult<string>>
+    /// Der Einzel-Post ohne `import_id` (ledger-ay81j, in BB erfasst): Übertrags-Payee, Token,
+    /// Budget, Konto, Request.
+    Push: string option -> string -> YnabBudgetId -> YnabAccountId -> ManualTransactionRequest -> Async<YnabResult<string>>
     Delete: string -> YnabBudgetId -> string -> Async<YnabResult<unit>>
     NewEntryId: unit -> Ledger.Events.EntryId
     TriggerMirror: unit -> unit
@@ -510,8 +515,8 @@ let addLedgerBookingWith
                             Ledger.Persistence.loadCategoryNames
                             (fun () -> ports.LoadYnabCategories token budget)
                     Push =
-                        fun importId account transferPayee request ->
-                            ports.Push (Some importId) None transferPayee token budget account request
+                        fun account transferPayee request ->
+                            ports.Push transferPayee token budget account request
                     TriggerMirror = ports.TriggerMirror
                 }
                 return! Ledger.CommandHandlers.addLedgerBooking now (ports.NewEntryId ()) tools valid
@@ -536,16 +541,20 @@ let discardCapturedBookingWith (ports: LedgerBookingPorts) (now: DateTime) (entr
                         (Ledger.Events.EntryId entryId)
     }
 
-/// Die Umgebung des laufenden Servers für "Neue Buchung" und "Rückgängig".
-let liveLedgerBookingPorts : LedgerBookingPorts = {
+/// Die Umgebung von "Neue Buchung" und "Rückgängig" mit dem `HttpClient` des Einzel-Posts
+/// (ledger-ay81j): der Push geht ohne `import_id` und ohne Flag hinaus.
+let ledgerBookingPortsOn (http: System.Net.Http.HttpClient) : LedgerBookingPorts = {
     Setting = Persistence.Settings.getSetting
     LoadYnabCategories = YnabClient.getCategories
     BudgetAccounts = YnabClient.fetchTransferAccounts
-    Push = YnabClient.createTransactionFor
+    Push = YnabClient.createTransactionOn http None None
     Delete = YnabClient.deleteTransaction
     NewEntryId = Ledger.Events.newEntryId
     TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground
 }
+
+/// Die Umgebung des laufenden Servers für "Neue Buchung" und "Rückgängig".
+let liveLedgerBookingPorts : LedgerBookingPorts = ledgerBookingPortsOn YnabClient.sharedHttpClient
 
 /// Die Ports von "Buchung löschen" und dessen "Rückgängig" (ledger-z6sya, ADR 0092): Settings,
 /// YNAB-DELETE und YNAB-POST der Neuanlage (Token, Budget, Anfrage) und der Spiegel-Auslöser.
@@ -1136,7 +1145,26 @@ let entryPushWith (setting: string -> Async<string option>) (create: EntryPushCr
     }
 
 let private entryPush () : Async<Ledger.CommandHandlers.EntryPush> =
-    entryPushWith Persistence.Settings.getSetting YnabClient.createTransactionFor
+    entryPushWith Persistence.Settings.getSetting (YnabClient.createTransactionOn YnabClient.sharedHttpClient)
+
+/// "Erneut senden" am Hinweis "Noch nicht in YNAB" mit Push, Ursprung und Spiegel des laufenden
+/// Servers (ledger-ay81j): eine in BB erfasste Buchung lässt vorher `mirrorYnabBudget` laufen.
+let retryPushToYnabWith
+    (push: unit -> Async<Ledger.CommandHandlers.EntryPush>)
+    (runMirrorNow: unit -> Async<Result<MirrorRunSummary, string>>)
+    (entryId: Guid)
+    : Async<Result<PushToYnabWriteBack, string>> =
+    async {
+        let! push = push ()
+        return!
+            Ledger.CommandHandlers.retryPushToYnab
+                DateTime.UtcNow
+                Ledger.Persistence.loadEntryOrigin
+                runMirrorNow
+                push
+                Ledger.CommandHandlers.triggerMirrorInBackground
+                (Ledger.Events.EntryId entryId)
+    }
 
 /// Die YNAB-Aufrufe des Split-Schreibwegs (ledger-kxme4, ADR 0058) mit Token und
 /// Standard-Budget aus den Settings, mit denselben Fehlerfällen wie `categoryPush`.
@@ -1429,15 +1457,7 @@ let ledgerApi : LedgerApi = {
             Persistence.Rules.getAllRules
             payee
 
-    retryPushToYnab = fun entryId -> async {
-        let! push = entryPush ()
-        return!
-            Ledger.CommandHandlers.retryPushToYnab
-                DateTime.UtcNow
-                push
-                Ledger.CommandHandlers.triggerMirrorInBackground
-                (Ledger.Events.EntryId entryId)
-    }
+    retryPushToYnab = fun entryId -> retryPushToYnabWith entryPush Ledger.CommandHandlers.mirrorYnabBudget entryId
 
     // "Geprüft" für eine ganze Auswahl und das gemeinsame "Rückgängig" (ledger-nhwrt):
     // ein Ereignis je Buchung, ein Sammel-PATCH an YNAB.

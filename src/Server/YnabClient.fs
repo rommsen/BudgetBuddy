@@ -1223,10 +1223,17 @@ let createTransactionVia (send: string -> Async<int * string>) (requestBody: str
             return Error (fetchFailureOf "POST" "transactions" ex)
     }
 
-/// Creates a single manually entered transaction (Quick Add) in YNAB.
-/// Returns the YNAB transaction id from the response so the caller can link the
-/// Kassenbuch-Buchung to it (`EntryLinkedToYnab`, ADR 0021).
-let createTransactionFor
+/// Der gemeinsame `HttpClient` der Einzel-Posts (`createTransactionFor`). Ein Client für den
+/// ganzen Prozess, das Token geht je Anfrage im Header mit, nie in `DefaultRequestHeaders`.
+let sharedHttpClient : System.Net.Http.HttpClient = new System.Net.Http.HttpClient()
+
+/// Legt eine einzelne Buchung in YNAB an (`POST /budgets/{id}/transactions`) über den
+/// übergebenen `HttpClient` (injizierbar, damit ein Test den Rumpf an einem Fake-Handler liest,
+/// nie gegen YNAB). Liefert die YNAB-Transaction-Id aus der Antwort, damit der Aufrufer die
+/// Kassenbuch-Buchung verknüpfen kann (`EntryLinkedToYnab`, ADR 0021). Ohne `importId` fehlt
+/// der Schlüssel `import_id` im Rumpf.
+let createTransactionOn
+    (httpClient: System.Net.Http.HttpClient)
     (importId: string option)
     (flagColor: string option)
     (transferPayeeId: string option)
@@ -1237,15 +1244,18 @@ let createTransactionFor
     : Async<YnabResult<string>> =
     let send (requestBody: string) =
         async {
-            use httpClient = new System.Net.Http.HttpClient()
-            httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}")
-
-            use content = new System.Net.Http.StringContent(requestBody, System.Text.Encoding.UTF8, "application/json")
-            let! httpResponse = httpClient.PostAsync($"{baseUrl}/budgets/{budgetId}/transactions", content) |> Async.AwaitTask
+            use message =
+                new System.Net.Http.HttpRequestMessage(
+                    System.Net.Http.HttpMethod.Post,
+                    $"{baseUrl}/budgets/{budgetId}/transactions"
+                )
+            message.Headers.Add("Authorization", $"Bearer {token}")
+            message.Content <- new System.Net.Http.StringContent(requestBody, System.Text.Encoding.UTF8, "application/json")
+            let! httpResponse = httpClient.SendAsync message |> Async.AwaitTask
             let! bodyText = httpResponse.Content.ReadAsStringAsync() |> Async.AwaitTask
             let statusCode = int httpResponse.StatusCode
 
-            printfn "[YNAB] POST /budgets/%s/transactions - Quick Add" budgetId
+            printfn "[YNAB] POST /budgets/%s/transactions - Einzelbuchung" budgetId
             printfn "[YNAB] Response Status: %d" statusCode
             return statusCode, bodyText
         }
@@ -1257,25 +1267,17 @@ let createTransactionFor
             return Error (fetchFailureOf "POST" "transactions" ex)
     }
 
-/// Wie `createTransactionFor`, ohne Übertrag (Quick Add, Bob, Import-Rückfrage).
-let createTransactionWithFlag
+/// `createTransactionOn` mit dem gemeinsamen Client des Servers.
+let createTransactionFor
     (importId: string option)
     (flagColor: string option)
+    (transferPayeeId: string option)
     (token: string)
     (budgetId: YnabBudgetId)
     (accountId: YnabAccountId)
     (request: ManualTransactionRequest)
     : Async<YnabResult<string>> =
-    createTransactionFor importId flagColor None token budgetId accountId request
-
-let createTransactionWith
-    (importId: string option)
-    (token: string)
-    (budgetId: YnabBudgetId)
-    (accountId: YnabAccountId)
-    (request: ManualTransactionRequest)
-    : Async<YnabResult<string>> =
-    createTransactionWithFlag importId None token budgetId accountId request
+    createTransactionOn sharedHttpClient importId flagColor transferPayeeId token budgetId accountId request
 
 // ============================================
 // Prüfvermerk zurückschreiben (ADR 0050)
@@ -1307,7 +1309,7 @@ let buildReviewMarkBody (approved: bool) (cleared: ReviewMarkCleared option) : s
 /// Test gegen einen Fake-Handler läuft, nie gegen YNAB). Einzelne Buchung ändern ist
 /// laut YNAB-OpenAPI `PUT .../transactions/{transaction_id}` (`updateTransaction`,
 /// alle Felder des Bodys optional); der Pfad bleibt bei `/budgets/`, wie in den
-/// übrigen Aufrufen dieser Datei. Fehlerzuordnung wie `createTransactionWithFlag`.
+/// übrigen Aufrufen dieser Datei. Fehlerzuordnung wie `createTransactionOn`.
 let sendReviewMark
     (httpClient: System.Net.Http.HttpClient)
     (YnabBudgetId budgetId: YnabBudgetId)

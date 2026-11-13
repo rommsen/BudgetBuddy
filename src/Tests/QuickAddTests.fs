@@ -199,18 +199,13 @@ let jsonBodyTests =
             Expect.equal amount -4500 "Amount should be a signed milliunit number"
         }
 
-        test "Quick Add und Bob senden die feste import_id aus BB: und der EntryId (ADR 0004 Nachtrag)" {
-            // ledger-p3vq8: ersetzt "import_id abwesend". Mit der festen import_id findet der
-            // Spiegel eine Buchung, deren Push-Antwort verloren ging, und YNAB lehnt ein zweites
-            // Senden ab.
-            let guid = Guid.Parse "0195c000-1234-7000-8000-00000000abcd"
-            let importId = Ledger.CommandHandlers.cashEntryImportId (Ledger.Events.EntryId guid)
-            let json = buildManualTransactionBodyWith (Some importId) (YnabAccountId (Guid.NewGuid())) validRequest
-            Expect.equal
-                (decodeAt [ "transaction"; "import_id" ] Decode.string json)
-                "BB:0195c00012347000800000000000abcd"
-                "BB: und die EntryId ohne Bindestriche"
-            Expect.equal importId.Length 35 "35 Zeichen, YNAB erlaubt 36"
+        test "der Rumpf trägt eine übergebene import_id, ohne fehlt der Schlüssel" {
+            // ledger-ay81j: in BB erfasste Buchungen gehen ohne import_id (`None`), Comdirect-Importe mit.
+            let account = YnabAccountId (Guid.NewGuid())
+            let withId = buildManualTransactionBodyWith (Some "BB:ref-1") account validRequest
+            Expect.equal (decodeAt [ "transaction"; "import_id" ] Decode.string withId) "BB:ref-1" "mit import_id"
+            let without = buildManualTransactionBodyWith None account validRequest
+            Expect.isFalse (decodeAt [ "transaction" ] Decode.keys without |> List.contains "import_id") "ohne den Schlüssel"
         }
 
         test "eine Buchung ohne import_id geht ohne den Schlüssel hinaus" {

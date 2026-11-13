@@ -38,20 +38,56 @@ let private eventTypesOf (entryId: EntryId) = eventsOf entryId |> List.map (fun 
 /// Ein Push, der jeden Request mitschreibt.
 let private recordingPush (result: YnabResult<string>) =
     let requests = ResizeArray<ManualTransactionRequest>()
-    let push (_importId: string) (request: ManualTransactionRequest) =
+    let push (request: ManualTransactionRequest) =
         requests.Add request
         async.Return result
     requests, push
 
-/// Das `import_id` im JSON-Rumpf des Einzel-Posts, `None` ohne den Schlüssel.
-let private importIdInBody (body: string) : string option =
-    match Thoth.Json.Net.Decode.fromString (Thoth.Json.Net.Decode.at [ "transaction" ] (Thoth.Json.Net.Decode.optional "import_id" Thoth.Json.Net.Decode.string)) body with
-    | Ok importId -> importId
+/// `BB:` und die EntryId ohne Bindestriche, wie Barbuchungen sie vor ledger-ay81j trugen.
+let private oldCashImportId (EntryId id) = "BB:" + id.ToString().Replace("-", "")
+
+/// Die Schlüssel des `transaction`-Objekts im JSON-Rumpf eines Einzel-Posts.
+let private transactionKeys (body: string) : string list =
+    match
+        Thoth.Json.Net.Decode.fromString
+            (Thoth.Json.Net.Decode.field "transaction" (Thoth.Json.Net.Decode.keyValuePairs Thoth.Json.Net.Decode.value))
+            body
+    with
+    | Ok pairs -> pairs |> List.map fst
     | Error err -> failtest $"Rumpf nicht lesbar: {err}"
 
-/// `BB:` und die EntryId ohne Bindestriche (ADR 0004 Nachtrag), unabhängig von
-/// `cashEntryImportId` ausgeschrieben.
-let private expectedImportId (EntryId id) = "BB:" + id.ToString().Replace("-", "")
+/// Trägt der Rumpf den Schlüssel `import_id`?
+let private hasImportId (body: string) : bool = transactionKeys body |> List.contains "import_id"
+
+/// Fake-Handler für den echten Einzel-Post (`YnabClient.createTransactionOn`), nie gegen YNAB:
+/// schreibt Rumpf, Adresse und Authorization je Anfrage mit und antwortet 201 mit einer neuen
+/// YNAB-Id. Mit `Fails` wirft er wie ein Netzfehler.
+type private PostRecorder() =
+    inherit System.Net.Http.HttpMessageHandler()
+    member val Bodies = ResizeArray<string>()
+    member val Urls = ResizeArray<string>()
+    member val Authorizations = ResizeArray<string>()
+    member val CreatedIds = ResizeArray<string>()
+    member val Fails = false with get, set
+    override this.SendAsync(request: System.Net.Http.HttpRequestMessage, _ct: Threading.CancellationToken) =
+        task {
+            let! body = request.Content.ReadAsStringAsync()
+            this.Bodies.Add body
+            this.Urls.Add(request.RequestUri.ToString())
+            this.Authorizations.Add(string request.Headers.Authorization)
+            if this.Fails then raise (System.Net.Http.HttpRequestException "Zeitüberschreitung")
+            let id = $"ynab-ay81j-{Guid.NewGuid()}"
+            this.CreatedIds.Add id
+            return
+                new System.Net.Http.HttpResponseMessage(
+                    System.Net.HttpStatusCode.Created,
+                    Content = new System.Net.Http.StringContent($"""{{"data":{{"transaction":{{"id":"{id}"}}}}}}""")
+                )
+        }
+
+/// Ein Spiegel-Lauf vor „Erneut senden“, der nichts verknüpft (ledger-ay81j).
+let private mirrorFindsNothing () : Async<Result<MirrorRunSummary, string>> =
+    async.Return (Ok { NewEntries = 0; ChangedEntries = 0; DeletedEntries = 0; ServerKnowledge = 0L })
 
 /// Legt ein mit YNAB verknüpftes Kassenbuch-Konto an (wie nach einem Spiegel-Lauf).
 let private mirroredAccount () : LedgerAccount =
@@ -117,7 +153,7 @@ let private accounts : LedgerAccount list = [
 ]
 
 let private planOk (links: EntryLink list) (e: Entry) : EntryPushPlan =
-    match planEntryPush accounts links [] e with
+    match planEntryPush accounts None links [] e with
     | Ok plan -> plan
     | Error reason -> failtest $"Push sollte möglich sein, war: {reason}"
 
@@ -155,6 +191,24 @@ let planEntryPushTests =
             ]
             Expect.equal (planOk links e).ImportId (Some "BB:bk3q8:r1") "die aktuelle nach dem Ersatz"
 
+        testCase "eine in BB erfasste Buchung geht ohne import_id, auch mit alter BB:-Verknüpfung (ledger-ay81j)" <| fun () ->
+            // Verhindert den Bug, dass YNAB eine erneut gesendete Barbuchung mit import_id wie einen
+            // Bankimport gegen eine ältere Handbuchung abglich und verbarg.
+            let e = entry linkedAccountId -1m
+            let links = [ { EntryId = e.Id; System = ImportIdSystem; Value = "BB:ay81j" } ]
+            let captured actor : (Actor * LedgerEventBody) option =
+                Some (
+                    actor,
+                    CashExpenseAdded {
+                        AccountId = linkedAccountId; Date = day; Amount = e.Amount; Payee = e.Payee; Memo = e.Memo
+                        Category = None; Cleared = Uncleared; Approved = false; ImportId = Some "BB:ay81j" }
+                )
+            for actor in [ QuickAdd; Bob; UserInBb ] do
+                match planEntryPush accounts (captured actor) links [] e with
+                | Ok plan -> Expect.isNone plan.ImportId $"erfasst von {actor}: ohne import_id"
+                | Error reason -> failtest reason
+            Expect.equal (planOk links e).ImportId (Some "BB:ay81j") "ohne erfassten Ursprung bleibt die import_id"
+
         testCase "die Flag-Farbe der Buchung geht mit" <| fun () ->
             Expect.isNone (planOk [] (entry linkedAccountId -1m)).FlagColor "ohne Flag keine Farbe"
             let plan = planOk [] { entry linkedAccountId -1m with FlagColor = Some "purple" }
@@ -172,19 +226,19 @@ let planEntryPushTests =
                         NewTransferAccountId = account; NewTransferAccountName = "Ziel"
                         TransferPayeeId = payeeId; NewPayee = Some "Transfer : Ziel" } }
             let events = [ setTo target "payee-alt"; setTo other "payee-anderes"; setTo target "payee-neu" ]
-            match planEntryPush accounts [] events e with
+            match planEntryPush accounts None [] events e with
             | Ok plan -> Expect.equal plan.TransferPayeeId (Some "payee-neu") "Payee des letzten Setzens auf dieses Ziel"
             | Error reason -> failtest reason
             Expect.equal
-                (planEntryPush accounts [] [ setTo other "payee-anderes" ] e)
+                (planEntryPush accounts None [] [ setTo other "payee-anderes" ] e)
                 (Error transferPayeeUnknownReason)
                 "ohne Setzen auf dieses Ziel kein Push"
             let withCategory = { e with Category = Some (freshCategory "Sparen") }
             Expect.isNone (planOk [] withCategory).TransferPayeeId "mit Kategorie keine Übertrags-Payee"
 
         testCase "ein Konto ohne YNAB-Verknüpfung ergibt keinen Request, sondern den Grund" <| fun () ->
-            Expect.equal (planEntryPush accounts [] [] (entry ownAccountId -1m)) (Error pushNotPossibleReason) "BB-eigenes Konto"
-            Expect.equal (planEntryPush accounts [] [] (entry (freshAccount ()) -1m)) (Error pushNotPossibleReason) "unbekanntes Konto"
+            Expect.equal (planEntryPush accounts None [] [] (entry ownAccountId -1m)) (Error pushNotPossibleReason) "BB-eigenes Konto"
+            Expect.equal (planEntryPush accounts None [] [] (entry (freshAccount ()) -1m)) (Error pushNotPossibleReason) "unbekanntes Konto"
     ]
 
 // ============================================
@@ -420,13 +474,10 @@ let quickAddTests =
 /// Quick-Add-Umgebung mit gefälschtem YNAB, die ihre Aufrufe zählt.
 type private QuickAddProbe(settings: (string * string) list) =
     let pushes = ResizeArray<YnabAccountId * ManualTransactionRequest>()
-    let bodies = ResizeArray<string>()
     let mutable categoryLoads = 0
     let entryId = newEntryId ()
     member _.EntryId = entryId
     member _.Pushes = pushes
-    /// Der JSON-Rumpf je Push, gebaut wie im Live-Push (`createTransactionWith`).
-    member _.Bodies = bodies
     member _.CategoryLoads = categoryLoads
     member _.Ports : Server.Api.QuickAddPorts = {
         Setting = settingsFrom settings
@@ -435,9 +486,8 @@ type private QuickAddProbe(settings: (string * string) list) =
                 categoryLoads <- categoryLoads + 1
                 async.Return (Ok [])
         Push =
-            fun importId _ _ account request ->
+            fun _ _ account request ->
                 pushes.Add((account, request))
-                bodies.Add(Server.YnabClient.buildManualTransactionBodyWith importId account request)
                 async.Return (Ok $"ynab-{Guid.NewGuid()}")
         NewEntryId = fun () -> entryId
         TriggerMirror = noTrigger
@@ -482,19 +532,6 @@ let adapterTests =
             Expect.equal probe.CategoryLoads 0 "YNAB-Kategorien nicht geladen"
             Expect.equal (probe.Pushes |> Seq.map (fun (a, r) -> a, r.CategoryId) |> List.ofSeq) [ ynabIdOf account, Some category.CategoryId ] "Push auf das Quick-Add-Konto"
 
-        testCase "Quick Add pusht mit der festen import_id aus BB: und der EntryId (ADR 0004 Nachtrag)" <| fun () ->
-            // ledger-p3vq8: ohne import_id fand der Spiegel eine Buchung nicht, deren Push-Antwort
-            // verloren ging, und legte eine zweite an.
-            let account = mirroredAccount ()
-            let (YnabAccountId guid) = ynabIdOf account
-            let probe = QuickAddProbe(fakeYnab @ [ quickAddAccountSettingKey, guid.ToString() ])
-            let result = Server.Api.addManualTransactionWith probe.Ports at (quickAddRequest None) |> Async.RunSynchronously
-            Expect.equal result (Ok ()) "gebucht"
-            let importId = expectedImportId probe.EntryId
-            Expect.equal (probe.Bodies |> Seq.map importIdInBody |> List.ofSeq) [ Some importId ] "import_id im JSON-Rumpf"
-            Expect.equal importId.Length 35 "35 Zeichen, YNAB erlaubt 36"
-            Expect.equal (findEntryByLink ImportIdSystem importId |> Async.RunSynchronously) (Some probe.EntryId) "dieselbe import_id steht an der Buchung"
-
         testCase "Import-Push und erzwungener Import ohne gespiegeltes Kassenbuch-Konto: Fehler vor jedem Schreiben" <| fun () ->
             let setting = settingsFrom (fakeYnab @ [ "ynab_default_account_id", Guid.NewGuid().ToString() ])
             match Server.Api.importTargetWith setting 3 |> Async.RunSynchronously with
@@ -530,8 +567,137 @@ let adapterTests =
                 async.Return (Ok "ynab-neu")
             let push = Server.Api.entryPushWith (settingsFrom fakeYnab) create |> Async.RunSynchronously
             Expect.equal (push e |> Async.RunSynchronously) (Ok "ynab-neu") "gesendet"
-            let expected = (planEntryPush [ account ] [] [] e) |> Result.map (fun p -> p.ImportId, p.FlagColor, p.YnabAccountId, p.Request)
+            let expected = (planEntryPush [ account ] None [] [] e) |> Result.map (fun p -> p.ImportId, p.FlagColor, p.YnabAccountId, p.Request)
             Expect.equal (calls |> List.ofSeq |> List.map Ok) [ expected ] "genau der geplante Push"
+    ]
+
+// ============================================
+// Versand ohne import_id über den echten Einzel-Post (ledger-ay81j, Fake-Handler)
+// ============================================
+
+/// Die Konten des Budgets für „Neue Buchung“: jedes gespiegelte Konto mit seiner Übertrags-Payee.
+let private budgetAccountsOf (accounts: LedgerAccount list) : Server.YnabClient.TransferAccount list =
+    accounts
+    |> List.map (fun a ->
+        { Id = ynabIdOf a; Name = a.Name; OnBudget = true; Closed = false; TransferPayeeId = Some $"payee-{a.Name}" })
+
+/// Legt eine Buchung mit ihrem ersten Ereignis und einer `importid`-Verknüpfung an, wie vor
+/// ledger-ay81j: eine Barbuchung mit `BB:<EntryId>` oder ein Comdirect-Import mit `BB:<Reference>`.
+let private seedUnlinked (first: EntryId -> LedgerEvent) : EntryId =
+    let entryId = newEntryId ()
+    appendAndApply [
+        first entryId
+        { EntryId = entryId; OccurredAt = at; Actor = QuickAdd; Body = EntryPushToYnabFailed { Reason = "Zeitüberschreitung" } }
+    ]
+    |> Async.RunSynchronously
+    entryId
+
+let private oldCapture (account: LedgerAccount) : EntryId =
+    seedUnlinked (fun entryId ->
+        let input, _ = cashBookingParts (booking account.Id)
+        { EntryId = entryId; OccurredAt = at; Actor = QuickAdd
+          Body =
+            CashExpenseAdded {
+                AccountId = input.AccountId; Date = input.Date; Amount = input.Amount; Payee = input.Payee
+                Memo = input.Memo; Category = input.Category; Cleared = Uncleared; Approved = false
+                ImportId = Some (oldCashImportId entryId) } })
+
+let private comdirectImport (account: LedgerAccount) (reference: string) : EntryId =
+    seedUnlinked (fun entryId ->
+        { EntryId = entryId; OccurredAt = at; Actor = ComdirectImport
+          Body =
+            EntryImportedFromComdirect {
+                AccountId = account.Id; ImportId = $"BB:{reference}"; ComdirectReference = reference
+                Date = day; Amount = { Amount = -50m; Currency = "EUR" }; Payee = Some "Markt"; Memo = None
+                Cleared = Uncleared; Approved = false; FlagColor = None; FlagName = None } })
+
+[<Tests>]
+let liveSinglePostTests =
+    let testCase name body = testCase name (fun () -> initialize (); body ())
+
+    testSequenced
+    <| testList "Ledger Versand ohne import_id (echter Einzel-Post, ledger-ay81j)" [
+        // Regression ledger-ay81j: YNAB glich eine Barbuchung mit import_id wie einen Bankimport gegen
+        // eine eine Woche ältere Handbuchung gleichen Betrags ab und verbarg sie. Vor dem Fix trug jeder
+        // dieser Rümpfe `import_id` `BB:<EntryId>`.
+        testCase "Quick Add sendet über den echten Einzel-Post ohne import_id" <| fun () ->
+            let account = mirroredAccount ()
+            let (YnabAccountId guid) = ynabIdOf account
+            let handler = new PostRecorder()
+            use http = new System.Net.Http.HttpClient(handler)
+            let entryId = newEntryId ()
+            let ports = {
+                Server.Api.quickAddPortsOn http with
+                    Setting = settingsFrom (fakeYnab @ [ quickAddAccountSettingKey, guid.ToString() ])
+                    LoadYnabCategories = fun _ _ -> async.Return (Ok [])
+                    NewEntryId = fun () -> entryId
+                    TriggerMirror = noTrigger
+            }
+            let result = Server.Api.addManualTransactionWith ports at (quickAddRequest None) |> Async.RunSynchronously
+            Expect.equal result (Ok ()) "gebucht"
+            Expect.equal (handler.Bodies |> Seq.map hasImportId |> List.ofSeq) [ false ] "ein Post ohne import_id"
+            Expect.stringContains handler.Urls[0] "/budgets/budget-kuenstlich/transactions" "Budget aus den Settings"
+            Expect.equal handler.Authorizations[0] "Bearer token-kuenstlich" "Token im Header"
+            match (eventsOf entryId).Head.Event.Body with
+            | CashExpenseAdded p -> Expect.isNone p.ImportId "keine import_id im Ereignis"
+            | other -> failtest $"CashExpenseAdded erwartet: {other}"
+            Expect.isEmpty
+                (linksForEntry entryId |> Async.RunSynchronously |> List.filter (fun l -> l.System = ImportIdSystem))
+                "keine importid-Verknüpfung"
+            Expect.equal (findEntryByLink YnabSystem handler.CreatedIds[0] |> Async.RunSynchronously) (Some entryId) "über die Antwort verknüpft"
+
+        testCase "Neue Buchung sendet über den echten Einzel-Post ohne import_id, auch mit Übertrag" <| fun () ->
+            let bar, tagesgeld = mirroredAccount (), mirroredAccount ()
+            let handler = new PostRecorder()
+            use http = new System.Net.Http.HttpClient(handler)
+            let importAccount = Guid.NewGuid().ToString()
+            let ports = {
+                Server.Api.ledgerBookingPortsOn http with
+                    Setting = settingsFrom (fakeYnab @ [ importAccountSettingKey, importAccount ])
+                    BudgetAccounts = fun _ _ -> async.Return (Ok (budgetAccountsOf [ bar; tagesgeld ]))
+                    LoadYnabCategories = fun _ _ -> async.Return (Ok [])
+                    NewEntryId = newEntryId
+                    TriggerMirror = noTrigger
+            }
+            let (LedgerAccountId barGuid) = bar.Id
+            let request : LedgerBookingRequest = {
+                AccountId = barGuid; Amount = 8.60m; IsOutflow = true; PayeeName = "Bäckerei"
+                Target = None; Date = day; Memo = None
+            }
+            for target in [ None; Some (BookAsTransfer (ynabIdOf tagesgeld)) ] do
+                match Server.Api.addLedgerBookingWith ports day at { request with Target = target } |> Async.RunSynchronously with
+                | Ok created -> Expect.isNone created.PushFailure $"gesendet ({target})"
+                | Error e -> failtest e
+            Expect.equal (handler.Bodies |> Seq.map hasImportId |> List.ofSeq) [ false; false ] "beide ohne import_id"
+            Expect.contains (transactionKeys handler.Bodies[1]) "payee_id" "der Übertrag geht mit der Übertrags-Payee"
+
+        testCase "Erneut senden einer alten Erfassung mit BB:-Verknüpfung geht ohne import_id" <| fun () ->
+            let account = mirroredAccount ()
+            let entryId = oldCapture account
+            let handler = new PostRecorder()
+            use http = new System.Net.Http.HttpClient(handler)
+            let push = Server.Api.entryPushWith (settingsFrom fakeYnab) (Server.YnabClient.createTransactionOn http) |> Async.RunSynchronously
+            let outcome = retryPushToYnab (at.AddHours 1.0) loadEntryOrigin mirrorFindsNothing push noTrigger entryId |> Async.RunSynchronously
+            Expect.equal outcome (Ok PushToYnabSent) "gesendet"
+            Expect.equal (handler.Bodies |> Seq.map hasImportId |> List.ofSeq) [ false ] "ohne import_id trotz alter Verknüpfung"
+
+        testCase "Intakt: Erneut senden eines Comdirect-Imports behält BB:<Reference>" <| fun () ->
+            let account = mirroredAccount ()
+            let reference = $"ay81j-{Guid.NewGuid():N}".Substring(0, 20)
+            let entryId = comdirectImport account reference
+            let handler = new PostRecorder()
+            use http = new System.Net.Http.HttpClient(handler)
+            let push = Server.Api.entryPushWith (settingsFrom fakeYnab) (Server.YnabClient.createTransactionOn http) |> Async.RunSynchronously
+            let mutable mirrors = 0
+            let mirror () =
+                mirrors <- mirrors + 1
+                mirrorFindsNothing ()
+            let outcome = retryPushToYnab (at.AddHours 1.0) loadEntryOrigin mirror push noTrigger entryId |> Async.RunSynchronously
+            Expect.equal outcome (Ok PushToYnabSent) "gesendet"
+            let importId =
+                Thoth.Json.Net.Decode.fromString (Thoth.Json.Net.Decode.at [ "transaction"; "import_id" ] Thoth.Json.Net.Decode.string) handler.Bodies[0]
+            Expect.equal importId (Ok $"BB:{reference}") "die import_id des Imports"
+            Expect.equal mirrors 0 "ein Comdirect-Import ruft den Spiegel nicht"
     ]
 
 // ============================================
@@ -568,7 +734,11 @@ let botCashBookingTests =
                 { Id = YnabCategoryId (Guid.NewGuid()); Name = "Haushaltshilfe"; GroupName = "Haushalt"; Available = None; Hidden = false }
             // Ein eigener, ferner Tag, damit keine Tagesgrenze eines anderen Tests zählt.
             let today = DateTime(2040, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddDays(float (Random.Shared.Next(0, 3000)))
-            let pushes = ResizeArray<YnabAccountId * string * ManualTransactionRequest>()
+            let pushes = ResizeArray<YnabAccountId * ManualTransactionRequest>()
+            // Bobs echter Push (`BotApi.botPushOn`) gegen einen Fake-Handler (ledger-ay81j).
+            let handler = new PostRecorder()
+            use http = new System.Net.Http.HttpClient(handler)
+            let botPush = Server.BotApi.botPushOn http (fun () -> async.Return (Ok ("bot-token-kuenstlich", YnabBudgetId "budget-bot")))
             let deps : Server.BotApi.BotDeps = {
                 Token = fun () -> Some "bk3q8-token"
                 MaxAmountEur = fun () -> Server.ServerConfig.Default
@@ -581,7 +751,7 @@ let botCashBookingTests =
                 Push =
                     fun pushed ->
                         pushes.Add pushed
-                        async.Return (Ok $"ynab-{Guid.NewGuid()}")
+                        botPush pushed
                 AddCashExpense = addCashExpense
                 TriggerMirror = noTrigger
                 Store = Server.BotApi.BotPreviewStore()
@@ -613,28 +783,28 @@ let botCashBookingTests =
             Expect.equal stored.Amount.Amount -5.25m "Ausgabe negativ im Kassenbuch"
             Expect.equal stored.AccountId ledgerAccount "Kassenbuch-Konto der Vorschau"
             Expect.equal
-                (pushes |> Seq.map (fun (account, _, r) -> account, r.Amount, r.IsOutflow, r.CategoryId, r.PayeeName) |> List.ofSeq)
+                (pushes |> Seq.map (fun (account, r) -> account, r.Amount, r.IsOutflow, r.CategoryId, r.PayeeName) |> List.ofSeq)
                 [ ynabAccount, 5.25m, true, Some category.Id, payee ]
                 "ein Push auf das YNAB-Konto der Vorschau, mit dem Request der Barbuchung"
-            // ledger-p3vq8: Bob pusht mit der festen import_id, der JSON-Rumpf trägt sie.
-            Expect.equal
-                (pushes
-                 |> Seq.map (fun (account, importId, r) -> importIdInBody (Server.YnabClient.buildManualTransactionBodyWith (Some importId) account r))
-                 |> List.ofSeq)
-                [ Some (expectedImportId entryId) ]
-                "import_id aus BB: und der EntryId"
+            // Regression ledger-ay81j: Bob pushte mit der import_id `BB:<EntryId>`, YNAB glich die Buchung
+            // gegen eine ältere Handbuchung ab und verbarg sie. Jetzt ohne import_id.
+            Expect.equal (handler.Bodies |> Seq.map hasImportId |> List.ofSeq) [ false ] "ein Post ohne import_id"
+            Expect.stringContains handler.Urls[0] "/budgets/budget-bot/transactions" "Budget aus dem Kontext"
+            Expect.equal handler.Authorizations[0] "Bearer bot-token-kuenstlich" "Token aus dem Kontext"
+            Expect.isTrue (json.GetProperty("pushed_to_ynab").GetBoolean()) "pushed_to_ynab"
+            Expect.isTrue stored.LinkedToYnab "über die Antwort verknüpft"
     ]
 
 // ============================================
-// Feste import_id: verlorene Push-Antwort ohne zweite Buchung (ledger-p3vq8, ADR 0004 Nachtrag)
+// Verlorene Push-Antwort ohne zweite Buchung (ledger-p3vq8, ledger-ay81j)
 // ============================================
 
 /// Die YNAB-Buchung, die der Spiegel zu einer Barbuchung sieht: dieselben Werte wie im
-/// Kassenbuch, mit der `import_id`, die der Push trug.
-let private observedCashBooking (ynabTxId: string) (ynabAccount: YnabAccountId) (importId: string) : Server.YnabObservations.YnabObservation = {
+/// Kassenbuch, mit der `import_id`, die der Push trug (seit ledger-ay81j keine).
+let private observedCashBooking (ynabTxId: string) (ynabAccount: YnabAccountId) (importId: string option) : Server.YnabObservations.YnabObservation = {
     YnabTransactionId = ynabTxId
     AccountId = ynabAccount
-    ImportId = Some importId
+    ImportId = importId
     Date = day
     Amount = { Amount = -12.50m; Currency = "EUR" }
     Payee = Some "Kiosk"
@@ -677,21 +847,46 @@ let private executeSql (sql: string) (value: string) =
 [<Tests>]
 let lostPushAnswerTests =
     let testCase name body = testCase name (fun () -> initialize (); body ())
+    /// THEN-Teil: keine zweite Buchung, die Barbuchung ist durch den Spiegel verknüpft, kein Fehlschlag offen.
+    let expectLinkedByMirror (account: LedgerAccount) (entryId: EntryId) (ynabTxId: string) (summary: MirrorRunSummary) =
+        Expect.equal summary.NewEntries 0 "keine neue Buchung"
+        Expect.hasLength (loadEntriesForAccount account.Id |> Async.RunSynchronously) 1 "genau eine Buchung auf dem Konto"
+        Expect.equal (findEntryByLink YnabSystem ynabTxId |> Async.RunSynchronously) (Some entryId) "die YNAB-Id zeigt auf die Barbuchung"
+        let stored = loadEntry entryId |> Async.RunSynchronously |> Option.get
+        Expect.isTrue stored.LinkedToYnab "verknüpft"
+        Expect.isNone stored.PushToYnabFailure "kein Fehlschlag offen"
+        Expect.contains
+            (eventsOf entryId |> List.map (fun r -> r.EventType, r.Event.Actor))
+            ("EntryLinkedToYnab", YnabMirror)
+            "der Spiegel verknüpft"
 
     testSequenced
-    <| testList "Ledger Barbuchung (feste import_id, ledger-p3vq8)" [
-        testCase "Kaputt: Push gelingt, das Schreiben von EntryLinkedToYnab wirft; der Spiegel verknüpft über die import_id" <| fun () ->
-            // GIVEN: YNAB legt die Buchung an, danach scheitert das Schreiben der Verknüpfung
-            // (eine fremde Zeile belegt die YNAB-Id). Bisher legte der Spiegel dann eine zweite
-            // Kassenbuch-Buchung an, weil Quick Add und Bob keine import_id trugen.
+    <| testList "Ledger Barbuchung (verlorene Antwort, ledger-ay81j)" [
+        testCase "Kaputt: der Push scheitert mit Netzfehler, YNAB hat angelegt; der Spiegel verknüpft die offene Erfassung" <| fun () ->
+            // GIVEN: YNAB legt die Buchung ohne import_id an, BB sieht nur die Zeitüberschreitung und
+            // schreibt `EntryPushToYnabFailed`. Ohne die dritte Match-Stufe legte der Spiegel eine zweite
+            // Kassenbuch-Buchung an.
             let account = mirroredAccount ()
             let entryId = newEntryId ()
-            let ynabTxId = $"ynab-p3vq8-{Guid.NewGuid()}"
-            let sentImportIds = ResizeArray<string>()
-            let push (importId: string) (_: ManualTransactionRequest) =
+            let _, push = recordingPush (Error (YnabError.NetworkError "Zeitüberschreitung"))
+            addCashBooking QuickAdd at entryId push noTrigger (booking account.Id) |> Async.RunSynchronously |> ignore
+            Expect.equal (eventTypesOf entryId) [ "CashExpenseAdded"; "EntryPushToYnabFailed" ] "Fehlschlag steht"
+            let ynabTxId = $"ynab-ay81j-{Guid.NewGuid()}"
+
+            // WHEN: der Spiegel sieht die YNAB-Buchung, ohne import_id, Payee anders geschrieben.
+            let summary = mirrorSees { observedCashBooking ynabTxId (ynabIdOf account) None with Payee = Some " KIOSK " }
+
+            // THEN
+            expectLinkedByMirror account entryId ynabTxId summary
+
+        testCase "Kaputt: der Push gelingt, das Schreiben von EntryLinkedToYnab wirft (Ausgang unbekannt); der Spiegel verknüpft" <| fun () ->
+            // GIVEN: kein Fehlschlag im Log, der Ausgang ist unbekannt (`PushOutcomeUnknown`).
+            let account = mirroredAccount ()
+            let entryId = newEntryId ()
+            let ynabTxId = $"ynab-ay81j-{Guid.NewGuid()}"
+            let push (_: ManualTransactionRequest) =
                 async {
-                    sentImportIds.Add importId
-                    executeSql "INSERT INTO ledger_entry_links (entry_id, system, value) VALUES ('p3vq8-sperre', 'ynab', @value)" ynabTxId
+                    executeSql "INSERT INTO ledger_entry_links (entry_id, system, value) VALUES ('ay81j-sperre', 'ynab', @value)" ynabTxId
                     return Ok ynabTxId
                 }
             let thrown =
@@ -700,69 +895,42 @@ let lostPushAnswerTests =
                     false
                 with _ -> true
             Expect.isTrue thrown "das Schreiben der Verknüpfung wirft"
-            executeSql "DELETE FROM ledger_entry_links WHERE entry_id = 'p3vq8-sperre' AND value = @value" ynabTxId
+            executeSql "DELETE FROM ledger_entry_links WHERE entry_id = 'ay81j-sperre' AND value = @value" ynabTxId
             Expect.equal (eventTypesOf entryId) [ "CashExpenseAdded" ] "nur die Buchung steht, ohne Verknüpfung"
+            Expect.equal
+                (getYnabPushState entryId |> Async.RunSynchronously)
+                (Some (NotLinkedToYnab PushOutcomeUnknown))
+                "Ausgang unbekannt"
 
-            // WHEN: der Spiegel sieht die YNAB-Buchung mit der import_id des Pushs.
-            let summary = mirrorSees (observedCashBooking ynabTxId (ynabIdOf account) sentImportIds[0])
+            // WHEN
+            let summary = mirrorSees (observedCashBooking ynabTxId (ynabIdOf account) None)
 
-            // THEN: keine zweite Buchung, die vorhandene ist verknüpft (Actor YnabMirror).
-            Expect.equal sentImportIds[0] (expectedImportId entryId) "der Push trug die feste import_id"
-            Expect.equal summary.NewEntries 0 "keine neue Buchung"
-            Expect.hasLength (loadEntriesForAccount account.Id |> Async.RunSynchronously) 1 "genau eine Buchung auf dem Konto"
-            Expect.equal (findEntryByLink YnabSystem ynabTxId |> Async.RunSynchronously) (Some entryId) "die YNAB-Id zeigt auf die Barbuchung"
-            let last = eventsOf entryId |> List.last
-            Expect.equal (last.EventType, last.Event.Actor) ("EntryLinkedToYnab", YnabMirror) "der Spiegel verknüpft"
+            // THEN
+            expectLinkedByMirror account entryId ynabTxId summary
 
-        testCase "Kaputt: Push legt an, meldet aber Zeitüberschreitung; Erneut senden mit derselben import_id, 409 ist kein Fehlschlag" <| fun () ->
-            // GIVEN: YNAB hat die Buchung angelegt, BB sah nur die Zeitüberschreitung und schrieb
-            // `EntryPushToYnabFailed`. Bisher ging "Erneut senden" ohne import_id hinaus und
-            // legte in YNAB eine zweite Buchung an.
+        testCase "Intakt: eine YNAB-Buchung mit anderem Payee wird eine neue Buchung, die Erfassung bleibt offen" <| fun () ->
             let account = mirroredAccount ()
             let entryId = newEntryId ()
-            let ynabTxId = $"ynab-p3vq8-{Guid.NewGuid()}"
-            let sentImportIds = ResizeArray<string option>()
-            let firstPush (importId: string) (_: ManualTransactionRequest) =
-                async {
-                    sentImportIds.Add (Some importId)
-                    return Error (YnabError.NetworkError "Zeitüberschreitung")
-                }
-            addCashBooking QuickAdd at entryId firstPush noTrigger (booking account.Id) |> Async.RunSynchronously |> ignore
-            Expect.equal (eventTypesOf entryId) [ "CashExpenseAdded"; "EntryPushToYnabFailed" ] "Fehlschlag steht"
+            let _, push = recordingPush (Error (YnabError.NetworkError "Zeitüberschreitung"))
+            addCashBooking QuickAdd at entryId push noTrigger (booking account.Id) |> Async.RunSynchronously |> ignore
+            let summary = mirrorSees { observedCashBooking $"ynab-ay81j-{Guid.NewGuid()}" (ynabIdOf account) None with Payee = Some "Bäcker" }
+            Expect.equal summary.NewEntries 1 "eine neue Buchung"
+            Expect.hasLength (loadEntriesForAccount account.Id |> Async.RunSynchronously) 2 "zwei Buchungen auf dem Konto"
+            Expect.isFalse (loadEntry entryId |> Async.RunSynchronously |> Option.get).LinkedToYnab "die Erfassung bleibt offen"
 
-            // WHEN: "Erneut senden"; YNAB kennt die import_id schon und antwortet 409
-            // (Probelauf ADR 0058, Fall 3).
-            let create importId _ _ _ _ _ _ =
-                async {
-                    sentImportIds.Add importId
-                    return
-                        Server.YnabClient.interpretCreateTransactionResponse
-                            409
-                            """{"error":{"id":"409","name":"conflict","detail":"a transaction with the same import_id already exists on the specified account"}}"""
-                }
-            let push = Server.Api.entryPushWith (settingsFrom fakeYnab) create |> Async.RunSynchronously
-            let mutable triggers = 0
-            let outcome = retryPushToYnab (at.AddHours 1.0) push (fun () -> triggers <- triggers + 1) entryId |> Async.RunSynchronously
-
-            // THEN: dieselbe import_id ging hinaus, kein neuer Fehlschlag, der Spiegel ist angestoßen.
-            Expect.equal (List.ofSeq sentImportIds) [ Some (expectedImportId entryId); Some (expectedImportId entryId) ] "zweimal dieselbe import_id"
-            Expect.equal outcome (Ok PushToYnabSent) "kein Fehlschlag"
-            Expect.equal (eventTypesOf entryId) [ "CashExpenseAdded"; "EntryPushToYnabFailed" ] "kein neues EntryPushToYnabFailed"
-            Expect.equal triggers 1 "der Spiegel wird angestoßen"
-
-            // AND: nach dem Spiegel ist die Buchung verknüpft, ohne zweite Buchung.
-            let summary = mirrorSees (observedCashBooking ynabTxId (ynabIdOf account) (expectedImportId entryId))
+        testCase "Bestand: eine alte offene Erfassung mit BB:-Verknüpfung wird über die ImportId verknüpft" <| fun () ->
+            // Vor ledger-ay81j mit import_id gesendet: der Spiegel findet sie weiter über `MatchedByImportId`.
+            let account = mirroredAccount ()
+            let entryId = oldCapture account
+            let ynabTxId = $"ynab-ay81j-{Guid.NewGuid()}"
+            let summary =
+                mirrorSees { observedCashBooking ynabTxId (ynabIdOf account) (Some (oldCashImportId entryId)) with Amount = { Amount = -99m; Currency = "EUR" } }
             Expect.equal summary.NewEntries 0 "keine neue Buchung"
-            Expect.hasLength (loadEntriesForAccount account.Id |> Async.RunSynchronously) 1 "genau eine Buchung auf dem Konto"
-            let stored = loadEntry entryId |> Async.RunSynchronously |> Option.get
-            Expect.isTrue stored.LinkedToYnab "verknüpft"
-            Expect.isNone stored.PushToYnabFailure "der Fehlschlag ist aufgelöst"
-            let last = eventsOf entryId |> List.last
-            Expect.equal (last.EventType, last.Event.Actor) ("EntryLinkedToYnab", YnabMirror) "der Spiegel verknüpft"
+            Expect.equal (findEntryByLink YnabSystem ynabTxId |> Async.RunSynchronously) (Some entryId) "über die ImportId verknüpft"
 
         testCase "Kaputt: die Barbuchung bekommt 409, die import_id steht schon in YNAB; angekommen, kein Fehlschlag" <| fun () ->
-            // ledger-xqqnv: bisher schrieb `addCashExpense` hier `EntryPushToYnabFailed` und meldete `Error`,
-            // obwohl die Buchung in YNAB steht. Jetzt wie „Erneut senden“: angekommen, der Spiegel verknüpft.
+            // ledger-xqqnv: der 409-Zweig bleibt (ledger-ay81j entfernt ihn nicht), auch wenn eine
+            // Barbuchung ohne import_id ihn nicht mehr erreicht.
             let entryId = newEntryId ()
             let input, _ = cashBookingParts (booking (freshAccount ()))
             let mutable triggers = 0
@@ -785,36 +953,6 @@ let lostPushAnswerTests =
             Expect.equal (eventTypesOf entryId) [ "CashExpenseAdded"; "EntryPushToYnabFailed" ] "Fehlschlag steht"
             Expect.equal triggers 0 "kein Auslöser"
 
-        testCase "Intakt: Erneut senden einer Buchung, deren CashExpenseAdded keine import_id trägt, schickt keine" <| fun () ->
-            // Vor ledger-p3vq8 gepusht: ob sie schon in YNAB steht, weiß BB nicht (ADR 0004 Nachtrag).
-            let account = mirroredAccount ()
-            let entryId = newEntryId ()
-            let input, _ = cashBookingParts (booking account.Id)
-            let payload : CashExpenseAddedPayload = {
-                AccountId = input.AccountId
-                Date = input.Date
-                Amount = input.Amount
-                Payee = input.Payee
-                Memo = input.Memo
-                Category = input.Category
-                Cleared = Uncleared
-                Approved = false
-                ImportId = None
-            }
-            appendAndApply [
-                { EntryId = entryId; OccurredAt = at; Actor = QuickAdd; Body = CashExpenseAdded payload }
-                { EntryId = entryId; OccurredAt = at; Actor = QuickAdd; Body = EntryPushToYnabFailed { Reason = "Zeitüberschreitung" } }
-            ]
-            |> Async.RunSynchronously
-            let sent = ResizeArray<string option>()
-            let create importId _ _ _ _ _ _ =
-                sent.Add importId
-                async.Return (Ok $"ynab-{Guid.NewGuid()}")
-            let push = Server.Api.entryPushWith (settingsFrom fakeYnab) create |> Async.RunSynchronously
-            let outcome = retryPushToYnab (at.AddHours 1.0) push noTrigger entryId |> Async.RunSynchronously
-            Expect.equal outcome (Ok PushToYnabSent) "gesendet"
-            Expect.equal (List.ofSeq sent) [ None ] "ohne import_id"
-
         testCase "Intakt: Erneut senden mit einem anderen Fehler schreibt weiter EntryPushToYnabFailed" <| fun () ->
             let account = mirroredAccount ()
             let entryId = newEntryId ()
@@ -822,7 +960,7 @@ let lostPushAnswerTests =
             addCashBooking QuickAdd at entryId firstPush noTrigger (booking account.Id) |> Async.RunSynchronously |> ignore
             let create _ _ _ _ _ _ _ = async.Return (Server.YnabClient.interpretCreateTransactionResponse 400 "{}")
             let push = Server.Api.entryPushWith (settingsFrom fakeYnab) create |> Async.RunSynchronously
-            match retryPushToYnab (at.AddHours 1.0) push noTrigger entryId |> Async.RunSynchronously with
+            match retryPushToYnab (at.AddHours 1.0) loadEntryOrigin mirrorFindsNothing push noTrigger entryId |> Async.RunSynchronously with
             | Ok (PushToYnabFailed _) -> ()
             | other -> failtest $"Fehlschlag erwartet, war: {other}"
             Expect.equal

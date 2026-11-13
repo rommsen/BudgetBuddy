@@ -692,13 +692,18 @@ let private apiWirings =
       // Quick Add, Erneut senden und Import-Ziel (ledger-bk3q8): die `*With`-Wege sind mit Fake-Ports getestet,
       // die Ports des Servers erreichen YNAB nur im laufenden Dienst.
       @"\bOk\s+validRequest\s*->\s*return!\s+addManualTransactionWith\s+liveQuickAddPorts\s+DateTime\.UtcNow\s+validRequest\s*\}"
-      @"\bliveQuickAddPorts\s*:\s*QuickAddPorts\s*=\s*\{\s*Setting\s*=\s*Persistence\.Settings\.getSetting\s+LoadYnabCategories\s*=\s*YnabClient\.getCategories\s+Push\s*=\s*YnabClient\.createTransactionWith\s+NewEntryId\s*=\s*Ledger\.Events\.newEntryId\s+TriggerMirror\s*=\s*Ledger\.CommandHandlers\.triggerMirrorInBackground\s*\}"
-      @"\bentryPush\s*\(\)\s*:\s*Async<Ledger\.CommandHandlers\.EntryPush>\s*=\s*entryPushWith\s+Persistence\.Settings\.getSetting\s+YnabClient\.createTransactionFor\s*(?:\n\s*\n|\z)"
+      // Seit ledger-ay81j Fabriken über dem `HttpClient` des Einzel-Posts: der Push ohne import_id ist mit
+      // Fake-Handler am Rumpf belegt (LedgerCashBookingTests), hier nur, dass der Server die Fabrik mit dem
+      // gemeinsamen Client und den echten Einstellungen nutzt.
+      @"\bquickAddPortsOn\s*\(http:\s*System\.Net\.Http\.HttpClient\)\s*:\s*QuickAddPorts\s*=\s*\{\s*Setting\s*=\s*Persistence\.Settings\.getSetting\s+LoadYnabCategories\s*=\s*YnabClient\.getCategories\s+Push\s*=\s*YnabClient\.createTransactionOn\s+http\s+None\s+None\s+None\s+NewEntryId\s*=\s*Ledger\.Events\.newEntryId\s+TriggerMirror\s*=\s*Ledger\.CommandHandlers\.triggerMirrorInBackground\s*\}"
+      @"\bliveQuickAddPorts\s*:\s*QuickAddPorts\s*=\s*quickAddPortsOn\s+YnabClient\.sharedHttpClient\s*(?:\n\s*\n|\z)"
+      @"\bentryPush\s*\(\)\s*:\s*Async<Ledger\.CommandHandlers\.EntryPush>\s*=\s*entryPushWith\s+Persistence\.Settings\.getSetting\s+\(YnabClient\.createTransactionOn\s+YnabClient\.sharedHttpClient\)\s*(?:\n\s*\n|\z)"
       // Buchung erfassen und Rückgängig (ledger-at63w): `addLedgerBookingWith`, `discardCapturedBookingWith` und die
       // Abfragen sind mit Fake-Ports getestet, die Ports des Servers erreichen YNAB nur im laufenden Dienst.
       @"\baddLedgerBooking\s*=\s*fun\s+request\s*->\s*addLedgerBookingWith\s+liveLedgerBookingPorts\s+\(liveBerlinDay\s*\(\)\)\s+DateTime\.UtcNow\s+request\b"
       @"\bdiscardCapturedBooking\s*=\s*fun\s+entryId\s*->\s*discardCapturedBookingWith\s+liveLedgerBookingPorts\s+DateTime\.UtcNow\s+entryId\b"
-      @"\bliveLedgerBookingPorts\s*:\s*LedgerBookingPorts\s*=\s*\{\s*Setting\s*=\s*Persistence\.Settings\.getSetting\s+LoadYnabCategories\s*=\s*YnabClient\.getCategories\s+BudgetAccounts\s*=\s*YnabClient\.fetchTransferAccounts\s+Push\s*=\s*YnabClient\.createTransactionFor\s+Delete\s*=\s*YnabClient\.deleteTransaction\s+NewEntryId\s*=\s*Ledger\.Events\.newEntryId\s+TriggerMirror\s*=\s*Ledger\.CommandHandlers\.triggerMirrorInBackground\s*\}"
+      @"\bledgerBookingPortsOn\s*\(http:\s*System\.Net\.Http\.HttpClient\)\s*:\s*LedgerBookingPorts\s*=\s*\{\s*Setting\s*=\s*Persistence\.Settings\.getSetting\s+LoadYnabCategories\s*=\s*YnabClient\.getCategories\s+BudgetAccounts\s*=\s*YnabClient\.fetchTransferAccounts\s+Push\s*=\s*YnabClient\.createTransactionOn\s+http\s+None\s+None\s+Delete\s*=\s*YnabClient\.deleteTransaction\s+NewEntryId\s*=\s*Ledger\.Events\.newEntryId\s+TriggerMirror\s*=\s*Ledger\.CommandHandlers\.triggerMirrorInBackground\s*\}"
+      @"\bliveLedgerBookingPorts\s*:\s*LedgerBookingPorts\s*=\s*ledgerBookingPortsOn\s+YnabClient\.sharedHttpClient\s*(?:\n\s*\n|\z)"
       // Buchung löschen und Rückgängig (ledger-z6sya): `deleteEntryWith` und `restoreDeletedEntryWith` sind mit Fake-Ports
       // getestet, die Ports des Servers erreichen YNAB nur im laufenden Dienst.
       @"\bdeleteEntry\s*=\s*fun\s+entryId\s*->\s*deleteEntryWith\s+liveEntryDeletionPorts\s+DateTime\.UtcNow\s+entryId\b"
@@ -735,14 +740,13 @@ let private apiWirings =
       @"\brunAutoFetch\s*\(\)\s*:\s*Async<unit>\s*=\s*BankImport\.runAutoFetchWith\s+liveAutoFetchPorts\s*\|>\s*Async\.Ignore\s*(?:\n\s*\n|\z)"
       @"\bpayeePush\s*\(\)\s*:\s*Async<Ledger\.CommandHandlers\.PayeePush>\s*=\s*ynabPushWith\s+Persistence\.Settings\.getSetting\s+\(fun\s+token\s+budgetId\s*->\s*YnabClient\.updatePayee\s+token\s+budgetId\)\s+refusedPush\s*(?:\n\s*\n|\z)" ]
 
-/// Bobs Push in `BotApi.liveDeps` (ledger-bk3q8): bekommt Konto, `import_id` (ledger-p3vq8) und Request der
-/// Barbuchung und reicht alle drei unverändert an YNAB. Ein Ersatz kompilierte, der Testlauf kann den echten Push nicht ausführen.
+/// Bobs Push in `BotApi.liveDepsOn` (ledger-bk3q8, ledger-ay81j): `botPushOn` mit dem Client der Fabrik und den
+/// echten Einstellungen (`ynabContext`), `liveDeps` mit dem gemeinsamen Client. Den Push selbst (Konto, Request, ohne
+/// import_id) belegt ein Fake-Handler am Rumpf (LedgerCashBookingTests); hier nur die Verdrahtung.
 let isBotPushWired (bot: string) : bool =
     let code = fst (lex bot)
-    Regex.IsMatch(
-        code,
-        @"\bPush\s*=\s*fun\s*\(ynabAccountId,\s*importId,\s*request\)\s*->\s*async\s*\{\s*match!\s+ynabContext\s*\(\)\s+with\s*\|\s*Error\s+reason\s*->\s*return\s+Error\s+\(YnabError\.Unauthorized\s+reason\)\s*\|\s*Ok\s+\(token,\s*budgetId\)\s*->\s*return!\s+Server\.YnabClient\.createTransactionWith\s+\(Some\s+importId\)\s+token\s+budgetId\s+ynabAccountId\s+request\s*\}"
-    )
+    Regex.IsMatch(code, @"\bliveDepsOn\s*\(berlinZone:\s*TimeZoneInfo\)\s*\(http:\s*System\.Net\.Http\.HttpClient\)\s*:\s*BotDeps\s*=[\s\S]*?\bPush\s*=\s*botPushOn\s+http\s+ynabContext\s+AddCashExpense\b")
+    && Regex.IsMatch(code, @"\bliveDeps\s*\(berlinZone:\s*TimeZoneInfo\)\s*:\s*BotDeps\s*=\s*liveDepsOn\s+berlinZone\s+Server\.YnabClient\.sharedHttpClient\s*(?:\n|\z)")
 
 /// Die Muster aus `apiWirings`, die im Quelltext fehlen.
 let findMissingApiWirings (api: string) : string list =
@@ -862,11 +866,13 @@ let hostedServiceGuardTests =
                   "let budgetApi (berlinZone: TimeZoneInfo) : BudgetApi =\n    liveBudgetApi Persistence.Settings.getSetting berlinZone\n\n"
                   "|> Remoting.fromValue (budgetApi berlinZone)\n"
                   "| Ok validRequest -> return! addManualTransactionWith liveQuickAddPorts DateTime.UtcNow validRequest\n    }\n"
-                  "let liveQuickAddPorts : QuickAddPorts = {\n    Setting = Persistence.Settings.getSetting\n    LoadYnabCategories = YnabClient.getCategories\n    Push = YnabClient.createTransactionWith\n    NewEntryId = Ledger.Events.newEntryId\n    TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground\n}\n"
-                  "let private entryPush () : Async<Ledger.CommandHandlers.EntryPush> =\n    entryPushWith Persistence.Settings.getSetting YnabClient.createTransactionFor\n\n"
+                  "let quickAddPortsOn (http: System.Net.Http.HttpClient) : QuickAddPorts = {\n    Setting = Persistence.Settings.getSetting\n    LoadYnabCategories = YnabClient.getCategories\n    Push = YnabClient.createTransactionOn http None None None\n    NewEntryId = Ledger.Events.newEntryId\n    TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground\n}\n"
+                  "let liveQuickAddPorts : QuickAddPorts = quickAddPortsOn YnabClient.sharedHttpClient\n\n"
+                  "let private entryPush () : Async<Ledger.CommandHandlers.EntryPush> =\n    entryPushWith Persistence.Settings.getSetting (YnabClient.createTransactionOn YnabClient.sharedHttpClient)\n\n"
                   "addLedgerBooking = fun request -> addLedgerBookingWith liveLedgerBookingPorts (liveBerlinDay ()) DateTime.UtcNow request\n"
                   "discardCapturedBooking = fun entryId -> discardCapturedBookingWith liveLedgerBookingPorts DateTime.UtcNow entryId\n"
-                  "let liveLedgerBookingPorts : LedgerBookingPorts = {\n    Setting = Persistence.Settings.getSetting\n    LoadYnabCategories = YnabClient.getCategories\n    BudgetAccounts = YnabClient.fetchTransferAccounts\n    Push = YnabClient.createTransactionFor\n    Delete = YnabClient.deleteTransaction\n    NewEntryId = Ledger.Events.newEntryId\n    TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground\n}\n"
+                  "let ledgerBookingPortsOn (http: System.Net.Http.HttpClient) : LedgerBookingPorts = {\n    Setting = Persistence.Settings.getSetting\n    LoadYnabCategories = YnabClient.getCategories\n    BudgetAccounts = YnabClient.fetchTransferAccounts\n    Push = YnabClient.createTransactionOn http None None\n    Delete = YnabClient.deleteTransaction\n    NewEntryId = Ledger.Events.newEntryId\n    TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground\n}\n"
+                  "let liveLedgerBookingPorts : LedgerBookingPorts = ledgerBookingPortsOn YnabClient.sharedHttpClient\n\n"
                   "deleteEntry = fun entryId -> deleteEntryWith liveEntryDeletionPorts DateTime.UtcNow entryId\n"
                   "restoreDeletedEntry = fun entryId -> restoreDeletedEntryWith liveEntryDeletionPorts DateTime.UtcNow entryId\n"
                   "Delete = fun ynabTransactionId -> YnabClient.deleteTransaction token budget ynabTransactionId\n                Create = fun replacement -> YnabClient.createReplacement token budget replacement\n                TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground\n            }\n"
@@ -955,16 +961,19 @@ let hostedServiceGuardTests =
                   "DateTime.UtcNow validRequest", "DateTime.MinValue validRequest", "Quick Add mit fester Uhr"
                   "    Setting = Persistence.Settings.getSetting\n    LoadYnabCategories", "    Setting = (fun _ -> async.Return None)\n    LoadYnabCategories", "Quick Add ohne Settings"
                   "LoadYnabCategories = YnabClient.getCategories", "LoadYnabCategories = (fun _ _ -> async.Return (Ok []))", "Quick Add ohne YNAB-Kategorien"
-                  "Push = YnabClient.createTransactionWith", "Push = (fun _ _ _ _ _ -> async.Return (Ok \"x\"))", "Quick Add ohne Push"
+                  "Push = YnabClient.createTransactionOn http None None None", "Push = (fun _ _ _ _ -> async.Return (Ok \"x\"))", "Quick Add ohne Push"
+                  "quickAddPortsOn YnabClient.sharedHttpClient", "quickAddPortsOn fakeHttp", "Quick Add mit anderem Client"
                   "NewEntryId = Ledger.Events.newEntryId", "NewEntryId = (fun () -> festeId)", "Quick Add mit fester Id"
                   "TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground", "TriggerMirror = ignore", "Quick Add ohne Spiegel"
-                  "entryPushWith Persistence.Settings.getSetting YnabClient.createTransactionFor", "entryPushWith Persistence.Settings.getSetting fakeCreate", "Erneut senden ohne YNAB"
+                  "entryPushWith Persistence.Settings.getSetting (YnabClient.createTransactionOn YnabClient.sharedHttpClient)", "entryPushWith Persistence.Settings.getSetting fakeCreate", "Erneut senden ohne YNAB"
+                  "(YnabClient.createTransactionOn YnabClient.sharedHttpClient)", "(YnabClient.createTransactionOn fakeHttp)", "Erneut senden mit anderem Client"
                   "entryPushWith Persistence.Settings.getSetting", "entryPushWith (fun _ -> async.Return None)", "Erneut senden ohne Settings"
                   "addLedgerBookingWith liveLedgerBookingPorts", "addLedgerBookingWith fakeBookingPorts", "Erfassen mit anderen Ports"
                   "(liveBerlinDay ()) DateTime.UtcNow request", "DateTime.UtcNow DateTime.UtcNow request", "Erfassen mit UTC-Tag"
                   "discardCapturedBookingWith liveLedgerBookingPorts", "discardCapturedBookingWith fakeBookingPorts", "Rückgängig mit anderen Ports"
                   "BudgetAccounts = YnabClient.fetchTransferAccounts", "BudgetAccounts = (fun _ _ -> async.Return (Ok []))", "Erfassen ohne Konten"
-                  "Push = YnabClient.createTransactionFor\n    Delete", "Push = fakeCreate\n    Delete", "Erfassen ohne Push"
+                  "Push = YnabClient.createTransactionOn http None None\n    Delete", "Push = fakeCreate\n    Delete", "Erfassen ohne Push"
+                  "ledgerBookingPortsOn YnabClient.sharedHttpClient", "ledgerBookingPortsOn fakeHttp", "Erfassen mit anderem Client"
                   "Delete = YnabClient.deleteTransaction", "Delete = (fun _ _ _ -> async.Return (Ok ()))", "Rückgängig ohne Löschen"
                   "deleteEntryWith liveEntryDeletionPorts", "deleteEntryWith fakeDeletionPorts", "Löschen mit anderen Ports"
                   "restoreDeletedEntryWith liveEntryDeletionPorts", "restoreDeletedEntryWith fakeDeletionPorts", "Wiederherstellen mit anderen Ports"
@@ -981,21 +990,20 @@ let hostedServiceGuardTests =
                 Expect.isNonEmpty (findMissingApiWirings (replaced original replacement)) label
             Expect.isNonEmpty (findMissingApiWirings $"// {real}") "nur im Kommentar"
 
-        testCase "Bobs Push des Servers reicht Konto, import_id und Request der Barbuchung an YNAB" <| fun () ->
+        testCase "Bobs Push des Servers geht über botPushOn mit den echten Einstellungen und dem gemeinsamen Client" <| fun () ->
             let bot = serverSources "BotApi.fs" |> List.exactlyOne |> snd
             Expect.isTrue (isBotPushWired bot) "sonst pusht Bob nichts oder etwas anderes"
 
         testCase "Gegenbeweis: ein falsch verdrahteter Push für Bob wird gemeldet" <| fun () ->
             let real =
-                "        Push =\n            fun (ynabAccountId, importId, request) ->\n                async {\n                    match! ynabContext () with\n                    | Error reason -> return Error (YnabError.Unauthorized reason)\n                    | Ok (token, budgetId) -> return! Server.YnabClient.createTransactionWith (Some importId) token budgetId ynabAccountId request\n                }\n"
+                "let liveDepsOn (berlinZone: TimeZoneInfo) (http: System.Net.Http.HttpClient) : BotDeps =\n    {\n        Token = fun () -> None\n        Push = botPushOn http ynabContext\n        AddCashExpense = Ledger.CommandHandlers.addCashExpense\n    }\n\nlet liveDeps (berlinZone: TimeZoneInfo) : BotDeps = liveDepsOn berlinZone Server.YnabClient.sharedHttpClient\n"
             Expect.isTrue (isBotPushWired real) "richtig"
             for original, replacement, label in
-                [ "token budgetId ynabAccountId request", "token budgetId festesKonto request", "anderes Konto"
-                  "token budgetId ynabAccountId request", "token budgetId ynabAccountId { request with Amount = 0m }", "veränderter Request"
-                  "(Some importId)", "None", "ohne import_id"
-                  "(Some importId)", "(Some \"BB:fest\")", "andere import_id"
-                  "return! Server.YnabClient.createTransactionWith (Some importId) token budgetId ynabAccountId request", "return Ok \"x\"", "kein Push"
-                  "match! ynabContext ()", "match! fakeContext ()", "andere Einstellungen" ] do
+                [ "Push = botPushOn http ynabContext", "Push = (fun _ -> async.Return (Ok \"x\"))", "kein Push"
+                  "botPushOn http ynabContext", "botPushOn http fakeContext", "andere Einstellungen"
+                  "botPushOn http ynabContext", "botPushOn fakeHttp ynabContext", "anderer Client in der Fabrik"
+                  "liveDepsOn berlinZone Server.YnabClient.sharedHttpClient", "liveDepsOn berlinZone fakeHttp", "anderer Client im Server"
+                  "liveDepsOn berlinZone Server.YnabClient.sharedHttpClient", "liveDepsOn TimeZoneInfo.Utc Server.YnabClient.sharedHttpClient", "andere Zone" ] do
                 Expect.isFalse (isBotPushWired (real.Replace(original, replacement))) label
             Expect.isFalse (isBotPushWired $"// {real}") "nur im Kommentar"
 
