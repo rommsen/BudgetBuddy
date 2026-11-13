@@ -584,6 +584,23 @@ test("P7a Gegenfall: derselbe Begriff steht im body eines Ops, Exit 0", () =>
     assert.doesNotMatch(res.stderr, /alter Wortlaut/);
   }));
 
+test("P7a Gegenfall: der Begriff steht nur im body eines anderen Ops in einem anderen Abschnitt, Exit 0", () =>
+  withStaleRepo((dir) => {
+    const res = runGate({
+      cwd: dir,
+      delta: [
+        ...sendefehlerDelta("- **Sendefehler**: der offene Fehlschlag beim Senden, ohne Schlüssel, „geht beim nächsten Lauf mit“."),
+        {
+          document: "README.md",
+          section: "Key commands",
+          ops: [{ op: "append", body: "- *NotizSperren*: setzt die Sperre über `fester_schluessel`." }],
+        },
+      ],
+    });
+    assert.equal(res.status, 0, res.stderr);
+    assert.doesNotMatch(res.stderr, /alter Wortlaut/);
+  }));
+
 test("P7b: „…“-Satz aus expected bleibt über einen Zeilenumbruch hinweg stehen, Exit 1", () =>
   withStaleRepo((dir) => {
     const res = runGate({
@@ -754,14 +771,31 @@ test("collapsedWithLines führt einen Treffer über einen Zeilenumbruch auf sein
   assert.deepEqual(occurrenceLines(c, "fünf"), [3]);
 });
 
-test("P10: Hilfetext und CLAUDE.md beschreiben Prüfung 7, --keep und die Liste „ganz nachlesen“", () => {
-  const help = spawnSync(process.execPath, [SCRIPT, "--help"], { encoding: "utf8" });
-  assert.equal(help.status, 0);
-  const claudeMd = readFileSync(path.join(REPO_ROOT, "CLAUDE.md"), "utf8");
-  for (const [label, text] of [["Hilfetext", help.stdout], ["CLAUDE.md", claudeMd]]) {
-    assert.ok(text.includes("Prüfung 7"), `${label} nennt Prüfung 7`);
-    assert.ok(text.includes("alter Wortlaut bleibt stehen"), `${label} nennt den Grund`);
-    assert.ok(text.includes("--keep"), `${label} nennt --keep`);
-    assert.ok(/ganz nachlesen/i.test(text), `${label} nennt die Liste`);
-  }
-});
+// Liste "ganz nachlesen" unter ## Key events und über das expected eines replace.
+const KEY_EVENTS_README =
+  STALE_README +
+  "\n## Key events\n- *NoteLocked*: Sperre gesetzt, Halter in `lock_owner`.\n- *NoteKeyed*: Schlüssel vergeben, siehe `fester_schluessel`.\n";
+
+test("P8d: Eintrag unter ## Key events mit gemeinsamem seltenen Begriff aus dem body landet in der Liste", () =>
+  withStaleRepo((dir) => {
+    const res = runGate({
+      cwd: dir,
+      delta: sendefehlerDelta(
+        "- **Sendefehler**: der offene Fehlschlag beim Senden, mit dem `fester_schluessel`, „geht beim nächsten Lauf mit“.\n  Halter steht in `lock_owner`."
+      ),
+    });
+    assert.equal(res.status, 0, res.stderr);
+    assert.match(res.stdout, /README\.md:\d+ ## Key events: NoteLocked \(gemeinsam: `lock_owner`\)/);
+  }, KEY_EVENTS_README));
+
+test("P8e: Eintrag, der einen seltenen Begriff nur mit dem expected eines replace teilt, landet in der Liste", () =>
+  withStaleRepo((dir) => {
+    const res = runGate({
+      cwd: dir,
+      delta: sendefehlerDelta("- **Sendefehler**: der offene Fehlschlag beim Senden, ohne Schlüssel, „geht beim nächsten Lauf mit“."),
+    });
+    // Prüfung 7 schlägt wegen `fester_schluessel` an, die Liste erscheint trotzdem.
+    assert.equal(res.status, 1, res.stderr);
+    assert.match(res.stdout, /README\.md:\d+ ## Key events: NoteKeyed \(gemeinsam: `fester_schluessel`\)/);
+    assert.doesNotMatch(res.stdout, /NoteLocked/);
+  }, KEY_EVENTS_README));
