@@ -544,16 +544,6 @@ let entryFormHint = "Gilt für neue Importe."
 /// Der Titel des Formulars aus einer Buchung.
 let entryFormTitle = "Regel anlegen"
 
-/// Das Formular aus einer Buchung in Teilen; das Kassenbuch setzt sie in Panel, Sheet oder Dialog ein.
-/// `OnBack` führt zur Buchung zurück (am Handy der Schließen-Knopf des Sheets, ist die Auswahl der Kategorie offen,
-/// zurück ins Formular). `Footer` füllt am Handy den Fuß des Sheets, am PC stehen die Knöpfe im Inhalt.
-type EntryFormParts = {
-    Title: string
-    OnBack: unit -> unit
-    Body: ReactElement list
-    Footer: ReactElement list option
-}
-
 let private entryHint () =
     Html.p [
         prop.custom ("data-testid", "rule-form-hint")
@@ -562,7 +552,7 @@ let private entryHint () =
     ]
 
 /// Das Formular aus einer Buchung, falls es offen ist. `inSheet`: am Handy im Sheet, sonst im Panel oder Dialog am PC.
-let entryForm (model: Model) (dispatch: Msg -> unit) (inSheet: bool) : EntryFormParts option =
+let entryForm (model: Model) (dispatch: Msg -> unit) (inSheet: bool) : EntryRuleForm option =
     match model.Panel with
     | Some ({ Origin = FromEntry _ } as panel) ->
         if inSheet && panel.PickerOpen then

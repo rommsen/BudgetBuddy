@@ -1253,6 +1253,24 @@ let entryRestoredText = "Buchung wiederhergestellt"
 let closeDetail (model: Model) : Model =
     { model with DetailFor = None; History = NotAsked; MemoEdit = None; AmountEdit = None; PayeeEdit = None }
 
+/// Öffnet „Neue Buchung“; `filterAccount` belegt das Konto vor (der Kassenbuch-Filter, `None` ohne Filter). Ein
+/// schon offenes Erfassen bleibt, wie es ist.
+let private openCapture (filterAccount: Guid option) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
+    match model.Capture with
+    | Some _ -> model, Cmd.none, NoOp
+    | None ->
+        let loadTargets =
+            match model.TransferTargets with
+            | Success _ | Loading -> Cmd.none
+            | _ -> Cmd.ofMsg RunLoadTransferTargets
+        { closeDetail model with
+            Capture = Some { Capture.opening with FilterAccount = filterAccount }
+            CategoryPickerFor = None
+            CategorySuggestions = []
+            CategoryCard = None },
+        Cmd.batch [ Cmd.ofMsg RunLoadCaptureDefaults; loadTargets; Cmd.ofMsg EnsureCategoriesFresh ],
+        NoOp
+
 /// Darf der Betrags-Knopf im Kopf das Sheet "Betrag" öffnen? Nicht bei gesperrtem Betrag, nicht
 /// solange ein Aufruf zum Betrag läuft, nicht bei offenem Split-Editor (der Kopf zeigt dort den
 /// Gesamtbetrag des Editors) und nicht, solange die Buchung gelöscht wird (ledger-m7mye).
@@ -3233,26 +3251,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         | Some editor when not (rowBusy CategoryLock model editor.EntryId) -> { model with SplitEditor = None }, Cmd.none, NoOp
         | _ -> model, Cmd.none, NoOp
 
-    | OpenCapture
-    | OpenCaptureUnfiltered ->
-        match model.Capture with
-        | Some _ -> model, Cmd.none, NoOp
-        | None ->
-            let loadTargets =
-                match model.TransferTargets with
-                | Success _ | Loading -> Cmd.none
-                | _ -> Cmd.ofMsg RunLoadTransferTargets
-            let filterAccount =
-                match msg with
-                | OpenCapture -> captureFilterAccount model
-                | _ -> None
-            { closeDetail model with
-                Capture = Some { Capture.opening with FilterAccount = filterAccount }
-                CategoryPickerFor = None
-                CategorySuggestions = []
-                CategoryCard = None },
-            Cmd.batch [ Cmd.ofMsg RunLoadCaptureDefaults; loadTargets; Cmd.ofMsg EnsureCategoriesFresh ],
-            NoOp
+    | OpenCapture -> openCapture (captureFilterAccount model) model
+    | OpenCaptureUnfiltered -> openCapture None model
 
     | CloseCapture ->
         match model.Capture with

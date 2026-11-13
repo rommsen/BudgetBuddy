@@ -9,6 +9,19 @@ type RemoteData<'T> =
     | Success of 'T
     | Failure of string
 
+/// Das Regel-Formular aus einer Buchung (ledger-hg5m5) in Teilen. Es gehört zum Tab „Regeln“
+/// (`Components.Rules.View.entryForm` baut es), das Kassenbuch setzt es dorthin, wo die Buchung steht: Panel, Sheet
+/// oder Dialog. Der Typ steht hier, damit die Geschwister Regeln und Kassenbuch einander nicht importieren.
+type EntryRuleForm = {
+    Title: string
+    /// Zurück zur Buchung (am Handy der Schließen-Knopf des Sheets; ist die Auswahl der Kategorie offen, zurück ins
+    /// Formular).
+    OnBack: unit -> unit
+    Body: Feliz.ReactElement list
+    /// Am Handy der Fuß des Sheets, am PC stehen die Knöpfe im Inhalt.
+    Footer: Feliz.ReactElement list option
+}
+
 /// Meldung, wenn der Muster-Test den Server nicht erreicht hat. Das ist kein Urteil über das Muster.
 let ruleTestLostText = "Muster konnte nicht geprüft werden, keine Verbindung zum Server"
 

@@ -1914,21 +1914,9 @@ let externalLinksField (entry: LedgerEntryView) : ReactElement option =
     | [] -> None
     | links -> Some (Detail.externalLinksRow links)
 
-/// Alles unter dem Kopf: Hinweisleiste, Felder, Geprüft-Schalter, Herkunft, Historie.
 // ============================================
 // Regel aus der Buchung (ledger-hg5m5)
 // ============================================
-
-/// Das Regel-Formular aus einer Buchung. Es gehört zum Tab „Regeln“; der Root setzt es aus
-/// `Components.Rules.View.entryForm` zusammen, das Kassenbuch stellt es dorthin, wo die Buchung steht.
-type EntryRuleForm = {
-    Title: string
-    /// Zurück zur Buchung (am Handy aus der Auswahl der Kategorie zurück ins Formular).
-    OnBack: unit -> unit
-    Body: ReactElement list
-    /// Am Handy der Fuß des Sheets.
-    Footer: ReactElement list option
-}
 
 /// Das offene Regel-Formular für die gezeigte Buchung, `true` am Handy (Sheet), `false` am PC (Panel, Dialog).
 type EntryRuleFormSlot = bool -> EntryRuleForm option
@@ -1987,6 +1975,7 @@ let private ruleFormHead (form: EntryRuleForm) : ReactElement =
         ]
     ]
 
+/// Alles unter dem Kopf: Hinweisleiste, Felder, Geprüft-Schalter, Herkunft, Historie.
 let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) : ReactElement list =
     let rowState = model.ReviewMarkRows |> Map.tryFind entry.Id
     let categoryRow = model.CategoryRows |> Map.tryFind entry.Id
@@ -2445,21 +2434,33 @@ let private detailSheetView (dispatch: Msg -> unit) (model: Model) (open': bool)
              | _ -> None) }
         // Der Inhalt steht nur im DOM, solange das Sheet offen ist: ein geschlossenes Sheet bliebe
         // sonst als verstecktes Doppel neben dem Panel stehen.
-        [ match entry, amountEdit, editor with
-          | Some _, _, _ when open' && categoryPicker.IsSome -> CategoryPicker.sheetContent categoryPicker.Value
-          | Some entry, _, _ when open' && payeeEdit.IsSome ->
+        [ match entry, amountEdit, editor, categoryPicker with
+          | Some _, _, _, Some picker when open' -> CategoryPicker.sheetContent picker
+          | Some entry, _, _, _ when open' && payeeEdit.IsSome ->
               PayeePicker.view (payeePickerProps dispatch model entry payeeEdit.Value (Viewport.isFinePointer ()))
-          | Some entry, Some edit, _ when open' ->
+          | Some entry, Some edit, _, _ when open' ->
               Html.div [
                   prop.custom ("data-testid", "amount-form")
                   prop.className "flex flex-col gap-4"
                   prop.children (amountFormBody dispatch entry edit)
               ]
-          | Some entry, None, Some ed when open' -> yield! splitEditorBody dispatch model entry ed
-          | Some entry, None, None when open' ->
+          | Some entry, None, Some ed, _ when open' -> yield! splitEditorBody dispatch model entry ed
+          | Some entry, None, None, _ when open' ->
               detailHead dispatch model entry None
               yield! detailContent dispatch model entry
           | _ -> () ]
+
+/// Die Hülle des Regel-Formulars am Handy: ein Sheet, Schließen führt zur Buchung zurück (§7.15).
+let private ruleFormSheet (form: EntryRuleForm) : ReactElement =
+    BottomSheet.view
+        { IsOpen = true; OnClose = form.OnBack; Title = form.Title; Subtitle = None; Footer = form.Footer }
+        form.Body
+
+/// Die Hülle des Regel-Formulars am PC über einer Seite ohne Liste (Durchgehen, §7.6): ein Dialog.
+let private ruleFormDialog (form: EntryRuleForm) : ReactElement =
+    Modal.view
+        { Modal.defaultProps with IsOpen = true; OnClose = form.OnBack; Title = Some form.Title }
+        [ Modal.bodyNoPadding form.Body ]
 
 /// Das Panel am PC, mit offenem Regel-Formular dieses statt des Details: es ersetzt den Inhalt und führt mit „Zurück“
 /// zur Buchung (ledger-hg5m5).
@@ -2472,10 +2473,7 @@ let private detailPanelOrRuleForm (dispatch: Msg -> unit) (model: Model) (ruleFo
 /// (ledger-hg5m5).
 let private detailSheetOrRuleForm (dispatch: Msg -> unit) (model: Model) (ruleForm: EntryRuleFormSlot) (open': bool) : ReactElement =
     match ruleForm true with
-    | Some form when open' && (detailEntryOf model).IsSome ->
-        BottomSheet.view
-            { IsOpen = true; OnClose = form.OnBack; Title = form.Title; Subtitle = None; Footer = form.Footer }
-            form.Body
+    | Some form when open' && (detailEntryOf model).IsSome -> ruleFormSheet form
     | _ -> detailSheetView dispatch model open'
 
 // ============================================
@@ -5233,14 +5231,8 @@ let ReviewPage (model: Model) (dispatch: Msg -> unit) (onBack: unit -> unit) (ru
                 if desk then detailPanelOrRuleForm dispatch model ruleForm entry else detailSheetOrRuleForm dispatch model ruleForm true
             | Some _ ->
                 match openRuleForm with
-                | Some f when desk ->
-                    Modal.view
-                        { Modal.defaultProps with IsOpen = true; OnClose = f.OnBack; Title = Some f.Title }
-                        [ Modal.bodyNoPadding f.Body ]
-                | Some f ->
-                    BottomSheet.view
-                        { IsOpen = true; OnClose = f.OnBack; Title = f.Title; Subtitle = None; Footer = f.Footer }
-                        f.Body
+                | Some f when desk -> ruleFormDialog f
+                | Some f -> ruleFormSheet f
                 | None -> Html.none
             | _ -> Html.none
         Html.div [

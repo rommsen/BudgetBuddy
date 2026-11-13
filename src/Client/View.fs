@@ -90,11 +90,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
     // Das Regel-Formular aus einer Buchung (ledger-hg5m5): es gehört zum Tab „Regeln“, das Kassenbuch zeigt es dort,
     // wo die Buchung steht.
     let entryRuleForm : Components.Ledger.View.EntryRuleFormSlot =
-        fun inSheet ->
-            Components.Rules.View.entryForm model.Rules (RulesMsg >> dispatch) inSheet
-            |> Option.map (fun form ->
-                ({ Title = form.Title; OnBack = form.OnBack; Body = form.Body; Footer = form.Footer }
-                 : Components.Ledger.View.EntryRuleForm))
+        Components.Rules.View.entryForm model.Rules (RulesMsg >> dispatch)
     let pageShell =
         match model.CurrentPage with
         | Overview | Ledger | LedgerEntry _ | LedgerRules | Budget | BudgetHistory | BudgetTargetCheck | BudgetCategories -> Navigation.pageContentFull

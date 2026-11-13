@@ -88,7 +88,6 @@ type Msg =
     /// Der Pin-Knopf im Kategorie-Detail (budgeting-w9yt4): anpinnen oder lösen, mit Toast.
     | TogglePinFromInspector of categoryId: System.Guid * name: string
 
-
 // ============================================
 // Helper Functions
 // ============================================
