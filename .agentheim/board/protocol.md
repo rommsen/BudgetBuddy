@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-13 22:45 -- Modeling / Dismissed: categorization-krscs
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-krscs - "Regel-Dialog im Client: Ladezustände, Fehler, Seiteneffekte und Retry beim Muster-Test" (categorization)
+
+---
+
 ## 2026-11-13 22:36 -- Review-Lauf: aa2c1e46..HEAD
 
 **Type:** Review / Review-Lauf

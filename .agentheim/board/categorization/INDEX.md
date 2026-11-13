@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 2
+- **Backlog:** 1
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 9
@@ -40,7 +40,6 @@ research touching this BC, and concept synthesis pages.
 ### Backlog
 <!-- backlog-list:start -->
 - **categorization-m5k2c** — "Kann-Sammlung categorization" (chore) — `backlog/categorization-m5k2c-kann-sammlung-categorization.md`
-- **categorization-krscs** — "Regel-Dialog im Client: Ladezustände, Fehler, Seiteneffekte und Retry beim Muster-Test" (refactor) — `backlog/categorization-krscs-regel-dialog-ladezustaende-fehler-und-seiteneffekte.md`
 <!-- backlog-list:end -->
 
 
