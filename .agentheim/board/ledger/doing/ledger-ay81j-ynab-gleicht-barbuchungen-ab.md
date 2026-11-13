@@ -1,7 +1,7 @@
 ---
 id: ledger-ay81j
 title: "In BB erfasste Buchungen gehen ohne import_id an YNAB, der Spiegel verknüpft offene Erfassungen nach Konto, Tag, Betrag und Payee"
-status: todo
+status: doing
 type: bug
 context: ledger
 created: 2026-11-13

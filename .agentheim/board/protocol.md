@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-13 16:09 -- Batch started: [ledger-ay81j]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-ay81j - "In BB erfasste Buchungen gehen ohne import_id an YNAB, der Spiegel verknüpft offene Erfassungen nach Konto, Tag, Betrag und Payee"
+**Parallel:** scoped — builder named ledger-ay81j; keine anderen Tasks dispatcht
+
+---
+
 ## 2026-11-13 15:58 -- Modeling / Promoted: ledger-ay81j - "In BB erfasste Buchungen gehen ohne import_id an YNAB, der Spiegel verknüpft offene Erfassungen nach Konto, Tag, Betrag und Payee"
 
 **Type:** Modeling / Promote
