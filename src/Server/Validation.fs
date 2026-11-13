@@ -129,7 +129,8 @@ let validateRuleChange (change: RuleChange) : Result<RuleChange, string list> =
     if errors.IsEmpty then Ok change else Error errors
 
 /// Eine gelöschte Regel, die „Rückgängig“ zurückbringt (categorization-n3sxw): dieselben Prüfungen wie beim
-/// Anlegen, dazu die Stelle. Die Priorität vergibt der Server neu, sie wird nicht geprüft.
+/// Anlegen, dazu die Stelle und die Kategorie (die beim Anlegen YNAB liefert). Die Priorität vergibt der
+/// Server neu, sie wird nicht geprüft.
 let validateRuleRestore (restore: RuleRestore) : Result<RuleRestore, string list> =
     let errors =
         [
@@ -137,6 +138,9 @@ let validateRuleRestore (restore: RuleRestore) : Result<RuleRestore, string list
             validatePattern restore.Rule.Pattern
             validatePayeeOverride restore.Rule.PayeeOverride
             if restore.Position < 0 then Some "Die Stelle darf nicht negativ sein" else None
+            (let (YnabCategoryId categoryId) = restore.Rule.CategoryId
+             if categoryId = Guid.Empty then Some "Kategorie ist erforderlich" else None)
+            if String.IsNullOrWhiteSpace restore.Rule.CategoryName then Some "Kategoriename ist erforderlich" else None
         ]
         |> List.choose id
 

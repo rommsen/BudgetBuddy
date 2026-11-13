@@ -137,7 +137,8 @@ let changeRule (port: YnabPort) (now: DateTime) (request: RuleChange) : Async<Ru
 
 /// Legt eine gelöschte Regel an ihrer alten Stelle wieder an („Rückgängig“, categorization-n3sxw). Kategorie und
 /// Name kommen aus der Regel, YNAB wird nicht gefragt. Einfügen und neue Reihenfolge laufen in einer Transaktion:
-/// es gibt keinen Zwischenstand, in dem die Regel an falscher Stelle steht. Die Antwort ist die ganze Liste.
+/// es gibt keinen Zwischenstand, in dem die Regel an falscher Stelle steht. Die Antwort ist die ganze Liste, gelesen
+/// vor dem Commit: ein DatabaseError heißt damit immer, dass nichts gespeichert wurde.
 let restoreRule (request: RuleRestore) : Async<RulesResult<Rule list>> =
     async {
         match validateRuleRestore request with
@@ -147,8 +148,7 @@ let restoreRule (request: RuleRestore) : Async<RulesResult<Rule list>> =
             | Error reason -> return Error (compileError valid.Rule reason)
             | Ok _ ->
                 try
-                    do! Persistence.Rules.restoreRuleAt valid.Rule valid.Position
-                    let! rules = Persistence.Rules.getAllRules ()
+                    let! rules = Persistence.Rules.restoreRuleAt valid.Rule valid.Position
                     return Ok rules
                 with ex ->
                     return Error (RulesError.DatabaseError ("restore_rule", ex.Message))

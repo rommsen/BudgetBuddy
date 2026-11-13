@@ -13,7 +13,6 @@ open Server.RulesEngine
 open Server.Validation
 open Server.SyncSessionManager
 open Server.DuplicateDetection
-open Thoth.Json.Net
 
 module RuleCommands = Server.Rules.CommandHandlers
 

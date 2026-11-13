@@ -435,10 +435,23 @@ module Rules =
             do! (conn.ExecuteAsync(insertRuleSql, insertRuleParameters rule) |> Async.AwaitTask |> Async.Ignore)
         }
 
+    /// Vergibt die Prioritäten nach der Reihenfolge von `ids` (die erste bekommt die höchste) innerhalb der
+    /// übergebenen Transaktion. Gemeinsamer Schritt von `restoreRuleAt` und `updatePriorities`.
+    let private writePriorities (conn: SqliteConnection) (transaction: SqliteTransaction) (ids: string list) : Async<unit> =
+        async {
+            for i, id in List.indexed ids do
+                do! (conn.ExecuteAsync(
+                        "UPDATE rules SET priority = @priority WHERE id = @id",
+                        {| id = id; priority = ids.Length - i |},
+                        transaction
+                     ) |> Async.AwaitTask |> Async.Ignore)
+        }
+
     /// Legt eine Regel an der Stelle `position` (ab 0, Prüfreihenfolge) wieder an und vergibt allen Regeln die
     /// Prioritäten neu, in einer Transaktion: scheitert ein Schritt, bleibt alles wie vorher. Eine Stelle hinter
-    /// dem Ende hängt die Regel unten an.
-    let restoreRuleAt (rule: Rule) (position: int) : Async<unit> =
+    /// dem Ende hängt die Regel unten an. Die Antwort ist die ganze Liste, gelesen in derselben Transaktion: ein
+    /// Lesefehler kommt so vor dem Commit und kann keine gespeicherte Regel als gescheitert melden.
+    let restoreRuleAt (rule: Rule) (position: int) : Async<Rule list> =
         async {
             use conn = getConnection()
             conn.Open()
@@ -451,17 +464,19 @@ module Rules =
             let ids = List.ofSeq ids
             let order = List.insertAt (min position ids.Length) (ruleId.ToString()) ids
 
+            // Die Priorität aus `rule` ist nur vorläufig, `writePriorities` vergibt sie gleich danach neu.
             do! (conn.ExecuteAsync(insertRuleSql, insertRuleParameters rule, transaction)
                  |> Async.AwaitTask |> Async.Ignore)
 
-            for i, id in List.indexed order do
-                do! (conn.ExecuteAsync(
-                        "UPDATE rules SET priority = @priority WHERE id = @id",
-                        {| id = id; priority = order.Length - i |},
-                        transaction
-                     ) |> Async.AwaitTask |> Async.Ignore)
+            do! writePriorities conn transaction order
+
+            let! rows =
+                conn.QueryAsync<RuleRow>("SELECT * FROM rules ORDER BY priority DESC, rowid ASC", transaction = transaction)
+                |> Async.AwaitTask
+            let rules = rows |> Seq.map rowToRule |> Seq.toList
 
             transaction.Commit()
+            return rules
         }
 
     /// Die Priorität einer neuen Regel: höchste vorhandene plus 1, sie steht damit ganz vorn.
@@ -515,13 +530,7 @@ module Rules =
             use transaction = conn.BeginTransaction()
 
             try
-                for i, (RuleId ruleId) in List.indexed ruleIds do
-                    let priority = List.length ruleIds - i
-                    do! (conn.ExecuteAsync(
-                        "UPDATE rules SET priority = @priority WHERE id = @id",
-                        {| id = ruleId.ToString(); priority = priority |},
-                        transaction
-                    ) |> Async.AwaitTask |> Async.Ignore)
+                do! writePriorities conn transaction (ruleIds |> List.map (fun (RuleId ruleId) -> ruleId.ToString()))
 
                 transaction.Commit()
             with ex ->

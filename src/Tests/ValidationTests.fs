@@ -395,6 +395,82 @@ let rulesValidationTests =
             }
         ]
 
+        // Doktrin Punkt 4: dieselben Ablehnungsfälle wie die Vorlage `validateNewRule`, dazu Stelle und Kategorie.
+        testList "validateRuleRestore" [
+            let validRule : Rule = {
+                Id = RuleId (Guid.NewGuid())
+                Name = "Test Rule"
+                Pattern = ".*test.*"
+                PatternType = PatternType.Regex
+                TargetField = Combined
+                CategoryId = YnabCategoryId (Guid.NewGuid())
+                CategoryName = "Lebensmittel"
+                PayeeOverride = None
+                Priority = 3
+                Enabled = true
+                CreatedAt = DateTime(2026, 1, 1)
+                UpdatedAt = DateTime(2026, 1, 1)
+            }
+            let restore rule position = validateRuleRestore { Rule = rule; Position = position }
+
+            test "eine gültige Regel an Stelle 0 ist Ok" {
+                Expect.isOk (restore validRule 0) "gültig"
+            }
+
+            test "ein leerer Name wird abgelehnt" {
+                Expect.equal (restore { validRule with Name = "" } 0) (Error [ "Regelname ist erforderlich" ]) "Name"
+            }
+
+            test "ein leeres Muster wird abgelehnt" {
+                Expect.equal (restore { validRule with Pattern = "" } 0) (Error [ "Muster ist erforderlich" ]) "Muster"
+            }
+
+            test "ein leerer Payee-Override wird abgelehnt" {
+                Expect.equal
+                    (restore { validRule with PayeeOverride = Some " " } 0)
+                    (Error [ "Payee-Override darf nicht leer sein" ])
+                    "Payee-Override"
+            }
+
+            test "eine negative Stelle wird abgelehnt" {
+                Expect.equal (restore validRule -1) (Error [ "Die Stelle darf nicht negativ sein" ]) "Stelle"
+            }
+
+            test "eine leere Kategorie wird abgelehnt" {
+                Expect.equal
+                    (restore { validRule with CategoryId = YnabCategoryId Guid.Empty } 0)
+                    (Error [ "Kategorie ist erforderlich" ])
+                    "Kategorie"
+            }
+
+            test "ein leerer Kategoriename wird abgelehnt" {
+                Expect.equal
+                    (restore { validRule with CategoryName = "  " } 0)
+                    (Error [ "Kategoriename ist erforderlich" ])
+                    "Kategoriename"
+            }
+
+            test "alle Fehler kommen gesammelt" {
+                let broken =
+                    { validRule with
+                        Name = ""
+                        Pattern = ""
+                        PayeeOverride = Some " "
+                        CategoryId = YnabCategoryId Guid.Empty
+                        CategoryName = "" }
+                Expect.equal
+                    (restore broken -1)
+                    (Error [
+                        "Regelname ist erforderlich"
+                        "Muster ist erforderlich"
+                        "Payee-Override darf nicht leer sein"
+                        "Die Stelle darf nicht negativ sein"
+                        "Kategorie ist erforderlich"
+                        "Kategoriename ist erforderlich" ])
+                    "alle sechs Fehler"
+            }
+        ]
+
         testList "validateRuleChange Payee-Override" [
             let change payeeOverride = {
                 Id = RuleId (Guid.NewGuid())
