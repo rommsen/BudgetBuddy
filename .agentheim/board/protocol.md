@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-13 22:54 -- Modeling / Refined: ledger-ea70s - Ein Erfassen
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** todo
+**Summary:** Quick Add, Neue Buchung und Prototyp Version 17 abgeglichen. Mit Roman: ohne Filter immer das Quick-Add-Konto, nach dem Anlegen schließen, alle vier gestapelten Kategorie-Picker ersetzen den Sheet-Inhalt. Nimmt design-system-taytp und ledger-yhemh auf; ADR-0011-Fund in die Kann-Sammlung design-system.
+
+---
+
 ## 2026-11-13 22:48 -- Modeling / Promoted: ledger-hg5m5 - "Regel aus der Buchung: „Regel anlegen“ im Detail und beim Durchgehen, dazu ein Angebot nach einer Kategorie-Änderung, vorbelegt mit Payee und Kategorie"
 
 **Type:** Modeling / Promote
