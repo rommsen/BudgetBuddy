@@ -5,6 +5,32 @@ Newest entries on top.
 
 ---
 
+## 2026-11-13 13:04 -- Modeling / Promoted: ledger-nnd2f - "Der Spiegel legt nur noch zusammen, wenn YNAB einen Comdirect-Import mit einem Übertrag abgeglichen hat; eine verschluckte Barbuchung bleibt im Kassenbuch stehen (Ledger/Domain.fs mergeObservedInYnab)"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-13 13:04 -- Capture / Captured: ledger-ay81j - "YNAB gleicht Barbuchungen aus BB (Bob, Quick Add, Neue Buchung) mit älteren von Hand erfassten Buchungen gleichen Betrags ab und verschluckt so echte Zahlungen"
+
+**Type:** Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** YNAB gleicht Barbuchungen aus BB mit älteren Buchungen gleichen Betrags ab und verschluckt echte Zahlungen.
+
+---
+
+## 2026-11-13 13:04 -- Modeling / Captured: ledger-nnd2f - "Der Spiegel legt nur noch zusammen, wenn YNAB einen Comdirect-Import mit einem Übertrag abgeglichen hat; eine verschluckte Barbuchung bleibt im Kassenbuch stehen (Ledger/Domain.fs mergeObservedInYnab)"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Zusammenlegen im Spiegel nur bei Übertrag plus Comdirect-Import (Roman, 2026-11-13); Probelauf hätte sonst eine echte Barzahlung aufgenommen.
+
+---
+
 ## 2026-11-13 09:01 -- Work session ended
 
 **Type:** Work / Session end
