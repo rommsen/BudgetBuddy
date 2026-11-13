@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-13 22:56 -- Batch started: [ledger-ea70s, ledger-hg5m5]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-ea70s - "Ein Erfassen: Quick Add hört auf, ein eigener Ort zu sein; „+ Buchung“ in Kassenbuch und Übersicht mit kluger Vorbelegung", ledger-hg5m5 - "Regel aus der Buchung: „Regel anlegen“ im Detail und beim Durchgehen, dazu ein Angebot nach einer Kategorie-Änderung, vorbelegt mit Payee und Kategorie"
+**Parallel:** yes (2 workers; beide berühren Components/Ledger/View.fs und State.fs, Merge nacheinander in Reihenfolge der PASS-Urteile)
+
+---
+
 ## 2026-11-13 22:54 -- Modeling / Promoted: ledger-ea70s - "Ein Erfassen: Quick Add hört auf, ein eigener Ort zu sein; „+ Buchung“ in Kassenbuch und Übersicht mit kluger Vorbelegung"
 
 **Type:** Modeling / Promote

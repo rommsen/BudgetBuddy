@@ -1,7 +1,7 @@
 ---
 id: ledger-ea70s
 title: "Ein Erfassen: Quick Add hört auf, ein eigener Ort zu sein; „+ Buchung“ in Kassenbuch und Übersicht mit kluger Vorbelegung"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-11-11
