@@ -5,6 +5,26 @@ Newest entries on top.
 
 ---
 
+## 2026-11-13 13:23 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** 35m
+**Completed:** 1 (first-try PASS: 1, re-dispatched: 0, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Lost-result re-dispatches:** 0
+**Lost-result escalations:** 0
+**Dispatches:** ledger-nnd2f: 1
+**Commits:** 3
+**Vision-conformance:** none — batch aligns with vision
+**Batch mix:** 100% product-facing (1 task)
+**Carry-over:** none — working tree clean
+**Probelauf vor Deploy (Conductor):** frische Kopie der Produktion, Vollabruf nur GET: 2 Zusammenlegungen (ING-Überträge), keine Barbuchung, danach alle Kontostände gleich YNAB.
+**Review vorgeschlagen (Override C):** /review-agents mit backend-code-quality und qa-milestone-reviewer über ledger-nkwqb, banking-import-pknvp, ledger-nnd2f; nicht gestartet.
+
+---
+
 ## 2026-11-13 13:22 -- Task verified and completed: ledger-nnd2f - "Der Spiegel legt nur noch zusammen, wenn YNAB einen Comdirect-Import mit einem Übertrag abgeglichen hat; eine verschluckte Barbuchung bleibt im Kassenbuch stehen (Ledger/Domain.fs mergeObservedInYnab)"
 
 **Type:** Work / Task completion

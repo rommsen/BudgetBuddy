@@ -83,11 +83,16 @@ Zuletzt aktualisiert: 2026-11-13, nach work-Lauf ledger-nkwqb und banking-import
   Probelauf gegen eine Kopie der Produktion (nur GET bei YNAB): 3 Zusammenlegungen (zwei ING-Überträge auf dem Girokonto, eine
   Barbuchung von Bob, die YNAB mit einer älteren Buchung gleichen Betrags abgeglichen hat), danach stimmen alle Kontostände mit
   YNAB. Nicht gepusht, nicht deployt.
-- **Nächster Schritt:** Romans Antwort zur Barbuchung (eine oder zwei Zahlungen; bei zwei den Abgleich in YNAB vor dem Deploy
-  aufheben), dann Deploy auf Anweisung (der erste Spiegel-Lauf danach liest einmal alles). Review vorgeschlagen:
-  `/review-agents` mit backend-code-quality und qa-milestone-reviewer. Danach Schnitt 6 `categorization-n3sxw` (Regeln ins
-  Kassenbuch) verfeinern. Offen zum Verfeinern: ledger-yhemh (Memo unter Datum), ledger-h7de3 (Fehlertexte in Ereignissen),
-  design-system-vf94m (Toast verdeckt „+ Buchung“), ledger-t4rk8 (Betrag eines Übertrags in BB ändern).
+- **Probelauf deckte Fehler auf (2026-11-13):** YNAB hatte eine Barbuchung von Bob mit einer eine Woche älteren Zahlung
+  gleichen Betrags abgeglichen (zwei echte Zahlungen); ledger-nkwqb wäre YNAB blind gefolgt. Roman hat den Abgleich in YNAB
+  aufgehoben. Entschieden (Roman): Zusammenlegen nur bei Überträgen. ledger-nnd2f (nur Comdirect-Import in einen Übertrag,
+  510257b7), Verifier PASS in Iteration 1, Gate VERIFY: PASS (dotnet 4940, node 322), Ergänzung im Nachtrag ADR 0015. Zweiter
+  Probelauf gegen eine frische Kopie: genau zwei Zusammenlegungen (die ING-Überträge), danach stimmen alle Konten mit YNAB.
+  Neu im Backlog: ledger-ay81j (YNAB verschluckt Barbuchungen aus BB, Geld, unverfeinert). Nicht gepusht, nicht deployt.
+- **Nächster Schritt:** Deploy auf Anweisung (der erste Spiegel-Lauf danach liest einmal alles). Review vorgeschlagen:
+  `/review-agents` mit backend-code-quality und qa-milestone-reviewer. Danach ledger-ay81j verfeinern (Geld), dann Schnitt 6
+  `categorization-n3sxw` (Regeln ins Kassenbuch). Offen zum Verfeinern: ledger-yhemh (Memo unter Datum), ledger-h7de3
+  (Fehlertexte in Ereignissen), design-system-vf94m (Toast verdeckt „+ Buchung“), ledger-t4rk8 (Betrag eines Übertrags in BB).
 - Verfeinert wird nur die nächste Etappe. Spätere Etappen haben Zeilen, keine Tickets.
 - Neue Ideen für spätere Etappen kommen hier als Zeile dazu.
 - Bestehende Tasks tragen einen Tag: `etappe-1`, `etappe-2`, `etappe-3`, `laufend`, `danach`.
