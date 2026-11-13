@@ -1081,6 +1081,18 @@ let private pageHeaderSection =
             prop.children [
                 PageHeader.withSubtitle "Einstellungen" "Verbindungen und Präferenzen konfigurieren."
                 PageHeader.calm "Kassenbuch" (Some "Zuletzt gespiegelt vor 5 Minuten") []
+                note "SubtitleDesktopOnly: der Untertitel steht erst ab md (Tab Regeln im Kassenbuch). Am Handy fehlt die Zeile darunter."
+                Html.div [
+                    prop.custom ("data-ds-demo", "pageheader-subtitle-desktop-only")
+                    prop.children [
+                        PageHeader.view
+                            { PageHeader.defaultProps with
+                                Title = "Kassenbuch"
+                                Subtitle = Some "12 Regeln"
+                                SubtitleDesktopOnly = true
+                                TitleStyle = PageHeader.Calm }
+                    ]
+                ]
             ]
         ]
     ]
@@ -1200,6 +1212,15 @@ let private FormDemo () =
             prop.children [
                 Input.groupRequired "Name" (Input.textSimple nameValue setNameValue "Pflichtfeld…")
                 Form.submitButton "Speichern" ignore false [ ("Name", nameValue) ]
+                note "submitButtonBlock: ohne Symbol und auch ab md über die volle Breite, die rechte Hälfte des Knopfpaars im Fuß von Panel und Sheet. Links Abbrechen als Button.Outline."
+                Html.div [
+                    prop.custom ("data-ds-demo", "form-submit-button-block")
+                    prop.className "grid w-full max-w-sm grid-cols-2 items-start gap-3"
+                    prop.children [
+                        Button.view { Button.defaultProps with Text = "Abbrechen"; Variant = Button.Outline; FullWidth = true }
+                        Form.submitButtonBlock "Speichern" ignore false [ ("Name", nameValue) ]
+                    ]
+                ]
             ]
         ]
     ]
@@ -1491,6 +1512,9 @@ let private CategoryPickerSingleDemo () =
     let aboveOpen, setAboveOpen = React.useState false
     let toBeBudgetedOpen, setToBeBudgetedOpen = React.useState false
     let selectionSheetOpen, setSelectionSheetOpen = React.useState false
+    // Sheet einer Regel: die Auswahl der Kategorie ersetzt den Inhalt des Sheets (sheetContent, §7.15).
+    let ruleSheetOpen, setRuleSheetOpen = React.useState false
+    let rulePickerOpen, setRulePickerOpen = React.useState false
     // Zählt die OnSelect-Aufrufe, damit "genau einmal pro Klick" an der Galerie prüfbar ist.
     let selectCount, setSelectCount = React.useState 0
     let selectCounter = React.useRef 0
@@ -1657,6 +1681,41 @@ let private CategoryPickerSingleDemo () =
             ]
         ]
         CategoryPicker.sheet sheetOpen (Some "REWE Markt · -42,10 €") (pickerProps (fun () -> setSheetOpen false))
+        subTitle "Auswahl ersetzt den Inhalt des Sheets"
+        note "sheetContent: aus einem offenen Sheet heraus ersetzt der Picker dessen Inhalt, Titel und Schließen stellt das Sheet. Nach der Wahl oder beim Schließen kehrt das Sheet zu seinem Inhalt zurück. Zielzustand gegenüber sheetLayered (§7.15)."
+        Html.span [
+            prop.custom ("data-ds-demo", "category-picker-sheet-content-trigger")
+            prop.children [ Button.secondary "Sheet einer Regel öffnen (Handy)" (fun () -> setRuleSheetOpen true) ]
+        ]
+        if ruleSheetOpen && rulePickerOpen then
+            BottomSheet.view
+                { IsOpen = true
+                  OnClose = fun () -> setRulePickerOpen false
+                  Title = CategoryPicker.sheetTitle []
+                  Subtitle = None
+                  Footer = None }
+                [ CategoryPicker.sheetContent (pickerProps (fun () -> setRulePickerOpen false)) ]
+        else
+            BottomSheet.view
+                { IsOpen = ruleSheetOpen
+                  OnClose = fun () -> setRuleSheetOpen false
+                  Title = "Regel bearbeiten"
+                  Subtitle = None
+                  Footer = None }
+                [ Html.div [
+                      prop.className "py-2"
+                      prop.custom ("data-ds-demo", "category-picker-sheet-content")
+                      prop.children [
+                          Input.pickerField
+                              "styleguide-rule-category"
+                              "Kategorie"
+                              (Some (nameOf current))
+                              "Kategorie wählen"
+                              None
+                              rulePickerOpen
+                              (fun () -> setRulePickerOpen true)
+                      ]
+                  ] ]
         CategoryPicker.selectionSheet
             selectionSheetOpen
             (Some "12 Buchungen · -340,20 €")
