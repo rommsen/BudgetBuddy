@@ -89,8 +89,11 @@ Zuletzt aktualisiert: 2026-11-13, nach work-Lauf ledger-nkwqb und banking-import
   510257b7), Verifier PASS in Iteration 1, Gate VERIFY: PASS (dotnet 4940, node 322), Ergänzung im Nachtrag ADR 0015. Zweiter
   Probelauf gegen eine frische Kopie: genau zwei Zusammenlegungen (die ING-Überträge), danach stimmen alle Konten mit YNAB.
   Neu im Backlog: ledger-ay81j (YNAB verschluckt Barbuchungen aus BB, Geld, unverfeinert). Nicht gepusht, nicht deployt.
-- **Nächster Schritt:** Deploy auf Anweisung (der erste Spiegel-Lauf danach liest einmal alles). Review vorgeschlagen:
-  `/review-agents` mit backend-code-quality und qa-milestone-reviewer. Danach ledger-ay81j verfeinern (Geld), dann Schnitt 6
+- **Review-Lauf f972a950..HEAD (2026-11-13):** backend-code-quality und qa-milestone-reviewer, 9 Funde behoben in f8623948
+  (eine Regel für Vor- und Schleifenprüfung der Zusammenlegung, Log nur mit Grund, zwei ungedeckte Prüfungen wieder
+  getestet, Testnamen), 1 in die Kann-Sammlung. Gate auf main: VERIFY: PASS (dotnet 4951, node 322). Dritter Probelauf: zwei
+  Zusammenlegungen, keine Log-Zeilen, alle Kontostände gleich YNAB.
+- **Nächster Schritt:** Deploy auf Anweisung (der erste Spiegel-Lauf danach liest einmal alles). Danach ledger-ay81j verfeinern (Geld), dann Schnitt 6
   `categorization-n3sxw` (Regeln ins Kassenbuch). Offen zum Verfeinern: ledger-yhemh (Memo unter Datum), ledger-h7de3
   (Fehlertexte in Ereignissen), design-system-vf94m (Toast verdeckt „+ Buchung“), ledger-t4rk8 (Betrag eines Übertrags in BB).
 - Verfeinert wird nur die nächste Etappe. Spätere Etappen haben Zeilen, keine Tickets.

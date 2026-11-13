@@ -5,6 +5,18 @@ Newest entries on top.
 
 ---
 
+## 2026-11-13 14:07 -- Review-Lauf: f972a950..HEAD (ledger-nkwqb, banking-import-pknvp, ledger-nnd2f)
+
+**Type:** Review / Review-Lauf
+**Bereich:** 127b9512, f41a4d24, 510257b7
+**Agents:** backend-code-quality, qa-milestone-reviewer
+**Funde:** behoben 9, verworfen 0, Rückfrage 0, Ticket 0, Kann-Sammlung 1 (Punkt 107; Vorschlag 3 stand schon als Punkt 99)
+**Commits:** f8623948
+**Verworfen:** keine
+**Verifikation:** VERIFY: PASS (dotnet 4951 grün, node 322 grün); dritter Probelauf gegen Kopie der Produktion: 2 Zusammenlegungen, keine Log-Zeilen, alle Kontostände gleich YNAB
+
+---
+
 ## 2026-11-13 13:23 -- Work session ended
 
 **Type:** Work / Session end
