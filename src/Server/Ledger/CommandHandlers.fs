@@ -303,51 +303,6 @@ let private mergeCandidate (state: MirrorBatchState) (matchedId: string) : Merge
             ]
             { Entry = absorbed; Links = List.distinct (loaded @ fromRun) }))
 
-/// Die Zusammenlegungen des Batches (ledger-nkwqb, ADR 0015 Nachtrag 2026-11-13): YNAB-Id der
-/// bleibenden Beobachtung auf die Matched-Id. Vor der Schleife bestimmt. Zeigen mehrere
-/// ungelöschte Beobachtungen auf dieselbe Id, oder ist die bleibende selbst Ziel einer anderen
-/// (etwa zwei, die gegenseitig aufeinander zeigen), gibt es keinen Merge, nur eine Log-Zeile.
-let mergePairsOf (observations: YnabObservation list) : Map<string, string> =
-    let pointing =
-        observations
-        |> List.filter (fun obs -> not obs.Deleted)
-        |> List.choose (fun obs -> obs.MatchedYnabTransactionId |> Option.map (fun m -> obs.YnabTransactionId, m))
-    let targets = pointing |> List.countBy snd |> Map.ofList
-    [
-        for survivorId, matchedId in pointing do
-            if Map.find matchedId targets > 1 then
-                printfn
-                    "Zusammenlegung übersprungen: mehrere YNAB-Buchungen zeigen auf %s (unter anderem %s)"
-                    matchedId
-                    survivorId
-            elif targets.ContainsKey survivorId then
-                printfn
-                    "Zusammenlegung übersprungen: YNAB-Buchung %s ist selbst Ziel einer anderen Zusammenlegung (Ziel %s)"
-                    survivorId
-                    matchedId
-            else
-                survivorId, matchedId
-    ]
-    |> Map.ofList
-
-/// Die YNAB-Ids der Buchungen, die dieser Lauf aufnimmt (ledger-nnd2f): nur die Ziele der
-/// Merge-Paare, die die Regel zulässt (`mayAbsorbInMerge`). Das Ziel eines abgelehnten Paars
-/// läuft normal durch `observe`.
-let private absorbedInMerge
-    (state: MirrorBatchState)
-    (mergePairs: Map<string, string>)
-    (observations: YnabObservation list)
-    : Set<string> =
-    observations
-    |> List.choose (fun obs ->
-        match Map.tryFind obs.YnabTransactionId mergePairs with
-        | Some matchedId ->
-            mergeCandidate state matchedId
-            |> Option.filter (mayAbsorbInMerge obs)
-            |> Option.map (fun _ -> matchedId)
-        | None -> None)
-    |> Set.ofList
-
 /// Ist die Buchung der Beobachtung in YNAB zusammengelegt (`MergedIntoEntryId`) oder wird sie es
 /// in diesem Batch (ledger-nkwqb)? Dann entfällt ihr `observe`.
 let private isHiddenByMerge (state: MirrorBatchState) (absorbedYnabIds: Set<string>) (obs: YnabObservation) : bool =
@@ -580,6 +535,36 @@ let private isSupersededDeletion (state: MirrorBatchState) (existing: Entry opti
         || pendingReplacement = Some obs.YnabTransactionId
         || (MirrorBatchState.find state YnabSupersededSystem obs.YnabTransactionId).IsSome
 
+/// Die bleibende Buchung einer Beobachtung vor der Schleife des Spiegel-Laufs, aufgelöst wie dort
+/// (`resolveEntry`, beim Treffer über die ImportId im Stand nach `importIdMatchEvents`). Ihr
+/// `observe` ändert für eine ungelöschte Beobachtung nichts, was die Regel prüft.
+let private survivorBeforeRun (now: DateTime) (state: MirrorBatchState) (obs: YnabObservation) : MergeSurvivor =
+    let existing entryId = MirrorBatchState.entry state entryId
+    match resolveEntry state obs with
+    | MatchedByYnabId entryId -> existing entryId |> Option.map ExistingSurvivor |> Option.defaultValue NewSurvivor
+    | MatchedByImportId entryId ->
+        existing entryId
+        |> Option.map (fun entry ->
+            importIdMatchEvents now (Some entry) entryId obs
+            |> List.fold (fun st ev -> apply (Some st) ev) entry
+            |> ExistingSurvivor)
+        |> Option.defaultValue NewSurvivor
+    | NewEntry _ -> NewSurvivor
+
+/// Der Grund einer abgelehnten Zusammenlegung für die Log-Zeile.
+let private mergeRejectionText (rejection: MergeRejection) : string =
+    match rejection with
+    | NoMatchObserved -> "kein Abgleich"
+    | MatchedIdUnknown -> "BB kennt die abgeglichene Buchung nicht"
+    | AlreadyMerged -> "die Zusammenlegung steht schon"
+    | MutualOrMany ->
+        "mehrere YNAB-Buchungen zeigen auf dieselbe, oder die bleibende ist selbst Ziel einer anderen Zusammenlegung"
+    | NotTransferIntoComdirectImport -> "BB legt nur einen Comdirect-Import in einen Übertrag zusammen"
+    | AbsorbedNotEligible ->
+        "die abgeglichene Buchung ist gelöscht, schon aufgenommen, wartet als mögliches Duplikat oder hat einen offenen Ersatz"
+    | SameEntry -> "beide YNAB-Buchungen gehören zu derselben Buchung in BB"
+    | SurvivorNotEligible -> "die bleibende Buchung ist gelöscht, schon aufgenommen oder wartet als mögliches Duplikat"
+
 /// Ein Spiegel-Lauf: Beobachtungen holen, Konten nachziehen, je Beobachtung die Buchung
 /// suchen, den Snapshot gegen den Zustand vergleichen und nur bei Unterschied Ereignisse
 /// schreiben. Am Ende steht das `server_knowledge` des Laufs in den Settings und der
@@ -623,8 +608,13 @@ let runMirror
                 | Error error -> return! finish (Error (ynabErrorText error))
                 | Ok batch ->
                     let! state = MirrorBatchState.load batch.Observations
-                    let mergePairs = mergePairsOf batch.Observations
-                    let absorbedYnabIds = absorbedInMerge state mergePairs batch.Observations
+                    // Die Abgleiche des Batches (ledger-nkwqb, ADR 0015 Nachtrag 2026-11-13), vor der
+                    // Schleife: nur Ziele zugelassener Abgleiche überspringen ihr `observe`.
+                    let mergeDecisions =
+                        planMergesObservedInYnab batch.Observations (survivorBeforeRun now state) (mergeCandidate state)
+                    let absorbedYnabIds = absorbedYnabIdsOf mergeDecisions
+                    let mergeDecisionOf =
+                        mergeDecisions |> List.map (fun d -> d.SurvivorYnabTransactionId, d) |> Map.ofList
                     let mutable newEntries = 0
                     let mutable changedEntries = 0
                     let mutable deletedEntries = 0
@@ -690,17 +680,28 @@ let runMirror
                                 // Zusammenlegung in YNAB (ledger-nkwqb): nach dem `observe` der
                                 // bleibenden Buchung, damit sie auch dann existiert, wenn sie in
                                 // diesem Lauf erst entsteht. Beide Ereignisse in einem Anhängen.
-                                match Map.tryFind obs.YnabTransactionId mergePairs, MirrorBatchState.entry state entryId with
-                                | Some matchedId, Some survivor ->
-                                    let mergeEvents =
-                                        mergeObservedInYnab now obs survivor (mergeCandidate state matchedId)
-                                    if List.isEmpty mergeEvents then
+                                // Dieselbe Regel wie vor der Schleife, jetzt mit dem Stand nach dem `observe`
+                                // und mit den Buchungen, die der Lauf bis hier gestiftet hat.
+                                match Map.tryFind obs.YnabTransactionId mergeDecisionOf, MirrorBatchState.entry state entryId with
+                                | Some decision, Some survivor ->
+                                    let candidate = mergeCandidate state decision.MatchedYnabTransactionId
+                                    let outcome =
+                                        match decision.Rejection with
+                                        | Some MutualOrMany -> Error MutualOrMany
+                                        | _ -> mergeObservedInYnab now obs survivor candidate
+                                    match outcome with
+                                    | Ok mergeEvents -> do! MirrorBatchState.append state mergeEvents
+                                    // Keine Zeile, wenn BB die Matched-Id nicht als Buchung kennt: alte
+                                    // Abgleiche innerhalb von YNAB, im Vollabruf zahlreich.
+                                    // Auch keine bei einer Zusammenlegung, die ein früherer Lauf geschrieben hat.
+                                    | Error (NoMatchObserved | MatchedIdUnknown | AlreadyMerged) -> ()
+                                    | Error _ when candidate.IsNone -> ()
+                                    | Error rejection ->
                                         printfn
-                                            "Zusammenlegung abgelehnt: YNAB hat %s mit %s abgeglichen, BB legt nur einen Comdirect-Import in einen Übertrag zusammen"
+                                            "Zusammenlegung abgelehnt: YNAB hat %s mit %s abgeglichen, %s"
                                             obs.YnabTransactionId
-                                            matchedId
-                                    else
-                                        do! MirrorBatchState.append state mergeEvents
+                                            decision.MatchedYnabTransactionId
+                                            (mergeRejectionText rejection)
                                 | _ -> ()
 
                                 // Uebertrags-Verknuepfung (ADR 0015): erst nachdem die

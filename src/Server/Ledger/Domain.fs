@@ -1156,14 +1156,49 @@ let private canTakePartInMerge (entry: Entry) : bool =
     && entry.MergedIntoEntryId.IsNone
     && not (isHeldAsPossibleDuplicate entry)
 
-/// Darf die Beobachtung die Kandidatin aufnehmen (ADR 0015, Nachtrag 2026-11-13, Punkt 1)? Rein.
-/// Alles, was ohne die bleibende Buchung prüfbar ist, damit der Spiegel-Lauf schon vor seiner
-/// Schleife weiß, welche Buchung aufgenommen wird. Zusammengelegt wird nur ein Comdirect-Import
-/// in einen Übertrag (ledger-nnd2f): YNAB gleicht jede Buchung mit `import_id` gegen von Hand
-/// erfasste ab, auch BBs Barbuchungen, und verschluckt dabei echte Zahlungen.
-let mayAbsorbInMerge (obs: YnabObservation) (candidate: MergeCandidate) : bool =
-    match obs.Deleted, obs.MatchedYnabTransactionId with
-    | false, Some matchedId ->
+/// Warum BB einen Abgleich aus YNAB nicht zusammenlegt (ADR 0015, Nachtrag 2026-11-13, Punkte 1
+/// und 5).
+type MergeRejection =
+    /// Die Beobachtung ist gelöscht oder trägt keine Matched-Id: kein Abgleich.
+    | NoMatchObserved
+    /// BB kennt keine Buchung mit der Matched-Id als aktueller `ynab`-Verknüpfung, etwa ein alter
+    /// Abgleich innerhalb von YNAB oder die alte Id nach einem Ersatz.
+    | MatchedIdUnknown
+    /// Mehrere Beobachtungen zeigen auf dieselbe Id, oder die bleibende ist selbst Ziel einer
+    /// anderen (zwei, die gegenseitig aufeinander zeigen, oder eine Kette).
+    | MutualOrMany
+    /// Die Beobachtung ist kein Übertrag oder die andere Buchung kein Comdirect-Import (ledger-nnd2f).
+    | NotTransferIntoComdirectImport
+    /// Die andere Buchung ist schon in genau diese bleibende aufgenommen (ein früherer Lauf).
+    | AlreadyMerged
+    /// Die andere Buchung ist gelöscht, schon aufgenommen, wartet als unsicheres Duplikat oder hat
+    /// einen offenen Ersatz.
+    | AbsorbedNotEligible
+    /// Die Beobachtung gehört zu derselben Buchung, auf die die Matched-Id zeigt.
+    | SameEntry
+    /// Die bleibende Buchung ist gelöscht, schon aufgenommen oder wartet als unsicheres Duplikat.
+    | SurvivorNotEligible
+
+/// Die bleibende Buchung, wie die Regel sie sieht: schon im Kassenbuch (im Stand vor ihrem
+/// `observe`, den eine ungelöschte Beobachtung für die Regel nicht ändert) oder erst in diesem
+/// Lauf angelegt (dann neu, mit eigener Id, und teilnahmefähig).
+type MergeSurvivor =
+    | ExistingSurvivor of Entry
+    | NewSurvivor
+
+/// Die eine Regel der Zusammenlegung (ADR 0015, Nachtrag 2026-11-13, Punkt 1). Rein. `None` heißt
+/// zusammenlegen. Die Paarbildung (`planMergesObservedInYnab`) und `mergeObservedInYnab` fragen
+/// beide hier.
+let mergeRejection
+    (obs: YnabObservation)
+    (survivor: MergeSurvivor)
+    (absorbed: MergeCandidate option)
+    : MergeRejection option =
+    match obs.Deleted, obs.MatchedYnabTransactionId, absorbed with
+    | true, _, _
+    | _, None, _ -> Some NoMatchObserved
+    | _, _, None -> Some MatchedIdUnknown
+    | false, Some matchedId, Some candidate ->
         let absorbedEntry = candidate.Entry
         // Die aktuelle `ynab`-Verknüpfung, nicht die abgelöste (ADR 0058 Punkt 5): nach einem Ersatz
         // trägt die Buchung die alte Id als `ynab` und als `ynabsuperseded`.
@@ -1173,59 +1208,112 @@ let mayAbsorbInMerge (obs: YnabObservation) (candidate: MergeCandidate) : bool =
         let isCurrentYnabLink = hasLink YnabSystem && not (hasLink YnabSupersededSystem)
         let isComdirectImport =
             candidate.Links |> List.exists (fun l -> l.System = ComdirectSystem && l.EntryId = absorbedEntry.Id)
-        isCurrentYnabLink
-        && obs.TransferAccountId.IsSome
-        && isComdirectImport
-        && canTakePartInMerge absorbedEntry
+        if not isCurrentYnabLink then
+            Some MatchedIdUnknown
+        // Zusammengelegt wird nur ein Comdirect-Import in einen Übertrag (ledger-nnd2f): YNAB gleicht
+        // jede Buchung mit `import_id` gegen von Hand erfasste ab, auch BBs Barbuchungen, und
+        // verschluckt dabei echte Zahlungen.
+        elif obs.TransferAccountId.IsNone || not isComdirectImport then
+            Some NotTransferIntoComdirectImport
+        elif
+            (match survivor with
+             | ExistingSurvivor survivorEntry -> absorbedEntry.MergedIntoEntryId = Some survivorEntry.Id
+             | NewSurvivor -> false)
+        then
+            Some AlreadyMerged
         // Ein offener Ersatz wartet auf seine neue YNAB-Id, die alte Id ist nicht mehr maßgeblich.
-        && absorbedEntry.PendingReplacement.IsNone
-    | _ -> false
+        elif not (canTakePartInMerge absorbedEntry) || absorbedEntry.PendingReplacement.IsSome then
+            Some AbsorbedNotEligible
+        else
+            match survivor with
+            | NewSurvivor -> None
+            | ExistingSurvivor survivorEntry when survivorEntry.Id = absorbedEntry.Id -> Some SameEntry
+            | ExistingSurvivor survivorEntry when not (canTakePartInMerge survivorEntry) -> Some SurvivorNotEligible
+            | ExistingSurvivor _ -> None
+
+/// Ein Abgleich aus YNAB im Lauf: die YNAB-Id der bleibenden Beobachtung, die Matched-Id und, falls
+/// BB nicht zusammenlegt, der Grund.
+type MergeDecision = {
+    SurvivorYnabTransactionId: string
+    MatchedYnabTransactionId: string
+    Rejection: MergeRejection option
+}
+
+/// Die Abgleiche eines Batches (ADR 0015, Nachtrag 2026-11-13), vor der Schleife des Spiegel-Laufs.
+/// Rein. Je ungelöschter Beobachtung mit Matched-Id eine Entscheidung. `survivorOf` löst die
+/// bleibende Buchung so auf wie der Lauf (`resolveEntry`), `candidateOf` die Matched-Id.
+let planMergesObservedInYnab
+    (observations: YnabObservation list)
+    (survivorOf: YnabObservation -> MergeSurvivor)
+    (candidateOf: string -> MergeCandidate option)
+    : MergeDecision list =
+    let pointing =
+        observations
+        |> List.filter (fun obs -> not obs.Deleted)
+        |> List.choose (fun obs -> obs.MatchedYnabTransactionId |> Option.map (fun m -> obs, m))
+    let targets = pointing |> List.countBy snd |> Map.ofList
+    [
+        for obs, matchedId in pointing do
+            let rejection =
+                if Map.find matchedId targets > 1 || targets.ContainsKey obs.YnabTransactionId then
+                    Some MutualOrMany
+                else
+                    mergeRejection obs (survivorOf obs) (candidateOf matchedId)
+            {
+                SurvivorYnabTransactionId = obs.YnabTransactionId
+                MatchedYnabTransactionId = matchedId
+                Rejection = rejection
+            }
+    ]
+
+/// Die YNAB-Ids der Buchungen, die der Lauf aufnimmt: nur die Ziele zugelassener Abgleiche. Auf
+/// ihnen entfällt `observe`, das Ziel eines abgelehnten läuft normal durch (Punkt 5).
+let absorbedYnabIdsOf (decisions: MergeDecision list) : Set<string> =
+    decisions
+    |> List.filter (fun d -> d.Rejection.IsNone)
+    |> List.map (fun d -> d.MatchedYnabTransactionId)
+    |> Set.ofList
 
 /// Die Zusammenlegung aus einer Beobachtung (ADR 0015, Nachtrag 2026-11-13). Rein. `survivor` ist
 /// die Buchung der Beobachtung im Stand nach ihrem `observe`, `absorbed` die Buchung, auf die die
 /// `matched_transaction_id` zeigt (falls BB eine kennt). Ergibt die beiden Ereignisse, erst das der
-/// aufgenommenen, dann das der bleibenden Buchung, oder `[]`.
+/// aufgenommenen, dann das der bleibenden Buchung, oder den Grund der Ablehnung (`mergeRejection`).
 let mergeObservedInYnab
     (observedAt: DateTime)
     (obs: YnabObservation)
     (survivor: Entry)
     (absorbed: MergeCandidate option)
-    : LedgerEvent list =
+    : Result<LedgerEvent list, MergeRejection> =
     let event entryId body = { EntryId = entryId; OccurredAt = observedAt; Actor = YnabMirror; Body = body }
-    match obs.MatchedYnabTransactionId, absorbed with
-    | Some matchedId, Some candidate ->
+    match mergeRejection obs (ExistingSurvivor survivor) absorbed, obs.MatchedYnabTransactionId, absorbed with
+    | None, Some matchedId, Some candidate ->
         let absorbedEntry = candidate.Entry
-        if
-            mayAbsorbInMerge obs candidate
-            && absorbedEntry.Id <> survivor.Id
-            && canTakePartInMerge survivor
-        then
-            let comdirectReference =
-                candidate.Links
-                |> List.tryFind (fun l -> l.System = ComdirectSystem)
-                |> Option.map (fun l -> l.Value)
-            [
-                event absorbedEntry.Id (
-                    EntryMergedIntoOtherObservedInYnab {
-                        SurvivorEntryId = survivor.Id
-                        SurvivorYnabTransactionId = obs.YnabTransactionId
-                        AbsorbedYnabTransactionId = matchedId
-                        SurvivorPayee = survivor.Payee
-                        SurvivorDate = survivor.Date
-                    })
-                event survivor.Id (
-                    EntryMergedFromOtherObservedInYnab {
-                        AbsorbedEntryId = absorbedEntry.Id
-                        AbsorbedYnabTransactionId = matchedId
-                        AbsorbedComdirectReference = comdirectReference
-                        AbsorbedPayee = absorbedEntry.Payee
-                        AbsorbedDate = absorbedEntry.Date
-                        AbsorbedAmount = absorbedEntry.Amount
-                    })
-            ]
-        else
-            []
-    | _ -> []
+        let comdirectReference =
+            candidate.Links
+            |> List.tryFind (fun l -> l.System = ComdirectSystem)
+            |> Option.map (fun l -> l.Value)
+        Ok [
+            event absorbedEntry.Id (
+                EntryMergedIntoOtherObservedInYnab {
+                    SurvivorEntryId = survivor.Id
+                    SurvivorYnabTransactionId = obs.YnabTransactionId
+                    AbsorbedYnabTransactionId = matchedId
+                    SurvivorPayee = survivor.Payee
+                    SurvivorDate = survivor.Date
+                })
+            event survivor.Id (
+                EntryMergedFromOtherObservedInYnab {
+                    AbsorbedEntryId = absorbedEntry.Id
+                    AbsorbedYnabTransactionId = matchedId
+                    AbsorbedComdirectReference = comdirectReference
+                    AbsorbedPayee = absorbedEntry.Payee
+                    AbsorbedDate = absorbedEntry.Date
+                    AbsorbedAmount = absorbedEntry.Amount
+                })
+        ]
+    | Some rejection, _, _ -> Error rejection
+    // Ohne Ablehnung gibt es Matched-Id und Kandidatin; der Fall bleibt nur für den Compiler.
+    | None, _, _ -> Error NoMatchObserved
 
 // ============================================
 // Beobachtung: Snapshot gegen Zustand (ADR 0013, Punkt 4)

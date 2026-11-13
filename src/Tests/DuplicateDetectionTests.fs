@@ -742,7 +742,7 @@ let transferMatchTests =
             | other -> failtestf "erwartet NotDuplicate, war %A" other
         }
 
-        test "possibleMatchOf findet den Übertrag wie detectDuplicate" {
+        test "die Suche nach einem möglichen Treffer findet den Übertrag wie die Duplikaterkennung" {
             let found = possibleMatchOf [ transfer 500m day ] (bankTx 500m day)
             Expect.equal (found |> Option.map (fun t -> t.Id)) (Some "ynab-uebertrag") "derselbe Treffer"
         }

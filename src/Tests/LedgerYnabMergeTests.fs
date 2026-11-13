@@ -5,7 +5,9 @@ module LedgerYnabMergeTests
 //
 // Gruppen:
 //  * Decoder: `matched_transaction_id` in der Beobachtung;
-//  * reine Domäne: `mergeObservedInYnab`, `apply`, `knownImportDecision`, Codec, Historien-Sätze;
+//  * reine Domäne: `mergeObservedInYnab` mit dem Grund jeder Ablehnung, `apply`, `knownImportDecision`,
+//    Codec, Historien-Sätze;
+//  * die Abgleiche des Laufs vor der Schleife (`planMergesObservedInYnab`, `absorbedYnabIdsOf`);
 //  * der Spiegel-Lauf gegen In-Memory-SQLite mit Fake-Abrufen (Regressionstest des Vorfalls);
 //  * die Folgen für Abruf, Löschen und Wiederherstellen;
 //  * die Vollabruf-Generation.
@@ -136,6 +138,12 @@ let private pureScenario () =
 let private merge (obs: YnabObservation) (survivor: Entry) (candidate: MergeCandidate option) =
     mergeObservedInYnab (at 8) obs survivor candidate
 
+/// Der Grund, aus dem `mergeObservedInYnab` ablehnt, oder `None`, wenn es zusammenlegt.
+let private rejectionOf (obs: YnabObservation) (survivor: Entry) (candidate: MergeCandidate option) =
+    match merge obs survivor candidate with
+    | Ok _ -> None
+    | Error rejection -> Some rejection
+
 let private mergedIntoPayload (survivor: Entry) : EntryMergedIntoOtherObservedInYnabPayload = {
     SurvivorEntryId = survivor.Id
     SurvivorYnabTransactionId = "ynab-a"
@@ -189,7 +197,7 @@ let domainTests =
         testCase "Matched-Id auf eine andere Buchung: erst das Ereignis der aufgenommenen, dann das der bleibenden" <| fun () ->
             let survivor, absorbed, candidate, obs = pureScenario ()
             match merge obs survivor (Some candidate) with
-            | [ first; second ] ->
+            | Ok [ first; second ] ->
                 Expect.equal first.EntryId absorbed.Id "erst die aufgenommene Buchung"
                 Expect.equal first.Body (EntryMergedIntoOtherObservedInYnab (mergedIntoPayload survivor)) "Payload aufgenommen"
                 Expect.equal second.EntryId survivor.Id "dann die bleibende Buchung"
@@ -198,46 +206,72 @@ let domainTests =
                 Expect.equal second.Actor YnabMirror "Actor"
                 Expect.equal first.OccurredAt second.OccurredAt "gleicher Zeitpunkt"
                 Expect.isEmpty (linksFrom first @ linksFrom second) "keine Verknüpfung wandert"
-            | events -> failtestf "zwei Ereignisse erwartet, waren %A" events
+            | other -> failtestf "zwei Ereignisse erwartet, war %A" other
 
         // ledger-nnd2f: zusammengelegt wird nur ein Comdirect-Import in einen Übertrag.
-        testCase "Übertrag, aufgenommene ohne comdirect-Verknüpfung (Barbuchung mit importid) ergibt []" <| fun () ->
+        testCase "Übertrag, aufgenommene ohne comdirect-Verknüpfung (Barbuchung mit importid), wird abgelehnt" <| fun () ->
             let survivor, absorbed, _, obs = pureScenario ()
             let cash = { Entry = absorbed; Links = linksOf absorbed [ YnabSystem, "ynab-b"; ImportIdSystem, "BB:bar-0001" ] }
-            Expect.isEmpty (merge obs survivor (Some cash)) "kein Merge ohne Comdirect-Import"
+            Expect.equal (rejectionOf obs survivor (Some cash)) (Some NotTransferIntoComdirectImport) "kein Merge ohne Comdirect-Import"
 
-        testCase "Comdirect-Import, bleibende aber kein Übertrag, ergibt []" <| fun () ->
+        testCase "Comdirect-Import, bleibende aber kein Übertrag, wird abgelehnt" <| fun () ->
             let survivor, _, candidate, obs = pureScenario ()
-            Expect.isEmpty (merge { obs with TransferAccountId = None } survivor (Some candidate)) "kein Merge ohne Übertrag"
+            Expect.equal
+                (rejectionOf { obs with TransferAccountId = None } survivor (Some candidate))
+                (Some NotTransferIntoComdirectImport)
+                "kein Merge ohne Übertrag"
 
-        testCase "Matched-Id unbekannt ergibt []" <| fun () ->
+        testCase "Matched-Id unbekannt wird abgelehnt" <| fun () ->
             let survivor, _, _, obs = pureScenario ()
-            Expect.isEmpty (merge obs survivor None) "keine Kandidatin"
+            Expect.equal (rejectionOf obs survivor None) (Some MatchedIdUnknown) "keine Kandidatin"
 
-        testCase "ohne Matched-Id ergibt []" <| fun () ->
+        testCase "ohne Matched-Id gibt es keinen Abgleich" <| fun () ->
             let survivor, _, candidate, obs = pureScenario ()
-            Expect.isEmpty (merge { obs with MatchedYnabTransactionId = None } survivor (Some candidate)) "kein Abgleich"
+            Expect.equal
+                (rejectionOf { obs with MatchedYnabTransactionId = None } survivor (Some candidate))
+                (Some NoMatchObserved)
+                "kein Abgleich"
 
-        testCase "Matched-Id auf dieselbe Buchung ergibt []" <| fun () ->
+        testCase "Matched-Id auf dieselbe Buchung wird abgelehnt" <| fun () ->
             let survivor, _, _, obs = pureScenario ()
-            let self = { Entry = survivor; Links = linksOf survivor [ YnabSystem, "ynab-a"; YnabSystem, "ynab-b" ] }
-            Expect.isEmpty (merge obs survivor (Some self)) "keine Zusammenlegung mit sich selbst"
+            // Mit `comdirect`-Verknüpfung, damit die Selbst-Prüfung greift und nicht schon die Herkunft.
+            let self =
+                { Entry = survivor
+                  Links = linksOf survivor [ YnabSystem, "ynab-a"; YnabSystem, "ynab-b"; ComdirectSystem, "ref-0009" ] }
+            Expect.equal (rejectionOf obs survivor (Some self)) (Some SameEntry) "keine Zusammenlegung mit sich selbst"
 
-        testCase "Matched-Id nur als ynabsuperseded bekannt ergibt []" <| fun () ->
+        testCase "Matched-Id nur als ynabsuperseded bekannt wird abgelehnt" <| fun () ->
             let survivor, absorbed, _, obs = pureScenario ()
-            let onlySuperseded = { Entry = absorbed; Links = linksOf absorbed [ YnabSupersededSystem, "ynab-b"; YnabSystem, "ynab-neu" ] }
-            Expect.isEmpty (merge obs survivor (Some onlySuperseded)) "nur abgelöst"
+            // Mit `comdirect`-Verknüpfung, damit die Prüfung der aktuellen `ynab`-Verknüpfung greift.
+            let onlySuperseded =
+                { Entry = absorbed
+                  Links = linksOf absorbed [ YnabSupersededSystem, "ynab-b"; YnabSystem, "ynab-neu"; ComdirectSystem, "ref-0001" ] }
+            Expect.equal (rejectionOf obs survivor (Some onlySuperseded)) (Some MatchedIdUnknown) "nur abgelöst"
             let both =
                 { Entry = absorbed
-                  Links = linksOf absorbed [ YnabSystem, "ynab-b"; YnabSupersededSystem, "ynab-b"; YnabSystem, "ynab-neu" ] }
-            Expect.isEmpty (merge obs survivor (Some both)) "alte Id nach einem Ersatz, auch als ynab gespeichert"
+                  Links =
+                    linksOf absorbed [
+                        YnabSystem, "ynab-b"; YnabSupersededSystem, "ynab-b"; YnabSystem, "ynab-neu"; ComdirectSystem, "ref-0001" ] }
+            Expect.equal
+                (rejectionOf obs survivor (Some both))
+                (Some MatchedIdUnknown)
+                "alte Id nach einem Ersatz, auch als ynab gespeichert"
 
-        testCase "schon aufgenommen ergibt []" <| fun () ->
+        testCase "schon aufgenommene Buchung wird nicht noch einmal aufgenommen" <| fun () ->
             let survivor, absorbed, candidate, obs = pureScenario ()
             let already = applyBody absorbed YnabMirror (EntryMergedIntoOtherObservedInYnab (mergedIntoPayload survivor))
-            Expect.isEmpty (merge obs survivor (Some { candidate with Entry = already })) "zweiter Lauf, idempotent"
+            Expect.equal
+                (rejectionOf obs survivor (Some { candidate with Entry = already }))
+                (Some AlreadyMerged)
+                "zweiter Lauf, idempotent"
+            let intoOther =
+                applyBody absorbed YnabMirror (EntryMergedIntoOtherObservedInYnab (mergedIntoPayload (observedEntry "ynab-c")))
+            Expect.equal
+                (rejectionOf obs survivor (Some { candidate with Entry = intoOther }))
+                (Some AbsorbedNotEligible)
+                "in eine andere aufgenommen"
 
-        testCase "aufgenommene Buchung schon gelöscht (in YNAB, in BB, verworfen) ergibt []" <| fun () ->
+        testCase "aufgenommene Buchung schon gelöscht (in YNAB, in BB, verworfen) wird abgelehnt" <| fun () ->
             let survivor, absorbed, candidate, obs = pureScenario ()
             let deletedInYnab = applyBody absorbed YnabMirror EntryDeletionObservedInYnab
             let deletedInBb =
@@ -248,38 +282,38 @@ let domainTests =
                         Approved = false; ImportId = Some "BB:ref-0001" })
             let discarded = applyBody absorbed UserInBb (EntryDiscardedInBb { YnabTransactionId = "ynab-b" })
             for gone, label in [ deletedInYnab, "in YNAB"; deletedInBb, "in BB"; discarded, "verworfen" ] do
-                Expect.isEmpty (merge obs survivor (Some { candidate with Entry = gone })) label
+                Expect.equal (rejectionOf obs survivor (Some { candidate with Entry = gone })) (Some AbsorbedNotEligible) label
 
-        testCase "aufgenommene Buchung mit offenem Ersatz ergibt []" <| fun () ->
+        testCase "aufgenommene Buchung mit offenem Ersatz wird abgelehnt" <| fun () ->
             let survivor, absorbed, candidate, obs = pureScenario ()
             let pending =
                 applyBody absorbed UserInBb (
                     EntryReplacementSentToYnab { OldYnabTransactionId = "ynab-b"; NewImportId = "BB:ref-0001:r1" })
             Expect.isSome pending.PendingReplacement "Vorbedingung: Ersatz offen"
-            Expect.isEmpty (merge obs survivor (Some { candidate with Entry = pending })) "offener Ersatz"
+            Expect.equal (rejectionOf obs survivor (Some { candidate with Entry = pending })) (Some AbsorbedNotEligible) "offener Ersatz"
 
-        testCase "bleibende Buchung schon gelöscht oder aufgenommen ergibt []" <| fun () ->
+        testCase "bleibende Buchung schon gelöscht oder aufgenommen wird abgelehnt" <| fun () ->
             let survivor, _, candidate, obs = pureScenario ()
             let deleted = applyBody survivor YnabMirror EntryDeletionObservedInYnab
             let other = observedEntry "ynab-c"
             let mergedAway =
                 applyBody survivor YnabMirror (
                     EntryMergedIntoOtherObservedInYnab { mergedIntoPayload other with AbsorbedYnabTransactionId = "ynab-a" })
-            Expect.isEmpty (merge obs deleted (Some candidate)) "bleibende gelöscht"
-            Expect.isEmpty (merge obs mergedAway (Some candidate)) "bleibende selbst aufgenommen"
+            Expect.equal (rejectionOf obs deleted (Some candidate)) (Some SurvivorNotEligible) "bleibende gelöscht"
+            Expect.equal (rejectionOf obs mergedAway (Some candidate)) (Some SurvivorNotEligible) "bleibende selbst aufgenommen"
 
-        testCase "gelöschte Beobachtung ergibt []" <| fun () ->
+        testCase "gelöschte Beobachtung legt nicht zusammen" <| fun () ->
             let survivor, _, candidate, obs = pureScenario ()
-            Expect.isEmpty (merge { obs with Deleted = true } survivor (Some candidate)) "gelöscht"
+            Expect.equal (rejectionOf { obs with Deleted = true } survivor (Some candidate)) (Some NoMatchObserved) "gelöscht"
 
         testCase "abgeglichen (Reconciled) auf einer Seite: die Zusammenlegung gilt trotzdem" <| fun () ->
             let survivor, absorbed, candidate, obs = pureScenario ()
             let reconciled (e: Entry) =
                 applyBody e YnabMirror (EntryClearedStateChangeObservedInYnab { OldCleared = e.Cleared; NewCleared = Reconciled })
-            Expect.hasLength (merge obs (reconciled survivor) (Some candidate)) 2 "bleibende abgeglichen"
-            Expect.hasLength (merge obs survivor (Some { candidate with Entry = reconciled absorbed })) 2 "aufgenommene abgeglichen"
+            Expect.isNone (rejectionOf obs (reconciled survivor) (Some candidate)) "bleibende abgeglichen"
+            Expect.isNone (rejectionOf obs survivor (Some { candidate with Entry = reconciled absorbed })) "aufgenommene abgeglichen"
 
-        testCase "apply: die aufgenommene Buchung gilt als gelöscht, trägt die Marke, offene Fehlschläge enden" <| fun () ->
+        testCase "die aufgenommene Buchung gilt als gelöscht, trägt die Marke, und ihre offenen Fehlschläge enden" <| fun () ->
             let survivor, absorbed, _, _ = pureScenario ()
             let withFailures =
                 [ EntryCategorizationWriteBackFailed {
@@ -306,14 +340,14 @@ let domainTests =
             Expect.isNone merged.ReviewMarkWriteBackFailure "Prüfvermerk"
             Expect.isNone merged.PushToYnabFailure "Push"
 
-        testCase "apply: die bleibende Buchung ändert ihren Zustand nicht" <| fun () ->
+        testCase "die bleibende Buchung ändert durch die Zusammenlegung ihren Zustand nicht" <| fun () ->
             let survivor, absorbed, _, _ = pureScenario ()
             Expect.equal
                 (applyBody survivor YnabMirror (EntryMergedFromOtherObservedInYnab (mergedFromPayload absorbed)))
                 survivor
                 "nur Historie"
 
-        testCase "apply wirft bei Wartemarke und bei eigener Id" <| fun () ->
+        testCase "eine wartende Buchung oder eine Zusammenlegung mit sich selbst wird beim Anwenden verweigert" <| fun () ->
             let survivor, absorbed, _, _ = pureScenario ()
             let held =
                 applyBody (importedEntry "ref-0002") ComdirectImport (
@@ -330,13 +364,13 @@ let domainTests =
                 (fun () -> applyBody survivor YnabMirror (EntryMergedFromOtherObservedInYnab (mergedFromPayload survivor)) |> ignore)
                 "bleibend aus sich selbst"
 
-        testCase "knownImportDecision: eine aufgenommene Buchung ergibt SkipKnownImport" <| fun () ->
+        testCase "ein erneuter Import überspringt eine aufgenommene Buchung wie eine verworfene" <| fun () ->
             let survivor, absorbed, _, _ = pureScenario ()
             Expect.equal (knownImportDecision absorbed) AlreadyLinkedImport "Vorbedingung: verknüpft"
             let merged = applyBody absorbed YnabMirror (EntryMergedIntoOtherObservedInYnab (mergedIntoPayload survivor))
             Expect.equal (knownImportDecision merged) SkipKnownImport "zusammengelegt gilt wie verworfen"
 
-        testCase "Codec: beide Ereignisse tragen Typname und Version 1 und überstehen die Rundreise" <| fun () ->
+        testCase "beide Ereignisse tragen Typname und Version 1 und überstehen das Speichern und Lesen" <| fun () ->
             let survivor, absorbed, _, _ = pureScenario ()
             let bodies = [
                 EntryMergedIntoOtherObservedInYnab (mergedIntoPayload survivor)
@@ -378,6 +412,105 @@ let domainTests =
                 (describe (EntryMergedFromOtherObservedInYnab { from with AbsorbedComdirectReference = None; AbsorbedPayee = None }))
                 "Buchung vom 06.10.2026 über -250,00 EUR in YNAB hierher zusammengelegt"
                 "bleibend ohne Referenz und ohne Payee"
+    ]
+
+// ============================================
+// Abgleiche des Laufs (rein, vor der Schleife)
+// ============================================
+
+/// Die Abgleiche eines Batches aus der reinen Lage: `survivors` ordnet YNAB-Ids der bleibenden
+/// Buchung zu (fehlt sie, entsteht sie im Lauf), `candidates` die Matched-Ids der Kandidatin.
+let private plan
+    (observations: YnabObservation list)
+    (survivors: (string * Entry) list)
+    (candidates: (string * MergeCandidate) list)
+    =
+    let survivors = Map.ofList survivors
+    let candidates = Map.ofList candidates
+    planMergesObservedInYnab
+        observations
+        (fun obs -> Map.tryFind obs.YnabTransactionId survivors |> Option.map ExistingSurvivor |> Option.defaultValue NewSurvivor)
+        (fun matchedId -> Map.tryFind matchedId candidates)
+
+let private rejectionsOf (decisions: MergeDecision list) =
+    decisions |> List.map (fun d -> d.SurvivorYnabTransactionId, d.Rejection)
+
+[<Tests>]
+let planTests =
+    testList "Zusammenlegung in YNAB: Abgleiche des Laufs" [
+
+        testCase "ein zugelassener Abgleich nimmt das Ziel auf" <| fun () ->
+            let survivor, _, candidate, obs = pureScenario ()
+            let decisions = plan [ obs ] [ "ynab-a", survivor ] [ "ynab-b", candidate ]
+            Expect.equal (rejectionsOf decisions) [ "ynab-a", None ] "zugelassen"
+            Expect.equal (absorbedYnabIdsOf decisions) (Set.singleton "ynab-b") "das Ziel wird aufgenommen"
+
+        testCase "eine bleibende Buchung, die erst im Lauf entsteht, kann zusammenlegen" <| fun () ->
+            let _, _, candidate, obs = pureScenario ()
+            let decisions = plan [ obs ] [] [ "ynab-b", candidate ]
+            Expect.equal (rejectionsOf decisions) [ "ynab-a", None ] "zugelassen"
+            Expect.equal (absorbedYnabIdsOf decisions) (Set.singleton "ynab-b") "das Ziel wird aufgenommen"
+
+        testCase "ist die bleibende Buchung gelöscht, bleibt das Ziel im Lauf" <| fun () ->
+            // Review zu ledger-nnd2f: vorher prüfte die Vorprüfung nur die aufgenommene Seite.
+            let survivor, _, candidate, obs = pureScenario ()
+            let deleted = applyBody survivor YnabMirror EntryDeletionObservedInYnab
+            let decisions = plan [ obs ] [ "ynab-a", deleted ] [ "ynab-b", candidate ]
+            Expect.equal (rejectionsOf decisions) [ "ynab-a", Some SurvivorNotEligible ] "abgelehnt"
+            Expect.isEmpty (absorbedYnabIdsOf decisions) "nichts wird aufgenommen"
+
+        testCase "löst die Beobachtung über die ImportId auf das Ziel selbst auf, bleibt das Ziel im Lauf" <| fun () ->
+            let _, absorbed, candidate, obs = pureScenario ()
+            let decisions = plan [ obs ] [ "ynab-a", absorbed ] [ "ynab-b", candidate ]
+            Expect.equal (rejectionsOf decisions) [ "ynab-a", Some SameEntry ] "abgelehnt"
+            Expect.isEmpty (absorbedYnabIdsOf decisions) "nichts wird aufgenommen"
+
+        testCase "eine unbekannte Matched-Id nimmt nichts auf" <| fun () ->
+            let survivor, _, _, obs = pureScenario ()
+            let decisions = plan [ obs ] [ "ynab-a", survivor ] []
+            Expect.equal (rejectionsOf decisions) [ "ynab-a", Some MatchedIdUnknown ] "abgelehnt"
+            Expect.isEmpty (absorbedYnabIdsOf decisions) "nichts wird aufgenommen"
+
+        testCase "ein Abgleich ohne Übertrag nimmt nichts auf" <| fun () ->
+            let survivor, _, candidate, obs = pureScenario ()
+            let decisions = plan [ { obs with TransferAccountId = None } ] [ "ynab-a", survivor ] [ "ynab-b", candidate ]
+            Expect.equal (rejectionsOf decisions) [ "ynab-a", Some NotTransferIntoComdirectImport ] "abgelehnt"
+            Expect.isEmpty (absorbedYnabIdsOf decisions) "nichts wird aufgenommen"
+
+        testCase "zeigen zwei Beobachtungen gegenseitig aufeinander, nimmt keine die andere auf" <| fun () ->
+            let survivor, absorbed, candidate, obs = pureScenario ()
+            let back = { observation "ynab-b" (YnabAccountId Guid.Empty) with MatchedYnabTransactionId = Some "ynab-a" }
+            let survivorCandidate = { Entry = survivor; Links = linksOf survivor [ YnabSystem, "ynab-a" ] }
+            let decisions =
+                plan [ obs; back ] [ "ynab-a", survivor; "ynab-b", absorbed ] [ "ynab-b", candidate; "ynab-a", survivorCandidate ]
+            Expect.equal (rejectionsOf decisions) [ "ynab-a", Some MutualOrMany; "ynab-b", Some MutualOrMany ] "beide abgelehnt"
+            Expect.isEmpty (absorbedYnabIdsOf decisions) "nichts wird aufgenommen"
+
+        testCase "zeigen zwei Beobachtungen auf dieselbe Id, nimmt keine sie auf" <| fun () ->
+            let survivor, _, candidate, obs = pureScenario ()
+            let other = { obs with YnabTransactionId = "ynab-c" }
+            let decisions = plan [ obs; other ] [ "ynab-a", survivor ] [ "ynab-b", candidate ]
+            Expect.equal (rejectionsOf decisions) [ "ynab-a", Some MutualOrMany; "ynab-c", Some MutualOrMany ] "beide abgelehnt"
+            Expect.isEmpty (absorbedYnabIdsOf decisions) "nichts wird aufgenommen"
+
+        testCase "in einer Kette legt nur die Beobachtung zusammen, die selbst nicht Ziel ist" <| fun () ->
+            // C zeigt auf A, A auf B: A ist selbst Ziel und bleibt, nur A wird in C aufgenommen.
+            let survivor, _, candidate, obs = pureScenario ()
+            let c = { obs with YnabTransactionId = "ynab-c"; MatchedYnabTransactionId = Some "ynab-a" }
+            let survivorCandidate =
+                { Entry = survivor; Links = linksOf survivor [ YnabSystem, "ynab-a"; ComdirectSystem, "ref-0002" ] }
+            let decisions = plan [ obs; c ] [ "ynab-a", survivor ] [ "ynab-b", candidate; "ynab-a", survivorCandidate ]
+            Expect.equal (rejectionsOf decisions) [ "ynab-a", Some MutualOrMany; "ynab-c", None ] "nur C legt zusammen"
+            Expect.equal (absorbedYnabIdsOf decisions) (Set.singleton "ynab-a") "nur A wird aufgenommen"
+
+        testCase "gelöschte Beobachtungen und solche ohne Matched-Id ergeben keinen Abgleich" <| fun () ->
+            let survivor, _, candidate, obs = pureScenario ()
+            let decisions =
+                plan
+                    [ { obs with Deleted = true }; { obs with YnabTransactionId = "ynab-d"; MatchedYnabTransactionId = None } ]
+                    [ "ynab-a", survivor ]
+                    [ "ynab-b", candidate ]
+            Expect.isEmpty decisions "kein Abgleich"
     ]
 
 // ============================================
@@ -491,6 +624,17 @@ let private linksOfEntry (entryId: EntryId) = linksForEntry entryId |> Async.Run
 let private incidentEventCount (i: Incident) = (typesOf i.E1).Length + (typesOf i.E2).Length
 let private entriesOnAccount (i: Incident) = loadEntriesForAccount i.Account |> Async.RunSynchronously |> List.length
 
+/// Die Zahl der Buchungen, die die Kassenbuchseite für das Konto zeigt (gelöschte und aufgenommene
+/// ausgeschlossen). `loadEntriesForAccount` filtert `deleted_in_ynab` nicht.
+let private visibleEntriesOnAccount (i: Incident) : int =
+    let (LedgerAccountId id) = i.Account
+    let query : LedgerEntryPageQuery = {
+        AccountId = Some id; Page = 0; PageSize = 100; LocallyRemoved = 0; IncludeDeleted = false
+        OnlyNeedsReview = false; OnlyAskLena = false; WithoutCategory = false; CategoryIds = []
+        DateFrom = None; DateTo = None; Payee = None; Memo = None; AmountMin = None; AmountMax = None
+        Sort = LedgerSort.defaultSort }
+    (Ledger.QueryHandlers.getLedgerEntriesPage query |> Async.RunSynchronously).TotalCount
+
 let private balanceOf (account: LedgerAccountId) : decimal =
     let (LedgerAccountId id) = account
     Ledger.QueryHandlers.getLedgerAccountBalances ()
@@ -568,9 +712,9 @@ let mirrorRunTests =
             Expect.isFalse (types |> List.exists (fun t -> t.StartsWith "EntryMerged")) "kein Merge-Ereignis"
             Expect.isNone (entryOf i.E2).MergedIntoEntryId "E2 nicht aufgenommen"
             Expect.equal (balanceOf i.Account) -25.00m "E2 zählt weiter im Kontostand"
-            Expect.equal (entriesOnAccount i) 2 "beide Buchungen stehen in der Liste"
+            Expect.equal (visibleEntriesOnAccount i) 2 "beide Buchungen stehen in der Liste"
 
-        testCase "Ziel eines abgelehnten Merge-Paars: observe läuft normal" <| fun () ->
+        testCase "das Ziel eines abgelehnten Abgleichs wird weiter beobachtet" <| fun () ->
             // ledger-nnd2f (Kann-Punkt 103 aus ledger-k4n2s): übersprungen wird nur eine Buchung, die
             // tatsächlich aufgenommen wird.
             let i = cashIncident ()
@@ -586,6 +730,30 @@ let mirrorRunTests =
             Expect.contains (typesOf i.E2) "EntryDetailsChangeObservedInYnab" "die Änderung an E2 wird beobachtet"
             Expect.equal (entryOf i.E2).Memo (Some "Brötchen") "Memo nachgezogen"
             Expect.isNone (entryOf i.E2).MergedIntoEntryId "E2 nicht aufgenommen"
+
+        testCase "ist die bleibende Buchung in BB gelöscht, wird das Ziel weiter beobachtet" <| fun () ->
+            // Review zu ledger-nnd2f: die Vorprüfung vor der Schleife sah nur die aufgenommene Seite an.
+            // War die bleibende Buchung gelöscht, lehnte die Schleife den Merge ab, das Ziel war aber
+            // schon übersprungen: YNABs Änderung an B kam nie auf E2 an (ADR 0015 Nachtrag, Punkt 5).
+            let i = incident ()
+            appendAndApply [
+                { EntryId = i.E1; OccurredAt = at 7; Actor = UserInBb
+                  Body =
+                    EntryDeletedInBb {
+                        YnabTransactionId = i.A.YnabTransactionId; Date = day 5; Amount = eur -250.00m
+                        Payee = Some "Transfer : Sparkonto"; Memo = None; Category = None; Splits = []
+                        TransferAccountId = i.A.TransferAccountId; FlagColor = None; Cleared = Cleared
+                        Approved = true; ImportId = None } }
+            ]
+            |> Async.RunSynchronously
+
+            Run.run 8 i.Budget (Run.fetchers 20L (matchedBatch i)) |> ignore
+
+            let types = typesOf i.E1 @ typesOf i.E2
+            Expect.isFalse (types |> List.exists (fun t -> t.StartsWith "EntryMerged")) "kein Merge-Ereignis"
+            Expect.isNone (entryOf i.E2).MergedIntoEntryId "E2 nicht aufgenommen"
+            Expect.contains (typesOf i.E2) "EntryDetailsChangeObservedInYnab" "die Änderung an B wird auf E2 beobachtet"
+            Expect.equal (entryOf i.E2).Payee (Some "Sparplan Beispielbank geändert") "Payee nachgezogen"
 
         testCase "zeigen zwei Beobachtungen gegenseitig aufeinander, gibt es keinen Merge" <| fun () ->
             let i = incident ()
