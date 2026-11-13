@@ -854,7 +854,7 @@ let runMirrorWith
 /// pusht, laufen nicht ineinander. Sonst kann ein Lauf, der zwischen Ereignis und Push
 /// abruft, den alten YNAB-Stand als Änderung beobachten und die BB-Entscheidung
 /// zurückdrehen (Kategorie, Split, Memo, Flag, Prüfvermerk), oder er sieht eine gerade
-/// angelegte YNAB-Buchung ohne Partner und legt sie ein zweites Mal an (Quick Add, Bob,
+/// angelegte YNAB-Buchung ohne Partner und legt sie ein zweites Mal an (Neue Buchung, Bob,
 /// Erneut senden; ledger-kfd5m). Ein Befehl wartet höchstens auf einen laufenden Lauf (oder
 /// einen anderen Befehl). `internal`, damit ein Test die Sperre halten kann
 /// (`InternalsVisibleTo "Tests"`).
@@ -942,12 +942,12 @@ let runMirrorGuarded
     MirrorGuard.runGuarded (fun () -> WriteGuard.exclusive (runMirror now fetchers budgetId))
 
 // ============================================
-// Quick Add: Kassenbuch zuerst, dann Push, dann Verknuepfung (ADR 0021)
+// Erfassen und Bob: Kassenbuch zuerst, dann Push, dann Verknuepfung (ADR 0021)
 // ============================================
 
-/// Die Eingabe einer Quick-Add-Buchung: Konto "Bar" (als Kassenbuch-Konto, nicht als
-/// YNAB-Konto), Betrag, Payee, Memo, Kategorie. Das Aufloesen des Kassenbuch-Kontos aus
-/// dem konfigurierten YNAB-Quick-Add-Konto ist Sache des Aufrufers (`Server.Api`).
+/// Die Eingabe einer erfassten Buchung (Neue Buchung oder Bob): Kassenbuch-Konto (nicht das
+/// YNAB-Konto), Betrag, Payee, Memo, Kategorie. Das Konto aufzulösen ist Sache des Aufrufers
+/// (`Server.Api`, `Server.BotApi`).
 type CashExpenseInput = {
     AccountId: LedgerAccountId
     Date: DateTime
@@ -1011,8 +1011,8 @@ let arrivalTriggersMirror (arrival: PushArrival) : bool =
     | ArrivedWithoutId -> true
     | PushFailedBecause _ -> false
 
-/// Schreibt zuerst die Kassenbuch-Buchung (`CashExpenseAdded`, Actor `actor`: `QuickAdd`
-/// für die eigene Seite, `Bob` für die `/bot/`-Schnittstelle, ADR 0066), ruft
+/// Schreibt zuerst die Kassenbuch-Buchung (`CashExpenseAdded`, Actor `actor`: `UserInBb`
+/// für "Neue Buchung", `Bob` für die `/bot/`-Schnittstelle, ADR 0066), ruft
 /// danach `push` auf und verknüpft bei Erfolg mit `EntryLinkedToYnab` (ADR 0021): `push`
 /// liefert die YNAB-Transaction-Id aus der Antwort des Einzel-Posts. Die Buchung geht ohne
 /// `import_id` hinaus, das Ereignis trägt keine (ADR 0004 Nachtrag 2026-11-13, ledger-ay81j):
@@ -1037,7 +1037,7 @@ let arrivalTriggersMirror (arrival: PushArrival) : bool =
 /// Netz und ohne Spiegel-Lauf testbar ist (Muster wie `MirrorFetchers` beim
 /// Spiegel-Lauf).
 ///
-/// Die `entryId` legt der Aufrufer vorab fest (Quick Add mit `newEntryId ()`, die
+/// Die `entryId` legt der Aufrufer vorab fest ("Neue Buchung" mit `newEntryId ()`, die
 /// Bot-Schnittstelle je Vorschau, ledger-z71ka). Sie gilt auch, wenn der Push scheitert:
 /// Dann steht die Buchung unter genau dieser Id im Kassenbuch, und `Error` meldet nur den
 /// Push-Fehler. So kann ein Aufrufer nach einem Abbruch im Kassenbuch nachsehen, ob die
@@ -1074,7 +1074,7 @@ let private addCashExpenseWith
                                 Category = input.Category
                                 // Manuelle Eintraege sind immer uncleared (ADR 0004, Punkt 4).
                                 Cleared = Uncleared
-                                // Quick Add sendet kein `approved`; YNAB legt die Buchung
+                                // Eine erfasste Buchung sendet kein `approved`; YNAB legt sie
                                 // unbestätigt an (ADR 0032).
                                 Approved = false
                                 // In BB erfasst: ohne `import_id`, im Ereignis wie im Push
@@ -1105,7 +1105,7 @@ let private addCashExpenseWith
         return result
     }
 
-/// Die Barbuchung ohne Folge-Ereignisse (Quick Add, Bob, Erfassen auf eine Kategorie).
+/// Die Barbuchung ohne Folge-Ereignisse (Bob). "Neue Buchung" nimmt `addCashExpenseWith`.
 let addCashExpense
     (actor: Actor)
     (now: DateTime)
@@ -1117,10 +1117,10 @@ let addCashExpense
     addCashExpenseWith [] actor now entryId push triggerMirror input
 
 // ============================================
-// Barbuchung: gemeinsamer Befehl für Quick Add und Bob (ledger-bk3q8)
+// Barbuchung: Befehl für Bob (ledger-bk3q8)
 // ============================================
 
-/// Eine Barbuchung auf dem Quick-Add-Konto, wie Quick Add und Bob sie fachlich angeben:
+/// Eine Barbuchung auf dem Quick-Add-Konto, wie Bob sie fachlich angibt:
 /// `Amount` ohne Vorzeichen, die Richtung steht in `IsOutflow`. Payee und Memo kommen
 /// roh; Trimmen und das Weglassen leerer Werte macht `cashBookingParts`.
 type CashBooking = {
@@ -1176,8 +1176,13 @@ type AddCashExpense =
         -> CashExpenseInput
         -> Async<YnabResult<EntryId>>
 
-/// Die Barbuchung mit eingesetztem `addCashExpense` (siehe `addCashBooking`). Bob ruft
-/// diese Form mit seinem Port, alle anderen `addCashBooking`.
+/// Barbuchung (Bob mit Actor `Bob`, ADR 0066): bildet Kassenbuch-Eingabe und YNAB-Request aus
+/// denselben Werten (`cashBookingParts`) und bucht über `addExpense`, in Produktion
+/// `addCashExpense`, das die Schreib-Sperre hält (ledger-kfd5m). Der Befehl nimmt die Sperre
+/// nicht selbst. Bobs Umgebung reicht `addExpense` als Port durch (`AddCashExpense`). `push`
+/// bekommt nur den Request, keine `import_id` (ledger-ay81j), und bindet Token, Budget und das
+/// YNAB-Konto an. Die `entryId` gilt wie bei `addCashExpense` auch nach einem Push-Fehler
+/// (ledger-z71ka).
 let addCashBookingWith
     (addExpense: AddCashExpense)
     (actor: Actor)
@@ -1190,22 +1195,6 @@ let addCashBookingWith
     let input, request = cashBookingParts booking
     // Ohne `import_id` (ledger-ay81j): `push` kennt keine.
     addExpense actor now entryId (fun () -> push request) triggerMirror input
-
-/// Barbuchung (Quick Add mit Actor `QuickAdd`, Bob mit Actor `Bob`): bildet Kassenbuch-
-/// Eingabe und YNAB-Request aus denselben Werten (`cashBookingParts`) und bucht über
-/// `addCashExpense`, das die Schreib-Sperre hält (ledger-kfd5m). Der Befehl nimmt die
-/// Sperre nicht selbst. `push` bekommt nur den Request, keine `import_id` (ledger-ay81j),
-/// und bindet Token, Budget und das YNAB-Konto an. Die `entryId` gilt wie bei `addCashExpense` auch nach einem
-/// Push-Fehler (ledger-z71ka).
-let addCashBooking
-    (actor: Actor)
-    (now: DateTime)
-    (entryId: EntryId)
-    (push: ManualTransactionRequest -> Async<YnabResult<string>>)
-    (triggerMirror: unit -> unit)
-    (booking: CashBooking)
-    : Async<YnabResult<EntryId>> =
-    addCashBookingWith addCashExpense actor now entryId push triggerMirror booking
 
 // ============================================
 // Erneut senden: Push einer nicht verknüpften Buchung (ledger-cks06, ADR 0021)
@@ -2552,7 +2541,7 @@ let bookingAccountsFailedText (error: YnabError) =
 /// Der Befehl "Buchung erfassen" (ledger-at63w): eine Buchung auf einem Konto ohne Import, mit
 /// Actor `UserInBb`. `request` ist an der API-Grenze geprüft (`Validation.validateLedgerBooking`).
 /// Konto und Ziel prüft `Validation.resolveLedgerBookingAccounts`; jede Ablehnung ohne Ereignis
-/// und ohne Push. Dann derselbe Weg wie Quick Add und Bob (`addCashExpense`, ADR 0021):
+/// und ohne Push. Dann derselbe Weg wie Bob (`addCashExpenseWith`, ADR 0021):
 /// `CashExpenseAdded` ohne `import_id` (ledger-ay81j), der Push, `EntryLinkedToYnab`. Ist das Ziel
 /// ein Konto, steht `EntryTransferTargetSetInBb` im selben Schritt hinter `CashExpenseAdded`, und
 /// der Push trägt `payee_id` gleich der Übertrags-Payee, ohne `category_id`. Ein gescheiterter

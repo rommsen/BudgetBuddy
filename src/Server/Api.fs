@@ -421,7 +421,7 @@ let private bookingYnabAccess (setting: string -> Async<string option>) : Async<
 
 /// "Neue Buchung" nach der Prüfung an der API-Grenze (`Validation.validateLedgerBooking`, alle
 /// Fehler gesammelt): Token und Budget, dann `Ledger.CommandHandlers.addLedgerBooking` mit der
-/// Kategorie-Auflösung aus den gespiegelten Stammdaten (YNAB nur als Rückfall, wie Quick Add).
+/// Kategorie-Auflösung aus den gespiegelten Stammdaten (YNAB nur als Rückfall, `resolveCategoryRefWith`).
 let addLedgerBookingWith
     (ports: LedgerBookingPorts)
     (today: DateTime)

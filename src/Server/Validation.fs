@@ -161,7 +161,7 @@ let splitErrorText (error: SplitError) : string =
 // Transaction Validation
 // ============================================
 
-/// Validates a manually entered transaction (Quick Add) before it is sent to YNAB.
+/// Validates a manually entered transaction ("Neue Buchung", via `validateLedgerBooking`) before it is sent to YNAB.
 /// `today` ist der Berliner Kalendertag (infrastructure-p747v): der Container läuft auf UTC.
 let validateManualTransaction (today: DateTime) (request: ManualTransactionRequest) : Result<ManualTransactionRequest, string list> =
     let errors =
@@ -543,7 +543,7 @@ let AmountTooManyDecimalsText = "Der Betrag hat höchstens zwei Nachkommastellen
 let AmountTooLargeText = "Der Betrag ist zu groß."
 let AmountDirectionUnknownText = $"Unbekannte Richtung, erlaubt sind '{AmountDirectionOutflow}' und '{AmountDirectionInflow}'."
 
-/// Die Obergrenze eines Betrags wie bei Quick Add (`validateManualTransaction`). Sie hält auch die
+/// Die Obergrenze eines Betrags wie bei "Neue Buchung" (`validateManualTransaction`). Sie hält auch die
 /// Milliunits im Wertebereich von `Encode.int` an der YNAB-Grenze.
 let MaxEntryAmount = 1_000_000m
 
@@ -580,7 +580,7 @@ let bookingImportAccountText =
     "Auf dem Import-Konto erfasst BB noch nicht, diese Buchungen kommen mit dem Comdirect-Import."
 let bookingAccountNotBudgetText = "Das Konto ist kein offenes Budget-Konto."
 
-/// Der Quick-Add-Request, auf den eine erfasste Buchung abgebildet wird: dieselben Felder, die
+/// Der YNAB-Request (`ManualTransactionRequest`), auf den eine erfasste Buchung abgebildet wird: dieselben Felder, die
 /// Kategorie nur bei einer Kategorie als Ziel. Rein.
 let ledgerBookingManualRequest (request: LedgerBookingRequest) : ManualTransactionRequest = {
     Amount = request.Amount
@@ -595,8 +595,7 @@ let ledgerBookingManualRequest (request: LedgerBookingRequest) : ManualTransacti
 }
 
 /// Prüft die Form einer erfassten Buchung an der API-Grenze: ein Konto ist gewählt, ein Ziel
-/// trägt eine Id, und Betrag, Payee, Datum und Memo folgen denselben Regeln wie Quick Add
-/// (`validateManualTransaction`). Sammelt alle Fehler. Konto und Ziel gegen den Bestand prüft
+/// trägt eine Id, und Betrag, Payee, Datum und Memo folgen `validateManualTransaction`. Sammelt alle Fehler. Konto und Ziel gegen den Bestand prüft
 /// `resolveLedgerBookingAccounts`.
 let validateLedgerBooking (today: DateTime) (request: LedgerBookingRequest) : Result<LedgerBookingRequest, string list> =
     let ownErrors =

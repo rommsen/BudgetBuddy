@@ -43,7 +43,8 @@ type Actor =
     | Rule of RuleId
     /// Ein Mensch hat in BB entschieden.
     | UserInBb
-    /// Die Buchung wurde ueber Quick Add erfasst.
+    /// Die Buchung wurde ueber Quick Add erfasst. Kommt seit ledger-ea70s (Quick Add entfällt)
+    /// nur noch in bestehenden Ereignissen vor; neue Erfassungen tragen `UserInBb` oder `Bob`.
     | QuickAdd
     /// Die Buchung hat Bob angelegt (Hermes-Agent, `/bot/`-Schnittstelle, ADR 0066).
     /// Eigene Herkunft, keine Ausprägung von `QuickAdd`; additiv, alte Ereignisse

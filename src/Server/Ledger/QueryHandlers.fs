@@ -915,8 +915,8 @@ let getFirstBookingDayByCategory (categoryIds: Guid list) : Async<Map<Guid, Date
 // Quick-Add-Konto und Kategorie einer Barbuchung (ledger-bk3q8)
 // ============================================
 
-/// Das Konto, auf das Quick Add und Bob buchen: das Kassenbuch-Konto zum eingerichteten
-/// YNAB-Quick-Add-Konto (ADR 0004).
+/// Das Konto, auf das Bob bucht und das "Neue Buchung" vorbelegt: das Kassenbuch-Konto zum
+/// eingerichteten YNAB-Quick-Add-Konto (ADR 0004).
 type QuickAddAccount = {
     LedgerAccountId: LedgerAccountId
     YnabAccountId: YnabAccountId
@@ -931,7 +931,7 @@ let quickAddAccountInvalidText = "Das Quick-Add-Konto ist ungültig eingerichtet
 let quickAddAccountNotMirroredText =
     "Das Quick-Add-Konto ist im Kassenbuch noch nicht bekannt. Einmal \"Jetzt spiegeln\" ausführen, dann erneut versuchen."
 
-/// Löst das Quick-Add-Konto auf (Quick Add und Bobs Vorschau, ledger-bk3q8): Setting lesen,
+/// Löst das Quick-Add-Konto auf (Bobs Vorschau, Vorbelegung von "Neue Buchung", ledger-bk3q8): Setting lesen,
 /// als Guid lesen, das gespiegelte Kassenbuch-Konto suchen. Jeder Fehlschlag hat einen
 /// festen deutschen Satz. Ohne gespiegeltes Konto gibt es kein Ersatzkonto (ADR 0016,
 /// ADR 0021: erst Kassenbuch, dann Push). `setting` liest die Einstellung.
@@ -1035,7 +1035,8 @@ let getLedgerBookingDefaultsWith
         let! entries = Ledger.Persistence.loadEntries ids
         let captured = ids |> List.choose (fun id -> Map.tryFind id entries)
         let importId = importAccount |> Option.map (fun a -> let (LedgerAccountId id) = a.Id in id)
-        // Ohne Einstellung oder Spiegel kein Quick-Add-Konto: das Formular nimmt dann das zuletzt genutzte.
+        // Ohne Einstellung, mit ungültiger Einstellung oder ohne Spiegel kein Quick-Add-Konto: jeder
+        // Fehlschlag wird bewusst still zu `None`, das Formular nimmt dann das zuletzt genutzte.
         let! quickAdd = resolveQuickAddAccountWith setting
         let quickAddId =
             match quickAdd with
@@ -1070,7 +1071,7 @@ let getBookingCategoryForPayeeWith
 let categoryLoadFailedText = "Die Kategorie konnte nicht geladen werden, bitte erneut versuchen"
 let categoryUnknownText = "Die Kategorie gibt es in YNAB nicht mehr"
 
-/// Der Name zu einer Kategorie-Id für Quick Add (ledger-bk3q8, Entscheidung Roman
+/// Der Name zu einer Kategorie-Id für "Neue Buchung" (ledger-bk3q8, Entscheidung Roman
 /// 2026-11-07): zuerst aus den gespiegelten Stammdaten (`ledger_categories`, ADR 0044), ohne
 /// YNAB-Aufruf. Fehlt die Id dort (in YNAB neu, noch nicht gespiegelt), fragt `fromYnab`
 /// nach. Scheitert der Abruf, ist das `categoryLoadFailedText`; kennt auch YNAB die Id
@@ -1089,7 +1090,7 @@ let resolveCategoryRefWith
             match! fromYnab () with
             | Error err ->
                 // Die Ursache bleibt im Server-Log, der Nutzer bekommt den festen Satz.
-                eprintfn "Kategorie für Quick Add nicht geladen: %s" (ynabErrorText err)
+                eprintfn "Kategorie für Neue Buchung nicht geladen: %s" (ynabErrorText err)
                 return Error categoryLoadFailedText
             | Ok categories ->
                 match categories |> List.tryFind (fun c -> c.Id = categoryId) with

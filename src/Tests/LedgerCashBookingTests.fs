@@ -1,7 +1,7 @@
 module LedgerCashBookingTests
 
 // Barbuchung für Bob (ledger-bk3q8): die reine Push-Funktion einer Kassenbuch-Buchung
-// (`planEntryPush`), der gemeinsame Befehl (`cashBookingParts`, `addCashBooking`), die
+// (`planEntryPush`), der Befehl (`cashBookingParts`, `addCashBookingWith`), die
 // Lesefunktionen für Quick-Add-Konto und Kategorie und die Adapter mit Ports in `Server.Api`.
 // Die Seite Quick Add samt `addQuickAdd` ist mit ledger-ea70s entfallen; der Actor `QuickAdd`
 // bleibt für bestehende Ereignisse. Kein Fall
@@ -302,7 +302,7 @@ let addCashBookingTests =
             let entryId = newEntryId ()
             let ynabId = $"ynab-bk3q8-{Guid.NewGuid()}"
             let requests, push = recordingPush (Ok ynabId)
-            let result = addCashBooking Bob at entryId push noTrigger (booking (freshAccount ())) |> Async.RunSynchronously
+            let result = addCashBookingWith addCashExpense Bob at entryId push noTrigger (booking (freshAccount ())) |> Async.RunSynchronously
             Expect.equal result (Ok entryId) "vorgegebene Id"
             Expect.equal (eventTypesOf entryId) [ "CashExpenseAdded"; "EntryLinkedToYnab" ] "gebucht und verknüpft"
             Expect.equal (eventsOf entryId |> List.map (fun r -> r.Event.Actor)) [ Bob; Bob ] "Actor Bob"
@@ -314,10 +314,10 @@ let addCashBookingTests =
             // ledger-z71ka: die vorgegebene Id gilt auch nach einem Push-Fehler.
             let entryId = newEntryId ()
             let _, push = recordingPush (Error (YnabError.NetworkError "Timeout"))
-            let result = addCashBooking QuickAdd at entryId push noTrigger (booking (freshAccount ())) |> Async.RunSynchronously
+            let result = addCashBookingWith addCashExpense Bob at entryId push noTrigger (booking (freshAccount ())) |> Async.RunSynchronously
             Expect.equal result (Error (YnabError.NetworkError "Timeout")) "Push-Fehler durchgereicht"
             Expect.equal (eventTypesOf entryId) [ "CashExpenseAdded"; "EntryPushToYnabFailed" ] "Buchung bleibt, Fehlschlag steht"
-            Expect.equal (eventsOf entryId |> List.map (fun r -> r.Event.Actor)) [ QuickAdd; QuickAdd ] "Actor Quick Add"
+            Expect.equal (eventsOf entryId |> List.map (fun r -> r.Event.Actor)) [ Bob; Bob ] "Actor Bob"
             let stored = loadEntry entryId |> Async.RunSynchronously |> Option.get
             Expect.isFalse stored.LinkedToYnab "nicht verknüpft"
             Expect.equal stored.Amount.Amount -12.50m "Ausgabe negativ im Kassenbuch"
@@ -720,7 +720,7 @@ let lostPushAnswerTests =
             let account = mirroredAccount ()
             let entryId = newEntryId ()
             let _, push = recordingPush (Error (YnabError.NetworkError "Zeitüberschreitung"))
-            addCashBooking QuickAdd at entryId push noTrigger (booking account.Id) |> Async.RunSynchronously |> ignore
+            addCashBookingWith addCashExpense Bob at entryId push noTrigger (booking account.Id) |> Async.RunSynchronously |> ignore
             Expect.equal (eventTypesOf entryId) [ "CashExpenseAdded"; "EntryPushToYnabFailed" ] "Fehlschlag steht"
             let ynabTxId = $"ynab-ay81j-{Guid.NewGuid()}"
 
@@ -742,7 +742,7 @@ let lostPushAnswerTests =
                 }
             let thrown =
                 try
-                    addCashBooking QuickAdd at entryId push noTrigger (booking account.Id) |> Async.RunSynchronously |> ignore
+                    addCashBookingWith addCashExpense Bob at entryId push noTrigger (booking account.Id) |> Async.RunSynchronously |> ignore
                     false
                 with _ -> true
             Expect.isTrue thrown "das Schreiben der Verknüpfung wirft"
@@ -763,7 +763,7 @@ let lostPushAnswerTests =
             let account = mirroredAccount ()
             let entryId = newEntryId ()
             let _, push = recordingPush (Error (YnabError.NetworkError "Zeitüberschreitung"))
-            addCashBooking QuickAdd at entryId push noTrigger (booking account.Id) |> Async.RunSynchronously |> ignore
+            addCashBookingWith addCashExpense Bob at entryId push noTrigger (booking account.Id) |> Async.RunSynchronously |> ignore
             let summary = mirrorSees { observedCashBooking $"ynab-ay81j-{Guid.NewGuid()}" (ynabIdOf account) None with Payee = Some "Bäcker" }
             Expect.equal summary.NewEntries 1 "eine neue Buchung"
             Expect.hasLength (loadEntriesForAccount account.Id |> Async.RunSynchronously) 2 "zwei Buchungen auf dem Konto"
@@ -808,7 +808,7 @@ let lostPushAnswerTests =
             let account = mirroredAccount ()
             let entryId = newEntryId ()
             let _, firstPush = recordingPush (Error (YnabError.NetworkError "Zeitüberschreitung"))
-            addCashBooking QuickAdd at entryId firstPush noTrigger (booking account.Id) |> Async.RunSynchronously |> ignore
+            addCashBookingWith addCashExpense Bob at entryId firstPush noTrigger (booking account.Id) |> Async.RunSynchronously |> ignore
             let create _ _ _ _ _ _ _ = async.Return (Server.YnabClient.interpretCreateTransactionResponse 400 "{}")
             let push = Server.Api.entryPushWith (settingsFrom fakeYnab) create |> Async.RunSynchronously
             match retryPushToYnab (at.AddHours 1.0) loadEntryOrigin mirrorFindsNothing push noTrigger entryId |> Async.RunSynchronously with
