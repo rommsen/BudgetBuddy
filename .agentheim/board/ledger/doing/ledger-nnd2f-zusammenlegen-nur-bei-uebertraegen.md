@@ -1,7 +1,7 @@
 ---
 id: ledger-nnd2f
 title: "Der Spiegel legt nur noch zusammen, wenn YNAB einen Comdirect-Import mit einem Übertrag abgeglichen hat; eine verschluckte Barbuchung bleibt im Kassenbuch stehen (Ledger/Domain.fs mergeObservedInYnab)"
-status: todo
+status: doing
 type: bug
 context: ledger
 created: 2026-11-13

@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-13 13:04 -- Batch started: [ledger-nnd2f]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-nnd2f - "Der Spiegel legt nur noch zusammen, wenn YNAB einen Comdirect-Import mit einem Übertrag abgeglichen hat; eine verschluckte Barbuchung bleibt im Kassenbuch stehen (Ledger/Domain.fs mergeObservedInYnab)"
+**Parallel:** scoped: Fix vor dem Deploy von ledger-nkwqb
+
+---
+
 ## 2026-11-13 13:04 -- Modeling / Promoted: ledger-nnd2f - "Der Spiegel legt nur noch zusammen, wenn YNAB einen Comdirect-Import mit einem Übertrag abgeglichen hat; eine verschluckte Barbuchung bleibt im Kassenbuch stehen (Ledger/Domain.fs mergeObservedInYnab)"
 
 **Type:** Modeling / Promote
