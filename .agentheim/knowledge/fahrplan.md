@@ -113,8 +113,8 @@ Zuletzt aktualisiert: 2026-11-13, nach work-Lauf und Review infrastructure-ewasy
   Schwelle; n3sxw: Abweichungen von der Skizze). Entschieden (Roman): zwei Tasks für Schnitt 6, Löschen mit Rückgängig,
   Payee-Override, Export/Import und Neu laden entfallen, Regel aus der Buchung als fester Eintrag und als Angebot nach
   Kategorie-Änderung (ledger-hg5m5, Angebot als Zeile im Detail statt im Toast), DS-Tabs und Umschalter wie überall, Panel
-  wie bei den Buchungen, Karte statt Tabelle von 1024 bis 1279 px. categorization-krscs ist in n3sxw aufgegangen, liegt
-  noch im Backlog (verwerfen nur auf Romans Wort). Gate auf main: VERIFY: PASS (dotnet 4991, node 333). Nicht gepusht,
+  wie bei den Buchungen, Karte statt Tabelle von 1024 bis 1279 px. categorization-krscs ist in n3sxw aufgegangen und
+  verworfen (Roman, d9cadc63). Gate auf main: VERIFY: PASS (dotnet 4991, node 333). Nicht gepusht,
   nicht deployt.
 - **Review-Lauf aa2c1e46..HEAD (2026-11-13):** 4 Agents, rund 40 Funde behoben in 5107a1be..1da80ba9, darunter: eine
   Speicherantwort schrieb in ein inzwischen anderes Panel (Eingabe verloren), Umordnungen liefen parallel, Kategorien-Fehler
@@ -233,7 +233,7 @@ Die Zeilen darunter sind die Quelle der Schnitte.
 - `categorization-hz6vj` Kategorisieren im Import
 - `design-system-taytp` Kategorie-Picker vereinheitlichen: Import und Erfassen nutzen nur `CategoryPicker`,
   `BottomSheet.categoryPicker` entfällt (aus Etappe 2 verschoben, Roman 2026-11-08)
-- `categorization-krscs` Regel-Dialog
+- ~~`categorization-krscs` Regel-Dialog~~ (in categorization-n3sxw aufgegangen, verworfen 2026-11-13)
 - `ledger-hg5m5` Regel-Angebot nach Kategorie-Änderung
 - `ledger-ayjzq` Sicht „Für mich“ (Lena-Filter)
 - `ledger-nb4tv` ETF-Konto und Abgleich (aus Etappe 2 verschoben, Roman 2026-11-10)
