@@ -2618,6 +2618,32 @@ let keyCommandFor
         | "Escape" -> Some EscapePressed
         | _ -> None
 
+/// Wohin eine Taste am PC auf Kassenbuch und Durchgehen geht (ledger-hg5m5).
+type PageKeyTarget<'action> =
+    /// Die Seite darunter behandelt die Taste.
+    | PageAction of 'action
+    /// Esc über dem offenen Regel-Formular: eine Stufe zurück zur Buchung.
+    | RuleFormBack
+
+/// Ein offenes Regel-Formular aus einer Buchung liegt über Liste und Karte und bekommt die Tasten zuerst (§7.8
+/// Punkt 6): ↑↓, J/K, G, Enter und Leertaste wirken nicht auf die verdeckte Seite, Esc führt genau eine Stufe zurück
+/// zur Buchung. Ohne Formular gilt `pageAction`, die Taste der Seite. Rein.
+let routePageKey (ruleFormOpen: bool) (modifier: bool) (key: string) (pageAction: 'action option) : PageKeyTarget<'action> option =
+    if not ruleFormOpen then pageAction |> Option.map PageAction
+    elif key = "Escape" && not modifier then Some RuleFormBack
+    else None
+
+/// Die Tasten der Kassenbuch-Liste mit Blick auf ein offenes Regel-Formular (`keyCommandFor`, `routePageKey`).
+let ledgerKeyFor
+    (ruleFormOpen: bool)
+    (tagName: string)
+    (isContentEditable: bool)
+    (ctrlOrMeta: bool)
+    (alt: bool)
+    (key: string)
+    : PageKeyTarget<Msg> option =
+    routePageKey ruleFormOpen (ctrlOrMeta || alt) key (keyCommandFor tagName isContentEditable ctrlOrMeta alt key)
+
 /// Was die Seite nach oben meldet.
 /// Scheiterte mit dieser Nachricht die laufende Abfrage der Route `#/ledger/entry/<id>`?
 let routeEntryLoadFailed (pendingRoute: Guid option) (msg: Msg) : bool =

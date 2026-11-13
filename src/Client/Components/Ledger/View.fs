@@ -2523,11 +2523,13 @@ let private scrollIntoViewNearest (element: Browser.Types.Element) : unit = jsNa
 /// Die Tastenbelegung am Dokument (PC): übersetzt Tastenereignisse über `keyCommandFor` in
 /// Nachrichten. Ein Ereignis aus einem Eingabefeld oder mit Strg/Meta/Alt bleibt unberührt,
 /// ebenso eines, das schon jemand behandelt hat. Folgt der Fokus einer anderen Zeile, rollt
-/// die Liste sie ins Bild. Enter und Esc sind nicht belegt (ledger-q1hw2).
+/// die Liste sie ins Bild. Über einem offenen Regel-Formular gilt nur Esc, eine Stufe zurück (ledger-hg5m5).
 [<ReactComponent>]
-let private KeyboardNavigation (focusedRow: Guid option) (dispatch: Msg -> unit) =
+let private KeyboardNavigation (focusedRow: Guid option) (dispatch: Msg -> unit) (ruleForm: EntryRuleForm option) =
     let dispatchRef = React.useRef dispatch
     dispatchRef.current <- dispatch
+    let ruleFormRef = React.useRef ruleForm
+    ruleFormRef.current <- ruleForm
 
     React.useEffect (
         (fun () ->
@@ -2537,10 +2539,14 @@ let private KeyboardNavigation (focusedRow: Guid option) (dispatch: Msg -> unit)
                 let tagName = if isNull (box target) then "" else target.tagName
                 let editable = not (isNull (box target)) && target.isContentEditable
                 if not ke.defaultPrevented then
-                    match keyCommandFor tagName editable (ke.ctrlKey || ke.metaKey) ke.altKey ke.key with
-                    | Some msg ->
+                    let form = ruleFormRef.current
+                    match ledgerKeyFor form.IsSome tagName editable (ke.ctrlKey || ke.metaKey) ke.altKey ke.key with
+                    | Some (PageAction msg) ->
                         ke.preventDefault ()
                         dispatchRef.current msg
+                    | Some RuleFormBack ->
+                        ke.preventDefault ()
+                        form |> Option.iter (fun f -> f.OnBack ())
                     | None -> ()
 
             Browser.Dom.document.addEventListener ("keydown", handler)
@@ -4746,7 +4752,7 @@ let view (model: Model) (dispatch: Msg -> unit) (tabs: LedgerTabs) (ruleForm: En
                 ]
                 BookingsScrollRestore model.BookingsScroll dispatch
 
-            KeyboardNavigation model.FocusedRow dispatch
+            KeyboardNavigation model.FocusedRow dispatch (ruleForm (not (Viewport.isInspectorPanelViewport ())))
        ]
       ]
     ]
@@ -4847,12 +4853,25 @@ let reviewKeyFor (model: Model) (tagName: string) (isContentEditable: bool) (mod
         | Some r when r.DetailShown -> if key = "Escape" then Some KeyLeave else None
         | _ -> reviewKeyAction card key
 
+/// Die Tasten des Durchgehens mit Blick auf ein offenes Regel-Formular (`reviewKeyFor`, `routePageKey`). Rein.
+let reviewKeyRoute
+    (model: Model)
+    (ruleFormOpen: bool)
+    (tagName: string)
+    (isContentEditable: bool)
+    (modifier: bool)
+    (key: string)
+    : PageKeyTarget<ReviewKeyAction> option =
+    routePageKey ruleFormOpen modifier key (reviewKeyFor model tagName isContentEditable modifier key)
+
 [<ReactComponent>]
-let private ReviewKeyboard (model: Model) (dispatch: Msg -> unit) =
+let private ReviewKeyboard (model: Model) (dispatch: Msg -> unit) (ruleForm: EntryRuleForm option) =
     let modelRef = React.useRef model
     modelRef.current <- model
     let dispatchRef = React.useRef dispatch
     dispatchRef.current <- dispatch
+    let ruleFormRef = React.useRef ruleForm
+    ruleFormRef.current <- ruleForm
     React.useEffect (
         (fun () ->
             let handler (e: Browser.Types.Event) =
@@ -4861,10 +4880,14 @@ let private ReviewKeyboard (model: Model) (dispatch: Msg -> unit) =
                 let tagName = if isNull (box target) then "" else target.tagName
                 let editable = not (isNull (box target)) && target.isContentEditable
                 if not ke.defaultPrevented then
-                    match reviewKeyFor modelRef.current tagName editable (ke.ctrlKey || ke.metaKey || ke.altKey) ke.key with
-                    | Some action ->
+                    let form = ruleFormRef.current
+                    match reviewKeyRoute modelRef.current form.IsSome tagName editable (ke.ctrlKey || ke.metaKey || ke.altKey) ke.key with
+                    | Some (PageAction action) ->
                         ke.preventDefault ()
                         dispatchRef.current (ReviewKey action)
+                    | Some RuleFormBack ->
+                        ke.preventDefault ()
+                        form |> Option.iter (fun f -> f.OnBack ())
                     | None -> ()
             Browser.Dom.document.addEventListener ("keydown", handler)
             { new IDisposable with
@@ -5232,7 +5255,7 @@ let ReviewPage (model: Model) (dispatch: Msg -> unit) (onBack: unit -> unit) (ru
                 if desk && card.IsSome then
                     Html.div [ prop.className "mx-auto mt-4 w-full max-w-[620px]"; prop.children [ ReviewCard.keyBar reviewKeys ] ]
                 detail
-                // Über dem Regel-Formular gelten die Tasten des Durchgehens nicht (Esc schließt nur das Formular).
-                if openRuleForm.IsNone then ReviewKeyboard model dispatch
+                // Über dem Regel-Formular gelten die Tasten des Durchgehens nicht, Esc führt zur Karte zurück (`reviewKeyRoute`).
+                ReviewKeyboard model dispatch openRuleForm
             ]
         ]

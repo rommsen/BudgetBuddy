@@ -242,6 +242,23 @@ let keyBindingTests =
             // categorization-n3sxw: der Tab „Regeln“ hört nur, solange er offen ist; die Tasten der Buchungen hängen
             // dann nicht im DOM (`Components.Ledger.View.view`, Zweig `BookingsTab`).
             Expect.equal listeners [| "Components/Budget/View.fs"; "Components/Ledger/View.fs"; "Components/Rules/View.fs" |] "die einzigen Dokument-Handler"
+
+        // ledger-hg5m5, Bug: Am PC steht das Regel-Formular im Detail-Panel. Hatte ein Segment im Formular den Fokus
+        // (ein Knopf, kein Feld), wechselte ↑↓/J/K die Buchung und der Entwurf war weg, g/G setzte den Prüfvermerk
+        // der verdeckten Zeile, Esc schloss Detail samt Formular statt einer Stufe.
+        testCase "über dem offenen Regel-Formular wirken die Tasten der Liste nicht, Esc führt zur Buchung zurück" <| fun () ->
+            for k in [ "ArrowDown"; "ArrowUp"; "j"; "k"; "g"; "G"; "Enter"; " " ] do
+                Expect.isNone (ledgerKeyFor true "BODY" false false false k) $"{k} bei offenem Formular"
+                Expect.isNone (ledgerKeyFor true "DIV" false false false k) $"{k} auf dem Segment"
+            Expect.equal (ledgerKeyFor true "BUTTON" false false false "Escape") (Some RuleFormBack) "Esc auf einem Segment"
+            Expect.equal (ledgerKeyFor true "INPUT" false false false "Escape") (Some RuleFormBack) "Esc im Feld des Formulars"
+            Expect.isNone (ledgerKeyFor true "BODY" false true false "Escape") "Esc mit Strg oder Meta"
+
+        testCase "ohne Regel-Formular gelten die Tasten der Liste unverändert" <| fun () ->
+            Expect.equal (ledgerKeyFor false "BODY" false false false "ArrowDown") (Some (PageAction (MoveFocus 1))) "Pfeil ab"
+            Expect.equal (ledgerKeyFor false "BODY" false false false "g") (Some (PageAction (ReviewKeyPressed Reviewed))) "g"
+            Expect.equal (ledgerKeyFor false "BUTTON" false false false "Escape") (Some (PageAction EscapePressed)) "Esc"
+            Expect.isNone (ledgerKeyFor false "INPUT" false false false "Escape") "Esc im Feld"
     ]
 
 [<Tests>]

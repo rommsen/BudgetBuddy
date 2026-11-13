@@ -170,6 +170,17 @@ let pureTests =
             Expect.equal (key details "BODY" false false "s") None "mit offenem Detail nur Esc"
             Expect.equal (key details "BODY" false false "Escape") (Some KeyLeave) "Esc schließt das Detail"
 
+        // ledger-hg5m5: Über dem Regel-Formular (Dialog am PC) gelten die Tasten des Durchgehens nicht; ohne die Sperre
+        // ginge die Karte weiter und das Formular schlösse mit dem Entwurf. Esc führt eine Stufe zurück zur Karte.
+        testCase "über dem offenen Regel-Formular wirken die Tasten des Durchgehens nicht, Esc führt zur Karte zurück" <| fun () ->
+            let model = reviewing [ entryOf 1 ]
+            let route = Components.Ledger.View.reviewKeyRoute
+            for k in [ "Enter"; "ArrowRight"; "s"; "l"; "k" ] do
+                Expect.isNone (route model true "BUTTON" false false k) $"{k} bei offenem Formular"
+            Expect.equal (route model true "BUTTON" false false "Escape") (Some RuleFormBack) "Esc"
+            Expect.equal (route model false "BODY" false false "Enter") (Some (PageAction KeyConfirm)) "ohne Formular"
+            Expect.equal (route model false "BODY" false false "Escape") (Some (PageAction KeyLeave)) "Esc ohne Formular"
+
         testCase "Endansicht: Zahl mit Einzahl, ohne Karte nur der Satz zum Import" <| fun () ->
             Expect.equal (reviewDoneText 10) "10 Buchungen durchgegangen. Neue erscheinen nach dem nächsten Import." "Mehrzahl"
             Expect.equal (reviewDoneText 1) "1 Buchung durchgegangen. Neue erscheinen nach dem nächsten Import." "Einzahl"
