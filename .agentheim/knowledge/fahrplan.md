@@ -3,7 +3,7 @@
 Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success looks like“.
 
 ## Stand
-Zuletzt aktualisiert: 2026-11-13, nach work-Lauf und Review infrastructure-ewasy und categorization-n3sxw.
+Zuletzt aktualisiert: 2026-11-14, nach work-Lauf und Review ledger-ea70s und ledger-hg5m5.
 
 - **Etappe 1 · Bedeutungen:** erledigt, 5 von 5 (Skizze und Prototyp, Layout-Sweep, Muster im
   Styleguide, Designwert-Tests aufgeräumt, Palette 2 im Token-Layer). Romans Blick auf dak16 neben
@@ -20,7 +20,7 @@ Zuletzt aktualisiert: 2026-11-13, nach work-Lauf und Review infrastructure-ewasy
   Backlog, danach kann die Sperre für Überträge fallen. ledger-nb4tv (ETF-Konto und Abgleich) nach
   Etappe 3 verschoben (Roman, 2026-11-10).
   Deployt (2026-11-10, f85d3b3d): ledger-m7k2d, ledger-z6sya, ledger-m7mye.
-- **Etappe 3 · Ein Produkt:** in elf Schnitte geteilt (Roman, 2026-11-11). 5 erledigt: 1 design-system-k6kfw, 2 ledger-s1weh
+- **Etappe 3 · Ein Produkt:** in elf Schnitte geteilt (Roman, 2026-11-11). 7 erledigt (6 categorization-n3sxw mit ledger-hg5m5, 7 ledger-ea70s, siehe Work-Lauf 2026-11-13/14 unten; nicht deployt), davon 1 design-system-k6kfw, 2 ledger-s1weh
   (beide deployt), 3 budgeting-w9yt4 (Angepinnte Kategorien, 828f6a24), 4 banking-import-d0fey (Import direkt, ADR 0093, 613eee26)
   mit ledger-r7h2w (wartendes Duplikat übernehmen oder verwerfen, ef7e039b), ledger-fxt09 (Payee ändern, 0a7d9cf0) und
   banking-import-t4raw (automatisch abrufen, Vorgabe an, 1b1c868f), 5 ledger-v6s7c (Durchgehen, 64a3402f). Work-Lauf
@@ -122,10 +122,26 @@ Zuletzt aktualisiert: 2026-11-13, nach work-Lauf und Review infrastructure-ewasy
   fehlten. Entschieden (Roman): „aktiv“ und „Passt nicht“ ruhig statt Grün und Rot. Der Sweep fand danach den überdeckten
   Kopf bei 1024 px (behoben). Kann-Sammlungen categorization und design-system ergänzt. Gate: VERIFY: PASS (dotnet 5012,
   node 338). Nicht gepusht, nicht deployt.
-- **Nächster Schritt:** Romans Blick auf den Tab Regeln am Handy
-  und PC, dann ledger-hg5m5 (Regel aus der Buchung) promoten und bauen. Offen zum Verfeinern: ledger-yhemh (Memo unter
-  Datum), ledger-h7de3 (Fehlertexte in Ereignissen), design-system-vf94m (Toast verdeckt „+ Buchung“), ledger-t4rk8
-  (Betrag eines Übertrags in BB).
+- **Work-Lauf 2026-11-13/14 nachts, Roman offline:** Schnitt 7 ledger-ea70s (Ein Erfassen: Quick Add als Ort entfällt,
+  `#/quickadd` öffnet „Neue Buchung“ auf der Übersicht, ohne Kontofilter ist das Quick-Add-Konto vorbelegt, Fokus im Betrag
+  am PC, Schutz vor dem Neuladen, Konto- und Kategorie-Auswahl ersetzen an allen vier Stellen den Sheet-Inhalt, Memo unter
+  dem Datum am Handy; nimmt design-system-taytp und ledger-yhemh auf; 9645bb72) und ledger-hg5m5 (Regel aus der Buchung:
+  „Regel anlegen“ im Detail und auf der Karte des Durchgehens, Angebot nach einer Kategorie-Änderung mit Urteil vom Server;
+  3322d427). Beide parallel, beide Verifier PASS in Iteration 1, Merge ohne Konflikt, Gate auf dem zusammengeführten Stand
+  grün. Review-Lauf 9067dcd6..3cb4257a mit 4 Agents, 30 Funde behoben in 9c495e0e..4a9423d3, darunter: am PC wechselten
+  ↑/↓ die Buchung, während das Regel-Formular im Panel stand, und verwarfen so den Entwurf; Esc im Regel-Dialog des
+  Durchgehens tat nichts (`Modal.CloseOnEscape` wird nirgends ausgewertet); eine Memo-Regel warf bei Memo `null`;
+  `addCashBooking` ohne Aufrufer entfernt; Angebotszeile als `Detail.offerRow` im DS. Kann-Sammlungen ledger,
+  design-system und neu ynab-sync ergänzt. Gate: VERIFY: PASS (dotnet 5009, node 340). Nicht gepusht, nicht deployt.
+  Für Romans Blick am Handy und PC: (1) Karte im Durchgehen: „Regel anlegen“ als Textlink neben „Details“ statt eigener
+  Zeile (sonst rutscht „Passt, weiter“ aus dem Bild); (2) am Handy führt im Regel-Sheet das × zur Buchung zurück, ein
+  beschriftetes „Zurück“ gibt es nur im Panel am PC; (3) „Regel anlegen“ als Feldzeile im Detail: als Aktion erkennbar?;
+  (4) Höhensprung, wenn die Auswahl den Inhalt des Sheets ersetzt („+ Buchung“, Konto antippen); (5) gebogene Akzentkante
+  der aktiven Zeile in „Konto wählen“ (älter, jetzt prominent); (6) Satz unter „Quick-Add-Konto“ in den Einstellungen
+  („Konto für manuell erfasste Transaktionen“) besser „Vorbelegt bei „+ Buchung“ ohne Kontofilter, auch für Bob“?
+- **Nächster Schritt:** Romans Blick auf ledger-ea70s und ledger-hg5m5 (Punkte oben), danach Deploy der Schnitte 6 und 7 auf
+  Romans Anweisung. Dann Schnitt 8 ledger-f8d7x (Kassenbuch ordnen) verfeinern. Offen zum Verfeinern: ledger-h7de3
+  (Fehlertexte in Ereignissen), design-system-vf94m (Toast verdeckt „+ Buchung“), ledger-t4rk8 (Betrag eines Übertrags in BB).
 - Verfeinert wird nur die nächste Etappe. Spätere Etappen haben Zeilen, keine Tickets.
 - Neue Ideen für spätere Etappen kommen hier als Zeile dazu.
 - Bestehende Tasks tragen einen Tag: `etappe-1`, `etappe-2`, `etappe-3`, `laufend`, `danach`.
@@ -183,8 +199,8 @@ Baut ein Schnitt eine Seite um, gilt die Zeile „Browser-Tests beim Umbau“ al
 3. ✓ `budgeting-w9yt4` Angepinnte Kategorien (2026-11-12)
 4. ✓ `banking-import-d0fey` Import direkt ins Kassenbuch (2026-11-12) (nimmt `banking-import-t4raw`, `categorization-hz6vj` auf)
 5. ✓ `ledger-v6s7c` Durchgehen Karte für Karte (2026-11-12)
-6. ✓ `categorization-n3sxw` Regeln ins Kassenbuch (2026-11-13) (nimmt `categorization-krscs` auf), danach `ledger-hg5m5` Regel aus der Buchung
-7. `ledger-ea70s` Ein Erfassen, Quick Add entfällt (nimmt `design-system-taytp` auf)
+6. ✓ `categorization-n3sxw` Regeln ins Kassenbuch (2026-11-13) (nimmt `categorization-krscs` auf), danach ✓ `ledger-hg5m5` Regel aus der Buchung (2026-11-14)
+7. ✓ `ledger-ea70s` Ein Erfassen, Quick Add entfällt (2026-11-14) (nimmt `design-system-taytp` und `ledger-yhemh` auf)
 8. `ledger-f8d7x` Kassenbuch ordnen, beim Verfeinern nach Handy und PC teilen (nimmt `ledger-ayjzq` auf)
 9. `design-system-gcpws` Liste mit Panel überall, generischer Tastentest
 10. `budgeting-wnkgj` Budget angleichen

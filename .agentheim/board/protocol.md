@@ -5,6 +5,18 @@ Newest entries on top.
 
 ---
 
+## 2026-11-14 00:35 -- Review-Lauf: 9067dcd6..3cb4257a
+
+**Type:** Review / Review-Lauf
+**Bereich:** ledger-ea70s, ledger-hg5m5 (9067dcd6..3cb4257a)
+**Agents:** backend-code-quality, frontend-architecture, design-quality, qa-milestone-reviewer
+**Funde:** behoben 30, verworfen 2, Rückfrage 4 (für Romans Blick), Ticket 0, Kann-Sammlung 7
+**Commits:** 9c495e0e, d757b030, d58d735d, c7a95ef4, 36c7423f, 9a1b2c87, 4a9423d3
+**Verworfen:** Wrapper ruleCategoryForPayee entfernen (Name trägt Bedeutung); Payee und Memo am Endpoint kürzen (ein Nutzer hinter Tailscale)
+**Verifikation:** VERIFY: PASS (dotnet 5009 grün, node 340 grün, dotnet build, npm run build, guard:classes, guard:tokens grün)
+
+---
+
 ## 2026-11-14 00:02 -- Work session ended
 
 **Type:** Work / Session end
