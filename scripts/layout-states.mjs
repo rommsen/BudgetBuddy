@@ -1530,11 +1530,12 @@ export const STATES = [
     mock: mockRules,
     open: openRules,
   },
-  // categorization-n3sxw: am PC steht eine Regel rechts im Panel, der Picker hängt als Popover ganz im Bild.
+  // categorization-n3sxw: am PC steht eine Regel rechts im Panel, der Picker hängt als Popover ganz im Bild. Ab 1024 px
+  // steht die Karte neben dem Panel, von 1024 bis 1279 px schmaler (Abweichung (f) der Task).
   {
     name: "regeln-panel",
     route: "/ledger/rules",
-    widths: [1440],
+    widths: [1024, 1280, 1440],
     mock: mockRules,
     open: async (page) => {
       await openRule(page, "Regel eins");
@@ -1555,6 +1556,24 @@ export const STATES = [
       await settle(page, { where: "regeln-sheet-picker, Sheet offen" });
       await page.locator('[data-testid="rule-category"]').click();
       await page.locator('.bottom-sheet.active [role="option"]').first().waitFor();
+    },
+  },
+  // categorization-n3sxw: nach „Regel löschen“ steht der Toast „Regel gelöscht“ mit Rückgängig und verdeckt keine
+  // Bedienelemente (ADR 0087 Punkt 22). Am Handy schließt dabei das Sheet, am PC das Panel.
+  {
+    name: "regeln-geloescht-toast",
+    route: "/ledger/rules",
+    widths: [...HANDY_WIDTHS, 1024, 1440],
+    mock: async (page) => {
+      await mockRules(page);
+      await page.route("**/api/RulesApi/deleteRule", (r) => json(r, { Ok: null }));
+    },
+    open: async (page, { mobile }) => {
+      await openRule(page, "Regel eins");
+      const remove = page.locator('[data-testid="rule-form"]').getByRole("button", { name: "Regel löschen", exact: true });
+      await (mobile ? remove.tap() : remove.click());
+      await page.locator('[data-toast-action="true"]').first().waitFor();
+      await page.locator('[data-testid="rule-form"]').waitFor({ state: "detached" });
     },
   },
   // design-system-k6kfw: die Übersicht als Einstieg, mit Leiste unten, Rail und Seitenleiste je nach Breite.
