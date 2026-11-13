@@ -1,7 +1,7 @@
 ---
 id: infrastructure-ewasy
 title: README-Delta-Gate meldet alten Wortlaut, der nach einem replace anderswo in der README stehen bleibt
-status: doing
+status: done
 type: chore
 context: infrastructure
 created: 2026-11-08
@@ -89,3 +89,27 @@ Anwenden; der Worker darf sie begründet anpassen, wenn die echten READMEs (ledg
 nennt das im OUTCOME. Ort im Skript: neben `evaluateOp`, Auswertung nach dem Anwenden aller Ops; `collapseWs` und
 `findBulletBlocks` gibt es schon. Durchsetzung: das Gate selbst (Agentheim ADR 0059, mechanize-or-drop), die Prosa in CLAUDE.md
 beschreibt nur noch den Aufruf.
+
+## Verifier note (iteration 1)
+**REASONS:**
+- Kriterium „Häufige Begriffe (mehr als dreimal nach dem Anwenden) ergeben keinen Treffer“ ist nicht falsifizierbar getestet: P7c legt `oft_term` in den `body` beider Ops, damit fällt der Begriff schon über die body-Regel heraus, bevor die Seltenheitsschwelle greift.
+- Mutation `return n >= 1 && n <= RARE_MAX;` zu `return n >= 1;` in `rareTerms`: alle 32 Tests bleiben grün. Die Seite „häufig“ hat keinen echten Test.
+- Kein Code-Fehler, nur eine Testlücke; `./verify.sh` lief in dieser Iteration nicht.
+
+**SUGGESTED_FIX:** P7c so ändern, dass der häufige Begriff in keinem `body` steht: ein replace, dessen `expected` einen Begriff nennt, der nach dem Delta mehr als dreimal in Backticks in der README steht, mit einem body ohne den Begriff. Exit 0 und kein Treffer prüfen, dann bestätigen, dass der Test ohne `n <= RARE_MAX` rot wird. Ein passender Fall für die Liste „ganz nachlesen“ (ein häufiger gemeinsamer Begriff setzt keinen Eintrag) sichert dieselbe Schwelle dort.
+
+**ITERATION_HINT:** likely-fixable
+
+## Outcome
+
+`scripts/readme-delta-check.mjs` hat Prüfung 7 (alter Wortlaut bleibt stehen) und die Liste „ganz nachlesen“. Beide laufen nach dem Anwenden des ganzen Deltas, je Zieldatei, und nur wenn die Prüfungen 1 bis 6 grün sind.
+
+- Prüfung 7 (`findStaleWording`): Kandidaten sind Backtick-Begriffe und „…“-Sätze aus dem `expected` jedes `replace`, die in keinem `body` des Deltas stehen. Ein Begriff zählt, wenn er danach 1 bis 3 Mal in Backticks in der Datei steht (`RARE_MAX = 3`), ein Satz immer. Der Vergleich läuft über die kollabierte Fassung (`collapsedWithLines`), Zeilennummern zeigen auf die Startzeile, auch über Zeilenumbrüche. Ausgabe auf stderr je Treffer: Begriff, Anker, Abschnitt, Zeile(n). Exit 1.
+- `--keep "<begriff>"` (mehrfach, umschließende Backticks oder „…“ werden toleriert) nimmt Treffer aus. Jeder genutzte `--keep` steht auf stdout, ein `--keep` ohne Treffer ist Exit 2.
+- Liste „ganz nachlesen“ (`findRereadEntries`): Einträge mit kursivem oder Backtick-Kopf unter `## Key commands`, `## Key events`, `## Ereignisse`, die einen seltenen Backtick-Begriff mit `expected` oder `body` eines `replace` teilen, mit Datei:Zeile, Kopf und gemeinsamen Begriffen. Leer: „Ganz nachlesen: keine Einträge“. Kein Einfluss auf den Exit-Code.
+- Schwelle bei 3 belassen. Gegenprobe an der echten ledger-README: identischer `replace` des Bullets **Schreib-Sperre** mit einem geänderten Begriff ergibt Exit 0 und sieben Listeneinträge unter Key commands, plausibel für einen großen Bullet, ohne Fehlalarm in Prüfung 7. Leeres Delta `[]` auf ledger: Exit 0, Liste leer (Test P9).
+- Hilfetext nennt alle Prüfungen, Prüfung 7, `--keep` und die Liste. `CLAUDE.md`, Abschnitt README-Deltas: die grep-Prosa-Regel ist durch einen Satz zu Prüfung 7, `--keep` (mit Grund im OUTCOME) und der Liste („passt“ oder „nachgezogen“ im OUTCOME) ersetzt; T8 (Kopplung) bleibt grün, P10 koppelt Hilfetext und CLAUDE.md an die neuen Begriffe.
+- Tests in `scripts/readme-delta-check.test.mjs`: P7a bis P7d und P8 je mit Gegenfall, P7a bildet ledger-ay81j Iteration 1 nach (Begriff bleibt in anderem Bullet), P8 Iteration 2 (Key command mit gemeinsamem Befehl). Dazu P9 (echte ledger-README), P10 (Doku-Kopplung) und ein Einheitentest für `collapsedWithLines`. Alle Fixtures erfunden.
+- Iteration 2 (Verifier-Note): P7c neu, der häufige Begriff `oft_term` steht in keinem `body` (Fixture `FREQUENT_README`, nach dem Anwenden viermal in Backticks), Exit 0 ohne Treffer. Neu P8c: derselbe häufige gemeinsame Begriff setzt keinen Eintrag in die Liste „ganz nachlesen“, obwohl *NotizLesen* ihn trägt. Mutant `return n >= 1;` in `rareTerms`: P7c und P8c rot (31 grün, 2 rot), Mutant zurückgenommen, danach 33 grün.
+- Eigenes README_DELTA dieser Task durch das Gate geprüft: Exit 0, „Ganz nachlesen: keine Einträge“, kein `--keep`.
+- `./verify.sh`: `VERIFY: PASS` (dotnet 4986 grün, node 336 grün).

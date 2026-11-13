@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-13 20:43 -- Task verified and completed: infrastructure-ewasy - README-Delta-Gate meldet alten Wortlaut, der nach einem replace anderswo in der README stehen bleibt
+
+**Type:** Work / Task completion
+**Task:** infrastructure-ewasy - README-Delta-Gate meldet alten Wortlaut, der nach einem replace anderswo in der README stehen bleibt
+**Summary:** README-Delta-Gate meldet alten Wortlaut (Prüfung 7, --keep) und druckt die Liste ganz nachlesen
+**Duration:** 15m
+**Verification:** PASS (iteration 2)
+**Files changed:** 3
+**Tests added:** 14
+**ADRs written:** none
+
+---
+
+## 2026-11-13 20:29 -- Verification failed: infrastructure-ewasy - README-Delta-Gate meldet alten Wortlaut
+
+**Type:** Work / Verification failure
+**Task:** infrastructure-ewasy - README-Delta-Gate meldet alten Wortlaut
+**Iteration:** 1 of 3
+**Reasons:** Schwelle häufiger Begriffe nicht falsifizierbar getestet (P7c fällt über die body-Regel), Mutant ohne RARE_MAX bleibt grün
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-13 20:17 -- Batch started: [infrastructure-ewasy, categorization-n3sxw]
 
 **Type:** Work / Batch start

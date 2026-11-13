@@ -5,7 +5,7 @@
 // infrastructure-b6kzp). Nimmt ein Paar aus README (oder context-map.md) und
 // einem README_DELTA-Block (references/worker-return-format.md), wendet das
 // Delta über das ECHTE Plugin-Modul (lib/readme-delta.mjs aus dem
-// Agentheim-Plugin-Cache) an, prüft das Ergebnis gegen sechs Kriterien und
+// Agentheim-Plugin-Cache) an, prüft das Ergebnis gegen sieben Kriterien und
 // urteilt. Schreibt nie: das Schreiben bleibt beim Conductor (ADR 0054,
 // compute-then-write).
 //
@@ -224,6 +224,185 @@ export function reachableTermHeads(lines, start, end) {
   return heads;
 }
 
+// ---------------------------------------------------------------------------
+// Prüfung 7 (alter Wortlaut bleibt stehen) und die Liste "ganz nachlesen"
+// (infrastructure-ewasy). Beide werten die Zieldatei NACH dem Anwenden des
+// ganzen Deltas aus.
+// ---------------------------------------------------------------------------
+
+/** Ein Backtick-Begriff gilt als selten, wenn er nach dem Anwenden höchstens so oft (in Backticks) in der Datei steht. */
+export const RARE_MAX = 3;
+
+/** Abschnitte, deren Einträge in der Liste "ganz nachlesen" landen können. */
+export const REREAD_SECTIONS = ["Key commands", "Key events", "Ereignisse"];
+
+/** Alle Begriffe in Backticks, Leerraum kollabiert, ohne Dubletten, in Fundreihenfolge. */
+export function backtickTerms(text) {
+  const out = [];
+  for (const m of collapseWs(text).matchAll(/`([^`]+)`/g)) {
+    const t = m[1].trim();
+    if (t && !out.includes(t)) out.push(t);
+  }
+  return out;
+}
+
+/** Alle Sätze in „…“ (schließend mit “ oder ”), Leerraum kollabiert, ohne Dubletten. */
+export function quotedSentences(text) {
+  const out = [];
+  for (const m of collapseWs(text).matchAll(/„([^“”„]+)[“”]/g)) {
+    const s = m[1].trim();
+    if (s && !out.includes(s)) out.push(s);
+  }
+  return out;
+}
+
+/**
+ * Kollabierte Fassung von `content` (wie `collapseWs`, ohne trim) plus die
+ * 1-basierte Zeilennummer je Zeichen, damit ein Treffer über einen
+ * Zeilenumbruch hinweg auf seine Startzeile zurückgeführt werden kann.
+ */
+export function collapsedWithLines(content) {
+  let text = "";
+  const lineAt = [];
+  let line = 1;
+  let pendingWs = false;
+  let wsLine = 1;
+  for (const ch of String(content)) {
+    if (/\s/.test(ch)) {
+      if (!pendingWs) wsLine = line;
+      pendingWs = true;
+      if (ch === "\n") line++;
+      continue;
+    }
+    if (pendingWs && text.length > 0) {
+      text += " ";
+      lineAt.push(wsLine);
+    }
+    pendingWs = false;
+    text += ch;
+    for (let k = 1; k < ch.length; k++) lineAt.push(line);
+    lineAt.push(line);
+  }
+  return { text, lineAt };
+}
+
+/** Startzeilen (1-basiert, ohne Dubletten) aller Vorkommen von `needle` im kollabierten Text. */
+export function occurrenceLines(collapsed, needle) {
+  const lines = [];
+  if (!needle) return lines;
+  let from = 0;
+  for (;;) {
+    const idx = collapsed.text.indexOf(needle, from);
+    if (idx === -1) break;
+    const l = collapsed.lineAt[idx];
+    if (!lines.includes(l)) lines.push(l);
+    from = idx + 1;
+  }
+  return lines;
+}
+
+function countOccurrences(haystack, needle) {
+  if (!needle) return 0;
+  let n = 0;
+  let from = 0;
+  for (;;) {
+    const idx = haystack.indexOf(needle, from);
+    if (idx === -1) return n;
+    n++;
+    from = idx + 1;
+  }
+}
+
+/** Seltene Backtick-Begriffe aus `terms`: nach dem Anwenden 1 bis RARE_MAX Mal in Backticks im kollabierten Text. */
+function rareTerms(terms, collapsedText) {
+  return terms.filter((t) => {
+    const n = countOccurrences(collapsedText, `\`${t}\``);
+    return n >= 1 && n <= RARE_MAX;
+  });
+}
+
+/**
+ * Prüfung 7. `replaceOps` sind die replace-Ops EINER Zieldatei (je
+ * `{section, anchor, expected}`), `allBodies` die Bodies aller Ops des ganzen
+ * Deltas (über alle Dateien und Abschnitte), `contentAfter` die Zieldatei
+ * nach dem Anwenden des ganzen Deltas. Liefert je Treffer
+ * `{ term, kind: "begriff"|"satz", section, anchor, lines }`.
+ */
+export function findStaleWording({ replaceOps, allBodies, contentAfter }) {
+  const collapsed = collapsedWithLines(contentAfter);
+  const bodyText = collapseWs(allBodies.join("\n"));
+  const hits = [];
+  for (const op of replaceOps) {
+    const terms = backtickTerms(op.expected).filter((t) => !bodyText.includes(t));
+    for (const term of rareTerms(terms, collapsed.text)) {
+      hits.push({
+        term,
+        kind: "begriff",
+        section: op.section,
+        anchor: op.anchor,
+        lines: occurrenceLines(collapsed, `\`${term}\``),
+      });
+    }
+    for (const sentence of quotedSentences(op.expected)) {
+      if (bodyText.includes(sentence)) continue;
+      const lines = occurrenceLines(collapsed, sentence);
+      if (lines.length > 0) {
+        hits.push({ term: sentence, kind: "satz", section: op.section, anchor: op.anchor, lines });
+      }
+    }
+  }
+  return hits;
+}
+
+/** Kopf eines Eintrags unter Key commands / Key events / Ereignisse: kursiv oder in Backticks, sonst `null`. */
+export function entryHeadOf(text) {
+  const m = collapseWs(text).match(/^- (?:\*([^*]+)\*|`([^`]+)`)/);
+  if (!m) return null;
+  return (m[1] ?? m[2]).trim();
+}
+
+/**
+ * Liste "ganz nachlesen": jeder Eintrag (kursiver oder Backtick-Kopf) unter
+ * REREAD_SECTIONS, der einen seltenen Backtick-Begriff mit `expected` oder
+ * `body` eines replace teilt. Liefert `{ section, head, line, terms }`,
+ * `line` 1-basiert. Ändert den Exit-Code nicht.
+ */
+export function findRereadEntries({ replaceOps, contentAfter }) {
+  const collapsedText = collapseWs(contentAfter);
+  const terms = [];
+  for (const op of replaceOps) {
+    for (const t of [...backtickTerms(op.expected), ...backtickTerms(op.body)]) {
+      if (!terms.includes(t)) terms.push(t);
+    }
+  }
+  const rare = rareTerms(terms, collapsedText);
+  if (rare.length === 0) return [];
+  const lines = String(contentAfter).split("\n");
+  const entries = [];
+  for (const section of REREAD_SECTIONS) {
+    const range = findSectionRange(lines, section);
+    if (!range) continue;
+    for (const b of findBulletBlocks(lines, range.start, range.end)) {
+      const block = collapseWs(lines.slice(b.start, b.end).join("\n"));
+      const head = entryHeadOf(block);
+      if (!head) continue;
+      const shared = rare.filter((t) => block.includes(`\`${t}\``));
+      if (shared.length > 0) entries.push({ section, head, line: b.start + 1, terms: shared });
+    }
+  }
+  return entries;
+}
+
+/** Normalisiert ein `--keep`-Argument (Leerraum kollabiert, umschließende Backticks oder „…“ entfernt). */
+export function normalizeKeep(value) {
+  let v = collapseWs(value);
+  const bt = v.match(/^`([^`]+)`$/);
+  if (bt) v = bt[1].trim();
+  const q = v.match(/^„(.+)[“”]$/);
+  if (q) v = q[1].trim();
+  return v;
+}
+
 /** Knapper, lesbarer Diff (Präfix/Suffix-getrimmt), [human-eye] only, keine Anwend-Entscheidung. */
 export function simpleUnifiedDiff(label, beforeLines, afterLines) {
   let i = 0;
@@ -390,12 +569,13 @@ export function resolveDocumentPath(repoRoot, bc, document) {
 }
 
 function parseArgs(argv) {
-  const args = { bc: null, delta: null, help: false };
+  const args = { bc: null, delta: null, help: false, keep: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--help" || a === "-h") args.help = true;
     else if (a === "--bc") args.bc = argv[++i];
     else if (a === "--delta") args.delta = argv[++i];
+    else if (a === "--keep") args.keep.push(argv[++i]);
   }
   return args;
 }
@@ -410,7 +590,27 @@ Optionen:
   --bc <kontext>     Bounded-Context-Name (löst "README.md" auf
                       .agentheim/knowledge/contexts/<kontext>/README.md auf)
   --delta <datei|->  Pfad zur README_DELTA-JSON-Datei, oder "-" für stdin
+  --keep "<begriff>" nimmt einen Treffer aus Prüfung 7 bewusst aus (mehrfach
+                      erlaubt). Jeder genutzte --keep wird ausgegeben, ein
+                      --keep ohne Treffer ist eine ungültige Eingabe (Exit 2).
   --help             diese Hilfe
+
+Prüfungen je Op: 1 Disposition, 2 Abschnitt vorhanden, 3 Einfügepunkt bei
+append, 4 Bullet-Budget, 5 Einrückungsprofil bei replace, 6 Anker-Erreichbarkeit.
+
+Prüfung 7 (alter Wortlaut bleibt stehen), nach dem Anwenden des ganzen Deltas:
+  Für jedes replace sind Kandidaten die Begriffe in Backticks und die Sätze in
+  „…“ aus "expected", die in keinem "body" des Deltas vorkommen. Ein Treffer ist
+  ein seltener Begriff (nach dem Anwenden höchstens ${RARE_MAX}-mal in Backticks in
+  der Datei) oder ein „…“-Satz, der danach noch irgendwo in der Datei steht,
+  auch über Zeilenumbrüche hinweg. Ausgabe je Treffer: Begriff, Op (Abschnitt
+  und Anker), Zeilennummer(n). Treffer ergeben Exit 1, außer per --keep.
+
+Liste "ganz nachlesen" (ändert den Exit-Code nie):
+  Jeder Eintrag unter ## ${REREAD_SECTIONS.join(", ## ")} mit kursivem oder
+  Backtick-Kopf, der einen seltenen Backtick-Begriff mit "expected" oder "body"
+  eines replace teilt, steht mit Kopf und Zeilennummer in der Liste. Jeden
+  Eintrag ganz lesen und im OUTCOME mit "passt" oder "nachgezogen" nennen.
 
 Exit-Codes:
   0  Delta sauber, kann integriert werden
@@ -420,6 +620,15 @@ Exit-Codes:
 Schreibt nie. Lädt IMMER das echte lib/readme-delta.mjs aus dem
 Plugin-Cache (Semver-höchste Version), nie eine eigene Kopie der Grammatik.
 `;
+
+/** Textblock der Liste "ganz nachlesen" für stdout. */
+export function formatRereadList(entries) {
+  if (entries.length === 0) return "\nGanz nachlesen: keine Einträge\n";
+  const lines = entries.map(
+    (e) => `  ${e.relDoc}:${e.line} ## ${e.section}: ${e.head} (gemeinsam: ${e.terms.map((t) => `\`${t}\``).join(", ")})`
+  );
+  return `\nGanz nachlesen (je Eintrag "passt" oder "nachgezogen" ins OUTCOME):\n${lines.join("\n")}\n`;
+}
 
 function fail2(message) {
   process.stderr.write(`${message}\n`);
@@ -514,6 +723,8 @@ async function main(argv) {
 
   const repoRoot = process.cwd();
   const currentContent = new Map(); // docPath -> content
+  const replaceOpsByDoc = new Map(); // docPath -> [{section, anchor, expected, body}]
+  const allBodies = [];
   const diffBlocks = [];
 
   for (const entry of entries) {
@@ -590,11 +801,53 @@ async function main(argv) {
       }
 
       currentContent.set(docPath, after);
+      allBodies.push(op.body);
+      if (op.op === "replace") {
+        if (!replaceOpsByDoc.has(docPath)) replaceOpsByDoc.set(docPath, []);
+        replaceOpsByDoc.get(docPath).push({ section, anchor: op.anchor, expected: op.expected, body: op.body });
+      }
     }
   }
 
+  // Prüfung 7 und Liste "ganz nachlesen", über den Endzustand jeder Zieldatei.
+  const hits = [];
+  const reread = [];
+  for (const [docPath, replaceOps] of replaceOpsByDoc) {
+    const contentAfter = currentContent.get(docPath);
+    const relDoc = path.relative(repoRoot, docPath);
+    for (const h of findStaleWording({ replaceOps, allBodies, contentAfter })) hits.push({ ...h, relDoc });
+    for (const e of findRereadEntries({ replaceOps, contentAfter })) reread.push({ ...e, relDoc });
+  }
+  const keeps = args.keep.map(normalizeKeep);
+  const unusedKeeps = keeps.filter((k) => !hits.some((h) => h.term === k));
+  if (unusedKeeps.length > 0) {
+    fail2(
+      `Grund: --keep ohne Treffer in Prüfung 7: ${unusedKeeps.map((k) => `"${k}"`).join(", ")}. ` +
+        `Tote Ausnahmen werden nicht angenommen.`
+    );
+    return;
+  }
+  const remaining = hits.filter((h) => !keeps.includes(h.term));
+
   process.stdout.write(`Plugin-Version: ${resolved.version}\n\n`);
   process.stdout.write(diffBlocks.join("\n\n") + "\n");
+  for (const k of keeps) process.stdout.write(`\n--keep genutzt: "${k}"`);
+  if (keeps.length > 0) process.stdout.write("\n");
+  process.stdout.write(formatRereadList(reread));
+
+  if (remaining.length > 0) {
+    const lines = remaining.map(
+      (h) =>
+        `  ${h.kind === "satz" ? `„${h.term}“` : `\`${h.term}\``} aus replace "${h.anchor}" in "${h.section}" ` +
+        `steht noch in ${h.relDoc} Zeile ${h.lines.join(", ")}`
+    );
+    process.stderr.write(
+      `Prüfung 7 (alter Wortlaut bleibt stehen) verletzt:\n${lines.join("\n")}\n` +
+        `Jede Fundstelle nachziehen oder bewusst per --keep "<begriff>" ausnehmen (Grund ins OUTCOME).\n`
+    );
+    process.exit(1);
+    return;
+  }
   process.exit(0);
 }
 

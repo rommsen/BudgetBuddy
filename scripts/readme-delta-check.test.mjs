@@ -27,6 +27,8 @@ import {
   resolveReadmeDeltaModule,
   findSectionRange,
   evaluateOp,
+  collapsedWithLines,
+  occurrenceLines,
 } from "./readme-delta-check.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -61,12 +63,12 @@ function makeFixtureRepo(bc = "demo", readmeContent = DEMO_README) {
   return dir;
 }
 
-function runGate({ cwd, bc = "demo", delta, homedir }) {
+function runGate({ cwd, bc = "demo", delta, homedir, extraArgs = [] }) {
   const deltaPath = path.join(cwd, "delta.json");
   writeFileSync(deltaPath, JSON.stringify(delta), "utf8");
   const env = { ...process.env };
   if (homedir) env.HOME = homedir;
-  const result = spawnSync(process.execPath, [SCRIPT, "--bc", bc, "--delta", deltaPath], {
+  const result = spawnSync(process.execPath, [SCRIPT, "--bc", bc, "--delta", deltaPath, ...extraArgs], {
     cwd,
     env,
     encoding: "utf8",
@@ -511,3 +513,255 @@ if (existsSync(REPO_ROOT)) {
     assert.ok(existsSync(SCRIPT));
   });
 }
+
+// ---------------------------------------------------------------------------
+// Prüfung 7 (alter Wortlaut bleibt stehen) und Liste "ganz nachlesen"
+// (infrastructure-ewasy). Erfundene README, angelehnt an ledger-ay81j.
+// ---------------------------------------------------------------------------
+const STALE_README = `# demo
+
+## Ubiquitous language
+- **Sendefehler**: der offene Fehlschlag beim Senden, mit dem \`fester_schluessel\`
+  der Notiz und dem Hinweis „geht beim nächsten Lauf mit“.
+- **Sperre**: hält Schreiber auseinander, nutzt den \`fester_schluessel\` als Marke.
+- **Häufig:** nennt \`oft_term\`, \`oft_term\` und \`oft_term\`.
+- **Ruhig:** sagt, die Notiz geht beim nächsten
+  Lauf mit, ohne Hast.
+
+## Key commands
+- *NotizErneutSenden*: ruft \`resendNote\` auf, trägt die Notiz einen Schlüssel, geht er mit.
+- *NotizLesen*: liest eine Notiz.
+- \`archiveNote\`: legt die Notiz ab.
+
+## Ereignisse
+- \`NoteSendFailed\`: Senden gescheitert, Grund in \`reason_text\`.
+`;
+
+const SENDEFEHLER_EXPECTED =
+  "- **Sendefehler**: der offene Fehlschlag beim Senden, mit dem `fester_schluessel`\n  der Notiz und dem Hinweis „geht beim nächsten Lauf mit“.";
+
+function sendefehlerDelta(body, extraOps = []) {
+  return [
+    {
+      document: "README.md",
+      section: "Ubiquitous language",
+      ops: [{ op: "replace", anchor: "Sendefehler", expected: SENDEFEHLER_EXPECTED, body }, ...extraOps],
+    },
+  ];
+}
+
+function withStaleRepo(fn, readme = STALE_README) {
+  const dir = makeFixtureRepo("demo", readme);
+  try {
+    return fn(dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test("P7a: seltener Backtick-Begriff bleibt in anderem Bullet stehen, Exit 1 mit Begriff und Zeile (ledger-ay81j Iteration 1)", () =>
+  withStaleRepo((dir) => {
+    const res = runGate({
+      cwd: dir,
+      delta: sendefehlerDelta("- **Sendefehler**: der offene Fehlschlag beim Senden, ohne Schlüssel, „geht beim nächsten Lauf mit“."),
+    });
+    assert.equal(res.status, 1, res.stderr);
+    assert.match(res.stderr, /alter Wortlaut bleibt stehen/);
+    assert.match(res.stderr, /`fester_schluessel` aus replace "Sendefehler" in "Ubiquitous language"/);
+    // Bullet **Sperre** liegt nach dem Anwenden in Zeile 5.
+    assert.match(res.stderr, /Zeile 5\b/);
+  }));
+
+test("P7a Gegenfall: derselbe Begriff steht im body eines Ops, Exit 0", () =>
+  withStaleRepo((dir) => {
+    const res = runGate({
+      cwd: dir,
+      delta: sendefehlerDelta(
+        "- **Sendefehler**: der offene Fehlschlag beim Senden, mit neuem Schlüssel statt `fester_schluessel`, „geht beim nächsten Lauf mit“."
+      ),
+    });
+    assert.equal(res.status, 0, res.stderr);
+    assert.doesNotMatch(res.stderr, /alter Wortlaut/);
+  }));
+
+test("P7b: „…“-Satz aus expected bleibt über einen Zeilenumbruch hinweg stehen, Exit 1", () =>
+  withStaleRepo((dir) => {
+    const res = runGate({
+      cwd: dir,
+      delta: sendefehlerDelta("- **Sendefehler**: der offene Fehlschlag beim Senden, mit dem `fester_schluessel`, wartet auf Roman."),
+    });
+    assert.equal(res.status, 1, res.stderr);
+    assert.match(res.stderr, /„geht beim nächsten Lauf mit“ aus replace "Sendefehler"/);
+    // **Ruhig:** beginnt nach dem Anwenden in Zeile 7, der Satz läuft in Zeile 8 weiter.
+    assert.match(res.stderr, /„geht beim nächsten Lauf mit“[^\n]*Zeile 7\b/);
+  }));
+
+test("P7b Gegenfall: der Satz steht nirgends mehr, Exit 0", () =>
+  withStaleRepo(
+    (dir) => {
+      const res = runGate({
+        cwd: dir,
+        delta: sendefehlerDelta("- **Sendefehler**: der offene Fehlschlag beim Senden, mit dem `fester_schluessel`, wartet auf Roman."),
+      });
+      assert.equal(res.status, 0, res.stderr);
+    },
+    STALE_README.replace("sagt, die Notiz geht beim nächsten\n  Lauf mit, ohne Hast.", "sagt nichts.")
+  ));
+
+// Häufiger Begriff, in KEINEM body: nur die Seltenheitsschwelle (RARE_MAX) hält
+// ihn aus Prüfung 7 und aus der Liste "ganz nachlesen" heraus.
+const FREQUENT_README = STALE_README.replace("Lauf mit, ohne Hast.", "Lauf mit, ohne Hast.\n  `oft_term` bleibt.").replace(
+  "- *NotizLesen*: liest eine Notiz.",
+  "- *NotizLesen*: liest eine Notiz über `oft_term`."
+);
+const RUHIG_REPLACE = {
+  document: "README.md",
+  section: "Ubiquitous language",
+  ops: [
+    {
+      op: "replace",
+      anchor: "Ruhig:",
+      expected: "- **Ruhig:** sagt, die Notiz geht beim nächsten\n  Lauf mit, ohne Hast.\n  `oft_term` bleibt.",
+      body: "- **Ruhig:** sagt nichts.",
+    },
+  ],
+};
+
+test("P7c: häufiger Begriff (mehr als dreimal nach dem Anwenden, in keinem body) ergibt keinen Treffer", () =>
+  withStaleRepo((dir) => {
+    // Nach dem Anwenden: dreimal in **Häufig:**, einmal in *NotizLesen*, also viermal.
+    const res = runGate({ cwd: dir, delta: [RUHIG_REPLACE] });
+    assert.equal(res.status, 0, res.stderr);
+    assert.doesNotMatch(res.stderr, /oft_term/);
+  }, FREQUENT_README));
+
+test("P8c: häufiger gemeinsamer Begriff setzt keinen Eintrag in die Liste „ganz nachlesen“", () =>
+  withStaleRepo((dir) => {
+    const res = runGate({ cwd: dir, delta: [RUHIG_REPLACE] });
+    assert.equal(res.status, 0, res.stderr);
+    assert.match(res.stdout, /Ganz nachlesen: keine Einträge/);
+    assert.doesNotMatch(res.stdout, /NotizLesen/);
+  }, FREQUENT_README));
+
+test("P7c Gegenfall: derselbe Begriff ist bei höchstens drei Vorkommen selten und ergibt einen Treffer", () =>
+  withStaleRepo((dir) => {
+    const res = runGate({
+      cwd: dir,
+      delta: [
+        {
+          document: "README.md",
+          section: "Ubiquitous language",
+          ops: [
+            {
+              op: "replace",
+              anchor: "Ruhig:",
+              expected: "- **Ruhig:** sagt, die Notiz geht beim nächsten\n  Lauf mit, ohne Hast.\n  `oft_term` bleibt.",
+              body: "- **Ruhig:** sagt nichts.",
+            },
+          ],
+        },
+      ],
+    });
+    // **Häufig:** steht nach dem Anwenden in Zeile 7, dort nur noch drei `oft_term`.
+    assert.equal(res.status, 1, res.stderr);
+    assert.match(res.stderr, /`oft_term` aus replace "Ruhig:"[^\n]*Zeile 7\b/);
+  }, STALE_README.replace("Lauf mit, ohne Hast.", "Lauf mit, ohne Hast.\n  `oft_term` bleibt.")));
+
+test("P7d: --keep nimmt genau den Treffer aus und wird ausgegeben", () =>
+  withStaleRepo((dir) => {
+    const res = runGate({
+      cwd: dir,
+      delta: sendefehlerDelta("- **Sendefehler**: der offene Fehlschlag beim Senden, ohne Schlüssel."),
+      extraArgs: ["--keep", "fester_schluessel"],
+    });
+    // Der Satz bleibt Treffer, nur der Begriff ist ausgenommen.
+    assert.equal(res.status, 1, res.stderr);
+    assert.doesNotMatch(res.stderr, /fester_schluessel/);
+    assert.match(res.stderr, /„geht beim nächsten Lauf mit“/);
+    assert.match(res.stdout, /--keep genutzt: "fester_schluessel"/);
+
+    const both = runGate({
+      cwd: dir,
+      delta: sendefehlerDelta("- **Sendefehler**: der offene Fehlschlag beim Senden, ohne Schlüssel."),
+      extraArgs: ["--keep", "`fester_schluessel`", "--keep", "„geht beim nächsten Lauf mit“"],
+    });
+    assert.equal(both.status, 0, both.stderr);
+    assert.match(both.stdout, /--keep genutzt: "geht beim nächsten Lauf mit"/);
+  }));
+
+test("P7d Gegenfall: --keep ohne Treffer ergibt Exit 2", () =>
+  withStaleRepo((dir) => {
+    const res = runGate({
+      cwd: dir,
+      delta: sendefehlerDelta(
+        "- **Sendefehler**: der offene Fehlschlag beim Senden, mit dem `fester_schluessel`, „geht beim nächsten Lauf mit“."
+      ),
+      extraArgs: ["--keep", "gibt_es_nicht"],
+    });
+    assert.equal(res.status, 2);
+    assert.match(res.stderr, /--keep ohne Treffer[^\n]*gibt_es_nicht/);
+  }));
+
+test("P8: Key command mit gemeinsamem seltenen Befehl landet in der Liste, Exit-Code unverändert (ledger-ay81j Iteration 2)", () =>
+  withStaleRepo((dir) => {
+    const res = runGate({
+      cwd: dir,
+      delta: sendefehlerDelta(
+        "- **Sendefehler**: der offene Fehlschlag beim Senden, mit dem `fester_schluessel`, „geht beim nächsten Lauf mit“.\n  Erneut senden über `resendNote`; Grund steht in `reason_text`."
+      ),
+    });
+    assert.equal(res.status, 0, res.stderr);
+    assert.match(res.stdout, /Ganz nachlesen/);
+    // Nach dem Anwenden (ein Zeile mehr im Sendefehler-Bullet): Key command in Zeile 12, Ereignis in Zeile 17.
+    assert.match(res.stdout, /README\.md:12 ## Key commands: NotizErneutSenden \(gemeinsam: `resendNote`\)/);
+    assert.match(res.stdout, /README\.md:17 ## Ereignisse: NoteSendFailed \(gemeinsam: `reason_text`\)/);
+    assert.doesNotMatch(res.stdout, /NotizLesen|archiveNote/);
+  }));
+
+test("P8 Gegenfall: ohne gemeinsamen seltenen Begriff bleibt die Liste leer", () =>
+  withStaleRepo((dir) => {
+    const res = runGate({
+      cwd: dir,
+      delta: sendefehlerDelta(
+        "- **Sendefehler**: der offene Fehlschlag beim Senden, mit dem `fester_schluessel`, „geht beim nächsten Lauf mit“."
+      ),
+    });
+    assert.equal(res.status, 0, res.stderr);
+    assert.match(res.stdout, /Ganz nachlesen: keine Einträge/);
+    assert.doesNotMatch(res.stdout, /NotizErneutSenden/);
+  }));
+
+test("P9: echte ledger-README mit leerem Delta ergibt Exit 0 ohne Einträge in der Liste", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "readme-delta-check-empty-"));
+  try {
+    const deltaPath = path.join(dir, "delta.json");
+    writeFileSync(deltaPath, "[]", "utf8");
+    const res = spawnSync(process.execPath, [SCRIPT, "--bc", "ledger", "--delta", deltaPath], {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+    });
+    assert.equal(res.status, 0, res.stderr);
+    assert.match(res.stdout, /Ganz nachlesen: keine Einträge/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("collapsedWithLines führt einen Treffer über einen Zeilenumbruch auf seine Startzeile zurück", () => {
+  const c = collapsedWithLines("eins\nzwei drei\n  vier fünf\n");
+  assert.equal(c.text, "eins zwei drei vier fünf");
+  assert.deepEqual(occurrenceLines(c, "drei vier"), [2]);
+  assert.deepEqual(occurrenceLines(c, "fünf"), [3]);
+});
+
+test("P10: Hilfetext und CLAUDE.md beschreiben Prüfung 7, --keep und die Liste „ganz nachlesen“", () => {
+  const help = spawnSync(process.execPath, [SCRIPT, "--help"], { encoding: "utf8" });
+  assert.equal(help.status, 0);
+  const claudeMd = readFileSync(path.join(REPO_ROOT, "CLAUDE.md"), "utf8");
+  for (const [label, text] of [["Hilfetext", help.stdout], ["CLAUDE.md", claudeMd]]) {
+    assert.ok(text.includes("Prüfung 7"), `${label} nennt Prüfung 7`);
+    assert.ok(text.includes("alter Wortlaut bleibt stehen"), `${label} nennt den Grund`);
+    assert.ok(text.includes("--keep"), `${label} nennt --keep`);
+    assert.ok(/ganz nachlesen/i.test(text), `${label} nennt die Liste`);
+  }
+});
