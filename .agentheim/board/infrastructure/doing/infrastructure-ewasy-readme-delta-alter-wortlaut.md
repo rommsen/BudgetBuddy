@@ -1,7 +1,7 @@
 ---
 id: infrastructure-ewasy
 title: README-Delta-Gate meldet alten Wortlaut, der nach einem replace anderswo in der README stehen bleibt
-status: todo
+status: doing
 type: chore
 context: infrastructure
 created: 2026-11-08

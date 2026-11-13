@@ -11,18 +11,18 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 2
-- **Todo:** 1
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 1
 - **Done:** 8
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **categorization-n3sxw** — "Regeln ins Kassenbuch: Regeln als Tab neben den Buchungen statt eigener Seite" (feature) — `todo/categorization-n3sxw-regeln-ins-kassenbuch.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **categorization-n3sxw** — "Regeln ins Kassenbuch: Regeln als Tab neben den Buchungen statt eigener Seite" (feature) — `doing/categorization-n3sxw-regeln-ins-kassenbuch.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

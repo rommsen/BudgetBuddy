@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-13 20:17 -- Batch started: [infrastructure-ewasy, categorization-n3sxw]
+
+**Type:** Work / Batch start
+**Tasks:** infrastructure-ewasy - README-Delta-Gate meldet alten Wortlaut, der nach einem replace anderswo in der README stehen bleibt, categorization-n3sxw - "Regeln ins Kassenbuch: Regeln als Tab neben den Buchungen statt eigener Seite"
+**Parallel:** yes (2 workers)
+
+---
+
 ## 2026-11-13 20:03 -- Modeling / Promoted: categorization-n3sxw - "Regeln ins Kassenbuch: Regeln als Tab neben den Buchungen statt eigener Seite"
 
 **Type:** Modeling / Promote
