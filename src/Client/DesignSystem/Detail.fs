@@ -444,6 +444,44 @@ let fieldActionButton
         prop.text label
     ]
 
+/// Ein Angebot unter einer Feldzeile, nach einer Änderung (ledger-hg5m5, „Regel für „Rewe“ anlegen?“): die Frage
+/// gedämpft, rechts ein kleiner Zweitknopf, der das Angebot annimmt, und ein ×, das es ausblendet. Steht in Panel
+/// und Sheet gleich. `dismissLabel` benennt das ×, nicht „Schließen“: das Sheet hat schon einen Knopf so.
+let offerRow
+    (testId: string)
+    (text: string)
+    (acceptLabel: string)
+    (onAccept: unit -> unit)
+    (dismissLabel: string)
+    (onDismiss: unit -> unit)
+    : ReactElement =
+    Html.div [
+        prop.custom ("data-testid", testId)
+        prop.className $"flex items-center gap-2 px-4 py-2 border-b {Borders.subtle}"
+        prop.children [
+            Html.p [
+                prop.className $"min-w-0 flex-1 {FontSizes.sm} {Colors.textSecondary}"
+                prop.text text
+            ]
+            Button.view {
+                Button.defaultProps with
+                    Text = acceptLabel
+                    Variant = Button.Secondary
+                    Size = Button.Small
+                    OnClick = onAccept
+            }
+            Button.view {
+                Button.defaultProps with
+                    Icon = Some (Icons.x Icons.SM Icons.Default)
+                    Variant = Button.Ghost
+                    Size = Button.Small
+                    AriaLabel = Some dismissLabel
+                    Title = Some dismissLabel
+                    OnClick = onDismiss
+            }
+        ]
+    ]
+
 /// Der Grund, aus dem der Knopf einer Feldzeile gesperrt ist, als gedämpfter Text unter dem Wert.
 let fieldLockHint (testId: string) (text: string) : ReactElement =
     Html.p [

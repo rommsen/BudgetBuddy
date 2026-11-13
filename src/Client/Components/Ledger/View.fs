@@ -1937,33 +1937,13 @@ let private ruleFromEntryRow (dispatch: Msg -> unit) (entry: LedgerEntryView) : 
 
 /// Das Angebot unter der Kategorie nach einer Änderung: „Regel für „<Payee>“ anlegen?“ mit „Anlegen“ und ×.
 let private ruleOfferRow (dispatch: Msg -> unit) (entry: LedgerEntryView) (payee: string) : ReactElement =
-    Html.div [
-        prop.custom ("data-testid", "rule-offer")
-        prop.className $"flex items-center gap-2 px-4 py-2 border-b {Tokens.Borders.subtle}"
-        prop.children [
-            Html.p [
-                prop.className $"min-w-0 flex-1 {Tokens.FontSizes.sm} {Tokens.Colors.textSecondary}"
-                prop.text (ruleOfferText payee)
-            ]
-            Button.view {
-                Button.defaultProps with
-                    Text = "Anlegen"
-                    Variant = Button.Secondary
-                    Size = Button.Small
-                    OnClick = fun () -> dispatch (RuleFromEntryRequested entry.Id)
-            }
-            Button.view {
-                Button.defaultProps with
-                    Icon = Some (Icons.x Icons.SM Icons.Default)
-                    Variant = Button.Ghost
-                    Size = Button.Small
-                    // Nicht „schließen“: das Sheet hat schon einen Knopf „Schließen“.
-                    AriaLabel = Some "Angebot ausblenden"
-                    Title = Some "Angebot ausblenden"
-                    OnClick = fun () -> dispatch RuleOfferDismissed
-            }
-        ]
-    ]
+    Detail.offerRow
+        "rule-offer"
+        (ruleOfferText payee)
+        "Anlegen"
+        (fun () -> dispatch (RuleFromEntryRequested entry.Id))
+        "Angebot ausblenden"
+        (fun () -> dispatch RuleOfferDismissed)
 
 /// Der Kopf des Formulars im Panel: „Zurück“ zur Buchung und der Titel (§7.15).
 let private ruleFormHead (form: EntryRuleForm) : ReactElement =
@@ -2450,11 +2430,15 @@ let private detailSheetView (dispatch: Msg -> unit) (model: Model) (open': bool)
               yield! detailContent dispatch model entry
           | _ -> () ]
 
-/// Die Hülle des Regel-Formulars am Handy: ein Sheet, Schließen führt zur Buchung zurück (§7.15).
-let private ruleFormSheet (form: EntryRuleForm) : ReactElement =
-    BottomSheet.view
-        { IsOpen = true; OnClose = form.OnBack; Title = form.Title; Subtitle = None; Footer = form.Footer }
-        form.Body
+/// Die Hülle des Regel-Formulars am Handy: ein Sheet, Schließen führt zur Buchung zurück (§7.15). Immer gerendert
+/// (`viewHeld`): mit `None` fährt es aus und hält dabei Titel, Inhalt und Fuß (§6, §7.10).
+let private ruleFormSheet (form: EntryRuleForm option) : ReactElement =
+    match form with
+    | Some f ->
+        BottomSheet.viewHeld
+            { IsOpen = true; OnClose = f.OnBack; Title = f.Title; Subtitle = None; Footer = f.Footer }
+            f.Body
+    | None -> BottomSheet.viewHeld { IsOpen = false; OnClose = ignore; Title = ""; Subtitle = None; Footer = None } []
 
 /// Die Hülle des Regel-Formulars am PC über einer Seite ohne Liste (Durchgehen, §7.6): ein Dialog.
 let private ruleFormDialog (form: EntryRuleForm) : ReactElement =
@@ -2473,7 +2457,7 @@ let private detailPanelOrRuleForm (dispatch: Msg -> unit) (model: Model) (ruleFo
 /// (ledger-hg5m5).
 let private detailSheetOrRuleForm (dispatch: Msg -> unit) (model: Model) (ruleForm: EntryRuleFormSlot) (open': bool) : ReactElement =
     match ruleForm true with
-    | Some form when open' && (detailEntryOf model).IsSome -> ruleFormSheet form
+    | Some form when open' && (detailEntryOf model).IsSome -> ruleFormSheet (Some form)
     | _ -> detailSheetView dispatch model open'
 
 // ============================================
@@ -5229,12 +5213,16 @@ let ReviewPage (model: Model) (dispatch: Msg -> unit) (onBack: unit -> unit) (ru
             match card with
             | Some entry when review.DetailShown ->
                 if desk then detailPanelOrRuleForm dispatch model ruleForm entry else detailSheetOrRuleForm dispatch model ruleForm true
-            | Some _ ->
+            | Some _ when desk ->
                 match openRuleForm with
-                | Some f when desk -> ruleFormDialog f
-                | Some f -> ruleFormSheet f
+                | Some f -> ruleFormDialog f
                 | None -> Html.none
             | _ -> Html.none
+        // Am Handy steht das Regel-Sheet über der Karte immer im DOM und fährt über `IsOpen` ein und aus; mit offenem
+        // Detail ersetzt das Formular dessen Inhalt (`detailSheetOrRuleForm`).
+        let ruleSheetOverCard =
+            if desk then Html.none
+            else ruleFormSheet (if card.IsSome && not review.DetailShown then openRuleForm else None)
         Html.div [
             prop.custom ("data-testid", "review-page")
             prop.className ("relative flex min-h-full flex-col" + (if desk && review.DetailShown then " pr-[420px]" else ""))
@@ -5247,6 +5235,7 @@ let ReviewPage (model: Model) (dispatch: Msg -> unit) (onBack: unit -> unit) (ru
                 if desk && card.IsSome then
                     Html.div [ prop.className "mx-auto mt-4 w-full max-w-[620px]"; prop.children [ ReviewCard.keyBar reviewKeys ] ]
                 detail
+                ruleSheetOverCard
                 // Über dem Regel-Formular gelten die Tasten des Durchgehens nicht, Esc führt zur Karte zurück (`reviewKeyRoute`).
                 ReviewKeyboard model dispatch openRuleForm
             ]

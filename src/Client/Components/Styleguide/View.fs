@@ -2310,6 +2310,8 @@ let private DetailDemo () =
                 "Kategorie"
                 (Detail.valueText Tokens.Colors.textMuted "Keine Kategorie")
                 (Some (Detail.pickerArrow "Kategorie ändern" false (Some "In YNAB gelöscht, die Kategorie lässt sich nicht ändern") ignore))
+            // Angebot unter der Kategorie nach einer Änderung (ledger-hg5m5): annehmen oder ausblenden.
+            Detail.offerRow "styleguide-detail-offer" "Regel für „REWE Mitte“ anlegen?" "Anlegen" ignore "Angebot ausblenden" ignore
             Detail.fieldRow
                 "styleguide-detail-split"
                 "Split"

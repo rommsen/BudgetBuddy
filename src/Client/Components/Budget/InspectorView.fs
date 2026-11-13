@@ -417,13 +417,14 @@ let inspectorSheet (pin: InspectorPin option) (model: Model) (shown: BudgetGroup
     match sheetCategory model, model.TabMoney with
     // Die Gegenseite beim Verschieben: die Auswahl ersetzt den Inhalt des Sheets (§7.15, ledger-ea70s), Wahl oder
     // Schließen führen zurück. Betrag und Modus stehen im Modell und bleiben.
-    | Some (_, month, _), Some tab when model.Tab = MoneyTab && tab.Transfer.PickerOpen ->
+    | Some (_, month, (category, _)), Some tab when model.Tab = MoneyTab && tab.Transfer.PickerOpen ->
         let picker = counterpartPickerProps model month tab dispatch
         BottomSheet.inspector
             { IsOpen = true
               OnClose = picker.OnClose
               Title = CategoryPicker.sheetTitle []
-              Subtitle = None
+              // Wie an den anderen Stellen nennt die Unterzeile, wofür gewählt wird: die Kategorie im Monat.
+              Subtitle = Some $"{category.Name} · {monthLabel month.Month}"
               Footer = None }
             []
             []
