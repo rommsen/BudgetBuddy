@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-13 22:54 -- Modeling / Promoted: ledger-ea70s - "Ein Erfassen: Quick Add hört auf, ein eigener Ort zu sein; „+ Buchung“ in Kassenbuch und Übersicht mit kluger Vorbelegung"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-13 22:54 -- Modeling / Refined: ledger-ea70s - Ein Erfassen
 
 **Type:** Modeling / Refine
