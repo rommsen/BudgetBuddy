@@ -444,6 +444,32 @@ let testRuleTests =
     ]
 
 [<Tests>]
+let ruleCategoryForEndpointTests =
+    testSequenced <| testList "Endpoint ruleCategoryFor" [
+        // ledger-hg5m5: der Endpoint liest die gespeicherten Regeln und gibt Payee und Memo in
+        // dieser Reihenfolge an `RulesEngine.ruleCategoryFor` weiter. Gespeichert wird über die
+        // Persistenz: `rulesApi.createRule` fragt YNAB nach dem Kategorienamen.
+        testCase "eine gespeicherte Regel auf den Payee gibt ihre Kategorie" <| fun () ->
+            Persistence.initializeDatabase ()
+            let highest =
+                Persistence.Rules.getAllRules () |> run
+                |> List.fold (fun top rule -> max top rule.Priority) 0
+            let marker = $"hg5m5-{Guid.NewGuid():N}"
+            let target = YnabCategoryId (Guid.NewGuid())
+            insert
+                { savedRule (uniquePrefix ()) (highest + 1) None with
+                    Pattern = marker
+                    TargetField = Payee
+                    CategoryId = target }
+            |> ignore
+
+            Expect.equal
+                (Server.Api.rulesApi.ruleCategoryFor ($"Kiosk {marker}", "") |> run)
+                (Some target)
+                "Kategorie der gespeicherten Regel"
+    ]
+
+[<Tests>]
 let errorMessageTests =
     testList "Meldungen zu RulesError" [
         let id = Guid("11111111-2222-3333-4444-555555555555")

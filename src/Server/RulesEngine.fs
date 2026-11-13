@@ -209,7 +209,8 @@ let classify
 
 /// Die Kategorie, die die Regeln einer Buchung mit diesem Payee und Memo geben würden: wie beim Import die erste
 /// passende aktive Regel (`classify`). Ohne Payee, ohne Treffer oder bei einer ungültigen Regel keine. Das Urteil
-/// „passt schon“ für das Regel-Angebot nach einer Kategorie-Änderung (ledger-hg5m5). Rein.
+/// „passt schon“ für das Regel-Angebot nach einer Kategorie-Änderung (ledger-hg5m5). Memo `null` (über Remoting
+/// möglich) gilt als leer, sonst würfe `Regex.IsMatch` bei einer Regel auf das Memo. Rein.
 let ruleCategoryFor (rules: Rule list) (payee: string) (memo: string) : YnabCategoryId option =
     if String.IsNullOrWhiteSpace payee then
         None
@@ -222,7 +223,7 @@ let ruleCategoryFor (rules: Rule list) (payee: string) (memo: string) : YnabCate
                 BookingDate = DateTime.MinValue
                 Amount = { Amount = 0m; Currency = "EUR" }
                 Payee = Some payee
-                Memo = memo
+                Memo = Option.ofObj memo |> Option.defaultValue ""
                 Reference = ""
                 RawData = ""
             }

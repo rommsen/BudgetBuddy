@@ -668,4 +668,12 @@ let ruleCategoryForTests =
         testCase "ohne Payee kein Urteil" <| fun () ->
             let rules = [ createRule (Guid.NewGuid()) "Alles" ".*" PatternType.Regex Combined lebensmittel 1 true ]
             Expect.equal (ruleCategoryFor rules "  " "Miete") None "leerer Payee"
+
+        // Bug: Memo `null` (Remoting-Aufruf ohne Memo) ließ eine Memo-Regel mit
+        // `ArgumentNullException` aus `Regex.IsMatch` werfen, statt keinen Treffer zu melden.
+        testCase "Memo null mit einer Regel auf das Memo wirft nicht, die passende Payee-Regel gewinnt" <| fun () ->
+            let rules =
+                [ createRule (Guid.NewGuid()) "Miete" "miete" Contains Memo lebensmittel 1 true
+                  createRule (Guid.NewGuid()) "Vermieter" "vermieter" Contains Payee drogerie 2 true ]
+            Expect.equal (ruleCategoryFor rules "Vermieter" null) (Some (YnabCategoryId drogerie)) "Memo null wie leer"
     ]
